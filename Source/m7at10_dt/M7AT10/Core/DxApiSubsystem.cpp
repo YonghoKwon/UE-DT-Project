@@ -3,6 +3,7 @@
 
 #include "DxApiSubsystem.h"
 
+#include "DxDataSubsystem.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 
@@ -103,7 +104,17 @@ void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpR
 		{
 			UE_LOG(LogTemp, Log, TEXT("Response [%d]: %s"), ResponseCode, *Content);
 			bIsOk = true;
-			// 필요한 경우 여기서 DxDataSubsystem 큐에 저장 로직 수행
+
+			// DxDataSubsystem에 데이터 저장
+			UGameInstance* GameInstance = GetGameInstance();
+			if (GameInstance)
+			{
+				UDxDataSubsystem* DataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
+				if (DataSubsystem)
+				{
+					DataSubsystem->EnqueueApiData(Content);
+				}
+			}
 		}
 		else
 		{

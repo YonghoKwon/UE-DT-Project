@@ -22,11 +22,20 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	virtual bool IsTickable() const override { return !IsTemplate(); }
+
+	UFUNCTION()
+	void EnqueueApiData(const FString& DataFromApi);
+	UFUNCTION()
+	void EnqueueWebSocketData(const FString& Data);
 private:
+	void ProcessApiQueue();
+	void ProcessWebSocketQueue();
 protected:
 
 	// Variable
 public:
 private:
+	TQueue<FString> ApiDataQueue;
+	TQueue<FString> WebSocketDataQueue;
 protected:
 };

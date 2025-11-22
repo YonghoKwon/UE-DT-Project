@@ -3,6 +3,7 @@
 
 #include "DxWebSocketSubsystem.h"
 
+#include "DxDataSubsystem.h"
 #include "IStompClient.h"
 #include "StompModule.h"
 #include "m7at10_dt/M7AT10/WebSocket/WebSocketMessage.h"
@@ -77,6 +78,17 @@ void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("Received Message Body: %s"), *BodyString);
+
+	// DxDataSubsystem에 데이터 저장
+	UGameInstance* GameInstance = GetGameInstance();
+	if (GameInstance && !BodyString.IsEmpty())
+	{
+		UDxDataSubsystem* DataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
+		if (DataSubsystem)
+		{
+			DataSubsystem->EnqueueWebSocketData(BodyString);
+		}
+	}
 }
 
 FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOMPSubscriptionEvnet& EventCallback,
