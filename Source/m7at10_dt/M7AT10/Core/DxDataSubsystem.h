@@ -14,7 +14,7 @@ class M7AT10_DT_API UDxDataSubsystem : public UGameInstanceSubsystem, public FTi
 {
 	GENERATED_BODY()
 
-	// Method
+	// Function
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;

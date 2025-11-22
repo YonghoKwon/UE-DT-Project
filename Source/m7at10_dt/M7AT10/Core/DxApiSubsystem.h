@@ -14,7 +14,7 @@ class M7AT10_DT_API UDxApiSubsystem : public UGameInstanceSubsystem, public FTic
 {
 	GENERATED_BODY()
 
-	// Method
+	// Function
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;

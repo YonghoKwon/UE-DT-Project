@@ -16,7 +16,7 @@ class M7AT10_DT_API ADxGameMode : public AGameModeBase
 
 	ADxGameMode();
 
-	// Method
+	// Function
 public:
 private:
 protected:
