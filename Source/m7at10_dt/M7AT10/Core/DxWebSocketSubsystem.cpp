@@ -20,10 +20,18 @@ void UDxWebSocketSubsystem::Deinitialize()
 	Super::Deinitialize();
 
 	this->DisconnectStompClient(LoginInfo);
+	StompClient.Reset();
 }
 
 void UDxWebSocketSubsystem::ConnectWebSocket()
 {
+	// 이미 연결된 클라이언트가 있다면 정리
+	if (StompClient.IsValid())
+	{
+		DisconnectStompClient(LoginInfo);
+		StompClient.Reset();
+	}
+
 	IModuleInterface* StompInterface = FModuleManager::Get().LoadModule("Stomp");
 	if (StompInterface)
 	{
@@ -63,19 +71,8 @@ void UDxWebSocketSubsystem::DisconnectStompClient(const TMap<FName, FString>& He
 
 void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
 {
-	FStompBuffer Body = Message->GetRawBody();
-
-	// Body Log (임시)
-	FString BodyString;
-	if (Body.Num() > 0)
-	{
-		// 마지막에 0(Null)을 추가한 임시 버퍼 생성
-		TArray<uint8> TempBody = Body;
-		TempBody.Add(0);
-
-		// UTF8_TO_TCHAR 매크로 사용 (이제 Null이 보장되므로 안전)
-		BodyString = UTF8_TO_TCHAR(reinterpret_cast<const char*>(TempBody.GetData()));
-	}
+	// FStompBuffer Body = Message->GetRawBody();
+	const FString BodyString = Message->GetBodyAsString();
 
 	UE_LOG(LogTemp, Log, TEXT("Received Message Body: %s"), *BodyString);
 
@@ -91,16 +88,26 @@ void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
 	}
 }
 
-FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOMPSubscriptionEvnet& EventCallback,
+FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOMPSubscriptionEvent& EventCallback,
 	const FSTOMPRequestCompleted& CompletionCallback)
 {
+	// 1. Weak Pointer 생성 (this가 파괴되었는지 체크하기 위함)
+	TWeakObjectPtr<UDxWebSocketSubsystem> WeakThis(this);
+
 	return StompClient->Subscribe(Destination,
-		FStompSubscriptionEvent::CreateLambda([this, EventCallback](const IStompMessage& Message)->void
+		FStompSubscriptionEvent::CreateLambda([WeakThis, EventCallback](const IStompMessage& Message)->void
 		{
-			UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(this);
-			Msg->MyMessage = &Message;
+			// 2. Weak Pointer가 유효한지 확인 (게임이 종료되었거나 서브시스템이 죽었으면 실행 X)
+			UDxWebSocketSubsystem* StrongThis = WeakThis.Get();
+			if (!StrongThis)
+			{
+				return;
+			}
+
+			// 3. StrongThis를 사용하여 안전하게 객체 생성
+			UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(StrongThis);
+			Msg->InitializeFromStompMessage(Message);
 			EventCallback.ExecuteIfBound(Msg);
-			Msg->ConditionalBeginDestroy();
 		}),
 		FStompRequestCompleted::CreateLambda([CompletionCallback](bool bSuccess, const FString& Error)->void
 		{

@@ -19,20 +19,6 @@ void UDxApiSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-// void UDxApiSubsystem::OnResponseReceived(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
-// {
-// 	if (Response)
-// 	{
-// 		const FString Result = *Response->GetContentAsString();
-// 		UE_LOG(LogTemp, Log, TEXT("Response: %s"), *Result);
-// 		// DxDataSubsystem의 큐에 저장
-// 	}
-// 	else
-// 	{
-// 		UE_LOG(LogTemp, Error, TEXT("Response Error"));
-// 	}
-// }
-
 void UDxApiSubsystem::DxHttpCall(const FString& FullUrl, const FString& Verb, const FString& ContentString, const TMap<FString, FString>& Headers, FDxApiCallback Callback)
 {
 	if (!HttpModule) return;
@@ -126,7 +112,6 @@ void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpR
 		UE_LOG(LogTemp, Error, TEXT("Connection Failed or No Response"));
 	}
 
-	// 요청한 곳으로 결과 전달
 	Callback.ExecuteIfBound(bIsOk, ResponseCode, Content);
 }
 

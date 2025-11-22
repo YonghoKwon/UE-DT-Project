@@ -11,40 +11,65 @@ UWebSocketMessage::~UWebSocketMessage()
 
 const TMap<FName, FString>& UWebSocketMessage::GetHeader() const
 {
-	return MyMessage->GetHeader();
+	return Headers;
 }
 
 FString UWebSocketMessage::GetBodyAsString() const
 {
-	return MyMessage->GetBodyAsString();
+	return BodyString;
 }
 
 const TArray<uint8> UWebSocketMessage::GetRawBody() const
 {
-	return TArray<uint8>(MyMessage->GetRawBody(), MyMessage->GetRawBodyLength());
+	return RawBody;
 }
 
 int32 UWebSocketMessage::GetRawBodyLength() const
 {
-	return MyMessage->GetRawBodyLength();
+	return RawBody.Num();
 }
 
 FString UWebSocketMessage::GetSubscriptionId() const
 {
-	return MyMessage->GetSubscriptionId();
+	return SubscriptionId;
 }
 
 FString UWebSocketMessage::GetDestination() const
 {
-	return MyMessage->GetDestination();
+	return Destination;
 }
 
 FString UWebSocketMessage::GetMessageId() const
 {
-	return MyMessage->GetMessageId();
+	return MessageId;
 }
 
 FString UWebSocketMessage::GetAckId() const
 {
-	return MyMessage->GetAckId();
+	return AckId;
+}
+
+void UWebSocketMessage::InitializeFromStompMessage(const IStompMessage& Message)
+{
+	// 데이터 깊은 복사(Deep Copy)
+	BodyString = Message.GetBodyAsString();
+
+	// RawBody 복사
+	const uint8* Data = (const uint8*)Message.GetRawBody();
+	int32 Length = Message.GetRawBodyLength();
+	if (Data && Length > 0)
+	{
+		RawBody.SetNumUninitialized(Length);
+		FMemory::Memcpy(RawBody.GetData(), Data, Length);
+	}
+	else
+	{
+		RawBody.Empty();
+	}
+
+	Headers = Message.GetHeader();
+	SubscriptionId = Message.GetSubscriptionId();
+	Destination = Message.GetDestination();
+	MessageId = Message.GetMessageId();
+	AckId = Message.GetAckId();
 }

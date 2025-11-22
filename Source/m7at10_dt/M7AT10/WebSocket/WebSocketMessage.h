@@ -36,12 +36,28 @@ public:
 	FString GetMessageId() const;
 	UFUNCTION(BlueprintCallable, Category="STOMP")
 	FString GetAckId() const;
+
+	// 데이터 복사 초기화 함수 추가
+	void InitializeFromStompMessage(const IStompMessage& Message);
 private:
 protected:
 
 	// Variable
 public:
-	const IStompMessage* MyMessage;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString BodyString;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	TArray<uint8> RawBody;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	TMap<FName, FString> Headers;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString SubscriptionId;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString Destination;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString MessageId;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString AckId;
 private:
 protected:
 };

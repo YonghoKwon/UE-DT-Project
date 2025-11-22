@@ -23,9 +23,9 @@ public:
 	virtual TStatId GetStatId() const override;
 	virtual bool IsTickable() const override { return !IsTemplate(); }
 
-	UFUNCTION()
+	UFUNCTION(Category = "DxData")
 	void EnqueueApiData(const FString& DataFromApi);
-	UFUNCTION()
+	UFUNCTION(Category = "DxData")
 	void EnqueueWebSocketData(const FString& Data);
 private:
 	void ProcessApiQueue();
