@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "m7at10_dt/M7AT10/WebSocket/TransactionCodeMessage.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxDataSubsystem.generated.h"
 
@@ -27,6 +28,9 @@ public:
 	void EnqueueApiData(const FString& DataFromApi);
 	UFUNCTION(Category = "DxData")
 	void EnqueueWebSocketData(const FString& Data);
+
+	UFUNCTION(Category = "DxData")
+	UTransactionCodeMessage* FindTransactionCodeMessage(const FString& TransactionCode);
 private:
 	void ProcessApiQueue();
 	void ProcessWebSocketQueue();
@@ -37,5 +41,8 @@ public:
 private:
 	TQueue<FString> ApiDataQueue;
 	TQueue<FString> WebSocketDataQueue;
+
+	UPROPERTY()
+	TMap<FString, TObjectPtr<UTransactionCodeMessage>> TransactionCodeMessageMap;
 protected:
 };

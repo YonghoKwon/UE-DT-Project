@@ -3,9 +3,36 @@
 
 #include "DxDataSubsystem.h"
 
+#include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
+#include "m7at10_dt/M7AT10/WebSocket/TransactionCodeStruct.h"
+
 void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	const FString DataTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode'");
+	UDataTable* LoadedTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
+
+	if (LoadedTable)
+	{
+		LoadedTable->ForeachRow<FTransactionCodeStruct>(TEXT("UDxDataSubsystem::Initialize"),
+			[this](const FName& RowName, const FTransactionCodeStruct& Row)
+			{
+				if (Row.TransactionCodeMessageClass)
+				{
+					TObjectPtr<UTransactionCodeMessage> NewDoc = NewObject<UTransactionCodeMessage>(this, Row.TransactionCodeMessageClass);
+					if (NewDoc && !NewDoc->TransactionCode.IsEmpty())
+					{
+						TransactionCodeMessageMap.Add(NewDoc->TransactionCode, NewDoc);
+						UE_LOG(LogTemp, Log, TEXT("Loaded TransactionCode: %s"), *NewDoc->TransactionCode);
+					}
+				}
+			});
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TransactionCodeDataTable failed to load from path: %s"), *DataTablePath);
+	}
 }
 
 void UDxDataSubsystem::Deinitialize()
@@ -64,6 +91,49 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 	{
 		UE_LOG(LogTemp, Log, TEXT("[WebSocket] Processing: %s"), *Data);
 		// 실시간 데이터 로직 처리
+
+		// 1. Parser 인스턴스 생성 (Stack 메모리)
+		FYyJsonParser JsonParser;
+
+		// 2. JSON 파싱 시도
+		if (JsonParser.JsonParse(Data))
+		{
+			yyjson_val* Root = JsonParser.GetRoot();
+
+			// 3. MESSAGE_ID 추출 (이것이 TransactionCode 역할을 함)
+			// 예: "MESSAGE_ID": "KE2D1Z11"
+			yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
+
+			if (JsonParser.IsValid(MsgIdVal))
+			{
+				FString TrCode = JsonParser.GetString(MsgIdVal);
+
+				// 4. 핸들러 찾기 및 데이터 전달
+				if (UTransactionCodeMessage* MsgObj = FindTransactionCodeMessage(TrCode))
+				{
+					// yyjson 버전의 ProcessData 호출
+					MsgObj->ProcessData(&JsonParser, Root);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Handler not found for MESSAGE_ID: %s"), *TrCode);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Failed to find 'MESSAGE_ID' in JSON data: %s"), *Data);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to parse JSON string via yyjson"));
+		}
+
 		ProcessCount++;
 	}
+}
+
+UTransactionCodeMessage* UDxDataSubsystem::FindTransactionCodeMessage(const FString& TransactionCode)
+{
+	return TransactionCodeMessageMap.FindRef(TransactionCode);
 }

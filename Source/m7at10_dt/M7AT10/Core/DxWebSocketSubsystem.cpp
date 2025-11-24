@@ -77,10 +77,10 @@ void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
 	UE_LOG(LogTemp, Log, TEXT("Received Message Body: %s"), *BodyString);
 
 	// DxDataSubsystem에 데이터 저장
-	UGameInstance* GameInstance = GetGameInstance();
+	TObjectPtr<UGameInstance> GameInstance = GetGameInstance();
 	if (GameInstance && !BodyString.IsEmpty())
 	{
-		UDxDataSubsystem* DataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
+		TObjectPtr<UDxDataSubsystem> DataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
 		if (DataSubsystem)
 		{
 			DataSubsystem->EnqueueWebSocketData(BodyString);
@@ -98,14 +98,14 @@ FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOM
 		FStompSubscriptionEvent::CreateLambda([WeakThis, EventCallback](const IStompMessage& Message)->void
 		{
 			// 2. Weak Pointer가 유효한지 확인 (게임이 종료되었거나 서브시스템이 죽었으면 실행 X)
-			UDxWebSocketSubsystem* StrongThis = WeakThis.Get();
+			TObjectPtr<UDxWebSocketSubsystem> StrongThis = WeakThis.Get();
 			if (!StrongThis)
 			{
 				return;
 			}
 
 			// 3. StrongThis를 사용하여 안전하게 객체 생성
-			UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(StrongThis);
+			TObjectPtr<UWebSocketMessage> Msg = NewObject<UWebSocketMessage>(StrongThis);
 			Msg->InitializeFromStompMessage(Message);
 			EventCallback.ExecuteIfBound(Msg);
 		}),

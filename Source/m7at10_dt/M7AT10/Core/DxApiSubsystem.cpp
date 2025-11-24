@@ -50,7 +50,7 @@ void UDxApiSubsystem::DxRequestApi(const FString& Server, const FString& Request
 	DefaultHeaders.Add(TEXT("Content-Type"), TEXT("application/json"));
 
 	// URL 조합 (예: Server + / + RequestApiType) - 실제 로직에 맞게 수정 필요
-	FString FullUrl = FString::Printf(TEXT("%s/%s"), *Server, *RequestApiType);
+	FString FullUrl = FPaths::Combine(Server, RequestApiType);
 
 	// 콜백이 없는 단순 호출 (빈 델리게이트 전달)
 	DxHttpCall(FullUrl, MethodType, TEXT(""), DefaultHeaders, FDxApiCallback());
@@ -69,7 +69,7 @@ void UDxApiSubsystem::DxRequestApiWithParameter(const FString& Server, const FSt
 	DefaultHeaders.Add(TEXT("Content-Type"), TEXT("application/json"));
 
 	// URL 조합 로직 예시
-	FString FullUrl = FString::Printf(TEXT("%s/%s/%s"), *Server, *RequestApiType, *Parameters[0]);
+	FString FullUrl = FPaths::Combine(Server, RequestApiType, Parameters[0]);
 
 	DxHttpCall(FullUrl, MethodType, TEXT(""), DefaultHeaders, FDxApiCallback());
 }
@@ -92,10 +92,10 @@ void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpR
 			bIsOk = true;
 
 			// DxDataSubsystem에 데이터 저장
-			UGameInstance* GameInstance = GetGameInstance();
+			TObjectPtr<UGameInstance> GameInstance = GetGameInstance();
 			if (GameInstance)
 			{
-				UDxDataSubsystem* DataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
+				TObjectPtr<UDxDataSubsystem> DataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
 				if (DataSubsystem)
 				{
 					DataSubsystem->EnqueueApiData(Content);
