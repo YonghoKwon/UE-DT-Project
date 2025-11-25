@@ -7,6 +7,7 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxDataSubsystem.generated.h"
 
+class UApiMessage;
 /**
  * 
  */
@@ -30,6 +31,8 @@ public:
 	void EnqueueWebSocketData(const FString& Data);
 
 	UFUNCTION(Category = "DxData")
+	UApiMessage* FindApiMessage(const FString& Resource, const FString& Action);
+	UFUNCTION(Category = "DxData")
 	UTransactionCodeMessage* FindTransactionCodeMessage(const FString& TransactionCode);
 private:
 	void ProcessApiQueue();
@@ -42,6 +45,8 @@ private:
 	TQueue<FString> ApiDataQueue;
 	TQueue<FString> WebSocketDataQueue;
 
+	UPROPERTY()
+	TMap<FString, TObjectPtr<UApiMessage>> ApiMessageMap;
 	UPROPERTY()
 	TMap<FString, TObjectPtr<UTransactionCodeMessage>> TransactionCodeMessageMap;
 protected:
