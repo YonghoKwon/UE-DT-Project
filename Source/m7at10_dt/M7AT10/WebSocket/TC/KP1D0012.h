@@ -18,9 +18,6 @@ class M7AT10_DT_API UKP1D0012 : public UTransactionCodeMessage
 public:
 	UKP1D0012();
 
-	virtual void ProcessData(const TSharedPtr<FJsonObject>& DataMap) override;
-
-	// yyjson 데이터 처리 오버라이드
 	virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode) override;
 private:
 protected:

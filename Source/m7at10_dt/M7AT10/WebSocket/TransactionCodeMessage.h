@@ -18,9 +18,6 @@ class M7AT10_DT_API UTransactionCodeMessage : public UObject
 
 	// Function
 public:
-	virtual void ProcessData(const TSharedPtr<FJsonObject>& DataMap);
-
-	/** yyjson을 사용하는 고성능 처리 함수 오버로드 */
 	virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode);
 private:
 protected:

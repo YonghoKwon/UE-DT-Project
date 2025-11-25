@@ -3,10 +3,6 @@
 
 #include "TransactionCodeMessage.h"
 
-void UTransactionCodeMessage::ProcessData(const TSharedPtr<FJsonObject>& DataMap)
-{
-}
-
 void UTransactionCodeMessage::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 {
 }

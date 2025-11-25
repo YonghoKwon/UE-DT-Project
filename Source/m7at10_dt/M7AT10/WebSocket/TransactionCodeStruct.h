@@ -20,4 +20,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(AllowedClasses = "World"))
 	TArray<TSoftClassPtr<UWorld>> UseLevels;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FString Comment;
 };

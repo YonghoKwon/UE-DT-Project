@@ -10,13 +10,6 @@ UKP1D0012::UKP1D0012()
 	TransactionCode = "KP1D0012";
 }
 
-void UKP1D0012::ProcessData(const TSharedPtr<FJsonObject>& DataMap)
-{
-	Super::ProcessData(DataMap);
-
-	UE_LOG(LogTemp, Log, TEXT("KP1D0012  "));
-}
-
 void UKP1D0012::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 {
 	Super::ProcessData(JsonParser, RootNode);
