@@ -19,6 +19,7 @@ class M7AT10_DT_API UTransactionCodeMessage : public UObject
 	// Function
 public:
 	virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode);
+	virtual UWorld* GetWorld() const override;
 private:
 protected:
 

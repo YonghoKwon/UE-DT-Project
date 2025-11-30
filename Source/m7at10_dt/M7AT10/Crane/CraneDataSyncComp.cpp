@@ -2,6 +2,8 @@
 
 
 #include "CraneDataSyncComp.h"
+
+#include "m7at10_dt/m7at10_dt.h"
 #include "m7at10_dt/M7AT10/Core/DxDataType.h"
 
 
@@ -17,7 +19,7 @@ UCraneDataSyncComp::UCraneDataSyncComp()
 
 void UCraneDataSyncComp::OnReceiveCraneStateData(const FCraneStateData& InData)
 {
-	UE_LOG(LogTemp, Log, TEXT("[CraneDataSyncComp] Received data for Crane: %s"), *InData.CraneId);
+	UE_LOG(LogM7AT10, Log, TEXT("[CraneDataSyncComp] Received data for Crane: %s"), *InData.CraneId);
 
 	OnCranePositionChanged.Broadcast(InData.Position);
 	// OnCraneStatusColorChanged.Broadcast(FLinearColor::Red);
@@ -27,7 +29,7 @@ void UCraneDataSyncComp::OnReceiveData(EDxDataType DataType, const void* Data)
 {
 	if (!Data)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CraneDataSyncComp] OnReceiveData: Data is null"));
+		UE_LOG(LogM7AT10, Warning, TEXT("[CraneDataSyncComp] OnReceiveData: Data is null"));
 		return;
 	}
 
@@ -38,6 +40,6 @@ void UCraneDataSyncComp::OnReceiveData(EDxDataType DataType, const void* Data)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[CraneDataSyncComp] Unknown DataType: %s"), *UEnum::GetValueAsString(DataType));
+		UE_LOG(LogM7AT10, Warning, TEXT("[CraneDataSyncComp] Unknown DataType: %s"), *UEnum::GetValueAsString(DataType));
 	}
 }

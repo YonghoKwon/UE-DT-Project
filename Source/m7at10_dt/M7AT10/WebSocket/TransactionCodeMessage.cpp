@@ -6,3 +6,12 @@
 void UTransactionCodeMessage::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 {
 }
+
+UWorld* UTransactionCodeMessage::GetWorld() const
+{
+	if (const UObject* MyOuter = GetOuter())
+	{
+		return MyOuter->GetWorld();
+	}
+	return nullptr;
+}

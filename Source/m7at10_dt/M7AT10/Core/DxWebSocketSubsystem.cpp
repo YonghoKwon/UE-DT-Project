@@ -6,6 +6,7 @@
 #include "DxDataSubsystem.h"
 #include "IStompClient.h"
 #include "StompModule.h"
+#include "m7at10_dt/m7at10_dt.h"
 #include "m7at10_dt/M7AT10/WebSocket/WebSocketMessage.h"
 
 void UDxWebSocketSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -55,7 +56,7 @@ void UDxWebSocketSubsystem::ConnectStompClient(const TMap<FName, FString>& Heade
 {
 	if (StompClient.IsValid())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Connect STOMP WebSocket"));
+		UE_LOG(LogM7AT10, Log, TEXT("Connect STOMP WebSocket"));
 		StompClient->Connect(LoginInfo);
 	}
 }
@@ -64,7 +65,7 @@ void UDxWebSocketSubsystem::DisconnectStompClient(const TMap<FName, FString>& He
 {
 	if (StompClient.IsValid())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Disconnect STOMP WebSocket"));
+		UE_LOG(LogM7AT10, Log, TEXT("Disconnect STOMP WebSocket"));
 		StompClient->Disconnect(LoginInfo);
 	}
 }
@@ -74,7 +75,7 @@ void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
 	// FStompBuffer Body = Message->GetRawBody();
 	const FString BodyString = Message->GetBodyAsString();
 
-	UE_LOG(LogTemp, Log, TEXT("Received Message Body: %s"), *BodyString);
+	UE_LOG(LogM7AT10, Log, TEXT("Received Message Body: %s"), *BodyString);
 
 	// DxDataSubsystem에 데이터 저장
 	TObjectPtr<UGameInstance> GameInstance = GetGameInstance();
@@ -135,15 +136,15 @@ void UDxWebSocketSubsystem::HandleOnConnected(const FString& ProtocolVersion, co
 
 void UDxWebSocketSubsystem::HandleOnConnectionError(const FString& Error)
 {
-	UE_LOG(LogTemp, Error, TEXT("ConnectionError STOMP WebSocket"));
+	UE_LOG(LogM7AT10, Error, TEXT("ConnectionError STOMP WebSocket"));
 }
 
 void UDxWebSocketSubsystem::HandleOnError(const FString& Error)
 {
-	UE_LOG(LogTemp, Error, TEXT("Error STOMP WebSocket"));
+	UE_LOG(LogM7AT10, Error, TEXT("Error STOMP WebSocket"));
 }
 
 void UDxWebSocketSubsystem::HandleOnClosed(const FString& Reason)
 {
-	UE_LOG(LogTemp, Error, TEXT("Closed STOMP WebSocket"));
+	UE_LOG(LogM7AT10, Error, TEXT("Closed STOMP WebSocket"));
 }

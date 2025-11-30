@@ -4,6 +4,7 @@
 #include "KP1D0012.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "m7at10_dt/m7at10_dt.h"
 #include "m7at10_dt/M7AT10/Core/DxDataSubsystem.h"
 #include "m7at10_dt/M7AT10/Core/DxDataType.h"
 #include "m7at10_dt/M7AT10/Crane/CraneDataSyncComp.h"
@@ -46,18 +47,18 @@ void UKP1D0012::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 		// 	const char *json_str = yyjson_val_write(DataMapObj, YYJSON_WRITE_PRETTY, &len);
 		// 	if (json_str)
 		// 	{
-		// 		UE_LOG(LogTemp, Warning, TEXT("DataMapObj: %s"), ANSI_TO_TCHAR(json_str));
+		// 		UE_LOG(LogM7AT10, Warning, TEXT("DataMapObj: %s"), ANSI_TO_TCHAR(json_str));
 		// 		free((void*)json_str);
 		// 	}
 		// }
 		// else
 		// {
-		// 	UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
+		// 	UE_LOG(LogM7AT10, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
 		// }
 
 		if (!JsonParser->IsValid(ContentObj))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
+			UE_LOG(LogM7AT10, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
 			return;
 		}
 
@@ -75,31 +76,9 @@ void UKP1D0012::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 		);
 		// ... 필요한 필드 추가 파싱
 
-		// 5. Subsystem을 통해 해당 Crane의 DataSyncComp 찾기
-		UWorld* World = nullptr;
-
-		// 방법 A: GEngine의 GameViewport에서 World 가져오기
-		if (GEngine && GEngine->GameViewport)
+		if (const UWorld* World = GetWorld())
 		{
-			World = GEngine->GameViewport->GetWorld();
-		}
-
-		// 방법 B: 또는 첫 번째 PIE/Game World 찾기
-		if (!World && GEngine)
-		{
-			for (const FWorldContext& Context : GEngine->GetWorldContexts())
-			{
-				if (Context.WorldType == EWorldType::Game || Context.WorldType == EWorldType::PIE)
-				{
-					World = Context.World();
-					break;
-				}
-			}
-		}
-
-		if (World)
-		{
-			if (UGameInstance* GI = UGameplayStatics::GetGameInstance(World))
+			if (const UGameInstance* GI = World->GetGameInstance())
 			{
 				if (UDxDataSubsystem* DxDataSub = GI->GetSubsystem<UDxDataSubsystem>())
 				{
@@ -109,14 +88,10 @@ void UKP1D0012::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 					}
 					else
 					{
-						UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] CraneDataSyncComp not found for CraneId: %s"), *CraneData.CraneId);
+						UE_LOG(LogM7AT10, Warning, TEXT("[KP1D0012] CraneDataSyncComp not found for CraneId: %s"), *CraneData.CraneId);
 					}
 				}
 			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] No valid World found"));
 		}
 	}
 }

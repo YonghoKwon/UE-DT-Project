@@ -3,6 +3,7 @@
 
 #include "DxDataSubsystem.h"
 
+#include "m7at10_dt/m7at10_dt.h"
 #include "m7at10_dt/M7AT10/Api/ApiMessage.h"
 #include "m7at10_dt/M7AT10/Api/ApiStruct.h"
 #include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
@@ -52,14 +53,14 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 						FString Key = FPaths::Combine(PascalResource, PascalAction);
 
 						ApiMessageMap.Add(Key, NewHandler);
-						UE_LOG(LogTemp, Log, TEXT("Loaded Handler Key: %s"), *Key);
+						UE_LOG(LogM7AT10, Log, TEXT("Loaded Handler Key: %s"), *Key);
 					}
 				}
 			});
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ApiStructDataTable failed to load from path: %s"), *ApiTablePath);
+		UE_LOG(LogM7AT10, Warning, TEXT("ApiStructDataTable failed to load from path: %s"), *ApiTablePath);
 	}
 
 	const FString DataTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode'");
@@ -76,14 +77,14 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 					if (NewTc && !NewTc->TransactionCode.IsEmpty())
 					{
 						TransactionCodeMessageMap.Add(NewTc->TransactionCode, NewTc);
-						UE_LOG(LogTemp, Log, TEXT("Loaded TransactionCode: %s"), *NewTc->TransactionCode);
+						UE_LOG(LogM7AT10, Log, TEXT("Loaded TransactionCode: %s"), *NewTc->TransactionCode);
 					}
 				}
 			});
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("TransactionCodeDataTable failed to load from path: %s"), *DataTablePath);
+		UE_LOG(LogM7AT10, Warning, TEXT("TransactionCodeDataTable failed to load from path: %s"), *DataTablePath);
 	}
 }
 
@@ -120,7 +121,7 @@ void UDxDataSubsystem::ProcessApiQueue()
 	// 큐에서 데이터를 꺼내고 제한 개수만큼만 처리
 	while (ProcessCount < MaxProcessPerFrame && ApiDataQueue.Dequeue(Data))
 	{
-		UE_LOG(LogTemp, Log, TEXT("[API] Processing: %s"), *Data);
+		UE_LOG(LogM7AT10, Log, TEXT("[API] Processing: %s"), *Data);
 		// JSON 파싱 및 API 로직 처리
 
 		// 1. Parser 인스턴스 생성
@@ -156,28 +157,28 @@ void UDxDataSubsystem::ProcessApiQueue()
 						else
 						{
 							// TODO: data가 없거나 null인 경우, 빈 노드라도 넘겨줄 수 있음
-							UE_LOG(LogTemp, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
+							UE_LOG(LogM7AT10, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
 							Handler->ProcessData(&JsonParser, nullptr);
 						}
 					}
 					else
 					{
-						UE_LOG(LogTemp, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
+						UE_LOG(LogM7AT10, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
 					}
 				}
 				else
 				{
-					UE_LOG(LogTemp, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
+					UE_LOG(LogM7AT10, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
 				}
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[API] Failed to find 'meta' object in JSON"));
+				UE_LOG(LogM7AT10, Error, TEXT("[API] Failed to find 'meta' object in JSON"));
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[API] Failed to parse Wrapper JSON"));
+			UE_LOG(LogM7AT10, Error, TEXT("[API] Failed to parse Wrapper JSON"));
 		}
 
 		ProcessCount++;
@@ -225,7 +226,7 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 
 	while (ProcessCount < MaxProcessPerFrame && WebSocketDataQueue.Dequeue(Data))
 	{
-		UE_LOG(LogTemp, Log, TEXT("[WebSocket] Processing: %s"), *Data);
+		UE_LOG(LogM7AT10, Log, TEXT("[WebSocket] Processing: %s"), *Data);
 		// 실시간 데이터 로직 처리
 
 		// 1. Parser 인스턴스 생성 (Stack 메모리)
@@ -251,17 +252,17 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 				}
 				else
 				{
-					UE_LOG(LogTemp, Warning, TEXT("Handler not found for MESSAGE_ID: %s"), *TrCode);
+					UE_LOG(LogM7AT10, Warning, TEXT("Handler not found for MESSAGE_ID: %s"), *TrCode);
 				}
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Failed to find 'MESSAGE_ID' in JSON data: %s"), *Data);
+				UE_LOG(LogM7AT10, Warning, TEXT("Failed to find 'MESSAGE_ID' in JSON data: %s"), *Data);
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to parse JSON string via yyjson"));
+			UE_LOG(LogM7AT10, Error, TEXT("Failed to parse JSON string via yyjson"));
 		}
 
 		ProcessCount++;
@@ -277,24 +278,24 @@ void UDxDataSubsystem::RegisterCraneDataSyncComp(const FString& CraneId, UCraneD
 {
 	if (CraneId.IsEmpty() || !Comp)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[DxDataSubsystem] Invalid CraneId or Comp for registration"));
+		UE_LOG(LogM7AT10, Warning, TEXT("[DxDataSubsystem] Invalid CraneId or Comp for registration"));
 		return;
 	}
 
 	if (CraneDataSyncCompMap.Contains(CraneId))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[DxDataSubsystem] CraneId '%s' already registered. Overwriting."), *CraneId);
+		UE_LOG(LogM7AT10, Warning, TEXT("[DxDataSubsystem] CraneId '%s' already registered. Overwriting."), *CraneId);
 	}
 
 	CraneDataSyncCompMap.Add(CraneId, Comp);
-	UE_LOG(LogTemp, Log, TEXT("[DxDataSubsystem] Registered CraneDataSyncComp for CraneId: %s"), *CraneId);
+	UE_LOG(LogM7AT10, Log, TEXT("[DxDataSubsystem] Registered CraneDataSyncComp for CraneId: %s"), *CraneId);
 }
 
 void UDxDataSubsystem::UnregisterCraneDataSyncComp(const FString& CraneId)
 {
 	if (CraneDataSyncCompMap.Remove(CraneId) > 0)
 	{
-		UE_LOG(LogTemp, Log, TEXT("[DxDataSubsystem] Unregistered CraneDataSyncComp for CraneId: %s"), *CraneId);
+		UE_LOG(LogM7AT10, Log, TEXT("[DxDataSubsystem] Unregistered CraneDataSyncComp for CraneId: %s"), *CraneId);
 	}
 }
 

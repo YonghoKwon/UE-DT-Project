@@ -6,6 +6,7 @@
 #include "DxDataSubsystem.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
+#include "m7at10_dt/m7at10_dt.h"
 
 void UDxApiSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -61,7 +62,7 @@ void UDxApiSubsystem::DxRequestApiWithParameter(const FString& Server, const FSt
 	// 안전성 체크: 파라미터가 비어있으면 중단
 	if (Parameters.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DxRequestApiWithParameter: Parameters array is empty."));
+		UE_LOG(LogM7AT10, Warning, TEXT("DxRequestApiWithParameter: Parameters array is empty."));
 		return;
 	}
 
@@ -88,7 +89,7 @@ void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpR
 		// HTTP 코드가 200번대(성공)인지 확인
 		if (EHttpResponseCodes::IsOk(ResponseCode))
 		{
-			UE_LOG(LogTemp, Log, TEXT("Response [%d]: %s"), ResponseCode, *Content);
+			UE_LOG(LogM7AT10, Log, TEXT("Response [%d]: %s"), ResponseCode, *Content);
 			bIsOk = true;
 
 			// DxDataSubsystem에 데이터 저장
@@ -104,12 +105,12 @@ void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpR
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Response Error [%d]: %s"), ResponseCode, *Content);
+			UE_LOG(LogM7AT10, Warning, TEXT("Response Error [%d]: %s"), ResponseCode, *Content);
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Connection Failed or No Response"));
+		UE_LOG(LogM7AT10, Error, TEXT("Connection Failed or No Response"));
 	}
 
 	Callback.ExecuteIfBound(bIsOk, ResponseCode, Content);

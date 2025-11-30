@@ -1,8 +1,8 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "m7at10_dt/M7AT10/Crane/CraneDataSyncComp.h"
-
 #include "CraneMechDriverComp.h"
+#include "m7at10_dt/M7AT10/Crane/CraneDataSyncComp.h"
+#include "m7at10_dt/m7at10_dt.h"
 
 
 // Sets default values for this component's properties
@@ -48,7 +48,7 @@ void UCraneMechDriverComp::SetTargetPosition(const FCranePositionData& InPositio
 	TargetPosition.HoistHeight += InPositionData.HoistHeight * MovementScale;
 	TargetPosition.GantryPosition += InPositionData.GantryPosition * MovementScale;
 
-	UE_LOG(LogTemp, Log, TEXT("[CraneMechDriverComp] Target - Trolley: %.2f, Hoist: %.2f, Gantry: %.2f"),
+	UE_LOG(LogM7AT10, Log, TEXT("[CraneMechDriverComp] Target - Trolley: %.2f, Hoist: %.2f, Gantry: %.2f"),
 		   TargetPosition.TrolleyPosition, TargetPosition.HoistHeight, TargetPosition.GantryPosition);
 }
 

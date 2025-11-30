@@ -3,6 +3,8 @@
 
 #include "CraneInfoGetByBittInOracle.h"
 
+#include "m7at10_dt/m7at10_dt.h"
+
 UCraneInfoGetByBittInOracle::UCraneInfoGetByBittInOracle()
 {
 	ResourceAndAction = "CraneInfoGetByBittInOracle";
@@ -18,18 +20,18 @@ void UCraneInfoGetByBittInOracle::ProcessData(FYyJsonParser* JsonParser, yyjson_
 		char* JsonString = yyjson_val_write(RootNode, 0, nullptr);
 		if (JsonString)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("RootNode Content: %s"), UTF8_TO_TCHAR(JsonString));
+			UE_LOG(LogM7AT10, Warning, TEXT("RootNode Content: %s"), UTF8_TO_TCHAR(JsonString));
 
 			// yyjson_val_write가 할당한 메모리 해제
 			free(JsonString);
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to convert RootNode to string."));
+			UE_LOG(LogM7AT10, Error, TEXT("Failed to convert RootNode to string."));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("RootNode is null."));
+		UE_LOG(LogM7AT10, Warning, TEXT("RootNode is null."));
 	}
 }
