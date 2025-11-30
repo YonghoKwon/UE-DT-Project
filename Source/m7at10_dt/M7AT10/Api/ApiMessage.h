@@ -24,7 +24,7 @@ protected:
 
 	// Variable
 public:
-	UPROPERTY(BlueprintReadOnly, Category = "TransactionCode")
+	UPROPERTY(BlueprintReadOnly, Category = "Api")
 	FString ResourceAndAction;
 private:
 protected:

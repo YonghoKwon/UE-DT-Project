@@ -3,6 +3,11 @@
 
 #include "KP1D0012.h"
 
+#include "Kismet/GameplayStatics.h"
+#include "m7at10_dt/M7AT10/Core/DxDataSubsystem.h"
+#include "m7at10_dt/M7AT10/Core/DxDataType.h"
+#include "m7at10_dt/M7AT10/Crane/CraneDataSyncComp.h"
+#include "m7at10_dt/M7AT10/Crane/CraneDataTypes.h"
 #include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
 
 UKP1D0012::UKP1D0012()
@@ -18,7 +23,7 @@ void UKP1D0012::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 	// {
 	//   "CREATE_TIMESTAMP": "20251124215148",
 	//   "DATA_MAP": {
-	//     "20251124215148": { "RTC": {...}, ... }
+	//     "20251124215148": { ... }
 	//   }
 	// }
 
@@ -34,29 +39,84 @@ void UKP1D0012::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
 		// 3. 타임스탬프 키로 실제 데이터 객체 접근
 		yyjson_val* ContentObj = JsonParser->JsonParseKeyword(DataMapObj, TimestampKey);
 
-		if (JsonParser->IsValid(ContentObj))
+		// if (JsonParser->IsValid(ContentObj))
+		// {
+		// 	size_t len;
+		// 	// 디버그 출력용으로 JSON 문자열로 변환
+		// 	const char *json_str = yyjson_val_write(DataMapObj, YYJSON_WRITE_PRETTY, &len);
+		// 	if (json_str)
+		// 	{
+		// 		UE_LOG(LogTemp, Warning, TEXT("DataMapObj: %s"), ANSI_TO_TCHAR(json_str));
+		// 		free((void*)json_str);
+		// 	}
+		// }
+		// else
+		// {
+		// 	UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
+		// }
+
+		if (!JsonParser->IsValid(ContentObj))
 		{
-			// 4. RTC 데이터 파싱
-			yyjson_val* RtcObj = JsonParser->JsonParseKeyword(ContentObj, TEXT("RTC"));
-			if (JsonParser->IsValid(RtcObj))
-			{
-				FString RtcCar1 = JsonParser->GetString(JsonParser->JsonParseKeyword(RtcObj, TEXT("RTC_CAR1")));
-				FString RtcCar2 = JsonParser->GetString(JsonParser->JsonParseKeyword(RtcObj, TEXT("RTC_CAR2")));
+			UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
+			return;
+		}
 
-				UE_LOG(LogTemp, Log, TEXT("[KP1D0012] RTC - CAR1: %s, CAR2: %s"), *RtcCar1, *RtcCar2);
+		// 4. 데이터 파싱하여 구조체에 담기
+		FCraneStateData CraneData;
+		CraneData.CraneId = JsonParser->GetString(JsonParser->JsonParseKeyword(ContentObj, TEXT("CRANE_ID")));
+		CraneData.Position.TrolleyPosition = static_cast<float>(
+			JsonParser->GetNumber(JsonParser->JsonParseKeyword(ContentObj, TEXT("TROLLEY_POS")))
+		);
+		CraneData.Position.HoistHeight = static_cast<float>(
+			JsonParser->GetNumber(JsonParser->JsonParseKeyword(ContentObj, TEXT("HOIST_HEIGHT")))
+		);
+		CraneData.Position.GantryPosition = static_cast<float>(
+			JsonParser->GetNumber(JsonParser->JsonParseKeyword(ContentObj, TEXT("GANTRY_POS")))
+		);
+		// ... 필요한 필드 추가 파싱
+
+		// 5. Subsystem을 통해 해당 Crane의 DataSyncComp 찾기
+		UWorld* World = nullptr;
+
+		// 방법 A: GEngine의 GameViewport에서 World 가져오기
+		if (GEngine && GEngine->GameViewport)
+		{
+			World = GEngine->GameViewport->GetWorld();
+		}
+
+		// 방법 B: 또는 첫 번째 PIE/Game World 찾기
+		if (!World && GEngine)
+		{
+			for (const FWorldContext& Context : GEngine->GetWorldContexts())
+			{
+				if (Context.WorldType == EWorldType::Game || Context.WorldType == EWorldType::PIE)
+				{
+					World = Context.World();
+					break;
+				}
 			}
+		}
 
-			// 5. BED 데이터 파싱
-			yyjson_val* BedObj = JsonParser->JsonParseKeyword(ContentObj, TEXT("BED"));
-			if (JsonParser->IsValid(BedObj))
+		if (World)
+		{
+			if (UGameInstance* GI = UGameplayStatics::GetGameInstance(World))
 			{
-				FString BedRt = JsonParser->GetString(JsonParser->JsonParseKeyword(BedObj, TEXT("BED_RT")));
-				UE_LOG(LogTemp, Log, TEXT("[KP1D0012] BED - RT: %s"), *BedRt);
+				if (UDxDataSubsystem* DxDataSub = GI->GetSubsystem<UDxDataSubsystem>())
+				{
+					if (UCraneDataSyncComp* CraneDataSyncComp = DxDataSub->FindCraneDataSyncComp(CraneData.CraneId))
+					{
+						CraneDataSyncComp->OnReceiveData(EDxDataType::CraneState, &CraneData);
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] CraneDataSyncComp not found for CraneId: %s"), *CraneData.CraneId);
+					}
+				}
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] Content object not found for key: %s"), *TimestampKey);
+			UE_LOG(LogTemp, Warning, TEXT("[KP1D0012] No valid World found"));
 		}
 	}
 }

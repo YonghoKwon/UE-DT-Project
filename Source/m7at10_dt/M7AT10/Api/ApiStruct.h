@@ -43,6 +43,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
 	TArray<FString> PathParameter;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
+	FString Body;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
 	TSubclassOf<UApiMessage> ApiMessageClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")

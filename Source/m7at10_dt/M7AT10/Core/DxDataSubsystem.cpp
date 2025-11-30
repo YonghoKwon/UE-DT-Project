@@ -6,14 +6,30 @@
 #include "m7at10_dt/M7AT10/Api/ApiMessage.h"
 #include "m7at10_dt/M7AT10/Api/ApiStruct.h"
 #include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
+#include "m7at10_dt/M7AT10/WebSocket/TransactionCodeMessage.h"
 #include "m7at10_dt/M7AT10/WebSocket/TransactionCodeStruct.h"
 
-class UApiMessage;
 struct FApiStruct;
 
 void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	// kebab-case를 PascalCase로 변환하는 헬퍼 람다
+	auto ToPascalCase = [](const FString& KebabCaseString) -> FString
+	{
+		TArray<FString> Parts;
+		KebabCaseString.ParseIntoArray(Parts, TEXT("-"), true);
+		FString PascalCaseString;
+		for (const FString& Part : Parts)
+		{
+			if (!Part.IsEmpty())
+			{
+				PascalCaseString += Part.Left(1).ToUpper() + Part.Mid(1).ToLower();
+			}
+		}
+		return PascalCaseString;
+	};
 
 	const FString ApiTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_Api.DT_Api'");
 	UDataTable* LoadedApiTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ApiTablePath));
@@ -21,7 +37,7 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	if (LoadedApiTable)
 	{
 		LoadedApiTable->ForeachRow<FApiStruct>(TEXT("UDxDataSubsystem::Initialize_Api"),
-			[this](const FName& RowName, const FApiStruct& Row)
+			[this, &ToPascalCase](const FName& RowName, const FApiStruct& Row)
 			{
 				if (Row.ApiMessageClass)
 				{
@@ -30,7 +46,10 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 					{
 						TObjectPtr<UApiMessage> NewHandler = NewObject<UApiMessage>(this, Row.ApiMessageClass);
 
-						FString Key = FPaths::Combine(Row.ApiResource, Row.ApiAction);
+						// Resource와 Action을 PascalCase로 변환하여 키 생성
+						FString PascalResource = ToPascalCase(Row.ApiResource);
+						FString PascalAction = ToPascalCase(Row.ApiAction);
+						FString Key = FPaths::Combine(PascalResource, PascalAction);
 
 						ApiMessageMap.Add(Key, NewHandler);
 						UE_LOG(LogTemp, Log, TEXT("Loaded Handler Key: %s"), *Key);
@@ -107,43 +126,53 @@ void UDxDataSubsystem::ProcessApiQueue()
 		// 1. Parser 인스턴스 생성
 		FYyJsonParser JsonParser;
 
-		// 2. Wrapper JSON 파싱 (meta, resource, action, data가 포함된 JSON)
+		// 2. Wrapper JSON 파싱 (meta->{resource, action...}, data가 포함된 JSON)
 		if (JsonParser.JsonParse(Data))
 		{
 			yyjson_val* Root = JsonParser.GetRoot();
 
-			// 3. 메타 데이터 추출
-			FString Resource = JsonParser.GetString(JsonParser.JsonParseKeyword(Root, TEXT("resource")));
-			FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(Root, TEXT("action")));
+			// 3. 'meta' 객체 가져오기
+			yyjson_val* MetaNode = JsonParser.JsonParseKeyword(Root, TEXT("meta"));
 
-			if (!Resource.IsEmpty() && !Action.IsEmpty())
+			if (JsonParser.IsValid(MetaNode))
 			{
-				// 4. 핸들러 찾기
-				if (UApiMessage* Handler = FindApiMessage(Resource, Action))
-				{
-					// 5. 데이터 추출
-					yyjson_val* DataNode = JsonParser.JsonParseKeyword(Root, TEXT("data"));
+				// 4. 메타 데이터 추출
+				FString Resource = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("resource")));
+				FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("action")));
 
-					if (JsonParser.IsValid(DataNode))
+				if (!Resource.IsEmpty() && !Action.IsEmpty())
+				{
+					// 5. 핸들러 찾기
+					if (UApiMessage* Handler = FindApiMessage(Resource, Action))
 					{
-						// 6. 핸들러에게 실제 데이터 전달
-						Handler->ProcessData(&JsonParser, DataNode);
+						// 6. 데이터 추출
+						yyjson_val* DataNode = JsonParser.JsonParseKeyword(Root, TEXT("data"));
+
+						if (JsonParser.IsValid(DataNode))
+						{
+							// 7. 핸들러에게 실제 데이터 전달
+							Handler->ProcessData(&JsonParser, DataNode);
+						}
+						else
+						{
+							// TODO: data가 없거나 null인 경우, 빈 노드라도 넘겨줄 수 있음
+							UE_LOG(LogTemp, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
+							Handler->ProcessData(&JsonParser, nullptr);
+						}
 					}
 					else
 					{
-						// TODO: data가 없거나 null인 경우, 빈 노드라도 넘겨줄 수 있음
-						UE_LOG(LogTemp, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
-						Handler->ProcessData(&JsonParser, nullptr);
+						UE_LOG(LogTemp, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
 					}
 				}
 				else
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
+					UE_LOG(LogTemp, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
 				}
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
+				UE_LOG(LogTemp, Error, TEXT("[API] Failed to find 'meta' object in JSON"));
 			}
 		}
 		else
@@ -162,7 +191,27 @@ void UDxDataSubsystem::EnqueueWebSocketData(const FString& Data)
 
 UApiMessage* UDxDataSubsystem::FindApiMessage(const FString& Resource, const FString& Action)
 {
-	FString Key = FPaths::Combine(Resource, Action);
+	// kebab-case를 PascalCase로 변환하는 헬퍼 람다
+	auto ToPascalCase = [](const FString& KebabCaseString) -> FString
+	{
+		TArray<FString> Parts;
+		KebabCaseString.ParseIntoArray(Parts, TEXT("-"), true);
+		FString PascalCaseString;
+		for (const FString& Part : Parts)
+		{
+			if (!Part.IsEmpty())
+			{
+				PascalCaseString += Part.Left(1).ToUpper() + Part.Mid(1).ToLower();
+			}
+		}
+		return PascalCaseString;
+	};
+
+	// Resource와 Action을 PascalCase로 변환
+	FString PascalResource = ToPascalCase(Resource);
+	FString PascalAction = ToPascalCase(Action);
+
+	FString Key = FPaths::Combine(PascalResource, PascalAction);
 	return ApiMessageMap.FindRef(Key);
 }
 
@@ -182,13 +231,12 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 		// 1. Parser 인스턴스 생성 (Stack 메모리)
 		FYyJsonParser JsonParser;
 
-		// 2. JSON 파싱 시도
+		// 2. JSON 파싱
 		if (JsonParser.JsonParse(Data))
 		{
 			yyjson_val* Root = JsonParser.GetRoot();
 
-			// 3. MESSAGE_ID 추출 (이것이 TransactionCode 역할을 함)
-			// 예: "MESSAGE_ID": "KE2D1Z11"
+			// 3. TC_ID
 			yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
 
 			if (JsonParser.IsValid(MsgIdVal))
@@ -198,7 +246,7 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 				// 4. 핸들러 찾기 및 데이터 전달
 				if (UTransactionCodeMessage* MsgObj = FindTransactionCodeMessage(TrCode))
 				{
-					// yyjson 버전의 ProcessData 호출
+					// ProcessData 호출
 					MsgObj->ProcessData(&JsonParser, Root);
 				}
 				else
@@ -223,4 +271,34 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 UTransactionCodeMessage* UDxDataSubsystem::FindTransactionCodeMessage(const FString& TransactionCode)
 {
 	return TransactionCodeMessageMap.FindRef(TransactionCode);
+}
+
+void UDxDataSubsystem::RegisterCraneDataSyncComp(const FString& CraneId, UCraneDataSyncComp* Comp)
+{
+	if (CraneId.IsEmpty() || !Comp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DxDataSubsystem] Invalid CraneId or Comp for registration"));
+		return;
+	}
+
+	if (CraneDataSyncCompMap.Contains(CraneId))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DxDataSubsystem] CraneId '%s' already registered. Overwriting."), *CraneId);
+	}
+
+	CraneDataSyncCompMap.Add(CraneId, Comp);
+	UE_LOG(LogTemp, Log, TEXT("[DxDataSubsystem] Registered CraneDataSyncComp for CraneId: %s"), *CraneId);
+}
+
+void UDxDataSubsystem::UnregisterCraneDataSyncComp(const FString& CraneId)
+{
+	if (CraneDataSyncCompMap.Remove(CraneId) > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[DxDataSubsystem] Unregistered CraneDataSyncComp for CraneId: %s"), *CraneId);
+	}
+}
+
+UCraneDataSyncComp* UDxDataSubsystem::FindCraneDataSyncComp(const FString& CraneId)
+{
+	return CraneDataSyncCompMap.FindRef(CraneId);
 }

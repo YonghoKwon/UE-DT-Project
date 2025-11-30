@@ -3,10 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "m7at10_dt/M7AT10/WebSocket/TransactionCodeMessage.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxDataSubsystem.generated.h"
 
+class UCraneDataSyncComp;
+class UTransactionCodeMessage;
 class UApiMessage;
 /**
  * 
@@ -34,6 +35,13 @@ public:
 	UApiMessage* FindApiMessage(const FString& Resource, const FString& Action);
 	UFUNCTION(Category = "DxData")
 	UTransactionCodeMessage* FindTransactionCodeMessage(const FString& TransactionCode);
+
+	UFUNCTION(Category = "Domain")
+	void RegisterCraneDataSyncComp(const FString& CraneId, UCraneDataSyncComp* Comp);
+	UFUNCTION(Category = "Domain")
+	void UnregisterCraneDataSyncComp(const FString& CraneId);
+	UFUNCTION(Category = "Domain")
+	UCraneDataSyncComp* FindCraneDataSyncComp(const FString& CraneId);
 private:
 	void ProcessApiQueue();
 	void ProcessWebSocketQueue();
@@ -49,5 +57,9 @@ private:
 	TMap<FString, TObjectPtr<UApiMessage>> ApiMessageMap;
 	UPROPERTY()
 	TMap<FString, TObjectPtr<UTransactionCodeMessage>> TransactionCodeMessageMap;
+
+	// TODO: 관련 설비가 많아지면 별도 Subsystem에서 관리 할 수 있도록 변경 예정
+	UPROPERTY()
+	TMap<FString, TObjectPtr<UCraneDataSyncComp>> CraneDataSyncCompMap;
 protected:
 };
