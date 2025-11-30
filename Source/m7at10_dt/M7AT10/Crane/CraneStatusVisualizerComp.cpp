@@ -1,8 +1,8 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "CraneDataSyncComp.h"
 #include "CraneStatusVisualizerComp.h"
+#include "CraneDataSyncComp.h"
 
 #include "Components/StaticMeshComponent.h"
 

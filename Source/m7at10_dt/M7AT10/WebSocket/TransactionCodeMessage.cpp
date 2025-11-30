@@ -9,9 +9,5 @@ void UTransactionCodeMessage::ProcessData(FYyJsonParser* JsonParser, yyjson_val*
 
 UWorld* UTransactionCodeMessage::GetWorld() const
 {
-	if (const UObject* MyOuter = GetOuter())
-	{
-		return MyOuter->GetWorld();
-	}
-	return nullptr;
+	return GetOuter() ? GetOuter()->GetWorld() : nullptr;
 }

@@ -114,74 +114,80 @@ void UDxDataSubsystem::ProcessApiQueue()
 {
 	if (ApiDataQueue.IsEmpty()) return;
 
+	double StartTime = FPlatformTime::Seconds();
+	const double TimeBudget = 0.005; // 5ms (0.005초) 동안만 처리
+
+	// 1. Parser 인스턴스 생성
+	FYyJsonParser JsonParser;
+
 	FString Data;
-	int32 ProcessCount = 0;
-	const int32 MaxProcessPerFrame = 50; // 프레임당 최대 처리 개수 제한
-
-	// 큐에서 데이터를 꺼내고 제한 개수만큼만 처리
-	while (ProcessCount < MaxProcessPerFrame && ApiDataQueue.Dequeue(Data))
+	while (!WebSocketDataQueue.IsEmpty())
 	{
-		UE_LOG(LogM7AT10, Log, TEXT("[API] Processing: %s"), *Data);
-		// JSON 파싱 및 API 로직 처리
-
-		// 1. Parser 인스턴스 생성
-		FYyJsonParser JsonParser;
-
-		// 2. Wrapper JSON 파싱 (meta->{resource, action...}, data가 포함된 JSON)
-		if (JsonParser.JsonParse(Data))
+		// 시간이 다 되었는지 체크
+		if ((FPlatformTime::Seconds() - StartTime) > TimeBudget)
 		{
-			yyjson_val* Root = JsonParser.GetRoot();
+			break; // 다음 프레임에 계속 처리
+		}
 
-			// 3. 'meta' 객체 가져오기
-			yyjson_val* MetaNode = JsonParser.JsonParseKeyword(Root, TEXT("meta"));
+		if (WebSocketDataQueue.Dequeue(Data))
+		{
+			UE_LOG(LogM7AT10, Log, TEXT("[API] Processing: %s"), *Data);
+			// JSON 파싱 및 API 로직 처리
 
-			if (JsonParser.IsValid(MetaNode))
+			// 2. Wrapper JSON 파싱 (meta->{resource, action...}, data가 포함된 JSON)
+			if (JsonParser.JsonParse(Data))
 			{
-				// 4. 메타 데이터 추출
-				FString Resource = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("resource")));
-				FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("action")));
+				yyjson_val* Root = JsonParser.GetRoot();
 
-				if (!Resource.IsEmpty() && !Action.IsEmpty())
+				// 3. 'meta' 객체 가져오기
+				yyjson_val* MetaNode = JsonParser.JsonParseKeyword(Root, TEXT("meta"));
+
+				if (JsonParser.IsValid(MetaNode))
 				{
-					// 5. 핸들러 찾기
-					if (UApiMessage* Handler = FindApiMessage(Resource, Action))
-					{
-						// 6. 데이터 추출
-						yyjson_val* DataNode = JsonParser.JsonParseKeyword(Root, TEXT("data"));
+					// 4. 메타 데이터 추출
+					FString Resource = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("resource")));
+					FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("action")));
 
-						if (JsonParser.IsValid(DataNode))
+					if (!Resource.IsEmpty() && !Action.IsEmpty())
+					{
+						// 5. 핸들러 찾기
+						if (UApiMessage* Handler = FindApiMessage(Resource, Action))
 						{
-							// 7. 핸들러에게 실제 데이터 전달
-							Handler->ProcessData(&JsonParser, DataNode);
+							// 6. 데이터 추출
+							yyjson_val* DataNode = JsonParser.JsonParseKeyword(Root, TEXT("data"));
+
+							if (JsonParser.IsValid(DataNode))
+							{
+								// 7. 핸들러에게 실제 데이터 전달
+								Handler->ProcessData(&JsonParser, DataNode);
+							}
+							else
+							{
+								// TODO: data가 없거나 null인 경우, 빈 노드라도 넘겨줄 수 있음
+								UE_LOG(LogM7AT10, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
+								Handler->ProcessData(&JsonParser, nullptr);
+							}
 						}
 						else
 						{
-							// TODO: data가 없거나 null인 경우, 빈 노드라도 넘겨줄 수 있음
-							UE_LOG(LogM7AT10, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
-							Handler->ProcessData(&JsonParser, nullptr);
+							UE_LOG(LogM7AT10, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
 						}
 					}
 					else
 					{
-						UE_LOG(LogM7AT10, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
+						UE_LOG(LogM7AT10, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
 					}
 				}
 				else
 				{
-					UE_LOG(LogM7AT10, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
+					UE_LOG(LogM7AT10, Error, TEXT("[API] Failed to find 'meta' object in JSON"));
 				}
 			}
 			else
 			{
-				UE_LOG(LogM7AT10, Error, TEXT("[API] Failed to find 'meta' object in JSON"));
+				UE_LOG(LogM7AT10, Error, TEXT("[API] Failed to parse Wrapper JSON"));
 			}
 		}
-		else
-		{
-			UE_LOG(LogM7AT10, Error, TEXT("[API] Failed to parse Wrapper JSON"));
-		}
-
-		ProcessCount++;
 	}
 }
 
@@ -220,52 +226,59 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 {
 	if (WebSocketDataQueue.IsEmpty()) return;
 
+	double StartTime = FPlatformTime::Seconds();
+	const double TimeBudget = 0.005; // 5ms (0.005초) 동안만 처리
+
+	// 1. Parser 인스턴스 생성 (Stack 메모리)
+	FYyJsonParser JsonParser;
+
 	FString Data;
-	int32 ProcessCount = 0;
-	const int32 MaxProcessPerFrame = 50;
-
-	while (ProcessCount < MaxProcessPerFrame && WebSocketDataQueue.Dequeue(Data))
+	while (!WebSocketDataQueue.IsEmpty())
 	{
-		UE_LOG(LogM7AT10, Log, TEXT("[WebSocket] Processing: %s"), *Data);
-		// 실시간 데이터 로직 처리
-
-		// 1. Parser 인스턴스 생성 (Stack 메모리)
-		FYyJsonParser JsonParser;
-
-		// 2. JSON 파싱
-		if (JsonParser.JsonParse(Data))
+		// 시간이 다 되었는지 체크
+		if ((FPlatformTime::Seconds() - StartTime) > TimeBudget)
 		{
-			yyjson_val* Root = JsonParser.GetRoot();
+			break; // 다음 프레임에 계속 처리
+		}
 
-			// 3. TC_ID
-			yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
+		if (WebSocketDataQueue.Dequeue(Data))
+		{
+			UE_LOG(LogM7AT10, Log, TEXT("[WebSocket] Processing: %s"), *Data);
+			// 실시간 데이터 로직 처리
 
-			if (JsonParser.IsValid(MsgIdVal))
+			// 2. JSON 파싱
+			if (JsonParser.JsonParse(Data))
 			{
-				FString TrCode = JsonParser.GetString(MsgIdVal);
+				yyjson_val* Root = JsonParser.GetRoot();
 
-				// 4. 핸들러 찾기 및 데이터 전달
-				if (UTransactionCodeMessage* MsgObj = FindTransactionCodeMessage(TrCode))
+				// 3. TC_ID
+				yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
+
+				if (JsonParser.IsValid(MsgIdVal))
 				{
-					// ProcessData 호출
-					MsgObj->ProcessData(&JsonParser, Root);
+					FString TrCode = JsonParser.GetString(MsgIdVal);
+
+					// 4. 핸들러 찾기 및 데이터 전달
+					if (UTransactionCodeMessage* MsgObj = FindTransactionCodeMessage(TrCode))
+					{
+						// ProcessData 호출
+						MsgObj->ProcessData(&JsonParser, Root);
+					}
+					else
+					{
+						UE_LOG(LogM7AT10, Warning, TEXT("Handler not found for MESSAGE_ID: %s"), *TrCode);
+					}
 				}
 				else
 				{
-					UE_LOG(LogM7AT10, Warning, TEXT("Handler not found for MESSAGE_ID: %s"), *TrCode);
+					UE_LOG(LogM7AT10, Warning, TEXT("Failed to find 'MESSAGE_ID' in JSON data: %s"), *Data);
 				}
 			}
 			else
 			{
-				UE_LOG(LogM7AT10, Warning, TEXT("Failed to find 'MESSAGE_ID' in JSON data: %s"), *Data);
+				UE_LOG(LogM7AT10, Error, TEXT("Failed to parse JSON string via yyjson"));
 			}
 		}
-		else
-		{
-			UE_LOG(LogM7AT10, Error, TEXT("Failed to parse JSON string via yyjson"));
-		}
-
-		ProcessCount++;
 	}
 }
 
