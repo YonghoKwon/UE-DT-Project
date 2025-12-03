@@ -12,6 +12,23 @@
 
 struct FApiStruct;
 
+UDxDataSubsystem::UDxDataSubsystem()
+{
+	static ConstructorHelpers::FObjectFinder<UDataTable> ApiDataTableFinder(TEXT("/Game/M7AT10/Common/DataTables/DT_Api.DT_Api"));
+
+	if (ApiDataTableFinder.Succeeded())
+	{
+		ApiDataTable = ApiDataTableFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UDataTable> WebSocketDataTableFinder(TEXT("/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode"));
+
+	if (WebSocketDataTableFinder.Succeeded())
+	{
+		WebSocketDataTable = WebSocketDataTableFinder.Object;
+	}
+}
+
 void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -32,12 +49,12 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		return PascalCaseString;
 	};
 
-	const FString ApiTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_Api.DT_Api'");
-	UDataTable* LoadedApiTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ApiTablePath));
+	// const FString ApiTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_Api.DT_Api'");
+	// UDataTable* LoadedApiTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ApiTablePath));
 
-	if (LoadedApiTable)
+	if (ApiDataTable)
 	{
-		LoadedApiTable->ForeachRow<FApiStruct>(TEXT("UDxDataSubsystem::Initialize_Api"),
+		ApiDataTable->ForeachRow<FApiStruct>(TEXT("UDxDataSubsystem::Initialize_Api"),
 			[this, &ToPascalCase](const FName& RowName, const FApiStruct& Row)
 			{
 				if (Row.ApiMessageClass)
@@ -60,15 +77,15 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	else
 	{
-		UE_LOG(LogM7AT10, Warning, TEXT("ApiStructDataTable failed to load from path: %s"), *ApiTablePath);
+		UE_LOG(LogM7AT10, Warning, TEXT("ApiStructDataTable failed to load"));
 	}
 
-	const FString DataTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode'");
-	UDataTable* LoadedTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
+	// const FString DataTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode'");
+	// UDataTable* LoadedTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
 
-	if (LoadedTable)
+	if (WebSocketDataTable)
 	{
-		LoadedTable->ForeachRow<FTransactionCodeStruct>(TEXT("UDxDataSubsystem::Initialize_WebSocket"),
+		WebSocketDataTable->ForeachRow<FTransactionCodeStruct>(TEXT("UDxDataSubsystem::Initialize_WebSocket"),
 			[this](const FName& RowName, const FTransactionCodeStruct& Row)
 			{
 				if (Row.TransactionCodeMessageClass)
@@ -84,7 +101,7 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	else
 	{
-		UE_LOG(LogM7AT10, Warning, TEXT("TransactionCodeDataTable failed to load from path: %s"), *DataTablePath);
+		UE_LOG(LogM7AT10, Warning, TEXT("TransactionCodeDataTable failed to load"));
 	}
 }
 
@@ -121,7 +138,7 @@ void UDxDataSubsystem::ProcessApiQueue()
 	FYyJsonParser JsonParser;
 
 	FString Data;
-	while (!WebSocketDataQueue.IsEmpty())
+	while (!ApiDataQueue.IsEmpty())
 	{
 		// 시간이 다 되었는지 체크
 		if ((FPlatformTime::Seconds() - StartTime) > TimeBudget)
@@ -129,7 +146,7 @@ void UDxDataSubsystem::ProcessApiQueue()
 			break; // 다음 프레임에 계속 처리
 		}
 
-		if (WebSocketDataQueue.Dequeue(Data))
+		if (ApiDataQueue.Dequeue(Data))
 		{
 			UE_LOG(LogM7AT10, Log, TEXT("[API] Processing: %s"), *Data);
 			// JSON 파싱 및 API 로직 처리

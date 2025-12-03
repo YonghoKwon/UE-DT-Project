@@ -19,6 +19,8 @@ class M7AT10_DT_API UDxDataSubsystem : public UGameInstanceSubsystem, public FTi
 
 	// Function
 public:
+	UDxDataSubsystem();
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
@@ -50,6 +52,11 @@ protected:
 	// Variable
 public:
 private:
+	UPROPERTY()
+	TObjectPtr<UDataTable> ApiDataTable;
+	UPROPERTY()
+	TObjectPtr<UDataTable> WebSocketDataTable;
+
 	TQueue<FString> ApiDataQueue;
 	TQueue<FString> WebSocketDataQueue;
 
