@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IStompClient.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxWebSocketSubsystem.generated.h"
 

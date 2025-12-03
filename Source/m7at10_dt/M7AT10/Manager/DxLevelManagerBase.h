@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "DxLevelManagerBase.generated.h"
 
+enum class EDxViewMode : uint8;
+
 UCLASS()
 class M7AT10_DT_API ADxLevelManagerBase : public AActor
 {
@@ -25,4 +27,16 @@ protected:
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	// Function
+public:
+private:
+protected:
+
+	// Variable
+public:
+private:
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
+	EDxViewMode ViewMode;
 };

@@ -3,12 +3,21 @@
 
 #include "DxLevelManagerTest.h"
 
+#include "m7at10_dt/M7AT10/Core/DxGameStateBase.h"
+
 
 // Sets default values
 ADxLevelManagerTest::ADxLevelManagerTest()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	ViewMode = EDxViewMode::Test;
+}
+
+void ADxLevelManagerTest::BeginPlay()
+{
+	Super::BeginPlay();
 }
 
 void ADxLevelManagerTest::SetupForLevel()
