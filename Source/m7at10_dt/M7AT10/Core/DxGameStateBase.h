@@ -24,7 +24,7 @@ enum class EDxViewMode : uint8
 /**
  *
  */
-UCLASS()
+UCLASS(BlueprintType)
 class M7AT10_DT_API ADxGameStateBase : public AGameStateBase
 {
 	GENERATED_BODY()

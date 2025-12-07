@@ -22,11 +22,20 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	virtual bool IsTickable() const override { return !IsTemplate(); }
+
+	UFUNCTION(BlueprintCallable, Category = "Component")
+	void RegisterComponent(const FString& ComponentId, UActorComponent* InComponent);
+	UFUNCTION(BlueprintCallable, Category = "Component")
+	void UnregisterComponent(const FString& ComponentId);
+	UFUNCTION(BlueprintCallable, Category = "Component")
+	UActorComponent* FindComponent(const FString& ComponentId);
 private:
 protected:
 
 	// Variable
 public:
 private:
+	UPROPERTY()
+	TMap<FString, TObjectPtr<UActorComponent>> RegisteredComponents;
 protected:
 };

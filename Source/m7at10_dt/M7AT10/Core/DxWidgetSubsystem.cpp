@@ -51,7 +51,7 @@ void UDxWidgetSubsystem::SwitchUIMode(EDxViewMode NewMode)
 		LevelDataTable->ForeachRow<FDxLevelStruct>(TEXT("UDxWidgetSubsystem::SwitchUIMode"),
 			[this, NewMode](const FName& RowName, const FDxLevelStruct& Row)
 			{
-				if (NewMode == Row.DxViewMode && !MainWidgetClass)
+				if (NewMode == Row.DxViewMode)
 				{
 					MainWidgetClass = Row.UseMainWidget;
 					// return false; // 일치하는 첫 행을 찾으면 반복 중단

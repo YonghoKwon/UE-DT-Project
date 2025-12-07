@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/ThreadSafeCounter.h" // 헤더 추가
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxDataSubsystem.generated.h"
 
@@ -38,12 +39,6 @@ public:
 	UFUNCTION(Category = "DxData")
 	UTransactionCodeMessage* FindTransactionCodeMessage(const FString& TransactionCode);
 
-	UFUNCTION(Category = "Domain")
-	void RegisterCraneDataSyncComp(const FString& CraneId, UCraneDataSyncComp* Comp);
-	UFUNCTION(Category = "Domain")
-	void UnregisterCraneDataSyncComp(const FString& CraneId);
-	UFUNCTION(Category = "Domain")
-	UCraneDataSyncComp* FindCraneDataSyncComp(const FString& CraneId);
 private:
 	void ProcessApiQueue();
 	void ProcessWebSocketQueue();
@@ -65,8 +60,9 @@ private:
 	UPROPERTY()
 	TMap<FString, TObjectPtr<UTransactionCodeMessage>> TransactionCodeMessageMap;
 
-	// TODO: 관련 설비가 많아지면 별도 Subsystem에서 관리 할 수 있도록 변경 예정
-	UPROPERTY()
-	TMap<FString, TObjectPtr<UCraneDataSyncComp>> CraneDataSyncCompMap;
+	// 디버그용
+	// int32 TotalProcessedCount = 0; // 처리된 총 개수
+	// 디버그용 전체 처리된 데이터 개수를 세는 카운터
+	FThreadSafeCounter TotalProcessedCount;
 protected:
 };

@@ -8,7 +8,7 @@
 #include "CraneStatusVisualizerComp.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "m7at10_dt/M7AT10/Core/DxDataSubsystem.h"
+#include "m7at10_dt/M7AT10/Core/DxProcessSubsystem.h"
 
 
 // Sets default values
@@ -32,9 +32,9 @@ void ACrane::BeginPlay()
 
 	if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld()))
 	{
-		if (UDxDataSubsystem* DxDataSub = GI->GetSubsystem<UDxDataSubsystem>())
+		if (UDxProcessSubsystem* DxProcessSubsystem = GI->GetSubsystem<UDxProcessSubsystem>())
 		{
-			DxDataSub->RegisterCraneDataSyncComp(CraneId, DataSyncComp);
+			DxProcessSubsystem->RegisterComponent(CraneId, DataSyncComp);
 		}
 	}
 }
@@ -43,9 +43,9 @@ void ACrane::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld()))
 	{
-		if (UDxDataSubsystem* DxDataSub = GI->GetSubsystem<UDxDataSubsystem>())
+		if (UDxProcessSubsystem* DxProcessSubsystem = GI->GetSubsystem<UDxProcessSubsystem>())
 		{
-			DxDataSub->UnregisterCraneDataSyncComp(CraneId);
+			DxProcessSubsystem->UnregisterComponent(CraneId);
 		}
 	}
 

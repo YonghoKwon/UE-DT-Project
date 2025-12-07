@@ -18,7 +18,11 @@ class M7AT10_DT_API UTransactionCodeMessage : public UObject
 
 	// Function
 public:
-	virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode);
+	virtual TSharedPtr<struct FTransactionCodeDataBase> ParseToStruct(const FString& JsonString)
+	{
+		return nullptr;
+	}
+	virtual void ProcessStructData(const TSharedPtr<FTransactionCodeDataBase>& Data) {}
 	virtual UWorld* GetWorld() const override;
 private:
 protected:

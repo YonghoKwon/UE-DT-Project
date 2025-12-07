@@ -3,9 +3,9 @@
 
 #include "TransactionCodeMessage.h"
 
-void UTransactionCodeMessage::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
-{
-}
+// void UTransactionCodeMessage::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
+// {
+// }
 
 UWorld* UTransactionCodeMessage::GetWorld() const
 {

@@ -75,7 +75,7 @@ void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
 	// FStompBuffer Body = Message->GetRawBody();
 	const FString BodyString = Message->GetBodyAsString();
 
-	UE_LOG(LogM7AT10, Log, TEXT("Received Message Body: %s"), *BodyString);
+	// UE_LOG(LogM7AT10, Log, TEXT("Received Message Body: %s"), *BodyString);
 
 	// DxDataSubsystem에 데이터 저장
 	TObjectPtr<UGameInstance> GameInstance = GetGameInstance();

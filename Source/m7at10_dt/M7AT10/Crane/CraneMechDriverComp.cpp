@@ -48,8 +48,7 @@ void UCraneMechDriverComp::SetTargetPosition(const FCranePositionData& InPositio
 	TargetPosition.HoistHeight += InPositionData.HoistHeight * MovementScale;
 	TargetPosition.GantryPosition += InPositionData.GantryPosition * MovementScale;
 
-	UE_LOG(LogM7AT10, Log, TEXT("[CraneMechDriverComp] Target - Trolley: %.2f, Hoist: %.2f, Gantry: %.2f"),
-		   TargetPosition.TrolleyPosition, TargetPosition.HoistHeight, TargetPosition.GantryPosition);
+	// UE_LOG(LogM7AT10, Log, TEXT("[CraneMechDriverComp] Target - Trolley: %.2f, Hoist: %.2f, Gantry: %.2f"), TargetPosition.TrolleyPosition, TargetPosition.HoistHeight, TargetPosition.GantryPosition);
 }
 
 void UCraneMechDriverComp::UpdateTrolleyMovement(float DeltaTime)

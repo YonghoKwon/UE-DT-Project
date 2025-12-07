@@ -9,6 +9,7 @@
 #include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
 #include "m7at10_dt/M7AT10/WebSocket/TransactionCodeMessage.h"
 #include "m7at10_dt/M7AT10/WebSocket/TransactionCodeStruct.h"
+#include "Async/Async.h"
 
 struct FApiStruct;
 
@@ -241,95 +242,195 @@ UApiMessage* UDxDataSubsystem::FindApiMessage(const FString& Resource, const FSt
 
 void UDxDataSubsystem::ProcessWebSocketQueue()
 {
+	// if (WebSocketDataQueue.IsEmpty()) return;
+	//
+	// const double StartTime = FPlatformTime::Seconds();
+	// const double TimeBudget = 0.005; // 5ms (0.005초) 동안만 처리
+	//
+	// TSharedPtr<TMap<FString, TSubclassOf<UTransactionCodeMessage>>> SharedHandlerMap =
+	// 		MakeShared<TMap<FString, TSubclassOf<UTransactionCodeMessage>>>();
+	//
+	// for (const auto& Pair : TransactionCodeMessageMap)
+	// {
+	// 	if (Pair.Value) SharedHandlerMap->Add(Pair.Key, Pair.Value->GetClass());
+	// }
+	//
+	// FString Data;
+	// while (!WebSocketDataQueue.IsEmpty())
+	// {
+	// 	// 시간이 다 되었는지 체크
+	// 	if ((FPlatformTime::Seconds() - StartTime) > TimeBudget)
+	// 	{
+	// 		break; // 다음 프레임에 계속 처리
+	// 	}
+	//
+	// 	if (WebSocketDataQueue.Dequeue(Data))
+	// 	{
+	// 		// 디버그용. 처리할 때마다 카운트 증가 및 화면 표시
+	// 		TotalProcessedCount++;
+	//
+	// 		if (TotalProcessedCount % 1000 == 0) // 100개 단위로만 로그 찍기 (로그창 보호)
+	// 		{
+	// 			GEngine->AddOnScreenDebugMessage(1, 2.0f, FColor::Green,
+	// 				FString::Printf(TEXT("Processed: %d / Queue Remaining: %d"),
+	// 				TotalProcessedCount, WebSocketDataQueue.IsEmpty() ? 0 : 1));
+	// 		}
+	//
+	// 		// [백그라운드] : yyjson 파싱, 메시지 ID 찾기
+	// 		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, Data, SharedHandlerMap]()
+	// 		{
+	// 			FYyJsonParser JsonParser;
+	// 			if (JsonParser.JsonParse(Data))
+	// 			{
+	// 				yyjson_val* Root = JsonParser.GetRoot();
+	// 				yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
+	//
+	// 				if (JsonParser.IsValid(MsgIdVal))
+	// 				{
+	// 					FString TrCode = JsonParser.GetString(MsgIdVal);
+	//
+	// 					if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedHandlerMap->Find(TrCode))
+	// 					{
+	// 						UTransactionCodeMessage* DefaultHandler = GetMutableDefault<UTransactionCodeMessage>(
+	// 							*HandlerClassPtr);
+	//
+	// 						if (DefaultHandler)
+	// 						{
+	// 							TSharedPtr<FTransactionCodeDataBase> ParsedData = DefaultHandler->ParseToStruct(Data);
+	//
+	// 							if (ParsedData.IsValid())
+	// 							{
+	// 								// [메인 스레드] : NewObject 생성, ProcessStructData 실행
+	// 								AsyncTask(ENamedThreads::GameThread, [this, ParsedData, HandlerClass = *HandlerClassPtr]()
+	// 								{
+	// 									UTransactionCodeMessage* MsgObj = NewObject<UTransactionCodeMessage>(this, HandlerClass);
+	// 									MsgObj->ProcessStructData(ParsedData);
+	// 								});
+	// 							}
+	// 						}
+	// 					}
+	// 				}
+	// 			}
+	// 		});
+	// 	}
+	// }
+
 	if (WebSocketDataQueue.IsEmpty()) return;
 
-	double StartTime = FPlatformTime::Seconds();
-	const double TimeBudget = 0.005; // 5ms (0.005초) 동안만 처리
+    const double StartTime = FPlatformTime::Seconds();
+    const double TimeBudget = 0.005;
 
-	// 1. Parser 인스턴스 생성 (Stack 메모리)
-	FYyJsonParser JsonParser;
+    // 1. 핸들러 맵 복사
+    TSharedPtr<TMap<FString, TSubclassOf<UTransactionCodeMessage>>> SharedHandlerMap =
+        MakeShared<TMap<FString, TSubclassOf<UTransactionCodeMessage>>>();
 
-	FString Data;
-	while (!WebSocketDataQueue.IsEmpty())
+    for (const auto& Pair : TransactionCodeMessageMap)
+    {
+       if (Pair.Value) SharedHandlerMap->Add(Pair.Key, Pair.Value->GetClass());
+    }
+
+    // 2. 입력 데이터 묶음 (Batch Input)
+    TArray<FString> BatchDataChunk;
+    BatchDataChunk.Reserve(2000);
+
+    FString Data;
+    while (!WebSocketDataQueue.IsEmpty())
+    {
+       if ((FPlatformTime::Seconds() - StartTime) > TimeBudget) break;
+       if (WebSocketDataQueue.Dequeue(Data))
+       {
+          BatchDataChunk.Add(Data);
+       }
+    }
+
+	// 3. 백그라운드로 묶음 전송
+	if (BatchDataChunk.Num() > 0)
 	{
-		// 시간이 다 되었는지 체크
-		if ((FPlatformTime::Seconds() - StartTime) > TimeBudget)
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedHandlerMap]()
 		{
-			break; // 다음 프레임에 계속 처리
-		}
+			FYyJsonParser JsonParser;
 
-		if (WebSocketDataQueue.Dequeue(Data))
-		{
-			UE_LOG(LogM7AT10, Log, TEXT("[WebSocket] Processing: %s"), *Data);
-			// 실시간 데이터 로직 처리
-
-			// 2. JSON 파싱
-			if (JsonParser.JsonParse(Data))
+			// [중요 1] 결과를 담을 '바구니'를 만듭니다. (중간 저장소)
+			struct FResultItem
 			{
-				yyjson_val* Root = JsonParser.GetRoot();
+				TSubclassOf<UTransactionCodeMessage> HandlerClass;
+				TSharedPtr<FTransactionCodeDataBase> Data;
+			};
+			TArray<FResultItem> BatchResults;
+			BatchResults.Reserve(BatchDataChunk.Num());
 
-				// 3. TC_ID
-				yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
-
-				if (JsonParser.IsValid(MsgIdVal))
+			// --- 반복문 시작 ---
+			for (const FString& SingleData : BatchDataChunk)
+			{
+				if (JsonParser.JsonParse(SingleData))
 				{
-					FString TrCode = JsonParser.GetString(MsgIdVal);
+					yyjson_val* Root = JsonParser.GetRoot();
+					yyjson_val* MsgIdVal = JsonParser.JsonParseKeyword(Root, TEXT("MESSAGE_ID"));
 
-					// 4. 핸들러 찾기 및 데이터 전달
-					if (UTransactionCodeMessage* MsgObj = FindTransactionCodeMessage(TrCode))
+					if (JsonParser.IsValid(MsgIdVal))
 					{
-						// ProcessData 호출
-						MsgObj->ProcessData(&JsonParser, Root);
-					}
-					else
-					{
-						UE_LOG(LogM7AT10, Warning, TEXT("Handler not found for MESSAGE_ID: %s"), *TrCode);
+						FString TrCode = JsonParser.GetString(MsgIdVal);
+
+						if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedHandlerMap->
+							Find(TrCode))
+						{
+							// [최적화] NewObject 대신 CDO(기본객체) 사용
+							UTransactionCodeMessage* DefaultHandler = GetMutableDefault<UTransactionCodeMessage>(
+								*HandlerClassPtr);
+
+							if (DefaultHandler)
+							{
+								TSharedPtr<FTransactionCodeDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
+
+								if (ParsedData.IsValid())
+								{
+									// [중요 2] 바로 보내지 말고 바구니에 담기만 함! (AsyncTask 호출 X)
+									BatchResults.Add({*HandlerClassPtr, ParsedData});
+								}
+							}
+						}
 					}
 				}
-				else
-				{
-					UE_LOG(LogM7AT10, Warning, TEXT("Failed to find 'MESSAGE_ID' in JSON data: %s"), *Data);
-				}
 			}
-			else
+			// --- 반복문 종료 ---
+
+			// [중요 3] 바구니가 찼으면 '한 번만' 메인 스레드로 보냄 (2000번 -> 1번)
+			if (BatchResults.Num() > 0)
 			{
-				UE_LOG(LogM7AT10, Error, TEXT("Failed to parse JSON string via yyjson"));
+				AsyncTask(ENamedThreads::GameThread, [this, BatchResults]()
+				{
+					// 여기서 메인 스레드 루프를 돕니다.
+					for (const auto& Item : BatchResults)
+					{
+						// [최적화] NewObject 대신 CDO 재사용 (단순 데이터 적용일 경우 훨씬 빠름)
+						UTransactionCodeMessage* Handler = GetMutableDefault<
+							UTransactionCodeMessage>(Item.HandlerClass);
+						if (Handler)
+						{
+							Handler->ProcessStructData(Item.Data);
+						}
+
+						// 카운터 증가
+						TotalProcessedCount.Increment();
+					}
+				});
 			}
-		}
+		});
 	}
+
+    // 화면 디버깅
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(1, 0.0f, FColor::Green,
+            FString::Printf(TEXT("Total Processed: %d"), TotalProcessedCount.GetValue()));
+    }
+
+	const FString Timestamp = FDateTime::Now().ToString(TEXT("%Y.%m.%d-%H:%M:%S.%s"));
+	UE_LOG(LogM7AT10, Log, TEXT("Received Message at: %s"), *Timestamp);
+	UE_LOG(LogM7AT10, Log, TEXT("Total Processed: %d"), TotalProcessedCount.GetValue());
 }
 
 UTransactionCodeMessage* UDxDataSubsystem::FindTransactionCodeMessage(const FString& TransactionCode)
 {
 	return TransactionCodeMessageMap.FindRef(TransactionCode);
-}
-
-void UDxDataSubsystem::RegisterCraneDataSyncComp(const FString& CraneId, UCraneDataSyncComp* Comp)
-{
-	if (CraneId.IsEmpty() || !Comp)
-	{
-		UE_LOG(LogM7AT10, Warning, TEXT("[DxDataSubsystem] Invalid CraneId or Comp for registration"));
-		return;
-	}
-
-	if (CraneDataSyncCompMap.Contains(CraneId))
-	{
-		UE_LOG(LogM7AT10, Warning, TEXT("[DxDataSubsystem] CraneId '%s' already registered. Overwriting."), *CraneId);
-	}
-
-	CraneDataSyncCompMap.Add(CraneId, Comp);
-	UE_LOG(LogM7AT10, Log, TEXT("[DxDataSubsystem] Registered CraneDataSyncComp for CraneId: %s"), *CraneId);
-}
-
-void UDxDataSubsystem::UnregisterCraneDataSyncComp(const FString& CraneId)
-{
-	if (CraneDataSyncCompMap.Remove(CraneId) > 0)
-	{
-		UE_LOG(LogM7AT10, Log, TEXT("[DxDataSubsystem] Unregistered CraneDataSyncComp for CraneId: %s"), *CraneId);
-	}
-}
-
-UCraneDataSyncComp* UDxDataSubsystem::FindCraneDataSyncComp(const FString& CraneId)
-{
-	return CraneDataSyncCompMap.FindRef(CraneId);
 }
