@@ -18,7 +18,12 @@ class M7AT10_DT_API UApiMessage : public UObject
 
 	// Function
 public:
-	virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode);
+	virtual TSharedPtr<struct FApiDataBase> ParseToStruct(const FString& JsonString)
+	{
+		return nullptr;
+	}
+	virtual void ProcessStructData(const TSharedPtr<FApiDataBase>& Data) {}
+	virtual UWorld* GetWorld() const override;
 private:
 protected:
 

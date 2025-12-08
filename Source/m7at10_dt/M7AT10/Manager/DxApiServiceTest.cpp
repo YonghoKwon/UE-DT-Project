@@ -26,7 +26,8 @@ void UDxApiServiceTest::Step1_RequestOne()
 	FDxApiCallback OnComplete;
 	OnComplete.BindDynamic(this, &UDxApiServiceTest::OnOneResponse);
 
-	ApiSubsystem->DxHttpCall(TEXT("http://localhost:8080/activemq/task/running-tasks"), TEXT("GET"), TEXT(""), TMap<FString, FString>(), OnComplete);
+	ApiSubsystem->DxHttpCall(TEXT("http://localhost:8080/activemq/test/api/response-test"), TEXT("GET"), TEXT(""), TMap<FString, FString>(), OnComplete);
+	// ApiSubsystem->DxHttpCall(TEXT("http://localhost:8080/activemq/task/running-tasks"), TEXT("GET"), TEXT(""), TMap<FString, FString>(), OnComplete);
 }
 
 void UDxApiServiceTest::OnOneResponse(bool bSuccess, int32 Code, const FString& Content)

@@ -3,6 +3,8 @@
 
 #include "ApiMessage.h"
 
-void UApiMessage::ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode)
+
+UWorld* UApiMessage::GetWorld() const
 {
+	return GetOuter() ? GetOuter()->GetWorld() : nullptr;
 }

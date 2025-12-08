@@ -7,7 +7,7 @@
 #include "DxGameStateBase.generated.h"
 
 // 뷰 모드 정의
-UENUM()
+UENUM(BlueprintType)
 enum class EDxViewMode : uint8
 {
 	None,
@@ -24,7 +24,7 @@ enum class EDxViewMode : uint8
 /**
  *
  */
-UCLASS(BlueprintType)
+UCLASS()
 class M7AT10_DT_API ADxGameStateBase : public AGameStateBase
 {
 	GENERATED_BODY()

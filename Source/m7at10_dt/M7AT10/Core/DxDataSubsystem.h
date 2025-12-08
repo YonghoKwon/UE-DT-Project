@@ -42,6 +42,10 @@ public:
 private:
 	void ProcessApiQueue();
 	void ProcessWebSocketQueue();
+
+	// API 핸들러 조회 함수
+	UApiMessage* GetOrLoadApiHandler(UClass* HandlerClass);
+	UTransactionCodeMessage* GetOrLoadTransactionHandler(UClass* HandlerClass);
 protected:
 
 	// Variable
@@ -59,6 +63,11 @@ private:
 	TMap<FString, TObjectPtr<UApiMessage>> ApiMessageMap;
 	UPROPERTY()
 	TMap<FString, TObjectPtr<UTransactionCodeMessage>> TransactionCodeMessageMap;
+	UPROPERTY()
+	TMap<UClass*, UApiMessage*> ApiHandlerInstanceCache;
+	UPROPERTY()
+	TMap<UClass*, UTransactionCodeMessage*> WebSocketHandlerInstanceCache;
+
 
 	// 디버그용
 	// int32 TotalProcessedCount = 0; // 처리된 총 개수

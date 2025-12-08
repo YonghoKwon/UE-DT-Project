@@ -10,9 +10,11 @@
 struct FKP1D0012Data : FTransactionCodeDataBase
 {
 	// 전문 데이터 형식 정의
-	FString TransactionCode;
-
-	FString CreationTimestamp;
+	FString EqpBnoEqpSnum;
+	FString VehicleCd;
+	FString LogiDestLat;
+	FString LogiDestLon1;
+	FString LogiDestLon2;
 };
 
 /**
