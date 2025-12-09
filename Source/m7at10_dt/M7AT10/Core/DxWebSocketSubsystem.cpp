@@ -21,6 +21,11 @@ void UDxWebSocketSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReconnectTimerHandle);
+	}
+
 	this->DisconnectStompClient(LoginInfo);
 	StompClient.Reset();
 }
@@ -122,33 +127,27 @@ FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOM
 	return StompClient->Subscribe(Destination,
 	FStompSubscriptionEvent::CreateLambda([WeakThis, EventCallback](const IStompMessage& Message) -> void
 	{
-		// 1. [백그라운드 스레드] 필요한 데이터를 미리 '값 복사(Copy)' 해둡니다.
-		// 원본 Message가 사라지기 전에 데이터를 빼내는 과정입니다.
+
 		FString CopiedBody = Message.GetBodyAsString();
-		TMap<FName, FString> CopiedHeaders = Message.GetHeader(); // 헤더도 필요하다면 복사
+		// const TArray<uint8> CopiedRawBody = Message.GetRawBody();
+		TMap<FName, FString> CopiedHeaders = Message.GetHeader();
+		FString CopiedSubId = Message.GetSubscriptionId();
 		FString CopiedDest = Message.GetDestination();
 		FString CopiedMsgId = Message.GetMessageId();
+		FString CopiedAckId = Message.GetAckId();
 
-		// 2. [데이터 전달] 복사해둔 변수들(Copied...)을 캡처해서 넘깁니다.
-		// 여기서 Message 자체는 절대 넘기면 안 됩니다.
-		AsyncTask(ENamedThreads::GameThread, [WeakThis, EventCallback, CopiedBody, CopiedHeaders, CopiedDest, CopiedMsgId]()
+		AsyncTask(ENamedThreads::GameThread, [WeakThis, EventCallback, CopiedBody, CopiedHeaders, CopiedSubId, CopiedDest, CopiedMsgId, CopiedAckId]()
 		{
-			// 3. [게임 스레드] 안전하게 UObject 생성
 			TObjectPtr<UDxWebSocketSubsystem> StrongThis = WeakThis.Get();
 			if (!StrongThis) return;
 
 			UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(StrongThis);
 
-			// 4. 복사해둔 데이터를 UObject에 넣어줍니다.
-			// (UWebSocketMessage.h에 변수들이 public으로 선언되어 있으므로 직접 대입 가능)
 			Msg->BodyString = CopiedBody;
 			Msg->Headers = CopiedHeaders;
 			Msg->Destination = CopiedDest;
 			Msg->MessageId = CopiedMsgId;
 
-			// RawBody가 필요하다면 위 1번 단계에서 TArray<uint8>로 복사해서 넘겨야 합니다.
-
-			// 5. 델리게이트 실행
 			EventCallback.ExecuteIfBound(Msg);
 		});
 	}),
@@ -175,6 +174,12 @@ void UDxWebSocketSubsystem::Unsubscribe(const FString& Subscription, const FSTOM
 void UDxWebSocketSubsystem::HandleOnConnected(const FString& ProtocolVersion, const FString& SessionId,
                                               const FString& ServerString)
 {
+	RetryCount = 0;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReconnectTimerHandle);
+	}
+
 	ReceivedMessageEvent.BindDynamic(this, &UDxWebSocketSubsystem::ReceivedMessage);
 	Subscribe("topic.cep.output.0", ReceivedMessageEvent, CompletedMessageEvent);
 }
@@ -182,6 +187,8 @@ void UDxWebSocketSubsystem::HandleOnConnected(const FString& ProtocolVersion, co
 void UDxWebSocketSubsystem::HandleOnConnectionError(const FString& Error)
 {
 	UE_LOG(LogM7AT10, Error, TEXT("ConnectionError STOMP WebSocket"));
+
+	TryReconnect();
 }
 
 void UDxWebSocketSubsystem::HandleOnError(const FString& Error)
@@ -192,4 +199,36 @@ void UDxWebSocketSubsystem::HandleOnError(const FString& Error)
 void UDxWebSocketSubsystem::HandleOnClosed(const FString& Reason)
 {
 	UE_LOG(LogM7AT10, Error, TEXT("Closed STOMP WebSocket"));
+
+	if (StompClient.IsValid())
+	{
+		TryReconnect();
+	}
+}
+
+void UDxWebSocketSubsystem::TryReconnect()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	if (World->GetTimerManager().IsTimerActive(ReconnectTimerHandle))
+	{
+		return;
+	}
+
+	float CurrentDelay = InitialRetryDelay * FMath::Pow(BackoffMultiplier, RetryCount);
+
+	CurrentDelay = FMath::Min(CurrentDelay, MaxRetryDelay);
+
+	UE_LOG(LogM7AT10, Warning, TEXT("WebSocket connection lost. Retrying in %.1f seconds... (Attempt: %d)"), CurrentDelay, RetryCount + 1);
+
+	World->GetTimerManager().SetTimer(
+		ReconnectTimerHandle,
+		this,
+		&UDxWebSocketSubsystem::ConnectWebSocket,
+		CurrentDelay,
+		false
+	);
+
+	RetryCount++;
 }

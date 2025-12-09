@@ -49,6 +49,9 @@ private:
 	void HandleOnError(const FString& Error);
 	UFUNCTION(Category = "DxWebSocket")
 	void HandleOnClosed(const FString&  Reason);
+
+	UFUNCTION(Category = "DxWebSocket")
+	void TryReconnect();
 protected:
 
 	// Variable
@@ -60,6 +63,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "DxWebSocket")
 	FSTOMPConnectedEvent OnConnected;
 private:
+	FTimerHandle ReconnectTimerHandle; // 타이머 핸들
+	int32 RetryCount = 0;              // 현재 재시도 횟수
+
+	const float InitialRetryDelay = 1.0f; // 초기 대기 시간 (초)
+	const float MaxRetryDelay = 60.0f;    // 최대 대기 시간 (초)
+	const float BackoffMultiplier = 2.0f; // 시간 증가 배수
 protected:
 	TSharedPtr<IStompClient> StompClient;
 	TMap<FName, FString> LoginInfo;
