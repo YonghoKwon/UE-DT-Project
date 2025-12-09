@@ -54,11 +54,11 @@ void UKP1D0012::ProcessStructData(const TSharedPtr<FTransactionCodeDataBase>& Da
 		CraneData.Position.HoistHeight = FCString::Atof(*KP1D0012Data->LogiDestLon1);
 		CraneData.Position.GantryPosition = FCString::Atof(*KP1D0012Data->LogiDestLon2);
 
-		if (const UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld()))
+		if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld()))
 		{
-			if (UDxProcessSubsystem* DxProcessSubsystem = GI->GetSubsystem<UDxProcessSubsystem>())
+			if (UDxProcessSubsystem* DxProcess = GI->GetSubsystem<UDxProcessSubsystem>())
 			{
-				if (UCraneDataSyncComp* CraneDataSyncComp = Cast<UCraneDataSyncComp>(DxProcessSubsystem->FindComponent(CraneData.CraneId)))
+				if (UCraneDataSyncComp* CraneDataSyncComp = Cast<UCraneDataSyncComp>(DxProcess->FindComponent(CraneData.CraneId)))
 				{
 					CraneDataSyncComp->OnReceiveData(EDxDataType::CraneState, &CraneData);
 				}

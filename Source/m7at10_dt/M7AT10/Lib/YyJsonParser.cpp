@@ -99,28 +99,64 @@ FString FYyJsonParser::GetString(yyjson_val* Val, const FString& DefaultValue) c
 
 int32 FYyJsonParser::GetInt(yyjson_val* Val, int32 DefaultValue) const
 {
-    if (Val && yyjson_is_int(Val))
+    if (!Val) return DefaultValue;
+
+    if (yyjson_is_int(Val))
     {
         return yyjson_get_int(Val);
     }
+
+    if (yyjson_is_str(Val))
+    {
+        const char* RawStr = yyjson_get_str(Val);
+        if (RawStr)
+        {
+            return FCString::Atoi(UTF8_TO_TCHAR(RawStr));
+        }
+    }
+
     return DefaultValue;
 }
 
 int64 FYyJsonParser::GetInt64(yyjson_val* Val, int64 DefaultValue) const
 {
-    if (Val && yyjson_is_int(Val))
+    if (!Val) return DefaultValue;
+
+    if (yyjson_is_int(Val))
     {
         return yyjson_get_sint(Val);
     }
+
+    if (yyjson_is_str(Val))
+    {
+        const char* RawStr = yyjson_get_str(Val);
+        if (RawStr)
+        {
+            return FCString::Atoi64(UTF8_TO_TCHAR(RawStr));
+        }
+    }
+
     return DefaultValue;
 }
 
 double FYyJsonParser::GetNumber(yyjson_val* Val, double DefaultValue) const
 {
-    if (Val && yyjson_is_num(Val))
+    if (!Val) return DefaultValue;
+
+    if (yyjson_is_num(Val))
     {
         return yyjson_get_num(Val);
     }
+
+    if (yyjson_is_str(Val))
+    {
+        const char* RawStr = yyjson_get_str(Val);
+        if (RawStr)
+        {
+            return FCString::Atod(UTF8_TO_TCHAR(RawStr));
+        }
+    }
+
     return DefaultValue;
 }
 

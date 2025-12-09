@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HAL/ThreadSafeCounter.h" // 헤더 추가
+#include "HAL/ThreadSafeCounter.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxDataSubsystem.generated.h"
 
@@ -33,11 +33,6 @@ public:
 	void EnqueueApiData(const FString& DataFromApi);
 	UFUNCTION(Category = "DxData")
 	void EnqueueWebSocketData(const FString& Data);
-
-	UFUNCTION(Category = "DxData")
-	UApiMessage* FindApiMessage(const FString& Resource, const FString& Action);
-	UFUNCTION(Category = "DxData")
-	UTransactionCodeMessage* FindTransactionCodeMessage(const FString& TransactionCode);
 
 private:
 	void ProcessApiQueue();

@@ -34,29 +34,13 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// kebab-case를 PascalCase로 변환하는 헬퍼 람다
-	auto ToPascalCase = [](const FString& KebabCaseString) -> FString
-	{
-		TArray<FString> Parts;
-		KebabCaseString.ParseIntoArray(Parts, TEXT("-"), true);
-		FString PascalCaseString;
-		for (const FString& Part : Parts)
-		{
-			if (!Part.IsEmpty())
-			{
-				PascalCaseString += Part.Left(1).ToUpper() + Part.Mid(1).ToLower();
-			}
-		}
-		return PascalCaseString;
-	};
-
 	// const FString ApiTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_Api.DT_Api'");
 	// UDataTable* LoadedApiTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ApiTablePath));
 
 	if (ApiDataTable)
 	{
 		ApiDataTable->ForeachRow<FApiStruct>(TEXT("UDxDataSubsystem::Initialize_Api"),
-			[this, &ToPascalCase](const FName& RowName, const FApiStruct& Row)
+			[this](const FName& RowName, const FApiStruct& Row)
 			{
 				if (Row.ApiMessageClass)
 				{
@@ -66,8 +50,8 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 						TObjectPtr<UApiMessage> NewHandler = NewObject<UApiMessage>(this, Row.ApiMessageClass);
 
 						// Resource와 Action을 PascalCase로 변환하여 키 생성
-						FString PascalResource = ToPascalCase(Row.ApiResource);
-						FString PascalAction = ToPascalCase(Row.ApiAction);
+						FString PascalResource = Row.ApiResource;
+						FString PascalAction = Row.ApiAction;
 						FString Key = FPaths::Combine(PascalResource, PascalAction);
 
 						ApiMessageMap.Add(Key, NewHandler);
@@ -111,7 +95,7 @@ void UDxDataSubsystem::Deinitialize()
 	Super::Deinitialize();
 
 	WebSocketHandlerInstanceCache.Empty();
-	ApiHandlerInstanceCache.Empty(); // [New] API 캐시도 비우기
+	ApiHandlerInstanceCache.Empty();
 }
 
 void UDxDataSubsystem::Tick(float DeltaTime)
@@ -306,32 +290,6 @@ void UDxDataSubsystem::EnqueueWebSocketData(const FString& Data)
 	WebSocketDataQueue.Enqueue(Data);
 }
 
-UApiMessage* UDxDataSubsystem::FindApiMessage(const FString& Resource, const FString& Action)
-{
-	// kebab-case를 PascalCase로 변환하는 헬퍼 람다
-	auto ToPascalCase = [](const FString& KebabCaseString) -> FString
-	{
-		TArray<FString> Parts;
-		KebabCaseString.ParseIntoArray(Parts, TEXT("-"), true);
-		FString PascalCaseString;
-		for (const FString& Part : Parts)
-		{
-			if (!Part.IsEmpty())
-			{
-				PascalCaseString += Part.Left(1).ToUpper() + Part.Mid(1).ToLower();
-			}
-		}
-		return PascalCaseString;
-	};
-
-	// Resource와 Action을 PascalCase로 변환
-	FString PascalResource = ToPascalCase(Resource);
-	FString PascalAction = ToPascalCase(Action);
-
-	FString Key = FPaths::Combine(PascalResource, PascalAction);
-	return ApiMessageMap.FindRef(Key);
-}
-
 void UDxDataSubsystem::ProcessWebSocketQueue()
 {
 	if (WebSocketDataQueue.IsEmpty()) return;
@@ -488,9 +446,4 @@ UTransactionCodeMessage* UDxDataSubsystem::GetOrLoadTransactionHandler(UClass* H
 	}
 
 	return NewHandler;
-}
-
-UTransactionCodeMessage* UDxDataSubsystem::FindTransactionCodeMessage(const FString& TransactionCode)
-{
-	return TransactionCodeMessageMap.FindRef(TransactionCode);
 }
