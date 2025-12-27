@@ -25,7 +25,7 @@ public:
 	void OpenWidgetAddLogic();
 
 	UFUNCTION(BlueprintCallable, Category = "Widget")
-	void CloeWidget();
+	void CloseWidget();
 private:
 protected:
 	// Player) 연속 동작 시작/중지 (자식 클래스에서 사용)

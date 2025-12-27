@@ -4,7 +4,6 @@
 #include "m7at10_dt/M7AT10/Core/DxGameStateBase.h"
 #include "m7at10_dt/M7AT10/Core/DxWidgetSubsystem.h"
 
-
 ADxLevelManagerBase::ADxLevelManagerBase()
 {
 	PrimaryActorTick.bCanEverTick = true;

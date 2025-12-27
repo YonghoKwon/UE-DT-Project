@@ -27,9 +27,9 @@ void ADxPlayerBase::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("CameraComponent is null"));
 	}
-	if (ADxPlayerControllerBase* DxPlayerControllerBase = Cast<ADxPlayerControllerBase>(GetController()))
+	if (ADxPlayerControllerBase* DxPlayerController = Cast<ADxPlayerControllerBase>(GetController()))
 	{
-		DxPlayerControllerBase->SetControlRotation(GetActorRotation());
+		DxPlayerController->SetControlRotation(GetActorRotation());
 	}
 }
 
@@ -53,7 +53,7 @@ float ADxPlayerBase::GetControlSpeed()
 {
 	return ControlSpeed;
 }
-// 속도 레벨 순화
+// 속도 레벨 순환
 void ADxPlayerBase::CycleControlSpeed()
 {
 	float NewSpeed = ControlSpeed + 100.0f;
@@ -77,7 +77,7 @@ void ADxPlayerBase::Look(const FVector2D& LookVector)
 	// 위 - / 아래 +
 	AddControllerPitchInput(-LookVector.Y * 0.5);
 	// 좌 + / 우 -
-	AddControllerPitchInput(LookVector.X * 0.5);
+	AddControllerYawInput(LookVector.X * 0.5);
 }
 // 앞뒤,좌우 카메라 이동, 배속 적용
 void ADxPlayerBase::Move(const FVector2D& MovementVector)
@@ -88,8 +88,10 @@ void ADxPlayerBase::Move(const FVector2D& MovementVector)
 		const FVector Forward = CameraComponent->GetForwardVector();
 		const FVector Right = CameraComponent->GetRightVector();
 
-		const FVector NewLocation = GetActorLocation() +
-			(Forward * MovementVector.Y + Right * MovementVector.X) * ControlSpeed;
+		FVector NewLocation = GetActorLocation() +
+			Forward * MovementVector.Y  * ControlSpeed +
+			Right * MovementVector.X * ControlSpeed;
+
 		SetActorLocation(NewLocation);
 	}
 }

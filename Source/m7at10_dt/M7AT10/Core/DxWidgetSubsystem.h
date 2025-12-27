@@ -1,6 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
@@ -22,9 +20,6 @@ struct FWidgetInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Widget")
 	FVector2D Position = FVector2D(1000.0f, 500.0f);
 };
-/**
- * 
- */
 UCLASS()
 class M7AT10_DT_API UDxWidgetSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
 {

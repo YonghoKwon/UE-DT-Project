@@ -25,10 +25,10 @@ void UDxWidget::NativeConstruct()
 
 void UDxWidget::NativeDestruct()
 {
-	Super::NativeDestruct();
-
 	// 타이머 정리
 	StopContinuousTimer();
+
+	Super::NativeDestruct();
 }
 
 void UDxWidget::OpenWidgetAddLogic_Implementation()
@@ -36,7 +36,7 @@ void UDxWidget::OpenWidgetAddLogic_Implementation()
 	// 자식 클래스에서 오버라이드하여 구현 (오픈할 때 세부 로직이 필요할 경우)
 }
 
-void UDxWidget::CloeWidget()
+void UDxWidget::CloseWidget()
 {
 	// DxWidgetSubsystem을 통해 위젯 닫기
 	if (UGameInstance* GameInstance = GetGameInstance())
@@ -47,13 +47,13 @@ void UDxWidget::CloeWidget()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("DxWidget::CloseWidget - DxWidgetSubsystem not found, removing form parent directly"));
+			UE_LOG(LogTemp, Warning, TEXT("DxWidget::CloseWidget - DxWidgetSubsystem not found, removing from parent directly"));
 			RemoveFromParent();
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DxWidget::CloseWidget - GameInstance is null, removing form parent directly"));
+		UE_LOG(LogTemp, Warning, TEXT("DxWidget::CloseWidget - GameInstance is null, removing from parent directly"));
 		RemoveFromParent();
 	}
 }

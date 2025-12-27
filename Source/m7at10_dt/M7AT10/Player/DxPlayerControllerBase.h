@@ -8,9 +8,6 @@
 #include "InputActionValue.h"
 #include "DxPlayerControllerBase.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class M7AT10_DT_API ADxPlayerControllerBase : public APlayerController
 {
@@ -93,10 +90,10 @@ private:
 	UPROPERTY()
 	bool bIsWidgetUnderMouse = false;
 
-	// 현재 호버되 InteractableActor
+	// 현재 호버된 InteractableActor
 	UPROPERTY()
 	class AInteractableActor* CurrentHoveredActor = nullptr;
-	// 현재 호버되 매쉬 컴포넌트
+	// 현재 호버된 매쉬 컴포넌트
 	UPROPERTY()
 	UPrimitiveComponent* CurrentHoveredMesh;
 protected:

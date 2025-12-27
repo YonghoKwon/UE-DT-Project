@@ -39,7 +39,7 @@ void ADxPlayerTest::Move(const FVector2D& MovementVector)
 	Super::Move(MovementVector);
 }
 
-void ADxPlayerTest::MoveUpDown(float Value)
+void ADxPlayerTest::MoveUpDown(const float Value)
 {
 	// TopView일 때는 이동 막기
 	if (PlayerViewType == EPlayerViewType::TopView)
@@ -56,7 +56,7 @@ EPlayerViewType ADxPlayerTest::GetPlayerViewType()
 	return PlayerViewType;
 }
 
-void ADxPlayerTest::ChangePlayerViewType(class UTextBlock* ViewText)
+void ADxPlayerTest::ChangePlayerViewType(UTextBlock* ViewText)
 {
 	// 시점 전환 로직
 	if (PlayerViewType == EPlayerViewType::TopView)
@@ -73,7 +73,8 @@ void ADxPlayerTest::ChangePlayerViewType(class UTextBlock* ViewText)
 		{
 			FVector TargetLocation = FreeViewTarget->GetActorLocation();
 			FRotator TargetRotation = FreeViewTarget->GetActorRotation();
-			SetActorLocationAndRotation(TargetLocation, TargetRotation);
+			SetActorLocation(TargetLocation);
+			SetActorRotation(TargetRotation);
 
 			// 카메라 방향도 맞추기
 			if (APlayerController* PC = Cast<APlayerController>(GetController()))
@@ -95,7 +96,8 @@ void ADxPlayerTest::ChangePlayerViewType(class UTextBlock* ViewText)
 		{
 			FVector TargetLocation = TopViewTarget->GetActorLocation();
 			FRotator TargetRotation = TopViewTarget->GetActorRotation();
-			SetActorLocationAndRotation(TargetLocation, TargetRotation);
+			SetActorLocation(TargetLocation);
+			SetActorRotation(TargetRotation);
 
 			// 카메라 방향도 맞추기
 			if (APlayerController* PC = Cast<APlayerController>(GetController()))

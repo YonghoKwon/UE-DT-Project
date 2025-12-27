@@ -185,7 +185,7 @@ void AInteractableActor::HighlightSingleMesh(bool activate, UPrimitiveComponent*
 {
 	if (!mesh)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("HighlightSingleMeh - Mesh is null!"));
+		UE_LOG(LogTemp, Warning, TEXT("HighlightSingleMesh - Mesh is null!"));
 		return;
 	}
 

@@ -11,8 +11,8 @@ class ATargetPoint;
 UENUM(BlueprintType)
 enum class EPlayerViewType : uint8
 {
-	TopView		UMETA(DisplayName = "Top View"),
-	FreeView	UMETA(DisplayName = "Free View"),
+	TopView		UMETA(DisplayName = "TopView"),
+	FreeView	UMETA(DisplayName = "FreeView"),
 };
 UCLASS()
 class M7AT10_DT_API ADxPlayerTest : public ADxPlayerBase
@@ -27,7 +27,7 @@ public:
 	EPlayerViewType GetPlayerViewType();
 	void ChangePlayerViewType(class UTextBlock* ViewText = nullptr);
 	void Move(const FVector2D& MovementVector) override;
-	void MoveUpDown(float Value) override;
+	void MoveUpDown(const float Value) override;
 
 protected:
 	virtual void BeginPlay() override;

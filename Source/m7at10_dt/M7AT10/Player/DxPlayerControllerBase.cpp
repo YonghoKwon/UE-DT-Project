@@ -92,7 +92,7 @@ void ADxPlayerControllerBase::Move(const FInputActionValue& Value)
 		DxPlayer->Move(MovementVector);
 	}
 }
-void ADxPlayerControllerBase::Look(const FInputActionValue& Value)
+void ADxPlayerControllerBase::MoveUpDown(const FInputActionValue& Value)
 {
 	const float value = Value.Get<float>();
 
@@ -102,7 +102,7 @@ void ADxPlayerControllerBase::Look(const FInputActionValue& Value)
 	}
 }
 // 시점 변경
-void ADxPlayerControllerBase::MoveUpDown(const FInputActionValue& Value)
+void ADxPlayerControllerBase::Look(const FInputActionValue& Value)
 {
 	const FVector2D LookVector = Value.Get<FVector2D>();
 	if (ADxPlayerBase* DxPlayer = Cast<ADxPlayerBase>(GetPawn()))
@@ -137,7 +137,6 @@ void ADxPlayerControllerBase::ClickLeftMouseButton(const FInputActionValue& Valu
 }
 
 // 우클릭 제어
-
 void ADxPlayerControllerBase::ClickRightMouseButton(const FInputActionValue& Value)
 {
 	const bool value = Value.Get<bool>();
@@ -235,12 +234,12 @@ void ADxPlayerControllerBase::CheckMouseHover()
 			// InteractableActor가 아니면 이전 호버 해제
 			if (CurrentHoveredMesh)
 			{
-				AInteractableActor* PreActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-				if (PreActor && PreActor->HighlightMode == EHighlightMode::IndividualMesh)
+				AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
+				if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
 				{
 					TArray<UPrimitiveComponent*> meshes = {};
 					meshes.Add(CurrentHoveredMesh);
-					PreActor->NotHover(meshes);
+					PrevActor->NotHover(meshes);
 				}
 				CurrentHoveredMesh = nullptr;
 			}
@@ -267,12 +266,12 @@ void ADxPlayerControllerBase::CheckMouseHover()
 					// 이전 메시 하이라이트 해제
 					if (CurrentHoveredMesh)
 					{
-						AInteractableActor* PreActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-						if (PreActor && PreActor->HighlightMode == EHighlightMode::IndividualMesh)
+						AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
+						if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
 						{
 							TArray<UPrimitiveComponent*> meshes = {};
 							meshes.Add(CurrentHoveredMesh);
-							PreActor->NotHover(meshes);
+							PrevActor->NotHover(meshes);
 						}
 					}
 
@@ -285,7 +284,7 @@ void ADxPlayerControllerBase::CheckMouseHover()
 					// 액터 전체 하이라이트
 					CurrentHoveredMesh = nullptr; // 루트는 개별 메시가 아님
 					CurrentHoveredActor = InteractableActor;
-					InteractableActor->Hover(InteractableActor->GetActorAllMesh());
+					CurrentHoveredActor->Hover(InteractableActor->GetActorAllMesh());
 				}
 			}
 			else
@@ -296,12 +295,12 @@ void ADxPlayerControllerBase::CheckMouseHover()
 					// 이전 메시 하이라이트 해제
 					if (CurrentHoveredMesh)
 					{
-						AInteractableActor* PreActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-						if (PreActor && PreActor->HighlightMode == EHighlightMode::IndividualMesh)
+						AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
+						if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
 						{
 							TArray<UPrimitiveComponent*> meshes = {};
 							meshes.Add(CurrentHoveredMesh);
-							PreActor->NotHover(meshes);
+							PrevActor->NotHover(meshes);
 						}
 					}
 
@@ -315,7 +314,7 @@ void ADxPlayerControllerBase::CheckMouseHover()
 					CurrentHoveredMesh = HoveredMesh;
 					CurrentHoveredActor = InteractableActor;
 					TArray<UPrimitiveComponent*> meshes = {};
-					meshes.Add(HoveredMesh);
+					meshes.Add(CurrentHoveredMesh);
 					// 개별 메시 이름으로 WidgetFlag 설정
 					InteractableActor->WidgetFlag = HoveredMesh->GetName();
 					InteractableActor->Hover(meshes);
@@ -330,26 +329,26 @@ void ADxPlayerControllerBase::CheckMouseHover()
 				// 이전 메시 하이라이트 해제 (모드가 바뀐 경우)
 				if (CurrentHoveredMesh)
 				{
-					AInteractableActor* PreActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-					if (PreActor && PreActor->HighlightMode == EHighlightMode::IndividualMesh)
+					AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
+					if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
 					{
 						TArray<UPrimitiveComponent*> meshes = {};
 						meshes.Add(CurrentHoveredMesh);
-						PreActor->NotHover(meshes);
+						PrevActor->Hover(meshes);
 					}
 					CurrentHoveredMesh = nullptr;
 				}
-			}
 
-			// 이전 액터 하이라이트 해제
-			if (CurrentHoveredActor && CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-			{
-				CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-			}
+				// 이전 액터 하이라이트 해제
+				if (CurrentHoveredActor && CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
+				{
+					CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
+				}
 
-			// 새 액터 전체 하이라이트
-			CurrentHoveredActor = InteractableActor;
-			CurrentHoveredActor->Hover(CurrentHoveredActor->GetActorAllMesh());
+				// 새 액터 전체 하이라이트
+				CurrentHoveredActor = InteractableActor;
+				CurrentHoveredActor->Hover(CurrentHoveredActor->GetActorAllMesh());
+			}
 		}
 	}
 	else
@@ -357,12 +356,12 @@ void ADxPlayerControllerBase::CheckMouseHover()
 		// 아무것도 호버되지 않음
 		if (CurrentHoveredMesh)
 		{
-			AInteractableActor* PreActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-			if (PreActor && PreActor->HighlightMode == EHighlightMode::IndividualMesh)
+			AInteractableActor* InteractableActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
+			if (InteractableActor && InteractableActor->HighlightMode == EHighlightMode::IndividualMesh)
 			{
 				TArray<UPrimitiveComponent*> meshes = {};
 				meshes.Add(CurrentHoveredMesh);
-				PreActor->NotHover(meshes);
+				InteractableActor->NotHover(meshes);
 			}
 			CurrentHoveredMesh = nullptr;
 		}

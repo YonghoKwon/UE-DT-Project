@@ -75,7 +75,7 @@ void UDxWidgetSubsystem::SwitchUIMode(EDxViewMode NewMode)
 
 UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 {
-	if (InteractableActor)
+	if (!InteractableActor)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("OpenWidget:: InteractableActor is null"));
 		return nullptr;
@@ -123,9 +123,9 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 	UE_LOG(LogTemp, Log, TEXT("OpenWidget: Widget '%s' opened at position (%f, %f)"),
 		*InteractableActor->WidgetFlag,
 		WidgetInfo.Position.X,
-		WidgetInfo.Position.Y)
+		WidgetInfo.Position.Y);
 
-	return nullptr;
+	return NewWidget;
 }
 
 void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
