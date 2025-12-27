@@ -6,23 +6,42 @@
 #include "DxPlayerBase.h"
 #include "DxPlayerTest.generated.h"
 
+class ATargetPoint;
+
+UENUM(BlueprintType)
+enum class EPlayerViewType : uint8
+{
+	TopView		UMETA(DisplayName = "Top View"),
+	FreeView	UMETA(DisplayName = "Free View"),
+};
 UCLASS()
 class M7AT10_DT_API ADxPlayerTest : public ADxPlayerBase
 {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this pawn's properties
 	ADxPlayerTest();
+	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	EPlayerViewType GetPlayerViewType();
+	void ChangePlayerViewType(class UTextBlock* ViewText = nullptr);
+	void Move(const FVector2D& MovementVector) override;
+	void MoveUpDown(float Value) override;
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 public:
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	EPlayerViewType PlayerViewType;
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CameraPoint")
+	ATargetPoint* TopViewTarget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CameraPoint")
+	ATargetPoint* FreeViewTarget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CameraPoint")
+	float TransitionSpeed = 5.0f;
 };

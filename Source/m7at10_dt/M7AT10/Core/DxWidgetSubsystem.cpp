@@ -3,6 +3,9 @@
 
 #include "DxWidgetSubsystem.h"
 
+#include "Blueprint/WidgetTree.h"
+#include "Components/CanvasPanelSlot.h"
+#include "m7at10_dt/M7AT10/InteractableActor/InteractableActor.h"
 #include "m7at10_dt/M7AT10/Manager/DxLevelStruct.h"
 #include "m7at10_dt/M7AT10/UI/DxWidget.h"
 
@@ -72,10 +75,93 @@ void UDxWidgetSubsystem::SwitchUIMode(EDxViewMode NewMode)
 
 UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 {
+	if (InteractableActor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OpenWidget:: InteractableActor is null"));
+		return nullptr;
+	}
+	// 위젯을 추가할 부모 canvasPanel 찾기
+	UPanelWidget* Panel = GetAddWidgetPanel();
+	if (!Panel)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OpenWidget:: AddWidgetPanel not found in MainWidget"));
+		return nullptr;
+	}
+	// WidgetMap에서 WidgetFlag에 해당하는 위젯 정보 찾기
+	FWidgetInfo* WidgetInfoPtr = InteractableActor->WidgetMap.Find(InteractableActor->WidgetFlag);
+	if (!WidgetInfoPtr || ! WidgetInfoPtr->WidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OpenWidget: No widget info found for flag '%s'"), *InteractableActor->WidgetFlag);
+		return nullptr;
+	}
+
+	FWidgetInfo& WidgetInfo = *WidgetInfoPtr;
+
+	// 위젯 생성
+	UDxWidget* NewWidget = CreateWidget<UDxWidget>(GetWorld(), WidgetInfo.WidgetClass);
+	if (!NewWidget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OpenWidget: Failed to create widget"));
+		return nullptr;
+	}
+
+	UPanelSlot* PanelSlot = Panel->AddChild(NewWidget);
+
+	// Canvas Panel인 경우 위치 설정
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(PanelSlot))
+	{
+		CanvasSlot->SetPosition(WidgetInfo.Position);
+		CanvasSlot->SetZOrder(1);
+	}
+
+	// 열린 위젯 목록에 추가
+	OpenWidgets.Add(NewWidget);
+
+	// 위젯의 OpenWidget 함수 호출 (추가 로직 실행)
+	NewWidget->OpenWidgetAddLogic();
+
+	UE_LOG(LogTemp, Log, TEXT("OpenWidget: Widget '%s' opened at position (%f, %f)"),
+		*InteractableActor->WidgetFlag,
+		WidgetInfo.Position.X,
+		WidgetInfo.Position.Y)
+
 	return nullptr;
 }
 
 void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
 {
+	if (!CloseWidget)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CloseWidget::Widget is null"));
+		return;
+	}
 
+	// 열린 위젯 목록에서 제거
+	if (OpenWidgets.Contains(CloseWidget))
+	{
+			OpenWidgets.Remove(CloseWidget);
+		UE_LOG(LogTemp, Log, TEXT("CloseWidget::Widget removed from OpenWidgets list"));
+	}
+
+	// MainWidget의 컨테이너에서 제거
+	CloseWidget->RemoveFromParent();
+
+	UE_LOG(LogTemp, Log, TEXT("CloseWidget::Widget closed successfully"));
+}
+
+class UPanelWidget* UDxWidgetSubsystem::GetAddWidgetPanel() const
+{
+	if (!MainWidgetInstance)
+	{
+		return nullptr;
+	}
+
+	// WidgetTree에서 "AddWidgetPanel" 이름으로 위젯 찾기
+	if (UWidgetTree* WidgetTree = MainWidgetInstance->WidgetTree)
+	{
+		UWidget* FoundWidget = WidgetTree->FindWidget(FName("AddWidgetPanel"));
+		return Cast<UPanelWidget>(FoundWidget);
+	}
+
+	return nullptr;
 }

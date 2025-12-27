@@ -23,6 +23,9 @@ ACrane::ACrane()
 	DataSyncComp = CreateDefaultSubobject<UCraneDataSyncComp>(TEXT("DataSyncComp"));
 	MechDriverComp = CreateDefaultSubobject<UCraneMechDriverComp>(TEXT("MechDriverComp"));
 	StatusVisualizerComp = CreateDefaultSubobject<UCraneStatusVisualizerComp>(TEXT("StatusVisualizerComp"));
+
+	WidgetFlag = TEXT("Freeview");
+	HighlightMode = EHighlightMode::IndividualMesh;
 }
 
 // Called when the game starts or when spawned
