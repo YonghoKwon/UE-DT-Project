@@ -164,215 +164,39 @@ void ADxPlayerControllerBase::ClickRightMouseButton(const FInputActionValue& Val
 // 마우스 호버 감지
 void ADxPlayerControllerBase::CheckMouseHover()
 {
-	FVector WorldLocation, WorldDirection;
-	if (!DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
-	{
-		return;
-	}
+	// 1. 마우스 위치에서 Trace
+	FHitResult HitResult;
+	bool bHit = GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
+	// 혹은 기존처럼 LineTraceSingleByObjectType 사용 가능.
+	// GetHitResultUnderCursor가 편하긴 합니다.
 
-	FVector Start = WorldLocation;
-	FVector End = Start + (WorldDirection * 100000.0f); // 거리율에 따라 hover 인식 달라짐
-
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(GetPawn());
-
-	FHitResult HoverHitResult;
-
-	// 모든 ObjectType 추가로 오브젝트 감지
-	FCollisionObjectQueryParams ObjectQueryParams;
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1);
-
-	bool bHit = GetWorld()->LineTraceSingleByObjectType(
-		HoverHitResult,
-		Start,
-		End,
-		ObjectQueryParams,
-		QueryParams
-		);
-
-	// Hit 지점에 초록색 구체 (Hover 디버그용)
-	// if (bHit)
-	// {
-	// 	DrawDebugSphere(GetWorld(), HoverHitResult.ImpactPoint, 100.0f, 12, FColor::Green, false, 0.1f);
-	// }
+	AInteractableActor* NewHitActor = nullptr;
+	UPrimitiveComponent* NewHitComp = nullptr;
 
 	if (bHit)
 	{
-		UPrimitiveComponent* HoveredMesh = HoverHitResult.GetComponent();
-		AActor* HoveredActor = HoverHitResult.GetActor();
-
-		if (!HoveredMesh || !HoveredActor)
-		{
-			// 이전 호버 해제
-			if (CurrentHoveredMesh)
-			{
-				AInteractableActor* InteractableActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-				if (InteractableActor && InteractableActor->HighlightMode == EHighlightMode::IndividualMesh)
-				{
-					InteractableActor->HighlightSingleMesh(false, CurrentHoveredMesh, false);
-				}
-				CurrentHoveredMesh = nullptr;
-			}
-			if (CurrentHoveredActor)
-			{
-				if (CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-				{
-					CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-				}
-				CurrentHoveredActor = nullptr;
-			}
-			return;
-		}
-
-		AInteractableActor* InteractableActor = Cast<AInteractableActor>(HoveredActor);
-		if (!InteractableActor)
-		{
-			// InteractableActor가 아니면 이전 호버 해제
-			if (CurrentHoveredMesh)
-			{
-				AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-				if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
-				{
-					TArray<UPrimitiveComponent*> meshes = {};
-					meshes.Add(CurrentHoveredMesh);
-					PrevActor->NotHover(meshes);
-				}
-				CurrentHoveredMesh = nullptr;
-			}
-			if (CurrentHoveredActor)
-			{
-				if (CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-				{
-					CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-				}
-				CurrentHoveredActor = nullptr;
-			}
-			return;
-		}
-
-		if (InteractableActor->HighlightMode == EHighlightMode::IndividualMesh)
-		{
-			bool bIsRootMesh = (RootComponent && HoveredMesh == RootComponent);
-
-			if (bIsRootMesh)
-			{
-				// 루트 메시는 액터 전체로 처리
-				if (CurrentHoveredActor != InteractableActor)
-				{
-					// 이전 메시 하이라이트 해제
-					if (CurrentHoveredMesh)
-					{
-						AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-						if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
-						{
-							TArray<UPrimitiveComponent*> meshes = {};
-							meshes.Add(CurrentHoveredMesh);
-							PrevActor->NotHover(meshes);
-						}
-					}
-
-					// 이전 액터 전체 하이라이트 해제
-					if (CurrentHoveredActor && CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-					{
-						CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-					}
-
-					// 액터 전체 하이라이트
-					CurrentHoveredMesh = nullptr; // 루트는 개별 메시가 아님
-					CurrentHoveredActor = InteractableActor;
-					CurrentHoveredActor->Hover(InteractableActor->GetActorAllMesh());
-				}
-			}
-			else
-			{
-				// 개별 메시 하이라이트 모드 (루트가 아닌 메시)
-				if (CurrentHoveredMesh != HoveredMesh)
-				{
-					// 이전 메시 하이라이트 해제
-					if (CurrentHoveredMesh)
-					{
-						AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-						if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
-						{
-							TArray<UPrimitiveComponent*> meshes = {};
-							meshes.Add(CurrentHoveredMesh);
-							PrevActor->NotHover(meshes);
-						}
-					}
-
-					// 이전 액터 전체 하이라이트 해제 (모드가 바뀐 경우)
-					if (CurrentHoveredActor && CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-					{
-						CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-					}
-
-					// 새 메시 하이라이트
-					CurrentHoveredMesh = HoveredMesh;
-					CurrentHoveredActor = InteractableActor;
-					TArray<UPrimitiveComponent*> meshes = {};
-					meshes.Add(CurrentHoveredMesh);
-					// 개별 메시 이름으로 WidgetFlag 설정
-					InteractableActor->WidgetFlag = HoveredMesh->GetName();
-					InteractableActor->Hover(meshes);
-				}
-			}
-		}
-		else // EHighlightMode::WholeActor
-		{
-			// 액터 전체 하이라이트 모드
-			if (CurrentHoveredActor != InteractableActor)
-			{
-				// 이전 메시 하이라이트 해제 (모드가 바뀐 경우)
-				if (CurrentHoveredMesh)
-				{
-					AInteractableActor* PrevActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-					if (PrevActor && PrevActor->HighlightMode == EHighlightMode::IndividualMesh)
-					{
-						TArray<UPrimitiveComponent*> meshes = {};
-						meshes.Add(CurrentHoveredMesh);
-						PrevActor->Hover(meshes);
-					}
-					CurrentHoveredMesh = nullptr;
-				}
-
-				// 이전 액터 하이라이트 해제
-				if (CurrentHoveredActor && CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-				{
-					CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-				}
-
-				// 새 액터 전체 하이라이트
-				CurrentHoveredActor = InteractableActor;
-				CurrentHoveredActor->Hover(CurrentHoveredActor->GetActorAllMesh());
-			}
-		}
+		NewHitActor = Cast<AInteractableActor>(HitResult.GetActor());
+		NewHitComp = HitResult.GetComponent();
 	}
-	else
+
+	// 2. 상황별 처리
+
+	// Case A: 마우스가 다른 액터로 이동했거나, 허공으로 갔을 때 -> 기존 액터 Unhover
+	if (CurrentHoveredActor && CurrentHoveredActor != NewHitActor)
 	{
-		// 아무것도 호버되지 않음
-		if (CurrentHoveredMesh)
-		{
-			AInteractableActor* InteractableActor = Cast<AInteractableActor>(CurrentHoveredMesh->GetOwner());
-			if (InteractableActor && InteractableActor->HighlightMode == EHighlightMode::IndividualMesh)
-			{
-				TArray<UPrimitiveComponent*> meshes = {};
-				meshes.Add(CurrentHoveredMesh);
-				InteractableActor->NotHover(meshes);
-			}
-			CurrentHoveredMesh = nullptr;
-		}
-		if (CurrentHoveredActor)
-		{
-			if (CurrentHoveredActor->HighlightMode == EHighlightMode::WholeActor)
-			{
-				CurrentHoveredActor->NotHover(CurrentHoveredActor->GetActorAllMesh());
-			}
-			CurrentHoveredActor = nullptr;
-		}
+		CurrentHoveredActor->OnCursorUnhover();
+		CurrentHoveredActor = nullptr;
+	}
+
+	// Case B: 새로운 InteractableActor를 가리키고 있을 때
+	if (NewHitActor)
+	{
+		// 새로 호버링 시작 (또는 같은 액터 내에서 컴포넌트 변경)
+		// Actor에게 "너의 이 컴포넌트에 마우스가 있어"라고 통보
+		NewHitActor->OnCursorHover(NewHitComp);
+
+		// 현재 액터 갱신
+		CurrentHoveredActor = NewHitActor;
 	}
 }
 

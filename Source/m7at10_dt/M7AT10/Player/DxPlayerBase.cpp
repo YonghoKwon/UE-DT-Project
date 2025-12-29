@@ -2,6 +2,7 @@
 
 #include "DxPlayerControllerBase.h"
 #include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 
 
 ADxPlayerBase::ADxPlayerBase()
@@ -10,9 +11,25 @@ ADxPlayerBase::ADxPlayerBase()
 
 	ControlSpeed = 100.0f;
 
-	// Pawn은 Yaw만 회전, Pitch는 카메라만 회전
-	bUseControllerRotationYaw = false; // Pawn은 회전 안 함
-	bUseControllerRotationPitch = true;
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+
+	// 스프링 암 생성 및 설정
+	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+	SpringArmComponent->SetupAttachment(RootComponent);
+	SpringArmComponent->TargetArmLength = 0.0f; // 1인칭 0, 3인칭 늘리기
+	SpringArmComponent->bDoCollisionTest = false; // 자유 이동 false
+	SpringArmComponent->bUsePawnControlRotation = true; // 컨트롤러 회전을 따름 (마우스 회전 시 암이 회전)
+	SpringArmComponent->bEnableCameraLag = true; // 부드러운 이동
+	SpringArmComponent->CameraLagSpeed = 10.0f;
+
+	// 카메라 생성 및 설정
+	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	CameraComponent->SetupAttachment(SpringArmComponent); // 스프링 암 끝에 부착
+	CameraComponent->bUsePawnControlRotation = false; // 암이 회전하므로 카메라는 암을 따라가기만 하면 됨
+
+	// Pawn 설정
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
 }
 
@@ -75,25 +92,27 @@ void ADxPlayerBase::Look(const FVector2D& LookVector)
 	}
 
 	// 위 - / 아래 +
-	AddControllerPitchInput(-LookVector.Y * 0.5);
+	AddControllerPitchInput(LookVector.Y * -0.5f);
 	// 좌 + / 우 -
-	AddControllerYawInput(LookVector.X * 0.5);
+	AddControllerYawInput(LookVector.X * 0.5f);
 }
 // 앞뒤,좌우 카메라 이동, 배속 적용
 void ADxPlayerBase::Move(const FVector2D& MovementVector)
 {
-	if (CameraComponent)
-	{
-		// 카메라의 전체 회전(Pitch 포함)을 사용
-		const FVector Forward = CameraComponent->GetForwardVector();
-		const FVector Right = CameraComponent->GetRightVector();
+	if (!Controller) return;
 
-		FVector NewLocation = GetActorLocation() +
-			Forward * MovementVector.Y  * ControlSpeed +
-			Right * MovementVector.X * ControlSpeed;
+	// 컨트롤러의 회전(카메라가 보는 방향)을 기준으로 앞/오른쪽 벡터 계산
+	const FRotator Rotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		SetActorLocation(NewLocation);
-	}
+	// 카메라가 보는 방향의 전방/우측 벡터
+	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+	FVector MoveDirection = (ForwardDirection * MovementVector.Y) + (RightDirection * MovementVector.X);
+
+	// 현재 위치에 더하기
+	AddActorWorldOffset(MoveDirection * ControlSpeed, true);
 }
 // 상하 이동, 배속 적용
 void ADxPlayerBase::MoveUpDown(float Value)

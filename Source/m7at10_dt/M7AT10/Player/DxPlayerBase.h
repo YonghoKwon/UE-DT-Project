@@ -18,6 +18,7 @@ enum class EDirectionType : uint8
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnControlSpeedChanged, float, NewSpeed);
 
 class UCameraComponent;
+class USpringArmComponent;
 
 UCLASS()
 class M7AT10_DT_API ADxPlayerBase : public APawn
@@ -52,7 +53,9 @@ protected:
 
 	// 변수 모음
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	USpringArmComponent* SpringArmComponent;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	UCameraComponent* CameraComponent;
 
 	UPROPERTY(BlueprintAssignable, Category = "Movement")

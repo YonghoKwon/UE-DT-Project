@@ -78,8 +78,6 @@ public:
 	bool PossibleClick = true;
 private:
 	UPROPERTY()
-	FHitResult HitResult;
-	UPROPERTY()
 	bool bIsClickRightMouseButton;
 	UPROPERTY()
 	bool bIsHitDoOnce;

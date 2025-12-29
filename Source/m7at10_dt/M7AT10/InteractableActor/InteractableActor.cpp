@@ -3,19 +3,38 @@
 
 #include "InteractableActor.h"
 
-
-// Sets default values
 AInteractableActor::AInteractableActor()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-// Called when the game starts or when spawned
 void AInteractableActor::BeginPlay()
 {
 	Super::BeginPlay();
 	
+}
+
+void AInteractableActor::UpdateHighlight(UPrimitiveComponent* NewHoveredComponent)
+{
+	if (!NewHoveredComponent) return;
+
+	// 기존 하이라이트 끄기 (이제 컴포넌트가 바뀔 때만 실행됨)
+	HighlightActor(false, CurrentHighlightedMeshes, false);
+	CurrentHighlightedMeshes.Empty();
+
+	if (HighlightMode == EHighlightMode::WholeActor || NewHoveredComponent == RootComponent)
+	{
+		CurrentHighlightedMeshes = GetActorAllMesh();
+		WidgetFlag = TEXT("WholeActorWidget");
+	}
+	else // IndividualMesh
+	{
+		CurrentHighlightedMeshes.Add(NewHoveredComponent);
+		WidgetFlag = NewHoveredComponent->GetName();
+	}
+
+	// 새 하이라이트 켜기
+	HighlightActor(true, CurrentHighlightedMeshes, false);
 }
 
 // Called every frame
@@ -52,56 +71,6 @@ void AInteractableActor::Click()
 	WidgetSubsystem->OpenWidget(this);
 }
 
-void AInteractableActor::Hover(TArray<UPrimitiveComponent*> mesh)
-{
-	// for (UPrimitiveComponent* Mesh : GetActorAllMesh())
-	// {
-	// 	if (Mesh && Mesh->ComponentHasTag(TEXT("Highlightable")))
-	// 	{
-	// 		HighlightTagMehes.Add(Mesh);
-	// 	}
-	// }
-	// if (!ShortcutHighlight)
-	// {
-	// 	HighlightActor(true, HighlightTagMeshes, false);
-	// 	ShortcutHighlight = true;
-	// }
-	if (!ShortcutHighlight)
-	{
-		HighlightActor(true, mesh, false);
-		ShortcutHighlight = true;
-	}
-
-	// ReceivedHover();
-}
-
-void AInteractableActor::NotHover(TArray<UPrimitiveComponent*> mesh)
-{
-	// for (UPrimitiveComponent* Mesh : GetActorAllMesh())
-	// {
-	// 	if (Mesh && Mesh->ComponentHasTag(TEXT("Highlightable")))
-	// 	{
-	// 		HighlightTagMehes.Add(Mesh);
-	// 	}
-	// }
-	// if (HighlightTagMeshe.Num() == 0)
-	// {
-	// 	HighlightTagMehes = GetActorAllMesh();
-	// }
-	// if (!ShortcutHighlight)
-	// {
-	// 	HighlightActor(true, HighlightTagMeshes, false);
-	// 	ShortcutHighlight = true;
-	// }
-	if (ShortcutHighlight)
-	{
-		HighlightActor(false, mesh, false);
-		ShortcutHighlight = false;
-	}
-
-	// ReceivedNotHover();
-}
-
 TArray<UPrimitiveComponent*> AInteractableActor::GetActorAllMesh()
 {
 	TArray<UPrimitiveComponent*> meshes;
@@ -133,30 +102,34 @@ TArray<UPrimitiveComponent*> AInteractableActor::GetActorAllMesh()
 	return meshes;
 }
 
-// void AInteractableActor::HighlightSingleMesh(UPrimitiveComponent* Mesh, bool bActivate, bool isError)
-// {
-// 	if (!Mesh)
-// 	{
-// 		UE_LOG(LogTemp, Warning, TEXT("HighlightSingleMesh - Mesh is null!"));
-// 		return;
-// 	}
-//
-// 	if (bActivate)
-// 	{
-// 		Mesh->SetRenderCustomDepth(true);
-// 		Mesh->SetCustomDepthStencilValue(isError ? 254 : 100);
-// 	}
-// 	else
-// 	{
-// 		Mesh->SetRenderCustomDepth(false);
-// 		Mesh->SetCustomDepthStencilValue(0);
-// 	}
-// }
-//
-// void AInteractableActor::HighlightMultipleMeshes(const TArray<UPrimitiveComponent*>& Meshes, bool bActivate
-// 	, bool bIsError)
-// {
-// }
+void AInteractableActor::OnCursorHover(UPrimitiveComponent* HoveredComponent)
+{
+	if (LastHoveredComponent == HoveredComponent)
+	{
+		return;
+	}
+
+	// 새로운 컴포넌트이므로 갱신
+	LastHoveredComponent = HoveredComponent;
+
+	// 하이라이트 업데이트 로직 실행
+	UpdateHighlight(HoveredComponent);
+}
+
+void AInteractableActor::OnCursorUnhover()
+{
+	// 하이라이트 끄기
+	if (CurrentHighlightedMeshes.Num() > 0)
+	{
+		HighlightActor(false, CurrentHighlightedMeshes, false);
+		CurrentHighlightedMeshes.Empty();
+	}
+
+	WidgetFlag = TEXT("");
+
+	// 마우스가 떠났으므로 초기화
+	LastHoveredComponent = nullptr;
+}
 
 void AInteractableActor::HighlightActor(bool activate, TArray<UPrimitiveComponent*> mesh, bool isError)
 {
