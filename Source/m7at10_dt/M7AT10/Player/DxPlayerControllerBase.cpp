@@ -13,6 +13,8 @@ void ADxPlayerControllerBase::BeginPlay()
 {
 	Super::BeginPlay();
 
+	DxPlayerBase = Cast<ADxPlayerBase>(GetPawn());
+
 	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 	{
 		FModifyContextOptions Options;
@@ -40,8 +42,8 @@ void ADxPlayerControllerBase::SetupInputComponent()
 		EnhancedInputComponent->BindAction(MouseWheelAction, ETriggerEvent::Triggered, this, &ADxPlayerControllerBase::ControlMoveSpeed);
 		EnhancedInputComponent->BindAction(UpDownAction, ETriggerEvent::Triggered, this, &ADxPlayerControllerBase::MoveUpDown);
 
-		EnhancedInputComponent->BindAction(LeftMouseButtonAction, ETriggerEvent::Triggered, this, &ADxPlayerControllerBase::ClickLeftMouseButton);
 		EnhancedInputComponent->BindAction(RightMouseButtonAction, ETriggerEvent::Triggered, this, &ADxPlayerControllerBase::ClickRightMouseButton);
+		EnhancedInputComponent->BindAction(LeftMouseButtonAction, ETriggerEvent::Triggered, this, &ADxPlayerControllerBase::ClickLeftMouseButton);
 
 		// 일반 Number 버튼 추가 (추가 바인딩 필요 시)
 		// for (int32 i = 0; i < NumberKeyActions.Num(); ++i)
@@ -57,25 +59,24 @@ void ADxPlayerControllerBase::SetupInputComponent()
 void ADxPlayerControllerBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	ADxPlayerBase* DxPlayer = Cast<ADxPlayerBase>(GetPawn());
-	if (!DxPlayer) return;
+	if (!DxPlayerBase) return;
 
 	// UI 입력으로 이동 처리
 	if (UIMoveInput != FVector2D::ZeroVector)
 	{
-		DxPlayer->Move(UIMoveInput);
+		DxPlayerBase->Move(UIMoveInput);
 	}
 
 	// UI 입력으로 회전 처리
 	if (UILookInput != FVector2D::ZeroVector)
 	{
-		DxPlayer->Look(UILookInput);
+		DxPlayerBase->Look(UILookInput);
 	}
 
 	// UI 입력으로 수직 이동 처리
 	if (UIVerticalInput != 0.0f)
 	{
-		DxPlayer->MoveUpDown(UIVerticalInput);
+		DxPlayerBase->MoveUpDown(UIVerticalInput);
 	}
 
 	// 마우스 호버 감지
@@ -126,7 +127,7 @@ void ADxPlayerControllerBase::ClickLeftMouseButton(const FInputActionValue& Valu
 {
 	const bool value = Value.Get<bool>();
 
-	if (PossibleClick && !value) // 마우스 버튼을 뗏을 때만 처리
+	if (PossibleClick && !value) // 마우스 버튼을 뗐을 때만 처리
 	{
 		// 현재 호버된 InteractableActor를 클릭 (개별 메시든 전체 액터든 CurrentHoveredActor에 저장됨)
 		if (CurrentHoveredActor)
@@ -164,11 +165,37 @@ void ADxPlayerControllerBase::ClickRightMouseButton(const FInputActionValue& Val
 // 마우스 호버 감지
 void ADxPlayerControllerBase::CheckMouseHover()
 {
-	// 1. 마우스 위치에서 Trace
+	// FHitResult HitResult;
+	// bool bHit = GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
+
+	FVector WorldLocation, WorldDirection;
+	if (!DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
+	{
+		return;
+	}
+
+	FVector Start = WorldLocation;
+	FVector End = Start + (WorldDirection * 100000.0f);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(GetPawn());
+
 	FHitResult HitResult;
-	bool bHit = GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
-	// 혹은 기존처럼 LineTraceSingleByObjectType 사용 가능.
-	// GetHitResultUnderCursor가 편하긴 합니다.
+
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1);
+
+	bool bHit = GetWorld()->LineTraceSingleByObjectType(
+		HitResult,
+		Start,
+		End,
+		ObjectQueryParams,
+		QueryParams
+		);
 
 	AInteractableActor* NewHitActor = nullptr;
 	UPrimitiveComponent* NewHitComp = nullptr;
@@ -179,20 +206,17 @@ void ADxPlayerControllerBase::CheckMouseHover()
 		NewHitComp = HitResult.GetComponent();
 	}
 
-	// 2. 상황별 처리
-
-	// Case A: 마우스가 다른 액터로 이동했거나, 허공으로 갔을 때 -> 기존 액터 Unhover
+	// 마우스가 다른 액터로 이동했거나, 허공으로 갔을 때 -> 기존 액터 Unhover
 	if (CurrentHoveredActor && CurrentHoveredActor != NewHitActor)
 	{
 		CurrentHoveredActor->OnCursorUnhover();
 		CurrentHoveredActor = nullptr;
 	}
 
-	// Case B: 새로운 InteractableActor를 가리키고 있을 때
+	// 새로운 InteractableActor를 가리키고 있을 때
 	if (NewHitActor)
 	{
 		// 새로 호버링 시작 (또는 같은 액터 내에서 컴포넌트 변경)
-		// Actor에게 "너의 이 컴포넌트에 마우스가 있어"라고 통보
 		NewHitActor->OnCursorHover(NewHitComp);
 
 		// 현재 액터 갱신

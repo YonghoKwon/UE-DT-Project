@@ -36,6 +36,6 @@ protected:
 public:
 private:
 	UPROPERTY()
-	TMap<FString, TObjectPtr<UActorComponent>> RegisteredComponents;
+	TMap<FString, TWeakObjectPtr<UActorComponent>> RegisteredComponents;
 protected:
 };

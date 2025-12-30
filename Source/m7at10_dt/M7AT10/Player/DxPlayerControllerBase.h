@@ -1,12 +1,12 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "EnhancedInputSubsystemInterface.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
 #include "DxPlayerControllerBase.generated.h"
+
+class ADxPlayerBase;
 
 UCLASS()
 class M7AT10_DT_API ADxPlayerControllerBase : public APlayerController
@@ -16,7 +16,7 @@ class M7AT10_DT_API ADxPlayerControllerBase : public APlayerController
 	// 함수
 public:
 	ADxPlayerControllerBase();
-	void BeginPlay() override;
+	virtual void BeginPlay() override;
 	UFUNCTION()
 	void SetUIMoveInput(const FVector2D& MoveInput);
 	UFUNCTION()
@@ -91,8 +91,12 @@ private:
 	// 현재 호버된 InteractableActor
 	UPROPERTY()
 	class AInteractableActor* CurrentHoveredActor = nullptr;
-	// 현재 호버된 매쉬 컴포넌트
+	// 현재 호버된 메쉬 컴포넌트
 	UPROPERTY()
 	UPrimitiveComponent* CurrentHoveredMesh;
+
+	UPROPERTY()
+	ADxPlayerBase* DxPlayerBase;
+
 protected:
 };

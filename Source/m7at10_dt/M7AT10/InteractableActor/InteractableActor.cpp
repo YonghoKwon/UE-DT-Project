@@ -1,7 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "InteractableActor.h"
+﻿#include "InteractableActor.h"
 
 AInteractableActor::AInteractableActor()
 {
@@ -11,30 +8,9 @@ AInteractableActor::AInteractableActor()
 void AInteractableActor::BeginPlay()
 {
 	Super::BeginPlay();
-	
-}
 
-void AInteractableActor::UpdateHighlight(UPrimitiveComponent* NewHoveredComponent)
-{
-	if (!NewHoveredComponent) return;
-
-	// 기존 하이라이트 끄기 (이제 컴포넌트가 바뀔 때만 실행됨)
-	HighlightActor(false, CurrentHighlightedMeshes, false);
-	CurrentHighlightedMeshes.Empty();
-
-	if (HighlightMode == EHighlightMode::WholeActor || NewHoveredComponent == RootComponent)
-	{
-		CurrentHighlightedMeshes = GetActorAllMesh();
-		WidgetFlag = TEXT("WholeActorWidget");
-	}
-	else // IndividualMesh
-	{
-		CurrentHighlightedMeshes.Add(NewHoveredComponent);
-		WidgetFlag = NewHoveredComponent->GetName();
-	}
-
-	// 새 하이라이트 켜기
-	HighlightActor(true, CurrentHighlightedMeshes, false);
+	// TODO: 생성되면서 Mesh를 추가하는 경우 별도 작업 필요
+	CachedMeshes = GetActorAllMesh();
 }
 
 // Called every frame
@@ -125,31 +101,29 @@ void AInteractableActor::OnCursorUnhover()
 		CurrentHighlightedMeshes.Empty();
 	}
 
-	WidgetFlag = TEXT("");
-
 	// 마우스가 떠났으므로 초기화
 	LastHoveredComponent = nullptr;
 }
 
-void AInteractableActor::HighlightActor(bool activate, TArray<UPrimitiveComponent*> mesh, bool isError)
+void AInteractableActor::HighlightActor(bool activate, const TArray<UPrimitiveComponent*> meshes, bool isError)
 {
 	if (activate == true)
 	{
-		for (UPrimitiveComponent* arr : mesh)
+		for (const auto& mesh : meshes)
 		{
-			arr->SetRenderCustomDepth(true);
+			mesh->SetRenderCustomDepth(true);
 			if (isError)
-				arr->SetCustomDepthStencilValue(254);
+				mesh->SetCustomDepthStencilValue(254);
 			else
-				arr->SetCustomDepthStencilValue(100);
+				mesh->SetCustomDepthStencilValue(100);
 		}
 	}
 	else
 	{
-		for (UPrimitiveComponent* arr : mesh)
+		for (const auto& mesh : meshes)
 		{
-			arr->SetRenderCustomDepth(false);
-			arr->SetCustomDepthStencilValue(0);
+			mesh->SetRenderCustomDepth(false);
+			mesh->SetCustomDepthStencilValue(0);
 		}
 	}
 }
@@ -172,4 +146,26 @@ void AInteractableActor::HighlightSingleMesh(bool activate, UPrimitiveComponent*
 		mesh->SetRenderCustomDepth(false);
 		mesh->SetCustomDepthStencilValue(0);
 	}
+}
+
+void AInteractableActor::UpdateHighlight(UPrimitiveComponent* NewHoveredComponent)
+{
+	if (!NewHoveredComponent) return;
+
+	// 기존 하이라이트 끄기 (이제 컴포넌트가 바뀔 때만 실행됨)
+	HighlightActor(false, CurrentHighlightedMeshes, false);
+	CurrentHighlightedMeshes.Empty();
+
+	if (HighlightMode == EHighlightMode::WholeActor || NewHoveredComponent == RootComponent)
+	{
+		CurrentHighlightedMeshes = CachedMeshes;
+	}
+	else // IndividualMesh
+	{
+		CurrentHighlightedMeshes.Add(NewHoveredComponent);
+		WidgetFlag = NewHoveredComponent->GetName();
+	}
+
+	// 새 하이라이트 켜기
+	HighlightActor(true, CurrentHighlightedMeshes, false);
 }

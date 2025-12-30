@@ -51,9 +51,16 @@ void UDxProcessSubsystem::UnregisterComponent(const FString& ComponentId)
 
 UActorComponent* UDxProcessSubsystem::FindComponent(const FString& ComponentId)
 {
-	if (const TObjectPtr<UActorComponent>* FoundComponent = RegisteredComponents.Find(ComponentId))
+	if (const TWeakObjectPtr<UActorComponent>* FoundComponent = RegisteredComponents.Find(ComponentId))
 	{
-		return  *FoundComponent;
+		if (FoundComponent->IsValid())
+		{
+			return FoundComponent->Get();
+		}
+		else
+		{
+			RegisteredComponents.Remove(ComponentId);
+		}
 	}
 	return nullptr;
 }

@@ -35,7 +35,7 @@ void ADxPlayerTest::Move(const FVector2D& MovementVector)
 		return;
 	}
 
-	// FreeView일 떄는 부모 클래스 Move 함수 호출
+	// FreeView일 때는 부모 클래스의 Move 함수 호출
 	Super::Move(MovementVector);
 }
 
@@ -47,7 +47,7 @@ void ADxPlayerTest::MoveUpDown(const float Value)
 		return;
 	}
 
-	// FreeView일 떄는 부모 클래스 Move 함수 호출
+	// FreeView일 때는 부모 클래스의 MoveUpDown 함수 호출
 	Super::MoveUpDown(Value);
 }
 
@@ -62,6 +62,8 @@ void ADxPlayerTest::ChangePlayerViewType(UTextBlock* ViewText)
 	if (PlayerViewType == EPlayerViewType::TopView)
 	{
 		PlayerViewType = EPlayerViewType::FreeView;
+
+		// ViewText 업데이트
 		if (ViewText)
 		{
 			ViewText->SetText(FText::FromString(TEXT("프리뷰")));
@@ -73,7 +75,9 @@ void ADxPlayerTest::ChangePlayerViewType(UTextBlock* ViewText)
 		{
 			FVector TargetLocation = FreeViewTarget->GetActorLocation();
 			FRotator TargetRotation = FreeViewTarget->GetActorRotation();
+			// 플레이어 위치 이동
 			SetActorLocation(TargetLocation);
+			// 플레이어 회전
 			SetActorRotation(TargetRotation);
 
 			// 카메라 방향도 맞추기
@@ -92,6 +96,7 @@ void ADxPlayerTest::ChangePlayerViewType(UTextBlock* ViewText)
 			ViewText->SetText(FText::FromString(TEXT("탑뷰")));
 		}
 
+		// 카메라 위치/각도 조정 로직
 		if (TopViewTarget)
 		{
 			FVector TargetLocation = TopViewTarget->GetActorLocation();
@@ -99,11 +104,10 @@ void ADxPlayerTest::ChangePlayerViewType(UTextBlock* ViewText)
 			SetActorLocation(TargetLocation);
 			SetActorRotation(TargetRotation);
 
-			// 카메라 방향도 맞추기
 			if (APlayerController* PC = Cast<APlayerController>(GetController()))
 			{
 				PC->SetControlRotation(TargetRotation);
-				PC->SetIgnoreLookInput(true);
+				PC->SetIgnoreLookInput(true); // 이동 막기
 			}
 		}
 	}
