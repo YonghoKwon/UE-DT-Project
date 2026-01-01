@@ -13,4 +13,15 @@ UCLASS()
 class M7AT10_DT_API UDxGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
+
+	// Function
+public:
+	virtual void Init() override;
+private:
+protected:
+
+	// Variable
+public:
+private:
+protected:
 };
