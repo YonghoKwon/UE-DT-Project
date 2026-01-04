@@ -1,5 +1,7 @@
 ﻿#include "Core/DxProcessSubsystem.h"
 
+#include "DTCore.h"
+
 
 void UDxProcessSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {

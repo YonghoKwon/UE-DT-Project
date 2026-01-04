@@ -1,5 +1,6 @@
 ﻿#include "Core/DxDataSubsystem.h"
 
+#include "DTCore.h"
 #include "Api/ApiMessage.h"
 #include "Api/ApiStruct.h"
 #include "Lib/YyJsonParser.h"
@@ -61,6 +62,17 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		UE_LOG(LogBase, Warning, TEXT("ApiStructDataTable failed to load"));
 	}
 
+	CachedHandlerApiMessageMap = MakeShared<TMap<FString, TSubclassOf<UApiMessage>>>();
+
+	for (const auto& Pair : ApiMessageMap)
+	{
+		if (Pair.Value)
+		{
+			// Key와 Class 정보만 추출하여 캐시 맵에 저장
+			CachedHandlerApiMessageMap->Add(Pair.Key, Pair.Value->GetClass());
+		}
+	}
+
 	// const FString DataTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode'");
 	// UDataTable* LoadedTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
 
@@ -83,6 +95,17 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	else
 	{
 		UE_LOG(LogBase, Warning, TEXT("TransactionCodeDataTable failed to load"));
+	}
+
+	CachedHandlerTransactionCodeMessageMap = MakeShared<TMap<FString, TSubclassOf<UTransactionCodeMessage>>>();
+
+	for (const auto& Pair : TransactionCodeMessageMap)
+	{
+		if (Pair.Value)
+		{
+			// Key와 Class 정보만 추출하여 캐시 맵에 저장
+			CachedHandlerTransactionCodeMessageMap->Add(Pair.Key, Pair.Value->GetClass());
+		}
 	}
 }
 
@@ -196,14 +219,6 @@ void UDxDataSubsystem::ProcessApiQueue()
     const double StartTime = FPlatformTime::Seconds();
     const double TimeBudget = 0.005;
 
-    TSharedPtr<TMap<FString, TSubclassOf<UApiMessage>>> SharedApiMap =
-        MakeShared<TMap<FString, TSubclassOf<UApiMessage>>>();
-
-    for (const auto& Pair : ApiMessageMap)
-    {
-        if (Pair.Value) SharedApiMap->Add(Pair.Key, Pair.Value->GetClass());
-    }
-
     TArray<FString> BatchDataChunk;
     BatchDataChunk.Reserve(100);
 
@@ -220,7 +235,7 @@ void UDxDataSubsystem::ProcessApiQueue()
     if (BatchDataChunk.Num() > 0)
     {
         // 3. 백그라운드 처리
-        AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedApiMap]()
+        AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedMap = CachedHandlerApiMessageMap]()
         {
             FYyJsonParser JsonParser;
 
@@ -246,7 +261,7 @@ void UDxDataSubsystem::ProcessApiQueue()
                         // Key (Resource_Action)
                         FString Key = FPaths::Combine(Resource, Action);
 
-                        if (const TSubclassOf<UApiMessage>* HandlerClassPtr = SharedApiMap->Find(Key))
+                        if (const TSubclassOf<UApiMessage>* HandlerClassPtr = SharedMap->Find(Key))
                         {
                             UApiMessage* DefaultHandler = GetMutableDefault<UApiMessage>(*HandlerClassPtr);
                             if (DefaultHandler)
@@ -293,14 +308,6 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
     const double StartTime = FPlatformTime::Seconds();
     const double TimeBudget = 0.005;
 
-    TSharedPtr<TMap<FString, TSubclassOf<UTransactionCodeMessage>>> SharedHandlerMap =
-        MakeShared<TMap<FString, TSubclassOf<UTransactionCodeMessage>>>();
-
-    for (const auto& Pair : TransactionCodeMessageMap)
-    {
-       if (Pair.Value) SharedHandlerMap->Add(Pair.Key, Pair.Value->GetClass());
-    }
-
     TArray<FString> BatchDataChunk;
     BatchDataChunk.Reserve(2000);
 
@@ -316,7 +323,7 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 
 	if (BatchDataChunk.Num() > 0)
 	{
-		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedHandlerMap]()
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedMap = CachedHandlerTransactionCodeMessageMap]()
 		{
 			FYyJsonParser JsonParser;
 
@@ -339,7 +346,7 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 					{
 						FString TrCode = JsonParser.GetString(MsgIdVal);
 
-						if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedHandlerMap->
+						if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedMap->
 							Find(TrCode))
 						{
 							UTransactionCodeMessage* DefaultHandler = GetMutableDefault<UTransactionCodeMessage>(

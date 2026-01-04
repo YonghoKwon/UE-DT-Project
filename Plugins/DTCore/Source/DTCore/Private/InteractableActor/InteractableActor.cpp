@@ -1,5 +1,7 @@
 ﻿#include "InteractableActor/InteractableActor.h"
 
+#include "DTCore.h"
+
 AInteractableActor::AInteractableActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -24,7 +26,7 @@ void AInteractableActor::Click()
 	// WidgetFlag가 비어있으면 리턴
 	if (WidgetFlag.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InteractableActor::Click - WidgetFlag is empty!"));
+		UE_LOG(LogBase, Warning, TEXT("InteractableActor::Click - WidgetFlag is empty!"));
 		return;
 	}
 
@@ -32,14 +34,14 @@ void AInteractableActor::Click()
 	UGameInstance* GameInstance = GetWorld()->GetGameInstance();
 	if (!GameInstance)
 	{
-		UE_LOG(LogTemp, Error, TEXT("InteractableActor::Click - GameInstance is null!"));
+		UE_LOG(LogBase, Error, TEXT("InteractableActor::Click - GameInstance is null!"));
 		return;
 	}
 
 	UDxWidgetSubsystem* WidgetSubsystem = GameInstance->GetSubsystem<UDxWidgetSubsystem>();
 	if (!WidgetSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("InteractableActor::Click - DxWidgetSubsystem is null!"));
+		UE_LOG(LogBase, Error, TEXT("InteractableActor::Click - DxWidgetSubsystem is null!"));
 		return;
 	}
 
@@ -73,7 +75,7 @@ TArray<UPrimitiveComponent*> AInteractableActor::GetActorAllMesh()
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("GetActorAllMesh found %d meshes for Actor: %s"), meshes.Num(), *GetName());
+	UE_LOG(LogBase, Warning, TEXT("GetActorAllMesh found %d meshes for Actor: %s"), meshes.Num(), *GetName());
 
 	return meshes;
 }
@@ -132,7 +134,7 @@ void AInteractableActor::HighlightSingleMesh(bool activate, UPrimitiveComponent*
 {
 	if (!mesh)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("HighlightSingleMesh - Mesh is null!"));
+		UE_LOG(LogBase, Warning, TEXT("HighlightSingleMesh - Mesh is null!"));
 		return;
 	}
 

@@ -1,5 +1,6 @@
 ﻿#include "UI/DxWidget.h"
 
+#include "DTCore.h"
 #include "Core/DxWidgetSubsystem.h"
 #include "Player/DxPlayerControllerBase.h"
 // #include "Player/DxPlayerTest.h"
@@ -44,13 +45,13 @@ void UDxWidget::CloseWidget()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("DxWidget::CloseWidget - DxWidgetSubsystem not found, removing from parent directly"));
+			UE_LOG(LogBase, Warning, TEXT("DxWidget::CloseWidget - DxWidgetSubsystem not found, removing from parent directly"));
 			RemoveFromParent();
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DxWidget::CloseWidget - GameInstance is null, removing from parent directly"));
+		UE_LOG(LogBase, Warning, TEXT("DxWidget::CloseWidget - GameInstance is null, removing from parent directly"));
 		RemoveFromParent();
 	}
 }

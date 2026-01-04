@@ -1,5 +1,6 @@
 ﻿#include "Player/DxPlayerBase.h"
 
+#include "DTCore.h"
 #include "Player/DxPlayerControllerBase.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -42,7 +43,7 @@ void ADxPlayerBase::BeginPlay()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("CameraComponent is null"));
+		UE_LOG(LogBase, Error, TEXT("CameraComponent is null"));
 	}
 	if (ADxPlayerControllerBase* DxPlayerController = Cast<ADxPlayerControllerBase>(GetController()))
 	{
@@ -87,7 +88,7 @@ void ADxPlayerBase::Look(const FVector2D& LookVector)
 {
 	if (!Controller)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Controller is null in Look!"));
+		UE_LOG(LogBase, Error, TEXT("Controller is null in Look!"));
 		return;
 	}
 

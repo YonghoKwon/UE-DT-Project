@@ -1,5 +1,6 @@
 ﻿#include "Core/DxWidgetSubsystem.h"
 
+#include "DTCore.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanelSlot.h"
 #include "InteractableActor/InteractableActor.h"
@@ -74,21 +75,21 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 {
 	if (!InteractableActor)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OpenWidget: InteractableActor is null"));
+		UE_LOG(LogBase, Warning, TEXT("OpenWidget: InteractableActor is null"));
 		return nullptr;
 	}
 	// 위젯을 추가할 부모 canvasPanel 찾기
 	UPanelWidget* Panel = GetAddWidgetPanel();
 	if (!Panel)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OpenWidget: AddWidgetPanel not found in MainWidget"));
+		UE_LOG(LogBase, Error, TEXT("OpenWidget: AddWidgetPanel not found in MainWidget"));
 		return nullptr;
 	}
 	// WidgetMap에서 WidgetFlag에 해당하는 위젯 정보 찾기
 	FWidgetInfo* WidgetInfoPtr = InteractableActor->WidgetMap.Find(InteractableActor->WidgetFlag);
 	if (!WidgetInfoPtr || ! WidgetInfoPtr->WidgetClass)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OpenWidget: No widget info found for flag '%s'"), *InteractableActor->WidgetFlag);
+		UE_LOG(LogBase, Warning, TEXT("OpenWidget: No widget info found for flag '%s'"), *InteractableActor->WidgetFlag);
 		return nullptr;
 	}
 
@@ -98,7 +99,7 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 	UDxWidget* NewWidget = CreateWidget<UDxWidget>(GetWorld(), WidgetInfo.WidgetClass);
 	if (!NewWidget)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OpenWidget: Failed to create widget"));
+		UE_LOG(LogBase, Error, TEXT("OpenWidget: Failed to create widget"));
 		return nullptr;
 	}
 
@@ -117,7 +118,7 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 	// 위젯의 OpenWidget 함수 호출 (추가 로직 실행)
 	NewWidget->OpenWidgetAddLogic();
 
-	UE_LOG(LogTemp, Log, TEXT("OpenWidget: Widget '%s' opened at position (%f, %f)"),
+	UE_LOG(LogBase, Log, TEXT("OpenWidget: Widget '%s' opened at position (%f, %f)"),
 		*InteractableActor->WidgetFlag,
 		WidgetInfo.Position.X,
 		WidgetInfo.Position.Y);
@@ -129,7 +130,7 @@ void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
 {
 	if (!CloseWidget)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("CloseWidget:Widget is null"));
+		UE_LOG(LogBase, Warning, TEXT("CloseWidget:Widget is null"));
 		return;
 	}
 
@@ -137,13 +138,13 @@ void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
 	if (OpenWidgets.Contains(CloseWidget))
 	{
 			OpenWidgets.Remove(CloseWidget);
-		UE_LOG(LogTemp, Log, TEXT("CloseWidget:Widget removed from OpenWidgets list"));
+		UE_LOG(LogBase, Log, TEXT("CloseWidget:Widget removed from OpenWidgets list"));
 	}
 
 	// MainWidget의 컨테이너에서 제거
 	CloseWidget->RemoveFromParent();
 
-	UE_LOG(LogTemp, Log, TEXT("CloseWidget:Widget closed successfully"));
+	UE_LOG(LogBase, Log, TEXT("CloseWidget:Widget closed successfully"));
 }
 
 class UPanelWidget* UDxWidgetSubsystem::GetAddWidgetPanel() const

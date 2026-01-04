@@ -69,4 +69,6 @@ private:
 	// 디버그용 전체 처리된 데이터 개수를 세는 카운터
 	FThreadSafeCounter TotalProcessedCount;
 protected:
+	TSharedPtr<TMap<FString, TSubclassOf<UApiMessage>>> CachedHandlerApiMessageMap;
+	TSharedPtr<TMap<FString, TSubclassOf<UTransactionCodeMessage>>> CachedHandlerTransactionCodeMessageMap;
 };

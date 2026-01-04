@@ -1,5 +1,6 @@
 ﻿#include "Core/DxWebSocketSubsystem.h"
 
+#include "DTCore.h"
 #include "Core/DxDataSubsystem.h"
 #include "IStompClient.h"
 #include "IStompMessage.h"
@@ -132,17 +133,26 @@ FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOM
 		FString CopiedMsgId = Message.GetMessageId();
 		FString CopiedAckId = Message.GetAckId();
 
-		AsyncTask(ENamedThreads::GameThread, [WeakThis, EventCallback, CopiedBody, CopiedHeaders, CopiedSubId, CopiedDest, CopiedMsgId, CopiedAckId]()
+		AsyncTask(ENamedThreads::GameThread, [
+			WeakThis,
+			EventCallback,
+			Body = MoveTemp(CopiedBody),
+			Headers = MoveTemp(CopiedHeaders),
+			SubId = MoveTemp(CopiedSubId),
+			Dest = MoveTemp(CopiedDest),
+			MsgId = MoveTemp(CopiedMsgId),
+			AckId = MoveTemp(CopiedAckId)
+			]()
 		{
 			TObjectPtr<UDxWebSocketSubsystem> StrongThis = WeakThis.Get();
 			if (!StrongThis) return;
 
 			UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(StrongThis);
 
-			Msg->BodyString = CopiedBody;
-			Msg->Headers = CopiedHeaders;
-			Msg->Destination = CopiedDest;
-			Msg->MessageId = CopiedMsgId;
+			Msg->BodyString = MoveTemp(Body);
+			Msg->Headers = MoveTemp(Headers);
+			Msg->Destination = MoveTemp(Dest);
+			Msg->MessageId = MoveTemp(MsgId);
 
 			EventCallback.ExecuteIfBound(Msg);
 		});
