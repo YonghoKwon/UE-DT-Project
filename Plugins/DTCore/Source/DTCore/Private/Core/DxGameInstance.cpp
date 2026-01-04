@@ -45,28 +45,31 @@ UDxGameInstance* UDxGameInstance::GetInstance()
 
 void UDxGameInstance::WriteCustomLog(FString LogText)
 {
-	// 경로 설정: 실행 파일(.exe)이 있는 폴더 기준
-	// 결과 경로: [패키징폴더]/m7at10_dt/Binaries/Win64/Logs/
-	FString BaseDir = FPaths::LaunchDir();
-	FString LogFolder = FPaths::Combine(BaseDir, TEXT("Logs"));
-
-	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-	if (!PlatformFile.DirectoryExists(*LogFolder))
+	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [LogText]()
 	{
-		PlatformFile.CreateDirectoryTree(*LogFolder);
-	}
+		// 경로 설정: 실행 파일(.exe)이 있는 폴더 기준
+		// 결과 경로: [패키징폴더]/m7at10_dt/Binaries/Win64/Logs/
+		FString BaseDir = FPaths::LaunchDir();
+		FString LogFolder = FPaths::Combine(BaseDir, TEXT("Logs"));
 
-	// 파일명 및 전체 경로 생성
-	FString DateStr = FDateTime::Now().ToString(TEXT("%Y%m%d")); // 예: 20240101
-	FString FileName = FString::Printf(TEXT("DxLog_%s.txt"), *DateStr);
-	FString FullPath = FPaths::Combine(LogFolder, FileName);
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		if (!PlatformFile.DirectoryExists(*LogFolder))
+		{
+			PlatformFile.CreateDirectoryTree(*LogFolder);
+		}
 
-	// 로그 내용 포맷팅
-	FString TimeStr = FDateTime::Now().ToString(TEXT("%H:%M:%S"));
-	FString FinalLog = FString::Printf(TEXT("[%s] %s\r\n"), *TimeStr, *LogText);
+		// 파일명 및 전체 경로 생성
+		FString DateStr = FDateTime::Now().ToString(TEXT("%Y%m%d")); // 예: 20240101
+		FString FileName = FString::Printf(TEXT("DxLog_%s.txt"), *DateStr);
+		FString FullPath = FPaths::Combine(LogFolder, FileName);
 
-	// 파일 쓰기
-	FFileHelper::SaveStringToFile(FinalLog, *FullPath, FFileHelper::EEncodingOptions::ForceUTF8, &IFileManager::Get(), FILEWRITE_Append);
+		// 로그 내용 포맷팅
+		FString TimeStr = FDateTime::Now().ToString(TEXT("%H:%M:%S"));
+		FString FinalLog = FString::Printf(TEXT("[%s] %s\r\n"), *TimeStr, *LogText);
+
+		// 파일 쓰기
+		FFileHelper::SaveStringToFile(FinalLog, *FullPath, FFileHelper::EEncodingOptions::ForceUTF8, &IFileManager::Get(), FILEWRITE_Append);
+	});
 }
 
 void UDxGameInstance::DeleteOldLogs(int32 RetentionDays)
