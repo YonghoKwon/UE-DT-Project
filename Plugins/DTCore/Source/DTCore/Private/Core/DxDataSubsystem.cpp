@@ -62,14 +62,13 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		UE_LOG(LogBase, Warning, TEXT("ApiStructDataTable failed to load"));
 	}
 
-	CachedHandlerApiMessageMap = MakeShared<TMap<FString, TSubclassOf<UApiMessage>>>();
+	CachedHandlerApiMessageMap = MakeShared<TMap<FString, UApiMessage*>>();
 
 	for (const auto& Pair : ApiMessageMap)
 	{
 		if (Pair.Value)
 		{
-			// Key와 Class 정보만 추출하여 캐시 맵에 저장
-			CachedHandlerApiMessageMap->Add(Pair.Key, Pair.Value->GetClass());
+			CachedHandlerApiMessageMap->Add(Pair.Key, Pair.Value);
 		}
 	}
 
@@ -97,14 +96,13 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		UE_LOG(LogBase, Warning, TEXT("TransactionCodeDataTable failed to load"));
 	}
 
-	CachedHandlerTransactionCodeMessageMap = MakeShared<TMap<FString, TSubclassOf<UTransactionCodeMessage>>>();
+	CachedHandlerTransactionCodeMessageMap = MakeShared<TMap<FString, UTransactionCodeMessage*>>();
 
 	for (const auto& Pair : TransactionCodeMessageMap)
 	{
 		if (Pair.Value)
 		{
-			// Key와 Class 정보만 추출하여 캐시 맵에 저장
-			CachedHandlerTransactionCodeMessageMap->Add(Pair.Key, Pair.Value->GetClass());
+			CachedHandlerTransactionCodeMessageMap->Add(Pair.Key, Pair.Value);
 		}
 	}
 }
@@ -240,7 +238,7 @@ void UDxDataSubsystem::ProcessApiQueue()
             FYyJsonParser JsonParser;
 
             struct FApiResultItem {
-                TSubclassOf<UApiMessage> HandlerClass;
+                UApiMessage* Handler;
                 TSharedPtr<FApiDataBase> Data;
             };
             TArray<FApiResultItem> BatchResults;
@@ -248,49 +246,65 @@ void UDxDataSubsystem::ProcessApiQueue()
 
             for (const FString& SingleData : BatchDataChunk)
             {
-                if (JsonParser.JsonParse(SingleData))
-                {
-                    yyjson_val* Root = JsonParser.GetRoot();
-                    yyjson_val* MetaNode = JsonParser.JsonParseKeyword(Root, TEXT("meta"));
+	            if (JsonParser.JsonParse(SingleData))
+	            {
+		            yyjson_val* Root = JsonParser.GetRoot();
+		            yyjson_val* MetaNode = JsonParser.JsonParseKeyword(Root, TEXT("meta"));
 
-                    if (JsonParser.IsValid(MetaNode))
-                    {
-                        FString Resource = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("resource")));
-                        FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("action")));
+		            if (JsonParser.IsValid(MetaNode))
+		            {
+			            FString Resource = JsonParser.
+				            GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("resource")));
+			            FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("action")));
 
-                        // Key (Resource_Action)
-                        FString Key = FPaths::Combine(Resource, Action);
+			            // Key (Resource_Action)
+			            FString Key = FPaths::Combine(Resource, Action);
 
-                        if (const TSubclassOf<UApiMessage>* HandlerClassPtr = SharedMap->Find(Key))
-                        {
-                            UApiMessage* DefaultHandler = GetMutableDefault<UApiMessage>(*HandlerClassPtr);
-                            if (DefaultHandler)
-                            {
-                                TSharedPtr<FApiDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
+			            // if (const TSubclassOf<UApiMessage>* HandlerClassPtr = SharedMap->Find(Key))
+			            // {
+			            //     UApiMessage* DefaultHandler = GetMutableDefault<UApiMessage>(*HandlerClassPtr);
+			            //     if (DefaultHandler)
+			            //     {
+			            //         TSharedPtr<FApiDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
+			            //
+			            //         if (ParsedData.IsValid())
+			            //         {
+			            //             BatchResults.Add({ *HandlerClassPtr, ParsedData });
+			            //         }
+			            //     }
+			            // }
 
-                                if (ParsedData.IsValid())
-                                {
-                                    BatchResults.Add({ *HandlerClassPtr, ParsedData });
-                                }
-                            }
-                        }
-                    }
-                }
+			            if (UApiMessage** HandlerPtr = SharedMap->Find(Key))
+			            {
+				            UApiMessage* Handler = *HandlerPtr;
+				            if (Handler)
+				            {
+					            // [중요] ParseToStruct 함수는 내부에서 NewObject 등을 쓰지 않는 순수 로직이어야 함
+					            TSharedPtr<FApiDataBase> ParsedData = Handler->ParseToStruct(SingleData);
+
+					            if (ParsedData.IsValid())
+					            {
+						            BatchResults.Add({Handler, ParsedData});
+					            }
+				            }
+			            }
+		            }
+	            }
             }
 
             if (BatchResults.Num() > 0)
             {
-                AsyncTask(ENamedThreads::GameThread, [this, BatchResults]()
-                {
-                    for (const auto& Item : BatchResults)
-                    {
-                        UApiMessage* Handler = GetOrLoadApiHandler(Item.HandlerClass);
-                        if (Handler)
-                        {
-                            Handler->ProcessStructData(Item.Data);
-                        }
-                    }
-                });
+	            AsyncTask(ENamedThreads::GameThread, [this, BatchResults]()
+	            {
+		            for (const auto& Item : BatchResults)
+		            {
+			            if (IsValid(Item.Handler))
+			            {
+				            // 최종 데이터 처리 실행
+				            Item.Handler->ProcessStructData(Item.Data);
+			            }
+		            }
+	            });
             }
         });
     }
@@ -329,7 +343,7 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 
 			struct FResultItem
 			{
-				TSubclassOf<UTransactionCodeMessage> HandlerClass;
+				UTransactionCodeMessage* Handler;
 				TSharedPtr<FTransactionCodeDataBase> Data;
 			};
 			TArray<FResultItem> BatchResults;
@@ -346,19 +360,34 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 					{
 						FString TrCode = JsonParser.GetString(MsgIdVal);
 
-						if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedMap->
-							Find(TrCode))
-						{
-							UTransactionCodeMessage* DefaultHandler = GetMutableDefault<UTransactionCodeMessage>(
-								*HandlerClassPtr);
+						// if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedMap->
+						// 	Find(TrCode))
+						// {
+						// 	UTransactionCodeMessage* DefaultHandler = GetMutableDefault<UTransactionCodeMessage>(
+						// 		*HandlerClassPtr);
+						//
+						// 	if (DefaultHandler)
+						// 	{
+						// 		TSharedPtr<FTransactionCodeDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
+						//
+						// 		if (ParsedData.IsValid())
+						// 		{
+						// 			BatchResults.Add({*HandlerClassPtr, ParsedData});
+						// 		}
+						// 	}
+						// }
 
-							if (DefaultHandler)
+						if (UTransactionCodeMessage** HandlerPtr = SharedMap->Find(TrCode))
+						{
+							UTransactionCodeMessage* Handler = *HandlerPtr;
+							if (Handler)
 							{
-								TSharedPtr<FTransactionCodeDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
+								// [중요] ParseToStruct 함수는 내부에서 NewObject 등을 쓰지 않는 순수 로직이어야 함
+								TSharedPtr<FTransactionCodeDataBase> ParsedData = Handler->ParseToStruct(SingleData);
 
 								if (ParsedData.IsValid())
 								{
-									BatchResults.Add({*HandlerClassPtr, ParsedData});
+									BatchResults.Add({ Handler, ParsedData });
 								}
 							}
 						}
@@ -373,10 +402,10 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 					// 메인 스레드
 					for (const auto& Item : BatchResults)
 					{
-						UTransactionCodeMessage* Handler = GetOrLoadTransactionHandler(Item.HandlerClass);
-						if (Handler)
+						if (IsValid(Item.Handler))
 						{
-							Handler->ProcessStructData(Item.Data);
+							// 최종 데이터 처리 실행
+							Item.Handler->ProcessStructData(Item.Data);
 						}
 
 						// 카운터 증가
