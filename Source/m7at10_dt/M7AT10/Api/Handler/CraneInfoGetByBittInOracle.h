@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "m7at10_dt/M7AT10/Api/ApiMessage.h"
-#include "m7at10_dt/M7AT10/Api/FApiDataBase.h"
+#include "Api/ApiMessage.h"
+#include "Api/FApiDataBase.h"
 #include "CraneInfoGetByBittInOracle.generated.h"
 
 class FYyJsonParser;

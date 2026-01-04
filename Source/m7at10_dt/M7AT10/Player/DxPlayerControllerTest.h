@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DxPlayerControllerBase.h"
+#include "Player/DxPlayerControllerBase.h"
 #include "DxPlayerControllerTest.generated.h"
 
 /**

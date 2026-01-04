@@ -1,7 +1,7 @@
 ﻿
 #include "DxLevelManagerBasic.h"
 
-#include "m7at10_dt/M7AT10/Core/DxGameStateBase.h"
+#include "Core/DxGameStateBase.h"
 
 
 ADxLevelManagerBasic::ADxLevelManagerBasic()

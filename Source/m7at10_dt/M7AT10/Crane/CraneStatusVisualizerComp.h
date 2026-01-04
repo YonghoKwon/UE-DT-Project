@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "m7at10_dt/M7AT10/ActorComponent/StatusVisualizerCompBase.h"
+#include "ActorComponent/StatusVisualizerCompBase.h"
 #include "CraneStatusVisualizerComp.generated.h"
 
 

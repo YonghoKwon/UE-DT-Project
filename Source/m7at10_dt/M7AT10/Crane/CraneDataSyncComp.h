@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CraneDataTypes.h"
-#include "m7at10_dt/M7AT10/ActorComponent/DataSyncCompBase.h"
+#include "ActorComponent/DataSyncCompBase.h"
 #include "CraneDataSyncComp.generated.h"
 
 // 데이터 변경을 알리기 위한 델리게이트 선언

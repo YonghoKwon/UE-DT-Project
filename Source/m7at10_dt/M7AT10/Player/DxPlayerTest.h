@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DxPlayerBase.h"
+#include "Player/DxPlayerBase.h"
 #include "DxPlayerTest.generated.h"
 
 class ATargetPoint;

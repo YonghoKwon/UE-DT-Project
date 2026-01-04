@@ -23,7 +23,8 @@ public class m7at10_dt : ModuleRules
 			"SlateCore",
 			"PixelStreaming",
 			"PixelStreamingInput",
-			"PixelStreamingBlueprint"
+			"PixelStreamingBlueprint",
+			"DTCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });

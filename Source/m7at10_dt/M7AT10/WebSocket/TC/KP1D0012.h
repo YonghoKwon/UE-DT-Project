@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "m7at10_dt/M7AT10/WebSocket/FTransactionCodeDataBase.h"
-#include "m7at10_dt/M7AT10/WebSocket/TransactionCodeMessage.h"
+#include "WebSocket/FTransactionCodeDataBase.h"
+#include "WebSocket/TransactionCodeMessage.h"
 #include "KP1D0012.generated.h"
 
 struct FKP1D0012Data : FTransactionCodeDataBase

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "m7at10_dt/M7AT10/UI/DxWidget.h"
+#include "UI/DxWidget.h"
 #include "DxM7atMainTest.generated.h"
 
 /**

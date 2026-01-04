@@ -4,7 +4,7 @@
 #include "CraneDataSyncComp.h"
 
 #include "m7at10_dt/m7at10_dt.h"
-#include "m7at10_dt/M7AT10/Core/DxDataType.h"
+#include "Core/DxDataType.h"
 
 
 // Sets default values for this component's properties

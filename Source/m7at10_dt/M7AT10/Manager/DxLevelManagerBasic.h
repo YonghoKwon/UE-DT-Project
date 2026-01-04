@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "DxLevelManagerBase.h"
+#include "Manager/DxLevelManagerBase.h"
 #include "DxLevelManagerBasic.generated.h"
 
 UCLASS()

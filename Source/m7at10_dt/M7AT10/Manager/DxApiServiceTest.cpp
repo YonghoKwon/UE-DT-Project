@@ -3,7 +3,7 @@
 
 #include "DxApiServiceTest.h"
 
-#include "m7at10_dt/M7AT10/Core/DxApiSubsystem.h"
+#include "Core/DxApiSubsystem.h"
 
 void UDxApiServiceTest::Initialize(UGameInstance* GameInstance)
 {

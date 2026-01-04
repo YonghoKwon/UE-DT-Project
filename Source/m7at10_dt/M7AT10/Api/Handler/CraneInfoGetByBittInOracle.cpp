@@ -4,7 +4,7 @@
 #include "CraneInfoGetByBittInOracle.h"
 
 #include "m7at10_dt/m7at10_dt.h"
-#include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
+#include "Lib/YyJsonParser.h"
 
 UCraneInfoGetByBittInOracle::UCraneInfoGetByBittInOracle()
 {

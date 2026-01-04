@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CraneDataTypes.h"
-#include "m7at10_dt/M7AT10/ActorComponent/MechDriverCompBase.h"
+#include "ActorComponent/MechDriverCompBase.h"
 #include "CraneMechDriverComp.generated.h"
 
 

@@ -8,7 +8,7 @@
 #include "CraneStatusVisualizerComp.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "m7at10_dt/M7AT10/Core/DxProcessSubsystem.h"
+#include "Core/DxProcessSubsystem.h"
 
 
 // Sets default values

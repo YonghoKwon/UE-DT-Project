@@ -5,11 +5,11 @@
 
 #include "Kismet/GameplayStatics.h"
 #include "m7at10_dt/m7at10_dt.h"
-#include "m7at10_dt/M7AT10/Core/DxDataType.h"
-#include "m7at10_dt/M7AT10/Core/DxProcessSubsystem.h"
+#include "Core/DxDataType.h"
+#include "Core/DxProcessSubsystem.h"
 #include "m7at10_dt/M7AT10/Crane/CraneDataSyncComp.h"
 #include "m7at10_dt/M7AT10/Crane/CraneDataTypes.h"
-#include "m7at10_dt/M7AT10/Lib/YyJsonParser.h"
+#include "Lib/YyJsonParser.h"
 
 UKP1D0012::UKP1D0012()
 {

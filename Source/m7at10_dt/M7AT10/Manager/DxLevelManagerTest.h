@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "DxLevelManagerBase.h"
+#include "Manager/DxLevelManagerBase.h"
 #include "DxLevelManagerTest.generated.h"
 
 class UDxApiServiceTest;
