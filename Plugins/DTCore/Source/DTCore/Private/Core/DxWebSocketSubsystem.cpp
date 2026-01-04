@@ -142,7 +142,7 @@ FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOM
 			Dest = MoveTemp(CopiedDest),
 			MsgId = MoveTemp(CopiedMsgId),
 			AckId = MoveTemp(CopiedAckId)
-			]()
+			]() mutable
 		{
 			TObjectPtr<UDxWebSocketSubsystem> StrongThis = WeakThis.Get();
 			if (!StrongThis) return;
