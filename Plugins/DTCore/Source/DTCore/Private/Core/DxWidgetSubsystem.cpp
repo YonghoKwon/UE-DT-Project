@@ -115,6 +115,8 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 	// 열린 위젯 목록에 추가
 	OpenWidgets.Add(NewWidget);
 
+	// 연결된 액터 설정
+	NewWidget->MyActor = InteractableActor;
 	// 위젯의 OpenWidget 함수 호출 (추가 로직 실행)
 	NewWidget->OpenWidgetAddLogic();
 

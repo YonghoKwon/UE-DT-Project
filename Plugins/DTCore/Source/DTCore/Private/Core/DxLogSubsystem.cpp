@@ -42,7 +42,7 @@ void UDxLogSubsystem::WriteLog(const FString& LogContent, bool bPrintToScreen, F
 			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, LogContent);
 		}
 #endif
-		UE_LOG(LogTemp, Log, TEXT("%s"), *LogContent);
+		UE_LOG(LogBase, Log, TEXT("%s"), *LogContent);
 	}
 
 	// 2. 파일 이름 결정
@@ -78,7 +78,7 @@ void UDxLogSubsystem::DeleteOldLogs(int32 RetentionDays)
 	// 1. 로그 디렉토리 확인
 	if (!FileManager.DirectoryExists(*LogDir))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[DxLog] Log Directory not found: %s"), *LogDir);
+		UE_LOG(LogBase, Warning, TEXT("[DxLog] Log Directory not found: %s"), *LogDir);
 		return;
 	}
 
@@ -118,7 +118,7 @@ void UDxLogSubsystem::DeleteOldLogs(int32 RetentionDays)
 		if (!bValidDate)
 		{
 			FileDate = FileManager.GetTimeStamp(*FullPath);
-			UE_LOG(LogTemp, Warning, TEXT("[DxLog] Name parsing failed for '%s'. Using File System Timestamp."), *FileName);
+			UE_LOG(LogBase, Warning, TEXT("[DxLog] Name parsing failed for '%s'. Using File System Timestamp."), *FileName);
 		}
 
 		// 날짜 차이 계산
@@ -128,18 +128,18 @@ void UDxLogSubsystem::DeleteOldLogs(int32 RetentionDays)
 		{
 			if (FileManager.Delete(*FullPath))
 			{
-				UE_LOG(LogTemp, Log, TEXT("[DxLog] [DELETED] %s (Log Date: %s, Age: %.1f Days)"),
+				UE_LOG(LogBase, Log, TEXT("[DxLog] [DELETED] %s (Log Date: %s, Age: %.1f Days)"),
 					*FileName, *FileDate.ToString(TEXT("%Y-%m-%d")), Age.GetTotalDays());
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[DxLog] [FAIL] Could not delete %s"), *FileName);
+				UE_LOG(LogBase, Error, TEXT("[DxLog] [FAIL] Could not delete %s"), *FileName);
 			}
 		}
 		else
 		{
 			// 너무 최신 파일임
-			// UE_LOG(LogTemp, Log, TEXT("[DxLog] [KEEP] %s (Age: %.1f Days)"), *FileName, Age.GetTotalDays());
+			// UE_LOG(LogBase, Log, TEXT("[DxLog] [KEEP] %s (Age: %.1f Days)"), *FileName, Age.GetTotalDays());
 		}
 	}
 }

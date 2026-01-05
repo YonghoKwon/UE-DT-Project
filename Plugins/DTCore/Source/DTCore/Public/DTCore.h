@@ -32,7 +32,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogDx, Log, All);
 #define DX_LOG(WorldContext, Format, ...) \
 { \
 /* 1. UE_LOG도 남겨둠 (Shipping에서 -log 옵션으로 볼 수 있음) */ \
-UE_LOG(LogTemp, Log, Format, ##__VA_ARGS__); \
+UE_LOG(LogBase, Log, Format, ##__VA_ARGS__); \
 \
 /* 2. Subsystem을 통해 파일로 비동기 저장 */ \
 if (UWorld* World = WorldContext) \
@@ -57,7 +57,7 @@ LogSys->WriteLog(Msg, false); /* bPrintToScreen = false */ \
 #define DX_LOG(WorldContext, Format, ...) \
 { \
 /* 1. UE_LOG 출력 */ \
-UE_LOG(LogTemp, Log, Format, ##__VA_ARGS__); \
+UE_LOG(LogBase, Log, Format, ##__VA_ARGS__); \
 \
 /* 2. 화면 출력 (Print String 효과) */ \
 FString Msg = FString::Printf(Format, ##__VA_ARGS__); \
@@ -68,6 +68,6 @@ GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Cyan, FString::Printf(TEXT("
 }
 
 // 파일 저장 전용 매크로를 에디터에서 불렀을 경우 -> 그냥 로그만 찍고 넘어감 (파일 생성 방지)
-#define DX_LOG_FILE(WorldContext, Format, ...) UE_LOG(LogTemp, Log, Format, ##__VA_ARGS__)
+#define DX_LOG_FILE(WorldContext, Format, ...) UE_LOG(LogBase, Log, Format, ##__VA_ARGS__)
 
 #endif

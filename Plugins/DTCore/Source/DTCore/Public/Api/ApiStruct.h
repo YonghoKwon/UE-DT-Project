@@ -9,7 +9,9 @@ class UApiMessage;
 UENUM(BlueprintType)
 enum class EApiType : uint8
 {
-	Test UMETA(DisplayName = "Test")
+	Local UMETA(DisplayName = "Local"),
+	Test UMETA(DisplayName = "Test"),
+	Prod UMETA(DisplayName = "Prod")
 };
 
 UENUM(BlueprintType)
@@ -38,12 +40,12 @@ public:
 	FString ApiResource;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
 	FString ApiAction;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
-	TArray<FString> QueryParameter;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
-	TArray<FString> PathParameter;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
-	FString Body;
+	// UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
+	// TArray<FString> QueryParameter;
+	// UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
+	// TArray<FString> PathParameter;
+	// UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
+	// FString Body;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "API")
 	TSubclassOf<UApiMessage> ApiMessageClass;
 

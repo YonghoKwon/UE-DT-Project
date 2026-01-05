@@ -49,6 +49,33 @@ void AInteractableActor::Click()
 	WidgetSubsystem->OpenWidget(this);
 }
 
+void AInteractableActor::OnCursorHover(UPrimitiveComponent* HoveredComponent)
+{
+	if (LastHoveredComponent == HoveredComponent)
+	{
+		return;
+	}
+
+	// 새로운 컴포넌트이므로 갱신
+	LastHoveredComponent = HoveredComponent;
+
+	// 하이라이트 업데이트 로직 실행
+	UpdateHighlight(HoveredComponent);
+}
+
+void AInteractableActor::OnCursorUnhover()
+{
+	// 하이라이트 끄기
+	if (CurrentHighlightedMeshes.Num() > 0)
+	{
+		HighlightActor(false, CurrentHighlightedMeshes, false);
+		CurrentHighlightedMeshes.Empty();
+	}
+
+	// 마우스가 떠났으므로 초기화
+	LastHoveredComponent = nullptr;
+}
+
 TArray<UPrimitiveComponent*> AInteractableActor::GetActorAllMesh()
 {
 	TArray<UPrimitiveComponent*> meshes;
@@ -78,33 +105,6 @@ TArray<UPrimitiveComponent*> AInteractableActor::GetActorAllMesh()
 	UE_LOG(LogBase, Warning, TEXT("GetActorAllMesh found %d meshes for Actor: %s"), meshes.Num(), *GetName());
 
 	return meshes;
-}
-
-void AInteractableActor::OnCursorHover(UPrimitiveComponent* HoveredComponent)
-{
-	if (LastHoveredComponent == HoveredComponent)
-	{
-		return;
-	}
-
-	// 새로운 컴포넌트이므로 갱신
-	LastHoveredComponent = HoveredComponent;
-
-	// 하이라이트 업데이트 로직 실행
-	UpdateHighlight(HoveredComponent);
-}
-
-void AInteractableActor::OnCursorUnhover()
-{
-	// 하이라이트 끄기
-	if (CurrentHighlightedMeshes.Num() > 0)
-	{
-		HighlightActor(false, CurrentHighlightedMeshes, false);
-		CurrentHighlightedMeshes.Empty();
-	}
-
-	// 마우스가 떠났으므로 초기화
-	LastHoveredComponent = nullptr;
 }
 
 void AInteractableActor::HighlightActor(bool activate, const TArray<UPrimitiveComponent*> meshes, bool isError)
