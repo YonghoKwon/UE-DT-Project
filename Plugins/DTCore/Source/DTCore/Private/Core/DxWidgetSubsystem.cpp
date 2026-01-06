@@ -3,17 +3,18 @@
 #include "DTCore.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Core/DTCoreSettings.h"
 #include "InteractableActor/InteractableActor.h"
 #include "Manager/DxLevelStruct.h"
 #include "UI/DxWidget.h"
 
 UDxWidgetSubsystem::UDxWidgetSubsystem()
 {
-	static ConstructorHelpers::FObjectFinder<UDataTable> LevelDataTableFinder(TEXT("/Game/M7AT10/Common/DataTables/DT_DxLevel.DT_DxLevel"));
+	const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
 
-	if (LevelDataTableFinder.Succeeded())
+	if (Settings->LevelDataTable.ToSoftObjectPath().IsValid())
 	{
-		LevelDataTable = LevelDataTableFinder.Object;
+		LevelDataTable = Settings->LevelDataTable.LoadSynchronous();
 	}
 }
 

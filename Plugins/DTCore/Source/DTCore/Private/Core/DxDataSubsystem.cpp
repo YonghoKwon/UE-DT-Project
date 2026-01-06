@@ -7,23 +7,22 @@
 #include "WebSocket/TransactionCodeMessage.h"
 #include "WebSocket/TransactionCodeStruct.h"
 #include "Async/Async.h"
+#include "Core/DTCoreSettings.h"
 
 struct FApiStruct;
 
 UDxDataSubsystem::UDxDataSubsystem()
 {
-	static ConstructorHelpers::FObjectFinder<UDataTable> ApiDataTableFinder(TEXT("/Game/M7AT10/Common/DataTables/DT_Api.DT_Api"));
+	const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
 
-	if (ApiDataTableFinder.Succeeded())
+	if (Settings->ApiDataTable.ToSoftObjectPath().IsValid())
 	{
-		ApiDataTable = ApiDataTableFinder.Object;
+		ApiDataTable = Settings->ApiDataTable.LoadSynchronous();
 	}
 
-	static ConstructorHelpers::FObjectFinder<UDataTable> WebSocketDataTableFinder(TEXT("/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode"));
-
-	if (WebSocketDataTableFinder.Succeeded())
+	if (Settings->WebSocketDataTable.ToSoftObjectPath().IsValid())
 	{
-		WebSocketDataTable = WebSocketDataTableFinder.Object;
+		WebSocketDataTable = Settings->WebSocketDataTable.LoadSynchronous();
 	}
 }
 

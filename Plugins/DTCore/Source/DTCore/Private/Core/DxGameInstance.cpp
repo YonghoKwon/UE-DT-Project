@@ -12,8 +12,6 @@ void UDxGameInstance::Init()
 {
 	Super::Init();
 
-	Instance = this;
-
 	UGameUserSettings* UserSettings = UGameUserSettings::GetGameUserSettings();
 	if (UserSettings)
 	{
@@ -25,11 +23,5 @@ void UDxGameInstance::Init()
 
 void UDxGameInstance::Shutdown()
 {
-	Instance = nullptr;
 	Super::Shutdown();
-}
-
-UDxGameInstance* UDxGameInstance::GetInstance()
-{
-	return Instance;
 }

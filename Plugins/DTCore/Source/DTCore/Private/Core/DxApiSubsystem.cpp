@@ -3,15 +3,16 @@
 #include "DTCore.h"
 #include "Core/DxDataSubsystem.h"
 #include "HttpModule.h"
+#include "Core/DTCoreSettings.h"
 #include "Interfaces/IHttpResponse.h"
 
 UDxApiSubsystem::UDxApiSubsystem()
 {
-	static ConstructorHelpers::FObjectFinder<UDataTable> ApiDataTableFinder(TEXT("/Game/M7AT10/Common/DataTables/DT_Api.DT_Api"));
+	const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
 
-	if (ApiDataTableFinder.Succeeded())
+	if (Settings->ApiDataTable.ToSoftObjectPath().IsValid())
 	{
-		DT_Api = ApiDataTableFinder.Object;
+		DT_Api = Settings->ApiDataTable.LoadSynchronous();
 	}
 }
 

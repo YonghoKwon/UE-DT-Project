@@ -16,8 +16,6 @@ class DTCORE_API UDxGameInstance : public UGameInstance
 public:
 	virtual void Init() override;
 	virtual void Shutdown() override;
-
-	static UDxGameInstance* GetInstance();
 private:
 protected:
 
