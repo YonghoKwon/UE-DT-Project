@@ -147,9 +147,18 @@ void UDxDataSubsystem::ProcessApiQueue()
 
     if (BatchDataChunk.Num() > 0)
     {
+    	TWeakObjectPtr<UDxDataSubsystem> WeakThis(this);
+
         // 3. 백그라운드 처리
-        AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedMap = CachedHandlerApiMessageMap]()
+        AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [WeakThis, BatchDataChunk, SharedMap = CachedHandlerApiMessageMap]()
         {
+	        // 작업 시작 전 인스턴스 유효성 체크
+	        TObjectPtr<UDxDataSubsystem> StrongThis = WeakThis.Get();
+	        if (!StrongThis)
+	        {
+		        return; // 이미 Subsystem이 소멸되었으면 작업 중단
+	        }
+
             FYyJsonParser JsonParser;
 
             struct FApiResultItem {
@@ -195,14 +204,19 @@ void UDxDataSubsystem::ProcessApiQueue()
 
             if (BatchResults.Num() > 0)
             {
-	            AsyncTask(ENamedThreads::GameThread, [this, BatchResults]()
+	            AsyncTask(ENamedThreads::GameThread, [WeakThis, BatchResults]()
 	            {
-		            for (const auto& Item : BatchResults)
+		            // 다시 한 번 유효성 체크 (그 사이 소멸되었을 수 있음)
+		            TObjectPtr<UDxDataSubsystem> StrongThisGame = WeakThis.Get();
+		            if (StrongThisGame)
 		            {
-			            if (IsValid(Item.Handler))
+			            for (const auto& Item : BatchResults)
 			            {
-				            // 최종 데이터 처리 실행
-				            Item.Handler->ProcessStructData(Item.Data);
+				            if (IsValid(Item.Handler))
+				            {
+					            // 최종 데이터 처리 실행
+					            Item.Handler->ProcessStructData(Item.Data);
+				            }
 			            }
 		            }
 	            });
@@ -238,8 +252,17 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 
 	if (BatchDataChunk.Num() > 0)
 	{
-		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BatchDataChunk, SharedMap = CachedHandlerTransactionCodeMessageMap]()
+		TWeakObjectPtr<UDxDataSubsystem> WeakThis(this);
+
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [WeakThis, BatchDataChunk, SharedMap = CachedHandlerTransactionCodeMessageMap]()
 		{
+			// 작업 시작 전 인스턴스 유효성 체크
+			TObjectPtr<UDxDataSubsystem> StrongThis = WeakThis.Get();
+			if (!StrongThis)
+			{
+				return; // 이미 Subsystem이 소멸되었으면 작업 중단
+			}
+
 			FYyJsonParser JsonParser;
 
 			struct FResultItem
@@ -281,19 +304,24 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 
 			if (BatchResults.Num() > 0)
 			{
-				AsyncTask(ENamedThreads::GameThread, [this, BatchResults]()
+				AsyncTask(ENamedThreads::GameThread, [WeakThis, BatchResults]()
 				{
-					// 메인 스레드
-					for (const auto& Item : BatchResults)
+					// 다시 한 번 유효성 체크 (그 사이 소멸되었을 수 있음)
+					TObjectPtr<UDxDataSubsystem> StrongThisGame = WeakThis.Get();
+					if (StrongThisGame)
 					{
-						if (IsValid(Item.Handler))
+						// 메인 스레드
+						for (const auto& Item : BatchResults)
 						{
-							// 최종 데이터 처리 실행
-							Item.Handler->ProcessStructData(Item.Data);
-						}
+							if (IsValid(Item.Handler))
+							{
+								// 최종 데이터 처리 실행
+								Item.Handler->ProcessStructData(Item.Data);
+							}
 
-						// 카운터 증가
-						TotalProcessedCount.Increment();
+							// 카운터 증가
+							StrongThisGame->TotalProcessedCount.Increment();
+						}
 					}
 				});
 			}
