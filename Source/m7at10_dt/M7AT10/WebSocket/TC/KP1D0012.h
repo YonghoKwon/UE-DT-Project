@@ -29,7 +29,7 @@ class M7AT10_DT_API UKP1D0012 : public UTransactionCodeMessage, public FTransact
 public:
 	UKP1D0012();
 
-	virtual TSharedPtr<FTransactionCodeDataBase> ParseToStruct(const FString& JsonString) override;
+	virtual TSharedPtr<FTransactionCodeDataBase> ParseToStruct(const FString& JsonString) const override;
 
 	virtual void ProcessStructData(const TSharedPtr<FTransactionCodeDataBase>& Data) override;
 	// virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode) override;

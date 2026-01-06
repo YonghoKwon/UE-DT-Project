@@ -16,7 +16,7 @@ class DTCORE_API UTransactionCodeMessage : public UObject
 
 	// Function
 public:
-	virtual TSharedPtr<struct FTransactionCodeDataBase> ParseToStruct(const FString& JsonString)
+	virtual TSharedPtr<struct FTransactionCodeDataBase> ParseToStruct(const FString& JsonString) const
 	{
 		return nullptr;
 	}

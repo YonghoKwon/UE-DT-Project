@@ -379,7 +379,7 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 						if (UTransactionCodeMessage** HandlerPtr = SharedMap->Find(TrCode))
 						{
 							UTransactionCodeMessage* Handler = *HandlerPtr;
-							if (Handler)
+							if (IsValid(Handler))
 							{
 								// [중요] ParseToStruct 함수는 내부에서 NewObject 등을 쓰지 않는 순수 로직이어야 함
 								TSharedPtr<FTransactionCodeDataBase> ParsedData = Handler->ParseToStruct(SingleData);

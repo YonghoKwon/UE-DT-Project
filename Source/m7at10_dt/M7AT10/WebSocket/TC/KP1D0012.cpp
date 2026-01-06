@@ -16,7 +16,7 @@ UKP1D0012::UKP1D0012()
 	TransactionCode = "KP1D0012";
 }
 
-TSharedPtr<FTransactionCodeDataBase> UKP1D0012::ParseToStruct(const FString& JsonString)
+TSharedPtr<FTransactionCodeDataBase> UKP1D0012::ParseToStruct(const FString& JsonString) const
 {
 	TSharedPtr<FKP1D0012Data> KP1D0012Data = MakeShared<FKP1D0012Data>();
 
