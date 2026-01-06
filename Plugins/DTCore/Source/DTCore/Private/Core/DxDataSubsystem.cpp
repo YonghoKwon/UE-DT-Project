@@ -30,9 +30,6 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// const FString ApiTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_Api.DT_Api'");
-	// UDataTable* LoadedApiTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ApiTablePath));
-
 	if (ApiDataTable)
 	{
 		ApiDataTable->ForeachRow<FApiStruct>(TEXT("UDxDataSubsystem::Initialize_Api"),
@@ -70,9 +67,6 @@ void UDxDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			CachedHandlerApiMessageMap->Add(Pair.Key, Pair.Value);
 		}
 	}
-
-	// const FString DataTablePath = TEXT("DataTable'/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode'");
-	// UDataTable* LoadedTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
 
 	if (WebSocketDataTable)
 	{
@@ -133,84 +127,6 @@ void UDxDataSubsystem::EnqueueApiData(const FString& Data)
 
 void UDxDataSubsystem::ProcessApiQueue()
 {
-	// if (ApiDataQueue.IsEmpty()) return;
-	//
-	// double StartTime = FPlatformTime::Seconds();
-	// const double TimeBudget = 0.005; // 5ms (0.005초) 동안만 처리
-	//
-	// // 1. Parser 인스턴스 생성
-	// FYyJsonParser JsonParser;
-	//
-	// FString Data;
-	// while (!ApiDataQueue.IsEmpty())
-	// {
-	// 	// 시간이 다 되었는지 체크
-	// 	if ((FPlatformTime::Seconds() - StartTime) > TimeBudget)
-	// 	{
-	// 		break; // 다음 프레임에 계속 처리
-	// 	}
-	//
-	// 	if (ApiDataQueue.Dequeue(Data))
-	// 	{
-	// 		UE_LOG(LogBase, Log, TEXT("[API] Processing: %s"), *Data);
-	// 		// JSON 파싱 및 API 로직 처리
-	//
-	// 		// 2. Wrapper JSON 파싱 (meta->{resource, action...}, data가 포함된 JSON)
-	// 		if (JsonParser.JsonParse(Data))
-	// 		{
-	// 			yyjson_val* Root = JsonParser.GetRoot();
-	//
-	// 			// 3. 'meta' 객체 가져오기
-	// 			yyjson_val* MetaNode = JsonParser.JsonParseKeyword(Root, TEXT("meta"));
-	//
-	// 			if (JsonParser.IsValid(MetaNode))
-	// 			{
-	// 				// 4. 메타 데이터 추출
-	// 				FString Resource = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("resource")));
-	// 				FString Action = JsonParser.GetString(JsonParser.JsonParseKeyword(MetaNode, TEXT("action")));
-	//
-	// 				if (!Resource.IsEmpty() && !Action.IsEmpty())
-	// 				{
-	// 					// 5. 핸들러 찾기
-	// 					if (UApiMessage* Handler = FindApiMessage(Resource, Action))
-	// 					{
-	// 						// 6. 데이터 추출
-	// 						yyjson_val* DataNode = JsonParser.JsonParseKeyword(Root, TEXT("data"));
-	//
-	// 						if (JsonParser.IsValid(DataNode))
-	// 						{
-	// 							// 7. 핸들러에게 실제 데이터 전달
-	// 							Handler->ProcessData(&JsonParser, DataNode);
-	// 						}
-	// 						else
-	// 						{
-	// 							// TODO: data가 없거나 null인 경우, 빈 노드라도 넘겨줄 수 있음
-	// 							UE_LOG(LogBase, Log, TEXT("[API] data is empty for %s_%s"), *Resource, *Action);
-	// 							Handler->ProcessData(&JsonParser, nullptr);
-	// 						}
-	// 					}
-	// 					else
-	// 					{
-	// 						UE_LOG(LogBase, Warning, TEXT("[API] No Handler found for resource: %s, action: %s"), *Resource, *Action);
-	// 					}
-	// 				}
-	// 				else
-	// 				{
-	// 					UE_LOG(LogBase, Error, TEXT("[API] Wrapper JSON missing resource or action field"));
-	// 				}
-	// 			}
-	// 			else
-	// 			{
-	// 				UE_LOG(LogBase, Error, TEXT("[API] Failed to find 'meta' object in JSON"));
-	// 			}
-	// 		}
-	// 		else
-	// 		{
-	// 			UE_LOG(LogBase, Error, TEXT("[API] Failed to parse Wrapper JSON"));
-	// 		}
-	// 	}
-	// }
-
 	if (ApiDataQueue.IsEmpty()) return;
 
     const double StartTime = FPlatformTime::Seconds();
@@ -258,20 +174,6 @@ void UDxDataSubsystem::ProcessApiQueue()
 
 			            // Key (Resource_Action)
 			            FString Key = FPaths::Combine(Resource, Action);
-
-			            // if (const TSubclassOf<UApiMessage>* HandlerClassPtr = SharedMap->Find(Key))
-			            // {
-			            //     UApiMessage* DefaultHandler = GetMutableDefault<UApiMessage>(*HandlerClassPtr);
-			            //     if (DefaultHandler)
-			            //     {
-			            //         TSharedPtr<FApiDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
-			            //
-			            //         if (ParsedData.IsValid())
-			            //         {
-			            //             BatchResults.Add({ *HandlerClassPtr, ParsedData });
-			            //         }
-			            //     }
-			            // }
 
 			            if (UApiMessage** HandlerPtr = SharedMap->Find(Key))
 			            {
@@ -358,23 +260,6 @@ void UDxDataSubsystem::ProcessWebSocketQueue()
 					if (JsonParser.IsValid(MsgIdVal))
 					{
 						FString TrCode = JsonParser.GetString(MsgIdVal);
-
-						// if (const TSubclassOf<UTransactionCodeMessage>* HandlerClassPtr = SharedMap->
-						// 	Find(TrCode))
-						// {
-						// 	UTransactionCodeMessage* DefaultHandler = GetMutableDefault<UTransactionCodeMessage>(
-						// 		*HandlerClassPtr);
-						//
-						// 	if (DefaultHandler)
-						// 	{
-						// 		TSharedPtr<FTransactionCodeDataBase> ParsedData = DefaultHandler->ParseToStruct(SingleData);
-						//
-						// 		if (ParsedData.IsValid())
-						// 		{
-						// 			BatchResults.Add({*HandlerClassPtr, ParsedData});
-						// 		}
-						// 	}
-						// }
 
 						if (UTransactionCodeMessage** HandlerPtr = SharedMap->Find(TrCode))
 						{

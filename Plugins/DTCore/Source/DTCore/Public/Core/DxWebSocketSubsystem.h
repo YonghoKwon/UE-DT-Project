@@ -6,8 +6,29 @@
 
 class IStompClient;
 
+USTRUCT(BlueprintType)
+struct FWebSocketMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString BodyString;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	TArray<uint8> RawBody;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	TMap<FName, FString> Headers;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString SubscriptionId;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString Destination;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString MessageId;
+	UPROPERTY(BlueprintReadOnly, Category = "STOMP")
+	FString AckId;
+};
+
 DECLARE_DYNAMIC_DELEGATE_TwoParams(FSTOMPRequestCompleted, bool, bSuccess, FString, Error);
-DECLARE_DYNAMIC_DELEGATE_OneParam(FSTOMPSubscriptionEvent, class UWebSocketMessage*, Message);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FSTOMPSubscriptionEvent, FWebSocketMessage&, Message);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FSTOMPConnectedEvent, FString, ProtocolVersion, FString, SessionId, FString, ServerString);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSTOMPConnectionErrorEvent, FString, Error);
@@ -33,7 +54,7 @@ public:
 	UFUNCTION(Category = "DxWebSocket")
 	void DisconnectStompClient(const TMap<FName, FString>& Header);
 	UFUNCTION(Category = "DxWebSocket")
-	void ReceivedMessage(UWebSocketMessage* Message);
+	void ReceivedMessage(FWebSocketMessage& Message);
 	UFUNCTION(Category = "DxWebSocket")
 	FString Subscribe(const FString& Destination, const FSTOMPSubscriptionEvent& EventCallback, const FSTOMPRequestCompleted& CompletionCallback);
 	UFUNCTION(Category = "DxWebSocket")

@@ -5,7 +5,6 @@
 #include "IStompClient.h"
 #include "IStompMessage.h"
 #include "StompModule.h"
-#include "WebSocket/WebSocketMessage.h"
 
 void UDxWebSocketSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -32,7 +31,15 @@ void UDxWebSocketSubsystem::ConnectWebSocket()
 	// 이미 연결된 클라이언트가 있다면 정리
 	if (StompClient.IsValid())
 	{
-		DisconnectStompClient(LoginInfo);
+		// 델리게이트 해제 (중복 호출 방지)
+		StompClient->OnConnected().RemoveAll(this);
+		StompClient->OnConnectionError().RemoveAll(this);
+		StompClient->OnClosed().RemoveAll(this); // OnClosed가 재귀적으로 TryReconnect를 부르지 않도록
+
+		if (StompClient->IsConnected())
+		{
+			StompClient->Disconnect(LoginInfo);
+		}
 		StompClient.Reset();
 	}
 
@@ -73,10 +80,10 @@ void UDxWebSocketSubsystem::DisconnectStompClient(const TMap<FName, FString>& He
 	}
 }
 
-void UDxWebSocketSubsystem::ReceivedMessage(UWebSocketMessage* Message)
+void UDxWebSocketSubsystem::ReceivedMessage(FWebSocketMessage& Message)
 {
 	// FStompBuffer Body = Message->GetRawBody();
-	const FString BodyString = Message->GetBodyAsString();
+	const FString BodyString = Message.BodyString;
 
 	// UE_LOG(LogBase, Log, TEXT("Received Message Body: %s"), *BodyString);
 
@@ -147,12 +154,12 @@ FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOM
 			TObjectPtr<UDxWebSocketSubsystem> StrongThis = WeakThis.Get();
 			if (!StrongThis) return;
 
-			UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(StrongThis);
-
-			Msg->BodyString = MoveTemp(Body);
-			Msg->Headers = MoveTemp(Headers);
-			Msg->Destination = MoveTemp(Dest);
-			Msg->MessageId = MoveTemp(MsgId);
+			// UWebSocketMessage* Msg = NewObject<UWebSocketMessage>(StrongThis);
+			FWebSocketMessage Msg; // 스택 할당 (매우 빠름, GC 없음)
+			Msg.BodyString = MoveTemp(Body);
+			Msg.Headers = MoveTemp(Headers);
+			Msg.Destination = MoveTemp(Dest);
+			Msg.MessageId = MoveTemp(MsgId);
 
 			EventCallback.ExecuteIfBound(Msg);
 		});
