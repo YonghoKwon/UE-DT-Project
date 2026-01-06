@@ -276,7 +276,7 @@ void UDxDataSubsystem::ProcessApiQueue()
 			            if (UApiMessage** HandlerPtr = SharedMap->Find(Key))
 			            {
 				            UApiMessage* Handler = *HandlerPtr;
-				            if (Handler)
+				            if (IsValid(Handler))
 				            {
 					            // [중요] ParseToStruct 함수는 내부에서 NewObject 등을 쓰지 않는 순수 로직이어야 함
 					            TSharedPtr<FApiDataBase> ParsedData = Handler->ParseToStruct(SingleData);

@@ -15,7 +15,7 @@ class DTCORE_API UApiMessage : public UObject
 
 	// Function
 public:
-	virtual TSharedPtr<struct FApiDataBase> ParseToStruct(const FString& JsonString)
+	virtual TSharedPtr<struct FApiDataBase> ParseToStruct(const FString& JsonString) const
 	{
 		return nullptr;
 	}

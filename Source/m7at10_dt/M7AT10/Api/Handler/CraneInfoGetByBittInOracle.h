@@ -27,7 +27,7 @@ class M7AT10_DT_API UCraneInfoGetByBittInOracle : public UApiMessage, public FAp
 public:
 	UCraneInfoGetByBittInOracle();
 
-	virtual TSharedPtr<FApiDataBase> ParseToStruct(const FString& JsonString) override;
+	virtual TSharedPtr<FApiDataBase> ParseToStruct(const FString& JsonString) const override;
 
 	virtual void ProcessStructData(const TSharedPtr<FApiDataBase>& Data) override;
 	// virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode) override;

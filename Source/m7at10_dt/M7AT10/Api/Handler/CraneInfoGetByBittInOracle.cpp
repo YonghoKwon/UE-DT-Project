@@ -11,7 +11,7 @@ UCraneInfoGetByBittInOracle::UCraneInfoGetByBittInOracle()
 	ResourceAndAction = "CraneInfoGetByBittInOracle";
 }
 
-TSharedPtr<FApiDataBase> UCraneInfoGetByBittInOracle::ParseToStruct(const FString& JsonString)
+TSharedPtr<FApiDataBase> UCraneInfoGetByBittInOracle::ParseToStruct(const FString& JsonString) const
 {
 	TSharedPtr<FCraneInfoGetByBittInOracleData> CraneInfoGetByBittInOracleData = MakeShared<FCraneInfoGetByBittInOracleData>();
 
