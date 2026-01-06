@@ -16,6 +16,8 @@ class DTCORE_API UTransactionCodeMessage : public UObject
 
 	// Function
 public:
+	// ParseToStruct 함수 내부에서는 this->변수나 GetWorld() 같은 언리얼 엔진 함수를 절대로 쓰지 않는다!!!
+	// 순수 Parsing을 위한 함수
 	virtual TSharedPtr<struct FTransactionCodeDataBase> ParseToStruct(const FString& JsonString) const
 	{
 		return nullptr;
