@@ -31,3 +31,7 @@ void UDataSyncCompBase::TickComponent(float DeltaTime, ELevelTick TickType,
 	// ...
 }
 
+void UDataSyncCompBase::OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr)
+{
+}
+

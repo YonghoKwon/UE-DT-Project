@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/DxDataType.h"
 #include "CraneDataTypes.generated.h"
 
 USTRUCT(BlueprintType)
@@ -21,19 +22,17 @@ struct FCranePositionData
 	// 필요한 필드 추가...
 };
 
-USTRUCT(BlueprintType)
-struct FCraneStateData
+// Actor 구조체에 꼭 FDxDataBase를 상속받아야 함!!!
+struct FCraneStateData : public FDxDataBase
 {
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite)
 	FString CraneId;
-
-	UPROPERTY(BlueprintReadWrite)
 	FCranePositionData Position;
-
-	UPROPERTY(BlueprintReadWrite)
 	FString OperationStatus;
 
 	// 타임스탬프, 상태 등 추가 필드...
+
+	virtual EDxDataType GetType() const override
+	{
+		return EDxDataType::CraneState;
+	}
 };

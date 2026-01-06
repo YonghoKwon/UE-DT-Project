@@ -23,10 +23,10 @@ public:
 	// Function
 public:
 	// 메인 데이터 수신 함수
-	UFUNCTION()
+	// UFUNCTION()
 	void OnReceiveCraneStateData(const FCraneStateData& InData);
 	// 부모 가상 함수 오버라이드
-	virtual void OnReceiveData(EDxDataType DataType, const void* Data) override;
+	virtual void OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr) override;
 private:
 protected:
 

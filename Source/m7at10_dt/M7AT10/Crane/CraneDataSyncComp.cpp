@@ -25,21 +25,23 @@ void UCraneDataSyncComp::OnReceiveCraneStateData(const FCraneStateData& InData)
 	// OnCraneStatusColorChanged.Broadcast(FLinearColor::Red);
 }
 
-void UCraneDataSyncComp::OnReceiveData(EDxDataType DataType, const void* Data)
+void UCraneDataSyncComp::OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr)
 {
-	if (!Data)
-	{
-		UE_LOG(LogM7AT10, Warning, TEXT("[CraneDataSyncComp] OnReceiveData: Data is null"));
-		return;
-	}
+	// 1. 데이터 포인터 유효성 검사
+	if (!DataPtr.IsValid()) return;
 
-	if (DataType == EDxDataType::CraneState)
+	// 2. 타입 확인 (데이터 자체가 자신의 타입을 알고 있음)
+	if (DataPtr->GetType() == EDxDataType::CraneState)
 	{
-		const FCraneStateData* CraneData = static_cast<const FCraneStateData*>(Data);
-		OnReceiveCraneStateData(*CraneData);
-	}
-	else
-	{
-		UE_LOG(LogM7AT10, Warning, TEXT("[CraneDataSyncComp] Unknown DataType: %s"), *UEnum::GetValueAsString(DataType));
+		// 3. 안전한 캐스팅 (StaticCastSharedPtr)
+		// FDxDataBase -> FCraneStateData로 포인터 변환
+		// TSharedPtr를 사용하므로 메모리가 도중에 삭제될 위험이 없음
+		TSharedPtr<FCraneStateData> CraneData = StaticCastSharedPtr<FCraneStateData>(DataPtr);
+
+		if (CraneData.IsValid())
+		{
+			// 실제 데이터 처리
+			OnReceiveCraneStateData(*CraneData);
+		}
 	}
 }

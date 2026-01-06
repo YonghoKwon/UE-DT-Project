@@ -5,6 +5,7 @@
 #include "DataSyncCompBase.generated.h"
 
 
+struct FDxDataBase;
 enum class EDxDataType : uint8;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -27,7 +28,7 @@ public:
 
 	// Function
 public:
-	virtual void OnReceiveData(EDxDataType DataType, const void* Data) {}
+	virtual void OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr);
 private:
 protected:
 
