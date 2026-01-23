@@ -6,6 +6,7 @@
 #include "CraneDataSyncComp.h"
 #include "CraneMechDriverComp.h"
 #include "CraneStatusVisualizerComp.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Core/DxProcessSubsystem.h"
@@ -17,7 +18,7 @@ ACrane::ACrane()
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	MainMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MainMesh"));
+	MainMesh = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("MainMesh"));
 	RootComponent = MainMesh;
 
 	DataSyncComp = CreateDefaultSubobject<UCraneDataSyncComp>(TEXT("DataSyncComp"));
@@ -26,6 +27,13 @@ ACrane::ACrane()
 
 	WidgetFlag = TEXT("Freeview");
 	HighlightMode = EHighlightMode::IndividualMesh;
+
+	// // 1. 메쉬 컴포넌트 생성 (기존 SkeletalMesh 대신 PoseableMesh 사용 권장)
+	// CraneMesh = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("CraneMesh"));
+	// RootComponent = CraneMesh;
+
+	// 2. 드라이버 컴포넌트 부착
+	// MechDriverComp = CreateDefaultSubobject<UCraneMechDriverComp>(TEXT("MechDriverComp"));
 }
 
 // Called when the game starts or when spawned

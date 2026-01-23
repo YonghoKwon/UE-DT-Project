@@ -6,6 +6,7 @@
 #include "InteractableActor/FacilityBase.h"
 #include "Crane.generated.h"
 
+class UPoseableMeshComponent;
 class UStaticMeshComponent;
 class UCraneStatusVisualizerComp;
 class UCraneMechDriverComp;
@@ -40,7 +41,7 @@ public:
 	FString CraneId;
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UStaticMeshComponent> MainMesh;
+	TObjectPtr<UPoseableMeshComponent> MainMesh;
 
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UCraneDataSyncComp> DataSyncComp;
@@ -48,5 +49,8 @@ private:
 	TObjectPtr<UCraneMechDriverComp> MechDriverComp;
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UCraneStatusVisualizerComp> StatusVisualizerComp;
+
+	// UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	// TObjectPtr<UPoseableMeshComponent> CraneMesh;
 protected:
 };

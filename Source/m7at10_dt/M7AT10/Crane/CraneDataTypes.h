@@ -10,26 +10,31 @@ struct FCranePositionData
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite)
-	float TrolleyPosition = 0.f; // 트롤리 위치
+	// [수정] 본 구조에 맞는 데이터 필드로 변경
 
-	UPROPERTY(BlueprintReadWrite)
-	float HoistHeight = 0.f; // 호이스트 높이
+	// 1. Anchor 위치 (좌우 이동)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float AnchorPosition = 0.f;
 
-	UPROPERTY(BlueprintReadWrite)
-	float GantryPosition = 0.f; // 갠트리 위치
+	// 2. HookRope 높이/길이 (위아래 이동)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float HookRopeHeight = 0.f;
 
-	// 필요한 필드 추가...
+	// 3. ControllerRope 높이/길이 (위아래 이동)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float ControlRopeHeight = 0.f;
 };
 
-// Actor 구조체에 꼭 FDxDataBase를 상속받아야 함!!!
 struct FCraneStateData : public FDxDataBase
 {
+	UPROPERTY(BlueprintReadWrite)
 	FString CraneId;
-	FCranePositionData Position;
-	FString OperationStatus;
 
-	// 타임스탬프, 상태 등 추가 필드...
+	UPROPERTY(BlueprintReadWrite)
+	FCranePositionData Position;
+
+	UPROPERTY(BlueprintReadWrite)
+	FString OperationStatus;
 
 	virtual EDxDataType GetType() const override
 	{

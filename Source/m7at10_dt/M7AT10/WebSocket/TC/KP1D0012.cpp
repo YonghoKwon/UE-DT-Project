@@ -48,25 +48,25 @@ void UKP1D0012::ProcessStructData(const TSharedPtr<FTransactionCodeDataBase>& Da
 
 	if (KP1D0012Data.IsValid())
 	{
-		TSharedPtr<FCraneStateData> CraneDataPtr = MakeShared<FCraneStateData>();
-		CraneDataPtr->CraneId = KP1D0012Data->VehicleCd;
-		CraneDataPtr->Position.TrolleyPosition = FCString::Atof(*KP1D0012Data->LogiDestLat);
-		CraneDataPtr->Position.HoistHeight = FCString::Atof(*KP1D0012Data->LogiDestLon1);
-		CraneDataPtr->Position.GantryPosition = FCString::Atof(*KP1D0012Data->LogiDestLon2);
-
-		if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld()))
-		{
-			if (UDxProcessSubsystem* DxProcess = GI->GetSubsystem<UDxProcessSubsystem>())
-			{
-				if (UCraneDataSyncComp* CraneDataSyncComp = Cast<UCraneDataSyncComp>(DxProcess->FindComponent(CraneDataPtr->CraneId)))
-				{
-					CraneDataSyncComp->OnReceiveData(CraneDataPtr);
-				}
-				else
-				{
-					UE_LOG(LogM7AT10, Warning, TEXT("[KP1D0012] CraneDataSyncComp not found for CraneId: %s"), *CraneDataPtr->CraneId);
-				}
-			}
-		}
+		// TSharedPtr<FCraneStateData> CraneDataPtr = MakeShared<FCraneStateData>();
+		// CraneDataPtr->CraneId = KP1D0012Data->VehicleCd;
+		// CraneDataPtr->Position.TrolleyPosition = FCString::Atof(*KP1D0012Data->LogiDestLat);
+		// CraneDataPtr->Position.HoistHeight = FCString::Atof(*KP1D0012Data->LogiDestLon1);
+		// CraneDataPtr->Position.GantryPosition = FCString::Atof(*KP1D0012Data->LogiDestLon2);
+		//
+		// if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld()))
+		// {
+		// 	if (UDxProcessSubsystem* DxProcess = GI->GetSubsystem<UDxProcessSubsystem>())
+		// 	{
+		// 		if (UCraneDataSyncComp* CraneDataSyncComp = Cast<UCraneDataSyncComp>(DxProcess->FindComponent(CraneDataPtr->CraneId)))
+		// 		{
+		// 			CraneDataSyncComp->OnReceiveData(CraneDataPtr);
+		// 		}
+		// 		else
+		// 		{
+		// 			UE_LOG(LogM7AT10, Warning, TEXT("[KP1D0012] CraneDataSyncComp not found for CraneId: %s"), *CraneDataPtr->CraneId);
+		// 		}
+		// 	}
+		// }
 	}
 }
