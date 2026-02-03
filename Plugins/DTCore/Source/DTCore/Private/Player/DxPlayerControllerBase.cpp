@@ -80,8 +80,12 @@ void ADxPlayerControllerBase::Tick(float DeltaTime)
 		DxPlayerBase->MoveUpDown(UIVerticalInput);
 	}
 
-	// 마우스 호버 감지
-	CheckMouseHover();
+	LastHoverCheckTime += DeltaTime;
+	if (!bIsClickRightMouseButton && bShowMouseCursor && LastHoverCheckTime >= HoverCheckInterval)
+	{
+		CheckMouseHover();
+		LastHoverCheckTime = 0.0f; // 타이머 초기화
+	}
 }
 
 // 이동 제어
@@ -115,7 +119,7 @@ void ADxPlayerControllerBase::Look(const FInputActionValue& Value)
 // 배속 제어
 void ADxPlayerControllerBase::ControlMoveSpeed(const FInputActionValue& Value)
 {
-	const float value = Value.Get<float>() * ControlSpeedStep;
+	const float value = GetPlayerControlSpeed() + Value.Get<float>() * ControlSpeedStep;
 	if (value == 0.f) return;
 
 	if (ADxPlayerBase* DxPlayer = Cast<ADxPlayerBase>(GetPawn()))
@@ -166,62 +170,62 @@ void ADxPlayerControllerBase::ClickRightMouseButton(const FInputActionValue& Val
 // 마우스 호버 감지
 void ADxPlayerControllerBase::CheckMouseHover()
 {
-	// FHitResult HitResult;
-	// bool bHit = GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
-
+	// 마우스 위치 계산 (Tick에서 호출 조건 확인 후 실행됨)
 	FVector WorldLocation, WorldDirection;
 	if (!DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
 	{
 		return;
 	}
 
-	FVector Start = WorldLocation;
-	FVector End = Start + (WorldDirection * 100000.0f);
+	// 트레이스 설정 (매번 생성 비용 절약)
+	static const FCollisionObjectQueryParams ObjectQueryParams = []()
+	{
+		FCollisionObjectQueryParams Params;
+		Params.AddObjectTypesToQuery(ECC_WorldStatic);
+		Params.AddObjectTypesToQuery(ECC_WorldDynamic);
+		Params.AddObjectTypesToQuery(ECC_Pawn);
+		Params.AddObjectTypesToQuery(ECC_PhysicsBody);
+		Params.AddObjectTypesToQuery(ECC_GameTraceChannel1);
+		return Params;
+	}();
+
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(GetPawn());
 
 	FHitResult HitResult;
+	FVector Start = WorldLocation;
+	FVector End = Start + (WorldDirection * 100000.0f); // 100km
 
-	FCollisionObjectQueryParams ObjectQueryParams;
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1);
-
+	// 라인 트레이스
 	bool bHit = GetWorld()->LineTraceSingleByObjectType(
-		HitResult,
-		Start,
-		End,
-		ObjectQueryParams,
-		QueryParams
-		);
+		HitResult, Start, End, ObjectQueryParams, QueryParams
+	);
 
-	AInteractableActor* NewHitActor = nullptr;
-	UPrimitiveComponent* NewHitComp = nullptr;
+	AActor* HitActorRaw = HitResult.GetActor();
 
-	if (bHit)
+	// 같은 액터 위에서 마우스가 움직일 때는 로직 건너뜀
+	if (CurrentHoveredActor && CurrentHoveredActor != HitActorRaw)
 	{
-		NewHitActor = Cast<AInteractableActor>(HitResult.GetActor());
-		NewHitComp = HitResult.GetComponent();
+		return;
 	}
 
-	// 마우스가 다른 액터로 이동했거나, 허공으로 갔을 때 -> 기존 액터 Unhover
-	if (CurrentHoveredActor && CurrentHoveredActor != NewHitActor)
+	// 기존 액터 Unhover
+	if (CurrentHoveredActor)
 	{
 		CurrentHoveredActor->OnCursorUnhover();
 		CurrentHoveredActor = nullptr;
+		CurrentHoveredMesh = nullptr;
 	}
 
-	// 새로운 InteractableActor를 가리키고 있을 때
-	if (NewHitActor)
+	// 새 액터 Hover
+	if (AInteractableActor* NewHitActor = Cast<AInteractableActor>(HitActorRaw))
 	{
-		// 새로 호버링 시작 (또는 같은 액터 내에서 컴포넌트 변경)
-		NewHitActor->OnCursorHover(NewHitComp);
+		UPrimitiveComponent* NewHitComp = HitResult.GetComponent();
 
-		// 현재 액터 갱신
+		NewHitActor->OnCursorHover(NewHitComp);
 		CurrentHoveredActor = NewHitActor;
+		CurrentHoveredMesh = NewHitComp;
 	}
 }
 

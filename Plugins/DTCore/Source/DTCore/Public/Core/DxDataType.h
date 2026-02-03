@@ -15,6 +15,7 @@ enum class EDxDataType : uint8
 	CraneState,
 	ShipState,
 
+	UpdateState,
 	//...
 };
 

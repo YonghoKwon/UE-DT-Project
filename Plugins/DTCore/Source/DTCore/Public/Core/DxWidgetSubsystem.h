@@ -4,6 +4,7 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "DxWidgetSubsystem.generated.h"
 
+enum class EDxWidgetFlag : uint8;
 class AInteractableActor;
 class UDxWidget;
 enum class EDxViewMode : uint8;
@@ -42,9 +43,14 @@ public:
 	// 위젯 생성 및 열기
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	UDxWidget* OpenWidget(AInteractableActor* InteractableActor);
+	// 위젯 생성 및 열기
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UDxWidget* OpenWidgetFromWidget(UDxWidget* DxWidget, EDxWidgetFlag TargetFlag);
 	// 위젯 닫기
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void CloseWidget(UDxWidget* CloseWidget);
+
+	TArray<TObjectPtr<UDxWidget>> GetOpenWidgets();
 private:
 	// MainWidget에서 canvasPanel을 찾는 헬퍼 함수
 	class UPanelWidget* GetAddWidgetPanel() const;

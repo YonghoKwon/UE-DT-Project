@@ -1,19 +1,21 @@
 ﻿#include "UI/DxWidget.h"
 
 #include "DTCore.h"
-#include "Core/DxWidgetSubsystem.h"
 #include "Player/DxPlayerControllerBase.h"
-// #include "Player/DxPlayerTest.h"
+#include "Core/DxWidgetSubsystem.h"
 
 void UDxWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 
-	// if (APlayerController* PC = GetOwningPlayer())
-	// {
-	// 	Player = Cast<ADxPlayerTest>(PC->GetPawn());
-	// 	PlayerController = Cast<ADxPlayerControllerBase>(PC);
-	// }
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		Player = Cast<ADxPlayerBase>(PC->GetPawn());
+		PlayerController = Cast<ADxPlayerControllerBase>(PC);
+
+		// PlayerController의 Pawn 변경 이벤트 구독
+		BindToPlayerController();
+	}
 }
 
 void UDxWidget::NativeConstruct()
@@ -25,6 +27,9 @@ void UDxWidget::NativeDestruct()
 {
 	// 타이머 정리
 	StopContinuousTimer();
+
+	// PlayerController 이벤트 구독 해제
+	UnbindFromPlayerController();
 
 	Super::NativeDestruct();
 }
@@ -56,6 +61,7 @@ void UDxWidget::CloseWidget()
 	}
 }
 
+
 void UDxWidget::StartContinuousTimer()
 {
 	// 타이머 시작 (0.016초마다 = 약 60fps)
@@ -67,7 +73,7 @@ void UDxWidget::StartContinuousTimer()
 			&UDxWidget::ContinuousUpdate,
 			0.016f,
 			true
-			);
+		);
 	}
 }
 
@@ -82,4 +88,38 @@ void UDxWidget::StopContinuousTimer()
 void UDxWidget::ContinuousUpdate()
 {
 	// 자식 클래스에서 오버라이드하여 구현
+}
+
+void UDxWidget::BindToPlayerController()
+{
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		PC->GetOnNewPawnNotifier().AddUObject(this, &UDxWidget::HandlerPawnChanged);
+	}
+}
+
+void UDxWidget::UnbindFromPlayerController()
+{
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		PC->GetOnNewPawnNotifier().RemoveAll(this);
+	}
+}
+
+void UDxWidget::HandlerPawnChanged(APawn* NewPawn)
+{
+	// 새 Pawn이 DxPlayerBase 타입인지 확인
+	ADxPlayerBase* NewPlayer = Cast<ADxPlayerBase>(NewPawn);
+
+	// Player 참조 업데이트
+	Player = NewPlayer;
+
+	// 자식 클래스에서 추가 처리 가능하도록 가상 함수 호출
+	OnPlayerChanged(NewPlayer);
+}
+
+void UDxWidget::OnPlayerChanged(ADxPlayerBase* NewPlayer)
+{
+	// 자식 클래스에서 오버라이드하여 구현
+	// 예: Player 변경 시 UI 업데이트, 델리게이트 재구독 등
 }

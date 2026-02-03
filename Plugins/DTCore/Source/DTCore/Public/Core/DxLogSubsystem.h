@@ -14,6 +14,9 @@ public:
 	// 서브시스템 초기화 (여기서 오래된 로그를 정리합니다)
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+
+	// 게임 종료 시 호출되는 함수
+	void OnGameExit();
 	/**
 	 * 로그를 파일에 씁니다. (비동기 처리되어 게임 멈춤 없음)
 	 * @param LogContent : 남길 로그 내용

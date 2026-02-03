@@ -68,6 +68,6 @@ GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Cyan, FString::Printf(TEXT("
 }
 
 // 파일 저장 전용 매크로를 에디터에서 불렀을 경우 -> 그냥 로그만 찍고 넘어감 (파일 생성 방지)
-#define DX_LOG_FILE(WorldContext, Format, ...) UE_LOG(LogBase, Log, Format, ##__VA_ARGS__)
+#define DX_LOG_FILE(WorldContext, Format, ...) UE_LOG(LogTemp, Log, Format, ##__VA_ARGS__)
 
 #endif

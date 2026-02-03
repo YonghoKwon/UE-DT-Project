@@ -67,7 +67,7 @@ void UDxApiSubsystem::DxRequestApi(const FName& RowName, FDxApiCallback Callback
 	if (!ApiData)
 	{
 		UE_LOG(LogBase, Error, TEXT("DxRequestApi: Row '%s' not found in DT_Api."), *RowName.ToString());
-		Callback.ExecuteIfBound(false, 0, FString::Printf(TEXT("Row '%s' not found in DT_Api."), *RowName.ToString()));
+		Callback.ExecuteIfBound(false, 0, FString::Printf(TEXT("Row '%s' not found"), *RowName.ToString()));
 		return;
 	}
 
@@ -87,23 +87,22 @@ void UDxApiSubsystem::DxRequestApi(const FName& RowName, FDxApiCallback Callback
 	DxHttpCall(FullUrl, MethodType, TEXT(""), DefaultHeaders, FDxApiCallback());
 }
 
-void UDxApiSubsystem::DxRequestApiWithParameter(const FName& RowName, FDxApiCallback Callback,
-	const TArray<FString>& Parameters)
+void UDxApiSubsystem::DxRequestApiWithParameter(const FName& RowName, FDxApiCallback Callback, const TArray<FString>& Parameters)
 {
 	// DT_Api 데이터테이블이 유효한지 체크
 	if (!DT_Api)
 	{
-		UE_LOG(LogBase, Error, TEXT("DxRequestApi: DT_Api is not set."));
+		UE_LOG(LogBase, Error, TEXT("DxRequestApiWithParameter: DT_Api is not set."));
 		Callback.ExecuteIfBound(false, 0, TEXT("DT_Api is not set"));
 		return;
 	}
 
 	// 데이터테이블에서 Row 검색
-	FApiStruct* ApiData = DT_Api->FindRow<FApiStruct>(RowName, TEXT("DxRequestApi"));
+	FApiStruct* ApiData = DT_Api->FindRow<FApiStruct>(RowName, TEXT("DxRequestApiWithParameter"));
 	if (!ApiData)
 	{
-		UE_LOG(LogBase, Error, TEXT("DxRequestApi: Row '%s' not found in DT_Api."), *RowName.ToString());
-		Callback.ExecuteIfBound(false, 0, FString::Printf(TEXT("Row '%s' not found in DT_Api."), *RowName.ToString()));
+		UE_LOG(LogBase, Error, TEXT("DxRequestApiWithParameter: Row '%s' not found in DT_Api."), *RowName.ToString());
+		Callback.ExecuteIfBound(false, 0, FString::Printf(TEXT("Row '%s' not found"), *RowName.ToString()));
 		return;
 	}
 
@@ -112,15 +111,15 @@ void UDxApiSubsystem::DxRequestApiWithParameter(const FName& RowName, FDxApiCall
 	// HTTP Method
 	FString MethodType = GetHttpStr(ApiData->ApiMethod);
 
-	// URL 조합 (예: Server + / + RequestApiType) - 실제 로직에 맞게 수정 필요
+	// URL 조합 ServerUrl + ApiUrl
 	FString FullUrl = ServerUrl + ApiData->ApiUrl;
 
 	// Path Parameter가 있으면 URL에 추가
-	for (const FString& PathParm : Parameters)
+	for (const FString& PathParam : Parameters)
 	{
-		if (!PathParm.IsEmpty())
+		if (!PathParam.IsEmpty())
 		{
-			FullUrl += TEXT("/") + PathParm;
+			FullUrl += TEXT("/") + PathParam;
 		}
 	}
 
@@ -131,7 +130,7 @@ void UDxApiSubsystem::DxRequestApiWithParameter(const FName& RowName, FDxApiCall
 	// Body 설정
 	// FString ContentString = ApiData->Body;
 
-	UE_LOG(LogBase, Log, TEXT("DxRequestApiWithParameter: Calling API - %s, %s"), *MethodType, *FullUrl);
+	UE_LOG(LogBase, Log, TEXT("DxRequestApiWithParameter: Calling API - %s %s"), *MethodType, *FullUrl);
 
 	// HTTP 요청 실행
 	DxHttpCall(FullUrl, MethodType, TEXT(""), DefaultHeaders, Callback);

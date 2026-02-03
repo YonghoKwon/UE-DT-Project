@@ -15,6 +15,9 @@ void UDxLogSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	DX_LOG(GetWorld(), TEXT("   SHIPPING LOG STARTED - SYSTEM INIT    "));
 	DX_LOG(GetWorld(), TEXT("========================================="));
 
+	// 게임 종료 시 호출됨 델리게이트 바인딩
+	FCoreDelegates::OnExit.AddUObject(this, &UDxLogSubsystem::OnGameExit);
+
 	// 게임 시작 시 7일 지난 로그 삭제 (백그라운드에서 실행)
 	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 	{
@@ -24,7 +27,21 @@ void UDxLogSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UDxLogSubsystem::Deinitialize()
 {
+	// 델리게이트 바인딩 해제
+	FCoreDelegates::OnExit.RemoveAll(this);
+
 	Super::Deinitialize();
+}
+
+void UDxLogSubsystem::OnGameExit()
+{
+	// 게임 종료 시 로그 남기기
+	DX_LOG(GetWorld(), TEXT("========================================="));
+	DX_LOG(GetWorld(), TEXT("   GAME EXIT - SYSTEM SHUTDOWN    "));
+	DX_LOG(GetWorld(), TEXT("========================================="));
+
+	// 남아있는 버퍼의 로그를 모두 파일에 쓰기
+	ProcessLogBuffer();
 }
 
 void UDxLogSubsystem::WriteLog(const FString& LogContent, bool bPrintToScreen, FString LogFileName)

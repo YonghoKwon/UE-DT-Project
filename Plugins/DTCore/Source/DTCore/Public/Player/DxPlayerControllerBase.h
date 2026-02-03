@@ -98,5 +98,12 @@ private:
 	UPROPERTY()
 	ADxPlayerBase* DxPlayerBase;
 
+	//
+	// 마지막으로 Hover 체크를 한 시간
+	float LastHoverCheckTime = 0.0f;
+	// Hover 체크 주기 (초 단위, 0.05 = 초당 20회)
+	const float HoverCheckInterval = 0.05f;
+	//
+
 protected:
 };

@@ -3,8 +3,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Core/DxWidgetSubsystem.h"
+#include "UI/DxWidgetDataType.h"
 #include "InteractableActor.generated.h"
 
+class UDxWidgetConfigData;
+class ADxPlayerBase;
 // 하이라이트 모드
 UENUM(BlueprintType)
 enum class EHighlightMode : uint8
@@ -24,15 +27,20 @@ public:
 
 	void Click();
 	UFUNCTION(BlueprintCallable, Category = "InteractableActor")
-	void OnCursorHover(UPrimitiveComponent* HoveredComponent);
+	virtual void OnCursorHover(UPrimitiveComponent* HoveredComponent);
 	UFUNCTION(BlueprintCallable, Category = "InteractableActor")
 	void OnCursorUnhover();
 	UFUNCTION(BlueprintCallable, Category = "InteractableActor")
-	void HighlightActor(bool activate, const TArray<UPrimitiveComponent*> meshes, bool isError);
+	static void HighlightActor(bool activate, const TArray<UPrimitiveComponent*> meshes, bool isError);
 	UFUNCTION(BlueprintCallable, Category = "InteractableActor")
 	void HighlightSingleMesh(bool activate, UPrimitiveComponent* mesh, bool isError);
 	UFUNCTION(BlueprintPure, BlueprintCallable, Category = "InteractableActor")
 	TArray<UPrimitiveComponent*> GetActorAllMesh();
+
+protected:
+	// Player 바인딩 관련 함수
+	void BindToPlayer();
+	void UnbindFromPlayer();
 
 private:
 	// 내부적으로 하이라이트 상태 관리
@@ -42,15 +50,22 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
+	// 직접 맵을 정의하는 대신 에셋을 참조
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget")
-	TMap<FString, FWidgetInfo> WidgetMap; // 위젯 클래스와 위치 정보 저장
+	TObjectPtr<UDxWidgetConfigData> WidgetConfig;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget")
-	FString WidgetFlag; // 현재 사용할 위젯 플래그
+	EDxWidgetFlag WidgetFlag = EDxWidgetFlag::None; // 현재 사용할 위젯 플래그
+
+	// TODO: ShortcutHighlight 변수 사용하는지 확인 필요
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "InteractableActor")
 	bool ShortcutHighlight = false;
 	// 하이라이트 모드 설정 (에디터에서 설정 가능)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "InteractableActor")
 	EHighlightMode HighlightMode = EHighlightMode::WholeActor;
+
+	// 액터 표시 이름 (위젯에서 사용)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "InteractableActor")
+	FString DisplayName;
 
 private:
 	UPROPERTY()
@@ -61,5 +76,6 @@ private:
 	TArray<UPrimitiveComponent*> CachedMeshes;
 
 protected:
-
+	UPROPERTY()
+	TObjectPtr<ADxPlayerBase> CachedPlayer;
 };

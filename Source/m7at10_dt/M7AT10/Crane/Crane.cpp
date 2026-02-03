@@ -25,7 +25,6 @@ ACrane::ACrane()
 	MechDriverComp = CreateDefaultSubobject<UCraneMechDriverComp>(TEXT("MechDriverComp"));
 	StatusVisualizerComp = CreateDefaultSubobject<UCraneStatusVisualizerComp>(TEXT("StatusVisualizerComp"));
 
-	WidgetFlag = TEXT("Freeview");
 	HighlightMode = EHighlightMode::IndividualMesh;
 
 	// // 1. 메쉬 컴포넌트 생성 (기존 SkeletalMesh 대신 PoseableMesh 사용 권장)

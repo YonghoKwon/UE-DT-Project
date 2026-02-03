@@ -5,7 +5,6 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 
-
 ADxPlayerBase::ADxPlayerBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -65,8 +64,8 @@ void ADxPlayerBase::SetControlSpeed(float NewSpeed)
 {
 	ControlSpeed = FMath::Clamp(NewSpeed, ControlMinSpeed, ControlMaxSpeed);
 	OnControlSpeedChanged.Broadcast(ControlSpeed);
-}
 
+}
 float ADxPlayerBase::GetControlSpeed()
 {
 	return ControlSpeed;
@@ -92,10 +91,23 @@ void ADxPlayerBase::Look(const FVector2D& LookVector)
 		return;
 	}
 
-	// 위 - / 아래 +
-	AddControllerPitchInput(LookVector.Y * -0.5f);
-	// 좌 + / 우 -
-	AddControllerYawInput(LookVector.X * 0.5f);
+	// 현재 회전 값 가져오기
+	const FRotator CurrentRotation = Controller->GetControlRotation();
+
+	// 새로운 Pitch 값 계산 (위 - / 아래 +)
+	float NewPitch = CurrentRotation.Pitch + (LookVector.Y * 1.0f);
+
+	// Pitch를 -85도에서 +85도 사이로 제한
+	NewPitch = FMath::Clamp(NewPitch, -80.0f, 80.0f);
+
+	// 새로운 Yaw 값 계산 (좌 + / 우 -)
+	float NewYaw = CurrentRotation.Yaw + (LookVector.X * 1.0f);
+
+	// 새로운 회전 적용
+	FRotator NewRotation = CurrentRotation;
+	NewRotation.Pitch = NewPitch;
+	NewRotation.Yaw = NewYaw;
+	Controller->SetControlRotation(NewRotation);
 }
 // 앞뒤,좌우 카메라 이동, 배속 적용
 void ADxPlayerBase::Move(const FVector2D& MovementVector)
@@ -104,11 +116,10 @@ void ADxPlayerBase::Move(const FVector2D& MovementVector)
 
 	// 컨트롤러의 회전(카메라가 보는 방향)을 기준으로 앞/오른쪽 벡터 계산
 	const FRotator Rotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-	// 카메라가 보는 방향의 전방/우측 벡터
-	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+	// 카메라가 실제로 바라보는 방향의 전방/우측 벡터 (Pitch 포함)
+	const FVector ForwardDirection = FRotationMatrix(Rotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(Rotation).GetUnitAxis(EAxis::Y);
 
 	FVector MoveDirection = (ForwardDirection * MovementVector.Y) + (RightDirection * MovementVector.X);
 
@@ -118,6 +129,14 @@ void ADxPlayerBase::Move(const FVector2D& MovementVector)
 // 상하 이동, 배속 적용
 void ADxPlayerBase::MoveUpDown(float Value)
 {
-	FVector NewLocation = GetActorLocation() + FVector(0.0f, 0.0f, Value * ControlSpeed);
+	FVector CurrentLocation = GetActorLocation();
+	FVector NewLocation = CurrentLocation + FVector(0.0f, 0.0f, Value * ControlSpeed);
+
+	// Z축 높이를 72625 이하로 제한
+	if (NewLocation.Z > 72625.0f)
+	{
+		NewLocation.Z = 72625.0f;
+	}
+
 	SetActorLocation(NewLocation);
 }
