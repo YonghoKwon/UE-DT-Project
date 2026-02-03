@@ -189,7 +189,6 @@ void ADxPlayerControllerBase::CheckMouseHover()
 		return Params;
 	}();
 
-
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(GetPawn());
 
@@ -205,7 +204,7 @@ void ADxPlayerControllerBase::CheckMouseHover()
 	AActor* HitActorRaw = HitResult.GetActor();
 
 	// 같은 액터 위에서 마우스가 움직일 때는 로직 건너뜀
-	if (CurrentHoveredActor && CurrentHoveredActor != HitActorRaw)
+	if (CurrentHoveredActor && CurrentHoveredActor == HitActorRaw)
 	{
 		return;
 	}

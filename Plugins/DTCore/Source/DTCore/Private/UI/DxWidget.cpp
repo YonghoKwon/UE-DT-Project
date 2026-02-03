@@ -94,7 +94,7 @@ void UDxWidget::BindToPlayerController()
 {
 	if (APlayerController* PC = GetOwningPlayer())
 	{
-		PC->GetOnNewPawnNotifier().AddUObject(this, &UDxWidget::HandlerPawnChanged);
+		PC->GetOnNewPawnNotifier().AddUObject(this, &UDxWidget::HandlePawnChanged);
 	}
 }
 
@@ -106,7 +106,7 @@ void UDxWidget::UnbindFromPlayerController()
 	}
 }
 
-void UDxWidget::HandlerPawnChanged(APawn* NewPawn)
+void UDxWidget::HandlePawnChanged(APawn* NewPawn)
 {
 	// 새 Pawn이 DxPlayerBase 타입인지 확인
 	ADxPlayerBase* NewPlayer = Cast<ADxPlayerBase>(NewPawn);

@@ -44,7 +44,7 @@ private:
 	void UnbindFromPlayerController();
 
 	UFUNCTION()
-	void HandlerPawnChanged(APawn* NewPawn);
+	void HandlePawnChanged(APawn* NewPawn);
 
 	// Variable
 public:

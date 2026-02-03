@@ -172,7 +172,7 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 
 UDxWidget* UDxWidgetSubsystem::OpenWidgetFromWidget(UDxWidget* DxWidget, EDxWidgetFlag TargetFlag)
 {
-	UDxWidgetConfigData* Config = DxWidget->MyActor->WidgetConfig;
+	UDxWidgetConfigData* Config = DxWidget->WidgetConfig;
 
 	if (!DxWidget) return nullptr;
 
