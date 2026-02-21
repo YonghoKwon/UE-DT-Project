@@ -19,9 +19,9 @@ void ADxLevelManagerBase::BeginPlay()
 	}
 
 	// DxWidgetSubsystem에 UI 생성 요청
-	if (UGameInstance* GameInstance = GetGameInstance())
+	if (UGameInstance* GI = GetGameInstance())
 	{
-		if (UDxWidgetSubsystem* WidgetSubsystem = GameInstance->GetSubsystem<UDxWidgetSubsystem>())
+		if (UDxWidgetSubsystem* WidgetSubsystem = GI->GetSubsystem<UDxWidgetSubsystem>())
 		{
 			WidgetSubsystem->SwitchUIMode(ViewMode);
 		}

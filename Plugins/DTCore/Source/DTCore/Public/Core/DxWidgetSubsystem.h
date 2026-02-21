@@ -54,6 +54,12 @@ public:
 private:
 	// MainWidget에서 canvasPanel을 찾는 헬퍼 함수
 	class UPanelWidget* GetAddWidgetPanel() const;
+
+	// 위젯 생성, 위치 설정, 리스트 추가 등 공통 로직을 처리
+	UDxWidget* CreateWidgetInternal(TSubclassOf<UDxWidget> WidgetClass, const FVector2D& Position, AInteractableActor* OwnerActor, UDxWidget* ParentWidget, EDxWidgetFlag Flag);
+
+	// Z-Order 재정렬
+	void BringToFront(UDxWidget* Widget);
 protected:
 
 	// Variable

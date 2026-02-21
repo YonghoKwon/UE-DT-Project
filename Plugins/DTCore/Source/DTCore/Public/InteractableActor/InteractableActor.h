@@ -25,7 +25,8 @@ public:
 	AInteractableActor();
 	virtual void Tick(float DeltaTime) override;
 
-	void Click();
+	UFUNCTION(BlueprintCallable, Category = "InteractableActor")
+	virtual void Click();
 	UFUNCTION(BlueprintCallable, Category = "InteractableActor")
 	virtual void OnCursorHover(UPrimitiveComponent* HoveredComponent);
 	UFUNCTION(BlueprintCallable, Category = "InteractableActor")

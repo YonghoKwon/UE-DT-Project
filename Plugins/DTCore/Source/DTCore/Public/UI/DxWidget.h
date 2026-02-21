@@ -3,10 +3,12 @@
 #include "CoreMinimal.h"
 #include "DxWidgetConfigData.h"
 #include "DxWidgetDataType.h"
+#include "DxWidgetThemeData.h"
 #include "Blueprint/UserWidget.h"
 #include "Player/DxPlayerBase.h"
 #include "DxWidget.generated.h"
 
+class UDxWidgetThemeData;
 class AInteractableActor;
 /**
  * 
@@ -19,14 +21,27 @@ class DTCORE_API UDxWidget : public UUserWidget
 	// Function
 public:
 	virtual void NativeOnInitialized() override;
+	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Widget")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "DxWidget")
 	void OpenWidgetAddLogic();
 
-	UFUNCTION(BlueprintCallable, Category = "Widget")
+	UFUNCTION(BlueprintCallable, Category = "DxWidget")
 	void CloseWidget();
+
+	UFUNCTION(BlueprintCallable, Category = "DxWidget")
+	UDxWidget* OpenChildWidget(EDxWidgetFlag InChildFlag);
+
+	UFUNCTION(BlueprintCallable, Category = "DxWidget")
+	void SetParentWidget(UDxWidget* InParentWidget);
+	UFUNCTION(BlueprintCallable, Category = "DxWidget")
+	void AddChildWidget(UDxWidget* InChildWidget);
+	UFUNCTION(BlueprintCallable, Category = "DxWidget")
+	void RemoveChildWidget(UDxWidget* InChildWidget);
+
+
 protected:
 	// Player) 연속 동작 시작/중지 (자식 클래스에서 사용)
 	void StartContinuousTimer();
@@ -44,7 +59,7 @@ private:
 	void UnbindFromPlayerController();
 
 	UFUNCTION()
-	void HandlePawnChanged(APawn* NewPawn);
+	void HandlerPawnChanged(APawn* NewPawn);
 
 	// Variable
 public:
@@ -61,6 +76,20 @@ public:
 	TObjectPtr<UDxWidgetConfigData> WidgetConfig;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget")
 	EDxWidgetFlag WidgetFlag = EDxWidgetFlag::None;
+
+	// 나를 호출한 부모 위젯
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Hierarchy")
+	TWeakObjectPtr<UDxWidget> ParentWidget;
+
+	// 내가 호출한 자식 위젯들
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Hierarchy")
+	TArray<TObjectPtr<UDxWidget>> ChildWidgets;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Theme")
+	TObjectPtr<UDxWidgetThemeData> ThemeData;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Theme")
+	EDxWidgetStyleType CurrentStyleType = EDxWidgetStyleType::Standard;
+
 protected:
 	UPROPERTY()
 	FTimerHandle ContinuousTimerHandle;

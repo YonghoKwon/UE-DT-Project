@@ -74,191 +74,152 @@ void UDxWidgetSubsystem::SwitchUIMode(EDxViewMode NewMode)
 
 UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 {
+	if (!InteractableActor) return nullptr;
+
 	UDxWidgetConfigData* Config = InteractableActor->WidgetConfig;
+	if (!Config) return nullptr;
 
-	if (!InteractableActor)
-	{
-		UE_LOG(LogBase, Warning, TEXT("OpenWidget: InteractableActor is null"));
-		return nullptr;
-	}
+	// Config 찾기
+	FWidgetInfo* WidgetInfoPtr = Config->WidgetMap.Find(InteractableActor->WidgetFlag);
+	if (!WidgetInfoPtr || !WidgetInfoPtr->WidgetClass) return nullptr;
 
-	FWidgetInfo* WidgetInfoPtr = nullptr;
-	if (Config)
-	{
-		// WidgetMap에서 WidgetFlag에 해당하는 위젯 정보 찾기 (중복 체크에 사용)
-		WidgetInfoPtr = Config->WidgetMap.Find(InteractableActor->WidgetFlag);
-		if (!WidgetInfoPtr || ! WidgetInfoPtr->WidgetClass)
-		{
-			UE_LOG(LogBase, Warning, TEXT("OpenWidget: No widget info found for flag '%hhd'"), InteractableActor->WidgetFlag);
-			return nullptr;
-		}
-	}
-
-	// 이미 열려있는 동일한 위젯이 있는지 확인
-	// 조건: 같은 Actor 인스턴스 && 같은 WidgetClass
-	for (UDxWidget* ExistingWidget : OpenWidgets)
-	{
-		if (ExistingWidget &&
-			ExistingWidget->MyActor == InteractableActor &&
-			ExistingWidget->GetClass() == WidgetInfoPtr->WidgetClass)
-		{
-			// 동일한 Actor의 동일한 위젯이 이미 열려있으면 앞으로 가져오기
-			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(ExistingWidget->Slot))
-			{
-				// 가장 높은 ZOrder + 1로 설정
-				int32 MaxZOrder = 1;
-				for (UDxWidget* Widget : OpenWidgets)
-				{
-					if (Widget && Widget != ExistingWidget)
-					{
-						if (UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot))
-						{
-							MaxZOrder = FMath::Max(MaxZOrder, Slot->GetZOrder() + 1);
-						}
-					}
-				}
-				CanvasSlot->SetZOrder(MaxZOrder);
-			}
-
-			UE_LOG(LogBase, Log, TEXT("OpenWidget: Widget '%hhd' for Actor '%s' already open, brought to front"),
-				InteractableActor->WidgetFlag, *InteractableActor->GetName());
-			return ExistingWidget;
-		}
-	}
-
-	// 위젯을 추가할 부모 canvasPanel 찾기
-	UPanelWidget* Panel = GetAddWidgetPanel();
-	if (!Panel)
-	{
-		UE_LOG(LogBase, Error, TEXT("OpenWidget: AddWidgetPanel not found in MainWidget"));
-		return nullptr;
-	}
-
-	FWidgetInfo& WidgetInfo = *WidgetInfoPtr;
-
-	// 위젯 생성
-	UDxWidget* NewWidget = CreateWidget<UDxWidget>(GetWorld(), WidgetInfo.WidgetClass);
-	if (!NewWidget)
-	{
-		UE_LOG(LogBase, Error, TEXT("OpenWidget: Failed to create widget"));
-		return nullptr;
-	}
-
-	UPanelSlot* PanelSlot = Panel->AddChild(NewWidget);
-
-	// Canvas Panel인 경우 위치 설정
-	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(PanelSlot))
-	{
-		CanvasSlot->SetPosition(WidgetInfo.Position);
-		CanvasSlot->SetZOrder(1);
-	}
-
-	// 열린 위젯 목록에 추가
-	OpenWidgets.Add(NewWidget);
-
-	// 연결된 액터 설정
-	NewWidget->MyActor = InteractableActor;
-	// 위젯의 OpenWidget 함수 호출 (추가 로직 실행)
-	NewWidget->OpenWidgetAddLogic();
-
-	UE_LOG(LogBase, Log, TEXT("OpenWidget: New widget '%d' created for Actor '%s' at position (%f, %f)"),
-		InteractableActor->WidgetFlag,
-		*InteractableActor->GetName(),
-		WidgetInfo.Position.X,
-		WidgetInfo.Position.Y);
-
-	return NewWidget;
+	// Actor 기반 위젯은 ParentWidget이 없으므로 nullptr 전달
+	return CreateWidgetInternal(WidgetInfoPtr->WidgetClass, WidgetInfoPtr->Position, InteractableActor, nullptr, InteractableActor->WidgetFlag);
 }
 
-UDxWidget* UDxWidgetSubsystem::OpenWidgetFromWidget(UDxWidget* DxWidget, EDxWidgetFlag TargetFlag)
+UDxWidget* UDxWidgetSubsystem::OpenWidgetFromWidget(UDxWidget* ParentDxWidget, EDxWidgetFlag TargetFlag)
 {
-	UDxWidgetConfigData* Config = DxWidget->WidgetConfig;
+	if (!ParentDxWidget) return nullptr;
 
-	if (!DxWidget) return nullptr;
+	// ParentWidget의 Config를 사용
+	UDxWidgetConfigData* Config = ParentDxWidget->WidgetConfig;
+	if (!Config) return nullptr;
 
-	FWidgetInfo* WidgetInfoPtr = nullptr;
-	if (Config)
-	{
-		// WidgetMap에서 WidgetFlag에 해당하는 위젯 정보 찾기 (중복 체크에 사용)
-		WidgetInfoPtr = Config->WidgetMap.Find(TargetFlag);
-		if (!WidgetInfoPtr || ! WidgetInfoPtr->WidgetClass)
-		{
-			UE_LOG(LogBase, Warning, TEXT("OpenWidget: No widget info found for flag '%d'"), DxWidget->WidgetFlag);
-			return nullptr;
-		}
-	}
+	FWidgetInfo* WidgetInfoPtr = Config->WidgetMap.Find(TargetFlag);
+	if (!WidgetInfoPtr || !WidgetInfoPtr->WidgetClass) return nullptr;
 
-	// 이미 열려있는 동일한 위젯이 있는지 확인
-	// 조건: 같은 Actor 인스턴스 && 같은 WidgetClass
-	for (UDxWidget* ExistingWidget : OpenWidgets)
-	{
-		if (ExistingWidget && ExistingWidget->WidgetFlag == TargetFlag)
-		{
-			UE_LOG(LogTemp, Log, TEXT("Already open"));
-			return ExistingWidget;
-		}
-	}
-
-	// 위젯을 추가할 부모 canvasPanel 찾기
-	UPanelWidget* Panel = GetAddWidgetPanel();
-	if (!Panel)
-	{
-		UE_LOG(LogBase, Error, TEXT("OpenWidget: AddWidgetPanel not found in MainWidget"));
-		return nullptr;
-	}
-
-	FWidgetInfo& WidgetInfo = *WidgetInfoPtr;
-
-	// 위젯 생성
-	UDxWidget* NewWidget = CreateWidget<UDxWidget>(GetWorld(), WidgetInfo.WidgetClass);
-	if (!NewWidget)
-	{
-		UE_LOG(LogBase, Error, TEXT("OpenWidget: Failed to create widget"));
-		return nullptr;
-	}
-
-	UPanelSlot* PanelSlot = Panel->AddChild(NewWidget);
-
-	// Canvas Panel인 경우 위치 설정
-	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(PanelSlot))
-	{
-		CanvasSlot->SetPosition(WidgetInfo.Position);
-		CanvasSlot->SetZOrder(1);
-	}
-
-	// 열린 위젯 목록에 추가
-	OpenWidgets.Add(NewWidget);
-
-	NewWidget->OpenWidgetAddLogic();
-	NewWidget->WidgetFlag = TargetFlag;
-
-	return NewWidget;
+	// 위젯 기반 위젯 호출 (Actor는 부모 위젯의 Actor를 승계)
+	return CreateWidgetInternal(WidgetInfoPtr->WidgetClass, WidgetInfoPtr->Position, ParentDxWidget->MyActor, ParentDxWidget, InteractableActor->WidgetFlag);
 }
 
 void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
 {
-	if (!CloseWidget)
+	if (!IsValid(CloseWidget)) return;
+
+	// 1. 자식 위젯부터 재귀적으로 닫기
+	TArray<UDxWidget*> ChildrenToClose = CloseWidget->ChildWidgets;
+	for (UDxWidget* Child : ChildrenToClose)
 	{
-		UE_LOG(LogBase, Warning, TEXT("CloseWidget: Widget is null"));
-		return;
+		if (IsValid(Child))
+		{
+			UE_LOG(LogTemp, Log, TEXT("CloseWidget: Cascading close child %s"), *Child->GetName());
+
+			this->CloseWidget(Child);
+		}
 	}
 
-	// 열린 위젯 목록에서 제거
+	// 2. 부모 위젯과의 연결 끊기
+	if (UDxWidget* Parent = CloseWidget->ParentWidget.Get())
+	{
+		Parent->RemoveChildWidget(CloseWidget);
+	}
+
+	// 3. 서브시스템 관리 목록(OpenWidgets)에서 제거
 	if (OpenWidgets.Contains(CloseWidget))
 	{
-			OpenWidgets.Remove(CloseWidget);
-		UE_LOG(LogBase, Log, TEXT("CloseWidget: Widget removed from OpenWidgets list"));
+		OpenWidgets.Remove(CloseWidget);
 	}
 
-	// MainWidget의 컨테이너에서 제거
+	// 4. 화면 (Viewport 또는 부모 패널)에서 제거
 	CloseWidget->RemoveFromParent();
 
-	UE_LOG(LogBase, Log, TEXT("CloseWidget: Widget closed successfully"));
+	UE_LOG(LogTemp, Log, TEXT("CloseWidget: Widget '%s' closed successfully"), *CloseWidget->GetName());
 }
 
 TArray<TObjectPtr<UDxWidget>> UDxWidgetSubsystem::GetOpenWidgets()
 {
 	return this->OpenWidgets;
+}
+
+UDxWidget* UDxWidgetSubsystem::CreateWidgetInternal(TSubclassOf<UDxWidget> WidgetClass, const FVector2D& Position,
+	AInteractableActor* OwnerActor, UDxWidget* ParentWidget, EDxWidgetFlag Flag)
+{
+	// 1. 중복 체크
+	for (UDxWidget* ExistingWidget : OpenWidgets)
+	{
+		if (ExistingWidget &&
+			ExistingWidget->GetClass() == WidgetClass &&
+			ExistingWidget->MyActor == OwnerActor &&
+			ExistingWidget->WidgetFlag == Flag)
+		{
+			BringToFront(ExistingWidget);
+			UE_LOG(LogBase, Log, TEXT("CreateWidgetInternal: Widget already open."));
+			return ExistingWidget;
+		}
+	}
+
+	// 2. 패널 찾기
+	UPanelWidget* Panel = GetAddWidgetPanel();
+	if (!Panel) return nullptr;
+
+	// 3. 생성
+	UDxWidget* NewWidget = CreateWidget<UDxWidget>(GetWorld(), WidgetClass);
+	if (!NewWidget) return nullptr;
+
+	// 4. 패널에 추가 및 위치 설정
+	UPanelSlot* PanelSlot = Panel->AddChild(NewWidget);
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(PanelSlot))
+	{
+		CanvasSlot->SetPosition(Position);
+		// 기본 ZOrder + Parent가 있다면 Parent보다 높게
+		int32 BaseZOrder = 1;
+		if (ParentWidget)
+		{
+			if (UCanvasPanelSlot* ParentSlot = Cast<UCanvasPanelSlot>(ParentWidget->Slot))
+			{
+				BaseZOrder = ParentSlot->GetZOrder() + 1;
+			}
+		}
+		CanvasSlot->SetZOrder(BaseZOrder);
+	}
+
+	// 5. 데이터 설정
+	OpenWidgets.Add(NewWidget);
+	NewWidget->MyActor = OwnerActor;
+	NewWidget->WidgetFlag = Flag;
+
+	// 계층 연결
+	if (ParentWidget)
+	{
+		NewWidget->SetParentWidget(ParentWidget);
+		ParentWidget->AddChildWidget(NewWidget);
+	}
+
+	// 6. 로직 실행
+	NewWidget->OpenWidgetAddLogic();
+
+	return NewWidget;
+}
+
+void UDxWidgetSubsystem::BringToFront(UDxWidget* Widget)
+{
+	if (!Widget || !Widget->Slot) return;
+
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Widget->Slot))
+	{
+		int32 MaxZOrder = 0;
+		for (const auto& OpenW : OpenWidgets)
+		{
+			if (OpenW && OpenW->Slot && OpenW != Widget)
+			{
+				if (UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(OpenW->Slot))
+				{
+					MaxZOrder = FMath::Max(MaxZOrder, Slot->GetZOrder());
+				}
+			}
+		}
+		CanvasSlot->SetZOrder(MaxZOrder + 1);
+	}
 }
 
 class UPanelWidget* UDxWidgetSubsystem::GetAddWidgetPanel() const

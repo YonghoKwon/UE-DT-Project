@@ -18,6 +18,11 @@ void UDxWidget::NativeOnInitialized()
 	}
 }
 
+void UDxWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+}
+
 void UDxWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -42,9 +47,9 @@ void UDxWidget::OpenWidgetAddLogic_Implementation()
 void UDxWidget::CloseWidget()
 {
 	// DxWidgetSubsystem을 통해 위젯 닫기
-	if (UGameInstance* GameInstance = GetGameInstance())
+	if (UGameInstance* GI = GetGameInstance())
 	{
-		if (UDxWidgetSubsystem* WidgetSubsystem = GameInstance->GetSubsystem<UDxWidgetSubsystem>())
+		if (UDxWidgetSubsystem* WidgetSubsystem = GI->GetSubsystem<UDxWidgetSubsystem>())
 		{
 			WidgetSubsystem->CloseWidget(this);
 		}
@@ -61,6 +66,38 @@ void UDxWidget::CloseWidget()
 	}
 }
 
+UDxWidget* UDxWidget::OpenChildWidget(EDxWidgetFlag InChildFlag)
+{
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UDxWidgetSubsystem* WidgetSubsystem = GI->GetSubsystem<UDxWidgetSubsystem>())
+		{
+			return WidgetSubsystem->OpenWidgetFromWidget(this, InChildFlag);
+		}
+	}
+	return nullptr;
+}
+
+void UDxWidget::SetParentWidget(UDxWidget* InParentWidget)
+{
+	ParentWidget = InParentWidget;
+}
+
+void UDxWidget::AddChildWidget(UDxWidget* InChildWidget)
+{
+	if (InChildWidget && !ChildWidgets.Contains(InChildWidget))
+	{
+		ChildWidgets.Add(InChildWidget);
+	}
+}
+
+void UDxWidget::RemoveChildWidget(UDxWidget* InChildWidget)
+{
+	if (InChildWidget)
+	{
+		ChildWidgets.Remove(InChildWidget);
+	}
+}
 
 void UDxWidget::StartContinuousTimer()
 {
@@ -94,7 +131,7 @@ void UDxWidget::BindToPlayerController()
 {
 	if (APlayerController* PC = GetOwningPlayer())
 	{
-		PC->GetOnNewPawnNotifier().AddUObject(this, &UDxWidget::HandlePawnChanged);
+		PC->GetOnNewPawnNotifier().AddUObject(this, &UDxWidget::HandlerPawnChanged);
 	}
 }
 
@@ -106,7 +143,7 @@ void UDxWidget::UnbindFromPlayerController()
 	}
 }
 
-void UDxWidget::HandlePawnChanged(APawn* NewPawn)
+void UDxWidget::HandlerPawnChanged(APawn* NewPawn)
 {
 	// 새 Pawn이 DxPlayerBase 타입인지 확인
 	ADxPlayerBase* NewPlayer = Cast<ADxPlayerBase>(NewPawn);

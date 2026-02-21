@@ -24,14 +24,14 @@ void AInteractableActor::Click()
 	}
 
 	// DxWidgetSubsystem 가져오기
-	UGameInstance* GameInstance = GetWorld()->GetGameInstance();
-	if (!GameInstance)
+	UGameInstance* GI = GetWorld()->GetGameInstance();
+	if (!GI)
 	{
 		UE_LOG(LogBase, Error, TEXT("InteractableActor::Click - GameInstance is null!"));
 		return;
 	}
 
-	UDxWidgetSubsystem* WidgetSubsystem = GameInstance->GetSubsystem<UDxWidgetSubsystem>();
+	UDxWidgetSubsystem* WidgetSubsystem = GI->GetSubsystem<UDxWidgetSubsystem>();
 	if (!WidgetSubsystem)
 	{
 		UE_LOG(LogBase, Error, TEXT("InteractableActor::Click - DxWidgetSubsystem is null!"));
