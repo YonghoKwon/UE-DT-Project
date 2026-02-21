@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "InteractableActor/FacilityBase.h"
+#include "m7at10_dt/M7AT10/InteractableActor/FacilityBase.h"
 #include "Crane.generated.h"
 
 class UPoseableMeshComponent;

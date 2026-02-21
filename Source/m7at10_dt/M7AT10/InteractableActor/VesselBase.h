@@ -1,11 +1,11 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "InteractableActor.h"
+#include "InteractableActor/InteractableActor.h"
 #include "VesselBase.generated.h"
 
 UCLASS()
-class DTCORE_API AVesselBase : public AInteractableActor
+class M7AT10_DT_API AVesselBase : public AInteractableActor
 {
 	GENERATED_BODY()
 

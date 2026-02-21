@@ -1,4 +1,4 @@
-﻿#include "InteractableActor/FacilityBase.h"
+﻿#include "FacilityBase.h"
 
 
 // Sets default values

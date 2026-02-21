@@ -99,7 +99,7 @@ UDxWidget* UDxWidgetSubsystem::OpenWidgetFromWidget(UDxWidget* ParentDxWidget, E
 	if (!WidgetInfoPtr || !WidgetInfoPtr->WidgetClass) return nullptr;
 
 	// 위젯 기반 위젯 호출 (Actor는 부모 위젯의 Actor를 승계)
-	return CreateWidgetInternal(WidgetInfoPtr->WidgetClass, WidgetInfoPtr->Position, ParentDxWidget->MyActor, ParentDxWidget, InteractableActor->WidgetFlag);
+	return CreateWidgetInternal(WidgetInfoPtr->WidgetClass, WidgetInfoPtr->Position, ParentDxWidget->MyActor, ParentDxWidget, TargetFlag);
 }
 
 void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
