@@ -80,7 +80,7 @@ void UDxWebSocketSubsystem::DisconnectStompClient(const TMap<FName, FString>& He
 	}
 }
 
-void UDxWebSocketSubsystem::ReceivedMessage(FWebSocketMessage& Message)
+void UDxWebSocketSubsystem::ReceivedMessage(const FWebSocketMessage& Message)
 {
 	// FStompBuffer Body = Message->GetRawBody();
 	const FString BodyString = Message.BodyString;

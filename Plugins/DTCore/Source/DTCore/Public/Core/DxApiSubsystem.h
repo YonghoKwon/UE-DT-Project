@@ -40,6 +40,9 @@ protected:
 public:
 	FHttpModule* HttpModule;
 
+	// 현재 통신 중인 HTTP 요청들을 추적하는 배열 추가
+	TArray<TSharedRef<IHttpRequest>> ActiveHttpRequests;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DxApi")
 	UDataTable* DT_Api;
 private:

@@ -25,6 +25,16 @@ void UDxApiSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UDxApiSubsystem::Deinitialize()
 {
+	// Subsystem 소멸 시 진행 중인 모든 HTTP 통신 취소
+	for (TSharedRef<IHttpRequest> Request : ActiveHttpRequests)
+	{
+		if (Request->GetStatus() == EHttpRequestStatus::Processing)
+		{
+			Request->CancelRequest();
+		}
+	}
+	ActiveHttpRequests.Empty();
+
 	Super::Deinitialize();
 }
 
@@ -49,6 +59,8 @@ void UDxApiSubsystem::DxHttpCall(const FString& FullUrl, const FString& Verb, co
 
 	Request->OnProcessRequestComplete().BindUObject(this, &UDxApiSubsystem::InternalOnResponseReceived, Callback);
 
+	// 요청을 보내기 전에 추적 배열에 등록
+	ActiveHttpRequests.Add(Request);
 	Request->ProcessRequest();
 }
 
@@ -138,6 +150,12 @@ void UDxApiSubsystem::DxRequestApiWithParameter(const FName& RowName, FDxApiCall
 
 void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, FDxApiCallback Callback)
 {
+	// 응답이 왔으므로 (성공이든 실패든) 추적 배열에서 제거
+	if (Request.IsValid())
+	{
+		ActiveHttpRequests.Remove(Request.ToSharedRef());
+	}
+
 	int32 ResponseCode = 0;
 	FString Content = TEXT("");
 	bool bIsOk = false;

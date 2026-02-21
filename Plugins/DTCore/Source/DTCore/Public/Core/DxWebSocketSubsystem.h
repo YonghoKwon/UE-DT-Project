@@ -28,7 +28,7 @@ struct FWebSocketMessage
 };
 
 DECLARE_DYNAMIC_DELEGATE_TwoParams(FSTOMPRequestCompleted, bool, bSuccess, FString, Error);
-DECLARE_DYNAMIC_DELEGATE_OneParam(FSTOMPSubscriptionEvent, FWebSocketMessage&, Message);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FSTOMPSubscriptionEvent, const FWebSocketMessage&, Message);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FSTOMPConnectedEvent, FString, ProtocolVersion, FString, SessionId, FString, ServerString);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSTOMPConnectionErrorEvent, FString, Error);
@@ -54,7 +54,7 @@ public:
 	UFUNCTION(Category = "DxWebSocket")
 	void DisconnectStompClient(const TMap<FName, FString>& Header);
 	UFUNCTION(Category = "DxWebSocket")
-	void ReceivedMessage(FWebSocketMessage& Message);
+	void ReceivedMessage(const FWebSocketMessage& Message);
 	UFUNCTION(Category = "DxWebSocket")
 	FString Subscribe(const FString& Destination, const FSTOMPSubscriptionEvent& EventCallback, const FSTOMPRequestCompleted& CompletionCallback);
 	UFUNCTION(Category = "DxWebSocket")
