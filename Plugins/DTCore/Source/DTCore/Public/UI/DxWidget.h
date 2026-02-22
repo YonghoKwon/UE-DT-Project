@@ -64,7 +64,7 @@ private:
 	void UnbindFromPlayerController();
 
 	UFUNCTION()
-	void HandlerPawnChanged(APawn* NewPawn);
+	void HandlePawnChanged(APawn* NewPawn);
 
 	// Variable
 public:
@@ -83,11 +83,11 @@ public:
 	EDxWidgetFlag WidgetFlag = EDxWidgetFlag::None;
 
 	// 나를 호출한 부모 위젯
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Hierarchy")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DxWidget|Hierarchy")
 	TWeakObjectPtr<UDxWidget> ParentWidget;
 
 	// 내가 호출한 자식 위젯들
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Hierarchy")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DxWidget|Hierarchy")
 	TArray<TObjectPtr<UDxWidget>> ChildWidgets;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Theme")

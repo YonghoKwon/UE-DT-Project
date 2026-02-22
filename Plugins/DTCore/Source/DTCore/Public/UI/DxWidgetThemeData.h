@@ -19,7 +19,7 @@ struct FDxThemeButtonColors
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FLinearColor TestColor = FLinearColor::Black;
+	FLinearColor TextColor = FLinearColor::Black;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FLinearColor HoverTextColor = FLinearColor::White;
 
