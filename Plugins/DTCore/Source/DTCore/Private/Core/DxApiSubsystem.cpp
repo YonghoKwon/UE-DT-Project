@@ -25,12 +25,16 @@ void UDxApiSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UDxApiSubsystem::Deinitialize()
 {
-	// Subsystem 소멸 시 진행 중인 모든 HTTP 통신 취소
-	for (TSharedRef<IHttpRequest> Request : ActiveHttpRequests)
+	// 역순으로 순회하여 중간에 원소가 삭제(Remove)되더라도 크래시가 발생하지 않도록 방어
+	for (int32 i = ActiveHttpRequests.Num() - 1; i >= 0; --i)
 	{
-		if (Request->GetStatus() == EHttpRequestStatus::Processing)
+		if (ActiveHttpRequests.IsValidIndex(i))
 		{
-			Request->CancelRequest();
+			TSharedRef<IHttpRequest> Request = ActiveHttpRequests[i];
+			if (Request->GetStatus() == EHttpRequestStatus::Processing)
+			{
+				Request->CancelRequest();
+			}
 		}
 	}
 	ActiveHttpRequests.Empty();
@@ -96,7 +100,7 @@ void UDxApiSubsystem::DxRequestApi(const FName& RowName, FDxApiCallback Callback
 	FString FullUrl = ServerUrl + ApiData->ApiUrl;
 
 	// 콜백이 없는 단순 호출 (빈 델리게이트 전달)
-	DxHttpCall(FullUrl, MethodType, TEXT(""), DefaultHeaders, FDxApiCallback());
+	DxHttpCall(FullUrl, MethodType, TEXT(""), DefaultHeaders, Callback);
 }
 
 void UDxApiSubsystem::DxRequestApiWithParameter(const FName& RowName, FDxApiCallback Callback, const TArray<FString>& Parameters)
@@ -163,7 +167,7 @@ void UDxApiSubsystem::InternalOnResponseReceived(FHttpRequestPtr Request, FHttpR
 	if (bWasSuccessful && Response.IsValid())
 	{
 		ResponseCode = Response->GetResponseCode();
-		Content = *Response->GetContentAsString();
+		Content = Response->GetContentAsString();
 
 		// HTTP 코드가 200번대(성공)인지 확인
 		if (EHttpResponseCodes::IsOk(ResponseCode))

@@ -1,12 +1,23 @@
 ﻿#include "UI/DxWidget.h"
 
 #include "DTCore.h"
+#include "Core/DTCoreSettings.h"
 #include "Player/DxPlayerControllerBase.h"
 #include "Core/DxWidgetSubsystem.h"
 
 void UDxWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
+
+	// 위젯에 할당된 테마가 없다면, 프로젝트 세팅의 글로벌 테마를 자동 세팅
+	if (!ThemeData)
+	{
+		const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
+		if (Settings && Settings->DefaultWidgetTheme.ToSoftObjectPath().IsValid())
+		{
+			ThemeData = Settings->DefaultWidgetTheme.LoadSynchronous();
+		}
+	}
 
 	if (APlayerController* PC = GetOwningPlayer())
 	{
@@ -21,6 +32,18 @@ void UDxWidget::NativeOnInitialized()
 void UDxWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
+
+	if (!ThemeData)
+	{
+		const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
+		if (Settings && Settings->DefaultWidgetTheme.ToSoftObjectPath().IsValid())
+		{
+			ThemeData = Settings->DefaultWidgetTheme.LoadSynchronous();
+		}
+	}
+
+	// 공통 요소에 대해서만 적용 처리
+	ApplyTheme();
 }
 
 void UDxWidget::NativeConstruct()
@@ -125,6 +148,35 @@ void UDxWidget::StopContinuousTimer()
 void UDxWidget::ContinuousUpdate()
 {
 	// 자식 클래스에서 오버라이드하여 구현
+}
+
+void UDxWidget::ApplyTheme_Implementation()
+{
+	if (!ThemeData) return;
+
+	const FDxContainerStyle& Style = ThemeData->GetContainerStyle(CurrentStyleType);
+
+	// TODO: 기본적인 요소들에 대해서는 공통 클래스에 처리 되도록 해야 하지 않을까?
+	// if (MainBackgroundBorder)
+	// {
+	// 	MainBackgroundBorder->SetBrushColor(ContainerStyle.BodyBackground);
+	// }
+	//
+	// if (TitleBackgroundBorder)
+	// {
+	// 	TitleBackgroundBorder->SetBrushColor(ContainerStyle.TitleBackground);
+	// }
+	//
+	// if (TitleText)
+	// {
+	// 	// 텍스트는 FSlateColor로 감싸서 넣어주어야 합니다.
+	// 	TitleText->SetColorAndOpacity(FSlateColor(ContainerStyle.TitleTextColor));
+	// }
+	//
+	// if (SubTitleText)
+	// {
+	// 	SubTitleText->SetColorAndOpacity(FSlateColor(ContainerStyle.SubTitleTextColor));
+	// }
 }
 
 void UDxWidget::BindToPlayerController()

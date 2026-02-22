@@ -17,9 +17,10 @@ void UDxWebSocketSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
-	if (UWorld* World = GetWorld())
+	if (UGameInstance* GameInstance = GetGameInstance())
 	{
-		World->GetTimerManager().ClearTimer(ReconnectTimerHandle);
+		// World 대신 GameInstance의 타이머 초기화
+		GameInstance->GetTimerManager().ClearTimer(ReconnectTimerHandle);
 	}
 
 	this->DisconnectStompClient(LoginInfo);
@@ -188,9 +189,10 @@ void UDxWebSocketSubsystem::HandleOnConnected(const FString& ProtocolVersion, co
                                               const FString& ServerString)
 {
 	RetryCount = 0;
-	if (UWorld* World = GetWorld())
+	// GameInstance의 타이머를 확실하게 클리어
+	if (UGameInstance* GameInstance = GetGameInstance())
 	{
-		World->GetTimerManager().ClearTimer(ReconnectTimerHandle);
+		GameInstance->GetTimerManager().ClearTimer(ReconnectTimerHandle);
 	}
 
 	ReceivedMessageEvent.BindDynamic(this, &UDxWebSocketSubsystem::ReceivedMessage);
@@ -221,21 +223,21 @@ void UDxWebSocketSubsystem::HandleOnClosed(const FString& Reason)
 
 void UDxWebSocketSubsystem::TryReconnect()
 {
-	UWorld* World = GetWorld();
-	if (!World) return;
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance) return;
 
-	if (World->GetTimerManager().IsTimerActive(ReconnectTimerHandle))
+	if (GameInstance->GetTimerManager().IsTimerActive(ReconnectTimerHandle))
 	{
 		return;
 	}
 
 	float CurrentDelay = InitialRetryDelay * FMath::Pow(BackoffMultiplier, RetryCount);
-
 	CurrentDelay = FMath::Min(CurrentDelay, MaxRetryDelay);
 
 	UE_LOG(LogBase, Warning, TEXT("WebSocket connection lost. Retrying in %.1f seconds... (Attempt: %d)"), CurrentDelay, RetryCount + 1);
 
-	World->GetTimerManager().SetTimer(
+	// World 대신 GameInstance의 타이머를 사용
+	GameInstance->GetTimerManager().SetTimer(
 		ReconnectTimerHandle,
 		this,
 		&UDxWebSocketSubsystem::ConnectWebSocket,

@@ -53,6 +53,11 @@ protected:
 	// Player 변경 이벤트 처리 (자식 클래스에서 오버라이드 가능)
 	virtual void OnPlayerChanged(ADxPlayerBase* NewPlayer);
 
+	// 테마 색상을 실제 위젯 컴포넌트에 적용하는 함수
+	UFUNCTION(BlueprintNativeEvent, Category = "DxWidget|Theme")
+	void ApplyTheme();
+	virtual void ApplyTheme_Implementation(); // C++ 기본 구현부
+
 private:
 	// Player 변경 감지
 	void BindToPlayerController();

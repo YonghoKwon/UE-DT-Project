@@ -26,6 +26,10 @@ public:
 	// API 기본 URL
 	UPROPERTY(Config, EditAnywhere, Category = "Network")
 	FString BaseApiUrl = "http://localhost:8090";
+
+	// 프로젝트 전체에서 기본으로 사용할 위젯 테마 데이터
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSoftObjectPtr<class UDxWidgetThemeData> DefaultWidgetTheme;
 private:
 protected:
 
