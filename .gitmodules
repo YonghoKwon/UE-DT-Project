@@ -1,0 +1,3 @@
+[submodule "Plugins/DTCore"]
+	path = Plugins/DTCore
+	url = https://github.com/YonghoKwon/UE-DT-Core-Plugin.git
