@@ -24,7 +24,10 @@ public class m7at10_dt : ModuleRules
 			"PixelStreaming",
 			"PixelStreamingInput",
 			"PixelStreamingBlueprint",
-			"DTCore"
+			"DTCore",
+
+			"RenderCore",
+			"ImageWrapper"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
