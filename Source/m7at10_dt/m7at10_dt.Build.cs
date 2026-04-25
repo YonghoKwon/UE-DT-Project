@@ -27,7 +27,9 @@ public class m7at10_dt : ModuleRules
 			"DTCore",
 
 			"RenderCore",
-			"ImageWrapper"
+			"ImageWrapper",
+			"Json",
+			"JsonUtilities"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
