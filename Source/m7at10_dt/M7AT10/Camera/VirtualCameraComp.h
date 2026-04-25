@@ -1,11 +1,13 @@
-﻿// VirtualCameraComp.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "M7AT10/Sensor/VirtualSensorTypes.h"
 #include "VirtualCameraComp.generated.h"
 
 class UTextureRenderTarget2D;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualCameraPacketReady, const FVirtualSensorPacket&, Packet);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class M7AT10_DT_API UVirtualCameraComp : public USceneCaptureComponent2D
@@ -20,21 +22,29 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
-	// 타이머에 의해 주기적으로 호출되어 화면을 캡처하고 데이터를 전송하는 함수
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable, Category = "VirtualCamera")
 	void CaptureAndSendImage();
 
-	// 캡처 주기 (단위: 초) - 에디터에서 수정 가능
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
-	float CaptureInterval = 1.0f;
+	float CaptureInterval = 0.25f;
 
-	// 캡처 해상도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
 	FIntPoint CaptureResolution = FIntPoint(1280, 720);
 
-	// 이 컴포넌트가 사용할 전용 렌더 타겟
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
+	int32 JpegQuality = 80;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
+	bool bPublishToHttpAutomatically = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
 	TObjectPtr<UTextureRenderTarget2D> CameraRenderTarget;
+
+	UPROPERTY(BlueprintAssignable, Category = "VirtualCamera")
+	FOnVirtualCameraPacketReady OnCameraPacketReady;
+
+private:
+	FVirtualSensorPacket BuildCameraPacket(const FString& Base64Image) const;
 
 private:
 	FTimerHandle CaptureTimerHandle;
