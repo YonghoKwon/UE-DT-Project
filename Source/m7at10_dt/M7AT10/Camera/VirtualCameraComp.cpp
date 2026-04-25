@@ -1,28 +1,30 @@
-﻿// VirtualCameraComp.cpp
 #include "VirtualCameraComp.h"
+
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/World.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "Json.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/Base64.h"
+#include "m7at10_dt/M7AT10/Sensor/SensorDataRelayComp.h"
+#include "TimerManager.h"
 #include "TextureResource.h"
-#include "ImageCore.h" // 추가
 
 UVirtualCameraComp::UVirtualCameraComp()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = false;
 
-    // 매 프레임 캡처하거나 움직일 때 캡처하는 기본 동작을 끕니다.
-    // (성능 최적화를 위해 우리가 원하는 타이밍에 수동으로 캡처하기 위함)
-	bCaptureEveryFrame = true;
-	bCaptureOnMovement = true;
+	// 타이머 기반 캡처를 사용하기 위해 자동 캡처를 비활성화
+	bCaptureEveryFrame = false;
+	bCaptureOnMovement = false;
 }
 
 void UVirtualCameraComp::BeginPlay()
 {
 	Super::BeginPlay();
+	ResolveRelayComponent();
 
-	// 1. 렌더 타겟 동적 생성 및 설정
 	if (!CameraRenderTarget)
 	{
 		CameraRenderTarget = NewObject<UTextureRenderTarget2D>(this);
@@ -30,14 +32,9 @@ void UVirtualCameraComp::BeginPlay()
 		CameraRenderTarget->UpdateResourceImmediate(true);
 	}
 
-	// 2. 캡처 컴포넌트에 렌더 타겟 할당
 	TextureTarget = CameraRenderTarget;
 
-	bCaptureEveryFrame = true;
-	bCaptureOnMovement = true;
-
-	// 3. 주기적으로 캡처를 실행하는 타이머 설정
-	if (CaptureInterval > 0.0f)
+	if (CaptureInterval > 0.0f && GetWorld())
 	{
 		GetWorld()->GetTimerManager().SetTimer(CaptureTimerHandle, this, &UVirtualCameraComp::CaptureAndSendImage, CaptureInterval, true);
 	}
@@ -45,49 +42,77 @@ void UVirtualCameraComp::BeginPlay()
 
 void UVirtualCameraComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
+	if (GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
+	}
 	Super::EndPlay(EndPlayReason);
 }
-#pragma optimize("", off) // 이 아래부터 최적화를 강제로 꺼서 디버거에서 변수가 보이게 합니다.
+
 void UVirtualCameraComp::CaptureAndSendImage()
 {
-	if (!CameraRenderTarget) return;
+	if (!CameraRenderTarget)
+	{
+		return;
+	}
 
-    // 1. 현재 시점을 렌더 타겟에 수동으로 캡처합니다.
-    // CaptureScene();
+	CaptureScene();
 
-    FTextureRenderTargetResource* RTResource = CameraRenderTarget->GameThread_GetRenderTargetResource();
-    if (!RTResource) return;
+	FTextureRenderTargetResource* RTResource = CameraRenderTarget->GameThread_GetRenderTargetResource();
+	if (!RTResource)
+	{
+		return;
+	}
 
-    // 2. 렌더 타겟에서 픽셀 데이터를 읽어옵니다.
-    TArray<FColor> RawPixels;
-    if (RTResource->ReadPixels(RawPixels))
-    {
-		// 3. ImageWrapper 모듈을 사용하여 JPEG 형식으로 압축합니다.
-		IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
-		TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+	TArray<FColor> RawPixels;
+	if (!RTResource->ReadPixels(RawPixels) || RawPixels.Num() == 0)
+	{
+		return;
+	}
 
-		if (ImageWrapper.IsValid())
-		{
-			// 픽셀 데이터 세팅 (BGRA 8비트)
-			ImageWrapper->SetRaw(RawPixels.GetData(), (int64)(RawPixels.Num() * sizeof(FColor)), CameraRenderTarget->SizeX, CameraRenderTarget->SizeY, ERGBFormat::BGRA, 8);
+	IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+	TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+	if (!ImageWrapper.IsValid())
+	{
+		return;
+	}
 
-			// [변경 코드 - TArray64 사용 및 Encode 파라미터 수정]
-			const TArray64<uint8>& CompressedData = ImageWrapper->GetCompressed(80);
+	ImageWrapper->SetRaw(
+		RawPixels.GetData(),
+		static_cast<int64>(RawPixels.Num() * sizeof(FColor)),
+		CameraRenderTarget->SizeX,
+		CameraRenderTarget->SizeY,
+		ERGBFormat::BGRA,
+		8);
 
-			// FBase64::Encode는 주로 32비트 길이를 요구하므로, GetData() 포인터와 사이즈를 형변환하여 넘겨줍니다.
-			FString Base64Image = FBase64::Encode(CompressedData.GetData(), (uint32)CompressedData.Num());
+	const TArray64<uint8>& CompressedData = ImageWrapper->GetCompressed(80);
+	FString Base64Image = FBase64::Encode(CompressedData.GetData(), static_cast<uint32>(CompressedData.Num()));
 
-			// =====================================================================
-			// [데이터 전송 로직 작성 구간]
-			// 추측입니다만, 추출된 Base64Image 문자열 데이터는 기존 DxApiServiceTest와 유사한
-			// HTTP POST 통신을 거치거나, KP1D0012와 같은 WebSocket 전문(Json)을 통해 백엔드로 전달될 것으로 보입니다.
-			// 이곳에서 해당 API 호출 시스템(예: ApiSubsystem->SendCameraData(Base64Image))을 연결해주시면 됩니다.
-			// =====================================================================
+	TSharedRef<FJsonObject> RootObj = MakeShared<FJsonObject>();
+	RootObj->SetStringField(TEXT("sensor_id"), SensorId);
+	RootObj->SetStringField(TEXT("sensor_type"), TEXT("camera"));
+	RootObj->SetNumberField(TEXT("timestamp_unix_ms"), static_cast<double>(FDateTime::UtcNow().ToUnixTimestamp()) * 1000.0);
+	RootObj->SetNumberField(TEXT("width"), CameraRenderTarget->SizeX);
+	RootObj->SetNumberField(TEXT("height"), CameraRenderTarget->SizeY);
+	RootObj->SetStringField(TEXT("encoding"), TEXT("jpeg_base64"));
+	RootObj->SetStringField(TEXT("image"), Base64Image);
 
-            // 테스트용 로그 (문자열이 너무 길어질 수 있으므로 실제 서비스에서는 제거 권장)
-            // UE_LOG(LogTemp, Log, TEXT("Captured Image Base64 Length: %d"), Base64Image.Len());
-		}
+	FString PayloadJson;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&PayloadJson);
+	FJsonSerializer::Serialize(RootObj, Writer);
+
+	if (!RelayComp)
+	{
+		ResolveRelayComponent();
+	}
+
+	if (RelayComp)
+	{
+		RelayComp->PublishPayload(SensorId, TEXT("camera"), PayloadJson);
 	}
 }
-#pragma optimize("", on) // 최적화를 다시 켭니다.
+
+void UVirtualCameraComp::ResolveRelayComponent()
+{
+	RelayComp = GetOwner() ? GetOwner()->FindComponentByClass<USensorDataRelayComp>() : nullptr;
+}

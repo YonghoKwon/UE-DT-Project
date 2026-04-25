@@ -6,6 +6,7 @@
 #include "VirtualCameraComp.generated.h"
 
 class UTextureRenderTarget2D;
+class USensorDataRelayComp;
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class M7AT10_DT_API UVirtualCameraComp : public USceneCaptureComponent2D
@@ -28,6 +29,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
 	float CaptureInterval = 1.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
+	FString SensorId = TEXT("camera.main");
+
 	// 캡처 해상도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
 	FIntPoint CaptureResolution = FIntPoint(1280, 720);
@@ -37,5 +41,11 @@ public:
 	TObjectPtr<UTextureRenderTarget2D> CameraRenderTarget;
 
 private:
+	void ResolveRelayComponent();
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<USensorDataRelayComp> RelayComp;
+
 	FTimerHandle CaptureTimerHandle;
 };
