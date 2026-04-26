@@ -128,8 +128,12 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     }
     else if (!bShowingLidar && CameraComp)
     {
-        Text = FString::Printf(TEXT("Sensor: %s\nMode: Camera\nRenderTarget: %s"),
-            *CameraComp->SensorId,
+        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPayload: %d\nMessage: %s\nRenderTarget: %s"),
+            *Status.SensorId,
+            Status.FrameId,
+            Status.LastPayloadLength,
+            *Status.LastMessage,
             CameraComp->GetCameraRenderTarget() ? TEXT("Ready") : TEXT("None"));
     }
     else
