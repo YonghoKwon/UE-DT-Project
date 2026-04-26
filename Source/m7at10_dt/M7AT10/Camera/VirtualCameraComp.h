@@ -1,4 +1,4 @@
-﻿// VirtualCameraComp.h
+// VirtualCameraComp.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,35 +7,77 @@
 
 class UTextureRenderTarget2D;
 
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+UENUM(BlueprintType)
+enum class EVirtualCameraOutputMode : uint8
+{
+    None UMETA(DisplayName = "None"),
+    LogOnly UMETA(DisplayName = "Log Only"),
+    SaveJpeg UMETA(DisplayName = "Save JPEG"),
+    HttpPost UMETA(DisplayName = "HTTP POST")
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualCameraFrameCaptured, const FString&, JsonPayload, UTextureRenderTarget2D*, RenderTarget);
+
+UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
 class M7AT10_DT_API UVirtualCameraComp : public USceneCaptureComponent2D
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UVirtualCameraComp();
+    UVirtualCameraComp();
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
-	// 타이머에 의해 주기적으로 호출되어 화면을 캡처하고 데이터를 전송하는 함수
-	UFUNCTION()
-	void CaptureAndSendImage();
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
+    void StartCapture();
 
-	// 캡처 주기 (단위: 초) - 에디터에서 수정 가능
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
-	float CaptureInterval = 1.0f;
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
+    void StopCapture();
 
-	// 캡처 해상도
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VirtualCamera")
-	FIntPoint CaptureResolution = FIntPoint(1280, 720);
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
+    void CaptureAndSendImage();
 
-	// 이 컴포넌트가 사용할 전용 렌더 타겟
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	TObjectPtr<UTextureRenderTarget2D> CameraRenderTarget;
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
+    UTextureRenderTarget2D* GetCameraRenderTarget() const { return CameraRenderTarget; }
+
+    UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualCamera")
+    FOnVirtualCameraFrameCaptured OnFrameCaptured;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    FString SensorId = TEXT("VCAM-001");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera", meta = (ClampMin = "0.033"))
+    float CaptureInterval = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    FIntPoint CaptureResolution = FIntPoint(1280, 720);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    int32 JpegQuality = 80;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    EVirtualCameraOutputMode OutputMode = EVirtualCameraOutputMode::LogOnly;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera", meta = (EditCondition = "OutputMode == EVirtualCameraOutputMode::HttpPost"))
+    FString HttpEndpoint;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    bool bAutoStartCapture = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    TObjectPtr<UTextureRenderTarget2D> CameraRenderTarget;
 
 private:
-	FTimerHandle CaptureTimerHandle;
+    void EnsureRenderTarget();
+    bool ReadRenderTargetAsJpeg(TArray64<uint8>& OutJpegBytes) const;
+    FString BuildJsonPayload(const FString& Base64Image, int64 ByteSize) const;
+    void DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const;
+    void PostJson(const FString& JsonPayload) const;
+    void SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const;
+
+private:
+    FTimerHandle CaptureTimerHandle;
 };
