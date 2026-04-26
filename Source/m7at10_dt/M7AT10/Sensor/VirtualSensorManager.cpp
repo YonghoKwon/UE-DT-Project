@@ -14,15 +14,31 @@ AVirtualSensorManager::AVirtualSensorManager()
 void AVirtualSensorManager::BeginPlay()
 {
     Super::BeginPlay();
+
     if (bDiscoverOnBeginPlay)
     {
         DiscoverSensorsInLevel();
     }
+
     ApplyWidgetBinding();
+
+    if (bStartSensorsOnBeginPlay)
+    {
+        StartAllSensors();
+    }
+
+    if (bUseSynchronizedCapture && GetWorld())
+    {
+        GetWorld()->GetTimerManager().SetTimer(SynchronizedTimerHandle, this, &AVirtualSensorManager::RunSynchronizedCapture, SynchronizedInterval, true, 0.0f);
+    }
 }
 
 void AVirtualSensorManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(SynchronizedTimerHandle);
+    }
     Super::EndPlay(EndPlayReason);
 }
 
@@ -109,9 +125,41 @@ void AVirtualSensorManager::ToggleSensorView()
     SetViewMode(CurrentViewMode == EVirtualSensorViewMode::Camera ? EVirtualSensorViewMode::Lidar : EVirtualSensorViewMode::Camera);
 }
 
-void AVirtualSensorManager::StartAllSensors() {}
-void AVirtualSensorManager::StopAllSensors() {}
-void AVirtualSensorManager::CaptureAllOnce() {}
+void AVirtualSensorManager::StartAllSensors()
+{
+    for (UVirtualCameraComp* CameraComp : Cameras)
+    {
+        if (CameraComp) CameraComp->StartCapture();
+    }
+    for (UVirtualLidarSensorComp* LidarComp : Lidars)
+    {
+        if (LidarComp) LidarComp->StartScan();
+    }
+}
+
+void AVirtualSensorManager::StopAllSensors()
+{
+    for (UVirtualCameraComp* CameraComp : Cameras)
+    {
+        if (CameraComp) CameraComp->StopCapture();
+    }
+    for (UVirtualLidarSensorComp* LidarComp : Lidars)
+    {
+        if (LidarComp) LidarComp->StopScan();
+    }
+}
+
+void AVirtualSensorManager::CaptureAllOnce()
+{
+    for (UVirtualCameraComp* CameraComp : Cameras)
+    {
+        if (CameraComp) CameraComp->CaptureAndSendImage();
+    }
+    for (UVirtualLidarSensorComp* LidarComp : Lidars)
+    {
+        if (LidarComp) LidarComp->ScanAndSend();
+    }
+}
 
 UVirtualCameraComp* AVirtualSensorManager::GetSelectedCamera() const
 {
@@ -158,7 +206,12 @@ void AVirtualSensorManager::ApplyWidgetBinding()
     if (!BoundMonitorWidget) return;
     BoundMonitorWidget->BindVirtualCamera(GetSelectedCamera());
     BoundMonitorWidget->BindVirtualLidar(GetSelectedLidar());
+    SetViewMode(CurrentViewMode);
 }
 
-void AVirtualSensorManager::RunSynchronizedCapture() {}
+void AVirtualSensorManager::RunSynchronizedCapture()
+{
+    CaptureAllOnce();
+}
+
 void AVirtualSensorManager::AssignSharedTransportIfPossible(UActorComponent* SensorComp) {}
