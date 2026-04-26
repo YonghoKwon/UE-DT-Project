@@ -4,11 +4,13 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
 
 AVirtualSensorManager::AVirtualSensorManager()
 {
     PrimaryActorTick.bCanEverTick = false;
+    SharedTransportComponent = CreateDefaultSubobject<UVirtualSensorDataTransportComp>(TEXT("SharedSensorTransport"));
 }
 
 void AVirtualSensorManager::BeginPlay()
@@ -72,6 +74,7 @@ void AVirtualSensorManager::RegisterCamera(UVirtualCameraComp* CameraComp)
     if (CameraComp && !Cameras.Contains(CameraComp))
     {
         Cameras.Add(CameraComp);
+        AssignSharedTransportIfPossible(CameraComp);
         ApplyWidgetBinding();
     }
 }
@@ -81,6 +84,7 @@ void AVirtualSensorManager::RegisterLidar(UVirtualLidarSensorComp* LidarComp)
     if (LidarComp && !Lidars.Contains(LidarComp))
     {
         Lidars.Add(LidarComp);
+        AssignSharedTransportIfPossible(LidarComp);
         ApplyWidgetBinding();
     }
 }
@@ -214,4 +218,19 @@ void AVirtualSensorManager::RunSynchronizedCapture()
     CaptureAllOnce();
 }
 
-void AVirtualSensorManager::AssignSharedTransportIfPossible(UActorComponent* SensorComp) {}
+void AVirtualSensorManager::AssignSharedTransportIfPossible(UActorComponent* SensorComp)
+{
+    if (!SensorComp || !SharedTransportComponent)
+    {
+        return;
+    }
+
+    if (UVirtualCameraComp* CameraComp = Cast<UVirtualCameraComp>(SensorComp))
+    {
+        CameraComp->SetTransportComponent(SharedTransportComponent);
+    }
+    else if (UVirtualLidarSensorComp* LidarComp = Cast<UVirtualLidarSensorComp>(SensorComp))
+    {
+        LidarComp->SetTransportComponent(SharedTransportComponent);
+    }
+}
