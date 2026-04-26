@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "VirtualSensorManager.generated.h"
 
+class UActorComponent;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 class UVirtualSensorMonitorWidget;
