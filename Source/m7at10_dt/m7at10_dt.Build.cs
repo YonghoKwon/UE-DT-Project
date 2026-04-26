@@ -4,40 +4,32 @@ using UnrealBuildTool;
 
 public class m7at10_dt : ModuleRules
 {
-	public m7at10_dt(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
-		PublicDependencyModuleNames.AddRange(new string[]
-		{
-			"Core",
-			"CoreUObject",
-			"Engine",
-			"InputCore",
-			"WebSockets",
-			"HTTP",
-			"Stomp",
-			"EnhancedInput",
-			"UMG",
-			"Slate",
-			"SlateCore",
-			"PixelStreaming",
-			"PixelStreamingInput",
-			"PixelStreamingBlueprint",
-			"DTCore",
+    public m7at10_dt(ReadOnlyTargetRules Target) : base(Target)
+    {
+        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-			"RenderCore",
-			"ImageWrapper"
-		});
+        PublicDependencyModuleNames.AddRange(new string[]
+        {
+            "Core",
+            "CoreUObject",
+            "Engine",
+            "InputCore",
+            "WebSockets",
+            "HTTP",
+            "Stomp",
+            "EnhancedInput",
+            "UMG",
+            "Slate",
+            "SlateCore",
+            "PixelStreaming",
+            "PixelStreamingInput",
+            "PixelStreamingBlueprint",
+            "DTCore",
+            "RenderCore",
+            "ImageWrapper",
+            "Json"
+        });
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
-
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
-		// Uncomment if you are using online features
-		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
-
-		// To include OnlineSubsystemSteam, add it to the plugins section in your uproject file with the Enabled attribute set to true
-	}
+        PrivateDependencyModuleNames.AddRange(new string[] { });
+    }
 }
