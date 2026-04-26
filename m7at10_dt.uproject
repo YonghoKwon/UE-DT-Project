@@ -21,6 +21,10 @@
 		{
 			"Name": "PixelStreaming",
 			"Enabled": true
+		},
+		{
+			"Name": "DTCore",
+			"Enabled": true
 		}
 	]
 }
