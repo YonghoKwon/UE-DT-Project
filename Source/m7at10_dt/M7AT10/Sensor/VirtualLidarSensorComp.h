@@ -31,17 +31,29 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ScanAndSend();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
+    void ApplyPreset(EVirtualLidarPreset NewPreset);
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const TArray<FVirtualLidarPoint>& GetLastPoints() const { return LastPoints; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     UTexture2D* GetLidarViewTexture() const { return LidarViewTexture; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
+    const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     FString SensorId = TEXT("LIDAR-001");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
+    EVirtualLidarPreset Preset = EVirtualLidarPreset::Custom;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
+    EVirtualLidarViewMode ViewMode = EVirtualLidarViewMode::IntensityGray;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "0.033"))
     float ScanInterval = 0.5f;
@@ -79,6 +91,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     bool bDrawDebugRays = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Filter")
+    TArray<FName> IgnoreActorTags;
+
 private:
     void ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels);
     FString BuildJsonPayload(const TArray<FVirtualLidarPoint>& Points) const;
@@ -86,10 +101,16 @@ private:
     void PostJson(const FString& JsonPayload) const;
     void SaveJsonToDisk(const FString& JsonPayload) const;
     void UpdateLidarViewTexture(const TArray<uint8>& HeatmapPixels);
+    void WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const;
+    bool ShouldIgnoreHitActor(const AActor* Actor) const;
 
 private:
     FTimerHandle ScanTimerHandle;
     TArray<FVirtualLidarPoint> LastPoints;
+    int64 FrameId = 0;
+
+    UPROPERTY(Transient)
+    FVirtualSensorRuntimeStatus RuntimeStatus;
 
     UPROPERTY(Transient)
     TObjectPtr<UTexture2D> LidarViewTexture;
