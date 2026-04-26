@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Sensor/VirtualLidarSensorTypes.h"
 #include "VirtualCameraComp.generated.h"
 
 class UTextureRenderTarget2D;
@@ -14,6 +15,14 @@ enum class EVirtualCameraOutputMode : uint8
     LogOnly UMETA(DisplayName = "Log Only"),
     SaveJpeg UMETA(DisplayName = "Save JPEG"),
     HttpPost UMETA(DisplayName = "HTTP POST")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualCameraCaptureMode : uint8
+{
+    PreviewOnly UMETA(DisplayName = "Preview Only"),
+    Payload UMETA(DisplayName = "Payload"),
+    PayloadAndOutput UMETA(DisplayName = "Payload And Output")
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualCameraFrameCaptured, const FString&, JsonPayload, UTextureRenderTarget2D*, RenderTarget);
@@ -43,6 +52,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
     UTextureRenderTarget2D* GetCameraRenderTarget() const { return CameraRenderTarget; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
+    const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualCamera")
     FOnVirtualCameraFrameCaptured OnFrameCaptured;
 
@@ -57,6 +69,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     int32 JpegQuality = 80;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    EVirtualCameraCaptureMode CaptureMode = EVirtualCameraCaptureMode::PayloadAndOutput;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     EVirtualCameraOutputMode OutputMode = EVirtualCameraOutputMode::LogOnly;
@@ -77,7 +92,12 @@ private:
     void DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const;
     void PostJson(const FString& JsonPayload) const;
     void SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const;
+    void UpdateRuntimeStatus(int32 PayloadLength, const FString& Message);
 
 private:
     FTimerHandle CaptureTimerHandle;
+    int64 FrameId = 0;
+
+    UPROPERTY(Transient)
+    FVirtualSensorRuntimeStatus RuntimeStatus;
 };
