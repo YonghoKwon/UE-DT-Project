@@ -1,11 +1,8 @@
 #include "VirtualSensorMonitorWidget.h"
 
-#include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
-#include "Components/VerticalBox.h"
-#include "Components/VerticalBoxSlot.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
@@ -22,24 +19,28 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
 
     RefreshTitle();
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::BindVirtualCamera(UVirtualCameraComp* InCameraComp)
 {
     CameraComp = InCameraComp;
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp)
 {
     LidarComp = InLidarComp;
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::ShowCameraView()
@@ -47,6 +48,7 @@ void UVirtualSensorMonitorWidget::ShowCameraView()
     bShowingLidar = false;
     RefreshTitle();
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::ShowLidarView()
@@ -54,6 +56,7 @@ void UVirtualSensorMonitorWidget::ShowLidarView()
     bShowingLidar = true;
     RefreshTitle();
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::ToggleView()
@@ -61,47 +64,12 @@ void UVirtualSensorMonitorWidget::ToggleView()
     bShowingLidar = !bShowingLidar;
     RefreshTitle();
     RefreshImageBrush();
+    RefreshStatusText();
 }
 
 void UVirtualSensorMonitorWidget::HandleToggleButtonClicked()
 {
     ToggleView();
-}
-
-void UVirtualSensorMonitorWidget::BuildWidgetTreeIfNeeded()
-{
-    if (!WidgetTree || ViewImage)
-    {
-        return;
-    }
-
-    UVerticalBox* RootBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("SensorMonitorRoot"));
-    WidgetTree->RootWidget = RootBox;
-
-    TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SensorMonitorTitle"));
-    TitleText->SetText(FText::FromString(TEXT("Virtual Camera View")));
-    if (UVerticalBoxSlot* TitleSlot = RootBox->AddChildToVerticalBox(TitleText))
-    {
-        TitleSlot->SetPadding(FMargin(8.0f));
-    }
-
-    ViewImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SensorMonitorImage"));
-    if (UVerticalBoxSlot* ImageSlot = RootBox->AddChildToVerticalBox(ViewImage))
-    {
-        ImageSlot->SetPadding(FMargin(8.0f));
-        ImageSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    }
-
-    ToggleButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("SensorMonitorToggleButton"));
-    ToggleButtonText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SensorMonitorToggleButtonText"));
-    ToggleButtonText->SetText(FText::FromString(TEXT("Show LIDAR View")));
-    ToggleButton->SetContent(ToggleButtonText);
-    ToggleButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleToggleButtonClicked);
-
-    if (UVerticalBoxSlot* ButtonSlot = RootBox->AddChildToVerticalBox(ToggleButton))
-    {
-        ButtonSlot->SetPadding(FMargin(8.0f));
-    }
 }
 
 void UVirtualSensorMonitorWidget::RefreshImageBrush()
@@ -138,4 +106,36 @@ void UVirtualSensorMonitorWidget::RefreshTitle()
     {
         ToggleButtonText->SetText(FText::FromString(bShowingLidar ? TEXT("Show Camera View") : TEXT("Show LIDAR View")));
     }
+}
+
+void UVirtualSensorMonitorWidget::RefreshStatusText()
+{
+    if (!StatusText)
+    {
+        return;
+    }
+
+    FString Text;
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d"),
+            *Status.SensorId,
+            Status.FrameId,
+            Status.TotalPointCount,
+            Status.HitPointCount,
+            Status.LastPayloadLength);
+    }
+    else if (!bShowingLidar && CameraComp)
+    {
+        Text = FString::Printf(TEXT("Sensor: %s\nMode: Camera\nRenderTarget: %s"),
+            *CameraComp->SensorId,
+            CameraComp->GetCameraRenderTarget() ? TEXT("Ready") : TEXT("None"));
+    }
+    else
+    {
+        Text = bShowingLidar ? TEXT("LIDAR sensor is not bound") : TEXT("Camera sensor is not bound");
+    }
+
+    StatusText->SetText(FText::FromString(Text));
 }
