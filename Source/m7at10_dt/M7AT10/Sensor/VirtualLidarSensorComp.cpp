@@ -17,6 +17,11 @@ void UVirtualLidarSensorComp::BeginPlay()
 {
     Super::BeginPlay();
 
+    if (Preset != EVirtualLidarPreset::Custom)
+    {
+        ApplyPreset(Preset);
+    }
+
     if (bAutoStartScan)
     {
         StartScan();
@@ -48,14 +53,56 @@ void UVirtualLidarSensorComp::StopScan()
     }
 }
 
+void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
+{
+    Preset = NewPreset;
+
+    if (Preset == EVirtualLidarPreset::LowDebug)
+    {
+        HorizontalSamples = 90;
+        VerticalChannels = 8;
+        ScanInterval = 1.0f;
+    }
+    else if (Preset == EVirtualLidarPreset::MediumPreview)
+    {
+        HorizontalSamples = 180;
+        VerticalChannels = 16;
+        ScanInterval = 0.5f;
+    }
+    else if (Preset == EVirtualLidarPreset::HighQuality)
+    {
+        HorizontalSamples = 360;
+        VerticalChannels = 32;
+        ScanInterval = 0.25f;
+    }
+}
+
 void UVirtualLidarSensorComp::ScanAndSend()
 {
+    ++FrameId;
+
     TArray<uint8> HeatmapPixels;
     ExecuteScan(LastPoints, HeatmapPixels);
     UpdateLidarViewTexture(HeatmapPixels);
 
     const FString JsonPayload = BuildJsonPayload(LastPoints);
     DispatchPayload(JsonPayload);
+
+    RuntimeStatus.SensorId = SensorId;
+    RuntimeStatus.SensorType = TEXT("virtual_lidar");
+    RuntimeStatus.FrameId = FrameId;
+    RuntimeStatus.LastUpdateUtc = FDateTime::UtcNow();
+    RuntimeStatus.LastPayloadLength = JsonPayload.Len();
+    RuntimeStatus.TotalPointCount = LastPoints.Num();
+    RuntimeStatus.HitPointCount = 0;
+    for (const FVirtualLidarPoint& Point : LastPoints)
+    {
+        if (Point.bHit)
+        {
+            ++RuntimeStatus.HitPointCount;
+        }
+    }
+
     OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
 }
 
@@ -93,7 +140,11 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
             const FVector End = Origin + Direction * MaxDistance;
 
             FHitResult Hit;
-            const bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+            bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+            if (bHit && ShouldIgnoreHitActor(Hit.GetActor()))
+            {
+                bHit = false;
+            }
 
             FVirtualLidarPoint Point;
             Point.LocalDirection = GetComponentTransform().InverseTransformVectorNoScale(Direction).GetSafeNormal();
@@ -103,17 +154,8 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
             Point.HitActorName = bHit && Hit.GetActor() ? Hit.GetActor()->GetFName() : NAME_None;
             OutPoints.Add(Point);
 
-            const float NormalizedDistance = FMath::Clamp(Point.Distance / MaxDistance, 0.0f, 1.0f);
-            const uint8 Intensity = bHit ? static_cast<uint8>((1.0f - NormalizedDistance) * 255.0f) : 0;
             const int32 PixelIndex = (V * SafeHorizontalSamples + H) * 4;
-            // OutHeatmapPixels[PixelIndex + 0] = Intensity;
-            // OutHeatmapPixels[PixelIndex + 1] = Intensity;
-            // OutHeatmapPixels[PixelIndex + 2] = bHit ? 255 : 0;
-            // OutHeatmapPixels[PixelIndex + 3] = 255;
-            OutHeatmapPixels[PixelIndex + 0] = Intensity; // B
-            OutHeatmapPixels[PixelIndex + 1] = Intensity; // G
-            OutHeatmapPixels[PixelIndex + 2] = Intensity; // R
-            OutHeatmapPixels[PixelIndex + 3] = 255;
+            WriteHeatmapPixel(OutHeatmapPixels, PixelIndex, Point);
 
             if (bDrawDebugRays)
             {
@@ -128,6 +170,7 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
     Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar"));
     Root->SetStringField(TEXT("sensorId"), SensorId);
+    Root->SetNumberField(TEXT("frameId"), static_cast<double>(FrameId));
     Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
     Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples);
     Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels);
@@ -135,6 +178,13 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     Root->SetNumberField(TEXT("horizontalFov"), HorizontalFov);
     Root->SetNumberField(TEXT("minVerticalAngle"), MinVerticalAngle);
     Root->SetNumberField(TEXT("maxVerticalAngle"), MaxVerticalAngle);
+
+    TArray<TSharedPtr<FJsonValue>> Location;
+    const FVector ComponentLocation = GetComponentLocation();
+    Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.X));
+    Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Y));
+    Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Z));
+    Root->SetArrayField(TEXT("sensorWorldLocation"), Location);
 
     TArray<TSharedPtr<FJsonValue>> JsonPoints;
     JsonPoints.Reserve(Points.Num());
@@ -161,6 +211,54 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Root, Writer);
     return Output;
+}
+
+void UVirtualLidarSensorComp::WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const
+{
+    const float NormalizedDistance = FMath::Clamp(Point.Distance / MaxDistance, 0.0f, 1.0f);
+    const uint8 Intensity = Point.bHit ? static_cast<uint8>((1.0f - NormalizedDistance) * 255.0f) : 0;
+
+    if (ViewMode == EVirtualLidarViewMode::HitMask)
+    {
+        Pixels[PixelIndex + 0] = Point.bHit ? 255 : 0;
+        Pixels[PixelIndex + 1] = Point.bHit ? 255 : 0;
+        Pixels[PixelIndex + 2] = Point.bHit ? 255 : 0;
+    }
+    else if (ViewMode == EVirtualLidarViewMode::DepthGradient)
+    {
+        Pixels[PixelIndex + 0] = static_cast<uint8>(NormalizedDistance * 255.0f);
+        Pixels[PixelIndex + 1] = Intensity;
+        Pixels[PixelIndex + 2] = Point.bHit ? 255 : 0;
+    }
+    else if (ViewMode == EVirtualLidarViewMode::ActorClassColor)
+    {
+        Pixels[PixelIndex + 0] = Point.bHit ? 64 : 0;
+        Pixels[PixelIndex + 1] = Point.bHit ? 220 : 0;
+        Pixels[PixelIndex + 2] = Point.bHit ? 64 : 0;
+    }
+    else
+    {
+        Pixels[PixelIndex + 0] = Intensity;
+        Pixels[PixelIndex + 1] = Intensity;
+        Pixels[PixelIndex + 2] = Intensity;
+    }
+    Pixels[PixelIndex + 3] = 255;
+}
+
+bool UVirtualLidarSensorComp::ShouldIgnoreHitActor(const AActor* Actor) const
+{
+    if (!Actor)
+    {
+        return false;
+    }
+    for (const FName& Tag : IgnoreActorTags)
+    {
+        if (!Tag.IsNone() && Actor->ActorHasTag(Tag))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void UVirtualLidarSensorComp::DispatchPayload(const FString& JsonPayload) const
