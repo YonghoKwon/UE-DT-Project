@@ -80,17 +80,31 @@ void UVirtualCameraComp::CaptureAndSendImage()
 {
     EnsureRenderTarget();
     CaptureScene();
+    ++FrameId;
+
+    if (CaptureMode == EVirtualCameraCaptureMode::PreviewOnly)
+    {
+        UpdateRuntimeStatus(0, TEXT("Preview only"));
+        OnFrameCaptured.Broadcast(TEXT(""), CameraRenderTarget);
+        return;
+    }
 
     TArray64<uint8> JpegBytes;
     if (!ReadRenderTargetAsJpeg(JpegBytes))
     {
+        UpdateRuntimeStatus(0, TEXT("Read render target failed"));
         return;
     }
 
     const FString Base64Image = FBase64::Encode(JpegBytes.GetData(), static_cast<uint32>(JpegBytes.Num()));
     const FString JsonPayload = BuildJsonPayload(Base64Image, JpegBytes.Num());
 
-    DispatchPayload(JsonPayload, JpegBytes);
+    if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput)
+    {
+        DispatchPayload(JsonPayload, JpegBytes);
+    }
+
+    UpdateRuntimeStatus(JsonPayload.Len(), TEXT("Captured"));
     OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
 }
 
@@ -130,17 +144,36 @@ FString UVirtualCameraComp::BuildJsonPayload(const FString& Base64Image, int64 B
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
     Root->SetStringField(TEXT("sensorType"), TEXT("virtual_camera"));
     Root->SetStringField(TEXT("sensorId"), SensorId);
+    Root->SetNumberField(TEXT("frameId"), static_cast<double>(FrameId));
     Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
     Root->SetNumberField(TEXT("width"), CaptureResolution.X);
     Root->SetNumberField(TEXT("height"), CaptureResolution.Y);
     Root->SetNumberField(TEXT("byteSize"), static_cast<double>(ByteSize));
     Root->SetStringField(TEXT("encoding"), TEXT("jpeg/base64"));
+
+    TArray<TSharedPtr<FJsonValue>> Location;
+    const FVector ComponentLocation = GetComponentLocation();
+    Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.X));
+    Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Y));
+    Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Z));
+    Root->SetArrayField(TEXT("sensorWorldLocation"), Location);
+
     Root->SetStringField(TEXT("image"), Base64Image);
 
     FString Output;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Root, Writer);
     return Output;
+}
+
+void UVirtualCameraComp::UpdateRuntimeStatus(int32 PayloadLength, const FString& Message)
+{
+    RuntimeStatus.SensorId = SensorId;
+    RuntimeStatus.SensorType = TEXT("virtual_camera");
+    RuntimeStatus.FrameId = FrameId;
+    RuntimeStatus.LastUpdateUtc = FDateTime::UtcNow();
+    RuntimeStatus.LastPayloadLength = PayloadLength;
+    RuntimeStatus.LastMessage = Message;
 }
 
 void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const
