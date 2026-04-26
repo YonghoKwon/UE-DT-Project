@@ -1,93 +1,194 @@
-﻿// VirtualCameraComp.cpp
+// VirtualCameraComp.cpp
 #include "VirtualCameraComp.h"
+
 #include "Engine/TextureRenderTarget2D.h"
+#include "HttpModule.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
-#include "Modules/ModuleManager.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Json.h"
 #include "Misc/Base64.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
 #include "TextureResource.h"
-#include "ImageCore.h" // 추가
 
 UVirtualCameraComp::UVirtualCameraComp()
 {
-	PrimaryComponentTick.bCanEverTick = true;
-
-    // 매 프레임 캡처하거나 움직일 때 캡처하는 기본 동작을 끕니다.
-    // (성능 최적화를 위해 우리가 원하는 타이밍에 수동으로 캡처하기 위함)
-	bCaptureEveryFrame = true;
-	bCaptureOnMovement = true;
+    PrimaryComponentTick.bCanEverTick = false;
+    bCaptureEveryFrame = false;
+    bCaptureOnMovement = false;
+    CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 }
 
 void UVirtualCameraComp::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
+    EnsureRenderTarget();
 
-	// 1. 렌더 타겟 동적 생성 및 설정
-	if (!CameraRenderTarget)
-	{
-		CameraRenderTarget = NewObject<UTextureRenderTarget2D>(this);
-		CameraRenderTarget->InitCustomFormat(CaptureResolution.X, CaptureResolution.Y, PF_B8G8R8A8, true);
-		CameraRenderTarget->UpdateResourceImmediate(true);
-	}
-
-	// 2. 캡처 컴포넌트에 렌더 타겟 할당
-	TextureTarget = CameraRenderTarget;
-
-	bCaptureEveryFrame = true;
-	bCaptureOnMovement = true;
-
-	// 3. 주기적으로 캡처를 실행하는 타이머 설정
-	if (CaptureInterval > 0.0f)
-	{
-		GetWorld()->GetTimerManager().SetTimer(CaptureTimerHandle, this, &UVirtualCameraComp::CaptureAndSendImage, CaptureInterval, true);
-	}
+    if (bAutoStartCapture)
+    {
+        StartCapture();
+    }
 }
 
 void UVirtualCameraComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
-	Super::EndPlay(EndPlayReason);
+    StopCapture();
+    Super::EndPlay(EndPlayReason);
 }
-#pragma optimize("", off) // 이 아래부터 최적화를 강제로 꺼서 디버거에서 변수가 보이게 합니다.
+
+void UVirtualCameraComp::StartCapture()
+{
+    EnsureRenderTarget();
+
+    if (!GetWorld() || CaptureInterval <= 0.0f)
+    {
+        return;
+    }
+
+    GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
+    GetWorld()->GetTimerManager().SetTimer(CaptureTimerHandle, this, &UVirtualCameraComp::CaptureAndSendImage, CaptureInterval, true, 0.0f);
+}
+
+void UVirtualCameraComp::StopCapture()
+{
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
+    }
+}
+
+void UVirtualCameraComp::EnsureRenderTarget()
+{
+    if (!CameraRenderTarget)
+    {
+        CameraRenderTarget = NewObject<UTextureRenderTarget2D>(this, TEXT("VirtualCameraRenderTarget"));
+    }
+
+    if (CameraRenderTarget->SizeX != CaptureResolution.X || CameraRenderTarget->SizeY != CaptureResolution.Y)
+    {
+        CameraRenderTarget->InitCustomFormat(CaptureResolution.X, CaptureResolution.Y, PF_B8G8R8A8, true);
+        CameraRenderTarget->ClearColor = FLinearColor::Black;
+        CameraRenderTarget->UpdateResourceImmediate(true);
+    }
+
+    TextureTarget = CameraRenderTarget;
+}
+
 void UVirtualCameraComp::CaptureAndSendImage()
 {
-	if (!CameraRenderTarget) return;
+    EnsureRenderTarget();
+    CaptureScene();
 
-    // 1. 현재 시점을 렌더 타겟에 수동으로 캡처합니다.
-    // CaptureScene();
-
-    FTextureRenderTargetResource* RTResource = CameraRenderTarget->GameThread_GetRenderTargetResource();
-    if (!RTResource) return;
-
-    // 2. 렌더 타겟에서 픽셀 데이터를 읽어옵니다.
-    TArray<FColor> RawPixels;
-    if (RTResource->ReadPixels(RawPixels))
+    TArray64<uint8> JpegBytes;
+    if (!ReadRenderTargetAsJpeg(JpegBytes))
     {
-		// 3. ImageWrapper 모듈을 사용하여 JPEG 형식으로 압축합니다.
-		IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
-		TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+        return;
+    }
 
-		if (ImageWrapper.IsValid())
-		{
-			// 픽셀 데이터 세팅 (BGRA 8비트)
-			ImageWrapper->SetRaw(RawPixels.GetData(), (int64)(RawPixels.Num() * sizeof(FColor)), CameraRenderTarget->SizeX, CameraRenderTarget->SizeY, ERGBFormat::BGRA, 8);
+    const FString Base64Image = FBase64::Encode(JpegBytes.GetData(), static_cast<uint32>(JpegBytes.Num()));
+    const FString JsonPayload = BuildJsonPayload(Base64Image, JpegBytes.Num());
 
-			// [변경 코드 - TArray64 사용 및 Encode 파라미터 수정]
-			const TArray64<uint8>& CompressedData = ImageWrapper->GetCompressed(80);
-
-			// FBase64::Encode는 주로 32비트 길이를 요구하므로, GetData() 포인터와 사이즈를 형변환하여 넘겨줍니다.
-			FString Base64Image = FBase64::Encode(CompressedData.GetData(), (uint32)CompressedData.Num());
-
-			// =====================================================================
-			// [데이터 전송 로직 작성 구간]
-			// 추측입니다만, 추출된 Base64Image 문자열 데이터는 기존 DxApiServiceTest와 유사한
-			// HTTP POST 통신을 거치거나, KP1D0012와 같은 WebSocket 전문(Json)을 통해 백엔드로 전달될 것으로 보입니다.
-			// 이곳에서 해당 API 호출 시스템(예: ApiSubsystem->SendCameraData(Base64Image))을 연결해주시면 됩니다.
-			// =====================================================================
-
-            // 테스트용 로그 (문자열이 너무 길어질 수 있으므로 실제 서비스에서는 제거 권장)
-            // UE_LOG(LogTemp, Log, TEXT("Captured Image Base64 Length: %d"), Base64Image.Len());
-		}
-	}
+    DispatchPayload(JsonPayload, JpegBytes);
+    OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
 }
-#pragma optimize("", on) // 최적화를 다시 켭니다.
+
+bool UVirtualCameraComp::ReadRenderTargetAsJpeg(TArray64<uint8>& OutJpegBytes) const
+{
+    if (!CameraRenderTarget)
+    {
+        return false;
+    }
+
+    FTextureRenderTargetResource* Resource = CameraRenderTarget->GameThread_GetRenderTargetResource();
+    if (!Resource)
+    {
+        return false;
+    }
+
+    TArray<FColor> RawPixels;
+    if (!Resource->ReadPixels(RawPixels) || RawPixels.Num() == 0)
+    {
+        return false;
+    }
+
+    IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
+    TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+    if (!ImageWrapper.IsValid())
+    {
+        return false;
+    }
+
+    ImageWrapper->SetRaw(RawPixels.GetData(), RawPixels.Num() * sizeof(FColor), CameraRenderTarget->SizeX, CameraRenderTarget->SizeY, ERGBFormat::BGRA, 8);
+    OutJpegBytes = ImageWrapper->GetCompressed(FMath::Clamp(JpegQuality, 1, 100));
+    return OutJpegBytes.Num() > 0;
+}
+
+FString UVirtualCameraComp::BuildJsonPayload(const FString& Base64Image, int64 ByteSize) const
+{
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("sensorType"), TEXT("virtual_camera"));
+    Root->SetStringField(TEXT("sensorId"), SensorId);
+    Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
+    Root->SetNumberField(TEXT("width"), CaptureResolution.X);
+    Root->SetNumberField(TEXT("height"), CaptureResolution.Y);
+    Root->SetNumberField(TEXT("byteSize"), static_cast<double>(ByteSize));
+    Root->SetStringField(TEXT("encoding"), TEXT("jpeg/base64"));
+    Root->SetStringField(TEXT("image"), Base64Image);
+
+    FString Output;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Output;
+}
+
+void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const
+{
+    switch (OutputMode)
+    {
+    case EVirtualCameraOutputMode::None:
+        break;
+    case EVirtualCameraOutputMode::LogOnly:
+        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] payloadLength=%d"), *SensorId, JsonPayload.Len());
+        break;
+    case EVirtualCameraOutputMode::SaveJpeg:
+        SaveJpegToDisk(JpegBytes);
+        break;
+    case EVirtualCameraOutputMode::HttpPost:
+        PostJson(JsonPayload);
+        break;
+    default:
+        break;
+    }
+}
+
+void UVirtualCameraComp::PostJson(const FString& JsonPayload) const
+{
+    if (HttpEndpoint.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualCamera:%s] HttpEndpoint is empty."), *SensorId);
+        return;
+    }
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(HttpEndpoint);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(JsonPayload);
+    Request->ProcessRequest();
+}
+
+void UVirtualCameraComp::SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const
+{
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId);
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    const FString Timestamp = FString::Printf(TEXT("%s_%lld"), *FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S")), FDateTime::UtcNow().GetTicks());
+    const FString FileName = FString::Printf(TEXT("%s_%s.jpg"), *SensorId, *Timestamp);
+    const FString Path = FPaths::Combine(Directory, FileName);
+
+    TArray<uint8> Bytes32;
+    Bytes32.Append(JpegBytes.GetData(), static_cast<int32>(JpegBytes.Num()));
+    FFileHelper::SaveArrayToFile(Bytes32, *Path);
+}
