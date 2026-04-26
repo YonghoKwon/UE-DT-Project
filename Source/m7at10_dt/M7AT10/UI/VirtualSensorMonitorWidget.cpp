@@ -1,20 +1,27 @@
-#include "UI/VirtualSensorMonitorWidget.h"
+#include "VirtualSensorMonitorWidget.h"
 
 #include "Blueprint/WidgetTree.h"
-#include "Camera/VirtualCameraComp.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 
 void UVirtualSensorMonitorWidget::NativeConstruct()
 {
     Super::NativeConstruct();
-    BuildWidgetTreeIfNeeded();
+
+    if (ToggleButton)
+    {
+        ToggleButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleToggleButtonClicked);
+        ToggleButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleToggleButtonClicked);
+    }
+
     RefreshTitle();
+    RefreshImageBrush();
 }
 
 void UVirtualSensorMonitorWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)

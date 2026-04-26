@@ -106,9 +106,13 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
             const float NormalizedDistance = FMath::Clamp(Point.Distance / MaxDistance, 0.0f, 1.0f);
             const uint8 Intensity = bHit ? static_cast<uint8>((1.0f - NormalizedDistance) * 255.0f) : 0;
             const int32 PixelIndex = (V * SafeHorizontalSamples + H) * 4;
-            OutHeatmapPixels[PixelIndex + 0] = Intensity;
-            OutHeatmapPixels[PixelIndex + 1] = Intensity;
-            OutHeatmapPixels[PixelIndex + 2] = bHit ? 255 : 0;
+            // OutHeatmapPixels[PixelIndex + 0] = Intensity;
+            // OutHeatmapPixels[PixelIndex + 1] = Intensity;
+            // OutHeatmapPixels[PixelIndex + 2] = bHit ? 255 : 0;
+            // OutHeatmapPixels[PixelIndex + 3] = 255;
+            OutHeatmapPixels[PixelIndex + 0] = Intensity; // B
+            OutHeatmapPixels[PixelIndex + 1] = Intensity; // G
+            OutHeatmapPixels[PixelIndex + 2] = Intensity; // R
             OutHeatmapPixels[PixelIndex + 3] = 255;
 
             if (bDrawDebugRays)

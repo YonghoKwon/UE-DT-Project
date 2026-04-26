@@ -50,16 +50,16 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UVirtualLidarSensorComp> LidarComp;
 
-    UPROPERTY(Transient)
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UImage> ViewImage;
 
-    UPROPERTY(Transient)
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> ToggleButton;
 
-    UPROPERTY(Transient)
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
 
-    UPROPERTY(Transient)
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ToggleButtonText;
 
     bool bShowingLidar = false;
