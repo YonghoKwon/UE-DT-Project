@@ -6,6 +6,7 @@
 #include "VirtualLidarSensorComp.generated.h"
 
 class UTexture2D;
+class UVirtualSensorDataTransportComp;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualLidarScanCompleted, const FString&, JsonPayload, UTexture2D*, LidarViewTexture);
 
@@ -33,6 +34,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ApplyPreset(EVirtualLidarPreset NewPreset);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
+    void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const TArray<FVirtualLidarPoint>& GetLastPoints() const { return LastPoints; }
@@ -89,10 +93,16 @@ public:
     bool bAutoStartScan = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
+    bool bAutoRegisterToManager = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     bool bDrawDebugRays = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Filter")
     TArray<FName> IgnoreActorTags;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport")
+    TObjectPtr<UVirtualSensorDataTransportComp> TransportComponent;
 
 private:
     void ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels);
@@ -103,6 +113,7 @@ private:
     void UpdateLidarViewTexture(const TArray<uint8>& HeatmapPixels);
     void WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const;
     bool ShouldIgnoreHitActor(const AActor* Actor) const;
+    void TryAutoRegisterToManager();
 
 private:
     FTimerHandle ScanTimerHandle;
