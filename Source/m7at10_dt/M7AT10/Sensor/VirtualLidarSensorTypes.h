@@ -3,6 +3,24 @@
 #include "CoreMinimal.h"
 #include "VirtualLidarSensorTypes.generated.h"
 
+UENUM(BlueprintType)
+enum class EVirtualLidarPreset : uint8
+{
+    LowDebug UMETA(DisplayName = "Low Debug"),
+    MediumPreview UMETA(DisplayName = "Medium Preview"),
+    HighQuality UMETA(DisplayName = "High Quality"),
+    Custom UMETA(DisplayName = "Custom")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualLidarViewMode : uint8
+{
+    IntensityGray UMETA(DisplayName = "Intensity Gray"),
+    HitMask UMETA(DisplayName = "Hit Mask"),
+    DepthGradient UMETA(DisplayName = "Depth Gradient"),
+    ActorClassColor UMETA(DisplayName = "Actor Class Color")
+};
+
 USTRUCT(BlueprintType)
 struct M7AT10_DT_API FVirtualLidarPoint
 {
@@ -22,6 +40,36 @@ struct M7AT10_DT_API FVirtualLidarPoint
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
     FName HitActorName = NAME_None;
+};
+
+USTRUCT(BlueprintType)
+struct M7AT10_DT_API FVirtualSensorRuntimeStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    FString SensorId;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    FString SensorType;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    int64 FrameId = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    FDateTime LastUpdateUtc;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    int32 LastPayloadLength = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    int32 TotalPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    int32 HitPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    FString LastMessage;
 };
 
 UENUM(BlueprintType)
