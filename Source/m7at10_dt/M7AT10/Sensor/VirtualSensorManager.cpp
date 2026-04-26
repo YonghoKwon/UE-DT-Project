@@ -1,10 +1,10 @@
-#include "Sensor/VirtualSensorManager.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
-#include "Camera/VirtualCameraComp.h"
+#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
-#include "Sensor/VirtualLidarSensorComp.h"
-#include "UI/VirtualSensorMonitorWidget.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
 
 AVirtualSensorManager::AVirtualSensorManager()
 {

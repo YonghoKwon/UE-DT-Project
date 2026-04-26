@@ -3,7 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
-#include "Sensor/VirtualLidarSensorTypes.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
 #include "VirtualCameraComp.generated.h"
 
 class UTextureRenderTarget2D;

@@ -1,4 +1,4 @@
-#include "Sensor/VirtualSensorDataTransportComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
