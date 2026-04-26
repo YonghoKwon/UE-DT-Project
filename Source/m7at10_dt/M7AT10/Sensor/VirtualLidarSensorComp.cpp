@@ -2,11 +2,14 @@
 
 #include "DrawDebugHelpers.h"
 #include "Engine/Texture2D.h"
+#include "EngineUtils.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Json.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 UVirtualLidarSensorComp::UVirtualLidarSensorComp()
 {
@@ -21,6 +24,8 @@ void UVirtualLidarSensorComp::BeginPlay()
     {
         ApplyPreset(Preset);
     }
+
+    TryAutoRegisterToManager();
 
     if (bAutoStartScan)
     {
@@ -51,6 +56,11 @@ void UVirtualLidarSensorComp::StopScan()
     {
         GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     }
+}
+
+void UVirtualLidarSensorComp::SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent)
+{
+    TransportComponent = InTransportComponent;
 }
 
 void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
@@ -226,8 +236,8 @@ void UVirtualLidarSensorComp::WriteHeatmapPixel(TArray<uint8>& Pixels, int32 Pix
     }
     else if (ViewMode == EVirtualLidarViewMode::DepthGradient)
     {
-        Pixels[PixelIndex + 0] = static_cast<uint8>(NormalizedDistance * 255.0f);
-        Pixels[PixelIndex + 1] = Intensity;
+        Pixels[PixelIndex + 0] = Point.bHit ? static_cast<uint8>(NormalizedDistance * 255.0f) : 0;
+        Pixels[PixelIndex + 1] = Point.bHit ? Intensity : 0;
         Pixels[PixelIndex + 2] = Point.bHit ? 255 : 0;
     }
     else if (ViewMode == EVirtualLidarViewMode::ActorClassColor)
@@ -263,6 +273,12 @@ bool UVirtualLidarSensorComp::ShouldIgnoreHitActor(const AActor* Actor) const
 
 void UVirtualLidarSensorComp::DispatchPayload(const FString& JsonPayload) const
 {
+    if (TransportComponent)
+    {
+        TransportComponent->SendJson(SensorId, TEXT("virtual_lidar"), JsonPayload);
+        return;
+    }
+
     switch (OutputMode)
     {
     case EVirtualLidarOutputMode::None:
@@ -329,4 +345,18 @@ void UVirtualLidarSensorComp::UpdateLidarViewTexture(const TArray<uint8>& Heatma
     FMemory::Memcpy(Data, HeatmapPixels.GetData(), HeatmapPixels.Num());
     Mip.BulkData.Unlock();
     LidarViewTexture->UpdateResource();
+}
+
+void UVirtualLidarSensorComp::TryAutoRegisterToManager()
+{
+    if (!bAutoRegisterToManager || !GetWorld())
+    {
+        return;
+    }
+
+    for (TActorIterator<AVirtualSensorManager> It(GetWorld()); It; ++It)
+    {
+        It->RegisterLidar(this);
+        break;
+    }
 }
