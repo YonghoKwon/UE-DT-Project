@@ -1,12 +1,11 @@
-﻿#include "VirtualSensorAct.h"
+#include "VirtualSensorAct.h"
 
-#include "ActorComponent/VirtualDistanceSensorComp.h"
+#include "Sensor/VirtualLidarSensorComp.h"
 
 AVirtualSensorAct::AVirtualSensorAct()
 {
-	PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = false;
 
-	// 컴포넌트 생성 및 루트 연결
-	DistanceSensorComp = CreateDefaultSubobject<UVirtualDistanceSensorComp>(TEXT("DistanceSensorComp"));
-	RootComponent = DistanceSensorComp;
+    LidarSensorComp = CreateDefaultSubobject<UVirtualLidarSensorComp>(TEXT("LidarSensorComp"));
+    RootComponent = LidarSensorComp;
 }
