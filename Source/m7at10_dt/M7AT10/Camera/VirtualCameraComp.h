@@ -7,6 +7,7 @@
 #include "VirtualCameraComp.generated.h"
 
 class UTextureRenderTarget2D;
+class UVirtualSensorDataTransportComp;
 
 UENUM(BlueprintType)
 enum class EVirtualCameraOutputMode : uint8
@@ -49,6 +50,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
     void CaptureAndSendImage();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|Transport")
+    void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
     UTextureRenderTarget2D* GetCameraRenderTarget() const { return CameraRenderTarget; }
 
@@ -83,7 +87,13 @@ public:
     bool bAutoStartCapture = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    bool bAutoRegisterToManager = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     TObjectPtr<UTextureRenderTarget2D> CameraRenderTarget;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|Transport")
+    TObjectPtr<UVirtualSensorDataTransportComp> TransportComponent;
 
 private:
     void EnsureRenderTarget();
@@ -93,6 +103,7 @@ private:
     void PostJson(const FString& JsonPayload) const;
     void SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const;
     void UpdateRuntimeStatus(int32 PayloadLength, const FString& Message);
+    void TryAutoRegisterToManager();
 
 private:
     FTimerHandle CaptureTimerHandle;
