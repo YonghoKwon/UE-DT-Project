@@ -2,6 +2,7 @@
 #include "VirtualCameraComp.h"
 
 #include "Engine/TextureRenderTarget2D.h"
+#include "EngineUtils.h"
 #include "HttpModule.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
@@ -12,6 +13,8 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "TextureResource.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 UVirtualCameraComp::UVirtualCameraComp()
 {
@@ -25,6 +28,7 @@ void UVirtualCameraComp::BeginPlay()
 {
     Super::BeginPlay();
     EnsureRenderTarget();
+    TryAutoRegisterToManager();
 
     if (bAutoStartCapture)
     {
@@ -57,6 +61,11 @@ void UVirtualCameraComp::StopCapture()
     {
         GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
     }
+}
+
+void UVirtualCameraComp::SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent)
+{
+    TransportComponent = InTransportComponent;
 }
 
 void UVirtualCameraComp::EnsureRenderTarget()
@@ -178,6 +187,12 @@ void UVirtualCameraComp::UpdateRuntimeStatus(int32 PayloadLength, const FString&
 
 void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const
 {
+    if (TransportComponent)
+    {
+        TransportComponent->SendJson(SensorId, TEXT("virtual_camera"), JsonPayload);
+        return;
+    }
+
     switch (OutputMode)
     {
     case EVirtualCameraOutputMode::None:
@@ -224,4 +239,18 @@ void UVirtualCameraComp::SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const
     TArray<uint8> Bytes32;
     Bytes32.Append(JpegBytes.GetData(), static_cast<int32>(JpegBytes.Num()));
     FFileHelper::SaveArrayToFile(Bytes32, *Path);
+}
+
+void UVirtualCameraComp::TryAutoRegisterToManager()
+{
+    if (!bAutoRegisterToManager || !GetWorld())
+    {
+        return;
+    }
+
+    for (TActorIterator<AVirtualSensorManager> It(GetWorld()); It; ++It)
+    {
+        It->RegisterCamera(this);
+        break;
+    }
 }
