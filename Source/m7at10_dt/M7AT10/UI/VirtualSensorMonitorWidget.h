@@ -39,9 +39,9 @@ private:
     UFUNCTION()
     void HandleToggleButtonClicked();
 
-    void BuildWidgetTreeIfNeeded();
     void RefreshImageBrush();
     void RefreshTitle();
+    void RefreshStatusText();
 
 private:
     UPROPERTY(Transient)
@@ -61,6 +61,9 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ToggleButtonText;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> StatusText;
 
     bool bShowingLidar = false;
 };
