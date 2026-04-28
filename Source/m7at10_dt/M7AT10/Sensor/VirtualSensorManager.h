@@ -36,6 +36,27 @@ struct M7AT10_DT_API FVirtualSensorSummary
     bool bValid = false;
 };
 
+USTRUCT(BlueprintType)
+struct M7AT10_DT_API FVirtualSensorHealthSummary
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    FString Summary;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 CameraCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 LidarCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 StaleSensorCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    bool bHealthy = true;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorViewModeChanged, EVirtualSensorViewMode, NewMode);
 
 UCLASS()
@@ -70,6 +91,12 @@ public:
     void SelectLidarByIndex(int32 Index);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void SelectNextCamera();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void SelectNextLidar();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void SetViewMode(EVirtualSensorViewMode NewMode);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
@@ -97,6 +124,9 @@ public:
     TArray<FVirtualSensorSummary> GetLidarSummaries() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+    FVirtualSensorHealthSummary GetHealthSummary() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     EVirtualSensorViewMode GetViewMode() const { return CurrentViewMode; }
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorManager")
@@ -113,6 +143,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager", meta = (ClampMin = "0.033"))
     float SynchronizedInterval = 0.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager|Health", meta = (ClampMin = "0.1"))
+    float StaleSensorSeconds = 3.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
     TObjectPtr<UVirtualSensorDataTransportComp> SharedTransportComponent;
