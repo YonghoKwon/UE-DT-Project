@@ -20,6 +20,11 @@ void UVirtualLidarSensorComp::BeginPlay()
 {
     Super::BeginPlay();
 
+    if (bApplyDeviceProfileOnBeginPlay)
+    {
+        ApplyDeviceProfile(DeviceProfile);
+    }
+
     if (Preset != EVirtualLidarPreset::Custom)
     {
         ApplyPreset(Preset);
@@ -87,6 +92,39 @@ void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
     }
 }
 
+void UVirtualLidarSensorComp::ApplyDeviceProfile(EVirtualLidarDeviceProfile NewProfile)
+{
+    DeviceProfile = NewProfile;
+
+    if (DeviceProfile == EVirtualLidarDeviceProfile::LivoxMid360S)
+    {
+        DeviceSpec.Manufacturer = TEXT("Livox");
+        DeviceSpec.Model = TEXT("Mid-360S");
+        DeviceSpec.HorizontalFovDegrees = 360.0f;
+        DeviceSpec.VerticalFovDegrees = 59.0f;
+        DeviceSpec.MinRangeCm = 10.0f;
+        DeviceSpec.TypicalRangeCm = 4000.0f;
+        DeviceSpec.MaxRangeCm = 10000.0f;
+        DeviceSpec.FrameRateHz = 10.0f;
+        DeviceSpec.PointRate = 200000;
+        DeviceSpec.Notes = TEXT("Livox Mid-360S style profile: 360 horizontal FOV, -7 to 52 vertical range, 10Hz typical scan frame.");
+
+        HorizontalFov = DeviceSpec.HorizontalFovDegrees;
+        MinVerticalAngle = -7.0f;
+        MaxVerticalAngle = 52.0f;
+        MaxDistance = DeviceSpec.TypicalRangeCm;
+        HorizontalSamples = 360;
+        VerticalChannels = 60;
+        ScanInterval = 1.0f / FMath::Max(1.0f, DeviceSpec.FrameRateHz);
+        Preset = EVirtualLidarPreset::Custom;
+    }
+    else
+    {
+        DeviceSpec.Manufacturer = TEXT("Generic");
+        DeviceSpec.Model = TEXT("Generic LiDAR");
+    }
+}
+
 void UVirtualLidarSensorComp::ScanAndSend()
 {
     ++FrameId;
@@ -113,6 +151,19 @@ void UVirtualLidarSensorComp::ScanAndSend()
         }
     }
 
+    if (bExportCsvOnScan)
+    {
+        ExportLastPointCloudCsv();
+    }
+    if (bExportJsonLinesOnScan)
+    {
+        ExportLastPointCloudJsonLines();
+    }
+    if (bExportPcdOnScan)
+    {
+        ExportLastPointCloudPcd();
+    }
+
     OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
 }
 
@@ -122,7 +173,7 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
 
     const int32 SafeHorizontalSamples = FMath::Max(1, HorizontalSamples);
     const int32 SafeVerticalChannels = FMath::Max(1, VerticalChannels);
-    OutPoints.Reserve(SafeHorizontalSamples * SafeVerticalChannels);
+    OutPoints.Reserve(SafeHorizontalSamples * SafeVerticalChannels * (bUseMultiHit ? FMath::Max(1, MaxHitsPerRay) : 1));
     OutHeatmapPixels.SetNumZeroed(SafeHorizontalSamples * SafeVerticalChannels * 4);
 
     UWorld* World = GetWorld();
@@ -149,27 +200,73 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
             const FVector Direction = RayRotation.Vector();
             const FVector End = Origin + Direction * MaxDistance;
 
-            FHitResult Hit;
-            bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
-            if (bHit && ShouldIgnoreHitActor(Hit.GetActor()))
+            FVirtualLidarPoint FirstPoint;
+            FirstPoint.LocalDirection = GetComponentTransform().InverseTransformVectorNoScale(Direction).GetSafeNormal();
+            FirstPoint.Distance = MaxDistance;
+            FirstPoint.WorldLocation = End;
+            FirstPoint.bHit = false;
+            FirstPoint.HitActorName = NAME_None;
+
+            if (bUseMultiHit)
             {
-                bHit = false;
+                TArray<FHitResult> Hits;
+                World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
+
+                int32 AddedHits = 0;
+                for (const FHitResult& Hit : Hits)
+                {
+                    if (ShouldIgnoreHitActor(Hit.GetActor()))
+                    {
+                        continue;
+                    }
+
+                    FVirtualLidarPoint Point;
+                    Point.LocalDirection = FirstPoint.LocalDirection;
+                    Point.bHit = true;
+                    Point.Distance = Hit.Distance;
+                    Point.WorldLocation = Hit.ImpactPoint;
+                    Point.HitActorName = Hit.GetActor() ? Hit.GetActor()->GetFName() : NAME_None;
+                    OutPoints.Add(Point);
+
+                    if (!FirstPoint.bHit)
+                    {
+                        FirstPoint = Point;
+                    }
+
+                    ++AddedHits;
+                    if (AddedHits >= FMath::Max(1, MaxHitsPerRay))
+                    {
+                        break;
+                    }
+                }
+
+                if (AddedHits == 0)
+                {
+                    OutPoints.Add(FirstPoint);
+                }
+            }
+            else
+            {
+                FHitResult Hit;
+                bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+                if (bHit && ShouldIgnoreHitActor(Hit.GetActor()))
+                {
+                    bHit = false;
+                }
+
+                FirstPoint.bHit = bHit;
+                FirstPoint.Distance = bHit ? Hit.Distance : MaxDistance;
+                FirstPoint.WorldLocation = bHit ? Hit.ImpactPoint : End;
+                FirstPoint.HitActorName = bHit && Hit.GetActor() ? Hit.GetActor()->GetFName() : NAME_None;
+                OutPoints.Add(FirstPoint);
             }
 
-            FVirtualLidarPoint Point;
-            Point.LocalDirection = GetComponentTransform().InverseTransformVectorNoScale(Direction).GetSafeNormal();
-            Point.bHit = bHit;
-            Point.Distance = bHit ? Hit.Distance : MaxDistance;
-            Point.WorldLocation = bHit ? Hit.ImpactPoint : End;
-            Point.HitActorName = bHit && Hit.GetActor() ? Hit.GetActor()->GetFName() : NAME_None;
-            OutPoints.Add(Point);
-
-            const int32 PixelIndex = (V * SafeHorizontalSamples + H) * 4;
-            WriteHeatmapPixel(OutHeatmapPixels, PixelIndex, Point);
+            const int32 PixelIndex = GetHeatmapPixelIndex(H, V, SafeHorizontalSamples, SafeVerticalChannels);
+            WriteHeatmapPixel(OutHeatmapPixels, PixelIndex, FirstPoint);
 
             if (bDrawDebugRays)
             {
-                DrawDebugLine(World, Origin, Point.WorldLocation, bHit ? FColor::Cyan : FColor::Silver, false, ScanInterval, 0, 0.5f);
+                DrawDebugLine(World, Origin, FirstPoint.WorldLocation, FirstPoint.bHit ? FColor::Cyan : FColor::Silver, false, ScanInterval, 0, 0.5f);
             }
         }
     }
@@ -180,6 +277,8 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
     Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar"));
     Root->SetStringField(TEXT("sensorId"), SensorId);
+    Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer);
+    Root->SetStringField(TEXT("model"), DeviceSpec.Model);
     Root->SetNumberField(TEXT("frameId"), static_cast<double>(FrameId));
     Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
     Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples);
@@ -188,12 +287,40 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     Root->SetNumberField(TEXT("horizontalFov"), HorizontalFov);
     Root->SetNumberField(TEXT("minVerticalAngle"), MinVerticalAngle);
     Root->SetNumberField(TEXT("maxVerticalAngle"), MaxVerticalAngle);
+    Root->SetBoolField(TEXT("multiHit"), bUseMultiHit);
+    Root->SetNumberField(TEXT("maxHitsPerRay"), MaxHitsPerRay);
+
+    TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
+    const FVector ComponentLocation = GetComponentLocation();
+    const FRotator ComponentRotation = GetComponentRotation();
+    const FVector Forward = GetForwardVector();
+    const FVector Up = GetUpVector();
 
     TArray<TSharedPtr<FJsonValue>> Location;
-    const FVector ComponentLocation = GetComponentLocation();
     Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.X));
     Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Y));
     Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Z));
+    TransformObject->SetArrayField(TEXT("location"), Location);
+
+    TArray<TSharedPtr<FJsonValue>> Rotation;
+    Rotation.Add(MakeShared<FJsonValueNumber>(ComponentRotation.Pitch));
+    Rotation.Add(MakeShared<FJsonValueNumber>(ComponentRotation.Yaw));
+    Rotation.Add(MakeShared<FJsonValueNumber>(ComponentRotation.Roll));
+    TransformObject->SetArrayField(TEXT("rotation"), Rotation);
+
+    TArray<TSharedPtr<FJsonValue>> ForwardJson;
+    ForwardJson.Add(MakeShared<FJsonValueNumber>(Forward.X));
+    ForwardJson.Add(MakeShared<FJsonValueNumber>(Forward.Y));
+    ForwardJson.Add(MakeShared<FJsonValueNumber>(Forward.Z));
+    TransformObject->SetArrayField(TEXT("forward"), ForwardJson);
+
+    TArray<TSharedPtr<FJsonValue>> UpJson;
+    UpJson.Add(MakeShared<FJsonValueNumber>(Up.X));
+    UpJson.Add(MakeShared<FJsonValueNumber>(Up.Y));
+    UpJson.Add(MakeShared<FJsonValueNumber>(Up.Z));
+    TransformObject->SetArrayField(TEXT("up"), UpJson);
+
+    Root->SetObjectField(TEXT("sensorTransform"), TransformObject);
     Root->SetArrayField(TEXT("sensorWorldLocation"), Location);
 
     TArray<TSharedPtr<FJsonValue>> JsonPoints;
@@ -227,6 +354,11 @@ void UVirtualLidarSensorComp::WriteHeatmapPixel(TArray<uint8>& Pixels, int32 Pix
 {
     const float NormalizedDistance = FMath::Clamp(Point.Distance / MaxDistance, 0.0f, 1.0f);
     const uint8 Intensity = Point.bHit ? static_cast<uint8>((1.0f - NormalizedDistance) * 255.0f) : 0;
+
+    if (!Pixels.IsValidIndex(PixelIndex + 3))
+    {
+        return;
+    }
 
     if (ViewMode == EVirtualLidarViewMode::HitMask)
     {
@@ -269,6 +401,56 @@ bool UVirtualLidarSensorComp::ShouldIgnoreHitActor(const AActor* Actor) const
         }
     }
     return false;
+}
+
+int32 UVirtualLidarSensorComp::GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const
+{
+    const int32 DrawH = bFlipLidarViewHorizontal ? Width - 1 - H : H;
+    const int32 DrawV = bFlipLidarViewVertical ? Height - 1 - V : V;
+    return (DrawV * Width + DrawH) * 4;
+}
+
+FString UVirtualLidarSensorComp::BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const
+{
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    const FString Prefix = FileNamePrefix.IsEmpty() ? SensorId : FileNamePrefix;
+    const FString Timestamp = FString::Printf(TEXT("%s_%lld"), *FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S")), FDateTime::UtcNow().GetTicks());
+    return FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Timestamp, *Extension));
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudCsv(const FString& FileNamePrefix) const
+{
+    FString Text = TEXT("x,y,z,distance,hit,actor\n");
+    for (const FVirtualLidarPoint& Point : LastPoints)
+    {
+        Text += FString::Printf(TEXT("%f,%f,%f,%f,%d,%s\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0, *Point.HitActorName.ToString());
+    }
+    return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("csv"), FileNamePrefix));
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudJsonLines(const FString& FileNamePrefix) const
+{
+    FString Text;
+    for (const FVirtualLidarPoint& Point : LastPoints)
+    {
+        Text += FString::Printf(TEXT("{\"x\":%f,\"y\":%f,\"z\":%f,\"distance\":%f,\"hit\":%s,\"actor\":\"%s\"}\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? TEXT("true") : TEXT("false"), *Point.HitActorName.ToString());
+    }
+    return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("jsonl"), FileNamePrefix));
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudPcd(const FString& FileNamePrefix) const
+{
+    FString Text;
+    Text += TEXT("# .PCD v0.7 - Point Cloud Data file format\n");
+    Text += TEXT("VERSION 0.7\nFIELDS x y z distance hit\nSIZE 4 4 4 4 4\nTYPE F F F F I\nCOUNT 1 1 1 1 1\n");
+    Text += FString::Printf(TEXT("WIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), LastPoints.Num(), LastPoints.Num());
+    for (const FVirtualLidarPoint& Point : LastPoints)
+    {
+        Text += FString::Printf(TEXT("%f %f %f %f %d\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0);
+    }
+    return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("pcd"), FileNamePrefix));
 }
 
 void UVirtualLidarSensorComp::DispatchPayload(const FString& JsonPayload) const
