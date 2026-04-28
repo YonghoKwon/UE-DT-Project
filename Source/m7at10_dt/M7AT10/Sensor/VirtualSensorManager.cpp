@@ -113,6 +113,26 @@ void AVirtualSensorManager::SelectLidarByIndex(int32 Index)
     }
 }
 
+void AVirtualSensorManager::SelectNextCamera()
+{
+    if (Cameras.Num() <= 0)
+    {
+        return;
+    }
+    SelectedCameraIndex = (SelectedCameraIndex + 1) % Cameras.Num();
+    ApplyWidgetBinding();
+}
+
+void AVirtualSensorManager::SelectNextLidar()
+{
+    if (Lidars.Num() <= 0)
+    {
+        return;
+    }
+    SelectedLidarIndex = (SelectedLidarIndex + 1) % Lidars.Num();
+    ApplyWidgetBinding();
+}
+
 void AVirtualSensorManager::SetViewMode(EVirtualSensorViewMode NewMode)
 {
     CurrentViewMode = NewMode;
@@ -203,6 +223,48 @@ TArray<FVirtualSensorSummary> AVirtualSensorManager::GetLidarSummaries() const
         Result.Add(Summary);
     }
     return Result;
+}
+
+FVirtualSensorHealthSummary AVirtualSensorManager::GetHealthSummary() const
+{
+    FVirtualSensorHealthSummary Health;
+    Health.CameraCount = Cameras.Num();
+    Health.LidarCount = Lidars.Num();
+
+    const FDateTime NowUtc = FDateTime::UtcNow();
+    auto CountIfStale = [&NowUtc, this](const FVirtualSensorRuntimeStatus& Status) -> bool
+    {
+        if (Status.FrameId <= 0)
+        {
+            return true;
+        }
+        const FTimespan Age = NowUtc - Status.LastUpdateUtc;
+        return Age.GetTotalSeconds() > StaleSensorSeconds;
+    };
+
+    for (const UVirtualCameraComp* CameraComp : Cameras)
+    {
+        if (!CameraComp || CountIfStale(CameraComp->GetRuntimeStatus()))
+        {
+            ++Health.StaleSensorCount;
+        }
+    }
+
+    for (const UVirtualLidarSensorComp* LidarComp : Lidars)
+    {
+        if (!LidarComp || CountIfStale(LidarComp->GetRuntimeStatus()))
+        {
+            ++Health.StaleSensorCount;
+        }
+    }
+
+    Health.bHealthy = Health.StaleSensorCount == 0;
+    Health.Summary = FString::Printf(TEXT("Cameras=%d Lidars=%d Stale=%d Healthy=%s"),
+        Health.CameraCount,
+        Health.LidarCount,
+        Health.StaleSensorCount,
+        Health.bHealthy ? TEXT("true") : TEXT("false"));
+    return Health;
 }
 
 void AVirtualSensorManager::ApplyWidgetBinding()
