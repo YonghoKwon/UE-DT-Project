@@ -80,6 +80,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
         return Result;
     }
 
+    const int32 SubmittedDataLength = JsonText.Len();
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetURL(HttpEndpoint);
     Request->SetVerb(TEXT("POST"));
@@ -89,11 +90,11 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
     Request->SetTimeout(static_cast<float>(FMath::Max(1, HttpTimeoutSeconds)));
     Request->SetContentAsString(JsonText);
 
-    Request->OnProcessRequestComplete().BindLambda([this, SensorId, SensorType](FHttpRequestPtr RequestPtr, FHttpResponsePtr Response, bool bSucceeded)
+    Request->OnProcessRequestComplete().BindLambda([this, SensorId, SensorType, SubmittedDataLength](FHttpRequestPtr RequestPtr, FHttpResponsePtr Response, bool bSucceeded)
     {
         FVirtualSensorTransportResult CallbackResult;
         CallbackResult.bSubmitted = bSucceeded && Response.IsValid();
-        CallbackResult.DataLength = RequestPtr.IsValid() ? RequestPtr->GetContentLength() : 0;
+        CallbackResult.DataLength = SubmittedDataLength;
         CallbackResult.HttpStatusCode = Response.IsValid() ? Response->GetResponseCode() : 0;
         CallbackResult.Message = FString::Printf(TEXT("[%s:%s] HTTP completed success=%s code=%d"),
             *SensorType,
