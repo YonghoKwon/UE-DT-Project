@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "VirtualCameraComp.generated.h"
 
 class UTextureRenderTarget2D;
@@ -50,6 +51,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
     void CaptureAndSendImage();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
+    void ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfile);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
 
@@ -59,11 +63,20 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
+    const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualCamera")
     FOnVirtualCameraFrameCaptured OnFrameCaptured;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     FString SensorId = TEXT("VCAM-001");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
+    EVirtualCameraDeviceProfile DeviceProfile = EVirtualCameraDeviceProfile::IntelRealSenseD455;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
+    FVirtualSensorDeviceSpec DeviceSpec;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera", meta = (ClampMin = "0.033"))
     float CaptureInterval = 1.0f;
@@ -85,6 +98,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     bool bAutoStartCapture = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
+    bool bApplyDeviceProfileOnBeginPlay = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     bool bAutoRegisterToManager = true;
