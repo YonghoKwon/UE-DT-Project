@@ -1,33 +1,47 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "VirtualCameraAct.h"
 
+#include "DrawFrustumComponent.h"
 #include "VirtualCameraComp.h"
 
-
-// Sets default values
 AVirtualCameraAct::AVirtualCameraAct()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// 컴포넌트 생성
 	VirtualCameraComp = CreateDefaultSubobject<UVirtualCameraComp>(TEXT("VirtualCameraComp"));
-
-	// 이 컴포넌트를 액터의 최상위(Root) 컴포넌트로 설정하여 공간상에서 직접 트랜스폼(위치/회전)을 조작할 수 있게 함
 	RootComponent = VirtualCameraComp;
+
+	EditorFrustumComp = CreateDefaultSubobject<UDrawFrustumComponent>(TEXT("EditorFrustumComp"));
+	EditorFrustumComp->SetupAttachment(RootComponent);
+	EditorFrustumComp->FrustumAngle = 87.0f;
+	EditorFrustumComp->FrustumStartDist = 20.0f;
+	EditorFrustumComp->FrustumEndDist = 600.0f;
+	EditorFrustumComp->FrustumAspectRatio = 16.0f / 9.0f;
 }
 
-// Called when the game starts or when spawned
+void AVirtualCameraAct::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	if (EditorFrustumComp && VirtualCameraComp)
+	{
+		EditorFrustumComp->FrustumAngle = VirtualCameraComp->FOVAngle;
+		EditorFrustumComp->FrustumEndDist = VirtualCameraComp->GetDeviceSpec().TypicalRangeCm > 0.0f
+			? VirtualCameraComp->GetDeviceSpec().TypicalRangeCm
+			: 600.0f;
+		EditorFrustumComp->FrustumAspectRatio = VirtualCameraComp->CaptureResolution.Y > 0
+			? static_cast<float>(VirtualCameraComp->CaptureResolution.X) / static_cast<float>(VirtualCameraComp->CaptureResolution.Y)
+			: 16.0f / 9.0f;
+	}
+}
+
 void AVirtualCameraAct::BeginPlay()
 {
 	Super::BeginPlay();
-
 }
 
-// Called every frame
 void AVirtualCameraAct::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }
-
