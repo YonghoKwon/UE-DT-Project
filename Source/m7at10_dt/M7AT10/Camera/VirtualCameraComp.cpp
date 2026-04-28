@@ -27,6 +27,12 @@ UVirtualCameraComp::UVirtualCameraComp()
 void UVirtualCameraComp::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (bApplyDeviceProfileOnBeginPlay)
+    {
+        ApplyDeviceProfile(DeviceProfile);
+    }
+
     EnsureRenderTarget();
     TryAutoRegisterToManager();
 
@@ -66,6 +72,34 @@ void UVirtualCameraComp::StopCapture()
 void UVirtualCameraComp::SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent)
 {
     TransportComponent = InTransportComponent;
+}
+
+void UVirtualCameraComp::ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfile)
+{
+    DeviceProfile = NewProfile;
+
+    if (DeviceProfile == EVirtualCameraDeviceProfile::IntelRealSenseD455)
+    {
+        DeviceSpec.Manufacturer = TEXT("Intel");
+        DeviceSpec.Model = TEXT("RealSense D455");
+        DeviceSpec.HorizontalFovDegrees = 87.0f;
+        DeviceSpec.VerticalFovDegrees = 58.0f;
+        DeviceSpec.MinRangeCm = 60.0f;
+        DeviceSpec.TypicalRangeCm = 600.0f;
+        DeviceSpec.MaxRangeCm = 600.0f;
+        DeviceSpec.FrameRateHz = 30.0f;
+        DeviceSpec.Width = 1280;
+        DeviceSpec.Height = 720;
+        DeviceSpec.Notes = TEXT("Depth profile reference for Intel RealSense D455. RGB sensor may use a wider FOV.");
+        CaptureResolution = FIntPoint(DeviceSpec.Width, DeviceSpec.Height);
+        CaptureInterval = 1.0f / FMath::Max(1.0f, DeviceSpec.FrameRateHz);
+        FOVAngle = DeviceSpec.HorizontalFovDegrees;
+    }
+    else
+    {
+        DeviceSpec.Manufacturer = TEXT("Generic");
+        DeviceSpec.Model = TEXT("Generic Camera");
+    }
 }
 
 void UVirtualCameraComp::EnsureRenderTarget()
@@ -153,20 +187,49 @@ FString UVirtualCameraComp::BuildJsonPayload(const FString& Base64Image, int64 B
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
     Root->SetStringField(TEXT("sensorType"), TEXT("virtual_camera"));
     Root->SetStringField(TEXT("sensorId"), SensorId);
+    Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer);
+    Root->SetStringField(TEXT("model"), DeviceSpec.Model);
     Root->SetNumberField(TEXT("frameId"), static_cast<double>(FrameId));
     Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
     Root->SetNumberField(TEXT("width"), CaptureResolution.X);
     Root->SetNumberField(TEXT("height"), CaptureResolution.Y);
     Root->SetNumberField(TEXT("byteSize"), static_cast<double>(ByteSize));
+    Root->SetNumberField(TEXT("horizontalFov"), DeviceSpec.HorizontalFovDegrees);
+    Root->SetNumberField(TEXT("verticalFov"), DeviceSpec.VerticalFovDegrees);
     Root->SetStringField(TEXT("encoding"), TEXT("jpeg/base64"));
 
-    TArray<TSharedPtr<FJsonValue>> Location;
+    TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
     const FVector ComponentLocation = GetComponentLocation();
+    const FRotator ComponentRotation = GetComponentRotation();
+    const FVector Forward = GetForwardVector();
+    const FVector Up = GetUpVector();
+
+    TArray<TSharedPtr<FJsonValue>> Location;
     Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.X));
     Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Y));
     Location.Add(MakeShared<FJsonValueNumber>(ComponentLocation.Z));
-    Root->SetArrayField(TEXT("sensorWorldLocation"), Location);
+    TransformObject->SetArrayField(TEXT("location"), Location);
 
+    TArray<TSharedPtr<FJsonValue>> Rotation;
+    Rotation.Add(MakeShared<FJsonValueNumber>(ComponentRotation.Pitch));
+    Rotation.Add(MakeShared<FJsonValueNumber>(ComponentRotation.Yaw));
+    Rotation.Add(MakeShared<FJsonValueNumber>(ComponentRotation.Roll));
+    TransformObject->SetArrayField(TEXT("rotation"), Rotation);
+
+    TArray<TSharedPtr<FJsonValue>> ForwardJson;
+    ForwardJson.Add(MakeShared<FJsonValueNumber>(Forward.X));
+    ForwardJson.Add(MakeShared<FJsonValueNumber>(Forward.Y));
+    ForwardJson.Add(MakeShared<FJsonValueNumber>(Forward.Z));
+    TransformObject->SetArrayField(TEXT("forward"), ForwardJson);
+
+    TArray<TSharedPtr<FJsonValue>> UpJson;
+    UpJson.Add(MakeShared<FJsonValueNumber>(Up.X));
+    UpJson.Add(MakeShared<FJsonValueNumber>(Up.Y));
+    UpJson.Add(MakeShared<FJsonValueNumber>(Up.Z));
+    TransformObject->SetArrayField(TEXT("up"), UpJson);
+
+    Root->SetObjectField(TEXT("sensorTransform"), TransformObject);
+    Root->SetArrayField(TEXT("sensorWorldLocation"), Location);
     Root->SetStringField(TEXT("image"), Base64Image);
 
     FString Output;
