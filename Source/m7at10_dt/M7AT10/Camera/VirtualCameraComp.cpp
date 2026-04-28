@@ -15,6 +15,7 @@
 #include "TextureResource.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 
 UVirtualCameraComp::UVirtualCameraComp()
 {
@@ -74,6 +75,11 @@ void UVirtualCameraComp::SetTransportComponent(UVirtualSensorDataTransportComp* 
     TransportComponent = InTransportComponent;
 }
 
+void UVirtualCameraComp::SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent)
+{
+    RecorderComponent = InRecorderComponent;
+}
+
 void UVirtualCameraComp::ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfile)
 {
     DeviceProfile = NewProfile;
@@ -90,15 +96,45 @@ void UVirtualCameraComp::ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfi
         DeviceSpec.FrameRateHz = 30.0f;
         DeviceSpec.Width = 1280;
         DeviceSpec.Height = 720;
-        DeviceSpec.Notes = TEXT("Depth profile reference for Intel RealSense D455. RGB sensor may use a wider FOV.");
-        CaptureResolution = FIntPoint(DeviceSpec.Width, DeviceSpec.Height);
-        CaptureInterval = 1.0f / FMath::Max(1.0f, DeviceSpec.FrameRateHz);
+        DeviceSpec.Notes = TEXT("Intel RealSense D455 metadata profile. Simulation quality controls runtime capture cost separately.");
         FOVAngle = DeviceSpec.HorizontalFovDegrees;
+        ApplySimulationQuality(SimulationQuality);
     }
     else
     {
         DeviceSpec.Manufacturer = TEXT("Generic");
         DeviceSpec.Model = TEXT("Generic Camera");
+        ApplySimulationQuality(SimulationQuality);
+    }
+}
+
+void UVirtualCameraComp::ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality)
+{
+    SimulationQuality = NewQuality;
+
+    if (SimulationQuality == EVirtualSensorSimulationQuality::Debug)
+    {
+        CaptureResolution = FIntPoint(320, 180);
+        CaptureInterval = 0.25f;
+        JpegQuality = 60;
+    }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::RealTimePreview)
+    {
+        CaptureResolution = FIntPoint(640, 360);
+        CaptureInterval = 0.1f;
+        JpegQuality = 70;
+    }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::Balanced)
+    {
+        CaptureResolution = FIntPoint(960, 540);
+        CaptureInterval = 1.0f / 15.0f;
+        JpegQuality = 75;
+    }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec)
+    {
+        CaptureResolution = FIntPoint(DeviceSpec.Width > 0 ? DeviceSpec.Width : 1280, DeviceSpec.Height > 0 ? DeviceSpec.Height : 720);
+        CaptureInterval = 1.0f / FMath::Max(1.0f, DeviceSpec.FrameRateHz);
+        JpegQuality = 80;
     }
 }
 
@@ -152,6 +188,11 @@ void UVirtualCameraComp::CaptureAndSendImage()
         }
     }
 
+    if (RecorderComponent)
+    {
+        RecorderComponent->RecordJsonFrame(SensorId, TEXT("virtual_camera"), FrameId, JsonPayload);
+    }
+
     UpdateRuntimeStatus(JsonPayload.Len(), StatusMessage);
     OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
 }
@@ -201,6 +242,7 @@ FString UVirtualCameraComp::BuildJsonPayload(const FString& Base64Image, int64 B
     Root->SetNumberField(TEXT("byteSize"), static_cast<double>(ByteSize));
     Root->SetNumberField(TEXT("horizontalFov"), DeviceSpec.HorizontalFovDegrees);
     Root->SetNumberField(TEXT("verticalFov"), DeviceSpec.VerticalFovDegrees);
+    Root->SetNumberField(TEXT("simulationQuality"), static_cast<int32>(SimulationQuality));
     Root->SetStringField(TEXT("encoding"), TEXT("jpeg/base64"));
 
     TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
@@ -250,7 +292,7 @@ void UVirtualCameraComp::UpdateRuntimeStatus(int32 PayloadLength, const FString&
     RuntimeStatus.FrameId = FrameId;
     RuntimeStatus.LastUpdateUtc = FDateTime::UtcNow();
     RuntimeStatus.LastPayloadLength = PayloadLength;
-    RuntimeStatus.LastMessage = Message;
+    RuntimeStatus.LastMessage = FString::Printf(TEXT("%s Quality=%d Res=%dx%d"), *Message, static_cast<int32>(SimulationQuality), CaptureResolution.X, CaptureResolution.Y);
 }
 
 void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const
