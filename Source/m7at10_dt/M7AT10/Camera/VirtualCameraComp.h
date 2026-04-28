@@ -9,6 +9,7 @@
 
 class UTextureRenderTarget2D;
 class UVirtualSensorDataTransportComp;
+class UVirtualSensorRecorderComp;
 
 UENUM(BlueprintType)
 enum class EVirtualCameraOutputMode : uint8
@@ -54,8 +55,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     void ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfile);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|Performance")
+    void ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|Recorder")
+    void SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
     UTextureRenderTarget2D* GetCameraRenderTarget() const { return CameraRenderTarget; }
@@ -65,6 +72,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|Performance")
+    EVirtualSensorSimulationQuality GetSimulationQuality() const { return SimulationQuality; }
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualCamera")
     FOnVirtualCameraFrameCaptured OnFrameCaptured;
@@ -78,14 +88,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     FVirtualSensorDeviceSpec DeviceSpec;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|Performance")
+    EVirtualSensorSimulationQuality SimulationQuality = EVirtualSensorSimulationQuality::RealTimePreview;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera", meta = (ClampMin = "0.033"))
-    float CaptureInterval = 1.0f;
+    float CaptureInterval = 0.1f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
-    FIntPoint CaptureResolution = FIntPoint(1280, 720);
+    FIntPoint CaptureResolution = FIntPoint(640, 360);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
-    int32 JpegQuality = 80;
+    int32 JpegQuality = 70;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     EVirtualCameraCaptureMode CaptureMode = EVirtualCameraCaptureMode::PayloadAndOutput;
@@ -110,6 +123,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|Transport")
     TObjectPtr<UVirtualSensorDataTransportComp> TransportComponent;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|Recorder")
+    TObjectPtr<UVirtualSensorRecorderComp> RecorderComponent;
 
 private:
     void EnsureRenderTarget();
