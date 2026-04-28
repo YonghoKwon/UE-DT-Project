@@ -6,6 +6,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 void UVirtualSensorMonitorWidget::NativeConstruct()
 {
@@ -15,6 +16,18 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
     {
         ToggleButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleToggleButtonClicked);
         ToggleButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleToggleButtonClicked);
+    }
+
+    if (NextCameraButton)
+    {
+        NextCameraButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleNextCameraButtonClicked);
+        NextCameraButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleNextCameraButtonClicked);
+    }
+
+    if (NextLidarButton)
+    {
+        NextLidarButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked);
+        NextLidarButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked);
     }
 
     RefreshTitle();
@@ -40,6 +53,16 @@ void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLi
 {
     LidarComp = InLidarComp;
     RefreshImageBrush();
+    RefreshStatusText();
+}
+
+void UVirtualSensorMonitorWidget::BindSensorManager(AVirtualSensorManager* InSensorManager)
+{
+    SensorManager = InSensorManager;
+    if (SensorManager)
+    {
+        SensorManager->BindMonitorWidget(this);
+    }
     RefreshStatusText();
 }
 
@@ -69,7 +92,30 @@ void UVirtualSensorMonitorWidget::ToggleView()
 
 void UVirtualSensorMonitorWidget::HandleToggleButtonClicked()
 {
+    if (SensorManager)
+    {
+        SensorManager->ToggleSensorView();
+        return;
+    }
     ToggleView();
+}
+
+void UVirtualSensorMonitorWidget::HandleNextCameraButtonClicked()
+{
+    if (SensorManager)
+    {
+        SensorManager->SelectNextCamera();
+        SensorManager->SetViewMode(EVirtualSensorViewMode::Camera);
+    }
+}
+
+void UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked()
+{
+    if (SensorManager)
+    {
+        SensorManager->SelectNextLidar();
+        SensorManager->SetViewMode(EVirtualSensorViewMode::Lidar);
+    }
 }
 
 void UVirtualSensorMonitorWidget::RefreshImageBrush()
@@ -119,18 +165,23 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d"),
+        Text = FString::Printf(TEXT("Sensor: %s\nDevice: %s %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d\nMessage: %s"),
             *Status.SensorId,
+            *LidarComp->GetDeviceSpec().Manufacturer,
+            *LidarComp->GetDeviceSpec().Model,
             Status.FrameId,
             Status.TotalPointCount,
             Status.HitPointCount,
-            Status.LastPayloadLength);
+            Status.LastPayloadLength,
+            *Status.LastMessage);
     }
     else if (!bShowingLidar && CameraComp)
     {
         const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPayload: %d\nMessage: %s\nRenderTarget: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nDevice: %s %s\nFrame: %lld\nPayload: %d\nMessage: %s\nRenderTarget: %s"),
             *Status.SensorId,
+            *CameraComp->GetDeviceSpec().Manufacturer,
+            *CameraComp->GetDeviceSpec().Model,
             Status.FrameId,
             Status.LastPayloadLength,
             *Status.LastMessage,
@@ -139,6 +190,12 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     else
     {
         Text = bShowingLidar ? TEXT("LIDAR sensor is not bound") : TEXT("Camera sensor is not bound");
+    }
+
+    if (SensorManager)
+    {
+        const FVirtualSensorHealthSummary Health = SensorManager->GetHealthSummary();
+        Text += FString::Printf(TEXT("\n\nHealth: %s"), *Health.Summary);
     }
 
     StatusText->SetText(FText::FromString(Text));
