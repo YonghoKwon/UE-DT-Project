@@ -9,6 +9,7 @@ class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 class UVirtualSensorMonitorWidget;
 class UVirtualSensorDataTransportComp;
+class UVirtualSensorRecorderComp;
 
 UENUM(BlueprintType)
 enum class EVirtualSensorViewMode : uint8
@@ -150,10 +151,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
     TObjectPtr<UVirtualSensorDataTransportComp> SharedTransportComponent;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
+    TObjectPtr<UVirtualSensorRecorderComp> SharedRecorderComponent;
+
 private:
     void ApplyWidgetBinding();
     void RunSynchronizedCapture();
-    void AssignSharedTransportIfPossible(UActorComponent* SensorComp);
+    void AssignSharedServicesIfPossible(UActorComponent* SensorComp);
 
 private:
     UPROPERTY(Transient)
