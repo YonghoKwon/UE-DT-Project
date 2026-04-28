@@ -5,12 +5,14 @@
 #include "GameFramework/Actor.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 #include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
 
 AVirtualSensorManager::AVirtualSensorManager()
 {
     PrimaryActorTick.bCanEverTick = false;
     SharedTransportComponent = CreateDefaultSubobject<UVirtualSensorDataTransportComp>(TEXT("SharedSensorTransport"));
+    SharedRecorderComponent = CreateDefaultSubobject<UVirtualSensorRecorderComp>(TEXT("SharedSensorRecorder"));
 }
 
 void AVirtualSensorManager::BeginPlay()
@@ -74,7 +76,7 @@ void AVirtualSensorManager::RegisterCamera(UVirtualCameraComp* CameraComp)
     if (CameraComp && !Cameras.Contains(CameraComp))
     {
         Cameras.Add(CameraComp);
-        AssignSharedTransportIfPossible(CameraComp);
+        AssignSharedServicesIfPossible(CameraComp);
         ApplyWidgetBinding();
     }
 }
@@ -84,7 +86,7 @@ void AVirtualSensorManager::RegisterLidar(UVirtualLidarSensorComp* LidarComp)
     if (LidarComp && !Lidars.Contains(LidarComp))
     {
         Lidars.Add(LidarComp);
-        AssignSharedTransportIfPossible(LidarComp);
+        AssignSharedServicesIfPossible(LidarComp);
         ApplyWidgetBinding();
     }
 }
@@ -280,19 +282,33 @@ void AVirtualSensorManager::RunSynchronizedCapture()
     CaptureAllOnce();
 }
 
-void AVirtualSensorManager::AssignSharedTransportIfPossible(UActorComponent* SensorComp)
+void AVirtualSensorManager::AssignSharedServicesIfPossible(UActorComponent* SensorComp)
 {
-    if (!SensorComp || !SharedTransportComponent)
+    if (!SensorComp)
     {
         return;
     }
 
     if (UVirtualCameraComp* CameraComp = Cast<UVirtualCameraComp>(SensorComp))
     {
-        CameraComp->SetTransportComponent(SharedTransportComponent);
+        if (SharedTransportComponent)
+        {
+            CameraComp->SetTransportComponent(SharedTransportComponent);
+        }
+        if (SharedRecorderComponent)
+        {
+            CameraComp->SetRecorderComponent(SharedRecorderComponent);
+        }
     }
     else if (UVirtualLidarSensorComp* LidarComp = Cast<UVirtualLidarSensorComp>(SensorComp))
     {
-        LidarComp->SetTransportComponent(SharedTransportComponent);
+        if (SharedTransportComponent)
+        {
+            LidarComp->SetTransportComponent(SharedTransportComponent);
+        }
+        if (SharedRecorderComponent)
+        {
+            LidarComp->SetRecorderComponent(SharedRecorderComponent);
+        }
     }
 }
