@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "VirtualLidarSensorTypes.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "VirtualLidarSensorComp.generated.h"
 
 class UTexture2D;
@@ -35,8 +36,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ApplyPreset(EVirtualLidarPreset NewPreset);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
+    void ApplyDeviceProfile(EVirtualLidarDeviceProfile NewProfile);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
+    bool ExportLastPointCloudCsv(const FString& FileNamePrefix = TEXT("")) const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
+    bool ExportLastPointCloudJsonLines(const FString& FileNamePrefix = TEXT("")) const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
+    bool ExportLastPointCloudPcd(const FString& FileNamePrefix = TEXT("")) const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const TArray<FVirtualLidarPoint>& GetLastPoints() const { return LastPoints; }
@@ -47,11 +60,20 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
+    const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     FString SensorId = TEXT("LIDAR-001");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
+    EVirtualLidarDeviceProfile DeviceProfile = EVirtualLidarDeviceProfile::LivoxMid360S;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
+    FVirtualSensorDeviceSpec DeviceSpec;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     EVirtualLidarPreset Preset = EVirtualLidarPreset::Custom;
@@ -65,10 +87,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1.0"))
     float MaxDistance = 5000.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "720"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "1440"))
     int32 HorizontalSamples = 180;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "128"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "256"))
     int32 VerticalChannels = 16;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1.0", ClampMax = "360.0"))
@@ -93,10 +115,34 @@ public:
     bool bAutoStartScan = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
+    bool bApplyDeviceProfileOnBeginPlay = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     bool bAutoRegisterToManager = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     bool bDrawDebugRays = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|View")
+    bool bFlipLidarViewHorizontal = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|View")
+    bool bFlipLidarViewVertical = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|MultiHit")
+    bool bUseMultiHit = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|MultiHit", meta = (ClampMin = "1", ClampMax = "16"))
+    int32 MaxHitsPerRay = 3;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export")
+    bool bExportCsvOnScan = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export")
+    bool bExportJsonLinesOnScan = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export")
+    bool bExportPcdOnScan = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Filter")
     TArray<FName> IgnoreActorTags;
@@ -114,6 +160,8 @@ private:
     void WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const;
     bool ShouldIgnoreHitActor(const AActor* Actor) const;
     void TryAutoRegisterToManager();
+    int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
+    FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
 
 private:
     FTimerHandle ScanTimerHandle;
