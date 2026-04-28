@@ -8,6 +8,7 @@
 
 class UTexture2D;
 class UVirtualSensorDataTransportComp;
+class UVirtualSensorRecorderComp;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualLidarScanCompleted, const FString&, JsonPayload, UTexture2D*, LidarViewTexture);
 
@@ -45,6 +46,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Recorder")
+    void SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
     bool ExportLastPointCloudCsv(const FString& FileNamePrefix = TEXT("")) const;
 
@@ -65,6 +69,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
+    EVirtualSensorSimulationQuality GetSimulationQuality() const { return SimulationQuality; }
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
@@ -164,6 +171,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport")
     TObjectPtr<UVirtualSensorDataTransportComp> TransportComponent;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Recorder")
+    TObjectPtr<UVirtualSensorRecorderComp> RecorderComponent;
 
 private:
     void ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels);
