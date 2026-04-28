@@ -4,6 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "VirtualSensorMonitorWidget.generated.h"
 
+class AVirtualSensorManager;
 class UButton;
 class UImage;
 class UTextBlock;
@@ -23,6 +24,9 @@ public:
     void BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
+    void BindSensorManager(AVirtualSensorManager* InSensorManager);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void ShowCameraView();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
@@ -39,6 +43,12 @@ private:
     UFUNCTION()
     void HandleToggleButtonClicked();
 
+    UFUNCTION()
+    void HandleNextCameraButtonClicked();
+
+    UFUNCTION()
+    void HandleNextLidarButtonClicked();
+
     void RefreshImageBrush();
     void RefreshTitle();
     void RefreshStatusText();
@@ -50,11 +60,20 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UVirtualLidarSensorComp> LidarComp;
 
+    UPROPERTY(Transient)
+    TObjectPtr<AVirtualSensorManager> SensorManager;
+
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UImage> ViewImage;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> ToggleButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> NextCameraButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> NextLidarButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
