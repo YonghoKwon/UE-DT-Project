@@ -28,6 +28,9 @@ struct M7AT10_DT_API FVirtualSensorTransportResult
     int32 DataLength = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    int32 HttpStatusCode = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FString SavedFilePath;
 };
 
@@ -44,6 +47,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
     FVirtualSensorTransportResult SendJson(const FString& SensorId, const FString& SensorType, const FString& JsonText);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
+    FVirtualSensorTransportResult SendBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes);
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorTransport")
     FOnVirtualSensorDataSent OnDataSent;
 
@@ -56,7 +62,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
     FString SaveSubDirectory = TEXT("SensorCaptures");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
+    int32 HttpTimeoutSeconds = 30;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
+    bool bLogHttpResponse = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    FVirtualSensorTransportResult LastResult;
+
 private:
-    FVirtualSensorTransportResult SendHttp(const FString& SensorId, const FString& SensorType, const FString& JsonText) const;
+    FVirtualSensorTransportResult SendHttp(const FString& SensorId, const FString& SensorType, const FString& JsonText);
     FVirtualSensorTransportResult SaveJson(const FString& SensorId, const FString& SensorType, const FString& JsonText) const;
+    FVirtualSensorTransportResult SaveBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes) const;
+    FString BuildSavePath(const FString& SensorId, const FString& SensorType, const FString& Extension) const;
 };
