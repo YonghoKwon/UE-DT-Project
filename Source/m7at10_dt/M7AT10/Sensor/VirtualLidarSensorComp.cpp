@@ -10,6 +10,7 @@
 #include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 
 UVirtualLidarSensorComp::UVirtualLidarSensorComp()
 {
@@ -66,6 +67,11 @@ void UVirtualLidarSensorComp::StopScan()
 void UVirtualLidarSensorComp::SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent)
 {
     TransportComponent = InTransportComponent;
+}
+
+void UVirtualLidarSensorComp::SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent)
+{
+    RecorderComponent = InRecorderComponent;
 }
 
 void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
@@ -197,6 +203,11 @@ void UVirtualLidarSensorComp::ScanAndSend()
         static_cast<int32>(SimulationQuality),
         HorizontalSamples * VerticalChannels,
         PayloadPointStride);
+
+    if (RecorderComponent)
+    {
+        RecorderComponent->RecordJsonFrame(SensorId, TEXT("virtual_lidar"), FrameId, JsonPayload);
+    }
 
     if (bExportCsvOnScan)
     {
