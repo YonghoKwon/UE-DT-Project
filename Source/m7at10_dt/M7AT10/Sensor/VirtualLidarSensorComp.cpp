@@ -77,18 +77,24 @@ void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
         HorizontalSamples = 90;
         VerticalChannels = 8;
         ScanInterval = 1.0f;
+        PayloadPointStride = 2;
+        MaxPayloadPoints = 2000;
     }
     else if (Preset == EVirtualLidarPreset::MediumPreview)
     {
         HorizontalSamples = 180;
         VerticalChannels = 16;
         ScanInterval = 0.5f;
+        PayloadPointStride = 3;
+        MaxPayloadPoints = 5000;
     }
     else if (Preset == EVirtualLidarPreset::HighQuality)
     {
         HorizontalSamples = 360;
         VerticalChannels = 32;
         ScanInterval = 0.25f;
+        PayloadPointStride = 4;
+        MaxPayloadPoints = 12000;
     }
 }
 
@@ -107,21 +113,58 @@ void UVirtualLidarSensorComp::ApplyDeviceProfile(EVirtualLidarDeviceProfile NewP
         DeviceSpec.MaxRangeCm = 10000.0f;
         DeviceSpec.FrameRateHz = 10.0f;
         DeviceSpec.PointRate = 200000;
-        DeviceSpec.Notes = TEXT("Livox Mid-360S style profile: 360 horizontal FOV, -7 to 52 vertical range, 10Hz typical scan frame.");
+        DeviceSpec.Notes = TEXT("Livox Mid-360S metadata profile. Simulation quality controls runtime ray count separately.");
 
         HorizontalFov = DeviceSpec.HorizontalFovDegrees;
         MinVerticalAngle = -7.0f;
         MaxVerticalAngle = 52.0f;
         MaxDistance = DeviceSpec.TypicalRangeCm;
-        HorizontalSamples = 360;
-        VerticalChannels = 60;
-        ScanInterval = 1.0f / FMath::Max(1.0f, DeviceSpec.FrameRateHz);
         Preset = EVirtualLidarPreset::Custom;
+        ApplySimulationQuality(SimulationQuality);
     }
     else
     {
         DeviceSpec.Manufacturer = TEXT("Generic");
         DeviceSpec.Model = TEXT("Generic LiDAR");
+        ApplySimulationQuality(SimulationQuality);
+    }
+}
+
+void UVirtualLidarSensorComp::ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality)
+{
+    SimulationQuality = NewQuality;
+
+    if (SimulationQuality == EVirtualSensorSimulationQuality::Debug)
+    {
+        HorizontalSamples = 60;
+        VerticalChannels = 8;
+        ScanInterval = 0.5f;
+        PayloadPointStride = 1;
+        MaxPayloadPoints = 1000;
+    }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::RealTimePreview)
+    {
+        HorizontalSamples = 120;
+        VerticalChannels = 24;
+        ScanInterval = 0.25f;
+        PayloadPointStride = 4;
+        MaxPayloadPoints = 3000;
+    }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::Balanced)
+    {
+        HorizontalSamples = 240;
+        VerticalChannels = 32;
+        ScanInterval = 0.2f;
+        PayloadPointStride = 4;
+        MaxPayloadPoints = 6000;
+    }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec)
+    {
+        HorizontalSamples = 360;
+        VerticalChannels = 60;
+        ScanInterval = 0.1f;
+        PayloadPointStride = 8;
+        MaxPayloadPoints = 10000;
     }
 }
 
@@ -150,6 +193,10 @@ void UVirtualLidarSensorComp::ScanAndSend()
             ++RuntimeStatus.HitPointCount;
         }
     }
+    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d PayloadStride=%d"),
+        static_cast<int32>(SimulationQuality),
+        HorizontalSamples * VerticalChannels,
+        PayloadPointStride);
 
     if (bExportCsvOnScan)
     {
@@ -283,12 +330,17 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
     Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples);
     Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels);
+    Root->SetNumberField(TEXT("rayCount"), HorizontalSamples * VerticalChannels);
     Root->SetNumberField(TEXT("maxDistance"), MaxDistance);
     Root->SetNumberField(TEXT("horizontalFov"), HorizontalFov);
     Root->SetNumberField(TEXT("minVerticalAngle"), MinVerticalAngle);
     Root->SetNumberField(TEXT("maxVerticalAngle"), MaxVerticalAngle);
     Root->SetBoolField(TEXT("multiHit"), bUseMultiHit);
     Root->SetNumberField(TEXT("maxHitsPerRay"), MaxHitsPerRay);
+    Root->SetNumberField(TEXT("simulationQuality"), static_cast<int32>(SimulationQuality));
+    Root->SetNumberField(TEXT("payloadPointStride"), PayloadPointStride);
+    Root->SetNumberField(TEXT("maxPayloadPoints"), MaxPayloadPoints);
+    Root->SetBoolField(TEXT("includeMissPointsInPayload"), bIncludeMissPointsInPayload);
 
     TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
     const FVector ComponentLocation = GetComponentLocation();
@@ -324,10 +376,23 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     Root->SetArrayField(TEXT("sensorWorldLocation"), Location);
 
     TArray<TSharedPtr<FJsonValue>> JsonPoints;
-    JsonPoints.Reserve(Points.Num());
+    const int32 SafeStride = FMath::Max(1, PayloadPointStride);
+    const int32 SafeMaxPayloadPoints = FMath::Max(0, MaxPayloadPoints);
+    int32 AddedPayloadPoints = 0;
 
-    for (const FVirtualLidarPoint& Point : Points)
+    for (int32 PointIndex = 0; PointIndex < Points.Num(); PointIndex += SafeStride)
     {
+        if (SafeMaxPayloadPoints > 0 && AddedPayloadPoints >= SafeMaxPayloadPoints)
+        {
+            break;
+        }
+
+        const FVirtualLidarPoint& Point = Points[PointIndex];
+        if (!bIncludeMissPointsInPayload && !Point.bHit)
+        {
+            continue;
+        }
+
         TSharedRef<FJsonObject> PointObject = MakeShared<FJsonObject>();
         PointObject->SetBoolField(TEXT("hit"), Point.bHit);
         PointObject->SetNumberField(TEXT("distance"), Point.Distance);
@@ -340,8 +405,10 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
         PointObject->SetArrayField(TEXT("worldLocation"), WorldLocation);
 
         JsonPoints.Add(MakeShared<FJsonValueObject>(PointObject));
+        ++AddedPayloadPoints;
     }
 
+    Root->SetNumberField(TEXT("payloadPointCount"), AddedPayloadPoints);
     Root->SetArrayField(TEXT("points"), JsonPoints);
 
     FString Output;
