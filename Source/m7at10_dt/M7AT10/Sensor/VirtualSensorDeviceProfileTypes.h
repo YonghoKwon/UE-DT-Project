@@ -17,6 +17,16 @@ enum class EVirtualLidarDeviceProfile : uint8
     LivoxMid360S UMETA(DisplayName = "Livox Mid-360S")
 };
 
+UENUM(BlueprintType)
+enum class EVirtualSensorSimulationQuality : uint8
+{
+    Debug UMETA(DisplayName = "Debug"),
+    RealTimePreview UMETA(DisplayName = "Real-Time Preview"),
+    Balanced UMETA(DisplayName = "Balanced"),
+    FullSpec UMETA(DisplayName = "Full Spec"),
+    Custom UMETA(DisplayName = "Custom")
+};
+
 USTRUCT(BlueprintType)
 struct M7AT10_DT_API FVirtualSensorDeviceSpec
 {
