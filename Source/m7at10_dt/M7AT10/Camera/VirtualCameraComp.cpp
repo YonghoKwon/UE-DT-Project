@@ -142,12 +142,17 @@ void UVirtualCameraComp::CaptureAndSendImage()
     const FString Base64Image = FBase64::Encode(JpegBytes.GetData(), static_cast<uint32>(JpegBytes.Num()));
     const FString JsonPayload = BuildJsonPayload(Base64Image, JpegBytes.Num());
 
+    FString StatusMessage = TEXT("Captured");
     if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput)
     {
         DispatchPayload(JsonPayload, JpegBytes);
+        if (TransportComponent)
+        {
+            StatusMessage = TransportComponent->LastResult.Message;
+        }
     }
 
-    UpdateRuntimeStatus(JsonPayload.Len(), TEXT("Captured"));
+    UpdateRuntimeStatus(JsonPayload.Len(), StatusMessage);
     OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
 }
 
@@ -253,6 +258,9 @@ void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArra
     if (TransportComponent)
     {
         TransportComponent->SendJson(SensorId, TEXT("virtual_camera"), JsonPayload);
+        TArray<uint8> Bytes32;
+        Bytes32.Append(JpegBytes.GetData(), static_cast<int32>(JpegBytes.Num()));
+        TransportComponent->SendBinary(SensorId, TEXT("virtual_camera_frame"), TEXT("jpg"), Bytes32);
         return;
     }
 
