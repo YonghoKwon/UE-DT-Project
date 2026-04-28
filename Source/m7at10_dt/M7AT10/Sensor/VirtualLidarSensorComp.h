@@ -39,6 +39,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
     void ApplyDeviceProfile(EVirtualLidarDeviceProfile NewProfile);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Performance")
+    void ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
 
@@ -75,6 +78,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
     FVirtualSensorDeviceSpec DeviceSpec;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance")
+    EVirtualSensorSimulationQuality SimulationQuality = EVirtualSensorSimulationQuality::RealTimePreview;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance", meta = (ClampMin = "1", ClampMax = "100"))
+    int32 PayloadPointStride = 4;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance", meta = (ClampMin = "0", ClampMax = "1000000"))
+    int32 MaxPayloadPoints = 5000;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance")
+    bool bIncludeMissPointsInPayload = false;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     EVirtualLidarPreset Preset = EVirtualLidarPreset::Custom;
 
@@ -82,25 +97,25 @@ public:
     EVirtualLidarViewMode ViewMode = EVirtualLidarViewMode::IntensityGray;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "0.033"))
-    float ScanInterval = 0.5f;
+    float ScanInterval = 0.25f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1.0"))
-    float MaxDistance = 5000.0f;
+    float MaxDistance = 4000.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "1440"))
-    int32 HorizontalSamples = 180;
+    int32 HorizontalSamples = 120;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "256"))
-    int32 VerticalChannels = 16;
+    int32 VerticalChannels = 24;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1.0", ClampMax = "360.0"))
-    float HorizontalFov = 120.0f;
+    float HorizontalFov = 360.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "-89.0", ClampMax = "89.0"))
-    float MinVerticalAngle = -15.0f;
+    float MinVerticalAngle = -7.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "-89.0", ClampMax = "89.0"))
-    float MaxVerticalAngle = 15.0f;
+    float MaxVerticalAngle = 52.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     TEnumAsByte<ECollisionChannel> TraceChannel = ECC_Visibility;
