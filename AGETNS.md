@@ -1,67 +1,67 @@
-# AGETNS.md - Real Sensor Performance Optimization Branch Notes
+# AGETNS.md - 실제 센서 성능 최적화 브랜치 분석 문서
 
-> Branch: `feature/real-sensor-performance-optimizations`  
-> Base branch: `feature/real-sensor-device-profiles`  
-> Project: UE-DT-Project / Unreal Engine Digital Twin virtual sensor platform
+> 브랜치: `feature/real-sensor-performance-optimizations`  
+> 기준 브랜치: `feature/real-sensor-device-profiles`  
+> 프로젝트: UE-DT-Project / Unreal Engine 디지털 트윈 가상 센서 플랫폼
 
-This document summarizes the current implementation state of the branch and gives future contributors or automation agents practical guidance for modifying the virtual camera / LiDAR sensor system safely.
+이 문서는 현재 브랜치의 구현 상태를 정리하고, 이후 개발자 또는 자동화 에이전트가 가상 카메라 / 가상 LiDAR 센서 시스템을 안전하게 수정할 수 있도록 기준을 제공한다.
 
-## 1. Branch purpose
+## 1. 브랜치 목적
 
-This branch continues the real sensor profile work and focuses on solving a major runtime performance issue: applying real hardware specifications directly to Unreal simulation caused the editor/runtime to become too slow.
+이 브랜치는 실제 센서 프로파일 작업을 이어받아, 실제 하드웨어 스펙을 Unreal 시뮬레이션 값에 그대로 적용했을 때 에디터/런타임이 지나치게 느려지는 문제를 해결하기 위해 만들어졌다.
 
-The key design decision is:
+핵심 설계 원칙은 다음과 같다.
 
 ```text
-DeviceProfile = real hardware metadata and physical expectations
-SimulationQuality = runtime simulation cost and preview/capture quality
+DeviceProfile = 실제 장비의 메타데이터와 물리적 기준
+SimulationQuality = Unreal 런타임에서 실제로 계산할 시뮬레이션 비용과 미리보기/캡처 품질
 ```
 
-Real-world sensor identity, FOV, range, frame metadata, and payload structure should remain aligned with the target hardware, but Unreal should not necessarily execute the full real-world point rate or camera frame rate during interactive preview.
+실제 센서의 제조사, 모델명, FOV, 거리 범위, frame metadata, payload 구조는 실제 장비와 최대한 맞춰야 한다. 하지만 인터랙티브 미리보기 중에 Unreal이 실제 장비의 point rate나 camera frame rate를 매번 그대로 계산할 필요는 없다.
 
-## 2. Target real-world devices
+## 2. 대상 실제 장비
 
 ### Camera
 
-- Manufacturer: Intel
-- Model: RealSense D455
-- Implemented enum: `EVirtualCameraDeviceProfile::IntelRealSenseD455`
-- Component: `UVirtualCameraComp`
+- 제조사: Intel
+- 모델: RealSense D455
+- 구현 enum: `EVirtualCameraDeviceProfile::IntelRealSenseD455`
+- 컴포넌트: `UVirtualCameraComp`
 
 ### LiDAR
 
-- Manufacturer: Livox
-- Model: Mid-360S / Mid-360S-style profile
-- Implemented enum: `EVirtualLidarDeviceProfile::LivoxMid360S`
-- Component: `UVirtualLidarSensorComp`
+- 제조사: Livox
+- 모델: Mid-360S / Mid-360S 스타일 프로파일
+- 구현 enum: `EVirtualLidarDeviceProfile::LivoxMid360S`
+- 컴포넌트: `UVirtualLidarSensorComp`
 
-The project currently simulates these devices. It does not yet read real hardware data through Intel RealSense SDK, Livox SDK, ROS2, UDP packets, or vendor bridge middleware.
+현재 프로젝트는 이 장비들을 “시뮬레이션”한다. 아직 Intel RealSense SDK, Livox SDK, ROS2, UDP packet, vendor bridge middleware를 통해 실제 하드웨어 데이터를 직접 읽지는 않는다.
 
-## 3. Main architectural components
+## 3. 주요 아키텍처 구성요소
 
 ### `AVirtualSensorManager`
 
-Path:
+경로:
 
 ```text
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorManager.cpp
 ```
 
-Responsibilities:
+역할:
 
-- Discover virtual camera and LiDAR components in the level.
-- Register cameras and LiDAR sensors.
-- Maintain selected camera and selected LiDAR.
-- Bind the selected sensors to `UVirtualSensorMonitorWidget`.
-- Start/stop all sensors.
-- Run synchronized capture if enabled.
-- Provide sensor summaries and health summaries.
-- Own shared runtime services:
+- 레벨 안의 가상 카메라 / LiDAR 컴포넌트 검색
+- Camera / LiDAR 센서 등록
+- 선택된 Camera / LiDAR 관리
+- 선택된 센서를 `UVirtualSensorMonitorWidget`에 바인딩
+- 전체 센서 시작/정지
+- 동기화 캡처 옵션 처리
+- 센서 요약 정보와 Health 요약 정보 제공
+- 공통 런타임 서비스 소유
   - `SharedSensorTransport`
   - `SharedSensorRecorder`
 
-Important properties:
+중요 속성:
 
 ```cpp
 bDiscoverOnBeginPlay
@@ -73,38 +73,38 @@ SharedTransportComponent
 SharedRecorderComponent
 ```
 
-Current behavior:
+현재 구조:
 
 ```text
 AVirtualSensorManager
 ├─ SharedSensorTransport
 ├─ SharedSensorRecorder
-├─ registered UVirtualCameraComp instances
-└─ registered UVirtualLidarSensorComp instances
+├─ 등록된 UVirtualCameraComp 목록
+└─ 등록된 UVirtualLidarSensorComp 목록
 ```
 
-When a camera or LiDAR is registered, the manager injects both shared services into the sensor component.
+Camera 또는 LiDAR가 등록되면 Manager가 해당 센서 컴포넌트에 공통 Transport와 Recorder를 주입한다.
 
 ### `UVirtualCameraComp`
 
-Path:
+경로:
 
 ```text
 Source/m7at10_dt/M7AT10/Camera/VirtualCameraComp.h
 Source/m7at10_dt/M7AT10/Camera/VirtualCameraComp.cpp
 ```
 
-Responsibilities:
+역할:
 
-- Scene capture via `USceneCaptureComponent2D`.
-- RenderTarget creation and management.
-- JPEG compression and Base64 encoding.
-- JSON payload generation.
-- Transport dispatch through `UVirtualSensorDataTransportComp`.
-- Recording through `UVirtualSensorRecorderComp`.
-- Runtime status updates for UI/health monitoring.
+- `USceneCaptureComponent2D` 기반 Scene Capture
+- RenderTarget 생성 및 관리
+- JPEG 압축 및 Base64 인코딩
+- JSON payload 생성
+- `UVirtualSensorDataTransportComp`를 통한 전송
+- `UVirtualSensorRecorderComp`를 통한 녹화
+- UI / Health 모니터링용 RuntimeStatus 갱신
 
-Important settings:
+중요 설정:
 
 ```cpp
 DeviceProfile = EVirtualCameraDeviceProfile::IntelRealSenseD455
@@ -119,35 +119,35 @@ TransportComponent
 RecorderComponent
 ```
 
-Camera capture modes:
+Camera CaptureMode 의미:
 
 ```text
-PreviewOnly      = RenderTarget preview only; no JSON/JPEG payload generation.
-Payload          = Build JSON payload but do not dispatch via output mode.
-PayloadAndOutput = Build payload and dispatch through transport/output path.
+PreviewOnly      = RenderTarget 미리보기만 수행. JSON/JPEG payload 생성 없음.
+Payload          = JSON payload는 만들지만 transport/output 경로로 보내지 않음.
+PayloadAndOutput = payload를 만들고 transport/output 경로로 전송/저장.
 ```
 
 ### `UVirtualLidarSensorComp`
 
-Path:
+경로:
 
 ```text
 Source/m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h
 Source/m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.cpp
 ```
 
-Responsibilities:
+역할:
 
-- LiDAR-style ray sampling using Unreal collision traces.
-- Optional multi-hit tracing.
-- Heatmap/texture generation for widget preview.
-- JSON payload generation.
-- Point cloud export as CSV / JSONL / PCD.
-- Transport dispatch through `UVirtualSensorDataTransportComp`.
-- Recording through `UVirtualSensorRecorderComp`.
-- Runtime status updates for UI/health monitoring.
+- Unreal collision trace 기반 LiDAR 스타일 ray sampling
+- 선택적 multi-hit tracing
+- 위젯 미리보기용 heatmap/texture 생성
+- JSON payload 생성
+- CSV / JSONL / PCD point cloud export
+- `UVirtualSensorDataTransportComp`를 통한 전송
+- `UVirtualSensorRecorderComp`를 통한 녹화
+- UI / Health 모니터링용 RuntimeStatus 갱신
 
-Important settings:
+중요 설정:
 
 ```cpp
 DeviceProfile = EVirtualLidarDeviceProfile::LivoxMid360S
@@ -176,22 +176,22 @@ RecorderComponent
 
 ### `UVirtualSensorDataTransportComp`
 
-Path:
+경로:
 
 ```text
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.cpp
 ```
 
-Responsibilities:
+역할:
 
-- Centralized JSON and binary data output.
-- Log-only output.
-- Save-to-file output.
-- HTTP POST output.
-- Store last transport result for UI/runtime status.
+- JSON / binary 데이터 출력 경로 통합
+- LogOnly 출력
+- SaveToFile 출력
+- HTTP POST 출력
+- 마지막 전송 결과를 UI / RuntimeStatus 용도로 저장
 
-Transport modes:
+TransportMode:
 
 ```text
 None
@@ -200,7 +200,7 @@ SaveToFile
 HttpPost
 ```
 
-Important APIs:
+중요 API:
 
 ```cpp
 FVirtualSensorTransportResult SendJson(...)
@@ -209,21 +209,21 @@ FVirtualSensorTransportResult SendBinary(...)
 
 ### `UVirtualSensorRecorderComp`
 
-Path:
+경로:
 
 ```text
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.cpp
 ```
 
-Responsibilities:
+역할:
 
-- Record camera/LiDAR JSON payload frames.
-- Save recording sessions to JSON.
-- Load session files.
-- Replay recorded frames by broadcasting `OnReplayFrame`.
+- Camera / LiDAR JSON payload frame 녹화
+- 녹화 session을 JSON 파일로 저장
+- session 파일 로드
+- 녹화 frame을 `OnReplayFrame` 이벤트로 순차 재생
 
-Important APIs:
+중요 API:
 
 ```cpp
 StartRecording()
@@ -236,18 +236,18 @@ StartReplay(...)
 StopReplay()
 ```
 
-Current replay limitation:
+현재 Replay 한계:
 
 ```text
-Replay currently emits recorded payload frames as events.
-It does not yet reconstruct camera images or LiDAR heatmaps into the live monitor widget automatically.
+Replay는 현재 녹화된 payload frame을 이벤트로 다시 발생시키는 단계이다.
+Camera image 또는 LiDAR heatmap을 자동으로 복원해서 기존 monitor widget에 영상처럼 표시하는 기능은 아직 없다.
 ```
 
-## 4. Performance model
+## 4. 성능 모델
 
-### Why the branch exists
+### 이 브랜치가 필요한 이유
 
-A full Livox-style configuration such as:
+Livox 스타일 설정을 그대로 적용하면 예를 들어 다음과 같은 값이 된다.
 
 ```text
 HorizontalSamples = 360
@@ -255,20 +255,20 @@ VerticalChannels = 60
 ScanInterval = 0.1 sec
 ```
 
-produces:
+이 경우 계산량은 다음과 같다.
 
 ```text
-360 * 60 = 21,600 traces per scan
-21,600 * 10Hz = 216,000 traces/sec
+360 * 60 = 21,600 traces / scan
+21,600 * 10Hz = 216,000 traces / sec
 ```
 
-This is expensive in Unreal because each simulated LiDAR point requires collision/ray work, result processing, payload construction, optional texture updates, UI refresh, export, transport, and recording.
+Unreal에서는 각 LiDAR point를 만들기 위해 collision/ray 계산, hit 결과 처리, payload 생성, texture update, UI refresh, export, transport, recording 등이 함께 발생한다. 그래서 실제 장비 스펙을 그대로 실시간 시뮬레이션 값에 넣으면 에디터/패키징 런타임 모두에서 매우 무거워질 수 있다.
 
-The same applies to camera simulation. A full D455-style `1280x720 @ 30fps` capture with RenderTarget readback, JPEG compression, and Base64 encoding is much heavier than merely displaying a camera view.
+카메라도 동일하다. D455 스타일의 `1280x720 @ 30fps` 캡처에 RenderTarget readback, JPEG 압축, Base64 인코딩을 붙이면 단순 카메라 preview보다 훨씬 무겁다.
 
-### Simulation quality presets
+### SimulationQuality 프리셋
 
-Defined in:
+정의 위치:
 
 ```text
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorDeviceProfileTypes.h
@@ -280,7 +280,7 @@ Enum:
 EVirtualSensorSimulationQuality
 ```
 
-Values:
+값:
 
 ```text
 Debug
@@ -290,9 +290,9 @@ FullSpec
 Custom
 ```
 
-### Recommended runtime defaults
+### 권장 런타임 기본값
 
-Use these for editor and packaged smoke tests:
+Editor 및 packaged smoke test에서는 아래 값을 권장한다.
 
 ```text
 Camera SimulationQuality = RealTimePreview
@@ -300,16 +300,16 @@ LiDAR SimulationQuality  = RealTimePreview
 TransportMode            = LogOnly
 LiDAR MultiHit           = false
 LiDAR ExportOnScan       = false
-Camera CaptureMode       = PayloadAndOutput, or PreviewOnly for visual-only tests
+Camera CaptureMode       = PayloadAndOutput 또는 화면만 볼 경우 PreviewOnly
 ```
 
-### FullSpec warning
+### FullSpec 주의사항
 
-`FullSpec` exists for short validation passes only. Do not use it as the default editor/runtime mode unless the machine is known to handle it.
+`FullSpec`은 짧은 검증용으로만 사용한다. 해당 PC가 충분히 감당할 수 있다는 것이 확인되지 않았다면 editor/runtime 기본값으로 쓰지 않는다.
 
-## 5. Current recommended editor setup
+## 5. 에디터 권장 설정
 
-Place the following actors in the level:
+레벨에 다음 actor를 배치한다.
 
 ```text
 AVirtualSensorManager
@@ -317,9 +317,9 @@ AVirtualCameraAct
 AVirtualSensorAct
 ```
 
-### Camera settings
+### Camera 설정
 
-Select `AVirtualCameraAct`, then configure `VirtualCameraComp`:
+`AVirtualCameraAct` 선택 후 `VirtualCameraComp`를 설정한다.
 
 ```text
 DeviceProfile = IntelRealSenseD455
@@ -329,16 +329,16 @@ CaptureMode = PayloadAndOutput
 bAutoRegisterToManager = true
 ```
 
-For performance troubleshooting:
+성능 문제를 진단할 때는 다음처럼 낮춘다.
 
 ```text
 CaptureMode = PreviewOnly
 SimulationQuality = Debug
 ```
 
-### LiDAR settings
+### LiDAR 설정
 
-Select `AVirtualSensorAct`, then configure `LidarSensorComp`:
+`AVirtualSensorAct` 선택 후 `LidarSensorComp`를 설정한다.
 
 ```text
 DeviceProfile = LivoxMid360S
@@ -352,18 +352,18 @@ bExportJsonLinesOnScan = false
 bExportPcdOnScan = false
 ```
 
-For an inverted LiDAR monitor view, test these flags:
+LiDAR monitor view가 위아래/좌우로 반전되어 보이면 다음 옵션을 확인한다.
 
 ```text
 bFlipLidarViewVertical
 bFlipLidarViewHorizontal
 ```
 
-Current default is vertical flip enabled.
+현재 기본값은 vertical flip enabled이다.
 
-### Manager settings
+### Manager 설정
 
-Select `AVirtualSensorManager`:
+`AVirtualSensorManager` 선택:
 
 ```text
 bDiscoverOnBeginPlay = true
@@ -371,28 +371,28 @@ bStartSensorsOnBeginPlay = true
 SharedSensorTransport.TransportMode = LogOnly
 ```
 
-For file output:
+파일 저장 테스트:
 
 ```text
 SharedSensorTransport.TransportMode = SaveToFile
 ```
 
-For HTTP output:
+HTTP 전송 테스트:
 
 ```text
 SharedSensorTransport.TransportMode = HttpPost
 SharedSensorTransport.HttpEndpoint = http://host:port/path
 ```
 
-## 6. Widget setup
+## 6. Widget 설정
 
-Main widget class:
+주요 위젯 클래스:
 
 ```text
 UVirtualSensorMonitorWidget
 ```
 
-Expected optional widget names in Designer:
+Designer에서 사용할 수 있는 optional widget 이름:
 
 ```text
 TitleText
@@ -404,9 +404,9 @@ NextCameraButton
 NextLidarButton
 ```
 
-All named widgets should be marked `Is Variable` when used in Blueprint.
+Blueprint에서 사용할 위젯은 모두 `Is Variable`을 체크한다.
 
-Recommended Level Blueprint flow:
+권장 Level Blueprint 흐름:
 
 ```text
 Event BeginPlay
@@ -416,13 +416,13 @@ Event BeginPlay
 → BindSensorManager
 ```
 
-Avoid directly binding camera/LiDAR from Level Blueprint when the manager is present. Let `AVirtualSensorManager` choose and bind the selected sensors.
+Manager가 있는 경우 Level Blueprint에서 Camera/LiDAR를 직접 위젯에 바인딩하지 않는 것을 권장한다. 선택 센서 관리와 위젯 바인딩은 `AVirtualSensorManager`에 맡긴다.
 
-## 7. File output locations
+## 7. 파일 출력 위치
 
-Runtime saved data generally goes under the project or packaged app `Saved` directory.
+런타임 저장 데이터는 일반적으로 프로젝트 또는 패키징 앱의 `Saved` 경로 아래에 저장된다.
 
-Examples:
+예시:
 
 ```text
 Saved/SensorCaptures/{SensorId}/
@@ -430,21 +430,21 @@ Saved/SensorCaptures/{SensorId}/PointCloud/
 Saved/SensorRecordings/
 ```
 
-Generated artifacts may include:
+생성될 수 있는 파일:
 
 ```text
-*.json   sensor payloads / recording sessions
-*.jpg    camera frames
+*.json   센서 payload / 녹화 session
+*.jpg    Camera frame
 *.csv    LiDAR point cloud export
 *.jsonl  LiDAR point cloud export
 *.pcd    LiDAR point cloud export
 ```
 
-## 8. Packaging guidance
+## 8. 패키징 가이드
 
-The virtual sensor path is intended to be package-friendly. However, always perform a local package build before merging or releasing.
+가상 센서 경로는 패키징 친화적으로 동작하도록 설계되어 있다. 다만 merge/release 전에는 반드시 로컬 패키징 빌드를 수행해야 한다.
 
-Recommended first packaging smoke test:
+첫 패키징 smoke test 권장 설정:
 
 ```text
 Camera SimulationQuality = RealTimePreview
@@ -454,7 +454,7 @@ MultiHit = false
 ExportOnScan = false
 ```
 
-Then test heavier modes one by one:
+그 다음 무거운 기능을 하나씩 켜면서 확인한다.
 
 ```text
 SaveToFile
@@ -465,86 +465,86 @@ MultiHit
 ExportOnScan
 ```
 
-Do not enable all heavy options at the same time when diagnosing performance or packaging issues.
+성능 문제나 패키징 문제를 진단할 때는 무거운 옵션을 한 번에 모두 켜지 않는다.
 
-## 9. Known limitations
+## 9. 알려진 한계
 
-### Real hardware is not integrated yet
+### 실제 하드웨어 연동은 아직 없음
 
-Current implementation is simulation-based:
-
-```text
-Camera = Unreal SceneCapture-based virtual camera
-LiDAR  = Unreal trace-based virtual LiDAR
-```
-
-Not yet implemented:
+현재 구현은 시뮬레이션 기반이다.
 
 ```text
-Intel RealSense SDK input
-Livox SDK input
-ROS2 bridge input
-UDP point cloud input
-Real hardware timestamp synchronization
-Real hardware calibration import
+Camera = Unreal SceneCapture 기반 가상 카메라
+LiDAR  = Unreal trace 기반 가상 LiDAR
 ```
 
-### Replay is data-event based
+아직 구현되지 않은 부분:
 
-`UVirtualSensorRecorderComp` can record/save/load/replay payload frames, but the replay path currently broadcasts payload events. It does not yet automatically reconstruct visual camera frames or LiDAR heatmap textures in the live monitor widget.
+```text
+Intel RealSense SDK 입력
+Livox SDK 입력
+ROS2 bridge 입력
+UDP point cloud 입력
+실제 하드웨어 timestamp synchronization
+실제 하드웨어 calibration import
+```
 
-### FullSpec is not real-time guaranteed
+### Replay는 데이터 이벤트 기반
 
-Even with a high-end PC, full hardware-equivalent simulation can be expensive because Unreal is computing scene intersection and payload generation, not reading precomputed hardware sensor frames.
+`UVirtualSensorRecorderComp`는 payload frame을 녹화/저장/로드/재생할 수 있다. 하지만 현재 replay 경로는 payload 이벤트를 broadcast하는 단계이다. 녹화된 camera image 또는 LiDAR heatmap texture를 자동으로 복원해서 live monitor widget에 표시하지는 않는다.
 
-## 10. Development rules for future changes
+### FullSpec은 실시간 보장 아님
 
-### Keep device profile and simulation quality separate
+고성능 PC에서도 full hardware-equivalent simulation은 비쌀 수 있다. Unreal은 실제 센서 데이터를 읽는 것이 아니라 scene intersection, payload 생성, texture update 등을 직접 계산하기 때문이다.
 
-Do not make real hardware profile application directly force expensive runtime sampling by default.
+## 10. 향후 수정 시 개발 규칙
 
-Good:
+### DeviceProfile과 SimulationQuality를 분리 유지
+
+실제 하드웨어 profile 적용이 무거운 runtime sampling을 기본으로 강제하면 안 된다.
+
+좋은 예:
 
 ```text
 DeviceProfile = IntelRealSenseD455
 SimulationQuality = RealTimePreview
 ```
 
-Bad:
+나쁜 예:
 
 ```text
-DeviceProfile = IntelRealSenseD455 automatically forces 1280x720 @ 30fps at all times
+DeviceProfile = IntelRealSenseD455 적용 시 항상 1280x720 @ 30fps 강제
 ```
 
-Good:
+좋은 예:
 
 ```text
 DeviceProfile = LivoxMid360S
 SimulationQuality = RealTimePreview
 ```
 
-Bad:
+나쁜 예:
 
 ```text
-DeviceProfile = LivoxMid360S automatically forces 216,000 traces/sec in editor
+DeviceProfile = LivoxMid360S 적용 시 editor에서 항상 216,000 traces/sec 강제
 ```
 
-### Prefer manager-owned shared services
+### Manager 소유의 공통 서비스를 우선 사용
 
-Use `AVirtualSensorManager` to provide shared services:
+공통 서비스는 `AVirtualSensorManager`가 제공한다.
 
 ```text
 SharedSensorTransport
 SharedSensorRecorder
 ```
 
-Avoid each sensor creating unrelated transport/recorder instances unless there is a strong reason.
+특별한 이유가 없다면 각 센서가 별도의 transport/recorder instance를 제각각 생성하지 않도록 한다.
 
-### Avoid heavy defaults
+### 무거운 기본값 금지
 
-Defaults should keep the editor responsive.
+기본값은 에디터가 쾌적하게 동작해야 한다.
 
-Preferred defaults:
+권장 기본값:
 
 ```text
 RealTimePreview
@@ -554,9 +554,9 @@ ExportOnScan false
 DrawDebugRays false
 ```
 
-### Make expensive features explicit
+### 비싼 기능은 명시적 opt-in으로 유지
 
-Expensive operations should be opt-in:
+아래 기능은 명시적으로 켰을 때만 동작하도록 유지한다.
 
 ```text
 FullSpec
@@ -566,44 +566,44 @@ HTTP high-rate streaming
 High-resolution JPEG payloads
 ```
 
-### Keep UI resilient
+### UI는 optional binding 구조 유지
 
-`UVirtualSensorMonitorWidget` should continue using optional widget bindings. Avoid requiring every optional button/text field to exist in the Blueprint widget.
+`UVirtualSensorMonitorWidget`은 optional widget binding을 유지해야 한다. 모든 optional button/text field가 Blueprint widget에 반드시 존재해야만 동작하는 구조로 만들지 않는다.
 
-## 11. Quick troubleshooting
+## 11. 빠른 문제 해결
 
-### The editor becomes slow
+### 에디터가 느려질 때
 
-Try in this order:
+아래 순서로 낮춘다.
 
 ```text
 1. LiDAR SimulationQuality = Debug
 2. Camera CaptureMode = PreviewOnly
 3. SharedSensorTransport.TransportMode = LogOnly
 4. LiDAR bUseMultiHit = false
-5. Disable all ExportOnScan flags
-6. Disable bDrawDebugRays
+5. 모든 ExportOnScan 옵션 끄기
+6. bDrawDebugRays 끄기
 ```
 
-### LiDAR view looks upside down
+### LiDAR view가 위아래로 반전되어 보일 때
 
-Toggle:
+다음 옵션을 토글한다.
 
 ```text
 bFlipLidarViewVertical
 ```
 
-### LiDAR view looks mirrored
+### LiDAR view가 좌우로 반전되어 보일 때
 
-Toggle:
+다음 옵션을 토글한다.
 
 ```text
 bFlipLidarViewHorizontal
 ```
 
-### Payload is too large
+### Payload가 너무 클 때
 
-Adjust:
+다음 값을 조정한다.
 
 ```text
 PayloadPointStride
@@ -611,51 +611,51 @@ MaxPayloadPoints
 bIncludeMissPointsInPayload
 ```
 
-### Recording file is empty
+### Recording 파일이 비어 있을 때
 
-Check:
+다음을 확인한다.
 
 ```text
-SharedRecorderComponent.StartRecording() was called
-Camera/LiDAR are registered to manager
-Camera/LiDAR RecorderComponent is assigned
-Capture/scan is actually running
+SharedRecorderComponent.StartRecording() 호출 여부
+Camera/LiDAR가 Manager에 등록되어 있는지
+Camera/LiDAR RecorderComponent가 할당되어 있는지
+Capture/scan이 실제로 실행 중인지
 ```
 
-### HTTP does not send
+### HTTP 전송이 안 될 때
 
-Check:
+다음을 확인한다.
 
 ```text
 SharedSensorTransport.TransportMode = HttpPost
-SharedSensorTransport.HttpEndpoint is valid
-Network/firewall allows outbound request
-Server accepts application/json
+SharedSensorTransport.HttpEndpoint가 유효한지
+네트워크/방화벽이 outbound request를 허용하는지
+서버가 application/json을 받는지
 ```
 
-## 12. Recommended next implementation steps
+## 12. 다음 구현 권장 사항
 
-1. Add a replay visualization mode that reconstructs camera images and LiDAR heatmaps from recorded payloads.
-2. Add binary point cloud transport for high-rate LiDAR instead of JSON-only streaming.
-3. Add `VirtualSimulation`, `RealHardware`, and `Replay` source modes under the manager.
-4. Add RealSense SDK / Livox SDK / ROS2 bridge adapters as separate source components.
-5. Add calibration import for real device extrinsics/intrinsics.
-6. Add automated smoke test map and documented packaging test procedure.
-7. Add UI controls for `SimulationQuality`, recording, replay, export, and transport mode.
-8. Add clear warnings in UI when FullSpec or ExportOnScan is enabled.
+1. 녹화 payload에서 camera image와 LiDAR heatmap을 복원하는 replay visualization mode 추가.
+2. 고속 LiDAR용 JSON-only streaming 대신 binary point cloud transport 추가.
+3. Manager 아래에 `VirtualSimulation`, `RealHardware`, `Replay` source mode 추가.
+4. RealSense SDK / Livox SDK / ROS2 bridge adapter를 별도 source component로 추가.
+5. 실제 장비 extrinsics/intrinsics calibration import 추가.
+6. 자동 smoke test map과 패키징 테스트 절차 문서화.
+7. UI에서 `SimulationQuality`, recording, replay, export, transport mode를 조절할 수 있는 controls 추가.
+8. FullSpec 또는 ExportOnScan이 켜져 있을 때 UI warning 표시.
 
-## 13. Summary
+## 13. 요약
 
-This branch makes the virtual sensor platform more practical by keeping real device identity and payload metadata aligned with target hardware while avoiding full hardware-equivalent simulation cost by default.
+이 브랜치는 실제 장비 identity와 payload metadata를 목표 하드웨어에 맞추면서도, 기본 런타임에서는 full hardware-equivalent simulation 비용을 피하도록 가상 센서 플랫폼을 실사용에 가깝게 정리한다.
 
-The intended operating model is:
+의도한 운영 모델은 다음과 같다.
 
 ```text
-RealTimePreview = editor/runtime interactive operation
-Balanced        = higher quality preview or short tests
-FullSpec        = short validation capture only
-Replay          = data-event playback foundation
-RealHardware    = future SDK/bridge integration
+RealTimePreview = 에디터/런타임 인터랙티브 운영
+Balanced        = 조금 더 높은 품질의 preview 또는 짧은 테스트
+FullSpec        = 짧은 검증 캡처 전용
+Replay          = 데이터 이벤트 기반 재생 토대
+RealHardware    = 향후 SDK/bridge 연동 대상
 ```
 
-When modifying this branch, preserve this separation between hardware profile fidelity and runtime simulation cost.
+이 브랜치를 수정할 때는 하드웨어 프로파일의 정확도와 런타임 시뮬레이션 비용을 분리하는 원칙을 반드시 유지한다.
