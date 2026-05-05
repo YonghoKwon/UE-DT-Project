@@ -1,6 +1,8 @@
 #include "VirtualLidarSensorComp.h"
 
+#include "Components/InstancedStaticMeshComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
 #include "HttpModule.h"
@@ -33,6 +35,11 @@ void UVirtualLidarSensorComp::BeginPlay()
 
     TryAutoRegisterToManager();
 
+    if (bPointCloudPreviewEnabled)
+    {
+        EnsurePointCloudPreviewComponent();
+    }
+
     if (bAutoStartScan)
     {
         StartScan();
@@ -42,6 +49,12 @@ void UVirtualLidarSensorComp::BeginPlay()
 void UVirtualLidarSensorComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     StopScan();
+    ClearPointCloudPreview();
+    if (PointCloudPreviewComponent)
+    {
+        PointCloudPreviewComponent->DestroyComponent();
+        PointCloudPreviewComponent = nullptr;
+    }
     Super::EndPlay(EndPlayReason);
 }
 
@@ -72,6 +85,30 @@ void UVirtualLidarSensorComp::SetTransportComponent(UVirtualSensorDataTransportC
 void UVirtualLidarSensorComp::SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent)
 {
     RecorderComponent = InRecorderComponent;
+}
+
+void UVirtualLidarSensorComp::SetPointCloudPreviewEnabled(bool bEnabled)
+{
+    bPointCloudPreviewEnabled = bEnabled;
+    if (bPointCloudPreviewEnabled)
+    {
+        EnsurePointCloudPreviewComponent();
+        RefreshPointCloudPreview();
+    }
+    else
+    {
+        ClearPointCloudPreview();
+    }
+}
+
+void UVirtualLidarSensorComp::ClearPointCloudPreview()
+{
+    if (PointCloudPreviewComponent)
+    {
+        PointCloudPreviewComponent->ClearInstances();
+        PointCloudPreviewComponent->SetHiddenInGame(true);
+        PointCloudPreviewComponent->SetVisibility(false, true);
+    }
 }
 
 void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
@@ -181,6 +218,7 @@ void UVirtualLidarSensorComp::ScanAndSend()
     TArray<uint8> HeatmapPixels;
     ExecuteScan(LastPoints, HeatmapPixels);
     UpdateLidarViewTexture(HeatmapPixels);
+    RefreshPointCloudPreview();
 
     const FString JsonPayload = BuildJsonPayload(LastPoints);
     DispatchPayload(JsonPayload);
@@ -199,10 +237,11 @@ void UVirtualLidarSensorComp::ScanAndSend()
             ++RuntimeStatus.HitPointCount;
         }
     }
-    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d PayloadStride=%d"),
+    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d PayloadStride=%d PointCloudPreview=%s"),
         static_cast<int32>(SimulationQuality),
         HorizontalSamples * VerticalChannels,
-        PayloadPointStride);
+        PayloadPointStride,
+        bPointCloudPreviewEnabled ? TEXT("On") : TEXT("Off"));
 
     if (RecorderComponent)
     {
@@ -529,6 +568,92 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudPcd(const FString& FileNamePre
         Text += FString::Printf(TEXT("%f %f %f %f %d\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0);
     }
     return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("pcd"), FileNamePrefix));
+}
+
+UInstancedStaticMeshComponent* UVirtualLidarSensorComp::EnsurePointCloudPreviewComponent()
+{
+    if (PointCloudPreviewComponent)
+    {
+        return PointCloudPreviewComponent;
+    }
+
+    AActor* Owner = GetOwner();
+    if (!Owner)
+    {
+        return nullptr;
+    }
+
+    PointCloudPreviewComponent = NewObject<UInstancedStaticMeshComponent>(Owner, TEXT("LidarPointCloudPreviewComponent"));
+    if (!PointCloudPreviewComponent)
+    {
+        return nullptr;
+    }
+
+    UStaticMesh* MeshToUse = PointCloudPreviewMesh;
+    if (!MeshToUse)
+    {
+        MeshToUse = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    }
+    if (!MeshToUse)
+    {
+        MeshToUse = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+    }
+
+    PointCloudPreviewComponent->SetStaticMesh(MeshToUse);
+    PointCloudPreviewComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    PointCloudPreviewComponent->SetGenerateOverlapEvents(false);
+    PointCloudPreviewComponent->SetCastShadow(false);
+    PointCloudPreviewComponent->bSelectable = false;
+    PointCloudPreviewComponent->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
+    PointCloudPreviewComponent->RegisterComponent();
+    PointCloudPreviewComponent->SetHiddenInGame(!bPointCloudPreviewEnabled);
+    PointCloudPreviewComponent->SetVisibility(bPointCloudPreviewEnabled, true);
+    return PointCloudPreviewComponent;
+}
+
+void UVirtualLidarSensorComp::RefreshPointCloudPreview()
+{
+    if (!bPointCloudPreviewEnabled)
+    {
+        ClearPointCloudPreview();
+        return;
+    }
+
+    UInstancedStaticMeshComponent* PreviewComp = EnsurePointCloudPreviewComponent();
+    if (!PreviewComp)
+    {
+        return;
+    }
+
+    PreviewComp->ClearInstances();
+    PreviewComp->SetHiddenInGame(false);
+    PreviewComp->SetVisibility(true, true);
+
+    const int32 SafeStride = FMath::Max(1, PointCloudPreviewStride);
+    const int32 SafeMaxInstances = FMath::Max(0, MaxPointCloudPreviewInstances);
+    const float SafeScale = FMath::Max(0.001f, PointCloudPreviewPointScale);
+    int32 AddedInstances = 0;
+
+    for (int32 PointIndex = 0; PointIndex < LastPoints.Num(); PointIndex += SafeStride)
+    {
+        if (SafeMaxInstances > 0 && AddedInstances >= SafeMaxInstances)
+        {
+            break;
+        }
+
+        const FVirtualLidarPoint& Point = LastPoints[PointIndex];
+        if (bPointCloudPreviewHitOnly && !Point.bHit)
+        {
+            continue;
+        }
+
+        FTransform PointTransform;
+        PointTransform.SetLocation(Point.WorldLocation);
+        PointTransform.SetRotation(FQuat::Identity);
+        PointTransform.SetScale3D(FVector(SafeScale));
+        PreviewComp->AddInstance(PointTransform, true);
+        ++AddedInstances;
+    }
 }
 
 void UVirtualLidarSensorComp::DispatchPayload(const FString& JsonPayload) const
