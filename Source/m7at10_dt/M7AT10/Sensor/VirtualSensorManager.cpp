@@ -455,7 +455,7 @@ void AVirtualSensorManager::ApplyPointCloudOnlyVisibility()
 
             FVirtualSensorHiddenComponentState State;
             State.Component = PrimitiveComp;
-            State.bWasHiddenInGame = PrimitiveComp->IsHiddenInGame();
+            State.bWasHiddenInGame = PrimitiveComp->bHiddenInGame;
             State.bWasVisible = PrimitiveComp->IsVisible();
             HiddenComponentStates.Add(State);
 
