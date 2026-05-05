@@ -36,6 +36,18 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
         PointCloudOnlyButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked);
     }
 
+    if (LogPointCloudButton)
+    {
+        LogPointCloudButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked);
+        LogPointCloudButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked);
+    }
+
+    if (ExportPointCloudButton)
+    {
+        ExportPointCloudButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleExportPointCloudButtonClicked);
+        ExportPointCloudButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleExportPointCloudButtonClicked);
+    }
+
     RefreshTitle();
     RefreshImageBrush();
     RefreshStatusText();
@@ -132,6 +144,22 @@ void UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked()
     }
 }
 
+void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
+{
+    if (LidarComp)
+    {
+        LidarComp->LogLastPointCloud(200, true);
+    }
+}
+
+void UVirtualSensorMonitorWidget::HandleExportPointCloudButtonClicked()
+{
+    if (LidarComp)
+    {
+        LidarComp->ExportLastPointCloudCsvLasLaz(TEXT("button_export"));
+    }
+}
+
 void UVirtualSensorMonitorWidget::RefreshImageBrush()
 {
     if (!ViewImage)
@@ -180,7 +208,7 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nDevice: %s %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d\nPointCloudPreview: %s\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nDevice: %s %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d\nPointCloudPreview: %s\nColor: %s\nExports: Saved/SensorCaptures/%s/PointCloud\nMessage: %s"),
             *Status.SensorId,
             *LidarComp->GetDeviceSpec().Manufacturer,
             *LidarComp->GetDeviceSpec().Model,
@@ -189,6 +217,8 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
             Status.HitPointCount,
             Status.LastPayloadLength,
             LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
+            *LidarComp->PointCloudPreviewColor.ToString(),
+            *LidarComp->SensorId,
             *Status.LastMessage);
     }
     else if (!bShowingLidar && CameraComp)
