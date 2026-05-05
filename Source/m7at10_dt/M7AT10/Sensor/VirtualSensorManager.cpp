@@ -1,6 +1,8 @@
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "Components/LightComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
@@ -39,6 +41,15 @@ void AVirtualSensorManager::BeginPlay()
 
 void AVirtualSensorManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    RestorePointCloudOnlyVisibility();
+    for (UVirtualLidarSensorComp* LidarComp : Lidars)
+    {
+        if (LidarComp)
+        {
+            LidarComp->SetPointCloudPreviewEnabled(false);
+        }
+    }
+
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(SynchronizedTimerHandle);
@@ -87,6 +98,10 @@ void AVirtualSensorManager::RegisterLidar(UVirtualLidarSensorComp* LidarComp)
     {
         Lidars.Add(LidarComp);
         AssignSharedServicesIfPossible(LidarComp);
+        if (bPointCloudOnlyModeEnabled)
+        {
+            LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
+        }
         ApplyWidgetBinding();
     }
 }
@@ -111,6 +126,16 @@ void AVirtualSensorManager::SelectLidarByIndex(int32 Index)
     if (Lidars.IsValidIndex(Index))
     {
         SelectedLidarIndex = Index;
+        if (bPointCloudOnlyModeEnabled)
+        {
+            for (UVirtualLidarSensorComp* LidarComp : Lidars)
+            {
+                if (LidarComp)
+                {
+                    LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
+                }
+            }
+        }
         ApplyWidgetBinding();
     }
 }
@@ -132,11 +157,32 @@ void AVirtualSensorManager::SelectNextLidar()
         return;
     }
     SelectedLidarIndex = (SelectedLidarIndex + 1) % Lidars.Num();
+    if (bPointCloudOnlyModeEnabled)
+    {
+        for (UVirtualLidarSensorComp* LidarComp : Lidars)
+        {
+            if (LidarComp)
+            {
+                LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
+            }
+        }
+    }
     ApplyWidgetBinding();
 }
 
 void AVirtualSensorManager::SetViewMode(EVirtualSensorViewMode NewMode)
 {
+    if (NewMode == EVirtualSensorViewMode::PointCloudOnly)
+    {
+        SetPointCloudOnlyMode(true);
+        return;
+    }
+
+    if (bPointCloudOnlyModeEnabled)
+    {
+        SetPointCloudOnlyMode(false);
+    }
+
     CurrentViewMode = NewMode;
     if (BoundMonitorWidget)
     {
@@ -146,9 +192,69 @@ void AVirtualSensorManager::SetViewMode(EVirtualSensorViewMode NewMode)
     OnViewModeChanged.Broadcast(CurrentViewMode);
 }
 
+void AVirtualSensorManager::SetPointCloudOnlyMode(bool bEnabled)
+{
+    if (bPointCloudOnlyModeEnabled == bEnabled)
+    {
+        return;
+    }
+
+    if (bEnabled)
+    {
+        PreviousViewModeBeforePointCloudOnly = CurrentViewMode == EVirtualSensorViewMode::PointCloudOnly
+            ? EVirtualSensorViewMode::Lidar
+            : CurrentViewMode;
+        bPointCloudOnlyModeEnabled = true;
+        CurrentViewMode = EVirtualSensorViewMode::PointCloudOnly;
+
+        if (bPointCloudOnlyHideWorld)
+        {
+            ApplyPointCloudOnlyVisibility();
+        }
+
+        for (UVirtualLidarSensorComp* LidarComp : Lidars)
+        {
+            if (LidarComp)
+            {
+                LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
+            }
+        }
+
+        if (bPointCloudOnlyAutoSelectLidarView && BoundMonitorWidget)
+        {
+            BoundMonitorWidget->ShowLidarView();
+        }
+    }
+    else
+    {
+        bPointCloudOnlyModeEnabled = false;
+        RestorePointCloudOnlyVisibility();
+        for (UVirtualLidarSensorComp* LidarComp : Lidars)
+        {
+            if (LidarComp)
+            {
+                LidarComp->SetPointCloudPreviewEnabled(false);
+            }
+        }
+        CurrentViewMode = PreviousViewModeBeforePointCloudOnly;
+        if (BoundMonitorWidget)
+        {
+            if (CurrentViewMode == EVirtualSensorViewMode::Camera) BoundMonitorWidget->ShowCameraView();
+            if (CurrentViewMode == EVirtualSensorViewMode::Lidar) BoundMonitorWidget->ShowLidarView();
+        }
+    }
+
+    OnViewModeChanged.Broadcast(CurrentViewMode);
+}
+
 void AVirtualSensorManager::ToggleSensorView()
 {
     SetViewMode(CurrentViewMode == EVirtualSensorViewMode::Camera ? EVirtualSensorViewMode::Lidar : EVirtualSensorViewMode::Camera);
+}
+
+void AVirtualSensorManager::TogglePointCloudOnlyView()
+{
+    SetPointCloudOnlyMode(!bPointCloudOnlyModeEnabled);
 }
 
 void AVirtualSensorManager::StartAllSensors()
@@ -261,11 +367,12 @@ FVirtualSensorHealthSummary AVirtualSensorManager::GetHealthSummary() const
     }
 
     Health.bHealthy = Health.StaleSensorCount == 0;
-    Health.Summary = FString::Printf(TEXT("Cameras=%d Lidars=%d Stale=%d Healthy=%s"),
+    Health.Summary = FString::Printf(TEXT("Cameras=%d Lidars=%d Stale=%d Healthy=%s PointCloudOnly=%s"),
         Health.CameraCount,
         Health.LidarCount,
         Health.StaleSensorCount,
-        Health.bHealthy ? TEXT("true") : TEXT("false"));
+        Health.bHealthy ? TEXT("true") : TEXT("false"),
+        bPointCloudOnlyModeEnabled ? TEXT("true") : TEXT("false"));
     return Health;
 }
 
@@ -274,7 +381,14 @@ void AVirtualSensorManager::ApplyWidgetBinding()
     if (!BoundMonitorWidget) return;
     BoundMonitorWidget->BindVirtualCamera(GetSelectedCamera());
     BoundMonitorWidget->BindVirtualLidar(GetSelectedLidar());
-    SetViewMode(CurrentViewMode);
+    if (CurrentViewMode == EVirtualSensorViewMode::PointCloudOnly)
+    {
+        BoundMonitorWidget->ShowLidarView();
+    }
+    else
+    {
+        SetViewMode(CurrentViewMode);
+    }
 }
 
 void AVirtualSensorManager::RunSynchronizedCapture()
@@ -311,4 +425,95 @@ void AVirtualSensorManager::AssignSharedServicesIfPossible(UActorComponent* Sens
             LidarComp->SetRecorderComponent(SharedRecorderComponent);
         }
     }
+}
+
+void AVirtualSensorManager::ApplyPointCloudOnlyVisibility()
+{
+    RestorePointCloudOnlyVisibility();
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        AActor* Actor = *It;
+        if (!Actor || ShouldKeepActorVisibleInPointCloudOnly(Actor))
+        {
+            continue;
+        }
+
+        TArray<UPrimitiveComponent*> PrimitiveComponents;
+        Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+        for (UPrimitiveComponent* PrimitiveComp : PrimitiveComponents)
+        {
+            if (!PrimitiveComp || PrimitiveComp->IsA<ULightComponent>())
+            {
+                continue;
+            }
+
+            FVirtualSensorHiddenComponentState State;
+            State.Component = PrimitiveComp;
+            State.bWasHiddenInGame = PrimitiveComp->bHiddenInGame;
+            State.bWasVisible = PrimitiveComp->IsVisible();
+            HiddenComponentStates.Add(State);
+
+            PrimitiveComp->SetHiddenInGame(true);
+            PrimitiveComp->SetVisibility(false, true);
+        }
+    }
+}
+
+void AVirtualSensorManager::RestorePointCloudOnlyVisibility()
+{
+    for (const FVirtualSensorHiddenComponentState& State : HiddenComponentStates)
+    {
+        if (State.Component)
+        {
+            State.Component->SetHiddenInGame(State.bWasHiddenInGame);
+            State.Component->SetVisibility(State.bWasVisible, true);
+        }
+    }
+    HiddenComponentStates.Reset();
+}
+
+bool AVirtualSensorManager::ShouldKeepActorVisibleInPointCloudOnly(const AActor* Actor) const
+{
+    if (!Actor)
+    {
+        return false;
+    }
+
+    if (Actor == this)
+    {
+        return true;
+    }
+
+    if (const UVirtualLidarSensorComp* SelectedLidar = GetSelectedLidar())
+    {
+        if (Actor == SelectedLidar->GetOwner())
+        {
+            return true;
+        }
+    }
+
+    if (const UVirtualCameraComp* SelectedCamera = GetSelectedCamera())
+    {
+        if (Actor == SelectedCamera->GetOwner())
+        {
+            return true;
+        }
+    }
+
+    for (const FName& Tag : PointCloudOnlyKeepActorTags)
+    {
+        if (!Tag.IsNone() && Actor->ActorHasTag(Tag))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
