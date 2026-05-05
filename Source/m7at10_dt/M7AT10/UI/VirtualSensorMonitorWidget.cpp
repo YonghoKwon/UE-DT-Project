@@ -30,6 +30,12 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
         NextLidarButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked);
     }
 
+    if (PointCloudOnlyButton)
+    {
+        PointCloudOnlyButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked);
+        PointCloudOnlyButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked);
+    }
+
     RefreshTitle();
     RefreshImageBrush();
     RefreshStatusText();
@@ -118,6 +124,14 @@ void UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked()
     }
 }
 
+void UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked()
+{
+    if (SensorManager)
+    {
+        SensorManager->TogglePointCloudOnlyView();
+    }
+}
+
 void UVirtualSensorMonitorWidget::RefreshImageBrush()
 {
     if (!ViewImage)
@@ -145,7 +159,8 @@ void UVirtualSensorMonitorWidget::RefreshTitle()
 {
     if (TitleText)
     {
-        TitleText->SetText(FText::FromString(bShowingLidar ? TEXT("Virtual LIDAR View") : TEXT("Virtual Camera View")));
+        const bool bPointCloudOnly = SensorManager && SensorManager->IsPointCloudOnlyModeEnabled();
+        TitleText->SetText(FText::FromString(bPointCloudOnly ? TEXT("LiDAR Point Cloud Only") : (bShowingLidar ? TEXT("Virtual LIDAR View") : TEXT("Virtual Camera View"))));
     }
 
     if (ToggleButtonText)
@@ -165,7 +180,7 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nDevice: %s %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nDevice: %s %s\nFrame: %lld\nPoints: %d\nHits: %d\nPayload: %d\nPointCloudPreview: %s\nMessage: %s"),
             *Status.SensorId,
             *LidarComp->GetDeviceSpec().Manufacturer,
             *LidarComp->GetDeviceSpec().Model,
@@ -173,6 +188,7 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
             Status.TotalPointCount,
             Status.HitPointCount,
             Status.LastPayloadLength,
+            LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
             *Status.LastMessage);
     }
     else if (!bShowingLidar && CameraComp)
