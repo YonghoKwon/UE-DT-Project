@@ -2,7 +2,7 @@
 
 #include "VirtualCameraAct.h"
 
-#include "DrawFrustumComponent.h"
+#include "Components/DrawFrustumComponent.h"
 #include "VirtualCameraComp.h"
 
 AVirtualCameraAct::AVirtualCameraAct()
