@@ -99,6 +99,8 @@ void AVirtualSensorManager::RegisterLidar(UVirtualLidarSensorComp* LidarComp)
         AssignSharedServicesIfPossible(LidarComp);
         if (bPointCloudOnlyModeEnabled)
         {
+            LidarComp->bDrawDebugRays = false;
+            LidarComp->bPointCloudPreviewHitOnly = true;
             LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
         }
         ApplyWidgetBinding();
@@ -131,6 +133,8 @@ void AVirtualSensorManager::SelectLidarByIndex(int32 Index)
             {
                 if (LidarComp)
                 {
+                    LidarComp->bDrawDebugRays = false;
+                    LidarComp->bPointCloudPreviewHitOnly = true;
                     LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
                 }
             }
@@ -162,6 +166,8 @@ void AVirtualSensorManager::SelectNextLidar()
         {
             if (LidarComp)
             {
+                LidarComp->bDrawDebugRays = false;
+                LidarComp->bPointCloudPreviewHitOnly = true;
                 LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
             }
         }
@@ -215,6 +221,8 @@ void AVirtualSensorManager::SetPointCloudOnlyMode(bool bEnabled)
         {
             if (LidarComp)
             {
+                LidarComp->bDrawDebugRays = false;
+                LidarComp->bPointCloudPreviewHitOnly = true;
                 LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
             }
         }
