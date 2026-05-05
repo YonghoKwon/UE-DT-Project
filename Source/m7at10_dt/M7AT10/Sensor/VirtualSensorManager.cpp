@@ -1,7 +1,6 @@
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
-#include "Components/LightComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
@@ -449,14 +448,14 @@ void AVirtualSensorManager::ApplyPointCloudOnlyVisibility()
         Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
         for (UPrimitiveComponent* PrimitiveComp : PrimitiveComponents)
         {
-            if (!PrimitiveComp || PrimitiveComp->IsA<ULightComponent>())
+            if (!PrimitiveComp)
             {
                 continue;
             }
 
             FVirtualSensorHiddenComponentState State;
             State.Component = PrimitiveComp;
-            State.bWasHiddenInGame = PrimitiveComp->bHiddenInGame;
+            State.bWasHiddenInGame = PrimitiveComp->IsHiddenInGame();
             State.bWasVisible = PrimitiveComp->IsVisible();
             HiddenComponentStates.Add(State);
 
