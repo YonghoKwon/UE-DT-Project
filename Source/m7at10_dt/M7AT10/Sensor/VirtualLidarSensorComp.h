@@ -266,7 +266,10 @@ private:
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 };
 
-// Compatibility guard for existing export log expressions in VirtualLidarSensorComp.cpp.
-// This keeps dynamic export success checks compiling with UE_LOG's token-based verbosity macro.
+// Temporary compatibility shim for legacy dynamic UE_LOG verbosity expressions in VirtualLidarSensorComp.cpp.
+// The cpp will be cleaned up by replacing those expressions with explicit if/else UE_LOG calls.
+namespace ELogVerbosity
+{
+    static constexpr Type bSaved = Log;
+}
 using namespace ELogVerbosity;
-#define bSaved Warning
