@@ -5,6 +5,7 @@
 #include "VirtualSensorManager.generated.h"
 
 class UActorComponent;
+class UPrimitiveComponent;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 class UVirtualSensorMonitorWidget;
@@ -16,7 +17,8 @@ enum class EVirtualSensorViewMode : uint8
 {
     RealWorld UMETA(DisplayName = "Real World"),
     Camera UMETA(DisplayName = "Camera"),
-    Lidar UMETA(DisplayName = "Lidar")
+    Lidar UMETA(DisplayName = "Lidar"),
+    PointCloudOnly UMETA(DisplayName = "Point Cloud Only")
 };
 
 USTRUCT(BlueprintType)
@@ -56,6 +58,21 @@ struct M7AT10_DT_API FVirtualSensorHealthSummary
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
     bool bHealthy = true;
+};
+
+USTRUCT()
+struct M7AT10_DT_API FVirtualSensorHiddenComponentState
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    TObjectPtr<UPrimitiveComponent> Component;
+
+    UPROPERTY()
+    bool bWasHiddenInGame = false;
+
+    UPROPERTY()
+    bool bWasVisible = true;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorViewModeChanged, EVirtualSensorViewMode, NewMode);
@@ -101,7 +118,13 @@ public:
     void SetViewMode(EVirtualSensorViewMode NewMode);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void SetPointCloudOnlyMode(bool bEnabled);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void ToggleSensorView();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void TogglePointCloudOnlyView();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void StartAllSensors();
@@ -130,6 +153,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     EVirtualSensorViewMode GetViewMode() const { return CurrentViewMode; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+    bool IsPointCloudOnlyModeEnabled() const { return bPointCloudOnlyModeEnabled; }
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorManager")
     FOnVirtualSensorViewModeChanged OnViewModeChanged;
 
@@ -148,6 +174,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager|Health", meta = (ClampMin = "0.1"))
     float StaleSensorSeconds = 3.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager|PointCloudOnly")
+    bool bPointCloudOnlyHideWorld = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager|PointCloudOnly")
+    bool bPointCloudOnlyAutoSelectLidarView = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager|PointCloudOnly")
+    TArray<FName> PointCloudOnlyKeepActorTags;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
     TObjectPtr<UVirtualSensorDataTransportComp> SharedTransportComponent;
 
@@ -158,6 +193,9 @@ private:
     void ApplyWidgetBinding();
     void RunSynchronizedCapture();
     void AssignSharedServicesIfPossible(UActorComponent* SensorComp);
+    void ApplyPointCloudOnlyVisibility();
+    void RestorePointCloudOnlyVisibility();
+    bool ShouldKeepActorVisibleInPointCloudOnly(const AActor* Actor) const;
 
 private:
     UPROPERTY(Transient)
@@ -169,8 +207,13 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorMonitorWidget> BoundMonitorWidget;
 
+    UPROPERTY(Transient)
+    TArray<FVirtualSensorHiddenComponentState> HiddenComponentStates;
+
     int32 SelectedCameraIndex = 0;
     int32 SelectedLidarIndex = 0;
     EVirtualSensorViewMode CurrentViewMode = EVirtualSensorViewMode::Camera;
+    EVirtualSensorViewMode PreviousViewModeBeforePointCloudOnly = EVirtualSensorViewMode::Camera;
+    bool bPointCloudOnlyModeEnabled = false;
     FTimerHandle SynchronizedTimerHandle;
 };
