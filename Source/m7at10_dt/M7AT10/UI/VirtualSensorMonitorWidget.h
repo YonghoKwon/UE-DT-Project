@@ -52,6 +52,12 @@ private:
     UFUNCTION()
     void HandlePointCloudOnlyButtonClicked();
 
+    UFUNCTION()
+    void HandleLogPointCloudButtonClicked();
+
+    UFUNCTION()
+    void HandleExportPointCloudButtonClicked();
+
     void RefreshImageBrush();
     void RefreshTitle();
     void RefreshStatusText();
@@ -80,6 +86,12 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> PointCloudOnlyButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> LogPointCloudButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> ExportPointCloudButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
