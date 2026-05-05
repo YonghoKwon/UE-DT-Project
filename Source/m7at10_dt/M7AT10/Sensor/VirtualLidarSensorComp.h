@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(_MSC_VER)
+#pragma warning(disable: 4459)
+#endif
+
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "VirtualLidarSensorTypes.h"
