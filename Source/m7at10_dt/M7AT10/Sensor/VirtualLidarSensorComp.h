@@ -163,7 +163,7 @@ public:
     bool bFlipLidarViewVertical = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
-    bool bPointCloudPreviewEnabled = false;
+    bool bPointCloudPreviewEnabled = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     bool bPointCloudPreviewHitOnly = true;
