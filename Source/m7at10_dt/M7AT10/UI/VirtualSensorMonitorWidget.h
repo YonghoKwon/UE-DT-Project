@@ -49,6 +49,9 @@ private:
     UFUNCTION()
     void HandleNextLidarButtonClicked();
 
+    UFUNCTION()
+    void HandlePointCloudOnlyButtonClicked();
+
     void RefreshImageBrush();
     void RefreshTitle();
     void RefreshStatusText();
@@ -74,6 +77,9 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> NextLidarButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> PointCloudOnlyButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
