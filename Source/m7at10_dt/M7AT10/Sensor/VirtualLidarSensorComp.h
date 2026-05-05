@@ -7,6 +7,7 @@
 #include "VirtualLidarSensorComp.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UMaterialInterface;
 class UStaticMesh;
 class UTexture2D;
 class UVirtualSensorDataTransportComp;
@@ -60,6 +61,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     bool IsPointCloudPreviewEnabled() const { return bPointCloudPreviewEnabled; }
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    void ApplyPointCloudPreviewStyle();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Debug")
+    void LogLastPointCloud(int32 MaxPointsToLog = 100, bool bHitOnly = true) const;
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
     bool ExportLastPointCloudCsv(const FString& FileNamePrefix = TEXT("")) const;
 
@@ -68,6 +75,15 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
     bool ExportLastPointCloudPcd(const FString& FileNamePrefix = TEXT("")) const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
+    bool ExportLastPointCloudLas(const FString& FileNamePrefix = TEXT("")) const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
+    bool ExportLastPointCloudLaz(const FString& FileNamePrefix = TEXT("")) const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
+    bool ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix = TEXT("")) const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const TArray<FVirtualLidarPoint>& GetLastPoints() const { return LastPoints; }
@@ -178,7 +194,19 @@ public:
     float PointCloudPreviewPointScale = 0.035f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    FLinearColor PointCloudPreviewColor = FLinearColor(1.0f, 0.05f, 0.0f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool bDrawPointCloudPreviewDebugPoints = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "1.0", ClampMax = "50.0"))
+    float PointCloudPreviewDebugPointSize = 8.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     TObjectPtr<UStaticMesh> PointCloudPreviewMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    TObjectPtr<UMaterialInterface> PointCloudPreviewMaterial;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|MultiHit")
     bool bUseMultiHit = false;
@@ -194,6 +222,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export")
     bool bExportPcdOnScan = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export")
+    bool bExportHitOnlyPointCloud = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Filter")
     TArray<FName> IgnoreActorTags;
@@ -218,6 +249,7 @@ private:
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
     UInstancedStaticMeshComponent* EnsurePointCloudPreviewComponent();
     void RefreshPointCloudPreview();
+    void CollectExportPoints(TArray<const FVirtualLidarPoint*>& OutExportPoints) const;
 
 private:
     FTimerHandle ScanTimerHandle;
