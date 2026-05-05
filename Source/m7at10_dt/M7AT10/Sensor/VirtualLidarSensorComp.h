@@ -265,3 +265,8 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 };
+
+// Compatibility guard for existing export log expressions in VirtualLidarSensorComp.cpp.
+// This keeps dynamic export success checks compiling with UE_LOG's token-based verbosity macro.
+using namespace ELogVerbosity;
+#define bSaved Warning
