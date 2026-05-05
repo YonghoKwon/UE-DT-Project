@@ -9,6 +9,65 @@
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 #include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
 
+namespace
+{
+struct FLidarPointCloudOnlyState
+{
+    bool bPointCloudPreviewEnabled = false;
+    bool bPointCloudPreviewHitOnly = true;
+    bool bDrawDebugRays = false;
+};
+
+TMap<TWeakObjectPtr<UVirtualLidarSensorComp>, FLidarPointCloudOnlyState> GLidarPointCloudOnlyStates;
+
+void SaveLidarViewState(UVirtualLidarSensorComp* LidarComp)
+{
+    if (!LidarComp || GLidarPointCloudOnlyStates.Contains(LidarComp))
+    {
+        return;
+    }
+
+    FLidarPointCloudOnlyState State;
+    State.bPointCloudPreviewEnabled = LidarComp->IsPointCloudPreviewEnabled();
+    State.bPointCloudPreviewHitOnly = LidarComp->bPointCloudPreviewHitOnly;
+    State.bDrawDebugRays = LidarComp->bDrawDebugRays;
+    GLidarPointCloudOnlyStates.Add(LidarComp, State);
+}
+
+void ApplyPointCloudOnlyToLidar(UVirtualLidarSensorComp* LidarComp, bool bSelected)
+{
+    if (!LidarComp)
+    {
+        return;
+    }
+
+    SaveLidarViewState(LidarComp);
+    LidarComp->bDrawDebugRays = false;
+    LidarComp->bPointCloudPreviewHitOnly = true;
+    LidarComp->SetPointCloudPreviewEnabled(bSelected);
+}
+
+void RestoreLidarViewState(UVirtualLidarSensorComp* LidarComp)
+{
+    if (!LidarComp)
+    {
+        return;
+    }
+
+    if (FLidarPointCloudOnlyState* State = GLidarPointCloudOnlyStates.Find(LidarComp))
+    {
+        LidarComp->bDrawDebugRays = State->bDrawDebugRays;
+        LidarComp->bPointCloudPreviewHitOnly = State->bPointCloudPreviewHitOnly;
+        LidarComp->SetPointCloudPreviewEnabled(State->bPointCloudPreviewEnabled);
+        GLidarPointCloudOnlyStates.Remove(LidarComp);
+    }
+    else
+    {
+        LidarComp->SetPointCloudPreviewEnabled(false);
+    }
+}
+}
+
 AVirtualSensorManager::AVirtualSensorManager()
 {
     PrimaryActorTick.bCanEverTick = false;
@@ -43,10 +102,7 @@ void AVirtualSensorManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
     RestorePointCloudOnlyVisibility();
     for (UVirtualLidarSensorComp* LidarComp : Lidars)
     {
-        if (LidarComp)
-        {
-            LidarComp->SetPointCloudPreviewEnabled(false);
-        }
+        RestoreLidarViewState(LidarComp);
     }
 
     if (GetWorld())
@@ -99,9 +155,7 @@ void AVirtualSensorManager::RegisterLidar(UVirtualLidarSensorComp* LidarComp)
         AssignSharedServicesIfPossible(LidarComp);
         if (bPointCloudOnlyModeEnabled)
         {
-            LidarComp->bDrawDebugRays = false;
-            LidarComp->bPointCloudPreviewHitOnly = true;
-            LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
+            ApplyPointCloudOnlyToLidar(LidarComp, LidarComp == GetSelectedLidar());
         }
         ApplyWidgetBinding();
     }
@@ -131,12 +185,7 @@ void AVirtualSensorManager::SelectLidarByIndex(int32 Index)
         {
             for (UVirtualLidarSensorComp* LidarComp : Lidars)
             {
-                if (LidarComp)
-                {
-                    LidarComp->bDrawDebugRays = false;
-                    LidarComp->bPointCloudPreviewHitOnly = true;
-                    LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
-                }
+                ApplyPointCloudOnlyToLidar(LidarComp, LidarComp == GetSelectedLidar());
             }
         }
         ApplyWidgetBinding();
@@ -164,12 +213,7 @@ void AVirtualSensorManager::SelectNextLidar()
     {
         for (UVirtualLidarSensorComp* LidarComp : Lidars)
         {
-            if (LidarComp)
-            {
-                LidarComp->bDrawDebugRays = false;
-                LidarComp->bPointCloudPreviewHitOnly = true;
-                LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
-            }
+            ApplyPointCloudOnlyToLidar(LidarComp, LidarComp == GetSelectedLidar());
         }
     }
     ApplyWidgetBinding();
@@ -219,12 +263,7 @@ void AVirtualSensorManager::SetPointCloudOnlyMode(bool bEnabled)
 
         for (UVirtualLidarSensorComp* LidarComp : Lidars)
         {
-            if (LidarComp)
-            {
-                LidarComp->bDrawDebugRays = false;
-                LidarComp->bPointCloudPreviewHitOnly = true;
-                LidarComp->SetPointCloudPreviewEnabled(LidarComp == GetSelectedLidar());
-            }
+            ApplyPointCloudOnlyToLidar(LidarComp, LidarComp == GetSelectedLidar());
         }
 
         if (bPointCloudOnlyAutoSelectLidarView && BoundMonitorWidget)
@@ -238,10 +277,7 @@ void AVirtualSensorManager::SetPointCloudOnlyMode(bool bEnabled)
         RestorePointCloudOnlyVisibility();
         for (UVirtualLidarSensorComp* LidarComp : Lidars)
         {
-            if (LidarComp)
-            {
-                LidarComp->SetPointCloudPreviewEnabled(false);
-            }
+            RestoreLidarViewState(LidarComp);
         }
         CurrentViewMode = PreviousViewModeBeforePointCloudOnly;
         if (BoundMonitorWidget)
