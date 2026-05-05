@@ -6,6 +6,8 @@
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "VirtualLidarSensorComp.generated.h"
 
+class UInstancedStaticMeshComponent;
+class UStaticMesh;
 class UTexture2D;
 class UVirtualSensorDataTransportComp;
 class UVirtualSensorRecorderComp;
@@ -48,6 +50,15 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Recorder")
     void SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    void SetPointCloudPreviewEnabled(bool bEnabled);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    void ClearPointCloudPreview();
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool IsPointCloudPreviewEnabled() const { return bPointCloudPreviewEnabled; }
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
     bool ExportLastPointCloudCsv(const FString& FileNamePrefix = TEXT("")) const;
@@ -151,6 +162,24 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|View")
     bool bFlipLidarViewVertical = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool bPointCloudPreviewEnabled = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool bPointCloudPreviewHitOnly = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "1", ClampMax = "100"))
+    int32 PointCloudPreviewStride = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0", ClampMax = "1000000"))
+    int32 MaxPointCloudPreviewInstances = 5000;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0.001", ClampMax = "10.0"))
+    float PointCloudPreviewPointScale = 0.035f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    TObjectPtr<UStaticMesh> PointCloudPreviewMesh;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|MultiHit")
     bool bUseMultiHit = false;
 
@@ -187,6 +216,8 @@ private:
     void TryAutoRegisterToManager();
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
+    UInstancedStaticMeshComponent* EnsurePointCloudPreviewComponent();
+    void RefreshPointCloudPreview();
 
 private:
     FTimerHandle ScanTimerHandle;
@@ -198,4 +229,7 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UTexture2D> LidarViewTexture;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 };
