@@ -199,9 +199,10 @@ void UVirtualLidarSensorComp::ScanAndSend()
             ++RuntimeStatus.HitPointCount;
         }
     }
-    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d PayloadStride=%d"),
+    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d Hits=%d PayloadStride=%d"),
         static_cast<int32>(SimulationQuality),
         HorizontalSamples * VerticalChannels,
+        RuntimeStatus.HitPointCount,
         PayloadPointStride);
 
     if (RecorderComponent)
@@ -242,7 +243,13 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
 
     const FVector Origin = GetComponentLocation();
     const FRotator BaseRotation = GetComponentRotation();
-    FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarSensor), false, GetOwner());
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarSensor), true, GetOwner());
+    Params.bReturnFaceIndex = true;
+    Params.bFindInitialOverlaps = true;
+    if (GetOwner())
+    {
+        Params.AddIgnoredActor(GetOwner());
+    }
 
     for (int32 V = 0; V < SafeVerticalChannels; ++V)
     {
@@ -264,11 +271,16 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
             FirstPoint.WorldLocation = End;
             FirstPoint.bHit = false;
             FirstPoint.HitActorName = NAME_None;
+            FVector FirstHitNormal = FVector::ZeroVector;
 
             if (bUseMultiHit)
             {
                 TArray<FHitResult> Hits;
                 World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
+                if (Hits.Num() == 0 && TraceChannel != ECC_WorldStatic)
+                {
+                    World->LineTraceMultiByChannel(Hits, Origin, End, ECC_WorldStatic, Params);
+                }
 
                 int32 AddedHits = 0;
                 for (const FHitResult& Hit : Hits)
@@ -289,6 +301,7 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
                     if (!FirstPoint.bHit)
                     {
                         FirstPoint = Point;
+                        FirstHitNormal = Hit.ImpactNormal;
                     }
 
                     ++AddedHits;
@@ -307,6 +320,10 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
             {
                 FHitResult Hit;
                 bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+                if (!bHit && TraceChannel != ECC_WorldStatic)
+                {
+                    bHit = World->LineTraceSingleByChannel(Hit, Origin, End, ECC_WorldStatic, Params);
+                }
                 if (bHit && ShouldIgnoreHitActor(Hit.GetActor()))
                 {
                     bHit = false;
@@ -316,6 +333,7 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
                 FirstPoint.Distance = bHit ? Hit.Distance : MaxDistance;
                 FirstPoint.WorldLocation = bHit ? Hit.ImpactPoint : End;
                 FirstPoint.HitActorName = bHit && Hit.GetActor() ? Hit.GetActor()->GetFName() : NAME_None;
+                FirstHitNormal = bHit ? Hit.ImpactNormal : FVector::ZeroVector;
                 OutPoints.Add(FirstPoint);
             }
 
@@ -324,7 +342,20 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
 
             if (bDrawDebugRays)
             {
-                DrawDebugLine(World, Origin, FirstPoint.WorldLocation, FirstPoint.bHit ? FColor::Cyan : FColor::Silver, false, ScanInterval, 0, 0.5f);
+                const float DebugLifeTime = FMath::Max(ScanInterval, 0.05f);
+                const float RayThickness = FirstPoint.bHit ? 1.5f : 0.15f;
+                const FColor RayColor = FirstPoint.bHit ? FColor::Green : FColor::Silver;
+                DrawDebugLine(World, Origin, FirstPoint.WorldLocation, RayColor, false, DebugLifeTime, 0, RayThickness);
+
+                if (FirstPoint.bHit)
+                {
+                    DrawDebugPoint(World, FirstPoint.WorldLocation, 10.0f, FColor::Red, false, DebugLifeTime);
+                    DrawDebugSphere(World, FirstPoint.WorldLocation, 3.0f, 8, FColor::Yellow, false, DebugLifeTime, 0, 0.75f);
+                    if (!FirstHitNormal.IsNearlyZero())
+                    {
+                        DrawDebugLine(World, FirstPoint.WorldLocation, FirstPoint.WorldLocation + FirstHitNormal.GetSafeNormal() * 15.0f, FColor::Yellow, false, DebugLifeTime, 0, 1.0f);
+                    }
+                }
             }
         }
     }
@@ -503,6 +534,10 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudCsv(const FString& FileNamePre
     FString Text = TEXT("x,y,z,distance,hit,actor\n");
     for (const FVirtualLidarPoint& Point : LastPoints)
     {
+        if (!bIncludeMissPointsInPayload && !Point.bHit)
+        {
+            continue;
+        }
         Text += FString::Printf(TEXT("%f,%f,%f,%f,%d,%s\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0, *Point.HitActorName.ToString());
     }
     return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("csv"), FileNamePrefix));
@@ -513,6 +548,10 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudJsonLines(const FString& FileN
     FString Text;
     for (const FVirtualLidarPoint& Point : LastPoints)
     {
+        if (!bIncludeMissPointsInPayload && !Point.bHit)
+        {
+            continue;
+        }
         Text += FString::Printf(TEXT("{\"x\":%f,\"y\":%f,\"z\":%f,\"distance\":%f,\"hit\":%s,\"actor\":\"%s\"}\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? TEXT("true") : TEXT("false"), *Point.HitActorName.ToString());
     }
     return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("jsonl"), FileNamePrefix));
@@ -520,13 +559,27 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudJsonLines(const FString& FileN
 
 bool UVirtualLidarSensorComp::ExportLastPointCloudPcd(const FString& FileNamePrefix) const
 {
+    TArray<const FVirtualLidarPoint*> ExportPoints;
+    for (const FVirtualLidarPoint& Point : LastPoints)
+    {
+        if (!bIncludeMissPointsInPayload && !Point.bHit)
+        {
+            continue;
+        }
+        ExportPoints.Add(&Point);
+    }
+
     FString Text;
     Text += TEXT("# .PCD v0.7 - Point Cloud Data file format\n");
     Text += TEXT("VERSION 0.7\nFIELDS x y z distance hit\nSIZE 4 4 4 4 4\nTYPE F F F F I\nCOUNT 1 1 1 1 1\n");
-    Text += FString::Printf(TEXT("WIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), LastPoints.Num(), LastPoints.Num());
-    for (const FVirtualLidarPoint& Point : LastPoints)
+    Text += FString::Printf(TEXT("WIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), ExportPoints.Num(), ExportPoints.Num());
+    for (const FVirtualLidarPoint* Point : ExportPoints)
     {
-        Text += FString::Printf(TEXT("%f %f %f %f %d\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0);
+        if (!Point)
+        {
+            continue;
+        }
+        Text += FString::Printf(TEXT("%f %f %f %f %d\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z, Point->Distance, Point->bHit ? 1 : 0);
     }
     return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("pcd"), FileNamePrefix));
 }
