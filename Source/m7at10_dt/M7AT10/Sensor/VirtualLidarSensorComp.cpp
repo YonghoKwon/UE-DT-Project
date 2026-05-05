@@ -8,11 +8,48 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Json.h"
+#include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Serialization/BufferArchive.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
+
+namespace
+{
+template <typename TValue>
+void WriteLasValue(FBufferArchive& Archive, const TValue& Value)
+{
+    Archive.Serialize(const_cast<TValue*>(&Value), sizeof(TValue));
+}
+
+void WriteLasFixedString(FBufferArchive& Archive, const ANSICHAR* Text, int32 Length)
+{
+    TArray<ANSICHAR> Buffer;
+    Buffer.SetNumZeroed(Length);
+    if (Text)
+    {
+        FCStringAnsi::Strncpy(Buffer.GetData(), Text, Length);
+    }
+    Archive.Serialize(Buffer.GetData(), Length);
+}
+
+void WriteLasBytes(FBufferArchive& Archive, const uint8* Bytes, int32 Length)
+{
+    Archive.Serialize(const_cast<uint8*>(Bytes), Length);
+}
+
+uint16 ClampDistanceToIntensity(float Distance, float MaxDistance)
+{
+    if (MaxDistance <= 0.0f)
+    {
+        return 0;
+    }
+    const float Normalized = FMath::Clamp(Distance / MaxDistance, 0.0f, 1.0f);
+    return static_cast<uint16>((1.0f - Normalized) * 65535.0f);
+}
+}
 
 UVirtualLidarSensorComp::UVirtualLidarSensorComp()
 {
@@ -38,6 +75,7 @@ void UVirtualLidarSensorComp::BeginPlay()
     if (bPointCloudPreviewEnabled)
     {
         EnsurePointCloudPreviewComponent();
+        ApplyPointCloudPreviewStyle();
     }
 
     if (bAutoStartScan)
@@ -93,6 +131,7 @@ void UVirtualLidarSensorComp::SetPointCloudPreviewEnabled(bool bEnabled)
     if (bPointCloudPreviewEnabled)
     {
         EnsurePointCloudPreviewComponent();
+        ApplyPointCloudPreviewStyle();
         RefreshPointCloudPreview();
     }
     else
@@ -108,6 +147,19 @@ void UVirtualLidarSensorComp::ClearPointCloudPreview()
         PointCloudPreviewComponent->ClearInstances();
         PointCloudPreviewComponent->SetHiddenInGame(true);
         PointCloudPreviewComponent->SetVisibility(false, true);
+    }
+}
+
+void UVirtualLidarSensorComp::ApplyPointCloudPreviewStyle()
+{
+    if (!PointCloudPreviewComponent)
+    {
+        return;
+    }
+
+    if (PointCloudPreviewMaterial)
+    {
+        PointCloudPreviewComponent->SetMaterial(0, PointCloudPreviewMaterial);
     }
 }
 
@@ -237,9 +289,10 @@ void UVirtualLidarSensorComp::ScanAndSend()
             ++RuntimeStatus.HitPointCount;
         }
     }
-    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d PayloadStride=%d PointCloudPreview=%s"),
+    RuntimeStatus.LastMessage = FString::Printf(TEXT("Quality=%d Rays=%d Hits=%d PayloadStride=%d PointCloudPreview=%s"),
         static_cast<int32>(SimulationQuality),
         HorizontalSamples * VerticalChannels,
+        RuntimeStatus.HitPointCount,
         PayloadPointStride,
         bPointCloudPreviewEnabled ? TEXT("On") : TEXT("Off"));
 
@@ -537,37 +590,241 @@ FString UVirtualLidarSensorComp::BuildExportPath(const FString& Extension, const
     return FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Timestamp, *Extension));
 }
 
-bool UVirtualLidarSensorComp::ExportLastPointCloudCsv(const FString& FileNamePrefix) const
+void UVirtualLidarSensorComp::CollectExportPoints(TArray<const FVirtualLidarPoint*>& OutExportPoints) const
 {
-    FString Text = TEXT("x,y,z,distance,hit,actor\n");
+    OutExportPoints.Reset();
     for (const FVirtualLidarPoint& Point : LastPoints)
     {
-        Text += FString::Printf(TEXT("%f,%f,%f,%f,%d,%s\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0, *Point.HitActorName.ToString());
+        if (bExportHitOnlyPointCloud && !Point.bHit)
+        {
+            continue;
+        }
+        OutExportPoints.Add(&Point);
     }
-    return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("csv"), FileNamePrefix));
+}
+
+void UVirtualLidarSensorComp::LogLastPointCloud(int32 MaxPointsToLog, bool bHitOnly) const
+{
+    const int32 SafeMax = FMath::Max(0, MaxPointsToLog);
+    int32 Logged = 0;
+    int32 CandidateCount = 0;
+
+    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] PointCloud frame=%lld total=%d hitOnly=%s maxLog=%d"), *SensorId, FrameId, LastPoints.Num(), bHitOnly ? TEXT("true") : TEXT("false"), SafeMax);
+
+    for (int32 PointIndex = 0; PointIndex < LastPoints.Num(); ++PointIndex)
+    {
+        const FVirtualLidarPoint& Point = LastPoints[PointIndex];
+        if (bHitOnly && !Point.bHit)
+        {
+            continue;
+        }
+        ++CandidateCount;
+        if (SafeMax > 0 && Logged >= SafeMax)
+        {
+            continue;
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] point[%d] x=%.3f y=%.3f z=%.3f distance=%.3f hit=%d actor=%s"),
+            *SensorId,
+            PointIndex,
+            Point.WorldLocation.X,
+            Point.WorldLocation.Y,
+            Point.WorldLocation.Z,
+            Point.Distance,
+            Point.bHit ? 1 : 0,
+            *Point.HitActorName.ToString());
+        ++Logged;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] PointCloud log complete. candidates=%d logged=%d"), *SensorId, CandidateCount, Logged);
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudCsv(const FString& FileNamePrefix) const
+{
+    TArray<const FVirtualLidarPoint*> ExportPoints;
+    CollectExportPoints(ExportPoints);
+
+    const FString Path = BuildExportPath(TEXT("csv"), FileNamePrefix);
+    FString Text = TEXT("x,y,z,distance,hit,actor\n");
+    for (const FVirtualLidarPoint* Point : ExportPoints)
+    {
+        if (!Point)
+        {
+            continue;
+        }
+        Text += FString::Printf(TEXT("%f,%f,%f,%f,%d,%s\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z, Point->Distance, Point->bHit ? 1 : 0, *Point->HitActorName.ToString());
+    }
+    const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
+    UE_LOG(LogTemp, bSaved ? Log : Warning, TEXT("[VirtualLidar:%s] CSV export %s: %s points=%d"), *SensorId, bSaved ? TEXT("saved") : TEXT("failed"), *Path, ExportPoints.Num());
+    return bSaved;
 }
 
 bool UVirtualLidarSensorComp::ExportLastPointCloudJsonLines(const FString& FileNamePrefix) const
 {
+    TArray<const FVirtualLidarPoint*> ExportPoints;
+    CollectExportPoints(ExportPoints);
+
+    const FString Path = BuildExportPath(TEXT("jsonl"), FileNamePrefix);
     FString Text;
-    for (const FVirtualLidarPoint& Point : LastPoints)
+    for (const FVirtualLidarPoint* Point : ExportPoints)
     {
-        Text += FString::Printf(TEXT("{\"x\":%f,\"y\":%f,\"z\":%f,\"distance\":%f,\"hit\":%s,\"actor\":\"%s\"}\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? TEXT("true") : TEXT("false"), *Point.HitActorName.ToString());
+        if (!Point)
+        {
+            continue;
+        }
+        Text += FString::Printf(TEXT("{\"x\":%f,\"y\":%f,\"z\":%f,\"distance\":%f,\"hit\":%s,\"actor\":\"%s\"}\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z, Point->Distance, Point->bHit ? TEXT("true") : TEXT("false"), *Point->HitActorName.ToString());
     }
-    return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("jsonl"), FileNamePrefix));
+    const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
+    UE_LOG(LogTemp, bSaved ? Log : Warning, TEXT("[VirtualLidar:%s] JSONL export %s: %s points=%d"), *SensorId, bSaved ? TEXT("saved") : TEXT("failed"), *Path, ExportPoints.Num());
+    return bSaved;
 }
 
 bool UVirtualLidarSensorComp::ExportLastPointCloudPcd(const FString& FileNamePrefix) const
 {
+    TArray<const FVirtualLidarPoint*> ExportPoints;
+    CollectExportPoints(ExportPoints);
+
+    const FString Path = BuildExportPath(TEXT("pcd"), FileNamePrefix);
     FString Text;
     Text += TEXT("# .PCD v0.7 - Point Cloud Data file format\n");
     Text += TEXT("VERSION 0.7\nFIELDS x y z distance hit\nSIZE 4 4 4 4 4\nTYPE F F F F I\nCOUNT 1 1 1 1 1\n");
-    Text += FString::Printf(TEXT("WIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), LastPoints.Num(), LastPoints.Num());
-    for (const FVirtualLidarPoint& Point : LastPoints)
+    Text += FString::Printf(TEXT("WIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), ExportPoints.Num(), ExportPoints.Num());
+    for (const FVirtualLidarPoint* Point : ExportPoints)
     {
-        Text += FString::Printf(TEXT("%f %f %f %f %d\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.bHit ? 1 : 0);
+        if (!Point)
+        {
+            continue;
+        }
+        Text += FString::Printf(TEXT("%f %f %f %f %d\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z, Point->Distance, Point->bHit ? 1 : 0);
     }
-    return FFileHelper::SaveStringToFile(Text, *BuildExportPath(TEXT("pcd"), FileNamePrefix));
+    const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
+    UE_LOG(LogTemp, bSaved ? Log : Warning, TEXT("[VirtualLidar:%s] PCD export %s: %s points=%d"), *SensorId, bSaved ? TEXT("saved") : TEXT("failed"), *Path, ExportPoints.Num());
+    return bSaved;
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudLas(const FString& FileNamePrefix) const
+{
+    TArray<const FVirtualLidarPoint*> ExportPoints;
+    CollectExportPoints(ExportPoints);
+    if (ExportPoints.Num() <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] LAS export skipped: no points."), *SensorId);
+        return false;
+    }
+
+    const double LasScale = 0.001;
+    const double CmToMeter = 0.01;
+    FVector MinPoint(FLT_MAX, FLT_MAX, FLT_MAX);
+    FVector MaxPoint(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+    for (const FVirtualLidarPoint* Point : ExportPoints)
+    {
+        if (!Point)
+        {
+            continue;
+        }
+        MinPoint.X = FMath::Min(MinPoint.X, Point->WorldLocation.X);
+        MinPoint.Y = FMath::Min(MinPoint.Y, Point->WorldLocation.Y);
+        MinPoint.Z = FMath::Min(MinPoint.Z, Point->WorldLocation.Z);
+        MaxPoint.X = FMath::Max(MaxPoint.X, Point->WorldLocation.X);
+        MaxPoint.Y = FMath::Max(MaxPoint.Y, Point->WorldLocation.Y);
+        MaxPoint.Z = FMath::Max(MaxPoint.Z, Point->WorldLocation.Z);
+    }
+
+    const double OffsetX = MinPoint.X * CmToMeter;
+    const double OffsetY = MinPoint.Y * CmToMeter;
+    const double OffsetZ = MinPoint.Z * CmToMeter;
+
+    FBufferArchive Archive;
+    const uint8 Signature[4] = {'L', 'A', 'S', 'F'};
+    WriteLasBytes(Archive, Signature, 4);
+    WriteLasValue<uint16>(Archive, 0);
+    WriteLasValue<uint16>(Archive, 0);
+    WriteLasValue<uint32>(Archive, 0);
+    WriteLasValue<uint16>(Archive, 0);
+    WriteLasValue<uint16>(Archive, 0);
+    for (int32 Index = 0; Index < 8; ++Index)
+    {
+        WriteLasValue<uint8>(Archive, 0);
+    }
+    WriteLasValue<uint8>(Archive, 1);
+    WriteLasValue<uint8>(Archive, 2);
+    WriteLasFixedString(Archive, "UE-DT-Project", 32);
+    WriteLasFixedString(Archive, "VirtualLidarSensorComp", 32);
+    const FDateTime Now = FDateTime::Now();
+    WriteLasValue<uint16>(Archive, static_cast<uint16>(Now.GetDayOfYear()));
+    WriteLasValue<uint16>(Archive, static_cast<uint16>(Now.GetYear()));
+    WriteLasValue<uint16>(Archive, 227);
+    WriteLasValue<uint32>(Archive, 227);
+    WriteLasValue<uint32>(Archive, 0);
+    WriteLasValue<uint8>(Archive, 0);
+    WriteLasValue<uint16>(Archive, 20);
+    WriteLasValue<uint32>(Archive, static_cast<uint32>(ExportPoints.Num()));
+    WriteLasValue<uint32>(Archive, static_cast<uint32>(ExportPoints.Num()));
+    for (int32 ReturnIndex = 1; ReturnIndex < 5; ++ReturnIndex)
+    {
+        WriteLasValue<uint32>(Archive, 0);
+    }
+    WriteLasValue<double>(Archive, LasScale);
+    WriteLasValue<double>(Archive, LasScale);
+    WriteLasValue<double>(Archive, LasScale);
+    WriteLasValue<double>(Archive, OffsetX);
+    WriteLasValue<double>(Archive, OffsetY);
+    WriteLasValue<double>(Archive, OffsetZ);
+    WriteLasValue<double>(Archive, MaxPoint.X * CmToMeter);
+    WriteLasValue<double>(Archive, MinPoint.X * CmToMeter);
+    WriteLasValue<double>(Archive, MaxPoint.Y * CmToMeter);
+    WriteLasValue<double>(Archive, MinPoint.Y * CmToMeter);
+    WriteLasValue<double>(Archive, MaxPoint.Z * CmToMeter);
+    WriteLasValue<double>(Archive, MinPoint.Z * CmToMeter);
+
+    for (const FVirtualLidarPoint* Point : ExportPoints)
+    {
+        if (!Point)
+        {
+            continue;
+        }
+        const int32 X = FMath::RoundToInt(((Point->WorldLocation.X * CmToMeter) - OffsetX) / LasScale);
+        const int32 Y = FMath::RoundToInt(((Point->WorldLocation.Y * CmToMeter) - OffsetY) / LasScale);
+        const int32 Z = FMath::RoundToInt(((Point->WorldLocation.Z * CmToMeter) - OffsetZ) / LasScale);
+        const uint16 Intensity = ClampDistanceToIntensity(Point->Distance, MaxDistance);
+        const uint8 ReturnFlags = 1;
+        const uint8 Classification = Point->bHit ? 1 : 0;
+        const int8 ScanAngleRank = 0;
+        const uint8 UserData = Point->bHit ? 1 : 0;
+        const uint16 PointSourceId = 0;
+
+        WriteLasValue<int32>(Archive, X);
+        WriteLasValue<int32>(Archive, Y);
+        WriteLasValue<int32>(Archive, Z);
+        WriteLasValue<uint16>(Archive, Intensity);
+        WriteLasValue<uint8>(Archive, ReturnFlags);
+        WriteLasValue<uint8>(Archive, Classification);
+        WriteLasValue<int8>(Archive, ScanAngleRank);
+        WriteLasValue<uint8>(Archive, UserData);
+        WriteLasValue<uint16>(Archive, PointSourceId);
+    }
+
+    const FString Path = BuildExportPath(TEXT("las"), FileNamePrefix);
+    const bool bSaved = FFileHelper::SaveArrayToFile(Archive, *Path);
+    Archive.FlushCache();
+    Archive.Empty();
+    UE_LOG(LogTemp, bSaved ? Log : Warning, TEXT("[VirtualLidar:%s] LAS export %s: %s points=%d"), *SensorId, bSaved ? TEXT("saved") : TEXT("failed"), *Path, ExportPoints.Num());
+    return bSaved;
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudLaz(const FString& FileNamePrefix) const
+{
+    const bool bSaved = ExportLastPointCloudLas(FileNamePrefix.IsEmpty() ? TEXT("laz_source") : FileNamePrefix + TEXT("_laz_source"));
+    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] LAZ compression requires LASzip/PDAL. This build exports LAS natively; convert the generated .las to .laz with an external tool."), *SensorId);
+    return bSaved;
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix) const
+{
+    const bool bCsv = ExportLastPointCloudCsv(FileNamePrefix);
+    const bool bLas = ExportLastPointCloudLas(FileNamePrefix);
+    const bool bLaz = ExportLastPointCloudLaz(FileNamePrefix);
+    return bCsv && bLas && bLaz;
 }
 
 UInstancedStaticMeshComponent* UVirtualLidarSensorComp::EnsurePointCloudPreviewComponent()
@@ -606,8 +863,9 @@ UInstancedStaticMeshComponent* UVirtualLidarSensorComp::EnsurePointCloudPreviewC
     PointCloudPreviewComponent->bSelectable = false;
     PointCloudPreviewComponent->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
     PointCloudPreviewComponent->RegisterComponent();
-    PointCloudPreviewComponent->SetHiddenInGame(!bPointCloudPreviewEnabled);
-    PointCloudPreviewComponent->SetVisibility(bPointCloudPreviewEnabled, true);
+    PointCloudPreviewComponent->SetHiddenInGame(!bPointCloudPreviewEnabled || bDrawPointCloudPreviewDebugPoints);
+    PointCloudPreviewComponent->SetVisibility(bPointCloudPreviewEnabled && !bDrawPointCloudPreviewDebugPoints, true);
+    ApplyPointCloudPreviewStyle();
     return PointCloudPreviewComponent;
 }
 
@@ -620,19 +878,25 @@ void UVirtualLidarSensorComp::RefreshPointCloudPreview()
     }
 
     UInstancedStaticMeshComponent* PreviewComp = EnsurePointCloudPreviewComponent();
-    if (!PreviewComp)
+    if (!PreviewComp && !bDrawPointCloudPreviewDebugPoints)
     {
         return;
     }
 
-    PreviewComp->ClearInstances();
-    PreviewComp->SetHiddenInGame(false);
-    PreviewComp->SetVisibility(true, true);
+    if (PreviewComp)
+    {
+        PreviewComp->ClearInstances();
+        PreviewComp->SetHiddenInGame(bDrawPointCloudPreviewDebugPoints);
+        PreviewComp->SetVisibility(!bDrawPointCloudPreviewDebugPoints, true);
+    }
 
     const int32 SafeStride = FMath::Max(1, PointCloudPreviewStride);
     const int32 SafeMaxInstances = FMath::Max(0, MaxPointCloudPreviewInstances);
     const float SafeScale = FMath::Max(0.001f, PointCloudPreviewPointScale);
     int32 AddedInstances = 0;
+    UWorld* World = GetWorld();
+    const FColor DebugColor = PointCloudPreviewColor.ToFColor(true);
+    const float DebugLifetime = FMath::Max(ScanInterval * 1.5f, 0.1f);
 
     for (int32 PointIndex = 0; PointIndex < LastPoints.Num(); PointIndex += SafeStride)
     {
@@ -647,11 +911,18 @@ void UVirtualLidarSensorComp::RefreshPointCloudPreview()
             continue;
         }
 
-        FTransform PointTransform;
-        PointTransform.SetLocation(Point.WorldLocation);
-        PointTransform.SetRotation(FQuat::Identity);
-        PointTransform.SetScale3D(FVector(SafeScale));
-        PreviewComp->AddInstance(PointTransform, true);
+        if (bDrawPointCloudPreviewDebugPoints && World)
+        {
+            DrawDebugPoint(World, Point.WorldLocation, PointCloudPreviewDebugPointSize, DebugColor, false, DebugLifetime);
+        }
+        else if (PreviewComp)
+        {
+            FTransform PointTransform;
+            PointTransform.SetLocation(Point.WorldLocation);
+            PointTransform.SetRotation(FQuat::Identity);
+            PointTransform.SetScale3D(FVector(SafeScale));
+            PreviewComp->AddInstance(PointTransform, true);
+        }
         ++AddedInstances;
     }
 }
