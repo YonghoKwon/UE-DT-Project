@@ -65,10 +65,13 @@ public:
     int32 MaxPointsToLoad = 0;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud", meta = (ClampMin = "0.001", ClampMax = "100.0"))
-    float PointScale = 0.035f;
+    float PointScale = 0.02f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     FLinearColor PointColor = FLinearColor(1.0f, 0.05f, 0.0f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
+    bool bUseLowCostCubeWhenPointMeshIsEmpty = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     TObjectPtr<UStaticMesh> PointMesh;
@@ -98,6 +101,7 @@ private:
     FString ResolveCsvFilePath() const;
     bool ParseCsvPointLine(const FString& Line, int32& OutRow, int32& OutCol, FVector& OutPoint) const;
     void ApplyPreviewStyle();
+    UStaticMesh* ResolvePointMesh() const;
     void ResetStatus();
 #if WITH_EDITOR
     bool OpenCsvFileDialog(FString& OutFilePath) const;
