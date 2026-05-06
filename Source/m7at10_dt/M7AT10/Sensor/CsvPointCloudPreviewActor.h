@@ -21,11 +21,20 @@ public:
     virtual void OnConstruction(const FTransform& Transform) override;
 #endif
 
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "DigitalTwin|CSV PointCloud")
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|CSV PointCloud")
     bool LoadCsvPointCloud();
 
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "DigitalTwin|CSV PointCloud")
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|CSV PointCloud")
+    void LoadCsvPointCloudInEditor();
+
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|CSV PointCloud")
+    void SelectCsvFileAndLoadInEditor();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|CSV PointCloud")
     void ClearPointCloudPreview();
+
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|CSV PointCloud")
+    void ClearPointCloudPreviewInEditor();
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud")
     int32 GetLoadedPointCount() const { return LoadedPointCount; }
@@ -90,6 +99,9 @@ private:
     bool ParseCsvPointLine(const FString& Line, int32& OutRow, int32& OutCol, FVector& OutPoint) const;
     void ApplyPreviewStyle();
     void ResetStatus();
+#if WITH_EDITOR
+    bool OpenCsvFileDialog(FString& OutFilePath) const;
+#endif
 
 private:
     UPROPERTY(Transient)
