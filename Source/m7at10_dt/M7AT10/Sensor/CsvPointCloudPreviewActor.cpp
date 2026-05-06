@@ -13,6 +13,24 @@
 #include "IDesktopPlatform.h"
 #endif
 
+namespace
+{
+UMaterialInterface* LoadDefaultPointMaterial()
+{
+    if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+    {
+        return Material;
+    }
+
+    if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial")))
+    {
+        return Material;
+    }
+
+    return nullptr;
+}
+}
+
 ACsvPointCloudPreviewActor::ACsvPointCloudPreviewActor()
 {
     PrimaryActorTick.bCanEverTick = false;
@@ -75,6 +93,7 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
         return false;
     }
     PointCloudComponent->SetStaticMesh(MeshToUse);
+    ApplyPreviewStyle();
 
     const int32 SafeStride = FMath::Max(1, PointStride);
     const int32 SafeMaxPoints = FMath::Max(0, MaxPointsToLoad);
@@ -297,21 +316,27 @@ void ACsvPointCloudPreviewActor::ApplyPreviewStyle()
         PointCloudComponent->SetStaticMesh(MeshToUse);
     }
 
-    if (PointMaterial)
+    UMaterialInterface* MaterialToUse = PointMaterial ? PointMaterial.Get() : LoadDefaultPointMaterial();
+    if (!MaterialToUse)
     {
-        DynamicPointMaterial = UMaterialInstanceDynamic::Create(PointMaterial, this);
-        if (DynamicPointMaterial)
-        {
-            DynamicPointMaterial->SetVectorParameterValue(TEXT("BaseColor"), PointColor);
-            DynamicPointMaterial->SetVectorParameterValue(TEXT("Color"), PointColor);
-            DynamicPointMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), PointColor);
-            PointCloudComponent->SetMaterial(0, DynamicPointMaterial);
-        }
-        else
-        {
-            PointCloudComponent->SetMaterial(0, PointMaterial);
-        }
+        UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] No point material available. PointColor cannot be applied."));
+        return;
     }
+
+    DynamicPointMaterial = UMaterialInstanceDynamic::Create(MaterialToUse, this);
+    if (!DynamicPointMaterial)
+    {
+        PointCloudComponent->SetMaterial(0, MaterialToUse);
+        return;
+    }
+
+    DynamicPointMaterial->SetVectorParameterValue(TEXT("Color"), PointColor);
+    DynamicPointMaterial->SetVectorParameterValue(TEXT("BaseColor"), PointColor);
+    DynamicPointMaterial->SetVectorParameterValue(TEXT("Base Color"), PointColor);
+    DynamicPointMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), PointColor);
+    DynamicPointMaterial->SetVectorParameterValue(TEXT("Emissive"), PointColor);
+    DynamicPointMaterial->SetScalarParameterValue(TEXT("Roughness"), 0.2f);
+    PointCloudComponent->SetMaterial(0, DynamicPointMaterial);
 }
 
 void ACsvPointCloudPreviewActor::ResetStatus()
