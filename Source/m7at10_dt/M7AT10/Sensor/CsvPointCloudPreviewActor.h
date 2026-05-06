@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Misc/FilePath.h"
 #include "CsvPointCloudPreviewActor.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -35,8 +34,8 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudComponent;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud", meta = (FilePathFilter = "csv"))
-    FFilePath CsvFilePath;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud", meta = (FilePathFilter = "csv", RelativeToGameDir))
+    FString CsvFilePath;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     bool bAutoLoadOnConstruction = false;
