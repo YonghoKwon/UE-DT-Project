@@ -1,11 +1,13 @@
 #include "CsvPointCloudPreviewActor.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "ProceduralMeshComponent.h"
 
 #if WITH_EDITOR
 #include "DesktopPlatformModule.h"
@@ -35,9 +37,17 @@ ACsvPointCloudPreviewActor::ACsvPointCloudPreviewActor()
 {
     PrimaryActorTick.bCanEverTick = false;
 
-    PointCloudComponent = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("CsvPointCloudPreview"));
-    SetRootComponent(PointCloudComponent);
+    SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+    SetRootComponent(SceneRoot);
 
+    ProceduralPointCloudComponent = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("ProceduralCsvPointCloudPreview"));
+    ProceduralPointCloudComponent->SetupAttachment(SceneRoot);
+    ProceduralPointCloudComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    ProceduralPointCloudComponent->bUseAsyncCooking = true;
+    ProceduralPointCloudComponent->SetCastShadow(false);
+
+    PointCloudComponent = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("CsvPointCloudPreview"));
+    PointCloudComponent->SetupAttachment(SceneRoot);
     PointCloudComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     PointCloudComponent->SetGenerateOverlapEvents(false);
     PointCloudComponent->SetCastShadow(false);
@@ -62,14 +72,6 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
 {
     ClearPointCloudPreview();
     ResetStatus();
-
-    UStaticMesh* MeshToUse = ResolvePointMesh();
-    if (!MeshToUse)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] Could not load point mesh."));
-        return false;
-    }
-    PointCloudComponent->SetStaticMesh(MeshToUse);
     ApplyPreviewStyle();
 
     const FString ResolvedPath = ResolveCsvFilePath();
@@ -88,11 +90,10 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
 
     const int32 SafeStride = FMath::Max(1, PointStride);
     const int32 SafeMaxPoints = FMath::Max(0, MaxPointsToLoad);
-    const float SafePointScale = FMath::Max(0.001f, PointScale);
     const float SafeCoordinateScale = FMath::Max(0.001f, CoordinateScale);
 
-    TArray<FTransform> InstanceTransforms;
-    InstanceTransforms.Reserve(SafeMaxPoints > 0 ? FMath::Min(SafeMaxPoints, Lines.Num()) : Lines.Num());
+    TArray<FVector> LoadedPoints;
+    LoadedPoints.Reserve(SafeMaxPoints > 0 ? FMath::Min(SafeMaxPoints, Lines.Num()) : Lines.Num());
 
     bool bBoundsInitialized = false;
     bool bIndexRangeInitialized = false;
@@ -114,7 +115,7 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
             continue;
         }
 
-        if (SafeMaxPoints > 0 && InstanceTransforms.Num() >= SafeMaxPoints)
+        if (SafeMaxPoints > 0 && LoadedPoints.Num() >= SafeMaxPoints)
         {
             break;
         }
@@ -126,17 +127,7 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
             continue;
         }
 
-        FVector InstanceLocation = Point;
-        if (bTreatCsvCoordinatesAsWorldSpace)
-        {
-            InstanceLocation = GetActorTransform().InverseTransformPosition(Point);
-        }
-
-        FTransform InstanceTransform;
-        InstanceTransform.SetLocation(InstanceLocation);
-        InstanceTransform.SetRotation(FQuat::Identity);
-        InstanceTransform.SetScale3D(FVector(SafePointScale));
-        InstanceTransforms.Add(InstanceTransform);
+        LoadedPoints.Add(Point);
 
         if (!bBoundsInitialized)
         {
@@ -171,17 +162,22 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
         ++ParsedPointCount;
     }
 
-    LoadedPointCount = InstanceTransforms.Num();
-    if (LoadedPointCount > 0)
+    LoadedPointCount = LoadedPoints.Num();
+    if (RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh)
     {
-        PointCloudComponent->AddInstances(InstanceTransforms, false, true);
+        BuildProceduralPointCloud(LoadedPoints);
     }
-    PointCloudComponent->MarkRenderStateDirty();
+    else
+    {
+        BuildInstancedPointCloud(LoadedPoints);
+    }
+
     LastLoadedPath = ResolvedPath;
 
-    UE_LOG(LogTemp, Log, TEXT("[CsvPointCloudPreview] Loaded %d points from %s row=%d~%d col=%d~%d bounds min=%s max=%s"),
+    UE_LOG(LogTemp, Log, TEXT("[CsvPointCloudPreview] Loaded %d points from %s mode=%s row=%d~%d col=%d~%d bounds min=%s max=%s"),
         LoadedPointCount,
         *ResolvedPath,
+        RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh ? TEXT("ProceduralMesh") : TEXT("InstancedMesh"),
         RowRange.X,
         RowRange.Y,
         ColRange.X,
@@ -216,7 +212,17 @@ void ACsvPointCloudPreviewActor::ClearPointCloudPreview()
     if (PointCloudComponent)
     {
         PointCloudComponent->ClearInstances();
+        PointCloudComponent->SetHiddenInGame(true);
+        PointCloudComponent->SetVisibility(false, true);
         PointCloudComponent->MarkRenderStateDirty();
+    }
+
+    if (ProceduralPointCloudComponent)
+    {
+        ProceduralPointCloudComponent->ClearAllMeshSections();
+        ProceduralPointCloudComponent->SetHiddenInGame(true);
+        ProceduralPointCloudComponent->SetVisibility(false, true);
+        ProceduralPointCloudComponent->MarkRenderStateDirty();
     }
 }
 
@@ -299,17 +305,6 @@ bool ACsvPointCloudPreviewActor::ParseCsvPointLine(const FString& Line, int32& O
 
 void ACsvPointCloudPreviewActor::ApplyPreviewStyle()
 {
-    if (!PointCloudComponent)
-    {
-        return;
-    }
-
-    UStaticMesh* MeshToUse = ResolvePointMesh();
-    if (MeshToUse)
-    {
-        PointCloudComponent->SetStaticMesh(MeshToUse);
-    }
-
     UMaterialInterface* MaterialToUse = PointMaterial ? PointMaterial.Get() : LoadDefaultPointMaterial();
     if (!MaterialToUse)
     {
@@ -320,7 +315,14 @@ void ACsvPointCloudPreviewActor::ApplyPreviewStyle()
     DynamicPointMaterial = UMaterialInstanceDynamic::Create(MaterialToUse, this);
     if (!DynamicPointMaterial)
     {
-        PointCloudComponent->SetMaterial(0, MaterialToUse);
+        if (PointCloudComponent)
+        {
+            PointCloudComponent->SetMaterial(0, MaterialToUse);
+        }
+        if (ProceduralPointCloudComponent)
+        {
+            ProceduralPointCloudComponent->SetMaterial(0, MaterialToUse);
+        }
         return;
     }
 
@@ -330,7 +332,20 @@ void ACsvPointCloudPreviewActor::ApplyPreviewStyle()
     DynamicPointMaterial->SetVectorParameterValue(TEXT("EmissiveColor"), PointColor);
     DynamicPointMaterial->SetVectorParameterValue(TEXT("Emissive"), PointColor);
     DynamicPointMaterial->SetScalarParameterValue(TEXT("Roughness"), 0.2f);
-    PointCloudComponent->SetMaterial(0, DynamicPointMaterial);
+
+    if (PointCloudComponent)
+    {
+        if (UStaticMesh* MeshToUse = ResolvePointMesh())
+        {
+            PointCloudComponent->SetStaticMesh(MeshToUse);
+        }
+        PointCloudComponent->SetMaterial(0, DynamicPointMaterial);
+    }
+
+    if (ProceduralPointCloudComponent)
+    {
+        ProceduralPointCloudComponent->SetMaterial(0, DynamicPointMaterial);
+    }
 }
 
 UStaticMesh* ACsvPointCloudPreviewActor::ResolvePointMesh() const
@@ -354,6 +369,140 @@ UStaticMesh* ACsvPointCloudPreviewActor::ResolvePointMesh() const
     }
 
     return LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+}
+
+void ACsvPointCloudPreviewActor::BuildProceduralPointCloud(const TArray<FVector>& Points)
+{
+    if (!ProceduralPointCloudComponent)
+    {
+        return;
+    }
+
+    if (PointCloudComponent)
+    {
+        PointCloudComponent->ClearInstances();
+        PointCloudComponent->SetHiddenInGame(true);
+        PointCloudComponent->SetVisibility(false, true);
+    }
+
+    ProceduralPointCloudComponent->SetHiddenInGame(false);
+    ProceduralPointCloudComponent->SetVisibility(true, true);
+    ProceduralPointCloudComponent->ClearAllMeshSections();
+    ApplyPreviewStyle();
+
+    const int32 SafeBatchSize = FMath::Clamp(ProceduralBatchSize, 1, 100000);
+    const float HalfSize = FMath::Max(0.001f, PointScale) * 50.0f;
+    const FVector CameraFacingAxisA(0.0f, HalfSize, 0.0f);
+    const FVector CameraFacingAxisB(0.0f, 0.0f, HalfSize);
+
+    int32 SectionIndex = 0;
+    for (int32 StartIndex = 0; StartIndex < Points.Num(); StartIndex += SafeBatchSize)
+    {
+        const int32 Count = FMath::Min(SafeBatchSize, Points.Num() - StartIndex);
+        TArray<FVector> Vertices;
+        TArray<int32> Triangles;
+        TArray<FVector> Normals;
+        TArray<FVector2D> UV0;
+        TArray<FProcMeshTangent> Tangents;
+        TArray<FLinearColor> VertexColors;
+
+        Vertices.Reserve(Count * 4);
+        Triangles.Reserve(Count * 6);
+        Normals.Reserve(Count * 4);
+        UV0.Reserve(Count * 4);
+        Tangents.Reserve(Count * 4);
+        VertexColors.Reserve(Count * 4);
+
+        for (int32 LocalIndex = 0; LocalIndex < Count; ++LocalIndex)
+        {
+            FVector Point = Points[StartIndex + LocalIndex];
+            if (bTreatCsvCoordinatesAsWorldSpace)
+            {
+                Point = GetActorTransform().InverseTransformPosition(Point);
+            }
+
+            const int32 BaseVertex = Vertices.Num();
+            Vertices.Add(Point - CameraFacingAxisA - CameraFacingAxisB);
+            Vertices.Add(Point + CameraFacingAxisA - CameraFacingAxisB);
+            Vertices.Add(Point + CameraFacingAxisA + CameraFacingAxisB);
+            Vertices.Add(Point - CameraFacingAxisA + CameraFacingAxisB);
+
+            Triangles.Add(BaseVertex + 0);
+            Triangles.Add(BaseVertex + 1);
+            Triangles.Add(BaseVertex + 2);
+            Triangles.Add(BaseVertex + 0);
+            Triangles.Add(BaseVertex + 2);
+            Triangles.Add(BaseVertex + 3);
+
+            for (int32 VertexIndex = 0; VertexIndex < 4; ++VertexIndex)
+            {
+                Normals.Add(FVector::ForwardVector);
+                Tangents.Add(FProcMeshTangent(0.0f, 1.0f, 0.0f));
+                VertexColors.Add(PointColor);
+            }
+            UV0.Add(FVector2D(0.0f, 0.0f));
+            UV0.Add(FVector2D(1.0f, 0.0f));
+            UV0.Add(FVector2D(1.0f, 1.0f));
+            UV0.Add(FVector2D(0.0f, 1.0f));
+        }
+
+        ProceduralPointCloudComponent->CreateMeshSection_LinearColor(SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false);
+        if (DynamicPointMaterial)
+        {
+            ProceduralPointCloudComponent->SetMaterial(SectionIndex, DynamicPointMaterial);
+        }
+        ++SectionIndex;
+    }
+
+    ProceduralPointCloudComponent->MarkRenderStateDirty();
+}
+
+void ACsvPointCloudPreviewActor::BuildInstancedPointCloud(const TArray<FVector>& Points)
+{
+    if (!PointCloudComponent)
+    {
+        return;
+    }
+
+    if (ProceduralPointCloudComponent)
+    {
+        ProceduralPointCloudComponent->ClearAllMeshSections();
+        ProceduralPointCloudComponent->SetHiddenInGame(true);
+        ProceduralPointCloudComponent->SetVisibility(false, true);
+    }
+
+    PointCloudComponent->SetHiddenInGame(false);
+    PointCloudComponent->SetVisibility(true, true);
+    PointCloudComponent->ClearInstances();
+
+    if (UStaticMesh* MeshToUse = ResolvePointMesh())
+    {
+        PointCloudComponent->SetStaticMesh(MeshToUse);
+    }
+    ApplyPreviewStyle();
+
+    const float SafePointScale = FMath::Max(0.001f, PointScale);
+    TArray<FTransform> InstanceTransforms;
+    InstanceTransforms.Reserve(Points.Num());
+    for (FVector Point : Points)
+    {
+        if (bTreatCsvCoordinatesAsWorldSpace)
+        {
+            Point = GetActorTransform().InverseTransformPosition(Point);
+        }
+
+        FTransform InstanceTransform;
+        InstanceTransform.SetLocation(Point);
+        InstanceTransform.SetRotation(FQuat::Identity);
+        InstanceTransform.SetScale3D(FVector(SafePointScale));
+        InstanceTransforms.Add(InstanceTransform);
+    }
+
+    if (InstanceTransforms.Num() > 0)
+    {
+        PointCloudComponent->AddInstances(InstanceTransforms, false, true);
+    }
+    PointCloudComponent->MarkRenderStateDirty();
 }
 
 void ACsvPointCloudPreviewActor::ResetStatus()
