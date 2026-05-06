@@ -7,6 +7,12 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
+#if WITH_EDITOR
+#include "DesktopPlatformModule.h"
+#include "Framework/Application/SlateApplication.h"
+#include "IDesktopPlatform.h"
+#endif
+
 ACsvPointCloudPreviewActor::ACsvPointCloudPreviewActor()
 {
     PrimaryActorTick.bCanEverTick = false;
@@ -169,6 +175,25 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
     return LoadedPointCount > 0;
 }
 
+void ACsvPointCloudPreviewActor::LoadCsvPointCloudInEditor()
+{
+    LoadCsvPointCloud();
+}
+
+void ACsvPointCloudPreviewActor::SelectCsvFileAndLoadInEditor()
+{
+#if WITH_EDITOR
+    FString SelectedPath;
+    if (OpenCsvFileDialog(SelectedPath))
+    {
+        CsvFilePath = SelectedPath;
+        LoadCsvPointCloud();
+    }
+#else
+    UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] File dialog is only available in editor builds."));
+#endif
+}
+
 void ACsvPointCloudPreviewActor::ClearPointCloudPreview()
 {
     if (PointCloudComponent)
@@ -176,6 +201,12 @@ void ACsvPointCloudPreviewActor::ClearPointCloudPreview()
         PointCloudComponent->ClearInstances();
         PointCloudComponent->MarkRenderStateDirty();
     }
+}
+
+void ACsvPointCloudPreviewActor::ClearPointCloudPreviewInEditor()
+{
+    ClearPointCloudPreview();
+    ResetStatus();
 }
 
 FString ACsvPointCloudPreviewActor::ResolveCsvFilePath() const
@@ -292,3 +323,42 @@ void ACsvPointCloudPreviewActor::ResetStatus()
     MaxBounds = FVector::ZeroVector;
     LastLoadedPath.Reset();
 }
+
+#if WITH_EDITOR
+bool ACsvPointCloudPreviewActor::OpenCsvFileDialog(FString& OutFilePath) const
+{
+    IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+    if (!DesktopPlatform)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] DesktopPlatform is not available."));
+        return false;
+    }
+
+    const void* ParentWindowHandle = FSlateApplication::IsInitialized() && FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr)
+        ? FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr)
+        : nullptr;
+
+    TArray<FString> OutFiles;
+    const FString DefaultPath = !CsvFilePath.IsEmpty()
+        ? FPaths::GetPath(ResolveCsvFilePath())
+        : FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"));
+
+    const bool bOpened = DesktopPlatform->OpenFileDialog(
+        ParentWindowHandle,
+        TEXT("Select LiDAR Point Cloud CSV"),
+        DefaultPath,
+        TEXT(""),
+        TEXT("CSV files (*.csv)|*.csv|All files (*.*)|*.*"),
+        EFileDialogFlags::None,
+        OutFiles);
+
+    if (bOpened && OutFiles.Num() > 0)
+    {
+        OutFilePath = OutFiles[0];
+        FPaths::NormalizeFilename(OutFilePath);
+        return true;
+    }
+
+    return false;
+}
+#endif
