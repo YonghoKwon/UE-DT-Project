@@ -27,7 +27,7 @@ void ACsvPointCloudPreviewActor::OnConstruction(const FTransform& Transform)
 
     ApplyPreviewStyle();
 
-    if (bAutoLoadOnConstruction && !CsvFilePath.FilePath.IsEmpty())
+    if (bAutoLoadOnConstruction && !CsvFilePath.IsEmpty())
     {
         LoadCsvPointCloud();
     }
@@ -180,7 +180,7 @@ void ACsvPointCloudPreviewActor::ClearPointCloudPreview()
 
 FString ACsvPointCloudPreviewActor::ResolveCsvFilePath() const
 {
-    FString Path = CsvFilePath.FilePath;
+    FString Path = CsvFilePath;
     if (Path.IsEmpty())
     {
         return FString();
