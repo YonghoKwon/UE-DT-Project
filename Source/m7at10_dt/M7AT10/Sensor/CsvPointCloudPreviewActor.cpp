@@ -62,6 +62,14 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
 {
     ClearPointCloudPreview();
     ResetStatus();
+
+    UStaticMesh* MeshToUse = ResolvePointMesh();
+    if (!MeshToUse)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] Could not load point mesh."));
+        return false;
+    }
+    PointCloudComponent->SetStaticMesh(MeshToUse);
     ApplyPreviewStyle();
 
     const FString ResolvedPath = ResolveCsvFilePath();
@@ -78,27 +86,13 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
         return false;
     }
 
-    UStaticMesh* MeshToUse = PointMesh;
-    if (!MeshToUse)
-    {
-        MeshToUse = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-    }
-    if (!MeshToUse)
-    {
-        MeshToUse = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-    }
-    if (!MeshToUse)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] Could not load default point mesh."));
-        return false;
-    }
-    PointCloudComponent->SetStaticMesh(MeshToUse);
-    ApplyPreviewStyle();
-
     const int32 SafeStride = FMath::Max(1, PointStride);
     const int32 SafeMaxPoints = FMath::Max(0, MaxPointsToLoad);
     const float SafePointScale = FMath::Max(0.001f, PointScale);
     const float SafeCoordinateScale = FMath::Max(0.001f, CoordinateScale);
+
+    TArray<FTransform> InstanceTransforms;
+    InstanceTransforms.Reserve(SafeMaxPoints > 0 ? FMath::Min(SafeMaxPoints, Lines.Num()) : Lines.Num());
 
     bool bBoundsInitialized = false;
     bool bIndexRangeInitialized = false;
@@ -120,7 +114,7 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
             continue;
         }
 
-        if (SafeMaxPoints > 0 && LoadedPointCount >= SafeMaxPoints)
+        if (SafeMaxPoints > 0 && InstanceTransforms.Num() >= SafeMaxPoints)
         {
             break;
         }
@@ -142,7 +136,7 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
         InstanceTransform.SetLocation(InstanceLocation);
         InstanceTransform.SetRotation(FQuat::Identity);
         InstanceTransform.SetScale3D(FVector(SafePointScale));
-        PointCloudComponent->AddInstance(InstanceTransform, false);
+        InstanceTransforms.Add(InstanceTransform);
 
         if (!bBoundsInitialized)
         {
@@ -174,10 +168,14 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
             ColRange.Y = FMath::Max(ColRange.Y, Col);
         }
 
-        ++LoadedPointCount;
         ++ParsedPointCount;
     }
 
+    LoadedPointCount = InstanceTransforms.Num();
+    if (LoadedPointCount > 0)
+    {
+        PointCloudComponent->AddInstances(InstanceTransforms, false, true);
+    }
     PointCloudComponent->MarkRenderStateDirty();
     LastLoadedPath = ResolvedPath;
 
@@ -306,11 +304,7 @@ void ACsvPointCloudPreviewActor::ApplyPreviewStyle()
         return;
     }
 
-    UStaticMesh* MeshToUse = PointMesh;
-    if (!MeshToUse)
-    {
-        MeshToUse = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-    }
+    UStaticMesh* MeshToUse = ResolvePointMesh();
     if (MeshToUse)
     {
         PointCloudComponent->SetStaticMesh(MeshToUse);
@@ -337,6 +331,29 @@ void ACsvPointCloudPreviewActor::ApplyPreviewStyle()
     DynamicPointMaterial->SetVectorParameterValue(TEXT("Emissive"), PointColor);
     DynamicPointMaterial->SetScalarParameterValue(TEXT("Roughness"), 0.2f);
     PointCloudComponent->SetMaterial(0, DynamicPointMaterial);
+}
+
+UStaticMesh* ACsvPointCloudPreviewActor::ResolvePointMesh() const
+{
+    if (PointMesh)
+    {
+        return PointMesh;
+    }
+
+    if (bUseLowCostCubeWhenPointMeshIsEmpty)
+    {
+        if (UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")))
+        {
+            return CubeMesh;
+        }
+    }
+
+    if (UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")))
+    {
+        return SphereMesh;
+    }
+
+    return LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 }
 
 void ACsvPointCloudPreviewActor::ResetStatus()
