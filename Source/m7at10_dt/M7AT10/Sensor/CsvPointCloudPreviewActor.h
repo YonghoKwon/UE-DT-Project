@@ -7,7 +7,15 @@
 class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
+class UProceduralMeshComponent;
 class UStaticMesh;
+
+UENUM(BlueprintType)
+enum class ECsvPointCloudPreviewRenderMode : uint8
+{
+    ProceduralMesh UMETA(DisplayName = "Procedural Mesh Fast Preview"),
+    InstancedMesh UMETA(DisplayName = "Instanced Mesh Legacy Preview")
+};
 
 UCLASS(BlueprintType)
 class M7AT10_DT_API ACsvPointCloudPreviewActor : public AActor
@@ -41,10 +49,19 @@ public:
 
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
+    TObjectPtr<USceneComponent> SceneRoot;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
+    TObjectPtr<UProceduralMeshComponent> ProceduralPointCloudComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudComponent;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud", meta = (FilePathFilter = "csv", RelativeToGameDir))
     FString CsvFilePath;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
+    ECsvPointCloudPreviewRenderMode RenderMode = ECsvPointCloudPreviewRenderMode::ProceduralMesh;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     bool bAutoLoadOnConstruction = false;
@@ -70,10 +87,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     FLinearColor PointColor = FLinearColor(1.0f, 0.05f, 0.0f, 1.0f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Procedural", meta = (ClampMin = "1", ClampMax = "12"))
+    int32 ProceduralBatchSize = 50000;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Instanced")
     bool bUseLowCostCubeWhenPointMeshIsEmpty = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Instanced")
     TObjectPtr<UStaticMesh> PointMesh;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
@@ -103,6 +123,8 @@ private:
     void ApplyPreviewStyle();
     UStaticMesh* ResolvePointMesh() const;
     void ResetStatus();
+    void BuildProceduralPointCloud(const TArray<FVector>& Points);
+    void BuildInstancedPointCloud(const TArray<FVector>& Points);
 #if WITH_EDITOR
     bool OpenCsvFileDialog(FString& OutFilePath) const;
 #endif
