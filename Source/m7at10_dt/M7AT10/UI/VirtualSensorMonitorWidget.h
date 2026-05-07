@@ -149,6 +149,16 @@ private:
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool bLocalCaptureSaveLidarPointCloud = true;
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarCsv = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarLas = false;
+
+    // Writes an LAS-compatible source file with the suffix .laz_source.las until a true LAZ compressor is integrated.
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarLaz = false;
+
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool bLocalCaptureUseCachedSensorFrames = true;
 
