@@ -35,8 +35,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void ToggleView();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    void ToggleLocalSensorCapture();
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool IsLocalSensorCaptureActive() const { return bLocalSensorCaptureActive; }
+
 protected:
     virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
@@ -58,9 +65,18 @@ private:
     UFUNCTION()
     void HandleExportPointCloudButtonClicked();
 
+    UFUNCTION()
+    void HandleLocalSensorCaptureButtonClicked();
+
     void RefreshImageBrush();
     void RefreshTitle();
     void RefreshStatusText();
+    void RefreshLocalCaptureButtonText();
+    void CaptureLocalSensorFrame();
+    bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
+    bool SaveLidarPointCloudToDisk(const FString& FramePrefix);
+    bool RefreshLidarPreviewWithoutTransport();
+    FString EnsureLocalCaptureSessionDirectory();
 
 private:
     UPROPERTY(Transient)
@@ -94,13 +110,29 @@ private:
     TObjectPtr<UButton> ExportPointCloudButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> LocalSensorCaptureButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ToggleButtonText;
 
     UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> LocalSensorCaptureButtonText;
+
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> StatusText;
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture", meta = (ClampMin = "0.05"))
+    float LocalCaptureIntervalSeconds = 1.0f;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    FString LocalCaptureFolderName = TEXT("LocalTimedCapture");
+
     bool bShowingLidar = false;
+    bool bLocalSensorCaptureActive = false;
+    int32 LocalCaptureFrameIndex = 0;
+    FString LocalCaptureSessionDirectory;
+    FTimerHandle LocalSensorCaptureTimerHandle;
 };
