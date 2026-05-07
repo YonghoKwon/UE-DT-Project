@@ -5,11 +5,20 @@
 #include "VirtualSensorMonitorWidget.generated.h"
 
 class AVirtualSensorManager;
+class FRHIGPUTextureReadback;
 class UButton;
 class UImage;
 class UTextBlock;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
+
+struct FVirtualSensorPendingCameraReadback
+{
+    TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback;
+    FString OutputPath;
+    int32 Width = 0;
+    int32 Height = 0;
+};
 
 UCLASS()
 class M7AT10_DT_API UVirtualSensorMonitorWidget : public UUserWidget
@@ -74,6 +83,10 @@ private:
     void RefreshLocalCaptureButtonText();
     void CaptureLocalSensorFrame();
     bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
+    bool QueueCameraGpuReadbackToDisk(const FString& FramePrefix);
+    bool SaveCameraSnapshotToDiskSynchronous(const FString& FramePrefix);
+    void ProcessPendingCameraReadbacks();
+    void StartAsyncCameraJpegWrite(TArray<FColor>&& RawPixels, int32 Width, int32 Height, const FString& Path);
     bool SaveLidarPointCloudToDisk(const FString& FramePrefix);
     bool RefreshLidarPreviewWithoutTransport();
     FString EnsureLocalCaptureSessionDirectory();
@@ -142,6 +155,12 @@ private:
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool bSkipLocalCaptureWhenWritePending = true;
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bUseGpuAsyncCameraReadback = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture", meta = (ClampMin = "1", ClampMax = "8"))
+    int32 MaxPendingCameraReadbacks = 1;
+
     bool bShowingLidar = false;
     bool bLocalSensorCaptureActive = false;
     bool bLocalCaptureCameraWritePending = false;
@@ -149,4 +168,5 @@ private:
     int32 LocalCaptureFrameIndex = 0;
     FString LocalCaptureSessionDirectory;
     FTimerHandle LocalSensorCaptureTimerHandle;
+    TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
 };
