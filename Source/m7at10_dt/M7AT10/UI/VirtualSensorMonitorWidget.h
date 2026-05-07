@@ -12,6 +12,8 @@ class UTextBlock;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 
+enum class EVirtualLidarViewMode : uint8;
+
 struct FVirtualSensorPendingCameraReadback
 {
     TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback;
@@ -44,6 +46,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void ToggleView();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void CycleLidarViewMode();
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     void ToggleLocalSensorCapture();
 
@@ -69,6 +74,9 @@ private:
     void HandlePointCloudOnlyButtonClicked();
 
     UFUNCTION()
+    void HandleLidarViewModeButtonClicked();
+
+    UFUNCTION()
     void HandleLogPointCloudButtonClicked();
 
     UFUNCTION()
@@ -81,6 +89,8 @@ private:
     void RefreshTitle();
     void RefreshStatusText();
     void RefreshLocalCaptureButtonText();
+    void RefreshLidarViewModeButtonText();
+    FString GetLidarViewModeDisplayText() const;
     void CaptureLocalSensorFrame();
     bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
     bool QueueCameraGpuReadbackToDisk(const FString& FramePrefix);
@@ -117,6 +127,9 @@ private:
     TObjectPtr<UButton> PointCloudOnlyButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> LidarViewModeButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> LogPointCloudButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
@@ -130,6 +143,9 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> ToggleButtonText;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> LidarViewModeButtonText;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> LocalSensorCaptureButtonText;
