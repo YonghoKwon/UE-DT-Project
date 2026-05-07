@@ -1,5 +1,6 @@
 #include "VirtualSensorMonitorWidget.h"
 
+#include "Async/Async.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
@@ -17,6 +18,13 @@
 
 namespace
 {
+struct FLocalLidarCsvPoint
+{
+    int32 Row = 0;
+    int32 Col = 0;
+    FVector Point = FVector::ZeroVector;
+};
+
 FString BuildPointCloudExportDirectory(const UVirtualLidarSensorComp* LidarComp)
 {
     const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
@@ -249,7 +257,13 @@ void UVirtualSensorMonitorWidget::ToggleLocalSensorCapture()
             &UVirtualSensorMonitorWidget::CaptureLocalSensorFrame,
             FMath::Max(0.05f, LocalCaptureIntervalSeconds),
             true);
-        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local timed capture started. Interval=%.3fs Session=%s"), LocalCaptureIntervalSeconds, *LocalCaptureSessionDirectory);
+        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local timed capture started. Interval=%.3fs Session=%s Cached=%s SkipPending=%s Camera=%s Lidar=%s"),
+            LocalCaptureIntervalSeconds,
+            *LocalCaptureSessionDirectory,
+            bLocalCaptureUseCachedSensorFrames ? TEXT("true") : TEXT("false"),
+            bSkipLocalCaptureWhenWritePending ? TEXT("true") : TEXT("false"),
+            bLocalCaptureSaveCameraFrames ? TEXT("true") : TEXT("false"),
+            bLocalCaptureSaveLidarPointCloud ? TEXT("true") : TEXT("false"));
     }
 
     RefreshLocalCaptureButtonText();
@@ -451,10 +465,15 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
 
     if (bLocalSensorCaptureActive || !LocalCaptureSessionDirectory.IsEmpty())
     {
-        Text += FString::Printf(TEXT("\n\nLocal Capture: %s\nInterval: %.3fs\nFrames: %d\nFolder: %s"),
+        Text += FString::Printf(TEXT("\n\nLocal Capture: %s\nInterval: %.3fs\nFrames: %d\nCamera: %s Pending=%s\nLidar: %s Pending=%s\nCached Source: %s\nFolder: %s"),
             bLocalSensorCaptureActive ? TEXT("Recording") : TEXT("Stopped"),
             LocalCaptureIntervalSeconds,
             LocalCaptureFrameIndex,
+            bLocalCaptureSaveCameraFrames ? TEXT("On") : TEXT("Off"),
+            bLocalCaptureCameraWritePending ? TEXT("true") : TEXT("false"),
+            bLocalCaptureSaveLidarPointCloud ? TEXT("On") : TEXT("Off"),
+            bLocalCaptureLidarWritePending ? TEXT("true") : TEXT("false"),
+            bLocalCaptureUseCachedSensorFrames ? TEXT("On") : TEXT("Off"),
             *LocalCaptureSessionDirectory);
     }
 
@@ -476,21 +495,29 @@ void UVirtualSensorMonitorWidget::CaptureLocalSensorFrame()
         return;
     }
 
+    if (bSkipLocalCaptureWhenWritePending && (bLocalCaptureCameraWritePending || bLocalCaptureLidarWritePending))
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[SensorMonitor] Local capture skipped because previous write is still pending. CameraPending=%s LidarPending=%s"),
+            bLocalCaptureCameraWritePending ? TEXT("true") : TEXT("false"),
+            bLocalCaptureLidarWritePending ? TEXT("true") : TEXT("false"));
+        return;
+    }
+
     ++LocalCaptureFrameIndex;
     const FString FramePrefix = FString::Printf(TEXT("frame_%06d"), LocalCaptureFrameIndex);
-    const bool bCameraSaved = SaveCameraSnapshotToDisk(FramePrefix);
-    const bool bLidarSaved = SaveLidarPointCloudToDisk(FramePrefix);
+    const bool bCameraQueued = bLocalCaptureSaveCameraFrames && SaveCameraSnapshotToDisk(FramePrefix);
+    const bool bLidarQueued = bLocalCaptureSaveLidarPointCloud && SaveLidarPointCloudToDisk(FramePrefix);
 
     UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local capture frame=%d camera=%s lidar=%s folder=%s"),
         LocalCaptureFrameIndex,
-        bCameraSaved ? TEXT("saved") : TEXT("skipped"),
-        bLidarSaved ? TEXT("saved") : TEXT("skipped"),
+        bCameraQueued ? TEXT("queued") : TEXT("skipped"),
+        bLidarQueued ? TEXT("queued") : TEXT("skipped"),
         *LocalCaptureSessionDirectory);
 }
 
 bool UVirtualSensorMonitorWidget::SaveCameraSnapshotToDisk(const FString& FramePrefix)
 {
-    if (!CameraComp)
+    if (!CameraComp || bLocalCaptureCameraWritePending)
     {
         return false;
     }
@@ -498,16 +525,14 @@ bool UVirtualSensorMonitorWidget::SaveCameraSnapshotToDisk(const FString& FrameP
     UTextureRenderTarget2D* RenderTarget = CameraComp->GetCameraRenderTarget();
     if (!RenderTarget)
     {
-        CameraComp->CaptureScene();
-        RenderTarget = CameraComp->GetCameraRenderTarget();
-    }
-    if (!RenderTarget)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Camera local capture failed: render target is null."));
+        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Camera local capture skipped: render target is null."));
         return false;
     }
 
-    CameraComp->CaptureScene();
+    if (!bLocalCaptureUseCachedSensorFrames)
+    {
+        CameraComp->CaptureScene();
+    }
 
     FTextureRenderTargetResource* Resource = RenderTarget->GameThread_GetRenderTargetResource();
     if (!Resource)
@@ -521,41 +546,93 @@ bool UVirtualSensorMonitorWidget::SaveCameraSnapshotToDisk(const FString& FrameP
         return false;
     }
 
-    IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
-    TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
-    if (!ImageWrapper.IsValid())
-    {
-        return false;
-    }
-
-    ImageWrapper->SetRaw(RawPixels.GetData(), RawPixels.Num() * sizeof(FColor), RenderTarget->SizeX, RenderTarget->SizeY, ERGBFormat::BGRA, 8);
-    const TArray64<uint8>& JpegBytes64 = ImageWrapper->GetCompressed(80);
-    if (JpegBytes64.Num() == 0)
-    {
-        return false;
-    }
-
     const FString CameraDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Camera"));
     IFileManager::Get().MakeDirectory(*CameraDirectory, true);
     const FString Path = FPaths::Combine(CameraDirectory, FString::Printf(TEXT("%s_%s.jpg"), *FramePrefix, *CameraComp->SensorId));
+    const int32 Width = RenderTarget->SizeX;
+    const int32 Height = RenderTarget->SizeY;
 
-    TArray<uint8> Bytes32;
-    Bytes32.Append(JpegBytes64.GetData(), static_cast<int32>(JpegBytes64.Num()));
-    return FFileHelper::SaveArrayToFile(Bytes32, *Path);
+    IImageWrapperModule* ImageWrapperModule = &FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
+    TWeakObjectPtr<UVirtualSensorMonitorWidget> WeakThis(this);
+    bLocalCaptureCameraWritePending = true;
+
+    Async(EAsyncExecution::ThreadPool, [WeakThis, ImageWrapperModule, RawPixels = MoveTemp(RawPixels), Path, Width, Height]() mutable
+    {
+        bool bSaved = false;
+        if (ImageWrapperModule)
+        {
+            TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule->CreateImageWrapper(EImageFormat::JPEG);
+            if (ImageWrapper.IsValid())
+            {
+                ImageWrapper->SetRaw(RawPixels.GetData(), RawPixels.Num() * sizeof(FColor), Width, Height, ERGBFormat::BGRA, 8);
+                const TArray64<uint8>& JpegBytes64 = ImageWrapper->GetCompressed(80);
+                if (JpegBytes64.Num() > 0)
+                {
+                    TArray<uint8> Bytes32;
+                    Bytes32.Append(JpegBytes64.GetData(), static_cast<int32>(JpegBytes64.Num()));
+                    bSaved = FFileHelper::SaveArrayToFile(Bytes32, *Path);
+                }
+            }
+        }
+
+        AsyncTask(ENamedThreads::GameThread, [WeakThis, Path, bSaved]()
+        {
+            if (WeakThis.IsValid())
+            {
+                WeakThis->bLocalCaptureCameraWritePending = false;
+                if (bSaved)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Async camera save saved: %s"), *Path);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Async camera save failed: %s"), *Path);
+                }
+            }
+        });
+    });
+
+    return true;
 }
 
 bool UVirtualSensorMonitorWidget::SaveLidarPointCloudToDisk(const FString& FramePrefix)
 {
-    if (!LidarComp)
+    if (!LidarComp || bLocalCaptureLidarWritePending)
     {
         return false;
     }
 
-    RefreshLidarPreviewWithoutTransport();
+    if (!bLocalCaptureUseCachedSensorFrames || LidarComp->GetLastPoints().Num() <= 0)
+    {
+        RefreshLidarPreviewWithoutTransport();
+    }
 
-    int32 ExportedPointCount = 0;
-    const FString Text = BuildRowColCsvText(LidarComp, ExportedPointCount);
-    if (ExportedPointCount <= 0)
+    const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
+    if (Points.Num() <= 0)
+    {
+        return false;
+    }
+
+    const int32 SafeHorizontalSamples = FMath::Max(1, LidarComp->HorizontalSamples);
+    TArray<FLocalLidarCsvPoint> CsvPoints;
+    CsvPoints.Reserve(Points.Num());
+
+    for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+    {
+        const FVirtualLidarPoint& Point = Points[PointIndex];
+        if (LidarComp->bExportHitOnlyPointCloud && !Point.bHit)
+        {
+            continue;
+        }
+
+        FLocalLidarCsvPoint CsvPoint;
+        CsvPoint.Row = PointIndex / SafeHorizontalSamples;
+        CsvPoint.Col = PointIndex % SafeHorizontalSamples;
+        CsvPoint.Point = Point.WorldLocation;
+        CsvPoints.Add(CsvPoint);
+    }
+
+    if (CsvPoints.Num() <= 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Lidar local capture skipped: no export points."));
         return false;
@@ -564,7 +641,44 @@ bool UVirtualSensorMonitorWidget::SaveLidarPointCloudToDisk(const FString& Frame
     const FString LidarDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Lidar"));
     IFileManager::Get().MakeDirectory(*LidarDirectory, true);
     const FString Path = FPaths::Combine(LidarDirectory, FString::Printf(TEXT("%s_%s.csv"), *FramePrefix, *LidarComp->SensorId));
-    return FFileHelper::SaveStringToFile(Text, *Path);
+
+    TWeakObjectPtr<UVirtualSensorMonitorWidget> WeakThis(this);
+    bLocalCaptureLidarWritePending = true;
+
+    Async(EAsyncExecution::ThreadPool, [WeakThis, CsvPoints = MoveTemp(CsvPoints), Path]() mutable
+    {
+        FString Text;
+        Text.Reserve(FMath::Max(128, CsvPoints.Num() * 64));
+        Text += TEXT("row,col,x,y,z\n");
+        for (const FLocalLidarCsvPoint& CsvPoint : CsvPoints)
+        {
+            Text += FString::Printf(TEXT("%d,%d,%f,%f,%f\n"),
+                CsvPoint.Row,
+                CsvPoint.Col,
+                CsvPoint.Point.X,
+                CsvPoint.Point.Y,
+                CsvPoint.Point.Z);
+        }
+
+        const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
+        AsyncTask(ENamedThreads::GameThread, [WeakThis, Path, bSaved]()
+        {
+            if (WeakThis.IsValid())
+            {
+                WeakThis->bLocalCaptureLidarWritePending = false;
+                if (bSaved)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Async lidar CSV save saved: %s"), *Path);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Async lidar CSV save failed: %s"), *Path);
+                }
+            }
+        });
+    });
+
+    return true;
 }
 
 bool UVirtualSensorMonitorWidget::RefreshLidarPreviewWithoutTransport()
