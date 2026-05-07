@@ -26,6 +26,7 @@ public class m7at10_dt : ModuleRules
             "PixelStreamingBlueprint",
             "DTCore",
             "RenderCore",
+            "RHI",
             "ImageWrapper",
             "Json",
             "ProceduralMeshComponent"
