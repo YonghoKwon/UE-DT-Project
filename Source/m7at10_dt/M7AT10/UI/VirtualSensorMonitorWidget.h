@@ -130,8 +130,22 @@ private:
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     FString LocalCaptureFolderName = TEXT("LocalTimedCapture");
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureSaveCameraFrames = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureSaveLidarPointCloud = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureUseCachedSensorFrames = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bSkipLocalCaptureWhenWritePending = true;
+
     bool bShowingLidar = false;
     bool bLocalSensorCaptureActive = false;
+    bool bLocalCaptureCameraWritePending = false;
+    bool bLocalCaptureLidarWritePending = false;
     int32 LocalCaptureFrameIndex = 0;
     FString LocalCaptureSessionDirectory;
     FTimerHandle LocalSensorCaptureTimerHandle;
