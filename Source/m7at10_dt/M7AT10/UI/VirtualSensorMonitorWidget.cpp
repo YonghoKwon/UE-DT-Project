@@ -17,6 +17,7 @@
 #include "TextureResource.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 namespace
@@ -78,10 +79,11 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
     if (NextCameraButton) { NextCameraButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleNextCameraButtonClicked); NextCameraButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleNextCameraButtonClicked); }
     if (NextLidarButton) { NextLidarButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked); NextLidarButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked); }
     if (PointCloudOnlyButton) { PointCloudOnlyButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked); PointCloudOnlyButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked); }
+    if (LidarViewModeButton) { LidarViewModeButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleLidarViewModeButtonClicked); LidarViewModeButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleLidarViewModeButtonClicked); }
     if (LogPointCloudButton) { LogPointCloudButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked); LogPointCloudButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked); }
     if (ExportPointCloudButton) { ExportPointCloudButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleExportPointCloudButtonClicked); ExportPointCloudButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleExportPointCloudButtonClicked); }
     if (LocalSensorCaptureButton) { LocalSensorCaptureButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked); LocalSensorCaptureButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked); }
-    RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); RefreshLocalCaptureButtonText();
+    RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); RefreshLocalCaptureButtonText(); RefreshLidarViewModeButtonText();
 }
 
 void UVirtualSensorMonitorWidget::NativeDestruct()
@@ -102,11 +104,41 @@ void UVirtualSensorMonitorWidget::NativeTick(const FGeometry& MyGeometry, float 
 }
 
 void UVirtualSensorMonitorWidget::BindVirtualCamera(UVirtualCameraComp* InCameraComp) { CameraComp = InCameraComp; RefreshImageBrush(); RefreshStatusText(); }
-void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp) { LidarComp = InLidarComp; if (bShowingLidar && LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshImageBrush(); RefreshStatusText(); }
+void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp) { LidarComp = InLidarComp; if (LidarComp && LidarComp->ViewMode == EVirtualLidarViewMode::IntensityGray) LidarComp->ViewMode = EVirtualLidarViewMode::DepthGradient; if (bShowingLidar && LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshImageBrush(); RefreshStatusText(); RefreshLidarViewModeButtonText(); }
 void UVirtualSensorMonitorWidget::BindSensorManager(AVirtualSensorManager* InSensorManager) { SensorManager = InSensorManager; if (SensorManager) SensorManager->BindMonitorWidget(this); RefreshStatusText(); }
 void UVirtualSensorMonitorWidget::ShowCameraView() { bShowingLidar = false; RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); }
 void UVirtualSensorMonitorWidget::ShowLidarView() { bShowingLidar = true; if (LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); }
 void UVirtualSensorMonitorWidget::ToggleView() { bShowingLidar = !bShowingLidar; if (bShowingLidar && LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); }
+
+void UVirtualSensorMonitorWidget::CycleLidarViewMode()
+{
+    if (!LidarComp)
+    {
+        return;
+    }
+
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::DepthGradient)
+    {
+        LidarComp->ViewMode = EVirtualLidarViewMode::HitMask;
+    }
+    else if (LidarComp->ViewMode == EVirtualLidarViewMode::HitMask)
+    {
+        LidarComp->ViewMode = EVirtualLidarViewMode::ActorClassColor;
+    }
+    else if (LidarComp->ViewMode == EVirtualLidarViewMode::ActorClassColor)
+    {
+        LidarComp->ViewMode = EVirtualLidarViewMode::IntensityGray;
+    }
+    else
+    {
+        LidarComp->ViewMode = EVirtualLidarViewMode::DepthGradient;
+    }
+
+    RefreshLidarPreviewWithoutTransport();
+    RefreshLidarViewModeButtonText();
+    RefreshStatusText();
+    RefreshImageBrush();
+}
 
 void UVirtualSensorMonitorWidget::ToggleLocalSensorCapture()
 {
@@ -133,6 +165,7 @@ void UVirtualSensorMonitorWidget::HandleToggleButtonClicked() { if (SensorManage
 void UVirtualSensorMonitorWidget::HandleNextCameraButtonClicked() { if (SensorManager) { SensorManager->SelectNextCamera(); SensorManager->SetViewMode(EVirtualSensorViewMode::Camera); } }
 void UVirtualSensorMonitorWidget::HandleNextLidarButtonClicked() { if (SensorManager) { SensorManager->SelectNextLidar(); SensorManager->SetViewMode(EVirtualSensorViewMode::Lidar); } }
 void UVirtualSensorMonitorWidget::HandlePointCloudOnlyButtonClicked() { if (SensorManager) SensorManager->TogglePointCloudOnlyView(); }
+void UVirtualSensorMonitorWidget::HandleLidarViewModeButtonClicked() { CycleLidarViewMode(); }
 void UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked() { ToggleLocalSensorCapture(); }
 
 void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
@@ -184,6 +217,7 @@ void UVirtualSensorMonitorWidget::RefreshTitle()
     }
     if (ToggleButtonText) ToggleButtonText->SetText(FText::FromString(bShowingLidar ? TEXT("Show Camera View") : TEXT("Show LIDAR View")));
     RefreshLocalCaptureButtonText();
+    RefreshLidarViewModeButtonText();
 }
 
 void UVirtualSensorMonitorWidget::RefreshStatusText()
@@ -193,7 +227,7 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPointCloudPreview: %s\nCSV Format: row,col,x,y,z\nMessage: %s"), *Status.SensorId, Status.FrameId, Status.TotalPointCount, Status.HitPointCount, LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"), *Status.LastMessage);
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPointCloudPreview: %s\nLiDAR View Mode: %s\nLegend: Depth=Yellow/Red/Blue, HitMask=White/Black, ActorColor=Green\nCSV Format: row,col,x,y,z\nMessage: %s"), *Status.SensorId, Status.FrameId, Status.TotalPointCount, Status.HitPointCount, LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"), *GetLidarViewModeDisplayText(), *Status.LastMessage);
     }
     else if (!bShowingLidar && CameraComp)
     {
@@ -211,6 +245,29 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
 }
 
 void UVirtualSensorMonitorWidget::RefreshLocalCaptureButtonText() { if (LocalSensorCaptureButtonText) LocalSensorCaptureButtonText->SetText(FText::FromString(bLocalSensorCaptureActive ? TEXT("Stop Local Capture") : TEXT("Start Local Capture"))); }
+void UVirtualSensorMonitorWidget::RefreshLidarViewModeButtonText() { if (LidarViewModeButtonText) LidarViewModeButtonText->SetText(FText::FromString(FString::Printf(TEXT("LiDAR View: %s"), *GetLidarViewModeDisplayText()))); }
+
+FString UVirtualSensorMonitorWidget::GetLidarViewModeDisplayText() const
+{
+    if (!LidarComp)
+    {
+        return TEXT("None");
+    }
+
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::DepthGradient)
+    {
+        return TEXT("Depth Color");
+    }
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::HitMask)
+    {
+        return TEXT("Hit Mask");
+    }
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::ActorClassColor)
+    {
+        return TEXT("Actor Color");
+    }
+    return TEXT("Gray");
+}
 
 void UVirtualSensorMonitorWidget::CaptureLocalSensorFrame()
 {
