@@ -1,9 +1,5 @@
 #pragma once
 
-#if defined(_MSC_VER)
-#pragma warning(disable: 4459)
-#endif
-
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "VirtualLidarSensorTypes.h"
@@ -16,6 +12,30 @@ class UStaticMesh;
 class UTexture2D;
 class UVirtualSensorDataTransportComp;
 class UVirtualSensorRecorderComp;
+
+USTRUCT(BlueprintType)
+struct M7AT10_DT_API FVirtualLidarSemanticClassRule
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    FName Label = NAME_None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    FLinearColor DisplayColor = FLinearColor::White;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    TArray<FName> ActorTags;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    TArray<FName> ActorClassNames;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    TArray<FString> ActorNameContains;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    TArray<FString> ComponentNameContains;
+};
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualLidarScanCompleted, const FString&, JsonPayload, UTexture2D*, LidarViewTexture);
 
@@ -67,6 +87,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     void ApplyPointCloudPreviewStyle();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Semantic")
+    void ResetDefaultSemanticClassRules();
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Semantic")
+    FLinearColor GetSemanticColorForLabel(FName SemanticLabel) const;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Debug")
     void LogLastPointCloud(int32 MaxPointsToLog = 100, bool bHitOnly = true) const;
@@ -182,6 +208,21 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|View")
     bool bFlipLidarViewVertical = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    bool bEnableSemanticClassification = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    bool bUseSemanticColorInPointCloudPreview = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    TArray<FVirtualLidarSemanticClassRule> SemanticClassRules;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    FName DefaultSemanticLabel = TEXT("Other");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Semantic")
+    FLinearColor DefaultSemanticColor = FLinearColor(0.55f, 0.55f, 0.55f, 1.0f);
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     bool bPointCloudPreviewEnabled = true;
 
@@ -248,6 +289,10 @@ private:
     void UpdateLidarViewTexture(const TArray<uint8>& HeatmapPixels);
     void WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const;
     bool ShouldIgnoreHitActor(const AActor* Actor) const;
+    void PopulatePointSemanticMetadata(FVirtualLidarPoint& Point, const FHitResult& Hit) const;
+    FName ResolveSemanticLabel(const FHitResult& Hit) const;
+    bool SemanticRuleMatches(const FVirtualLidarSemanticClassRule& Rule, const AActor* Actor, const UPrimitiveComponent* Component) const;
+    FLinearColor ResolveSemanticColor(const FVirtualLidarPoint& Point) const;
     void TryAutoRegisterToManager();
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
@@ -269,11 +314,3 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 };
-
-// Temporary compatibility shim for legacy dynamic UE_LOG verbosity expressions in VirtualLidarSensorComp.cpp.
-// The cpp will be cleaned up by replacing those expressions with explicit if/else UE_LOG calls.
-namespace ELogVerbosity
-{
-    static constexpr Type bSaved = Log;
-}
-using namespace ELogVerbosity;
