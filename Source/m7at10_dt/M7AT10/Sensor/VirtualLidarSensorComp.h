@@ -132,7 +132,7 @@ public:
     EVirtualLidarPreset Preset = EVirtualLidarPreset::Custom;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
-    EVirtualLidarViewMode ViewMode = EVirtualLidarViewMode::IntensityGray;
+    EVirtualLidarViewMode ViewMode = EVirtualLidarViewMode::DepthGradient;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "0.033"))
     float ScanInterval = 0.25f;
