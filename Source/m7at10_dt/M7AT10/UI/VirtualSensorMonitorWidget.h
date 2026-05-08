@@ -165,13 +165,25 @@ private:
     bool bUseEnhancedLidarMonitorView = true;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
+    bool bUseAdaptiveLidarDepthRange = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
     bool bOverlayLidarMonitorGrid = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
+    bool bOverlayLidarDepthEdges = true;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "1", ClampMax = "512"))
     int32 LidarMonitorGridColumnStep = 32;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "1", ClampMax = "128"))
     int32 LidarMonitorGridRowStep = 4;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "0.1", ClampMax = "1000.0"))
+    float LidarDepthEdgeThreshold = 10.0f;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
+    FLinearColor LidarDepthEdgeColor = FLinearColor::White;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture", meta = (ClampMin = "0.05"))
     float LocalCaptureIntervalSeconds = 1.0f;
@@ -216,6 +228,11 @@ private:
     int32 LastEnhancedLidarWidth = 0;
     int32 LastEnhancedLidarHeight = 0;
     uint8 LastEnhancedLidarViewMode = 255;
+    bool bLastEnhancedAdaptiveDepth = false;
+    bool bLastEnhancedGrid = false;
+    bool bLastEnhancedEdges = false;
+    float LastEnhancedEdgeThreshold = -1.0f;
+    FLinearColor LastEnhancedEdgeColor = FLinearColor::Transparent;
     FString LocalCaptureSessionDirectory;
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
