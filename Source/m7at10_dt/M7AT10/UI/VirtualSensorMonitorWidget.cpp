@@ -4,6 +4,7 @@
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "HAL/FileManager.h"
 #include "IImageWrapper.h"
@@ -36,6 +37,70 @@ FString BuildPointCloudExportDirectory(const UVirtualLidarSensorComp* LidarComp)
     const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud"));
     IFileManager::Get().MakeDirectory(*Directory, true);
     return Directory;
+}
+
+FColor MakeMonitorLidarColor(EVirtualLidarViewMode ViewMode, const FVirtualLidarPoint& Point, float MaxDistance)
+{
+    const float SafeMaxDistance = FMath::Max(1.0f, MaxDistance);
+    const float NormalizedDistance = FMath::Clamp(Point.Distance / SafeMaxDistance, 0.0f, 1.0f);
+    const uint8 Intensity = Point.bHit ? static_cast<uint8>((1.0f - NormalizedDistance) * 255.0f) : 0;
+
+    if (ViewMode == EVirtualLidarViewMode::HitMask)
+    {
+        return Point.bHit ? FColor::White : FColor::Black;
+    }
+
+    if (ViewMode == EVirtualLidarViewMode::ActorClassColor)
+    {
+        return Point.bHit ? FColor(0, 255, 90, 255) : FColor(3, 8, 10, 255);
+    }
+
+    if (ViewMode == EVirtualLidarViewMode::IntensityGray)
+    {
+        return FColor(Intensity, Intensity, Intensity, 255);
+    }
+
+    if (!Point.bHit)
+    {
+        return FColor(4, 4, 12, 255);
+    }
+
+    if (NormalizedDistance < 0.20f)
+    {
+        return FColor(255, 0, 255, 255); // very near: magenta
+    }
+    if (NormalizedDistance < 0.40f)
+    {
+        return FColor(255, 48, 0, 255); // near: red/orange
+    }
+    if (NormalizedDistance < 0.60f)
+    {
+        return FColor(255, 235, 0, 255); // mid: yellow
+    }
+    if (NormalizedDistance < 0.80f)
+    {
+        return FColor(0, 255, 255, 255); // far-mid: cyan
+    }
+    return FColor(0, 80, 255, 255); // far: blue
+}
+
+FColor ApplyMonitorGridOverlay(const FColor& InColor, bool bHit, bool bIsGrid)
+{
+    if (!bIsGrid)
+    {
+        return InColor;
+    }
+
+    if (!bHit)
+    {
+        return FColor(36, 36, 42, 255);
+    }
+
+    return FColor(
+        static_cast<uint8>(FMath::Clamp(static_cast<int32>(InColor.R) + 70, 0, 255)),
+        static_cast<uint8>(FMath::Clamp(static_cast<int32>(InColor.G) + 70, 0, 255)),
+        static_cast<uint8>(FMath::Clamp(static_cast<int32>(InColor.B) + 70, 0, 255)),
+        255);
 }
 
 FString BuildRowColCsvText(const UVirtualLidarSensorComp* LidarComp, int32& OutExportedPointCount)
@@ -104,7 +169,7 @@ void UVirtualSensorMonitorWidget::NativeTick(const FGeometry& MyGeometry, float 
 }
 
 void UVirtualSensorMonitorWidget::BindVirtualCamera(UVirtualCameraComp* InCameraComp) { CameraComp = InCameraComp; RefreshImageBrush(); RefreshStatusText(); }
-void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp) { LidarComp = InLidarComp; if (LidarComp && LidarComp->ViewMode == EVirtualLidarViewMode::IntensityGray) LidarComp->ViewMode = EVirtualLidarViewMode::DepthGradient; if (bShowingLidar && LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshImageBrush(); RefreshStatusText(); RefreshLidarViewModeButtonText(); }
+void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp) { LidarComp = InLidarComp; if (LidarComp && LidarComp->ViewMode == EVirtualLidarViewMode::IntensityGray) LidarComp->ViewMode = EVirtualLidarViewMode::DepthGradient; InvalidateEnhancedLidarView(); if (bShowingLidar && LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshImageBrush(); RefreshStatusText(); RefreshLidarViewModeButtonText(); }
 void UVirtualSensorMonitorWidget::BindSensorManager(AVirtualSensorManager* InSensorManager) { SensorManager = InSensorManager; if (SensorManager) SensorManager->BindMonitorWidget(this); RefreshStatusText(); }
 void UVirtualSensorMonitorWidget::ShowCameraView() { bShowingLidar = false; RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); }
 void UVirtualSensorMonitorWidget::ShowLidarView() { bShowingLidar = true; if (LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport(); RefreshTitle(); RefreshImageBrush(); RefreshStatusText(); }
@@ -134,6 +199,7 @@ void UVirtualSensorMonitorWidget::CycleLidarViewMode()
         LidarComp->ViewMode = EVirtualLidarViewMode::DepthGradient;
     }
 
+    InvalidateEnhancedLidarView();
     RefreshLidarPreviewWithoutTransport();
     RefreshLidarViewModeButtonText();
     RefreshStatusText();
@@ -201,7 +267,7 @@ void UVirtualSensorMonitorWidget::RefreshImageBrush()
     if (bShowingLidar)
     {
         if (LidarComp && !LidarComp->GetLidarViewTexture()) RefreshLidarPreviewWithoutTransport();
-        Resource = LidarComp ? LidarComp->GetLidarViewTexture() : nullptr;
+        Resource = GetLidarBrushResource();
     }
     else Resource = CameraComp ? CameraComp->GetCameraRenderTarget() : nullptr;
     if (!Resource) return;
@@ -227,7 +293,17 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPointCloudPreview: %s\nLiDAR View Mode: %s\nLegend: Depth=Yellow/Red/Blue, HitMask=White/Black, ActorColor=Green\nCSV Format: row,col,x,y,z\nMessage: %s"), *Status.SensorId, Status.FrameId, Status.TotalPointCount, Status.HitPointCount, LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"), *GetLidarViewModeDisplayText(), *Status.LastMessage);
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPointCloudPreview: %s\nLiDAR View Mode: %s\nEnhanced Monitor: %s Grid=%s\nLegend: %s\nCSV Format: row,col,x,y,z\nMessage: %s"),
+            *Status.SensorId,
+            Status.FrameId,
+            Status.TotalPointCount,
+            Status.HitPointCount,
+            LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
+            *GetLidarViewModeDisplayText(),
+            bUseEnhancedLidarMonitorView ? TEXT("On") : TEXT("Off"),
+            bOverlayLidarMonitorGrid ? TEXT("On") : TEXT("Off"),
+            *GetLidarViewLegendText(),
+            *Status.LastMessage);
     }
     else if (!bShowingLidar && CameraComp)
     {
@@ -267,6 +343,133 @@ FString UVirtualSensorMonitorWidget::GetLidarViewModeDisplayText() const
         return TEXT("Actor Color");
     }
     return TEXT("Gray");
+}
+
+FString UVirtualSensorMonitorWidget::GetLidarViewLegendText() const
+{
+    if (!LidarComp)
+    {
+        return TEXT("None");
+    }
+
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::HitMask)
+    {
+        return TEXT("Hit=White, Miss=Black");
+    }
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::ActorClassColor)
+    {
+        return TEXT("Hit=Bright Green, Miss=Dark");
+    }
+    if (LidarComp->ViewMode == EVirtualLidarViewMode::IntensityGray)
+    {
+        return TEXT("Near=Bright, Far/Miss=Dark");
+    }
+    return TEXT("Near=Magenta/Orange, Mid=Yellow, Far=Cyan/Blue, Miss=Dark");
+}
+
+UObject* UVirtualSensorMonitorWidget::GetLidarBrushResource()
+{
+    if (!LidarComp)
+    {
+        return nullptr;
+    }
+
+    if (!bUseEnhancedLidarMonitorView)
+    {
+        return LidarComp->GetLidarViewTexture();
+    }
+
+    UTexture2D* EnhancedTexture = RebuildEnhancedLidarViewTexture();
+    return EnhancedTexture ? EnhancedTexture : LidarComp->GetLidarViewTexture();
+}
+
+void UVirtualSensorMonitorWidget::InvalidateEnhancedLidarView()
+{
+    LastEnhancedLidarFrameId = INDEX_NONE;
+    LastEnhancedLidarWidth = 0;
+    LastEnhancedLidarHeight = 0;
+    LastEnhancedLidarViewMode = 255;
+}
+
+UTexture2D* UVirtualSensorMonitorWidget::RebuildEnhancedLidarViewTexture()
+{
+    if (!LidarComp)
+    {
+        return nullptr;
+    }
+
+    const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
+    if (Points.Num() <= 0)
+    {
+        return LidarComp->GetLidarViewTexture();
+    }
+
+    const int32 Width = FMath::Max(1, LidarComp->HorizontalSamples);
+    const int32 Height = FMath::Max(1, LidarComp->VerticalChannels);
+    const int64 CurrentFrameId = LidarComp->GetRuntimeStatus().FrameId;
+    const uint8 CurrentViewMode = static_cast<uint8>(LidarComp->ViewMode);
+
+    if (EnhancedLidarViewTexture && LastEnhancedLidarFrameId == CurrentFrameId && LastEnhancedLidarWidth == Width && LastEnhancedLidarHeight == Height && LastEnhancedLidarViewMode == CurrentViewMode)
+    {
+        return EnhancedLidarViewTexture;
+    }
+
+    TArray<FColor> Pixels;
+    Pixels.Init(FColor(4, 4, 12, 255), Width * Height);
+
+    const int32 MaxRenderablePoints = FMath::Min(Points.Num(), Width * Height);
+    const int32 SafeGridColumnStep = FMath::Max(1, LidarMonitorGridColumnStep);
+    const int32 SafeGridRowStep = FMath::Max(1, LidarMonitorGridRowStep);
+
+    for (int32 PointIndex = 0; PointIndex < MaxRenderablePoints; ++PointIndex)
+    {
+        const int32 H = PointIndex % Width;
+        const int32 V = PointIndex / Width;
+        const int32 DrawH = LidarComp->bFlipLidarViewHorizontal ? Width - 1 - H : H;
+        const int32 DrawV = LidarComp->bFlipLidarViewVertical ? Height - 1 - V : V;
+        const int32 PixelIndex = DrawV * Width + DrawH;
+        if (!Pixels.IsValidIndex(PixelIndex))
+        {
+            continue;
+        }
+
+        const FVirtualLidarPoint& Point = Points[PointIndex];
+        const bool bGrid = bOverlayLidarMonitorGrid && ((H % SafeGridColumnStep) == 0 || (V % SafeGridRowStep) == 0);
+        Pixels[PixelIndex] = ApplyMonitorGridOverlay(MakeMonitorLidarColor(LidarComp->ViewMode, Point, LidarComp->MaxDistance), Point.bHit, bGrid);
+    }
+
+    if (!EnhancedLidarViewTexture || LastEnhancedLidarWidth != Width || LastEnhancedLidarHeight != Height)
+    {
+        EnhancedLidarViewTexture = UTexture2D::CreateTransient(Width, Height, PF_B8G8R8A8);
+        if (EnhancedLidarViewTexture)
+        {
+            EnhancedLidarViewTexture->SRGB = true;
+            EnhancedLidarViewTexture->CompressionSettings = TC_VectorDisplacementmap;
+        }
+    }
+
+    if (!EnhancedLidarViewTexture || !EnhancedLidarViewTexture->GetPlatformData() || EnhancedLidarViewTexture->GetPlatformData()->Mips.Num() <= 0)
+    {
+        return LidarComp->GetLidarViewTexture();
+    }
+
+    FTexture2DMipMap& Mip = EnhancedLidarViewTexture->GetPlatformData()->Mips[0];
+    void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
+    if (!Data)
+    {
+        Mip.BulkData.Unlock();
+        return LidarComp->GetLidarViewTexture();
+    }
+
+    FMemory::Memcpy(Data, Pixels.GetData(), Pixels.Num() * sizeof(FColor));
+    Mip.BulkData.Unlock();
+    EnhancedLidarViewTexture->UpdateResource();
+
+    LastEnhancedLidarFrameId = CurrentFrameId;
+    LastEnhancedLidarWidth = Width;
+    LastEnhancedLidarHeight = Height;
+    LastEnhancedLidarViewMode = CurrentViewMode;
+    return EnhancedLidarViewTexture;
 }
 
 void UVirtualSensorMonitorWidget::CaptureLocalSensorFrame()
@@ -446,6 +649,7 @@ bool UVirtualSensorMonitorWidget::RefreshLidarPreviewWithoutTransport()
     LidarComp->OutputMode = EVirtualLidarOutputMode::None; LidarComp->TransportComponent = nullptr; LidarComp->RecorderComponent = nullptr; LidarComp->bExportCsvOnScan = false; LidarComp->bExportJsonLinesOnScan = false; LidarComp->bExportPcdOnScan = false;
     LidarComp->ScanAndSend();
     LidarComp->OutputMode = SavedOutputMode; LidarComp->TransportComponent = SavedTransport; LidarComp->RecorderComponent = SavedRecorder; LidarComp->bExportCsvOnScan = bSavedExportCsv; LidarComp->bExportJsonLinesOnScan = bSavedExportJsonLines; LidarComp->bExportPcdOnScan = bSavedExportPcd;
+    InvalidateEnhancedLidarView();
     return LidarComp->GetLidarViewTexture() != nullptr;
 }
 
