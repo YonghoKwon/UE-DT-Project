@@ -9,6 +9,7 @@ class FRHIGPUTextureReadback;
 class UButton;
 class UImage;
 class UTextBlock;
+class UTexture2D;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 
@@ -91,6 +92,10 @@ private:
     void RefreshLocalCaptureButtonText();
     void RefreshLidarViewModeButtonText();
     FString GetLidarViewModeDisplayText() const;
+    FString GetLidarViewLegendText() const;
+    UObject* GetLidarBrushResource();
+    UTexture2D* RebuildEnhancedLidarViewTexture();
+    void InvalidateEnhancedLidarView();
     void CaptureLocalSensorFrame();
     bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
     bool QueueCameraGpuReadbackToDisk(const FString& FramePrefix);
@@ -110,6 +115,9 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorManager> SensorManager;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UTexture2D> EnhancedLidarViewTexture;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UImage> ViewImage;
@@ -153,6 +161,18 @@ private:
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> StatusText;
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
+    bool bUseEnhancedLidarMonitorView = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
+    bool bOverlayLidarMonitorGrid = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "1", ClampMax = "512"))
+    int32 LidarMonitorGridColumnStep = 32;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "1", ClampMax = "128"))
+    int32 LidarMonitorGridRowStep = 4;
+
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture", meta = (ClampMin = "0.05"))
     float LocalCaptureIntervalSeconds = 1.0f;
 
@@ -192,6 +212,10 @@ private:
     bool bLocalCaptureCameraWritePending = false;
     bool bLocalCaptureLidarWritePending = false;
     int32 LocalCaptureFrameIndex = 0;
+    int64 LastEnhancedLidarFrameId = INDEX_NONE;
+    int32 LastEnhancedLidarWidth = 0;
+    int32 LastEnhancedLidarHeight = 0;
+    uint8 LastEnhancedLidarViewMode = 255;
     FString LocalCaptureSessionDirectory;
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
