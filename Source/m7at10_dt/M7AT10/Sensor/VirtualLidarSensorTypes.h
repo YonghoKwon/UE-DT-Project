@@ -17,8 +17,8 @@ enum class EVirtualLidarViewMode : uint8
 {
     IntensityGray UMETA(DisplayName = "Gray / Legacy"),
     HitMask UMETA(DisplayName = "Hit Mask - White/Black"),
-    DepthGradient UMETA(DisplayName = "Depth Color - Default"),
-    ActorClassColor UMETA(DisplayName = "Hit Color - Green")
+    DepthGradient UMETA(DisplayName = "Depth Color"),
+    ActorClassColor UMETA(DisplayName = "Semantic Color - Tag/Class")
 };
 
 USTRUCT(BlueprintType)
@@ -40,6 +40,15 @@ struct M7AT10_DT_API FVirtualLidarPoint
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
     FName HitActorName = NAME_None;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    FName HitActorClassName = NAME_None;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    TArray<FName> HitActorTags;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    FName SemanticLabel = NAME_None;
 };
 
 USTRUCT(BlueprintType)
