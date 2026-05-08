@@ -15,10 +15,10 @@ enum class EVirtualLidarPreset : uint8
 UENUM(BlueprintType)
 enum class EVirtualLidarViewMode : uint8
 {
-    IntensityGray UMETA(DisplayName = "Intensity Gray"),
-    HitMask UMETA(DisplayName = "Hit Mask"),
-    DepthGradient UMETA(DisplayName = "Depth Gradient"),
-    ActorClassColor UMETA(DisplayName = "Actor Class Color")
+    IntensityGray UMETA(DisplayName = "Gray / Legacy"),
+    HitMask UMETA(DisplayName = "Hit Mask - White/Black"),
+    DepthGradient UMETA(DisplayName = "Depth Color - Default"),
+    ActorClassColor UMETA(DisplayName = "Hit Color - Green")
 };
 
 USTRUCT(BlueprintType)
