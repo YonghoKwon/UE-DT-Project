@@ -518,18 +518,19 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints: %d\nHits: %d\nPointCloudPreview: %s\nLiDAR View Mode: %s\nEnhanced Monitor: %s Adaptive=%s Edge=%s Grid=%s\nLegend: %s\nCSV Format: row,col,x,y,z\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints/Hits: %d/%d\nPreview: %s Stride=%d Max=%d\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nCSV: row,col,x,y,z\nMessage: %s"),
             *Status.SensorId,
             Status.FrameId,
             Status.TotalPointCount,
             Status.HitPointCount,
             LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
+            LidarComp->PointCloudPreviewStride,
+            LidarComp->MaxPointCloudPreviewInstances,
             *GetLidarViewModeDisplayText(),
             bUseEnhancedLidarMonitorView ? TEXT("On") : TEXT("Off"),
             bUseAdaptiveLidarDepthRange ? TEXT("On") : TEXT("Off"),
             bOverlayLidarDepthEdges ? TEXT("On") : TEXT("Off"),
             bOverlayLidarMonitorGrid ? TEXT("On") : TEXT("Off"),
-            *GetLidarViewLegendText(),
             *Status.LastMessage);
     }
     else if (!bShowingLidar && CameraComp)
@@ -548,7 +549,7 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     }
     if (bLocalSensorCaptureActive || !LocalCaptureSessionDirectory.IsEmpty())
     {
-        Text += FString::Printf(TEXT("\n\nLocal Capture: %s\nInterval: %.3fs\nFrames: %d\nCamera Pending=%s GPUReadback=%s Queue=%d/%d\nLidar Pending=%s Formats=[CSV:%s LAS:%s LAZ:%s]\nFolder: %s"), bLocalSensorCaptureActive ? TEXT("Recording") : TEXT("Stopped"), LocalCaptureIntervalSeconds, LocalCaptureFrameIndex, bLocalCaptureCameraWritePending ? TEXT("true") : TEXT("false"), bUseGpuAsyncCameraReadback ? TEXT("On") : TEXT("Off"), PendingCameraReadbacks.Num(), MaxPendingCameraReadbacks, bLocalCaptureLidarWritePending ? TEXT("true") : TEXT("false"), bLocalCaptureSaveLidarCsv ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLas ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLaz ? TEXT("On") : TEXT("Off"), *LocalCaptureSessionDirectory);
+        Text += FString::Printf(TEXT("\n\nLocal Capture: %s\nInterval: %.3fs Frames=%d\nCapture Pending: Camera=%s Lidar=%s Queue=%d/%d GPUReadback=%s\nFormats: CSV=%s LAS=%s LAZ=%s\nLocal Folder: %s"), bLocalSensorCaptureActive ? TEXT("Recording") : TEXT("Stopped"), LocalCaptureIntervalSeconds, LocalCaptureFrameIndex, bLocalCaptureCameraWritePending ? TEXT("true") : TEXT("false"), bLocalCaptureLidarWritePending ? TEXT("true") : TEXT("false"), PendingCameraReadbacks.Num(), MaxPendingCameraReadbacks, bUseGpuAsyncCameraReadback ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarCsv ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLas ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLaz ? TEXT("On") : TEXT("Off"), *LocalCaptureSessionDirectory);
     }
     StatusText->SetText(FText::FromString(Text));
 }

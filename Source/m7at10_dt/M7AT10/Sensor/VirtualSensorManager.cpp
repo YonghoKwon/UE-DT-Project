@@ -16,6 +16,9 @@ struct FLidarPointCloudOnlyState
     bool bPointCloudPreviewEnabled = false;
     bool bPointCloudPreviewHitOnly = true;
     bool bDrawDebugRays = false;
+    bool bDrawPointCloudPreviewDebugPoints = false;
+    int32 PointCloudPreviewStride = 1;
+    int32 MaxPointCloudPreviewInstances = 0;
 };
 
 TMap<TWeakObjectPtr<UVirtualLidarSensorComp>, FLidarPointCloudOnlyState> GLidarPointCloudOnlyStates;
@@ -31,6 +34,9 @@ void SaveLidarViewState(UVirtualLidarSensorComp* LidarComp)
     State.bPointCloudPreviewEnabled = LidarComp->IsPointCloudPreviewEnabled();
     State.bPointCloudPreviewHitOnly = LidarComp->bPointCloudPreviewHitOnly;
     State.bDrawDebugRays = LidarComp->bDrawDebugRays;
+    State.bDrawPointCloudPreviewDebugPoints = LidarComp->bDrawPointCloudPreviewDebugPoints;
+    State.PointCloudPreviewStride = LidarComp->PointCloudPreviewStride;
+    State.MaxPointCloudPreviewInstances = LidarComp->MaxPointCloudPreviewInstances;
     GLidarPointCloudOnlyStates.Add(LidarComp, State);
 }
 
@@ -43,7 +49,12 @@ void ApplyPointCloudOnlyToLidar(UVirtualLidarSensorComp* LidarComp, bool bSelect
 
     SaveLidarViewState(LidarComp);
     LidarComp->bDrawDebugRays = false;
+    LidarComp->bDrawPointCloudPreviewDebugPoints = false;
     LidarComp->bPointCloudPreviewHitOnly = true;
+    LidarComp->PointCloudPreviewStride = FMath::Max(2, LidarComp->PointCloudPreviewStride);
+    LidarComp->MaxPointCloudPreviewInstances = LidarComp->MaxPointCloudPreviewInstances > 0
+        ? FMath::Min(LidarComp->MaxPointCloudPreviewInstances, 3000)
+        : 3000;
     LidarComp->SetPointCloudPreviewEnabled(bSelected);
 }
 
@@ -57,7 +68,10 @@ void RestoreLidarViewState(UVirtualLidarSensorComp* LidarComp)
     if (FLidarPointCloudOnlyState* State = GLidarPointCloudOnlyStates.Find(LidarComp))
     {
         LidarComp->bDrawDebugRays = State->bDrawDebugRays;
+        LidarComp->bDrawPointCloudPreviewDebugPoints = State->bDrawPointCloudPreviewDebugPoints;
         LidarComp->bPointCloudPreviewHitOnly = State->bPointCloudPreviewHitOnly;
+        LidarComp->PointCloudPreviewStride = State->PointCloudPreviewStride;
+        LidarComp->MaxPointCloudPreviewInstances = State->MaxPointCloudPreviewInstances;
         LidarComp->SetPointCloudPreviewEnabled(State->bPointCloudPreviewEnabled);
         GLidarPointCloudOnlyStates.Remove(LidarComp);
     }

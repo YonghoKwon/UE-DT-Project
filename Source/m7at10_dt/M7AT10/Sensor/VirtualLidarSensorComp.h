@@ -149,7 +149,7 @@ public:
     int32 PayloadPointStride = 4;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance", meta = (ClampMin = "0", ClampMax = "1000000"))
-    int32 MaxPayloadPoints = 5000;
+    int32 MaxPayloadPoints = 3000;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance")
     bool bIncludeMissPointsInPayload = false;
@@ -224,13 +224,13 @@ public:
     FLinearColor DefaultSemanticColor = FLinearColor(0.55f, 0.55f, 0.55f, 1.0f);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
-    bool bPointCloudPreviewEnabled = true;
+    bool bPointCloudPreviewEnabled = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     bool bPointCloudPreviewHitOnly = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "1", ClampMax = "100"))
-    int32 PointCloudPreviewStride = 1;
+    int32 PointCloudPreviewStride = 2;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0", ClampMax = "1000000"))
     int32 MaxPointCloudPreviewInstances = 5000;
@@ -242,7 +242,7 @@ public:
     FLinearColor PointCloudPreviewColor = FLinearColor(1.0f, 0.05f, 0.0f, 1.0f);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
-    bool bDrawPointCloudPreviewDebugPoints = true;
+    bool bDrawPointCloudPreviewDebugPoints = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "1.0", ClampMax = "50.0"))
     float PointCloudPreviewDebugPointSize = 8.0f;
@@ -288,6 +288,8 @@ private:
     void SaveJsonToDisk(const FString& JsonPayload) const;
     void UpdateLidarViewTexture(const TArray<uint8>& HeatmapPixels);
     void WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const;
+    void UpdateRuntimeStatusAfterScan(int32 PayloadLength);
+    void ExportEnabledPointCloudFormats() const;
     bool ShouldIgnoreHitActor(const AActor* Actor) const;
     void PopulatePointSemanticMetadata(FVirtualLidarPoint& Point, const FHitResult& Hit) const;
     FName ResolveSemanticLabel(const FHitResult& Hit) const;
