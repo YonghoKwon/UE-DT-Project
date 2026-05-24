@@ -2,6 +2,7 @@
 
 #include "Components/TextBlock.h"
 #include "Engine/TargetPoint.h"
+#include "UI/DxWidget.h"
 
 
 ADxPlayerTest::ADxPlayerTest()

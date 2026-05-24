@@ -1,0 +1,116 @@
+﻿#pragma once
+
+#include "CoreMinimal.h"
+#include "EnhancedInputSubsystemInterface.h"
+#include "GameFramework/PlayerController.h"
+#include "InputActionValue.h"
+#include "DxPlayerControllerBase.generated.h"
+
+DECLARE_MULTICAST_DELEGATE(FOnTestPimsKeyPressed);
+
+class ADxPlayerBase;
+
+UCLASS()
+class DTCORE_API ADxPlayerControllerBase : public APlayerController
+{
+	GENERATED_BODY()
+
+	// 함수
+public:
+	ADxPlayerControllerBase();
+	virtual void BeginPlay() override;
+	UFUNCTION()
+	void SetUIMoveInput(const FVector2D& MoveInput);
+	UFUNCTION()
+	void SetUILookInput(const FVector2D& LookInput);
+	UFUNCTION()
+	void SetUIVerticalInput(float Value);
+	UFUNCTION()
+	void CyclePlayerControlSpeed();
+	UFUNCTION()
+	float GetPlayerControlSpeed();
+	UFUNCTION()
+	void ControlMoveSpeed(const FInputActionValue& Value);
+	UFUNCTION()
+	void ClickLeftMouseButton(const FInputActionValue& Value);
+
+private:
+
+protected:
+	virtual void SetupInputComponent() override;
+	virtual void Tick(float DeltaTime) override;
+	void Move(const FInputActionValue& Value);
+	void Look(const FInputActionValue& Value);
+	void MoveUpDown(const FInputActionValue& Value);
+	void ClickRightMouseButton(const FInputActionValue& Value);
+	virtual void HandleTestPimsKeyPressed(const FInputActionValue& Value);
+
+	// 마우스 호버 감지
+	void CheckMouseHover();
+
+	// 변수
+public:
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputMappingContext* PlayerContext;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* MovementAction;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* LookAction;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* MouseWheelAction;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* UpDownAction;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* LeftMouseButtonAction;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* RightMouseButtonAction;
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* TestPimsKeyAction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector2D UIMoveInput;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	FVector2D UILookInput;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float UIVerticalInput = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	AActor* HitActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Player|Control")
+	int32 ControlSpeedStep = 100;
+	UPROPERTY(BlueprintReadWrite)
+	bool PossibleClick = true;
+
+	FOnTestPimsKeyPressed OnTestPimsKeyPressed;
+private:
+	UPROPERTY()
+	bool bIsClickRightMouseButton;
+	UPROPERTY()
+	bool bIsHitDoOnce;
+	UPROPERTY()
+	bool bIsNotHitDoOnce;
+	UPROPERTY()
+	bool bIsHitActor;
+	UPROPERTY()
+	bool bIsWidgetUnderMouse = false;
+
+	// 현재 호버된 InteractableActor
+	UPROPERTY()
+	class AInteractableActor* CurrentHoveredActor = nullptr;
+	// 현재 호버된 메쉬 컴포넌트
+	UPROPERTY()
+	UPrimitiveComponent* CurrentHoveredMesh;
+
+	UPROPERTY()
+	ADxPlayerBase* DxPlayerBase;
+
+	//
+	// 마지막으로 Hover 체크를 한 시간
+	float LastHoverCheckTime = 0.0f;
+	// Hover 체크 주기 (초 단위, 0.05 = 초당 20회)
+	const float HoverCheckInterval = 0.05f;
+	//
+
+protected:
+};

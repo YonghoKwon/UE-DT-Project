@@ -4,16 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Player/DxPlayerBase.h"
+#include "UI/DxWidget.h"
 #include "DxPlayerTest.generated.h"
 
 class ATargetPoint;
 
-UENUM(BlueprintType)
-enum class EPlayerViewType : uint8
-{
-	TopView		UMETA(DisplayName = "TopView"),
-	FreeView	UMETA(DisplayName = "FreeView"),
-};
 UCLASS()
 class M7AT10_DT_API ADxPlayerTest : public ADxPlayerBase
 {
