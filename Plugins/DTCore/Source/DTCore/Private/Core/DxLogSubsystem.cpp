@@ -71,7 +71,7 @@ void UDxLogSubsystem::WriteLog(const FString& LogContent, bool bPrintToScreen, F
 	FString TargetFileName = LogFileName;
 	if (TargetFileName.IsEmpty())
 	{
-		FString BaseName = FString::Printf(TEXT("DxLog_%s.log"), *Now.ToString(TEXT("%Y-%m-%d")));
+		FString BaseName = FString::Printf(TEXT("DxLog_%s"), *Now.ToString(TEXT("%Y-%m-%d")));
 		TargetFileName = BaseName + TEXT(".log");
 
 

@@ -146,7 +146,7 @@ void UDxWebSocketSubsystem::DisconnectStompClient(const TMap<FName, FString>& He
 	}
 
 	DX_LOG(GetWorld(), TEXT("DisConnect STOMP WebSocket"));
-	StompClient->Connect(Header);
+	StompClient->Disconnect(Header);
 }
 
 void UDxWebSocketSubsystem::ReceivedMessage(const FWebSocketMessage& Message)
@@ -344,6 +344,4 @@ void UDxWebSocketSubsystem::TryReconnect()
 		CurrentDelay,
 		false
 	);
-
-	RetryCount++;
 }
