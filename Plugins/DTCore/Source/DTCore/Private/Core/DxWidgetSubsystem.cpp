@@ -82,7 +82,7 @@ UDxWidget* UDxWidgetSubsystem::OpenWidget(AInteractableActor* InteractableActor)
 
 	// Config 찾기
 	FWidgetInfoList* WidgetInfoList = Config->WidgetMap.Find(InteractableActor->WidgetFlag);
-	if (!WidgetInfoList || !WidgetInfoList->Widgets.Num() == 0) return nullptr;
+	if (!WidgetInfoList || WidgetInfoList->Widgets.Num() == 0) return nullptr;
 
 	UDxWidget* FirstWidget = nullptr;
 	for (const FWidgetInfo& Info : WidgetInfoList->Widgets)
@@ -107,7 +107,7 @@ UDxWidget* UDxWidgetSubsystem::OpenWidgetFromWidget(UDxWidget* ParentDxWidget, E
 	if (!Config) return nullptr;
 
 	FWidgetInfoList* WidgetInfoList = Config->WidgetMap.Find(TargetFlag);
-	if (!WidgetInfoList || !WidgetInfoList->Widgets.Num() == 0) return nullptr;
+	if (!WidgetInfoList || WidgetInfoList->Widgets.Num() == 0) return nullptr;
 
 	UDxWidget* FirstWidget = nullptr;
 	for (const FWidgetInfo& Info : WidgetInfoList->Widgets)
@@ -157,7 +157,7 @@ void UDxWidgetSubsystem::CloseWidget(UDxWidget* CloseWidget)
 	UE_LOG(LogTemp, Log, TEXT("CloseWidget: Widget '%s' closed successfully"), *CloseWidget->GetName());
 }
 
-void UDxWidgetSubsystem::ClosedWidgetFromWidget(UDxWidget* ParentDxWidget, EDxWidgetFlag TargetFlag)
+void UDxWidgetSubsystem::CloseWidgetFromWidget(UDxWidget* ParentDxWidget, EDxWidgetFlag TargetFlag)
 {
 	if (!ParentDxWidget) return;
 
@@ -230,7 +230,7 @@ UDxWidget* UDxWidgetSubsystem::CreateWidgetInternal(TSubclassOf<UDxWidget> Widge
 	{
 		if (UCanvasPanelSlot* ParentSlot = Cast<UCanvasPanelSlot>(ParentWidget->Slot))
 		{
-			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(ParentWidget->Slot))
+			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(NewWidget->Slot))
 			{
 				int32 NewZOrder = FMath::Max(CanvasSlot->GetZOrder(), ParentSlot->GetZOrder() + 1);
 				CanvasSlot->SetZOrder(NewZOrder);
@@ -239,7 +239,6 @@ UDxWidget* UDxWidgetSubsystem::CreateWidgetInternal(TSubclassOf<UDxWidget> Widge
 	}
 
 	// 5. 데이터 설정
-	OpenWidgets.Add(NewWidget);
 	NewWidget->MyActor = OwnerActor;
 	NewWidget->WidgetFlag = Flag;
 	NewWidget->SpawnPosition = Position;

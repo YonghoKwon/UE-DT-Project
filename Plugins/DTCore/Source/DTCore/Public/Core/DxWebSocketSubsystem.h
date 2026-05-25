@@ -63,7 +63,7 @@ public:
 	UFUNCTION(Category = "DxWebSocket")
 	void ReceivedMessage(const FWebSocketMessage& Message);
 	UFUNCTION(Category = "DxWebSocket")
-	FString Subscribe(const FString& Destination, FSTOMPSubscriptionEvent EventCallback, const FSTOMPRequestCompleted CompletionCallback);
+	FString Subscribe(const FString& Destination, const FSTOMPSubscriptionEvent EventCallback&, const FSTOMPRequestCompleted& CompletionCallback);
 	UFUNCTION(Category = "DxWebSocket")
 	void Unsubscribe(const FString& Subscription, const FSTOMPRequestCompleted& CompletionCallback);
 private:

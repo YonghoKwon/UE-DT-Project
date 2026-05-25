@@ -144,7 +144,7 @@ void UDxWidget::CloseChildWidget(EDxWidgetFlag InChildFlag)
 	{
 		if (UDxWidgetSubsystem* WidgetSubsystem = GI->GetSubsystem<UDxWidgetSubsystem>())
 		{
-			return WidgetSubsystem->ClosedWidgetFromWidget(this, InChildFlag);
+			return WidgetSubsystem->CloseWidgetFromWidget(this, InChildFlag);
 		}
 	}
 }

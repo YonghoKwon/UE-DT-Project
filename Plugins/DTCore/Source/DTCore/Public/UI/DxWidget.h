@@ -131,7 +131,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Theme")
 	EDxWidgetStyleType CurrentStyleType = EDxWidgetStyleType::Standard;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DxWidget|Runtime")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DxWidget|Runtime")
 	FVector2D SpawnPosition = FVector2D::ZeroVector;
 protected:
 	UPROPERTY()

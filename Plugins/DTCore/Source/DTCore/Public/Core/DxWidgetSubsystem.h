@@ -40,7 +40,7 @@ public:
 	void CloseWidget(UDxWidget* CloseWidget);
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
-	void ClosedWidgetFromWidget(UDxWidget* DxWidget, EDxWidgetFlag TargetFlag);
+	void CloseWidgetFromWidget(UDxWidget* DxWidget, EDxWidgetFlag TargetFlag);
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void BringToFront(UDxWidget* Widget);

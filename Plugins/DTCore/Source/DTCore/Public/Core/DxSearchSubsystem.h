@@ -1,6 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
@@ -11,29 +9,26 @@ struct DTCORE_API FSearchResult
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "Search")
 	FString Id;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "Search")
 	FString Name;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "Search")
 	uint8 CategoryValue = 0;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "Search")
 	FString AdditionalInfo;
 };
 
-// 검색 완료 델리게이트
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnSearchCompleted,
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
+	FOnSearchCompleted,
 	bool, bSuccess,
 	const TArray<FSearchResult>&, Results,
-	const FString&, ErrorMessasge
-	);
+	const FString&, ErrorMessage
+);
 
-/**
- *
- */
 UCLASS(Abstract)
 class DTCORE_API UDxSearchSubsystem : public UGameInstanceSubsystem
 {
@@ -41,7 +36,6 @@ class DTCORE_API UDxSearchSubsystem : public UGameInstanceSubsystem
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-
 	virtual void Deinitialize() override;
 
 	UFUNCTION(BlueprintCallable, Category = "Search")
@@ -51,7 +45,9 @@ public:
 	FOnSearchCompleted OnSearchCompleted;
 
 protected:
-	virtual void SearchByCategory(uint8 InCategoryValue, const FString& SearchText, TArray<FSearchResult>& OutResults) PURE_VIRTUAL(UDxSearchSubsystem::SearchByCategory, );
-
-protected:
+	virtual void SearchByCategory(
+		uint8 InCategoryValue,
+		const FString& SearchText,
+		TArray<FSearchResult>& OutResults
+	) PURE_VIRTUAL(UDxSearchSubsystem::SearchByCategory, );
 };

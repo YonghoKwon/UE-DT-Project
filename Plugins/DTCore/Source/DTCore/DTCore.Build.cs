@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
 
 public class DTCore : ModuleRules
@@ -7,57 +5,29 @@ public class DTCore : ModuleRules
 	public DTCore(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
-		PublicIncludePaths.AddRange(
-			new string[] {
-				// ... add public include paths required here ...
-			}
-			);
-				
-		
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				// ... add other private include paths required here ...
-			}
-			);
-			
-		
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"InputCore",
-				"WebSockets",
-				"HTTP",
-				"Stomp",
-				"EnhancedInput",
-				"UMG",
-				"Slate",
-				"SlateCore"
+				"UMG"
 			}
-			);
-			
-		
+		);
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"CoreUObject",
-				"Engine",
+				"InputCore",
+				"EnhancedInput",
+				"HTTP",
+				"WebSockets",
+				"Stomp",
 				"Slate",
 				"SlateCore",
 				"DeveloperSettings"
-				// ... add private dependencies that you statically link with here ...
 			}
-			);
-		
-		
-		DynamicallyLoadedModuleNames.AddRange(
-			new string[]
-			{
-				// ... add any modules that your module loads dynamically here ...
-			}
-			);
+		);
 	}
 }

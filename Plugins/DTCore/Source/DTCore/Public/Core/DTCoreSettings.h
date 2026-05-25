@@ -50,7 +50,7 @@ public:
 	TArray<FString> ApiTopics = { TEXT("topic.api.output.0") };
 
 	// 프로젝트 전체에서 기본으로 사용할 위젯 테마 데이터
-	UPROPERTY(config, EditAnywhere, Category = "UI")
+	UPROPERTY(Config, EditAnywhere, Category = "UI")
 	TSoftObjectPtr<class UDxWidgetThemeData> DefaultWidgetTheme;
 private:
 protected:

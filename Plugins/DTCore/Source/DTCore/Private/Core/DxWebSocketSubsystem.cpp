@@ -152,7 +152,7 @@ void UDxWebSocketSubsystem::DisconnectStompClient(const TMap<FName, FString>& He
 void UDxWebSocketSubsystem::ReceivedMessage(const FWebSocketMessage& Message)
 {
 	// FStompBuffer Body = Message->GetRawBody();
-	const FString BodyString = Message.BodyString;
+	const FString& BodyString = Message.BodyString;
 	if (BodyString.IsEmpty())
 	{
 		return;
@@ -181,8 +181,8 @@ void UDxWebSocketSubsystem::ReceivedMessage(const FWebSocketMessage& Message)
 	}
 }
 
-FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, FSTOMPSubscriptionEvent EventCallback,
-	FSTOMPRequestCompleted CompletionCallback)
+FString UDxWebSocketSubsystem::Subscribe(const FString& Destination, const FSTOMPSubscriptionEvent& EventCallback,
+	const FSTOMPRequestCompleted& CompletionCallback)
 {
 	if (!StompClient.IsValid())
 	{
