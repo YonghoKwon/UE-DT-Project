@@ -6,6 +6,8 @@
 
 class AVirtualSensorManager;
 class FRHIGPUTextureReadback;
+class STextBlock;
+class SWidget;
 class UButton;
 class UImage;
 class UTextBlock;
@@ -69,6 +71,7 @@ public:
     bool IsLocalSensorCaptureActive() const { return bLocalSensorCaptureActive; }
 
 protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -110,8 +113,12 @@ private:
     void RefreshImageBrush();
     void RefreshTitle();
     void RefreshStatusText();
+    void RefreshNativeFallbackText();
     void RefreshLocalCaptureButtonText();
     void RefreshLidarViewModeButtonText();
+    FString BuildTitleText() const;
+    FString BuildStatusText() const;
+    bool ShouldUseNativeFallbackWidget() const;
     FString GetLidarViewModeDisplayText() const;
     FString GetLidarViewLegendText() const;
     UObject* GetLidarBrushResource();
@@ -281,4 +288,6 @@ private:
     FString LocalCaptureSessionDirectory;
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
+    TSharedPtr<STextBlock> NativeTitleTextBlock;
+    TSharedPtr<STextBlock> NativeStatusTextBlock;
 };

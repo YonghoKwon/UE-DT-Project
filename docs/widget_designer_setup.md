@@ -99,7 +99,9 @@ ViewportZOrder = 0
 
 This actor creates the monitor widget, finds `AVirtualSensorManager`, binds the widget, and adds it to the viewport at BeginPlay.
 
-If `MonitorWidgetClass` is empty and `bUseNativeMonitorWidgetFallback` is true, the host creates the native `UVirtualSensorMonitorWidget`. This is useful for code-level smoke tests, but a Designer-authored `WBP_VirtualSensorMonitor` is still recommended for a usable UI.
+If `MonitorWidgetClass` is empty and `bUseNativeMonitorWidgetFallback` is true, the host creates the native `UVirtualSensorMonitorWidget`. The native fallback now builds a minimal Slate panel with status text and basic controls for view toggle, sensor selection, point-cloud-only mode, LiDAR view mode, capture once, and preview budget changes.
+
+The native fallback is intended for smoke tests and emergency runtime visibility. A Designer-authored `WBP_VirtualSensorMonitor` is still recommended for the production operator UI because it can include the camera/LiDAR image area, layout polish, and domain-specific slab analysis panels.
 
 ## Blueprint-Callable Manager API
 

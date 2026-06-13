@@ -16,6 +16,12 @@
 #include "RHIGPUReadback.h"
 #include "RenderingThread.h"
 #include "TextureResource.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
@@ -175,6 +181,141 @@ bool ExportRowColPointCloudCsv(const UVirtualLidarSensorComp* LidarComp, const F
     }
     return bSaved;
 }
+}
+
+TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
+{
+    if (!ShouldUseNativeFallbackWidget())
+    {
+        return Super::RebuildWidget();
+    }
+
+    return SNew(SBorder)
+        .Padding(12.0f)
+        [
+            SNew(SVerticalBox)
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+            [
+                SAssignNew(NativeTitleTextBlock, STextBlock)
+                .Text(FText::FromString(BuildTitleText()))
+            ]
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+            [
+                SNew(SWrapBox)
+                .UseAllottedSize(true)
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Toggle View")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleToggleButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Next Camera")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleNextCameraButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Next LiDAR")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleNextLidarButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("PointCloudOnly")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandlePointCloudOnlyButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("LiDAR View")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleLidarViewModeButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Capture Once")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleCaptureOnceButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Preview -")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandlePreviewLessButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Preview +")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandlePreviewMoreButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+            ]
+            + SVerticalBox::Slot()
+            .FillHeight(1.0f)
+            [
+                SNew(SScrollBox)
+                + SScrollBox::Slot()
+                [
+                    SAssignNew(NativeStatusTextBlock, STextBlock)
+                    .AutoWrapText(true)
+                    .Text(FText::FromString(BuildStatusText()))
+                ]
+            ]
+        ];
 }
 
 void UVirtualSensorMonitorWidget::NativeConstruct()
@@ -613,10 +754,14 @@ void UVirtualSensorMonitorWidget::RefreshImageBrush()
 
 void UVirtualSensorMonitorWidget::RefreshTitle()
 {
+    const FString Title = BuildTitleText();
     if (TitleText)
     {
-        const bool bPointCloudOnly = SensorManager && SensorManager->IsPointCloudOnlyModeEnabled();
-        TitleText->SetText(FText::FromString(bPointCloudOnly ? TEXT("LiDAR Point Cloud Only") : (bShowingLidar ? TEXT("Virtual LIDAR View") : TEXT("Virtual Camera View"))));
+        TitleText->SetText(FText::FromString(Title));
+    }
+    if (NativeTitleTextBlock.IsValid())
+    {
+        NativeTitleTextBlock->SetText(FText::FromString(Title));
     }
     if (ToggleButtonText)
     {
@@ -628,11 +773,31 @@ void UVirtualSensorMonitorWidget::RefreshTitle()
 
 void UVirtualSensorMonitorWidget::RefreshStatusText()
 {
-    if (!StatusText)
+    const FString Text = BuildStatusText();
+    if (StatusText)
     {
-        return;
+        StatusText->SetText(FText::FromString(Text));
     }
+    if (NativeStatusTextBlock.IsValid())
+    {
+        NativeStatusTextBlock->SetText(FText::FromString(Text));
+    }
+}
 
+void UVirtualSensorMonitorWidget::RefreshNativeFallbackText()
+{
+    RefreshTitle();
+    RefreshStatusText();
+}
+
+FString UVirtualSensorMonitorWidget::BuildTitleText() const
+{
+    const bool bPointCloudOnly = SensorManager && SensorManager->IsPointCloudOnlyModeEnabled();
+    return bPointCloudOnly ? TEXT("LiDAR Point Cloud Only") : (bShowingLidar ? TEXT("Virtual LIDAR View") : TEXT("Virtual Camera View"));
+}
+
+FString UVirtualSensorMonitorWidget::BuildStatusText() const
+{
     FString Text;
     if (bShowingLidar && LidarComp)
     {
@@ -689,7 +854,12 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     {
         Text += FString::Printf(TEXT("\n\nLocal Capture: %s\nInterval: %.3fs Frames=%d\nCapture Pending: Camera=%s Lidar=%s Queue=%d/%d GPUReadback=%s\nFormats: CSV=%s LAS=%s LAZ=%s\nLocal Folder: %s"), bLocalSensorCaptureActive ? TEXT("Recording") : TEXT("Stopped"), LocalCaptureIntervalSeconds, LocalCaptureFrameIndex, bLocalCaptureCameraWritePending ? TEXT("true") : TEXT("false"), bLocalCaptureLidarWritePending ? TEXT("true") : TEXT("false"), PendingCameraReadbacks.Num(), MaxPendingCameraReadbacks, bUseGpuAsyncCameraReadback ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarCsv ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLas ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLaz ? TEXT("On") : TEXT("Off"), *LocalCaptureSessionDirectory);
     }
-    StatusText->SetText(FText::FromString(Text));
+    return Text;
+}
+
+bool UVirtualSensorMonitorWidget::ShouldUseNativeFallbackWidget() const
+{
+    return GetClass() == UVirtualSensorMonitorWidget::StaticClass();
 }
 
 void UVirtualSensorMonitorWidget::RefreshLocalCaptureButtonText()
