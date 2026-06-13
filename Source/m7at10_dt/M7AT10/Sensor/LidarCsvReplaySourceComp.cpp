@@ -125,20 +125,12 @@ bool ULidarCsvReplaySourceComp::PushFrameOnce(bool bSendTransport)
         return false;
     }
 
-    if (bUpdateLidarDimensionsFromCsv && Rows > 0 && Cols > 0)
-    {
-        LidarComp->VerticalChannels = FMath::Clamp(Rows, 1, 256);
-        LidarComp->HorizontalSamples = FMath::Clamp(Cols, 1, 1440);
-    }
-
-    LidarComp->InjectPointCloudFrame(Points, bSendTransport);
     LastReplayMessage = FString::Printf(TEXT("Pushed replay frame. points=%d rows=%d cols=%d sendTransport=%s"),
         Points.Num(),
         Rows,
         Cols,
         bSendTransport ? TEXT("true") : TEXT("false"));
-    MarkFramePushed(Points.Num(), LastReplayMessage);
-    return true;
+    return PushPointFrameToTarget(Points, bSendTransport, LastReplayMessage, Rows, Cols, bUpdateLidarDimensionsFromCsv);
 }
 
 void ULidarCsvReplaySourceComp::PushFrameOnceInEditor()

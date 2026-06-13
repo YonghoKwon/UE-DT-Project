@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "VirtualLidarSensorTypes.h"
 #include "RealSensorSourceComp.generated.h"
 
 class UVirtualLidarSensorComp;
@@ -86,6 +87,7 @@ public:
 
 protected:
     UVirtualLidarSensorComp* ResolveTargetLidar() const;
+    bool PushPointFrameToTarget(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport, const FString& SuccessMessage, int32 Rows = 0, int32 Cols = 0, bool bUpdateLidarDimensions = false);
     void SetSourceState(ERealSensorSourceConnectionState NewState, const FString& Message);
     void MarkFramePushed(int32 PointCount, const FString& Message);
 };

@@ -49,6 +49,31 @@ UVirtualLidarSensorComp* URealSensorSourceComp::ResolveTargetLidar() const
     return GetOwner() ? GetOwner()->FindComponentByClass<UVirtualLidarSensorComp>() : nullptr;
 }
 
+bool URealSensorSourceComp::PushPointFrameToTarget(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport, const FString& SuccessMessage, int32 Rows, int32 Cols, bool bUpdateLidarDimensions)
+{
+    UVirtualLidarSensorComp* LidarComp = ResolveTargetLidar();
+    if (!LidarComp)
+    {
+        SetSourceState(ERealSensorSourceConnectionState::Error, TEXT("Target LiDAR is not set."));
+        return false;
+    }
+    if (Points.Num() <= 0)
+    {
+        SetSourceState(ERealSensorSourceConnectionState::Error, TEXT("Point frame is empty."));
+        return false;
+    }
+
+    if (bUpdateLidarDimensions && Rows > 0 && Cols > 0)
+    {
+        LidarComp->VerticalChannels = FMath::Clamp(Rows, 1, 256);
+        LidarComp->HorizontalSamples = FMath::Clamp(Cols, 1, 1440);
+    }
+
+    LidarComp->InjectPointCloudFrame(Points, bSendTransport);
+    MarkFramePushed(Points.Num(), SuccessMessage);
+    return true;
+}
+
 void URealSensorSourceComp::SetSourceState(ERealSensorSourceConnectionState NewState, const FString& Message)
 {
     ConnectionState = NewState;

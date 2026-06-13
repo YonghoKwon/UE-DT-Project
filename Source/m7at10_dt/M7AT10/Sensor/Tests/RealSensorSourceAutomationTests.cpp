@@ -1,13 +1,16 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorAdapterStubs.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSensorSource.BaseState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
 {
@@ -44,6 +47,54 @@ bool FRealSensorSourcePlaceholderStateTest::RunTest(const FString& Parameters)
         TestFalse(FString::Printf(TEXT("%s is not running"), *Source->SourceId), Source->IsSourceRunning());
         TestFalse(FString::Printf(TEXT("%s has status message"), *Source->SourceId), Source->GetLastSourceMessage().IsEmpty());
     }
+
+    return true;
+}
+
+bool FRealSensorSourcePushFrameToTargetTest::RunTest(const FString& Parameters)
+{
+    UVirtualLidarSensorComp* CsvTargetLidar = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComp* CsvReplay = NewObject<ULidarCsvReplaySourceComp>();
+    TestNotNull(TEXT("CSV target lidar"), CsvTargetLidar);
+    TestNotNull(TEXT("CSV replay source"), CsvReplay);
+    if (!CsvTargetLidar || !CsvReplay)
+    {
+        return false;
+    }
+
+    CsvReplay->TargetLidar = CsvTargetLidar;
+    CsvReplay->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    CsvReplay->ReplaySemanticLabel = TEXT("Slab");
+    CsvReplay->bUpdateLidarDimensionsFromCsv = true;
+
+    TestTrue(TEXT("CSV replay pushes frame through base source helper"), CsvReplay->PushFrameOnce(false));
+    TestEqual(TEXT("CSV source frame id increments"), CsvReplay->LastSourceFrameId, static_cast<int64>(1));
+    TestEqual(TEXT("CSV source point count"), CsvReplay->LastSourcePointCount, 24);
+    TestEqual(TEXT("CSV source state running"), CsvReplay->GetConnectionState(), ERealSensorSourceConnectionState::Running);
+    TestEqual(TEXT("CSV target received points"), CsvTargetLidar->GetLastPoints().Num(), 24);
+    TestEqual(TEXT("CSV target vertical channels updated"), CsvTargetLidar->VerticalChannels, 4);
+    TestEqual(TEXT("CSV target horizontal samples updated"), CsvTargetLidar->HorizontalSamples, 6);
+    TestEqual(TEXT("CSV target runtime count"), CsvTargetLidar->GetRuntimeStatus().TotalPointCount, 24);
+
+    UVirtualLidarSensorComp* JsonTargetLidar = NewObject<UVirtualLidarSensorComp>();
+    ULidarJsonLinesReplaySourceComp* JsonReplay = NewObject<ULidarJsonLinesReplaySourceComp>();
+    TestNotNull(TEXT("JSONL target lidar"), JsonTargetLidar);
+    TestNotNull(TEXT("JSONL replay source"), JsonReplay);
+    if (!JsonTargetLidar || !JsonReplay)
+    {
+        return false;
+    }
+
+    JsonReplay->TargetLidar = JsonTargetLidar;
+    JsonReplay->JsonLinesFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.jsonl"));
+
+    TestTrue(TEXT("JSONL replay pushes frame through base source helper"), JsonReplay->PushFrameOnce(false));
+    TestEqual(TEXT("JSONL source frame id increments"), JsonReplay->LastSourceFrameId, static_cast<int64>(1));
+    TestEqual(TEXT("JSONL source point count"), JsonReplay->LastSourcePointCount, 18);
+    TestEqual(TEXT("JSONL source state running"), JsonReplay->GetConnectionState(), ERealSensorSourceConnectionState::Running);
+    TestEqual(TEXT("JSONL target received points"), JsonTargetLidar->GetLastPoints().Num(), 18);
+    TestEqual(TEXT("JSONL target runtime count"), JsonTargetLidar->GetRuntimeStatus().TotalPointCount, 18);
+    TestFalse(TEXT("JSONL target has cached payload"), JsonTargetLidar->GetLastJsonPayload().IsEmpty());
 
     return true;
 }

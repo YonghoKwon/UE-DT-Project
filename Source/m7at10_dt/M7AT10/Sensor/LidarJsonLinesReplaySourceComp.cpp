@@ -124,12 +124,10 @@ bool ULidarJsonLinesReplaySourceComp::PushFrameOnce(bool bSendTransport)
         return false;
     }
 
-    LidarComp->InjectPointCloudFrame(Points, bSendTransport);
     LastReplayMessage = FString::Printf(TEXT("Pushed JSONL replay frame. points=%d sendTransport=%s"),
         Points.Num(),
         bSendTransport ? TEXT("true") : TEXT("false"));
-    MarkFramePushed(Points.Num(), LastReplayMessage);
-    return true;
+    return PushPointFrameToTarget(Points, bSendTransport, LastReplayMessage);
 }
 
 void ULidarJsonLinesReplaySourceComp::PushFrameOnceInEditor()

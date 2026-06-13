@@ -95,11 +95,13 @@ ULidarJsonLinesReplaySourceComp
 Purpose:
 
 ```text
-CSV point cloud -> FVirtualLidarPoint[] -> UVirtualLidarSensorComp::InjectPointCloudFrame
-JSONL point cloud -> FVirtualLidarPoint[] -> UVirtualLidarSensorComp::InjectPointCloudFrame
+CSV point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
+JSONL point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
 ```
 
 This allows saved measurement data to enter the same LiDAR payload, recorder, transport, preview, and Slab analysis path as a virtual scan.
+
+`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarSensorComp::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent.
 
 Supported CSV formats:
 
@@ -136,6 +138,12 @@ PushFrameOnceInEditor
 PushFrameOnceNoTransportInEditor
 StartReplayInEditor
 StopReplayInEditor
+```
+
+Regression coverage:
+
+```text
+M7AT10.RealSensorSource.PushFrameToTarget
 ```
 
 ## Adapter Priority
