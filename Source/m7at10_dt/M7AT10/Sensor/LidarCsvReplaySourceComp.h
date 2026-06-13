@@ -1,14 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/SceneComponent.h"
+#include "RealSensorSourceComp.h"
 #include "VirtualLidarSensorTypes.h"
 #include "LidarCsvReplaySourceComp.generated.h"
 
-class UVirtualLidarSensorComp;
-
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class M7AT10_DT_API ULidarCsvReplaySourceComp : public USceneComponent
+class M7AT10_DT_API ULidarCsvReplaySourceComp : public URealSensorSourceComp
 {
     GENERATED_BODY()
 
@@ -23,8 +21,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorReplay")
     bool LoadCsvFrame(TArray<FVirtualLidarPoint>& OutPoints, int32& OutRows, int32& OutCols) const;
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorReplay")
-    bool PushFrameOnce(bool bSendTransport = true);
+    virtual bool PushFrameOnce(bool bSendTransport = true) override;
 
     UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorReplay")
     void PushFrameOnceInEditor();
@@ -32,11 +29,15 @@ public:
     UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorReplay")
     void PushFrameOnceNoTransportInEditor();
 
+    virtual bool StartSource() override;
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorReplay")
     void StartReplay();
 
     UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorReplay")
     void StartReplayInEditor();
+
+    virtual void StopSource() override;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorReplay")
     void StopReplay();
@@ -48,20 +49,11 @@ public:
     bool IsReplayActive() const { return bReplayActive; }
 
 public:
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorReplay")
-    TObjectPtr<UVirtualLidarSensorComp> TargetLidar;
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorReplay", meta = (FilePathFilter = "csv", RelativeToGameDir))
     FString CsvFilePath;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorReplay")
-    bool bAutoStartReplay = false;
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorReplay", meta = (ClampMin = "0.033"))
     float ReplayInterval = 0.5f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorReplay")
-    bool bSendTransportOnReplay = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorReplay")
     bool bUpdateLidarDimensionsFromCsv = true;
@@ -94,7 +86,6 @@ public:
     FString LastReplayMessage;
 
 private:
-    UVirtualLidarSensorComp* ResolveTargetLidar() const;
     FString ResolveCsvFilePath() const;
     bool ParseCsvPointLine(const FString& Line, int32 LineIndex, int32& OutRow, int32& OutCol, FVector& OutPoint) const;
     void PushFrameFromTimer();

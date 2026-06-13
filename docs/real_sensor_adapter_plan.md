@@ -11,18 +11,28 @@ Virtual simulation scan -> normalized sensor frame -> transport/recorder/judgmen
 Real sensor input       -> normalized sensor frame -> transport/recorder/judgment server
 ```
 
-## Proposed DT-Project Interfaces
+## DT-Project Source Interface
 
 Keep adapter implementations in DT-Project first. If shared abstractions become stable, move them to DTCore later as a separate task.
 
-Suggested components:
+Current common base:
 
 ```text
 URealSensorSourceComponent
-ULivoxLidarSourceComponent
-URealSenseCameraSourceComponent
-URos2SensorBridgeComponent
+URealSensorSourceComp
 ```
+
+Current concrete/placeholder components:
+
+```text
+ULidarCsvReplaySourceComp
+ULidarJsonLinesReplaySourceComp
+URos2SensorBridgeSourceComp
+ULivoxLidarSourceComp
+URealSenseCameraSourceComp
+```
+
+`URos2SensorBridgeSourceComp`, `ULivoxLidarSourceComp`, and `URealSenseCameraSourceComp` are intentional placeholders. They expose configuration fields and state messages, but `StartSource` and `PushFrameOnce` return false until SDK/bridge integration is implemented.
 
 Suggested normalized frame structs:
 

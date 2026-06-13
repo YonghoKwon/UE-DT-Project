@@ -10,15 +10,13 @@
 ULidarCsvReplaySourceComp::ULidarCsvReplaySourceComp()
 {
     PrimaryComponentTick.bCanEverTick = false;
+    SourceKind = ERealSensorSourceKind::FileReplay;
+    SourceId = TEXT("CsvLidarReplay");
 }
 
 void ULidarCsvReplaySourceComp::BeginPlay()
 {
     Super::BeginPlay();
-    if (bAutoStartReplay)
-    {
-        StartReplay();
-    }
 }
 
 void ULidarCsvReplaySourceComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -115,6 +113,7 @@ bool ULidarCsvReplaySourceComp::PushFrameOnce(bool bSendTransport)
     if (!LidarComp)
     {
         LastReplayMessage = TEXT("Target LiDAR is not set.");
+        SetSourceState(ERealSensorSourceConnectionState::Error, LastReplayMessage);
         return false;
     }
 
@@ -138,12 +137,13 @@ bool ULidarCsvReplaySourceComp::PushFrameOnce(bool bSendTransport)
         Rows,
         Cols,
         bSendTransport ? TEXT("true") : TEXT("false"));
+    MarkFramePushed(Points.Num(), LastReplayMessage);
     return true;
 }
 
 void ULidarCsvReplaySourceComp::PushFrameOnceInEditor()
 {
-    PushFrameOnce(bSendTransportOnReplay);
+    PushFrameOnce(bSendTransportByDefault);
 }
 
 void ULidarCsvReplaySourceComp::PushFrameOnceNoTransportInEditor()
@@ -153,15 +153,24 @@ void ULidarCsvReplaySourceComp::PushFrameOnceNoTransportInEditor()
 
 void ULidarCsvReplaySourceComp::StartReplay()
 {
+    StartSource();
+}
+
+bool ULidarCsvReplaySourceComp::StartSource()
+{
     UWorld* World = GetWorld();
     if (!World)
     {
-        return;
+        SetSourceState(ERealSensorSourceConnectionState::Error, TEXT("World is not available."));
+        return false;
     }
 
+    SetSourceState(ERealSensorSourceConnectionState::Starting, TEXT("CSV replay starting."));
     bReplayActive = true;
-    PushFrameOnce(bSendTransportOnReplay);
+    PushFrameOnce(bSendTransportByDefault);
     World->GetTimerManager().SetTimer(ReplayTimerHandle, this, &ULidarCsvReplaySourceComp::PushFrameFromTimer, FMath::Max(0.033f, ReplayInterval), true);
+    SetSourceState(ERealSensorSourceConnectionState::Running, TEXT("CSV replay running."));
+    return true;
 }
 
 void ULidarCsvReplaySourceComp::StartReplayInEditor()
@@ -171,25 +180,22 @@ void ULidarCsvReplaySourceComp::StartReplayInEditor()
 
 void ULidarCsvReplaySourceComp::StopReplay()
 {
+    StopSource();
+}
+
+void ULidarCsvReplaySourceComp::StopSource()
+{
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(ReplayTimerHandle);
     }
     bReplayActive = false;
+    SetSourceState(ERealSensorSourceConnectionState::Stopped, TEXT("CSV replay stopped."));
 }
 
 void ULidarCsvReplaySourceComp::StopReplayInEditor()
 {
     StopReplay();
-}
-
-UVirtualLidarSensorComp* ULidarCsvReplaySourceComp::ResolveTargetLidar() const
-{
-    if (TargetLidar)
-    {
-        return TargetLidar;
-    }
-    return GetOwner() ? GetOwner()->FindComponentByClass<UVirtualLidarSensorComp>() : nullptr;
 }
 
 FString ULidarCsvReplaySourceComp::ResolveCsvFilePath() const
@@ -262,5 +268,5 @@ bool ULidarCsvReplaySourceComp::ParseCsvPointLine(const FString& Line, int32 Lin
 
 void ULidarCsvReplaySourceComp::PushFrameFromTimer()
 {
-    PushFrameOnce(bSendTransportOnReplay);
+    PushFrameOnce(bSendTransportByDefault);
 }

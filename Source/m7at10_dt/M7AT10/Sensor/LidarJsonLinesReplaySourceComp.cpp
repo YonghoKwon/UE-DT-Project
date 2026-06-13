@@ -42,15 +42,13 @@ void ReadTagString(const FString& TagsText, TArray<FName>& OutTags)
 ULidarJsonLinesReplaySourceComp::ULidarJsonLinesReplaySourceComp()
 {
     PrimaryComponentTick.bCanEverTick = false;
+    SourceKind = ERealSensorSourceKind::FileReplay;
+    SourceId = TEXT("JsonLinesLidarReplay");
 }
 
 void ULidarJsonLinesReplaySourceComp::BeginPlay()
 {
     Super::BeginPlay();
-    if (bAutoStartReplay)
-    {
-        StartReplay();
-    }
 }
 
 void ULidarJsonLinesReplaySourceComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -116,6 +114,7 @@ bool ULidarJsonLinesReplaySourceComp::PushFrameOnce(bool bSendTransport)
     if (!LidarComp)
     {
         LastReplayMessage = TEXT("Target LiDAR is not set.");
+        SetSourceState(ERealSensorSourceConnectionState::Error, LastReplayMessage);
         return false;
     }
 
@@ -129,12 +128,13 @@ bool ULidarJsonLinesReplaySourceComp::PushFrameOnce(bool bSendTransport)
     LastReplayMessage = FString::Printf(TEXT("Pushed JSONL replay frame. points=%d sendTransport=%s"),
         Points.Num(),
         bSendTransport ? TEXT("true") : TEXT("false"));
+    MarkFramePushed(Points.Num(), LastReplayMessage);
     return true;
 }
 
 void ULidarJsonLinesReplaySourceComp::PushFrameOnceInEditor()
 {
-    PushFrameOnce(bSendTransportOnReplay);
+    PushFrameOnce(bSendTransportByDefault);
 }
 
 void ULidarJsonLinesReplaySourceComp::PushFrameOnceNoTransportInEditor()
@@ -144,15 +144,24 @@ void ULidarJsonLinesReplaySourceComp::PushFrameOnceNoTransportInEditor()
 
 void ULidarJsonLinesReplaySourceComp::StartReplay()
 {
+    StartSource();
+}
+
+bool ULidarJsonLinesReplaySourceComp::StartSource()
+{
     UWorld* World = GetWorld();
     if (!World)
     {
-        return;
+        SetSourceState(ERealSensorSourceConnectionState::Error, TEXT("World is not available."));
+        return false;
     }
 
+    SetSourceState(ERealSensorSourceConnectionState::Starting, TEXT("JSONL replay starting."));
     bReplayActive = true;
-    PushFrameOnce(bSendTransportOnReplay);
+    PushFrameOnce(bSendTransportByDefault);
     World->GetTimerManager().SetTimer(ReplayTimerHandle, this, &ULidarJsonLinesReplaySourceComp::PushFrameFromTimer, FMath::Max(0.033f, ReplayInterval), true);
+    SetSourceState(ERealSensorSourceConnectionState::Running, TEXT("JSONL replay running."));
+    return true;
 }
 
 void ULidarJsonLinesReplaySourceComp::StartReplayInEditor()
@@ -162,25 +171,22 @@ void ULidarJsonLinesReplaySourceComp::StartReplayInEditor()
 
 void ULidarJsonLinesReplaySourceComp::StopReplay()
 {
+    StopSource();
+}
+
+void ULidarJsonLinesReplaySourceComp::StopSource()
+{
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(ReplayTimerHandle);
     }
     bReplayActive = false;
+    SetSourceState(ERealSensorSourceConnectionState::Stopped, TEXT("JSONL replay stopped."));
 }
 
 void ULidarJsonLinesReplaySourceComp::StopReplayInEditor()
 {
     StopReplay();
-}
-
-UVirtualLidarSensorComp* ULidarJsonLinesReplaySourceComp::ResolveTargetLidar() const
-{
-    if (TargetLidar)
-    {
-        return TargetLidar;
-    }
-    return GetOwner() ? GetOwner()->FindComponentByClass<UVirtualLidarSensorComp>() : nullptr;
 }
 
 FString ULidarJsonLinesReplaySourceComp::ResolveJsonLinesFilePath() const
@@ -280,5 +286,5 @@ bool ULidarJsonLinesReplaySourceComp::ParseJsonPointLine(const FString& Line, FV
 
 void ULidarJsonLinesReplaySourceComp::PushFrameFromTimer()
 {
-    PushFrameOnce(bSendTransportOnReplay);
+    PushFrameOnce(bSendTransportByDefault);
 }
