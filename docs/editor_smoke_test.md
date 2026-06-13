@@ -74,6 +74,18 @@ bIncludeSlabAnalysisInPayload = true
 
 ## Automation Tests
 
+Run the full local smoke gate:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1"
+```
+
+Use `-SkipBuild` when the editor binary was already built:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
+```
+
 Replay tests:
 
 ```powershell

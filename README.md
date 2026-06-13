@@ -176,6 +176,12 @@ Level Blueprint 없이 위젯을 자동 생성하려면 맵에 `AVirtualSensorMo
 
 ## 자동화 테스트
 
+전체 로컬 smoke gate:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1"
+```
+
 대표 명령:
 
 ```powershell
