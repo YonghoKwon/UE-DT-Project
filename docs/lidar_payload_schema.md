@@ -118,6 +118,8 @@ Regression coverage:
 
 ```text
 M7AT10.SensorReplay.PayloadPolicyJson
+M7AT10.SensorReplay.LazPlaceholderWritesLasSource
 ```
 
 This test verifies that `points[]` follows `payloadPolicy`, while runtime preview counts and `previewPolicy` remain separate.
+The LAZ placeholder test verifies that `ExportLastPointCloudLaz()` writes a `*_laz_source_*.las` source file and does not pretend to create a compressed `.laz` file.

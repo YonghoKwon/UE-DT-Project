@@ -680,7 +680,12 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudLas(const FString& FileNamePre
     return bFileSaved;
 }
 
-bool UVirtualLidarSensorComp::ExportLastPointCloudLaz(const FString& FileNamePrefix) const { const FString Prefix = FileNamePrefix.IsEmpty() ? TEXT("laz_source") : FileNamePrefix + TEXT("_laz_source"); return ExportLastPointCloudLas(Prefix); }
+bool UVirtualLidarSensorComp::ExportLastPointCloudLaz(const FString& FileNamePrefix) const
+{
+    const FString Prefix = FileNamePrefix.IsEmpty() ? TEXT("laz_source") : FileNamePrefix + TEXT("_laz_source");
+    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] LAZ compression is not integrated. Writing LAS-compatible source file with prefix '%s'."), *SensorId, *Prefix);
+    return ExportLastPointCloudLas(Prefix);
+}
 bool UVirtualLidarSensorComp::ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix) const { const bool A = ExportLastPointCloudCsv(FileNamePrefix); const bool B = ExportLastPointCloudLas(FileNamePrefix); const bool C = ExportLastPointCloudLaz(FileNamePrefix); return A || B || C; }
 
 UInstancedStaticMeshComponent* UVirtualLidarSensorComp::EnsurePointCloudPreviewComponent()

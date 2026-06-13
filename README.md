@@ -219,7 +219,7 @@ docs/real_sensor_adapter_plan.md
 ## 알려진 제한
 
 - Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현되지 않았습니다.
-- `ExportLastPointCloudLaz()`는 진짜 LAZ 압축이 아니라 LAS 호환 source 파일 저장 placeholder입니다.
+- `ExportLastPointCloudLaz()`는 진짜 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
 - FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
 - 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.
 - 실제 맵에서의 PIE smoke test와 WBP Designer 배치 검증은 별도 editor 작업이 필요합니다.

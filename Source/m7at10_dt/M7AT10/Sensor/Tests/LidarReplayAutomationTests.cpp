@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Json.h"
+#include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
@@ -11,6 +12,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarCsvReplayLoadTest, "M7AT10.SensorReplay.C
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "M7AT10.SensorReplay.JsonLinesLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayInjectFrameTest, "M7AT10.SensorReplay.InjectFrameUpdatesStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadPolicyJsonTest, "M7AT10.SensorReplay.PayloadPolicyJson", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazPlaceholderExportTest, "M7AT10.SensorReplay.LazPlaceholderWritesLasSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
 {
@@ -157,6 +159,57 @@ bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("slabAnalysis slab point count remains full hit set"), static_cast<int32>((*SlabAnalysis)->GetIntegerField(TEXT("slabHitPointCount"))), 24);
     }
 
+    return true;
+}
+
+bool FLidarLazPlaceholderExportTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!ReplayComp || !LidarComp)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before LAZ placeholder export"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-LAZ-PLACEHOLDER");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    const FString Prefix = TEXT("automation_laz_placeholder");
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), LidarComp->SensorId, TEXT("PointCloud"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    IFileManager::Get().DeleteDirectory(*Directory, false, true);
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    TestTrue(TEXT("LAZ placeholder export succeeds by writing LAS source"), LidarComp->ExportLastPointCloudLaz(Prefix));
+
+    TArray<FString> LasSourceFiles;
+    IFileManager::Get().FindFiles(LasSourceFiles, *Directory, TEXT("las"));
+    int32 MatchingLasSourceCount = 0;
+    for (const FString& FileName : LasSourceFiles)
+    {
+        if (FileName.StartsWith(Prefix + TEXT("_laz_source_")) && FileName.EndsWith(TEXT(".las")))
+        {
+            ++MatchingLasSourceCount;
+        }
+    }
+
+    TArray<FString> LazFiles;
+    IFileManager::Get().FindFiles(LazFiles, *Directory, TEXT("laz"));
+
+    TestEqual(TEXT("LAZ placeholder creates one LAS source file"), MatchingLasSourceCount, 1);
+    TestEqual(TEXT("LAZ placeholder does not create compressed .laz files"), LazFiles.Num(), 0);
     return true;
 }
 
