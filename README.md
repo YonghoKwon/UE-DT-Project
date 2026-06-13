@@ -154,6 +154,8 @@ AdjustSelectedLidarPreviewBudget
 TogglePointCloudOnlyView
 ```
 
+Level Blueprint 없이 위젯을 자동 생성하려면 맵에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
+
 ## 세부 문서
 
 ```text

@@ -71,6 +71,33 @@ BindSensorManager
 
 Prefer `BindSensorManager` over binding camera/LiDAR components manually. The manager keeps selected sensors, point-cloud-only mode, and shared capture behavior aligned.
 
+## Host Actor Binding
+
+To avoid Level Blueprint setup, place this actor in the map:
+
+```text
+AVirtualSensorMonitorHostActor
+```
+
+Recommended settings:
+
+```text
+MonitorWidgetClass = WBP_VirtualSensorMonitor
+bAutoCreateOnBeginPlay = true
+bAutoFindSensorManager = true
+bAddToViewport = true
+```
+
+Optional settings:
+
+```text
+bShowLidarViewOnStart = true
+bEnablePointCloudOnlyOnStart = true
+ViewportZOrder = 0
+```
+
+This actor creates the monitor widget, finds `AVirtualSensorManager`, binds the widget, and adds it to the viewport at BeginPlay.
+
 ## Blueprint-Callable Manager API
 
 The following functions are available on `AVirtualSensorManager`:
