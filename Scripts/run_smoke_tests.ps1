@@ -4,6 +4,7 @@ param(
     [string[]]$TestGroups = @(
         "M7AT10.EditorSmoke",
         "M7AT10.SensorReplay",
+        "M7AT10.SensorRecorder",
         "M7AT10.RealSensorSource",
         "M7AT10.SensorManager",
         "M7AT10.SensorMonitor"

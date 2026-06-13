@@ -53,6 +53,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorRecorder")
     bool LoadSessionFromFile(const FString& AbsoluteFilePath);
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorRecorder")
+    bool GetRecordedFrame(int32 FrameIndex, FVirtualSensorRecordedFrame& OutFrame) const;
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorRecorder")
     void StartReplay(float FramesPerSecond = 10.0f);
 
@@ -64,6 +67,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorRecorder")
     int32 GetRecordedFrameCount() const { return RecordedFrames.Num(); }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorRecorder")
+    FString GetLastSavedSessionPath() const { return LastSavedSessionPath; }
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorRecorder")
     FOnVirtualSensorReplayFrame OnReplayFrame;
@@ -79,6 +85,7 @@ private:
     UPROPERTY(Transient)
     TArray<FVirtualSensorRecordedFrame> RecordedFrames;
 
+    mutable FString LastSavedSessionPath;
     bool bRecording = false;
     int32 ReplayFrameIndex = 0;
     FTimerHandle ReplayTimerHandle;

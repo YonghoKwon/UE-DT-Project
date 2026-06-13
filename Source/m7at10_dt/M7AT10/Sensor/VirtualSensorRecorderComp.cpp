@@ -67,7 +67,8 @@ bool UVirtualSensorRecorderComp::SaveSession(const FString& FileNamePrefix) cons
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Root, Writer);
 
-    return FFileHelper::SaveStringToFile(Output, *BuildSessionPath(FileNamePrefix));
+    LastSavedSessionPath = BuildSessionPath(FileNamePrefix);
+    return FFileHelper::SaveStringToFile(Output, *LastSavedSessionPath);
 }
 
 bool UVirtualSensorRecorderComp::LoadSessionFromFile(const FString& AbsoluteFilePath)
@@ -110,6 +111,17 @@ bool UVirtualSensorRecorderComp::LoadSessionFromFile(const FString& AbsoluteFile
     }
 
     ReplayFrameIndex = 0;
+    return true;
+}
+
+bool UVirtualSensorRecorderComp::GetRecordedFrame(int32 FrameIndex, FVirtualSensorRecordedFrame& OutFrame) const
+{
+    if (!RecordedFrames.IsValidIndex(FrameIndex))
+    {
+        return false;
+    }
+
+    OutFrame = RecordedFrames[FrameIndex];
     return true;
 }
 
