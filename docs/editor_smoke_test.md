@@ -72,6 +72,20 @@ bIncludeSlabAnalysisInPayload = true
 9. Confirm preview count or preview policy changes without changing server payload policy.
 10. Confirm Slab status is valid when enough tagged points are hit.
 
+## Automation Tests
+
+Replay tests:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
+```
+
+Real sensor source base tests:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.RealSensorSource; Quit" -TestExit="Automation Test Queue Empty"
+```
+
 ## Expected Warnings
 
 The current DTCore plugin may emit:
