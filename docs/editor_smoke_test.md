@@ -92,6 +92,8 @@ Replay tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
+`M7AT10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorDataTransportComp` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
+
 Map asset and sensor composition smoke tests:
 
 ```powershell

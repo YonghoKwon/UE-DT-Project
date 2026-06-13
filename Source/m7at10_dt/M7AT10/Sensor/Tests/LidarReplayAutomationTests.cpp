@@ -6,12 +6,14 @@
 #include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarCsvReplayLoadTest, "M7AT10.SensorReplay.CsvLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "M7AT10.SensorReplay.JsonLinesLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayInjectFrameTest, "M7AT10.SensorReplay.InjectFrameUpdatesStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadPolicyJsonTest, "M7AT10.SensorReplay.PayloadPolicyJson", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.SensorReplay.TransportSaveToFilePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazPlaceholderExportTest, "M7AT10.SensorReplay.LazPlaceholderWritesLasSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
@@ -159,6 +161,67 @@ bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("slabAnalysis slab point count remains full hit set"), static_cast<int32>((*SlabAnalysis)->GetIntegerField(TEXT("slabHitPointCount"))), 24);
     }
 
+    return true;
+}
+
+bool FLidarReplayTransportSaveToFileTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    UVirtualSensorDataTransportComp* TransportComp = NewObject<UVirtualSensorDataTransportComp>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    TestNotNull(TEXT("transport component"), TransportComp);
+    if (!ReplayComp || !LidarComp || !TransportComp)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before transport test"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    const FString SensorId = TEXT("TEST-LIDAR-TRANSPORT-SAVE");
+    const FString SaveSubDirectory = TEXT("Automation/TransportSaveToFile");
+    const FString SaveDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), SaveSubDirectory, SensorId);
+    IFileManager::Get().DeleteDirectory(*SaveDirectory, false, true);
+
+    TransportComp->TransportMode = EVirtualSensorTransportMode::SaveToFile;
+    TransportComp->SaveSubDirectory = SaveSubDirectory;
+
+    LidarComp->SensorId = SensorId;
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->SlabSemanticLabel = TEXT("Slab");
+    LidarComp->MinSlabPointsForAnalysis = 3;
+    LidarComp->SetServerPayloadPolicy(1, 0, false);
+    LidarComp->SetPreviewPolicy(2, 5000, true);
+    LidarComp->SetTransportComponent(TransportComp);
+    LidarComp->InjectPointCloudFrame(Points, true);
+
+    const FVirtualSensorTransportResult& Result = TransportComp->LastResult;
+    TestTrue(TEXT("transport submitted"), Result.bSubmitted);
+    TestTrue(TEXT("transport saved file path is set"), !Result.SavedFilePath.IsEmpty());
+    TestTrue(TEXT("transport saved file exists"), IFileManager::Get().FileExists(*Result.SavedFilePath));
+    TestTrue(TEXT("transport saved file is under requested directory"), Result.SavedFilePath.Contains(SaveSubDirectory));
+    TestEqual(TEXT("transport data length matches cached payload"), Result.DataLength, LidarComp->GetLastJsonPayload().Len());
+
+    FString SavedJson;
+    TestTrue(TEXT("saved JSON can be loaded"), FFileHelper::LoadFileToString(SavedJson, *Result.SavedFilePath));
+    TestEqual(TEXT("saved JSON matches last payload"), SavedJson, LidarComp->GetLastJsonPayload());
+
+    TSharedPtr<FJsonObject> RootObject;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(SavedJson);
+    TestTrue(TEXT("saved payload JSON parses"), FJsonSerializer::Deserialize(Reader, RootObject) && RootObject.IsValid());
+    if (RootObject.IsValid())
+    {
+        TestEqual(TEXT("saved payload sensor id"), RootObject->GetStringField(TEXT("sensorId")), SensorId);
+        TestEqual(TEXT("saved payload point count"), static_cast<int32>(RootObject->GetIntegerField(TEXT("payloadPointCount"))), 24);
+    }
     return true;
 }
 
