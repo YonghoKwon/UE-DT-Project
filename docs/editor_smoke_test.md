@@ -92,11 +92,14 @@ Replay tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-Map asset load smoke test:
+Map asset and sensor composition smoke tests:
 
 ```powershell
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.EditorSmoke; Quit" -TestExit="Automation Test Queue Empty"
 ```
+
+`M7AT10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `TestMap` can load in headless editor automation.
+`M7AT10.EditorSmoke.MapSensorComposition` verifies the validation map set includes at least one `AVirtualSensorManager`, `AVirtualSensorAct`, and `AVirtualCameraAct`.
 
 Real sensor source base tests:
 
