@@ -86,6 +86,7 @@ MonitorWidgetClass = WBP_VirtualSensorMonitor
 bAutoCreateOnBeginPlay = true
 bAutoFindSensorManager = true
 bAddToViewport = true
+bUseNativeMonitorWidgetFallback = true
 ```
 
 Optional settings:
@@ -97,6 +98,8 @@ ViewportZOrder = 0
 ```
 
 This actor creates the monitor widget, finds `AVirtualSensorManager`, binds the widget, and adds it to the viewport at BeginPlay.
+
+If `MonitorWidgetClass` is empty and `bUseNativeMonitorWidgetFallback` is true, the host creates the native `UVirtualSensorMonitorWidget`. This is useful for code-level smoke tests, but a Designer-authored `WBP_VirtualSensorMonitor` is still recommended for a usable UI.
 
 ## Blueprint-Callable Manager API
 

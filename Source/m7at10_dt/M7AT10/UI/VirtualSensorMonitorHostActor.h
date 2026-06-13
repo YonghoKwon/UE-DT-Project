@@ -29,9 +29,15 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
     UVirtualSensorMonitorWidget* GetMonitorWidget() const { return MonitorWidget; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
+    TSubclassOf<UVirtualSensorMonitorWidget> GetEffectiveMonitorWidgetClass() const;
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     TSubclassOf<UVirtualSensorMonitorWidget> MonitorWidgetClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
+    bool bUseNativeMonitorWidgetFallback = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     TObjectPtr<AVirtualSensorManager> SensorManager;

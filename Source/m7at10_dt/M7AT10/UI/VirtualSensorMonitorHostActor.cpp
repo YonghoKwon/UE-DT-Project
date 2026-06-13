@@ -33,9 +33,10 @@ UVirtualSensorMonitorWidget* AVirtualSensorMonitorHostActor::CreateAndBindMonito
         return MonitorWidget;
     }
 
-    if (!MonitorWidgetClass)
+    const TSubclassOf<UVirtualSensorMonitorWidget> WidgetClassToCreate = GetEffectiveMonitorWidgetClass();
+    if (!WidgetClassToCreate)
     {
-        LastStatusMessage = TEXT("MonitorWidgetClass is not set.");
+        LastStatusMessage = TEXT("MonitorWidgetClass is not set and native fallback is disabled.");
         UE_LOG(LogTemp, Warning, TEXT("[SensorMonitorHost] %s"), *LastStatusMessage);
         return nullptr;
     }
@@ -48,7 +49,7 @@ UVirtualSensorMonitorWidget* AVirtualSensorMonitorHostActor::CreateAndBindMonito
         return nullptr;
     }
 
-    MonitorWidget = CreateWidget<UVirtualSensorMonitorWidget>(World, MonitorWidgetClass);
+    MonitorWidget = CreateWidget<UVirtualSensorMonitorWidget>(World, WidgetClassToCreate);
     if (!MonitorWidget)
     {
         LastStatusMessage = TEXT("Failed to create monitor widget.");
@@ -91,6 +92,15 @@ void AVirtualSensorMonitorHostActor::DestroyMonitorWidget()
         MonitorWidget = nullptr;
         LastStatusMessage = TEXT("Monitor widget destroyed.");
     }
+}
+
+TSubclassOf<UVirtualSensorMonitorWidget> AVirtualSensorMonitorHostActor::GetEffectiveMonitorWidgetClass() const
+{
+    if (MonitorWidgetClass)
+    {
+        return MonitorWidgetClass;
+    }
+    return bUseNativeMonitorWidgetFallback ? UVirtualSensorMonitorWidget::StaticClass() : nullptr;
 }
 
 AVirtualSensorManager* AVirtualSensorMonitorHostActor::ResolveSensorManager()
