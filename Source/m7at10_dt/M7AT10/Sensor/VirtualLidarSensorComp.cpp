@@ -25,6 +25,16 @@ void WriteLasFixedString(FBufferArchive& A, const ANSICHAR* Text, int32 Len) { T
 void WriteLasBytes(FBufferArchive& A, const uint8* Bytes, int32 Len) { A.Serialize(const_cast<uint8*>(Bytes), Len); }
 uint16 ClampDistanceToIntensity(float Distance, float MaxDistance) { if (MaxDistance <= 0.0f) return 0; const float N = FMath::Clamp(Distance / MaxDistance, 0.0f, 1.0f); return static_cast<uint16>((1.0f - N) * 65535.0f); }
 FString JoinNames(const TArray<FName>& Names) { FString R; for (int32 I = 0; I < Names.Num(); ++I) { if (I > 0) R += TEXT("|"); R += Names[I].ToString(); } return R; }
+float NormalizeSignedAngleDegrees(float Angle) { while (Angle > 180.0f) Angle -= 360.0f; while (Angle < -180.0f) Angle += 360.0f; return Angle; }
+float NormalizeAxisAngleDegrees(float Angle) { Angle = NormalizeSignedAngleDegrees(Angle); if (Angle > 90.0f) Angle -= 180.0f; if (Angle < -90.0f) Angle += 180.0f; return Angle; }
+void AddVectorArray(TSharedRef<FJsonObject> Object, const TCHAR* FieldName, const FVector& Value)
+{
+    TArray<TSharedPtr<FJsonValue>> Array;
+    Array.Add(MakeShared<FJsonValueNumber>(Value.X));
+    Array.Add(MakeShared<FJsonValueNumber>(Value.Y));
+    Array.Add(MakeShared<FJsonValueNumber>(Value.Z));
+    Object->SetArrayField(FieldName, Array);
+}
 }
 
 UVirtualLidarSensorComp::UVirtualLidarSensorComp()
@@ -62,6 +72,26 @@ void UVirtualLidarSensorComp::StopScan() { if (GetWorld()) GetWorld()->GetTimerM
 void UVirtualLidarSensorComp::SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent) { TransportComponent = InTransportComponent; }
 void UVirtualLidarSensorComp::SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent) { RecorderComponent = InRecorderComponent; }
 
+void UVirtualLidarSensorComp::SetServerPayloadPolicy(int32 InStride, int32 InMaxPoints, bool bInIncludeMissPoints)
+{
+    ServerPayloadStride = FMath::Clamp(InStride, 1, 100);
+    MaxServerPayloadPoints = FMath::Clamp(InMaxPoints, 0, 1000000);
+    bIncludeMissPointsInServerPayload = bInIncludeMissPoints;
+    PayloadPointStride = ServerPayloadStride;
+    MaxPayloadPoints = MaxServerPayloadPoints;
+    bIncludeMissPointsInPayload = bIncludeMissPointsInServerPayload;
+}
+
+void UVirtualLidarSensorComp::SetPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly)
+{
+    PreviewPointStride = FMath::Clamp(InStride, 1, 100);
+    MaxPreviewPoints = FMath::Clamp(InMaxPoints, 0, 1000000);
+    bPointCloudPreviewHitOnly = bInHitOnly;
+    PointCloudPreviewStride = PreviewPointStride;
+    MaxPointCloudPreviewInstances = MaxPreviewPoints;
+    RefreshPointCloudPreview();
+}
+
 void UVirtualLidarSensorComp::SetPointCloudPreviewEnabled(bool bEnabled)
 {
     bPointCloudPreviewEnabled = bEnabled;
@@ -84,10 +114,10 @@ void UVirtualLidarSensorComp::ResetDefaultSemanticClassRules()
     {
         FVirtualLidarSemanticClassRule R; R.Label = Label; R.DisplayColor = Color; R.ActorTags = Tags; R.ActorClassNames = Classes; R.ActorNameContains = Names; R.ComponentNameContains = Comps; SemanticClassRules.Add(R);
     };
-    AddRule(TEXT("Slab"), FLinearColor(1.0f, 0.25f, 0.02f, 1.0f), {TEXT("Slab"), TEXT("slab"), TEXT("SLAB"), TEXT("슬라브"), TEXT("Blade")}, {}, {TEXT("Slab"), TEXT("slab"), TEXT("SLAB"), TEXT("슬라브"), TEXT("Blade"), TEXT("blade")}, {TEXT("Slab"), TEXT("slab"), TEXT("Blade")});
-    AddRule(TEXT("Roller"), FLinearColor(0.0f, 0.85f, 1.0f, 1.0f), {TEXT("Roller"), TEXT("roller"), TEXT("Rollers"), TEXT("롤러")}, {}, {TEXT("Roller"), TEXT("roller"), TEXT("Roll"), TEXT("roll"), TEXT("롤러")}, {TEXT("Roller"), TEXT("roller"), TEXT("Roll")});
-    AddRule(TEXT("Conveyor"), FLinearColor(0.05f, 1.0f, 0.25f, 1.0f), {TEXT("Conveyor"), TEXT("conveyor"), TEXT("Equipment"), TEXT("설비")}, {}, {TEXT("Conveyor"), TEXT("conveyor"), TEXT("Frame"), TEXT("Equipment"), TEXT("설비")}, {TEXT("Conveyor"), TEXT("Frame"), TEXT("Equipment")});
-    AddRule(TEXT("Floor"), FLinearColor(0.2f, 0.25f, 1.0f, 1.0f), {TEXT("Floor"), TEXT("floor"), TEXT("Ground"), TEXT("ground"), TEXT("바닥")}, {}, {TEXT("Floor"), TEXT("floor"), TEXT("Ground"), TEXT("ground"), TEXT("Grid")}, {TEXT("Floor"), TEXT("Ground")});
+    AddRule(TEXT("Slab"), FLinearColor(1.0f, 0.25f, 0.02f, 1.0f), {TEXT("Slab"), TEXT("slab"), TEXT("SLAB"), TEXT("SteelSlab"), TEXT("Plate")}, {}, {TEXT("Slab"), TEXT("slab"), TEXT("SLAB"), TEXT("SteelSlab"), TEXT("Plate")}, {TEXT("Slab"), TEXT("slab"), TEXT("Plate")});
+    AddRule(TEXT("Roller"), FLinearColor(0.0f, 0.85f, 1.0f, 1.0f), {TEXT("Roller"), TEXT("roller"), TEXT("Rollers")}, {}, {TEXT("Roller"), TEXT("roller"), TEXT("Roll"), TEXT("roll")}, {TEXT("Roller"), TEXT("roller"), TEXT("Roll")});
+    AddRule(TEXT("Conveyor"), FLinearColor(0.05f, 1.0f, 0.25f, 1.0f), {TEXT("Conveyor"), TEXT("conveyor"), TEXT("Equipment")}, {}, {TEXT("Conveyor"), TEXT("conveyor"), TEXT("Frame"), TEXT("Equipment")}, {TEXT("Conveyor"), TEXT("Frame"), TEXT("Equipment")});
+    AddRule(TEXT("Floor"), FLinearColor(0.2f, 0.25f, 1.0f, 1.0f), {TEXT("Floor"), TEXT("floor"), TEXT("Ground"), TEXT("ground")}, {}, {TEXT("Floor"), TEXT("floor"), TEXT("Ground"), TEXT("ground"), TEXT("Grid")}, {TEXT("Floor"), TEXT("Ground")});
     AddRule(TEXT("Sensor"), FLinearColor(0.75f, 0.15f, 1.0f, 1.0f), {TEXT("Sensor"), TEXT("Lidar"), TEXT("LiDAR"), TEXT("Camera")}, {}, {TEXT("Sensor"), TEXT("Lidar"), TEXT("LiDAR"), TEXT("Camera")}, {TEXT("Sensor"), TEXT("Lidar"), TEXT("Camera")});
 }
 
@@ -135,9 +165,9 @@ void UVirtualLidarSensorComp::PopulatePointSemanticMetadata(FVirtualLidarPoint& 
 void UVirtualLidarSensorComp::ApplyPreset(EVirtualLidarPreset NewPreset)
 {
     Preset = NewPreset;
-    if (Preset == EVirtualLidarPreset::LowDebug) { HorizontalSamples = 90; VerticalChannels = 8; ScanInterval = 1.0f; PayloadPointStride = 2; MaxPayloadPoints = 2000; }
-    else if (Preset == EVirtualLidarPreset::MediumPreview) { HorizontalSamples = 180; VerticalChannels = 16; ScanInterval = 0.5f; PayloadPointStride = 3; MaxPayloadPoints = 5000; }
-    else if (Preset == EVirtualLidarPreset::HighQuality) { HorizontalSamples = 360; VerticalChannels = 32; ScanInterval = 0.25f; PayloadPointStride = 4; MaxPayloadPoints = 12000; }
+    if (Preset == EVirtualLidarPreset::LowDebug) { HorizontalSamples = 90; VerticalChannels = 8; ScanInterval = 1.0f; PreviewPointStride = 1; MaxPreviewPoints = 2000; PointCloudPreviewStride = PreviewPointStride; MaxPointCloudPreviewInstances = MaxPreviewPoints; PayloadPointStride = ServerPayloadStride; MaxPayloadPoints = MaxServerPayloadPoints; }
+    else if (Preset == EVirtualLidarPreset::MediumPreview) { HorizontalSamples = 180; VerticalChannels = 16; ScanInterval = 0.5f; PreviewPointStride = 2; MaxPreviewPoints = 3000; PointCloudPreviewStride = PreviewPointStride; MaxPointCloudPreviewInstances = MaxPreviewPoints; PayloadPointStride = ServerPayloadStride; MaxPayloadPoints = MaxServerPayloadPoints; }
+    else if (Preset == EVirtualLidarPreset::HighQuality) { HorizontalSamples = 360; VerticalChannels = 32; ScanInterval = 0.25f; PreviewPointStride = 4; MaxPreviewPoints = 5000; PointCloudPreviewStride = PreviewPointStride; MaxPointCloudPreviewInstances = MaxPreviewPoints; PayloadPointStride = ServerPayloadStride; MaxPayloadPoints = MaxServerPayloadPoints; }
 }
 
 void UVirtualLidarSensorComp::ApplyDeviceProfile(EVirtualLidarDeviceProfile NewProfile)
@@ -155,10 +185,15 @@ void UVirtualLidarSensorComp::ApplyDeviceProfile(EVirtualLidarDeviceProfile NewP
 void UVirtualLidarSensorComp::ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality)
 {
     SimulationQuality = NewQuality;
-    if (SimulationQuality == EVirtualSensorSimulationQuality::Debug) { HorizontalSamples = 60; VerticalChannels = 8; ScanInterval = 0.5f; PayloadPointStride = 1; MaxPayloadPoints = 1000; }
-    else if (SimulationQuality == EVirtualSensorSimulationQuality::RealTimePreview) { HorizontalSamples = 120; VerticalChannels = 24; ScanInterval = 0.25f; PayloadPointStride = 4; MaxPayloadPoints = 3000; }
-    else if (SimulationQuality == EVirtualSensorSimulationQuality::Balanced) { HorizontalSamples = 240; VerticalChannels = 32; ScanInterval = 0.2f; PayloadPointStride = 4; MaxPayloadPoints = 6000; }
-    else if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec) { HorizontalSamples = 360; VerticalChannels = 60; ScanInterval = 0.1f; PayloadPointStride = 8; MaxPayloadPoints = 10000; }
+    if (SimulationQuality == EVirtualSensorSimulationQuality::Debug) { HorizontalSamples = 60; VerticalChannels = 8; ScanInterval = 0.5f; PreviewPointStride = 1; MaxPreviewPoints = 1000; }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::RealTimePreview) { HorizontalSamples = 120; VerticalChannels = 24; ScanInterval = 0.25f; PreviewPointStride = 2; MaxPreviewPoints = 3000; }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::Balanced) { HorizontalSamples = 240; VerticalChannels = 32; ScanInterval = 0.2f; PreviewPointStride = 3; MaxPreviewPoints = 5000; }
+    else if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec) { HorizontalSamples = 360; VerticalChannels = 60; ScanInterval = 0.1f; PreviewPointStride = 6; MaxPreviewPoints = 5000; }
+
+    PointCloudPreviewStride = PreviewPointStride;
+    MaxPointCloudPreviewInstances = MaxPreviewPoints;
+    PayloadPointStride = ServerPayloadStride;
+    MaxPayloadPoints = MaxServerPayloadPoints;
 }
 
 void UVirtualLidarSensorComp::ScanAndSend()
@@ -167,6 +202,10 @@ void UVirtualLidarSensorComp::ScanAndSend()
 
     TArray<uint8> HeatmapPixels;
     ExecuteScan(LastPoints, HeatmapPixels);
+    LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
+    LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
+    LastPreviewPointCount = CountPreviewPoints(LastPoints);
+    LastPerformanceWarning = BuildPerformanceWarning();
     UpdateLidarViewTexture(HeatmapPixels);
     RefreshPointCloudPreview();
 
@@ -180,6 +219,42 @@ void UVirtualLidarSensorComp::ScanAndSend()
     }
 
     ExportEnabledPointCloudFormats();
+    OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
+}
+
+void UVirtualLidarSensorComp::InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport)
+{
+    ++FrameId;
+    LastPoints = Points;
+    LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
+    LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
+    LastPreviewPointCount = CountPreviewPoints(LastPoints);
+    LastPerformanceWarning = BuildPerformanceWarning();
+
+    const int32 W = FMath::Max(1, HorizontalSamples);
+    const int32 Hn = FMath::Max(1, VerticalChannels);
+    TArray<uint8> HeatmapPixels;
+    HeatmapPixels.SetNumZeroed(W * Hn * 4);
+    const int32 MaxRenderablePoints = FMath::Min(LastPoints.Num(), W * Hn);
+    for (int32 PointIndex = 0; PointIndex < MaxRenderablePoints; ++PointIndex)
+    {
+        WriteHeatmapPixel(HeatmapPixels, GetHeatmapPixelIndex(PointIndex % W, PointIndex / W, W, Hn), LastPoints[PointIndex]);
+    }
+    UpdateLidarViewTexture(HeatmapPixels);
+    RefreshPointCloudPreview();
+
+    const FString JsonPayload = BuildJsonPayload(LastPoints);
+    if (bSendTransport)
+    {
+        DispatchPayload(JsonPayload);
+    }
+    UpdateRuntimeStatusAfterScan(JsonPayload.Len());
+
+    if (RecorderComponent)
+    {
+        RecorderComponent->RecordJsonFrame(SensorId, TEXT("virtual_lidar_replay"), FrameId, JsonPayload);
+    }
+
     OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
 }
 
@@ -221,17 +296,195 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
     }
 }
 
+FVirtualLidarSlabAnalysisResult UVirtualLidarSensorComp::AnalyzeSlabPoints(const TArray<FVirtualLidarPoint>& Points) const
+{
+    FVirtualLidarSlabAnalysisResult Result;
+    Result.ReferenceYawDegrees = ReferenceSlabYawDegrees;
+
+    TArray<FVector> SlabPoints;
+    SlabPoints.Reserve(Points.Num());
+    for (const FVirtualLidarPoint& Point : Points)
+    {
+        if (Point.bHit && Point.SemanticLabel == SlabSemanticLabel)
+        {
+            SlabPoints.Add(Point.WorldLocation);
+        }
+    }
+
+    Result.SlabHitPointCount = SlabPoints.Num();
+    if (SlabPoints.Num() < FMath::Max(3, MinSlabPointsForAnalysis))
+    {
+        Result.StatusMessage = FString::Printf(TEXT("insufficient slab points: %d/%d"), SlabPoints.Num(), FMath::Max(3, MinSlabPointsForAnalysis));
+        return Result;
+    }
+
+    FVector Sum = FVector::ZeroVector;
+    Result.BoundsMin = FVector(FLT_MAX);
+    Result.BoundsMax = FVector(-FLT_MAX);
+    for (const FVector& Point : SlabPoints)
+    {
+        Sum += Point;
+        Result.BoundsMin.X = FMath::Min(Result.BoundsMin.X, Point.X);
+        Result.BoundsMin.Y = FMath::Min(Result.BoundsMin.Y, Point.Y);
+        Result.BoundsMin.Z = FMath::Min(Result.BoundsMin.Z, Point.Z);
+        Result.BoundsMax.X = FMath::Max(Result.BoundsMax.X, Point.X);
+        Result.BoundsMax.Y = FMath::Max(Result.BoundsMax.Y, Point.Y);
+        Result.BoundsMax.Z = FMath::Max(Result.BoundsMax.Z, Point.Z);
+    }
+
+    Result.Center = Sum / static_cast<float>(SlabPoints.Num());
+
+    double XX = 0.0;
+    double XY = 0.0;
+    double YY = 0.0;
+    for (const FVector& Point : SlabPoints)
+    {
+        const double DX = static_cast<double>(Point.X - Result.Center.X);
+        const double DY = static_cast<double>(Point.Y - Result.Center.Y);
+        XX += DX * DX;
+        XY += DX * DY;
+        YY += DY * DY;
+    }
+
+    const double Count = static_cast<double>(SlabPoints.Num());
+    XX /= Count;
+    XY /= Count;
+    YY /= Count;
+
+    const double Trace = XX + YY;
+    const double Delta = FMath::Sqrt(FMath::Max(0.0, ((XX - YY) * (XX - YY) * 0.25) + (XY * XY)));
+    const double LambdaMajor = Trace * 0.5 + Delta;
+    const double LambdaMinor = Trace * 0.5 - Delta;
+
+    FVector2D Axis(1.0f, 0.0f);
+    if (FMath::Abs(XY) > KINDA_SMALL_NUMBER || FMath::Abs(LambdaMajor - XX) > KINDA_SMALL_NUMBER)
+    {
+        Axis = FVector2D(static_cast<float>(XY), static_cast<float>(LambdaMajor - XX)).GetSafeNormal();
+    }
+
+    Result.EstimatedYawDegrees = NormalizeAxisAngleDegrees(FMath::RadiansToDegrees(FMath::Atan2(Axis.Y, Axis.X)));
+    Result.AngleDeviationDegrees = NormalizeAxisAngleDegrees(Result.EstimatedYawDegrees - ReferenceSlabYawDegrees);
+    Result.Confidence = static_cast<float>(FMath::Clamp((LambdaMajor - LambdaMinor) / FMath::Max(1.0, LambdaMajor), 0.0, 1.0));
+    Result.bValid = true;
+    Result.StatusMessage = TEXT("ok");
+    return Result;
+}
+
+int32 UVirtualLidarSensorComp::CountServerPayloadPoints(const TArray<FVirtualLidarPoint>& Points) const
+{
+    const int32 SafeStride = FMath::Max(1, ServerPayloadStride);
+    const int32 SafeMax = FMath::Max(0, MaxServerPayloadPoints);
+    int32 Count = 0;
+    for (int32 Index = 0; Index < Points.Num(); Index += SafeStride)
+    {
+        if (SafeMax > 0 && Count >= SafeMax) break;
+        if (!bIncludeMissPointsInServerPayload && !Points[Index].bHit) continue;
+        ++Count;
+    }
+    return Count;
+}
+
+int32 UVirtualLidarSensorComp::CountPreviewPoints(const TArray<FVirtualLidarPoint>& Points) const
+{
+    const int32 SafeStride = FMath::Max(1, PreviewPointStride);
+    const int32 SafeMax = FMath::Max(0, MaxPreviewPoints);
+    int32 Count = 0;
+    for (int32 Index = 0; Index < Points.Num(); Index += SafeStride)
+    {
+        if (SafeMax > 0 && Count >= SafeMax) break;
+        if (bPointCloudPreviewHitOnly && !Points[Index].bHit) continue;
+        ++Count;
+    }
+    return Count;
+}
+
+FString UVirtualLidarSensorComp::BuildPerformanceWarning() const
+{
+    TArray<FString> Warnings;
+    if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec && bUseMultiHit)
+    {
+        Warnings.Add(TEXT("FullSpec+MultiHit is expensive"));
+    }
+    if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec && (bExportCsvOnScan || bExportJsonLinesOnScan || bExportPcdOnScan))
+    {
+        Warnings.Add(TEXT("FullSpec export-on-scan may stall the editor"));
+    }
+    if (bPointCloudPreviewEnabled && MaxPreviewPoints == 0 && PreviewPointStride <= 1)
+    {
+        Warnings.Add(TEXT("Preview is uncapped"));
+    }
+    return FString::Join(Warnings, TEXT("; "));
+}
+
 FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoint>& Points) const
 {
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-    Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar")); Root->SetStringField(TEXT("sensorId"), SensorId); Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer); Root->SetStringField(TEXT("model"), DeviceSpec.Model); Root->SetNumberField(TEXT("frameId"), (double)FrameId); Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601()); Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples); Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels); Root->SetNumberField(TEXT("rayCount"), HorizontalSamples * VerticalChannels); Root->SetNumberField(TEXT("maxDistance"), MaxDistance); Root->SetBoolField(TEXT("semanticClassification"), bEnableSemanticClassification);
-    TArray<TSharedPtr<FJsonValue>> JsonPoints; const int32 SafeStride = FMath::Max(1, PayloadPointStride); const int32 SafeMax = FMath::Max(0, MaxPayloadPoints); int32 Added = 0;
+    int32 HitPointCount = 0;
+    for (const FVirtualLidarPoint& Point : Points)
+    {
+        if (Point.bHit)
+        {
+            ++HitPointCount;
+        }
+    }
+
+    Root->SetStringField(TEXT("schemaVersion"), TEXT("virtual-lidar.v1"));
+    Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar")); Root->SetStringField(TEXT("sensorId"), SensorId); Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer); Root->SetStringField(TEXT("model"), DeviceSpec.Model); Root->SetNumberField(TEXT("frameId"), (double)FrameId); Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601()); Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples); Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels); Root->SetNumberField(TEXT("rayCount"), HorizontalSamples * VerticalChannels); Root->SetNumberField(TEXT("totalPointCount"), Points.Num()); Root->SetNumberField(TEXT("hitPointCount"), HitPointCount); Root->SetNumberField(TEXT("maxDistance"), MaxDistance); Root->SetBoolField(TEXT("semanticClassification"), bEnableSemanticClassification);
+    Root->SetNumberField(TEXT("serverPayloadStride"), ServerPayloadStride);
+    Root->SetNumberField(TEXT("maxServerPayloadPoints"), MaxServerPayloadPoints);
+    Root->SetBoolField(TEXT("includeMissPointsInServerPayload"), bIncludeMissPointsInServerPayload);
+    Root->SetNumberField(TEXT("previewPointStride"), PreviewPointStride);
+    Root->SetNumberField(TEXT("maxPreviewPoints"), MaxPreviewPoints);
+
+    TSharedRef<FJsonObject> PayloadPolicyObject = MakeShared<FJsonObject>();
+    PayloadPolicyObject->SetNumberField(TEXT("stride"), ServerPayloadStride);
+    PayloadPolicyObject->SetNumberField(TEXT("maxPoints"), MaxServerPayloadPoints);
+    PayloadPolicyObject->SetBoolField(TEXT("includeMissPoints"), bIncludeMissPointsInServerPayload);
+    PayloadPolicyObject->SetStringField(TEXT("pointSelection"), bIncludeMissPointsInServerPayload ? TEXT("hit_and_miss") : TEXT("hit_only"));
+    Root->SetObjectField(TEXT("payloadPolicy"), PayloadPolicyObject);
+
+    TSharedRef<FJsonObject> PreviewPolicyObject = MakeShared<FJsonObject>();
+    PreviewPolicyObject->SetNumberField(TEXT("stride"), PreviewPointStride);
+    PreviewPolicyObject->SetNumberField(TEXT("maxPoints"), MaxPreviewPoints);
+    PreviewPolicyObject->SetBoolField(TEXT("hitOnly"), bPointCloudPreviewHitOnly);
+    Root->SetObjectField(TEXT("previewPolicy"), PreviewPolicyObject);
+
+    TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
+    AddVectorArray(TransformObject, TEXT("location"), GetComponentLocation());
+    const FRotator Rotation = GetComponentRotation();
+    TArray<TSharedPtr<FJsonValue>> RotationJson;
+    RotationJson.Add(MakeShared<FJsonValueNumber>(Rotation.Pitch));
+    RotationJson.Add(MakeShared<FJsonValueNumber>(Rotation.Yaw));
+    RotationJson.Add(MakeShared<FJsonValueNumber>(Rotation.Roll));
+    TransformObject->SetArrayField(TEXT("rotation"), RotationJson);
+    AddVectorArray(TransformObject, TEXT("forward"), GetForwardVector());
+    AddVectorArray(TransformObject, TEXT("up"), GetUpVector());
+    Root->SetObjectField(TEXT("sensorTransform"), TransformObject);
+
+    if (bIncludeSlabAnalysisInPayload)
+    {
+        TSharedRef<FJsonObject> SlabObject = MakeShared<FJsonObject>();
+        SlabObject->SetBoolField(TEXT("valid"), LastSlabAnalysis.bValid);
+        SlabObject->SetNumberField(TEXT("slabHitPointCount"), LastSlabAnalysis.SlabHitPointCount);
+        AddVectorArray(SlabObject, TEXT("boundsMin"), LastSlabAnalysis.BoundsMin);
+        AddVectorArray(SlabObject, TEXT("boundsMax"), LastSlabAnalysis.BoundsMax);
+        AddVectorArray(SlabObject, TEXT("center"), LastSlabAnalysis.Center);
+        SlabObject->SetNumberField(TEXT("estimatedYawDegrees"), LastSlabAnalysis.EstimatedYawDegrees);
+        SlabObject->SetNumberField(TEXT("referenceYawDegrees"), LastSlabAnalysis.ReferenceYawDegrees);
+        SlabObject->SetNumberField(TEXT("angleDeviationDegrees"), LastSlabAnalysis.AngleDeviationDegrees);
+        SlabObject->SetNumberField(TEXT("confidence"), LastSlabAnalysis.Confidence);
+        SlabObject->SetStringField(TEXT("status"), LastSlabAnalysis.StatusMessage);
+        Root->SetObjectField(TEXT("slabAnalysis"), SlabObject);
+    }
+
+    TArray<TSharedPtr<FJsonValue>> JsonPoints; const int32 SafeStride = FMath::Max(1, ServerPayloadStride); const int32 SafeMax = FMath::Max(0, MaxServerPayloadPoints); int32 Added = 0;
     for (int32 I = 0; I < Points.Num(); I += SafeStride)
     {
-        if (SafeMax > 0 && Added >= SafeMax) break; const FVirtualLidarPoint& P = Points[I]; if (!bIncludeMissPointsInPayload && !P.bHit) continue;
-        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>(); O->SetBoolField(TEXT("hit"), P.bHit); O->SetNumberField(TEXT("distance"), P.Distance); O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString()); O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString()); O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
+        if (SafeMax > 0 && Added >= SafeMax) break; const FVirtualLidarPoint& P = Points[I]; if (!bIncludeMissPointsInServerPayload && !P.bHit) continue;
+        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>(); O->SetNumberField(TEXT("pointIndex"), I); O->SetNumberField(TEXT("row"), HorizontalSamples > 0 ? I / HorizontalSamples : 0); O->SetNumberField(TEXT("col"), HorizontalSamples > 0 ? I % HorizontalSamples : I); O->SetBoolField(TEXT("hit"), P.bHit); O->SetNumberField(TEXT("distance"), P.Distance); O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString()); O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString()); O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
         TArray<TSharedPtr<FJsonValue>> Tags; for (const FName& T : P.HitActorTags) Tags.Add(MakeShared<FJsonValueString>(T.ToString())); O->SetArrayField(TEXT("hitActorTags"), Tags);
-        TArray<TSharedPtr<FJsonValue>> WL; WL.Add(MakeShared<FJsonValueNumber>(P.WorldLocation.X)); WL.Add(MakeShared<FJsonValueNumber>(P.WorldLocation.Y)); WL.Add(MakeShared<FJsonValueNumber>(P.WorldLocation.Z)); O->SetArrayField(TEXT("worldLocation"), WL);
+        AddVectorArray(O, TEXT("worldLocation"), P.WorldLocation);
+        AddVectorArray(O, TEXT("localDirection"), P.LocalDirection);
         JsonPoints.Add(MakeShared<FJsonValueObject>(O)); ++Added;
     }
     Root->SetNumberField(TEXT("payloadPointCount"), Added); Root->SetArrayField(TEXT("points"), JsonPoints); FString Out; TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&Out); FJsonSerializer::Serialize(Root, W); return Out;
@@ -268,6 +521,10 @@ void UVirtualLidarSensorComp::UpdateRuntimeStatusAfterScan(int32 PayloadLength)
     RuntimeStatus.LastPayloadLength = PayloadLength;
     RuntimeStatus.TotalPointCount = LastPoints.Num();
     RuntimeStatus.HitPointCount = 0;
+    RuntimeStatus.ServerPayloadPointCount = LastServerPayloadPointCount;
+    RuntimeStatus.PreviewPointCount = LastPreviewPointCount;
+    RuntimeStatus.PerformanceWarning = LastPerformanceWarning;
+    RuntimeStatus.SlabAnalysis = LastSlabAnalysis;
 
     for (const FVirtualLidarPoint& Point : LastPoints)
     {
@@ -278,16 +535,21 @@ void UVirtualLidarSensorComp::UpdateRuntimeStatusAfterScan(int32 PayloadLength)
     }
 
     RuntimeStatus.LastMessage = FString::Printf(
-        TEXT("Quality=%d Rays=%d Hits=%d PayloadStride=%d MaxPayload=%d Preview=%s PreviewStride=%d Semantic=%s Rules=%d"),
+        TEXT("Quality=%d Rays=%d Hits=%d ServerPoints=%d ServerStride=%d MaxServer=%d Preview=%s PreviewPoints=%d PreviewStride=%d Slab=%s Angle=%.2f Dev=%.2f Conf=%.2f Warning=%s"),
         static_cast<int32>(SimulationQuality),
         HorizontalSamples * VerticalChannels,
         RuntimeStatus.HitPointCount,
-        PayloadPointStride,
-        MaxPayloadPoints,
+        RuntimeStatus.ServerPayloadPointCount,
+        ServerPayloadStride,
+        MaxServerPayloadPoints,
         bPointCloudPreviewEnabled ? TEXT("On") : TEXT("Off"),
-        PointCloudPreviewStride,
-        bEnableSemanticClassification ? TEXT("On") : TEXT("Off"),
-        SemanticClassRules.Num());
+        RuntimeStatus.PreviewPointCount,
+        PreviewPointStride,
+        LastSlabAnalysis.bValid ? TEXT("Valid") : TEXT("Invalid"),
+        LastSlabAnalysis.EstimatedYawDegrees,
+        LastSlabAnalysis.AngleDeviationDegrees,
+        LastSlabAnalysis.Confidence,
+        LastPerformanceWarning.IsEmpty() ? TEXT("None") : *LastPerformanceWarning);
 }
 
 void UVirtualLidarSensorComp::ExportEnabledPointCloudFormats() const
@@ -434,10 +696,10 @@ void UVirtualLidarSensorComp::RefreshPointCloudPreview()
 {
     UWorld* World = GetWorld(); if (!bPointCloudPreviewEnabled || !World) { ClearPointCloudPreview(); return; }
     UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->ClearInstances(); Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);
-    const int32 Stride = FMath::Max(1, PointCloudPreviewStride); int32 Added = 0;
+    const int32 Stride = FMath::Max(1, PreviewPointStride); int32 Added = 0;
     for (int32 I = 0; I < LastPoints.Num(); I += Stride)
     {
-        const FVirtualLidarPoint& P = LastPoints[I]; if (bPointCloudPreviewHitOnly && !P.bHit) continue; if (MaxPointCloudPreviewInstances > 0 && Added >= MaxPointCloudPreviewInstances) break;
+        const FVirtualLidarPoint& P = LastPoints[I]; if (bPointCloudPreviewHitOnly && !P.bHit) continue; if (MaxPreviewPoints > 0 && Added >= MaxPreviewPoints) break;
         const FTransform T(FRotator::ZeroRotator, P.WorldLocation, FVector(PointCloudPreviewPointScale)); Comp->AddInstance(T, true);
         if (bDrawPointCloudPreviewDebugPoints) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, (bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P).ToFColor(true) : PointCloudPreviewColor.ToFColor(true), false, ScanInterval);
         ++Added;

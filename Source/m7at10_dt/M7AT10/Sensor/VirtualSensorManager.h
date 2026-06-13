@@ -135,6 +135,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void CaptureAllOnce();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void CaptureSelectedOnce();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|PointCloudPreview")
+    void SetSelectedLidarPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|PointCloudPreview")
+    void AdjustSelectedLidarPreviewBudget(int32 StrideDelta, int32 MaxPointsDelta);
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     UVirtualCameraComp* GetSelectedCamera() const;
 

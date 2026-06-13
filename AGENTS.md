@@ -1,237 +1,93 @@
-# AGENTS.md - LiDAR Point Cloud Only View 작업 가이드
+# AGENTS.md - UE-DT-Project 작업 가이드
 
-> 브랜치: `feature/lidar-point-cloud-only-view`  
-> 기준 브랜치: `feature/real-sensor-performance-optimizations`  
-> 목적: 실제 환경 메시를 숨긴 상태에서 LiDAR가 측정한 point cloud만 볼 수 있는 모드 제공
+## 프로젝트 기준
 
-이 문서는 `feature/lidar-point-cloud-only-view` 브랜치의 구현 의도, 위젯 블루프린트 설정 방법, 에디터 실행 방법, 향후 수정 시 주의점을 정리한다.
+- Unreal Engine: 5.3
+- 메인 프로젝트: `UE-DT-Project`
+- Core 플러그인: `Plugins/DTCore` submodule
+- 기준 DTCore 브랜치: `claude/digital-twin-core-analysis-1lxlcb`
+- 현재 기능 브랜치: `feature/lidar-point-cloud-only-view`
 
-## 1. 핵심 기능 요약
+이 프로젝트는 철강 제조 환경용 Digital Twin을 목표로 합니다. 현재 DT-Project 코드는 가상 카메라, 가상 LiDAR, 센서 매니저, 센서 데이터 전송/저장, point-cloud-only view, Slab 각도 분석 v1을 포함합니다. DTCore는 공통 API/WebSocket/Data/UI 기반 플러그인으로 사용하며, 이 저장소 작업에서는 DTCore 내부 소스를 직접 수정하지 않습니다.
 
-이 브랜치는 기존 가상 센서 플랫폼에 `PointCloudOnly` 모드를 추가한다.
+## 작업 원칙
 
-동작 개념은 다음과 같다.
+- DTCore 수정이 필요해 보이면 DT-Project 안에서 우회하거나 별도 이슈로 남깁니다.
+- `Plugins/DTCore`는 submodule로 유지합니다. 내장 소스 복사본을 다시 커밋하지 않습니다.
+- `Binaries/`, `Intermediate/`, `Saved/`, `.vs/` 생성물은 커밋하지 않습니다.
+- 가상 센서의 서버 전송 데이터와 Editor preview 데이터는 분리합니다.
+- 무거운 옵션은 기본값으로 켜지 않습니다. FullSpec, MultiHit, ExportOnScan 조합은 검증용으로만 사용합니다.
 
-```text
-일반 모드:
-- 실제 환경 메시가 보임
-- Camera View / LiDAR Heatmap View를 위젯에서 토글
+## LiDAR 데이터 정책
 
-PointCloudOnly 모드:
-- 실제 환경 PrimitiveComponent를 화면에서 숨김
-- collision은 유지
-- LiDAR는 숨겨진 실제 환경을 계속 LineTrace로 측정
-- 측정된 hit point만 InstancedStaticMesh 기반 point cloud로 월드에 표시
-```
+`UVirtualLidarSensorComp`는 한 번의 scan에서 생성된 전체 측정값을 `LastPoints`에 유지합니다.
 
-중요한 점은 실제 환경을 `SetVisibility(false)`와 `SetHiddenInGame(true)`로 숨길 뿐, collision을 끄지 않는다는 것이다. 그래서 LiDAR 측정은 계속 가능하다.
+서버/판단 payload:
 
-## 2. 수정된 주요 파일
+- `ServerPayloadStride`
+- `MaxServerPayloadPoints`
+- `bIncludeMissPointsInServerPayload`
+- `schemaVersion = virtual-lidar.v1`
+- `payloadPolicy`
 
-```text
-Source/m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h
-Source/m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.cpp
-Source/m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h
-Source/m7at10_dt/M7AT10/Sensor/VirtualSensorManager.cpp
-Source/m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h
-Source/m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.cpp
-```
+Editor preview:
 
-## 3. 추가된 Manager ViewMode
+- `PreviewPointStride`
+- `MaxPreviewPoints`
+- `bPointCloudPreviewHitOnly`
+- `previewPolicy`
 
-`EVirtualSensorViewMode`에 아래 값이 추가되었다.
+기본 방향은 서버에는 원본에 가까운 hit point를 보내고, Unreal Editor 화면에는 제한된 point만 표시하는 것입니다. 기존 `PayloadPointStride`, `MaxPayloadPoints`, `PointCloudPreviewStride`, `MaxPointCloudPreviewInstances`는 Blueprint 호환을 위해 남아 있지만 새 정책 필드를 우선 사용합니다.
 
-```cpp
-PointCloudOnly
-```
+PointCloudOnly 모드는 새 preview 정책을 저장/복원해야 합니다. 이 모드에서 preview 표시량을 줄이더라도 서버 payload 정책은 변경하지 않습니다.
 
-Manager에서 사용할 수 있는 주요 함수는 다음과 같다.
+## CSV Replay Source
 
-```cpp
-SetPointCloudOnlyMode(bool bEnabled)
-TogglePointCloudOnlyView()
-IsPointCloudOnlyModeEnabled()
-```
+`ULidarCsvReplaySourceComp`는 저장된 CSV point cloud를 `UVirtualLidarSensorComp::InjectPointCloudFrame`으로 주입합니다.
 
-에디터/블루프린트에서는 보통 다음 방식으로 켜고 끈다.
+지원 형식:
 
 ```text
-Get Actor of Class: AVirtualSensorManager
-→ TogglePointCloudOnlyView
+row,col,x,y,z
+x,y,z
 ```
 
-또는 명시적으로 다음을 호출한다.
+이 replay 경로도 payload, recorder, transport, preview, Slab 분석을 모두 통과해야 합니다. 실제 Livox/ROS2/RealSense 어댑터를 추가할 때도 가능한 한 `InjectPointCloudFrame`과 같은 normalized frame 경로를 공유합니다.
+
+## Slab 각도 분석
+
+Slab 분석은 LiDAR semantic label이 `Slab`인 hit point를 기준으로 합니다.
+
+권장 actor 설정:
 
 ```text
-SetPointCloudOnlyMode(true)
-SetPointCloudOnlyMode(false)
+Actor Tag = Slab
 ```
 
-## 4. LiDAR Point Cloud Preview 설정
+분석 결과 `FVirtualLidarSlabAnalysisResult`는 LiDAR JSON payload의 `slabAnalysis`에도 포함됩니다.
 
-`UVirtualLidarSensorComp`에 point cloud preview 옵션이 추가되었다.
+포함 값:
 
-```cpp
-bPointCloudPreviewEnabled
-bPointCloudPreviewHitOnly
-PointCloudPreviewStride
-MaxPointCloudPreviewInstances
-PointCloudPreviewPointScale
-PointCloudPreviewMesh
-```
+- slab hit point count
+- bounds min/max
+- center
+- estimated yaw
+- reference yaw
+- angle deviation
+- confidence
+- status message
 
-권장 기본값은 다음과 같다.
+`ReferenceSlabYawDegrees`는 기준 축을 뜻합니다. 설비 좌표계에서 정상 Slab 진행 방향이 X축이면 `0`으로 둡니다.
 
-```text
-bPointCloudPreviewEnabled = false
-bPointCloudPreviewHitOnly = true
-PointCloudPreviewStride = 1
-MaxPointCloudPreviewInstances = 5000
-PointCloudPreviewPointScale = 0.035
-PointCloudPreviewMesh = None
-```
+## Widget 구성
 
-`PointCloudPreviewMesh`를 지정하지 않으면 Engine 기본 Sphere mesh를 먼저 시도하고, 실패하면 Cube mesh를 fallback으로 사용한다.
-
-성능이 무거우면 아래 순서로 낮춘다.
-
-```text
-1. PointCloudPreviewStride = 2 또는 4
-2. MaxPointCloudPreviewInstances = 1000 ~ 3000
-3. SimulationQuality = Debug
-4. bUseMultiHit = false
-5. bDrawDebugRays = false
-```
-
-점이 너무 크면 다음 값을 낮춘다.
-
-```text
-PointCloudPreviewPointScale = 0.01 ~ 0.02
-```
-
-점이 너무 작으면 다음 값을 높인다.
-
-```text
-PointCloudPreviewPointScale = 0.05 이상
-```
-
-## 5. Manager PointCloudOnly 설정
-
-`AVirtualSensorManager`에 아래 옵션이 추가되었다.
-
-```cpp
-bPointCloudOnlyHideWorld
-bPointCloudOnlyAutoSelectLidarView
-PointCloudOnlyKeepActorTags
-```
-
-권장 설정은 다음과 같다.
-
-```text
-bPointCloudOnlyHideWorld = true
-bPointCloudOnlyAutoSelectLidarView = true
-```
-
-특정 Actor를 PointCloudOnly 모드에서도 계속 보이게 하고 싶으면 해당 Actor에 tag를 추가하고, Manager의 `PointCloudOnlyKeepActorTags`에 같은 tag를 넣는다.
-
-예시:
-
-```text
-Actor Tag = KeepInPointCloudOnly
-PointCloudOnlyKeepActorTags = [KeepInPointCloudOnly]
-```
-
-주로 유지할 만한 Actor:
-
-```text
-- 사용자 안내용 UI anchor
-- sensor rig debug actor
-- 기준 좌표계 actor
-- 조명 대신 시각적으로 꼭 보여야 하는 helper actor
-```
-
-## 6. Widget Blueprint 설정 방법
-
-권장 위젯 이름:
-
-```text
-WBP_VirtualSensorMonitor
-```
-
-부모 클래스:
+권장 Widget parent class:
 
 ```text
 UVirtualSensorMonitorWidget
 ```
 
-만약 이미 만든 Blueprint Widget이 있다면 `Class Settings`에서 Parent Class가 `VirtualSensorMonitorWidget`인지 확인한다.
-
-## 7. Widget Designer에 배치할 요소
-
-아래 위젯들은 C++에서 `BindWidgetOptional`로 잡기 때문에 반드시 전부 있을 필요는 없다. 하지만 기능을 모두 쓰려면 아래 이름으로 배치하고 `Is Variable`을 체크한다.
-
-### 필수에 가까운 기본 요소
-
-```text
-ViewImage           : Image
-TitleText           : TextBlock
-StatusText          : TextBlock
-ToggleButton        : Button
-ToggleButtonText    : TextBlock
-```
-
-### 선택 기능 버튼
-
-```text
-NextCameraButton      : Button
-NextLidarButton       : Button
-PointCloudOnlyButton  : Button
-```
-
-각 Button 안에는 TextBlock을 자식으로 넣어도 된다. 단, C++에서 직접 텍스트를 바꾸는 것은 `ToggleButtonText`만 현재 연결되어 있다. `PointCloudOnlyButton`의 표시 텍스트는 Designer에서 직접 설정하면 된다.
-
-권장 버튼 텍스트:
-
-```text
-ToggleButton          = Camera / LiDAR 전환
-NextCameraButton      = Next Camera
-NextLidarButton       = Next LiDAR
-PointCloudOnlyButton  = Point Cloud Only
-```
-
-## 8. Widget Hierarchy 예시
-
-간단한 구성 예시는 다음과 같다.
-
-```text
-CanvasPanel
-└─ Border 또는 VerticalBox
-   ├─ TitleText                TextBlock
-   ├─ ViewImage                Image
-   ├─ StatusText               TextBlock
-   └─ HorizontalBox
-      ├─ ToggleButton          Button
-      │  └─ ToggleButtonText   TextBlock
-      ├─ NextCameraButton      Button
-      │  └─ TextBlock          "Next Camera"
-      ├─ NextLidarButton       Button
-      │  └─ TextBlock          "Next LiDAR"
-      └─ PointCloudOnlyButton  Button
-         └─ TextBlock          "Point Cloud Only"
-```
-
-`ViewImage`는 권장 크기를 다음처럼 잡는다.
-
-```text
-Width = 640
-Height = 360
-```
-
-또는 화면에 맞게 Stretch해도 된다.
-
-## 9. Widget 변수 체크리스트
-
-Designer에서 아래 항목을 선택한 뒤 Details 패널에서 `Is Variable`을 반드시 체크한다.
+기존 Blueprint 위젯과의 호환을 위해 바인딩은 optional입니다. 권장 이름:
 
 ```text
 ViewImage
@@ -242,199 +98,60 @@ ToggleButtonText
 NextCameraButton
 NextLidarButton
 PointCloudOnlyButton
+LidarViewModeButton
+LidarViewModeButtonText
+LogPointCloudButton
+ExportPointCloudButton
+LocalSensorCaptureButton
+LocalSensorCaptureButtonText
+CaptureOnceButton
+PreviewMoreButton
+PreviewLessButton
 ```
 
-이름이 정확히 일치해야 C++에서 자동 바인딩된다.
+`StatusText`에는 sensor id, frame id, scan interval, ray count, hit count, server payload count, preview count, Slab angle, confidence, performance warning을 표시합니다.
 
-나쁜 예:
+추가 조작:
+
+- `CaptureOnceButton`: SensorManager가 있으면 선택된 카메라/LiDAR 1회 capture, 없으면 바인딩된 카메라/LiDAR 직접 capture
+- `PreviewMoreButton`: 서버 payload는 유지하고 Editor preview 표시량만 증가
+- `PreviewLessButton`: 서버 payload는 유지하고 Editor preview 표시량만 감소
+
+SensorManager Blueprint API:
 
 ```text
-PointCloudButton
-PointCloudOnlyBtn
-BtnPointCloudOnly
+CaptureSelectedOnce
+CaptureAllOnce
+SetSelectedLidarPreviewPolicy
+AdjustSelectedLidarPreviewBudget
+TogglePointCloudOnlyView
 ```
 
-좋은 예:
+## Editor Smoke Test 권장값
 
 ```text
-PointCloudOnlyButton
-```
-
-## 10. Level Blueprint 연결
-
-Level Blueprint의 BeginPlay에서 다음 순서로 연결한다.
-
-```text
-Event BeginPlay
-→ Create Widget
-   Class = WBP_VirtualSensorMonitor
-→ Add to Viewport
-→ Get Actor of Class
-   Actor Class = AVirtualSensorManager
-→ BindSensorManager
-   Target = 생성한 WBP_VirtualSensorMonitor
-   InSensorManager = Get Actor of Class 결과
-```
-
-중요한 점:
-
-```text
-Camera/LiDAR를 위젯에 직접 BindVirtualCamera / BindVirtualLidar로 연결하지 말고,
-가능하면 BindSensorManager만 호출한다.
-```
-
-Manager가 선택된 Camera/LiDAR를 위젯에 주입하고, Next Camera / Next LiDAR / PointCloudOnly 모드를 관리한다.
-
-## 11. PointCloudOnlyButton 동작
-
-`PointCloudOnlyButton`은 C++에서 자동으로 다음 함수에 연결된다.
-
-```cpp
-HandlePointCloudOnlyButtonClicked()
-```
-
-내부 동작:
-
-```text
-SensorManager가 있으면
-→ SensorManager->TogglePointCloudOnlyView()
-```
-
-따라서 Widget Blueprint에서 별도 OnClicked 그래프를 만들 필요는 없다. 이름만 정확히 맞고 `Is Variable`만 체크되어 있으면 된다.
-
-수동으로 Blueprint에서 직접 연결하고 싶다면 다음처럼 연결할 수 있다.
-
-```text
-PointCloudOnlyButton.OnClicked
-→ Get Actor of Class: AVirtualSensorManager
-→ TogglePointCloudOnlyView
-```
-
-하지만 C++ 자동 바인딩과 중복 호출될 수 있으므로, 일반적으로는 수동 연결하지 않는 것을 권장한다.
-
-## 12. 실행 중 기대 동작
-
-### 일반 Camera / LiDAR 토글
-
-```text
-ToggleButton 클릭
-→ Camera View / LiDAR Heatmap View 전환
-```
-
-### Point Cloud Only 모드 켜기
-
-```text
-PointCloudOnlyButton 클릭
-→ 실제 환경 메시 숨김
-→ 선택된 LiDAR의 bPointCloudPreviewEnabled = true
-→ LiDAR hit point가 월드에 작은 점으로 표시
-→ 위젯은 LiDAR View 상태로 전환
-```
-
-### Point Cloud Only 모드 끄기
-
-```text
-PointCloudOnlyButton 다시 클릭
-→ 숨겨진 환경 메시 visibility 복원
-→ LiDAR point cloud preview 제거
-→ 이전 Camera/LiDAR ViewMode로 복귀
-```
-
-## 13. 에디터 배치 체크리스트
-
-레벨에 다음 Actor가 있어야 한다.
-
-```text
-AVirtualSensorManager
-AVirtualSensorAct
-AVirtualCameraAct
-```
-
-`AVirtualSensorAct`의 `LidarSensorComp` 권장 설정:
-
-```text
-DeviceProfile = LivoxMid360S
-SimulationQuality = RealTimePreview
-bAutoStartScan = true
-bAutoRegisterToManager = true
-bPointCloudPreviewHitOnly = true
-PointCloudPreviewStride = 1
-MaxPointCloudPreviewInstances = 5000
-PointCloudPreviewPointScale = 0.035
-bUseMultiHit = false
-bDrawDebugRays = false
-```
-
-`AVirtualSensorManager` 권장 설정:
-
-```text
-bDiscoverOnBeginPlay = true
-bStartSensorsOnBeginPlay = true
-bPointCloudOnlyHideWorld = true
-bPointCloudOnlyAutoSelectLidarView = true
-SharedSensorTransport.TransportMode = LogOnly
-```
-
-## 14. 빌드/패키징 주의
-
-PointCloudOnly 모드는 런타임에 `UInstancedStaticMeshComponent`를 생성해서 point cloud를 표시한다.
-
-주의할 점:
-
-```text
-- Point 개수가 많으면 렌더링 부하가 증가한다.
-- FullSpec + PointCloudOnly + MultiHit 조합은 무거울 수 있다.
-- 패키징 smoke test는 RealTimePreview / LogOnly / MultiHit false로 시작한다.
-```
-
-패키징 첫 테스트 권장값:
-
-```text
+Camera SimulationQuality = RealTimePreview
 LiDAR SimulationQuality = RealTimePreview
-PointCloudPreviewStride = 2
-MaxPointCloudPreviewInstances = 3000
 SharedSensorTransport.TransportMode = LogOnly
-bUseMultiHit = false
-bExportCsvOnScan = false
-bExportJsonLinesOnScan = false
-bExportPcdOnScan = false
+LiDAR bUseMultiHit = false
+LiDAR bDrawDebugRays = false
+ExportOnScan = false
+PointCloudOnly = 필요 시에만 On
 ```
 
-## 15. 알려진 한계
-
-현재 PointCloudOnly 모드는 “측정된 hit point를 작은 mesh instance로 표시”하는 방식이다.
-
-아직 구현되지 않은 부분:
+성능 문제가 있으면 다음 순서로 낮춥니다.
 
 ```text
-- point color를 거리/intensity에 따라 다르게 표시
-- point cloud 전용 material 자동 생성
-- GPU point rendering
-- Niagara 기반 point cloud rendering
-- replay payload에서 point cloud 복원 표시
-- 실제 Livox packet 기반 point cloud 입력 표시
+1. LiDAR SimulationQuality = Debug
+2. PreviewPointStride 증가
+3. MaxPreviewPoints 감소
+4. Camera CaptureMode = PreviewOnly
+5. MultiHit / ExportOnScan / FullSpec 비활성화
 ```
 
-## 16. 향후 개선 권장
+## 문서 관리
 
-다음 단계로는 아래 작업을 추천한다.
-
-```text
-1. PointCloudPreview 전용 material 추가
-2. 거리 기반 색상 또는 intensity 기반 색상 적용
-3. PointCloudOnly 모드용 전용 카메라/관찰자 pawn 추가
-4. Replay 데이터에서 point cloud를 복원해 동일 모드로 표시
-5. 실제 Livox SDK / ROS2 point cloud source와 동일 표시 경로 공유
-6. UI에서 point size / stride / max instances를 조절하는 슬라이더 추가
-7. FullSpec 사용 시 UI warning 표시
-```
-
-## 17. 수정 시 원칙
-
-- PointCloudOnly는 visibility만 숨기고 collision은 유지해야 한다.
-- LiDAR 측정 대상 actor를 삭제하거나 collision off하지 않는다.
-- 선택된 LiDAR만 point cloud preview를 켜는 구조를 유지한다.
-- 여러 LiDAR가 있을 때 NextLidarButton과 PointCloudOnly 표시 대상이 함께 바뀌어야 한다.
-- Widget 요소는 `BindWidgetOptional` 구조를 유지한다.
-- 무거운 기능은 기본값으로 켜지 않게 한다.
-- 에디터가 느려질 수 있는 설정은 UI/문서에서 명확히 경고한다.
+- 루트 문서는 `README.md`와 `AGENTS.md`만 유지합니다.
+- 이전 오타 파일명 `AGETNS.md`는 사용하지 않습니다.
+- 기능 설명은 README에, 작업자용 운영 규칙은 AGENTS에 둡니다.
+- 세부 실행 문서는 `docs/` 아래에 둡니다.

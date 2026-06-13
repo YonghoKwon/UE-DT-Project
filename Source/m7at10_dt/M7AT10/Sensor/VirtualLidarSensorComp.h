@@ -61,6 +61,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ScanAndSend();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Replay")
+    void InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport = true);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ApplyPreset(EVirtualLidarPreset NewPreset);
 
@@ -69,6 +72,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Performance")
     void ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
+    void SetServerPayloadPolicy(int32 InStride, int32 InMaxPoints, bool bInIncludeMissPoints);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    void SetPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
@@ -124,6 +133,18 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|SlabAnalysis")
+    const FVirtualLidarSlabAnalysisResult& GetLastSlabAnalysis() const { return LastSlabAnalysis; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Transport")
+    int32 GetLastServerPayloadPointCount() const { return LastServerPayloadPointCount; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    int32 GetLastPreviewPointCount() const { return LastPreviewPointCount; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
+    FString GetPerformanceWarning() const { return LastPerformanceWarning; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
 
@@ -144,6 +165,15 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance")
     EVirtualSensorSimulationQuality SimulationQuality = EVirtualSensorSimulationQuality::RealTimePreview;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport", meta = (ClampMin = "1", ClampMax = "100"))
+    int32 ServerPayloadStride = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport", meta = (ClampMin = "0", ClampMax = "1000000"))
+    int32 MaxServerPayloadPoints = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport")
+    bool bIncludeMissPointsInServerPayload = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance", meta = (ClampMin = "1", ClampMax = "100"))
     int32 PayloadPointStride = 4;
@@ -235,6 +265,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0", ClampMax = "1000000"))
     int32 MaxPointCloudPreviewInstances = 5000;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "1", ClampMax = "100"))
+    int32 PreviewPointStride = 2;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0", ClampMax = "1000000"))
+    int32 MaxPreviewPoints = 5000;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0.001", ClampMax = "10.0"))
     float PointCloudPreviewPointScale = 0.035f;
 
@@ -274,6 +310,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Filter")
     TArray<FName> IgnoreActorTags;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|SlabAnalysis")
+    FName SlabSemanticLabel = TEXT("Slab");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|SlabAnalysis", meta = (ClampMin = "-180.0", ClampMax = "180.0"))
+    float ReferenceSlabYawDegrees = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|SlabAnalysis", meta = (ClampMin = "3", ClampMax = "1000000"))
+    int32 MinSlabPointsForAnalysis = 12;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|SlabAnalysis")
+    bool bIncludeSlabAnalysisInPayload = true;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport")
     TObjectPtr<UVirtualSensorDataTransportComp> TransportComponent;
 
@@ -283,6 +331,10 @@ public:
 private:
     void ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels);
     FString BuildJsonPayload(const TArray<FVirtualLidarPoint>& Points) const;
+    FVirtualLidarSlabAnalysisResult AnalyzeSlabPoints(const TArray<FVirtualLidarPoint>& Points) const;
+    FString BuildPerformanceWarning() const;
+    int32 CountServerPayloadPoints(const TArray<FVirtualLidarPoint>& Points) const;
+    int32 CountPreviewPoints(const TArray<FVirtualLidarPoint>& Points) const;
     void DispatchPayload(const FString& JsonPayload) const;
     void PostJson(const FString& JsonPayload) const;
     void SaveJsonToDisk(const FString& JsonPayload) const;
@@ -306,6 +358,10 @@ private:
     FTimerHandle ScanTimerHandle;
     TArray<FVirtualLidarPoint> LastPoints;
     int64 FrameId = 0;
+    int32 LastServerPayloadPointCount = 0;
+    int32 LastPreviewPointCount = 0;
+    FString LastPerformanceWarning;
+    FVirtualLidarSlabAnalysisResult LastSlabAnalysis;
 
     UPROPERTY(Transient)
     FVirtualSensorRuntimeStatus RuntimeStatus;

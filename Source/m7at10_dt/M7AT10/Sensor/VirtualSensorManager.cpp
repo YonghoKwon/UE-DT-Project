@@ -19,6 +19,8 @@ struct FLidarPointCloudOnlyState
     bool bDrawPointCloudPreviewDebugPoints = false;
     int32 PointCloudPreviewStride = 1;
     int32 MaxPointCloudPreviewInstances = 0;
+    int32 PreviewPointStride = 1;
+    int32 MaxPreviewPoints = 0;
 };
 
 TMap<TWeakObjectPtr<UVirtualLidarSensorComp>, FLidarPointCloudOnlyState> GLidarPointCloudOnlyStates;
@@ -37,6 +39,8 @@ void SaveLidarViewState(UVirtualLidarSensorComp* LidarComp)
     State.bDrawPointCloudPreviewDebugPoints = LidarComp->bDrawPointCloudPreviewDebugPoints;
     State.PointCloudPreviewStride = LidarComp->PointCloudPreviewStride;
     State.MaxPointCloudPreviewInstances = LidarComp->MaxPointCloudPreviewInstances;
+    State.PreviewPointStride = LidarComp->PreviewPointStride;
+    State.MaxPreviewPoints = LidarComp->MaxPreviewPoints;
     GLidarPointCloudOnlyStates.Add(LidarComp, State);
 }
 
@@ -50,11 +54,11 @@ void ApplyPointCloudOnlyToLidar(UVirtualLidarSensorComp* LidarComp, bool bSelect
     SaveLidarViewState(LidarComp);
     LidarComp->bDrawDebugRays = false;
     LidarComp->bDrawPointCloudPreviewDebugPoints = false;
-    LidarComp->bPointCloudPreviewHitOnly = true;
-    LidarComp->PointCloudPreviewStride = FMath::Max(2, LidarComp->PointCloudPreviewStride);
-    LidarComp->MaxPointCloudPreviewInstances = LidarComp->MaxPointCloudPreviewInstances > 0
-        ? FMath::Min(LidarComp->MaxPointCloudPreviewInstances, 3000)
+    const int32 PreviewStride = FMath::Max(2, LidarComp->PreviewPointStride);
+    const int32 PreviewMaxPoints = LidarComp->MaxPreviewPoints > 0
+        ? FMath::Min(LidarComp->MaxPreviewPoints, 3000)
         : 3000;
+    LidarComp->SetPreviewPolicy(PreviewStride, PreviewMaxPoints, true);
     LidarComp->SetPointCloudPreviewEnabled(bSelected);
 }
 
@@ -69,9 +73,9 @@ void RestoreLidarViewState(UVirtualLidarSensorComp* LidarComp)
     {
         LidarComp->bDrawDebugRays = State->bDrawDebugRays;
         LidarComp->bDrawPointCloudPreviewDebugPoints = State->bDrawPointCloudPreviewDebugPoints;
-        LidarComp->bPointCloudPreviewHitOnly = State->bPointCloudPreviewHitOnly;
         LidarComp->PointCloudPreviewStride = State->PointCloudPreviewStride;
         LidarComp->MaxPointCloudPreviewInstances = State->MaxPointCloudPreviewInstances;
+        LidarComp->SetPreviewPolicy(State->PreviewPointStride, State->MaxPreviewPoints, State->bPointCloudPreviewHitOnly);
         LidarComp->SetPointCloudPreviewEnabled(State->bPointCloudPreviewEnabled);
         GLidarPointCloudOnlyStates.Remove(LidarComp);
     }
@@ -347,6 +351,36 @@ void AVirtualSensorManager::CaptureAllOnce()
     for (UVirtualLidarSensorComp* LidarComp : Lidars)
     {
         if (LidarComp) LidarComp->ScanAndSend();
+    }
+}
+
+void AVirtualSensorManager::CaptureSelectedOnce()
+{
+    if (UVirtualCameraComp* CameraComp = GetSelectedCamera())
+    {
+        CameraComp->CaptureAndSendImage();
+    }
+    if (UVirtualLidarSensorComp* LidarComp = GetSelectedLidar())
+    {
+        LidarComp->ScanAndSend();
+    }
+}
+
+void AVirtualSensorManager::SetSelectedLidarPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly)
+{
+    if (UVirtualLidarSensorComp* LidarComp = GetSelectedLidar())
+    {
+        LidarComp->SetPreviewPolicy(InStride, InMaxPoints, bInHitOnly);
+    }
+}
+
+void AVirtualSensorManager::AdjustSelectedLidarPreviewBudget(int32 StrideDelta, int32 MaxPointsDelta)
+{
+    if (UVirtualLidarSensorComp* LidarComp = GetSelectedLidar())
+    {
+        const int32 NextStride = FMath::Clamp(LidarComp->PreviewPointStride + StrideDelta, 1, 100);
+        const int32 NextMaxPoints = FMath::Clamp(LidarComp->MaxPreviewPoints + MaxPointsDelta, 0, 1000000);
+        LidarComp->SetPreviewPolicy(NextStride, NextMaxPoints, LidarComp->bPointCloudPreviewHitOnly);
     }
 }
 

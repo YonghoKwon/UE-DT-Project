@@ -50,6 +50,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void CycleLidarViewMode();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarPreviewBudget(int32 InStride, int32 InMaxPoints);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void IncreaseLidarPreviewBudget();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void DecreaseLidarPreviewBudget();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Capture")
+    void CaptureSelectedSensorsOnce();
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     void ToggleLocalSensorCapture();
 
@@ -85,6 +97,15 @@ private:
 
     UFUNCTION()
     void HandleLocalSensorCaptureButtonClicked();
+
+    UFUNCTION()
+    void HandleCaptureOnceButtonClicked();
+
+    UFUNCTION()
+    void HandlePreviewMoreButtonClicked();
+
+    UFUNCTION()
+    void HandlePreviewLessButtonClicked();
 
     void RefreshImageBrush();
     void RefreshTitle();
@@ -147,6 +168,15 @@ private:
     TObjectPtr<UButton> LocalSensorCaptureButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> CaptureOnceButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> PreviewMoreButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> PreviewLessButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
 
     UPROPERTY(meta = (BindWidgetOptional))
@@ -184,6 +214,21 @@ private:
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView")
     FLinearColor LidarDepthEdgeColor = FLinearColor::White;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "1", ClampMax = "20"))
+    int32 PreviewStrideMin = 1;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "1", ClampMax = "64"))
+    int32 PreviewStrideMax = 20;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "100", ClampMax = "200000"))
+    int32 PreviewBudgetMinPoints = 500;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "100", ClampMax = "2000000"))
+    int32 PreviewBudgetMaxPoints = 20000;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LidarView", meta = (ClampMin = "100", ClampMax = "100000"))
+    int32 PreviewBudgetStepPoints = 1000;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture", meta = (ClampMin = "0.05"))
     float LocalCaptureIntervalSeconds = 1.0f;

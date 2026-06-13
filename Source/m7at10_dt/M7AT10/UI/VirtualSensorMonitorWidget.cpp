@@ -221,6 +221,21 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
         LocalSensorCaptureButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked);
         LocalSensorCaptureButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked);
     }
+    if (CaptureOnceButton)
+    {
+        CaptureOnceButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked);
+        CaptureOnceButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked);
+    }
+    if (PreviewMoreButton)
+    {
+        PreviewMoreButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewMoreButtonClicked);
+        PreviewMoreButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewMoreButtonClicked);
+    }
+    if (PreviewLessButton)
+    {
+        PreviewLessButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked);
+        PreviewLessButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked);
+    }
 
     RefreshTitle();
     RefreshImageBrush();
@@ -346,6 +361,95 @@ void UVirtualSensorMonitorWidget::CycleLidarViewMode()
     RefreshImageBrush();
 }
 
+void UVirtualSensorMonitorWidget::SetLidarPreviewBudget(int32 InStride, int32 InMaxPoints)
+{
+    UVirtualLidarSensorComp* TargetLidar = LidarComp;
+    if (SensorManager && SensorManager->GetSelectedLidar())
+    {
+        TargetLidar = SensorManager->GetSelectedLidar();
+    }
+    if (!TargetLidar)
+    {
+        return;
+    }
+
+    const int32 SafeStrideMin = FMath::Max(1, PreviewStrideMin);
+    const int32 SafeStrideMax = FMath::Max(SafeStrideMin, PreviewStrideMax);
+    const int32 SafeMinPoints = FMath::Max(0, PreviewBudgetMinPoints);
+    const int32 SafeMaxPoints = FMath::Max(SafeMinPoints, PreviewBudgetMaxPoints);
+    const int32 ClampedStride = FMath::Clamp(InStride, SafeStrideMin, SafeStrideMax);
+    const int32 ClampedMaxPoints = FMath::Clamp(InMaxPoints, SafeMinPoints, SafeMaxPoints);
+
+    if (SensorManager && TargetLidar == SensorManager->GetSelectedLidar())
+    {
+        SensorManager->SetSelectedLidarPreviewPolicy(ClampedStride, ClampedMaxPoints, TargetLidar->bPointCloudPreviewHitOnly);
+    }
+    else
+    {
+        TargetLidar->SetPreviewPolicy(ClampedStride, ClampedMaxPoints, TargetLidar->bPointCloudPreviewHitOnly);
+    }
+    InvalidateEnhancedLidarView();
+    RefreshLidarPreviewWithoutTransport();
+    RefreshStatusText();
+    RefreshImageBrush();
+
+    UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] LiDAR preview budget changed. Sensor=%s Stride=%d MaxPoints=%d"),
+        *TargetLidar->SensorId,
+        TargetLidar->PreviewPointStride,
+        TargetLidar->MaxPreviewPoints);
+}
+
+void UVirtualSensorMonitorWidget::IncreaseLidarPreviewBudget()
+{
+    if (!LidarComp)
+    {
+        return;
+    }
+
+    const int32 NextStride = FMath::Max(FMath::Max(1, PreviewStrideMin), LidarComp->PreviewPointStride - 1);
+    const int32 NextMaxPoints = LidarComp->MaxPreviewPoints <= 0
+        ? PreviewBudgetMinPoints
+        : LidarComp->MaxPreviewPoints + FMath::Max(100, PreviewBudgetStepPoints);
+    SetLidarPreviewBudget(NextStride, NextMaxPoints);
+}
+
+void UVirtualSensorMonitorWidget::DecreaseLidarPreviewBudget()
+{
+    if (!LidarComp)
+    {
+        return;
+    }
+
+    const int32 NextStride = FMath::Min(FMath::Max(PreviewStrideMin, PreviewStrideMax), LidarComp->PreviewPointStride + 1);
+    const int32 NextMaxPoints = LidarComp->MaxPreviewPoints <= 0
+        ? PreviewBudgetMaxPoints
+        : LidarComp->MaxPreviewPoints - FMath::Max(100, PreviewBudgetStepPoints);
+    SetLidarPreviewBudget(NextStride, NextMaxPoints);
+}
+
+void UVirtualSensorMonitorWidget::CaptureSelectedSensorsOnce()
+{
+    if (SensorManager)
+    {
+        SensorManager->CaptureSelectedOnce();
+    }
+    else
+    {
+        if (CameraComp)
+        {
+            CameraComp->CaptureAndSendImage();
+        }
+        if (LidarComp)
+        {
+            LidarComp->ScanAndSend();
+        }
+    }
+
+    InvalidateEnhancedLidarView();
+    RefreshImageBrush();
+    RefreshStatusText();
+}
+
 void UVirtualSensorMonitorWidget::ToggleLocalSensorCapture()
 {
     UWorld* World = GetWorld();
@@ -417,6 +521,21 @@ void UVirtualSensorMonitorWidget::HandleLidarViewModeButtonClicked()
 void UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked()
 {
     ToggleLocalSensorCapture();
+}
+
+void UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked()
+{
+    CaptureSelectedSensorsOnce();
+}
+
+void UVirtualSensorMonitorWidget::HandlePreviewMoreButtonClicked()
+{
+    IncreaseLidarPreviewBudget();
+}
+
+void UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked()
+{
+    DecreaseLidarPreviewBudget();
 }
 
 void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
@@ -518,14 +637,33 @@ void UVirtualSensorMonitorWidget::RefreshStatusText()
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nPoints/Hits: %d/%d\nPreview: %s Stride=%d Max=%d\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nCSV: row,col,x,y,z\nMessage: %s"),
+        const FVirtualLidarSlabAnalysisResult& Slab = Status.SlabAnalysis;
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,x,y,z\nMessage: %s"),
             *Status.SensorId,
             Status.FrameId,
+            LidarComp->ScanInterval,
+            LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
             Status.TotalPointCount,
             Status.HitPointCount,
+            Status.ServerPayloadPointCount,
+            LidarComp->ServerPayloadStride,
+            LidarComp->MaxServerPayloadPoints,
+            LidarComp->bIncludeMissPointsInServerPayload ? TEXT("true") : TEXT("false"),
             LidarComp->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
-            LidarComp->PointCloudPreviewStride,
-            LidarComp->MaxPointCloudPreviewInstances,
+            Status.PreviewPointCount,
+            LidarComp->PreviewPointStride,
+            LidarComp->MaxPreviewPoints,
+            LidarComp->bPointCloudPreviewHitOnly ? TEXT("true") : TEXT("false"),
+            Slab.bValid ? TEXT("Valid") : *Slab.StatusMessage,
+            Slab.SlabHitPointCount,
+            Slab.EstimatedYawDegrees,
+            Slab.ReferenceYawDegrees,
+            Slab.AngleDeviationDegrees,
+            Slab.Confidence,
+            Slab.Center.X,
+            Slab.Center.Y,
+            Slab.Center.Z,
+            Status.PerformanceWarning.IsEmpty() ? TEXT("None") : *Status.PerformanceWarning,
             *GetLidarViewModeDisplayText(),
             bUseEnhancedLidarMonitorView ? TEXT("On") : TEXT("Off"),
             bUseAdaptiveLidarDepthRange ? TEXT("On") : TEXT("Off"),

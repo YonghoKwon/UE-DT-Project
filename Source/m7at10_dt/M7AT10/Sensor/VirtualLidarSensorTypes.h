@@ -52,6 +52,42 @@ struct M7AT10_DT_API FVirtualLidarPoint
 };
 
 USTRUCT(BlueprintType)
+struct M7AT10_DT_API FVirtualLidarSlabAnalysisResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    bool bValid = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    int32 SlabHitPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    FVector BoundsMin = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    FVector BoundsMax = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    FVector Center = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    float EstimatedYawDegrees = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    float ReferenceYawDegrees = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    float AngleDeviationDegrees = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    float Confidence = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SlabAnalysis")
+    FString StatusMessage;
+};
+
+USTRUCT(BlueprintType)
 struct M7AT10_DT_API FVirtualSensorRuntimeStatus
 {
     GENERATED_BODY()
@@ -76,6 +112,18 @@ struct M7AT10_DT_API FVirtualSensorRuntimeStatus
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
     int32 HitPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    int32 ServerPayloadPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    int32 PreviewPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    FString PerformanceWarning;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
+    FVirtualLidarSlabAnalysisResult SlabAnalysis;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor")
     FString LastMessage;
