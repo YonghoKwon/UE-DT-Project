@@ -117,3 +117,29 @@ SetPointCloudOnlyMode
 ```
 
 Use these when a Designer button is easier to wire manually than through automatic C++ binding.
+
+## Status Text Contract
+
+`UVirtualSensorMonitorWidget` exposes these Blueprint-pure helpers so Designer widgets and automation tests can inspect the same text that the native fallback renders:
+
+```text
+GetMonitorTitleText
+GetMonitorStatusText
+```
+
+The LiDAR status text is expected to include:
+
+```text
+Sensor id
+Frame id
+Scan interval and ray count
+Measured point and hit counts
+Server payload point count and policy
+Preview point count and policy
+Slab angle/deviation/confidence
+Transport/performance warning
+LiDAR view mode
+CSV export row contract
+```
+
+`M7AT10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.

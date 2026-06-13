@@ -70,6 +70,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool IsLocalSensorCaptureActive() const { return bLocalSensorCaptureActive; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetMonitorTitleText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetMonitorStatusText() const;
+
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;

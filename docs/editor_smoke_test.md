@@ -120,6 +120,15 @@ Monitor host fallback tests:
 ```
 
 `M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
+`M7AT10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count, preview count, Slab analysis, warning, view mode, and CSV row contract.
+
+Local project status and asset decision inventory:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
+```
+
+Use this before committing local Unreal assets so `WBP_VirtualSensorMonitor.uasset`, environment packs, packaged `Windows` output, and launcher files are intentionally included or left untracked.
 
 ## Expected Warnings
 

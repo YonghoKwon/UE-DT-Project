@@ -2,11 +2,11 @@
 
 Unreal Engine 5.3 기반 Digital Twin 프로젝트입니다. 철강 제조 환경을 대상으로 가상 센서와 가상 카메라를 배치하고, 시뮬레이션 또는 실제 센서 입력을 Unreal 환경에 재현한 뒤 판단 서버로 측정 데이터를 전달하는 것을 목표로 합니다.
 
-현재 브랜치는 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL point cloud replay source, native monitor fallback UI에 초점을 둡니다. Livox, RealSense, ROS2 직접 입력은 `URealSensorSourceComp` 기반 placeholder까지 준비되어 있으며 실제 SDK/bridge 연동은 후속 작업입니다.
+현재 브랜치는 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, monitor widget/host actor, local smoke test runner를 중심으로 정리되어 있습니다. Livox, RealSense, ROS2 직접 입력은 placeholder component까지 준비되어 있고 실제 SDK/bridge 연결은 후속 작업입니다.
 
 ## 목표 기능
 
-1. 시뮬레이션 데이터를 Unreal에 재현하고, 가상 카메라와 가상 LiDAR 측정값을 수집해 판단 서버로 전송합니다.
+1. 시뮬레이션 데이터를 Unreal에 재현하고 가상 카메라/LiDAR 측정값을 판단 서버로 전송합니다.
 2. 실제 센서/카메라 데이터를 받아 Unreal 환경에 재현합니다.
 3. 철강 공정의 Slab 각도 틀어짐을 LiDAR point cloud 기반으로 분석합니다.
 
@@ -21,11 +21,12 @@ Plugins/DTCore                   공통 Core 플러그인 submodule
 Content/M7AT10                   맵, 위젯, Blueprint asset
 docs                             schema, smoke test, adapter plan, widget setup
 Samples                          replay sample data
+Scripts                          smoke/status helper scripts
 ```
 
 ## DTCore Submodule
 
-처음 받은 뒤 반드시 submodule을 초기화합니다.
+처음 받은 뒤에는 반드시 submodule을 초기화합니다.
 
 ```powershell
 git submodule update --init --recursive
@@ -38,7 +39,7 @@ git submodule status
 2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7 Plugins/DTCore
 ```
 
-이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore에서 `EnhancedInput` dependency 경고가 발생할 수 있지만, DTCore 수정 허용 전까지는 DT-Project 쪽에서 우회합니다.
+이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore에서 `EnhancedInput` dependency 경고가 발생할 수 있지만, DTCore 수정 허용 전까지 DT-Project 쪽에서는 우회합니다.
 
 ## 빌드
 
@@ -118,7 +119,7 @@ ULivoxLidarSourceComp
 URealSenseCameraSourceComp
 ```
 
-이 component들은 아직 SDK/bridge 연결을 수행하지 않고, 설정 필드와 명확한 not-implemented 상태 메시지를 제공합니다. 후속 구현에서도 가능한 한 `InjectPointCloudFrame` 같은 normalized frame 주입 경로를 공유해야 합니다.
+아직 SDK/bridge 연결은 수행하지 않고 not-implemented 상태 메시지를 제공합니다. 후속 구현에서는 가능한 한 `InjectPointCloudFrame` 같은 normalized frame 주입 경로를 공유해야 합니다.
 
 ## Slab 각도 분석 Workflow
 
@@ -159,6 +160,15 @@ PreviewMoreButton
 PreviewLessButton
 ```
 
+Status helper:
+
+```text
+GetMonitorTitleText
+GetMonitorStatusText
+```
+
+이 helper는 native fallback과 Designer WBP가 같은 상태 문자열 계약을 쓰도록 노출된 Blueprint-pure API입니다. `M7AT10.SensorMonitor.LidarStatusTextContract`가 sensor id, frame id, scan/ray count, server payload, preview, Slab 분석, warning, view mode, CSV row contract를 검증합니다.
+
 SensorManager Blueprint API:
 
 ```text
@@ -182,13 +192,19 @@ Level Blueprint 없이 위젯을 자동 생성하려면 맵에 `AVirtualSensorMo
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1"
 ```
 
-대표 명령:
+이미 빌드된 경우:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.RealSensorSource; Quit" -TestExit="Automation Test Queue Empty"
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorMonitor; Quit" -TestExit="Automation Test Queue Empty"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
 ```
+
+로컬 프로젝트 상태와 untracked asset decision point 확인:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
+```
+
+이 스크립트는 `WBP_VirtualSensorMonitor.uasset`, 환경 pack, packaged `Windows` output, launcher config 등이 의도적으로 커밋될 항목인지 확인할 때 사용합니다.
 
 ## 권장 Smoke Test 설정
 
@@ -203,7 +219,7 @@ LiDAR ExportOnScan = false
 LiDAR bDrawDebugRays = false
 ```
 
-성능 문제가 있으면 다음 순서로 낮춥니다.
+성능 문제가 있으면 다음 순서로 조정합니다.
 
 ```text
 1. LiDAR SimulationQuality = Debug
@@ -224,7 +240,7 @@ docs/real_sensor_adapter_plan.md
 
 ## 알려진 제한
 
-- Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현되지 않았습니다.
+- Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현하지 않았습니다.
 - `ExportLastPointCloudLaz()`는 진짜 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
 - FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
 - 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.

@@ -183,6 +183,16 @@ bool ExportRowColPointCloudCsv(const UVirtualLidarSensorComp* LidarComp, const F
 }
 }
 
+FString UVirtualSensorMonitorWidget::GetMonitorTitleText() const
+{
+    return BuildTitleText();
+}
+
+FString UVirtualSensorMonitorWidget::GetMonitorStatusText() const
+{
+    return BuildStatusText();
+}
+
 TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
 {
     if (!ShouldUseNativeFallbackWidget())
