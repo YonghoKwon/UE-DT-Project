@@ -139,6 +139,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Transport")
     int32 GetLastServerPayloadPointCount() const { return LastServerPayloadPointCount; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Transport")
+    const FString& GetLastJsonPayload() const { return LastJsonPayload; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     int32 GetLastPreviewPointCount() const { return LastPreviewPointCount; }
 
@@ -361,6 +364,7 @@ private:
     int32 LastServerPayloadPointCount = 0;
     int32 LastPreviewPointCount = 0;
     FString LastPerformanceWarning;
+    FString LastJsonPayload;
     FVirtualLidarSlabAnalysisResult LastSlabAnalysis;
 
     UPROPERTY(Transient)

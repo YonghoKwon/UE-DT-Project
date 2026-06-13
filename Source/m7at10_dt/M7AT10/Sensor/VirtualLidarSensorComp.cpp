@@ -210,6 +210,7 @@ void UVirtualLidarSensorComp::ScanAndSend()
     RefreshPointCloudPreview();
 
     const FString JsonPayload = BuildJsonPayload(LastPoints);
+    LastJsonPayload = JsonPayload;
     DispatchPayload(JsonPayload);
     UpdateRuntimeStatusAfterScan(JsonPayload.Len());
 
@@ -244,6 +245,7 @@ void UVirtualLidarSensorComp::InjectPointCloudFrame(const TArray<FVirtualLidarPo
     RefreshPointCloudPreview();
 
     const FString JsonPayload = BuildJsonPayload(LastPoints);
+    LastJsonPayload = JsonPayload;
     if (bSendTransport)
     {
         DispatchPayload(JsonPayload);
