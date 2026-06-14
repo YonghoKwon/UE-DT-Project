@@ -263,6 +263,7 @@ docs/camera_payload_schema.md
 docs/widget_designer_setup.md
 docs/editor_smoke_test.md
 docs/real_sensor_adapter_plan.md
+docs/local_asset_report.md
 ```
 
 ## 알려진 제한

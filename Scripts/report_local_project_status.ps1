@@ -2,6 +2,7 @@ param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
     [switch]$Json,
     [switch]$FailOnGeneratedOutput,
+    [switch]$FailOnUnclassifiedUntracked,
     [string[]]$FailOnCategory = @()
 )
 
@@ -58,6 +59,29 @@ function Format-Size {
         return "{0:N1} KB" -f ($Bytes / 1KB)
     }
     return "$Bytes B"
+}
+
+function Normalize-RepoPath {
+    param([string]$Path)
+
+    return ($Path -replace "\\", "/").TrimEnd("/").ToLowerInvariant()
+}
+
+function Test-PathIsUnderDecisionPoint {
+    param(
+        [string]$RepoPath,
+        [string[]]$DecisionPaths
+    )
+
+    $normalizedRepoPath = Normalize-RepoPath $RepoPath
+    foreach ($decisionPath in $DecisionPaths) {
+        $normalizedDecisionPath = Normalize-RepoPath $decisionPath
+        if ($normalizedRepoPath -eq $normalizedDecisionPath -or $normalizedRepoPath.StartsWith("$normalizedDecisionPath/")) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
@@ -127,6 +151,18 @@ try {
         }
     )
 
+    $decisionRelativePaths = @($pathsToCheck | ForEach-Object { $_.Path })
+    $untrackedGitPaths = @(
+        git status --porcelain --untracked-files=all |
+            Where-Object { $_.StartsWith("?? ") } |
+            ForEach-Object { $_.Substring(3).Trim() }
+    )
+    $unclassifiedUntrackedPaths = @(
+        $untrackedGitPaths |
+            Where-Object { -not (Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $decisionRelativePaths) } |
+            Sort-Object
+    )
+
     $decisionPoints = @()
     $presentCount = 0
     $generatedCount = 0
@@ -163,12 +199,16 @@ try {
         GitBranch = (git branch --show-current)
         RecentCommits = @(git log --oneline -3)
         GitStatus = @(git status --short)
+        UntrackedGitPaths = $untrackedGitPaths
+        UnclassifiedUntrackedPaths = $unclassifiedUntrackedPaths
         Submodules = @(git submodule status --recursive)
         DecisionPoints = $decisionPoints
         Summary = [PSCustomObject]@{
             PresentDecisionPoints = $presentCount
             GeneratedOrLocalOutputItemsPresent = $generatedCount
             HasGeneratedOutput = ($generatedCount -gt 0)
+            UnclassifiedUntrackedCount = $unclassifiedUntrackedPaths.Count
+            HasUnclassifiedUntracked = ($unclassifiedUntrackedPaths.Count -gt 0)
             PresentCategoryCounts = [PSCustomObject]$presentCategoryCounts
             DefaultAction = "Do not stage these paths until each item has an explicit content or packaging decision."
         }
@@ -207,10 +247,17 @@ try {
         Write-Section "Asset decision summary"
         Write-Host "Present decision points: $($report.Summary.PresentDecisionPoints)"
         Write-Host "Generated/local-output items present: $($report.Summary.GeneratedOrLocalOutputItemsPresent)"
+        Write-Host "Unclassified untracked paths: $($report.Summary.UnclassifiedUntrackedCount)"
         foreach ($category in ($presentCategoryCounts.Keys | Sort-Object)) {
             Write-Host "Present $category items: $($presentCategoryCounts[$category])"
         }
         Write-Host "Default action: $($report.Summary.DefaultAction)"
+
+        if ($unclassifiedUntrackedPaths.Count -gt 0) {
+            Write-Section "Unclassified untracked paths"
+            $unclassifiedUntrackedPaths | ForEach-Object { Write-Host $_ }
+            Write-Host "Recommendation: classify these paths in Scripts/report_local_project_status.ps1 before staging or committing."
+        }
 
         Write-Section "Suggested next checks"
         Write-Host "Build: $($report.SuggestedChecks.Build)"
@@ -219,6 +266,10 @@ try {
 
     if ($FailOnGeneratedOutput -and $generatedCount -gt 0) {
         throw "Generated or local-output items are present. Remove them or run without -FailOnGeneratedOutput after explicitly accepting the local state."
+    }
+    if ($FailOnUnclassifiedUntracked -and $unclassifiedUntrackedPaths.Count -gt 0) {
+        $previewPaths = @($unclassifiedUntrackedPaths | Select-Object -First 10) -join ", "
+        throw "Unclassified untracked paths are present: $previewPaths. Classify them in Scripts/report_local_project_status.ps1 or run without -FailOnUnclassifiedUntracked after explicitly accepting the local state."
     }
     if ($FailOnCategory.Count -gt 0) {
         $categoriesToFail = @(
