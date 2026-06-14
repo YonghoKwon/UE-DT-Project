@@ -16,6 +16,7 @@ param(
     [switch]$SkipPayloadContract,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
+    [switch]$FailOnStagedDecisionPoints,
     [string[]]$FailOnCategory = @()
 )
 
@@ -75,6 +76,9 @@ $AssetReportParams = @{
 }
 if ($FailOnGeneratedOutput) {
     $AssetReportParams.FailOnGeneratedOutput = $true
+}
+if ($FailOnStagedDecisionPoints) {
+    $AssetReportParams.FailOnStagedDecisionPoints = $true
 }
 if ($FailOnCategory.Count -gt 0) {
     $AssetReportParams.FailOnCategory = $FailOnCategory

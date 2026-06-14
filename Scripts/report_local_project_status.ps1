@@ -3,6 +3,7 @@ param(
     [switch]$Json,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnUnclassifiedUntracked,
+    [switch]$FailOnStagedDecisionPoints,
     [string[]]$FailOnCategory = @()
 )
 
@@ -257,6 +258,16 @@ try {
             Where-Object { -not (Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $decisionRelativePaths) } |
             Sort-Object
     )
+    $stagedGitPaths = @(
+        git diff --cached --name-only |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object { $_.Trim() }
+    )
+    $stagedDecisionPaths = @(
+        $stagedGitPaths |
+            Where-Object { Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $decisionRelativePaths } |
+            Sort-Object
+    )
 
     $decisionPoints = @()
     $presentCount = 0
@@ -303,6 +314,8 @@ try {
         GitStatus = @(git status --short)
         UntrackedGitPaths = $untrackedGitPaths
         UnclassifiedUntrackedPaths = $unclassifiedUntrackedPaths
+        StagedGitPaths = $stagedGitPaths
+        StagedDecisionPaths = $stagedDecisionPaths
         Submodules = @(git submodule status --recursive)
         DecisionPoints = $decisionPoints
         Summary = [PSCustomObject]@{
@@ -311,6 +324,8 @@ try {
             HasGeneratedOutput = ($generatedCount -gt 0)
             UnclassifiedUntrackedCount = $unclassifiedUntrackedPaths.Count
             HasUnclassifiedUntracked = ($unclassifiedUntrackedPaths.Count -gt 0)
+            StagedDecisionPointCount = $stagedDecisionPaths.Count
+            HasStagedDecisionPoints = ($stagedDecisionPaths.Count -gt 0)
             PresentCategoryCounts = [PSCustomObject]$presentCategoryCounts
             DefaultAction = "Do not stage these paths until each item has an explicit content or packaging decision."
         }
@@ -368,6 +383,7 @@ try {
         Write-Host "Present decision points: $($report.Summary.PresentDecisionPoints)"
         Write-Host "Generated/local-output items present: $($report.Summary.GeneratedOrLocalOutputItemsPresent)"
         Write-Host "Unclassified untracked paths: $($report.Summary.UnclassifiedUntrackedCount)"
+        Write-Host "Staged decision-point paths: $($report.Summary.StagedDecisionPointCount)"
         foreach ($category in ($presentCategoryCounts.Keys | Sort-Object)) {
             Write-Host "Present $category items: $($presentCategoryCounts[$category])"
         }
@@ -377,6 +393,12 @@ try {
             Write-Section "Unclassified untracked paths"
             $unclassifiedUntrackedPaths | ForEach-Object { Write-Host $_ }
             Write-Host "Recommendation: classify these paths in Scripts/report_local_project_status.ps1 before staging or committing."
+        }
+
+        if ($stagedDecisionPaths.Count -gt 0) {
+            Write-Section "Staged decision-point paths"
+            $stagedDecisionPaths | ForEach-Object { Write-Host $_ }
+            Write-Host "Recommendation: unstage these paths unless each one has an explicit content or packaging decision."
         }
 
         Write-Section "Suggested next checks"
@@ -390,6 +412,10 @@ try {
     if ($FailOnUnclassifiedUntracked -and $unclassifiedUntrackedPaths.Count -gt 0) {
         $previewPaths = @($unclassifiedUntrackedPaths | Select-Object -First 10) -join ", "
         throw "Unclassified untracked paths are present: $previewPaths. Classify them in Scripts/report_local_project_status.ps1 or run without -FailOnUnclassifiedUntracked after explicitly accepting the local state."
+    }
+    if ($FailOnStagedDecisionPoints -and $stagedDecisionPaths.Count -gt 0) {
+        $previewPaths = @($stagedDecisionPaths | Select-Object -First 10) -join ", "
+        throw "Decision-point paths are staged: $previewPaths. Unstage them or run without -FailOnStagedDecisionPoints after explicitly accepting the content decision."
     }
     if ($FailOnCategory.Count -gt 0) {
         $categoriesToFail = @(

@@ -42,6 +42,12 @@ point inventory:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnUnclassifiedUntracked
 ```
 
+Fail when a known decision-point path has already been staged:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnStagedDecisionPoints
+```
+
 ## Current Categories
 
 - `ReviewCandidate`: small project or binary edits that need manual review.
@@ -76,6 +82,8 @@ deciding whether the repository should own them.
 3. Run with `-FailOnUnclassifiedUntracked` to catch newly created paths that the
    inventory does not know about yet.
 4. Stage only intended source, docs, config, or content files.
+5. Run with `-FailOnStagedDecisionPoints` before committing when local content
+   decisions are still open.
 
 ## Readiness Wrapper
 
@@ -93,5 +101,6 @@ Strict local-output gates can be enabled when a clean packaging state is needed:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnStagedDecisionPoints
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnCategory LargeContentCandidate,SampleOrThirdParty
 ```
