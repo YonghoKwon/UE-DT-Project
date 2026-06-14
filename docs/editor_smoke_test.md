@@ -154,12 +154,13 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 
 Use this before committing local Unreal assets so `WBP_VirtualSensorMonitor.uasset`, environment packs, packaged `Windows` output, and launcher files are intentionally included or left untracked.
 The report classifies each path as a review candidate, large content candidate, sample/third-party candidate, generated output, or local config so packaging outputs are not mixed into code commits by accident.
-Use `-Json` when an automated job needs machine-readable output. Use `-FailOnGeneratedOutput` when packaged output directories or archives should fail the validation gate.
+Use `-Json` when an automated job needs machine-readable output. Use `-FailOnGeneratedOutput` when packaged output directories or archives should fail the validation gate. Use `-FailOnCategory` when a gate should fail on a specific decision category such as `LargeContentCandidate` or `SampleOrThirdParty`.
 `Windows/`, `Windows.zip`, and `launcher.config.json` are ignored by git, but this report still checks their filesystem presence so local generated output is visible during handoff.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnCategory LargeContentCandidate,SampleOrThirdParty
 ```
 
 ## Expected Warnings

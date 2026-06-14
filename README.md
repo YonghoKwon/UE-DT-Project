@@ -223,11 +223,13 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 
 이 스크립트는 `WBP_VirtualSensorMonitor.uasset`, 환경 pack, packaged `Windows` output, launcher config 등이 의도적으로 커밋될 항목인지 확인할 때 사용합니다.
 자동화 로그나 CI에서 구조화된 결과가 필요하면 `-Json`을 추가하고, packaged `Windows` output 같은 생성 산출물이 남아 있을 때 검증을 실패시키려면 `-FailOnGeneratedOutput`을 추가합니다.
+특정 분류를 gate로 막고 싶으면 `-FailOnCategory`에 `ReviewCandidate`, `LargeContentCandidate`, `SampleOrThirdParty`, `GeneratedOutput`, `GeneratedOrLocalConfig` 중 필요한 값을 넘깁니다.
 `Windows/`, `Windows.zip`, `launcher.config.json`은 `.gitignore`에 등록되어 있어 git status에서는 숨겨질 수 있지만, 이 스크립트는 파일 시스템을 직접 확인해서 존재 여부를 계속 보고합니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnCategory LargeContentCandidate,SampleOrThirdParty
 ```
 
 ## 권장 Smoke Test 설정

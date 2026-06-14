@@ -1,7 +1,8 @@
 param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
     [switch]$Json,
-    [switch]$FailOnGeneratedOutput
+    [switch]$FailOnGeneratedOutput,
+    [string[]]$FailOnCategory = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -129,6 +130,7 @@ try {
     $decisionPoints = @()
     $presentCount = 0
     $generatedCount = 0
+    $presentCategoryCounts = @{}
     foreach ($entry in $pathsToCheck) {
         $relativePath = $entry.Path
         $summary = Get-PathSummary -FullPath (Join-Path $ProjectRoot $relativePath)
@@ -137,6 +139,10 @@ try {
             if ($entry.Category -like "Generated*") {
                 ++$generatedCount
             }
+            if (-not $presentCategoryCounts.ContainsKey($entry.Category)) {
+                $presentCategoryCounts[$entry.Category] = 0
+            }
+            ++$presentCategoryCounts[$entry.Category]
         }
 
         $decisionPoints += [PSCustomObject]@{
@@ -163,6 +169,7 @@ try {
             PresentDecisionPoints = $presentCount
             GeneratedOrLocalOutputItemsPresent = $generatedCount
             HasGeneratedOutput = ($generatedCount -gt 0)
+            PresentCategoryCounts = [PSCustomObject]$presentCategoryCounts
             DefaultAction = "Do not stage these paths until each item has an explicit content or packaging decision."
         }
         SuggestedChecks = [PSCustomObject]@{
@@ -200,6 +207,9 @@ try {
         Write-Section "Asset decision summary"
         Write-Host "Present decision points: $($report.Summary.PresentDecisionPoints)"
         Write-Host "Generated/local-output items present: $($report.Summary.GeneratedOrLocalOutputItemsPresent)"
+        foreach ($category in ($presentCategoryCounts.Keys | Sort-Object)) {
+            Write-Host "Present $category items: $($presentCategoryCounts[$category])"
+        }
         Write-Host "Default action: $($report.Summary.DefaultAction)"
 
         Write-Section "Suggested next checks"
@@ -209,6 +219,19 @@ try {
 
     if ($FailOnGeneratedOutput -and $generatedCount -gt 0) {
         throw "Generated or local-output items are present. Remove them or run without -FailOnGeneratedOutput after explicitly accepting the local state."
+    }
+    if ($FailOnCategory.Count -gt 0) {
+        $categoriesToFail = @(
+            $FailOnCategory |
+                ForEach-Object { $_ -split "," } |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+        $matchedCategories = @($categoriesToFail | Where-Object { $presentCategoryCounts.ContainsKey($_) })
+        if ($matchedCategories.Count -gt 0) {
+            $details = @($matchedCategories | ForEach-Object { "$_=$($presentCategoryCounts[$_])" }) -join ", "
+            throw "Requested local asset categories are present: $details. Remove them or run without -FailOnCategory after explicitly accepting the local state."
+        }
     }
 }
 finally {
