@@ -61,6 +61,9 @@ Open decisions:
   - Evidence needed: map/WBP dependency check and asset ownership decision.
 - `Samples/PixelStreaming/`
   - Sample or third-party content.
+  - Current local state: tracked as a sample/third-party decision point with
+    extension counts and largest-file details in
+    `Scripts/report_local_project_status.ps1`.
   - Evidence needed: explicit decision that Pixel Streaming samples are part of
     this repository.
 

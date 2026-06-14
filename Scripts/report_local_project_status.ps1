@@ -262,11 +262,12 @@ try {
     $presentCount = 0
     $generatedCount = 0
     $presentCategoryCounts = @{}
+    $contentSummaryCategories = @("LargeContentCandidate", "SampleOrThirdParty")
     foreach ($entry in $pathsToCheck) {
         $relativePath = $entry.Path
         $fullPath = Join-Path $ProjectRoot $relativePath
         $summary = Get-PathSummary -FullPath $fullPath
-        $contentSummary = if ($entry.Category -eq "LargeContentCandidate") { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
+        $contentSummary = if ($contentSummaryCategories -contains $entry.Category) { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
         $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
         if ($summary.State -eq "present") {
             ++$presentCount
