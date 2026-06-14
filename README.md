@@ -2,24 +2,25 @@
 
 Unreal Engine 5.3 기반 Digital Twin 프로젝트입니다. 철강 제조 환경을 대상으로 가상 센서와 가상 카메라를 배치하고, 시뮬레이션 또는 실제 센서 입력을 Unreal 환경에 재현한 뒤 판단 서버로 측정 데이터를 전달하는 것을 목표로 합니다.
 
-현재 브랜치는 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, monitor widget/host actor, local smoke test runner를 중심으로 정리되어 있습니다. Livox, RealSense, ROS2 직접 입력은 placeholder component까지 준비되어 있고 실제 SDK/bridge 연결은 후속 작업입니다.
+현재 브랜치의 중심 기능은 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, sensor monitor widget/host actor, 로컬 smoke test 및 asset 상태 점검 스크립트입니다. Livox, RealSense, ROS2 직접 입력은 placeholder component까지 준비되어 있고 실제 SDK/bridge 연결은 후속 작업입니다.
 
 ## 목표 기능
 
 1. 시뮬레이션 데이터를 Unreal에 재현하고 가상 카메라/LiDAR 측정값을 판단 서버로 전송합니다.
 2. 실제 센서/카메라 데이터를 받아 Unreal 환경에 재현합니다.
 3. 철강 공정의 Slab 각도 틀어짐을 LiDAR point cloud 기반으로 분석합니다.
+4. 판단 서버용 원본/고밀도 데이터와 에디터 UI용 간략 preview 데이터를 분리합니다.
 
 ## 저장소 구성
 
 ```text
-Source/m7at10_dt/M7AT10/Camera   가상 카메라
+Source/m7at10_dt/M7AT10/Camera   가상 카메라 component/actor
 Source/m7at10_dt/M7AT10/Sensor   가상 LiDAR, 센서 매니저, replay source, transport/recorder
-Source/m7at10_dt/M7AT10/UI       센서 모니터 위젯과 HostActor
+Source/m7at10_dt/M7AT10/UI       센서 모니터 widget 및 host actor
 Source/m7at10_dt/M7AT10/Crane    크레인 예제 구현
 Plugins/DTCore                   공통 Core 플러그인 submodule
-Content/M7AT10                   맵, 위젯, Blueprint asset
-docs                             schema, smoke test, adapter plan, widget setup
+Content/M7AT10                   map, widget, Blueprint asset
+docs                             payload schema, smoke test, adapter plan, widget setup
 Samples                          replay sample data
 Scripts                          smoke/status helper scripts
 ```
@@ -39,25 +40,25 @@ git submodule status
 2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7 Plugins/DTCore
 ```
 
-이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore에서 `EnhancedInput` dependency 경고가 발생할 수 있지만, DTCore 수정 허용 전까지 DT-Project 쪽에서는 우회합니다.
+이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore 쪽에서 `EnhancedInput` dependency 경고가 보일 수 있지만, DTCore 수정 허용 전까지 DT-Project 쪽에서는 우회하지 않습니다.
 
 ## 빌드
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" m7at10_dtEditor Win64 Development "C:\path\to\m7at10_dt.uproject" -WaitMutex
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" m7at10_dtEditor Win64 Development "C:\path\to\m7at10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
 로컬 실행 프로젝트 예시:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" m7at10_dtEditor Win64 Development "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -WaitMutex
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" m7at10_dtEditor Win64 Development "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
 ## LiDAR 데이터 정책
 
 `UVirtualLidarSensorComp`는 한 번의 scan 또는 replay frame에서 생성된 전체 측정값을 `LastPoints`에 유지합니다.
 
-서버/판단 payload:
+판단 서버 payload 정책:
 
 - `ServerPayloadStride`
 - `MaxServerPayloadPoints`
@@ -66,7 +67,7 @@ git submodule status
 - JSON `payloadPolicy`
 - JSON `slabAnalysis`
 
-Editor/UI preview:
+Editor/UI preview 정책:
 
 - `PreviewPointStride`
 - `MaxPreviewPoints`
@@ -75,9 +76,21 @@ Editor/UI preview:
 
 기본 방향은 서버에는 원본에 가까운 hit point를 보내고, Unreal Editor 화면에는 제한된 point만 표시하는 것입니다. 기존 `PayloadPointStride`, `MaxPayloadPoints`, `PointCloudPreviewStride`, `MaxPointCloudPreviewInstances`는 Blueprint 호환을 위해 남아 있지만 새 정책 필드를 우선 사용합니다.
 
+## Camera 데이터 정책
+
+`UVirtualCameraComp`는 SceneCapture 기반 image payload와 monitor 상태 표시를 제공합니다.
+
+- JSON `schemaVersion = virtual-camera.v1`
+- resolution, capture mode, JPEG quality, capture interval
+- cached payload byte size
+- render target preview
+- file transport/export 연동
+
+Monitor의 `ExportSelectedSensorServerPayload`는 현재 view에 따라 LiDAR 또는 camera payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래로 저장합니다.
+
 ## File Replay Source
 
-`ULidarCsvReplaySourceComp`와 `ULidarJsonLinesReplaySourceComp`는 저장된 point cloud를 `UVirtualLidarSensorComp::InjectPointCloudFrame`으로 주입합니다. 이 경로를 타면 replay 데이터도 LiDAR JSON payload, recorder, transport, preview, Slab 분석 경로를 동일하게 통과합니다.
+`ULidarCsvReplaySourceComp`와 `ULidarJsonLinesReplaySourceComp`는 저장된 point cloud를 `UVirtualLidarSensorComp::InjectPointCloudFrame`으로 주입합니다. 이 경로를 타면 replay 데이터도 LiDAR JSON payload, recorder, transport, preview, Slab 분석 흐름을 동일하게 통과합니다.
 
 지원 CSV 형식:
 
@@ -119,7 +132,7 @@ ULivoxLidarSourceComp
 URealSenseCameraSourceComp
 ```
 
-아직 SDK/bridge 연결은 수행하지 않고 not-implemented 상태 메시지를 제공합니다. 후속 구현에서는 가능한 한 `InjectPointCloudFrame` 같은 normalized frame 주입 경로를 공유해야 합니다.
+아직 SDK/bridge 연결은 수행하지 않고 not-implemented 상태 메시지를 제공합니다. 후속 구현에서도 가능한 한 `InjectPointCloudFrame` 같은 normalized frame 주입 경로를 공유해야 합니다.
 
 ## Slab 각도 분석 Workflow
 
@@ -170,8 +183,6 @@ GetMonitorTitleText
 GetMonitorStatusText
 ```
 
-이 helper는 native fallback과 Designer WBP가 같은 상태 문자열 계약을 쓰도록 노출된 Blueprint-pure API입니다. `M7AT10.SensorMonitor.LidarStatusTextContract`가 sensor id, frame id, scan/ray count, server payload, preview, preview hit-only toggle, Slab 분석, warning, view mode, CSV row contract를 검증합니다.
-
 SensorMonitor Blueprint API:
 
 ```text
@@ -184,8 +195,6 @@ DecreaseLidarPreviewBudget
 ToggleLidarPreviewHitOnly
 ```
 
-`ExportSelectedSensorServerPayload`는 현재 monitor view의 서버 JSON payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래에 저장합니다. LiDAR view에서는 선택된 LiDAR payload를, camera view에서는 바인딩된 camera payload를 저장합니다. 판단 서버 payload schema 확인용 샘플을 transport mode와 독립적으로 뽑을 때 사용합니다. LiDAR 전용 Blueprint 연결이 필요하면 `ExportSelectedLidarServerPayload`를 직접 호출할 수 있습니다.
-
 SensorManager Blueprint API:
 
 ```text
@@ -197,9 +206,9 @@ TogglePointCloudOnlyView
 SetPointCloudOnlyMode
 ```
 
-Level Blueprint 없이 위젯을 자동 생성하려면 맵에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
+Level Blueprint 없이 monitor를 자동 생성하려면 map에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
 
-`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 상태 텍스트와 기본 버튼을 보여주는 smoke-test용 UI이며 server payload export와 preview hit-only 토글도 포함합니다. 운영자용 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor`를 권장합니다.
+`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 smoke test와 기본 조작 확인용이며, 운영 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor` 사용을 권장합니다.
 
 ## 자동화 테스트
 
@@ -215,24 +224,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
 ```
 
-로컬 프로젝트 상태와 untracked asset decision point 확인:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
-```
-
-이 스크립트는 `WBP_VirtualSensorMonitor.uasset`, 환경 pack, packaged `Windows` output, launcher config 등이 의도적으로 커밋될 항목인지 확인할 때 사용합니다.
-자동화 로그나 CI에서 구조화된 결과가 필요하면 `-Json`을 추가하고, packaged `Windows` output 같은 생성 산출물이 남아 있을 때 검증을 실패시키려면 `-FailOnGeneratedOutput`을 추가합니다.
-특정 분류를 gate로 막고 싶으면 `-FailOnCategory`에 `ReviewCandidate`, `LargeContentCandidate`, `SampleOrThirdParty`, `GeneratedOutput`, `GeneratedOrLocalConfig` 중 필요한 값을 넘깁니다.
-`Windows/`, `Windows.zip`, `launcher.config.json`은 `.gitignore`에 등록되어 있어 git status에서는 숨겨질 수 있지만, 이 스크립트는 파일 시스템을 직접 확인해서 존재 여부를 계속 보고합니다.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnCategory LargeContentCandidate,SampleOrThirdParty
-```
-
-## 권장 Smoke Test 설정
+권장 smoke 설정:
 
 ```text
 AVirtualSensorManager.bDiscoverOnBeginPlay = true
@@ -255,6 +247,30 @@ LiDAR bDrawDebugRays = false
 5. MultiHit / ExportOnScan / FullSpec 비활성화
 ```
 
+## 로컬 Asset 상태 점검
+
+로컬 프로젝트 상태와 untracked asset decision point 확인:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
+```
+
+구조화된 결과:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
+```
+
+Gate 예시:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnCategory LargeContentCandidate,SampleOrThirdParty
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnUnclassifiedUntracked
+```
+
+`Windows/`, `Windows.zip`, `launcher.config.json`은 `.gitignore`에 등록되어 git status에서는 숨겨질 수 있지만, 이 스크립트는 파일 시스템을 직접 확인해 존재 여부를 계속 보고합니다.
+
 ## 관련 문서
 
 ```text
@@ -268,8 +284,8 @@ docs/local_asset_report.md
 
 ## 알려진 제한
 
-- Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현하지 않았습니다.
-- `ExportLastPointCloudLaz()`는 진짜 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
+- Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현되지 않았습니다.
+- `ExportLastPointCloudLaz()`는 실제 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
 - FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
 - 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.
-- 실제 맵에서의 PIE smoke test와 WBP Designer 배치 검증은 별도 editor 작업이 필요합니다.
+- 실제 map에서의 PIE smoke test와 WBP Designer 배치 검증은 별도 editor 작업이 필요합니다.
