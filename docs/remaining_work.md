@@ -103,6 +103,11 @@ Current state:
 - Camera schema is documented as `virtual-camera.v1`.
 - Reference fixtures exist under `Samples/payload_fixtures/` and can be checked
   with `Scripts/validate_payload_fixtures.ps1`.
+- A local mock contract validator checks the fixtures against acceptance rules
+  that approximate likely judging-server rejections before the final server
+  contract is approved.
+- The readiness wrapper runs both fixture validation and mock contract
+  validation before smoke tests unless those gates are explicitly skipped.
 - The schema is implemented enough for local export and smoke tests, but the
   final judging server contract is not confirmed.
 
@@ -119,7 +124,8 @@ Completion evidence:
 
 - Approved example payloads exist.
 - Contract tests validate required fields.
-- Transport mode can produce payloads accepted by the server or a local mock.
+- Transport mode can produce payloads accepted by the server or the local mock
+  contract validator.
 
 ### True LAZ Compression
 

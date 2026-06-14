@@ -88,11 +88,14 @@ Validate all payload fixtures:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
 ```
 
 The validator reads this document's `Top-Level Fields` and `Transform` blocks,
-then checks the reference fixture against those field lists. Keep these blocks
-in sync with any schema changes.
+then checks the reference fixture against those field lists. The mock contract
+validator then applies local acceptance rules that approximate what the judging
+server is expected to reject before the final server contract is available. Keep
+these blocks in sync with any schema changes.
 
 ## Related Tests
 

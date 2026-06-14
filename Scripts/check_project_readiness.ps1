@@ -13,6 +13,7 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipSmoke,
     [switch]$SkipPayloadFixtures,
+    [switch]$SkipPayloadContract,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [string[]]$FailOnCategory = @()
@@ -52,6 +53,7 @@ if (-not (Test-Path -LiteralPath $ProjectPath)) {
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AssetReportScript = Join-Path $ScriptRoot "report_local_project_status.ps1"
 $PayloadFixtureScript = Join-Path $ScriptRoot "validate_payload_fixtures.ps1"
+$PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
@@ -59,6 +61,9 @@ if (-not (Test-Path -LiteralPath $AssetReportScript)) {
 }
 if (-not (Test-Path -LiteralPath $PayloadFixtureScript)) {
     throw "validate_payload_fixtures.ps1 not found: $PayloadFixtureScript"
+}
+if (-not (Test-Path -LiteralPath $PayloadContractScript)) {
+    throw "validate_payload_contract.ps1 not found: $PayloadContractScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -89,6 +94,17 @@ if (-not $SkipPayloadFixtures) {
 else {
     Write-Host ""
     Write-Host "Payload fixture validation skipped by -SkipPayloadFixtures."
+}
+
+if (-not $SkipPayloadContract) {
+    Invoke-ScriptStep `
+        -Label "Payload mock contract validation" `
+        -ScriptPath $PayloadContractScript `
+        -Parameters @{}
+}
+else {
+    Write-Host ""
+    Write-Host "Payload mock contract validation skipped by -SkipPayloadContract."
 }
 
 if (-not $SkipSmoke) {

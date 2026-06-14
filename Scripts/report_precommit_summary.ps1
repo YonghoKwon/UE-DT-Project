@@ -14,17 +14,17 @@ function Write-Section {
 function Get-GitLines {
     param(
         [string]$WorkingDirectory,
-        [string[]]$Arguments
+        [string[]]$GitArgs
     )
 
     Push-Location $WorkingDirectory
     try {
         $previousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        $output = @(& git @Arguments 2>$null)
+        $output = @(& git.exe @GitArgs 2>&1 | Where-Object { $_ -notmatch "^warning:" })
         $ErrorActionPreference = $previousErrorActionPreference
         if ($LASTEXITCODE -ne 0) {
-            throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+            throw "git $($GitArgs -join ' ') failed with exit code $LASTEXITCODE"
         }
         return $output
     }
@@ -52,6 +52,43 @@ function Get-LocalAssetSummary {
     return $jsonText | ConvertFrom-Json
 }
 
+function Get-RepoChangeSummary {
+    param([string]$RepoRoot)
+
+    $statusLines = Get-GitLines -WorkingDirectory $RepoRoot -GitArgs @("status", "--porcelain=v1")
+    $stagedChanges = @()
+    $unstagedChanges = @()
+    $untrackedChanges = @()
+
+    foreach ($line in $statusLines) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 3) {
+            continue
+        }
+
+        $indexStatus = $line.Substring(0, 1)
+        $worktreeStatus = $line.Substring(1, 1)
+        $path = $line.Substring(3)
+
+        if ($indexStatus -eq "?" -and $worktreeStatus -eq "?") {
+            $untrackedChanges += $path
+            continue
+        }
+
+        if ($indexStatus -ne " ") {
+            $stagedChanges += "$indexStatus`t$path"
+        }
+        if ($worktreeStatus -ne " ") {
+            $unstagedChanges += "$worktreeStatus`t$path"
+        }
+    }
+
+    return [PSCustomObject]@{
+        Staged = $stagedChanges
+        Unstaged = $unstagedChanges
+        Untracked = $untrackedChanges
+    }
+}
+
 function New-WorkArea {
     param(
         [string]$Name,
@@ -68,7 +105,7 @@ function New-WorkArea {
     }
 }
 
-$repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$repoRoot = (Resolve-Path -LiteralPath (Get-Location).Path).Path
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $workAreas = @(
@@ -79,8 +116,8 @@ $workAreas = @(
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
-        -Percent 60 `
-        -Done "LiDAR/camera schema docs, fixtures, and fixture validator are in place." `
+        -Percent 65 `
+        -Done "LiDAR/camera schema docs, fixtures, fixture validator, and local mock contract validator are in place." `
         -Remaining "Judging server approval, mock/server acceptance test, and final transport contract remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
@@ -105,11 +142,12 @@ $workAreas = @(
 )
 
 $overallPercent = [int][Math]::Round((($workAreas | Measure-Object -Property Percent -Average).Average), 0)
-$staged = Get-GitLines -WorkingDirectory $repoRoot -Arguments @("diff", "--cached", "--name-status")
-$unstaged = Get-GitLines -WorkingDirectory $repoRoot -Arguments @("diff", "--name-status")
-$untracked = Get-GitLines -WorkingDirectory $repoRoot -Arguments @("ls-files", "--others", "--exclude-standard")
-$branch = (Get-GitLines -WorkingDirectory $repoRoot -Arguments @("branch", "--show-current") | Select-Object -First 1)
-$recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -Arguments @("log", "--oneline", "-1") | Select-Object -First 1)
+$changeSummary = Get-RepoChangeSummary -RepoRoot $repoRoot
+$staged = $changeSummary.Staged
+$unstaged = $changeSummary.Unstaged
+$untracked = $changeSummary.Untracked
+$branch = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("branch", "--show-current") | Select-Object -First 1)
+$recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--oneline", "-1") | Select-Object -First 1)
 $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 
 $report = [PSCustomObject]@{

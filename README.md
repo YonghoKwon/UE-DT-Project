@@ -219,6 +219,13 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
 ```
 
+Payload mock contract 검증:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1" -Json
+```
+
 로컬 readiness gate:
 
 ```powershell
@@ -235,6 +242,7 @@ asset report만 확인하고 smoke test는 생략:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -SkipPayloadContract
 ```
 
 전체 로컬 smoke gate:
