@@ -293,6 +293,18 @@ TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
                 .Padding(0.0f, 0.0f, 6.0f, 6.0f)
                 [
                     SNew(SButton)
+                    .Text(FText::FromString(TEXT("Hit Only")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandlePreviewHitOnlyButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
                     .Text(FText::FromString(TEXT("Preview -")))
                     .OnClicked_Lambda([this]()
                     {
@@ -387,12 +399,22 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
         PreviewLessButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked);
         PreviewLessButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked);
     }
+    if (PreviewHitOnlyButton)
+    {
+        PreviewHitOnlyButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewHitOnlyButtonClicked);
+        PreviewHitOnlyButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewHitOnlyButtonClicked);
+    }
 
     RefreshTitle();
     RefreshImageBrush();
     RefreshStatusText();
     RefreshLocalCaptureButtonText();
     RefreshLidarViewModeButtonText();
+    if (PreviewHitOnlyButtonText)
+    {
+        const UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+        PreviewHitOnlyButtonText->SetText(FText::FromString(TargetLidar && TargetLidar->bPointCloudPreviewHitOnly ? TEXT("Preview: Hit Only") : TEXT("Preview: All Points")));
+    }
 }
 
 void UVirtualSensorMonitorWidget::NativeDestruct()
@@ -514,11 +536,7 @@ void UVirtualSensorMonitorWidget::CycleLidarViewMode()
 
 void UVirtualSensorMonitorWidget::SetLidarPreviewBudget(int32 InStride, int32 InMaxPoints)
 {
-    UVirtualLidarSensorComp* TargetLidar = LidarComp;
-    if (SensorManager && SensorManager->GetSelectedLidar())
-    {
-        TargetLidar = SensorManager->GetSelectedLidar();
-    }
+    UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
     if (!TargetLidar)
     {
         return;
@@ -552,30 +570,61 @@ void UVirtualSensorMonitorWidget::SetLidarPreviewBudget(int32 InStride, int32 In
 
 void UVirtualSensorMonitorWidget::IncreaseLidarPreviewBudget()
 {
-    if (!LidarComp)
+    const UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+    if (!TargetLidar)
     {
         return;
     }
 
-    const int32 NextStride = FMath::Max(FMath::Max(1, PreviewStrideMin), LidarComp->PreviewPointStride - 1);
-    const int32 NextMaxPoints = LidarComp->MaxPreviewPoints <= 0
+    const int32 NextStride = FMath::Max(FMath::Max(1, PreviewStrideMin), TargetLidar->PreviewPointStride - 1);
+    const int32 NextMaxPoints = TargetLidar->MaxPreviewPoints <= 0
         ? PreviewBudgetMinPoints
-        : LidarComp->MaxPreviewPoints + FMath::Max(100, PreviewBudgetStepPoints);
+        : TargetLidar->MaxPreviewPoints + FMath::Max(100, PreviewBudgetStepPoints);
     SetLidarPreviewBudget(NextStride, NextMaxPoints);
 }
 
 void UVirtualSensorMonitorWidget::DecreaseLidarPreviewBudget()
 {
-    if (!LidarComp)
+    const UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+    if (!TargetLidar)
     {
         return;
     }
 
-    const int32 NextStride = FMath::Min(FMath::Max(PreviewStrideMin, PreviewStrideMax), LidarComp->PreviewPointStride + 1);
-    const int32 NextMaxPoints = LidarComp->MaxPreviewPoints <= 0
+    const int32 NextStride = FMath::Min(FMath::Max(PreviewStrideMin, PreviewStrideMax), TargetLidar->PreviewPointStride + 1);
+    const int32 NextMaxPoints = TargetLidar->MaxPreviewPoints <= 0
         ? PreviewBudgetMaxPoints
-        : LidarComp->MaxPreviewPoints - FMath::Max(100, PreviewBudgetStepPoints);
+        : TargetLidar->MaxPreviewPoints - FMath::Max(100, PreviewBudgetStepPoints);
     SetLidarPreviewBudget(NextStride, NextMaxPoints);
+}
+
+void UVirtualSensorMonitorWidget::ToggleLidarPreviewHitOnly()
+{
+    UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+    if (!TargetLidar)
+    {
+        return;
+    }
+
+    const bool bNextHitOnly = !TargetLidar->bPointCloudPreviewHitOnly;
+    if (SensorManager && TargetLidar == SensorManager->GetSelectedLidar())
+    {
+        SensorManager->SetSelectedLidarPreviewPolicy(TargetLidar->PreviewPointStride, TargetLidar->MaxPreviewPoints, bNextHitOnly);
+    }
+    else
+    {
+        TargetLidar->SetPreviewPolicy(TargetLidar->PreviewPointStride, TargetLidar->MaxPreviewPoints, bNextHitOnly);
+    }
+
+    InvalidateEnhancedLidarView();
+    RefreshLidarPreviewWithoutTransport();
+    RefreshTitle();
+    RefreshStatusText();
+    RefreshImageBrush();
+
+    UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] LiDAR preview hit-only changed. Sensor=%s HitOnly=%s"),
+        *TargetLidar->SensorId,
+        TargetLidar->bPointCloudPreviewHitOnly ? TEXT("true") : TEXT("false"));
 }
 
 void UVirtualSensorMonitorWidget::CaptureSelectedSensorsOnce()
@@ -687,6 +736,11 @@ void UVirtualSensorMonitorWidget::HandlePreviewMoreButtonClicked()
 void UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked()
 {
     DecreaseLidarPreviewBudget();
+}
+
+void UVirtualSensorMonitorWidget::HandlePreviewHitOnlyButtonClicked()
+{
+    ToggleLidarPreviewHitOnly();
 }
 
 void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
@@ -885,6 +939,11 @@ void UVirtualSensorMonitorWidget::RefreshLidarViewModeButtonText()
     if (LidarViewModeButtonText)
     {
         LidarViewModeButtonText->SetText(FText::FromString(FString::Printf(TEXT("LiDAR View: %s"), *GetLidarViewModeDisplayText())));
+    }
+    if (PreviewHitOnlyButtonText)
+    {
+        const UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+        PreviewHitOnlyButtonText->SetText(FText::FromString(TargetLidar && TargetLidar->bPointCloudPreviewHitOnly ? TEXT("Preview: Hit Only") : TEXT("Preview: All Points")));
     }
 }
 
@@ -1464,4 +1523,13 @@ FString UVirtualSensorMonitorWidget::EnsureLocalCaptureSessionDirectory()
     LocalCaptureSessionDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), LocalCaptureFolderName, BuildPointCloudTimestamp());
     IFileManager::Get().MakeDirectory(*LocalCaptureSessionDirectory, true);
     return LocalCaptureSessionDirectory;
+}
+
+UVirtualLidarSensorComp* UVirtualSensorMonitorWidget::GetTargetLidarForPreview() const
+{
+    if (SensorManager && SensorManager->GetSelectedLidar())
+    {
+        return SensorManager->GetSelectedLidar();
+    }
+    return LidarComp;
 }

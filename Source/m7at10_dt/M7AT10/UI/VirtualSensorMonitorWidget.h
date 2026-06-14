@@ -61,6 +61,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void DecreaseLidarPreviewBudget();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void ToggleLidarPreviewHitOnly();
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Capture")
     void CaptureSelectedSensorsOnce();
 
@@ -116,6 +119,9 @@ private:
     UFUNCTION()
     void HandlePreviewLessButtonClicked();
 
+    UFUNCTION()
+    void HandlePreviewHitOnlyButtonClicked();
+
     void RefreshImageBrush();
     void RefreshTitle();
     void RefreshStatusText();
@@ -139,6 +145,7 @@ private:
     bool SaveLidarPointCloudToDisk(const FString& FramePrefix);
     bool RefreshLidarPreviewWithoutTransport();
     FString EnsureLocalCaptureSessionDirectory();
+    UVirtualLidarSensorComp* GetTargetLidarForPreview() const;
 
 private:
     UPROPERTY(Transient)
@@ -190,6 +197,9 @@ private:
     TObjectPtr<UButton> PreviewLessButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> PreviewHitOnlyButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
 
     UPROPERTY(meta = (BindWidgetOptional))
@@ -200,6 +210,9 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> LocalSensorCaptureButtonText;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> PreviewHitOnlyButtonText;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> StatusText;

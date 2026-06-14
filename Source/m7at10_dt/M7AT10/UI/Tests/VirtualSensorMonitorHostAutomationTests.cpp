@@ -78,6 +78,13 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
     TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,x,y,z")));
+
+    MonitorWidget->ToggleLidarPreviewHitOnly();
+    const FString ToggledStatusText = MonitorWidget->GetMonitorStatusText();
+    TestFalse(TEXT("preview hit-only toggles off"), LidarComp->bPointCloudPreviewHitOnly);
+    TestTrue(TEXT("status reflects preview hit-only toggle"), ToggledStatusText.Contains(TEXT("Preview: On")) && ToggledStatusText.Contains(TEXT("Stride=3 Max=5 HitOnly=false")));
+    TestEqual(TEXT("server payload stride unchanged after preview hit-only toggle"), LidarComp->ServerPayloadStride, 2);
+    TestEqual(TEXT("server payload max unchanged after preview hit-only toggle"), LidarComp->MaxServerPayloadPoints, 8);
     return true;
 }
 

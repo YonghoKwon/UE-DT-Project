@@ -158,6 +158,8 @@ LocalSensorCaptureButtonText
 CaptureOnceButton
 PreviewMoreButton
 PreviewLessButton
+PreviewHitOnlyButton
+PreviewHitOnlyButtonText
 ```
 
 Status helper:
@@ -167,7 +169,17 @@ GetMonitorTitleText
 GetMonitorStatusText
 ```
 
-이 helper는 native fallback과 Designer WBP가 같은 상태 문자열 계약을 쓰도록 노출된 Blueprint-pure API입니다. `M7AT10.SensorMonitor.LidarStatusTextContract`가 sensor id, frame id, scan/ray count, server payload, preview, Slab 분석, warning, view mode, CSV row contract를 검증합니다.
+이 helper는 native fallback과 Designer WBP가 같은 상태 문자열 계약을 쓰도록 노출된 Blueprint-pure API입니다. `M7AT10.SensorMonitor.LidarStatusTextContract`가 sensor id, frame id, scan/ray count, server payload, preview, preview hit-only toggle, Slab 분석, warning, view mode, CSV row contract를 검증합니다.
+
+SensorMonitor Blueprint API:
+
+```text
+CaptureSelectedSensorsOnce
+SetLidarPreviewBudget
+IncreaseLidarPreviewBudget
+DecreaseLidarPreviewBudget
+ToggleLidarPreviewHitOnly
+```
 
 SensorManager Blueprint API:
 
@@ -182,7 +194,7 @@ SetPointCloudOnlyMode
 
 Level Blueprint 없이 위젯을 자동 생성하려면 맵에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
 
-`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 상태 텍스트와 기본 버튼을 보여주는 smoke-test용 UI입니다. 운영자용 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor`를 권장합니다.
+`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 상태 텍스트와 기본 버튼을 보여주는 smoke-test용 UI이며 preview hit-only 토글도 포함합니다. 운영자용 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor`를 권장합니다.
 
 ## 자동화 테스트
 
