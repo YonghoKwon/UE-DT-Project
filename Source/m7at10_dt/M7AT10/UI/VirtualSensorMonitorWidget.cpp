@@ -1041,7 +1041,19 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     else if (!bShowingLidar && CameraComp)
     {
         const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nRenderTarget: %s\nMessage: %s"), *Status.SensorId, Status.FrameId, CameraComp->GetCameraRenderTarget() ? TEXT("Ready") : TEXT("None"), *Status.LastMessage);
+        const FString DisplaySensorId = Status.SensorId.IsEmpty() ? CameraComp->SensorId : Status.SensorId;
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nSchema: virtual-camera.v1\nResolution: %dx%d\nCapture: Mode=%d Quality=%d Interval=%.3fs\nPayload: Bytes=%d Cached=%s\nRenderTarget: %s\nExport: Export Payload writes Saved/SensorCaptures/<SensorId>/ServerPayload\nMessage: %s"),
+            *DisplaySensorId,
+            Status.FrameId,
+            CameraComp->CaptureResolution.X,
+            CameraComp->CaptureResolution.Y,
+            static_cast<int32>(CameraComp->CaptureMode),
+            static_cast<int32>(CameraComp->GetSimulationQuality()),
+            CameraComp->CaptureInterval,
+            Status.LastPayloadLength,
+            CameraComp->GetLastJsonPayload().IsEmpty() ? TEXT("false") : TEXT("true"),
+            CameraComp->GetCameraRenderTarget() ? TEXT("Ready") : TEXT("None"),
+            *Status.LastMessage);
     }
     else
     {

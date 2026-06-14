@@ -4,12 +4,14 @@
 #include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
+#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorHostActor.h"
 #include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "M7AT10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorCameraStatusTextTest, "M7AT10.SensorMonitor.CameraStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorLidarStatusTextTest, "M7AT10.SensorMonitor.LidarStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorPerformanceWarningStatusTest, "M7AT10.SensorMonitor.PerformanceWarningStatusText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorServerPayloadExportTest, "M7AT10.SensorMonitor.ServerPayloadExport", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -28,6 +30,41 @@ bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 
     HostActor->MonitorWidgetClass = UVirtualSensorMonitorWidget::StaticClass();
     TestEqual(TEXT("explicit class wins"), HostActor->GetEffectiveMonitorWidgetClass(), TSubclassOf<UVirtualSensorMonitorWidget>(UVirtualSensorMonitorWidget::StaticClass()));
+    return true;
+}
+
+bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameters)
+{
+    UVirtualCameraComp* CameraComp = NewObject<UVirtualCameraComp>();
+    UVirtualSensorMonitorWidget* MonitorWidget = NewObject<UVirtualSensorMonitorWidget>();
+    TestNotNull(TEXT("camera component"), CameraComp);
+    TestNotNull(TEXT("monitor widget"), MonitorWidget);
+    if (!CameraComp || !MonitorWidget)
+    {
+        return false;
+    }
+
+    CameraComp->SensorId = TEXT("TEST-CAMERA-MONITOR-STATUS");
+    CameraComp->CaptureResolution = FIntPoint(800, 450);
+    CameraComp->CaptureInterval = 0.2f;
+    CameraComp->CaptureMode = EVirtualCameraCaptureMode::Payload;
+    CameraComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::Debug);
+    CameraComp->CaptureResolution = FIntPoint(800, 450);
+    CameraComp->CaptureInterval = 0.2f;
+
+    MonitorWidget->BindVirtualCamera(CameraComp);
+    MonitorWidget->ShowCameraView();
+
+    const FString TitleText = MonitorWidget->GetMonitorTitleText();
+    const FString StatusText = MonitorWidget->GetMonitorStatusText();
+
+    TestTrue(TEXT("title shows camera view"), TitleText.Contains(TEXT("Camera")));
+    TestTrue(TEXT("camera status includes selected sensor id"), StatusText.Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
+    TestTrue(TEXT("camera status includes schema version"), StatusText.Contains(TEXT("Schema: virtual-camera.v1")));
+    TestTrue(TEXT("camera status includes resolution"), StatusText.Contains(TEXT("Resolution: 800x450")));
+    TestTrue(TEXT("camera status includes capture mode"), StatusText.Contains(TEXT("Capture: Mode=")));
+    TestTrue(TEXT("camera status includes cached payload flag"), StatusText.Contains(TEXT("Cached=false")));
+    TestTrue(TEXT("camera status includes export path hint"), StatusText.Contains(TEXT("ServerPayload")));
     return true;
 }
 
