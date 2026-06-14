@@ -14,6 +14,7 @@ param(
     [switch]$SkipSmoke,
     [switch]$SkipPayloadFixtures,
     [switch]$SkipPayloadContract,
+    [switch]$SkipPayloadSchemaReviewPolicy,
     [switch]$SkipRealSensorAdapterPlan,
     [switch]$SkipPointCloudPreviewPolicy,
     [switch]$SkipLazPlaceholderPolicy,
@@ -62,6 +63,7 @@ $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AssetReportScript = Join-Path $ScriptRoot "report_local_project_status.ps1"
 $PayloadFixtureScript = Join-Path $ScriptRoot "validate_payload_fixtures.ps1"
 $PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
+$PayloadSchemaReviewPolicyScript = Join-Path $ScriptRoot "validate_payload_schema_review_policy.ps1"
 $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
@@ -78,6 +80,9 @@ if (-not (Test-Path -LiteralPath $PayloadFixtureScript)) {
 }
 if (-not (Test-Path -LiteralPath $PayloadContractScript)) {
     throw "validate_payload_contract.ps1 not found: $PayloadContractScript"
+}
+if (-not (Test-Path -LiteralPath $PayloadSchemaReviewPolicyScript)) {
+    throw "validate_payload_schema_review_policy.ps1 not found: $PayloadSchemaReviewPolicyScript"
 }
 if (-not (Test-Path -LiteralPath $RealSensorAdapterPlanScript)) {
     throw "validate_real_sensor_adapter_plan.ps1 not found: $RealSensorAdapterPlanScript"
@@ -140,6 +145,17 @@ if (-not $SkipPayloadContract) {
 else {
     Write-Host ""
     Write-Host "Payload mock contract validation skipped by -SkipPayloadContract."
+}
+
+if (-not $SkipPayloadSchemaReviewPolicy) {
+    Invoke-ScriptStep `
+        -Label "Payload schema review policy validation" `
+        -ScriptPath $PayloadSchemaReviewPolicyScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "Payload schema review policy validation skipped by -SkipPayloadSchemaReviewPolicy."
 }
 
 if (-not $SkipRealSensorAdapterPlan) {

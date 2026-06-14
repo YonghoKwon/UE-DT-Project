@@ -128,10 +128,15 @@ Current state:
 - A local mock contract validator checks the fixtures against acceptance rules
   that approximate likely judging-server rejections before the final server
   contract is approved.
+- Schema compatibility examples are documented for LiDAR and camera payloads,
+  including timestamp, unit, coordinate-frame, and preview/server semantics.
 - `Scripts/export_payload_contract_report.ps1` exports JSON and Markdown review
   artifacts under `Saved/PayloadContractReports/` for judging-server handoff.
+- `Scripts/validate_payload_schema_review_policy.ps1` checks that schema review
+  notes stay present while the final server contract is still open.
 - The readiness wrapper runs both fixture validation and mock contract
-  validation before smoke tests unless those gates are explicitly skipped.
+  validation before smoke tests unless those gates are explicitly skipped, and
+  now also runs the schema review policy gate.
 - The schema is implemented enough for local export and smoke tests, but the
   final judging server contract is not confirmed.
 
@@ -139,8 +144,6 @@ Next implementation steps:
 
 - Confirm required field names, units, coordinate frame, timestamp format, and
   compression/transport requirements with the judging server.
-- Add schema compatibility examples to `docs/lidar_payload_schema.md` and
-  `docs/camera_payload_schema.md`.
 - Add a fixture-based payload contract test if the server contract becomes
   stable.
 
@@ -150,6 +153,8 @@ Completion evidence:
 - Contract tests validate required fields.
 - Transport mode can produce payloads accepted by the server or the local mock
   contract validator.
+- Static readiness passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"`.
 
 ### True LAZ Compression
 
