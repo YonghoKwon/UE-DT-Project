@@ -257,6 +257,7 @@ LiDAR bDrawDebugRays = false
 
 ```text
 docs/lidar_payload_schema.md
+docs/camera_payload_schema.md
 docs/widget_designer_setup.md
 docs/editor_smoke_test.md
 docs/real_sensor_adapter_plan.md

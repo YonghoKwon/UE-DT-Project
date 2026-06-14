@@ -134,6 +134,16 @@ Monitor host fallback tests:
 `M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
 `M7AT10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count, preview count, Slab analysis, warning, view mode, and CSV row contract.
+`M7AT10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.
+
+Manual PIE payload checks:
+
+```text
+1. Open the monitor in camera view and press Export Payload.
+2. Confirm Saved/SensorCaptures/<CameraSensorId>/ServerPayload contains a virtual-camera.v1 JSON file.
+3. Switch to LiDAR view and press Export Payload.
+4. Confirm Saved/SensorCaptures/<LidarSensorId>/ServerPayload contains a virtual-lidar.v1 JSON file.
+```
 
 Local project status and asset decision inventory:
 
