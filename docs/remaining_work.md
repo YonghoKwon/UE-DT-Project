@@ -68,6 +68,12 @@ Open decisions:
     `Scripts/report_local_project_status.ps1`.
   - Evidence needed: explicit decision that Pixel Streaming samples are part of
     this repository.
+- Static readiness:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1"`.
+- Strict content-review gate:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -FailIfPresent`.
+- Decision report export:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1"`.
 
 Generated/local-output items are ignored by Git but still reported:
 
@@ -251,5 +257,6 @@ Strict asset gates for clean-content review:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnStagedDecisionPoints
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnLargeContentCandidates
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnCategory LargeContentCandidate,SampleOrThirdParty
 ```

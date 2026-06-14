@@ -121,8 +121,8 @@ $workAreas = @(
         -Remaining "Judging server approval, mock/server acceptance test, and final transport contract remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 40 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, and WBP/runtime-config decision guards are validated." `
+        -Percent 45 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, WBP/runtime-config/large-content decision guards are validated, and a local asset decision report exporter is available." `
         -Remaining "WBP, Game.ini, large content folders, and PixelStreaming sample ownership decisions remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `

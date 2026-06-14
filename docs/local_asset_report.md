@@ -85,6 +85,28 @@ and the largest files in each folder. Use this to spot built-data-heavy map
 packages, oversized textures, vendor packs, and copied sample projects before
 deciding whether the repository should own them.
 
+Static large-content decision readiness:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -FailIfPresent
+```
+
+The first command summarizes local large-content and sample candidates. The
+second command is a strict content-review gate and fails until ownership,
+dependency, and size decisions are complete.
+
+Export a review bundle:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1" -MarkdownPath ".\Saved\Reports\local_asset_decisions.md" -JsonPath ".\Saved\Reports\local_asset_decisions.json"
+```
+
+The exporter turns the same local asset report into a Markdown/JSON review
+bundle. By default it only prints to the console; pass output paths when you
+intentionally want generated review artifacts under `Saved/Reports`.
+
 ## Recommended Workflow
 
 1. Run the report before staging.
@@ -112,5 +134,6 @@ Strict local-output gates can be enabled when a clean packaging state is needed:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnStagedDecisionPoints
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnLargeContentCandidates
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnCategory LargeContentCandidate,SampleOrThirdParty
 ```

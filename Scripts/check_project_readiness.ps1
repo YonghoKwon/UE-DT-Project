@@ -19,6 +19,8 @@ param(
     [switch]$SkipLazPlaceholderPolicy,
     [switch]$SkipMonitorWidgetPolicy,
     [switch]$SkipRuntimeConfigPolicy,
+    [switch]$SkipLargeContentDecisionPolicy,
+    [switch]$FailOnLargeContentCandidates,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnStagedDecisionPoints,
@@ -65,6 +67,7 @@ $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_pre
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
 $RuntimeConfigPolicyScript = Join-Path $ScriptRoot "validate_runtime_config_policy.ps1"
+$LargeContentDecisionPolicyScript = Join-Path $ScriptRoot "validate_large_content_decision_policy.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
@@ -90,6 +93,9 @@ if (-not (Test-Path -LiteralPath $MonitorWidgetPolicyScript)) {
 }
 if (-not (Test-Path -LiteralPath $RuntimeConfigPolicyScript)) {
     throw "validate_runtime_config_policy.ps1 not found: $RuntimeConfigPolicyScript"
+}
+if (-not (Test-Path -LiteralPath $LargeContentDecisionPolicyScript)) {
+    throw "validate_large_content_decision_policy.ps1 not found: $LargeContentDecisionPolicyScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -189,6 +195,21 @@ if (-not $SkipRuntimeConfigPolicy) {
 else {
     Write-Host ""
     Write-Host "Runtime config policy validation skipped by -SkipRuntimeConfigPolicy."
+}
+
+if (-not $SkipLargeContentDecisionPolicy) {
+    $LargeContentDecisionParams = @{ ProjectRoot = $ProjectRoot }
+    if ($FailOnLargeContentCandidates) {
+        $LargeContentDecisionParams.FailIfPresent = $true
+    }
+    Invoke-ScriptStep `
+        -Label "Large content decision policy validation" `
+        -ScriptPath $LargeContentDecisionPolicyScript `
+        -Parameters $LargeContentDecisionParams
+}
+else {
+    Write-Host ""
+    Write-Host "Large content decision policy validation skipped by -SkipLargeContentDecisionPolicy."
 }
 
 if (-not $SkipSmoke) {
