@@ -274,14 +274,14 @@ void UVirtualLidarSensorComp::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints,
         {
             const float Yaw = FMath::Lerp(-HorizontalFov * 0.5f, HorizontalFov * 0.5f, W == 1 ? 0.5f : (float)X / (float)(W - 1));
             const FRotator RayRotation = BaseRotation + FRotator(Pitch, Yaw, 0.0f); const FVector Dir = RayRotation.Vector(); const FVector End = Origin + Dir * MaxDistance;
-            FVirtualLidarPoint FirstPoint; FirstPoint.LocalDirection = GetComponentTransform().InverseTransformVectorNoScale(Dir).GetSafeNormal(); FirstPoint.Distance = MaxDistance; FirstPoint.WorldLocation = End; FirstPoint.bHit = false;
+            FVirtualLidarPoint FirstPoint; FirstPoint.LocalDirection = GetComponentTransform().InverseTransformVectorNoScale(Dir).GetSafeNormal(); FirstPoint.Distance = MaxDistance; FirstPoint.WorldLocation = End; FirstPoint.bHit = false; FirstPoint.Row = V; FirstPoint.Col = X; FirstPoint.ReturnIndex = 0; FirstPoint.bHasGridCoord = true;
             if (bUseMultiHit)
             {
                 TArray<FHitResult> Hits; World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params); int32 Added = 0;
                 for (const FHitResult& Hit : Hits)
                 {
                     if (ShouldIgnoreHitActor(Hit.GetActor())) continue;
-                    FVirtualLidarPoint P; P.LocalDirection = FirstPoint.LocalDirection; P.bHit = true; P.Distance = Hit.Distance; P.WorldLocation = Hit.ImpactPoint; PopulatePointSemanticMetadata(P, Hit); OutPoints.Add(P);
+                    FVirtualLidarPoint P; P.LocalDirection = FirstPoint.LocalDirection; P.Row = FirstPoint.Row; P.Col = FirstPoint.Col; P.ReturnIndex = Added; P.bHasGridCoord = true; P.bHit = true; P.Distance = Hit.Distance; P.WorldLocation = Hit.ImpactPoint; PopulatePointSemanticMetadata(P, Hit); OutPoints.Add(P);
                     if (!FirstPoint.bHit) FirstPoint = P;
                     if (++Added >= FMath::Max(1, MaxHitsPerRay)) break;
                 }
@@ -483,7 +483,9 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     for (int32 I = 0; I < Points.Num(); I += SafeStride)
     {
         if (SafeMax > 0 && Added >= SafeMax) break; const FVirtualLidarPoint& P = Points[I]; if (!bIncludeMissPointsInServerPayload && !P.bHit) continue;
-        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>(); O->SetNumberField(TEXT("pointIndex"), I); O->SetNumberField(TEXT("row"), HorizontalSamples > 0 ? I / HorizontalSamples : 0); O->SetNumberField(TEXT("col"), HorizontalSamples > 0 ? I % HorizontalSamples : I); O->SetBoolField(TEXT("hit"), P.bHit); O->SetNumberField(TEXT("distance"), P.Distance); O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString()); O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString()); O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
+        const int32 DerivedRow = HorizontalSamples > 0 ? I / HorizontalSamples : 0;
+        const int32 DerivedCol = HorizontalSamples > 0 ? I % HorizontalSamples : I;
+        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>(); O->SetNumberField(TEXT("pointIndex"), I); O->SetNumberField(TEXT("row"), P.bHasGridCoord ? P.Row : DerivedRow); O->SetNumberField(TEXT("col"), P.bHasGridCoord ? P.Col : DerivedCol); O->SetNumberField(TEXT("returnIndex"), P.ReturnIndex); O->SetBoolField(TEXT("gridCoordValid"), P.bHasGridCoord); O->SetStringField(TEXT("gridCoordSource"), P.bHasGridCoord ? TEXT("point_metadata") : TEXT("derived_from_point_index")); O->SetBoolField(TEXT("hit"), P.bHit); O->SetNumberField(TEXT("distance"), P.Distance); O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString()); O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString()); O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
         TArray<TSharedPtr<FJsonValue>> Tags; for (const FName& T : P.HitActorTags) Tags.Add(MakeShared<FJsonValueString>(T.ToString())); O->SetArrayField(TEXT("hitActorTags"), Tags);
         AddVectorArray(O, TEXT("worldLocation"), P.WorldLocation);
         AddVectorArray(O, TEXT("localDirection"), P.LocalDirection);

@@ -111,13 +111,13 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $workAreas = @(
     (New-WorkArea `
         -Name "Virtual sensor baseline" `
-        -Percent 87 `
-        -Done "LiDAR/camera payload, replay, slab analysis, monitor fallback, monitor camera capture pending-state guards, monitor policy validation, smoke/readiness scripts are implemented." `
+        -Percent 88 `
+        -Done "LiDAR/camera payload, replay, preserved LiDAR grid coords, slab analysis, monitor fallback, monitor camera capture pending-state guards, monitor policy validation, smoke/readiness scripts are implemented." `
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
-        -Percent 78 `
-        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator, local mock contract validator, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, and exportable contract review report are in place." `
+        -Percent 80 `
+        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator, preserved row/col/returnIndex contract, local mock contract validator, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, and exportable contract review report are in place." `
         -Remaining "Judging server approval, real server acceptance evidence, and final endpoint/auth/retry/batching decisions remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `

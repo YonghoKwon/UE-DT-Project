@@ -33,6 +33,7 @@ struct FLocalLidarCsvPoint
 {
     int32 Row = 0;
     int32 Col = 0;
+    int32 ReturnIndex = 0;
     FVector Point = FVector::ZeroVector;
 };
 
@@ -151,19 +152,29 @@ FColor ApplyMonitorGridOverlay(const FColor& InColor, bool bHit, bool bIsGrid)
         255);
 }
 
+FIntPoint ResolveLidarGridCoord(const FVirtualLidarPoint& Point, int32 PointIndex, int32 HorizontalSamples)
+{
+    if (Point.bHasGridCoord)
+    {
+        return FIntPoint(Point.Row, Point.Col);
+    }
+
+    const int32 SafeHorizontalSamples = FMath::Max(1, HorizontalSamples);
+    return FIntPoint(PointIndex / SafeHorizontalSamples, PointIndex % SafeHorizontalSamples);
+}
+
 FString BuildRowColCsvText(const UVirtualLidarSensorComp* LidarComp, int32& OutExportedPointCount)
 {
     OutExportedPointCount = 0;
     FString Text;
     Text.Reserve(LidarComp ? FMath::Max(128, LidarComp->GetLastPoints().Num() * 64) : 128);
-    Text += TEXT("row,col,x,y,z\n");
+    Text += TEXT("row,col,returnIndex,x,y,z\n");
     if (!LidarComp)
     {
         return Text;
     }
 
     const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
-    const int32 SafeHorizontalSamples = FMath::Max(1, LidarComp->HorizontalSamples);
     for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
     {
         const FVirtualLidarPoint& Point = Points[PointIndex];
@@ -172,9 +183,11 @@ FString BuildRowColCsvText(const UVirtualLidarSensorComp* LidarComp, int32& OutE
             continue;
         }
 
-        Text += FString::Printf(TEXT("%d,%d,%f,%f,%f\n"),
-            PointIndex / SafeHorizontalSamples,
-            PointIndex % SafeHorizontalSamples,
+        const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
+        Text += FString::Printf(TEXT("%d,%d,%d,%f,%f,%f\n"),
+            GridCoord.X,
+            GridCoord.Y,
+            Point.ReturnIndex,
             Point.WorldLocation.X,
             Point.WorldLocation.Y,
             Point.WorldLocation.Z);
@@ -890,10 +903,9 @@ void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
     }
 
     const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
-    const int32 SafeHorizontalSamples = FMath::Max(1, LidarComp->HorizontalSamples);
     int32 Logged = 0;
     int32 CandidateCount = 0;
-    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log start. format=row,col,x,y,z"), *LidarComp->SensorId);
+    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log start. format=row,col,returnIndex,x,y,z"), *LidarComp->SensorId);
     for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
     {
         const FVirtualLidarPoint& Point = Points[PointIndex];
@@ -906,7 +918,8 @@ void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
         {
             continue;
         }
-        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] row=%d col=%d x=%.3f y=%.3f z=%.3f"), *LidarComp->SensorId, PointIndex / SafeHorizontalSamples, PointIndex % SafeHorizontalSamples, Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z);
+        const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] row=%d col=%d returnIndex=%d x=%.3f y=%.3f z=%.3f"), *LidarComp->SensorId, GridCoord.X, GridCoord.Y, Point.ReturnIndex, Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z);
     }
     UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log complete. candidates=%d"), *LidarComp->SensorId, CandidateCount);
 }
@@ -1006,7 +1019,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
         const FVirtualLidarSlabAnalysisResult& Slab = Status.SlabAnalysis;
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,x,y,z\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,returnIndex,x,y,z\nMessage: %s"),
             *Status.SensorId,
             Status.FrameId,
             LidarComp->ScanInterval,
@@ -1589,7 +1602,6 @@ bool UVirtualSensorMonitorWidget::SaveLidarPointCloudToDisk(const FString& Frame
         return bSyncLasSaved || bSyncLazSaved;
     }
 
-    const int32 SafeHorizontalSamples = FMath::Max(1, LidarComp->HorizontalSamples);
     TArray<FLocalLidarCsvPoint> CsvPoints;
     CsvPoints.Reserve(Points.Num());
     for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
@@ -1600,9 +1612,11 @@ bool UVirtualSensorMonitorWidget::SaveLidarPointCloudToDisk(const FString& Frame
             continue;
         }
 
+        const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
         FLocalLidarCsvPoint CsvPoint;
-        CsvPoint.Row = PointIndex / SafeHorizontalSamples;
-        CsvPoint.Col = PointIndex % SafeHorizontalSamples;
+        CsvPoint.Row = GridCoord.X;
+        CsvPoint.Col = GridCoord.Y;
+        CsvPoint.ReturnIndex = Point.ReturnIndex;
         CsvPoint.Point = Point.WorldLocation;
         CsvPoints.Add(CsvPoint);
     }
@@ -1621,10 +1635,10 @@ bool UVirtualSensorMonitorWidget::SaveLidarPointCloudToDisk(const FString& Frame
     {
         FString Text;
         Text.Reserve(FMath::Max(128, CsvPoints.Num() * 64));
-        Text += TEXT("row,col,x,y,z\n");
+        Text += TEXT("row,col,returnIndex,x,y,z\n");
         for (const FLocalLidarCsvPoint& CsvPoint : CsvPoints)
         {
-            Text += FString::Printf(TEXT("%d,%d,%f,%f,%f\n"), CsvPoint.Row, CsvPoint.Col, CsvPoint.Point.X, CsvPoint.Point.Y, CsvPoint.Point.Z);
+            Text += FString::Printf(TEXT("%d,%d,%d,%f,%f,%f\n"), CsvPoint.Row, CsvPoint.Col, CsvPoint.ReturnIndex, CsvPoint.Point.X, CsvPoint.Point.Y, CsvPoint.Point.Z);
         }
         const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
         AsyncTask(ENamedThreads::GameThread, [WeakThis, Path, bSaved]()

@@ -79,6 +79,9 @@ Each point in `points[]` contains:
 pointIndex
 row
 col
+returnIndex
+gridCoordValid
+gridCoordSource
 hit
 distance
 hitActor
@@ -89,7 +92,15 @@ worldLocation
 localDirection
 ```
 
-`row` and `col` are derived from `pointIndex` and `horizontalSamples`.
+`row` and `col` are copied from the `FVirtualLidarPoint` grid coordinate when
+available. Virtual scans populate them from the scan ray (`VerticalChannel`,
+`HorizontalSample`), CSV/JSONL replay preserves parsed `row`/`col`, and
+multi-hit points share the same `row`/`col` with different `returnIndex` values.
+If an injected/replayed point has no grid coordinate metadata, DT-Project falls
+back to `pointIndex / horizontalSamples` and marks that point with
+`gridCoordValid = false` and `gridCoordSource = derived_from_point_index`.
+Monitor row/column CSV exports include `returnIndex` so multi-hit returns from
+the same ray remain distinguishable outside Unreal.
 
 ## Slab Analysis
 
@@ -119,6 +130,11 @@ status
   `sensorTransform.up` use Unreal world coordinates.
 - `row` and `col` identify the scan grid cell that produced the point. They are
   stable for replay, export, and server-side slab-angle reconstruction.
+- `returnIndex` identifies which return came from the same scan ray. It is `0`
+  for ordinary single-hit scans and replay samples.
+- `gridCoordSource` is `point_metadata` when the grid coordinate was preserved
+  from scan/replay input, and `derived_from_point_index` only for fallback
+  injected frames that do not carry grid metadata.
 - `previewPolicy` is never a server measurement contract. It only describes
   Unreal display density.
 - `payloadPolicy` is the only policy that describes how `points[]` was selected
@@ -171,6 +187,7 @@ Regression coverage:
 
 ```text
 M7AT10.SensorReplay.PayloadPolicyJson
+M7AT10.SensorReplay.PayloadPreservesGridCoord
 M7AT10.SensorReplay.LazPlaceholderWritesLasSource
 M7AT10.SensorReplay.TransportSaveToFilePayload
 M7AT10.SensorReplay.PerformanceWarningStatus

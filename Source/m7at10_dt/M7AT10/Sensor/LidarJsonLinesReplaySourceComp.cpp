@@ -249,6 +249,29 @@ bool ULidarJsonLinesReplaySourceComp::ParseJsonPointLine(const FString& Line, FV
     OutPoint.bHit = Object->HasField(TEXT("hit")) ? Object->GetBoolField(TEXT("hit")) : true;
     OutPoint.LocalDirection = DirectionTransform.InverseTransformVectorNoScale(WorldLocation - Origin).GetSafeNormal();
     ReadVectorArray(Object, TEXT("localDirection"), OutPoint.LocalDirection);
+
+    double Row = 0.0;
+    double Col = 0.0;
+    const bool bHasRowCol = Object->TryGetNumberField(TEXT("row"), Row) && Object->TryGetNumberField(TEXT("col"), Col);
+    if (bHasRowCol)
+    {
+        OutPoint.Row = FMath::RoundToInt(Row);
+        OutPoint.Col = FMath::RoundToInt(Col);
+    }
+    double ReturnIndex = 0.0;
+    if (Object->TryGetNumberField(TEXT("returnIndex"), ReturnIndex))
+    {
+        OutPoint.ReturnIndex = FMath::RoundToInt(ReturnIndex);
+    }
+    bool bGridCoordValid = bHasRowCol;
+    Object->TryGetBoolField(TEXT("gridCoordValid"), bGridCoordValid);
+    FString GridCoordSource;
+    if (Object->TryGetStringField(TEXT("gridCoordSource"), GridCoordSource))
+    {
+        bGridCoordValid = bGridCoordValid && GridCoordSource.Equals(TEXT("point_metadata"), ESearchCase::IgnoreCase);
+    }
+    OutPoint.bHasGridCoord = bGridCoordValid;
+
     FString ActorName;
     if (Object->TryGetStringField(TEXT("actor"), ActorName))
     {

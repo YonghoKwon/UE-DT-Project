@@ -39,6 +39,18 @@ struct M7AT10_DT_API FVirtualLidarPoint
     bool bHit = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    int32 Row = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    int32 Col = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    int32 ReturnIndex = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    bool bHasGridCoord = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
     FName HitActorName = NAME_None;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")

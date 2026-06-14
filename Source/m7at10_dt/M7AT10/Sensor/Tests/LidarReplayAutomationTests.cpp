@@ -13,6 +13,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarCsvReplayLoadTest, "M7AT10.SensorReplay.C
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "M7AT10.SensorReplay.JsonLinesLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayInjectFrameTest, "M7AT10.SensorReplay.InjectFrameUpdatesStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadPolicyJsonTest, "M7AT10.SensorReplay.PayloadPolicyJson", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadGridCoordTest, "M7AT10.SensorReplay.PayloadPreservesGridCoord", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.SensorReplay.TransportSaveToFilePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPerformanceWarningTest, "M7AT10.SensorReplay.PerformanceWarningStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazPlaceholderExportTest, "M7AT10.SensorReplay.LazPlaceholderWritesLasSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -32,6 +33,11 @@ bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("CSV row count"), Rows, 4);
     TestEqual(TEXT("CSV column count"), Cols, 6);
     TestTrue(TEXT("CSV points are hit points"), Points.Num() > 0 && Points[0].bHit);
+    TestTrue(TEXT("CSV points preserve grid coord"), Points.Num() > 0 && Points[0].bHasGridCoord);
+    TestEqual(TEXT("CSV first row"), Points.Num() > 0 ? Points[0].Row : INDEX_NONE, 0);
+    TestEqual(TEXT("CSV first col"), Points.Num() > 0 ? Points[0].Col : INDEX_NONE, 0);
+    TestEqual(TEXT("CSV last row"), Points.Num() > 0 ? Points.Last().Row : INDEX_NONE, 3);
+    TestEqual(TEXT("CSV last col"), Points.Num() > 0 ? Points.Last().Col : INDEX_NONE, 5);
     TestEqual(TEXT("CSV semantic label"), Points.Num() > 0 ? Points[0].SemanticLabel : NAME_None, FName(TEXT("Slab")));
     return true;
 }
@@ -46,6 +52,11 @@ bool FLidarJsonLinesReplayLoadTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("JSONL frame loads"), ReplayComp->LoadJsonLinesFrame(Points));
     TestEqual(TEXT("JSONL sample point count"), Points.Num(), 18);
     TestTrue(TEXT("JSONL points are hit points"), Points.Num() > 0 && Points[0].bHit);
+    TestTrue(TEXT("JSONL points preserve grid coord"), Points.Num() > 0 && Points[0].bHasGridCoord);
+    TestEqual(TEXT("JSONL first row"), Points.Num() > 0 ? Points[0].Row : INDEX_NONE, 0);
+    TestEqual(TEXT("JSONL first col"), Points.Num() > 0 ? Points[0].Col : INDEX_NONE, 0);
+    TestEqual(TEXT("JSONL last row"), Points.Num() > 0 ? Points.Last().Row : INDEX_NONE, 2);
+    TestEqual(TEXT("JSONL last col"), Points.Num() > 0 ? Points.Last().Col : INDEX_NONE, 5);
     TestEqual(TEXT("JSONL semantic label"), Points.Num() > 0 ? Points[0].SemanticLabel : NAME_None, FName(TEXT("Slab")));
     return true;
 }
@@ -152,6 +163,16 @@ bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
     if (JsonPoints)
     {
         TestEqual(TEXT("points array count follows server payload policy"), JsonPoints->Num(), 5);
+        const TSharedPtr<FJsonObject> FirstPointObject = JsonPoints->Num() > 0 ? (*JsonPoints)[0]->AsObject() : nullptr;
+        TestTrue(TEXT("payload point object exists"), FirstPointObject.IsValid());
+        if (FirstPointObject.IsValid())
+        {
+            TestEqual(TEXT("payload point row from preserved coord"), static_cast<int32>(FirstPointObject->GetIntegerField(TEXT("row"))), 0);
+            TestEqual(TEXT("payload point col from preserved coord"), static_cast<int32>(FirstPointObject->GetIntegerField(TEXT("col"))), 0);
+            TestEqual(TEXT("payload point returnIndex"), static_cast<int32>(FirstPointObject->GetIntegerField(TEXT("returnIndex"))), 0);
+            TestTrue(TEXT("payload point gridCoordValid"), FirstPointObject->GetBoolField(TEXT("gridCoordValid")));
+            TestEqual(TEXT("payload point gridCoordSource"), FirstPointObject->GetStringField(TEXT("gridCoordSource")), FString(TEXT("point_metadata")));
+        }
     }
 
     const TSharedPtr<FJsonObject>* SlabAnalysis = nullptr;
@@ -160,6 +181,82 @@ bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
     {
         TestTrue(TEXT("slabAnalysis valid"), (*SlabAnalysis)->GetBoolField(TEXT("valid")));
         TestEqual(TEXT("slabAnalysis slab point count remains full hit set"), static_cast<int32>((*SlabAnalysis)->GetIntegerField(TEXT("slabHitPointCount"))), 24);
+    }
+
+    return true;
+}
+
+bool FLidarReplayPayloadGridCoordTest::RunTest(const FString& Parameters)
+{
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!LidarComp)
+    {
+        return false;
+    }
+
+    TArray<FVirtualLidarPoint> Points;
+
+    FVirtualLidarPoint PreservedPoint;
+    PreservedPoint.WorldLocation = FVector(100.0f, 200.0f, 0.0f);
+    PreservedPoint.LocalDirection = FVector::ForwardVector;
+    PreservedPoint.Distance = 223.6f;
+    PreservedPoint.bHit = true;
+    PreservedPoint.Row = 7;
+    PreservedPoint.Col = 11;
+    PreservedPoint.ReturnIndex = 2;
+    PreservedPoint.bHasGridCoord = true;
+    PreservedPoint.SemanticLabel = FName(TEXT("Slab"));
+    Points.Add(PreservedPoint);
+
+    FVirtualLidarPoint DerivedPoint;
+    DerivedPoint.WorldLocation = FVector(120.0f, 210.0f, 0.0f);
+    DerivedPoint.LocalDirection = FVector::ForwardVector;
+    DerivedPoint.Distance = 241.9f;
+    DerivedPoint.bHit = true;
+    DerivedPoint.bHasGridCoord = false;
+    DerivedPoint.SemanticLabel = FName(TEXT("Slab"));
+    Points.Add(DerivedPoint);
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-GRID-COORD");
+    LidarComp->HorizontalSamples = 2;
+    LidarComp->VerticalChannels = 1;
+    LidarComp->SetServerPayloadPolicy(1, 0, false);
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    TSharedPtr<FJsonObject> RootObject;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(LidarComp->GetLastJsonPayload());
+    TestTrue(TEXT("Payload JSON parses"), FJsonSerializer::Deserialize(Reader, RootObject) && RootObject.IsValid());
+    if (!RootObject.IsValid())
+    {
+        return false;
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* JsonPoints = nullptr;
+    TestTrue(TEXT("points array exists"), RootObject->TryGetArrayField(TEXT("points"), JsonPoints) && JsonPoints);
+    if (!JsonPoints || JsonPoints->Num() < 2)
+    {
+        return false;
+    }
+
+    const TSharedPtr<FJsonObject> PreservedJson = (*JsonPoints)[0]->AsObject();
+    const TSharedPtr<FJsonObject> DerivedJson = (*JsonPoints)[1]->AsObject();
+    TestTrue(TEXT("preserved point json exists"), PreservedJson.IsValid());
+    TestTrue(TEXT("derived point json exists"), DerivedJson.IsValid());
+    if (PreservedJson.IsValid())
+    {
+        TestEqual(TEXT("preserved row"), static_cast<int32>(PreservedJson->GetIntegerField(TEXT("row"))), 7);
+        TestEqual(TEXT("preserved col"), static_cast<int32>(PreservedJson->GetIntegerField(TEXT("col"))), 11);
+        TestEqual(TEXT("preserved returnIndex"), static_cast<int32>(PreservedJson->GetIntegerField(TEXT("returnIndex"))), 2);
+        TestTrue(TEXT("preserved grid coord valid"), PreservedJson->GetBoolField(TEXT("gridCoordValid")));
+        TestEqual(TEXT("preserved grid coord source"), PreservedJson->GetStringField(TEXT("gridCoordSource")), FString(TEXT("point_metadata")));
+    }
+    if (DerivedJson.IsValid())
+    {
+        TestEqual(TEXT("derived row"), static_cast<int32>(DerivedJson->GetIntegerField(TEXT("row"))), 0);
+        TestEqual(TEXT("derived col"), static_cast<int32>(DerivedJson->GetIntegerField(TEXT("col"))), 1);
+        TestFalse(TEXT("derived grid coord invalid"), DerivedJson->GetBoolField(TEXT("gridCoordValid")));
+        TestEqual(TEXT("derived grid coord source"), DerivedJson->GetStringField(TEXT("gridCoordSource")), FString(TEXT("derived_from_point_index")));
     }
 
     return true;

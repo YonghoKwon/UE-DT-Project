@@ -58,7 +58,8 @@ bool ULidarCsvReplaySourceComp::LoadCsvFrame(TArray<FVirtualLidarPoint>& OutPoin
         FVector ParsedPoint = FVector::ZeroVector;
         int32 Row = 0;
         int32 Col = ParsedPointCount;
-        if (!ParseCsvPointLine(Lines[LineIndex], LineIndex, Row, Col, ParsedPoint))
+        bool bHasGridCoord = false;
+        if (!ParseCsvPointLine(Lines[LineIndex], LineIndex, Row, Col, bHasGridCoord, ParsedPoint))
         {
             continue;
         }
@@ -85,6 +86,10 @@ bool ULidarCsvReplaySourceComp::LoadCsvFrame(TArray<FVirtualLidarPoint>& OutPoin
         Point.Distance = FVector::Distance(Origin, WorldPoint);
         Point.LocalDirection = DirectionTransform.InverseTransformVectorNoScale(WorldPoint - Origin).GetSafeNormal();
         Point.bHit = true;
+        Point.Row = Row;
+        Point.Col = Col;
+        Point.ReturnIndex = 0;
+        Point.bHasGridCoord = bHasGridCoord;
         Point.HitActorName = FName(TEXT("CsvReplay"));
         Point.HitActorClassName = FName(TEXT("ReplaySource"));
         Point.SemanticLabel = ReplaySemanticLabel;
@@ -218,7 +223,7 @@ FString ULidarCsvReplaySourceComp::ResolveCsvFilePath() const
     return Path;
 }
 
-bool ULidarCsvReplaySourceComp::ParseCsvPointLine(const FString& Line, int32 LineIndex, int32& OutRow, int32& OutCol, FVector& OutPoint) const
+bool ULidarCsvReplaySourceComp::ParseCsvPointLine(const FString& Line, int32 LineIndex, int32& OutRow, int32& OutCol, bool& bOutHasGridCoord, FVector& OutPoint) const
 {
     FString Trimmed = Line;
     Trimmed.TrimStartAndEndInline();
@@ -242,6 +247,7 @@ bool ULidarCsvReplaySourceComp::ParseCsvPointLine(const FString& Line, int32 Lin
         OutPoint.X = FCString::Atof(*Cells[2]);
         OutPoint.Y = FCString::Atof(*Cells[3]);
         OutPoint.Z = FCString::Atof(*Cells[4]);
+        bOutHasGridCoord = true;
         return true;
     }
 
@@ -252,6 +258,7 @@ bool ULidarCsvReplaySourceComp::ParseCsvPointLine(const FString& Line, int32 Lin
         OutPoint.X = FCString::Atof(*Cells[0]);
         OutPoint.Y = FCString::Atof(*Cells[1]);
         OutPoint.Z = FCString::Atof(*Cells[2]);
+        bOutHasGridCoord = false;
         return true;
     }
 

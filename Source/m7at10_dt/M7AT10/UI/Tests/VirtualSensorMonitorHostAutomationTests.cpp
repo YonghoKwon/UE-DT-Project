@@ -117,7 +117,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes slab analysis"), StatusText.Contains(TEXT("Slab: Valid Points=24 Angle=")));
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
-    TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,x,y,z")));
+    TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,returnIndex,x,y,z")));
 
     MonitorWidget->ToggleLidarPreviewHitOnly();
     const FString ToggledStatusText = MonitorWidget->GetMonitorStatusText();

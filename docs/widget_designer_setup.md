@@ -154,7 +154,7 @@ Preview point count and policy
 Slab angle/deviation/confidence
 Transport/performance warning
 LiDAR view mode
-CSV export row contract
+CSV export row/return contract
 ```
 
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.

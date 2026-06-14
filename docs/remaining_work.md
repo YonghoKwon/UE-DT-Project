@@ -132,6 +132,9 @@ Current state:
   contract is approved.
 - Schema compatibility examples are documented for LiDAR and camera payloads,
   including timestamp, unit, coordinate-frame, and preview/server semantics.
+- LiDAR point `row`/`col` are now preserved from scan/replay metadata when
+  available, with `returnIndex`, `gridCoordValid`, and `gridCoordSource`
+  documenting multi-return and fallback cases.
 - `Scripts/export_payload_contract_report.ps1` exports JSON and Markdown review
   artifacts under `Saved/PayloadContractReports/` for judging-server handoff.
 - `Scripts/validate_payload_schema_review_policy.ps1` checks that schema review

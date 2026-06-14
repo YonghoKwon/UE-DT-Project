@@ -87,7 +87,7 @@ public:
 
 private:
     FString ResolveCsvFilePath() const;
-    bool ParseCsvPointLine(const FString& Line, int32 LineIndex, int32& OutRow, int32& OutCol, FVector& OutPoint) const;
+    bool ParseCsvPointLine(const FString& Line, int32 LineIndex, int32& OutRow, int32& OutCol, bool& bOutHasGridCoord, FVector& OutPoint) const;
     void PushFrameFromTimer();
 
 private:

@@ -53,11 +53,21 @@ sensorTransform
 pointIndex
 row
 col
+returnIndex
+gridCoordValid
+gridCoordSource
 worldLocation
 distance
 hit
 semanticLabel
 ```
+
+Adapters should preserve sensor/replay grid coordinates in `FVirtualLidarPoint`
+whenever the upstream packet contains them. `row` and `col` describe the source
+scan grid, `returnIndex` describes multi-return order for the same ray, and
+`gridCoordSource` is emitted as `point_metadata` when that coordinate is
+available. Frames that do not carry this metadata are still accepted, but the
+server payload marks them as `derived_from_point_index`.
 
 Real sensors may not have `hitActor` or `semanticLabel`. Use:
 
@@ -110,12 +120,19 @@ row,col,x,y,z
 x,y,z
 ```
 
+The `row,col,x,y,z` CSV form preserves grid coordinates. The `x,y,z` form is
+accepted for loose point-cloud replay, but those points are emitted with
+`gridCoordValid = false` and `gridCoordSource = derived_from_point_index`.
+
 Supported JSONL formats:
 
 ```text
-{"x":900,"y":-260,"z":0,"distance":936.8,"hit":true,"semanticLabel":"Slab"}
+{"row":0,"col":0,"returnIndex":0,"x":900,"y":-260,"z":0,"distance":936.8,"hit":true,"semanticLabel":"Slab"}
 {"worldLocation":[900,-260,0],"localDirection":[1,0,0],"hit":true,"semanticLabel":"Slab"}
 ```
+
+When JSONL contains `gridCoordValid` or `gridCoordSource`, replay preserves that
+validity marker instead of promoting fallback coordinates to source metadata.
 
 Recommended use:
 

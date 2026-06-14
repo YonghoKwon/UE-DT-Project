@@ -149,7 +149,7 @@ Assert-FieldListEqual `
 
 Assert-FieldListEqual `
     -Actual $lidarPointFields `
-    -Expected @("pointIndex", "row", "col", "hit", "distance", "hitActor", "hitActorClass", "hitActorTags", "semanticLabel", "worldLocation", "localDirection") `
+    -Expected @("pointIndex", "row", "col", "returnIndex", "gridCoordValid", "gridCoordSource", "hit", "distance", "hitActor", "hitActorClass", "hitActorTags", "semanticLabel", "worldLocation", "localDirection") `
     -Context "LiDAR documented point fields"
 
 Assert-FieldListEqual `
@@ -178,6 +178,9 @@ foreach ($point in $lidar.points) {
     Assert-HasFields -Object $point -FieldNames $lidarPointFields -Context "LiDAR point"
     Assert-ArrayLength -ArrayValue $point.worldLocation -ExpectedLength 3 -Context "LiDAR point.worldLocation"
     Assert-ArrayLength -ArrayValue $point.localDirection -ExpectedLength 3 -Context "LiDAR point.localDirection"
+    if ($point.gridCoordSource -notin @("point_metadata", "derived_from_point_index")) {
+        throw "LiDAR point gridCoordSource is not recognized: $($point.gridCoordSource)"
+    }
 }
 
 $cameraRequiredFields = Get-MarkdownTextBlockAfterHeading -Path $cameraDocPath -Heading "## Top-Level Fields"

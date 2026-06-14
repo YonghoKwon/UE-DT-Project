@@ -81,6 +81,16 @@ foreach ($point in $lidar.points) {
     Assert-Condition ($point.worldLocation.Count -eq 3) "LiDAR contract requires 3D worldLocation"
     Assert-Condition ($point.localDirection.Count -eq 3) "LiDAR contract requires 3D localDirection"
     Assert-Condition ($point.semanticLabel -and $point.semanticLabel.Length -gt 0) "LiDAR contract requires semanticLabel"
+    Assert-Condition ($point.row -ge 0) "LiDAR contract requires non-negative row"
+    Assert-Condition ($point.col -ge 0) "LiDAR contract requires non-negative col"
+    Assert-Condition ($point.returnIndex -ge 0) "LiDAR contract requires non-negative returnIndex"
+    Assert-Condition ($point.gridCoordSource -in @("point_metadata", "derived_from_point_index")) "LiDAR contract rejects gridCoordSource '$($point.gridCoordSource)'"
+    if ($point.gridCoordValid) {
+        Assert-Condition ($point.gridCoordSource -eq "point_metadata") "LiDAR contract requires valid grid coords to use point_metadata"
+    }
+    else {
+        Assert-Condition ($point.gridCoordSource -eq "derived_from_point_index") "LiDAR contract requires fallback grid coords to use derived_from_point_index"
+    }
 }
 $accepted += [PSCustomObject]@{
     SensorType = $lidar.sensorType
