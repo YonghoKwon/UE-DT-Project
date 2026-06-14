@@ -146,6 +146,17 @@ Regression coverage:
 M7AT10.RealSensorSource.PushFrameToTarget
 ```
 
+Static readiness coverage:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1" -Json
+```
+
+The static readiness script checks that replay adapters, placeholder adapters,
+the normalized LiDAR handoff API, replay samples, automation test names, and
+this plan document remain in sync before the real SDK adapters are implemented.
+
 ## Adapter Priority
 
 1. File replay adapter for saved JSON/JSONL/CSV frames.

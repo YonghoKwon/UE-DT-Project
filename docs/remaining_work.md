@@ -85,6 +85,9 @@ Current state:
 - `URos2SensorBridgeSourceComp`, `ULivoxLidarSourceComp`, and
   `URealSenseCameraSourceComp` are placeholders.
 - They expose configuration/state but do not connect to real SDKs or bridges.
+- `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
+  placeholder adapters, sample files, handoff API text, automation test names,
+  and the adapter plan remain in sync.
 
 Next implementation steps:
 
@@ -103,6 +106,8 @@ Completion evidence:
 - Server payload/export path is shared with virtual/replay sources.
 - Automation or editor smoke coverage exists for connection failure and at least
   one successful frame handoff path.
+- Static readiness passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
 
 ### Server Payload Schema Approval
 

@@ -14,6 +14,7 @@ param(
     [switch]$SkipSmoke,
     [switch]$SkipPayloadFixtures,
     [switch]$SkipPayloadContract,
+    [switch]$SkipRealSensorAdapterPlan,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnStagedDecisionPoints,
@@ -55,6 +56,7 @@ $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AssetReportScript = Join-Path $ScriptRoot "report_local_project_status.ps1"
 $PayloadFixtureScript = Join-Path $ScriptRoot "validate_payload_fixtures.ps1"
 $PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
+$RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
@@ -65,6 +67,9 @@ if (-not (Test-Path -LiteralPath $PayloadFixtureScript)) {
 }
 if (-not (Test-Path -LiteralPath $PayloadContractScript)) {
     throw "validate_payload_contract.ps1 not found: $PayloadContractScript"
+}
+if (-not (Test-Path -LiteralPath $RealSensorAdapterPlanScript)) {
+    throw "validate_real_sensor_adapter_plan.ps1 not found: $RealSensorAdapterPlanScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -109,6 +114,17 @@ if (-not $SkipPayloadContract) {
 else {
     Write-Host ""
     Write-Host "Payload mock contract validation skipped by -SkipPayloadContract."
+}
+
+if (-not $SkipRealSensorAdapterPlan) {
+    Invoke-ScriptStep `
+        -Label "Real sensor adapter plan validation" `
+        -ScriptPath $RealSensorAdapterPlanScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "Real sensor adapter plan validation skipped by -SkipRealSensorAdapterPlan."
 }
 
 if (-not $SkipSmoke) {
