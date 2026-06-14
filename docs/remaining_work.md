@@ -46,6 +46,8 @@ Open decisions:
   - Current local state: empty `[DTCoreRuntimeOverride]` values.
   - Recommended default: keep untracked as local-only runtime override unless
     shared endpoint defaults are explicitly required.
+  - Static readiness:
+    `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1"`.
   - Evidence needed for commit: inspect diff, confirm there are no endpoint or
     credential values, and document why the setting belongs in repo.
 - `Content/ChemicalPlantEnv/`

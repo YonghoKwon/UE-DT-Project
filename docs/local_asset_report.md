@@ -64,6 +64,16 @@ local-only runtime override unless shared endpoint defaults are explicitly
 required. If any endpoint or credential value is populated, review it for
 environment or secret leakage before staging.
 
+Static runtime-config readiness:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1"
+```
+
+This check passes when `Config/Game.ini` is absent or its
+`[DTCoreRuntimeOverride]` values are empty, and fails if local endpoint or
+credential values are present.
+
 `Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset` receives an additional
 detected note because it is a binary Designer widget. Keep it untracked until it
 has been opened in Unreal Editor, optional bindings have been checked against
