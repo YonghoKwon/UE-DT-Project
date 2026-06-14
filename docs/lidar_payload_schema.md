@@ -120,8 +120,10 @@ Regression coverage:
 M7AT10.SensorReplay.PayloadPolicyJson
 M7AT10.SensorReplay.LazPlaceholderWritesLasSource
 M7AT10.SensorReplay.TransportSaveToFilePayload
+M7AT10.SensorReplay.PerformanceWarningStatus
 ```
 
 This test verifies that `points[]` follows `payloadPolicy`, while runtime preview counts and `previewPolicy` remain separate.
 `M7AT10.SensorReplay.TransportSaveToFilePayload` verifies that replay-injected LiDAR frames can be submitted through `UVirtualSensorDataTransportComp` in `SaveToFile` mode, that a JSON file is written under the configured save directory, and that the saved file matches `GetLastJsonPayload()`.
+`M7AT10.SensorReplay.PerformanceWarningStatus` verifies that FullSpec, multi-hit, export-on-scan, and uncapped preview warnings are surfaced through runtime status.
 The LAZ placeholder test verifies that `ExportLastPointCloudLaz()` writes a `*_laz_source_*.las` source file and does not pretend to create a compressed `.laz` file.

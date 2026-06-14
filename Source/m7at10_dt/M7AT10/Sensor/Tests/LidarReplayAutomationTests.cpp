@@ -14,6 +14,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "M7AT10.SensorRe
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayInjectFrameTest, "M7AT10.SensorReplay.InjectFrameUpdatesStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadPolicyJsonTest, "M7AT10.SensorReplay.PayloadPolicyJson", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.SensorReplay.TransportSaveToFilePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPerformanceWarningTest, "M7AT10.SensorReplay.PerformanceWarningStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazPlaceholderExportTest, "M7AT10.SensorReplay.LazPlaceholderWritesLasSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
@@ -222,6 +223,47 @@ bool FLidarReplayTransportSaveToFileTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("saved payload sensor id"), RootObject->GetStringField(TEXT("sensorId")), SensorId);
         TestEqual(TEXT("saved payload point count"), static_cast<int32>(RootObject->GetIntegerField(TEXT("payloadPointCount"))), 24);
     }
+    return true;
+}
+
+bool FLidarReplayPerformanceWarningTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!ReplayComp || !LidarComp)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before performance warning test"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-PERF-WARNING");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->SimulationQuality = EVirtualSensorSimulationQuality::FullSpec;
+    LidarComp->bUseMultiHit = true;
+    LidarComp->bExportCsvOnScan = true;
+    LidarComp->bExportJsonLinesOnScan = true;
+    LidarComp->bPointCloudPreviewEnabled = true;
+    LidarComp->SetPreviewPolicy(1, 0, true);
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    const FString Warning = LidarComp->GetPerformanceWarning();
+    const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+    TestFalse(TEXT("performance warning is populated"), Warning.IsEmpty());
+    TestEqual(TEXT("runtime status carries performance warning"), Status.PerformanceWarning, Warning);
+    TestTrue(TEXT("warning includes fullspec multihit"), Warning.Contains(TEXT("FullSpec+MultiHit")));
+    TestTrue(TEXT("warning includes export-on-scan"), Warning.Contains(TEXT("FullSpec export-on-scan")));
+    TestTrue(TEXT("warning includes uncapped preview"), Warning.Contains(TEXT("Preview is uncapped")));
+    TestTrue(TEXT("runtime status message carries warning"), Status.LastMessage.Contains(TEXT("Warning=")) && Status.LastMessage.Contains(TEXT("FullSpec+MultiHit")));
     return true;
 }
 
