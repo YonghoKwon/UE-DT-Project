@@ -86,6 +86,8 @@ Use `-SkipBuild` when the editor binary was already built:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
 ```
 
+When `-SkipBuild` is not used, the script checks for a running `UnrealEditor.exe` before building. Close the editor first to avoid Live Coding or DLL lock failures. Use `-AllowOpenEditor` only when you intentionally want to bypass this guard.
+
 Replay tests:
 
 ```powershell

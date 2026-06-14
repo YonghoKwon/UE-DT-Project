@@ -9,7 +9,8 @@ param(
         "M7AT10.SensorManager",
         "M7AT10.SensorMonitor"
     ),
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$AllowOpenEditor
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,10 +47,16 @@ if (-not (Test-Path -LiteralPath $EditorCmd)) {
 }
 
 if (-not $SkipBuild) {
+    $OpenEditors = Get-Process UnrealEditor -ErrorAction SilentlyContinue
+    if ($OpenEditors -and -not $AllowOpenEditor) {
+        $EditorList = ($OpenEditors | ForEach-Object { "$($_.ProcessName):$($_.Id)" }) -join ", "
+        throw "UnrealEditor is running ($EditorList). Close the editor before building, use -SkipBuild after a successful build, or pass -AllowOpenEditor if you intentionally want to risk Live Coding/DLL lock failures."
+    }
+
     Invoke-CheckedCommand `
         -Label "Build m7at10_dtEditor Win64 Development" `
         -FilePath $BuildBat `
-        -Arguments @("m7at10_dtEditor", "Win64", "Development", $ProjectPath, "-WaitMutex")
+        -Arguments @("m7at10_dtEditor", "Win64", "Development", $ProjectPath, "-WaitMutex", "-NoHotReloadFromIDE")
 }
 
 foreach ($TestGroup in $TestGroups) {
