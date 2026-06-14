@@ -64,6 +64,10 @@ has been opened in Unreal Editor, optional bindings have been checked against
 `docs/widget_designer_setup.md`, and a PIE smoke pass confirms that the widget
 does not crash or show stale sensor status.
 
+Large content candidates include extension counts and the largest files in each
+folder. Use this to spot built-data-heavy map packages, oversized textures, and
+vendor packs before deciding whether the repository should own them.
+
 ## Recommended Workflow
 
 1. Run the report before staging.

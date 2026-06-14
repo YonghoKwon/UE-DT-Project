@@ -49,6 +49,50 @@ function Get-PathSummary {
     }
 }
 
+function Get-DirectoryContentSummary {
+    param([string]$FullPath)
+
+    if (-not (Test-Path -LiteralPath $FullPath)) {
+        return $null
+    }
+
+    $item = Get-Item -LiteralPath $FullPath
+    if (-not $item.PSIsContainer) {
+        return $null
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $FullPath -Recurse -File -ErrorAction SilentlyContinue)
+    $extensionCounts = @(
+        $files |
+            Group-Object Extension |
+            Sort-Object Count -Descending |
+            Select-Object -First 8 |
+            ForEach-Object {
+                [PSCustomObject]@{
+                    Extension = if ([string]::IsNullOrWhiteSpace($_.Name)) { "(none)" } else { $_.Name }
+                    Count = $_.Count
+                }
+            }
+    )
+    $largestFiles = @(
+        $files |
+            Sort-Object Length -Descending |
+            Select-Object -First 5 |
+            ForEach-Object {
+                [PSCustomObject]@{
+                    Path = $_.FullName.Substring($FullPath.Length).TrimStart("\", "/")
+                    SizeBytes = [int64]$_.Length
+                    Size = Format-Size ([int64]$_.Length)
+                }
+            }
+    )
+
+    return [PSCustomObject]@{
+        ExtensionCounts = $extensionCounts
+        LargestFiles = $largestFiles
+    }
+}
+
 function Format-Size {
     param([int64]$Bytes)
 
@@ -222,6 +266,7 @@ try {
         $relativePath = $entry.Path
         $fullPath = Join-Path $ProjectRoot $relativePath
         $summary = Get-PathSummary -FullPath $fullPath
+        $contentSummary = if ($entry.Category -eq "LargeContentCandidate") { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
         $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
         if ($summary.State -eq "present") {
             ++$presentCount
@@ -245,6 +290,7 @@ try {
             Category = $entry.Category
             Recommendation = $entry.Recommendation
             DetectedNote = $decisionNote
+            ContentSummary = $contentSummary
         }
     }
 
@@ -302,6 +348,18 @@ try {
             Write-Host "  recommendation: $($point.Recommendation)"
             if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {
                 Write-Host "  detected: $($point.DetectedNote)"
+            }
+            if ($point.ContentSummary) {
+                $extensions = @($point.ContentSummary.ExtensionCounts | ForEach-Object { "$($_.Extension)=$($_.Count)" }) -join ", "
+                if (-not [string]::IsNullOrWhiteSpace($extensions)) {
+                    Write-Host "  extensions: $extensions"
+                }
+                if ($point.ContentSummary.LargestFiles.Count -gt 0) {
+                    Write-Host "  largest files:"
+                    foreach ($largestFile in $point.ContentSummary.LargestFiles) {
+                        Write-Host "    $($largestFile.Size) $($largestFile.Path)"
+                    }
+                }
             }
         }
 
