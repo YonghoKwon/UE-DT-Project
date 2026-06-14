@@ -112,7 +112,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes scan interval"), StatusText.Contains(TEXT("Scan: 0.125s")));
     TestTrue(TEXT("status includes ray count"), StatusText.Contains(TEXT("Rays=24")));
     TestTrue(TEXT("status includes measured hit count"), StatusText.Contains(TEXT("Measured Points/Hits: 24/24")));
-    TestTrue(TEXT("status includes server payload policy"), StatusText.Contains(TEXT("Server Payload: Points=8 Stride=2 Max=8 IncludeMiss=false")));
+    TestTrue(TEXT("status includes server payload policy"), StatusText.Contains(TEXT("Server Payload: Points=8 Bytes=")) && StatusText.Contains(TEXT("Stride=2 Max=8 IncludeMiss=false")));
     TestTrue(TEXT("status includes preview policy"), StatusText.Contains(TEXT("Preview: On Points=5 Stride=3 Max=5 HitOnly=true")));
     TestTrue(TEXT("status includes slab analysis"), StatusText.Contains(TEXT("Slab: Valid Points=24 Angle=")));
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));

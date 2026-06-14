@@ -1005,7 +1005,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
         const FVirtualLidarSlabAnalysisResult& Slab = Status.SlabAnalysis;
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,x,y,z\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,x,y,z\nMessage: %s"),
             *Status.SensorId,
             Status.FrameId,
             LidarComp->ScanInterval,
@@ -1013,6 +1013,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
             Status.TotalPointCount,
             Status.HitPointCount,
             Status.ServerPayloadPointCount,
+            Status.LastPayloadLength,
             LidarComp->ServerPayloadStride,
             LidarComp->MaxServerPayloadPoints,
             LidarComp->bIncludeMissPointsInServerPayload ? TEXT("true") : TEXT("false"),

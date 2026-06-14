@@ -149,7 +149,7 @@ Sensor id
 Frame id
 Scan interval and ray count
 Measured point and hit counts
-Server payload point count and policy
+Server payload point count, JSON byte length, and policy
 Preview point count and policy
 Slab angle/deviation/confidence
 Transport/performance warning
