@@ -212,6 +212,24 @@ Level Blueprint 없이 monitor를 자동 생성하려면 map에 `AVirtualSensorM
 
 ## 자동화 테스트
 
+로컬 readiness gate:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
+```
+
+이미 빌드된 상태에서 빠르게 확인:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
+```
+
+asset report만 확인하고 smoke test는 생략:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
+```
+
 전체 로컬 smoke gate:
 
 ```powershell

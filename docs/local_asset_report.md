@@ -57,3 +57,22 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 3. Run with `-FailOnUnclassifiedUntracked` to catch newly created paths that the
    inventory does not know about yet.
 4. Stage only intended source, docs, config, or content files.
+
+## Readiness Wrapper
+
+For regular local checks, use `Scripts/check_project_readiness.ps1`. It runs the
+local asset report with `-FailOnUnclassifiedUntracked`, then runs the smoke test
+script unless `-SkipSmoke` is passed.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
+```
+
+Strict local-output gates can be enabled when a clean packaging state is needed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnCategory LargeContentCandidate,SampleOrThirdParty
+```
