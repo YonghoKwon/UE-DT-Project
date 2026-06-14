@@ -71,6 +71,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $widgetCpp; Pattern = "RebuildWidget"; Label = "Native fallback Slate builder" },
     [PSCustomObject]@{ Path = $widgetCpp; Pattern = "ExportSelectedSensorServerPayload"; Label = "Server payload export control" },
     [PSCustomObject]@{ Path = $widgetCpp; Pattern = "PreviewHitOnlyButton"; Label = "Preview hit-only control binding" },
+    [PSCustomObject]@{ Path = $widgetCpp; Pattern = "RefreshLocalCaptureCameraPendingState"; Label = "Camera local capture pending-state helper" },
+    [PSCustomObject]@{ Path = $widgetCpp; Pattern = "LocalCaptureCameraAsyncWriteCount"; Label = "Camera async write count is tracked" },
+    [PSCustomObject]@{ Path = $widgetCpp; Pattern = "if (LockedData)"; Label = "GPU readback unlock is guarded" },
+    [PSCustomObject]@{ Path = $widgetCpp; Pattern = "RowPitchInPixels < Pending.Width"; Label = "GPU readback row pitch is validated" },
     [PSCustomObject]@{ Path = $hostHeader; Pattern = "bUseNativeMonitorWidgetFallback"; Label = "Host fallback setting" },
     [PSCustomObject]@{ Path = $hostCpp; Pattern = "GetEffectiveMonitorWidgetClass"; Label = "Host resolves fallback widget class" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.SensorMonitor.HostNativeFallback"; Label = "Host fallback automation test" },
@@ -110,6 +114,7 @@ $report = [PSCustomObject]@{
         RequiredContractCount = $requiredTexts.Count
         OptionalBindingsDeclared = $true
         NativeFallbackDeclared = $true
+        CameraCapturePendingStateGuarded = $true
         LocalWbpDecisionGuardDeclared = $true
         AutomationCoverageDeclared = $true
         ManualEditorVerificationStillRequired = $true
@@ -126,6 +131,7 @@ else {
     Write-Host "Required contract checks: $($report.Summary.RequiredContractCount)"
     Write-Host "Optional bindings declared: $($report.Summary.OptionalBindingsDeclared)"
     Write-Host "Native fallback declared: $($report.Summary.NativeFallbackDeclared)"
+    Write-Host "Camera capture pending state guarded: $($report.Summary.CameraCapturePendingStateGuarded)"
     Write-Host "Local WBP decision guard declared: $($report.Summary.LocalWbpDecisionGuardDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
     Write-Host "Manual editor verification still required: $($report.Summary.ManualEditorVerificationStillRequired)"

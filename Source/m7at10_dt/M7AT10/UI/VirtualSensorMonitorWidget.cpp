@@ -466,6 +466,7 @@ void UVirtualSensorMonitorWidget::NativeDestruct()
     }
     bLocalSensorCaptureActive = false;
     PendingCameraReadbacks.Reset();
+    LocalCaptureCameraAsyncWriteCount = 0;
     bLocalCaptureCameraWritePending = false;
     Super::NativeDestruct();
 }
@@ -1418,7 +1419,7 @@ bool UVirtualSensorMonitorWidget::QueueCameraGpuReadbackToDisk(const FString& Fr
     });
 
     PendingCameraReadbacks.Add(MoveTemp(Pending));
-    bLocalCaptureCameraWritePending = true;
+    RefreshLocalCaptureCameraPendingState();
     return true;
 }
 
@@ -1467,6 +1468,7 @@ void UVirtualSensorMonitorWidget::ProcessPendingCameraReadbacks()
         if (!Pending.Readback.IsValid())
         {
             PendingCameraReadbacks.RemoveAtSwap(Index);
+            RefreshLocalCaptureCameraPendingState();
             continue;
         }
 
@@ -1477,10 +1479,14 @@ void UVirtualSensorMonitorWidget::ProcessPendingCameraReadbacks()
 
         int32 RowPitchInPixels = 0;
         void* LockedData = Pending.Readback->Lock(RowPitchInPixels);
-        if (!LockedData || RowPitchInPixels <= 0)
+        if (!LockedData || RowPitchInPixels < Pending.Width || Pending.Width <= 0 || Pending.Height <= 0)
         {
-            Pending.Readback->Unlock();
+            if (LockedData)
+            {
+                Pending.Readback->Unlock();
+            }
             PendingCameraReadbacks.RemoveAtSwap(Index);
+            RefreshLocalCaptureCameraPendingState();
             continue;
         }
 
@@ -1497,20 +1503,19 @@ void UVirtualSensorMonitorWidget::ProcessPendingCameraReadbacks()
         const int32 Width = Pending.Width;
         const int32 Height = Pending.Height;
         PendingCameraReadbacks.RemoveAtSwap(Index);
+        RefreshLocalCaptureCameraPendingState();
         StartAsyncCameraJpegWrite(MoveTemp(RawPixels), Width, Height, Path);
     }
 
-    if (PendingCameraReadbacks.Num() == 0 && !bLocalCaptureCameraWritePending)
-    {
-        bLocalCaptureCameraWritePending = false;
-    }
+    RefreshLocalCaptureCameraPendingState();
 }
 
 void UVirtualSensorMonitorWidget::StartAsyncCameraJpegWrite(TArray<FColor>&& RawPixels, int32 Width, int32 Height, const FString& Path)
 {
     IImageWrapperModule* ImageWrapperModule = &FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     TWeakObjectPtr<UVirtualSensorMonitorWidget> WeakThis(this);
-    bLocalCaptureCameraWritePending = true;
+    ++LocalCaptureCameraAsyncWriteCount;
+    RefreshLocalCaptureCameraPendingState();
 
     Async(EAsyncExecution::ThreadPool, [WeakThis, ImageWrapperModule, RawPixels = MoveTemp(RawPixels), Path, Width, Height]() mutable
     {
@@ -1536,7 +1541,8 @@ void UVirtualSensorMonitorWidget::StartAsyncCameraJpegWrite(TArray<FColor>&& Raw
             {
                 return;
             }
-            WeakThis->bLocalCaptureCameraWritePending = WeakThis->PendingCameraReadbacks.Num() > 0;
+            WeakThis->LocalCaptureCameraAsyncWriteCount = FMath::Max(0, WeakThis->LocalCaptureCameraAsyncWriteCount - 1);
+            WeakThis->RefreshLocalCaptureCameraPendingState();
             if (bSaved)
             {
                 UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Async camera save saved: %s"), *Path);
@@ -1547,6 +1553,11 @@ void UVirtualSensorMonitorWidget::StartAsyncCameraJpegWrite(TArray<FColor>&& Raw
             }
         });
     });
+}
+
+void UVirtualSensorMonitorWidget::RefreshLocalCaptureCameraPendingState()
+{
+    bLocalCaptureCameraWritePending = PendingCameraReadbacks.Num() > 0 || LocalCaptureCameraAsyncWriteCount > 0;
 }
 
 bool UVirtualSensorMonitorWidget::SaveLidarPointCloudToDisk(const FString& FramePrefix)

@@ -111,8 +111,8 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $workAreas = @(
     (New-WorkArea `
         -Name "Virtual sensor baseline" `
-        -Percent 86 `
-        -Done "LiDAR/camera payload, replay, slab analysis, monitor fallback, monitor policy validation, smoke/readiness scripts are implemented." `
+        -Percent 87 `
+        -Done "LiDAR/camera payload, replay, slab analysis, monitor fallback, monitor camera capture pending-state guards, monitor policy validation, smoke/readiness scripts are implemented." `
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `

@@ -154,6 +154,7 @@ private:
     bool SaveCameraSnapshotToDiskSynchronous(const FString& FramePrefix);
     void ProcessPendingCameraReadbacks();
     void StartAsyncCameraJpegWrite(TArray<FColor>&& RawPixels, int32 Width, int32 Height, const FString& Path);
+    void RefreshLocalCaptureCameraPendingState();
     bool SaveLidarPointCloudToDisk(const FString& FramePrefix);
     bool RefreshLidarPreviewWithoutTransport();
     FString EnsureLocalCaptureSessionDirectory();
@@ -310,6 +311,7 @@ private:
     bool bLocalCaptureCameraWritePending = false;
     bool bLocalCaptureLidarWritePending = false;
     int32 LocalCaptureFrameIndex = 0;
+    int32 LocalCaptureCameraAsyncWriteCount = 0;
     int64 LastEnhancedLidarFrameId = INDEX_NONE;
     int32 LastEnhancedLidarWidth = 0;
     int32 LastEnhancedLidarHeight = 0;

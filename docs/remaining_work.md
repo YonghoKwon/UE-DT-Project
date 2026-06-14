@@ -16,6 +16,8 @@ Implemented in DT-Project:
 - CSV/JSONL point-cloud replay sources.
 - Sensor manager point-cloud-only view policy.
 - Native monitor widget fallback and monitor host actor.
+- Local monitor camera capture pending-state guards for GPU readback and async
+  JPEG write paths.
 - Local smoke runner and project readiness wrapper.
 - Local asset decision report with generated-output, category, and
   unclassified-untracked gates.
@@ -243,6 +245,8 @@ Completion evidence:
 - No missing binding crashes.
 - Operator-facing status text exposes selected sensor, frame/ray counts, payload
   counts, preview counts, warnings, and slab angle result.
+- Local camera capture failure paths clear pending state after failed GPU
+  readbacks and completed JPEG writes.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"`.
 

@@ -169,3 +169,12 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_poli
 This check keeps optional C++ bindings, native fallback behavior, local binary
 WBP decision guards, setup documentation, and automation test names aligned
 before `WBP_VirtualSensorMonitor.uasset` is committed.
+
+Local camera capture notes:
+
+- GPU readback failures remove the failed readback without calling `Unlock()`
+  on a null lock result.
+- GPU readback row pitch is checked before copying rows into the JPEG buffer.
+- Camera write pending state is derived from both queued GPU readbacks and
+  active async JPEG writes, so a failed readback does not leave timed capture
+  permanently blocked.

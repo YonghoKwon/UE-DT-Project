@@ -148,6 +148,10 @@ GPU/Niagara/custom high-density renderer is selected.
 
 Manual PIE payload checks:
 
+- In local monitor capture mode, confirm that a failed or skipped camera
+  readback does not leave `Capture Pending: Camera=true` forever and that the
+  next capture interval can continue.
+
 ```text
 1. Open the monitor in camera view and press Export Payload.
 2. Confirm Saved/SensorCaptures/<CameraSensorId>/ServerPayload contains a virtual-camera.v1 JSON file.
