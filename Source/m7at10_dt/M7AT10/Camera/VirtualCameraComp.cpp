@@ -177,6 +177,7 @@ void UVirtualCameraComp::CaptureAndSendImage()
 
     const FString Base64Image = FBase64::Encode(JpegBytes.GetData(), static_cast<uint32>(JpegBytes.Num()));
     const FString JsonPayload = BuildJsonPayload(Base64Image, JpegBytes.Num());
+    LastJsonPayload = JsonPayload;
 
     FString StatusMessage = TEXT("Captured");
     if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput)
@@ -231,6 +232,7 @@ bool UVirtualCameraComp::ReadRenderTargetAsJpeg(TArray64<uint8>& OutJpegBytes) c
 FString UVirtualCameraComp::BuildJsonPayload(const FString& Base64Image, int64 ByteSize) const
 {
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("schemaVersion"), TEXT("virtual-camera.v1"));
     Root->SetStringField(TEXT("sensorType"), TEXT("virtual_camera"));
     Root->SetStringField(TEXT("sensorId"), SensorId);
     Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer);

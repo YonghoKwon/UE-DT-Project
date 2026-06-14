@@ -70,6 +70,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|Transport")
+    const FString& GetLastJsonPayload() const { return LastJsonPayload; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
 
@@ -143,4 +146,6 @@ private:
 
     UPROPERTY(Transient)
     FVirtualSensorRuntimeStatus RuntimeStatus;
+
+    FString LastJsonPayload;
 };

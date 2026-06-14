@@ -177,7 +177,7 @@ bool FVirtualSensorMonitorServerPayloadExportTest::RunTest(const FString& Parame
     FString SavedPayload;
     TestTrue(TEXT("server payload export file loads"), FFileHelper::LoadFileToString(SavedPayload, *ExportPath));
     TestEqual(TEXT("server payload export matches last payload"), SavedPayload, LidarComp->GetLastJsonPayload());
-    TestTrue(TEXT("monitor status includes server payload export result"), MonitorWidget->GetMonitorStatusText().Contains(TEXT("Server Payload Export: saved")));
+    TestTrue(TEXT("monitor status includes server payload export result"), MonitorWidget->GetMonitorStatusText().Contains(TEXT("LiDAR Server Payload Export: saved")));
 
     IFileManager::Get().Delete(*ExportPath, false, true);
     return true;

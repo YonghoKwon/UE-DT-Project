@@ -176,6 +176,7 @@ SensorMonitor Blueprint API:
 
 ```text
 CaptureSelectedSensorsOnce
+ExportSelectedSensorServerPayload
 ExportSelectedLidarServerPayload
 SetLidarPreviewBudget
 IncreaseLidarPreviewBudget
@@ -183,7 +184,7 @@ DecreaseLidarPreviewBudget
 ToggleLidarPreviewHitOnly
 ```
 
-`ExportSelectedLidarServerPayload`는 선택된 LiDAR의 마지막 서버 JSON payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래에 저장합니다. 판단 서버 payload schema 확인용 샘플을 transport mode와 독립적으로 뽑을 때 사용합니다.
+`ExportSelectedSensorServerPayload`는 현재 monitor view의 서버 JSON payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래에 저장합니다. LiDAR view에서는 선택된 LiDAR payload를, camera view에서는 바인딩된 camera payload를 저장합니다. 판단 서버 payload schema 확인용 샘플을 transport mode와 독립적으로 뽑을 때 사용합니다. LiDAR 전용 Blueprint 연결이 필요하면 `ExportSelectedLidarServerPayload`를 직접 호출할 수 있습니다.
 
 SensorManager Blueprint API:
 

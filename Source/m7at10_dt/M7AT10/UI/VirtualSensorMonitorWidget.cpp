@@ -58,6 +58,22 @@ FString BuildServerPayloadExportDirectory(const UVirtualLidarSensorComp* LidarCo
     return Directory;
 }
 
+FString BuildCameraPayloadExportDirectory(const UVirtualCameraComp* CameraComp)
+{
+    const FString SensorId = CameraComp ? CameraComp->SensorId : TEXT("CAMERA");
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("ServerPayload"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    return Directory;
+}
+
+bool SaveServerPayloadJsonFile(const FString& Directory, const FString& Prefix, const FString& SensorId, const FString& Payload, FString& OutPath)
+{
+    const FString SafePrefix = FPaths::MakeValidFileName(Prefix.IsEmpty() ? TEXT("manual_server_payload") : Prefix);
+    const FString SafeSensorId = FPaths::MakeValidFileName(SensorId.IsEmpty() ? TEXT("UNKNOWN_SENSOR") : SensorId);
+    OutPath = FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s_%s.json"), *SafePrefix, *SafeSensorId, *BuildPointCloudTimestamp()));
+    return FFileHelper::SaveStringToFile(Payload, *OutPath);
+}
+
 float NormalizeMonitorLidarDistance(const FVirtualLidarPoint& Point, float MaxDistance, float MinHitDistance, float MaxHitDistance, bool bUseAdaptiveDepthRange)
 {
     if (!Point.bHit)
@@ -701,14 +717,58 @@ bool UVirtualSensorMonitorWidget::ExportSelectedLidarServerPayload(const FString
     }
 
     const FString Directory = BuildServerPayloadExportDirectory(TargetLidar);
-    const FString SafePrefix = FPaths::MakeValidFileName(FileNamePrefix.IsEmpty() ? TEXT("manual_server_payload") : FileNamePrefix);
-    const FString SafeSensorId = FPaths::MakeValidFileName(TargetLidar->SensorId.IsEmpty() ? TEXT("LIDAR") : TargetLidar->SensorId);
-    LastManualExportPath = FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s_%s.json"), *SafePrefix, *SafeSensorId, *BuildPointCloudTimestamp()));
-
-    const bool bSaved = FFileHelper::SaveStringToFile(Payload, *LastManualExportPath);
+    const bool bSaved = SaveServerPayloadJsonFile(Directory, FileNamePrefix, TargetLidar->SensorId, Payload, LastManualExportPath);
     LastManualExportMessage = bSaved
-        ? FString::Printf(TEXT("Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
-        : FString::Printf(TEXT("Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
+        ? FString::Printf(TEXT("LiDAR Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
+        : FString::Printf(TEXT("LiDAR Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
+
+    if (bSaved)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+    }
+
+    RefreshStatusText();
+    return bSaved;
+}
+
+bool UVirtualSensorMonitorWidget::ExportSelectedSensorServerPayload(const FString& FileNamePrefix)
+{
+    if (bShowingLidar)
+    {
+        return ExportSelectedLidarServerPayload(FileNamePrefix);
+    }
+
+    if (!CameraComp)
+    {
+        LastManualExportPath.Reset();
+        LastManualExportMessage = TEXT("Camera Server Payload Export: failed, camera sensor is not bound");
+        RefreshStatusText();
+        return false;
+    }
+
+    if (CameraComp->GetLastJsonPayload().IsEmpty())
+    {
+        CameraComp->CaptureAndSendImage();
+    }
+
+    const FString& Payload = CameraComp->GetLastJsonPayload();
+    if (Payload.IsEmpty())
+    {
+        LastManualExportPath.Reset();
+        LastManualExportMessage = FString::Printf(TEXT("Camera Server Payload Export: failed, no payload for %s"), *CameraComp->SensorId);
+        RefreshStatusText();
+        return false;
+    }
+
+    const FString Directory = BuildCameraPayloadExportDirectory(CameraComp);
+    const bool bSaved = SaveServerPayloadJsonFile(Directory, FileNamePrefix, CameraComp->SensorId, Payload, LastManualExportPath);
+    LastManualExportMessage = bSaved
+        ? FString::Printf(TEXT("Camera Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
+        : FString::Printf(TEXT("Camera Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
 
     if (bSaved)
     {
@@ -803,7 +863,7 @@ void UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked()
 
 void UVirtualSensorMonitorWidget::HandleExportServerPayloadButtonClicked()
 {
-    ExportSelectedLidarServerPayload(TEXT("button_server_payload"));
+    ExportSelectedSensorServerPayload(TEXT("button_server_payload"));
 }
 
 void UVirtualSensorMonitorWidget::HandlePreviewMoreButtonClicked()

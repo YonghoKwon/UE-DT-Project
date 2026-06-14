@@ -70,6 +70,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Export")
     bool ExportSelectedLidarServerPayload(const FString& FileNamePrefix = TEXT("manual_server_payload"));
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Export")
+    bool ExportSelectedSensorServerPayload(const FString& FileNamePrefix = TEXT("manual_server_payload"));
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     void ToggleLocalSensorCapture();
 

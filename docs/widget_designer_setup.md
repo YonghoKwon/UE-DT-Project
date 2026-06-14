@@ -53,7 +53,7 @@ Calls `CaptureSelectedSensorsOnce()`. When a SensorManager is bound, this captur
 ExportServerPayloadButton
 ```
 
-Calls `ExportSelectedLidarServerPayload()`. This writes the selected LiDAR's last server JSON payload to `Saved/SensorCaptures/<SensorId>/ServerPayload` so the judging-server contract can be inspected without changing the active transport mode.
+Calls `ExportSelectedSensorServerPayload()`. This writes the current monitor view's server JSON payload to `Saved/SensorCaptures/<SensorId>/ServerPayload` so the judging-server contract can be inspected without changing the active transport mode. LiDAR view exports the selected LiDAR payload; camera view exports the bound camera payload.
 
 ```text
 PreviewMoreButton
