@@ -140,6 +140,8 @@ Current state:
 - `Scripts/validate_server_transport_contract.ps1` keeps the documented
   transport request shape and open endpoint/auth/retry/batching decisions in
   sync with the current DT-Project code.
+- HTTP transport now uses a weak callback target, captures response body text,
+  and separates request submission from 2xx server acceptance with `bAccepted`.
 - The readiness wrapper runs both fixture validation and mock contract
   validation before smoke tests unless those gates are explicitly skipped, and
   now also runs the schema review policy and server transport contract gates.
@@ -152,6 +154,8 @@ Next implementation steps:
   compression/transport requirements with the judging server.
 - Decide final transport endpoint, authentication, retry, batching, and
   backpressure behavior with the judging-server team.
+- Add a real or local mock HTTP endpoint acceptance test once the expected
+  response schema is available.
 - Add a fixture-based payload contract test if the server contract becomes
   stable.
 

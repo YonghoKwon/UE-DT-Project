@@ -19,6 +19,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendJson(const FS
     if (TransportMode == EVirtualSensorTransportMode::None)
     {
         Result.bSubmitted = true;
+        Result.bAccepted = true;
         Result.Message = TEXT("Transport disabled");
     }
     else if (TransportMode == EVirtualSensorTransportMode::SaveToFile)
@@ -32,6 +33,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendJson(const FS
     else
     {
         Result.bSubmitted = true;
+        Result.bAccepted = true;
         Result.Message = FString::Printf(TEXT("[%s:%s] dataLength=%d"), *SensorType, *SensorId, JsonText.Len());
         UE_LOG(LogTemp, Log, TEXT("%s"), *Result.Message);
     }
@@ -49,6 +51,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendBinary(const 
     if (TransportMode == EVirtualSensorTransportMode::None)
     {
         Result.bSubmitted = true;
+        Result.bAccepted = true;
         Result.Message = TEXT("Transport disabled");
     }
     else if (TransportMode == EVirtualSensorTransportMode::SaveToFile)
@@ -58,6 +61,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendBinary(const 
     else
     {
         Result.bSubmitted = true;
+        Result.bAccepted = true;
         Result.Message = FString::Printf(TEXT("[%s:%s] binaryLength=%d"), *SensorType, *SensorId, Bytes.Num());
         UE_LOG(LogTemp, Log, TEXT("%s"), *Result.Message);
     }
@@ -90,28 +94,43 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
     Request->SetTimeout(static_cast<float>(FMath::Max(1, HttpTimeoutSeconds)));
     Request->SetContentAsString(JsonText);
 
-    Request->OnProcessRequestComplete().BindLambda([this, SensorId, SensorType, SubmittedDataLength](FHttpRequestPtr RequestPtr, FHttpResponsePtr Response, bool bSucceeded)
+    const TWeakObjectPtr<UVirtualSensorDataTransportComp> WeakThis(this);
+    Request->OnProcessRequestComplete().BindLambda([WeakThis, SensorId, SensorType, SubmittedDataLength](FHttpRequestPtr /*RequestPtr*/, FHttpResponsePtr Response, bool /*bSucceeded*/)
     {
+        if (!WeakThis.IsValid())
+        {
+            return;
+        }
+
+        UVirtualSensorDataTransportComp* TransportComp = WeakThis.Get();
+        const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : 0;
+        const bool bResponseReceived = Response.IsValid();
+        const bool bAcceptedStatus = bResponseReceived && ResponseCode >= 200 && ResponseCode < 300;
+
         FVirtualSensorTransportResult CallbackResult;
-        CallbackResult.bSubmitted = bSucceeded && Response.IsValid();
+        CallbackResult.bSubmitted = bResponseReceived;
+        CallbackResult.bAccepted = bAcceptedStatus;
         CallbackResult.DataLength = SubmittedDataLength;
-        CallbackResult.HttpStatusCode = Response.IsValid() ? Response->GetResponseCode() : 0;
-        CallbackResult.Message = FString::Printf(TEXT("[%s:%s] HTTP completed success=%s code=%d"),
+        CallbackResult.HttpStatusCode = ResponseCode;
+        CallbackResult.ResponseBody = Response.IsValid() ? Response->GetContentAsString() : FString();
+        CallbackResult.Message = FString::Printf(TEXT("[%s:%s] HTTP completed submitted=%s accepted=%s code=%d"),
             *SensorType,
             *SensorId,
             CallbackResult.bSubmitted ? TEXT("true") : TEXT("false"),
+            CallbackResult.bAccepted ? TEXT("true") : TEXT("false"),
             CallbackResult.HttpStatusCode);
 
-        if (bLogHttpResponse)
+        if (TransportComp->bLogHttpResponse)
         {
             UE_LOG(LogTemp, Log, TEXT("%s"), *CallbackResult.Message);
         }
 
-        LastResult = CallbackResult;
-        OnDataSent.Broadcast(CallbackResult);
+        TransportComp->LastResult = CallbackResult;
+        TransportComp->OnDataSent.Broadcast(CallbackResult);
     });
 
     Result.bSubmitted = Request->ProcessRequest();
+    Result.bAccepted = false;
     Result.Message = Result.bSubmitted
         ? FString::Printf(TEXT("[%s:%s] HTTP request submitted"), *SensorType, *SensorId)
         : FString::Printf(TEXT("[%s:%s] HTTP request submit failed"), *SensorType, *SensorId);
@@ -124,6 +143,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SaveJson(const FS
     Result.DataLength = JsonText.Len();
     const FString Path = BuildSavePath(SensorId, SensorType, TEXT("json"));
     Result.bSubmitted = FFileHelper::SaveStringToFile(JsonText, *Path);
+    Result.bAccepted = Result.bSubmitted;
     Result.SavedFilePath = Path;
     Result.Message = Result.bSubmitted ? FString::Printf(TEXT("Saved: %s"), *Path) : FString::Printf(TEXT("Save failed: %s"), *Path);
     return Result;
@@ -135,6 +155,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SaveBinary(const 
     Result.DataLength = Bytes.Num();
     const FString Path = BuildSavePath(SensorId, SensorType, Extension.IsEmpty() ? TEXT("bin") : Extension);
     Result.bSubmitted = FFileHelper::SaveArrayToFile(Bytes, *Path);
+    Result.bAccepted = Result.bSubmitted;
     Result.SavedFilePath = Path;
     Result.Message = Result.bSubmitted ? FString::Printf(TEXT("Saved: %s"), *Path) : FString::Printf(TEXT("Save failed: %s"), *Path);
     return Result;

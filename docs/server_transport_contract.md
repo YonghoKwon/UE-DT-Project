@@ -33,6 +33,19 @@ body: virtual-lidar.v1 or virtual-camera.v1 JSON
 timeout: HttpTimeoutSeconds, clamped to at least 1 second
 ```
 
+HTTP callback behavior:
+
+```text
+bSubmitted: request/response exchange completed with a response object
+bAccepted: response status is in the 2xx range
+HttpStatusCode: response code, or 0 when no response was available
+ResponseBody: response body text for acceptance/error evidence
+```
+
+The async callback uses a weak component pointer before updating `LastResult` or
+broadcasting `OnDataSent`, so an HTTP response arriving after component teardown
+does not dereference a destroyed component.
+
 Current implementation file:
 
 ```text

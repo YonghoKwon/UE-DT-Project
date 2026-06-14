@@ -22,6 +22,9 @@ struct M7AT10_DT_API FVirtualSensorTransportResult
     bool bSubmitted = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    bool bAccepted = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FString Message;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
@@ -32,6 +35,9 @@ struct M7AT10_DT_API FVirtualSensorTransportResult
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FString SavedFilePath;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    FString ResponseBody;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorDataSent, const FVirtualSensorTransportResult&, Result);

@@ -206,6 +206,7 @@ bool FLidarReplayTransportSaveToFileTest::RunTest(const FString& Parameters)
 
     const FVirtualSensorTransportResult& Result = TransportComp->LastResult;
     TestTrue(TEXT("transport submitted"), Result.bSubmitted);
+    TestTrue(TEXT("transport accepted"), Result.bAccepted);
     TestTrue(TEXT("transport saved file path is set"), !Result.SavedFilePath.IsEmpty());
     TestTrue(TEXT("transport saved file exists"), IFileManager::Get().FileExists(*Result.SavedFilePath));
     TestTrue(TEXT("transport saved file is under requested directory"), Result.SavedFilePath.Contains(SaveSubDirectory));
