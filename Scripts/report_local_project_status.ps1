@@ -23,6 +23,7 @@ function Get-PathSummary {
             Kind = "-"
             FileCount = 0
             SizeBytes = 0
+            LastWriteTime = $null
         }
     }
 
@@ -35,6 +36,7 @@ function Get-PathSummary {
             Kind = "directory"
             FileCount = $files.Count
             SizeBytes = [int64]($sizeBytes)
+            LastWriteTime = $item.LastWriteTime
         }
     }
 
@@ -43,6 +45,7 @@ function Get-PathSummary {
         Kind = "file"
         FileCount = 1
         SizeBytes = [int64]$item.Length
+        LastWriteTime = $item.LastWriteTime
     }
 }
 
@@ -91,7 +94,15 @@ function Get-DecisionPointNote {
     )
 
     $normalizedPath = Normalize-RepoPath $RelativePath
-    if ($normalizedPath -ne "config/game.ini" -or -not (Test-Path -LiteralPath $FullPath)) {
+    if (-not (Test-Path -LiteralPath $FullPath)) {
+        return ""
+    }
+
+    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+        return "Detected binary monitor WBP asset. Open in Unreal Editor, verify optional bindings, and run PIE smoke before staging."
+    }
+
+    if ($normalizedPath -ne "config/game.ini") {
         return ""
     }
 
@@ -230,6 +241,7 @@ try {
             FileCount = $summary.FileCount
             SizeBytes = $summary.SizeBytes
             Size = Format-Size $summary.SizeBytes
+            LastWriteTime = $summary.LastWriteTime
             Category = $entry.Category
             Recommendation = $entry.Recommendation
             DetectedNote = $decisionNote
@@ -283,6 +295,9 @@ try {
         foreach ($point in $report.DecisionPoints) {
             Write-Host "$($point.Path)"
             Write-Host "  state: $($point.State) $($point.Kind), files=$($point.FileCount), size=$($point.Size)"
+            if ($point.LastWriteTime) {
+                Write-Host "  lastWriteTime: $($point.LastWriteTime)"
+            }
             Write-Host "  category: $($point.Category)"
             Write-Host "  recommendation: $($point.Recommendation)"
             if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {

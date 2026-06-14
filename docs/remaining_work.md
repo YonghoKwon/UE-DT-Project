@@ -37,6 +37,8 @@ Open decisions:
 
 - `Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset`
   - Decide whether this binary WBP is the intended production monitor asset.
+  - Current local state: binary Designer widget decision point, approximately
+    40 KB in the local project.
   - Evidence needed: open in Unreal Editor, verify bindings, run PIE smoke test,
     then commit only if accepted.
 - `Config/Game.ini`

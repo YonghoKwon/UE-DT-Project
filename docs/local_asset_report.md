@@ -58,6 +58,12 @@ local-only runtime override unless shared endpoint defaults are explicitly
 required. If any endpoint or credential value is populated, review it for
 environment or secret leakage before staging.
 
+`Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset` receives an additional
+detected note because it is a binary Designer widget. Keep it untracked until it
+has been opened in Unreal Editor, optional bindings have been checked against
+`docs/widget_designer_setup.md`, and a PIE smoke pass confirms that the widget
+does not crash or show stale sensor status.
+
 ## Recommended Workflow
 
 1. Run the report before staging.
