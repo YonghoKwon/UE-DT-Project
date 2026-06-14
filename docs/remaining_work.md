@@ -101,6 +101,8 @@ Current state:
 
 - LiDAR schema is documented as `virtual-lidar.v1`.
 - Camera schema is documented as `virtual-camera.v1`.
+- Reference fixtures exist under `Samples/payload_fixtures/` and can be checked
+  with `Scripts/validate_payload_fixtures.ps1`.
 - The schema is implemented enough for local export and smoke tests, but the
   final judging server contract is not confirmed.
 

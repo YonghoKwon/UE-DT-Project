@@ -212,6 +212,12 @@ Level Blueprint 없이 monitor를 자동 생성하려면 map에 `AVirtualSensorM
 
 ## 자동화 테스트
 
+Payload fixture 검증:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
+```
+
 로컬 readiness gate:
 
 ```powershell

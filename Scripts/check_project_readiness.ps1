@@ -12,6 +12,7 @@ param(
     ),
     [switch]$SkipBuild,
     [switch]$SkipSmoke,
+    [switch]$SkipPayloadFixtures,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [string[]]$FailOnCategory = @()
@@ -50,10 +51,14 @@ if (-not (Test-Path -LiteralPath $ProjectPath)) {
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AssetReportScript = Join-Path $ScriptRoot "report_local_project_status.ps1"
+$PayloadFixtureScript = Join-Path $ScriptRoot "validate_payload_fixtures.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
     throw "report_local_project_status.ps1 not found: $AssetReportScript"
+}
+if (-not (Test-Path -LiteralPath $PayloadFixtureScript)) {
+    throw "validate_payload_fixtures.ps1 not found: $PayloadFixtureScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -74,6 +79,17 @@ Invoke-ScriptStep `
     -Label "Local asset report" `
     -ScriptPath $AssetReportScript `
     -Parameters $AssetReportParams
+
+if (-not $SkipPayloadFixtures) {
+    Invoke-ScriptStep `
+        -Label "Payload fixture validation" `
+        -ScriptPath $PayloadFixtureScript `
+        -Parameters @{}
+}
+else {
+    Write-Host ""
+    Write-Host "Payload fixture validation skipped by -SkipPayloadFixtures."
+}
 
 if (-not $SkipSmoke) {
     $SmokeParams = @{

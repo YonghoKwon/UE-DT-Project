@@ -75,6 +75,20 @@ Saved/SensorCaptures/<SensorId>/ServerPayload/*.json
 
 When the monitor is showing LiDAR view, the same function exports the selected LiDAR payload instead.
 
+## Fixture
+
+Reference fixture:
+
+```text
+Samples/payload_fixtures/virtual_camera_v1_sample.json
+```
+
+Validate all payload fixtures:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
+```
+
 ## Related Tests
 
 ```text
