@@ -134,9 +134,15 @@ Current state:
   artifacts under `Saved/PayloadContractReports/` for judging-server handoff.
 - `Scripts/validate_payload_schema_review_policy.ps1` checks that schema review
   notes stay present while the final server contract is still open.
+- `docs/server_transport_contract.md` records the current `LogOnly`,
+  `SaveToFile`, and `HttpPost` behavior plus the server transport contract
+  decisions that still need judging-server approval.
+- `Scripts/validate_server_transport_contract.ps1` keeps the documented
+  transport request shape and open endpoint/auth/retry/batching decisions in
+  sync with the current DT-Project code.
 - The readiness wrapper runs both fixture validation and mock contract
   validation before smoke tests unless those gates are explicitly skipped, and
-  now also runs the schema review policy gate.
+  now also runs the schema review policy and server transport contract gates.
 - The schema is implemented enough for local export and smoke tests, but the
   final judging server contract is not confirmed.
 
@@ -144,6 +150,8 @@ Next implementation steps:
 
 - Confirm required field names, units, coordinate frame, timestamp format, and
   compression/transport requirements with the judging server.
+- Decide final transport endpoint, authentication, retry, batching, and
+  backpressure behavior with the judging-server team.
 - Add a fixture-based payload contract test if the server contract becomes
   stable.
 
@@ -155,6 +163,8 @@ Completion evidence:
   contract validator.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"`.
+- Server transport readiness passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_contract.ps1"`.
 
 ### True LAZ Compression
 

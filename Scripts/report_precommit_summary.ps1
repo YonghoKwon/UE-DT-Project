@@ -116,9 +116,9 @@ $workAreas = @(
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
-        -Percent 73 `
-        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator, local mock contract validator, schema review policy, and exportable contract review report are in place." `
-        -Remaining "Judging server approval, real server acceptance evidence, and final transport contract remain."),
+        -Percent 75 `
+        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator, local mock contract validator, schema review policy, server transport contract notes, and exportable contract review report are in place." `
+        -Remaining "Judging server approval, real server acceptance evidence, and final endpoint/auth/retry/batching decisions remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
         -Percent 45 `
