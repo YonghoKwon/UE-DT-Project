@@ -67,6 +67,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Capture")
     void CaptureSelectedSensorsOnce();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Export")
+    bool ExportSelectedLidarServerPayload(const FString& FileNamePrefix = TEXT("manual_server_payload"));
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     void ToggleLocalSensorCapture();
 
@@ -78,6 +81,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetMonitorStatusText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    const FString& GetLastManualExportPath() const { return LastManualExportPath; }
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -112,6 +118,9 @@ private:
 
     UFUNCTION()
     void HandleCaptureOnceButtonClicked();
+
+    UFUNCTION()
+    void HandleExportServerPayloadButtonClicked();
 
     UFUNCTION()
     void HandlePreviewMoreButtonClicked();
@@ -189,6 +198,9 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> CaptureOnceButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> ExportServerPayloadButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> PreviewMoreButton;
@@ -305,6 +317,8 @@ private:
     float LastEnhancedEdgeThreshold = -1.0f;
     FLinearColor LastEnhancedEdgeColor = FLinearColor::Transparent;
     FString LocalCaptureSessionDirectory;
+    FString LastManualExportMessage;
+    FString LastManualExportPath;
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
     TSharedPtr<STextBlock> NativeTitleTextBlock;

@@ -50,6 +50,14 @@ FString BuildPointCloudExportDirectory(const UVirtualLidarSensorComp* LidarComp)
     return Directory;
 }
 
+FString BuildServerPayloadExportDirectory(const UVirtualLidarSensorComp* LidarComp)
+{
+    const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("ServerPayload"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    return Directory;
+}
+
 float NormalizeMonitorLidarDistance(const FVirtualLidarPoint& Point, float MaxDistance, float MinHitDistance, float MaxHitDistance, bool bUseAdaptiveDepthRange)
 {
     if (!Point.bHit)
@@ -293,6 +301,18 @@ TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
                 .Padding(0.0f, 0.0f, 6.0f, 6.0f)
                 [
                     SNew(SButton)
+                    .Text(FText::FromString(TEXT("Export Payload")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleExportServerPayloadButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
                     .Text(FText::FromString(TEXT("Hit Only")))
                     .OnClicked_Lambda([this]()
                     {
@@ -388,6 +408,11 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
     {
         CaptureOnceButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked);
         CaptureOnceButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked);
+    }
+    if (ExportServerPayloadButton)
+    {
+        ExportServerPayloadButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleExportServerPayloadButtonClicked);
+        ExportServerPayloadButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleExportServerPayloadButtonClicked);
     }
     if (PreviewMoreButton)
     {
@@ -650,6 +675,54 @@ void UVirtualSensorMonitorWidget::CaptureSelectedSensorsOnce()
     RefreshStatusText();
 }
 
+bool UVirtualSensorMonitorWidget::ExportSelectedLidarServerPayload(const FString& FileNamePrefix)
+{
+    UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+    if (!TargetLidar)
+    {
+        LastManualExportPath.Reset();
+        LastManualExportMessage = TEXT("Server Payload Export: failed, LiDAR sensor is not bound");
+        RefreshStatusText();
+        return false;
+    }
+
+    if (TargetLidar->GetLastJsonPayload().IsEmpty())
+    {
+        RefreshLidarPreviewWithoutTransport();
+    }
+
+    const FString& Payload = TargetLidar->GetLastJsonPayload();
+    if (Payload.IsEmpty())
+    {
+        LastManualExportPath.Reset();
+        LastManualExportMessage = FString::Printf(TEXT("Server Payload Export: failed, no payload for %s"), *TargetLidar->SensorId);
+        RefreshStatusText();
+        return false;
+    }
+
+    const FString Directory = BuildServerPayloadExportDirectory(TargetLidar);
+    const FString SafePrefix = FPaths::MakeValidFileName(FileNamePrefix.IsEmpty() ? TEXT("manual_server_payload") : FileNamePrefix);
+    const FString SafeSensorId = FPaths::MakeValidFileName(TargetLidar->SensorId.IsEmpty() ? TEXT("LIDAR") : TargetLidar->SensorId);
+    LastManualExportPath = FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s_%s.json"), *SafePrefix, *SafeSensorId, *BuildPointCloudTimestamp()));
+
+    const bool bSaved = FFileHelper::SaveStringToFile(Payload, *LastManualExportPath);
+    LastManualExportMessage = bSaved
+        ? FString::Printf(TEXT("Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
+        : FString::Printf(TEXT("Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
+
+    if (bSaved)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+    }
+
+    RefreshStatusText();
+    return bSaved;
+}
+
 void UVirtualSensorMonitorWidget::ToggleLocalSensorCapture()
 {
     UWorld* World = GetWorld();
@@ -726,6 +799,11 @@ void UVirtualSensorMonitorWidget::HandleLocalSensorCaptureButtonClicked()
 void UVirtualSensorMonitorWidget::HandleCaptureOnceButtonClicked()
 {
     CaptureSelectedSensorsOnce();
+}
+
+void UVirtualSensorMonitorWidget::HandleExportServerPayloadButtonClicked()
+{
+    ExportSelectedLidarServerPayload(TEXT("button_server_payload"));
 }
 
 void UVirtualSensorMonitorWidget::HandlePreviewMoreButtonClicked()
@@ -917,6 +995,10 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     if (bLocalSensorCaptureActive || !LocalCaptureSessionDirectory.IsEmpty())
     {
         Text += FString::Printf(TEXT("\n\nLocal Capture: %s\nInterval: %.3fs Frames=%d\nCapture Pending: Camera=%s Lidar=%s Queue=%d/%d GPUReadback=%s\nFormats: CSV=%s LAS=%s LAZ=%s\nLocal Folder: %s"), bLocalSensorCaptureActive ? TEXT("Recording") : TEXT("Stopped"), LocalCaptureIntervalSeconds, LocalCaptureFrameIndex, bLocalCaptureCameraWritePending ? TEXT("true") : TEXT("false"), bLocalCaptureLidarWritePending ? TEXT("true") : TEXT("false"), PendingCameraReadbacks.Num(), MaxPendingCameraReadbacks, bUseGpuAsyncCameraReadback ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarCsv ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLas ? TEXT("On") : TEXT("Off"), bLocalCaptureSaveLidarLaz ? TEXT("On") : TEXT("Off"), *LocalCaptureSessionDirectory);
+    }
+    if (!LastManualExportMessage.IsEmpty())
+    {
+        Text += FString::Printf(TEXT("\n\n%s"), *LastManualExportMessage);
     }
     return Text;
 }

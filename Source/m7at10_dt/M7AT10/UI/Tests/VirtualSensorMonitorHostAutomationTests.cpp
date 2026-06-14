@@ -1,5 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
@@ -10,6 +12,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "M7AT10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorLidarStatusTextTest, "M7AT10.SensorMonitor.LidarStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorPerformanceWarningStatusTest, "M7AT10.SensorMonitor.PerformanceWarningStatusText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorServerPayloadExportTest, "M7AT10.SensorMonitor.ServerPayloadExport", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 {
@@ -130,6 +133,53 @@ bool FVirtualSensorMonitorPerformanceWarningStatusTest::RunTest(const FString& P
     TestTrue(TEXT("monitor status includes export warning"), StatusText.Contains(TEXT("FullSpec export-on-scan")));
     TestTrue(TEXT("monitor status includes uncapped preview warning"), StatusText.Contains(TEXT("Preview is uncapped")));
     TestTrue(TEXT("monitor transport warning row includes warning"), StatusText.Contains(TEXT("Transport/Warning:")) && StatusText.Contains(Warning));
+    return true;
+}
+
+bool FVirtualSensorMonitorServerPayloadExportTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    UVirtualSensorMonitorWidget* MonitorWidget = NewObject<UVirtualSensorMonitorWidget>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    TestNotNull(TEXT("monitor widget"), MonitorWidget);
+    if (!ReplayComp || !LidarComp || !MonitorWidget)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before server payload export test"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-MONITOR-PAYLOAD-EXPORT");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->SlabSemanticLabel = TEXT("Slab");
+    LidarComp->MinSlabPointsForAnalysis = 3;
+    LidarComp->SetServerPayloadPolicy(2, 8, false);
+    LidarComp->SetPreviewPolicy(3, 5, true);
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    MonitorWidget->BindVirtualLidar(LidarComp);
+    MonitorWidget->ShowLidarView();
+
+    TestTrue(TEXT("server payload export succeeds"), MonitorWidget->ExportSelectedLidarServerPayload(TEXT("automation_server_payload")));
+    const FString ExportPath = MonitorWidget->GetLastManualExportPath();
+    TestFalse(TEXT("server payload export path is populated"), ExportPath.IsEmpty());
+    TestTrue(TEXT("server payload export file exists"), FPaths::FileExists(ExportPath));
+
+    FString SavedPayload;
+    TestTrue(TEXT("server payload export file loads"), FFileHelper::LoadFileToString(SavedPayload, *ExportPath));
+    TestEqual(TEXT("server payload export matches last payload"), SavedPayload, LidarComp->GetLastJsonPayload());
+    TestTrue(TEXT("monitor status includes server payload export result"), MonitorWidget->GetMonitorStatusText().Contains(TEXT("Server Payload Export: saved")));
+
+    IFileManager::Get().Delete(*ExportPath, false, true);
     return true;
 }
 

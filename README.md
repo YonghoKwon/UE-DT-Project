@@ -156,6 +156,7 @@ ExportPointCloudButton
 LocalSensorCaptureButton
 LocalSensorCaptureButtonText
 CaptureOnceButton
+ExportServerPayloadButton
 PreviewMoreButton
 PreviewLessButton
 PreviewHitOnlyButton
@@ -175,11 +176,14 @@ SensorMonitor Blueprint API:
 
 ```text
 CaptureSelectedSensorsOnce
+ExportSelectedLidarServerPayload
 SetLidarPreviewBudget
 IncreaseLidarPreviewBudget
 DecreaseLidarPreviewBudget
 ToggleLidarPreviewHitOnly
 ```
+
+`ExportSelectedLidarServerPayload`는 선택된 LiDAR의 마지막 서버 JSON payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래에 저장합니다. 판단 서버 payload schema 확인용 샘플을 transport mode와 독립적으로 뽑을 때 사용합니다.
 
 SensorManager Blueprint API:
 
@@ -194,7 +198,7 @@ SetPointCloudOnlyMode
 
 Level Blueprint 없이 위젯을 자동 생성하려면 맵에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
 
-`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 상태 텍스트와 기본 버튼을 보여주는 smoke-test용 UI이며 preview hit-only 토글도 포함합니다. 운영자용 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor`를 권장합니다.
+`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 상태 텍스트와 기본 버튼을 보여주는 smoke-test용 UI이며 server payload export와 preview hit-only 토글도 포함합니다. 운영자용 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor`를 권장합니다.
 
 ## 자동화 테스트
 

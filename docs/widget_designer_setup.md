@@ -32,6 +32,7 @@ ExportPointCloudButton
 LocalSensorCaptureButton
 LocalSensorCaptureButtonText
 CaptureOnceButton
+ExportServerPayloadButton
 PreviewMoreButton
 PreviewLessButton
 PreviewHitOnlyButton
@@ -47,6 +48,12 @@ CaptureOnceButton
 ```
 
 Calls `CaptureSelectedSensorsOnce()`. When a SensorManager is bound, this captures the selected camera and selected LiDAR once.
+
+```text
+ExportServerPayloadButton
+```
+
+Calls `ExportSelectedLidarServerPayload()`. This writes the selected LiDAR's last server JSON payload to `Saved/SensorCaptures/<SensorId>/ServerPayload` so the judging-server contract can be inspected without changing the active transport mode.
 
 ```text
 PreviewMoreButton
@@ -107,7 +114,7 @@ ViewportZOrder = 0
 
 This actor creates the monitor widget, finds `AVirtualSensorManager`, binds the widget, and adds it to the viewport at BeginPlay.
 
-If `MonitorWidgetClass` is empty and `bUseNativeMonitorWidgetFallback` is true, the host creates the native `UVirtualSensorMonitorWidget`. The native fallback now builds a minimal Slate panel with status text and basic controls for view toggle, sensor selection, point-cloud-only mode, LiDAR view mode, capture once, preview hit-only toggle, and preview budget changes.
+If `MonitorWidgetClass` is empty and `bUseNativeMonitorWidgetFallback` is true, the host creates the native `UVirtualSensorMonitorWidget`. The native fallback now builds a minimal Slate panel with status text and basic controls for view toggle, sensor selection, point-cloud-only mode, LiDAR view mode, capture once, server payload export, preview hit-only toggle, and preview budget changes.
 
 The native fallback is intended for smoke tests and emergency runtime visibility. A Designer-authored `WBP_VirtualSensorMonitor` is still recommended for the production operator UI because it can include the camera/LiDAR image area, layout polish, and domain-specific slab analysis panels.
 
