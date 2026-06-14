@@ -9,6 +9,7 @@
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "M7AT10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorLidarStatusTextTest, "M7AT10.SensorMonitor.LidarStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorPerformanceWarningStatusTest, "M7AT10.SensorMonitor.PerformanceWarningStatusText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 {
@@ -77,6 +78,51 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
     TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,x,y,z")));
+    return true;
+}
+
+bool FVirtualSensorMonitorPerformanceWarningStatusTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    UVirtualSensorMonitorWidget* MonitorWidget = NewObject<UVirtualSensorMonitorWidget>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    TestNotNull(TEXT("monitor widget"), MonitorWidget);
+    if (!ReplayComp || !LidarComp || !MonitorWidget)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before monitor warning status test"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-MONITOR-WARNING");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->SimulationQuality = EVirtualSensorSimulationQuality::FullSpec;
+    LidarComp->bUseMultiHit = true;
+    LidarComp->bExportCsvOnScan = true;
+    LidarComp->bPointCloudPreviewEnabled = true;
+    LidarComp->SetPreviewPolicy(1, 0, true);
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    MonitorWidget->BindVirtualLidar(LidarComp);
+    MonitorWidget->ShowLidarView();
+
+    const FString Warning = LidarComp->GetPerformanceWarning();
+    const FString StatusText = MonitorWidget->GetMonitorStatusText();
+
+    TestFalse(TEXT("lidar warning is populated"), Warning.IsEmpty());
+    TestTrue(TEXT("monitor status includes fullspec multihit warning"), StatusText.Contains(TEXT("FullSpec+MultiHit")));
+    TestTrue(TEXT("monitor status includes export warning"), StatusText.Contains(TEXT("FullSpec export-on-scan")));
+    TestTrue(TEXT("monitor status includes uncapped preview warning"), StatusText.Contains(TEXT("Preview is uncapped")));
+    TestTrue(TEXT("monitor transport warning row includes warning"), StatusText.Contains(TEXT("Transport/Warning:")) && StatusText.Contains(Warning));
     return true;
 }
 

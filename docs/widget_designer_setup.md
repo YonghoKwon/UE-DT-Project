@@ -143,3 +143,4 @@ CSV export row contract
 ```
 
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.
+`M7AT10.SensorMonitor.PerformanceWarningStatusText` verifies that LiDAR performance warnings are surfaced in the same monitor status text.
