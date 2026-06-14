@@ -1,5 +1,7 @@
 param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt"
+    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [switch]$Json,
+    [switch]$FailOnGeneratedOutput
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,22 +66,8 @@ if (-not (Test-Path -LiteralPath $ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 Push-Location $ProjectRoot
 try {
-    Write-Section "Project"
-    Write-Host "Root: $ProjectRoot"
     $uproject = Get-ChildItem -LiteralPath $ProjectRoot -Filter *.uproject -File | Select-Object -First 1
-    if ($uproject) {
-        Write-Host "UProject: $($uproject.Name)"
-    }
 
-    Write-Section "Git"
-    git branch --show-current
-    git log --oneline -3
-    git status --short
-
-    Write-Section "Submodules"
-    git submodule status --recursive
-
-    Write-Section "Local asset decision points"
     $pathsToCheck = @(
         [PSCustomObject]@{
             Path = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
@@ -138,6 +126,7 @@ try {
         }
     )
 
+    $decisionPoints = @()
     $presentCount = 0
     $generatedCount = 0
     foreach ($entry in $pathsToCheck) {
@@ -150,20 +139,77 @@ try {
             }
         }
 
-        Write-Host "$relativePath"
-        Write-Host "  state: $($summary.State) $($summary.Kind), files=$($summary.FileCount), size=$(Format-Size $summary.SizeBytes)"
-        Write-Host "  category: $($entry.Category)"
-        Write-Host "  recommendation: $($entry.Recommendation)"
+        $decisionPoints += [PSCustomObject]@{
+            Path = $relativePath
+            State = $summary.State
+            Kind = $summary.Kind
+            FileCount = $summary.FileCount
+            SizeBytes = $summary.SizeBytes
+            Size = Format-Size $summary.SizeBytes
+            Category = $entry.Category
+            Recommendation = $entry.Recommendation
+        }
     }
 
-    Write-Section "Asset decision summary"
-    Write-Host "Present decision points: $presentCount"
-    Write-Host "Generated/local-output items present: $generatedCount"
-    Write-Host "Default action: do not stage these paths until each item has an explicit content or packaging decision."
+    $report = [PSCustomObject]@{
+        ProjectRoot = $ProjectRoot
+        UProject = if ($uproject) { $uproject.Name } else { $null }
+        GitBranch = (git branch --show-current)
+        RecentCommits = @(git log --oneline -3)
+        GitStatus = @(git status --short)
+        Submodules = @(git submodule status --recursive)
+        DecisionPoints = $decisionPoints
+        Summary = [PSCustomObject]@{
+            PresentDecisionPoints = $presentCount
+            GeneratedOrLocalOutputItemsPresent = $generatedCount
+            HasGeneratedOutput = ($generatedCount -gt 0)
+            DefaultAction = "Do not stage these paths until each item has an explicit content or packaging decision."
+        }
+        SuggestedChecks = [PSCustomObject]@{
+            Build = "& 'C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat' m7at10_dtEditor Win64 Development '$ProjectRoot\m7at10_dt.uproject' -WaitMutex -NoHotReloadFromIDE"
+            Smoke = "powershell -ExecutionPolicy Bypass -File '.\Scripts\run_smoke_tests.ps1' -SkipBuild"
+        }
+    }
 
-    Write-Section "Suggested next checks"
-    Write-Host "Build: & 'C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat' m7at10_dtEditor Win64 Development '$ProjectRoot\m7at10_dt.uproject' -WaitMutex -NoHotReloadFromIDE"
-    Write-Host "Smoke: powershell -ExecutionPolicy Bypass -File '.\Scripts\run_smoke_tests.ps1' -SkipBuild"
+    if ($Json) {
+        $report | ConvertTo-Json -Depth 5
+    }
+    else {
+        Write-Section "Project"
+        Write-Host "Root: $($report.ProjectRoot)"
+        if ($report.UProject) {
+            Write-Host "UProject: $($report.UProject)"
+        }
+
+        Write-Section "Git"
+        Write-Host $report.GitBranch
+        $report.RecentCommits | ForEach-Object { Write-Host $_ }
+        $report.GitStatus | ForEach-Object { Write-Host $_ }
+
+        Write-Section "Submodules"
+        $report.Submodules | ForEach-Object { Write-Host $_ }
+
+        Write-Section "Local asset decision points"
+        foreach ($point in $report.DecisionPoints) {
+            Write-Host "$($point.Path)"
+            Write-Host "  state: $($point.State) $($point.Kind), files=$($point.FileCount), size=$($point.Size)"
+            Write-Host "  category: $($point.Category)"
+            Write-Host "  recommendation: $($point.Recommendation)"
+        }
+
+        Write-Section "Asset decision summary"
+        Write-Host "Present decision points: $($report.Summary.PresentDecisionPoints)"
+        Write-Host "Generated/local-output items present: $($report.Summary.GeneratedOrLocalOutputItemsPresent)"
+        Write-Host "Default action: $($report.Summary.DefaultAction)"
+
+        Write-Section "Suggested next checks"
+        Write-Host "Build: $($report.SuggestedChecks.Build)"
+        Write-Host "Smoke: $($report.SuggestedChecks.Smoke)"
+    }
+
+    if ($FailOnGeneratedOutput -and $generatedCount -gt 0) {
+        throw "Generated or local-output items are present. Remove them or run without -FailOnGeneratedOutput after explicitly accepting the local state."
+    }
 }
 finally {
     Pop-Location

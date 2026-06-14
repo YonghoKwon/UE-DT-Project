@@ -205,6 +205,12 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 ```
 
 이 스크립트는 `WBP_VirtualSensorMonitor.uasset`, 환경 pack, packaged `Windows` output, launcher config 등이 의도적으로 커밋될 항목인지 확인할 때 사용합니다.
+자동화 로그나 CI에서 구조화된 결과가 필요하면 `-Json`을 추가하고, packaged `Windows` output 같은 생성 산출물이 남아 있을 때 검증을 실패시키려면 `-FailOnGeneratedOutput`을 추가합니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
+```
 
 ## 권장 Smoke Test 설정
 
