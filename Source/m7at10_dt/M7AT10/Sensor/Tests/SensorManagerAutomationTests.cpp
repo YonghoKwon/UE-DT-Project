@@ -4,10 +4,14 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
+#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyPolicyTest, "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerSharedServicesTest, "M7AT10.SensorManager.SharedServicesAssigned", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
 {
@@ -123,6 +127,64 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
 
     LidarOwnerA->Destroy();
     LidarOwnerB->Destroy();
+    Manager->Destroy();
+    return true;
+}
+
+bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    AVirtualSensorManager* Manager = World->SpawnActor<AVirtualSensorManager>();
+    AActor* CameraOwner = World->SpawnActor<AActor>();
+    AActor* LidarOwner = World->SpawnActor<AActor>();
+    TestNotNull(TEXT("sensor manager"), Manager);
+    TestNotNull(TEXT("camera owner"), CameraOwner);
+    TestNotNull(TEXT("lidar owner"), LidarOwner);
+    if (!Manager || !CameraOwner || !LidarOwner)
+    {
+        return false;
+    }
+
+    UVirtualCameraComp* CameraComp = NewObject<UVirtualCameraComp>(CameraOwner);
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>(LidarOwner);
+    TestNotNull(TEXT("camera component"), CameraComp);
+    TestNotNull(TEXT("lidar component"), LidarComp);
+    if (!CameraComp || !LidarComp)
+    {
+        return false;
+    }
+
+    CameraOwner->AddInstanceComponent(CameraComp);
+    LidarOwner->AddInstanceComponent(LidarComp);
+    CameraComp->RegisterComponent();
+    LidarComp->RegisterComponent();
+
+    UVirtualSensorDataTransportComp* SharedTransport = Manager->SharedTransportComponent;
+    UVirtualSensorRecorderComp* SharedRecorder = Manager->SharedRecorderComponent;
+    TestNotNull(TEXT("manager shared transport"), SharedTransport);
+    TestNotNull(TEXT("manager shared recorder"), SharedRecorder);
+
+    Manager->RegisterCamera(CameraComp);
+    Manager->RegisterLidar(LidarComp);
+
+    TestEqual(TEXT("camera receives shared transport"), CameraComp->TransportComponent.Get(), SharedTransport);
+    TestEqual(TEXT("camera receives shared recorder"), CameraComp->RecorderComponent.Get(), SharedRecorder);
+    TestEqual(TEXT("lidar receives shared transport"), LidarComp->TransportComponent.Get(), SharedTransport);
+    TestEqual(TEXT("lidar receives shared recorder"), LidarComp->RecorderComponent.Get(), SharedRecorder);
+
+    TestEqual(TEXT("camera summary count"), Manager->GetCameraSummaries().Num(), 1);
+    TestEqual(TEXT("lidar summary count"), Manager->GetLidarSummaries().Num(), 1);
+    TestEqual(TEXT("selected camera"), Manager->GetSelectedCamera(), CameraComp);
+    TestEqual(TEXT("selected lidar"), Manager->GetSelectedLidar(), LidarComp);
+
+    CameraOwner->Destroy();
+    LidarOwner->Destroy();
     Manager->Destroy();
     return true;
 }
