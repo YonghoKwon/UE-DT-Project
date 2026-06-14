@@ -128,6 +128,10 @@ Validate all payload fixtures:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
 ```
 
+The validator reads this document's `Top-Level Fields`, `Point Fields`, and
+`Slab Analysis` blocks, then checks the reference fixture against those field
+lists. Keep these blocks in sync with any schema changes.
+
 Regression coverage:
 
 ```text
