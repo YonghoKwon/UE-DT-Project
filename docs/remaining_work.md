@@ -169,6 +169,9 @@ Current state:
 - Preview is CPU/instance oriented and protected by preview stride/max point
   policies.
 - This is enough for editor feedback but not ideal for very large point clouds.
+- `Scripts/validate_point_cloud_preview_policy.ps1` checks that the current
+  server/preview split, runtime warnings, point-cloud-only preview clamps, and
+  automation test names remain in sync while the GPU renderer decision is open.
 
 Next implementation steps:
 
@@ -182,6 +185,8 @@ Completion evidence:
 - High-density scan can be previewed without editor stalls.
 - Point-cloud-only mode still preserves collision/trace behavior.
 - Dense server payload count is independent from preview point count.
+- Static readiness passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
 
 ### Production Monitor WBP
 

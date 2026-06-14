@@ -131,8 +131,8 @@ $workAreas = @(
         -Remaining "Actual SDK/bridge connections and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
-        -Percent 25 `
-        -Done "Server payload and preview policies are separated with preview caps." `
+        -Percent 30 `
+        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, and static preview-policy validation." `
         -Remaining "GPU/Niagara or another high-density renderer decision and implementation remain."),
     (New-WorkArea `
         -Name "LAZ export" `

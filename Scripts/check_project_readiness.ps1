@@ -15,6 +15,7 @@ param(
     [switch]$SkipPayloadFixtures,
     [switch]$SkipPayloadContract,
     [switch]$SkipRealSensorAdapterPlan,
+    [switch]$SkipPointCloudPreviewPolicy,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnStagedDecisionPoints,
@@ -57,6 +58,7 @@ $AssetReportScript = Join-Path $ScriptRoot "report_local_project_status.ps1"
 $PayloadFixtureScript = Join-Path $ScriptRoot "validate_payload_fixtures.ps1"
 $PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
 $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
+$PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
@@ -70,6 +72,9 @@ if (-not (Test-Path -LiteralPath $PayloadContractScript)) {
 }
 if (-not (Test-Path -LiteralPath $RealSensorAdapterPlanScript)) {
     throw "validate_real_sensor_adapter_plan.ps1 not found: $RealSensorAdapterPlanScript"
+}
+if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
+    throw "validate_point_cloud_preview_policy.ps1 not found: $PointCloudPreviewPolicyScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -125,6 +130,17 @@ if (-not $SkipRealSensorAdapterPlan) {
 else {
     Write-Host ""
     Write-Host "Real sensor adapter plan validation skipped by -SkipRealSensorAdapterPlan."
+}
+
+if (-not $SkipPointCloudPreviewPolicy) {
+    Invoke-ScriptStep `
+        -Label "Point cloud preview policy validation" `
+        -ScriptPath $PointCloudPreviewPolicyScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "Point cloud preview policy validation skipped by -SkipPointCloudPreviewPolicy."
 }
 
 if (-not $SkipSmoke) {

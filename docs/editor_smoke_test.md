@@ -137,6 +137,15 @@ Monitor host fallback tests:
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count/byte size, preview count, Slab analysis, warning, view mode, and CSV row contract.
 `M7AT10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.
 
+Static preview-policy readiness:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"
+```
+
+This check keeps the current CPU/instance preview safety policy explicit until a
+GPU/Niagara/custom high-density renderer is selected.
+
 Manual PIE payload checks:
 
 ```text
