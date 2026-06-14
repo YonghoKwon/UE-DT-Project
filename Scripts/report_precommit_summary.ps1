@@ -136,8 +136,8 @@ $workAreas = @(
         -Remaining "GPU/Niagara or another high-density renderer decision and implementation remain."),
     (New-WorkArea `
         -Name "LAZ export" `
-        -Percent 20 `
-        -Done "Placeholder behavior is explicit and tested as LAS-compatible source export." `
+        -Percent 25 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, and covered by static placeholder-policy validation." `
         -Remaining "True LAZ compression decision, integration, and validation remain.")
 )
 

@@ -149,6 +149,9 @@ Current state:
 
 - `ExportLastPointCloudLaz()` is intentionally a placeholder.
 - It writes a LAS-compatible `*_laz_source_*.las` file and logs a warning.
+- `Scripts/validate_laz_placeholder_policy.ps1` checks that code, docs, monitor
+  settings, and automation continue to describe this as a placeholder until true
+  LAZ compression is integrated.
 
 Next implementation steps:
 
@@ -161,6 +164,8 @@ Completion evidence:
 
 - `.laz` output is actually compressed and readable by a known point-cloud tool.
 - Automation verifies `.laz` creation separately from LAS source export.
+- Static placeholder readiness passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"`.
 
 ### Large Point Cloud Renderer
 
