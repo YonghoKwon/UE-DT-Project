@@ -52,6 +52,12 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 - `GeneratedOutput`: packaged outputs such as `Windows/` and `Windows.zip`.
 - `GeneratedOrLocalConfig`: local runtime configuration.
 
+`Config/Game.ini` receives an additional detected note when it contains
+`[DTCoreRuntimeOverride]`. If every override value is blank, treat it as a
+local-only runtime override unless shared endpoint defaults are explicitly
+required. If any endpoint or credential value is populated, review it for
+environment or secret leakage before staging.
+
 ## Recommended Workflow
 
 1. Run the report before staging.

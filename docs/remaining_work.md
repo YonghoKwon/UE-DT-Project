@@ -41,7 +41,11 @@ Open decisions:
     then commit only if accepted.
 - `Config/Game.ini`
   - Decide whether the local config change is intentional project config.
-  - Evidence needed: inspect diff and document why the setting belongs in repo.
+  - Current local state: empty `[DTCoreRuntimeOverride]` values.
+  - Recommended default: keep untracked as local-only runtime override unless
+    shared endpoint defaults are explicitly required.
+  - Evidence needed for commit: inspect diff, confirm there are no endpoint or
+    credential values, and document why the setting belongs in repo.
 - `Content/ChemicalPlantEnv/`
   - Large environment pack.
   - Evidence needed: explicit asset/vendor decision, size acceptance, and map

@@ -84,6 +84,46 @@ function Test-PathIsUnderDecisionPoint {
     return $false
 }
 
+function Get-DecisionPointNote {
+    param(
+        [string]$RelativePath,
+        [string]$FullPath
+    )
+
+    $normalizedPath = Normalize-RepoPath $RelativePath
+    if ($normalizedPath -ne "config/game.ini" -or -not (Test-Path -LiteralPath $FullPath)) {
+        return ""
+    }
+
+    $lines = @(Get-Content -LiteralPath $FullPath)
+    $hasRuntimeOverride = $false
+    $nonEmptyValues = @()
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq "[DTCoreRuntimeOverride]") {
+            $hasRuntimeOverride = $true
+            continue
+        }
+        if (-not $hasRuntimeOverride -or [string]::IsNullOrWhiteSpace($trimmed) -or -not $trimmed.Contains("=")) {
+            continue
+        }
+
+        $parts = $trimmed.Split("=", 2)
+        if ($parts.Count -eq 2 -and -not [string]::IsNullOrWhiteSpace($parts[1])) {
+            $nonEmptyValues += $parts[0]
+        }
+    }
+
+    if (-not $hasRuntimeOverride) {
+        return "Config/Game.ini exists but does not contain [DTCoreRuntimeOverride]; inspect manually before staging."
+    }
+    if ($nonEmptyValues.Count -eq 0) {
+        return "Detected empty [DTCoreRuntimeOverride]. Treat as local-only runtime override unless shared endpoint defaults are explicitly required."
+    }
+
+    return "Detected non-empty [DTCoreRuntimeOverride] values: $($nonEmptyValues -join ', '). Review for endpoint or credential leakage before staging."
+}
+
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
@@ -169,7 +209,9 @@ try {
     $presentCategoryCounts = @{}
     foreach ($entry in $pathsToCheck) {
         $relativePath = $entry.Path
-        $summary = Get-PathSummary -FullPath (Join-Path $ProjectRoot $relativePath)
+        $fullPath = Join-Path $ProjectRoot $relativePath
+        $summary = Get-PathSummary -FullPath $fullPath
+        $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
         if ($summary.State -eq "present") {
             ++$presentCount
             if ($entry.Category -like "Generated*") {
@@ -190,6 +232,7 @@ try {
             Size = Format-Size $summary.SizeBytes
             Category = $entry.Category
             Recommendation = $entry.Recommendation
+            DetectedNote = $decisionNote
         }
     }
 
@@ -242,6 +285,9 @@ try {
             Write-Host "  state: $($point.State) $($point.Kind), files=$($point.FileCount), size=$($point.Size)"
             Write-Host "  category: $($point.Category)"
             Write-Host "  recommendation: $($point.Recommendation)"
+            if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {
+                Write-Host "  detected: $($point.DetectedNote)"
+            }
         }
 
         Write-Section "Asset decision summary"
