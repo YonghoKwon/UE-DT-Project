@@ -115,6 +115,8 @@ Current state:
 - A local mock contract validator checks the fixtures against acceptance rules
   that approximate likely judging-server rejections before the final server
   contract is approved.
+- `Scripts/export_payload_contract_report.ps1` exports JSON and Markdown review
+  artifacts under `Saved/PayloadContractReports/` for judging-server handoff.
 - The readiness wrapper runs both fixture validation and mock contract
   validation before smoke tests unless those gates are explicitly skipped.
 - The schema is implemented enough for local export and smoke tests, but the
