@@ -6,6 +6,8 @@ project copy, especially `C:\Unreal Projects\m7at10_dt`.
 The script separates known local decision points from unexpected untracked files.
 This keeps generated outputs, vendor/sample content, binary WBP edits, and local
 settings out of code commits until each item has an explicit project decision.
+The active decision list and completion evidence are tracked in
+`docs/remaining_work.md`.
 
 ## Basic Usage
 

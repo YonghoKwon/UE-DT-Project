@@ -298,6 +298,7 @@ docs/widget_designer_setup.md
 docs/editor_smoke_test.md
 docs/real_sensor_adapter_plan.md
 docs/local_asset_report.md
+docs/remaining_work.md
 ```
 
 ## 알려진 제한
@@ -307,3 +308,5 @@ docs/local_asset_report.md
 - FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
 - 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.
 - 실제 map에서의 PIE smoke test와 WBP Designer 배치 검증은 별도 editor 작업이 필요합니다.
+
+남은 구현/에셋 결정/완료 판정 기준은 `docs/remaining_work.md`에서 추적합니다.
