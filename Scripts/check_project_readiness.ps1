@@ -17,6 +17,7 @@ param(
     [switch]$SkipRealSensorAdapterPlan,
     [switch]$SkipPointCloudPreviewPolicy,
     [switch]$SkipLazPlaceholderPolicy,
+    [switch]$SkipMonitorWidgetPolicy,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnStagedDecisionPoints,
@@ -61,6 +62,7 @@ $PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
 $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
+$MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
@@ -80,6 +82,9 @@ if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
 }
 if (-not (Test-Path -LiteralPath $LazPlaceholderPolicyScript)) {
     throw "validate_laz_placeholder_policy.ps1 not found: $LazPlaceholderPolicyScript"
+}
+if (-not (Test-Path -LiteralPath $MonitorWidgetPolicyScript)) {
+    throw "validate_monitor_widget_policy.ps1 not found: $MonitorWidgetPolicyScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -157,6 +162,17 @@ if (-not $SkipLazPlaceholderPolicy) {
 else {
     Write-Host ""
     Write-Host "LAZ placeholder policy validation skipped by -SkipLazPlaceholderPolicy."
+}
+
+if (-not $SkipMonitorWidgetPolicy) {
+    Invoke-ScriptStep `
+        -Label "Monitor widget policy validation" `
+        -ScriptPath $MonitorWidgetPolicyScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "Monitor widget policy validation skipped by -SkipMonitorWidgetPolicy."
 }
 
 if (-not $SkipSmoke) {

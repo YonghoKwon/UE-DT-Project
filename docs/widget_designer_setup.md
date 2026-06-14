@@ -159,3 +159,13 @@ CSV export row contract
 
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.
 `M7AT10.SensorMonitor.PerformanceWarningStatusText` verifies that LiDAR performance warnings are surfaced in the same monitor status text.
+
+Static monitor-policy readiness:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"
+```
+
+This check keeps optional C++ bindings, native fallback behavior, local binary
+WBP decision guards, setup documentation, and automation test names aligned
+before `WBP_VirtualSensorMonitor.uasset` is committed.

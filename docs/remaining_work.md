@@ -199,6 +199,9 @@ Current state:
 
 - Native fallback exists and is covered by automation.
 - Designer-authored `WBP_VirtualSensorMonitor` is still a local binary decision.
+- `Scripts/validate_monitor_widget_policy.ps1` checks that optional bindings,
+  native fallback, local WBP decision guards, setup docs, and monitor automation
+  names remain in sync before the binary WBP is committed.
 
 Next implementation steps:
 
@@ -213,6 +216,8 @@ Completion evidence:
 - No missing binding crashes.
 - Operator-facing status text exposes selected sensor, frame/ray counts, payload
   counts, preview counts, warnings, and slab angle result.
+- Static readiness passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"`.
 
 ## Routine Verification
 

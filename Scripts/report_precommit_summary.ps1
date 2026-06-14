@@ -111,8 +111,8 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $workAreas = @(
     (New-WorkArea `
         -Name "Virtual sensor baseline" `
-        -Percent 85 `
-        -Done "LiDAR/camera payload, replay, slab analysis, monitor fallback, smoke/readiness scripts are implemented." `
+        -Percent 86 `
+        -Done "LiDAR/camera payload, replay, slab analysis, monitor fallback, monitor policy validation, smoke/readiness scripts are implemented." `
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
@@ -121,8 +121,8 @@ $workAreas = @(
         -Remaining "Judging server approval, mock/server acceptance test, and final transport contract remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 35 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, and large/sample folders include content summaries." `
+        -Percent 38 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, and WBP decision guards are validated." `
         -Remaining "WBP, Game.ini, large content folders, and PixelStreaming sample ownership decisions remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
