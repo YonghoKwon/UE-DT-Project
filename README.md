@@ -274,6 +274,13 @@ LiDAR bDrawDebugRays = false
 
 ## 로컬 Asset 상태 점검
 
+커밋 전 진행률/남은 작업/커밋 예정 파일 요약:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
+```
+
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell

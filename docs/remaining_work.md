@@ -190,6 +190,17 @@ Fast local readiness check:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
 ```
 
+Pre-commit progress and remaining-work summary:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
+```
+
+The percentages are planning snapshots derived from the current remaining-work
+areas. They are not a substitute for build, smoke, editor, or server acceptance
+evidence.
+
 Full local readiness check:
 
 ```powershell
