@@ -126,6 +126,7 @@ Validate all payload fixtures:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
 ```
 
 The validator reads this document's `Top-Level Fields`, `Point Fields`, and

@@ -216,6 +216,7 @@ Payload fixture 검증:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
 ```
 
 로컬 readiness gate:

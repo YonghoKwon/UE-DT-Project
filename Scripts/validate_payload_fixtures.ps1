@@ -1,6 +1,7 @@
 param(
     [string]$FixtureRoot = "",
-    [string]$SchemaDocsRoot = ""
+    [string]$SchemaDocsRoot = "",
+    [switch]$Json
 )
 
 $ErrorActionPreference = "Stop"
@@ -210,4 +211,47 @@ if ([string]::IsNullOrWhiteSpace($camera.image)) {
     throw "Camera fixture image must not be empty"
 }
 
-Write-Host "Payload fixtures are valid."
+$report = [PSCustomObject]@{
+    FixtureRoot = $FixtureRoot
+    SchemaDocsRoot = $SchemaDocsRoot
+    Fixtures = @(
+        [PSCustomObject]@{
+            SensorType = "virtual_lidar"
+            SchemaVersion = $lidar.schemaVersion
+            Path = $lidarPath
+            DocumentPath = $lidarDocPath
+            TopLevelFieldCount = $lidarRequiredFields.Count
+            PointFieldCount = $lidarPointFields.Count
+            PayloadPointCount = $lidar.payloadPointCount
+            DocumentedFieldGroups = @("Top-Level Fields", "Point Fields", "Slab Analysis")
+        },
+        [PSCustomObject]@{
+            SensorType = "virtual_camera"
+            SchemaVersion = $camera.schemaVersion
+            Path = $cameraPath
+            DocumentPath = $cameraDocPath
+            TopLevelFieldCount = $cameraRequiredFields.Count
+            TransformFieldCount = $cameraTransformFields.Count
+            ByteSize = $camera.byteSize
+            Encoding = $camera.encoding
+            DocumentedFieldGroups = @("Top-Level Fields", "Transform")
+        }
+    )
+    Summary = [PSCustomObject]@{
+        FixtureCount = 2
+        SchemaVersions = @($lidar.schemaVersion, $camera.schemaVersion)
+        DocumentationLinked = $true
+        Valid = $true
+    }
+}
+
+if ($Json) {
+    $report | ConvertTo-Json -Depth 5
+}
+else {
+    Write-Host "Payload fixtures are valid."
+    Write-Host "Fixture count: $($report.Summary.FixtureCount)"
+    foreach ($fixture in $report.Fixtures) {
+        Write-Host "$($fixture.SensorType): $($fixture.SchemaVersion) -> $($fixture.Path)"
+    }
+}
