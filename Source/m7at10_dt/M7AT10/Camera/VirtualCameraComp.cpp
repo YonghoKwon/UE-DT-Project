@@ -17,6 +17,44 @@
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 
+namespace
+{
+bool IsWholeNumber(double Value)
+{
+    return FMath::IsFinite(Value) && FMath::IsNearlyEqual(Value, FMath::RoundToDouble(Value));
+}
+
+bool IsPositiveWholeNumber(double Value)
+{
+    return Value > 0.0 && IsWholeNumber(Value);
+}
+
+bool HasNumberArrayField(const TSharedPtr<FJsonObject>& Object, const FString& FieldName, int32 ExpectedCount)
+{
+    if (!Object.IsValid())
+    {
+        return false;
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+    if (!Object->TryGetArrayField(FieldName, Values) || !Values || Values->Num() != ExpectedCount)
+    {
+        return false;
+    }
+
+    for (const TSharedPtr<FJsonValue>& Value : *Values)
+    {
+        double Number = 0.0;
+        if (!Value.IsValid() || !Value->TryGetNumber(Number) || !FMath::IsFinite(Number))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+}
+
 UVirtualCameraComp::UVirtualCameraComp()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -211,22 +249,23 @@ bool UVirtualCameraComp::InjectExternalJsonPayload(const FString& JsonPayload, b
 
     LastJsonPayload = JsonPayload;
     FrameId = FMath::Max(FrameId, PayloadFrameId);
+    const FString RecordSensorId = PayloadSensorId.IsEmpty() ? SensorId : PayloadSensorId;
 
     if (bSendTransport)
     {
-        DispatchJsonPayloadOnly(JsonPayload);
+        DispatchJsonPayloadOnly(JsonPayload, RecordSensorId);
     }
 
-    const FString RecordSensorId = PayloadSensorId.IsEmpty() ? SensorId : PayloadSensorId;
     if (RecorderComponent)
     {
-        RecorderComponent->RecordJsonFrame(RecordSensorId, TEXT("virtual_camera"), FrameId, JsonPayload);
+        RecorderComponent->RecordJsonFrame(RecordSensorId, TEXT("virtual_camera"), PayloadFrameId, JsonPayload);
     }
 
     UpdateRuntimeStatus(JsonPayload.Len(), FString::Printf(TEXT("Injected external camera payload bytes=%lld sendTransport=%s"),
         static_cast<long long>(PayloadByteSize),
         bSendTransport ? TEXT("true") : TEXT("false")));
     RuntimeStatus.SensorId = RecordSensorId;
+    RuntimeStatus.FrameId = PayloadFrameId;
     OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
     return true;
 }
@@ -359,11 +398,13 @@ void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArra
     }
 }
 
-void UVirtualCameraComp::DispatchJsonPayloadOnly(const FString& JsonPayload) const
+void UVirtualCameraComp::DispatchJsonPayloadOnly(const FString& JsonPayload, const FString& SensorIdOverride) const
 {
+    const FString EffectiveSensorId = SensorIdOverride.IsEmpty() ? SensorId : SensorIdOverride;
+
     if (TransportComponent)
     {
-        TransportComponent->SendJson(SensorId, TEXT("virtual_camera"), JsonPayload);
+        TransportComponent->SendJson(EffectiveSensorId, TEXT("virtual_camera"), JsonPayload);
         return;
     }
 
@@ -372,13 +413,13 @@ void UVirtualCameraComp::DispatchJsonPayloadOnly(const FString& JsonPayload) con
     case EVirtualCameraOutputMode::None:
         break;
     case EVirtualCameraOutputMode::LogOnly:
-        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] externalPayloadLength=%d"), *SensorId, JsonPayload.Len());
+        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] externalPayloadLength=%d"), *EffectiveSensorId, JsonPayload.Len());
         break;
     case EVirtualCameraOutputMode::HttpPost:
         PostJson(JsonPayload);
         break;
     case EVirtualCameraOutputMode::SaveJpeg:
-        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] external payload has no local JPEG bytes to save."), *SensorId);
+        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] external payload has no local JPEG bytes to save."), *EffectiveSensorId);
         break;
     default:
         break;
@@ -398,6 +439,10 @@ bool UVirtualCameraComp::ReadExternalPayloadMetadata(const FString& JsonPayload,
     FString SensorType;
     FString Encoding;
     FString Image;
+    FString SensorIdField;
+    FString Manufacturer;
+    FString Model;
+    FString TimestampUtc;
     if (!RootObject->TryGetStringField(TEXT("schemaVersion"), SchemaVersion) || SchemaVersion != TEXT("virtual-camera.v1"))
     {
         return false;
@@ -410,7 +455,40 @@ bool UVirtualCameraComp::ReadExternalPayloadMetadata(const FString& JsonPayload,
     {
         return false;
     }
+    if (!RootObject->TryGetStringField(TEXT("sensorId"), SensorIdField) || SensorIdField.TrimStartAndEnd().IsEmpty())
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("manufacturer"), Manufacturer) || Manufacturer.TrimStartAndEnd().IsEmpty())
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("model"), Model) || Model.TrimStartAndEnd().IsEmpty())
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("timestampUtc"), TimestampUtc) || !TimestampUtc.EndsWith(TEXT("Z")))
+    {
+        return false;
+    }
+
+    FDateTime ParsedTimestampUtc;
+    if (!FDateTime::ParseIso8601(*TimestampUtc, ParsedTimestampUtc))
+    {
+        return false;
+    }
+
     if (!RootObject->TryGetStringField(TEXT("image"), Image) || Image.IsEmpty())
+    {
+        return false;
+    }
+
+    TArray<uint8> DecodedImageBytes;
+    if (!FBase64::Decode(Image, DecodedImageBytes) || DecodedImageBytes.Num() <= 0)
+    {
+        return false;
+    }
+    if (DecodedImageBytes.Num() < 2 || DecodedImageBytes[0] != 0xff || DecodedImageBytes[1] != 0xd8)
     {
         return false;
     }
@@ -419,24 +497,55 @@ bool UVirtualCameraComp::ReadExternalPayloadMetadata(const FString& JsonPayload,
     double Height = 0.0;
     double ByteSize = 0.0;
     double FrameIdNumber = 0.0;
-    if (!RootObject->TryGetNumberField(TEXT("width"), Width) || Width <= 0.0)
+    double HorizontalFov = 0.0;
+    double VerticalFov = 0.0;
+    if (!RootObject->TryGetNumberField(TEXT("width"), Width) || !IsPositiveWholeNumber(Width))
     {
         return false;
     }
-    if (!RootObject->TryGetNumberField(TEXT("height"), Height) || Height <= 0.0)
+    if (!RootObject->TryGetNumberField(TEXT("height"), Height) || !IsPositiveWholeNumber(Height))
     {
         return false;
     }
-    if (!RootObject->TryGetNumberField(TEXT("byteSize"), ByteSize) || ByteSize <= 0.0)
+    if (!RootObject->TryGetNumberField(TEXT("byteSize"), ByteSize) || !IsPositiveWholeNumber(ByteSize))
     {
         return false;
     }
-    if (!RootObject->TryGetNumberField(TEXT("frameId"), FrameIdNumber) || FrameIdNumber < 0.0)
+    if (static_cast<int64>(ByteSize) != DecodedImageBytes.Num())
+    {
+        return false;
+    }
+    if (!RootObject->TryGetNumberField(TEXT("frameId"), FrameIdNumber) || FrameIdNumber < 0.0 || !IsWholeNumber(FrameIdNumber))
+    {
+        return false;
+    }
+    if (!RootObject->TryGetNumberField(TEXT("horizontalFov"), HorizontalFov) || HorizontalFov <= 0.0 || !FMath::IsFinite(HorizontalFov))
+    {
+        return false;
+    }
+    if (!RootObject->TryGetNumberField(TEXT("verticalFov"), VerticalFov) || VerticalFov <= 0.0 || !FMath::IsFinite(VerticalFov))
     {
         return false;
     }
 
-    RootObject->TryGetStringField(TEXT("sensorId"), OutSensorId);
+    const TSharedPtr<FJsonObject>* TransformObject = nullptr;
+    if (!RootObject->TryGetObjectField(TEXT("sensorTransform"), TransformObject) || !TransformObject || !TransformObject->IsValid())
+    {
+        return false;
+    }
+    if (!HasNumberArrayField(*TransformObject, TEXT("location"), 3) ||
+        !HasNumberArrayField(*TransformObject, TEXT("rotation"), 3) ||
+        !HasNumberArrayField(*TransformObject, TEXT("forward"), 3) ||
+        !HasNumberArrayField(*TransformObject, TEXT("up"), 3))
+    {
+        return false;
+    }
+    if (!HasNumberArrayField(RootObject, TEXT("sensorWorldLocation"), 3))
+    {
+        return false;
+    }
+
+    OutSensorId = SensorIdField.TrimStartAndEnd();
     OutFrameId = static_cast<int64>(FrameIdNumber);
     OutByteSize = static_cast<int64>(ByteSize);
     return true;

@@ -114,7 +114,10 @@ handoff point without modifying DTCore source.
 
 `M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an
 external camera JSON payload reaches the target camera cache and runtime status
-without renderer-dependent SceneCapture readback.
+without renderer-dependent SceneCapture readback. It also verifies JSON
+transport, recorder capture, payload `sensorId`/`frameId` propagation, decoded
+JPEG byte count rejection, invalid base64/JPEG rejection, and cached-payload
+preservation after rejected frames.
 
 ## Implemented First Step
 

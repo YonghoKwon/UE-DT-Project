@@ -20,6 +20,8 @@
 #include "m7at10_dt/M7AT10/Sensor/RealSensorAdapterStubs.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
 #include "m7at10_dt/M7AT10/WebSocket/TC/LidarJsonLiveFrameTC.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 #include "SocketSubsystem.h"
@@ -905,9 +907,13 @@ bool FRealSensorSourceCameraJsonLiveBridgeTest::RunTest(const FString& Parameter
 
     UVirtualCameraComp* TargetCamera = NewObject<UVirtualCameraComp>(SourceOwner);
     UCameraJsonLiveSourceComp* CameraSource = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
+    UVirtualSensorDataTransportComp* TransportComp = NewObject<UVirtualSensorDataTransportComp>(SourceOwner);
+    UVirtualSensorRecorderComp* RecorderComp = NewObject<UVirtualSensorRecorderComp>(SourceOwner);
     TestNotNull(TEXT("camera JSON live target camera"), TargetCamera);
     TestNotNull(TEXT("camera JSON live source"), CameraSource);
-    if (!TargetCamera || !CameraSource)
+    TestNotNull(TEXT("camera JSON live transport"), TransportComp);
+    TestNotNull(TEXT("camera JSON live recorder"), RecorderComp);
+    if (!TargetCamera || !CameraSource || !TransportComp || !RecorderComp)
     {
         SourceOwner->Destroy();
         return false;
@@ -915,22 +921,31 @@ bool FRealSensorSourceCameraJsonLiveBridgeTest::RunTest(const FString& Parameter
 
     SourceOwner->AddInstanceComponent(TargetCamera);
     SourceOwner->AddInstanceComponent(CameraSource);
+    SourceOwner->AddInstanceComponent(TransportComp);
+    SourceOwner->AddInstanceComponent(RecorderComp);
     TargetCamera->bAutoStartCapture = false;
     TargetCamera->bAutoRegisterToManager = false;
     TargetCamera->SensorId = TEXT("TEST-CAMERA-JSON-LIVE-TARGET");
-    TargetCamera->OutputMode = EVirtualCameraOutputMode::LogOnly;
+    TargetCamera->OutputMode = EVirtualCameraOutputMode::SaveJpeg;
     TargetCamera->RegisterComponent();
     CameraSource->RegisterComponent();
+    TransportComp->RegisterComponent();
+    RecorderComp->RegisterComponent();
 
+    TransportComp->TransportMode = EVirtualSensorTransportMode::SaveToFile;
+    TransportComp->SaveSubDirectory = TEXT("Automation/CameraJsonLiveTransport");
+    RecorderComp->StartRecording();
+    TargetCamera->SetTransportComponent(TransportComp);
+    TargetCamera->SetRecorderComponent(RecorderComp);
     CameraSource->TargetCamera = TargetCamera;
-    CameraSource->bSendTransportByDefault = false;
+    CameraSource->bSendTransportByDefault = true;
 
-    const FString Payload = TEXT("{\"schemaVersion\":\"virtual-camera.v1\",\"sensorType\":\"virtual_camera\",\"sensorId\":\"CAM-JSON-LIVE-01\",\"manufacturer\":\"Fixture\",\"model\":\"ExternalJpeg\",\"frameId\":7,\"timestampUtc\":\"2026-06-14T12:00:00.000Z\",\"width\":640,\"height\":360,\"byteSize\":16,\"horizontalFov\":90.0,\"verticalFov\":58.7,\"simulationQuality\":\"RealTimePreview\",\"encoding\":\"jpeg/base64\",\"sensorTransform\":{\"location\":[0,0,0],\"rotation\":[0,0,0],\"forward\":[1,0,0],\"up\":[0,0,1]},\"sensorWorldLocation\":[0,0,0],\"image\":\"/9j/4AAQSkZJRgABAQ==\"}");
+    const FString Payload = TEXT("{\"schemaVersion\":\"virtual-camera.v1\",\"sensorType\":\"virtual_camera\",\"sensorId\":\"CAM-JSON-LIVE-01\",\"manufacturer\":\"Fixture\",\"model\":\"ExternalJpeg\",\"frameId\":7,\"timestampUtc\":\"2026-06-14T12:00:00.000Z\",\"width\":640,\"height\":360,\"byteSize\":13,\"horizontalFov\":90.0,\"verticalFov\":58.7,\"simulationQuality\":\"RealTimePreview\",\"encoding\":\"jpeg/base64\",\"sensorTransform\":{\"location\":[0,0,0],\"rotation\":[0,0,0],\"forward\":[1,0,0],\"up\":[0,0,1]},\"sensorWorldLocation\":[0,0,0],\"image\":\"/9j/4AAQSkZJRgABAQ==\"}");
     TestTrue(TEXT("camera JSON live source starts"), CameraSource->StartSource());
     TestTrue(TEXT("camera JSON live source buffers payload"), CameraSource->AppendLivePayloadJson(Payload));
     TestTrue(TEXT("camera JSON live has buffered payload"), CameraSource->bHasBufferedPayload);
     TestEqual(TEXT("camera JSON live payload length tracked"), CameraSource->LastPayloadLength, Payload.Len());
-    TestTrue(TEXT("camera JSON live pushes payload"), CameraSource->PushFrameOnce(false));
+    TestTrue(TEXT("camera JSON live pushes payload"), CameraSource->PushFrameOnce(true));
 
     TestEqual(TEXT("camera JSON live source frame id"), CameraSource->LastSourceFrameId, static_cast<int64>(1));
     TestEqual(TEXT("camera JSON live source point count represents frame count"), CameraSource->LastSourcePointCount, 1);
@@ -939,6 +954,19 @@ bool FRealSensorSourceCameraJsonLiveBridgeTest::RunTest(const FString& Parameter
     TestEqual(TEXT("camera runtime frame id from payload"), TargetCamera->GetRuntimeStatus().FrameId, static_cast<int64>(7));
     TestEqual(TEXT("camera runtime sensor id from payload"), TargetCamera->GetRuntimeStatus().SensorId, FString(TEXT("CAM-JSON-LIVE-01")));
     TestTrue(TEXT("camera runtime message mentions external payload"), TargetCamera->GetRuntimeStatus().LastMessage.Contains(TEXT("Injected external camera payload")));
+    TestTrue(TEXT("camera external payload transport submitted"), TransportComp->LastResult.bSubmitted);
+    TestTrue(TEXT("camera external payload transport accepted"), TransportComp->LastResult.bAccepted);
+    TestEqual(TEXT("camera external payload transport length"), TransportComp->LastResult.DataLength, Payload.Len());
+    TestTrue(TEXT("camera external payload transport saved JSON"), TransportComp->LastResult.SavedFilePath.EndsWith(TEXT(".json")));
+    TestTrue(TEXT("camera external payload transport path uses payload sensor id"), TransportComp->LastResult.SavedFilePath.Contains(TEXT("CAM-JSON-LIVE-01")));
+    TestTrue(TEXT("camera external payload transport file exists"), FPaths::FileExists(TransportComp->LastResult.SavedFilePath));
+    TestEqual(TEXT("camera external payload recorder frame count"), RecorderComp->GetRecordedFrameCount(), 1);
+    FVirtualSensorRecordedFrame RecordedFrame;
+    TestTrue(TEXT("camera external payload recorder frame readable"), RecorderComp->GetRecordedFrame(0, RecordedFrame));
+    TestEqual(TEXT("camera external payload recorder sensor id"), RecordedFrame.SensorId, FString(TEXT("CAM-JSON-LIVE-01")));
+    TestEqual(TEXT("camera external payload recorder sensor type"), RecordedFrame.SensorType, FString(TEXT("virtual_camera")));
+    TestEqual(TEXT("camera external payload recorder frame id"), RecordedFrame.FrameId, static_cast<int64>(7));
+    TestEqual(TEXT("camera external payload recorder payload"), RecordedFrame.PayloadJson, Payload);
 
     TestTrue(TEXT("camera JSON live source rejects empty payload"), !CameraSource->AppendLivePayloadJson(TEXT("   ")));
 
@@ -952,6 +980,38 @@ bool FRealSensorSourceCameraJsonLiveBridgeTest::RunTest(const FString& Parameter
         TestTrue(TEXT("invalid camera JSON live buffers payload"), InvalidSource->AppendLivePayloadJson(TEXT("{\"schemaVersion\":\"virtual-camera.v1\",\"sensorType\":\"virtual_camera\",\"encoding\":\"jpeg/base64\",\"image\":\"\"}")));
         TestFalse(TEXT("invalid camera JSON live push is rejected"), InvalidSource->PushFrameOnce(false));
         TestEqual(TEXT("invalid camera JSON live reports error"), InvalidSource->GetConnectionState(), ERealSensorSourceConnectionState::Error);
+        TestEqual(TEXT("invalid camera JSON live keeps previous camera payload"), TargetCamera->GetLastJsonPayload(), Payload);
+        TestEqual(TEXT("invalid camera JSON live does not record a frame"), RecorderComp->GetRecordedFrameCount(), 1);
+    }
+
+    UCameraJsonLiveSourceComp* InvalidBase64Source = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("invalid base64 camera JSON live source"), InvalidBase64Source);
+    if (InvalidBase64Source)
+    {
+        SourceOwner->AddInstanceComponent(InvalidBase64Source);
+        InvalidBase64Source->RegisterComponent();
+        InvalidBase64Source->TargetCamera = TargetCamera;
+        const FString InvalidBase64Payload = Payload.Replace(TEXT("\"/9j/4AAQSkZJRgABAQ==\""), TEXT("\"not-base64\""));
+        TestTrue(TEXT("invalid base64 camera JSON live buffers payload"), InvalidBase64Source->AppendLivePayloadJson(InvalidBase64Payload));
+        TestFalse(TEXT("invalid base64 camera JSON live push is rejected"), InvalidBase64Source->PushFrameOnce(false));
+        TestEqual(TEXT("invalid base64 camera JSON live reports error"), InvalidBase64Source->GetConnectionState(), ERealSensorSourceConnectionState::Error);
+        TestEqual(TEXT("invalid base64 camera JSON live keeps previous camera payload"), TargetCamera->GetLastJsonPayload(), Payload);
+        TestEqual(TEXT("invalid base64 camera JSON live does not record a frame"), RecorderComp->GetRecordedFrameCount(), 1);
+    }
+
+    UCameraJsonLiveSourceComp* ByteMismatchSource = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("byte mismatch camera JSON live source"), ByteMismatchSource);
+    if (ByteMismatchSource)
+    {
+        SourceOwner->AddInstanceComponent(ByteMismatchSource);
+        ByteMismatchSource->RegisterComponent();
+        ByteMismatchSource->TargetCamera = TargetCamera;
+        const FString ByteMismatchPayload = Payload.Replace(TEXT("\"byteSize\":13"), TEXT("\"byteSize\":12"));
+        TestTrue(TEXT("byte mismatch camera JSON live buffers payload"), ByteMismatchSource->AppendLivePayloadJson(ByteMismatchPayload));
+        TestFalse(TEXT("byte mismatch camera JSON live push is rejected"), ByteMismatchSource->PushFrameOnce(false));
+        TestEqual(TEXT("byte mismatch camera JSON live reports error"), ByteMismatchSource->GetConnectionState(), ERealSensorSourceConnectionState::Error);
+        TestEqual(TEXT("byte mismatch camera JSON live keeps previous camera payload"), TargetCamera->GetLastJsonPayload(), Payload);
+        TestEqual(TEXT("byte mismatch camera JSON live does not record a frame"), RecorderComp->GetRecordedFrameCount(), 1);
     }
 
     SourceOwner->Destroy();

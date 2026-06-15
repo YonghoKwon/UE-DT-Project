@@ -100,6 +100,13 @@ the JSON through the camera transport path without requiring render-target
 readback. It does not update `CameraRenderTarget` or send a binary JPEG side
 channel, so monitor preview can remain the last virtual/render-target frame
 while the server payload reflects the external camera JSON.
+The external path also base64-decodes `image` and requires `byteSize` to match
+the decoded JPEG byte count before accepting the payload. It rejects missing
+identity metadata, non-UTC-looking timestamps, non-integral
+`frameId`/dimension/byte-size values, invalid JPEG magic bytes, non-positive
+FOV values, and malformed `sensorTransform`/`sensorWorldLocation` arrays.
+Accepted external payloads use the payload `sensorId` and `frameId` for
+transport file naming, recorder frames, and runtime status.
 
 The monitor's `ExportSelectedSensorServerPayload()` writes the current camera payload to:
 
@@ -144,4 +151,7 @@ M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame
 
 This test currently verifies the monitor's server payload export contract for LiDAR payloads. Camera payload export is compile-verified and shares the same monitor export path, but runtime camera capture/export should still be checked in PIE because render-target readback depends on renderer availability.
 `M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` covers external
-`virtual-camera.v1` JSON payload injection without renderer readback.
+`virtual-camera.v1` JSON payload injection without renderer readback, including
+transport JSON save, recorder capture, payload `sensorId`/`frameId`
+propagation, invalid base64 rejection, byte-size mismatch rejection, and
+cached-payload preservation after rejected frames.

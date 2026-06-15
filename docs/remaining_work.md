@@ -134,7 +134,13 @@ Current state:
   `UCameraJsonLiveSourceComp` provide the first camera-side JSON live handoff
   for already-normalized `virtual-camera.v1` payloads without render-target
   readback. This updates server payload/status/JSON transport, not the camera
-  preview render target or binary JPEG side channel.
+  preview render target or binary JPEG side channel. The current validation
+  checks schema/type/encoding, identity metadata, UTC-looking timestamp format,
+  integral dimensions/frame id, positive FOV values, base64 image decode, JPEG
+  magic bytes, decoded byte count, and required transform arrays. Accepted
+  payloads propagate the payload `sensorId` and `frameId` to runtime status,
+  recorder frames, and transport file naming; rejected payloads preserve the
+  previous cached payload and do not add recorder frames.
 - `ULidarHttpJsonLiveSourceComp` provides an optional inbound HTTP POST wrapper
   over the same handoff path. It is explicit-start by default, caps request body
   size, uses Unreal's `HTTPServer` module, marshals request processing back to
