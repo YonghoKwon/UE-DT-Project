@@ -109,6 +109,12 @@ Open decisions:
   `WBP_VirtualSensorMonitor.uasset` metadata, Git state, setup-document contract
   checks, `RecommendedDecision`, and an evidence draft while keeping Unreal
   Editor verification as the remaining acceptance gate.
+- Large content decision report tooling is available through
+  `Scripts/export_large_content_decision_report.ps1`. It summarizes
+  `LargeContentCandidate` and `SampleOrThirdParty` paths by size, extension
+  counts, largest files, risk, `RecommendedDecision`, and evidence drafts. Large
+  content over 1 GB and copied samples default to `KeepLocal` until
+  source/license/dependency/storage evidence is accepted.
 
 Generated/local-output items are ignored by Git but still reported:
 

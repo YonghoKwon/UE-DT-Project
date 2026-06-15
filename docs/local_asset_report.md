@@ -233,3 +233,17 @@ The WBP decision report records binary metadata, Git state, setup-document
 contract terms, `RecommendedDecision`, and an evidence draft. It cannot replace
 Unreal Editor verification; it keeps editor-open, optional binding, PIE smoke,
 and production acceptance evidence separate from file metadata.
+
+Large content decisions can be summarized separately from generated package
+outputs:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+```
+
+The large content report reuses `report_local_project_status.ps1` and focuses on
+`LargeContentCandidate` plus `SampleOrThirdParty` paths. It records size,
+extension counts, largest files, risk, `RecommendedDecision`, and evidence
+drafts. Content over 1 GB and copied samples default to `KeepLocal` until
+source/license/dependency/storage evidence is complete and accepted.
