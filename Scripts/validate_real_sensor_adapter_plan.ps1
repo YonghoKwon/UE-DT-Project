@@ -134,6 +134,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "DoesNotConnectToBroker"; Label = "Broker smoke report states it does not fake broker connectivity" },
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "NoWrite"; Label = "Broker smoke report read-only mode" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunEvidenceAutomation"; Label = "Smoke evidence workflow can run registration automation" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunBrokerlessDTCoreDispatchAutomation"; Label = "Smoke evidence workflow can run brokerless DTCore dispatch automation" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Smoke evidence workflow names brokerless dispatch automation" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunCommandletDryRun"; Label = "Smoke evidence workflow commandlet dry run is opt-in" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "EnsureLidarJsonLiveFrameTransaction"; Label = "Smoke evidence workflow can dry-run row commandlet" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "WriteReports"; Label = "Smoke evidence workflow report writing is opt-in" },

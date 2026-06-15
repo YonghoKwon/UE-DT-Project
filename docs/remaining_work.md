@@ -121,7 +121,8 @@ Current state:
   smoke evidence without pretending to connect to the broker itself.
 - `Scripts/run_websocket_lidar_smoke_evidence.ps1` wraps sample validation,
   registration checks, commandlet dry run, optional evidence automation, and
-  broker smoke reporting into one repeatable workflow.
+  brokerless dispatch automation, and broker smoke reporting into one
+  repeatable workflow.
 - `M7AT10.RealSensorSource.JsonLiveDTCoreDispatch` now starts a PIE world,
   injects the checked `LIDAR_JSON_LIVE_FRAME` sample into the DTCore
   `UDxDataSubsystem` WebSocket queue, and verifies the target LiDAR receives the
@@ -145,8 +146,8 @@ Next implementation steps:
   `Samples/websocket/lidar_json_live_frame_sample.json`.
 - Export a completed broker smoke report with source frame, target point, and
   cached payload observations.
-- Run the smoke evidence wrapper with `-RunEvidenceAutomation` during deployment
-  verification.
+- Run the smoke evidence wrapper with `-RunEvidenceAutomation` and
+  `-RunBrokerlessDTCoreDispatchAutomation` during deployment verification.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
 - Implement a ROS2 bridge adapter that converts incoming messages to

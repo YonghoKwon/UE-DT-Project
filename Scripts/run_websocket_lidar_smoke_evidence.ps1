@@ -9,6 +9,7 @@ param(
     [string]$Notes = "",
     [switch]$RunCommandletDryRun,
     [switch]$RunEvidenceAutomation,
+    [switch]$RunBrokerlessDTCoreDispatchAutomation,
     [switch]$ObservedSourceFrame,
     [switch]$ObservedTargetPoints,
     [switch]$ObservedCachedPayload,
@@ -27,11 +28,18 @@ function Invoke-CheckedNative {
         [string[]]$Arguments
     )
 
-    Write-Host ""
-    Write-Host "==> $Label"
-    Write-Host "$FilePath $($Arguments -join ' ')"
+    if (-not $script:JsonMode) {
+        Write-Host ""
+        Write-Host "==> $Label"
+        Write-Host "$FilePath $($Arguments -join ' ')"
+    }
 
-    & $FilePath @Arguments
+    if ($script:JsonMode) {
+        & $FilePath @Arguments *> $null
+    }
+    else {
+        & $FilePath @Arguments
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "$Label failed with exit code $LASTEXITCODE"
     }
@@ -172,6 +180,42 @@ if ($RunEvidenceAutomation) {
     }
 }
 
+$brokerlessTestName = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"
+$brokerlessArgs = @(
+    $ProjectPath,
+    "-NullRHI",
+    "-Unattended",
+    "-NoSplash",
+    "-NoSound",
+    "-ExecCmds=Automation RunTests $brokerlessTestName; Quit",
+    "-TestExit=Automation Test Queue Empty"
+)
+
+$brokerlessDTCoreDispatchAutomation = [PSCustomObject]@{
+    Ran = $false
+    Passed = $false
+    Command = "$editorCmd $($brokerlessArgs -join ' ')"
+    TestName = $brokerlessTestName
+}
+
+if ($RunBrokerlessDTCoreDispatchAutomation) {
+    if (-not (Test-Path -LiteralPath $editorCmd -PathType Leaf)) {
+        throw "UnrealEditor-Cmd.exe not found: $editorCmd"
+    }
+
+    Invoke-CheckedNative `
+        -Label "Automation $brokerlessTestName" `
+        -FilePath $editorCmd `
+        -Arguments $brokerlessArgs
+
+    $brokerlessDTCoreDispatchAutomation = [PSCustomObject]@{
+        Ran = $true
+        Passed = $true
+        Command = "$editorCmd $($brokerlessArgs -join ' ')"
+        TestName = $brokerlessTestName
+    }
+}
+
 $brokerParams = @{
     ProjectRoot = $ProjectRoot
     BrokerUrl = $BrokerUrl
@@ -198,6 +242,7 @@ $report = [PSCustomObject]@{
     Registration = $registration.Summary
     CommandletDryRun = $commandletDryRun
     EvidenceAutomation = $evidenceAutomation
+    BrokerlessDTCoreDispatchAutomation = $brokerlessDTCoreDispatchAutomation
     BrokerSmoke = $broker.Summary
     BrokerReportOutput = $broker.Output
     Summary = [PSCustomObject]@{
@@ -211,6 +256,7 @@ $report = [PSCustomObject]@{
         BinaryDataTableRowVerificationNote = $registration.Summary.BinaryDataTableRowVerificationNote
         CommandletDryRunPassed = ($RunCommandletDryRun -and $commandletDryRun.Passed)
         EvidenceAutomationPassed = ($RunEvidenceAutomation -and $evidenceAutomation.Passed)
+        BrokerlessDTCoreDispatchAutomationPassed = ($RunBrokerlessDTCoreDispatchAutomation -and $brokerlessDTCoreDispatchAutomation.Passed)
         BrokerSmokeComplete = [bool]$broker.Summary.BrokerSmokeComplete
         ExternalBrokerStillRequired = -not [bool]$broker.Summary.BrokerSmokeComplete
         DoesNotConnectToBroker = [bool]$broker.Summary.DoesNotConnectToBroker
@@ -228,11 +274,13 @@ else {
     Write-Host "Registration checklist valid: $($report.Summary.RegistrationChecklistValid)"
     Write-Host "Commandlet dry run passed: $($report.Summary.CommandletDryRunPassed)"
     Write-Host "Evidence automation passed: $($report.Summary.EvidenceAutomationPassed)"
+    Write-Host "Brokerless DTCore dispatch automation passed: $($report.Summary.BrokerlessDTCoreDispatchAutomationPassed)"
     Write-Host "Broker smoke complete: $($report.Summary.BrokerSmokeComplete)"
     Write-Host "Does not connect to broker: $($report.Summary.DoesNotConnectToBroker)"
     Write-Host "Reports written: $($report.Summary.ReportsWritten)"
     Write-Host "Commandlet dry run command: $($commandletDryRun.Command)"
     Write-Host "Evidence automation command: $($evidenceAutomation.Command)"
+    Write-Host "Brokerless DTCore dispatch command: $($brokerlessDTCoreDispatchAutomation.Command)"
     if ($broker.Output -and $report.Summary.ReportsWritten) {
         Write-Host "Broker smoke JSON: $($broker.Output.JsonPath)"
         Write-Host "Broker smoke Markdown: $($broker.Output.MarkdownPath)"
