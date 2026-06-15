@@ -114,7 +114,7 @@ Buffered JSON live lines -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushP
 
 This allows saved or bridge-fed measurement data to enter the same LiDAR payload, recorder, transport, preview, and Slab analysis path as a virtual scan.
 
-`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, WebSocket, HTTP, UDP, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarSensorComp::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent.
+`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, WebSocket, HTTP, UDP, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarSensorComp::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent. If a bridge already receives the shared JSON live payload shape, call `ULidarJsonLiveSourceComp::AppendLivePayloadJson` and then `PushFrameOnce` instead of using the WebSocket-named helper directly.
 
 `ULidarJsonLiveSourceComp` is the first live bridge step. It does not open a
 socket by itself; instead, a DTCore WebSocket route, HTTP handler, UDP listener,
@@ -233,6 +233,12 @@ The wrapper runs the sample validator, registration checklist, optional row
 commandlet dry run, optional evidence automation, optional brokerless dispatch
 automation, and broker smoke report in a consistent order. Its default mode is
 read-only: Unreal commandlets, automation, and report writes are opt-in.
+
+HTTP and UDP listener ownership is still open. The DT-Project side now has a
+transport-neutral JSON live handoff entry point,
+`ULidarJsonLiveSourceComp::AppendLivePayloadJson`, so a future HTTP endpoint,
+UDP socket, or Blueprint bridge can feed the same sample payload without going
+through the WebSocket-specific function name.
 
 Supported CSV formats:
 

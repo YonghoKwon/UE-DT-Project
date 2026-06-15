@@ -233,6 +233,11 @@ bool ULidarJsonLiveSourceComp::AppendWebSocketPayload(const FString& PayloadJson
     return true;
 }
 
+bool ULidarJsonLiveSourceComp::AppendLivePayloadJson(const FString& PayloadJson)
+{
+    return AppendWebSocketPayload(PayloadJson);
+}
+
 void ULidarJsonLiveSourceComp::AppendNormalizedLine(const FString& JsonLine)
 {
     FString Trimmed = JsonLine;

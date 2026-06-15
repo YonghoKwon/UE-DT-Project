@@ -355,6 +355,11 @@ bool FRealSensorSourceJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("JSON live WebSocket payload buffer clears after push"), JsonLive->PendingLineCount, 0);
     TestFalse(TEXT("JSON live WebSocket payload caches target payload"), TargetLidar->GetLastJsonPayload().IsEmpty());
 
+    TestTrue(TEXT("JSON live appends generic live payload alias"), JsonLive->AppendLivePayloadJson(WebSocketPayload));
+    TestEqual(TEXT("JSON live generic live payload pending line count"), JsonLive->PendingLineCount, 2);
+    TestTrue(TEXT("JSON live pushes generic live payload without transport"), JsonLive->PushFrameOnce(false));
+    TestEqual(TEXT("JSON live generic live payload target count"), TargetLidar->GetLastPoints().Num(), 2);
+
     ULidarJsonLiveSourceComp* EmptyLive = NewObject<ULidarJsonLiveSourceComp>();
     TestNotNull(TEXT("empty JSON live source"), EmptyLive);
     TestFalse(TEXT("empty JSON live push fails"), EmptyLive->PushFrameOnce(false));

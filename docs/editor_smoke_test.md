@@ -176,6 +176,9 @@ ULidarJsonLiveSourceComp -> PushBufferedFrameNoTransportInEditor
 `AppendSampleWebSocketFrameInEditor` replaces the current live buffer with the
 checked sample payload. The no-transport push verifies sample payload parsing and
 target LiDAR handoff without sending to the judging server.
+HTTP, UDP, or Blueprint bridge prototypes can call
+`ULidarJsonLiveSourceComp::AppendLivePayloadJson` with the same payload shape,
+then call `PushFrameOnce(false)` for a no-transport local handoff check.
 
 Brokerless DTCore dispatch automation:
 

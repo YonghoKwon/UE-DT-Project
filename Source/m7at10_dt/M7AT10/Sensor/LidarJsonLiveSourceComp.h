@@ -32,6 +32,9 @@ public:
     bool AppendWebSocketPayload(const FString& PayloadJson);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive")
+    bool AppendLivePayloadJson(const FString& PayloadJson);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive")
     void ClearBufferedFrame();
 
     UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorLive")
