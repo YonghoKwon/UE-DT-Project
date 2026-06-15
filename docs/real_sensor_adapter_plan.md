@@ -248,11 +248,19 @@ bridge.
 `bAutoStartSource=false`, binds one POST route with Unreal's `HTTPServer`
 module when `StartSource` is called, caps request body size with
 `MaxRequestBytes`, and pushes accepted bodies through `AppendLivePayloadJson`
-plus optional `PushFrameOnce`. Treat it as DT-Project-owned local bridge
-coverage. It is separate from outbound judging-server `HttpPost` transport.
+plus optional `PushFrameOnce`. HTTP callbacks marshal request processing back to
+the game thread before touching component state or target LiDAR data. Treat it
+as DT-Project-owned local bridge coverage. It is separate from outbound
+judging-server `HttpPost` transport. In UE 5.3, Unreal's `HTTPServer` listener
+defaults to `localhost`; all-interface or explicit-address exposure is changed
+through engine ini settings such as `[HTTPServer.Listeners]`,
+`DefaultBindAddress`, or per-port `ListenerOverrides` entries with
+`BindAddress=any` or an IP address. That bind choice is deployment
+configuration, not a component property, so production exposure must be
+controlled by port selection, host firewall/network policy, and ini review.
 `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the wrapper
 reuses the shared JSON payload handoff and can either auto-push or buffer an
-incoming frame.
+incoming frame. It also checks route bind/unbind lifecycle state.
 
 `ULidarUdpJsonLiveSourceComp` is the first optional UDP wrapper for that path.
 It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,

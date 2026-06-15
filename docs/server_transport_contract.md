@@ -63,13 +63,21 @@ method: POST
 default route: /m7at10/lidar/live
 body: LIDAR_JSON_LIVE_FRAME-compatible JSON payload
 handoff: AppendLivePayloadJson -> PushFrameOnce
+threading: HTTP callback marshals payload processing to the game thread
 ```
 
 This listener is a DT-Project bridge for feeding live LiDAR frames into the same
 normalized path used by WebSocket, UDP, replay, and virtual scans. It does not
 replace the outbound `HttpPost` transport and does not prove judging-server
 acceptance. Deployment still needs explicit endpoint exposure, credentials,
-rate-limit/backpressure, and operator smoke evidence.
+host firewall/network policy, rate-limit/backpressure, and operator smoke
+evidence. In UE 5.3, Unreal's `HTTPServer` default listener bind address is
+`localhost`. Wider exposure is controlled by engine ini settings under
+`[HTTPServer.Listeners]`, including `DefaultBindAddress` and per-port
+`ListenerOverrides` entries such as `BindAddress=any` or an explicit IP
+address. This project component intentionally does not duplicate that bind
+address setting as a Blueprint property; deployment configs and firewall policy
+must be reviewed together.
 
 ## Decisions Still Required
 

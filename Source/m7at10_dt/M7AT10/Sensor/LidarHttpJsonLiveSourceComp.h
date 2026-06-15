@@ -23,6 +23,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive|HTTP")
     bool ProcessHttpPayloadJson(const FString& PayloadJson);
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|RealSensorLive|HTTP")
+    bool IsHttpRouteBound() const { return RouteHandle.IsValid(); }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|RealSensorLive|HTTP")
+    bool IsAcceptingHttpRequests() const { return bAcceptingHttpRequests; }
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive|HTTP", meta = (ClampMin = "1", ClampMax = "65535"))
     int32 ListenPort = 8082;
@@ -38,6 +44,12 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive|HTTP")
     bool bSendTransportForReceivedFrames = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|RealSensorLive|HTTP|Status")
+    bool bLastRequestProcessedOnGameThread = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|RealSensorLive|HTTP|Status")
+    bool bAcceptingHttpRequests = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|RealSensorLive|HTTP|Status")
     int32 LastReceivedRequestBytes = 0;
@@ -56,4 +68,5 @@ private:
 private:
     TSharedPtr<IHttpRouter> HttpRouter;
     FHttpRouteHandle RouteHandle;
+    int32 ActiveRequestGeneration = 0;
 };

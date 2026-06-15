@@ -1,5 +1,6 @@
 #include "m7at10_dt/M7AT10/Sensor/LidarHttpJsonLiveSourceComp.h"
 
+#include "Async/Async.h"
 #include "Containers/StringConv.h"
 #include "HttpPath.h"
 #include "HttpServerModule.h"
@@ -57,6 +58,8 @@ bool ULidarHttpJsonLiveSourceComp::StartSource()
 
     HttpRouter = Router;
     RouteHandle = NewRouteHandle;
+    ++ActiveRequestGeneration;
+    bAcceptingHttpRequests = true;
     FHttpServerModule::Get().StartAllListeners();
 
     LastHttpMessage = FString::Printf(TEXT("HTTP JSON live source listening on port %d route %s."), ClampedPort, *NormalizedPath);
@@ -72,6 +75,12 @@ void ULidarHttpJsonLiveSourceComp::StopSource()
 
 bool ULidarHttpJsonLiveSourceComp::ProcessHttpPayloadJson(const FString& PayloadJson)
 {
+    if (!IsInGameThread())
+    {
+        return false;
+    }
+
+    bLastRequestProcessedOnGameThread = true;
     const bool bAppended = AppendLivePayloadJson(PayloadJson);
     if (!bAppended)
     {
@@ -97,20 +106,43 @@ bool ULidarHttpJsonLiveSourceComp::ProcessHttpPayloadJson(const FString& Payload
 
 bool ULidarHttpJsonLiveSourceComp::HandleHttpRequest(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
-    LastReceivedRequestBytes = Request.Body.Num();
-    if (LastReceivedRequestBytes <= 0)
+    const int32 RequestBytes = Request.Body.Num();
+    const int32 RequestGeneration = ActiveRequestGeneration;
+    if (!bAcceptingHttpRequests)
     {
-        LastResponseCode = 400;
-        LastHttpMessage = TEXT("HTTP JSON live request body is empty.");
-        OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::BadRequest, TEXT("empty_body"), LastHttpMessage));
+        OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::ServiceUnavail, TEXT("source_stopped"), TEXT("HTTP JSON live source is not accepting requests.")));
         return true;
     }
 
-    if (LastReceivedRequestBytes > FMath::Max(1024, MaxRequestBytes))
+    if (RequestBytes <= 0)
     {
-        LastResponseCode = 413;
-        LastHttpMessage = FString::Printf(TEXT("HTTP JSON live request exceeded MaxRequestBytes. bytes=%d max=%d"), LastReceivedRequestBytes, MaxRequestBytes);
-        OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::RequestTooLarge, TEXT("body_too_large"), LastHttpMessage));
+        AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<ULidarHttpJsonLiveSourceComp>(this), RequestBytes]()
+        {
+            if (WeakThis.IsValid())
+            {
+                WeakThis->LastReceivedRequestBytes = RequestBytes;
+                WeakThis->LastResponseCode = 400;
+                WeakThis->LastHttpMessage = TEXT("HTTP JSON live request body is empty.");
+            }
+        });
+        OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::BadRequest, TEXT("empty_body"), TEXT("HTTP JSON live request body is empty.")));
+        return true;
+    }
+
+    const int32 MaxAllowedBytes = FMath::Max(1024, MaxRequestBytes);
+    if (RequestBytes > MaxAllowedBytes)
+    {
+        const FString Message = FString::Printf(TEXT("HTTP JSON live request exceeded MaxRequestBytes. bytes=%d max=%d"), RequestBytes, MaxAllowedBytes);
+        AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<ULidarHttpJsonLiveSourceComp>(this), RequestBytes, Message]()
+        {
+            if (WeakThis.IsValid())
+            {
+                WeakThis->LastReceivedRequestBytes = RequestBytes;
+                WeakThis->LastResponseCode = 413;
+                WeakThis->LastHttpMessage = Message;
+            }
+        });
+        OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::RequestTooLarge, TEXT("body_too_large"), Message));
         return true;
     }
 
@@ -118,23 +150,43 @@ bool ULidarHttpJsonLiveSourceComp::HandleHttpRequest(const FHttpServerRequest& R
     FString PayloadJson(Converter.Length(), Converter.Get());
     PayloadJson.TrimStartAndEndInline();
 
-    const bool bAccepted = ProcessHttpPayloadJson(PayloadJson);
-    const FString ResponseJson = FString::Printf(
-        TEXT("{\"accepted\":%s,\"sourceId\":\"%s\",\"frameId\":%lld,\"pointCount\":%lld,\"message\":\"%s\"}"),
-        bAccepted ? TEXT("true") : TEXT("false"),
-        *SourceId.ReplaceCharWithEscapedChar(),
-        static_cast<long long>(LastSourceFrameId),
-        static_cast<long long>(LastSourcePointCount),
-        *LastHttpMessage.ReplaceCharWithEscapedChar());
+    TWeakObjectPtr<ULidarHttpJsonLiveSourceComp> WeakThis(this);
+    AsyncTask(ENamedThreads::GameThread, [WeakThis, PayloadJson, RequestBytes, RequestGeneration, OnComplete]()
+    {
+        if (!WeakThis.IsValid())
+        {
+            OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::ServerError, TEXT("source_destroyed"), TEXT("HTTP JSON live source was destroyed.")));
+            return;
+        }
+        if (!WeakThis->bAcceptingHttpRequests || WeakThis->ActiveRequestGeneration != RequestGeneration)
+        {
+            OnComplete(FHttpServerResponse::Error(EHttpServerResponseCodes::ServiceUnavail, TEXT("source_stopped"), TEXT("HTTP JSON live source stopped before the request was processed.")));
+            return;
+        }
 
-    TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(ResponseJson, TEXT("application/json"));
-    Response->Code = bAccepted ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest;
-    OnComplete(MoveTemp(Response));
+        WeakThis->LastReceivedRequestBytes = RequestBytes;
+        WeakThis->bLastRequestProcessedOnGameThread = false;
+        const bool bAccepted = WeakThis->ProcessHttpPayloadJson(PayloadJson);
+        const FString ResponseJson = FString::Printf(
+            TEXT("{\"accepted\":%s,\"sourceId\":\"%s\",\"frameId\":%lld,\"pointCount\":%lld,\"message\":\"%s\"}"),
+            bAccepted ? TEXT("true") : TEXT("false"),
+            *WeakThis->SourceId.ReplaceCharWithEscapedChar(),
+            static_cast<long long>(WeakThis->LastSourceFrameId),
+            static_cast<long long>(WeakThis->LastSourcePointCount),
+            *WeakThis->LastHttpMessage.ReplaceCharWithEscapedChar());
+
+        TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(ResponseJson, TEXT("application/json"));
+        Response->Code = bAccepted ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest;
+        OnComplete(MoveTemp(Response));
+    });
     return true;
 }
 
 void ULidarHttpJsonLiveSourceComp::CloseHttpRoute()
 {
+    bAcceptingHttpRequests = false;
+    ++ActiveRequestGeneration;
+
     if (HttpRouter.IsValid() && RouteHandle.IsValid())
     {
         HttpRouter->UnbindRoute(RouteHandle);

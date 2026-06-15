@@ -626,16 +626,28 @@ bool FRealSensorSourceHttpJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("HTTP JSON live source point count"), HttpSource->LastSourcePointCount, 2);
     TestEqual(TEXT("HTTP JSON live target point count"), TargetLidar->GetLastPoints().Num(), 2);
     TestEqual(TEXT("HTTP JSON live response code accepted"), HttpSource->LastResponseCode, 202);
+    TestTrue(TEXT("HTTP JSON live payload processed on game thread"), HttpSource->bLastRequestProcessedOnGameThread);
     TestEqual(TEXT("HTTP JSON live buffer clears after push"), HttpSource->PendingLineCount, 0);
 
     HttpSource->bAutoPushReceivedFrame = false;
     TestTrue(TEXT("HTTP JSON live source can buffer without pushing"), HttpSource->ProcessHttpPayloadJson(Payload));
     TestEqual(TEXT("HTTP JSON live buffered line count"), HttpSource->PendingLineCount, 2);
     TestEqual(TEXT("HTTP JSON live response code buffered"), HttpSource->LastResponseCode, 202);
+    TestTrue(TEXT("HTTP JSON live buffer-only path processed on game thread"), HttpSource->bLastRequestProcessedOnGameThread);
     HttpSource->ClearBufferedFrame();
 
     TestFalse(TEXT("HTTP JSON live source rejects invalid payload"), HttpSource->ProcessHttpPayloadJson(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"POINTS\":[]}}")));
     TestEqual(TEXT("HTTP JSON live invalid payload response code"), HttpSource->LastResponseCode, 400);
+
+    const FGuid HttpRouteGuid = FGuid::NewGuid();
+    HttpSource->ListenPort = 20000 + static_cast<int32>(GetTypeHash(HttpRouteGuid) % 20000);
+    HttpSource->RoutePath = FString::Printf(TEXT("/m7at10/test/%s"), *HttpRouteGuid.ToString(EGuidFormats::Digits));
+    TestTrue(TEXT("HTTP JSON live StartSource binds a route"), HttpSource->StartSource());
+    TestTrue(TEXT("HTTP JSON live route is bound"), HttpSource->IsHttpRouteBound());
+    TestTrue(TEXT("HTTP JSON live accepts requests while running"), HttpSource->IsAcceptingHttpRequests());
+    HttpSource->StopSource();
+    TestFalse(TEXT("HTTP JSON live route unbinds on stop"), HttpSource->IsHttpRouteBound());
+    TestFalse(TEXT("HTTP JSON live stops accepting requests"), HttpSource->IsAcceptingHttpRequests());
 
     SourceOwner->Destroy();
     return true;
