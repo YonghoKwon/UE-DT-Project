@@ -90,6 +90,8 @@ Every decision point also reports:
 - `GitState`: `Untracked`, `Staged`, `TrackedModified`, or `CleanOrIgnored`.
 - `CommitReadiness`: `BlockedByManualDecision`,
   `DoNotCommitGeneratedOutput`, or `NotPresent`.
+- `ReviewQueue`: `ReadyToStage`, `NeedsOwnerDecision`, `KeepLocal`, or
+  `NotPresent`.
 - `DecisionChecklist`: manual evidence that must be collected before staging.
 
 For large content, the checklist asks for asset source, license, production
@@ -121,6 +123,12 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_
 The exporter turns the same local asset report into a Markdown/JSON review
 bundle. By default it only prints to the console; pass output paths when you
 intentionally want generated review artifacts under `Saved/Reports`.
+
+The Markdown export includes `Ready To Stage`, `Needs Owner Decision`, and
+`Keep Local` review queues. Known local asset decision points should normally
+start in `NeedsOwnerDecision`; generated package outputs should appear in
+`KeepLocal`; no binary WBP, local config, large content, or sample folder should
+move to `ReadyToStage` until the checklist evidence is complete.
 
 ## Recommended Workflow
 

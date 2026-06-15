@@ -78,11 +78,12 @@ Open decisions:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1"`.
 - Durable review artifact export:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1" -MarkdownPath ".\Saved\Reports\local_asset_decisions.md" -JsonPath ".\Saved\Reports\local_asset_decisions.json"`.
-- The local asset report now includes `GitState`, `CommitReadiness`, and a
-  `DecisionChecklist` for each known decision point. Large content decisions
-  require owner/source/license, dependency, size, and storage/versioning
-  evidence before staging. WBP and `Game.ini` decisions still require manual
-  editor/config review.
+- The local asset report now includes `GitState`, `CommitReadiness`,
+  `ReviewQueue`, and a `DecisionChecklist` for each known decision point.
+  Large content decisions require owner/source/license, dependency, size, and
+  storage/versioning evidence before staging. WBP and `Game.ini` decisions
+  still require manual editor/config review. The exported review bundle groups
+  paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues.
 
 Generated/local-output items are ignored by Git but still reported:
 

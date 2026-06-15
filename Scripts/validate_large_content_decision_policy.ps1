@@ -62,6 +62,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "largest files"; Label = "Local asset doc explains largest files" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "GitState"; Label = "Local asset doc explains git state" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "CommitReadiness"; Label = "Local asset doc explains commit readiness" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ReviewQueue"; Label = "Local asset doc explains review queue" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ReadyToStage"; Label = "Local asset doc explains ready-to-stage queue" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "NeedsOwnerDecision"; Label = "Local asset doc explains owner-decision queue" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "KeepLocal"; Label = "Local asset doc explains keep-local queue" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "asset source, license, production"; Label = "Local asset doc explains source/license/dependency checks" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Content/ChemicalPlantEnv"; Label = "Remaining work tracks ChemicalPlantEnv" },
@@ -69,6 +73,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "map/WBP dependency check"; Label = "Remaining work requires dependency check" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GitState"; Label = "Remaining work tracks git state reporting" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "CommitReadiness"; Label = "Remaining work tracks commit readiness reporting" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ReviewQueue"; Label = "Remaining work tracks review queue reporting" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ReadyToStage"; Label = "Remaining work tracks ready-to-stage queue" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "NeedsOwnerDecision"; Label = "Remaining work tracks owner-decision queue" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "KeepLocal"; Label = "Remaining work tracks keep-local queue" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
 )
 

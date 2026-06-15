@@ -281,6 +281,25 @@ function Get-CommitReadiness {
     return "BlockedByManualDecision"
 }
 
+function Get-ReviewQueue {
+    param(
+        [string]$CommitReadiness,
+        [string]$Category
+    )
+
+    if ($CommitReadiness -eq "NotPresent") {
+        return "NotPresent"
+    }
+    if ($CommitReadiness -eq "DoNotCommitGeneratedOutput") {
+        return "KeepLocal"
+    }
+    if ($Category -eq "ReviewCandidate" -or $Category -eq "LargeContentCandidate" -or $Category -eq "SampleOrThirdParty") {
+        return "NeedsOwnerDecision"
+    }
+
+    return "NeedsOwnerDecision"
+}
+
 function Get-DecisionPointGitState {
     param(
         [string]$RelativePath,
@@ -422,6 +441,7 @@ try {
         $contentSummary = if ($contentSummaryCategories -contains $entry.Category) { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
         $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
         $commitReadiness = Get-CommitReadiness -State $summary.State -Category $entry.Category
+        $reviewQueue = Get-ReviewQueue -CommitReadiness $commitReadiness -Category $entry.Category
         $decisionChecklist = Get-DecisionChecklist -RelativePath $relativePath -Category $entry.Category
         $gitState = Get-DecisionPointGitState -RelativePath $relativePath -UntrackedGitPaths $untrackedGitPaths -StagedGitPaths $stagedGitPaths -UnstagedGitPaths $unstagedGitPaths
         if ($summary.State -eq "present") {
@@ -448,6 +468,7 @@ try {
             DetectedNote = $decisionNote
             GitState = $gitState
             CommitReadiness = $commitReadiness
+            ReviewQueue = $reviewQueue
             DecisionChecklist = $decisionChecklist
             ContentSummary = $contentSummary
         }
@@ -512,6 +533,7 @@ try {
             Write-Host "  category: $($point.Category)"
             Write-Host "  gitState: $($point.GitState)"
             Write-Host "  commitReadiness: $($point.CommitReadiness)"
+            Write-Host "  reviewQueue: $($point.ReviewQueue)"
             Write-Host "  recommendation: $($point.Recommendation)"
             if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {
                 Write-Host "  detected: $($point.DetectedNote)"
