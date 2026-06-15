@@ -214,6 +214,17 @@ send this sample through the deployment WebSocket broker and confirm the target
 `ULidarJsonLiveSourceComp` frame count, target LiDAR point count, and optional
 transport payload update in PIE.
 
+Record deployment broker smoke evidence with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -NoWrite
+```
+
+This report validates local prerequisites and records operator observations. It
+does not connect to the broker by itself and should not be treated as STOMP
+network proof unless the observation flags are backed by a real PIE run.
+
 Supported CSV formats:
 
 ```text

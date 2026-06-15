@@ -19,6 +19,7 @@ param(
     [switch]$SkipRealSensorAdapterPlan,
     [switch]$SkipWebSocketLidarLiveSample,
     [switch]$SkipWebSocketTransactionRegistrationReport,
+    [switch]$SkipWebSocketBrokerSmokeReport,
     [switch]$SkipPointCloudPreviewPolicy,
     [switch]$SkipLazPlaceholderPolicy,
     [switch]$SkipMonitorWidgetPolicy,
@@ -71,6 +72,7 @@ $ServerTransportContractScript = Join-Path $ScriptRoot "validate_server_transpor
 $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
 $WebSocketLidarLiveSampleScript = Join-Path $ScriptRoot "validate_websocket_lidar_live_sample.ps1"
 $WebSocketTransactionRegistrationReportScript = Join-Path $ScriptRoot "export_websocket_transaction_registration_report.ps1"
+$WebSocketBrokerSmokeReportScript = Join-Path $ScriptRoot "export_websocket_broker_smoke_report.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
@@ -101,6 +103,9 @@ if (-not (Test-Path -LiteralPath $WebSocketLidarLiveSampleScript)) {
 }
 if (-not (Test-Path -LiteralPath $WebSocketTransactionRegistrationReportScript)) {
     throw "export_websocket_transaction_registration_report.ps1 not found: $WebSocketTransactionRegistrationReportScript"
+}
+if (-not (Test-Path -LiteralPath $WebSocketBrokerSmokeReportScript)) {
+    throw "export_websocket_broker_smoke_report.ps1 not found: $WebSocketBrokerSmokeReportScript"
 }
 if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
     throw "validate_point_cloud_preview_policy.ps1 not found: $PointCloudPreviewPolicyScript"
@@ -215,6 +220,17 @@ if (-not $SkipWebSocketTransactionRegistrationReport) {
 else {
     Write-Host ""
     Write-Host "WebSocket transaction registration report skipped by -SkipWebSocketTransactionRegistrationReport."
+}
+
+if (-not $SkipWebSocketBrokerSmokeReport) {
+    Invoke-ScriptStep `
+        -Label "WebSocket broker smoke report" `
+        -ScriptPath $WebSocketBrokerSmokeReportScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot; NoWrite = $true }
+}
+else {
+    Write-Host ""
+    Write-Host "WebSocket broker smoke report skipped by -SkipWebSocketBrokerSmokeReport."
 }
 
 if (-not $SkipPointCloudPreviewPolicy) {

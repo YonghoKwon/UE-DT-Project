@@ -156,6 +156,15 @@ WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComp` updates
 its source frame/point counts and that the target LiDAR exposes a cached server
 payload when `SEND_TRANSPORT` is enabled.
 
+Record the broker smoke result:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name"
+```
+
+Use `-NoWrite` for a read-only prerequisite check. The report does not connect to
+the broker; it captures evidence from a real PIE/broker run.
+
 Before data-table registration, use the same component-level smoke path:
 
 ```text

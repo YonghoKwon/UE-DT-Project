@@ -117,6 +117,8 @@ Current state:
 - `DT_TransactionCode.uasset` now contains the `LIDAR_JSON_LIVE_FRAME` row, and
   local evidence automation has passed against that binary row and row-based
   handler parse/process path.
+- `Scripts/export_websocket_broker_smoke_report.ps1` records deployment broker
+  smoke evidence without pretending to connect to the broker itself.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -134,6 +136,8 @@ Next implementation steps:
 - Smoke-test the `LIDAR_JSON_LIVE_FRAME` route with the deployment STOMP/WebSocket
   broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
+- Export a completed broker smoke report with source frame, target point, and
+  cached payload observations.
 - Add a GameInstance-backed brokerless PIE dispatch automation if external broker
   access is not available in CI.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
@@ -162,6 +166,8 @@ Completion evidence:
   `M7AT10.Evidence.WebSocketTransactionRegistration`.
 - Deployment broker smoke evidence shows the sample payload reaches
   `ULidarJsonLiveSourceComp` in PIE.
+- Broker smoke report exists under `Saved/WebSocketBrokerSmoke/` with the
+  observation flags backed by a real run.
 - Brokerless dispatch automation, if added later, is not a replacement for
   broker evidence; it does not validate endpoint, credentials, subscription, or
   network receive.
