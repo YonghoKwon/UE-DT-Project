@@ -104,6 +104,11 @@ Open decisions:
   output includes `RecommendedDecision`; the current empty
   `[DTCoreRuntimeOverride]` shape should remain `KeepLocal` unless a config
   owner explicitly accepts blank shared defaults.
+- Monitor WBP decision report tooling is available through
+  `Scripts/export_monitor_wbp_decision_report.ps1`. It records local
+  `WBP_VirtualSensorMonitor.uasset` metadata, Git state, setup-document contract
+  checks, `RecommendedDecision`, and an evidence draft while keeping Unreal
+  Editor verification as the remaining acceptance gate.
 
 Generated/local-output items are ignored by Git but still reported:
 

@@ -46,7 +46,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Widget setup document"; Path = "docs\widget_designer_setup.md" },
     [PSCustomObject]@{ Label = "Local asset report document"; Path = "docs\local_asset_report.md" },
     [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
-    [PSCustomObject]@{ Label = "Local project status report"; Path = "Scripts\report_local_project_status.ps1" }
+    [PSCustomObject]@{ Label = "Local project status report"; Path = "Scripts\report_local_project_status.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP decision report"; Path = "Scripts\export_monitor_wbp_decision_report.ps1" }
 )
 
 foreach ($file in $requiredFiles) {
@@ -62,6 +63,7 @@ $setupDoc = Join-Path $ProjectRoot "docs\widget_designer_setup.md"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
+$monitorWbpReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $widgetHeader; Pattern = "BindWidgetOptional"; Label = "Widget uses optional bindings" },
@@ -87,7 +89,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Production Monitor WBP"; Label = "Remaining work tracks WBP decision" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Commit the WBP only after manual editor verification."; Label = "Remaining work requires manual WBP verification" },
     [PSCustomObject]@{ Path = $assetReportScript; Pattern = "WBP_VirtualSensorMonitor.uasset"; Label = "Asset report tracks local WBP path" },
-    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "Detected binary monitor WBP asset"; Label = "Asset report emits WBP decision note" }
+    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "Detected binary monitor WBP asset"; Label = "Asset report emits WBP decision note" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "RecommendedDecision"; Label = "WBP decision report emits recommendation" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "Evidence Draft"; Label = "WBP decision report emits evidence draft" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "Unreal Editor verification"; Label = "WBP decision report keeps manual editor verification required" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_decision_report.ps1"; Label = "Local asset doc documents WBP decision report" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Monitor WBP decision report"; Label = "Remaining work tracks WBP decision report" }
 )
 
 foreach ($item in $requiredTexts) {

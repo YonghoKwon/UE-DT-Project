@@ -221,3 +221,15 @@ The runtime config report emits `RecommendedDecision`. Empty
 `[DTCoreRuntimeOverride]` values produce `KeepLocal` by default because blank
 local override placeholders are not useful shared project defaults unless a
 config owner explicitly accepts them.
+
+Monitor WBP decisions can be inspected without mutating the binary asset:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+```
+
+The WBP decision report records binary metadata, Git state, setup-document
+contract terms, `RecommendedDecision`, and an evidence draft. It cannot replace
+Unreal Editor verification; it keeps editor-open, optional binding, PIE smoke,
+and production acceptance evidence separate from file metadata.
