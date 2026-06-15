@@ -122,6 +122,10 @@ Current state:
 - `Scripts/run_websocket_lidar_smoke_evidence.ps1` wraps sample validation,
   registration checks, commandlet dry run, optional evidence automation, and
   broker smoke reporting into one repeatable workflow.
+- `M7AT10.RealSensorSource.JsonLiveDTCoreDispatch` now starts a PIE world,
+  injects the checked `LIDAR_JSON_LIVE_FRAME` sample into the DTCore
+  `UDxDataSubsystem` WebSocket queue, and verifies the target LiDAR receives the
+  brokerless frame without requiring an external broker.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -143,8 +147,6 @@ Next implementation steps:
   cached payload observations.
 - Run the smoke evidence wrapper with `-RunEvidenceAutomation` during deployment
   verification.
-- Add a GameInstance-backed brokerless PIE dispatch automation if external broker
-  access is not available in CI.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
 - Implement a ROS2 bridge adapter that converts incoming messages to
@@ -175,9 +177,10 @@ Completion evidence:
   observation flags backed by a real run.
 - Wrapper summary shows sample validation, registration checklist, commandlet
   dry run, and optional evidence automation status.
-- Brokerless dispatch automation, if added later, is not a replacement for
-  broker evidence; it does not validate endpoint, credentials, subscription, or
-  network receive.
+- Brokerless dispatch automation passes:
+  `M7AT10.RealSensorSource.JsonLiveDTCoreDispatch`.
+- Brokerless dispatch automation is not a replacement for broker evidence; it
+  does not validate endpoint, credentials, subscription, or network receive.
 
 ### Server Payload Schema Approval
 

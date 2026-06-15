@@ -177,6 +177,18 @@ ULidarJsonLiveSourceComp -> PushBufferedFrameNoTransportInEditor
 checked sample payload. The no-transport push verifies sample payload parsing and
 target LiDAR handoff without sending to the judging server.
 
+Brokerless DTCore dispatch automation:
+
+```text
+M7AT10.RealSensorSource.JsonLiveDTCoreDispatch
+```
+
+This PIE automation starts a GameInstance-backed world, queues the checked
+`LIDAR_JSON_LIVE_FRAME` sample through `UDxDataSubsystem::EnqueueWebSocketData`,
+and waits for the matching `ULidarJsonLiveSourceComp` and target LiDAR to update.
+It does not replace the deployment broker smoke because it bypasses STOMP
+endpoint, credential, subscription, and network receive checks.
+
 Sensor manager point-cloud-only policy tests:
 
 ```powershell

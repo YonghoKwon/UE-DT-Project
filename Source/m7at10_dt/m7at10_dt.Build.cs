@@ -38,7 +38,8 @@ public class m7at10_dt : ModuleRules
         {
             PrivateDependencyModuleNames.AddRange(new string[]
             {
-                "DesktopPlatform"
+                "DesktopPlatform",
+                "UnrealEd"
             });
         }
     }

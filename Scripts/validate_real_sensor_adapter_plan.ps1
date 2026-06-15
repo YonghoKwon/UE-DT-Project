@@ -109,9 +109,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionParse"; Label = "JSON live transaction automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.Evidence.WebSocketTransactionRegistration"; Label = "Optional WebSocket data-table registration evidence test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Brokerless DTCore dispatch automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "FindRow<FTransactionCodeStruct>"; Label = "Registration evidence test inspects DTCore data-table row" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "NewObject<UTransactionCodeMessage>"; Label = "Registration evidence test instantiates row handler through base class" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "registered data-table handler pushes target LiDAR points"; Label = "Registration evidence test dispatches to live source" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "EnqueueWebSocketData"; Label = "Brokerless DTCore dispatch queues WebSocket payload through subsystem" },
     [PSCustomObject]@{ Path = $liveTcHeader; Pattern = "ULidarJsonLiveFrameTC"; Label = "JSON live transaction class" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "JSON live transaction code" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "AppendJsonLines"; Label = "JSON live transaction appends lines" },
@@ -176,6 +178,7 @@ $report = [PSCustomObject]@{
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
+        JsonLiveBrokerlessDispatchAutomationPresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -201,6 +204,7 @@ else {
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"
+    Write-Host "JSON live brokerless dispatch automation present: $($report.Summary.JsonLiveBrokerlessDispatchAutomationPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"

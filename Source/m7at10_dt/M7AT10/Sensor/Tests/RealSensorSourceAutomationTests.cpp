@@ -15,6 +15,14 @@
 #include "m7at10_dt/M7AT10/WebSocket/TC/LidarJsonLiveFrameTC.h"
 #include "WebSocket/TransactionCodeStruct.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#include "Engine/GameInstance.h"
+#include "Misc/FileHelper.h"
+#include "Core/DxDataSubsystem.h"
+#include "Tests/AutomationEditorCommon.h"
+#endif
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSensorSource.BaseState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -22,6 +30,174 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.Re
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "M7AT10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest, "M7AT10.Evidence.WebSocketTransactionRegistration", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+#if WITH_EDITOR
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveDTCoreDispatchTest, "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+class FBrokerlessWebSocketDispatchCommand : public IAutomationLatentCommand
+{
+public:
+    explicit FBrokerlessWebSocketDispatchCommand(FAutomationTestBase* InTest)
+        : Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!Test)
+        {
+            return true;
+        }
+
+        if (StartTimeSeconds <= 0.0)
+        {
+            StartTimeSeconds = FPlatformTime::Seconds();
+        }
+
+        UWorld* PieWorld = nullptr;
+        if (GEditor)
+        {
+            if (FWorldContext* PieContext = GEditor->GetPIEWorldContext())
+            {
+                PieWorld = PieContext->World();
+            }
+        }
+
+        if (!PieWorld)
+        {
+            return WaitOrFail(TEXT("PIE world was not created."));
+        }
+
+        UGameInstance* GameInstance = PieWorld->GetGameInstance();
+        if (!GameInstance)
+        {
+            return WaitOrFail(TEXT("PIE GameInstance was not created."));
+        }
+
+        if (!bMessageInjected)
+        {
+            return InjectMessage(PieWorld, GameInstance);
+        }
+
+        if (DataSubsystem.IsValid())
+        {
+            DataSubsystem->Tick(0.0f);
+        }
+
+        if (TargetLidar.IsValid() && JsonLiveSource.IsValid())
+        {
+            const int32 TargetPointCount = TargetLidar->GetLastPoints().Num();
+            if (TargetPointCount == ExpectedPointCount && !TargetLidar->GetLastJsonPayload().IsEmpty())
+            {
+                Test->TestEqual(TEXT("brokerless dispatch source frame id"), JsonLiveSource->LastSourceFrameId, static_cast<int64>(1));
+                Test->TestEqual(TEXT("brokerless dispatch source point count"), JsonLiveSource->LastSourcePointCount, ExpectedPointCount);
+                Test->TestEqual(TEXT("brokerless dispatch target point count"), TargetPointCount, ExpectedPointCount);
+                Test->TestEqual(TEXT("brokerless dispatch buffer clears after push"), JsonLiveSource->PendingLineCount, 0);
+                Test->TestFalse(TEXT("brokerless dispatch updates cached server payload"), TargetLidar->GetLastJsonPayload().IsEmpty());
+                Cleanup();
+                return true;
+            }
+        }
+
+        return WaitOrFail(TEXT("brokerless dispatch did not reach the target LiDAR before timeout."));
+    }
+
+private:
+    bool InjectMessage(UWorld* PieWorld, UGameInstance* GameInstance)
+    {
+        UDxDataSubsystem* DxDataSubsystem = GameInstance->GetSubsystem<UDxDataSubsystem>();
+        Test->TestNotNull(TEXT("PIE DTCore data subsystem"), DxDataSubsystem);
+        if (!DxDataSubsystem)
+        {
+            return true;
+        }
+        DataSubsystem = DxDataSubsystem;
+
+        Owner = PieWorld->SpawnActor<AActor>();
+        Test->TestNotNull(TEXT("brokerless dispatch owner"), Owner.Get());
+        if (!Owner.IsValid())
+        {
+            return true;
+        }
+
+        UVirtualLidarSensorComp* Target = NewObject<UVirtualLidarSensorComp>(Owner.Get());
+        ULidarJsonLiveSourceComp* Source = NewObject<ULidarJsonLiveSourceComp>(Owner.Get());
+        Test->TestNotNull(TEXT("brokerless dispatch target LiDAR"), Target);
+        Test->TestNotNull(TEXT("brokerless dispatch JSON live source"), Source);
+        if (!Target || !Source)
+        {
+            Cleanup();
+            return true;
+        }
+
+        Owner->AddInstanceComponent(Target);
+        Owner->AddInstanceComponent(Source);
+        Target->bAutoStartScan = false;
+        Target->bAutoRegisterToManager = false;
+        Source->bAutoStartSource = false;
+        Source->bSendTransportByDefault = false;
+        Target->RegisterComponent();
+        Source->RegisterComponent();
+
+        Target->SensorId = TEXT("TEST-LIDAR-BROKERLESS-DISPATCH");
+        Source->SourceId = TEXT("JsonLiveLidarBridge");
+        Source->TargetLidar = Target;
+
+        TargetLidar = Target;
+        JsonLiveSource = Source;
+
+        FString SamplePayload;
+        const FString SamplePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/websocket/lidar_json_live_frame_sample.json"));
+        Test->TestTrue(TEXT("brokerless dispatch sample payload loads"), FFileHelper::LoadFileToString(SamplePayload, *SamplePath));
+        if (SamplePayload.IsEmpty())
+        {
+            Cleanup();
+            return true;
+        }
+
+        DxDataSubsystem->EnqueueWebSocketData(SamplePayload);
+        DxDataSubsystem->Tick(0.0f);
+
+        bMessageInjected = true;
+        return false;
+    }
+
+    bool WaitOrFail(const TCHAR* TimeoutMessage)
+    {
+        if ((FPlatformTime::Seconds() - StartTimeSeconds) <= TimeoutSeconds)
+        {
+            return false;
+        }
+
+        Test->AddError(TimeoutMessage);
+        Cleanup();
+        return true;
+    }
+
+    void Cleanup()
+    {
+        if (Owner.IsValid())
+        {
+            Owner->Destroy();
+        }
+        Owner.Reset();
+        TargetLidar.Reset();
+        JsonLiveSource.Reset();
+        DataSubsystem.Reset();
+    }
+
+private:
+    FAutomationTestBase* Test = nullptr;
+    double StartTimeSeconds = 0.0;
+    bool bMessageInjected = false;
+    static constexpr double TimeoutSeconds = 8.0;
+    static constexpr int32 ExpectedPointCount = 3;
+    TWeakObjectPtr<AActor> Owner;
+    TWeakObjectPtr<UVirtualLidarSensorComp> TargetLidar;
+    TWeakObjectPtr<ULidarJsonLiveSourceComp> JsonLiveSource;
+    TWeakObjectPtr<UDxDataSubsystem> DataSubsystem;
+};
+#endif
 
 bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
 {
@@ -498,5 +674,16 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
     SourceOwner->Destroy();
     return true;
 }
+
+#if WITH_EDITOR
+bool FRealSensorSourceJsonLiveDTCoreDispatchTest::RunTest(const FString& Parameters)
+{
+    FAutomationEditorCommonUtils::CreateNewMap();
+    ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
+    ADD_LATENT_AUTOMATION_COMMAND(FBrokerlessWebSocketDispatchCommand(this));
+    ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+    return true;
+}
+#endif
 
 #endif

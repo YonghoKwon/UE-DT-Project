@@ -204,10 +204,13 @@ Use `-NoSave` for a dry run. The commandlet updates only the project WebSocket
 data table configured by `UDTCoreSettings::WebSocketDataTable`; it does not
 modify DTCore source.
 
-External broker connectivity is still a deployment smoke item. A future
-brokerless PIE dispatch test can inject a fake `FWebSocketMessage` into
-`UDxWebSocketSubsystem::ReceivedMessage`, but it must run with a
-GameInstance-backed PIE world to cover DTCore subsystem queueing reliably.
+External broker connectivity is still a deployment smoke item.
+`M7AT10.RealSensorSource.JsonLiveDTCoreDispatch` covers the brokerless
+GameInstance-backed DTCore dispatch path by enqueueing the checked
+`LIDAR_JSON_LIVE_FRAME` sample through `UDxDataSubsystem::EnqueueWebSocketData`
+in PIE and polling until the target LiDAR receives the frame. This proves the
+data-table/subsystem/handler handoff without validating broker endpoint,
+credentials, subscription, or network receive.
 
 After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
 send this sample through the deployment WebSocket broker and confirm the target
