@@ -90,7 +90,7 @@ Open decisions:
   `PendingOwnerDecision` or `EvidencePending` until evidence exists, and reserve
   `AcceptedForRepository` for explicitly accepted paths.
   ReadyToStage requires AcceptedForRepository. ReadyToStage requires complete evidence. AcceptedForRepository requires complete EvidenceNeeded.
-  Recorded evidence must name reviewer, date, and source. Generated output remains KeepLocal.
+  Recorded evidence must name reviewer, date, and source. Each completed evidence item must also include a non-empty source. Generated output remains KeepLocal.
   `Scripts/validate_local_asset_decision_evidence_workflow.ps1` now verifies
   the evidence state machine, including the Staged decision gate for blocked and
   evidence-ready decision paths.

@@ -164,12 +164,13 @@ The template uses schema `LocalAssetDecisionEvidenceV1` and records
 `DecisionEvidence` for each present non-generated decision point. A path moves
 to `ReadyToStage` only when the evidence file sets
 `DecisionStatus = AcceptedForRepository`, every `EvidenceNeeded` item has
-`Status = Complete`, and `AcceptedBy` plus `AcceptedAt` are filled in. Large
-content decisions require owner/source/license, dependency, size, and
-storage/versioning evidence before they can be accepted.
+`Status = Complete` and a non-empty `Source`, and `AcceptedBy`, `AcceptedAt`,
+and `EvidenceSource` are filled in. Large content decisions require
+owner/source/license, dependency, size, and storage/versioning evidence before
+they can be accepted.
 `Scripts/validate_local_asset_decision_evidence_workflow.ps1` builds a
 temporary git-backed project and verifies no-evidence, incomplete evidence,
-blank reviewer/date, pending decision, normalized path, `KeepLocal`,
+blank reviewer/date/source, blank item source, pending decision, normalized path, `KeepLocal`,
 generated-output override, complete accepted evidence, and Staged decision gate
 behavior. The Staged decision gate must fail for blocked decision paths and pass
 for paths that are `ReadyToStage` with complete accepted evidence.

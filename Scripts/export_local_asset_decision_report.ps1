@@ -193,6 +193,9 @@ foreach ($point in $presentDecisionPoints) {
     Add-MarkdownLine -Lines $lines -Value "- Decision status: $($point.DecisionStatus)"
     Add-MarkdownLine -Lines $lines -Value "- Evidence status: $($point.EvidenceStatus)"
     Add-MarkdownLine -Lines $lines -Value "- Evidence satisfied: $($point.EvidenceSatisfied)"
+    if (-not [string]::IsNullOrWhiteSpace($point.EvidenceAcceptedSource)) {
+        Add-MarkdownLine -Lines $lines -Value "- Evidence accepted source: $($point.EvidenceAcceptedSource)"
+    }
     Add-MarkdownLine -Lines $lines -Value "- Kind: $($point.Kind)"
     Add-MarkdownLine -Lines $lines -Value "- Files: $($point.FileCount)"
     Add-MarkdownLine -Lines $lines -Value "- Size: $($point.Size)"

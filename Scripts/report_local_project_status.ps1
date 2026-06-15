@@ -352,6 +352,24 @@ function Get-EvidenceItemStatus {
     return ""
 }
 
+function Get-EvidenceItemSource {
+    param(
+        [object[]]$EvidenceItems,
+        [string]$EvidenceName
+    )
+
+    foreach ($item in @($EvidenceItems)) {
+        $name = [string](Get-PropertyValue -Object $item -Name "Name")
+        if ($name -ne $EvidenceName) {
+            continue
+        }
+
+        return [string](Get-PropertyValue -Object $item -Name "Source")
+    }
+
+    return ""
+}
+
 function Get-DecisionEvidenceReview {
     param(
         [object]$Entry,
@@ -366,6 +384,7 @@ function Get-DecisionEvidenceReview {
             EvidenceRecordFound = $false
             EvidenceAcceptedBy = ""
             EvidenceAcceptedAt = ""
+            EvidenceAcceptedSource = ""
             EffectiveDecisionStatus = $Entry.DecisionStatus
             CommitReadinessOverride = "DoNotCommitGeneratedOutput"
         }
@@ -379,6 +398,7 @@ function Get-DecisionEvidenceReview {
             EvidenceRecordFound = $false
             EvidenceAcceptedBy = ""
             EvidenceAcceptedAt = ""
+            EvidenceAcceptedSource = ""
             EffectiveDecisionStatus = $Entry.DecisionStatus
             CommitReadinessOverride = ""
         }
@@ -393,14 +413,16 @@ function Get-DecisionEvidenceReview {
     $missingEvidence = @()
     foreach ($evidenceName in @($Entry.EvidenceNeeded)) {
         $status = Get-EvidenceItemStatus -EvidenceItems $evidenceItems -EvidenceName $evidenceName
-        if ($status -ne "Complete") {
+        $source = Get-EvidenceItemSource -EvidenceItems $evidenceItems -EvidenceName $evidenceName
+        if ($status -ne "Complete" -or [string]::IsNullOrWhiteSpace($source)) {
             $missingEvidence += $evidenceName
         }
     }
 
     $acceptedBy = [string](Get-PropertyValue -Object $EvidenceRecord -Name "AcceptedBy")
     $acceptedAt = [string](Get-PropertyValue -Object $EvidenceRecord -Name "AcceptedAt")
-    $hasAcceptance = -not [string]::IsNullOrWhiteSpace($acceptedBy) -and -not [string]::IsNullOrWhiteSpace($acceptedAt)
+    $acceptedSource = [string](Get-PropertyValue -Object $EvidenceRecord -Name "EvidenceSource")
+    $hasAcceptance = -not [string]::IsNullOrWhiteSpace($acceptedBy) -and -not [string]::IsNullOrWhiteSpace($acceptedAt) -and -not [string]::IsNullOrWhiteSpace($acceptedSource)
     $evidenceComplete = $missingEvidence.Count -eq 0 -and $hasAcceptance
 
     $reviewStatus = "EvidencePending"
@@ -427,6 +449,7 @@ function Get-DecisionEvidenceReview {
         EvidenceRecordFound = $true
         EvidenceAcceptedBy = $acceptedBy
         EvidenceAcceptedAt = $acceptedAt
+        EvidenceAcceptedSource = $acceptedSource
         EffectiveDecisionStatus = $decisionStatus
         CommitReadinessOverride = $commitOverride
     }
@@ -688,6 +711,7 @@ try {
             MissingEvidence = $evidenceReview.MissingEvidence
             EvidenceAcceptedBy = $evidenceReview.EvidenceAcceptedBy
             EvidenceAcceptedAt = $evidenceReview.EvidenceAcceptedAt
+            EvidenceAcceptedSource = $evidenceReview.EvidenceAcceptedSource
             DetectedNote = $decisionNote
             GitState = $gitState
             CommitReadiness = $commitReadiness
@@ -787,6 +811,9 @@ try {
             }
             if (-not [string]::IsNullOrWhiteSpace($point.EvidenceAcceptedAt)) {
                 Write-Host "  evidenceAcceptedAt: $($point.EvidenceAcceptedAt)"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($point.EvidenceAcceptedSource)) {
+                Write-Host "  evidenceAcceptedSource: $($point.EvidenceAcceptedSource)"
             }
             if ($point.EvidenceNeeded.Count -gt 0) {
                 Write-Host "  evidence needed:"

@@ -120,7 +120,9 @@ function New-DecisionEvidence {
         [object]$Point,
         [string]$DecisionStatus,
         [string[]]$IncompleteEvidenceNames = @(),
+        [string[]]$MissingEvidenceSourceNames = @(),
         [bool]$IncludeAcceptance = $true,
+        [bool]$IncludeEvidenceSource = $true,
         [string]$PathOverride = ""
     )
 
@@ -130,7 +132,7 @@ function New-DecisionEvidence {
                 [PSCustomObject]@{
                     Name = $_
                     Status = if ($IncompleteEvidenceNames -contains $_) { "Pending" } else { "Complete" }
-                    Source = if ($IncompleteEvidenceNames -contains $_) { "" } else { "automated workflow validation" }
+                    Source = if (($IncompleteEvidenceNames -contains $_) -or ($MissingEvidenceSourceNames -contains $_)) { "" } else { "automated workflow validation" }
                     Note = ""
                 }
             }
@@ -142,7 +144,7 @@ function New-DecisionEvidence {
         DecisionStatus = $DecisionStatus
         AcceptedBy = if ($IncludeAcceptance) { "Automated Evidence Workflow Check" } else { "" }
         AcceptedAt = if ($IncludeAcceptance) { "2026-06-16" } else { "" }
-        EvidenceSource = "automated workflow validation"
+        EvidenceSource = if ($IncludeEvidenceSource) { "automated workflow validation" } else { "" }
         Notes = ""
         Evidence = $evidenceItems
     }
@@ -252,6 +254,29 @@ try {
     Assert-False -Value ([bool]$blankAcceptancePoint.EvidenceSatisfied) -Label "Blank acceptance evidence satisfaction"
     Assert-Equal -Actual $blankAcceptancePoint.ReviewQueue -Expected "NeedsOwnerDecision" -Label "Blank acceptance queue"
     $results.Add([PSCustomObject]@{ Case = "BlankAcceptance"; Path = $blankAcceptancePoint.Path; ReviewQueue = $blankAcceptancePoint.ReviewQueue; EvidenceStatus = $blankAcceptancePoint.EvidenceStatus }) | Out-Null
+
+    $blankEvidenceSourcePath = Join-Path $tempDir "blank-evidence-source.evidence.json"
+    New-EvidenceFile -Path $blankEvidenceSourcePath -Decisions @(
+        (New-DecisionEvidence -Point $configPoint -DecisionStatus "AcceptedForRepository" -IncludeEvidenceSource:$false)
+    )
+    $blankEvidenceSource = Invoke-AssetReport -ProjectRoot $tempDir -EvidencePath $blankEvidenceSourcePath
+    $blankEvidenceSourcePoint = Get-DecisionPoint -Report $blankEvidenceSource.Report -Path $configPoint.Path
+    Assert-Equal -Actual $blankEvidenceSourcePoint.EvidenceStatus -Expected "AcceptedButEvidenceIncomplete" -Label "Blank evidence source status"
+    Assert-False -Value ([bool]$blankEvidenceSourcePoint.EvidenceSatisfied) -Label "Blank evidence source satisfaction"
+    Assert-Equal -Actual $blankEvidenceSourcePoint.ReviewQueue -Expected "NeedsOwnerDecision" -Label "Blank evidence source queue"
+    $results.Add([PSCustomObject]@{ Case = "BlankEvidenceSource"; Path = $blankEvidenceSourcePoint.Path; ReviewQueue = $blankEvidenceSourcePoint.ReviewQueue; EvidenceStatus = $blankEvidenceSourcePoint.EvidenceStatus }) | Out-Null
+
+    $blankItemSourcePath = Join-Path $tempDir "blank-item-source.evidence.json"
+    New-EvidenceFile -Path $blankItemSourcePath -Decisions @(
+        (New-DecisionEvidence -Point $configPoint -DecisionStatus "AcceptedForRepository" -MissingEvidenceSourceNames @("Runtime config policy pass"))
+    )
+    $blankItemSource = Invoke-AssetReport -ProjectRoot $tempDir -EvidencePath $blankItemSourcePath
+    $blankItemSourcePoint = Get-DecisionPoint -Report $blankItemSource.Report -Path $configPoint.Path
+    Assert-Equal -Actual $blankItemSourcePoint.EvidenceStatus -Expected "AcceptedButEvidenceIncomplete" -Label "Blank item source status"
+    Assert-False -Value ([bool]$blankItemSourcePoint.EvidenceSatisfied) -Label "Blank item source satisfaction"
+    Assert-Equal -Actual $blankItemSourcePoint.ReviewQueue -Expected "NeedsOwnerDecision" -Label "Blank item source queue"
+    Assert-True -Value (@($blankItemSourcePoint.MissingEvidence) -contains "Runtime config policy pass") -Label "Blank item source reports missing required item"
+    $results.Add([PSCustomObject]@{ Case = "BlankEvidenceItemSource"; Path = $blankItemSourcePoint.Path; ReviewQueue = $blankItemSourcePoint.ReviewQueue; EvidenceStatus = $blankItemSourcePoint.EvidenceStatus }) | Out-Null
 
     $pendingPath = Join-Path $tempDir "pending.evidence.json"
     New-EvidenceFile -Path $pendingPath -Decisions @(
