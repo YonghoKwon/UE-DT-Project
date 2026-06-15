@@ -162,6 +162,20 @@ Validate the sample and handler contract before data-table registration:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_websocket_lidar_live_sample.ps1"
 ```
 
+Export the static registration checklist before touching the binary data table:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"
+```
+
+The registration report writes JSON and Markdown files under
+`Saved/WebSocketTransactionRegistration/`. It confirms the configured
+`WebSocketDataTable` path, the expected row name
+`LIDAR_JSON_LIVE_FRAME`, the expected handler class
+`/Script/m7at10_dt.LidarJsonLiveFrameTC`, and the sample payload metadata. It
+does not edit or deserialize `DT_TransactionCode.uasset`; verify the binary row
+in Unreal Editor before calling the WebSocket route complete.
+
 After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
 send this sample through the deployment WebSocket broker and confirm the target
 `ULidarJsonLiveSourceComp` frame count, target LiDAR point count, and optional
@@ -246,6 +260,7 @@ Static readiness coverage:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"
 ```
 
 The static readiness script checks that replay adapters, placeholder adapters,

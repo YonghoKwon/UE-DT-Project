@@ -56,6 +56,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "JSONL replay sample"; Path = "Samples\slab_replay_sample.jsonl" },
     [PSCustomObject]@{ Label = "WebSocket JSON live LiDAR sample"; Path = "Samples\websocket\lidar_json_live_frame_sample.json" },
     [PSCustomObject]@{ Label = "WebSocket JSON live LiDAR sample validator"; Path = "Scripts\validate_websocket_lidar_live_sample.ps1" },
+    [PSCustomObject]@{ Label = "WebSocket transaction registration report exporter"; Path = "Scripts\export_websocket_transaction_registration_report.ps1" },
     [PSCustomObject]@{ Label = "Adapter plan document"; Path = "docs\real_sensor_adapter_plan.md" }
 )
 
@@ -72,6 +73,7 @@ $liveTcHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\Lid
 $liveTcCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
 $webSocketSample = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sample.json"
 $webSocketSampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_lidar_live_sample.ps1"
+$webSocketRegistrationReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_transaction_registration_report.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 
 $requiredTexts = @(
@@ -101,6 +103,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketSample; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "WebSocket sample transaction code" },
     [PSCustomObject]@{ Path = $webSocketSample; Pattern = "JsonLiveLidarBridge"; Label = "WebSocket sample source id" },
     [PSCustomObject]@{ Path = $webSocketSampleValidator; Pattern = "SafeSourceRoutingDocumented"; Label = "WebSocket sample validator safe routing check" },
+    [PSCustomObject]@{ Path = $webSocketRegistrationReportExporter; Pattern = "TransactionCodeMessageClass"; Label = "WebSocket registration report expected class" },
+    [PSCustomObject]@{ Path = $webSocketRegistrationReportExporter; Pattern = "BinaryDataTableRowVerified"; Label = "WebSocket registration report binary row limitation" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "PushPointFrameToTarget"; Label = "Plan documents normalized handoff" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ULidarJsonLiveSourceComp"; Label = "Plan documents JSON live bridge" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "Plan documents JSON live transaction code" },
@@ -134,6 +138,7 @@ $report = [PSCustomObject]@{
         JsonLiveBridgePresent = $true
         JsonLiveWebSocketHandlerPresent = $true
         JsonLiveWebSocketSamplePresent = $true
+        JsonLiveRegistrationReportPresent = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         PlaceholderAdaptersPresent = $true
@@ -154,6 +159,7 @@ else {
     Write-Host "JSON live bridge present: $($report.Summary.JsonLiveBridgePresent)"
     Write-Host "JSON live WebSocket handler present: $($report.Summary.JsonLiveWebSocketHandlerPresent)"
     Write-Host "JSON live WebSocket sample present: $($report.Summary.JsonLiveWebSocketSamplePresent)"
+    Write-Host "JSON live registration report present: $($report.Summary.JsonLiveRegistrationReportPresent)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"

@@ -18,6 +18,7 @@ param(
     [switch]$SkipServerTransportContract,
     [switch]$SkipRealSensorAdapterPlan,
     [switch]$SkipWebSocketLidarLiveSample,
+    [switch]$SkipWebSocketTransactionRegistrationReport,
     [switch]$SkipPointCloudPreviewPolicy,
     [switch]$SkipLazPlaceholderPolicy,
     [switch]$SkipMonitorWidgetPolicy,
@@ -69,6 +70,7 @@ $PayloadSchemaReviewPolicyScript = Join-Path $ScriptRoot "validate_payload_schem
 $ServerTransportContractScript = Join-Path $ScriptRoot "validate_server_transport_contract.ps1"
 $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
 $WebSocketLidarLiveSampleScript = Join-Path $ScriptRoot "validate_websocket_lidar_live_sample.ps1"
+$WebSocketTransactionRegistrationReportScript = Join-Path $ScriptRoot "export_websocket_transaction_registration_report.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
@@ -96,6 +98,9 @@ if (-not (Test-Path -LiteralPath $RealSensorAdapterPlanScript)) {
 }
 if (-not (Test-Path -LiteralPath $WebSocketLidarLiveSampleScript)) {
     throw "validate_websocket_lidar_live_sample.ps1 not found: $WebSocketLidarLiveSampleScript"
+}
+if (-not (Test-Path -LiteralPath $WebSocketTransactionRegistrationReportScript)) {
+    throw "export_websocket_transaction_registration_report.ps1 not found: $WebSocketTransactionRegistrationReportScript"
 }
 if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
     throw "validate_point_cloud_preview_policy.ps1 not found: $PointCloudPreviewPolicyScript"
@@ -199,6 +204,17 @@ if (-not $SkipWebSocketLidarLiveSample) {
 else {
     Write-Host ""
     Write-Host "WebSocket live LiDAR sample validation skipped by -SkipWebSocketLidarLiveSample."
+}
+
+if (-not $SkipWebSocketTransactionRegistrationReport) {
+    Invoke-ScriptStep `
+        -Label "WebSocket transaction registration report" `
+        -ScriptPath $WebSocketTransactionRegistrationReportScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "WebSocket transaction registration report skipped by -SkipWebSocketTransactionRegistrationReport."
 }
 
 if (-not $SkipPointCloudPreviewPolicy) {

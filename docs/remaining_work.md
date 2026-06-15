@@ -103,6 +103,9 @@ Current state:
 - `Samples/websocket/lidar_json_live_frame_sample.json` and
   `Scripts/validate_websocket_lidar_live_sample.ps1` define the checked sample
   payload that should be sent through the broker after data-table registration.
+- `Scripts/export_websocket_transaction_registration_report.ps1` exports the
+  expected `DT_TransactionCode` row name, handler class, sample metadata, and
+  manual PIE smoke steps without mutating the binary data table asset.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -117,8 +120,8 @@ Current state:
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
-- Add the `LIDAR_JSON_LIVE_FRAME` row to the project WebSocket data table and
-  smoke-test the route with the deployment WebSocket broker using
+- Verify or add the `LIDAR_JSON_LIVE_FRAME` row in the project WebSocket data
+  table and smoke-test the route with the deployment WebSocket broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
@@ -138,6 +141,8 @@ Completion evidence:
   one successful frame handoff path.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
+- WebSocket registration checklist exports:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"`.
 
 ### Server Payload Schema Approval
 

@@ -123,7 +123,15 @@ WebSocket live LiDAR sample contract:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_websocket_lidar_live_sample.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"
 ```
+
+The registration report is a static checklist for
+`/Game/M7AT10/Common/DataTables/DT_TransactionCode`. It expects a row named
+`LIDAR_JSON_LIVE_FRAME` with `TransactionCodeMessageClass` set to
+`/Script/m7at10_dt.LidarJsonLiveFrameTC`. It intentionally does not mutate the
+binary `.uasset`; use it as the pre-editor evidence, then verify the row in
+Unreal Editor.
 
 After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
 `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment
