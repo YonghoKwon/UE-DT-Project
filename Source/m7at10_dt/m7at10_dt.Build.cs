@@ -31,7 +31,8 @@ public class m7at10_dt : ModuleRules
             "Json",
             "ProceduralMeshComponent",
             "Sockets",
-            "Networking"
+            "Networking",
+            "HTTPServer"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });

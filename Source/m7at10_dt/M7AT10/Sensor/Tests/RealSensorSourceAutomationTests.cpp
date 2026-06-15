@@ -7,6 +7,7 @@
 #include "Misc/Paths.h"
 #include "Core/DTCoreSettings.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
+#include "m7at10_dt/M7AT10/Sensor/LidarHttpJsonLiveSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLiveSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarUdpJsonLiveSourceComp.h"
@@ -31,6 +32,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSen
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveBridgeTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveDatagramTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -575,6 +577,65 @@ bool FRealSensorSourceUdpJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("UDP JSON live buffer clears after push"), UdpSource->PendingLineCount, 0);
 
     TestFalse(TEXT("UDP JSON live source rejects invalid payload"), UdpSource->ProcessUdpPayloadJson(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"POINTS\":[]}}")));
+
+    SourceOwner->Destroy();
+    return true;
+}
+
+bool FRealSensorSourceHttpJsonLiveBridgeTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    AActor* SourceOwner = World->SpawnActor<AActor>();
+    TestNotNull(TEXT("HTTP JSON live source owner"), SourceOwner);
+    if (!SourceOwner)
+    {
+        return false;
+    }
+
+    UVirtualLidarSensorComp* TargetLidar = NewObject<UVirtualLidarSensorComp>(SourceOwner);
+    ULidarHttpJsonLiveSourceComp* HttpSource = NewObject<ULidarHttpJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("HTTP JSON live target LiDAR"), TargetLidar);
+    TestNotNull(TEXT("HTTP JSON live source"), HttpSource);
+    if (!TargetLidar || !HttpSource)
+    {
+        SourceOwner->Destroy();
+        return false;
+    }
+
+    SourceOwner->AddInstanceComponent(TargetLidar);
+    SourceOwner->AddInstanceComponent(HttpSource);
+    TargetLidar->bAutoStartScan = false;
+    TargetLidar->bAutoRegisterToManager = false;
+    TargetLidar->RegisterComponent();
+    HttpSource->RegisterComponent();
+
+    TargetLidar->SensorId = TEXT("TEST-LIDAR-HTTP-JSON-LIVE");
+    HttpSource->TargetLidar = TargetLidar;
+    HttpSource->bAutoPushReceivedFrame = true;
+    HttpSource->bSendTransportForReceivedFrames = false;
+
+    const FString Payload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"HttpJsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":0,\"col\":0,\"x\":10,\"y\":20,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":0,\"col\":1,\"x\":30,\"y\":40,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+    TestTrue(TEXT("HTTP JSON live source processes shared payload"), HttpSource->ProcessHttpPayloadJson(Payload));
+    TestEqual(TEXT("HTTP JSON live source frame id"), HttpSource->LastSourceFrameId, static_cast<int64>(1));
+    TestEqual(TEXT("HTTP JSON live source point count"), HttpSource->LastSourcePointCount, 2);
+    TestEqual(TEXT("HTTP JSON live target point count"), TargetLidar->GetLastPoints().Num(), 2);
+    TestEqual(TEXT("HTTP JSON live response code accepted"), HttpSource->LastResponseCode, 202);
+    TestEqual(TEXT("HTTP JSON live buffer clears after push"), HttpSource->PendingLineCount, 0);
+
+    HttpSource->bAutoPushReceivedFrame = false;
+    TestTrue(TEXT("HTTP JSON live source can buffer without pushing"), HttpSource->ProcessHttpPayloadJson(Payload));
+    TestEqual(TEXT("HTTP JSON live buffered line count"), HttpSource->PendingLineCount, 2);
+    TestEqual(TEXT("HTTP JSON live response code buffered"), HttpSource->LastResponseCode, 202);
+    HttpSource->ClearBufferedFrame();
+
+    TestFalse(TEXT("HTTP JSON live source rejects invalid payload"), HttpSource->ProcessHttpPayloadJson(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"POINTS\":[]}}")));
+    TestEqual(TEXT("HTTP JSON live invalid payload response code"), HttpSource->LastResponseCode, 400);
 
     SourceOwner->Destroy();
     return true;

@@ -52,6 +52,25 @@ Current implementation file:
 Source/m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.cpp
 ```
 
+## Inbound HTTP Live Bridge
+
+Inbound real-sensor HTTP is intentionally separate from outbound judging-server
+`HttpPost` transport.
+
+```text
+component: ULidarHttpJsonLiveSourceComp
+method: POST
+default route: /m7at10/lidar/live
+body: LIDAR_JSON_LIVE_FRAME-compatible JSON payload
+handoff: AppendLivePayloadJson -> PushFrameOnce
+```
+
+This listener is a DT-Project bridge for feeding live LiDAR frames into the same
+normalized path used by WebSocket, UDP, replay, and virtual scans. It does not
+replace the outbound `HttpPost` transport and does not prove judging-server
+acceptance. Deployment still needs explicit endpoint exposure, credentials,
+rate-limit/backpressure, and operator smoke evidence.
+
 ## Decisions Still Required
 
 The following are intentionally not frozen until the judging server contract is

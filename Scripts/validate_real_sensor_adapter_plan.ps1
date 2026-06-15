@@ -49,6 +49,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "JSONL replay implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLinesReplaySourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h" },
     [PSCustomObject]@{ Label = "JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "HTTP JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "HTTP JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.cpp" },
     [PSCustomObject]@{ Label = "UDP JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h" },
     [PSCustomObject]@{ Label = "UDP JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSON live WebSocket transaction header"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h" },
@@ -77,6 +79,8 @@ $baseCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorSour
 $stubsHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.h"
 $stubsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
+$httpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.h"
+$httpLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.cpp"
 $udpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h"
 $udpLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.cpp"
 $liveTcHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h"
@@ -101,6 +105,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "PushBufferedFrameNoTransportInEditor"; Label = "JSON live editor push helper" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "AppendWebSocketPayload"; Label = "JSON live WebSocket payload append helper" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "ResolveSampleWebSocketPayloadPath"; Label = "JSON live sample path resolver" },
+    [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "ULidarHttpJsonLiveSourceComp"; Label = "HTTP JSON live bridge class" },
+    [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "RoutePath"; Label = "HTTP JSON live route path setting" },
+    [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "MaxRequestBytes"; Label = "HTTP JSON live request size guard" },
+    [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "bSendTransportForReceivedFrames"; Label = "HTTP JSON live transport send guard" },
+    [PSCustomObject]@{ Path = $httpLiveCpp; Pattern = "FHttpServerModule"; Label = "HTTP JSON live uses Unreal HTTPServer module" },
+    [PSCustomObject]@{ Path = $httpLiveCpp; Pattern = "BindRoute"; Label = "HTTP JSON live binds POST route" },
+    [PSCustomObject]@{ Path = $httpLiveCpp; Pattern = "AppendLivePayloadJson"; Label = "HTTP JSON live reuses generic payload handoff" },
     [PSCustomObject]@{ Path = $udpLiveHeader; Pattern = "ULidarUdpJsonLiveSourceComp"; Label = "UDP JSON live bridge class" },
     [PSCustomObject]@{ Path = $udpLiveHeader; Pattern = "BindAddress"; Label = "UDP JSON live bind address setting" },
     [PSCustomObject]@{ Path = $udpLiveHeader; Pattern = "bSendTransportForReceivedFrames"; Label = "UDP JSON live transport send guard" },
@@ -117,6 +128,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PlaceholderState"; Label = "Placeholder automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload"; Label = "HTTP JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload"; Label = "UDP JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram"; Label = "UDP JSON live datagram smoke automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "GetBoundPort"; Label = "UDP datagram smoke uses ephemeral bound port" },
@@ -156,6 +168,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "EnsureLidarJsonLiveFrameTransaction"; Label = "Smoke evidence workflow can dry-run row commandlet" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "WriteReports"; Label = "Smoke evidence workflow report writing is opt-in" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "ExternalBrokerStillRequired"; Label = "Smoke evidence workflow separates broker completion" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\m7at10_dt.Build.cs"); Pattern = "HTTPServer"; Label = "Runtime module includes inbound HTTP server dependency" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "PushPointFrameToTarget"; Label = "Plan documents normalized handoff" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ULidarJsonLiveSourceComp"; Label = "Plan documents JSON live bridge" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "Plan documents JSON live transaction code" },
@@ -187,6 +200,7 @@ $report = [PSCustomObject]@{
         RequiredContractCount = $requiredTexts.Count
         ReplayAdaptersPresent = $true
         JsonLiveBridgePresent = $true
+        JsonLiveHttpBridgePresent = $true
         JsonLiveWebSocketHandlerPresent = $true
         JsonLiveWebSocketCommandletPresent = $true
         JsonLiveWebSocketSamplePresent = $true
@@ -197,6 +211,7 @@ $report = [PSCustomObject]@{
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
         JsonLiveBrokerlessDispatchAutomationPresent = $true
+        JsonLiveHttpBridgeAutomationPresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -213,6 +228,7 @@ else {
     Write-Host "Required contract checks: $($report.Summary.RequiredContractCount)"
     Write-Host "Replay adapters present: $($report.Summary.ReplayAdaptersPresent)"
     Write-Host "JSON live bridge present: $($report.Summary.JsonLiveBridgePresent)"
+    Write-Host "JSON live HTTP bridge present: $($report.Summary.JsonLiveHttpBridgePresent)"
     Write-Host "JSON live WebSocket handler present: $($report.Summary.JsonLiveWebSocketHandlerPresent)"
     Write-Host "JSON live WebSocket commandlet present: $($report.Summary.JsonLiveWebSocketCommandletPresent)"
     Write-Host "JSON live WebSocket sample present: $($report.Summary.JsonLiveWebSocketSamplePresent)"
@@ -223,6 +239,7 @@ else {
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"
     Write-Host "JSON live brokerless dispatch automation present: $($report.Summary.JsonLiveBrokerlessDispatchAutomationPresent)"
+    Write-Host "JSON live HTTP bridge automation present: $($report.Summary.JsonLiveHttpBridgeAutomationPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"

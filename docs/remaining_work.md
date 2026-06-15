@@ -130,6 +130,10 @@ Current state:
 - `ULidarJsonLiveSourceComp::AppendLivePayloadJson` provides a
   transport-neutral handoff for HTTP, UDP, or Blueprint bridges that already
   receive the shared JSON live payload shape.
+- `ULidarHttpJsonLiveSourceComp` provides an optional inbound HTTP POST wrapper
+  over the same handoff path. It is explicit-start by default, caps request body
+  size, uses Unreal's `HTTPServer` module, and is covered by
+  `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload`.
 - `ULidarUdpJsonLiveSourceComp` provides an optional loopback-first UDP JSON
   live bridge wrapper over the same handoff path.
 - `M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` provides local UDP
@@ -155,8 +159,9 @@ Next implementation steps:
   cached payload observations.
 - Run the smoke evidence wrapper with `-RunEvidenceAutomation` and
   `-RunBrokerlessDTCoreDispatchAutomation` during deployment verification.
-- Decide ownership for actual HTTP or UDP listeners if WebSocket is not the
-  selected live bridge shape.
+- Decide deployment ownership for HTTP/UDP listener exposure, credentials,
+  rate limits, and whether HTTP, UDP, WebSocket, or SDK input is the selected
+  production live bridge shape.
 - Implement a ROS2 bridge adapter that converts incoming messages to
   `FVirtualLidarPoint` frames or camera payloads.
 - Implement a Livox SDK adapter that normalizes packet streams into the same

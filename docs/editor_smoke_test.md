@@ -179,6 +179,9 @@ target LiDAR handoff without sending to the judging server.
 HTTP, UDP, or Blueprint bridge prototypes can call
 `ULidarJsonLiveSourceComp::AppendLivePayloadJson` with the same payload shape,
 then call `PushFrameOnce(false)` for a no-transport local handoff check.
+`M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the optional
+HTTP wrapper reuses this handoff path, supports auto-push and buffer-only
+modes, and stays separate from outbound judging-server HTTP POST transport.
 `M7AT10.RealSensorSource.UdpJsonLiveBridgePayload` verifies that the optional
 UDP wrapper reuses this handoff path without opening a real test port.
 `M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` verifies the local socket
@@ -211,6 +214,7 @@ Monitor host fallback tests:
 `M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
 `M7AT10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
 `M7AT10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
+`M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the inbound HTTP JSON live wrapper feeds the same shared payload shape into the normalized handoff path without requiring a real listener in automation.
 `M7AT10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.
 `M7AT10.RealSensorSource.JsonLiveTransactionRouting` verifies that the WebSocket transaction handler routes by `SOURCE_ID`, honors `PUSH_FRAME=false`, rejects ambiguous no-`SOURCE_ID` multi-source routing, and can push a matched frame into the target LiDAR.
 `M7AT10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComp`.

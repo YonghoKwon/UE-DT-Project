@@ -28,6 +28,8 @@ Current concrete/placeholder components:
 ULidarCsvReplaySourceComp
 ULidarJsonLinesReplaySourceComp
 ULidarJsonLiveSourceComp
+ULidarHttpJsonLiveSourceComp
+ULidarUdpJsonLiveSourceComp
 ULidarJsonLiveFrameTC
 URos2SensorBridgeSourceComp
 ULivoxLidarSourceComp
@@ -234,11 +236,23 @@ commandlet dry run, optional evidence automation, optional brokerless dispatch
 automation, and broker smoke report in a consistent order. Its default mode is
 read-only: Unreal commandlets, automation, and report writes are opt-in.
 
-HTTP and UDP listener ownership is still open. The DT-Project side now has a
-transport-neutral JSON live handoff entry point,
-`ULidarJsonLiveSourceComp::AppendLivePayloadJson`, so a future HTTP endpoint,
-UDP socket, or Blueprint bridge can feed the same sample payload without going
-through the WebSocket-specific function name.
+The DT-Project side now owns conservative HTTP and UDP listener wrappers over
+the transport-neutral JSON live handoff entry point,
+`ULidarJsonLiveSourceComp::AppendLivePayloadJson`. Both wrappers feed the same
+sample payload shape without going through the WebSocket-specific function
+name. Deployment ownership is still open for endpoint exposure, authentication,
+rate limits, and whether HTTP, UDP, WebSocket, or SDK input is the production
+bridge.
+
+`ULidarHttpJsonLiveSourceComp` is the optional inbound HTTP wrapper. It keeps
+`bAutoStartSource=false`, binds one POST route with Unreal's `HTTPServer`
+module when `StartSource` is called, caps request body size with
+`MaxRequestBytes`, and pushes accepted bodies through `AppendLivePayloadJson`
+plus optional `PushFrameOnce`. Treat it as DT-Project-owned local bridge
+coverage. It is separate from outbound judging-server `HttpPost` transport.
+`M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the wrapper
+reuses the shared JSON payload handoff and can either auto-push or buffer an
+incoming frame.
 
 `ULidarUdpJsonLiveSourceComp` is the first optional UDP wrapper for that path.
 It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,
