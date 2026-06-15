@@ -52,6 +52,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
     void CaptureAndSendImage();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|External")
+    bool InjectExternalJsonPayload(const FString& JsonPayload, bool bSendTransport = true);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     void ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfile);
 
@@ -135,9 +138,11 @@ private:
     bool ReadRenderTargetAsJpeg(TArray64<uint8>& OutJpegBytes) const;
     FString BuildJsonPayload(const FString& Base64Image, int64 ByteSize) const;
     void DispatchPayload(const FString& JsonPayload, const TArray64<uint8>& JpegBytes) const;
+    void DispatchJsonPayloadOnly(const FString& JsonPayload) const;
     void PostJson(const FString& JsonPayload) const;
     void SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const;
     void UpdateRuntimeStatus(int32 PayloadLength, const FString& Message);
+    bool ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize) const;
     void TryAutoRegisterToManager();
 
 private:

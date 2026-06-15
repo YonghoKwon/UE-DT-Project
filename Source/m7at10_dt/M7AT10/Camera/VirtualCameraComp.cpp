@@ -198,6 +198,39 @@ void UVirtualCameraComp::CaptureAndSendImage()
     OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
 }
 
+bool UVirtualCameraComp::InjectExternalJsonPayload(const FString& JsonPayload, bool bSendTransport)
+{
+    FString PayloadSensorId;
+    int64 PayloadFrameId = 0;
+    int64 PayloadByteSize = 0;
+    if (!ReadExternalPayloadMetadata(JsonPayload, PayloadSensorId, PayloadFrameId, PayloadByteSize))
+    {
+        UpdateRuntimeStatus(0, TEXT("External camera payload rejected"));
+        return false;
+    }
+
+    LastJsonPayload = JsonPayload;
+    FrameId = FMath::Max(FrameId, PayloadFrameId);
+
+    if (bSendTransport)
+    {
+        DispatchJsonPayloadOnly(JsonPayload);
+    }
+
+    const FString RecordSensorId = PayloadSensorId.IsEmpty() ? SensorId : PayloadSensorId;
+    if (RecorderComponent)
+    {
+        RecorderComponent->RecordJsonFrame(RecordSensorId, TEXT("virtual_camera"), FrameId, JsonPayload);
+    }
+
+    UpdateRuntimeStatus(JsonPayload.Len(), FString::Printf(TEXT("Injected external camera payload bytes=%lld sendTransport=%s"),
+        static_cast<long long>(PayloadByteSize),
+        bSendTransport ? TEXT("true") : TEXT("false")));
+    RuntimeStatus.SensorId = RecordSensorId;
+    OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);
+    return true;
+}
+
 bool UVirtualCameraComp::ReadRenderTargetAsJpeg(TArray64<uint8>& OutJpegBytes) const
 {
     if (!CameraRenderTarget)
@@ -324,6 +357,89 @@ void UVirtualCameraComp::DispatchPayload(const FString& JsonPayload, const TArra
     default:
         break;
     }
+}
+
+void UVirtualCameraComp::DispatchJsonPayloadOnly(const FString& JsonPayload) const
+{
+    if (TransportComponent)
+    {
+        TransportComponent->SendJson(SensorId, TEXT("virtual_camera"), JsonPayload);
+        return;
+    }
+
+    switch (OutputMode)
+    {
+    case EVirtualCameraOutputMode::None:
+        break;
+    case EVirtualCameraOutputMode::LogOnly:
+        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] externalPayloadLength=%d"), *SensorId, JsonPayload.Len());
+        break;
+    case EVirtualCameraOutputMode::HttpPost:
+        PostJson(JsonPayload);
+        break;
+    case EVirtualCameraOutputMode::SaveJpeg:
+        UE_LOG(LogTemp, Log, TEXT("[VirtualCamera:%s] external payload has no local JPEG bytes to save."), *SensorId);
+        break;
+    default:
+        break;
+    }
+}
+
+bool UVirtualCameraComp::ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize) const
+{
+    TSharedPtr<FJsonObject> RootObject;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonPayload);
+    if (!FJsonSerializer::Deserialize(Reader, RootObject) || !RootObject.IsValid())
+    {
+        return false;
+    }
+
+    FString SchemaVersion;
+    FString SensorType;
+    FString Encoding;
+    FString Image;
+    if (!RootObject->TryGetStringField(TEXT("schemaVersion"), SchemaVersion) || SchemaVersion != TEXT("virtual-camera.v1"))
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("sensorType"), SensorType) || SensorType != TEXT("virtual_camera"))
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("encoding"), Encoding) || Encoding != TEXT("jpeg/base64"))
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("image"), Image) || Image.IsEmpty())
+    {
+        return false;
+    }
+
+    double Width = 0.0;
+    double Height = 0.0;
+    double ByteSize = 0.0;
+    double FrameIdNumber = 0.0;
+    if (!RootObject->TryGetNumberField(TEXT("width"), Width) || Width <= 0.0)
+    {
+        return false;
+    }
+    if (!RootObject->TryGetNumberField(TEXT("height"), Height) || Height <= 0.0)
+    {
+        return false;
+    }
+    if (!RootObject->TryGetNumberField(TEXT("byteSize"), ByteSize) || ByteSize <= 0.0)
+    {
+        return false;
+    }
+    if (!RootObject->TryGetNumberField(TEXT("frameId"), FrameIdNumber) || FrameIdNumber < 0.0)
+    {
+        return false;
+    }
+
+    RootObject->TryGetStringField(TEXT("sensorId"), OutSensorId);
+    OutFrameId = static_cast<int64>(FrameIdNumber);
+    OutByteSize = static_cast<int64>(ByteSize);
+    return true;
 }
 
 void UVirtualCameraComp::PostJson(const FString& JsonPayload) const

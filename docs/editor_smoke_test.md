@@ -217,6 +217,7 @@ Monitor host fallback tests:
 `M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
 `M7AT10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
 `M7AT10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
+`M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraComp` without renderer-dependent capture.
 `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the inbound HTTP JSON live wrapper feeds the same shared payload shape into the normalized handoff path without requiring a real listener in automation.
 `M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies that the inbound HTTP JSON live wrapper can accept a real loopback POST through `HTTPServer` and return an accepted response after target LiDAR handoff.
 `M7AT10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.

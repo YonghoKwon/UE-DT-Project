@@ -47,6 +47,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "CSV replay implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarCsvReplaySourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSONL replay header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLinesReplaySourceComp.h" },
     [PSCustomObject]@{ Label = "JSONL replay implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLinesReplaySourceComp.cpp" },
+    [PSCustomObject]@{ Label = "Camera JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "Camera JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h" },
     [PSCustomObject]@{ Label = "JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp" },
     [PSCustomObject]@{ Label = "HTTP JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.h" },
@@ -79,6 +81,10 @@ $baseCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorSour
 $stubsHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.h"
 $stubsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
+$cameraCompHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Camera\VirtualCameraComp.h"
+$cameraCompCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Camera\VirtualCameraComp.cpp"
+$cameraLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.h"
+$cameraLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.cpp"
 $httpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.h"
 $httpLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.cpp"
 $udpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h"
@@ -105,6 +111,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "PushBufferedFrameNoTransportInEditor"; Label = "JSON live editor push helper" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "AppendWebSocketPayload"; Label = "JSON live WebSocket payload append helper" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "ResolveSampleWebSocketPayloadPath"; Label = "JSON live sample path resolver" },
+    [PSCustomObject]@{ Path = $cameraCompHeader; Pattern = "InjectExternalJsonPayload"; Label = "Camera external JSON payload injection API" },
+    [PSCustomObject]@{ Path = $cameraCompCpp; Pattern = "ReadExternalPayloadMetadata"; Label = "Camera external JSON payload validator" },
+    [PSCustomObject]@{ Path = $cameraCompCpp; Pattern = "virtual-camera.v1"; Label = "Camera external JSON schema check" },
+    [PSCustomObject]@{ Path = $cameraLiveHeader; Pattern = "UCameraJsonLiveSourceComp"; Label = "Camera JSON live bridge class" },
+    [PSCustomObject]@{ Path = $cameraLiveHeader; Pattern = "TargetCamera"; Label = "Camera JSON live target camera setting" },
+    [PSCustomObject]@{ Path = $cameraLiveCpp; Pattern = "InjectExternalJsonPayload"; Label = "Camera JSON live reuses camera external payload injection" },
     [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "ULidarHttpJsonLiveSourceComp"; Label = "HTTP JSON live bridge class" },
     [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "RoutePath"; Label = "HTTP JSON live route path setting" },
     [PSCustomObject]@{ Path = $httpLiveHeader; Pattern = "MaxRequestBytes"; Label = "HTTP JSON live request size guard" },
@@ -134,6 +146,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PlaceholderState"; Label = "Placeholder automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame"; Label = "Camera JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "virtual-camera.v1"; Label = "Camera JSON live automation uses camera payload schema" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload"; Label = "HTTP JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost"; Label = "HTTP JSON live loopback POST automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "FHttpModule::Get().CreateRequest"; Label = "HTTP JSON live loopback smoke uses real HTTP client" },
@@ -222,6 +236,7 @@ $report = [PSCustomObject]@{
         RequiredContractCount = $requiredTexts.Count
         ReplayAdaptersPresent = $true
         JsonLiveBridgePresent = $true
+        CameraJsonLiveBridgePresent = $true
         JsonLiveHttpBridgePresent = $true
         JsonLiveWebSocketHandlerPresent = $true
         JsonLiveWebSocketCommandletPresent = $true
@@ -235,6 +250,7 @@ $report = [PSCustomObject]@{
         JsonLiveBrokerlessDispatchAutomationPresent = $true
         JsonLiveHttpBridgeAutomationPresent = $true
         JsonLiveHttpLoopbackSmokePresent = $true
+        CameraJsonLiveBridgeAutomationPresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -251,6 +267,7 @@ else {
     Write-Host "Required contract checks: $($report.Summary.RequiredContractCount)"
     Write-Host "Replay adapters present: $($report.Summary.ReplayAdaptersPresent)"
     Write-Host "JSON live bridge present: $($report.Summary.JsonLiveBridgePresent)"
+    Write-Host "Camera JSON live bridge present: $($report.Summary.CameraJsonLiveBridgePresent)"
     Write-Host "JSON live HTTP bridge present: $($report.Summary.JsonLiveHttpBridgePresent)"
     Write-Host "JSON live WebSocket handler present: $($report.Summary.JsonLiveWebSocketHandlerPresent)"
     Write-Host "JSON live WebSocket commandlet present: $($report.Summary.JsonLiveWebSocketCommandletPresent)"
@@ -264,6 +281,7 @@ else {
     Write-Host "JSON live brokerless dispatch automation present: $($report.Summary.JsonLiveBrokerlessDispatchAutomationPresent)"
     Write-Host "JSON live HTTP bridge automation present: $($report.Summary.JsonLiveHttpBridgeAutomationPresent)"
     Write-Host "JSON live HTTP loopback smoke present: $($report.Summary.JsonLiveHttpLoopbackSmokePresent)"
+    Write-Host "Camera JSON live bridge automation present: $($report.Summary.CameraJsonLiveBridgeAutomationPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"

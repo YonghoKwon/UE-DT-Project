@@ -27,6 +27,7 @@ Current concrete/placeholder components:
 ```text
 ULidarCsvReplaySourceComp
 ULidarJsonLinesReplaySourceComp
+UCameraJsonLiveSourceComp
 ULidarJsonLiveSourceComp
 ULidarHttpJsonLiveSourceComp
 ULidarUdpJsonLiveSourceComp
@@ -96,6 +97,24 @@ height
 encoding
 imageBase64 or file path
 ```
+
+`UVirtualCameraComp::InjectExternalJsonPayload` accepts an already-normalized
+`virtual-camera.v1` JSON payload from a real camera bridge, validates the
+schema, caches it as the camera's latest server payload, updates runtime status,
+records the JSON frame when a recorder is assigned, and optionally sends it
+through the same JSON transport path as virtual camera captures. It does not
+require a render-target readback, does not update the preview render target, and
+does not send the optional binary JPEG side channel used by virtual captures.
+
+`UCameraJsonLiveSourceComp` is the first DT-Project camera live bridge. It
+buffers one `virtual-camera.v1` payload and pushes it into a target
+`UVirtualCameraComp` through `InjectExternalJsonPayload`. This gives future
+RealSense, ROS2 image, HTTP, WebSocket, or Blueprint camera adapters a shared
+handoff point without modifying DTCore source.
+
+`M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an
+external camera JSON payload reaches the target camera cache and runtime status
+without renderer-dependent SceneCapture readback.
 
 ## Implemented First Step
 

@@ -10,6 +10,8 @@
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
 #include "Core/DTCoreSettings.h"
+#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "m7at10_dt/M7AT10/Sensor/CameraJsonLiveSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarHttpJsonLiveSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
@@ -36,6 +38,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSen
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceCameraJsonLiveBridgeTest, "M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveBridgeTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveLoopbackPostTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -879,6 +882,77 @@ bool FRealSensorSourceHttpJsonLiveBridgeTest::RunTest(const FString& Parameters)
     HttpSource->StopSource();
     TestFalse(TEXT("HTTP JSON live route unbinds on stop"), HttpSource->IsHttpRouteBound());
     TestFalse(TEXT("HTTP JSON live stops accepting requests"), HttpSource->IsAcceptingHttpRequests());
+
+    SourceOwner->Destroy();
+    return true;
+}
+
+bool FRealSensorSourceCameraJsonLiveBridgeTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    AActor* SourceOwner = World->SpawnActor<AActor>();
+    TestNotNull(TEXT("camera JSON live source owner"), SourceOwner);
+    if (!SourceOwner)
+    {
+        return false;
+    }
+
+    UVirtualCameraComp* TargetCamera = NewObject<UVirtualCameraComp>(SourceOwner);
+    UCameraJsonLiveSourceComp* CameraSource = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("camera JSON live target camera"), TargetCamera);
+    TestNotNull(TEXT("camera JSON live source"), CameraSource);
+    if (!TargetCamera || !CameraSource)
+    {
+        SourceOwner->Destroy();
+        return false;
+    }
+
+    SourceOwner->AddInstanceComponent(TargetCamera);
+    SourceOwner->AddInstanceComponent(CameraSource);
+    TargetCamera->bAutoStartCapture = false;
+    TargetCamera->bAutoRegisterToManager = false;
+    TargetCamera->SensorId = TEXT("TEST-CAMERA-JSON-LIVE-TARGET");
+    TargetCamera->OutputMode = EVirtualCameraOutputMode::LogOnly;
+    TargetCamera->RegisterComponent();
+    CameraSource->RegisterComponent();
+
+    CameraSource->TargetCamera = TargetCamera;
+    CameraSource->bSendTransportByDefault = false;
+
+    const FString Payload = TEXT("{\"schemaVersion\":\"virtual-camera.v1\",\"sensorType\":\"virtual_camera\",\"sensorId\":\"CAM-JSON-LIVE-01\",\"manufacturer\":\"Fixture\",\"model\":\"ExternalJpeg\",\"frameId\":7,\"timestampUtc\":\"2026-06-14T12:00:00.000Z\",\"width\":640,\"height\":360,\"byteSize\":16,\"horizontalFov\":90.0,\"verticalFov\":58.7,\"simulationQuality\":\"RealTimePreview\",\"encoding\":\"jpeg/base64\",\"sensorTransform\":{\"location\":[0,0,0],\"rotation\":[0,0,0],\"forward\":[1,0,0],\"up\":[0,0,1]},\"sensorWorldLocation\":[0,0,0],\"image\":\"/9j/4AAQSkZJRgABAQ==\"}");
+    TestTrue(TEXT("camera JSON live source starts"), CameraSource->StartSource());
+    TestTrue(TEXT("camera JSON live source buffers payload"), CameraSource->AppendLivePayloadJson(Payload));
+    TestTrue(TEXT("camera JSON live has buffered payload"), CameraSource->bHasBufferedPayload);
+    TestEqual(TEXT("camera JSON live payload length tracked"), CameraSource->LastPayloadLength, Payload.Len());
+    TestTrue(TEXT("camera JSON live pushes payload"), CameraSource->PushFrameOnce(false));
+
+    TestEqual(TEXT("camera JSON live source frame id"), CameraSource->LastSourceFrameId, static_cast<int64>(1));
+    TestEqual(TEXT("camera JSON live source point count represents frame count"), CameraSource->LastSourcePointCount, 1);
+    TestFalse(TEXT("camera JSON live buffer clears after push"), CameraSource->bHasBufferedPayload);
+    TestEqual(TEXT("camera target caches external payload"), TargetCamera->GetLastJsonPayload(), Payload);
+    TestEqual(TEXT("camera runtime frame id from payload"), TargetCamera->GetRuntimeStatus().FrameId, static_cast<int64>(7));
+    TestEqual(TEXT("camera runtime sensor id from payload"), TargetCamera->GetRuntimeStatus().SensorId, FString(TEXT("CAM-JSON-LIVE-01")));
+    TestTrue(TEXT("camera runtime message mentions external payload"), TargetCamera->GetRuntimeStatus().LastMessage.Contains(TEXT("Injected external camera payload")));
+
+    TestTrue(TEXT("camera JSON live source rejects empty payload"), !CameraSource->AppendLivePayloadJson(TEXT("   ")));
+
+    UCameraJsonLiveSourceComp* InvalidSource = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("invalid camera JSON live source"), InvalidSource);
+    if (InvalidSource)
+    {
+        SourceOwner->AddInstanceComponent(InvalidSource);
+        InvalidSource->RegisterComponent();
+        InvalidSource->TargetCamera = TargetCamera;
+        TestTrue(TEXT("invalid camera JSON live buffers payload"), InvalidSource->AppendLivePayloadJson(TEXT("{\"schemaVersion\":\"virtual-camera.v1\",\"sensorType\":\"virtual_camera\",\"encoding\":\"jpeg/base64\",\"image\":\"\"}")));
+        TestFalse(TEXT("invalid camera JSON live push is rejected"), InvalidSource->PushFrameOnce(false));
+        TestEqual(TEXT("invalid camera JSON live reports error"), InvalidSource->GetConnectionState(), ERealSensorSourceConnectionState::Error);
+    }
 
     SourceOwner->Destroy();
     return true;

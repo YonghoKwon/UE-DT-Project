@@ -130,6 +130,11 @@ Current state:
 - `ULidarJsonLiveSourceComp::AppendLivePayloadJson` provides a
   transport-neutral handoff for HTTP, UDP, or Blueprint bridges that already
   receive the shared JSON live payload shape.
+- `UVirtualCameraComp::InjectExternalJsonPayload` and
+  `UCameraJsonLiveSourceComp` provide the first camera-side JSON live handoff
+  for already-normalized `virtual-camera.v1` payloads without render-target
+  readback. This updates server payload/status/JSON transport, not the camera
+  preview render target or binary JPEG side channel.
 - `ULidarHttpJsonLiveSourceComp` provides an optional inbound HTTP POST wrapper
   over the same handoff path. It is explicit-start by default, caps request body
   size, uses Unreal's `HTTPServer` module, marshals request processing back to
