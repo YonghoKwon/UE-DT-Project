@@ -261,6 +261,10 @@ controlled by port selection, host firewall/network policy, and ini review.
 `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the wrapper
 reuses the shared JSON payload handoff and can either auto-push or buffer an
 incoming frame. It also checks route bind/unbind lifecycle state.
+`M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` starts the route on a
+unique localhost path and high test port, sends a real HTTP POST through
+`FHttpModule`, and waits for the target LiDAR frame update and HTTP 202
+response.
 
 `ULidarUdpJsonLiveSourceComp` is the first optional UDP wrapper for that path.
 It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,

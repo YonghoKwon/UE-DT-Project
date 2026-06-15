@@ -134,7 +134,8 @@ Current state:
   over the same handoff path. It is explicit-start by default, caps request body
   size, uses Unreal's `HTTPServer` module, marshals request processing back to
   the game thread, and is covered by
-  `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload`.
+  `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` plus loopback HTTP POST
+  smoke coverage in `M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost`.
 - `ULidarUdpJsonLiveSourceComp` provides an optional loopback-first UDP JSON
   live bridge wrapper over the same handoff path.
 - `M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` provides local UDP

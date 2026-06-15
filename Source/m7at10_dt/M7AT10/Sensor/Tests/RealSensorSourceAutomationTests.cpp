@@ -2,6 +2,10 @@
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "HttpManager.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
@@ -33,6 +37,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveBridgeTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveLoopbackPostTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveDatagramTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -56,6 +61,8 @@ public:
         {
             return true;
         }
+
+        FHttpModule::Get().GetHttpManager().Tick(0.0f);
 
         if (StartTimeSeconds <= 0.0)
         {
@@ -206,6 +213,230 @@ private:
     TWeakObjectPtr<UDxDataSubsystem> DataSubsystem;
 };
 #endif
+
+class FHttpJsonLiveLoopbackPostCommand : public IAutomationLatentCommand
+{
+public:
+    explicit FHttpJsonLiveLoopbackPostCommand(FAutomationTestBase* InTest)
+        : Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!Test)
+        {
+            return true;
+        }
+
+        if (StartTimeSeconds <= 0.0)
+        {
+            StartTimeSeconds = FPlatformTime::Seconds();
+            return Setup();
+        }
+
+        if (!bRequestSent && (FPlatformTime::Seconds() - StartTimeSeconds) >= SendDelaySeconds)
+        {
+            return SendPost();
+        }
+
+        if (bRequestComplete && TargetLidar.IsValid() && HttpSource.IsValid())
+        {
+            const int32 TargetPointCount = TargetLidar->GetLastPoints().Num();
+            if (bRequestSucceeded && ResponseCode == 202 && TargetPointCount == ExpectedPointCount)
+            {
+                Test->TestEqual(TEXT("HTTP loopback POST response code"), ResponseCode, 202);
+                Test->TestTrue(TEXT("HTTP loopback POST response body accepted"), ResponseBody.Contains(TEXT("\"accepted\":true")));
+                Test->TestTrue(TEXT("HTTP loopback POST response body point count"), ResponseBody.Contains(TEXT("\"pointCount\":2")));
+                Test->TestTrue(TEXT("HTTP loopback POST response body source id"), ResponseBody.Contains(TEXT("HttpJsonLiveLidarBridge")));
+                Test->TestEqual(TEXT("HTTP loopback source response code"), HttpSource->LastResponseCode, 202);
+                Test->TestEqual(TEXT("HTTP loopback source frame id"), HttpSource->LastSourceFrameId, static_cast<int64>(1));
+                Test->TestEqual(TEXT("HTTP loopback source point count"), HttpSource->LastSourcePointCount, ExpectedPointCount);
+                Test->TestEqual(TEXT("HTTP loopback target point count"), TargetPointCount, ExpectedPointCount);
+                Test->TestTrue(TEXT("HTTP loopback request bytes recorded"), HttpSource->LastReceivedRequestBytes > 0);
+                Test->TestEqual(TEXT("HTTP loopback request byte count"), HttpSource->LastReceivedRequestBytes, RequestBodyUtf8Bytes);
+                Test->TestTrue(TEXT("HTTP loopback processed on game thread"), HttpSource->bLastRequestProcessedOnGameThread);
+                Test->TestEqual(TEXT("HTTP loopback buffer clears after push"), HttpSource->PendingLineCount, 0);
+                Cleanup();
+                return true;
+            }
+
+            Test->AddError(FString::Printf(TEXT("HTTP loopback POST completed unexpectedly. succeeded=%s code=%d targetPoints=%d body=%s"),
+                bRequestSucceeded ? TEXT("true") : TEXT("false"),
+                ResponseCode,
+                TargetPointCount,
+                *ResponseBody));
+            Cleanup();
+            return true;
+        }
+
+        if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
+        {
+            Test->AddError(TEXT("HTTP JSON live loopback POST did not complete before timeout."));
+            Cleanup();
+            return true;
+        }
+
+        return false;
+    }
+
+private:
+    bool Setup()
+    {
+        UWorld* World = GWorld;
+        Test->TestNotNull(TEXT("HTTP loopback editor world"), World);
+        if (!World)
+        {
+            return true;
+        }
+
+        Owner = World->SpawnActor<AActor>();
+        Test->TestNotNull(TEXT("HTTP loopback source owner"), Owner.Get());
+        if (!Owner.IsValid())
+        {
+            return true;
+        }
+
+        UVirtualLidarSensorComp* Target = NewObject<UVirtualLidarSensorComp>(Owner.Get());
+        ULidarHttpJsonLiveSourceComp* Source = NewObject<ULidarHttpJsonLiveSourceComp>(Owner.Get());
+        Test->TestNotNull(TEXT("HTTP loopback target LiDAR"), Target);
+        Test->TestNotNull(TEXT("HTTP loopback source"), Source);
+        if (!Target || !Source)
+        {
+            Cleanup();
+            return true;
+        }
+
+        Owner->AddInstanceComponent(Target);
+        Owner->AddInstanceComponent(Source);
+        Target->bAutoStartScan = false;
+        Target->bAutoRegisterToManager = false;
+        Target->RegisterComponent();
+        Source->RegisterComponent();
+
+        const int32 FreePort = FindFreeLoopbackTcpPort();
+        Test->TestTrue(TEXT("HTTP loopback found a free TCP port"), FreePort > 0);
+        if (FreePort <= 0)
+        {
+            Cleanup();
+            return true;
+        }
+
+        const FGuid HttpRouteGuid = FGuid::NewGuid();
+        Target->SensorId = TEXT("TEST-LIDAR-HTTP-LOOPBACK");
+        Source->TargetLidar = Target;
+        Source->ListenPort = FreePort;
+        Source->RoutePath = FString::Printf(TEXT("/m7at10/loopback/%s"), *HttpRouteGuid.ToString(EGuidFormats::Digits));
+        Source->bAutoPushReceivedFrame = true;
+        Source->bSendTransportForReceivedFrames = false;
+        Test->TestTrue(TEXT("HTTP loopback source starts"), Source->StartSource());
+        Test->TestTrue(TEXT("HTTP loopback route is bound"), Source->IsHttpRouteBound());
+        Test->TestTrue(TEXT("HTTP loopback source accepts requests"), Source->IsAcceptingHttpRequests());
+        if (!Source->IsHttpRouteBound())
+        {
+            Cleanup();
+            return true;
+        }
+
+        TargetLidar = Target;
+        HttpSource = Source;
+        RequestUrl = FString::Printf(TEXT("http://127.0.0.1:%d%s"), Source->ListenPort, *Source->RoutePath);
+        return false;
+    }
+
+    int32 FindFreeLoopbackTcpPort() const
+    {
+        FSocket* ProbeSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("M7AT10_HttpJsonLiveProbe"), false);
+        if (!ProbeSocket)
+        {
+            return 0;
+        }
+
+        int32 FreePort = 0;
+        TSharedRef<FInternetAddr> Address = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+        Address->SetIp(FIPv4Address(127, 0, 0, 1).Value);
+        Address->SetPort(0);
+
+        if (ProbeSocket->Bind(*Address))
+        {
+            TSharedRef<FInternetAddr> BoundAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+            ProbeSocket->GetAddress(*BoundAddress);
+            FreePort = BoundAddress->GetPort();
+        }
+
+        ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ProbeSocket);
+        return FreePort;
+    }
+
+    bool SendPost()
+    {
+        if (!HttpSource.IsValid())
+        {
+            return true;
+        }
+
+        RequestBody = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"HttpJsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":0,\"col\":0,\"x\":10,\"y\":20,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":0,\"col\":1,\"x\":30,\"y\":40,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+        RequestBodyUtf8Bytes = FTCHARToUTF8(*RequestBody).Length();
+
+        HttpRequest = FHttpModule::Get().CreateRequest();
+        HttpRequest->SetURL(RequestUrl);
+        HttpRequest->SetVerb(TEXT("POST"));
+        HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+        HttpRequest->SetTimeout(TimeoutSeconds);
+        HttpRequest->SetContentAsString(RequestBody);
+        HttpRequest->OnProcessRequestComplete().BindRaw(this, &FHttpJsonLiveLoopbackPostCommand::OnRequestComplete);
+        bRequestSent = true;
+        Test->TestTrue(TEXT("HTTP loopback POST request starts"), HttpRequest->ProcessRequest());
+        return false;
+    }
+
+    void OnRequestComplete(FHttpRequestPtr /*Request*/, FHttpResponsePtr Response, bool bSucceeded)
+    {
+        bRequestSucceeded = bSucceeded && Response.IsValid();
+        ResponseCode = Response.IsValid() ? Response->GetResponseCode() : 0;
+        ResponseBody = Response.IsValid() ? Response->GetContentAsString() : FString();
+        bRequestComplete = true;
+    }
+
+    void Cleanup()
+    {
+        if (HttpRequest.IsValid())
+        {
+            HttpRequest->OnProcessRequestComplete().Unbind();
+            HttpRequest.Reset();
+        }
+        if (HttpSource.IsValid())
+        {
+            HttpSource->StopSource();
+        }
+        if (Owner.IsValid())
+        {
+            Owner->Destroy();
+        }
+        HttpSource.Reset();
+        TargetLidar.Reset();
+        Owner.Reset();
+    }
+
+private:
+    FAutomationTestBase* Test = nullptr;
+    double StartTimeSeconds = 0.0;
+    bool bRequestSent = false;
+    bool bRequestComplete = false;
+    bool bRequestSucceeded = false;
+    int32 ResponseCode = 0;
+    int32 RequestBodyUtf8Bytes = 0;
+    FString RequestUrl;
+    FString RequestBody;
+    FString ResponseBody;
+    static constexpr double SendDelaySeconds = 0.2;
+    static constexpr float TimeoutSeconds = 8.0f;
+    static constexpr int32 ExpectedPointCount = 2;
+    TWeakObjectPtr<AActor> Owner;
+    TWeakObjectPtr<UVirtualLidarSensorComp> TargetLidar;
+    TWeakObjectPtr<ULidarHttpJsonLiveSourceComp> HttpSource;
+    TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> HttpRequest;
+};
 
 class FUdpJsonLiveDatagramCommand : public IAutomationLatentCommand
 {
@@ -656,6 +887,12 @@ bool FRealSensorSourceHttpJsonLiveBridgeTest::RunTest(const FString& Parameters)
 bool FRealSensorSourceUdpJsonLiveDatagramTest::RunTest(const FString& Parameters)
 {
     ADD_LATENT_AUTOMATION_COMMAND(FUdpJsonLiveDatagramCommand(this));
+    return true;
+}
+
+bool FRealSensorSourceHttpJsonLiveLoopbackPostTest::RunTest(const FString& Parameters)
+{
+    ADD_LATENT_AUTOMATION_COMMAND(FHttpJsonLiveLoopbackPostCommand(this));
     return true;
 }
 

@@ -135,6 +135,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload"; Label = "HTTP JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost"; Label = "HTTP JSON live loopback POST automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "FHttpModule::Get().CreateRequest"; Label = "HTTP JSON live loopback smoke uses real HTTP client" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "OnProcessRequestComplete"; Label = "HTTP JSON live loopback smoke waits on HTTP callback" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "GetHttpManager().Tick"; Label = "HTTP JSON live loopback smoke ticks HTTP manager in commandlet" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "FindFreeLoopbackTcpPort"; Label = "HTTP JSON live loopback smoke probes a free port" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "http://127.0.0.1"; Label = "HTTP JSON live loopback smoke targets localhost" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "HTTP loopback POST response code"; Label = "HTTP JSON live loopback smoke asserts response code" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "LastReceivedRequestBytes"; Label = "HTTP JSON live loopback smoke checks received bytes" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "HTTP JSON live payload processed on game thread"; Label = "HTTP JSON live automation checks game-thread processing" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "HTTP JSON live route unbinds on stop"; Label = "HTTP JSON live automation checks lifecycle stop" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload"; Label = "UDP JSON live bridge automation test" },
@@ -226,6 +234,7 @@ $report = [PSCustomObject]@{
         JsonLiveRegistrationEvidenceAutomationPresent = $true
         JsonLiveBrokerlessDispatchAutomationPresent = $true
         JsonLiveHttpBridgeAutomationPresent = $true
+        JsonLiveHttpLoopbackSmokePresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -254,6 +263,7 @@ else {
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"
     Write-Host "JSON live brokerless dispatch automation present: $($report.Summary.JsonLiveBrokerlessDispatchAutomationPresent)"
     Write-Host "JSON live HTTP bridge automation present: $($report.Summary.JsonLiveHttpBridgeAutomationPresent)"
+    Write-Host "JSON live HTTP loopback smoke present: $($report.Summary.JsonLiveHttpLoopbackSmokePresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"

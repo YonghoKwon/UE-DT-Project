@@ -79,6 +79,18 @@ address. This project component intentionally does not duplicate that bind
 address setting as a Blueprint property; deployment configs and firewall policy
 must be reviewed together.
 
+Local evidence:
+
+```text
+M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost
+```
+
+This automation starts a DT-Project HTTP live source on a probed localhost TCP
+port, sends the shared `LIDAR_JSON_LIVE_FRAME` payload through Unreal's HTTP
+client, expects HTTP 202, and waits for target LiDAR handoff. It proves local
+route/request/response wiring only; it is not deployment network exposure or
+judging-server acceptance evidence.
+
 ## Decisions Still Required
 
 The following are intentionally not frozen until the judging server contract is
