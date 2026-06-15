@@ -141,6 +141,10 @@ Current state:
   payloads propagate the payload `sensorId` and `frameId` to runtime status,
   recorder frames, and transport file naming; rejected payloads preserve the
   previous cached payload and do not add recorder frames.
+- Camera JSON live automation now rejects malformed external payloads for wrong
+  schema, wrong sensor type, wrong encoding, invalid timestamp, fractional
+  frame id, invalid dimensions, malformed transform arrays, invalid base64,
+  invalid `simulationQuality`, and decoded byte-size mismatch.
 - `ULidarHttpJsonLiveSourceComp` provides an optional inbound HTTP POST wrapper
   over the same handoff path. It is explicit-start by default, caps request body
   size, uses Unreal's `HTTPServer` module, marshals request processing back to

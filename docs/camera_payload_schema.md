@@ -167,5 +167,8 @@ This test currently verifies the monitor's server payload export contract for Li
 `M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` covers external
 `virtual-camera.v1` JSON payload injection without renderer readback, including
 transport JSON save, recorder capture, payload `sensorId`/`frameId`
-propagation, invalid base64 rejection, byte-size mismatch rejection, and
-cached-payload preservation after rejected frames.
+propagation, wrong schema/type/encoding rejection, invalid timestamp rejection,
+fractional frame id rejection, invalid dimension rejection, malformed transform
+rejection, invalid base64 rejection, invalid `simulationQuality` rejection,
+byte-size mismatch rejection, and cached-payload preservation after rejected
+frames.
