@@ -106,6 +106,9 @@ Current state:
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
+- `M7AT10.RealSensorSource.JsonLiveTransactionRouting` covers handler
+  `SOURCE_ID` routing, append-only payloads, ambiguous no-source rejection, and
+  matched push into the target LiDAR.
 - They expose configuration/state but do not connect to real SDKs or bridges.
 - `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
   placeholder adapters, sample files, WebSocket sample payload, handoff API

@@ -1,6 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Guid.h"
 #include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
@@ -15,6 +18,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "M7AT10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
 {
@@ -261,6 +265,124 @@ bool FRealSensorSourceJsonLiveTransactionParseTest::RunTest(const FString& Param
 
     const FString WhitespacePayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"BridgeA\",\"jsonLines\":\"   \"}}");
     TestFalse(TEXT("JSON live TC rejects whitespace-only jsonLines"), Handler->ParseToStruct(WhitespacePayload).IsValid());
+    return true;
+}
+
+bool FRealSensorSourceJsonLiveTransactionRoutingTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    AActor* SourceOwnerA = World->SpawnActor<AActor>();
+    AActor* SourceOwnerB = World->SpawnActor<AActor>();
+    TestNotNull(TEXT("JSON live source owner A"), SourceOwnerA);
+    TestNotNull(TEXT("JSON live source owner B"), SourceOwnerB);
+    if (!SourceOwnerA || !SourceOwnerB)
+    {
+        return false;
+    }
+
+    UVirtualLidarSensorComp* TargetA = NewObject<UVirtualLidarSensorComp>(SourceOwnerA);
+    UVirtualLidarSensorComp* TargetB = NewObject<UVirtualLidarSensorComp>(SourceOwnerB);
+    ULidarJsonLiveSourceComp* SourceA = NewObject<ULidarJsonLiveSourceComp>(SourceOwnerA);
+    ULidarJsonLiveSourceComp* SourceB = NewObject<ULidarJsonLiveSourceComp>(SourceOwnerB);
+    TestNotNull(TEXT("target lidar A"), TargetA);
+    TestNotNull(TEXT("target lidar B"), TargetB);
+    TestNotNull(TEXT("JSON live source A"), SourceA);
+    TestNotNull(TEXT("JSON live source B"), SourceB);
+    if (!TargetA || !TargetB || !SourceA || !SourceB)
+    {
+        SourceOwnerA->Destroy();
+        SourceOwnerB->Destroy();
+        return false;
+    }
+
+    SourceOwnerA->AddInstanceComponent(TargetA);
+    SourceOwnerA->AddInstanceComponent(SourceA);
+    SourceOwnerB->AddInstanceComponent(TargetB);
+    SourceOwnerB->AddInstanceComponent(SourceB);
+    TargetA->RegisterComponent();
+    SourceA->RegisterComponent();
+    TargetB->RegisterComponent();
+    SourceB->RegisterComponent();
+
+    const FString RouteSuffix = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+    const FString BridgeAId = FString::Printf(TEXT("Automation_ProcessRoute_A_%s"), *RouteSuffix);
+    const FString BridgeBId = FString::Printf(TEXT("Automation_ProcessRoute_B_%s"), *RouteSuffix);
+    SourceA->SourceId = BridgeAId;
+    SourceB->SourceId = BridgeBId;
+    SourceA->TargetLidar = TargetA;
+    SourceB->TargetLidar = TargetB;
+    TargetA->SensorId = TEXT("TEST-LIDAR-ROUTE-A");
+    TargetB->SensorId = TEXT("TEST-LIDAR-ROUTE-B");
+
+    ULidarJsonLiveFrameTC* Handler = NewObject<ULidarJsonLiveFrameTC>(World);
+    TestNotNull(TEXT("JSON live TC world-bound handler"), Handler);
+    if (!Handler)
+    {
+        SourceOwnerA->Destroy();
+        SourceOwnerB->Destroy();
+        return false;
+    }
+    TestEqual(TEXT("JSON live TC handler resolves test world"), Handler->GetWorld(), World);
+
+    ULidarJsonLiveFrameTC* NoWorldHandler = NewObject<ULidarJsonLiveFrameTC>();
+    TestNotNull(TEXT("JSON live TC no-world handler"), NoWorldHandler);
+    if (NoWorldHandler)
+    {
+        TestNull(TEXT("JSON live TC no-world handler has no world"), NoWorldHandler->GetWorld());
+    }
+
+    const FString PayloadBridgeAAppendOnly = FString::Printf(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"%s\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":false,\"POINTS\":[{\"row\":1,\"col\":0,\"x\":200,\"y\":10,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":1,\"col\":1,\"x\":220,\"y\":12,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}"), *BridgeAId);
+    TSharedPtr<FTransactionCodeDataBase> ParsedBridgeA = Handler->ParseToStruct(PayloadBridgeAAppendOnly);
+    TestTrue(TEXT("routing payload parses"), ParsedBridgeA.IsValid());
+    if (ParsedBridgeA.IsValid() && NoWorldHandler)
+    {
+        NoWorldHandler->ProcessStructData(ParsedBridgeA);
+    }
+    TestEqual(TEXT("no-world handler leaves BridgeA unchanged"), SourceA->PendingLineCount, 0);
+    TestEqual(TEXT("no-world handler leaves BridgeB unchanged"), SourceB->PendingLineCount, 0);
+    if (ParsedBridgeA.IsValid())
+    {
+        Handler->ProcessStructData(ParsedBridgeA);
+    }
+
+    TestEqual(TEXT("BridgeA receives append-only frame"), SourceA->PendingLineCount, 2);
+    TestEqual(TEXT("BridgeB remains untouched"), SourceB->PendingLineCount, 0);
+    TestEqual(TEXT("BridgeA target not pushed when PUSH_FRAME=false"), TargetA->GetLastPoints().Num(), 0);
+    TestTrue(TEXT("BridgeA push after routing succeeds"), SourceA->PushFrameOnce(false));
+    TestEqual(TEXT("BridgeA target receives routed points"), TargetA->GetLastPoints().Num(), 2);
+    TestEqual(TEXT("BridgeB target still empty"), TargetB->GetLastPoints().Num(), 0);
+
+    const FString AmbiguousPayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":false,\"POINTS\":[{\"x\":300,\"y\":10,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+    TSharedPtr<FTransactionCodeDataBase> ParsedAmbiguous = Handler->ParseToStruct(AmbiguousPayload);
+    TestTrue(TEXT("ambiguous no-source payload parses"), ParsedAmbiguous.IsValid());
+    if (ParsedAmbiguous.IsValid())
+    {
+        Handler->ProcessStructData(ParsedAmbiguous);
+    }
+
+    TestEqual(TEXT("BridgeA unchanged after ambiguous no-source route"), SourceA->PendingLineCount, 0);
+    TestEqual(TEXT("BridgeB unchanged after ambiguous no-source route"), SourceB->PendingLineCount, 0);
+
+    const FString PayloadBridgeBPush = FString::Printf(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"%s\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":2,\"col\":0,\"x\":240,\"y\":20,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}"), *BridgeBId);
+    TSharedPtr<FTransactionCodeDataBase> ParsedBridgeB = Handler->ParseToStruct(PayloadBridgeBPush);
+    TestTrue(TEXT("BridgeB push payload parses"), ParsedBridgeB.IsValid());
+    if (ParsedBridgeB.IsValid())
+    {
+        Handler->ProcessStructData(ParsedBridgeB);
+    }
+
+    TestEqual(TEXT("BridgeB push clears buffer"), SourceB->PendingLineCount, 0);
+    TestEqual(TEXT("BridgeB target receives pushed point"), TargetB->GetLastPoints().Num(), 1);
+    TestFalse(TEXT("BridgeB target has cached payload"), TargetB->GetLastJsonPayload().IsEmpty());
+
+    SourceOwnerA->Destroy();
+    SourceOwnerB->Destroy();
     return true;
 }
 

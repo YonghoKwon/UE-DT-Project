@@ -93,6 +93,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionParse"; Label = "JSON live transaction automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
     [PSCustomObject]@{ Path = $liveTcHeader; Pattern = "ULidarJsonLiveFrameTC"; Label = "JSON live transaction class" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "JSON live transaction code" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "AppendJsonLines"; Label = "JSON live transaction appends lines" },
@@ -134,6 +135,7 @@ $report = [PSCustomObject]@{
         JsonLiveWebSocketHandlerPresent = $true
         JsonLiveWebSocketSamplePresent = $true
         JsonLiveEditorHelpersPresent = $true
+        JsonLiveRoutingAutomationPresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -153,6 +155,7 @@ else {
     Write-Host "JSON live WebSocket handler present: $($report.Summary.JsonLiveWebSocketHandlerPresent)"
     Write-Host "JSON live WebSocket sample present: $($report.Summary.JsonLiveWebSocketSamplePresent)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
+    Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
