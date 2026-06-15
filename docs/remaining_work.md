@@ -112,6 +112,10 @@ Current state:
   test that loads the configured DTCore WebSocket data table and verifies the
   `LIDAR_JSON_LIVE_FRAME` row resolves to `ULidarJsonLiveFrameTC` after the
   binary row exists.
+- `UEnsureLidarJsonLiveFrameTransactionCommandlet` can create or repair the
+  project data-table row without modifying DTCore source.
+- `DT_TransactionCode.uasset` now contains the `LIDAR_JSON_LIVE_FRAME` row, and
+  local evidence automation has passed against that binary row.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -126,9 +130,8 @@ Current state:
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
-- Verify or add the `LIDAR_JSON_LIVE_FRAME` row in the project WebSocket data
-  table, run `M7AT10.Evidence.WebSocketTransactionRegistration`, and smoke-test
-  the route with the deployment WebSocket broker using
+- Smoke-test the `LIDAR_JSON_LIVE_FRAME` route with the deployment WebSocket
+  broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
@@ -152,6 +155,10 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"`.
 - Read-only WebSocket registration checklist passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1" -NoWrite`.
+- Data-table evidence automation passes:
+  `M7AT10.Evidence.WebSocketTransactionRegistration`.
+- Deployment broker smoke evidence shows the sample payload reaches
+  `ULidarJsonLiveSourceComp` in PIE.
 
 ### Server Payload Schema Approval
 

@@ -126,9 +126,9 @@ $workAreas = @(
         -Remaining "WBP, Game.ini, large content folders, and PixelStreaming sample ownership decisions remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
-        -Percent 46 `
-        -Done "ROS2/Livox/RealSense placeholders, normalized frame handoff path, replay samples, JSON live bridge component, DTCore WebSocket transaction handler, safe routing guards, WebSocket live sample payload, editor sample/push helpers, transaction routing automation, static adapter-plan validation, exportable WebSocket transaction registration checklist, and optional data-table registration evidence automation are in place." `
-        -Remaining "Actual SDK/ROS2/Livox/RealSense connections, binary WebSocket data-table row pass evidence, PIE broker smoke evidence, optional HTTP/UDP bridge wiring, and successful real-frame smoke tests remain."),
+        -Percent 52 `
+        -Done "ROS2/Livox/RealSense placeholders, normalized frame handoff path, replay samples, JSON live bridge component, DTCore WebSocket transaction handler, safe routing guards, WebSocket live sample payload, editor sample/push helpers, transaction routing automation, static adapter-plan validation, exportable WebSocket transaction registration checklist, optional data-table registration evidence automation, editor-only row repair commandlet, and DT_TransactionCode row pass evidence are in place." `
+        -Remaining "Actual SDK/ROS2/Livox/RealSense connections, deployment WebSocket broker PIE smoke evidence, optional HTTP/UDP bridge wiring, and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
         -Percent 30 `

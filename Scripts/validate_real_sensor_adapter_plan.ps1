@@ -51,6 +51,10 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSON live WebSocket transaction header"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h" },
     [PSCustomObject]@{ Label = "JSON live WebSocket transaction implementation"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp" },
+    [PSCustomObject]@{ Label = "Editor module build file"; Path = "Source\m7at10_dtEditor\m7at10_dtEditor.Build.cs" },
+    [PSCustomObject]@{ Label = "Editor module implementation"; Path = "Source\m7at10_dtEditor\Private\m7at10_dtEditor.cpp" },
+    [PSCustomObject]@{ Label = "JSON live WebSocket transaction commandlet header"; Path = "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.h" },
+    [PSCustomObject]@{ Label = "JSON live WebSocket transaction commandlet implementation"; Path = "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp" },
     [PSCustomObject]@{ Label = "Real sensor automation tests"; Path = "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "CSV replay sample"; Path = "Samples\slab_replay_sample.csv" },
     [PSCustomObject]@{ Label = "JSONL replay sample"; Path = "Samples\slab_replay_sample.jsonl" },
@@ -71,6 +75,10 @@ $stubsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAda
 $testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
 $liveTcHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h"
 $liveTcCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
+$liveTcCommandletCpp = Join-Path $ProjectRoot "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp"
+$editorBuildCs = Join-Path $ProjectRoot "Source\m7at10_dtEditor\m7at10_dtEditor.Build.cs"
+$editorTargetCs = Join-Path $ProjectRoot "Source\m7at10_dtEditor.Target.cs"
+$uproject = Join-Path $ProjectRoot "m7at10_dt.uproject"
 $webSocketSample = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sample.json"
 $webSocketSampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_lidar_live_sample.ps1"
 $webSocketRegistrationReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_transaction_registration_report.ps1"
@@ -102,6 +110,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "JSON live transaction code" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "AppendJsonLines"; Label = "JSON live transaction appends lines" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "SOURCE_ID is required"; Label = "JSON live transaction guards ambiguous routing" },
+    [PSCustomObject]@{ Path = $liveTcCommandletCpp; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "Commandlet writes JSON live transaction row" },
+    [PSCustomObject]@{ Path = $liveTcCommandletCpp; Pattern = "UPackage::SavePackage"; Label = "Commandlet saves project data table package" },
+    [PSCustomObject]@{ Path = $liveTcCommandletCpp; Pattern = "NoSave"; Label = "Commandlet supports dry run" },
+    [PSCustomObject]@{ Path = $editorBuildCs; Pattern = "UnrealEd"; Label = "Commandlet is isolated to editor module" },
+    [PSCustomObject]@{ Path = $editorTargetCs; Pattern = "m7at10_dtEditor"; Label = "Editor target loads editor module" },
+    [PSCustomObject]@{ Path = $uproject; Pattern = '"Type": "Editor"'; Label = "Project declares editor module" },
     [PSCustomObject]@{ Path = $webSocketSample; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "WebSocket sample transaction code" },
     [PSCustomObject]@{ Path = $webSocketSample; Pattern = "JsonLiveLidarBridge"; Label = "WebSocket sample source id" },
     [PSCustomObject]@{ Path = $webSocketSampleValidator; Pattern = "SafeSourceRoutingDocumented"; Label = "WebSocket sample validator safe routing check" },
@@ -140,6 +154,7 @@ $report = [PSCustomObject]@{
         ReplayAdaptersPresent = $true
         JsonLiveBridgePresent = $true
         JsonLiveWebSocketHandlerPresent = $true
+        JsonLiveWebSocketCommandletPresent = $true
         JsonLiveWebSocketSamplePresent = $true
         JsonLiveRegistrationReportPresent = $true
         JsonLiveEditorHelpersPresent = $true
@@ -162,6 +177,7 @@ else {
     Write-Host "Replay adapters present: $($report.Summary.ReplayAdaptersPresent)"
     Write-Host "JSON live bridge present: $($report.Summary.JsonLiveBridgePresent)"
     Write-Host "JSON live WebSocket handler present: $($report.Summary.JsonLiveWebSocketHandlerPresent)"
+    Write-Host "JSON live WebSocket commandlet present: $($report.Summary.JsonLiveWebSocketCommandletPresent)"
     Write-Host "JSON live WebSocket sample present: $($report.Summary.JsonLiveWebSocketSamplePresent)"
     Write-Host "JSON live registration report present: $($report.Summary.JsonLiveRegistrationReportPresent)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"

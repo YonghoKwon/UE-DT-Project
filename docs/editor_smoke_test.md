@@ -144,6 +144,12 @@ This test is intentionally separate from `M7AT10.RealSensorSource` because it
 verifies the binary data-table asset. Run it after the row has been added or
 confirmed in Unreal Editor.
 
+If the row is missing, create it through the DT-Project commandlet:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -run=EnsureLidarJsonLiveFrameTransaction -unattended -nop4
+```
+
 After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
 `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment
 WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComp` updates

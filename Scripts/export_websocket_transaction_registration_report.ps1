@@ -94,8 +94,13 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $ProjectRoot "Saved\WebSocketTransactionRegistration"
 }
-New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
-$OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
+if ($NoWrite) {
+    $OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
+}
+else {
+    New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+    $OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
+}
 
 $defaultGameIni = Join-Path $ProjectRoot "Config\DefaultGame.ini"
 $handlerHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h"

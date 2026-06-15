@@ -191,6 +191,17 @@ This automation loads `UDTCoreSettings::WebSocketDataTable`, finds the
 of the default real-sensor test group because it should fail until the binary
 data table row is actually present.
 
+To create or repair the row in a reproducible DT-Project-only way, run the
+editor-only commandlet:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -run=EnsureLidarJsonLiveFrameTransaction -unattended -nop4
+```
+
+Use `-NoSave` for a dry run. The commandlet updates only the project WebSocket
+data table configured by `UDTCoreSettings::WebSocketDataTable`; it does not
+modify DTCore source.
+
 After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
 send this sample through the deployment WebSocket broker and confirm the target
 `ULidarJsonLiveSourceComp` frame count, target LiDAR point count, and optional

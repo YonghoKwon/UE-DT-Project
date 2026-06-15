@@ -11,5 +11,6 @@ public class m7at10_dtEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V4;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_3;
 		ExtraModuleNames.Add("m7at10_dt");
+		ExtraModuleNames.Add("m7at10_dtEditor");
 	}
 }
