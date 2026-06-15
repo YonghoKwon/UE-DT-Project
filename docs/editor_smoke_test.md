@@ -236,6 +236,17 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview
 This check keeps the current CPU/instance preview safety policy explicit until a
 GPU/Niagara/custom high-density renderer is selected.
 
+Headless CSV preview coverage:
+
+```text
+Automation RunTests M7AT10.Sensor.CsvPointCloudPreview
+```
+
+`M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` verifies a
+120,000-point procedural CSV preview load without opening the Unreal Editor GUI.
+`M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the instanced
+fallback path covered.
+
 Manual PIE payload checks:
 
 - In local monitor capture mode, confirm that a failed or skipped camera

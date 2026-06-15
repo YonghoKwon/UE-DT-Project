@@ -353,6 +353,14 @@ Current state:
 - `Scripts/validate_point_cloud_preview_policy.ps1` checks that the current
   server/preview split, runtime warnings, point-cloud-only preview clamps, and
   automation test names remain in sync while the GPU renderer decision is open.
+- `Scripts/export_point_cloud_renderer_decision_report.ps1` exports the current
+  CPU/ISM fallback evidence, Niagara/custom-GPU/external-viewer candidate
+  renderers, and the acceptance evidence needed before replacing the preview
+  path.
+- `M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` covers a
+  120,000-point procedural CSV preview load without requiring the Unreal Editor
+  GUI, and `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
+  instanced fallback path covered.
 
 Next implementation steps:
 
@@ -366,6 +374,8 @@ Completion evidence:
 - High-density scan can be previewed without editor stalls.
 - Point-cloud-only mode still preserves collision/trace behavior.
 - Dense server payload count is independent from preview point count.
+- Headless CSV preview automation passes:
+  `Automation RunTests M7AT10.Sensor.CsvPointCloudPreview`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
 

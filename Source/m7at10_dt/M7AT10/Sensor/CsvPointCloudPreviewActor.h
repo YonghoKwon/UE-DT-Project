@@ -47,6 +47,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud")
     int32 GetLoadedPointCount() const { return LoadedPointCount; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud|Status")
+    int32 GetProceduralPreviewSectionCount() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud|Status")
+    int32 GetInstancedPreviewInstanceCount() const;
+
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
     TObjectPtr<USceneComponent> SceneRoot;
@@ -87,7 +93,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     FLinearColor PointColor = FLinearColor(1.0f, 0.05f, 0.0f, 1.0f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Procedural", meta = (ClampMin = "1", ClampMax = "12"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Procedural", meta = (ClampMin = "1", ClampMax = "100000"))
     int32 ProceduralBatchSize = 50000;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Instanced")

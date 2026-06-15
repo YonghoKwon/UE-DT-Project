@@ -68,6 +68,16 @@ void ACsvPointCloudPreviewActor::OnConstruction(const FTransform& Transform)
 }
 #endif
 
+int32 ACsvPointCloudPreviewActor::GetProceduralPreviewSectionCount() const
+{
+    return ProceduralPointCloudComponent ? ProceduralPointCloudComponent->GetNumSections() : 0;
+}
+
+int32 ACsvPointCloudPreviewActor::GetInstancedPreviewInstanceCount() const
+{
+    return PointCloudComponent ? PointCloudComponent->GetInstanceCount() : 0;
+}
+
 bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
 {
     ClearPointCloudPreview();
