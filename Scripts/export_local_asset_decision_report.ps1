@@ -2,6 +2,7 @@ param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
+    [string]$EvidencePath = "",
     [switch]$Json
 )
 
@@ -56,7 +57,11 @@ if (-not (Test-Path -LiteralPath $assetReportScript)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$jsonText = & powershell -ExecutionPolicy Bypass -File $assetReportScript -ProjectRoot $ProjectRoot -Json
+$reportArgs = @("-ExecutionPolicy", "Bypass", "-File", $assetReportScript, "-ProjectRoot", $ProjectRoot, "-Json")
+if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
+    $reportArgs += @("-EvidencePath", $EvidencePath)
+}
+$jsonText = & powershell @reportArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Local asset report failed with exit code $LASTEXITCODE"
 }
@@ -77,6 +82,7 @@ $decisionReport = [PSCustomObject]@{
     UProject = $report.UProject
     GitBranch = $report.GitBranch
     RecentCommits = $report.RecentCommits
+    DecisionEvidence = $report.DecisionEvidence
     Summary = $report.Summary
     ReviewCandidateCount = $reviewCandidates.Count
     LargeContentCandidateCount = $largeContentCandidates.Count
@@ -102,6 +108,8 @@ Add-MarkdownLine -Lines $lines -Value "- Generated: $($decisionReport.GeneratedA
 Add-MarkdownLine -Lines $lines -Value "- Project: $($decisionReport.ProjectRoot)"
 Add-MarkdownLine -Lines $lines -Value "- UProject: $($decisionReport.UProject)"
 Add-MarkdownLine -Lines $lines -Value "- Branch: $($decisionReport.GitBranch)"
+Add-MarkdownLine -Lines $lines -Value "- Decision evidence: $($decisionReport.DecisionEvidence.Path)"
+Add-MarkdownLine -Lines $lines -Value "- Decision evidence exists: $(Format-Bool $decisionReport.DecisionEvidence.Exists)"
 Add-MarkdownLine -Lines $lines -Value "- Present decision points: $($report.Summary.PresentDecisionPoints)"
 Add-MarkdownLine -Lines $lines -Value "- Generated/local output present: $(Format-Bool $report.Summary.HasGeneratedOutput)"
 Add-MarkdownLine -Lines $lines -Value "- Unclassified untracked paths: $($report.Summary.UnclassifiedUntrackedCount)"
@@ -153,10 +161,10 @@ else {
 Add-MarkdownLine -Lines $lines
 Add-MarkdownLine -Lines $lines -Value "## Decision Point Summary"
 Add-MarkdownLine -Lines $lines
-Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Review queue | Decision owner | Decision status | Files | Size | Recommendation |"
-Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- |"
+Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Review queue | Decision owner | Decision status | Evidence status | Evidence satisfied | Files | Size | Recommendation |"
+Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- |"
 foreach ($point in $report.DecisionPoints) {
-    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |" -f `
+    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} |" -f `
         (Convert-ToMarkdownTableCell $point.Path),
         (Convert-ToMarkdownTableCell $point.Category),
         (Convert-ToMarkdownTableCell $point.State),
@@ -165,6 +173,8 @@ foreach ($point in $report.DecisionPoints) {
         (Convert-ToMarkdownTableCell $point.ReviewQueue),
         (Convert-ToMarkdownTableCell $point.DecisionOwner),
         (Convert-ToMarkdownTableCell $point.DecisionStatus),
+        (Convert-ToMarkdownTableCell $point.EvidenceStatus),
+        (Convert-ToMarkdownTableCell $point.EvidenceSatisfied),
         (Convert-ToMarkdownTableCell $point.FileCount),
         (Convert-ToMarkdownTableCell $point.Size),
         (Convert-ToMarkdownTableCell $point.Recommendation))
@@ -181,6 +191,8 @@ foreach ($point in $presentDecisionPoints) {
     Add-MarkdownLine -Lines $lines -Value "- Review queue: $($point.ReviewQueue)"
     Add-MarkdownLine -Lines $lines -Value "- Decision owner: $($point.DecisionOwner)"
     Add-MarkdownLine -Lines $lines -Value "- Decision status: $($point.DecisionStatus)"
+    Add-MarkdownLine -Lines $lines -Value "- Evidence status: $($point.EvidenceStatus)"
+    Add-MarkdownLine -Lines $lines -Value "- Evidence satisfied: $($point.EvidenceSatisfied)"
     Add-MarkdownLine -Lines $lines -Value "- Kind: $($point.Kind)"
     Add-MarkdownLine -Lines $lines -Value "- Files: $($point.FileCount)"
     Add-MarkdownLine -Lines $lines -Value "- Size: $($point.Size)"
@@ -200,6 +212,12 @@ foreach ($point in $presentDecisionPoints) {
     if ($point.EvidenceNeeded -and $point.EvidenceNeeded.Count -gt 0) {
         Add-MarkdownLine -Lines $lines -Value "- Evidence needed:"
         foreach ($evidence in $point.EvidenceNeeded) {
+            Add-MarkdownLine -Lines $lines -Value "  - $evidence"
+        }
+    }
+    if ($point.MissingEvidence -and $point.MissingEvidence.Count -gt 0) {
+        Add-MarkdownLine -Lines $lines -Value "- Missing evidence:"
+        foreach ($evidence in $point.MissingEvidence) {
             Add-MarkdownLine -Lines $lines -Value "  - $evidence"
         }
     }

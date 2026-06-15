@@ -4,7 +4,8 @@ param(
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnUnclassifiedUntracked,
     [switch]$FailOnStagedDecisionPoints,
-    [string[]]$FailOnCategory = @()
+    [string[]]$FailOnCategory = @(),
+    [string]$EvidencePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -146,6 +147,9 @@ function Test-PathIsAllowedCommitCandidate {
     if ($normalizedRepoPath.StartsWith("docs/") -and $extension -eq ".md") {
         return $true
     }
+    if ($normalizedRepoPath -eq "docs/local_asset_decisions.evidence.json") {
+        return $true
+    }
     if ($normalizedRepoPath.StartsWith("samples/payload_fixtures/") -and $extension -eq ".json") {
         return $true
     }
@@ -265,6 +269,169 @@ function Get-DecisionChecklist {
     )
 }
 
+function Get-PropertyValue {
+    param(
+        [object]$Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Resolve-DecisionEvidencePath {
+    param(
+        [string]$ProjectRoot,
+        [string]$EvidencePath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
+        return Join-Path $ProjectRoot "docs\local_asset_decisions.evidence.json"
+    }
+    if ([System.IO.Path]::IsPathRooted($EvidencePath)) {
+        return $EvidencePath
+    }
+    return Join-Path $ProjectRoot $EvidencePath
+}
+
+function Import-DecisionEvidence {
+    param(
+        [string]$ProjectRoot,
+        [string]$EvidencePath
+    )
+
+    $resolvedPath = Resolve-DecisionEvidencePath -ProjectRoot $ProjectRoot -EvidencePath $EvidencePath
+    $decisionsByPath = @{}
+    if (-not (Test-Path -LiteralPath $resolvedPath)) {
+        return [PSCustomObject]@{
+            Path = $resolvedPath
+            Exists = $false
+            DecisionsByPath = $decisionsByPath
+        }
+    }
+
+    $document = Get-Content -LiteralPath $resolvedPath -Raw | ConvertFrom-Json
+    foreach ($decision in @($document.Decisions)) {
+        $decisionPath = [string](Get-PropertyValue -Object $decision -Name "Path")
+        if ([string]::IsNullOrWhiteSpace($decisionPath)) {
+            continue
+        }
+        $decisionsByPath[(Normalize-RepoPath $decisionPath)] = $decision
+    }
+
+    return [PSCustomObject]@{
+        Path = $resolvedPath
+        Exists = $true
+        DecisionsByPath = $decisionsByPath
+    }
+}
+
+function Get-EvidenceItemStatus {
+    param(
+        [object[]]$EvidenceItems,
+        [string]$EvidenceName
+    )
+
+    foreach ($item in @($EvidenceItems)) {
+        $name = [string](Get-PropertyValue -Object $item -Name "Name")
+        if ($name -ne $EvidenceName) {
+            continue
+        }
+
+        return [string](Get-PropertyValue -Object $item -Name "Status")
+    }
+
+    return ""
+}
+
+function Get-DecisionEvidenceReview {
+    param(
+        [object]$Entry,
+        [object]$EvidenceRecord
+    )
+
+    if ($Entry.Category -like "Generated*") {
+        return [PSCustomObject]@{
+            EvidenceReviewStatus = "GeneratedOutput"
+            EvidenceComplete = $false
+            MissingEvidence = @()
+            EvidenceRecordFound = $false
+            EvidenceAcceptedBy = ""
+            EvidenceAcceptedAt = ""
+            EffectiveDecisionStatus = $Entry.DecisionStatus
+            CommitReadinessOverride = "DoNotCommitGeneratedOutput"
+        }
+    }
+
+    if ($null -eq $EvidenceRecord) {
+        return [PSCustomObject]@{
+            EvidenceReviewStatus = "NoEvidenceRecord"
+            EvidenceComplete = $false
+            MissingEvidence = @($Entry.EvidenceNeeded)
+            EvidenceRecordFound = $false
+            EvidenceAcceptedBy = ""
+            EvidenceAcceptedAt = ""
+            EffectiveDecisionStatus = $Entry.DecisionStatus
+            CommitReadinessOverride = ""
+        }
+    }
+
+    $decisionStatus = [string](Get-PropertyValue -Object $EvidenceRecord -Name "DecisionStatus")
+    if ([string]::IsNullOrWhiteSpace($decisionStatus)) {
+        $decisionStatus = $Entry.DecisionStatus
+    }
+
+    $evidenceItems = @((Get-PropertyValue -Object $EvidenceRecord -Name "Evidence"))
+    $missingEvidence = @()
+    foreach ($evidenceName in @($Entry.EvidenceNeeded)) {
+        $status = Get-EvidenceItemStatus -EvidenceItems $evidenceItems -EvidenceName $evidenceName
+        if ($status -ne "Complete") {
+            $missingEvidence += $evidenceName
+        }
+    }
+
+    $acceptedBy = [string](Get-PropertyValue -Object $EvidenceRecord -Name "AcceptedBy")
+    $acceptedAt = [string](Get-PropertyValue -Object $EvidenceRecord -Name "AcceptedAt")
+    $hasAcceptance = -not [string]::IsNullOrWhiteSpace($acceptedBy) -and -not [string]::IsNullOrWhiteSpace($acceptedAt)
+    $evidenceComplete = $missingEvidence.Count -eq 0 -and $hasAcceptance
+
+    $reviewStatus = "EvidencePending"
+    $commitOverride = ""
+    if ($decisionStatus -eq "KeepLocal") {
+        $reviewStatus = "KeepLocalByDecision"
+        $commitOverride = "KeepLocalByDecision"
+    }
+    elseif ($decisionStatus -eq "AcceptedForRepository" -and $evidenceComplete) {
+        $reviewStatus = "ReadyEvidenceAccepted"
+        $commitOverride = "ReadyWithEvidence"
+    }
+    elseif ($decisionStatus -eq "AcceptedForRepository") {
+        $reviewStatus = "AcceptedButEvidenceIncomplete"
+    }
+    elseif ($missingEvidence.Count -lt @($Entry.EvidenceNeeded).Count) {
+        $reviewStatus = "PartialEvidence"
+    }
+
+    return [PSCustomObject]@{
+        EvidenceReviewStatus = $reviewStatus
+        EvidenceComplete = $evidenceComplete
+        MissingEvidence = $missingEvidence
+        EvidenceRecordFound = $true
+        EvidenceAcceptedBy = $acceptedBy
+        EvidenceAcceptedAt = $acceptedAt
+        EffectiveDecisionStatus = $decisionStatus
+        CommitReadinessOverride = $commitOverride
+    }
+}
+
 function Get-CommitReadiness {
     param(
         [string]$State,
@@ -290,7 +457,13 @@ function Get-ReviewQueue {
     if ($CommitReadiness -eq "NotPresent") {
         return "NotPresent"
     }
+    if ($CommitReadiness -eq "ReadyWithEvidence") {
+        return "ReadyToStage"
+    }
     if ($CommitReadiness -eq "DoNotCommitGeneratedOutput") {
+        return "KeepLocal"
+    }
+    if ($CommitReadiness -eq "KeepLocalByDecision") {
         return "KeepLocal"
     }
     if ($Category -eq "ReviewCandidate" -or $Category -eq "LargeContentCandidate" -or $Category -eq "SampleOrThirdParty") {
@@ -335,6 +508,7 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 Push-Location $ProjectRoot
 try {
     $uproject = Get-ChildItem -LiteralPath $ProjectRoot -Filter *.uproject -File | Select-Object -First 1
+    $decisionEvidence = Import-DecisionEvidence -ProjectRoot $ProjectRoot -EvidencePath $EvidencePath
 
     $pathsToCheck = @(
         [PSCustomObject]@{
@@ -473,9 +647,14 @@ try {
         $summary = Get-PathSummary -FullPath $fullPath
         $contentSummary = if ($contentSummaryCategories -contains $entry.Category) { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
         $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
-        $commitReadiness = Get-CommitReadiness -State $summary.State -Category $entry.Category
-        $reviewQueue = Get-ReviewQueue -CommitReadiness $commitReadiness -Category $entry.Category
         $decisionChecklist = Get-DecisionChecklist -RelativePath $relativePath -Category $entry.Category
+        $evidenceRecord = $decisionEvidence.DecisionsByPath[(Normalize-RepoPath $relativePath)]
+        $evidenceReview = Get-DecisionEvidenceReview -Entry $entry -EvidenceRecord $evidenceRecord
+        $commitReadiness = Get-CommitReadiness -State $summary.State -Category $entry.Category
+        if ($summary.State -eq "present" -and -not [string]::IsNullOrWhiteSpace($evidenceReview.CommitReadinessOverride)) {
+            $commitReadiness = $evidenceReview.CommitReadinessOverride
+        }
+        $reviewQueue = Get-ReviewQueue -CommitReadiness $commitReadiness -Category $entry.Category
         $gitState = Get-DecisionPointGitState -RelativePath $relativePath -UntrackedGitPaths $untrackedGitPaths -StagedGitPaths $stagedGitPaths -UnstagedGitPaths $unstagedGitPaths
         if ($summary.State -eq "present") {
             ++$presentCount
@@ -499,8 +678,16 @@ try {
             Category = $entry.Category
             Recommendation = $entry.Recommendation
             DecisionOwner = $entry.DecisionOwner
-            DecisionStatus = $entry.DecisionStatus
+            DecisionStatus = $evidenceReview.EffectiveDecisionStatus
             EvidenceNeeded = $entry.EvidenceNeeded
+            EvidenceStatus = $evidenceReview.EvidenceReviewStatus
+            EvidenceSatisfied = $evidenceReview.EvidenceComplete
+            EvidenceReviewStatus = $evidenceReview.EvidenceReviewStatus
+            EvidenceComplete = $evidenceReview.EvidenceComplete
+            EvidenceRecordFound = $evidenceReview.EvidenceRecordFound
+            MissingEvidence = $evidenceReview.MissingEvidence
+            EvidenceAcceptedBy = $evidenceReview.EvidenceAcceptedBy
+            EvidenceAcceptedAt = $evidenceReview.EvidenceAcceptedAt
             DetectedNote = $decisionNote
             GitState = $gitState
             CommitReadiness = $commitReadiness
@@ -510,17 +697,33 @@ try {
         }
     }
 
+    $readyDecisionPaths = @(
+        $decisionPoints |
+            Where-Object { $_.ReviewQueue -eq "ReadyToStage" } |
+            ForEach-Object { $_.Path }
+    )
+    $stagedBlockedDecisionPaths = @(
+        $stagedDecisionPaths |
+            Where-Object { -not (Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $readyDecisionPaths) } |
+            Sort-Object
+    )
+
     $report = [PSCustomObject]@{
         ProjectRoot = $ProjectRoot
         UProject = if ($uproject) { $uproject.Name } else { $null }
         GitBranch = (git branch --show-current)
         RecentCommits = @(git log --oneline -3)
         GitStatus = @(git status --short)
+        DecisionEvidence = [PSCustomObject]@{
+            Path = $decisionEvidence.Path
+            Exists = $decisionEvidence.Exists
+        }
         UntrackedGitPaths = $untrackedGitPaths
         AllowedCommitCandidatePaths = $allowedCommitCandidatePaths
         UnclassifiedUntrackedPaths = $unclassifiedUntrackedPaths
         StagedGitPaths = $stagedGitPaths
         StagedDecisionPaths = $stagedDecisionPaths
+        StagedBlockedDecisionPaths = $stagedBlockedDecisionPaths
         Submodules = @(git submodule status --recursive)
         DecisionPoints = $decisionPoints
         Summary = [PSCustomObject]@{
@@ -531,7 +734,9 @@ try {
             UnclassifiedUntrackedCount = $unclassifiedUntrackedPaths.Count
             HasUnclassifiedUntracked = ($unclassifiedUntrackedPaths.Count -gt 0)
             StagedDecisionPointCount = $stagedDecisionPaths.Count
+            StagedBlockedDecisionPointCount = $stagedBlockedDecisionPaths.Count
             HasStagedDecisionPoints = ($stagedDecisionPaths.Count -gt 0)
+            HasStagedBlockedDecisionPoints = ($stagedBlockedDecisionPaths.Count -gt 0)
             PresentCategoryCounts = [PSCustomObject]$presentCategoryCounts
             DefaultAction = "Do not stage these paths until each item has an explicit content or packaging decision."
         }
@@ -560,6 +765,8 @@ try {
         $report.Submodules | ForEach-Object { Write-Host $_ }
 
         Write-Section "Local asset decision points"
+        Write-Host "Evidence file: $($report.DecisionEvidence.Path)"
+        Write-Host "Evidence file exists: $($report.DecisionEvidence.Exists)"
         foreach ($point in $report.DecisionPoints) {
             Write-Host "$($point.Path)"
             Write-Host "  state: $($point.State) $($point.Kind), files=$($point.FileCount), size=$($point.Size)"
@@ -573,9 +780,23 @@ try {
             Write-Host "  recommendation: $($point.Recommendation)"
             Write-Host "  decisionOwner: $($point.DecisionOwner)"
             Write-Host "  decisionStatus: $($point.DecisionStatus)"
+            Write-Host "  evidenceStatus: $($point.EvidenceStatus)"
+            Write-Host "  evidenceSatisfied: $($point.EvidenceSatisfied)"
+            if (-not [string]::IsNullOrWhiteSpace($point.EvidenceAcceptedBy)) {
+                Write-Host "  evidenceAcceptedBy: $($point.EvidenceAcceptedBy)"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($point.EvidenceAcceptedAt)) {
+                Write-Host "  evidenceAcceptedAt: $($point.EvidenceAcceptedAt)"
+            }
             if ($point.EvidenceNeeded.Count -gt 0) {
                 Write-Host "  evidence needed:"
                 foreach ($evidence in $point.EvidenceNeeded) {
+                    Write-Host "    - $evidence"
+                }
+            }
+            if ($point.MissingEvidence.Count -gt 0) {
+                Write-Host "  missing evidence:"
+                foreach ($evidence in $point.MissingEvidence) {
                     Write-Host "    - $evidence"
                 }
             }
@@ -608,6 +829,7 @@ try {
         Write-Host "Allowed code/doc commit candidates: $($report.Summary.AllowedCommitCandidateCount)"
         Write-Host "Unclassified untracked paths: $($report.Summary.UnclassifiedUntrackedCount)"
         Write-Host "Staged decision-point paths: $($report.Summary.StagedDecisionPointCount)"
+        Write-Host "Staged blocked decision-point paths: $($report.Summary.StagedBlockedDecisionPointCount)"
         foreach ($category in ($presentCategoryCounts.Keys | Sort-Object)) {
             Write-Host "Present $category items: $($presentCategoryCounts[$category])"
         }
@@ -625,10 +847,10 @@ try {
             Write-Host "Recommendation: classify these paths in Scripts/report_local_project_status.ps1 before staging or committing."
         }
 
-        if ($stagedDecisionPaths.Count -gt 0) {
+        if ($stagedBlockedDecisionPaths.Count -gt 0) {
             Write-Section "Staged decision-point paths"
-            $stagedDecisionPaths | ForEach-Object { Write-Host $_ }
-            Write-Host "Recommendation: unstage these paths unless each one has an explicit content or packaging decision."
+            $stagedBlockedDecisionPaths | ForEach-Object { Write-Host $_ }
+            Write-Host "Recommendation: unstage these paths unless each one is ReadyToStage with accepted evidence."
         }
 
         Write-Section "Suggested next checks"
@@ -643,9 +865,9 @@ try {
         $previewPaths = @($unclassifiedUntrackedPaths | Select-Object -First 10) -join ", "
         throw "Unclassified untracked paths are present: $previewPaths. Classify them in Scripts/report_local_project_status.ps1 or run without -FailOnUnclassifiedUntracked after explicitly accepting the local state."
     }
-    if ($FailOnStagedDecisionPoints -and $stagedDecisionPaths.Count -gt 0) {
-        $previewPaths = @($stagedDecisionPaths | Select-Object -First 10) -join ", "
-        throw "Decision-point paths are staged: $previewPaths. Unstage them or run without -FailOnStagedDecisionPoints after explicitly accepting the content decision."
+    if ($FailOnStagedDecisionPoints -and $stagedBlockedDecisionPaths.Count -gt 0) {
+        $previewPaths = @($stagedBlockedDecisionPaths | Select-Object -First 10) -join ", "
+        throw "Decision-point paths are staged without ReadyToStage evidence: $previewPaths. Unstage them or record complete AcceptedForRepository evidence before staging."
     }
     if ($FailOnCategory.Count -gt 0) {
         $categoriesToFail = @(

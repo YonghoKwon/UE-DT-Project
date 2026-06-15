@@ -100,12 +100,21 @@ Every decision point also reports:
   `DoNotCommitGeneratedOutput`, or `NotPresent`.
 - `EvidenceNeeded`: concrete evidence that must be complete before a path can
   move to `ReadyToStage`.
+- `EvidenceStatus`: current evidence review state such as `NoEvidenceRecord`,
+  `PartialEvidence`, `AcceptedButEvidenceIncomplete`, `ReadyEvidenceAccepted`,
+  or `GeneratedOutput`.
+- `EvidenceSatisfied`: true only when required evidence is complete and the
+  decision has reviewer/date acceptance metadata.
 - `DecisionChecklist`: manual evidence that must be collected before staging.
 
 DecisionOwner does not mean ownership has been accepted. It is review-routing
 metadata for who must make the decision.
 EvidenceNeeded must be complete before ReadyToStage, and
 `AcceptedForRepository` should only be used after the evidence is recorded.
+ReadyToStage requires AcceptedForRepository. ReadyToStage requires complete evidence. AcceptedForRepository requires complete EvidenceNeeded.
+PendingOwnerDecision remains NeedsOwnerDecision. EvidencePending remains NeedsOwnerDecision.
+Recorded evidence must name reviewer, date, and source.
+Generated output remains KeepLocal.
 
 For large content, the checklist asks for asset source, license, production
 dependency, size review, and storage/versioning strategy. For sample or
@@ -142,6 +151,21 @@ The Markdown export includes `Ready To Stage`, `Needs Owner Decision`, and
 start in `NeedsOwnerDecision`; generated package outputs should appear in
 `KeepLocal`; no binary WBP, local config, large content, or sample folder should
 move to `ReadyToStage` until the checklist evidence is complete.
+
+Create an editable evidence template when a path is ready for owner review:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_evidence_template.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1" -EvidencePath ".\docs\local_asset_decisions.evidence.json"
+```
+
+The template uses schema `LocalAssetDecisionEvidenceV1` and records
+`DecisionEvidence` for each present non-generated decision point. A path moves
+to `ReadyToStage` only when the evidence file sets
+`DecisionStatus = AcceptedForRepository`, every `EvidenceNeeded` item has
+`Status = Complete`, and `AcceptedBy` plus `AcceptedAt` are filled in. Large
+content decisions require owner/source/license, dependency, size, and
+storage/versioning evidence before they can be accepted.
 
 ## Recommended Workflow
 

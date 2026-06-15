@@ -52,8 +52,10 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
+$evidenceTemplateScript = Join-Path $ProjectRoot "Scripts\export_local_asset_decision_evidence_template.ps1"
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
 Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
+Assert-FileExists -Path $evidenceTemplateScript -Label "Local asset decision evidence template script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LargeContentCandidate"; Label = "Local asset doc defines large content category" },
@@ -69,6 +71,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionOwner"; Label = "Local asset doc explains decision owner" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionStatus"; Label = "Local asset doc explains decision status" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidenceNeeded"; Label = "Local asset doc explains evidence needed" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionEvidence"; Label = "Local asset doc explains decision evidence" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidenceStatus"; Label = "Local asset doc explains evidence status" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidenceSatisfied"; Label = "Local asset doc explains evidence satisfied" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "PendingOwnerDecision"; Label = "Local asset doc explains pending owner decision" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidencePending"; Label = "Local asset doc explains evidence pending" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "AcceptedForRepository"; Label = "Local asset doc explains accepted repository status" },
@@ -76,6 +81,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ProjectOwnerRequired"; Label = "Local asset doc explains project owner requirement" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionOwner does not mean ownership has been accepted"; Label = "Local asset doc warns decision owner is not acceptance" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidenceNeeded must be complete before ReadyToStage"; Label = "Local asset doc gates ready-to-stage on evidence" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "AcceptedForRepository requires complete EvidenceNeeded"; Label = "Local asset doc gates acceptance on evidence" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ReadyToStage requires AcceptedForRepository"; Label = "Local asset doc gates ready-to-stage on acceptance" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ReadyToStage requires complete evidence"; Label = "Local asset doc gates ready-to-stage on complete evidence" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "PendingOwnerDecision remains NeedsOwnerDecision"; Label = "Local asset doc keeps pending owner decisions queued" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidencePending remains NeedsOwnerDecision"; Label = "Local asset doc keeps pending evidence queued" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Recorded evidence must name reviewer, date, and source"; Label = "Local asset doc requires reviewer/date/source" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Generated output remains KeepLocal"; Label = "Local asset doc keeps generated output local" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "asset source, license, production"; Label = "Local asset doc explains source/license/dependency checks" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Content/ChemicalPlantEnv"; Label = "Remaining work tracks ChemicalPlantEnv" },
@@ -90,6 +102,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "DecisionOwner"; Label = "Remaining work tracks decision owner reporting" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "DecisionStatus"; Label = "Remaining work tracks decision status reporting" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "EvidenceNeeded"; Label = "Remaining work tracks evidence-needed reporting" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "DecisionEvidence"; Label = "Remaining work tracks decision evidence reporting" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "EvidenceStatus"; Label = "Remaining work tracks evidence status reporting" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "EvidenceSatisfied"; Label = "Remaining work tracks evidence satisfied reporting" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "PendingOwnerDecision"; Label = "Remaining work tracks pending owner decision" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "EvidencePending"; Label = "Remaining work tracks evidence pending" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "AcceptedForRepository"; Label = "Remaining work tracks accepted repository status" },
@@ -97,6 +112,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ProjectOwnerRequired"; Label = "Remaining work tracks project owner requirement" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "DecisionOwner is review-routing metadata"; Label = "Remaining work warns decision owner is routing metadata" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "EvidenceNeeded must be complete before ReadyToStage"; Label = "Remaining work gates ready-to-stage on evidence" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "AcceptedForRepository requires complete EvidenceNeeded"; Label = "Remaining work gates acceptance on evidence" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ReadyToStage requires AcceptedForRepository"; Label = "Remaining work gates ready-to-stage on acceptance" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ReadyToStage requires complete evidence"; Label = "Remaining work gates ready-to-stage on complete evidence" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Recorded evidence must name reviewer, date, and source"; Label = "Remaining work requires reviewer/date/source" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Generated output remains KeepLocal"; Label = "Remaining work keeps generated output local" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
 )
 
