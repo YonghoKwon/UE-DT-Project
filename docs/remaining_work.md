@@ -100,16 +100,20 @@ Current state:
 - `ULidarJsonLiveFrameTC` can be registered in the DTCore WebSocket data table
   with `MESSAGE_ID = LIDAR_JSON_LIVE_FRAME` to route DTCore WebSocket payloads
   into `ULidarJsonLiveSourceComp`.
+- `Samples/websocket/lidar_json_live_frame_sample.json` and
+  `Scripts/validate_websocket_lidar_live_sample.ps1` define the checked sample
+  payload that should be sent through the broker after data-table registration.
 - They expose configuration/state but do not connect to real SDKs or bridges.
 - `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
-  placeholder adapters, sample files, handoff API text, automation test names,
-  and the adapter plan remain in sync.
+  placeholder adapters, sample files, WebSocket sample payload, handoff API
+  text, automation test names, and the adapter plan remain in sync.
 
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
 - Add the `LIDAR_JSON_LIVE_FRAME` row to the project WebSocket data table and
-  smoke-test the route with the deployment WebSocket broker.
+  smoke-test the route with the deployment WebSocket broker using
+  `Samples/websocket/lidar_json_live_frame_sample.json`.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
 - Implement a ROS2 bridge adapter that converts incoming messages to

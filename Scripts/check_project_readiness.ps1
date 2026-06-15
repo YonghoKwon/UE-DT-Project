@@ -17,6 +17,7 @@ param(
     [switch]$SkipPayloadSchemaReviewPolicy,
     [switch]$SkipServerTransportContract,
     [switch]$SkipRealSensorAdapterPlan,
+    [switch]$SkipWebSocketLidarLiveSample,
     [switch]$SkipPointCloudPreviewPolicy,
     [switch]$SkipLazPlaceholderPolicy,
     [switch]$SkipMonitorWidgetPolicy,
@@ -67,6 +68,7 @@ $PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
 $PayloadSchemaReviewPolicyScript = Join-Path $ScriptRoot "validate_payload_schema_review_policy.ps1"
 $ServerTransportContractScript = Join-Path $ScriptRoot "validate_server_transport_contract.ps1"
 $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapter_plan.ps1"
+$WebSocketLidarLiveSampleScript = Join-Path $ScriptRoot "validate_websocket_lidar_live_sample.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
@@ -91,6 +93,9 @@ if (-not (Test-Path -LiteralPath $ServerTransportContractScript)) {
 }
 if (-not (Test-Path -LiteralPath $RealSensorAdapterPlanScript)) {
     throw "validate_real_sensor_adapter_plan.ps1 not found: $RealSensorAdapterPlanScript"
+}
+if (-not (Test-Path -LiteralPath $WebSocketLidarLiveSampleScript)) {
+    throw "validate_websocket_lidar_live_sample.ps1 not found: $WebSocketLidarLiveSampleScript"
 }
 if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
     throw "validate_point_cloud_preview_policy.ps1 not found: $PointCloudPreviewPolicyScript"
@@ -183,6 +188,17 @@ if (-not $SkipRealSensorAdapterPlan) {
 else {
     Write-Host ""
     Write-Host "Real sensor adapter plan validation skipped by -SkipRealSensorAdapterPlan."
+}
+
+if (-not $SkipWebSocketLidarLiveSample) {
+    Invoke-ScriptStep `
+        -Label "WebSocket live LiDAR sample validation" `
+        -ScriptPath $WebSocketLidarLiveSampleScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "WebSocket live LiDAR sample validation skipped by -SkipWebSocketLidarLiveSample."
 }
 
 if (-not $SkipPointCloudPreviewPolicy) {

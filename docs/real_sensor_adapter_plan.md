@@ -150,6 +150,23 @@ Example WebSocket payload:
 }
 ```
 
+The checked-in sample lives at:
+
+```text
+Samples/websocket/lidar_json_live_frame_sample.json
+```
+
+Validate the sample and handler contract before data-table registration:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_websocket_lidar_live_sample.ps1"
+```
+
+After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
+send this sample through the deployment WebSocket broker and confirm the target
+`ULidarJsonLiveSourceComp` frame count, target LiDAR point count, and optional
+transport payload update in PIE.
+
 Supported CSV formats:
 
 ```text
@@ -191,6 +208,7 @@ Included sample:
 ```text
 Samples/slab_replay_sample.csv
 Samples/slab_replay_sample.jsonl
+Samples/websocket/lidar_json_live_frame_sample.json
 ```
 
 Editor-callable helpers:
@@ -218,8 +236,9 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter
 ```
 
 The static readiness script checks that replay adapters, placeholder adapters,
-the normalized LiDAR handoff API, replay samples, automation test names, and
-this plan document remain in sync before the real SDK adapters are implemented.
+the normalized LiDAR handoff API, replay samples, WebSocket sample payload,
+automation test names, and this plan document remain in sync before the real SDK
+adapters are implemented.
 
 ## Adapter Priority
 

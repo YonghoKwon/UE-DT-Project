@@ -119,6 +119,18 @@ Real sensor source base tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.RealSensorSource; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
+WebSocket live LiDAR sample contract:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_websocket_lidar_live_sample.ps1"
+```
+
+After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
+`Samples/websocket/lidar_json_live_frame_sample.json` through the deployment
+WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComp` updates
+its source frame/point counts and that the target LiDAR exposes a cached server
+payload when `SEND_TRANSPORT` is enabled.
+
 Sensor manager point-cloud-only policy tests:
 
 ```powershell

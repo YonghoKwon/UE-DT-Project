@@ -149,6 +149,9 @@ function Test-PathIsAllowedCommitCandidate {
     if ($normalizedRepoPath.StartsWith("samples/payload_fixtures/") -and $extension -eq ".json") {
         return $true
     }
+    if ($normalizedRepoPath.StartsWith("samples/websocket/") -and $extension -eq ".json") {
+        return $true
+    }
     if ($normalizedRepoPath.StartsWith("samples/") -and $extension -in @(".csv", ".jsonl")) {
         return $true
     }
