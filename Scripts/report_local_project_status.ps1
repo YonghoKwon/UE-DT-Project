@@ -341,56 +341,89 @@ try {
             Path = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
             Category = "ReviewCandidate"
             Recommendation = "Open in editor and commit only if this is the intended production monitor WBP."
+            DecisionOwner = "ProjectOwnerRequired"
+            DecisionStatus = "EvidencePending"
+            EvidenceNeeded = @("Editor open verification", "Optional binding check", "PIE smoke result", "Production WBP acceptance")
         },
         [PSCustomObject]@{
             Path = "Config\Game.ini"
             Category = "ReviewCandidate"
             Recommendation = "Diff manually; commit only intentional project setting changes."
+            DecisionOwner = "ConfigOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Manual diff review", "No endpoint or credential values", "Shared-defaults decision", "Runtime config policy pass")
         },
         [PSCustomObject]@{
             Path = "Content\ChemicalPlantEnv"
             Category = "LargeContentCandidate"
             Recommendation = "Commit only with an explicit asset/vendor decision; otherwise keep out of this code change."
+            DecisionOwner = "AssetOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map dependency evidence", "Size/storage acceptance")
         },
         [PSCustomObject]@{
             Path = "Content\Materials"
             Category = "LargeContentCandidate"
             Recommendation = "Commit only with an explicit asset/material decision."
+            DecisionOwner = "AssetOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map or WBP dependency evidence", "Size/storage acceptance")
         },
         [PSCustomObject]@{
             Path = "Content\Mega_Crane"
             Category = "LargeContentCandidate"
             Recommendation = "Commit only with an explicit crane asset decision."
+            DecisionOwner = "AssetOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Branch scope decision", "Size/storage acceptance")
         },
         [PSCustomObject]@{
             Path = "Content\Meshes"
             Category = "LargeContentCandidate"
             Recommendation = "Commit only with an explicit mesh asset decision."
+            DecisionOwner = "AssetOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map or WBP dependency evidence", "Size/storage acceptance")
         },
         [PSCustomObject]@{
             Path = "Content\Textures"
             Category = "LargeContentCandidate"
             Recommendation = "Commit only with an explicit texture asset decision."
+            DecisionOwner = "AssetOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map or WBP dependency evidence", "Size/storage acceptance")
         },
         [PSCustomObject]@{
             Path = "Samples\PixelStreaming"
             Category = "SampleOrThirdParty"
             Recommendation = "Keep untracked unless Pixel Streaming samples are intentionally added to the project."
+            DecisionOwner = "ProjectOwnerRequired"
+            DecisionStatus = "PendingOwnerDecision"
+            EvidenceNeeded = @("Project ownership decision", "License/redistribution approval", "Setup documentation alternative considered")
         },
         [PSCustomObject]@{
             Path = "Windows.zip"
             Category = "GeneratedOutput"
             Recommendation = "Do not commit packaged output archives."
+            DecisionOwner = "PackagingOwnerRequired"
+            DecisionStatus = "DoNotCommitGeneratedOutput"
+            EvidenceNeeded = @("Remove or keep ignored as generated output")
         },
         [PSCustomObject]@{
             Path = "Windows"
             Category = "GeneratedOutput"
             Recommendation = "Do not commit packaged output directories."
+            DecisionOwner = "PackagingOwnerRequired"
+            DecisionStatus = "DoNotCommitGeneratedOutput"
+            EvidenceNeeded = @("Remove or keep ignored as generated output")
         },
         [PSCustomObject]@{
             Path = "launcher.config.json"
             Category = "GeneratedOrLocalConfig"
             Recommendation = "Keep untracked unless a launcher workflow explicitly requires it."
+            DecisionOwner = "PackagingOwnerRequired"
+            DecisionStatus = "DoNotCommitGeneratedOutput"
+            EvidenceNeeded = @("Launcher workflow ownership decision", "No environment-specific values")
         }
     )
 
@@ -465,6 +498,9 @@ try {
             LastWriteTime = $summary.LastWriteTime
             Category = $entry.Category
             Recommendation = $entry.Recommendation
+            DecisionOwner = $entry.DecisionOwner
+            DecisionStatus = $entry.DecisionStatus
+            EvidenceNeeded = $entry.EvidenceNeeded
             DetectedNote = $decisionNote
             GitState = $gitState
             CommitReadiness = $commitReadiness
@@ -535,6 +571,14 @@ try {
             Write-Host "  commitReadiness: $($point.CommitReadiness)"
             Write-Host "  reviewQueue: $($point.ReviewQueue)"
             Write-Host "  recommendation: $($point.Recommendation)"
+            Write-Host "  decisionOwner: $($point.DecisionOwner)"
+            Write-Host "  decisionStatus: $($point.DecisionStatus)"
+            if ($point.EvidenceNeeded.Count -gt 0) {
+                Write-Host "  evidence needed:"
+                foreach ($evidence in $point.EvidenceNeeded) {
+                    Write-Host "    - $evidence"
+                }
+            }
             if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {
                 Write-Host "  detected: $($point.DetectedNote)"
             }

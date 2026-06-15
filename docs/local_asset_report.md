@@ -92,7 +92,20 @@ Every decision point also reports:
   `DoNotCommitGeneratedOutput`, or `NotPresent`.
 - `ReviewQueue`: `ReadyToStage`, `NeedsOwnerDecision`, `KeepLocal`, or
   `NotPresent`.
+- `DecisionOwner`: required decision authority such as
+  `AssetOwnerRequired`, `ProjectOwnerRequired`, `ConfigOwnerRequired`,
+  `PackagingOwnerRequired`, or `NotApplicable`.
+- `DecisionStatus`: unresolved/accepted state such as `PendingOwnerDecision`,
+  `EvidencePending`, `AcceptedForRepository`, `KeepLocal`,
+  `DoNotCommitGeneratedOutput`, or `NotPresent`.
+- `EvidenceNeeded`: concrete evidence that must be complete before a path can
+  move to `ReadyToStage`.
 - `DecisionChecklist`: manual evidence that must be collected before staging.
+
+DecisionOwner does not mean ownership has been accepted. It is review-routing
+metadata for who must make the decision.
+EvidenceNeeded must be complete before ReadyToStage, and
+`AcceptedForRepository` should only be used after the evidence is recorded.
 
 For large content, the checklist asks for asset source, license, production
 dependency, size review, and storage/versioning strategy. For sample or

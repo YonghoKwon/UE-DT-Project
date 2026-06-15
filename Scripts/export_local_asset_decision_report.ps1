@@ -153,16 +153,18 @@ else {
 Add-MarkdownLine -Lines $lines
 Add-MarkdownLine -Lines $lines -Value "## Decision Point Summary"
 Add-MarkdownLine -Lines $lines
-Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Review queue | Files | Size | Recommendation |"
-Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | --- | ---: | ---: | --- |"
+Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Review queue | Decision owner | Decision status | Files | Size | Recommendation |"
+Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- |"
 foreach ($point in $report.DecisionPoints) {
-    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f `
+    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |" -f `
         (Convert-ToMarkdownTableCell $point.Path),
         (Convert-ToMarkdownTableCell $point.Category),
         (Convert-ToMarkdownTableCell $point.State),
         (Convert-ToMarkdownTableCell $point.GitState),
         (Convert-ToMarkdownTableCell $point.CommitReadiness),
         (Convert-ToMarkdownTableCell $point.ReviewQueue),
+        (Convert-ToMarkdownTableCell $point.DecisionOwner),
+        (Convert-ToMarkdownTableCell $point.DecisionStatus),
         (Convert-ToMarkdownTableCell $point.FileCount),
         (Convert-ToMarkdownTableCell $point.Size),
         (Convert-ToMarkdownTableCell $point.Recommendation))
@@ -177,6 +179,8 @@ foreach ($point in $presentDecisionPoints) {
     Add-MarkdownLine -Lines $lines -Value "- Git state: $($point.GitState)"
     Add-MarkdownLine -Lines $lines -Value "- Commit readiness: $($point.CommitReadiness)"
     Add-MarkdownLine -Lines $lines -Value "- Review queue: $($point.ReviewQueue)"
+    Add-MarkdownLine -Lines $lines -Value "- Decision owner: $($point.DecisionOwner)"
+    Add-MarkdownLine -Lines $lines -Value "- Decision status: $($point.DecisionStatus)"
     Add-MarkdownLine -Lines $lines -Value "- Kind: $($point.Kind)"
     Add-MarkdownLine -Lines $lines -Value "- Files: $($point.FileCount)"
     Add-MarkdownLine -Lines $lines -Value "- Size: $($point.Size)"
@@ -191,6 +195,12 @@ foreach ($point in $presentDecisionPoints) {
         Add-MarkdownLine -Lines $lines -Value "- Decision checklist:"
         foreach ($check in $point.DecisionChecklist) {
             Add-MarkdownLine -Lines $lines -Value "  - $check"
+        }
+    }
+    if ($point.EvidenceNeeded -and $point.EvidenceNeeded.Count -gt 0) {
+        Add-MarkdownLine -Lines $lines -Value "- Evidence needed:"
+        foreach ($evidence in $point.EvidenceNeeded) {
+            Add-MarkdownLine -Lines $lines -Value "  - $evidence"
         }
     }
     if ($point.ContentSummary -and $point.ContentSummary.ExtensionCounts.Count -gt 0) {

@@ -79,7 +79,14 @@ Open decisions:
 - Durable review artifact export:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1" -MarkdownPath ".\Saved\Reports\local_asset_decisions.md" -JsonPath ".\Saved\Reports\local_asset_decisions.json"`.
 - The local asset report now includes `GitState`, `CommitReadiness`,
-  `ReviewQueue`, and a `DecisionChecklist` for each known decision point.
+  `ReviewQueue`, `DecisionOwner`, `DecisionStatus`, `EvidenceNeeded`, and a
+  `DecisionChecklist` for each known decision point.
+  DecisionOwner is review-routing metadata, not accepted ownership.
+  Current unresolved asset/sample paths should stay on `AssetOwnerRequired` or
+  `ProjectOwnerRequired` until the required authority accepts the path.
+  `EvidenceNeeded must be complete before ReadyToStage`; use
+  `PendingOwnerDecision` or `EvidencePending` until evidence exists, and reserve
+  `AcceptedForRepository` for explicitly accepted paths.
   Large content decisions require owner/source/license, dependency, size, and
   storage/versioning evidence before staging. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups
