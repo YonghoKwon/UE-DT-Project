@@ -131,13 +131,13 @@ $workAreas = @(
         -Remaining "Actual SDK/ROS2/Livox/RealSense connections, completed deployment STOMP/WebSocket broker PIE smoke evidence, HTTP/UDP deployment exposure and credential decisions, and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
-        -Percent 30 `
-        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, and static preview-policy validation." `
+        -Percent 35 `
+        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, and static preview-policy validation." `
         -Remaining "GPU/Niagara or another high-density renderer decision and implementation remain."),
     (New-WorkArea `
         -Name "LAZ export" `
         -Percent 25 `
-        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, and covered by static placeholder-policy validation." `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, and supported by a compression-path decision report." `
         -Remaining "True LAZ compression decision, integration, and validation remain.")
 )
 

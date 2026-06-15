@@ -321,6 +321,10 @@ Current state:
 - `Scripts/validate_laz_placeholder_policy.ps1` checks that code, docs, monitor
   settings, and automation continue to describe this as a placeholder until true
   LAZ compression is integrated.
+- `Scripts/export_laz_compression_decision_report.ps1` exports the current
+  placeholder evidence, native-library / external-CLI / server-post-process
+  candidate paths, and the acceptance evidence required before replacing the
+  placeholder.
 
 Next implementation steps:
 
@@ -342,6 +346,9 @@ Current state:
 
 - Preview is CPU/instance oriented and protected by preview stride/max point
   policies.
+- Live LiDAR preview now uploads selected preview transforms with batched
+  `UInstancedStaticMeshComponent::AddInstances` instead of per-point
+  `AddInstance` calls.
 - This is enough for editor feedback but not ideal for very large point clouds.
 - `Scripts/validate_point_cloud_preview_policy.ps1` checks that the current
   server/preview split, runtime warnings, point-cloud-only preview clamps, and

@@ -74,6 +74,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "Preview is uncapped"; Label = "Uncapped preview warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec+MultiHit"; Label = "FullSpec multihit warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec export-on-scan"; Label = "Export-on-scan warning" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "AddInstances(InstanceTransforms, false, true)"; Label = "Live preview uses batched ISM instance upload" },
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Min(LidarComp->MaxPreviewPoints, 3000)"; Label = "PointCloudOnly preview max clamp" },
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Max(2, LidarComp->PreviewPointStride)"; Label = "PointCloudOnly preview stride clamp" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "PreviewPoints"; Label = "Monitor exposes preview point count" },
@@ -112,6 +113,7 @@ $report = [PSCustomObject]@{
         ServerPreviewSplitDocumented = $true
         RuntimeWarningsDeclared = $true
         PointCloudOnlyClampDeclared = $true
+        BatchedInstanceUploadDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -127,5 +129,6 @@ else {
     Write-Host "Server/preview split documented: $($report.Summary.ServerPreviewSplitDocumented)"
     Write-Host "Runtime warnings declared: $($report.Summary.RuntimeWarningsDeclared)"
     Write-Host "PointCloudOnly clamps declared: $($report.Summary.PointCloudOnlyClampDeclared)"
+    Write-Host "Batched instance upload declared: $($report.Summary.BatchedInstanceUploadDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

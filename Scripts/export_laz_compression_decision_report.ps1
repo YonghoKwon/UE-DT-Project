@@ -1,0 +1,209 @@
+param(
+    [string]$ProjectRoot = "",
+    [string]$MarkdownPath = "",
+    [string]$JsonPath = "",
+    [switch]$Json
+)
+
+$ErrorActionPreference = "Stop"
+
+function Get-DefaultProjectRoot {
+    return (Split-Path -Parent $PSScriptRoot)
+}
+
+function Assert-FileExists {
+    param(
+        [string]$Path,
+        [string]$Label
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Label not found: $Path"
+    }
+}
+
+function Test-ContainsText {
+    param(
+        [string]$Path,
+        [string]$Pattern
+    )
+
+    return [bool](Select-String -LiteralPath $Path -Pattern $Pattern -SimpleMatch -Quiet)
+}
+
+function Write-TextFile {
+    param(
+        [string]$Path,
+        [string[]]$Lines
+    )
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent) -and -not (Test-Path -LiteralPath $parent)) {
+        New-Item -ItemType Directory -Path $parent | Out-Null
+    }
+    Set-Content -LiteralPath $Path -Value $Lines -Encoding UTF8
+}
+
+function Convert-ToMarkdownCell {
+    param([object]$Value)
+
+    if ($null -eq $Value) {
+        return ""
+    }
+    return ([string]$Value).Replace("|", "\|").Replace("`r", " ").Replace("`n", " ")
+}
+
+function Write-MarkdownReport {
+    param(
+        [object]$Report,
+        [string]$Path
+    )
+
+    $lines = @()
+    $lines += "# LAZ Compression Decision Report"
+    $lines += ""
+    $lines += "Generated UTC: $($Report.GeneratedUtc)"
+    $lines += ""
+    $lines += "## Current Runtime State"
+    $lines += ""
+    $lines += "- Placeholder explicit: $($Report.Summary.PlaceholderExplicit)"
+    $lines += "- Writes LAS source only: $($Report.Summary.WritesLasSourceOnly)"
+    $lines += "- Automation coverage declared: $($Report.Summary.AutomationCoverageDeclared)"
+    $lines += "- True compression integrated: $($Report.Summary.TrueCompressionIntegrated)"
+    $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
+    $lines += ""
+    $lines += "## Candidate Paths"
+    $lines += ""
+    $lines += "| Option | Runtime shape | Pros | Risks | Recommended decision |"
+    $lines += "| --- | --- | --- | --- | --- |"
+    foreach ($option in $Report.CandidatePaths) {
+        $lines += "| $(Convert-ToMarkdownCell $option.Option) | $(Convert-ToMarkdownCell $option.RuntimeShape) | $(Convert-ToMarkdownCell ($option.Pros -join '; ')) | $(Convert-ToMarkdownCell ($option.Risks -join '; ')) | $(Convert-ToMarkdownCell $option.RecommendedDecision) |"
+    }
+    $lines += ""
+    $lines += "## Acceptance Evidence Needed"
+    $lines += ""
+    foreach ($item in $Report.AcceptanceEvidenceNeeded) {
+        $lines += "- $item"
+    }
+    $lines += ""
+    $lines += "## Notes"
+    $lines += ""
+    $lines += "Keep `ExportLastPointCloudLaz()` warning behavior until one candidate path is accepted and verified with readable compressed `.laz` output."
+
+    Write-TextFile -Path $Path -Lines $lines
+}
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = Get-DefaultProjectRoot
+}
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+
+$lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
+$monitorHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
+$replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
+$schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
+$remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
+
+foreach ($file in @(
+    [PSCustomObject]@{ Path = $lidarHeader; Label = "LiDAR component header" },
+    [PSCustomObject]@{ Path = $lidarCpp; Label = "LiDAR component implementation" },
+    [PSCustomObject]@{ Path = $monitorHeader; Label = "Monitor widget header" },
+    [PSCustomObject]@{ Path = $replayTests; Label = "Replay automation tests" },
+    [PSCustomObject]@{ Path = $schemaDoc; Label = "LiDAR payload schema" },
+    [PSCustomObject]@{ Path = $remainingDoc; Label = "Remaining work document" }
+)) {
+    Assert-FileExists -Path $file.Path -Label $file.Label
+}
+
+$placeholderExplicit = (Test-ContainsText -Path $lidarCpp -Pattern "LAZ compression is not integrated") -and
+    (Test-ContainsText -Path $remainingDoc -Pattern "intentionally a placeholder")
+$writesLasSourceOnly = (Test-ContainsText -Path $lidarCpp -Pattern "_laz_source") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "ExportLastPointCloudLas(Prefix)")
+$automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazPlaceholderWritesLasSource") -and
+    (Test-ContainsText -Path $replayTests -Pattern "does not create compressed .laz files")
+$trueCompressionIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern ".laz output is actually compressed") -or
+    (Test-ContainsText -Path $replayTests -Pattern "CompressedLaz")
+
+$candidatePaths = @(
+    [PSCustomObject]@{
+        Option = "Native LAZ library"
+        RuntimeShape = "UE module links a supported compressor and writes `.laz` directly from `FVirtualLidarPoint`."
+        Pros = @("Single in-process export path", "Best runtime UX", "Can be automated in editor tests")
+        Risks = @("License review", "Windows build integration", "Binary dependency packaging")
+        RecommendedDecision = "Preferred when redistribution and build ownership are approved"
+    },
+    [PSCustomObject]@{
+        Option = "External CLI compressor"
+        RuntimeShape = "Export LAS source first, then invoke a configured compressor executable as a post-process."
+        Pros = @("Keeps project code small", "Easier to swap tools", "Good offline workflow")
+        Risks = @("Deployment path/config required", "Process execution policy", "Harder packaged-runtime story")
+        RecommendedDecision = "Acceptable for offline dataset generation"
+    },
+    [PSCustomObject]@{
+        Option = "Server/post-processing workflow"
+        RuntimeShape = "DT-Project emits LAS/JSONL and a downstream data pipeline creates LAZ."
+        Pros = @("No UE binary dependency", "Scales outside editor", "Matches judging/data-lake pipelines")
+        Risks = @("Not an in-editor LAZ export", "Requires server-side ownership", "Longer feedback loop")
+        RecommendedDecision = "Use when LAZ is archival-only"
+    }
+)
+
+$acceptanceEvidence = @(
+    "Chosen compressor/tool name, version, license, and redistribution decision",
+    "Windows build/package instructions for UE 5.3",
+    "A `.laz` file produced from `ExportLastPointCloudLaz()` or the accepted post-process path",
+    "Readable validation from a known point-cloud tool",
+    "Automation that distinguishes compressed `.laz` output from the current `_laz_source_*.las` placeholder"
+)
+
+$generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$report = [PSCustomObject]@{
+    GeneratedUtc = $generatedUtc
+    ProjectRoot = $ProjectRoot
+    CurrentEvidence = [PSCustomObject]@{
+        LidarHeader = $lidarHeader
+        LidarImplementation = $lidarCpp
+        MonitorHeader = $monitorHeader
+        ReplayTests = $replayTests
+        SchemaDoc = $schemaDoc
+        RemainingWorkDoc = $remainingDoc
+    }
+    CandidatePaths = $candidatePaths
+    AcceptanceEvidenceNeeded = $acceptanceEvidence
+    Summary = [PSCustomObject]@{
+        PlaceholderExplicit = $placeholderExplicit
+        WritesLasSourceOnly = $writesLasSourceOnly
+        AutomationCoverageDeclared = $automationCoverageDeclared
+        TrueCompressionIntegrated = $trueCompressionIntegrated
+        CandidatePathCount = $candidatePaths.Count
+        AcceptanceEvidenceCount = $acceptanceEvidence.Count
+        RecommendedNextDecision = "Choose NativeLibrary, ExternalCli, or ServerPostProcess before replacing placeholder behavior."
+        Valid = ($placeholderExplicit -and $writesLasSourceOnly -and $automationCoverageDeclared -and -not $trueCompressionIntegrated)
+    }
+}
+
+if (-not $report.Summary.Valid) {
+    throw "LAZ decision report invariants failed. PlaceholderExplicit=$placeholderExplicit WritesLasSourceOnly=$writesLasSourceOnly AutomationCoverageDeclared=$automationCoverageDeclared TrueCompressionIntegrated=$trueCompressionIntegrated"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($JsonPath)) {
+    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $JsonPath -Encoding UTF8
+}
+if (-not [string]::IsNullOrWhiteSpace($MarkdownPath)) {
+    Write-MarkdownReport -Report $report -Path $MarkdownPath
+}
+
+if ($Json) {
+    $report | ConvertTo-Json -Depth 8
+}
+else {
+    Write-Host "LAZ compression decision report is ready."
+    Write-Host "Project root: $ProjectRoot"
+    Write-Host "Candidate paths: $($report.Summary.CandidatePathCount)"
+    Write-Host "Acceptance evidence items: $($report.Summary.AcceptanceEvidenceCount)"
+    Write-Host "Placeholder explicit: $($report.Summary.PlaceholderExplicit)"
+    Write-Host "Writes LAS source only: $($report.Summary.WritesLasSourceOnly)"
+    Write-Host "True compression integrated: $($report.Summary.TrueCompressionIntegrated)"
+    Write-Host "Recommended next decision: $($report.Summary.RecommendedNextDecision)"
+}

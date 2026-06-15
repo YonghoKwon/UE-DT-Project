@@ -58,6 +58,9 @@ $monitorCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMo
 $replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
+$decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
+
+Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision report script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ExportLastPointCloudLaz"; Label = "LAZ export API remains explicit" },
@@ -71,7 +74,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $replayTests; Pattern = "_laz_source_"; Label = "Automation checks laz_source LAS output" },
     [PSCustomObject]@{ Path = $schemaDoc; Pattern = 'does not pretend to create a compressed `.laz` file'; Label = "Schema doc clarifies placeholder" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "True LAZ Compression"; Label = "Remaining work tracks true LAZ" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "intentionally a placeholder"; Label = "Remaining work states placeholder status" }
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "intentionally a placeholder"; Label = "Remaining work states placeholder status" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_laz_compression_decision_report.ps1"; Label = "Remaining work documents LAZ decision report" },
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Native LAZ library"; Label = "Decision report includes native library path" },
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "External CLI compressor"; Label = "Decision report includes external CLI path" },
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Server/post-processing workflow"; Label = "Decision report includes server post-process path" },
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Readable validation from a known point-cloud tool"; Label = "Decision report tracks readable LAZ evidence" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -99,6 +107,7 @@ $report = [PSCustomObject]@{
         PlaceholderIsExplicit = $true
         WritesLasSourceOnly = $true
         AutomationCoverageDeclared = $true
+        DecisionReportDeclared = $true
         TrueCompressionStillOpen = $true
         Valid = $true
     }
@@ -114,5 +123,6 @@ else {
     Write-Host "Placeholder is explicit: $($report.Summary.PlaceholderIsExplicit)"
     Write-Host "Writes LAS source only: $($report.Summary.WritesLasSourceOnly)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
+    Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
     Write-Host "True compression still open: $($report.Summary.TrueCompressionStillOpen)"
 }

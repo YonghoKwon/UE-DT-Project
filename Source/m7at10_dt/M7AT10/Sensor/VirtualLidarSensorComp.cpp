@@ -706,12 +706,20 @@ void UVirtualLidarSensorComp::RefreshPointCloudPreview()
     UWorld* World = GetWorld(); if (!bPointCloudPreviewEnabled || !World) { ClearPointCloudPreview(); return; }
     UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->ClearInstances(); Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);
     const int32 Stride = FMath::Max(1, PreviewPointStride); int32 Added = 0;
+    const int32 PreviewCapacity = MaxPreviewPoints > 0 ? FMath::Min(MaxPreviewPoints, LastPoints.Num()) : LastPoints.Num();
+    TArray<FTransform> InstanceTransforms;
+    InstanceTransforms.Reserve(PreviewCapacity);
     for (int32 I = 0; I < LastPoints.Num(); I += Stride)
     {
         const FVirtualLidarPoint& P = LastPoints[I]; if (bPointCloudPreviewHitOnly && !P.bHit) continue; if (MaxPreviewPoints > 0 && Added >= MaxPreviewPoints) break;
-        const FTransform T(FRotator::ZeroRotator, P.WorldLocation, FVector(PointCloudPreviewPointScale)); Comp->AddInstance(T, true);
+        InstanceTransforms.Add(FTransform(FRotator::ZeroRotator, P.WorldLocation, FVector(PointCloudPreviewPointScale)));
         if (bDrawPointCloudPreviewDebugPoints) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, (bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P).ToFColor(true) : PointCloudPreviewColor.ToFColor(true), false, ScanInterval);
         ++Added;
+    }
+    if (InstanceTransforms.Num() > 0)
+    {
+        Comp->AddInstances(InstanceTransforms, false, true);
+        Comp->MarkRenderStateDirty();
     }
 }
 

@@ -198,6 +198,11 @@ This test verifies that `points[]` follows `payloadPolicy`, while runtime previe
 `M7AT10.SensorReplay.PerformanceWarningStatus` verifies that FullSpec, multi-hit, export-on-scan, and uncapped preview warnings are surfaced through runtime status.
 The LAZ placeholder test verifies that `ExportLastPointCloudLaz()` writes a `*_laz_source_*.las` source file and does not pretend to create a compressed `.laz` file.
 
+Use `Scripts/export_laz_compression_decision_report.ps1` to summarize the
+remaining compressor decision. The report keeps the current placeholder evidence
+separate from the future acceptance evidence for a native library, external CLI,
+or server/post-processing LAZ path.
+
 Static placeholder readiness:
 
 ```powershell
