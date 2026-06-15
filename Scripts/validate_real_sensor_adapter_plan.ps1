@@ -78,6 +78,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "ERealSensorSourceKind"; Label = "Base source kind enum" },
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "JsonLiveBridge"; Label = "JSON live source kind" },
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "PushPointFrameToTarget"; Label = "Normalized LiDAR handoff declaration" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "AppendSampleWebSocketFrameInEditor"; Label = "JSON live editor sample helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "PushBufferedFrameNoTransportInEditor"; Label = "JSON live editor push helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "AppendWebSocketPayload"; Label = "JSON live WebSocket payload append helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "ResolveSampleWebSocketPayloadPath"; Label = "JSON live sample path resolver" },
     [PSCustomObject]@{ Path = $baseCpp; Pattern = "InjectPointCloudFrame"; Label = "Target LiDAR injection" },
     [PSCustomObject]@{ Path = $baseCpp; Pattern = "MarkFramePushed"; Label = "Frame push status accounting" },
     [PSCustomObject]@{ Path = $stubsHeader; Pattern = "URos2SensorBridgeSourceComp"; Label = "ROS2 placeholder class" },
@@ -129,6 +133,7 @@ $report = [PSCustomObject]@{
         JsonLiveBridgePresent = $true
         JsonLiveWebSocketHandlerPresent = $true
         JsonLiveWebSocketSamplePresent = $true
+        JsonLiveEditorHelpersPresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -147,6 +152,7 @@ else {
     Write-Host "JSON live bridge present: $($report.Summary.JsonLiveBridgePresent)"
     Write-Host "JSON live WebSocket handler present: $($report.Summary.JsonLiveWebSocketHandlerPresent)"
     Write-Host "JSON live WebSocket sample present: $($report.Summary.JsonLiveWebSocketSamplePresent)"
+    Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"

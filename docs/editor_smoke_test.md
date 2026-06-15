@@ -131,6 +131,17 @@ WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComp` updates
 its source frame/point counts and that the target LiDAR exposes a cached server
 payload when `SEND_TRANSPORT` is enabled.
 
+Before data-table registration, use the same component-level smoke path:
+
+```text
+ULidarJsonLiveSourceComp -> AppendSampleWebSocketFrameInEditor
+ULidarJsonLiveSourceComp -> PushBufferedFrameNoTransportInEditor
+```
+
+`AppendSampleWebSocketFrameInEditor` replaces the current live buffer with the
+checked sample payload. The no-transport push verifies sample payload parsing and
+target LiDAR handoff without sending to the judging server.
+
 Sensor manager point-cloud-only policy tests:
 
 ```powershell

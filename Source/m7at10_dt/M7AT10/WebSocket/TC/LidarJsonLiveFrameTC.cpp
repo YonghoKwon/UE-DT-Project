@@ -84,7 +84,7 @@ FString SerializeJsonObjectLine(const TSharedPtr<FJsonObject>& Object)
     }
 
     FString Line;
-    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Line);
+    const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Line);
     FJsonSerializer::Serialize(Object.ToSharedRef(), Writer);
     return Line;
 }

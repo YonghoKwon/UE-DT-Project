@@ -103,6 +103,9 @@ Current state:
 - `Samples/websocket/lidar_json_live_frame_sample.json` and
   `Scripts/validate_websocket_lidar_live_sample.ps1` define the checked sample
   payload that should be sent through the broker after data-table registration.
+- `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
+  payload and push the buffered frame without transport before the DTCore
+  WebSocket data-table row exists.
 - They expose configuration/state but do not connect to real SDKs or bridges.
 - `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
   placeholder adapters, sample files, WebSocket sample payload, handoff API

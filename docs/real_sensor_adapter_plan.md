@@ -203,6 +203,15 @@ Recommended live bridge use:
 4. Append incoming JSON point lines until one sensor frame is buffered.
 5. Call `PushFrameOnce` to inject the frame and optionally send transport.
 
+Recommended pre-registration editor smoke:
+
+1. Add `ULidarJsonLiveSourceComp` to the target LiDAR actor.
+2. Keep `SampleWebSocketPayloadPath = Samples/websocket/lidar_json_live_frame_sample.json`.
+3. Click `AppendSampleWebSocketFrameInEditor`; this replaces the current buffer
+   with the checked sample payload.
+4. Click `PushBufferedFrameNoTransportInEditor`.
+5. Confirm the target LiDAR point count and `LastSourceFrameId` update without needing the DTCore WebSocket data-table row yet.
+
 Included sample:
 
 ```text
@@ -216,6 +225,10 @@ Editor-callable helpers:
 ```text
 PushFrameOnceInEditor
 PushFrameOnceNoTransportInEditor
+AppendSampleWebSocketFrameInEditor
+PushBufferedFrameInEditor
+PushBufferedFrameNoTransportInEditor
+ClearBufferedFrameInEditor
 StartReplayInEditor
 StopReplayInEditor
 ```

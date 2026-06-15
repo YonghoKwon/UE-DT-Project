@@ -29,7 +29,22 @@ public:
     void AppendJsonLines(const FString& JsonLines);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive")
+    bool AppendWebSocketPayload(const FString& PayloadJson);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive")
     void ClearBufferedFrame();
+
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorLive")
+    void AppendSampleWebSocketFrameInEditor();
+
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorLive")
+    void PushBufferedFrameInEditor();
+
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorLive")
+    void PushBufferedFrameNoTransportInEditor();
+
+    UFUNCTION(CallInEditor, Category = "DigitalTwin|RealSensorLive")
+    void ClearBufferedFrameInEditor();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive")
     bool BuildFrameFromBufferedLines(TArray<FVirtualLidarPoint>& OutPoints) const;
@@ -47,6 +62,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive")
     FName DefaultSemanticLabel = TEXT("Unknown");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive", meta = (FilePathFilter = "json", RelativeToGameDir))
+    FString SampleWebSocketPayloadPath = TEXT("Samples/websocket/lidar_json_live_frame_sample.json");
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|RealSensorLive|Status")
     int32 PendingLineCount = 0;
 
@@ -59,6 +77,7 @@ public:
 private:
     bool ParseJsonPointLine(const FString& Line, FVirtualLidarPoint& OutPoint) const;
     void AppendNormalizedLine(const FString& JsonLine);
+    FString ResolveSampleWebSocketPayloadPath() const;
 
 private:
     UPROPERTY()

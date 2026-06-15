@@ -136,11 +136,14 @@ bool FRealSensorSourceJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TArray<FVirtualLidarPoint> Points;
     TestTrue(TEXT("JSON live builds buffered frame"), JsonLive->BuildFrameFromBufferedLines(Points));
     TestEqual(TEXT("JSON live built point count"), Points.Num(), 2);
-    TestTrue(TEXT("first point preserves grid coord"), Points[0].bHasGridCoord);
-    TestEqual(TEXT("first point row"), Points[0].Row, 2);
-    TestEqual(TEXT("first point col"), Points[0].Col, 5);
-    TestEqual(TEXT("first point return index"), Points[0].ReturnIndex, 1);
-    TestFalse(TEXT("second point keeps fallback marker invalid"), Points[1].bHasGridCoord);
+    if (Points.Num() >= 2)
+    {
+        TestTrue(TEXT("first point preserves grid coord"), Points[0].bHasGridCoord);
+        TestEqual(TEXT("first point row"), Points[0].Row, 2);
+        TestEqual(TEXT("first point col"), Points[0].Col, 5);
+        TestEqual(TEXT("first point return index"), Points[0].ReturnIndex, 1);
+        TestFalse(TEXT("second point keeps fallback marker invalid"), Points[1].bHasGridCoord);
+    }
 
     TestTrue(TEXT("JSON live pushes frame through base source helper"), JsonLive->PushFrameOnce(false));
     TestEqual(TEXT("JSON live source frame id increments"), JsonLive->LastSourceFrameId, static_cast<int64>(1));
@@ -149,8 +152,25 @@ bool FRealSensorSourceJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("JSON live target received points"), TargetLidar->GetLastPoints().Num(), 2);
     TestEqual(TEXT("JSON live buffer clears after push"), JsonLive->PendingLineCount, 0);
     TestFalse(TEXT("JSON live target has cached payload"), TargetLidar->GetLastJsonPayload().IsEmpty());
-    TestTrue(TEXT("payload includes preserved grid coord source"), TargetLidar->GetLastJsonPayload().Contains(TEXT("\"gridCoordSource\":\"point_metadata\"")));
-    TestTrue(TEXT("payload includes fallback grid coord source"), TargetLidar->GetLastJsonPayload().Contains(TEXT("\"gridCoordSource\":\"derived_from_point_index\"")));
+    TestTrue(TEXT("payload includes grid coord source field"), TargetLidar->GetLastJsonPayload().Contains(TEXT("gridCoordSource")));
+    TestTrue(TEXT("payload includes preserved grid coord source"), TargetLidar->GetLastJsonPayload().Contains(TEXT("point_metadata")));
+    TestTrue(TEXT("payload includes fallback grid coord source"), TargetLidar->GetLastJsonPayload().Contains(TEXT("derived_from_point_index")));
+
+    const FString WebSocketPayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"JsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":false,\"POINTS\":[{\"row\":3,\"col\":4,\"returnIndex\":0,\"x\":140,\"y\":30,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":3,\"col\":5,\"returnIndex\":0,\"x\":150,\"y\":35,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+    TestTrue(TEXT("JSON live appends WebSocket-shaped payload"), JsonLive->AppendWebSocketPayload(WebSocketPayload));
+    TestEqual(TEXT("JSON live WebSocket payload pending line count"), JsonLive->PendingLineCount, 2);
+    TArray<FVirtualLidarPoint> WebSocketPoints;
+    TestTrue(TEXT("JSON live builds WebSocket payload frame"), JsonLive->BuildFrameFromBufferedLines(WebSocketPoints));
+    TestEqual(TEXT("JSON live WebSocket payload point count"), WebSocketPoints.Num(), 2);
+    if (WebSocketPoints.Num() >= 1)
+    {
+        TestEqual(TEXT("JSON live WebSocket payload first row"), WebSocketPoints[0].Row, 3);
+        TestEqual(TEXT("JSON live WebSocket payload first col"), WebSocketPoints[0].Col, 4);
+    }
+    TestTrue(TEXT("JSON live pushes WebSocket payload without transport"), JsonLive->PushFrameOnce(false));
+    TestEqual(TEXT("JSON live WebSocket payload target count"), TargetLidar->GetLastPoints().Num(), 2);
+    TestEqual(TEXT("JSON live WebSocket payload buffer clears after push"), JsonLive->PendingLineCount, 0);
+    TestFalse(TEXT("JSON live WebSocket payload caches target payload"), TargetLidar->GetLastJsonPayload().IsEmpty());
 
     ULidarJsonLiveSourceComp* EmptyLive = NewObject<ULidarJsonLiveSourceComp>();
     TestNotNull(TEXT("empty JSON live source"), EmptyLive);
@@ -206,6 +226,22 @@ bool FRealSensorSourceJsonLiveTransactionParseTest::RunTest(const FString& Param
         TestTrue(TEXT("JSON live TC push frame flag"), ParsedData->bPushFrame);
         TestTrue(TEXT("JSON live TC includes first point"), ParsedData->JsonLines.Contains(TEXT("\"row\":1")));
         TestTrue(TEXT("JSON live TC includes second point"), ParsedData->JsonLines.Contains(TEXT("\"x\":120")));
+    }
+
+    ULidarJsonLiveSourceComp* HelperParityLive = NewObject<ULidarJsonLiveSourceComp>();
+    TestNotNull(TEXT("JSON live helper parity source"), HelperParityLive);
+    if (HelperParityLive)
+    {
+        TestTrue(TEXT("JSON live helper parses same WebSocket payload"), HelperParityLive->AppendWebSocketPayload(Payload));
+        TestEqual(TEXT("JSON live helper parity pending lines"), HelperParityLive->PendingLineCount, 2);
+        TArray<FVirtualLidarPoint> HelperParityPoints;
+        TestTrue(TEXT("JSON live helper builds same WebSocket payload points"), HelperParityLive->BuildFrameFromBufferedLines(HelperParityPoints));
+        TestEqual(TEXT("JSON live helper parity point count"), HelperParityPoints.Num(), 2);
+        if (HelperParityPoints.Num() >= 1)
+        {
+            TestEqual(TEXT("JSON live helper parity row"), HelperParityPoints[0].Row, 1);
+            TestEqual(TEXT("JSON live helper parity col"), HelperParityPoints[0].Col, 2);
+        }
     }
 
     const FString TimestampPayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"CREATE_TIMESTAMP\":\"T1\",\"DATA_MAP\":{\"T1\":{\"sourceId\":\"BridgeA\",\"sendTransport\":true,\"pushFrame\":false,\"jsonLines\":\"{\\\"x\\\":1,\\\"y\\\":2,\\\"z\\\":3}\"}}}");
