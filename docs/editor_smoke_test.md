@@ -124,6 +124,7 @@ WebSocket live LiDAR sample contract:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_websocket_lidar_live_sample.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1" -NoWrite
 ```
 
 The registration report is a static checklist for
@@ -131,7 +132,17 @@ The registration report is a static checklist for
 `LIDAR_JSON_LIVE_FRAME` with `TransactionCodeMessageClass` set to
 `/Script/m7at10_dt.LidarJsonLiveFrameTC`. It intentionally does not mutate the
 binary `.uasset`; use it as the pre-editor evidence, then verify the row in
-Unreal Editor.
+Unreal Editor. Use `-NoWrite` for read-only readiness checks.
+
+Optional data-table registration evidence test:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.Evidence.WebSocketTransactionRegistration; Quit" -TestExit="Automation Test Queue Empty"
+```
+
+This test is intentionally separate from `M7AT10.RealSensorSource` because it
+verifies the binary data-table asset. Run it after the row has been added or
+confirmed in Unreal Editor.
 
 After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
 `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment
@@ -167,6 +178,7 @@ Monitor host fallback tests:
 `M7AT10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
 `M7AT10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.
 `M7AT10.RealSensorSource.JsonLiveTransactionRouting` verifies that the WebSocket transaction handler routes by `SOURCE_ID`, honors `PUSH_FRAME=false`, rejects ambiguous no-`SOURCE_ID` multi-source routing, and can push a matched frame into the target LiDAR.
+`M7AT10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row and that its handler class resolves to `ULidarJsonLiveFrameTC`.
 `M7AT10.SensorMonitor.CameraStatusTextContract` verifies that the monitor camera view exposes sensor id, `virtual-camera.v1`, resolution, capture mode, cached payload state, and server payload export hint.
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count/byte size, preview count, Slab analysis, warning, view mode, and CSV row/return contract.
 `M7AT10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.

@@ -5,6 +5,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
+#include "Core/DTCoreSettings.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLiveSourceComp.h"
@@ -12,6 +13,7 @@
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/WebSocket/TC/LidarJsonLiveFrameTC.h"
+#include "WebSocket/TransactionCodeStruct.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSensorSource.BaseState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -19,6 +21,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "M7AT10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest, "M7AT10.Evidence.WebSocketTransactionRegistration", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
 {
@@ -383,6 +386,70 @@ bool FRealSensorSourceJsonLiveTransactionRoutingTest::RunTest(const FString& Par
 
     SourceOwnerA->Destroy();
     SourceOwnerB->Destroy();
+    return true;
+}
+
+bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(const FString& Parameters)
+{
+    const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
+    TestNotNull(TEXT("DTCore settings"), Settings);
+    if (!Settings)
+    {
+        return false;
+    }
+
+    const FSoftObjectPath ConfiguredPath = Settings->WebSocketDataTable.ToSoftObjectPath();
+    TestTrue(TEXT("WebSocket data table path is configured"), ConfiguredPath.IsValid());
+    TestEqual(
+        TEXT("WebSocket data table path"),
+        ConfiguredPath.ToString(),
+        FString(TEXT("/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")));
+    if (!ConfiguredPath.IsValid())
+    {
+        return false;
+    }
+
+    UDataTable* WebSocketDataTable = Settings->WebSocketDataTable.LoadSynchronous();
+    TestNotNull(TEXT("WebSocket data table loads"), WebSocketDataTable);
+    if (!WebSocketDataTable)
+    {
+        AddInfo(TEXT("Run Scripts/export_websocket_transaction_registration_report.ps1 for the non-mutating registration checklist."));
+        return false;
+    }
+
+    const FName ExpectedRowName(TEXT("LIDAR_JSON_LIVE_FRAME"));
+    const FTransactionCodeStruct* Row = WebSocketDataTable->FindRow<FTransactionCodeStruct>(
+        ExpectedRowName,
+        TEXT("M7AT10.Evidence.WebSocketTransactionRegistration"),
+        false);
+    TestNotNull(TEXT("LIDAR_JSON_LIVE_FRAME row exists in DT_TransactionCode"), Row);
+    if (!Row)
+    {
+        AddInfo(TEXT("Add a DT_TransactionCode row named LIDAR_JSON_LIVE_FRAME with TransactionCodeMessageClass=/Script/m7at10_dt.LidarJsonLiveFrameTC."));
+        return false;
+    }
+
+    TestEqual(TEXT("TransactionCodeName"), Row->TransactionCodeName, FString(TEXT("LIDAR_JSON_LIVE_FRAME")));
+    TestNotNull(TEXT("TransactionCodeMessageClass"), Row->TransactionCodeMessageClass.Get());
+    if (!Row->TransactionCodeMessageClass)
+    {
+        return false;
+    }
+
+    TestTrue(
+        TEXT("TransactionCodeMessageClass resolves to ULidarJsonLiveFrameTC"),
+        Row->TransactionCodeMessageClass->IsChildOf(ULidarJsonLiveFrameTC::StaticClass()));
+
+    ULidarJsonLiveFrameTC* Handler = NewObject<ULidarJsonLiveFrameTC>(
+        GetTransientPackage(),
+        Row->TransactionCodeMessageClass);
+    TestNotNull(TEXT("Registered handler can be instantiated"), Handler);
+    if (!Handler)
+    {
+        return false;
+    }
+
+    TestEqual(TEXT("Registered handler transaction code"), Handler->TransactionCode, FString(TEXT("LIDAR_JSON_LIVE_FRAME")));
     return true;
 }
 

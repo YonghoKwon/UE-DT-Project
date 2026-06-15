@@ -210,7 +210,7 @@ if (-not $SkipWebSocketTransactionRegistrationReport) {
     Invoke-ScriptStep `
         -Label "WebSocket transaction registration report" `
         -ScriptPath $WebSocketTransactionRegistrationReportScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $ProjectRoot; NoWrite = $true }
 }
 else {
     Write-Host ""

@@ -96,6 +96,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionParse"; Label = "JSON live transaction automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.Evidence.WebSocketTransactionRegistration"; Label = "Optional WebSocket data-table registration evidence test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "FindRow<FTransactionCodeStruct>"; Label = "Registration evidence test inspects DTCore data-table row" },
     [PSCustomObject]@{ Path = $liveTcHeader; Pattern = "ULidarJsonLiveFrameTC"; Label = "JSON live transaction class" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "JSON live transaction code" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "AppendJsonLines"; Label = "JSON live transaction appends lines" },
@@ -105,6 +107,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketSampleValidator; Pattern = "SafeSourceRoutingDocumented"; Label = "WebSocket sample validator safe routing check" },
     [PSCustomObject]@{ Path = $webSocketRegistrationReportExporter; Pattern = "TransactionCodeMessageClass"; Label = "WebSocket registration report expected class" },
     [PSCustomObject]@{ Path = $webSocketRegistrationReportExporter; Pattern = "BinaryDataTableRowVerified"; Label = "WebSocket registration report binary row limitation" },
+    [PSCustomObject]@{ Path = $webSocketRegistrationReportExporter; Pattern = "NoWrite"; Label = "WebSocket registration report read-only mode" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "PushPointFrameToTarget"; Label = "Plan documents normalized handoff" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ULidarJsonLiveSourceComp"; Label = "Plan documents JSON live bridge" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "Plan documents JSON live transaction code" },
@@ -141,6 +144,7 @@ $report = [PSCustomObject]@{
         JsonLiveRegistrationReportPresent = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
+        JsonLiveRegistrationEvidenceAutomationPresent = $true
         PlaceholderAdaptersPresent = $true
         NormalizedHandoffDocumented = $true
         AutomationCoverageDeclared = $true
@@ -162,6 +166,7 @@ else {
     Write-Host "JSON live registration report present: $($report.Summary.JsonLiveRegistrationReportPresent)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
+    Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"
     Write-Host "Placeholder adapters present: $($report.Summary.PlaceholderAdaptersPresent)"
     Write-Host "Normalized handoff documented: $($report.Summary.NormalizedHandoffDocumented)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"

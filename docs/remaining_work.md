@@ -105,7 +105,13 @@ Current state:
   payload that should be sent through the broker after data-table registration.
 - `Scripts/export_websocket_transaction_registration_report.ps1` exports the
   expected `DT_TransactionCode` row name, handler class, sample metadata, and
-  manual PIE smoke steps without mutating the binary data table asset.
+  manual PIE smoke steps without mutating the binary data table asset. Its
+  `-NoWrite` mode supports read-only readiness checks without creating `Saved/`
+  report artifacts.
+- `M7AT10.Evidence.WebSocketTransactionRegistration` is an optional automation
+  test that loads the configured DTCore WebSocket data table and verifies the
+  `LIDAR_JSON_LIVE_FRAME` row resolves to `ULidarJsonLiveFrameTC` after the
+  binary row exists.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -121,7 +127,8 @@ Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
 - Verify or add the `LIDAR_JSON_LIVE_FRAME` row in the project WebSocket data
-  table and smoke-test the route with the deployment WebSocket broker using
+  table, run `M7AT10.Evidence.WebSocketTransactionRegistration`, and smoke-test
+  the route with the deployment WebSocket broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
@@ -143,6 +150,8 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
 - WebSocket registration checklist exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"`.
+- Read-only WebSocket registration checklist passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1" -NoWrite`.
 
 ### Server Payload Schema Approval
 

@@ -166,6 +166,7 @@ Export the static registration checklist before touching the binary data table:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1" -NoWrite
 ```
 
 The registration report writes JSON and Markdown files under
@@ -175,6 +176,20 @@ The registration report writes JSON and Markdown files under
 `/Script/m7at10_dt.LidarJsonLiveFrameTC`, and the sample payload metadata. It
 does not edit or deserialize `DT_TransactionCode.uasset`; verify the binary row
 in Unreal Editor before calling the WebSocket route complete.
+Use `-NoWrite` when you only need a read-only check and do not want to create
+`Saved/WebSocketTransactionRegistration/` artifacts.
+
+After adding or confirming the row, run the optional evidence automation:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.Evidence.WebSocketTransactionRegistration; Quit" -TestExit="Automation Test Queue Empty"
+```
+
+This automation loads `UDTCoreSettings::WebSocketDataTable`, finds the
+`LIDAR_JSON_LIVE_FRAME` row, verifies `TransactionCodeName`, and checks that
+`TransactionCodeMessageClass` resolves to `ULidarJsonLiveFrameTC`. It is kept out
+of the default real-sensor test group because it should fail until the binary
+data table row is actually present.
 
 After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
 send this sample through the deployment WebSocket broker and confirm the target
@@ -253,6 +268,7 @@ Regression coverage:
 M7AT10.RealSensorSource.PushFrameToTarget
 M7AT10.RealSensorSource.JsonLiveBridgePushFrame
 M7AT10.RealSensorSource.JsonLiveTransactionParse
+M7AT10.Evidence.WebSocketTransactionRegistration
 ```
 
 Static readiness coverage:

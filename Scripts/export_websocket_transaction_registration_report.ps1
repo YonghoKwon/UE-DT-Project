@@ -1,6 +1,7 @@
 param(
     [string]$ProjectRoot = "",
     [string]$OutputRoot = "",
+    [switch]$NoWrite,
     [switch]$Json
 )
 
@@ -52,6 +53,7 @@ function Write-MarkdownReport {
     $lines += "- Row / TransactionCodeName: ``$($Report.ExpectedRegistration.TransactionCodeName)``"
     $lines += "- TransactionCodeMessageClass: ``$($Report.ExpectedRegistration.TransactionCodeMessageClass)``"
     $lines += "- Runtime handler class: ``$($Report.ExpectedRegistration.RuntimeHandlerClass)``"
+    $lines += "- Optional evidence automation: ``$($Report.ExpectedRegistration.OptionalAutomationTestName)``"
     $lines += ""
     $lines += "## Static Evidence"
     $lines += ""
@@ -78,6 +80,8 @@ function Write-MarkdownReport {
     $lines += "## Limitation"
     $lines += ""
     $lines += "This report does not edit or deserialize the binary `DT_TransactionCode.uasset`. Treat it as static registration evidence and a checklist until the row is verified in Unreal Editor or by an editor utility."
+    $lines += ""
+    $lines += "After adding the row, run the optional automation test listed above to verify the configured data table loads and resolves to the expected handler class."
 
     $lines | Set-Content -LiteralPath $Path -Encoding UTF8
 }
@@ -124,6 +128,7 @@ $expectedTablePath = "/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_Trans
 $transactionCodeName = "LIDAR_JSON_LIVE_FRAME"
 $messageClass = "/Script/m7at10_dt.LidarJsonLiveFrameTC"
 $runtimeHandlerClass = "ULidarJsonLiveFrameTC"
+$optionalAutomationTestName = "M7AT10.Evidence.WebSocketTransactionRegistration"
 
 $handlerHeaderText = Get-Content -LiteralPath $handlerHeader -Raw
 $handlerCppText = Get-Content -LiteralPath $handlerCpp -Raw
@@ -145,6 +150,7 @@ $report = [PSCustomObject]@{
         TransactionCodeName = $transactionCodeName
         TransactionCodeMessageClass = $messageClass
         RuntimeHandlerClass = $runtimeHandlerClass
+        OptionalAutomationTestName = $optionalAutomationTestName
     }
     Config = [PSCustomObject]@{
         DefaultGameIniPath = $defaultGameIni
@@ -180,7 +186,7 @@ $report = [PSCustomObject]@{
         SamplePayloadValid = [bool]$sampleReport.Summary.Valid
         SafeSourceRoutingDocumented = ($handlerCppText.Contains("SOURCE_ID is required") -and $planDocText.Contains("SOURCE_ID") -and $smokeDocText.Contains("LIDAR_JSON_LIVE_FRAME"))
         BinaryDataTableRowVerified = $false
-        BinaryDataTableRowVerificationNote = "Static script does not modify or inspect DT_TransactionCode.uasset rows; verify this row in Unreal Editor."
+        BinaryDataTableRowVerificationNote = "Static script does not modify or inspect DT_TransactionCode.uasset rows; verify this row in Unreal Editor, then run M7AT10.Evidence.WebSocketTransactionRegistration."
     }
 }
 
@@ -197,21 +203,30 @@ if (-not $report.Summary.SafeSourceRoutingDocumented) {
     throw "Safe SOURCE_ID routing or smoke documentation is incomplete."
 }
 
-$report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-$report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $latestJsonPath -Encoding UTF8
-Write-MarkdownReport -Report $report -Path $markdownPath
-Write-MarkdownReport -Report $report -Path $latestMarkdownPath
+if (-not $NoWrite) {
+    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $latestJsonPath -Encoding UTF8
+    Write-MarkdownReport -Report $report -Path $markdownPath
+    Write-MarkdownReport -Report $report -Path $latestMarkdownPath
+}
 
 if ($Json) {
     $report | ConvertTo-Json -Depth 8
 }
 else {
-    Write-Host "WebSocket transaction registration report exported."
+    if ($NoWrite) {
+        Write-Host "WebSocket transaction registration report checked without writing files."
+    }
+    else {
+        Write-Host "WebSocket transaction registration report exported."
+    }
     Write-Host "Expected row: $transactionCodeName"
     Write-Host "Expected class: $messageClass"
     Write-Host "Configured table: $configuredTablePath"
-    Write-Host "JSON: $jsonPath"
-    Write-Host "Markdown: $markdownPath"
-    Write-Host "Latest JSON: $latestJsonPath"
-    Write-Host "Latest Markdown: $latestMarkdownPath"
+    if (-not $NoWrite) {
+        Write-Host "JSON: $jsonPath"
+        Write-Host "Markdown: $markdownPath"
+        Write-Host "Latest JSON: $latestJsonPath"
+        Write-Host "Latest Markdown: $latestMarkdownPath"
+    }
 }
