@@ -97,6 +97,9 @@ Current state:
 - `ULidarJsonLiveSourceComp` accepts buffered JSON point lines from a future
   WebSocket/HTTP/UDP/Blueprint bridge and pushes them through the normalized
   LiDAR handoff path.
+- `ULidarJsonLiveFrameTC` can be registered in the DTCore WebSocket data table
+  with `MESSAGE_ID = LIDAR_JSON_LIVE_FRAME` to route DTCore WebSocket payloads
+  into `ULidarJsonLiveSourceComp`.
 - They expose configuration/state but do not connect to real SDKs or bridges.
 - `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
   placeholder adapters, sample files, handoff API text, automation test names,
@@ -105,8 +108,10 @@ Current state:
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
-- Wire `ULidarJsonLiveSourceComp` to an actual DTCore WebSocket, HTTP, or UDP
-  listener when the deployment bridge shape is selected.
+- Add the `LIDAR_JSON_LIVE_FRAME` row to the project WebSocket data table and
+  smoke-test the route with the deployment WebSocket broker.
+- Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
+  the selected live bridge shape.
 - Implement a ROS2 bridge adapter that converts incoming messages to
   `FVirtualLidarPoint` frames or camera payloads.
 - Implement a Livox SDK adapter that normalizes packet streams into the same

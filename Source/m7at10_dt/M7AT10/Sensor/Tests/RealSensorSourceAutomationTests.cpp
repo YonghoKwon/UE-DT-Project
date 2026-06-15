@@ -8,11 +8,13 @@
 #include "m7at10_dt/M7AT10/Sensor/RealSensorAdapterStubs.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
+#include "m7at10_dt/M7AT10/WebSocket/TC/LidarJsonLiveFrameTC.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSensorSource.BaseState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
 {
@@ -173,6 +175,56 @@ bool FRealSensorSourceJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("missing target reports error"), MissingTargetLive->GetConnectionState(), ERealSensorSourceConnectionState::Error);
     TestEqual(TEXT("missing target preserves buffered line"), MissingTargetLive->PendingLineCount, 1);
 
+    return true;
+}
+
+bool FRealSensorSourceJsonLiveTransactionParseTest::RunTest(const FString& Parameters)
+{
+    ULidarJsonLiveFrameTC* Handler = NewObject<ULidarJsonLiveFrameTC>();
+    TestNotNull(TEXT("JSON live TC handler"), Handler);
+    if (!Handler)
+    {
+        return false;
+    }
+
+    TestEqual(TEXT("JSON live TC transaction code"), Handler->TransactionCode, FString(TEXT("LIDAR_JSON_LIVE_FRAME")));
+
+    const FString Payload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"JsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":1,\"col\":2,\"x\":100,\"y\":20,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"x\":120,\"y\":25,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+    const TSharedPtr<FTransactionCodeDataBase> ParsedBase = Handler->ParseToStruct(Payload);
+    TestTrue(TEXT("JSON live TC parses payload"), ParsedBase.IsValid());
+    if (!ParsedBase.IsValid())
+    {
+        return false;
+    }
+
+    const TSharedPtr<FLidarJsonLiveFrameTCData> ParsedData = StaticCastSharedPtr<FLidarJsonLiveFrameTCData>(ParsedBase);
+    TestTrue(TEXT("JSON live TC parsed data valid"), ParsedData.IsValid());
+    if (ParsedData.IsValid())
+    {
+        TestEqual(TEXT("JSON live TC source id"), ParsedData->SourceId, FString(TEXT("JsonLiveLidarBridge")));
+        TestFalse(TEXT("JSON live TC send transport flag"), ParsedData->bSendTransport);
+        TestTrue(TEXT("JSON live TC push frame flag"), ParsedData->bPushFrame);
+        TestTrue(TEXT("JSON live TC includes first point"), ParsedData->JsonLines.Contains(TEXT("\"row\":1")));
+        TestTrue(TEXT("JSON live TC includes second point"), ParsedData->JsonLines.Contains(TEXT("\"x\":120")));
+    }
+
+    const FString TimestampPayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"CREATE_TIMESTAMP\":\"T1\",\"DATA_MAP\":{\"T1\":{\"sourceId\":\"BridgeA\",\"sendTransport\":true,\"pushFrame\":false,\"jsonLines\":\"{\\\"x\\\":1,\\\"y\\\":2,\\\"z\\\":3}\"}}}");
+    const TSharedPtr<FTransactionCodeDataBase> TimestampParsedBase = Handler->ParseToStruct(TimestampPayload);
+    TestTrue(TEXT("JSON live TC parses timestamp DATA_MAP payload"), TimestampParsedBase.IsValid());
+    if (TimestampParsedBase.IsValid())
+    {
+        const TSharedPtr<FLidarJsonLiveFrameTCData> TimestampData = StaticCastSharedPtr<FLidarJsonLiveFrameTCData>(TimestampParsedBase);
+        TestEqual(TEXT("timestamp payload source id"), TimestampData->SourceId, FString(TEXT("BridgeA")));
+        TestTrue(TEXT("timestamp payload send transport"), TimestampData->bSendTransport);
+        TestFalse(TEXT("timestamp payload push frame"), TimestampData->bPushFrame);
+        TestTrue(TEXT("timestamp payload json lines"), TimestampData->JsonLines.Contains(TEXT("\"x\":1")));
+    }
+
+    const FString InvalidPayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"POINTS\":[]}}");
+    TestFalse(TEXT("JSON live TC rejects empty payload"), Handler->ParseToStruct(InvalidPayload).IsValid());
+
+    const FString WhitespacePayload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"BridgeA\",\"jsonLines\":\"   \"}}");
+    TestFalse(TEXT("JSON live TC rejects whitespace-only jsonLines"), Handler->ParseToStruct(WhitespacePayload).IsValid());
     return true;
 }
 

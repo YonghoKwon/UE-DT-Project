@@ -28,6 +28,7 @@ Current concrete/placeholder components:
 ULidarCsvReplaySourceComp
 ULidarJsonLinesReplaySourceComp
 ULidarJsonLiveSourceComp
+ULidarJsonLiveFrameTC
 URos2SensorBridgeSourceComp
 ULivoxLidarSourceComp
 URealSenseCameraSourceComp
@@ -122,6 +123,33 @@ or Blueprint integration can append one JSON point per line with
 uses the same payload, transport, recorder, preview, and Slab analysis path as
 file replay and virtual scans.
 
+`ULidarJsonLiveFrameTC` is the DT-Project WebSocket transaction handler for
+DTCore's `UDxDataSubsystem`. Register it in the DTCore WebSocket data table with
+`TransactionCodeName = LIDAR_JSON_LIVE_FRAME` and
+`TransactionCodeMessageClass = ULidarJsonLiveFrameTC`. The handler accepts either
+`POINTS`/`points` arrays or a `JSON_LINES`/`jsonLines` string, then forwards the
+frame to the matching `ULidarJsonLiveSourceComp`. Set `SOURCE_ID` for normal
+operation. If it is omitted, routing is allowed only when exactly one
+`ULidarJsonLiveSourceComp` exists in the current World; multiple live sources
+without `SOURCE_ID` are rejected to avoid sending a real frame to the wrong
+sensor.
+
+Example WebSocket payload:
+
+```json
+{
+  "MESSAGE_ID": "LIDAR_JSON_LIVE_FRAME",
+  "DATA_MAP": {
+    "SOURCE_ID": "JsonLiveLidarBridge",
+    "SEND_TRANSPORT": true,
+    "PUSH_FRAME": true,
+    "POINTS": [
+      { "row": 0, "col": 0, "returnIndex": 0, "x": 900, "y": -260, "z": 0, "hit": true, "semanticLabel": "Slab" }
+    ]
+  }
+}
+```
+
 Supported CSV formats:
 
 ```text
@@ -153,9 +181,10 @@ Recommended use:
 Recommended live bridge use:
 
 1. Add `ULidarJsonLiveSourceComp` to the same actor as a `UVirtualLidarSensorComp`, or set `TargetLidar` manually.
-2. Call `StartSource` when the external bridge is ready.
-3. Append incoming JSON point lines until one sensor frame is buffered.
-4. Call `PushFrameOnce` to inject the frame and optionally send transport.
+2. Set a stable `SourceId`, especially when more than one live LiDAR bridge exists.
+3. Call `StartSource` when the external bridge is ready.
+4. Append incoming JSON point lines until one sensor frame is buffered.
+5. Call `PushFrameOnce` to inject the frame and optionally send transport.
 
 Included sample:
 
@@ -178,6 +207,7 @@ Regression coverage:
 ```text
 M7AT10.RealSensorSource.PushFrameToTarget
 M7AT10.RealSensorSource.JsonLiveBridgePushFrame
+M7AT10.RealSensorSource.JsonLiveTransactionParse
 ```
 
 Static readiness coverage:
