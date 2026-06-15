@@ -245,6 +245,9 @@ It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,
 marshals received datagrams back to the game thread, and feeds text payloads
 through `AppendLivePayloadJson` plus optional `PushFrameOnce`. Treat it as local
 bridge smoke coverage, not as deployment broker evidence.
+`M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` binds to an ephemeral
+loopback port, sends one UTF-8 UDP datagram, and waits for the target LiDAR to
+receive the frame.
 
 Supported CSV formats:
 

@@ -22,6 +22,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|RealSensorLive|UDP")
     bool ProcessUdpPayloadJson(const FString& PayloadJson);
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|RealSensorLive|UDP")
+    int32 GetBoundPort() const { return BoundPort; }
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive|UDP")
     FString BindAddress = TEXT("127.0.0.1");
@@ -54,4 +57,5 @@ private:
 private:
     FSocket* ListenSocket = nullptr;
     TUniquePtr<FUdpSocketReceiver> SocketReceiver;
+    int32 BoundPort = 0;
 };

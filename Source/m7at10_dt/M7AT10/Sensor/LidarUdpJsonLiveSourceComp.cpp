@@ -6,6 +6,7 @@
 #include "Common/UdpSocketReceiver.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
+#include "IPAddress.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 
@@ -50,11 +51,15 @@ bool ULidarUdpJsonLiveSourceComp::StartSource()
         return false;
     }
 
+    TSharedRef<FInternetAddr> BoundAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+    ListenSocket->GetAddress(*BoundAddress);
+    BoundPort = BoundAddress->GetPort();
+
     SocketReceiver = MakeUnique<FUdpSocketReceiver>(ListenSocket, FTimespan::FromMilliseconds(20), *SocketName);
     SocketReceiver->OnDataReceived().BindUObject(this, &ULidarUdpJsonLiveSourceComp::HandleReceivedData);
     SocketReceiver->Start();
 
-    LastUdpMessage = FString::Printf(TEXT("UDP JSON live source listening on %s:%d"), *BindAddress, BindPort);
+    LastUdpMessage = FString::Printf(TEXT("UDP JSON live source listening on %s:%d"), *BindAddress, BoundPort);
     SetSourceState(ERealSensorSourceConnectionState::Running, LastUdpMessage);
     return true;
 }
@@ -123,4 +128,5 @@ void ULidarUdpJsonLiveSourceComp::CloseUdpSocket()
         ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ListenSocket);
         ListenSocket = nullptr;
     }
+    BoundPort = 0;
 }

@@ -181,6 +181,8 @@ HTTP, UDP, or Blueprint bridge prototypes can call
 then call `PushFrameOnce(false)` for a no-transport local handoff check.
 `M7AT10.RealSensorSource.UdpJsonLiveBridgePayload` verifies that the optional
 UDP wrapper reuses this handoff path without opening a real test port.
+`M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` verifies the local socket
+path with a real loopback UDP datagram and an ephemeral port.
 
 Brokerless DTCore dispatch automation:
 

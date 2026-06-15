@@ -14,6 +14,9 @@
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/WebSocket/TC/LidarJsonLiveFrameTC.h"
+#include "Interfaces/IPv4/IPv4Address.h"
+#include "SocketSubsystem.h"
+#include "Sockets.h"
 #include "WebSocket/TransactionCodeStruct.h"
 
 #if WITH_EDITOR
@@ -29,6 +32,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveDatagramTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "M7AT10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest, "M7AT10.Evidence.WebSocketTransactionRegistration", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -200,6 +204,143 @@ private:
     TWeakObjectPtr<UDxDataSubsystem> DataSubsystem;
 };
 #endif
+
+class FUdpJsonLiveDatagramCommand : public IAutomationLatentCommand
+{
+public:
+    explicit FUdpJsonLiveDatagramCommand(FAutomationTestBase* InTest)
+        : Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!Test)
+        {
+            return true;
+        }
+
+        if (StartTimeSeconds <= 0.0)
+        {
+            StartTimeSeconds = FPlatformTime::Seconds();
+            return SetupAndSend();
+        }
+
+        if (TargetLidar.IsValid() && UdpSource.IsValid() && TargetLidar->GetLastPoints().Num() == 2)
+        {
+            Test->TestEqual(TEXT("UDP datagram source frame id"), UdpSource->LastSourceFrameId, static_cast<int64>(1));
+            Test->TestEqual(TEXT("UDP datagram source point count"), UdpSource->LastSourcePointCount, 2);
+            Test->TestTrue(TEXT("UDP datagram byte count recorded"), UdpSource->LastReceivedDatagramBytes > 0);
+            Test->TestFalse(TEXT("UDP datagram endpoint recorded"), UdpSource->LastReceivedEndpoint.IsEmpty());
+            Cleanup();
+            return true;
+        }
+
+        if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
+        {
+            Test->AddError(TEXT("UDP JSON live datagram was not received before timeout."));
+            Cleanup();
+            return true;
+        }
+
+        return false;
+    }
+
+private:
+    bool SetupAndSend()
+    {
+        UWorld* World = GWorld;
+        Test->TestNotNull(TEXT("editor world"), World);
+        if (!World)
+        {
+            return true;
+        }
+
+        Owner = World->SpawnActor<AActor>();
+        Test->TestNotNull(TEXT("UDP datagram source owner"), Owner.Get());
+        if (!Owner.IsValid())
+        {
+            return true;
+        }
+
+        UVirtualLidarSensorComp* Target = NewObject<UVirtualLidarSensorComp>(Owner.Get());
+        ULidarUdpJsonLiveSourceComp* Source = NewObject<ULidarUdpJsonLiveSourceComp>(Owner.Get());
+        Test->TestNotNull(TEXT("UDP datagram target LiDAR"), Target);
+        Test->TestNotNull(TEXT("UDP datagram source"), Source);
+        if (!Target || !Source)
+        {
+            Cleanup();
+            return true;
+        }
+
+        Owner->AddInstanceComponent(Target);
+        Owner->AddInstanceComponent(Source);
+        Target->bAutoStartScan = false;
+        Target->bAutoRegisterToManager = false;
+        Target->RegisterComponent();
+        Source->RegisterComponent();
+
+        Target->SensorId = TEXT("TEST-LIDAR-UDP-DATAGRAM");
+        Source->TargetLidar = Target;
+        Source->BindAddress = TEXT("127.0.0.1");
+        Source->BindPort = 0;
+        Source->bAutoPushReceivedFrame = true;
+        Source->bSendTransportForReceivedFrames = false;
+        Test->TestTrue(TEXT("UDP datagram source starts"), Source->StartSource());
+        Test->TestTrue(TEXT("UDP datagram source has bound port"), Source->GetBoundPort() > 0);
+        if (Source->GetBoundPort() <= 0)
+        {
+            Cleanup();
+            return true;
+        }
+
+        TargetLidar = Target;
+        UdpSource = Source;
+
+        FSocket* Sender = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_DGram, TEXT("M7AT10_UdpJsonLiveSmokeSender"), false);
+        Test->TestNotNull(TEXT("UDP datagram sender socket"), Sender);
+        if (!Sender)
+        {
+            Cleanup();
+            return true;
+        }
+
+        TSharedRef<FInternetAddr> RemoteAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+        RemoteAddress->SetIp(FIPv4Address(127, 0, 0, 1).Value);
+        RemoteAddress->SetPort(Source->GetBoundPort());
+
+        const FString Payload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"UdpJsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":0,\"col\":0,\"x\":10,\"y\":20,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":0,\"col\":1,\"x\":30,\"y\":40,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+        FTCHARToUTF8 PayloadUtf8(*Payload);
+        int32 BytesSent = 0;
+        Test->TestTrue(TEXT("UDP datagram payload sends"), Sender->SendTo(reinterpret_cast<const uint8*>(PayloadUtf8.Get()), PayloadUtf8.Length(), BytesSent, *RemoteAddress));
+        Test->TestTrue(TEXT("UDP datagram sends bytes"), BytesSent > 0);
+        ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Sender);
+        return false;
+    }
+
+    void Cleanup()
+    {
+        if (UdpSource.IsValid())
+        {
+            UdpSource->StopSource();
+        }
+        if (Owner.IsValid())
+        {
+            Owner->Destroy();
+        }
+        UdpSource.Reset();
+        TargetLidar.Reset();
+        Owner.Reset();
+    }
+
+private:
+    FAutomationTestBase* Test = nullptr;
+    double StartTimeSeconds = 0.0;
+    static constexpr double TimeoutSeconds = 5.0;
+    TWeakObjectPtr<AActor> Owner;
+    TWeakObjectPtr<UVirtualLidarSensorComp> TargetLidar;
+    TWeakObjectPtr<ULidarUdpJsonLiveSourceComp> UdpSource;
+};
 
 bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
 {
@@ -436,6 +577,12 @@ bool FRealSensorSourceUdpJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("UDP JSON live source rejects invalid payload"), UdpSource->ProcessUdpPayloadJson(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"POINTS\":[]}}")));
 
     SourceOwner->Destroy();
+    return true;
+}
+
+bool FRealSensorSourceUdpJsonLiveDatagramTest::RunTest(const FString& Parameters)
+{
+    ADD_LATENT_AUTOMATION_COMMAND(FUdpJsonLiveDatagramCommand(this));
     return true;
 }
 
