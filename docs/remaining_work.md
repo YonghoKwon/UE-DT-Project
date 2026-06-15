@@ -219,6 +219,11 @@ Current state:
 - A local mock contract validator checks the fixtures against acceptance rules
   that approximate likely judging-server rejections before the final server
   contract is approved.
+- Camera fixture and mock contract validation now decode the base64 image,
+  verify JPEG magic bytes, enforce decoded `byteSize` consistency, and check
+  UTC-looking timestamps, integral dimensions/frame ids, positive FOVs,
+  documented `simulationQuality` string enum values, and required transform
+  arrays.
 - Schema compatibility examples are documented for LiDAR and camera payloads,
   including timestamp, unit, coordinate-frame, and preview/server semantics.
 - LiDAR point `row`/`col` are now preserved from scan/replay metadata when

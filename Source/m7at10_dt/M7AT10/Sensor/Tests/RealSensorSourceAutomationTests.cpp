@@ -999,6 +999,21 @@ bool FRealSensorSourceCameraJsonLiveBridgeTest::RunTest(const FString& Parameter
         TestEqual(TEXT("invalid base64 camera JSON live does not record a frame"), RecorderComp->GetRecordedFrameCount(), 1);
     }
 
+    UCameraJsonLiveSourceComp* InvalidQualitySource = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("invalid quality camera JSON live source"), InvalidQualitySource);
+    if (InvalidQualitySource)
+    {
+        SourceOwner->AddInstanceComponent(InvalidQualitySource);
+        InvalidQualitySource->RegisterComponent();
+        InvalidQualitySource->TargetCamera = TargetCamera;
+        const FString InvalidQualityPayload = Payload.Replace(TEXT("\"simulationQuality\":\"RealTimePreview\""), TEXT("\"simulationQuality\":\"FastEnough\""));
+        TestTrue(TEXT("invalid quality camera JSON live buffers payload"), InvalidQualitySource->AppendLivePayloadJson(InvalidQualityPayload));
+        TestFalse(TEXT("invalid quality camera JSON live push is rejected"), InvalidQualitySource->PushFrameOnce(false));
+        TestEqual(TEXT("invalid quality camera JSON live reports error"), InvalidQualitySource->GetConnectionState(), ERealSensorSourceConnectionState::Error);
+        TestEqual(TEXT("invalid quality camera JSON live keeps previous camera payload"), TargetCamera->GetLastJsonPayload(), Payload);
+        TestEqual(TEXT("invalid quality camera JSON live does not record a frame"), RecorderComp->GetRecordedFrameCount(), 1);
+    }
+
     UCameraJsonLiveSourceComp* ByteMismatchSource = NewObject<UCameraJsonLiveSourceComp>(SourceOwner);
     TestNotNull(TEXT("byte mismatch camera JSON live source"), ByteMismatchSource);
     if (ByteMismatchSource)

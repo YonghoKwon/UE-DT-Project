@@ -53,6 +53,31 @@ bool HasNumberArrayField(const TSharedPtr<FJsonObject>& Object, const FString& F
 
     return true;
 }
+
+FString ToPayloadSimulationQuality(EVirtualSensorSimulationQuality Quality)
+{
+    switch (Quality)
+    {
+    case EVirtualSensorSimulationQuality::Debug:
+        return TEXT("Debug");
+    case EVirtualSensorSimulationQuality::RealTimePreview:
+        return TEXT("RealTimePreview");
+    case EVirtualSensorSimulationQuality::Balanced:
+        return TEXT("Balanced");
+    case EVirtualSensorSimulationQuality::FullSpec:
+        return TEXT("FullSpec");
+    default:
+        return TEXT("RealTimePreview");
+    }
+}
+
+bool IsAllowedPayloadSimulationQuality(const FString& Quality)
+{
+    return Quality == TEXT("Debug") ||
+        Quality == TEXT("RealTimePreview") ||
+        Quality == TEXT("Balanced") ||
+        Quality == TEXT("FullSpec");
+}
 }
 
 UVirtualCameraComp::UVirtualCameraComp()
@@ -316,7 +341,7 @@ FString UVirtualCameraComp::BuildJsonPayload(const FString& Base64Image, int64 B
     Root->SetNumberField(TEXT("byteSize"), static_cast<double>(ByteSize));
     Root->SetNumberField(TEXT("horizontalFov"), DeviceSpec.HorizontalFovDegrees);
     Root->SetNumberField(TEXT("verticalFov"), DeviceSpec.VerticalFovDegrees);
-    Root->SetNumberField(TEXT("simulationQuality"), static_cast<int32>(SimulationQuality));
+    Root->SetStringField(TEXT("simulationQuality"), ToPayloadSimulationQuality(SimulationQuality));
     Root->SetStringField(TEXT("encoding"), TEXT("jpeg/base64"));
 
     TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
@@ -443,6 +468,7 @@ bool UVirtualCameraComp::ReadExternalPayloadMetadata(const FString& JsonPayload,
     FString Manufacturer;
     FString Model;
     FString TimestampUtc;
+    FString PayloadSimulationQuality;
     if (!RootObject->TryGetStringField(TEXT("schemaVersion"), SchemaVersion) || SchemaVersion != TEXT("virtual-camera.v1"))
     {
         return false;
@@ -468,6 +494,10 @@ bool UVirtualCameraComp::ReadExternalPayloadMetadata(const FString& JsonPayload,
         return false;
     }
     if (!RootObject->TryGetStringField(TEXT("timestampUtc"), TimestampUtc) || !TimestampUtc.EndsWith(TEXT("Z")))
+    {
+        return false;
+    }
+    if (!RootObject->TryGetStringField(TEXT("simulationQuality"), PayloadSimulationQuality) || !IsAllowedPayloadSimulationQuality(PayloadSimulationQuality))
     {
         return false;
     }

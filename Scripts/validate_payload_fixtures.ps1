@@ -121,6 +121,128 @@ function Assert-ArrayLength {
     }
 }
 
+function Assert-NonEmptyString {
+    param(
+        [object]$Value,
+        [string]$Context
+    )
+
+    if (-not ($Value -is [string]) -or [string]::IsNullOrWhiteSpace($Value)) {
+        throw "$Context must be a non-empty string"
+    }
+}
+
+function Test-WholeNumber {
+    param([object]$Value)
+
+    if (-not ($Value -is [ValueType])) {
+        return $false
+    }
+
+    $number = [double]$Value
+    return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and [Math]::Abs($number - [Math]::Round($number)) -lt 0.000001
+}
+
+function Assert-WholeNumber {
+    param(
+        [object]$Value,
+        [string]$Context
+    )
+
+    if (-not (Test-WholeNumber $Value)) {
+        throw "$Context must be an integral number"
+    }
+}
+
+function Assert-PositiveWholeNumber {
+    param(
+        [object]$Value,
+        [string]$Context
+    )
+
+    Assert-WholeNumber -Value $Value -Context $Context
+    if ([double]$Value -le 0.0) {
+        throw "$Context must be positive"
+    }
+}
+
+function Assert-PositiveFiniteNumber {
+    param(
+        [object]$Value,
+        [string]$Context
+    )
+
+    if (-not ($Value -is [ValueType])) {
+        throw "$Context must be numeric"
+    }
+
+    $number = [double]$Value
+    if ([double]::IsNaN($number) -or [double]::IsInfinity($number) -or $number -le 0.0) {
+        throw "$Context must be a positive finite number"
+    }
+}
+
+function Assert-UtcTimestamp {
+    param(
+        [string]$Value,
+        [string]$Context
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value) -or -not $Value.EndsWith("Z")) {
+        throw "$Context must be an ISO-8601 UTC timestamp ending in Z"
+    }
+
+    $parsed = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse($Value, [ref]$parsed) -or $parsed.Offset -ne [TimeSpan]::Zero) {
+        throw "$Context must parse as UTC"
+    }
+}
+
+function Assert-NumberArray {
+    param(
+        [object]$ArrayValue,
+        [int]$ExpectedLength,
+        [string]$Context
+    )
+
+    Assert-ArrayLength -ArrayValue $ArrayValue -ExpectedLength $ExpectedLength -Context $Context
+    foreach ($value in $ArrayValue) {
+        if (-not ($value -is [ValueType])) {
+            throw "$Context must contain only numeric values"
+        }
+
+        $number = [double]$value
+        if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) {
+            throw "$Context must contain only finite numeric values"
+        }
+    }
+}
+
+function Get-DecodedBase64Bytes {
+    param(
+        [string]$Value,
+        [string]$Context
+    )
+
+    try {
+        return [Convert]::FromBase64String($Value)
+    }
+    catch {
+        throw "$Context must be valid base64"
+    }
+}
+
+function Assert-AllowedSimulationQuality {
+    param(
+        [object]$Value,
+        [string]$Context
+    )
+
+    if (-not ($Value -is [string]) -or $Value -notin @("Debug", "RealTimePreview", "Balanced", "FullSpec")) {
+        throw "$Context must be one of: Debug, RealTimePreview, Balanced, FullSpec"
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($FixtureRoot)) {
     $FixtureRoot = Get-DefaultFixtureRoot
 }
@@ -206,12 +328,38 @@ if ($camera.sensorType -ne "virtual_camera") {
 if ($camera.encoding -ne "jpeg/base64") {
     throw "Camera fixture encoding must be jpeg/base64"
 }
+Assert-NonEmptyString -Value $camera.sensorId -Context "Camera fixture sensorId"
+Assert-NonEmptyString -Value $camera.manufacturer -Context "Camera fixture manufacturer"
+Assert-NonEmptyString -Value $camera.model -Context "Camera fixture model"
+Assert-UtcTimestamp -Value $camera.timestampUtc -Context "Camera fixture timestampUtc"
+Assert-WholeNumber -Value $camera.frameId -Context "Camera fixture frameId"
+if ([double]$camera.frameId -lt 0.0) {
+    throw "Camera fixture frameId must be non-negative"
+}
+Assert-PositiveWholeNumber -Value $camera.width -Context "Camera fixture width"
+Assert-PositiveWholeNumber -Value $camera.height -Context "Camera fixture height"
+Assert-PositiveWholeNumber -Value $camera.byteSize -Context "Camera fixture byteSize"
+Assert-PositiveFiniteNumber -Value $camera.horizontalFov -Context "Camera fixture horizontalFov"
+Assert-PositiveFiniteNumber -Value $camera.verticalFov -Context "Camera fixture verticalFov"
+Assert-AllowedSimulationQuality -Value $camera.simulationQuality -Context "Camera fixture simulationQuality"
 Assert-HasFields -Object $camera.sensorTransform -FieldNames $cameraTransformFields -Context "Camera sensorTransform"
-Assert-ArrayLength -ArrayValue $camera.sensorTransform.location -ExpectedLength 3 -Context "Camera sensorTransform.location"
-Assert-ArrayLength -ArrayValue $camera.sensorTransform.rotation -ExpectedLength 3 -Context "Camera sensorTransform.rotation"
-Assert-ArrayLength -ArrayValue $camera.sensorWorldLocation -ExpectedLength 3 -Context "Camera sensorWorldLocation"
+Assert-NumberArray -ArrayValue $camera.sensorTransform.location -ExpectedLength 3 -Context "Camera sensorTransform.location"
+Assert-NumberArray -ArrayValue $camera.sensorTransform.rotation -ExpectedLength 3 -Context "Camera sensorTransform.rotation"
+Assert-NumberArray -ArrayValue $camera.sensorTransform.forward -ExpectedLength 3 -Context "Camera sensorTransform.forward"
+Assert-NumberArray -ArrayValue $camera.sensorTransform.up -ExpectedLength 3 -Context "Camera sensorTransform.up"
+Assert-NumberArray -ArrayValue $camera.sensorWorldLocation -ExpectedLength 3 -Context "Camera sensorWorldLocation"
 if ([string]::IsNullOrWhiteSpace($camera.image)) {
     throw "Camera fixture image must not be empty"
+}
+$decodedCameraImage = Get-DecodedBase64Bytes -Value $camera.image -Context "Camera fixture image"
+if ($decodedCameraImage.Count -le 0) {
+    throw "Camera fixture image must decode to bytes"
+}
+if ($decodedCameraImage.Count -ne [int]$camera.byteSize) {
+    throw "Camera fixture byteSize must match decoded image bytes. byteSize=$($camera.byteSize) decoded=$($decodedCameraImage.Count)"
+}
+if ($decodedCameraImage.Count -lt 2 -or $decodedCameraImage[0] -ne 0xff -or $decodedCameraImage[1] -ne 0xd8) {
+    throw "Camera fixture image must decode to JPEG bytes starting with FF D8"
 }
 
 $report = [PSCustomObject]@{

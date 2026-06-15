@@ -41,7 +41,73 @@ function Test-TimestampUtc {
     param([string]$Value)
 
     $parsed = [DateTimeOffset]::MinValue
-    return [DateTimeOffset]::TryParse($Value, [ref]$parsed) -and $parsed.Offset -eq [TimeSpan]::Zero
+    return -not [string]::IsNullOrWhiteSpace($Value) -and $Value.EndsWith("Z") -and [DateTimeOffset]::TryParse($Value, [ref]$parsed) -and $parsed.Offset -eq [TimeSpan]::Zero
+}
+
+function Test-WholeNumber {
+    param([object]$Value)
+
+    if (-not ($Value -is [ValueType])) {
+        return $false
+    }
+
+    $number = [double]$Value
+    return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and [Math]::Abs($number - [Math]::Round($number)) -lt 0.000001
+}
+
+function Test-PositiveFiniteNumber {
+    param([object]$Value)
+
+    if (-not ($Value -is [ValueType])) {
+        return $false
+    }
+
+    $number = [double]$Value
+    return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and $number -gt 0.0
+}
+
+function Test-NumberArray {
+    param(
+        [object]$Value,
+        [int]$ExpectedLength
+    )
+
+    if ($null -eq $Value -or $Value.Count -ne $ExpectedLength) {
+        return $false
+    }
+
+    foreach ($entry in $Value) {
+        if (-not ($entry -is [ValueType])) {
+            return $false
+        }
+
+        $number = [double]$entry
+        if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Get-DecodedBase64Bytes {
+    param(
+        [string]$Value,
+        [string]$Context
+    )
+
+    try {
+        return [Convert]::FromBase64String($Value)
+    }
+    catch {
+        throw "$Context must be valid base64"
+    }
+}
+
+function Test-SimulationQuality {
+    param([object]$Value)
+
+    return ($Value -is [string]) -and $Value -in @("Debug", "RealTimePreview", "Balanced", "FullSpec")
 }
 
 if ([string]::IsNullOrWhiteSpace($FixtureRoot)) {
@@ -103,13 +169,26 @@ $accepted += [PSCustomObject]@{
 
 Assert-Condition ($camera.schemaVersion -eq "virtual-camera.v1") "Camera contract rejects schemaVersion '$($camera.schemaVersion)'"
 Assert-Condition ($camera.sensorType -eq "virtual_camera") "Camera contract rejects sensorType '$($camera.sensorType)'"
+Assert-Condition (-not [string]::IsNullOrWhiteSpace($camera.sensorId)) "Camera contract requires non-empty sensorId"
+Assert-Condition (-not [string]::IsNullOrWhiteSpace($camera.manufacturer)) "Camera contract requires non-empty manufacturer"
+Assert-Condition (-not [string]::IsNullOrWhiteSpace($camera.model)) "Camera contract requires non-empty model"
 Assert-Condition (Test-TimestampUtc $camera.timestampUtc) "Camera contract requires UTC timestampUtc"
-Assert-Condition ($camera.frameId -ge 0) "Camera contract requires non-negative frameId"
-Assert-Condition ($camera.width -gt 0 -and $camera.height -gt 0) "Camera contract requires positive image dimensions"
-Assert-Condition ($camera.byteSize -gt 0) "Camera contract requires positive byteSize"
+Assert-Condition ((Test-WholeNumber $camera.frameId) -and $camera.frameId -ge 0) "Camera contract requires non-negative integral frameId"
+Assert-Condition ((Test-WholeNumber $camera.width) -and $camera.width -gt 0 -and (Test-WholeNumber $camera.height) -and $camera.height -gt 0) "Camera contract requires positive integral image dimensions"
+Assert-Condition ((Test-WholeNumber $camera.byteSize) -and $camera.byteSize -gt 0) "Camera contract requires positive integral byteSize"
+Assert-Condition (Test-PositiveFiniteNumber $camera.horizontalFov) "Camera contract requires positive horizontalFov"
+Assert-Condition (Test-PositiveFiniteNumber $camera.verticalFov) "Camera contract requires positive verticalFov"
+Assert-Condition (Test-SimulationQuality $camera.simulationQuality) "Camera contract requires simulationQuality string in Debug, RealTimePreview, Balanced, FullSpec"
 Assert-Condition ($camera.encoding -eq "jpeg/base64") "Camera contract requires jpeg/base64 encoding"
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($camera.image)) "Camera contract requires non-empty image payload"
-Assert-Condition ($camera.sensorWorldLocation.Count -eq 3) "Camera contract requires 3D sensorWorldLocation"
+Assert-Condition (Test-NumberArray $camera.sensorTransform.location 3) "Camera contract requires 3D sensorTransform.location"
+Assert-Condition (Test-NumberArray $camera.sensorTransform.rotation 3) "Camera contract requires 3D sensorTransform.rotation"
+Assert-Condition (Test-NumberArray $camera.sensorTransform.forward 3) "Camera contract requires 3D sensorTransform.forward"
+Assert-Condition (Test-NumberArray $camera.sensorTransform.up 3) "Camera contract requires 3D sensorTransform.up"
+Assert-Condition (Test-NumberArray $camera.sensorWorldLocation 3) "Camera contract requires 3D sensorWorldLocation"
+$decodedCameraImage = Get-DecodedBase64Bytes -Value $camera.image -Context "Camera contract image"
+Assert-Condition ($decodedCameraImage.Count -eq [int]$camera.byteSize) "Camera contract requires byteSize to match decoded image bytes"
+Assert-Condition ($decodedCameraImage.Count -ge 2 -and $decodedCameraImage[0] -eq 0xff -and $decodedCameraImage[1] -eq 0xd8) "Camera contract requires JPEG bytes starting with FF D8"
 $accepted += [PSCustomObject]@{
     SensorType = $camera.sensorType
     SchemaVersion = $camera.schemaVersion

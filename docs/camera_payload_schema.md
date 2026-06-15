@@ -61,7 +61,17 @@ up
 - `Payload`: creates and caches JSON payload, but does not send output.
 - `PayloadAndOutput`: creates JSON payload and sends it through the configured transport/output path.
 
-`SimulationQuality` controls capture resolution, interval, and JPEG quality. It does not change the payload schema.
+`simulationQuality` is a stable string enum. Allowed values are:
+
+```text
+Debug
+RealTimePreview
+Balanced
+FullSpec
+```
+
+It controls capture resolution, interval, and JPEG quality. It does not change
+the payload schema.
 
 ## Compatibility Notes
 
@@ -139,8 +149,12 @@ then checks the reference fixture against those field lists. The mock contract
 validator then applies local acceptance rules that approximate what the judging
 server is expected to reject before the final server contract is available. The
 export script writes JSON and Markdown review artifacts under
-`Saved/PayloadContractReports/`. Keep these blocks in sync with any schema
-changes.
+`Saved/PayloadContractReports/`. The fixture and mock contract validators also
+check the runtime camera-image invariants: `timestampUtc` must be UTC-looking,
+numeric ids/dimensions/byte counts must be integral where required,
+`simulationQuality` must be one of the documented string enum values, `image`
+must decode from base64 to JPEG bytes, and `byteSize` must match the decoded
+byte count. Keep these blocks in sync with any schema changes.
 
 ## Related Tests
 
