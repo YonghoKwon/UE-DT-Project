@@ -85,6 +85,21 @@ and the largest files in each folder. Use this to spot built-data-heavy map
 packages, oversized textures, vendor packs, and copied sample projects before
 deciding whether the repository should own them.
 
+Every decision point also reports:
+
+- `GitState`: `Untracked`, `Staged`, `TrackedModified`, or `CleanOrIgnored`.
+- `CommitReadiness`: `BlockedByManualDecision`,
+  `DoNotCommitGeneratedOutput`, or `NotPresent`.
+- `DecisionChecklist`: manual evidence that must be collected before staging.
+
+For large content, the checklist asks for asset source, license, production
+dependency, size review, and storage/versioning strategy. For sample or
+third-party folders, it asks for project ownership, license/redistribution
+terms, and whether documentation is preferable to committing copied sample
+files. For the monitor WBP, it asks for editor open, binding verification, PIE
+smoke evidence, and production-WBP acceptance. For `Config/Game.ini`, it asks
+for endpoint/credential review and runtime-config policy validation.
+
 Static large-content decision readiness:
 
 ```powershell

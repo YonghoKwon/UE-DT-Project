@@ -206,6 +206,108 @@ function Get-DecisionPointNote {
     return "Detected non-empty [DTCoreRuntimeOverride] values: $($nonEmptyValues -join ', '). Review for endpoint or credential leakage before staging."
 }
 
+function Get-DecisionChecklist {
+    param(
+        [string]$RelativePath,
+        [string]$Category
+    )
+
+    $normalizedPath = Normalize-RepoPath $RelativePath
+    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+        return @(
+            "Open the widget in Unreal Editor.",
+            "Verify optional bindings against docs/widget_designer_setup.md.",
+            "Run a PIE smoke test in the intended map.",
+            "Confirm camera/LiDAR switching and status text update correctly.",
+            "Commit only after accepting the binary asset as the production monitor WBP."
+        )
+    }
+
+    if ($normalizedPath -eq "config/game.ini") {
+        return @(
+            "Inspect Config/Game.ini diff manually.",
+            "Confirm there are no endpoint, credential, token, or environment-specific values.",
+            "Decide whether blank DTCore runtime overrides are local-only or shared project defaults.",
+            "Run Scripts/validate_runtime_config_policy.ps1 before staging."
+        )
+    }
+
+    if ($Category -eq "LargeContentCandidate") {
+        return @(
+            "Identify asset source, license, and intended project ownership.",
+            "Confirm whether maps, WBP assets, or production workflows depend on this folder.",
+            "Review size, extension counts, and largest files.",
+            "Decide storage/versioning strategy before staging.",
+            "Run Scripts/validate_large_content_decision_policy.ps1 after the decision."
+        )
+    }
+
+    if ($Category -eq "SampleOrThirdParty") {
+        return @(
+            "Confirm this sample or third-party folder is intentionally owned by the project.",
+            "Check license and redistribution terms.",
+            "Prefer documenting setup steps instead of committing copied sample content when possible.",
+            "Run Scripts/validate_large_content_decision_policy.ps1 after the decision."
+        )
+    }
+
+    if ($Category -like "Generated*") {
+        return @(
+            "Keep generated packaging output out of normal source commits.",
+            "Remove or ignore this path unless a packaging workflow explicitly requires it.",
+            "Run report_local_project_status.ps1 -FailOnGeneratedOutput for a strict clean check."
+        )
+    }
+
+    return @(
+        "Inspect the path manually.",
+        "Document why it belongs in the repository before staging."
+    )
+}
+
+function Get-CommitReadiness {
+    param(
+        [string]$State,
+        [string]$Category
+    )
+
+    if ($State -ne "present") {
+        return "NotPresent"
+    }
+    if ($Category -like "Generated*") {
+        return "DoNotCommitGeneratedOutput"
+    }
+
+    return "BlockedByManualDecision"
+}
+
+function Get-DecisionPointGitState {
+    param(
+        [string]$RelativePath,
+        [string[]]$UntrackedGitPaths,
+        [string[]]$StagedGitPaths,
+        [string[]]$UnstagedGitPaths
+    )
+
+    $normalizedPath = Normalize-RepoPath $RelativePath
+    $hasUntracked = @($UntrackedGitPaths | Where-Object { Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths @($RelativePath) }).Count -gt 0
+    if ($hasUntracked) {
+        return "Untracked"
+    }
+
+    $hasStaged = @($StagedGitPaths | Where-Object { Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths @($RelativePath) }).Count -gt 0
+    if ($hasStaged) {
+        return "Staged"
+    }
+
+    $hasUnstaged = @($UnstagedGitPaths | Where-Object { Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths @($RelativePath) }).Count -gt 0
+    if ($hasUnstaged) {
+        return "TrackedModified"
+    }
+
+    return "CleanOrIgnored"
+}
+
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
@@ -274,8 +376,9 @@ try {
     )
 
     $decisionRelativePaths = @($pathsToCheck | ForEach-Object { $_.Path })
+    $gitStatusLines = @(git status --porcelain=v1 --untracked-files=all)
     $untrackedGitPaths = @(
-        git status --porcelain --untracked-files=all |
+        $gitStatusLines |
             Where-Object { $_.StartsWith("?? ") } |
             ForEach-Object { $_.Substring(3).Trim() }
     )
@@ -296,6 +399,11 @@ try {
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
             ForEach-Object { $_.Trim() }
     )
+    $unstagedGitPaths = @(
+        $gitStatusLines |
+            Where-Object { -not $_.StartsWith("?? ") -and $_.Length -ge 4 -and $_.Substring(1, 1) -ne " " } |
+            ForEach-Object { $_.Substring(3).Trim() }
+    )
     $stagedDecisionPaths = @(
         $stagedGitPaths |
             Where-Object { Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $decisionRelativePaths } |
@@ -313,6 +421,9 @@ try {
         $summary = Get-PathSummary -FullPath $fullPath
         $contentSummary = if ($contentSummaryCategories -contains $entry.Category) { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
         $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
+        $commitReadiness = Get-CommitReadiness -State $summary.State -Category $entry.Category
+        $decisionChecklist = Get-DecisionChecklist -RelativePath $relativePath -Category $entry.Category
+        $gitState = Get-DecisionPointGitState -RelativePath $relativePath -UntrackedGitPaths $untrackedGitPaths -StagedGitPaths $stagedGitPaths -UnstagedGitPaths $unstagedGitPaths
         if ($summary.State -eq "present") {
             ++$presentCount
             if ($entry.Category -like "Generated*") {
@@ -335,6 +446,9 @@ try {
             Category = $entry.Category
             Recommendation = $entry.Recommendation
             DetectedNote = $decisionNote
+            GitState = $gitState
+            CommitReadiness = $commitReadiness
+            DecisionChecklist = $decisionChecklist
             ContentSummary = $contentSummary
         }
     }
@@ -396,9 +510,17 @@ try {
                 Write-Host "  lastWriteTime: $($point.LastWriteTime)"
             }
             Write-Host "  category: $($point.Category)"
+            Write-Host "  gitState: $($point.GitState)"
+            Write-Host "  commitReadiness: $($point.CommitReadiness)"
             Write-Host "  recommendation: $($point.Recommendation)"
             if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {
                 Write-Host "  detected: $($point.DetectedNote)"
+            }
+            if ($point.DecisionChecklist.Count -gt 0) {
+                Write-Host "  decision checklist:"
+                foreach ($check in $point.DecisionChecklist) {
+                    Write-Host "    - $check"
+                }
             }
             if ($point.ContentSummary) {
                 $extensions = @($point.ContentSummary.ExtensionCounts | ForEach-Object { "$($_.Extension)=$($_.Count)" }) -join ", "

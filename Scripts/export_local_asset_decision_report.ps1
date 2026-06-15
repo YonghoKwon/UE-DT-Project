@@ -109,13 +109,15 @@ foreach ($item in $decisionReport.RecommendedReviewOrder) {
 Add-MarkdownLine -Lines $lines
 Add-MarkdownLine -Lines $lines -Value "## Decision Point Summary"
 Add-MarkdownLine -Lines $lines
-Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Files | Size | Recommendation |"
-Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | ---: | ---: | --- |"
+Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Files | Size | Recommendation |"
+Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | ---: | ---: | --- |"
 foreach ($point in $report.DecisionPoints) {
-    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} |" -f `
+    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |" -f `
         (Convert-ToMarkdownTableCell $point.Path),
         (Convert-ToMarkdownTableCell $point.Category),
         (Convert-ToMarkdownTableCell $point.State),
+        (Convert-ToMarkdownTableCell $point.GitState),
+        (Convert-ToMarkdownTableCell $point.CommitReadiness),
         (Convert-ToMarkdownTableCell $point.FileCount),
         (Convert-ToMarkdownTableCell $point.Size),
         (Convert-ToMarkdownTableCell $point.Recommendation))
@@ -127,6 +129,8 @@ foreach ($point in $presentDecisionPoints) {
     Add-MarkdownLine -Lines $lines -Value "### $($point.Path)"
     Add-MarkdownLine -Lines $lines
     Add-MarkdownLine -Lines $lines -Value "- Category: $($point.Category)"
+    Add-MarkdownLine -Lines $lines -Value "- Git state: $($point.GitState)"
+    Add-MarkdownLine -Lines $lines -Value "- Commit readiness: $($point.CommitReadiness)"
     Add-MarkdownLine -Lines $lines -Value "- Kind: $($point.Kind)"
     Add-MarkdownLine -Lines $lines -Value "- Files: $($point.FileCount)"
     Add-MarkdownLine -Lines $lines -Value "- Size: $($point.Size)"
@@ -136,6 +140,12 @@ foreach ($point in $presentDecisionPoints) {
     Add-MarkdownLine -Lines $lines -Value "- Recommendation: $($point.Recommendation)"
     if (-not [string]::IsNullOrWhiteSpace($point.DetectedNote)) {
         Add-MarkdownLine -Lines $lines -Value "- Detected: $($point.DetectedNote)"
+    }
+    if ($point.DecisionChecklist -and $point.DecisionChecklist.Count -gt 0) {
+        Add-MarkdownLine -Lines $lines -Value "- Decision checklist:"
+        foreach ($check in $point.DecisionChecklist) {
+            Add-MarkdownLine -Lines $lines -Value "  - $check"
+        }
     }
     if ($point.ContentSummary -and $point.ContentSummary.ExtensionCounts.Count -gt 0) {
         $extensions = @($point.ContentSummary.ExtensionCounts | ForEach-Object { "$($_.Extension)=$($_.Count)" }) -join ", "

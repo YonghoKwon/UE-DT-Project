@@ -121,9 +121,9 @@ $workAreas = @(
         -Remaining "Judging server approval, real server acceptance evidence, final endpoint/auth/retry/batching decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 45 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, WBP/runtime-config/large-content decision guards are validated, and a local asset decision report exporter is available." `
-        -Remaining "WBP, Game.ini, large content folders, and PixelStreaming sample ownership decisions remain."),
+        -Percent 47 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/DecisionChecklist fields are exported, WBP/runtime-config/large-content decision guards are validated, and a local asset decision report exporter is available." `
+        -Remaining "Manual WBP verification, Game.ini sharing decision, large content owner/source/license/dependency/storage decisions, and PixelStreaming sample ownership decisions remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
         -Percent 71 `
