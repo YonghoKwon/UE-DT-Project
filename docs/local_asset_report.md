@@ -157,6 +157,7 @@ Create an editable evidence template when a path is ready for owner review:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_evidence_template.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_local_asset_decision_report.ps1" -EvidencePath ".\docs\local_asset_decisions.evidence.json"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_asset_decision_evidence_workflow.ps1"
 ```
 
 The template uses schema `LocalAssetDecisionEvidenceV1` and records
@@ -166,6 +167,12 @@ to `ReadyToStage` only when the evidence file sets
 `Status = Complete`, and `AcceptedBy` plus `AcceptedAt` are filled in. Large
 content decisions require owner/source/license, dependency, size, and
 storage/versioning evidence before they can be accepted.
+`Scripts/validate_local_asset_decision_evidence_workflow.ps1` builds a
+temporary git-backed project and verifies no-evidence, incomplete evidence,
+blank reviewer/date, pending decision, normalized path, `KeepLocal`,
+generated-output override, complete accepted evidence, and Staged decision gate
+behavior. The Staged decision gate must fail for blocked decision paths and pass
+for paths that are `ReadyToStage` with complete accepted evidence.
 
 ## Recommended Workflow
 
@@ -187,6 +194,7 @@ script unless `-SkipSmoke` is passed.
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -SkipLocalAssetDecisionEvidenceWorkflow
 ```
 
 Strict local-output gates can be enabled when a clean packaging state is needed:

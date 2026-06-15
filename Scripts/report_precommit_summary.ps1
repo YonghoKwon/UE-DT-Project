@@ -121,8 +121,8 @@ $workAreas = @(
         -Remaining "Judging server approval, real server acceptance evidence, final endpoint/auth/retry/batching decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 51 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence, an evidence template exporter is available, WBP/runtime-config/large-content decision guards are validated, and a local asset decision report exporter is available." `
+        -Percent 53 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, WBP/runtime-config/large-content decision guards are validated, and a local asset decision report exporter is available." `
         -Remaining "Manual WBP verification, Game.ini sharing decision, large content owner/source/license/dependency/storage decisions, and PixelStreaming sample ownership decisions remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `

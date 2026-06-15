@@ -91,6 +91,9 @@ Open decisions:
   `AcceptedForRepository` for explicitly accepted paths.
   ReadyToStage requires AcceptedForRepository. ReadyToStage requires complete evidence. AcceptedForRepository requires complete EvidenceNeeded.
   Recorded evidence must name reviewer, date, and source. Generated output remains KeepLocal.
+  `Scripts/validate_local_asset_decision_evidence_workflow.ps1` now verifies
+  the evidence state machine, including the Staged decision gate for blocked and
+  evidence-ready decision paths.
   Large content decisions require owner/source/license, dependency, size, and
   storage/versioning evidence before staging. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups

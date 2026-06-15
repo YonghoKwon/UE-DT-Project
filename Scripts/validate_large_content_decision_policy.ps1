@@ -53,9 +53,11 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $evidenceTemplateScript = Join-Path $ProjectRoot "Scripts\export_local_asset_decision_evidence_template.ps1"
+$evidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\validate_local_asset_decision_evidence_workflow.ps1"
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
 Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
 Assert-FileExists -Path $evidenceTemplateScript -Label "Local asset decision evidence template script"
+Assert-FileExists -Path $evidenceWorkflowScript -Label "Local asset decision evidence workflow validation script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LargeContentCandidate"; Label = "Local asset doc defines large content category" },
@@ -88,6 +90,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "EvidencePending remains NeedsOwnerDecision"; Label = "Local asset doc keeps pending evidence queued" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Recorded evidence must name reviewer, date, and source"; Label = "Local asset doc requires reviewer/date/source" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Generated output remains KeepLocal"; Label = "Local asset doc keeps generated output local" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "validate_local_asset_decision_evidence_workflow.ps1"; Label = "Local asset doc documents evidence workflow validation" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "asset source, license, production"; Label = "Local asset doc explains source/license/dependency checks" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Content/ChemicalPlantEnv"; Label = "Remaining work tracks ChemicalPlantEnv" },
@@ -117,6 +121,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ReadyToStage requires complete evidence"; Label = "Remaining work gates ready-to-stage on complete evidence" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Recorded evidence must name reviewer, date, and source"; Label = "Remaining work requires reviewer/date/source" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Generated output remains KeepLocal"; Label = "Remaining work keeps generated output local" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "validate_local_asset_decision_evidence_workflow.ps1"; Label = "Remaining work tracks evidence workflow validation" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Staged decision gate"; Label = "Remaining work tracks staged decision evidence gate" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
 )
 

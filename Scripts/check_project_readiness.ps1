@@ -26,6 +26,7 @@ param(
     [switch]$SkipMonitorWidgetPolicy,
     [switch]$SkipRuntimeConfigPolicy,
     [switch]$SkipLargeContentDecisionPolicy,
+    [switch]$SkipLocalAssetDecisionEvidenceWorkflow,
     [switch]$FailOnLargeContentCandidates,
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
@@ -80,6 +81,7 @@ $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_po
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
 $RuntimeConfigPolicyScript = Join-Path $ScriptRoot "validate_runtime_config_policy.ps1"
 $LargeContentDecisionPolicyScript = Join-Path $ScriptRoot "validate_large_content_decision_policy.ps1"
+$LocalAssetDecisionEvidenceWorkflowScript = Join-Path $ScriptRoot "validate_local_asset_decision_evidence_workflow.ps1"
 $SmokeScript = Join-Path $ScriptRoot "run_smoke_tests.ps1"
 
 if (-not (Test-Path -LiteralPath $AssetReportScript)) {
@@ -126,6 +128,9 @@ if (-not (Test-Path -LiteralPath $RuntimeConfigPolicyScript)) {
 }
 if (-not (Test-Path -LiteralPath $LargeContentDecisionPolicyScript)) {
     throw "validate_large_content_decision_policy.ps1 not found: $LargeContentDecisionPolicyScript"
+}
+if (-not (Test-Path -LiteralPath $LocalAssetDecisionEvidenceWorkflowScript)) {
+    throw "validate_local_asset_decision_evidence_workflow.ps1 not found: $LocalAssetDecisionEvidenceWorkflowScript"
 }
 if (-not (Test-Path -LiteralPath $SmokeScript)) {
     throw "run_smoke_tests.ps1 not found: $SmokeScript"
@@ -306,6 +311,17 @@ if (-not $SkipLargeContentDecisionPolicy) {
 else {
     Write-Host ""
     Write-Host "Large content decision policy validation skipped by -SkipLargeContentDecisionPolicy."
+}
+
+if (-not $SkipLocalAssetDecisionEvidenceWorkflow) {
+    Invoke-ScriptStep `
+        -Label "Local asset decision evidence workflow validation" `
+        -ScriptPath $LocalAssetDecisionEvidenceWorkflowScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
+}
+else {
+    Write-Host ""
+    Write-Host "Local asset decision evidence workflow validation skipped by -SkipLocalAssetDecisionEvidenceWorkflow."
 }
 
 if (-not $SkipSmoke) {
