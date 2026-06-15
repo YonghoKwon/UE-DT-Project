@@ -187,9 +187,11 @@ After adding or confirming the row, run the optional evidence automation:
 
 This automation loads `UDTCoreSettings::WebSocketDataTable`, finds the
 `LIDAR_JSON_LIVE_FRAME` row, verifies `TransactionCodeName`, and checks that
-`TransactionCodeMessageClass` resolves to `ULidarJsonLiveFrameTC`. It is kept out
-of the default real-sensor test group because it should fail until the binary
-data table row is actually present.
+`TransactionCodeMessageClass` resolves to `ULidarJsonLiveFrameTC`. It also
+instantiates the row handler through the `UTransactionCodeMessage` base class and
+processes a sample payload into `ULidarJsonLiveSourceComp`. It is kept out of the
+default real-sensor test group because it is evidence for the binary data-table
+route rather than a pure component-unit test.
 
 To create or repair the row in a reproducible DT-Project-only way, run the
 editor-only commandlet:
@@ -201,6 +203,11 @@ editor-only commandlet:
 Use `-NoSave` for a dry run. The commandlet updates only the project WebSocket
 data table configured by `UDTCoreSettings::WebSocketDataTable`; it does not
 modify DTCore source.
+
+External broker connectivity is still a deployment smoke item. A future
+brokerless PIE dispatch test can inject a fake `FWebSocketMessage` into
+`UDxWebSocketSubsystem::ReceivedMessage`, but it must run with a
+GameInstance-backed PIE world to cover DTCore subsystem queueing reliably.
 
 After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
 send this sample through the deployment WebSocket broker and confirm the target

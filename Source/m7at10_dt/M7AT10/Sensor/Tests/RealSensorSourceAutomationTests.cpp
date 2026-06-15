@@ -440,8 +440,15 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
         TEXT("TransactionCodeMessageClass resolves to ULidarJsonLiveFrameTC"),
         Row->TransactionCodeMessageClass->IsChildOf(ULidarJsonLiveFrameTC::StaticClass()));
 
-    ULidarJsonLiveFrameTC* Handler = NewObject<ULidarJsonLiveFrameTC>(
-        GetTransientPackage(),
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    UTransactionCodeMessage* Handler = NewObject<UTransactionCodeMessage>(
+        World,
         Row->TransactionCodeMessageClass);
     TestNotNull(TEXT("Registered handler can be instantiated"), Handler);
     if (!Handler)
@@ -450,6 +457,45 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
     }
 
     TestEqual(TEXT("Registered handler transaction code"), Handler->TransactionCode, FString(TEXT("LIDAR_JSON_LIVE_FRAME")));
+
+    AActor* SourceOwner = World->SpawnActor<AActor>();
+    TestNotNull(TEXT("JSON live source owner"), SourceOwner);
+    if (!SourceOwner)
+    {
+        return false;
+    }
+
+    UVirtualLidarSensorComp* TargetLidar = NewObject<UVirtualLidarSensorComp>(SourceOwner);
+    ULidarJsonLiveSourceComp* JsonLiveSource = NewObject<ULidarJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("registered route target lidar"), TargetLidar);
+    TestNotNull(TEXT("registered route JSON live source"), JsonLiveSource);
+    if (!TargetLidar || !JsonLiveSource)
+    {
+        SourceOwner->Destroy();
+        return false;
+    }
+
+    SourceOwner->AddInstanceComponent(TargetLidar);
+    SourceOwner->AddInstanceComponent(JsonLiveSource);
+    TargetLidar->RegisterComponent();
+    JsonLiveSource->RegisterComponent();
+
+    JsonLiveSource->SourceId = TEXT("JsonLiveLidarBridge");
+    JsonLiveSource->TargetLidar = TargetLidar;
+    TargetLidar->SensorId = TEXT("TEST-LIDAR-DATATABLE-DISPATCH");
+
+    const FString Payload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"JsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":0,\"col\":0,\"returnIndex\":0,\"x\":900,\"y\":-260,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":0,\"col\":1,\"returnIndex\":0,\"x\":940,\"y\":-120,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+    const TSharedPtr<FTransactionCodeDataBase> ParsedData = Handler->ParseToStruct(Payload);
+    TestTrue(TEXT("registered handler parses sample payload through base class"), ParsedData.IsValid());
+    if (ParsedData.IsValid())
+    {
+        Handler->ProcessStructData(ParsedData);
+    }
+
+    TestEqual(TEXT("registered data-table handler pushes target LiDAR points"), TargetLidar->GetLastPoints().Num(), 2);
+    TestFalse(TEXT("registered data-table handler updates cached server payload"), TargetLidar->GetLastJsonPayload().IsEmpty());
+
+    SourceOwner->Destroy();
     return true;
 }
 

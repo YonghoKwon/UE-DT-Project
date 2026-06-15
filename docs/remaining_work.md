@@ -115,7 +115,8 @@ Current state:
 - `UEnsureLidarJsonLiveFrameTransactionCommandlet` can create or repair the
   project data-table row without modifying DTCore source.
 - `DT_TransactionCode.uasset` now contains the `LIDAR_JSON_LIVE_FRAME` row, and
-  local evidence automation has passed against that binary row.
+  local evidence automation has passed against that binary row and row-based
+  handler parse/process path.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -130,9 +131,11 @@ Current state:
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
-- Smoke-test the `LIDAR_JSON_LIVE_FRAME` route with the deployment WebSocket
+- Smoke-test the `LIDAR_JSON_LIVE_FRAME` route with the deployment STOMP/WebSocket
   broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
+- Add a GameInstance-backed brokerless PIE dispatch automation if external broker
+  access is not available in CI.
 - Wire HTTP or UDP listeners to `ULidarJsonLiveSourceComp` if WebSocket is not
   the selected live bridge shape.
 - Implement a ROS2 bridge adapter that converts incoming messages to
@@ -159,6 +162,9 @@ Completion evidence:
   `M7AT10.Evidence.WebSocketTransactionRegistration`.
 - Deployment broker smoke evidence shows the sample payload reaches
   `ULidarJsonLiveSourceComp` in PIE.
+- Brokerless dispatch automation, if added later, is not a replacement for
+  broker evidence; it does not validate endpoint, credentials, subscription, or
+  network receive.
 
 ### Server Payload Schema Approval
 

@@ -106,6 +106,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.Evidence.WebSocketTransactionRegistration"; Label = "Optional WebSocket data-table registration evidence test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "FindRow<FTransactionCodeStruct>"; Label = "Registration evidence test inspects DTCore data-table row" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "NewObject<UTransactionCodeMessage>"; Label = "Registration evidence test instantiates row handler through base class" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "registered data-table handler pushes target LiDAR points"; Label = "Registration evidence test dispatches to live source" },
     [PSCustomObject]@{ Path = $liveTcHeader; Pattern = "ULidarJsonLiveFrameTC"; Label = "JSON live transaction class" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "JSON live transaction code" },
     [PSCustomObject]@{ Path = $liveTcCpp; Pattern = "AppendJsonLines"; Label = "JSON live transaction appends lines" },
