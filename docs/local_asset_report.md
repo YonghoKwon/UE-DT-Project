@@ -171,9 +171,10 @@ they can be accepted.
 `Scripts/validate_local_asset_decision_evidence_workflow.ps1` builds a
 temporary git-backed project and verifies no-evidence, incomplete evidence,
 blank reviewer/date/source, blank item source, pending decision, normalized path, `KeepLocal`,
-generated-output override, complete accepted evidence, and Staged decision gate
-behavior. The Staged decision gate must fail for blocked decision paths and pass
-for paths that are `ReadyToStage` with complete accepted evidence.
+duplicate normalized evidence path rejection, generated-output override,
+complete accepted evidence, and Staged decision gate behavior. Duplicate normalized evidence paths are invalid because they can hide conflicting owner decisions.
+The Staged decision gate must fail for blocked decision paths and pass for paths
+that are `ReadyToStage` with complete accepted evidence.
 
 ## Recommended Workflow
 

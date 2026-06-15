@@ -93,7 +93,8 @@ Open decisions:
   Recorded evidence must name reviewer, date, and source. Each completed evidence item must also include a non-empty source. Generated output remains KeepLocal.
   `Scripts/validate_local_asset_decision_evidence_workflow.ps1` now verifies
   the evidence state machine, including the Staged decision gate for blocked and
-  evidence-ready decision paths.
+  evidence-ready decision paths. Duplicate normalized evidence paths are invalid
+  and fail before any owner decision is accepted.
   Large content decisions require owner/source/license, dependency, size, and
   storage/versioning evidence before staging. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups

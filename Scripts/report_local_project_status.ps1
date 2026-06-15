@@ -324,7 +324,11 @@ function Import-DecisionEvidence {
         if ([string]::IsNullOrWhiteSpace($decisionPath)) {
             continue
         }
-        $decisionsByPath[(Normalize-RepoPath $decisionPath)] = $decision
+        $normalizedDecisionPath = Normalize-RepoPath $decisionPath
+        if ($decisionsByPath.ContainsKey($normalizedDecisionPath)) {
+            throw "Duplicate decision evidence path after normalization: $decisionPath"
+        }
+        $decisionsByPath[$normalizedDecisionPath] = $decision
     }
 
     return [PSCustomObject]@{

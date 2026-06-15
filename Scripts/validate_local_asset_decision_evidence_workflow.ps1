@@ -298,6 +298,16 @@ try {
     Assert-Equal -Actual $slashPoint.EvidenceStatus -Expected "ReadyEvidenceAccepted" -Label "Normalized evidence path status"
     $results.Add([PSCustomObject]@{ Case = "NormalizedEvidencePath"; Path = "config/game.ini"; ReviewQueue = $slashPoint.ReviewQueue; EvidenceStatus = $slashPoint.EvidenceStatus }) | Out-Null
 
+    $duplicatePath = Join-Path $tempDir "duplicate-path.evidence.json"
+    New-EvidenceFile -Path $duplicatePath -Decisions @(
+        (New-DecisionEvidence -Point $configPoint -DecisionStatus "AcceptedForRepository"),
+        (New-DecisionEvidence -Point $configPoint -DecisionStatus "KeepLocal" -PathOverride "config/game.ini")
+    )
+    $duplicate = Invoke-AssetReport -ProjectRoot $tempDir -EvidencePath $duplicatePath
+    Assert-True -Value ($duplicate.ExitCode -ne 0) -Label "Duplicate normalized evidence path exits nonzero"
+    Assert-Contains -Text $duplicate.Output -Expected "Duplicate decision evidence path after normalization" -Label "Duplicate normalized evidence path message"
+    $results.Add([PSCustomObject]@{ Case = "DuplicateNormalizedEvidencePath"; Path = "Config/Game.ini + config/game.ini"; ReviewQueue = "failed"; EvidenceStatus = "duplicate rejected" }) | Out-Null
+
     $keepLocalPath = Join-Path $tempDir "keep-local.evidence.json"
     New-EvidenceFile -Path $keepLocalPath -Decisions @(
         (New-DecisionEvidence -Point $configPoint -DecisionStatus "KeepLocal" -IncompleteEvidenceNames @("Manual diff review") -IncludeAcceptance:$false)
