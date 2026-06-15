@@ -99,6 +99,11 @@ Open decisions:
   storage/versioning evidence before staging. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups
   paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues.
+- Runtime config validation now supports `-LocalProjectRoot` so the source repo
+  policy can inspect the real local Unreal project `Config/Game.ini`. The JSON
+  output includes `RecommendedDecision`; the current empty
+  `[DTCoreRuntimeOverride]` shape should remain `KeepLocal` unless a config
+  owner explicitly accepts blank shared defaults.
 
 Generated/local-output items are ignored by Git but still reported:
 

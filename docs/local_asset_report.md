@@ -207,3 +207,17 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnLargeContentCandidates
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnCategory LargeContentCandidate,SampleOrThirdParty
 ```
+
+Runtime config decisions can be checked against a separate local Unreal project
+root while keeping `ProjectRoot` pointed at the source repo docs and scripts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+```
+
+The runtime config report emits `RecommendedDecision`. Empty
+`[DTCoreRuntimeOverride]` values produce `KeepLocal` by default because blank
+local override placeholders are not useful shared project defaults unless a
+config owner explicitly accepts them.
