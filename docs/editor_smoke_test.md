@@ -179,6 +179,8 @@ target LiDAR handoff without sending to the judging server.
 HTTP, UDP, or Blueprint bridge prototypes can call
 `ULidarJsonLiveSourceComp::AppendLivePayloadJson` with the same payload shape,
 then call `PushFrameOnce(false)` for a no-transport local handoff check.
+`M7AT10.RealSensorSource.UdpJsonLiveBridgePayload` verifies that the optional
+UDP wrapper reuses this handoff path without opening a real test port.
 
 Brokerless DTCore dispatch automation:
 

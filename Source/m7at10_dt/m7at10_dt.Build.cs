@@ -29,7 +29,9 @@ public class m7at10_dt : ModuleRules
             "RHI",
             "ImageWrapper",
             "Json",
-            "ProceduralMeshComponent"
+            "ProceduralMeshComponent",
+            "Sockets",
+            "Networking"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });

@@ -130,6 +130,8 @@ Current state:
 - `ULidarJsonLiveSourceComp::AppendLivePayloadJson` provides a
   transport-neutral handoff for HTTP, UDP, or Blueprint bridges that already
   receive the shared JSON live payload shape.
+- `ULidarUdpJsonLiveSourceComp` provides an optional loopback-first UDP JSON
+  live bridge wrapper over the same handoff path.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
@@ -153,6 +155,8 @@ Next implementation steps:
   `-RunBrokerlessDTCoreDispatchAutomation` during deployment verification.
 - Decide ownership for actual HTTP or UDP listeners if WebSocket is not the
   selected live bridge shape.
+- Add UDP socket smoke evidence with a real local datagram once a test port
+  policy is chosen.
 - Implement a ROS2 bridge adapter that converts incoming messages to
   `FVirtualLidarPoint` frames or camera payloads.
 - Implement a Livox SDK adapter that normalizes packet streams into the same

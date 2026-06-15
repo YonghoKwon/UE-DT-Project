@@ -9,6 +9,7 @@
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLiveSourceComp.h"
+#include "m7at10_dt/M7AT10/Sensor/LidarUdpJsonLiveSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorAdapterStubs.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
@@ -27,6 +28,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSen
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "M7AT10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest, "M7AT10.Evidence.WebSocketTransactionRegistration", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -383,6 +385,57 @@ bool FRealSensorSourceJsonLiveBridgeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("missing target reports error"), MissingTargetLive->GetConnectionState(), ERealSensorSourceConnectionState::Error);
     TestEqual(TEXT("missing target preserves buffered line"), MissingTargetLive->PendingLineCount, 1);
 
+    return true;
+}
+
+bool FRealSensorSourceUdpJsonLiveBridgeTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    AActor* SourceOwner = World->SpawnActor<AActor>();
+    TestNotNull(TEXT("UDP JSON live source owner"), SourceOwner);
+    if (!SourceOwner)
+    {
+        return false;
+    }
+
+    UVirtualLidarSensorComp* TargetLidar = NewObject<UVirtualLidarSensorComp>(SourceOwner);
+    ULidarUdpJsonLiveSourceComp* UdpSource = NewObject<ULidarUdpJsonLiveSourceComp>(SourceOwner);
+    TestNotNull(TEXT("UDP JSON live target LiDAR"), TargetLidar);
+    TestNotNull(TEXT("UDP JSON live source"), UdpSource);
+    if (!TargetLidar || !UdpSource)
+    {
+        SourceOwner->Destroy();
+        return false;
+    }
+
+    SourceOwner->AddInstanceComponent(TargetLidar);
+    SourceOwner->AddInstanceComponent(UdpSource);
+    TargetLidar->bAutoStartScan = false;
+    TargetLidar->bAutoRegisterToManager = false;
+    TargetLidar->RegisterComponent();
+    UdpSource->RegisterComponent();
+
+    TargetLidar->SensorId = TEXT("TEST-LIDAR-UDP-JSON-LIVE");
+    UdpSource->TargetLidar = TargetLidar;
+    UdpSource->bAutoPushReceivedFrame = true;
+    UdpSource->bSendTransportForReceivedFrames = false;
+
+    const FString Payload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"UdpJsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":0,\"col\":0,\"x\":10,\"y\":20,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":0,\"col\":1,\"x\":30,\"y\":40,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
+    TestTrue(TEXT("UDP JSON live source processes shared payload"), UdpSource->ProcessUdpPayloadJson(Payload));
+    TestEqual(TEXT("UDP JSON live source frame id"), UdpSource->LastSourceFrameId, static_cast<int64>(1));
+    TestEqual(TEXT("UDP JSON live source point count"), UdpSource->LastSourcePointCount, 2);
+    TestEqual(TEXT("UDP JSON live target point count"), TargetLidar->GetLastPoints().Num(), 2);
+    TestEqual(TEXT("UDP JSON live buffer clears after push"), UdpSource->PendingLineCount, 0);
+
+    TestFalse(TEXT("UDP JSON live source rejects invalid payload"), UdpSource->ProcessUdpPayloadJson(TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"POINTS\":[]}}")));
+
+    SourceOwner->Destroy();
     return true;
 }
 

@@ -240,6 +240,12 @@ transport-neutral JSON live handoff entry point,
 UDP socket, or Blueprint bridge can feed the same sample payload without going
 through the WebSocket-specific function name.
 
+`ULidarUdpJsonLiveSourceComp` is the first optional UDP wrapper for that path.
+It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,
+marshals received datagrams back to the game thread, and feeds text payloads
+through `AppendLivePayloadJson` plus optional `PushFrameOnce`. Treat it as local
+bridge smoke coverage, not as deployment broker evidence.
+
 Supported CSV formats:
 
 ```text

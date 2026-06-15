@@ -49,6 +49,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "JSONL replay implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLinesReplaySourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h" },
     [PSCustomObject]@{ Label = "JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "UDP JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "UDP JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.cpp" },
     [PSCustomObject]@{ Label = "JSON live WebSocket transaction header"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h" },
     [PSCustomObject]@{ Label = "JSON live WebSocket transaction implementation"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp" },
     [PSCustomObject]@{ Label = "Editor module build file"; Path = "Source\m7at10_dtEditor\m7at10_dtEditor.Build.cs" },
@@ -75,6 +77,8 @@ $baseCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorSour
 $stubsHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.h"
 $stubsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
+$udpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h"
+$udpLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.cpp"
 $liveTcHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h"
 $liveTcCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
 $liveTcCommandletCpp = Join-Path $ProjectRoot "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp"
@@ -97,6 +101,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "PushBufferedFrameNoTransportInEditor"; Label = "JSON live editor push helper" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "AppendWebSocketPayload"; Label = "JSON live WebSocket payload append helper" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "ResolveSampleWebSocketPayloadPath"; Label = "JSON live sample path resolver" },
+    [PSCustomObject]@{ Path = $udpLiveHeader; Pattern = "ULidarUdpJsonLiveSourceComp"; Label = "UDP JSON live bridge class" },
+    [PSCustomObject]@{ Path = $udpLiveHeader; Pattern = "BindAddress"; Label = "UDP JSON live bind address setting" },
+    [PSCustomObject]@{ Path = $udpLiveHeader; Pattern = "bSendTransportForReceivedFrames"; Label = "UDP JSON live transport send guard" },
+    [PSCustomObject]@{ Path = $udpLiveCpp; Pattern = "FUdpSocketReceiver"; Label = "UDP JSON live receiver uses Unreal UDP receiver" },
+    [PSCustomObject]@{ Path = $udpLiveCpp; Pattern = "AsyncTask(ENamedThreads::GameThread"; Label = "UDP JSON live marshals datagrams to game thread" },
+    [PSCustomObject]@{ Path = $udpLiveCpp; Pattern = "AppendLivePayloadJson"; Label = "UDP JSON live reuses generic payload handoff" },
     [PSCustomObject]@{ Path = $baseCpp; Pattern = "InjectPointCloudFrame"; Label = "Target LiDAR injection" },
     [PSCustomObject]@{ Path = $baseCpp; Pattern = "MarkFramePushed"; Label = "Frame push status accounting" },
     [PSCustomObject]@{ Path = $stubsHeader; Pattern = "URos2SensorBridgeSourceComp"; Label = "ROS2 placeholder class" },
@@ -107,6 +117,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PlaceholderState"; Label = "Placeholder automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload"; Label = "UDP JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "generic live payload"; Label = "Generic live payload alias automation coverage" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionParse"; Label = "JSON live transaction automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
