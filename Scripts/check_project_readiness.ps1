@@ -20,6 +20,7 @@ param(
     [switch]$SkipWebSocketLidarLiveSample,
     [switch]$SkipWebSocketTransactionRegistrationReport,
     [switch]$SkipWebSocketBrokerSmokeReport,
+    [switch]$SkipWebSocketLidarSmokeEvidence,
     [switch]$SkipPointCloudPreviewPolicy,
     [switch]$SkipLazPlaceholderPolicy,
     [switch]$SkipMonitorWidgetPolicy,
@@ -73,6 +74,7 @@ $RealSensorAdapterPlanScript = Join-Path $ScriptRoot "validate_real_sensor_adapt
 $WebSocketLidarLiveSampleScript = Join-Path $ScriptRoot "validate_websocket_lidar_live_sample.ps1"
 $WebSocketTransactionRegistrationReportScript = Join-Path $ScriptRoot "export_websocket_transaction_registration_report.ps1"
 $WebSocketBrokerSmokeReportScript = Join-Path $ScriptRoot "export_websocket_broker_smoke_report.ps1"
+$WebSocketLidarSmokeEvidenceScript = Join-Path $ScriptRoot "run_websocket_lidar_smoke_evidence.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
@@ -106,6 +108,9 @@ if (-not (Test-Path -LiteralPath $WebSocketTransactionRegistrationReportScript))
 }
 if (-not (Test-Path -LiteralPath $WebSocketBrokerSmokeReportScript)) {
     throw "export_websocket_broker_smoke_report.ps1 not found: $WebSocketBrokerSmokeReportScript"
+}
+if (-not (Test-Path -LiteralPath $WebSocketLidarSmokeEvidenceScript)) {
+    throw "run_websocket_lidar_smoke_evidence.ps1 not found: $WebSocketLidarSmokeEvidenceScript"
 }
 if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
     throw "validate_point_cloud_preview_policy.ps1 not found: $PointCloudPreviewPolicyScript"
@@ -231,6 +236,17 @@ if (-not $SkipWebSocketBrokerSmokeReport) {
 else {
     Write-Host ""
     Write-Host "WebSocket broker smoke report skipped by -SkipWebSocketBrokerSmokeReport."
+}
+
+if (-not $SkipWebSocketLidarSmokeEvidence) {
+    Invoke-ScriptStep `
+        -Label "WebSocket LiDAR smoke evidence workflow" `
+        -ScriptPath $WebSocketLidarSmokeEvidenceScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot; ProjectPath = $ProjectPath; EngineRoot = $EngineRoot; NoWrite = $true }
+}
+else {
+    Write-Host ""
+    Write-Host "WebSocket LiDAR smoke evidence workflow skipped by -SkipWebSocketLidarSmokeEvidence."
 }
 
 if (-not $SkipPointCloudPreviewPolicy) {

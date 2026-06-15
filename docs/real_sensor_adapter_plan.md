@@ -219,11 +219,17 @@ Record deployment broker smoke evidence with:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -NoWrite
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -NoWrite
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -RunCommandletDryRun -RunEvidenceAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name"
 ```
 
 This report validates local prerequisites and records operator observations. It
 does not connect to the broker by itself and should not be treated as STOMP
 network proof unless the observation flags are backed by a real PIE run.
+The wrapper runs the sample validator, registration checklist, optional row
+commandlet dry run, optional evidence automation, and broker smoke report in a
+consistent order. Its default mode is read-only: Unreal commandlets, automation,
+and report writes are opt-in.
 
 Supported CSV formats:
 

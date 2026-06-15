@@ -62,6 +62,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "WebSocket JSON live LiDAR sample validator"; Path = "Scripts\validate_websocket_lidar_live_sample.ps1" },
     [PSCustomObject]@{ Label = "WebSocket transaction registration report exporter"; Path = "Scripts\export_websocket_transaction_registration_report.ps1" },
     [PSCustomObject]@{ Label = "WebSocket broker smoke report exporter"; Path = "Scripts\export_websocket_broker_smoke_report.ps1" },
+    [PSCustomObject]@{ Label = "WebSocket LiDAR smoke evidence workflow"; Path = "Scripts\run_websocket_lidar_smoke_evidence.ps1" },
     [PSCustomObject]@{ Label = "Adapter plan document"; Path = "docs\real_sensor_adapter_plan.md" }
 )
 
@@ -84,6 +85,7 @@ $webSocketSample = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_fra
 $webSocketSampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_lidar_live_sample.ps1"
 $webSocketRegistrationReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_transaction_registration_report.ps1"
 $webSocketBrokerSmokeReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_broker_smoke_report.ps1"
+$webSocketSmokeEvidenceWorkflow = Join-Path $ProjectRoot "Scripts\run_websocket_lidar_smoke_evidence.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 
 $requiredTexts = @(
@@ -129,6 +131,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "ObservedSourceFrame"; Label = "Broker smoke report records source frame observation" },
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "DoesNotConnectToBroker"; Label = "Broker smoke report states it does not fake broker connectivity" },
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "NoWrite"; Label = "Broker smoke report read-only mode" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunEvidenceAutomation"; Label = "Smoke evidence workflow can run registration automation" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunCommandletDryRun"; Label = "Smoke evidence workflow commandlet dry run is opt-in" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "EnsureLidarJsonLiveFrameTransaction"; Label = "Smoke evidence workflow can dry-run row commandlet" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "WriteReports"; Label = "Smoke evidence workflow report writing is opt-in" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "ExternalBrokerStillRequired"; Label = "Smoke evidence workflow separates broker completion" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "PushPointFrameToTarget"; Label = "Plan documents normalized handoff" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ULidarJsonLiveSourceComp"; Label = "Plan documents JSON live bridge" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "Plan documents JSON live transaction code" },
@@ -165,6 +172,7 @@ $report = [PSCustomObject]@{
         JsonLiveWebSocketSamplePresent = $true
         JsonLiveRegistrationReportPresent = $true
         JsonLiveBrokerSmokeReportPresent = $true
+        JsonLiveSmokeEvidenceWorkflowPresent = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
@@ -189,6 +197,7 @@ else {
     Write-Host "JSON live WebSocket sample present: $($report.Summary.JsonLiveWebSocketSamplePresent)"
     Write-Host "JSON live registration report present: $($report.Summary.JsonLiveRegistrationReportPresent)"
     Write-Host "JSON live broker smoke report present: $($report.Summary.JsonLiveBrokerSmokeReportPresent)"
+    Write-Host "JSON live smoke evidence workflow present: $($report.Summary.JsonLiveSmokeEvidenceWorkflowPresent)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"
