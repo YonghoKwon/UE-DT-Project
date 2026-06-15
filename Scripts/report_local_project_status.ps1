@@ -132,6 +132,29 @@ function Test-PathIsUnderDecisionPoint {
     return $false
 }
 
+function Test-PathIsAllowedCommitCandidate {
+    param([string]$RepoPath)
+
+    $normalizedRepoPath = Normalize-RepoPath $RepoPath
+    $extension = [System.IO.Path]::GetExtension($normalizedRepoPath).ToLowerInvariant()
+    if ($normalizedRepoPath.StartsWith("source/") -and $extension -in @(".h", ".cpp", ".cs")) {
+        return $true
+    }
+    if ($normalizedRepoPath.StartsWith("scripts/") -and $extension -eq ".ps1") {
+        return $true
+    }
+    if ($normalizedRepoPath.StartsWith("docs/") -and $extension -eq ".md") {
+        return $true
+    }
+    if ($normalizedRepoPath.StartsWith("samples/payload_fixtures/") -and $extension -eq ".json") {
+        return $true
+    }
+    if ($normalizedRepoPath.StartsWith("samples/") -and $extension -in @(".csv", ".jsonl")) {
+        return $true
+    }
+    return $false
+}
+
 function Get-DecisionPointNote {
     param(
         [string]$RelativePath,
@@ -256,6 +279,13 @@ try {
     $unclassifiedUntrackedPaths = @(
         $untrackedGitPaths |
             Where-Object { -not (Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $decisionRelativePaths) } |
+            Where-Object { -not (Test-PathIsAllowedCommitCandidate -RepoPath $_) } |
+            Sort-Object
+    )
+    $allowedCommitCandidatePaths = @(
+        $untrackedGitPaths |
+            Where-Object { -not (Test-PathIsUnderDecisionPoint -RepoPath $_ -DecisionPaths $decisionRelativePaths) } |
+            Where-Object { Test-PathIsAllowedCommitCandidate -RepoPath $_ } |
             Sort-Object
     )
     $stagedGitPaths = @(
@@ -313,6 +343,7 @@ try {
         RecentCommits = @(git log --oneline -3)
         GitStatus = @(git status --short)
         UntrackedGitPaths = $untrackedGitPaths
+        AllowedCommitCandidatePaths = $allowedCommitCandidatePaths
         UnclassifiedUntrackedPaths = $unclassifiedUntrackedPaths
         StagedGitPaths = $stagedGitPaths
         StagedDecisionPaths = $stagedDecisionPaths
@@ -322,6 +353,7 @@ try {
             PresentDecisionPoints = $presentCount
             GeneratedOrLocalOutputItemsPresent = $generatedCount
             HasGeneratedOutput = ($generatedCount -gt 0)
+            AllowedCommitCandidateCount = $allowedCommitCandidatePaths.Count
             UnclassifiedUntrackedCount = $unclassifiedUntrackedPaths.Count
             HasUnclassifiedUntracked = ($unclassifiedUntrackedPaths.Count -gt 0)
             StagedDecisionPointCount = $stagedDecisionPaths.Count
@@ -382,12 +414,19 @@ try {
         Write-Section "Asset decision summary"
         Write-Host "Present decision points: $($report.Summary.PresentDecisionPoints)"
         Write-Host "Generated/local-output items present: $($report.Summary.GeneratedOrLocalOutputItemsPresent)"
+        Write-Host "Allowed code/doc commit candidates: $($report.Summary.AllowedCommitCandidateCount)"
         Write-Host "Unclassified untracked paths: $($report.Summary.UnclassifiedUntrackedCount)"
         Write-Host "Staged decision-point paths: $($report.Summary.StagedDecisionPointCount)"
         foreach ($category in ($presentCategoryCounts.Keys | Sort-Object)) {
             Write-Host "Present $category items: $($presentCategoryCounts[$category])"
         }
         Write-Host "Default action: $($report.Summary.DefaultAction)"
+
+        if ($allowedCommitCandidatePaths.Count -gt 0) {
+            Write-Section "Allowed code/doc commit candidates"
+            $allowedCommitCandidatePaths | ForEach-Object { Write-Host $_ }
+            Write-Host "Recommendation: review and stage these only when they belong to the current code/documentation change."
+        }
 
         if ($unclassifiedUntrackedPaths.Count -gt 0) {
             Write-Section "Unclassified untracked paths"

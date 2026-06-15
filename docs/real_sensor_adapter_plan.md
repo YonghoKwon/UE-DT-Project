@@ -27,6 +27,7 @@ Current concrete/placeholder components:
 ```text
 ULidarCsvReplaySourceComp
 ULidarJsonLinesReplaySourceComp
+ULidarJsonLiveSourceComp
 URos2SensorBridgeSourceComp
 ULivoxLidarSourceComp
 URealSenseCameraSourceComp
@@ -107,11 +108,19 @@ Purpose:
 ```text
 CSV point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
 JSONL point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
+Buffered JSON live lines -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
 ```
 
-This allows saved measurement data to enter the same LiDAR payload, recorder, transport, preview, and Slab analysis path as a virtual scan.
+This allows saved or bridge-fed measurement data to enter the same LiDAR payload, recorder, transport, preview, and Slab analysis path as a virtual scan.
 
-`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarSensorComp::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent.
+`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, WebSocket, HTTP, UDP, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarSensorComp::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent.
+
+`ULidarJsonLiveSourceComp` is the first live bridge step. It does not open a
+socket by itself; instead, a DTCore WebSocket route, HTTP handler, UDP listener,
+or Blueprint integration can append one JSON point per line with
+`AppendJsonLine`/`AppendJsonLines`, then call `PushFrameOnce`. The pushed frame
+uses the same payload, transport, recorder, preview, and Slab analysis path as
+file replay and virtual scans.
 
 Supported CSV formats:
 
@@ -141,6 +150,13 @@ Recommended use:
 3. Set `ReplaySemanticLabel = Slab` for Slab angle tests.
 4. Call `PushFrameOnce`, or enable `bAutoStartReplay`.
 
+Recommended live bridge use:
+
+1. Add `ULidarJsonLiveSourceComp` to the same actor as a `UVirtualLidarSensorComp`, or set `TargetLidar` manually.
+2. Call `StartSource` when the external bridge is ready.
+3. Append incoming JSON point lines until one sensor frame is buffered.
+4. Call `PushFrameOnce` to inject the frame and optionally send transport.
+
 Included sample:
 
 ```text
@@ -161,6 +177,7 @@ Regression coverage:
 
 ```text
 M7AT10.RealSensorSource.PushFrameToTarget
+M7AT10.RealSensorSource.JsonLiveBridgePushFrame
 ```
 
 Static readiness coverage:

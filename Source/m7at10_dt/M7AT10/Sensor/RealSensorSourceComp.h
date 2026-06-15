@@ -11,6 +11,7 @@ UENUM(BlueprintType)
 enum class ERealSensorSourceKind : uint8
 {
     FileReplay UMETA(DisplayName = "File Replay"),
+    JsonLiveBridge UMETA(DisplayName = "JSON Live Bridge"),
     Ros2Bridge UMETA(DisplayName = "ROS2 Bridge"),
     LivoxLidar UMETA(DisplayName = "Livox LiDAR"),
     RealSenseCamera UMETA(DisplayName = "RealSense Camera"),

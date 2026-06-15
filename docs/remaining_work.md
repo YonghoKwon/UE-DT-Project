@@ -94,6 +94,9 @@ Current state:
 
 - `URos2SensorBridgeSourceComp`, `ULivoxLidarSourceComp`, and
   `URealSenseCameraSourceComp` are placeholders.
+- `ULidarJsonLiveSourceComp` accepts buffered JSON point lines from a future
+  WebSocket/HTTP/UDP/Blueprint bridge and pushes them through the normalized
+  LiDAR handoff path.
 - They expose configuration/state but do not connect to real SDKs or bridges.
 - `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
   placeholder adapters, sample files, handoff API text, automation test names,
@@ -102,6 +105,8 @@ Current state:
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
+- Wire `ULidarJsonLiveSourceComp` to an actual DTCore WebSocket, HTTP, or UDP
+  listener when the deployment bridge shape is selected.
 - Implement a ROS2 bridge adapter that converts incoming messages to
   `FVirtualLidarPoint` frames or camera payloads.
 - Implement a Livox SDK adapter that normalizes packet streams into the same
