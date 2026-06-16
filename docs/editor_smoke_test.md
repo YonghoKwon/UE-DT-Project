@@ -256,6 +256,18 @@ The CSV preview actor exposes `GetLastPreviewTelemetryText()` plus
 `LastParseDurationMs`, `LastBuildDurationMs`, and `LastLoadDurationMs` so
 headless runs can distinguish renderer counts from observational timing data.
 
+After the headless CSV preview automation run, export the latest local telemetry
+evidence:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -MarkdownPath ".\Saved\Reports\csv_preview_performance.md" -JsonPath ".\Saved\Reports\csv_preview_performance.json"
+```
+
+This report proves the current CPU preview fallback telemetry was emitted from
+the automation log. It does not replace the future GPU/Niagara viewport smoke
+evidence.
+
 Manual PIE payload checks:
 
 - In local monitor capture mode, confirm that a failed or skipped camera

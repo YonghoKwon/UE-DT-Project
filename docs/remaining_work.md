@@ -380,6 +380,11 @@ Current state:
   250,000-point procedural CSV preview load in headless automation with a
   generous regression guard while treating timing values as observational
   telemetry.
+- `Scripts/export_csv_preview_performance_report.ps1` reads the latest Unreal
+  automation log and exports the CSV preview telemetry for the instanced,
+  120,000-point procedural, and 250,000-point procedural budget scenarios.
+  This gives the CPU fallback path repeatable dense-frame evidence before the
+  GPU/Niagara renderer decision is made.
 
 Next implementation steps:
 
@@ -397,6 +402,8 @@ Completion evidence:
   `Automation RunTests M7AT10.Sensor.CsvPointCloudPreview`.
 - CSV preview telemetry distinguishes parse/build/load timings from renderer
   counts and confirms the active CPU preview path.
+- CSV preview performance evidence exports from the local automation log:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
 

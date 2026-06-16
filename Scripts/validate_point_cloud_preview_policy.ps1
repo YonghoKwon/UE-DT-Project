@@ -69,8 +69,10 @@ $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $rendererDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
+$csvPreviewPerformanceReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
 
 Assert-FileExists -Path $rendererDecisionReportScript -Label "Point cloud renderer decision report script"
+Assert-FileExists -Path $csvPreviewPerformanceReportScript -Label "CSV preview performance report script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ServerPayloadStride"; Label = "Server payload stride policy" },
@@ -104,10 +106,15 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "MaxPreviewPoints = 5000"; Label = "Smoke doc preview max recommendation" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Large Point Cloud Renderer"; Label = "Remaining work tracks high-density renderer" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Remaining work documents renderer decision report" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Remaining work documents CSV preview performance report" },
+    [PSCustomObject]@{ Path = $smokeDoc; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Smoke doc documents CSV preview performance report" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Niagara point renderer"; Label = "Renderer report includes Niagara path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Custom GPU buffer renderer"; Label = "Renderer report includes custom GPU path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "External viewer workflow"; Label = "Renderer report includes external viewer path" },
-    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Keep CPU ISM fallback"; Label = "Renderer report keeps CPU fallback" }
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Keep CPU ISM fallback"; Label = "Renderer report keeps CPU fallback" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -139,6 +146,7 @@ $report = [PSCustomObject]@{
         RendererDecisionReportDeclared = $true
         ProceduralCsvPreviewCoverageDeclared = $true
         ProceduralCsvPreviewTelemetryDeclared = $true
+        CsvPreviewPerformanceReportDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -158,5 +166,6 @@ else {
     Write-Host "Renderer decision report declared: $($report.Summary.RendererDecisionReportDeclared)"
     Write-Host "Procedural CSV preview coverage declared: $($report.Summary.ProceduralCsvPreviewCoverageDeclared)"
     Write-Host "Procedural CSV preview telemetry declared: $($report.Summary.ProceduralCsvPreviewTelemetryDeclared)"
+    Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

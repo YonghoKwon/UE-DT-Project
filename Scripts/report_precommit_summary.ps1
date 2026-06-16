@@ -131,9 +131,9 @@ $workAreas = @(
         -Remaining "Actual SDK/ROS2/Livox/RealSense connections, completed deployment STOMP/WebSocket broker PIE smoke evidence, HTTP/UDP deployment exposure and credential decisions, selected production adapter priority, and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
-        -Percent 47 `
-        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows." `
-        -Remaining "GPU/Niagara or another high-density renderer selection, implementation, viewport smoke evidence, and dense-frame performance validation remain."),
+        -Percent 51 `
+        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, exportable CSV preview performance evidence from Unreal automation logs, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows." `
+        -Remaining "GPU/Niagara or another high-density renderer selection, implementation, viewport smoke evidence, and renderer-specific dense-frame performance validation remain."),
     (New-WorkArea `
         -Name "LAZ export" `
         -Percent 35 `
