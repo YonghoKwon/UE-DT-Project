@@ -64,13 +64,23 @@ Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision r
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ExportLastPointCloudLaz"; Label = "LAZ export API remains explicit" },
+    [PSCustomObject]@{ Path = $lidarHeader; Pattern = "bUseExternalLazCompressor"; Label = "External compressor opt-in setting exists" },
+    [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ExternalLazCompressorArguments"; Label = "External compressor argument template exists" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "LAZ compression is not integrated"; Label = "Runtime warning states LAZ is not integrated" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "RunExternalLazCompressor"; Label = "External compressor helper exists" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "ExecProcess"; Label = "External compressor uses explicit process execution" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = 'BuildExportPath(TEXT("laz"), FileNamePrefix)'; Label = "External compressor writes distinct laz output path" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = 'Arguments.Contains(TEXT("{input}"))'; Label = "External compressor requires input placeholder" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = 'Arguments.Contains(TEXT("{output}"))'; Label = "External compressor requires output placeholder" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "OutputSize <= 0"; Label = "External compressor rejects empty LAZ output" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "_laz_source"; Label = "Placeholder uses laz_source prefix" },
-    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "ExportLastPointCloudLas(Prefix)"; Label = "Placeholder writes LAS-compatible source" },
-    [PSCustomObject]@{ Path = $monitorHeader; Pattern = "LAS-compatible source file"; Label = "Monitor setting comments clarify LAZ placeholder" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "ExportLastPointCloudLasToPath"; Label = "Placeholder writes LAS-compatible source" },
+    [PSCustomObject]@{ Path = $monitorHeader; Pattern = "external compressor"; Label = "Monitor setting comments clarify external compressor opt-in" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "ExportLastPointCloudLaz"; Label = "Monitor routes LAZ option through placeholder API" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "M7AT10.SensorReplay.LazPlaceholderWritesLasSource"; Label = "LAZ placeholder automation test name" },
+    [PSCustomObject]@{ Path = $replayTests; Pattern = "M7AT10.SensorReplay.LazExternalCompressorMissingFails"; Label = "Missing external compressor automation test name" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "does not create compressed .laz files"; Label = "Automation asserts no compressed LAZ output" },
+    [PSCustomObject]@{ Path = $replayTests; Pattern = "missing external compressor does not create .laz files"; Label = "Automation asserts missing compressor creates no LAZ" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "_laz_source_"; Label = "Automation checks laz_source LAS output" },
     [PSCustomObject]@{ Path = $schemaDoc; Pattern = 'does not pretend to create a compressed `.laz` file'; Label = "Schema doc clarifies placeholder" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "True LAZ Compression"; Label = "Remaining work tracks true LAZ" },
@@ -107,6 +117,7 @@ $report = [PSCustomObject]@{
         PlaceholderIsExplicit = $true
         WritesLasSourceOnly = $true
         AutomationCoverageDeclared = $true
+        ExternalCompressorOptInDeclared = $true
         DecisionReportDeclared = $true
         TrueCompressionStillOpen = $true
         Valid = $true
@@ -123,6 +134,7 @@ else {
     Write-Host "Placeholder is explicit: $($report.Summary.PlaceholderIsExplicit)"
     Write-Host "Writes LAS source only: $($report.Summary.WritesLasSourceOnly)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
+    Write-Host "External compressor opt-in declared: $($report.Summary.ExternalCompressorOptInDeclared)"
     Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
     Write-Host "True compression still open: $($report.Summary.TrueCompressionStillOpen)"
 }

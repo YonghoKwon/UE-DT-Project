@@ -68,6 +68,9 @@ function Write-MarkdownReport {
     $lines += ""
     $lines += "- Placeholder explicit: $($Report.Summary.PlaceholderExplicit)"
     $lines += "- Writes LAS source only: $($Report.Summary.WritesLasSourceOnly)"
+    $lines += "- External compressor opt-in implemented: $($Report.Summary.ExternalCompressorOptInImplemented)"
+    $lines += "- External compressor contract hardened: $($Report.Summary.ExternalCompressorContractHardened)"
+    $lines += "- Missing-compressor guard covered: $($Report.Summary.MissingCompressorGuardCovered)"
     $lines += "- Automation coverage declared: $($Report.Summary.AutomationCoverageDeclared)"
     $lines += "- True compression integrated: $($Report.Summary.TrueCompressionIntegrated)"
     $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
@@ -119,9 +122,19 @@ foreach ($file in @(
 $placeholderExplicit = (Test-ContainsText -Path $lidarCpp -Pattern "LAZ compression is not integrated") -and
     (Test-ContainsText -Path $remainingDoc -Pattern "intentionally a placeholder")
 $writesLasSourceOnly = (Test-ContainsText -Path $lidarCpp -Pattern "_laz_source") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "ExportLastPointCloudLas(Prefix)")
+    (Test-ContainsText -Path $lidarCpp -Pattern "ExportLastPointCloudLasToPath")
+$externalCompressorOptInImplemented = (Test-ContainsText -Path $lidarHeader -Pattern "bUseExternalLazCompressor") -and
+    (Test-ContainsText -Path $lidarHeader -Pattern "ExternalLazCompressorArguments") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "RunExternalLazCompressor") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "ExecProcess")
+$externalCompressorContractHardened = (Test-ContainsText -Path $lidarCpp -Pattern 'Arguments.Contains(TEXT("{input}"))') -and
+    (Test-ContainsText -Path $lidarCpp -Pattern 'Arguments.Contains(TEXT("{output}"))') -and
+    (Test-ContainsText -Path $lidarCpp -Pattern 'BuildExportPath(TEXT("laz"), FileNamePrefix)') -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "OutputSize <= 0")
 $automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazPlaceholderWritesLasSource") -and
     (Test-ContainsText -Path $replayTests -Pattern "does not create compressed .laz files")
+$missingCompressorGuardCovered = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazExternalCompressorMissingFails") -and
+    (Test-ContainsText -Path $replayTests -Pattern "missing external compressor does not create .laz files")
 $trueCompressionIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern ".laz output is actually compressed") -or
     (Test-ContainsText -Path $replayTests -Pattern "CompressedLaz")
 
@@ -174,17 +187,20 @@ $report = [PSCustomObject]@{
     Summary = [PSCustomObject]@{
         PlaceholderExplicit = $placeholderExplicit
         WritesLasSourceOnly = $writesLasSourceOnly
+        ExternalCompressorOptInImplemented = $externalCompressorOptInImplemented
+        ExternalCompressorContractHardened = $externalCompressorContractHardened
+        MissingCompressorGuardCovered = $missingCompressorGuardCovered
         AutomationCoverageDeclared = $automationCoverageDeclared
         TrueCompressionIntegrated = $trueCompressionIntegrated
         CandidatePathCount = $candidatePaths.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
-        RecommendedNextDecision = "Choose NativeLibrary, ExternalCli, or ServerPostProcess before replacing placeholder behavior."
-        Valid = ($placeholderExplicit -and $writesLasSourceOnly -and $automationCoverageDeclared -and -not $trueCompressionIntegrated)
+        RecommendedNextDecision = "Configure and verify an accepted external compressor, or choose NativeLibrary/ServerPostProcess before claiming true LAZ."
+        Valid = ($placeholderExplicit -and $writesLasSourceOnly -and $externalCompressorOptInImplemented -and $externalCompressorContractHardened -and $missingCompressorGuardCovered -and $automationCoverageDeclared -and -not $trueCompressionIntegrated)
     }
 }
 
 if (-not $report.Summary.Valid) {
-    throw "LAZ decision report invariants failed. PlaceholderExplicit=$placeholderExplicit WritesLasSourceOnly=$writesLasSourceOnly AutomationCoverageDeclared=$automationCoverageDeclared TrueCompressionIntegrated=$trueCompressionIntegrated"
+    throw "LAZ decision report invariants failed. PlaceholderExplicit=$placeholderExplicit WritesLasSourceOnly=$writesLasSourceOnly ExternalCompressorOptIn=$externalCompressorOptInImplemented ExternalCompressorContractHardened=$externalCompressorContractHardened MissingCompressorGuard=$missingCompressorGuardCovered AutomationCoverageDeclared=$automationCoverageDeclared TrueCompressionIntegrated=$trueCompressionIntegrated"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($JsonPath)) {
@@ -204,6 +220,9 @@ else {
     Write-Host "Acceptance evidence items: $($report.Summary.AcceptanceEvidenceCount)"
     Write-Host "Placeholder explicit: $($report.Summary.PlaceholderExplicit)"
     Write-Host "Writes LAS source only: $($report.Summary.WritesLasSourceOnly)"
+    Write-Host "External compressor opt-in implemented: $($report.Summary.ExternalCompressorOptInImplemented)"
+    Write-Host "External compressor contract hardened: $($report.Summary.ExternalCompressorContractHardened)"
+    Write-Host "Missing-compressor guard covered: $($report.Summary.MissingCompressorGuardCovered)"
     Write-Host "True compression integrated: $($report.Summary.TrueCompressionIntegrated)"
     Write-Host "Recommended next decision: $($report.Summary.RecommendedNextDecision)"
 }

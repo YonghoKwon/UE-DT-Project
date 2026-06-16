@@ -203,6 +203,22 @@ remaining compressor decision. The report keeps the current placeholder evidence
 separate from the future acceptance evidence for a native library, external CLI,
 or server/post-processing LAZ path.
 
+`ExportLastPointCloudLaz()` also supports an opt-in external compressor path via
+`bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and
+`ExternalLazCompressorArguments`. The component first writes the LAS source and
+then invokes the configured executable with `{input}` and `{output}` tokens. The
+export is considered successful only when the process exits cleanly and the
+expected `.laz` file exists with nonzero size.
+
+LAZ export states:
+
+- Disabled compressor: writes `*_laz_source_*.las`, logs the placeholder warning,
+  and returns success for the LAS source export.
+- Enabled compressor with a missing executable or invalid argument template:
+  writes the LAS source, creates no `.laz`, logs a warning, and returns failure.
+- Enabled compressor with a valid executable: writes the LAS source, writes a
+  separate `*.laz` output path, and returns success only after the output exists.
+
 Static placeholder readiness:
 
 ```powershell

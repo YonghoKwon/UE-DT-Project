@@ -7,6 +7,7 @@
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "HAL/PlatformProcess.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Json.h"
@@ -665,11 +666,15 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudPcd(const FString& FileNamePre
 
 bool UVirtualLidarSensorComp::ExportLastPointCloudLas(const FString& FileNamePrefix) const
 {
+    return ExportLastPointCloudLasToPath(BuildExportPath(TEXT("las"), FileNamePrefix));
+}
+
+bool UVirtualLidarSensorComp::ExportLastPointCloudLasToPath(const FString& Path) const
+{
     TArray<const FVirtualLidarPoint*> Points; CollectExportPoints(Points); if (Points.Num() <= 0) return false;
     FVector Min(FLT_MAX), Max(-FLT_MAX); for (const FVirtualLidarPoint* P : Points) if (P) { Min.X = FMath::Min(Min.X, P->WorldLocation.X); Min.Y = FMath::Min(Min.Y, P->WorldLocation.Y); Min.Z = FMath::Min(Min.Z, P->WorldLocation.Z); Max.X = FMath::Max(Max.X, P->WorldLocation.X); Max.Y = FMath::Max(Max.Y, P->WorldLocation.Y); Max.Z = FMath::Max(Max.Z, P->WorldLocation.Z); }
     const double Scale = 0.001, CmToM = 0.01, OX = Min.X * CmToM, OY = Min.Y * CmToM, OZ = Min.Z * CmToM; FBufferArchive A; const uint8 Sig[4] = {'L','A','S','F'}; WriteLasBytes(A, Sig, 4); WriteLasValue<uint16>(A,0); WriteLasValue<uint16>(A,0); WriteLasValue<uint32>(A,0); WriteLasValue<uint16>(A,0); WriteLasValue<uint16>(A,0); for(int32 i=0;i<8;++i) WriteLasValue<uint8>(A,0); WriteLasValue<uint8>(A,1); WriteLasValue<uint8>(A,2); WriteLasFixedString(A,"UE-DT-Project",32); WriteLasFixedString(A,"VirtualLidar",32); const FDateTime Now = FDateTime::Now(); WriteLasValue<uint16>(A,(uint16)Now.GetDayOfYear()); WriteLasValue<uint16>(A,(uint16)Now.GetYear()); WriteLasValue<uint16>(A,227); WriteLasValue<uint32>(A,227); WriteLasValue<uint32>(A,0); WriteLasValue<uint8>(A,0); WriteLasValue<uint16>(A,20); WriteLasValue<uint32>(A,(uint32)Points.Num()); WriteLasValue<uint32>(A,(uint32)Points.Num()); for(int32 i=1;i<5;++i) WriteLasValue<uint32>(A,0); WriteLasValue<double>(A,Scale); WriteLasValue<double>(A,Scale); WriteLasValue<double>(A,Scale); WriteLasValue<double>(A,OX); WriteLasValue<double>(A,OY); WriteLasValue<double>(A,OZ); WriteLasValue<double>(A,Max.X*CmToM); WriteLasValue<double>(A,Min.X*CmToM); WriteLasValue<double>(A,Max.Y*CmToM); WriteLasValue<double>(A,Min.Y*CmToM); WriteLasValue<double>(A,Max.Z*CmToM); WriteLasValue<double>(A,Min.Z*CmToM);
     for (const FVirtualLidarPoint* P : Points) if (P) { const int32 X=(int32)FMath::RoundToDouble(((P->WorldLocation.X*CmToM)-OX)/Scale); const int32 Y=(int32)FMath::RoundToDouble(((P->WorldLocation.Y*CmToM)-OY)/Scale); const int32 Z=(int32)FMath::RoundToDouble(((P->WorldLocation.Z*CmToM)-OZ)/Scale); WriteLasValue<int32>(A,X); WriteLasValue<int32>(A,Y); WriteLasValue<int32>(A,Z); WriteLasValue<uint16>(A,ClampDistanceToIntensity(P->Distance,MaxDistance)); WriteLasValue<uint8>(A,1); WriteLasValue<uint8>(A,1); WriteLasValue<int8>(A,0); WriteLasValue<uint8>(A,0); WriteLasValue<uint16>(A,0); }
-    const FString Path = BuildExportPath(TEXT("las"), FileNamePrefix);
     const bool bFileSaved = FFileHelper::SaveArrayToFile(A, *Path);
     if (bFileSaved)
     {
@@ -682,11 +687,68 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudLas(const FString& FileNamePre
     return bFileSaved;
 }
 
+bool UVirtualLidarSensorComp::RunExternalLazCompressor(const FString& LasSourcePath, const FString& LazOutputPath) const
+{
+    if (!bUseExternalLazCompressor)
+    {
+        return false;
+    }
+    if (ExternalLazCompressorPath.IsEmpty() || !FPaths::FileExists(ExternalLazCompressorPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor is enabled but executable is missing: %s"), *SensorId, *ExternalLazCompressorPath);
+        return false;
+    }
+
+    FString Arguments = ExternalLazCompressorArguments.IsEmpty()
+        ? TEXT("-i {input} -o {output}")
+        : ExternalLazCompressorArguments;
+    if (!Arguments.Contains(TEXT("{input}")) || !Arguments.Contains(TEXT("{output}")))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor arguments must include both {input} and {output}: %s"), *SensorId, *Arguments);
+        return false;
+    }
+    if (FPaths::ConvertRelativePathToFull(LasSourcePath) == FPaths::ConvertRelativePathToFull(LazOutputPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ output path must differ from LAS source path: %s"), *SensorId, *LazOutputPath);
+        return false;
+    }
+    Arguments.ReplaceInline(TEXT("{input}"), *FString::Printf(TEXT("\"%s\""), *LasSourcePath));
+    Arguments.ReplaceInline(TEXT("{output}"), *FString::Printf(TEXT("\"%s\""), *LazOutputPath));
+
+    int32 ReturnCode = INDEX_NONE;
+    FString StdOut;
+    FString StdErr;
+    UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] Running external LAZ compressor: %s %s"), *SensorId, *ExternalLazCompressorPath, *Arguments);
+    const bool bProcessRan = FPlatformProcess::ExecProcess(*ExternalLazCompressorPath, *Arguments, &ReturnCode, &StdOut, &StdErr);
+    const bool bOutputExists = FPaths::FileExists(LazOutputPath);
+    const int64 OutputSize = bOutputExists ? IFileManager::Get().FileSize(*LazOutputPath) : 0;
+    if (!bProcessRan || ReturnCode != 0 || !bOutputExists || OutputSize <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor failed. ran=%s code=%d outputExists=%s outputSize=%lld stdout=%s stderr=%s"), *SensorId, bProcessRan ? TEXT("true") : TEXT("false"), ReturnCode, bOutputExists ? TEXT("true") : TEXT("false"), OutputSize, *StdOut, *StdErr);
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] LAZ saved: %s source=%s"), *SensorId, *LazOutputPath, *LasSourcePath);
+    return true;
+}
+
 bool UVirtualLidarSensorComp::ExportLastPointCloudLaz(const FString& FileNamePrefix) const
 {
     const FString Prefix = FileNamePrefix.IsEmpty() ? TEXT("laz_source") : FileNamePrefix + TEXT("_laz_source");
-    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] LAZ compression is not integrated. Writing LAS-compatible source file with prefix '%s'."), *SensorId, *Prefix);
-    return ExportLastPointCloudLas(Prefix);
+    const FString LasSourcePath = BuildExportPath(TEXT("las"), Prefix);
+    if (!ExportLastPointCloudLasToPath(LasSourcePath))
+    {
+        return false;
+    }
+
+    if (!bUseExternalLazCompressor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] LAZ compression is not integrated. Writing LAS-compatible source file with prefix '%s'."), *SensorId, *Prefix);
+        return true;
+    }
+
+    const FString LazOutputPath = BuildExportPath(TEXT("laz"), FileNamePrefix);
+    return RunExternalLazCompressor(LasSourcePath, LazOutputPath);
 }
 bool UVirtualLidarSensorComp::ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix) const { const bool A = ExportLastPointCloudCsv(FileNamePrefix); const bool B = ExportLastPointCloudLas(FileNamePrefix); const bool C = ExportLastPointCloudLaz(FileNamePrefix); return A || B || C; }
 

@@ -318,6 +318,13 @@ Current state:
 
 - `ExportLastPointCloudLaz()` is intentionally a placeholder.
 - It writes a LAS-compatible `*_laz_source_*.las` file and logs a warning.
+- An opt-in external compressor path is available through
+  `bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and
+  `ExternalLazCompressorArguments`. The default remains the safe LAS source
+  placeholder until a compressor is configured and verified.
+- The external compressor path requires `{input}` and `{output}` tokens, writes
+  a separate `.laz` output path, and fails if the configured process does not
+  create a non-empty output file.
 - `Scripts/validate_laz_placeholder_policy.ps1` checks that code, docs, monitor
   settings, and automation continue to describe this as a placeholder until true
   LAZ compression is integrated.
@@ -329,14 +336,19 @@ Current state:
 Next implementation steps:
 
 - Decide whether true LAZ is required for this project.
-- Choose an integration path such as a supported native library, external tool,
-  or post-processing workflow.
-- Keep current warning behavior until a real compressor is integrated.
+- Choose whether the external compressor path is sufficient, or whether a native
+  library / server-side post-processing workflow is required.
+- Configure an accepted compressor executable and argument template, then
+  validate readable `.laz` output.
+- Keep current warning behavior until a real compressor is configured and
+  verified.
 
 Completion evidence:
 
 - `.laz` output is actually compressed and readable by a known point-cloud tool.
 - Automation verifies `.laz` creation separately from LAS source export.
+- Missing-compressor guard passes:
+  `M7AT10.SensorReplay.LazExternalCompressorMissingFails`.
 - Static placeholder readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"`.
 

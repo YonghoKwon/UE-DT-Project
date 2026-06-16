@@ -17,6 +17,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadGridCoordTest, "M7AT10.Senso
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.SensorReplay.TransportSaveToFilePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPerformanceWarningTest, "M7AT10.SensorReplay.PerformanceWarningStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazPlaceholderExportTest, "M7AT10.SensorReplay.LazPlaceholderWritesLasSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazExternalCompressorMissingTest, "M7AT10.SensorReplay.LazExternalCompressorMissingFails", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
 {
@@ -413,6 +414,59 @@ bool FLidarLazPlaceholderExportTest::RunTest(const FString& Parameters)
 
     TestEqual(TEXT("LAZ placeholder creates one LAS source file"), MatchingLasSourceCount, 1);
     TestEqual(TEXT("LAZ placeholder does not create compressed .laz files"), LazFiles.Num(), 0);
+    return true;
+}
+
+bool FLidarLazExternalCompressorMissingTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!ReplayComp || !LidarComp)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before missing external compressor export"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-LAZ-MISSING-COMPRESSOR");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->bUseExternalLazCompressor = true;
+    LidarComp->ExternalLazCompressorPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Automation"), TEXT("missing_laz_compressor.exe"));
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    const FString Prefix = TEXT("automation_laz_missing_external");
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), LidarComp->SensorId, TEXT("PointCloud"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    IFileManager::Get().DeleteDirectory(*Directory, false, true);
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    TestFalse(TEXT("missing external compressor makes LAZ export fail"), LidarComp->ExportLastPointCloudLaz(Prefix));
+
+    TArray<FString> LasSourceFiles;
+    IFileManager::Get().FindFiles(LasSourceFiles, *Directory, TEXT("las"));
+    int32 MatchingLasSourceCount = 0;
+    for (const FString& FileName : LasSourceFiles)
+    {
+        if (FileName.StartsWith(Prefix + TEXT("_laz_source_")) && FileName.EndsWith(TEXT(".las")))
+        {
+            ++MatchingLasSourceCount;
+        }
+    }
+
+    TArray<FString> LazFiles;
+    IFileManager::Get().FindFiles(LazFiles, *Directory, TEXT("laz"));
+
+    TestEqual(TEXT("missing external compressor still leaves one LAS source"), MatchingLasSourceCount, 1);
+    TestEqual(TEXT("missing external compressor does not create .laz files"), LazFiles.Num(), 0);
     return true;
 }
 

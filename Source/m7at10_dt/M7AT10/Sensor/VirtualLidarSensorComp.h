@@ -310,6 +310,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export")
     bool bExportHitOnlyPointCloud = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool bUseExternalLazCompressor = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export|LAZ", meta = (EditCondition = "bUseExternalLazCompressor", FilePathFilter = "exe"))
+    FString ExternalLazCompressorPath;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Export|LAZ", meta = (EditCondition = "bUseExternalLazCompressor"))
+    FString ExternalLazCompressorArguments = TEXT("-i {input} -o {output}");
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Filter")
     TArray<FName> IgnoreActorTags;
 
@@ -353,6 +362,8 @@ private:
     void TryAutoRegisterToManager();
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
+    bool ExportLastPointCloudLasToPath(const FString& Path) const;
+    bool RunExternalLazCompressor(const FString& LasSourcePath, const FString& LazOutputPath) const;
     UInstancedStaticMeshComponent* EnsurePointCloudPreviewComponent();
     void RefreshPointCloudPreview();
     void CollectExportPoints(TArray<const FVirtualLidarPoint*>& OutExportPoints) const;

@@ -290,7 +290,7 @@ private:
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
     bool bLocalCaptureSaveLidarLas = false;
 
-    // Writes an LAS-compatible source file with the suffix .laz_source.las until a true LAZ compressor is integrated.
+    // Writes a LAS-compatible source by default; can produce LAZ only when the selected LiDAR has an external compressor configured.
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
     bool bLocalCaptureSaveLidarLaz = false;
 
