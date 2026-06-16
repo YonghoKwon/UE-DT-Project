@@ -96,6 +96,17 @@ Replay tests:
 
 `M7AT10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorDataTransportComp` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
 
+Outbound transport tests:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorTransport; Quit" -TestExit="Automation Test Queue Empty"
+```
+
+`M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies the outbound
+judging-server `HttpPost` path against a localhost mock route, including sensor
+headers, JSON content type, `virtual-lidar.v1` body identity, 2xx acceptance,
+non-2xx rejection, status code, and response body capture.
+
 Recorder save/load tests:
 
 ```powershell

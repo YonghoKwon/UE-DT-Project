@@ -46,8 +46,9 @@ $transportSource = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Virtua
 $transportDoc = Join-Path $ProjectRoot "docs\server_transport_contract.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
+$transportTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\VirtualSensorDataTransportAutomationTests.cpp"
 
-$requiredFiles = @($transportHeader, $transportSource, $transportDoc, $remainingWorkDoc, $editorSmokeDoc)
+$requiredFiles = @($transportHeader, $transportSource, $transportDoc, $remainingWorkDoc, $editorSmokeDoc, $transportTests)
 foreach ($file in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $file)) {
         throw "Required server transport contract file not found: $file"
@@ -77,9 +78,16 @@ $checks = @(
     (New-Check -Path $transportDoc -Pattern "Batching policy for high-frequency LiDAR frames" -Label "Batching decision documented"),
     (New-Check -Path $transportDoc -Pattern "Backpressure behavior" -Label "Backpressure decision documented"),
     (New-Check -Path $transportDoc -Pattern "SaveToFile" -Label "SaveToFile review path documented"),
+    (New-Check -Path $transportDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Transport doc references HTTP POST loopback automation"),
     (New-Check -Path $remainingWorkDoc -Pattern "server transport contract" -Label "Remaining work references transport contract"),
     (New-Check -Path $remainingWorkDoc -Pattern "validate_server_transport_contract.ps1" -Label "Remaining work references transport gate"),
-    (New-Check -Path $editorSmokeDoc -Pattern "SharedSensorTransport.TransportMode = LogOnly" -Label "Smoke test safe transport default documented")
+    (New-Check -Path $remainingWorkDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Remaining work references HTTP POST loopback automation"),
+    (New-Check -Path $editorSmokeDoc -Pattern "SharedSensorTransport.TransportMode = LogOnly" -Label "Smoke test safe transport default documented"),
+    (New-Check -Path $editorSmokeDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Smoke doc references HTTP POST loopback automation"),
+    (New-Check -Path $transportTests -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "HTTP POST loopback automation test name"),
+    (New-Check -Path $transportTests -Pattern "Response->Code = bAcceptedByMockJudge ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest" -Label "HTTP POST loopback covers 2xx and 4xx"),
+    (New-Check -Path $transportTests -Pattern "HTTP 202 callback accepted" -Label "HTTP POST loopback asserts 2xx accepted"),
+    (New-Check -Path $transportTests -Pattern "HTTP 400 callback not accepted" -Label "HTTP POST loopback asserts 4xx rejected")
 )
 
 foreach ($check in $checks) {
@@ -96,6 +104,7 @@ $report = [PSCustomObject]@{
         HttpPostShapeDocumented = $true
         HttpCallbackSafetyDocumented = $true
         HttpAcceptanceSeparated = $true
+        HttpPostLoopbackAutomationDeclared = $true
         OpenServerTransportDecisionsDocumented = $true
         SafeEditorDefaultDocumented = $true
         Valid = $true
@@ -112,6 +121,7 @@ else {
     Write-Host "HTTP POST shape documented: $($report.Summary.HttpPostShapeDocumented)"
     Write-Host "HTTP callback safety documented: $($report.Summary.HttpCallbackSafetyDocumented)"
     Write-Host "HTTP acceptance separated: $($report.Summary.HttpAcceptanceSeparated)"
+    Write-Host "HTTP POST loopback automation declared: $($report.Summary.HttpPostLoopbackAutomationDeclared)"
     Write-Host "Open server transport decisions documented: $($report.Summary.OpenServerTransportDecisionsDocumented)"
     Write-Host "Safe editor default documented: $($report.Summary.SafeEditorDefaultDocumented)"
 }

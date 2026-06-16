@@ -284,6 +284,10 @@ Current state:
   sync with the current DT-Project code.
 - HTTP transport now uses a weak callback target, captures response body text,
   and separates request submission from 2xx server acceptance with `bAccepted`.
+- `M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies outbound
+  `HttpPost` against a local mock judging-server route, including POST shape,
+  JSON content type, sensor headers, `virtual-lidar.v1` body identity, 2xx
+  acceptance, non-2xx rejection, status code, and response body capture.
 - The readiness wrapper runs both fixture validation and mock contract
   validation before smoke tests unless those gates are explicitly skipped, and
   now also runs the schema review policy and server transport contract gates.
@@ -296,8 +300,8 @@ Next implementation steps:
   compression/transport requirements with the judging server.
 - Decide final transport endpoint, authentication, retry, batching, and
   backpressure behavior with the judging-server team.
-- Add a real or local mock HTTP endpoint acceptance test once the expected
-  response schema is available.
+- Replace the local mock HTTP endpoint acceptance test with real judging-server
+  acceptance evidence once the expected response schema is available.
 - Add a fixture-based payload contract test if the server contract becomes
   stable.
 
@@ -307,6 +311,8 @@ Completion evidence:
 - Contract tests validate required fields.
 - Transport mode can produce payloads accepted by the server or the local mock
   contract validator.
+- Outbound local mock transport acceptance passes:
+  `M7AT10.SensorTransport.HttpPostLoopbackAcceptance`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"`.
 - Server transport readiness passes:

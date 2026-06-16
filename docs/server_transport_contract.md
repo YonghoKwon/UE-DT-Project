@@ -46,6 +46,19 @@ The async callback uses a weak component pointer before updating `LastResult` or
 broadcasting `OnDataSent`, so an HTTP response arriving after component teardown
 does not dereference a destroyed component.
 
+Local outbound transport evidence:
+
+```text
+M7AT10.SensorTransport.HttpPostLoopbackAcceptance
+```
+
+This automation starts a localhost mock judging-server route with Unreal
+`HTTPServer`, sends payloads through `UVirtualSensorDataTransportComp` in
+`HttpPost` mode, verifies `POST`, `Content-Type: application/json`,
+`X-Sensor-Id`, `X-Sensor-Type`, and `virtual-lidar.v1` body identity, then
+checks that HTTP 202 sets `bAccepted=true` while HTTP 400 preserves the response
+body and sets `bAccepted=false`.
+
 Current implementation file:
 
 ```text

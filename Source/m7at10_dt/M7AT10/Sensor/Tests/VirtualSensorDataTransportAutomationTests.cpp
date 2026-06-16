@@ -1,0 +1,281 @@
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "HttpModule.h"
+#include "HttpManager.h"
+#include "HttpPath.h"
+#include "HttpServerModule.h"
+#include "HttpServerRequest.h"
+#include "HttpServerResponse.h"
+#include "IHttpRouter.h"
+#include "Containers/StringConv.h"
+#include "Interfaces/IPv4/IPv4Address.h"
+#include "Misc/AutomationTest.h"
+#include "Misc/Guid.h"
+#include "SocketSubsystem.h"
+#include "Sockets.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorTransportHttpPostLoopbackTest, "M7AT10.SensorTransport.HttpPostLoopbackAcceptance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+namespace
+{
+FString GetFirstHeaderValue(const FHttpServerRequest& Request, const FString& HeaderName)
+{
+    const TArray<FString>* Values = Request.Headers.Find(HeaderName);
+    if (!Values || Values->Num() <= 0)
+    {
+        return FString();
+    }
+    return (*Values)[0];
+}
+
+int32 FindFreeLoopbackTcpPort()
+{
+    FSocket* ProbeSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("M7AT10_TransportHttpProbe"), false);
+    if (!ProbeSocket)
+    {
+        return 0;
+    }
+
+    int32 FreePort = 0;
+    TSharedRef<FInternetAddr> Address = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+    Address->SetIp(FIPv4Address(127, 0, 0, 1).Value);
+    Address->SetPort(0);
+
+    if (ProbeSocket->Bind(*Address))
+    {
+        TSharedRef<FInternetAddr> BoundAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+        ProbeSocket->GetAddress(*BoundAddress);
+        FreePort = BoundAddress->GetPort();
+    }
+
+    ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ProbeSocket);
+    return FreePort;
+}
+}
+
+class FTransportHttpPostLoopbackCommand : public IAutomationLatentCommand
+{
+public:
+    explicit FTransportHttpPostLoopbackCommand(FAutomationTestBase* InTest)
+        : Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!Test)
+        {
+            return true;
+        }
+
+        FHttpModule::Get().GetHttpManager().Tick(0.0f);
+
+        if (StartTimeSeconds <= 0.0)
+        {
+            StartTimeSeconds = FPlatformTime::Seconds();
+            return Setup();
+        }
+
+        if (Phase == EPhase::SendAccept)
+        {
+            return SendAcceptRequest();
+        }
+
+        if (Phase == EPhase::WaitAccept)
+        {
+            if (Transport.IsValid() && Transport->LastResult.HttpStatusCode == 202)
+            {
+                const FVirtualSensorTransportResult& Result = Transport->LastResult;
+                Test->TestTrue(TEXT("HTTP 202 callback submitted"), Result.bSubmitted);
+                Test->TestTrue(TEXT("HTTP 202 callback accepted"), Result.bAccepted);
+                Test->TestEqual(TEXT("HTTP 202 status code"), Result.HttpStatusCode, 202);
+                Test->TestTrue(TEXT("HTTP 202 response body captured"), Result.ResponseBody.Contains(TEXT("\"accepted\":true")));
+                Test->TestTrue(TEXT("HTTP 202 response contract captured"), Result.ResponseBody.Contains(TEXT("mock-judging-server.v1")));
+                Test->TestEqual(TEXT("HTTP 202 data length preserved"), Result.DataLength, AcceptPayload.Len());
+                Phase = EPhase::SendReject;
+                return false;
+            }
+        }
+
+        if (Phase == EPhase::SendReject)
+        {
+            return SendRejectRequest();
+        }
+
+        if (Phase == EPhase::WaitReject)
+        {
+            if (Transport.IsValid() && Transport->LastResult.HttpStatusCode == 400)
+            {
+                const FVirtualSensorTransportResult& Result = Transport->LastResult;
+                Test->TestTrue(TEXT("HTTP 400 callback submitted"), Result.bSubmitted);
+                Test->TestFalse(TEXT("HTTP 400 callback not accepted"), Result.bAccepted);
+                Test->TestEqual(TEXT("HTTP 400 status code"), Result.HttpStatusCode, 400);
+                Test->TestTrue(TEXT("HTTP 400 response body captured"), Result.ResponseBody.Contains(TEXT("\"accepted\":false")));
+                Test->TestEqual(TEXT("HTTP 400 data length preserved"), Result.DataLength, RejectPayload.Len());
+                Test->TestEqual(TEXT("loopback server received two requests"), ReceivedRequestCount, 2);
+                Test->TestEqual(TEXT("loopback server validated both request header sets"), ValidHeaderRequestCount, 2);
+                Test->TestEqual(TEXT("loopback server validated both schema identities"), ValidSchemaRequestCount, 2);
+                Cleanup();
+                return true;
+            }
+        }
+
+        if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
+        {
+            Test->AddError(FString::Printf(TEXT("HTTP transport loopback timed out. phase=%d status=%d requests=%d"),
+                static_cast<int32>(Phase),
+                Transport.IsValid() ? Transport->LastResult.HttpStatusCode : -1,
+                ReceivedRequestCount));
+            Cleanup();
+            return true;
+        }
+
+        return false;
+    }
+
+private:
+    enum class EPhase : uint8
+    {
+        Setup,
+        SendAccept,
+        WaitAccept,
+        SendReject,
+        WaitReject
+    };
+
+    bool Setup()
+    {
+        const int32 FreePort = FindFreeLoopbackTcpPort();
+        Test->TestTrue(TEXT("transport loopback found a free TCP port"), FreePort > 0);
+        if (FreePort <= 0)
+        {
+            return true;
+        }
+
+        RoutePath = FString::Printf(TEXT("/m7at10/transport/%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
+        Router = FHttpServerModule::Get().GetHttpRouter(static_cast<uint32>(FreePort), true);
+        Test->TestTrue(TEXT("transport loopback router created"), Router.IsValid());
+        if (!Router.IsValid())
+        {
+            return true;
+        }
+
+        RouteHandle = Router->BindRoute(
+            FHttpPath(RoutePath),
+            EHttpServerRequestVerbs::VERB_POST,
+            [this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+            {
+                ++ReceivedRequestCount;
+                const FUTF8ToTCHAR Converter(reinterpret_cast<const ANSICHAR*>(Request.Body.GetData()), Request.Body.Num());
+                const FString RequestBody(Converter.Length(), Converter.Get());
+                const bool bAccept = RequestBody.Contains(TEXT("\"accept\":true"));
+                const bool bHeadersValid =
+                    GetFirstHeaderValue(Request, TEXT("Content-Type")).Contains(TEXT("application/json")) &&
+                    GetFirstHeaderValue(Request, TEXT("X-Sensor-Id")) == TEXT("TEST-LIDAR-HTTP-TRANSPORT") &&
+                    GetFirstHeaderValue(Request, TEXT("X-Sensor-Type")) == TEXT("virtual_lidar");
+                const bool bSchemaValid = RequestBody.Contains(TEXT("\"schemaVersion\":\"virtual-lidar.v1\""));
+                if (bHeadersValid)
+                {
+                    ++ValidHeaderRequestCount;
+                }
+                if (bSchemaValid)
+                {
+                    ++ValidSchemaRequestCount;
+                }
+                const bool bAcceptedByMockJudge = bAccept && bHeadersValid && bSchemaValid;
+                const FString ResponseJson = bAccept
+                    ? TEXT("{\"accepted\":true,\"contract\":\"mock-judging-server.v1\",\"message\":\"accepted by loopback\"}")
+                    : TEXT("{\"accepted\":false,\"message\":\"rejected by loopback\"}");
+                TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(ResponseJson, TEXT("application/json"));
+                Response->Code = bAcceptedByMockJudge ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest;
+                OnComplete(MoveTemp(Response));
+                return true;
+            });
+
+        Test->TestTrue(TEXT("transport loopback route bound"), RouteHandle.IsValid());
+        if (!RouteHandle.IsValid())
+        {
+            Cleanup();
+            return true;
+        }
+
+        FHttpServerModule::Get().StartAllListeners();
+
+        Transport = NewObject<UVirtualSensorDataTransportComp>();
+        Test->TestNotNull(TEXT("transport component"), Transport.Get());
+        if (!Transport.IsValid())
+        {
+            Cleanup();
+            return true;
+        }
+        Transport->AddToRoot();
+
+        Transport->TransportMode = EVirtualSensorTransportMode::HttpPost;
+        Transport->HttpEndpoint = FString::Printf(TEXT("http://127.0.0.1:%d%s"), FreePort, *RoutePath);
+        Transport->HttpTimeoutSeconds = 5;
+        Transport->bLogHttpResponse = false;
+        Phase = EPhase::SendAccept;
+        return false;
+    }
+
+    bool SendAcceptRequest()
+    {
+        AcceptPayload = TEXT("{\"accept\":true,\"schemaVersion\":\"virtual-lidar.v1\"}");
+        const FVirtualSensorTransportResult InitialResult = Transport->SendJson(TEXT("TEST-LIDAR-HTTP-TRANSPORT"), TEXT("virtual_lidar"), AcceptPayload);
+        Test->TestTrue(TEXT("HTTP 202 request submitted immediately"), InitialResult.bSubmitted);
+        Test->TestFalse(TEXT("HTTP 202 request not accepted before callback"), InitialResult.bAccepted);
+        Test->TestEqual(TEXT("HTTP 202 initial data length"), InitialResult.DataLength, AcceptPayload.Len());
+        Phase = EPhase::WaitAccept;
+        return false;
+    }
+
+    bool SendRejectRequest()
+    {
+        RejectPayload = TEXT("{\"accept\":false,\"schemaVersion\":\"virtual-lidar.v1\"}");
+        const FVirtualSensorTransportResult InitialResult = Transport->SendJson(TEXT("TEST-LIDAR-HTTP-TRANSPORT"), TEXT("virtual_lidar"), RejectPayload);
+        Test->TestTrue(TEXT("HTTP 400 request submitted immediately"), InitialResult.bSubmitted);
+        Test->TestFalse(TEXT("HTTP 400 request not accepted before callback"), InitialResult.bAccepted);
+        Test->TestEqual(TEXT("HTTP 400 initial data length"), InitialResult.DataLength, RejectPayload.Len());
+        Phase = EPhase::WaitReject;
+        return false;
+    }
+
+    void Cleanup()
+    {
+        if (Router.IsValid() && RouteHandle.IsValid())
+        {
+            Router->UnbindRoute(RouteHandle);
+        }
+        RouteHandle.Reset();
+        Router.Reset();
+        if (Transport.IsValid())
+        {
+            Transport->RemoveFromRoot();
+        }
+        Transport.Reset();
+    }
+
+private:
+    FAutomationTestBase* Test = nullptr;
+    double StartTimeSeconds = 0.0;
+    static constexpr double TimeoutSeconds = 8.0;
+    EPhase Phase = EPhase::Setup;
+    int32 ReceivedRequestCount = 0;
+    int32 ValidHeaderRequestCount = 0;
+    int32 ValidSchemaRequestCount = 0;
+    FString RoutePath;
+    FString AcceptPayload;
+    FString RejectPayload;
+    TSharedPtr<IHttpRouter> Router;
+    FHttpRouteHandle RouteHandle;
+    TWeakObjectPtr<UVirtualSensorDataTransportComp> Transport;
+};
+
+bool FVirtualSensorTransportHttpPostLoopbackTest::RunTest(const FString& Parameters)
+{
+    ADD_LATENT_AUTOMATION_COMMAND(FTransportHttpPostLoopbackCommand(this));
+    return true;
+}
+
+#endif
