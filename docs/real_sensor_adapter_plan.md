@@ -258,6 +258,20 @@ commandlet dry run, optional evidence automation, optional brokerless dispatch
 automation, and broker smoke report in a consistent order. Its default mode is
 read-only: Unreal commandlets, automation, and report writes are opt-in.
 
+Export a consolidated real-sensor readiness report when you need to review the
+current adapter evidence without running deployment smoke:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -Json
+```
+
+The report reuses the static adapter-plan validator, WebSocket sample validator,
+transaction registration report, and broker smoke report in read-only mode. It
+separates implemented bridge evidence from deployment broker smoke and actual
+ROS2/Livox/RealSense SDK integration, which still require real endpoint or
+device evidence.
+
 The DT-Project side now owns conservative HTTP and UDP listener wrappers over
 the transport-neutral JSON live handoff entry point,
 `ULidarJsonLiveSourceComp::AppendLivePayloadJson`. Both wrappers feed the same

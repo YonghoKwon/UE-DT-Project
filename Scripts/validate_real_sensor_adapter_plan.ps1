@@ -69,6 +69,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "WebSocket transaction registration report exporter"; Path = "Scripts\export_websocket_transaction_registration_report.ps1" },
     [PSCustomObject]@{ Label = "WebSocket broker smoke report exporter"; Path = "Scripts\export_websocket_broker_smoke_report.ps1" },
     [PSCustomObject]@{ Label = "WebSocket LiDAR smoke evidence workflow"; Path = "Scripts\run_websocket_lidar_smoke_evidence.ps1" },
+    [PSCustomObject]@{ Label = "Real sensor adapter readiness report exporter"; Path = "Scripts\export_real_sensor_adapter_readiness_report.ps1" },
     [PSCustomObject]@{ Label = "Adapter plan document"; Path = "docs\real_sensor_adapter_plan.md" }
 )
 
@@ -100,6 +101,7 @@ $webSocketSampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_l
 $webSocketRegistrationReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_transaction_registration_report.ps1"
 $webSocketBrokerSmokeReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_broker_smoke_report.ps1"
 $webSocketSmokeEvidenceWorkflow = Join-Path $ProjectRoot "Scripts\run_websocket_lidar_smoke_evidence.ps1"
+$realSensorReadinessReportExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_readiness_report.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 
 $requiredTexts = @(
@@ -227,6 +229,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $planDoc; Pattern = "DefaultBindAddress"; Label = "Plan documents HTTPServer default bind override" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ListenerOverrides"; Label = "Plan documents HTTPServer listener override" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "BindAddress=any"; Label = "Plan documents HTTPServer all-interface override" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "Real sensor adapter readiness report"; Label = "Real sensor readiness report exporter exists" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentEvidenceStillRequired"; Label = "Readiness report separates deployment evidence gap" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "RealSdkIntegrationStillRequired"; Label = "Readiness report separates SDK integration gap" },
+    [PSCustomObject]@{ Path = $planDoc; Pattern = "export_real_sensor_adapter_readiness_report.ps1"; Label = "Plan documents real sensor readiness report" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "DefaultBindAddress"; Label = "Transport contract documents HTTPServer default bind override" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "ListenerOverrides"; Label = "Transport contract documents HTTPServer listener override" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "BindAddress=any"; Label = "Transport contract documents HTTPServer all-interface override" },
@@ -265,6 +271,7 @@ $report = [PSCustomObject]@{
         JsonLiveRegistrationReportPresent = $true
         JsonLiveBrokerSmokeReportPresent = $true
         JsonLiveSmokeEvidenceWorkflowPresent = $true
+        RealSensorReadinessReportPresent = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
@@ -296,6 +303,7 @@ else {
     Write-Host "JSON live registration report present: $($report.Summary.JsonLiveRegistrationReportPresent)"
     Write-Host "JSON live broker smoke report present: $($report.Summary.JsonLiveBrokerSmokeReportPresent)"
     Write-Host "JSON live smoke evidence workflow present: $($report.Summary.JsonLiveSmokeEvidenceWorkflowPresent)"
+    Write-Host "Real sensor readiness report present: $($report.Summary.RealSensorReadinessReportPresent)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"
