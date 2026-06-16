@@ -136,9 +136,9 @@ $workAreas = @(
         -Remaining "GPU/Niagara or another high-density renderer selection, implementation, viewport smoke evidence, and renderer-specific dense-frame performance validation remain."),
     (New-WorkArea `
         -Name "LAZ export" `
-        -Percent 35 `
-        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation." `
-        -Remaining "Accepted compressor/tool selection, readable `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
+        -Percent 45 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation." `
+        -Remaining "Accepted compressor/tool selection, readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
 )
 
 $overallPercent = [int][Math]::Round((($workAreas | Measure-Object -Property Percent -Average).Average), 0)

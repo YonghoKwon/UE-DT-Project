@@ -707,28 +707,32 @@ bool UVirtualLidarSensorComp::RunExternalLazCompressor(const FString& LasSourceP
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor arguments must include both {input} and {output}: %s"), *SensorId, *Arguments);
         return false;
     }
-    if (FPaths::ConvertRelativePathToFull(LasSourcePath) == FPaths::ConvertRelativePathToFull(LazOutputPath))
+    FString FullLasSourcePath = FPaths::ConvertRelativePathToFull(LasSourcePath);
+    FString FullLazOutputPath = FPaths::ConvertRelativePathToFull(LazOutputPath);
+    FPaths::MakePlatformFilename(FullLasSourcePath);
+    FPaths::MakePlatformFilename(FullLazOutputPath);
+    if (FullLasSourcePath == FullLazOutputPath)
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ output path must differ from LAS source path: %s"), *SensorId, *LazOutputPath);
         return false;
     }
-    Arguments.ReplaceInline(TEXT("{input}"), *FString::Printf(TEXT("\"%s\""), *LasSourcePath));
-    Arguments.ReplaceInline(TEXT("{output}"), *FString::Printf(TEXT("\"%s\""), *LazOutputPath));
+    Arguments.ReplaceInline(TEXT("{input}"), *FString::Printf(TEXT("\"%s\""), *FullLasSourcePath));
+    Arguments.ReplaceInline(TEXT("{output}"), *FString::Printf(TEXT("\"%s\""), *FullLazOutputPath));
 
     int32 ReturnCode = INDEX_NONE;
     FString StdOut;
     FString StdErr;
     UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] Running external LAZ compressor: %s %s"), *SensorId, *ExternalLazCompressorPath, *Arguments);
     const bool bProcessRan = FPlatformProcess::ExecProcess(*ExternalLazCompressorPath, *Arguments, &ReturnCode, &StdOut, &StdErr);
-    const bool bOutputExists = FPaths::FileExists(LazOutputPath);
-    const int64 OutputSize = bOutputExists ? IFileManager::Get().FileSize(*LazOutputPath) : 0;
+    const bool bOutputExists = FPaths::FileExists(FullLazOutputPath);
+    const int64 OutputSize = bOutputExists ? IFileManager::Get().FileSize(*FullLazOutputPath) : 0;
     if (!bProcessRan || ReturnCode != 0 || !bOutputExists || OutputSize <= 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor failed. ran=%s code=%d outputExists=%s outputSize=%lld stdout=%s stderr=%s"), *SensorId, bProcessRan ? TEXT("true") : TEXT("false"), ReturnCode, bOutputExists ? TEXT("true") : TEXT("false"), OutputSize, *StdOut, *StdErr);
         return false;
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] LAZ saved: %s source=%s"), *SensorId, *LazOutputPath, *LasSourcePath);
+    UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] LAZ saved: %s source=%s"), *SensorId, *FullLazOutputPath, *FullLasSourcePath);
     return true;
 }
 

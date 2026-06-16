@@ -325,6 +325,10 @@ Current state:
 - The external compressor path requires `{input}` and `{output}` tokens, writes
   a separate `.laz` output path, and fails if the configured process does not
   create a non-empty output file.
+- `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput` covers the
+  positive external process path with a local copy-command surrogate. This proves the
+  `{input}`/`{output}` process contract and output-file validation, not true LAZ
+  compression.
 - `Scripts/validate_laz_placeholder_policy.ps1` checks that code, docs, monitor
   settings, and automation continue to describe this as a placeholder until true
   LAZ compression is integrated.
@@ -349,6 +353,8 @@ Completion evidence:
 - Automation verifies `.laz` creation separately from LAS source export.
 - Missing-compressor guard passes:
   `M7AT10.SensorReplay.LazExternalCompressorMissingFails`.
+- External process success guard passes:
+  `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput`.
 - Static placeholder readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"`.
 

@@ -189,6 +189,7 @@ Regression coverage:
 M7AT10.SensorReplay.PayloadPolicyJson
 M7AT10.SensorReplay.PayloadPreservesGridCoord
 M7AT10.SensorReplay.LazPlaceholderWritesLasSource
+M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput
 M7AT10.SensorReplay.TransportSaveToFilePayload
 M7AT10.SensorReplay.PerformanceWarningStatus
 ```
@@ -197,6 +198,10 @@ This test verifies that `points[]` follows `payloadPolicy`, while runtime previe
 `M7AT10.SensorReplay.TransportSaveToFilePayload` verifies that replay-injected LiDAR frames can be submitted through `UVirtualSensorDataTransportComp` in `SaveToFile` mode, that a JSON file is written under the configured save directory, and that the saved file matches `GetLastJsonPayload()`.
 `M7AT10.SensorReplay.PerformanceWarningStatus` verifies that FullSpec, multi-hit, export-on-scan, and uncapped preview warnings are surfaced through runtime status.
 The LAZ placeholder test verifies that `ExportLastPointCloudLaz()` writes a `*_laz_source_*.las` source file and does not pretend to create a compressed `.laz` file.
+`M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput` verifies the external
+compressor process contract with a local copy-command surrogate. It proves the
+`{input}`/`{output}` path and non-empty `.laz` output checks, not true
+compression.
 
 Use `Scripts/export_laz_compression_decision_report.ps1` to summarize the
 remaining compressor decision. The report keeps the current placeholder evidence
@@ -207,8 +212,9 @@ or server/post-processing LAZ path.
 `bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and
 `ExternalLazCompressorArguments`. The component first writes the LAS source and
 then invokes the configured executable with `{input}` and `{output}` tokens. The
-export is considered successful only when the process exits cleanly and the
-expected `.laz` file exists with nonzero size.
+tokens are expanded to absolute, platform-native file paths. The export is
+considered successful only when the process exits cleanly and the expected
+`.laz` file exists with nonzero size.
 
 LAZ export states:
 
@@ -218,6 +224,8 @@ LAZ export states:
   writes the LAS source, creates no `.laz`, logs a warning, and returns failure.
 - Enabled compressor with a valid executable: writes the LAS source, writes a
   separate `*.laz` output path, and returns success only after the output exists.
+  The automation uses a copy-command surrogate for this process contract; a
+  real compressor still requires separate readable-output evidence.
 
 Static placeholder readiness:
 

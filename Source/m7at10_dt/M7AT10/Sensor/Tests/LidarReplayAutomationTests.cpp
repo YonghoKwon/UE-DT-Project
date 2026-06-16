@@ -2,7 +2,9 @@
 
 #include "Json.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
@@ -18,6 +20,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.Se
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPerformanceWarningTest, "M7AT10.SensorReplay.PerformanceWarningStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazPlaceholderExportTest, "M7AT10.SensorReplay.LazPlaceholderWritesLasSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazExternalCompressorMissingTest, "M7AT10.SensorReplay.LazExternalCompressorMissingFails", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazExternalCompressorFakeWritesOutputTest, "M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
 {
@@ -467,6 +470,97 @@ bool FLidarLazExternalCompressorMissingTest::RunTest(const FString& Parameters)
 
     TestEqual(TEXT("missing external compressor still leaves one LAS source"), MatchingLasSourceCount, 1);
     TestEqual(TEXT("missing external compressor does not create .laz files"), LazFiles.Num(), 0);
+    return true;
+}
+
+bool FLidarLazExternalCompressorFakeWritesOutputTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!ReplayComp || !LidarComp)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before external compressor success export"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-LAZ-EXTERNAL-SUCCESS");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->bUseExternalLazCompressor = true;
+
+    FString CompressorPath = FPlatformMisc::GetEnvironmentVariable(TEXT("ComSpec"));
+    if (CompressorPath.IsEmpty())
+    {
+        CompressorPath = FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("WINDIR")), TEXT("System32"), TEXT("cmd.exe"));
+    }
+    TestTrue(TEXT("external compressor surrogate exists"), FPaths::FileExists(CompressorPath));
+    if (!FPaths::FileExists(CompressorPath))
+    {
+        return false;
+    }
+
+    // This is a process-contract surrogate. It proves {input}/{output} handling,
+    // not true LAZ compression.
+    LidarComp->ExternalLazCompressorPath = CompressorPath;
+    LidarComp->ExternalLazCompressorArguments = TEXT("/C copy /Y {input} {output}");
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    const FString Prefix = TEXT("automation_laz_external_success");
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), LidarComp->SensorId, TEXT("PointCloud"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    IFileManager::Get().DeleteDirectory(*Directory, false, true);
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    TestTrue(TEXT("external compressor surrogate makes LAZ export succeed"), LidarComp->ExportLastPointCloudLaz(Prefix));
+
+    TArray<FString> LasSourceFiles;
+    IFileManager::Get().FindFiles(LasSourceFiles, *Directory, TEXT("las"));
+    int32 MatchingLasSourceCount = 0;
+    FString LasSourcePath;
+    for (const FString& FileName : LasSourceFiles)
+    {
+        if (FileName.StartsWith(Prefix + TEXT("_laz_source_")) && FileName.EndsWith(TEXT(".las")))
+        {
+            ++MatchingLasSourceCount;
+            LasSourcePath = FPaths::Combine(Directory, FileName);
+        }
+    }
+
+    TArray<FString> LazFiles;
+    IFileManager::Get().FindFiles(LazFiles, *Directory, TEXT("laz"));
+    int32 MatchingLazCount = 0;
+    FString LazOutputPath;
+    for (const FString& FileName : LazFiles)
+    {
+        if (FileName.StartsWith(Prefix + TEXT("_")) && FileName.EndsWith(TEXT(".laz")))
+        {
+            ++MatchingLazCount;
+            LazOutputPath = FPaths::Combine(Directory, FileName);
+        }
+    }
+
+    TestEqual(TEXT("external compressor success leaves one LAS source"), MatchingLasSourceCount, 1);
+    TestEqual(TEXT("external compressor success creates one .laz output"), MatchingLazCount, 1);
+    TestTrue(TEXT("LAS source path exists"), !LasSourcePath.IsEmpty() && IFileManager::Get().FileExists(*LasSourcePath));
+    TestTrue(TEXT("LAZ output path exists"), !LazOutputPath.IsEmpty() && IFileManager::Get().FileExists(*LazOutputPath));
+    if (!LasSourcePath.IsEmpty() && !LazOutputPath.IsEmpty())
+    {
+        TestFalse(TEXT("LAZ output path differs from LAS source path"), FPaths::ConvertRelativePathToFull(LazOutputPath) == FPaths::ConvertRelativePathToFull(LasSourcePath));
+        const int64 LasSize = IFileManager::Get().FileSize(*LasSourcePath);
+        const int64 LazSize = IFileManager::Get().FileSize(*LazOutputPath);
+        TestTrue(TEXT("LAS source is non-empty"), LasSize > 0);
+        TestTrue(TEXT("LAZ surrogate output is non-empty"), LazSize > 0);
+        TestEqual(TEXT("copy surrogate output matches LAS source size"), LazSize, LasSize);
+    }
     return true;
 }
 
