@@ -3,6 +3,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
+#include "HAL/PlatformTime.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
@@ -78,8 +79,23 @@ int32 ACsvPointCloudPreviewActor::GetInstancedPreviewInstanceCount() const
     return PointCloudComponent ? PointCloudComponent->GetInstanceCount() : 0;
 }
 
+FString ACsvPointCloudPreviewActor::GetLastPreviewTelemetryText() const
+{
+    return FString::Printf(TEXT("mode=%s lines=%d accepted=%d sections=%d instances=%d parseMs=%.3f buildMs=%.3f totalMs=%.3f status=%s"),
+        *LastRenderModeName,
+        LastInputLineCount,
+        LastAcceptedPointCount,
+        LastPreviewSectionCount,
+        LastPreviewInstanceCount,
+        LastParseDurationMs,
+        LastBuildDurationMs,
+        LastLoadDurationMs,
+        *LastPreviewStatus);
+}
+
 bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
 {
+    const double LoadStartTime = FPlatformTime::Seconds();
     ClearPointCloudPreview();
     ResetStatus();
     ApplyPreviewStyle();
@@ -95,8 +111,12 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
     if (!FFileHelper::LoadFileToStringArray(Lines, *ResolvedPath))
     {
         UE_LOG(LogTemp, Warning, TEXT("[CsvPointCloudPreview] Failed to read CSV: %s"), *ResolvedPath);
+        LastPreviewStatus = TEXT("FailedToReadCsv");
+        LastLoadDurationMs = static_cast<float>((FPlatformTime::Seconds() - LoadStartTime) * 1000.0);
         return false;
     }
+    LastInputLineCount = Lines.Num();
+    const double ParseStartTime = FPlatformTime::Seconds();
 
     const int32 SafeStride = FMath::Max(1, PointStride);
     const int32 SafeMaxPoints = FMath::Max(0, MaxPointsToLoad);
@@ -173,6 +193,9 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
     }
 
     LoadedPointCount = LoadedPoints.Num();
+    LastAcceptedPointCount = LoadedPointCount;
+    LastParseDurationMs = static_cast<float>((FPlatformTime::Seconds() - ParseStartTime) * 1000.0);
+    const double BuildStartTime = FPlatformTime::Seconds();
     if (RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh)
     {
         BuildProceduralPointCloud(LoadedPoints);
@@ -181,19 +204,24 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
     {
         BuildInstancedPointCloud(LoadedPoints);
     }
+    LastBuildDurationMs = static_cast<float>((FPlatformTime::Seconds() - BuildStartTime) * 1000.0);
+    LastLoadDurationMs = static_cast<float>((FPlatformTime::Seconds() - LoadStartTime) * 1000.0);
+    LastRenderModeName = RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh ? TEXT("ProceduralMesh") : TEXT("InstancedMesh");
+    LastPreviewStatus = LoadedPointCount > 0 ? TEXT("Loaded") : TEXT("NoPointsLoaded");
 
     LastLoadedPath = ResolvedPath;
 
-    UE_LOG(LogTemp, Log, TEXT("[CsvPointCloudPreview] Loaded %d points from %s mode=%s row=%d~%d col=%d~%d bounds min=%s max=%s"),
+    UE_LOG(LogTemp, Log, TEXT("[CsvPointCloudPreview] Loaded %d points from %s mode=%s row=%d~%d col=%d~%d bounds min=%s max=%s telemetry=%s"),
         LoadedPointCount,
         *ResolvedPath,
-        RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh ? TEXT("ProceduralMesh") : TEXT("InstancedMesh"),
+        *LastRenderModeName,
         RowRange.X,
         RowRange.Y,
         ColRange.X,
         ColRange.Y,
         *MinBounds.ToString(),
-        *MaxBounds.ToString());
+        *MaxBounds.ToString(),
+        *GetLastPreviewTelemetryText());
 
     return LoadedPointCount > 0;
 }
@@ -393,6 +421,7 @@ void ACsvPointCloudPreviewActor::BuildProceduralPointCloud(const TArray<FVector>
         PointCloudComponent->ClearInstances();
         PointCloudComponent->SetHiddenInGame(true);
         PointCloudComponent->SetVisibility(false, true);
+        LastPreviewInstanceCount = 0;
     }
 
     ProceduralPointCloudComponent->SetHiddenInGame(false);
@@ -465,6 +494,8 @@ void ACsvPointCloudPreviewActor::BuildProceduralPointCloud(const TArray<FVector>
     }
 
     ProceduralPointCloudComponent->MarkRenderStateDirty();
+    LastPreviewSectionCount = SectionIndex;
+    LastPreviewInstanceCount = 0;
 }
 
 void ACsvPointCloudPreviewActor::BuildInstancedPointCloud(const TArray<FVector>& Points)
@@ -479,6 +510,7 @@ void ACsvPointCloudPreviewActor::BuildInstancedPointCloud(const TArray<FVector>&
         ProceduralPointCloudComponent->ClearAllMeshSections();
         ProceduralPointCloudComponent->SetHiddenInGame(true);
         ProceduralPointCloudComponent->SetVisibility(false, true);
+        LastPreviewSectionCount = 0;
     }
 
     PointCloudComponent->SetHiddenInGame(false);
@@ -513,6 +545,8 @@ void ACsvPointCloudPreviewActor::BuildInstancedPointCloud(const TArray<FVector>&
         PointCloudComponent->AddInstances(InstanceTransforms, false, true);
     }
     PointCloudComponent->MarkRenderStateDirty();
+    LastPreviewInstanceCount = PointCloudComponent->GetInstanceCount();
+    LastPreviewSectionCount = 0;
 }
 
 void ACsvPointCloudPreviewActor::ResetStatus()
@@ -523,6 +557,15 @@ void ACsvPointCloudPreviewActor::ResetStatus()
     MinBounds = FVector::ZeroVector;
     MaxBounds = FVector::ZeroVector;
     LastLoadedPath.Reset();
+    LastInputLineCount = 0;
+    LastAcceptedPointCount = 0;
+    LastPreviewSectionCount = 0;
+    LastPreviewInstanceCount = 0;
+    LastParseDurationMs = 0.0f;
+    LastBuildDurationMs = 0.0f;
+    LastLoadDurationMs = 0.0f;
+    LastRenderModeName.Reset();
+    LastPreviewStatus.Reset();
 }
 
 #if WITH_EDITOR

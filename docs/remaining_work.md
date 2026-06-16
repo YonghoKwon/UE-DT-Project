@@ -373,6 +373,13 @@ Current state:
   120,000-point procedural CSV preview load without requiring the Unreal Editor
   GUI, and `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
   instanced fallback path covered.
+- CSV preview loads now expose runtime telemetry for input line count, accepted
+  point count, procedural section count, instanced instance count, active render
+  mode, load status, parse duration, build duration, and total load duration.
+- `M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` covers a
+  250,000-point procedural CSV preview load in headless automation with a
+  generous regression guard while treating timing values as observational
+  telemetry.
 
 Next implementation steps:
 
@@ -388,6 +395,8 @@ Completion evidence:
 - Dense server payload count is independent from preview point count.
 - Headless CSV preview automation passes:
   `Automation RunTests M7AT10.Sensor.CsvPointCloudPreview`.
+- CSV preview telemetry distinguishes parse/build/load timings from renderer
+  counts and confirms the active CPU preview path.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
 

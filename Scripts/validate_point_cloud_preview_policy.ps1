@@ -83,6 +83,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec export-on-scan"; Label = "Export-on-scan warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "AddInstances(InstanceTransforms, false, true)"; Label = "Live preview uses batched ISM instance upload" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "ClampMax = `"100000`""; Label = "Procedural CSV batch metadata allows high-density sections" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "LastParseDurationMs"; Label = "CSV preview parse telemetry field" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "LastBuildDurationMs"; Label = "CSV preview build telemetry field" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "LastLoadDurationMs"; Label = "CSV preview total telemetry field" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "GetLastPreviewTelemetryText"; Label = "CSV preview telemetry text accessor" },
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Min(LidarComp->MaxPreviewPoints, 3000)"; Label = "PointCloudOnly preview max clamp" },
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Max(2, LidarComp->PreviewPointStride)"; Label = "PointCloudOnly preview stride clamp" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "PreviewPoints"; Label = "Monitor exposes preview point count" },
@@ -91,7 +95,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $managerTests; Pattern = "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy"; Label = "PointCloudOnly policy automation test" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad"; Label = "CSV procedural high-density automation test" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad"; Label = "CSV instanced batch automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget"; Label = "CSV procedural performance budget automation test" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "120000"; Label = "CSV procedural automation uses high-density sample" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "250000"; Label = "CSV procedural performance automation uses denser sample" },
     [PSCustomObject]@{ Path = $monitorTests; Pattern = "M7AT10.SensorMonitor.PerformanceWarningStatusText"; Label = "Monitor warning automation test" },
     [PSCustomObject]@{ Path = $schemaDoc; Pattern = 'Server-side judgment should not use `previewPolicy` as measurement truth.'; Label = "Schema documents preview/server split" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "PreviewPointStride = 2"; Label = "Smoke doc preview stride recommendation" },
@@ -132,6 +138,7 @@ $report = [PSCustomObject]@{
         BatchedInstanceUploadDeclared = $true
         RendererDecisionReportDeclared = $true
         ProceduralCsvPreviewCoverageDeclared = $true
+        ProceduralCsvPreviewTelemetryDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -150,5 +157,6 @@ else {
     Write-Host "Batched instance upload declared: $($report.Summary.BatchedInstanceUploadDeclared)"
     Write-Host "Renderer decision report declared: $($report.Summary.RendererDecisionReportDeclared)"
     Write-Host "Procedural CSV preview coverage declared: $($report.Summary.ProceduralCsvPreviewCoverageDeclared)"
+    Write-Host "Procedural CSV preview telemetry declared: $($report.Summary.ProceduralCsvPreviewTelemetryDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

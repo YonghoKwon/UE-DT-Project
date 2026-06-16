@@ -246,6 +246,15 @@ Automation RunTests M7AT10.Sensor.CsvPointCloudPreview
 120,000-point procedural CSV preview load without opening the Unreal Editor GUI.
 `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the instanced
 fallback path covered.
+`M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` verifies a
+250,000-point procedural CSV preview load with a generous timing regression
+guard and records parse/build/load telemetry.
+
+The CSV preview actor exposes `GetLastPreviewTelemetryText()` plus
+`LastInputLineCount`, `LastAcceptedPointCount`, `LastPreviewSectionCount`,
+`LastPreviewInstanceCount`, `LastRenderModeName`, `LastPreviewStatus`,
+`LastParseDurationMs`, `LastBuildDurationMs`, and `LastLoadDurationMs` so
+headless runs can distinguish renderer counts from observational timing data.
 
 Manual PIE payload checks:
 

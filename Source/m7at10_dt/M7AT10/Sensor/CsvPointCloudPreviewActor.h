@@ -53,6 +53,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud|Status")
     int32 GetInstancedPreviewInstanceCount() const;
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud|Status")
+    FString GetLastPreviewTelemetryText() const;
+
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
     TObjectPtr<USceneComponent> SceneRoot;
@@ -122,6 +125,33 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status")
     FString LastLoadedPath;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    int32 LastInputLineCount = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    int32 LastAcceptedPointCount = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    int32 LastPreviewSectionCount = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    int32 LastPreviewInstanceCount = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    float LastParseDurationMs = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    float LastBuildDurationMs = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    float LastLoadDurationMs = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    FString LastRenderModeName;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    FString LastPreviewStatus;
 
 private:
     FString ResolveCsvFilePath() const;
