@@ -381,6 +381,10 @@ Current state:
   CPU/ISM fallback evidence, Niagara/custom-GPU/external-viewer candidate
   renderers, and the acceptance evidence needed before replacing the preview
   path.
+- The renderer decision report can now read the latest local CSV preview
+  performance report and mark `CpuFallbackPerformanceEvidencePresent` when the
+  required instanced, 120,000-point procedural, and 250,000-point procedural
+  budget scenarios are present in the automation log.
 - `M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` covers a
   120,000-point procedural CSV preview load without requiring the Unreal Editor
   GUI, and `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
@@ -416,6 +420,8 @@ Completion evidence:
   counts and confirms the active CPU preview path.
 - CSV preview performance evidence exports from the local automation log:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
+- Renderer decision evidence can be required against the same local log:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
 

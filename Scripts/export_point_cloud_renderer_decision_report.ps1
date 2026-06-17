@@ -1,5 +1,7 @@
 param(
     [string]$ProjectRoot = "",
+    [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [switch]$RequireCsvPerformanceEvidence,
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
     [switch]$Json
@@ -29,6 +31,79 @@ function Test-ContainsText {
     )
 
     return [bool](Select-String -LiteralPath $Path -Pattern $Pattern -SimpleMatch -Quiet)
+}
+
+function Resolve-OptionalDirectory {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ""
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return ""
+    }
+    return (Resolve-Path -LiteralPath $Path).Path
+}
+
+function Get-CsvPreviewPerformanceEvidence {
+    param(
+        [string]$ProjectRoot,
+        [string]$LocalProjectRoot
+    )
+
+    $csvPerformanceScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
+    if (-not (Test-Path -LiteralPath $csvPerformanceScript -PathType Leaf)) {
+        return [PSCustomObject]@{
+            Present = $false
+            Reason = "CSV preview performance report script is missing."
+        }
+    }
+
+    $resolvedLocalRoot = Resolve-OptionalDirectory -Path $LocalProjectRoot
+    if ([string]::IsNullOrWhiteSpace($resolvedLocalRoot)) {
+        return [PSCustomObject]@{
+            Present = $false
+            Reason = "Local project root was not found: $LocalProjectRoot"
+        }
+    }
+
+    $logPath = Join-Path $resolvedLocalRoot "Saved\Logs\m7at10_dt.log"
+    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+        return [PSCustomObject]@{
+            Present = $false
+            LocalProjectRoot = $resolvedLocalRoot
+            LogPath = $logPath
+            Reason = "Unreal automation log is missing. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first."
+        }
+    }
+
+    try {
+        $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $csvPerformanceScript -ProjectRoot $ProjectRoot -LocalProjectRoot $resolvedLocalRoot -LogPath $logPath -Json 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "CSV preview performance report exited with code ${LASTEXITCODE}: $($scriptOutput -join ' ')"
+        }
+        $jsonText = $scriptOutput -join "`n"
+        $report = $jsonText | ConvertFrom-Json
+        return [PSCustomObject]@{
+            Present = [bool]$report.Summary.Valid
+            LocalProjectRoot = $resolvedLocalRoot
+            LogPath = $logPath
+            ScenarioCount = [int]$report.Summary.ScenarioCount
+            MaxAcceptedPoints = [int]$report.Summary.MaxAcceptedPoints
+            MaxTotalLoadMs = [double]$report.Summary.MaxTotalLoadMs
+            ProceduralPerformanceBudgetMs = [double]$report.Summary.ProceduralPerformanceBudgetMs
+            RequiredScenariosPresent = [bool]$report.Summary.RequiredScenariosPresent
+            Reason = "CSV preview performance telemetry was read from the local automation log."
+        }
+    }
+    catch {
+        return [PSCustomObject]@{
+            Present = $false
+            LocalProjectRoot = $resolvedLocalRoot
+            LogPath = $logPath
+            Reason = $_.Exception.Message
+        }
+    }
 }
 
 function Write-TextFile {
@@ -70,6 +145,9 @@ function Write-MarkdownReport {
     $lines += "- Preview caps declared: $($Report.Summary.PreviewCapsDeclared)"
     $lines += "- PointCloudOnly clamps declared: $($Report.Summary.PointCloudOnlyClampDeclared)"
     $lines += "- Batched ISM upload declared: $($Report.Summary.BatchedInstanceUploadDeclared)"
+    $lines += "- CSV performance evidence present: $($Report.Summary.CsvPerformanceEvidencePresent)"
+    $lines += "- CPU fallback performance evidence present: $($Report.Summary.CpuFallbackPerformanceEvidencePresent)"
+    $lines += "- CSV max accepted points: $($Report.Summary.CsvPreviewMaxAcceptedPoints)"
     $lines += "- GPU renderer integrated: $($Report.Summary.GpuRendererIntegrated)"
     $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
     $lines += ""
@@ -87,6 +165,20 @@ function Write-MarkdownReport {
         $lines += "- $item"
     }
     $lines += ""
+    $lines += "## CSV Preview Performance Evidence"
+    $lines += ""
+    if ($Report.CsvPreviewPerformanceEvidence.Present) {
+        $lines += "- Local project root: ``$($Report.CsvPreviewPerformanceEvidence.LocalProjectRoot)``"
+        $lines += "- Log path: ``$($Report.CsvPreviewPerformanceEvidence.LogPath)``"
+        $lines += "- Scenario count: $($Report.CsvPreviewPerformanceEvidence.ScenarioCount)"
+        $lines += "- Max accepted points: $($Report.CsvPreviewPerformanceEvidence.MaxAcceptedPoints)"
+        $lines += "- Max total load ms: $($Report.CsvPreviewPerformanceEvidence.MaxTotalLoadMs)"
+        $lines += "- Procedural performance budget ms: $($Report.CsvPreviewPerformanceEvidence.ProceduralPerformanceBudgetMs)"
+    }
+    else {
+        $lines += "- Missing: $($Report.CsvPreviewPerformanceEvidence.Reason)"
+    }
+    $lines += ""
     $lines += "## Notes"
     $lines += ""
     $lines += "Keep the current CPU/ISM preview caps as the fallback path even if a GPU renderer is added."
@@ -98,6 +190,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Get-DefaultProjectRoot
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+$csvPreviewPerformanceEvidence = Get-CsvPreviewPerformanceEvidence -ProjectRoot $ProjectRoot -LocalProjectRoot $LocalProjectRoot
 
 $lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
 $lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
@@ -177,6 +270,9 @@ $acceptanceEvidence = @(
 )
 
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$cpuFallbackPerformanceEvidencePresent = $csvPreviewPerformanceEvidence.Present -and
+    $csvPreviewPerformanceEvidence.RequiredScenariosPresent -and
+    ($csvPreviewPerformanceEvidence.MaxAcceptedPoints -ge 250000)
 $report = [PSCustomObject]@{
     GeneratedUtc = $generatedUtc
     ProjectRoot = $ProjectRoot
@@ -191,6 +287,7 @@ $report = [PSCustomObject]@{
         SmokeDoc = $smokeDoc
         RemainingWorkDoc = $remainingDoc
     }
+    CsvPreviewPerformanceEvidence = $csvPreviewPerformanceEvidence
     CandidateRenderers = $candidateRenderers
     AcceptanceEvidenceNeeded = $acceptanceEvidence
     Summary = [PSCustomObject]@{
@@ -199,16 +296,19 @@ $report = [PSCustomObject]@{
         PointCloudOnlyClampDeclared = $pointCloudOnlyClampDeclared
         BatchedInstanceUploadDeclared = $batchedInstanceUploadDeclared
         AutomationCoverageDeclared = $automationCoverageDeclared
+        CsvPerformanceEvidencePresent = [bool]$csvPreviewPerformanceEvidence.Present
+        CpuFallbackPerformanceEvidencePresent = [bool]$cpuFallbackPerformanceEvidencePresent
+        CsvPreviewMaxAcceptedPoints = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.MaxAcceptedPoints } else { 0 }
         GpuRendererIntegrated = $gpuRendererIntegrated
         CandidateRendererCount = $candidateRenderers.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
         RecommendedNextDecision = "Choose Niagara, CustomGpuBuffer, or ExternalViewer workflow while keeping CPU ISM as fallback."
-        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and -not $gpuRendererIntegrated)
+        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and -not $gpuRendererIntegrated -and (-not $RequireCsvPerformanceEvidence -or $cpuFallbackPerformanceEvidencePresent))
     }
 }
 
 if (-not $report.Summary.Valid) {
-    throw "Point cloud renderer decision report invariants failed. ServerPreviewSplit=$serverPreviewSplitDocumented PreviewCaps=$previewCapsDeclared PointCloudOnlyClamp=$pointCloudOnlyClampDeclared BatchedUpload=$batchedInstanceUploadDeclared Automation=$automationCoverageDeclared GpuIntegrated=$gpuRendererIntegrated"
+    throw "Point cloud renderer decision report invariants failed. ServerPreviewSplit=$serverPreviewSplitDocumented PreviewCaps=$previewCapsDeclared PointCloudOnlyClamp=$pointCloudOnlyClampDeclared BatchedUpload=$batchedInstanceUploadDeclared Automation=$automationCoverageDeclared CsvPerfEvidence=$cpuFallbackPerformanceEvidencePresent GpuIntegrated=$gpuRendererIntegrated"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($JsonPath)) {
@@ -227,6 +327,9 @@ else {
     Write-Host "Candidate renderers: $($report.Summary.CandidateRendererCount)"
     Write-Host "Acceptance evidence items: $($report.Summary.AcceptanceEvidenceCount)"
     Write-Host "Batched instance upload: $($report.Summary.BatchedInstanceUploadDeclared)"
+    Write-Host "CSV performance evidence present: $($report.Summary.CsvPerformanceEvidencePresent)"
+    Write-Host "CPU fallback performance evidence present: $($report.Summary.CpuFallbackPerformanceEvidencePresent)"
+    Write-Host "CSV max accepted points: $($report.Summary.CsvPreviewMaxAcceptedPoints)"
     Write-Host "GPU renderer integrated: $($report.Summary.GpuRendererIntegrated)"
     Write-Host "Recommended next decision: $($report.Summary.RecommendedNextDecision)"
 }

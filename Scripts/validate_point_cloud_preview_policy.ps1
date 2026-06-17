@@ -112,6 +112,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Custom GPU buffer renderer"; Label = "Renderer report includes custom GPU path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "External viewer workflow"; Label = "Renderer report includes external viewer path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Keep CPU ISM fallback"; Label = "Renderer report keeps CPU fallback" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "Renderer report can require local CSV preview performance evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "Renderer report summarizes CPU fallback performance evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "MaxAcceptedPoints -ge 250000"; Label = "Renderer report treats 250k CSV evidence as dense fallback proof" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" }
@@ -147,6 +150,7 @@ $report = [PSCustomObject]@{
         ProceduralCsvPreviewCoverageDeclared = $true
         ProceduralCsvPreviewTelemetryDeclared = $true
         CsvPreviewPerformanceReportDeclared = $true
+        RendererDecisionConsumesCsvPerformanceEvidence = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -167,5 +171,6 @@ else {
     Write-Host "Procedural CSV preview coverage declared: $($report.Summary.ProceduralCsvPreviewCoverageDeclared)"
     Write-Host "Procedural CSV preview telemetry declared: $($report.Summary.ProceduralCsvPreviewTelemetryDeclared)"
     Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"
+    Write-Host "Renderer decision consumes CSV performance evidence: $($report.Summary.RendererDecisionConsumesCsvPerformanceEvidence)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

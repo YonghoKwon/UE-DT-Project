@@ -273,11 +273,14 @@ evidence:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -MarkdownPath ".\Saved\Reports\csv_preview_performance.md" -JsonPath ".\Saved\Reports\csv_preview_performance.json"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence
 ```
 
 This report proves the current CPU preview fallback telemetry was emitted from
 the automation log. It does not replace the future GPU/Niagara viewport smoke
-evidence.
+evidence. The renderer decision report consumes the same local evidence and
+sets `CpuFallbackPerformanceEvidencePresent` when the instanced, 120,000-point
+procedural, and 250,000-point procedural budget scenarios are all present.
 
 Manual PIE payload checks:
 
