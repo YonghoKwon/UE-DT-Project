@@ -119,12 +119,19 @@ approved:
 Until those decisions are complete, the safe default for editor smoke tests is
 `LogOnly` or `SaveToFile`.
 
+`Scripts/export_payload_contract_report.ps1` also exports a server acceptance
+readiness matrix for these open items. It separates local fixture/mock/loopback
+evidence from real judging-server acceptance and keeps
+`RealJudgingServerAcceptancePresent=false` until an owned endpoint accepts the
+payloads.
+
 ## Review Commands
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_contract.ps1"
 ```
 

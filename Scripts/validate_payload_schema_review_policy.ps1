@@ -69,7 +69,16 @@ $checks = @(
     (New-Check -Path $cameraDoc -Pattern "virtual-camera.v1-preview-only" -Label "Camera preview-only compatibility example"),
     (New-Check -Path $remainingWorkDoc -Pattern "Schema compatibility examples are documented" -Label "Remaining work records compatibility progress"),
     (New-Check -Path $remainingWorkDoc -Pattern "validate_payload_schema_review_policy.ps1" -Label "Remaining work records static review gate"),
-    (New-Check -Path $contractReportScript -Pattern "Remaining Server Decisions" -Label "Contract report keeps server decision section")
+    (New-Check -Path $contractReportScript -Pattern "Remaining Server Decisions" -Label "Contract report keeps server decision section"),
+    (New-Check -Path $contractReportScript -Pattern "ServerAcceptanceDecisions" -Label "Contract report exports server acceptance decisions"),
+    (New-Check -Path $contractReportScript -Pattern "TransportContractReport" -Label "Contract report includes transport contract validation summary"),
+    (New-Check -Path $contractReportScript -Pattern "RealServerEvidenceGaps" -Label "Contract report exports real server evidence gaps"),
+    (New-Check -Path $contractReportScript -Pattern "Endpoint URL and environment ownership" -Label "Contract report tracks endpoint decision"),
+    (New-Check -Path $contractReportScript -Pattern "Authentication" -Label "Contract report tracks authentication decision"),
+    (New-Check -Path $contractReportScript -Pattern "Retry and timeout policy" -Label "Contract report tracks retry decision"),
+    (New-Check -Path $contractReportScript -Pattern 'Name = "Batching"' -Label "Contract report tracks batching decision separately"),
+    (New-Check -Path $contractReportScript -Pattern 'Name = "Backpressure"' -Label "Contract report tracks backpressure decision separately"),
+    (New-Check -Path $contractReportScript -Pattern "RealJudgingServerAcceptancePresent" -Label "Contract report separates real judging-server acceptance")
 )
 
 foreach ($check in $checks) {
@@ -86,6 +95,7 @@ $report = [PSCustomObject]@{
         LidarCompatibilityExamplesDocumented = $true
         CameraCompatibilityExamplesDocumented = $true
         StaticReviewGateDocumented = $true
+        ServerAcceptanceMatrixDocumented = $true
         Valid = $true
     }
 }
@@ -100,4 +110,5 @@ else {
     Write-Host "LiDAR compatibility examples documented: $($report.Summary.LidarCompatibilityExamplesDocumented)"
     Write-Host "Camera compatibility examples documented: $($report.Summary.CameraCompatibilityExamplesDocumented)"
     Write-Host "Static review gate documented: $($report.Summary.StaticReviewGateDocumented)"
+    Write-Host "Server acceptance matrix documented: $($report.Summary.ServerAcceptanceMatrixDocumented)"
 }

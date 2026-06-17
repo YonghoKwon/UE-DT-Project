@@ -29,10 +29,23 @@ function Invoke-JsonScript {
     return ($jsonText | ConvertFrom-Json)
 }
 
+function Convert-ToMarkdownCell {
+    param([object]$Value)
+
+    if ($null -eq $Value) {
+        return ""
+    }
+    return ([string]$Value).Replace("|", "\|").Replace("`r", " ").Replace("`n", " ")
+}
+
 function Write-MarkdownReport {
     param(
         [object]$FixtureReport,
         [object]$ContractReport,
+        [object]$TransportContractReport,
+        [object[]]$ServerAcceptanceDecisions,
+        [object[]]$AcceptanceEvidence,
+        [object[]]$RealServerEvidenceGaps,
         [string]$Path,
         [string]$GeneratedUtc
     )
@@ -48,6 +61,7 @@ function Write-MarkdownReport {
     $lines += "- Accepted payloads: $($ContractReport.Summary.AcceptedCount)"
     $lines += "- Rejected payloads: $($ContractReport.Summary.RejectedCount)"
     $lines += "- Documentation linked: $($FixtureReport.Summary.DocumentationLinked)"
+    $lines += "- Transport contract valid: $($TransportContractReport.Summary.Valid)"
     $lines += "- Contract: $($ContractReport.Contract)"
     $lines += ""
     $lines += "## Fixtures"
@@ -87,6 +101,26 @@ function Write-MarkdownReport {
         }
         $lines += ""
     }
+    $lines += "## Server Acceptance Readiness"
+    $lines += ""
+    $lines += "| Decision | Current status | Required owner/evidence |"
+    $lines += "| --- | --- | --- |"
+    foreach ($decision in $ServerAcceptanceDecisions) {
+        $lines += "| $(Convert-ToMarkdownCell $decision.Name) | $(Convert-ToMarkdownCell $decision.Status) | $(Convert-ToMarkdownCell $decision.RequiredEvidence) |"
+    }
+    $lines += ""
+    $lines += "## Acceptance Evidence"
+    $lines += ""
+    foreach ($item in $AcceptanceEvidence) {
+        $lines += "- $($item.Name): $($item.Status) - $($item.Evidence)"
+    }
+    $lines += ""
+    $lines += "## Real Server Evidence Gaps"
+    $lines += ""
+    foreach ($gap in $RealServerEvidenceGaps) {
+        $lines += "- $($gap.Name): $($gap.RequiredEvidence)"
+    }
+    $lines += ""
     $lines += "## Remaining Server Decisions"
     $lines += ""
     $lines += "- Replace the local mock contract with the final judging-server schema."
@@ -114,6 +148,7 @@ $OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
 
 $fixtureValidator = Join-Path $PSScriptRoot "validate_payload_fixtures.ps1"
 $contractValidator = Join-Path $PSScriptRoot "validate_payload_contract.ps1"
+$transportContractValidator = Join-Path $PSScriptRoot "validate_server_transport_contract.ps1"
 $scriptParams = @{
     FixtureRoot = $FixtureRoot
     SchemaDocsRoot = $SchemaDocsRoot
@@ -121,6 +156,79 @@ $scriptParams = @{
 
 $fixtureReport = Invoke-JsonScript -ScriptPath $fixtureValidator -Parameters $scriptParams
 $contractReport = Invoke-JsonScript -ScriptPath $contractValidator -Parameters $scriptParams
+$transportContractReport = Invoke-JsonScript -ScriptPath $transportContractValidator -Parameters @{ ProjectRoot = $projectRoot }
+$serverAcceptanceDecisions = @(
+    [PSCustomObject]@{
+        Name = "Endpoint URL and environment ownership"
+        Status = "Open"
+        RequiredEvidence = "Judging-server endpoint owner, environment override policy, and no credential leakage in shared config."
+    },
+    [PSCustomObject]@{
+        Name = "Authentication"
+        Status = "Open"
+        RequiredEvidence = "Header/token scheme, storage policy, rotation owner, and redaction rules."
+    },
+    [PSCustomObject]@{
+        Name = "Retry and timeout policy"
+        Status = "Open"
+        RequiredEvidence = "Timeout, retry count, retryable status codes, idempotency decision, and failure telemetry."
+    },
+    [PSCustomObject]@{
+        Name = "Batching"
+        Status = "Open"
+        RequiredEvidence = "Max frame rate, batch size, ordering guarantees, and LiDAR burst behavior."
+    },
+    [PSCustomObject]@{
+        Name = "Backpressure"
+        Status = "Open"
+        RequiredEvidence = "Queue limit, drop policy, capture throttling behavior, and operator/server telemetry."
+    },
+    [PSCustomObject]@{
+        Name = "Server response schema"
+        Status = "Open"
+        RequiredEvidence = "Accepted/rejected response body fields, analysis-result schema, and error-code mapping."
+    }
+)
+$acceptanceEvidence = @(
+    [PSCustomObject]@{
+        Name = "Fixture schema validation"
+        Status = if ($fixtureReport.Summary.Valid) { "Complete" } else { "Failing" }
+        Evidence = "validate_payload_fixtures.ps1"
+    },
+    [PSCustomObject]@{
+        Name = "Local mock judging contract"
+        Status = if ($contractReport.Summary.Valid) { "Complete" } else { "Failing" }
+        Evidence = "validate_payload_contract.ps1 using mock-judging-server.v1"
+    },
+    [PSCustomObject]@{
+        Name = "Outbound HTTP loopback"
+        Status = "Covered by automation"
+        Evidence = "M7AT10.SensorTransport.HttpPostLoopbackAcceptance"
+    },
+    [PSCustomObject]@{
+        Name = "Real judging-server acceptance"
+        Status = "Missing"
+        Evidence = "Needs accepted response from the owned server endpoint."
+    }
+)
+$realServerEvidenceGaps = @(
+    [PSCustomObject]@{
+        Name = "Real endpoint acceptance"
+        RequiredEvidence = "Owned judging-server endpoint returns the approved success status/body for LiDAR and camera fixtures."
+    },
+    [PSCustomObject]@{
+        Name = "Real endpoint rejection"
+        RequiredEvidence = "Owned judging-server endpoint returns the approved error status/body for malformed or rejected payloads."
+    },
+    [PSCustomObject]@{
+        Name = "Auth failure handling"
+        RequiredEvidence = "Expired/missing credential behavior is captured and does not mark payloads as accepted."
+    },
+    [PSCustomObject]@{
+        Name = "High-frequency LiDAR behavior"
+        RequiredEvidence = "Server or client evidence shows accepted batching/backpressure behavior at target capture rates."
+    }
+)
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss")
 $jsonPath = Join-Path $OutputRoot "payload_contract_report_$stamp.json"
@@ -132,24 +240,35 @@ $report = [PSCustomObject]@{
     GeneratedUtc = $generatedUtc
     FixtureReport = $fixtureReport
     ContractReport = $contractReport
+    TransportContractReport = $transportContractReport
+    ServerAcceptanceDecisions = $serverAcceptanceDecisions
+    AcceptanceEvidence = $acceptanceEvidence
+    RealServerEvidenceGaps = $realServerEvidenceGaps
     Summary = [PSCustomObject]@{
         FixtureCount = $fixtureReport.Summary.FixtureCount
         AcceptedPayloadCount = $contractReport.Summary.AcceptedCount
         RejectedPayloadCount = $contractReport.Summary.RejectedCount
+        TransportContractValid = [bool]$transportContractReport.Summary.Valid
         Contract = $contractReport.Contract
+        ServerAcceptanceDecisionCount = $serverAcceptanceDecisions.Count
+        AcceptanceEvidenceCount = $acceptanceEvidence.Count
+        RealServerEvidenceGapCount = $realServerEvidenceGaps.Count
+        OpenServerAcceptanceDecisionCount = @($serverAcceptanceDecisions | Where-Object { $_.Status -eq "Open" }).Count
+        RealJudgingServerAcceptancePresent = $false
+        RecommendedNextAction = "Get judging-server owner approval for endpoint/auth/retry/batching/backpressure/response schema, then capture real endpoint acceptance evidence."
         OutputRoot = $OutputRoot
         JsonPath = $jsonPath
         MarkdownPath = $markdownPath
         LatestJsonPath = $latestJsonPath
         LatestMarkdownPath = $latestMarkdownPath
-        Valid = ($fixtureReport.Summary.Valid -and $contractReport.Summary.Valid)
+        Valid = ($fixtureReport.Summary.Valid -and $contractReport.Summary.Valid -and $transportContractReport.Summary.Valid)
     }
 }
 
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $latestJsonPath -Encoding UTF8
-Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -Path $markdownPath -GeneratedUtc $generatedUtc
-Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -Path $latestMarkdownPath -GeneratedUtc $generatedUtc
+Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -TransportContractReport $transportContractReport -ServerAcceptanceDecisions $serverAcceptanceDecisions -AcceptanceEvidence $acceptanceEvidence -RealServerEvidenceGaps $realServerEvidenceGaps -Path $markdownPath -GeneratedUtc $generatedUtc
+Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -TransportContractReport $transportContractReport -ServerAcceptanceDecisions $serverAcceptanceDecisions -AcceptanceEvidence $acceptanceEvidence -RealServerEvidenceGaps $realServerEvidenceGaps -Path $latestMarkdownPath -GeneratedUtc $generatedUtc
 
 if ($Json) {
     $report | ConvertTo-Json -Depth 8

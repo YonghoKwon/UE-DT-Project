@@ -116,9 +116,9 @@ $workAreas = @(
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
-        -Percent 84 `
-        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator with camera base64/JPEG/byteSize and simulationQuality enum checks, preserved row/col/returnIndex contract, local mock contract validator with camera image invariant checks, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, outbound HTTP POST loopback acceptance automation, and exportable contract review report are in place." `
-        -Remaining "Judging server approval, real server acceptance evidence, final endpoint/auth/retry/batching decisions, and server-owned response schema tests remain."),
+        -Percent 87 `
+        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator with camera base64/JPEG/byteSize and simulationQuality enum checks, preserved row/col/returnIndex contract, local mock contract validator with camera image invariant checks, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, outbound HTTP POST loopback acceptance automation, and exportable contract review report are in place. The payload contract report now includes a server acceptance readiness matrix for endpoint ownership, authentication, retry/timeout, batching/backpressure, response schema, and real judging-server acceptance evidence." `
+        -Remaining "Judging server approval, real server acceptance evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
         -Percent 70 `

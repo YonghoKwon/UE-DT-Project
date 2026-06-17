@@ -47,8 +47,9 @@ $transportDoc = Join-Path $ProjectRoot "docs\server_transport_contract.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $transportTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\VirtualSensorDataTransportAutomationTests.cpp"
+$payloadContractReportScript = Join-Path $ProjectRoot "Scripts\export_payload_contract_report.ps1"
 
-$requiredFiles = @($transportHeader, $transportSource, $transportDoc, $remainingWorkDoc, $editorSmokeDoc, $transportTests)
+$requiredFiles = @($transportHeader, $transportSource, $transportDoc, $remainingWorkDoc, $editorSmokeDoc, $transportTests, $payloadContractReportScript)
 foreach ($file in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $file)) {
         throw "Required server transport contract file not found: $file"
@@ -77,8 +78,17 @@ $checks = @(
     (New-Check -Path $transportDoc -Pattern "Retry policy for timeout" -Label "Retry decision documented"),
     (New-Check -Path $transportDoc -Pattern "Batching policy for high-frequency LiDAR frames" -Label "Batching decision documented"),
     (New-Check -Path $transportDoc -Pattern "Backpressure behavior" -Label "Backpressure decision documented"),
+    (New-Check -Path $transportDoc -Pattern "Response body schema and whether server-side analysis results are returned" -Label "Response schema decision documented"),
     (New-Check -Path $transportDoc -Pattern "SaveToFile" -Label "SaveToFile review path documented"),
     (New-Check -Path $transportDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Transport doc references HTTP POST loopback automation"),
+    (New-Check -Path $payloadContractReportScript -Pattern "ServerAcceptanceDecisions" -Label "Payload contract report exports server acceptance decisions"),
+    (New-Check -Path $payloadContractReportScript -Pattern "Endpoint URL and environment ownership" -Label "Payload contract report tracks endpoint ownership"),
+    (New-Check -Path $payloadContractReportScript -Pattern "Authentication" -Label "Payload contract report tracks authentication decision"),
+    (New-Check -Path $payloadContractReportScript -Pattern "Retry and timeout policy" -Label "Payload contract report tracks retry decision"),
+    (New-Check -Path $payloadContractReportScript -Pattern 'Name = "Batching"' -Label "Payload contract report tracks batching decision"),
+    (New-Check -Path $payloadContractReportScript -Pattern 'Name = "Backpressure"' -Label "Payload contract report tracks backpressure decision"),
+    (New-Check -Path $payloadContractReportScript -Pattern "RealServerEvidenceGaps" -Label "Payload contract report tracks real server evidence gaps"),
+    (New-Check -Path $payloadContractReportScript -Pattern "RealJudgingServerAcceptancePresent" -Label "Payload contract report separates real server acceptance evidence"),
     (New-Check -Path $remainingWorkDoc -Pattern "server transport contract" -Label "Remaining work references transport contract"),
     (New-Check -Path $remainingWorkDoc -Pattern "validate_server_transport_contract.ps1" -Label "Remaining work references transport gate"),
     (New-Check -Path $remainingWorkDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Remaining work references HTTP POST loopback automation"),
@@ -106,6 +116,7 @@ $report = [PSCustomObject]@{
         HttpAcceptanceSeparated = $true
         HttpPostLoopbackAutomationDeclared = $true
         OpenServerTransportDecisionsDocumented = $true
+        ServerAcceptanceDecisionReportDeclared = $true
         SafeEditorDefaultDocumented = $true
         Valid = $true
     }
@@ -123,5 +134,6 @@ else {
     Write-Host "HTTP acceptance separated: $($report.Summary.HttpAcceptanceSeparated)"
     Write-Host "HTTP POST loopback automation declared: $($report.Summary.HttpPostLoopbackAutomationDeclared)"
     Write-Host "Open server transport decisions documented: $($report.Summary.OpenServerTransportDecisionsDocumented)"
+    Write-Host "Server acceptance decision report declared: $($report.Summary.ServerAcceptanceDecisionReportDeclared)"
     Write-Host "Safe editor default documented: $($report.Summary.SafeEditorDefaultDocumented)"
 }

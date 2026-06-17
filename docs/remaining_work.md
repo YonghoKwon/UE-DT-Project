@@ -281,6 +281,10 @@ Current state:
   documenting multi-return and fallback cases.
 - `Scripts/export_payload_contract_report.ps1` exports JSON and Markdown review
   artifacts under `Saved/PayloadContractReports/` for judging-server handoff.
+  The report now includes a server acceptance readiness matrix for endpoint
+  ownership, authentication, retry/timeout, batching/backpressure, and response
+  schema decisions, while keeping real judging-server acceptance separate from
+  local mock and loopback evidence.
 - `Scripts/validate_payload_schema_review_policy.ps1` checks that schema review
   notes stay present while the final server contract is still open.
 - `docs/server_transport_contract.md` records the current `LogOnly`,
@@ -322,6 +326,8 @@ Completion evidence:
   `M7AT10.SensorTransport.HttpPostLoopbackAcceptance`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"`.
+- Payload contract review exports:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1" -Json`.
 - Server transport readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_contract.ps1"`.
 
