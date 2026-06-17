@@ -115,14 +115,24 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "External viewer workflow"; Label = "Renderer report includes external viewer path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Keep CPU ISM fallback"; Label = "Renderer report keeps CPU fallback" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "Renderer report can require local CSV preview performance evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = '[string]$LogPath'; Label = "Renderer report accepts an explicit automation log path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "Renderer report summarizes CPU fallback performance evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceRunStartLine"; Label = "Renderer report forwards CSV evidence run line number" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "TestCompleteLine"; Label = "Renderer report forwards automation completion line number" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceLinesWithinRun"; Label = "Renderer report requires CSV evidence inside the selected run block" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvEvidenceLinesWithinRun"; Label = "Renderer report summary exposes same-run CSV evidence status" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "MaxAcceptedPoints -ge 250000"; Label = "Renderer report treats 250k CSV evidence as dense fallback proof" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "RequireAutomationSuccess"; Label = "CSV preview performance report can require automation success evidence" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "TEST COMPLETE\. EXIT CODE"; Label = "CSV preview performance report checks automation exit evidence" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "EvidenceRunStartLine"; Label = "CSV preview performance report records evidence run line number" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "TestCompleteLine"; Label = "CSV preview performance report records completion line number" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "EvidenceLinesWithinRun"; Label = "CSV preview performance report verifies evidence lines are inside the selected run block" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = 'Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}'; Label = "CSV preview performance report matches scenario-specific success lines" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "M7AT10.Sensor.CsvPointCloudPreview"; Label = "CSV evidence workflow runs the dedicated preview automation group" },
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = '[string]$LogPath'; Label = "CSV evidence workflow accepts an explicit automation log path" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "CSV evidence workflow requires renderer decision evidence" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireAutomationSuccess"; Label = "CSV evidence workflow requires automation success evidence" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "CSV evidence workflow verifies CPU fallback evidence" }
@@ -160,6 +170,8 @@ $report = [PSCustomObject]@{
         CsvPreviewPerformanceReportDeclared = $true
         RendererDecisionConsumesCsvPerformanceEvidence = $true
         CsvPreviewPerformanceEvidenceWorkflowDeclared = $true
+        CsvPreviewEvidenceLineTrackingDeclared = $true
+        RendererDecisionExplicitLogPathDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -182,5 +194,7 @@ else {
     Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"
     Write-Host "Renderer decision consumes CSV performance evidence: $($report.Summary.RendererDecisionConsumesCsvPerformanceEvidence)"
     Write-Host "CSV preview performance evidence workflow declared: $($report.Summary.CsvPreviewPerformanceEvidenceWorkflowDeclared)"
+    Write-Host "CSV preview evidence line tracking declared: $($report.Summary.CsvPreviewEvidenceLineTrackingDeclared)"
+    Write-Host "Renderer decision explicit log path declared: $($report.Summary.RendererDecisionExplicitLogPathDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

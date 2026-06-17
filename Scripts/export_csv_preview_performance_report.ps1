@@ -76,13 +76,17 @@ function Get-ScenarioName {
 }
 
 function Convert-ToPreviewMetric {
-    param([System.Text.RegularExpressions.Match]$Match)
+    param(
+        [System.Text.RegularExpressions.Match]$Match,
+        [int]$LineNumber
+    )
 
     $csvPath = $Match.Groups["path"].Value.Trim()
     $scenario = Get-ScenarioName -CsvPath $csvPath
 
     return [PSCustomObject]@{
         Scenario = $scenario
+        EvidenceLine = $LineNumber
         CsvPath = $csvPath
         LoadedPoints = [int]$Match.Groups["points"].Value
         RenderMode = $Match.Groups["mode"].Value
@@ -122,14 +126,25 @@ function Write-MarkdownReport {
     $lines += "- Automation success evidence present: $($Report.Summary.AutomationSuccessEvidencePresent)"
     $lines += "- Successful test completion count: $($Report.Summary.SuccessfulTestCompletionCount)"
     $lines += "- Test complete exit code zero: $($Report.Summary.TestCompleteExitCodeZero)"
+    $lines += "- Evidence run start line: $($Report.Summary.EvidenceRunStartLine)"
+    $lines += "- Test complete line: $($Report.Summary.TestCompleteLine)"
+    $lines += "- Evidence lines within run: $($Report.Summary.EvidenceLinesWithinRun)"
     $lines += "- Valid: $($Report.Summary.Valid)"
     $lines += ""
     $lines += "## Metrics"
     $lines += ""
-    $lines += "| Scenario | Mode | Loaded | Accepted | Lines | Sections | Instances | Parse ms | Build ms | Total ms | Status |"
-    $lines += "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
+    $lines += "| Scenario | Log line | Mode | Loaded | Accepted | Lines | Sections | Instances | Parse ms | Build ms | Total ms | Status |"
+    $lines += "| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
     foreach ($metric in $Report.Metrics) {
-        $lines += "| $(Convert-ToMarkdownCell $metric.Scenario) | $(Convert-ToMarkdownCell $metric.RenderMode) | $($metric.LoadedPoints) | $($metric.AcceptedPoints) | $($metric.InputLines) | $($metric.Sections) | $($metric.Instances) | $($metric.ParseMs) | $($metric.BuildMs) | $($metric.TotalMs) | $(Convert-ToMarkdownCell $metric.Status) |"
+        $lines += "| $(Convert-ToMarkdownCell $metric.Scenario) | $($metric.EvidenceLine) | $(Convert-ToMarkdownCell $metric.RenderMode) | $($metric.LoadedPoints) | $($metric.AcceptedPoints) | $($metric.InputLines) | $($metric.Sections) | $($metric.Instances) | $($metric.ParseMs) | $($metric.BuildMs) | $($metric.TotalMs) | $(Convert-ToMarkdownCell $metric.Status) |"
+    }
+    $lines += ""
+    $lines += "## Automation Success Evidence"
+    $lines += ""
+    $lines += "| Scenario | Log line |"
+    $lines += "| --- | ---: |"
+    foreach ($item in $Report.AutomationSuccessEvidence) {
+        $lines += "| $(Convert-ToMarkdownCell $item.Scenario) | $($item.Line) |"
     }
     $lines += ""
     $lines += "## Notes"
@@ -144,7 +159,12 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Get-DefaultProjectRoot
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$LocalProjectRoot = (Resolve-Path -LiteralPath $LocalProjectRoot).Path
+if (Test-Path -LiteralPath $LocalProjectRoot -PathType Container) {
+    $LocalProjectRoot = (Resolve-Path -LiteralPath $LocalProjectRoot).Path
+}
+elseif ([string]::IsNullOrWhiteSpace($LogPath)) {
+    throw "Local project root not found: $LocalProjectRoot"
+}
 
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
     $LogPath = Join-Path $LocalProjectRoot "Saved\Logs\m7at10_dt.log"
@@ -152,20 +172,39 @@ if ([string]::IsNullOrWhiteSpace($LogPath)) {
 $LogPath = (Resolve-Path -LiteralPath $LogPath).Path
 Assert-FileExists -Path $LogPath -Label "Unreal automation log"
 
-$logText = Get-Content -LiteralPath $LogPath -Raw
+$logLines = @(Get-Content -LiteralPath $LogPath)
+$logText = $logLines -join "`n"
 $pattern = "\[CsvPointCloudPreview\] Loaded (?<points>\d+) points from (?<path>.+?) mode=(?<mode>\w+).*?telemetry=mode=(?<tmode>\w+) lines=(?<lines>\d+) accepted=(?<accepted>\d+) sections=(?<sections>\d+) instances=(?<instances>\d+) parseMs=(?<parse>[0-9.]+) buildMs=(?<build>[0-9.]+) totalMs=(?<total>[0-9.]+) status=(?<status>\w+)"
-$matches = [regex]::Matches($logText, $pattern)
 
-if ($matches.Count -eq 0) {
-    throw "No CSV preview telemetry entries were found in $LogPath. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first."
+$evidenceRunStartLine = 0
+for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
+    $line = $logLines[$lineIndex]
+    if ($line -match "M7AT10\.Sensor\.CsvPointCloudPreview" -and
+        ($line -match "Automation RunTests" -or $line -match "RunTests=" -or $line -match "Found \d+ automation tests")) {
+        $evidenceRunStartLine = $lineIndex + 1
+    }
 }
 
 $metricsByScenario = @{}
-foreach ($match in $matches) {
-    $metric = Convert-ToPreviewMetric -Match $match
+for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
+    $lineNumber = $lineIndex + 1
+    if ($evidenceRunStartLine -gt 0 -and $lineNumber -lt $evidenceRunStartLine) {
+        continue
+    }
+
+    $match = [regex]::Match($logLines[$lineIndex], $pattern)
+    if (-not $match.Success) {
+        continue
+    }
+
+    $metric = Convert-ToPreviewMetric -Match $match -LineNumber $lineNumber
     if ($metric.Scenario -ne "Unknown") {
         $metricsByScenario[$metric.Scenario] = $metric
     }
+}
+
+if ($metricsByScenario.Count -eq 0) {
+    throw "No CSV preview telemetry entries were found in $LogPath. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first."
 }
 
 $requiredScenarios = @(
@@ -181,9 +220,38 @@ if ($missingScenarios.Count -gt 0) {
 
 $metrics = @($requiredScenarios | ForEach-Object { $metricsByScenario[$_] })
 $proceduralBudget = $metricsByScenario["ProceduralPerformanceBudget"]
-$successfulTestCompletionCount = ([regex]::Matches($logText, "Test Completed\. Result=\{Success\}")).Count
-$testCompleteExitCodeZero = [bool]([regex]::Match($logText, "TEST COMPLETE\. EXIT CODE:\s*0").Success)
-$automationSuccessEvidencePresent = ($successfulTestCompletionCount -ge $requiredScenarios.Count) -and $testCompleteExitCodeZero
+$successEvidenceByScenario = @{}
+$testCompleteLine = 0
+for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
+    $lineNumber = $lineIndex + 1
+    if ($evidenceRunStartLine -gt 0 -and $lineNumber -lt $evidenceRunStartLine) {
+        continue
+    }
+
+    $line = $logLines[$lineIndex]
+    foreach ($scenario in $requiredScenarios) {
+        if ($line -match "Test Completed\. Result=\{Success\}.*Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}") {
+            $successEvidenceByScenario[$scenario] = [PSCustomObject]@{
+                Scenario = $scenario
+                Line = $lineNumber
+            }
+        }
+    }
+    if ($line -match "TEST COMPLETE\. EXIT CODE:\s*0") {
+        $testCompleteLine = $lineNumber
+    }
+}
+$automationSuccessEvidence = @($requiredScenarios | Where-Object { $successEvidenceByScenario.ContainsKey($_) } | ForEach-Object { $successEvidenceByScenario[$_] })
+$successfulTestCompletionCount = $automationSuccessEvidence.Count
+$testCompleteExitCodeZero = ($testCompleteLine -gt 0)
+$automationSuccessEvidencePresent = ($successfulTestCompletionCount -eq $requiredScenarios.Count) -and $testCompleteExitCodeZero
+$evidenceLinesWithinRun = ($evidenceRunStartLine -gt 0) -and ($testCompleteLine -gt $evidenceRunStartLine)
+foreach ($metric in $metrics) {
+    $evidenceLinesWithinRun = $evidenceLinesWithinRun -and ($metric.EvidenceLine -gt $evidenceRunStartLine) -and ($metric.EvidenceLine -lt $testCompleteLine)
+}
+foreach ($success in $automationSuccessEvidence) {
+    $evidenceLinesWithinRun = $evidenceLinesWithinRun -and ($success.Line -gt $evidenceRunStartLine) -and ($success.Line -lt $testCompleteLine)
+}
 
 $invariants = @(
     [PSCustomObject]@{ Label = "instanced scenario uses InstancedMesh"; Passed = ($metricsByScenario["InstancedBatchLoad"].RenderMode -eq "InstancedMesh") },
@@ -202,6 +270,9 @@ if ($failedInvariants.Count -gt 0) {
 if ($RequireAutomationSuccess -and -not $automationSuccessEvidencePresent) {
     throw "CSV preview performance report found telemetry, but automation success evidence was missing. SuccessCount=$successfulTestCompletionCount TestCompleteExitCodeZero=$testCompleteExitCodeZero"
 }
+if ($RequireAutomationSuccess -and -not $evidenceLinesWithinRun) {
+    throw "CSV preview performance report found telemetry and success lines, but they were not all inside the selected CSV preview automation run block. StartLine=$evidenceRunStartLine TestCompleteLine=$testCompleteLine"
+}
 
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $report = [PSCustomObject]@{
@@ -210,6 +281,7 @@ $report = [PSCustomObject]@{
     LocalProjectRoot = $LocalProjectRoot
     LogPath = $LogPath
     Metrics = $metrics
+    AutomationSuccessEvidence = $automationSuccessEvidence
     Invariants = $invariants
     Summary = [PSCustomObject]@{
         RequiredScenariosPresent = ($missingScenarios.Count -eq 0)
@@ -220,6 +292,9 @@ $report = [PSCustomObject]@{
         AutomationSuccessEvidencePresent = [bool]$automationSuccessEvidencePresent
         SuccessfulTestCompletionCount = [int]$successfulTestCompletionCount
         TestCompleteExitCodeZero = [bool]$testCompleteExitCodeZero
+        EvidenceRunStartLine = [int]$evidenceRunStartLine
+        TestCompleteLine = [int]$testCompleteLine
+        EvidenceLinesWithinRun = [bool]$evidenceLinesWithinRun
         Valid = $true
     }
 }
@@ -244,4 +319,7 @@ else {
     Write-Host "Automation success evidence present: $($report.Summary.AutomationSuccessEvidencePresent)"
     Write-Host "Successful test completion count: $($report.Summary.SuccessfulTestCompletionCount)"
     Write-Host "Test complete exit code zero: $($report.Summary.TestCompleteExitCodeZero)"
+    Write-Host "Evidence run start line: $($report.Summary.EvidenceRunStartLine)"
+    Write-Host "Test complete line: $($report.Summary.TestCompleteLine)"
+    Write-Host "Evidence lines within run: $($report.Summary.EvidenceLinesWithinRun)"
 }

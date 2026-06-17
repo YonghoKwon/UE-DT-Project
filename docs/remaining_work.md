@@ -389,6 +389,10 @@ Current state:
   headless CSV preview automation group, exports CSV and renderer decision
   reports under `Saved/Reports`, and requires both telemetry rows and automation
   success evidence before accepting the CPU fallback performance result.
+- CSV evidence reports now record the selected run block and line-level proof:
+  `EvidenceRunStartLine`, per-scenario telemetry `EvidenceLine`,
+  per-scenario success lines, `TestCompleteLine`, and
+  `EvidenceLinesWithinRun`.
 - `M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` covers a
   120,000-point procedural CSV preview load without requiring the Unreal Editor
   GUI, and `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
@@ -426,8 +430,12 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
 - CSV preview performance evidence can require automation completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireAutomationSuccess`.
+- CSV preview performance evidence can target an explicit log file:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireAutomationSuccess`.
 - Renderer decision evidence can be required against the same local log:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence`.
+- Renderer decision evidence can also target an explicit log file:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireCsvPerformanceEvidence`.
 - End-to-end local CPU fallback evidence workflow passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild`.
 - Static readiness passes:

@@ -1,6 +1,7 @@
 param(
     [string]$ProjectRoot = "",
     [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$LogPath = "",
     [switch]$RequireCsvPerformanceEvidence,
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -48,7 +49,8 @@ function Resolve-OptionalDirectory {
 function Get-CsvPreviewPerformanceEvidence {
     param(
         [string]$ProjectRoot,
-        [string]$LocalProjectRoot
+        [string]$LocalProjectRoot,
+        [string]$LogPath
     )
 
     $csvPerformanceScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
@@ -60,25 +62,41 @@ function Get-CsvPreviewPerformanceEvidence {
     }
 
     $resolvedLocalRoot = Resolve-OptionalDirectory -Path $LocalProjectRoot
-    if ([string]::IsNullOrWhiteSpace($resolvedLocalRoot)) {
+    $resolvedLogPath = $LogPath
+
+    if ([string]::IsNullOrWhiteSpace($resolvedLogPath) -and [string]::IsNullOrWhiteSpace($resolvedLocalRoot)) {
         return [PSCustomObject]@{
             Present = $false
             Reason = "Local project root was not found: $LocalProjectRoot"
         }
     }
 
-    $logPath = Join-Path $resolvedLocalRoot "Saved\Logs\m7at10_dt.log"
-    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+    if ([string]::IsNullOrWhiteSpace($resolvedLogPath)) {
+        $resolvedLogPath = Join-Path $resolvedLocalRoot "Saved\Logs\m7at10_dt.log"
+    }
+    if (-not (Test-Path -LiteralPath $resolvedLogPath -PathType Leaf)) {
         return [PSCustomObject]@{
             Present = $false
             LocalProjectRoot = $resolvedLocalRoot
-            LogPath = $logPath
-            Reason = "Unreal automation log is missing. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first."
+            LogPath = $resolvedLogPath
+            Reason = "Unreal automation log is missing. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first, or pass -LogPath to a log that contains that run."
         }
     }
+    $resolvedLogPath = (Resolve-Path -LiteralPath $resolvedLogPath).Path
 
     try {
-        $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $csvPerformanceScript -ProjectRoot $ProjectRoot -LocalProjectRoot $resolvedLocalRoot -LogPath $logPath -RequireAutomationSuccess -Json 2>&1)
+        $csvLocalRootArg = $resolvedLocalRoot
+        if ([string]::IsNullOrWhiteSpace($csvLocalRootArg)) {
+            $csvLocalRootArg = $LocalProjectRoot
+        }
+        $csvArgs = @(
+            "-ProjectRoot", $ProjectRoot,
+            "-LocalProjectRoot", $csvLocalRootArg,
+            "-LogPath", $resolvedLogPath,
+            "-RequireAutomationSuccess",
+            "-Json"
+        )
+        $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $csvPerformanceScript @csvArgs 2>&1)
         if ($LASTEXITCODE -ne 0) {
             throw "CSV preview performance report exited with code ${LASTEXITCODE}: $($scriptOutput -join ' ')"
         }
@@ -87,7 +105,7 @@ function Get-CsvPreviewPerformanceEvidence {
         return [PSCustomObject]@{
             Present = [bool]$report.Summary.Valid
             LocalProjectRoot = $resolvedLocalRoot
-            LogPath = $logPath
+            LogPath = $resolvedLogPath
             ScenarioCount = [int]$report.Summary.ScenarioCount
             MaxAcceptedPoints = [int]$report.Summary.MaxAcceptedPoints
             MaxTotalLoadMs = [double]$report.Summary.MaxTotalLoadMs
@@ -96,6 +114,9 @@ function Get-CsvPreviewPerformanceEvidence {
             AutomationSuccessEvidencePresent = [bool]$report.Summary.AutomationSuccessEvidencePresent
             SuccessfulTestCompletionCount = [int]$report.Summary.SuccessfulTestCompletionCount
             TestCompleteExitCodeZero = [bool]$report.Summary.TestCompleteExitCodeZero
+            EvidenceRunStartLine = [int]$report.Summary.EvidenceRunStartLine
+            TestCompleteLine = [int]$report.Summary.TestCompleteLine
+            EvidenceLinesWithinRun = [bool]$report.Summary.EvidenceLinesWithinRun
             Reason = "CSV preview performance telemetry was read from the local automation log."
         }
     }
@@ -103,7 +124,7 @@ function Get-CsvPreviewPerformanceEvidence {
         return [PSCustomObject]@{
             Present = $false
             LocalProjectRoot = $resolvedLocalRoot
-            LogPath = $logPath
+            LogPath = $resolvedLogPath
             Reason = $_.Exception.Message
         }
     }
@@ -151,6 +172,7 @@ function Write-MarkdownReport {
     $lines += "- CSV performance evidence present: $($Report.Summary.CsvPerformanceEvidencePresent)"
     $lines += "- CPU fallback performance evidence present: $($Report.Summary.CpuFallbackPerformanceEvidencePresent)"
     $lines += "- CSV max accepted points: $($Report.Summary.CsvPreviewMaxAcceptedPoints)"
+    $lines += "- CSV evidence lines within run: $($Report.Summary.CsvEvidenceLinesWithinRun)"
     $lines += "- GPU renderer integrated: $($Report.Summary.GpuRendererIntegrated)"
     $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
     $lines += ""
@@ -180,6 +202,9 @@ function Write-MarkdownReport {
         $lines += "- Automation success evidence present: $($Report.CsvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent)"
         $lines += "- Successful test completion count: $($Report.CsvPreviewPerformanceEvidence.SuccessfulTestCompletionCount)"
         $lines += "- Test complete exit code zero: $($Report.CsvPreviewPerformanceEvidence.TestCompleteExitCodeZero)"
+        $lines += "- Evidence run start line: $($Report.CsvPreviewPerformanceEvidence.EvidenceRunStartLine)"
+        $lines += "- Test complete line: $($Report.CsvPreviewPerformanceEvidence.TestCompleteLine)"
+        $lines += "- Evidence lines within run: $($Report.CsvPreviewPerformanceEvidence.EvidenceLinesWithinRun)"
     }
     else {
         $lines += "- Missing: $($Report.CsvPreviewPerformanceEvidence.Reason)"
@@ -196,7 +221,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Get-DefaultProjectRoot
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$csvPreviewPerformanceEvidence = Get-CsvPreviewPerformanceEvidence -ProjectRoot $ProjectRoot -LocalProjectRoot $LocalProjectRoot
+$csvPreviewPerformanceEvidence = Get-CsvPreviewPerformanceEvidence -ProjectRoot $ProjectRoot -LocalProjectRoot $LocalProjectRoot -LogPath $LogPath
 
 $lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
 $lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
@@ -279,6 +304,7 @@ $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $cpuFallbackPerformanceEvidencePresent = $csvPreviewPerformanceEvidence.Present -and
     $csvPreviewPerformanceEvidence.RequiredScenariosPresent -and
     $csvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent -and
+    $csvPreviewPerformanceEvidence.EvidenceLinesWithinRun -and
     ($csvPreviewPerformanceEvidence.MaxAcceptedPoints -ge 250000)
 $report = [PSCustomObject]@{
     GeneratedUtc = $generatedUtc
@@ -306,6 +332,9 @@ $report = [PSCustomObject]@{
         CsvPerformanceEvidencePresent = [bool]$csvPreviewPerformanceEvidence.Present
         CpuFallbackPerformanceEvidencePresent = [bool]$cpuFallbackPerformanceEvidencePresent
         CsvPreviewMaxAcceptedPoints = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.MaxAcceptedPoints } else { 0 }
+        CsvEvidenceLinesWithinRun = if ($csvPreviewPerformanceEvidence.Present) { [bool]$csvPreviewPerformanceEvidence.EvidenceLinesWithinRun } else { $false }
+        CsvEvidenceRunStartLine = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.EvidenceRunStartLine } else { 0 }
+        CsvEvidenceTestCompleteLine = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.TestCompleteLine } else { 0 }
         GpuRendererIntegrated = $gpuRendererIntegrated
         CandidateRendererCount = $candidateRenderers.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count

@@ -2,6 +2,7 @@ param(
     [string]$ProjectRoot = "",
     [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
+    [string]$LogPath = "",
     [switch]$SkipAutomation,
     [switch]$SkipBuild,
     [switch]$AllowOpenEditor,
@@ -52,6 +53,9 @@ $runSmokeScript = Join-Path $ProjectRoot "Scripts\run_smoke_tests.ps1"
 $csvReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
 $rendererReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
 $projectPath = Join-Path $LocalProjectRoot "m7at10_dt.uproject"
+if ([string]::IsNullOrWhiteSpace($LogPath)) {
+    $LogPath = Join-Path $LocalProjectRoot "Saved\Logs\m7at10_dt.log"
+}
 $reportDir = Join-Path $LocalProjectRoot "Saved\Reports"
 $csvMarkdownPath = Join-Path $reportDir "csv_preview_performance.md"
 $csvJsonPath = Join-Path $reportDir "csv_preview_performance.json"
@@ -93,6 +97,7 @@ Invoke-CheckedScript `
     -Arguments @(
         "-ProjectRoot", $ProjectRoot,
         "-LocalProjectRoot", $LocalProjectRoot,
+        "-LogPath", $LogPath,
         "-RequireAutomationSuccess",
         "-MarkdownPath", $csvMarkdownPath,
         "-JsonPath", $csvJsonPath
@@ -104,6 +109,7 @@ Invoke-CheckedScript `
     -Arguments @(
         "-ProjectRoot", $ProjectRoot,
         "-LocalProjectRoot", $LocalProjectRoot,
+        "-LogPath", $LogPath,
         "-RequireCsvPerformanceEvidence",
         "-MarkdownPath", $rendererMarkdownPath,
         "-JsonPath", $rendererJsonPath
@@ -115,6 +121,7 @@ $rendererReport = Get-Content -LiteralPath $rendererJsonPath -Raw | ConvertFrom-
 $summary = [PSCustomObject]@{
     ProjectRoot = $ProjectRoot
     LocalProjectRoot = $LocalProjectRoot
+    LogPath = $LogPath
     AutomationRun = (-not $SkipAutomation)
     CsvReportMarkdownPath = $csvMarkdownPath
     CsvReportJsonPath = $csvJsonPath

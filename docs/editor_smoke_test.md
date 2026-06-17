@@ -279,8 +279,10 @@ evidence:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireAutomationSuccess
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireAutomationSuccess
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -MarkdownPath ".\Saved\Reports\csv_preview_performance.md" -JsonPath ".\Saved\Reports\csv_preview_performance.json"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireCsvPerformanceEvidence
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild
 ```
 
@@ -290,7 +292,10 @@ not replace the future GPU/Niagara viewport smoke evidence. The renderer
 decision report consumes the same local evidence and sets
 `CpuFallbackPerformanceEvidencePresent` when the instanced, 120,000-point
 procedural, and 250,000-point procedural budget scenarios plus
-`TEST COMPLETE. EXIT CODE: 0` are all present.
+scenario-specific success lines and `TEST COMPLETE. EXIT CODE: 0` are all
+present inside the selected CSV preview run block. The generated Markdown and
+JSON include `EvidenceRunStartLine`, each metric `EvidenceLine`, each
+scenario success line, `TestCompleteLine`, and `EvidenceLinesWithinRun`.
 
 Manual PIE payload checks:
 
