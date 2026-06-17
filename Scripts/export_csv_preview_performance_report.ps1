@@ -4,6 +4,7 @@ param(
     [string]$LogPath = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
+    [switch]$RequireAutomationSuccess,
     [switch]$Json
 )
 
@@ -118,6 +119,9 @@ function Write-MarkdownReport {
     $lines += "- Max accepted points: $($Report.Summary.MaxAcceptedPoints)"
     $lines += "- Max total load ms: $($Report.Summary.MaxTotalLoadMs)"
     $lines += "- Procedural performance budget ms: $($Report.Summary.ProceduralPerformanceBudgetMs)"
+    $lines += "- Automation success evidence present: $($Report.Summary.AutomationSuccessEvidencePresent)"
+    $lines += "- Successful test completion count: $($Report.Summary.SuccessfulTestCompletionCount)"
+    $lines += "- Test complete exit code zero: $($Report.Summary.TestCompleteExitCodeZero)"
     $lines += "- Valid: $($Report.Summary.Valid)"
     $lines += ""
     $lines += "## Metrics"
@@ -177,6 +181,9 @@ if ($missingScenarios.Count -gt 0) {
 
 $metrics = @($requiredScenarios | ForEach-Object { $metricsByScenario[$_] })
 $proceduralBudget = $metricsByScenario["ProceduralPerformanceBudget"]
+$successfulTestCompletionCount = ([regex]::Matches($logText, "Test Completed\. Result=\{Success\}")).Count
+$testCompleteExitCodeZero = [bool]([regex]::Match($logText, "TEST COMPLETE\. EXIT CODE:\s*0").Success)
+$automationSuccessEvidencePresent = ($successfulTestCompletionCount -ge $requiredScenarios.Count) -and $testCompleteExitCodeZero
 
 $invariants = @(
     [PSCustomObject]@{ Label = "instanced scenario uses InstancedMesh"; Passed = ($metricsByScenario["InstancedBatchLoad"].RenderMode -eq "InstancedMesh") },
@@ -191,6 +198,9 @@ $invariants = @(
 $failedInvariants = @($invariants | Where-Object { -not $_.Passed })
 if ($failedInvariants.Count -gt 0) {
     throw "CSV preview performance report invariants failed: $((@($failedInvariants | ForEach-Object { $_.Label })) -join '; ')"
+}
+if ($RequireAutomationSuccess -and -not $automationSuccessEvidencePresent) {
+    throw "CSV preview performance report found telemetry, but automation success evidence was missing. SuccessCount=$successfulTestCompletionCount TestCompleteExitCodeZero=$testCompleteExitCodeZero"
 }
 
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -207,6 +217,9 @@ $report = [PSCustomObject]@{
         MaxAcceptedPoints = [int](($metrics | Measure-Object -Property AcceptedPoints -Maximum).Maximum)
         MaxTotalLoadMs = [double](($metrics | Measure-Object -Property TotalMs -Maximum).Maximum)
         ProceduralPerformanceBudgetMs = [double]$proceduralBudget.TotalMs
+        AutomationSuccessEvidencePresent = [bool]$automationSuccessEvidencePresent
+        SuccessfulTestCompletionCount = [int]$successfulTestCompletionCount
+        TestCompleteExitCodeZero = [bool]$testCompleteExitCodeZero
         Valid = $true
     }
 }
@@ -228,4 +241,7 @@ else {
     Write-Host "Max accepted points: $($report.Summary.MaxAcceptedPoints)"
     Write-Host "Max total load ms: $($report.Summary.MaxTotalLoadMs)"
     Write-Host "Procedural performance budget ms: $($report.Summary.ProceduralPerformanceBudgetMs)"
+    Write-Host "Automation success evidence present: $($report.Summary.AutomationSuccessEvidencePresent)"
+    Write-Host "Successful test completion count: $($report.Summary.SuccessfulTestCompletionCount)"
+    Write-Host "Test complete exit code zero: $($report.Summary.TestCompleteExitCodeZero)"
 }

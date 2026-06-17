@@ -253,6 +253,12 @@ Headless CSV preview coverage:
 Automation RunTests M7AT10.Sensor.CsvPointCloudPreview
 ```
 
+Full headless command:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.Sensor.CsvPointCloudPreview; Quit" -TestExit="Automation Test Queue Empty"
+```
+
 `M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` verifies a
 120,000-point procedural CSV preview load without opening the Unreal Editor GUI.
 `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the instanced
@@ -272,15 +278,19 @@ evidence:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireAutomationSuccess
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -MarkdownPath ".\Saved\Reports\csv_preview_performance.md" -JsonPath ".\Saved\Reports\csv_preview_performance.json"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild
 ```
 
 This report proves the current CPU preview fallback telemetry was emitted from
-the automation log. It does not replace the future GPU/Niagara viewport smoke
-evidence. The renderer decision report consumes the same local evidence and
-sets `CpuFallbackPerformanceEvidencePresent` when the instanced, 120,000-point
-procedural, and 250,000-point procedural budget scenarios are all present.
+the automation log and that the automation run completed successfully. It does
+not replace the future GPU/Niagara viewport smoke evidence. The renderer
+decision report consumes the same local evidence and sets
+`CpuFallbackPerformanceEvidencePresent` when the instanced, 120,000-point
+procedural, and 250,000-point procedural budget scenarios plus
+`TEST COMPLETE. EXIT CODE: 0` are all present.
 
 Manual PIE payload checks:
 

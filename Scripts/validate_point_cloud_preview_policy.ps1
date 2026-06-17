@@ -70,9 +70,11 @@ $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $rendererDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
 $csvPreviewPerformanceReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
+$csvPreviewEvidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\run_csv_preview_performance_evidence.ps1"
 
 Assert-FileExists -Path $rendererDecisionReportScript -Label "Point cloud renderer decision report script"
 Assert-FileExists -Path $csvPreviewPerformanceReportScript -Label "CSV preview performance report script"
+Assert-FileExists -Path $csvPreviewEvidenceWorkflowScript -Label "CSV preview performance evidence workflow script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ServerPayloadStride"; Label = "Server payload stride policy" },
@@ -117,7 +119,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "MaxAcceptedPoints -ge 250000"; Label = "Renderer report treats 250k CSV evidence as dense fallback proof" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
-    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" }
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "RequireAutomationSuccess"; Label = "CSV preview performance report can require automation success evidence" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "TEST COMPLETE\. EXIT CODE"; Label = "CSV preview performance report checks automation exit evidence" },
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "M7AT10.Sensor.CsvPointCloudPreview"; Label = "CSV evidence workflow runs the dedicated preview automation group" },
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "CSV evidence workflow requires renderer decision evidence" },
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireAutomationSuccess"; Label = "CSV evidence workflow requires automation success evidence" },
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "CSV evidence workflow verifies CPU fallback evidence" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -151,6 +159,7 @@ $report = [PSCustomObject]@{
         ProceduralCsvPreviewTelemetryDeclared = $true
         CsvPreviewPerformanceReportDeclared = $true
         RendererDecisionConsumesCsvPerformanceEvidence = $true
+        CsvPreviewPerformanceEvidenceWorkflowDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -172,5 +181,6 @@ else {
     Write-Host "Procedural CSV preview telemetry declared: $($report.Summary.ProceduralCsvPreviewTelemetryDeclared)"
     Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"
     Write-Host "Renderer decision consumes CSV performance evidence: $($report.Summary.RendererDecisionConsumesCsvPerformanceEvidence)"
+    Write-Host "CSV preview performance evidence workflow declared: $($report.Summary.CsvPreviewPerformanceEvidenceWorkflowDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

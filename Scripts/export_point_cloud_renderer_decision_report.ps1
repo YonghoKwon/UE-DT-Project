@@ -78,7 +78,7 @@ function Get-CsvPreviewPerformanceEvidence {
     }
 
     try {
-        $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $csvPerformanceScript -ProjectRoot $ProjectRoot -LocalProjectRoot $resolvedLocalRoot -LogPath $logPath -Json 2>&1)
+        $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $csvPerformanceScript -ProjectRoot $ProjectRoot -LocalProjectRoot $resolvedLocalRoot -LogPath $logPath -RequireAutomationSuccess -Json 2>&1)
         if ($LASTEXITCODE -ne 0) {
             throw "CSV preview performance report exited with code ${LASTEXITCODE}: $($scriptOutput -join ' ')"
         }
@@ -93,6 +93,9 @@ function Get-CsvPreviewPerformanceEvidence {
             MaxTotalLoadMs = [double]$report.Summary.MaxTotalLoadMs
             ProceduralPerformanceBudgetMs = [double]$report.Summary.ProceduralPerformanceBudgetMs
             RequiredScenariosPresent = [bool]$report.Summary.RequiredScenariosPresent
+            AutomationSuccessEvidencePresent = [bool]$report.Summary.AutomationSuccessEvidencePresent
+            SuccessfulTestCompletionCount = [int]$report.Summary.SuccessfulTestCompletionCount
+            TestCompleteExitCodeZero = [bool]$report.Summary.TestCompleteExitCodeZero
             Reason = "CSV preview performance telemetry was read from the local automation log."
         }
     }
@@ -174,6 +177,9 @@ function Write-MarkdownReport {
         $lines += "- Max accepted points: $($Report.CsvPreviewPerformanceEvidence.MaxAcceptedPoints)"
         $lines += "- Max total load ms: $($Report.CsvPreviewPerformanceEvidence.MaxTotalLoadMs)"
         $lines += "- Procedural performance budget ms: $($Report.CsvPreviewPerformanceEvidence.ProceduralPerformanceBudgetMs)"
+        $lines += "- Automation success evidence present: $($Report.CsvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent)"
+        $lines += "- Successful test completion count: $($Report.CsvPreviewPerformanceEvidence.SuccessfulTestCompletionCount)"
+        $lines += "- Test complete exit code zero: $($Report.CsvPreviewPerformanceEvidence.TestCompleteExitCodeZero)"
     }
     else {
         $lines += "- Missing: $($Report.CsvPreviewPerformanceEvidence.Reason)"
@@ -272,6 +278,7 @@ $acceptanceEvidence = @(
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $cpuFallbackPerformanceEvidencePresent = $csvPreviewPerformanceEvidence.Present -and
     $csvPreviewPerformanceEvidence.RequiredScenariosPresent -and
+    $csvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent -and
     ($csvPreviewPerformanceEvidence.MaxAcceptedPoints -ge 250000)
 $report = [PSCustomObject]@{
     GeneratedUtc = $generatedUtc
