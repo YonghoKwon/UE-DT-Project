@@ -190,6 +190,10 @@ Current state:
   the game thread, and is covered by
   `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` plus loopback HTTP POST
   smoke coverage in `M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost`.
+- The real-sensor readiness report now ranks deployment path candidates. Current
+  recommendation: use file replay as the baseline, use HTTP JSON live as the
+  first local/live deployment bridge, and prefer DTCore WebSocket only when the
+  broker endpoint, credentials, topic, and deployment smoke ownership are ready.
 - `ULidarUdpJsonLiveSourceComp` provides an optional loopback-first UDP JSON
   live bridge wrapper over the same handoff path.
 - `M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` provides local UDP
@@ -218,6 +222,9 @@ Next implementation steps:
 - Decide deployment ownership for HTTP/UDP listener exposure, host firewall
   rules, credentials, rate limits, and whether HTTP, UDP, WebSocket, or SDK
   input is the selected production live bridge shape.
+- Confirm whether the deployment should follow the readiness report's default
+  priority: file replay baseline, HTTP JSON live first, WebSocket via DTCore
+  when broker ownership is ready, then UDP/SDK paths as specialized follow-ups.
 - Implement a ROS2 bridge adapter that converts incoming messages to
   `FVirtualLidarPoint` frames or camera payloads.
 - Implement a Livox SDK adapter that normalizes packet streams into the same

@@ -232,6 +232,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "Real sensor adapter readiness report"; Label = "Real sensor readiness report exporter exists" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentEvidenceStillRequired"; Label = "Readiness report separates deployment evidence gap" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "RealSdkIntegrationStillRequired"; Label = "Readiness report separates SDK integration gap" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentPathCandidates"; Label = "Readiness report ranks deployment path candidates" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "RecommendedLiveBridge"; Label = "Readiness report names recommended live bridge" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "HTTP JSON live"; Label = "Readiness report includes HTTP live candidate" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "WebSocket via DTCore"; Label = "Readiness report includes DTCore WebSocket candidate" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "ROS2/Livox/RealSense SDK"; Label = "Readiness report keeps SDK path as hardware follow-up" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "export_real_sensor_adapter_readiness_report.ps1"; Label = "Plan documents real sensor readiness report" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "DefaultBindAddress"; Label = "Transport contract documents HTTPServer default bind override" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "ListenerOverrides"; Label = "Transport contract documents HTTPServer listener override" },
@@ -272,6 +277,7 @@ $report = [PSCustomObject]@{
         JsonLiveBrokerSmokeReportPresent = $true
         JsonLiveSmokeEvidenceWorkflowPresent = $true
         RealSensorReadinessReportPresent = $true
+        DeploymentPathCandidatesDeclared = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
@@ -304,6 +310,7 @@ else {
     Write-Host "JSON live broker smoke report present: $($report.Summary.JsonLiveBrokerSmokeReportPresent)"
     Write-Host "JSON live smoke evidence workflow present: $($report.Summary.JsonLiveSmokeEvidenceWorkflowPresent)"
     Write-Host "Real sensor readiness report present: $($report.Summary.RealSensorReadinessReportPresent)"
+    Write-Host "Deployment path candidates declared: $($report.Summary.DeploymentPathCandidatesDeclared)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"

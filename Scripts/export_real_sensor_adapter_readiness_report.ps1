@@ -77,6 +77,14 @@ function Write-MarkdownReport {
         $lines += "- $($bridge.Name): $($bridge.Evidence)"
     }
     $lines += ""
+    $lines += "## Deployment Path Candidates"
+    $lines += ""
+    $lines += "| Candidate | Priority | Status | Evidence | Remaining risk |"
+    $lines += "| --- | ---: | --- | --- | --- |"
+    foreach ($candidate in $Report.DeploymentPathCandidates) {
+        $lines += "| $($candidate.Name) | $($candidate.Priority) | $($candidate.Status) | $($candidate.Evidence) | $($candidate.RemainingRisk) |"
+    }
+    $lines += ""
     $lines += "## Headless Automation"
     $lines += ""
     foreach ($test in $Report.HeadlessAutomationGroups) {
@@ -133,6 +141,44 @@ $implementedBridges = @(
     [PSCustomObject]@{ Name = "DTCore WebSocket transaction"; Evidence = "Static registration report plus optional data-table evidence automation cover the handler row." }
 )
 
+$deploymentPathCandidates = @(
+    [PSCustomObject]@{
+        Name = "File replay"
+        Priority = 1
+        Status = "Recommended baseline"
+        Evidence = "CSV/JSONL replay adapters and samples exercise the normalized LiDAR handoff without network or hardware dependencies."
+        RemainingRisk = "Not live; must be paired with later deployment smoke for real-time behavior."
+    },
+    [PSCustomObject]@{
+        Name = "HTTP JSON live"
+        Priority = 2
+        Status = "Best local-live deployment candidate"
+        Evidence = "Local HTTP POST loopback automation covers real request routing, game-thread marshaling, response codes, and target LiDAR handoff."
+        RemainingRisk = "Bind address, port, firewall, authentication, rate limit, and payload size policy need deployment ownership."
+    },
+    [PSCustomObject]@{
+        Name = "WebSocket via DTCore"
+        Priority = 3
+        Status = "Preferred when deployment broker is already owned"
+        Evidence = "Transaction handler, registration report, binary-row evidence automation, and brokerless DTCore dispatch are in place."
+        RemainingRisk = "Real broker endpoint, credentials, topic, and observed source/target smoke evidence are still required."
+    },
+    [PSCustomObject]@{
+        Name = "UDP JSON live"
+        Priority = 4
+        Status = "Use for low-latency trusted LAN only"
+        Evidence = "Local UDP datagram automation covers packet receipt and normalized LiDAR handoff."
+        RemainingRisk = "No delivery guarantee; packet sizing, firewall, bind address, and trust boundary decisions remain."
+    },
+    [PSCustomObject]@{
+        Name = "ROS2/Livox/RealSense SDK"
+        Priority = 5
+        Status = "Hardware-specific follow-up"
+        Evidence = "Placeholder components and normalized target handoff are present."
+        RemainingRisk = "Actual SDK dependencies, message schemas, calibration, timestamps, and real-frame smoke are not implemented."
+    }
+)
+
 $remainingDecisions = @(
     "Choose production input path priority among SDK, ROS2, WebSocket, HTTP, UDP, and replay.",
     "Connect actual ROS2/Livox/RealSense SDKs or bridge processes and capture real-frame smoke evidence.",
@@ -152,6 +198,7 @@ $report = [PSCustomObject]@{
         BrokerSmoke = $brokerSmoke.Summary
     }
     ImplementedBridges = $implementedBridges
+    DeploymentPathCandidates = $deploymentPathCandidates
     HeadlessAutomationGroups = $headlessAutomationGroups
     RemainingDecisions = $remainingDecisions
     Summary = [PSCustomObject]@{
@@ -160,6 +207,8 @@ $report = [PSCustomObject]@{
         TransactionRegistrationStaticValid = [bool]$registration.Summary.Valid
         BrokerSmokeReadOnlyValid = [bool]$brokerSmoke.Summary.Valid
         HeadlessAutomationGroupCount = $headlessAutomationGroups.Count
+        DeploymentCandidateCount = $deploymentPathCandidates.Count
+        RecommendedLiveBridge = "HTTP JSON live for local/live ingestion unless the deployment broker is already owned; WebSocket via DTCore then becomes the preferred broker path."
         DeploymentEvidenceStillRequired = $true
         RealSdkIntegrationStillRequired = $true
         PlanDocumentsPriority = (Test-FileContains -Path $planDoc -Pattern "Adapter Priority")

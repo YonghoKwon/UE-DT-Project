@@ -402,11 +402,21 @@ adapters are implemented.
 ## Adapter Priority
 
 1. File replay adapter for saved JSON/JSONL/CSV frames.
-2. ROS2 bridge adapter, if the deployment environment already has ROS2 topics.
-3. Livox SDK adapter for direct LiDAR packet capture.
-4. RealSense SDK adapter for direct RGB/depth camera capture.
+2. HTTP JSON live bridge for the first local/live deployment path, unless the
+   deployment broker is already owned and available.
+3. DTCore WebSocket live bridge when the STOMP/WebSocket broker, topic,
+   credentials, and data-table row are deployment-owned.
+4. UDP JSON live bridge for trusted low-latency LAN experiments.
+5. ROS2 bridge adapter, if the deployment environment already has ROS2 topics.
+6. Livox SDK adapter for direct LiDAR packet capture.
+7. RealSense SDK adapter for direct RGB/depth camera capture.
 
 File replay should come first because it tests the same downstream judgment server contract without hardware.
+HTTP JSON live is the current recommended local/live bridge because it has
+loopback POST automation, explicit lifecycle control, response codes, and the
+same normalized handoff path. WebSocket via DTCore becomes the preferred
+deployment bridge only after broker ownership, credentials, topic, and real
+broker smoke evidence are available.
 
 ## Open Decisions
 
