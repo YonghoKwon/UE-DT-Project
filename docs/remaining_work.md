@@ -342,6 +342,10 @@ Current state:
   placeholder evidence, native-library / external-CLI / server-post-process
   candidate paths, and the acceptance evidence required before replacing the
   placeholder.
+- `Scripts/export_laz_compressor_readiness_report.ps1` detects local compressor
+  and reader candidates such as `laszip`, `las2las`, `lasinfo`, and `pdal`, and
+  keeps the boundary clear: tool readiness is not the same as readable
+  compressed `.laz` evidence.
 
 Next implementation steps:
 
@@ -350,6 +354,8 @@ Next implementation steps:
   library / server-side post-processing workflow is required.
 - Configure an accepted compressor executable and argument template, then
   validate readable `.laz` output.
+- Run the compressor readiness report after selecting or installing a candidate
+  tool, optionally passing explicit compressor/reader paths.
 - Keep current warning behavior until a real compressor is configured and
   verified.
 
@@ -363,6 +369,10 @@ Completion evidence:
   `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput`.
 - Static placeholder readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"`.
+- Local compressor readiness exports:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1"`.
+- Explicit compressor/reader readiness exports:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1" -CompressorPath "C:\path\to\laszip.exe" -ReaderPath "C:\path\to\lasinfo.exe"`.
 
 ### Large Point Cloud Renderer
 

@@ -207,6 +207,11 @@ Use `Scripts/export_laz_compression_decision_report.ps1` to summarize the
 remaining compressor decision. The report keeps the current placeholder evidence
 separate from the future acceptance evidence for a native library, external CLI,
 or server/post-processing LAZ path.
+Use `Scripts/export_laz_compressor_readiness_report.ps1` to check whether the
+local machine has compressor/reader candidates such as `laszip`, `las2las`,
+`lasinfo`, or `pdal`. That readiness report is intentionally not a compression
+claim; true LAZ still requires a produced `.laz` plus readable-output evidence
+from an independent point-cloud tool.
 
 `ExportLastPointCloudLaz()` also supports an opt-in external compressor path via
 `bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and

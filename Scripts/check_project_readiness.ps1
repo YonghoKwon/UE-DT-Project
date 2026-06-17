@@ -78,6 +78,7 @@ $WebSocketBrokerSmokeReportScript = Join-Path $ScriptRoot "export_websocket_brok
 $WebSocketLidarSmokeEvidenceScript = Join-Path $ScriptRoot "run_websocket_lidar_smoke_evidence.ps1"
 $PointCloudPreviewPolicyScript = Join-Path $ScriptRoot "validate_point_cloud_preview_policy.ps1"
 $LazPlaceholderPolicyScript = Join-Path $ScriptRoot "validate_laz_placeholder_policy.ps1"
+$LazCompressorReadinessReportScript = Join-Path $ScriptRoot "export_laz_compressor_readiness_report.ps1"
 $MonitorWidgetPolicyScript = Join-Path $ScriptRoot "validate_monitor_widget_policy.ps1"
 $RuntimeConfigPolicyScript = Join-Path $ScriptRoot "validate_runtime_config_policy.ps1"
 $LargeContentDecisionPolicyScript = Join-Path $ScriptRoot "validate_large_content_decision_policy.ps1"
@@ -119,6 +120,9 @@ if (-not (Test-Path -LiteralPath $PointCloudPreviewPolicyScript)) {
 }
 if (-not (Test-Path -LiteralPath $LazPlaceholderPolicyScript)) {
     throw "validate_laz_placeholder_policy.ps1 not found: $LazPlaceholderPolicyScript"
+}
+if (-not (Test-Path -LiteralPath $LazCompressorReadinessReportScript)) {
+    throw "export_laz_compressor_readiness_report.ps1 not found: $LazCompressorReadinessReportScript"
 }
 if (-not (Test-Path -LiteralPath $MonitorWidgetPolicyScript)) {
     throw "validate_monitor_widget_policy.ps1 not found: $MonitorWidgetPolicyScript"
@@ -270,10 +274,14 @@ if (-not $SkipLazPlaceholderPolicy) {
         -Label "LAZ placeholder policy validation" `
         -ScriptPath $LazPlaceholderPolicyScript `
         -Parameters @{ ProjectRoot = $ProjectRoot }
+    Invoke-ScriptStep `
+        -Label "LAZ compressor readiness report" `
+        -ScriptPath $LazCompressorReadinessReportScript `
+        -Parameters @{ ProjectRoot = $ProjectRoot }
 }
 else {
     Write-Host ""
-    Write-Host "LAZ placeholder policy validation skipped by -SkipLazPlaceholderPolicy."
+    Write-Host "LAZ placeholder policy validation and compressor readiness report skipped by -SkipLazPlaceholderPolicy."
 }
 
 if (-not $SkipMonitorWidgetPolicy) {

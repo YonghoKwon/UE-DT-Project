@@ -59,8 +59,10 @@ $replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\Lida
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
+$readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
 
 Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision report script"
+Assert-FileExists -Path $readinessReportScript -Label "LAZ compressor readiness report script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ExportLastPointCloudLaz"; Label = "LAZ export API remains explicit" },
@@ -91,10 +93,16 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "True LAZ Compression"; Label = "Remaining work tracks true LAZ" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "intentionally a placeholder"; Label = "Remaining work states placeholder status" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_laz_compression_decision_report.ps1"; Label = "Remaining work documents LAZ decision report" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_laz_compressor_readiness_report.ps1"; Label = "Remaining work documents LAZ compressor readiness report" },
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Native LAZ library"; Label = "Decision report includes native library path" },
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "External CLI compressor"; Label = "Decision report includes external CLI path" },
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Server/post-processing workflow"; Label = "Decision report includes server post-process path" },
-    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Readable validation from a known point-cloud tool"; Label = "Decision report tracks readable LAZ evidence" }
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Readable validation from a known point-cloud tool"; Label = "Decision report tracks readable LAZ evidence" },
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "CompressorReadinessReportDeclared"; Label = "Decision report consumes compressor readiness evidence" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReadyForRealLazAutomation"; Label = "Readiness report states real LAZ automation readiness" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReadableOutputEvidencePresent"; Label = "Readiness report tracks readable output evidence" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "laszip"; Label = "Readiness report checks laszip candidate" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "pdal"; Label = "Readiness report checks pdal candidate" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -125,6 +133,7 @@ $report = [PSCustomObject]@{
         ExternalCompressorOptInDeclared = $true
         ExternalCompressorSuccessCovered = $true
         DecisionReportDeclared = $true
+        CompressorReadinessReportDeclared = $true
         TrueCompressionStillOpen = $true
         Valid = $true
     }
@@ -143,5 +152,6 @@ else {
     Write-Host "External compressor opt-in declared: $($report.Summary.ExternalCompressorOptInDeclared)"
     Write-Host "External compressor success covered: $($report.Summary.ExternalCompressorSuccessCovered)"
     Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
+    Write-Host "Compressor readiness report declared: $($report.Summary.CompressorReadinessReportDeclared)"
     Write-Host "True compression still open: $($report.Summary.TrueCompressionStillOpen)"
 }

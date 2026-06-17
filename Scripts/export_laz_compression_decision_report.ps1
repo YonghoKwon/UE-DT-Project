@@ -72,6 +72,7 @@ function Write-MarkdownReport {
     $lines += "- External compressor contract hardened: $($Report.Summary.ExternalCompressorContractHardened)"
     $lines += "- Missing-compressor guard covered: $($Report.Summary.MissingCompressorGuardCovered)"
     $lines += "- External compressor success covered: $($Report.Summary.ExternalCompressorSuccessCovered)"
+    $lines += "- Compressor readiness report declared: $($Report.Summary.CompressorReadinessReportDeclared)"
     $lines += "- Automation coverage declared: $($Report.Summary.AutomationCoverageDeclared)"
     $lines += "- True compression integrated: $($Report.Summary.TrueCompressionIntegrated)"
     $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
@@ -108,6 +109,7 @@ $monitorHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSenso
 $replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
+$readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
 
 foreach ($file in @(
     [PSCustomObject]@{ Path = $lidarHeader; Label = "LiDAR component header" },
@@ -115,7 +117,8 @@ foreach ($file in @(
     [PSCustomObject]@{ Path = $monitorHeader; Label = "Monitor widget header" },
     [PSCustomObject]@{ Path = $replayTests; Label = "Replay automation tests" },
     [PSCustomObject]@{ Path = $schemaDoc; Label = "LiDAR payload schema" },
-    [PSCustomObject]@{ Path = $remainingDoc; Label = "Remaining work document" }
+    [PSCustomObject]@{ Path = $remainingDoc; Label = "Remaining work document" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Label = "LAZ compressor readiness report script" }
 )) {
     Assert-FileExists -Path $file.Path -Label $file.Label
 }
@@ -141,6 +144,9 @@ $missingCompressorGuardCovered = (Test-ContainsText -Path $replayTests -Pattern 
 $externalCompressorSuccessCovered = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput") -and
     (Test-ContainsText -Path $replayTests -Pattern "external compressor success creates one .laz output") -and
     (Test-ContainsText -Path $replayTests -Pattern "process-contract surrogate")
+$compressorReadinessReportDeclared = (Test-ContainsText -Path $readinessReportScript -Pattern "ReadyForRealLazAutomation") -and
+    (Test-ContainsText -Path $readinessReportScript -Pattern "ReadableOutputEvidencePresent") -and
+    (Test-ContainsText -Path $remainingDoc -Pattern "export_laz_compressor_readiness_report.ps1")
 $trueCompressionIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern ".laz output is actually compressed") -or
     (Test-ContainsText -Path $replayTests -Pattern "CompressedLaz")
 
@@ -197,17 +203,18 @@ $report = [PSCustomObject]@{
         ExternalCompressorContractHardened = $externalCompressorContractHardened
         MissingCompressorGuardCovered = $missingCompressorGuardCovered
         ExternalCompressorSuccessCovered = $externalCompressorSuccessCovered
+        CompressorReadinessReportDeclared = $compressorReadinessReportDeclared
         AutomationCoverageDeclared = $automationCoverageDeclared
         TrueCompressionIntegrated = $trueCompressionIntegrated
         CandidatePathCount = $candidatePaths.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
         RecommendedNextDecision = "Configure and verify an accepted external compressor, or choose NativeLibrary/ServerPostProcess before claiming true LAZ."
-        Valid = ($placeholderExplicit -and $writesLasSourceOnly -and $externalCompressorOptInImplemented -and $externalCompressorContractHardened -and $missingCompressorGuardCovered -and $externalCompressorSuccessCovered -and $automationCoverageDeclared -and -not $trueCompressionIntegrated)
+        Valid = ($placeholderExplicit -and $writesLasSourceOnly -and $externalCompressorOptInImplemented -and $externalCompressorContractHardened -and $missingCompressorGuardCovered -and $externalCompressorSuccessCovered -and $compressorReadinessReportDeclared -and $automationCoverageDeclared -and -not $trueCompressionIntegrated)
     }
 }
 
 if (-not $report.Summary.Valid) {
-    throw "LAZ decision report invariants failed. PlaceholderExplicit=$placeholderExplicit WritesLasSourceOnly=$writesLasSourceOnly ExternalCompressorOptIn=$externalCompressorOptInImplemented ExternalCompressorContractHardened=$externalCompressorContractHardened MissingCompressorGuard=$missingCompressorGuardCovered ExternalCompressorSuccess=$externalCompressorSuccessCovered AutomationCoverageDeclared=$automationCoverageDeclared TrueCompressionIntegrated=$trueCompressionIntegrated"
+    throw "LAZ decision report invariants failed. PlaceholderExplicit=$placeholderExplicit WritesLasSourceOnly=$writesLasSourceOnly ExternalCompressorOptIn=$externalCompressorOptInImplemented ExternalCompressorContractHardened=$externalCompressorContractHardened MissingCompressorGuard=$missingCompressorGuardCovered ExternalCompressorSuccess=$externalCompressorSuccessCovered CompressorReadiness=$compressorReadinessReportDeclared AutomationCoverageDeclared=$automationCoverageDeclared TrueCompressionIntegrated=$trueCompressionIntegrated"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($JsonPath)) {
@@ -231,6 +238,7 @@ else {
     Write-Host "External compressor contract hardened: $($report.Summary.ExternalCompressorContractHardened)"
     Write-Host "Missing-compressor guard covered: $($report.Summary.MissingCompressorGuardCovered)"
     Write-Host "External compressor success covered: $($report.Summary.ExternalCompressorSuccessCovered)"
+    Write-Host "Compressor readiness report declared: $($report.Summary.CompressorReadinessReportDeclared)"
     Write-Host "True compression integrated: $($report.Summary.TrueCompressionIntegrated)"
     Write-Host "Recommended next decision: $($report.Summary.RecommendedNextDecision)"
 }
