@@ -208,6 +208,10 @@ try {
     }
 
     $configPoint = Get-DecisionPoint -Report $baseline.Report -Path "Config\Game.ini"
+    Assert-Equal -Actual $configPoint.ReviewPriority -Expected 20 -Label "Config review priority"
+    Assert-True -Value ([bool]$configPoint.CommitBlocker) -Label "Config commit blocker"
+    Assert-Contains -Text $configPoint.BlockingReason -Expected "AcceptedForRepository" -Label "Config blocking reason"
+    Assert-Contains -Text $configPoint.NextReviewAction -Expected "endpoint/credential" -Label "Config next review action"
     Assert-Equal -Actual $configPoint.EvidenceStatus -Expected "NoEvidenceRecord" -Label "No-evidence status"
     Assert-Equal -Actual $configPoint.EvidenceReviewStatus -Expected "NoEvidenceRecord" -Label "No-evidence review status"
     Assert-False -Value ([bool]$configPoint.EvidenceSatisfied) -Label "No-evidence satisfaction"
@@ -218,12 +222,17 @@ try {
     $results.Add([PSCustomObject]@{ Case = "NoEvidenceRecord"; Path = $configPoint.Path; ReviewQueue = $configPoint.ReviewQueue; EvidenceStatus = $configPoint.EvidenceStatus }) | Out-Null
 
     $widgetPoint = Get-DecisionPoint -Report $baseline.Report -Path "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+    Assert-Equal -Actual $widgetPoint.ReviewPriority -Expected 10 -Label "WBP review priority"
+    Assert-True -Value ([bool]$widgetPoint.CommitBlocker) -Label "WBP commit blocker"
+    Assert-Contains -Text $widgetPoint.NextReviewAction -Expected "Unreal Editor" -Label "WBP next review action"
     Assert-Equal -Actual $widgetPoint.DecisionStatus -Expected "EvidencePending" -Label "WBP default status"
     Assert-Equal -Actual $widgetPoint.ReviewQueue -Expected "NeedsOwnerDecision" -Label "WBP default queue"
     $results.Add([PSCustomObject]@{ Case = "EvidencePendingDefault"; Path = $widgetPoint.Path; ReviewQueue = $widgetPoint.ReviewQueue; EvidenceStatus = $widgetPoint.EvidenceStatus }) | Out-Null
 
     foreach ($generatedPath in @("Windows.zip", "Windows", "launcher.config.json")) {
         $generatedPoint = Get-DecisionPoint -Report $baseline.Report -Path $generatedPath
+        Assert-True -Value ([bool]$generatedPoint.CommitBlocker) -Label "$generatedPath commit blocker"
+        Assert-Contains -Text $generatedPoint.NextReviewAction -Expected "Keep this path out of source commits" -Label "$generatedPath keep-local action"
         Assert-Equal -Actual $generatedPoint.EvidenceStatus -Expected "GeneratedOutput" -Label "$generatedPath generated evidence status"
         Assert-Equal -Actual $generatedPoint.CommitReadiness -Expected "DoNotCommitGeneratedOutput" -Label "$generatedPath generated readiness"
         Assert-Equal -Actual $generatedPoint.ReviewQueue -Expected "KeepLocal" -Label "$generatedPath generated queue"
@@ -337,6 +346,9 @@ try {
     )
     $complete = Invoke-AssetReport -ProjectRoot $tempDir -EvidencePath $completePath
     $completePoint = Get-DecisionPoint -Report $complete.Report -Path $configPoint.Path
+    Assert-False -Value ([bool]$completePoint.CommitBlocker) -Label "Complete evidence clears commit blocker"
+    Assert-Equal -Actual $completePoint.BlockingReason -Expected "" -Label "Complete evidence clears blocking reason"
+    Assert-Contains -Text $completePoint.NextReviewAction -Expected "Stage this path" -Label "Complete evidence next action"
     Assert-Equal -Actual $completePoint.DecisionStatus -Expected "AcceptedForRepository" -Label "Complete accepted status"
     Assert-Equal -Actual $completePoint.EvidenceStatus -Expected "ReadyEvidenceAccepted" -Label "Complete evidence status"
     Assert-True -Value ([bool]$completePoint.EvidenceSatisfied) -Label "Complete evidence satisfaction"
@@ -365,6 +377,12 @@ try {
         Pop-Location
     }
     $results.Add([PSCustomObject]@{ Case = "StagedDecisionGate"; Path = "Config/Game.ini + WBP"; ReviewQueue = "Ready path passes; blocked path fails"; EvidenceStatus = "verified" }) | Out-Null
+
+    Assert-True -Value (@($baseline.Report.ActionPlan).Count -gt 0) -Label "Baseline action plan has blocking items"
+    $firstAction = @($baseline.Report.ActionPlan | Sort-Object Priority, Path | Select-Object -First 1)[0]
+    Assert-Equal -Actual $firstAction.Path -Expected "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset" -Label "Action plan starts with WBP review"
+    Assert-Equal -Actual $baseline.Report.Summary.ActionPlanItemCount -Expected @($baseline.Report.ActionPlan).Count -Label "Action plan count summary"
+    $results.Add([PSCustomObject]@{ Case = "ActionPlanMetadata"; Path = $firstAction.Path; ReviewQueue = $firstAction.ReviewQueue; EvidenceStatus = "priority/action verified" }) | Out-Null
 }
 finally {
     if (Test-Path -LiteralPath $tempDir) {

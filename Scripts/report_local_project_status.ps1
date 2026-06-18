@@ -500,6 +500,101 @@ function Get-ReviewQueue {
     return "NeedsOwnerDecision"
 }
 
+function Get-ReviewPriority {
+    param(
+        [string]$RelativePath,
+        [string]$Category,
+        [int64]$SizeBytes
+    )
+
+    $normalizedPath = Normalize-RepoPath $RelativePath
+    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+        return 10
+    }
+    if ($normalizedPath -eq "config/game.ini") {
+        return 20
+    }
+    if ($Category -eq "LargeContentCandidate" -and $SizeBytes -ge 1GB) {
+        return 30
+    }
+    if ($Category -eq "LargeContentCandidate") {
+        return 40
+    }
+    if ($Category -eq "SampleOrThirdParty") {
+        return 50
+    }
+    if ($Category -like "Generated*") {
+        return 90
+    }
+    return 60
+}
+
+function Get-BlockingReason {
+    param(
+        [string]$CommitReadiness,
+        [string]$DecisionStatus,
+        [string]$EvidenceStatus,
+        [object[]]$MissingEvidence
+    )
+
+    if ($CommitReadiness -eq "NotPresent") {
+        return "Path is not present in the local project."
+    }
+    if ($CommitReadiness -eq "ReadyWithEvidence") {
+        return ""
+    }
+    if ($CommitReadiness -eq "DoNotCommitGeneratedOutput") {
+        return "Generated or local-output path should not be committed."
+    }
+    if ($CommitReadiness -eq "KeepLocalByDecision") {
+        return "Owner decision says this path should remain local."
+    }
+    if ($DecisionStatus -ne "AcceptedForRepository") {
+        return "DecisionStatus is $DecisionStatus; AcceptedForRepository is required before staging."
+    }
+    if ($EvidenceStatus -ne "ReadyEvidenceAccepted") {
+        $missing = @($MissingEvidence)
+        if ($missing.Count -gt 0) {
+            return "Evidence is incomplete: $($missing -join ', ')."
+        }
+        return "Evidence is not fully accepted."
+    }
+    return "Manual decision is still blocking this path."
+}
+
+function Get-NextReviewAction {
+    param(
+        [string]$RelativePath,
+        [string]$Category,
+        [string]$ReviewQueue,
+        [string]$CommitReadiness
+    )
+
+    $normalizedPath = Normalize-RepoPath $RelativePath
+    if ($ReviewQueue -eq "ReadyToStage") {
+        return "Stage this path only with its accepted evidence record."
+    }
+    if ($ReviewQueue -eq "KeepLocal") {
+        return "Keep this path out of source commits; remove it from staging if it appears there."
+    }
+    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+        return "Open the widget in Unreal Editor, verify optional bindings and PIE behavior, then record AcceptedForRepository evidence only if it is the production WBP."
+    }
+    if ($normalizedPath -eq "config/game.ini") {
+        return "Inspect the diff for endpoint/credential leakage and decide whether these runtime defaults are shared project settings or local-only overrides."
+    }
+    if ($Category -eq "LargeContentCandidate") {
+        return "Confirm source/license, map or WBP dependency, storage/versioning strategy, and owner acceptance before considering repository inclusion."
+    }
+    if ($Category -eq "SampleOrThirdParty") {
+        return "Confirm project ownership and redistribution terms, or prefer setup documentation instead of committing copied sample content."
+    }
+    if ($CommitReadiness -eq "BlockedByManualDecision") {
+        return "Record owner decision and complete evidence before staging."
+    }
+    return "Inspect manually and record evidence before staging."
+}
+
 function Get-DecisionPointGitState {
     param(
         [string]$RelativePath,
@@ -720,6 +815,10 @@ try {
             GitState = $gitState
             CommitReadiness = $commitReadiness
             ReviewQueue = $reviewQueue
+            ReviewPriority = Get-ReviewPriority -RelativePath $relativePath -Category $entry.Category -SizeBytes $summary.SizeBytes
+            CommitBlocker = ($summary.State -eq "present" -and $reviewQueue -ne "ReadyToStage")
+            BlockingReason = Get-BlockingReason -CommitReadiness $commitReadiness -DecisionStatus $evidenceReview.EffectiveDecisionStatus -EvidenceStatus $evidenceReview.EvidenceReviewStatus -MissingEvidence $evidenceReview.MissingEvidence
+            NextReviewAction = Get-NextReviewAction -RelativePath $relativePath -Category $entry.Category -ReviewQueue $reviewQueue -CommitReadiness $commitReadiness
             DecisionChecklist = $decisionChecklist
             ContentSummary = $contentSummary
         }
@@ -752,6 +851,22 @@ try {
         StagedGitPaths = $stagedGitPaths
         StagedDecisionPaths = $stagedDecisionPaths
         StagedBlockedDecisionPaths = $stagedBlockedDecisionPaths
+        ActionPlan = @(
+            $decisionPoints |
+                Where-Object { $_.State -eq "present" -and $_.CommitBlocker } |
+                Sort-Object ReviewPriority, Path |
+                ForEach-Object {
+                    [PSCustomObject]@{
+                        Priority = $_.ReviewPriority
+                        Path = $_.Path
+                        Category = $_.Category
+                        ReviewQueue = $_.ReviewQueue
+                        DecisionOwner = $_.DecisionOwner
+                        BlockingReason = $_.BlockingReason
+                        NextReviewAction = $_.NextReviewAction
+                    }
+                }
+        )
         Submodules = @(git submodule status --recursive)
         DecisionPoints = $decisionPoints
         Summary = [PSCustomObject]@{
@@ -763,6 +878,8 @@ try {
             HasUnclassifiedUntracked = ($unclassifiedUntrackedPaths.Count -gt 0)
             StagedDecisionPointCount = $stagedDecisionPaths.Count
             StagedBlockedDecisionPointCount = $stagedBlockedDecisionPaths.Count
+            CommitBlockedDecisionPointCount = @($decisionPoints | Where-Object { $_.State -eq "present" -and $_.CommitBlocker }).Count
+            ActionPlanItemCount = @($decisionPoints | Where-Object { $_.State -eq "present" -and $_.CommitBlocker }).Count
             HasStagedDecisionPoints = ($stagedDecisionPaths.Count -gt 0)
             HasStagedBlockedDecisionPoints = ($stagedBlockedDecisionPaths.Count -gt 0)
             PresentCategoryCounts = [PSCustomObject]$presentCategoryCounts
@@ -805,6 +922,12 @@ try {
             Write-Host "  gitState: $($point.GitState)"
             Write-Host "  commitReadiness: $($point.CommitReadiness)"
             Write-Host "  reviewQueue: $($point.ReviewQueue)"
+            Write-Host "  reviewPriority: $($point.ReviewPriority)"
+            Write-Host "  commitBlocker: $($point.CommitBlocker)"
+            if (-not [string]::IsNullOrWhiteSpace($point.BlockingReason)) {
+                Write-Host "  blockingReason: $($point.BlockingReason)"
+            }
+            Write-Host "  nextReviewAction: $($point.NextReviewAction)"
             Write-Host "  recommendation: $($point.Recommendation)"
             Write-Host "  decisionOwner: $($point.DecisionOwner)"
             Write-Host "  decisionStatus: $($point.DecisionStatus)"
@@ -861,6 +984,8 @@ try {
         Write-Host "Unclassified untracked paths: $($report.Summary.UnclassifiedUntrackedCount)"
         Write-Host "Staged decision-point paths: $($report.Summary.StagedDecisionPointCount)"
         Write-Host "Staged blocked decision-point paths: $($report.Summary.StagedBlockedDecisionPointCount)"
+        Write-Host "Commit-blocked decision points: $($report.Summary.CommitBlockedDecisionPointCount)"
+        Write-Host "Action-plan items: $($report.Summary.ActionPlanItemCount)"
         foreach ($category in ($presentCategoryCounts.Keys | Sort-Object)) {
             Write-Host "Present $category items: $($presentCategoryCounts[$category])"
         }
@@ -882,6 +1007,17 @@ try {
             Write-Section "Staged decision-point paths"
             $stagedBlockedDecisionPaths | ForEach-Object { Write-Host $_ }
             Write-Host "Recommendation: unstage these paths unless each one is ReadyToStage with accepted evidence."
+        }
+
+        if ($report.ActionPlan.Count -gt 0) {
+            Write-Section "Action plan"
+            foreach ($item in $report.ActionPlan) {
+                Write-Host "$($item.Priority) $($item.Path)"
+                Write-Host "  queue: $($item.ReviewQueue)"
+                Write-Host "  owner: $($item.DecisionOwner)"
+                Write-Host "  blocker: $($item.BlockingReason)"
+                Write-Host "  next: $($item.NextReviewAction)"
+            }
         }
 
         Write-Section "Suggested next checks"

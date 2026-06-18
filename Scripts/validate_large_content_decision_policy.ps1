@@ -101,6 +101,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Local asset doc documents large content decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ReviewPriority"; Label = "Local asset doc explains review priority" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "CommitBlocker"; Label = "Local asset doc explains commit blocker" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "BlockingReason"; Label = "Local asset doc explains blocking reason" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "NextReviewAction"; Label = "Local asset doc explains next review action" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ActionPlan"; Label = "Local asset doc explains action plan" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "asset source, license, production"; Label = "Local asset doc explains source/license/dependency checks" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Content/ChemicalPlantEnv"; Label = "Remaining work tracks ChemicalPlantEnv" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Samples/PixelStreaming"; Label = "Remaining work tracks PixelStreaming" },
@@ -135,6 +140,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Remaining work tracks large content decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Staged decision gate"; Label = "Remaining work tracks staged decision evidence gate" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
+    ,
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "RequiredAcceptance"; Label = "Large content report exports required acceptance" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "DecisionBlockers"; Label = "Large content report exports decision blockers" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "NextReviewAction"; Label = "Large content report exports next review action" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "TopBlockers"; Label = "Large content report exports top blockers" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Repository storage/versioning approval"; Label = "Large content report requires storage/versioning acceptance" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Documentation alternative decision"; Label = "Sample report requires documentation alternative decision" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -142,6 +154,11 @@ foreach ($item in $requiredTexts) {
 }
 
 $assetReport = Invoke-AssetReportJson -ProjectRoot $ProjectRoot
+$largeReportJson = & $largeContentDecisionReportScript -ProjectRoot $ProjectRoot -Json
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    throw "export_large_content_decision_report.ps1 failed with exit code $LASTEXITCODE"
+}
+$largeReport = $largeReportJson | ConvertFrom-Json
 $decisionCandidates = @(
     $assetReport.DecisionPoints |
         Where-Object {
@@ -150,6 +167,33 @@ $decisionCandidates = @(
         } |
         Sort-Object Category, Path
 )
+
+foreach ($candidate in @($largeReport.Candidates)) {
+    if (@($candidate.RequiredAcceptance).Count -eq 0) {
+        throw "Large content decision candidate is missing RequiredAcceptance: $($candidate.Path)"
+    }
+    if (@($candidate.DecisionBlockers).Count -eq 0) {
+        throw "Large content decision candidate is missing DecisionBlockers: $($candidate.Path)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$candidate.NextReviewAction)) {
+        throw "Large content decision candidate is missing NextReviewAction: $($candidate.Path)"
+    }
+    $acceptanceNames = @($candidate.RequiredAcceptance | ForEach-Object { [string]$_.Name })
+    if ($candidate.Category -eq "LargeContentCandidate") {
+        foreach ($required in @("Asset source", "License/redistribution approval", "Size/storage acceptance", "Repository storage/versioning approval")) {
+            if (-not ($acceptanceNames -contains $required)) {
+                throw "Large content candidate $($candidate.Path) is missing required acceptance item: $required"
+            }
+        }
+    }
+    elseif ($candidate.Category -eq "SampleOrThirdParty") {
+        foreach ($required in @("Project ownership decision", "License/redistribution approval", "Documentation alternative decision")) {
+            if (-not ($acceptanceNames -contains $required)) {
+                throw "Sample candidate $($candidate.Path) is missing required acceptance item: $required"
+            }
+        }
+    }
+}
 
 $totalBytes = [int64](($decisionCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
 $report = [PSCustomObject]@{
@@ -177,6 +221,11 @@ $report = [PSCustomObject]@{
         CandidateCount = $decisionCandidates.Count
         TotalSizeBytes = $totalBytes
         TotalSize = if ($totalBytes -ge 1GB) { "{0:N1} GB" -f ($totalBytes / 1GB) } elseif ($totalBytes -ge 1MB) { "{0:N1} MB" -f ($totalBytes / 1MB) } else { "$totalBytes B" }
+        LargeDecisionReportCandidateCount = $largeReport.CandidateCount
+        LargeDecisionReportHighRiskCount = $largeReport.HighRiskCount
+        RequiredAcceptanceDeclared = $largeReport.Summary.RequiredAcceptanceDeclared
+        DecisionBlockersDeclared = $largeReport.Summary.DecisionBlockersDeclared
+        TopBlockerCount = $largeReport.Summary.TopBlockerCount
         StrictFailureRequested = [bool]$FailIfPresent
         ExplicitOwnershipDecisionRequired = ($decisionCandidates.Count -gt 0)
         Valid = $true
@@ -195,6 +244,10 @@ else {
     Write-Host "Large content decision policy is internally consistent."
     Write-Host "Candidate count: $($report.Summary.CandidateCount)"
     Write-Host "Total candidate size: $($report.Summary.TotalSize)"
+    Write-Host "Large decision report high-risk count: $($report.Summary.LargeDecisionReportHighRiskCount)"
+    Write-Host "Required acceptance declared: $($report.Summary.RequiredAcceptanceDeclared)"
+    Write-Host "Decision blockers declared: $($report.Summary.DecisionBlockersDeclared)"
+    Write-Host "Top blocker count: $($report.Summary.TopBlockerCount)"
     Write-Host "Explicit ownership decision required: $($report.Summary.ExplicitOwnershipDecisionRequired)"
     foreach ($candidate in $report.Candidates) {
         Write-Host "$($candidate.Category): $($candidate.Path) files=$($candidate.FileCount) size=$($candidate.Size)"

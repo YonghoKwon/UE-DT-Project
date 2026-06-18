@@ -83,6 +83,9 @@ Open decisions:
   `DecisionChecklist` for each known decision point. It also supports
   `DecisionEvidence`, `EvidenceStatus`, and `EvidenceSatisfied` through
   `docs/local_asset_decisions.evidence.json`.
+  It now also exports `ReviewPriority`, `CommitBlocker`, `BlockingReason`,
+  `NextReviewAction`, and an `ActionPlan` sorted by the suggested owner-review
+  order.
   DecisionOwner is review-routing metadata, not accepted ownership.
   Current unresolved asset/sample paths should stay on `AssetOwnerRequired` or
   `ProjectOwnerRequired` until the required authority accepts the path.
@@ -98,7 +101,12 @@ Open decisions:
   Large content decisions require owner/source/license, dependency, size, and
   storage/versioning evidence before staging. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups
-  paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues.
+  paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues and
+  also shows top blocking actions.
+- The large content decision report now exports per-path `RequiredAcceptance`,
+  `DecisionBlockers`, `NextReviewAction`, and `TopBlockers`. High-risk binary
+  asset packs and content over 100 MB are kept on explicit owner/source/license,
+  dependency, and storage acceptance before repository inclusion.
 - Runtime config validation now supports `-LocalProjectRoot` so the source repo
   policy can inspect the real local Unreal project `Config/Game.ini`. The JSON
   output includes `RecommendedDecision`; the current empty

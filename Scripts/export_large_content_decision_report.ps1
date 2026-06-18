@@ -32,6 +32,18 @@ function Convert-ToMarkdownCell {
 function Get-DefaultDecision {
     param([object]$Point)
 
+    $extensionCounts = @()
+    if ($Point.ContentSummary -and $Point.ContentSummary.ExtensionCounts) {
+        $extensionCounts = @($Point.ContentSummary.ExtensionCounts)
+    }
+    $uassetCount = 0
+    foreach ($extension in $extensionCounts) {
+        if ($extension.Extension -eq ".uasset") {
+            $uassetCount = [int]$extension.Count
+        }
+    }
+    $looksLikeBinaryAssetPack = $uassetCount -gt 0 -or [int64]$Point.SizeBytes -ge 100MB
+
     if ($Point.Category -eq "SampleOrThirdParty") {
         return [PSCustomObject]@{
             RecommendedDecision = "KeepLocalUnlessOwned"
@@ -47,12 +59,82 @@ function Get-DefaultDecision {
             Reason = "Large content over 1 GB needs explicit source/license/dependency/storage approval before repository ownership."
         }
     }
+    if ($looksLikeBinaryAssetPack) {
+        return [PSCustomObject]@{
+            RecommendedDecision = "KeepLocalUnlessAccepted"
+            RiskLevel = "High"
+            Reason = "Binary Unreal asset packs or content over 100 MB need explicit source/license/dependency/storage approval before repository ownership."
+        }
+    }
 
     return [PSCustomObject]@{
         RecommendedDecision = "PendingOwnerDecision"
         RiskLevel = "Medium"
         Reason = "Content may be small enough to commit, but still requires source/license/dependency/storage evidence."
     }
+}
+
+function Get-RequiredAcceptance {
+    param([object]$Point)
+
+    $items = @(
+        @($Point.EvidenceNeeded) |
+            ForEach-Object {
+                [PSCustomObject]@{
+                    Name = $_
+                    Required = $true
+                    Status = "MissingOwnerEvidence"
+                    SourceRequired = $true
+                }
+            }
+    )
+
+    if ($Point.Category -eq "LargeContentCandidate") {
+        $items += [PSCustomObject]@{
+            Name = "Repository storage/versioning approval"
+            Required = $true
+            Status = "MissingOwnerEvidence"
+            SourceRequired = $true
+        }
+    }
+    if ($Point.Category -eq "SampleOrThirdParty") {
+        $items += [PSCustomObject]@{
+            Name = "Documentation alternative decision"
+            Required = $true
+            Status = "MissingOwnerEvidence"
+            SourceRequired = $true
+        }
+    }
+
+    return $items
+}
+
+function Get-DecisionBlockers {
+    param(
+        [object]$Point,
+        [object[]]$RequiredAcceptance
+    )
+
+    $blockers = @()
+    if ($Point.DecisionStatus -ne "AcceptedForRepository") {
+        $blockers += "DecisionStatus is $($Point.DecisionStatus), not AcceptedForRepository."
+    }
+    if (-not $Point.EvidenceSatisfied) {
+        $blockers += "Required evidence is not complete and accepted."
+    }
+    foreach ($item in @($RequiredAcceptance)) {
+        $blockers += "$($item.Name): $($item.Status)."
+    }
+    return $blockers
+}
+
+function Get-NextReviewAction {
+    param([object]$Point)
+
+    if ($Point.Category -eq "SampleOrThirdParty") {
+        return "Decide whether the project owns this sample content; if not, keep it local and document setup steps instead."
+    }
+    return "Collect source/license, dependency, size, and storage/versioning evidence, then record owner acceptance before staging."
 }
 
 function Convert-ToEvidenceDraft {
@@ -116,12 +198,17 @@ $candidates = @(
                 Category = $_.Category
                 GitState = $_.GitState
                 ReviewQueue = $_.ReviewQueue
+                DecisionStatus = $_.DecisionStatus
+                EvidenceSatisfied = $_.EvidenceSatisfied
                 SizeBytes = [int64]$_.SizeBytes
                 Size = $_.Size
                 FileCount = $_.FileCount
                 RiskLevel = $decision.RiskLevel
                 RecommendedDecision = $decision.RecommendedDecision
                 Reason = $decision.Reason
+                RequiredAcceptance = Get-RequiredAcceptance -Point $_
+                DecisionBlockers = $null
+                NextReviewAction = Get-NextReviewAction -Point $_
                 ExtensionCounts = if ($_.ContentSummary) { $_.ContentSummary.ExtensionCounts } else { @() }
                 LargestFiles = if ($_.ContentSummary) { $_.ContentSummary.LargestFiles } else { @() }
                 EvidenceNeeded = $_.EvidenceNeeded
@@ -130,7 +217,25 @@ $candidates = @(
         }
 )
 
+foreach ($candidate in $candidates) {
+    $candidate.DecisionBlockers = Get-DecisionBlockers -Point $candidate -RequiredAcceptance $candidate.RequiredAcceptance
+}
+
 $totalBytes = [int64](($candidatePoints | Measure-Object -Property SizeBytes -Sum).Sum)
+$topBlockers = @(
+    $candidates |
+        Sort-Object @{ Expression = { if ($_.RiskLevel -eq "High") { 0 } else { 1 } } }, @{ Expression = "SizeBytes"; Descending = $true }, Path |
+        Select-Object -First 3 |
+        ForEach-Object {
+            [PSCustomObject]@{
+                Path = $_.Path
+                RiskLevel = $_.RiskLevel
+                Size = $_.Size
+                RecommendedDecision = $_.RecommendedDecision
+                NextReviewAction = $_.NextReviewAction
+            }
+        }
+)
 $report = [PSCustomObject]@{
     GeneratedAt = (Get-Date).ToString("s")
     ProjectRoot = $ProjectRoot
@@ -139,10 +244,15 @@ $report = [PSCustomObject]@{
     TotalSize = if ($totalBytes -ge 1GB) { "{0:N1} GB" -f ($totalBytes / 1GB) } elseif ($totalBytes -ge 1MB) { "{0:N1} MB" -f ($totalBytes / 1MB) } else { "$totalBytes B" }
     KeepLocalByDefaultCount = @($candidates | Where-Object { $_.RecommendedDecision -like "KeepLocal*" }).Count
     PendingOwnerDecisionCount = @($candidates | Where-Object { $_.RecommendedDecision -eq "PendingOwnerDecision" }).Count
+    HighRiskCount = @($candidates | Where-Object { $_.RiskLevel -eq "High" }).Count
+    TopBlockers = $topBlockers
     Candidates = $candidates
     Summary = [PSCustomObject]@{
         HasLargeContentDecisionCandidates = ($candidates.Count -gt 0)
         RequiresOwnerSourceLicenseDecision = ($candidates.Count -gt 0)
+        RequiredAcceptanceDeclared = ($candidates.Count -eq 0 -or @($candidates | Where-Object { @($_.RequiredAcceptance).Count -eq 0 }).Count -eq 0)
+        DecisionBlockersDeclared = ($candidates.Count -eq 0 -or @($candidates | Where-Object { @($_.DecisionBlockers).Count -eq 0 }).Count -eq 0)
+        TopBlockerCount = $topBlockers.Count
         DefaultAction = "Keep large/sample content local unless source/license/dependency/storage evidence is complete and accepted."
     }
 }
@@ -156,12 +266,31 @@ $lines.Add("- Candidate count: $($report.CandidateCount)") | Out-Null
 $lines.Add("- Total size: $($report.TotalSize)") | Out-Null
 $lines.Add("- Keep local by default: $($report.KeepLocalByDefaultCount)") | Out-Null
 $lines.Add("- Pending owner decision: $($report.PendingOwnerDecisionCount)") | Out-Null
+$lines.Add("- High risk candidates: $($report.HighRiskCount)") | Out-Null
 $lines.Add("- Default action: $($report.Summary.DefaultAction)") | Out-Null
 $lines.Add("") | Out-Null
-$lines.Add("| Path | Category | Size | Files | Git state | Risk | Recommended decision | Reason |") | Out-Null
-$lines.Add("| --- | --- | ---: | ---: | --- | --- | --- | --- |") | Out-Null
+$lines.Add("## Top Blockers") | Out-Null
+$lines.Add("") | Out-Null
+if ($report.TopBlockers.Count -eq 0) {
+    $lines.Add("- None.") | Out-Null
+}
+else {
+    $lines.Add("| Path | Risk | Size | Recommended decision | Next action |") | Out-Null
+    $lines.Add("| --- | --- | ---: | --- | --- |") | Out-Null
+    foreach ($blocker in $report.TopBlockers) {
+        $lines.Add(("| {0} | {1} | {2} | {3} | {4} |" -f `
+            (Convert-ToMarkdownCell $blocker.Path),
+            (Convert-ToMarkdownCell $blocker.RiskLevel),
+            (Convert-ToMarkdownCell $blocker.Size),
+            (Convert-ToMarkdownCell $blocker.RecommendedDecision),
+            (Convert-ToMarkdownCell $blocker.NextReviewAction))) | Out-Null
+    }
+}
+$lines.Add("") | Out-Null
+$lines.Add("| Path | Category | Size | Files | Git state | Risk | Recommended decision | Next action | Reason |") | Out-Null
+$lines.Add("| --- | --- | ---: | ---: | --- | --- | --- | --- | --- |") | Out-Null
 foreach ($candidate in $report.Candidates) {
-    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |" -f `
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f `
         (Convert-ToMarkdownCell $candidate.Path),
         (Convert-ToMarkdownCell $candidate.Category),
         (Convert-ToMarkdownCell $candidate.Size),
@@ -169,6 +298,7 @@ foreach ($candidate in $report.Candidates) {
         (Convert-ToMarkdownCell $candidate.GitState),
         (Convert-ToMarkdownCell $candidate.RiskLevel),
         (Convert-ToMarkdownCell $candidate.RecommendedDecision),
+        (Convert-ToMarkdownCell $candidate.NextReviewAction),
         (Convert-ToMarkdownCell $candidate.Reason))) | Out-Null
 }
 $lines.Add("") | Out-Null
@@ -176,6 +306,19 @@ foreach ($candidate in $report.Candidates) {
     $lines.Add("## $($candidate.Path)") | Out-Null
     $lines.Add("") | Out-Null
     $lines.Add("- Evidence needed: $(@($candidate.EvidenceNeeded) -join ', ')") | Out-Null
+    $lines.Add("- Next review action: $($candidate.NextReviewAction)") | Out-Null
+    if (@($candidate.RequiredAcceptance).Count -gt 0) {
+        $lines.Add("- Required acceptance:") | Out-Null
+        foreach ($item in @($candidate.RequiredAcceptance)) {
+            $lines.Add("  - $($item.Name): $($item.Status)") | Out-Null
+        }
+    }
+    if (@($candidate.DecisionBlockers).Count -gt 0) {
+        $lines.Add("- Decision blockers:") | Out-Null
+        foreach ($blocker in @($candidate.DecisionBlockers)) {
+            $lines.Add("  - $blocker") | Out-Null
+        }
+    }
     $extensions = @($candidate.ExtensionCounts | ForEach-Object { "$($_.Extension)=$($_.Count)" }) -join ", "
     if (-not [string]::IsNullOrWhiteSpace($extensions)) {
         $lines.Add("- Extensions: $extensions") | Out-Null

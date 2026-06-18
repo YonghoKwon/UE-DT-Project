@@ -41,6 +41,10 @@ $decisionEntries = @(
                 Path = $_.Path
                 DecisionOwner = $_.DecisionOwner
                 DecisionStatus = $_.DecisionStatus
+                ReviewPriority = $_.ReviewPriority
+                ReviewQueue = $_.ReviewQueue
+                BlockingReason = $_.BlockingReason
+                NextReviewAction = $_.NextReviewAction
                 AcceptedBy = ""
                 AcceptedAt = ""
                 EvidenceSource = ""
@@ -72,7 +76,9 @@ $template = [PSCustomObject]@{
         "Recorded evidence must name reviewer, date, and source.",
         "PendingOwnerDecision remains NeedsOwnerDecision.",
         "EvidencePending remains NeedsOwnerDecision.",
-        "Generated output remains KeepLocal."
+        "Generated output remains KeepLocal.",
+        "ReviewPriority orders the suggested owner-review sequence.",
+        "BlockingReason and NextReviewAction are copied from the local asset action plan."
     )
     Decisions = $decisionEntries
 }

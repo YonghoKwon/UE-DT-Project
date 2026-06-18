@@ -106,6 +106,12 @@ Every decision point also reports:
 - `EvidenceSatisfied`: true only when required evidence is complete and the
   decision has reviewer/date acceptance metadata.
 - `DecisionChecklist`: manual evidence that must be collected before staging.
+- `ReviewPriority`: suggested owner-review order. Lower values should be
+  reviewed first.
+- `CommitBlocker`: true when a present decision point must not be staged yet.
+- `BlockingReason`: human-readable reason why the path is not ready.
+- `NextReviewAction`: the next concrete action needed from the owner or
+  reviewer.
 
 DecisionOwner does not mean ownership has been accepted. It is review-routing
 metadata for who must make the decision.
@@ -151,6 +157,9 @@ The Markdown export includes `Ready To Stage`, `Needs Owner Decision`, and
 start in `NeedsOwnerDecision`; generated package outputs should appear in
 `KeepLocal`; no binary WBP, local config, large content, or sample folder should
 move to `ReadyToStage` until the checklist evidence is complete.
+The export also includes an `ActionPlan` sorted by `ReviewPriority` so WBP,
+config, large content, sample folders, and generated outputs can be reviewed in
+a stable order with an explicit `BlockingReason` and `NextReviewAction`.
 
 Create an editable evidence template when a path is ready for owner review:
 

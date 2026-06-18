@@ -91,6 +91,9 @@ $decisionReport = [PSCustomObject]@{
     ReadyToStageCount = $readyToStagePoints.Count
     NeedsOwnerDecisionCount = $needsOwnerDecisionPoints.Count
     KeepLocalCount = $keepLocalPoints.Count
+    ActionPlan = $report.ActionPlan
+    ActionPlanItemCount = @($report.ActionPlan).Count
+    CommitBlockedDecisionPointCount = $report.Summary.CommitBlockedDecisionPointCount
     DecisionPoints = $report.DecisionPoints
     RecommendedReviewOrder = @(
         "Keep generated package outputs untracked or remove them before code review.",
@@ -117,11 +120,32 @@ Add-MarkdownLine -Lines $lines -Value "- Staged decision paths: $($report.Summar
 Add-MarkdownLine -Lines $lines -Value "- Ready to stage: $($decisionReport.ReadyToStageCount)"
 Add-MarkdownLine -Lines $lines -Value "- Needs owner decision: $($decisionReport.NeedsOwnerDecisionCount)"
 Add-MarkdownLine -Lines $lines -Value "- Keep local: $($decisionReport.KeepLocalCount)"
+Add-MarkdownLine -Lines $lines -Value "- Commit-blocked decision points: $($decisionReport.CommitBlockedDecisionPointCount)"
+Add-MarkdownLine -Lines $lines -Value "- Action-plan items: $($decisionReport.ActionPlanItemCount)"
 Add-MarkdownLine -Lines $lines
 Add-MarkdownLine -Lines $lines -Value "## Recommended Review Order"
 Add-MarkdownLine -Lines $lines
 foreach ($item in $decisionReport.RecommendedReviewOrder) {
     Add-MarkdownLine -Lines $lines -Value "- $item"
+}
+Add-MarkdownLine -Lines $lines
+Add-MarkdownLine -Lines $lines -Value "## Action Plan"
+Add-MarkdownLine -Lines $lines
+if (@($decisionReport.ActionPlan).Count -eq 0) {
+    Add-MarkdownLine -Lines $lines -Value "- No present decision points are currently blocking commits."
+}
+else {
+    Add-MarkdownLine -Lines $lines -Value "| Priority | Path | Queue | Owner | Blocking reason | Next action |"
+    Add-MarkdownLine -Lines $lines -Value "| ---: | --- | --- | --- | --- | --- |"
+    foreach ($item in @($decisionReport.ActionPlan | Sort-Object Priority, Path)) {
+        Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} |" -f `
+            (Convert-ToMarkdownTableCell $item.Priority),
+            (Convert-ToMarkdownTableCell $item.Path),
+            (Convert-ToMarkdownTableCell $item.ReviewQueue),
+            (Convert-ToMarkdownTableCell $item.DecisionOwner),
+            (Convert-ToMarkdownTableCell $item.BlockingReason),
+            (Convert-ToMarkdownTableCell $item.NextReviewAction))
+    }
 }
 Add-MarkdownLine -Lines $lines
 Add-MarkdownLine -Lines $lines -Value "## Review Queues"
@@ -161,16 +185,18 @@ else {
 Add-MarkdownLine -Lines $lines
 Add-MarkdownLine -Lines $lines -Value "## Decision Point Summary"
 Add-MarkdownLine -Lines $lines
-Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Review queue | Decision owner | Decision status | Evidence status | Evidence satisfied | Files | Size | Recommendation |"
-Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- |"
+Add-MarkdownLine -Lines $lines -Value "| Path | Category | State | Git state | Commit readiness | Review queue | Priority | Commit blocker | Decision owner | Decision status | Evidence status | Evidence satisfied | Files | Size | Recommendation |"
+Add-MarkdownLine -Lines $lines -Value "| --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | ---: | ---: | --- |"
 foreach ($point in $report.DecisionPoints) {
-    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} |" -f `
+    Add-MarkdownLine -Lines $lines -Value ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} | {13} | {14} |" -f `
         (Convert-ToMarkdownTableCell $point.Path),
         (Convert-ToMarkdownTableCell $point.Category),
         (Convert-ToMarkdownTableCell $point.State),
         (Convert-ToMarkdownTableCell $point.GitState),
         (Convert-ToMarkdownTableCell $point.CommitReadiness),
         (Convert-ToMarkdownTableCell $point.ReviewQueue),
+        (Convert-ToMarkdownTableCell $point.ReviewPriority),
+        (Convert-ToMarkdownTableCell $point.CommitBlocker),
         (Convert-ToMarkdownTableCell $point.DecisionOwner),
         (Convert-ToMarkdownTableCell $point.DecisionStatus),
         (Convert-ToMarkdownTableCell $point.EvidenceStatus),
@@ -189,6 +215,12 @@ foreach ($point in $presentDecisionPoints) {
     Add-MarkdownLine -Lines $lines -Value "- Git state: $($point.GitState)"
     Add-MarkdownLine -Lines $lines -Value "- Commit readiness: $($point.CommitReadiness)"
     Add-MarkdownLine -Lines $lines -Value "- Review queue: $($point.ReviewQueue)"
+    Add-MarkdownLine -Lines $lines -Value "- Review priority: $($point.ReviewPriority)"
+    Add-MarkdownLine -Lines $lines -Value "- Commit blocker: $($point.CommitBlocker)"
+    if (-not [string]::IsNullOrWhiteSpace($point.BlockingReason)) {
+        Add-MarkdownLine -Lines $lines -Value "- Blocking reason: $($point.BlockingReason)"
+    }
+    Add-MarkdownLine -Lines $lines -Value "- Next review action: $($point.NextReviewAction)"
     Add-MarkdownLine -Lines $lines -Value "- Decision owner: $($point.DecisionOwner)"
     Add-MarkdownLine -Lines $lines -Value "- Decision status: $($point.DecisionStatus)"
     Add-MarkdownLine -Lines $lines -Value "- Evidence status: $($point.EvidenceStatus)"
