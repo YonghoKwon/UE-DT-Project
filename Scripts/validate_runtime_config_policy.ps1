@@ -136,11 +136,13 @@ if ([string]::IsNullOrWhiteSpace($LocalProjectRoot)) {
 $LocalProjectRoot = (Resolve-Path -LiteralPath $LocalProjectRoot).Path
 
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
+$runtimeConfigDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_runtime_config_decision_report.ps1"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $gameIniPath = Join-Path $LocalProjectRoot "Config\Game.ini"
 
 Assert-FileExists -Path $assetReportScript -Label "Local asset report script"
+Assert-FileExists -Path $runtimeConfigDecisionReportScript -Label "Runtime config decision report script"
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
 Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
 
@@ -152,7 +154,19 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "endpoint or"; Label = "Remaining work documents endpoint review" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "credential values"; Label = "Remaining work documents credential review" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents local runtime config root" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "RecommendedDecision"; Label = "Remaining work documents runtime config recommendation" }
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "RecommendedDecision"; Label = "Remaining work documents runtime config recommendation" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "SourceRepoRoot"; Label = "Runtime config decision report supports separate source root" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "EvidencePath"; Label = "Runtime config decision report accepts evidence path" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "FailOnIncompleteEvidence"; Label = "Runtime config decision report can fail on incomplete evidence" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "report_local_project_status.ps1"; Label = "Runtime config decision report reuses local decision engine" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "validate_runtime_config_policy.ps1"; Label = "Runtime config decision report reuses runtime policy validation" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "DecisionPoint"; Label = "Runtime config decision report exposes decision point" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ManualAcceptanceChecklist"; Label = "Runtime config decision report exposes manual acceptance checklist" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ReadyToStage"; Label = "Runtime config decision report exposes ready-to-stage status" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ReviewQueue"; Label = "Runtime config decision report exposes review queue" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "CommitReadiness"; Label = "Runtime config decision report exposes commit readiness" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "MissingEvidenceCount"; Label = "Runtime config decision report counts missing evidence" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ManualConfigOwnerDecisionStillRequired"; Label = "Runtime config decision report exposes manual owner gate" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -197,6 +211,9 @@ $report = [PSCustomObject]@{
         RuntimeOverrideEmptyOrAbsent = ($runtimeOverride.NonEmptyKeys.Count -eq 0)
         EndpointOrCredentialLeakageDetected = ($runtimeOverride.NonEmptyKeys.Count -gt 0)
         RecommendedDecision = $recommendation.RecommendedDecision
+        RuntimeConfigDecisionReportDeclared = $true
+        RuntimeConfigDecisionReportUsesAssetDecisionEngine = $true
+        RuntimeConfigIncompleteEvidenceFailGateDeclared = $true
         Valid = $true
     }
 }
@@ -213,5 +230,8 @@ else {
     Write-Host "Runtime override empty or absent: $($report.Summary.RuntimeOverrideEmptyOrAbsent)"
     Write-Host "Endpoint or credential leakage detected: $($report.Summary.EndpointOrCredentialLeakageDetected)"
     Write-Host "RecommendedDecision: $($report.RecommendedDecision)"
+    Write-Host "Runtime config decision report declared: $($report.Summary.RuntimeConfigDecisionReportDeclared)"
+    Write-Host "Runtime config decision report uses asset decision engine: $($report.Summary.RuntimeConfigDecisionReportUsesAssetDecisionEngine)"
+    Write-Host "Runtime config incomplete evidence fail gate declared: $($report.Summary.RuntimeConfigIncompleteEvidenceFailGateDeclared)"
     Write-Host "Reason: $($report.Reason)"
 }

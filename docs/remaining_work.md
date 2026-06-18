@@ -112,6 +112,13 @@ Open decisions:
   output includes `RecommendedDecision`; the current empty
   `[DTCoreRuntimeOverride]` shape should remain `KeepLocal` unless a config
   owner explicitly accepts blank shared defaults.
+- Runtime config decision report tooling now reuses the local asset decision
+  engine. `Scripts/export_runtime_config_decision_report.ps1` reports
+  `ReviewQueue`, `CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`,
+  `ReadyToStage`, redacted runtime override key state, and a manual acceptance
+  checklist for `Config/Game.ini`. It accepts `-EvidencePath` for a candidate
+  `LocalAssetDecisionEvidenceV1` file and `-FailOnIncompleteEvidence` for an
+  opt-in config pre-commit gate.
 - Monitor WBP decision report tooling is available through
   `Scripts/export_monitor_wbp_decision_report.ps1`. It records local
   `WBP_VirtualSensorMonitor.uasset` metadata, Git state, setup-document contract

@@ -1,5 +1,8 @@
 param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$SourceRepoRoot = "",
+    [string]$EvidencePath = "",
+    [switch]$FailOnIncompleteEvidence,
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
     [switch]$Json
@@ -59,13 +62,57 @@ function Write-TextFile {
     Set-Content -LiteralPath $Path -Value $Lines -Encoding UTF8
 }
 
+function Invoke-JsonScript {
+    param(
+        [string]$ScriptPath,
+        [hashtable]$Parameters
+    )
+
+    if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) {
+        throw "Required script not found: $ScriptPath"
+    }
+
+    $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $ScriptPath @Parameters -Json)
+    if ($LASTEXITCODE -ne 0) {
+        throw "$ScriptPath failed with exit code ${LASTEXITCODE}: $($scriptOutput -join ' ')"
+    }
+
+    return ($scriptOutput -join "`n") | ConvertFrom-Json
+}
+
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if ([string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+    $SourceRepoRoot = $ProjectRoot
+}
+if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
+    throw "SourceRepoRoot not found: $SourceRepoRoot"
+}
+$SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 $gameIniPath = Join-Path $ProjectRoot "Config\Game.ini"
+$assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
+$runtimePolicyScript = Join-Path $SourceRepoRoot "Scripts\validate_runtime_config_policy.ps1"
 $runtimeOverride = Read-RuntimeOverrideSection -Path $gameIniPath
+
+$assetReportParams = @{ ProjectRoot = $ProjectRoot }
+if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
+    $assetReportParams.EvidencePath = $EvidencePath
+}
+$assetDecisionReport = Invoke-JsonScript `
+    -ScriptPath $assetReportScript `
+    -Parameters $assetReportParams
+$runtimePolicyReport = Invoke-JsonScript `
+    -ScriptPath $runtimePolicyScript `
+    -Parameters @{ ProjectRoot = $SourceRepoRoot; LocalProjectRoot = $ProjectRoot }
+
+$configRelativePath = "Config\Game.ini"
+$configDecisionPoint = @($assetDecisionReport.DecisionPoints | Where-Object { $_.Path -eq $configRelativePath }) | Select-Object -First 1
+if ((Test-Path -LiteralPath $gameIniPath -PathType Leaf) -and -not $configDecisionPoint) {
+    throw "Config/Game.ini decision point not found in report_local_project_status.ps1 output."
+}
 
 $decisionStatus = "NotPresent"
 $recommendation = "No local Config/Game.ini decision is needed because the file is not present."
@@ -89,7 +136,7 @@ if (Test-Path -LiteralPath $gameIniPath -PathType Leaf) {
 }
 
 $evidenceDraft = [PSCustomObject]@{
-    Path = "Config\Game.ini"
+    Path = $configRelativePath
     DecisionOwner = "ConfigOwnerRequired"
     DecisionStatus = $decisionStatus
     AcceptedBy = ""
@@ -104,9 +151,33 @@ $evidenceDraft = [PSCustomObject]@{
     )
 }
 
+$manualAcceptanceChecklist = @(
+    [PSCustomObject]@{
+        Name = "Manual diff review"
+        Status = if ($configDecisionPoint -and @($configDecisionPoint.MissingEvidence) -notcontains "Manual diff review") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Review Config/Game.ini manually without printing sensitive values."
+    },
+    [PSCustomObject]@{
+        Name = "No endpoint or credential values"
+        Status = if ($runtimeOverride.NonEmptyKeys.Count -eq 0 -and $configDecisionPoint -and @($configDecisionPoint.MissingEvidence) -notcontains "No endpoint or credential values") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Confirm Config/Game.ini contains no endpoint, credential, token, password, or secret values."
+    },
+    [PSCustomObject]@{
+        Name = "Shared-defaults decision"
+        Status = if ($configDecisionPoint -and @($configDecisionPoint.MissingEvidence) -notcontains "Shared-defaults decision") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Config owner decides whether this file remains local or becomes accepted shared defaults."
+    },
+    [PSCustomObject]@{
+        Name = "Runtime config policy pass"
+        Status = if ([bool]$runtimePolicyReport.Summary.Valid -and $configDecisionPoint -and @($configDecisionPoint.MissingEvidence) -notcontains "Runtime config policy pass") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Run validate_runtime_config_policy.ps1 against the local project and record the result."
+    }
+)
+
 $report = [PSCustomObject]@{
     GeneratedAt = (Get-Date).ToString("s")
     ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
     GameIniPath = $gameIniPath
     GameIniPresent = (Test-Path -LiteralPath $gameIniPath -PathType Leaf)
     RuntimeOverridePresent = $runtimeOverride.Present
@@ -116,7 +187,32 @@ $report = [PSCustomObject]@{
     ValuesRedacted = $true
     RiskLevel = $riskLevel
     Recommendation = $recommendation
+    DecisionPoint = $configDecisionPoint
+    ManualAcceptanceChecklist = $manualAcceptanceChecklist
     EvidenceDraft = $evidenceDraft
+    Summary = [PSCustomObject]@{
+        Valid = $true
+        RuntimePolicyValid = [bool]$runtimePolicyReport.Summary.Valid
+        EvidencePath = $EvidencePath
+        GameIniDecisionPointPresent = [bool]$configDecisionPoint
+        GameIniPresent = (Test-Path -LiteralPath $gameIniPath -PathType Leaf)
+        GameIniGitState = if ($configDecisionPoint) { [string]$configDecisionPoint.GitState } else { "NotPresent" }
+        ReviewQueue = if ($configDecisionPoint) { [string]$configDecisionPoint.ReviewQueue } else { "NotPresent" }
+        CommitReadiness = if ($configDecisionPoint) { [string]$configDecisionPoint.CommitReadiness } else { "NotPresent" }
+        EvidenceStatus = if ($configDecisionPoint) { [string]$configDecisionPoint.EvidenceStatus } else { "NotPresent" }
+        EvidenceSatisfied = if ($configDecisionPoint) { [bool]$configDecisionPoint.EvidenceSatisfied } else { $false }
+        MissingEvidenceCount = if ($configDecisionPoint) { @($configDecisionPoint.MissingEvidence).Count } else { 0 }
+        ManualAcceptanceChecklistCount = $manualAcceptanceChecklist.Count
+        ManualAcceptanceMissingCount = @($manualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" }).Count
+        ReadyToStage = if ($configDecisionPoint) { [string]$configDecisionPoint.ReviewQueue -eq "ReadyToStage" } else { $false }
+        StagingBlocked = if ($configDecisionPoint) { [bool]$configDecisionPoint.CommitBlocker } else { $false }
+        ManualConfigOwnerDecisionStillRequired = (Test-Path -LiteralPath $gameIniPath -PathType Leaf) -and (-not $configDecisionPoint -or [string]$configDecisionPoint.ReviewQueue -ne "ReadyToStage")
+        FailOnIncompleteEvidence = [bool]$FailOnIncompleteEvidence
+    }
+}
+
+if ($FailOnIncompleteEvidence -and $report.GameIniPresent -and -not $report.Summary.ReadyToStage) {
+    throw "Runtime config evidence is incomplete. ReviewQueue=$($report.Summary.ReviewQueue) EvidenceStatus=$($report.Summary.EvidenceStatus) MissingEvidenceCount=$($report.Summary.MissingEvidenceCount). Record complete AcceptedForRepository evidence before staging Config/Game.ini."
 }
 
 $lines = @(
@@ -124,11 +220,19 @@ $lines = @(
     "",
     "- Generated: $($report.GeneratedAt)",
     "- Project: $($report.ProjectRoot)",
+    "- Source repo: $($report.SourceRepoRoot)",
     "- Game.ini present: $($report.GameIniPresent)",
     "- Runtime override present: $($report.RuntimeOverridePresent)",
     "- Runtime override keys: $(@($report.RuntimeOverrideKeys) -join ', ')",
     "- Non-empty runtime override keys: $(@($report.NonEmptyRuntimeOverrideKeys) -join ', ')",
     "- Values redacted: $($report.ValuesRedacted)",
+    "- Review queue: $($report.Summary.ReviewQueue)",
+    "- Commit readiness: $($report.Summary.CommitReadiness)",
+    "- Evidence status: $($report.Summary.EvidenceStatus)",
+    "- Missing evidence count: $($report.Summary.MissingEvidenceCount)",
+    "- Ready to stage: $($report.Summary.ReadyToStage)",
+    "- Staging blocked: $($report.Summary.StagingBlocked)",
+    "- Manual config owner decision still required: $($report.Summary.ManualConfigOwnerDecisionStillRequired)",
     "- Risk level: $($report.RiskLevel)",
     "- Recommendation: $($report.Recommendation)",
     "",
@@ -138,6 +242,16 @@ $lines = @(
     "- Decision owner: $($report.EvidenceDraft.DecisionOwner)",
     "- Decision status: $($report.EvidenceDraft.DecisionStatus)",
     "- Evidence source: $($report.EvidenceDraft.EvidenceSource)",
+    "",
+    "## Manual Acceptance Checklist",
+    ""
+)
+
+foreach ($item in $manualAcceptanceChecklist) {
+    $lines += "- $($item.Name): $($item.Status) - $($item.EvidenceNeeded)"
+}
+
+$lines += @(
     "",
     "The generated evidence draft is advisory. It can support a KeepLocal decision, but AcceptedForRepository still requires explicit owner acceptance."
 )

@@ -238,13 +238,20 @@ root while keeping `ProjectRoot` pointed at the source repo docs and scripts:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence
 ```
 
 The runtime config report emits `RecommendedDecision`. Empty
 `[DTCoreRuntimeOverride]` values produce `KeepLocal` by default because blank
 local override placeholders are not useful shared project defaults unless a
 config owner explicitly accepts them.
+It also reuses `report_local_project_status.ps1` to expose `ReviewQueue`,
+`CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`, and `ReadyToStage`
+for `Config/Game.ini`. Use `-EvidencePath` to inspect a candidate
+`LocalAssetDecisionEvidenceV1` record and `-FailOnIncompleteEvidence` when a
+pre-commit gate should reject staging the local config until owner evidence is
+complete.
 
 Monitor WBP decisions can be inspected without mutating the binary asset:
 
