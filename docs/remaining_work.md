@@ -603,11 +603,14 @@ Pre-commit progress and remaining-work summary:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness -Json
 ```
 
 The percentages are planning snapshots derived from the current remaining-work
 areas. They are not a substitute for build, smoke, editor, or server acceptance
-evidence.
+evidence. Use `-IncludeReadiness` before a commit when the percent summary
+should also show the fast readiness JSON result and skipped gate list.
 
 Full local readiness check:
 

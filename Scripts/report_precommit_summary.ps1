@@ -1,5 +1,7 @@
 param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$SourceRepoRoot = "",
+    [switch]$IncludeReadiness,
     [switch]$Json
 )
 
@@ -50,6 +52,48 @@ function Get-LocalAssetSummary {
     }
 
     return $jsonText | ConvertFrom-Json
+}
+
+function Get-ReadinessSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $readinessScript = Join-Path $script:PSScriptRoot "check_project_readiness.ps1"
+    if (-not (Test-Path -LiteralPath $readinessScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $readinessScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-SkipSmoke",
+        "-SkipWebSocketLidarSmokeEvidence",
+        "-SkipWebSocketBrokerSmokeReport",
+        "-SkipLazPlaceholderPolicy",
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Project readiness summary failed with exit code $LASTEXITCODE"
+    }
+
+    $readiness = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        Passed = [bool]$readiness.Passed
+        ProjectRoot = [string]$readiness.ProjectRoot
+        SourceRepoRoot = [string]$readiness.SourceRepoRoot
+        StepCount = [int]$readiness.StepCount
+        PassedStepCount = [int]$readiness.PassedStepCount
+        SkippedStepCount = [int]$readiness.SkippedStepCount
+        SkippedSteps = @($readiness.Steps | Where-Object { $_.Status -eq "Skipped" } | Select-Object -ExpandProperty Label)
+    }
 }
 
 function Get-RepoChangeSummary {
@@ -107,6 +151,10 @@ function New-WorkArea {
 
 $repoRoot = (Resolve-Path -LiteralPath (Get-Location).Path).Path
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if ([string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+    $SourceRepoRoot = $repoRoot
+}
+$SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 
 $workAreas = @(
     (New-WorkArea `
@@ -121,8 +169,8 @@ $workAreas = @(
         -Remaining "Judging server approval, real server acceptance evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 81 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, and SampleRiskReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root." `
+        -Percent 82 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, and SampleRiskReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result." `
         -Remaining "Manual WBP editor-open/binding/PIE acceptance, Game.ini owner acceptance, large content source/license/dependency/storage acceptance, PixelStreaming sample ownership acceptance, and any final AcceptedForRepository evidence remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
@@ -149,10 +197,12 @@ $untracked = $changeSummary.Untracked
 $branch = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("branch", "--show-current") | Select-Object -First 1)
 $recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--oneline", "-1") | Select-Object -First 1)
 $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
+$readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
 
 $report = [PSCustomObject]@{
     RepositoryRoot = $repoRoot
     LocalProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
     Branch = $branch
     RecentCommit = $recentCommit
     OverallPercent = $overallPercent
@@ -161,6 +211,7 @@ $report = [PSCustomObject]@{
     UnstagedChanges = $unstaged
     UntrackedChanges = $untracked
     LocalAssetSummary = if ($localAssetReport) { $localAssetReport.Summary } else { $null }
+    ReadinessSummary = $readinessSummary
 }
 
 if ($Json) {
@@ -210,4 +261,16 @@ if ($localAssetReport) {
     Write-Host "Present decision points: $($localAssetReport.Summary.PresentDecisionPoints)"
     Write-Host "Generated/local-output items present: $($localAssetReport.Summary.GeneratedOrLocalOutputItemsPresent)"
     Write-Host "Unclassified untracked paths: $($localAssetReport.Summary.UnclassifiedUntrackedCount)"
+}
+
+if ($readinessSummary) {
+    Write-Section "Fast readiness"
+    Write-Host "Passed: $($readinessSummary.Passed)"
+    Write-Host "Steps: $($readinessSummary.PassedStepCount)/$($readinessSummary.StepCount) passed, $($readinessSummary.SkippedStepCount) skipped"
+    Write-Host "Source repo root: $($readinessSummary.SourceRepoRoot)"
+    Write-Host "Local project root: $($readinessSummary.ProjectRoot)"
+    if (@($readinessSummary.SkippedSteps).Count -gt 0) {
+        Write-Host "Skipped:"
+        $readinessSummary.SkippedSteps | ForEach-Object { Write-Host "  $_" }
+    }
 }
