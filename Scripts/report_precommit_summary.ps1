@@ -85,14 +85,32 @@ function Get-ReadinessSummary {
     }
 
     $readiness = $jsonText | ConvertFrom-Json
+    $skippedSteps = @($readiness.Steps | Where-Object { $_.Status -eq "Skipped" })
     return [PSCustomObject]@{
         Passed = [bool]$readiness.Passed
+        FastReadinessPassed = [bool]$readiness.Passed
+        Mode = "FastStaticPrecommit"
+        ReadinessMode = "FastStaticPrecommit"
+        ManualEvidenceStillRequired = ($skippedSteps.Count -gt 0)
+        ReadinessCaveat = "Passed means fast/static pre-commit gates passed, not full PIE, broker, LAZ, editor, or deployment evidence complete."
+        Boundary = "Skipped readiness steps are intentional omissions from this fast pre-commit check, not proof that manual/editor/deployment evidence exists."
         ProjectRoot = [string]$readiness.ProjectRoot
         SourceRepoRoot = [string]$readiness.SourceRepoRoot
         StepCount = [int]$readiness.StepCount
         PassedStepCount = [int]$readiness.PassedStepCount
         SkippedStepCount = [int]$readiness.SkippedStepCount
-        SkippedSteps = @($readiness.Steps | Where-Object { $_.Status -eq "Skipped" } | Select-Object -ExpandProperty Label)
+        SkippedSteps = @($skippedSteps | Select-Object -ExpandProperty Label)
+        SkippedByPrecommitPolicy = @($skippedSteps | Select-Object -ExpandProperty Label)
+        SkippedStepDetails = @(
+            $skippedSteps |
+                ForEach-Object {
+                    [PSCustomObject]@{
+                        Label = $_.Label
+                        Reason = $_.Message
+                        EvidenceBoundary = "Not covered by fast readiness."
+                    }
+                }
+        )
     }
 }
 
@@ -170,7 +188,7 @@ $workAreas = @(
     (New-WorkArea `
         -Name "Local project asset decisions" `
         -Percent 83 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, and SampleRiskReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result." `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, and SampleRiskReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
         -Remaining "Manual WBP editor-open/binding/PIE acceptance, Game.ini owner acceptance, large content source/license/dependency/storage acceptance, PixelStreaming sample ownership acceptance, and any final AcceptedForRepository evidence remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
@@ -266,11 +284,18 @@ if ($localAssetReport) {
 if ($readinessSummary) {
     Write-Section "Fast readiness"
     Write-Host "Passed: $($readinessSummary.Passed)"
+    Write-Host "Fast readiness passed: $($readinessSummary.FastReadinessPassed)"
+    Write-Host "Mode: $($readinessSummary.ReadinessMode)"
+    Write-Host "Manual evidence still required: $($readinessSummary.ManualEvidenceStillRequired)"
+    Write-Host "Caveat: $($readinessSummary.ReadinessCaveat)"
+    Write-Host "Boundary: $($readinessSummary.Boundary)"
     Write-Host "Steps: $($readinessSummary.PassedStepCount)/$($readinessSummary.StepCount) passed, $($readinessSummary.SkippedStepCount) skipped"
     Write-Host "Source repo root: $($readinessSummary.SourceRepoRoot)"
     Write-Host "Local project root: $($readinessSummary.ProjectRoot)"
-    if (@($readinessSummary.SkippedSteps).Count -gt 0) {
-        Write-Host "Skipped:"
-        $readinessSummary.SkippedSteps | ForEach-Object { Write-Host "  $_" }
+    if (@($readinessSummary.SkippedStepDetails).Count -gt 0) {
+        Write-Host "Skipped (not covered by fast readiness):"
+        $readinessSummary.SkippedStepDetails | ForEach-Object {
+            Write-Host "  $($_.Label) - $($_.Reason)"
+        }
     }
 }

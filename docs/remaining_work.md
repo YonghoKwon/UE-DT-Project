@@ -613,7 +613,12 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1
 The percentages are planning snapshots derived from the current remaining-work
 areas. They are not a substitute for build, smoke, editor, or server acceptance
 evidence. Use `-IncludeReadiness` before a commit when the percent summary
-should also show the fast readiness JSON result and skipped gate list.
+should also show the fast readiness JSON result and skipped gate list. The
+`ReadinessSummary.ReadinessMode = FastStaticPrecommit` result is a quick
+pre-commit signal; `FastReadinessPassed` means the fast/static gates passed, not
+that full PIE, broker, LAZ, editor, or deployment evidence is complete. Skipped
+steps are reported with evidence boundaries and still require manual, editor,
+deployment, or full smoke evidence before the related work is complete.
 
 Full local readiness check:
 

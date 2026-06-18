@@ -233,6 +233,12 @@ the readiness wrapper is launched from the source checkout but the real
 untracked asset/config decisions live in the local Unreal project. Policy and
 documentation validators read the source checkout, while local asset, runtime
 config, and large-content scans inspect the local project root.
+When the pre-commit summary is run with `-IncludeReadiness`, treat
+`ReadinessSummary.ReadinessMode = FastStaticPrecommit` as a quick gate only.
+`FastReadinessPassed` does not mean full PIE, broker, LAZ, editor, or deployment
+evidence is complete. Any skipped readiness steps are explicitly outside that
+fast check and still need their manual/editor/deployment evidence before the
+associated work can be called done.
 
 Strict local-output gates can be enabled when a clean packaging state is needed:
 
