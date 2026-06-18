@@ -68,6 +68,9 @@ Assert-FileExists -Path $evidenceWorkflowScript -Label "Local asset decision evi
 Assert-FileExists -Path $largeContentDecisionReportScript -Label "Large content decision report script"
 
 $requiredTexts = @(
+    [PSCustomObject]@{ Path = $evidenceTemplateScript; Pattern = "Summary"; Label = "Evidence template exports summary object" },
+    [PSCustomObject]@{ Path = $evidenceTemplateScript; Pattern = "PendingEvidenceItemCount"; Label = "Evidence template counts pending evidence items" },
+    [PSCustomObject]@{ Path = $evidenceTemplateScript; Pattern = "TopBlockingPaths"; Label = "Evidence template summarizes top blocking paths" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LargeContentCandidate"; Label = "Local asset doc defines large content category" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "SampleOrThirdParty"; Label = "Local asset doc defines sample category" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "extension counts"; Label = "Local asset doc explains extension counts" },

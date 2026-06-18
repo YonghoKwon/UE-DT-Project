@@ -63,11 +63,37 @@ $decisionEntries = @(
             }
         }
 )
+$evidenceItems = @($decisionEntries | ForEach-Object { $_.Evidence })
+$blockingDecisions = @($decisionEntries | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.BlockingReason) })
+$templateSummary = [PSCustomObject]@{
+    DecisionCount = $decisionEntries.Count
+    ReadyToStageCount = @($decisionEntries | Where-Object { $_.ReviewQueue -eq "ReadyToStage" }).Count
+    NeedsOwnerDecisionCount = @($decisionEntries | Where-Object { $_.ReviewQueue -eq "NeedsOwnerDecision" }).Count
+    KeepLocalCount = @($decisionEntries | Where-Object { $_.ReviewQueue -eq "KeepLocal" }).Count
+    BlockingDecisionCount = $blockingDecisions.Count
+    EvidenceItemCount = $evidenceItems.Count
+    PendingEvidenceItemCount = @($evidenceItems | Where-Object { $_.Status -eq "Pending" }).Count
+    TopBlockingPaths = @(
+        $blockingDecisions |
+            Sort-Object ReviewPriority, Path |
+            Select-Object -First 5 |
+            ForEach-Object {
+                [PSCustomObject]@{
+                    Path = $_.Path
+                    ReviewPriority = $_.ReviewPriority
+                    ReviewQueue = $_.ReviewQueue
+                    BlockingReason = $_.BlockingReason
+                    NextReviewAction = $_.NextReviewAction
+                }
+            }
+    )
+}
 
 $template = [PSCustomObject]@{
     Schema = "LocalAssetDecisionEvidenceV1"
     GeneratedAt = (Get-Date).ToString("s")
     ProjectRoot = $report.ProjectRoot
+    Summary = $templateSummary
     Instructions = @(
         "DecisionOwner is review-routing metadata, not accepted ownership.",
         "ReadyToStage requires AcceptedForRepository.",

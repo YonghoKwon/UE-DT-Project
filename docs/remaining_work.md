@@ -98,6 +98,9 @@ Open decisions:
   the evidence state machine, including the Staged decision gate for blocked and
   evidence-ready decision paths. Duplicate normalized evidence paths are invalid
   and fail before any owner decision is accepted.
+  The evidence template now includes a `Summary` with decision counts, pending
+  evidence item counts, and `TopBlockingPaths` so owner review starts from the
+  highest-priority blockers without implicitly accepting local files.
   Large content decisions require owner/source/license, dependency, size, and
   storage/versioning evidence before staging. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups

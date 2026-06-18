@@ -192,6 +192,9 @@ to `ReadyToStage` only when the evidence file sets
 and `EvidenceSource` are filled in. Large content decisions require
 owner/source/license, dependency, size, and storage/versioning evidence before
 they can be accepted.
+The generated template includes a `Summary` block with decision counts, pending
+evidence item counts, and `TopBlockingPaths` so owner review can start from the
+highest-priority local blockers without accepting any path implicitly.
 `Scripts/validate_local_asset_decision_evidence_workflow.ps1` builds a
 temporary git-backed project and verifies no-evidence, incomplete evidence,
 blank reviewer/date/source, blank item source, pending decision, normalized path, `KeepLocal`,
