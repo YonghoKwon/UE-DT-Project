@@ -589,7 +589,14 @@ Fast local readiness check:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipSmoke
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipSmoke -Json
 ```
+
+Use the `-SourceRepoRoot` form when running from the source checkout while the
+actual untracked Unreal asset/config decisions are in the local project. The
+wrapper keeps policy/docs validation on the source checkout and scans local
+asset, runtime config, and large-content decisions from `-ProjectRoot`.
 
 Pre-commit progress and remaining-work summary:
 

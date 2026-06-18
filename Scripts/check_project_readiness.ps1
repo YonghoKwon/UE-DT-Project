@@ -1,5 +1,6 @@
 param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$SourceRepoRoot = "",
     [string]$ProjectPath = "",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
     [string[]]$TestGroups = @(
@@ -31,10 +32,39 @@ param(
     [switch]$AllowOpenEditor,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnStagedDecisionPoints,
-    [string[]]$FailOnCategory = @()
+    [string[]]$FailOnCategory = @(),
+    [switch]$Json
 )
 
 $ErrorActionPreference = "Stop"
+$script:JsonMode = [bool]$Json
+$script:ReadinessSteps = [System.Collections.Generic.List[object]]::new()
+
+function Write-ReadinessHost {
+    param([string]$Message = "")
+
+    if (-not $script:JsonMode) {
+        Write-Host $Message
+    }
+}
+
+function Add-ReadinessStep {
+    param(
+        [string]$Label,
+        [string]$Status,
+        [string]$ScriptPath = "",
+        [object]$Parameters = $null,
+        [string]$Message = ""
+    )
+
+    $script:ReadinessSteps.Add([PSCustomObject]@{
+        Label = $Label
+        Status = $Status
+        ScriptPath = $ScriptPath
+        Parameters = $Parameters
+        Message = $Message
+    }) | Out-Null
+}
 
 function Invoke-ScriptStep {
     param(
@@ -43,14 +73,29 @@ function Invoke-ScriptStep {
         [hashtable]$Parameters
     )
 
-    Write-Host ""
-    Write-Host "==> $Label"
-    Write-Host $ScriptPath
+    Write-ReadinessHost ""
+    Write-ReadinessHost "==> $Label"
+    Write-ReadinessHost $ScriptPath
 
-    & $ScriptPath @Parameters
+    $output = @(& $ScriptPath @Parameters *>&1)
+    if (-not $script:JsonMode) {
+        $output | ForEach-Object { Write-Host $_ }
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "$Label failed with exit code $LASTEXITCODE"
     }
+    Add-ReadinessStep -Label $Label -Status "Passed" -ScriptPath $ScriptPath -Parameters $Parameters
+}
+
+function Skip-ScriptStep {
+    param(
+        [string]$Label,
+        [string]$Reason
+    )
+
+    Write-ReadinessHost ""
+    Write-ReadinessHost $Reason
+    Add-ReadinessStep -Label $Label -Status "Skipped" -Message $Reason
 }
 
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
@@ -58,6 +103,14 @@ if (-not (Test-Path -LiteralPath $ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+    $SourceRepoRoot = Split-Path -Parent $ScriptRoot
+}
+if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
+    throw "SourceRepoRoot not found: $SourceRepoRoot"
+}
+$SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
     $ProjectPath = Join-Path $ProjectRoot "m7at10_dt.uproject"
 }
@@ -65,7 +118,6 @@ if (-not (Test-Path -LiteralPath $ProjectPath)) {
     throw "Project file not found: $ProjectPath"
 }
 
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AssetReportScript = Join-Path $ScriptRoot "report_local_project_status.ps1"
 $PayloadFixtureScript = Join-Path $ScriptRoot "validate_payload_fixtures.ps1"
 $PayloadContractScript = Join-Path $ScriptRoot "validate_payload_contract.ps1"
@@ -166,8 +218,7 @@ if (-not $SkipPayloadFixtures) {
         -Parameters @{}
 }
 else {
-    Write-Host ""
-    Write-Host "Payload fixture validation skipped by -SkipPayloadFixtures."
+    Skip-ScriptStep -Label "Payload fixture validation" -Reason "Payload fixture validation skipped by -SkipPayloadFixtures."
 }
 
 if (-not $SkipPayloadContract) {
@@ -177,74 +228,67 @@ if (-not $SkipPayloadContract) {
         -Parameters @{}
 }
 else {
-    Write-Host ""
-    Write-Host "Payload mock contract validation skipped by -SkipPayloadContract."
+    Skip-ScriptStep -Label "Payload mock contract validation" -Reason "Payload mock contract validation skipped by -SkipPayloadContract."
 }
 
 if (-not $SkipPayloadSchemaReviewPolicy) {
     Invoke-ScriptStep `
         -Label "Payload schema review policy validation" `
         -ScriptPath $PayloadSchemaReviewPolicyScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Payload schema review policy validation skipped by -SkipPayloadSchemaReviewPolicy."
+    Skip-ScriptStep -Label "Payload schema review policy validation" -Reason "Payload schema review policy validation skipped by -SkipPayloadSchemaReviewPolicy."
 }
 
 if (-not $SkipServerTransportContract) {
     Invoke-ScriptStep `
         -Label "Server transport contract validation" `
         -ScriptPath $ServerTransportContractScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Server transport contract validation skipped by -SkipServerTransportContract."
+    Skip-ScriptStep -Label "Server transport contract validation" -Reason "Server transport contract validation skipped by -SkipServerTransportContract."
 }
 
 if (-not $SkipRealSensorAdapterPlan) {
     Invoke-ScriptStep `
         -Label "Real sensor adapter plan validation" `
         -ScriptPath $RealSensorAdapterPlanScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Real sensor adapter plan validation skipped by -SkipRealSensorAdapterPlan."
+    Skip-ScriptStep -Label "Real sensor adapter plan validation" -Reason "Real sensor adapter plan validation skipped by -SkipRealSensorAdapterPlan."
 }
 
 if (-not $SkipWebSocketLidarLiveSample) {
     Invoke-ScriptStep `
         -Label "WebSocket live LiDAR sample validation" `
         -ScriptPath $WebSocketLidarLiveSampleScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "WebSocket live LiDAR sample validation skipped by -SkipWebSocketLidarLiveSample."
+    Skip-ScriptStep -Label "WebSocket live LiDAR sample validation" -Reason "WebSocket live LiDAR sample validation skipped by -SkipWebSocketLidarLiveSample."
 }
 
 if (-not $SkipWebSocketTransactionRegistrationReport) {
     Invoke-ScriptStep `
         -Label "WebSocket transaction registration report" `
         -ScriptPath $WebSocketTransactionRegistrationReportScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot; NoWrite = $true }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot; NoWrite = $true }
 }
 else {
-    Write-Host ""
-    Write-Host "WebSocket transaction registration report skipped by -SkipWebSocketTransactionRegistrationReport."
+    Skip-ScriptStep -Label "WebSocket transaction registration report" -Reason "WebSocket transaction registration report skipped by -SkipWebSocketTransactionRegistrationReport."
 }
 
 if (-not $SkipWebSocketBrokerSmokeReport) {
     Invoke-ScriptStep `
         -Label "WebSocket broker smoke report" `
         -ScriptPath $WebSocketBrokerSmokeReportScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot; NoWrite = $true }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot; NoWrite = $true }
 }
 else {
-    Write-Host ""
-    Write-Host "WebSocket broker smoke report skipped by -SkipWebSocketBrokerSmokeReport."
+    Skip-ScriptStep -Label "WebSocket broker smoke report" -Reason "WebSocket broker smoke report skipped by -SkipWebSocketBrokerSmokeReport."
 }
 
 if (-not $SkipWebSocketLidarSmokeEvidence) {
@@ -254,60 +298,56 @@ if (-not $SkipWebSocketLidarSmokeEvidence) {
         -Parameters @{ ProjectRoot = $ProjectRoot; ProjectPath = $ProjectPath; EngineRoot = $EngineRoot; NoWrite = $true }
 }
 else {
-    Write-Host ""
-    Write-Host "WebSocket LiDAR smoke evidence workflow skipped by -SkipWebSocketLidarSmokeEvidence."
+    Skip-ScriptStep -Label "WebSocket LiDAR smoke evidence workflow" -Reason "WebSocket LiDAR smoke evidence workflow skipped by -SkipWebSocketLidarSmokeEvidence."
 }
 
 if (-not $SkipPointCloudPreviewPolicy) {
     Invoke-ScriptStep `
         -Label "Point cloud preview policy validation" `
         -ScriptPath $PointCloudPreviewPolicyScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Point cloud preview policy validation skipped by -SkipPointCloudPreviewPolicy."
+    Skip-ScriptStep -Label "Point cloud preview policy validation" -Reason "Point cloud preview policy validation skipped by -SkipPointCloudPreviewPolicy."
 }
 
 if (-not $SkipLazPlaceholderPolicy) {
     Invoke-ScriptStep `
         -Label "LAZ placeholder policy validation" `
         -ScriptPath $LazPlaceholderPolicyScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
     Invoke-ScriptStep `
         -Label "LAZ compressor readiness report" `
         -ScriptPath $LazCompressorReadinessReportScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "LAZ placeholder policy validation and compressor readiness report skipped by -SkipLazPlaceholderPolicy."
+    Skip-ScriptStep -Label "LAZ placeholder policy validation" -Reason "LAZ placeholder policy validation skipped by -SkipLazPlaceholderPolicy."
+    Skip-ScriptStep -Label "LAZ compressor readiness report" -Reason "LAZ compressor readiness report skipped by -SkipLazPlaceholderPolicy."
 }
 
 if (-not $SkipMonitorWidgetPolicy) {
     Invoke-ScriptStep `
         -Label "Monitor widget policy validation" `
         -ScriptPath $MonitorWidgetPolicyScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Monitor widget policy validation skipped by -SkipMonitorWidgetPolicy."
+    Skip-ScriptStep -Label "Monitor widget policy validation" -Reason "Monitor widget policy validation skipped by -SkipMonitorWidgetPolicy."
 }
 
 if (-not $SkipRuntimeConfigPolicy) {
     Invoke-ScriptStep `
         -Label "Runtime config policy validation" `
         -ScriptPath $RuntimeConfigPolicyScript `
-        -Parameters @{ ProjectRoot = $ProjectRoot }
+        -Parameters @{ ProjectRoot = $SourceRepoRoot; LocalProjectRoot = $ProjectRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Runtime config policy validation skipped by -SkipRuntimeConfigPolicy."
+    Skip-ScriptStep -Label "Runtime config policy validation" -Reason "Runtime config policy validation skipped by -SkipRuntimeConfigPolicy."
 }
 
 if (-not $SkipLargeContentDecisionPolicy) {
-    $LargeContentDecisionParams = @{ ProjectRoot = $ProjectRoot }
+    $LargeContentDecisionParams = @{ ProjectRoot = $SourceRepoRoot; LocalProjectRoot = $ProjectRoot }
     if ($FailOnLargeContentCandidates) {
         $LargeContentDecisionParams.FailIfPresent = $true
     }
@@ -317,8 +357,7 @@ if (-not $SkipLargeContentDecisionPolicy) {
         -Parameters $LargeContentDecisionParams
 }
 else {
-    Write-Host ""
-    Write-Host "Large content decision policy validation skipped by -SkipLargeContentDecisionPolicy."
+    Skip-ScriptStep -Label "Large content decision policy validation" -Reason "Large content decision policy validation skipped by -SkipLargeContentDecisionPolicy."
 }
 
 if (-not $SkipLocalAssetDecisionEvidenceWorkflow) {
@@ -328,8 +367,7 @@ if (-not $SkipLocalAssetDecisionEvidenceWorkflow) {
         -Parameters @{ ProjectRoot = $ProjectRoot }
 }
 else {
-    Write-Host ""
-    Write-Host "Local asset decision evidence workflow validation skipped by -SkipLocalAssetDecisionEvidenceWorkflow."
+    Skip-ScriptStep -Label "Local asset decision evidence workflow validation" -Reason "Local asset decision evidence workflow validation skipped by -SkipLocalAssetDecisionEvidenceWorkflow."
 }
 
 if (-not $SkipSmoke) {
@@ -351,9 +389,26 @@ if (-not $SkipSmoke) {
         -Parameters $SmokeParams
 }
 else {
-    Write-Host ""
-    Write-Host "Smoke tests skipped by -SkipSmoke."
+    Skip-ScriptStep -Label "Smoke tests" -Reason "Smoke tests skipped by -SkipSmoke."
 }
 
-Write-Host ""
-Write-Host "Project readiness checks passed."
+$report = [PSCustomObject]@{
+    GeneratedAt = (Get-Date).ToString("s")
+    ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+    ProjectPath = $ProjectPath
+    EngineRoot = $EngineRoot
+    Passed = $true
+    StepCount = $script:ReadinessSteps.Count
+    PassedStepCount = @($script:ReadinessSteps | Where-Object { $_.Status -eq "Passed" }).Count
+    SkippedStepCount = @($script:ReadinessSteps | Where-Object { $_.Status -eq "Skipped" }).Count
+    Steps = @($script:ReadinessSteps)
+}
+
+if ($Json) {
+    $report | ConvertTo-Json -Depth 6
+}
+else {
+    Write-Host ""
+    Write-Host "Project readiness checks passed."
+}

@@ -221,7 +221,15 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -SkipLocalAssetDecisionEvidenceWorkflow
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipSmoke
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipSmoke -Json
 ```
+
+Use `-SourceRepoRoot <source checkout> -ProjectRoot <local Unreal project>` when
+the readiness wrapper is launched from the source checkout but the real
+untracked asset/config decisions live in the local Unreal project. Policy and
+documentation validators read the source checkout, while local asset, runtime
+config, and large-content scans inspect the local project root.
 
 Strict local-output gates can be enabled when a clean packaging state is needed:
 
