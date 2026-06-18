@@ -53,16 +53,17 @@ Open decisions:
   - Evidence needed for commit: inspect diff, confirm there are no endpoint or
     credential values, and document why the setting belongs in repo.
 - `Content/ChemicalPlantEnv/`
-  - Large environment pack.
-  - Evidence needed: explicit asset/vendor decision, size acceptance, and map
-    dependency confirmation.
+  - Unused large environment pack.
+  - Current decision: keep out of source control; optionally remove manually
+    from the local project after Unreal reference/dependency checks.
 - `Content/Mega_Crane/`
-  - Large crane asset pack.
-  - Evidence needed: explicit asset/vendor decision and whether crane example
-    remains part of this branch.
+  - Unused local crane asset pack.
+  - Current decision: keep out of source control; optionally remove manually
+    from the local project after reference/dependency checks.
 - `Content/Materials/`, `Content/Meshes/`, `Content/Textures/`
-  - Shared content folders.
-  - Evidence needed: map/WBP dependency check and asset ownership decision.
+  - Unused local material/mesh/texture folders.
+  - Current decision: keep out of source control; optionally remove manually
+    from the local project after reference/dependency checks.
 - `Samples/PixelStreaming/`
   - Sample or third-party content.
   - Current local state: tracked as a sample/third-party decision point with
@@ -101,8 +102,9 @@ Open decisions:
   The evidence template now includes a `Summary` with decision counts, pending
   evidence item counts, and `TopBlockingPaths` so owner review starts from the
   highest-priority blockers without implicitly accepting local files.
-  Large content decisions require owner/source/license, dependency, size, and
-  storage/versioning evidence before staging. WBP and `Game.ini` decisions
+  Large `Content/*` asset folders currently confirmed as unused are treated as
+  local cleanup candidates, not repository-acceptance candidates. They should
+  stay untracked or be removed manually after a map/WBP dependency check. WBP and `Game.ini` decisions
   still require manual editor/config review. The exported review bundle groups
   paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues and
   also shows top blocking actions.

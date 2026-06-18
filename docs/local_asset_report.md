@@ -53,6 +53,9 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 - `ReviewCandidate`: small project or binary edits that need manual review.
 - `LargeContentCandidate`: Unreal content folders that may be valid production
   assets, but should be committed only after an explicit asset/vendor decision.
+  The current large `Content/*` folders in the local project are confirmed
+  unused local assets, so they are treated as keep-local cleanup candidates
+  rather than repository-acceptance candidates.
 - `SampleOrThirdParty`: sample or third-party content that should not enter the
   project accidentally.
 - `GeneratedOutput`: packaged outputs such as `Windows/` and `Windows.zip`.
@@ -99,6 +102,11 @@ Large content candidates and sample/third-party folders include extension counts
 and the largest files in each folder. Use this to spot built-data-heavy map
 packages, oversized textures, vendor packs, and copied sample projects before
 deciding whether the repository should own them.
+For the current local project state, `Content/ChemicalPlantEnv`,
+`Content/Mega_Crane`, `Content/Materials`, `Content/Meshes`, and
+`Content/Textures` are unused local asset folders. Do not stage them; either keep
+them ignored locally or remove them manually after Unreal reference/dependency
+checks. `Samples/PixelStreaming` remains a separate sample/third-party decision.
 
 Every decision point also reports:
 
@@ -137,9 +145,13 @@ PendingOwnerDecision remains NeedsOwnerDecision. EvidencePending remains NeedsOw
 Recorded evidence must name reviewer, date, and source.
 Generated output remains KeepLocal.
 
-For large content, the checklist asks for asset source, license, production
-dependency, size review, and storage/versioning strategy. For sample or
-third-party folders, it asks for project ownership, license/redistribution
+For unused local large content, the checklist asks for manual cleanup or
+keep-local confirmation rather than repository acceptance. For any future large
+content that is actually needed, the checklist still asks for asset source,
+license, production dependency, size review, and storage/versioning strategy.
+In short, needed large content still requires asset source, license, production
+dependency, and storage evidence before repository acceptance.
+For sample or third-party folders, it asks for project ownership, license/redistribution
 terms, and whether documentation is preferable to committing copied sample
 files. For the monitor WBP, it asks for editor open, binding verification, PIE
 smoke evidence, and production-WBP acceptance. For `Config/Game.ini`, it asks

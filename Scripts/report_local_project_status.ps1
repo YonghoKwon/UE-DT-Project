@@ -269,6 +269,19 @@ function Get-DecisionChecklist {
     )
 }
 
+function Test-UnusedLocalContentPath {
+    param([string]$RelativePath)
+
+    $normalizedPath = Normalize-RepoPath $RelativePath
+    return $normalizedPath -in @(
+        "content/chemicalplantenv",
+        "content/materials",
+        "content/mega_crane",
+        "content/meshes",
+        "content/textures"
+    )
+}
+
 function Get-PropertyValue {
     param(
         [object]$Object,
@@ -395,6 +408,20 @@ function Get-DecisionEvidenceReview {
     }
 
     if ($null -eq $EvidenceRecord) {
+        if ($Entry.DecisionStatus -eq "KeepLocal") {
+            return [PSCustomObject]@{
+                EvidenceReviewStatus = "KeepLocalByDefault"
+                EvidenceComplete = $false
+                MissingEvidence = @()
+                EvidenceRecordFound = $false
+                EvidenceAcceptedBy = ""
+                EvidenceAcceptedAt = ""
+                EvidenceAcceptedSource = ""
+                EffectiveDecisionStatus = $Entry.DecisionStatus
+                CommitReadinessOverride = "KeepLocalByDecision"
+            }
+        }
+
         return [PSCustomObject]@{
             EvidenceReviewStatus = "NoEvidenceRecord"
             EvidenceComplete = $false
@@ -584,6 +611,9 @@ function Get-NextReviewAction {
         return "Inspect the diff for endpoint/credential leakage and decide whether these runtime defaults are shared project settings or local-only overrides."
     }
     if ($Category -eq "LargeContentCandidate") {
+        if (Test-UnusedLocalContentPath -RelativePath $RelativePath) {
+            return "Unused local asset content; keep out of source control and remove from the local project when no map or workflow references remain."
+        }
         return "Confirm source/license, map or WBP dependency, storage/versioning strategy, and owner acceptance before considering repository inclusion."
     }
     if ($Category -eq "SampleOrThirdParty") {
@@ -652,42 +682,42 @@ try {
         [PSCustomObject]@{
             Path = "Content\ChemicalPlantEnv"
             Category = "LargeContentCandidate"
-            Recommendation = "Commit only with an explicit asset/vendor decision; otherwise keep out of this code change."
-            DecisionOwner = "AssetOwnerRequired"
-            DecisionStatus = "PendingOwnerDecision"
-            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map dependency evidence", "Size/storage acceptance")
+            Recommendation = "Unused large environment pack; keep local or delete from the local project, but do not commit."
+            DecisionOwner = "NotApplicable"
+            DecisionStatus = "KeepLocal"
+            EvidenceNeeded = @("Remove from local project or keep ignored as unused local asset")
         },
         [PSCustomObject]@{
             Path = "Content\Materials"
             Category = "LargeContentCandidate"
-            Recommendation = "Commit only with an explicit asset/material decision."
-            DecisionOwner = "AssetOwnerRequired"
-            DecisionStatus = "PendingOwnerDecision"
-            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map or WBP dependency evidence", "Size/storage acceptance")
+            Recommendation = "Unused local material assets; keep local or delete from the local project, but do not commit."
+            DecisionOwner = "NotApplicable"
+            DecisionStatus = "KeepLocal"
+            EvidenceNeeded = @("Remove from local project or keep ignored as unused local asset")
         },
         [PSCustomObject]@{
             Path = "Content\Mega_Crane"
             Category = "LargeContentCandidate"
-            Recommendation = "Commit only with an explicit crane asset decision."
-            DecisionOwner = "AssetOwnerRequired"
-            DecisionStatus = "PendingOwnerDecision"
-            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Branch scope decision", "Size/storage acceptance")
+            Recommendation = "Unused local crane asset pack; keep local or delete from the local project, but do not commit."
+            DecisionOwner = "NotApplicable"
+            DecisionStatus = "KeepLocal"
+            EvidenceNeeded = @("Remove from local project or keep ignored as unused local asset")
         },
         [PSCustomObject]@{
             Path = "Content\Meshes"
             Category = "LargeContentCandidate"
-            Recommendation = "Commit only with an explicit mesh asset decision."
-            DecisionOwner = "AssetOwnerRequired"
-            DecisionStatus = "PendingOwnerDecision"
-            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map or WBP dependency evidence", "Size/storage acceptance")
+            Recommendation = "Unused local mesh assets; keep local or delete from the local project, but do not commit."
+            DecisionOwner = "NotApplicable"
+            DecisionStatus = "KeepLocal"
+            EvidenceNeeded = @("Remove from local project or keep ignored as unused local asset")
         },
         [PSCustomObject]@{
             Path = "Content\Textures"
             Category = "LargeContentCandidate"
-            Recommendation = "Commit only with an explicit texture asset decision."
-            DecisionOwner = "AssetOwnerRequired"
-            DecisionStatus = "PendingOwnerDecision"
-            EvidenceNeeded = @("Asset source", "License/redistribution approval", "Map or WBP dependency evidence", "Size/storage acceptance")
+            Recommendation = "Unused local texture assets; keep local or delete from the local project, but do not commit."
+            DecisionOwner = "NotApplicable"
+            DecisionStatus = "KeepLocal"
+            EvidenceNeeded = @("Remove from local project or keep ignored as unused local asset")
         },
         [PSCustomObject]@{
             Path = "Samples\PixelStreaming"

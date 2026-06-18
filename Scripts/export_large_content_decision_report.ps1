@@ -32,6 +32,14 @@ function Convert-ToMarkdownCell {
 function Get-DefaultDecision {
     param([object]$Point)
 
+    if (Test-UnusedLocalContentPath -Path $Point.Path) {
+        return [PSCustomObject]@{
+            RecommendedDecision = "KeepLocalUnusedCleanup"
+            RiskLevel = "High"
+            Reason = "User confirmed this large Content asset is unused; keep local or remove manually, do not stage."
+        }
+    }
+
     $extensionCounts = @()
     if ($Point.ContentSummary -and $Point.ContentSummary.ExtensionCounts) {
         $extensionCounts = @($Point.ContentSummary.ExtensionCounts)
@@ -74,6 +82,28 @@ function Get-DefaultDecision {
     }
 }
 
+function Test-UnusedLocalContentPath {
+    param([string]$Path)
+
+    $normalizedPath = ($Path -replace "\\", "/").TrimEnd("/").ToLowerInvariant()
+    return $normalizedPath -in @(
+        "content/chemicalplantenv",
+        "content/materials",
+        "content/mega_crane",
+        "content/meshes",
+        "content/textures"
+    )
+}
+
+function Get-CleanupReason {
+    param([string]$Path)
+
+    if (-not (Test-UnusedLocalContentPath -Path $Path)) {
+        return ""
+    }
+    return "User confirmed this large Content asset is unused; keep local or remove manually after reference checks, do not stage."
+}
+
 function Get-RequiredAcceptance {
     param([object]$Point)
 
@@ -90,6 +120,15 @@ function Get-RequiredAcceptance {
     )
 
     if ($Point.Category -eq "LargeContentCandidate") {
+        if (Test-UnusedLocalContentPath -Path $Point.Path) {
+            $items += [PSCustomObject]@{
+                Name = "Manual unused-asset cleanup or keep-local decision"
+                Required = $true
+                Status = "KeepLocalByUserConfirmation"
+                SourceRequired = $false
+            }
+            return $items
+        }
         $items += [PSCustomObject]@{
             Name = "Repository storage/versioning approval"
             Required = $true
@@ -114,6 +153,13 @@ function Get-DecisionBlockers {
         [object]$Point,
         [object[]]$RequiredAcceptance
     )
+
+    if (Test-UnusedLocalContentPath -Path $Point.Path) {
+        return @(
+            "User confirmed this local Content asset is unused and should not be staged.",
+            "Optional cleanup/reference check remains before deleting it from the local project."
+        )
+    }
 
     $blockers = @()
     if ($Point.DecisionStatus -ne "AcceptedForRepository") {
@@ -193,6 +239,9 @@ function Get-SampleRiskReason {
 function Get-NextReviewAction {
     param([object]$Point)
 
+    if (Test-UnusedLocalContentPath -Path $Point.Path) {
+        return "Keep this unused local Content path out of source control; optionally remove it manually after Unreal reference/dependency checks."
+    }
     if ($Point.Category -eq "SampleOrThirdParty") {
         return "Decide whether the project owns this sample content; if not, keep it local and document setup steps instead."
     }
@@ -267,6 +316,9 @@ $candidates = @(
                 SizeBytes = [int64]$_.SizeBytes
                 Size = $_.Size
                 FileCount = $_.FileCount
+                UnusedLocalCleanupCandidate = [bool](Test-UnusedLocalContentPath -Path $_.Path)
+                RepositoryAcceptanceRequired = [bool](-not (Test-UnusedLocalContentPath -Path $_.Path))
+                CleanupReason = Get-CleanupReason -Path $_.Path
                 BuiltDataHeavy = [bool]$builtDataHeavy
                 LargestFileRisk = [bool]($largestFileBytes -ge 1GB)
                 LargestFileBytes = $largestFileBytes
@@ -309,6 +361,7 @@ $topBlockers = @(
 $builtDataHeavyCandidates = @($candidates | Where-Object { $_.BuiltDataHeavy })
 $largestFileRiskCandidates = @($candidates | Where-Object { $_.LargestFileRisk })
 $redistributionReviewCandidates = @($candidates | Where-Object { $_.RedistributionReviewRequired })
+$unusedCleanupCandidates = @($candidates | Where-Object { $_.UnusedLocalCleanupCandidate })
 $report = [PSCustomObject]@{
     GeneratedAt = (Get-Date).ToString("s")
     ProjectRoot = $ProjectRoot
@@ -321,6 +374,7 @@ $report = [PSCustomObject]@{
     BuiltDataHeavyCount = $builtDataHeavyCandidates.Count
     LargestFileRiskCount = $largestFileRiskCandidates.Count
     RedistributionReviewRequiredCount = $redistributionReviewCandidates.Count
+    UnusedLocalCleanupCandidateCount = $unusedCleanupCandidates.Count
     TopBlockers = $topBlockers
     Candidates = $candidates
     Summary = [PSCustomObject]@{
@@ -332,8 +386,9 @@ $report = [PSCustomObject]@{
         BuiltDataHeavyCandidateCount = $builtDataHeavyCandidates.Count
         LargestFileRiskCandidateCount = $largestFileRiskCandidates.Count
         RedistributionReviewRequiredCount = $redistributionReviewCandidates.Count
+        UnusedLocalCleanupCandidateCount = $unusedCleanupCandidates.Count
         TopBlockerCount = $topBlockers.Count
-        DefaultAction = "Keep large/sample content local unless source/license/dependency/storage evidence is complete and accepted."
+        DefaultAction = "Keep unused large Content assets and copied samples out of source control; remove unused local assets manually only after reference checks."
     }
 }
 
@@ -350,6 +405,7 @@ $lines.Add("- High risk candidates: $($report.HighRiskCount)") | Out-Null
 $lines.Add("- BuiltData-heavy candidates: $($report.BuiltDataHeavyCount)") | Out-Null
 $lines.Add("- Largest-file risk candidates: $($report.LargestFileRiskCount)") | Out-Null
 $lines.Add("- Redistribution review required: $($report.RedistributionReviewRequiredCount)") | Out-Null
+$lines.Add("- Unused local cleanup candidates: $($report.UnusedLocalCleanupCandidateCount)") | Out-Null
 $lines.Add("- Default action: $($report.Summary.DefaultAction)") | Out-Null
 $lines.Add("") | Out-Null
 $lines.Add("## Top Blockers") | Out-Null
@@ -370,16 +426,18 @@ else {
     }
 }
 $lines.Add("") | Out-Null
-$lines.Add("| Path | Category | Size | Files | Git state | Risk | BuiltData-heavy | Largest-file risk | Recommended decision | Next action | Storage risk |") | Out-Null
-$lines.Add("| --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |") | Out-Null
+$lines.Add("| Path | Category | Size | Files | Git state | Risk | Unused cleanup | Repo acceptance required | BuiltData-heavy | Largest-file risk | Recommended decision | Next action | Storage risk |") | Out-Null
+$lines.Add("| --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |") | Out-Null
 foreach ($candidate in $report.Candidates) {
-    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |" -f `
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} |" -f `
         (Convert-ToMarkdownCell $candidate.Path),
         (Convert-ToMarkdownCell $candidate.Category),
         (Convert-ToMarkdownCell $candidate.Size),
         (Convert-ToMarkdownCell $candidate.FileCount),
         (Convert-ToMarkdownCell $candidate.GitState),
         (Convert-ToMarkdownCell $candidate.RiskLevel),
+        (Convert-ToMarkdownCell $candidate.UnusedLocalCleanupCandidate),
+        (Convert-ToMarkdownCell $candidate.RepositoryAcceptanceRequired),
         (Convert-ToMarkdownCell $candidate.BuiltDataHeavy),
         (Convert-ToMarkdownCell $candidate.LargestFileRisk),
         (Convert-ToMarkdownCell $candidate.RecommendedDecision),
@@ -392,6 +450,9 @@ foreach ($candidate in $report.Candidates) {
     $lines.Add("") | Out-Null
     $lines.Add("- Evidence needed: $(@($candidate.EvidenceNeeded) -join ', ')") | Out-Null
     $lines.Add("- Next review action: $($candidate.NextReviewAction)") | Out-Null
+    if (-not [string]::IsNullOrWhiteSpace($candidate.CleanupReason)) {
+        $lines.Add("- Cleanup reason: $($candidate.CleanupReason)") | Out-Null
+    }
     $lines.Add("- Storage risk: $($candidate.StorageRiskReason)") | Out-Null
     if (-not [string]::IsNullOrWhiteSpace($candidate.SampleRiskReason)) {
         $lines.Add("- Sample risk: $($candidate.SampleRiskReason)") | Out-Null

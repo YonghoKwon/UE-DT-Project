@@ -59,6 +59,7 @@ $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $evidenceTemplateScript = Join-Path $ProjectRoot "Scripts\export_local_asset_decision_evidence_template.ps1"
 $evidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\validate_local_asset_decision_evidence_workflow.ps1"
+$assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
 $largeContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_large_content_decision_report.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
@@ -161,6 +162,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "StorageRiskReason"; Label = "Large content report exports storage risk reason" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "RedistributionReviewRequired"; Label = "Large content report exports sample redistribution review gate" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "SampleRiskReason"; Label = "Large content report exports sample risk reason" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "UnusedLocalCleanupCandidate"; Label = "Large content report marks unused local cleanup candidates" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "RepositoryAcceptanceRequired"; Label = "Large content report separates repository acceptance requirement" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "CleanupReason"; Label = "Large content report explains unused cleanup reason" },
+    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "Unused local asset content"; Label = "Asset report routes unused local content to cleanup" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "BuiltData asset over 1 GB"; Label = "Large content report explains BuiltData-heavy blocker" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Repository storage/versioning approval"; Label = "Large content report requires storage/versioning acceptance" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Documentation alternative decision"; Label = "Sample report requires documentation alternative decision" }
@@ -202,9 +207,21 @@ foreach ($candidate in @($largeReport.Candidates)) {
     }
     $acceptanceNames = @($candidate.RequiredAcceptance | ForEach-Object { [string]$_.Name })
     if ($candidate.Category -eq "LargeContentCandidate") {
-        foreach ($required in @("Asset source", "License/redistribution approval", "Size/storage acceptance", "Repository storage/versioning approval")) {
-            if (-not ($acceptanceNames -contains $required)) {
-                throw "Large content candidate $($candidate.Path) is missing required acceptance item: $required"
+        if ([bool]$candidate.UnusedLocalCleanupCandidate) {
+            if (-not [bool]$candidate.RepositoryAcceptanceRequired) {
+                if (-not ($acceptanceNames -contains "Manual unused-asset cleanup or keep-local decision")) {
+                    throw "Unused large content candidate $($candidate.Path) is missing cleanup/keep-local acceptance item."
+                }
+            }
+            else {
+                throw "Unused large content candidate $($candidate.Path) must not require repository acceptance."
+            }
+        }
+        else {
+            foreach ($required in @("Asset source", "License/redistribution approval", "Size/storage acceptance", "Repository storage/versioning approval")) {
+                if (-not ($acceptanceNames -contains $required)) {
+                    throw "Large content candidate $($candidate.Path) is missing required acceptance item: $required"
+                }
             }
         }
     }
