@@ -98,15 +98,49 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "External CLI compressor"; Label = "Decision report includes external CLI path" },
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Server/post-processing workflow"; Label = "Decision report includes server post-process path" },
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "Readable validation from a known point-cloud tool"; Label = "Decision report tracks readable LAZ evidence" },
+    [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "RunReaderProbe"; Label = "Decision report points to reader-probe evidence capture" },
     [PSCustomObject]@{ Path = $decisionReportScript; Pattern = "CompressorReadinessReportDeclared"; Label = "Decision report consumes compressor readiness evidence" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReadyForRealLazAutomation"; Label = "Readiness report states real LAZ automation readiness" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReadableOutputEvidencePresent"; Label = "Readiness report tracks readable output evidence" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "LazEvidencePath"; Label = "Readiness report accepts explicit LAZ evidence path" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "RunReaderProbe"; Label = "Readiness report can run reader probe" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReaderProbeSucceeded"; Label = "Readiness report records reader probe result" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReaderProbeBlockedReason"; Label = "Readiness report records reader probe block reason" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "KnownPointCloudReader"; Label = "Readiness report requires a known point-cloud reader" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "laszip"; Label = "Readiness report checks laszip candidate" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "pdal"; Label = "Readiness report checks pdal candidate" }
 )
 
 foreach ($item in $requiredTexts) {
     Assert-ContainsText -Path $item.Path -Pattern $item.Pattern -Label $item.Label
+}
+
+$tempEvidencePath = Join-Path ([System.IO.Path]::GetTempPath()) ("m7at10_laz_policy_probe_{0}.laz" -f ([Guid]::NewGuid().ToString("N")))
+try {
+    Set-Content -LiteralPath $tempEvidencePath -Value "not real laz" -Encoding ASCII
+    $missingReaderPath = Join-Path ([System.IO.Path]::GetTempPath()) ("missing_laz_reader_{0}.exe" -f ([Guid]::NewGuid().ToString("N")))
+    $readinessJson = & powershell -ExecutionPolicy Bypass -File $readinessReportScript -ProjectRoot $ProjectRoot -ReaderPath $missingReaderPath -LazEvidencePath $tempEvidencePath -RunReaderProbe -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Readiness report negative reader-probe contract failed with exit code $LASTEXITCODE"
+    }
+    $readinessReport = $readinessJson | ConvertFrom-Json
+    if ($readinessReport.Summary.ReadyForRealLazAutomation) {
+        throw "Readiness report must not be ready when the requested reader tool is missing."
+    }
+    if ($readinessReport.Summary.ReadableOutputEvidencePresent) {
+        throw "ReadableOutputEvidencePresent must remain false when the requested reader tool is missing."
+    }
+    if (-not $readinessReport.Summary.ReaderProbeRequestedByUser) {
+        throw "ReaderProbeRequestedByUser must be true when -RunReaderProbe is passed."
+    }
+    if ($readinessReport.Summary.ReaderProbeBlockedReason -ne "ReaderToolMissing") {
+        throw "ReaderProbeBlockedReason should be ReaderToolMissing for missing reader path."
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $tempEvidencePath) {
+        Remove-Item -LiteralPath $tempEvidencePath -Force
+    }
 }
 
 $report = [PSCustomObject]@{
@@ -134,6 +168,8 @@ $report = [PSCustomObject]@{
         ExternalCompressorSuccessCovered = $true
         DecisionReportDeclared = $true
         CompressorReadinessReportDeclared = $true
+        ReadableEvidenceProbeDeclared = $true
+        MissingReaderProbeGuardCovered = $true
         TrueCompressionStillOpen = $true
         Valid = $true
     }
@@ -153,5 +189,7 @@ else {
     Write-Host "External compressor success covered: $($report.Summary.ExternalCompressorSuccessCovered)"
     Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
     Write-Host "Compressor readiness report declared: $($report.Summary.CompressorReadinessReportDeclared)"
+    Write-Host "Readable evidence probe declared: $($report.Summary.ReadableEvidenceProbeDeclared)"
+    Write-Host "Missing reader probe guard covered: $($report.Summary.MissingReaderProbeGuardCovered)"
     Write-Host "True compression still open: $($report.Summary.TrueCompressionStillOpen)"
 }

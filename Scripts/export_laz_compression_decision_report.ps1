@@ -146,6 +146,11 @@ $externalCompressorSuccessCovered = (Test-ContainsText -Path $replayTests -Patte
     (Test-ContainsText -Path $replayTests -Pattern "process-contract surrogate")
 $compressorReadinessReportDeclared = (Test-ContainsText -Path $readinessReportScript -Pattern "ReadyForRealLazAutomation") -and
     (Test-ContainsText -Path $readinessReportScript -Pattern "ReadableOutputEvidencePresent") -and
+    (Test-ContainsText -Path $readinessReportScript -Pattern "LazEvidencePath") -and
+    (Test-ContainsText -Path $readinessReportScript -Pattern "RunReaderProbe") -and
+    (Test-ContainsText -Path $readinessReportScript -Pattern "ReaderProbeSucceeded") -and
+    (Test-ContainsText -Path $readinessReportScript -Pattern "KnownPointCloudReader") -and
+    (Test-ContainsText -Path $readinessReportScript -Pattern "ReaderProbeBlockedReason") -and
     (Test-ContainsText -Path $remainingDoc -Pattern "export_laz_compressor_readiness_report.ps1")
 $trueCompressionIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern ".laz output is actually compressed") -or
     (Test-ContainsText -Path $replayTests -Pattern "CompressedLaz")
@@ -178,7 +183,7 @@ $acceptanceEvidence = @(
     "Chosen compressor/tool name, version, license, and redistribution decision",
     "Windows build/package instructions for UE 5.3",
     "A `.laz` file produced from `ExportLastPointCloudLaz()` or the accepted post-process path",
-    "Readable validation from a known point-cloud tool",
+    "Readable validation from a known point-cloud tool, captured through export_laz_compressor_readiness_report.ps1 -LazEvidencePath ... -RunReaderProbe; generic successful executables are not enough",
     "Automation that distinguishes compressed `.laz` output from the current `_laz_source_*.las` placeholder"
 )
 

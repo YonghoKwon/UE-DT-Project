@@ -359,6 +359,13 @@ Current state:
   and reader candidates such as `laszip`, `las2las`, `lasinfo`, and `pdal`, and
   keeps the boundary clear: tool readiness is not the same as readable
   compressed `.laz` evidence.
+- The readiness report can now accept a produced `.laz` evidence file through
+  `-LazEvidencePath` and can run an independent reader check with
+  `-RunReaderProbe`. `ReadableOutputEvidencePresent` remains false unless the
+  file exists, has a `.laz` extension, is non-empty, and the reader probe
+  succeeds with a known point-cloud reader such as `lasinfo` or `pdal`.
+  Requested-but-blocked probes are reported separately through
+  `ReaderProbeBlockedReason`.
 
 Next implementation steps:
 
@@ -369,6 +376,8 @@ Next implementation steps:
   validate readable `.laz` output.
 - Run the compressor readiness report after selecting or installing a candidate
   tool, optionally passing explicit compressor/reader paths.
+- Capture readable-output evidence with the same report after producing a real
+  `.laz` file.
 - Keep current warning behavior until a real compressor is configured and
   verified.
 
@@ -386,6 +395,8 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1"`.
 - Explicit compressor/reader readiness exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1" -CompressorPath "C:\path\to\laszip.exe" -ReaderPath "C:\path\to\lasinfo.exe"`.
+- Readable-output evidence export:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1" -CompressorPath "C:\path\to\laszip.exe" -ReaderPath "C:\path\to\lasinfo.exe" -LazEvidencePath "C:\path\to\frame.laz" -RunReaderProbe`.
 
 ### Large Point Cloud Renderer
 

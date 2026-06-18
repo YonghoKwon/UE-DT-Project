@@ -136,9 +136,9 @@ $workAreas = @(
         -Remaining "GPU/Niagara or another high-density renderer selection, implementation, viewport smoke evidence, and renderer-specific dense-frame performance validation remain."),
     (New-WorkArea `
         -Name "LAZ export" `
-        -Percent 49 `
-        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report now scans compressor/reader candidates, records that tool readiness is not readable-output evidence, and is included in the project readiness gate." `
-        -Remaining "Accepted compressor/tool selection, readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
+        -Percent 54 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, and now accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting for readable-output validation." `
+        -Remaining "Accepted compressor/tool selection, actual readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
 )
 
 $overallPercent = [int][Math]::Round((($workAreas | Measure-Object -Property Percent -Average).Average), 0)
