@@ -7,6 +7,17 @@ param(
     [string]$SourceId = "JsonLiveLidarBridge",
     [string]$Operator = "",
     [string]$Notes = "",
+    [string]$EvidenceRunId = "",
+    [string]$MapName = "",
+    [string]$PieSession = "",
+    [string]$LogPath = "",
+    [int64]$SourceFrameBefore = -1,
+    [int64]$SourceFrameAfter = -1,
+    [int64]$TargetPointCount = -1,
+    [int64]$CachedPayloadBytes = -1,
+    [string]$CachedPayloadHash = "",
+    [string]$BrokerClientCommand = "",
+    [string]$TimestampUtc = "",
     [switch]$RunCommandletDryRun,
     [switch]$RunEvidenceAutomation,
     [switch]$RunBrokerlessDTCoreDispatchAutomation,
@@ -224,6 +235,17 @@ $brokerParams = @{
     Operator = $Operator
     Notes = $Notes
 }
+if (-not [string]::IsNullOrWhiteSpace($EvidenceRunId)) { $brokerParams.EvidenceRunId = $EvidenceRunId }
+if (-not [string]::IsNullOrWhiteSpace($MapName)) { $brokerParams.MapName = $MapName }
+if (-not [string]::IsNullOrWhiteSpace($PieSession)) { $brokerParams.PieSession = $PieSession }
+if (-not [string]::IsNullOrWhiteSpace($LogPath)) { $brokerParams.LogPath = $LogPath }
+if ($SourceFrameBefore -ge 0) { $brokerParams.SourceFrameBefore = $SourceFrameBefore }
+if ($SourceFrameAfter -ge 0) { $brokerParams.SourceFrameAfter = $SourceFrameAfter }
+if ($TargetPointCount -ge 0) { $brokerParams.TargetPointCount = $TargetPointCount }
+if ($CachedPayloadBytes -ge 0) { $brokerParams.CachedPayloadBytes = $CachedPayloadBytes }
+if (-not [string]::IsNullOrWhiteSpace($CachedPayloadHash)) { $brokerParams.CachedPayloadHash = $CachedPayloadHash }
+if (-not [string]::IsNullOrWhiteSpace($BrokerClientCommand)) { $brokerParams.BrokerClientCommand = $BrokerClientCommand }
+if (-not [string]::IsNullOrWhiteSpace($TimestampUtc)) { $brokerParams.TimestampUtc = $TimestampUtc }
 if ($ObservedSourceFrame) { $brokerParams.ObservedSourceFrame = $true }
 if ($ObservedTargetPoints) { $brokerParams.ObservedTargetPoints = $true }
 if ($ObservedCachedPayload) { $brokerParams.ObservedCachedPayload = $true }
@@ -258,8 +280,13 @@ $report = [PSCustomObject]@{
         EvidenceAutomationPassed = ($RunEvidenceAutomation -and $evidenceAutomation.Passed)
         BrokerlessDTCoreDispatchAutomationPassed = ($RunBrokerlessDTCoreDispatchAutomation -and $brokerlessDTCoreDispatchAutomation.Passed)
         BrokerSmokeComplete = [bool]$broker.Summary.BrokerSmokeComplete
+        BrokerSmokeObservedCoreComplete = [bool]$broker.Summary.ObservedCoreComplete
+        BrokerSmokeEvidenceFieldsComplete = [bool]$broker.Summary.EvidenceFieldsComplete
+        BrokerSmokeMissingEvidenceFieldCount = [int]$broker.Summary.MissingEvidenceFieldCount
+        BrokerSmokeMissingEvidenceFields = $broker.Summary.MissingEvidenceFields
         ExternalBrokerStillRequired = -not [bool]$broker.Summary.BrokerSmokeComplete
         DoesNotConnectToBroker = [bool]$broker.Summary.DoesNotConnectToBroker
+        DeploymentReady = ([bool]$broker.Summary.BrokerSmokeComplete -and -not [bool]$broker.Summary.DoesNotConnectToBroker)
         ReportsWritten = [bool]($WriteReports -and -not $NoWrite)
     }
 }
@@ -276,7 +303,11 @@ else {
     Write-Host "Evidence automation passed: $($report.Summary.EvidenceAutomationPassed)"
     Write-Host "Brokerless DTCore dispatch automation passed: $($report.Summary.BrokerlessDTCoreDispatchAutomationPassed)"
     Write-Host "Broker smoke complete: $($report.Summary.BrokerSmokeComplete)"
+    Write-Host "Broker smoke observed core complete: $($report.Summary.BrokerSmokeObservedCoreComplete)"
+    Write-Host "Broker smoke evidence fields complete: $($report.Summary.BrokerSmokeEvidenceFieldsComplete)"
+    Write-Host "Broker smoke missing evidence fields: $($report.Summary.BrokerSmokeMissingEvidenceFieldCount)"
     Write-Host "Does not connect to broker: $($report.Summary.DoesNotConnectToBroker)"
+    Write-Host "Deployment ready: $($report.Summary.DeploymentReady)"
     Write-Host "Reports written: $($report.Summary.ReportsWritten)"
     Write-Host "Commandlet dry run command: $($commandletDryRun.Command)"
     Write-Host "Evidence automation command: $($evidenceAutomation.Command)"

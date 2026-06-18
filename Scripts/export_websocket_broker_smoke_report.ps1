@@ -6,6 +6,17 @@ param(
     [string]$SourceId = "JsonLiveLidarBridge",
     [string]$Operator = "",
     [string]$Notes = "",
+    [string]$EvidenceRunId = "",
+    [string]$MapName = "",
+    [string]$PieSession = "",
+    [string]$LogPath = "",
+    [int64]$SourceFrameBefore = -1,
+    [int64]$SourceFrameAfter = -1,
+    [int64]$TargetPointCount = -1,
+    [int64]$CachedPayloadBytes = -1,
+    [string]$CachedPayloadHash = "",
+    [string]$BrokerClientCommand = "",
+    [string]$TimestampUtc = "",
     [switch]$ObservedSourceFrame,
     [switch]$ObservedTargetPoints,
     [switch]$ObservedCachedPayload,
@@ -114,6 +125,22 @@ function Write-MarkdownReport {
     $lines += "- Target points updated: $($Report.Observed.TargetPoints)"
     $lines += "- Cached payload updated: $($Report.Observed.CachedPayload)"
     $lines += "- Transport result observed: $($Report.Observed.TransportResult)"
+    $lines += "- Evidence fields complete: $($Report.Observed.EvidenceFieldsComplete)"
+    $lines += "- Missing evidence fields: $(@($Report.Observed.MissingEvidenceFields) -join ', ')"
+    $lines += ""
+    $lines += "## Evidence Details"
+    $lines += ""
+    $lines += "- Evidence run id: ``$($Report.Evidence.EvidenceRunId)``"
+    $lines += "- Timestamp UTC: ``$($Report.Evidence.TimestampUtc)``"
+    $lines += "- Map name: ``$($Report.Evidence.MapName)``"
+    $lines += "- PIE session: ``$($Report.Evidence.PieSession)``"
+    $lines += "- Log path: ``$($Report.Evidence.LogPath)``"
+    $lines += "- Source frame before: $($Report.Evidence.SourceFrameBefore)"
+    $lines += "- Source frame after: $($Report.Evidence.SourceFrameAfter)"
+    $lines += "- Target point count: $($Report.Evidence.TargetPointCount)"
+    $lines += "- Cached payload bytes: $($Report.Evidence.CachedPayloadBytes)"
+    $lines += "- Cached payload hash: ``$($Report.Evidence.CachedPayloadHash)``"
+    $lines += "- Broker client command: ``$($Report.Evidence.BrokerClientCommand)``"
     $lines += ""
     $lines += "## Manual Smoke Steps"
     $lines += ""
@@ -182,7 +209,30 @@ if ([string]::IsNullOrWhiteSpace($BrokerUrl)) {
     $BrokerUrl = "ws://localhost:61616"
 }
 
+function Get-MissingEvidenceFields {
+    $missing = @()
+    if ([string]::IsNullOrWhiteSpace($Operator)) { $missing += "Operator" }
+    if ([string]::IsNullOrWhiteSpace($Notes)) { $missing += "Notes" }
+    if ([string]::IsNullOrWhiteSpace($EvidenceRunId)) { $missing += "EvidenceRunId" }
+    if ([string]::IsNullOrWhiteSpace($MapName)) { $missing += "MapName" }
+    if ([string]::IsNullOrWhiteSpace($PieSession)) { $missing += "PieSession" }
+    if ([string]::IsNullOrWhiteSpace($LogPath)) { $missing += "LogPath" }
+    if ([string]::IsNullOrWhiteSpace($BrokerClientCommand)) { $missing += "BrokerClientCommand" }
+    if ($SourceFrameBefore -lt 0) { $missing += "SourceFrameBefore" }
+    if ($SourceFrameAfter -lt 0) { $missing += "SourceFrameAfter" }
+    if ($SourceFrameAfter -le $SourceFrameBefore) { $missing += "SourceFrameAfterGreaterThanBefore" }
+    if ($TargetPointCount -le 0) { $missing += "TargetPointCount" }
+    if ($CachedPayloadBytes -le 0 -and [string]::IsNullOrWhiteSpace($CachedPayloadHash)) { $missing += "CachedPayloadBytesOrHash" }
+    return $missing
+}
+
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+if ([string]::IsNullOrWhiteSpace($TimestampUtc)) {
+    $TimestampUtc = $generatedUtc
+}
+$missingEvidenceFields = @(Get-MissingEvidenceFields)
+$evidenceFieldsComplete = ($missingEvidenceFields.Count -eq 0)
+$observedCoreComplete = ([bool]$ObservedSourceFrame -and [bool]$ObservedTargetPoints -and [bool]$ObservedCachedPayload)
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss")
 $jsonPath = Join-Path $OutputRoot "websocket_broker_smoke_$stamp.json"
 $markdownPath = Join-Path $OutputRoot "websocket_broker_smoke_$stamp.md"
@@ -211,7 +261,22 @@ $report = [PSCustomObject]@{
         TargetPoints = [bool]$ObservedTargetPoints
         CachedPayload = [bool]$ObservedCachedPayload
         TransportResult = [bool]$ObservedTransportResult
-        Complete = ([bool]$ObservedSourceFrame -and [bool]$ObservedTargetPoints -and [bool]$ObservedCachedPayload)
+        EvidenceFieldsComplete = [bool]$evidenceFieldsComplete
+        MissingEvidenceFields = $missingEvidenceFields
+        Complete = ($observedCoreComplete -and $evidenceFieldsComplete)
+    }
+    Evidence = [PSCustomObject]@{
+        EvidenceRunId = $EvidenceRunId
+        TimestampUtc = $TimestampUtc
+        MapName = $MapName
+        PieSession = $PieSession
+        LogPath = $LogPath
+        SourceFrameBefore = $SourceFrameBefore
+        SourceFrameAfter = $SourceFrameAfter
+        TargetPointCount = $TargetPointCount
+        CachedPayloadBytes = $CachedPayloadBytes
+        CachedPayloadHash = $CachedPayloadHash
+        BrokerClientCommand = $BrokerClientCommand
     }
     ManualSmokeSteps = @(
         [PSCustomObject]@{ Order = 1; Text = "Run M7AT10.Evidence.WebSocketTransactionRegistration against the same project build." },
@@ -232,10 +297,18 @@ $report = [PSCustomObject]@{
     Summary = [PSCustomObject]@{
         Valid = $true
         NoWrite = [bool]$NoWrite
-        BrokerSmokeComplete = ([bool]$ObservedSourceFrame -and [bool]$ObservedTargetPoints -and [bool]$ObservedCachedPayload)
+        BrokerSmokeComplete = ($observedCoreComplete -and $evidenceFieldsComplete)
+        ObservedCoreComplete = [bool]$observedCoreComplete
+        EvidenceFieldsComplete = [bool]$evidenceFieldsComplete
+        MissingEvidenceFieldCount = [int]$missingEvidenceFields.Count
+        MissingEvidenceFields = $missingEvidenceFields
         RequiresExternalBroker = $true
         DoesNotConnectToBroker = $true
     }
+}
+
+if ($observedCoreComplete -and -not $evidenceFieldsComplete) {
+    throw "Broker smoke observation flags were set, but required evidence fields are incomplete: $($missingEvidenceFields -join ', ')"
 }
 
 if (-not $report.Preconditions.SamplePayloadValid) {
@@ -268,6 +341,8 @@ else {
     Write-Host "Observed source frame: $([bool]$ObservedSourceFrame)"
     Write-Host "Observed target points: $([bool]$ObservedTargetPoints)"
     Write-Host "Observed cached payload: $([bool]$ObservedCachedPayload)"
+    Write-Host "Evidence fields complete: $($report.Summary.EvidenceFieldsComplete)"
+    Write-Host "Missing evidence fields: $($report.Summary.MissingEvidenceFieldCount)"
     if (-not $NoWrite) {
         Write-Host "JSON: $jsonPath"
         Write-Host "Markdown: $markdownPath"

@@ -244,15 +244,18 @@ transport payload update in PIE.
 Record deployment broker smoke evidence with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details" -EvidenceRunId "ws-smoke-001" -MapName "TestMap" -PieSession "PIE_0" -LogPath "C:\path\to\Saved\Logs\m7at10_dt.log" -SourceFrameBefore 0 -SourceFrameAfter 1 -TargetPointCount 16 -CachedPayloadBytes 4096 -BrokerClientCommand "broker-client-send-sample"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -NoWrite
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -NoWrite
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -RunCommandletDryRun -RunEvidenceAutomation -RunBrokerlessDTCoreDispatchAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -RunCommandletDryRun -RunEvidenceAutomation -RunBrokerlessDTCoreDispatchAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details" -EvidenceRunId "ws-smoke-001" -MapName "TestMap" -PieSession "PIE_0" -LogPath "C:\path\to\Saved\Logs\m7at10_dt.log" -SourceFrameBefore 0 -SourceFrameAfter 1 -TargetPointCount 16 -CachedPayloadBytes 4096 -BrokerClientCommand "broker-client-send-sample"
 ```
 
 This report validates local prerequisites and records operator observations. It
-does not connect to the broker by itself and should not be treated as STOMP
-network proof unless the observation flags are backed by a real PIE run.
+does not connect to the broker by itself. `BrokerSmokeComplete` only becomes
+true when the core observations are present and the required evidence fields are
+complete: operator, notes, evidence run id, map name, PIE session, log path,
+source frame before/after counts, target point count, cached payload bytes or
+hash, and broker client command.
 The wrapper runs the sample validator, registration checklist, optional row
 commandlet dry run, optional evidence automation, optional brokerless dispatch
 automation, and broker smoke report in a consistent order. Its default mode is
@@ -270,7 +273,12 @@ The report reuses the static adapter-plan validator, WebSocket sample validator,
 transaction registration report, and broker smoke report in read-only mode. It
 separates implemented bridge evidence from deployment broker smoke and actual
 ROS2/Livox/RealSense SDK integration, which still require real endpoint or
-device evidence.
+device evidence. The report surfaces broker smoke evidence completeness and the
+missing evidence-field count so an observation-only report cannot look deployment
+ready. The report also exports a `DeploymentActionPlan` with
+per-candidate `RequiredEvidence`, `DeploymentBlockers`, and `NextAction` fields
+so deployment owners can see why HTTP, WebSocket, UDP, and SDK paths are still
+blocked.
 
 The DT-Project side now owns conservative HTTP and UDP listener wrappers over
 the transport-neutral JSON live handoff entry point,

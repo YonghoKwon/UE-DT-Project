@@ -67,6 +67,8 @@ function Write-MarkdownReport {
     $lines += "- WebSocket sample valid: $($Report.Summary.WebSocketSampleValid)"
     $lines += "- Transaction registration static evidence valid: $($Report.Summary.TransactionRegistrationStaticValid)"
     $lines += "- Broker smoke report can run read-only: $($Report.Summary.BrokerSmokeReadOnlyValid)"
+    $lines += "- Broker smoke evidence fields complete: $($Report.Summary.BrokerSmokeEvidenceFieldsComplete)"
+    $lines += "- Broker smoke missing evidence fields: $($Report.Summary.BrokerSmokeMissingEvidenceFieldCount)"
     $lines += "- Headless automation groups documented: $($Report.Summary.HeadlessAutomationGroupCount)"
     $lines += "- Deployment evidence still required: $($Report.Summary.DeploymentEvidenceStillRequired)"
     $lines += "- Real SDK integration still required: $($Report.Summary.RealSdkIntegrationStillRequired)"
@@ -79,10 +81,18 @@ function Write-MarkdownReport {
     $lines += ""
     $lines += "## Deployment Path Candidates"
     $lines += ""
-    $lines += "| Candidate | Priority | Status | Evidence | Remaining risk |"
-    $lines += "| --- | ---: | --- | --- | --- |"
+    $lines += "| Candidate | Priority | Status | Evidence | Remaining risk | Next action |"
+    $lines += "| --- | ---: | --- | --- | --- | --- |"
     foreach ($candidate in $Report.DeploymentPathCandidates) {
-        $lines += "| $($candidate.Name) | $($candidate.Priority) | $($candidate.Status) | $($candidate.Evidence) | $($candidate.RemainingRisk) |"
+        $lines += "| $($candidate.Name) | $($candidate.Priority) | $($candidate.Status) | $($candidate.Evidence) | $($candidate.RemainingRisk) | $($candidate.NextAction) |"
+    }
+    $lines += ""
+    $lines += "## Deployment Action Plan"
+    $lines += ""
+    $lines += "| Priority | Candidate | Blocked | Next action | Required evidence | Blockers |"
+    $lines += "| ---: | --- | --- | --- | --- | --- |"
+    foreach ($item in $Report.DeploymentActionPlan) {
+        $lines += "| $($item.Priority) | $($item.Name) | $($item.Blocked) | $($item.NextAction) | $(@($item.RequiredEvidence) -join '; ') | $(@($item.DeploymentBlockers) -join '; ') |"
     }
     $lines += ""
     $lines += "## Headless Automation"
@@ -148,6 +158,10 @@ $deploymentPathCandidates = @(
         Status = "Recommended baseline"
         Evidence = "CSV/JSONL replay adapters and samples exercise the normalized LiDAR handoff without network or hardware dependencies."
         RemainingRisk = "Not live; must be paired with later deployment smoke for real-time behavior."
+        RequiredEvidence = @("Replay sample accepted", "Normalized handoff automation pass", "Downstream payload/recorder path observed")
+        DeploymentBlockers = @("No live network or hardware timing evidence")
+        NextAction = "Use as the baseline for schema and judgment-server testing while live bridge ownership is still open."
+        Blocked = $false
     },
     [PSCustomObject]@{
         Name = "HTTP JSON live"
@@ -155,6 +169,10 @@ $deploymentPathCandidates = @(
         Status = "Best local-live deployment candidate"
         Evidence = "Local HTTP POST loopback automation covers real request routing, game-thread marshaling, response codes, and target LiDAR handoff."
         RemainingRisk = "Bind address, port, firewall, authentication, rate limit, and payload size policy need deployment ownership."
+        RequiredEvidence = @("Bind address decision", "Port/firewall decision", "Authentication or trusted-network decision", "Rate/payload size policy", "Deployment loopback or LAN smoke")
+        DeploymentBlockers = @("No production bind/firewall/auth/rate ownership", "No deployment endpoint smoke")
+        NextAction = "Assign network owner, lock bind/port/auth/rate policy, then run a deployment HTTP smoke with the checked payload shape."
+        Blocked = $true
     },
     [PSCustomObject]@{
         Name = "WebSocket via DTCore"
@@ -162,6 +180,10 @@ $deploymentPathCandidates = @(
         Status = "Preferred when deployment broker is already owned"
         Evidence = "Transaction handler, registration report, binary-row evidence automation, and brokerless DTCore dispatch are in place."
         RemainingRisk = "Real broker endpoint, credentials, topic, and observed source/target smoke evidence are still required."
+        RequiredEvidence = @("Broker endpoint", "Credentials", "Topic/subscription", "EvidenceRunId", "MapName", "PIE session", "Operator and notes", "Log path", "Broker client command", "Source frame before/after counts", "Target LiDAR point count", "Cached payload bytes or hash")
+        DeploymentBlockers = @("External broker connectivity not proven", "Credentials/topic ownership open", "Operator-observed PIE smoke incomplete")
+        NextAction = "Run the broker smoke workflow against the deployment broker and record source-frame, target-point, and cached-payload observations."
+        Blocked = $true
     },
     [PSCustomObject]@{
         Name = "UDP JSON live"
@@ -169,6 +191,10 @@ $deploymentPathCandidates = @(
         Status = "Use for low-latency trusted LAN only"
         Evidence = "Local UDP datagram automation covers packet receipt and normalized LiDAR handoff."
         RemainingRisk = "No delivery guarantee; packet sizing, firewall, bind address, and trust boundary decisions remain."
+        RequiredEvidence = @("Trusted LAN decision", "Bind/port/firewall decision", "Packet size policy", "Loss/retry acceptance", "Deployment datagram smoke")
+        DeploymentBlockers = @("Trust boundary open", "No delivery guarantee policy", "Deployment datagram smoke incomplete")
+        NextAction = "Use only after the deployment owner accepts lossy transport and trusted-network constraints."
+        Blocked = $true
     },
     [PSCustomObject]@{
         Name = "ROS2/Livox/RealSense SDK"
@@ -176,7 +202,27 @@ $deploymentPathCandidates = @(
         Status = "Hardware-specific follow-up"
         Evidence = "Placeholder components and normalized target handoff are present."
         RemainingRisk = "Actual SDK dependencies, message schemas, calibration, timestamps, and real-frame smoke are not implemented."
+        RequiredEvidence = @("SDK/ROS2 dependency decision", "Message/packet schema", "Calibration/timestamp policy", "Device availability", "Real-frame smoke")
+        DeploymentBlockers = @("SDK integration not implemented", "Hardware/device smoke missing", "Calibration and timestamp ownership open")
+        NextAction = "Keep as follow-up until the deployment environment provides actual device/SDK access and calibration requirements."
+        Blocked = $true
     }
+)
+
+$deploymentActionPlan = @(
+    $deploymentPathCandidates |
+        Sort-Object Priority |
+        ForEach-Object {
+            [PSCustomObject]@{
+                Priority = $_.Priority
+                Name = $_.Name
+                Status = $_.Status
+                Blocked = $_.Blocked
+                RequiredEvidence = $_.RequiredEvidence
+                DeploymentBlockers = $_.DeploymentBlockers
+                NextAction = $_.NextAction
+            }
+        }
 )
 
 $remainingDecisions = @(
@@ -199,6 +245,7 @@ $report = [PSCustomObject]@{
     }
     ImplementedBridges = $implementedBridges
     DeploymentPathCandidates = $deploymentPathCandidates
+    DeploymentActionPlan = $deploymentActionPlan
     HeadlessAutomationGroups = $headlessAutomationGroups
     RemainingDecisions = $remainingDecisions
     Summary = [PSCustomObject]@{
@@ -206,8 +253,17 @@ $report = [PSCustomObject]@{
         WebSocketSampleValid = [bool]$sample.Summary.Valid
         TransactionRegistrationStaticValid = [bool]$registration.Summary.Valid
         BrokerSmokeReadOnlyValid = [bool]$brokerSmoke.Summary.Valid
+        BrokerSmokeObservedCoreComplete = [bool]$brokerSmoke.Summary.ObservedCoreComplete
+        BrokerSmokeEvidenceFieldsComplete = [bool]$brokerSmoke.Summary.EvidenceFieldsComplete
+        BrokerSmokeMissingEvidenceFieldCount = [int]$brokerSmoke.Summary.MissingEvidenceFieldCount
+        BrokerSmokeMissingEvidenceFields = $brokerSmoke.Summary.MissingEvidenceFields
         HeadlessAutomationGroupCount = $headlessAutomationGroups.Count
         DeploymentCandidateCount = $deploymentPathCandidates.Count
+        DeploymentActionPlanItemCount = $deploymentActionPlan.Count
+        BlockedDeploymentCandidateCount = @($deploymentActionPlan | Where-Object { $_.Blocked }).Count
+        RequiredEvidenceDeclared = ($deploymentActionPlan.Count -eq 0 -or @($deploymentActionPlan | Where-Object { @($_.RequiredEvidence).Count -eq 0 }).Count -eq 0)
+        DeploymentBlockersDeclared = ($deploymentActionPlan.Count -eq 0 -or @($deploymentActionPlan | Where-Object { @($_.DeploymentBlockers).Count -eq 0 }).Count -eq 0)
+        NextActionsDeclared = ($deploymentActionPlan.Count -eq 0 -or @($deploymentActionPlan | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.NextAction) }).Count -eq 0)
         RecommendedLiveBridge = "HTTP JSON live for local/live ingestion unless the deployment broker is already owned; WebSocket via DTCore then becomes the preferred broker path."
         DeploymentEvidenceStillRequired = $true
         RealSdkIntegrationStillRequired = $true
@@ -237,7 +293,11 @@ else {
     Write-Host "WebSocket sample valid: $($report.Summary.WebSocketSampleValid)"
     Write-Host "Transaction registration static evidence valid: $($report.Summary.TransactionRegistrationStaticValid)"
     Write-Host "Broker smoke read-only report valid: $($report.Summary.BrokerSmokeReadOnlyValid)"
+    Write-Host "Broker smoke evidence fields complete: $($report.Summary.BrokerSmokeEvidenceFieldsComplete)"
+    Write-Host "Broker smoke missing evidence fields: $($report.Summary.BrokerSmokeMissingEvidenceFieldCount)"
     Write-Host "Headless automation groups: $($report.Summary.HeadlessAutomationGroupCount)"
+    Write-Host "Deployment action-plan items: $($report.Summary.DeploymentActionPlanItemCount)"
+    Write-Host "Blocked deployment candidates: $($report.Summary.BlockedDeploymentCandidateCount)"
     Write-Host "Deployment evidence still required: $($report.Summary.DeploymentEvidenceStillRequired)"
     Write-Host "Real SDK integration still required: $($report.Summary.RealSdkIntegrationStillRequired)"
 }

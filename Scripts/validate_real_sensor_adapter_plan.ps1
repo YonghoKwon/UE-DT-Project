@@ -214,6 +214,18 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "ObservedSourceFrame"; Label = "Broker smoke report records source frame observation" },
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "DoesNotConnectToBroker"; Label = "Broker smoke report states it does not fake broker connectivity" },
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "NoWrite"; Label = "Broker smoke report read-only mode" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "EvidenceRunId"; Label = "Broker smoke report requires evidence run id" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "MapName"; Label = "Broker smoke report records map name" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "PieSession"; Label = "Broker smoke report records PIE session" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "SourceFrameBefore"; Label = "Broker smoke report records source frame before count" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "SourceFrameAfter"; Label = "Broker smoke report records source frame after count" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "TargetPointCount"; Label = "Broker smoke report records target point count" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "CachedPayloadBytes"; Label = "Broker smoke report records cached payload byte count" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "CachedPayloadHash"; Label = "Broker smoke report records cached payload hash" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "BrokerClientCommand"; Label = "Broker smoke report records client command" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "EvidenceFieldsComplete"; Label = "Broker smoke report distinguishes evidence completeness" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "MissingEvidenceFields"; Label = "Broker smoke report lists missing evidence fields" },
+    [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "ObservedCoreComplete"; Label = "Broker smoke report distinguishes core observation completeness" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunEvidenceAutomation"; Label = "Smoke evidence workflow can run registration automation" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunBrokerlessDTCoreDispatchAutomation"; Label = "Smoke evidence workflow can run brokerless DTCore dispatch automation" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Smoke evidence workflow names brokerless dispatch automation" },
@@ -221,6 +233,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "EnsureLidarJsonLiveFrameTransaction"; Label = "Smoke evidence workflow can dry-run row commandlet" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "WriteReports"; Label = "Smoke evidence workflow report writing is opt-in" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "ExternalBrokerStillRequired"; Label = "Smoke evidence workflow separates broker completion" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "BrokerSmokeEvidenceFieldsComplete"; Label = "Smoke evidence workflow surfaces evidence completeness" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "BrokerSmokeMissingEvidenceFieldCount"; Label = "Smoke evidence workflow surfaces missing evidence count" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "DeploymentReady"; Label = "Smoke evidence workflow keeps deployment readiness separate" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\m7at10_dt.Build.cs"); Pattern = "HTTPServer"; Label = "Runtime module includes inbound HTTP server dependency" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "PushPointFrameToTarget"; Label = "Plan documents normalized handoff" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ULidarJsonLiveSourceComp"; Label = "Plan documents JSON live bridge" },
@@ -233,6 +248,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentEvidenceStillRequired"; Label = "Readiness report separates deployment evidence gap" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "RealSdkIntegrationStillRequired"; Label = "Readiness report separates SDK integration gap" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentPathCandidates"; Label = "Readiness report ranks deployment path candidates" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentActionPlan"; Label = "Readiness report exports deployment action plan" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "RequiredEvidence"; Label = "Readiness report exports required deployment evidence" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "DeploymentBlockers"; Label = "Readiness report exports deployment blockers" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "NextAction"; Label = "Readiness report exports next deployment action" },
+    [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "BlockedDeploymentCandidateCount"; Label = "Readiness report counts blocked deployment candidates" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "RecommendedLiveBridge"; Label = "Readiness report names recommended live bridge" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "HTTP JSON live"; Label = "Readiness report includes HTTP live candidate" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "WebSocket via DTCore"; Label = "Readiness report includes DTCore WebSocket candidate" },
@@ -276,8 +296,14 @@ $report = [PSCustomObject]@{
         JsonLiveRegistrationReportPresent = $true
         JsonLiveBrokerSmokeReportPresent = $true
         JsonLiveSmokeEvidenceWorkflowPresent = $true
+        JsonLiveBrokerSmokeEvidenceSchemaDeclared = $true
+        JsonLiveSmokeWorkflowEvidenceSchemaDeclared = $true
         RealSensorReadinessReportPresent = $true
         DeploymentPathCandidatesDeclared = $true
+        DeploymentActionPlanDeclared = $true
+        DeploymentBlockersDeclared = $true
+        DeploymentRequiredEvidenceDeclared = $true
+        DeploymentNextActionsDeclared = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
@@ -309,8 +335,14 @@ else {
     Write-Host "JSON live registration report present: $($report.Summary.JsonLiveRegistrationReportPresent)"
     Write-Host "JSON live broker smoke report present: $($report.Summary.JsonLiveBrokerSmokeReportPresent)"
     Write-Host "JSON live smoke evidence workflow present: $($report.Summary.JsonLiveSmokeEvidenceWorkflowPresent)"
+    Write-Host "JSON live broker smoke evidence schema declared: $($report.Summary.JsonLiveBrokerSmokeEvidenceSchemaDeclared)"
+    Write-Host "JSON live smoke workflow evidence schema declared: $($report.Summary.JsonLiveSmokeWorkflowEvidenceSchemaDeclared)"
     Write-Host "Real sensor readiness report present: $($report.Summary.RealSensorReadinessReportPresent)"
     Write-Host "Deployment path candidates declared: $($report.Summary.DeploymentPathCandidatesDeclared)"
+    Write-Host "Deployment action plan declared: $($report.Summary.DeploymentActionPlanDeclared)"
+    Write-Host "Deployment blockers declared: $($report.Summary.DeploymentBlockersDeclared)"
+    Write-Host "Deployment required evidence declared: $($report.Summary.DeploymentRequiredEvidenceDeclared)"
+    Write-Host "Deployment next actions declared: $($report.Summary.DeploymentNextActionsDeclared)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"

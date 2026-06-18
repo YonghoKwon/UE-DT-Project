@@ -165,11 +165,16 @@ Current state:
   local evidence automation has passed against that binary row and row-based
   handler parse/process path.
 - `Scripts/export_websocket_broker_smoke_report.ps1` records deployment broker
-  smoke evidence without pretending to connect to the broker itself.
+  smoke evidence without pretending to connect to the broker itself. It now
+  requires concrete evidence fields before `BrokerSmokeComplete` can become
+  true: evidence run id, operator, notes, map name, PIE session, log path,
+  source frame before/after counts, target point count, cached payload bytes or
+  hash, and broker client command.
 - `Scripts/run_websocket_lidar_smoke_evidence.ps1` wraps sample validation,
   registration checks, commandlet dry run, optional evidence automation, and
   brokerless dispatch automation, and broker smoke reporting into one
-  repeatable workflow.
+  repeatable workflow. Its summary separates core broker observations, evidence
+  field completeness, external broker requirement, and deployment readiness.
 - `M7AT10.RealSensorSource.JsonLiveDTCoreDispatch` now starts a PIE world,
   injects the checked `LIDAR_JSON_LIVE_FRAME` sample into the DTCore
   `UDxDataSubsystem` WebSocket queue, and verifies the target LiDAR receives the
@@ -202,6 +207,13 @@ Current state:
   recommendation: use file replay as the baseline, use HTTP JSON live as the
   first local/live deployment bridge, and prefer DTCore WebSocket only when the
   broker endpoint, credentials, topic, and deployment smoke ownership are ready.
+- The readiness report now also exports a `DeploymentActionPlan` with
+  per-candidate `RequiredEvidence`, `DeploymentBlockers`, and `NextAction`
+  fields. File replay is the baseline path; HTTP/WebSocket/UDP/SDK paths remain
+  blocked until their deployment owner supplies endpoint, credential, network,
+  broker, trust-boundary, or real-device evidence. WebSocket broker smoke is
+  still blocked unless the required evidence schema is complete, not merely when
+  observation flags are set.
 - `ULidarUdpJsonLiveSourceComp` provides an optional loopback-first UDP JSON
   live bridge wrapper over the same handoff path.
 - `M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` provides local UDP
@@ -224,7 +236,10 @@ Next implementation steps:
   broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
 - Export a completed broker smoke report with source frame, target point, and
-  cached payload observations.
+  cached payload observations plus the required evidence fields: evidence run
+  id, map name, PIE session, log path, before/after source frame counts, target
+  point count, cached payload bytes or hash, broker client command, operator,
+  and notes.
 - Run the smoke evidence wrapper with `-RunEvidenceAutomation` and
   `-RunBrokerlessDTCoreDispatchAutomation` during deployment verification.
 - Decide deployment ownership for HTTP/UDP listener exposure, host firewall
@@ -258,7 +273,7 @@ Completion evidence:
 - Deployment broker smoke evidence shows the sample payload reaches
   `ULidarJsonLiveSourceComp` in PIE.
 - Broker smoke report exists under `Saved/WebSocketBrokerSmoke/` with the
-  observation flags backed by a real run.
+  observation flags and required evidence fields backed by a real run.
 - Wrapper summary shows sample validation, registration checklist, commandlet
   dry run, and optional evidence automation status.
 - Brokerless dispatch automation passes:
