@@ -106,7 +106,11 @@ For the current local project state, `Content/ChemicalPlantEnv`,
 `Content/Mega_Crane`, `Content/Materials`, `Content/Meshes`, and
 `Content/Textures` are unused local asset folders. Do not stage them; either keep
 them ignored locally or remove them manually after Unreal reference/dependency
-checks. `Samples/PixelStreaming` remains a separate sample/third-party decision.
+checks. `Scripts/report_precommit_summary.ps1` now surfaces this split directly:
+unused cleanup candidate count and size, the largest cleanup candidate, and the
+remaining repository-acceptance candidate paths. Cleanup candidate means keep
+ignored or manually remove after map/WBP dependency checks; it is not ready to
+stage. `Samples/PixelStreaming` remains a separate sample/third-party decision.
 
 Every decision point also reports:
 

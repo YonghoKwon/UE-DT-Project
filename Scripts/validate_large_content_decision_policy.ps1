@@ -61,12 +61,14 @@ $evidenceTemplateScript = Join-Path $ProjectRoot "Scripts\export_local_asset_dec
 $evidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\validate_local_asset_decision_evidence_workflow.ps1"
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
 $largeContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_large_content_decision_report.ps1"
+$precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
 Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
 Assert-FileExists -Path $evidenceTemplateScript -Label "Local asset decision evidence template script"
 Assert-FileExists -Path $evidenceWorkflowScript -Label "Local asset decision evidence workflow validation script"
 Assert-FileExists -Path $largeContentDecisionReportScript -Label "Large content decision report script"
+Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $evidenceTemplateScript; Pattern = "Summary"; Label = "Evidence template exports summary object" },
@@ -169,6 +171,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "BuiltData asset over 1 GB"; Label = "Large content report explains BuiltData-heavy blocker" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Repository storage/versioning approval"; Label = "Large content report requires storage/versioning acceptance" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Documentation alternative decision"; Label = "Sample report requires documentation alternative decision" }
+    ,
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "LargeContentDecisionSummary"; Label = "Pre-commit summary exports large-content decision summary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupCandidateCount"; Label = "Pre-commit summary reports unused cleanup count" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupSize"; Label = "Pre-commit summary reports unused cleanup size" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "RepositoryAcceptanceCandidatePaths"; Label = "Pre-commit summary reports repository acceptance paths" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "CleanupBoundary"; Label = "Pre-commit summary preserves cleanup boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "map/WBP dependency checks"; Label = "Pre-commit summary preserves map/WBP cleanup boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "not ready to stage"; Label = "Pre-commit summary warns cleanup candidates are not stageable" }
     ,
     [PSCustomObject]@{ Path = $largeContentDecisionPolicyScript; Pattern = '[string]$LocalProjectRoot'; Label = "Large content policy accepts separate local project root" }
 )

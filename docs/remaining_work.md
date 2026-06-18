@@ -108,6 +108,11 @@ Open decisions:
   still require manual editor/config review. The exported review bundle groups
   paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues and
   also shows top blocking actions.
+- `Scripts/report_precommit_summary.ps1` now consumes the large-content
+  decision report and shows the confirmed-unused cleanup candidate count, total
+  cleanup size, largest cleanup candidate, and the repository-acceptance paths
+  that still need owner decisions. Cleanup candidate still means keep ignored or
+  manually remove after map/WBP dependency checks; it is not ready to stage.
 - The large content decision report now exports per-path `RequiredAcceptance`,
   `DecisionBlockers`, `NextReviewAction`, and `TopBlockers`. High-risk binary
   asset packs and content over 100 MB are kept on explicit owner/source/license,
