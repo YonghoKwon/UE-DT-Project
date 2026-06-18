@@ -1,5 +1,8 @@
 param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$SourceRepoRoot = "",
+    [string]$EvidencePath = "",
+    [switch]$FailOnIncompleteEvidence,
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
     [switch]$Json
@@ -29,15 +32,41 @@ function Write-TextFile {
     Set-Content -LiteralPath $Path -Value $Lines -Encoding UTF8
 }
 
+function Invoke-JsonScript {
+    param(
+        [string]$ScriptPath,
+        [hashtable]$Parameters
+    )
+
+    if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) {
+        throw "Required script not found: $ScriptPath"
+    }
+
+    $scriptOutput = @(& powershell -ExecutionPolicy Bypass -File $ScriptPath @Parameters -Json)
+    if ($LASTEXITCODE -ne 0) {
+        throw "$ScriptPath failed with exit code ${LASTEXITCODE}: $($scriptOutput -join ' ')"
+    }
+
+    return ($scriptOutput -join "`n") | ConvertFrom-Json
+}
+
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if ([string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+    $SourceRepoRoot = $ProjectRoot
+}
+if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
+    throw "SourceRepoRoot not found: $SourceRepoRoot"
+}
+$SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 $wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
-$setupDocPath = Join-Path $ProjectRoot "docs\widget_designer_setup.md"
-$assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
+$setupDocPath = Join-Path $SourceRepoRoot "docs\widget_designer_setup.md"
+$assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
+$monitorPolicyScript = Join-Path $SourceRepoRoot "Scripts\validate_monitor_widget_policy.ps1"
 
 $gitStatusLines = @()
 Push-Location $ProjectRoot
@@ -81,6 +110,22 @@ else {
     $missingSetupTerms = $requiredSetupTerms
 }
 
+$assetReportParams = @{ ProjectRoot = $ProjectRoot }
+if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
+    $assetReportParams.EvidencePath = $EvidencePath
+}
+$assetDecisionReport = Invoke-JsonScript `
+    -ScriptPath $assetReportScript `
+    -Parameters $assetReportParams
+$monitorPolicyReport = Invoke-JsonScript `
+    -ScriptPath $monitorPolicyScript `
+    -Parameters @{ ProjectRoot = $SourceRepoRoot }
+
+$wbpDecisionPoint = @($assetDecisionReport.DecisionPoints | Where-Object { $_.Path -eq $wbpRelativePath }) | Select-Object -First 1
+if ($wbpItem -and -not $wbpDecisionPoint) {
+    throw "WBP decision point not found in report_local_project_status.ps1 output: $wbpRelativePath"
+}
+
 $recommendedDecision = "NotPresent"
 $riskLevel = "None"
 $recommendation = "WBP_VirtualSensorMonitor.uasset is not present in the local project."
@@ -89,6 +134,33 @@ if ($wbpItem) {
     $riskLevel = "Medium"
     $recommendation = "Keep the local WBP untracked until it is opened in Unreal Editor, optional bindings are checked, PIE smoke passes, and the project owner accepts it as the production monitor WBP."
 }
+
+$manualAcceptanceChecklist = @(
+    [PSCustomObject]@{
+        Name = "Editor open verification"
+        Required = $true
+        Status = if ($wbpDecisionPoint -and @($wbpDecisionPoint.MissingEvidence) -notcontains "Editor open verification") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Open WBP_VirtualSensorMonitor in Unreal Editor and verify it loads and compiles without errors."
+    },
+    [PSCustomObject]@{
+        Name = "Optional binding check"
+        Required = $true
+        Status = if ($setupDocPresent -and $missingSetupTerms.Count -eq 0 -and $wbpDecisionPoint -and @($wbpDecisionPoint.MissingEvidence) -notcontains "Optional binding check") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Compare named widgets against docs/widget_designer_setup.md Optional Bindings and confirm missing optional widgets do not crash."
+    },
+    [PSCustomObject]@{
+        Name = "PIE smoke result"
+        Required = $true
+        Status = if ($wbpDecisionPoint -and @($wbpDecisionPoint.MissingEvidence) -notcontains "PIE smoke result") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Run PIE in the intended map and verify camera/LiDAR switching, preview controls, server payload export, and slab status text."
+    },
+    [PSCustomObject]@{
+        Name = "Production WBP acceptance"
+        Required = $true
+        Status = if ($wbpDecisionPoint -and @($wbpDecisionPoint.MissingEvidence) -notcontains "Production WBP acceptance") { "Recorded" } else { "Missing" }
+        EvidenceNeeded = "Project owner accepts this binary asset as the production monitor WBP and records AcceptedForRepository evidence."
+    }
+)
 
 $evidenceDraft = [PSCustomObject]@{
     Path = $wbpRelativePath
@@ -109,6 +181,7 @@ $evidenceDraft = [PSCustomObject]@{
 $report = [PSCustomObject]@{
     GeneratedAt = (Get-Date).ToString("s")
     ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
     WbpPath = $wbpPath
     WbpRelativePath = $wbpRelativePath
     WbpPresent = [bool]$wbpItem
@@ -120,10 +193,36 @@ $report = [PSCustomObject]@{
     SetupDocPresent = $setupDocPresent
     RequiredSetupTerms = $requiredSetupTerms
     MissingSetupTerms = $missingSetupTerms
+    DecisionPoint = $wbpDecisionPoint
+    ManualAcceptanceChecklist = $manualAcceptanceChecklist
     RiskLevel = $riskLevel
     RecommendedDecision = $recommendedDecision
     Recommendation = $recommendation
     EvidenceDraft = $evidenceDraft
+    Summary = [PSCustomObject]@{
+        Valid = $true
+        MonitorPolicyValid = [bool]$monitorPolicyReport.Summary.Valid
+        EvidencePath = $EvidencePath
+        WbpDecisionPointPresent = [bool]$wbpDecisionPoint
+        WbpPresent = [bool]$wbpItem
+        WbpGitState = $gitState
+        ReviewQueue = if ($wbpDecisionPoint) { [string]$wbpDecisionPoint.ReviewQueue } else { "NotPresent" }
+        CommitReadiness = if ($wbpDecisionPoint) { [string]$wbpDecisionPoint.CommitReadiness } else { "NotPresent" }
+        EvidenceStatus = if ($wbpDecisionPoint) { [string]$wbpDecisionPoint.EvidenceStatus } else { "NotPresent" }
+        EvidenceSatisfied = if ($wbpDecisionPoint) { [bool]$wbpDecisionPoint.EvidenceSatisfied } else { $false }
+        MissingEvidenceCount = if ($wbpDecisionPoint) { @($wbpDecisionPoint.MissingEvidence).Count } else { 0 }
+        ManualAcceptanceChecklistCount = $manualAcceptanceChecklist.Count
+        ManualAcceptanceMissingCount = @($manualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" }).Count
+        ReadyToStage = if ($wbpDecisionPoint) { [string]$wbpDecisionPoint.ReviewQueue -eq "ReadyToStage" } else { $false }
+        StagingBlocked = if ($wbpDecisionPoint) { [bool]$wbpDecisionPoint.CommitBlocker } else { $false }
+        SetupDocContractComplete = ($setupDocPresent -and $missingSetupTerms.Count -eq 0)
+        ManualEditorVerificationStillRequired = (-not $wbpDecisionPoint -or [string]$wbpDecisionPoint.ReviewQueue -ne "ReadyToStage")
+        FailOnIncompleteEvidence = [bool]$FailOnIncompleteEvidence
+    }
+}
+
+if ($FailOnIncompleteEvidence -and $report.WbpPresent -and -not $report.Summary.ReadyToStage) {
+    throw "Monitor WBP evidence is incomplete. ReviewQueue=$($report.Summary.ReviewQueue) EvidenceStatus=$($report.Summary.EvidenceStatus) MissingEvidenceCount=$($report.Summary.MissingEvidenceCount). Record complete AcceptedForRepository evidence before staging $wbpRelativePath."
 }
 
 $lines = @(
@@ -131,6 +230,7 @@ $lines = @(
     "",
     "- Generated: $($report.GeneratedAt)",
     "- Project: $($report.ProjectRoot)",
+    "- Source repo: $($report.SourceRepoRoot)",
     "- WBP present: $($report.WbpPresent)",
     "- WBP path: $($report.WbpPath)",
     "- Git state: $($report.GitState)",
@@ -138,6 +238,13 @@ $lines = @(
     "- Last write: $($report.WbpLastWriteTime)",
     "- Setup doc present: $($report.SetupDocPresent)",
     "- Missing setup terms: $(@($report.MissingSetupTerms) -join ', ')",
+    "- Review queue: $($report.Summary.ReviewQueue)",
+    "- Commit readiness: $($report.Summary.CommitReadiness)",
+    "- Evidence status: $($report.Summary.EvidenceStatus)",
+    "- Missing evidence count: $($report.Summary.MissingEvidenceCount)",
+    "- Ready to stage: $($report.Summary.ReadyToStage)",
+    "- Staging blocked: $($report.Summary.StagingBlocked)",
+    "- Manual editor verification still required: $($report.Summary.ManualEditorVerificationStillRequired)",
     "- Risk level: $($report.RiskLevel)",
     "- RecommendedDecision: $($report.RecommendedDecision)",
     "- Recommendation: $($report.Recommendation)",
@@ -148,6 +255,16 @@ $lines = @(
     "- Decision owner: $($report.EvidenceDraft.DecisionOwner)",
     "- Decision status: $($report.EvidenceDraft.DecisionStatus)",
     "- Evidence source: $($report.EvidenceDraft.EvidenceSource)",
+    "",
+    "## Manual Acceptance Checklist",
+    ""
+)
+
+foreach ($item in $manualAcceptanceChecklist) {
+    $lines += "- $($item.Name): $($item.Status) - $($item.EvidenceNeeded)"
+}
+
+$lines += @(
     "",
     "This report cannot replace Unreal Editor verification. It separates file metadata and setup-contract checks from the remaining manual WBP evidence."
 )

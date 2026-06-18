@@ -93,6 +93,18 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "RecommendedDecision"; Label = "WBP decision report emits recommendation" },
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "Evidence Draft"; Label = "WBP decision report emits evidence draft" },
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "Unreal Editor verification"; Label = "WBP decision report keeps manual editor verification required" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "SourceRepoRoot"; Label = "WBP decision report can use separate source repo root" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "report_local_project_status.ps1"; Label = "WBP decision report reuses local decision engine" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "validate_monitor_widget_policy.ps1"; Label = "WBP decision report reuses monitor policy validation" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "DecisionPoint"; Label = "WBP decision report exposes decision point" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "ManualAcceptanceChecklist"; Label = "WBP decision report exposes manual acceptance checklist" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "ReadyToStage"; Label = "WBP decision report exposes ready-to-stage status" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "ReviewQueue"; Label = "WBP decision report exposes review queue" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "CommitReadiness"; Label = "WBP decision report exposes commit readiness" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "MissingEvidenceCount"; Label = "WBP decision report counts missing evidence" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "EvidencePath"; Label = "WBP decision report accepts evidence path" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "FailOnIncompleteEvidence"; Label = "WBP decision report can fail on incomplete evidence" },
+    [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "ManualEditorVerificationStillRequired"; Label = "WBP decision report exposes manual editor gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_decision_report.ps1"; Label = "Local asset doc documents WBP decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Monitor WBP decision report"; Label = "Remaining work tracks WBP decision report" }
 )
@@ -123,6 +135,10 @@ $report = [PSCustomObject]@{
         NativeFallbackDeclared = $true
         CameraCapturePendingStateGuarded = $true
         LocalWbpDecisionGuardDeclared = $true
+        MonitorWbpDecisionReportUsesAssetDecisionEngine = $true
+        MonitorWbpManualAcceptanceChecklistDeclared = $true
+        MonitorWbpEvidencePathDeclared = $true
+        MonitorWbpIncompleteEvidenceFailGateDeclared = $true
         AutomationCoverageDeclared = $true
         ManualEditorVerificationStillRequired = $true
         Valid = $true
@@ -140,6 +156,10 @@ else {
     Write-Host "Native fallback declared: $($report.Summary.NativeFallbackDeclared)"
     Write-Host "Camera capture pending state guarded: $($report.Summary.CameraCapturePendingStateGuarded)"
     Write-Host "Local WBP decision guard declared: $($report.Summary.LocalWbpDecisionGuardDeclared)"
+    Write-Host "Monitor WBP decision report uses asset decision engine: $($report.Summary.MonitorWbpDecisionReportUsesAssetDecisionEngine)"
+    Write-Host "Monitor WBP manual acceptance checklist declared: $($report.Summary.MonitorWbpManualAcceptanceChecklistDeclared)"
+    Write-Host "Monitor WBP evidence path declared: $($report.Summary.MonitorWbpEvidencePathDeclared)"
+    Write-Host "Monitor WBP incomplete evidence fail gate declared: $($report.Summary.MonitorWbpIncompleteEvidenceFailGateDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
     Write-Host "Manual editor verification still required: $($report.Summary.ManualEditorVerificationStillRequired)"
 }

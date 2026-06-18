@@ -115,8 +115,12 @@ Open decisions:
 - Monitor WBP decision report tooling is available through
   `Scripts/export_monitor_wbp_decision_report.ps1`. It records local
   `WBP_VirtualSensorMonitor.uasset` metadata, Git state, setup-document contract
-  checks, `RecommendedDecision`, and an evidence draft while keeping Unreal
-  Editor verification as the remaining acceptance gate.
+  checks, `RecommendedDecision`, `ReviewQueue`, `CommitReadiness`,
+  `EvidenceStatus`, `MissingEvidenceCount`, `ReadyToStage`, and an evidence
+  draft while keeping Unreal Editor verification as the remaining acceptance
+  gate. It accepts `-EvidencePath` for a candidate
+  `LocalAssetDecisionEvidenceV1` file and `-FailOnIncompleteEvidence` for an
+  opt-in WBP pre-commit gate.
 - Large content decision report tooling is available through
   `Scripts/export_large_content_decision_report.ps1`. It summarizes
   `LargeContentCandidate` and `SampleOrThirdParty` paths by size, extension
@@ -548,6 +552,8 @@ Next implementation steps:
 - Open the WBP in Unreal Editor and verify optional bindings.
 - Confirm camera/LiDAR switching, preview budget controls, hit-only toggle,
   server payload export, and slab analysis text.
+- Export the focused WBP decision report with `-EvidencePath` after filling
+  editor-open, optional-binding, PIE-smoke, and production-acceptance evidence.
 - Commit the WBP only after manual editor verification.
 
 Completion evidence:
@@ -560,6 +566,8 @@ Completion evidence:
   readbacks and completed JPEG writes.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"`.
+- Focused WBP evidence gate passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
 
 ## Routine Verification
 

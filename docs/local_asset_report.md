@@ -79,6 +79,21 @@ detected note because it is a binary Designer widget. Keep it untracked until it
 has been opened in Unreal Editor, optional bindings have been checked against
 `docs/widget_designer_setup.md`, and a PIE smoke pass confirms that the widget
 does not crash or show stale sensor status.
+Use `Scripts/export_monitor_wbp_decision_report.ps1` for a focused WBP review
+packet. It reuses `report_local_project_status.ps1`, reports the WBP
+`ReviewQueue`, `CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`, and
+`ReadyToStage` state, and exports a manual acceptance checklist for editor open
+verification, optional binding check, PIE smoke result, and production WBP
+acceptance. This report is review evidence, not approval by itself.
+Pass `-EvidencePath` to inspect a candidate
+`LocalAssetDecisionEvidenceV1` file, and use `-FailOnIncompleteEvidence` in a
+pre-commit gate when the binary WBP must not be staged until its evidence is
+complete.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence
+```
 
 Large content candidates and sample/third-party folders include extension counts
 and the largest files in each folder. Use this to spot built-data-heavy map
