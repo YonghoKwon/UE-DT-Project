@@ -297,6 +297,28 @@ present inside the selected CSV preview run block. The generated Markdown and
 JSON include `EvidenceRunStartLine`, each metric `EvidenceLine`, each
 scenario success line, `TestCompleteLine`, and `EvidenceLinesWithinRun`.
 
+GPU/Niagara renderer smoke:
+
+```text
+1. Open the target map with the candidate GPU/Niagara point renderer enabled.
+2. Load or replay a dense LiDAR frame and record map name, sensor id, renderer name, preview point count, and server payload point count.
+3. Capture a viewport screenshot and verify it contains nonblank point pixels, not only UI or an empty background.
+4. Toggle or force the CPU/ISM fallback path and confirm it still renders a usable preview.
+5. Record whether the dense frame caused an editor stall, overlap, clipping, or monitor UI obstruction.
+6. Export the renderer decision report with the viewport smoke fields.
+```
+
+Example evidence command after a GPU path exists:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
+```
+
+Until a GPU renderer is actually integrated, the renderer decision report should
+remain in `RendererPhase = PreGpuSpike`. After GPU code or assets are detected,
+it should move to `GpuIntegratedEvidencePending` until viewport smoke, fallback
+preservation, and dense-frame evidence are all recorded.
+
 Manual PIE payload checks:
 
 - In local monitor capture mode, confirm that a failed or skipped camera

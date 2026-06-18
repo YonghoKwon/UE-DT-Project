@@ -442,6 +442,17 @@ Current state:
   `Niagara point renderer` as the first GPU spike while preserving the CPU ISM
   fallback. It also exports decision gates for CPU fallback evidence, first GPU
   spike selection, GPU implementation, and fallback preservation.
+- The renderer decision report now separates `RendererPhase` into
+  `PreGpuSpike`, `GpuIntegratedEvidencePending`, and `GpuEvidenceReady`. This
+  prevents a future Niagara/GPU integration from making the report fail merely
+  because GPU code exists; once a GPU renderer is detected, the report requires
+  viewport smoke, fallback preservation, and dense-frame evidence before it can
+  become ready.
+- The report also exports a `GpuSpikeActionPlan` and
+  `GpuViewportSmokeEvidence` object. Required evidence includes screenshot path,
+  screenshot byte count, nonblank pixel count, map name, sensor id, renderer
+  name, point count, operator/notes, dense-frame no-stall observation, and CPU
+  fallback toggle observation.
 - The renderer decision report can now read the latest local CSV preview
   performance report and mark `CpuPreviewFallbackEvidencePresent` only when the
   required instanced smoke, 120,000-point procedural dense, and 250,000-point
@@ -486,6 +497,11 @@ Next implementation steps:
 - Preserve the current split: server payload can stay dense while preview is
   downsampled or GPU-rendered.
 - Add pixel/screenshot smoke checks if a GPU renderer is added.
+- When the GPU path lands, export the renderer decision report with viewport
+  evidence fields such as `-ViewportScreenshotPath`, `-NonBlankPixelCount`,
+  `-GpuSmokePointCount`, `-GpuSmokeMapName`, `-GpuSmokeSensorId`,
+  `-GpuSmokeRendererName`, `-ObservedDenseFrameNoStall`, and
+  `-ObservedFallbackToggle`.
 
 Completion evidence:
 
@@ -506,6 +522,12 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence`.
 - Renderer decision evidence can also target an explicit log file:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireCsvPerformanceEvidence`.
+- GPU renderer decision evidence records viewport smoke once a GPU path exists:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle`.
+- GPU evidence readiness requires a nonblank viewport screenshot, point count,
+  renderer identity, dense-frame no-stall observation, and fallback toggle
+  observation; otherwise `RendererPhase` remains
+  `GpuIntegratedEvidencePending`.
 - End-to-end local CPU fallback evidence workflow passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild`.
 - Static readiness passes:

@@ -110,6 +110,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Remaining work documents renderer decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Remaining work documents CSV preview performance report" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Smoke doc documents CSV preview performance report" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GpuViewportSmokeEvidence"; Label = "Remaining work documents GPU viewport smoke evidence object" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GpuIntegratedEvidencePending"; Label = "Remaining work documents GPU evidence pending phase" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GpuEvidenceReady"; Label = "Remaining work documents GPU evidence ready phase" },
+    [PSCustomObject]@{ Path = $smokeDoc; Pattern = "GPU/Niagara renderer smoke"; Label = "Smoke doc documents GPU renderer smoke checklist" },
+    [PSCustomObject]@{ Path = $smokeDoc; Pattern = "NonBlankPixelCount"; Label = "Smoke doc documents nonblank pixel evidence" },
+    [PSCustomObject]@{ Path = $smokeDoc; Pattern = "ObservedFallbackToggle"; Label = "Smoke doc documents fallback toggle evidence" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Niagara point renderer"; Label = "Renderer report includes Niagara path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Custom GPU buffer renderer"; Label = "Renderer report includes custom GPU path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "External viewer workflow"; Label = "Renderer report includes external viewer path" },
@@ -120,6 +126,17 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "DecisionGates"; Label = "Renderer report exports decision gates" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "FirstGpuSpikeCandidate"; Label = "Renderer report marks first GPU spike candidate" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "DecisionBlockers"; Label = "Renderer report tracks candidate blockers" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuSpikeActionPlan"; Label = "Renderer report exports GPU spike action plan" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuViewportSmokeEvidence"; Label = "Renderer report exports GPU viewport smoke evidence object" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "ViewportScreenshotPath"; Label = "Renderer report accepts viewport screenshot evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "NonBlankPixelCount"; Label = "Renderer report accepts nonblank pixel evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RendererPhase"; Label = "Renderer report separates pre/post GPU phases" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuIntegratedEvidencePending"; Label = "Renderer report represents GPU integrated but evidence pending phase" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuEvidenceReady"; Label = "Renderer report represents GPU evidence ready phase" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuViewportSmokeEvidencePresent"; Label = "Renderer report summarizes GPU viewport smoke evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuFallbackPreservationEvidencePresent"; Label = "Renderer report summarizes fallback preservation evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "GpuDenseFrameEvidencePresent"; Label = "Renderer report summarizes dense-frame evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "ObservedFallbackToggle"; Label = "Renderer report requires fallback toggle observation" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "Renderer report can require local CSV preview performance evidence" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = '[string]$LogPath'; Label = "Renderer report accepts an explicit automation log path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "Renderer report summarizes CPU fallback performance evidence" },
@@ -180,6 +197,10 @@ $report = [PSCustomObject]@{
         RendererDecisionReportDeclared = $true
         RendererDecisionMatrixDeclared = $true
         RendererFirstGpuCandidateDeclared = $true
+        RendererGpuSpikeActionPlanDeclared = $true
+        RendererGpuViewportSmokeEvidenceDeclared = $true
+        RendererPhaseGateDeclared = $true
+        RendererGpuFallbackEvidenceDeclared = $true
         ProceduralCsvPreviewCoverageDeclared = $true
         ProceduralCsvPreviewTelemetryDeclared = $true
         CsvPreviewPerformanceReportDeclared = $true
@@ -208,6 +229,10 @@ else {
     Write-Host "Renderer decision report declared: $($report.Summary.RendererDecisionReportDeclared)"
     Write-Host "Renderer decision matrix declared: $($report.Summary.RendererDecisionMatrixDeclared)"
     Write-Host "Renderer first GPU candidate declared: $($report.Summary.RendererFirstGpuCandidateDeclared)"
+    Write-Host "Renderer GPU spike action plan declared: $($report.Summary.RendererGpuSpikeActionPlanDeclared)"
+    Write-Host "Renderer GPU viewport smoke evidence declared: $($report.Summary.RendererGpuViewportSmokeEvidenceDeclared)"
+    Write-Host "Renderer phase gate declared: $($report.Summary.RendererPhaseGateDeclared)"
+    Write-Host "Renderer GPU fallback evidence declared: $($report.Summary.RendererGpuFallbackEvidenceDeclared)"
     Write-Host "Procedural CSV preview coverage declared: $($report.Summary.ProceduralCsvPreviewCoverageDeclared)"
     Write-Host "Procedural CSV preview telemetry declared: $($report.Summary.ProceduralCsvPreviewTelemetryDeclared)"
     Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"

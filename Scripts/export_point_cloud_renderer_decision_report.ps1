@@ -2,6 +2,17 @@ param(
     [string]$ProjectRoot = "",
     [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
     [string]$LogPath = "",
+    [string]$ViewportScreenshotPath = "",
+    [int64]$ViewportScreenshotBytes = -1,
+    [int64]$NonBlankPixelCount = -1,
+    [int64]$GpuSmokePointCount = -1,
+    [string]$GpuSmokeMapName = "",
+    [string]$GpuSmokeSensorId = "",
+    [string]$GpuSmokeRendererName = "",
+    [string]$GpuSmokeOperator = "",
+    [string]$GpuSmokeNotes = "",
+    [switch]$ObservedDenseFrameNoStall,
+    [switch]$ObservedFallbackToggle,
     [switch]$RequireCsvPerformanceEvidence,
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -192,7 +203,11 @@ function Write-MarkdownReport {
     $lines += "- CSV failure evidence present: $($Report.Summary.CsvFailureEvidencePresent)"
     $lines += "- CSV evidence lines within run: $($Report.Summary.CsvEvidenceLinesWithinRun)"
     $lines += "- GPU renderer integrated: $($Report.Summary.GpuRendererIntegrated)"
+    $lines += "- Renderer phase: $($Report.Summary.RendererPhase)"
     $lines += "- Recommended first GPU candidate: $($Report.Summary.RecommendedFirstGpuCandidate)"
+    $lines += "- GPU viewport smoke evidence present: $($Report.Summary.GpuViewportSmokeEvidencePresent)"
+    $lines += "- GPU fallback preservation evidence present: $($Report.Summary.GpuFallbackPreservationEvidencePresent)"
+    $lines += "- GPU dense-frame evidence present: $($Report.Summary.GpuDenseFrameEvidencePresent)"
     $lines += "- Renderer decision matrix declared: $($Report.Summary.RendererDecisionMatrixDeclared)"
     $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
     $lines += ""
@@ -203,6 +218,29 @@ function Write-MarkdownReport {
     foreach ($option in $Report.CandidateRenderers) {
         $lines += "| $($option.Rank) | $(Convert-ToMarkdownCell $option.Option) | $(Convert-ToMarkdownCell $option.RuntimeShape) | $(Convert-ToMarkdownCell ($option.Pros -join '; ')) | $(Convert-ToMarkdownCell ($option.Risks -join '; ')) | $(Convert-ToMarkdownCell $option.RecommendedDecision) | $($option.FirstGpuSpikeCandidate) | $(Convert-ToMarkdownCell ($option.DecisionBlockers -join '; ')) |"
     }
+    $lines += ""
+    $lines += "## GPU Spike Action Plan"
+    $lines += ""
+    $lines += "| Priority | Step | Owner needed | Status | Required evidence | Blockers | Next action |"
+    $lines += "| ---: | --- | --- | --- | --- | --- | --- |"
+    foreach ($item in $Report.GpuSpikeActionPlan) {
+        $lines += "| $($item.Priority) | $(Convert-ToMarkdownCell $item.Step) | $(Convert-ToMarkdownCell $item.OwnerNeeded) | $(Convert-ToMarkdownCell $item.Status) | $(Convert-ToMarkdownCell ($item.RequiredEvidence -join '; ')) | $(Convert-ToMarkdownCell ($item.Blockers -join '; ')) | $(Convert-ToMarkdownCell $item.NextAction) |"
+    }
+    $lines += ""
+    $lines += "## GPU Viewport Smoke Evidence"
+    $lines += ""
+    $lines += "- Screenshot path: ``$($Report.GpuViewportSmokeEvidence.ViewportScreenshotPath)``"
+    $lines += "- Screenshot bytes: $($Report.GpuViewportSmokeEvidence.ViewportScreenshotBytes)"
+    $lines += "- Nonblank pixel count: $($Report.GpuViewportSmokeEvidence.NonBlankPixelCount)"
+    $lines += "- Point count: $($Report.GpuViewportSmokeEvidence.PointCount)"
+    $lines += "- Map name: ``$($Report.GpuViewportSmokeEvidence.MapName)``"
+    $lines += "- Sensor id: ``$($Report.GpuViewportSmokeEvidence.SensorId)``"
+    $lines += "- Renderer name: ``$($Report.GpuViewportSmokeEvidence.RendererName)``"
+    $lines += "- Operator: ``$($Report.GpuViewportSmokeEvidence.Operator)``"
+    $lines += "- Dense frame no stall observed: $($Report.GpuViewportSmokeEvidence.ObservedDenseFrameNoStall)"
+    $lines += "- Fallback toggle observed: $($Report.GpuViewportSmokeEvidence.ObservedFallbackToggle)"
+    $lines += "- Evidence present: $($Report.GpuViewportSmokeEvidence.EvidencePresent)"
+    $lines += "- Missing evidence fields: $(@($Report.GpuViewportSmokeEvidence.MissingEvidenceFields) -join ', ')"
     $lines += ""
     $lines += "## Acceptance Evidence Needed"
     $lines += ""
@@ -343,6 +381,45 @@ $acceptanceEvidence = @(
     "Automation or manual test records that dense frames avoid editor stalls"
 )
 
+$gpuSpikeActionPlan = @(
+    [PSCustomObject]@{
+        Priority = 1
+        Step = "Select Niagara point renderer spike"
+        OwnerNeeded = "Rendering/Blueprint owner"
+        Status = "Recommended"
+        RequiredEvidence = @("Niagara asset ownership decision", "Data interface or buffer-feed approach", "Target point budget and frame-time budget")
+        Blockers = @("No Niagara asset owner recorded", "No buffer/data-interface design selected")
+        NextAction = "Create a short spike design note before adding assets or runtime code."
+    },
+    [PSCustomObject]@{
+        Priority = 2
+        Step = "Preserve CPU fallback"
+        OwnerNeeded = "DT-Project runtime owner"
+        Status = "Required"
+        RequiredEvidence = @("CPU ISM fallback smoke remains available", "Preview stride/max policy still applies", "Server payload count remains independent from preview count")
+        Blockers = @("GPU renderer must not replace the only preview path", "No regression evidence after GPU integration")
+        NextAction = "Keep CPU preview code paths and add fallback-preservation checks when the GPU path lands."
+    },
+    [PSCustomObject]@{
+        Priority = 3
+        Step = "Collect viewport smoke evidence"
+        OwnerNeeded = "QA/editor operator"
+        Status = "Missing"
+        RequiredEvidence = @("Desktop screenshot or viewport capture", "Nonblank point pixels", "Selected map and sensor id", "Point count and preview policy", "No overlap/clipping with monitor UI")
+        Blockers = @("Requires Unreal Editor viewport run", "Requires visual/pixel evidence")
+        NextAction = "After the Niagara spike is integrated, capture desktop and viewport smoke evidence before claiming dense preview readiness."
+    },
+    [PSCustomObject]@{
+        Priority = 4
+        Step = "Validate dense-frame behavior"
+        OwnerNeeded = "Performance owner"
+        Status = "Missing"
+        RequiredEvidence = @("Dense frame point count", "Frame-time or load-time budget", "No editor stall observation", "CSV CPU fallback comparison")
+        Blockers = @("No renderer-specific dense-frame telemetry", "No accepted performance budget")
+        NextAction = "Run dense-frame evidence after the GPU path exists and compare it against the current CPU fallback reports."
+    }
+)
+
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $cpuIsmFallbackSmokePresent = $csvPreviewPerformanceEvidence.Present -and
     ($csvPreviewPerformanceEvidence.InstancedSmokeRenderMode -eq "InstancedMesh") -and
@@ -365,6 +442,38 @@ $cpuFallbackPerformanceEvidencePresent = $csvPreviewPerformanceEvidence.Present 
     $csvPreviewPerformanceEvidence.EvidenceLinesWithinRun -and
     (-not $csvPreviewPerformanceEvidence.FailureEvidencePresent) -and
     ($csvPreviewPerformanceEvidence.MaxAcceptedPoints -ge 250000)
+
+function Get-MissingGpuViewportSmokeFields {
+    $missing = @()
+    if ([string]::IsNullOrWhiteSpace($ViewportScreenshotPath)) { $missing += "ViewportScreenshotPath" }
+    elseif (-not (Test-Path -LiteralPath $ViewportScreenshotPath -PathType Leaf)) { $missing += "ViewportScreenshotPathExists" }
+    if ($ViewportScreenshotBytes -le 0) { $missing += "ViewportScreenshotBytes" }
+    if ($NonBlankPixelCount -le 0) { $missing += "NonBlankPixelCount" }
+    if ($GpuSmokePointCount -le 0) { $missing += "GpuSmokePointCount" }
+    if ([string]::IsNullOrWhiteSpace($GpuSmokeMapName)) { $missing += "GpuSmokeMapName" }
+    if ([string]::IsNullOrWhiteSpace($GpuSmokeSensorId)) { $missing += "GpuSmokeSensorId" }
+    if ([string]::IsNullOrWhiteSpace($GpuSmokeRendererName)) { $missing += "GpuSmokeRendererName" }
+    if ([string]::IsNullOrWhiteSpace($GpuSmokeOperator)) { $missing += "GpuSmokeOperator" }
+    if ([string]::IsNullOrWhiteSpace($GpuSmokeNotes)) { $missing += "GpuSmokeNotes" }
+    if (-not $ObservedDenseFrameNoStall) { $missing += "ObservedDenseFrameNoStall" }
+    if (-not $ObservedFallbackToggle) { $missing += "ObservedFallbackToggle" }
+    return $missing
+}
+
+$missingGpuViewportSmokeFields = @(Get-MissingGpuViewportSmokeFields)
+$gpuViewportSmokeEvidencePresent = ($missingGpuViewportSmokeFields.Count -eq 0)
+$gpuFallbackPreservationEvidencePresent = ($ObservedFallbackToggle -and $cpuIsmFallbackSmokePresent)
+$gpuDenseFrameEvidencePresent = ($ObservedDenseFrameNoStall -and $GpuSmokePointCount -ge 120000)
+$rendererPhase = if (-not $gpuRendererIntegrated) {
+    "PreGpuSpike"
+}
+elseif ($gpuViewportSmokeEvidencePresent -and $gpuFallbackPreservationEvidencePresent -and $gpuDenseFrameEvidencePresent) {
+    "GpuEvidenceReady"
+}
+else {
+    "GpuIntegratedEvidencePending"
+}
+
 $decisionGates = @(
     [PSCustomObject]@{
         Name = "CPU preview fallback evidence"
@@ -392,11 +501,24 @@ $decisionGates = @(
         Evidence = "Requires Niagara or custom GPU renderer code/assets plus viewport smoke evidence."
     },
     [PSCustomObject]@{
+        Name = "GPU viewport smoke evidence"
+        Status = if ($gpuViewportSmokeEvidencePresent) { "Ready" } elseif ($gpuRendererIntegrated) { "Missing" } else { "RequiredAfterGpuIntegration" }
+        Evidence = "Requires screenshot path, nonblank pixel evidence, map/sensor/renderer identity, operator notes, dense-frame no-stall observation, and fallback toggle observation."
+    },
+    [PSCustomObject]@{
         Name = "Fallback preservation"
-        Status = "Required"
-        Evidence = "CPU ISM fallback must remain available after any GPU renderer is added."
+        Status = if ($gpuFallbackPreservationEvidencePresent) { "Ready" } elseif ($gpuRendererIntegrated) { "Missing" } else { "RequiredAfterGpuIntegration" }
+        Evidence = "CPU ISM fallback must remain available and be observed after any GPU renderer is added."
+    },
+    [PSCustomObject]@{
+        Name = "GPU dense-frame evidence"
+        Status = if ($gpuDenseFrameEvidencePresent) { "Ready" } elseif ($gpuRendererIntegrated) { "Missing" } else { "RequiredAfterGpuIntegration" }
+        Evidence = "Requires a renderer-specific dense frame point count and no-stall observation."
     }
 )
+$gpuSpikeViewportSmokeRequired = [bool](@($gpuSpikeActionPlan | Where-Object { $_.Step -eq "Collect viewport smoke evidence" -and @($_.RequiredEvidence) -contains "Nonblank point pixels" }).Count -gt 0)
+$gpuSpikeFallbackPreservationRequired = [bool](@($gpuSpikeActionPlan | Where-Object { $_.Step -eq "Preserve CPU fallback" -and @($_.RequiredEvidence) -contains "CPU ISM fallback smoke remains available" }).Count -gt 0)
+$gpuSpikeDenseFrameEvidenceRequired = [bool](@($gpuSpikeActionPlan | Where-Object { $_.Step -eq "Validate dense-frame behavior" -and @($_.RequiredEvidence) -contains "Dense frame point count" }).Count -gt 0)
 $report = [PSCustomObject]@{
     GeneratedUtc = $generatedUtc
     ProjectRoot = $ProjectRoot
@@ -413,6 +535,22 @@ $report = [PSCustomObject]@{
     }
     CsvPreviewPerformanceEvidence = $csvPreviewPerformanceEvidence
     CandidateRenderers = $candidateRenderers
+    GpuSpikeActionPlan = $gpuSpikeActionPlan
+    GpuViewportSmokeEvidence = [PSCustomObject]@{
+        ViewportScreenshotPath = $ViewportScreenshotPath
+        ViewportScreenshotBytes = $ViewportScreenshotBytes
+        NonBlankPixelCount = $NonBlankPixelCount
+        PointCount = $GpuSmokePointCount
+        MapName = $GpuSmokeMapName
+        SensorId = $GpuSmokeSensorId
+        RendererName = $GpuSmokeRendererName
+        Operator = $GpuSmokeOperator
+        Notes = $GpuSmokeNotes
+        ObservedDenseFrameNoStall = [bool]$ObservedDenseFrameNoStall
+        ObservedFallbackToggle = [bool]$ObservedFallbackToggle
+        EvidencePresent = [bool]$gpuViewportSmokeEvidencePresent
+        MissingEvidenceFields = $missingGpuViewportSmokeFields
+    }
     AcceptanceEvidenceNeeded = $acceptanceEvidence
     DecisionGates = $decisionGates
     Summary = [PSCustomObject]@{
@@ -433,13 +571,24 @@ $report = [PSCustomObject]@{
         CsvEvidenceRunStartLine = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.EvidenceRunStartLine } else { 0 }
         CsvEvidenceTestCompleteLine = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.TestCompleteLine } else { 0 }
         GpuRendererIntegrated = $gpuRendererIntegrated
+        RendererPhase = $rendererPhase
+        GpuViewportSmokeEvidencePresent = [bool]$gpuViewportSmokeEvidencePresent
+        GpuViewportSmokeMissingEvidenceFieldCount = [int]$missingGpuViewportSmokeFields.Count
+        GpuViewportSmokeMissingEvidenceFields = $missingGpuViewportSmokeFields
+        GpuFallbackPreservationEvidencePresent = [bool]$gpuFallbackPreservationEvidencePresent
+        GpuDenseFrameEvidencePresent = [bool]$gpuDenseFrameEvidencePresent
         RendererDecisionMatrixDeclared = $true
         RecommendedFirstGpuCandidate = "Niagara point renderer"
+        GpuSpikeActionPlanDeclared = $true
+        GpuSpikeActionPlanItemCount = $gpuSpikeActionPlan.Count
+        GpuSpikeViewportSmokeRequired = $gpuSpikeViewportSmokeRequired
+        GpuSpikeFallbackPreservationRequired = $gpuSpikeFallbackPreservationRequired
+        GpuSpikeDenseFrameEvidenceRequired = $gpuSpikeDenseFrameEvidenceRequired
         DecisionGateCount = $decisionGates.Count
         CandidateRendererCount = $candidateRenderers.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
         RecommendedNextDecision = "Start with a Niagara point-renderer spike, preserve CPU ISM fallback, then collect desktop/viewport smoke and dense-frame evidence."
-        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and -not $gpuRendererIntegrated -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
+        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and $gpuSpikeViewportSmokeRequired -and $gpuSpikeFallbackPreservationRequired -and $gpuSpikeDenseFrameEvidenceRequired -and (-not $gpuRendererIntegrated -or ($gpuViewportSmokeEvidencePresent -and $gpuFallbackPreservationEvidencePresent -and $gpuDenseFrameEvidencePresent)) -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
     }
 }
 
@@ -469,7 +618,16 @@ else {
     Write-Host "CPU procedural dense evidence present: $($report.Summary.CpuProceduralDenseEvidencePresent)"
     Write-Host "CSV max accepted points: $($report.Summary.CsvPreviewMaxAcceptedPoints)"
     Write-Host "GPU renderer integrated: $($report.Summary.GpuRendererIntegrated)"
+    Write-Host "Renderer phase: $($report.Summary.RendererPhase)"
     Write-Host "Recommended first GPU candidate: $($report.Summary.RecommendedFirstGpuCandidate)"
+    Write-Host "GPU viewport smoke evidence present: $($report.Summary.GpuViewportSmokeEvidencePresent)"
+    Write-Host "GPU viewport smoke missing evidence fields: $($report.Summary.GpuViewportSmokeMissingEvidenceFieldCount)"
+    Write-Host "GPU fallback preservation evidence present: $($report.Summary.GpuFallbackPreservationEvidencePresent)"
+    Write-Host "GPU dense-frame evidence present: $($report.Summary.GpuDenseFrameEvidencePresent)"
+    Write-Host "GPU spike action-plan items: $($report.Summary.GpuSpikeActionPlanItemCount)"
+    Write-Host "GPU spike viewport smoke required: $($report.Summary.GpuSpikeViewportSmokeRequired)"
+    Write-Host "GPU spike fallback preservation required: $($report.Summary.GpuSpikeFallbackPreservationRequired)"
+    Write-Host "GPU spike dense-frame evidence required: $($report.Summary.GpuSpikeDenseFrameEvidenceRequired)"
     Write-Host "Decision gates: $($report.Summary.DecisionGateCount)"
     Write-Host "Recommended next decision: $($report.Summary.RecommendedNextDecision)"
 }
