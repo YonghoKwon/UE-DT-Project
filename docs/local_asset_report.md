@@ -271,6 +271,7 @@ outputs:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -ProjectRoot "." -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 ```
 
 The large content report reuses `report_local_project_status.ps1` and focuses on
@@ -278,3 +279,10 @@ The large content report reuses `report_local_project_status.ps1` and focuses on
 extension counts, largest files, risk, `RecommendedDecision`, and evidence
 drafts. Content over 1 GB and copied samples default to `KeepLocal` until
 source/license/dependency/storage evidence is complete and accepted.
+The same report now exposes `BuiltDataHeavy`, `LargestFileRisk`,
+`StorageRiskReason`, `RedistributionReviewRequired`, and `SampleRiskReason` so
+map build data, single-file storage risk, and copied sample redistribution
+questions are visible before repository ownership is accepted.
+Use `validate_large_content_decision_policy.ps1 -ProjectRoot <source repo>
+-LocalProjectRoot <local Unreal project>` when the policy/docs live in the
+source checkout but the untracked content lives in the local Unreal project.

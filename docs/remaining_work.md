@@ -107,6 +107,13 @@ Open decisions:
   `DecisionBlockers`, `NextReviewAction`, and `TopBlockers`. High-risk binary
   asset packs and content over 100 MB are kept on explicit owner/source/license,
   dependency, and storage acceptance before repository inclusion.
+- The report also flags `BuiltDataHeavy`, `LargestFileRisk`,
+  `StorageRiskReason`, `RedistributionReviewRequired`, and `SampleRiskReason`
+  so very large map build data, single-file storage risk, and copied sample
+  redistribution questions are visible before owner acceptance.
+- `Scripts/validate_large_content_decision_policy.ps1` supports
+  `-LocalProjectRoot` so the source checkout can validate docs/scripts while the
+  actual untracked Unreal content is scanned from `C:\Unreal Projects\m7at10_dt`.
 - Runtime config validation now supports `-LocalProjectRoot` so the source repo
   policy can inspect the real local Unreal project `Config/Game.ini`. The JSON
   output includes `RecommendedDecision`; the current empty

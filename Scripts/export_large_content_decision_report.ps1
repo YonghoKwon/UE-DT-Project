@@ -128,6 +128,68 @@ function Get-DecisionBlockers {
     return $blockers
 }
 
+function Get-LargestFileBytes {
+    param([object]$Point)
+
+    $largest = @()
+    if ($Point.ContentSummary -and $Point.ContentSummary.LargestFiles) {
+        $largest = @($Point.ContentSummary.LargestFiles)
+    }
+    if ($largest.Count -eq 0) {
+        return 0
+    }
+    return [int64](($largest | Measure-Object -Property SizeBytes -Maximum).Maximum)
+}
+
+function Test-BuiltDataHeavy {
+    param([object]$Point)
+
+    $largest = @()
+    if ($Point.ContentSummary -and $Point.ContentSummary.LargestFiles) {
+        $largest = @($Point.ContentSummary.LargestFiles)
+    }
+    foreach ($file in $largest) {
+        if ([string]$file.Path -match "BuiltData" -and [int64]$file.SizeBytes -ge 1GB) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-StorageRiskReason {
+    param(
+        [object]$Point,
+        [bool]$BuiltDataHeavy,
+        [int64]$LargestFileBytes
+    )
+
+    if ($BuiltDataHeavy) {
+        return "Contains a BuiltData asset over 1 GB; require map-build ownership and storage/versioning approval."
+    }
+    if ([int64]$Point.SizeBytes -ge 10GB) {
+        return "Folder exceeds 10 GB; require repository storage, clone-time, and artifact strategy approval."
+    }
+    if ($LargestFileBytes -ge 1GB) {
+        return "Contains a single file over 1 GB; require storage/versioning approval before repository ownership."
+    }
+    if ([int64]$Point.SizeBytes -ge 1GB) {
+        return "Folder exceeds 1 GB; require explicit size/storage acceptance."
+    }
+    if ($Point.Category -eq "SampleOrThirdParty") {
+        return "Copied sample/third-party content; require ownership, redistribution, and documentation alternative decision."
+    }
+    return "No large-file storage risk detected, but owner evidence is still required."
+}
+
+function Get-SampleRiskReason {
+    param([object]$Point)
+
+    if ($Point.Category -ne "SampleOrThirdParty") {
+        return ""
+    }
+    return "Sample or third-party files should stay local unless project ownership, redistribution approval, and documentation alternative decision are accepted."
+}
+
 function Get-NextReviewAction {
     param([object]$Point)
 
@@ -193,6 +255,8 @@ $candidates = @(
     $candidatePoints |
         ForEach-Object {
             $decision = Get-DefaultDecision -Point $_
+            $largestFileBytes = Get-LargestFileBytes -Point $_
+            $builtDataHeavy = Test-BuiltDataHeavy -Point $_
             [PSCustomObject]@{
                 Path = $_.Path
                 Category = $_.Category
@@ -203,6 +267,12 @@ $candidates = @(
                 SizeBytes = [int64]$_.SizeBytes
                 Size = $_.Size
                 FileCount = $_.FileCount
+                BuiltDataHeavy = [bool]$builtDataHeavy
+                LargestFileRisk = [bool]($largestFileBytes -ge 1GB)
+                LargestFileBytes = $largestFileBytes
+                StorageRiskReason = Get-StorageRiskReason -Point $_ -BuiltDataHeavy $builtDataHeavy -LargestFileBytes $largestFileBytes
+                RedistributionReviewRequired = [bool]($_.Category -eq "SampleOrThirdParty")
+                SampleRiskReason = Get-SampleRiskReason -Point $_
                 RiskLevel = $decision.RiskLevel
                 RecommendedDecision = $decision.RecommendedDecision
                 Reason = $decision.Reason
@@ -236,6 +306,9 @@ $topBlockers = @(
             }
         }
 )
+$builtDataHeavyCandidates = @($candidates | Where-Object { $_.BuiltDataHeavy })
+$largestFileRiskCandidates = @($candidates | Where-Object { $_.LargestFileRisk })
+$redistributionReviewCandidates = @($candidates | Where-Object { $_.RedistributionReviewRequired })
 $report = [PSCustomObject]@{
     GeneratedAt = (Get-Date).ToString("s")
     ProjectRoot = $ProjectRoot
@@ -245,6 +318,9 @@ $report = [PSCustomObject]@{
     KeepLocalByDefaultCount = @($candidates | Where-Object { $_.RecommendedDecision -like "KeepLocal*" }).Count
     PendingOwnerDecisionCount = @($candidates | Where-Object { $_.RecommendedDecision -eq "PendingOwnerDecision" }).Count
     HighRiskCount = @($candidates | Where-Object { $_.RiskLevel -eq "High" }).Count
+    BuiltDataHeavyCount = $builtDataHeavyCandidates.Count
+    LargestFileRiskCount = $largestFileRiskCandidates.Count
+    RedistributionReviewRequiredCount = $redistributionReviewCandidates.Count
     TopBlockers = $topBlockers
     Candidates = $candidates
     Summary = [PSCustomObject]@{
@@ -252,6 +328,10 @@ $report = [PSCustomObject]@{
         RequiresOwnerSourceLicenseDecision = ($candidates.Count -gt 0)
         RequiredAcceptanceDeclared = ($candidates.Count -eq 0 -or @($candidates | Where-Object { @($_.RequiredAcceptance).Count -eq 0 }).Count -eq 0)
         DecisionBlockersDeclared = ($candidates.Count -eq 0 -or @($candidates | Where-Object { @($_.DecisionBlockers).Count -eq 0 }).Count -eq 0)
+        StorageRiskReasonDeclared = ($candidates.Count -eq 0 -or @($candidates | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.StorageRiskReason) }).Count -eq 0)
+        BuiltDataHeavyCandidateCount = $builtDataHeavyCandidates.Count
+        LargestFileRiskCandidateCount = $largestFileRiskCandidates.Count
+        RedistributionReviewRequiredCount = $redistributionReviewCandidates.Count
         TopBlockerCount = $topBlockers.Count
         DefaultAction = "Keep large/sample content local unless source/license/dependency/storage evidence is complete and accepted."
     }
@@ -267,6 +347,9 @@ $lines.Add("- Total size: $($report.TotalSize)") | Out-Null
 $lines.Add("- Keep local by default: $($report.KeepLocalByDefaultCount)") | Out-Null
 $lines.Add("- Pending owner decision: $($report.PendingOwnerDecisionCount)") | Out-Null
 $lines.Add("- High risk candidates: $($report.HighRiskCount)") | Out-Null
+$lines.Add("- BuiltData-heavy candidates: $($report.BuiltDataHeavyCount)") | Out-Null
+$lines.Add("- Largest-file risk candidates: $($report.LargestFileRiskCount)") | Out-Null
+$lines.Add("- Redistribution review required: $($report.RedistributionReviewRequiredCount)") | Out-Null
 $lines.Add("- Default action: $($report.Summary.DefaultAction)") | Out-Null
 $lines.Add("") | Out-Null
 $lines.Add("## Top Blockers") | Out-Null
@@ -287,19 +370,21 @@ else {
     }
 }
 $lines.Add("") | Out-Null
-$lines.Add("| Path | Category | Size | Files | Git state | Risk | Recommended decision | Next action | Reason |") | Out-Null
-$lines.Add("| --- | --- | ---: | ---: | --- | --- | --- | --- | --- |") | Out-Null
+$lines.Add("| Path | Category | Size | Files | Git state | Risk | BuiltData-heavy | Largest-file risk | Recommended decision | Next action | Storage risk |") | Out-Null
+$lines.Add("| --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |") | Out-Null
 foreach ($candidate in $report.Candidates) {
-    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f `
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} |" -f `
         (Convert-ToMarkdownCell $candidate.Path),
         (Convert-ToMarkdownCell $candidate.Category),
         (Convert-ToMarkdownCell $candidate.Size),
         (Convert-ToMarkdownCell $candidate.FileCount),
         (Convert-ToMarkdownCell $candidate.GitState),
         (Convert-ToMarkdownCell $candidate.RiskLevel),
+        (Convert-ToMarkdownCell $candidate.BuiltDataHeavy),
+        (Convert-ToMarkdownCell $candidate.LargestFileRisk),
         (Convert-ToMarkdownCell $candidate.RecommendedDecision),
         (Convert-ToMarkdownCell $candidate.NextReviewAction),
-        (Convert-ToMarkdownCell $candidate.Reason))) | Out-Null
+        (Convert-ToMarkdownCell $candidate.StorageRiskReason))) | Out-Null
 }
 $lines.Add("") | Out-Null
 foreach ($candidate in $report.Candidates) {
@@ -307,6 +392,10 @@ foreach ($candidate in $report.Candidates) {
     $lines.Add("") | Out-Null
     $lines.Add("- Evidence needed: $(@($candidate.EvidenceNeeded) -join ', ')") | Out-Null
     $lines.Add("- Next review action: $($candidate.NextReviewAction)") | Out-Null
+    $lines.Add("- Storage risk: $($candidate.StorageRiskReason)") | Out-Null
+    if (-not [string]::IsNullOrWhiteSpace($candidate.SampleRiskReason)) {
+        $lines.Add("- Sample risk: $($candidate.SampleRiskReason)") | Out-Null
+    }
     if (@($candidate.RequiredAcceptance).Count -gt 0) {
         $lines.Add("- Required acceptance:") | Out-Null
         foreach ($item in @($candidate.RequiredAcceptance)) {

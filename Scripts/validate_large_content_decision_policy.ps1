@@ -1,5 +1,6 @@
 param(
     [string]$ProjectRoot = "",
+    [string]$LocalProjectRoot = "",
     [switch]$FailIfPresent,
     [switch]$Json
 )
@@ -49,12 +50,17 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Get-DefaultProjectRoot
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if ([string]::IsNullOrWhiteSpace($LocalProjectRoot)) {
+    $LocalProjectRoot = $ProjectRoot
+}
+$LocalProjectRoot = (Resolve-Path -LiteralPath $LocalProjectRoot).Path
 
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $evidenceTemplateScript = Join-Path $ProjectRoot "Scripts\export_local_asset_decision_evidence_template.ps1"
 $evidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\validate_local_asset_decision_evidence_workflow.ps1"
 $largeContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_large_content_decision_report.ps1"
+$largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
 Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
 Assert-FileExists -Path $evidenceTemplateScript -Label "Local asset decision evidence template script"
@@ -99,6 +105,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Generated output remains KeepLocal"; Label = "Local asset doc keeps generated output local" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "validate_local_asset_decision_evidence_workflow.ps1"; Label = "Local asset doc documents evidence workflow validation" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Local asset doc documents large content decision report" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "ReviewPriority"; Label = "Local asset doc explains review priority" },
@@ -138,6 +145,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Generated output remains KeepLocal"; Label = "Remaining work keeps generated output local" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "validate_local_asset_decision_evidence_workflow.ps1"; Label = "Remaining work tracks evidence workflow validation" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Remaining work tracks large content decision report" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "LocalProjectRoot"; Label = "Remaining work tracks separate local project root" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Staged decision gate"; Label = "Remaining work tracks staged decision evidence gate" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
     ,
@@ -145,16 +153,24 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "DecisionBlockers"; Label = "Large content report exports decision blockers" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "NextReviewAction"; Label = "Large content report exports next review action" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "TopBlockers"; Label = "Large content report exports top blockers" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "BuiltDataHeavy"; Label = "Large content report exports BuiltData-heavy risk" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "LargestFileRisk"; Label = "Large content report exports largest-file risk" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "StorageRiskReason"; Label = "Large content report exports storage risk reason" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "RedistributionReviewRequired"; Label = "Large content report exports sample redistribution review gate" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "SampleRiskReason"; Label = "Large content report exports sample risk reason" },
+    [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "BuiltData asset over 1 GB"; Label = "Large content report explains BuiltData-heavy blocker" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Repository storage/versioning approval"; Label = "Large content report requires storage/versioning acceptance" },
     [PSCustomObject]@{ Path = $largeContentDecisionReportScript; Pattern = "Documentation alternative decision"; Label = "Sample report requires documentation alternative decision" }
+    ,
+    [PSCustomObject]@{ Path = $largeContentDecisionPolicyScript; Pattern = '[string]$LocalProjectRoot'; Label = "Large content policy accepts separate local project root" }
 )
 
 foreach ($item in $requiredTexts) {
     Assert-ContainsText -Path $item.Path -Pattern $item.Pattern -Label $item.Label
 }
 
-$assetReport = Invoke-AssetReportJson -ProjectRoot $ProjectRoot
-$largeReportJson = & $largeContentDecisionReportScript -ProjectRoot $ProjectRoot -Json
+$assetReport = Invoke-AssetReportJson -ProjectRoot $LocalProjectRoot
+$largeReportJson = & $largeContentDecisionReportScript -ProjectRoot $LocalProjectRoot -Json
 if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     throw "export_large_content_decision_report.ps1 failed with exit code $LASTEXITCODE"
 }
@@ -178,6 +194,9 @@ foreach ($candidate in @($largeReport.Candidates)) {
     if ([string]::IsNullOrWhiteSpace([string]$candidate.NextReviewAction)) {
         throw "Large content decision candidate is missing NextReviewAction: $($candidate.Path)"
     }
+    if ([string]::IsNullOrWhiteSpace([string]$candidate.StorageRiskReason)) {
+        throw "Large content decision candidate is missing StorageRiskReason: $($candidate.Path)"
+    }
     $acceptanceNames = @($candidate.RequiredAcceptance | ForEach-Object { [string]$_.Name })
     if ($candidate.Category -eq "LargeContentCandidate") {
         foreach ($required in @("Asset source", "License/redistribution approval", "Size/storage acceptance", "Repository storage/versioning approval")) {
@@ -187,6 +206,12 @@ foreach ($candidate in @($largeReport.Candidates)) {
         }
     }
     elseif ($candidate.Category -eq "SampleOrThirdParty") {
+        if (-not [bool]$candidate.RedistributionReviewRequired) {
+            throw "Sample candidate $($candidate.Path) must require redistribution review."
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$candidate.SampleRiskReason)) {
+            throw "Sample candidate $($candidate.Path) is missing sample risk reason."
+        }
         foreach ($required in @("Project ownership decision", "License/redistribution approval", "Documentation alternative decision")) {
             if (-not ($acceptanceNames -contains $required)) {
                 throw "Sample candidate $($candidate.Path) is missing required acceptance item: $required"
@@ -198,6 +223,7 @@ foreach ($candidate in @($largeReport.Candidates)) {
 $totalBytes = [int64](($decisionCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
 $report = [PSCustomObject]@{
     ProjectRoot = $ProjectRoot
+    LocalProjectRoot = $LocalProjectRoot
     Candidates = @($decisionCandidates | ForEach-Object {
         [PSCustomObject]@{
             Path = $_.Path
@@ -225,6 +251,10 @@ $report = [PSCustomObject]@{
         LargeDecisionReportHighRiskCount = $largeReport.HighRiskCount
         RequiredAcceptanceDeclared = $largeReport.Summary.RequiredAcceptanceDeclared
         DecisionBlockersDeclared = $largeReport.Summary.DecisionBlockersDeclared
+        StorageRiskReasonDeclared = $largeReport.Summary.StorageRiskReasonDeclared
+        BuiltDataHeavyCandidateCount = $largeReport.Summary.BuiltDataHeavyCandidateCount
+        LargestFileRiskCandidateCount = $largeReport.Summary.LargestFileRiskCandidateCount
+        RedistributionReviewRequiredCount = $largeReport.Summary.RedistributionReviewRequiredCount
         TopBlockerCount = $largeReport.Summary.TopBlockerCount
         StrictFailureRequested = [bool]$FailIfPresent
         ExplicitOwnershipDecisionRequired = ($decisionCandidates.Count -gt 0)
@@ -242,11 +272,17 @@ if ($Json) {
 }
 else {
     Write-Host "Large content decision policy is internally consistent."
+    Write-Host "ProjectRoot: $($report.ProjectRoot)"
+    Write-Host "LocalProjectRoot: $($report.LocalProjectRoot)"
     Write-Host "Candidate count: $($report.Summary.CandidateCount)"
     Write-Host "Total candidate size: $($report.Summary.TotalSize)"
     Write-Host "Large decision report high-risk count: $($report.Summary.LargeDecisionReportHighRiskCount)"
     Write-Host "Required acceptance declared: $($report.Summary.RequiredAcceptanceDeclared)"
     Write-Host "Decision blockers declared: $($report.Summary.DecisionBlockersDeclared)"
+    Write-Host "Storage risk reason declared: $($report.Summary.StorageRiskReasonDeclared)"
+    Write-Host "BuiltData-heavy candidates: $($report.Summary.BuiltDataHeavyCandidateCount)"
+    Write-Host "Largest-file risk candidates: $($report.Summary.LargestFileRiskCandidateCount)"
+    Write-Host "Redistribution review required: $($report.Summary.RedistributionReviewRequiredCount)"
     Write-Host "Top blocker count: $($report.Summary.TopBlockerCount)"
     Write-Host "Explicit ownership decision required: $($report.Summary.ExplicitOwnershipDecisionRequired)"
     foreach ($candidate in $report.Candidates) {
