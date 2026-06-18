@@ -415,10 +415,19 @@ Current state:
   CPU/ISM fallback evidence, Niagara/custom-GPU/external-viewer candidate
   renderers, and the acceptance evidence needed before replacing the preview
   path.
+- The renderer decision report now ranks candidate paths and recommends
+  `Niagara point renderer` as the first GPU spike while preserving the CPU ISM
+  fallback. It also exports decision gates for CPU fallback evidence, first GPU
+  spike selection, GPU implementation, and fallback preservation.
 - The renderer decision report can now read the latest local CSV preview
-  performance report and mark `CpuFallbackPerformanceEvidencePresent` when the
-  required instanced, 120,000-point procedural, and 250,000-point procedural
-  budget scenarios are present in the automation log.
+  performance report and mark `CpuPreviewFallbackEvidencePresent` only when the
+  required instanced smoke, 120,000-point procedural dense, and 250,000-point
+  procedural budget scenarios are present in the selected automation run block
+  without failure/error/fatal lines.
+- CPU evidence is split into `CpuIsmFallbackSmokePresent` for the small
+  InstancedMesh fallback smoke and `CpuProceduralDenseEvidencePresent` for the
+  dense ProceduralMesh fallback path, so the report no longer treats the 250k
+  procedural evidence as ISM evidence.
 - `Scripts/run_csv_preview_performance_evidence.ps1` runs the dedicated
   headless CSV preview automation group, exports CSV and renderer decision
   reports under `Saved/Reports`, and requires both telemetry rows and automation
@@ -426,7 +435,9 @@ Current state:
 - CSV evidence reports now record the selected run block and line-level proof:
   `EvidenceRunStartLine`, per-scenario telemetry `EvidenceLine`,
   per-scenario success lines, `TestCompleteLine`, and
-  `EvidenceLinesWithinRun`.
+  `EvidenceLinesWithinRun`. They also stop at the selected run completion and
+  report `FailureEvidencePresent` / `FailureLineCount` for failed, error, or
+  fatal lines inside that block.
 - `M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` covers a
   120,000-point procedural CSV preview load without requiring the Unreal Editor
   GUI, and `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
@@ -447,6 +458,8 @@ Current state:
 Next implementation steps:
 
 - Decide whether to use Niagara, GPU buffers, or a custom renderer.
+- Start with the Niagara point-renderer spike unless a concrete density,
+  packaging, or data-interface constraint invalidates it.
 - Preserve the current split: server payload can stay dense while preview is
   downsampled or GPU-rendered.
 - Add pixel/screenshot smoke checks if a GPU renderer is added.

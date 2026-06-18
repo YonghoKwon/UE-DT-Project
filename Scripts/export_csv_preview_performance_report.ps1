@@ -126,6 +126,8 @@ function Write-MarkdownReport {
     $lines += "- Automation success evidence present: $($Report.Summary.AutomationSuccessEvidencePresent)"
     $lines += "- Successful test completion count: $($Report.Summary.SuccessfulTestCompletionCount)"
     $lines += "- Test complete exit code zero: $($Report.Summary.TestCompleteExitCodeZero)"
+    $lines += "- Failure evidence present: $($Report.Summary.FailureEvidencePresent)"
+    $lines += "- Failure line count: $($Report.Summary.FailureLineCount)"
     $lines += "- Evidence run start line: $($Report.Summary.EvidenceRunStartLine)"
     $lines += "- Test complete line: $($Report.Summary.TestCompleteLine)"
     $lines += "- Evidence lines within run: $($Report.Summary.EvidenceLinesWithinRun)"
@@ -145,6 +147,19 @@ function Write-MarkdownReport {
     $lines += "| --- | ---: |"
     foreach ($item in $Report.AutomationSuccessEvidence) {
         $lines += "| $(Convert-ToMarkdownCell $item.Scenario) | $($item.Line) |"
+    }
+    $lines += ""
+    $lines += "## Failure Evidence"
+    $lines += ""
+    if ($Report.FailureEvidence.Count -gt 0) {
+        $lines += "| Log line | Text |"
+        $lines += "| ---: | --- |"
+        foreach ($item in $Report.FailureEvidence) {
+            $lines += "| $($item.Line) | $(Convert-ToMarkdownCell $item.Text) |"
+        }
+    }
+    else {
+        $lines += "- No failure/error/fatal lines were found inside the selected automation run block."
     }
     $lines += ""
     $lines += "## Notes"
@@ -185,11 +200,50 @@ for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
     }
 }
 
+$requiredScenarios = @(
+    "InstancedBatchLoad",
+    "ProceduralHighDensityLoad",
+    "ProceduralPerformanceBudget"
+)
+
+$successEvidenceByScenario = @{}
+$testCompleteLine = 0
+$failureEvidence = @()
+for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
+    $lineNumber = $lineIndex + 1
+    if ($evidenceRunStartLine -gt 0 -and $lineNumber -lt $evidenceRunStartLine) {
+        continue
+    }
+
+    $line = $logLines[$lineIndex]
+    foreach ($scenario in $requiredScenarios) {
+        if ($line -match "Test Completed\. Result=\{Success\}.*Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}") {
+            $successEvidenceByScenario[$scenario] = [PSCustomObject]@{
+                Scenario = $scenario
+                Line = $lineNumber
+            }
+        }
+    }
+    if ($line -match "Result=\{Failed\}" -or $line -match "Error:" -or $line -match "Fatal") {
+        $failureEvidence += [PSCustomObject]@{
+            Line = $lineNumber
+            Text = $line.Trim()
+        }
+    }
+    if ($line -match "TEST COMPLETE\. EXIT CODE:\s*0") {
+        $testCompleteLine = $lineNumber
+        break
+    }
+}
+
 $metricsByScenario = @{}
 for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
     $lineNumber = $lineIndex + 1
     if ($evidenceRunStartLine -gt 0 -and $lineNumber -lt $evidenceRunStartLine) {
         continue
+    }
+    if ($testCompleteLine -gt 0 -and $lineNumber -gt $testCompleteLine) {
+        break
     }
 
     $match = [regex]::Match($logLines[$lineIndex], $pattern)
@@ -207,12 +261,6 @@ if ($metricsByScenario.Count -eq 0) {
     throw "No CSV preview telemetry entries were found in $LogPath. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first."
 }
 
-$requiredScenarios = @(
-    "InstancedBatchLoad",
-    "ProceduralHighDensityLoad",
-    "ProceduralPerformanceBudget"
-)
-
 $missingScenarios = @($requiredScenarios | Where-Object { -not $metricsByScenario.ContainsKey($_) })
 if ($missingScenarios.Count -gt 0) {
     throw "Missing CSV preview telemetry scenarios in ${LogPath}: $($missingScenarios -join ', ')"
@@ -220,31 +268,11 @@ if ($missingScenarios.Count -gt 0) {
 
 $metrics = @($requiredScenarios | ForEach-Object { $metricsByScenario[$_] })
 $proceduralBudget = $metricsByScenario["ProceduralPerformanceBudget"]
-$successEvidenceByScenario = @{}
-$testCompleteLine = 0
-for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
-    $lineNumber = $lineIndex + 1
-    if ($evidenceRunStartLine -gt 0 -and $lineNumber -lt $evidenceRunStartLine) {
-        continue
-    }
-
-    $line = $logLines[$lineIndex]
-    foreach ($scenario in $requiredScenarios) {
-        if ($line -match "Test Completed\. Result=\{Success\}.*Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}") {
-            $successEvidenceByScenario[$scenario] = [PSCustomObject]@{
-                Scenario = $scenario
-                Line = $lineNumber
-            }
-        }
-    }
-    if ($line -match "TEST COMPLETE\. EXIT CODE:\s*0") {
-        $testCompleteLine = $lineNumber
-    }
-}
 $automationSuccessEvidence = @($requiredScenarios | Where-Object { $successEvidenceByScenario.ContainsKey($_) } | ForEach-Object { $successEvidenceByScenario[$_] })
 $successfulTestCompletionCount = $automationSuccessEvidence.Count
 $testCompleteExitCodeZero = ($testCompleteLine -gt 0)
 $automationSuccessEvidencePresent = ($successfulTestCompletionCount -eq $requiredScenarios.Count) -and $testCompleteExitCodeZero
+$failureEvidencePresent = ($failureEvidence.Count -gt 0)
 $evidenceLinesWithinRun = ($evidenceRunStartLine -gt 0) -and ($testCompleteLine -gt $evidenceRunStartLine)
 foreach ($metric in $metrics) {
     $evidenceLinesWithinRun = $evidenceLinesWithinRun -and ($metric.EvidenceLine -gt $evidenceRunStartLine) -and ($metric.EvidenceLine -lt $testCompleteLine)
@@ -270,6 +298,9 @@ if ($failedInvariants.Count -gt 0) {
 if ($RequireAutomationSuccess -and -not $automationSuccessEvidencePresent) {
     throw "CSV preview performance report found telemetry, but automation success evidence was missing. SuccessCount=$successfulTestCompletionCount TestCompleteExitCodeZero=$testCompleteExitCodeZero"
 }
+if ($RequireAutomationSuccess -and $failureEvidencePresent) {
+    throw "CSV preview performance report found failure/error/fatal lines inside the selected automation run block. FailureLineCount=$($failureEvidence.Count)"
+}
 if ($RequireAutomationSuccess -and -not $evidenceLinesWithinRun) {
     throw "CSV preview performance report found telemetry and success lines, but they were not all inside the selected CSV preview automation run block. StartLine=$evidenceRunStartLine TestCompleteLine=$testCompleteLine"
 }
@@ -282,6 +313,7 @@ $report = [PSCustomObject]@{
     LogPath = $LogPath
     Metrics = $metrics
     AutomationSuccessEvidence = $automationSuccessEvidence
+    FailureEvidence = $failureEvidence
     Invariants = $invariants
     Summary = [PSCustomObject]@{
         RequiredScenariosPresent = ($missingScenarios.Count -eq 0)
@@ -292,6 +324,8 @@ $report = [PSCustomObject]@{
         AutomationSuccessEvidencePresent = [bool]$automationSuccessEvidencePresent
         SuccessfulTestCompletionCount = [int]$successfulTestCompletionCount
         TestCompleteExitCodeZero = [bool]$testCompleteExitCodeZero
+        FailureEvidencePresent = [bool]$failureEvidencePresent
+        FailureLineCount = [int]$failureEvidence.Count
         EvidenceRunStartLine = [int]$evidenceRunStartLine
         TestCompleteLine = [int]$testCompleteLine
         EvidenceLinesWithinRun = [bool]$evidenceLinesWithinRun
@@ -319,6 +353,8 @@ else {
     Write-Host "Automation success evidence present: $($report.Summary.AutomationSuccessEvidencePresent)"
     Write-Host "Successful test completion count: $($report.Summary.SuccessfulTestCompletionCount)"
     Write-Host "Test complete exit code zero: $($report.Summary.TestCompleteExitCodeZero)"
+    Write-Host "Failure evidence present: $($report.Summary.FailureEvidencePresent)"
+    Write-Host "Failure line count: $($report.Summary.FailureLineCount)"
     Write-Host "Evidence run start line: $($report.Summary.EvidenceRunStartLine)"
     Write-Host "Test complete line: $($report.Summary.TestCompleteLine)"
     Write-Host "Evidence lines within run: $($report.Summary.EvidenceLinesWithinRun)"

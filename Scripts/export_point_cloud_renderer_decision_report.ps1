@@ -102,6 +102,13 @@ function Get-CsvPreviewPerformanceEvidence {
         }
         $jsonText = $scriptOutput -join "`n"
         $report = $jsonText | ConvertFrom-Json
+        $metricsByScenario = @{}
+        foreach ($metric in @($report.Metrics)) {
+            $metricsByScenario[$metric.Scenario] = $metric
+        }
+        $instancedMetric = $metricsByScenario["InstancedBatchLoad"]
+        $proceduralDenseMetric = $metricsByScenario["ProceduralHighDensityLoad"]
+        $proceduralBudgetMetric = $metricsByScenario["ProceduralPerformanceBudget"]
         return [PSCustomObject]@{
             Present = [bool]$report.Summary.Valid
             LocalProjectRoot = $resolvedLocalRoot
@@ -110,10 +117,18 @@ function Get-CsvPreviewPerformanceEvidence {
             MaxAcceptedPoints = [int]$report.Summary.MaxAcceptedPoints
             MaxTotalLoadMs = [double]$report.Summary.MaxTotalLoadMs
             ProceduralPerformanceBudgetMs = [double]$report.Summary.ProceduralPerformanceBudgetMs
+            InstancedSmokeAcceptedPoints = if ($instancedMetric) { [int]$instancedMetric.AcceptedPoints } else { 0 }
+            InstancedSmokeRenderMode = if ($instancedMetric) { [string]$instancedMetric.RenderMode } else { "" }
+            ProceduralDenseAcceptedPoints = if ($proceduralDenseMetric) { [int]$proceduralDenseMetric.AcceptedPoints } else { 0 }
+            ProceduralDenseRenderMode = if ($proceduralDenseMetric) { [string]$proceduralDenseMetric.RenderMode } else { "" }
+            ProceduralBudgetAcceptedPoints = if ($proceduralBudgetMetric) { [int]$proceduralBudgetMetric.AcceptedPoints } else { 0 }
+            ProceduralBudgetRenderMode = if ($proceduralBudgetMetric) { [string]$proceduralBudgetMetric.RenderMode } else { "" }
             RequiredScenariosPresent = [bool]$report.Summary.RequiredScenariosPresent
             AutomationSuccessEvidencePresent = [bool]$report.Summary.AutomationSuccessEvidencePresent
             SuccessfulTestCompletionCount = [int]$report.Summary.SuccessfulTestCompletionCount
             TestCompleteExitCodeZero = [bool]$report.Summary.TestCompleteExitCodeZero
+            FailureEvidencePresent = [bool]$report.Summary.FailureEvidencePresent
+            FailureLineCount = [int]$report.Summary.FailureLineCount
             EvidenceRunStartLine = [int]$report.Summary.EvidenceRunStartLine
             TestCompleteLine = [int]$report.Summary.TestCompleteLine
             EvidenceLinesWithinRun = [bool]$report.Summary.EvidenceLinesWithinRun
@@ -170,24 +185,35 @@ function Write-MarkdownReport {
     $lines += "- PointCloudOnly clamps declared: $($Report.Summary.PointCloudOnlyClampDeclared)"
     $lines += "- Batched ISM upload declared: $($Report.Summary.BatchedInstanceUploadDeclared)"
     $lines += "- CSV performance evidence present: $($Report.Summary.CsvPerformanceEvidencePresent)"
-    $lines += "- CPU fallback performance evidence present: $($Report.Summary.CpuFallbackPerformanceEvidencePresent)"
+    $lines += "- CPU preview fallback evidence present: $($Report.Summary.CpuPreviewFallbackEvidencePresent)"
+    $lines += "- CPU ISM fallback smoke present: $($Report.Summary.CpuIsmFallbackSmokePresent)"
+    $lines += "- CPU procedural dense evidence present: $($Report.Summary.CpuProceduralDenseEvidencePresent)"
     $lines += "- CSV max accepted points: $($Report.Summary.CsvPreviewMaxAcceptedPoints)"
+    $lines += "- CSV failure evidence present: $($Report.Summary.CsvFailureEvidencePresent)"
     $lines += "- CSV evidence lines within run: $($Report.Summary.CsvEvidenceLinesWithinRun)"
     $lines += "- GPU renderer integrated: $($Report.Summary.GpuRendererIntegrated)"
+    $lines += "- Recommended first GPU candidate: $($Report.Summary.RecommendedFirstGpuCandidate)"
+    $lines += "- Renderer decision matrix declared: $($Report.Summary.RendererDecisionMatrixDeclared)"
     $lines += "- Recommended next decision: $($Report.Summary.RecommendedNextDecision)"
     $lines += ""
     $lines += "## Candidate Renderers"
     $lines += ""
-    $lines += "| Option | Runtime shape | Pros | Risks | Recommended decision |"
-    $lines += "| --- | --- | --- | --- | --- |"
+    $lines += "| Rank | Option | Runtime shape | Pros | Risks | Recommended decision | First GPU spike | Decision blockers |"
+    $lines += "| ---: | --- | --- | --- | --- | --- | --- | --- |"
     foreach ($option in $Report.CandidateRenderers) {
-        $lines += "| $(Convert-ToMarkdownCell $option.Option) | $(Convert-ToMarkdownCell $option.RuntimeShape) | $(Convert-ToMarkdownCell ($option.Pros -join '; ')) | $(Convert-ToMarkdownCell ($option.Risks -join '; ')) | $(Convert-ToMarkdownCell $option.RecommendedDecision) |"
+        $lines += "| $($option.Rank) | $(Convert-ToMarkdownCell $option.Option) | $(Convert-ToMarkdownCell $option.RuntimeShape) | $(Convert-ToMarkdownCell ($option.Pros -join '; ')) | $(Convert-ToMarkdownCell ($option.Risks -join '; ')) | $(Convert-ToMarkdownCell $option.RecommendedDecision) | $($option.FirstGpuSpikeCandidate) | $(Convert-ToMarkdownCell ($option.DecisionBlockers -join '; ')) |"
     }
     $lines += ""
     $lines += "## Acceptance Evidence Needed"
     $lines += ""
     foreach ($item in $Report.AcceptanceEvidenceNeeded) {
         $lines += "- $item"
+    }
+    $lines += ""
+    $lines += "## Decision Gates"
+    $lines += ""
+    foreach ($gate in $Report.DecisionGates) {
+        $lines += "- $($gate.Name): $($gate.Status) - $($gate.Evidence)"
     }
     $lines += ""
     $lines += "## CSV Preview Performance Evidence"
@@ -197,11 +223,16 @@ function Write-MarkdownReport {
         $lines += "- Log path: ``$($Report.CsvPreviewPerformanceEvidence.LogPath)``"
         $lines += "- Scenario count: $($Report.CsvPreviewPerformanceEvidence.ScenarioCount)"
         $lines += "- Max accepted points: $($Report.CsvPreviewPerformanceEvidence.MaxAcceptedPoints)"
+        $lines += "- Instanced smoke accepted points: $($Report.CsvPreviewPerformanceEvidence.InstancedSmokeAcceptedPoints)"
+        $lines += "- Procedural dense accepted points: $($Report.CsvPreviewPerformanceEvidence.ProceduralDenseAcceptedPoints)"
+        $lines += "- Procedural budget accepted points: $($Report.CsvPreviewPerformanceEvidence.ProceduralBudgetAcceptedPoints)"
         $lines += "- Max total load ms: $($Report.CsvPreviewPerformanceEvidence.MaxTotalLoadMs)"
         $lines += "- Procedural performance budget ms: $($Report.CsvPreviewPerformanceEvidence.ProceduralPerformanceBudgetMs)"
         $lines += "- Automation success evidence present: $($Report.CsvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent)"
         $lines += "- Successful test completion count: $($Report.CsvPreviewPerformanceEvidence.SuccessfulTestCompletionCount)"
         $lines += "- Test complete exit code zero: $($Report.CsvPreviewPerformanceEvidence.TestCompleteExitCodeZero)"
+        $lines += "- Failure evidence present: $($Report.CsvPreviewPerformanceEvidence.FailureEvidencePresent)"
+        $lines += "- Failure line count: $($Report.CsvPreviewPerformanceEvidence.FailureLineCount)"
         $lines += "- Evidence run start line: $($Report.CsvPreviewPerformanceEvidence.EvidenceRunStartLine)"
         $lines += "- Test complete line: $($Report.CsvPreviewPerformanceEvidence.TestCompleteLine)"
         $lines += "- Evidence lines within run: $($Report.CsvPreviewPerformanceEvidence.EvidenceLinesWithinRun)"
@@ -262,32 +293,44 @@ $gpuRendererIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern "UNiagaraCo
 
 $candidateRenderers = @(
     [PSCustomObject]@{
+        Rank = 2
         Option = "Keep CPU ISM fallback"
         RuntimeShape = "Use current `UInstancedStaticMeshComponent` preview with stride/max caps and batched `AddInstances`."
         Pros = @("Already compiles", "Simple editor fallback", "Works without plugin decisions")
         Risks = @("Still CPU/update-bound for very dense scans", "Full refresh can stall on very large frames")
         RecommendedDecision = "Keep as fallback even after a GPU renderer is added"
+        FirstGpuSpikeCandidate = $false
+        DecisionBlockers = @("Not enough for final dense interactive preview by itself")
     },
     [PSCustomObject]@{
+        Rank = 1
         Option = "Niagara point renderer"
         RuntimeShape = "Feed downsampled or full point buffers into a Niagara system for point sprites."
         Pros = @("UE-native GPU visualization path", "Good fit for interactive editor preview", "Can support color/semantic attributes")
         Risks = @("Requires Niagara asset and data-interface design", "Needs screenshot/pixel smoke testing", "Packaging/settings ownership")
         RecommendedDecision = "Preferred first GPU renderer candidate"
+        FirstGpuSpikeCandidate = $true
+        DecisionBlockers = @("Niagara asset ownership", "Data interface/buffer design", "Desktop and viewport smoke evidence")
     },
     [PSCustomObject]@{
+        Rank = 3
         Option = "Custom GPU buffer renderer"
         RuntimeShape = "Upload point data to render buffers and draw points with a custom component or render proxy."
         Pros = @("Highest control", "Best ceiling for dense scans", "Can avoid Niagara asset coupling")
         Risks = @("More engine-level code", "Higher maintenance", "Requires deeper render-thread testing")
         RecommendedDecision = "Use only if Niagara cannot meet density or attribute requirements"
+        FirstGpuSpikeCandidate = $false
+        DecisionBlockers = @("Render-thread implementation ownership", "Longer validation loop", "Packaged build risk")
     },
     [PSCustomObject]@{
+        Rank = 4
         Option = "External viewer workflow"
         RuntimeShape = "Keep Unreal preview downsampled and inspect dense clouds through exported LAS/PCD/JSONL in a dedicated viewer."
         Pros = @("Lowest Unreal runtime risk", "Good for offline QA", "Avoids editor stalls")
         Risks = @("Not an in-editor dense view", "Extra workflow step", "Harder for operator dashboards")
         RecommendedDecision = "Use for archival/debug workflows, not as the main operator preview"
+        FirstGpuSpikeCandidate = $false
+        DecisionBlockers = @("Does not satisfy in-editor/operator dense preview requirement")
     }
 )
 
@@ -301,11 +344,59 @@ $acceptanceEvidence = @(
 )
 
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$cpuIsmFallbackSmokePresent = $csvPreviewPerformanceEvidence.Present -and
+    ($csvPreviewPerformanceEvidence.InstancedSmokeRenderMode -eq "InstancedMesh") -and
+    ($csvPreviewPerformanceEvidence.InstancedSmokeAcceptedPoints -ge 128) -and
+    $csvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent -and
+    $csvPreviewPerformanceEvidence.EvidenceLinesWithinRun -and
+    (-not $csvPreviewPerformanceEvidence.FailureEvidencePresent)
+$cpuProceduralDenseEvidencePresent = $csvPreviewPerformanceEvidence.Present -and
+    ($csvPreviewPerformanceEvidence.ProceduralDenseRenderMode -eq "ProceduralMesh") -and
+    ($csvPreviewPerformanceEvidence.ProceduralDenseAcceptedPoints -ge 120000) -and
+    ($csvPreviewPerformanceEvidence.ProceduralBudgetRenderMode -eq "ProceduralMesh") -and
+    ($csvPreviewPerformanceEvidence.ProceduralBudgetAcceptedPoints -ge 250000) -and
+    $csvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent -and
+    $csvPreviewPerformanceEvidence.EvidenceLinesWithinRun -and
+    (-not $csvPreviewPerformanceEvidence.FailureEvidencePresent)
+$cpuPreviewFallbackEvidencePresent = $cpuIsmFallbackSmokePresent -and $cpuProceduralDenseEvidencePresent
 $cpuFallbackPerformanceEvidencePresent = $csvPreviewPerformanceEvidence.Present -and
     $csvPreviewPerformanceEvidence.RequiredScenariosPresent -and
     $csvPreviewPerformanceEvidence.AutomationSuccessEvidencePresent -and
     $csvPreviewPerformanceEvidence.EvidenceLinesWithinRun -and
+    (-not $csvPreviewPerformanceEvidence.FailureEvidencePresent) -and
     ($csvPreviewPerformanceEvidence.MaxAcceptedPoints -ge 250000)
+$decisionGates = @(
+    [PSCustomObject]@{
+        Name = "CPU preview fallback evidence"
+        Status = if ($cpuPreviewFallbackEvidencePresent) { "Ready" } else { "Missing" }
+        Evidence = "Requires same-run CSV telemetry, automation success, no failure lines, ISM smoke, and procedural dense evidence."
+    },
+    [PSCustomObject]@{
+        Name = "CPU ISM fallback smoke"
+        Status = if ($cpuIsmFallbackSmokePresent) { "Ready" } else { "Missing" }
+        Evidence = "Requires the InstancedBatchLoad scenario to use InstancedMesh with at least 128 accepted points."
+    },
+    [PSCustomObject]@{
+        Name = "CPU procedural dense evidence"
+        Status = if ($cpuProceduralDenseEvidencePresent) { "Ready" } else { "Missing" }
+        Evidence = "Requires ProceduralMesh dense scenarios with at least 120000 and 250000 accepted points."
+    },
+    [PSCustomObject]@{
+        Name = "First GPU spike selection"
+        Status = "NiagaraRecommended"
+        Evidence = "Niagara is ranked first because it is UE-native and lower risk than custom render-thread work."
+    },
+    [PSCustomObject]@{
+        Name = "GPU implementation"
+        Status = if ($gpuRendererIntegrated) { "Integrated" } else { "Open" }
+        Evidence = "Requires Niagara or custom GPU renderer code/assets plus viewport smoke evidence."
+    },
+    [PSCustomObject]@{
+        Name = "Fallback preservation"
+        Status = "Required"
+        Evidence = "CPU ISM fallback must remain available after any GPU renderer is added."
+    }
+)
 $report = [PSCustomObject]@{
     GeneratedUtc = $generatedUtc
     ProjectRoot = $ProjectRoot
@@ -323,6 +414,7 @@ $report = [PSCustomObject]@{
     CsvPreviewPerformanceEvidence = $csvPreviewPerformanceEvidence
     CandidateRenderers = $candidateRenderers
     AcceptanceEvidenceNeeded = $acceptanceEvidence
+    DecisionGates = $decisionGates
     Summary = [PSCustomObject]@{
         ServerPreviewSplitDocumented = $serverPreviewSplitDocumented
         PreviewCapsDeclared = $previewCapsDeclared
@@ -331,20 +423,28 @@ $report = [PSCustomObject]@{
         AutomationCoverageDeclared = $automationCoverageDeclared
         CsvPerformanceEvidencePresent = [bool]$csvPreviewPerformanceEvidence.Present
         CpuFallbackPerformanceEvidencePresent = [bool]$cpuFallbackPerformanceEvidencePresent
+        CpuPreviewFallbackEvidencePresent = [bool]$cpuPreviewFallbackEvidencePresent
+        CpuIsmFallbackSmokePresent = [bool]$cpuIsmFallbackSmokePresent
+        CpuProceduralDenseEvidencePresent = [bool]$cpuProceduralDenseEvidencePresent
         CsvPreviewMaxAcceptedPoints = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.MaxAcceptedPoints } else { 0 }
+        CsvFailureEvidencePresent = if ($csvPreviewPerformanceEvidence.Present) { [bool]$csvPreviewPerformanceEvidence.FailureEvidencePresent } else { $false }
+        CsvFailureLineCount = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.FailureLineCount } else { 0 }
         CsvEvidenceLinesWithinRun = if ($csvPreviewPerformanceEvidence.Present) { [bool]$csvPreviewPerformanceEvidence.EvidenceLinesWithinRun } else { $false }
         CsvEvidenceRunStartLine = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.EvidenceRunStartLine } else { 0 }
         CsvEvidenceTestCompleteLine = if ($csvPreviewPerformanceEvidence.Present) { [int]$csvPreviewPerformanceEvidence.TestCompleteLine } else { 0 }
         GpuRendererIntegrated = $gpuRendererIntegrated
+        RendererDecisionMatrixDeclared = $true
+        RecommendedFirstGpuCandidate = "Niagara point renderer"
+        DecisionGateCount = $decisionGates.Count
         CandidateRendererCount = $candidateRenderers.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
-        RecommendedNextDecision = "Choose Niagara, CustomGpuBuffer, or ExternalViewer workflow while keeping CPU ISM as fallback."
-        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and -not $gpuRendererIntegrated -and (-not $RequireCsvPerformanceEvidence -or $cpuFallbackPerformanceEvidencePresent))
+        RecommendedNextDecision = "Start with a Niagara point-renderer spike, preserve CPU ISM fallback, then collect desktop/viewport smoke and dense-frame evidence."
+        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and -not $gpuRendererIntegrated -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
     }
 }
 
 if (-not $report.Summary.Valid) {
-    throw "Point cloud renderer decision report invariants failed. ServerPreviewSplit=$serverPreviewSplitDocumented PreviewCaps=$previewCapsDeclared PointCloudOnlyClamp=$pointCloudOnlyClampDeclared BatchedUpload=$batchedInstanceUploadDeclared Automation=$automationCoverageDeclared CsvPerfEvidence=$cpuFallbackPerformanceEvidencePresent GpuIntegrated=$gpuRendererIntegrated"
+    throw "Point cloud renderer decision report invariants failed. ServerPreviewSplit=$serverPreviewSplitDocumented PreviewCaps=$previewCapsDeclared PointCloudOnlyClamp=$pointCloudOnlyClampDeclared BatchedUpload=$batchedInstanceUploadDeclared Automation=$automationCoverageDeclared CpuPreviewFallbackEvidence=$cpuPreviewFallbackEvidencePresent GpuIntegrated=$gpuRendererIntegrated"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($JsonPath)) {
@@ -364,8 +464,12 @@ else {
     Write-Host "Acceptance evidence items: $($report.Summary.AcceptanceEvidenceCount)"
     Write-Host "Batched instance upload: $($report.Summary.BatchedInstanceUploadDeclared)"
     Write-Host "CSV performance evidence present: $($report.Summary.CsvPerformanceEvidencePresent)"
-    Write-Host "CPU fallback performance evidence present: $($report.Summary.CpuFallbackPerformanceEvidencePresent)"
+    Write-Host "CPU preview fallback evidence present: $($report.Summary.CpuPreviewFallbackEvidencePresent)"
+    Write-Host "CPU ISM fallback smoke present: $($report.Summary.CpuIsmFallbackSmokePresent)"
+    Write-Host "CPU procedural dense evidence present: $($report.Summary.CpuProceduralDenseEvidencePresent)"
     Write-Host "CSV max accepted points: $($report.Summary.CsvPreviewMaxAcceptedPoints)"
     Write-Host "GPU renderer integrated: $($report.Summary.GpuRendererIntegrated)"
+    Write-Host "Recommended first GPU candidate: $($report.Summary.RecommendedFirstGpuCandidate)"
+    Write-Host "Decision gates: $($report.Summary.DecisionGateCount)"
     Write-Host "Recommended next decision: $($report.Summary.RecommendedNextDecision)"
 }

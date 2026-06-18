@@ -114,9 +114,19 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Custom GPU buffer renderer"; Label = "Renderer report includes custom GPU path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "External viewer workflow"; Label = "Renderer report includes external viewer path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "Keep CPU ISM fallback"; Label = "Renderer report keeps CPU fallback" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RecommendedFirstGpuCandidate"; Label = "Renderer report declares first GPU candidate" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "NiagaraRecommended"; Label = "Renderer report recommends Niagara for first GPU spike" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RendererDecisionMatrixDeclared"; Label = "Renderer report declares decision matrix" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "DecisionGates"; Label = "Renderer report exports decision gates" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "FirstGpuSpikeCandidate"; Label = "Renderer report marks first GPU spike candidate" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "DecisionBlockers"; Label = "Renderer report tracks candidate blockers" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "Renderer report can require local CSV preview performance evidence" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = '[string]$LogPath'; Label = "Renderer report accepts an explicit automation log path" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "Renderer report summarizes CPU fallback performance evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuPreviewFallbackEvidencePresent"; Label = "Renderer report separates total CPU preview fallback evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuIsmFallbackSmokePresent"; Label = "Renderer report separates ISM smoke evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuProceduralDenseEvidencePresent"; Label = "Renderer report separates procedural dense evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvFailureEvidencePresent"; Label = "Renderer report consumes CSV failure evidence gate" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceRunStartLine"; Label = "Renderer report forwards CSV evidence run line number" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "TestCompleteLine"; Label = "Renderer report forwards automation completion line number" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceLinesWithinRun"; Label = "Renderer report requires CSV evidence inside the selected run block" },
@@ -130,6 +140,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "EvidenceRunStartLine"; Label = "CSV preview performance report records evidence run line number" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "TestCompleteLine"; Label = "CSV preview performance report records completion line number" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "EvidenceLinesWithinRun"; Label = "CSV preview performance report verifies evidence lines are inside the selected run block" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "FailureEvidencePresent"; Label = "CSV preview performance report detects failure evidence inside the selected run block" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "FailureLineCount"; Label = "CSV preview performance report counts failure evidence lines" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "break"; Label = "CSV preview performance report stops at the selected run completion" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = 'Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}'; Label = "CSV preview performance report matches scenario-specific success lines" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "M7AT10.Sensor.CsvPointCloudPreview"; Label = "CSV evidence workflow runs the dedicated preview automation group" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = '[string]$LogPath'; Label = "CSV evidence workflow accepts an explicit automation log path" },
@@ -165,12 +178,16 @@ $report = [PSCustomObject]@{
         PointCloudOnlyClampDeclared = $true
         BatchedInstanceUploadDeclared = $true
         RendererDecisionReportDeclared = $true
+        RendererDecisionMatrixDeclared = $true
+        RendererFirstGpuCandidateDeclared = $true
         ProceduralCsvPreviewCoverageDeclared = $true
         ProceduralCsvPreviewTelemetryDeclared = $true
         CsvPreviewPerformanceReportDeclared = $true
         RendererDecisionConsumesCsvPerformanceEvidence = $true
+        RendererDecisionSplitsCpuEvidence = $true
         CsvPreviewPerformanceEvidenceWorkflowDeclared = $true
         CsvPreviewEvidenceLineTrackingDeclared = $true
+        CsvPreviewFailureEvidenceGateDeclared = $true
         RendererDecisionExplicitLogPathDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
@@ -189,12 +206,16 @@ else {
     Write-Host "PointCloudOnly clamps declared: $($report.Summary.PointCloudOnlyClampDeclared)"
     Write-Host "Batched instance upload declared: $($report.Summary.BatchedInstanceUploadDeclared)"
     Write-Host "Renderer decision report declared: $($report.Summary.RendererDecisionReportDeclared)"
+    Write-Host "Renderer decision matrix declared: $($report.Summary.RendererDecisionMatrixDeclared)"
+    Write-Host "Renderer first GPU candidate declared: $($report.Summary.RendererFirstGpuCandidateDeclared)"
     Write-Host "Procedural CSV preview coverage declared: $($report.Summary.ProceduralCsvPreviewCoverageDeclared)"
     Write-Host "Procedural CSV preview telemetry declared: $($report.Summary.ProceduralCsvPreviewTelemetryDeclared)"
     Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"
     Write-Host "Renderer decision consumes CSV performance evidence: $($report.Summary.RendererDecisionConsumesCsvPerformanceEvidence)"
+    Write-Host "Renderer decision splits CPU evidence: $($report.Summary.RendererDecisionSplitsCpuEvidence)"
     Write-Host "CSV preview performance evidence workflow declared: $($report.Summary.CsvPreviewPerformanceEvidenceWorkflowDeclared)"
     Write-Host "CSV preview evidence line tracking declared: $($report.Summary.CsvPreviewEvidenceLineTrackingDeclared)"
+    Write-Host "CSV preview failure evidence gate declared: $($report.Summary.CsvPreviewFailureEvidenceGateDeclared)"
     Write-Host "Renderer decision explicit log path declared: $($report.Summary.RendererDecisionExplicitLogPathDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }
