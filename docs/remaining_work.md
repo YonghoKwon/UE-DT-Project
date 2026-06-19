@@ -538,6 +538,10 @@ Current state:
   120,000-point procedural, and 250,000-point procedural budget scenarios.
   This gives the CPU fallback path repeatable dense-frame evidence before the
   GPU/Niagara renderer decision is made.
+- `Scripts/report_precommit_summary.ps1 -IncludeReadiness` now surfaces the
+  renderer decision/readiness boundary directly, including `RendererPhase`,
+  `GpuViewportSmokeEvidencePresent`, `GpuFallbackPreservationEvidencePresent`,
+  `GpuDenseFrameEvidencePresent`, and `ReadyToClaimGpuDensePreview`.
 
 Next implementation steps:
 
@@ -578,6 +582,8 @@ Completion evidence:
   renderer identity, dense-frame no-stall observation, and fallback toggle
   observation; otherwise `RendererPhase` remains
   `GpuIntegratedEvidencePending`.
+- Pre-commit renderer boundary appears:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -IncludeReadiness`.
 - End-to-end local CPU fallback evidence workflow passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild`.
 - Static readiness passes:

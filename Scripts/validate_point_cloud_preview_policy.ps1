@@ -71,10 +71,12 @@ $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $rendererDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
 $csvPreviewPerformanceReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
 $csvPreviewEvidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\run_csv_preview_performance_evidence.ps1"
+$precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 
 Assert-FileExists -Path $rendererDecisionReportScript -Label "Point cloud renderer decision report script"
 Assert-FileExists -Path $csvPreviewPerformanceReportScript -Label "CSV preview performance report script"
 Assert-FileExists -Path $csvPreviewEvidenceWorkflowScript -Label "CSV preview performance evidence workflow script"
+Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ServerPayloadStride"; Label = "Server payload stride policy" },
@@ -165,7 +167,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = '[string]$LogPath'; Label = "CSV evidence workflow accepts an explicit automation log path" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "CSV evidence workflow requires renderer decision evidence" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireAutomationSuccess"; Label = "CSV evidence workflow requires automation success evidence" },
-    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "CSV evidence workflow verifies CPU fallback evidence" }
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "CpuFallbackPerformanceEvidencePresent"; Label = "CSV evidence workflow verifies CPU fallback evidence" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "Get-PointCloudRendererDecisionSummary"; Label = "Pre-commit summary includes renderer decision summary helper" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Pre-commit summary consumes renderer decision report" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "RendererPhase"; Label = "Pre-commit summary surfaces renderer phase" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuViewportSmokeEvidencePresent"; Label = "Pre-commit summary surfaces GPU viewport smoke evidence" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuFallbackPreservationEvidencePresent"; Label = "Pre-commit summary surfaces fallback preservation evidence" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuDenseFrameEvidencePresent"; Label = "Pre-commit summary surfaces dense-frame evidence" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimGpuDensePreview"; Label = "Pre-commit summary avoids claiming GPU dense preview too early" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -210,6 +219,7 @@ $report = [PSCustomObject]@{
         CsvPreviewEvidenceLineTrackingDeclared = $true
         CsvPreviewFailureEvidenceGateDeclared = $true
         RendererDecisionExplicitLogPathDeclared = $true
+        PrecommitRendererSummaryDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
     }
@@ -242,5 +252,6 @@ else {
     Write-Host "CSV preview evidence line tracking declared: $($report.Summary.CsvPreviewEvidenceLineTrackingDeclared)"
     Write-Host "CSV preview failure evidence gate declared: $($report.Summary.CsvPreviewFailureEvidenceGateDeclared)"
     Write-Host "Renderer decision explicit log path declared: $($report.Summary.RendererDecisionExplicitLogPathDeclared)"
+    Write-Host "Pre-commit renderer summary declared: $($report.Summary.PrecommitRendererSummaryDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

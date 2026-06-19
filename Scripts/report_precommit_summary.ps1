@@ -223,6 +223,52 @@ function Get-LazExportDecisionSummary {
     }
 }
 
+function Get-PointCloudRendererDecisionSummary {
+    param([string]$ProjectRoot)
+
+    $rendererDecisionReportScript = Join-Path $script:PSScriptRoot "export_point_cloud_renderer_decision_report.ps1"
+    if (-not (Test-Path -LiteralPath $rendererDecisionReportScript -PathType Leaf)) {
+        return $null
+    }
+
+    $jsonText = & powershell -ExecutionPolicy Bypass -File $rendererDecisionReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Point cloud renderer decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $rendererReport = $jsonText | ConvertFrom-Json
+    $candidateRenderers = @($rendererReport.CandidateRenderers | Select-Object -ExpandProperty Option)
+    $gpuMissingFields = @($rendererReport.Summary.GpuViewportSmokeMissingEvidenceFields)
+
+    return [PSCustomObject]@{
+        RendererPhase = [string]$rendererReport.Summary.RendererPhase
+        GpuRendererIntegrated = [bool]$rendererReport.Summary.GpuRendererIntegrated
+        RecommendedFirstGpuCandidate = [string]$rendererReport.Summary.RecommendedFirstGpuCandidate
+        CpuPreviewFallbackEvidencePresent = [bool]$rendererReport.Summary.CpuPreviewFallbackEvidencePresent
+        CpuFallbackPerformanceEvidencePresent = [bool]$rendererReport.Summary.CpuFallbackPerformanceEvidencePresent
+        CpuIsmFallbackSmokePresent = [bool]$rendererReport.Summary.CpuIsmFallbackSmokePresent
+        CpuProceduralDenseEvidencePresent = [bool]$rendererReport.Summary.CpuProceduralDenseEvidencePresent
+        CsvPerformanceEvidencePresent = [bool]$rendererReport.Summary.CsvPerformanceEvidencePresent
+        CsvEvidenceLinesWithinRun = [bool]$rendererReport.Summary.CsvEvidenceLinesWithinRun
+        CsvFailureEvidencePresent = [bool]$rendererReport.Summary.CsvFailureEvidencePresent
+        CsvPreviewMaxAcceptedPoints = [int64]$rendererReport.Summary.CsvPreviewMaxAcceptedPoints
+        GpuViewportSmokeEvidencePresent = [bool]$rendererReport.Summary.GpuViewportSmokeEvidencePresent
+        GpuViewportSmokeMissingEvidenceFieldCount = [int]$rendererReport.Summary.GpuViewportSmokeMissingEvidenceFieldCount
+        GpuViewportSmokeMissingEvidenceFields = $gpuMissingFields
+        GpuFallbackPreservationEvidencePresent = [bool]$rendererReport.Summary.GpuFallbackPreservationEvidencePresent
+        GpuDenseFrameEvidencePresent = [bool]$rendererReport.Summary.GpuDenseFrameEvidencePresent
+        GpuSpikeActionPlanDeclared = [bool]$rendererReport.Summary.GpuSpikeActionPlanDeclared
+        GpuSpikeActionPlanItemCount = [int]$rendererReport.Summary.GpuSpikeActionPlanItemCount
+        CandidateRendererCount = [int]$rendererReport.Summary.CandidateRendererCount
+        CandidateRenderers = $candidateRenderers
+        DecisionGateCount = [int]$rendererReport.Summary.DecisionGateCount
+        AcceptanceEvidenceCount = [int]$rendererReport.Summary.AcceptanceEvidenceCount
+        RecommendedNextDecision = [string]$rendererReport.Summary.RecommendedNextDecision
+        ReadyToClaimGpuDensePreview = ([bool]$rendererReport.Summary.GpuRendererIntegrated -and [bool]$rendererReport.Summary.GpuViewportSmokeEvidencePresent -and [bool]$rendererReport.Summary.GpuFallbackPreservationEvidencePresent -and [bool]$rendererReport.Summary.GpuDenseFrameEvidencePresent)
+        Boundary = "Do not claim dense GPU/Niagara preview readiness until the GPU path exists and viewport, fallback-preservation, and dense-frame evidence are recorded."
+    }
+}
+
 function Get-ReadinessSummary {
     param(
         [string]$ProjectRoot,
@@ -366,8 +412,8 @@ $workAreas = @(
         -Remaining "Actual SDK/ROS2/Livox/RealSense connections, completed deployment STOMP/WebSocket broker PIE smoke evidence using the required evidence schema, HTTP/UDP deployment exposure and credential decisions, final production adapter owner approval, and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
-        -Percent 69 `
-        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, exportable CSV preview performance evidence from Unreal automation logs, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows. The renderer decision report consumes local CSV preview performance evidence, separates ISM smoke from procedural dense evidence, rejects failure lines inside the selected automation run block, records decision gates, recommends a Niagara point-renderer spike while preserving CPU preview fallback, and now exports GPU spike action-plan, renderer phase, viewport smoke, fallback-preservation, and dense-frame evidence gates for the future GPU/Niagara path." `
+        -Percent 70 `
+        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, exportable CSV preview performance evidence from Unreal automation logs, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows. The renderer decision report consumes local CSV preview performance evidence, separates ISM smoke from procedural dense evidence, rejects failure lines inside the selected automation run block, records decision gates, recommends a Niagara point-renderer spike while preserving CPU preview fallback, exports GPU spike action-plan, renderer phase, viewport smoke, fallback-preservation, and dense-frame evidence gates, and is now surfaced in the pre-commit summary as a renderer decision/readiness boundary." `
         -Remaining "Niagara spike implementation, actual viewport screenshot/nonblank pixel evidence, renderer-specific dense-frame performance validation, fallback-preservation verification after GPU integration, and final GPU asset/module ownership remain."),
     (New-WorkArea `
         -Name "LAZ export" `
@@ -387,6 +433,7 @@ $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
+$pointCloudRendererDecisionSummary = Get-PointCloudRendererDecisionSummary -ProjectRoot $SourceRepoRoot
 $readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
 
 $report = [PSCustomObject]@{
@@ -404,6 +451,7 @@ $report = [PSCustomObject]@{
     LargeContentDecisionSummary = $largeContentDecisionSummary
     WbpDecisionSummary = $wbpDecisionSummary
     LazExportDecisionSummary = $lazExportDecisionSummary
+    PointCloudRendererDecisionSummary = $pointCloudRendererDecisionSummary
     ReadinessSummary = $readinessSummary
 }
 
@@ -525,6 +573,29 @@ if ($lazExportDecisionSummary) {
     Write-Host "Recommended next decision: $($lazExportDecisionSummary.RecommendedNextDecision)"
     Write-Host "Recommended next action: $($lazExportDecisionSummary.RecommendedNextAction)"
     Write-Host "Boundary: $($lazExportDecisionSummary.StagingBoundary)"
+}
+
+if ($pointCloudRendererDecisionSummary) {
+    Write-Section "Point cloud renderer decision"
+    Write-Host "Renderer phase: $($pointCloudRendererDecisionSummary.RendererPhase)"
+    Write-Host "GPU renderer integrated: $($pointCloudRendererDecisionSummary.GpuRendererIntegrated)"
+    Write-Host "Recommended first GPU candidate: $($pointCloudRendererDecisionSummary.RecommendedFirstGpuCandidate)"
+    Write-Host "CPU preview fallback evidence present: $($pointCloudRendererDecisionSummary.CpuPreviewFallbackEvidencePresent)"
+    Write-Host "CPU fallback performance evidence present: $($pointCloudRendererDecisionSummary.CpuFallbackPerformanceEvidencePresent)"
+    Write-Host "CPU ISM fallback smoke present: $($pointCloudRendererDecisionSummary.CpuIsmFallbackSmokePresent)"
+    Write-Host "CPU procedural dense evidence present: $($pointCloudRendererDecisionSummary.CpuProceduralDenseEvidencePresent)"
+    Write-Host "CSV performance evidence present: $($pointCloudRendererDecisionSummary.CsvPerformanceEvidencePresent)"
+    Write-Host "CSV evidence lines within run: $($pointCloudRendererDecisionSummary.CsvEvidenceLinesWithinRun)"
+    Write-Host "CSV failure evidence present: $($pointCloudRendererDecisionSummary.CsvFailureEvidencePresent)"
+    Write-Host "CSV preview max accepted points: $($pointCloudRendererDecisionSummary.CsvPreviewMaxAcceptedPoints)"
+    Write-Host "GPU viewport smoke evidence present: $($pointCloudRendererDecisionSummary.GpuViewportSmokeEvidencePresent)"
+    Write-Host "GPU viewport smoke missing fields: $($pointCloudRendererDecisionSummary.GpuViewportSmokeMissingEvidenceFieldCount)"
+    Write-Host "GPU fallback preservation evidence present: $($pointCloudRendererDecisionSummary.GpuFallbackPreservationEvidencePresent)"
+    Write-Host "GPU dense-frame evidence present: $($pointCloudRendererDecisionSummary.GpuDenseFrameEvidencePresent)"
+    Write-Host "Ready to claim GPU dense preview: $($pointCloudRendererDecisionSummary.ReadyToClaimGpuDensePreview)"
+    Write-Host "Candidate renderers: $(@($pointCloudRendererDecisionSummary.CandidateRenderers) -join ', ')"
+    Write-Host "Recommended next decision: $($pointCloudRendererDecisionSummary.RecommendedNextDecision)"
+    Write-Host "Boundary: $($pointCloudRendererDecisionSummary.Boundary)"
 }
 
 if ($readinessSummary) {
