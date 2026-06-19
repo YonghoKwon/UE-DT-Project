@@ -339,6 +339,10 @@ Current state:
   `HttpDeploymentSmoke`, `UdpDeploymentSmoke`, `SdkRos2Evidence`,
   `LivoxEvidence`, `RealSenseEvidence`, `CredentialRedaction`, and
   `OwnerAcceptance` evidence are resolved for the selected deployment path.
+  The draft now also includes `DeploymentPathEvidenceSections` for
+  `ReplayBaseline`, `HttpJsonLive`, `WebSocketDTCore`, `UdpJsonLive`,
+  `Ros2Bridge`, `LivoxSdk`, and `RealSenseSdk`, so selected-path acceptance and
+  not-selected SDK/bridge acceptance are tracked separately.
   Brokerless DTCore dispatch, sample validation, and commandlet dry runs remain
   pre-deployment evidence; they do not replace real STOMP/WebSocket broker PIE
   smoke or SDK hardware evidence.
@@ -382,6 +386,10 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
 - Deployment evidence package exports without touching broker/SDK/config:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+- Deployment package summary should report seven deployment path sections,
+  `SelectedDeploymentPathCount = 0`, and
+  `CurrentReadyToClaimRealSensorDeployment = false` until deployment-owner
+  evidence is filled.
 - Deployment evidence validation reports missing evidence without touching
   broker/SDK/config:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -Json`.

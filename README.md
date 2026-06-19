@@ -348,6 +348,11 @@ files for adapter readiness, WebSocket sample/registration, broker-smoke draft,
 deployment evidence draft/validation, and follow-up evidence. It does not
 connect to external brokers or SDKs, does not write endpoint/credential values,
 and does not modify assets or stage files.
+The evidence draft separates deployment-path sections for replay, HTTP JSON
+live, DTCore WebSocket, UDP JSON live, ROS2, Livox, and RealSense. A path section
+is review metadata only; local loopback checks and placeholder SDK components
+do not prove production real-sensor deployment until the selected path has live
+smoke evidence and owner acceptance.
 
 LAZ compression acceptance package:
 

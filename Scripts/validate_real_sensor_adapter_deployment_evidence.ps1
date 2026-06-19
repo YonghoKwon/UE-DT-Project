@@ -107,7 +107,17 @@ if ($evidenceFilePresent) {
 }
 
 $metadata = if ($evidence -and $evidence.PSObject.Properties.Name -contains "DeploymentMetadata") { $evidence.DeploymentMetadata } else { $null }
+$deploymentPathSections = if ($evidence -and $evidence.PSObject.Properties.Name -contains "DeploymentPathEvidenceSections") { $evidence.DeploymentPathEvidenceSections } else { $null }
 $requiredEvidence = if ($evidence -and $evidence.PSObject.Properties.Name -contains "RequiredEvidence") { @($evidence.RequiredEvidence) } else { @() }
+$requiredDeploymentPathNames = @(
+    "ReplayBaseline",
+    "HttpJsonLive",
+    "WebSocketDTCore",
+    "UdpJsonLive",
+    "Ros2Bridge",
+    "LivoxSdk",
+    "RealSenseSdk"
+)
 $requiredNames = @(
     "SelectedDeploymentPath",
     "BrokerPieSmoke",
@@ -125,6 +135,22 @@ $checks = [System.Collections.Generic.List[object]]::new()
 Add-Check -Checks $checks -Name "Evidence file present" -Passed $evidenceFilePresent -Detail $EvidencePath
 Add-Check -Checks $checks -Name "Schema version is RealSensorAdapterDeploymentEvidenceV1" -Passed ($evidence -and [string]$evidence.SchemaVersion -eq "RealSensorAdapterDeploymentEvidenceV1") -Detail "SchemaVersion=$($evidence.SchemaVersion)"
 Add-Check -Checks $checks -Name "Deployment metadata present" -Passed ($null -ne $metadata) -Detail "DeploymentMetadata"
+Add-Check -Checks $checks -Name "Deployment path evidence sections present" -Passed ($null -ne $deploymentPathSections) -Detail "DeploymentPathEvidenceSections"
+
+$selectedDeploymentPathCount = 0
+if ($deploymentPathSections) {
+    foreach ($deploymentPathName in $requiredDeploymentPathNames) {
+        $sectionPresent = ($deploymentPathSections.PSObject.Properties.Name -contains $deploymentPathName)
+        Add-Check -Checks $checks -Name "$deploymentPathName deployment path section present" -Passed $sectionPresent -Detail $deploymentPathName
+        if ($sectionPresent) {
+            $section = $deploymentPathSections.$deploymentPathName
+            if ([bool]$section.Selected) {
+                $selectedDeploymentPathCount++
+            }
+            Add-Check -Checks $checks -Name "$deploymentPathName does not claim production deployment" -Passed (-not [bool]$section.ReadyToClaimProductionDeployment) -Detail "ReadyToClaimProductionDeployment=$($section.ReadyToClaimProductionDeployment)"
+        }
+    }
+}
 
 if ($metadata) {
     foreach ($field in @("EvidenceRunId", "EnvironmentName", "Operator", "MapName", "PieOrSessionId", "SelectedInputPath", "LogPath", "SecretScanResultPath", "OwnerHeldEndpointReference", "RedactionNotes")) {
@@ -182,6 +208,9 @@ $report = [PSCustomObject]@{
     Summary = [PSCustomObject]@{
         EvidenceFilePresent = [bool]$evidenceFilePresent
         RequiredEvidenceCount = $requiredNames.Count
+        DeploymentPathSectionCount = if ($deploymentPathSections) { [int]@($deploymentPathSections.PSObject.Properties).Count } else { 0 }
+        RequiredDeploymentPathSectionCount = $requiredDeploymentPathNames.Count
+        SelectedDeploymentPathCount = [int]$selectedDeploymentPathCount
         PassedCheckCount = [int]($checks.Count - $failedChecks.Count)
         FailedCheckCount = [int]$failedChecks.Count
         SensitivePatternHitCount = [int]$sensitiveHits.Count

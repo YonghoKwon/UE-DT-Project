@@ -495,6 +495,38 @@ function Get-JudgingServerAcceptanceSummary {
     }
 }
 
+function Get-RealSensorDeploymentSummary {
+    param([string]$ProjectRoot)
+
+    $deploymentTemplateScript = Join-Path $script:PSScriptRoot "export_real_sensor_adapter_deployment_template.ps1"
+    if (-not (Test-Path -LiteralPath $deploymentTemplateScript -PathType Leaf)) {
+        return $null
+    }
+
+    $templateJson = & powershell -ExecutionPolicy Bypass -File $deploymentTemplateScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Real sensor deployment template failed with exit code $LASTEXITCODE"
+    }
+    $template = $templateJson | ConvertFrom-Json
+
+    return [PSCustomObject]@{
+        DeploymentEvidenceTemplateAvailable = $true
+        RequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
+        PendingEvidenceCount = [int]$template.Summary.PendingEvidenceCount
+        DeploymentPathSectionCount = [int]$template.Summary.DeploymentPathSectionCount
+        DeploymentPathSections = @($template.Summary.DeploymentPathSections)
+        SelectedDeploymentPathCount = [int]$template.Summary.SelectedDeploymentPathCount
+        ReadyToClaimRealSensorDeployment = [bool]$template.Summary.ReadyToClaimRealSensorDeployment
+        ConnectsToExternalEndpoint = [bool]$template.Summary.ConnectsToExternalEndpoint
+        RunsSdkHardware = [bool]$template.Summary.RunsSdkHardware
+        DoesNotConnectToBroker = [bool]$template.Summary.DoesNotConnectToBroker
+        DoesNotConnectToSdk = [bool]$template.Summary.DoesNotConnectToSdk
+        WritesEndpointValues = [bool]$template.Summary.WritesEndpointValues
+        WritesCredentialValues = [bool]$template.Summary.WritesCredentialValues
+        Boundary = "Real sensor deployment remains unclaimed until one selected production path has live smoke, handoff, redaction, judging-server, and owner-acceptance evidence."
+    }
+}
+
 function Get-LazExportDecisionSummary {
     param([string]$ProjectRoot)
 
@@ -770,8 +802,8 @@ $workAreas = @(
         -Remaining "Manual WBP editor-open/binding/PIE acceptance evidence file completion, optional execution of unused-content archive after map/WBP/reference checks with an explicit outside-project archive root, PixelStreaming project ownership/license/documentation-alternative acceptance, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
-        -Percent 83 `
-        -Done "ROS2/Livox/RealSense placeholders, normalized frame handoff path, replay samples, LiDAR JSON live bridge component, camera JSON live bridge component, generic live JSON payload bridge helper, optional HTTP and UDP JSON live bridge components, HTTP payload automation, local HTTP loopback POST smoke automation, local UDP datagram smoke automation, DTCore WebSocket transaction handler, safe routing guards, WebSocket live sample payload, editor sample/push helpers, transaction routing automation, static adapter-plan validation, exportable WebSocket transaction registration checklist, optional data-table registration evidence automation, editor-only row repair commandlet, DT_TransactionCode row pass evidence, row-based handler parse/process evidence, broker smoke evidence report tooling, WebSocket LiDAR smoke evidence workflow wrapper, brokerless DTCore dispatch automation, opt-in brokerless workflow execution, hardened camera JSON live payload validation with transport/recorder evidence, expanded malformed camera schema rejection coverage, and a consolidated real-sensor adapter readiness report are in place. The readiness report ranks deployment paths and exports RequiredEvidence, DeploymentBlockers, NextAction, and DeploymentActionPlan entries for replay, HTTP, WebSocket, UDP, and SDK routes. A real-sensor adapter deployment package exporter now writes a local Saved/Reports bundle with readiness, adapter-plan validation, WebSocket sample validation, transaction registration, broker-smoke draft, manual steps, and follow-up commands while explicitly avoiding external broker/SDK connections, asset edits, git staging, endpoint values, and credential values. Broker smoke reporting now requires concrete evidence fields such as run id, map/PIE session, log path, before/after frame counts, target point count, cached payload bytes or hash, broker client command, operator, and notes before marking the smoke complete. The deployment package now also creates a fillable RealSensorAdapterDeploymentEvidenceV1 evidence draft plus a validator that keeps real deployment readiness false until selected path, network/credential policy, live-frame smoke, transport/SDK smoke, judging-server handoff, secret scan, and owner acceptance evidence are recorded." `
+        -Percent 84 `
+        -Done "ROS2/Livox/RealSense placeholders, normalized frame handoff path, replay samples, LiDAR JSON live bridge component, camera JSON live bridge component, generic live JSON payload bridge helper, optional HTTP and UDP JSON live bridge components, HTTP payload automation, local HTTP loopback POST smoke automation, local UDP datagram smoke automation, DTCore WebSocket transaction handler, safe routing guards, WebSocket live sample payload, editor sample/push helpers, transaction routing automation, static adapter-plan validation, exportable WebSocket transaction registration checklist, optional data-table registration evidence automation, editor-only row repair commandlet, DT_TransactionCode row pass evidence, row-based handler parse/process evidence, broker smoke evidence report tooling, WebSocket LiDAR smoke evidence workflow wrapper, brokerless DTCore dispatch automation, opt-in brokerless workflow execution, hardened camera JSON live payload validation with transport/recorder evidence, expanded malformed camera schema rejection coverage, and a consolidated real-sensor adapter readiness report are in place. The readiness report ranks deployment paths and exports RequiredEvidence, DeploymentBlockers, NextAction, and DeploymentActionPlan entries for replay, HTTP, WebSocket, UDP, and SDK routes. A real-sensor adapter deployment package exporter now writes a local Saved/Reports bundle with readiness, adapter-plan validation, WebSocket sample validation, transaction registration, broker-smoke draft, manual steps, and follow-up commands while explicitly avoiding external broker/SDK connections, asset edits, git staging, endpoint values, and credential values. Broker smoke reporting now requires concrete evidence fields such as run id, map/PIE session, log path, before/after frame counts, target point count, cached payload bytes or hash, broker client command, operator, and notes before marking the smoke complete. The deployment package now also creates a fillable RealSensorAdapterDeploymentEvidenceV1 evidence draft plus a validator that keeps real deployment readiness false until selected path, network/credential policy, live-frame smoke, transport/SDK smoke, judging-server handoff, secret scan, and owner acceptance evidence are recorded. The evidence draft now includes DeploymentPathEvidenceSections for replay, HTTP JSON live, DTCore WebSocket, UDP JSON live, ROS2, Livox, and RealSense so the selected production path and not-selected paths are reviewed separately without treating local loopback or placeholder SDK components as real deployment acceptance." `
         -Remaining "Actual SDK/ROS2/Livox/RealSense connections, completed deployment STOMP/WebSocket broker PIE smoke evidence using the required evidence schema, HTTP/UDP deployment exposure and credential decisions, final production adapter owner approval, and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
@@ -800,6 +832,7 @@ $wbpPreflightSummary = Get-WbpPreflightSummary -ProjectRoot $ProjectRoot -Source
 $wbpAcceptanceEvidenceSummary = Get-WbpAcceptanceEvidenceSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $runtimeConfigDecisionSummary = Get-RuntimeConfigDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $judgingServerAcceptanceSummary = Get-JudgingServerAcceptanceSummary -ProjectRoot $SourceRepoRoot
+$realSensorDeploymentSummary = Get-RealSensorDeploymentSummary -ProjectRoot $SourceRepoRoot
 $lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
 $pointCloudRendererDecisionSummary = Get-PointCloudRendererDecisionSummary -ProjectRoot $SourceRepoRoot
 $readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
@@ -823,6 +856,7 @@ $report = [PSCustomObject]@{
     WbpAcceptanceEvidenceSummary = $wbpAcceptanceEvidenceSummary
     RuntimeConfigDecisionSummary = $runtimeConfigDecisionSummary
     JudgingServerAcceptanceSummary = $judgingServerAcceptanceSummary
+    RealSensorDeploymentSummary = $realSensorDeploymentSummary
     LazExportDecisionSummary = $lazExportDecisionSummary
     PointCloudRendererDecisionSummary = $pointCloudRendererDecisionSummary
     ReadinessSummary = $readinessSummary
@@ -1083,6 +1117,24 @@ if ($judgingServerAcceptanceSummary) {
     Write-Host "Ready to claim real server acceptance: $($judgingServerAcceptanceSummary.CurrentReadyToClaimRealServerAcceptance)"
     Write-Host "Recommended next action: $($judgingServerAcceptanceSummary.RecommendedNextAction)"
     Write-Host "Boundary: $($judgingServerAcceptanceSummary.Boundary)"
+}
+
+if ($realSensorDeploymentSummary) {
+    Write-Section "Real sensor deployment evidence"
+    Write-Host "Deployment evidence template available: $($realSensorDeploymentSummary.DeploymentEvidenceTemplateAvailable)"
+    Write-Host "Required evidence count: $($realSensorDeploymentSummary.RequiredEvidenceCount)"
+    Write-Host "Pending evidence count: $($realSensorDeploymentSummary.PendingEvidenceCount)"
+    Write-Host "Deployment path section count: $($realSensorDeploymentSummary.DeploymentPathSectionCount)"
+    Write-Host "Deployment path sections: $(@($realSensorDeploymentSummary.DeploymentPathSections) -join ', ')"
+    Write-Host "Selected deployment path count: $($realSensorDeploymentSummary.SelectedDeploymentPathCount)"
+    Write-Host "Ready to claim real sensor deployment: $($realSensorDeploymentSummary.ReadyToClaimRealSensorDeployment)"
+    Write-Host "Connects to external endpoint: $($realSensorDeploymentSummary.ConnectsToExternalEndpoint)"
+    Write-Host "Runs SDK hardware: $($realSensorDeploymentSummary.RunsSdkHardware)"
+    Write-Host "Does not connect to broker: $($realSensorDeploymentSummary.DoesNotConnectToBroker)"
+    Write-Host "Does not connect to SDK: $($realSensorDeploymentSummary.DoesNotConnectToSdk)"
+    Write-Host "Writes endpoint values: $($realSensorDeploymentSummary.WritesEndpointValues)"
+    Write-Host "Writes credential values: $($realSensorDeploymentSummary.WritesCredentialValues)"
+    Write-Host "Boundary: $($realSensorDeploymentSummary.Boundary)"
 }
 
 if ($lazExportDecisionSummary) {

@@ -219,6 +219,9 @@ $manifest = [PSCustomObject]@{
         DeploymentEvidenceFilePresent = [bool]$validation.Summary.EvidenceFilePresent
         DeploymentEvidenceComplete = [bool]$validation.Summary.Complete
         DeploymentEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
+        DeploymentPathSectionCount = [int]$template.Summary.DeploymentPathSectionCount
+        RequiredDeploymentPathSections = @($template.Summary.DeploymentPathSections)
+        SelectedDeploymentPathCount = [int]$template.Summary.SelectedDeploymentPathCount
         CurrentReadyToClaimRealSensorDeployment = [bool]$validation.Summary.CurrentReadyToClaimRealSensorDeployment
         ReadyToClaimRealSensorDeployment = [bool]$validation.Summary.ReadyToClaimRealSensorDeployment
         BrokerPieSmokeEvidencePresent = [bool]$validation.Summary.BrokerPieSmokeEvidencePresent
@@ -256,6 +259,9 @@ $lines.Add("- Real SDK integration still required: $($manifest.Summary.RealSdkIn
 $lines.Add("- Deployment evidence template created: $($manifest.Summary.DeploymentEvidenceTemplateCreated)") | Out-Null
 $lines.Add("- Deployment evidence complete: $($manifest.Summary.DeploymentEvidenceComplete)") | Out-Null
 $lines.Add("- Deployment evidence missing checks: $($manifest.Summary.DeploymentEvidenceMissingCount)") | Out-Null
+$lines.Add("- Deployment path sections: $($manifest.Summary.RequiredDeploymentPathSections -join ', ')") | Out-Null
+$lines.Add("- Deployment path section count: $($manifest.Summary.DeploymentPathSectionCount)") | Out-Null
+$lines.Add("- Selected deployment path count: $($manifest.Summary.SelectedDeploymentPathCount)") | Out-Null
 $lines.Add("- Ready to claim real sensor deployment: $($manifest.Summary.CurrentReadyToClaimRealSensorDeployment)") | Out-Null
 $lines.Add("- Broker PIE smoke evidence present: $($manifest.Summary.BrokerPieSmokeEvidencePresent)") | Out-Null
 $lines.Add("- SDK hardware evidence present: $($manifest.Summary.SdkHardwareEvidencePresent)") | Out-Null

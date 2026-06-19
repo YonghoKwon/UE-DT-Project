@@ -48,6 +48,9 @@ function Write-MarkdownTemplate {
     $lines += "## Summary"
     $lines += ""
     $lines += "- Required evidence count: $($Template.Summary.RequiredEvidenceCount)"
+    $lines += "- Deployment path section count: $($Template.Summary.DeploymentPathSectionCount)"
+    $lines += "- Deployment path sections: $($Template.Summary.DeploymentPathSections -join ', ')"
+    $lines += "- Selected deployment path count: $($Template.Summary.SelectedDeploymentPathCount)"
     $lines += "- Pending evidence count: $($Template.Summary.PendingEvidenceCount)"
     $lines += "- Current ready to claim deployment: $($Template.Summary.ReadyToClaimRealSensorDeployment)"
     $lines += "- Connects to external endpoint: $($Template.Summary.ConnectsToExternalEndpoint)"
@@ -70,6 +73,15 @@ function Write-MarkdownTemplate {
     $lines += "- SDK smoke report path:"
     $lines += "- Log path:"
     $lines += "- Secret scan result path:"
+    $lines += ""
+    $lines += "## Deployment Path Evidence Sections"
+    $lines += ""
+    $lines += "| Path | Selected | Purpose | Required evidence | Ready to claim production deployment |"
+    $lines += "| --- | --- | --- | --- | --- |"
+    foreach ($section in $Template.DeploymentPathEvidenceSections.PSObject.Properties) {
+        $required = @($section.Value.RequiredEvidence) -join "; "
+        $lines += "| $($section.Name) | $($section.Value.Selected) | $($section.Value.Purpose) | $required | $($section.Value.ReadyToClaimProductionDeployment) |"
+    }
     $lines += ""
     $lines += "## Required Evidence"
     $lines += ""
@@ -104,6 +116,51 @@ $requiredEvidence = @(
     (New-EvidenceItem -Name "OwnerAcceptance" -RequiredEvidence "Deployment owner accepts the selected path and records reviewer/date/source evidence.")
 )
 
+$deploymentPathSections = [PSCustomObject]@{
+    ReplayBaseline = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Use saved CSV/JSONL frames as the baseline normalized-frame and payload-contract path."
+        RequiredEvidence = @("Replay fixture path", "Target LiDAR/camera handoff observation", "Saved payload or recorder output", "Judging-server handoff evidence when used for acceptance")
+        ReadyToClaimProductionDeployment = $false
+    }
+    HttpJsonLive = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Receive normalized JSON frames through the DT-Project HTTP bridge."
+        RequiredEvidence = @("Endpoint ownership reference without raw URL", "Bind/firewall/auth policy", "Live POST smoke evidence", "Rate and payload-size policy", "Judging-server handoff evidence")
+        ReadyToClaimProductionDeployment = $false
+    }
+    WebSocketDTCore = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Route deployment broker frames through DTCore WebSocket transaction handling into DT-Project live source components."
+        RequiredEvidence = @("Broker ownership reference without raw URL/topic", "DT_TransactionCode row evidence", "Deployment broker PIE smoke", "Source frame before/after counts", "Target point count and cached payload evidence")
+        ReadyToClaimProductionDeployment = $false
+    }
+    UdpJsonLive = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Receive normalized JSON datagrams through the DT-Project UDP bridge."
+        RequiredEvidence = @("Bind/port ownership reference", "Packet size/loss policy", "Datagram smoke evidence", "Rate/backpressure policy", "Judging-server handoff evidence")
+        ReadyToClaimProductionDeployment = $false
+    }
+    Ros2Bridge = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Normalize ROS2 topic messages into the shared LiDAR/camera handoff path."
+        RequiredEvidence = @("Topic/message schema", "Bridge command", "Timestamp/calibration policy", "Real-frame smoke evidence", "Owner acceptance or not-selected acceptance")
+        ReadyToClaimProductionDeployment = $false
+    }
+    LivoxSdk = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Normalize Livox SDK packet streams into FVirtualLidarPoint frames."
+        RequiredEvidence = @("SDK/device version", "Packet normalization mapping", "Calibration/timestamp policy", "Real-frame smoke evidence", "Owner acceptance or not-selected acceptance")
+        ReadyToClaimProductionDeployment = $false
+    }
+    RealSenseSdk = [PSCustomObject]@{
+        Selected = $false
+        Purpose = "Normalize RealSense camera/depth frames into the virtual camera or LiDAR-compatible payload path."
+        RequiredEvidence = @("SDK/device version", "Camera/depth schema", "Calibration/timestamp policy", "Real-frame smoke evidence", "Owner acceptance or not-selected acceptance")
+        ReadyToClaimProductionDeployment = $false
+    }
+}
+$deploymentPathNames = @($deploymentPathSections.PSObject.Properties | Select-Object -ExpandProperty Name)
 $pendingEvidence = @($requiredEvidence | Where-Object { $_.Status -ne "Recorded" })
 $template = [PSCustomObject]@{
     SchemaVersion = "RealSensorAdapterDeploymentEvidenceV1"
@@ -128,10 +185,14 @@ $template = [PSCustomObject]@{
         BrokerlessDTCoreDispatch = "Brokerless/sample/commandlet evidence is useful pre-deployment evidence, but it is not deployment broker PIE smoke."
         SampleValidation = "Static sample validation is not a substitute for external endpoint or hardware evidence."
     }
+    DeploymentPathEvidenceSections = $deploymentPathSections
     RequiredEvidence = $requiredEvidence
     SafetyBoundary = "This template records deployment evidence only. It does not connect to brokers or SDKs, does not modify assets, does not stage files, and must not contain endpoint or credential values."
     Summary = [PSCustomObject]@{
         RequiredEvidenceCount = $requiredEvidence.Count
+        DeploymentPathSectionCount = $deploymentPathNames.Count
+        DeploymentPathSections = $deploymentPathNames
+        SelectedDeploymentPathCount = 0
         PendingEvidenceCount = $pendingEvidence.Count
         ReadyToClaimRealSensorDeployment = $false
         ConnectsToExternalEndpoint = $false
