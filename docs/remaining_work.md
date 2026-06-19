@@ -658,6 +658,10 @@ Current state:
 - `Scripts/validate_monitor_widget_policy.ps1` checks that optional bindings,
   native fallback, local WBP decision guards, setup docs, and monitor automation
   names remain in sync before the binary WBP is committed.
+- `Scripts/validate_monitor_wbp_acceptance_evidence.ps1` now provides a
+  read-only acceptance-evidence gate for the local WBP. It keeps missing
+  evidence as an incomplete report by default and only fails the command when
+  `-FailOnIncompleteEvidence` is explicitly requested.
 
 Next implementation steps:
 
@@ -666,6 +670,9 @@ Next implementation steps:
   server payload export, and slab analysis text.
 - Export the focused WBP decision report with `-EvidencePath` after filling
   editor-open, optional-binding, PIE-smoke, and production-acceptance evidence.
+- Run the WBP acceptance evidence validator against the filled evidence file and
+  confirm `ReadyToStageCandidate=true` before considering the binary asset for
+  repository staging.
 - Commit the WBP only after manual editor verification.
 
 Completion evidence:
@@ -680,6 +687,8 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"`.
 - Focused WBP evidence gate passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
+- WBP acceptance evidence validator passes:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
 - WBP acceptance template exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json`.
 

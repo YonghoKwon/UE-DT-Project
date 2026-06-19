@@ -305,6 +305,49 @@ function Get-WbpPreflightSummary {
     }
 }
 
+function Get-WbpAcceptanceEvidenceSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $wbpEvidenceValidatorScript = Join-Path $script:PSScriptRoot "validate_monitor_wbp_acceptance_evidence.ps1"
+    if (-not (Test-Path -LiteralPath $wbpEvidenceValidatorScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $wbpEvidenceValidatorScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Monitor WBP acceptance evidence validator failed with exit code $LASTEXITCODE"
+    }
+
+    $evidenceReport = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        EvidenceFilePresent = [bool]$evidenceReport.Summary.EvidenceFilePresent
+        EvidenceRecordPresent = [bool]$evidenceReport.Summary.EvidenceRecordPresent
+        RequiredEvidenceCount = [int]$evidenceReport.Summary.RequiredEvidenceCount
+        PassedCheckCount = [int]$evidenceReport.Summary.PassedCheckCount
+        FailedCheckCount = [int]$evidenceReport.Summary.FailedCheckCount
+        ReadyToStageCandidate = [bool]$evidenceReport.Summary.ReadyToStageCandidate
+        WbpStaged = [bool]$evidenceReport.Summary.WbpStaged
+        DecisionReportReadyToStage = [bool]$evidenceReport.Summary.DecisionReportReadyToStage
+        DryRunOnly = [bool]$evidenceReport.Summary.DryRunOnly
+        ModifiesAssets = [bool]$evidenceReport.Summary.ModifiesAssets
+        StagesWbp = [bool]$evidenceReport.Summary.StagesWbp
+        Boundary = [string]$evidenceReport.Summary.Boundary
+    }
+}
+
 function Get-RuntimeConfigDecisionSummary {
     param(
         [string]$ProjectRoot,
@@ -635,9 +678,9 @@ $workAreas = @(
         -Remaining "Judging server approval, completed acceptance template evidence, real server accepted/rejected response evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 91 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. A separate unused-content archive tool now previews optional local folder moves to an explicit archive root outside the project, requires reference-check confirmation for execution, and never deletes files, stages git changes, or modifies Unreal assets. The pre-commit summary now consumes the large-content cleanup plan, archive tool preview, large-content decision report, and monitor-WBP decision report, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, archive safety status, sample/third-party candidate count/size, WBP Git/evidence state, missing WBP acceptance items, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
-        -Remaining "Manual WBP editor-open/binding/PIE acceptance, optional execution of unused-content archive after map/WBP/reference checks with an explicit outside-project archive root, PixelStreaming project ownership/license/documentation-alternative acceptance, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
+        -Percent 92 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. A separate unused-content archive tool now previews optional local folder moves to an explicit archive root outside the project, requires reference-check confirmation for execution, and never deletes files, stages git changes, or modifies Unreal assets. The pre-commit summary now consumes the large-content cleanup plan, archive tool preview, large-content decision report, monitor-WBP decision report, monitor-WBP preflight report, and monitor-WBP acceptance evidence validator, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, archive safety status, sample/third-party candidate count/size, WBP Git/evidence state, missing WBP acceptance items, WBP preflight readiness, WBP evidence validation completeness, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The dedicated WBP acceptance evidence validator checks the accepted evidence file, SHA256 asset hash, editor-open evidence, optional binding crash safety, PIE smoke evidence, and production owner acceptance without modifying assets or staging the binary WBP. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
+        -Remaining "Manual WBP editor-open/binding/PIE acceptance evidence file completion, optional execution of unused-content archive after map/WBP/reference checks with an explicit outside-project archive root, PixelStreaming project ownership/license/documentation-alternative acceptance, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
         -Percent 81 `
@@ -666,6 +709,7 @@ $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $wbpPreflightSummary = Get-WbpPreflightSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$wbpAcceptanceEvidenceSummary = Get-WbpAcceptanceEvidenceSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $runtimeConfigDecisionSummary = Get-RuntimeConfigDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $judgingServerAcceptanceSummary = Get-JudgingServerAcceptanceSummary -ProjectRoot $SourceRepoRoot
 $lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
@@ -687,6 +731,7 @@ $report = [PSCustomObject]@{
     LargeContentDecisionSummary = $largeContentDecisionSummary
     WbpDecisionSummary = $wbpDecisionSummary
     WbpPreflightSummary = $wbpPreflightSummary
+    WbpAcceptanceEvidenceSummary = $wbpAcceptanceEvidenceSummary
     RuntimeConfigDecisionSummary = $runtimeConfigDecisionSummary
     JudgingServerAcceptanceSummary = $judgingServerAcceptanceSummary
     LazExportDecisionSummary = $lazExportDecisionSummary
@@ -855,6 +900,22 @@ if ($wbpPreflightSummary) {
     Write-Host "Modifies assets: $($wbpPreflightSummary.ModifiesAssets)"
     Write-Host "Stages WBP: $($wbpPreflightSummary.StagesWbp)"
     Write-Host "Boundary: $($wbpPreflightSummary.Boundary)"
+}
+
+if ($wbpAcceptanceEvidenceSummary) {
+    Write-Section "Monitor WBP acceptance evidence"
+    Write-Host "Evidence file present: $($wbpAcceptanceEvidenceSummary.EvidenceFilePresent)"
+    Write-Host "Evidence record present: $($wbpAcceptanceEvidenceSummary.EvidenceRecordPresent)"
+    Write-Host "Required evidence count: $($wbpAcceptanceEvidenceSummary.RequiredEvidenceCount)"
+    Write-Host "Passed checks: $($wbpAcceptanceEvidenceSummary.PassedCheckCount)"
+    Write-Host "Failed checks: $($wbpAcceptanceEvidenceSummary.FailedCheckCount)"
+    Write-Host "Ready to stage candidate: $($wbpAcceptanceEvidenceSummary.ReadyToStageCandidate)"
+    Write-Host "WBP staged: $($wbpAcceptanceEvidenceSummary.WbpStaged)"
+    Write-Host "Decision report ready to stage: $($wbpAcceptanceEvidenceSummary.DecisionReportReadyToStage)"
+    Write-Host "Dry run only: $($wbpAcceptanceEvidenceSummary.DryRunOnly)"
+    Write-Host "Modifies assets: $($wbpAcceptanceEvidenceSummary.ModifiesAssets)"
+    Write-Host "Stages WBP: $($wbpAcceptanceEvidenceSummary.StagesWbp)"
+    Write-Host "Boundary: $($wbpAcceptanceEvidenceSummary.Boundary)"
 }
 
 if ($runtimeConfigDecisionSummary) {

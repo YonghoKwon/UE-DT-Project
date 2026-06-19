@@ -1,0 +1,324 @@
+param(
+    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$SourceRepoRoot = "",
+    [string]$EvidencePath = "",
+    [switch]$FailOnIncompleteEvidence,
+    [switch]$Json
+)
+
+$ErrorActionPreference = "Stop"
+
+function Invoke-JsonScript {
+    param(
+        [string]$ScriptPath,
+        [hashtable]$Parameters
+    )
+
+    if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) {
+        throw "Required script not found: $ScriptPath"
+    }
+
+    $output = @(& powershell -ExecutionPolicy Bypass -File $ScriptPath @Parameters -Json)
+    if ($LASTEXITCODE -ne 0) {
+        throw "$ScriptPath failed with exit code ${LASTEXITCODE}: $($output -join ' ')"
+    }
+    return ($output -join "`n") | ConvertFrom-Json
+}
+
+function Test-NonEmptyString {
+    param([object]$Value)
+    return -not [string]::IsNullOrWhiteSpace([string]$Value)
+}
+
+function Test-CompletedStatus {
+    param([object]$Value)
+
+    $status = [string]$Value
+    return @("Complete", "Recorded", "Passed", "Accepted") -contains $status
+}
+
+function Normalize-ProjectPath {
+    param([object]$Value)
+
+    return ([string]$Value).Replace("/", "\").TrimStart(".\")
+}
+
+function Resolve-EvidencePath {
+    param(
+        [object]$Value,
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    if (-not (Test-NonEmptyString $Value)) {
+        return ""
+    }
+
+    $pathText = [string]$Value
+    if ([System.IO.Path]::IsPathRooted($pathText)) {
+        return $pathText
+    }
+
+    $projectCandidate = Join-Path $ProjectRoot $pathText
+    if (Test-Path -LiteralPath $projectCandidate -PathType Leaf) {
+        return $projectCandidate
+    }
+    return (Join-Path $SourceRepoRoot $pathText)
+}
+
+function Test-EvidenceFilePath {
+    param(
+        [object]$Value,
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $candidate = Resolve-EvidencePath -Value $Value -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+    return ((Test-NonEmptyString $candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf))
+}
+
+function Get-EvidenceItem {
+    param(
+        [object[]]$Items,
+        [string]$Name
+    )
+
+    return @($Items | Where-Object { [string]$_.Name -eq $Name } | Select-Object -First 1)
+}
+
+function Add-Check {
+    param(
+        [System.Collections.Generic.List[object]]$Checks,
+        [string]$Name,
+        [bool]$Passed,
+        [string]$Detail
+    )
+
+    $Checks.Add([PSCustomObject]@{
+        Name = $Name
+        Passed = $Passed
+        Detail = $Detail
+    }) | Out-Null
+}
+
+if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+    throw "ProjectRoot not found: $ProjectRoot"
+}
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if ([string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+    $SourceRepoRoot = Split-Path -Parent $PSScriptRoot
+}
+if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
+    throw "SourceRepoRoot not found: $SourceRepoRoot"
+}
+$SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
+
+if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
+    $EvidencePath = Join-Path $SourceRepoRoot "docs\local_asset_decisions.evidence.json"
+}
+
+$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpPath = Join-Path $ProjectRoot $wbpRelativePath
+$preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
+$decisionScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"
+
+$preflight = Invoke-JsonScript -ScriptPath $preflightScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+}
+$decision = Invoke-JsonScript -ScriptPath $decisionScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+    EvidencePath = $EvidencePath
+}
+
+$evidenceFilePresent = Test-Path -LiteralPath $EvidencePath -PathType Leaf
+$rawEvidence = $null
+if ($evidenceFilePresent) {
+    $rawEvidence = Get-Content -LiteralPath $EvidencePath -Raw | ConvertFrom-Json
+}
+
+$evidenceRecord = $null
+if ($rawEvidence) {
+    if ($rawEvidence.PSObject.Properties.Name -contains "Decisions") {
+        $evidenceRecord = @($rawEvidence.Decisions | Where-Object { (Normalize-ProjectPath $_.Path) -eq $wbpRelativePath } | Select-Object -First 1)
+    }
+    elseif ($rawEvidence.PSObject.Properties.Name -contains "Path" -and (Normalize-ProjectPath $rawEvidence.Path) -eq $wbpRelativePath) {
+        $evidenceRecord = $rawEvidence
+    }
+    elseif ($rawEvidence.PSObject.Properties.Name -contains "LocalAssetDecisionEvidenceDraft" -and (Normalize-ProjectPath $rawEvidence.LocalAssetDecisionEvidenceDraft.Path) -eq $wbpRelativePath) {
+        $evidenceRecord = $rawEvidence.LocalAssetDecisionEvidenceDraft
+    }
+}
+
+$templateEvidenceItems = @()
+if ($rawEvidence -and $rawEvidence.PSObject.Properties.Name -contains "RequiredEvidence") {
+    $templateEvidenceItems = @($rawEvidence.RequiredEvidence)
+}
+$decisionEvidenceItems = if ($evidenceRecord -and $evidenceRecord.PSObject.Properties.Name -contains "Evidence") { @($evidenceRecord.Evidence) } else { @() }
+
+$requiredNames = @(
+    "Editor open verification",
+    "Optional binding check",
+    "PIE smoke result",
+    "Production WBP acceptance"
+)
+$requiredOptionalBindings = @(
+    "SensorModeToggleButton",
+    "CaptureOnceButton",
+    "ExportCurrentFrameButton",
+    "PointCloudOnlyToggle",
+    "PreviewStrideSpinBox",
+    "MaxPreviewPointsSpinBox",
+    "PreviewHitOnlyButton",
+    "LidarViewModeComboBox",
+    "SensorStatusText",
+    "CameraPreviewImage"
+)
+$acceptedPieStatuses = @("Passed", "Accepted", "UnavailableAccepted", "ExplicitlyUnavailable")
+
+$checks = [System.Collections.Generic.List[object]]::new()
+Add-Check -Checks $checks -Name "Evidence file present" -Passed $evidenceFilePresent -Detail $EvidencePath
+Add-Check -Checks $checks -Name "WBP asset present" -Passed (Test-Path -LiteralPath $wbpPath -PathType Leaf) -Detail $wbpPath
+Add-Check -Checks $checks -Name "Evidence record exists" -Passed ($null -ne $evidenceRecord) -Detail $wbpRelativePath
+Add-Check -Checks $checks -Name "Asset hash algorithm is SHA256" -Passed ($evidenceFilePresent -and (
+        [string]$rawEvidence.AssetHashAlgorithm -eq "SHA256" -or
+        [string]$rawEvidence.LocalAssetDecisionEvidenceDraft.AssetHashAlgorithm -eq "SHA256"
+    )) -Detail "AssetHashAlgorithm"
+Add-Check -Checks $checks -Name "WBP asset hash matches" -Passed ($evidenceFilePresent -and (Test-NonEmptyString $preflight.Summary.AssetHash) -and (
+        [string]$rawEvidence.AssetHash -eq [string]$preflight.Summary.AssetHash -or
+        [string]$rawEvidence.LocalAssetDecisionEvidenceDraft.AssetHash -eq [string]$preflight.Summary.AssetHash
+    )) -Detail "CurrentHash=$($preflight.Summary.AssetHash)"
+Add-Check -Checks $checks -Name "Decision accepted for repository" -Passed ($evidenceRecord -and [string]$evidenceRecord.DecisionStatus -eq "AcceptedForRepository") -Detail $(if ($evidenceRecord) { [string]$evidenceRecord.DecisionStatus } else { "" })
+Add-Check -Checks $checks -Name "Accepted metadata complete" -Passed ($evidenceRecord -and (Test-NonEmptyString $evidenceRecord.AcceptedBy) -and (Test-NonEmptyString $evidenceRecord.AcceptedAt) -and (Test-NonEmptyString $evidenceRecord.EvidenceSource)) -Detail "AcceptedBy/AcceptedAt/EvidenceSource"
+
+foreach ($requiredName in $requiredNames) {
+    $decisionItem = Get-EvidenceItem -Items $decisionEvidenceItems -Name $requiredName
+    $templateItem = Get-EvidenceItem -Items $templateEvidenceItems -Name $requiredName
+    $decisionComplete = ($decisionItem.Count -gt 0 -and (Test-CompletedStatus $decisionItem[0].Status) -and (Test-NonEmptyString $decisionItem[0].Source))
+    $templateComplete = ($templateItem.Count -gt 0 -and (Test-CompletedStatus $templateItem[0].Status))
+    Add-Check -Checks $checks -Name "$requiredName complete" -Passed ($decisionComplete -or $templateComplete) -Detail "DecisionEvidence=$decisionComplete TemplateEvidence=$templateComplete"
+}
+
+foreach ($templateItem in $templateEvidenceItems) {
+    Add-Check -Checks $checks -Name "$($templateItem.Name) common evidence metadata" -Passed (
+        (Test-NonEmptyString $templateItem.EvidenceRunId) -and
+        ((Test-NonEmptyString $templateItem.Operator) -or (Test-NonEmptyString $templateItem.AcceptedBy)) -and
+        ((Test-NonEmptyString $templateItem.VerifiedAt) -or (Test-NonEmptyString $templateItem.AcceptedAt)) -and
+        (Test-NonEmptyString $templateItem.Notes)
+    ) -Detail "EvidenceRunId plus operator/accepted-by plus verified/accepted-at plus notes"
+}
+
+$editorEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "Editor open verification"
+if ($editorEvidence.Count -gt 0) {
+    $editor = $editorEvidence[0]
+    Add-Check -Checks $checks -Name "Editor log or screenshot path exists" -Passed (
+        (Test-EvidenceFilePath -Value $editor.EditorLogPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot) -or
+        (Test-EvidenceFilePath -Value $editor.ScreenshotPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot)
+    ) -Detail "EditorLogPath=$($editor.EditorLogPath) ScreenshotPath=$($editor.ScreenshotPath)"
+    Add-Check -Checks $checks -Name "Editor opened and compiled" -Passed ([bool]$editor.OpenedInEditor -and [bool]$editor.CompiledWithoutErrors) -Detail "OpenedInEditor=$($editor.OpenedInEditor) CompiledWithoutErrors=$($editor.CompiledWithoutErrors)"
+}
+
+$optionalEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "Optional binding check"
+if ($optionalEvidence.Count -gt 0) {
+    $optional = $optionalEvidence[0]
+    $observedNames = @($optional.OptionalBindings | ForEach-Object { [string]$_.Name })
+    $missingNames = @($requiredOptionalBindings | Where-Object { $observedNames -notcontains $_ })
+    $unexpectedRequiredFailures = @($optional.UnexpectedRequiredBindingFailures | Where-Object { Test-NonEmptyString $_ })
+    $unsafeMissingOptional = @($optional.OptionalBindings | Where-Object { -not [bool]$_.Present -and -not [bool]$_.MissingOptionalDoesNotCrash })
+    Add-Check -Checks $checks -Name "Optional binding list complete" -Passed ($missingNames.Count -eq 0) -Detail "MissingNames=$($missingNames -join ', ')"
+    Add-Check -Checks $checks -Name "No unexpected required binding failures" -Passed ($unexpectedRequiredFailures.Count -eq 0) -Detail "UnexpectedRequiredBindingFailures=$($unexpectedRequiredFailures.Count)"
+    Add-Check -Checks $checks -Name "Missing optional bindings are crash-safe" -Passed ($unsafeMissingOptional.Count -eq 0) -Detail "UnsafeMissingOptional=$(@($unsafeMissingOptional | Select-Object -ExpandProperty Name) -join ', ')"
+}
+
+$pieEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "PIE smoke result"
+if ($pieEvidence.Count -gt 0) {
+    $pie = $pieEvidence[0]
+    $pieChecks = @($pie.Checks)
+    $badPieChecks = @($pieChecks | Where-Object { $acceptedPieStatuses -notcontains [string]$_.Status })
+    Add-Check -Checks $checks -Name "PIE metadata complete" -Passed (
+        (Test-NonEmptyString $pie.MapName) -and
+        (Test-NonEmptyString $pie.PieSession) -and
+        (Test-NonEmptyString $pie.HostActorOrLevelBlueprintBinding) -and
+        (Test-NonEmptyString $pie.SensorManagerBinding) -and
+        (Test-NonEmptyString $pie.LogPath)
+    ) -Detail "MapName/PieSession/HostActorOrLevelBlueprintBinding/SensorManagerBinding/LogPath"
+    Add-Check -Checks $checks -Name "PIE log path exists" -Passed (Test-EvidenceFilePath -Value $pie.LogPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot) -Detail [string]$pie.LogPath
+    Add-Check -Checks $checks -Name "PIE optional screenshot or exported payload path exists" -Passed (
+        (Test-EvidenceFilePath -Value $pie.ScreenshotPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot) -or
+        (Test-EvidenceFilePath -Value $pie.ExportedPayloadPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot)
+    ) -Detail "ScreenshotPath=$($pie.ScreenshotPath) ExportedPayloadPath=$($pie.ExportedPayloadPath)"
+    Add-Check -Checks $checks -Name "PIE checks are passed or explicitly accepted unavailable" -Passed ($pieChecks.Count -gt 0 -and $badPieChecks.Count -eq 0) -Detail "BadPieChecks=$($badPieChecks.Count)"
+}
+
+$productionEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "Production WBP acceptance"
+if ($productionEvidence.Count -gt 0) {
+    $production = $productionEvidence[0]
+    Add-Check -Checks $checks -Name "Production acceptance metadata complete" -Passed (
+        [string]$production.DecisionStatus -eq "AcceptedForRepository" -and
+        (Test-NonEmptyString $production.AcceptedBy) -and
+        (Test-NonEmptyString $production.AcceptedAt) -and
+        (Test-NonEmptyString $production.EvidenceSource) -and
+        (Test-NonEmptyString $production.OwnerDecisionNote)
+    ) -Detail "DecisionStatus/AcceptedBy/AcceptedAt/EvidenceSource/OwnerDecisionNote"
+}
+
+$failedChecks = @($checks | Where-Object { -not [bool]$_.Passed })
+$readyToStageCandidate = ($failedChecks.Count -eq 0 -and $evidenceFilePresent -and -not [bool]$preflight.Summary.WbpStaged)
+
+$report = [PSCustomObject]@{
+    SchemaVersion = 1
+    GeneratedAt = (Get-Date).ToString("s")
+    ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+    EvidencePath = $EvidencePath
+    EvidenceFilePresent = $evidenceFilePresent
+    WbpRelativePath = $wbpRelativePath
+    WbpPath = $wbpPath
+    CurrentAssetHash = [string]$preflight.Summary.AssetHash
+    DryRunOnly = $true
+    ModifiesAssets = $false
+    StagesWbp = $false
+    Checks = @($checks)
+    FailedChecks = $failedChecks
+    Summary = [PSCustomObject]@{
+        EvidenceFilePresent = $evidenceFilePresent
+        EvidenceRecordPresent = ($null -ne $evidenceRecord)
+        RequiredEvidenceCount = $requiredNames.Count
+        PassedCheckCount = @($checks | Where-Object { [bool]$_.Passed }).Count
+        FailedCheckCount = $failedChecks.Count
+        ReadyToStageCandidate = $readyToStageCandidate
+        WbpStaged = [bool]$preflight.Summary.WbpStaged
+        DecisionReportReadyToStage = [bool]$decision.Summary.ReadyToStage
+        DryRunOnly = $true
+        ModifiesAssets = $false
+        StagesWbp = $false
+        FailOnIncompleteEvidence = [bool]$FailOnIncompleteEvidence
+        Boundary = "WBP evidence validation is read-only. It can mark a stage candidate only after completed evidence, matching hash, files, and owner acceptance are present; it never stages the binary asset."
+    }
+}
+
+if ($FailOnIncompleteEvidence -and -not $readyToStageCandidate) {
+    throw "Monitor WBP acceptance evidence is incomplete. FailedCheckCount=$($report.Summary.FailedCheckCount) EvidencePath=$EvidencePath"
+}
+
+if ($Json) {
+    $report | ConvertTo-Json -Depth 10
+}
+else {
+    Write-Host "Monitor WBP acceptance evidence validation complete."
+    Write-Host "Evidence file present: $($report.Summary.EvidenceFilePresent)"
+    Write-Host "Evidence record present: $($report.Summary.EvidenceRecordPresent)"
+    Write-Host "Passed checks: $($report.Summary.PassedCheckCount)"
+    Write-Host "Failed checks: $($report.Summary.FailedCheckCount)"
+    Write-Host "Ready to stage candidate: $($report.Summary.ReadyToStageCandidate)"
+    Write-Host "Dry run only: $($report.Summary.DryRunOnly)"
+    Write-Host "Modifies assets: $($report.Summary.ModifiesAssets)"
+    Write-Host "Stages WBP: $($report.Summary.StagesWbp)"
+    if ($failedChecks.Count -gt 0) {
+        Write-Host "Failed checks:"
+        foreach ($check in $failedChecks) {
+            Write-Host "  $($check.Name): $($check.Detail)"
+        }
+    }
+}

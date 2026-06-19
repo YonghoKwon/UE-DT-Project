@@ -90,9 +90,10 @@ packet. It reuses `report_local_project_status.ps1`, reports the WBP
 `ReadyToStage` state, and exports a manual acceptance checklist for editor open
 verification, optional binding check, PIE smoke result, and production WBP
 acceptance. `Scripts/report_precommit_summary.ps1` also surfaces the same WBP
-Git/evidence state, missing acceptance items, setup-doc contract status, and
-manual editor verification boundary before each commit. This report is review
-evidence, not approval by itself.
+Git/evidence state, missing acceptance items, setup-doc contract status,
+preflight status, acceptance-evidence validation status, and manual editor
+verification boundary before each commit. This report is review evidence, not
+approval by itself.
 Pass `-EvidencePath` to inspect a candidate
 `LocalAssetDecisionEvidenceV1` file, and use `-FailOnIncompleteEvidence` in a
 pre-commit gate when the binary WBP must not be staged until its evidence is
@@ -101,6 +102,7 @@ complete.
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -Json
 ```
 
 Large content candidates and sample/third-party folders include extension counts
@@ -307,6 +309,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_preflight_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 ```
 
 The WBP decision report records binary metadata, Git state, setup-document
@@ -323,6 +326,12 @@ state, setup-document contract, acceptance-template availability, missing
 evidence count, and post-archive context before manual Editor/PIE review starts.
 Preflight readiness is not WBP acceptance and does not permit staging the binary
 asset.
+The WBP acceptance evidence validator is the stricter read-only gate for a
+filled evidence file. It checks `AssetHashAlgorithm = SHA256`, the current WBP
+hash, editor-open/compile evidence, optional binding crash-safety rows, PIE
+smoke evidence, and production owner acceptance. Missing or incomplete evidence
+is reported as incomplete; it throws only when `-FailOnIncompleteEvidence` is
+explicitly requested.
 
 Large content decisions can be summarized separately from generated package
 outputs:
