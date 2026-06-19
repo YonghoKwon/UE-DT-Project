@@ -68,6 +68,7 @@ $sampleContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_samp
 $pixelStreamingSetupDoc = Join-Path $ProjectRoot "docs\pixel_streaming_setup.md"
 $dtCoreSubmoduleGuardScript = Join-Path $ProjectRoot "Scripts\validate_dtcore_submodule_guard.ps1"
 $localDecisionPrecommitGateScript = Join-Path $ProjectRoot "Scripts\invoke_local_decision_precommit_gate.ps1"
+$localDecisionPrecommitGatePolicyScript = Join-Path $ProjectRoot "Scripts\validate_local_decision_precommit_gate_policy.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
@@ -82,6 +83,7 @@ Assert-FileExists -Path $sampleContentDecisionReportScript -Label "Sample conten
 Assert-FileExists -Path $pixelStreamingSetupDoc -Label "Pixel Streaming setup document"
 Assert-FileExists -Path $dtCoreSubmoduleGuardScript -Label "DTCore submodule guard script"
 Assert-FileExists -Path $localDecisionPrecommitGateScript -Label "Local decision pre-commit gate script"
+Assert-FileExists -Path $localDecisionPrecommitGatePolicyScript -Label "Local decision pre-commit gate policy script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -167,6 +169,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "validate_monitor_wbp_acceptance_evidence.ps1"; Label = "Local decision pre-commit gate reports WBP evidence" },
     [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "DryRunOnly = `$true"; Label = "Local decision pre-commit gate declares read-only behavior" },
     [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "StagesFiles = `$false"; Label = "Local decision pre-commit gate declares no staging" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGatePolicyScript; Pattern = "DefaultGatePasses"; Label = "Local decision pre-commit gate policy checks default pass" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGatePolicyScript; Pattern = "StrictGateFailsUntilEvidenceComplete"; Label = "Local decision pre-commit gate policy checks strict failure" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGatePolicyScript; Pattern = "CurrentLocalBurdenAllowed"; Label = "Local decision pre-commit gate policy checks local burden allowance" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DryRunOnly = `$true"; Label = "DTCore guard declares read-only behavior" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "StagesDTCore = `$false"; Label = "DTCore guard declares no DTCore staging" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },

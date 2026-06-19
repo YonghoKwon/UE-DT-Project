@@ -300,6 +300,7 @@ LiDAR bDrawDebugRays = false
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_decision_precommit_gate_policy.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
 ```
