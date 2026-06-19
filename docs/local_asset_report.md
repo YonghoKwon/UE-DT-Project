@@ -299,12 +299,18 @@ Monitor WBP decisions can be inspected without mutating the binary asset:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 ```
 
 The WBP decision report records binary metadata, Git state, setup-document
 contract terms, `RecommendedDecision`, and an evidence draft. It cannot replace
 Unreal Editor verification; it keeps editor-open, optional binding, PIE smoke,
 and production acceptance evidence separate from file metadata.
+The WBP acceptance template turns those manual gates into a fillable read-only
+evidence structure with `EvidenceRunId`, operator, map/PIE session, log and
+screenshot paths, optional binding rows, exported payload evidence, owner
+acceptance fields, and the current asset hash. It does not modify or stage the
+binary WBP.
 
 Large content decisions can be summarized separately from generated package
 outputs:

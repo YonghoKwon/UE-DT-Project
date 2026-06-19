@@ -67,6 +67,7 @@ $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $setupDocPath = Join-Path $SourceRepoRoot "docs\widget_designer_setup.md"
 $assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
 $monitorPolicyScript = Join-Path $SourceRepoRoot "Scripts\validate_monitor_widget_policy.ps1"
+$acceptanceTemplateScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
 
 $gitStatusLines = @()
 Push-Location $ProjectRoot
@@ -199,6 +200,14 @@ $report = [PSCustomObject]@{
     RecommendedDecision = $recommendedDecision
     Recommendation = $recommendation
     EvidenceDraft = $evidenceDraft
+    AcceptanceTemplate = [PSCustomObject]@{
+        Script = $acceptanceTemplateScript
+        Available = (Test-Path -LiteralPath $acceptanceTemplateScript -PathType Leaf)
+        RequiredEvidenceCount = 4
+        RequiredEvidence = @("Editor open verification", "Optional binding check", "PIE smoke result", "Production WBP acceptance")
+        RequiredRuntimeFields = @("EvidenceRunId", "Operator", "VerifiedAt", "UnrealVersion", "MapName", "PieSession", "LogPath", "ScreenshotPath", "AssetHash")
+        Boundary = "The acceptance template is read-only and does not replace Unreal Editor verification or project owner acceptance."
+    }
     Summary = [PSCustomObject]@{
         Valid = $true
         MonitorPolicyValid = [bool]$monitorPolicyReport.Summary.Valid
@@ -213,6 +222,8 @@ $report = [PSCustomObject]@{
         MissingEvidenceCount = if ($wbpDecisionPoint) { @($wbpDecisionPoint.MissingEvidence).Count } else { 0 }
         ManualAcceptanceChecklistCount = $manualAcceptanceChecklist.Count
         ManualAcceptanceMissingCount = @($manualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" }).Count
+        AcceptanceTemplateAvailable = (Test-Path -LiteralPath $acceptanceTemplateScript -PathType Leaf)
+        AcceptanceTemplateRequiredEvidenceCount = 4
         ReadyToStage = if ($wbpDecisionPoint) { [string]$wbpDecisionPoint.ReviewQueue -eq "ReadyToStage" } else { $false }
         StagingBlocked = if ($wbpDecisionPoint) { [bool]$wbpDecisionPoint.CommitBlocker } else { $false }
         SetupDocContractComplete = ($setupDocPresent -and $missingSetupTerms.Count -eq 0)
@@ -245,6 +256,8 @@ $lines = @(
     "- Ready to stage: $($report.Summary.ReadyToStage)",
     "- Staging blocked: $($report.Summary.StagingBlocked)",
     "- Manual editor verification still required: $($report.Summary.ManualEditorVerificationStillRequired)",
+    "- Acceptance template available: $($report.Summary.AcceptanceTemplateAvailable)",
+    "- Acceptance template required evidence: $($report.Summary.AcceptanceTemplateRequiredEvidenceCount)",
     "- Risk level: $($report.RiskLevel)",
     "- RecommendedDecision: $($report.RecommendedDecision)",
     "- Recommendation: $($report.Recommendation)",

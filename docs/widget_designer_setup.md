@@ -165,6 +165,7 @@ Static monitor-policy readiness:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 ```
 
 This check keeps optional C++ bindings, native fallback behavior, local binary
@@ -174,6 +175,10 @@ The focused WBP decision report shows the current `ReviewQueue`,
 `CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`, and manual
 acceptance checklist. Use `-EvidencePath` and `-FailOnIncompleteEvidence` only
 after a project owner has filled the accepted WBP evidence record.
+The WBP acceptance template is read-only and does not stage or modify the
+`.uasset`; it structures the editor-open, optional-binding, PIE-smoke, and
+production-owner evidence fields that must be recorded before the binary WBP can
+move out of `MustRemainUntracked`.
 
 Local camera capture notes:
 

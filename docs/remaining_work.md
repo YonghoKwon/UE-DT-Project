@@ -167,6 +167,12 @@ Open decisions:
   gate. It accepts `-EvidencePath` for a candidate
   `LocalAssetDecisionEvidenceV1` file and `-FailOnIncompleteEvidence` for an
   opt-in WBP pre-commit gate.
+- `Scripts/export_monitor_wbp_acceptance_template.ps1` exports a read-only
+  fillable evidence template for editor-open, optional-binding, PIE-smoke, and
+  production-owner acceptance. It records the current WBP asset hash and fields
+  such as `EvidenceRunId`, operator, map/PIE session, log path, screenshot path,
+  optional binding rows, exported payload path, and owner acceptance metadata
+  without modifying or staging the binary `.uasset`.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   section with WBP Git state, review queue, missing evidence count, missing
   acceptance items, setup-doc contract status, and the boundary that the binary
@@ -632,6 +638,8 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"`.
 - Focused WBP evidence gate passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
+- WBP acceptance template exports:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json`.
 
 ## Routine Verification
 

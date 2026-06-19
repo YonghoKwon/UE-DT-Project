@@ -189,6 +189,8 @@ function Get-WbpDecisionSummary {
         EvidenceSatisfied = [bool]$wbpReport.Summary.EvidenceSatisfied
         MissingEvidenceCount = [int]$wbpReport.Summary.MissingEvidenceCount
         ManualAcceptanceMissingCount = [int]$wbpReport.Summary.ManualAcceptanceMissingCount
+        AcceptanceTemplateAvailable = [bool]$wbpReport.Summary.AcceptanceTemplateAvailable
+        AcceptanceTemplateRequiredEvidenceCount = [int]$wbpReport.Summary.AcceptanceTemplateRequiredEvidenceCount
         MissingAcceptanceItems = @($missingChecklist | Select-Object -ExpandProperty Name)
         RecommendedDecision = [string]$wbpReport.RecommendedDecision
         MonitorPolicyValid = [bool]$wbpReport.Summary.MonitorPolicyValid
@@ -600,6 +602,8 @@ if ($wbpDecisionSummary) {
     Write-Host "Ready to stage: $($wbpDecisionSummary.ReadyToStage)"
     Write-Host "Staging blocked: $($wbpDecisionSummary.StagingBlocked)"
     Write-Host "Manual editor verification still required: $($wbpDecisionSummary.ManualEditorVerificationStillRequired)"
+    Write-Host "Acceptance template available: $($wbpDecisionSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Acceptance template required evidence count: $($wbpDecisionSummary.AcceptanceTemplateRequiredEvidenceCount)"
     Write-Host "Unexpected WBP staged: $($wbpDecisionSummary.UnexpectedWbpStaged)"
     Write-Host "Must remain untracked: $($wbpDecisionSummary.MustRemainUntracked)"
     Write-Host "Blocking reason: $($wbpDecisionSummary.BlockingReason)"
