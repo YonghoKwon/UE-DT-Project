@@ -67,6 +67,7 @@ $unusedContentArchiveEvidenceScript = Join-Path $ProjectRoot "Scripts\export_unu
 $sampleContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_sample_content_decision_report.ps1"
 $pixelStreamingSetupDoc = Join-Path $ProjectRoot "docs\pixel_streaming_setup.md"
 $dtCoreSubmoduleGuardScript = Join-Path $ProjectRoot "Scripts\validate_dtcore_submodule_guard.ps1"
+$localDecisionPrecommitGateScript = Join-Path $ProjectRoot "Scripts\invoke_local_decision_precommit_gate.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
@@ -80,6 +81,7 @@ Assert-FileExists -Path $unusedContentArchiveEvidenceScript -Label "Unused conte
 Assert-FileExists -Path $sampleContentDecisionReportScript -Label "Sample content decision report script"
 Assert-FileExists -Path $pixelStreamingSetupDoc -Label "Pixel Streaming setup document"
 Assert-FileExists -Path $dtCoreSubmoduleGuardScript -Label "DTCore submodule guard script"
+Assert-FileExists -Path $localDecisionPrecommitGateScript -Label "Local decision pre-commit gate script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -155,6 +157,16 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = '"submodule", "status"'; Label = "DTCore guard checks submodule status" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = '"diff", "--cached"'; Label = "DTCore guard checks staged submodule paths" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "SubmoduleWorktreeLineCount"; Label = "DTCore guard reports submodule worktree status" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "RequireAcceptedLocalDecisionEvidence"; Label = "Local decision pre-commit gate exposes strict evidence option" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "validate_dtcore_submodule_guard.ps1"; Label = "Local decision pre-commit gate runs DTCore guard" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "FailOnStagedDecisionPoints"; Label = "Local decision pre-commit gate fails staged local decision paths" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "export_sample_content_decision_report.ps1"; Label = "Local decision pre-commit gate runs sample decision report" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "validate_large_content_decision_policy.ps1"; Label = "Local decision pre-commit gate runs large-content policy" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "validate_runtime_config_policy.ps1"; Label = "Local decision pre-commit gate runs runtime config policy" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "validate_monitor_widget_policy.ps1"; Label = "Local decision pre-commit gate runs monitor widget policy" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "validate_monitor_wbp_acceptance_evidence.ps1"; Label = "Local decision pre-commit gate reports WBP evidence" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "DryRunOnly = `$true"; Label = "Local decision pre-commit gate declares read-only behavior" },
+    [PSCustomObject]@{ Path = $localDecisionPrecommitGateScript; Pattern = "StagesFiles = `$false"; Label = "Local decision pre-commit gate declares no staging" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DryRunOnly = `$true"; Label = "DTCore guard declares read-only behavior" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "StagesDTCore = `$false"; Label = "DTCore guard declares no DTCore staging" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },
@@ -311,7 +323,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCoreSubmoduleGuardSummary"; Label = "Pre-commit summary exports DTCore guard summary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCoreInvariantValid"; Label = "Pre-commit summary reports DTCore invariant status" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "StagedDTCorePathCount"; Label = "Pre-commit summary reports staged DTCore path count" },
-    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCore worktree clean"; Label = "Pre-commit summary prints DTCore worktree clean status" }
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCore worktree clean"; Label = "Pre-commit summary prints DTCore worktree clean status" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "consolidated local decision pre-commit gate"; Label = "Pre-commit summary documents consolidated local decision gate" }
     ,
     [PSCustomObject]@{ Path = $largeContentDecisionPolicyScript; Pattern = '[string]$LocalProjectRoot'; Label = "Large content policy accepts separate local project root" }
 )

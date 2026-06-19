@@ -245,7 +245,18 @@ For regular local checks, use `Scripts/check_project_readiness.ps1`. It runs the
 local asset report with `-FailOnUnclassifiedUntracked`, then runs the smoke test
 script unless `-SkipSmoke` is passed.
 
+For a fast commit-time local decision gate, use
+`Scripts/invoke_local_decision_precommit_gate.ps1`. It is read-only and runs the
+DTCore submodule guard, staged local-decision gate, sample staged-path gate,
+large-content policy, runtime-config policy, monitor widget policy, WBP
+preflight, WBP evidence report, and pre-commit summary. Default mode reports
+incomplete WBP evidence without failing; pass
+`-RequireAcceptedLocalDecisionEvidence` only when the local WBP evidence file is
+expected to be complete.
+
 ```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke

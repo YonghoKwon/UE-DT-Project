@@ -299,9 +299,15 @@ LiDAR bDrawDebugRays = false
 커밋 전 진행률/남은 작업/커밋 예정 파일 요약:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
 ```
+
+`invoke_local_decision_precommit_gate.ps1` is the fastest commit-time local
+decision guard. It allows the known local-only untracked files to remain local,
+but fails accidental staging or invariant violations for local decision paths,
+`Samples/PixelStreaming`, and `Plugins/DTCore`.
 
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
