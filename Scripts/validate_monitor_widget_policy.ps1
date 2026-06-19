@@ -48,7 +48,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
     [PSCustomObject]@{ Label = "Local project status report"; Path = "Scripts\report_local_project_status.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP decision report"; Path = "Scripts\export_monitor_wbp_decision_report.ps1" },
-    [PSCustomObject]@{ Label = "Monitor WBP acceptance template"; Path = "Scripts\export_monitor_wbp_acceptance_template.ps1" }
+    [PSCustomObject]@{ Label = "Monitor WBP acceptance template"; Path = "Scripts\export_monitor_wbp_acceptance_template.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP preflight report"; Path = "Scripts\export_monitor_wbp_preflight_report.ps1" }
 )
 
 foreach ($file in $requiredFiles) {
@@ -66,6 +67,7 @@ $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
 $monitorWbpReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 $monitorWbpAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
+$monitorWbpPreflightScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $widgetHeader; Pattern = "BindWidgetOptional"; Label = "Widget uses optional bindings" },
@@ -121,7 +123,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "Production WBP acceptance"; Label = "WBP acceptance template includes owner acceptance evidence" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "StagesWbp"; Label = "WBP acceptance template declares it does not stage WBP" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "ModifiesAssets"; Label = "WBP acceptance template declares read-only asset behavior" },
+    [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "ReadyForManualEditorReview"; Label = "WBP preflight reports manual editor readiness" },
+    [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "BlockedPreflightCheckCount"; Label = "WBP preflight reports blocked checks" },
+    [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "ModifiesAssets"; Label = "WBP preflight declares read-only asset behavior" },
+    [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "StagesWbp"; Label = "WBP preflight declares no staging" },
+    [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "not WBP acceptance"; Label = "WBP preflight preserves acceptance boundary" },
+    [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "export_unused_content_archive_evidence.ps1"; Label = "WBP preflight considers post-archive evidence" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpDecisionSummary"; Label = "Pre-commit summary exports WBP decision summary" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpPreflightSummary"; Label = "Pre-commit summary exports WBP preflight summary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MissingAcceptanceItems"; Label = "Pre-commit summary lists missing WBP acceptance items" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "UnexpectedWbpStaged"; Label = "Pre-commit summary flags unexpectedly staged WBP" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MustRemainUntracked"; Label = "Pre-commit summary marks WBP that must remain untracked" },
@@ -165,6 +174,7 @@ $report = [PSCustomObject]@{
         MonitorWbpEvidencePathDeclared = $true
         MonitorWbpIncompleteEvidenceFailGateDeclared = $true
         MonitorWbpAcceptanceTemplateDeclared = $true
+        MonitorWbpPreflightDeclared = $true
         AutomationCoverageDeclared = $true
         ManualEditorVerificationStillRequired = $true
         Valid = $true
@@ -187,6 +197,7 @@ else {
     Write-Host "Monitor WBP evidence path declared: $($report.Summary.MonitorWbpEvidencePathDeclared)"
     Write-Host "Monitor WBP incomplete evidence fail gate declared: $($report.Summary.MonitorWbpIncompleteEvidenceFailGateDeclared)"
     Write-Host "Monitor WBP acceptance template declared: $($report.Summary.MonitorWbpAcceptanceTemplateDeclared)"
+    Write-Host "Monitor WBP preflight declared: $($report.Summary.MonitorWbpPreflightDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
     Write-Host "Manual editor verification still required: $($report.Summary.ManualEditorVerificationStillRequired)"
 }

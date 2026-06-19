@@ -256,6 +256,55 @@ function Get-WbpDecisionSummary {
     }
 }
 
+function Get-WbpPreflightSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $wbpPreflightScript = Join-Path $script:PSScriptRoot "export_monitor_wbp_preflight_report.ps1"
+    if (-not (Test-Path -LiteralPath $wbpPreflightScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $wbpPreflightScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Monitor WBP preflight report failed with exit code $LASTEXITCODE"
+    }
+
+    $preflight = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        WbpPresent = [bool]$preflight.Summary.WbpPresent
+        WbpUntracked = [bool]$preflight.Summary.WbpUntracked
+        WbpStaged = [bool]$preflight.Summary.WbpStaged
+        WbpWorktreeModified = [bool]$preflight.Summary.WbpWorktreeModified
+        AssetHash = [string]$preflight.Summary.AssetHash
+        SetupDocContractComplete = [bool]$preflight.Summary.SetupDocContractComplete
+        MissingSetupTermCount = [int]$preflight.Summary.MissingSetupTermCount
+        AcceptanceTemplateAvailable = [bool]$preflight.Summary.AcceptanceTemplateAvailable
+        RequiredEvidenceCount = [int]$preflight.Summary.RequiredEvidenceCount
+        PendingEvidenceCount = [int]$preflight.Summary.PendingEvidenceCount
+        DecisionReadyToStage = [bool]$preflight.Summary.DecisionReadyToStage
+        DecisionMissingEvidenceCount = [int]$preflight.Summary.DecisionMissingEvidenceCount
+        PreflightCheckCount = [int]$preflight.Summary.PreflightCheckCount
+        BlockedPreflightCheckCount = [int]$preflight.Summary.BlockedPreflightCheckCount
+        ReadyForManualEditorReview = [bool]$preflight.Summary.ReadyForManualEditorReview
+        ModifiesAssets = [bool]$preflight.Summary.ModifiesAssets
+        StagesWbp = [bool]$preflight.Summary.StagesWbp
+        Boundary = [string]$preflight.Summary.Boundary
+    }
+}
+
 function Get-RuntimeConfigDecisionSummary {
     param(
         [string]$ProjectRoot,
@@ -616,6 +665,7 @@ $recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--o
 $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$wbpPreflightSummary = Get-WbpPreflightSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $runtimeConfigDecisionSummary = Get-RuntimeConfigDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $judgingServerAcceptanceSummary = Get-JudgingServerAcceptanceSummary -ProjectRoot $SourceRepoRoot
 $lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
@@ -636,6 +686,7 @@ $report = [PSCustomObject]@{
     LocalAssetSummary = if ($localAssetReport) { $localAssetReport.Summary } else { $null }
     LargeContentDecisionSummary = $largeContentDecisionSummary
     WbpDecisionSummary = $wbpDecisionSummary
+    WbpPreflightSummary = $wbpPreflightSummary
     RuntimeConfigDecisionSummary = $runtimeConfigDecisionSummary
     JudgingServerAcceptanceSummary = $judgingServerAcceptanceSummary
     LazExportDecisionSummary = $lazExportDecisionSummary
@@ -782,6 +833,28 @@ if ($wbpDecisionSummary) {
     Write-Host "Blocking reason: $($wbpDecisionSummary.BlockingReason)"
     Write-Host "Next review action: $($wbpDecisionSummary.NextReviewAction)"
     Write-Host "Boundary: $($wbpDecisionSummary.Boundary)"
+}
+
+if ($wbpPreflightSummary) {
+    Write-Section "Monitor WBP preflight"
+    Write-Host "WBP present: $($wbpPreflightSummary.WbpPresent)"
+    Write-Host "WBP untracked: $($wbpPreflightSummary.WbpUntracked)"
+    Write-Host "WBP staged: $($wbpPreflightSummary.WbpStaged)"
+    Write-Host "WBP worktree modified: $($wbpPreflightSummary.WbpWorktreeModified)"
+    Write-Host "Asset hash: $($wbpPreflightSummary.AssetHash)"
+    Write-Host "Setup doc contract complete: $($wbpPreflightSummary.SetupDocContractComplete)"
+    Write-Host "Missing setup term count: $($wbpPreflightSummary.MissingSetupTermCount)"
+    Write-Host "Acceptance template available: $($wbpPreflightSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Required evidence count: $($wbpPreflightSummary.RequiredEvidenceCount)"
+    Write-Host "Pending evidence count: $($wbpPreflightSummary.PendingEvidenceCount)"
+    Write-Host "Decision ready to stage: $($wbpPreflightSummary.DecisionReadyToStage)"
+    Write-Host "Decision missing evidence count: $($wbpPreflightSummary.DecisionMissingEvidenceCount)"
+    Write-Host "Preflight checks: $($wbpPreflightSummary.PreflightCheckCount)"
+    Write-Host "Blocked preflight checks: $($wbpPreflightSummary.BlockedPreflightCheckCount)"
+    Write-Host "Ready for manual editor review: $($wbpPreflightSummary.ReadyForManualEditorReview)"
+    Write-Host "Modifies assets: $($wbpPreflightSummary.ModifiesAssets)"
+    Write-Host "Stages WBP: $($wbpPreflightSummary.StagesWbp)"
+    Write-Host "Boundary: $($wbpPreflightSummary.Boundary)"
 }
 
 if ($runtimeConfigDecisionSummary) {

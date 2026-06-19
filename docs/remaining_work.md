@@ -198,11 +198,17 @@ Open decisions:
   such as `EvidenceRunId`, operator, map/PIE session, log path, screenshot path,
   optional binding rows, exported payload path, and owner acceptance metadata
   without modifying or staging the binary `.uasset`.
+- `Scripts/export_monitor_wbp_preflight_report.ps1` exports a read-only
+  preflight report before manual Editor/PIE review. It checks the current WBP
+  hash, Git state, setup-document contract, acceptance-template availability,
+  missing evidence count, and post-archive context. Preflight readiness is not
+  WBP acceptance and does not permit staging the binary asset.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
-  section with WBP Git state, review queue, missing evidence count, missing
-  acceptance items, setup-doc contract status, and the boundary that the binary
-  asset stays untracked until editor open, optional binding check, PIE smoke, and
-  production WBP acceptance evidence are recorded.
+  and preflight section with WBP Git state, review queue, missing evidence
+  count, missing acceptance items, setup-doc contract status, preflight blocked
+  checks, and the boundary that the binary asset stays untracked until editor
+  open, optional binding check, PIE smoke, and production WBP acceptance evidence
+  are recorded.
 - Large content decision report tooling is available through
   `Scripts/export_large_content_decision_report.ps1`. It summarizes
   `LargeContentCandidate` and `SampleOrThirdParty` paths by size, extension

@@ -306,6 +306,7 @@ Monitor WBP decisions can be inspected without mutating the binary asset:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_preflight_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 ```
 
 The WBP decision report records binary metadata, Git state, setup-document
@@ -317,6 +318,11 @@ evidence structure with `EvidenceRunId`, operator, map/PIE session, log and
 screenshot paths, optional binding rows, exported payload evidence, owner
 acceptance fields, and the current asset hash. It does not modify or stage the
 binary WBP.
+The WBP preflight report is also read-only. It checks the current WBP hash, Git
+state, setup-document contract, acceptance-template availability, missing
+evidence count, and post-archive context before manual Editor/PIE review starts.
+Preflight readiness is not WBP acceptance and does not permit staging the binary
+asset.
 
 Large content decisions can be summarized separately from generated package
 outputs:
