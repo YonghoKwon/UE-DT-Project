@@ -292,6 +292,17 @@ recorded or explicitly accepted as not selected for the chosen deployment path.
 Brokerless DTCore dispatch, sample validation, and commandlet dry runs are
 pre-deployment evidence; they do not replace real STOMP/WebSocket broker PIE
 smoke or SDK hardware evidence.
+The generated package and pre-commit summary intentionally expose this as
+machine-readable fields: `PreDeploymentEvidenceOnly = true`,
+`BrokerlessDispatchIsDeploymentEvidence = false`,
+`LoopbackSmokeIsDeploymentBrokerEvidence = false`,
+`StaticTransactionRegistrationIsBrokerAcceptance = false`,
+`RealBrokerOrSdkAcceptanceEvidencePresent = false`,
+`AcceptancePackageIsEvidenceShell = true`,
+`AcceptancePackageIsDeploymentProof = false`, and
+`GeneratedReportDoesNotMeanDeploymentPassed = true` until real broker or SDK
+evidence is recorded. These fields also keep `DoesNotModifyDTCore = true`
+because DTCore source edits are outside this project-side deployment package.
 
 The report reuses the static adapter-plan validator, WebSocket sample validator,
 transaction registration report, and broker smoke report in read-only mode. It

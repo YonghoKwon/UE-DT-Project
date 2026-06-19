@@ -226,6 +226,18 @@ $manifest = [PSCustomObject]@{
         ReadyToClaimRealSensorDeployment = [bool]$validation.Summary.ReadyToClaimRealSensorDeployment
         BrokerPieSmokeEvidencePresent = [bool]$validation.Summary.BrokerPieSmokeEvidencePresent
         SdkHardwareEvidencePresent = [bool]$validation.Summary.SdkHardwareEvidencePresent
+        PreDeploymentEvidenceOnly = [bool]$template.Summary.PreDeploymentEvidenceOnly
+        BrokerlessDispatchIsDeploymentEvidence = [bool]$template.Summary.BrokerlessDispatchIsDeploymentEvidence
+        LoopbackSmokeIsDeploymentBrokerEvidence = [bool]$template.Summary.LoopbackSmokeIsDeploymentBrokerEvidence
+        StaticTransactionRegistrationIsBrokerAcceptance = [bool]$template.Summary.StaticTransactionRegistrationIsBrokerAcceptance
+        RealBrokerOrSdkAcceptanceEvidencePresent = ([bool]$validation.Summary.BrokerPieSmokeEvidencePresent -or [bool]$validation.Summary.SdkHardwareEvidencePresent)
+        ExternalBrokerSmokeEvidencePresent = [bool]$validation.Summary.ExternalBrokerSmokeEvidencePresent
+        ExternalSdkHardwareEvidencePresent = [bool]$validation.Summary.ExternalSdkHardwareEvidencePresent
+        DeploymentBrokerAcceptanceComplete = [bool]$validation.Summary.DeploymentBrokerAcceptanceComplete
+        SdkDeploymentAcceptanceComplete = [bool]$validation.Summary.SdkDeploymentAcceptanceComplete
+        AcceptancePackageIsEvidenceShell = $true
+        AcceptancePackageIsDeploymentProof = $false
+        GeneratedReportDoesNotMeanDeploymentPassed = $true
         BlockedDeploymentCandidateCount = [int]$readiness.Summary.BlockedDeploymentCandidateCount
         SensitivePatternHitCount = $sensitiveHits.Count
         DryRunOnly = $true
@@ -233,6 +245,9 @@ $manifest = [PSCustomObject]@{
         DoesNotConnectToSdk = $true
         ExternalConnectionAttempted = $false
         CredentialValuesWritten = $false
+        DoesNotWriteEndpointValues = $true
+        DoesNotWriteCredentialValues = $true
+        DoesNotModifyDTCore = $true
         ModifiesAssets = $false
         StagesFiles = $false
         WritesEndpointValues = $false
@@ -265,11 +280,20 @@ $lines.Add("- Selected deployment path count: $($manifest.Summary.SelectedDeploy
 $lines.Add("- Ready to claim real sensor deployment: $($manifest.Summary.CurrentReadyToClaimRealSensorDeployment)") | Out-Null
 $lines.Add("- Broker PIE smoke evidence present: $($manifest.Summary.BrokerPieSmokeEvidencePresent)") | Out-Null
 $lines.Add("- SDK hardware evidence present: $($manifest.Summary.SdkHardwareEvidencePresent)") | Out-Null
+$lines.Add("- Pre-deployment evidence only: $($manifest.Summary.PreDeploymentEvidenceOnly)") | Out-Null
+$lines.Add("- Brokerless dispatch is deployment evidence: $($manifest.Summary.BrokerlessDispatchIsDeploymentEvidence)") | Out-Null
+$lines.Add("- Loopback smoke is deployment broker evidence: $($manifest.Summary.LoopbackSmokeIsDeploymentBrokerEvidence)") | Out-Null
+$lines.Add("- Static transaction registration is broker acceptance: $($manifest.Summary.StaticTransactionRegistrationIsBrokerAcceptance)") | Out-Null
+$lines.Add("- Real broker or SDK acceptance evidence present: $($manifest.Summary.RealBrokerOrSdkAcceptanceEvidencePresent)") | Out-Null
+$lines.Add("- Acceptance package is evidence shell: $($manifest.Summary.AcceptancePackageIsEvidenceShell)") | Out-Null
+$lines.Add("- Acceptance package is deployment proof: $($manifest.Summary.AcceptancePackageIsDeploymentProof)") | Out-Null
+$lines.Add("- Generated report means deployment passed: $(-not $manifest.Summary.GeneratedReportDoesNotMeanDeploymentPassed)") | Out-Null
 $lines.Add("- Blocked deployment candidates: $($manifest.Summary.BlockedDeploymentCandidateCount)") | Out-Null
 $lines.Add("- Sensitive pattern hit count: $($manifest.Summary.SensitivePatternHitCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
 $lines.Add("- Does not connect to broker: $($manifest.DoesNotConnectToBroker)") | Out-Null
 $lines.Add("- Does not connect to SDK: $($manifest.DoesNotConnectToSdk)") | Out-Null
+$lines.Add("- Does not modify DTCore: $($manifest.Summary.DoesNotModifyDTCore)") | Out-Null
 $lines.Add("- Modifies assets: $($manifest.ModifiesAssets)") | Out-Null
 $lines.Add("- Stages files: $($manifest.StagesFiles)") | Out-Null
 $lines.Add("") | Out-Null

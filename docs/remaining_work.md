@@ -359,6 +359,17 @@ Current state:
   Brokerless DTCore dispatch, sample validation, and commandlet dry runs remain
   pre-deployment evidence; they do not replace real STOMP/WebSocket broker PIE
   smoke or SDK hardware evidence.
+  The deployment template/package/pre-commit summary now also expose
+  `PreDeploymentEvidenceOnly = true`,
+  `BrokerlessDispatchIsDeploymentEvidence = false`,
+  `LoopbackSmokeIsDeploymentBrokerEvidence = false`,
+  `StaticTransactionRegistrationIsBrokerAcceptance = false`,
+  `AcceptancePackageIsEvidenceShell = true`,
+  `AcceptancePackageIsDeploymentProof = false`,
+  `GeneratedReportDoesNotMeanDeploymentPassed = true`, and
+  `DoesNotModifyDTCore = true`, so generated reports, loopback smokes, and
+  static registrations cannot be mistaken for external broker/SDK deployment
+  acceptance.
 
 Next implementation steps:
 
@@ -403,6 +414,14 @@ Completion evidence:
   `SelectedDeploymentPathCount = 0`, and
   `CurrentReadyToClaimRealSensorDeployment = false` until deployment-owner
   evidence is filled.
+- Deployment package summary should also report `PreDeploymentEvidenceOnly =
+  true`, `BrokerlessDispatchIsDeploymentEvidence = false`,
+  `LoopbackSmokeIsDeploymentBrokerEvidence = false`,
+  `StaticTransactionRegistrationIsBrokerAcceptance = false`,
+  `RealBrokerOrSdkAcceptanceEvidencePresent = false`,
+  `AcceptancePackageIsEvidenceShell = true`,
+  `AcceptancePackageIsDeploymentProof = false`, and `DoesNotModifyDTCore =
+  true`.
 - Deployment evidence validation reports missing evidence without touching
   broker/SDK/config:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -Json`.

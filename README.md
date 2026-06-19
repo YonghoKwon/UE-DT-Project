@@ -366,6 +366,14 @@ live, DTCore WebSocket, UDP JSON live, ROS2, Livox, and RealSense. A path sectio
 is review metadata only; local loopback checks and placeholder SDK components
 do not prove production real-sensor deployment until the selected path has live
 smoke evidence and owner acceptance.
+Generated deployment reports expose `PreDeploymentEvidenceOnly = true`,
+`BrokerlessDispatchIsDeploymentEvidence = false`,
+`LoopbackSmokeIsDeploymentBrokerEvidence = false`,
+`StaticTransactionRegistrationIsBrokerAcceptance = false`,
+`AcceptancePackageIsEvidenceShell = true`, and
+`AcceptancePackageIsDeploymentProof = false`. Report generation is not
+deployment acceptance, does not modify DTCore, and does not cover
+PixelStreaming.
 
 LAZ compression acceptance package:
 

@@ -527,10 +527,23 @@ function Get-RealSensorDeploymentSummary {
         DeploymentPathSections = @($template.Summary.DeploymentPathSections)
         SelectedDeploymentPathCount = [int]$template.Summary.SelectedDeploymentPathCount
         ReadyToClaimRealSensorDeployment = [bool]$template.Summary.ReadyToClaimRealSensorDeployment
+        PreDeploymentEvidenceOnly = [bool]$template.Summary.PreDeploymentEvidenceOnly
+        BrokerlessDispatchIsDeploymentEvidence = [bool]$template.Summary.BrokerlessDispatchIsDeploymentEvidence
+        LoopbackSmokeIsDeploymentBrokerEvidence = [bool]$template.Summary.LoopbackSmokeIsDeploymentBrokerEvidence
+        StaticTransactionRegistrationIsBrokerAcceptance = [bool]$template.Summary.StaticTransactionRegistrationIsBrokerAcceptance
+        RealBrokerOrSdkAcceptanceEvidencePresent = [bool]$template.Summary.RealBrokerOrSdkAcceptanceEvidencePresent
+        ExternalBrokerSmokeEvidencePresent = [bool]$template.Summary.ExternalBrokerSmokeEvidencePresent
+        ExternalSdkHardwareEvidencePresent = [bool]$template.Summary.ExternalSdkHardwareEvidencePresent
+        DeploymentBrokerAcceptanceComplete = [bool]$template.Summary.DeploymentBrokerAcceptanceComplete
+        SdkDeploymentAcceptanceComplete = [bool]$template.Summary.SdkDeploymentAcceptanceComplete
+        AcceptancePackageIsEvidenceShell = [bool]$template.Summary.AcceptancePackageIsEvidenceShell
+        AcceptancePackageIsDeploymentProof = [bool]$template.Summary.AcceptancePackageIsDeploymentProof
+        GeneratedReportDoesNotMeanDeploymentPassed = [bool]$template.Summary.GeneratedReportDoesNotMeanDeploymentPassed
         ConnectsToExternalEndpoint = [bool]$template.Summary.ConnectsToExternalEndpoint
         RunsSdkHardware = [bool]$template.Summary.RunsSdkHardware
         DoesNotConnectToBroker = [bool]$template.Summary.DoesNotConnectToBroker
         DoesNotConnectToSdk = [bool]$template.Summary.DoesNotConnectToSdk
+        DoesNotModifyDTCore = [bool]$template.Summary.DoesNotModifyDTCore
         WritesEndpointValues = [bool]$template.Summary.WritesEndpointValues
         WritesCredentialValues = [bool]$template.Summary.WritesCredentialValues
         Boundary = "Real sensor deployment remains unclaimed until one selected production path has live smoke, handoff, redaction, judging-server, and owner-acceptance evidence."
@@ -1166,10 +1179,19 @@ if ($realSensorDeploymentSummary) {
     Write-Host "Deployment path sections: $(@($realSensorDeploymentSummary.DeploymentPathSections) -join ', ')"
     Write-Host "Selected deployment path count: $($realSensorDeploymentSummary.SelectedDeploymentPathCount)"
     Write-Host "Ready to claim real sensor deployment: $($realSensorDeploymentSummary.ReadyToClaimRealSensorDeployment)"
+    Write-Host "Pre-deployment evidence only: $($realSensorDeploymentSummary.PreDeploymentEvidenceOnly)"
+    Write-Host "Brokerless dispatch is deployment evidence: $($realSensorDeploymentSummary.BrokerlessDispatchIsDeploymentEvidence)"
+    Write-Host "Loopback smoke is deployment broker evidence: $($realSensorDeploymentSummary.LoopbackSmokeIsDeploymentBrokerEvidence)"
+    Write-Host "Static transaction registration is broker acceptance: $($realSensorDeploymentSummary.StaticTransactionRegistrationIsBrokerAcceptance)"
+    Write-Host "Real broker or SDK acceptance evidence present: $($realSensorDeploymentSummary.RealBrokerOrSdkAcceptanceEvidencePresent)"
+    Write-Host "Acceptance package is evidence shell: $($realSensorDeploymentSummary.AcceptancePackageIsEvidenceShell)"
+    Write-Host "Acceptance package is deployment proof: $($realSensorDeploymentSummary.AcceptancePackageIsDeploymentProof)"
+    Write-Host "Generated report does not mean deployment passed: $($realSensorDeploymentSummary.GeneratedReportDoesNotMeanDeploymentPassed)"
     Write-Host "Connects to external endpoint: $($realSensorDeploymentSummary.ConnectsToExternalEndpoint)"
     Write-Host "Runs SDK hardware: $($realSensorDeploymentSummary.RunsSdkHardware)"
     Write-Host "Does not connect to broker: $($realSensorDeploymentSummary.DoesNotConnectToBroker)"
     Write-Host "Does not connect to SDK: $($realSensorDeploymentSummary.DoesNotConnectToSdk)"
+    Write-Host "Does not modify DTCore: $($realSensorDeploymentSummary.DoesNotModifyDTCore)"
     Write-Host "Writes endpoint values: $($realSensorDeploymentSummary.WritesEndpointValues)"
     Write-Host "Writes credential values: $($realSensorDeploymentSummary.WritesCredentialValues)"
     Write-Host "Boundary: $($realSensorDeploymentSummary.Boundary)"
