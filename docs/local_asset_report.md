@@ -281,6 +281,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_poli
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_runtime_config_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 ```
 
 The runtime config report emits `RecommendedDecision`. Empty
@@ -293,6 +294,11 @@ for `Config/Game.ini`. Use `-EvidencePath` to inspect a candidate
 `LocalAssetDecisionEvidenceV1` record and `-FailOnIncompleteEvidence` when a
 pre-commit gate should reject staging the local config until owner evidence is
 complete.
+The runtime config acceptance template is also read-only. It records key names,
+counts, hash, secret-scan/log evidence fields, and owner decision placeholders
+with `ValuesRedacted=true`, `ModifiesConfig=false`, and `StagesConfig=false`.
+Do not store endpoint, credential, token, password, or secret values in the
+evidence record.
 
 Monitor WBP decisions can be inspected without mutating the binary asset:
 

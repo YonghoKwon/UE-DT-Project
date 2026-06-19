@@ -158,6 +158,12 @@ Open decisions:
   checklist for `Config/Game.ini`. It accepts `-EvidencePath` for a candidate
   `LocalAssetDecisionEvidenceV1` file and `-FailOnIncompleteEvidence` for an
   opt-in config pre-commit gate.
+- `Scripts/export_runtime_config_acceptance_template.ps1` exports a read-only
+  fillable runtime config evidence template. It records key names, key counts,
+  config hash, secret-scan/log fields, shared-default owner decision fields, and
+  policy validation evidence with `ValuesRedacted=true`, `ModifiesConfig=false`,
+  and `StagesConfig=false`; endpoint, credential, token, password, and secret
+  values should never be written to the template output.
 - Monitor WBP decision report tooling is available through
   `Scripts/export_monitor_wbp_decision_report.ps1`. It records local
   `WBP_VirtualSensorMonitor.uasset` metadata, Git state, setup-document contract

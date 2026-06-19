@@ -95,6 +95,7 @@ $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 $gameIniPath = Join-Path $ProjectRoot "Config\Game.ini"
 $assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
 $runtimePolicyScript = Join-Path $SourceRepoRoot "Scripts\validate_runtime_config_policy.ps1"
+$runtimeAcceptanceTemplateScript = Join-Path $SourceRepoRoot "Scripts\export_runtime_config_acceptance_template.ps1"
 $runtimeOverride = Read-RuntimeOverrideSection -Path $gameIniPath
 
 $assetReportParams = @{ ProjectRoot = $ProjectRoot }
@@ -191,6 +192,14 @@ $report = [PSCustomObject]@{
     DecisionPoint = $configDecisionPoint
     ManualAcceptanceChecklist = $manualAcceptanceChecklist
     EvidenceDraft = $evidenceDraft
+    AcceptanceTemplate = [PSCustomObject]@{
+        Script = $runtimeAcceptanceTemplateScript
+        Available = (Test-Path -LiteralPath $runtimeAcceptanceTemplateScript -PathType Leaf)
+        RequiredEvidenceCount = 4
+        RequiredEvidence = @("Manual diff review", "No endpoint or credential values", "Shared-defaults decision", "Runtime config policy pass")
+        ValuesRedacted = $true
+        Boundary = "The acceptance template is read-only, redacts values, and does not replace config owner acceptance."
+    }
     Summary = [PSCustomObject]@{
         Valid = $true
         RuntimePolicyValid = [bool]$runtimePolicyReport.Summary.Valid
@@ -205,6 +214,8 @@ $report = [PSCustomObject]@{
         MissingEvidenceCount = if ($configDecisionPoint) { @($configDecisionPoint.MissingEvidence).Count } else { 0 }
         ManualAcceptanceChecklistCount = $manualAcceptanceChecklist.Count
         ManualAcceptanceMissingCount = @($manualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" }).Count
+        AcceptanceTemplateAvailable = (Test-Path -LiteralPath $runtimeAcceptanceTemplateScript -PathType Leaf)
+        AcceptanceTemplateRequiredEvidenceCount = 4
         ReadyToStage = if ($configDecisionPoint) { [string]$configDecisionPoint.ReviewQueue -eq "ReadyToStage" } else { $false }
         StagingBlocked = if ($configDecisionPoint) { [bool]$configDecisionPoint.CommitBlocker } else { $false }
         ManualConfigOwnerDecisionStillRequired = (Test-Path -LiteralPath $gameIniPath -PathType Leaf) -and (-not $configDecisionPoint -or ([string]$configDecisionPoint.ReviewQueue -notin @("ReadyToStage", "KeepLocal")))
@@ -234,6 +245,8 @@ $lines = @(
     "- Ready to stage: $($report.Summary.ReadyToStage)",
     "- Staging blocked: $($report.Summary.StagingBlocked)",
     "- Manual config owner decision still required: $($report.Summary.ManualConfigOwnerDecisionStillRequired)",
+    "- Acceptance template available: $($report.Summary.AcceptanceTemplateAvailable)",
+    "- Acceptance template required evidence: $($report.Summary.AcceptanceTemplateRequiredEvidenceCount)",
     "- Risk level: $($report.RiskLevel)",
     "- Recommendation: $($report.Recommendation)",
     "",

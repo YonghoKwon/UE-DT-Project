@@ -137,12 +137,16 @@ $LocalProjectRoot = (Resolve-Path -LiteralPath $LocalProjectRoot).Path
 
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
 $runtimeConfigDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_runtime_config_decision_report.ps1"
+$runtimeConfigAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_runtime_config_acceptance_template.ps1"
+$precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $gameIniPath = Join-Path $LocalProjectRoot "Config\Game.ini"
 
 Assert-FileExists -Path $assetReportScript -Label "Local asset report script"
 Assert-FileExists -Path $runtimeConfigDecisionReportScript -Label "Runtime config decision report script"
+Assert-FileExists -Path $runtimeConfigAcceptanceTemplateScript -Label "Runtime config acceptance template script"
+Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
 Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
 
@@ -168,7 +172,22 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ReviewQueue"; Label = "Runtime config decision report exposes review queue" },
     [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "CommitReadiness"; Label = "Runtime config decision report exposes commit readiness" },
     [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "MissingEvidenceCount"; Label = "Runtime config decision report counts missing evidence" },
-    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ManualConfigOwnerDecisionStillRequired"; Label = "Runtime config decision report exposes manual owner gate" }
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "ManualConfigOwnerDecisionStillRequired"; Label = "Runtime config decision report exposes manual owner gate" },
+    [PSCustomObject]@{ Path = $runtimeConfigDecisionReportScript; Pattern = "AcceptanceTemplateAvailable"; Label = "Runtime config decision report exposes acceptance template availability" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "ValuesRedacted"; Label = "Runtime config acceptance template redacts values" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "ModifiesConfig"; Label = "Runtime config acceptance template is read-only" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "StagesConfig"; Label = "Runtime config acceptance template does not stage config" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "Manual diff review"; Label = "Runtime config acceptance template includes manual diff review" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "No endpoint or credential values"; Label = "Runtime config acceptance template includes endpoint credential gate" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "Shared-defaults decision"; Label = "Runtime config acceptance template includes shared defaults decision" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "Runtime config policy pass"; Label = "Runtime config acceptance template includes policy pass evidence" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "NonEmptyRuntimeOverrideKeys"; Label = "Runtime config acceptance template reports non-empty key names only" },
+    [PSCustomObject]@{ Path = $runtimeConfigAcceptanceTemplateScript; Pattern = "SecretScanResultPath"; Label = "Runtime config acceptance template supports secret scan evidence" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "RuntimeConfigDecisionSummary"; Label = "Pre-commit summary exports runtime config decision summary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnexpectedGameIniStaged"; Label = "Pre-commit summary flags unexpected Game.ini staging" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ValuesRedacted"; Label = "Pre-commit summary preserves redacted-values boundary" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_runtime_config_acceptance_template.ps1"; Label = "Local asset doc documents runtime config acceptance template" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_runtime_config_acceptance_template.ps1"; Label = "Remaining work documents runtime config acceptance template" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -176,6 +195,23 @@ foreach ($item in $requiredTexts) {
 }
 
 $runtimeOverride = Read-RuntimeOverrideSection -Path $gameIniPath
+$templateJson = & $runtimeConfigAcceptanceTemplateScript -ProjectRoot $LocalProjectRoot -SourceRepoRoot $ProjectRoot -Json
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    throw "export_runtime_config_acceptance_template.ps1 failed with exit code $LASTEXITCODE"
+}
+$template = $templateJson | ConvertFrom-Json
+if (-not [bool]$template.ValuesRedacted) {
+    throw "Runtime config acceptance template must redact values."
+}
+if ([bool]$template.ModifiesConfig) {
+    throw "Runtime config acceptance template must not modify Config/Game.ini."
+}
+if ([bool]$template.StagesConfig) {
+    throw "Runtime config acceptance template must not stage Config/Game.ini."
+}
+if ([int]$template.Summary.RequiredEvidenceCount -lt 4) {
+    throw "Runtime config acceptance template must include the required evidence gates."
+}
 $knownRuntimeOverrideKeys = @("BaseApiUrl", "LocalApiUrl", "TestApiUrl", "ProdApiUrl", "WebSocketUrl", "WebSocketLogin", "WebSocketPasscode")
 $recommendation = Get-RuntimeOverrideRecommendation `
     -RuntimeOverride $runtimeOverride `
@@ -216,6 +252,9 @@ $report = [PSCustomObject]@{
         RuntimeConfigDecisionReportDeclared = $true
         RuntimeConfigDecisionReportUsesAssetDecisionEngine = $true
         RuntimeConfigIncompleteEvidenceFailGateDeclared = $true
+        RuntimeConfigAcceptanceTemplateDeclared = $true
+        RuntimeConfigAcceptanceTemplateValuesRedacted = $template.Summary.ValuesRedacted
+        RuntimeConfigAcceptanceTemplateStagesConfig = $template.Summary.StagesConfig
         Valid = $true
     }
 }
@@ -235,5 +274,8 @@ else {
     Write-Host "Runtime config decision report declared: $($report.Summary.RuntimeConfigDecisionReportDeclared)"
     Write-Host "Runtime config decision report uses asset decision engine: $($report.Summary.RuntimeConfigDecisionReportUsesAssetDecisionEngine)"
     Write-Host "Runtime config incomplete evidence fail gate declared: $($report.Summary.RuntimeConfigIncompleteEvidenceFailGateDeclared)"
+    Write-Host "Runtime config acceptance template declared: $($report.Summary.RuntimeConfigAcceptanceTemplateDeclared)"
+    Write-Host "Runtime config acceptance template values redacted: $($report.Summary.RuntimeConfigAcceptanceTemplateValuesRedacted)"
+    Write-Host "Runtime config acceptance template stages config: $($report.Summary.RuntimeConfigAcceptanceTemplateStagesConfig)"
     Write-Host "Reason: $($report.Reason)"
 }

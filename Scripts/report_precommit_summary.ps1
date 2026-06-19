@@ -206,6 +206,60 @@ function Get-WbpDecisionSummary {
     }
 }
 
+function Get-RuntimeConfigDecisionSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $runtimeConfigDecisionReportScript = Join-Path $script:PSScriptRoot "export_runtime_config_decision_report.ps1"
+    if (-not (Test-Path -LiteralPath $runtimeConfigDecisionReportScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $runtimeConfigDecisionReportScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Runtime config decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $configReport = $jsonText | ConvertFrom-Json
+    $missingChecklist = @($configReport.ManualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" })
+    return [PSCustomObject]@{
+        GameIniPresent = [bool]$configReport.GameIniPresent
+        GameIniGitState = [string]$configReport.Summary.GameIniGitState
+        RuntimeOverridePresent = [bool]$configReport.RuntimeOverridePresent
+        RuntimeOverrideKeyCount = @($configReport.RuntimeOverrideKeys).Count
+        NonEmptyRuntimeOverrideKeyCount = @($configReport.NonEmptyRuntimeOverrideKeys).Count
+        ValuesRedacted = [bool]$configReport.ValuesRedacted
+        ReviewQueue = [string]$configReport.Summary.ReviewQueue
+        CommitReadiness = [string]$configReport.Summary.CommitReadiness
+        EvidenceStatus = [string]$configReport.Summary.EvidenceStatus
+        EvidenceSatisfied = [bool]$configReport.Summary.EvidenceSatisfied
+        MissingEvidenceCount = [int]$configReport.Summary.MissingEvidenceCount
+        ManualAcceptanceMissingCount = [int]$configReport.Summary.ManualAcceptanceMissingCount
+        MissingAcceptanceItems = @($missingChecklist | Select-Object -ExpandProperty Name)
+        ReadyToStage = [bool]$configReport.Summary.ReadyToStage
+        StagingBlocked = [bool]$configReport.Summary.StagingBlocked
+        ManualConfigOwnerDecisionStillRequired = [bool]$configReport.Summary.ManualConfigOwnerDecisionStillRequired
+        AcceptanceTemplateAvailable = [bool]$configReport.Summary.AcceptanceTemplateAvailable
+        AcceptanceTemplateRequiredEvidenceCount = [int]$configReport.Summary.AcceptanceTemplateRequiredEvidenceCount
+        UnexpectedGameIniStaged = ([string]$configReport.Summary.GameIniGitState -eq "Staged" -and -not [bool]$configReport.Summary.ReadyToStage)
+        MustRemainLocal = ([bool]$configReport.GameIniPresent -and -not [bool]$configReport.Summary.ReadyToStage)
+        Recommendation = [string]$configReport.Recommendation
+        Boundary = "Config/Game.ini stays local unless config owner accepts shared defaults with redacted diff, no endpoint/credential evidence, and runtime policy pass."
+    }
+}
+
 function Get-LazExportDecisionSummary {
     param([string]$ProjectRoot)
 
@@ -472,6 +526,7 @@ $recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--o
 $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$runtimeConfigDecisionSummary = Get-RuntimeConfigDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
 $pointCloudRendererDecisionSummary = Get-PointCloudRendererDecisionSummary -ProjectRoot $SourceRepoRoot
 $readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
@@ -490,6 +545,7 @@ $report = [PSCustomObject]@{
     LocalAssetSummary = if ($localAssetReport) { $localAssetReport.Summary } else { $null }
     LargeContentDecisionSummary = $largeContentDecisionSummary
     WbpDecisionSummary = $wbpDecisionSummary
+    RuntimeConfigDecisionSummary = $runtimeConfigDecisionSummary
     LazExportDecisionSummary = $lazExportDecisionSummary
     PointCloudRendererDecisionSummary = $pointCloudRendererDecisionSummary
     ReadinessSummary = $readinessSummary
@@ -609,6 +665,30 @@ if ($wbpDecisionSummary) {
     Write-Host "Blocking reason: $($wbpDecisionSummary.BlockingReason)"
     Write-Host "Next review action: $($wbpDecisionSummary.NextReviewAction)"
     Write-Host "Boundary: $($wbpDecisionSummary.Boundary)"
+}
+
+if ($runtimeConfigDecisionSummary) {
+    Write-Section "Runtime config decision"
+    Write-Host "Game.ini present: $($runtimeConfigDecisionSummary.GameIniPresent)"
+    Write-Host "Git state: $($runtimeConfigDecisionSummary.GameIniGitState)"
+    Write-Host "Runtime override present: $($runtimeConfigDecisionSummary.RuntimeOverridePresent)"
+    Write-Host "Runtime override key count: $($runtimeConfigDecisionSummary.RuntimeOverrideKeyCount)"
+    Write-Host "Non-empty runtime override key count: $($runtimeConfigDecisionSummary.NonEmptyRuntimeOverrideKeyCount)"
+    Write-Host "Values redacted: $($runtimeConfigDecisionSummary.ValuesRedacted)"
+    Write-Host "Review queue: $($runtimeConfigDecisionSummary.ReviewQueue)"
+    Write-Host "Commit readiness: $($runtimeConfigDecisionSummary.CommitReadiness)"
+    Write-Host "Evidence status: $($runtimeConfigDecisionSummary.EvidenceStatus)"
+    Write-Host "Missing evidence count: $($runtimeConfigDecisionSummary.MissingEvidenceCount)"
+    Write-Host "Missing acceptance items: $(@($runtimeConfigDecisionSummary.MissingAcceptanceItems) -join ', ')"
+    Write-Host "Ready to stage: $($runtimeConfigDecisionSummary.ReadyToStage)"
+    Write-Host "Staging blocked: $($runtimeConfigDecisionSummary.StagingBlocked)"
+    Write-Host "Manual config owner decision still required: $($runtimeConfigDecisionSummary.ManualConfigOwnerDecisionStillRequired)"
+    Write-Host "Acceptance template available: $($runtimeConfigDecisionSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Acceptance template required evidence count: $($runtimeConfigDecisionSummary.AcceptanceTemplateRequiredEvidenceCount)"
+    Write-Host "Unexpected Game.ini staged: $($runtimeConfigDecisionSummary.UnexpectedGameIniStaged)"
+    Write-Host "Must remain local: $($runtimeConfigDecisionSummary.MustRemainLocal)"
+    Write-Host "Recommendation: $($runtimeConfigDecisionSummary.Recommendation)"
+    Write-Host "Boundary: $($runtimeConfigDecisionSummary.Boundary)"
 }
 
 if ($lazExportDecisionSummary) {
