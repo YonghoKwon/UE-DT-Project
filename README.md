@@ -344,6 +344,17 @@ files for adapter readiness, WebSocket sample/registration, broker-smoke draft,
 and deployment follow-up evidence. It does not connect to external brokers or
 SDKs and does not modify assets or stage files.
 
+LAZ compression acceptance package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+```
+
+The package writes local `Saved/Reports/LazCompressionAcceptance` review files
+for the current placeholder, compressor decision, reader/readable-output
+evidence, and follow-up commands. It does not install tools, run a compressor,
+modify assets, or stage files.
+
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell

@@ -213,6 +213,11 @@ local machine has compressor/reader candidates such as `laszip`, `las2las`,
 claim; true LAZ still requires a produced `.laz` plus readable-output evidence
 from an independent point-cloud tool.
 
+Use `Scripts/export_laz_compression_acceptance_package.ps1` to export the
+decision report, compressor readiness report, placeholder policy validation, and
+follow-up commands into `Saved/Reports/LazCompressionAcceptance/`. The package
+does not run a compressor by default; reader probing is explicit opt-in.
+
 `ExportLastPointCloudLaz()` also supports an opt-in external compressor path via
 `bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and
 `ExternalLazCompressorArguments`. The component first writes the LAS source and

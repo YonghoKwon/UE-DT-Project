@@ -524,10 +524,18 @@ Current state:
   `ReadableOutputEvidencePresent`, `ReadyForRealLazAutomation`, and
   `ReadyToClaimTrueLaz`, so the pre-commit report does not confuse process
   contract evidence with readable compressed-output evidence.
+- `Scripts/export_laz_compression_acceptance_package.ps1` creates a local
+  `Saved/Reports/LazCompressionAcceptance` package with the decision report,
+  compressor/readiness report, placeholder policy validation, manual acceptance
+  steps, and follow-up commands. It does not install tools, run a compressor,
+  modify assets, or stage files; reader probing runs only when explicitly
+  requested.
 
 Next implementation steps:
 
 - Decide whether true LAZ is required for this project.
+- Export the LAZ acceptance package before compressor/tool owner review:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"`.
 - Choose whether the external compressor path is sufficient, or whether a native
   library / server-side post-processing workflow is required.
 - Configure an accepted compressor executable and argument template, then
@@ -553,6 +561,9 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -IncludeReadiness`.
 - Local compressor readiness exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1"`.
+- LAZ acceptance package exports local review evidence without running a
+  compressor:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
 - Explicit compressor/reader readiness exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1" -CompressorPath "C:\path\to\laszip.exe" -ReaderPath "C:\path\to\lasinfo.exe"`.
 - Readable-output evidence export:

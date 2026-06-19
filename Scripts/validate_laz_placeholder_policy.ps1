@@ -60,10 +60,12 @@ $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
 $readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
+$acceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_package.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 
 Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision report script"
 Assert-FileExists -Path $readinessReportScript -Label "LAZ compressor readiness report script"
+Assert-FileExists -Path $acceptancePackageScript -Label "LAZ compression acceptance package script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -111,6 +113,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "KnownPointCloudReader"; Label = "Readiness report requires a known point-cloud reader" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "laszip"; Label = "Readiness report checks laszip candidate" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "pdal"; Label = "Readiness report checks pdal candidate" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "Saved\Reports\LazCompressionAcceptance"; Label = "Acceptance package writes local Saved report bundle" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "export_laz_compression_decision_report.ps1"; Label = "Acceptance package consumes LAZ decision report" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "export_laz_compressor_readiness_report.ps1"; Label = "Acceptance package consumes LAZ readiness report" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "validate_laz_placeholder_policy.ps1"; Label = "Acceptance package consumes LAZ placeholder policy" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "DoesNotRunCompressor = `$true"; Label = "Acceptance package declares no compressor execution" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "Reader probing runs only when explicitly requested"; Label = "Acceptance package documents opt-in reader probe boundary" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadableOutputEvidencePresent"; Label = "Acceptance package exposes readable output evidence" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadyForRealLazAutomation"; Label = "Acceptance package exposes real LAZ readiness" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "Get-LazExportDecisionSummary"; Label = "Pre-commit summary includes LAZ decision summary helper" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_laz_compression_decision_report.ps1"; Label = "Pre-commit summary consumes LAZ decision report" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_laz_compressor_readiness_report.ps1"; Label = "Pre-commit summary consumes LAZ readiness report" },
@@ -177,6 +187,7 @@ $report = [PSCustomObject]@{
         ExternalCompressorSuccessCovered = $true
         DecisionReportDeclared = $true
         CompressorReadinessReportDeclared = $true
+        AcceptancePackageDeclared = $true
         PrecommitSummaryDeclared = $true
         ReadableEvidenceProbeDeclared = $true
         MissingReaderProbeGuardCovered = $true
@@ -199,6 +210,7 @@ else {
     Write-Host "External compressor success covered: $($report.Summary.ExternalCompressorSuccessCovered)"
     Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
     Write-Host "Compressor readiness report declared: $($report.Summary.CompressorReadinessReportDeclared)"
+    Write-Host "Acceptance package declared: $($report.Summary.AcceptancePackageDeclared)"
     Write-Host "Pre-commit summary declared: $($report.Summary.PrecommitSummaryDeclared)"
     Write-Host "Readable evidence probe declared: $($report.Summary.ReadableEvidenceProbeDeclared)"
     Write-Host "Missing reader probe guard covered: $($report.Summary.MissingReaderProbeGuardCovered)"
