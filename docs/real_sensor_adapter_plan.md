@@ -269,6 +269,20 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_r
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -Json
 ```
 
+Export a local deployment evidence package before handing the adapter path to a
+deployment owner:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\path\to\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -Json
+```
+
+The package writes `Saved/Reports/RealSensorAdapterDeployment/` with the
+readiness report, adapter-plan validation, WebSocket sample validation,
+registration checklist, broker-smoke draft, manual steps, and follow-up
+commands. It never connects to the external broker or SDKs, never modifies
+assets, never stages files, and never writes endpoint or credential values.
+
 The report reuses the static adapter-plan validator, WebSocket sample validator,
 transaction registration report, and broker smoke report in read-only mode. It
 separates implemented bridge evidence from deployment broker smoke and actual

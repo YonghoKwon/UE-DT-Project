@@ -70,6 +70,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "WebSocket broker smoke report exporter"; Path = "Scripts\export_websocket_broker_smoke_report.ps1" },
     [PSCustomObject]@{ Label = "WebSocket LiDAR smoke evidence workflow"; Path = "Scripts\run_websocket_lidar_smoke_evidence.ps1" },
     [PSCustomObject]@{ Label = "Real sensor adapter readiness report exporter"; Path = "Scripts\export_real_sensor_adapter_readiness_report.ps1" },
+    [PSCustomObject]@{ Label = "Real sensor adapter deployment package exporter"; Path = "Scripts\export_real_sensor_adapter_deployment_package.ps1" },
     [PSCustomObject]@{ Label = "Adapter plan document"; Path = "docs\real_sensor_adapter_plan.md" }
 )
 
@@ -102,6 +103,7 @@ $webSocketRegistrationReportExporter = Join-Path $ProjectRoot "Scripts\export_we
 $webSocketBrokerSmokeReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_broker_smoke_report.ps1"
 $webSocketSmokeEvidenceWorkflow = Join-Path $ProjectRoot "Scripts\run_websocket_lidar_smoke_evidence.ps1"
 $realSensorReadinessReportExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_readiness_report.ps1"
+$realSensorDeploymentPackageExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_deployment_package.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 
 $requiredTexts = @(
@@ -257,7 +259,16 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "HTTP JSON live"; Label = "Readiness report includes HTTP live candidate" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "WebSocket via DTCore"; Label = "Readiness report includes DTCore WebSocket candidate" },
     [PSCustomObject]@{ Path = $realSensorReadinessReportExporter; Pattern = "ROS2/Livox/RealSense SDK"; Label = "Readiness report keeps SDK path as hardware follow-up" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "Saved\Reports\RealSensorAdapterDeployment"; Label = "Deployment package writes local Saved report bundle" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "export_real_sensor_adapter_readiness_report.ps1"; Label = "Deployment package consumes readiness report" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "validate_real_sensor_adapter_plan.ps1"; Label = "Deployment package validates adapter plan" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "run_websocket_lidar_smoke_evidence.ps1"; Label = "Deployment package references smoke workflow" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "DoesNotConnectToBroker = `$true"; Label = "Deployment package declares no broker connection" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "DoesNotConnectToSdk = `$true"; Label = "Deployment package declares no SDK connection" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "SensitivePatternHitCount"; Label = "Deployment package reports sensitive pattern hits" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "never connects to the external broker or SDKs"; Label = "Deployment package preserves external connection boundary" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "export_real_sensor_adapter_readiness_report.ps1"; Label = "Plan documents real sensor readiness report" },
+    [PSCustomObject]@{ Path = $planDoc; Pattern = "export_real_sensor_adapter_deployment_package.ps1"; Label = "Plan documents real sensor deployment package" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "DefaultBindAddress"; Label = "Transport contract documents HTTPServer default bind override" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "ListenerOverrides"; Label = "Transport contract documents HTTPServer listener override" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "BindAddress=any"; Label = "Transport contract documents HTTPServer all-interface override" },
@@ -304,6 +315,7 @@ $report = [PSCustomObject]@{
         DeploymentBlockersDeclared = $true
         DeploymentRequiredEvidenceDeclared = $true
         DeploymentNextActionsDeclared = $true
+        RealSensorDeploymentPackageDeclared = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
@@ -343,6 +355,7 @@ else {
     Write-Host "Deployment blockers declared: $($report.Summary.DeploymentBlockersDeclared)"
     Write-Host "Deployment required evidence declared: $($report.Summary.DeploymentRequiredEvidenceDeclared)"
     Write-Host "Deployment next actions declared: $($report.Summary.DeploymentNextActionsDeclared)"
+    Write-Host "Real sensor deployment package declared: $($report.Summary.RealSensorDeploymentPackageDeclared)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"

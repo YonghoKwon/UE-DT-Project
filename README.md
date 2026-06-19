@@ -333,6 +333,17 @@ for payload contract, transport contract, and fillable real-server acceptance
 evidence. Endpoint URLs, tokens, passwords, and credential values must stay out
 of the repository and out of generated review artifacts.
 
+Real sensor adapter deployment package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+```
+
+The package writes local `Saved/Reports/RealSensorAdapterDeployment` review
+files for adapter readiness, WebSocket sample/registration, broker-smoke draft,
+and deployment follow-up evidence. It does not connect to external brokers or
+SDKs and does not modify assets or stage files.
+
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell

@@ -326,10 +326,18 @@ Current state:
 - `Scripts/validate_real_sensor_adapter_plan.ps1` checks that replay adapters,
   placeholder adapters, sample files, WebSocket sample payload, handoff API
   text, automation test names, and the adapter plan remain in sync.
+- `Scripts/export_real_sensor_adapter_deployment_package.ps1` creates a local
+  `Saved/Reports/RealSensorAdapterDeployment` package with readiness, adapter
+  plan validation, WebSocket sample validation, transaction registration,
+  broker-smoke draft, manual steps, and follow-up commands. It does not connect
+  to the external broker or SDKs, modify assets, stage files, or write endpoint
+  or credential values.
 
 Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
+- Export the deployment evidence package before deployment-owner review:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"`.
 - Smoke-test the `LIDAR_JSON_LIVE_FRAME` route with the deployment STOMP/WebSocket
   broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
@@ -362,6 +370,8 @@ Completion evidence:
   one successful frame handoff path.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
+- Deployment evidence package exports without touching broker/SDK/config:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
 - WebSocket registration checklist exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"`.
 - Read-only WebSocket registration checklist passes:
