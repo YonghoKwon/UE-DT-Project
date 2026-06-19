@@ -155,6 +155,11 @@ Open decisions:
   gate. It accepts `-EvidencePath` for a candidate
   `LocalAssetDecisionEvidenceV1` file and `-FailOnIncompleteEvidence` for an
   opt-in WBP pre-commit gate.
+- `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
+  section with WBP Git state, review queue, missing evidence count, missing
+  acceptance items, setup-doc contract status, and the boundary that the binary
+  asset stays untracked until editor open, optional binding check, PIE smoke, and
+  production WBP acceptance evidence are recorded.
 - Large content decision report tooling is available through
   `Scripts/export_large_content_decision_report.ps1`. It summarizes
   `LargeContentCandidate` and `SampleOrThirdParty` paths by size, extension

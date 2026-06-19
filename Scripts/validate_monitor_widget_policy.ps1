@@ -105,6 +105,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "EvidencePath"; Label = "WBP decision report accepts evidence path" },
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "FailOnIncompleteEvidence"; Label = "WBP decision report can fail on incomplete evidence" },
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "ManualEditorVerificationStillRequired"; Label = "WBP decision report exposes manual editor gate" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpDecisionSummary"; Label = "Pre-commit summary exports WBP decision summary" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MissingAcceptanceItems"; Label = "Pre-commit summary lists missing WBP acceptance items" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "UnexpectedWbpStaged"; Label = "Pre-commit summary flags unexpectedly staged WBP" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MustRemainUntracked"; Label = "Pre-commit summary marks WBP that must remain untracked" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "StagingBlocked"; Label = "Pre-commit summary reports WBP staging block" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "ReadyToStage"; Label = "Pre-commit summary reports WBP ready-to-stage state" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "Monitor WBP stays untracked"; Label = "Pre-commit summary preserves WBP untracked boundary" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_decision_report.ps1"; Label = "Local asset doc documents WBP decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Monitor WBP decision report"; Label = "Remaining work tracks WBP decision report" }
 )

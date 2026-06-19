@@ -89,7 +89,10 @@ packet. It reuses `report_local_project_status.ps1`, reports the WBP
 `ReviewQueue`, `CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`, and
 `ReadyToStage` state, and exports a manual acceptance checklist for editor open
 verification, optional binding check, PIE smoke result, and production WBP
-acceptance. This report is review evidence, not approval by itself.
+acceptance. `Scripts/report_precommit_summary.ps1` also surfaces the same WBP
+Git/evidence state, missing acceptance items, setup-doc contract status, and
+manual editor verification boundary before each commit. This report is review
+evidence, not approval by itself.
 Pass `-EvidencePath` to inspect a candidate
 `LocalAssetDecisionEvidenceV1` file, and use `-FailOnIncompleteEvidence` in a
 pre-commit gate when the binary WBP must not be staged until its evidence is
