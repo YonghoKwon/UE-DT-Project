@@ -95,6 +95,8 @@ $sampleValidatorScript = Join-Path $ProjectRoot "Scripts\validate_websocket_lida
 $registrationScript = Join-Path $ProjectRoot "Scripts\export_websocket_transaction_registration_report.ps1"
 $brokerSmokeScript = Join-Path $ProjectRoot "Scripts\export_websocket_broker_smoke_report.ps1"
 $smokeWorkflowScript = Join-Path $ProjectRoot "Scripts\run_websocket_lidar_smoke_evidence.ps1"
+$templateScript = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_deployment_template.ps1"
+$validatorScript = Join-Path $ProjectRoot "Scripts\validate_real_sensor_adapter_deployment_evidence.ps1"
 
 $readinessJsonPath = Join-Path $OutputRoot "real_sensor_adapter_readiness.json"
 $readinessMarkdownPath = Join-Path $OutputRoot "real_sensor_adapter_readiness.md"
@@ -102,6 +104,9 @@ $planJsonPath = Join-Path $OutputRoot "real_sensor_adapter_plan_validation.json"
 $sampleJsonPath = Join-Path $OutputRoot "websocket_lidar_live_sample_validation.json"
 $registrationRoot = Join-Path $OutputRoot "WebSocketTransactionRegistration"
 $brokerRoot = Join-Path $OutputRoot "WebSocketBrokerSmoke"
+$evidenceJsonPath = Join-Path $OutputRoot "real_sensor_adapter_deployment.evidence.json"
+$evidenceMarkdownPath = Join-Path $OutputRoot "real_sensor_adapter_deployment_template.md"
+$validationJsonPath = Join-Path $OutputRoot "real_sensor_adapter_deployment_validation.json"
 $manifestJsonPath = Join-Path $OutputRoot "real_sensor_adapter_deployment_package.json"
 $manifestMarkdownPath = Join-Path $OutputRoot "README.md"
 
@@ -124,6 +129,19 @@ $brokerSmoke = Invoke-JsonScript -ScriptPath $brokerSmokeScript -Parameters @{
     ProjectRoot = $ProjectRoot
     OutputRoot = $brokerRoot
 }
+$template = Invoke-JsonScript -ScriptPath $templateScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    OutputPath = $evidenceJsonPath
+}
+& powershell -ExecutionPolicy Bypass -File $templateScript -ProjectRoot $ProjectRoot -OutputPath $evidenceMarkdownPath | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Real sensor deployment markdown template generation failed with exit code $LASTEXITCODE"
+}
+$validation = Invoke-JsonScript -ScriptPath $validatorScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    EvidencePath = $evidenceJsonPath
+}
+$validation | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $validationJsonPath -Encoding UTF8
 
 $plan | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $planJsonPath -Encoding UTF8
 $sample | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $sampleJsonPath -Encoding UTF8
@@ -153,6 +171,9 @@ $generatedFiles = @(
     [string]$registration.Summary.LatestMarkdownPath,
     [string]$brokerSmoke.Summary.LatestJsonPath,
     [string]$brokerSmoke.Summary.LatestMarkdownPath,
+    $evidenceJsonPath,
+    $evidenceMarkdownPath,
+    $validationJsonPath,
     $manifestJsonPath,
     $manifestMarkdownPath
 )
@@ -166,6 +187,8 @@ $manifest = [PSCustomObject]@{
     DryRunOnly = $true
     DoesNotConnectToBroker = $true
     DoesNotConnectToSdk = $true
+    ExternalConnectionAttempted = $false
+    CredentialValuesWritten = $false
     ModifiesAssets = $false
     StagesFiles = $false
     WritesEndpointValues = $false
@@ -175,6 +198,8 @@ $manifest = [PSCustomObject]@{
     SampleValidationSummary = $sample.Summary
     TransactionRegistrationSummary = $registration.Summary
     BrokerSmokeSummary = $brokerSmoke.Summary
+    TemplateSummary = $template.Summary
+    ValidationSummary = $validation.Summary
     ManualSteps = $manualSteps
     FollowUpCommands = $followUpCommands
     GeneratedFiles = $generatedFiles
@@ -190,11 +215,21 @@ $manifest = [PSCustomObject]@{
         BrokerSmokeMissingEvidenceFieldCount = [int]$readiness.Summary.BrokerSmokeMissingEvidenceFieldCount
         DeploymentEvidenceStillRequired = [bool]$readiness.Summary.DeploymentEvidenceStillRequired
         RealSdkIntegrationStillRequired = [bool]$readiness.Summary.RealSdkIntegrationStillRequired
+        DeploymentEvidenceTemplateCreated = (Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf)
+        DeploymentEvidenceFilePresent = [bool]$validation.Summary.EvidenceFilePresent
+        DeploymentEvidenceComplete = [bool]$validation.Summary.Complete
+        DeploymentEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
+        CurrentReadyToClaimRealSensorDeployment = [bool]$validation.Summary.CurrentReadyToClaimRealSensorDeployment
+        ReadyToClaimRealSensorDeployment = [bool]$validation.Summary.ReadyToClaimRealSensorDeployment
+        BrokerPieSmokeEvidencePresent = [bool]$validation.Summary.BrokerPieSmokeEvidencePresent
+        SdkHardwareEvidencePresent = [bool]$validation.Summary.SdkHardwareEvidencePresent
         BlockedDeploymentCandidateCount = [int]$readiness.Summary.BlockedDeploymentCandidateCount
         SensitivePatternHitCount = $sensitiveHits.Count
         DryRunOnly = $true
         DoesNotConnectToBroker = $true
         DoesNotConnectToSdk = $true
+        ExternalConnectionAttempted = $false
+        CredentialValuesWritten = $false
         ModifiesAssets = $false
         StagesFiles = $false
         WritesEndpointValues = $false
@@ -218,6 +253,12 @@ $lines.Add("- Broker smoke evidence fields complete: $($manifest.Summary.BrokerS
 $lines.Add("- Broker smoke missing evidence fields: $($manifest.Summary.BrokerSmokeMissingEvidenceFieldCount)") | Out-Null
 $lines.Add("- Deployment evidence still required: $($manifest.Summary.DeploymentEvidenceStillRequired)") | Out-Null
 $lines.Add("- Real SDK integration still required: $($manifest.Summary.RealSdkIntegrationStillRequired)") | Out-Null
+$lines.Add("- Deployment evidence template created: $($manifest.Summary.DeploymentEvidenceTemplateCreated)") | Out-Null
+$lines.Add("- Deployment evidence complete: $($manifest.Summary.DeploymentEvidenceComplete)") | Out-Null
+$lines.Add("- Deployment evidence missing checks: $($manifest.Summary.DeploymentEvidenceMissingCount)") | Out-Null
+$lines.Add("- Ready to claim real sensor deployment: $($manifest.Summary.CurrentReadyToClaimRealSensorDeployment)") | Out-Null
+$lines.Add("- Broker PIE smoke evidence present: $($manifest.Summary.BrokerPieSmokeEvidencePresent)") | Out-Null
+$lines.Add("- SDK hardware evidence present: $($manifest.Summary.SdkHardwareEvidencePresent)") | Out-Null
 $lines.Add("- Blocked deployment candidates: $($manifest.Summary.BlockedDeploymentCandidateCount)") | Out-Null
 $lines.Add("- Sensitive pattern hit count: $($manifest.Summary.SensitivePatternHitCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
@@ -263,5 +304,7 @@ else {
     Write-Host "Broker smoke evidence fields complete: $($manifest.Summary.BrokerSmokeEvidenceFieldsComplete)"
     Write-Host "Deployment evidence still required: $($manifest.Summary.DeploymentEvidenceStillRequired)"
     Write-Host "Real SDK integration still required: $($manifest.Summary.RealSdkIntegrationStillRequired)"
+    Write-Host "Deployment evidence complete: $($manifest.Summary.DeploymentEvidenceComplete)"
+    Write-Host "Ready to claim real sensor deployment: $($manifest.Summary.CurrentReadyToClaimRealSensorDeployment)"
     Write-Host "Sensitive pattern hit count: $($manifest.Summary.SensitivePatternHitCount)"
 }

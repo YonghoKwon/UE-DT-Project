@@ -281,7 +281,17 @@ The package writes `Saved/Reports/RealSensorAdapterDeployment/` with the
 readiness report, adapter-plan validation, WebSocket sample validation,
 registration checklist, broker-smoke draft, manual steps, and follow-up
 commands. It never connects to the external broker or SDKs, never modifies
-assets, never stages files, and never writes endpoint or credential values.
+assets, never stages files, and never writes endpoint or credential values. It
+also writes a fillable `RealSensorAdapterDeploymentEvidenceV1` draft and a
+validation report. Use
+`Scripts/validate_real_sensor_adapter_deployment_evidence.ps1` with
+`-FailOnIncompleteEvidence` only after `BrokerPieSmoke`,
+`HttpDeploymentSmoke`, `UdpDeploymentSmoke`, `SdkRos2Evidence`, `LivoxEvidence`,
+`RealSenseEvidence`, `CredentialRedaction`, and `OwnerAcceptance` evidence are
+recorded or explicitly accepted as not selected for the chosen deployment path.
+Brokerless DTCore dispatch, sample validation, and commandlet dry runs are
+pre-deployment evidence; they do not replace real STOMP/WebSocket broker PIE
+smoke or SDK hardware evidence.
 
 The report reuses the static adapter-plan validator, WebSocket sample validator,
 transaction registration report, and broker smoke report in read-only mode. It

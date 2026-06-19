@@ -104,6 +104,8 @@ $webSocketBrokerSmokeReportExporter = Join-Path $ProjectRoot "Scripts\export_web
 $webSocketSmokeEvidenceWorkflow = Join-Path $ProjectRoot "Scripts\run_websocket_lidar_smoke_evidence.ps1"
 $realSensorReadinessReportExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_readiness_report.ps1"
 $realSensorDeploymentPackageExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_deployment_package.ps1"
+$realSensorDeploymentTemplateExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_deployment_template.ps1"
+$realSensorDeploymentEvidenceValidator = Join-Path $ProjectRoot "Scripts\validate_real_sensor_adapter_deployment_evidence.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 
 $requiredTexts = @(
@@ -267,6 +269,32 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "DoesNotConnectToSdk = `$true"; Label = "Deployment package declares no SDK connection" },
     [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "SensitivePatternHitCount"; Label = "Deployment package reports sensitive pattern hits" },
     [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "never connects to the external broker or SDKs"; Label = "Deployment package preserves external connection boundary" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "export_real_sensor_adapter_deployment_template.ps1"; Label = "Deployment package writes fillable evidence template" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "validate_real_sensor_adapter_deployment_evidence.ps1"; Label = "Deployment package validates evidence draft" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "CurrentReadyToClaimRealSensorDeployment"; Label = "Deployment package exposes real deployment claim gate" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "ReadyToClaimRealSensorDeployment"; Label = "Deployment package exposes strict real deployment claim gate" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "ExternalConnectionAttempted = `$false"; Label = "Deployment package declares no external connection attempt" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "CredentialValuesWritten = `$false"; Label = "Deployment package declares no credential values written" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "BrokerPieSmokeEvidencePresent"; Label = "Deployment package surfaces broker PIE smoke evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentPackageExporter; Pattern = "SdkHardwareEvidencePresent"; Label = "Deployment package surfaces SDK hardware evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "RealSensorAdapterDeploymentEvidenceV1"; Label = "Deployment template declares schema version" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "BrokerPieSmoke"; Label = "Deployment template requires broker PIE smoke evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "HttpDeploymentSmoke"; Label = "Deployment template requires HTTP deployment smoke evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "UdpDeploymentSmoke"; Label = "Deployment template requires UDP deployment smoke evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "SdkRos2Evidence"; Label = "Deployment template requires ROS2 evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "LivoxEvidence"; Label = "Deployment template requires Livox evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "RealSenseEvidence"; Label = "Deployment template requires RealSense evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "CredentialRedaction"; Label = "Deployment template requires credential redaction evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "OwnerAcceptance"; Label = "Deployment template requires owner acceptance evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "ConnectsToExternalEndpoint = `$false"; Label = "Deployment template declares no external endpoint connection" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentTemplateExporter; Pattern = "RunsSdkHardware = `$false"; Label = "Deployment template declares no SDK hardware run" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "FailOnIncompleteEvidence"; Label = "Deployment evidence validator can fail on incomplete evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "CurrentReadyToClaimRealSensorDeployment"; Label = "Deployment evidence validator exposes deployment readiness" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "ReadyToClaimRealSensorDeployment"; Label = "Deployment evidence validator exposes strict deployment readiness" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "No sensitive endpoint or credential patterns"; Label = "Deployment evidence validator scans sensitive patterns" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "At least one smoke report path exists"; Label = "Deployment evidence validator requires smoke report path" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "BrokerPieSmokeEvidencePresent"; Label = "Deployment evidence validator surfaces broker PIE smoke evidence" },
+    [PSCustomObject]@{ Path = $realSensorDeploymentEvidenceValidator; Pattern = "SdkHardwareEvidencePresent"; Label = "Deployment evidence validator surfaces SDK hardware evidence" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "export_real_sensor_adapter_readiness_report.ps1"; Label = "Plan documents real sensor readiness report" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "export_real_sensor_adapter_deployment_package.ps1"; Label = "Plan documents real sensor deployment package" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "docs\server_transport_contract.md"); Pattern = "DefaultBindAddress"; Label = "Transport contract documents HTTPServer default bind override" },
@@ -316,6 +344,8 @@ $report = [PSCustomObject]@{
         DeploymentRequiredEvidenceDeclared = $true
         DeploymentNextActionsDeclared = $true
         RealSensorDeploymentPackageDeclared = $true
+        RealSensorDeploymentTemplateDeclared = $true
+        RealSensorDeploymentEvidenceValidatorDeclared = $true
         JsonLiveEditorHelpersPresent = $true
         JsonLiveRoutingAutomationPresent = $true
         JsonLiveRegistrationEvidenceAutomationPresent = $true
@@ -356,6 +386,8 @@ else {
     Write-Host "Deployment required evidence declared: $($report.Summary.DeploymentRequiredEvidenceDeclared)"
     Write-Host "Deployment next actions declared: $($report.Summary.DeploymentNextActionsDeclared)"
     Write-Host "Real sensor deployment package declared: $($report.Summary.RealSensorDeploymentPackageDeclared)"
+    Write-Host "Real sensor deployment template declared: $($report.Summary.RealSensorDeploymentTemplateDeclared)"
+    Write-Host "Real sensor deployment evidence validator declared: $($report.Summary.RealSensorDeploymentEvidenceValidatorDeclared)"
     Write-Host "JSON live editor helpers present: $($report.Summary.JsonLiveEditorHelpersPresent)"
     Write-Host "JSON live routing automation present: $($report.Summary.JsonLiveRoutingAutomationPresent)"
     Write-Host "JSON live registration evidence automation present: $($report.Summary.JsonLiveRegistrationEvidenceAutomationPresent)"

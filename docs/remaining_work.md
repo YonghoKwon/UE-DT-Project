@@ -332,6 +332,16 @@ Current state:
   broker-smoke draft, manual steps, and follow-up commands. It does not connect
   to the external broker or SDKs, modify assets, stage files, or write endpoint
   or credential values.
+- The package now also writes a fillable
+  `RealSensorAdapterDeploymentEvidenceV1` draft and validates it with
+  `Scripts/validate_real_sensor_adapter_deployment_evidence.ps1`. Real
+  deployment readiness remains false until `BrokerPieSmoke`,
+  `HttpDeploymentSmoke`, `UdpDeploymentSmoke`, `SdkRos2Evidence`,
+  `LivoxEvidence`, `RealSenseEvidence`, `CredentialRedaction`, and
+  `OwnerAcceptance` evidence are resolved for the selected deployment path.
+  Brokerless DTCore dispatch, sample validation, and commandlet dry runs remain
+  pre-deployment evidence; they do not replace real STOMP/WebSocket broker PIE
+  smoke or SDK hardware evidence.
 
 Next implementation steps:
 
@@ -372,6 +382,12 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
 - Deployment evidence package exports without touching broker/SDK/config:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+- Deployment evidence validation reports missing evidence without touching
+  broker/SDK/config:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -Json`.
+- Deployment evidence can be made a strict gate only after the evidence draft is
+  filled:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -FailOnIncompleteEvidence`.
 - WebSocket registration checklist exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"`.
 - Read-only WebSocket registration checklist passes:

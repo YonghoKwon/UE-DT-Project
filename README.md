@@ -341,8 +341,9 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_d
 
 The package writes local `Saved/Reports/RealSensorAdapterDeployment` review
 files for adapter readiness, WebSocket sample/registration, broker-smoke draft,
-and deployment follow-up evidence. It does not connect to external brokers or
-SDKs and does not modify assets or stage files.
+deployment evidence draft/validation, and follow-up evidence. It does not
+connect to external brokers or SDKs, does not write endpoint/credential values,
+and does not modify assets or stage files.
 
 LAZ compression acceptance package:
 
