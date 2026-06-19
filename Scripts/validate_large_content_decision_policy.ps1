@@ -121,6 +121,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "invoke_unused_content_archive.ps1"; Label = "Local asset doc documents unused content archive tool" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "PreviewOnly=true"; Label = "Local asset doc documents preview-only archive default" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = 'explicit `-ArchiveRoot` outside the project'; Label = "Local asset doc documents outside-project archive root" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "absent-or-archived"; Label = "Local asset doc documents archived cleanup state" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "PresentKnownUnusedCleanupCandidateCount"; Label = "Local asset doc documents present known cleanup count" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Local asset doc documents sample content decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
@@ -166,6 +168,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "invoke_unused_content_archive.ps1"; Label = "Remaining work tracks unused content archive tool" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "PreviewOnly=true"; Label = "Remaining work tracks preview-only archive default" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ArchiveRoot"; Label = "Remaining work tracks explicit archive root requirement" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "absent-or-archived"; Label = "Remaining work tracks archived cleanup state" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "PresentKnownUnusedCleanupCandidateCount"; Label = "Remaining work tracks present known cleanup count" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Remaining work tracks sample content decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "LocalProjectRoot"; Label = "Remaining work tracks separate local project root" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Staged decision gate"; Label = "Remaining work tracks staged decision evidence gate" },
@@ -227,6 +231,8 @@ $requiredTexts = @(
     ,
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "LargeContentDecisionSummary"; Label = "Pre-commit summary exports large-content decision summary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupCandidateCount"; Label = "Pre-commit summary reports unused cleanup count" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "KnownUnusedCleanupCandidateAbsentOrArchivedCount"; Label = "Pre-commit summary reports absent-or-archived cleanup count" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "PresentKnownUnusedCleanupCandidateCount"; Label = "Pre-commit summary reports present known cleanup count" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupSize"; Label = "Pre-commit summary reports unused cleanup size" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "RepositoryAcceptanceCandidatePaths"; Label = "Pre-commit summary reports repository acceptance paths" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleCandidateCount"; Label = "Pre-commit summary reports sample candidate count" },
@@ -379,9 +385,6 @@ if ([int]$archiveReport.Summary.CandidateCount -ne [int]$cleanupPlan.Summary.Cle
 if ([int]$cleanupPlan.Summary.CleanupCandidateCount -ne [int]$largeReport.Summary.UnusedLocalCleanupCandidateCount) {
     throw "Cleanup plan candidate count must match unused cleanup candidate count."
 }
-if ([int]$cleanupPlan.Summary.CleanupCandidateCount -ne 5) {
-    throw "Expected exactly 5 unused local cleanup candidates for the current local project state."
-}
 $expectedCleanupPaths = @(
     "Content\ChemicalPlantEnv",
     "Content\Mega_Crane",
@@ -389,10 +392,12 @@ $expectedCleanupPaths = @(
     "Content\Meshes",
     "Content\Textures"
 )
-foreach ($expectedPath in $expectedCleanupPaths) {
-    $matches = @($cleanupPlan.Candidates | Where-Object { [string]$_.Path -eq $expectedPath })
-    if ($matches.Count -ne 1) {
-        throw "Cleanup plan is missing expected cleanup candidate: $expectedPath"
+if ([int]$cleanupPlan.Summary.CleanupCandidateCount -gt $expectedCleanupPaths.Count) {
+    throw "Cleanup plan has more unused local cleanup candidates than the known unused Content folders."
+}
+foreach ($candidate in @($cleanupPlan.Candidates)) {
+    if (-not ($expectedCleanupPaths -contains [string]$candidate.Path)) {
+        throw "Cleanup plan contains an unexpected cleanup candidate: $($candidate.Path)"
     }
 }
 foreach ($candidate in @($cleanupPlan.Candidates)) {
@@ -504,6 +509,9 @@ $report = [PSCustomObject]@{
         RedistributionReviewRequiredCount = $largeReport.Summary.RedistributionReviewRequiredCount
         TopBlockerCount = $largeReport.Summary.TopBlockerCount
         CleanupPlanCandidateCount = $cleanupPlan.Summary.CleanupCandidateCount
+        KnownUnusedCleanupCandidateMaxCount = $expectedCleanupPaths.Count
+        PresentKnownUnusedCleanupCandidateCount = [int]$cleanupPlan.Summary.CleanupCandidateCount
+        KnownUnusedCleanupCandidateAbsentOrArchivedCount = ($expectedCleanupPaths.Count - [int]$cleanupPlan.Summary.CleanupCandidateCount)
         CleanupPlanRecoverableSize = $cleanupPlan.Summary.TotalRecoverableSize
         CleanupPlanDryRunOnly = $cleanupPlan.Summary.DryRunOnly
         CleanupPlanDeletesFiles = $cleanupPlan.Summary.DeletesFiles
@@ -550,6 +558,9 @@ else {
     Write-Host "Redistribution review required: $($report.Summary.RedistributionReviewRequiredCount)"
     Write-Host "Top blocker count: $($report.Summary.TopBlockerCount)"
     Write-Host "Cleanup plan candidates: $($report.Summary.CleanupPlanCandidateCount)"
+    Write-Host "Known unused cleanup candidate max count: $($report.Summary.KnownUnusedCleanupCandidateMaxCount)"
+    Write-Host "Present known unused cleanup candidate count: $($report.Summary.PresentKnownUnusedCleanupCandidateCount)"
+    Write-Host "Known unused cleanup candidate absent or archived count: $($report.Summary.KnownUnusedCleanupCandidateAbsentOrArchivedCount)"
     Write-Host "Cleanup plan recoverable size: $($report.Summary.CleanupPlanRecoverableSize)"
     Write-Host "Cleanup plan dry run only: $($report.Summary.CleanupPlanDryRunOnly)"
     Write-Host "Cleanup plan deletes files: $($report.Summary.CleanupPlanDeletesFiles)"

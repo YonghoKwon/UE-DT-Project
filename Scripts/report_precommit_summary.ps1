@@ -118,10 +118,20 @@ function Get-LargeContentDecisionSummary {
     $sampleBytes = [int64](($sampleCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
     $largestCleanupCandidate = @($unusedCleanupCandidates | Sort-Object SizeBytes -Descending | Select-Object -First 1)
     $largestSampleCandidate = @($sampleCandidates | Sort-Object SizeBytes -Descending | Select-Object -First 1)
+    $knownUnusedCleanupPaths = @(
+        "Content\ChemicalPlantEnv",
+        "Content\Mega_Crane",
+        "Content\Materials",
+        "Content\Meshes",
+        "Content\Textures"
+    )
 
     return [PSCustomObject]@{
         CandidateCount = [int]$largeReport.CandidateCount
         UnusedCleanupCandidateCount = $unusedCleanupCandidates.Count
+        KnownUnusedCleanupCandidateMaxCount = $knownUnusedCleanupPaths.Count
+        PresentKnownUnusedCleanupCandidateCount = $unusedCleanupCandidates.Count
+        KnownUnusedCleanupCandidateAbsentOrArchivedCount = ($knownUnusedCleanupPaths.Count - $unusedCleanupCandidates.Count)
         UnusedCleanupSizeBytes = $unusedCleanupBytes
         UnusedCleanupSize = Convert-ToSizeText -Bytes $unusedCleanupBytes
         RepositoryAcceptanceCandidateCount = $repositoryAcceptanceCandidates.Count
@@ -663,6 +673,9 @@ if ($localAssetReport) {
 if ($largeContentDecisionSummary) {
     Write-Section "Large content cleanup"
     Write-Host "Unused cleanup candidates: $($largeContentDecisionSummary.UnusedCleanupCandidateCount)"
+    Write-Host "Known unused cleanup candidate max count: $($largeContentDecisionSummary.KnownUnusedCleanupCandidateMaxCount)"
+    Write-Host "Present known unused cleanup candidate count: $($largeContentDecisionSummary.PresentKnownUnusedCleanupCandidateCount)"
+    Write-Host "Known unused cleanup candidate absent or archived count: $($largeContentDecisionSummary.KnownUnusedCleanupCandidateAbsentOrArchivedCount)"
     Write-Host "Unused cleanup size: $($largeContentDecisionSummary.UnusedCleanupSize)"
     Write-Host "Largest cleanup candidate: $($largeContentDecisionSummary.LargestCleanupCandidatePath) ($($largeContentDecisionSummary.LargestCleanupCandidateSize))"
     Write-Host "Repository-acceptance candidates: $($largeContentDecisionSummary.RepositoryAcceptanceCandidateCount)"

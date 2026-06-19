@@ -356,6 +356,12 @@ the unused folders. Its default mode is preview-only and records
 are provided. It uses the cleanup-plan candidate list, never performs permanent
 deletion, never runs git staging, and should be followed by an editor smoke test
 before the local cleanup is considered complete.
+After a local archive run, those folders should disappear from the current
+cleanup-candidate list. That is an expected local state, not a repository
+deletion to commit. The pre-commit summary reports the remaining current cleanup
+candidate count, `PresentKnownUnusedCleanupCandidateCount`, and the known
+unused-candidate max/absent-or-archived count so the local cleanup can be
+tracked without staging large asset folders.
 `export_sample_content_decision_report.ps1` gives the copied
 `Samples/PixelStreaming` folder the same read-only treatment: it records
 `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`,

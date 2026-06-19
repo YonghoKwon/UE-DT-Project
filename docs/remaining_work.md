@@ -148,6 +148,12 @@ Open decisions:
   `-Execute`, `-ConfirmReferenceChecks`, and an explicit `-ArchiveRoot` outside
   `C:\Unreal Projects\m7at10_dt`; the tool never performs permanent deletion or
   git staging.
+  If the archive move is executed locally, the current cleanup-candidate count
+  should drop because the folders are no longer inside the Unreal project. This
+  is tracked as local cleanup state, not a source-control deletion. The
+  pre-commit summary reports `PresentKnownUnusedCleanupCandidateCount`, the
+  known unused-candidate max, and absent-or-archived count so the archive can be
+  verified without staging those asset folders.
 - `Scripts/export_sample_content_decision_report.ps1` exports the current copied
   sample/third-party decision for `Samples/PixelStreaming`. It keeps
   `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`, and
