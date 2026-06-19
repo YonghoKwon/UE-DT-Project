@@ -196,6 +196,9 @@ function Write-MarkdownReport {
     $lines += "- PointCloudOnly clamps declared: $($Report.Summary.PointCloudOnlyClampDeclared)"
     $lines += "- Batched ISM upload declared: $($Report.Summary.BatchedInstanceUploadDeclared)"
     $lines += "- CSV performance evidence present: $($Report.Summary.CsvPerformanceEvidencePresent)"
+    $lines += "- CSV performance automation evidence present: $($Report.Summary.CsvPreviewPerformanceAutomationEvidencePresent)"
+    $lines += "- CSV performance evidence missing reason: $($Report.Summary.CsvPreviewPerformanceEvidenceMissingReason)"
+    $lines += "- Ready to claim CSV preview performance: $($Report.Summary.ReadyToClaimCsvPreviewPerformance)"
     $lines += "- CPU preview fallback evidence present: $($Report.Summary.CpuPreviewFallbackEvidencePresent)"
     $lines += "- CPU ISM fallback smoke present: $($Report.Summary.CpuIsmFallbackSmokePresent)"
     $lines += "- CPU procedural dense evidence present: $($Report.Summary.CpuProceduralDenseEvidencePresent)"
@@ -584,6 +587,12 @@ $report = [PSCustomObject]@{
         CpuFallbackPreserved = $cpuFallbackForcedForGpuCandidates
         AutomationCoverageDeclared = $automationCoverageDeclared
         CsvPerformanceEvidencePresent = [bool]$csvPreviewPerformanceEvidence.Present
+        CsvPreviewPerformanceAutomationEvidencePresent = [bool]$csvPreviewPerformanceEvidence.Present
+        CsvPreviewPerformanceEvidenceMissingReason = if ($csvPreviewPerformanceEvidence.Present) { "" } else { [string]$csvPreviewPerformanceEvidence.Reason }
+        CsvPreviewPerformanceRequiresAutomationLog = (-not [bool]$csvPreviewPerformanceEvidence.Present)
+        ReadyToClaimCsvPreviewPerformance = [bool]$csvPreviewPerformanceEvidence.Present
+        CsvPreviewPerformanceAcceptanceBlocked = (-not [bool]$csvPreviewPerformanceEvidence.Present)
+        CsvPreviewPerformanceAcceptanceBlockers = if ($csvPreviewPerformanceEvidence.Present) { @() } else { @("CSV preview automation log evidence is missing or invalid.") }
         CpuFallbackPerformanceEvidencePresent = [bool]$cpuFallbackPerformanceEvidencePresent
         CpuPreviewFallbackEvidencePresent = [bool]$cpuPreviewFallbackEvidencePresent
         CpuIsmFallbackSmokePresent = [bool]$cpuIsmFallbackSmokePresent
@@ -637,6 +646,9 @@ else {
     Write-Host "Acceptance evidence items: $($report.Summary.AcceptanceEvidenceCount)"
     Write-Host "Batched instance upload: $($report.Summary.BatchedInstanceUploadDeclared)"
     Write-Host "CSV performance evidence present: $($report.Summary.CsvPerformanceEvidencePresent)"
+    Write-Host "CSV performance automation evidence present: $($report.Summary.CsvPreviewPerformanceAutomationEvidencePresent)"
+    Write-Host "CSV performance evidence missing reason: $($report.Summary.CsvPreviewPerformanceEvidenceMissingReason)"
+    Write-Host "Ready to claim CSV preview performance: $($report.Summary.ReadyToClaimCsvPreviewPerformance)"
     Write-Host "CPU preview fallback evidence present: $($report.Summary.CpuPreviewFallbackEvidencePresent)"
     Write-Host "CPU ISM fallback smoke present: $($report.Summary.CpuIsmFallbackSmokePresent)"
     Write-Host "CPU procedural dense evidence present: $($report.Summary.CpuProceduralDenseEvidencePresent)"

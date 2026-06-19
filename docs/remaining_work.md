@@ -718,6 +718,14 @@ Current state:
   that explicitly marks `DoesNotIntegrateGpuRenderer`, `DoesNotModifyAssets`,
   `CreatesNiagaraAssets = false`, `RunsGpuViewportSmoke = false`, and
   `StagesFiles = false`.
+  The manifest separates a written CSV performance report shell from accepted
+  automation evidence. `CsvPreviewPerformanceReportShellWritten = true` only
+  means a review artifact exists; performance acceptance still requires
+  `CsvPreviewPerformanceAutomationEvidencePresent = true`,
+  `CsvPreviewPerformanceReportValid = true`, and
+  `ReadyToClaimCsvPreviewPerformance = true`.
+  Missing evidence is surfaced as
+  `CsvPreviewPerformanceEvidenceMissingReason`.
 
 Next implementation steps:
 

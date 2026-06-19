@@ -216,6 +216,8 @@ $readyToClaimGpuDensePreview = (
     [bool]$decisionReport.Summary.GpuFallbackPreservationEvidencePresent -and
     [bool]$decisionReport.Summary.GpuDenseFrameEvidencePresent
 )
+$csvPreviewPerformanceReportValid = if ($csvPerformanceReport.Summary) { [bool]$csvPerformanceReport.Summary.Valid } else { [bool]$csvPerformanceReport.Present }
+$csvPreviewPerformanceReportIsAcceptanceEvidence = ([bool]$decisionReport.Summary.CsvPreviewPerformanceAutomationEvidencePresent -and $csvPreviewPerformanceReportValid)
 
 $manifest = [PSCustomObject]@{
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
@@ -248,7 +250,16 @@ $manifest = [PSCustomObject]@{
         GpuDenseFrameEvidencePresent = [bool]$decisionReport.Summary.GpuDenseFrameEvidencePresent
         ReadyToClaimGpuDensePreview = $readyToClaimGpuDensePreview
         CsvPreviewPerformanceReportWritten = (Test-Path -LiteralPath $csvJsonPath -PathType Leaf)
-        CsvPreviewPerformanceReportValid = if ($csvPerformanceReport.Summary) { [bool]$csvPerformanceReport.Summary.Valid } else { [bool]$csvPerformanceReport.Present }
+        CsvPreviewPerformanceReportShellWritten = (Test-Path -LiteralPath $csvJsonPath -PathType Leaf)
+        CsvPreviewPerformanceReportValid = $csvPreviewPerformanceReportValid
+        CsvPreviewPerformanceAutomationEvidencePresent = [bool]$decisionReport.Summary.CsvPreviewPerformanceAutomationEvidencePresent
+        CsvPreviewPerformanceEvidenceMissingReason = [string]$decisionReport.Summary.CsvPreviewPerformanceEvidenceMissingReason
+        CsvPreviewPerformanceRequiresAutomationLog = [bool]$decisionReport.Summary.CsvPreviewPerformanceRequiresAutomationLog
+        ReadyToClaimCsvPreviewPerformance = [bool]$decisionReport.Summary.ReadyToClaimCsvPreviewPerformance
+        CsvPreviewPerformanceAcceptanceBlocked = [bool]$decisionReport.Summary.CsvPreviewPerformanceAcceptanceBlocked
+        CsvPreviewPerformanceAcceptanceBlockers = @($decisionReport.Summary.CsvPreviewPerformanceAcceptanceBlockers)
+        CsvPreviewPerformanceReportIsAcceptanceEvidence = $csvPreviewPerformanceReportIsAcceptanceEvidence
+        CsvPreviewPerformanceReportBoundary = "Report shell written means a review artifact exists. It is not performance acceptance until automation evidence is present, report valid is true, and ReadyToClaimCsvPreviewPerformance is true."
         DryRunOnly = $true
         DoesNotIntegrateGpuRenderer = $true
         CreatesNiagaraAssets = $false
@@ -285,6 +296,14 @@ Write-TextFile -Path $readmePath -Lines @(
     "- Renderer decision valid: $($manifest.Summary.RendererDecisionValid)",
     "- Preview policy valid: $($manifest.Summary.PreviewPolicyValid)",
     "- CSV preview performance evidence present: $($manifest.Summary.CsvPreviewPerformanceEvidencePresent)",
+    "- CSV preview performance report shell written: $($manifest.Summary.CsvPreviewPerformanceReportShellWritten)",
+    "- CSV preview performance automation evidence present: $($manifest.Summary.CsvPreviewPerformanceAutomationEvidencePresent)",
+    "- CSV preview performance report valid: $($manifest.Summary.CsvPreviewPerformanceReportValid)",
+    "- CSV preview performance report is acceptance evidence: $($manifest.Summary.CsvPreviewPerformanceReportIsAcceptanceEvidence)",
+    "- Ready to claim CSV preview performance: $($manifest.Summary.ReadyToClaimCsvPreviewPerformance)",
+    "- CSV preview performance acceptance blocked: $($manifest.Summary.CsvPreviewPerformanceAcceptanceBlocked)",
+    "- CSV preview performance missing reason: $($manifest.Summary.CsvPreviewPerformanceEvidenceMissingReason)",
+    "- CSV preview performance report boundary: $($manifest.Summary.CsvPreviewPerformanceReportBoundary)",
     "- CPU preview fallback evidence present: $($manifest.Summary.CpuPreviewFallbackEvidencePresent)",
     "- CPU ISM fallback smoke present: $($manifest.Summary.CpuIsmFallbackSmokePresent)",
     "- CPU procedural dense evidence present: $($manifest.Summary.CpuProceduralDenseEvidencePresent)",
@@ -323,6 +342,12 @@ else {
     Write-Host "Renderer decision valid: $($manifest.Summary.RendererDecisionValid)"
     Write-Host "Preview policy valid: $($manifest.Summary.PreviewPolicyValid)"
     Write-Host "CSV preview performance evidence present: $($manifest.Summary.CsvPreviewPerformanceEvidencePresent)"
+    Write-Host "CSV preview performance report shell written: $($manifest.Summary.CsvPreviewPerformanceReportShellWritten)"
+    Write-Host "CSV preview performance automation evidence present: $($manifest.Summary.CsvPreviewPerformanceAutomationEvidencePresent)"
+    Write-Host "CSV preview performance report valid: $($manifest.Summary.CsvPreviewPerformanceReportValid)"
+    Write-Host "Ready to claim CSV preview performance: $($manifest.Summary.ReadyToClaimCsvPreviewPerformance)"
+    Write-Host "CSV preview performance acceptance blocked: $($manifest.Summary.CsvPreviewPerformanceAcceptanceBlocked)"
+    Write-Host "CSV preview performance missing reason: $($manifest.Summary.CsvPreviewPerformanceEvidenceMissingReason)"
     Write-Host "Default preview backend: $($manifest.Summary.DefaultPreviewBackend)"
     Write-Host "CPU fallback preserved: $($manifest.Summary.CpuFallbackPreserved)"
     Write-Host "GPU renderer integrated: $($manifest.Summary.GpuRendererIntegrated)"

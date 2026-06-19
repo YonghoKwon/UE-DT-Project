@@ -165,6 +165,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "TestCompleteLine"; Label = "Renderer report forwards automation completion line number" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceLinesWithinRun"; Label = "Renderer report requires CSV evidence inside the selected run block" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvEvidenceLinesWithinRun"; Label = "Renderer report summary exposes same-run CSV evidence status" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvPreviewPerformanceAutomationEvidencePresent"; Label = "Renderer report separates CSV automation evidence from report generation" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvPreviewPerformanceEvidenceMissingReason"; Label = "Renderer report exposes CSV preview performance missing reason" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "ReadyToClaimCsvPreviewPerformance"; Label = "Renderer report exposes CSV preview performance acceptance gate" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvPreviewPerformanceAcceptanceBlocked"; Label = "Renderer report exposes CSV preview performance blocking state" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "MaxAcceptedPoints -ge 250000"; Label = "Renderer report treats 250k CSV evidence as dense fallback proof" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "Saved\Reports\PointCloudRendererAcceptance"; Label = "Renderer acceptance package writes the expected report folder" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Renderer acceptance package includes decision report" },
@@ -177,6 +181,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "Renderer acceptance package does not stage files" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "GpuViewportSmokeEvidencePresent"; Label = "Renderer acceptance package summarizes GPU viewport smoke evidence" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "ReadyToClaimGpuDensePreview"; Label = "Renderer acceptance package preserves GPU dense readiness gate" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "CsvPreviewPerformanceReportShellWritten"; Label = "Renderer acceptance package separates CSV report shell from evidence" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "CsvPreviewPerformanceAutomationEvidencePresent"; Label = "Renderer acceptance package exposes CSV automation evidence state" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "CsvPreviewPerformanceReportIsAcceptanceEvidence"; Label = "Renderer acceptance package says whether CSV report is acceptance evidence" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "ReadyToClaimCsvPreviewPerformance"; Label = "Renderer acceptance package exposes CSV performance ready gate" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" },
@@ -200,7 +208,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuViewportSmokeEvidencePresent"; Label = "Pre-commit summary surfaces GPU viewport smoke evidence" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuFallbackPreservationEvidencePresent"; Label = "Pre-commit summary surfaces fallback preservation evidence" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuDenseFrameEvidencePresent"; Label = "Pre-commit summary surfaces dense-frame evidence" },
-    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimGpuDensePreview"; Label = "Pre-commit summary avoids claiming GPU dense preview too early" }
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimGpuDensePreview"; Label = "Pre-commit summary avoids claiming GPU dense preview too early" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimCsvPreviewPerformance"; Label = "Pre-commit summary avoids claiming CSV preview performance too early" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "CsvPreviewPerformanceReportShellWritten"; Label = "Remaining work documents CSV report shell boundary" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "CsvPreviewPerformanceAutomationEvidencePresent"; Label = "Remaining work documents CSV automation evidence requirement" }
 )
 
 foreach ($item in $requiredTexts) {

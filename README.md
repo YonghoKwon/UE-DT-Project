@@ -1,5 +1,14 @@
 # UE-DT-Project
 
+## Point Cloud Renderer Evidence Boundary
+
+`export_point_cloud_renderer_acceptance_package.ps1` can write a CSV preview
+performance report shell even when Unreal automation log evidence is missing.
+Treat CSV preview performance as accepted only when
+`CsvPreviewPerformanceAutomationEvidencePresent`,
+`CsvPreviewPerformanceReportValid`, and `ReadyToClaimCsvPreviewPerformance` are
+all true.
+
 Unreal Engine 5.3 기반 Digital Twin 프로젝트입니다. 철강 제조 환경을 대상으로 가상 센서와 가상 카메라를 배치하고, 시뮬레이션 또는 실제 센서 입력을 Unreal 환경에 재현한 뒤 판단 서버로 측정 데이터를 전달하는 것을 목표로 합니다.
 
 현재 브랜치의 중심 기능은 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, sensor monitor widget/host actor, 로컬 smoke test 및 asset 상태 점검 스크립트입니다. Livox, RealSense, ROS2 직접 입력은 placeholder component까지 준비되어 있고 실제 SDK/bridge 연결은 후속 작업입니다.

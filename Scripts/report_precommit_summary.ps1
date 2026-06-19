@@ -644,6 +644,12 @@ function Get-PointCloudRendererDecisionSummary {
         CpuFallbackForcedForGpuCandidates = [bool]$rendererReport.Summary.CpuFallbackForcedForGpuCandidates
         CpuFallbackPreserved = [bool]$rendererReport.Summary.CpuFallbackPreserved
         CsvPerformanceEvidencePresent = [bool]$rendererReport.Summary.CsvPerformanceEvidencePresent
+        CsvPreviewPerformanceAutomationEvidencePresent = [bool]$rendererReport.Summary.CsvPreviewPerformanceAutomationEvidencePresent
+        CsvPreviewPerformanceEvidenceMissingReason = [string]$rendererReport.Summary.CsvPreviewPerformanceEvidenceMissingReason
+        CsvPreviewPerformanceRequiresAutomationLog = [bool]$rendererReport.Summary.CsvPreviewPerformanceRequiresAutomationLog
+        ReadyToClaimCsvPreviewPerformance = [bool]$rendererReport.Summary.ReadyToClaimCsvPreviewPerformance
+        CsvPreviewPerformanceAcceptanceBlocked = [bool]$rendererReport.Summary.CsvPreviewPerformanceAcceptanceBlocked
+        CsvPreviewPerformanceAcceptanceBlockers = @($rendererReport.Summary.CsvPreviewPerformanceAcceptanceBlockers)
         CsvEvidenceLinesWithinRun = [bool]$rendererReport.Summary.CsvEvidenceLinesWithinRun
         CsvFailureEvidencePresent = [bool]$rendererReport.Summary.CsvFailureEvidencePresent
         CsvPreviewMaxAcceptedPoints = [int64]$rendererReport.Summary.CsvPreviewMaxAcceptedPoints
@@ -807,8 +813,8 @@ $workAreas = @(
         -Remaining "Actual SDK/ROS2/Livox/RealSense connections, completed deployment STOMP/WebSocket broker PIE smoke evidence using the required evidence schema, HTTP/UDP deployment exposure and credential decisions, final production adapter owner approval, and successful real-frame smoke tests remain."),
     (New-WorkArea `
         -Name "Large point cloud rendering" `
-        -Percent 72 `
-        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, exportable CSV preview performance evidence from Unreal automation logs, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows. The renderer decision report consumes local CSV preview performance evidence, separates ISM smoke from procedural dense evidence, rejects failure lines inside the selected automation run block, records decision gates, recommends a Niagara point-renderer spike while preserving CPU preview fallback, exports GPU spike action-plan, renderer phase, viewport smoke, fallback-preservation, and dense-frame evidence gates, and is now surfaced in the pre-commit summary as a renderer decision/readiness boundary. The LiDAR component now exposes a preview backend selector that labels Niagara/custom GPU as candidate-only paths and keeps CPU instanced preview as the active fallback. A point cloud renderer acceptance package exporter now writes a local Saved/Reports bundle with the decision report, preview-policy validation, optional CSV performance evidence, GPU smoke follow-up commands, and explicit no-GPU-implementation/no-asset-edit/no-staging boundaries." `
+        -Percent 73 `
+        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, exportable CSV preview performance evidence from Unreal automation logs, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows. The renderer decision report consumes local CSV preview performance evidence, separates ISM smoke from procedural dense evidence, rejects failure lines inside the selected automation run block, records decision gates, recommends a Niagara point-renderer spike while preserving CPU preview fallback, exports GPU spike action-plan, renderer phase, viewport smoke, fallback-preservation, and dense-frame evidence gates, and is now surfaced in the pre-commit summary as a renderer decision/readiness boundary. The LiDAR component now exposes a preview backend selector that labels Niagara/custom GPU as candidate-only paths and keeps CPU instanced preview as the active fallback. A point cloud renderer acceptance package exporter now writes a local Saved/Reports bundle with the decision report, preview-policy validation, optional CSV performance evidence, GPU smoke follow-up commands, and explicit no-GPU-implementation/no-asset-edit/no-staging boundaries. The renderer decision and acceptance package now separate a CSV performance report shell from accepted Unreal automation evidence with CsvPreviewPerformanceReportShellWritten, CsvPreviewPerformanceAutomationEvidencePresent, CsvPreviewPerformanceReportIsAcceptanceEvidence, ReadyToClaimCsvPreviewPerformance, acceptance-blocked, and missing-reason fields, and the pre-commit summary surfaces the same boundary." `
         -Remaining "Niagara spike implementation, actual viewport screenshot/nonblank pixel evidence, renderer-specific dense-frame performance validation, fallback-preservation verification after GPU integration, and final GPU asset/module ownership remain."),
     (New-WorkArea `
         -Name "LAZ export" `
@@ -1187,6 +1193,12 @@ if ($pointCloudRendererDecisionSummary) {
     Write-Host "CPU fallback forced for GPU candidates: $($pointCloudRendererDecisionSummary.CpuFallbackForcedForGpuCandidates)"
     Write-Host "CPU fallback preserved: $($pointCloudRendererDecisionSummary.CpuFallbackPreserved)"
     Write-Host "CSV performance evidence present: $($pointCloudRendererDecisionSummary.CsvPerformanceEvidencePresent)"
+    Write-Host "CSV performance automation evidence present: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceAutomationEvidencePresent)"
+    Write-Host "CSV performance requires automation log: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceRequiresAutomationLog)"
+    Write-Host "Ready to claim CSV preview performance: $($pointCloudRendererDecisionSummary.ReadyToClaimCsvPreviewPerformance)"
+    Write-Host "CSV performance acceptance blocked: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceAcceptanceBlocked)"
+    Write-Host "CSV performance acceptance blockers: $(@($pointCloudRendererDecisionSummary.CsvPreviewPerformanceAcceptanceBlockers) -join '; ')"
+    Write-Host "CSV performance evidence missing reason: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceEvidenceMissingReason)"
     Write-Host "CSV evidence lines within run: $($pointCloudRendererDecisionSummary.CsvEvidenceLinesWithinRun)"
     Write-Host "CSV failure evidence present: $($pointCloudRendererDecisionSummary.CsvFailureEvidencePresent)"
     Write-Host "CSV preview max accepted points: $($pointCloudRendererDecisionSummary.CsvPreviewMaxAcceptedPoints)"
