@@ -176,6 +176,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupCandidateCount"; Label = "Pre-commit summary reports unused cleanup count" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupSize"; Label = "Pre-commit summary reports unused cleanup size" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "RepositoryAcceptanceCandidatePaths"; Label = "Pre-commit summary reports repository acceptance paths" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleCandidateCount"; Label = "Pre-commit summary reports sample candidate count" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleCandidateSize"; Label = "Pre-commit summary reports sample candidate size" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleCandidatePaths"; Label = "Pre-commit summary reports sample candidate paths" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleBoundary"; Label = "Pre-commit summary preserves sample ownership boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "Sample/third-party candidate means keep untracked"; Label = "Pre-commit summary warns sample candidates stay untracked" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "CleanupBoundary"; Label = "Pre-commit summary preserves cleanup boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "map/WBP dependency checks"; Label = "Pre-commit summary preserves map/WBP cleanup boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "not ready to stage"; Label = "Pre-commit summary warns cleanup candidates are not stageable" }

@@ -71,8 +71,11 @@ Open decisions:
   - Current local state: tracked as a sample/third-party decision point with
     extension counts and largest-file details in
     `Scripts/report_local_project_status.ps1`.
+  - Current pre-commit summary: one sample/third-party candidate, about 3.3 MB,
+    with `Samples/PixelStreaming` as the repository-acceptance path.
   - Evidence needed: explicit decision that Pixel Streaming samples are part of
-    this repository.
+    this repository, redistribution/license acceptance, and a decision that
+    checked-in files are preferable to documenting Pixel Streaming setup steps.
 - Static readiness:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1"`.
 - Strict content-review gate:
@@ -114,9 +117,12 @@ Open decisions:
   also shows top blocking actions.
 - `Scripts/report_precommit_summary.ps1` now consumes the large-content
   decision report and shows the confirmed-unused cleanup candidate count, total
-  cleanup size, largest cleanup candidate, and the repository-acceptance paths
-  that still need owner decisions. Cleanup candidate still means keep ignored or
-  manually remove after map/WBP dependency checks; it is not ready to stage.
+  cleanup size, largest cleanup candidate, sample/third-party candidate count
+  and size, and the repository-acceptance paths that still need owner decisions.
+  Cleanup candidate still means keep ignored or manually remove after map/WBP
+  dependency checks; sample/third-party candidate still means keep untracked
+  unless project ownership, redistribution approval, and documentation
+  alternative are accepted.
 - The large content decision report now exports per-path `RequiredAcceptance`,
   `DecisionBlockers`, `NextReviewAction`, and `TopBlockers`. High-risk binary
   asset packs and content over 100 MB are kept on explicit owner/source/license,

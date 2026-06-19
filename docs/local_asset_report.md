@@ -112,7 +112,10 @@ checks. `Scripts/report_precommit_summary.ps1` now surfaces this split directly:
 unused cleanup candidate count and size, the largest cleanup candidate, and the
 remaining repository-acceptance candidate paths. Cleanup candidate means keep
 ignored or manually remove after map/WBP dependency checks; it is not ready to
-stage. `Samples/PixelStreaming` remains a separate sample/third-party decision.
+stage. The same pre-commit summary also surfaces sample/third-party candidate
+count and size, currently `Samples/PixelStreaming`, with the boundary that copied
+samples stay untracked unless project ownership, redistribution approval, and a
+documentation-alternative decision are accepted.
 
 Every decision point also reports:
 
