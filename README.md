@@ -322,6 +322,17 @@ Editor-open, optional binding, PIE smoke, exported payload, and owner acceptance
 evidence. It does not modify assets, stage files, or accept the binary WBP by
 itself.
 
+Judging-server acceptance package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_package.ps1" -ProjectRoot "."
+```
+
+The package writes local `Saved/Reports/JudgingServerAcceptance` review files
+for payload contract, transport contract, and fillable real-server acceptance
+evidence. Endpoint URLs, tokens, passwords, and credential values must stay out
+of the repository and out of generated review artifacts.
+
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell

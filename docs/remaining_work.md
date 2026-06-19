@@ -414,6 +414,12 @@ Current state:
   `RealJudgingServerAcceptancePresent` can be treated as complete. The template
   records evidence paths and reviewer metadata only; endpoint URLs, tokens,
   passwords, secrets, and credential values must stay out of repository files.
+- `Scripts/export_judging_server_acceptance_package.ps1` now creates a local
+  `Saved/Reports/JudgingServerAcceptance` package with the payload contract
+  report, server transport contract validation, fillable judging-server
+  acceptance template, manual steps, follow-up commands, and a sensitive-pattern
+  scan of generated files. The package is evidence preparation only; it does
+  not contact the server, write endpoint values, modify config, or stage files.
 - `Scripts/validate_payload_schema_review_policy.ps1` checks that schema review
   notes stay present while the final server contract is still open.
 - `docs/server_transport_contract.md` records the current `LogOnly`,
@@ -438,6 +444,8 @@ Next implementation steps:
 
 - Confirm required field names, units, coordinate frame, timestamp format, and
   compression/transport requirements with the judging server.
+- Export the judging-server acceptance package before the server-owner review:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_package.ps1" -ProjectRoot "."`.
 - Decide final transport endpoint, authentication, retry, batching, and
   backpressure behavior with the judging-server team.
 - Replace the local mock HTTP endpoint acceptance test with real judging-server
@@ -460,6 +468,9 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1" -Json`.
 - Judging-server acceptance template exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_template.ps1" -Json`.
+- Judging-server acceptance package exports local review evidence without
+  endpoint or credential values:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_package.ps1" -ProjectRoot "." -Json`.
 - Server transport readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_contract.ps1"`.
 
