@@ -76,6 +76,7 @@ Open decisions:
   - Evidence needed: explicit decision that Pixel Streaming samples are part of
     this repository, redistribution/license acceptance, and a decision that
     checked-in files are preferable to documenting Pixel Streaming setup steps.
+  - Repository-side setup alternative: `docs/pixel_streaming_setup.md`.
 - Static readiness:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1"`.
 - Strict content-review gate:
@@ -164,7 +165,9 @@ Open decisions:
   sample/third-party decision for `Samples/PixelStreaming`. It keeps
   `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`, and
   `SafeToStage=false` until project ownership, license/redistribution approval,
-  and setup-documentation alternative evidence are recorded.
+  and setup-documentation alternative evidence are recorded. The report points
+  to `docs/pixel_streaming_setup.md` so copied sample files can stay local while
+  the repository keeps reproducible setup notes.
 - Runtime config validation now supports `-LocalProjectRoot` so the source repo
   policy can inspect the real local Unreal project `Config/Game.ini`. The JSON
   output includes `RecommendedDecision`; the current empty

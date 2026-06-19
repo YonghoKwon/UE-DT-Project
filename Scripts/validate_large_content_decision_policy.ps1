@@ -65,6 +65,7 @@ $largeContentCleanupPlanScript = Join-Path $ProjectRoot "Scripts\export_large_co
 $unusedContentArchiveScript = Join-Path $ProjectRoot "Scripts\invoke_unused_content_archive.ps1"
 $unusedContentArchiveEvidenceScript = Join-Path $ProjectRoot "Scripts\export_unused_content_archive_evidence.ps1"
 $sampleContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_sample_content_decision_report.ps1"
+$pixelStreamingSetupDoc = Join-Path $ProjectRoot "docs\pixel_streaming_setup.md"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
@@ -76,6 +77,7 @@ Assert-FileExists -Path $largeContentCleanupPlanScript -Label "Large content cle
 Assert-FileExists -Path $unusedContentArchiveScript -Label "Unused content archive script"
 Assert-FileExists -Path $unusedContentArchiveEvidenceScript -Label "Unused content archive evidence script"
 Assert-FileExists -Path $sampleContentDecisionReportScript -Label "Sample content decision report script"
+Assert-FileExists -Path $pixelStreamingSetupDoc -Label "Pixel Streaming setup document"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -127,6 +129,17 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "absent-or-archived"; Label = "Local asset doc documents archived cleanup state" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "PresentKnownUnusedCleanupCandidateCount"; Label = "Local asset doc documents present known cleanup count" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Local asset doc documents sample content decision report" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "docs/pixel_streaming_setup.md"; Label = "Local asset doc points to Pixel Streaming setup documentation" },
+    [PSCustomObject]@{ Path = $pixelStreamingSetupDoc; Pattern = "Samples/PixelStreaming/"; Label = "Pixel Streaming setup doc names local sample path" },
+    [PSCustomObject]@{ Path = $pixelStreamingSetupDoc; Pattern = "KeepLocalUnlessOwned"; Label = "Pixel Streaming setup doc records default decision" },
+    [PSCustomObject]@{ Path = $pixelStreamingSetupDoc; Pattern = "license/redistribution"; Label = "Pixel Streaming setup doc records license boundary" },
+    [PSCustomObject]@{ Path = $pixelStreamingSetupDoc; Pattern = "do not stage"; Label = "Pixel Streaming setup doc preserves staging boundary" },
+    [PSCustomObject]@{ Path = $pixelStreamingSetupDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Pixel Streaming setup doc documents sample report command" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "SetupDocumentationPath"; Label = "Sample decision report exports setup documentation path" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "docs/pixel_streaming_setup.md"; Label = "Sample decision report points to setup documentation" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "UnexpectedSampleStaged"; Label = "Sample decision report flags staged sample paths" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "StagedSamplePathCount"; Label = "Sample decision report counts staged sample paths" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "git diff --cached --name-only -- Samples/PixelStreaming"; Label = "Sample decision report checks staged PixelStreaming paths" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
@@ -175,6 +188,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "absent-or-archived"; Label = "Remaining work tracks archived cleanup state" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "PresentKnownUnusedCleanupCandidateCount"; Label = "Remaining work tracks present known cleanup count" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Remaining work tracks sample content decision report" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "docs/pixel_streaming_setup.md"; Label = "Remaining work tracks Pixel Streaming setup doc" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "LocalProjectRoot"; Label = "Remaining work tracks separate local project root" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Staged decision gate"; Label = "Remaining work tracks staged decision evidence gate" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
@@ -488,6 +502,15 @@ if (-not [bool]$pixelStreaming.MustRemainUntracked) {
 }
 if ([string]$pixelStreaming.ReviewQueue -ne "NeedsOwnerDecision") {
     throw "Samples\PixelStreaming must remain in NeedsOwnerDecision while evidence is missing."
+}
+if ([string]$pixelStreaming.SetupDocumentationPath -ne "docs\pixel_streaming_setup.md") {
+    throw "Samples\PixelStreaming must point to docs\pixel_streaming_setup.md as the setup documentation alternative."
+}
+if ([bool]$pixelStreaming.UnexpectedSampleStaged) {
+    throw "Samples\PixelStreaming has staged paths and must remain untracked."
+}
+if ([int]$sampleReport.Summary.StagedSamplePathCount -ne 0) {
+    throw "Sample decision report must show zero staged sample paths."
 }
 if (@($pixelStreaming.DecisionBlockers).Count -eq 0) {
     throw "Samples\PixelStreaming must include decision blockers."

@@ -68,6 +68,22 @@ $sampleCandidates = @(
 )
 $totalBytes = [int64](($sampleCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
 
+$stagedSamplePaths = @()
+Push-Location $ProjectRoot
+try {
+    $stagedNames = @(git diff --cached --name-only -- Samples/PixelStreaming 2>$null)
+    if ($LASTEXITCODE -eq 0) {
+        $stagedSamplePaths = @(
+            $stagedNames |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { ([string]$_).Replace("/", "\") }
+        )
+    }
+}
+finally {
+    Pop-Location
+}
+
 $requiredAcceptance = @(
     [PSCustomObject]@{
         Name = "Project ownership decision"
@@ -91,7 +107,7 @@ $requiredAcceptance = @(
 
 $setupPlanSteps = @(
     "Keep Samples/PixelStreaming out of source control while ownership and redistribution evidence is incomplete.",
-    "Document the expected Pixel Streaming sample source or setup command instead of committing copied files.",
+    "Document the expected Pixel Streaming sample source or setup command in docs/pixel_streaming_setup.md instead of committing copied files.",
     "Record project ownership, license/redistribution approval, and documentation-alternative decision before any repository acceptance.",
     "If ownership is accepted later, re-run local asset decision gates and stage only the reviewed sample paths."
 )
@@ -119,6 +135,7 @@ $candidates = @(
                 RepositoryAcceptanceRequired = [bool]$_.RepositoryAcceptanceRequired
                 RecommendedDecision = "KeepLocalUnlessOwned"
                 SourceReport = "Scripts/export_large_content_decision_report.ps1"
+                SetupDocumentationPath = "docs\pixel_streaming_setup.md"
                 ProjectOwnershipAccepted = $false
                 LicenseRedistributionAccepted = $false
                 DocumentationAlternativeAccepted = $false
@@ -128,6 +145,8 @@ $candidates = @(
                 ReadyToStage = $false
                 SafeToStage = $false
                 MustRemainUntracked = $true
+                StagedSamplePathCount = @($stagedSamplePaths | Where-Object { $_.StartsWith(($relativePath -replace "/", "\"), [System.StringComparison]::OrdinalIgnoreCase) }).Count
+                UnexpectedSampleStaged = (@($stagedSamplePaths | Where-Object { $_.StartsWith(($relativePath -replace "/", "\"), [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0)
                 MissingAcceptanceCount = $requiredAcceptance.Count
                 RequiredAcceptance = $requiredAcceptance
                 DecisionBlockers = @(
@@ -153,6 +172,10 @@ $report = [PSCustomObject]@{
     ModifiesAssets = $false
     CopiesSampleFiles = $false
     SourceReport = "Scripts/export_large_content_decision_report.ps1"
+    SetupDocumentationPath = "docs\pixel_streaming_setup.md"
+    StagedSamplePathCount = $stagedSamplePaths.Count
+    StagedSamplePaths = $stagedSamplePaths
+    UnexpectedSampleStaged = ($stagedSamplePaths.Count -gt 0)
     SampleCandidateCount = $candidates.Count
     SampleCandidateSizeBytes = $totalBytes
     SampleCandidateSize = Convert-ToSizeText -Bytes $totalBytes
@@ -170,6 +193,10 @@ $report = [PSCustomObject]@{
         DryRunOnly = $true
         ModifiesAssets = $false
         CopiesSampleFiles = $false
+        SetupDocumentationPath = "docs\pixel_streaming_setup.md"
+        StagedSamplePathCount = $stagedSamplePaths.Count
+        StagedSamplePaths = $stagedSamplePaths
+        UnexpectedSampleStaged = ($stagedSamplePaths.Count -gt 0)
         RepositoryAcceptanceRequiredCount = @($candidates | Where-Object { $_.RepositoryAcceptanceRequired }).Count
         DocumentationAlternativePreferredCount = @($candidates | Where-Object { $_.DocumentationAlternativePreferred }).Count
         SetupAlternativePreferredCount = @($candidates | Where-Object { $_.SetupAlternativePreferred }).Count
@@ -179,12 +206,12 @@ $report = [PSCustomObject]@{
         LargestSampleCandidatePath = if ($candidates.Count -gt 0) { [string]$candidates[0].Path } else { "" }
         LargestSampleCandidateSize = if ($candidates.Count -gt 0) { [string]$candidates[0].Size } else { "" }
         DefaultAction = "Keep untracked or replace with setup documentation unless ownership and redistribution evidence are accepted."
-        Valid = ($candidates.Count -eq $largeReport.Summary.RedistributionReviewRequiredCount)
+        Valid = ($candidates.Count -eq $largeReport.Summary.RedistributionReviewRequiredCount -and $stagedSamplePaths.Count -eq 0)
     }
 }
 
 if (-not $report.Summary.Valid) {
-    throw "Sample decision report candidate count does not match the large content decision report redistribution-review count."
+    throw "Sample decision report is invalid. CandidateCount=$($candidates.Count) RedistributionReviewRequiredCount=$($largeReport.Summary.RedistributionReviewRequiredCount) StagedSamplePathCount=$($stagedSamplePaths.Count)"
 }
 
 $lines = [System.Collections.Generic.List[string]]::new()
@@ -195,6 +222,9 @@ $lines.Add("- Project: $($report.ProjectRoot)") | Out-Null
 $lines.Add("- Dry run only: $($report.DryRunOnly)") | Out-Null
 $lines.Add("- Modifies assets: $($report.ModifiesAssets)") | Out-Null
 $lines.Add("- Copies sample files: $($report.CopiesSampleFiles)") | Out-Null
+$lines.Add("- Setup documentation: $($report.SetupDocumentationPath)") | Out-Null
+$lines.Add("- Unexpected sample staged: $($report.UnexpectedSampleStaged)") | Out-Null
+$lines.Add("- Staged sample path count: $($report.StagedSamplePathCount)") | Out-Null
 $lines.Add("- Sample candidates: $($report.SampleCandidateCount)") | Out-Null
 $lines.Add("- Sample candidate size: $($report.SampleCandidateSize)") | Out-Null
 $lines.Add("- Must remain untracked: $($report.MustRemainUntrackedCount)") | Out-Null
@@ -207,14 +237,15 @@ foreach ($step in $report.SetupPlanSteps) {
     $lines.Add("- $step") | Out-Null
 }
 $lines.Add("") | Out-Null
-$lines.Add("| Path | Size | Files | Git state | Documentation alternative preferred | Must remain untracked | Ready to stage | Required acceptance |") | Out-Null
-$lines.Add("| --- | ---: | ---: | --- | --- | --- | --- | --- |") | Out-Null
+$lines.Add("| Path | Size | Files | Git state | Setup documentation | Documentation alternative preferred | Must remain untracked | Ready to stage | Required acceptance |") | Out-Null
+$lines.Add("| --- | ---: | ---: | --- | --- | --- | --- | --- | --- |") | Out-Null
 foreach ($candidate in $report.Candidates) {
-    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |" -f `
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f `
         (Convert-ToMarkdownCell $candidate.Path),
         (Convert-ToMarkdownCell $candidate.Size),
         (Convert-ToMarkdownCell $candidate.FileCount),
         (Convert-ToMarkdownCell $candidate.GitState),
+        (Convert-ToMarkdownCell $candidate.SetupDocumentationPath),
         (Convert-ToMarkdownCell $candidate.DocumentationAlternativePreferred),
         (Convert-ToMarkdownCell $candidate.MustRemainUntracked),
         (Convert-ToMarkdownCell $candidate.ReadyToStage),

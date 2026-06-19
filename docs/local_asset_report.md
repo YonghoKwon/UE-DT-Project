@@ -389,4 +389,6 @@ stage archived asset folders.
 `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`,
 `SafeToStage=false`, and setup-documentation alternative steps until project
 ownership, license/redistribution approval, and the documentation alternative
-decision are recorded.
+decision are recorded. The repository-side alternative is
+`docs/pixel_streaming_setup.md`; keep that document current instead of staging
+copied sample files.
