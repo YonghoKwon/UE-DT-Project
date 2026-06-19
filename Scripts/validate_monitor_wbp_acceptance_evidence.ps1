@@ -155,8 +155,19 @@ $templateEvidenceItems = @()
 if ($rawEvidence -and $rawEvidence.PSObject.Properties.Name -contains "RequiredEvidence") {
     $templateEvidenceItems = @($rawEvidence.RequiredEvidence)
 }
+$manualAcceptanceSections = if ($rawEvidence -and $rawEvidence.PSObject.Properties.Name -contains "ManualAcceptanceSections") { $rawEvidence.ManualAcceptanceSections } else { $null }
 $decisionEvidenceItems = if ($evidenceRecord -and $evidenceRecord.PSObject.Properties.Name -contains "Evidence") { @($evidenceRecord.Evidence) } else { @() }
 
+$requiredManualAcceptanceSectionNames = @(
+    "EditorOpenEvidence",
+    "WidgetBindingEvidence",
+    "PieSmokeEvidence",
+    "SensorSelectionEvidence",
+    "LidarStatusPanelEvidence",
+    "SlabAnalysisPanelEvidence",
+    "NoCrashEvidence",
+    "OwnerAcceptance"
+)
 $requiredNames = @(
     "Editor open verification",
     "Optional binding check",
@@ -191,6 +202,23 @@ Add-Check -Checks $checks -Name "WBP asset hash matches" -Passed ($evidenceFileP
     )) -Detail "CurrentHash=$($preflight.Summary.AssetHash)"
 Add-Check -Checks $checks -Name "Decision accepted for repository" -Passed ($evidenceRecord -and [string]$evidenceRecord.DecisionStatus -eq "AcceptedForRepository") -Detail $(if ($evidenceRecord) { [string]$evidenceRecord.DecisionStatus } else { "" })
 Add-Check -Checks $checks -Name "Accepted metadata complete" -Passed ($evidenceRecord -and (Test-NonEmptyString $evidenceRecord.AcceptedBy) -and (Test-NonEmptyString $evidenceRecord.AcceptedAt) -and (Test-NonEmptyString $evidenceRecord.EvidenceSource)) -Detail "AcceptedBy/AcceptedAt/EvidenceSource"
+Add-Check -Checks $checks -Name "Manual acceptance sections present" -Passed ($null -ne $manualAcceptanceSections) -Detail "ManualAcceptanceSections"
+
+$acceptedManualAcceptanceSectionCount = 0
+if ($manualAcceptanceSections) {
+    foreach ($sectionName in $requiredManualAcceptanceSectionNames) {
+        $sectionPresent = ($manualAcceptanceSections.PSObject.Properties.Name -contains $sectionName)
+        Add-Check -Checks $checks -Name "$sectionName section present" -Passed $sectionPresent -Detail $sectionName
+        if ($sectionPresent) {
+            $section = $manualAcceptanceSections.$sectionName
+            $accepted = ([bool]$section.Present -and [bool]$section.Accepted -and (Test-NonEmptyString $section.EvidencePath) -and (Test-EvidenceFilePath -Value $section.EvidencePath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot))
+            if ($accepted) {
+                $acceptedManualAcceptanceSectionCount++
+            }
+            Add-Check -Checks $checks -Name "$sectionName section accepted with evidence file" -Passed $accepted -Detail "Present=$($section.Present) Accepted=$($section.Accepted) EvidencePath=$($section.EvidencePath)"
+        }
+    }
+}
 
 foreach ($requiredName in $requiredNames) {
     $decisionItem = Get-EvidenceItem -Items $decisionEvidenceItems -Name $requiredName
@@ -265,6 +293,7 @@ if ($productionEvidence.Count -gt 0) {
 
 $failedChecks = @($checks | Where-Object { -not [bool]$_.Passed })
 $readyToStageCandidate = ($failedChecks.Count -eq 0 -and $evidenceFilePresent -and -not [bool]$preflight.Summary.WbpStaged)
+$monitorWbpManualAcceptanceComplete = ($acceptedManualAcceptanceSectionCount -eq $requiredManualAcceptanceSectionNames.Count -and $readyToStageCandidate)
 
 $report = [PSCustomObject]@{
     SchemaVersion = 1
@@ -285,6 +314,16 @@ $report = [PSCustomObject]@{
         EvidenceFilePresent = $evidenceFilePresent
         EvidenceRecordPresent = ($null -ne $evidenceRecord)
         RequiredEvidenceCount = $requiredNames.Count
+        ManualAcceptanceSectionCount = $requiredManualAcceptanceSectionNames.Count
+        ManualAcceptanceSectionsPresent = ($null -ne $manualAcceptanceSections)
+        AcceptedManualAcceptanceSectionCount = $acceptedManualAcceptanceSectionCount
+        ManualAcceptanceSections = $requiredManualAcceptanceSectionNames
+        MonitorWbpAssetPresent = [bool](Test-Path -LiteralPath $wbpPath -PathType Leaf)
+        MonitorWbpAssetTracked = ([bool](Test-Path -LiteralPath $wbpPath -PathType Leaf) -and -not [bool]$preflight.Summary.WbpUntracked)
+        MonitorWbpAssetStageAllowed = $readyToStageCandidate
+        ReadyToStageMonitorWbpAsset = $readyToStageCandidate
+        EditorManualAcceptancePresent = ($acceptedManualAcceptanceSectionCount -gt 0)
+        MonitorWbpManualAcceptanceComplete = $monitorWbpManualAcceptanceComplete
         PassedCheckCount = @($checks | Where-Object { [bool]$_.Passed }).Count
         FailedCheckCount = $failedChecks.Count
         ReadyToStageCandidate = $readyToStageCandidate
@@ -311,6 +350,14 @@ else {
     Write-Host "Evidence record present: $($report.Summary.EvidenceRecordPresent)"
     Write-Host "Passed checks: $($report.Summary.PassedCheckCount)"
     Write-Host "Failed checks: $($report.Summary.FailedCheckCount)"
+    Write-Host "Manual acceptance sections present: $($report.Summary.ManualAcceptanceSectionsPresent)"
+    Write-Host "Accepted manual acceptance sections: $($report.Summary.AcceptedManualAcceptanceSectionCount)/$($report.Summary.ManualAcceptanceSectionCount)"
+    Write-Host "Monitor WBP asset present: $($report.Summary.MonitorWbpAssetPresent)"
+    Write-Host "Monitor WBP asset tracked: $($report.Summary.MonitorWbpAssetTracked)"
+    Write-Host "Monitor WBP asset stage allowed: $($report.Summary.MonitorWbpAssetStageAllowed)"
+    Write-Host "Ready to stage monitor WBP asset: $($report.Summary.ReadyToStageMonitorWbpAsset)"
+    Write-Host "Editor manual acceptance present: $($report.Summary.EditorManualAcceptancePresent)"
+    Write-Host "Monitor WBP manual acceptance complete: $($report.Summary.MonitorWbpManualAcceptanceComplete)"
     Write-Host "Ready to stage candidate: $($report.Summary.ReadyToStageCandidate)"
     Write-Host "Dry run only: $($report.Summary.DryRunOnly)"
     Write-Host "Modifies assets: $($report.Summary.ModifiesAssets)"

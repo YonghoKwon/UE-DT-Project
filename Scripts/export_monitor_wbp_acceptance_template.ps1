@@ -81,6 +81,66 @@ $pieSmokeChecks = @(
     "Transport/performance warning row is visible when warning text exists."
 )
 
+$manualAcceptanceSections = [PSCustomObject]@{
+    EditorOpenEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "WBP opens and compiles in Unreal Editor 5.3 without load or compile errors."
+    }
+    WidgetBindingEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "Optional widget bindings are checked against docs/widget_designer_setup.md and missing optional bindings are crash-safe."
+    }
+    PieSmokeEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "PIE smoke proves the production monitor host or Level Blueprint path creates and updates the WBP."
+    }
+    SensorSelectionEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "Camera/LiDAR sensor selection and capture controls are observed in the intended map."
+    }
+    LidarStatusPanelEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "LiDAR frame, ray/hit count, server/preview point count, transport, and warning rows are visible or explicitly accepted unavailable."
+    }
+    SlabAnalysisPanelEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "Slab angle/deviation/confidence rows are visible or explicitly accepted unavailable for the selected smoke map."
+    }
+    NoCrashEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "WBP optional bindings, mode switches, capture/export actions, and PIE teardown complete without crash or fatal log lines."
+    }
+    OwnerAcceptance = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "Project owner accepts this binary WBP as the production monitor widget."
+    }
+}
+$manualAcceptanceSectionNames = @($manualAcceptanceSections.PSObject.Properties | Select-Object -ExpandProperty Name)
+
 $template = [PSCustomObject]@{
     SchemaVersion = 1
     GeneratedAt = (Get-Date).ToString("s")
@@ -93,6 +153,12 @@ $template = [PSCustomObject]@{
     AssetPath = $wbpRelativePath
     WbpPresent = [bool]$decisionReport.WbpPresent
     WbpGitState = [string]$decisionReport.GitState
+    MonitorWbpAssetPresent = [bool]$decisionReport.WbpPresent
+    MonitorWbpAssetTracked = ([string]$decisionReport.GitState -eq "Tracked")
+    MonitorWbpAssetStageAllowed = $false
+    ReadyToStageMonitorWbpAsset = $false
+    EditorManualAcceptancePresent = $false
+    MonitorWbpManualAcceptanceComplete = $false
     AssetSizeBytes = [int64]$decisionReport.WbpSizeBytes
     WbpSize = [string]$decisionReport.WbpSize
     AssetHashAlgorithm = "SHA256"
@@ -102,6 +168,7 @@ $template = [PSCustomObject]@{
     CurrentEvidenceStatus = [string]$decisionReport.Summary.EvidenceStatus
     CurrentReadyToStage = [bool]$decisionReport.Summary.ReadyToStage
     MustRemainUntrackedUntilAccepted = (-not [bool]$decisionReport.Summary.ReadyToStage)
+    ManualAcceptanceSections = $manualAcceptanceSections
     RequiredEvidence = @(
         [PSCustomObject]@{
             Name = "Editor open verification"
@@ -207,7 +274,15 @@ $template = [PSCustomObject]@{
         RequiredEvidenceCount = 4
         PendingEvidenceCount = 4
         OptionalBindingCount = $optionalBindings.Count
+        ManualAcceptanceSectionCount = $manualAcceptanceSectionNames.Count
+        ManualAcceptanceSections = $manualAcceptanceSectionNames
         PieSmokeCheckCount = $pieSmokeChecks.Count
+        MonitorWbpAssetPresent = [bool]$decisionReport.WbpPresent
+        MonitorWbpAssetTracked = ([string]$decisionReport.GitState -eq "Tracked")
+        MonitorWbpAssetStageAllowed = $false
+        ReadyToStageMonitorWbpAsset = $false
+        EditorManualAcceptancePresent = $false
+        MonitorWbpManualAcceptanceComplete = $false
         DryRunOnly = $true
         ModifiesAssets = $false
         StagesWbp = $false
@@ -225,10 +300,31 @@ $lines.Add("- Project: $($template.ProjectRoot)") | Out-Null
 $lines.Add("- WBP: $($template.WbpRelativePath)") | Out-Null
 $lines.Add("- WBP present: $($template.WbpPresent)") | Out-Null
 $lines.Add("- WBP git state: $($template.WbpGitState)") | Out-Null
+$lines.Add("- Monitor WBP asset present: $($template.MonitorWbpAssetPresent)") | Out-Null
+$lines.Add("- Monitor WBP asset tracked: $($template.MonitorWbpAssetTracked)") | Out-Null
+$lines.Add("- Monitor WBP asset stage allowed: $($template.MonitorWbpAssetStageAllowed)") | Out-Null
+$lines.Add("- Ready to stage monitor WBP asset: $($template.ReadyToStageMonitorWbpAsset)") | Out-Null
+$lines.Add("- Editor manual acceptance present: $($template.EditorManualAcceptancePresent)") | Out-Null
+$lines.Add("- Monitor WBP manual acceptance complete: $($template.MonitorWbpManualAcceptanceComplete)") | Out-Null
+$lines.Add("- Manual acceptance sections: $($template.Summary.ManualAcceptanceSections -join ', ')") | Out-Null
 $lines.Add("- Dry run only: $($template.DryRunOnly)") | Out-Null
 $lines.Add("- Modifies assets: $($template.ModifiesAssets)") | Out-Null
 $lines.Add("- Stages WBP: $($template.StagesWbp)") | Out-Null
 $lines.Add("- Must remain untracked until accepted: $($template.MustRemainUntrackedUntilAccepted)") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add("## Manual Acceptance Sections") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add("| Section | Required | Present | Accepted | Evidence path | Description |") | Out-Null
+$lines.Add("| --- | --- | --- | --- | --- | --- |") | Out-Null
+foreach ($section in $template.ManualAcceptanceSections.PSObject.Properties) {
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} |" -f `
+        (Convert-ToMarkdownCell $section.Name),
+        (Convert-ToMarkdownCell $section.Value.Required),
+        (Convert-ToMarkdownCell $section.Value.Present),
+        (Convert-ToMarkdownCell $section.Value.Accepted),
+        (Convert-ToMarkdownCell $section.Value.EvidencePath),
+        (Convert-ToMarkdownCell $section.Value.Description))) | Out-Null
+}
 $lines.Add("") | Out-Null
 $lines.Add("| Evidence | Status | Required | Notes |") | Out-Null
 $lines.Add("| --- | --- | --- | --- |") | Out-Null

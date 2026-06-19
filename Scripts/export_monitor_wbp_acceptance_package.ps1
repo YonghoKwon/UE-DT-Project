@@ -149,6 +149,15 @@ $manifest = [PSCustomObject]@{
         ReadyForManualEditorReview = [bool]$preflight.Summary.ReadyForManualEditorReview
         WbpAcceptanceEvidenceComplete = [bool]$validation.Summary.Complete
         WbpAcceptanceMissingCount = [int]$validation.Summary.FailedCheckCount
+        MonitorWbpAssetPresent = [bool]$validation.Summary.MonitorWbpAssetPresent
+        MonitorWbpAssetTracked = [bool]$validation.Summary.MonitorWbpAssetTracked
+        MonitorWbpAssetStageAllowed = [bool]$validation.Summary.MonitorWbpAssetStageAllowed
+        ReadyToStageMonitorWbpAsset = [bool]$validation.Summary.ReadyToStageMonitorWbpAsset
+        EditorManualAcceptancePresent = [bool]$validation.Summary.EditorManualAcceptancePresent
+        MonitorWbpManualAcceptanceComplete = [bool]$validation.Summary.MonitorWbpManualAcceptanceComplete
+        ManualAcceptanceSectionCount = [int]$validation.Summary.ManualAcceptanceSectionCount
+        AcceptedManualAcceptanceSectionCount = [int]$validation.Summary.AcceptedManualAcceptanceSectionCount
+        ManualAcceptanceSections = @($validation.Summary.ManualAcceptanceSections)
         EvidenceTemplateCreated = (Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf)
         ValidationReportCreated = $true
         DryRunOnly = $true
@@ -174,6 +183,14 @@ $lines.Add("- Evidence file: $($manifest.EvidencePath)") | Out-Null
 $lines.Add("- Ready for manual editor review: $($manifest.Summary.ReadyForManualEditorReview)") | Out-Null
 $lines.Add("- WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanceEvidenceComplete)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)") | Out-Null
+$lines.Add("- Monitor WBP asset present: $($manifest.Summary.MonitorWbpAssetPresent)") | Out-Null
+$lines.Add("- Monitor WBP asset tracked: $($manifest.Summary.MonitorWbpAssetTracked)") | Out-Null
+$lines.Add("- Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAssetStageAllowed)") | Out-Null
+$lines.Add("- Ready to stage monitor WBP asset: $($manifest.Summary.ReadyToStageMonitorWbpAsset)") | Out-Null
+$lines.Add("- Editor manual acceptance present: $($manifest.Summary.EditorManualAcceptancePresent)") | Out-Null
+$lines.Add("- Monitor WBP manual acceptance complete: $($manifest.Summary.MonitorWbpManualAcceptanceComplete)") | Out-Null
+$lines.Add("- Manual acceptance sections: $($manifest.Summary.ManualAcceptanceSections -join ', ')") | Out-Null
+$lines.Add("- Accepted manual acceptance sections: $($manifest.Summary.AcceptedManualAcceptanceSectionCount)/$($manifest.Summary.ManualAcceptanceSectionCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
 $lines.Add("- Modifies assets: $($manifest.ModifiesAssets)") | Out-Null
 $lines.Add("- Stages files: $($manifest.StagesFiles)") | Out-Null
@@ -215,6 +232,12 @@ else {
     Write-Host "Ready for manual editor review: $($manifest.Summary.ReadyForManualEditorReview)"
     Write-Host "WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanceEvidenceComplete)"
     Write-Host "Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)"
+    Write-Host "Monitor WBP asset present: $($manifest.Summary.MonitorWbpAssetPresent)"
+    Write-Host "Monitor WBP asset tracked: $($manifest.Summary.MonitorWbpAssetTracked)"
+    Write-Host "Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAssetStageAllowed)"
+    Write-Host "Ready to stage monitor WBP asset: $($manifest.Summary.ReadyToStageMonitorWbpAsset)"
+    Write-Host "Editor manual acceptance present: $($manifest.Summary.EditorManualAcceptancePresent)"
+    Write-Host "Monitor WBP manual acceptance complete: $($manifest.Summary.MonitorWbpManualAcceptanceComplete)"
     Write-Host "Dry run only: $($manifest.DryRunOnly)"
     Write-Host "Modifies assets: $($manifest.ModifiesAssets)"
     Write-Host "Stages files: $($manifest.StagesFiles)"

@@ -125,6 +125,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "HostActorOrLevelBlueprintBinding"; Label = "WBP acceptance template records monitor binding path" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "ExportedPayloadPath"; Label = "WBP acceptance template records exported payload evidence" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "Production WBP acceptance"; Label = "WBP acceptance template includes owner acceptance evidence" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "ManualAcceptanceSections"; Label = "WBP acceptance template exports manual acceptance sections" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "EditorOpenEvidence"; Label = "WBP acceptance template includes editor-open section" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "LidarStatusPanelEvidence"; Label = "WBP acceptance template includes LiDAR status panel section" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "ReadyToStageMonitorWbpAsset"; Label = "WBP acceptance template separates asset presence from stage readiness" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "MonitorWbpAssetStageAllowed"; Label = "WBP acceptance template exposes stage allowed flag" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "StagesWbp"; Label = "WBP acceptance template declares it does not stage WBP" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "ModifiesAssets"; Label = "WBP acceptance template declares read-only asset behavior" },
     [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "ReadyForManualEditorReview"; Label = "WBP preflight reports manual editor readiness" },
@@ -134,6 +139,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "not WBP acceptance"; Label = "WBP preflight preserves acceptance boundary" },
     [PSCustomObject]@{ Path = $monitorWbpPreflightScript; Pattern = "export_unused_content_archive_evidence.ps1"; Label = "WBP preflight considers post-archive evidence" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ReadyToStageCandidate"; Label = "WBP evidence validator reports ready-to-stage candidate only" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ManualAcceptanceSectionsPresent"; Label = "WBP evidence validator reports manual acceptance section presence" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "AcceptedManualAcceptanceSectionCount"; Label = "WBP evidence validator counts accepted manual acceptance sections" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ReadyToStageMonitorWbpAsset"; Label = "WBP evidence validator reports monitor WBP stage readiness" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "MonitorWbpManualAcceptanceComplete"; Label = "WBP evidence validator reports manual acceptance completion" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "FailOnIncompleteEvidence"; Label = "WBP evidence validator supports incomplete evidence fail gate" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "AssetHash"; Label = "WBP evidence validator checks asset hash" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "EditorLogPath"; Label = "WBP evidence validator checks editor log path" },
@@ -148,6 +157,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "validate_monitor_wbp_acceptance_evidence.ps1"; Label = "WBP acceptance package runs evidence validator" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ReadyForManualEditorReview"; Label = "WBP acceptance package exposes manual editor readiness" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "WbpAcceptanceEvidenceComplete"; Label = "WBP acceptance package exposes evidence completeness" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "MonitorWbpAssetStageAllowed"; Label = "WBP acceptance package exposes stage allowed flag" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ReadyToStageMonitorWbpAsset"; Label = "WBP acceptance package exposes WBP ready-to-stage gate" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "MonitorWbpManualAcceptanceComplete"; Label = "WBP acceptance package exposes manual acceptance completion" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "WBP acceptance package declares no staging" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP acceptance package declares no asset modification" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "never modifies assets, never stages files"; Label = "WBP acceptance package preserves manual acceptance boundary" },
@@ -161,6 +173,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "ReadyToStage"; Label = "Pre-commit summary reports WBP ready-to-stage state" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "Monitor WBP stays untracked"; Label = "Pre-commit summary preserves WBP untracked boundary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "AcceptanceTemplateAvailable"; Label = "Pre-commit summary reports WBP acceptance template availability" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "ReadyToStageMonitorWbpAsset"; Label = "Pre-commit summary reports WBP ready-to-stage gate" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MonitorWbpManualAcceptanceComplete"; Label = "Pre-commit summary reports manual acceptance completion" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_decision_report.ps1"; Label = "Local asset doc documents WBP decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_acceptance_template.ps1"; Label = "Local asset doc documents WBP acceptance template" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_acceptance_package.ps1"; Label = "Local asset doc documents WBP acceptance package" },
@@ -201,6 +215,8 @@ $report = [PSCustomObject]@{
         MonitorWbpPreflightDeclared = $true
         MonitorWbpAcceptanceEvidenceValidatorDeclared = $true
         MonitorWbpAcceptancePackageDeclared = $true
+        MonitorWbpManualAcceptanceSectionsDeclared = $true
+        MonitorWbpStageGateDeclared = $true
         AutomationCoverageDeclared = $true
         ManualEditorVerificationStillRequired = $true
         Valid = $true

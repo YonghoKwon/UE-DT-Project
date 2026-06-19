@@ -330,6 +330,10 @@ The package writes local `Saved/Reports/MonitorWbpAcceptance` review files for
 Editor-open, optional binding, PIE smoke, exported payload, and owner acceptance
 evidence. It does not modify assets, stage files, or accept the binary WBP by
 itself.
+The local `WBP_VirtualSensorMonitor.uasset` can exist as an untracked review
+candidate while `ReadyToStageMonitorWbpAsset` remains false. Do not stage it
+until editor-open, widget-binding, PIE-smoke, no-crash, and owner-acceptance
+evidence sections are complete.
 
 Judging-server acceptance package:
 

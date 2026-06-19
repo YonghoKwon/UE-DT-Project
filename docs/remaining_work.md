@@ -204,6 +204,14 @@ Open decisions:
   such as `EvidenceRunId`, operator, map/PIE session, log path, screenshot path,
   optional binding rows, exported payload path, and owner acceptance metadata
   without modifying or staging the binary `.uasset`.
+  The template also separates `MonitorWbpAssetPresent` from
+  `MonitorWbpAssetStageAllowed` and keeps `ReadyToStageMonitorWbpAsset = false`
+  until manual evidence is complete. It now exposes manual acceptance sections:
+  `EditorOpenEvidence`, `WidgetBindingEvidence`, `PieSmokeEvidence`,
+  `SensorSelectionEvidence`, `LidarStatusPanelEvidence`,
+  `SlabAnalysisPanelEvidence`, `NoCrashEvidence`, and `OwnerAcceptance`.
+  A local untracked WBP file is therefore not treated as repository-ready just
+  because the asset exists on disk.
 - `Scripts/export_monitor_wbp_preflight_report.ps1` exports a read-only
   preflight report before manual Editor/PIE review. It checks the current WBP
   hash, Git state, setup-document contract, acceptance-template availability,
@@ -215,6 +223,11 @@ Open decisions:
   checks, and the boundary that the binary asset stays untracked until editor
   open, optional binding check, PIE smoke, and production WBP acceptance evidence
   are recorded.
+  The summary also reports `MonitorWbpAssetPresent`,
+  `MonitorWbpAssetTracked`, `MonitorWbpAssetStageAllowed`,
+  `ReadyToStageMonitorWbpAsset`, `EditorManualAcceptancePresent`, and
+  `MonitorWbpManualAcceptanceComplete` so asset presence cannot be confused with
+  stage permission.
 - Large content decision report tooling is available through
   `Scripts/export_large_content_decision_report.ps1`. It summarizes
   `LargeContentCandidate` and `SampleOrThirdParty` paths by size, extension
