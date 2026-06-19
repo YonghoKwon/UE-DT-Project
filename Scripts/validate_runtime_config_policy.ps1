@@ -149,6 +149,8 @@ Assert-FileExists -Path $remainingDoc -Label "Remaining work document"
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $assetReportScript; Pattern = "DTCoreRuntimeOverride"; Label = "Asset report detects runtime override section" },
     [PSCustomObject]@{ Path = $assetReportScript; Pattern = "endpoint or credential leakage"; Label = "Asset report warns about endpoint or credential leakage" },
+    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "Test-EmptyRuntimeOverrideConfig"; Label = "Asset report classifies empty runtime override config" },
+    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "Keep Config/Game.ini local by default"; Label = "Asset report keeps empty runtime override local" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "local-only runtime override"; Label = "Local asset doc explains local runtime override" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = 'Current local state: empty `[DTCoreRuntimeOverride]` values.'; Label = "Remaining work documents current empty override state" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "endpoint or"; Label = "Remaining work documents endpoint review" },

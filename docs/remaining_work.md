@@ -44,14 +44,16 @@ Open decisions:
   - Evidence needed: open in Unreal Editor, verify bindings, run PIE smoke test,
     then commit only if accepted.
 - `Config/Game.ini`
-  - Decide whether the local config change is intentional project config.
+  - Keep the current local config change out of source control by default.
   - Current local state: empty `[DTCoreRuntimeOverride]` values.
   - Recommended default: keep untracked as local-only runtime override unless
     shared endpoint defaults are explicitly required.
   - Static readiness:
     `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1"`.
-  - Evidence needed for commit: inspect diff, confirm there are no endpoint or
-    credential values, and document why the setting belongs in repo.
+  - Current report status: `KeepLocal`, `KeepLocalByDecision`, and
+    `ManualConfigOwnerDecisionStillRequired=false` for the empty override shape.
+  - Evidence needed only if committing later: inspect diff, confirm there are no
+    endpoint or credential values, and document why the setting belongs in repo.
 - `Content/ChemicalPlantEnv/`
   - Unused large environment pack.
   - Current decision: keep out of source control; optionally remove manually
@@ -104,8 +106,10 @@ Open decisions:
   highest-priority blockers without implicitly accepting local files.
   Large `Content/*` asset folders currently confirmed as unused are treated as
   local cleanup candidates, not repository-acceptance candidates. They should
-  stay untracked or be removed manually after a map/WBP dependency check. WBP and `Game.ini` decisions
-  still require manual editor/config review. The exported review bundle groups
+  stay untracked or be removed manually after a map/WBP dependency check. WBP still
+  requires manual editor review, while the current empty `Game.ini` override is
+  treated as KeepLocal unless non-empty endpoint or credential values are added.
+  The exported review bundle groups
   paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues and
   also shows top blocking actions.
 - `Scripts/report_precommit_summary.ps1` now consumes the large-content

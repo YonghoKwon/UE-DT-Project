@@ -64,8 +64,10 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 `Config/Game.ini` receives an additional detected note when it contains
 `[DTCoreRuntimeOverride]`. If every override value is blank, treat it as a
 local-only runtime override unless shared endpoint defaults are explicitly
-required. If any endpoint or credential value is populated, review it for
-environment or secret leakage before staging.
+required. The local asset report classifies that empty override shape as
+`KeepLocal` and `KeepLocalByDecision`, so it should stay untracked rather than
+waiting for repository acceptance. If any endpoint or credential value is
+populated, review it for environment or secret leakage before staging.
 
 Static runtime-config readiness:
 

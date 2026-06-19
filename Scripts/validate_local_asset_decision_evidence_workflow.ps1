@@ -168,6 +168,9 @@ function New-TempProject {
         @"
 [DTCoreRuntimeOverride]
 ServerUrl=
+
+[OtherSection]
+NotRuntimeOverride=value
 "@ | Set-Content -LiteralPath "Config\Game.ini" -Encoding UTF8
 
         New-Item -ItemType Directory -Path "Content\M7AT10\UI" -Force | Out-Null
@@ -210,15 +213,16 @@ try {
     $configPoint = Get-DecisionPoint -Report $baseline.Report -Path "Config\Game.ini"
     Assert-Equal -Actual $configPoint.ReviewPriority -Expected 20 -Label "Config review priority"
     Assert-True -Value ([bool]$configPoint.CommitBlocker) -Label "Config commit blocker"
-    Assert-Contains -Text $configPoint.BlockingReason -Expected "AcceptedForRepository" -Label "Config blocking reason"
-    Assert-Contains -Text $configPoint.NextReviewAction -Expected "endpoint/credential" -Label "Config next review action"
-    Assert-Equal -Actual $configPoint.EvidenceStatus -Expected "NoEvidenceRecord" -Label "No-evidence status"
-    Assert-Equal -Actual $configPoint.EvidenceReviewStatus -Expected "NoEvidenceRecord" -Label "No-evidence review status"
+    Assert-Contains -Text $configPoint.BlockingReason -Expected "remain local" -Label "Config blocking reason"
+    Assert-Contains -Text $configPoint.NextReviewAction -Expected "Keep this path out of source commits" -Label "Config next review action"
+    Assert-Equal -Actual $configPoint.DecisionStatus -Expected "KeepLocal" -Label "Empty runtime override default status"
+    Assert-Equal -Actual $configPoint.EvidenceStatus -Expected "KeepLocalByDefault" -Label "No-evidence status"
+    Assert-Equal -Actual $configPoint.EvidenceReviewStatus -Expected "KeepLocalByDefault" -Label "No-evidence review status"
     Assert-False -Value ([bool]$configPoint.EvidenceSatisfied) -Label "No-evidence satisfaction"
     Assert-False -Value ([bool]$configPoint.EvidenceComplete) -Label "No-evidence completeness"
-    Assert-Equal -Actual $configPoint.CommitReadiness -Expected "BlockedByManualDecision" -Label "No-evidence readiness"
-    Assert-Equal -Actual $configPoint.ReviewQueue -Expected "NeedsOwnerDecision" -Label "No-evidence queue"
-    Assert-Equal -Actual @($configPoint.MissingEvidence).Count -Expected @($configPoint.EvidenceNeeded).Count -Label "No-evidence missing evidence count"
+    Assert-Equal -Actual $configPoint.CommitReadiness -Expected "KeepLocalByDecision" -Label "No-evidence readiness"
+    Assert-Equal -Actual $configPoint.ReviewQueue -Expected "KeepLocal" -Label "No-evidence queue"
+    Assert-Equal -Actual @($configPoint.MissingEvidence).Count -Expected 0 -Label "No-evidence missing evidence count"
     $results.Add([PSCustomObject]@{ Case = "NoEvidenceRecord"; Path = $configPoint.Path; ReviewQueue = $configPoint.ReviewQueue; EvidenceStatus = $configPoint.EvidenceStatus }) | Out-Null
 
     $widgetPoint = Get-DecisionPoint -Report $baseline.Report -Path "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"

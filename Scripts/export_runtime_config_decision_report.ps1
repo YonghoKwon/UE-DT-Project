@@ -186,6 +186,7 @@ $report = [PSCustomObject]@{
     NonEmptyRuntimeOverrideKeys = $runtimeOverride.NonEmptyKeys
     ValuesRedacted = $true
     RiskLevel = $riskLevel
+    RecommendedDecision = $decisionStatus
     Recommendation = $recommendation
     DecisionPoint = $configDecisionPoint
     ManualAcceptanceChecklist = $manualAcceptanceChecklist
@@ -206,7 +207,7 @@ $report = [PSCustomObject]@{
         ManualAcceptanceMissingCount = @($manualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" }).Count
         ReadyToStage = if ($configDecisionPoint) { [string]$configDecisionPoint.ReviewQueue -eq "ReadyToStage" } else { $false }
         StagingBlocked = if ($configDecisionPoint) { [bool]$configDecisionPoint.CommitBlocker } else { $false }
-        ManualConfigOwnerDecisionStillRequired = (Test-Path -LiteralPath $gameIniPath -PathType Leaf) -and (-not $configDecisionPoint -or [string]$configDecisionPoint.ReviewQueue -ne "ReadyToStage")
+        ManualConfigOwnerDecisionStillRequired = (Test-Path -LiteralPath $gameIniPath -PathType Leaf) -and (-not $configDecisionPoint -or ([string]$configDecisionPoint.ReviewQueue -notin @("ReadyToStage", "KeepLocal")))
         FailOnIncompleteEvidence = [bool]$FailOnIncompleteEvidence
     }
 }

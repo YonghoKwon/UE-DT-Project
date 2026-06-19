@@ -183,14 +183,18 @@ function Get-DecisionPointNote {
 
     $lines = @(Get-Content -LiteralPath $FullPath)
     $hasRuntimeOverride = $false
+    $inRuntimeOverride = $false
     $nonEmptyValues = @()
     foreach ($line in $lines) {
         $trimmed = $line.Trim()
-        if ($trimmed -eq "[DTCoreRuntimeOverride]") {
-            $hasRuntimeOverride = $true
+        if ($trimmed.StartsWith("[") -and $trimmed.EndsWith("]")) {
+            $inRuntimeOverride = ($trimmed -eq "[DTCoreRuntimeOverride]")
+            if ($inRuntimeOverride) {
+                $hasRuntimeOverride = $true
+            }
             continue
         }
-        if (-not $hasRuntimeOverride -or [string]::IsNullOrWhiteSpace($trimmed) -or -not $trimmed.Contains("=")) {
+        if (-not $inRuntimeOverride -or [string]::IsNullOrWhiteSpace($trimmed) -or -not $trimmed.Contains("=")) {
             continue
         }
 
@@ -208,6 +212,45 @@ function Get-DecisionPointNote {
     }
 
     return "Detected non-empty [DTCoreRuntimeOverride] values: $($nonEmptyValues -join ', '). Review for endpoint or credential leakage before staging."
+}
+
+function Test-EmptyRuntimeOverrideConfig {
+    param(
+        [string]$RelativePath,
+        [string]$FullPath
+    )
+
+    if ((Normalize-RepoPath $RelativePath) -ne "config/game.ini") {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $FullPath -PathType Leaf)) {
+        return $false
+    }
+
+    $lines = @(Get-Content -LiteralPath $FullPath)
+    $hasRuntimeOverride = $false
+    $inRuntimeOverride = $false
+    $nonEmptyValues = @()
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ($trimmed.StartsWith("[") -and $trimmed.EndsWith("]")) {
+            $inRuntimeOverride = ($trimmed -eq "[DTCoreRuntimeOverride]")
+            if ($inRuntimeOverride) {
+                $hasRuntimeOverride = $true
+            }
+            continue
+        }
+        if (-not $inRuntimeOverride -or [string]::IsNullOrWhiteSpace($trimmed) -or -not $trimmed.Contains("=")) {
+            continue
+        }
+
+        $parts = $trimmed.Split("=", 2)
+        if ($parts.Count -eq 2 -and -not [string]::IsNullOrWhiteSpace($parts[1])) {
+            $nonEmptyValues += $parts[0]
+        }
+    }
+
+    return ($hasRuntimeOverride -and $nonEmptyValues.Count -eq 0)
 }
 
 function Get-DecisionChecklist {
@@ -800,6 +843,11 @@ try {
         $contentSummary = if ($contentSummaryCategories -contains $entry.Category) { Get-DirectoryContentSummary -FullPath $fullPath } else { $null }
         $decisionNote = Get-DecisionPointNote -RelativePath $relativePath -FullPath $fullPath
         $decisionChecklist = Get-DecisionChecklist -RelativePath $relativePath -Category $entry.Category
+        if (Test-EmptyRuntimeOverrideConfig -RelativePath $relativePath -FullPath $fullPath) {
+            $entry.DecisionOwner = "NotApplicable"
+            $entry.DecisionStatus = "KeepLocal"
+            $entry.Recommendation = "Keep Config/Game.ini local by default. Empty DTCore runtime override values are local placeholders, not useful shared defaults."
+        }
         $evidenceRecord = $decisionEvidence.DecisionsByPath[(Normalize-RepoPath $relativePath)]
         $evidenceReview = Get-DecisionEvidenceReview -Entry $entry -EvidenceRecord $evidenceRecord
         $commitReadiness = Get-CommitReadiness -State $summary.State -Category $entry.Category
