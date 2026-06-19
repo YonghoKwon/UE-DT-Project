@@ -622,6 +622,12 @@ Current state:
   `Niagara point renderer` as the first GPU spike while preserving the CPU ISM
   fallback. It also exports decision gates for CPU fallback evidence, first GPU
   spike selection, GPU implementation, and fallback preservation.
+- `UVirtualLidarSensorComp` now exposes `ELidarPointCloudPreviewBackend`,
+  `PreviewBackend`, and `bAllowExperimentalGpuPreviewBackend`. The Niagara and
+  custom-GPU values are candidate-only selectors; `IsGpuPreviewBackendActive()`
+  remains false and the active path is reported as
+  `cpu_instanced_mesh_fallback` until a real renderer is implemented and
+  accepted.
 - The renderer decision report now separates `RendererPhase` into
   `PreGpuSpike`, `GpuIntegratedEvidencePending`, and `GpuEvidenceReady`. This
   prevents a future Niagara/GPU integration from making the report fail merely
@@ -677,13 +683,18 @@ Current state:
   decision report, static preview-policy validation, optional CSV preview
   performance evidence, manual GPU smoke follow-up commands, and a manifest
   that explicitly marks `DoesNotIntegrateGpuRenderer`, `DoesNotModifyAssets`,
-  and `StagesFiles = false`.
+  `CreatesNiagaraAssets = false`, `RunsGpuViewportSmoke = false`, and
+  `StagesFiles = false`.
 
 Next implementation steps:
 
 - Decide whether to use Niagara, GPU buffers, or a custom renderer.
 - Start with the Niagara point-renderer spike unless a concrete density,
   packaging, or data-interface constraint invalidates it.
+- Keep `PreviewBackend = NiagaraCandidate` or `CustomGpuCandidate` as a planning
+  marker only until viewport smoke, fallback preservation, and dense-frame
+  evidence exist; do not treat the selector as GPU integration evidence by
+  itself.
 - Preserve the current split: server payload can stay dense while preview is
   downsampled or GPU-rendered.
 - Add pixel/screenshot smoke checks if a GPU renderer is added.
@@ -728,6 +739,9 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
+- Static readiness also confirms that candidate GPU preview backends are
+  blocked from claiming active GPU rendering and continue to report CPU fallback
+  as the active path.
 
 ### Production Monitor WBP
 

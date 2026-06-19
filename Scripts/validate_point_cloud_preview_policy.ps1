@@ -86,10 +86,18 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "MaxServerPayloadPoints"; Label = "Server payload max-point policy" },
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "PreviewPointStride"; Label = "Preview stride policy" },
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "MaxPreviewPoints"; Label = "Preview max-point policy" },
+    [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ELidarPointCloudPreviewBackend"; Label = "Preview backend selection enum" },
+    [PSCustomObject]@{ Path = $lidarHeader; Pattern = "bAllowExperimentalGpuPreviewBackend"; Label = "Experimental GPU preview opt-in flag" },
+    [PSCustomObject]@{ Path = $lidarHeader; Pattern = "GetPreviewBackendName"; Label = "Preview backend status API" },
+    [PSCustomObject]@{ Path = $lidarHeader; Pattern = "IsGpuPreviewBackendActive"; Label = "GPU preview active status API" },
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "GetPerformanceWarning"; Label = "Performance warning API" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "Preview is uncapped"; Label = "Uncapped preview warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec+MultiHit"; Label = "FullSpec multihit warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec export-on-scan"; Label = "Export-on-scan warning" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "GPU preview backend is a candidate only; CPU fallback is active"; Label = "GPU preview candidate keeps CPU fallback warning" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "NiagaraCandidateCpuFallback"; Label = "Niagara candidate backend is labeled as CPU fallback" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "CustomGpuCandidateCpuFallback"; Label = "Custom GPU candidate backend is labeled as CPU fallback" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "cpu_instanced_mesh_fallback"; Label = "Payload marks active CPU fallback preview path" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "AddInstances(InstanceTransforms, false, true)"; Label = "Live preview uses batched ISM instance upload" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "ClampMax = `"100000`""; Label = "Procedural CSV batch metadata allows high-density sections" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "LastParseDurationMs"; Label = "CSV preview parse telemetry field" },
@@ -148,6 +156,10 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuPreviewFallbackEvidencePresent"; Label = "Renderer report separates total CPU preview fallback evidence" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuIsmFallbackSmokePresent"; Label = "Renderer report separates ISM smoke evidence" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuProceduralDenseEvidencePresent"; Label = "Renderer report separates procedural dense evidence" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "DefaultPreviewBackend"; Label = "Renderer report exposes default preview backend" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "ConfiguredPreviewBackendSource"; Label = "Renderer report exposes configured preview backend source" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CandidatePreviewBackends"; Label = "Renderer report exposes candidate preview backend names" },
+    [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CpuFallbackPreserved"; Label = "Renderer report exposes CPU fallback preservation flag" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvFailureEvidencePresent"; Label = "Renderer report consumes CSV failure evidence gate" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceRunStartLine"; Label = "Renderer report forwards CSV evidence run line number" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "TestCompleteLine"; Label = "Renderer report forwards automation completion line number" },
@@ -159,6 +171,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "validate_point_cloud_preview_policy.ps1"; Label = "Renderer acceptance package includes preview policy validation" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Renderer acceptance package includes CSV performance evidence when available" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "DoesNotIntegrateGpuRenderer = `$true"; Label = "Renderer acceptance package does not claim GPU implementation" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "CreatesNiagaraAssets = `$false"; Label = "Renderer acceptance package does not create Niagara assets" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "RunsGpuViewportSmoke = `$false"; Label = "Renderer acceptance package does not run GPU viewport smoke" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "DoesNotModifyAssets = `$true"; Label = "Renderer acceptance package does not modify assets" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "Renderer acceptance package does not stage files" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "GpuViewportSmokeEvidencePresent"; Label = "Renderer acceptance package summarizes GPU viewport smoke evidence" },
@@ -215,6 +229,9 @@ $report = [PSCustomObject]@{
         RuntimeWarningsDeclared = $true
         PointCloudOnlyClampDeclared = $true
         BatchedInstanceUploadDeclared = $true
+        RendererBackendSelectionDeclared = $true
+        GpuPreviewBackendClaimBlocked = $true
+        CpuFallbackForGpuCandidatesDeclared = $true
         RendererDecisionReportDeclared = $true
         RendererDecisionMatrixDeclared = $true
         RendererFirstGpuCandidateDeclared = $true
@@ -227,11 +244,14 @@ $report = [PSCustomObject]@{
         CsvPreviewPerformanceReportDeclared = $true
         RendererDecisionConsumesCsvPerformanceEvidence = $true
         RendererDecisionSplitsCpuEvidence = $true
+        RendererDecisionBackendSourceDeclared = $true
+        RendererDecisionCpuFallbackPreservedDeclared = $true
         CsvPreviewPerformanceEvidenceWorkflowDeclared = $true
         CsvPreviewEvidenceLineTrackingDeclared = $true
         CsvPreviewFailureEvidenceGateDeclared = $true
         RendererDecisionExplicitLogPathDeclared = $true
         RendererAcceptancePackageDeclared = $true
+        RendererAcceptancePackageNoAssetNoGpuSmokeBoundaryDeclared = $true
         PrecommitRendererSummaryDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
@@ -249,6 +269,9 @@ else {
     Write-Host "Runtime warnings declared: $($report.Summary.RuntimeWarningsDeclared)"
     Write-Host "PointCloudOnly clamps declared: $($report.Summary.PointCloudOnlyClampDeclared)"
     Write-Host "Batched instance upload declared: $($report.Summary.BatchedInstanceUploadDeclared)"
+    Write-Host "Renderer backend selection declared: $($report.Summary.RendererBackendSelectionDeclared)"
+    Write-Host "GPU preview backend claim blocked: $($report.Summary.GpuPreviewBackendClaimBlocked)"
+    Write-Host "CPU fallback for GPU candidates declared: $($report.Summary.CpuFallbackForGpuCandidatesDeclared)"
     Write-Host "Renderer decision report declared: $($report.Summary.RendererDecisionReportDeclared)"
     Write-Host "Renderer decision matrix declared: $($report.Summary.RendererDecisionMatrixDeclared)"
     Write-Host "Renderer first GPU candidate declared: $($report.Summary.RendererFirstGpuCandidateDeclared)"
@@ -261,11 +284,14 @@ else {
     Write-Host "CSV preview performance report declared: $($report.Summary.CsvPreviewPerformanceReportDeclared)"
     Write-Host "Renderer decision consumes CSV performance evidence: $($report.Summary.RendererDecisionConsumesCsvPerformanceEvidence)"
     Write-Host "Renderer decision splits CPU evidence: $($report.Summary.RendererDecisionSplitsCpuEvidence)"
+    Write-Host "Renderer decision backend source declared: $($report.Summary.RendererDecisionBackendSourceDeclared)"
+    Write-Host "Renderer decision CPU fallback preserved declared: $($report.Summary.RendererDecisionCpuFallbackPreservedDeclared)"
     Write-Host "CSV preview performance evidence workflow declared: $($report.Summary.CsvPreviewPerformanceEvidenceWorkflowDeclared)"
     Write-Host "CSV preview evidence line tracking declared: $($report.Summary.CsvPreviewEvidenceLineTrackingDeclared)"
     Write-Host "CSV preview failure evidence gate declared: $($report.Summary.CsvPreviewFailureEvidenceGateDeclared)"
     Write-Host "Renderer decision explicit log path declared: $($report.Summary.RendererDecisionExplicitLogPathDeclared)"
     Write-Host "Renderer acceptance package declared: $($report.Summary.RendererAcceptancePackageDeclared)"
+    Write-Host "Renderer acceptance package no-asset/no-GPU-smoke boundary declared: $($report.Summary.RendererAcceptancePackageNoAssetNoGpuSmokeBoundaryDeclared)"
     Write-Host "Pre-commit renderer summary declared: $($report.Summary.PrecommitRendererSummaryDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

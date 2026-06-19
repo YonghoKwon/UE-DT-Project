@@ -302,12 +302,13 @@ scenario success line, `TestCompleteLine`, and `EvidenceLinesWithinRun`.
 GPU/Niagara renderer smoke:
 
 ```text
-1. Open the target map with the candidate GPU/Niagara point renderer enabled.
-2. Load or replay a dense LiDAR frame and record map name, sensor id, renderer name, preview point count, and server payload point count.
-3. Capture a viewport screenshot and verify it contains nonblank point pixels, not only UI or an empty background.
-4. Toggle or force the CPU/ISM fallback path and confirm it still renders a usable preview.
-5. Record whether the dense frame caused an editor stall, overlap, clipping, or monitor UI obstruction.
-6. Export the renderer decision report with the viewport smoke fields.
+1. Before GPU code/assets exist, optionally set LiDAR PreviewBackend to NiagaraCandidate or CustomGpuCandidate and confirm the status still reports CPU fallback active.
+2. Open the target map with the candidate GPU/Niagara point renderer enabled only after the renderer path exists.
+3. Load or replay a dense LiDAR frame and record map name, sensor id, renderer name, preview point count, and server payload point count.
+4. Capture a viewport screenshot and verify it contains nonblank point pixels, not only UI or an empty background.
+5. Toggle or force the CPU/ISM fallback path and confirm it still renders a usable preview.
+6. Record whether the dense frame caused an editor stall, overlap, clipping, or monitor UI obstruction.
+7. Export the renderer decision report with the viewport smoke fields.
 ```
 
 Example evidence command after a GPU path exists:
@@ -321,6 +322,9 @@ Until a GPU renderer is actually integrated, the renderer decision report should
 remain in `RendererPhase = PreGpuSpike`. After GPU code or assets are detected,
 it should move to `GpuIntegratedEvidencePending` until viewport smoke, fallback
 preservation, and dense-frame evidence are all recorded.
+The LiDAR `PreviewBackend` selector is not evidence by itself: the candidate
+values intentionally report `GPU preview backend is a candidate only; CPU
+fallback is active` and keep `gpuPreviewBackendActive = false` in the payload.
 
 Manual PIE payload checks:
 

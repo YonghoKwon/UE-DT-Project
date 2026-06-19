@@ -397,6 +397,7 @@ docs/remaining_work.md
 - `ExportLastPointCloudLaz()`는 실제 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
 - FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
 - 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.
+  LiDAR `PreviewBackend`에서 Niagara/custom GPU 후보를 선택할 수 있지만, 현재 후보 값은 CPU fallback 상태 표시용이며 GPU 구현 완료 증거가 아닙니다.
   현재 CPU fallback/GPU smoke evidence boundary는 다음 패키지로 로컬에 export할 수 있습니다:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
 - 실제 map에서의 PIE smoke test와 WBP Designer 배치 검증은 별도 editor 작업이 필요합니다.

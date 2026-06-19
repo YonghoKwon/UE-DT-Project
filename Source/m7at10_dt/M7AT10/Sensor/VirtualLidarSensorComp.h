@@ -13,6 +13,14 @@ class UTexture2D;
 class UVirtualSensorDataTransportComp;
 class UVirtualSensorRecorderComp;
 
+UENUM(BlueprintType)
+enum class ELidarPointCloudPreviewBackend : uint8
+{
+    CpuInstancedMesh UMETA(DisplayName = "CPU Instanced Mesh"),
+    NiagaraCandidate UMETA(DisplayName = "Niagara Candidate (CPU Fallback)"),
+    CustomGpuCandidate UMETA(DisplayName = "Custom GPU Candidate (CPU Fallback)")
+};
+
 USTRUCT(BlueprintType)
 struct M7AT10_DT_API FVirtualLidarSemanticClassRule
 {
@@ -79,6 +87,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     void SetPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    void SetPreviewBackend(ELidarPointCloudPreviewBackend InBackend, bool bAllowExperimentalGpuBackend = false);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent);
 
@@ -144,6 +155,15 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     int32 GetLastPreviewPointCount() const { return LastPreviewPointCount; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    FString GetPreviewBackendName() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool IsGpuPreviewBackendRequested() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool IsGpuPreviewBackendActive() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
     FString GetPerformanceWarning() const { return LastPerformanceWarning; }
@@ -273,6 +293,12 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0", ClampMax = "1000000"))
     int32 MaxPreviewPoints = 5000;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    ELidarPointCloudPreviewBackend PreviewBackend = ELidarPointCloudPreviewBackend::CpuInstancedMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+    bool bAllowExperimentalGpuPreviewBackend = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|PointCloudPreview", meta = (ClampMin = "0.001", ClampMax = "10.0"))
     float PointCloudPreviewPointScale = 0.035f;

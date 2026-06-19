@@ -237,6 +237,10 @@ $manifest = [PSCustomObject]@{
         CpuPreviewFallbackEvidencePresent = [bool]$decisionReport.Summary.CpuPreviewFallbackEvidencePresent
         CpuIsmFallbackSmokePresent = [bool]$decisionReport.Summary.CpuIsmFallbackSmokePresent
         CpuProceduralDenseEvidencePresent = [bool]$decisionReport.Summary.CpuProceduralDenseEvidencePresent
+        DefaultPreviewBackend = [string]$decisionReport.Summary.DefaultPreviewBackend
+        ConfiguredPreviewBackendSource = [string]$decisionReport.Summary.ConfiguredPreviewBackendSource
+        CandidatePreviewBackends = @($decisionReport.Summary.CandidatePreviewBackends)
+        CpuFallbackPreserved = [bool]$decisionReport.Summary.CpuFallbackPreserved
         GpuRendererIntegrated = [bool]$decisionReport.Summary.GpuRendererIntegrated
         RendererPhase = [string]$decisionReport.Summary.RendererPhase
         GpuViewportSmokeEvidencePresent = [bool]$decisionReport.Summary.GpuViewportSmokeEvidencePresent
@@ -247,6 +251,9 @@ $manifest = [PSCustomObject]@{
         CsvPreviewPerformanceReportValid = if ($csvPerformanceReport.Summary) { [bool]$csvPerformanceReport.Summary.Valid } else { [bool]$csvPerformanceReport.Present }
         DryRunOnly = $true
         DoesNotIntegrateGpuRenderer = $true
+        CreatesNiagaraAssets = $false
+        RunsEditor = $false
+        RunsGpuViewportSmoke = $false
         DoesNotModifyAssets = $true
         StagesFiles = $false
         Valid = ([bool]$decisionReport.Summary.Valid -and [bool]$policyReport.Summary.Valid)
@@ -281,6 +288,9 @@ Write-TextFile -Path $readmePath -Lines @(
     "- CPU preview fallback evidence present: $($manifest.Summary.CpuPreviewFallbackEvidencePresent)",
     "- CPU ISM fallback smoke present: $($manifest.Summary.CpuIsmFallbackSmokePresent)",
     "- CPU procedural dense evidence present: $($manifest.Summary.CpuProceduralDenseEvidencePresent)",
+    "- Default preview backend: $($manifest.Summary.DefaultPreviewBackend)",
+    "- Configured preview backend source: $($manifest.Summary.ConfiguredPreviewBackendSource)",
+    "- CPU fallback preserved: $($manifest.Summary.CpuFallbackPreserved)",
     "- GPU renderer integrated: $($manifest.Summary.GpuRendererIntegrated)",
     "- Renderer phase: $($manifest.Summary.RendererPhase)",
     "- GPU viewport smoke evidence present: $($manifest.Summary.GpuViewportSmokeEvidencePresent)",
@@ -313,6 +323,8 @@ else {
     Write-Host "Renderer decision valid: $($manifest.Summary.RendererDecisionValid)"
     Write-Host "Preview policy valid: $($manifest.Summary.PreviewPolicyValid)"
     Write-Host "CSV preview performance evidence present: $($manifest.Summary.CsvPreviewPerformanceEvidencePresent)"
+    Write-Host "Default preview backend: $($manifest.Summary.DefaultPreviewBackend)"
+    Write-Host "CPU fallback preserved: $($manifest.Summary.CpuFallbackPreserved)"
     Write-Host "GPU renderer integrated: $($manifest.Summary.GpuRendererIntegrated)"
     Write-Host "Ready to claim GPU dense preview: $($manifest.Summary.ReadyToClaimGpuDensePreview)"
     Write-Host "Boundary: $($manifest.Summary.Boundary)"

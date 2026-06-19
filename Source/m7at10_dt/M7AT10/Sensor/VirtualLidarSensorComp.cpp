@@ -93,6 +93,39 @@ void UVirtualLidarSensorComp::SetPreviewPolicy(int32 InStride, int32 InMaxPoints
     RefreshPointCloudPreview();
 }
 
+void UVirtualLidarSensorComp::SetPreviewBackend(ELidarPointCloudPreviewBackend InBackend, bool bAllowExperimentalGpuBackend)
+{
+    PreviewBackend = InBackend;
+    bAllowExperimentalGpuPreviewBackend = bAllowExperimentalGpuBackend;
+    LastPerformanceWarning = BuildPerformanceWarning();
+    RefreshPointCloudPreview();
+}
+
+FString UVirtualLidarSensorComp::GetPreviewBackendName() const
+{
+    switch (PreviewBackend)
+    {
+    case ELidarPointCloudPreviewBackend::NiagaraCandidate:
+        return TEXT("NiagaraCandidateCpuFallback");
+    case ELidarPointCloudPreviewBackend::CustomGpuCandidate:
+        return TEXT("CustomGpuCandidateCpuFallback");
+    case ELidarPointCloudPreviewBackend::CpuInstancedMesh:
+    default:
+        return TEXT("CpuInstancedMesh");
+    }
+}
+
+bool UVirtualLidarSensorComp::IsGpuPreviewBackendRequested() const
+{
+    return PreviewBackend == ELidarPointCloudPreviewBackend::NiagaraCandidate ||
+        PreviewBackend == ELidarPointCloudPreviewBackend::CustomGpuCandidate;
+}
+
+bool UVirtualLidarSensorComp::IsGpuPreviewBackendActive() const
+{
+    return false;
+}
+
 void UVirtualLidarSensorComp::SetPointCloudPreviewEnabled(bool bEnabled)
 {
     bPointCloudPreviewEnabled = bEnabled;
@@ -416,6 +449,10 @@ FString UVirtualLidarSensorComp::BuildPerformanceWarning() const
     {
         Warnings.Add(TEXT("Preview is uncapped"));
     }
+    if (IsGpuPreviewBackendRequested())
+    {
+        Warnings.Add(TEXT("GPU preview backend is a candidate only; CPU fallback is active"));
+    }
     return FString::Join(Warnings, TEXT("; "));
 }
 
@@ -438,6 +475,9 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     Root->SetBoolField(TEXT("includeMissPointsInServerPayload"), bIncludeMissPointsInServerPayload);
     Root->SetNumberField(TEXT("previewPointStride"), PreviewPointStride);
     Root->SetNumberField(TEXT("maxPreviewPoints"), MaxPreviewPoints);
+    Root->SetStringField(TEXT("previewBackend"), GetPreviewBackendName());
+    Root->SetBoolField(TEXT("gpuPreviewBackendRequested"), IsGpuPreviewBackendRequested());
+    Root->SetBoolField(TEXT("gpuPreviewBackendActive"), IsGpuPreviewBackendActive());
 
     TSharedRef<FJsonObject> PayloadPolicyObject = MakeShared<FJsonObject>();
     PayloadPolicyObject->SetNumberField(TEXT("stride"), ServerPayloadStride);
@@ -450,6 +490,11 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     PreviewPolicyObject->SetNumberField(TEXT("stride"), PreviewPointStride);
     PreviewPolicyObject->SetNumberField(TEXT("maxPoints"), MaxPreviewPoints);
     PreviewPolicyObject->SetBoolField(TEXT("hitOnly"), bPointCloudPreviewHitOnly);
+    PreviewPolicyObject->SetStringField(TEXT("backend"), GetPreviewBackendName());
+    PreviewPolicyObject->SetBoolField(TEXT("gpuRequested"), IsGpuPreviewBackendRequested());
+    PreviewPolicyObject->SetBoolField(TEXT("gpuActive"), IsGpuPreviewBackendActive());
+    PreviewPolicyObject->SetBoolField(TEXT("experimentalGpuOptIn"), bAllowExperimentalGpuPreviewBackend);
+    PreviewPolicyObject->SetStringField(TEXT("activePath"), IsGpuPreviewBackendActive() ? TEXT("gpu") : TEXT("cpu_instanced_mesh_fallback"));
     Root->SetObjectField(TEXT("previewPolicy"), PreviewPolicyObject);
 
     TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
@@ -540,7 +585,7 @@ void UVirtualLidarSensorComp::UpdateRuntimeStatusAfterScan(int32 PayloadLength)
     }
 
     RuntimeStatus.LastMessage = FString::Printf(
-        TEXT("Quality=%d Rays=%d Hits=%d ServerPoints=%d ServerStride=%d MaxServer=%d Preview=%s PreviewPoints=%d PreviewStride=%d Slab=%s Angle=%.2f Dev=%.2f Conf=%.2f Warning=%s"),
+        TEXT("Quality=%d Rays=%d Hits=%d ServerPoints=%d ServerStride=%d MaxServer=%d Preview=%s PreviewPoints=%d PreviewStride=%d PreviewBackend=%s GpuActive=%s Slab=%s Angle=%.2f Dev=%.2f Conf=%.2f Warning=%s"),
         static_cast<int32>(SimulationQuality),
         HorizontalSamples * VerticalChannels,
         RuntimeStatus.HitPointCount,
@@ -550,6 +595,8 @@ void UVirtualLidarSensorComp::UpdateRuntimeStatusAfterScan(int32 PayloadLength)
         bPointCloudPreviewEnabled ? TEXT("On") : TEXT("Off"),
         RuntimeStatus.PreviewPointCount,
         PreviewPointStride,
+        *GetPreviewBackendName(),
+        IsGpuPreviewBackendActive() ? TEXT("true") : TEXT("false"),
         LastSlabAnalysis.bValid ? TEXT("Valid") : TEXT("Invalid"),
         LastSlabAnalysis.EstimatedYawDegrees,
         LastSlabAnalysis.AngleDeviationDegrees,

@@ -199,6 +199,12 @@ function Write-MarkdownReport {
     $lines += "- CPU preview fallback evidence present: $($Report.Summary.CpuPreviewFallbackEvidencePresent)"
     $lines += "- CPU ISM fallback smoke present: $($Report.Summary.CpuIsmFallbackSmokePresent)"
     $lines += "- CPU procedural dense evidence present: $($Report.Summary.CpuProceduralDenseEvidencePresent)"
+    $lines += "- Default preview backend: $($Report.Summary.DefaultPreviewBackend)"
+    $lines += "- Configured preview backend source: $($Report.Summary.ConfiguredPreviewBackendSource)"
+    $lines += "- Preview backend selection declared: $($Report.Summary.PreviewBackendSelectionDeclared)"
+    $lines += "- GPU preview backend claim blocked: $($Report.Summary.GpuPreviewBackendClaimBlocked)"
+    $lines += "- CPU fallback forced for GPU candidates: $($Report.Summary.CpuFallbackForcedForGpuCandidates)"
+    $lines += "- CPU fallback preserved: $($Report.Summary.CpuFallbackPreserved)"
     $lines += "- CSV max accepted points: $($Report.Summary.CsvPreviewMaxAcceptedPoints)"
     $lines += "- CSV failure evidence present: $($Report.Summary.CsvFailureEvidencePresent)"
     $lines += "- CSV evidence lines within run: $($Report.Summary.CsvEvidenceLinesWithinRun)"
@@ -323,6 +329,17 @@ $previewCapsDeclared = (Test-ContainsText -Path $lidarHeader -Pattern "PreviewPo
 $pointCloudOnlyClampDeclared = (Test-ContainsText -Path $managerCpp -Pattern "FMath::Min(LidarComp->MaxPreviewPoints, 3000)") -and
     (Test-ContainsText -Path $managerCpp -Pattern "FMath::Max(2, LidarComp->PreviewPointStride)")
 $batchedInstanceUploadDeclared = Test-ContainsText -Path $lidarCpp -Pattern "AddInstances(InstanceTransforms, false, true)"
+$previewBackendSelectionDeclared = (Test-ContainsText -Path $lidarHeader -Pattern "ELidarPointCloudPreviewBackend") -and
+    (Test-ContainsText -Path $lidarHeader -Pattern "bAllowExperimentalGpuPreviewBackend") -and
+    (Test-ContainsText -Path $lidarHeader -Pattern "GetPreviewBackendName") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "NiagaraCandidateCpuFallback") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "CustomGpuCandidateCpuFallback")
+$gpuPreviewBackendClaimBlocked = (Test-ContainsText -Path $lidarCpp -Pattern "GPU preview backend is a candidate only; CPU fallback is active") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "bool UVirtualLidarSensorComp::IsGpuPreviewBackendActive() const") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "return false;")
+$cpuFallbackForcedForGpuCandidates = (Test-ContainsText -Path $lidarCpp -Pattern "cpu_instanced_mesh_fallback") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "RefreshPointCloudPreview") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "AddInstances(InstanceTransforms, false, true)")
 $automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.PerformanceWarningStatus") -and
     (Test-ContainsText -Path $managerTests -Pattern "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy")
 $gpuRendererIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern "UNiagaraComponent") -or
@@ -558,6 +575,13 @@ $report = [PSCustomObject]@{
         PreviewCapsDeclared = $previewCapsDeclared
         PointCloudOnlyClampDeclared = $pointCloudOnlyClampDeclared
         BatchedInstanceUploadDeclared = $batchedInstanceUploadDeclared
+        DefaultPreviewBackend = "CpuInstancedMesh"
+        ConfiguredPreviewBackendSource = "UVirtualLidarSensorComp::PreviewBackend"
+        CandidatePreviewBackends = @("NiagaraCandidateCpuFallback", "CustomGpuCandidateCpuFallback")
+        PreviewBackendSelectionDeclared = $previewBackendSelectionDeclared
+        GpuPreviewBackendClaimBlocked = $gpuPreviewBackendClaimBlocked
+        CpuFallbackForcedForGpuCandidates = $cpuFallbackForcedForGpuCandidates
+        CpuFallbackPreserved = $cpuFallbackForcedForGpuCandidates
         AutomationCoverageDeclared = $automationCoverageDeclared
         CsvPerformanceEvidencePresent = [bool]$csvPreviewPerformanceEvidence.Present
         CpuFallbackPerformanceEvidencePresent = [bool]$cpuFallbackPerformanceEvidencePresent
@@ -588,12 +612,12 @@ $report = [PSCustomObject]@{
         CandidateRendererCount = $candidateRenderers.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
         RecommendedNextDecision = "Start with a Niagara point-renderer spike, preserve CPU ISM fallback, then collect desktop/viewport smoke and dense-frame evidence."
-        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $automationCoverageDeclared -and $gpuSpikeViewportSmokeRequired -and $gpuSpikeFallbackPreservationRequired -and $gpuSpikeDenseFrameEvidenceRequired -and (-not $gpuRendererIntegrated -or ($gpuViewportSmokeEvidencePresent -and $gpuFallbackPreservationEvidencePresent -and $gpuDenseFrameEvidencePresent)) -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
+        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $previewBackendSelectionDeclared -and $gpuPreviewBackendClaimBlocked -and $cpuFallbackForcedForGpuCandidates -and $automationCoverageDeclared -and $gpuSpikeViewportSmokeRequired -and $gpuSpikeFallbackPreservationRequired -and $gpuSpikeDenseFrameEvidenceRequired -and (-not $gpuRendererIntegrated -or ($gpuViewportSmokeEvidencePresent -and $gpuFallbackPreservationEvidencePresent -and $gpuDenseFrameEvidencePresent)) -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
     }
 }
 
 if (-not $report.Summary.Valid) {
-    throw "Point cloud renderer decision report invariants failed. ServerPreviewSplit=$serverPreviewSplitDocumented PreviewCaps=$previewCapsDeclared PointCloudOnlyClamp=$pointCloudOnlyClampDeclared BatchedUpload=$batchedInstanceUploadDeclared Automation=$automationCoverageDeclared CpuPreviewFallbackEvidence=$cpuPreviewFallbackEvidencePresent GpuIntegrated=$gpuRendererIntegrated"
+    throw "Point cloud renderer decision report invariants failed. ServerPreviewSplit=$serverPreviewSplitDocumented PreviewCaps=$previewCapsDeclared PointCloudOnlyClamp=$pointCloudOnlyClampDeclared BatchedUpload=$batchedInstanceUploadDeclared PreviewBackend=$previewBackendSelectionDeclared GpuClaimBlocked=$gpuPreviewBackendClaimBlocked CpuFallbackForGpuCandidates=$cpuFallbackForcedForGpuCandidates Automation=$automationCoverageDeclared CpuPreviewFallbackEvidence=$cpuPreviewFallbackEvidencePresent GpuIntegrated=$gpuRendererIntegrated"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($JsonPath)) {
@@ -616,6 +640,12 @@ else {
     Write-Host "CPU preview fallback evidence present: $($report.Summary.CpuPreviewFallbackEvidencePresent)"
     Write-Host "CPU ISM fallback smoke present: $($report.Summary.CpuIsmFallbackSmokePresent)"
     Write-Host "CPU procedural dense evidence present: $($report.Summary.CpuProceduralDenseEvidencePresent)"
+    Write-Host "Default preview backend: $($report.Summary.DefaultPreviewBackend)"
+    Write-Host "Configured preview backend source: $($report.Summary.ConfiguredPreviewBackendSource)"
+    Write-Host "Preview backend selection declared: $($report.Summary.PreviewBackendSelectionDeclared)"
+    Write-Host "GPU preview backend claim blocked: $($report.Summary.GpuPreviewBackendClaimBlocked)"
+    Write-Host "CPU fallback forced for GPU candidates: $($report.Summary.CpuFallbackForcedForGpuCandidates)"
+    Write-Host "CPU fallback preserved: $($report.Summary.CpuFallbackPreserved)"
     Write-Host "CSV max accepted points: $($report.Summary.CsvPreviewMaxAcceptedPoints)"
     Write-Host "GPU renderer integrated: $($report.Summary.GpuRendererIntegrated)"
     Write-Host "Renderer phase: $($report.Summary.RendererPhase)"
