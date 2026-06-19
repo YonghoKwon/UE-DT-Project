@@ -375,6 +375,14 @@ Current state:
   ownership, authentication, retry/timeout, batching/backpressure, and response
   schema decisions, while keeping real judging-server acceptance separate from
   local mock and loopback evidence.
+- `Scripts/export_judging_server_acceptance_template.ps1` exports a read-only
+  fillable evidence template for the real judging-server handoff. It requires
+  endpoint ownership, authentication policy, LiDAR/camera accepted-response
+  evidence, rejected-payload behavior, retry/timeout behavior,
+  batching/backpressure evidence, and a secret scan before
+  `RealJudgingServerAcceptancePresent` can be treated as complete. The template
+  records evidence paths and reviewer metadata only; endpoint URLs, tokens,
+  passwords, secrets, and credential values must stay out of repository files.
 - `Scripts/validate_payload_schema_review_policy.ps1` checks that schema review
   notes stay present while the final server contract is still open.
 - `docs/server_transport_contract.md` records the current `LogOnly`,
@@ -410,14 +418,17 @@ Completion evidence:
 
 - Approved example payloads exist.
 - Contract tests validate required fields.
-- Transport mode can produce payloads accepted by the server or the local mock
-  contract validator.
+- Transport mode can produce payloads accepted by the real judging server. The
+  local mock contract validator is only pre-approval evidence and is not enough
+  to claim real server acceptance.
 - Outbound local mock transport acceptance passes:
   `M7AT10.SensorTransport.HttpPostLoopbackAcceptance`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"`.
 - Payload contract review exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1" -Json`.
+- Judging-server acceptance template exports:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_template.ps1" -Json`.
 - Server transport readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_contract.ps1"`.
 

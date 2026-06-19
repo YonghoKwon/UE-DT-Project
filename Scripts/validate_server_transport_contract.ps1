@@ -48,8 +48,9 @@ $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $transportTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\VirtualSensorDataTransportAutomationTests.cpp"
 $payloadContractReportScript = Join-Path $ProjectRoot "Scripts\export_payload_contract_report.ps1"
+$judgingServerAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_judging_server_acceptance_template.ps1"
 
-$requiredFiles = @($transportHeader, $transportSource, $transportDoc, $remainingWorkDoc, $editorSmokeDoc, $transportTests, $payloadContractReportScript)
+$requiredFiles = @($transportHeader, $transportSource, $transportDoc, $remainingWorkDoc, $editorSmokeDoc, $transportTests, $payloadContractReportScript, $judgingServerAcceptanceTemplateScript)
 foreach ($file in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $file)) {
         throw "Required server transport contract file not found: $file"
@@ -89,8 +90,21 @@ $checks = @(
     (New-Check -Path $payloadContractReportScript -Pattern 'Name = "Backpressure"' -Label "Payload contract report tracks backpressure decision"),
     (New-Check -Path $payloadContractReportScript -Pattern "RealServerEvidenceGaps" -Label "Payload contract report tracks real server evidence gaps"),
     (New-Check -Path $payloadContractReportScript -Pattern "RealJudgingServerAcceptancePresent" -Label "Payload contract report separates real server acceptance evidence"),
+    (New-Check -Path $payloadContractReportScript -Pattern "JudgingServerAcceptanceTemplateAvailable" -Label "Payload contract report exposes judging server acceptance template"),
+    (New-Check -Path $payloadContractReportScript -Pattern "NoWrite" -Label "Payload contract report supports no-write summary mode"),
+    (New-Check -Path (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1") -Pattern "-NoWrite -Json" -Label "Precommit summary uses no-write payload contract mode"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "ValuesRedacted" -Label "Judging server acceptance template redacts values"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "ModifiesConfig" -Label "Judging server acceptance template is read-only for config"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "StagesConfig" -Label "Judging server acceptance template does not stage config"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Endpoint ownership" -Label "Judging server acceptance template requires endpoint ownership"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Authentication policy" -Label "Judging server acceptance template requires auth policy"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "LiDAR accepted response" -Label "Judging server acceptance template requires LiDAR acceptance evidence"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Camera accepted response" -Label "Judging server acceptance template requires camera acceptance evidence"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Batching and backpressure" -Label "Judging server acceptance template requires rate/backpressure evidence"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Secret scan" -Label "Judging server acceptance template requires secret scan evidence"),
     (New-Check -Path $remainingWorkDoc -Pattern "server transport contract" -Label "Remaining work references transport contract"),
     (New-Check -Path $remainingWorkDoc -Pattern "validate_server_transport_contract.ps1" -Label "Remaining work references transport gate"),
+    (New-Check -Path $remainingWorkDoc -Pattern "export_judging_server_acceptance_template.ps1" -Label "Remaining work references judging server acceptance template"),
     (New-Check -Path $remainingWorkDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Remaining work references HTTP POST loopback automation"),
     (New-Check -Path $editorSmokeDoc -Pattern "SharedSensorTransport.TransportMode = LogOnly" -Label "Smoke test safe transport default documented"),
     (New-Check -Path $editorSmokeDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Smoke doc references HTTP POST loopback automation"),
@@ -102,6 +116,24 @@ $checks = @(
 
 foreach ($check in $checks) {
     Assert-Contains -Path $check.Path -Pattern $check.Pattern -Label $check.Label
+}
+
+$templateJson = & powershell -ExecutionPolicy Bypass -File $judgingServerAcceptanceTemplateScript -ProjectRoot $ProjectRoot -Json
+if ($LASTEXITCODE -ne 0) {
+    throw "Judging server acceptance template failed with exit code $LASTEXITCODE"
+}
+$template = $templateJson | ConvertFrom-Json
+if (-not [bool]$template.Summary.ValuesRedacted) {
+    throw "Judging server acceptance template must redact values."
+}
+if ([bool]$template.Summary.ModifiesConfig) {
+    throw "Judging server acceptance template must not modify config."
+}
+if ([bool]$template.Summary.StagesConfig) {
+    throw "Judging server acceptance template must not stage config."
+}
+if ([int]$template.Summary.RequiredEvidenceCount -lt 8) {
+    throw "Judging server acceptance template must expose all required evidence gates."
 }
 
 $report = [PSCustomObject]@{
@@ -117,6 +149,10 @@ $report = [PSCustomObject]@{
         HttpPostLoopbackAutomationDeclared = $true
         OpenServerTransportDecisionsDocumented = $true
         ServerAcceptanceDecisionReportDeclared = $true
+        JudgingServerAcceptanceTemplateDeclared = $true
+        JudgingServerAcceptanceTemplateValuesRedacted = [bool]$template.Summary.ValuesRedacted
+        JudgingServerAcceptanceTemplateStagesConfig = [bool]$template.Summary.StagesConfig
+        JudgingServerAcceptanceTemplateRequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
         SafeEditorDefaultDocumented = $true
         Valid = $true
     }
@@ -135,5 +171,9 @@ else {
     Write-Host "HTTP POST loopback automation declared: $($report.Summary.HttpPostLoopbackAutomationDeclared)"
     Write-Host "Open server transport decisions documented: $($report.Summary.OpenServerTransportDecisionsDocumented)"
     Write-Host "Server acceptance decision report declared: $($report.Summary.ServerAcceptanceDecisionReportDeclared)"
+    Write-Host "Judging server acceptance template declared: $($report.Summary.JudgingServerAcceptanceTemplateDeclared)"
+    Write-Host "Judging server acceptance template values redacted: $($report.Summary.JudgingServerAcceptanceTemplateValuesRedacted)"
+    Write-Host "Judging server acceptance template stages config: $($report.Summary.JudgingServerAcceptanceTemplateStagesConfig)"
+    Write-Host "Judging server acceptance template required evidence count: $($report.Summary.JudgingServerAcceptanceTemplateRequiredEvidenceCount)"
     Write-Host "Safe editor default documented: $($report.Summary.SafeEditorDefaultDocumented)"
 }

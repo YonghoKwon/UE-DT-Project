@@ -125,12 +125,20 @@ evidence from real judging-server acceptance and keeps
 `RealJudgingServerAcceptancePresent=false` until an owned endpoint accepts the
 payloads.
 
+`Scripts/export_judging_server_acceptance_template.ps1` exports a read-only
+fillable evidence template for the real judging-server handoff. The template
+records evidence paths, reviewer metadata, accepted/rejected response evidence,
+retry/timeout behavior, batching/backpressure decisions, and secret-scan proof,
+but it must not contain endpoint URL values, tokens, passwords, secrets, or
+credentials. It does not modify config and does not stage files.
+
 ## Review Commands
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_template.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_contract.ps1"
 ```

@@ -2,6 +2,7 @@ param(
     [string]$FixtureRoot = "",
     [string]$SchemaDocsRoot = "",
     [string]$OutputRoot = "",
+    [switch]$NoWrite,
     [switch]$Json
 )
 
@@ -43,6 +44,7 @@ function Write-MarkdownReport {
         [object]$FixtureReport,
         [object]$ContractReport,
         [object]$TransportContractReport,
+        [object]$JudgingServerAcceptanceTemplate,
         [object[]]$ServerAcceptanceDecisions,
         [object[]]$AcceptanceEvidence,
         [object[]]$RealServerEvidenceGaps,
@@ -63,6 +65,11 @@ function Write-MarkdownReport {
     $lines += "- Documentation linked: $($FixtureReport.Summary.DocumentationLinked)"
     $lines += "- Transport contract valid: $($TransportContractReport.Summary.Valid)"
     $lines += "- Contract: $($ContractReport.Contract)"
+    $lines += "- Judging-server acceptance template available: $($null -ne $JudgingServerAcceptanceTemplate)"
+    if ($JudgingServerAcceptanceTemplate) {
+        $lines += "- Judging-server required evidence count: $($JudgingServerAcceptanceTemplate.Summary.RequiredEvidenceCount)"
+        $lines += "- Real judging-server acceptance present: $($JudgingServerAcceptanceTemplate.Summary.RealJudgingServerAcceptancePresent)"
+    }
     $lines += ""
     $lines += "## Fixtures"
     $lines += ""
@@ -143,12 +150,18 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 
 $FixtureRoot = (Resolve-Path -LiteralPath $FixtureRoot).Path
 $SchemaDocsRoot = (Resolve-Path -LiteralPath $SchemaDocsRoot).Path
-New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
-$OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
+if (-not $NoWrite) {
+    New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+    $OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
+}
+elseif (Test-Path -LiteralPath $OutputRoot) {
+    $OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
+}
 
 $fixtureValidator = Join-Path $PSScriptRoot "validate_payload_fixtures.ps1"
 $contractValidator = Join-Path $PSScriptRoot "validate_payload_contract.ps1"
 $transportContractValidator = Join-Path $PSScriptRoot "validate_server_transport_contract.ps1"
+$judgingServerAcceptanceTemplateScript = Join-Path $PSScriptRoot "export_judging_server_acceptance_template.ps1"
 $scriptParams = @{
     FixtureRoot = $FixtureRoot
     SchemaDocsRoot = $SchemaDocsRoot
@@ -157,6 +170,7 @@ $scriptParams = @{
 $fixtureReport = Invoke-JsonScript -ScriptPath $fixtureValidator -Parameters $scriptParams
 $contractReport = Invoke-JsonScript -ScriptPath $contractValidator -Parameters $scriptParams
 $transportContractReport = Invoke-JsonScript -ScriptPath $transportContractValidator -Parameters @{ ProjectRoot = $projectRoot }
+$judgingServerAcceptanceTemplate = Invoke-JsonScript -ScriptPath $judgingServerAcceptanceTemplateScript -Parameters @{ ProjectRoot = $projectRoot }
 $serverAcceptanceDecisions = @(
     [PSCustomObject]@{
         Name = "Endpoint URL and environment ownership"
@@ -241,6 +255,7 @@ $report = [PSCustomObject]@{
     FixtureReport = $fixtureReport
     ContractReport = $contractReport
     TransportContractReport = $transportContractReport
+    JudgingServerAcceptanceTemplate = $judgingServerAcceptanceTemplate
     ServerAcceptanceDecisions = $serverAcceptanceDecisions
     AcceptanceEvidence = $acceptanceEvidence
     RealServerEvidenceGaps = $realServerEvidenceGaps
@@ -253,6 +268,11 @@ $report = [PSCustomObject]@{
         ServerAcceptanceDecisionCount = $serverAcceptanceDecisions.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
         RealServerEvidenceGapCount = $realServerEvidenceGaps.Count
+        JudgingServerAcceptanceTemplateAvailable = ($null -ne $judgingServerAcceptanceTemplate)
+        JudgingServerRequiredEvidenceCount = [int]$judgingServerAcceptanceTemplate.Summary.RequiredEvidenceCount
+        JudgingServerPendingEvidenceCount = [int]$judgingServerAcceptanceTemplate.Summary.PendingEvidenceCount
+        JudgingServerTemplateValuesRedacted = [bool]$judgingServerAcceptanceTemplate.Summary.ValuesRedacted
+        JudgingServerTemplateStagesConfig = [bool]$judgingServerAcceptanceTemplate.Summary.StagesConfig
         OpenServerAcceptanceDecisionCount = @($serverAcceptanceDecisions | Where-Object { $_.Status -eq "Open" }).Count
         RealJudgingServerAcceptancePresent = $false
         RecommendedNextAction = "Get judging-server owner approval for endpoint/auth/retry/batching/backpressure/response schema, then capture real endpoint acceptance evidence."
@@ -261,22 +281,31 @@ $report = [PSCustomObject]@{
         MarkdownPath = $markdownPath
         LatestJsonPath = $latestJsonPath
         LatestMarkdownPath = $latestMarkdownPath
+        NoWrite = [bool]$NoWrite
         Valid = ($fixtureReport.Summary.Valid -and $contractReport.Summary.Valid -and $transportContractReport.Summary.Valid)
     }
 }
 
-$report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-$report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $latestJsonPath -Encoding UTF8
-Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -TransportContractReport $transportContractReport -ServerAcceptanceDecisions $serverAcceptanceDecisions -AcceptanceEvidence $acceptanceEvidence -RealServerEvidenceGaps $realServerEvidenceGaps -Path $markdownPath -GeneratedUtc $generatedUtc
-Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -TransportContractReport $transportContractReport -ServerAcceptanceDecisions $serverAcceptanceDecisions -AcceptanceEvidence $acceptanceEvidence -RealServerEvidenceGaps $realServerEvidenceGaps -Path $latestMarkdownPath -GeneratedUtc $generatedUtc
+if (-not $NoWrite) {
+    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $latestJsonPath -Encoding UTF8
+    Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -TransportContractReport $transportContractReport -JudgingServerAcceptanceTemplate $judgingServerAcceptanceTemplate -ServerAcceptanceDecisions $serverAcceptanceDecisions -AcceptanceEvidence $acceptanceEvidence -RealServerEvidenceGaps $realServerEvidenceGaps -Path $markdownPath -GeneratedUtc $generatedUtc
+    Write-MarkdownReport -FixtureReport $fixtureReport -ContractReport $contractReport -TransportContractReport $transportContractReport -JudgingServerAcceptanceTemplate $judgingServerAcceptanceTemplate -ServerAcceptanceDecisions $serverAcceptanceDecisions -AcceptanceEvidence $acceptanceEvidence -RealServerEvidenceGaps $realServerEvidenceGaps -Path $latestMarkdownPath -GeneratedUtc $generatedUtc
+}
 
 if ($Json) {
     $report | ConvertTo-Json -Depth 8
 }
 else {
-    Write-Host "Payload contract report exported."
-    Write-Host "JSON: $jsonPath"
-    Write-Host "Markdown: $markdownPath"
-    Write-Host "Latest JSON: $latestJsonPath"
-    Write-Host "Latest Markdown: $latestMarkdownPath"
+    if ($NoWrite) {
+        Write-Host "Payload contract report generated in no-write mode."
+        Write-Host "No files were written."
+    }
+    else {
+        Write-Host "Payload contract report exported."
+        Write-Host "JSON: $jsonPath"
+        Write-Host "Markdown: $markdownPath"
+        Write-Host "Latest JSON: $latestJsonPath"
+        Write-Host "Latest Markdown: $latestMarkdownPath"
+    }
 }

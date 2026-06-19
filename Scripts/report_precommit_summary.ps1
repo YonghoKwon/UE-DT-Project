@@ -260,6 +260,46 @@ function Get-RuntimeConfigDecisionSummary {
     }
 }
 
+function Get-JudgingServerAcceptanceSummary {
+    param([string]$ProjectRoot)
+
+    $payloadContractReportScript = Join-Path $script:PSScriptRoot "export_payload_contract_report.ps1"
+    $acceptanceTemplateScript = Join-Path $script:PSScriptRoot "export_judging_server_acceptance_template.ps1"
+    if ((-not (Test-Path -LiteralPath $payloadContractReportScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $acceptanceTemplateScript -PathType Leaf))) {
+        return $null
+    }
+
+    $templateJson = & powershell -ExecutionPolicy Bypass -File $acceptanceTemplateScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Judging server acceptance template failed with exit code $LASTEXITCODE"
+    }
+    $template = $templateJson | ConvertFrom-Json
+
+    $contractJson = & powershell -ExecutionPolicy Bypass -File $payloadContractReportScript -OutputRoot (Join-Path $ProjectRoot "Saved\PayloadContractReports") -NoWrite -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Payload contract report failed with exit code $LASTEXITCODE"
+    }
+    $contract = $contractJson | ConvertFrom-Json
+
+    return [PSCustomObject]@{
+        AcceptanceTemplateAvailable = [bool]$contract.Summary.JudgingServerAcceptanceTemplateAvailable
+        RequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
+        PendingEvidenceCount = [int]$template.Summary.PendingEvidenceCount
+        ValuesRedacted = [bool]$template.Summary.ValuesRedacted
+        ModifiesConfig = [bool]$template.Summary.ModifiesConfig
+        StagesConfig = [bool]$template.Summary.StagesConfig
+        WritesEndpointValues = [bool]$template.Summary.WritesEndpointValues
+        WritesCredentialValues = [bool]$template.Summary.WritesCredentialValues
+        RealJudgingServerAcceptancePresent = [bool]$contract.Summary.RealJudgingServerAcceptancePresent
+        OpenServerAcceptanceDecisionCount = [int]$contract.Summary.OpenServerAcceptanceDecisionCount
+        RealServerEvidenceGapCount = [int]$contract.Summary.RealServerEvidenceGapCount
+        CurrentReadyToClaimRealServerAcceptance = [bool]$template.Summary.CurrentReadyToClaimRealServerAcceptance
+        RecommendedNextAction = [string]$contract.Summary.RecommendedNextAction
+        Boundary = "Local fixture/mock/loopback evidence is not real judging-server acceptance. Claim real acceptance only after endpoint/auth/response/rate evidence is recorded with no secrets in repo."
+    }
+}
+
 function Get-LazExportDecisionSummary {
     param([string]$ProjectRoot)
 
@@ -491,9 +531,9 @@ $workAreas = @(
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
-        -Percent 87 `
-        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator with camera base64/JPEG/byteSize and simulationQuality enum checks, preserved row/col/returnIndex contract, local mock contract validator with camera image invariant checks, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, outbound HTTP POST loopback acceptance automation, and exportable contract review report are in place. The payload contract report now includes a server acceptance readiness matrix for endpoint ownership, authentication, retry/timeout, batching/backpressure, response schema, and real judging-server acceptance evidence." `
-        -Remaining "Judging server approval, real server acceptance evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
+        -Percent 88 `
+        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator with camera base64/JPEG/byteSize and simulationQuality enum checks, preserved row/col/returnIndex contract, local mock contract validator with camera image invariant checks, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, outbound HTTP POST loopback acceptance automation, and exportable contract review report are in place. The payload contract report now includes a server acceptance readiness matrix for endpoint ownership, authentication, retry/timeout, batching/backpressure, response schema, and real judging-server acceptance evidence. A read-only judging-server acceptance template now records the evidence gates needed to claim real server acceptance without writing endpoint or credential values." `
+        -Remaining "Judging server approval, completed acceptance template evidence, real server accepted/rejected response evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
         -Percent 90 `
@@ -527,6 +567,7 @@ $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $runtimeConfigDecisionSummary = Get-RuntimeConfigDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$judgingServerAcceptanceSummary = Get-JudgingServerAcceptanceSummary -ProjectRoot $SourceRepoRoot
 $lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
 $pointCloudRendererDecisionSummary = Get-PointCloudRendererDecisionSummary -ProjectRoot $SourceRepoRoot
 $readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
@@ -546,6 +587,7 @@ $report = [PSCustomObject]@{
     LargeContentDecisionSummary = $largeContentDecisionSummary
     WbpDecisionSummary = $wbpDecisionSummary
     RuntimeConfigDecisionSummary = $runtimeConfigDecisionSummary
+    JudgingServerAcceptanceSummary = $judgingServerAcceptanceSummary
     LazExportDecisionSummary = $lazExportDecisionSummary
     PointCloudRendererDecisionSummary = $pointCloudRendererDecisionSummary
     ReadinessSummary = $readinessSummary
@@ -689,6 +731,24 @@ if ($runtimeConfigDecisionSummary) {
     Write-Host "Must remain local: $($runtimeConfigDecisionSummary.MustRemainLocal)"
     Write-Host "Recommendation: $($runtimeConfigDecisionSummary.Recommendation)"
     Write-Host "Boundary: $($runtimeConfigDecisionSummary.Boundary)"
+}
+
+if ($judgingServerAcceptanceSummary) {
+    Write-Section "Judging server acceptance"
+    Write-Host "Acceptance template available: $($judgingServerAcceptanceSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Required evidence count: $($judgingServerAcceptanceSummary.RequiredEvidenceCount)"
+    Write-Host "Pending evidence count: $($judgingServerAcceptanceSummary.PendingEvidenceCount)"
+    Write-Host "Values redacted: $($judgingServerAcceptanceSummary.ValuesRedacted)"
+    Write-Host "Modifies config: $($judgingServerAcceptanceSummary.ModifiesConfig)"
+    Write-Host "Stages config: $($judgingServerAcceptanceSummary.StagesConfig)"
+    Write-Host "Writes endpoint values: $($judgingServerAcceptanceSummary.WritesEndpointValues)"
+    Write-Host "Writes credential values: $($judgingServerAcceptanceSummary.WritesCredentialValues)"
+    Write-Host "Real judging-server acceptance present: $($judgingServerAcceptanceSummary.RealJudgingServerAcceptancePresent)"
+    Write-Host "Open server acceptance decisions: $($judgingServerAcceptanceSummary.OpenServerAcceptanceDecisionCount)"
+    Write-Host "Real server evidence gaps: $($judgingServerAcceptanceSummary.RealServerEvidenceGapCount)"
+    Write-Host "Ready to claim real server acceptance: $($judgingServerAcceptanceSummary.CurrentReadyToClaimRealServerAcceptance)"
+    Write-Host "Recommended next action: $($judgingServerAcceptanceSummary.RecommendedNextAction)"
+    Write-Host "Boundary: $($judgingServerAcceptanceSummary.Boundary)"
 }
 
 if ($lazExportDecisionSummary) {
