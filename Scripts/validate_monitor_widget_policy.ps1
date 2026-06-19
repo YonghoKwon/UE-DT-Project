@@ -50,7 +50,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor WBP decision report"; Path = "Scripts\export_monitor_wbp_decision_report.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance template"; Path = "Scripts\export_monitor_wbp_acceptance_template.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP preflight report"; Path = "Scripts\export_monitor_wbp_preflight_report.ps1" },
-    [PSCustomObject]@{ Label = "Monitor WBP acceptance evidence validator"; Path = "Scripts\validate_monitor_wbp_acceptance_evidence.ps1" }
+    [PSCustomObject]@{ Label = "Monitor WBP acceptance evidence validator"; Path = "Scripts\validate_monitor_wbp_acceptance_evidence.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP acceptance package exporter"; Path = "Scripts\export_monitor_wbp_acceptance_package.ps1" }
 )
 
 foreach ($file in $requiredFiles) {
@@ -70,6 +71,7 @@ $monitorWbpReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_dec
 $monitorWbpAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
 $monitorWbpPreflightScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $monitorWbpEvidenceValidatorScript = Join-Path $ProjectRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"
+$monitorWbpAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $widgetHeader; Pattern = "BindWidgetOptional"; Label = "Widget uses optional bindings" },
@@ -141,6 +143,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "StagesWbp = `$false"; Label = "WBP evidence validator declares no staging" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP evidence validator declares no asset modification" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "never stages the binary asset"; Label = "WBP evidence validator preserves staging boundary" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "Saved\Reports\MonitorWbpAcceptance"; Label = "WBP acceptance package writes local Saved report bundle" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "monitor_wbp_acceptance.evidence.json"; Label = "WBP acceptance package creates focused evidence draft" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "validate_monitor_wbp_acceptance_evidence.ps1"; Label = "WBP acceptance package runs evidence validator" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ReadyForManualEditorReview"; Label = "WBP acceptance package exposes manual editor readiness" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "WbpAcceptanceEvidenceComplete"; Label = "WBP acceptance package exposes evidence completeness" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "WBP acceptance package declares no staging" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP acceptance package declares no asset modification" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "never modifies assets, never stages files"; Label = "WBP acceptance package preserves manual acceptance boundary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpDecisionSummary"; Label = "Pre-commit summary exports WBP decision summary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpPreflightSummary"; Label = "Pre-commit summary exports WBP preflight summary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpAcceptanceEvidenceSummary"; Label = "Pre-commit summary exports WBP acceptance evidence summary" },
@@ -153,6 +163,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "AcceptanceTemplateAvailable"; Label = "Pre-commit summary reports WBP acceptance template availability" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_decision_report.ps1"; Label = "Local asset doc documents WBP decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_acceptance_template.ps1"; Label = "Local asset doc documents WBP acceptance template" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_acceptance_package.ps1"; Label = "Local asset doc documents WBP acceptance package" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Monitor WBP decision report"; Label = "Remaining work tracks WBP decision report" }
 )
 
@@ -189,6 +200,7 @@ $report = [PSCustomObject]@{
         MonitorWbpAcceptanceTemplateDeclared = $true
         MonitorWbpPreflightDeclared = $true
         MonitorWbpAcceptanceEvidenceValidatorDeclared = $true
+        MonitorWbpAcceptancePackageDeclared = $true
         AutomationCoverageDeclared = $true
         ManualEditorVerificationStillRequired = $true
         Valid = $true
@@ -213,6 +225,7 @@ else {
     Write-Host "Monitor WBP acceptance template declared: $($report.Summary.MonitorWbpAcceptanceTemplateDeclared)"
     Write-Host "Monitor WBP preflight declared: $($report.Summary.MonitorWbpPreflightDeclared)"
     Write-Host "Monitor WBP acceptance evidence validator declared: $($report.Summary.MonitorWbpAcceptanceEvidenceValidatorDeclared)"
+    Write-Host "Monitor WBP acceptance package declared: $($report.Summary.MonitorWbpAcceptancePackageDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
     Write-Host "Manual editor verification still required: $($report.Summary.ManualEditorVerificationStillRequired)"
 }

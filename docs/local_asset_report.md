@@ -102,6 +102,7 @@ complete.
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -Json
 ```
 
@@ -321,6 +322,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_preflight_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 ```
 
@@ -338,6 +340,11 @@ state, setup-document contract, acceptance-template availability, missing
 evidence count, and post-archive context before manual Editor/PIE review starts.
 Preflight readiness is not WBP acceptance and does not permit staging the binary
 asset.
+The WBP acceptance package exporter writes a local
+`Saved/Reports/MonitorWbpAcceptance` bundle with the preflight report, decision
+report, fillable evidence JSON/Markdown, validation JSON, manual steps, and
+strict follow-up commands. The package is local review evidence only; it does
+not modify assets, stage files, or accept the binary WBP.
 The WBP acceptance evidence validator is the stricter read-only gate for a
 filled evidence file. It checks `AssetHashAlgorithm = SHA256`, the current WBP
 hash, editor-open/compile evidence, optional binding crash-safety rows, PIE

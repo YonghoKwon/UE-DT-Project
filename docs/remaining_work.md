@@ -668,9 +668,16 @@ Current state:
   read-only acceptance-evidence gate for the local WBP. It keeps missing
   evidence as an incomplete report by default and only fails the command when
   `-FailOnIncompleteEvidence` is explicitly requested.
+- `Scripts/export_monitor_wbp_acceptance_package.ps1` now creates a local
+  `Saved/Reports/MonitorWbpAcceptance` package with preflight, decision,
+  fillable evidence, validation, manual steps, and strict follow-up commands.
+  This package is still not WBP acceptance; it only reduces the manual Editor
+  evidence collection gap.
 
 Next implementation steps:
 
+- Export the WBP acceptance package before the manual Editor pass:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."`.
 - Open the WBP in Unreal Editor and verify optional bindings.
 - Confirm camera/LiDAR switching, preview budget controls, hit-only toggle,
   server payload export, and slab analysis text.
@@ -697,6 +704,8 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
 - WBP acceptance template exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json`.
+- WBP acceptance package exports a local review bundle without touching assets:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json`.
 
 ## Routine Verification
 

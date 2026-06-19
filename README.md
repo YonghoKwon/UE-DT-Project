@@ -310,6 +310,18 @@ decision guard. It allows the known local-only untracked files to remain local,
 but fails accidental staging or invariant violations for local decision paths,
 `Samples/PixelStreaming`, and `Plugins/DTCore`.
 
+Monitor WBP manual acceptance package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json" -Json
+```
+
+The package writes local `Saved/Reports/MonitorWbpAcceptance` review files for
+Editor-open, optional binding, PIE smoke, exported payload, and owner acceptance
+evidence. It does not modify assets, stage files, or accept the binary WBP by
+itself.
+
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell
