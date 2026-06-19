@@ -312,6 +312,7 @@ outputs:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -ProjectRoot "." -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 ```
 
@@ -327,3 +328,9 @@ questions are visible before repository ownership is accepted.
 Use `validate_large_content_decision_policy.ps1 -ProjectRoot <source repo>
 -LocalProjectRoot <local Unreal project>` when the policy/docs live in the
 source checkout but the untracked content lives in the local Unreal project.
+The cleanup plan is intentionally read-only: `DryRunOnly=true`,
+`DeletesFiles=false`, and `ModifiesAssets=false`. It does not fix redirectors,
+delete files, or modify Unreal assets. Each unused cleanup candidate remains
+`ManualDeletionOnly=true` and `SafeToDelete=false` until map, WBP/widget, asset
+registry/reference viewer, redirector, config/startup, post-move editor smoke,
+and staging checks are recorded outside the script.

@@ -116,12 +116,13 @@ Open decisions:
   paths into `ReadyToStage`, `NeedsOwnerDecision`, and `KeepLocal` queues and
   also shows top blocking actions.
 - `Scripts/report_precommit_summary.ps1` now consumes the large-content
-  decision report and shows the confirmed-unused cleanup candidate count, total
-  cleanup size, largest cleanup candidate, sample/third-party candidate count
-  and size, and the repository-acceptance paths that still need owner decisions.
-  Cleanup candidate still means keep ignored or manually remove after map/WBP
-  dependency checks; sample/third-party candidate still means keep untracked
-  unless project ownership, redistribution approval, and documentation
+  decision report plus the read-only cleanup plan and shows the confirmed-unused
+  cleanup candidate count, total cleanup size, largest cleanup candidate,
+  cleanup-plan dry-run/deletion safety fields, sample/third-party candidate
+  count and size, and the repository-acceptance paths that still need owner
+  decisions. Cleanup candidate still means keep ignored or manually remove after
+  map/WBP dependency checks; sample/third-party candidate still means keep
+  untracked unless project ownership, redistribution approval, and documentation
   alternative are accepted.
 - The large content decision report now exports per-path `RequiredAcceptance`,
   `DecisionBlockers`, `NextReviewAction`, and `TopBlockers`. High-risk binary
@@ -134,6 +135,12 @@ Open decisions:
 - `Scripts/validate_large_content_decision_policy.ps1` supports
   `-LocalProjectRoot` so the source checkout can validate docs/scripts while the
   actual untracked Unreal content is scanned from `C:\Unreal Projects\m7at10_dt`.
+- `Scripts/export_large_content_cleanup_plan.ps1` exports a dry-run cleanup plan
+  for the confirmed-unused large Content folders. It records recoverable local
+  disk size, required pre-delete checks, and per-candidate safety fields such as
+  `DryRunOnly=true`, `DeletesFiles=false`, `ModifiesAssets=false`,
+  `ManualDeletionOnly=true`, and `SafeToDelete=false`; it never deletes files or
+  modifies Unreal assets.
 - Runtime config validation now supports `-LocalProjectRoot` so the source repo
   policy can inspect the real local Unreal project `Config/Game.ini`. The JSON
   output includes `RecommendedDecision`; the current empty
@@ -664,6 +671,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 Strict asset gates for clean-content review:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnStagedDecisionPoints
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnLargeContentCandidates
