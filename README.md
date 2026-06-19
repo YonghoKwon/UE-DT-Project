@@ -352,7 +352,8 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_accep
 
 The package writes local `Saved/Reports/LazCompressionAcceptance` review files
 for the current placeholder, compressor decision, reader/readable-output
-evidence, and follow-up commands. It does not install tools, run a compressor,
+evidence, a fillable `LazCompressionAcceptanceEvidenceV1` draft, validation
+results, and follow-up commands. It does not install tools, run a compressor,
 modify assets, or stage files.
 
 로컬 프로젝트 상태와 untracked asset decision point 확인:

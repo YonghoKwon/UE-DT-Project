@@ -530,6 +530,16 @@ Current state:
   steps, and follow-up commands. It does not install tools, run a compressor,
   modify assets, or stage files; reader probing runs only when explicitly
   requested.
+- The package now also writes a fillable
+  `LazCompressionAcceptanceEvidenceV1` draft and validates it with
+  `Scripts/validate_laz_compression_acceptance_evidence.ps1`. True LAZ remains
+  unclaimed until compressor selection, produced `.laz` output, known-reader
+  validation, placeholder distinction, repeatable command, and owner acceptance
+  evidence are all recorded.
+- Tool version probes are opt-in through `-ProbeToolVersions` on
+  `Scripts/export_laz_compressor_readiness_report.ps1`; the default acceptance
+  package does not run a compressor, write `.laz` output, or probe tool
+  versions.
 
 Next implementation steps:
 
@@ -564,6 +574,12 @@ Completion evidence:
 - LAZ acceptance package exports local review evidence without running a
   compressor:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+- LAZ acceptance evidence validation reports missing evidence without modifying
+  assets or staging files:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -Json`.
+- LAZ acceptance evidence can be made a strict gate only after evidence is
+  filled:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -FailOnIncompleteEvidence`.
 - Explicit compressor/reader readiness exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1" -CompressorPath "C:\path\to\laszip.exe" -ReaderPath "C:\path\to\lasinfo.exe"`.
 - Readable-output evidence export:

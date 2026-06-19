@@ -216,7 +216,16 @@ from an independent point-cloud tool.
 Use `Scripts/export_laz_compression_acceptance_package.ps1` to export the
 decision report, compressor readiness report, placeholder policy validation, and
 follow-up commands into `Saved/Reports/LazCompressionAcceptance/`. The package
-does not run a compressor by default; reader probing is explicit opt-in.
+does not run a compressor by default; reader probing is explicit opt-in. The
+package also writes a fillable `LazCompressionAcceptanceEvidenceV1` draft and a
+validation report. Use
+`Scripts/validate_laz_compression_acceptance_evidence.ps1` with
+`-FailOnIncompleteEvidence` only after compressor selection, produced `.laz`
+output, known-reader validation, placeholder distinction, repeatable command,
+and owner acceptance evidence are recorded.
+Tool version probes are opt-in with `-ProbeToolVersions`; the default
+acceptance package does not run compressors, write `.laz` output, or probe tool
+versions.
 
 `ExportLastPointCloudLaz()` also supports an opt-in external compressor path via
 `bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and

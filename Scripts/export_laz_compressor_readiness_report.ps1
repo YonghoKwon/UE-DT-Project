@@ -5,6 +5,7 @@ param(
     [string]$LazEvidencePath = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
+    [switch]$ProbeToolVersions,
     [switch]$RunReaderProbe,
     [switch]$Json
 )
@@ -42,7 +43,8 @@ function Resolve-ToolCandidate {
         [string]$Name,
         [string]$ExplicitPath,
         [string[]]$DefaultArguments,
-        [string]$Role
+        [string]$Role,
+        [bool]$ProbeVersion
     )
 
     $resolvedPath = ""
@@ -76,7 +78,7 @@ function Resolve-ToolCandidate {
 
     $versionProbeSucceeded = $false
     $versionText = ""
-    if (-not [string]::IsNullOrWhiteSpace($resolvedPath)) {
+    if ($ProbeVersion -and -not [string]::IsNullOrWhiteSpace($resolvedPath)) {
         foreach ($arg in @("--version", "-version", "-h")) {
             try {
                 $output = @(& $resolvedPath $arg 2>&1 | Select-Object -First 6)
@@ -239,6 +241,7 @@ function Write-MarkdownReport {
     $lines += "- LAZ evidence file present: $($Report.Summary.LazEvidenceFilePresent)"
     $lines += "- Reader probe requested: $($Report.Summary.ReaderProbeRequested)"
     $lines += "- Reader probe blocked reason: $($Report.Summary.ReaderProbeBlockedReason)"
+    $lines += "- Tool version probes requested: $($Report.Summary.ToolVersionProbesRequested)"
     $lines += "- Known point-cloud reader: $($Report.Summary.KnownPointCloudReader)"
     $lines += "- Reader probe succeeded: $($Report.Summary.ReaderProbeSucceeded)"
     $lines += "- Readable-output evidence present: $($Report.Summary.ReadableOutputEvidencePresent)"
@@ -281,20 +284,20 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $toolCandidates = @()
 if (-not [string]::IsNullOrWhiteSpace($CompressorPath)) {
-    $toolCandidates += Resolve-ToolCandidate -Name "external-compressor" -ExplicitPath $CompressorPath -DefaultArguments @("-i", "{input}", "-o", "{output}") -Role "Compressor"
+    $toolCandidates += Resolve-ToolCandidate -Name "external-compressor" -ExplicitPath $CompressorPath -DefaultArguments @("-i", "{input}", "-o", "{output}") -Role "Compressor" -ProbeVersion ([bool]$ProbeToolVersions)
 }
 else {
-    $toolCandidates += Resolve-ToolCandidate -Name "laszip" -ExplicitPath "" -DefaultArguments @("-i", "{input}", "-o", "{output}") -Role "Compressor"
-    $toolCandidates += Resolve-ToolCandidate -Name "las2las" -ExplicitPath "" -DefaultArguments @("-i", "{input}", "-o", "{output}") -Role "Compressor"
-    $toolCandidates += Resolve-ToolCandidate -Name "pdal" -ExplicitPath "" -DefaultArguments @("translate", "{input}", "{output}") -Role "Compressor"
+    $toolCandidates += Resolve-ToolCandidate -Name "laszip" -ExplicitPath "" -DefaultArguments @("-i", "{input}", "-o", "{output}") -Role "Compressor" -ProbeVersion ([bool]$ProbeToolVersions)
+    $toolCandidates += Resolve-ToolCandidate -Name "las2las" -ExplicitPath "" -DefaultArguments @("-i", "{input}", "-o", "{output}") -Role "Compressor" -ProbeVersion ([bool]$ProbeToolVersions)
+    $toolCandidates += Resolve-ToolCandidate -Name "pdal" -ExplicitPath "" -DefaultArguments @("translate", "{input}", "{output}") -Role "Compressor" -ProbeVersion ([bool]$ProbeToolVersions)
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ReaderPath)) {
-    $toolCandidates += Resolve-ToolCandidate -Name "external-reader" -ExplicitPath $ReaderPath -DefaultArguments @("{output}") -Role "Reader"
+    $toolCandidates += Resolve-ToolCandidate -Name "external-reader" -ExplicitPath $ReaderPath -DefaultArguments @("{output}") -Role "Reader" -ProbeVersion ([bool]$ProbeToolVersions)
 }
 else {
-    $toolCandidates += Resolve-ToolCandidate -Name "lasinfo" -ExplicitPath "" -DefaultArguments @("{output}") -Role "Reader"
-    $toolCandidates += Resolve-ToolCandidate -Name "pdal" -ExplicitPath "" -DefaultArguments @("info", "{output}") -Role "Reader"
+    $toolCandidates += Resolve-ToolCandidate -Name "lasinfo" -ExplicitPath "" -DefaultArguments @("{output}") -Role "Reader" -ProbeVersion ([bool]$ProbeToolVersions)
+    $toolCandidates += Resolve-ToolCandidate -Name "pdal" -ExplicitPath "" -DefaultArguments @("info", "{output}") -Role "Reader" -ProbeVersion ([bool]$ProbeToolVersions)
 }
 
 $compressorCandidates = @($toolCandidates | Where-Object { $_.Role -eq "Compressor" -and $_.Exists })
@@ -364,6 +367,7 @@ $report = [PSCustomObject]@{
         ReaderProbeRequested = [bool]$readerProbe.Requested
         ReaderProbeRequestedByUser = [bool]$readerProbe.RequestedByUser
         ReaderProbeBlockedReason = [string]$readerProbe.BlockedReason
+        ToolVersionProbesRequested = [bool]$ProbeToolVersions
         KnownPointCloudReader = [bool]$readerProbe.KnownPointCloudReader
         ReaderProbeSucceeded = [bool]$readerProbe.Succeeded
         ReadableOutputEvidencePresent = [bool]$readableOutputEvidencePresent
@@ -394,6 +398,7 @@ else {
     Write-Host "LAZ evidence file present: $($report.Summary.LazEvidenceFilePresent)"
     Write-Host "Reader probe requested: $($report.Summary.ReaderProbeRequested)"
     Write-Host "Reader probe blocked reason: $($report.Summary.ReaderProbeBlockedReason)"
+    Write-Host "Tool version probes requested: $($report.Summary.ToolVersionProbesRequested)"
     Write-Host "Known point-cloud reader: $($report.Summary.KnownPointCloudReader)"
     Write-Host "Reader probe succeeded: $($report.Summary.ReaderProbeSucceeded)"
     Write-Host "Readable-output evidence present: $($report.Summary.ReadableOutputEvidencePresent)"

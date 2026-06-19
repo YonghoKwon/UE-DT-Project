@@ -61,11 +61,15 @@ $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
 $readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
 $acceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_package.ps1"
+$acceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_template.ps1"
+$acceptanceValidatorScript = Join-Path $ProjectRoot "Scripts\validate_laz_compression_acceptance_evidence.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 
 Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision report script"
 Assert-FileExists -Path $readinessReportScript -Label "LAZ compressor readiness report script"
 Assert-FileExists -Path $acceptancePackageScript -Label "LAZ compression acceptance package script"
+Assert-FileExists -Path $acceptanceTemplateScript -Label "LAZ compression acceptance template script"
+Assert-FileExists -Path $acceptanceValidatorScript -Label "LAZ compression acceptance evidence validator"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -110,6 +114,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "RunReaderProbe"; Label = "Readiness report can run reader probe" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReaderProbeSucceeded"; Label = "Readiness report records reader probe result" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReaderProbeBlockedReason"; Label = "Readiness report records reader probe block reason" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ProbeToolVersions"; Label = "Readiness report keeps tool version probes opt-in" },
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ToolVersionProbesRequested"; Label = "Readiness report exposes tool version probe state" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "KnownPointCloudReader"; Label = "Readiness report requires a known point-cloud reader" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "laszip"; Label = "Readiness report checks laszip candidate" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "pdal"; Label = "Readiness report checks pdal candidate" },
@@ -121,6 +127,20 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "Reader probing runs only when explicitly requested"; Label = "Acceptance package documents opt-in reader probe boundary" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadableOutputEvidencePresent"; Label = "Acceptance package exposes readable output evidence" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadyForRealLazAutomation"; Label = "Acceptance package exposes real LAZ readiness" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "WritesLazOutput = `$false"; Label = "Acceptance package declares it does not write LAZ output" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ProbesToolVersionsByDefault = `$false"; Label = "Acceptance package does not probe tool versions by default" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadyToClaimTrueLaz"; Label = "Acceptance package exposes true LAZ claim gate" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "export_laz_compression_acceptance_template.ps1"; Label = "Acceptance package writes fillable LAZ evidence template" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "validate_laz_compression_acceptance_evidence.ps1"; Label = "Acceptance package validates LAZ evidence draft" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "AcceptanceEvidenceComplete"; Label = "Acceptance package exposes evidence completion state" },
+    [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "LazCompressionAcceptanceEvidenceV1"; Label = "Acceptance template declares schema version" },
+    [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "Produced LAZ output"; Label = "Acceptance template requires produced LAZ output evidence" },
+    [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "Known reader validation"; Label = "Acceptance template requires known reader validation" },
+    [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "Placeholder distinction"; Label = "Acceptance template requires placeholder distinction evidence" },
+    [PSCustomObject]@{ Path = $acceptanceValidatorScript; Pattern = "FailOnIncompleteEvidence"; Label = "Acceptance validator can fail on incomplete evidence" },
+    [PSCustomObject]@{ Path = $acceptanceValidatorScript; Pattern = "CurrentReadyToClaimTrueLaz"; Label = "Acceptance validator exposes true LAZ readiness" },
+    [PSCustomObject]@{ Path = $acceptanceValidatorScript; Pattern = "Known reader validation"; Label = "Acceptance validator checks known reader validation evidence" },
+    [PSCustomObject]@{ Path = $acceptanceValidatorScript; Pattern = "LAZ evidence path exists"; Label = "Acceptance validator checks LAZ evidence path" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "Get-LazExportDecisionSummary"; Label = "Pre-commit summary includes LAZ decision summary helper" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_laz_compression_decision_report.ps1"; Label = "Pre-commit summary consumes LAZ decision report" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_laz_compressor_readiness_report.ps1"; Label = "Pre-commit summary consumes LAZ readiness report" },
@@ -188,8 +208,11 @@ $report = [PSCustomObject]@{
         DecisionReportDeclared = $true
         CompressorReadinessReportDeclared = $true
         AcceptancePackageDeclared = $true
+        AcceptanceTemplateDeclared = $true
+        AcceptanceEvidenceValidatorDeclared = $true
         PrecommitSummaryDeclared = $true
         ReadableEvidenceProbeDeclared = $true
+        ToolVersionProbeOptInDeclared = $true
         MissingReaderProbeGuardCovered = $true
         TrueCompressionStillOpen = $true
         Valid = $true
@@ -211,8 +234,11 @@ else {
     Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
     Write-Host "Compressor readiness report declared: $($report.Summary.CompressorReadinessReportDeclared)"
     Write-Host "Acceptance package declared: $($report.Summary.AcceptancePackageDeclared)"
+    Write-Host "Acceptance template declared: $($report.Summary.AcceptanceTemplateDeclared)"
+    Write-Host "Acceptance evidence validator declared: $($report.Summary.AcceptanceEvidenceValidatorDeclared)"
     Write-Host "Pre-commit summary declared: $($report.Summary.PrecommitSummaryDeclared)"
     Write-Host "Readable evidence probe declared: $($report.Summary.ReadableEvidenceProbeDeclared)"
+    Write-Host "Tool version probe opt-in declared: $($report.Summary.ToolVersionProbeOptInDeclared)"
     Write-Host "Missing reader probe guard covered: $($report.Summary.MissingReaderProbeGuardCovered)"
     Write-Host "True compression still open: $($report.Summary.TrueCompressionStillOpen)"
 }

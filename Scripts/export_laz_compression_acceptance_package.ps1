@@ -63,12 +63,17 @@ $OutputRoot = (Resolve-Path -LiteralPath $OutputRoot).Path
 $decisionScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
 $readinessScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
 $policyScript = Join-Path $ProjectRoot "Scripts\validate_laz_placeholder_policy.ps1"
+$templateScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_template.ps1"
+$validatorScript = Join-Path $ProjectRoot "Scripts\validate_laz_compression_acceptance_evidence.ps1"
 
 $decisionJsonPath = Join-Path $OutputRoot "laz_compression_decision.json"
 $decisionMarkdownPath = Join-Path $OutputRoot "laz_compression_decision.md"
 $readinessJsonPath = Join-Path $OutputRoot "laz_compressor_readiness.json"
 $readinessMarkdownPath = Join-Path $OutputRoot "laz_compressor_readiness.md"
 $policyJsonPath = Join-Path $OutputRoot "laz_placeholder_policy.json"
+$evidenceJsonPath = Join-Path $OutputRoot "laz_compression_acceptance.evidence.json"
+$evidenceMarkdownPath = Join-Path $OutputRoot "laz_compression_acceptance_template.md"
+$validationJsonPath = Join-Path $OutputRoot "laz_compression_acceptance_validation.json"
 $manifestJsonPath = Join-Path $OutputRoot "laz_compression_acceptance_package.json"
 $manifestMarkdownPath = Join-Path $OutputRoot "README.md"
 
@@ -94,6 +99,20 @@ $policy = Invoke-JsonScript -ScriptPath $policyScript -Parameters @{
 }
 $policy | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $policyJsonPath -Encoding UTF8
 
+$template = Invoke-JsonScript -ScriptPath $templateScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    OutputPath = $evidenceJsonPath
+}
+& powershell -ExecutionPolicy Bypass -File $templateScript -ProjectRoot $ProjectRoot -OutputPath $evidenceMarkdownPath | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "LAZ acceptance markdown template generation failed with exit code $LASTEXITCODE"
+}
+$validation = Invoke-JsonScript -ScriptPath $validatorScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    EvidencePath = $evidenceJsonPath
+}
+$validation | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $validationJsonPath -Encoding UTF8
+
 $manualSteps = @(
     "Choose one LAZ path: native library, external CLI compressor, or server/post-processing workflow.",
     "Record compressor/tool name, version, license, redistribution owner, and UE 5.3 packaging decision.",
@@ -116,6 +135,9 @@ $generatedFiles = @(
     $readinessJsonPath,
     $readinessMarkdownPath,
     $policyJsonPath,
+    $evidenceJsonPath,
+    $evidenceMarkdownPath,
+    $validationJsonPath,
     $manifestJsonPath,
     $manifestMarkdownPath
 )
@@ -128,12 +150,16 @@ $manifest = [PSCustomObject]@{
     DryRunOnly = $true
     DoesNotInstallCompressor = $true
     DoesNotRunCompressor = $true
+    WritesLazOutput = $false
+    ProbesToolVersionsByDefault = $false
     RunsReaderProbeOnlyWhenRequested = [bool]$RunReaderProbe
     ModifiesAssets = $false
     StagesFiles = $false
     DecisionSummary = $decision.Summary
     ReadinessSummary = $readiness.Summary
     PolicySummary = $policy.Summary
+    TemplateSummary = $template.Summary
+    ValidationSummary = $validation.Summary
     ManualSteps = $manualSteps
     FollowUpCommands = $followUpCommands
     GeneratedFiles = $generatedFiles
@@ -151,13 +177,19 @@ $manifest = [PSCustomObject]@{
         ReadableOutputEvidencePresent = [bool]$readiness.Summary.ReadableOutputEvidencePresent
         ReadyForRealLazAutomation = [bool]$readiness.Summary.ReadyForRealLazAutomation
         TrueCompressionIntegrated = [bool]$decision.Summary.TrueCompressionIntegrated
+        AcceptanceTemplateCreated = (Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf)
+        AcceptanceEvidenceComplete = [bool]$validation.Summary.Complete
+        AcceptanceEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
         AcceptanceEvidenceCount = [int]$decision.Summary.AcceptanceEvidenceCount
         DryRunOnly = $true
         DoesNotInstallCompressor = $true
         DoesNotRunCompressor = $true
+        WritesLazOutput = $false
+        ProbesToolVersionsByDefault = $false
         ModifiesAssets = $false
         StagesFiles = $false
-        Boundary = "This package collects LAZ compression acceptance evidence only. It never installs tools, never runs a compressor, never modifies assets, and never stages files. Reader probing runs only when explicitly requested."
+        ReadyToClaimTrueLaz = ([bool]$decision.Summary.TrueCompressionIntegrated -and [bool]$readiness.Summary.ReadyForRealLazAutomation -and [bool]$validation.Summary.Complete)
+        Boundary = "This package collects LAZ compression acceptance evidence only. It never installs tools, never runs a compressor, never writes LAZ output, never probes tool versions by default, never modifies assets, and never stages files. Reader probing runs only when explicitly requested."
         Valid = ([bool]$decision.Summary.Valid -and [bool]$readiness.Summary.Valid -and [bool]$policy.Summary.Valid)
     }
 }
@@ -181,8 +213,13 @@ $lines.Add("- Reader probe succeeded: $($manifest.Summary.ReaderProbeSucceeded)"
 $lines.Add("- Readable output evidence present: $($manifest.Summary.ReadableOutputEvidencePresent)") | Out-Null
 $lines.Add("- Ready for real LAZ automation: $($manifest.Summary.ReadyForRealLazAutomation)") | Out-Null
 $lines.Add("- True compression integrated: $($manifest.Summary.TrueCompressionIntegrated)") | Out-Null
+$lines.Add("- Acceptance template created: $($manifest.Summary.AcceptanceTemplateCreated)") | Out-Null
+$lines.Add("- Acceptance evidence complete: $($manifest.Summary.AcceptanceEvidenceComplete)") | Out-Null
+$lines.Add("- Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
 $lines.Add("- Does not run compressor: $($manifest.DoesNotRunCompressor)") | Out-Null
+$lines.Add("- Writes LAZ output: $($manifest.WritesLazOutput)") | Out-Null
+$lines.Add("- Probes tool versions by default: $($manifest.ProbesToolVersionsByDefault)") | Out-Null
 $lines.Add("- Modifies assets: $($manifest.ModifiesAssets)") | Out-Null
 $lines.Add("- Stages files: $($manifest.StagesFiles)") | Out-Null
 $lines.Add("") | Out-Null
@@ -221,4 +258,6 @@ else {
     Write-Host "Readable output evidence present: $($manifest.Summary.ReadableOutputEvidencePresent)"
     Write-Host "Ready for real LAZ automation: $($manifest.Summary.ReadyForRealLazAutomation)"
     Write-Host "True compression integrated: $($manifest.Summary.TrueCompressionIntegrated)"
+    Write-Host "Acceptance evidence complete: $($manifest.Summary.AcceptanceEvidenceComplete)"
+    Write-Host "Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)"
 }
