@@ -432,6 +432,11 @@ Current state:
   succeeds with a known point-cloud reader such as `lasinfo` or `pdal`.
   Requested-but-blocked probes are reported separately through
   `ReaderProbeBlockedReason`.
+- `Scripts/report_precommit_summary.ps1 -IncludeReadiness` now surfaces the LAZ
+  decision/readiness boundary directly, including `TrueCompressionIntegrated`,
+  `ReadableOutputEvidencePresent`, `ReadyForRealLazAutomation`, and
+  `ReadyToClaimTrueLaz`, so the pre-commit report does not confuse process
+  contract evidence with readable compressed-output evidence.
 
 Next implementation steps:
 
@@ -457,6 +462,8 @@ Completion evidence:
   `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput`.
 - Static placeholder readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"`.
+- Pre-commit LAZ boundary appears:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -IncludeReadiness`.
 - Local compressor readiness exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1"`.
 - Explicit compressor/reader readiness exports:

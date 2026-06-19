@@ -166,6 +166,63 @@ function Get-WbpDecisionSummary {
     }
 }
 
+function Get-LazExportDecisionSummary {
+    param([string]$ProjectRoot)
+
+    $decisionReportScript = Join-Path $script:PSScriptRoot "export_laz_compression_decision_report.ps1"
+    $readinessReportScript = Join-Path $script:PSScriptRoot "export_laz_compressor_readiness_report.ps1"
+    if ((-not (Test-Path -LiteralPath $decisionReportScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $readinessReportScript -PathType Leaf))) {
+        return $null
+    }
+
+    $decisionJson = & powershell -ExecutionPolicy Bypass -File $decisionReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ compression decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $readinessJson = & powershell -ExecutionPolicy Bypass -File $readinessReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ compressor readiness report failed with exit code $LASTEXITCODE"
+    }
+
+    $decisionReport = $decisionJson | ConvertFrom-Json
+    $readinessReport = $readinessJson | ConvertFrom-Json
+    $acceptanceEvidence = @($decisionReport.AcceptanceEvidenceNeeded)
+    $candidatePaths = @($decisionReport.CandidatePaths | Select-Object -ExpandProperty Option)
+
+    return [PSCustomObject]@{
+        PlaceholderExplicit = [bool]$decisionReport.Summary.PlaceholderExplicit
+        WritesLasSourceOnly = [bool]$decisionReport.Summary.WritesLasSourceOnly
+        ExternalCompressorOptInImplemented = [bool]$decisionReport.Summary.ExternalCompressorOptInImplemented
+        ExternalCompressorContractHardened = [bool]$decisionReport.Summary.ExternalCompressorContractHardened
+        MissingCompressorGuardCovered = [bool]$decisionReport.Summary.MissingCompressorGuardCovered
+        ExternalCompressorSuccessCovered = [bool]$decisionReport.Summary.ExternalCompressorSuccessCovered
+        CompressorReadinessReportDeclared = [bool]$decisionReport.Summary.CompressorReadinessReportDeclared
+        AutomationCoverageDeclared = [bool]$decisionReport.Summary.AutomationCoverageDeclared
+        TrueCompressionIntegrated = [bool]$decisionReport.Summary.TrueCompressionIntegrated
+        CompressorCandidateFound = [bool]$readinessReport.Summary.CompressorCandidateFound
+        ReaderCandidateFound = [bool]$readinessReport.Summary.ReaderCandidateFound
+        LazEvidenceFilePresent = [bool]$readinessReport.Summary.LazEvidenceFilePresent
+        ReaderProbeRequested = [bool]$readinessReport.Summary.ReaderProbeRequested
+        ReaderProbeBlockedReason = [string]$readinessReport.Summary.ReaderProbeBlockedReason
+        KnownPointCloudReader = [bool]$readinessReport.Summary.KnownPointCloudReader
+        ReaderProbeSucceeded = [bool]$readinessReport.Summary.ReaderProbeSucceeded
+        ReadableOutputEvidencePresent = [bool]$readinessReport.Summary.ReadableOutputEvidencePresent
+        ReadyForRealLazAutomation = [bool]$readinessReport.Summary.ReadyForRealLazAutomation
+        CandidateToolCount = [int]$readinessReport.Summary.CandidateToolCount
+        FoundToolCount = [int]$readinessReport.Summary.FoundToolCount
+        CandidatePathCount = [int]$decisionReport.Summary.CandidatePathCount
+        CandidatePaths = $candidatePaths
+        AcceptanceEvidenceCount = [int]$decisionReport.Summary.AcceptanceEvidenceCount
+        AcceptanceEvidenceNeeded = $acceptanceEvidence
+        RecommendedNextDecision = [string]$decisionReport.Summary.RecommendedNextDecision
+        RecommendedNextAction = [string]$readinessReport.Summary.RecommendedNextAction
+        ReadyToClaimTrueLaz = ([bool]$decisionReport.Summary.TrueCompressionIntegrated -and [bool]$readinessReport.Summary.ReadyForRealLazAutomation)
+        StagingBoundary = "Do not claim true LAZ until a produced .laz file is readable by a known point-cloud reader and the selected compressor/native/server workflow is accepted."
+    }
+}
+
 function Get-ReadinessSummary {
     param(
         [string]$ProjectRoot,
@@ -314,8 +371,8 @@ $workAreas = @(
         -Remaining "Niagara spike implementation, actual viewport screenshot/nonblank pixel evidence, renderer-specific dense-frame performance validation, fallback-preservation verification after GPU integration, and final GPU asset/module ownership remain."),
     (New-WorkArea `
         -Name "LAZ export" `
-        -Percent 54 `
-        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, and now accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting for readable-output validation." `
+        -Percent 55 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting, and is now surfaced in the pre-commit summary as a LAZ decision/readiness boundary." `
         -Remaining "Accepted compressor/tool selection, actual readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
 )
 
@@ -329,6 +386,7 @@ $recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--o
 $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
 $readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
 
 $report = [PSCustomObject]@{
@@ -345,6 +403,7 @@ $report = [PSCustomObject]@{
     LocalAssetSummary = if ($localAssetReport) { $localAssetReport.Summary } else { $null }
     LargeContentDecisionSummary = $largeContentDecisionSummary
     WbpDecisionSummary = $wbpDecisionSummary
+    LazExportDecisionSummary = $lazExportDecisionSummary
     ReadinessSummary = $readinessSummary
 }
 
@@ -441,6 +500,31 @@ if ($wbpDecisionSummary) {
     Write-Host "Blocking reason: $($wbpDecisionSummary.BlockingReason)"
     Write-Host "Next review action: $($wbpDecisionSummary.NextReviewAction)"
     Write-Host "Boundary: $($wbpDecisionSummary.Boundary)"
+}
+
+if ($lazExportDecisionSummary) {
+    Write-Section "LAZ export decision"
+    Write-Host "Placeholder explicit: $($lazExportDecisionSummary.PlaceholderExplicit)"
+    Write-Host "Writes LAS source only: $($lazExportDecisionSummary.WritesLasSourceOnly)"
+    Write-Host "External compressor opt-in implemented: $($lazExportDecisionSummary.ExternalCompressorOptInImplemented)"
+    Write-Host "External compressor contract hardened: $($lazExportDecisionSummary.ExternalCompressorContractHardened)"
+    Write-Host "Missing-compressor guard covered: $($lazExportDecisionSummary.MissingCompressorGuardCovered)"
+    Write-Host "External compressor success covered: $($lazExportDecisionSummary.ExternalCompressorSuccessCovered)"
+    Write-Host "Compressor candidate found: $($lazExportDecisionSummary.CompressorCandidateFound)"
+    Write-Host "Reader candidate found: $($lazExportDecisionSummary.ReaderCandidateFound)"
+    Write-Host "Candidate tools: $($lazExportDecisionSummary.FoundToolCount)/$($lazExportDecisionSummary.CandidateToolCount) found"
+    Write-Host "LAZ evidence file present: $($lazExportDecisionSummary.LazEvidenceFilePresent)"
+    Write-Host "Reader probe requested: $($lazExportDecisionSummary.ReaderProbeRequested)"
+    Write-Host "Reader probe blocked reason: $($lazExportDecisionSummary.ReaderProbeBlockedReason)"
+    Write-Host "Readable output evidence present: $($lazExportDecisionSummary.ReadableOutputEvidencePresent)"
+    Write-Host "Ready for real LAZ automation: $($lazExportDecisionSummary.ReadyForRealLazAutomation)"
+    Write-Host "True compression integrated: $($lazExportDecisionSummary.TrueCompressionIntegrated)"
+    Write-Host "Ready to claim true LAZ: $($lazExportDecisionSummary.ReadyToClaimTrueLaz)"
+    Write-Host "Candidate paths: $(@($lazExportDecisionSummary.CandidatePaths) -join ', ')"
+    Write-Host "Acceptance evidence needed: $(@($lazExportDecisionSummary.AcceptanceEvidenceNeeded) -join '; ')"
+    Write-Host "Recommended next decision: $($lazExportDecisionSummary.RecommendedNextDecision)"
+    Write-Host "Recommended next action: $($lazExportDecisionSummary.RecommendedNextAction)"
+    Write-Host "Boundary: $($lazExportDecisionSummary.StagingBoundary)"
 }
 
 if ($readinessSummary) {

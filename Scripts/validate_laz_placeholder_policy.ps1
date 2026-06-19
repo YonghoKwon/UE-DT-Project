@@ -60,9 +60,11 @@ $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
 $readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
+$precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 
 Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision report script"
 Assert-FileExists -Path $readinessReportScript -Label "LAZ compressor readiness report script"
+Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarHeader; Pattern = "ExportLastPointCloudLaz"; Label = "LAZ export API remains explicit" },
@@ -108,7 +110,14 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "ReaderProbeBlockedReason"; Label = "Readiness report records reader probe block reason" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "KnownPointCloudReader"; Label = "Readiness report requires a known point-cloud reader" },
     [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "laszip"; Label = "Readiness report checks laszip candidate" },
-    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "pdal"; Label = "Readiness report checks pdal candidate" }
+    [PSCustomObject]@{ Path = $readinessReportScript; Pattern = "pdal"; Label = "Readiness report checks pdal candidate" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "Get-LazExportDecisionSummary"; Label = "Pre-commit summary includes LAZ decision summary helper" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_laz_compression_decision_report.ps1"; Label = "Pre-commit summary consumes LAZ decision report" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "export_laz_compressor_readiness_report.ps1"; Label = "Pre-commit summary consumes LAZ readiness report" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "TrueCompressionIntegrated"; Label = "Pre-commit summary surfaces true compression boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadableOutputEvidencePresent"; Label = "Pre-commit summary surfaces readable output evidence boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyForRealLazAutomation"; Label = "Pre-commit summary surfaces real LAZ automation readiness" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimTrueLaz"; Label = "Pre-commit summary avoids claiming true LAZ too early" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -168,6 +177,7 @@ $report = [PSCustomObject]@{
         ExternalCompressorSuccessCovered = $true
         DecisionReportDeclared = $true
         CompressorReadinessReportDeclared = $true
+        PrecommitSummaryDeclared = $true
         ReadableEvidenceProbeDeclared = $true
         MissingReaderProbeGuardCovered = $true
         TrueCompressionStillOpen = $true
@@ -189,6 +199,7 @@ else {
     Write-Host "External compressor success covered: $($report.Summary.ExternalCompressorSuccessCovered)"
     Write-Host "Decision report declared: $($report.Summary.DecisionReportDeclared)"
     Write-Host "Compressor readiness report declared: $($report.Summary.CompressorReadinessReportDeclared)"
+    Write-Host "Pre-commit summary declared: $($report.Summary.PrecommitSummaryDeclared)"
     Write-Host "Readable evidence probe declared: $($report.Summary.ReadableEvidenceProbeDeclared)"
     Write-Host "Missing reader probe guard covered: $($report.Summary.MissingReaderProbeGuardCovered)"
     Write-Host "True compression still open: $($report.Summary.TrueCompressionStillOpen)"
