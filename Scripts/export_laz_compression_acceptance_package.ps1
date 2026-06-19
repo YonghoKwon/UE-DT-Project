@@ -171,10 +171,23 @@ $manifest = [PSCustomObject]@{
         ExternalCompressorOptInImplemented = [bool]$decision.Summary.ExternalCompressorOptInImplemented
         CompressorCandidateFound = [bool]$readiness.Summary.CompressorCandidateFound
         ReaderCandidateFound = [bool]$readiness.Summary.ReaderCandidateFound
+        ToolCandidateDiscoveryOnly = [bool]$readiness.Summary.ToolCandidateDiscoveryOnly
+        ToolReadinessOnly = [bool]$readiness.Summary.ToolReadinessOnly
+        ToolCandidateIsAcceptanceEvidence = [bool]$readiness.Summary.ToolCandidateIsAcceptanceEvidence
+        CompressorCandidateIsAcceptanceEvidence = [bool]$readiness.Summary.CompressorCandidateIsAcceptanceEvidence
+        ReaderCandidateIsAcceptanceEvidence = [bool]$readiness.Summary.ReaderCandidateIsAcceptanceEvidence
         LazEvidenceFilePresent = [bool]$readiness.Summary.LazEvidenceFilePresent
         ReaderProbeRequested = [bool]$readiness.Summary.ReaderProbeRequested
         ReaderProbeSucceeded = [bool]$readiness.Summary.ReaderProbeSucceeded
+        ReaderProbeRequiresProducedLaz = [bool]$readiness.Summary.ReaderProbeRequiresProducedLaz
+        ProducedLazEvidencePresent = [bool]$readiness.Summary.ProducedLazEvidencePresent
+        ReaderProbeIsAcceptanceEvidence = [bool]$readiness.Summary.ReaderProbeIsAcceptanceEvidence
+        ReaderProbeAcceptanceBlocked = [bool]$readiness.Summary.ReaderProbeAcceptanceBlocked
+        ReaderProbeAcceptanceBlockers = @($readiness.Summary.ReaderProbeAcceptanceBlockers)
         ReadableOutputEvidencePresent = [bool]$readiness.Summary.ReadableOutputEvidencePresent
+        ReadableLazAcceptanceEvidencePresent = [bool]$readiness.Summary.ReadableLazAcceptanceEvidencePresent
+        ReadyToClaimReadableLazAcceptance = [bool]$readiness.Summary.ReadyToClaimReadableLazAcceptance
+        ReadableLazOutputMissingReason = [string]$readiness.Summary.ReadableLazOutputMissingReason
         ReadyForRealLazAutomation = [bool]$readiness.Summary.ReadyForRealLazAutomation
         TrueCompressionIntegrated = [bool]$decision.Summary.TrueCompressionIntegrated
         AcceptanceTemplateCreated = (Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf)
@@ -185,6 +198,9 @@ $manifest = [PSCustomObject]@{
         AcceptanceEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
         AcceptanceEvidenceCount = [int]$decision.Summary.AcceptanceEvidenceCount
         DryRunOnly = $true
+        AcceptancePackageIsEvidenceShell = $true
+        AcceptancePackageIsReadableLazProof = $false
+        GeneratedReportDoesNotMeanAcceptancePassed = $true
         DoesNotInstallCompressor = $true
         DoesNotRunCompressor = $true
         WritesLazOutput = $false
@@ -210,10 +226,21 @@ $lines.Add("- Writes LAS source only: $($manifest.Summary.WritesLasSourceOnly)")
 $lines.Add("- External compressor opt-in implemented: $($manifest.Summary.ExternalCompressorOptInImplemented)") | Out-Null
 $lines.Add("- Compressor candidate found: $($manifest.Summary.CompressorCandidateFound)") | Out-Null
 $lines.Add("- Reader candidate found: $($manifest.Summary.ReaderCandidateFound)") | Out-Null
+$lines.Add("- Tool candidate discovery only: $($manifest.Summary.ToolCandidateDiscoveryOnly)") | Out-Null
+$lines.Add("- Tool candidate is acceptance evidence: $($manifest.Summary.ToolCandidateIsAcceptanceEvidence)") | Out-Null
+$lines.Add("- Compressor candidate is acceptance evidence: $($manifest.Summary.CompressorCandidateIsAcceptanceEvidence)") | Out-Null
+$lines.Add("- Reader candidate is acceptance evidence: $($manifest.Summary.ReaderCandidateIsAcceptanceEvidence)") | Out-Null
 $lines.Add("- LAZ evidence file present: $($manifest.Summary.LazEvidenceFilePresent)") | Out-Null
 $lines.Add("- Reader probe requested: $($manifest.Summary.ReaderProbeRequested)") | Out-Null
 $lines.Add("- Reader probe succeeded: $($manifest.Summary.ReaderProbeSucceeded)") | Out-Null
+$lines.Add("- Reader probe requires produced LAZ: $($manifest.Summary.ReaderProbeRequiresProducedLaz)") | Out-Null
+$lines.Add("- Produced LAZ evidence present: $($manifest.Summary.ProducedLazEvidencePresent)") | Out-Null
+$lines.Add("- Reader probe is acceptance evidence: $($manifest.Summary.ReaderProbeIsAcceptanceEvidence)") | Out-Null
+$lines.Add("- Reader probe acceptance blocked: $($manifest.Summary.ReaderProbeAcceptanceBlocked)") | Out-Null
 $lines.Add("- Readable output evidence present: $($manifest.Summary.ReadableOutputEvidencePresent)") | Out-Null
+$lines.Add("- Readable LAZ acceptance evidence present: $($manifest.Summary.ReadableLazAcceptanceEvidencePresent)") | Out-Null
+$lines.Add("- Ready to claim readable LAZ acceptance: $($manifest.Summary.ReadyToClaimReadableLazAcceptance)") | Out-Null
+$lines.Add("- Readable LAZ output missing reason: $($manifest.Summary.ReadableLazOutputMissingReason)") | Out-Null
 $lines.Add("- Ready for real LAZ automation: $($manifest.Summary.ReadyForRealLazAutomation)") | Out-Null
 $lines.Add("- True compression integrated: $($manifest.Summary.TrueCompressionIntegrated)") | Out-Null
 $lines.Add("- Acceptance template created: $($manifest.Summary.AcceptanceTemplateCreated)") | Out-Null
@@ -223,6 +250,9 @@ $lines.Add("- Acceptance evidence complete: $($manifest.Summary.AcceptanceEviden
 $lines.Add("- Required evidence section checks: $($manifest.Summary.AcceptanceEvidenceRequiredSectionCount)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
+$lines.Add("- Acceptance package is evidence shell: $($manifest.Summary.AcceptancePackageIsEvidenceShell)") | Out-Null
+$lines.Add("- Acceptance package is readable LAZ proof: $($manifest.Summary.AcceptancePackageIsReadableLazProof)") | Out-Null
+$lines.Add("- Generated report does not mean acceptance passed: $($manifest.Summary.GeneratedReportDoesNotMeanAcceptancePassed)") | Out-Null
 $lines.Add("- Does not run compressor: $($manifest.DoesNotRunCompressor)") | Out-Null
 $lines.Add("- Writes LAZ output: $($manifest.WritesLazOutput)") | Out-Null
 $lines.Add("- Probes tool versions by default: $($manifest.ProbesToolVersionsByDefault)") | Out-Null
@@ -262,6 +292,10 @@ else {
     Write-Host "LAZ compression acceptance package created."
     Write-Host "Output root: $($manifest.OutputRoot)"
     Write-Host "Readable output evidence present: $($manifest.Summary.ReadableOutputEvidencePresent)"
+    Write-Host "Readable LAZ acceptance evidence present: $($manifest.Summary.ReadableLazAcceptanceEvidencePresent)"
+    Write-Host "Ready to claim readable LAZ acceptance: $($manifest.Summary.ReadyToClaimReadableLazAcceptance)"
+    Write-Host "Acceptance package is evidence shell: $($manifest.Summary.AcceptancePackageIsEvidenceShell)"
+    Write-Host "Acceptance package is readable LAZ proof: $($manifest.Summary.AcceptancePackageIsReadableLazProof)"
     Write-Host "Ready for real LAZ automation: $($manifest.Summary.ReadyForRealLazAutomation)"
     Write-Host "True compression integrated: $($manifest.Summary.TrueCompressionIntegrated)"
     Write-Host "Acceptance evidence section count: $($manifest.Summary.AcceptanceEvidenceSectionCount)"

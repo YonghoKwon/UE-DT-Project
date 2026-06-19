@@ -591,12 +591,25 @@ function Get-LazExportDecisionSummary {
         TrueCompressionIntegrated = [bool]$decisionReport.Summary.TrueCompressionIntegrated
         CompressorCandidateFound = [bool]$readinessReport.Summary.CompressorCandidateFound
         ReaderCandidateFound = [bool]$readinessReport.Summary.ReaderCandidateFound
+        ToolCandidateDiscoveryOnly = [bool]$readinessReport.Summary.ToolCandidateDiscoveryOnly
+        ToolReadinessOnly = [bool]$readinessReport.Summary.ToolReadinessOnly
+        ToolCandidateIsAcceptanceEvidence = [bool]$readinessReport.Summary.ToolCandidateIsAcceptanceEvidence
+        CompressorCandidateIsAcceptanceEvidence = [bool]$readinessReport.Summary.CompressorCandidateIsAcceptanceEvidence
+        ReaderCandidateIsAcceptanceEvidence = [bool]$readinessReport.Summary.ReaderCandidateIsAcceptanceEvidence
         LazEvidenceFilePresent = [bool]$readinessReport.Summary.LazEvidenceFilePresent
         ReaderProbeRequested = [bool]$readinessReport.Summary.ReaderProbeRequested
         ReaderProbeBlockedReason = [string]$readinessReport.Summary.ReaderProbeBlockedReason
         KnownPointCloudReader = [bool]$readinessReport.Summary.KnownPointCloudReader
         ReaderProbeSucceeded = [bool]$readinessReport.Summary.ReaderProbeSucceeded
+        ReaderProbeRequiresProducedLaz = [bool]$readinessReport.Summary.ReaderProbeRequiresProducedLaz
+        ProducedLazReadinessEvidencePresent = [bool]$readinessReport.Summary.ProducedLazEvidencePresent
+        ReaderProbeIsAcceptanceEvidence = [bool]$readinessReport.Summary.ReaderProbeIsAcceptanceEvidence
+        ReaderProbeAcceptanceBlocked = [bool]$readinessReport.Summary.ReaderProbeAcceptanceBlocked
+        ReaderProbeAcceptanceBlockers = @($readinessReport.Summary.ReaderProbeAcceptanceBlockers)
         ReadableOutputEvidencePresent = [bool]$readinessReport.Summary.ReadableOutputEvidencePresent
+        ReadableLazAcceptanceEvidencePresent = [bool]$readinessReport.Summary.ReadableLazAcceptanceEvidencePresent
+        ReadyToClaimReadableLazAcceptance = [bool]$readinessReport.Summary.ReadyToClaimReadableLazAcceptance
+        ReadableLazOutputMissingReason = [string]$readinessReport.Summary.ReadableLazOutputMissingReason
         ReadyForRealLazAutomation = [bool]$readinessReport.Summary.ReadyForRealLazAutomation
         CandidateToolCount = [int]$readinessReport.Summary.CandidateToolCount
         FoundToolCount = [int]$readinessReport.Summary.FoundToolCount
@@ -828,8 +841,8 @@ $workAreas = @(
         -Remaining "Niagara spike implementation, actual viewport screenshot/nonblank pixel evidence, renderer-specific dense-frame performance validation, fallback-preservation verification after GPU integration, and final GPU asset/module ownership remain."),
     (New-WorkArea `
         -Name "LAZ export" `
-        -Percent 58 `
-        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting, and is now surfaced in the pre-commit summary as a LAZ decision/readiness boundary. A LAZ compression acceptance package exporter now writes a local Saved/Reports bundle with the decision report, compressor readiness report, placeholder policy validation, manual acceptance steps, and follow-up commands while explicitly avoiding tool installation, compressor execution, asset edits, and git staging. The package now also creates a fillable LazCompressionAcceptanceEvidenceV1 evidence draft with structured EvidenceSections for compressor selection, produced LAZ evidence, known-reader validation, placeholder distinction, repeatable command, and owner acceptance; the validator keeps true LAZ readiness false until every section and evidence item is recorded." `
+        -Percent 59 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting, and is now surfaced in the pre-commit summary as a LAZ decision/readiness boundary. Tool candidate discovery now reports ToolCandidateDiscoveryOnly=true, CompressorCandidateIsAcceptanceEvidence=false, ReaderCandidateIsAcceptanceEvidence=false, ReaderProbeRequiresProducedLaz=true, ReadableLazAcceptanceEvidencePresent, and ReadyToClaimReadableLazAcceptance so candidate paths and version probes cannot be mistaken for accepted readable LAZ output. A LAZ compression acceptance package exporter now writes a local Saved/Reports bundle with the decision report, compressor readiness report, placeholder policy validation, manual acceptance steps, and follow-up commands while explicitly avoiding tool installation, compressor execution, asset edits, and git staging. The package now also marks AcceptancePackageIsEvidenceShell=true, AcceptancePackageIsReadableLazProof=false, and GeneratedReportDoesNotMeanAcceptancePassed=true. The package now also creates a fillable LazCompressionAcceptanceEvidenceV1 evidence draft with structured EvidenceSections for compressor selection, produced LAZ evidence, known-reader validation, placeholder distinction, repeatable command, and owner acceptance; the validator keeps true LAZ readiness false until every section and evidence item is recorded." `
         -Remaining "Accepted compressor/tool selection, actual readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
 )
 
@@ -1172,11 +1185,23 @@ if ($lazExportDecisionSummary) {
     Write-Host "External compressor success covered: $($lazExportDecisionSummary.ExternalCompressorSuccessCovered)"
     Write-Host "Compressor candidate found: $($lazExportDecisionSummary.CompressorCandidateFound)"
     Write-Host "Reader candidate found: $($lazExportDecisionSummary.ReaderCandidateFound)"
+    Write-Host "Tool candidate discovery only: $($lazExportDecisionSummary.ToolCandidateDiscoveryOnly)"
+    Write-Host "Tool candidate is acceptance evidence: $($lazExportDecisionSummary.ToolCandidateIsAcceptanceEvidence)"
+    Write-Host "Compressor candidate is acceptance evidence: $($lazExportDecisionSummary.CompressorCandidateIsAcceptanceEvidence)"
+    Write-Host "Reader candidate is acceptance evidence: $($lazExportDecisionSummary.ReaderCandidateIsAcceptanceEvidence)"
     Write-Host "Candidate tools: $($lazExportDecisionSummary.FoundToolCount)/$($lazExportDecisionSummary.CandidateToolCount) found"
     Write-Host "LAZ evidence file present: $($lazExportDecisionSummary.LazEvidenceFilePresent)"
     Write-Host "Reader probe requested: $($lazExportDecisionSummary.ReaderProbeRequested)"
     Write-Host "Reader probe blocked reason: $($lazExportDecisionSummary.ReaderProbeBlockedReason)"
+    Write-Host "Reader probe requires produced LAZ: $($lazExportDecisionSummary.ReaderProbeRequiresProducedLaz)"
+    Write-Host "Produced LAZ readiness evidence present: $($lazExportDecisionSummary.ProducedLazReadinessEvidencePresent)"
+    Write-Host "Reader probe is acceptance evidence: $($lazExportDecisionSummary.ReaderProbeIsAcceptanceEvidence)"
+    Write-Host "Reader probe acceptance blocked: $($lazExportDecisionSummary.ReaderProbeAcceptanceBlocked)"
+    Write-Host "Reader probe acceptance blockers: $(@($lazExportDecisionSummary.ReaderProbeAcceptanceBlockers) -join '; ')"
     Write-Host "Readable output evidence present: $($lazExportDecisionSummary.ReadableOutputEvidencePresent)"
+    Write-Host "Readable LAZ acceptance evidence present: $($lazExportDecisionSummary.ReadableLazAcceptanceEvidencePresent)"
+    Write-Host "Ready to claim readable LAZ acceptance: $($lazExportDecisionSummary.ReadyToClaimReadableLazAcceptance)"
+    Write-Host "Readable LAZ output missing reason: $($lazExportDecisionSummary.ReadableLazOutputMissingReason)"
     Write-Host "Ready for real LAZ automation: $($lazExportDecisionSummary.ReadyForRealLazAutomation)"
     Write-Host "True compression integrated: $($lazExportDecisionSummary.TrueCompressionIntegrated)"
     Write-Host "Acceptance evidence sections: $($lazExportDecisionSummary.AcceptanceEvidenceSectionCount)"

@@ -561,6 +561,10 @@ Current state:
   and reader candidates such as `laszip`, `las2las`, `lasinfo`, and `pdal`, and
   keeps the boundary clear: tool readiness is not the same as readable
   compressed `.laz` evidence.
+  It now reports `ToolCandidateDiscoveryOnly = true`,
+  `CompressorCandidateIsAcceptanceEvidence = false`, and
+  `ReaderCandidateIsAcceptanceEvidence = false`, so candidate paths and version
+  probes cannot be mistaken for acceptance evidence.
 - The readiness report can now accept a produced `.laz` evidence file through
   `-LazEvidencePath` and can run an independent reader check with
   `-RunReaderProbe`. `ReadableOutputEvidencePresent` remains false unless the
@@ -579,6 +583,12 @@ Current state:
   steps, and follow-up commands. It does not install tools, run a compressor,
   modify assets, or stage files; reader probing runs only when explicitly
   requested.
+  The package is an evidence shell, not readable LAZ proof:
+  `AcceptancePackageIsEvidenceShell = true`,
+  `AcceptancePackageIsReadableLazProof = false`, and
+  `GeneratedReportDoesNotMeanAcceptancePassed = true` until produced `.laz`,
+  known-reader validation, repeatable command, and owner acceptance evidence are
+  filled.
 - The package now also writes a fillable
   `LazCompressionAcceptanceEvidenceV1` draft and validates it with
   `Scripts/validate_laz_compression_acceptance_evidence.ps1`. True LAZ remains

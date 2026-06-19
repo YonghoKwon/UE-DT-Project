@@ -238,13 +238,23 @@ function Write-MarkdownReport {
     $lines += ""
     $lines += "- Compressor candidate found: $($Report.Summary.CompressorCandidateFound)"
     $lines += "- Reader candidate found: $($Report.Summary.ReaderCandidateFound)"
+    $lines += "- Tool candidate discovery only: $($Report.Summary.ToolCandidateDiscoveryOnly)"
+    $lines += "- Tool readiness only: $($Report.Summary.ToolReadinessOnly)"
+    $lines += "- Tool candidate is acceptance evidence: $($Report.Summary.ToolCandidateIsAcceptanceEvidence)"
+    $lines += "- Compressor candidate is acceptance evidence: $($Report.Summary.CompressorCandidateIsAcceptanceEvidence)"
+    $lines += "- Reader candidate is acceptance evidence: $($Report.Summary.ReaderCandidateIsAcceptanceEvidence)"
     $lines += "- LAZ evidence file present: $($Report.Summary.LazEvidenceFilePresent)"
     $lines += "- Reader probe requested: $($Report.Summary.ReaderProbeRequested)"
     $lines += "- Reader probe blocked reason: $($Report.Summary.ReaderProbeBlockedReason)"
     $lines += "- Tool version probes requested: $($Report.Summary.ToolVersionProbesRequested)"
     $lines += "- Known point-cloud reader: $($Report.Summary.KnownPointCloudReader)"
     $lines += "- Reader probe succeeded: $($Report.Summary.ReaderProbeSucceeded)"
+    $lines += "- Reader probe requires produced LAZ: $($Report.Summary.ReaderProbeRequiresProducedLaz)"
+    $lines += "- Reader probe is acceptance evidence: $($Report.Summary.ReaderProbeIsAcceptanceEvidence)"
     $lines += "- Readable-output evidence present: $($Report.Summary.ReadableOutputEvidencePresent)"
+    $lines += "- Readable LAZ acceptance evidence present: $($Report.Summary.ReadableLazAcceptanceEvidencePresent)"
+    $lines += "- Ready to claim readable LAZ output: $($Report.Summary.ReadyToClaimReadableLazOutput)"
+    $lines += "- Ready to claim readable LAZ acceptance: $($Report.Summary.ReadyToClaimReadableLazAcceptance)"
     $lines += "- Ready for real LAZ automation: $($Report.Summary.ReadyForRealLazAutomation)"
     $lines += "- Recommended next action: $($Report.Summary.RecommendedNextAction)"
     $lines += ""
@@ -342,6 +352,7 @@ $compressorCandidateFound = $compressorCandidates.Count -gt 0
 $readerCandidateFound = $readerCandidates.Count -gt 0
 $readableOutputEvidencePresent = $lazEvidence.Exists -and $lazEvidence.ExtensionLooksLikeLaz -and $lazEvidence.NonEmpty -and $readerProbe.Requested -and $readerProbe.Succeeded -and $readerProbe.KnownPointCloudReader
 $readyForRealLazAutomation = $compressorCandidateFound -and $readerCandidateFound -and $readableOutputEvidencePresent
+$toolReadinessOnly = (-not $readableOutputEvidencePresent)
 $recommendedNextAction = if ($compressorCandidateFound -and $readerCandidateFound) {
     "Run an end-to-end real compressor/readability smoke and capture output evidence."
 }
@@ -363,6 +374,13 @@ $report = [PSCustomObject]@{
     Summary = [PSCustomObject]@{
         CompressorCandidateFound = [bool]$compressorCandidateFound
         ReaderCandidateFound = [bool]$readerCandidateFound
+        ToolCandidateDiscoveryOnly = $true
+        ToolReadinessOnly = [bool]$toolReadinessOnly
+        ToolCandidateIsAcceptanceEvidence = $false
+        CompressorCandidateIsAcceptanceEvidence = $false
+        ReaderCandidateIsAcceptanceEvidence = $false
+        ToolCandidateAcceptanceBlocked = [bool]$toolReadinessOnly
+        ToolCandidateAcceptanceBlockers = if ($readableOutputEvidencePresent) { @() } else { @("Tool candidates are readiness metadata only until a non-empty .laz output is validated by a known reader.") }
         LazEvidenceFilePresent = [bool]($lazEvidence.Exists -and $lazEvidence.NonEmpty)
         ReaderProbeRequested = [bool]$readerProbe.Requested
         ReaderProbeRequestedByUser = [bool]$readerProbe.RequestedByUser
@@ -370,7 +388,17 @@ $report = [PSCustomObject]@{
         ToolVersionProbesRequested = [bool]$ProbeToolVersions
         KnownPointCloudReader = [bool]$readerProbe.KnownPointCloudReader
         ReaderProbeSucceeded = [bool]$readerProbe.Succeeded
+        ReaderProbeRequiresProducedLaz = $true
+        ProducedLazEvidencePresent = [bool]($lazEvidence.Exists -and $lazEvidence.ExtensionLooksLikeLaz -and $lazEvidence.NonEmpty)
+        ReaderProbeIsAcceptanceEvidence = [bool]$readableOutputEvidencePresent
+        ReaderProbeAcceptanceBlocked = (-not [bool]$readableOutputEvidencePresent)
+        ReaderProbeAcceptanceBlockers = if ($readableOutputEvidencePresent) { @() } else { @("Produced .laz evidence missing or invalid.", "Known-reader success evidence missing.") }
         ReadableOutputEvidencePresent = [bool]$readableOutputEvidencePresent
+        ReadableLazAcceptanceEvidencePresent = [bool]$readableOutputEvidencePresent
+        ReadyToClaimReadableLazOutput = [bool]$readableOutputEvidencePresent
+        ReadyToClaimReadableLazAcceptance = [bool]$readableOutputEvidencePresent
+        ReadableLazOutputAcceptanceBlocked = (-not [bool]$readableOutputEvidencePresent)
+        ReadableLazOutputMissingReason = if ($readableOutputEvidencePresent) { "" } elseif (-not ($lazEvidence.Exists -and $lazEvidence.NonEmpty)) { "A non-empty .laz evidence file is missing." } elseif (-not $readerProbe.Requested) { "Reader probe was not requested." } elseif (-not $readerProbe.KnownPointCloudReader) { "Reader is not a known point-cloud reader." } elseif (-not $readerProbe.Succeeded) { "Reader probe did not succeed." } else { "Readable LAZ output evidence is incomplete." }
         ReadyForRealLazAutomation = [bool]$readyForRealLazAutomation
         CandidateToolCount = [int]$toolCandidates.Count
         FoundToolCount = [int](@($toolCandidates | Where-Object { $_.Exists }).Count)
@@ -394,6 +422,11 @@ else {
     Write-Host "Project root: $ProjectRoot"
     Write-Host "Compressor candidate found: $($report.Summary.CompressorCandidateFound)"
     Write-Host "Reader candidate found: $($report.Summary.ReaderCandidateFound)"
+    Write-Host "Tool candidate discovery only: $($report.Summary.ToolCandidateDiscoveryOnly)"
+    Write-Host "Tool readiness only: $($report.Summary.ToolReadinessOnly)"
+    Write-Host "Tool candidate is acceptance evidence: $($report.Summary.ToolCandidateIsAcceptanceEvidence)"
+    Write-Host "Compressor candidate is acceptance evidence: $($report.Summary.CompressorCandidateIsAcceptanceEvidence)"
+    Write-Host "Reader candidate is acceptance evidence: $($report.Summary.ReaderCandidateIsAcceptanceEvidence)"
     Write-Host "Found tools: $($report.Summary.FoundToolCount)/$($report.Summary.CandidateToolCount)"
     Write-Host "LAZ evidence file present: $($report.Summary.LazEvidenceFilePresent)"
     Write-Host "Reader probe requested: $($report.Summary.ReaderProbeRequested)"
@@ -401,7 +434,13 @@ else {
     Write-Host "Tool version probes requested: $($report.Summary.ToolVersionProbesRequested)"
     Write-Host "Known point-cloud reader: $($report.Summary.KnownPointCloudReader)"
     Write-Host "Reader probe succeeded: $($report.Summary.ReaderProbeSucceeded)"
+    Write-Host "Reader probe requires produced LAZ: $($report.Summary.ReaderProbeRequiresProducedLaz)"
+    Write-Host "Reader probe is acceptance evidence: $($report.Summary.ReaderProbeIsAcceptanceEvidence)"
     Write-Host "Readable-output evidence present: $($report.Summary.ReadableOutputEvidencePresent)"
+    Write-Host "Readable LAZ acceptance evidence present: $($report.Summary.ReadableLazAcceptanceEvidencePresent)"
+    Write-Host "Ready to claim readable LAZ output: $($report.Summary.ReadyToClaimReadableLazOutput)"
+    Write-Host "Ready to claim readable LAZ acceptance: $($report.Summary.ReadyToClaimReadableLazAcceptance)"
+    Write-Host "Readable LAZ output missing reason: $($report.Summary.ReadableLazOutputMissingReason)"
     Write-Host "Ready for real LAZ automation: $($report.Summary.ReadyForRealLazAutomation)"
     Write-Host "Recommended next action: $($report.Summary.RecommendedNextAction)"
 }

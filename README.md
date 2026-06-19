@@ -378,6 +378,9 @@ for the current placeholder, compressor decision, reader/readable-output
 evidence, a fillable `LazCompressionAcceptanceEvidenceV1` draft, validation
 results, and follow-up commands. It does not install tools, run a compressor,
 modify assets, or stage files.
+Compressor/reader candidate discovery is readiness metadata, not acceptance
+evidence. The package is an evidence shell, not readable LAZ proof, until a
+produced `.laz` is validated by a known reader and owner acceptance is recorded.
 The evidence draft separates `CompressorSelection`, `ProducedLazEvidence`,
 `KnownReaderValidation`, `PlaceholderDistinction`, `RepeatableCommand`, and
 `OwnerAcceptance`, so placeholder or copy-surrogate output cannot be mistaken
