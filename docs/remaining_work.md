@@ -26,6 +26,9 @@ Out of scope for the current DT-Project-only work:
 
 - DTCore source changes.
 - Real SDK/bridge implementation inside DTCore.
+- DTCore submodule must remain pinned to
+  `2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7`; use
+  `Scripts/validate_dtcore_submodule_guard.ps1` before commits.
 
 ## Local Project Decisions
 

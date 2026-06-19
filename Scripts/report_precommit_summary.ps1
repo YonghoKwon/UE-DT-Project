@@ -204,6 +204,50 @@ function Get-LargeContentDecisionSummary {
     }
 }
 
+function Get-DTCoreSubmoduleGuardSummary {
+    param([string]$ProjectRoot)
+
+    $dtCoreGuardScript = Join-Path $script:PSScriptRoot "validate_dtcore_submodule_guard.ps1"
+    if (-not (Test-Path -LiteralPath $dtCoreGuardScript -PathType Leaf)) {
+        return $null
+    }
+
+    $jsonText = & powershell -ExecutionPolicy Bypass -File $dtCoreGuardScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "DTCore submodule guard failed with exit code $LASTEXITCODE"
+    }
+
+    $guard = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        DTCoreInvariantValid = [bool]$guard.Summary.DTCoreInvariantValid
+        ExpectedCommit = [string]$guard.Summary.ExpectedCommit
+        ActualCommit = [string]$guard.Summary.ActualCommit
+        DTCoreExpectedCommit = [string]$guard.Summary.DTCoreExpectedCommit
+        DTCoreActualCommit = [string]$guard.Summary.DTCoreActualCommit
+        DTCoreSubmoduleStatus = [string]$guard.Summary.DTCoreSubmoduleStatus
+        DTCoreGitlinkStaged = [bool]$guard.Summary.DTCoreGitlinkStaged
+        DTCoreGitlinkModified = [bool]$guard.Summary.DTCoreGitlinkModified
+        DTCoreWorktreeClean = [bool]$guard.Summary.DTCoreWorktreeClean
+        DTCoreStagedPathCount = [int]$guard.Summary.DTCoreStagedPathCount
+        DTCoreModifiedPathCount = [int]$guard.Summary.DTCoreModifiedPathCount
+        DTCoreUntrackedPathCount = [int]$guard.Summary.DTCoreUntrackedPathCount
+        SubmodulePresent = [bool]$guard.Summary.SubmodulePresent
+        ExpectedCommitMatches = [bool]$guard.Summary.ExpectedCommitMatches
+        SubmoduleStatusClean = [bool]$guard.Summary.SubmoduleStatusClean
+        ParentDTCoreStatusLineCount = [int]$guard.Summary.ParentDTCoreStatusLineCount
+        StagedDTCorePathCount = [int]$guard.Summary.StagedDTCorePathCount
+        SubmoduleWorktreeLineCount = [int]$guard.Summary.SubmoduleWorktreeLineCount
+        ViolationCount = [int]$guard.Summary.ViolationCount
+        DryRunOnly = [bool]$guard.Summary.DryRunOnly
+        ReadOnly = [bool]$guard.Summary.ReadOnly
+        ModifiesSubmodule = [bool]$guard.Summary.ModifiesSubmodule
+        StagesDTCore = [bool]$guard.Summary.StagesDTCore
+        DoesNotUpdateSubmodule = [bool]$guard.Summary.DoesNotUpdateSubmodule
+        DoesNotStageFiles = [bool]$guard.Summary.DoesNotStageFiles
+        Boundary = [string]$guard.Summary.Boundary
+    }
+}
+
 function Get-WbpDecisionSummary {
     param(
         [string]$ProjectRoot,
@@ -682,8 +726,8 @@ $workAreas = @(
         -Remaining "Judging server approval, completed acceptance template evidence, real server accepted/rejected response evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 93 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. A separate unused-content archive tool now previews optional local folder moves to an explicit archive root outside the project, requires reference-check confirmation for execution, and never deletes files, stages git changes, or modifies Unreal assets. Pixel Streaming copied sample files now have a repository-side setup alternative in docs/pixel_streaming_setup.md, and the sample decision report/pre-commit summary point to that documentation path while keeping Samples/PixelStreaming untracked until ownership and redistribution evidence are accepted. The pre-commit summary now consumes the large-content cleanup plan, archive tool preview, large-content decision report, sample content decision report, monitor-WBP decision report, monitor-WBP preflight report, and monitor-WBP acceptance evidence validator, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, archive safety status, sample/third-party candidate count/size, sample setup documentation path, WBP Git/evidence state, missing WBP acceptance items, WBP preflight readiness, WBP evidence validation completeness, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The dedicated WBP acceptance evidence validator checks the accepted evidence file, SHA256 asset hash, editor-open evidence, optional binding crash safety, PIE smoke evidence, and production owner acceptance without modifying assets or staging the binary WBP. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
+        -Percent 94 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. A separate unused-content archive tool now previews optional local folder moves to an explicit archive root outside the project, requires reference-check confirmation for execution, and never deletes files, stages git changes, or modifies Unreal assets. Pixel Streaming copied sample files now have a repository-side setup alternative in docs/pixel_streaming_setup.md, and the sample decision report/pre-commit summary point to that documentation path while keeping Samples/PixelStreaming untracked until ownership and redistribution evidence are accepted. A read-only DTCore submodule guard now checks that Plugins/DTCore stays pinned to 2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7 with no parent, staged, or submodule worktree changes. The pre-commit summary now consumes the large-content cleanup plan, archive tool preview, large-content decision report, sample content decision report, DTCore submodule guard, monitor-WBP decision report, monitor-WBP preflight report, and monitor-WBP acceptance evidence validator, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, archive safety status, sample/third-party candidate count/size, sample setup documentation path, DTCore invariant status, WBP Git/evidence state, missing WBP acceptance items, WBP preflight readiness, WBP evidence validation completeness, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The dedicated WBP acceptance evidence validator checks the accepted evidence file, SHA256 asset hash, editor-open evidence, optional binding crash safety, PIE smoke evidence, and production owner acceptance without modifying assets or staging the binary WBP. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
         -Remaining "Manual WBP editor-open/binding/PIE acceptance evidence file completion, optional execution of unused-content archive after map/WBP/reference checks with an explicit outside-project archive root, PixelStreaming project ownership/license/documentation-alternative acceptance, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
@@ -711,6 +755,7 @@ $branch = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("branch", "--show
 $recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--oneline", "-1") | Select-Object -First 1)
 $localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
 $largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
+$dtCoreSubmoduleGuardSummary = Get-DTCoreSubmoduleGuardSummary -ProjectRoot $ProjectRoot
 $wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $wbpPreflightSummary = Get-WbpPreflightSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
 $wbpAcceptanceEvidenceSummary = Get-WbpAcceptanceEvidenceSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
@@ -733,6 +778,7 @@ $report = [PSCustomObject]@{
     UntrackedChanges = $untracked
     LocalAssetSummary = if ($localAssetReport) { $localAssetReport.Summary } else { $null }
     LargeContentDecisionSummary = $largeContentDecisionSummary
+    DTCoreSubmoduleGuardSummary = $dtCoreSubmoduleGuardSummary
     WbpDecisionSummary = $wbpDecisionSummary
     WbpPreflightSummary = $wbpPreflightSummary
     WbpAcceptanceEvidenceSummary = $wbpAcceptanceEvidenceSummary
@@ -861,6 +907,31 @@ if ($largeContentDecisionSummary) {
         Write-Host "Sample decision staged sample paths: $(@($largeContentDecisionSummary.SampleDecisionStagedSamplePaths) -join ', ')"
     }
     Write-Host "Sample decision default action: $($largeContentDecisionSummary.SampleDecisionDefaultAction)"
+}
+
+if ($dtCoreSubmoduleGuardSummary) {
+    Write-Section "DTCore submodule guard"
+    Write-Host "Invariant valid: $($dtCoreSubmoduleGuardSummary.DTCoreInvariantValid)"
+    Write-Host "Expected commit: $($dtCoreSubmoduleGuardSummary.ExpectedCommit)"
+    Write-Host "Actual commit: $($dtCoreSubmoduleGuardSummary.ActualCommit)"
+    Write-Host "DTCore submodule status: $($dtCoreSubmoduleGuardSummary.DTCoreSubmoduleStatus)"
+    Write-Host "DTCore gitlink staged: $($dtCoreSubmoduleGuardSummary.DTCoreGitlinkStaged)"
+    Write-Host "DTCore gitlink modified: $($dtCoreSubmoduleGuardSummary.DTCoreGitlinkModified)"
+    Write-Host "DTCore worktree clean: $($dtCoreSubmoduleGuardSummary.DTCoreWorktreeClean)"
+    Write-Host "Submodule present: $($dtCoreSubmoduleGuardSummary.SubmodulePresent)"
+    Write-Host "Expected commit matches: $($dtCoreSubmoduleGuardSummary.ExpectedCommitMatches)"
+    Write-Host "Submodule status clean: $($dtCoreSubmoduleGuardSummary.SubmoduleStatusClean)"
+    Write-Host "Parent DTCore status lines: $($dtCoreSubmoduleGuardSummary.ParentDTCoreStatusLineCount)"
+    Write-Host "Staged DTCore paths: $($dtCoreSubmoduleGuardSummary.StagedDTCorePathCount)"
+    Write-Host "Submodule worktree lines: $($dtCoreSubmoduleGuardSummary.SubmoduleWorktreeLineCount)"
+    Write-Host "Violation count: $($dtCoreSubmoduleGuardSummary.ViolationCount)"
+    Write-Host "Dry run only: $($dtCoreSubmoduleGuardSummary.DryRunOnly)"
+    Write-Host "Read only: $($dtCoreSubmoduleGuardSummary.ReadOnly)"
+    Write-Host "Modifies submodule: $($dtCoreSubmoduleGuardSummary.ModifiesSubmodule)"
+    Write-Host "Stages DTCore: $($dtCoreSubmoduleGuardSummary.StagesDTCore)"
+    Write-Host "Does not update submodule: $($dtCoreSubmoduleGuardSummary.DoesNotUpdateSubmodule)"
+    Write-Host "Does not stage files: $($dtCoreSubmoduleGuardSummary.DoesNotStageFiles)"
+    Write-Host "Boundary: $($dtCoreSubmoduleGuardSummary.Boundary)"
 }
 
 if ($wbpDecisionSummary) {

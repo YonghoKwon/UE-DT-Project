@@ -42,6 +42,20 @@ git submodule status
 
 이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore 쪽에서 `EnhancedInput` dependency 경고가 보일 수 있지만, DTCore 수정 허용 전까지 DT-Project 쪽에서는 우회하지 않습니다.
 
+커밋 전 DTCore submodule guard:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1" -FailOnViolation
+```
+
+이 검사는 read-only입니다. `Plugins/DTCore`를 수정하거나 stage하지 않고,
+기대 커밋 `2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7` 및 parent/submodule
+worktree 청결 상태만 확인합니다.
+DTCore is an external submodule pinned to that commit; this repository must not
+stage gitlink changes or files under `Plugins/DTCore` during local decision
+cleanup.
+
 ## 빌드
 
 ```powershell

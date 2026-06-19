@@ -66,6 +66,7 @@ $unusedContentArchiveScript = Join-Path $ProjectRoot "Scripts\invoke_unused_cont
 $unusedContentArchiveEvidenceScript = Join-Path $ProjectRoot "Scripts\export_unused_content_archive_evidence.ps1"
 $sampleContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_sample_content_decision_report.ps1"
 $pixelStreamingSetupDoc = Join-Path $ProjectRoot "docs\pixel_streaming_setup.md"
+$dtCoreSubmoduleGuardScript = Join-Path $ProjectRoot "Scripts\validate_dtcore_submodule_guard.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
@@ -78,6 +79,7 @@ Assert-FileExists -Path $unusedContentArchiveScript -Label "Unused content archi
 Assert-FileExists -Path $unusedContentArchiveEvidenceScript -Label "Unused content archive evidence script"
 Assert-FileExists -Path $sampleContentDecisionReportScript -Label "Sample content decision report script"
 Assert-FileExists -Path $pixelStreamingSetupDoc -Label "Pixel Streaming setup document"
+Assert-FileExists -Path $dtCoreSubmoduleGuardScript -Label "DTCore submodule guard script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -140,6 +142,21 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "UnexpectedSampleStaged"; Label = "Sample decision report flags staged sample paths" },
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "StagedSamplePathCount"; Label = "Sample decision report counts staged sample paths" },
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "git diff --cached --name-only -- Samples/PixelStreaming"; Label = "Sample decision report checks staged PixelStreaming paths" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7"; Label = "DTCore guard pins expected submodule commit" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreInvariantValid"; Label = "DTCore guard reports invariant status" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreExpectedCommit"; Label = "DTCore guard reports expected commit alias" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreActualCommit"; Label = "DTCore guard reports actual commit alias" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreSubmoduleStatus"; Label = "DTCore guard reports submodule status alias" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreGitlinkStaged"; Label = "DTCore guard reports staged gitlink status" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreGitlinkModified"; Label = "DTCore guard reports modified gitlink status" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreWorktreeClean"; Label = "DTCore guard reports worktree clean status" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DoesNotUpdateSubmodule"; Label = "DTCore guard declares it does not update submodule" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DoesNotStageFiles"; Label = "DTCore guard declares it does not stage files" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = '"submodule", "status"'; Label = "DTCore guard checks submodule status" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = '"diff", "--cached"'; Label = "DTCore guard checks staged submodule paths" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "SubmoduleWorktreeLineCount"; Label = "DTCore guard reports submodule worktree status" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DryRunOnly = `$true"; Label = "DTCore guard declares read-only behavior" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "StagesDTCore = `$false"; Label = "DTCore guard declares no DTCore staging" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
@@ -290,6 +307,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionMustRemainUntrackedCount"; Label = "Pre-commit summary reports sample untracked boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionSetupAlternativePreferredCount"; Label = "Pre-commit summary reports sample setup alternative boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionCopiesSampleFiles"; Label = "Pre-commit summary reports sample copy boundary" }
+    ,
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCoreSubmoduleGuardSummary"; Label = "Pre-commit summary exports DTCore guard summary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCoreInvariantValid"; Label = "Pre-commit summary reports DTCore invariant status" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "StagedDTCorePathCount"; Label = "Pre-commit summary reports staged DTCore path count" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "DTCore worktree clean"; Label = "Pre-commit summary prints DTCore worktree clean status" }
     ,
     [PSCustomObject]@{ Path = $largeContentDecisionPolicyScript; Pattern = '[string]$LocalProjectRoot'; Label = "Large content policy accepts separate local project root" }
 )

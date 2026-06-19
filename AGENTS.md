@@ -16,6 +16,12 @@ DTCore는 공통 API/WebSocket/Data/UI 기반 플러그인으로 사용합니다
 
 - DTCore 수정이 필요해 보이면 DT-Project 안에서 우회하거나 별도 이슈로 남깁니다.
 - `Plugins/DTCore`는 submodule로 유지합니다. 내장 소스 복사본을 다시 커밋하지 않습니다.
+- 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 `Plugins/DTCore`가
+  `2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7`에 고정되어 있고 staged,
+  parent, submodule worktree 변경이 없는지 확인합니다.
+- DTCore is an external submodule pinned to that commit; this repository must
+  not stage gitlink changes or files under `Plugins/DTCore` during local
+  decision cleanup.
 - `Binaries/`, `Intermediate/`, `Saved/`, `.vs/` 생성물은 커밋하지 않습니다.
 - 대용량 marketplace/content asset은 의도적으로 추적 대상인지 확인하기 전까지 커밋하지 않습니다.
 - 가상 센서의 서버 전송 데이터와 editor preview 데이터는 분리합니다.
