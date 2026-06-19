@@ -476,12 +476,17 @@ function Get-JudgingServerAcceptanceSummary {
         AcceptanceTemplateAvailable = [bool]$contract.Summary.JudgingServerAcceptanceTemplateAvailable
         RequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
         PendingEvidenceCount = [int]$template.Summary.PendingEvidenceCount
+        EvidenceSectionCount = [int]$template.Summary.EvidenceSectionCount
+        RequiredEvidenceSections = @($template.Summary.RequiredEvidenceSections)
         ValuesRedacted = [bool]$template.Summary.ValuesRedacted
         ModifiesConfig = [bool]$template.Summary.ModifiesConfig
         StagesConfig = [bool]$template.Summary.StagesConfig
         WritesEndpointValues = [bool]$template.Summary.WritesEndpointValues
         WritesCredentialValues = [bool]$template.Summary.WritesCredentialValues
         RealJudgingServerAcceptancePresent = [bool]$contract.Summary.RealJudgingServerAcceptancePresent
+        JudgingServerEvidenceSectionsPresent = ([int]$template.Summary.EvidenceSectionCount -ge 7)
+        RealEndpointSmokeEvidencePresent = $false
+        ConnectsToExternalEndpoint = $false
         OpenServerAcceptanceDecisionCount = [int]$contract.Summary.OpenServerAcceptanceDecisionCount
         RealServerEvidenceGapCount = [int]$contract.Summary.RealServerEvidenceGapCount
         CurrentReadyToClaimRealServerAcceptance = [bool]$template.Summary.CurrentReadyToClaimRealServerAcceptance
@@ -755,8 +760,8 @@ $workAreas = @(
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `
-        -Percent 89 `
-        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator with camera base64/JPEG/byteSize and simulationQuality enum checks, preserved row/col/returnIndex contract, local mock contract validator with camera image invariant checks, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, outbound HTTP POST loopback acceptance automation, and exportable contract review report are in place. The payload contract report now includes a server acceptance readiness matrix for endpoint ownership, authentication, retry/timeout, batching/backpressure, response schema, and real judging-server acceptance evidence. A read-only judging-server acceptance template now records the evidence gates needed to claim real server acceptance without writing endpoint or credential values. A judging-server acceptance package exporter now writes a local Saved/Reports bundle with payload contract, transport contract, fillable real-server evidence, manual steps, follow-up commands, and generated-artifact sensitive-pattern scanning without writing endpoint or credential values." `
+        -Percent 90 `
+        -Done "LiDAR/camera schema docs, compatibility notes, fixtures, fixture validator with camera base64/JPEG/byteSize and simulationQuality enum checks, preserved row/col/returnIndex contract, local mock contract validator with camera image invariant checks, schema review policy, server transport contract notes, weak HTTP callback handling, 2xx acceptance tracking, outbound HTTP POST loopback acceptance automation, and exportable contract review report are in place. The payload contract report now includes a server acceptance readiness matrix for endpoint ownership, authentication, retry/timeout, batching/backpressure, response schema, and real judging-server acceptance evidence. A read-only judging-server acceptance template now records structured EvidenceSections for endpoint ownership, authentication policy, response schema, real endpoint smoke, rate/backpressure, secret redaction, and owner acceptance without writing endpoint or credential values. A judging-server acceptance package exporter now writes a local Saved/Reports bundle with payload contract, transport contract, fillable real-server evidence, manual steps, follow-up commands, generated-artifact sensitive-pattern scanning, and section-level acceptance metadata without writing endpoint or credential values." `
         -Remaining "Judging server approval, completed acceptance template evidence, real server accepted/rejected response evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
@@ -1062,12 +1067,17 @@ if ($judgingServerAcceptanceSummary) {
     Write-Host "Acceptance template available: $($judgingServerAcceptanceSummary.AcceptanceTemplateAvailable)"
     Write-Host "Required evidence count: $($judgingServerAcceptanceSummary.RequiredEvidenceCount)"
     Write-Host "Pending evidence count: $($judgingServerAcceptanceSummary.PendingEvidenceCount)"
+    Write-Host "Evidence section count: $($judgingServerAcceptanceSummary.EvidenceSectionCount)"
+    Write-Host "Required evidence sections: $(@($judgingServerAcceptanceSummary.RequiredEvidenceSections) -join ', ')"
     Write-Host "Values redacted: $($judgingServerAcceptanceSummary.ValuesRedacted)"
     Write-Host "Modifies config: $($judgingServerAcceptanceSummary.ModifiesConfig)"
     Write-Host "Stages config: $($judgingServerAcceptanceSummary.StagesConfig)"
     Write-Host "Writes endpoint values: $($judgingServerAcceptanceSummary.WritesEndpointValues)"
     Write-Host "Writes credential values: $($judgingServerAcceptanceSummary.WritesCredentialValues)"
+    Write-Host "Evidence sections present: $($judgingServerAcceptanceSummary.JudgingServerEvidenceSectionsPresent)"
     Write-Host "Real judging-server acceptance present: $($judgingServerAcceptanceSummary.RealJudgingServerAcceptancePresent)"
+    Write-Host "Real endpoint smoke evidence present: $($judgingServerAcceptanceSummary.RealEndpointSmokeEvidencePresent)"
+    Write-Host "Connects to external endpoint: $($judgingServerAcceptanceSummary.ConnectsToExternalEndpoint)"
     Write-Host "Open server acceptance decisions: $($judgingServerAcceptanceSummary.OpenServerAcceptanceDecisionCount)"
     Write-Host "Real server evidence gaps: $($judgingServerAcceptanceSummary.RealServerEvidenceGapCount)"
     Write-Host "Ready to claim real server acceptance: $($judgingServerAcceptanceSummary.CurrentReadyToClaimRealServerAcceptance)"

@@ -103,14 +103,27 @@ $checks = @(
     (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Camera accepted response" -Label "Judging server acceptance template requires camera acceptance evidence"),
     (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Batching and backpressure" -Label "Judging server acceptance template requires rate/backpressure evidence"),
     (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "Secret scan" -Label "Judging server acceptance template requires secret scan evidence"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "EvidenceSections" -Label "Judging server acceptance template declares structured evidence sections"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "EndpointOwnership" -Label "Judging server acceptance template declares endpoint ownership section"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "AuthenticationPolicy" -Label "Judging server acceptance template declares authentication policy section"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "ResponseSchema" -Label "Judging server acceptance template declares response schema section"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "RealEndpointSmoke" -Label "Judging server acceptance template declares real endpoint smoke section"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "RateBackpressure" -Label "Judging server acceptance template declares rate backpressure section"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "OwnerAcceptance" -Label "Judging server acceptance template declares owner acceptance section"),
+    (New-Check -Path $judgingServerAcceptanceTemplateScript -Pattern "CurrentReadyToClaimRealServerAcceptance = `$false" -Label "Judging server acceptance template does not claim real server readiness"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "Saved\Reports\JudgingServerAcceptance" -Label "Judging server acceptance package writes local Saved report bundle"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "export_payload_contract_report.ps1" -Label "Judging server acceptance package consumes payload contract report"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "validate_server_transport_contract.ps1" -Label "Judging server acceptance package validates transport contract"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "export_judging_server_acceptance_template.ps1" -Label "Judging server acceptance package exports acceptance template"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "SensitivePatternHitCount" -Label "Judging server acceptance package reports sensitive pattern hits"),
+    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "EvidenceSectionCount" -Label "Judging server acceptance package exposes evidence section count"),
+    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "RequiredEvidenceSections" -Label "Judging server acceptance package exposes required evidence section names"),
+    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "DoesNotCallServer = `$true" -Label "Judging server acceptance package does not call server"),
+    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "ConnectsToExternalEndpoint = `$false" -Label "Judging server acceptance package does not connect externally"),
+    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "RealEndpointSmokeEvidencePresent = `$false" -Label "Judging server acceptance package does not claim real endpoint smoke"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "WritesEndpointValues = `$false" -Label "Judging server acceptance package declares endpoint value boundary"),
     (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "WritesCredentialValues = `$false" -Label "Judging server acceptance package declares credential value boundary"),
-    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "never modifies config, and never stages files" -Label "Judging server acceptance package preserves read-only boundary"),
+    (New-Check -Path $judgingServerAcceptancePackageScript -Pattern "never calls the server, never writes endpoint or credential values" -Label "Judging server acceptance package preserves no-server-call boundary"),
     (New-Check -Path $remainingWorkDoc -Pattern "server transport contract" -Label "Remaining work references transport contract"),
     (New-Check -Path $remainingWorkDoc -Pattern "validate_server_transport_contract.ps1" -Label "Remaining work references transport gate"),
     (New-Check -Path $remainingWorkDoc -Pattern "export_judging_server_acceptance_template.ps1" -Label "Remaining work references judging server acceptance template"),
@@ -164,6 +177,7 @@ $report = [PSCustomObject]@{
         JudgingServerAcceptanceTemplateValuesRedacted = [bool]$template.Summary.ValuesRedacted
         JudgingServerAcceptanceTemplateStagesConfig = [bool]$template.Summary.StagesConfig
         JudgingServerAcceptanceTemplateRequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
+        JudgingServerAcceptanceTemplateEvidenceSectionCount = [int]$template.Summary.EvidenceSectionCount
         SafeEditorDefaultDocumented = $true
         Valid = $true
     }

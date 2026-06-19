@@ -142,6 +142,8 @@ $manifest = [PSCustomObject]@{
     ProjectRoot = $ProjectRoot
     OutputRoot = $OutputRoot
     DryRunOnly = $true
+    DoesNotCallServer = $true
+    ConnectsToExternalEndpoint = $false
     ModifiesConfig = $false
     StagesFiles = $false
     WritesEndpointValues = $false
@@ -161,15 +163,20 @@ $manifest = [PSCustomObject]@{
         AcceptanceTemplateCreated = (Test-Path -LiteralPath $templateMarkdownPath -PathType Leaf)
         RequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
         PendingEvidenceCount = [int]$template.Summary.PendingEvidenceCount
+        EvidenceSectionCount = [int]$template.Summary.EvidenceSectionCount
+        RequiredEvidenceSections = @($template.Summary.RequiredEvidenceSections)
         RealJudgingServerAcceptancePresent = [bool]$template.Summary.RealJudgingServerAcceptancePresent
+        RealEndpointSmokeEvidencePresent = $false
         CurrentReadyToClaimRealServerAcceptance = [bool]$template.Summary.CurrentReadyToClaimRealServerAcceptance
         SensitivePatternHitCount = $sensitiveHits.Count
         DryRunOnly = $true
+        DoesNotCallServer = $true
+        ConnectsToExternalEndpoint = $false
         ModifiesConfig = $false
         StagesFiles = $false
         WritesEndpointValues = $false
         WritesCredentialValues = $false
-        Boundary = "This package collects local contract and fillable judging-server acceptance evidence. It never writes endpoint or credential values, never modifies config, and never stages files."
+        Boundary = "This package collects local contract and fillable judging-server acceptance evidence. It never calls the server, never writes endpoint or credential values, never modifies config, and never stages files."
         Valid = ([bool]$payloadReport.Summary.Valid -and [bool]$transportReport.Summary.Valid -and [bool]$template.Summary.ValuesRedacted -and $sensitiveHits.Count -eq 0)
     }
 }
@@ -186,10 +193,15 @@ $lines.Add("- Payload contract valid: $($manifest.Summary.PayloadContractValid)"
 $lines.Add("- Server transport contract valid: $($manifest.Summary.ServerTransportContractValid)") | Out-Null
 $lines.Add("- Required evidence count: $($manifest.Summary.RequiredEvidenceCount)") | Out-Null
 $lines.Add("- Pending evidence count: $($manifest.Summary.PendingEvidenceCount)") | Out-Null
+$lines.Add("- Evidence section count: $($manifest.Summary.EvidenceSectionCount)") | Out-Null
+$lines.Add("- Required evidence sections: $(@($manifest.Summary.RequiredEvidenceSections) -join ', ')") | Out-Null
 $lines.Add("- Real judging-server acceptance present: $($manifest.Summary.RealJudgingServerAcceptancePresent)") | Out-Null
+$lines.Add("- Real endpoint smoke evidence present: $($manifest.Summary.RealEndpointSmokeEvidencePresent)") | Out-Null
 $lines.Add("- Ready to claim real server acceptance: $($manifest.Summary.CurrentReadyToClaimRealServerAcceptance)") | Out-Null
 $lines.Add("- Sensitive pattern hit count: $($manifest.Summary.SensitivePatternHitCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
+$lines.Add("- Does not call server: $($manifest.DoesNotCallServer)") | Out-Null
+$lines.Add("- Connects to external endpoint: $($manifest.ConnectsToExternalEndpoint)") | Out-Null
 $lines.Add("- Modifies config: $($manifest.ModifiesConfig)") | Out-Null
 $lines.Add("- Stages files: $($manifest.StagesFiles)") | Out-Null
 $lines.Add("") | Out-Null
@@ -228,6 +240,7 @@ else {
     Write-Host "Payload contract valid: $($manifest.Summary.PayloadContractValid)"
     Write-Host "Server transport contract valid: $($manifest.Summary.ServerTransportContractValid)"
     Write-Host "Pending evidence count: $($manifest.Summary.PendingEvidenceCount)"
+    Write-Host "Evidence section count: $($manifest.Summary.EvidenceSectionCount)"
     Write-Host "Ready to claim real server acceptance: $($manifest.Summary.CurrentReadyToClaimRealServerAcceptance)"
     Write-Host "Sensitive pattern hit count: $($manifest.Summary.SensitivePatternHitCount)"
 }

@@ -440,6 +440,15 @@ Current state:
   `RealJudgingServerAcceptancePresent` can be treated as complete. The template
   records evidence paths and reviewer metadata only; endpoint URLs, tokens,
   passwords, secrets, and credential values must stay out of repository files.
+- The judging-server acceptance template now includes structured
+  `EvidenceSections`: `EndpointOwnership`, `AuthenticationPolicy`,
+  `ResponseSchema`, `RealEndpointSmoke`, `RateBackpressure`,
+  `SecretRedaction`, and `OwnerAcceptance`. These sections are acceptance
+  metadata, not proof of real server acceptance by themselves; the contract
+  remains unclaimed until owned endpoint response evidence and owner acceptance
+  are recorded without endpoint or credential leakage.
+  Endpoint and credential values are owner-held external evidence, not
+  repository content.
 - `Scripts/export_judging_server_acceptance_package.ps1` now creates a local
   `Saved/Reports/JudgingServerAcceptance` package with the payload contract
   report, server transport contract validation, fillable judging-server
@@ -494,6 +503,9 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1" -Json`.
 - Judging-server acceptance template exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_template.ps1" -Json`.
+- The template JSON should show `EvidenceSectionCount = 7`,
+  `CurrentReadyToClaimRealServerAcceptance = false`, and no endpoint or
+  credential values.
 - Judging-server acceptance package exports local review evidence without
   endpoint or credential values:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_package.ps1" -ProjectRoot "." -Json`.

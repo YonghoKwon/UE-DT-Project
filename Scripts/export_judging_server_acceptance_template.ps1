@@ -100,6 +100,55 @@ $requiredEvidence = @(
     (New-EvidenceItem -Name "Secret scan" -RequiredEvidence "Shared repo/config/template outputs are checked for endpoint, token, password, secret, and credential leakage.")
 )
 
+$evidenceSections = [PSCustomObject]@{
+    EndpointOwnership = [PSCustomObject]@{
+        EnvironmentName = ""
+        Owner = ""
+        EndpointReferenceLocation = ""
+        RuntimeOverridePolicy = ""
+        EvidencePath = ""
+    }
+    AuthenticationPolicy = [PSCustomObject]@{
+        SchemeName = ""
+        StoragePolicy = ""
+        RotationOwner = ""
+        RedactionRulesPath = ""
+        EvidencePath = ""
+    }
+    ResponseSchema = [PSCustomObject]@{
+        AcceptedResponseSchemaPath = ""
+        RejectedResponseSchemaPath = ""
+        ErrorCodeMappingPath = ""
+        AnalysisResultSchemaPath = ""
+    }
+    RealEndpointSmoke = [PSCustomObject]@{
+        LidarAcceptedEvidencePath = ""
+        CameraAcceptedEvidencePath = ""
+        RejectedPayloadEvidencePath = ""
+        AuthFailureEvidencePath = ""
+        TransportLogPath = ""
+    }
+    RateBackpressure = [PSCustomObject]@{
+        TargetLidarRateHz = 0
+        QueueLimit = ""
+        DropOrThrottlePolicy = ""
+        OrderingGuarantee = ""
+        EvidencePath = ""
+    }
+    SecretRedaction = [PSCustomObject]@{
+        SecretScanResultPath = ""
+        EndpointValuesRedacted = $true
+        CredentialValuesRedacted = $true
+    }
+    OwnerAcceptance = [PSCustomObject]@{
+        Accepted = $false
+        Owner = ""
+        Reviewer = ""
+        ReviewedAtUtc = ""
+        EvidencePath = ""
+    }
+}
+
 $generatedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $pendingEvidence = @($requiredEvidence | Where-Object { $_.Status -ne "Recorded" })
 $template = [PSCustomObject]@{
@@ -122,11 +171,14 @@ $template = [PSCustomObject]@{
         ServerResponseEvidencePath = ""
         SecretScanResultPath = ""
     }
+    EvidenceSections = $evidenceSections
     RequiredEvidence = $requiredEvidence
     SafetyBoundary = "This template is read-only with respect to project config and git staging. It records evidence paths and reviewer metadata only; endpoint URLs and credential values must remain outside the repository."
     Summary = [PSCustomObject]@{
         RequiredEvidenceCount = $requiredEvidence.Count
         PendingEvidenceCount = $pendingEvidence.Count
+        EvidenceSectionCount = @($evidenceSections.PSObject.Properties).Count
+        RequiredEvidenceSections = @("EndpointOwnership", "AuthenticationPolicy", "ResponseSchema", "RealEndpointSmoke", "RateBackpressure", "SecretRedaction", "OwnerAcceptance")
         ValuesRedacted = $true
         ModifiesConfig = $false
         StagesConfig = $false

@@ -332,6 +332,10 @@ The package writes local `Saved/Reports/JudgingServerAcceptance` review files
 for payload contract, transport contract, and fillable real-server acceptance
 evidence. Endpoint URLs, tokens, passwords, and credential values must stay out
 of the repository and out of generated review artifacts.
+The fillable evidence draft separates endpoint ownership, authentication policy,
+response schema, real endpoint smoke, rate/backpressure, secret redaction, and
+owner acceptance sections; these sections are metadata and do not by themselves
+claim real judging-server acceptance.
 
 Real sensor adapter deployment package:
 
