@@ -141,6 +141,13 @@ Open decisions:
   `DryRunOnly=true`, `DeletesFiles=false`, `ModifiesAssets=false`,
   `ManualDeletionOnly=true`, and `SafeToDelete=false`; it never deletes files or
   modifies Unreal assets.
+- `Scripts/invoke_unused_content_archive.ps1` exports a preview-only archive
+  action report for those same unused local folders. It keeps
+  `PreviewOnly=true`, `DeletesFiles=false`, `StagesFiles=false`, and
+  `ModifiesAssets=false` by default. Actual local archive moves require
+  `-Execute`, `-ConfirmReferenceChecks`, and an explicit `-ArchiveRoot` outside
+  `C:\Unreal Projects\m7at10_dt`; the tool never performs permanent deletion or
+  git staging.
 - `Scripts/export_sample_content_decision_report.ps1` exports the current copied
   sample/third-party decision for `Samples/PixelStreaming`. It keeps
   `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`, and

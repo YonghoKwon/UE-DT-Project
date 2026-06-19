@@ -77,6 +77,7 @@ function Get-LargeContentDecisionSummary {
         return $null
     }
     $cleanupPlanScript = Join-Path $script:PSScriptRoot "export_large_content_cleanup_plan.ps1"
+    $unusedContentArchiveScript = Join-Path $script:PSScriptRoot "invoke_unused_content_archive.ps1"
     $sampleDecisionReportScript = Join-Path $script:PSScriptRoot "export_sample_content_decision_report.ps1"
 
     $jsonText = & powershell -ExecutionPolicy Bypass -File $largeContentReportScript -ProjectRoot $ProjectRoot -Json
@@ -92,6 +93,14 @@ function Get-LargeContentDecisionSummary {
             throw "Large content cleanup plan failed with exit code $LASTEXITCODE"
         }
         $cleanupPlan = $cleanupPlanJson | ConvertFrom-Json
+    }
+    $unusedContentArchiveReport = $null
+    if (Test-Path -LiteralPath $unusedContentArchiveScript -PathType Leaf) {
+        $archiveJson = & powershell -ExecutionPolicy Bypass -File $unusedContentArchiveScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unused content archive report failed with exit code $LASTEXITCODE"
+        }
+        $unusedContentArchiveReport = $archiveJson | ConvertFrom-Json
     }
     $sampleDecisionReport = $null
     if (Test-Path -LiteralPath $sampleDecisionReportScript -PathType Leaf) {
@@ -130,6 +139,15 @@ function Get-LargeContentDecisionSummary {
         CleanupPlanSafeToDeleteCount = if ($cleanupPlan) { [int]$cleanupPlan.Summary.SafeToDeleteCount } else { 0 }
         CleanupPlanReadyForManualDeletionCount = if ($cleanupPlan) { [int]$cleanupPlan.Summary.ReadyForManualDeletionCount } else { 0 }
         CleanupPlanDefaultAction = if ($cleanupPlan) { [string]$cleanupPlan.Summary.DefaultAction } else { "" }
+        UnusedContentArchiveAvailable = ($null -ne $unusedContentArchiveReport)
+        UnusedContentArchiveCandidateCount = if ($unusedContentArchiveReport) { [int]$unusedContentArchiveReport.Summary.CandidateCount } else { 0 }
+        UnusedContentArchivePreviewOnly = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.PreviewOnly } else { $true }
+        UnusedContentArchiveExecuteRequested = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.ExecuteRequested } else { $false }
+        UnusedContentArchiveRequiresExplicitArchiveRootForExecute = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.RequiresExplicitArchiveRootForExecute } else { $true }
+        UnusedContentArchiveDeletesFiles = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.DeletesFiles } else { $false }
+        UnusedContentArchiveStagesFiles = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.StagesFiles } else { $false }
+        UnusedContentArchiveModifiesAssets = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.ModifiesAssets } else { $false }
+        UnusedContentArchiveBoundary = if ($unusedContentArchiveReport) { [string]$unusedContentArchiveReport.Summary.Boundary } else { "" }
         SampleCandidateCount = $sampleCandidates.Count
         SampleCandidateSizeBytes = $sampleBytes
         SampleCandidateSize = Convert-ToSizeText -Bytes $sampleBytes
@@ -536,9 +554,9 @@ $workAreas = @(
         -Remaining "Judging server approval, completed acceptance template evidence, real server accepted/rejected response evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
     (New-WorkArea `
         -Name "Local project asset decisions" `
-        -Percent 90 `
-        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. The pre-commit summary now consumes the large-content cleanup plan, large-content decision report, and monitor-WBP decision report, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, sample/third-party candidate count/size, WBP Git/evidence state, missing WBP acceptance items, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
-        -Remaining "Manual WBP editor-open/binding/PIE acceptance, optional manual cleanup/removal of unused local Content assets after map/WBP dependency checks, PixelStreaming project ownership/license/documentation-alternative acceptance, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
+        -Percent 91 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. A separate unused-content archive tool now previews optional local folder moves to an explicit archive root outside the project, requires reference-check confirmation for execution, and never deletes files, stages git changes, or modifies Unreal assets. The pre-commit summary now consumes the large-content cleanup plan, archive tool preview, large-content decision report, and monitor-WBP decision report, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, archive safety status, sample/third-party candidate count/size, WBP Git/evidence state, missing WBP acceptance items, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
+        -Remaining "Manual WBP editor-open/binding/PIE acceptance, optional execution of unused-content archive after map/WBP/reference checks with an explicit outside-project archive root, PixelStreaming project ownership/license/documentation-alternative acceptance, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
     (New-WorkArea `
         -Name "Real sensor adapters" `
         -Percent 81 `
@@ -662,6 +680,15 @@ if ($largeContentDecisionSummary) {
     Write-Host "Cleanup plan safe-to-delete count: $($largeContentDecisionSummary.CleanupPlanSafeToDeleteCount)"
     Write-Host "Cleanup plan ready-for-manual-deletion count: $($largeContentDecisionSummary.CleanupPlanReadyForManualDeletionCount)"
     Write-Host "Cleanup plan default action: $($largeContentDecisionSummary.CleanupPlanDefaultAction)"
+    Write-Host "Unused content archive available: $($largeContentDecisionSummary.UnusedContentArchiveAvailable)"
+    Write-Host "Unused content archive candidates: $($largeContentDecisionSummary.UnusedContentArchiveCandidateCount)"
+    Write-Host "Unused content archive preview only: $($largeContentDecisionSummary.UnusedContentArchivePreviewOnly)"
+    Write-Host "Unused content archive execute requested: $($largeContentDecisionSummary.UnusedContentArchiveExecuteRequested)"
+    Write-Host "Unused content archive requires explicit archive root: $($largeContentDecisionSummary.UnusedContentArchiveRequiresExplicitArchiveRootForExecute)"
+    Write-Host "Unused content archive deletes files: $($largeContentDecisionSummary.UnusedContentArchiveDeletesFiles)"
+    Write-Host "Unused content archive stages files: $($largeContentDecisionSummary.UnusedContentArchiveStagesFiles)"
+    Write-Host "Unused content archive modifies assets: $($largeContentDecisionSummary.UnusedContentArchiveModifiesAssets)"
+    Write-Host "Unused content archive boundary: $($largeContentDecisionSummary.UnusedContentArchiveBoundary)"
 
     Write-Section "Sample and third-party decisions"
     Write-Host "Sample/third-party candidates: $($largeContentDecisionSummary.SampleCandidateCount)"

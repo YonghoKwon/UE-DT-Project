@@ -325,6 +325,7 @@ outputs:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_unused_content_archive.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -ProjectRoot "." -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 ```
@@ -347,6 +348,14 @@ delete files, or modify Unreal assets. Each unused cleanup candidate remains
 `ManualDeletionOnly=true` and `SafeToDelete=false` until map, WBP/widget, asset
 registry/reference viewer, redirector, config/startup, post-move editor smoke,
 and staging checks are recorded outside the script.
+`invoke_unused_content_archive.ps1` is the separate local execution helper for
+the unused folders. Its default mode is preview-only and records
+`PreviewOnly=true`, `DeletesFiles=false`, `StagesFiles=false`, and
+`ModifiesAssets=false`. It only moves folders when `-Execute`,
+`-ConfirmReferenceChecks`, and an explicit `-ArchiveRoot` outside the project
+are provided. It uses the cleanup-plan candidate list, never performs permanent
+deletion, never runs git staging, and should be followed by an editor smoke test
+before the local cleanup is considered complete.
 `export_sample_content_decision_report.ps1` gives the copied
 `Samples/PixelStreaming` folder the same read-only treatment: it records
 `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`,
