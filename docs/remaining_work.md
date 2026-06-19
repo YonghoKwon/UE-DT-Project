@@ -141,6 +141,11 @@ Open decisions:
   `DryRunOnly=true`, `DeletesFiles=false`, `ModifiesAssets=false`,
   `ManualDeletionOnly=true`, and `SafeToDelete=false`; it never deletes files or
   modifies Unreal assets.
+- `Scripts/export_sample_content_decision_report.ps1` exports the current copied
+  sample/third-party decision for `Samples/PixelStreaming`. It keeps
+  `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`, and
+  `SafeToStage=false` until project ownership, license/redistribution approval,
+  and setup-documentation alternative evidence are recorded.
 - Runtime config validation now supports `-LocalProjectRoot` so the source repo
   policy can inspect the real local Unreal project `Config/Game.ini`. The JSON
   output includes `RecommendedDecision`; the current empty
@@ -672,6 +677,7 @@ Strict asset gates for clean-content review:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnStagedDecisionPoints
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnLargeContentCandidates

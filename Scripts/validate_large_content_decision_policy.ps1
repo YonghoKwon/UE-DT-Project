@@ -62,6 +62,7 @@ $evidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\validate_local_asset_d
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
 $largeContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_large_content_decision_report.ps1"
 $largeContentCleanupPlanScript = Join-Path $ProjectRoot "Scripts\export_large_content_cleanup_plan.ps1"
+$sampleContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_sample_content_decision_report.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
 Assert-FileExists -Path $localAssetDoc -Label "Local asset report document"
@@ -70,6 +71,7 @@ Assert-FileExists -Path $evidenceTemplateScript -Label "Local asset decision evi
 Assert-FileExists -Path $evidenceWorkflowScript -Label "Local asset decision evidence workflow validation script"
 Assert-FileExists -Path $largeContentDecisionReportScript -Label "Large content decision report script"
 Assert-FileExists -Path $largeContentCleanupPlanScript -Label "Large content cleanup plan script"
+Assert-FileExists -Path $sampleContentDecisionReportScript -Label "Sample content decision report script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
 $requiredTexts = @(
@@ -114,6 +116,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "validate_local_asset_decision_evidence_workflow.ps1"; Label = "Local asset doc documents evidence workflow validation" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Local asset doc documents large content decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_large_content_cleanup_plan.ps1"; Label = "Local asset doc documents large content cleanup plan" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Local asset doc documents sample content decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "LocalProjectRoot"; Label = "Local asset doc documents separate local project root" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "Staged decision gate"; Label = "Local asset doc documents staged decision evidence gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "DecisionChecklist"; Label = "Local asset doc explains decision checklist" },
@@ -155,6 +158,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "validate_local_asset_decision_evidence_workflow.ps1"; Label = "Remaining work tracks evidence workflow validation" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Remaining work tracks large content decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_large_content_cleanup_plan.ps1"; Label = "Remaining work tracks large content cleanup plan" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_sample_content_decision_report.ps1"; Label = "Remaining work tracks sample content decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "LocalProjectRoot"; Label = "Remaining work tracks separate local project root" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Staged decision gate"; Label = "Remaining work tracks staged decision evidence gate" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "owner/source/license"; Label = "Remaining work tracks source/license evidence" }
@@ -192,6 +196,17 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $largeContentCleanupPlanScript; Pattern = "Post-move editor smoke"; Label = "Cleanup plan requires post-move smoke" },
     [PSCustomObject]@{ Path = $largeContentCleanupPlanScript; Pattern = "Staging guard"; Label = "Cleanup plan requires staging guard" }
     ,
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "KeepLocalUnlessOwned"; Label = "Sample report recommends keep-local unless owned" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "ProjectOwnershipAccepted"; Label = "Sample report tracks project ownership acceptance" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "LicenseRedistributionAccepted"; Label = "Sample report tracks license redistribution acceptance" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "DocumentationAlternativeAccepted"; Label = "Sample report tracks documentation alternative acceptance" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "SetupAlternativePreferred"; Label = "Sample report prefers setup alternative" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "SetupPlanSteps"; Label = "Sample report exports setup plan steps" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "MustRemainUntracked"; Label = "Sample report marks incomplete samples untracked" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "SafeToStage"; Label = "Sample report exports safe-to-stage gate" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "SourceReport"; Label = "Sample report records source report" },
+    [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "Scripts/export_large_content_decision_report.ps1"; Label = "Sample report consumes large content report" }
+    ,
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "LargeContentDecisionSummary"; Label = "Pre-commit summary exports large-content decision summary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupCandidateCount"; Label = "Pre-commit summary reports unused cleanup count" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedCleanupSize"; Label = "Pre-commit summary reports unused cleanup size" },
@@ -209,6 +224,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "CleanupPlanDeletesFiles"; Label = "Pre-commit summary reports cleanup deletion boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "CleanupPlanSafeToDeleteCount"; Label = "Pre-commit summary reports cleanup safe-to-delete count" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "CleanupPlanRequiredReferenceCheckCount"; Label = "Pre-commit summary reports required reference checks" }
+    ,
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionReportAvailable"; Label = "Pre-commit summary reports sample decision availability" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionMustRemainUntrackedCount"; Label = "Pre-commit summary reports sample untracked boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionSetupAlternativePreferredCount"; Label = "Pre-commit summary reports sample setup alternative boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionCopiesSampleFiles"; Label = "Pre-commit summary reports sample copy boundary" }
     ,
     [PSCustomObject]@{ Path = $largeContentDecisionPolicyScript; Pattern = '[string]$LocalProjectRoot'; Label = "Large content policy accepts separate local project root" }
 )
@@ -228,6 +248,11 @@ if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     throw "export_large_content_cleanup_plan.ps1 failed with exit code $LASTEXITCODE"
 }
 $cleanupPlan = $cleanupPlanJson | ConvertFrom-Json
+$sampleReportJson = & $sampleContentDecisionReportScript -ProjectRoot $LocalProjectRoot -Json
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    throw "export_sample_content_decision_report.ps1 failed with exit code $LASTEXITCODE"
+}
+$sampleReport = $sampleReportJson | ConvertFrom-Json
 $decisionCandidates = @(
     $assetReport.DecisionPoints |
         Where-Object {
@@ -346,6 +371,51 @@ foreach ($candidate in @($cleanupPlan.Candidates)) {
     }
 }
 
+if (-not [bool]$sampleReport.DryRunOnly) {
+    throw "Sample decision report must be dry-run only."
+}
+if ([bool]$sampleReport.ModifiesAssets) {
+    throw "Sample decision report must not modify assets."
+}
+if ([bool]$sampleReport.CopiesSampleFiles) {
+    throw "Sample decision report must not copy sample files."
+}
+if ([int]$sampleReport.Summary.SampleCandidateCount -ne 1) {
+    throw "Expected exactly one sample/third-party candidate for the current local project state."
+}
+$pixelStreamingCandidate = @($sampleReport.Candidates | Where-Object { [string]$_.Path -eq "Samples\PixelStreaming" })
+if ($pixelStreamingCandidate.Count -ne 1) {
+    throw "Sample decision report must include Samples\PixelStreaming."
+}
+$pixelStreaming = $pixelStreamingCandidate[0]
+if ([string]$pixelStreaming.Category -ne "SampleOrThirdParty") {
+    throw "Samples\PixelStreaming must be classified as SampleOrThirdParty."
+}
+if (-not [bool]$pixelStreaming.RedistributionReviewRequired) {
+    throw "Samples\PixelStreaming must require redistribution review."
+}
+if ([bool]$pixelStreaming.SafeToStage) {
+    throw "Samples\PixelStreaming must not be safe to stage while acceptance evidence is missing."
+}
+if (-not [bool]$pixelStreaming.MustRemainUntracked) {
+    throw "Samples\PixelStreaming must remain untracked while acceptance evidence is missing."
+}
+if ([string]$pixelStreaming.ReviewQueue -ne "NeedsOwnerDecision") {
+    throw "Samples\PixelStreaming must remain in NeedsOwnerDecision while evidence is missing."
+}
+if (@($pixelStreaming.DecisionBlockers).Count -eq 0) {
+    throw "Samples\PixelStreaming must include decision blockers."
+}
+if ([string]::IsNullOrWhiteSpace([string]$pixelStreaming.NextReviewAction)) {
+    throw "Samples\PixelStreaming must include NextReviewAction."
+}
+$sampleAcceptanceNames = @($pixelStreaming.RequiredAcceptance | ForEach-Object { [string]$_.Name })
+foreach ($required in @("Project ownership decision", "License/redistribution approval", "Setup documentation alternative")) {
+    if (-not ($sampleAcceptanceNames -contains $required)) {
+        throw "Samples\PixelStreaming is missing required sample acceptance item: $required"
+    }
+}
+
 $totalBytes = [int64](($decisionCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
 $report = [PSCustomObject]@{
     ProjectRoot = $ProjectRoot
@@ -389,6 +459,10 @@ $report = [PSCustomObject]@{
         CleanupPlanSafeToDeleteCount = $cleanupPlan.Summary.SafeToDeleteCount
         CleanupPlanReadyForManualDeletionCount = $cleanupPlan.Summary.ReadyForManualDeletionCount
         CleanupPlanRequiredReferenceCheckCount = $cleanupPlan.Summary.RequiredReferenceCheckCount
+        SampleDecisionReportCandidateCount = $sampleReport.Summary.SampleCandidateCount
+        SampleDecisionMustRemainUntrackedCount = $sampleReport.Summary.MustRemainUntrackedCount
+        SampleDecisionReadyToStageCount = $sampleReport.Summary.ReadyToStageCount
+        SampleDecisionMissingAcceptanceCount = $sampleReport.Summary.MissingAcceptanceCount
         StrictFailureRequested = [bool]$FailIfPresent
         ExplicitOwnershipDecisionRequired = ($decisionCandidates.Count -gt 0)
         Valid = $true
@@ -424,6 +498,10 @@ else {
     Write-Host "Cleanup plan safe-to-delete count: $($report.Summary.CleanupPlanSafeToDeleteCount)"
     Write-Host "Cleanup plan ready-for-manual-deletion count: $($report.Summary.CleanupPlanReadyForManualDeletionCount)"
     Write-Host "Cleanup plan required reference checks: $($report.Summary.CleanupPlanRequiredReferenceCheckCount)"
+    Write-Host "Sample decision candidates: $($report.Summary.SampleDecisionReportCandidateCount)"
+    Write-Host "Sample decision must remain untracked: $($report.Summary.SampleDecisionMustRemainUntrackedCount)"
+    Write-Host "Sample decision ready-to-stage count: $($report.Summary.SampleDecisionReadyToStageCount)"
+    Write-Host "Sample decision missing acceptance count: $($report.Summary.SampleDecisionMissingAcceptanceCount)"
     Write-Host "Explicit ownership decision required: $($report.Summary.ExplicitOwnershipDecisionRequired)"
     foreach ($candidate in $report.Candidates) {
         Write-Host "$($candidate.Category): $($candidate.Path) files=$($candidate.FileCount) size=$($candidate.Size)"

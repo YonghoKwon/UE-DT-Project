@@ -77,6 +77,7 @@ function Get-LargeContentDecisionSummary {
         return $null
     }
     $cleanupPlanScript = Join-Path $script:PSScriptRoot "export_large_content_cleanup_plan.ps1"
+    $sampleDecisionReportScript = Join-Path $script:PSScriptRoot "export_sample_content_decision_report.ps1"
 
     $jsonText = & powershell -ExecutionPolicy Bypass -File $largeContentReportScript -ProjectRoot $ProjectRoot -Json
     if ($LASTEXITCODE -ne 0) {
@@ -91,6 +92,14 @@ function Get-LargeContentDecisionSummary {
             throw "Large content cleanup plan failed with exit code $LASTEXITCODE"
         }
         $cleanupPlan = $cleanupPlanJson | ConvertFrom-Json
+    }
+    $sampleDecisionReport = $null
+    if (Test-Path -LiteralPath $sampleDecisionReportScript -PathType Leaf) {
+        $sampleDecisionJson = & powershell -ExecutionPolicy Bypass -File $sampleDecisionReportScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Sample content decision report failed with exit code $LASTEXITCODE"
+        }
+        $sampleDecisionReport = $sampleDecisionJson | ConvertFrom-Json
     }
 
     $unusedCleanupCandidates = @($largeReport.Candidates | Where-Object { $_.UnusedLocalCleanupCandidate })
@@ -128,6 +137,15 @@ function Get-LargeContentDecisionSummary {
         LargestSampleCandidatePath = if ($largestSampleCandidate.Count -gt 0) { [string]$largestSampleCandidate[0].Path } else { "" }
         LargestSampleCandidateSize = if ($largestSampleCandidate.Count -gt 0) { [string]$largestSampleCandidate[0].Size } else { "" }
         SampleBoundary = "Sample/third-party candidate means keep untracked unless project ownership, redistribution approval, and documentation alternative are accepted."
+        SampleDecisionReportAvailable = ($null -ne $sampleDecisionReport)
+        SampleDecisionReadyToStageCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.ReadyToStageCount } else { 0 }
+        SampleDecisionDocumentationAlternativePreferredCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.DocumentationAlternativePreferredCount } else { 0 }
+        SampleDecisionSetupAlternativePreferredCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.SetupAlternativePreferredCount } else { 0 }
+        SampleDecisionMustRemainUntrackedCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.MustRemainUntrackedCount } else { 0 }
+        SampleDecisionMissingAcceptanceCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.MissingAcceptanceCount } else { 0 }
+        SampleDecisionDryRunOnly = if ($sampleDecisionReport) { [bool]$sampleDecisionReport.Summary.DryRunOnly } else { $true }
+        SampleDecisionCopiesSampleFiles = if ($sampleDecisionReport) { [bool]$sampleDecisionReport.Summary.CopiesSampleFiles } else { $false }
+        SampleDecisionDefaultAction = if ($sampleDecisionReport) { [string]$sampleDecisionReport.Summary.DefaultAction } else { "" }
         DefaultAction = [string]$largeReport.Summary.DefaultAction
     }
 }
@@ -553,6 +571,15 @@ if ($largeContentDecisionSummary) {
         Write-Host "Sample/third-party paths: $(@($largeContentDecisionSummary.SampleCandidatePaths) -join ', ')"
     }
     Write-Host "Boundary: $($largeContentDecisionSummary.SampleBoundary)"
+    Write-Host "Sample decision report available: $($largeContentDecisionSummary.SampleDecisionReportAvailable)"
+    Write-Host "Sample decision ready-to-stage count: $($largeContentDecisionSummary.SampleDecisionReadyToStageCount)"
+    Write-Host "Sample decision documentation alternative preferred: $($largeContentDecisionSummary.SampleDecisionDocumentationAlternativePreferredCount)"
+    Write-Host "Sample decision setup alternative preferred: $($largeContentDecisionSummary.SampleDecisionSetupAlternativePreferredCount)"
+    Write-Host "Sample decision must remain untracked: $($largeContentDecisionSummary.SampleDecisionMustRemainUntrackedCount)"
+    Write-Host "Sample decision missing acceptance count: $($largeContentDecisionSummary.SampleDecisionMissingAcceptanceCount)"
+    Write-Host "Sample decision dry run only: $($largeContentDecisionSummary.SampleDecisionDryRunOnly)"
+    Write-Host "Sample decision copies sample files: $($largeContentDecisionSummary.SampleDecisionCopiesSampleFiles)"
+    Write-Host "Sample decision default action: $($largeContentDecisionSummary.SampleDecisionDefaultAction)"
 }
 
 if ($wbpDecisionSummary) {
