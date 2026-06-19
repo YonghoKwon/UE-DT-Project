@@ -178,7 +178,10 @@ $manifest = [PSCustomObject]@{
         ReadyForRealLazAutomation = [bool]$readiness.Summary.ReadyForRealLazAutomation
         TrueCompressionIntegrated = [bool]$decision.Summary.TrueCompressionIntegrated
         AcceptanceTemplateCreated = (Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf)
+        AcceptanceEvidenceSectionCount = [int]$template.Summary.EvidenceSectionCount
+        RequiredEvidenceSections = @($template.Summary.RequiredEvidenceSections)
         AcceptanceEvidenceComplete = [bool]$validation.Summary.Complete
+        AcceptanceEvidenceRequiredSectionCount = [int]$validation.Summary.RequiredEvidenceSectionCount
         AcceptanceEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
         AcceptanceEvidenceCount = [int]$decision.Summary.AcceptanceEvidenceCount
         DryRunOnly = $true
@@ -214,7 +217,10 @@ $lines.Add("- Readable output evidence present: $($manifest.Summary.ReadableOutp
 $lines.Add("- Ready for real LAZ automation: $($manifest.Summary.ReadyForRealLazAutomation)") | Out-Null
 $lines.Add("- True compression integrated: $($manifest.Summary.TrueCompressionIntegrated)") | Out-Null
 $lines.Add("- Acceptance template created: $($manifest.Summary.AcceptanceTemplateCreated)") | Out-Null
+$lines.Add("- Acceptance evidence section count: $($manifest.Summary.AcceptanceEvidenceSectionCount)") | Out-Null
+$lines.Add("- Required evidence sections: $(@($manifest.Summary.RequiredEvidenceSections) -join ', ')") | Out-Null
 $lines.Add("- Acceptance evidence complete: $($manifest.Summary.AcceptanceEvidenceComplete)") | Out-Null
+$lines.Add("- Required evidence section checks: $($manifest.Summary.AcceptanceEvidenceRequiredSectionCount)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
 $lines.Add("- Does not run compressor: $($manifest.DoesNotRunCompressor)") | Out-Null
@@ -258,6 +264,7 @@ else {
     Write-Host "Readable output evidence present: $($manifest.Summary.ReadableOutputEvidencePresent)"
     Write-Host "Ready for real LAZ automation: $($manifest.Summary.ReadyForRealLazAutomation)"
     Write-Host "True compression integrated: $($manifest.Summary.TrueCompressionIntegrated)"
+    Write-Host "Acceptance evidence section count: $($manifest.Summary.AcceptanceEvidenceSectionCount)"
     Write-Host "Acceptance evidence complete: $($manifest.Summary.AcceptanceEvidenceComplete)"
     Write-Host "Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)"
 }

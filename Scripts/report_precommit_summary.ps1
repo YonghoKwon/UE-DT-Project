@@ -495,8 +495,12 @@ function Get-LazExportDecisionSummary {
 
     $decisionReportScript = Join-Path $script:PSScriptRoot "export_laz_compression_decision_report.ps1"
     $readinessReportScript = Join-Path $script:PSScriptRoot "export_laz_compressor_readiness_report.ps1"
+    $acceptanceTemplateScript = Join-Path $script:PSScriptRoot "export_laz_compression_acceptance_template.ps1"
+    $acceptanceValidatorScript = Join-Path $script:PSScriptRoot "validate_laz_compression_acceptance_evidence.ps1"
     if ((-not (Test-Path -LiteralPath $decisionReportScript -PathType Leaf)) -or
-        (-not (Test-Path -LiteralPath $readinessReportScript -PathType Leaf))) {
+        (-not (Test-Path -LiteralPath $readinessReportScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $acceptanceTemplateScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $acceptanceValidatorScript -PathType Leaf))) {
         return $null
     }
 
@@ -512,8 +516,21 @@ function Get-LazExportDecisionSummary {
 
     $decisionReport = $decisionJson | ConvertFrom-Json
     $readinessReport = $readinessJson | ConvertFrom-Json
+    $templateJson = & powershell -ExecutionPolicy Bypass -File $acceptanceTemplateScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ acceptance template failed with exit code $LASTEXITCODE"
+    }
+
+    $validationJson = & powershell -ExecutionPolicy Bypass -File $acceptanceValidatorScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ acceptance evidence validation failed with exit code $LASTEXITCODE"
+    }
+
+    $acceptanceTemplate = $templateJson | ConvertFrom-Json
+    $acceptanceValidation = $validationJson | ConvertFrom-Json
     $acceptanceEvidence = @($decisionReport.AcceptanceEvidenceNeeded)
     $candidatePaths = @($decisionReport.CandidatePaths | Select-Object -ExpandProperty Option)
+    $acceptanceChecks = @($acceptanceValidation.Checks)
 
     return [PSCustomObject]@{
         PlaceholderExplicit = [bool]$decisionReport.Summary.PlaceholderExplicit
@@ -540,9 +557,19 @@ function Get-LazExportDecisionSummary {
         CandidatePaths = $candidatePaths
         AcceptanceEvidenceCount = [int]$decisionReport.Summary.AcceptanceEvidenceCount
         AcceptanceEvidenceNeeded = $acceptanceEvidence
+        AcceptanceEvidenceSectionCount = [int]$acceptanceTemplate.Summary.EvidenceSectionCount
+        RequiredEvidenceSections = @($acceptanceTemplate.Summary.RequiredEvidenceSections)
+        AcceptanceEvidenceComplete = [bool]$acceptanceValidation.Summary.Complete
+        AcceptanceEvidenceFailedCheckCount = [int]$acceptanceValidation.Summary.FailedCheckCount
+        AcceptanceEvidenceRequiredSectionCount = [int]$acceptanceValidation.Summary.RequiredEvidenceSectionCount
+        LazCompressorSelectionPresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "CompressorSelection evidence path exists" -and $_.Passed }).Count -gt 0)
+        ProducedLazEvidencePresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "ProducedLazEvidence path exists" -and $_.Passed }).Count -gt 0)
+        KnownReaderValidationPresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "KnownReaderValidation probe succeeded" -and $_.Passed }).Count -gt 0)
+        RepeatableCommandPresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "RepeatableCommand evidence path exists" -and $_.Passed }).Count -gt 0)
+        LazOwnerAcceptancePresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "OwnerAcceptance accepted" -and $_.Passed }).Count -gt 0)
         RecommendedNextDecision = [string]$decisionReport.Summary.RecommendedNextDecision
         RecommendedNextAction = [string]$readinessReport.Summary.RecommendedNextAction
-        ReadyToClaimTrueLaz = ([bool]$decisionReport.Summary.TrueCompressionIntegrated -and [bool]$readinessReport.Summary.ReadyForRealLazAutomation)
+        ReadyToClaimTrueLaz = ([bool]$decisionReport.Summary.TrueCompressionIntegrated -and [bool]$readinessReport.Summary.ReadyForRealLazAutomation -and [bool]$acceptanceValidation.Summary.Complete)
         StagingBoundary = "Do not claim true LAZ until a produced .laz file is readable by a known point-cloud reader and the selected compressor/native/server workflow is accepted."
     }
 }
@@ -748,8 +775,8 @@ $workAreas = @(
         -Remaining "Niagara spike implementation, actual viewport screenshot/nonblank pixel evidence, renderer-specific dense-frame performance validation, fallback-preservation verification after GPU integration, and final GPU asset/module ownership remain."),
     (New-WorkArea `
         -Name "LAZ export" `
-        -Percent 57 `
-        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting, and is now surfaced in the pre-commit summary as a LAZ decision/readiness boundary. A LAZ compression acceptance package exporter now writes a local Saved/Reports bundle with the decision report, compressor readiness report, placeholder policy validation, manual acceptance steps, and follow-up commands while explicitly avoiding tool installation, compressor execution, asset edits, and git staging. The package now also creates a fillable LazCompressionAcceptanceEvidenceV1 evidence draft plus a validator that keeps true LAZ readiness false until compressor selection, produced .laz output, known-reader validation, placeholder distinction, repeatable command, and owner acceptance evidence are recorded." `
+        -Percent 58 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting, and is now surfaced in the pre-commit summary as a LAZ decision/readiness boundary. A LAZ compression acceptance package exporter now writes a local Saved/Reports bundle with the decision report, compressor readiness report, placeholder policy validation, manual acceptance steps, and follow-up commands while explicitly avoiding tool installation, compressor execution, asset edits, and git staging. The package now also creates a fillable LazCompressionAcceptanceEvidenceV1 evidence draft with structured EvidenceSections for compressor selection, produced LAZ evidence, known-reader validation, placeholder distinction, repeatable command, and owner acceptance; the validator keeps true LAZ readiness false until every section and evidence item is recorded." `
         -Remaining "Accepted compressor/tool selection, actual readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
 )
 
@@ -1065,6 +1092,15 @@ if ($lazExportDecisionSummary) {
     Write-Host "Readable output evidence present: $($lazExportDecisionSummary.ReadableOutputEvidencePresent)"
     Write-Host "Ready for real LAZ automation: $($lazExportDecisionSummary.ReadyForRealLazAutomation)"
     Write-Host "True compression integrated: $($lazExportDecisionSummary.TrueCompressionIntegrated)"
+    Write-Host "Acceptance evidence sections: $($lazExportDecisionSummary.AcceptanceEvidenceSectionCount)"
+    Write-Host "Required evidence sections: $(@($lazExportDecisionSummary.RequiredEvidenceSections) -join ', ')"
+    Write-Host "Acceptance evidence complete: $($lazExportDecisionSummary.AcceptanceEvidenceComplete)"
+    Write-Host "Acceptance evidence failed checks: $($lazExportDecisionSummary.AcceptanceEvidenceFailedCheckCount)"
+    Write-Host "Compressor selection evidence present: $($lazExportDecisionSummary.LazCompressorSelectionPresent)"
+    Write-Host "Produced LAZ evidence present: $($lazExportDecisionSummary.ProducedLazEvidencePresent)"
+    Write-Host "Known reader validation present: $($lazExportDecisionSummary.KnownReaderValidationPresent)"
+    Write-Host "Repeatable command evidence present: $($lazExportDecisionSummary.RepeatableCommandPresent)"
+    Write-Host "LAZ owner acceptance present: $($lazExportDecisionSummary.LazOwnerAcceptancePresent)"
     Write-Host "Ready to claim true LAZ: $($lazExportDecisionSummary.ReadyToClaimTrueLaz)"
     Write-Host "Candidate paths: $(@($lazExportDecisionSummary.CandidatePaths) -join ', ')"
     Write-Host "Acceptance evidence needed: $(@($lazExportDecisionSummary.AcceptanceEvidenceNeeded) -join '; ')"

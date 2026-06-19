@@ -96,6 +96,50 @@ $requiredEvidence = @(
     (New-EvidenceItem -Name "Owner acceptance" -RequiredEvidence "Project/export owner accepts the selected LAZ workflow and records reviewer/date/source evidence.")
 )
 
+$evidenceSections = [PSCustomObject]@{
+    CompressorSelection = [PSCustomObject]@{
+        SelectedWorkflow = ""
+        ToolOrLibraryName = ""
+        Version = ""
+        License = ""
+        RedistributionOwner = ""
+        UnrealPackagingDecision = ""
+        EvidencePath = ""
+    }
+    ProducedLazEvidence = [PSCustomObject]@{
+        LazEvidencePath = ""
+        ProducerCommand = ""
+        OutputByteSize = 0
+        SourceLasPath = ""
+        ProducedByAcceptedWorkflow = $false
+    }
+    KnownReaderValidation = [PSCustomObject]@{
+        ReaderName = ""
+        ReaderPath = ""
+        ReaderVersion = ""
+        ReaderProbeReportPath = ""
+        ProbeSucceeded = $false
+    }
+    PlaceholderDistinction = [PSCustomObject]@{
+        NotLasSourcePlaceholder = $false
+        NotCopySurrogate = $false
+        EvidencePath = ""
+    }
+    RepeatableCommand = [PSCustomObject]@{
+        Command = ""
+        WorkingDirectory = ""
+        ScriptPath = ""
+        EvidencePath = ""
+    }
+    OwnerAcceptance = [PSCustomObject]@{
+        Accepted = $false
+        Owner = ""
+        Reviewer = ""
+        ReviewedAtUtc = ""
+        EvidencePath = ""
+    }
+}
+
 $pendingEvidence = @($requiredEvidence | Where-Object { $_.Status -ne "Recorded" })
 $template = [PSCustomObject]@{
     SchemaVersion = "LazCompressionAcceptanceEvidenceV1"
@@ -113,14 +157,20 @@ $template = [PSCustomObject]@{
         LazEvidencePath = ""
         ReaderProbeReportPath = ""
     }
+    EvidenceSections = $evidenceSections
     RequiredEvidence = $requiredEvidence
     SafetyBoundary = "This template records evidence only. It does not install tools, does not run a compressor, does not modify assets, and does not stage files."
     Summary = [PSCustomObject]@{
         RequiredEvidenceCount = $requiredEvidence.Count
         PendingEvidenceCount = $pendingEvidence.Count
+        EvidenceSectionCount = @($evidenceSections.PSObject.Properties).Count
+        RequiredEvidenceSections = @("CompressorSelection", "ProducedLazEvidence", "KnownReaderValidation", "PlaceholderDistinction", "RepeatableCommand", "OwnerAcceptance")
         CurrentReadyToClaimTrueLaz = $false
         DoesNotInstallCompressor = $true
         DoesNotRunCompressor = $true
+        RunsCompressor = $false
+        RunsReaderProbe = $false
+        WritesLazOutput = $false
         ModifiesAssets = $false
         StagesFiles = $false
     }

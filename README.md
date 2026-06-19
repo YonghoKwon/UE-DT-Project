@@ -356,6 +356,10 @@ for the current placeholder, compressor decision, reader/readable-output
 evidence, a fillable `LazCompressionAcceptanceEvidenceV1` draft, validation
 results, and follow-up commands. It does not install tools, run a compressor,
 modify assets, or stage files.
+The evidence draft separates `CompressorSelection`, `ProducedLazEvidence`,
+`KnownReaderValidation`, `PlaceholderDistinction`, `RepeatableCommand`, and
+`OwnerAcceptance`, so placeholder or copy-surrogate output cannot be mistaken
+for accepted LAZ compression.
 
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 

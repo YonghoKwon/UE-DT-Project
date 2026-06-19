@@ -552,6 +552,16 @@ Current state:
   unclaimed until compressor selection, produced `.laz` output, known-reader
   validation, placeholder distinction, repeatable command, and owner acceptance
   evidence are all recorded.
+- The evidence draft now includes structured `EvidenceSections`:
+  `CompressorSelection`, `ProducedLazEvidence`, `KnownReaderValidation`,
+  `PlaceholderDistinction`, `RepeatableCommand`, and `OwnerAcceptance`. The
+  validator checks each section separately, so a copied LAS placeholder,
+  unverified tool path, missing reader probe, or missing owner acceptance cannot
+  accidentally mark `ReadyToClaimTrueLaz`.
+- A selected compressor/workflow is acceptance metadata, not proof of true
+  compressed output. `ReadyToClaimTrueLaz` still requires a produced `.laz`,
+  known-reader validation, repeatable command evidence, placeholder distinction,
+  and owner acceptance together.
 - Tool version probes are opt-in through `-ProbeToolVersions` on
   `Scripts/export_laz_compressor_readiness_report.ps1`; the default acceptance
   package does not run a compressor, write `.laz` output, or probe tool
@@ -593,6 +603,9 @@ Completion evidence:
 - LAZ acceptance evidence validation reports missing evidence without modifying
   assets or staging files:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -Json`.
+- LAZ acceptance evidence validation includes section-level checks for
+  compressor selection, produced LAZ evidence, known-reader validation,
+  placeholder distinction, repeatable command, and owner acceptance.
 - LAZ acceptance evidence can be made a strict gate only after evidence is
   filled:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -FailOnIncompleteEvidence`.
