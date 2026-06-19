@@ -326,6 +326,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decisio
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_unused_content_archive.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_unused_content_archive_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -ProjectRoot "." -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
 ```
@@ -362,6 +363,12 @@ deletion to commit. The pre-commit summary reports the remaining current cleanup
 candidate count, `PresentKnownUnusedCleanupCandidateCount`, and the known
 unused-candidate max/absent-or-archived count so the local cleanup can be
 tracked without staging large asset folders.
+`export_unused_content_archive_evidence.ps1` verifies the post-archive local
+state. It checks that known unused folders are absent from the Unreal project,
+present under the archive root, the archive root is outside the project, archive
+files are not staged, and DTCore has not been touched. This evidence is
+local-only: it is not repository acceptance, deletion approval, or permission to
+stage archived asset folders.
 `export_sample_content_decision_report.ps1` gives the copied
 `Samples/PixelStreaming` folder the same read-only treatment: it records
 `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`,

@@ -63,6 +63,7 @@ $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status
 $largeContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_large_content_decision_report.ps1"
 $largeContentCleanupPlanScript = Join-Path $ProjectRoot "Scripts\export_large_content_cleanup_plan.ps1"
 $unusedContentArchiveScript = Join-Path $ProjectRoot "Scripts\invoke_unused_content_archive.ps1"
+$unusedContentArchiveEvidenceScript = Join-Path $ProjectRoot "Scripts\export_unused_content_archive_evidence.ps1"
 $sampleContentDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_sample_content_decision_report.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 $largeContentDecisionPolicyScript = $MyInvocation.MyCommand.Path
@@ -73,6 +74,7 @@ Assert-FileExists -Path $evidenceWorkflowScript -Label "Local asset decision evi
 Assert-FileExists -Path $largeContentDecisionReportScript -Label "Large content decision report script"
 Assert-FileExists -Path $largeContentCleanupPlanScript -Label "Large content cleanup plan script"
 Assert-FileExists -Path $unusedContentArchiveScript -Label "Unused content archive script"
+Assert-FileExists -Path $unusedContentArchiveEvidenceScript -Label "Unused content archive evidence script"
 Assert-FileExists -Path $sampleContentDecisionReportScript -Label "Sample content decision report script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
 
@@ -119,6 +121,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Local asset doc documents large content decision report" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_large_content_cleanup_plan.ps1"; Label = "Local asset doc documents large content cleanup plan" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "invoke_unused_content_archive.ps1"; Label = "Local asset doc documents unused content archive tool" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_unused_content_archive_evidence.ps1"; Label = "Local asset doc documents unused content archive evidence tool" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "PreviewOnly=true"; Label = "Local asset doc documents preview-only archive default" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = 'explicit `-ArchiveRoot` outside the project'; Label = "Local asset doc documents outside-project archive root" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "absent-or-archived"; Label = "Local asset doc documents archived cleanup state" },
@@ -166,6 +169,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_large_content_decision_report.ps1"; Label = "Remaining work tracks large content decision report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_large_content_cleanup_plan.ps1"; Label = "Remaining work tracks large content cleanup plan" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "invoke_unused_content_archive.ps1"; Label = "Remaining work tracks unused content archive tool" },
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_unused_content_archive_evidence.ps1"; Label = "Remaining work tracks unused content archive evidence tool" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "PreviewOnly=true"; Label = "Remaining work tracks preview-only archive default" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "ArchiveRoot"; Label = "Remaining work tracks explicit archive root requirement" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "absent-or-archived"; Label = "Remaining work tracks archived cleanup state" },
@@ -218,6 +222,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $unusedContentArchiveScript; Pattern = "RequiresExplicitArchiveRootForExecute"; Label = "Unused content archive script requires explicit archive root for execute" },
     [PSCustomObject]@{ Path = $unusedContentArchiveScript; Pattern = "SafeSourceUnderProjectRoot"; Label = "Unused content archive script verifies source path safety" }
     ,
+    [PSCustomObject]@{ Path = $unusedContentArchiveEvidenceScript; Pattern = "ArchiveRootOutsideProject"; Label = "Unused content archive evidence verifies archive root is outside project" },
+    [PSCustomObject]@{ Path = $unusedContentArchiveEvidenceScript; Pattern = "ArchiveRootStagedFileCount"; Label = "Unused content archive evidence reports archive staged files" },
+    [PSCustomObject]@{ Path = $unusedContentArchiveEvidenceScript; Pattern = "DTCoreTouchedFileCount"; Label = "Unused content archive evidence reports DTCore touched files" },
+    [PSCustomObject]@{ Path = $unusedContentArchiveEvidenceScript; Pattern = "ArchiveEvidenceComplete"; Label = "Unused content archive evidence reports completion" },
+    [PSCustomObject]@{ Path = $unusedContentArchiveEvidenceScript; Pattern = "not repository acceptance"; Label = "Unused content archive evidence preserves archive boundary" }
+    ,
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "KeepLocalUnlessOwned"; Label = "Sample report recommends keep-local unless owned" },
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "ProjectOwnershipAccepted"; Label = "Sample report tracks project ownership acceptance" },
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "LicenseRedistributionAccepted"; Label = "Sample report tracks license redistribution acceptance" },
@@ -256,6 +266,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedContentArchiveStagesFiles"; Label = "Pre-commit summary reports archive no-stage boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "UnusedContentArchiveModifiesAssets"; Label = "Pre-commit summary reports archive no-asset-modification boundary" }
     ,
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ArchiveEvidenceAvailable"; Label = "Pre-commit summary reports archive evidence availability" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ArchiveEvidenceComplete"; Label = "Pre-commit summary reports archive evidence completion" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ArchiveEvidenceRootOutsideProject"; Label = "Pre-commit summary reports archive root boundary" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ArchiveEvidenceRootStagedFileCount"; Label = "Pre-commit summary reports archive staged file count" },
+    [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ArchiveEvidenceDTCoreTouchedFileCount"; Label = "Pre-commit summary reports archive DTCore touched file count" }
+    ,
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionReportAvailable"; Label = "Pre-commit summary reports sample decision availability" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionMustRemainUntrackedCount"; Label = "Pre-commit summary reports sample untracked boundary" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "SampleDecisionSetupAlternativePreferredCount"; Label = "Pre-commit summary reports sample setup alternative boundary" },
@@ -284,6 +300,11 @@ if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     throw "invoke_unused_content_archive.ps1 failed with exit code $LASTEXITCODE"
 }
 $archiveReport = $archiveReportJson | ConvertFrom-Json
+$archiveEvidenceJson = & $unusedContentArchiveEvidenceScript -ProjectRoot $LocalProjectRoot -Json
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    throw "export_unused_content_archive_evidence.ps1 failed with exit code $LASTEXITCODE"
+}
+$archiveEvidence = $archiveEvidenceJson | ConvertFrom-Json
 $sampleReportJson = & $sampleContentDecisionReportScript -ProjectRoot $LocalProjectRoot -Json
 if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     throw "export_sample_content_decision_report.ps1 failed with exit code $LASTEXITCODE"
@@ -381,6 +402,15 @@ if (-not [bool]$archiveReport.Summary.RequiresExplicitArchiveRootForExecute) {
 }
 if ([int]$archiveReport.Summary.CandidateCount -ne [int]$cleanupPlan.Summary.CleanupCandidateCount) {
     throw "Unused content archive candidate count must match cleanup plan candidate count."
+}
+if (-not [bool]$archiveEvidence.Summary.ArchiveRootOutsideProject) {
+    throw "Unused content archive evidence must keep archive root outside the project."
+}
+if ([int]$archiveEvidence.Summary.ArchiveRootStagedFileCount -ne 0) {
+    throw "Unused content archive evidence must not report staged archive files."
+}
+if ([int]$archiveEvidence.Summary.DTCoreTouchedFileCount -ne 0) {
+    throw "Unused content archive evidence must not report DTCore changes."
 }
 if ([int]$cleanupPlan.Summary.CleanupCandidateCount -ne [int]$largeReport.Summary.UnusedLocalCleanupCandidateCount) {
     throw "Cleanup plan candidate count must match unused cleanup candidate count."
@@ -525,6 +555,12 @@ $report = [PSCustomObject]@{
         UnusedContentArchiveDeletesFiles = $archiveReport.Summary.DeletesFiles
         UnusedContentArchiveStagesFiles = $archiveReport.Summary.StagesFiles
         UnusedContentArchiveModifiesAssets = $archiveReport.Summary.ModifiesAssets
+        ArchiveEvidenceComplete = $archiveEvidence.Summary.ArchiveEvidenceComplete
+        ArchiveEvidenceArchivedCount = $archiveEvidence.Summary.ArchivedCount
+        ArchiveEvidencePresentInProjectCount = $archiveEvidence.Summary.PresentInProjectCount
+        ArchiveEvidenceArchiveRootOutsideProject = $archiveEvidence.Summary.ArchiveRootOutsideProject
+        ArchiveEvidenceArchiveRootStagedFileCount = $archiveEvidence.Summary.ArchiveRootStagedFileCount
+        ArchiveEvidenceDTCoreTouchedFileCount = $archiveEvidence.Summary.DTCoreTouchedFileCount
         SampleDecisionReportCandidateCount = $sampleReport.Summary.SampleCandidateCount
         SampleDecisionMustRemainUntrackedCount = $sampleReport.Summary.MustRemainUntrackedCount
         SampleDecisionReadyToStageCount = $sampleReport.Summary.ReadyToStageCount
@@ -574,6 +610,12 @@ else {
     Write-Host "Unused content archive deletes files: $($report.Summary.UnusedContentArchiveDeletesFiles)"
     Write-Host "Unused content archive stages files: $($report.Summary.UnusedContentArchiveStagesFiles)"
     Write-Host "Unused content archive modifies assets: $($report.Summary.UnusedContentArchiveModifiesAssets)"
+    Write-Host "Archive evidence complete: $($report.Summary.ArchiveEvidenceComplete)"
+    Write-Host "Archive evidence archived count: $($report.Summary.ArchiveEvidenceArchivedCount)"
+    Write-Host "Archive evidence present in project count: $($report.Summary.ArchiveEvidencePresentInProjectCount)"
+    Write-Host "Archive evidence root outside project: $($report.Summary.ArchiveEvidenceArchiveRootOutsideProject)"
+    Write-Host "Archive evidence root staged file count: $($report.Summary.ArchiveEvidenceArchiveRootStagedFileCount)"
+    Write-Host "Archive evidence DTCore touched file count: $($report.Summary.ArchiveEvidenceDTCoreTouchedFileCount)"
     Write-Host "Sample decision candidates: $($report.Summary.SampleDecisionReportCandidateCount)"
     Write-Host "Sample decision must remain untracked: $($report.Summary.SampleDecisionMustRemainUntrackedCount)"
     Write-Host "Sample decision ready-to-stage count: $($report.Summary.SampleDecisionReadyToStageCount)"

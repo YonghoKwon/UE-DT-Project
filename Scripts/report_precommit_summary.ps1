@@ -78,6 +78,7 @@ function Get-LargeContentDecisionSummary {
     }
     $cleanupPlanScript = Join-Path $script:PSScriptRoot "export_large_content_cleanup_plan.ps1"
     $unusedContentArchiveScript = Join-Path $script:PSScriptRoot "invoke_unused_content_archive.ps1"
+    $unusedContentArchiveEvidenceScript = Join-Path $script:PSScriptRoot "export_unused_content_archive_evidence.ps1"
     $sampleDecisionReportScript = Join-Path $script:PSScriptRoot "export_sample_content_decision_report.ps1"
 
     $jsonText = & powershell -ExecutionPolicy Bypass -File $largeContentReportScript -ProjectRoot $ProjectRoot -Json
@@ -101,6 +102,14 @@ function Get-LargeContentDecisionSummary {
             throw "Unused content archive report failed with exit code $LASTEXITCODE"
         }
         $unusedContentArchiveReport = $archiveJson | ConvertFrom-Json
+    }
+    $unusedContentArchiveEvidence = $null
+    if (Test-Path -LiteralPath $unusedContentArchiveEvidenceScript -PathType Leaf) {
+        $archiveEvidenceJson = & powershell -ExecutionPolicy Bypass -File $unusedContentArchiveEvidenceScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unused content archive evidence failed with exit code $LASTEXITCODE"
+        }
+        $unusedContentArchiveEvidence = $archiveEvidenceJson | ConvertFrom-Json
     }
     $sampleDecisionReport = $null
     if (Test-Path -LiteralPath $sampleDecisionReportScript -PathType Leaf) {
@@ -158,6 +167,19 @@ function Get-LargeContentDecisionSummary {
         UnusedContentArchiveStagesFiles = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.StagesFiles } else { $false }
         UnusedContentArchiveModifiesAssets = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.ModifiesAssets } else { $false }
         UnusedContentArchiveBoundary = if ($unusedContentArchiveReport) { [string]$unusedContentArchiveReport.Summary.Boundary } else { "" }
+        ArchiveEvidenceAvailable = ($null -ne $unusedContentArchiveEvidence)
+        ArchiveEvidenceComplete = if ($unusedContentArchiveEvidence) { [bool]$unusedContentArchiveEvidence.Summary.ArchiveEvidenceComplete } else { $false }
+        ArchiveEvidenceArchiveRoot = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.ArchiveRoot } else { "" }
+        ArchiveEvidenceLatestRun = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.LatestArchiveRun } else { "" }
+        ArchiveEvidenceRootOutsideProject = if ($unusedContentArchiveEvidence) { [bool]$unusedContentArchiveEvidence.Summary.ArchiveRootOutsideProject } else { $false }
+        ArchiveEvidenceArchivedCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.ArchivedCount } else { 0 }
+        ArchiveEvidencePresentInProjectCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.PresentInProjectCount } else { 0 }
+        ArchiveEvidenceMissingCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.MissingArchiveEvidenceCount } else { 0 }
+        ArchiveEvidenceArchivedSize = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.ArchivedSize } else { "" }
+        ArchiveEvidenceRootGitState = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.ArchiveRootGitState } else { "" }
+        ArchiveEvidenceRootStagedFileCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.ArchiveRootStagedFileCount } else { 0 }
+        ArchiveEvidenceDTCoreTouchedFileCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.DTCoreTouchedFileCount } else { 0 }
+        ArchiveEvidenceBoundary = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.Boundary } else { "" }
         SampleCandidateCount = $sampleCandidates.Count
         SampleCandidateSizeBytes = $sampleBytes
         SampleCandidateSize = Convert-ToSizeText -Bytes $sampleBytes
@@ -702,6 +724,19 @@ if ($largeContentDecisionSummary) {
     Write-Host "Unused content archive stages files: $($largeContentDecisionSummary.UnusedContentArchiveStagesFiles)"
     Write-Host "Unused content archive modifies assets: $($largeContentDecisionSummary.UnusedContentArchiveModifiesAssets)"
     Write-Host "Unused content archive boundary: $($largeContentDecisionSummary.UnusedContentArchiveBoundary)"
+    Write-Host "Archive evidence available: $($largeContentDecisionSummary.ArchiveEvidenceAvailable)"
+    Write-Host "Archive evidence complete: $($largeContentDecisionSummary.ArchiveEvidenceComplete)"
+    Write-Host "Archive evidence root: $($largeContentDecisionSummary.ArchiveEvidenceArchiveRoot)"
+    Write-Host "Archive evidence latest run: $($largeContentDecisionSummary.ArchiveEvidenceLatestRun)"
+    Write-Host "Archive evidence root outside project: $($largeContentDecisionSummary.ArchiveEvidenceRootOutsideProject)"
+    Write-Host "Archive evidence archived count: $($largeContentDecisionSummary.ArchiveEvidenceArchivedCount)"
+    Write-Host "Archive evidence present in project count: $($largeContentDecisionSummary.ArchiveEvidencePresentInProjectCount)"
+    Write-Host "Archive evidence missing count: $($largeContentDecisionSummary.ArchiveEvidenceMissingCount)"
+    Write-Host "Archive evidence archived size: $($largeContentDecisionSummary.ArchiveEvidenceArchivedSize)"
+    Write-Host "Archive evidence root git state: $($largeContentDecisionSummary.ArchiveEvidenceRootGitState)"
+    Write-Host "Archive evidence root staged file count: $($largeContentDecisionSummary.ArchiveEvidenceRootStagedFileCount)"
+    Write-Host "Archive evidence DTCore touched file count: $($largeContentDecisionSummary.ArchiveEvidenceDTCoreTouchedFileCount)"
+    Write-Host "Archive evidence boundary: $($largeContentDecisionSummary.ArchiveEvidenceBoundary)"
 
     Write-Section "Sample and third-party decisions"
     Write-Host "Sample/third-party candidates: $($largeContentDecisionSummary.SampleCandidateCount)"

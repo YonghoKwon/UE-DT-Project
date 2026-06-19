@@ -154,6 +154,12 @@ Open decisions:
   pre-commit summary reports `PresentKnownUnusedCleanupCandidateCount`, the
   known unused-candidate max, and absent-or-archived count so the archive can be
   verified without staging those asset folders.
+- `Scripts/export_unused_content_archive_evidence.ps1` verifies the local
+  post-archive state. It checks that known unused folders are absent from
+  `C:\Unreal Projects\m7at10_dt`, present under the archive root, the archive
+  root is outside the Unreal project, archive files are not staged, and DTCore
+  has not been touched. This evidence is local-only; it is not repository
+  acceptance, deletion approval, or permission to stage archived asset folders.
 - `Scripts/export_sample_content_decision_report.ps1` exports the current copied
   sample/third-party decision for `Samples/PixelStreaming`. It keeps
   `RecommendedDecision=KeepLocalUnlessOwned`, `MustRemainUntracked=true`, and
