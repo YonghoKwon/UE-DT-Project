@@ -640,6 +640,12 @@ Current state:
   renderer decision/readiness boundary directly, including `RendererPhase`,
   `GpuViewportSmokeEvidencePresent`, `GpuFallbackPreservationEvidencePresent`,
   `GpuDenseFrameEvidencePresent`, and `ReadyToClaimGpuDensePreview`.
+- `Scripts/export_point_cloud_renderer_acceptance_package.ps1` now writes a
+  local `Saved/Reports/PointCloudRendererAcceptance` bundle with the renderer
+  decision report, static preview-policy validation, optional CSV preview
+  performance evidence, manual GPU smoke follow-up commands, and a manifest
+  that explicitly marks `DoesNotIntegrateGpuRenderer`, `DoesNotModifyAssets`,
+  and `StagesFiles = false`.
 
 Next implementation steps:
 
@@ -674,6 +680,10 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence`.
 - Renderer decision evidence can also target an explicit log file:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireCsvPerformanceEvidence`.
+- Renderer acceptance package exports the current CPU/GPU evidence boundary:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
+- Renderer acceptance package can also consume the explicit CSV automation log:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log"`.
 - GPU renderer decision evidence records viewport smoke once a GPU path exists:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle`.
 - GPU evidence readiness requires a nonblank viewport screenshot, point count,

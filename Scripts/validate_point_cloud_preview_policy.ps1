@@ -49,7 +49,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\m7at10_dt\M7AT10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "LiDAR payload schema"; Path = "docs\lidar_payload_schema.md" },
     [PSCustomObject]@{ Label = "Editor smoke test document"; Path = "docs\editor_smoke_test.md" },
-    [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" }
+    [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
+    [PSCustomObject]@{ Label = "Point cloud renderer acceptance package exporter"; Path = "Scripts\export_point_cloud_renderer_acceptance_package.ps1" }
 )
 
 foreach ($file in $requiredFiles) {
@@ -69,11 +70,13 @@ $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $rendererDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
+$rendererAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_acceptance_package.ps1"
 $csvPreviewPerformanceReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
 $csvPreviewEvidenceWorkflowScript = Join-Path $ProjectRoot "Scripts\run_csv_preview_performance_evidence.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
 
 Assert-FileExists -Path $rendererDecisionReportScript -Label "Point cloud renderer decision report script"
+Assert-FileExists -Path $rendererAcceptancePackageScript -Label "Point cloud renderer acceptance package script"
 Assert-FileExists -Path $csvPreviewPerformanceReportScript -Label "CSV preview performance report script"
 Assert-FileExists -Path $csvPreviewEvidenceWorkflowScript -Label "CSV preview performance evidence workflow script"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
@@ -151,6 +154,15 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "EvidenceLinesWithinRun"; Label = "Renderer report requires CSV evidence inside the selected run block" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "CsvEvidenceLinesWithinRun"; Label = "Renderer report summary exposes same-run CSV evidence status" },
     [PSCustomObject]@{ Path = $rendererDecisionReportScript; Pattern = "MaxAcceptedPoints -ge 250000"; Label = "Renderer report treats 250k CSV evidence as dense fallback proof" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "Saved\Reports\PointCloudRendererAcceptance"; Label = "Renderer acceptance package writes the expected report folder" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Renderer acceptance package includes decision report" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "validate_point_cloud_preview_policy.ps1"; Label = "Renderer acceptance package includes preview policy validation" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Renderer acceptance package includes CSV performance evidence when available" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "DoesNotIntegrateGpuRenderer = `$true"; Label = "Renderer acceptance package does not claim GPU implementation" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "DoesNotModifyAssets = `$true"; Label = "Renderer acceptance package does not modify assets" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "Renderer acceptance package does not stage files" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "GpuViewportSmokeEvidencePresent"; Label = "Renderer acceptance package summarizes GPU viewport smoke evidence" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "ReadyToClaimGpuDensePreview"; Label = "Renderer acceptance package preserves GPU dense readiness gate" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" },
@@ -219,6 +231,7 @@ $report = [PSCustomObject]@{
         CsvPreviewEvidenceLineTrackingDeclared = $true
         CsvPreviewFailureEvidenceGateDeclared = $true
         RendererDecisionExplicitLogPathDeclared = $true
+        RendererAcceptancePackageDeclared = $true
         PrecommitRendererSummaryDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
@@ -252,6 +265,7 @@ else {
     Write-Host "CSV preview evidence line tracking declared: $($report.Summary.CsvPreviewEvidenceLineTrackingDeclared)"
     Write-Host "CSV preview failure evidence gate declared: $($report.Summary.CsvPreviewFailureEvidenceGateDeclared)"
     Write-Host "Renderer decision explicit log path declared: $($report.Summary.RendererDecisionExplicitLogPathDeclared)"
+    Write-Host "Renderer acceptance package declared: $($report.Summary.RendererAcceptancePackageDeclared)"
     Write-Host "Pre-commit renderer summary declared: $($report.Summary.PrecommitRendererSummaryDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }
