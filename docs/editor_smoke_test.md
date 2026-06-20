@@ -266,12 +266,17 @@ fallback path covered.
 `M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` verifies a
 250,000-point procedural CSV preview load with a generous timing regression
 guard and records parse/build/load telemetry.
+`M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced` verifies that a
+large CSV preview requested as `InstancedMesh` can be automatically promoted to
+the procedural preview path, preserving requested/effective render-mode
+telemetry and avoiding accidental high-instance editor loads.
 
 The CSV preview actor exposes `GetLastPreviewTelemetryText()` plus
 `LastInputLineCount`, `LastAcceptedPointCount`, `LastPreviewSectionCount`,
-`LastPreviewInstanceCount`, `LastRenderModeName`, `LastPreviewStatus`,
-`LastParseDurationMs`, `LastBuildDurationMs`, and `LastLoadDurationMs` so
-headless runs can distinguish renderer counts from observational timing data.
+`LastPreviewInstanceCount`, `LastRenderModeName`, `LastRequestedRenderModeName`,
+`bLastRenderModeAutoPromoted`, `LastPreviewStatus`, `LastParseDurationMs`,
+`LastBuildDurationMs`, and `LastLoadDurationMs` so headless runs can
+distinguish renderer counts from observational timing data.
 
 After the headless CSV preview automation run, export the latest local telemetry
 evidence:

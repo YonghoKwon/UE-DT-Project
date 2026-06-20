@@ -34,6 +34,7 @@ FString WriteGeneratedCsvPointCloud(const FString& FileName, int32 PointCount, i
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewProceduralHighDensityLoadTest, "M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewInstancedBatchLoadTest, "M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewProceduralPerformanceBudgetTest, "M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewAutoPromoteLargeInstancedTest, "M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FCsvPointCloudPreviewProceduralHighDensityLoadTest::RunTest(const FString& Parameters)
 {
@@ -115,6 +116,7 @@ bool FCsvPointCloudPreviewInstancedBatchLoadTest::RunTest(const FString& Paramet
 
     PreviewActor->CsvFilePath = CsvPath;
     PreviewActor->RenderMode = ECsvPointCloudPreviewRenderMode::InstancedMesh;
+    PreviewActor->AutoPromoteInstancedToProceduralPointThreshold = 0;
     PreviewActor->PointScale = 0.01f;
     PreviewActor->bTreatCsvCoordinatesAsWorldSpace = false;
 
@@ -127,6 +129,8 @@ bool FCsvPointCloudPreviewInstancedBatchLoadTest::RunTest(const FString& Paramet
     TestEqual(TEXT("telemetry instance count"), PreviewActor->LastPreviewInstanceCount, PointCount);
     TestEqual(TEXT("telemetry section count"), PreviewActor->LastPreviewSectionCount, 0);
     TestEqual(TEXT("telemetry active render mode"), PreviewActor->LastRenderModeName, FString(TEXT("InstancedMesh")));
+    TestEqual(TEXT("telemetry requested render mode"), PreviewActor->LastRequestedRenderModeName, FString(TEXT("InstancedMesh")));
+    TestFalse(TEXT("instanced smoke is not auto-promoted"), PreviewActor->WasLastRenderModeAutoPromoted());
     TestEqual(TEXT("telemetry status"), PreviewActor->LastPreviewStatus, FString(TEXT("Loaded")));
     TestTrue(TEXT("telemetry text includes mode"), PreviewActor->GetLastPreviewTelemetryText().Contains(TEXT("mode=InstancedMesh")));
 
@@ -171,6 +175,8 @@ bool FCsvPointCloudPreviewProceduralPerformanceBudgetTest::RunTest(const FString
     TestEqual(TEXT("performance section count"), PreviewActor->LastPreviewSectionCount, 5);
     TestEqual(TEXT("performance instanced renderer remains inactive"), PreviewActor->LastPreviewInstanceCount, 0);
     TestEqual(TEXT("performance active render mode"), PreviewActor->LastRenderModeName, FString(TEXT("ProceduralMesh")));
+    TestEqual(TEXT("performance requested render mode"), PreviewActor->LastRequestedRenderModeName, FString(TEXT("ProceduralMesh")));
+    TestFalse(TEXT("explicit procedural performance load is not auto-promoted"), PreviewActor->WasLastRenderModeAutoPromoted());
     TestEqual(TEXT("performance status"), PreviewActor->LastPreviewStatus, FString(TEXT("Loaded")));
     TestTrue(TEXT("parse duration observed"), PreviewActor->LastParseDurationMs >= 0.0f);
     TestTrue(TEXT("build duration observed"), PreviewActor->LastBuildDurationMs >= 0.0f);
@@ -182,6 +188,55 @@ bool FCsvPointCloudPreviewProceduralPerformanceBudgetTest::RunTest(const FString
     TestTrue(TEXT("telemetry text includes accepted count"), PerformanceTelemetry.Contains(TEXT("accepted=250000")));
     TestTrue(TEXT("telemetry text includes section count"), PerformanceTelemetry.Contains(TEXT("sections=5")));
     TestTrue(TEXT("telemetry text includes loaded status"), PerformanceTelemetry.Contains(TEXT("status=Loaded")));
+
+    PreviewActor->Destroy();
+    IFileManager::Get().Delete(*CsvPath);
+    return true;
+}
+
+bool FCsvPointCloudPreviewAutoPromoteLargeInstancedTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World)
+    {
+        return false;
+    }
+
+    constexpr int32 PointCount = 4096;
+    constexpr int32 Columns = 64;
+    constexpr int32 AutoPromoteThreshold = 1024;
+    const FString CsvPath = WriteGeneratedCsvPointCloud(TEXT("auto_promote_instanced.csv"), PointCount, Columns);
+
+    ACsvPointCloudPreviewActor* PreviewActor = World->SpawnActor<ACsvPointCloudPreviewActor>();
+    TestNotNull(TEXT("CSV preview actor"), PreviewActor);
+    if (!PreviewActor)
+    {
+        return false;
+    }
+
+    PreviewActor->CsvFilePath = CsvPath;
+    PreviewActor->RenderMode = ECsvPointCloudPreviewRenderMode::InstancedMesh;
+    PreviewActor->bAutoPromoteLargeInstancedPreviewToProcedural = true;
+    PreviewActor->AutoPromoteInstancedToProceduralPointThreshold = AutoPromoteThreshold;
+    PreviewActor->ProceduralBatchSize = 2048;
+    PreviewActor->PointScale = 0.01f;
+    PreviewActor->bTreatCsvCoordinatesAsWorldSpace = false;
+
+    const bool bLoaded = PreviewActor->LoadCsvPointCloud();
+    TestTrue(TEXT("auto-promoted CSV point cloud loads"), bLoaded);
+    TestEqual(TEXT("auto-promoted loaded point count"), PreviewActor->GetLoadedPointCount(), PointCount);
+    TestEqual(TEXT("requested render mode remains instanced"), PreviewActor->LastRequestedRenderModeName, FString(TEXT("InstancedMesh")));
+    TestEqual(TEXT("effective render mode is procedural"), PreviewActor->LastRenderModeName, FString(TEXT("ProceduralMesh")));
+    TestTrue(TEXT("auto-promote flag recorded"), PreviewActor->WasLastRenderModeAutoPromoted());
+    TestTrue(TEXT("auto-promote reason records threshold"), PreviewActor->LastRenderModeAutoPromotionReason.Contains(TEXT("threshold=1024")));
+    TestEqual(TEXT("auto-promoted procedural section count"), PreviewActor->GetProceduralPreviewSectionCount(), 2);
+    TestEqual(TEXT("auto-promoted instanced renderer remains inactive"), PreviewActor->GetInstancedPreviewInstanceCount(), 0);
+    TestEqual(TEXT("auto-promoted status"), PreviewActor->LastPreviewStatus, FString(TEXT("LoadedAutoPromotedToProcedural")));
+    const FString Telemetry = PreviewActor->GetLastPreviewTelemetryText();
+    TestTrue(TEXT("telemetry includes effective mode"), Telemetry.Contains(TEXT("mode=ProceduralMesh")));
+    TestTrue(TEXT("telemetry includes requested mode"), Telemetry.Contains(TEXT("requestedMode=InstancedMesh")));
+    TestTrue(TEXT("telemetry includes auto promote flag"), Telemetry.Contains(TEXT("autoPromoted=true")));
 
     PreviewActor->Destroy();
     IFileManager::Get().Delete(*CsvPath);

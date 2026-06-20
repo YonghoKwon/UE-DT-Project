@@ -81,8 +81,11 @@ int32 ACsvPointCloudPreviewActor::GetInstancedPreviewInstanceCount() const
 
 FString ACsvPointCloudPreviewActor::GetLastPreviewTelemetryText() const
 {
-    return FString::Printf(TEXT("mode=%s lines=%d accepted=%d sections=%d instances=%d parseMs=%.3f buildMs=%.3f totalMs=%.3f status=%s"),
+    return FString::Printf(TEXT("mode=%s requestedMode=%s autoPromoted=%s autoReason=%s lines=%d accepted=%d sections=%d instances=%d parseMs=%.3f buildMs=%.3f totalMs=%.3f status=%s"),
         *LastRenderModeName,
+        *LastRequestedRenderModeName,
+        bLastRenderModeAutoPromoted ? TEXT("true") : TEXT("false"),
+        *LastRenderModeAutoPromotionReason,
         LastInputLineCount,
         LastAcceptedPointCount,
         LastPreviewSectionCount,
@@ -195,8 +198,10 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
     LoadedPointCount = LoadedPoints.Num();
     LastAcceptedPointCount = LoadedPointCount;
     LastParseDurationMs = static_cast<float>((FPlatformTime::Seconds() - ParseStartTime) * 1000.0);
+    LastRequestedRenderModeName = GetRenderModeName(RenderMode);
+    const ECsvPointCloudPreviewRenderMode EffectiveRenderMode = ResolveEffectiveRenderMode(LoadedPointCount);
     const double BuildStartTime = FPlatformTime::Seconds();
-    if (RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh)
+    if (EffectiveRenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh)
     {
         BuildProceduralPointCloud(LoadedPoints);
     }
@@ -206,8 +211,12 @@ bool ACsvPointCloudPreviewActor::LoadCsvPointCloud()
     }
     LastBuildDurationMs = static_cast<float>((FPlatformTime::Seconds() - BuildStartTime) * 1000.0);
     LastLoadDurationMs = static_cast<float>((FPlatformTime::Seconds() - LoadStartTime) * 1000.0);
-    LastRenderModeName = RenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh ? TEXT("ProceduralMesh") : TEXT("InstancedMesh");
+    LastRenderModeName = GetRenderModeName(EffectiveRenderMode);
     LastPreviewStatus = LoadedPointCount > 0 ? TEXT("Loaded") : TEXT("NoPointsLoaded");
+    if (bLastRenderModeAutoPromoted && LoadedPointCount > 0)
+    {
+        LastPreviewStatus = TEXT("LoadedAutoPromotedToProcedural");
+    }
 
     LastLoadedPath = ResolvedPath;
 
@@ -498,6 +507,30 @@ void ACsvPointCloudPreviewActor::BuildProceduralPointCloud(const TArray<FVector>
     LastPreviewInstanceCount = 0;
 }
 
+ECsvPointCloudPreviewRenderMode ACsvPointCloudPreviewActor::ResolveEffectiveRenderMode(int32 AcceptedPointCount)
+{
+    bLastRenderModeAutoPromoted = false;
+    LastRenderModeAutoPromotionReason.Reset();
+
+    const int32 SafeThreshold = FMath::Max(0, AutoPromoteInstancedToProceduralPointThreshold);
+    if (RenderMode == ECsvPointCloudPreviewRenderMode::InstancedMesh &&
+        bAutoPromoteLargeInstancedPreviewToProcedural &&
+        SafeThreshold > 0 &&
+        AcceptedPointCount >= SafeThreshold)
+    {
+        bLastRenderModeAutoPromoted = true;
+        LastRenderModeAutoPromotionReason = FString::Printf(TEXT("Instanced preview accepted %d points; threshold=%d"), AcceptedPointCount, SafeThreshold);
+        return ECsvPointCloudPreviewRenderMode::ProceduralMesh;
+    }
+
+    return RenderMode;
+}
+
+FString ACsvPointCloudPreviewActor::GetRenderModeName(ECsvPointCloudPreviewRenderMode InRenderMode) const
+{
+    return InRenderMode == ECsvPointCloudPreviewRenderMode::ProceduralMesh ? TEXT("ProceduralMesh") : TEXT("InstancedMesh");
+}
+
 void ACsvPointCloudPreviewActor::BuildInstancedPointCloud(const TArray<FVector>& Points)
 {
     if (!PointCloudComponent)
@@ -565,7 +598,10 @@ void ACsvPointCloudPreviewActor::ResetStatus()
     LastBuildDurationMs = 0.0f;
     LastLoadDurationMs = 0.0f;
     LastRenderModeName.Reset();
+    LastRequestedRenderModeName.Reset();
     LastPreviewStatus.Reset();
+    bLastRenderModeAutoPromoted = false;
+    LastRenderModeAutoPromotionReason.Reset();
 }
 
 #if WITH_EDITOR

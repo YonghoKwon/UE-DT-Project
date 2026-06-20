@@ -745,6 +745,10 @@ Current state:
   250,000-point procedural CSV preview load in headless automation with a
   generous regression guard while treating timing values as observational
   telemetry.
+- `M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced` covers the
+  large-instanced safety path. When an operator requests instanced CSV preview
+  above the configured threshold, the actor promotes the effective renderer to
+  procedural mesh and records requested/effective mode telemetry.
 - `Scripts/export_csv_preview_performance_report.ps1` reads the latest Unreal
   automation log and exports the CSV preview telemetry for the instanced,
   120,000-point procedural, and 250,000-point procedural budget scenarios.

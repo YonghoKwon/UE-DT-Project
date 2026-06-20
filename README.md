@@ -1,5 +1,12 @@
 # UE-DT-Project
 
+## CSV Preview Safety
+
+`ACsvPointCloudPreviewActor` can auto-promote a large preview requested as
+`InstancedMesh` to the procedural preview path when
+`bAutoPromoteLargeInstancedPreviewToProcedural` is enabled. Telemetry records
+both requested and effective render modes, plus whether auto-promotion happened.
+
 ## Point Cloud Renderer Evidence Boundary
 
 `export_point_cloud_renderer_acceptance_package.ps1` can write a CSV preview

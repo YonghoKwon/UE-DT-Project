@@ -60,6 +60,7 @@ foreach ($file in $requiredFiles) {
 $lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
 $lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
 $csvPreviewHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CsvPointCloudPreviewActor.h"
+$csvPreviewCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CsvPointCloudPreviewActor.cpp"
 $managerCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualSensorManager.cpp"
 $monitorCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp"
 $replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
@@ -113,6 +114,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad"; Label = "CSV procedural high-density automation test" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad"; Label = "CSV instanced batch automation test" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget"; Label = "CSV procedural performance budget automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced"; Label = "CSV auto-promote automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "bAutoPromoteLargeInstancedPreviewToProcedural"; Label = "CSV preview auto-promotes large instanced loads" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "AutoPromoteInstancedToProceduralPointThreshold"; Label = "CSV preview declares auto-promote threshold" },
+    [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "WasLastRenderModeAutoPromoted"; Label = "CSV preview exposes auto-promote telemetry" },
+    [PSCustomObject]@{ Path = $csvPreviewCpp; Pattern = "LoadedAutoPromotedToProcedural"; Label = "CSV preview status records auto-promote" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "120000"; Label = "CSV procedural automation uses high-density sample" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "250000"; Label = "CSV procedural performance automation uses denser sample" },
     [PSCustomObject]@{ Path = $monitorTests; Pattern = "M7AT10.SensorMonitor.PerformanceWarningStatusText"; Label = "Monitor warning automation test" },

@@ -56,6 +56,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud|Status")
     FString GetLastPreviewTelemetryText() const;
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|CSV PointCloud|Status")
+    bool WasLastRenderModeAutoPromoted() const { return bLastRenderModeAutoPromoted; }
+
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud")
     TObjectPtr<USceneComponent> SceneRoot;
@@ -71,6 +74,12 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     ECsvPointCloudPreviewRenderMode RenderMode = ECsvPointCloudPreviewRenderMode::ProceduralMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Safety")
+    bool bAutoPromoteLargeInstancedPreviewToProcedural = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud|Safety", meta = (ClampMin = "0", ClampMax = "10000000", EditCondition = "bAutoPromoteLargeInstancedPreviewToProcedural"))
+    int32 AutoPromoteInstancedToProceduralPointThreshold = 50000;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|CSV PointCloud")
     bool bAutoLoadOnConstruction = false;
@@ -151,7 +160,16 @@ public:
     FString LastRenderModeName;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    FString LastRequestedRenderModeName;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
     FString LastPreviewStatus;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    bool bLastRenderModeAutoPromoted = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|CSV PointCloud|Status|Telemetry")
+    FString LastRenderModeAutoPromotionReason;
 
 private:
     FString ResolveCsvFilePath() const;
@@ -159,6 +177,8 @@ private:
     void ApplyPreviewStyle();
     UStaticMesh* ResolvePointMesh() const;
     void ResetStatus();
+    ECsvPointCloudPreviewRenderMode ResolveEffectiveRenderMode(int32 AcceptedPointCount);
+    FString GetRenderModeName(ECsvPointCloudPreviewRenderMode InRenderMode) const;
     void BuildProceduralPointCloud(const TArray<FVector>& Points);
     void BuildInstancedPointCloud(const TArray<FVector>& Points);
 #if WITH_EDITOR
