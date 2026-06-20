@@ -30,6 +30,36 @@ function Convert-ToMarkdownCell {
     return ([string]$Value).Replace("|", "\|").Replace("`r", " ").Replace("`n", " ")
 }
 
+function Get-MonitorOptionalBindingNames {
+    param([string]$SourceRepoRoot)
+
+    $headerPath = Join-Path $SourceRepoRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
+    if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
+        throw "VirtualSensorMonitorWidget.h not found: $headerPath"
+    }
+
+    $lines = Get-Content -LiteralPath $headerPath
+    $names = [System.Collections.Generic.List[string]]::new()
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -notmatch "BindWidgetOptional") {
+            continue
+        }
+
+        for ($next = $index + 1; $next -lt $lines.Count; $next++) {
+            $line = $lines[$next].Trim()
+            if ($line -match "^TObjectPtr<[^>]+>\s+([A-Za-z_][A-Za-z0-9_]*)\s*;") {
+                $names.Add($Matches[1]) | Out-Null
+                break
+            }
+            if ($line -match "^UPROPERTY") {
+                break
+            }
+        }
+    }
+
+    return @($names | Select-Object -Unique)
+}
+
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
@@ -58,18 +88,7 @@ if (Test-Path -LiteralPath $decisionReport.WbpPath -PathType Leaf) {
     $assetHash = (Get-FileHash -LiteralPath $decisionReport.WbpPath -Algorithm SHA256).Hash
 }
 
-$optionalBindings = @(
-    "SensorModeToggleButton",
-    "CaptureOnceButton",
-    "ExportCurrentFrameButton",
-    "PointCloudOnlyToggle",
-    "PreviewStrideSpinBox",
-    "MaxPreviewPointsSpinBox",
-    "PreviewHitOnlyButton",
-    "LidarViewModeComboBox",
-    "SensorStatusText",
-    "CameraPreviewImage"
-)
+$optionalBindings = @(Get-MonitorOptionalBindingNames -SourceRepoRoot $SourceRepoRoot)
 
 $pieSmokeChecks = @(
     "WBP opens in the intended map without compile or load errors.",
@@ -218,6 +237,8 @@ $template = [PSCustomObject]@{
                             Name = $_
                             Present = $false
                             IsVariable = $false
+                            WidgetClass = ""
+                            BoundToExpectedCppName = $false
                             AutoBoundOrManual = ""
                             MissingOptionalDoesNotCrash = $false
                             Notes = ""
@@ -288,6 +309,7 @@ $template = [PSCustomObject]@{
         RequiredEvidenceCount = 4
         PendingEvidenceCount = 4
         OptionalBindingCount = $optionalBindings.Count
+        OptionalBindingSource = "VirtualSensorMonitorWidget.h BindWidgetOptional"
         ManualAcceptanceSectionCount = $manualAcceptanceSectionNames.Count
         ManualAcceptanceSections = $manualAcceptanceSectionNames
         PieSmokeCheckCount = $pieSmokeChecks.Count

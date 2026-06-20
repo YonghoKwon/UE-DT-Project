@@ -103,8 +103,20 @@ complete.
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -Json
 ```
+
+`prepare_monitor_wbp_editor_review.ps1` is the last safe automation step before
+manual Designer work. It creates a timestamped backup of
+`WBP_VirtualSensorMonitor.uasset` under `Saved/Backups/MonitorWbp`, records the
+pre-edit SHA256 hash, generates the monitor WBP acceptance package, and writes a
+review checklist under `Saved/Reports/MonitorWbpEditorReview`. It writes only
+under `Saved`, does not edit Unreal assets, and never stages the WBP.
+The monitor WBP acceptance template and validator derive optional widget names
+from `VirtualSensorMonitorWidget.h` `BindWidgetOptional` properties rather than
+from a separate hard-coded checklist. This prevents stale evidence names from
+approving a WBP that would not auto-bind to the native widget.
 
 Large content candidates and sample/third-party folders include extension counts
 and the largest files in each folder. Use this to spot built-data-heavy map

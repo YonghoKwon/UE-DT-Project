@@ -187,6 +187,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_poli
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 ```
 
 This check keeps optional C++ bindings, native fallback behavior, local binary
@@ -204,10 +205,20 @@ The WBP acceptance template is read-only and does not stage or modify the
 `.uasset`; it structures the editor-open, optional-binding, PIE-smoke, and
 production-owner evidence fields that must be recorded before the binary WBP can
 move out of `MustRemainUntracked`.
+The optional-binding evidence list is generated from
+`VirtualSensorMonitorWidget.h` `BindWidgetOptional` fields, so the checklist
+uses the same C++ names as automatic binding. For each present widget, record
+`IsVariable`, `WidgetClass`, and `BoundToExpectedCppName`; for each missing
+optional widget, record `MissingOptionalDoesNotCrash`.
 The acceptance evidence validator is also read-only. It checks the filled
 evidence file against the current SHA256 asset hash, optional binding safety,
 Editor/PIE evidence paths, and owner acceptance, and it only throws for
 incomplete evidence when `-FailOnIncompleteEvidence` is passed.
+Before opening the binary WBP in Unreal Editor, run
+`prepare_monitor_wbp_editor_review.ps1`. It copies the current
+`WBP_VirtualSensorMonitor.uasset` to `Saved/Backups/MonitorWbp`, records the
+pre-edit SHA256 hash, generates the acceptance package under `Saved/Reports`,
+and writes an editor-review checklist without modifying or staging the asset.
 
 Local camera capture notes:
 

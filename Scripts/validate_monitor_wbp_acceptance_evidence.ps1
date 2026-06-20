@@ -101,6 +101,36 @@ function Add-Check {
     }) | Out-Null
 }
 
+function Get-MonitorOptionalBindingNames {
+    param([string]$SourceRepoRoot)
+
+    $headerPath = Join-Path $SourceRepoRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
+    if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
+        throw "VirtualSensorMonitorWidget.h not found: $headerPath"
+    }
+
+    $lines = Get-Content -LiteralPath $headerPath
+    $names = [System.Collections.Generic.List[string]]::new()
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -notmatch "BindWidgetOptional") {
+            continue
+        }
+
+        for ($next = $index + 1; $next -lt $lines.Count; $next++) {
+            $line = $lines[$next].Trim()
+            if ($line -match "^TObjectPtr<[^>]+>\s+([A-Za-z_][A-Za-z0-9_]*)\s*;") {
+                $names.Add($Matches[1]) | Out-Null
+                break
+            }
+            if ($line -match "^UPROPERTY") {
+                break
+            }
+        }
+    }
+
+    return @($names | Select-Object -Unique)
+}
+
 if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
     throw "ProjectRoot not found: $ProjectRoot"
 }
@@ -174,18 +204,7 @@ $requiredNames = @(
     "PIE smoke result",
     "Production WBP acceptance"
 )
-$requiredOptionalBindings = @(
-    "SensorModeToggleButton",
-    "CaptureOnceButton",
-    "ExportCurrentFrameButton",
-    "PointCloudOnlyToggle",
-    "PreviewStrideSpinBox",
-    "MaxPreviewPointsSpinBox",
-    "PreviewHitOnlyButton",
-    "LidarViewModeComboBox",
-    "SensorStatusText",
-    "CameraPreviewImage"
-)
+$requiredOptionalBindings = @(Get-MonitorOptionalBindingNames -SourceRepoRoot $SourceRepoRoot)
 $acceptedPieStatuses = @("Passed", "Accepted", "UnavailableAccepted", "ExplicitlyUnavailable")
 
 $checks = [System.Collections.Generic.List[object]]::new()
@@ -254,9 +273,11 @@ if ($optionalEvidence.Count -gt 0) {
     $missingNames = @($requiredOptionalBindings | Where-Object { $observedNames -notcontains $_ })
     $unexpectedRequiredFailures = @($optional.UnexpectedRequiredBindingFailures | Where-Object { Test-NonEmptyString $_ })
     $unsafeMissingOptional = @($optional.OptionalBindings | Where-Object { -not [bool]$_.Present -and -not [bool]$_.MissingOptionalDoesNotCrash })
+    $wrongCppNameBindings = @($optional.OptionalBindings | Where-Object { [bool]$_.Present -and ($_.PSObject.Properties.Name -contains "BoundToExpectedCppName") -and -not [bool]$_.BoundToExpectedCppName })
     Add-Check -Checks $checks -Name "Optional binding list complete" -Passed ($missingNames.Count -eq 0) -Detail "MissingNames=$($missingNames -join ', ')"
     Add-Check -Checks $checks -Name "No unexpected required binding failures" -Passed ($unexpectedRequiredFailures.Count -eq 0) -Detail "UnexpectedRequiredBindingFailures=$($unexpectedRequiredFailures.Count)"
     Add-Check -Checks $checks -Name "Missing optional bindings are crash-safe" -Passed ($unsafeMissingOptional.Count -eq 0) -Detail "UnsafeMissingOptional=$(@($unsafeMissingOptional | Select-Object -ExpandProperty Name) -join ', ')"
+    Add-Check -Checks $checks -Name "Present optional bindings use expected C++ names" -Passed ($wrongCppNameBindings.Count -eq 0) -Detail "WrongCppNameBindings=$(@($wrongCppNameBindings | Select-Object -ExpandProperty Name) -join ', ')"
 }
 
 $pieEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "PIE smoke result"
