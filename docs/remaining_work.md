@@ -566,6 +566,15 @@ Current state:
 - The external compressor path requires `{input}` and `{output}` tokens, writes
   a separate `.laz` output path, and fails if the configured process does not
   create a non-empty output file.
+- `UVirtualLidarSensorComp` now exposes last-export telemetry through
+  `GetLastLazExportStatusText()`, `GetLastLazLasSourcePath()`,
+  `GetLastLazOutputPath()`, export attempt/success flags,
+  placeholder-only state, external compressor requested/attempted/succeeded
+  flags, produced-output state, true-validation state, exported point count,
+  compressor return code, output size, and warning text, so UI and automation
+  can distinguish placeholder-only LAS source export, missing/attempted
+  compressor paths, and external process success without claiming readable LAZ
+  acceptance.
 - `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput` covers the
   positive external process path with a local copy-command surrogate. This proves the
   `{input}`/`{output}` process contract and output-file validation, not true LAZ

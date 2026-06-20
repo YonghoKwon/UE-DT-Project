@@ -135,6 +135,51 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
     bool ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix = TEXT("")) const;
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    FString GetLastLazExportStatusText() const { return LastLazExportStatusText; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    FString GetLastLazLasSourcePath() const { return LastLazLasSourcePath; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    FString GetLastLazOutputPath() const { return LastLazOutputPath; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool WasLastLazExportAttempted() const { return bLastLazExportAttempted; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool DidLastLazExportSucceed() const { return bLastLazExportSucceeded; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool WasLastLazExportPlaceholderOnly() const { return bLastLazExportPlaceholderOnly; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool WasLastLazExternalCompressorRequested() const { return bLastLazExternalCompressorRequested; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool WasLastLazExternalCompressorAttempted() const { return bLastLazExternalCompressorAttempted; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool DidLastLazExternalCompressorSucceed() const { return bLastLazExternalCompressorSucceeded; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool DidLastLazProduceOutputFile() const { return bLastLazProducedOutputFile; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    bool WasLastLazTrueCompressionValidated() const { return bLastLazTrueCompressionValidated; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    int32 GetLastLazExportedPointCount() const { return LastLazExportedPointCount; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    int32 GetLastLazExternalCompressorReturnCode() const { return LastLazExternalCompressorReturnCode; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    int64 GetLastLazOutputSizeBytes() const { return LastLazOutputSizeBytes; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
+    FString GetLastLazExportWarningText() const { return LastLazExportWarningText; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     const TArray<FVirtualLidarPoint>& GetLastPoints() const { return LastPoints; }
 
@@ -389,6 +434,7 @@ private:
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
     bool ExportLastPointCloudLasToPath(const FString& Path) const;
+    void ResetLastLazExportStatus(const FString& StatusText = TEXT("")) const;
     bool RunExternalLazCompressor(const FString& LasSourcePath, const FString& LazOutputPath) const;
     UInstancedStaticMeshComponent* EnsurePointCloudPreviewComponent();
     void RefreshPointCloudPreview();
@@ -403,6 +449,21 @@ private:
     FString LastPerformanceWarning;
     FString LastJsonPayload;
     FVirtualLidarSlabAnalysisResult LastSlabAnalysis;
+    mutable FString LastLazExportStatusText;
+    mutable FString LastLazExportWarningText;
+    mutable FString LastLazLasSourcePath;
+    mutable FString LastLazOutputPath;
+    mutable bool bLastLazExportAttempted = false;
+    mutable bool bLastLazExportSucceeded = false;
+    mutable bool bLastLazExportPlaceholderOnly = false;
+    mutable bool bLastLazExternalCompressorRequested = false;
+    mutable bool bLastLazExternalCompressorAttempted = false;
+    mutable bool bLastLazExternalCompressorSucceeded = false;
+    mutable bool bLastLazProducedOutputFile = false;
+    mutable bool bLastLazTrueCompressionValidated = false;
+    mutable int32 LastLazExportedPointCount = 0;
+    mutable int32 LastLazExternalCompressorReturnCode = INDEX_NONE;
+    mutable int64 LastLazOutputSizeBytes = 0;
 
     UPROPERTY(Transient)
     FVirtualSensorRuntimeStatus RuntimeStatus;

@@ -235,6 +235,19 @@ tokens are expanded to absolute, platform-native file paths. The export is
 considered successful only when the process exits cleanly and the expected
 `.laz` file exists with nonzero size.
 
+The component exposes last-export telemetry for Blueprint widgets and automation:
+`GetLastLazExportStatusText()`, `GetLastLazLasSourcePath()`,
+`GetLastLazOutputPath()`, `WasLastLazExportAttempted()`,
+`DidLastLazExportSucceed()`, `WasLastLazExportPlaceholderOnly()`,
+`WasLastLazExternalCompressorRequested()`,
+`WasLastLazExternalCompressorAttempted()`,
+`DidLastLazExternalCompressorSucceed()`, `DidLastLazProduceOutputFile()`,
+`WasLastLazTrueCompressionValidated()`, `GetLastLazExportedPointCount()`,
+`GetLastLazExternalCompressorReturnCode()`, `GetLastLazOutputSizeBytes()`, and
+`GetLastLazExportWarningText()`. This telemetry reports the runtime export state
+only; it is not readable-LAZ acceptance evidence until a produced `.laz` is
+validated by a known reader and accepted by the project owner.
+
 LAZ export states:
 
 - Disabled compressor: writes `*_laz_source_*.las`, logs the placeholder warning,

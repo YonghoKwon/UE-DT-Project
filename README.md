@@ -430,6 +430,14 @@ The evidence draft separates `CompressorSelection`, `ProducedLazEvidence`,
 `OwnerAcceptance`, so placeholder or copy-surrogate output cannot be mistaken
 for accepted LAZ compression.
 
+The LiDAR component also exposes last LAZ export telemetry for widgets and
+automation: status text, LAS source path, LAZ output path, placeholder-only,
+export attempt/success, external-compressor requested/attempted/succeeded,
+produced-output, true-validation, exported point count, return code, output
+size, and warning fields. These fields describe the most recent export attempt
+only; readable `.laz` acceptance still requires a produced file, known-reader
+validation, and owner acceptance.
+
 로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell

@@ -400,6 +400,20 @@ bool FLidarLazPlaceholderExportTest::RunTest(const FString& Parameters)
     IFileManager::Get().MakeDirectory(*Directory, true);
 
     TestTrue(TEXT("LAZ placeholder export succeeds by writing LAS source"), LidarComp->ExportLastPointCloudLaz(Prefix));
+    TestTrue(TEXT("LAZ placeholder telemetry records export attempt"), LidarComp->WasLastLazExportAttempted());
+    TestTrue(TEXT("LAZ placeholder telemetry records export success"), LidarComp->DidLastLazExportSucceed());
+    TestTrue(TEXT("LAZ placeholder telemetry marks placeholder-only"), LidarComp->WasLastLazExportPlaceholderOnly());
+    TestFalse(TEXT("LAZ placeholder telemetry does not request compressor"), LidarComp->WasLastLazExternalCompressorRequested());
+    TestFalse(TEXT("LAZ placeholder telemetry does not attempt compressor"), LidarComp->WasLastLazExternalCompressorAttempted());
+    TestFalse(TEXT("LAZ placeholder telemetry compressor did not succeed"), LidarComp->DidLastLazExternalCompressorSucceed());
+    TestFalse(TEXT("LAZ placeholder telemetry produces no laz output"), LidarComp->DidLastLazProduceOutputFile());
+    TestFalse(TEXT("LAZ placeholder telemetry is not true LAZ validated"), LidarComp->WasLastLazTrueCompressionValidated());
+    TestEqual(TEXT("LAZ placeholder telemetry records point count"), LidarComp->GetLastLazExportedPointCount(), Rows * Cols);
+    TestEqual(TEXT("LAZ placeholder telemetry return code is unset"), LidarComp->GetLastLazExternalCompressorReturnCode(), INDEX_NONE);
+    TestEqual(TEXT("LAZ placeholder telemetry output size is zero"), LidarComp->GetLastLazOutputSizeBytes(), static_cast<int64>(0));
+    TestTrue(TEXT("LAZ placeholder telemetry records warning"), LidarComp->GetLastLazExportWarningText().Contains(TEXT("LAS-compatible source")));
+    TestTrue(TEXT("LAZ placeholder telemetry records LAS source path"), LidarComp->GetLastLazLasSourcePath().Contains(TEXT("_laz_source_")) && LidarComp->GetLastLazLasSourcePath().EndsWith(TEXT(".las")));
+    TestTrue(TEXT("LAZ placeholder telemetry records status"), LidarComp->GetLastLazExportStatusText().Contains(TEXT("PlaceholderOnlyLasSource")));
 
     TArray<FString> LasSourceFiles;
     IFileManager::Get().FindFiles(LasSourceFiles, *Directory, TEXT("las"));
@@ -453,6 +467,21 @@ bool FLidarLazExternalCompressorMissingTest::RunTest(const FString& Parameters)
     IFileManager::Get().MakeDirectory(*Directory, true);
 
     TestFalse(TEXT("missing external compressor makes LAZ export fail"), LidarComp->ExportLastPointCloudLaz(Prefix));
+    TestTrue(TEXT("missing compressor telemetry records export attempt"), LidarComp->WasLastLazExportAttempted());
+    TestFalse(TEXT("missing compressor telemetry records export failure"), LidarComp->DidLastLazExportSucceed());
+    TestFalse(TEXT("missing compressor telemetry is not placeholder-only"), LidarComp->WasLastLazExportPlaceholderOnly());
+    TestTrue(TEXT("missing compressor telemetry records request"), LidarComp->WasLastLazExternalCompressorRequested());
+    TestTrue(TEXT("missing compressor telemetry records attempt"), LidarComp->WasLastLazExternalCompressorAttempted());
+    TestFalse(TEXT("missing compressor telemetry records failure"), LidarComp->DidLastLazExternalCompressorSucceed());
+    TestFalse(TEXT("missing compressor telemetry produces no laz output"), LidarComp->DidLastLazProduceOutputFile());
+    TestFalse(TEXT("missing compressor telemetry is not true LAZ validated"), LidarComp->WasLastLazTrueCompressionValidated());
+    TestTrue(TEXT("missing compressor telemetry records point count"), LidarComp->GetLastLazExportedPointCount() > 0);
+    TestEqual(TEXT("missing compressor telemetry return code is unset"), LidarComp->GetLastLazExternalCompressorReturnCode(), INDEX_NONE);
+    TestEqual(TEXT("missing compressor telemetry output size is zero"), LidarComp->GetLastLazOutputSizeBytes(), static_cast<int64>(0));
+    TestTrue(TEXT("missing compressor telemetry records warning"), LidarComp->GetLastLazExportWarningText().Contains(TEXT("missing")));
+    TestTrue(TEXT("missing compressor telemetry records LAS source path"), LidarComp->GetLastLazLasSourcePath().Contains(TEXT("_laz_source_")) && LidarComp->GetLastLazLasSourcePath().EndsWith(TEXT(".las")));
+    TestTrue(TEXT("missing compressor telemetry records output path"), LidarComp->GetLastLazOutputPath().EndsWith(TEXT(".laz")));
+    TestTrue(TEXT("missing compressor telemetry records status"), LidarComp->GetLastLazExportStatusText().Contains(TEXT("ExternalCompressorMissing")));
 
     TArray<FString> LasSourceFiles;
     IFileManager::Get().FindFiles(LasSourceFiles, *Directory, TEXT("las"));
@@ -521,6 +550,20 @@ bool FLidarLazExternalCompressorFakeWritesOutputTest::RunTest(const FString& Par
     IFileManager::Get().MakeDirectory(*Directory, true);
 
     TestTrue(TEXT("external compressor surrogate makes LAZ export succeed"), LidarComp->ExportLastPointCloudLaz(Prefix));
+    TestTrue(TEXT("external success telemetry records export attempt"), LidarComp->WasLastLazExportAttempted());
+    TestTrue(TEXT("external success telemetry records export success"), LidarComp->DidLastLazExportSucceed());
+    TestFalse(TEXT("external success telemetry is not placeholder-only"), LidarComp->WasLastLazExportPlaceholderOnly());
+    TestTrue(TEXT("external success telemetry records request"), LidarComp->WasLastLazExternalCompressorRequested());
+    TestTrue(TEXT("external success telemetry records attempt"), LidarComp->WasLastLazExternalCompressorAttempted());
+    TestTrue(TEXT("external success telemetry records success"), LidarComp->DidLastLazExternalCompressorSucceed());
+    TestTrue(TEXT("external success telemetry produces laz output"), LidarComp->DidLastLazProduceOutputFile());
+    TestFalse(TEXT("external success telemetry is not true LAZ validated"), LidarComp->WasLastLazTrueCompressionValidated());
+    TestTrue(TEXT("external success telemetry records point count"), LidarComp->GetLastLazExportedPointCount() > 0);
+    TestEqual(TEXT("external success telemetry records return code"), LidarComp->GetLastLazExternalCompressorReturnCode(), 0);
+    TestTrue(TEXT("external success telemetry records output size"), LidarComp->GetLastLazOutputSizeBytes() > 0);
+    TestTrue(TEXT("external success telemetry records source path"), LidarComp->GetLastLazLasSourcePath().Contains(TEXT("_laz_source_")) && LidarComp->GetLastLazLasSourcePath().EndsWith(TEXT(".las")));
+    TestTrue(TEXT("external success telemetry records output path"), LidarComp->GetLastLazOutputPath().EndsWith(TEXT(".laz")));
+    TestTrue(TEXT("external success telemetry records status"), LidarComp->GetLastLazExportStatusText().Contains(TEXT("ExternalCompressorSucceeded")));
 
     TArray<FString> LasSourceFiles;
     IFileManager::Get().FindFiles(LasSourceFiles, *Directory, TEXT("las"));

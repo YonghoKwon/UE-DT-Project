@@ -736,13 +736,23 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudLasToPath(const FString& Path)
 
 bool UVirtualLidarSensorComp::RunExternalLazCompressor(const FString& LasSourcePath, const FString& LazOutputPath) const
 {
+    bLastLazExternalCompressorAttempted = true;
+    bLastLazExternalCompressorSucceeded = false;
+    bLastLazExportPlaceholderOnly = false;
+    LastLazLasSourcePath = FPaths::ConvertRelativePathToFull(LasSourcePath);
+    LastLazOutputPath = FPaths::ConvertRelativePathToFull(LazOutputPath);
+
     if (!bUseExternalLazCompressor)
     {
+        LastLazExportWarningText = TEXT("ExternalCompressorDisabled");
+        LastLazExportStatusText = TEXT("ExternalCompressorDisabled");
         return false;
     }
     if (ExternalLazCompressorPath.IsEmpty() || !FPaths::FileExists(ExternalLazCompressorPath))
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor is enabled but executable is missing: %s"), *SensorId, *ExternalLazCompressorPath);
+        LastLazExportWarningText = FString::Printf(TEXT("External LAZ compressor executable is missing: %s"), *ExternalLazCompressorPath);
+        LastLazExportStatusText = FString::Printf(TEXT("ExternalCompressorMissing: %s"), *ExternalLazCompressorPath);
         return false;
     }
 
@@ -752,6 +762,8 @@ bool UVirtualLidarSensorComp::RunExternalLazCompressor(const FString& LasSourceP
     if (!Arguments.Contains(TEXT("{input}")) || !Arguments.Contains(TEXT("{output}")))
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor arguments must include both {input} and {output}: %s"), *SensorId, *Arguments);
+        LastLazExportWarningText = TEXT("External LAZ compressor arguments must include both {input} and {output}.");
+        LastLazExportStatusText = TEXT("ExternalCompressorArgumentsMissingPlaceholders");
         return false;
     }
     FString FullLasSourcePath = FPaths::ConvertRelativePathToFull(LasSourcePath);
@@ -761,6 +773,8 @@ bool UVirtualLidarSensorComp::RunExternalLazCompressor(const FString& LasSourceP
     if (FullLasSourcePath == FullLazOutputPath)
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ output path must differ from LAS source path: %s"), *SensorId, *LazOutputPath);
+        LastLazExportWarningText = TEXT("External LAZ output path must differ from LAS source path.");
+        LastLazExportStatusText = TEXT("ExternalCompressorOutputPathMatchesSource");
         return false;
     }
     Arguments.ReplaceInline(TEXT("{input}"), *FString::Printf(TEXT("\"%s\""), *FullLasSourcePath));
@@ -773,28 +787,60 @@ bool UVirtualLidarSensorComp::RunExternalLazCompressor(const FString& LasSourceP
     const bool bProcessRan = FPlatformProcess::ExecProcess(*ExternalLazCompressorPath, *Arguments, &ReturnCode, &StdOut, &StdErr);
     const bool bOutputExists = FPaths::FileExists(FullLazOutputPath);
     const int64 OutputSize = bOutputExists ? IFileManager::Get().FileSize(*FullLazOutputPath) : 0;
+    LastLazExternalCompressorReturnCode = ReturnCode;
+    LastLazOutputSizeBytes = OutputSize;
+    bLastLazProducedOutputFile = bOutputExists && OutputSize > 0;
     if (!bProcessRan || ReturnCode != 0 || !bOutputExists || OutputSize <= 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] External LAZ compressor failed. ran=%s code=%d outputExists=%s outputSize=%lld stdout=%s stderr=%s"), *SensorId, bProcessRan ? TEXT("true") : TEXT("false"), ReturnCode, bOutputExists ? TEXT("true") : TEXT("false"), OutputSize, *StdOut, *StdErr);
+        LastLazExportWarningText = FString::Printf(TEXT("External LAZ compressor failed. ran=%s code=%d outputExists=%s outputSize=%lld"),
+            bProcessRan ? TEXT("true") : TEXT("false"),
+            ReturnCode,
+            bOutputExists ? TEXT("true") : TEXT("false"),
+            OutputSize);
+        LastLazExportStatusText = FString::Printf(TEXT("ExternalCompressorFailed: ran=%s code=%d outputExists=%s outputSize=%lld"),
+            bProcessRan ? TEXT("true") : TEXT("false"),
+            ReturnCode,
+            bOutputExists ? TEXT("true") : TEXT("false"),
+            OutputSize);
         return false;
     }
 
     UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] LAZ saved: %s source=%s"), *SensorId, *FullLazOutputPath, *FullLasSourcePath);
+    bLastLazExternalCompressorSucceeded = true;
+    bLastLazProducedOutputFile = true;
+    bLastLazExportSucceeded = true;
+    LastLazOutputPath = FullLazOutputPath;
+    LastLazLasSourcePath = FullLasSourcePath;
+    LastLazExportStatusText = FString::Printf(TEXT("ExternalCompressorSucceeded: output=%s source=%s"), *FullLazOutputPath, *FullLasSourcePath);
     return true;
 }
 
 bool UVirtualLidarSensorComp::ExportLastPointCloudLaz(const FString& FileNamePrefix) const
 {
+    ResetLastLazExportStatus(TEXT("NotStarted"));
+    bLastLazExportAttempted = true;
+    bLastLazExternalCompressorRequested = bUseExternalLazCompressor;
+    TArray<const FVirtualLidarPoint*> ExportPoints;
+    CollectExportPoints(ExportPoints);
+    LastLazExportedPointCount = ExportPoints.Num();
     const FString Prefix = FileNamePrefix.IsEmpty() ? TEXT("laz_source") : FileNamePrefix + TEXT("_laz_source");
     const FString LasSourcePath = BuildExportPath(TEXT("las"), Prefix);
+    LastLazLasSourcePath = FPaths::ConvertRelativePathToFull(LasSourcePath);
     if (!ExportLastPointCloudLasToPath(LasSourcePath))
     {
+        LastLazExportWarningText = TEXT("LAS source write failed before LAZ compression could run.");
+        LastLazExportStatusText = TEXT("LasSourceWriteFailed");
         return false;
     }
 
     if (!bUseExternalLazCompressor)
     {
         UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] LAZ compression is not integrated. Writing LAS-compatible source file with prefix '%s'."), *SensorId, *Prefix);
+        bLastLazExportPlaceholderOnly = true;
+        bLastLazExportSucceeded = true;
+        LastLazExportWarningText = TEXT("LAZ compression is not integrated; wrote LAS-compatible source only.");
+        LastLazExportStatusText = FString::Printf(TEXT("PlaceholderOnlyLasSource: %s"), *LastLazLasSourcePath);
         return true;
     }
 
@@ -802,6 +848,25 @@ bool UVirtualLidarSensorComp::ExportLastPointCloudLaz(const FString& FileNamePre
     return RunExternalLazCompressor(LasSourcePath, LazOutputPath);
 }
 bool UVirtualLidarSensorComp::ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix) const { const bool A = ExportLastPointCloudCsv(FileNamePrefix); const bool B = ExportLastPointCloudLas(FileNamePrefix); const bool C = ExportLastPointCloudLaz(FileNamePrefix); return A || B || C; }
+
+void UVirtualLidarSensorComp::ResetLastLazExportStatus(const FString& StatusText) const
+{
+    LastLazExportStatusText = StatusText;
+    LastLazExportWarningText.Reset();
+    LastLazLasSourcePath.Reset();
+    LastLazOutputPath.Reset();
+    bLastLazExportAttempted = false;
+    bLastLazExportSucceeded = false;
+    bLastLazExportPlaceholderOnly = false;
+    bLastLazExternalCompressorRequested = false;
+    bLastLazExternalCompressorAttempted = false;
+    bLastLazExternalCompressorSucceeded = false;
+    bLastLazProducedOutputFile = false;
+    bLastLazTrueCompressionValidated = false;
+    LastLazExportedPointCount = 0;
+    LastLazExternalCompressorReturnCode = INDEX_NONE;
+    LastLazOutputSizeBytes = 0;
+}
 
 UInstancedStaticMeshComponent* UVirtualLidarSensorComp::EnsurePointCloudPreviewComponent()
 {
