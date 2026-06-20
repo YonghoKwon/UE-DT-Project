@@ -140,6 +140,19 @@ $manualAcceptanceSections = [PSCustomObject]@{
     }
 }
 $manualAcceptanceSectionNames = @($manualAcceptanceSections.PSObject.Properties | Select-Object -ExpandProperty Name)
+$editCapability = [PSCustomObject]@{
+    DirectBinaryPatchSupported = $false
+    EditorMediatedAssetEditRequired = $true
+    CodexCanModifyNativeBindings = $true
+    CodexCanModifyAcceptanceTooling = $true
+    RequiresPreEditHash = $true
+    RequiresBackupBeforeAssetEdit = $true
+    RequiresEditorCompileAndSaveEvidence = $true
+    RequiresPostEditHash = $true
+    RequiresPieSmokeAfterEdit = $true
+    RequiresOwnerAcceptanceBeforeStage = $true
+    Boundary = "Codex should not byte-patch WBP .uasset files. Use C++/Blueprint-callable binding changes for reusable behavior, then edit/save the binary WBP only through Unreal Editor with evidence."
+}
 
 $template = [PSCustomObject]@{
     SchemaVersion = 1
@@ -163,6 +176,7 @@ $template = [PSCustomObject]@{
     WbpSize = [string]$decisionReport.WbpSize
     AssetHashAlgorithm = "SHA256"
     AssetHash = $assetHash
+    EditCapability = $editCapability
     CurrentReviewQueue = [string]$decisionReport.Summary.ReviewQueue
     CurrentCommitReadiness = [string]$decisionReport.Summary.CommitReadiness
     CurrentEvidenceStatus = [string]$decisionReport.Summary.EvidenceStatus
@@ -283,6 +297,13 @@ $template = [PSCustomObject]@{
         ReadyToStageMonitorWbpAsset = $false
         EditorManualAcceptancePresent = $false
         MonitorWbpManualAcceptanceComplete = $false
+        WbpDirectBinaryPatchSupported = [bool]$editCapability.DirectBinaryPatchSupported
+        EditorMediatedAssetEditRequired = [bool]$editCapability.EditorMediatedAssetEditRequired
+        CodexCanModifyNativeBindings = [bool]$editCapability.CodexCanModifyNativeBindings
+        RequiresBackupBeforeAssetEdit = [bool]$editCapability.RequiresBackupBeforeAssetEdit
+        RequiresEditorCompileAndSaveEvidence = [bool]$editCapability.RequiresEditorCompileAndSaveEvidence
+        RequiresPieSmokeAfterEdit = [bool]$editCapability.RequiresPieSmokeAfterEdit
+        RequiresOwnerAcceptanceBeforeStage = [bool]$editCapability.RequiresOwnerAcceptanceBeforeStage
         DryRunOnly = $true
         ModifiesAssets = $false
         StagesWbp = $false
@@ -306,6 +327,9 @@ $lines.Add("- Monitor WBP asset stage allowed: $($template.MonitorWbpAssetStageA
 $lines.Add("- Ready to stage monitor WBP asset: $($template.ReadyToStageMonitorWbpAsset)") | Out-Null
 $lines.Add("- Editor manual acceptance present: $($template.EditorManualAcceptancePresent)") | Out-Null
 $lines.Add("- Monitor WBP manual acceptance complete: $($template.MonitorWbpManualAcceptanceComplete)") | Out-Null
+$lines.Add("- Direct binary patch supported: $($template.Summary.WbpDirectBinaryPatchSupported)") | Out-Null
+$lines.Add("- Editor-mediated asset edit required: $($template.Summary.EditorMediatedAssetEditRequired)") | Out-Null
+$lines.Add("- Codex can modify native bindings: $($template.Summary.CodexCanModifyNativeBindings)") | Out-Null
 $lines.Add("- Manual acceptance sections: $($template.Summary.ManualAcceptanceSections -join ', ')") | Out-Null
 $lines.Add("- Dry run only: $($template.DryRunOnly)") | Out-Null
 $lines.Add("- Modifies assets: $($template.ModifiesAssets)") | Out-Null
@@ -325,6 +349,10 @@ foreach ($section in $template.ManualAcceptanceSections.PSObject.Properties) {
         (Convert-ToMarkdownCell $section.Value.EvidencePath),
         (Convert-ToMarkdownCell $section.Value.Description))) | Out-Null
 }
+$lines.Add("") | Out-Null
+$lines.Add("## WBP Edit Boundary") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add($editCapability.Boundary) | Out-Null
 $lines.Add("") | Out-Null
 $lines.Add("| Evidence | Status | Required | Notes |") | Out-Null
 $lines.Add("| --- | --- | --- | --- |") | Out-Null

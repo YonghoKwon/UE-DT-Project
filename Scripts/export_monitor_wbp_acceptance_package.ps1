@@ -155,6 +155,13 @@ $manifest = [PSCustomObject]@{
         ReadyToStageMonitorWbpAsset = [bool]$validation.Summary.ReadyToStageMonitorWbpAsset
         EditorManualAcceptancePresent = [bool]$validation.Summary.EditorManualAcceptancePresent
         MonitorWbpManualAcceptanceComplete = [bool]$validation.Summary.MonitorWbpManualAcceptanceComplete
+        WbpDirectBinaryPatchSupported = [bool]$preflight.Summary.WbpDirectBinaryPatchSupported
+        EditorMediatedAssetEditRequired = [bool]$preflight.Summary.EditorMediatedAssetEditRequired
+        CodexCanModifyNativeBindings = [bool]$preflight.Summary.CodexCanModifyNativeBindings
+        RequiresBackupBeforeAssetEdit = [bool]$preflight.Summary.RequiresBackupBeforeAssetEdit
+        RequiresEditorCompileAndSaveEvidence = [bool]$preflight.Summary.RequiresEditorCompileAndSaveEvidence
+        RequiresPieSmokeAfterEdit = [bool]$preflight.Summary.RequiresPieSmokeAfterEdit
+        RequiresOwnerAcceptanceBeforeStage = [bool]$preflight.Summary.RequiresOwnerAcceptanceBeforeStage
         ManualAcceptanceSectionCount = [int]$validation.Summary.ManualAcceptanceSectionCount
         AcceptedManualAcceptanceSectionCount = [int]$validation.Summary.AcceptedManualAcceptanceSectionCount
         ManualAcceptanceSections = @($validation.Summary.ManualAcceptanceSections)
@@ -189,6 +196,10 @@ $lines.Add("- Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAss
 $lines.Add("- Ready to stage monitor WBP asset: $($manifest.Summary.ReadyToStageMonitorWbpAsset)") | Out-Null
 $lines.Add("- Editor manual acceptance present: $($manifest.Summary.EditorManualAcceptancePresent)") | Out-Null
 $lines.Add("- Monitor WBP manual acceptance complete: $($manifest.Summary.MonitorWbpManualAcceptanceComplete)") | Out-Null
+$lines.Add("- Direct binary patch supported: $($manifest.Summary.WbpDirectBinaryPatchSupported)") | Out-Null
+$lines.Add("- Editor-mediated asset edit required: $($manifest.Summary.EditorMediatedAssetEditRequired)") | Out-Null
+$lines.Add("- Codex can modify native bindings: $($manifest.Summary.CodexCanModifyNativeBindings)") | Out-Null
+$lines.Add("- Requires backup before asset edit: $($manifest.Summary.RequiresBackupBeforeAssetEdit)") | Out-Null
 $lines.Add("- Manual acceptance sections: $($manifest.Summary.ManualAcceptanceSections -join ', ')") | Out-Null
 $lines.Add("- Accepted manual acceptance sections: $($manifest.Summary.AcceptedManualAcceptanceSectionCount)/$($manifest.Summary.ManualAcceptanceSectionCount)") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null

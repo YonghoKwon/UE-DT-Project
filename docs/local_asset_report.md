@@ -343,6 +343,11 @@ state, setup-document contract, acceptance-template availability, missing
 evidence count, and post-archive context before manual Editor/PIE review starts.
 Preflight readiness is not WBP acceptance and does not permit staging the binary
 asset.
+The preflight report also records the edit boundary: direct binary patching is
+not supported, Editor-mediated asset edits are required, and Codex should prefer
+native C++/Blueprint-callable binding changes before any Designer asset edit.
+If the WBP asset is edited, record pre-edit hash/backup, compile/save evidence,
+post-edit hash, PIE smoke, and owner acceptance before staging.
 The WBP acceptance package exporter writes a local
 `Saved/Reports/MonitorWbpAcceptance` bundle with the preflight report, decision
 report, fillable evidence JSON/Markdown, validation JSON, manual steps, and

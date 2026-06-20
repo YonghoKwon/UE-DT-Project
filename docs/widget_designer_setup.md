@@ -172,6 +172,10 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_accepta
 This check keeps optional C++ bindings, native fallback behavior, local binary
 WBP decision guards, setup documentation, and automation test names aligned
 before `WBP_VirtualSensorMonitor.uasset` is committed.
+Codex should not directly patch the binary WBP asset. Add reusable monitor
+behavior through native C++ or Blueprint-callable bindings first, then use
+Unreal Editor for Designer/layout edits with backup, hash, compile/save, PIE,
+and owner-acceptance evidence.
 The focused WBP decision report shows the current `ReviewQueue`,
 `CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`, and manual
 acceptance checklist. Use `-EvidencePath` and `-FailOnIncompleteEvidence` only

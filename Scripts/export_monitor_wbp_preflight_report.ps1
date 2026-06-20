@@ -174,6 +174,20 @@ $recommendedManualCommands = @(
     "Fill Scripts/export_monitor_wbp_acceptance_template.ps1 output with editor-open, binding, PIE, and owner acceptance evidence before staging the WBP."
 )
 
+$editCapability = [PSCustomObject]@{
+    DirectBinaryPatchSupported = $false
+    EditorMediatedAssetEditRequired = $true
+    CodexCanModifyNativeBindings = $true
+    CodexCanModifyAcceptanceTooling = $true
+    RequiresPreEditHash = $true
+    RequiresBackupBeforeAssetEdit = $true
+    RequiresEditorCompileAndSaveEvidence = $true
+    RequiresPostEditHash = $true
+    RequiresPieSmokeAfterEdit = $true
+    RequiresOwnerAcceptanceBeforeStage = $true
+    Boundary = "Do not patch WBP .uasset bytes directly. Make reusable UI behavior in C++/Blueprint-callable bindings first, then edit/save the WBP only through Unreal Editor with hash, backup, compile, PIE, and owner evidence."
+}
+
 $report = [PSCustomObject]@{
     SchemaVersion = 1
     GeneratedAt = (Get-Date).ToString("s")
@@ -196,6 +210,7 @@ $report = [PSCustomObject]@{
     ArchiveEvidenceSummary = if ($archiveEvidence) { $archiveEvidence.Summary } else { $null }
     PreflightChecks = $preflightChecks
     RecommendedManualCommands = $recommendedManualCommands
+    EditCapability = $editCapability
     Summary = [PSCustomObject]@{
         WbpPresent = $wbpPresent
         WbpUntracked = ($untrackedLines.Count -gt 0)
@@ -212,6 +227,13 @@ $report = [PSCustomObject]@{
         PreflightCheckCount = $preflightChecks.Count
         BlockedPreflightCheckCount = $blockedCount
         ReadyForManualEditorReview = $readyForManualEditorReview
+        WbpDirectBinaryPatchSupported = [bool]$editCapability.DirectBinaryPatchSupported
+        EditorMediatedAssetEditRequired = [bool]$editCapability.EditorMediatedAssetEditRequired
+        CodexCanModifyNativeBindings = [bool]$editCapability.CodexCanModifyNativeBindings
+        RequiresBackupBeforeAssetEdit = [bool]$editCapability.RequiresBackupBeforeAssetEdit
+        RequiresEditorCompileAndSaveEvidence = [bool]$editCapability.RequiresEditorCompileAndSaveEvidence
+        RequiresPieSmokeAfterEdit = [bool]$editCapability.RequiresPieSmokeAfterEdit
+        RequiresOwnerAcceptanceBeforeStage = [bool]$editCapability.RequiresOwnerAcceptanceBeforeStage
         ModifiesAssets = $false
         StagesWbp = $false
         Boundary = "WBP preflight is read-only. It prepares manual editor/PIE evidence collection; it is not WBP acceptance and does not permit staging the binary asset."
@@ -231,6 +253,10 @@ $lines.Add("- Setup doc complete: $($report.Summary.SetupDocContractComplete)") 
 $lines.Add("- Decision ready to stage: $($report.Summary.DecisionReadyToStage)") | Out-Null
 $lines.Add("- Decision missing evidence count: $($report.Summary.DecisionMissingEvidenceCount)") | Out-Null
 $lines.Add("- Ready for manual editor review: $($report.Summary.ReadyForManualEditorReview)") | Out-Null
+$lines.Add("- Direct binary patch supported: $($report.Summary.WbpDirectBinaryPatchSupported)") | Out-Null
+$lines.Add("- Editor-mediated asset edit required: $($report.Summary.EditorMediatedAssetEditRequired)") | Out-Null
+$lines.Add("- Codex can modify native bindings: $($report.Summary.CodexCanModifyNativeBindings)") | Out-Null
+$lines.Add("- Requires backup before asset edit: $($report.Summary.RequiresBackupBeforeAssetEdit)") | Out-Null
 $lines.Add("- Modifies assets: $($report.Summary.ModifiesAssets)") | Out-Null
 $lines.Add("- Stages WBP: $($report.Summary.StagesWbp)") | Out-Null
 $lines.Add("") | Out-Null
@@ -244,6 +270,10 @@ foreach ($check in $preflightChecks) {
         (Convert-ToMarkdownCell $check.Status),
         (Convert-ToMarkdownCell $check.Evidence))) | Out-Null
 }
+$lines.Add("") | Out-Null
+$lines.Add("## Edit Capability") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add($editCapability.Boundary) | Out-Null
 
 if (-not [string]::IsNullOrWhiteSpace($MarkdownPath)) {
     Write-TextFile -Path $MarkdownPath -Lines $lines

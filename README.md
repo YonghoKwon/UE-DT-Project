@@ -334,6 +334,11 @@ The local `WBP_VirtualSensorMonitor.uasset` can exist as an untracked review
 candidate while `ReadyToStageMonitorWbpAsset` remains false. Do not stage it
 until editor-open, widget-binding, PIE-smoke, no-crash, and owner-acceptance
 evidence sections are complete.
+Codex can safely update native C++/Blueprint-callable monitor bindings and the
+acceptance tooling, but should not byte-patch the binary `.uasset` directly.
+Actual WBP layout/Designer changes must be made through Unreal Editor with a
+pre-edit hash/backup, compile/save evidence, post-edit hash, PIE smoke, and
+owner acceptance before the asset is staged.
 
 Judging-server acceptance package:
 
@@ -442,5 +447,8 @@ docs/remaining_work.md
   현재 CPU fallback/GPU smoke evidence boundary는 다음 패키지로 로컬에 export할 수 있습니다:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
 - 실제 map에서의 PIE smoke test와 WBP Designer 배치 검증은 별도 editor 작업이 필요합니다.
+- `WBP_VirtualSensorMonitor.uasset`의 실제 레이아웃 수정은 Unreal Editor를
+  통해서만 진행합니다. 코드/바인딩/API는 Codex가 수정 가능하지만 `.uasset`
+  바이너리 직접 패치는 금지합니다.
 
 남은 구현/에셋 결정/완료 판정 기준은 `docs/remaining_work.md`에서 추적합니다.

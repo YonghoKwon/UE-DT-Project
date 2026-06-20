@@ -845,12 +845,19 @@ Current state:
   fillable evidence, validation, manual steps, and strict follow-up commands.
   This package is still not WBP acceptance; it only reduces the manual Editor
   evidence collection gap.
+- Codex can safely modify native `UVirtualSensorMonitorWidget` bindings,
+  Blueprint-callable APIs, host actor behavior, and the WBP acceptance tooling.
+  It must not byte-patch `WBP_VirtualSensorMonitor.uasset` directly. Actual WBP
+  Designer/layout edits require Unreal Editor, pre-edit hash/backup, compile and
+  save evidence, post-edit hash, PIE smoke, and owner acceptance before staging.
 
 Next implementation steps:
 
 - Export the WBP acceptance package before the manual Editor pass:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."`.
 - Open the WBP in Unreal Editor and verify optional bindings.
+- If the WBP layout must change, perform the edit through Unreal Editor only;
+  do not manually patch the binary `.uasset`.
 - Confirm camera/LiDAR switching, preview budget controls, hit-only toggle,
   server payload export, and slab analysis text.
 - Export the focused WBP decision report with `-EvidencePath` after filling
