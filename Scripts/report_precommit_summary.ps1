@@ -831,8 +831,8 @@ $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 $workAreas = @(
     (New-WorkArea `
         -Name "Virtual sensor baseline" `
-        -Percent 88 `
-        -Done "LiDAR/camera payload, replay, preserved LiDAR grid coords, slab analysis, monitor fallback, monitor camera capture pending-state guards, monitor policy validation, smoke/readiness scripts are implemented." `
+        -Percent 89 `
+        -Done "LiDAR/camera payload, replay, preserved LiDAR grid coords, slab analysis, monitor fallback, monitor camera capture pending-state guards, monitor policy validation, smoke/readiness scripts, and Designer-facing WBP status getters for selected sensor, frame, measurements, server payload, preview policy, slab analysis, warnings, and view mode are implemented." `
         -Remaining "Full editor PIE validation and production map/WBP verification remain."),
     (New-WorkArea `
         -Name "Server payload contract" `

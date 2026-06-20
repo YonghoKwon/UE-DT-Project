@@ -25,6 +25,45 @@ struct FVirtualSensorPendingCameraReadback
     int32 Height = 0;
 };
 
+USTRUCT(BlueprintType)
+struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    bool bShowingLidar = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString TitleText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString SelectedSensorText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString FrameText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString MeasurementText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString ServerPayloadText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString PreviewText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString SlabText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString WarningText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString ViewModeText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString FullStatusText;
+};
+
 UCLASS()
 class M7AT10_DT_API UVirtualSensorMonitorWidget : public UUserWidget
 {
@@ -84,6 +123,33 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetMonitorStatusText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FVirtualSensorMonitorDisplayData GetMonitorDisplayData() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetSelectedSensorIdText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetFrameSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetMeasurementSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetServerPayloadSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetPreviewPolicySummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetSlabAnalysisSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetTransportWarningText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetViewModeSummaryText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     const FString& GetLastManualExportPath() const { return LastManualExportPath; }

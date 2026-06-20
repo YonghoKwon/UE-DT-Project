@@ -230,6 +230,150 @@ FString UVirtualSensorMonitorWidget::GetMonitorStatusText() const
     return BuildStatusText();
 }
 
+FVirtualSensorMonitorDisplayData UVirtualSensorMonitorWidget::GetMonitorDisplayData() const
+{
+    FVirtualSensorMonitorDisplayData Data;
+    Data.bShowingLidar = bShowingLidar;
+    Data.TitleText = GetMonitorTitleText();
+    Data.SelectedSensorText = GetSelectedSensorIdText();
+    Data.FrameText = GetFrameSummaryText();
+    Data.MeasurementText = GetMeasurementSummaryText();
+    Data.ServerPayloadText = GetServerPayloadSummaryText();
+    Data.PreviewText = GetPreviewPolicySummaryText();
+    Data.SlabText = GetSlabAnalysisSummaryText();
+    Data.WarningText = GetTransportWarningText();
+    Data.ViewModeText = GetViewModeSummaryText();
+    Data.FullStatusText = GetMonitorStatusText();
+    return Data;
+}
+
+FString UVirtualSensorMonitorWidget::GetSelectedSensorIdText() const
+{
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("Sensor: %s"), *Status.SensorId);
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        const FString DisplaySensorId = Status.SensorId.IsEmpty() ? CameraComp->SensorId : Status.SensorId;
+        return FString::Printf(TEXT("Sensor: %s"), *DisplaySensorId);
+    }
+    return bShowingLidar ? TEXT("Sensor: LIDAR not bound") : TEXT("Sensor: Camera not bound");
+}
+
+FString UVirtualSensorMonitorWidget::GetFrameSummaryText() const
+{
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("Frame: %lld | Scan: %.3fs"), Status.FrameId, LidarComp->ScanInterval);
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("Frame: %lld | Interval: %.3fs"), Status.FrameId, CameraComp->CaptureInterval);
+    }
+    return TEXT("Frame: unavailable");
+}
+
+FString UVirtualSensorMonitorWidget::GetMeasurementSummaryText() const
+{
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("Rays: %d | Points/Hits: %d/%d"),
+            LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
+            Status.TotalPointCount,
+            Status.HitPointCount);
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        return FString::Printf(TEXT("Resolution: %dx%d"), CameraComp->CaptureResolution.X, CameraComp->CaptureResolution.Y);
+    }
+    return TEXT("Measurements: unavailable");
+}
+
+FString UVirtualSensorMonitorWidget::GetServerPayloadSummaryText() const
+{
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("Server Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s"),
+            Status.ServerPayloadPointCount,
+            Status.LastPayloadLength,
+            LidarComp->ServerPayloadStride,
+            LidarComp->MaxServerPayloadPoints,
+            LidarComp->bIncludeMissPointsInServerPayload ? TEXT("true") : TEXT("false"));
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("Payload: Bytes=%d Cached=%s"),
+            Status.LastPayloadLength,
+            CameraComp->GetLastJsonPayload().IsEmpty() ? TEXT("false") : TEXT("true"));
+    }
+    return TEXT("Server Payload: unavailable");
+}
+
+FString UVirtualSensorMonitorWidget::GetPreviewPolicySummaryText() const
+{
+    const UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+    if (!TargetLidar)
+    {
+        return TEXT("Preview: unavailable");
+    }
+
+    const FVirtualSensorRuntimeStatus& Status = TargetLidar->GetRuntimeStatus();
+    return FString::Printf(TEXT("Preview: %s Points=%d Stride=%d Max=%d HitOnly=%s"),
+        TargetLidar->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
+        Status.PreviewPointCount,
+        TargetLidar->PreviewPointStride,
+        TargetLidar->MaxPreviewPoints,
+        TargetLidar->bPointCloudPreviewHitOnly ? TEXT("true") : TEXT("false"));
+}
+
+FString UVirtualSensorMonitorWidget::GetSlabAnalysisSummaryText() const
+{
+    if (!LidarComp)
+    {
+        return TEXT("Slab: unavailable");
+    }
+
+    const FVirtualLidarSlabAnalysisResult& Slab = LidarComp->GetRuntimeStatus().SlabAnalysis;
+    return FString::Printf(TEXT("Slab: %s Points=%d Angle=%.2f Dev=%.2f Conf=%.2f"),
+        Slab.bValid ? TEXT("Valid") : *Slab.StatusMessage,
+        Slab.SlabHitPointCount,
+        Slab.EstimatedYawDegrees,
+        Slab.AngleDeviationDegrees,
+        Slab.Confidence);
+}
+
+FString UVirtualSensorMonitorWidget::GetTransportWarningText() const
+{
+    if (bShowingLidar && LidarComp)
+    {
+        const FString& Warning = LidarComp->GetRuntimeStatus().PerformanceWarning;
+        return FString::Printf(TEXT("Transport/Warning: %s"), Warning.IsEmpty() ? TEXT("None") : *Warning);
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        const FString& Message = CameraComp->GetRuntimeStatus().LastMessage;
+        return FString::Printf(TEXT("Transport/Warning: %s"), Message.IsEmpty() ? TEXT("None") : *Message);
+    }
+    return TEXT("Transport/Warning: unavailable");
+}
+
+FString UVirtualSensorMonitorWidget::GetViewModeSummaryText() const
+{
+    if (bShowingLidar)
+    {
+        return FString::Printf(TEXT("LiDAR View: %s"), *GetLidarViewModeDisplayText());
+    }
+    return TEXT("Camera View: Render Target");
+}
+
 TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
 {
     if (!ShouldUseNativeFallbackWidget())

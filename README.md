@@ -339,6 +339,10 @@ acceptance tooling, but should not byte-patch the binary `.uasset` directly.
 Actual WBP layout/Designer changes must be made through Unreal Editor with a
 pre-edit hash/backup, compile/save evidence, post-edit hash, PIE smoke, and
 owner acceptance before the asset is staged.
+For WBP layout work, bind individual TextBlocks to the native summary getters
+such as `GetSelectedSensorIdText`, `GetFrameSummaryText`,
+`GetServerPayloadSummaryText`, `GetPreviewPolicySummaryText`, and
+`GetSlabAnalysisSummaryText` instead of parsing the full debug status text.
 
 Judging-server acceptance package:
 

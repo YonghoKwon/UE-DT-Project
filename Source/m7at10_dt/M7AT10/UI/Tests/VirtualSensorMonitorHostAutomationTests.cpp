@@ -65,6 +65,15 @@ bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameter
     TestTrue(TEXT("camera status includes capture mode"), StatusText.Contains(TEXT("Capture: Mode=")));
     TestTrue(TEXT("camera status includes cached payload flag"), StatusText.Contains(TEXT("Cached=false")));
     TestTrue(TEXT("camera status includes export path hint"), StatusText.Contains(TEXT("ServerPayload")));
+    TestTrue(TEXT("camera selected sensor getter exposes sensor id"), MonitorWidget->GetSelectedSensorIdText().Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
+    TestTrue(TEXT("camera frame summary getter exposes frame"), MonitorWidget->GetFrameSummaryText().Contains(TEXT("Frame:")));
+    TestTrue(TEXT("camera measurement getter exposes resolution"), MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Resolution: 800x450")));
+    TestTrue(TEXT("camera payload getter exposes cached flag"), MonitorWidget->GetServerPayloadSummaryText().Contains(TEXT("Cached=false")));
+    TestTrue(TEXT("camera view mode getter exposes render target"), MonitorWidget->GetViewModeSummaryText().Contains(TEXT("Camera View")));
+    const FVirtualSensorMonitorDisplayData CameraDisplayData = MonitorWidget->GetMonitorDisplayData();
+    TestFalse(TEXT("camera display data marks camera mode"), CameraDisplayData.bShowingLidar);
+    TestTrue(TEXT("camera display data exposes sensor"), CameraDisplayData.SelectedSensorText.Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
+    TestTrue(TEXT("camera display data exposes payload"), CameraDisplayData.ServerPayloadText.Contains(TEXT("Cached=false")));
     return true;
 }
 
@@ -118,11 +127,25 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
     TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,returnIndex,x,y,z")));
+    TestTrue(TEXT("lidar selected sensor getter exposes sensor id"), MonitorWidget->GetSelectedSensorIdText().Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
+    TestTrue(TEXT("lidar frame summary getter exposes scan interval"), MonitorWidget->GetFrameSummaryText().Contains(TEXT("Scan: 0.125s")));
+    TestTrue(TEXT("lidar measurement getter exposes rays and hits"), MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Rays: 24")) && MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Points/Hits: 24/24")));
+    TestTrue(TEXT("lidar payload getter exposes server policy"), MonitorWidget->GetServerPayloadSummaryText().Contains(TEXT("Points=8")) && MonitorWidget->GetServerPayloadSummaryText().Contains(TEXT("Stride=2 Max=8")));
+    TestTrue(TEXT("lidar preview getter exposes preview policy"), MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("Points=5")) && MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("HitOnly=true")));
+    TestTrue(TEXT("lidar slab getter exposes slab analysis"), MonitorWidget->GetSlabAnalysisSummaryText().Contains(TEXT("Slab: Valid")) && MonitorWidget->GetSlabAnalysisSummaryText().Contains(TEXT("Points=24")));
+    TestTrue(TEXT("lidar warning getter exposes warning row"), MonitorWidget->GetTransportWarningText().Contains(TEXT("Transport/Warning:")));
+    TestTrue(TEXT("lidar view getter exposes view mode"), MonitorWidget->GetViewModeSummaryText().Contains(TEXT("LiDAR View:")));
+    const FVirtualSensorMonitorDisplayData LidarDisplayData = MonitorWidget->GetMonitorDisplayData();
+    TestTrue(TEXT("lidar display data marks lidar mode"), LidarDisplayData.bShowingLidar);
+    TestTrue(TEXT("lidar display data exposes sensor"), LidarDisplayData.SelectedSensorText.Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
+    TestTrue(TEXT("lidar display data exposes payload"), LidarDisplayData.ServerPayloadText.Contains(TEXT("Points=8")));
+    TestTrue(TEXT("lidar display data exposes slab"), LidarDisplayData.SlabText.Contains(TEXT("Slab: Valid")));
 
     MonitorWidget->ToggleLidarPreviewHitOnly();
     const FString ToggledStatusText = MonitorWidget->GetMonitorStatusText();
     TestFalse(TEXT("preview hit-only toggles off"), LidarComp->bPointCloudPreviewHitOnly);
     TestTrue(TEXT("status reflects preview hit-only toggle"), ToggledStatusText.Contains(TEXT("Preview: On")) && ToggledStatusText.Contains(TEXT("Stride=3 Max=5 HitOnly=false")));
+    TestTrue(TEXT("preview getter reflects hit-only toggle"), MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("HitOnly=false")));
     TestEqual(TEXT("server payload stride unchanged after preview hit-only toggle"), LidarComp->ServerPayloadStride, 2);
     TestEqual(TEXT("server payload max unchanged after preview hit-only toggle"), LidarComp->MaxServerPayloadPoints, 8);
     return true;
