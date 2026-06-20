@@ -118,6 +118,11 @@ The checklist now lists the required DisplayData rows, including
 and `HasBoundLidar`, manual export message evidence from
 `GetLastManualExportMessage`, evidence-file completion, and post-edit strict
 validation.
+After an Unreal Editor save, `export_monitor_wbp_post_edit_hash_report.ps1`
+writes `Saved/Reports/MonitorWbpPostEdit` hash evidence for the current WBP,
+compares it with the pre-edit review hash/backup when available, and outputs the
+`AssetHash`, `PostEditAssetHash`, and `PostEditHashReportPath` fields that must
+be copied into the acceptance evidence before the binary WBP can be staged.
 The monitor WBP acceptance template and validator derive optional widget names
 from `VirtualSensorMonitorWidget.h` `BindWidgetOptional` properties rather than
 from a separate hard-coded checklist. This prevents stale evidence names from
@@ -373,7 +378,7 @@ The preflight report also records the edit boundary: direct binary patching is
 not supported, Editor-mediated asset edits are required, and Codex should prefer
 native C++/Blueprint-callable binding changes before any Designer asset edit.
 If the WBP asset is edited, record pre-edit hash/backup, compile/save evidence,
-post-edit hash, PIE smoke, and owner acceptance before staging.
+post-edit hash report, PIE smoke, and owner acceptance before staging.
 The WBP acceptance package exporter writes a local
 `Saved/Reports/MonitorWbpAcceptance` bundle with the preflight report, decision
 report, fillable evidence JSON/Markdown, validation JSON, manual steps, and

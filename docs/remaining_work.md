@@ -218,6 +218,11 @@ Open decisions:
   hash, Git state, setup-document contract, acceptance-template availability,
   missing evidence count, and post-archive context. Preflight readiness is not
   WBP acceptance and does not permit staging the binary asset.
+- `Scripts/export_monitor_wbp_post_edit_hash_report.ps1` records post-edit WBP
+  SHA256 evidence after the asset is saved through Unreal Editor. It writes only
+  under `Saved/Reports/MonitorWbpPostEdit`, compares the current hash with the
+  pre-edit review/backup when available, and provides the exact hash fields to
+  copy into the acceptance evidence before strict validation.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   and preflight section with WBP Git state, review queue, missing evidence
   count, missing acceptance items, setup-doc contract status, preflight blocked
@@ -884,6 +889,9 @@ Next implementation steps:
 - Open the WBP in Unreal Editor and verify optional bindings.
 - If the WBP layout must change, perform the edit through Unreal Editor only;
   do not manually patch the binary `.uasset`.
+- After saving the WBP in Unreal Editor, export post-edit hash evidence with
+  `Scripts/export_monitor_wbp_post_edit_hash_report.ps1` and copy the reported
+  hash fields into `monitor_wbp_acceptance.evidence.json`.
 - Confirm camera/LiDAR switching, preview budget controls, hit-only toggle,
   server payload export, and slab analysis text.
 - Export the focused WBP decision report with `-EvidencePath` after filling

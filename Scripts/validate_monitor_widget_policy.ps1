@@ -52,7 +52,8 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor WBP preflight report"; Path = "Scripts\export_monitor_wbp_preflight_report.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance evidence validator"; Path = "Scripts\validate_monitor_wbp_acceptance_evidence.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance package exporter"; Path = "Scripts\export_monitor_wbp_acceptance_package.ps1" },
-    [PSCustomObject]@{ Label = "Monitor WBP editor review prep"; Path = "Scripts\prepare_monitor_wbp_editor_review.ps1" }
+    [PSCustomObject]@{ Label = "Monitor WBP editor review prep"; Path = "Scripts\prepare_monitor_wbp_editor_review.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP post-edit hash report"; Path = "Scripts\export_monitor_wbp_post_edit_hash_report.ps1" }
 )
 
 foreach ($file in $requiredFiles) {
@@ -74,6 +75,7 @@ $monitorWbpPreflightScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_
 $monitorWbpEvidenceValidatorScript = Join-Path $ProjectRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"
 $monitorWbpAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"
 $monitorWbpEditorReviewPrepScript = Join-Path $ProjectRoot "Scripts\prepare_monitor_wbp_editor_review.ps1"
+$monitorWbpPostEditHashReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $widgetHeader; Pattern = "BindWidgetOptional"; Label = "Widget uses optional bindings" },
@@ -166,6 +168,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "IsShowingLidar/HasBoundCamera/HasBoundLidar"; Label = "WBP acceptance template records state helper smoke check" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "GetLastManualExportMessage is recorded"; Label = "WBP acceptance template records manual export message smoke check" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "Production WBP acceptance"; Label = "WBP acceptance template includes owner acceptance evidence" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "PostEditHashReportPath"; Label = "WBP acceptance template records post-edit hash report path" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "PostEditAssetHash"; Label = "WBP acceptance template records post-edit asset hash" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "ManualAcceptanceSections"; Label = "WBP acceptance template exports manual acceptance sections" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "EditorOpenEvidence"; Label = "WBP acceptance template includes editor-open section" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptanceTemplateScript; Pattern = "LidarStatusPanelEvidence"; Label = "WBP acceptance template includes LiDAR status panel section" },
@@ -201,6 +205,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "EditorLogPath"; Label = "WBP evidence validator checks editor log path" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ScreenshotPath"; Label = "WBP evidence validator checks screenshot paths" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ExportedPayloadPath"; Label = "WBP evidence validator checks exported payload path" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "Post-edit hash report path exists"; Label = "WBP evidence validator requires post-edit hash report" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "Post-edit hash report matches current WBP hash"; Label = "WBP evidence validator matches post-edit hash to current asset" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ReadyForEvidenceCopy"; Label = "WBP evidence validator requires post-edit report readiness" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "BackupHashStillMatches"; Label = "WBP evidence validator checks post-edit backup hash state" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "Post-edit hash report is under Saved"; Label = "WBP evidence validator keeps post-edit report under Saved" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "DryRunOnly = `$true"; Label = "WBP evidence validator declares dry-run behavior" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "StagesWbp = `$false"; Label = "WBP evidence validator declares no staging" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceValidatorScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP evidence validator declares no asset modification" },
@@ -216,6 +225,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "WbpDirectBinaryPatchSupported"; Label = "WBP acceptance package exposes direct patch boundary" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "EditorMediatedAssetEditRequired"; Label = "WBP acceptance package exposes editor-mediated edit requirement" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "CodexCanModifyNativeBindings"; Label = "WBP acceptance package exposes native binding edit path" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "export_monitor_wbp_post_edit_hash_report.ps1"; Label = "WBP acceptance package links post-edit hash report" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "RequiresPostEditHashReport"; Label = "WBP acceptance package exposes post-edit hash requirement" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "WBP acceptance package declares no staging" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP acceptance package declares no asset modification" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "never modifies assets, never stages files"; Label = "WBP acceptance package preserves manual acceptance boundary" },
@@ -228,13 +239,25 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "GetLastManualExportMessage"; Label = "WBP editor review prep requires manual export message check" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "RequiresEvidenceFileCompletion"; Label = "WBP editor review prep requires evidence file completion" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "RequiresPostEditStrictValidation"; Label = "WBP editor review prep requires post-edit strict validation" },
+    [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "RequiresPostEditHashReport"; Label = "WBP editor review prep requires post-edit hash report" },
+    [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "export_monitor_wbp_post_edit_hash_report.ps1"; Label = "WBP editor review prep links post-edit hash report" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "export_monitor_wbp_acceptance_package.ps1"; Label = "WBP editor review prep creates acceptance package" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP editor review prep declares no asset edits" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "StagesWbp = `$false"; Label = "WBP editor review prep declares no WBP staging" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "WritesSavedOnly"; Label = "WBP editor review prep is Saved-only" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "Saved\Reports\MonitorWbpPostEdit"; Label = "WBP post-edit hash report writes under Saved" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "OutputRoot must be under ProjectRoot\\Saved"; Label = "WBP post-edit hash report rejects non-Saved output roots" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "CurrentAssetHash"; Label = "WBP post-edit hash report records current hash" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "PreEditAssetHash"; Label = "WBP post-edit hash report records pre-edit hash" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "ManualEvidenceFieldsToCopy"; Label = "WBP post-edit hash report exports evidence copy fields" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP post-edit hash report declares no asset edits" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "StagesWbp = `$false"; Label = "WBP post-edit hash report declares no WBP staging" },
+    [PSCustomObject]@{ Path = $monitorWbpPostEditHashReportScript; Pattern = "ReadyToStageMonitorWbpAsset = `$false"; Label = "WBP post-edit hash report is evidence only" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpDecisionSummary"; Label = "Pre-commit summary exports WBP decision summary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpPreflightSummary"; Label = "Pre-commit summary exports WBP preflight summary" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpAcceptanceEvidenceSummary"; Label = "Pre-commit summary exports WBP acceptance evidence summary" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "WbpAcceptanceEvidencePath"; Label = "Pre-commit summary accepts WBP Saved evidence path" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"; Label = "Pre-commit summary defaults to Saved WBP evidence" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MissingAcceptanceItems"; Label = "Pre-commit summary lists missing WBP acceptance items" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "UnexpectedWbpStaged"; Label = "Pre-commit summary flags unexpectedly staged WBP" },
     [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"); Pattern = "MustRemainUntracked"; Label = "Pre-commit summary marks WBP that must remain untracked" },
@@ -248,7 +271,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_acceptance_template.ps1"; Label = "Local asset doc documents WBP acceptance template" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_acceptance_package.ps1"; Label = "Local asset doc documents WBP acceptance package" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "prepare_monitor_wbp_editor_review.ps1"; Label = "Local asset doc documents WBP editor review prep" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "export_monitor_wbp_post_edit_hash_report.ps1"; Label = "Local asset doc documents post-edit hash report" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "prepare_monitor_wbp_editor_review.ps1"; Label = "Setup doc documents WBP editor review prep" },
+    [PSCustomObject]@{ Path = $setupDoc; Pattern = "export_monitor_wbp_post_edit_hash_report.ps1"; Label = "Setup doc documents WBP post-edit hash report" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Monitor WBP decision report"; Label = "Remaining work tracks WBP decision report" }
 )
 

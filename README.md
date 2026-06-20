@@ -331,6 +331,7 @@ Monitor WBP manual acceptance package:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_post_edit_hash_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json" -Json
 ```
 
@@ -348,6 +349,10 @@ The editor-review checklist enumerates the required DisplayData rows, including
 checks, `GetLastManualExportMessage` export evidence, and the strict
 post-edit validation command to run after screenshot/log/export evidence paths
 are filled.
+After saving the WBP in Unreal Editor, run
+`export_monitor_wbp_post_edit_hash_report.ps1` and copy the reported
+`AssetHash`, `PostEditAssetHash`, and `PostEditHashReportPath` values into
+`monitor_wbp_acceptance.evidence.json` before strict validation or staging.
 The WBP acceptance template and validator derive optional widget names from the
 native `BindWidgetOptional` fields in `VirtualSensorMonitorWidget.h`, then ask
 the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,

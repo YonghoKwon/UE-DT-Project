@@ -150,6 +150,7 @@ $report = [PSCustomObject]@{
     RequiredStateHelperChecks = @("IsShowingLidar", "HasBoundCamera", "HasBoundLidar", "GetLastManualExportMessage")
     FollowUpCommands = @(
         $editorCommand,
+        ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EditorReviewPath "{3}" -EvidencePath "{4}"' -f (Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"), $ProjectRoot, $SourceRepoRoot, $reviewJsonPath, $acceptanceEvidencePath),
         ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f (Join-Path $SourceRepoRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"), $ProjectRoot, $SourceRepoRoot, $acceptanceEvidencePath),
         ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -FailOnIncompleteEvidence' -f (Join-Path $SourceRepoRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"), $ProjectRoot, $SourceRepoRoot, $acceptanceEvidencePath)
     )
@@ -169,6 +170,7 @@ $report = [PSCustomObject]@{
         RequiresManualExportMessageEvidence = $true
         RequiresEvidenceFileCompletion = $true
         RequiresPostEditStrictValidation = $true
+        RequiresPostEditHashReport = $true
         RequiresEditorMediatedAssetEdit = [bool]$preflight.Summary.EditorMediatedAssetEditRequired
         DirectBinaryPatchSupported = [bool]$preflight.Summary.WbpDirectBinaryPatchSupported
         ModifiesAssets = $false

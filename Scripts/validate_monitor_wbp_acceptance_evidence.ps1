@@ -77,6 +77,21 @@ function Test-EvidenceFilePath {
     return ((Test-NonEmptyString $candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf))
 }
 
+function Read-EvidenceJsonFile {
+    param(
+        [object]$Value,
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $candidate = Resolve-EvidencePath -Value $Value -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+    if (-not (Test-NonEmptyString $candidate) -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        return $null
+    }
+
+    return (Get-Content -LiteralPath $candidate -Raw | ConvertFrom-Json)
+}
+
 function Get-EvidenceItem {
     param(
         [object[]]$Items,
@@ -273,11 +288,35 @@ foreach ($templateItem in $templateEvidenceItems) {
 $editorEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "Editor open verification"
 if ($editorEvidence.Count -gt 0) {
     $editor = $editorEvidence[0]
+    $postEditHashReportPath = Resolve-EvidencePath -Value $editor.PostEditHashReportPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+    $postEditHashReport = Read-EvidenceJsonFile -Value $editor.PostEditHashReportPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
     Add-Check -Checks $checks -Name "Editor log or screenshot path exists" -Passed (
         (Test-EvidenceFilePath -Value $editor.EditorLogPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot) -or
         (Test-EvidenceFilePath -Value $editor.ScreenshotPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot)
     ) -Detail "EditorLogPath=$($editor.EditorLogPath) ScreenshotPath=$($editor.ScreenshotPath)"
     Add-Check -Checks $checks -Name "Editor opened and compiled" -Passed ([bool]$editor.OpenedInEditor -and [bool]$editor.CompiledWithoutErrors) -Detail "OpenedInEditor=$($editor.OpenedInEditor) CompiledWithoutErrors=$($editor.CompiledWithoutErrors)"
+    Add-Check -Checks $checks -Name "Post-edit hash report path exists" -Passed (Test-EvidenceFilePath -Value $editor.PostEditHashReportPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot) -Detail "PostEditHashReportPath=$($editor.PostEditHashReportPath)"
+    Add-Check -Checks $checks -Name "Post-edit hash report matches current WBP hash" -Passed (
+        $null -ne $postEditHashReport -and
+        [int]$postEditHashReport.SchemaVersion -eq 1 -and
+        [string]$postEditHashReport.AssetHashAlgorithm -eq "SHA256" -and
+        (Normalize-ProjectPath $postEditHashReport.WbpRelativePath) -eq $wbpRelativePath -and
+        [string]$postEditHashReport.WbpPath -eq $wbpPath -and
+        [string]$postEditHashReport.CurrentAssetHash -eq [string]$preflight.Summary.AssetHash -and
+        [string]$editor.PostEditAssetHash -eq [string]$preflight.Summary.AssetHash -and
+        [bool]$postEditHashReport.Summary.ReadyForEvidenceCopy -and
+        [bool]$postEditHashReport.EditorReviewPresent -and
+        [bool]$postEditHashReport.BackupExists -and
+        [bool]$postEditHashReport.BackupHashStillMatches -and
+        [bool]$postEditHashReport.Summary.BackupHashStillMatches -and
+        [bool]$postEditHashReport.DryRunOnly -and
+        -not [bool]$postEditHashReport.ModifiesAssets -and
+        -not [bool]$postEditHashReport.StagesWbp
+    ) -Detail "PostEditAssetHash=$($editor.PostEditAssetHash) CurrentHash=$($preflight.Summary.AssetHash)"
+    Add-Check -Checks $checks -Name "Post-edit hash report is under Saved" -Passed (
+        (Test-NonEmptyString $postEditHashReportPath) -and
+        $postEditHashReportPath.StartsWith((Join-Path $ProjectRoot "Saved"), [System.StringComparison]::OrdinalIgnoreCase)
+    ) -Detail "PostEditHashReportPath=$postEditHashReportPath"
 }
 
 $optionalEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "Optional binding check"

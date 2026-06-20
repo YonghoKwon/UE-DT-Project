@@ -105,12 +105,14 @@ $manualSteps = @(
     "Open Content/M7AT10/UI/WBP_VirtualSensorMonitor and verify it loads and compiles without errors.",
     "Compare optional bindings against docs/widget_designer_setup.md and mark missing optional widgets as crash-safe only after testing.",
     "Run PIE in the intended production or smoke-test map with AVirtualSensorMonitorHostActor or Level Blueprint binding.",
+    "After any WBP save in Unreal Editor, run export_monitor_wbp_post_edit_hash_report.ps1 and copy AssetHash/PostEditHashReportPath into the evidence file.",
     "Attach log, screenshot, and exported payload evidence to monitor_wbp_acceptance.evidence.json.",
     "Set Production WBP acceptance to AcceptedForRepository only after the project owner accepts the binary asset.",
     "Re-run validate_monitor_wbp_acceptance_evidence.ps1 with -FailOnIncompleteEvidence before staging the WBP."
 )
 
 $followUpCommands = @(
+    ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}"' -f (Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"), $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f $validatorScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -FailOnIncompleteEvidence' -f $validatorScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -RequireAcceptedLocalDecisionEvidence' -f (Join-Path $SourceRepoRoot "Scripts\invoke_local_decision_precommit_gate.ps1"), $ProjectRoot, $SourceRepoRoot)
@@ -161,6 +163,7 @@ $manifest = [PSCustomObject]@{
         RequiresBackupBeforeAssetEdit = [bool]$preflight.Summary.RequiresBackupBeforeAssetEdit
         RequiresEditorCompileAndSaveEvidence = [bool]$preflight.Summary.RequiresEditorCompileAndSaveEvidence
         RequiresPieSmokeAfterEdit = [bool]$preflight.Summary.RequiresPieSmokeAfterEdit
+        RequiresPostEditHashReport = $true
         RequiresOwnerAcceptanceBeforeStage = [bool]$preflight.Summary.RequiresOwnerAcceptanceBeforeStage
         ManualAcceptanceSectionCount = [int]$validation.Summary.ManualAcceptanceSectionCount
         AcceptedManualAcceptanceSectionCount = [int]$validation.Summary.AcceptedManualAcceptanceSectionCount

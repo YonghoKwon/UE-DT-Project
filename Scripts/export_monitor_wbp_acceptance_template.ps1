@@ -239,9 +239,11 @@ $template = [PSCustomObject]@{
             SaveAttemptedOrNot = ""
             EditorLogPath = ""
             ScreenshotPath = ""
+            PostEditHashReportPath = ""
+            PostEditAssetHash = ""
             ErrorSummary = ""
             WarningSummary = ""
-            Notes = "Open the WBP in Unreal Editor and verify it loads/compiles without errors."
+            Notes = "Open the WBP in Unreal Editor and verify it loads/compiles without errors. After any editor save, run export_monitor_wbp_post_edit_hash_report.ps1 and copy the current hash/report path here."
         },
         [PSCustomObject]@{
             Name = "Optional binding check"

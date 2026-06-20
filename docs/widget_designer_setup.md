@@ -239,6 +239,12 @@ The checklist calls out the required DisplayData rows, including
 and `HasBoundLidar`, manual export message evidence from
 `GetLastManualExportMessage`, evidence-file completion, and post-edit strict
 validation.
+After saving the WBP through Unreal Editor, run
+`export_monitor_wbp_post_edit_hash_report.ps1`. It writes a
+`Saved/Reports/MonitorWbpPostEdit` report with the current SHA256 hash,
+pre-edit hash comparison, backup status, and the exact evidence fields to copy
+into `monitor_wbp_acceptance.evidence.json`. This report is evidence only; it
+does not accept or stage the binary asset.
 
 Local camera capture notes:
 
