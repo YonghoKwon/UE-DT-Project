@@ -214,6 +214,7 @@ $requiredDisplayDataRows = @(
     "ServerPayloadText",
     "PreviewText",
     "SlabText",
+    "LazExportText",
     "WarningText",
     "ViewModeText"
 )

@@ -121,6 +121,9 @@ The same acceptance evidence requires a `DisplayData visual match` section so
 the editor reviewer maps `GetMonitorDisplayData()` rows to visible WBP
 TextBlocks during PIE. This keeps the binary asset acceptance tied to the
 current native monitor status contract instead of a screenshot-only review.
+The required DisplayData rows include `LazExportText`, so the production WBP
+must visibly preserve the LAZ placeholder/compressor/true-validation boundary
+rather than only showing a generic export success message.
 `DisplayDataScreenMatchEvidence` must also be accepted in the manual acceptance
 sections before the WBP can be considered stageable.
 

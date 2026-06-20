@@ -93,9 +93,10 @@ $optionalBindings = @(Get-MonitorOptionalBindingNames -SourceRepoRoot $SourceRep
 $pieSmokeChecks = @(
     "WBP opens in the intended map without compile or load errors.",
     "Camera/LiDAR mode switching updates the visible status text.",
+    "IsShowingLidar/HasBoundCamera/HasBoundLidar observed values match the selected WBP sensor mode.",
     "PointCloudOnly toggle updates manager state without losing collision trace behavior.",
     "Preview stride and max preview point controls update preview policy values.",
-    "Capture once and export current frame controls produce expected status/result text.",
+    "Capture once and export current frame controls produce expected status/result text; GetLastManualExportMessage is recorded when an export action is run.",
     "Slab angle/deviation/confidence status row is visible or explicitly marked unavailable.",
     "Transport/performance warning row is visible when warning text exists."
 )
@@ -108,6 +109,7 @@ $displayDataRows = @(
     [PSCustomObject]@{ FieldName = "ServerPayloadText"; Required = $true; Notes = "Server payload point/byte/policy row." },
     [PSCustomObject]@{ FieldName = "PreviewText"; Required = $true; Notes = "LiDAR preview count and preview policy row." },
     [PSCustomObject]@{ FieldName = "SlabText"; Required = $true; Notes = "Slab point count, angle, deviation, confidence, or insufficient-points row." },
+    [PSCustomObject]@{ FieldName = "LazExportText"; Required = $true; Notes = "LAZ placeholder/compressor/true-validation boundary row from GetLazExportSummaryText()." },
     [PSCustomObject]@{ FieldName = "WarningText"; Required = $true; Notes = "Warning row; record the visible no-warning text when no warning is produced." },
     [PSCustomObject]@{ FieldName = "ViewModeText"; Required = $true; Notes = "Camera render-target or LiDAR view mode row." }
 )
@@ -326,7 +328,7 @@ $template = [PSCustomObject]@{
                         }
                     }
             )
-            Notes = "Record GetMonitorDisplayData rows and match them to visible WBP TextBlocks. WarningText can be explicitly unavailable when no warning is produced."
+            Notes = "Record GetMonitorDisplayData rows and match them to visible WBP TextBlocks. LazExportText must show placeholder/compressor/true-validation state; WarningText can be explicitly unavailable when no warning is produced."
         },
         [PSCustomObject]@{
             Name = "Production WBP acceptance"

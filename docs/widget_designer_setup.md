@@ -147,6 +147,11 @@ GetMeasurementSummaryText
 GetServerPayloadSummaryText
 GetPreviewPolicySummaryText
 GetSlabAnalysisSummaryText
+GetLazExportSummaryText
+IsShowingLidar
+HasBoundCamera
+HasBoundLidar
+GetLastManualExportMessage
 GetTransportWarningText
 GetViewModeSummaryText
 ```
@@ -155,8 +160,8 @@ For a production Designer WBP, prefer binding separate TextBlocks to the
 smaller summary getters above instead of parsing `GetMonitorStatusText()`.
 When a Blueprint graph wants one read node, use `GetMonitorDisplayData()` and
 break the returned `FVirtualSensorMonitorDisplayData` struct into title,
-selected sensor, frame, measurement, payload, preview, slab, warning, and view
-mode rows.
+selected sensor, frame, measurement, payload, preview, slab, LAZ export,
+warning, and view mode rows.
 `GetMonitorStatusText()` remains the native fallback/debug text contract.
 
 The LiDAR status text is expected to include:
@@ -169,6 +174,7 @@ Measured point and hit counts
 Server payload point count, JSON byte length, and policy
 Preview point count and policy
 Slab angle/deviation/confidence
+LAZ placeholder/compressor/true-validation state
 Transport/performance warning
 LiDAR view mode
 CSV export row/return contract
@@ -177,7 +183,7 @@ CSV export row/return contract
 `M7AT10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.
 The same automation verifies that the smaller Designer-facing getters expose
 sensor id, frame/scan interval, measured ray/hit counts, server payload policy,
-preview policy, slab analysis, warning, and view mode values.
+preview policy, slab analysis, LAZ export state, warning, and view mode values.
 `M7AT10.SensorMonitor.PerformanceWarningStatusText` verifies that LiDAR performance warnings are surfaced in the same monitor status text.
 
 Static monitor-policy readiness:
