@@ -50,6 +50,19 @@ function Test-EvidenceFilePath {
     return ((Test-NonEmptyString $candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf))
 }
 
+function Get-EvidenceFileSize {
+    param(
+        [string]$ProjectRoot,
+        [object]$Value
+    )
+
+    $candidate = Resolve-EvidenceFile -ProjectRoot $ProjectRoot -Value $Value
+    if ((Test-NonEmptyString $candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        return (Get-Item -LiteralPath $candidate).Length
+    }
+    return 0
+}
+
 function Add-Check {
     param(
         [System.Collections.Generic.List[object]]$Checks,
@@ -95,6 +108,7 @@ $requiredSectionNames = @(
     "RepeatableCommand",
     "OwnerAcceptance"
 )
+$knownReaderNames = @("lasinfo", "pdal", "pdal info", "lastools lasinfo")
 
 $checks = [System.Collections.Generic.List[object]]::new()
 Add-Check -Checks $checks -Name "Evidence file present" -Passed $evidenceFilePresent -Detail $EvidencePath
@@ -128,17 +142,38 @@ if ($evidenceSections) {
         foreach ($field in @("LazEvidencePath", "ProducerCommand", "SourceLasPath")) {
             Add-Check -Checks $checks -Name "ProducedLazEvidence.$field recorded" -Passed (Test-NonEmptyString $producedLaz.$field) -Detail $field
         }
+        $resolvedLazPath = Resolve-EvidenceFile -ProjectRoot $ProjectRoot -Value $producedLaz.LazEvidencePath
+        $resolvedSourceLasPath = Resolve-EvidenceFile -ProjectRoot $ProjectRoot -Value $producedLaz.SourceLasPath
+        $actualLazSize = Get-EvidenceFileSize -ProjectRoot $ProjectRoot -Value $producedLaz.LazEvidencePath
+        $lazEvidencePathText = ([string]$producedLaz.LazEvidencePath).ToLowerInvariant()
         Add-Check -Checks $checks -Name "ProducedLazEvidence path exists" -Passed (Test-EvidenceFilePath -ProjectRoot $ProjectRoot -Value $producedLaz.LazEvidencePath) -Detail "LazEvidencePath=$($producedLaz.LazEvidencePath)"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence path has .laz extension" -Passed ([System.IO.Path]::GetExtension([string]$producedLaz.LazEvidencePath).ToLowerInvariant() -eq ".laz") -Detail "LazEvidencePath=$($producedLaz.LazEvidencePath)"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence path is not laz_source placeholder" -Passed ((Test-NonEmptyString $producedLaz.LazEvidencePath) -and -not $lazEvidencePathText.Contains("_laz_source")) -Detail "LazEvidencePath=$($producedLaz.LazEvidencePath)"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence file is non-empty" -Passed ($actualLazSize -gt 0) -Detail "ActualSize=$actualLazSize"
         Add-Check -Checks $checks -Name "ProducedLazEvidence output byte size recorded" -Passed ([int64]$producedLaz.OutputByteSize -gt 0) -Detail "OutputByteSize=$($producedLaz.OutputByteSize)"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence output byte size matches file" -Passed ($actualLazSize -gt 0 -and [int64]$producedLaz.OutputByteSize -eq $actualLazSize) -Detail "OutputByteSize=$($producedLaz.OutputByteSize) ActualSize=$actualLazSize"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence source LAS path exists" -Passed (Test-EvidenceFilePath -ProjectRoot $ProjectRoot -Value $producedLaz.SourceLasPath) -Detail "SourceLasPath=$($producedLaz.SourceLasPath)"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence LAZ path differs from source LAS path" -Passed ((Test-NonEmptyString $resolvedLazPath) -and (Test-NonEmptyString $resolvedSourceLasPath) -and $resolvedLazPath -ne $resolvedSourceLasPath) -Detail "Laz=$resolvedLazPath SourceLas=$resolvedSourceLasPath"
         Add-Check -Checks $checks -Name "ProducedLazEvidence produced by accepted workflow" -Passed ([bool]$producedLaz.ProducedByAcceptedWorkflow) -Detail "ProducedByAcceptedWorkflow=$($producedLaz.ProducedByAcceptedWorkflow)"
+        Add-Check -Checks $checks -Name "ProducedLazEvidence produced by export or accepted post-process" -Passed ([bool]$producedLaz.ProducedByExportLastPointCloudLazOrAcceptedPostProcess) -Detail "ProducedByExportLastPointCloudLazOrAcceptedPostProcess=$($producedLaz.ProducedByExportLastPointCloudLazOrAcceptedPostProcess)"
     }
 
     $readerValidation = if ($evidenceSections.PSObject.Properties.Name -contains "KnownReaderValidation") { $evidenceSections.KnownReaderValidation } else { $null }
     if ($readerValidation) {
-        foreach ($field in @("ReaderName", "ReaderPath", "ReaderVersion", "ReaderProbeReportPath")) {
+        foreach ($field in @("ReaderName", "ReaderPath", "ReaderVersion", "ReaderProbeReportPath", "ReaderOutputEvidencePath", "ReaderProbeLazEvidencePath")) {
             Add-Check -Checks $checks -Name "KnownReaderValidation.$field recorded" -Passed (Test-NonEmptyString $readerValidation.$field) -Detail $field
         }
+        $resolvedReaderProbeLazPath = Resolve-EvidenceFile -ProjectRoot $ProjectRoot -Value $readerValidation.ReaderProbeLazEvidencePath
+        Add-Check -Checks $checks -Name "KnownReaderValidation reader name is known" -Passed ($knownReaderNames -contains ([string]$readerValidation.ReaderName).ToLowerInvariant()) -Detail "ReaderName=$($readerValidation.ReaderName)"
         Add-Check -Checks $checks -Name "KnownReaderValidation probe report exists" -Passed (Test-EvidenceFilePath -ProjectRoot $ProjectRoot -Value $readerValidation.ReaderProbeReportPath) -Detail "ReaderProbeReportPath=$($readerValidation.ReaderProbeReportPath)"
+        Add-Check -Checks $checks -Name "KnownReaderValidation reader output evidence exists" -Passed (Test-EvidenceFilePath -ProjectRoot $ProjectRoot -Value $readerValidation.ReaderOutputEvidencePath) -Detail "ReaderOutputEvidencePath=$($readerValidation.ReaderOutputEvidencePath)"
+        Add-Check -Checks $checks -Name "KnownReaderValidation probe LAZ path matches produced LAZ evidence" -Passed ((Test-NonEmptyString $resolvedReaderProbeLazPath) -and (Test-NonEmptyString $resolvedLazPath) -and $resolvedReaderProbeLazPath -eq $resolvedLazPath) -Detail "ReaderProbeLaz=$resolvedReaderProbeLazPath ProducedLaz=$resolvedLazPath"
+        $probeExitCodeRecorded = ($readerValidation.PSObject.Properties.Name -contains "ProbeExitCode")
+        $probeExitCodeText = [string]$readerValidation.ProbeExitCode
+        $probeExitCodeValue = 0
+        $probeExitCodeIsValidInteger = (Test-NonEmptyString $probeExitCodeText) -and [int]::TryParse($probeExitCodeText, [ref]$probeExitCodeValue)
+        Add-Check -Checks $checks -Name "KnownReaderValidation probe exit code is zero" -Passed ($probeExitCodeRecorded -and $probeExitCodeIsValidInteger -and $probeExitCodeValue -eq 0) -Detail "ProbeExitCode=$($readerValidation.ProbeExitCode)"
+        Add-Check -Checks $checks -Name "KnownReaderValidation probe ran against same LAZ evidence path" -Passed ([bool]$readerValidation.ProbeWasRunAgainstSameLazEvidencePath) -Detail "ProbeWasRunAgainstSameLazEvidencePath=$($readerValidation.ProbeWasRunAgainstSameLazEvidencePath)"
         Add-Check -Checks $checks -Name "KnownReaderValidation probe succeeded" -Passed ([bool]$readerValidation.ProbeSucceeded) -Detail "ProbeSucceeded=$($readerValidation.ProbeSucceeded)"
     }
 
@@ -146,6 +181,8 @@ if ($evidenceSections) {
     if ($placeholderDistinction) {
         Add-Check -Checks $checks -Name "PlaceholderDistinction not LAS source placeholder" -Passed ([bool]$placeholderDistinction.NotLasSourcePlaceholder) -Detail "NotLasSourcePlaceholder=$($placeholderDistinction.NotLasSourcePlaceholder)"
         Add-Check -Checks $checks -Name "PlaceholderDistinction not copy surrogate" -Passed ([bool]$placeholderDistinction.NotCopySurrogate) -Detail "NotCopySurrogate=$($placeholderDistinction.NotCopySurrogate)"
+        Add-Check -Checks $checks -Name "PlaceholderDistinction not external compressor copy-surrogate output" -Passed ([bool]$placeholderDistinction.NotExternalCompressorCopySurrogateOutput) -Detail "NotExternalCompressorCopySurrogateOutput=$($placeholderDistinction.NotExternalCompressorCopySurrogateOutput)"
+        Add-Check -Checks $checks -Name "PlaceholderDistinction LAZ path does not contain laz_source prefix" -Passed ([bool]$placeholderDistinction.LazPathDoesNotContainLazSourcePrefix) -Detail "LazPathDoesNotContainLazSourcePrefix=$($placeholderDistinction.LazPathDoesNotContainLazSourcePrefix)"
         Add-Check -Checks $checks -Name "PlaceholderDistinction evidence path exists" -Passed (Test-EvidenceFilePath -ProjectRoot $ProjectRoot -Value $placeholderDistinction.EvidencePath) -Detail "EvidencePath=$($placeholderDistinction.EvidencePath)"
     }
 
@@ -178,6 +215,7 @@ foreach ($requiredName in $requiredNames) {
 }
 
 $failedChecks = @($checks | Where-Object { -not $_.Passed })
+$missingAcceptanceChecks = @($failedChecks | ForEach-Object { [string]$_.Name })
 $complete = ($failedChecks.Count -eq 0)
 $report = [PSCustomObject]@{
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -190,6 +228,8 @@ $report = [PSCustomObject]@{
         RequiredEvidenceSectionCount = $requiredSectionNames.Count
         PassedCheckCount = [int]($checks.Count - $failedChecks.Count)
         FailedCheckCount = [int]$failedChecks.Count
+        MissingAcceptanceChecks = $missingAcceptanceChecks
+        TopMissingAcceptanceChecks = @($missingAcceptanceChecks | Select-Object -First 8)
         Complete = [bool]$complete
         CurrentReadyToClaimTrueLaz = [bool]$complete
         FailOnIncompleteEvidence = [bool]$FailOnIncompleteEvidence

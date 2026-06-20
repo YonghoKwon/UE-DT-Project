@@ -437,6 +437,11 @@ The evidence draft separates `CompressorSelection`, `ProducedLazEvidence`,
 `KnownReaderValidation`, `PlaceholderDistinction`, `RepeatableCommand`, and
 `OwnerAcceptance`, so placeholder or copy-surrogate output cannot be mistaken
 for accepted LAZ compression.
+The validator now checks that produced evidence is a non-empty `.laz`, that its
+recorded byte size matches the file, that it differs from the LAS source path,
+that a known reader probe exits with code 0 against the same `.laz`, and that
+the output is not a `_laz_source_` placeholder or copy-surrogate artifact. The
+package summary also reports top missing checks and true-LAZ blockers.
 
 The LiDAR component also exposes last LAZ export telemetry for widgets and
 automation: status text, LAS source path, LAZ output path, placeholder-only,

@@ -630,6 +630,13 @@ Current state:
   validator checks each section separately, so a copied LAS placeholder,
   unverified tool path, missing reader probe, or missing owner acceptance cannot
   accidentally mark `ReadyToClaimTrueLaz`.
+- The validator now also checks that produced evidence has a `.laz` extension,
+  is non-empty, has a recorded byte size matching the file, differs from the LAS
+  source path, was produced by `ExportLastPointCloudLaz()` or an accepted
+  post-process path, and was read by a known reader with exit code 0 against the
+  same `.laz`. The package exposes `TopMissingAcceptanceChecks` and
+  `ReadyToClaimTrueLazBlockers` so missing proof cannot be hidden in a generated
+  report.
 - A selected compressor/workflow is acceptance metadata, not proof of true
   compressed output. `ReadyToClaimTrueLaz` still requires a produced `.laz`,
   known-reader validation, repeatable command evidence, placeholder distinction,

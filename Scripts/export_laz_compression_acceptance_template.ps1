@@ -112,17 +112,24 @@ $evidenceSections = [PSCustomObject]@{
         OutputByteSize = 0
         SourceLasPath = ""
         ProducedByAcceptedWorkflow = $false
+        ProducedByExportLastPointCloudLazOrAcceptedPostProcess = $false
     }
     KnownReaderValidation = [PSCustomObject]@{
         ReaderName = ""
         ReaderPath = ""
         ReaderVersion = ""
         ReaderProbeReportPath = ""
+        ReaderOutputEvidencePath = ""
+        ReaderProbeLazEvidencePath = ""
+        ProbeExitCode = -1
+        ProbeWasRunAgainstSameLazEvidencePath = $false
         ProbeSucceeded = $false
     }
     PlaceholderDistinction = [PSCustomObject]@{
         NotLasSourcePlaceholder = $false
         NotCopySurrogate = $false
+        NotExternalCompressorCopySurrogateOutput = $false
+        LazPathDoesNotContainLazSourcePrefix = $false
         EvidencePath = ""
     }
     RepeatableCommand = [PSCustomObject]@{

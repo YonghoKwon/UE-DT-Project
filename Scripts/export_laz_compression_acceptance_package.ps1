@@ -196,6 +196,8 @@ $manifest = [PSCustomObject]@{
         AcceptanceEvidenceComplete = [bool]$validation.Summary.Complete
         AcceptanceEvidenceRequiredSectionCount = [int]$validation.Summary.RequiredEvidenceSectionCount
         AcceptanceEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
+        AcceptanceEvidenceMissingChecks = @($validation.Summary.MissingAcceptanceChecks)
+        TopMissingAcceptanceChecks = @($validation.Summary.TopMissingAcceptanceChecks)
         AcceptanceEvidenceCount = [int]$decision.Summary.AcceptanceEvidenceCount
         DryRunOnly = $true
         AcceptancePackageIsEvidenceShell = $true
@@ -208,6 +210,14 @@ $manifest = [PSCustomObject]@{
         ModifiesAssets = $false
         StagesFiles = $false
         ReadyToClaimTrueLaz = ([bool]$decision.Summary.TrueCompressionIntegrated -and [bool]$readiness.Summary.ReadyForRealLazAutomation -and [bool]$validation.Summary.Complete)
+        ReadyToClaimTrueLazBlockers = @(
+            if (-not [bool]$decision.Summary.TrueCompressionIntegrated) { "True compression implementation is not integrated." }
+            if (-not [bool]$readiness.Summary.CompressorCandidateFound) { "Accepted compressor/native/server workflow is not selected." }
+            if (-not [bool]$readiness.Summary.ReaderCandidateFound) { "Known point-cloud reader is not selected." }
+            if (-not [bool]$readiness.Summary.ProducedLazEvidencePresent) { "Produced .laz evidence is missing." }
+            if (-not [bool]$readiness.Summary.ReaderProbeSucceeded) { "Known-reader probe success evidence is missing." }
+            if (-not [bool]$validation.Summary.Complete) { "Acceptance evidence file is incomplete." }
+        )
         Boundary = "This package collects LAZ compression acceptance evidence only. It never installs tools, never runs a compressor, never writes LAZ output, never probes tool versions by default, never modifies assets, and never stages files. Reader probing runs only when explicitly requested."
         Valid = ([bool]$decision.Summary.Valid -and [bool]$readiness.Summary.Valid -and [bool]$policy.Summary.Valid)
     }
@@ -249,6 +259,8 @@ $lines.Add("- Required evidence sections: $(@($manifest.Summary.RequiredEvidence
 $lines.Add("- Acceptance evidence complete: $($manifest.Summary.AcceptanceEvidenceComplete)") | Out-Null
 $lines.Add("- Required evidence section checks: $($manifest.Summary.AcceptanceEvidenceRequiredSectionCount)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)") | Out-Null
+$lines.Add("- Top missing acceptance checks: $($manifest.Summary.TopMissingAcceptanceChecks -join ', ')") | Out-Null
+$lines.Add("- Ready to claim true LAZ blockers: $($manifest.Summary.ReadyToClaimTrueLazBlockers -join '; ')") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
 $lines.Add("- Acceptance package is evidence shell: $($manifest.Summary.AcceptancePackageIsEvidenceShell)") | Out-Null
 $lines.Add("- Acceptance package is readable LAZ proof: $($manifest.Summary.AcceptancePackageIsReadableLazProof)") | Out-Null

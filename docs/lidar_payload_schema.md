@@ -223,6 +223,10 @@ validation report. Use
 `-FailOnIncompleteEvidence` only after compressor selection, produced `.laz`
 output, known-reader validation, placeholder distinction, repeatable command,
 and owner acceptance evidence are recorded.
+The validator requires a non-empty `.laz` evidence file, matching recorded byte
+size, a distinct LAS source path, known-reader exit code 0 against the same
+`.laz`, and explicit proof that the output is not a `_laz_source_` placeholder
+or copy-surrogate artifact.
 Tool version probes are opt-in with `-ProbeToolVersions`; the default
 acceptance package does not run compressors, write `.laz` output, or probe tool
 versions.
