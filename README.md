@@ -374,6 +374,10 @@ Generated deployment reports expose `PreDeploymentEvidenceOnly = true`,
 `AcceptancePackageIsDeploymentProof = false`. Report generation is not
 deployment acceptance, does not modify DTCore, and does not cover
 PixelStreaming.
+PixelStreaming is out of scope for the current LiDAR/virtual-sensor work. The
+local `Samples/PixelStreaming/` folder should stay untracked, but its
+ownership/license decision is not counted as current remaining implementation
+work.
 
 LAZ compression acceptance package:
 

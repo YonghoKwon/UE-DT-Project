@@ -413,6 +413,9 @@ foreach ($candidate in @($largeReport.Candidates)) {
         if ([string]::IsNullOrWhiteSpace([string]$candidate.SampleRiskReason)) {
             throw "Sample candidate $($candidate.Path) is missing sample risk reason."
         }
+        if ([string]$candidate.Path -eq "Samples\PixelStreaming") {
+            continue
+        }
         foreach ($required in @("Project ownership decision", "License/redistribution approval", "Documentation alternative decision")) {
             if (-not ($acceptanceNames -contains $required)) {
                 throw "Sample candidate $($candidate.Path) is missing required acceptance item: $required"
@@ -520,49 +523,66 @@ if ([bool]$sampleReport.ModifiesAssets) {
 if ([bool]$sampleReport.CopiesSampleFiles) {
     throw "Sample decision report must not copy sample files."
 }
-if ([int]$sampleReport.Summary.SampleCandidateCount -ne 1) {
-    throw "Expected exactly one sample/third-party candidate for the current local project state."
+if ([int]$sampleReport.Summary.SampleCandidateCount -gt 1) {
+    throw "Expected at most one sample/third-party candidate for the current project state."
 }
 $pixelStreamingCandidate = @($sampleReport.Candidates | Where-Object { [string]$_.Path -eq "Samples\PixelStreaming" })
-if ($pixelStreamingCandidate.Count -ne 1) {
-    throw "Sample decision report must include Samples\PixelStreaming."
-}
-$pixelStreaming = $pixelStreamingCandidate[0]
-if ([string]$pixelStreaming.Category -ne "SampleOrThirdParty") {
-    throw "Samples\PixelStreaming must be classified as SampleOrThirdParty."
-}
-if (-not [bool]$pixelStreaming.RedistributionReviewRequired) {
-    throw "Samples\PixelStreaming must require redistribution review."
-}
-if ([bool]$pixelStreaming.SafeToStage) {
-    throw "Samples\PixelStreaming must not be safe to stage while acceptance evidence is missing."
-}
-if (-not [bool]$pixelStreaming.MustRemainUntracked) {
-    throw "Samples\PixelStreaming must remain untracked while acceptance evidence is missing."
-}
-if ([string]$pixelStreaming.ReviewQueue -ne "NeedsOwnerDecision") {
-    throw "Samples\PixelStreaming must remain in NeedsOwnerDecision while evidence is missing."
-}
-if ([string]$pixelStreaming.SetupDocumentationPath -ne "docs\pixel_streaming_setup.md") {
-    throw "Samples\PixelStreaming must point to docs\pixel_streaming_setup.md as the setup documentation alternative."
-}
-if ([bool]$pixelStreaming.UnexpectedSampleStaged) {
-    throw "Samples\PixelStreaming has staged paths and must remain untracked."
-}
 if ([int]$sampleReport.Summary.StagedSamplePathCount -ne 0) {
     throw "Sample decision report must show zero staged sample paths."
 }
-if (@($pixelStreaming.DecisionBlockers).Count -eq 0) {
-    throw "Samples\PixelStreaming must include decision blockers."
-}
-if ([string]::IsNullOrWhiteSpace([string]$pixelStreaming.NextReviewAction)) {
-    throw "Samples\PixelStreaming must include NextReviewAction."
-}
-$sampleAcceptanceNames = @($pixelStreaming.RequiredAcceptance | ForEach-Object { [string]$_.Name })
-foreach ($required in @("Project ownership decision", "License/redistribution approval", "Setup documentation alternative")) {
-    if (-not ($sampleAcceptanceNames -contains $required)) {
-        throw "Samples\PixelStreaming is missing required sample acceptance item: $required"
+if ($pixelStreamingCandidate.Count -eq 1) {
+    $pixelStreaming = $pixelStreamingCandidate[0]
+    if ([string]$pixelStreaming.Category -ne "SampleOrThirdParty") {
+        throw "Samples\PixelStreaming must be classified as SampleOrThirdParty."
     }
+    if (-not [bool]$pixelStreaming.RedistributionReviewRequired) {
+        throw "Samples\PixelStreaming must require redistribution review."
+    }
+    if ([bool]$pixelStreaming.SafeToStage) {
+        throw "Samples\PixelStreaming must not be safe to stage while acceptance evidence is missing."
+    }
+    if (-not [bool]$pixelStreaming.MustRemainUntracked) {
+        throw "Samples\PixelStreaming must remain untracked while acceptance evidence is missing."
+    }
+    if (-not [bool]$pixelStreaming.ExcludedFromCurrentScope) {
+        throw "Samples\PixelStreaming must be excluded from the current LiDAR/virtual-sensor work scope."
+    }
+    if ([bool]$pixelStreaming.CountsTowardRemainingWork) {
+        throw "Samples\PixelStreaming must not count toward current remaining implementation work."
+    }
+    if ([string]$pixelStreaming.CurrentScopeDecision -ne "IgnoreForCurrentLiDARVirtualSensorWork") {
+        throw "Samples\PixelStreaming must record the current-scope ignore decision."
+    }
+    if ([string]$pixelStreaming.ReviewQueue -ne "KeepLocal") {
+        throw "Samples\PixelStreaming must remain in KeepLocal while excluded from the current scope."
+    }
+    if ([string]$pixelStreaming.SetupDocumentationPath -ne "docs\pixel_streaming_setup.md") {
+        throw "Samples\PixelStreaming must point to docs\pixel_streaming_setup.md as the setup documentation alternative."
+    }
+    if ([bool]$pixelStreaming.UnexpectedSampleStaged) {
+        throw "Samples\PixelStreaming has staged paths and must remain untracked."
+    }
+    if ([int]$sampleReport.Summary.ExcludedFromCurrentScopeCount -ne 1) {
+        throw "Sample decision report must show one current-scope excluded sample path when PixelStreaming is present."
+    }
+    if (@($pixelStreaming.DecisionBlockers).Count -eq 0) {
+        throw "Samples\PixelStreaming must include decision blockers."
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$pixelStreaming.NextReviewAction)) {
+        throw "Samples\PixelStreaming must include NextReviewAction."
+    }
+    $sampleAcceptanceNames = @($pixelStreaming.RequiredAcceptance | ForEach-Object { [string]$_.Name })
+    foreach ($required in @("Project ownership decision", "License/redistribution approval", "Setup documentation alternative")) {
+        if (-not ($sampleAcceptanceNames -contains $required)) {
+            throw "Samples\PixelStreaming is missing required sample acceptance item: $required"
+        }
+    }
+}
+elseif ([int]$sampleReport.Summary.ExcludedFromCurrentScopeCount -ne 0) {
+    throw "Sample decision report must show zero current-scope excluded sample paths when PixelStreaming is absent."
+}
+if ([int]$sampleReport.Summary.CountsTowardRemainingWorkCount -ne 0) {
+    throw "Sample decision report must show zero sample paths counting toward remaining work."
 }
 
 $totalBytes = [int64](($decisionCandidates | Measure-Object -Property SizeBytes -Sum).Sum)

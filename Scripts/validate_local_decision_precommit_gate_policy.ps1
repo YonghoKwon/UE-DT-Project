@@ -86,6 +86,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $gateScript; Pattern = "StagedDecisionPaths"; Label = "Gate reports staged decision paths" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "DTCoreInvariantValid"; Label = "Gate reports DTCore invariant" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "PixelStreamingMustRemainUntracked"; Label = "Gate reports PixelStreaming untracked boundary" },
+    [PSCustomObject]@{ Path = $gateScript; Pattern = "PixelStreamingOutOfScopeThisIteration"; Label = "Gate reports PixelStreaming current-scope exclusion" },
+    [PSCustomObject]@{ Path = $gateScript; Pattern = "PixelStreamingCountsTowardRemainingWork"; Label = "Gate reports PixelStreaming remaining-work exclusion" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "WbpAcceptanceEvidenceComplete"; Label = "Gate reports WBP evidence completion" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "WbpAcceptanceMissingCount"; Label = "Gate reports WBP missing evidence count" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "FailureReasons"; Label = "Gate reports failure reasons" },
@@ -128,6 +130,12 @@ if ([bool]$defaultSummary.PixelStreamingStaged) {
 if (-not [bool]$defaultSummary.PixelStreamingMustRemainUntracked) {
     throw "Default local decision pre-commit gate must report PixelStreamingMustRemainUntracked=true."
 }
+if (-not [bool]$defaultSummary.PixelStreamingOutOfScopeThisIteration) {
+    throw "Default local decision pre-commit gate must report PixelStreamingOutOfScopeThisIteration=true."
+}
+if ([bool]$defaultSummary.PixelStreamingCountsTowardRemainingWork) {
+    throw "Default local decision pre-commit gate must report PixelStreamingCountsTowardRemainingWork=false."
+}
 if ([bool]$defaultSummary.WbpAcceptanceEvidenceComplete) {
     throw "Default local decision pre-commit gate should not claim WBP acceptance evidence is complete."
 }
@@ -158,6 +166,8 @@ $report = [PSCustomObject]@{
         DTCoreInvariantValid = [bool]$defaultSummary.DTCoreInvariantValid
         StagedDecisionPointCount = [int]$defaultSummary.StagedDecisionPointCount
         PixelStreamingMustRemainUntracked = [bool]$defaultSummary.PixelStreamingMustRemainUntracked
+        PixelStreamingOutOfScopeThisIteration = [bool]$defaultSummary.PixelStreamingOutOfScopeThisIteration
+        PixelStreamingCountsTowardRemainingWork = [bool]$defaultSummary.PixelStreamingCountsTowardRemainingWork
         WbpAcceptanceEvidenceComplete = [bool]$defaultSummary.WbpAcceptanceEvidenceComplete
         WarningCount = @($defaultSummary.Warnings).Count
         Valid = $true
@@ -175,5 +185,7 @@ else {
     Write-Host "DTCore invariant valid: $($report.Summary.DTCoreInvariantValid)"
     Write-Host "Staged decision points: $($report.Summary.StagedDecisionPointCount)"
     Write-Host "PixelStreaming must remain untracked: $($report.Summary.PixelStreamingMustRemainUntracked)"
+    Write-Host "PixelStreaming out of current scope: $($report.Summary.PixelStreamingOutOfScopeThisIteration)"
+    Write-Host "PixelStreaming counts toward remaining work: $($report.Summary.PixelStreamingCountsTowardRemainingWork)"
     Write-Host "WBP evidence complete: $($report.Summary.WbpAcceptanceEvidenceComplete)"
 }

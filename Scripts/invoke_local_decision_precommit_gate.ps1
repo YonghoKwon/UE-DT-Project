@@ -198,6 +198,8 @@ $report = [PSCustomObject]@{
         StagedSamplePathCount = [int]$sampleDecision.Summary.StagedSamplePathCount
         PixelStreamingStaged = [bool]$sampleDecision.Summary.UnexpectedSampleStaged
         PixelStreamingMustRemainUntracked = ([int]$sampleDecision.Summary.MustRemainUntrackedCount -gt 0)
+        PixelStreamingOutOfScopeThisIteration = ([int]$sampleDecision.Summary.ExcludedFromCurrentScopeCount -gt 0)
+        PixelStreamingCountsTowardRemainingWork = ([int]$sampleDecision.Summary.CountsTowardRemainingWorkCount -gt 0)
         SampleDecisionSummary = $sampleDecision.Summary
         LargeContentPolicyValid = [bool]$largePolicy.Summary.Valid
         LargeContentCandidateCount = [int]$largePolicy.Summary.LargeDecisionReportCandidateCount
@@ -209,8 +211,8 @@ $report = [PSCustomObject]@{
             if (-not [bool]$wbpEvidence.Summary.ReadyToStageCandidate) {
                 "WBP acceptance evidence is incomplete in default reporting mode."
             }
-            if ([int]$sampleDecision.Summary.MissingAcceptanceCount -gt 0) {
-                "Samples/PixelStreaming remains local until ownership and redistribution evidence are accepted."
+            if ([int]$sampleDecision.Summary.ExcludedFromCurrentScopeCount -gt 0) {
+                "Samples/PixelStreaming is out of current scope and remains local/untracked."
             }
         )
         DryRunOnly = $true

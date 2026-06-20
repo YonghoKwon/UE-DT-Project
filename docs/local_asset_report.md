@@ -120,8 +120,11 @@ remaining repository-acceptance candidate paths. Cleanup candidate means keep
 ignored or manually remove after map/WBP dependency checks; it is not ready to
 stage. The same pre-commit summary also surfaces sample/third-party candidate
 count and size, currently `Samples/PixelStreaming`, with the boundary that copied
-samples stay untracked unless project ownership, redistribution approval, and a
-documentation-alternative decision are accepted.
+PixelStreaming samples are excluded from the current LiDAR/virtual-sensor scope
+and must not count toward remaining implementation work. The local folder still
+stays untracked so it cannot slip into a commit accidentally.
+If PixelStreaming becomes a future project requirement, reopen ownership,
+redistribution approval, and documentation-alternative decisions in that scope.
 
 Every decision point also reports:
 

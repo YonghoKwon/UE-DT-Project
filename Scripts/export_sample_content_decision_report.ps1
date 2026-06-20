@@ -106,10 +106,10 @@ $requiredAcceptance = @(
 )
 
 $setupPlanSteps = @(
-    "Keep Samples/PixelStreaming out of source control while ownership and redistribution evidence is incomplete.",
-    "Document the expected Pixel Streaming sample source or setup command in docs/pixel_streaming_setup.md instead of committing copied files.",
-    "Record project ownership, license/redistribution approval, and documentation-alternative decision before any repository acceptance.",
-    "If ownership is accepted later, re-run local asset decision gates and stage only the reviewed sample paths."
+    "Keep Samples/PixelStreaming out of source control for the current work scope.",
+    "Do not count Pixel Streaming sample ownership as remaining DT-Project LiDAR/virtual-sensor implementation work.",
+    "Use docs/pixel_streaming_setup.md only as a setup note if Pixel Streaming becomes a future project requirement.",
+    "If ownership is accepted in a future scope, re-run local asset decision gates and stage only the reviewed sample paths."
 )
 
 $candidates = @(
@@ -141,6 +141,9 @@ $candidates = @(
                 DocumentationAlternativeAccepted = $false
                 DocumentationAlternativePreferred = $true
                 SetupAlternativePreferred = $true
+                ExcludedFromCurrentScope = $true
+                CountsTowardRemainingWork = $false
+                CurrentScopeDecision = "IgnoreForCurrentLiDARVirtualSensorWork"
                 SetupPlanSteps = $setupPlanSteps
                 ReadyToStage = $false
                 SafeToStage = $false
@@ -154,9 +157,9 @@ $candidates = @(
                     "License/redistribution approval is not recorded.",
                     "Documentation alternative decision is not recorded."
                 )
-                BlockingReason = "Project ownership, license/redistribution approval, and documentation-alternative decision are not recorded."
+                BlockingReason = "Out of current scope; keep local and untracked unless Pixel Streaming ownership is explicitly reopened."
                 NextReviewAction = [string]$_.NextReviewAction
-                Boundary = "Keep untracked unless project ownership, license/redistribution, and documentation alternative are accepted."
+                Boundary = "Current LiDAR/virtual-sensor work ignores Pixel Streaming. Keep untracked; only a future Pixel Streaming scope needs ownership and redistribution acceptance."
                 SampleRiskReason = [string]$_.SampleRiskReason
                 ExtensionCounts = $_.ExtensionCounts
                 LargestFiles = $_.LargestFiles
@@ -181,10 +184,12 @@ $report = [PSCustomObject]@{
     SampleCandidateSize = Convert-ToSizeText -Bytes $totalBytes
     RepositoryAcceptanceRequiredCount = @($candidates | Where-Object { $_.RepositoryAcceptanceRequired }).Count
     DocumentationAlternativePreferredCount = @($candidates | Where-Object { $_.DocumentationAlternativePreferred }).Count
+    ExcludedFromCurrentScopeCount = @($candidates | Where-Object { $_.ExcludedFromCurrentScope }).Count
+    CountsTowardRemainingWorkCount = @($candidates | Where-Object { $_.CountsTowardRemainingWork }).Count
     MustRemainUntrackedCount = @($candidates | Where-Object { $_.MustRemainUntracked }).Count
     ReadyToStageCount = @($candidates | Where-Object { $_.ReadyToStage }).Count
     SetupPlanSteps = $setupPlanSteps
-    DefaultAction = "Keep copied sample/third-party content untracked unless project ownership, redistribution approval, and documentation-alternative decisions are recorded."
+    DefaultAction = "Ignore copied Pixel Streaming sample content for the current LiDAR/virtual-sensor scope; keep it untracked."
     Candidates = $candidates
     Summary = [PSCustomObject]@{
         SampleCandidateCount = $candidates.Count
@@ -200,12 +205,14 @@ $report = [PSCustomObject]@{
         RepositoryAcceptanceRequiredCount = @($candidates | Where-Object { $_.RepositoryAcceptanceRequired }).Count
         DocumentationAlternativePreferredCount = @($candidates | Where-Object { $_.DocumentationAlternativePreferred }).Count
         SetupAlternativePreferredCount = @($candidates | Where-Object { $_.SetupAlternativePreferred }).Count
+        ExcludedFromCurrentScopeCount = @($candidates | Where-Object { $_.ExcludedFromCurrentScope }).Count
+        CountsTowardRemainingWorkCount = @($candidates | Where-Object { $_.CountsTowardRemainingWork }).Count
         MustRemainUntrackedCount = @($candidates | Where-Object { $_.MustRemainUntracked }).Count
         ReadyToStageCount = @($candidates | Where-Object { $_.ReadyToStage }).Count
         MissingAcceptanceCount = [int](($candidates | Measure-Object -Property MissingAcceptanceCount -Sum).Sum)
         LargestSampleCandidatePath = if ($candidates.Count -gt 0) { [string]$candidates[0].Path } else { "" }
         LargestSampleCandidateSize = if ($candidates.Count -gt 0) { [string]$candidates[0].Size } else { "" }
-        DefaultAction = "Keep untracked or replace with setup documentation unless ownership and redistribution evidence are accepted."
+        DefaultAction = "Ignore for current scope, keep untracked, and reopen only if Pixel Streaming becomes a project requirement."
         Valid = ($candidates.Count -eq $largeReport.Summary.RedistributionReviewRequiredCount -and $stagedSamplePaths.Count -eq 0)
     }
 }
@@ -228,6 +235,8 @@ $lines.Add("- Staged sample path count: $($report.StagedSamplePathCount)") | Out
 $lines.Add("- Sample candidates: $($report.SampleCandidateCount)") | Out-Null
 $lines.Add("- Sample candidate size: $($report.SampleCandidateSize)") | Out-Null
 $lines.Add("- Must remain untracked: $($report.MustRemainUntrackedCount)") | Out-Null
+$lines.Add("- Excluded from current scope: $($report.ExcludedFromCurrentScopeCount)") | Out-Null
+$lines.Add("- Counts toward remaining work: $($report.CountsTowardRemainingWorkCount)") | Out-Null
 $lines.Add("- Ready to stage: $($report.ReadyToStageCount)") | Out-Null
 $lines.Add("- Default action: $($report.DefaultAction)") | Out-Null
 $lines.Add("") | Out-Null
@@ -237,16 +246,17 @@ foreach ($step in $report.SetupPlanSteps) {
     $lines.Add("- $step") | Out-Null
 }
 $lines.Add("") | Out-Null
-$lines.Add("| Path | Size | Files | Git state | Setup documentation | Documentation alternative preferred | Must remain untracked | Ready to stage | Required acceptance |") | Out-Null
-$lines.Add("| --- | ---: | ---: | --- | --- | --- | --- | --- | --- |") | Out-Null
+$lines.Add("| Path | Size | Files | Git state | Current scope decision | Excluded from current scope | Counts toward remaining work | Must remain untracked | Ready to stage | Required acceptance |") | Out-Null
+$lines.Add("| --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |") | Out-Null
 foreach ($candidate in $report.Candidates) {
-    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f `
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} |" -f `
         (Convert-ToMarkdownCell $candidate.Path),
         (Convert-ToMarkdownCell $candidate.Size),
         (Convert-ToMarkdownCell $candidate.FileCount),
         (Convert-ToMarkdownCell $candidate.GitState),
-        (Convert-ToMarkdownCell $candidate.SetupDocumentationPath),
-        (Convert-ToMarkdownCell $candidate.DocumentationAlternativePreferred),
+        (Convert-ToMarkdownCell $candidate.CurrentScopeDecision),
+        (Convert-ToMarkdownCell $candidate.ExcludedFromCurrentScope),
+        (Convert-ToMarkdownCell $candidate.CountsTowardRemainingWork),
         (Convert-ToMarkdownCell $candidate.MustRemainUntracked),
         (Convert-ToMarkdownCell $candidate.ReadyToStage),
         (Convert-ToMarkdownCell (@($candidate.RequiredAcceptance | ForEach-Object { $_.Name }) -join "; ")))) | Out-Null

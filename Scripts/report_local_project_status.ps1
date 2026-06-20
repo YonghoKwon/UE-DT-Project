@@ -765,10 +765,10 @@ try {
         [PSCustomObject]@{
             Path = "Samples\PixelStreaming"
             Category = "SampleOrThirdParty"
-            Recommendation = "Keep untracked unless Pixel Streaming samples are intentionally added to the project."
-            DecisionOwner = "ProjectOwnerRequired"
-            DecisionStatus = "PendingOwnerDecision"
-            EvidenceNeeded = @("Project ownership decision", "License/redistribution approval", "Setup documentation alternative considered")
+            Recommendation = "Current LiDAR/virtual-sensor scope excludes Pixel Streaming. Keep local and untracked."
+            DecisionOwner = "NotApplicableForCurrentScope"
+            DecisionStatus = "KeepLocalCurrentScopeExcluded"
+            EvidenceNeeded = @("Keep untracked during current scope", "Reopen ownership/license review only if Pixel Streaming becomes a project requirement")
         },
         [PSCustomObject]@{
             Path = "Windows.zip"
@@ -856,6 +856,11 @@ try {
         }
         $reviewQueue = Get-ReviewQueue -CommitReadiness $commitReadiness -Category $entry.Category
         $gitState = Get-DecisionPointGitState -RelativePath $relativePath -UntrackedGitPaths $untrackedGitPaths -StagedGitPaths $stagedGitPaths -UnstagedGitPaths $unstagedGitPaths
+        $outOfScopeThisIteration = ((Normalize-RepoPath $relativePath) -eq "samples/pixelstreaming")
+        if ($summary.State -eq "present" -and $outOfScopeThisIteration) {
+            $commitReadiness = "KeepLocalOutOfScope"
+            $reviewQueue = "KeepLocal"
+        }
         if ($summary.State -eq "present") {
             ++$presentCount
             if ($entry.Category -like "Generated*") {
@@ -893,6 +898,10 @@ try {
             GitState = $gitState
             CommitReadiness = $commitReadiness
             ReviewQueue = $reviewQueue
+            OutOfScopeThisIteration = $outOfScopeThisIteration
+            MustRemainUntracked = ($outOfScopeThisIteration -and $summary.State -eq "present")
+            StageAllowed = (-not $outOfScopeThisIteration -and $reviewQueue -eq "ReadyToStage")
+            CountsTowardRemainingWork = -not $outOfScopeThisIteration
             ReviewPriority = Get-ReviewPriority -RelativePath $relativePath -Category $entry.Category -SizeBytes $summary.SizeBytes
             CommitBlocker = ($summary.State -eq "present" -and $reviewQueue -ne "ReadyToStage")
             BlockingReason = Get-BlockingReason -CommitReadiness $commitReadiness -DecisionStatus $evidenceReview.EffectiveDecisionStatus -EvidenceStatus $evidenceReview.EvidenceReviewStatus -MissingEvidence $evidenceReview.MissingEvidence
@@ -958,6 +967,8 @@ try {
             StagedBlockedDecisionPointCount = $stagedBlockedDecisionPaths.Count
             CommitBlockedDecisionPointCount = @($decisionPoints | Where-Object { $_.State -eq "present" -and $_.CommitBlocker }).Count
             ActionPlanItemCount = @($decisionPoints | Where-Object { $_.State -eq "present" -and $_.CommitBlocker }).Count
+            OutOfScopeDecisionPointCount = @($decisionPoints | Where-Object { $_.State -eq "present" -and $_.OutOfScopeThisIteration }).Count
+            RemainingWorkDecisionPointCount = @($decisionPoints | Where-Object { $_.State -eq "present" -and $_.CountsTowardRemainingWork }).Count
             HasStagedDecisionPoints = ($stagedDecisionPaths.Count -gt 0)
             HasStagedBlockedDecisionPoints = ($stagedBlockedDecisionPaths.Count -gt 0)
             PresentCategoryCounts = [PSCustomObject]$presentCategoryCounts

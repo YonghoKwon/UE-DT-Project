@@ -71,14 +71,15 @@ Open decisions:
     from the local project after reference/dependency checks.
 - `Samples/PixelStreaming/`
   - Sample or third-party content.
-  - Current local state: tracked as a sample/third-party decision point with
-    extension counts and largest-file details in
+  - Current local state: tracked only as a local sample/third-party staging
+    boundary with extension counts and largest-file details in
     `Scripts/report_local_project_status.ps1`.
+  - Current scope decision: ignore PixelStreaming for the DT-Project
+    LiDAR/virtual-sensor work. It must remain untracked, but its ownership and
+    redistribution acceptance no longer count as current remaining work.
   - Current pre-commit summary: one sample/third-party candidate, about 3.3 MB,
-    with `Samples/PixelStreaming` as the repository-acceptance path.
-  - Evidence needed: explicit decision that Pixel Streaming samples are part of
-    this repository, redistribution/license acceptance, and a decision that
-    checked-in files are preferable to documenting Pixel Streaming setup steps.
+    with `ExcludedFromCurrentScope = true` and
+    `CountsTowardRemainingWork = false`.
   - Repository-side setup alternative: `docs/pixel_streaming_setup.md`.
 - Static readiness:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1"`.
@@ -914,6 +915,9 @@ pre-commit signal; `FastReadinessPassed` means the fast/static gates passed, not
 that full PIE, broker, LAZ, editor, or deployment evidence is complete. Skipped
 steps are reported with evidence boundaries and still require manual, editor,
 deployment, or full smoke evidence before the related work is complete.
+PixelStreaming is intentionally excluded from these percentages for the current
+LiDAR/virtual-sensor scope; the local sample folder is only guarded against
+accidental staging.
 
 Full local readiness check:
 

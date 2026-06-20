@@ -75,6 +75,7 @@ $generatedCandidates = @($presentDecisionPoints | Where-Object { $_.Category -li
 $readyToStagePoints = @($presentDecisionPoints | Where-Object { $_.ReviewQueue -eq "ReadyToStage" })
 $needsOwnerDecisionPoints = @($presentDecisionPoints | Where-Object { $_.ReviewQueue -eq "NeedsOwnerDecision" })
 $keepLocalPoints = @($presentDecisionPoints | Where-Object { $_.ReviewQueue -eq "KeepLocal" })
+$outOfScopePoints = @($presentDecisionPoints | Where-Object { $_.OutOfScopeThisIteration })
 
 $decisionReport = [PSCustomObject]@{
     GeneratedAt = (Get-Date).ToString("s")
@@ -91,6 +92,7 @@ $decisionReport = [PSCustomObject]@{
     ReadyToStageCount = $readyToStagePoints.Count
     NeedsOwnerDecisionCount = $needsOwnerDecisionPoints.Count
     KeepLocalCount = $keepLocalPoints.Count
+    OutOfScopeThisIterationCount = $outOfScopePoints.Count
     ActionPlan = $report.ActionPlan
     ActionPlanItemCount = @($report.ActionPlan).Count
     CommitBlockedDecisionPointCount = $report.Summary.CommitBlockedDecisionPointCount
@@ -100,7 +102,7 @@ $decisionReport = [PSCustomObject]@{
         "Open the monitor WBP in Unreal Editor, verify optional bindings, and run PIE smoke before staging.",
         "Inspect Config/Game.ini and share it only if project-wide defaults are intentional.",
         "Decide ownership, source, versioning, and storage strategy for large Content folders.",
-        "Keep PixelStreaming samples untracked unless the project needs to own those sample files."
+        "Keep PixelStreaming samples untracked and out of the current LiDAR/virtual-sensor scope."
     )
 }
 
@@ -120,6 +122,7 @@ Add-MarkdownLine -Lines $lines -Value "- Staged decision paths: $($report.Summar
 Add-MarkdownLine -Lines $lines -Value "- Ready to stage: $($decisionReport.ReadyToStageCount)"
 Add-MarkdownLine -Lines $lines -Value "- Needs owner decision: $($decisionReport.NeedsOwnerDecisionCount)"
 Add-MarkdownLine -Lines $lines -Value "- Keep local: $($decisionReport.KeepLocalCount)"
+Add-MarkdownLine -Lines $lines -Value "- Out of current scope: $($decisionReport.OutOfScopeThisIterationCount)"
 Add-MarkdownLine -Lines $lines -Value "- Commit-blocked decision points: $($decisionReport.CommitBlockedDecisionPointCount)"
 Add-MarkdownLine -Lines $lines -Value "- Action-plan items: $($decisionReport.ActionPlanItemCount)"
 Add-MarkdownLine -Lines $lines
