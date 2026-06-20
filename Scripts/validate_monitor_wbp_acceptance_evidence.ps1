@@ -195,6 +195,7 @@ $requiredManualAcceptanceSectionNames = @(
     "SensorSelectionEvidence",
     "LidarStatusPanelEvidence",
     "SlabAnalysisPanelEvidence",
+    "DisplayDataScreenMatchEvidence",
     "NoCrashEvidence",
     "OwnerAcceptance"
 )
@@ -202,7 +203,19 @@ $requiredNames = @(
     "Editor open verification",
     "Optional binding check",
     "PIE smoke result",
+    "DisplayData visual match",
     "Production WBP acceptance"
+)
+$requiredDisplayDataRows = @(
+    "TitleText",
+    "SelectedSensorText",
+    "FrameText",
+    "MeasurementText",
+    "ServerPayloadText",
+    "PreviewText",
+    "SlabText",
+    "WarningText",
+    "ViewModeText"
 )
 $requiredOptionalBindings = @(Get-MonitorOptionalBindingNames -SourceRepoRoot $SourceRepoRoot)
 $acceptedPieStatuses = @("Passed", "Accepted", "UnavailableAccepted", "ExplicitlyUnavailable")
@@ -300,6 +313,47 @@ if ($pieEvidence.Count -gt 0) {
     Add-Check -Checks $checks -Name "PIE checks are passed or explicitly accepted unavailable" -Passed ($pieChecks.Count -gt 0 -and $badPieChecks.Count -eq 0) -Detail "BadPieChecks=$($badPieChecks.Count)"
 }
 
+$displayEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "DisplayData visual match"
+if ($displayEvidence.Count -gt 0) {
+    $display = $displayEvidence[0]
+    $displayRows = @($display.DisplayRows)
+    $observedDisplayNames = @($displayRows | ForEach-Object { [string]$_.FieldName })
+    $missingDisplayRows = @($requiredDisplayDataRows | Where-Object { $observedDisplayNames -notcontains $_ })
+    $badRequiredRows = @($displayRows | Where-Object {
+            [bool]$_.Required -and (
+                -not (Test-NonEmptyString $_.ObservedValue) -or
+                -not (Test-NonEmptyString $_.TextBlockName) -or
+                -not [bool]$_.VisibleInWbp -or
+                -not [bool]$_.MatchesDisplayedText
+            )
+        })
+    $badOptionalRows = @($displayRows | Where-Object {
+            -not [bool]$_.Required -and
+            -not [bool]$_.ExplicitlyUnavailable -and (
+                -not (Test-NonEmptyString $_.ObservedValue) -or
+                -not (Test-NonEmptyString $_.TextBlockName) -or
+                -not [bool]$_.VisibleInWbp -or
+                -not [bool]$_.MatchesDisplayedText
+            )
+        })
+
+    Add-Check -Checks $checks -Name "DisplayData evidence metadata complete" -Passed (
+        (Test-NonEmptyString $display.MapName) -and
+        (Test-NonEmptyString $display.PieSession) -and
+        (Test-NonEmptyString $display.SourceFunction) -and
+        [string]$display.SourceFunction -eq "GetMonitorDisplayData" -and
+        ($display.PSObject.Properties.Name -contains "bShowingLidar") -and
+        (Test-NonEmptyString $display.SensorMode)
+    ) -Detail "MapName/PieSession/SourceFunction/bShowingLidar/SensorMode"
+    Add-Check -Checks $checks -Name "DisplayData screenshot or log path exists" -Passed (
+        (Test-EvidenceFilePath -Value $display.ScreenshotPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot) -or
+        (Test-EvidenceFilePath -Value $display.EditorLogPath -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot)
+    ) -Detail "ScreenshotPath=$($display.ScreenshotPath) EditorLogPath=$($display.EditorLogPath)"
+    Add-Check -Checks $checks -Name "DisplayData row list complete" -Passed ($missingDisplayRows.Count -eq 0) -Detail "MissingRows=$($missingDisplayRows -join ', ')"
+    Add-Check -Checks $checks -Name "Required DisplayData rows match visible WBP text" -Passed ($badRequiredRows.Count -eq 0) -Detail "BadRequiredRows=$(@($badRequiredRows | Select-Object -ExpandProperty FieldName) -join ', ')"
+    Add-Check -Checks $checks -Name "Optional DisplayData rows match or are explicitly unavailable" -Passed ($badOptionalRows.Count -eq 0) -Detail "BadOptionalRows=$(@($badOptionalRows | Select-Object -ExpandProperty FieldName) -join ', ')"
+}
+
 $productionEvidence = Get-EvidenceItem -Items $templateEvidenceItems -Name "Production WBP acceptance"
 if ($productionEvidence.Count -gt 0) {
     $production = $productionEvidence[0]
@@ -335,6 +389,7 @@ $report = [PSCustomObject]@{
         EvidenceFilePresent = $evidenceFilePresent
         EvidenceRecordPresent = ($null -ne $evidenceRecord)
         RequiredEvidenceCount = $requiredNames.Count
+        RequiredDisplayDataRowCount = $requiredDisplayDataRows.Count
         ManualAcceptanceSectionCount = $requiredManualAcceptanceSectionNames.Count
         ManualAcceptanceSectionsPresent = ($null -ne $manualAcceptanceSections)
         AcceptedManualAcceptanceSectionCount = $acceptedManualAcceptanceSectionCount

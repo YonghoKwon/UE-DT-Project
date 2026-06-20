@@ -340,6 +340,12 @@ The WBP acceptance template and validator derive optional widget names from the
 native `BindWidgetOptional` fields in `VirtualSensorMonitorWidget.h`, then ask
 the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,
 and `MissingOptionalDoesNotCrash` evidence for the actual Designer widget.
+The evidence template also asks for a `DisplayData visual match`: during PIE,
+map each `GetMonitorDisplayData()` row to the visible WBP TextBlock so title,
+selected sensor, frame, measurement, server payload, preview, slab, warning,
+and view-mode rows are verified against the native status contract. Record
+`bShowingLidar`/`SensorMode` and accept the matching
+`DisplayDataScreenMatchEvidence` manual section before staging the binary WBP.
 The local `WBP_VirtualSensorMonitor.uasset` can exist as an untracked review
 candidate while `ReadyToStageMonitorWbpAsset` remains false. Do not stage it
 until editor-open, widget-binding, PIE-smoke, no-crash, and owner-acceptance

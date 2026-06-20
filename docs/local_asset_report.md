@@ -117,6 +117,12 @@ The monitor WBP acceptance template and validator derive optional widget names
 from `VirtualSensorMonitorWidget.h` `BindWidgetOptional` properties rather than
 from a separate hard-coded checklist. This prevents stale evidence names from
 approving a WBP that would not auto-bind to the native widget.
+The same acceptance evidence requires a `DisplayData visual match` section so
+the editor reviewer maps `GetMonitorDisplayData()` rows to visible WBP
+TextBlocks during PIE. This keeps the binary asset acceptance tied to the
+current native monitor status contract instead of a screenshot-only review.
+`DisplayDataScreenMatchEvidence` must also be accepted in the manual acceptance
+sections before the WBP can be considered stageable.
 
 Large content candidates and sample/third-party folders include extension counts
 and the largest files in each folder. Use this to spot built-data-heavy map

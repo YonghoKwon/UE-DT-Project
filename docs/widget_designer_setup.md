@@ -210,6 +210,15 @@ The optional-binding evidence list is generated from
 uses the same C++ names as automatic binding. For each present widget, record
 `IsVariable`, `WidgetClass`, and `BoundToExpectedCppName`; for each missing
 optional widget, record `MissingOptionalDoesNotCrash`.
+The acceptance template also includes a `DisplayData visual match` evidence
+section. During PIE, record each `GetMonitorDisplayData()` row
+(`TitleText`, `SelectedSensorText`, `FrameText`, `MeasurementText`,
+`ServerPayloadText`, `PreviewText`, `SlabText`, `WarningText`, and
+`ViewModeText`) and match it to the visible WBP TextBlock. Record
+`bShowingLidar`/`SensorMode` so camera and LiDAR evidence are not mixed.
+`WarningText` should record the visible no-warning row when no warning is
+produced, rather than being left blank. The same manual acceptance also includes
+`DisplayDataScreenMatchEvidence`, backed by a screenshot or editor/PIE log.
 The acceptance evidence validator is also read-only. It checks the filled
 evidence file against the current SHA256 asset hash, optional binding safety,
 Editor/PIE evidence paths, and owner acceptance, and it only throws for

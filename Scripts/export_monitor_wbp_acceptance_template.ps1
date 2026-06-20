@@ -100,6 +100,18 @@ $pieSmokeChecks = @(
     "Transport/performance warning row is visible when warning text exists."
 )
 
+$displayDataRows = @(
+    [PSCustomObject]@{ FieldName = "TitleText"; Required = $true; Notes = "Monitor title row from GetMonitorDisplayData()." },
+    [PSCustomObject]@{ FieldName = "SelectedSensorText"; Required = $true; Notes = "Selected camera/LiDAR id row." },
+    [PSCustomObject]@{ FieldName = "FrameText"; Required = $true; Notes = "Frame id and scan interval row." },
+    [PSCustomObject]@{ FieldName = "MeasurementText"; Required = $true; Notes = "Ray, point, hit, or resolution row." },
+    [PSCustomObject]@{ FieldName = "ServerPayloadText"; Required = $true; Notes = "Server payload point/byte/policy row." },
+    [PSCustomObject]@{ FieldName = "PreviewText"; Required = $true; Notes = "LiDAR preview count and preview policy row." },
+    [PSCustomObject]@{ FieldName = "SlabText"; Required = $true; Notes = "Slab point count, angle, deviation, confidence, or insufficient-points row." },
+    [PSCustomObject]@{ FieldName = "WarningText"; Required = $true; Notes = "Warning row; record the visible no-warning text when no warning is produced." },
+    [PSCustomObject]@{ FieldName = "ViewModeText"; Required = $true; Notes = "Camera render-target or LiDAR view mode row." }
+)
+
 $manualAcceptanceSections = [PSCustomObject]@{
     EditorOpenEvidence = [PSCustomObject]@{
         Required = $true
@@ -142,6 +154,13 @@ $manualAcceptanceSections = [PSCustomObject]@{
         Present = $false
         Accepted = $false
         Description = "Slab angle/deviation/confidence rows are visible or explicitly accepted unavailable for the selected smoke map."
+    }
+    DisplayDataScreenMatchEvidence = [PSCustomObject]@{
+        Required = $true
+        EvidencePath = ""
+        Present = $false
+        Accepted = $false
+        Description = "GetMonitorDisplayData rows are observed in PIE and matched to visible WBP TextBlocks."
     }
     NoCrashEvidence = [PSCustomObject]@{
         Required = $true
@@ -278,6 +297,38 @@ $template = [PSCustomObject]@{
             Notes = "Run PIE in the intended map with the production monitor host/binding path."
         },
         [PSCustomObject]@{
+            Name = "DisplayData visual match"
+            Status = "Pending"
+            Required = $true
+            EvidenceRunId = ""
+            Operator = ""
+            VerifiedAt = ""
+            MapName = ""
+            PieSession = ""
+            WidgetBlueprintPath = $wbpRelativePath
+            SourceFunction = "GetMonitorDisplayData"
+            bShowingLidar = $true
+            SensorMode = "LiDAR"
+            ScreenshotPath = ""
+            EditorLogPath = ""
+            DisplayRows = @(
+                $displayDataRows |
+                    ForEach-Object {
+                        [PSCustomObject]@{
+                            FieldName = $_.FieldName
+                            Required = $_.Required
+                            ObservedValue = ""
+                            TextBlockName = ""
+                            VisibleInWbp = $false
+                            MatchesDisplayedText = $false
+                            ExplicitlyUnavailable = $false
+                            Notes = $_.Notes
+                        }
+                    }
+            )
+            Notes = "Record GetMonitorDisplayData rows and match them to visible WBP TextBlocks. WarningText can be explicitly unavailable when no warning is produced."
+        },
+        [PSCustomObject]@{
             Name = "Production WBP acceptance"
             Status = "Pending"
             Required = $true
@@ -302,14 +353,18 @@ $template = [PSCustomObject]@{
             [PSCustomObject]@{ Name = "Editor open verification"; Status = "Pending"; Source = ""; Note = "Attach editor screenshot/log evidence." },
             [PSCustomObject]@{ Name = "Optional binding check"; Status = "Pending"; Source = ""; Note = "Attach binding checklist evidence." },
             [PSCustomObject]@{ Name = "PIE smoke result"; Status = "Pending"; Source = ""; Note = "Attach PIE map/session/log evidence." },
+            [PSCustomObject]@{ Name = "DisplayData visual match"; Status = "Pending"; Source = ""; Note = "Attach screenshot/log evidence mapping GetMonitorDisplayData rows to WBP TextBlocks." },
             [PSCustomObject]@{ Name = "Production WBP acceptance"; Status = "Pending"; Source = ""; Note = "Attach owner acceptance evidence." }
         )
     }
     Summary = [PSCustomObject]@{
-        RequiredEvidenceCount = 4
-        PendingEvidenceCount = 4
+        RequiredEvidenceCount = 5
+        PendingEvidenceCount = 5
         OptionalBindingCount = $optionalBindings.Count
         OptionalBindingSource = "VirtualSensorMonitorWidget.h BindWidgetOptional"
+        DisplayDataRowCount = $displayDataRows.Count
+        DisplayDataSourceFunction = "GetMonitorDisplayData"
+        DisplayDataModeField = "bShowingLidar"
         ManualAcceptanceSectionCount = $manualAcceptanceSectionNames.Count
         ManualAcceptanceSections = $manualAcceptanceSectionNames
         PieSmokeCheckCount = $pieSmokeChecks.Count
