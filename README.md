@@ -319,12 +319,17 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precom
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_decision_precommit_gate_policy.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 ```
 
 `invoke_local_decision_precommit_gate.ps1` is the fastest commit-time local
 decision guard. It allows the known local-only untracked files to remain local,
 but fails accidental staging or invariant violations for local decision paths,
 `Samples/PixelStreaming`, and `Plugins/DTCore`.
+`export_goal_progress_blocker_report.ps1` writes a read-only
+`Saved/Reports/GoalProgress` snapshot with the current progress percent,
+remaining percent, external-evidence blockers, PixelStreaming exclusion, rough
+calendar-time expectation, and Codex-thread reset guidance.
 
 Monitor WBP manual acceptance package:
 

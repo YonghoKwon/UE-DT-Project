@@ -945,7 +945,15 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 ```
+
+`export_goal_progress_blocker_report.ps1` writes
+`Saved/Reports/GoalProgress` with the current overall percent, remaining
+percent, blocked external-evidence items, PixelStreaming exclusion,
+unused-content scope exclusion, rough remaining calendar-time expectation, and
+Codex-thread reset guidance. It is progress evidence only and does not modify
+assets or stage files.
 
 The percentages are planning snapshots derived from the current remaining-work
 areas. They are not a substitute for build, smoke, editor, or server acceptance

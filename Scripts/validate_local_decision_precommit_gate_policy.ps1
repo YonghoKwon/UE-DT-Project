@@ -68,12 +68,13 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 
 $gateScript = Join-Path $SourceRepoRoot "Scripts\invoke_local_decision_precommit_gate.ps1"
+$goalProgressBlockerReportScript = Join-Path $SourceRepoRoot "Scripts\export_goal_progress_blocker_report.ps1"
 $largePolicyScript = Join-Path $SourceRepoRoot "Scripts\validate_large_content_decision_policy.ps1"
 $localAssetDoc = Join-Path $SourceRepoRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $SourceRepoRoot "docs\remaining_work.md"
 $readme = Join-Path $SourceRepoRoot "README.md"
 
-foreach ($required in @($gateScript, $largePolicyScript, $localAssetDoc, $remainingDoc, $readme)) {
+foreach ($required in @($gateScript, $goalProgressBlockerReportScript, $largePolicyScript, $localAssetDoc, $remainingDoc, $readme)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Required file not found: $required"
     }
@@ -96,10 +97,19 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $gateScript; Pattern = "strict mode requires accepted local decision evidence"; Label = "Gate documents strict WBP evidence behavior" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "DryRunOnly = `$true"; Label = "Gate declares read-only behavior" },
     [PSCustomObject]@{ Path = $gateScript; Pattern = "StagesFiles = `$false"; Label = "Gate declares no staging" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "Saved\Reports\GoalProgress"; Label = "Progress blocker report writes under Saved" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "BlockedExternalEvidenceCount"; Label = "Progress blocker report counts external blockers" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "ShouldResetCodexThread"; Label = "Progress blocker report explains reset guidance" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "UsageVisibility"; Label = "Progress blocker report clarifies quota visibility" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "PixelStreamingCountsTowardRemainingWork = `$false"; Label = "Progress blocker report excludes PixelStreaming" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "ModifiesAssets = `$false"; Label = "Progress blocker report declares no asset edits" },
+    [PSCustomObject]@{ Path = $goalProgressBlockerReportScript; Pattern = "StagesFiles = `$false"; Label = "Progress blocker report declares no staging" },
     [PSCustomObject]@{ Path = $largePolicyScript; Pattern = "invoke_local_decision_precommit_gate.ps1"; Label = "Large policy references local decision gate" },
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "invoke_local_decision_precommit_gate.ps1"; Label = "Local asset doc documents local decision gate" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "invoke_local_decision_precommit_gate.ps1"; Label = "Remaining work documents local decision gate" },
-    [PSCustomObject]@{ Path = $readme; Pattern = "invoke_local_decision_precommit_gate.ps1"; Label = "README documents local decision gate" }
+    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_goal_progress_blocker_report.ps1"; Label = "Remaining work documents progress blocker report" },
+    [PSCustomObject]@{ Path = $readme; Pattern = "invoke_local_decision_precommit_gate.ps1"; Label = "README documents local decision gate" },
+    [PSCustomObject]@{ Path = $readme; Pattern = "export_goal_progress_blocker_report.ps1"; Label = "README documents progress blocker report" }
 )
 
 foreach ($item in $requiredTexts) {
