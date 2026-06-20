@@ -55,6 +55,9 @@ struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
     FString SlabText;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString LazExportText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
     FString WarningText;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
@@ -119,6 +122,15 @@ public:
     bool IsLocalSensorCaptureActive() const { return bLocalSensorCaptureActive; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    bool IsShowingLidar() const { return bShowingLidar; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    bool HasBoundCamera() const { return CameraComp != nullptr; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    bool HasBoundLidar() const { return LidarComp != nullptr; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetMonitorTitleText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
@@ -146,6 +158,9 @@ public:
     FString GetSlabAnalysisSummaryText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetLazExportSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetTransportWarningText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
@@ -153,6 +168,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     const FString& GetLastManualExportPath() const { return LastManualExportPath; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    const FString& GetLastManualExportMessage() const { return LastManualExportMessage; }
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;

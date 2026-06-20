@@ -241,6 +241,7 @@ FVirtualSensorMonitorDisplayData UVirtualSensorMonitorWidget::GetMonitorDisplayD
     Data.ServerPayloadText = GetServerPayloadSummaryText();
     Data.PreviewText = GetPreviewPolicySummaryText();
     Data.SlabText = GetSlabAnalysisSummaryText();
+    Data.LazExportText = GetLazExportSummaryText();
     Data.WarningText = GetTransportWarningText();
     Data.ViewModeText = GetViewModeSummaryText();
     Data.FullStatusText = GetMonitorStatusText();
@@ -348,6 +349,32 @@ FString UVirtualSensorMonitorWidget::GetSlabAnalysisSummaryText() const
         Slab.EstimatedYawDegrees,
         Slab.AngleDeviationDegrees,
         Slab.Confidence);
+}
+
+FString UVirtualSensorMonitorWidget::GetLazExportSummaryText() const
+{
+    const UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
+    if (!TargetLidar)
+    {
+        return TEXT("LAZ Export: unavailable");
+    }
+
+    const FString LazStatusText = TargetLidar->GetLastLazExportStatusText();
+    const FString LazWarningText = TargetLidar->GetLastLazExportWarningText();
+    return FString::Printf(TEXT("LAZ Export: Attempted=%s Success=%s Placeholder=%s External=%s/%s/%s Produced=%s TrueValidated=%s Points=%d ReturnCode=%d Size=%lld Status=%s Warning=%s"),
+        TargetLidar->WasLastLazExportAttempted() ? TEXT("true") : TEXT("false"),
+        TargetLidar->DidLastLazExportSucceed() ? TEXT("true") : TEXT("false"),
+        TargetLidar->WasLastLazExportPlaceholderOnly() ? TEXT("true") : TEXT("false"),
+        TargetLidar->WasLastLazExternalCompressorRequested() ? TEXT("requested") : TEXT("not-requested"),
+        TargetLidar->WasLastLazExternalCompressorAttempted() ? TEXT("attempted") : TEXT("not-attempted"),
+        TargetLidar->DidLastLazExternalCompressorSucceed() ? TEXT("succeeded") : TEXT("not-succeeded"),
+        TargetLidar->DidLastLazProduceOutputFile() ? TEXT("true") : TEXT("false"),
+        TargetLidar->WasLastLazTrueCompressionValidated() ? TEXT("true") : TEXT("false"),
+        TargetLidar->GetLastLazExportedPointCount(),
+        TargetLidar->GetLastLazExternalCompressorReturnCode(),
+        TargetLidar->GetLastLazOutputSizeBytes(),
+        LazStatusText.IsEmpty() ? TEXT("None") : *LazStatusText,
+        LazWarningText.IsEmpty() ? TEXT("None") : *LazWarningText);
 }
 
 FString UVirtualSensorMonitorWidget::GetTransportWarningText() const
@@ -1163,7 +1190,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
         const FVirtualLidarSlabAnalysisResult& Slab = Status.SlabAnalysis;
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,returnIndex,x,y,z\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\n%s\nTransport/Warning: %s\nLiDAR View: %s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,returnIndex,x,y,z\nMessage: %s"),
             *Status.SensorId,
             Status.FrameId,
             LidarComp->ScanInterval,
@@ -1189,6 +1216,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
             Slab.Center.X,
             Slab.Center.Y,
             Slab.Center.Z,
+            *GetLazExportSummaryText(),
             Status.PerformanceWarning.IsEmpty() ? TEXT("None") : *Status.PerformanceWarning,
             *GetLidarViewModeDisplayText(),
             bUseEnhancedLidarMonitorView ? TEXT("On") : TEXT("Off"),

@@ -365,7 +365,10 @@ owner acceptance before the asset is staged.
 For WBP layout work, bind individual TextBlocks to the native summary getters
 such as `GetSelectedSensorIdText`, `GetFrameSummaryText`,
 `GetServerPayloadSummaryText`, `GetPreviewPolicySummaryText`, and
-`GetSlabAnalysisSummaryText` instead of parsing the full debug status text.
+`GetSlabAnalysisSummaryText`, plus `GetLazExportSummaryText` for the LAZ
+placeholder/compressor boundary, instead of parsing the full debug status text.
+Use `IsShowingLidar`, `HasBoundCamera`, `HasBoundLidar`, and
+`GetLastManualExportMessage` for WBP visibility/enabled-state rules.
 
 Judging-server acceptance package:
 

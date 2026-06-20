@@ -863,6 +863,12 @@ Current state:
   It must not byte-patch `WBP_VirtualSensorMonitor.uasset` directly. Actual WBP
   Designer/layout edits require Unreal Editor, pre-edit hash/backup, compile and
   save evidence, post-edit hash, PIE smoke, and owner acceptance before staging.
+- The native monitor now exposes WBP-facing state helpers for Designer bindings:
+  `IsShowingLidar`, `HasBoundCamera`, `HasBoundLidar`,
+  `GetLastManualExportMessage`, and `GetLazExportSummaryText`. The
+  `FVirtualSensorMonitorDisplayData` struct also includes `LazExportText`, so a
+  WBP can show the LAZ placeholder/compressor/true-validation boundary without
+  parsing the full debug status string.
 
 Next implementation steps:
 

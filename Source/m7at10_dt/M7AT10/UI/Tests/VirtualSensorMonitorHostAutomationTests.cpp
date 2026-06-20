@@ -59,6 +59,9 @@ bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameter
     const FString StatusText = MonitorWidget->GetMonitorStatusText();
 
     TestTrue(TEXT("title shows camera view"), TitleText.Contains(TEXT("Camera")));
+    TestFalse(TEXT("monitor reports camera mode"), MonitorWidget->IsShowingLidar());
+    TestTrue(TEXT("monitor reports bound camera"), MonitorWidget->HasBoundCamera());
+    TestFalse(TEXT("monitor reports no bound lidar"), MonitorWidget->HasBoundLidar());
     TestTrue(TEXT("camera status includes selected sensor id"), StatusText.Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
     TestTrue(TEXT("camera status includes schema version"), StatusText.Contains(TEXT("Schema: virtual-camera.v1")));
     TestTrue(TEXT("camera status includes resolution"), StatusText.Contains(TEXT("Resolution: 800x450")));
@@ -116,6 +119,9 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     const FString StatusText = MonitorWidget->GetMonitorStatusText();
 
     TestTrue(TEXT("title shows LiDAR view"), TitleText.Contains(TEXT("LIDAR")));
+    TestTrue(TEXT("monitor reports lidar mode"), MonitorWidget->IsShowingLidar());
+    TestTrue(TEXT("monitor reports bound lidar"), MonitorWidget->HasBoundLidar());
+    TestFalse(TEXT("monitor reports no bound camera"), MonitorWidget->HasBoundCamera());
     TestTrue(TEXT("status includes selected sensor id"), StatusText.Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
     TestTrue(TEXT("status includes frame id"), StatusText.Contains(TEXT("Frame:")));
     TestTrue(TEXT("status includes scan interval"), StatusText.Contains(TEXT("Scan: 0.125s")));
@@ -124,6 +130,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes server payload policy"), StatusText.Contains(TEXT("Server Payload: Points=8 Bytes=")) && StatusText.Contains(TEXT("Stride=2 Max=8 IncludeMiss=false")));
     TestTrue(TEXT("status includes preview policy"), StatusText.Contains(TEXT("Preview: On Points=5 Stride=3 Max=5 HitOnly=true")));
     TestTrue(TEXT("status includes slab analysis"), StatusText.Contains(TEXT("Slab: Valid Points=24 Angle=")));
+    TestTrue(TEXT("status includes laz export telemetry row"), StatusText.Contains(TEXT("LAZ Export: Attempted=false")));
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
     TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,returnIndex,x,y,z")));
@@ -133,6 +140,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("lidar payload getter exposes server policy"), MonitorWidget->GetServerPayloadSummaryText().Contains(TEXT("Points=8")) && MonitorWidget->GetServerPayloadSummaryText().Contains(TEXT("Stride=2 Max=8")));
     TestTrue(TEXT("lidar preview getter exposes preview policy"), MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("Points=5")) && MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("HitOnly=true")));
     TestTrue(TEXT("lidar slab getter exposes slab analysis"), MonitorWidget->GetSlabAnalysisSummaryText().Contains(TEXT("Slab: Valid")) && MonitorWidget->GetSlabAnalysisSummaryText().Contains(TEXT("Points=24")));
+    TestTrue(TEXT("lidar laz getter exposes initial state"), MonitorWidget->GetLazExportSummaryText().Contains(TEXT("Attempted=false")));
     TestTrue(TEXT("lidar warning getter exposes warning row"), MonitorWidget->GetTransportWarningText().Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("lidar view getter exposes view mode"), MonitorWidget->GetViewModeSummaryText().Contains(TEXT("LiDAR View:")));
     const FVirtualSensorMonitorDisplayData LidarDisplayData = MonitorWidget->GetMonitorDisplayData();
@@ -140,6 +148,12 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("lidar display data exposes sensor"), LidarDisplayData.SelectedSensorText.Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
     TestTrue(TEXT("lidar display data exposes payload"), LidarDisplayData.ServerPayloadText.Contains(TEXT("Points=8")));
     TestTrue(TEXT("lidar display data exposes slab"), LidarDisplayData.SlabText.Contains(TEXT("Slab: Valid")));
+    TestTrue(TEXT("lidar display data exposes laz export"), LidarDisplayData.LazExportText.Contains(TEXT("LAZ Export:")));
+
+    TestTrue(TEXT("monitor laz export telemetry updates after placeholder export"), LidarComp->ExportLastPointCloudLaz(TEXT("automation_monitor_laz")));
+    const FString LazExportText = MonitorWidget->GetLazExportSummaryText();
+    TestTrue(TEXT("monitor laz getter exposes placeholder success"), LazExportText.Contains(TEXT("Attempted=true")) && LazExportText.Contains(TEXT("Placeholder=true")));
+    TestTrue(TEXT("monitor laz getter preserves true validation boundary"), LazExportText.Contains(TEXT("TrueValidated=false")));
 
     MonitorWidget->ToggleLidarPreviewHitOnly();
     const FString ToggledStatusText = MonitorWidget->GetMonitorStatusText();
@@ -232,6 +246,7 @@ bool FVirtualSensorMonitorServerPayloadExportTest::RunTest(const FString& Parame
     TestTrue(TEXT("server payload export succeeds"), MonitorWidget->ExportSelectedLidarServerPayload(TEXT("automation_server_payload")));
     const FString ExportPath = MonitorWidget->GetLastManualExportPath();
     TestFalse(TEXT("server payload export path is populated"), ExportPath.IsEmpty());
+    TestTrue(TEXT("server payload export message is populated"), MonitorWidget->GetLastManualExportMessage().Contains(TEXT("LiDAR Server Payload Export: saved")));
     TestTrue(TEXT("server payload export file exists"), FPaths::FileExists(ExportPath));
 
     FString SavedPayload;
