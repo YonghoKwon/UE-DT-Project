@@ -343,6 +343,11 @@ backup under `Saved/Backups/MonitorWbp`, records the pre-edit SHA256 hash,
 generates the WBP acceptance package, and writes a local editor-review checklist
 under `Saved/Reports/MonitorWbpEditorReview`. It writes only under `Saved`; it
 does not modify or stage `WBP_VirtualSensorMonitor.uasset`.
+The editor-review checklist enumerates the required DisplayData rows, including
+`LazExportText`, the `IsShowingLidar`/`HasBoundCamera`/`HasBoundLidar` helper
+checks, `GetLastManualExportMessage` export evidence, and the strict
+post-edit validation command to run after screenshot/log/export evidence paths
+are filled.
 The WBP acceptance template and validator derive optional widget names from the
 native `BindWidgetOptional` fields in `VirtualSensorMonitorWidget.h`, then ask
 the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,

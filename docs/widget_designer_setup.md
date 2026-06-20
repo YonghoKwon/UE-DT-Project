@@ -234,6 +234,11 @@ Before opening the binary WBP in Unreal Editor, run
 `WBP_VirtualSensorMonitor.uasset` to `Saved/Backups/MonitorWbp`, records the
 pre-edit SHA256 hash, generates the acceptance package under `Saved/Reports`,
 and writes an editor-review checklist without modifying or staging the asset.
+The checklist calls out the required DisplayData rows, including
+`LazExportText`, state helper checks for `IsShowingLidar`, `HasBoundCamera`,
+and `HasBoundLidar`, manual export message evidence from
+`GetLastManualExportMessage`, evidence-file completion, and post-edit strict
+validation.
 
 Local camera capture notes:
 

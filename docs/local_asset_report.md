@@ -113,6 +113,11 @@ manual Designer work. It creates a timestamped backup of
 pre-edit SHA256 hash, generates the monitor WBP acceptance package, and writes a
 review checklist under `Saved/Reports/MonitorWbpEditorReview`. It writes only
 under `Saved`, does not edit Unreal assets, and never stages the WBP.
+The checklist now lists the required DisplayData rows, including
+`LazExportText`, state helper checks for `IsShowingLidar`, `HasBoundCamera`,
+and `HasBoundLidar`, manual export message evidence from
+`GetLastManualExportMessage`, evidence-file completion, and post-edit strict
+validation.
 The monitor WBP acceptance template and validator derive optional widget names
 from `VirtualSensorMonitorWidget.h` `BindWidgetOptional` properties rather than
 from a separate hard-coded checklist. This prevents stale evidence names from

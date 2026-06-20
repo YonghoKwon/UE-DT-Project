@@ -109,9 +109,12 @@ $acceptanceEvidencePath = [string]$acceptancePackage.EvidencePath
 $manualChecklist = @(
     [PSCustomObject]@{ Step = "OpenEditor"; Required = $true; Evidence = "Editor opens project and WBP without load errors." },
     [PSCustomObject]@{ Step = "CompileWidget"; Required = $true; Evidence = "WBP compiles without errors after binding changes." },
-    [PSCustomObject]@{ Step = "BindDisplayRows"; Required = $true; Evidence = "TextBlocks bind to GetMonitorDisplayData or individual summary getters." },
-    [PSCustomObject]@{ Step = "PieSmoke"; Required = $true; Evidence = "PIE confirms camera/LiDAR switching, preview policy, payload export, slab row, and no crash." },
+    [PSCustomObject]@{ Step = "BindDisplayRows"; Required = $true; Evidence = "TextBlocks bind to GetMonitorDisplayData or individual summary getters, including LazExportText/GetLazExportSummaryText." },
+    [PSCustomObject]@{ Step = "BindStateHelpers"; Required = $true; Evidence = "Visibility/enabled rules use IsShowingLidar, HasBoundCamera, HasBoundLidar, and avoid parsing full debug text." },
+    [PSCustomObject]@{ Step = "PieSmoke"; Required = $true; Evidence = "PIE confirms camera/LiDAR switching, helper state values, preview policy, payload export, manual export message, slab row, LAZ boundary row, and no crash." },
+    [PSCustomObject]@{ Step = "FillEvidenceFile"; Required = $true; Evidence = "Fill monitor_wbp_acceptance.evidence.json sections for DisplayDataScreenMatchEvidence, PieSmokeEvidence, and OwnerAcceptance." },
     [PSCustomObject]@{ Step = "PostEditHash"; Required = $true; Evidence = "Record post-edit SHA256 hash in acceptance evidence." },
+    [PSCustomObject]@{ Step = "PostEditValidation"; Required = $true; Evidence = "Run validate_monitor_wbp_acceptance_evidence.ps1 with -FailOnIncompleteEvidence after screenshot/log/export evidence paths are filled." },
     [PSCustomObject]@{ Step = "OwnerAcceptance"; Required = $true; Evidence = "Project owner accepts the binary WBP before staging." }
 )
 
@@ -143,6 +146,8 @@ $report = [PSCustomObject]@{
     PreflightSummary = $preflight.Summary
     AcceptancePackageSummary = $acceptancePackage.Summary
     ManualChecklist = $manualChecklist
+    RequiredDisplayDataRows = @("TitleText", "SelectedSensorText", "FrameText", "MeasurementText", "ServerPayloadText", "PreviewText", "SlabText", "LazExportText", "WarningText", "ViewModeText")
+    RequiredStateHelperChecks = @("IsShowingLidar", "HasBoundCamera", "HasBoundLidar", "GetLastManualExportMessage")
     FollowUpCommands = @(
         $editorCommand,
         ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f (Join-Path $SourceRepoRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"), $ProjectRoot, $SourceRepoRoot, $acceptanceEvidencePath),
@@ -158,6 +163,12 @@ $report = [PSCustomObject]@{
         ReadyToStageMonitorWbpAsset = [bool]$acceptancePackage.Summary.ReadyToStageMonitorWbpAsset
         MonitorWbpAssetStageAllowed = [bool]$acceptancePackage.Summary.MonitorWbpAssetStageAllowed
         ManualChecklistCount = $manualChecklist.Count
+        RequiredDisplayDataRowCount = 10
+        RequiresLazExportTextEvidence = $true
+        RequiresStateHelperSmokeEvidence = $true
+        RequiresManualExportMessageEvidence = $true
+        RequiresEvidenceFileCompletion = $true
+        RequiresPostEditStrictValidation = $true
         RequiresEditorMediatedAssetEdit = [bool]$preflight.Summary.EditorMediatedAssetEditRequired
         DirectBinaryPatchSupported = [bool]$preflight.Summary.WbpDirectBinaryPatchSupported
         ModifiesAssets = $false
@@ -184,6 +195,8 @@ $lines.Add("- Backup hash matches: $($report.Summary.BackupHashMatchesPreEditHas
 $lines.Add("- Acceptance evidence path: $($report.AcceptanceEvidencePath)") | Out-Null
 $lines.Add("- Ready for manual editor review: $($report.Summary.ReadyForManualEditorReview)") | Out-Null
 $lines.Add("- Ready to stage WBP: $($report.Summary.ReadyToStageMonitorWbpAsset)") | Out-Null
+$lines.Add("- Required DisplayData rows: $($report.RequiredDisplayDataRows -join ', ')") | Out-Null
+$lines.Add("- Required state helper checks: $($report.RequiredStateHelperChecks -join ', ')") | Out-Null
 $lines.Add("- Modifies assets: $($report.Summary.ModifiesAssets)") | Out-Null
 $lines.Add("- Stages files: $($report.Summary.StagesFiles)") | Out-Null
 $lines.Add("- Writes Saved only: $($report.Summary.WritesSavedOnly)") | Out-Null
