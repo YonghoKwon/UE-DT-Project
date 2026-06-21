@@ -223,6 +223,11 @@ Open decisions:
   under `Saved/Reports/MonitorWbpPostEdit`, compares the current hash with the
   pre-edit review/backup when available, and provides the exact hash fields to
   copy into the acceptance evidence before strict validation.
+- `Scripts/validate_monitor_wbp_acceptance_evidence.ps1` and
+  `Scripts/export_monitor_wbp_acceptance_package.ps1` now emit
+  `MissingEvidenceActions`. Each failed WBP acceptance check is mapped to an
+  `EvidenceTarget` and a concrete `NextAction`, so the manual Editor/PIE pass
+  has a focused checklist instead of only a missing-count summary.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   and preflight section with WBP Git state, review queue, missing evidence
   count, missing acceptance items, setup-doc contract status, preflight blocked

@@ -363,6 +363,10 @@ The WBP acceptance template and validator derive optional widget names from the
 native `BindWidgetOptional` fields in `VirtualSensorMonitorWidget.h`, then ask
 the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,
 and `MissingOptionalDoesNotCrash` evidence for the actual Designer widget.
+The WBP acceptance validator and package also emit `MissingEvidenceActions`,
+mapping each failed check to an `EvidenceTarget` and concrete `NextAction`.
+Use that list as the manual Editor/PIE checklist before attempting to stage
+`WBP_VirtualSensorMonitor.uasset`.
 The evidence template also asks for a `DisplayData visual match`: during PIE,
 map each `GetMonitorDisplayData()` row to the visible WBP TextBlock so title,
 selected sensor, frame, measurement, server payload, preview, slab, warning,

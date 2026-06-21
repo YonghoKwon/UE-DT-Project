@@ -116,6 +116,53 @@ function Add-Check {
     }) | Out-Null
 }
 
+function New-MissingEvidenceAction {
+    param([object]$Check)
+
+    $name = [string]$Check.Name
+    $target = "monitor_wbp_acceptance.evidence.json"
+    $action = "Fill the related WBP acceptance evidence field and attach a real evidence file path."
+    if ($name -match "Editor") {
+        $target = "RequiredEvidence.Editor open verification"
+        $action = "Open WBP_VirtualSensorMonitor in Unreal Editor, compile it, and attach editor log or screenshot evidence plus post-edit hash report."
+    }
+    elseif ($name -match "Optional binding|bindings") {
+        $target = "RequiredEvidence.Optional binding check"
+        $action = "Review BindWidgetOptional names against the WBP, mark present widgets, and mark missing optional widgets crash-safe only after testing."
+    }
+    elseif ($name -match "PIE") {
+        $target = "RequiredEvidence.PIE smoke result"
+        $action = "Run PIE in the intended map, record map/session/log, and mark every smoke check Passed or explicitly unavailable."
+    }
+    elseif ($name -match "DisplayData|LazExportText") {
+        $target = "RequiredEvidence.DisplayData visual match"
+        $action = "Capture GetMonitorDisplayData rows in PIE and map each required row to visible WBP TextBlocks, including LazExportText."
+    }
+    elseif ($name -match "Production acceptance|Decision accepted|Accepted metadata|OwnerAcceptance") {
+        $target = "RequiredEvidence.Production WBP acceptance"
+        $action = "Record project-owner AcceptedForRepository decision, accepted-by, accepted-at, evidence source, and owner decision note."
+    }
+    elseif ($name -match "Post-edit hash") {
+        $target = "RequiredEvidence.Editor open verification.PostEditHashReportPath"
+        $action = "Run export_monitor_wbp_post_edit_hash_report.ps1 after saving the WBP through Unreal Editor and copy the report path/current hash into evidence."
+    }
+    elseif ($name -match "Manual acceptance") {
+        $target = "ManualAcceptanceSections"
+        $action = "For each required manual section, set Present=true, Accepted=true, and attach an existing evidence file path."
+    }
+    elseif ($name -match "Asset hash") {
+        $target = "AssetHash"
+        $action = "Copy the current SHA256 hash from WBP preflight or post-edit hash report into the evidence file."
+    }
+
+    return [PSCustomObject]@{
+        Check = $name
+        Detail = [string]$Check.Detail
+        EvidenceTarget = $target
+        NextAction = $action
+    }
+}
+
 function Get-MonitorOptionalBindingNames {
     param([string]$SourceRepoRoot)
 
@@ -407,6 +454,7 @@ if ($productionEvidence.Count -gt 0) {
 }
 
 $failedChecks = @($checks | Where-Object { -not [bool]$_.Passed })
+$missingEvidenceActions = @($failedChecks | ForEach-Object { New-MissingEvidenceAction -Check $_ })
 $readyToStageCandidate = ($failedChecks.Count -eq 0 -and $evidenceFilePresent -and -not [bool]$preflight.Summary.WbpStaged)
 $monitorWbpManualAcceptanceComplete = ($acceptedManualAcceptanceSectionCount -eq $requiredManualAcceptanceSectionNames.Count -and $readyToStageCandidate)
 
@@ -425,6 +473,7 @@ $report = [PSCustomObject]@{
     StagesWbp = $false
     Checks = @($checks)
     FailedChecks = $failedChecks
+    MissingEvidenceActions = $missingEvidenceActions
     Summary = [PSCustomObject]@{
         EvidenceFilePresent = $evidenceFilePresent
         EvidenceRecordPresent = ($null -ne $evidenceRecord)
@@ -442,6 +491,8 @@ $report = [PSCustomObject]@{
         MonitorWbpManualAcceptanceComplete = $monitorWbpManualAcceptanceComplete
         PassedCheckCount = @($checks | Where-Object { [bool]$_.Passed }).Count
         FailedCheckCount = $failedChecks.Count
+        MissingEvidenceActionCount = $missingEvidenceActions.Count
+        TopMissingEvidenceActions = @($missingEvidenceActions | Select-Object -First 8)
         ReadyToStageCandidate = $readyToStageCandidate
         WbpStaged = [bool]$preflight.Summary.WbpStaged
         DecisionReportReadyToStage = [bool]$decision.Summary.ReadyToStage

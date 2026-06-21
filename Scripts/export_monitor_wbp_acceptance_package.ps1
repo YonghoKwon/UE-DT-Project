@@ -144,6 +144,7 @@ $manifest = [PSCustomObject]@{
     DecisionSummary = $decision.Summary
     TemplateSummary = $template.Summary
     ValidationSummary = $validation.Summary
+    MissingEvidenceActions = @($validation.MissingEvidenceActions)
     ManualSteps = $manualSteps
     FollowUpCommands = $followUpCommands
     Summary = [PSCustomObject]@{
@@ -151,6 +152,8 @@ $manifest = [PSCustomObject]@{
         ReadyForManualEditorReview = [bool]$preflight.Summary.ReadyForManualEditorReview
         WbpAcceptanceEvidenceComplete = [bool]$validation.Summary.Complete
         WbpAcceptanceMissingCount = [int]$validation.Summary.FailedCheckCount
+        MissingEvidenceActionCount = [int]$validation.Summary.MissingEvidenceActionCount
+        TopMissingEvidenceActions = @($validation.Summary.TopMissingEvidenceActions)
         MonitorWbpAssetPresent = [bool]$validation.Summary.MonitorWbpAssetPresent
         MonitorWbpAssetTracked = [bool]$validation.Summary.MonitorWbpAssetTracked
         MonitorWbpAssetStageAllowed = [bool]$validation.Summary.MonitorWbpAssetStageAllowed
@@ -193,6 +196,7 @@ $lines.Add("- Evidence file: $($manifest.EvidencePath)") | Out-Null
 $lines.Add("- Ready for manual editor review: $($manifest.Summary.ReadyForManualEditorReview)") | Out-Null
 $lines.Add("- WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanceEvidenceComplete)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)") | Out-Null
+$lines.Add("- Missing evidence action count: $($manifest.Summary.MissingEvidenceActionCount)") | Out-Null
 $lines.Add("- Monitor WBP asset present: $($manifest.Summary.MonitorWbpAssetPresent)") | Out-Null
 $lines.Add("- Monitor WBP asset tracked: $($manifest.Summary.MonitorWbpAssetTracked)") | Out-Null
 $lines.Add("- Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAssetStageAllowed)") | Out-Null
@@ -216,6 +220,14 @@ $lines.Add("| Name | Path |") | Out-Null
 $lines.Add("| --- | --- |") | Out-Null
 foreach ($property in $manifest.Files.PSObject.Properties) {
     $lines.Add(("| {0} | {1} |" -f (Convert-ToMarkdownCell $property.Name), (Convert-ToMarkdownCell $property.Value))) | Out-Null
+}
+$lines.Add("") | Out-Null
+$lines.Add("## Missing Evidence Actions") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add("| Check | Evidence target | Next action |") | Out-Null
+$lines.Add("| --- | --- | --- |") | Out-Null
+foreach ($action in @($manifest.MissingEvidenceActions | Select-Object -First 12)) {
+    $lines.Add(("| {0} | {1} | {2} |" -f (Convert-ToMarkdownCell $action.Check), (Convert-ToMarkdownCell $action.EvidenceTarget), (Convert-ToMarkdownCell $action.NextAction))) | Out-Null
 }
 $lines.Add("") | Out-Null
 $lines.Add("## Manual Steps") | Out-Null
@@ -246,6 +258,7 @@ else {
     Write-Host "Ready for manual editor review: $($manifest.Summary.ReadyForManualEditorReview)"
     Write-Host "WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanceEvidenceComplete)"
     Write-Host "Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)"
+    Write-Host "Missing evidence action count: $($manifest.Summary.MissingEvidenceActionCount)"
     Write-Host "Monitor WBP asset present: $($manifest.Summary.MonitorWbpAssetPresent)"
     Write-Host "Monitor WBP asset tracked: $($manifest.Summary.MonitorWbpAssetTracked)"
     Write-Host "Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAssetStageAllowed)"
