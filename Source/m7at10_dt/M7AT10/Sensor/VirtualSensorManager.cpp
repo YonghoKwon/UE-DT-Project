@@ -4,6 +4,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
@@ -134,6 +135,7 @@ void AVirtualSensorManager::DiscoverSensorsInLevel()
 {
     Cameras.Reset();
     Lidars.Reset();
+    RealSensorSources.Reset();
     UWorld* World = GetWorld();
     if (!World) return;
     for (TActorIterator<AActor> It(World); It; ++It)
@@ -151,6 +153,12 @@ void AVirtualSensorManager::DiscoverSensorsInLevel()
         for (UVirtualLidarSensorComp* LidarComp : FoundLidars)
         {
             RegisterLidar(LidarComp);
+        }
+        TArray<URealSensorSourceComp*> FoundRealSensorSources;
+        Actor->GetComponents<URealSensorSourceComp>(FoundRealSensorSources);
+        for (URealSensorSourceComp* RealSensorSourceComp : FoundRealSensorSources)
+        {
+            RegisterRealSensorSource(RealSensorSourceComp);
         }
     }
 }
@@ -175,6 +183,15 @@ void AVirtualSensorManager::RegisterLidar(UVirtualLidarSensorComp* LidarComp)
         {
             ApplyPointCloudOnlyToLidar(LidarComp, LidarComp == GetSelectedLidar());
         }
+        ApplyWidgetBinding();
+    }
+}
+
+void AVirtualSensorManager::RegisterRealSensorSource(URealSensorSourceComp* RealSensorSourceComp)
+{
+    if (RealSensorSourceComp && !RealSensorSources.Contains(RealSensorSourceComp))
+    {
+        RealSensorSources.Add(RealSensorSourceComp);
         ApplyWidgetBinding();
     }
 }
@@ -206,6 +223,15 @@ void AVirtualSensorManager::SelectLidarByIndex(int32 Index)
                 ApplyPointCloudOnlyToLidar(LidarComp, LidarComp == GetSelectedLidar());
             }
         }
+        ApplyWidgetBinding();
+    }
+}
+
+void AVirtualSensorManager::SelectRealSensorSourceByIndex(int32 Index)
+{
+    if (RealSensorSources.IsValidIndex(Index))
+    {
+        SelectedRealSensorSourceIndex = Index;
         ApplyWidgetBinding();
     }
 }
@@ -394,6 +420,21 @@ UVirtualLidarSensorComp* AVirtualSensorManager::GetSelectedLidar() const
     return Lidars.IsValidIndex(SelectedLidarIndex) ? Lidars[SelectedLidarIndex] : nullptr;
 }
 
+URealSensorSourceComp* AVirtualSensorManager::GetSelectedRealSensorSource() const
+{
+    if (UVirtualLidarSensorComp* SelectedLidar = GetSelectedLidar())
+    {
+        for (URealSensorSourceComp* RealSensorSourceComp : RealSensorSources)
+        {
+            if (RealSensorSourceComp && RealSensorSourceComp->TargetLidar == SelectedLidar)
+            {
+                return RealSensorSourceComp;
+            }
+        }
+    }
+    return RealSensorSources.IsValidIndex(SelectedRealSensorSourceIndex) ? RealSensorSources[SelectedRealSensorSourceIndex] : nullptr;
+}
+
 TArray<FVirtualSensorSummary> AVirtualSensorManager::GetCameraSummaries() const
 {
     TArray<FVirtualSensorSummary> Result;
@@ -419,6 +460,21 @@ TArray<FVirtualSensorSummary> AVirtualSensorManager::GetLidarSummaries() const
         Summary.SensorType = TEXT("virtual_lidar");
         Summary.bValid = Lidars[Index] != nullptr;
         Summary.SensorId = Lidars[Index] ? Lidars[Index]->SensorId : TEXT("");
+        Result.Add(Summary);
+    }
+    return Result;
+}
+
+TArray<FVirtualSensorSummary> AVirtualSensorManager::GetRealSensorSourceSummaries() const
+{
+    TArray<FVirtualSensorSummary> Result;
+    for (int32 Index = 0; Index < RealSensorSources.Num(); ++Index)
+    {
+        FVirtualSensorSummary Summary;
+        Summary.Index = Index;
+        Summary.SensorType = TEXT("real_sensor_source");
+        Summary.bValid = RealSensorSources[Index] != nullptr;
+        Summary.SensorId = RealSensorSources[Index] ? RealSensorSources[Index]->SourceId : TEXT("");
         Result.Add(Summary);
     }
     return Result;
@@ -472,6 +528,7 @@ void AVirtualSensorManager::ApplyWidgetBinding()
     if (!BoundMonitorWidget) return;
     BoundMonitorWidget->BindVirtualCamera(GetSelectedCamera());
     BoundMonitorWidget->BindVirtualLidar(GetSelectedLidar());
+    BoundMonitorWidget->BindRealSensorSource(GetSelectedRealSensorSource());
     if (CurrentViewMode == EVirtualSensorViewMode::PointCloudOnly)
     {
         BoundMonitorWidget->ShowLidarView();

@@ -5,10 +5,13 @@
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
+#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
+#include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyPolicyTest, "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerSharedServicesTest, "M7AT10.SensorManager.SharedServicesAssigned", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -153,17 +156,23 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
 
     UVirtualCameraComp* CameraComp = NewObject<UVirtualCameraComp>(CameraOwner);
     UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>(LidarOwner);
+    ULidarCsvReplaySourceComp* RealSourceComp = NewObject<ULidarCsvReplaySourceComp>(LidarOwner);
     TestNotNull(TEXT("camera component"), CameraComp);
     TestNotNull(TEXT("lidar component"), LidarComp);
-    if (!CameraComp || !LidarComp)
+    TestNotNull(TEXT("real sensor replay source"), RealSourceComp);
+    if (!CameraComp || !LidarComp || !RealSourceComp)
     {
         return false;
     }
 
     CameraOwner->AddInstanceComponent(CameraComp);
     LidarOwner->AddInstanceComponent(LidarComp);
+    LidarOwner->AddInstanceComponent(RealSourceComp);
     CameraComp->RegisterComponent();
     LidarComp->RegisterComponent();
+    RealSourceComp->RegisterComponent();
+    RealSourceComp->SourceId = TEXT("TEST-MANAGER-REAL-SOURCE");
+    RealSourceComp->TargetLidar = LidarComp;
 
     UVirtualSensorDataTransportComp* SharedTransport = Manager->SharedTransportComponent;
     UVirtualSensorRecorderComp* SharedRecorder = Manager->SharedRecorderComponent;
@@ -172,6 +181,7 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
 
     Manager->RegisterCamera(CameraComp);
     Manager->RegisterLidar(LidarComp);
+    Manager->RegisterRealSensorSource(RealSourceComp);
 
     TestEqual(TEXT("camera receives shared transport"), CameraComp->TransportComponent.Get(), SharedTransport);
     TestEqual(TEXT("camera receives shared recorder"), CameraComp->RecorderComponent.Get(), SharedRecorder);
@@ -180,8 +190,23 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
 
     TestEqual(TEXT("camera summary count"), Manager->GetCameraSummaries().Num(), 1);
     TestEqual(TEXT("lidar summary count"), Manager->GetLidarSummaries().Num(), 1);
+    TestEqual(TEXT("real sensor source summary count"), Manager->GetRealSensorSourceSummaries().Num(), 1);
     TestEqual(TEXT("selected camera"), Manager->GetSelectedCamera(), CameraComp);
     TestEqual(TEXT("selected lidar"), Manager->GetSelectedLidar(), LidarComp);
+    TestEqual(TEXT("selected real sensor source matches selected lidar"), Manager->GetSelectedRealSensorSource(), Cast<URealSensorSourceComp>(RealSourceComp));
+    TestTrue(TEXT("real sensor source summary exposes source id"), Manager->GetRealSensorSourceSummaries()[0].SensorId.Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
+
+    UVirtualSensorMonitorWidget* MonitorWidget = NewObject<UVirtualSensorMonitorWidget>();
+    TestNotNull(TEXT("monitor widget"), MonitorWidget);
+    if (!MonitorWidget)
+    {
+        CameraOwner->Destroy();
+        LidarOwner->Destroy();
+        Manager->Destroy();
+        return false;
+    }
+    Manager->BindMonitorWidget(MonitorWidget);
+    TestTrue(TEXT("manager binds selected real source to monitor"), MonitorWidget->GetRealSensorDeploymentSummaryText().Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
 
     CameraOwner->Destroy();
     LidarOwner->Destroy();

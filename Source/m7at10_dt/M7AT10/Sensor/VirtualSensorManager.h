@@ -6,6 +6,7 @@
 
 class UActorComponent;
 class UPrimitiveComponent;
+class URealSensorSourceComp;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 class UVirtualSensorMonitorWidget;
@@ -100,6 +101,9 @@ public:
     void RegisterLidar(UVirtualLidarSensorComp* LidarComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void RegisterRealSensorSource(URealSensorSourceComp* RealSensorSourceComp);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void BindMonitorWidget(UVirtualSensorMonitorWidget* MonitorWidget);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
@@ -107,6 +111,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void SelectLidarByIndex(int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void SelectRealSensorSourceByIndex(int32 Index);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void SelectNextCamera();
@@ -151,10 +158,16 @@ public:
     UVirtualLidarSensorComp* GetSelectedLidar() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+    URealSensorSourceComp* GetSelectedRealSensorSource() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetCameraSummaries() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetLidarSummaries() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+    TArray<FVirtualSensorSummary> GetRealSensorSourceSummaries() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     FVirtualSensorHealthSummary GetHealthSummary() const;
@@ -214,6 +227,9 @@ private:
     TArray<TObjectPtr<UVirtualLidarSensorComp>> Lidars;
 
     UPROPERTY(Transient)
+    TArray<TObjectPtr<URealSensorSourceComp>> RealSensorSources;
+
+    UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorMonitorWidget> BoundMonitorWidget;
 
     UPROPERTY(Transient)
@@ -221,6 +237,7 @@ private:
 
     int32 SelectedCameraIndex = 0;
     int32 SelectedLidarIndex = 0;
+    int32 SelectedRealSensorSourceIndex = 0;
     EVirtualSensorViewMode CurrentViewMode = EVirtualSensorViewMode::Camera;
     EVirtualSensorViewMode PreviousViewModeBeforePointCloudOnly = EVirtualSensorViewMode::Camera;
     bool bPointCloudOnlyModeEnabled = false;

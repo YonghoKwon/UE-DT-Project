@@ -955,6 +955,9 @@ Current state:
   `FVirtualSensorMonitorDisplayData::RealSensorText` now let the monitor show
   the selected real-sensor source deployment readiness directly from
   `URealSensorSourceComp` without parsing the full debug status string.
+- `AVirtualSensorManager` now discovers/registers `URealSensorSourceComp`
+  instances, exposes real-source summaries, and binds the source that targets
+  the selected LiDAR into the monitor automatically.
 
 Next implementation steps:
 

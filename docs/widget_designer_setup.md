@@ -165,6 +165,10 @@ break the returned `FVirtualSensorMonitorDisplayData` struct into title,
 selected sensor, frame, measurement, payload, preview, slab, LAZ export,
 warning, view mode, acceptance gate, and real-sensor deployment rows.
 `GetMonitorStatusText()` remains the native fallback/debug text contract.
+When a monitor is bound through `AVirtualSensorManager`, the manager also binds
+the selected `URealSensorSourceComp` automatically. It prefers the real source
+whose `TargetLidar` matches the selected LiDAR, then falls back to the selected
+real-source index.
 
 The LiDAR status text is expected to include:
 

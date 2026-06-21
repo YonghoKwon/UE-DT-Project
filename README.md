@@ -234,6 +234,9 @@ SensorManager Blueprint API:
 ```text
 CaptureSelectedOnce
 CaptureAllOnce
+RegisterRealSensorSource
+GetSelectedRealSensorSource
+GetRealSensorSourceSummaries
 SetSelectedLidarPreviewPolicy
 AdjustSelectedLidarPreviewBudget
 TogglePointCloudOnlyView
