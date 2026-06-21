@@ -223,6 +223,15 @@ Open decisions:
   under `Saved/Reports/MonitorWbpPostEdit`, compares the current hash with the
   pre-edit review/backup when available, and provides the exact hash fields to
   copy into the acceptance evidence before strict validation.
+- `Scripts/update_monitor_wbp_acceptance_hash_evidence.ps1` copies the
+  post-edit hash report path and current SHA256 into
+  `monitor_wbp_acceptance.evidence.json`. It updates only the local Saved
+  evidence JSON, creates a timestamped backup, and does not modify or stage the
+  binary WBP asset.
+- `Scripts/export_monitor_wbp_acceptance_package.ps1` now preserves an existing
+  `monitor_wbp_acceptance.evidence.json` and writes a fresh comparison template
+  to `monitor_wbp_acceptance.template.fresh.json`, so rerunning the package does
+  not erase hash or manual evidence already collected under `Saved`.
 - `Scripts/validate_monitor_wbp_acceptance_evidence.ps1` and
   `Scripts/export_monitor_wbp_acceptance_package.ps1` now emit
   `MissingEvidenceActions`. Each failed WBP acceptance check is mapped to an
@@ -903,8 +912,9 @@ Next implementation steps:
 - If the WBP layout must change, perform the edit through Unreal Editor only;
   do not manually patch the binary `.uasset`.
 - After saving the WBP in Unreal Editor, export post-edit hash evidence with
-  `Scripts/export_monitor_wbp_post_edit_hash_report.ps1` and copy the reported
-  hash fields into `monitor_wbp_acceptance.evidence.json`.
+  `Scripts/export_monitor_wbp_post_edit_hash_report.ps1`, then run
+  `Scripts/update_monitor_wbp_acceptance_hash_evidence.ps1` to copy the
+  reported hash fields into `monitor_wbp_acceptance.evidence.json`.
 - Confirm camera/LiDAR switching, preview budget controls, hit-only toggle,
   server payload export, and slab analysis text.
 - Export the focused WBP decision report with `-EvidencePath` after filling

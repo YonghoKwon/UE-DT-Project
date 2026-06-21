@@ -71,6 +71,7 @@ $preflightMarkdownPath = Join-Path $OutputRoot "monitor_wbp_preflight.md"
 $decisionJsonPath = Join-Path $OutputRoot "monitor_wbp_decision.json"
 $decisionMarkdownPath = Join-Path $OutputRoot "monitor_wbp_decision.md"
 $evidenceJsonPath = Join-Path $OutputRoot "monitor_wbp_acceptance.evidence.json"
+$freshEvidenceTemplateJsonPath = Join-Path $OutputRoot "monitor_wbp_acceptance.template.fresh.json"
 $evidenceMarkdownPath = Join-Path $OutputRoot "monitor_wbp_acceptance_template.md"
 $validationJsonPath = Join-Path $OutputRoot "monitor_wbp_acceptance_validation.json"
 $missingActionsJsonPath = Join-Path $OutputRoot "monitor_wbp_missing_evidence_actions.json"
@@ -90,10 +91,13 @@ $decision = Invoke-JsonScript -ScriptPath $decisionScript -Parameters @{
     JsonPath = $decisionJsonPath
     MarkdownPath = $decisionMarkdownPath
 }
+$existingEvidencePresent = Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf
+$templateJsonOutputPath = $(if ($existingEvidencePresent) { $freshEvidenceTemplateJsonPath } else { $evidenceJsonPath })
+
 $template = Invoke-JsonScript -ScriptPath $templateScript -Parameters @{
     ProjectRoot = $ProjectRoot
     SourceRepoRoot = $SourceRepoRoot
-    JsonPath = $evidenceJsonPath
+    JsonPath = $templateJsonOutputPath
     MarkdownPath = $evidenceMarkdownPath
 }
 $validation = Invoke-JsonScript -ScriptPath $validatorScript -Parameters @{
@@ -107,7 +111,7 @@ $manualSteps = @(
     "Open Content/M7AT10/UI/WBP_VirtualSensorMonitor and verify it loads and compiles without errors.",
     "Compare optional bindings against docs/widget_designer_setup.md and mark missing optional widgets as crash-safe only after testing.",
     "Run PIE in the intended production or smoke-test map with AVirtualSensorMonitorHostActor or Level Blueprint binding.",
-    "After any WBP save in Unreal Editor, run export_monitor_wbp_post_edit_hash_report.ps1 and copy AssetHash/PostEditHashReportPath into the evidence file.",
+    "After any WBP save in Unreal Editor, run export_monitor_wbp_post_edit_hash_report.ps1, then update_monitor_wbp_acceptance_hash_evidence.ps1 to copy AssetHash/PostEditHashReportPath into the evidence file.",
     "Attach log, screenshot, and exported payload evidence to monitor_wbp_acceptance.evidence.json.",
     "Set Production WBP acceptance to AcceptedForRepository only after the project owner accepts the binary asset.",
     "Re-run validate_monitor_wbp_acceptance_evidence.ps1 with -FailOnIncompleteEvidence before staging the WBP."
@@ -115,6 +119,7 @@ $manualSteps = @(
 
 $followUpCommands = @(
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}"' -f (Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"), $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
+    ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f (Join-Path $SourceRepoRoot "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1"), $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f $validatorScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -FailOnIncompleteEvidence' -f $validatorScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -RequireAcceptedLocalDecisionEvidence' -f (Join-Path $SourceRepoRoot "Scripts\invoke_local_decision_precommit_gate.ps1"), $ProjectRoot, $SourceRepoRoot)
@@ -137,6 +142,7 @@ $manifest = [PSCustomObject]@{
         DecisionJson = $decisionJsonPath
         DecisionMarkdown = $decisionMarkdownPath
         EvidenceJson = $evidenceJsonPath
+        FreshEvidenceTemplateJson = $freshEvidenceTemplateJsonPath
         EvidenceMarkdown = $evidenceMarkdownPath
         ValidationJson = $validationJsonPath
         MissingEvidenceActionsJson = $missingActionsJsonPath
@@ -177,6 +183,8 @@ $manifest = [PSCustomObject]@{
         AcceptedManualAcceptanceSectionCount = [int]$validation.Summary.AcceptedManualAcceptanceSectionCount
         ManualAcceptanceSections = @($validation.Summary.ManualAcceptanceSections)
         EvidenceTemplateCreated = (Test-Path -LiteralPath $evidenceJsonPath -PathType Leaf)
+        ExistingEvidencePreserved = $existingEvidencePresent
+        FreshEvidenceTemplateCreated = (Test-Path -LiteralPath $freshEvidenceTemplateJsonPath -PathType Leaf)
         ValidationReportCreated = $true
         DryRunOnly = $true
         ModifiesAssets = $false
@@ -247,6 +255,8 @@ $lines.Add("- Project: $($manifest.ProjectRoot)") | Out-Null
 $lines.Add("- Source repo: $($manifest.SourceRepoRoot)") | Out-Null
 $lines.Add("- Output root: $($manifest.OutputRoot)") | Out-Null
 $lines.Add("- Evidence file: $($manifest.EvidencePath)") | Out-Null
+$lines.Add("- Existing evidence preserved: $($manifest.Summary.ExistingEvidencePreserved)") | Out-Null
+$lines.Add("- Fresh evidence template created: $($manifest.Summary.FreshEvidenceTemplateCreated)") | Out-Null
 $lines.Add("- Ready for manual editor review: $($manifest.Summary.ReadyForManualEditorReview)") | Out-Null
 $lines.Add("- WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanceEvidenceComplete)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)") | Out-Null

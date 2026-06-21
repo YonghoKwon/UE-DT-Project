@@ -356,9 +356,15 @@ checks, `GetLastManualExportMessage` export evidence, and the strict
 post-edit validation command to run after screenshot/log/export evidence paths
 are filled.
 After saving the WBP in Unreal Editor, run
-`export_monitor_wbp_post_edit_hash_report.ps1` and copy the reported
+`export_monitor_wbp_post_edit_hash_report.ps1`, then run
+`update_monitor_wbp_acceptance_hash_evidence.ps1` to copy the reported
 `AssetHash`, `PostEditAssetHash`, and `PostEditHashReportPath` values into
 `monitor_wbp_acceptance.evidence.json` before strict validation or staging.
+The updater edits only the local Saved evidence JSON, creates a timestamped
+backup, and never modifies or stages the binary WBP asset.
+When the WBP acceptance package is regenerated, an existing
+`monitor_wbp_acceptance.evidence.json` is preserved and a fresh comparison
+template is written separately as `monitor_wbp_acceptance.template.fresh.json`.
 The WBP acceptance template and validator derive optional widget names from the
 native `BindWidgetOptional` fields in `VirtualSensorMonitorWidget.h`, then ask
 the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,
