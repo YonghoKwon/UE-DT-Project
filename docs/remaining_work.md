@@ -684,6 +684,11 @@ Current state:
   compressed output. `ReadyToClaimTrueLaz` still requires a produced `.laz`,
   known-reader validation, repeatable command evidence, placeholder distinction,
   and owner acceptance together.
+- `Scripts/export_laz_compression_acceptance_runbook.ps1` writes
+  `laz_compression_acceptance_runbook.json` and `.md` with the command order for
+  placeholder policy validation, decision review, compressor/reader readiness,
+  produced `.laz` evidence, known-reader probing, evidence fill, and strict
+  validation.
 - Tool version probes are opt-in through `-ProbeToolVersions` on
   `Scripts/export_laz_compressor_readiness_report.ps1`; the default acceptance
   package does not run a compressor, write `.laz` output, or probe tool

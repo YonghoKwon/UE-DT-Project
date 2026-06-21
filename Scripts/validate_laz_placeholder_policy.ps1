@@ -61,6 +61,7 @@ $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
 $readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
 $acceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_package.ps1"
+$acceptanceRunbookScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_runbook.ps1"
 $acceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_acceptance_template.ps1"
 $acceptanceValidatorScript = Join-Path $ProjectRoot "Scripts\validate_laz_compression_acceptance_evidence.ps1"
 $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summary.ps1"
@@ -68,6 +69,7 @@ $precommitSummaryScript = Join-Path $ProjectRoot "Scripts\report_precommit_summa
 Assert-FileExists -Path $decisionReportScript -Label "LAZ compression decision report script"
 Assert-FileExists -Path $readinessReportScript -Label "LAZ compressor readiness report script"
 Assert-FileExists -Path $acceptancePackageScript -Label "LAZ compression acceptance package script"
+Assert-FileExists -Path $acceptanceRunbookScript -Label "LAZ compression acceptance runbook script"
 Assert-FileExists -Path $acceptanceTemplateScript -Label "LAZ compression acceptance template script"
 Assert-FileExists -Path $acceptanceValidatorScript -Label "LAZ compression acceptance evidence validator"
 Assert-FileExists -Path $precommitSummaryScript -Label "Pre-commit summary script"
@@ -164,6 +166,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "TopMissingAcceptanceChecks"; Label = "Acceptance package exposes top missing evidence checks" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadyToClaimTrueLazBlockers"; Label = "Acceptance package exposes true LAZ blocker list" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "EvidenceCopyHints"; Label = "Acceptance package exports evidence copy hints" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "AcceptanceRunbookAvailable"; Label = "Acceptance package exposes runbook availability" },
+    [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "export_laz_compression_acceptance_runbook.ps1"; Label = "Acceptance package references LAZ runbook exporter" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "ReadyToAutoFillAcceptanceEvidence"; Label = "Acceptance package reports auto-fill readiness" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "EvidenceAutoFillBlockedReason"; Label = "Acceptance package reports auto-fill blocker" },
     [PSCustomObject]@{ Path = $acceptancePackageScript; Pattern = "SelectedCompressorCandidatePath"; Label = "Acceptance package exposes selected compressor candidate path" },
@@ -183,6 +187,12 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "NotExternalCompressorCopySurrogateOutput"; Label = "Acceptance template records copy surrogate distinction" },
     [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "RepeatableCommand"; Label = "Acceptance template declares repeatable command section" },
     [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "OwnerAcceptance"; Label = "Acceptance template declares owner acceptance section" },
+    [PSCustomObject]@{ Path = $acceptanceRunbookScript; Pattern = "laz_compression_acceptance_runbook.md"; Label = "LAZ runbook writes markdown" },
+    [PSCustomObject]@{ Path = $acceptanceRunbookScript; Pattern = "Execution Steps"; Label = "LAZ runbook documents execution steps" },
+    [PSCustomObject]@{ Path = $acceptanceRunbookScript; Pattern = "ReadyToClaimTrueLazBlockers"; Label = "LAZ runbook exposes true LAZ blockers" },
+    [PSCustomObject]@{ Path = $acceptanceRunbookScript; Pattern = "DoesNotRunCompressor = `$true"; Label = "LAZ runbook declares no compressor execution" },
+    [PSCustomObject]@{ Path = $acceptanceRunbookScript; Pattern = "WritesLazOutput = `$false"; Label = "LAZ runbook declares no LAZ writes" },
+    [PSCustomObject]@{ Path = $acceptanceRunbookScript; Pattern = "StagesFiles = `$false"; Label = "LAZ runbook declares no staging" },
     [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "RunsCompressor = `$false"; Label = "Acceptance template declares compressor does not run" },
     [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "RunsReaderProbe = `$false"; Label = "Acceptance template declares reader probe does not run" },
     [PSCustomObject]@{ Path = $acceptanceTemplateScript; Pattern = "WritesLazOutput = `$false"; Label = "Acceptance template declares it writes no LAZ output" },

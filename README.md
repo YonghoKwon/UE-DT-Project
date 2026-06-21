@@ -481,6 +481,10 @@ The acceptance package also emits `EvidenceCopyHints` so readiness-report values
 such as selected compressor/reader paths, produced `.laz` path, byte size, and
 reader probe status can be copied into the fillable evidence JSON without
 guessing which section owns each value.
+Use `export_laz_compression_acceptance_runbook.ps1` to create
+`laz_compression_acceptance_runbook.md`, a command sequence for placeholder
+policy validation, compressor/reader readiness, produced `.laz` evidence,
+reader probing, evidence fill, and strict validation.
 
 The LiDAR component also exposes last LAZ export telemetry for widgets and
 automation: status text, LAS source path, LAZ output path, placeholder-only,
