@@ -381,6 +381,9 @@ manual reviewer.
 After collecting Editor/PIE screenshots, logs, or exported payload files, use
 `update_monitor_wbp_manual_evidence_paths.ps1` to merge those paths and common
 run metadata into the Saved evidence JSON without touching the WBP asset.
+Use `update_monitor_wbp_manual_acceptance_sections.ps1` to mark manual
+acceptance sections present/accepted from real evidence files. Owner acceptance
+requires the explicit `-AcceptOwnerAcceptance` switch.
 The evidence template also asks for a `DisplayData visual match`: during PIE,
 map each `GetMonitorDisplayData()` row to the visible WBP TextBlock so title,
 selected sensor, frame, measurement, server payload, preview, slab, warning,

@@ -67,6 +67,7 @@ $templateScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptan
 $validatorScript = Join-Path $SourceRepoRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"
 $todoScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_evidence_todo.ps1"
 $manualEvidenceUpdaterScript = Join-Path $SourceRepoRoot "Scripts\update_monitor_wbp_manual_evidence_paths.ps1"
+$manualAcceptanceUpdaterScript = Join-Path $SourceRepoRoot "Scripts\update_monitor_wbp_manual_acceptance_sections.ps1"
 
 $preflightJsonPath = Join-Path $OutputRoot "monitor_wbp_preflight.json"
 $preflightMarkdownPath = Join-Path $OutputRoot "monitor_wbp_preflight.md"
@@ -129,6 +130,7 @@ $followUpCommands = @(
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}"' -f (Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"), $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f (Join-Path $SourceRepoRoot "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1"), $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -EvidenceRunId "<run-id>" -Operator "<name>" -VerifiedAt "<yyyy-mm-ddThh:mm:ss>" -MapName "<map>" -PieSession "<session>" -EditorLogPath "<path>" -PieLogPath "<path>" -Json' -f $manualEvidenceUpdaterScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
+    ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -EditorOpenEvidencePath "<path>" -PieSmokeEvidencePath "<path>" -DisplayDataScreenMatchEvidencePath "<path>" -Json' -f $manualAcceptanceUpdaterScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -Json' -f $validatorScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -EvidencePath "{3}" -FailOnIncompleteEvidence' -f $validatorScript, $ProjectRoot, $SourceRepoRoot, $evidenceJsonPath),
     ('powershell -ExecutionPolicy Bypass -File "{0}" -ProjectRoot "{1}" -SourceRepoRoot "{2}" -RequireAcceptedLocalDecisionEvidence' -f (Join-Path $SourceRepoRoot "Scripts\invoke_local_decision_precommit_gate.ps1"), $ProjectRoot, $SourceRepoRoot)
@@ -159,6 +161,7 @@ $manifest = [PSCustomObject]@{
         EvidenceTodoJson = $todo.JsonPath
         EvidenceTodoMarkdown = $todo.MarkdownPath
         ManualEvidenceUpdater = $manualEvidenceUpdaterScript
+        ManualAcceptanceUpdater = $manualAcceptanceUpdaterScript
         ManifestJson = $manifestJsonPath
         ManifestMarkdown = $manifestMarkdownPath
     }

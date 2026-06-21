@@ -248,6 +248,10 @@ Open decisions:
   Editor/PIE/DisplayData log, screenshot, exported payload, map, session, and
   operator metadata into the Saved WBP acceptance evidence JSON. It validates
   referenced files and still does not modify or stage the binary WBP asset.
+- `Scripts/update_monitor_wbp_manual_acceptance_sections.ps1` marks individual
+  `ManualAcceptanceSections` present/accepted from real evidence files. It
+  intentionally requires `-AcceptOwnerAcceptance` before touching the owner
+  acceptance section, so repository acceptance cannot be set accidentally.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   and preflight section with WBP Git state, review queue, missing evidence
   count, missing acceptance items, setup-doc contract status, preflight blocked
