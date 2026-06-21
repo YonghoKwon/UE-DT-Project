@@ -122,42 +122,86 @@ function New-MissingEvidenceAction {
     $name = [string]$Check.Name
     $target = "monitor_wbp_acceptance.evidence.json"
     $action = "Fill the related WBP acceptance evidence field and attach a real evidence file path."
-    if ($name -match "Editor") {
+    $phase = "Evidence file completion"
+    $blockingStage = "Acceptance validation"
+    if ($name -match "Editor|EditorOpenEvidence") {
         $target = "RequiredEvidence.Editor open verification"
         $action = "Open WBP_VirtualSensorMonitor in Unreal Editor, compile it, and attach editor log or screenshot evidence plus post-edit hash report."
+        $phase = "Unreal Editor review"
+        $blockingStage = "Manual WBP acceptance"
     }
-    elseif ($name -match "Optional binding|bindings") {
+    elseif ($name -match "Optional binding|bindings|WidgetBindingEvidence") {
         $target = "RequiredEvidence.Optional binding check"
         $action = "Review BindWidgetOptional names against the WBP, mark present widgets, and mark missing optional widgets crash-safe only after testing."
+        $phase = "Unreal Editor review"
+        $blockingStage = "Manual WBP acceptance"
     }
-    elseif ($name -match "PIE") {
+    elseif ($name -match "SensorSelectionEvidence") {
+        $target = "ManualAcceptanceSections.SensorSelectionEvidence"
+        $action = "In PIE, switch Camera/LiDAR selection through the monitor WBP and attach screenshot or log evidence for the selected sensor state."
+        $phase = "PIE smoke"
+        $blockingStage = "Manual WBP acceptance"
+    }
+    elseif ($name -match "LidarStatusPanelEvidence") {
+        $target = "ManualAcceptanceSections.LidarStatusPanelEvidence"
+        $action = "In PIE with a LiDAR sensor selected, verify frame, measurement, server payload, preview, warning, and view-mode rows are visible and attach evidence."
+        $phase = "PIE smoke"
+        $blockingStage = "Display contract acceptance"
+    }
+    elseif ($name -match "SlabAnalysisPanelEvidence") {
+        $target = "ManualAcceptanceSections.SlabAnalysisPanelEvidence"
+        $action = "Run or simulate a slab-tagged LiDAR scan, verify slab count/center/yaw/deviation/confidence text, and attach screenshot or log evidence."
+        $phase = "PIE smoke"
+        $blockingStage = "Display contract acceptance"
+    }
+    elseif ($name -match "NoCrashEvidence") {
+        $target = "ManualAcceptanceSections.NoCrashEvidence"
+        $action = "Run the monitor WBP with optional widgets missing or unavailable and attach evidence that native fallback text prevents crashes."
+        $phase = "PIE smoke"
+        $blockingStage = "Manual WBP acceptance"
+    }
+    elseif ($name -match "PIE|PieSmokeEvidence") {
         $target = "RequiredEvidence.PIE smoke result"
         $action = "Run PIE in the intended map, record map/session/log, and mark every smoke check Passed or explicitly unavailable."
+        $phase = "PIE smoke"
+        $blockingStage = "Manual WBP acceptance"
     }
     elseif ($name -match "DisplayData|LazExportText") {
         $target = "RequiredEvidence.DisplayData visual match"
         $action = "Capture GetMonitorDisplayData rows in PIE and map each required row to visible WBP TextBlocks, including LazExportText."
+        $phase = "PIE smoke"
+        $blockingStage = "Display contract acceptance"
     }
     elseif ($name -match "Production acceptance|Decision accepted|Accepted metadata|OwnerAcceptance") {
         $target = "RequiredEvidence.Production WBP acceptance"
         $action = "Record project-owner AcceptedForRepository decision, accepted-by, accepted-at, evidence source, and owner decision note."
+        $phase = "Owner acceptance"
+        $blockingStage = "Repository staging"
     }
     elseif ($name -match "Post-edit hash") {
         $target = "RequiredEvidence.Editor open verification.PostEditHashReportPath"
         $action = "Run export_monitor_wbp_post_edit_hash_report.ps1 after saving the WBP through Unreal Editor and copy the report path/current hash into evidence."
+        $phase = "Post-edit hash"
+        $blockingStage = "Repository staging"
     }
     elseif ($name -match "Manual acceptance") {
         $target = "ManualAcceptanceSections"
         $action = "For each required manual section, set Present=true, Accepted=true, and attach an existing evidence file path."
+        $phase = "Manual acceptance checklist"
+        $blockingStage = "Repository staging"
     }
     elseif ($name -match "Asset hash") {
         $target = "AssetHash"
         $action = "Copy the current SHA256 hash from WBP preflight or post-edit hash report into the evidence file."
+        $phase = "Evidence file completion"
+        $blockingStage = "Repository staging"
     }
 
     return [PSCustomObject]@{
         Check = $name
         Detail = [string]$Check.Detail
+        EvidencePhase = $phase
+        BlockingStage = $blockingStage
         EvidenceTarget = $target
         NextAction = $action
     }

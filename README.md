@@ -365,8 +365,10 @@ the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,
 and `MissingOptionalDoesNotCrash` evidence for the actual Designer widget.
 The WBP acceptance validator and package also emit `MissingEvidenceActions`,
 mapping each failed check to an `EvidenceTarget` and concrete `NextAction`.
-Use that list as the manual Editor/PIE checklist before attempting to stage
-`WBP_VirtualSensorMonitor.uasset`.
+The package writes `monitor_wbp_missing_evidence_actions.json` and
+`monitor_wbp_missing_evidence_actions.md`, grouped by `EvidencePhase` and
+`BlockingStage`, so the manual Editor/PIE pass has a focused checklist before
+any attempt to stage `WBP_VirtualSensorMonitor.uasset`.
 The evidence template also asks for a `DisplayData visual match`: during PIE,
 map each `GetMonitorDisplayData()` row to the visible WBP TextBlock so title,
 selected sensor, frame, measurement, server payload, preview, slab, warning,

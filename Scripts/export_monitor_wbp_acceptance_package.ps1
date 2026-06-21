@@ -73,6 +73,8 @@ $decisionMarkdownPath = Join-Path $OutputRoot "monitor_wbp_decision.md"
 $evidenceJsonPath = Join-Path $OutputRoot "monitor_wbp_acceptance.evidence.json"
 $evidenceMarkdownPath = Join-Path $OutputRoot "monitor_wbp_acceptance_template.md"
 $validationJsonPath = Join-Path $OutputRoot "monitor_wbp_acceptance_validation.json"
+$missingActionsJsonPath = Join-Path $OutputRoot "monitor_wbp_missing_evidence_actions.json"
+$missingActionsMarkdownPath = Join-Path $OutputRoot "monitor_wbp_missing_evidence_actions.md"
 $manifestJsonPath = Join-Path $OutputRoot "monitor_wbp_acceptance_package.json"
 $manifestMarkdownPath = Join-Path $OutputRoot "README.md"
 
@@ -137,6 +139,8 @@ $manifest = [PSCustomObject]@{
         EvidenceJson = $evidenceJsonPath
         EvidenceMarkdown = $evidenceMarkdownPath
         ValidationJson = $validationJsonPath
+        MissingEvidenceActionsJson = $missingActionsJsonPath
+        MissingEvidenceActionsMarkdown = $missingActionsMarkdownPath
         ManifestJson = $manifestJsonPath
         ManifestMarkdown = $manifestMarkdownPath
     }
@@ -153,6 +157,7 @@ $manifest = [PSCustomObject]@{
         WbpAcceptanceEvidenceComplete = [bool]$validation.Summary.Complete
         WbpAcceptanceMissingCount = [int]$validation.Summary.FailedCheckCount
         MissingEvidenceActionCount = [int]$validation.Summary.MissingEvidenceActionCount
+        MissingEvidenceActionFilesCreated = $true
         TopMissingEvidenceActions = @($validation.Summary.TopMissingEvidenceActions)
         MonitorWbpAssetPresent = [bool]$validation.Summary.MonitorWbpAssetPresent
         MonitorWbpAssetTracked = [bool]$validation.Summary.MonitorWbpAssetTracked
@@ -183,7 +188,56 @@ $manifest = [PSCustomObject]@{
 }
 
 $validation | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $validationJsonPath -Encoding UTF8
+$missingEvidenceActionReport = [PSCustomObject]@{
+    SchemaVersion = 1
+    GeneratedAt = $manifest.GeneratedAt
+    ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+    EvidencePath = $evidenceJsonPath
+    ActionCount = [int]$manifest.Summary.MissingEvidenceActionCount
+    ActionsByPhase = @(
+        $manifest.MissingEvidenceActions |
+            Group-Object -Property EvidencePhase |
+            Sort-Object Name |
+            ForEach-Object {
+                [PSCustomObject]@{
+                    EvidencePhase = $_.Name
+                    Count = $_.Count
+                    Actions = @($_.Group)
+                }
+            }
+    )
+    Actions = @($manifest.MissingEvidenceActions)
+    Summary = [PSCustomObject]@{
+        MissingEvidenceActionCount = [int]$manifest.Summary.MissingEvidenceActionCount
+        ReadyToStageMonitorWbpAsset = [bool]$manifest.Summary.ReadyToStageMonitorWbpAsset
+        WbpAcceptanceEvidenceComplete = [bool]$manifest.Summary.WbpAcceptanceEvidenceComplete
+        Boundary = "This checklist is generated from failed read-only acceptance checks. It is guidance for manual Editor/PIE evidence collection and does not stage or modify the WBP asset."
+    }
+}
+$missingEvidenceActionReport | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $missingActionsJsonPath -Encoding UTF8
 $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestJsonPath -Encoding UTF8
+
+$actionLines = [System.Collections.Generic.List[string]]::new()
+$actionLines.Add("# Monitor WBP Missing Evidence Actions") | Out-Null
+$actionLines.Add("") | Out-Null
+$actionLines.Add("- Generated: $($manifest.GeneratedAt)") | Out-Null
+$actionLines.Add("- Evidence file: $($manifest.EvidencePath)") | Out-Null
+$actionLines.Add("- Missing evidence action count: $($manifest.Summary.MissingEvidenceActionCount)") | Out-Null
+$actionLines.Add("- Ready to stage monitor WBP asset: $($manifest.Summary.ReadyToStageMonitorWbpAsset)") | Out-Null
+$actionLines.Add("") | Out-Null
+foreach ($group in $missingEvidenceActionReport.ActionsByPhase) {
+    $actionLines.Add("## $($group.EvidencePhase)") | Out-Null
+    $actionLines.Add("") | Out-Null
+    $actionLines.Add("| Check | Blocking stage | Evidence target | Next action |") | Out-Null
+    $actionLines.Add("| --- | --- | --- | --- |") | Out-Null
+    foreach ($action in @($group.Actions)) {
+        $actionLines.Add(("| {0} | {1} | {2} | {3} |" -f (Convert-ToMarkdownCell $action.Check), (Convert-ToMarkdownCell $action.BlockingStage), (Convert-ToMarkdownCell $action.EvidenceTarget), (Convert-ToMarkdownCell $action.NextAction))) | Out-Null
+    }
+    $actionLines.Add("") | Out-Null
+}
+$actionLines.Add("Boundary: $($missingEvidenceActionReport.Summary.Boundary)") | Out-Null
+Write-TextFile -Path $missingActionsMarkdownPath -Lines $actionLines
 
 $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add("# Monitor WBP Acceptance Package") | Out-Null
@@ -197,6 +251,7 @@ $lines.Add("- Ready for manual editor review: $($manifest.Summary.ReadyForManual
 $lines.Add("- WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanceEvidenceComplete)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)") | Out-Null
 $lines.Add("- Missing evidence action count: $($manifest.Summary.MissingEvidenceActionCount)") | Out-Null
+$lines.Add("- Missing evidence action files created: $($manifest.Summary.MissingEvidenceActionFilesCreated)") | Out-Null
 $lines.Add("- Monitor WBP asset present: $($manifest.Summary.MonitorWbpAssetPresent)") | Out-Null
 $lines.Add("- Monitor WBP asset tracked: $($manifest.Summary.MonitorWbpAssetTracked)") | Out-Null
 $lines.Add("- Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAssetStageAllowed)") | Out-Null
