@@ -141,7 +141,7 @@ Assert-Condition ($lidar.frameId -ge 0) "LiDAR contract requires non-negative fr
 Assert-Condition ($lidar.rayCount -ge $lidar.hitPointCount) "LiDAR contract requires rayCount >= hitPointCount"
 Assert-Condition ($lidar.totalPointCount -ge $lidar.hitPointCount) "LiDAR contract requires totalPointCount >= hitPointCount"
 Assert-Condition ($lidar.payloadPointCount -eq $lidar.points.Count) "LiDAR contract requires payloadPointCount to match points count"
-Assert-Condition ($lidar.payloadPolicy.pointSelection -in @("hit_only", "all_points")) "LiDAR contract rejects payloadPolicy.pointSelection '$($lidar.payloadPolicy.pointSelection)'"
+Assert-Condition ($lidar.payloadPolicy.pointSelection -in @("hit_only", "hit_and_miss")) "LiDAR contract rejects payloadPolicy.pointSelection '$($lidar.payloadPolicy.pointSelection)'"
 Assert-Condition ($lidar.previewPolicy.maxPoints -ge 0) "LiDAR contract requires non-negative previewPolicy.maxPoints"
 foreach ($point in $lidar.points) {
     Assert-Condition ($point.worldLocation.Count -eq 3) "LiDAR contract requires 3D worldLocation"

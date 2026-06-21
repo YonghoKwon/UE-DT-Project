@@ -95,6 +95,7 @@ cleanup.
 - `bIncludeMissPointsInServerPayload`
 - JSON `schemaVersion = virtual-lidar.v1`
 - JSON `payloadPolicy`
+- JSON `payloadPolicy.pointSelection = hit_only | hit_and_miss`
 - JSON `slabAnalysis`
 
 Editor/UI preview 정책:

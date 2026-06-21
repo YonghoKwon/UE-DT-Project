@@ -502,6 +502,10 @@ Current state:
   arrays.
 - Schema compatibility examples are documented for LiDAR and camera payloads,
   including timestamp, unit, coordinate-frame, and preview/server semantics.
+- LiDAR `payloadPolicy.pointSelection` is fixed to canonical
+  `hit_only | hit_and_miss` values. The schema review policy now checks the
+  docs, fixture, mock contract validator, and C++ serializer for the same
+  server payload policy instead of accepting the older `all_points` alias.
 - LiDAR point `row`/`col` are now preserved from scan/replay metadata when
   available, with `returnIndex`, `gridCoordValid`, and `gridCoordSource`
   documenting multi-return and fallback cases.

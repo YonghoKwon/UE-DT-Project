@@ -51,6 +51,8 @@ Rules:
 - `stride = 1` means no stride downsampling.
 - `maxPoints = 0` means no max-point cap.
 - `includeMissPoints = false` means server payload contains hit points only.
+- `pointSelection` is `hit_only` when `includeMissPoints = false` and
+  `hit_and_miss` when `includeMissPoints = true`.
 - Preview settings never change this object.
 
 ## Preview Policy
@@ -151,6 +153,11 @@ virtual-lidar.v1-strided-hit
   payloadPolicy: stride>1, maxPoints>0, includeMissPoints=false, pointSelection=hit_only
   expected server meaning: points[] is intentionally capped for transport, but
   totalPointCount and hitPointCount still describe the original measurement frame.
+
+virtual-lidar.v1-hit-and-miss
+  payloadPolicy: stride=1, maxPoints=0, includeMissPoints=true, pointSelection=hit_and_miss
+  expected server meaning: hit and miss samples are both included for consumers
+  that need the full ray grid rather than hit-only slab judgment points.
 ```
 
 ## Runtime Inspection
