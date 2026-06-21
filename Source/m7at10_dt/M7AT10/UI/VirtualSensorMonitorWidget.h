@@ -64,6 +64,9 @@ struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
     FString ViewModeText;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString AcceptanceGateText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
     FString FullStatusText;
 };
 
@@ -165,6 +168,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetViewModeSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetAcceptanceGateSummaryText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     const FString& GetLastManualExportPath() const { return LastManualExportPath; }

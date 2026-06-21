@@ -416,6 +416,8 @@ such as `GetSelectedSensorIdText`, `GetFrameSummaryText`,
 `GetServerPayloadSummaryText`, `GetPreviewPolicySummaryText`, and
 `GetSlabAnalysisSummaryText`, plus `GetLazExportSummaryText` for the LAZ
 placeholder/compressor boundary, instead of parsing the full debug status text.
+`GetAcceptanceGateSummaryText` exposes WBP/manual PIE, server-payload, true-LAZ,
+and real-sensor deployment evidence state directly from the UE widget.
 Use `IsShowingLidar`, `HasBoundCamera`, `HasBoundLidar`, and
 `GetLastManualExportMessage` for WBP visibility/enabled-state rules.
 

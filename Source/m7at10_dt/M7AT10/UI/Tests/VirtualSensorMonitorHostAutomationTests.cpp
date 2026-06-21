@@ -73,10 +73,12 @@ bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameter
     TestTrue(TEXT("camera measurement getter exposes resolution"), MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Resolution: 800x450")));
     TestTrue(TEXT("camera payload getter exposes cached flag"), MonitorWidget->GetServerPayloadSummaryText().Contains(TEXT("Cached=false")));
     TestTrue(TEXT("camera view mode getter exposes render target"), MonitorWidget->GetViewModeSummaryText().Contains(TEXT("Camera View")));
+    TestTrue(TEXT("camera acceptance gate getter exposes pending evidence"), MonitorWidget->GetAcceptanceGateSummaryText().Contains(TEXT("Acceptance Gates:")) && MonitorWidget->GetAcceptanceGateSummaryText().Contains(TEXT("PayloadPending")));
     const FVirtualSensorMonitorDisplayData CameraDisplayData = MonitorWidget->GetMonitorDisplayData();
     TestFalse(TEXT("camera display data marks camera mode"), CameraDisplayData.bShowingLidar);
     TestTrue(TEXT("camera display data exposes sensor"), CameraDisplayData.SelectedSensorText.Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
     TestTrue(TEXT("camera display data exposes payload"), CameraDisplayData.ServerPayloadText.Contains(TEXT("Cached=false")));
+    TestTrue(TEXT("camera display data exposes acceptance gates"), CameraDisplayData.AcceptanceGateText.Contains(TEXT("RealSensor=DeploymentEvidencePending")));
     return true;
 }
 
@@ -133,6 +135,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes laz export telemetry row"), StatusText.Contains(TEXT("LAZ Export: Attempted=false")));
     TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
+    TestTrue(TEXT("status includes acceptance gate row"), StatusText.Contains(TEXT("Acceptance Gates:")) && StatusText.Contains(TEXT("LAZ=TrueCompressionPending")));
     TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,returnIndex,x,y,z")));
     TestTrue(TEXT("lidar selected sensor getter exposes sensor id"), MonitorWidget->GetSelectedSensorIdText().Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
     TestTrue(TEXT("lidar frame summary getter exposes scan interval"), MonitorWidget->GetFrameSummaryText().Contains(TEXT("Scan: 0.125s")));
@@ -143,12 +146,14 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("lidar laz getter exposes initial state"), MonitorWidget->GetLazExportSummaryText().Contains(TEXT("Attempted=false")));
     TestTrue(TEXT("lidar warning getter exposes warning row"), MonitorWidget->GetTransportWarningText().Contains(TEXT("Transport/Warning:")));
     TestTrue(TEXT("lidar view getter exposes view mode"), MonitorWidget->GetViewModeSummaryText().Contains(TEXT("LiDAR View:")));
+    TestTrue(TEXT("lidar acceptance gate getter exposes cached server payload"), MonitorWidget->GetAcceptanceGateSummaryText().Contains(TEXT("Server=PayloadCached")));
     const FVirtualSensorMonitorDisplayData LidarDisplayData = MonitorWidget->GetMonitorDisplayData();
     TestTrue(TEXT("lidar display data marks lidar mode"), LidarDisplayData.bShowingLidar);
     TestTrue(TEXT("lidar display data exposes sensor"), LidarDisplayData.SelectedSensorText.Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
     TestTrue(TEXT("lidar display data exposes payload"), LidarDisplayData.ServerPayloadText.Contains(TEXT("Points=8")));
     TestTrue(TEXT("lidar display data exposes slab"), LidarDisplayData.SlabText.Contains(TEXT("Slab: Valid")));
     TestTrue(TEXT("lidar display data exposes laz export"), LidarDisplayData.LazExportText.Contains(TEXT("LAZ Export:")));
+    TestTrue(TEXT("lidar display data exposes acceptance gates"), LidarDisplayData.AcceptanceGateText.Contains(TEXT("WBP=ManualPIEPending")));
 
     TestTrue(TEXT("monitor laz export telemetry updates after placeholder export"), LidarComp->ExportLastPointCloudLaz(TEXT("automation_monitor_laz")));
     const FString LazExportText = MonitorWidget->GetLazExportSummaryText();

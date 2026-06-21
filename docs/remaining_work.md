@@ -941,6 +941,11 @@ Current state:
   `FVirtualSensorMonitorDisplayData` struct also includes `LazExportText`, so a
   WBP can show the LAZ placeholder/compressor/true-validation boundary without
   parsing the full debug status string.
+- `GetAcceptanceGateSummaryText` and
+  `FVirtualSensorMonitorDisplayData::AcceptanceGateText` expose WBP/manual PIE,
+  server payload, true-LAZ, and real-sensor deployment acceptance state from UE
+  runtime code, keeping the operator monitor aligned with the external
+  gap-summary reports.
 
 Next implementation steps:
 
