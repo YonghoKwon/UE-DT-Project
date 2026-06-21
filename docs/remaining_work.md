@@ -994,6 +994,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -ObservedCodexUsagePercent 84
 ```
 
 `export_goal_progress_blocker_report.ps1` writes
@@ -1003,6 +1004,11 @@ unused-content scope exclusion, rough remaining calendar-time expectation, and
 Codex-thread reset guidance. It also separates Codex-advanceable blockers from
 external-only blockers and records the next recommended Codex work area. It is
 progress evidence only and does not modify assets or stage files.
+When the Codex UI shows a usage percentage, pass it as
+`-ObservedCodexUsagePercent`. This records user-observed usage, remaining usage,
+and reset guidance separately from project progress. The script cannot read
+Codex GPT Plus quota directly and should not be used to promise exact remaining
+calendar weeks.
 
 The percentages are planning snapshots derived from the current remaining-work
 areas. They are not a substitute for build, smoke, editor, or server acceptance

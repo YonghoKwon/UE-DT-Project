@@ -321,6 +321,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_decision_prec
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -ObservedCodexUsagePercent 84
 ```
 
 `invoke_local_decision_precommit_gate.ps1` is the fastest commit-time local
@@ -332,6 +333,9 @@ but fails accidental staging or invariant violations for local decision paths,
 remaining percent, external-evidence blockers, PixelStreaming exclusion, rough
 calendar-time expectation, Codex-advanceable vs external-only blockers, and
 Codex-thread reset guidance.
+Pass `-ObservedCodexUsagePercent` only when the UI shows a usage percentage; the
+script records that user-observed value separately from project progress because
+it cannot read Codex GPT Plus quota directly or convert quota to calendar weeks.
 
 Monitor WBP manual acceptance package:
 

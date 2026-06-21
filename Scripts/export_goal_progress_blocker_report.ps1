@@ -2,6 +2,7 @@ param(
     [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
     [string]$SourceRepoRoot = "",
     [string]$OutputRoot = "",
+    [int]$ObservedCodexUsagePercent = -1,
     [switch]$Json
 )
 
@@ -134,6 +135,20 @@ $externalEvidenceItems = @(
 $blockedItems = @($externalEvidenceItems | Where-Object { [string]$_.Status -ne "Ready" })
 $codexAdvanceableItems = @($blockedItems | Where-Object { [bool]$_.CanCodexAdvanceWithoutExternalInput })
 $externalOnlyItems = @($blockedItems | Where-Object { -not [bool]$_.CanCodexAdvanceWithoutExternalInput })
+$hasObservedUsage = $ObservedCodexUsagePercent -ge 0
+if ($ObservedCodexUsagePercent -gt 100) {
+    throw "ObservedCodexUsagePercent must be between 0 and 100 when provided."
+}
+$observedUsageRemainingPercent = if ($hasObservedUsage) { 100 - $ObservedCodexUsagePercent } else { $null }
+$usageResetGuidance = if ($hasObservedUsage -and $ObservedCodexUsagePercent -ge 90) {
+    "Consider starting a fresh thread after the next clean commit if the UI is slow or summaries start dropping repo details."
+}
+elseif ($hasObservedUsage -and $ObservedCodexUsagePercent -ge 80) {
+    "No immediate reset required. Continue in commit-sized slices and reset only if context quality or UI responsiveness degrades."
+}
+else {
+    "No usage-based reset signal recorded by this report."
+}
 $reportJsonPath = Join-Path $OutputRoot "goal_progress_blocker_report.json"
 $reportMarkdownPath = Join-Path $OutputRoot "goal_progress_blocker_report.md"
 
@@ -165,7 +180,10 @@ $report = [PSCustomObject]@{
         EstimatedCalendarTime = "Roughly several days for local WBP/LAZ evidence if tools are available; 1-2+ weeks if real judging-server, sensor, and GPU evidence must be completed end-to-end."
         ShouldResetCodexThread = "No immediate reset needed. Continue by commit-sized slices; start a new thread only if interaction becomes slow or context quality drops."
         ResetRecommendation = "Do not reset solely because progress is 84%. Reset only when the UI becomes slow, the task focus changes, or the thread summary starts losing important repo state."
-        UsageVisibility = "This report cannot read Codex GPT Plus quota. It reports project progress only."
+        ObservedCodexUsagePercent = if ($hasObservedUsage) { $ObservedCodexUsagePercent } else { $null }
+        ObservedCodexUsageRemainingPercent = $observedUsageRemainingPercent
+        UsageResetGuidance = $usageResetGuidance
+        UsageVisibility = "This report cannot read Codex GPT Plus quota directly. ObservedCodexUsagePercent is user-supplied when provided; project progress is measured separately."
         Valid = $true
     }
 }
@@ -187,6 +205,10 @@ $lines.Add("- Large unused content counts toward core scope: $($report.Summary.L
 $lines.Add("- Estimated calendar time: $($report.Summary.EstimatedCalendarTime)") | Out-Null
 $lines.Add("- Thread reset guidance: $($report.Summary.ShouldResetCodexThread)") | Out-Null
 $lines.Add("- Reset recommendation: $($report.Summary.ResetRecommendation)") | Out-Null
+$lines.Add("- Observed Codex usage percent: $($report.Summary.ObservedCodexUsagePercent)") | Out-Null
+$lines.Add("- Observed Codex usage remaining percent: $($report.Summary.ObservedCodexUsageRemainingPercent)") | Out-Null
+$lines.Add("- Usage reset guidance: $($report.Summary.UsageResetGuidance)") | Out-Null
+$lines.Add("- Usage visibility: $($report.Summary.UsageVisibility)") | Out-Null
 $lines.Add("") | Out-Null
 $lines.Add("## Remaining External Evidence") | Out-Null
 $lines.Add("") | Out-Null
@@ -224,5 +246,9 @@ else {
     Write-Host "Overall progress: $($report.Summary.OverallPercent)%"
     Write-Host "Remaining progress: $($report.Summary.RemainingPercent)%"
     Write-Host "Blocked external evidence items: $($report.Summary.BlockedExternalEvidenceCount)"
+    if ($hasObservedUsage) {
+        Write-Host "Observed Codex usage: $($report.Summary.ObservedCodexUsagePercent)% used, $($report.Summary.ObservedCodexUsageRemainingPercent)% remaining"
+        Write-Host "Usage reset guidance: $($report.Summary.UsageResetGuidance)"
+    }
     Write-Host "Report: $reportMarkdownPath"
 }
