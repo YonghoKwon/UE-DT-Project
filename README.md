@@ -438,6 +438,7 @@ Real sensor adapter deployment package:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 ```
 
 The package writes local `Saved/Reports/RealSensorAdapterDeployment` review
@@ -458,6 +459,11 @@ Generated deployment reports expose `PreDeploymentEvidenceOnly = true`,
 `AcceptancePackageIsDeploymentProof = false`. Report generation is not
 deployment acceptance, does not modify DTCore, and does not cover
 PixelStreaming.
+Use `export_real_sensor_adapter_gap_summary.ps1` to refresh the deployment
+package and validator output, then write a compact phase summary and next manual
+action under `Saved/Reports/RealSensorAdapterDeployment`. It never connects to
+brokers or SDKs, writes endpoint/credential values, modifies DTCore/assets, or
+stages files.
 PixelStreaming is out of scope for the current LiDAR/virtual-sensor work. The
 local `Samples/PixelStreaming/` folder should stay untracked, but its
 ownership/license decision is not counted as current remaining implementation

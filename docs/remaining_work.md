@@ -409,6 +409,11 @@ Current state:
   `DoesNotModifyDTCore = true`, so generated reports, loopback smokes, and
   static registrations cannot be mistaken for external broker/SDK deployment
   acceptance.
+- `Scripts/export_real_sensor_adapter_gap_summary.ps1` refreshes the deployment
+  package and validator output, then lists missing evidence checks by phase plus
+  the next manual action. It writes only under `Saved`, never connects to
+  brokers or SDKs, never writes endpoint/credential values, does not modify
+  DTCore/assets, and does not stage files.
 
 Next implementation steps:
 
@@ -449,6 +454,8 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
 - Deployment evidence package exports without touching broker/SDK/config:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+- Deployment gap summary exports the next real-sensor handoff action:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
 - Deployment package summary should report seven deployment path sections,
   `SelectedDeploymentPathCount = 0`, and
   `CurrentReadyToClaimRealSensorDeployment = false` until deployment-owner
