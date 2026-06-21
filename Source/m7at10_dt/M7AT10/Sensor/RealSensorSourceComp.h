@@ -58,6 +58,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|RealSensorSource")
     FString GetLastSourceMessage() const { return LastSourceMessage; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|RealSensorSource|Deployment")
+    FString GetDeploymentReadinessSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|RealSensorSource|Deployment")
+    bool RequiresExternalDeploymentEvidence() const;
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorSource")
     ERealSensorSourceKind SourceKind = ERealSensorSourceKind::Custom;

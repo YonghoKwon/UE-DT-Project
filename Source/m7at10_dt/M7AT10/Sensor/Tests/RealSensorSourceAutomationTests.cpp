@@ -601,6 +601,10 @@ bool FRealSensorSourceBaseStateTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("CSV replay starts stopped"), CsvAsSource->GetConnectionState(), ERealSensorSourceConnectionState::Stopped);
     TestEqual(TEXT("JSONL replay starts stopped"), JsonAsSource->GetConnectionState(), ERealSensorSourceConnectionState::Stopped);
     TestEqual(TEXT("JSON live starts stopped"), JsonLiveAsSource->GetConnectionState(), ERealSensorSourceConnectionState::Stopped);
+    TestFalse(TEXT("file replay does not require external deployment evidence"), CsvAsSource->RequiresExternalDeploymentEvidence());
+    TestTrue(TEXT("json live requires external deployment evidence"), JsonLiveAsSource->RequiresExternalDeploymentEvidence());
+    TestTrue(TEXT("file replay readiness summary names baseline"), CsvAsSource->GetDeploymentReadinessSummaryText().Contains(TEXT("Replay baseline")));
+    TestTrue(TEXT("json live readiness summary names broker smoke"), JsonLiveAsSource->GetDeploymentReadinessSummaryText().Contains(TEXT("broker smoke")));
     return true;
 }
 
@@ -620,6 +624,8 @@ bool FRealSensorSourcePlaceholderStateTest::RunTest(const FString& Parameters)
         TestEqual(FString::Printf(TEXT("%s remains error state after PushFrameOnce"), *Source->SourceId), Source->GetConnectionState(), ERealSensorSourceConnectionState::Error);
         TestFalse(FString::Printf(TEXT("%s is not running"), *Source->SourceId), Source->IsSourceRunning());
         TestFalse(FString::Printf(TEXT("%s has status message"), *Source->SourceId), Source->GetLastSourceMessage().IsEmpty());
+        TestTrue(FString::Printf(TEXT("%s requires deployment evidence"), *Source->SourceId), Source->RequiresExternalDeploymentEvidence());
+        TestTrue(FString::Printf(TEXT("%s readiness summary exposes deployment gate"), *Source->SourceId), Source->GetDeploymentReadinessSummaryText().Contains(TEXT("Deployment Gate:")));
     }
 
     return true;

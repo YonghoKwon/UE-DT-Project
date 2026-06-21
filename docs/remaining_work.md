@@ -409,6 +409,11 @@ Current state:
   `DoesNotModifyDTCore = true`, so generated reports, loopback smokes, and
   static registrations cannot be mistaken for external broker/SDK deployment
   acceptance.
+- `URealSensorSourceComp::GetDeploymentReadinessSummaryText()` and
+  `RequiresExternalDeploymentEvidence()` expose the same deployment boundary in
+  UE runtime code. File replay is marked as a schema baseline, while JSON live,
+  ROS2, Livox, RealSense, and custom sources report that external deployment
+  evidence is still required.
 - `Scripts/export_real_sensor_adapter_gap_summary.ps1` refreshes the deployment
   package and validator output, then lists missing evidence checks by phase plus
   the next manual action. It writes only under `Saved`, never connects to

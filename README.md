@@ -453,6 +453,10 @@ live, DTCore WebSocket, UDP JSON live, ROS2, Livox, and RealSense. A path sectio
 is review metadata only; local loopback checks and placeholder SDK components
 do not prove production real-sensor deployment until the selected path has live
 smoke evidence and owner acceptance.
+`URealSensorSourceComp::GetDeploymentReadinessSummaryText()` exposes the same
+deployment boundary in UE runtime code for Details, Blueprint, or monitor
+integration: replay is a schema baseline, while JSON live, ROS2, Livox,
+RealSense, and custom sources require external deployment evidence.
 Generated deployment reports expose `PreDeploymentEvidenceOnly = true`,
 `BrokerlessDispatchIsDeploymentEvidence = false`,
 `LoopbackSmokeIsDeploymentBrokerEvidence = false`,
