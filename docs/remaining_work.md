@@ -252,6 +252,10 @@ Open decisions:
   `ManualAcceptanceSections` present/accepted from real evidence files. It
   intentionally requires `-AcceptOwnerAcceptance` before touching the owner
   acceptance section, so repository acceptance cannot be set accidentally.
+- `Scripts/export_monitor_wbp_acceptance_runbook.ps1` writes
+  `monitor_wbp_acceptance_runbook.json` and `.md` with the exact command order
+  for package refresh, Editor/PIE evidence collection, hash copy, evidence path
+  merge, manual section update, and strict validation.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   and preflight section with WBP Git state, review queue, missing evidence
   count, missing acceptance items, setup-doc contract status, preflight blocked

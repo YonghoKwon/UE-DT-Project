@@ -384,6 +384,9 @@ run metadata into the Saved evidence JSON without touching the WBP asset.
 Use `update_monitor_wbp_manual_acceptance_sections.ps1` to mark manual
 acceptance sections present/accepted from real evidence files. Owner acceptance
 requires the explicit `-AcceptOwnerAcceptance` switch.
+Use `export_monitor_wbp_acceptance_runbook.ps1` to create
+`monitor_wbp_acceptance_runbook.md`, a one-page command sequence for the manual
+Editor/PIE acceptance pass.
 The evidence template also asks for a `DisplayData visual match`: during PIE,
 map each `GetMonitorDisplayData()` row to the visible WBP TextBlock so title,
 selected sensor, frame, measurement, server payload, preview, slab, warning,

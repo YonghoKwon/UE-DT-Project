@@ -68,6 +68,7 @@ $validatorScript = Join-Path $SourceRepoRoot "Scripts\validate_monitor_wbp_accep
 $todoScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_evidence_todo.ps1"
 $manualEvidenceUpdaterScript = Join-Path $SourceRepoRoot "Scripts\update_monitor_wbp_manual_evidence_paths.ps1"
 $manualAcceptanceUpdaterScript = Join-Path $SourceRepoRoot "Scripts\update_monitor_wbp_manual_acceptance_sections.ps1"
+$runbookScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_runbook.ps1"
 
 $preflightJsonPath = Join-Path $OutputRoot "monitor_wbp_preflight.json"
 $preflightMarkdownPath = Join-Path $OutputRoot "monitor_wbp_preflight.md"
@@ -162,6 +163,8 @@ $manifest = [PSCustomObject]@{
         EvidenceTodoMarkdown = $todo.MarkdownPath
         ManualEvidenceUpdater = $manualEvidenceUpdaterScript
         ManualAcceptanceUpdater = $manualAcceptanceUpdaterScript
+        AcceptanceRunbook = Join-Path $OutputRoot "monitor_wbp_acceptance_runbook.md"
+        AcceptanceRunbookExporter = $runbookScript
         ManifestJson = $manifestJsonPath
         ManifestMarkdown = $manifestMarkdownPath
     }

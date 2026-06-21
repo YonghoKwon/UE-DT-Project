@@ -55,6 +55,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor WBP evidence TODO exporter"; Path = "Scripts\export_monitor_wbp_evidence_todo.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP manual evidence path updater"; Path = "Scripts\update_monitor_wbp_manual_evidence_paths.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP manual acceptance section updater"; Path = "Scripts\update_monitor_wbp_manual_acceptance_sections.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP acceptance runbook exporter"; Path = "Scripts\export_monitor_wbp_acceptance_runbook.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP editor review prep"; Path = "Scripts\prepare_monitor_wbp_editor_review.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP post-edit hash report"; Path = "Scripts\export_monitor_wbp_post_edit_hash_report.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance hash evidence updater"; Path = "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1" }
@@ -81,6 +82,7 @@ $monitorWbpAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_moni
 $monitorWbpEvidenceTodoScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_evidence_todo.ps1"
 $monitorWbpManualEvidenceUpdaterScript = Join-Path $ProjectRoot "Scripts\update_monitor_wbp_manual_evidence_paths.ps1"
 $monitorWbpManualAcceptanceUpdaterScript = Join-Path $ProjectRoot "Scripts\update_monitor_wbp_manual_acceptance_sections.ps1"
+$monitorWbpAcceptanceRunbookScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_runbook.ps1"
 $monitorWbpEditorReviewPrepScript = Join-Path $ProjectRoot "Scripts\prepare_monitor_wbp_editor_review.ps1"
 $monitorWbpPostEditHashReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"
 $monitorWbpAcceptanceHashUpdaterScript = Join-Path $ProjectRoot "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1"
@@ -269,6 +271,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpManualAcceptanceUpdaterScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP manual acceptance updater declares no asset modification" },
     [PSCustomObject]@{ Path = $monitorWbpManualAcceptanceUpdaterScript; Pattern = "StagesWbp = `$false"; Label = "WBP manual acceptance updater declares no WBP staging" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "update_monitor_wbp_manual_acceptance_sections.ps1"; Label = "WBP acceptance package links manual acceptance updater" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceRunbookScript; Pattern = "monitor_wbp_acceptance_runbook.md"; Label = "WBP acceptance runbook writes markdown" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceRunbookScript; Pattern = "Execution Steps"; Label = "WBP acceptance runbook documents execution steps" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceRunbookScript; Pattern = "update_monitor_wbp_manual_evidence_paths.ps1"; Label = "WBP acceptance runbook links manual evidence updater" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceRunbookScript; Pattern = "update_monitor_wbp_manual_acceptance_sections.ps1"; Label = "WBP acceptance runbook links manual acceptance updater" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceRunbookScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP acceptance runbook declares no asset modification" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptanceRunbookScript; Pattern = "StagesWbp = `$false"; Label = "WBP acceptance runbook declares no WBP staging" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "export_monitor_wbp_acceptance_runbook.ps1"; Label = "WBP acceptance package references runbook exporter" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "Saved\Backups\MonitorWbp"; Label = "WBP editor review prep writes backup under Saved" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "PreEditAssetHash"; Label = "WBP editor review prep records pre-edit hash" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "BackupHashMatchesPreEditHash"; Label = "WBP editor review prep verifies backup hash" },
