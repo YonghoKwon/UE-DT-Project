@@ -995,6 +995,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -ObservedCodexUsagePercent 84
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 ```
 
 `export_goal_progress_blocker_report.ps1` writes
@@ -1009,6 +1010,10 @@ When the Codex UI shows a usage percentage, pass it as
 and reset guidance separately from project progress. The script cannot read
 Codex GPT Plus quota directly and should not be used to promise exact remaining
 calendar weeks.
+`export_monitor_wbp_gap_summary.ps1` is the quickest WBP handoff view: it
+refreshes the package, TODO, runbook, and validator output under `Saved`, then
+lists missing evidence by phase plus the next manual Editor/PIE action. It does
+not modify assets or stage `WBP_VirtualSensorMonitor.uasset`.
 
 The percentages are planning snapshots derived from the current remaining-work
 areas. They are not a substitute for build, smoke, editor, or server acceptance

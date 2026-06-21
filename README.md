@@ -342,6 +342,7 @@ Monitor WBP manual acceptance package:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_post_edit_hash_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json" -Json
 ```
@@ -355,6 +356,9 @@ backup under `Saved/Backups/MonitorWbp`, records the pre-edit SHA256 hash,
 generates the WBP acceptance package, and writes a local editor-review checklist
 under `Saved/Reports/MonitorWbpEditorReview`. It writes only under `Saved`; it
 does not modify or stage `WBP_VirtualSensorMonitor.uasset`.
+`export_monitor_wbp_gap_summary.ps1` refreshes the WBP package, TODO, runbook,
+and validator output, then writes a compact phase summary and next manual action
+under `Saved/Reports/MonitorWbpAcceptance`. It is read-only for assets and git.
 The editor-review checklist enumerates the required DisplayData rows, including
 `LazExportText`, the `IsShowingLidar`/`HasBoundCamera`/`HasBoundLidar` helper
 checks, `GetLastManualExportMessage` export evidence, and the strict
