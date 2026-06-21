@@ -951,6 +951,10 @@ Current state:
   server payload, true-LAZ, and real-sensor deployment acceptance state from UE
   runtime code, keeping the operator monitor aligned with the external
   gap-summary reports.
+- `BindRealSensorSource`, `GetRealSensorDeploymentSummaryText`, and
+  `FVirtualSensorMonitorDisplayData::RealSensorText` now let the monitor show
+  the selected real-sensor source deployment readiness directly from
+  `URealSensorSourceComp` without parsing the full debug status string.
 
 Next implementation steps:
 

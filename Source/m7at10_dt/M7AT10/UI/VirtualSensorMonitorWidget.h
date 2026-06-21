@@ -12,6 +12,7 @@ class UButton;
 class UImage;
 class UTextBlock;
 class UTexture2D;
+class URealSensorSourceComp;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
 
@@ -67,6 +68,9 @@ struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
     FString AcceptanceGateText;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString RealSensorText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
     FString FullStatusText;
 };
 
@@ -84,6 +88,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void BindSensorManager(AVirtualSensorManager* InSensorManager);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
+    void BindRealSensorSource(URealSensorSourceComp* InRealSensorSourceComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void ShowCameraView();
@@ -173,6 +180,9 @@ public:
     FString GetAcceptanceGateSummaryText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetRealSensorDeploymentSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     const FString& GetLastManualExportPath() const { return LastManualExportPath; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
@@ -259,6 +269,9 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorManager> SensorManager;
+
+    UPROPERTY(Transient)
+    TObjectPtr<URealSensorSourceComp> RealSensorSourceComp;
 
     UPROPERTY(Transient)
     TObjectPtr<UTexture2D> EnhancedLidarViewTexture;

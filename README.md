@@ -212,11 +212,14 @@ Status helper:
 ```text
 GetMonitorTitleText
 GetMonitorStatusText
+GetMonitorDisplayData
+GetRealSensorDeploymentSummaryText
 ```
 
 SensorMonitor Blueprint API:
 
 ```text
+BindRealSensorSource
 CaptureSelectedSensorsOnce
 ExportSelectedSensorServerPayload
 ExportSelectedLidarServerPayload

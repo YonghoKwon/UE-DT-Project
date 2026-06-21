@@ -23,6 +23,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
@@ -245,6 +246,7 @@ FVirtualSensorMonitorDisplayData UVirtualSensorMonitorWidget::GetMonitorDisplayD
     Data.WarningText = GetTransportWarningText();
     Data.ViewModeText = GetViewModeSummaryText();
     Data.AcceptanceGateText = GetAcceptanceGateSummaryText();
+    Data.RealSensorText = GetRealSensorDeploymentSummaryText();
     Data.FullStatusText = GetMonitorStatusText();
     return Data;
 }
@@ -413,6 +415,15 @@ FString UVirtualSensorMonitorWidget::GetAcceptanceGateSummaryText() const
     return FString::Printf(TEXT("Acceptance Gates: WBP=ManualPIEPending Server=%s LAZ=%s RealSensor=DeploymentEvidencePending"),
         bHasServerPayload ? TEXT("PayloadCached") : TEXT("PayloadPending"),
         bTrueLazValidated ? TEXT("TrueValidated") : TEXT("TrueCompressionPending"));
+}
+
+FString UVirtualSensorMonitorWidget::GetRealSensorDeploymentSummaryText() const
+{
+    if (RealSensorSourceComp)
+    {
+        return RealSensorSourceComp->GetDeploymentReadinessSummaryText();
+    }
+    return TEXT("Real Sensor Deployment: source not bound; live adapter evidence pending");
 }
 
 TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
@@ -708,6 +719,12 @@ void UVirtualSensorMonitorWidget::BindSensorManager(AVirtualSensorManager* InSen
     {
         SensorManager->BindMonitorWidget(this);
     }
+    RefreshStatusText();
+}
+
+void UVirtualSensorMonitorWidget::BindRealSensorSource(URealSensorSourceComp* InRealSensorSourceComp)
+{
+    RealSensorSourceComp = InRealSensorSourceComp;
     RefreshStatusText();
 }
 
@@ -1204,7 +1221,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
         const FVirtualLidarSlabAnalysisResult& Slab = Status.SlabAnalysis;
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\n%s\nTransport/Warning: %s\nLiDAR View: %s\n%s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,returnIndex,x,y,z\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nScan: %.3fs Rays=%d\nMeasured Points/Hits: %d/%d\nServer Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s\nPreview: %s Points=%d Stride=%d Max=%d HitOnly=%s\nSlab: %s Points=%d Angle=%.2f Ref=%.2f Dev=%.2f Conf=%.2f\nSlab Center: X=%.1f Y=%.1f Z=%.1f\n%s\nTransport/Warning: %s\nLiDAR View: %s\n%s\n%s\nEnhanced: %s Adaptive=%s Edge=%s Grid=%s\nControls: CaptureOnce optional, Preview +/- optional\nCSV: row,col,returnIndex,x,y,z\nMessage: %s"),
             *Status.SensorId,
             Status.FrameId,
             LidarComp->ScanInterval,
@@ -1234,6 +1251,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
             Status.PerformanceWarning.IsEmpty() ? TEXT("None") : *Status.PerformanceWarning,
             *GetLidarViewModeDisplayText(),
             *GetAcceptanceGateSummaryText(),
+            *GetRealSensorDeploymentSummaryText(),
             bUseEnhancedLidarMonitorView ? TEXT("On") : TEXT("Off"),
             bUseAdaptiveLidarDepthRange ? TEXT("On") : TEXT("Off"),
             bOverlayLidarDepthEdges ? TEXT("On") : TEXT("Off"),
@@ -1244,7 +1262,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     {
         const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
         const FString DisplaySensorId = Status.SensorId.IsEmpty() ? CameraComp->SensorId : Status.SensorId;
-        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nSchema: virtual-camera.v1\nResolution: %dx%d\nCapture: Mode=%d Quality=%d Interval=%.3fs\nPayload: Bytes=%d Cached=%s\nRenderTarget: %s\nExport: Export Payload writes Saved/SensorCaptures/<SensorId>/ServerPayload\n%s\nMessage: %s"),
+        Text = FString::Printf(TEXT("Sensor: %s\nFrame: %lld\nSchema: virtual-camera.v1\nResolution: %dx%d\nCapture: Mode=%d Quality=%d Interval=%.3fs\nPayload: Bytes=%d Cached=%s\nRenderTarget: %s\nExport: Export Payload writes Saved/SensorCaptures/<SensorId>/ServerPayload\n%s\n%s\nMessage: %s"),
             *DisplaySensorId,
             Status.FrameId,
             CameraComp->CaptureResolution.X,
@@ -1256,6 +1274,7 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
             CameraComp->GetLastJsonPayload().IsEmpty() ? TEXT("false") : TEXT("true"),
             CameraComp->GetCameraRenderTarget() ? TEXT("Ready") : TEXT("None"),
             *GetAcceptanceGateSummaryText(),
+            *GetRealSensorDeploymentSummaryText(),
             *Status.LastMessage);
     }
     else

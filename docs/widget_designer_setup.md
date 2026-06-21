@@ -154,6 +154,8 @@ HasBoundLidar
 GetLastManualExportMessage
 GetTransportWarningText
 GetViewModeSummaryText
+GetAcceptanceGateSummaryText
+GetRealSensorDeploymentSummaryText
 ```
 
 For a production Designer WBP, prefer binding separate TextBlocks to the
@@ -161,7 +163,7 @@ smaller summary getters above instead of parsing `GetMonitorStatusText()`.
 When a Blueprint graph wants one read node, use `GetMonitorDisplayData()` and
 break the returned `FVirtualSensorMonitorDisplayData` struct into title,
 selected sensor, frame, measurement, payload, preview, slab, LAZ export,
-warning, and view mode rows.
+warning, view mode, acceptance gate, and real-sensor deployment rows.
 `GetMonitorStatusText()` remains the native fallback/debug text contract.
 
 The LiDAR status text is expected to include:
@@ -177,6 +179,8 @@ Slab angle/deviation/confidence
 LAZ placeholder/compressor/true-validation state
 Transport/performance warning
 LiDAR view mode
+Acceptance gate status
+Real sensor deployment readiness
 CSV export row/return contract
 ```
 
