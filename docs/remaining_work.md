@@ -240,6 +240,10 @@ Open decisions:
   `monitor_wbp_missing_evidence_actions.json` and
   `monitor_wbp_missing_evidence_actions.md`, so the manual Editor/PIE pass has
   a focused checklist instead of only a missing-count summary.
+- `Scripts/export_monitor_wbp_evidence_todo.ps1` exports
+  `monitor_wbp_evidence_todo.json` and `monitor_wbp_evidence_todo.md` from the
+  current acceptance validator output. The Markdown report groups missing
+  evidence by phase and includes checkbox rows for the manual WBP reviewer.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   and preflight section with WBP Git state, review queue, missing evidence
   count, missing acceptance items, setup-doc contract status, preflight blocked

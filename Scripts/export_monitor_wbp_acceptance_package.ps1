@@ -65,6 +65,7 @@ $preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflig
 $decisionScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 $templateScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
 $validatorScript = Join-Path $SourceRepoRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"
+$todoScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_evidence_todo.ps1"
 
 $preflightJsonPath = Join-Path $OutputRoot "monitor_wbp_preflight.json"
 $preflightMarkdownPath = Join-Path $OutputRoot "monitor_wbp_preflight.md"
@@ -104,6 +105,12 @@ $validation = Invoke-JsonScript -ScriptPath $validatorScript -Parameters @{
     ProjectRoot = $ProjectRoot
     SourceRepoRoot = $SourceRepoRoot
     EvidencePath = $evidenceJsonPath
+}
+$todo = Invoke-JsonScript -ScriptPath $todoScript -Parameters @{
+    ProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+    EvidencePath = $evidenceJsonPath
+    OutputRoot = $OutputRoot
 }
 
 $manualSteps = @(
@@ -147,6 +154,8 @@ $manifest = [PSCustomObject]@{
         ValidationJson = $validationJsonPath
         MissingEvidenceActionsJson = $missingActionsJsonPath
         MissingEvidenceActionsMarkdown = $missingActionsMarkdownPath
+        EvidenceTodoJson = $todo.JsonPath
+        EvidenceTodoMarkdown = $todo.MarkdownPath
         ManifestJson = $manifestJsonPath
         ManifestMarkdown = $manifestMarkdownPath
     }
@@ -164,6 +173,8 @@ $manifest = [PSCustomObject]@{
         WbpAcceptanceMissingCount = [int]$validation.Summary.FailedCheckCount
         MissingEvidenceActionCount = [int]$validation.Summary.MissingEvidenceActionCount
         MissingEvidenceActionFilesCreated = $true
+        EvidenceTodoCreated = [bool]$todo.Summary.TodoCreated
+        EvidenceTodoMarkdown = [string]$todo.MarkdownPath
         TopMissingEvidenceActions = @($validation.Summary.TopMissingEvidenceActions)
         MonitorWbpAssetPresent = [bool]$validation.Summary.MonitorWbpAssetPresent
         MonitorWbpAssetTracked = [bool]$validation.Summary.MonitorWbpAssetTracked
@@ -262,6 +273,7 @@ $lines.Add("- WBP acceptance evidence complete: $($manifest.Summary.WbpAcceptanc
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.WbpAcceptanceMissingCount)") | Out-Null
 $lines.Add("- Missing evidence action count: $($manifest.Summary.MissingEvidenceActionCount)") | Out-Null
 $lines.Add("- Missing evidence action files created: $($manifest.Summary.MissingEvidenceActionFilesCreated)") | Out-Null
+$lines.Add("- Evidence TODO created: $($manifest.Summary.EvidenceTodoCreated)") | Out-Null
 $lines.Add("- Monitor WBP asset present: $($manifest.Summary.MonitorWbpAssetPresent)") | Out-Null
 $lines.Add("- Monitor WBP asset tracked: $($manifest.Summary.MonitorWbpAssetTracked)") | Out-Null
 $lines.Add("- Monitor WBP asset stage allowed: $($manifest.Summary.MonitorWbpAssetStageAllowed)") | Out-Null

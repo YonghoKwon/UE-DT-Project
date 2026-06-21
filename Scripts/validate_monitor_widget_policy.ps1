@@ -52,6 +52,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor WBP preflight report"; Path = "Scripts\export_monitor_wbp_preflight_report.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance evidence validator"; Path = "Scripts\validate_monitor_wbp_acceptance_evidence.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance package exporter"; Path = "Scripts\export_monitor_wbp_acceptance_package.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP evidence TODO exporter"; Path = "Scripts\export_monitor_wbp_evidence_todo.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP editor review prep"; Path = "Scripts\prepare_monitor_wbp_editor_review.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP post-edit hash report"; Path = "Scripts\export_monitor_wbp_post_edit_hash_report.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance hash evidence updater"; Path = "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1" }
@@ -75,6 +76,7 @@ $monitorWbpAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_mon
 $monitorWbpPreflightScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $monitorWbpEvidenceValidatorScript = Join-Path $ProjectRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"
 $monitorWbpAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"
+$monitorWbpEvidenceTodoScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_evidence_todo.ps1"
 $monitorWbpEditorReviewPrepScript = Join-Path $ProjectRoot "Scripts\prepare_monitor_wbp_editor_review.ps1"
 $monitorWbpPostEditHashReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"
 $monitorWbpAcceptanceHashUpdaterScript = Join-Path $ProjectRoot "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1"
@@ -243,6 +245,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ActionsByPhase"; Label = "WBP acceptance package groups missing evidence actions by phase" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "ExistingEvidencePreserved"; Label = "WBP acceptance package preserves existing evidence" },
     [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "monitor_wbp_acceptance.template.fresh.json"; Label = "WBP acceptance package writes fresh comparison template" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "export_monitor_wbp_evidence_todo.ps1"; Label = "WBP acceptance package runs evidence TODO exporter" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "EvidenceTodoCreated"; Label = "WBP acceptance package reports evidence TODO creation" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "monitor_wbp_evidence_todo.md"; Label = "WBP evidence TODO exporter writes markdown checklist" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "ActionsByPhase"; Label = "WBP evidence TODO exporter groups actions by phase" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "Done"; Label = "WBP evidence TODO exporter writes checkbox rows" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP evidence TODO exporter declares no asset modification" },
+    [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "StagesWbp = `$false"; Label = "WBP evidence TODO exporter declares no WBP staging" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "Saved\Backups\MonitorWbp"; Label = "WBP editor review prep writes backup under Saved" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "PreEditAssetHash"; Label = "WBP editor review prep records pre-edit hash" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "BackupHashMatchesPreEditHash"; Label = "WBP editor review prep verifies backup hash" },
