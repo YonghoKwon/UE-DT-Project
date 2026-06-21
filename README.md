@@ -237,6 +237,7 @@ CaptureAllOnce
 RegisterRealSensorSource
 GetSelectedRealSensorSource
 GetRealSensorSourceSummaries
+GetHealthSummary
 SetSelectedLidarPreviewPolicy
 AdjustSelectedLidarPreviewBudget
 TogglePointCloudOnlyView

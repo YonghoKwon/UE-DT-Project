@@ -55,6 +55,18 @@ struct M7AT10_DT_API FVirtualSensorHealthSummary
     int32 LidarCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 RealSensorSourceCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 RunningRealSensorSourceCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 ErrorRealSensorSourceCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
+    int32 ExternalEvidenceRequiredRealSensorSourceCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
     int32 StaleSensorCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")

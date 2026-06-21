@@ -196,6 +196,12 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("selected real sensor source matches selected lidar"), Manager->GetSelectedRealSensorSource(), Cast<URealSensorSourceComp>(RealSourceComp));
     TestTrue(TEXT("real sensor source summary exposes source id"), Manager->GetRealSensorSourceSummaries()[0].SensorId.Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
 
+    const FVirtualSensorHealthSummary Health = Manager->GetHealthSummary();
+    TestEqual(TEXT("health counts real sensor sources"), Health.RealSensorSourceCount, 1);
+    TestEqual(TEXT("health counts replay as no external evidence required"), Health.ExternalEvidenceRequiredRealSensorSourceCount, 0);
+    TestEqual(TEXT("health reports no real source errors"), Health.ErrorRealSensorSourceCount, 0);
+    TestTrue(TEXT("health summary exposes real source counts"), Health.Summary.Contains(TEXT("RealSources=1")) && Health.Summary.Contains(TEXT("ExternalEvidenceRequired=0")));
+
     UVirtualSensorMonitorWidget* MonitorWidget = NewObject<UVirtualSensorMonitorWidget>();
     TestNotNull(TEXT("monitor widget"), MonitorWidget);
     if (!MonitorWidget)

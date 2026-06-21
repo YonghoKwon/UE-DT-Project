@@ -958,6 +958,9 @@ Current state:
 - `AVirtualSensorManager` now discovers/registers `URealSensorSourceComp`
   instances, exposes real-source summaries, and binds the source that targets
   the selected LiDAR into the monitor automatically.
+- `FVirtualSensorHealthSummary` now includes real-source counts, running/error
+  counts, and external-deployment-evidence counts so the monitor `Health:` row
+  can show real-source readiness without parsing individual source strings.
 
 Next implementation steps:
 

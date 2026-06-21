@@ -485,6 +485,7 @@ FVirtualSensorHealthSummary AVirtualSensorManager::GetHealthSummary() const
     FVirtualSensorHealthSummary Health;
     Health.CameraCount = Cameras.Num();
     Health.LidarCount = Lidars.Num();
+    Health.RealSensorSourceCount = RealSensorSources.Num();
 
     const FDateTime NowUtc = FDateTime::UtcNow();
     auto CountIfStale = [&NowUtc, this](const FVirtualSensorRuntimeStatus& Status) -> bool
@@ -513,10 +514,37 @@ FVirtualSensorHealthSummary AVirtualSensorManager::GetHealthSummary() const
         }
     }
 
-    Health.bHealthy = Health.StaleSensorCount == 0;
-    Health.Summary = FString::Printf(TEXT("Cameras=%d Lidars=%d Stale=%d Healthy=%s PointCloudOnly=%s"),
+    for (const URealSensorSourceComp* RealSensorSourceComp : RealSensorSources)
+    {
+        if (!RealSensorSourceComp)
+        {
+            ++Health.ErrorRealSensorSourceCount;
+            continue;
+        }
+
+        if (RealSensorSourceComp->GetConnectionState() == ERealSensorSourceConnectionState::Running)
+        {
+            ++Health.RunningRealSensorSourceCount;
+        }
+        else if (RealSensorSourceComp->GetConnectionState() == ERealSensorSourceConnectionState::Error)
+        {
+            ++Health.ErrorRealSensorSourceCount;
+        }
+
+        if (RealSensorSourceComp->RequiresExternalDeploymentEvidence())
+        {
+            ++Health.ExternalEvidenceRequiredRealSensorSourceCount;
+        }
+    }
+
+    Health.bHealthy = Health.StaleSensorCount == 0 && Health.ErrorRealSensorSourceCount == 0;
+    Health.Summary = FString::Printf(TEXT("Cameras=%d Lidars=%d RealSources=%d RunningRealSources=%d ErrorRealSources=%d ExternalEvidenceRequired=%d Stale=%d Healthy=%s PointCloudOnly=%s"),
         Health.CameraCount,
         Health.LidarCount,
+        Health.RealSensorSourceCount,
+        Health.RunningRealSensorSourceCount,
+        Health.ErrorRealSensorSourceCount,
+        Health.ExternalEvidenceRequiredRealSensorSourceCount,
         Health.StaleSensorCount,
         Health.bHealthy ? TEXT("true") : TEXT("false"),
         bPointCloudOnlyModeEnabled ? TEXT("true") : TEXT("false"));
