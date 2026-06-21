@@ -87,36 +87,53 @@ $externalEvidenceItems = @(
     [PSCustomObject]@{
         Area = "Production WBP"
         Status = if ([bool]$precommit.WbpAcceptanceEvidenceSummary.ReadyToStageMonitorWbpAsset) { "Ready" } else { "EvidencePending" }
+        Executor = "ManualEditorWithCodexTooling"
+        CanCodexAdvanceWithoutExternalInput = $true
+        EstimatedEffort = "Hours to a day if Unreal Editor is available; longer if production map bindings need changes."
         BlockingEvidence = "Unreal Editor open/compile, optional binding check, PIE smoke, display-data visual match, post-edit hash report, owner acceptance"
         NextAction = "Open WBP in Unreal Editor, run PIE smoke, fill monitor_wbp_acceptance.evidence.json, then run strict validation."
     },
     [PSCustomObject]@{
         Area = "True LAZ"
         Status = if ([bool]$precommit.LazExportDecisionSummary.ReadyToClaimTrueLaz) { "Ready" } else { "EvidencePending" }
+        Executor = "CodexCanPrepareExternalToolRequired"
+        CanCodexAdvanceWithoutExternalInput = $true
+        EstimatedEffort = "Hours if a compressor and reader are installed; days if tool selection/licensing must be decided."
         BlockingEvidence = "Accepted compressor/reader selection, produced readable .laz, known-reader probe, owner acceptance"
         NextAction = "Select compressor/reader path, generate .laz, run readiness report with -LazEvidencePath and -RunReaderProbe."
     },
     [PSCustomObject]@{
         Area = "Judging server"
         Status = if ([bool]$precommit.JudgingServerAcceptanceSummary.ReadyToUseRealJudgingServer) { "Ready" } else { "EvidencePending" }
+        Executor = "ExternalServerOwnerRequired"
+        CanCodexAdvanceWithoutExternalInput = $false
+        EstimatedEffort = "Days to a week depending on endpoint/auth/response ownership."
         BlockingEvidence = "Endpoint/auth/retry/batching decisions, real accepted/rejected response evidence, owner approval"
         NextAction = "Fill judging-server acceptance evidence after real endpoint owner decisions."
     },
     [PSCustomObject]@{
         Area = "Real sensor deployment"
         Status = if ([bool]$precommit.RealSensorDeploymentSummary.ReadyForRealDeployment) { "Ready" } else { "EvidencePending" }
+        Executor = "ExternalHardwareOrBrokerRequired"
+        CanCodexAdvanceWithoutExternalInput = $false
+        EstimatedEffort = "Several days to 1+ weeks depending on selected sensor path and available hardware/broker."
         BlockingEvidence = "Selected live path, broker/SDK credentials, live-frame smoke, judging-server handoff"
         NextAction = "Pick production path first: replay, HTTP, WebSocket, UDP, ROS2, Livox, or RealSense."
     },
     [PSCustomObject]@{
         Area = "GPU point cloud renderer"
         Status = if ([bool]$precommit.PointCloudRendererDecisionSummary.ReadyToClaimGpuRenderer) { "Ready" } else { "EvidencePending" }
+        Executor = "CodexCanImplementEditorVerificationRequired"
+        CanCodexAdvanceWithoutExternalInput = $true
+        EstimatedEffort = "Several focused commits plus editor viewport/performance evidence."
         BlockingEvidence = "Niagara/custom GPU implementation, viewport screenshot/nonblank evidence, dense-frame performance validation"
         NextAction = "Implement Niagara spike only after CPU fallback and viewport evidence plan are accepted."
     }
 )
 
 $blockedItems = @($externalEvidenceItems | Where-Object { [string]$_.Status -ne "Ready" })
+$codexAdvanceableItems = @($blockedItems | Where-Object { [bool]$_.CanCodexAdvanceWithoutExternalInput })
+$externalOnlyItems = @($blockedItems | Where-Object { -not [bool]$_.CanCodexAdvanceWithoutExternalInput })
 $reportJsonPath = Join-Path $OutputRoot "goal_progress_blocker_report.json"
 $reportMarkdownPath = Join-Path $OutputRoot "goal_progress_blocker_report.md"
 
@@ -139,11 +156,15 @@ $report = [PSCustomObject]@{
         OverallPercent = [int]$precommit.OverallPercent
         RemainingPercent = [int](100 - [int]$precommit.OverallPercent)
         BlockedExternalEvidenceCount = $blockedItems.Count
+        CodexAdvanceableBlockedCount = $codexAdvanceableItems.Count
+        ExternalOnlyBlockedCount = $externalOnlyItems.Count
         PixelStreamingCountsTowardRemainingWork = $false
         LargeUnusedContentCountsTowardCoreScope = $false
+        NextCodexRecommendedArea = if ($codexAdvanceableItems.Count -gt 0) { [string]$codexAdvanceableItems[0].Area } else { "" }
         EstimatedRemainingEngineeringTurns = "Several focused commits for tooling, but final completion depends on manual/external evidence."
         EstimatedCalendarTime = "Roughly several days for local WBP/LAZ evidence if tools are available; 1-2+ weeks if real judging-server, sensor, and GPU evidence must be completed end-to-end."
         ShouldResetCodexThread = "No immediate reset needed. Continue by commit-sized slices; start a new thread only if interaction becomes slow or context quality drops."
+        ResetRecommendation = "Do not reset solely because progress is 84%. Reset only when the UI becomes slow, the task focus changes, or the thread summary starts losing important repo state."
         UsageVisibility = "This report cannot read Codex GPT Plus quota. It reports project progress only."
         Valid = $true
     }
@@ -158,19 +179,26 @@ $lines.Add("- Generated: $($report.GeneratedAt)") | Out-Null
 $lines.Add("- Overall progress: $($report.Summary.OverallPercent)%") | Out-Null
 $lines.Add("- Remaining progress: $($report.Summary.RemainingPercent)%") | Out-Null
 $lines.Add("- Blocked external evidence items: $($report.Summary.BlockedExternalEvidenceCount)") | Out-Null
+$lines.Add("- Codex-advanceable blocked items: $($report.Summary.CodexAdvanceableBlockedCount)") | Out-Null
+$lines.Add("- External-only blocked items: $($report.Summary.ExternalOnlyBlockedCount)") | Out-Null
+$lines.Add("- Next Codex recommended area: $($report.Summary.NextCodexRecommendedArea)") | Out-Null
 $lines.Add("- PixelStreaming counts toward remaining work: $($report.Summary.PixelStreamingCountsTowardRemainingWork)") | Out-Null
 $lines.Add("- Large unused content counts toward core scope: $($report.Summary.LargeUnusedContentCountsTowardCoreScope)") | Out-Null
 $lines.Add("- Estimated calendar time: $($report.Summary.EstimatedCalendarTime)") | Out-Null
 $lines.Add("- Thread reset guidance: $($report.Summary.ShouldResetCodexThread)") | Out-Null
+$lines.Add("- Reset recommendation: $($report.Summary.ResetRecommendation)") | Out-Null
 $lines.Add("") | Out-Null
 $lines.Add("## Remaining External Evidence") | Out-Null
 $lines.Add("") | Out-Null
-$lines.Add("| Area | Status | Blocking evidence | Next action |") | Out-Null
-$lines.Add("| --- | --- | --- | --- |") | Out-Null
+$lines.Add("| Area | Status | Executor | Codex can advance | Estimated effort | Blocking evidence | Next action |") | Out-Null
+$lines.Add("| --- | --- | --- | --- | --- | --- | --- |") | Out-Null
 foreach ($item in $externalEvidenceItems) {
-    $lines.Add(("| {0} | {1} | {2} | {3} |" -f `
+    $lines.Add(("| {0} | {1} | {2} | {3} | {4} | {5} | {6} |" -f `
         (Convert-ToMarkdownCell $item.Area),
         (Convert-ToMarkdownCell $item.Status),
+        (Convert-ToMarkdownCell $item.Executor),
+        (Convert-ToMarkdownCell $item.CanCodexAdvanceWithoutExternalInput),
+        (Convert-ToMarkdownCell $item.EstimatedEffort),
         (Convert-ToMarkdownCell $item.BlockingEvidence),
         (Convert-ToMarkdownCell $item.NextAction))) | Out-Null
 }

@@ -329,7 +329,8 @@ but fails accidental staging or invariant violations for local decision paths,
 `export_goal_progress_blocker_report.ps1` writes a read-only
 `Saved/Reports/GoalProgress` snapshot with the current progress percent,
 remaining percent, external-evidence blockers, PixelStreaming exclusion, rough
-calendar-time expectation, and Codex-thread reset guidance.
+calendar-time expectation, Codex-advanceable vs external-only blockers, and
+Codex-thread reset guidance.
 
 Monitor WBP manual acceptance package:
 

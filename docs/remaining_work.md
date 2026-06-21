@@ -952,8 +952,9 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker
 `Saved/Reports/GoalProgress` with the current overall percent, remaining
 percent, blocked external-evidence items, PixelStreaming exclusion,
 unused-content scope exclusion, rough remaining calendar-time expectation, and
-Codex-thread reset guidance. It is progress evidence only and does not modify
-assets or stage files.
+Codex-thread reset guidance. It also separates Codex-advanceable blockers from
+external-only blockers and records the next recommended Codex work area. It is
+progress evidence only and does not modify assets or stage files.
 
 The percentages are planning snapshots derived from the current remaining-work
 areas. They are not a substitute for build, smoke, editor, or server acceptance
