@@ -244,6 +244,10 @@ Open decisions:
   `monitor_wbp_evidence_todo.json` and `monitor_wbp_evidence_todo.md` from the
   current acceptance validator output. The Markdown report groups missing
   evidence by phase and includes checkbox rows for the manual WBP reviewer.
+- `Scripts/update_monitor_wbp_manual_evidence_paths.ps1` merges collected
+  Editor/PIE/DisplayData log, screenshot, exported payload, map, session, and
+  operator metadata into the Saved WBP acceptance evidence JSON. It validates
+  referenced files and still does not modify or stage the binary WBP asset.
 - `Scripts/report_precommit_summary.ps1` now includes a Monitor WBP decision
   and preflight section with WBP Git state, review queue, missing evidence
   count, missing acceptance items, setup-doc contract status, preflight blocked

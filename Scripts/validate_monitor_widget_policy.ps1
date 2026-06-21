@@ -53,6 +53,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor WBP acceptance evidence validator"; Path = "Scripts\validate_monitor_wbp_acceptance_evidence.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance package exporter"; Path = "Scripts\export_monitor_wbp_acceptance_package.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP evidence TODO exporter"; Path = "Scripts\export_monitor_wbp_evidence_todo.ps1" },
+    [PSCustomObject]@{ Label = "Monitor WBP manual evidence path updater"; Path = "Scripts\update_monitor_wbp_manual_evidence_paths.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP editor review prep"; Path = "Scripts\prepare_monitor_wbp_editor_review.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP post-edit hash report"; Path = "Scripts\export_monitor_wbp_post_edit_hash_report.ps1" },
     [PSCustomObject]@{ Label = "Monitor WBP acceptance hash evidence updater"; Path = "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1" }
@@ -77,6 +78,7 @@ $monitorWbpPreflightScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_
 $monitorWbpEvidenceValidatorScript = Join-Path $ProjectRoot "Scripts\validate_monitor_wbp_acceptance_evidence.ps1"
 $monitorWbpAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"
 $monitorWbpEvidenceTodoScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_evidence_todo.ps1"
+$monitorWbpManualEvidenceUpdaterScript = Join-Path $ProjectRoot "Scripts\update_monitor_wbp_manual_evidence_paths.ps1"
 $monitorWbpEditorReviewPrepScript = Join-Path $ProjectRoot "Scripts\prepare_monitor_wbp_editor_review.ps1"
 $monitorWbpPostEditHashReportScript = Join-Path $ProjectRoot "Scripts\export_monitor_wbp_post_edit_hash_report.ps1"
 $monitorWbpAcceptanceHashUpdaterScript = Join-Path $ProjectRoot "Scripts\update_monitor_wbp_acceptance_hash_evidence.ps1"
@@ -252,6 +254,13 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "Done"; Label = "WBP evidence TODO exporter writes checkbox rows" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP evidence TODO exporter declares no asset modification" },
     [PSCustomObject]@{ Path = $monitorWbpEvidenceTodoScript; Pattern = "StagesWbp = `$false"; Label = "WBP evidence TODO exporter declares no WBP staging" },
+    [PSCustomObject]@{ Path = $monitorWbpManualEvidenceUpdaterScript; Pattern = "EditorLogPath"; Label = "WBP manual evidence updater records editor log path" },
+    [PSCustomObject]@{ Path = $monitorWbpManualEvidenceUpdaterScript; Pattern = "PieLogPath"; Label = "WBP manual evidence updater records PIE log path" },
+    [PSCustomObject]@{ Path = $monitorWbpManualEvidenceUpdaterScript; Pattern = "DisplayDataScreenshotPath"; Label = "WBP manual evidence updater records DisplayData screenshot path" },
+    [PSCustomObject]@{ Path = $monitorWbpManualEvidenceUpdaterScript; Pattern = "Assert-ExistingFileIfPresent"; Label = "WBP manual evidence updater validates referenced files" },
+    [PSCustomObject]@{ Path = $monitorWbpManualEvidenceUpdaterScript; Pattern = "ModifiesAssets = `$false"; Label = "WBP manual evidence updater declares no asset modification" },
+    [PSCustomObject]@{ Path = $monitorWbpManualEvidenceUpdaterScript; Pattern = "StagesWbp = `$false"; Label = "WBP manual evidence updater declares no WBP staging" },
+    [PSCustomObject]@{ Path = $monitorWbpAcceptancePackageScript; Pattern = "update_monitor_wbp_manual_evidence_paths.ps1"; Label = "WBP acceptance package links manual evidence updater" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "Saved\Backups\MonitorWbp"; Label = "WBP editor review prep writes backup under Saved" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "PreEditAssetHash"; Label = "WBP editor review prep records pre-edit hash" },
     [PSCustomObject]@{ Path = $monitorWbpEditorReviewPrepScript; Pattern = "BackupHashMatchesPreEditHash"; Label = "WBP editor review prep verifies backup hash" },
