@@ -693,6 +693,10 @@ Current state:
   placeholder policy validation, decision review, compressor/reader readiness,
   produced `.laz` evidence, known-reader probing, evidence fill, and strict
   validation.
+- `Scripts/export_laz_compression_gap_summary.ps1` refreshes the LAZ package,
+  runbook, and validator output, then lists missing acceptance checks by phase
+  plus the next manual action. It writes only under `Saved`, does not install or
+  run compressors, does not write `.laz` output, and does not stage files.
 - Tool version probes are opt-in through `-ProbeToolVersions` on
   `Scripts/export_laz_compressor_readiness_report.ps1`; the default acceptance
   package does not run a compressor, write `.laz` output, or probe tool
@@ -731,6 +735,8 @@ Completion evidence:
 - LAZ acceptance package exports local review evidence without running a
   compressor:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+- LAZ acceptance gap summary exports the next true-LAZ handoff action:
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
 - LAZ acceptance evidence validation reports missing evidence without modifying
   assets or staging files:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -Json`.

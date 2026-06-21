@@ -467,6 +467,7 @@ LAZ compression acceptance package:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
 ```
 
 The package writes local `Saved/Reports/LazCompressionAcceptance` review files
@@ -494,6 +495,10 @@ Use `export_laz_compression_acceptance_runbook.ps1` to create
 `laz_compression_acceptance_runbook.md`, a command sequence for placeholder
 policy validation, compressor/reader readiness, produced `.laz` evidence,
 reader probing, evidence fill, and strict validation.
+Use `export_laz_compression_gap_summary.ps1` to refresh the LAZ package,
+runbook, and validator output, then write a compact phase summary and next
+manual action under `Saved/Reports/LazCompressionAcceptance`. It is read-only
+for assets, git, tools, and compressor execution.
 
 The LiDAR component also exposes last LAZ export telemetry for widgets and
 automation: status text, LAS source path, LAZ output path, placeholder-only,
