@@ -113,6 +113,58 @@ $validation = Invoke-JsonScript -ScriptPath $validatorScript -Parameters @{
 }
 $validation | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $validationJsonPath -Encoding UTF8
 
+$selectedCompressorCandidate = @($readiness.ToolCandidates | Where-Object { [string]$_.Role -eq "Compressor" -and [bool]$_.Exists } | Select-Object -First 1)
+$selectedReaderCandidate = @($readiness.ToolCandidates | Where-Object { [string]$_.Role -eq "Reader" -and [bool]$_.Exists } | Select-Object -First 1)
+$readerProbeOutputPath = Join-Path $OutputRoot "laz_reader_probe_output.txt"
+$evidenceCopyHints = [PSCustomObject]@{
+    DestinationEvidencePath = $evidenceJsonPath
+    ReadinessReportPath = $readinessJsonPath
+    SelectedCompressorCandidate = if ($selectedCompressorCandidate.Count -gt 0) {
+        [PSCustomObject]@{
+            Name = [string]$selectedCompressorCandidate[0].Name
+            Path = [string]$selectedCompressorCandidate[0].Path
+            VersionText = [string]$selectedCompressorCandidate[0].VersionText
+            SuggestedArgumentList = @($selectedCompressorCandidate[0].SuggestedArgumentList)
+            CopyToSection = "EvidenceSections.CompressorSelection"
+        }
+    } else { $null }
+    SelectedReaderCandidate = if ($selectedReaderCandidate.Count -gt 0) {
+        [PSCustomObject]@{
+            Name = [string]$selectedReaderCandidate[0].Name
+            Path = [string]$selectedReaderCandidate[0].Path
+            VersionText = [string]$selectedReaderCandidate[0].VersionText
+            SuggestedArgumentList = @($selectedReaderCandidate[0].SuggestedArgumentList)
+            CopyToSection = "EvidenceSections.KnownReaderValidation"
+        }
+    } else { $null }
+    ProducedLazEvidence = [PSCustomObject]@{
+        LazEvidencePath = [string]$readiness.LazEvidence.Path
+        OutputByteSize = [int64]$readiness.LazEvidence.SizeBytes
+        ExtensionLooksLikeLaz = [bool]$readiness.LazEvidence.ExtensionLooksLikeLaz
+        NonEmpty = [bool]$readiness.LazEvidence.NonEmpty
+        CopyToSection = "EvidenceSections.ProducedLazEvidence"
+    }
+    KnownReaderValidation = [PSCustomObject]@{
+        ReaderName = [string]$readiness.ReaderProbe.Tool
+        ReaderProbeLazEvidencePath = [string]$readiness.LazEvidence.Path
+        ProbeExitCode = $readiness.ReaderProbe.ExitCode
+        ProbeSucceeded = [bool]$readiness.ReaderProbe.Succeeded
+        ProbeWasRunAgainstSameLazEvidencePath = ([bool]$readiness.ReaderProbe.Requested -and [string]$readiness.LazEvidence.Path -ne "")
+        ReaderOutputEvidencePath = if ([bool]$readiness.ReaderProbe.Succeeded) { $readerProbeOutputPath } else { "" }
+        CopyToSection = "EvidenceSections.KnownReaderValidation"
+    }
+    PlaceholderDistinction = [PSCustomObject]@{
+        NotLasSourcePlaceholder = ([string]$readiness.LazEvidence.Path -ne "" -and -not ([string]$readiness.LazEvidence.Path).ToLowerInvariant().Contains("_laz_source"))
+        NotCopySurrogate = [bool]$readiness.Summary.ReadableOutputEvidencePresent
+        NotExternalCompressorCopySurrogateOutput = [bool]$readiness.Summary.ReadableOutputEvidencePresent
+        LazPathDoesNotContainLazSourcePrefix = ([string]$readiness.LazEvidence.Path -ne "" -and -not ([string]$readiness.LazEvidence.Path).ToLowerInvariant().Contains("_laz_source"))
+        EvidencePath = $readinessJsonPath
+        CopyToSection = "EvidenceSections.PlaceholderDistinction"
+    }
+    ReadyToAutoFillAcceptanceEvidence = ([bool]$readiness.Summary.ReadableOutputEvidencePresent -and [bool]$readiness.Summary.ReaderProbeSucceeded)
+    AutoFillBlockedReason = if ([bool]$readiness.Summary.ReadableOutputEvidencePresent -and [bool]$readiness.Summary.ReaderProbeSucceeded) { "" } else { [string]$readiness.Summary.ReadableLazOutputMissingReason }
+}
+
 $manualSteps = @(
     "Choose one LAZ path: native library, external CLI compressor, or server/post-processing workflow.",
     "Record compressor/tool name, version, license, redistribution owner, and UE 5.3 packaging decision.",
@@ -160,6 +212,7 @@ $manifest = [PSCustomObject]@{
     PolicySummary = $policy.Summary
     TemplateSummary = $template.Summary
     ValidationSummary = $validation.Summary
+    EvidenceCopyHints = $evidenceCopyHints
     ManualSteps = $manualSteps
     FollowUpCommands = $followUpCommands
     GeneratedFiles = $generatedFiles
@@ -198,6 +251,12 @@ $manifest = [PSCustomObject]@{
         AcceptanceEvidenceMissingCount = [int]$validation.Summary.FailedCheckCount
         AcceptanceEvidenceMissingChecks = @($validation.Summary.MissingAcceptanceChecks)
         TopMissingAcceptanceChecks = @($validation.Summary.TopMissingAcceptanceChecks)
+        EvidenceCopyHintsCreated = $true
+        ReadyToAutoFillAcceptanceEvidence = [bool]$evidenceCopyHints.ReadyToAutoFillAcceptanceEvidence
+        EvidenceAutoFillBlockedReason = [string]$evidenceCopyHints.AutoFillBlockedReason
+        SelectedCompressorCandidatePath = if ($evidenceCopyHints.SelectedCompressorCandidate) { [string]$evidenceCopyHints.SelectedCompressorCandidate.Path } else { "" }
+        SelectedReaderCandidatePath = if ($evidenceCopyHints.SelectedReaderCandidate) { [string]$evidenceCopyHints.SelectedReaderCandidate.Path } else { "" }
+        ProducedLazEvidencePath = [string]$evidenceCopyHints.ProducedLazEvidence.LazEvidencePath
         AcceptanceEvidenceCount = [int]$decision.Summary.AcceptanceEvidenceCount
         DryRunOnly = $true
         AcceptancePackageIsEvidenceShell = $true
@@ -260,6 +319,12 @@ $lines.Add("- Acceptance evidence complete: $($manifest.Summary.AcceptanceEviden
 $lines.Add("- Required evidence section checks: $($manifest.Summary.AcceptanceEvidenceRequiredSectionCount)") | Out-Null
 $lines.Add("- Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)") | Out-Null
 $lines.Add("- Top missing acceptance checks: $($manifest.Summary.TopMissingAcceptanceChecks -join ', ')") | Out-Null
+$lines.Add("- Evidence copy hints created: $($manifest.Summary.EvidenceCopyHintsCreated)") | Out-Null
+$lines.Add("- Ready to auto-fill acceptance evidence: $($manifest.Summary.ReadyToAutoFillAcceptanceEvidence)") | Out-Null
+$lines.Add("- Evidence auto-fill blocked reason: $($manifest.Summary.EvidenceAutoFillBlockedReason)") | Out-Null
+$lines.Add("- Selected compressor candidate path: $($manifest.Summary.SelectedCompressorCandidatePath)") | Out-Null
+$lines.Add("- Selected reader candidate path: $($manifest.Summary.SelectedReaderCandidatePath)") | Out-Null
+$lines.Add("- Produced LAZ evidence path: $($manifest.Summary.ProducedLazEvidencePath)") | Out-Null
 $lines.Add("- Ready to claim true LAZ blockers: $($manifest.Summary.ReadyToClaimTrueLazBlockers -join '; ')") | Out-Null
 $lines.Add("- Dry run only: $($manifest.DryRunOnly)") | Out-Null
 $lines.Add("- Acceptance package is evidence shell: $($manifest.Summary.AcceptancePackageIsEvidenceShell)") | Out-Null
@@ -278,6 +343,29 @@ $lines.Add("| --- |") | Out-Null
 foreach ($file in $generatedFiles) {
     $lines.Add(("| {0} |" -f (Convert-ToMarkdownCell $file))) | Out-Null
 }
+$lines.Add("") | Out-Null
+$lines.Add("## Evidence Copy Hints") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add("- Destination evidence path: $($manifest.EvidenceCopyHints.DestinationEvidencePath)") | Out-Null
+$lines.Add("- Readiness report path: $($manifest.EvidenceCopyHints.ReadinessReportPath)") | Out-Null
+$lines.Add("- Ready to auto-fill acceptance evidence: $($manifest.EvidenceCopyHints.ReadyToAutoFillAcceptanceEvidence)") | Out-Null
+$lines.Add("- Auto-fill blocked reason: $($manifest.EvidenceCopyHints.AutoFillBlockedReason)") | Out-Null
+$lines.Add("") | Out-Null
+$lines.Add("| Section | Field | Suggested value |") | Out-Null
+$lines.Add("| --- | --- | --- |") | Out-Null
+if ($manifest.EvidenceCopyHints.SelectedCompressorCandidate) {
+    $lines.Add(("| CompressorSelection | ToolOrLibraryName | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.SelectedCompressorCandidate.Name))) | Out-Null
+    $lines.Add(("| CompressorSelection | EvidencePath | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.ReadinessReportPath))) | Out-Null
+}
+if ($manifest.EvidenceCopyHints.SelectedReaderCandidate) {
+    $lines.Add(("| KnownReaderValidation | ReaderName | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.SelectedReaderCandidate.Name))) | Out-Null
+    $lines.Add(("| KnownReaderValidation | ReaderPath | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.SelectedReaderCandidate.Path))) | Out-Null
+}
+$lines.Add(("| ProducedLazEvidence | LazEvidencePath | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.ProducedLazEvidence.LazEvidencePath))) | Out-Null
+$lines.Add(("| ProducedLazEvidence | OutputByteSize | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.ProducedLazEvidence.OutputByteSize))) | Out-Null
+$lines.Add(("| KnownReaderValidation | ReaderProbeLazEvidencePath | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.KnownReaderValidation.ReaderProbeLazEvidencePath))) | Out-Null
+$lines.Add(("| KnownReaderValidation | ProbeExitCode | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.KnownReaderValidation.ProbeExitCode))) | Out-Null
+$lines.Add(("| PlaceholderDistinction | EvidencePath | {0} |" -f (Convert-ToMarkdownCell $manifest.EvidenceCopyHints.PlaceholderDistinction.EvidencePath))) | Out-Null
 $lines.Add("") | Out-Null
 $lines.Add("## Manual Steps") | Out-Null
 $lines.Add("") | Out-Null
@@ -313,4 +401,6 @@ else {
     Write-Host "Acceptance evidence section count: $($manifest.Summary.AcceptanceEvidenceSectionCount)"
     Write-Host "Acceptance evidence complete: $($manifest.Summary.AcceptanceEvidenceComplete)"
     Write-Host "Missing acceptance check count: $($manifest.Summary.AcceptanceEvidenceMissingCount)"
+    Write-Host "Evidence copy hints created: $($manifest.Summary.EvidenceCopyHintsCreated)"
+    Write-Host "Ready to auto-fill acceptance evidence: $($manifest.Summary.ReadyToAutoFillAcceptanceEvidence)"
 }

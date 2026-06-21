@@ -642,6 +642,11 @@ Current state:
   same `.laz`. The package exposes `TopMissingAcceptanceChecks` and
   `ReadyToClaimTrueLazBlockers` so missing proof cannot be hidden in a generated
   report.
+- The LAZ acceptance package now emits `EvidenceCopyHints` for the fillable
+  acceptance JSON. These hints map readiness-report values into
+  `CompressorSelection`, `ProducedLazEvidence`, `KnownReaderValidation`, and
+  `PlaceholderDistinction`, while keeping `ReadyToAutoFillAcceptanceEvidence`
+  false until readable `.laz` evidence and a successful known-reader probe exist.
 - A selected compressor/workflow is acceptance metadata, not proof of true
   compressed output. `ReadyToClaimTrueLaz` still requires a produced `.laz`,
   known-reader validation, repeatable command evidence, placeholder distinction,

@@ -453,6 +453,10 @@ recorded byte size matches the file, that it differs from the LAS source path,
 that a known reader probe exits with code 0 against the same `.laz`, and that
 the output is not a `_laz_source_` placeholder or copy-surrogate artifact. The
 package summary also reports top missing checks and true-LAZ blockers.
+The acceptance package also emits `EvidenceCopyHints` so readiness-report values
+such as selected compressor/reader paths, produced `.laz` path, byte size, and
+reader probe status can be copied into the fillable evidence JSON without
+guessing which section owns each value.
 
 The LiDAR component also exposes last LAZ export telemetry for widgets and
 automation: status text, LAS source path, LAZ output path, placeholder-only,
