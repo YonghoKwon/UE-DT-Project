@@ -6,6 +6,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
@@ -16,6 +17,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "M7AT10.SensorRe
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayInjectFrameTest, "M7AT10.SensorReplay.InjectFrameUpdatesStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadPolicyJsonTest, "M7AT10.SensorReplay.PayloadPolicyJson", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarPayloadPreviewPolicyBoundaryTest, "M7AT10.SensorReplay.PayloadPreviewPolicyBoundaries", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonByteFingerprintTest, "M7AT10.SensorReplay.JsonByteFingerprint", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadGridCoordTest, "M7AT10.SensorReplay.PayloadPreservesGridCoord", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.SensorReplay.TransportSaveToFilePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPerformanceWarningTest, "M7AT10.SensorReplay.PerformanceWarningStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -246,6 +248,57 @@ bool FLidarPayloadPreviewPolicyBoundaryTest::RunTest(const FString& Parameters)
     LidarComp->InjectPointCloudFrame(Points, false);
     TestEqual(TEXT("include-miss server policy counts all sampled indices"), LidarComp->GetLastServerPayloadPointCount(), 3);
     TestEqual(TEXT("include-miss server policy preserves preview count"), LidarComp->GetLastPreviewPointCount(), 1);
+    return true;
+}
+
+bool FLidarJsonByteFingerprintTest::RunTest(const FString& Parameters)
+{
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("CSV replay component"), ReplayComp);
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!ReplayComp || !LidarComp)
+    {
+        return false;
+    }
+
+    ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    ReplayComp->ReplaySemanticLabel = TEXT("Slab");
+
+    TArray<FVirtualLidarPoint> Points;
+    int32 Rows = 0;
+    int32 Cols = 0;
+    TestTrue(TEXT("CSV frame loads before byte fingerprint test"), ReplayComp->LoadCsvFrame(Points, Rows, Cols));
+
+    LidarComp->SensorId = TEXT("TEST-LIDAR-JSON-BYTES");
+    LidarComp->HorizontalSamples = Cols;
+    LidarComp->VerticalChannels = Rows;
+    LidarComp->bEnableSemanticClassification = true;
+    LidarComp->bIncludeSlabAnalysisInPayload = false;
+    LidarComp->SetServerPayloadPolicy(3, 4, false);
+    LidarComp->SetPreviewPolicy(2, 7, true);
+    LidarComp->InjectPointCloudFrame(Points, false);
+
+    FString NormalizedPayload = LidarComp->GetLastJsonPayload();
+    TSharedPtr<FJsonObject> RootObject;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(NormalizedPayload);
+    TestTrue(TEXT("fingerprint payload parses"), FJsonSerializer::Deserialize(Reader, RootObject) && RootObject.IsValid());
+    if (!RootObject.IsValid())
+    {
+        return false;
+    }
+
+    const FString Timestamp = RootObject->GetStringField(TEXT("timestampUtc"));
+    TestFalse(TEXT("fingerprint payload timestamp exists"), Timestamp.IsEmpty());
+    NormalizedPayload.ReplaceInline(*Timestamp, TEXT("<TIMESTAMP>"), ESearchCase::CaseSensitive);
+
+    FTCHARToUTF8 Utf8Payload(*NormalizedPayload);
+    uint8 Hash[FSHA1::DigestSize];
+    FSHA1::HashBuffer(Utf8Payload.Get(), Utf8Payload.Length(), Hash);
+    const FString Fingerprint = BytesToHex(Hash, FSHA1::DigestSize);
+    const FString ExpectedFingerprint = TEXT("92A0C0EE3421707720C03E98EBFE4D60ED5E1938");
+    AddInfo(FString::Printf(TEXT("Normalized LiDAR JSON SHA1=%s bytes=%d"), *Fingerprint, Utf8Payload.Length()));
+    TestEqual(TEXT("normalized raw JSON byte fingerprint"), Fingerprint, ExpectedFingerprint);
     return true;
 }
 
