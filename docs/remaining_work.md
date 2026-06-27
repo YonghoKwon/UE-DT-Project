@@ -564,6 +564,10 @@ Current state:
   `MaxInFlightHttpRequests`, reports local backpressure rejection explicitly,
   and exposes in-flight/rejection telemetry without creating an unbounded
   request queue.
+- HTTP transport now supports bounded retries for connection failures and 5xx
+  responses, keeps 4xx responses final, and exposes per-result/cumulative retry
+  telemetry. Final production retry timing and loss policy still require
+  judging-server approval.
 - `M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies outbound
   `HttpPost` against a local mock judging-server route, including POST shape,
   JSON content type, sensor headers, `virtual-lidar.v1` body identity, 2xx

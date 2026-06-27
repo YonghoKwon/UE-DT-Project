@@ -113,11 +113,34 @@ public:
                 Test->TestTrue(TEXT("HTTP 400 callback submitted"), Result.bSubmitted);
                 Test->TestFalse(TEXT("HTTP 400 callback not accepted"), Result.bAccepted);
                 Test->TestEqual(TEXT("HTTP 400 status code"), Result.HttpStatusCode, 400);
+                Test->TestEqual(TEXT("HTTP 400 is not retried"), Result.RetryAttemptCount, 0);
                 Test->TestTrue(TEXT("HTTP 400 response body captured"), Result.ResponseBody.Contains(TEXT("\"accepted\":false")));
                 Test->TestEqual(TEXT("HTTP 400 data length preserved"), Result.DataLength, RejectPayload.Len());
-                Test->TestEqual(TEXT("loopback server received two requests"), ReceivedRequestCount, 2);
-                Test->TestEqual(TEXT("loopback server validated both request header sets"), ValidHeaderRequestCount, 2);
-                Test->TestEqual(TEXT("loopback server validated both schema identities"), ValidSchemaRequestCount, 2);
+                Phase = EPhase::SendRetry;
+                return false;
+            }
+        }
+
+        if (Phase == EPhase::SendRetry)
+        {
+            return SendRetryRequest();
+        }
+
+        if (Phase == EPhase::WaitRetry)
+        {
+            if (Transport.IsValid() && Transport->LastResult.HttpStatusCode == 202)
+            {
+                const FVirtualSensorTransportResult& Result = Transport->LastResult;
+                Test->TestTrue(TEXT("HTTP 503 retry eventually submitted"), Result.bSubmitted);
+                Test->TestTrue(TEXT("HTTP 503 retry eventually accepted"), Result.bAccepted);
+                Test->TestEqual(TEXT("HTTP retry final status code"), Result.HttpStatusCode, 202);
+                Test->TestEqual(TEXT("HTTP retry attempt count"), Result.RetryAttemptCount, 1);
+                Test->TestEqual(TEXT("HTTP cumulative retry count"), Transport->TotalHttpRetryAttemptCount, 1);
+                Test->TestEqual(TEXT("HTTP retry in-flight count returns to zero"), Transport->InFlightHttpRequestCount, 0);
+                Test->TestEqual(TEXT("loopback server received four requests"), ReceivedRequestCount, 4);
+                Test->TestEqual(TEXT("loopback server received two retry attempts"), RetryRequestCount, 2);
+                Test->TestEqual(TEXT("loopback server validated all request header sets"), ValidHeaderRequestCount, 4);
+                Test->TestEqual(TEXT("loopback server validated all schema identities"), ValidSchemaRequestCount, 4);
                 Cleanup();
                 return true;
             }
@@ -143,7 +166,9 @@ private:
         SendAccept,
         WaitAccept,
         SendReject,
-        WaitReject
+        WaitReject,
+        SendRetry,
+        WaitRetry
     };
 
     bool Setup()
@@ -172,6 +197,11 @@ private:
                 const FUTF8ToTCHAR Converter(reinterpret_cast<const ANSICHAR*>(Request.Body.GetData()), Request.Body.Num());
                 const FString RequestBody(Converter.Length(), Converter.Get());
                 const bool bAccept = RequestBody.Contains(TEXT("\"accept\":true"));
+                const bool bRetryRequest = RequestBody.Contains(TEXT("\"retry\":true"));
+                if (bRetryRequest)
+                {
+                    ++RetryRequestCount;
+                }
                 const bool bHeadersValid =
                     GetFirstHeaderValue(Request, TEXT("Content-Type")).Contains(TEXT("application/json")) &&
                     GetFirstHeaderValue(Request, TEXT("X-Sensor-Id")) == TEXT("TEST-LIDAR-HTTP-TRANSPORT") &&
@@ -185,12 +215,17 @@ private:
                 {
                     ++ValidSchemaRequestCount;
                 }
-                const bool bAcceptedByMockJudge = bAccept && bHeadersValid && bSchemaValid;
-                const FString ResponseJson = bAccept
-                    ? TEXT("{\"accepted\":true,\"contract\":\"mock-judging-server.v1\",\"message\":\"accepted by loopback\"}")
-                    : TEXT("{\"accepted\":false,\"message\":\"rejected by loopback\"}");
+                const bool bRetryServerFailure = bRetryRequest && RetryRequestCount == 1;
+                const bool bAcceptedByMockJudge = bAccept && !bRetryServerFailure && bHeadersValid && bSchemaValid;
+                const FString ResponseJson = bRetryServerFailure
+                    ? TEXT("{\"accepted\":false,\"message\":\"temporary server failure\"}")
+                    : (bAccept
+                        ? TEXT("{\"accepted\":true,\"contract\":\"mock-judging-server.v1\",\"message\":\"accepted by loopback\"}")
+                        : TEXT("{\"accepted\":false,\"message\":\"rejected by loopback\"}"));
                 TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(ResponseJson, TEXT("application/json"));
-                Response->Code = bAcceptedByMockJudge ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest;
+                Response->Code = bRetryServerFailure
+                    ? static_cast<EHttpServerResponseCodes>(503)
+                    : (bAcceptedByMockJudge ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest);
                 OnComplete(MoveTemp(Response));
                 return true;
             });
@@ -217,6 +252,9 @@ private:
         Transport->HttpEndpoint = FString::Printf(TEXT("http://127.0.0.1:%d%s"), FreePort, *RoutePath);
         Transport->HttpTimeoutSeconds = 5;
         Transport->MaxInFlightHttpRequests = 1;
+        Transport->MaxHttpRetryAttempts = 1;
+        Transport->bRetryOnConnectionFailure = true;
+        Transport->bRetryOnServerError = true;
         Transport->bLogHttpResponse = false;
         Phase = EPhase::SendAccept;
         return false;
@@ -254,6 +292,16 @@ private:
         return false;
     }
 
+    bool SendRetryRequest()
+    {
+        RetryPayload = TEXT("{\"accept\":true,\"retry\":true,\"schemaVersion\":\"virtual-lidar.v1\"}");
+        const FVirtualSensorTransportResult InitialResult = Transport->SendJson(TEXT("TEST-LIDAR-HTTP-TRANSPORT"), TEXT("virtual_lidar"), RetryPayload);
+        Test->TestTrue(TEXT("HTTP retry request submitted immediately"), InitialResult.bSubmitted);
+        Test->TestFalse(TEXT("HTTP retry request not accepted before callback"), InitialResult.bAccepted);
+        Phase = EPhase::WaitRetry;
+        return false;
+    }
+
     void Cleanup()
     {
         if (Router.IsValid() && RouteHandle.IsValid())
@@ -277,9 +325,11 @@ private:
     int32 ReceivedRequestCount = 0;
     int32 ValidHeaderRequestCount = 0;
     int32 ValidSchemaRequestCount = 0;
+    int32 RetryRequestCount = 0;
     FString RoutePath;
     FString AcceptPayload;
     FString RejectPayload;
+    FString RetryPayload;
     TSharedPtr<IHttpRouter> Router;
     FHttpRouteHandle RouteHandle;
     TWeakObjectPtr<UVirtualSensorDataTransportComp> Transport;

@@ -115,6 +115,12 @@ telemetry.
 This protects Unreal runtime memory but does not settle the final retry,
 batching, rate-limit, or frame-loss policy.
 
+The local retry baseline is bounded by `MaxHttpRetryAttempts`. Connection
+failures and 5xx responses can retry when enabled; 4xx responses remain final.
+`RetryAttemptCount` and `TotalHttpRetryAttemptCount` expose per-result and
+cumulative retry telemetry. This baseline still requires judging-server owner
+approval before production use.
+
 ## Decisions Still Required
 
 The following are intentionally not frozen until the judging server contract is

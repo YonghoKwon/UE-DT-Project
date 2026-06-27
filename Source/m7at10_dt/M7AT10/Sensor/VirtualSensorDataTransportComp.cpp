@@ -102,6 +102,26 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
     }
 
     const int32 SubmittedDataLength = JsonText.Len();
+    ++InFlightHttpRequestCount;
+    Result.bSubmitted = SubmitHttpAttempt(SensorId, SensorType, JsonText, 0, SubmittedDataLength);
+    if (!Result.bSubmitted)
+    {
+        InFlightHttpRequestCount = FMath::Max(0, InFlightHttpRequestCount - 1);
+    }
+    Result.bAccepted = false;
+    Result.Message = Result.bSubmitted
+        ? FString::Printf(TEXT("[%s:%s] HTTP request submitted"), *SensorType, *SensorId)
+        : FString::Printf(TEXT("[%s:%s] HTTP request submit failed"), *SensorType, *SensorId);
+    return Result;
+}
+
+bool UVirtualSensorDataTransportComp::SubmitHttpAttempt(
+    const FString& SensorId,
+    const FString& SensorType,
+    const FString& JsonText,
+    int32 AttemptIndex,
+    int32 SubmittedDataLength)
+{
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetURL(HttpEndpoint);
     Request->SetVerb(TEXT("POST"));
@@ -112,7 +132,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
     Request->SetContentAsString(JsonText);
 
     const TWeakObjectPtr<UVirtualSensorDataTransportComp> WeakThis(this);
-    Request->OnProcessRequestComplete().BindLambda([WeakThis, SensorId, SensorType, SubmittedDataLength](FHttpRequestPtr /*RequestPtr*/, FHttpResponsePtr Response, bool /*bSucceeded*/)
+    Request->OnProcessRequestComplete().BindLambda([WeakThis, SensorId, SensorType, JsonText, AttemptIndex, SubmittedDataLength](FHttpRequestPtr /*RequestPtr*/, FHttpResponsePtr Response, bool bSucceeded)
     {
         if (!WeakThis.IsValid())
         {
@@ -120,23 +140,43 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
         }
 
         UVirtualSensorDataTransportComp* TransportComp = WeakThis.Get();
-        TransportComp->InFlightHttpRequestCount = FMath::Max(0, TransportComp->InFlightHttpRequestCount - 1);
         const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : 0;
         const bool bResponseReceived = Response.IsValid();
+        const bool bConnectionFailure = !bSucceeded || !bResponseReceived;
+        const bool bServerError = bResponseReceived && ResponseCode >= 500 && ResponseCode < 600;
+        const bool bCanRetry = AttemptIndex < FMath::Max(0, TransportComp->MaxHttpRetryAttempts);
+        const bool bShouldRetry = bCanRetry &&
+            ((bConnectionFailure && TransportComp->bRetryOnConnectionFailure) ||
+             (bServerError && TransportComp->bRetryOnServerError));
+        int32 FinalAttemptIndex = AttemptIndex;
+
+        if (bShouldRetry)
+        {
+            ++TransportComp->TotalHttpRetryAttemptCount;
+            if (TransportComp->SubmitHttpAttempt(SensorId, SensorType, JsonText, AttemptIndex + 1, SubmittedDataLength))
+            {
+                return;
+            }
+            FinalAttemptIndex = AttemptIndex + 1;
+        }
+
+        TransportComp->InFlightHttpRequestCount = FMath::Max(0, TransportComp->InFlightHttpRequestCount - 1);
         const bool bAcceptedStatus = bResponseReceived && ResponseCode >= 200 && ResponseCode < 300;
 
         FVirtualSensorTransportResult CallbackResult;
-        CallbackResult.bSubmitted = bResponseReceived;
+        CallbackResult.bSubmitted = true;
         CallbackResult.bAccepted = bAcceptedStatus;
         CallbackResult.DataLength = SubmittedDataLength;
         CallbackResult.HttpStatusCode = ResponseCode;
+        CallbackResult.RetryAttemptCount = FinalAttemptIndex;
         CallbackResult.ResponseBody = Response.IsValid() ? Response->GetContentAsString() : FString();
-        CallbackResult.Message = FString::Printf(TEXT("[%s:%s] HTTP completed submitted=%s accepted=%s code=%d"),
+        CallbackResult.Message = FString::Printf(TEXT("[%s:%s] HTTP completed submitted=%s accepted=%s code=%d retries=%d"),
             *SensorType,
             *SensorId,
             CallbackResult.bSubmitted ? TEXT("true") : TEXT("false"),
             CallbackResult.bAccepted ? TEXT("true") : TEXT("false"),
-            CallbackResult.HttpStatusCode);
+            CallbackResult.HttpStatusCode,
+            CallbackResult.RetryAttemptCount);
 
         if (TransportComp->bLogHttpResponse)
         {
@@ -147,17 +187,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
         TransportComp->OnDataSent.Broadcast(CallbackResult);
     });
 
-    ++InFlightHttpRequestCount;
-    Result.bSubmitted = Request->ProcessRequest();
-    if (!Result.bSubmitted)
-    {
-        InFlightHttpRequestCount = FMath::Max(0, InFlightHttpRequestCount - 1);
-    }
-    Result.bAccepted = false;
-    Result.Message = Result.bSubmitted
-        ? FString::Printf(TEXT("[%s:%s] HTTP request submitted"), *SensorType, *SensorId)
-        : FString::Printf(TEXT("[%s:%s] HTTP request submit failed"), *SensorType, *SensorId);
-    return Result;
+    return Request->ProcessRequest();
 }
 
 FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SaveJson(const FString& SensorId, const FString& SensorType, const FString& JsonText) const
