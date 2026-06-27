@@ -368,6 +368,36 @@ void AVirtualSensorManager::StopAllSensors()
     }
 }
 
+int32 AVirtualSensorManager::StartAllRealSensorSources()
+{
+    int32 StartedCount = 0;
+    for (URealSensorSourceComp* RealSensorSourceComp : RealSensorSources)
+    {
+        if (RealSensorSourceComp && RealSensorSourceComp->StartSource())
+        {
+            ++StartedCount;
+        }
+    }
+    return StartedCount;
+}
+
+void AVirtualSensorManager::StopAllRealSensorSources()
+{
+    for (URealSensorSourceComp* RealSensorSourceComp : RealSensorSources)
+    {
+        if (RealSensorSourceComp)
+        {
+            RealSensorSourceComp->StopSource();
+        }
+    }
+}
+
+bool AVirtualSensorManager::PushSelectedRealSensorSourceOnce(bool bSendTransport)
+{
+    URealSensorSourceComp* RealSensorSourceComp = GetSelectedRealSensorSource();
+    return RealSensorSourceComp && RealSensorSourceComp->PushFrameOnce(bSendTransport);
+}
+
 void AVirtualSensorManager::CaptureAllOnce()
 {
     for (UVirtualCameraComp* CameraComp : Cameras)

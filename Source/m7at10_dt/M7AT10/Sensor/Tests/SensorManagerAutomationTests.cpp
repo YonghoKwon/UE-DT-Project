@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
 #include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
 #include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
@@ -173,6 +174,8 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     RealSourceComp->RegisterComponent();
     RealSourceComp->SourceId = TEXT("TEST-MANAGER-REAL-SOURCE");
     RealSourceComp->TargetLidar = LidarComp;
+    RealSourceComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
+    RealSourceComp->ReplaySemanticLabel = TEXT("Slab");
 
     UVirtualSensorDataTransportComp* SharedTransport = Manager->SharedTransportComponent;
     UVirtualSensorRecorderComp* SharedRecorder = Manager->SharedRecorderComponent;
@@ -213,6 +216,13 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     }
     Manager->BindMonitorWidget(MonitorWidget);
     TestTrue(TEXT("manager binds selected real source to monitor"), MonitorWidget->GetRealSensorDeploymentSummaryText().Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
+    TestTrue(TEXT("manager pushes selected real source frame"), Manager->PushSelectedRealSensorSourceOnce(false));
+    TestTrue(TEXT("selected real source push updates target lidar"), LidarComp->GetLastPoints().Num() > 0);
+    TestEqual(TEXT("manager starts all real sources"), Manager->StartAllRealSensorSources(), 1);
+    TestTrue(TEXT("real source reports running after manager start"), RealSourceComp->IsSourceRunning());
+    TestEqual(TEXT("health counts running real source"), Manager->GetHealthSummary().RunningRealSensorSourceCount, 1);
+    Manager->StopAllRealSensorSources();
+    TestEqual(TEXT("real source reports stopped after manager stop"), RealSourceComp->GetConnectionState(), ERealSensorSourceConnectionState::Stopped);
 
     CameraOwner->Destroy();
     LidarOwner->Destroy();

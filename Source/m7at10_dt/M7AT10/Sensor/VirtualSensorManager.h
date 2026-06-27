@@ -151,6 +151,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void StopAllSensors();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|RealSensor")
+    int32 StartAllRealSensorSources();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|RealSensor")
+    void StopAllRealSensorSources();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|RealSensor")
+    bool PushSelectedRealSensorSourceOnce(bool bSendTransport = true);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void CaptureAllOnce();
 

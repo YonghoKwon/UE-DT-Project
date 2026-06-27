@@ -961,6 +961,9 @@ Current state:
 - `FVirtualSensorHealthSummary` now includes real-source counts, running/error
   counts, and external-deployment-evidence counts so the monitor `Health:` row
   can show real-source readiness without parsing individual source strings.
+- `AVirtualSensorManager` now exposes separate real-source start, stop, and
+  selected-source push controls. They remain separate from virtual sensor
+  capture controls to avoid duplicate virtual scans during replay/live input.
 
 Next implementation steps:
 

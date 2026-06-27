@@ -238,6 +238,9 @@ RegisterRealSensorSource
 GetSelectedRealSensorSource
 GetRealSensorSourceSummaries
 GetHealthSummary
+StartAllRealSensorSources
+StopAllRealSensorSources
+PushSelectedRealSensorSourceOnce
 SetSelectedLidarPreviewPolicy
 AdjustSelectedLidarPreviewBudget
 TogglePointCloudOnlyView
