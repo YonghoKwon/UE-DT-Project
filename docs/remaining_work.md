@@ -973,6 +973,10 @@ Current state:
   preserving existing WBP compatibility when those buttons are absent.
 - The native fallback toolbar exposes the same controls, allowing code-native
   replay/live-source smoke before manual WBP acceptance.
+- `GetTransportStatusSummaryText` and
+  `FVirtualSensorMonitorDisplayData::TransportText` expose transport mode,
+  in-flight limits, backpressure rejections, and last HTTP acceptance state to
+  both native and Designer monitors.
 
 Next implementation steps:
 

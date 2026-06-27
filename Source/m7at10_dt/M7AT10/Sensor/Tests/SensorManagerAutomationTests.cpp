@@ -176,11 +176,19 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     RealSourceComp->TargetLidar = LidarComp;
     RealSourceComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
     RealSourceComp->ReplaySemanticLabel = TEXT("Slab");
+    RealSourceComp->bSendTransportByDefault = false;
 
     UVirtualSensorDataTransportComp* SharedTransport = Manager->SharedTransportComponent;
     UVirtualSensorRecorderComp* SharedRecorder = Manager->SharedRecorderComponent;
     TestNotNull(TEXT("manager shared transport"), SharedTransport);
     TestNotNull(TEXT("manager shared recorder"), SharedRecorder);
+    SharedTransport->TransportMode = EVirtualSensorTransportMode::HttpPost;
+    SharedTransport->MaxInFlightHttpRequests = 3;
+    SharedTransport->InFlightHttpRequestCount = 2;
+    SharedTransport->BackpressureRejectedRequestCount = 4;
+    SharedTransport->LastResult.bSubmitted = true;
+    SharedTransport->LastResult.bAccepted = false;
+    SharedTransport->LastResult.HttpStatusCode = 503;
 
     Manager->RegisterCamera(CameraComp);
     Manager->RegisterLidar(LidarComp);
@@ -216,6 +224,9 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     }
     Manager->BindMonitorWidget(MonitorWidget);
     TestTrue(TEXT("manager binds selected real source to monitor"), MonitorWidget->GetRealSensorDeploymentSummaryText().Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
+    TestTrue(TEXT("monitor exposes transport in-flight telemetry"), MonitorWidget->GetTransportStatusSummaryText().Contains(TEXT("InFlight=2/3")));
+    TestTrue(TEXT("monitor exposes transport backpressure telemetry"), MonitorWidget->GetTransportStatusSummaryText().Contains(TEXT("BackpressureRejected=4")));
+    TestTrue(TEXT("monitor display data exposes transport status"), MonitorWidget->GetMonitorDisplayData().TransportText.Contains(TEXT("LastCode=503")));
     TestTrue(TEXT("monitor pushes selected real source frame"), MonitorWidget->PushSelectedRealSensorSourceOnce(false));
     TestTrue(TEXT("selected real source push updates target lidar"), LidarComp->GetLastPoints().Num() > 0);
     TestTrue(TEXT("monitor records successful push"), MonitorWidget->GetLastRealSensorControlMessage().Contains(TEXT("push succeeded")));

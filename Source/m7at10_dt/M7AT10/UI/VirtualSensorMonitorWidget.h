@@ -59,6 +59,9 @@ struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
     FString LazExportText;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
+    FString TransportText;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
     FString WarningText;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
@@ -178,6 +181,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetLazExportSummaryText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetTransportStatusSummaryText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetTransportWarningText() const;

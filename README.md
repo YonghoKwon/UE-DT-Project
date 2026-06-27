@@ -224,6 +224,7 @@ GetMonitorTitleText
 GetMonitorStatusText
 GetMonitorDisplayData
 GetRealSensorDeploymentSummaryText
+GetTransportStatusSummaryText
 ```
 
 SensorMonitor Blueprint API:

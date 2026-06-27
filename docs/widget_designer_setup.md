@@ -155,6 +155,7 @@ IsShowingLidar
 HasBoundCamera
 HasBoundLidar
 GetLastManualExportMessage
+GetTransportStatusSummaryText
 GetTransportWarningText
 GetViewModeSummaryText
 GetAcceptanceGateSummaryText
@@ -167,7 +168,7 @@ smaller summary getters above instead of parsing `GetMonitorStatusText()`.
 When a Blueprint graph wants one read node, use `GetMonitorDisplayData()` and
 break the returned `FVirtualSensorMonitorDisplayData` struct into title,
 selected sensor, frame, measurement, payload, preview, slab, LAZ export,
-warning, view mode, acceptance gate, and real-sensor deployment rows.
+transport, warning, view mode, acceptance gate, and real-sensor deployment rows.
 `GetMonitorStatusText()` remains the native fallback/debug text contract.
 When a monitor is bound through `AVirtualSensorManager`, the manager also binds
 the selected `URealSensorSourceComp` automatically. It prefers the real source

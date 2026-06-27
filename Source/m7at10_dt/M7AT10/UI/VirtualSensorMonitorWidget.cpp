@@ -26,6 +26,7 @@
 #include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
+#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
 #include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
 
 namespace
@@ -50,6 +51,23 @@ FString BuildPointCloudExportDirectory(const UVirtualLidarSensorComp* LidarComp)
     const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud"));
     IFileManager::Get().MakeDirectory(*Directory, true);
     return Directory;
+}
+
+FString TransportModeToText(EVirtualSensorTransportMode Mode)
+{
+    switch (Mode)
+    {
+    case EVirtualSensorTransportMode::None:
+        return TEXT("None");
+    case EVirtualSensorTransportMode::LogOnly:
+        return TEXT("LogOnly");
+    case EVirtualSensorTransportMode::SaveToFile:
+        return TEXT("SaveToFile");
+    case EVirtualSensorTransportMode::HttpPost:
+        return TEXT("HttpPost");
+    default:
+        return TEXT("Unknown");
+    }
 }
 
 FString BuildServerPayloadExportDirectory(const UVirtualLidarSensorComp* LidarComp)
@@ -243,6 +261,7 @@ FVirtualSensorMonitorDisplayData UVirtualSensorMonitorWidget::GetMonitorDisplayD
     Data.PreviewText = GetPreviewPolicySummaryText();
     Data.SlabText = GetSlabAnalysisSummaryText();
     Data.LazExportText = GetLazExportSummaryText();
+    Data.TransportText = GetTransportStatusSummaryText();
     Data.WarningText = GetTransportWarningText();
     Data.ViewModeText = GetViewModeSummaryText();
     Data.AcceptanceGateText = GetAcceptanceGateSummaryText();
@@ -393,6 +412,29 @@ FString UVirtualSensorMonitorWidget::GetTransportWarningText() const
         return FString::Printf(TEXT("Transport/Warning: %s"), Message.IsEmpty() ? TEXT("None") : *Message);
     }
     return TEXT("Transport/Warning: unavailable");
+}
+
+FString UVirtualSensorMonitorWidget::GetTransportStatusSummaryText() const
+{
+    const UVirtualSensorDataTransportComp* TransportComp = SensorManager
+        ? SensorManager->SharedTransportComponent.Get()
+        : (bShowingLidar && LidarComp
+            ? LidarComp->TransportComponent.Get()
+            : (!bShowingLidar && CameraComp ? CameraComp->TransportComponent.Get() : nullptr));
+    if (!TransportComp)
+    {
+        return TEXT("Transport: unavailable");
+    }
+
+    const FVirtualSensorTransportResult& Result = TransportComp->LastResult;
+    return FString::Printf(TEXT("Transport: Mode=%s InFlight=%d/%d BackpressureRejected=%d LastSubmitted=%s LastAccepted=%s LastCode=%d"),
+        *TransportModeToText(TransportComp->TransportMode),
+        TransportComp->InFlightHttpRequestCount,
+        FMath::Max(1, TransportComp->MaxInFlightHttpRequests),
+        TransportComp->BackpressureRejectedRequestCount,
+        Result.bSubmitted ? TEXT("true") : TEXT("false"),
+        Result.bAccepted ? TEXT("true") : TEXT("false"),
+        Result.HttpStatusCode);
 }
 
 FString UVirtualSensorMonitorWidget::GetViewModeSummaryText() const
@@ -1385,6 +1427,8 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     {
         Text = bShowingLidar ? TEXT("LIDAR sensor is not bound") : TEXT("Camera sensor is not bound");
     }
+
+    Text += FString::Printf(TEXT("\n%s"), *GetTransportStatusSummaryText());
 
     if (SensorManager)
     {
