@@ -654,6 +654,21 @@ void UVirtualSensorMonitorWidget::NativeConstruct()
         PreviewHitOnlyButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewHitOnlyButtonClicked);
         PreviewHitOnlyButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePreviewHitOnlyButtonClicked);
     }
+    if (StartRealSensorSourcesButton)
+    {
+        StartRealSensorSourcesButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleStartRealSensorSourcesButtonClicked);
+        StartRealSensorSourcesButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleStartRealSensorSourcesButtonClicked);
+    }
+    if (StopRealSensorSourcesButton)
+    {
+        StopRealSensorSourcesButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandleStopRealSensorSourcesButtonClicked);
+        StopRealSensorSourcesButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandleStopRealSensorSourcesButtonClicked);
+    }
+    if (PushRealSensorSourceButton)
+    {
+        PushRealSensorSourceButton->OnClicked.RemoveDynamic(this, &UVirtualSensorMonitorWidget::HandlePushRealSensorSourceButtonClicked);
+        PushRealSensorSourceButton->OnClicked.AddDynamic(this, &UVirtualSensorMonitorWidget::HandlePushRealSensorSourceButtonClicked);
+    }
 
     RefreshTitle();
     RefreshImageBrush();
@@ -907,6 +922,44 @@ void UVirtualSensorMonitorWidget::CaptureSelectedSensorsOnce()
     RefreshStatusText();
 }
 
+int32 UVirtualSensorMonitorWidget::StartRealSensorSources()
+{
+    const int32 StartedCount = SensorManager
+        ? SensorManager->StartAllRealSensorSources()
+        : (RealSensorSourceComp && RealSensorSourceComp->StartSource() ? 1 : 0);
+    LastRealSensorControlMessage = FString::Printf(TEXT("Real Sensor Control: started %d source(s)"), StartedCount);
+    RefreshStatusText();
+    return StartedCount;
+}
+
+void UVirtualSensorMonitorWidget::StopRealSensorSources()
+{
+    if (SensorManager)
+    {
+        SensorManager->StopAllRealSensorSources();
+    }
+    else if (RealSensorSourceComp)
+    {
+        RealSensorSourceComp->StopSource();
+    }
+    LastRealSensorControlMessage = TEXT("Real Sensor Control: stop requested");
+    RefreshStatusText();
+}
+
+bool UVirtualSensorMonitorWidget::PushSelectedRealSensorSourceOnce(bool bSendTransport)
+{
+    const bool bPushed = SensorManager
+        ? SensorManager->PushSelectedRealSensorSourceOnce(bSendTransport)
+        : (RealSensorSourceComp && RealSensorSourceComp->PushFrameOnce(bSendTransport));
+    LastRealSensorControlMessage = FString::Printf(TEXT("Real Sensor Control: push %s transport=%s"),
+        bPushed ? TEXT("succeeded") : TEXT("failed"),
+        bSendTransport ? TEXT("true") : TEXT("false"));
+    InvalidateEnhancedLidarView();
+    RefreshImageBrush();
+    RefreshStatusText();
+    return bPushed;
+}
+
 bool UVirtualSensorMonitorWidget::ExportSelectedLidarServerPayload(const FString& FileNamePrefix)
 {
     UVirtualLidarSensorComp* TargetLidar = GetTargetLidarForPreview();
@@ -1095,6 +1148,21 @@ void UVirtualSensorMonitorWidget::HandlePreviewLessButtonClicked()
 void UVirtualSensorMonitorWidget::HandlePreviewHitOnlyButtonClicked()
 {
     ToggleLidarPreviewHitOnly();
+}
+
+void UVirtualSensorMonitorWidget::HandleStartRealSensorSourcesButtonClicked()
+{
+    StartRealSensorSources();
+}
+
+void UVirtualSensorMonitorWidget::HandleStopRealSensorSourcesButtonClicked()
+{
+    StopRealSensorSources();
+}
+
+void UVirtualSensorMonitorWidget::HandlePushRealSensorSourceButtonClicked()
+{
+    PushSelectedRealSensorSourceOnce(true);
 }
 
 void UVirtualSensorMonitorWidget::HandleLogPointCloudButtonClicked()
@@ -1293,6 +1361,10 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
     if (!LastManualExportMessage.IsEmpty())
     {
         Text += FString::Printf(TEXT("\n\n%s"), *LastManualExportMessage);
+    }
+    if (!LastRealSensorControlMessage.IsEmpty())
+    {
+        Text += FString::Printf(TEXT("\n\n%s"), *LastRealSensorControlMessage);
     }
     return Text;
 }

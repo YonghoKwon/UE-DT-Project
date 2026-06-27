@@ -964,6 +964,9 @@ Current state:
 - `AVirtualSensorManager` now exposes separate real-source start, stop, and
   selected-source push controls. They remain separate from virtual sensor
   capture controls to avoid duplicate virtual scans during replay/live input.
+- `UVirtualSensorMonitorWidget` now exposes the same controls through
+  Blueprint-callable functions and optional start/stop/push buttons, while
+  preserving existing WBP compatibility when those buttons are absent.
 
 Next implementation steps:
 

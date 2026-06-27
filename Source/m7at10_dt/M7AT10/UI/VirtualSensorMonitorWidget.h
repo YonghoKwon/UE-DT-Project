@@ -119,6 +119,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Capture")
     void CaptureSelectedSensorsOnce();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|RealSensor")
+    int32 StartRealSensorSources();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|RealSensor")
+    void StopRealSensorSources();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|RealSensor")
+    bool PushSelectedRealSensorSourceOnce(bool bSendTransport = true);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Export")
     bool ExportSelectedLidarServerPayload(const FString& FileNamePrefix = TEXT("manual_server_payload"));
 
@@ -188,6 +197,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     const FString& GetLastManualExportMessage() const { return LastManualExportMessage; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    const FString& GetLastRealSensorControlMessage() const { return LastRealSensorControlMessage; }
+
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeConstruct() override;
@@ -233,6 +245,15 @@ private:
 
     UFUNCTION()
     void HandlePreviewHitOnlyButtonClicked();
+
+    UFUNCTION()
+    void HandleStartRealSensorSourcesButtonClicked();
+
+    UFUNCTION()
+    void HandleStopRealSensorSourcesButtonClicked();
+
+    UFUNCTION()
+    void HandlePushRealSensorSourceButtonClicked();
 
     void RefreshImageBrush();
     void RefreshTitle();
@@ -317,6 +338,15 @@ private:
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UButton> PreviewHitOnlyButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> StartRealSensorSourcesButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> StopRealSensorSourcesButton;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UButton> PushRealSensorSourceButton;
 
     UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> TitleText;
@@ -427,6 +457,7 @@ private:
     FString LocalCaptureSessionDirectory;
     FString LastManualExportMessage;
     FString LastManualExportPath;
+    FString LastRealSensorControlMessage;
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
     TSharedPtr<STextBlock> NativeTitleTextBlock;

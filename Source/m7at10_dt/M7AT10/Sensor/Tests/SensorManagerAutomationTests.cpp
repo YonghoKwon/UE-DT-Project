@@ -216,13 +216,16 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     }
     Manager->BindMonitorWidget(MonitorWidget);
     TestTrue(TEXT("manager binds selected real source to monitor"), MonitorWidget->GetRealSensorDeploymentSummaryText().Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
-    TestTrue(TEXT("manager pushes selected real source frame"), Manager->PushSelectedRealSensorSourceOnce(false));
+    TestTrue(TEXT("monitor pushes selected real source frame"), MonitorWidget->PushSelectedRealSensorSourceOnce(false));
     TestTrue(TEXT("selected real source push updates target lidar"), LidarComp->GetLastPoints().Num() > 0);
-    TestEqual(TEXT("manager starts all real sources"), Manager->StartAllRealSensorSources(), 1);
+    TestTrue(TEXT("monitor records successful push"), MonitorWidget->GetLastRealSensorControlMessage().Contains(TEXT("push succeeded")));
+    TestEqual(TEXT("monitor starts all real sources"), MonitorWidget->StartRealSensorSources(), 1);
     TestTrue(TEXT("real source reports running after manager start"), RealSourceComp->IsSourceRunning());
     TestEqual(TEXT("health counts running real source"), Manager->GetHealthSummary().RunningRealSensorSourceCount, 1);
-    Manager->StopAllRealSensorSources();
+    TestTrue(TEXT("monitor status exposes real source start result"), MonitorWidget->GetMonitorStatusText().Contains(TEXT("started 1 source")));
+    MonitorWidget->StopRealSensorSources();
     TestEqual(TEXT("real source reports stopped after manager stop"), RealSourceComp->GetConnectionState(), ERealSensorSourceConnectionState::Stopped);
+    TestTrue(TEXT("monitor records real source stop"), MonitorWidget->GetLastRealSensorControlMessage().Contains(TEXT("stop requested")));
 
     CameraOwner->Destroy();
     LidarOwner->Destroy();

@@ -205,6 +205,9 @@ PreviewMoreButton
 PreviewLessButton
 PreviewHitOnlyButton
 PreviewHitOnlyButtonText
+StartRealSensorSourcesButton
+StopRealSensorSourcesButton
+PushRealSensorSourceButton
 ```
 
 Status helper:
@@ -221,6 +224,9 @@ SensorMonitor Blueprint API:
 ```text
 BindRealSensorSource
 CaptureSelectedSensorsOnce
+StartRealSensorSources
+StopRealSensorSources
+PushSelectedRealSensorSourceOnce
 ExportSelectedSensorServerPayload
 ExportSelectedLidarServerPayload
 SetLidarPreviewBudget

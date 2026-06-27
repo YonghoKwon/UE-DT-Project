@@ -37,6 +37,9 @@ PreviewMoreButton
 PreviewLessButton
 PreviewHitOnlyButton
 PreviewHitOnlyButtonText
+StartRealSensorSourcesButton
+StopRealSensorSourcesButton
+PushRealSensorSourceButton
 ```
 
 Make sure each named widget has `Is Variable` enabled.
@@ -156,6 +159,7 @@ GetTransportWarningText
 GetViewModeSummaryText
 GetAcceptanceGateSummaryText
 GetRealSensorDeploymentSummaryText
+GetLastRealSensorControlMessage
 ```
 
 For a production Designer WBP, prefer binding separate TextBlocks to the
@@ -169,6 +173,9 @@ When a monitor is bound through `AVirtualSensorManager`, the manager also binds
 the selected `URealSensorSourceComp` automatically. It prefers the real source
 whose `TargetLidar` matches the selected LiDAR, then falls back to the selected
 real-source index.
+Optional real-source buttons can call `StartRealSensorSources`,
+`StopRealSensorSources`, and `PushSelectedRealSensorSourceOnce`. Missing buttons
+do not affect existing WBP assets because every new binding is optional.
 
 The LiDAR status text is expected to include:
 
