@@ -449,6 +449,10 @@ FString UVirtualLidarSensorComp::BuildPerformanceWarning() const
     {
         Warnings.Add(TEXT("Preview is uncapped"));
     }
+    if (MaxServerPayloadPoints == 0)
+    {
+        Warnings.Add(TEXT("Server payload is uncapped (MaxServerPayloadPoints=0)"));
+    }
     if (IsGpuPreviewBackendRequested())
     {
         Warnings.Add(TEXT("GPU preview backend is a candidate only; CPU fallback is active"));

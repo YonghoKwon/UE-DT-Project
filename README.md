@@ -120,6 +120,9 @@ Editor/UI preview 정책:
 
 기본 방향은 서버에는 원본에 가까운 hit point를 보내고, Unreal Editor 화면에는 제한된 point만 표시하는 것입니다. 기존 `PayloadPointStride`, `MaxPayloadPoints`, `PointCloudPreviewStride`, `MaxPointCloudPreviewInstances`는 Blueprint 호환을 위해 남아 있지만 새 정책 필드를 우선 사용합니다.
 
+`MaxServerPayloadPoints = 0`은 서버 payload 상한이 없다는 의미이며,
+런타임 performance warning에 uncapped 상태가 표시됩니다.
+
 ## Camera 데이터 정책
 
 `UVirtualCameraComp`는 SceneCapture 기반 image payload와 monitor 상태 표시를 제공합니다.

@@ -355,6 +355,7 @@ bool FLidarReplayPerformanceWarningTest::RunTest(const FString& Parameters)
     LidarComp->bExportCsvOnScan = true;
     LidarComp->bExportJsonLinesOnScan = true;
     LidarComp->bPointCloudPreviewEnabled = true;
+    LidarComp->SetServerPayloadPolicy(1, 0, false);
     LidarComp->SetPreviewPolicy(1, 0, true);
     LidarComp->InjectPointCloudFrame(Points, false);
 
@@ -365,7 +366,16 @@ bool FLidarReplayPerformanceWarningTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("warning includes fullspec multihit"), Warning.Contains(TEXT("FullSpec+MultiHit")));
     TestTrue(TEXT("warning includes export-on-scan"), Warning.Contains(TEXT("FullSpec export-on-scan")));
     TestTrue(TEXT("warning includes uncapped preview"), Warning.Contains(TEXT("Preview is uncapped")));
+    TestTrue(TEXT("warning includes uncapped server payload"), Warning.Contains(TEXT("Server payload is uncapped")));
     TestTrue(TEXT("runtime status message carries warning"), Status.LastMessage.Contains(TEXT("Warning=")) && Status.LastMessage.Contains(TEXT("FullSpec+MultiHit")));
+
+    LidarComp->SetServerPayloadPolicy(2, 8, false);
+    LidarComp->InjectPointCloudFrame(Points, false);
+    const FString CappedWarning = LidarComp->GetPerformanceWarning();
+    TestFalse(TEXT("finite server payload cap removes uncapped warning"), CappedWarning.Contains(TEXT("Server payload is uncapped")));
+    TestTrue(TEXT("server cap change preserves uncapped preview warning"), CappedWarning.Contains(TEXT("Preview is uncapped")));
+    TestEqual(TEXT("server cap change preserves preview stride"), LidarComp->PreviewPointStride, 1);
+    TestEqual(TEXT("server cap change preserves preview max"), LidarComp->MaxPreviewPoints, 0);
     return true;
 }
 
