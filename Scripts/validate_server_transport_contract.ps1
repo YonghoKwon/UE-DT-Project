@@ -132,9 +132,12 @@ $checks = @(
     (New-Check -Path $editorSmokeDoc -Pattern "SharedSensorTransport.TransportMode = LogOnly" -Label "Smoke test safe transport default documented"),
     (New-Check -Path $editorSmokeDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Smoke doc references HTTP POST loopback automation"),
     (New-Check -Path $transportTests -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "HTTP POST loopback automation test name"),
-    (New-Check -Path $transportTests -Pattern "Response->Code = bAcceptedByMockJudge ? EHttpServerResponseCodes::Accepted : EHttpServerResponseCodes::BadRequest" -Label "HTTP POST loopback covers 2xx and 4xx"),
+    (New-Check -Path $transportTests -Pattern "EHttpServerResponseCodes::Accepted" -Label "HTTP POST loopback covers 2xx"),
+    (New-Check -Path $transportTests -Pattern "EHttpServerResponseCodes::BadRequest" -Label "HTTP POST loopback covers 4xx"),
+    (New-Check -Path $transportTests -Pattern "static_cast<EHttpServerResponseCodes>(503)" -Label "HTTP POST loopback covers retryable 5xx"),
     (New-Check -Path $transportTests -Pattern "HTTP 202 callback accepted" -Label "HTTP POST loopback asserts 2xx accepted"),
-    (New-Check -Path $transportTests -Pattern "HTTP 400 callback not accepted" -Label "HTTP POST loopback asserts 4xx rejected")
+    (New-Check -Path $transportTests -Pattern "HTTP 400 callback not accepted" -Label "HTTP POST loopback asserts 4xx rejected"),
+    (New-Check -Path $transportTests -Pattern "persistent HTTP 503 reports retry exhaustion" -Label "HTTP POST loopback asserts exhausted 5xx retry")
 )
 
 foreach ($check in $checks) {
