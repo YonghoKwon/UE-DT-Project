@@ -93,6 +93,8 @@ public:
                 Test->TestTrue(TEXT("HTTP 202 response body captured"), Result.ResponseBody.Contains(TEXT("\"accepted\":true")));
                 Test->TestTrue(TEXT("HTTP 202 response contract captured"), Result.ResponseBody.Contains(TEXT("mock-judging-server.v1")));
                 Test->TestEqual(TEXT("HTTP 202 data length preserved"), Result.DataLength, AcceptPayload.Len());
+                Test->TestEqual(TEXT("HTTP in-flight count returns to zero"), Transport->InFlightHttpRequestCount, 0);
+                Test->TestEqual(TEXT("HTTP backpressure rejection counted"), Transport->BackpressureRejectedRequestCount, 1);
                 Phase = EPhase::SendReject;
                 return false;
             }
@@ -214,6 +216,7 @@ private:
         Transport->TransportMode = EVirtualSensorTransportMode::HttpPost;
         Transport->HttpEndpoint = FString::Printf(TEXT("http://127.0.0.1:%d%s"), FreePort, *RoutePath);
         Transport->HttpTimeoutSeconds = 5;
+        Transport->MaxInFlightHttpRequests = 1;
         Transport->bLogHttpResponse = false;
         Phase = EPhase::SendAccept;
         return false;
@@ -226,6 +229,16 @@ private:
         Test->TestTrue(TEXT("HTTP 202 request submitted immediately"), InitialResult.bSubmitted);
         Test->TestFalse(TEXT("HTTP 202 request not accepted before callback"), InitialResult.bAccepted);
         Test->TestEqual(TEXT("HTTP 202 initial data length"), InitialResult.DataLength, AcceptPayload.Len());
+        Test->TestEqual(TEXT("HTTP first request counted in flight"), Transport->InFlightHttpRequestCount, 1);
+
+        const FVirtualSensorTransportResult BackpressureResult = Transport->SendJson(
+            TEXT("TEST-LIDAR-HTTP-TRANSPORT"),
+            TEXT("virtual_lidar"),
+            AcceptPayload);
+        Test->TestFalse(TEXT("HTTP concurrent request not submitted"), BackpressureResult.bSubmitted);
+        Test->TestFalse(TEXT("HTTP concurrent request not accepted"), BackpressureResult.bAccepted);
+        Test->TestTrue(TEXT("HTTP concurrent request marked backpressure rejected"), BackpressureResult.bBackpressureRejected);
+        Test->TestTrue(TEXT("HTTP backpressure result includes limits"), BackpressureResult.Message.Contains(TEXT("inFlight=1 max=1")));
         Phase = EPhase::WaitAccept;
         return false;
     }

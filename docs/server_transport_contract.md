@@ -104,6 +104,17 @@ client, expects HTTP 202, and waits for target LiDAR handoff. It proves local
 route/request/response wiring only; it is not deployment network exposure or
 judging-server acceptance evidence.
 
+## Outbound Backpressure
+
+`UVirtualSensorDataTransportComp::MaxInFlightHttpRequests` caps concurrent HTTP
+POST work. A frame above the cap returns `bSubmitted=false`,
+`bAccepted=false`, and `bBackpressureRejected=true`; it is not queued or sent.
+`InFlightHttpRequestCount` and `BackpressureRejectedRequestCount` expose runtime
+telemetry.
+
+This protects Unreal runtime memory but does not settle the final retry,
+batching, rate-limit, or frame-loss policy.
+
 ## Decisions Still Required
 
 The following are intentionally not frozen until the judging server contract is

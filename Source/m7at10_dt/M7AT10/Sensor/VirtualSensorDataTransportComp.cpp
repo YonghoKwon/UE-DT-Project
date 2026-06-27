@@ -84,6 +84,23 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
         return Result;
     }
 
+    const int32 SafeMaxInFlightRequests = FMath::Max(1, MaxInFlightHttpRequests);
+    if (InFlightHttpRequestCount >= SafeMaxInFlightRequests)
+    {
+        Result.bSubmitted = false;
+        Result.bAccepted = false;
+        Result.bBackpressureRejected = true;
+        ++BackpressureRejectedRequestCount;
+        Result.Message = FString::Printf(TEXT("[%s:%s] HTTP backpressure rejected inFlight=%d max=%d rejected=%d"),
+            *SensorType,
+            *SensorId,
+            InFlightHttpRequestCount,
+            SafeMaxInFlightRequests,
+            BackpressureRejectedRequestCount);
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *Result.Message);
+        return Result;
+    }
+
     const int32 SubmittedDataLength = JsonText.Len();
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetURL(HttpEndpoint);
@@ -103,6 +120,7 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
         }
 
         UVirtualSensorDataTransportComp* TransportComp = WeakThis.Get();
+        TransportComp->InFlightHttpRequestCount = FMath::Max(0, TransportComp->InFlightHttpRequestCount - 1);
         const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : 0;
         const bool bResponseReceived = Response.IsValid();
         const bool bAcceptedStatus = bResponseReceived && ResponseCode >= 200 && ResponseCode < 300;
@@ -129,7 +147,12 @@ FVirtualSensorTransportResult UVirtualSensorDataTransportComp::SendHttp(const FS
         TransportComp->OnDataSent.Broadcast(CallbackResult);
     });
 
+    ++InFlightHttpRequestCount;
     Result.bSubmitted = Request->ProcessRequest();
+    if (!Result.bSubmitted)
+    {
+        InFlightHttpRequestCount = FMath::Max(0, InFlightHttpRequestCount - 1);
+    }
     Result.bAccepted = false;
     Result.Message = Result.bSubmitted
         ? FString::Printf(TEXT("[%s:%s] HTTP request submitted"), *SensorType, *SensorId)

@@ -25,6 +25,9 @@ struct M7AT10_DT_API FVirtualSensorTransportResult
     bool bAccepted = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    bool bBackpressureRejected = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FString Message;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
@@ -71,8 +74,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
     int32 HttpTimeoutSeconds = 30;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport", meta = (ClampMin = "1", EditCondition = "TransportMode == EVirtualSensorTransportMode::HttpPost"))
+    int32 MaxInFlightHttpRequests = 2;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
     bool bLogHttpResponse = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    int32 InFlightHttpRequestCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    int32 BackpressureRejectedRequestCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FVirtualSensorTransportResult LastResult;

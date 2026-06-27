@@ -560,6 +560,10 @@ Current state:
   sync with the current DT-Project code.
 - HTTP transport now uses a weak callback target, captures response body text,
   and separates request submission from 2xx server acceptance with `bAccepted`.
+- HTTP transport now caps concurrent requests with
+  `MaxInFlightHttpRequests`, reports local backpressure rejection explicitly,
+  and exposes in-flight/rejection telemetry without creating an unbounded
+  request queue.
 - `M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies outbound
   `HttpPost` against a local mock judging-server route, including POST shape,
   JSON content type, sensor headers, `virtual-lidar.v1` body identity, 2xx
