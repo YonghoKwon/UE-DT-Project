@@ -473,7 +473,19 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
     }
 
     Root->SetStringField(TEXT("schemaVersion"), TEXT("virtual-lidar.v1"));
-    Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar")); Root->SetStringField(TEXT("sensorId"), SensorId); Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer); Root->SetStringField(TEXT("model"), DeviceSpec.Model); Root->SetNumberField(TEXT("frameId"), (double)FrameId); Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601()); Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples); Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels); Root->SetNumberField(TEXT("rayCount"), HorizontalSamples * VerticalChannels); Root->SetNumberField(TEXT("totalPointCount"), Points.Num()); Root->SetNumberField(TEXT("hitPointCount"), HitPointCount); Root->SetNumberField(TEXT("maxDistance"), MaxDistance); Root->SetBoolField(TEXT("semanticClassification"), bEnableSemanticClassification);
+    Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar"));
+    Root->SetStringField(TEXT("sensorId"), SensorId);
+    Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer);
+    Root->SetStringField(TEXT("model"), DeviceSpec.Model);
+    Root->SetNumberField(TEXT("frameId"), static_cast<double>(FrameId));
+    Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
+    Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples);
+    Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels);
+    Root->SetNumberField(TEXT("rayCount"), HorizontalSamples * VerticalChannels);
+    Root->SetNumberField(TEXT("totalPointCount"), Points.Num());
+    Root->SetNumberField(TEXT("hitPointCount"), HitPointCount);
+    Root->SetNumberField(TEXT("maxDistance"), MaxDistance);
+    Root->SetBoolField(TEXT("semanticClassification"), bEnableSemanticClassification);
     Root->SetNumberField(TEXT("serverPayloadStride"), ServerPayloadStride);
     Root->SetNumberField(TEXT("maxServerPayloadPoints"), MaxServerPayloadPoints);
     Root->SetBoolField(TEXT("includeMissPointsInServerPayload"), bIncludeMissPointsInServerPayload);
@@ -529,19 +541,56 @@ FString UVirtualLidarSensorComp::BuildJsonPayload(const TArray<FVirtualLidarPoin
         Root->SetObjectField(TEXT("slabAnalysis"), SlabObject);
     }
 
-    TArray<TSharedPtr<FJsonValue>> JsonPoints; const int32 SafeStride = FMath::Max(1, ServerPayloadStride); const int32 SafeMax = FMath::Max(0, MaxServerPayloadPoints); int32 Added = 0;
+    TArray<TSharedPtr<FJsonValue>> JsonPoints;
+    const int32 SafeStride = FMath::Max(1, ServerPayloadStride);
+    const int32 SafeMax = FMath::Max(0, MaxServerPayloadPoints);
+    int32 Added = 0;
     for (int32 I = 0; I < Points.Num(); I += SafeStride)
     {
-        if (SafeMax > 0 && Added >= SafeMax) break; const FVirtualLidarPoint& P = Points[I]; if (!bIncludeMissPointsInServerPayload && !P.bHit) continue;
+        if (SafeMax > 0 && Added >= SafeMax)
+        {
+            break;
+        }
+
+        const FVirtualLidarPoint& P = Points[I];
+        if (!bIncludeMissPointsInServerPayload && !P.bHit)
+        {
+            continue;
+        }
+
         const int32 DerivedRow = HorizontalSamples > 0 ? I / HorizontalSamples : 0;
         const int32 DerivedCol = HorizontalSamples > 0 ? I % HorizontalSamples : I;
-        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>(); O->SetNumberField(TEXT("pointIndex"), I); O->SetNumberField(TEXT("row"), P.bHasGridCoord ? P.Row : DerivedRow); O->SetNumberField(TEXT("col"), P.bHasGridCoord ? P.Col : DerivedCol); O->SetNumberField(TEXT("returnIndex"), P.ReturnIndex); O->SetBoolField(TEXT("gridCoordValid"), P.bHasGridCoord); O->SetStringField(TEXT("gridCoordSource"), P.bHasGridCoord ? TEXT("point_metadata") : TEXT("derived_from_point_index")); O->SetBoolField(TEXT("hit"), P.bHit); O->SetNumberField(TEXT("distance"), P.Distance); O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString()); O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString()); O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
-        TArray<TSharedPtr<FJsonValue>> Tags; for (const FName& T : P.HitActorTags) Tags.Add(MakeShared<FJsonValueString>(T.ToString())); O->SetArrayField(TEXT("hitActorTags"), Tags);
+        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+        O->SetNumberField(TEXT("pointIndex"), I);
+        O->SetNumberField(TEXT("row"), P.bHasGridCoord ? P.Row : DerivedRow);
+        O->SetNumberField(TEXT("col"), P.bHasGridCoord ? P.Col : DerivedCol);
+        O->SetNumberField(TEXT("returnIndex"), P.ReturnIndex);
+        O->SetBoolField(TEXT("gridCoordValid"), P.bHasGridCoord);
+        O->SetStringField(TEXT("gridCoordSource"), P.bHasGridCoord ? TEXT("point_metadata") : TEXT("derived_from_point_index"));
+        O->SetBoolField(TEXT("hit"), P.bHit);
+        O->SetNumberField(TEXT("distance"), P.Distance);
+        O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString());
+        O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString());
+        O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
+
+        TArray<TSharedPtr<FJsonValue>> Tags;
+        for (const FName& T : P.HitActorTags)
+        {
+            Tags.Add(MakeShared<FJsonValueString>(T.ToString()));
+        }
+        O->SetArrayField(TEXT("hitActorTags"), Tags);
         AddVectorArray(O, TEXT("worldLocation"), P.WorldLocation);
         AddVectorArray(O, TEXT("localDirection"), P.LocalDirection);
-        JsonPoints.Add(MakeShared<FJsonValueObject>(O)); ++Added;
+        JsonPoints.Add(MakeShared<FJsonValueObject>(O));
+        ++Added;
     }
-    Root->SetNumberField(TEXT("payloadPointCount"), Added); Root->SetArrayField(TEXT("points"), JsonPoints); FString Out; TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&Out); FJsonSerializer::Serialize(Root, W); return Out;
+    Root->SetNumberField(TEXT("payloadPointCount"), Added);
+    Root->SetArrayField(TEXT("points"), JsonPoints);
+
+    FString Out;
+    TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, W);
+    return Out;
 }
 
 void UVirtualLidarSensorComp::WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const
