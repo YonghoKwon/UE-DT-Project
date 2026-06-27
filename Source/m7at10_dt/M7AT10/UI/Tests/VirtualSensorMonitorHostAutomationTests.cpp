@@ -157,6 +157,10 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("lidar display data marks lidar mode"), LidarDisplayData.bShowingLidar);
     TestTrue(TEXT("lidar display data exposes sensor"), LidarDisplayData.SelectedSensorText.Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
     TestTrue(TEXT("lidar display data exposes payload"), LidarDisplayData.ServerPayloadText.Contains(TEXT("Points=8")));
+    TestTrue(TEXT("lidar display data exposes preview independently"), LidarDisplayData.PreviewText.Contains(TEXT("Points=5")));
+    TestTrue(TEXT("full status simultaneously exposes server and preview counts"),
+        LidarDisplayData.FullStatusText.Contains(TEXT("Server Payload: Points=8")) &&
+        LidarDisplayData.FullStatusText.Contains(TEXT("Preview: On Points=5")));
     TestTrue(TEXT("lidar display data exposes slab"), LidarDisplayData.SlabText.Contains(TEXT("Slab: Valid")));
     TestTrue(TEXT("lidar display data exposes laz export"), LidarDisplayData.LazExportText.Contains(TEXT("LAZ Export:")));
     TestTrue(TEXT("lidar display data exposes acceptance gates"), LidarDisplayData.AcceptanceGateText.Contains(TEXT("WBP=ManualPIEPending")));
