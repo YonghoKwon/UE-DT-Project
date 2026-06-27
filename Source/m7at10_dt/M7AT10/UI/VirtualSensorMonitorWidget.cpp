@@ -427,12 +427,14 @@ FString UVirtualSensorMonitorWidget::GetTransportStatusSummaryText() const
     }
 
     const FVirtualSensorTransportResult& Result = TransportComp->LastResult;
-    return FString::Printf(TEXT("Transport: Mode=%s InFlight=%d/%d BackpressureRejected=%d Retries=%d LastRetries=%d LastSubmitted=%s LastAccepted=%s LastCode=%d"),
+    return FString::Printf(TEXT("Transport: Mode=%s InFlight=%d/%d BackpressureRejected=%d Retries=%d Failed=%d RetryExhausted=%d LastRetries=%d LastSubmitted=%s LastAccepted=%s LastCode=%d"),
         *TransportModeToText(TransportComp->TransportMode),
         TransportComp->InFlightHttpRequestCount,
         FMath::Max(1, TransportComp->MaxInFlightHttpRequests),
         TransportComp->BackpressureRejectedRequestCount,
         TransportComp->TotalHttpRetryAttemptCount,
+        TransportComp->FailedHttpRequestCount,
+        TransportComp->RetryExhaustedRequestCount,
         Result.RetryAttemptCount,
         Result.bSubmitted ? TEXT("true") : TEXT("false"),
         Result.bAccepted ? TEXT("true") : TEXT("false"),

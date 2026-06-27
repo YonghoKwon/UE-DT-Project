@@ -28,6 +28,9 @@ struct M7AT10_DT_API FVirtualSensorTransportResult
     bool bBackpressureRejected = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    bool bRetryExhausted = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FString Message;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
@@ -100,6 +103,12 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     int32 TotalHttpRetryAttemptCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    int32 FailedHttpRequestCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+    int32 RetryExhaustedRequestCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
     FVirtualSensorTransportResult LastResult;

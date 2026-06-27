@@ -568,6 +568,8 @@ Current state:
   responses, keeps 4xx responses final, and exposes per-result/cumulative retry
   telemetry. Final production retry timing and loss policy still require
   judging-server approval.
+- Final HTTP failures and retry-exhausted failures now have separate runtime
+  counters and result flags, and the monitor transport row exposes both.
 - `M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies outbound
   `HttpPost` against a local mock judging-server route, including POST shape,
   JSON content type, sensor headers, `virtual-lidar.v1` body identity, 2xx

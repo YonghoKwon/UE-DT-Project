@@ -29,6 +29,9 @@ Runtime telemetry exposes current in-flight and cumulative rejection counts.
 `MaxHttpRetryAttempts` applies only to connection failures and 5xx responses
 when their policy toggles are enabled. 4xx responses are final and are not
 retried.
+`FailedHttpRequestCount` counts final non-accepted responses, while
+`RetryExhaustedRequestCount` identifies retry-eligible failures that consumed
+their configured retry budget.
 
 ## 목표 기능
 

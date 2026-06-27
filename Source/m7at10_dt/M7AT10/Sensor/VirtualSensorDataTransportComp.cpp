@@ -144,10 +144,11 @@ bool UVirtualSensorDataTransportComp::SubmitHttpAttempt(
         const bool bResponseReceived = Response.IsValid();
         const bool bConnectionFailure = !bSucceeded || !bResponseReceived;
         const bool bServerError = bResponseReceived && ResponseCode >= 500 && ResponseCode < 600;
+        const bool bRetryEligible =
+            (bConnectionFailure && TransportComp->bRetryOnConnectionFailure) ||
+            (bServerError && TransportComp->bRetryOnServerError);
         const bool bCanRetry = AttemptIndex < FMath::Max(0, TransportComp->MaxHttpRetryAttempts);
-        const bool bShouldRetry = bCanRetry &&
-            ((bConnectionFailure && TransportComp->bRetryOnConnectionFailure) ||
-             (bServerError && TransportComp->bRetryOnServerError));
+        const bool bShouldRetry = bCanRetry && bRetryEligible;
         int32 FinalAttemptIndex = AttemptIndex;
 
         if (bShouldRetry)
@@ -166,6 +167,8 @@ bool UVirtualSensorDataTransportComp::SubmitHttpAttempt(
         FVirtualSensorTransportResult CallbackResult;
         CallbackResult.bSubmitted = true;
         CallbackResult.bAccepted = bAcceptedStatus;
+        CallbackResult.bRetryExhausted = !bAcceptedStatus && bRetryEligible &&
+            FinalAttemptIndex >= FMath::Max(0, TransportComp->MaxHttpRetryAttempts);
         CallbackResult.DataLength = SubmittedDataLength;
         CallbackResult.HttpStatusCode = ResponseCode;
         CallbackResult.RetryAttemptCount = FinalAttemptIndex;
@@ -177,6 +180,15 @@ bool UVirtualSensorDataTransportComp::SubmitHttpAttempt(
             CallbackResult.bAccepted ? TEXT("true") : TEXT("false"),
             CallbackResult.HttpStatusCode,
             CallbackResult.RetryAttemptCount);
+
+        if (!CallbackResult.bAccepted)
+        {
+            ++TransportComp->FailedHttpRequestCount;
+        }
+        if (CallbackResult.bRetryExhausted)
+        {
+            ++TransportComp->RetryExhaustedRequestCount;
+        }
 
         if (TransportComp->bLogHttpResponse)
         {

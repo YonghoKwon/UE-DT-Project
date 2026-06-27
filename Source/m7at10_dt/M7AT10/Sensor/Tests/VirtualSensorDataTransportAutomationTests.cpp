@@ -114,6 +114,7 @@ public:
                 Test->TestFalse(TEXT("HTTP 400 callback not accepted"), Result.bAccepted);
                 Test->TestEqual(TEXT("HTTP 400 status code"), Result.HttpStatusCode, 400);
                 Test->TestEqual(TEXT("HTTP 400 is not retried"), Result.RetryAttemptCount, 0);
+                Test->TestFalse(TEXT("HTTP 400 does not report retry exhaustion"), Result.bRetryExhausted);
                 Test->TestTrue(TEXT("HTTP 400 response body captured"), Result.ResponseBody.Contains(TEXT("\"accepted\":false")));
                 Test->TestEqual(TEXT("HTTP 400 data length preserved"), Result.DataLength, RejectPayload.Len());
                 Phase = EPhase::SendRetry;
@@ -137,10 +138,33 @@ public:
                 Test->TestEqual(TEXT("HTTP retry attempt count"), Result.RetryAttemptCount, 1);
                 Test->TestEqual(TEXT("HTTP cumulative retry count"), Transport->TotalHttpRetryAttemptCount, 1);
                 Test->TestEqual(TEXT("HTTP retry in-flight count returns to zero"), Transport->InFlightHttpRequestCount, 0);
-                Test->TestEqual(TEXT("loopback server received four requests"), ReceivedRequestCount, 4);
-                Test->TestEqual(TEXT("loopback server received two retry attempts"), RetryRequestCount, 2);
-                Test->TestEqual(TEXT("loopback server validated all request header sets"), ValidHeaderRequestCount, 4);
-                Test->TestEqual(TEXT("loopback server validated all schema identities"), ValidSchemaRequestCount, 4);
+                Phase = EPhase::SendExhaust;
+                return false;
+            }
+        }
+
+        if (Phase == EPhase::SendExhaust)
+        {
+            return SendExhaustRequest();
+        }
+
+        if (Phase == EPhase::WaitExhaust)
+        {
+            if (Transport.IsValid() && Transport->LastResult.HttpStatusCode == 503 &&
+                Transport->LastResult.bRetryExhausted)
+            {
+                const FVirtualSensorTransportResult& Result = Transport->LastResult;
+                Test->TestFalse(TEXT("persistent HTTP 503 is not accepted"), Result.bAccepted);
+                Test->TestTrue(TEXT("persistent HTTP 503 reports retry exhaustion"), Result.bRetryExhausted);
+                Test->TestEqual(TEXT("persistent HTTP 503 uses one retry"), Result.RetryAttemptCount, 1);
+                Test->TestEqual(TEXT("HTTP cumulative retry count includes exhausted request"), Transport->TotalHttpRetryAttemptCount, 2);
+                Test->TestEqual(TEXT("HTTP failed request count includes 400 and exhausted 503"), Transport->FailedHttpRequestCount, 2);
+                Test->TestEqual(TEXT("HTTP retry exhausted request count"), Transport->RetryExhaustedRequestCount, 1);
+                Test->TestEqual(TEXT("loopback server received six requests"), ReceivedRequestCount, 6);
+                Test->TestEqual(TEXT("loopback server received two retry-success attempts"), RetryRequestCount, 2);
+                Test->TestEqual(TEXT("loopback server received two exhaustion attempts"), ExhaustRequestCount, 2);
+                Test->TestEqual(TEXT("loopback server validated all request header sets"), ValidHeaderRequestCount, 6);
+                Test->TestEqual(TEXT("loopback server validated all schema identities"), ValidSchemaRequestCount, 6);
                 Cleanup();
                 return true;
             }
@@ -168,7 +192,9 @@ private:
         SendReject,
         WaitReject,
         SendRetry,
-        WaitRetry
+        WaitRetry,
+        SendExhaust,
+        WaitExhaust
     };
 
     bool Setup()
@@ -198,9 +224,14 @@ private:
                 const FString RequestBody(Converter.Length(), Converter.Get());
                 const bool bAccept = RequestBody.Contains(TEXT("\"accept\":true"));
                 const bool bRetryRequest = RequestBody.Contains(TEXT("\"retry\":true"));
+                const bool bExhaustRequest = RequestBody.Contains(TEXT("\"exhaust\":true"));
                 if (bRetryRequest)
                 {
                     ++RetryRequestCount;
+                }
+                if (bExhaustRequest)
+                {
+                    ++ExhaustRequestCount;
                 }
                 const bool bHeadersValid =
                     GetFirstHeaderValue(Request, TEXT("Content-Type")).Contains(TEXT("application/json")) &&
@@ -215,7 +246,9 @@ private:
                 {
                     ++ValidSchemaRequestCount;
                 }
-                const bool bRetryServerFailure = bRetryRequest && RetryRequestCount == 1;
+                const bool bRetryServerFailure =
+                    (bRetryRequest && RetryRequestCount == 1) ||
+                    bExhaustRequest;
                 const bool bAcceptedByMockJudge = bAccept && !bRetryServerFailure && bHeadersValid && bSchemaValid;
                 const FString ResponseJson = bRetryServerFailure
                     ? TEXT("{\"accepted\":false,\"message\":\"temporary server failure\"}")
@@ -302,6 +335,16 @@ private:
         return false;
     }
 
+    bool SendExhaustRequest()
+    {
+        ExhaustPayload = TEXT("{\"accept\":true,\"exhaust\":true,\"schemaVersion\":\"virtual-lidar.v1\"}");
+        const FVirtualSensorTransportResult InitialResult = Transport->SendJson(TEXT("TEST-LIDAR-HTTP-TRANSPORT"), TEXT("virtual_lidar"), ExhaustPayload);
+        Test->TestTrue(TEXT("HTTP exhaustion request submitted immediately"), InitialResult.bSubmitted);
+        Test->TestFalse(TEXT("HTTP exhaustion request not accepted before callback"), InitialResult.bAccepted);
+        Phase = EPhase::WaitExhaust;
+        return false;
+    }
+
     void Cleanup()
     {
         if (Router.IsValid() && RouteHandle.IsValid())
@@ -326,10 +369,12 @@ private:
     int32 ValidHeaderRequestCount = 0;
     int32 ValidSchemaRequestCount = 0;
     int32 RetryRequestCount = 0;
+    int32 ExhaustRequestCount = 0;
     FString RoutePath;
     FString AcceptPayload;
     FString RejectPayload;
     FString RetryPayload;
+    FString ExhaustPayload;
     TSharedPtr<IHttpRouter> Router;
     FHttpRouteHandle RouteHandle;
     TWeakObjectPtr<UVirtualSensorDataTransportComp> Transport;

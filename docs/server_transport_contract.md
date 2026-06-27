@@ -120,6 +120,9 @@ failures and 5xx responses can retry when enabled; 4xx responses remain final.
 `RetryAttemptCount` and `TotalHttpRetryAttemptCount` expose per-result and
 cumulative retry telemetry. This baseline still requires judging-server owner
 approval before production use.
+Final failures increment `FailedHttpRequestCount`. Retry-eligible failures that
+consume the configured budget additionally set `bRetryExhausted` and increment
+`RetryExhaustedRequestCount`.
 
 ## Decisions Still Required
 
