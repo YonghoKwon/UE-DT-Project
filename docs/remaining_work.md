@@ -967,6 +967,8 @@ Current state:
 - `UVirtualSensorMonitorWidget` now exposes the same controls through
   Blueprint-callable functions and optional start/stop/push buttons, while
   preserving existing WBP compatibility when those buttons are absent.
+- The native fallback toolbar exposes the same controls, allowing code-native
+  replay/live-source smoke before manual WBP acceptance.
 
 Next implementation steps:
 

@@ -235,6 +235,10 @@ DecreaseLidarPreviewBudget
 ToggleLidarPreviewHitOnly
 ```
 
+The native fallback toolbar also exposes Start/Stop/Push controls for the
+selected real sensor source, so replay/live-source smoke does not depend on an
+accepted production WBP.
+
 SensorManager Blueprint API:
 
 ```text

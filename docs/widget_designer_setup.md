@@ -176,6 +176,8 @@ real-source index.
 Optional real-source buttons can call `StartRealSensorSources`,
 `StopRealSensorSources`, and `PushSelectedRealSensorSourceOnce`. Missing buttons
 do not affect existing WBP assets because every new binding is optional.
+The native fallback toolbar exposes the same three controls for pre-WBP smoke
+testing.
 
 The LiDAR status text is expected to include:
 

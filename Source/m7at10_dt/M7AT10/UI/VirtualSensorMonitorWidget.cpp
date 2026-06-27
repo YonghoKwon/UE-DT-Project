@@ -526,6 +526,42 @@ TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
                 .Padding(0.0f, 0.0f, 6.0f, 6.0f)
                 [
                     SNew(SButton)
+                    .Text(FText::FromString(TEXT("Start Real Sources")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleStartRealSensorSourcesButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Stop Real Sources")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandleStopRealSensorSourcesButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Push Real Source")))
+                    .OnClicked_Lambda([this]()
+                    {
+                        HandlePushRealSensorSourceButtonClicked();
+                        RefreshNativeFallbackText();
+                        return FReply::Handled();
+                    })
+                ]
+                + SWrapBox::Slot()
+                .Padding(0.0f, 0.0f, 6.0f, 6.0f)
+                [
+                    SNew(SButton)
                     .Text(FText::FromString(TEXT("Export Payload")))
                     .OnClicked_Lambda([this]()
                     {
