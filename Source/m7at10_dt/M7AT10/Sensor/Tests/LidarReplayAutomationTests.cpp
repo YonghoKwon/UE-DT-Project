@@ -15,6 +15,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarCsvReplayLoadTest, "M7AT10.SensorReplay.C
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "M7AT10.SensorReplay.JsonLinesLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayInjectFrameTest, "M7AT10.SensorReplay.InjectFrameUpdatesStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadPolicyJsonTest, "M7AT10.SensorReplay.PayloadPolicyJson", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarPayloadPreviewPolicyBoundaryTest, "M7AT10.SensorReplay.PayloadPreviewPolicyBoundaries", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPayloadGridCoordTest, "M7AT10.SensorReplay.PayloadPreservesGridCoord", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayTransportSaveToFileTest, "M7AT10.SensorReplay.TransportSaveToFilePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarReplayPerformanceWarningTest, "M7AT10.SensorReplay.PerformanceWarningStatus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -187,6 +188,64 @@ bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("slabAnalysis slab point count remains full hit set"), static_cast<int32>((*SlabAnalysis)->GetIntegerField(TEXT("slabHitPointCount"))), 24);
     }
 
+    return true;
+}
+
+bool FLidarPayloadPreviewPolicyBoundaryTest::RunTest(const FString& Parameters)
+{
+    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    TestNotNull(TEXT("LiDAR component"), LidarComp);
+    if (!LidarComp)
+    {
+        return false;
+    }
+
+    TArray<FVirtualLidarPoint> Points;
+    for (int32 Index = 0; Index < 8; ++Index)
+    {
+        FVirtualLidarPoint Point;
+        Point.WorldLocation = FVector(static_cast<float>(Index * 10), 0.0f, 0.0f);
+        Point.LocalDirection = FVector::ForwardVector;
+        Point.Distance = static_cast<float>(Index * 10);
+        Point.bHit = (Index % 2) == 0;
+        Point.Row = 0;
+        Point.Col = Index;
+        Point.bHasGridCoord = true;
+        Points.Add(Point);
+    }
+
+    LidarComp->HorizontalSamples = Points.Num();
+    LidarComp->VerticalChannels = 1;
+    LidarComp->SetServerPayloadPolicy(0, -1, false);
+    LidarComp->SetPreviewPolicy(0, -1, true);
+
+    TestEqual(TEXT("server stride clamps to one"), LidarComp->ServerPayloadStride, 1);
+    TestEqual(TEXT("server max clamps to unlimited zero"), LidarComp->MaxServerPayloadPoints, 0);
+    TestEqual(TEXT("preview stride clamps to one"), LidarComp->PreviewPointStride, 1);
+    TestEqual(TEXT("preview max clamps to unlimited zero"), LidarComp->MaxPreviewPoints, 0);
+
+    LidarComp->InjectPointCloudFrame(Points, false);
+    TestEqual(TEXT("uncapped hit-only server count"), LidarComp->GetLastServerPayloadPointCount(), 4);
+    TestEqual(TEXT("uncapped hit-only preview count"), LidarComp->GetLastPreviewPointCount(), 4);
+
+    LidarComp->SetServerPayloadPolicy(2, 3, false);
+    TestEqual(TEXT("server policy change preserves preview stride"), LidarComp->PreviewPointStride, 1);
+    TestEqual(TEXT("server policy change preserves preview max"), LidarComp->MaxPreviewPoints, 0);
+    LidarComp->InjectPointCloudFrame(Points, false);
+    TestEqual(TEXT("server stride samples even hit indices and cap stops at three"), LidarComp->GetLastServerPayloadPointCount(), 3);
+    TestEqual(TEXT("server policy does not change preview count"), LidarComp->GetLastPreviewPointCount(), 4);
+
+    LidarComp->SetPreviewPolicy(3, 1, true);
+    TestEqual(TEXT("preview policy change preserves server stride"), LidarComp->ServerPayloadStride, 2);
+    TestEqual(TEXT("preview policy change preserves server max"), LidarComp->MaxServerPayloadPoints, 3);
+    LidarComp->InjectPointCloudFrame(Points, false);
+    TestEqual(TEXT("preview stride and finite cap apply independently"), LidarComp->GetLastPreviewPointCount(), 1);
+    TestEqual(TEXT("preview policy does not change server count"), LidarComp->GetLastServerPayloadPointCount(), 3);
+
+    LidarComp->SetServerPayloadPolicy(3, 0, true);
+    LidarComp->InjectPointCloudFrame(Points, false);
+    TestEqual(TEXT("include-miss server policy counts all sampled indices"), LidarComp->GetLastServerPayloadPointCount(), 3);
+    TestEqual(TEXT("include-miss server policy preserves preview count"), LidarComp->GetLastPreviewPointCount(), 1);
     return true;
 }
 
