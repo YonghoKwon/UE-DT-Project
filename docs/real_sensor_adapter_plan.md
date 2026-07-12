@@ -1,4 +1,4 @@
-# Real Sensor Adapter Plan
+﻿# Real Sensor Adapter Plan
 
 This document defines the next implementation path for real sensor input without modifying DTCore in the current scope.
 
@@ -112,7 +112,7 @@ buffers one `virtual-camera.v1` payload and pushes it into a target
 RealSense, ROS2 image, HTTP, WebSocket, or Blueprint camera adapters a shared
 handoff point without modifying DTCore source.
 
-`M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an
+`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an
 external camera JSON payload reaches the target camera cache and runtime status
 without renderer-dependent SceneCapture readback. It also verifies JSON
 transport, recorder capture, payload `sensorId`/`frameId` propagation, decoded
@@ -197,7 +197,7 @@ The registration report writes JSON and Markdown files under
 `Saved/WebSocketTransactionRegistration/`. It confirms the configured
 `WebSocketDataTable` path, the expected row name
 `LIDAR_JSON_LIVE_FRAME`, the expected handler class
-`/Script/m7at10_dt.LidarJsonLiveFrameTC`, and the sample payload metadata. It
+`/Script/ma0t10_dt.LidarJsonLiveFrameTC`, and the sample payload metadata. It
 does not edit or deserialize `DT_TransactionCode.uasset`; verify the binary row
 in Unreal Editor before calling the WebSocket route complete.
 Use `-NoWrite` when you only need a read-only check and do not want to create
@@ -206,7 +206,7 @@ Use `-NoWrite` when you only need a read-only check and do not want to create
 After adding or confirming the row, run the optional evidence automation:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.Evidence.WebSocketTransactionRegistration; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.Evidence.WebSocketTransactionRegistration; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
 This automation loads `UDTCoreSettings::WebSocketDataTable`, finds the
@@ -221,7 +221,7 @@ To create or repair the row in a reproducible DT-Project-only way, run the
 editor-only commandlet:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -run=EnsureLidarJsonLiveFrameTransaction -unattended -nop4
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -run=EnsureLidarJsonLiveFrameTransaction -unattended -nop4
 ```
 
 Use `-NoSave` for a dry run. The commandlet updates only the project WebSocket
@@ -229,7 +229,7 @@ data table configured by `UDTCoreSettings::WebSocketDataTable`; it does not
 modify DTCore source.
 
 External broker connectivity is still a deployment smoke item.
-`M7AT10.RealSensorSource.JsonLiveDTCoreDispatch` covers the brokerless
+`MA0T10.RealSensorSource.JsonLiveDTCoreDispatch` covers the brokerless
 GameInstance-backed DTCore dispatch path by enqueueing the checked
 `LIDAR_JSON_LIVE_FRAME` sample through `UDxDataSubsystem::EnqueueWebSocketData`
 in PIE and polling until the target LiDAR receives the frame. This proves the
@@ -244,10 +244,10 @@ transport payload update in PIE.
 Record deployment broker smoke evidence with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details" -EvidenceRunId "ws-smoke-001" -MapName "TestMap" -PieSession "PIE_0" -LogPath "C:\path\to\Saved\Logs\m7at10_dt.log" -SourceFrameBefore 0 -SourceFrameAfter 1 -TargetPointCount 16 -CachedPayloadBytes 4096 -BrokerClientCommand "broker-client-send-sample"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details" -EvidenceRunId "ws-smoke-001" -MapName "TestMap" -PieSession "PIE_0" -LogPath "C:\path\to\Saved\Logs\ma0t10_dt.log" -SourceFrameBefore 0 -SourceFrameAfter 1 -TargetPointCount 16 -CachedPayloadBytes 4096 -BrokerClientCommand "broker-client-send-sample"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -NoWrite
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -NoWrite
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -RunCommandletDryRun -RunEvidenceAutomation -RunBrokerlessDTCoreDispatchAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details" -EvidenceRunId "ws-smoke-001" -MapName "TestMap" -PieSession "PIE_0" -LogPath "C:\path\to\Saved\Logs\m7at10_dt.log" -SourceFrameBefore 0 -SourceFrameAfter 1 -TargetPointCount 16 -CachedPayloadBytes 4096 -BrokerClientCommand "broker-client-send-sample"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\ma0t10_dt" -NoWrite
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\ma0t10_dt" -RunCommandletDryRun -RunEvidenceAutomation -RunBrokerlessDTCoreDispatchAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name" -Notes "PIE map and broker details" -EvidenceRunId "ws-smoke-001" -MapName "TestMap" -PieSession "PIE_0" -LogPath "C:\path\to\Saved\Logs\ma0t10_dt.log" -SourceFrameBefore 0 -SourceFrameAfter 1 -TargetPointCount 16 -CachedPayloadBytes 4096 -BrokerClientCommand "broker-client-send-sample"
 ```
 
 This report validates local prerequisites and records operator observations. It
@@ -265,16 +265,16 @@ Export a consolidated real-sensor readiness report when you need to review the
 current adapter evidence without running deployment smoke:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\m7at10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\ma0t10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_readiness_report.ps1" -ProjectRoot "C:\path\to\ma0t10_dt" -Json
 ```
 
 Export a local deployment evidence package before handing the adapter path to a
 deployment owner:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\path\to\m7at10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\path\to\ma0t10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\path\to\ma0t10_dt" -Json
 ```
 
 The package writes `Saved/Reports/RealSensorAdapterDeployment/` with the
@@ -337,10 +337,10 @@ through engine ini settings such as `[HTTPServer.Listeners]`,
 `BindAddress=any` or an IP address. That bind choice is deployment
 configuration, not a component property, so production exposure must be
 controlled by port selection, host firewall/network policy, and ini review.
-`M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the wrapper
+`MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the wrapper
 reuses the shared JSON payload handoff and can either auto-push or buffer an
 incoming frame. It also checks route bind/unbind lifecycle state.
-`M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` starts the route on a
+`MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` starts the route on a
 unique localhost path and high test port, sends a real HTTP POST through
 `FHttpModule`, and waits for the target LiDAR frame update and HTTP 202
 response.
@@ -350,7 +350,7 @@ It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,
 marshals received datagrams back to the game thread, and feeds text payloads
 through `AppendLivePayloadJson` plus optional `PushFrameOnce`. Treat it as local
 bridge smoke coverage, not as deployment broker evidence.
-`M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` binds to an ephemeral
+`MA0T10.RealSensorSource.UdpJsonLiveBridgeDatagram` binds to an ephemeral
 loopback port, sends one UTF-8 UDP datagram, and waits for the target LiDAR to
 receive the frame.
 
@@ -423,10 +423,10 @@ StopReplayInEditor
 Regression coverage:
 
 ```text
-M7AT10.RealSensorSource.PushFrameToTarget
-M7AT10.RealSensorSource.JsonLiveBridgePushFrame
-M7AT10.RealSensorSource.JsonLiveTransactionParse
-M7AT10.Evidence.WebSocketTransactionRegistration
+MA0T10.RealSensorSource.PushFrameToTarget
+MA0T10.RealSensorSource.JsonLiveBridgePushFrame
+MA0T10.RealSensorSource.JsonLiveTransactionParse
+MA0T10.Evidence.WebSocketTransactionRegistration
 ```
 
 Static readiness coverage:

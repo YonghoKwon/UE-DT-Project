@@ -1,4 +1,4 @@
-#include "m7at10_dt/M7AT10/Sensor/LidarUdpJsonLiveSourceComp.h"
+﻿#include "ma0t10_dt/MA0T10/Sensor/LidarUdpJsonLiveSourceComp.h"
 
 #include "Async/Async.h"
 #include "Containers/StringConv.h"
@@ -35,7 +35,7 @@ bool ULidarUdpJsonLiveSourceComp::StartSource()
     }
 
     const FIPv4Endpoint Endpoint(ParsedAddress, static_cast<uint16>(FMath::Clamp(BindPort, 0, 65535)));
-    const FString SocketName = FString::Printf(TEXT("M7AT10_LidarUdpJsonLive_%s_%d"), *SourceId, BindPort);
+    const FString SocketName = FString::Printf(TEXT("MA0T10_LidarUdpJsonLive_%s_%d"), *SourceId, BindPort);
     int32 ReceiveBufferSize = FMath::Clamp(MaxDatagramBytes, 1024, 1048576);
 
     ListenSocket = FUdpSocketBuilder(*SocketName)

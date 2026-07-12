@@ -1,6 +1,6 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
-    [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$LocalProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
     [string]$LogPath = "",
     [switch]$SkipAutomation,
@@ -52,9 +52,9 @@ $LocalProjectRoot = (Resolve-Path -LiteralPath $LocalProjectRoot).Path
 $runSmokeScript = Join-Path $ProjectRoot "Scripts\run_smoke_tests.ps1"
 $csvReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
 $rendererReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
-$projectPath = Join-Path $LocalProjectRoot "m7at10_dt.uproject"
+$projectPath = Join-Path $LocalProjectRoot "ma0t10_dt.uproject"
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
-    $LogPath = Join-Path $LocalProjectRoot "Saved\Logs\m7at10_dt.log"
+    $LogPath = Join-Path $LocalProjectRoot "Saved\Logs\ma0t10_dt.log"
 }
 $reportDir = Join-Path $LocalProjectRoot "Saved\Reports"
 $csvMarkdownPath = Join-Path $reportDir "csv_preview_performance.md"
@@ -79,7 +79,7 @@ if (-not $SkipAutomation) {
     $smokeArgs = @(
         "-ProjectPath", $projectPath,
         "-EngineRoot", $EngineRoot,
-        "-TestGroups", "M7AT10.Sensor.CsvPointCloudPreview"
+        "-TestGroups", "MA0T10.Sensor.CsvPointCloudPreview"
     )
     if ($SkipBuild) {
         $smokeArgs += "-SkipBuild"

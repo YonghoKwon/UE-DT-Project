@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "RealSensorSourceComp.h"
@@ -7,7 +7,7 @@
 class UVirtualCameraComp;
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class M7AT10_DT_API UCameraJsonLiveSourceComp : public URealSensorSourceComp
+class MA0T10_DT_API UCameraJsonLiveSourceComp : public URealSensorSourceComp
 {
     GENERATED_BODY()
 

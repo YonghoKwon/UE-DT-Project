@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -38,15 +38,15 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h" },
-    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp" },
-    [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Source\m7at10_dt\M7AT10\Sensor\CsvPointCloudPreviewActor.h" },
-    [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\VirtualSensorManager.cpp" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp" },
-    [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp" },
-    [PSCustomObject]@{ Label = "Sensor manager automation tests"; Path = "Source\m7at10_dt\M7AT10\Sensor\Tests\SensorManagerAutomationTests.cpp" },
-    [PSCustomObject]@{ Label = "CSV point cloud preview automation tests"; Path = "Source\m7at10_dt\M7AT10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp" },
-    [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\m7at10_dt\M7AT10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h" },
+    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp" },
+    [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h" },
+    [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorManager.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp" },
+    [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "Sensor manager automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "CSV point cloud preview automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "LiDAR payload schema"; Path = "docs\lidar_payload_schema.md" },
     [PSCustomObject]@{ Label = "Editor smoke test document"; Path = "docs\editor_smoke_test.md" },
     [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
@@ -57,16 +57,16 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
-$csvPreviewHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CsvPointCloudPreviewActor.h"
-$csvPreviewCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CsvPointCloudPreviewActor.cpp"
-$managerCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualSensorManager.cpp"
-$monitorCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp"
-$replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
-$managerTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\SensorManagerAutomationTests.cpp"
-$csvPreviewTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp"
-$monitorTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp"
+$csvPreviewHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h"
+$csvPreviewCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.cpp"
+$managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorManager.cpp"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
+$replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
+$managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
+$csvPreviewTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp"
+$monitorTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
@@ -109,19 +109,19 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Max(2, LidarComp->PreviewPointStride)"; Label = "PointCloudOnly preview stride clamp" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "PreviewPoints"; Label = "Monitor exposes preview point count" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "Transport/Warning"; Label = "Monitor exposes warning row" },
-    [PSCustomObject]@{ Path = $replayTests; Pattern = "M7AT10.SensorReplay.PerformanceWarningStatus"; Label = "Replay warning automation test" },
-    [PSCustomObject]@{ Path = $managerTests; Pattern = "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy"; Label = "PointCloudOnly policy automation test" },
-    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad"; Label = "CSV procedural high-density automation test" },
-    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad"; Label = "CSV instanced batch automation test" },
-    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget"; Label = "CSV procedural performance budget automation test" },
-    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced"; Label = "CSV auto-promote automation test" },
+    [PSCustomObject]@{ Path = $replayTests; Pattern = "MA0T10.SensorReplay.PerformanceWarningStatus"; Label = "Replay warning automation test" },
+    [PSCustomObject]@{ Path = $managerTests; Pattern = "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy"; Label = "PointCloudOnly policy automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "MA0T10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad"; Label = "CSV procedural high-density automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "MA0T10.Sensor.CsvPointCloudPreview.InstancedBatchLoad"; Label = "CSV instanced batch automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "MA0T10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget"; Label = "CSV procedural performance budget automation test" },
+    [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "MA0T10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced"; Label = "CSV auto-promote automation test" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "bAutoPromoteLargeInstancedPreviewToProcedural"; Label = "CSV preview auto-promotes large instanced loads" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "AutoPromoteInstancedToProceduralPointThreshold"; Label = "CSV preview declares auto-promote threshold" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "WasLastRenderModeAutoPromoted"; Label = "CSV preview exposes auto-promote telemetry" },
     [PSCustomObject]@{ Path = $csvPreviewCpp; Pattern = "LoadedAutoPromotedToProcedural"; Label = "CSV preview status records auto-promote" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "120000"; Label = "CSV procedural automation uses high-density sample" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "250000"; Label = "CSV procedural performance automation uses denser sample" },
-    [PSCustomObject]@{ Path = $monitorTests; Pattern = "M7AT10.SensorMonitor.PerformanceWarningStatusText"; Label = "Monitor warning automation test" },
+    [PSCustomObject]@{ Path = $monitorTests; Pattern = "MA0T10.SensorMonitor.PerformanceWarningStatusText"; Label = "Monitor warning automation test" },
     [PSCustomObject]@{ Path = $schemaDoc; Pattern = 'Server-side judgment should not use `previewPolicy` as measurement truth.'; Label = "Schema documents preview/server split" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "PreviewPointStride = 2"; Label = "Smoke doc preview stride recommendation" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "MaxPreviewPoints = 5000"; Label = "Smoke doc preview max recommendation" },
@@ -193,7 +193,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "ReadyToClaimCsvPreviewPerformance"; Label = "Renderer acceptance package exposes CSV performance ready gate" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "ProceduralPerformanceBudget"; Label = "CSV preview performance report checks procedural budget scenario" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "250000"; Label = "CSV preview performance report checks dense sample size" },
-    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\m7at10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "Saved\Logs\ma0t10_dt.log"; Label = "CSV preview performance report reads Unreal automation log" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "RequireAutomationSuccess"; Label = "CSV preview performance report can require automation success evidence" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "TEST COMPLETE\. EXIT CODE"; Label = "CSV preview performance report checks automation exit evidence" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "EvidenceRunStartLine"; Label = "CSV preview performance report records evidence run line number" },
@@ -202,8 +202,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "FailureEvidencePresent"; Label = "CSV preview performance report detects failure evidence inside the selected run block" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "FailureLineCount"; Label = "CSV preview performance report counts failure evidence lines" },
     [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = "break"; Label = "CSV preview performance report stops at the selected run completion" },
-    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = 'Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}'; Label = "CSV preview performance report matches scenario-specific success lines" },
-    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "M7AT10.Sensor.CsvPointCloudPreview"; Label = "CSV evidence workflow runs the dedicated preview automation group" },
+    [PSCustomObject]@{ Path = $csvPreviewPerformanceReportScript; Pattern = 'Path=\{MA0T10\.Sensor\.CsvPointCloudPreview\.$scenario\}'; Label = "CSV preview performance report matches scenario-specific success lines" },
+    [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "MA0T10.Sensor.CsvPointCloudPreview"; Label = "CSV evidence workflow runs the dedicated preview automation group" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = '[string]$LogPath'; Label = "CSV evidence workflow accepts an explicit automation log path" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireCsvPerformanceEvidence"; Label = "CSV evidence workflow requires renderer decision evidence" },
     [PSCustomObject]@{ Path = $csvPreviewEvidenceWorkflowScript; Pattern = "RequireAutomationSuccess"; Label = "CSV evidence workflow requires automation success evidence" },

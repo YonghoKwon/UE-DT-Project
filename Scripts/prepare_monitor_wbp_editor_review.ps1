@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$OutputRoot = "",
     [string]$BackupRoot = "",
@@ -69,7 +69,7 @@ if ([string]::IsNullOrWhiteSpace($BackupRoot)) {
 New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
 $BackupRoot = (Resolve-Path -LiteralPath $BackupRoot).Path
 
-$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $acceptancePackageScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"
@@ -103,7 +103,7 @@ if (-not $SkipBackup) {
 
 $reviewJsonPath = Join-Path $OutputRoot "monitor_wbp_editor_review.json"
 $reviewMarkdownPath = Join-Path $OutputRoot "monitor_wbp_editor_review.md"
-$editorCommand = ('& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor.exe" "{0}"' -f (Join-Path $ProjectRoot "m7at10_dt.uproject"))
+$editorCommand = ('& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor.exe" "{0}"' -f (Join-Path $ProjectRoot "ma0t10_dt.uproject"))
 $acceptanceEvidencePath = [string]$acceptancePackage.EvidencePath
 
 $manualChecklist = @(

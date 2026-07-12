@@ -1,4 +1,4 @@
-# LiDAR Payload Schema v1
+﻿# LiDAR Payload Schema v1
 
 Schema version:
 
@@ -193,19 +193,19 @@ any schema changes.
 Regression coverage:
 
 ```text
-M7AT10.SensorReplay.PayloadPolicyJson
-M7AT10.SensorReplay.PayloadPreservesGridCoord
-M7AT10.SensorReplay.LazPlaceholderWritesLasSource
-M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput
-M7AT10.SensorReplay.TransportSaveToFilePayload
-M7AT10.SensorReplay.PerformanceWarningStatus
+MA0T10.SensorReplay.PayloadPolicyJson
+MA0T10.SensorReplay.PayloadPreservesGridCoord
+MA0T10.SensorReplay.LazPlaceholderWritesLasSource
+MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput
+MA0T10.SensorReplay.TransportSaveToFilePayload
+MA0T10.SensorReplay.PerformanceWarningStatus
 ```
 
 This test verifies that `points[]` follows `payloadPolicy`, while runtime preview counts and `previewPolicy` remain separate.
-`M7AT10.SensorReplay.TransportSaveToFilePayload` verifies that replay-injected LiDAR frames can be submitted through `UVirtualSensorDataTransportComp` in `SaveToFile` mode, that a JSON file is written under the configured save directory, and that the saved file matches `GetLastJsonPayload()`.
-`M7AT10.SensorReplay.PerformanceWarningStatus` verifies that FullSpec, multi-hit, export-on-scan, and uncapped preview warnings are surfaced through runtime status.
+`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that replay-injected LiDAR frames can be submitted through `UVirtualSensorDataTransportComp` in `SaveToFile` mode, that a JSON file is written under the configured save directory, and that the saved file matches `GetLastJsonPayload()`.
+`MA0T10.SensorReplay.PerformanceWarningStatus` verifies that FullSpec, multi-hit, export-on-scan, and uncapped preview warnings are surfaced through runtime status.
 The LAZ placeholder test verifies that `ExportLastPointCloudLaz()` writes a `*_laz_source_*.las` source file and does not pretend to create a compressed `.laz` file.
-`M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput` verifies the external
+`MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput` verifies the external
 compressor process contract with a local copy-command surrogate. It proves the
 `{input}`/`{output}` path and non-empty `.laz` output checks, not true
 compression.

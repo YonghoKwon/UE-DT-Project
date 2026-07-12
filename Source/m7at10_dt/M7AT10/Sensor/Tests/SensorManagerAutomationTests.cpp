@@ -1,21 +1,21 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "EngineGlobals.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
-#include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyPolicyTest, "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerSharedServicesTest, "M7AT10.SensorManager.SharedServicesAssigned", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyPolicyTest, "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerSharedServicesTest, "MA0T10.SensorManager.SharedServicesAssigned", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
 {

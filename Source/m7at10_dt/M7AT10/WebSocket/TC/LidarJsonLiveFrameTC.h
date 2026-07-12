@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "WebSocket/FTransactionCodeDataBase.h"
@@ -14,7 +14,7 @@ struct FLidarJsonLiveFrameTCData : FTransactionCodeDataBase
 };
 
 UCLASS()
-class M7AT10_DT_API ULidarJsonLiveFrameTC : public UTransactionCodeMessage, public FTransactionCodeDataBase
+class MA0T10_DT_API ULidarJsonLiveFrameTC : public UTransactionCodeMessage, public FTransactionCodeDataBase
 {
     GENERATED_BODY()
 

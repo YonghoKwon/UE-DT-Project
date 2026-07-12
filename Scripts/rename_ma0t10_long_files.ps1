@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Apply,
     [switch]$VerifyAfterApply
 )
@@ -58,11 +58,11 @@ function Move-PathIfExists {
 # Long source files are intentionally handled locally with git mv instead of
 # GitHub contents API copy/delete to avoid truncation or manual recomposition errors.
 $Moves = @(
-    @{ From = 'Source/m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.cpp'; To = 'Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.cpp' },
-    @{ From = 'Source/m7at10_dt/M7AT10/Sensor/VirtualSensorManager.cpp'; To = 'Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.cpp' },
-    @{ From = 'Source/m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h'; To = 'Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h' },
-    @{ From = 'Source/m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.cpp'; To = 'Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.cpp' },
-    @{ From = 'Source/m7at10_dt/M7AT10/Camera/VirtualCameraComp.cpp'; To = 'Source/ma0t10_dt/MA0T10/Camera/VirtualCameraComp.cpp' }
+    @{ From = 'Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.cpp'; To = 'Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.cpp' },
+    @{ From = 'Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.cpp'; To = 'Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.cpp' },
+    @{ From = 'Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h'; To = 'Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h' },
+    @{ From = 'Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.cpp'; To = 'Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.cpp' },
+    @{ From = 'Source/ma0t10_dt/MA0T10/Camera/VirtualCameraComp.cpp'; To = 'Source/ma0t10_dt/MA0T10/Camera/VirtualCameraComp.cpp' }
 )
 
 Write-Host '== MA0T10 long source rename =='
@@ -93,13 +93,13 @@ $Files = Get-ChildItem -Recurse -File |
     }
 
 $ReplacementRules = @(
-    @{ From = 'm7at10_dtEditor'; To = 'ma0t10_dtEditor' },
-    @{ From = 'm7at10_dt/M7AT10'; To = 'ma0t10_dt/MA0T10' },
-    @{ From = 'm7at10_dt'; To = 'ma0t10_dt' },
-    @{ From = 'M7AT10_DT_API'; To = 'MA0T10_DT_API' },
-    @{ From = 'LogM7AT10'; To = 'LogMA0T10' },
-    @{ From = 'M7AT10'; To = 'MA0T10' },
-    @{ From = 'm7at10'; To = 'ma0t10' }
+    @{ From = 'ma0t10_dtEditor'; To = 'ma0t10_dtEditor' },
+    @{ From = 'ma0t10_dt/MA0T10'; To = 'ma0t10_dt/MA0T10' },
+    @{ From = 'ma0t10_dt'; To = 'ma0t10_dt' },
+    @{ From = 'MA0T10_DT_API'; To = 'MA0T10_DT_API' },
+    @{ From = 'LogMA0T10'; To = 'LogMA0T10' },
+    @{ From = 'MA0T10'; To = 'MA0T10' },
+    @{ From = 'ma0t10'; To = 'ma0t10' }
 )
 
 foreach ($file in $Files) {

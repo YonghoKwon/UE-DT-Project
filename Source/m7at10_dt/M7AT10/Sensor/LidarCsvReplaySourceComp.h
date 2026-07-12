@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "RealSensorSourceComp.h"
@@ -6,7 +6,7 @@
 #include "LidarCsvReplaySourceComp.generated.h"
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class M7AT10_DT_API ULidarCsvReplaySourceComp : public URealSensorSourceComp
+class MA0T10_DT_API ULidarCsvReplaySourceComp : public URealSensorSourceComp
 {
     GENERATED_BODY()
 

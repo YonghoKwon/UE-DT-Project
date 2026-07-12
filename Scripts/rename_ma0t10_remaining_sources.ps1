@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Apply
 )
 
@@ -8,9 +8,9 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $RepoRoot
 
 $Moves = @(
-    @{ From = 'Source/m7at10_dt/M7AT10'; To = 'Source/ma0t10_dt/MA0T10' },
-    @{ From = 'Source/m7at10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.cpp'; To = 'Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.cpp' },
-    @{ From = 'Source/m7at10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.h'; To = 'Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.h' }
+    @{ From = 'Source/ma0t10_dt/MA0T10'; To = 'Source/ma0t10_dt/MA0T10' },
+    @{ From = 'Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.cpp'; To = 'Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.cpp' },
+    @{ From = 'Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.h'; To = 'Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.h' }
 )
 
 foreach ($Move in $Moves) {
@@ -43,10 +43,10 @@ $TextFiles = Get-ChildItem -Path @('Source', 'Config', 'Scripts', 'docs', 'Sampl
 foreach ($File in $TextFiles) {
     $Original = Get-Content $File.FullName -Raw
     $Updated = $Original `
-        -replace 'M7AT10', 'MA0T10' `
-        -replace 'm7at10_dtEditor', 'ma0t10_dtEditor' `
-        -replace 'm7at10_dt', 'ma0t10_dt' `
-        -replace 'm7at10', 'ma0t10'
+        -replace 'MA0T10', 'MA0T10' `
+        -replace 'ma0t10_dtEditor', 'ma0t10_dtEditor' `
+        -replace 'ma0t10_dt', 'ma0t10_dt' `
+        -replace 'ma0t10', 'ma0t10'
 
     if ($Updated -ne $Original) {
         if ($Apply) {

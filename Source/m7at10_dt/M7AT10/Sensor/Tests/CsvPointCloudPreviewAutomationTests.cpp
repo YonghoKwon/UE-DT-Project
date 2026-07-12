@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "EngineGlobals.h"
 #include "Engine/World.h"
@@ -6,7 +6,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "m7at10_dt/M7AT10/Sensor/CsvPointCloudPreviewActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/CsvPointCloudPreviewActor.h"
 
 namespace
 {
@@ -31,10 +31,10 @@ FString WriteGeneratedCsvPointCloud(const FString& FileName, int32 PointCount, i
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewProceduralHighDensityLoadTest, "M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewInstancedBatchLoadTest, "M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewProceduralPerformanceBudgetTest, "M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewAutoPromoteLargeInstancedTest, "M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewProceduralHighDensityLoadTest, "MA0T10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewInstancedBatchLoadTest, "MA0T10.Sensor.CsvPointCloudPreview.InstancedBatchLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewProceduralPerformanceBudgetTest, "MA0T10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCsvPointCloudPreviewAutoPromoteLargeInstancedTest, "MA0T10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FCsvPointCloudPreviewProceduralHighDensityLoadTest::RunTest(const FString& Parameters)
 {

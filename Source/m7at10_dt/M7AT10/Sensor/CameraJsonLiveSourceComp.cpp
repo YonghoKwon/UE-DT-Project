@@ -1,7 +1,7 @@
-#include "m7at10_dt/M7AT10/Sensor/CameraJsonLiveSourceComp.h"
+﻿#include "ma0t10_dt/MA0T10/Sensor/CameraJsonLiveSourceComp.h"
 
 #include "GameFramework/Actor.h"
-#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
 
 UCameraJsonLiveSourceComp::UCameraJsonLiveSourceComp()
 {

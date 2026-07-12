@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "HttpResultCallback.h"
@@ -10,7 +10,7 @@ class IHttpRouter;
 struct FHttpServerRequest;
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class M7AT10_DT_API ULidarHttpJsonLiveSourceComp : public ULidarJsonLiveSourceComp
+class MA0T10_DT_API ULidarHttpJsonLiveSourceComp : public ULidarJsonLiveSourceComp
 {
     GENERATED_BODY()
 
@@ -34,7 +34,7 @@ public:
     int32 ListenPort = 8082;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive|HTTP")
-    FString RoutePath = TEXT("/m7at10/lidar/live");
+    FString RoutePath = TEXT("/ma0t10/lidar/live");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|RealSensorLive|HTTP", meta = (ClampMin = "1024", ClampMax = "104857600"))
     int32 MaxRequestBytes = 1048576;

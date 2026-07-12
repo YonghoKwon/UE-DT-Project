@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "HttpModule.h"
 #include "HttpManager.h"
@@ -13,9 +13,9 @@
 #include "Misc/Guid.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorTransportHttpPostLoopbackTest, "M7AT10.SensorTransport.HttpPostLoopbackAcceptance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorTransportHttpPostLoopbackTest, "MA0T10.SensorTransport.HttpPostLoopbackAcceptance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace
 {
@@ -31,7 +31,7 @@ FString GetFirstHeaderValue(const FHttpServerRequest& Request, const FString& He
 
 int32 FindFreeLoopbackTcpPort()
 {
-    FSocket* ProbeSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("M7AT10_TransportHttpProbe"), false);
+    FSocket* ProbeSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("MA0T10_TransportHttpProbe"), false);
     if (!ProbeSocket)
     {
         return 0;
@@ -206,7 +206,7 @@ private:
             return true;
         }
 
-        RoutePath = FString::Printf(TEXT("/m7at10/transport/%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
+        RoutePath = FString::Printf(TEXT("/ma0t10/transport/%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
         Router = FHttpServerModule::Get().GetHttpRouter(static_cast<uint32>(FreePort), true);
         Test->TestTrue(TEXT("transport loopback router created"), Router.IsValid());
         if (!Router.IsValid())

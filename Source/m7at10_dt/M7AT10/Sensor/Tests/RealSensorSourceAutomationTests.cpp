@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -10,19 +10,19 @@
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
 #include "Core/DTCoreSettings.h"
-#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
-#include "m7at10_dt/M7AT10/Sensor/CameraJsonLiveSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarHttpJsonLiveSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarJsonLinesReplaySourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarJsonLiveSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarUdpJsonLiveSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/RealSensorAdapterStubs.h"
-#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
-#include "m7at10_dt/M7AT10/WebSocket/TC/LidarJsonLiveFrameTC.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/CameraJsonLiveSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarHttpJsonLiveSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLinesReplaySourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLiveSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarUdpJsonLiveSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorAdapterStubs.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/LidarJsonLiveFrameTC.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
@@ -36,21 +36,21 @@
 #include "Tests/AutomationEditorCommon.h"
 #endif
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "M7AT10.RealSensorSource.BaseState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "M7AT10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "M7AT10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "M7AT10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceCameraJsonLiveBridgeTest, "M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveBridgeTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveLoopbackPostTest, "M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveDatagramTest, "M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "M7AT10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "M7AT10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest, "M7AT10.Evidence.WebSocketTransactionRegistration", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceBaseStateTest, "MA0T10.RealSensorSource.BaseState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePlaceholderStateTest, "MA0T10.RealSensorSource.PlaceholderState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourcePushFrameToTargetTest, "MA0T10.RealSensorSource.PushFrameToTarget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveBridgeTest, "MA0T10.RealSensorSource.JsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceCameraJsonLiveBridgeTest, "MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveBridgeTest, "MA0T10.RealSensorSource.HttpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceHttpJsonLiveLoopbackPostTest, "MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveBridgeTest, "MA0T10.RealSensorSource.UdpJsonLiveBridgePayload", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceUdpJsonLiveDatagramTest, "MA0T10.RealSensorSource.UdpJsonLiveBridgeDatagram", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionParseTest, "MA0T10.RealSensorSource.JsonLiveTransactionParse", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionRoutingTest, "MA0T10.RealSensorSource.JsonLiveTransactionRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest, "MA0T10.Evidence.WebSocketTransactionRegistration", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 #if WITH_EDITOR
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveDTCoreDispatchTest, "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRealSensorSourceJsonLiveDTCoreDispatchTest, "MA0T10.RealSensorSource.JsonLiveDTCoreDispatch", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 class FBrokerlessWebSocketDispatchCommand : public IAutomationLatentCommand
 {
@@ -331,7 +331,7 @@ private:
         Target->SensorId = TEXT("TEST-LIDAR-HTTP-LOOPBACK");
         Source->TargetLidar = Target;
         Source->ListenPort = FreePort;
-        Source->RoutePath = FString::Printf(TEXT("/m7at10/loopback/%s"), *HttpRouteGuid.ToString(EGuidFormats::Digits));
+        Source->RoutePath = FString::Printf(TEXT("/ma0t10/loopback/%s"), *HttpRouteGuid.ToString(EGuidFormats::Digits));
         Source->bAutoPushReceivedFrame = true;
         Source->bSendTransportForReceivedFrames = false;
         Test->TestTrue(TEXT("HTTP loopback source starts"), Source->StartSource());
@@ -351,7 +351,7 @@ private:
 
     int32 FindFreeLoopbackTcpPort() const
     {
-        FSocket* ProbeSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("M7AT10_HttpJsonLiveProbe"), false);
+        FSocket* ProbeSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("MA0T10_HttpJsonLiveProbe"), false);
         if (!ProbeSocket)
         {
             return 0;
@@ -535,7 +535,7 @@ private:
         TargetLidar = Target;
         UdpSource = Source;
 
-        FSocket* Sender = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_DGram, TEXT("M7AT10_UdpJsonLiveSmokeSender"), false);
+        FSocket* Sender = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_DGram, TEXT("MA0T10_UdpJsonLiveSmokeSender"), false);
         Test->TestNotNull(TEXT("UDP datagram sender socket"), Sender);
         if (!Sender)
         {
@@ -883,7 +883,7 @@ bool FRealSensorSourceHttpJsonLiveBridgeTest::RunTest(const FString& Parameters)
 
     const FGuid HttpRouteGuid = FGuid::NewGuid();
     HttpSource->ListenPort = 20000 + static_cast<int32>(GetTypeHash(HttpRouteGuid) % 20000);
-    HttpSource->RoutePath = FString::Printf(TEXT("/m7at10/test/%s"), *HttpRouteGuid.ToString(EGuidFormats::Digits));
+    HttpSource->RoutePath = FString::Printf(TEXT("/ma0t10/test/%s"), *HttpRouteGuid.ToString(EGuidFormats::Digits));
     TestTrue(TEXT("HTTP JSON live StartSource binds a route"), HttpSource->StartSource());
     TestTrue(TEXT("HTTP JSON live route is bound"), HttpSource->IsHttpRouteBound());
     TestTrue(TEXT("HTTP JSON live accepts requests while running"), HttpSource->IsAcceptingHttpRequests());
@@ -1298,7 +1298,7 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
     TestEqual(
         TEXT("WebSocket data table path"),
         ConfiguredPath.ToString(),
-        FString(TEXT("/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")));
+        FString(TEXT("/Game/MA0T10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")));
     if (!ConfiguredPath.IsValid())
     {
         return false;
@@ -1315,12 +1315,12 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
     const FName ExpectedRowName(TEXT("LIDAR_JSON_LIVE_FRAME"));
     const FTransactionCodeStruct* Row = WebSocketDataTable->FindRow<FTransactionCodeStruct>(
         ExpectedRowName,
-        TEXT("M7AT10.Evidence.WebSocketTransactionRegistration"),
+        TEXT("MA0T10.Evidence.WebSocketTransactionRegistration"),
         false);
     TestNotNull(TEXT("LIDAR_JSON_LIVE_FRAME row exists in DT_TransactionCode"), Row);
     if (!Row)
     {
-        AddInfo(TEXT("Add a DT_TransactionCode row named LIDAR_JSON_LIVE_FRAME with TransactionCodeMessageClass=/Script/m7at10_dt.LidarJsonLiveFrameTC."));
+        AddInfo(TEXT("Add a DT_TransactionCode row named LIDAR_JSON_LIVE_FRAME with TransactionCodeMessageClass=/Script/ma0t10_dt.LidarJsonLiveFrameTC."));
         return false;
     }
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -8,7 +8,7 @@ class UArrowComponent;
 class UVirtualLidarSensorComp;
 
 UCLASS()
-class M7AT10_DT_API AVirtualSensorAct : public AActor
+class MA0T10_DT_API AVirtualSensorAct : public AActor
 {
     GENERATED_BODY()
 

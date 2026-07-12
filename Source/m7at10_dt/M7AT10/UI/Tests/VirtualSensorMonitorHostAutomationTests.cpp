@@ -1,20 +1,20 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
-#include "m7at10_dt/M7AT10/Sensor/LidarCsvReplaySourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
-#include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorHostActor.h"
-#include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "M7AT10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorCameraStatusTextTest, "M7AT10.SensorMonitor.CameraStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorLidarStatusTextTest, "M7AT10.SensorMonitor.LidarStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorPerformanceWarningStatusTest, "M7AT10.SensorMonitor.PerformanceWarningStatusText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorServerPayloadExportTest, "M7AT10.SensorMonitor.ServerPayloadExport", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "MA0T10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorCameraStatusTextTest, "MA0T10.SensorMonitor.CameraStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorLidarStatusTextTest, "MA0T10.SensorMonitor.LidarStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorPerformanceWarningStatusTest, "MA0T10.SensorMonitor.PerformanceWarningStatusText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorServerPayloadExportTest, "MA0T10.SensorMonitor.ServerPayloadExport", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 {

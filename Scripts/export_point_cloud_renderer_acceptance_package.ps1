@@ -1,6 +1,6 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
-    [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$LocalProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$LogPath = "",
     [string]$OutputRoot = "",
     [string]$ViewportScreenshotPath = "",
@@ -75,7 +75,7 @@ function Get-OptionalLogPath {
         return ""
     }
 
-    $candidate = Join-Path $LocalProjectRoot "Saved\Logs\m7at10_dt.log"
+    $candidate = Join-Path $LocalProjectRoot "Saved\Logs\ma0t10_dt.log"
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {
         return (Resolve-Path -LiteralPath $candidate).Path
     }
@@ -164,7 +164,7 @@ if ([string]::IsNullOrWhiteSpace($csvLogPath)) {
     $csvPerformanceReport = [PSCustomObject]@{
         Present = $false
         Reason = "CSV preview performance log was not found. Run the CSV preview automation workflow, then rerun this package with -LogPath."
-        ExpectedLogPath = if (Test-Path -LiteralPath $LocalProjectRoot -PathType Container) { Join-Path $LocalProjectRoot "Saved\Logs\m7at10_dt.log" } else { "" }
+        ExpectedLogPath = if (Test-Path -LiteralPath $LocalProjectRoot -PathType Container) { Join-Path $LocalProjectRoot "Saved\Logs\ma0t10_dt.log" } else { "" }
     }
     Write-JsonFile -Path $csvJsonPath -Value $csvPerformanceReport
     Write-TextFile -Path $csvMarkdownPath -Lines @(
@@ -175,8 +175,8 @@ if ([string]::IsNullOrWhiteSpace($csvLogPath)) {
         "Run:",
         "",
         '```powershell',
-        'powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"',
-        'powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log"',
+        'powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"',
+        'powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log"',
         '```'
     )
 }
@@ -277,8 +277,8 @@ $manifest = [PSCustomObject]@{
         "Record fallback toggle and dense-frame no-stall observations before claiming GPU dense preview readiness."
     )
     FollowUpCommands = @(
-        'powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"',
-        'powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log"',
+        'powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"',
+        'powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log"',
         'powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle'
     )
 }

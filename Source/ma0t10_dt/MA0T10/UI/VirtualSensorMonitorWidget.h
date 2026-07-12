@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
@@ -27,7 +27,7 @@ struct FVirtualSensorPendingCameraReadback
 };
 
 USTRUCT(BlueprintType)
-struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
+struct MA0T10_DT_API FVirtualSensorMonitorDisplayData
 {
     GENERATED_BODY()
 
@@ -78,7 +78,7 @@ struct M7AT10_DT_API FVirtualSensorMonitorDisplayData
 };
 
 UCLASS()
-class M7AT10_DT_API UVirtualSensorMonitorWidget : public UUserWidget
+class MA0T10_DT_API UVirtualSensorMonitorWidget : public UUserWidget
 {
     GENERATED_BODY()
 

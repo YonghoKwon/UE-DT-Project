@@ -1,13 +1,13 @@
-param(
-    [string]$ProjectPath = "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject",
+﻿param(
+    [string]$ProjectPath = "C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
     [string[]]$TestGroups = @(
-        "M7AT10.EditorSmoke",
-        "M7AT10.SensorReplay",
-        "M7AT10.SensorRecorder",
-        "M7AT10.RealSensorSource",
-        "M7AT10.SensorManager",
-        "M7AT10.SensorMonitor"
+        "MA0T10.EditorSmoke",
+        "MA0T10.SensorReplay",
+        "MA0T10.SensorRecorder",
+        "MA0T10.RealSensorSource",
+        "MA0T10.SensorManager",
+        "MA0T10.SensorMonitor"
     ),
     [switch]$SkipBuild,
     [switch]$AllowOpenEditor
@@ -54,9 +54,9 @@ if (-not $SkipBuild) {
     }
 
     Invoke-CheckedCommand `
-        -Label "Build m7at10_dtEditor Win64 Development" `
+        -Label "Build ma0t10_dtEditor Win64 Development" `
         -FilePath $BuildBat `
-        -Arguments @("m7at10_dtEditor", "Win64", "Development", $ProjectPath, "-WaitMutex", "-NoHotReloadFromIDE")
+        -Arguments @("ma0t10_dtEditor", "Win64", "Development", $ProjectPath, "-WaitMutex", "-NoHotReloadFromIDE")
 }
 
 foreach ($TestGroup in $TestGroups) {

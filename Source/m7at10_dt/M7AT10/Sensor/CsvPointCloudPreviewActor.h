@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -18,7 +18,7 @@ enum class ECsvPointCloudPreviewRenderMode : uint8
 };
 
 UCLASS(BlueprintType)
-class M7AT10_DT_API ACsvPointCloudPreviewActor : public AActor
+class MA0T10_DT_API ACsvPointCloudPreviewActor : public AActor
 {
     GENERATED_BODY()
 

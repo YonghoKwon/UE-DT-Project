@@ -1,4 +1,4 @@
-# Server Transport Contract
+﻿# Server Transport Contract
 
 This document tracks the current DT-Project transport contract for sending
 virtual or replayed sensor payloads to a judging server.
@@ -49,7 +49,7 @@ does not dereference a destroyed component.
 Local outbound transport evidence:
 
 ```text
-M7AT10.SensorTransport.HttpPostLoopbackAcceptance
+MA0T10.SensorTransport.HttpPostLoopbackAcceptance
 ```
 
 This automation starts a localhost mock judging-server route with Unreal
@@ -62,7 +62,7 @@ body and sets `bAccepted=false`.
 Current implementation file:
 
 ```text
-Source/m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.cpp
+Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.cpp
 ```
 
 ## Inbound HTTP Live Bridge
@@ -73,7 +73,7 @@ Inbound real-sensor HTTP is intentionally separate from outbound judging-server
 ```text
 component: ULidarHttpJsonLiveSourceComp
 method: POST
-default route: /m7at10/lidar/live
+default route: /ma0t10/lidar/live
 body: LIDAR_JSON_LIVE_FRAME-compatible JSON payload
 handoff: AppendLivePayloadJson -> PushFrameOnce
 threading: HTTP callback marshals payload processing to the game thread
@@ -95,7 +95,7 @@ must be reviewed together.
 Local evidence:
 
 ```text
-M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost
+MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost
 ```
 
 This automation starts a DT-Project HTTP live source on a probed localhost TCP

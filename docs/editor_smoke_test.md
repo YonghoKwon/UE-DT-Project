@@ -1,4 +1,4 @@
-# Editor Smoke Test
+﻿# Editor Smoke Test
 
 This checklist verifies the current virtual camera, virtual LiDAR, point-cloud-only view, preview policy, and Slab analysis path.
 
@@ -91,18 +91,18 @@ When `-SkipBuild` is not used, the script checks for a running `UnrealEditor.exe
 Replay tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`M7AT10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorDataTransportComp` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
+`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorDataTransportComp` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
 
 Outbound transport tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorTransport; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorTransport; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies the outbound
+`MA0T10.SensorTransport.HttpPostLoopbackAcceptance` verifies the outbound
 judging-server `HttpPost` path against a localhost mock route, including sensor
 headers, JSON content type, `virtual-lidar.v1` body identity, 2xx acceptance,
 non-2xx rejection, status code, and response body capture.
@@ -110,24 +110,24 @@ non-2xx rejection, status code, and response body capture.
 Recorder save/load tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorRecorder; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorRecorder; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`M7AT10.SensorRecorder.SaveLoadSession` verifies that recorded camera/LiDAR JSON frames are saved to a session file, loaded back, and exposed through `GetRecordedFrame()`.
+`MA0T10.SensorRecorder.SaveLoadSession` verifies that recorded camera/LiDAR JSON frames are saved to a session file, loaded back, and exposed through `GetRecordedFrame()`.
 
 Map asset and sensor composition smoke tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.EditorSmoke; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.EditorSmoke; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`M7AT10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `TestMap` can load in headless editor automation.
-`M7AT10.EditorSmoke.MapSensorComposition` verifies the validation map set includes at least one `AVirtualSensorManager`, `AVirtualSensorAct`, and `AVirtualCameraAct`.
+`MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `TestMap` can load in headless editor automation.
+`MA0T10.EditorSmoke.MapSensorComposition` verifies the validation map set includes at least one `AVirtualSensorManager`, `AVirtualSensorAct`, and `AVirtualCameraAct`.
 
 Real sensor source base tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.RealSensorSource; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.RealSensorSource; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
 WebSocket live LiDAR sample contract:
@@ -139,26 +139,26 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction
 ```
 
 The registration report is a static checklist for
-`/Game/M7AT10/Common/DataTables/DT_TransactionCode`. It expects a row named
+`/Game/MA0T10/Common/DataTables/DT_TransactionCode`. It expects a row named
 `LIDAR_JSON_LIVE_FRAME` with `TransactionCodeMessageClass` set to
-`/Script/m7at10_dt.LidarJsonLiveFrameTC`. It intentionally does not mutate the
+`/Script/ma0t10_dt.LidarJsonLiveFrameTC`. It intentionally does not mutate the
 binary `.uasset`; use it as the pre-editor evidence, then verify the row in
 Unreal Editor. Use `-NoWrite` for read-only readiness checks.
 
 Optional data-table registration evidence test:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.Evidence.WebSocketTransactionRegistration; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.Evidence.WebSocketTransactionRegistration; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-This test is intentionally separate from `M7AT10.RealSensorSource` because it
+This test is intentionally separate from `MA0T10.RealSensorSource` because it
 verifies the binary data-table asset. Run it after the row has been added or
 confirmed in Unreal Editor.
 
 If the row is missing, create it through the DT-Project commandlet:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -run=EnsureLidarJsonLiveFrameTransaction -unattended -nop4
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -run=EnsureLidarJsonLiveFrameTransaction -unattended -nop4
 ```
 
 After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
@@ -171,7 +171,7 @@ Record the broker smoke result:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_broker_smoke_report.ps1" -BrokerUrl "ws://host:61616" -Topic "topic.cep.output.0" -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\m7at10_dt" -RunCommandletDryRun -RunEvidenceAutomation -RunBrokerlessDTCoreDispatchAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_websocket_lidar_smoke_evidence.ps1" -ProjectRoot "C:\path\to\ma0t10_dt" -RunCommandletDryRun -RunEvidenceAutomation -RunBrokerlessDTCoreDispatchAutomation -WriteReports -ObservedSourceFrame -ObservedTargetPoints -ObservedCachedPayload -Operator "name"
 ```
 
 Use `-NoWrite` for a read-only prerequisite check. The report does not connect to
@@ -190,21 +190,21 @@ target LiDAR handoff without sending to the judging server.
 HTTP, UDP, or Blueprint bridge prototypes can call
 `ULidarJsonLiveSourceComp::AppendLivePayloadJson` with the same payload shape,
 then call `PushFrameOnce(false)` for a no-transport local handoff check.
-`M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the optional
+`MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the optional
 HTTP wrapper reuses this handoff path, supports auto-push and buffer-only
 modes, and stays separate from outbound judging-server HTTP POST transport.
-`M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies the actual
+`MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies the actual
 localhost HTTP POST route using Unreal's HTTP client and waits for HTTP 202 plus
 target LiDAR point updates.
-`M7AT10.RealSensorSource.UdpJsonLiveBridgePayload` verifies that the optional
+`MA0T10.RealSensorSource.UdpJsonLiveBridgePayload` verifies that the optional
 UDP wrapper reuses this handoff path without opening a real test port.
-`M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` verifies the local socket
+`MA0T10.RealSensorSource.UdpJsonLiveBridgeDatagram` verifies the local socket
 path with a real loopback UDP datagram and an ephemeral port.
 
 Brokerless DTCore dispatch automation:
 
 ```text
-M7AT10.RealSensorSource.JsonLiveDTCoreDispatch
+MA0T10.RealSensorSource.JsonLiveDTCoreDispatch
 ```
 
 This PIE automation starts a GameInstance-backed world, queues the checked
@@ -216,27 +216,27 @@ endpoint, credential, subscription, and network receive checks.
 Sensor manager point-cloud-only policy tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorManager; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorManager; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
 Monitor host fallback tests:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.SensorMonitor; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorMonitor; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
-`M7AT10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
-`M7AT10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
-`M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraComp` without renderer-dependent capture.
-`M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the inbound HTTP JSON live wrapper feeds the same shared payload shape into the normalized handoff path without requiring a real listener in automation.
-`M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies that the inbound HTTP JSON live wrapper can accept a real loopback POST through `HTTPServer` and return an accepted response after target LiDAR handoff.
-`M7AT10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.
-`M7AT10.RealSensorSource.JsonLiveTransactionRouting` verifies that the WebSocket transaction handler routes by `SOURCE_ID`, honors `PUSH_FRAME=false`, rejects ambiguous no-`SOURCE_ID` multi-source routing, and can push a matched frame into the target LiDAR.
-`M7AT10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComp`.
-`M7AT10.SensorMonitor.CameraStatusTextContract` verifies that the monitor camera view exposes sensor id, `virtual-camera.v1`, resolution, capture mode, cached payload state, and server payload export hint.
-`M7AT10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count/byte size, preview count, Slab analysis, warning, view mode, and CSV row/return contract.
-`M7AT10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.
+`MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
+`MA0T10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
+`MA0T10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
+`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraComp` without renderer-dependent capture.
+`MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the inbound HTTP JSON live wrapper feeds the same shared payload shape into the normalized handoff path without requiring a real listener in automation.
+`MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies that the inbound HTTP JSON live wrapper can accept a real loopback POST through `HTTPServer` and return an accepted response after target LiDAR handoff.
+`MA0T10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.
+`MA0T10.RealSensorSource.JsonLiveTransactionRouting` verifies that the WebSocket transaction handler routes by `SOURCE_ID`, honors `PUSH_FRAME=false`, rejects ambiguous no-`SOURCE_ID` multi-source routing, and can push a matched frame into the target LiDAR.
+`MA0T10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComp`.
+`MA0T10.SensorMonitor.CameraStatusTextContract` verifies that the monitor camera view exposes sensor id, `virtual-camera.v1`, resolution, capture mode, cached payload state, and server payload export hint.
+`MA0T10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count/byte size, preview count, Slab analysis, warning, view mode, and CSV row/return contract.
+`MA0T10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.
 
 Static preview-policy readiness:
 
@@ -250,23 +250,23 @@ GPU/Niagara/custom high-density renderer is selected.
 Headless CSV preview coverage:
 
 ```text
-Automation RunTests M7AT10.Sensor.CsvPointCloudPreview
+Automation RunTests MA0T10.Sensor.CsvPointCloudPreview
 ```
 
 Full headless command:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests M7AT10.Sensor.CsvPointCloudPreview; Quit" -TestExit="Automation Test Queue Empty"
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.Sensor.CsvPointCloudPreview; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` verifies a
+`MA0T10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` verifies a
 120,000-point procedural CSV preview load without opening the Unreal Editor GUI.
-`M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the instanced
+`MA0T10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the instanced
 fallback path covered.
-`M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` verifies a
+`MA0T10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` verifies a
 250,000-point procedural CSV preview load with a generous timing regression
 guard and records parse/build/load telemetry.
-`M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced` verifies that a
+`MA0T10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced` verifies that a
 large CSV preview requested as `InstancedMesh` can be automatically promoted to
 the procedural preview path, preserving requested/effective render-mode
 telemetry and avoiding accidental high-instance editor loads.
@@ -282,15 +282,15 @@ After the headless CSV preview automation run, export the latest local telemetry
 evidence:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireAutomationSuccess
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireAutomationSuccess
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -MarkdownPath ".\Saved\Reports\csv_preview_performance.md" -JsonPath ".\Saved\Reports\csv_preview_performance.json"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireCsvPerformanceEvidence
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -RequireAutomationSuccess
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log" -RequireAutomationSuccess
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -MarkdownPath ".\Saved\Reports\csv_preview_performance.md" -JsonPath ".\Saved\Reports\csv_preview_performance.json"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -RequireCsvPerformanceEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log" -RequireCsvPerformanceEvidence
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -SkipBuild
 ```
 
 This report proves the current CPU preview fallback telemetry was emitted from

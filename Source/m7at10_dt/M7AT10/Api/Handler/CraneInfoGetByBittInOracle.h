@@ -19,7 +19,7 @@ struct FCraneInfoGetByBittInOracleData : FApiDataBase
  * 
  */
 UCLASS()
-class M7AT10_DT_API UCraneInfoGetByBittInOracle : public UApiMessage, public FApiDataBase
+class MA0T10_DT_API UCraneInfoGetByBittInOracle : public UApiMessage, public FApiDataBase
 {
 	GENERATED_BODY()
 

@@ -1,4 +1,4 @@
-#include "m7at10_dt/M7AT10/Sensor/LidarHttpJsonLiveSourceComp.h"
+﻿#include "ma0t10_dt/MA0T10/Sensor/LidarHttpJsonLiveSourceComp.h"
 
 #include "Async/Async.h"
 #include "Containers/StringConv.h"
@@ -201,7 +201,7 @@ FString ULidarHttpJsonLiveSourceComp::NormalizeRoutePath() const
     Path.TrimStartAndEndInline();
     if (Path.IsEmpty())
     {
-        Path = TEXT("/m7at10/lidar/live");
+        Path = TEXT("/ma0t10/lidar/live");
     }
     if (!Path.StartsWith(TEXT("/")))
     {

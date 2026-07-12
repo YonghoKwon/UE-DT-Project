@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -156,7 +156,7 @@ $requiredEvidence = @(
         EvidenceRunId = ""
         Operator = ""
         RanAt = ""
-        Command = 'powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"'
+        Command = 'powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_runtime_config_policy.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"'
         Result = ""
         LogPath = ""
         Notes = "Policy must pass against the real local project root before any repository acceptance."

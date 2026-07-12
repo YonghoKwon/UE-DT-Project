@@ -1,12 +1,12 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorRecorderSaveLoadTest, "M7AT10.SensorRecorder.SaveLoadSession", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorRecorderSaveLoadTest, "MA0T10.SensorRecorder.SaveLoadSession", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorRecorderSaveLoadTest::RunTest(const FString& Parameters)
 {

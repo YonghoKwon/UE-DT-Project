@@ -1,4 +1,4 @@
-# Virtual Sensor Monitor Widget Setup
+﻿# Virtual Sensor Monitor Widget Setup
 
 Parent class:
 
@@ -198,20 +198,20 @@ Real sensor deployment readiness
 CSV export row/return contract
 ```
 
-`M7AT10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.
+`MA0T10.SensorMonitor.LidarStatusTextContract` verifies this contract against the replay sample data.
 The same automation verifies that the smaller Designer-facing getters expose
 sensor id, frame/scan interval, measured ray/hit counts, server payload policy,
 preview policy, slab analysis, LAZ export state, warning, and view mode values.
-`M7AT10.SensorMonitor.PerformanceWarningStatusText` verifies that LiDAR performance warnings are surfaced in the same monitor status text.
+`MA0T10.SensorMonitor.PerformanceWarningStatusText` verifies that LiDAR performance warnings are surfaced in the same monitor status text.
 
 Static monitor-policy readiness:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
 ```
 
 This check keeps optional C++ bindings, native fallback behavior, local binary

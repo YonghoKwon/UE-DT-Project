@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -38,11 +38,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h" },
-    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp" },
-    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp" },
-    [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h" },
+    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp" },
+    [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "LiDAR payload schema"; Path = "docs\lidar_payload_schema.md" },
     [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" }
 )
@@ -51,11 +51,11 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
-$monitorHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
-$monitorCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp"
-$replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp"
+$monitorHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
+$replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $decisionReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compression_decision_report.ps1"
@@ -104,9 +104,9 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "ExportLastPointCloudLasToPath"; Label = "Placeholder writes LAS-compatible source" },
     [PSCustomObject]@{ Path = $monitorHeader; Pattern = "external compressor"; Label = "Monitor setting comments clarify external compressor opt-in" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "ExportLastPointCloudLaz"; Label = "Monitor routes LAZ option through placeholder API" },
-    [PSCustomObject]@{ Path = $replayTests; Pattern = "M7AT10.SensorReplay.LazPlaceholderWritesLasSource"; Label = "LAZ placeholder automation test name" },
-    [PSCustomObject]@{ Path = $replayTests; Pattern = "M7AT10.SensorReplay.LazExternalCompressorMissingFails"; Label = "Missing external compressor automation test name" },
-    [PSCustomObject]@{ Path = $replayTests; Pattern = "M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput"; Label = "External compressor fake-success automation test name" },
+    [PSCustomObject]@{ Path = $replayTests; Pattern = "MA0T10.SensorReplay.LazPlaceholderWritesLasSource"; Label = "LAZ placeholder automation test name" },
+    [PSCustomObject]@{ Path = $replayTests; Pattern = "MA0T10.SensorReplay.LazExternalCompressorMissingFails"; Label = "Missing external compressor automation test name" },
+    [PSCustomObject]@{ Path = $replayTests; Pattern = "MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput"; Label = "External compressor fake-success automation test name" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "does not create compressed .laz files"; Label = "Automation asserts no compressed LAZ output" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "missing external compressor does not create .laz files"; Label = "Automation asserts missing compressor creates no LAZ" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "external compressor success creates one .laz output"; Label = "Automation asserts external compressor creates LAZ output" },
@@ -242,7 +242,7 @@ foreach ($item in $requiredTexts) {
     Assert-ContainsText -Path $item.Path -Pattern $item.Pattern -Label $item.Label
 }
 
-$tempEvidencePath = Join-Path ([System.IO.Path]::GetTempPath()) ("m7at10_laz_policy_probe_{0}.laz" -f ([Guid]::NewGuid().ToString("N")))
+$tempEvidencePath = Join-Path ([System.IO.Path]::GetTempPath()) ("ma0t10_laz_policy_probe_{0}.laz" -f ([Guid]::NewGuid().ToString("N")))
 try {
     Set-Content -LiteralPath $tempEvidencePath -Value "not real laz" -Encoding ASCII
     $missingReaderPath = Join-Path ([System.IO.Path]::GetTempPath()) ("missing_laz_reader_{0}.exe" -f ([Guid]::NewGuid().ToString("N")))

@@ -1,4 +1,4 @@
-#include "VirtualSensorMonitorWidget.h"
+﻿#include "VirtualSensorMonitorWidget.h"
 
 #include "Async/Async.h"
 #include "Components/Button.h"
@@ -22,12 +22,12 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
-#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorTypes.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
 
 namespace
 {

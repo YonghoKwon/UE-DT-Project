@@ -1,4 +1,4 @@
-# Pixel Streaming Setup Notes
+﻿# Pixel Streaming Setup Notes
 
 This project does not commit copied Pixel Streaming sample projects by default.
 The local `Samples/PixelStreaming/` folder is treated as third-party/sample
@@ -51,9 +51,9 @@ the following are complete:
 ## Routine Checks
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -ProjectRoot "." -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_large_content_decision_policy.ps1" -ProjectRoot "." -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
 ```
 
 These checks are read-only. They do not copy sample files, modify assets, or

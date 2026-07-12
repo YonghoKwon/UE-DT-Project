@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$IncludeContent
 )
 
@@ -8,12 +8,12 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $RepoRoot
 
 $OldPaths = @(
-    'm7at10_dt.uproject',
-    'Source/m7at10_dt.Target.cs',
-    'Source/m7at10_dtEditor.Target.cs',
-    'Source/m7at10_dt',
-    'Source/m7at10_dtEditor/Private/m7at10_dtEditor.cpp',
-    'Source/m7at10_dt/M7AT10'
+    'ma0t10_dt.uproject',
+    'Source/ma0t10_dt.Target.cs',
+    'Source/ma0t10_dtEditor.Target.cs',
+    'Source/ma0t10_dt',
+    'Source/ma0t10_dtEditor/Private/ma0t10_dtEditor.cpp',
+    'Source/ma0t10_dt/MA0T10'
 )
 
 $ExpectedPaths = @(
@@ -102,7 +102,7 @@ if ($IncludeContent) {
     }
 
     $Files = @($SourceFiles + $RootFiles) | Sort-Object FullName -Unique
-    $Patterns = @('m7at10_dt', 'M7AT10', 'LogM7AT10', 'm7at10')
+    $Patterns = @('ma0t10_dt', 'MA0T10', 'LogMA0T10', 'ma0t10')
 
     foreach ($file in $Files) {
         $text = Get-Content -LiteralPath $file.FullName -Raw

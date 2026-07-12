@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -103,10 +103,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
-$lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
-$monitorHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
-$replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp"
+$monitorHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
+$replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $readinessReportScript = Join-Path $ProjectRoot "Scripts\export_laz_compressor_readiness_report.ps1"
@@ -137,11 +137,11 @@ $externalCompressorContractHardened = (Test-ContainsText -Path $lidarCpp -Patter
     (Test-ContainsText -Path $lidarCpp -Pattern "MakePlatformFilename") -and
     (Test-ContainsText -Path $lidarCpp -Pattern 'BuildExportPath(TEXT("laz"), FileNamePrefix)') -and
     (Test-ContainsText -Path $lidarCpp -Pattern "OutputSize <= 0")
-$automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazPlaceholderWritesLasSource") -and
+$automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "MA0T10.SensorReplay.LazPlaceholderWritesLasSource") -and
     (Test-ContainsText -Path $replayTests -Pattern "does not create compressed .laz files")
-$missingCompressorGuardCovered = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazExternalCompressorMissingFails") -and
+$missingCompressorGuardCovered = (Test-ContainsText -Path $replayTests -Pattern "MA0T10.SensorReplay.LazExternalCompressorMissingFails") -and
     (Test-ContainsText -Path $replayTests -Pattern "missing external compressor does not create .laz files")
-$externalCompressorSuccessCovered = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput") -and
+$externalCompressorSuccessCovered = (Test-ContainsText -Path $replayTests -Pattern "MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput") -and
     (Test-ContainsText -Path $replayTests -Pattern "external compressor success creates one .laz output") -and
     (Test-ContainsText -Path $replayTests -Pattern "process-contract surrogate")
 $compressorReadinessReportDeclared = (Test-ContainsText -Path $readinessReportScript -Pattern "ReadyForRealLazAutomation") -and

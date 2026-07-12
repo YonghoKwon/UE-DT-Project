@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$EvidencePath = "",
     [switch]$FailOnIncompleteEvidence,
@@ -210,7 +210,7 @@ function New-MissingEvidenceAction {
 function Get-MonitorOptionalBindingNames {
     param([string]$SourceRepoRoot)
 
-    $headerPath = Join-Path $SourceRepoRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
+    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
     if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
         throw "VirtualSensorMonitorWidget.h not found: $headerPath"
     }
@@ -253,7 +253,7 @@ if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
     $EvidencePath = Join-Path $SourceRepoRoot "docs\local_asset_decisions.evidence.json"
 }
 
-$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $decisionScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"

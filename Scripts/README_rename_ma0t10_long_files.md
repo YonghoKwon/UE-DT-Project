@@ -1,4 +1,4 @@
-# Rename remaining long MA0T10 source files
+﻿# Rename remaining long MA0T10 source files
 
 This script completes the remaining long source-file moves that are safer to perform locally with `git mv` than through the GitHub contents API.
 
@@ -15,11 +15,11 @@ The script now also guards against partial reruns:
 
 ## Files handled
 
-- `Source/m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.cpp`
-- `Source/m7at10_dt/M7AT10/Sensor/VirtualSensorManager.cpp`
-- `Source/m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h`
-- `Source/m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.cpp`
-- `Source/m7at10_dt/M7AT10/Camera/VirtualCameraComp.cpp`
+- `Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.cpp`
+- `Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.cpp`
+- `Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h`
+- `Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.cpp`
+- `Source/ma0t10_dt/MA0T10/Camera/VirtualCameraComp.cpp`
 
 They are moved to the matching `Source/ma0t10_dt/MA0T10/...` path.
 
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\verify_ma0t10_rename.ps1 -Inc
 A quick text search can also help:
 
 ```powershell
-Get-ChildItem -Recurse Source,Scripts -File | Select-String "m7at10_dt|M7AT10|LogM7AT10|m7at10"
+Get-ChildItem -Recurse Source,Scripts -File | Select-String "ma0t10_dt|MA0T10|LogMA0T10|ma0t10"
 ```
 
 ## After running

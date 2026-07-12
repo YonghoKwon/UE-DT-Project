@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$ProjectPath = "",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
     [string]$BrokerUrl = "",
@@ -87,7 +87,7 @@ $script:JsonMode = [bool]$Json
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
-    $ProjectPath = Join-Path $ProjectRoot "m7at10_dt.uproject"
+    $ProjectPath = Join-Path $ProjectRoot "ma0t10_dt.uproject"
 }
 if (-not (Test-Path -LiteralPath $ProjectPath -PathType Leaf)) {
     throw "Project file not found: $ProjectPath"
@@ -191,7 +191,7 @@ if ($RunEvidenceAutomation) {
     }
 }
 
-$brokerlessTestName = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"
+$brokerlessTestName = "MA0T10.RealSensorSource.JsonLiveDTCoreDispatch"
 $brokerlessArgs = @(
     $ProjectPath,
     "-NullRHI",

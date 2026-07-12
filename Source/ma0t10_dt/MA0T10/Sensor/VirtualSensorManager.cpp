@@ -1,14 +1,14 @@
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorManager.h"
+﻿#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
 
-#include "m7at10_dt/M7AT10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
-#include "m7at10_dt/M7AT10/Sensor/RealSensorSourceComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualLidarSensorComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorDataTransportComp.h"
-#include "m7at10_dt/M7AT10/Sensor/VirtualSensorRecorderComp.h"
-#include "m7at10_dt/M7AT10/UI/VirtualSensorMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
 
 namespace
 {

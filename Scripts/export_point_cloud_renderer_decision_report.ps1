@@ -1,6 +1,6 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
-    [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$LocalProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$LogPath = "",
     [string]$ViewportScreenshotPath = "",
     [int64]$ViewportScreenshotBytes = -1,
@@ -83,14 +83,14 @@ function Get-CsvPreviewPerformanceEvidence {
     }
 
     if ([string]::IsNullOrWhiteSpace($resolvedLogPath)) {
-        $resolvedLogPath = Join-Path $resolvedLocalRoot "Saved\Logs\m7at10_dt.log"
+        $resolvedLogPath = Join-Path $resolvedLocalRoot "Saved\Logs\ma0t10_dt.log"
     }
     if (-not (Test-Path -LiteralPath $resolvedLogPath -PathType Leaf)) {
         return [PSCustomObject]@{
             Present = $false
             LocalProjectRoot = $resolvedLocalRoot
             LogPath = $resolvedLogPath
-            Reason = "Unreal automation log is missing. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first, or pass -LogPath to a log that contains that run."
+            Reason = "Unreal automation log is missing. Run Automation RunTests MA0T10.Sensor.CsvPointCloudPreview first, or pass -LogPath to a log that contains that run."
         }
     }
     $resolvedLogPath = (Resolve-Path -LiteralPath $resolvedLogPath).Path
@@ -301,12 +301,12 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $csvPreviewPerformanceEvidence = Get-CsvPreviewPerformanceEvidence -ProjectRoot $ProjectRoot -LocalProjectRoot $LocalProjectRoot -LogPath $LogPath
 
-$lidarHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualLidarSensorComp.cpp"
-$managerCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualSensorManager.cpp"
-$monitorCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp"
-$replayTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\LidarReplayAutomationTests.cpp"
-$managerTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\SensorManagerAutomationTests.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp"
+$managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorManager.cpp"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
+$replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
+$managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
@@ -343,8 +343,8 @@ $gpuPreviewBackendClaimBlocked = (Test-ContainsText -Path $lidarCpp -Pattern "GP
 $cpuFallbackForcedForGpuCandidates = (Test-ContainsText -Path $lidarCpp -Pattern "cpu_instanced_mesh_fallback") -and
     (Test-ContainsText -Path $lidarCpp -Pattern "RefreshPointCloudPreview") -and
     (Test-ContainsText -Path $lidarCpp -Pattern "AddInstances(InstanceTransforms, false, true)")
-$automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "M7AT10.SensorReplay.PerformanceWarningStatus") -and
-    (Test-ContainsText -Path $managerTests -Pattern "M7AT10.SensorManager.PointCloudOnlyPreservesPayloadPolicy")
+$automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "MA0T10.SensorReplay.PerformanceWarningStatus") -and
+    (Test-ContainsText -Path $managerTests -Pattern "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy")
 $gpuRendererIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern "UNiagaraComponent") -or
     (Test-ContainsText -Path $lidarCpp -Pattern "FRDGBuffer") -or
     (Test-ContainsText -Path $remainingDoc -Pattern "GPU renderer integrated")

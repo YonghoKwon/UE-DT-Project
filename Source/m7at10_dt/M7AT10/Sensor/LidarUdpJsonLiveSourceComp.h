@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Common/UdpSocketReceiver.h"
@@ -9,7 +9,7 @@ class FSocket;
 struct FIPv4Endpoint;
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class M7AT10_DT_API ULidarUdpJsonLiveSourceComp : public ULidarJsonLiveSourceComp
+class MA0T10_DT_API ULidarUdpJsonLiveSourceComp : public ULidarJsonLiveSourceComp
 {
     GENERATED_BODY()
 

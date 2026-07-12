@@ -1,6 +1,6 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
-    [string]$LocalProjectRoot = "C:\Unreal Projects\m7at10_dt",
+    [string]$LocalProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$LogPath = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -182,7 +182,7 @@ elseif ([string]::IsNullOrWhiteSpace($LogPath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
-    $LogPath = Join-Path $LocalProjectRoot "Saved\Logs\m7at10_dt.log"
+    $LogPath = Join-Path $LocalProjectRoot "Saved\Logs\ma0t10_dt.log"
 }
 $LogPath = (Resolve-Path -LiteralPath $LogPath).Path
 Assert-FileExists -Path $LogPath -Label "Unreal automation log"
@@ -194,7 +194,7 @@ $pattern = "\[CsvPointCloudPreview\] Loaded (?<points>\d+) points from (?<path>.
 $evidenceRunStartLine = 0
 for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
     $line = $logLines[$lineIndex]
-    if ($line -match "M7AT10\.Sensor\.CsvPointCloudPreview" -and
+    if ($line -match "MA0T10\.Sensor\.CsvPointCloudPreview" -and
         ($line -match "Automation RunTests" -or $line -match "RunTests=" -or $line -match "Found \d+ automation tests")) {
         $evidenceRunStartLine = $lineIndex + 1
     }
@@ -217,7 +217,7 @@ for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
 
     $line = $logLines[$lineIndex]
     foreach ($scenario in $requiredScenarios) {
-        if ($line -match "Test Completed\. Result=\{Success\}.*Path=\{M7AT10\.Sensor\.CsvPointCloudPreview\.$scenario\}") {
+        if ($line -match "Test Completed\. Result=\{Success\}.*Path=\{MA0T10\.Sensor\.CsvPointCloudPreview\.$scenario\}") {
             $successEvidenceByScenario[$scenario] = [PSCustomObject]@{
                 Scenario = $scenario
                 Line = $lineNumber
@@ -258,7 +258,7 @@ for ($lineIndex = 0; $lineIndex -lt $logLines.Count; ++$lineIndex) {
 }
 
 if ($metricsByScenario.Count -eq 0) {
-    throw "No CSV preview telemetry entries were found in $LogPath. Run Automation RunTests M7AT10.Sensor.CsvPointCloudPreview first."
+    throw "No CSV preview telemetry entries were found in $LogPath. Run Automation RunTests MA0T10.Sensor.CsvPointCloudPreview first."
 }
 
 $missingScenarios = @($requiredScenarios | Where-Object { -not $metricsByScenario.ContainsKey($_) })

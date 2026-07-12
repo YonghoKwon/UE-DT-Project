@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -123,7 +123,7 @@ $brokerSmokeReportScript = Join-Path $scriptRoot "export_websocket_broker_smoke_
 
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
-$testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
+$testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
 
 foreach ($file in @($planDoc, $smokeDoc, $testsCpp)) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
@@ -137,9 +137,9 @@ $registration = Invoke-JsonScript -ScriptPath $registrationReportScript -Paramet
 $brokerSmoke = Invoke-JsonScript -ScriptPath $brokerSmokeReportScript -Parameters @{ ProjectRoot = $ProjectRoot; NoWrite = $true }
 
 $headlessAutomationGroups = @(
-    [PSCustomObject]@{ Name = "M7AT10.RealSensorSource"; Scope = "component-level replay, JSON live, camera JSON live, HTTP loopback, UDP datagram, WebSocket routing, and brokerless DTCore dispatch coverage" },
-    [PSCustomObject]@{ Name = "M7AT10.Evidence.WebSocketTransactionRegistration"; Scope = "optional binary data-table row evidence for LIDAR_JSON_LIVE_FRAME" },
-    [PSCustomObject]@{ Name = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"; Scope = "brokerless DTCore dispatch path through UDxDataSubsystem" }
+    [PSCustomObject]@{ Name = "MA0T10.RealSensorSource"; Scope = "component-level replay, JSON live, camera JSON live, HTTP loopback, UDP datagram, WebSocket routing, and brokerless DTCore dispatch coverage" },
+    [PSCustomObject]@{ Name = "MA0T10.Evidence.WebSocketTransactionRegistration"; Scope = "optional binary data-table row evidence for LIDAR_JSON_LIVE_FRAME" },
+    [PSCustomObject]@{ Name = "MA0T10.RealSensorSource.JsonLiveDTCoreDispatch"; Scope = "brokerless DTCore dispatch path through UDxDataSubsystem" }
 )
 
 $implementedBridges = @(
@@ -268,7 +268,7 @@ $report = [PSCustomObject]@{
         DeploymentEvidenceStillRequired = $true
         RealSdkIntegrationStillRequired = $true
         PlanDocumentsPriority = (Test-FileContains -Path $planDoc -Pattern "Adapter Priority")
-        SmokeDocNamesRealSensorAutomation = (Test-FileContains -Path $smokeDoc -Pattern "Automation RunTests M7AT10.RealSensorSource")
+        SmokeDocNamesRealSensorAutomation = (Test-FileContains -Path $smokeDoc -Pattern "Automation RunTests MA0T10.RealSensorSource")
         Valid = ([bool]$adapterPlan.Summary.Valid -and [bool]$sample.Summary.Valid -and [bool]$registration.Summary.Valid -and [bool]$brokerSmoke.Summary.Valid)
     }
 }
