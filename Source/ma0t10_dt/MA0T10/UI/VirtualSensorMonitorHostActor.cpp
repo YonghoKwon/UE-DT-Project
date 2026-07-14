@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
 
@@ -77,6 +78,11 @@ UVirtualSensorMonitorWidget* AVirtualSensorMonitorHostActor::CreateAndBindMonito
         MonitorWidget->AddToViewport(ViewportZOrder);
     }
 
+    if (bConfigurePlayerInputOnCreate)
+    {
+        ConfigurePlayerInput();
+    }
+
     LastStatusMessage = FString::Printf(TEXT("Monitor widget created. Manager=%s Viewport=%s"),
         ResolvedManager ? *ResolvedManager->GetName() : TEXT("None"),
         bAddToViewport ? TEXT("true") : TEXT("false"));
@@ -123,4 +129,25 @@ AVirtualSensorManager* AVirtualSensorMonitorHostActor::ResolveSensorManager()
         }
     }
     return nullptr;
+}
+
+void AVirtualSensorMonitorHostActor::ConfigurePlayerInput()
+{
+    UWorld* World = GetWorld();
+    APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
+    if (!PlayerController || !MonitorWidget)
+    {
+        LastStatusMessage = TEXT("Monitor widget created, but player input could not be configured.");
+        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitorHost] %s"), *LastStatusMessage);
+        return;
+    }
+
+    FInputModeGameAndUI InputMode;
+    InputMode.SetWidgetToFocus(MonitorWidget->TakeWidget());
+    InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+    InputMode.SetHideCursorDuringCapture(false);
+    PlayerController->SetInputMode(InputMode);
+    PlayerController->bShowMouseCursor = bShowMouseCursorOnCreate;
+    PlayerController->bEnableClickEvents = true;
+    PlayerController->bEnableMouseOverEvents = true;
 }

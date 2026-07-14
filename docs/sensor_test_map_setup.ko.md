@@ -7,8 +7,8 @@
 기본 smoke-test 맵은 다음 경로입니다.
 
 ```text
-/Game/M7AT10/Maps/SensorTestMap
-Content/M7AT10/Maps/SensorTestMap.umap
+/Game/MA0T10/Maps/SensorTestMap
+Content/MA0T10/Maps/SensorTestMap.umap
 ```
 
 `Config/DefaultEngine.ini`의 `EditorStartupMap`과 `GameDefaultMap`도 이 맵을 사용합니다.
@@ -20,16 +20,21 @@ SensorTest_Manager          AVirtualSensorManager
 SensorTest_LiDAR            AVirtualSensorAct
 SensorTest_Camera           AVirtualCameraAct
 SensorTest_MonitorHost      AVirtualSensorMonitorHostActor
-SensorTest_Slab             StaticMeshActor, Actor Tag = Slab
-SensorTest_Floor            StaticMeshActor
+SensorTest_Floor            StaticMeshActor, Actor Tag = KeepInPointCloudOnly
+SensorTest_TargetWall       StaticMeshActor
+SensorTest_TargetCube       StaticMeshActor
+SensorTest_TargetSphere     StaticMeshActor
+SensorTest_TargetPillar     StaticMeshActor
 DirectionalLight / SkyLight / PlayerStart
 ```
 
-`SensorTestMap`은 저장소에 없는 Designer WBP에 의존하지 않습니다. `SensorTest_MonitorHost`가 `UVirtualSensorMonitorWidget` 네이티브 fallback을 생성하므로, 맵을 열고 PIE를 실행하면 기본 조작 패널이 바로 나타나야 합니다.
+`/Game/MA0T10/UI/WBP_VirtualSensorMonitor`도 저장소에 포함됩니다. 이 WBP는 `UVirtualSensorMonitorWidget`을 부모로 사용하며, Designer hierarchy가 비어 있을 때 C++ native-backed UI를 표시합니다. `SensorTest_MonitorHost`에 이미 연결되어 있으므로 맵을 열고 PIE를 실행하면 기본 조작 패널과 카메라 화면이 바로 나타나야 합니다.
+
+테스트 맵에는 Slab mesh를 넣지 않습니다. 사용자가 원하는 mesh를 배치한 뒤 Actor Tag `Slab`을 추가하면 기존 Slab 분석 기능을 그대로 사용할 수 있습니다.
 
 ## 2. 테스트 맵 재생성
 
-맵 구성은 `Scripts/setup_sensor_test_map.py`로 재생성할 수 있습니다. 이 스크립트는 `SensorTestManaged` 태그가 있는 액터만 교체합니다.
+맵 구성은 `Scripts/setup_sensor_test_map.py`로 재생성할 수 있습니다. 이 스크립트는 WBP가 없으면 먼저 생성하고, `SensorTestManaged` 태그가 있는 액터만 교체한 뒤 WBP를 MonitorHost에 연결합니다.
 
 먼저 Editor target을 빌드합니다.
 
@@ -147,14 +152,14 @@ bAutoRegisterToManager    true
 
 카메라 preview가 검게 보이면 다음을 확인합니다.
 
-1. 카메라의 빨간 frustum이 `SensorTest_Slab` 방향을 향하는지 확인합니다.
+1. 카메라의 빨간 frustum이 `SensorTest_TargetWall`과 일반 타깃 방향을 향하는지 확인합니다.
 2. `DirectionalLight`와 `SkyLight`가 활성화되어 있는지 확인합니다.
 3. `CameraRenderTarget`이 비어 있어도 런타임에 생성되지만, 운영 WBP에서 고정 render target을 쓰려면 별도 `TextureRenderTarget2D`를 지정합니다.
 4. 성능이 무거우면 `CaptureMode = PreviewOnly`로 먼저 확인합니다.
 
-### SensorTest_Slab
+### 사용자 Slab mesh (선택)
 
-Actor의 `Tags` 배열에 정확히 다음 값을 넣습니다.
+맵에는 Slab mesh가 기본 배치되지 않습니다. 분석할 mesh를 직접 배치하고 Actor의 `Tags` 배열에 정확히 다음 값을 넣습니다.
 
 ```text
 Slab
@@ -164,10 +169,8 @@ LiDAR는 이 tag를 semantic label `Slab`으로 분류합니다. `ReferenceSlabY
 
 ### SensorTest_MonitorHost
 
-Designer WBP가 아직 없을 때:
-
 ```text
-MonitorWidgetClass                None
+MonitorWidgetClass                WBP_VirtualSensorMonitor
 bUseNativeMonitorWidgetFallback   true
 SensorManager                     SensorTest_Manager
 bAutoCreateOnBeginPlay            true
@@ -176,19 +179,21 @@ bAddToViewport                    true
 bShowLidarViewOnStart             false
 bEnablePointCloudOnlyOnStart      false
 ViewportZOrder                    10
+bConfigurePlayerInputOnCreate     true
+bShowMouseCursorOnCreate          true
 ```
 
-Designer WBP를 완성한 뒤에는 `MonitorWidgetClass`만 `WBP_VirtualSensorMonitor`로 바꾸면 됩니다.
+PIE 시작 시 `Game and UI` 입력 모드와 마우스 커서가 자동 설정됩니다. 별도의 Level Blueprint에서 `Create Widget`이나 입력 모드 노드를 만들 필요가 없습니다.
 
 ## 4. WBP_VirtualSensorMonitor 만들기
 
-### 4.1 Widget Blueprint 생성
+### 4.1 자동 생성된 Widget Blueprint 확인
 
-1. Content Browser에서 `Content/M7AT10/UI` 폴더를 엽니다.
-2. `Add > User Interface > Widget Blueprint`를 선택합니다.
-3. 이름을 정확히 `WBP_VirtualSensorMonitor`로 지정합니다.
-4. WBP를 열고 `File > Reparent Blueprint` 또는 `Class Settings > Parent Class`에서 `VirtualSensorMonitorWidget`을 선택합니다.
-5. Compile 후 저장합니다.
+1. Content Browser에서 `Content/MA0T10/UI` 폴더를 엽니다.
+2. `WBP_VirtualSensorMonitor`를 엽니다.
+3. `Class Settings > Parent Class`가 `VirtualSensorMonitorWidget`인지 확인합니다.
+4. 아무 Designer widget도 추가하지 않은 상태에서는 C++ native-backed UI가 자동으로 표시됩니다.
+5. 자체 디자인을 만들려면 아래 hierarchy와 정확한 변수 이름을 추가한 뒤 Compile/Save합니다.
 
 부모 클래스가 일반 `UserWidget`이면 C++ 자동 바인딩, Manager 연결, payload/preview 상태 갱신 기능을 사용할 수 없습니다.
 
@@ -371,17 +376,17 @@ Event Construct
 ### 5.4 Point Cloud Only
 
 1. `PointCloudOnly` 버튼을 누릅니다.
-2. Floor/Slab mesh가 화면에서 숨겨지는지 확인합니다.
+2. 일반 타깃 mesh가 숨겨지고 `KeepInPointCloudOnly` 태그가 있는 Floor는 남는지 확인합니다.
 3. LiDAR point preview는 계속 표시되는지 확인합니다.
 4. hit count가 0으로 떨어지지 않는지 확인합니다. 이 모드는 visibility만 숨기고 collision은 유지해야 합니다.
 5. 버튼을 다시 눌러 원래 visibility가 복원되는지 확인합니다.
 
 ### 5.5 Slab 분석
 
-1. `SensorTest_Slab`의 Actor Tag가 `Slab`인지 확인합니다.
+1. 직접 배치한 mesh의 Actor Tag가 `Slab`인지 확인합니다.
 2. LiDAR capture 후 slab point count가 12 이상인지 확인합니다.
 3. estimated yaw, reference yaw, angle deviation, confidence가 Status에 표시되는지 확인합니다.
-4. Slab actor의 Yaw를 10도로 바꾸고 다시 capture하여 angle deviation이 변하는지 확인합니다.
+4. 해당 mesh의 Yaw를 10도로 바꾸고 다시 capture하여 angle deviation이 변하는지 확인합니다.
 
 ### 5.6 Export
 
@@ -424,8 +429,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBu
 
 ## 7. 현재 남은 수정
 
-1. C++ module namespace는 `ma0t10_dt`, 기존 Content package namespace는 `/Game/M7AT10`입니다. Content 이름도 바꾸려면 파일시스템 폴더만 이동하지 말고 Unreal Editor에서 asset rename, fix redirectors, 전체 resave와 cook 검증을 별도 작업으로 수행해야 합니다.
-2. 기존 `TestMap`의 Level Blueprint는 저장소에 없는 `WBP_VirtualSensorMonitor`를 참조합니다. `SensorTestMap`을 기본 smoke map으로 사용하고, 기존 맵은 WBP를 만든 뒤 graph를 다시 compile/save해야 합니다.
-3. 운영용 `WBP_VirtualSensorMonitor.uasset`은 아직 저장소에 없습니다. 네이티브 fallback은 smoke test용이며, Designer layout은 위 절차로 Unreal Editor에서 만들고 검수해야 합니다.
-4. DTCore의 일부 `USTRUCT` field는 기본 초기화 누락 오류를 출력합니다. DT-Project와 분리해 DTCore 저장소에서 enum/bool 기본값을 추가하고, plugin commit을 갱신한 뒤 submodule pin을 명시적으로 변경해야 합니다.
-5. 실제 Livox, RealSense, ROS2 입력은 SDK/bridge 연결과 장비 기반 acceptance evidence가 별도로 필요합니다.
+1. C++ module namespace는 `ma0t10_dt`, Content package namespace는 `/Game/MA0T10`입니다. 과거 `/Game/M7AT10` asset은 Unreal Editor rename, redirector fixup, resave를 거쳐 이전했습니다.
+2. 자동 생성 WBP는 즉시 테스트 가능한 native-backed UI입니다. 운영용 디자인이 필요하면 4장의 hierarchy/변수 이름 규칙에 맞춰 Designer를 꾸미고 PIE로 검수합니다.
+3. DTCore의 일부 `USTRUCT` field는 기본 초기화 누락 오류를 출력합니다. DT-Project와 분리해 DTCore 저장소에서 enum/bool 기본값을 추가하고, plugin commit을 갱신한 뒤 submodule pin을 명시적으로 변경해야 합니다.
+4. 실제 Livox, RealSense, ROS2 입력은 SDK/bridge 연결과 장비 기반 acceptance evidence가 별도로 필요합니다.

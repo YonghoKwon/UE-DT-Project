@@ -7,7 +7,7 @@
 - Core 플러그인: `Plugins/DTCore` submodule
 - 기준 DTCore 브랜치: `claude/digital-twin-core-analysis-1lxlcb`
 - 통합 기준 브랜치: `master`
-- 기본 센서 검증 맵: `/Game/M7AT10/Maps/SensorTestMap`
+- 기본 센서 검증 맵: `/Game/MA0T10/Maps/SensorTestMap`
 
 이 프로젝트는 철강 제조 환경 Digital Twin을 목표로 합니다. 현재 DT-Project 코드는 가상 카메라, 가상 LiDAR, 센서 매니저, 센서 데이터 전송/저장, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, monitor widget/HostActor를 포함합니다.
 
@@ -29,8 +29,8 @@ DTCore는 공통 API/WebSocket/Data/UI 기반 플러그인으로 사용합니다
 - 무거운 옵션은 기본값으로 켜지 않습니다. FullSpec, MultiHit, ExportOnScan 조합은 검증용으로만 사용합니다.
 - 로컬 실행 프로젝트 `C:\Unreal Projects\ma0t10_dt`에 반영하는 것과 git commit은 별개 작업입니다. 기능 변경 시 가능한 한 작업 repo와 로컬 프로젝트 양쪽에 같은 내용으로 커밋합니다.
 - 테스트 맵의 저장소 소유 구성은 `Scripts/setup_sensor_test_map.py`로 재현합니다. 기존 `TestMap`의 누락 WBP 참조를 신규 테스트의 기준으로 사용하지 않습니다.
-- `WBP_VirtualSensorMonitor.uasset`이 없을 때는 `AVirtualSensorMonitorHostActor`의 native fallback으로 smoke test를 유지합니다. Designer WBP를 추가할 때는 Unreal Editor에서 compile/save하고 PIE로 검증합니다.
-- C++ module namespace는 `ma0t10_dt`, Content package namespace는 기존 asset과 맞는 `/Game/M7AT10`을 사용합니다. Content namespace를 바꾸려면 별도 asset migration에서 Unreal Editor rename/fix redirectors/resave까지 함께 수행합니다.
+- `Scripts/setup_sensor_test_map.py`는 `WBP_VirtualSensorMonitor`를 자동 생성하고 `SensorTest_MonitorHost`에 연결합니다. 비어 있는 WBP는 `UVirtualSensorMonitorWidget`의 native-backed UI를 표시하므로 즉시 PIE 검증할 수 있습니다. Designer hierarchy를 추가하면 Unreal Editor에서 compile/save하고 PIE로 다시 검증합니다.
+- C++ module namespace는 `ma0t10_dt`, Content package namespace는 `/Game/MA0T10`을 사용합니다. 과거 `/Game/M7AT10` 경로는 migration 및 redirector fixup을 완료했으므로 새 참조에 사용하지 않습니다.
 
 ## LiDAR 데이터 정책
 

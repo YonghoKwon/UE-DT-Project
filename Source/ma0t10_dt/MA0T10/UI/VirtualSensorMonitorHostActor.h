@@ -60,11 +60,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     int32 ViewportZOrder = 0;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor|Input")
+    bool bConfigurePlayerInputOnCreate = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor|Input", meta = (EditCondition = "bConfigurePlayerInputOnCreate"))
+    bool bShowMouseCursorOnCreate = true;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Status")
     FString LastStatusMessage;
 
 private:
     AVirtualSensorManager* ResolveSensorManager();
+    void ConfigurePlayerInput();
 
 private:
     UPROPERTY(Transient)

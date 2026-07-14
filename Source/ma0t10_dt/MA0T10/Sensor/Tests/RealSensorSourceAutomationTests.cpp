@@ -1,4 +1,4 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -1298,7 +1298,7 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
     TestEqual(
         TEXT("WebSocket data table path"),
         ConfiguredPath.ToString(),
-        FString(TEXT("/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")));
+        FString(TEXT("/Game/MA0T10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")));
     if (!ConfiguredPath.IsValid())
     {
         return false;

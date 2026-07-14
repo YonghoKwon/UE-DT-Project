@@ -1,4 +1,4 @@
-﻿# Created by https://www.toptal.com/developers/gitignore/api/unrealengine,visualstudio,rider,c++,intellij+all
+# Created by https://www.toptal.com/developers/gitignore/api/unrealengine,visualstudio,rider,c++,intellij+all
 # Edit at https://www.toptal.com/developers/gitignore?templates=unrealengine,visualstudio,rider,c++,intellij+all
 
 ### C++ ###
@@ -643,7 +643,7 @@ FodyWeavers.xsd
 
 # End of https://www.toptal.com/developers/gitignore/api/unrealengine,visualstudio,rider,c++,intellij+all
 
-### M7AT10 local packaging/output ###
+### MA0T10 local packaging/output ###
 # Packaged Windows builds are generated outputs. Keep them out of source commits.
 /Windows/
 /Windows.zip

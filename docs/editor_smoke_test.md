@@ -1,4 +1,4 @@
-﻿# Editor Smoke Test
+# Editor Smoke Test
 
 This checklist verifies the current virtual camera, virtual LiDAR, point-cloud-only view, preview policy, and Slab analysis path.
 
@@ -141,7 +141,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction
 ```
 
 The registration report is a static checklist for
-`/Game/M7AT10/Common/DataTables/DT_TransactionCode`. It expects a row named
+`/Game/MA0T10/Common/DataTables/DT_TransactionCode`. It expects a row named
 `LIDAR_JSON_LIVE_FRAME` with `TransactionCodeMessageClass` set to
 `/Script/ma0t10_dt.LidarJsonLiveFrameTC`. It intentionally does not mutate the
 binary `.uasset`; use it as the pre-editor evidence, then verify the row in
