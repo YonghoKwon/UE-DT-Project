@@ -79,7 +79,7 @@ This check passes when `Config/Game.ini` is absent or its
 `[DTCoreRuntimeOverride]` values are empty, and fails if local endpoint or
 credential values are present.
 
-`Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset` receives an additional
+`Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset` receives an additional
 detected note because it is a binary Designer widget. Keep it untracked until it
 has been opened in Unreal Editor, optional bindings have been checked against
 `docs/widget_designer_setup.md`, and a PIE smoke pass confirms that the widget

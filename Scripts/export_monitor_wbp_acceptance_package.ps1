@@ -118,7 +118,7 @@ $todo = Invoke-JsonScript -ScriptPath $todoScript -Parameters @{
 
 $manualSteps = @(
     "Open Unreal Editor 5.3 with $ProjectRoot\ma0t10_dt.uproject.",
-    "Open Content/MA0T10/UI/WBP_VirtualSensorMonitor and verify it loads and compiles without errors.",
+    "Open Content/M7AT10/UI/WBP_VirtualSensorMonitor and verify it loads and compiles without errors.",
     "Compare optional bindings against docs/widget_designer_setup.md and mark missing optional widgets as crash-safe only after testing.",
     "Run PIE in the intended production or smoke-test map with AVirtualSensorMonitorHostActor or Level Blueprint binding.",
     "After any WBP save in Unreal Editor, run export_monitor_wbp_post_edit_hash_report.ps1, then update_monitor_wbp_acceptance_hash_evidence.ps1 to copy AssetHash/PostEditHashReportPath into the evidence file.",

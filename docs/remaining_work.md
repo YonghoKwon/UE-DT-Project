@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 
 Open decisions:
 
-- `Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset`
+- `Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset`
   - Decide whether this binary WBP is the intended production monitor asset.
   - Current local state: binary Designer widget decision point, approximately
     40 KB in the local project.
