@@ -1,4 +1,4 @@
-# Remaining Work
+﻿# Remaining Work
 
 This document tracks what is still open after the current LiDAR/virtual sensor
 branch work. It is intentionally practical: each item should either name the
@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 
 Open decisions:
 
-- `Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset`
+- `Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset`
   - Decide whether this binary WBP is the intended production monitor asset.
   - Current local state: binary Designer widget decision point, approximately
     40 KB in the local project.
@@ -139,7 +139,7 @@ Open decisions:
   redistribution questions are visible before owner acceptance.
 - `Scripts/validate_large_content_decision_policy.ps1` supports
   `-LocalProjectRoot` so the source checkout can validate docs/scripts while the
-  actual untracked Unreal content is scanned from `C:\Unreal Projects\m7at10_dt`.
+  actual untracked Unreal content is scanned from `C:\Unreal Projects\ma0t10_dt`.
 - `Scripts/export_large_content_cleanup_plan.ps1` exports a dry-run cleanup plan
   for the confirmed-unused large Content folders. It records recoverable local
   disk size, required pre-delete checks, and per-candidate safety fields such as
@@ -151,7 +151,7 @@ Open decisions:
   `PreviewOnly=true`, `DeletesFiles=false`, `StagesFiles=false`, and
   `ModifiesAssets=false` by default. Actual local archive moves require
   `-Execute`, `-ConfirmReferenceChecks`, and an explicit `-ArchiveRoot` outside
-  `C:\Unreal Projects\m7at10_dt`; the tool never performs permanent deletion or
+  `C:\Unreal Projects\ma0t10_dt`; the tool never performs permanent deletion or
   git staging.
   If the archive move is executed locally, the current cleanup-candidate count
   should drop because the folders are no longer inside the Unreal project. This
@@ -161,7 +161,7 @@ Open decisions:
   verified without staging those asset folders.
 - `Scripts/export_unused_content_archive_evidence.ps1` verifies the local
   post-archive state. It checks that known unused folders are absent from
-  `C:\Unreal Projects\m7at10_dt`, present under the archive root, the archive
+  `C:\Unreal Projects\ma0t10_dt`, present under the archive root, the archive
   root is outside the Unreal project, archive files are not staged, and DTCore
   has not been touched. This evidence is local-only; it is not repository
   acceptance, deletion approval, or permission to stage archived asset folders.
@@ -305,7 +305,7 @@ Current state:
   manual PIE smoke steps without mutating the binary data table asset. Its
   `-NoWrite` mode supports read-only readiness checks without creating `Saved/`
   report artifacts.
-- `M7AT10.Evidence.WebSocketTransactionRegistration` is an optional automation
+- `MA0T10.Evidence.WebSocketTransactionRegistration` is an optional automation
   test that loads the configured DTCore WebSocket data table and verifies the
   `LIDAR_JSON_LIVE_FRAME` row resolves to `ULidarJsonLiveFrameTC` after the
   binary row exists.
@@ -325,7 +325,7 @@ Current state:
   brokerless dispatch automation, and broker smoke reporting into one
   repeatable workflow. Its summary separates core broker observations, evidence
   field completeness, external broker requirement, and deployment readiness.
-- `M7AT10.RealSensorSource.JsonLiveDTCoreDispatch` now starts a PIE world,
+- `MA0T10.RealSensorSource.JsonLiveDTCoreDispatch` now starts a PIE world,
   injects the checked `LIDAR_JSON_LIVE_FRAME` sample into the DTCore
   `UDxDataSubsystem` WebSocket queue, and verifies the target LiDAR receives the
   brokerless frame without requiring an external broker.
@@ -351,8 +351,8 @@ Current state:
   over the same handoff path. It is explicit-start by default, caps request body
   size, uses Unreal's `HTTPServer` module, marshals request processing back to
   the game thread, and is covered by
-  `M7AT10.RealSensorSource.HttpJsonLiveBridgePayload` plus loopback HTTP POST
-  smoke coverage in `M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost`.
+  `MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` plus loopback HTTP POST
+  smoke coverage in `MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost`.
 - The real-sensor readiness report now ranks deployment path candidates. Current
   recommendation: use file replay as the baseline, use HTTP JSON live as the
   first local/live deployment bridge, and prefer DTCore WebSocket only when the
@@ -366,12 +366,12 @@ Current state:
   observation flags are set.
 - `ULidarUdpJsonLiveSourceComp` provides an optional loopback-first UDP JSON
   live bridge wrapper over the same handoff path.
-- `M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram` provides local UDP
+- `MA0T10.RealSensorSource.UdpJsonLiveBridgeDatagram` provides local UDP
   datagram smoke coverage using an ephemeral loopback port.
 - `ULidarJsonLiveSourceComp` has editor helpers to append the checked sample
   payload and push the buffered frame without transport before the DTCore
   WebSocket data-table row exists.
-- `M7AT10.RealSensorSource.JsonLiveTransactionRouting` covers handler
+- `MA0T10.RealSensorSource.JsonLiveTransactionRouting` covers handler
   `SOURCE_ID` routing, append-only payloads, ambiguous no-source rejection, and
   matched push into the target LiDAR.
 - They expose configuration/state but do not connect to real SDKs or bridges.
@@ -424,7 +424,7 @@ Next implementation steps:
 
 - Define the final normalized frame contract for LiDAR and camera input.
 - Export the deployment evidence package before deployment-owner review:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"`.
 - Smoke-test the `LIDAR_JSON_LIVE_FRAME` route with the deployment STOMP/WebSocket
   broker using
   `Samples/websocket/lidar_json_live_frame_sample.json`.
@@ -458,9 +458,9 @@ Completion evidence:
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_plan.ps1"`.
 - Deployment evidence package exports without touching broker/SDK/config:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -Json`.
 - Deployment gap summary exports the next real-sensor handoff action:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -Json`.
 - Deployment package summary should report seven deployment path sections,
   `SelectedDeploymentPathCount = 0`, and
   `CurrentReadyToClaimRealSensorDeployment = false` until deployment-owner
@@ -475,16 +475,16 @@ Completion evidence:
   true`.
 - Deployment evidence validation reports missing evidence without touching
   broker/SDK/config:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -EvidencePath "C:\Unreal Projects\ma0t10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -Json`.
 - Deployment evidence can be made a strict gate only after the evidence draft is
   filled:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -FailOnIncompleteEvidence`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_real_sensor_adapter_deployment_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -EvidencePath "C:\Unreal Projects\ma0t10_dt\Saved\Reports\RealSensorAdapterDeployment\real_sensor_adapter_deployment.evidence.json" -FailOnIncompleteEvidence`.
 - WebSocket registration checklist exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1"`.
 - Read-only WebSocket registration checklist passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction_registration_report.ps1" -NoWrite`.
 - Data-table evidence automation passes:
-  `M7AT10.Evidence.WebSocketTransactionRegistration`.
+  `MA0T10.Evidence.WebSocketTransactionRegistration`.
 - Deployment broker smoke evidence shows the sample payload reaches
   `ULidarJsonLiveSourceComp` in PIE.
 - Broker smoke report exists under `Saved/WebSocketBrokerSmoke/` with the
@@ -492,7 +492,7 @@ Completion evidence:
 - Wrapper summary shows sample validation, registration checklist, commandlet
   dry run, and optional evidence automation status.
 - Brokerless dispatch automation passes:
-  `M7AT10.RealSensorSource.JsonLiveDTCoreDispatch`.
+  `MA0T10.RealSensorSource.JsonLiveDTCoreDispatch`.
 - Brokerless dispatch automation is not a replacement for broker evidence; it
   does not validate endpoint, credentials, subscription, or network receive.
 
@@ -570,7 +570,7 @@ Current state:
   judging-server approval.
 - Final HTTP failures and retry-exhausted failures now have separate runtime
   counters and result flags, and the monitor transport row exposes both.
-- `M7AT10.SensorTransport.HttpPostLoopbackAcceptance` verifies outbound
+- `MA0T10.SensorTransport.HttpPostLoopbackAcceptance` verifies outbound
   `HttpPost` against a local mock judging-server route, including POST shape,
   JSON content type, sensor headers, `virtual-lidar.v1` body identity, 2xx
   acceptance, non-2xx rejection, status code, and response body capture.
@@ -601,7 +601,7 @@ Completion evidence:
   local mock contract validator is only pre-approval evidence and is not enough
   to claim real server acceptance.
 - Outbound local mock transport acceptance passes:
-  `M7AT10.SensorTransport.HttpPostLoopbackAcceptance`.
+  `MA0T10.SensorTransport.HttpPostLoopbackAcceptance`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"`.
 - Payload contract review exports:
@@ -639,7 +639,7 @@ Current state:
   can distinguish placeholder-only LAS source export, missing/attempted
   compressor paths, and external process success without claiming readable LAZ
   acceptance.
-- `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput` covers the
+- `MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput` covers the
   positive external process path with a local copy-command surrogate. This proves the
   `{input}`/`{output}` process contract and output-file validation, not true LAZ
   compression.
@@ -728,7 +728,7 @@ Next implementation steps:
 
 - Decide whether true LAZ is required for this project.
 - Export the LAZ acceptance package before compressor/tool owner review:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"`.
 - Choose whether the external compressor path is sufficient, or whether a native
   library / server-side post-processing workflow is required.
 - Configure an accepted compressor executable and argument template, then
@@ -745,9 +745,9 @@ Completion evidence:
 - `.laz` output is actually compressed and readable by a known point-cloud tool.
 - Automation verifies `.laz` creation separately from LAS source export.
 - Missing-compressor guard passes:
-  `M7AT10.SensorReplay.LazExternalCompressorMissingFails`.
+  `MA0T10.SensorReplay.LazExternalCompressorMissingFails`.
 - External process success guard passes:
-  `M7AT10.SensorReplay.LazExternalCompressorFakeWritesOutput`.
+  `MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput`.
 - Static placeholder readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"`.
 - Pre-commit LAZ boundary appears:
@@ -756,18 +756,18 @@ Completion evidence:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1"`.
 - LAZ acceptance package exports local review evidence without running a
   compressor:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -Json`.
 - LAZ acceptance gap summary exports the next true-LAZ handoff action:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -Json`.
 - LAZ acceptance evidence validation reports missing evidence without modifying
   assets or staging files:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -EvidencePath "C:\Unreal Projects\ma0t10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -Json`.
 - LAZ acceptance evidence validation includes section-level checks for
   compressor selection, produced LAZ evidence, known-reader validation,
   placeholder distinction, repeatable command, and owner acceptance.
 - LAZ acceptance evidence can be made a strict gate only after evidence is
   filled:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -EvidencePath "C:\Unreal Projects\m7at10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -FailOnIncompleteEvidence`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_compression_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -EvidencePath "C:\Unreal Projects\ma0t10_dt\Saved\Reports\LazCompressionAcceptance\laz_compression_acceptance.evidence.json" -FailOnIncompleteEvidence`.
 - Explicit compressor/reader readiness exports:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compressor_readiness_report.ps1" -CompressorPath "C:\path\to\laszip.exe" -ReaderPath "C:\path\to\lasinfo.exe"`.
 - Readable-output evidence export:
@@ -830,18 +830,18 @@ Current state:
   `EvidenceLinesWithinRun`. They also stop at the selected run completion and
   report `FailureEvidencePresent` / `FailureLineCount` for failed, error, or
   fatal lines inside that block.
-- `M7AT10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` covers a
+- `MA0T10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad` covers a
   120,000-point procedural CSV preview load without requiring the Unreal Editor
-  GUI, and `M7AT10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
+  GUI, and `MA0T10.Sensor.CsvPointCloudPreview.InstancedBatchLoad` keeps the
   instanced fallback path covered.
 - CSV preview loads now expose runtime telemetry for input line count, accepted
   point count, procedural section count, instanced instance count, active render
   mode, load status, parse duration, build duration, and total load duration.
-- `M7AT10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` covers a
+- `MA0T10.Sensor.CsvPointCloudPreview.ProceduralPerformanceBudget` covers a
   250,000-point procedural CSV preview load in headless automation with a
   generous regression guard while treating timing values as observational
   telemetry.
-- `M7AT10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced` covers the
+- `MA0T10.Sensor.CsvPointCloudPreview.AutoPromoteLargeInstanced` covers the
   large-instanced safety path. When an operator requests instanced CSV preview
   above the configured threshold, the actor promotes the effective renderer to
   procedural mesh and records requested/effective mode telemetry.
@@ -894,23 +894,23 @@ Completion evidence:
 - Point-cloud-only mode still preserves collision/trace behavior.
 - Dense server payload count is independent from preview point count.
 - Headless CSV preview automation passes:
-  `Automation RunTests M7AT10.Sensor.CsvPointCloudPreview`.
+  `Automation RunTests MA0T10.Sensor.CsvPointCloudPreview`.
 - CSV preview telemetry distinguishes parse/build/load timings from renderer
   counts and confirms the active CPU preview path.
 - CSV preview performance evidence exports from the local automation log:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"`.
 - CSV preview performance evidence can require automation completion evidence:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireAutomationSuccess`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -RequireAutomationSuccess`.
 - CSV preview performance evidence can target an explicit log file:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireAutomationSuccess`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_csv_preview_performance_report.ps1" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log" -RequireAutomationSuccess`.
 - Renderer decision evidence can be required against the same local log:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -RequireCsvPerformanceEvidence`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -RequireCsvPerformanceEvidence`.
 - Renderer decision evidence can also target an explicit log file:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log" -RequireCsvPerformanceEvidence`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log" -RequireCsvPerformanceEvidence`.
 - Renderer acceptance package exports the current CPU/GPU evidence boundary:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt"`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"`.
 - Renderer acceptance package can also consume the explicit CSV automation log:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -LogPath "C:\Unreal Projects\m7at10_dt\Saved\Logs\m7at10_dt.log"`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -LogPath "C:\Unreal Projects\ma0t10_dt\Saved\Logs\ma0t10_dt.log"`.
 - GPU renderer decision evidence records viewport smoke once a GPU path exists:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle`.
 - GPU evidence readiness requires a nonblank viewport screenshot, point count,
@@ -920,7 +920,7 @@ Completion evidence:
 - Pre-commit renderer boundary appears:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -IncludeReadiness`.
 - End-to-end local CPU fallback evidence workflow passes:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipBuild`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -SkipBuild`.
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"`.
 - Static readiness also confirms that candidate GPU preview backends are
@@ -987,7 +987,7 @@ Current state:
 Next implementation steps:
 
 - Export the WBP acceptance package before the manual Editor pass:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."`.
 - Open the WBP in Unreal Editor and verify optional bindings.
 - If the WBP layout must change, perform the edit through Unreal Editor only;
   do not manually patch the binary `.uasset`.
@@ -1015,13 +1015,13 @@ Completion evidence:
 - Static readiness passes:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_widget_policy.ps1"`.
 - Focused WBP evidence gate passes:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
 - WBP acceptance evidence validator passes:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -EvidencePath ".\docs\local_asset_decisions.evidence.json" -FailOnIncompleteEvidence`.
 - WBP acceptance template exports:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_template.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json`.
 - WBP acceptance package exports a local review bundle without touching assets:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json`.
+  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json`.
 
 ## Routine Verification
 
@@ -1029,8 +1029,8 @@ Fast local readiness check:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
-powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipSmoke
-powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SkipSmoke -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SkipSmoke
+powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SkipSmoke -Json
 ```
 
 Use the `-SourceRepoRoot` form when running from the source checkout while the
@@ -1041,16 +1041,16 @@ asset, runtime config, and large-content decisions from `-ProjectRoot`.
 Pre-commit progress and remaining-work summary:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_decision_precommit_gate_policy.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_decision_precommit_gate_policy.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\m7at10_dt" -IncludeReadiness -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "." -ObservedCodexUsagePercent 84
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -IncludeReadiness
+powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -SourceRepoRoot "." -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -IncludeReadiness -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -ObservedCodexUsagePercent 84
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
 ```
 
 `export_goal_progress_blocker_report.ps1` writes
@@ -1092,8 +1092,8 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 Strict asset gates for clean-content review:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\m7at10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_large_content_cleanup_plan.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_sample_content_decision_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnGeneratedOutput
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnStagedDecisionPoints
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -FailOnLargeContentCandidates

@@ -1,4 +1,4 @@
-# Camera Payload Schema v1
+﻿# Camera Payload Schema v1
 
 Schema version:
 
@@ -159,12 +159,12 @@ byte count. Keep these blocks in sync with any schema changes.
 ## Related Tests
 
 ```text
-M7AT10.SensorMonitor.ServerPayloadExport
-M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame
+MA0T10.SensorMonitor.ServerPayloadExport
+MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame
 ```
 
 This test currently verifies the monitor's server payload export contract for LiDAR payloads. Camera payload export is compile-verified and shares the same monitor export path, but runtime camera capture/export should still be checked in PIE because render-target readback depends on renderer availability.
-`M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame` covers external
+`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` covers external
 `virtual-camera.v1` JSON payload injection without renderer readback, including
 transport JSON save, recorder capture, payload `sensorId`/`frameId`
 propagation, wrong schema/type/encoding rejection, invalid timestamp rejection,

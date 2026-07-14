@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [string]$OutputRoot = "",
     [switch]$NoWrite,
@@ -103,8 +103,8 @@ else {
 }
 
 $defaultGameIni = Join-Path $ProjectRoot "Config\DefaultGame.ini"
-$handlerHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h"
-$handlerCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
+$handlerHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.h"
+$handlerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
 $samplePath = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sample.json"
 $sampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_lidar_live_sample.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
@@ -129,11 +129,11 @@ if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 $sampleReport = $sampleReportJson | ConvertFrom-Json
 
 $configuredTablePath = Get-IniValue -Path $defaultGameIni -Key "WebSocketDataTable"
-$expectedTablePath = "/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode"
+$expectedTablePath = "/Game/MA0T10/Common/DataTables/DT_TransactionCode.DT_TransactionCode"
 $transactionCodeName = "LIDAR_JSON_LIVE_FRAME"
-$messageClass = "/Script/m7at10_dt.LidarJsonLiveFrameTC"
+$messageClass = "/Script/ma0t10_dt.LidarJsonLiveFrameTC"
 $runtimeHandlerClass = "ULidarJsonLiveFrameTC"
-$optionalAutomationTestName = "M7AT10.Evidence.WebSocketTransactionRegistration"
+$optionalAutomationTestName = "MA0T10.Evidence.WebSocketTransactionRegistration"
 
 $handlerHeaderText = Get-Content -LiteralPath $handlerHeader -Raw
 $handlerCppText = Get-Content -LiteralPath $handlerCpp -Raw
@@ -170,9 +170,9 @@ $report = [PSCustomObject]@{
         PushFrame = $sampleReport.PushFrame
     }
     ManualSmokeSteps = @(
-        [PSCustomObject]@{ Order = 1; Text = "Open `/Game/M7AT10/Common/DataTables/DT_TransactionCode` in Unreal Editor." },
+        [PSCustomObject]@{ Order = 1; Text = "Open `/Game/MA0T10/Common/DataTables/DT_TransactionCode` in Unreal Editor." },
         [PSCustomObject]@{ Order = 2; Text = "Add or confirm a row named `LIDAR_JSON_LIVE_FRAME`." },
-        [PSCustomObject]@{ Order = 3; Text = "Set `TransactionCodeName` to `LIDAR_JSON_LIVE_FRAME` and `TransactionCodeMessageClass` to `/Script/m7at10_dt.LidarJsonLiveFrameTC`." },
+        [PSCustomObject]@{ Order = 3; Text = "Set `TransactionCodeName` to `LIDAR_JSON_LIVE_FRAME` and `TransactionCodeMessageClass` to `/Script/ma0t10_dt.LidarJsonLiveFrameTC`." },
         [PSCustomObject]@{ Order = 4; Text = "Place a `ULidarJsonLiveSourceComp` with `SourceId = JsonLiveLidarBridge` and a target `UVirtualLidarSensorComp`." },
         [PSCustomObject]@{ Order = 5; Text = "Send `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment WebSocket broker in PIE." },
         [PSCustomObject]@{ Order = 6; Text = "Confirm source frame/point counts, target LiDAR cached server payload, and optional transport result." }
@@ -191,7 +191,7 @@ $report = [PSCustomObject]@{
         SamplePayloadValid = [bool]$sampleReport.Summary.Valid
         SafeSourceRoutingDocumented = ($handlerCppText.Contains("SOURCE_ID is required") -and $planDocText.Contains("SOURCE_ID") -and $smokeDocText.Contains("LIDAR_JSON_LIVE_FRAME"))
         BinaryDataTableRowVerified = $false
-        BinaryDataTableRowVerificationNote = "Static script does not modify or inspect DT_TransactionCode.uasset rows; verify this row in Unreal Editor, then run M7AT10.Evidence.WebSocketTransactionRegistration."
+        BinaryDataTableRowVerificationNote = "Static script does not modify or inspect DT_TransactionCode.uasset rows; verify this row in Unreal Editor, then run MA0T10.Evidence.WebSocketTransactionRegistration."
     }
 }
 

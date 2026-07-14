@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$EvidencePath = "",
     [switch]$FailOnIncompleteEvidence,
@@ -62,7 +62,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
     throw "SourceRepoRoot not found: $SourceRepoRoot"
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
-$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $setupDocPath = Join-Path $SourceRepoRoot "docs\widget_designer_setup.md"
 $assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
@@ -97,7 +97,7 @@ $requiredSetupTerms = @(
     "BindSensorManager",
     "AVirtualSensorMonitorHostActor",
     "GetMonitorStatusText",
-    "M7AT10.SensorMonitor.LidarStatusTextContract"
+    "MA0T10.SensorMonitor.LidarStatusTextContract"
 )
 $missingSetupTerms = @()
 if ($setupDocPresent) {

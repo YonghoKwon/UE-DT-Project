@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -79,7 +79,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 
-$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $decisionReportScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 $acceptanceTemplateScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
@@ -167,8 +167,8 @@ $blockedCount = @($preflightChecks | Where-Object { $_.Status -eq "Blocked" }).C
 $readyForManualEditorReview = ($blockedCount -eq 0 -and $wbpPresent -and $stagedLines.Count -eq 0)
 
 $recommendedManualCommands = @(
-    "Open Unreal Editor 5.3 with C:\Unreal Projects\m7at10_dt\m7at10_dt.uproject.",
-    "Open Content/M7AT10/UI/WBP_VirtualSensorMonitor and compile/save only if the project owner accepts the asset update.",
+    "Open Unreal Editor 5.3 with C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject.",
+    "Open Content/MA0T10/UI/WBP_VirtualSensorMonitor and compile/save only if the project owner accepts the asset update.",
     "Compare optional bindings against docs/widget_designer_setup.md.",
     "Run PIE in the intended map with AVirtualSensorMonitorHostActor or Level Blueprint binding.",
     "Fill Scripts/export_monitor_wbp_acceptance_template.ps1 output with editor-open, binding, PIE, and owner acceptance evidence before staging the WBP."

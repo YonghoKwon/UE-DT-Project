@@ -1,15 +1,15 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$ProjectPath = "",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
     [string[]]$TestGroups = @(
-        "M7AT10.EditorSmoke",
-        "M7AT10.SensorReplay",
-        "M7AT10.SensorRecorder",
-        "M7AT10.RealSensorSource",
-        "M7AT10.SensorManager",
-        "M7AT10.SensorMonitor"
+        "MA0T10.EditorSmoke",
+        "MA0T10.SensorReplay",
+        "MA0T10.SensorRecorder",
+        "MA0T10.RealSensorSource",
+        "MA0T10.SensorManager",
+        "MA0T10.SensorMonitor"
     ),
     [switch]$SkipBuild,
     [switch]$SkipSmoke,
@@ -112,7 +112,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
-    $ProjectPath = Join-Path $ProjectRoot "m7at10_dt.uproject"
+    $ProjectPath = Join-Path $ProjectRoot "ma0t10_dt.uproject"
 }
 if (-not (Test-Path -LiteralPath $ProjectPath)) {
     throw "Project file not found: $ProjectPath"

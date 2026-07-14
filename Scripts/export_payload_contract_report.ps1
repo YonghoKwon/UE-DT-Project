@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$FixtureRoot = "",
     [string]$SchemaDocsRoot = "",
     [string]$OutputRoot = "",
@@ -217,7 +217,7 @@ $acceptanceEvidence = @(
     [PSCustomObject]@{
         Name = "Outbound HTTP loopback"
         Status = "Covered by automation"
-        Evidence = "M7AT10.SensorTransport.HttpPostLoopbackAcceptance"
+        Evidence = "MA0T10.SensorTransport.HttpPostLoopbackAcceptance"
     },
     [PSCustomObject]@{
         Name = "Real judging-server acceptance"

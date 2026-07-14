@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -41,12 +41,12 @@ function New-Check {
 }
 
 $ProjectRoot = Resolve-ProjectRoot
-$transportHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualSensorDataTransportComp.h"
-$transportSource = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\VirtualSensorDataTransportComp.cpp"
+$transportHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorDataTransportComp.h"
+$transportSource = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorDataTransportComp.cpp"
 $transportDoc = Join-Path $ProjectRoot "docs\server_transport_contract.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
-$transportTests = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\VirtualSensorDataTransportAutomationTests.cpp"
+$transportTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\VirtualSensorDataTransportAutomationTests.cpp"
 $payloadContractReportScript = Join-Path $ProjectRoot "Scripts\export_payload_contract_report.ps1"
 $judgingServerAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_judging_server_acceptance_template.ps1"
 $judgingServerAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_judging_server_acceptance_package.ps1"
@@ -82,7 +82,7 @@ $checks = @(
     (New-Check -Path $transportDoc -Pattern "Backpressure behavior" -Label "Backpressure decision documented"),
     (New-Check -Path $transportDoc -Pattern "Response body schema and whether server-side analysis results are returned" -Label "Response schema decision documented"),
     (New-Check -Path $transportDoc -Pattern "SaveToFile" -Label "SaveToFile review path documented"),
-    (New-Check -Path $transportDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Transport doc references HTTP POST loopback automation"),
+    (New-Check -Path $transportDoc -Pattern "MA0T10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Transport doc references HTTP POST loopback automation"),
     (New-Check -Path $payloadContractReportScript -Pattern "ServerAcceptanceDecisions" -Label "Payload contract report exports server acceptance decisions"),
     (New-Check -Path $payloadContractReportScript -Pattern "Endpoint URL and environment ownership" -Label "Payload contract report tracks endpoint ownership"),
     (New-Check -Path $payloadContractReportScript -Pattern "Authentication" -Label "Payload contract report tracks authentication decision"),
@@ -128,10 +128,10 @@ $checks = @(
     (New-Check -Path $remainingWorkDoc -Pattern "validate_server_transport_contract.ps1" -Label "Remaining work references transport gate"),
     (New-Check -Path $remainingWorkDoc -Pattern "export_judging_server_acceptance_template.ps1" -Label "Remaining work references judging server acceptance template"),
     (New-Check -Path $remainingWorkDoc -Pattern "export_judging_server_acceptance_package.ps1" -Label "Remaining work references judging server acceptance package"),
-    (New-Check -Path $remainingWorkDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Remaining work references HTTP POST loopback automation"),
+    (New-Check -Path $remainingWorkDoc -Pattern "MA0T10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Remaining work references HTTP POST loopback automation"),
     (New-Check -Path $editorSmokeDoc -Pattern "SharedSensorTransport.TransportMode = LogOnly" -Label "Smoke test safe transport default documented"),
-    (New-Check -Path $editorSmokeDoc -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Smoke doc references HTTP POST loopback automation"),
-    (New-Check -Path $transportTests -Pattern "M7AT10.SensorTransport.HttpPostLoopbackAcceptance" -Label "HTTP POST loopback automation test name"),
+    (New-Check -Path $editorSmokeDoc -Pattern "MA0T10.SensorTransport.HttpPostLoopbackAcceptance" -Label "Smoke doc references HTTP POST loopback automation"),
+    (New-Check -Path $transportTests -Pattern "MA0T10.SensorTransport.HttpPostLoopbackAcceptance" -Label "HTTP POST loopback automation test name"),
     (New-Check -Path $transportTests -Pattern "EHttpServerResponseCodes::Accepted" -Label "HTTP POST loopback covers 2xx"),
     (New-Check -Path $transportTests -Pattern "EHttpServerResponseCodes::BadRequest" -Label "HTTP POST loopback covers 4xx"),
     (New-Check -Path $transportTests -Pattern "static_cast<EHttpServerResponseCodes>(503)" -Label "HTTP POST loopback covers retryable 5xx"),

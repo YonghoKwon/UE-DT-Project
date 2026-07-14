@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -39,29 +39,29 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "Base source component header"; Path = "Source\m7at10_dt\M7AT10\Sensor\RealSensorSourceComp.h" },
-    [PSCustomObject]@{ Label = "Base source component implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\RealSensorSourceComp.cpp" },
-    [PSCustomObject]@{ Label = "Adapter placeholder header"; Path = "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.h" },
-    [PSCustomObject]@{ Label = "Adapter placeholder implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.cpp" },
-    [PSCustomObject]@{ Label = "CSV replay header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarCsvReplaySourceComp.h" },
-    [PSCustomObject]@{ Label = "CSV replay implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarCsvReplaySourceComp.cpp" },
-    [PSCustomObject]@{ Label = "JSONL replay header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLinesReplaySourceComp.h" },
-    [PSCustomObject]@{ Label = "JSONL replay implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLinesReplaySourceComp.cpp" },
-    [PSCustomObject]@{ Label = "Camera JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.h" },
-    [PSCustomObject]@{ Label = "Camera JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.cpp" },
-    [PSCustomObject]@{ Label = "JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h" },
-    [PSCustomObject]@{ Label = "JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp" },
-    [PSCustomObject]@{ Label = "HTTP JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.h" },
-    [PSCustomObject]@{ Label = "HTTP JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.cpp" },
-    [PSCustomObject]@{ Label = "UDP JSON live bridge header"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h" },
-    [PSCustomObject]@{ Label = "UDP JSON live bridge implementation"; Path = "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.cpp" },
-    [PSCustomObject]@{ Label = "JSON live WebSocket transaction header"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h" },
-    [PSCustomObject]@{ Label = "JSON live WebSocket transaction implementation"; Path = "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp" },
-    [PSCustomObject]@{ Label = "Editor module build file"; Path = "Source\m7at10_dtEditor\m7at10_dtEditor.Build.cs" },
-    [PSCustomObject]@{ Label = "Editor module implementation"; Path = "Source\m7at10_dtEditor\Private\m7at10_dtEditor.cpp" },
-    [PSCustomObject]@{ Label = "JSON live WebSocket transaction commandlet header"; Path = "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.h" },
-    [PSCustomObject]@{ Label = "JSON live WebSocket transaction commandlet implementation"; Path = "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp" },
-    [PSCustomObject]@{ Label = "Real sensor automation tests"; Path = "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "Base source component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\RealSensorSourceComp.h" },
+    [PSCustomObject]@{ Label = "Base source component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\RealSensorSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "Adapter placeholder header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\RealSensorAdapterStubs.h" },
+    [PSCustomObject]@{ Label = "Adapter placeholder implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\RealSensorAdapterStubs.cpp" },
+    [PSCustomObject]@{ Label = "CSV replay header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarCsvReplaySourceComp.h" },
+    [PSCustomObject]@{ Label = "CSV replay implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarCsvReplaySourceComp.cpp" },
+    [PSCustomObject]@{ Label = "JSONL replay header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLinesReplaySourceComp.h" },
+    [PSCustomObject]@{ Label = "JSONL replay implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLinesReplaySourceComp.cpp" },
+    [PSCustomObject]@{ Label = "Camera JSON live bridge header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\CameraJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "Camera JSON live bridge implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\CameraJsonLiveSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "JSON live bridge header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "JSON live bridge implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "HTTP JSON live bridge header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarHttpJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "HTTP JSON live bridge implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarHttpJsonLiveSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "UDP JSON live bridge header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarUdpJsonLiveSourceComp.h" },
+    [PSCustomObject]@{ Label = "UDP JSON live bridge implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\LidarUdpJsonLiveSourceComp.cpp" },
+    [PSCustomObject]@{ Label = "JSON live WebSocket transaction header"; Path = "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.h" },
+    [PSCustomObject]@{ Label = "JSON live WebSocket transaction implementation"; Path = "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.cpp" },
+    [PSCustomObject]@{ Label = "Editor module build file"; Path = "Source\ma0t10_dtEditor\ma0t10_dtEditor.Build.cs" },
+    [PSCustomObject]@{ Label = "Editor module implementation"; Path = "Source\ma0t10_dtEditor\Private\ma0t10_dtEditor.cpp" },
+    [PSCustomObject]@{ Label = "JSON live WebSocket transaction commandlet header"; Path = "Source\ma0t10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.h" },
+    [PSCustomObject]@{ Label = "JSON live WebSocket transaction commandlet implementation"; Path = "Source\ma0t10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp" },
+    [PSCustomObject]@{ Label = "Real sensor automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\RealSensorSourceAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "CSV replay sample"; Path = "Samples\slab_replay_sample.csv" },
     [PSCustomObject]@{ Label = "JSONL replay sample"; Path = "Samples\slab_replay_sample.jsonl" },
     [PSCustomObject]@{ Label = "WebSocket JSON live LiDAR sample"; Path = "Samples\websocket\lidar_json_live_frame_sample.json" },
@@ -78,25 +78,25 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$baseHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorSourceComp.h"
-$baseCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorSourceComp.cpp"
-$stubsHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.h"
-$stubsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\RealSensorAdapterStubs.cpp"
-$testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
-$cameraCompHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Camera\VirtualCameraComp.h"
-$cameraCompCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Camera\VirtualCameraComp.cpp"
-$cameraLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.h"
-$cameraLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\CameraJsonLiveSourceComp.cpp"
-$httpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.h"
-$httpLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarHttpJsonLiveSourceComp.cpp"
-$udpLiveHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.h"
-$udpLiveCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarUdpJsonLiveSourceComp.cpp"
-$liveTcHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.h"
-$liveTcCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
-$liveTcCommandletCpp = Join-Path $ProjectRoot "Source\m7at10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp"
-$editorBuildCs = Join-Path $ProjectRoot "Source\m7at10_dtEditor\m7at10_dtEditor.Build.cs"
-$editorTargetCs = Join-Path $ProjectRoot "Source\m7at10_dtEditor.Target.cs"
-$uproject = Join-Path $ProjectRoot "m7at10_dt.uproject"
+$baseHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\RealSensorSourceComp.h"
+$baseCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\RealSensorSourceComp.cpp"
+$stubsHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\RealSensorAdapterStubs.h"
+$stubsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\RealSensorAdapterStubs.cpp"
+$testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
+$cameraCompHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Camera\VirtualCameraComp.h"
+$cameraCompCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Camera\VirtualCameraComp.cpp"
+$cameraLiveHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CameraJsonLiveSourceComp.h"
+$cameraLiveCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CameraJsonLiveSourceComp.cpp"
+$httpLiveHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarHttpJsonLiveSourceComp.h"
+$httpLiveCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarHttpJsonLiveSourceComp.cpp"
+$udpLiveHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarUdpJsonLiveSourceComp.h"
+$udpLiveCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarUdpJsonLiveSourceComp.cpp"
+$liveTcHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.h"
+$liveTcCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
+$liveTcCommandletCpp = Join-Path $ProjectRoot "Source\ma0t10_dtEditor\Private\EnsureLidarJsonLiveFrameTransactionCommandlet.cpp"
+$editorBuildCs = Join-Path $ProjectRoot "Source\ma0t10_dtEditor\ma0t10_dtEditor.Build.cs"
+$editorTargetCs = Join-Path $ProjectRoot "Source\ma0t10_dtEditor.Target.cs"
+$uproject = Join-Path $ProjectRoot "ma0t10_dt.uproject"
 $webSocketSample = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sample.json"
 $webSocketSampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_lidar_live_sample.ps1"
 $webSocketRegistrationReportExporter = Join-Path $ProjectRoot "Scripts\export_websocket_transaction_registration_report.ps1"
@@ -112,11 +112,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "ERealSensorSourceKind"; Label = "Base source kind enum" },
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "JsonLiveBridge"; Label = "JSON live source kind" },
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "PushPointFrameToTarget"; Label = "Normalized LiDAR handoff declaration" },
-    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "AppendSampleWebSocketFrameInEditor"; Label = "JSON live editor sample helper" },
-    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "AppendLivePayloadJson"; Label = "Generic live JSON payload bridge helper" },
-    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "PushBufferedFrameNoTransportInEditor"; Label = "JSON live editor push helper" },
-    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "AppendWebSocketPayload"; Label = "JSON live WebSocket payload append helper" },
-    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "ResolveSampleWebSocketPayloadPath"; Label = "JSON live sample path resolver" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "AppendSampleWebSocketFrameInEditor"; Label = "JSON live editor sample helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "AppendLivePayloadJson"; Label = "Generic live JSON payload bridge helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.h"); Pattern = "PushBufferedFrameNoTransportInEditor"; Label = "JSON live editor push helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "AppendWebSocketPayload"; Label = "JSON live WebSocket payload append helper" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\LidarJsonLiveSourceComp.cpp"); Pattern = "ResolveSampleWebSocketPayloadPath"; Label = "JSON live sample path resolver" },
     [PSCustomObject]@{ Path = $cameraCompHeader; Pattern = "InjectExternalJsonPayload"; Label = "Camera external JSON payload injection API" },
     [PSCustomObject]@{ Path = $cameraCompCpp; Pattern = "ReadExternalPayloadMetadata"; Label = "Camera external JSON payload validator" },
     [PSCustomObject]@{ Path = $cameraCompCpp; Pattern = "virtual-camera.v1"; Label = "Camera external JSON schema check" },
@@ -155,11 +155,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $stubsHeader; Pattern = "ULivoxLidarSourceComp"; Label = "Livox placeholder class" },
     [PSCustomObject]@{ Path = $stubsHeader; Pattern = "URealSenseCameraSourceComp"; Label = "RealSense placeholder class" },
     [PSCustomObject]@{ Path = $stubsCpp; Pattern = "integration is not implemented yet"; Label = "Placeholder status text" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.BaseState"; Label = "Base state automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PlaceholderState"; Label = "Placeholder automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.CameraJsonLiveBridgePushFrame"; Label = "Camera JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.BaseState"; Label = "Base state automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.PlaceholderState"; Label = "Placeholder automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.PushFrameToTarget"; Label = "Handoff automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.JsonLiveBridgePushFrame"; Label = "JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame"; Label = "Camera JSON live bridge automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "virtual-camera.v1"; Label = "Camera JSON live automation uses camera payload schema" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "camera external payload transport submitted"; Label = "Camera JSON live automation checks transport path" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "camera external payload transport path uses payload sensor id"; Label = "Camera JSON live automation checks transport payload sensor id" },
@@ -175,8 +175,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = 'TEXT("short transform array")'; Label = "Camera JSON live automation rejects malformed transform" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "byte mismatch camera JSON live push is rejected"; Label = "Camera JSON live automation rejects byteSize mismatch" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "keeps previous camera payload"; Label = "Camera JSON live automation preserves payload on rejection" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgePayload"; Label = "HTTP JSON live bridge automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost"; Label = "HTTP JSON live loopback POST automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.HttpJsonLiveBridgePayload"; Label = "HTTP JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost"; Label = "HTTP JSON live loopback POST automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "FHttpModule::Get().CreateRequest"; Label = "HTTP JSON live loopback smoke uses real HTTP client" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "OnProcessRequestComplete"; Label = "HTTP JSON live loopback smoke waits on HTTP callback" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "GetHttpManager().Tick"; Label = "HTTP JSON live loopback smoke ticks HTTP manager in commandlet" },
@@ -186,15 +186,15 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "LastReceivedRequestBytes"; Label = "HTTP JSON live loopback smoke checks received bytes" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "HTTP JSON live payload processed on game thread"; Label = "HTTP JSON live automation checks game-thread processing" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "HTTP JSON live route unbinds on stop"; Label = "HTTP JSON live automation checks lifecycle stop" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.UdpJsonLiveBridgePayload"; Label = "UDP JSON live bridge automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.UdpJsonLiveBridgeDatagram"; Label = "UDP JSON live datagram smoke automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.UdpJsonLiveBridgePayload"; Label = "UDP JSON live bridge automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.UdpJsonLiveBridgeDatagram"; Label = "UDP JSON live datagram smoke automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "GetBoundPort"; Label = "UDP datagram smoke uses ephemeral bound port" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "SendTo"; Label = "UDP datagram smoke sends real local datagram" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "generic live payload"; Label = "Generic live payload alias automation coverage" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionParse"; Label = "JSON live transaction automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.Evidence.WebSocketTransactionRegistration"; Label = "Optional WebSocket data-table registration evidence test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Brokerless DTCore dispatch automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.JsonLiveTransactionParse"; Label = "JSON live transaction automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.JsonLiveTransactionRouting"; Label = "JSON live transaction routing automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.Evidence.WebSocketTransactionRegistration"; Label = "Optional WebSocket data-table registration evidence test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Brokerless DTCore dispatch automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "FindRow<FTransactionCodeStruct>"; Label = "Registration evidence test inspects DTCore data-table row" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "NewObject<UTransactionCodeMessage>"; Label = "Registration evidence test instantiates row handler through base class" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "registered data-table handler pushes target LiDAR points"; Label = "Registration evidence test dispatches to live source" },
@@ -207,7 +207,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $liveTcCommandletCpp; Pattern = "UPackage::SavePackage"; Label = "Commandlet saves project data table package" },
     [PSCustomObject]@{ Path = $liveTcCommandletCpp; Pattern = "NoSave"; Label = "Commandlet supports dry run" },
     [PSCustomObject]@{ Path = $editorBuildCs; Pattern = "UnrealEd"; Label = "Commandlet is isolated to editor module" },
-    [PSCustomObject]@{ Path = $editorTargetCs; Pattern = "m7at10_dtEditor"; Label = "Editor target loads editor module" },
+    [PSCustomObject]@{ Path = $editorTargetCs; Pattern = "ma0t10_dtEditor"; Label = "Editor target loads editor module" },
     [PSCustomObject]@{ Path = $uproject; Pattern = '"Type": "Editor"'; Label = "Project declares editor module" },
     [PSCustomObject]@{ Path = $webSocketSample; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "WebSocket sample transaction code" },
     [PSCustomObject]@{ Path = $webSocketSample; Pattern = "JsonLiveLidarBridge"; Label = "WebSocket sample source id" },
@@ -232,7 +232,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketBrokerSmokeReportExporter; Pattern = "ObservedCoreComplete"; Label = "Broker smoke report distinguishes core observation completeness" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunEvidenceAutomation"; Label = "Smoke evidence workflow can run registration automation" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunBrokerlessDTCoreDispatchAutomation"; Label = "Smoke evidence workflow can run brokerless DTCore dispatch automation" },
-    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "M7AT10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Smoke evidence workflow names brokerless dispatch automation" },
+    [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "MA0T10.RealSensorSource.JsonLiveDTCoreDispatch"; Label = "Smoke evidence workflow names brokerless dispatch automation" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "RunCommandletDryRun"; Label = "Smoke evidence workflow commandlet dry run is opt-in" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "EnsureLidarJsonLiveFrameTransaction"; Label = "Smoke evidence workflow can dry-run row commandlet" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "WriteReports"; Label = "Smoke evidence workflow report writing is opt-in" },
@@ -240,7 +240,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "BrokerSmokeEvidenceFieldsComplete"; Label = "Smoke evidence workflow surfaces evidence completeness" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "BrokerSmokeMissingEvidenceFieldCount"; Label = "Smoke evidence workflow surfaces missing evidence count" },
     [PSCustomObject]@{ Path = $webSocketSmokeEvidenceWorkflow; Pattern = "DeploymentReady"; Label = "Smoke evidence workflow keeps deployment readiness separate" },
-    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\m7at10_dt\m7at10_dt.Build.cs"); Pattern = "HTTPServer"; Label = "Runtime module includes inbound HTTP server dependency" },
+    [PSCustomObject]@{ Path = (Join-Path $ProjectRoot "Source\ma0t10_dt\ma0t10_dt.Build.cs"); Pattern = "HTTPServer"; Label = "Runtime module includes inbound HTTP server dependency" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "PushPointFrameToTarget"; Label = "Plan documents normalized handoff" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "ULidarJsonLiveSourceComp"; Label = "Plan documents JSON live bridge" },
     [PSCustomObject]@{ Path = $planDoc; Pattern = "LIDAR_JSON_LIVE_FRAME"; Label = "Plan documents JSON live transaction code" },

@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
     [switch]$Json

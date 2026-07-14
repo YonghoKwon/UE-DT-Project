@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -38,11 +38,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp" },
-    [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorHostActor.h" },
-    [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorHostActor.cpp" },
-    [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\m7at10_dt\M7AT10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp" },
+    [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.h" },
+    [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.cpp" },
+    [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Widget setup document"; Path = "docs\widget_designer_setup.md" },
     [PSCustomObject]@{ Label = "Local asset report document"; Path = "docs\local_asset_report.md" },
     [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
@@ -65,11 +65,11 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$widgetHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.h"
-$widgetCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorWidget.cpp"
-$hostHeader = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorHostActor.h"
-$hostCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\VirtualSensorMonitorHostActor.cpp"
-$testsCpp = Join-Path $ProjectRoot "Source\m7at10_dt\M7AT10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
+$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
+$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
+$hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.h"
+$hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.cpp"
+$testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
 $setupDoc = Join-Path $ProjectRoot "docs\widget_designer_setup.md"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
@@ -117,8 +117,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $widgetCpp; Pattern = "RowPitchInPixels < Pending.Width"; Label = "GPU readback row pitch is validated" },
     [PSCustomObject]@{ Path = $hostHeader; Pattern = "bUseNativeMonitorWidgetFallback"; Label = "Host fallback setting" },
     [PSCustomObject]@{ Path = $hostCpp; Pattern = "GetEffectiveMonitorWidgetClass"; Label = "Host resolves fallback widget class" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.SensorMonitor.HostNativeFallback"; Label = "Host fallback automation test" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.SensorMonitor.LidarStatusTextContract"; Label = "LiDAR status automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.SensorMonitor.HostNativeFallback"; Label = "Host fallback automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.SensorMonitor.LidarStatusTextContract"; Label = "LiDAR status automation test" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar selected sensor getter exposes sensor id"; Label = "Automation covers Designer sensor getter" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar display data exposes slab"; Label = "Automation covers Designer display data getter" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar display data exposes laz export"; Label = "Automation covers Designer LAZ display data getter" },
@@ -128,7 +128,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "server payload export message is populated"; Label = "Automation covers manual export message getter" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar payload getter exposes server policy"; Label = "Automation covers Designer payload getter" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar slab getter exposes slab analysis"; Label = "Automation covers Designer slab getter" },
-    [PSCustomObject]@{ Path = $testsCpp; Pattern = "M7AT10.SensorMonitor.ServerPayloadExport"; Label = "Server payload export automation test" },
+    [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.SensorMonitor.ServerPayloadExport"; Label = "Server payload export automation test" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "WBP_VirtualSensorMonitor"; Label = "Setup doc names production WBP" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "Optional Bindings"; Label = "Setup doc lists optional bindings" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "GetSlabAnalysisSummaryText"; Label = "Setup doc documents Designer getters" },

@@ -1,5 +1,5 @@
-param(
-    [string]$ProjectRoot = "C:\Unreal Projects\m7at10_dt",
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [switch]$Json,
     [switch]$FailOnGeneratedOutput,
     [switch]$FailOnUnclassifiedUntracked,
@@ -173,7 +173,7 @@ function Get-DecisionPointNote {
         return ""
     }
 
-    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+    if ($normalizedPath -eq "content/ma0t10/ui/wbp_virtualsensormonitor.uasset") {
         return "Detected binary monitor WBP asset. Open in Unreal Editor, verify optional bindings, and run PIE smoke before staging."
     }
 
@@ -260,7 +260,7 @@ function Get-DecisionChecklist {
     )
 
     $normalizedPath = Normalize-RepoPath $RelativePath
-    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+    if ($normalizedPath -eq "content/ma0t10/ui/wbp_virtualsensormonitor.uasset") {
         return @(
             "Open the widget in Unreal Editor.",
             "Verify optional bindings against docs/widget_designer_setup.md.",
@@ -578,7 +578,7 @@ function Get-ReviewPriority {
     )
 
     $normalizedPath = Normalize-RepoPath $RelativePath
-    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+    if ($normalizedPath -eq "content/ma0t10/ui/wbp_virtualsensormonitor.uasset") {
         return 10
     }
     if ($normalizedPath -eq "config/game.ini") {
@@ -647,7 +647,7 @@ function Get-NextReviewAction {
     if ($ReviewQueue -eq "KeepLocal") {
         return "Keep this path out of source commits; remove it from staging if it appears there."
     }
-    if ($normalizedPath -eq "content/m7at10/ui/wbp_virtualsensormonitor.uasset") {
+    if ($normalizedPath -eq "content/ma0t10/ui/wbp_virtualsensormonitor.uasset") {
         return "Open the widget in Unreal Editor, verify optional bindings and PIE behavior, then record AcceptedForRepository evidence only if it is the production WBP."
     }
     if ($normalizedPath -eq "config/game.ini") {
@@ -707,7 +707,7 @@ try {
 
     $pathsToCheck = @(
         [PSCustomObject]@{
-            Path = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+            Path = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
             Category = "ReviewCandidate"
             Recommendation = "Open in editor and commit only if this is the intended production monitor WBP."
             DecisionOwner = "ProjectOwnerRequired"
@@ -975,7 +975,7 @@ try {
             DefaultAction = "Do not stage these paths until each item has an explicit content or packaging decision."
         }
         SuggestedChecks = [PSCustomObject]@{
-            Build = "& 'C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat' m7at10_dtEditor Win64 Development '$ProjectRoot\m7at10_dt.uproject' -WaitMutex -NoHotReloadFromIDE"
+            Build = "& 'C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat' ma0t10_dtEditor Win64 Development '$ProjectRoot\ma0t10_dt.uproject' -WaitMutex -NoHotReloadFromIDE"
             Smoke = "powershell -ExecutionPolicy Bypass -File '.\Scripts\run_smoke_tests.ps1' -SkipBuild"
         }
     }
