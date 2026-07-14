@@ -1,4 +1,4 @@
-﻿# Remaining Work
+# Remaining Work
 
 This document tracks what is still open after the current LiDAR/virtual sensor
 branch work. It is intentionally practical: each item should either name the
@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 
 Open decisions:
 
-- `Content/M7AT10/UI/WBP_VirtualSensorMonitor.uasset`
+- `Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset`
   - Decide whether this binary WBP is the intended production monitor asset.
   - Current local state: binary Designer widget decision point, approximately
     40 KB in the local project.

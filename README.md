@@ -11,7 +11,7 @@ git submodule update --init --recursive
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development ".\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
-기본 실행 맵은 `/Game/M7AT10/Maps/SensorTestMap`입니다. 이 맵에는 가상 LiDAR, 가상 카메라, 센서 매니저, Slab target과 네이티브 monitor fallback이 배치되어 있습니다.
+기본 실행 맵은 `/Game/MA0T10/Maps/SensorTestMap`입니다. 가상 LiDAR, 가상 카메라, 센서 매니저, 일반 충돌 타깃과 자동 생성된 `WBP_VirtualSensorMonitor`가 배치되어 있어 PIE를 누르면 바로 센서/카메라를 조작할 수 있습니다. Slab mesh는 포함하지 않으며, 필요한 mesh에 `Slab` Actor Tag를 추가하면 기존 Slab 분석을 사용할 수 있습니다.
 
 Widget Blueprint의 정확한 이름, `Is Variable`, 자동 버튼 binding, Level Blueprint 연결과 기능별 테스트 순서는 [가상 센서 테스트 맵과 Widget Blueprint 설정](docs/sensor_test_map_setup.ko.md)을 참고합니다.
 
@@ -61,7 +61,7 @@ Source/ma0t10_dt/MA0T10/Sensor   가상 LiDAR, 센서 매니저, replay source, 
 Source/ma0t10_dt/MA0T10/UI       센서 모니터 widget 및 host actor
 Source/ma0t10_dt/MA0T10/Crane    크레인 예제 구현
 Plugins/DTCore                   공통 Core 플러그인 submodule
-Content/M7AT10                   map, widget, Blueprint asset
+Content/MA0T10                   map, widget, Blueprint asset
 docs                             payload schema, smoke test, adapter plan, widget setup
 Samples                          replay sample data
 Scripts                          smoke/status helper scripts
@@ -607,8 +607,8 @@ docs/remaining_work.md
 
 ## 알려진 제한
 
-- 기존 `/Game/M7AT10/Maps/TestMap`은 누락된 `WBP_VirtualSensorMonitor`를 Level Blueprint에서 참조합니다. 기본 smoke test와 신규 작업은 `SensorTestMap`을 사용합니다.
-- C++ module은 `ma0t10_dt`, 기존 Content package는 `/Game/M7AT10`을 사용합니다. Content까지 이름을 바꾸려면 파일시스템 이동이 아니라 Unreal Editor의 asset rename/fix redirectors/resave 절차가 필요합니다.
+- `/Game/MA0T10/UI/WBP_VirtualSensorMonitor`는 `UVirtualSensorMonitorWidget` 기반으로 생성되며 `SensorTestMap`의 MonitorHost에 직접 연결됩니다. 신규 smoke test는 `SensorTestMap`을 사용합니다.
+- C++ module은 `ma0t10_dt`, Content package는 `/Game/MA0T10`을 사용합니다. 과거 `/Game/M7AT10` asset은 Unreal Editor rename, redirector fixup, resave를 거쳐 이전했습니다.
 - Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현되지 않았습니다.
 - `ExportLastPointCloudLaz()`는 실제 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
 - FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.

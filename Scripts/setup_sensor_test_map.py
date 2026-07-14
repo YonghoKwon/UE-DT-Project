@@ -14,10 +14,12 @@ import re
 import unreal
 
 
-MAP_PATH = "/Game/M7AT10/Maps/SensorTestMap"
+CONTENT_ROOT = "/Game/MA0T10"
+MAP_PATH = CONTENT_ROOT + "/Maps/SensorTestMap"
 MANAGED_TAG = unreal.Name("SensorTestManaged")
 LEVEL_SUBSYSTEM = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 ACTOR_SUBSYSTEM = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+ASSET_TOOLS = unreal.AssetToolsHelpers.get_asset_tools()
 
 
 def _load_class(path):
@@ -84,6 +86,38 @@ def _remove_managed_actors():
             ACTOR_SUBSYSTEM.destroy_actor(actor)
 
 
+def _ensure_monitor_widget_class(content_root=CONTENT_ROOT):
+    monitor_widget_path = content_root + "/UI/WBP_VirtualSensorMonitor"
+    monitor_widget_class_path = (
+        monitor_widget_path + ".WBP_VirtualSensorMonitor_C"
+    )
+    if not unreal.EditorAssetLibrary.does_asset_exist(monitor_widget_path):
+        factory = unreal.WidgetBlueprintFactory()
+        _set_property(
+            factory,
+            "ParentClass",
+            _load_class("/Script/ma0t10_dt.VirtualSensorMonitorWidget"),
+        )
+        widget_blueprint = ASSET_TOOLS.create_asset(
+            "WBP_VirtualSensorMonitor",
+            content_root + "/UI",
+            unreal.WidgetBlueprint,
+            factory,
+        )
+        if not widget_blueprint:
+            raise RuntimeError(
+                "Unable to create {}".format(monitor_widget_path)
+            )
+        if not unreal.EditorAssetLibrary.save_loaded_asset(
+            widget_blueprint, only_if_is_dirty=False
+        ):
+            raise RuntimeError(
+                "Unable to save {}".format(monitor_widget_path)
+            )
+
+    return _load_class(monitor_widget_class_path)
+
+
 def _prepare_level():
     if unreal.EditorAssetLibrary.does_asset_exist(MAP_PATH):
         if not LEVEL_SUBSYSTEM.load_level(MAP_PATH):
@@ -94,7 +128,7 @@ def _prepare_level():
     _remove_managed_actors()
 
 
-def _build_sensor_rig():
+def _build_sensor_rig(monitor_widget_class):
     manager_class = _load_class("/Script/ma0t10_dt.VirtualSensorManager")
     lidar_actor_class = _load_class("/Script/ma0t10_dt.VirtualSensorAct")
     camera_actor_class = _load_class("/Script/ma0t10_dt.VirtualCameraAct")
@@ -143,7 +177,7 @@ def _build_sensor_rig():
         camera_actor_class,
         "SensorTest_Camera",
         unreal.Vector(0.0, -450.0, 300.0),
-        unreal.Rotator(-8.0, 22.0, 0.0),
+        unreal.Rotator(roll=0.0, pitch=-8.5, yaw=26.5),
     )
     camera = camera_actor.get_component_by_class(
         _load_class("/Script/ma0t10_dt.VirtualCameraComp")
@@ -157,7 +191,7 @@ def _build_sensor_rig():
         "SensorTest_MonitorHost",
         unreal.Vector(0.0, 0.0, 120.0),
     )
-    _set_property(host, "MonitorWidgetClass", None)
+    _set_property(host, "MonitorWidgetClass", monitor_widget_class)
     _set_property(host, "bUseNativeMonitorWidgetFallback", True)
     _set_property(host, "SensorManager", manager)
     _set_property(host, "bAutoCreateOnBeginPlay", True)
@@ -166,6 +200,8 @@ def _build_sensor_rig():
     _set_property(host, "bShowLidarViewOnStart", False)
     _set_property(host, "bEnablePointCloudOnlyOnStart", False)
     _set_property(host, "ViewportZOrder", 10)
+    _set_property(host, "bConfigurePlayerInputOnCreate", True)
+    _set_property(host, "bShowMouseCursorOnCreate", True)
 
 
 def _build_test_scene():
@@ -174,21 +210,42 @@ def _build_test_scene():
         unreal.Vector(600.0, 0.0, -60.0),
         unreal.Vector(14.0, 10.0, 1.0),
         "/Engine/BasicShapes/Cube.Cube",
-        ["KeepInPointCloudOnly"],
+        ["KeepInPointCloudOnly", "SensorTestTarget"],
     )
     _spawn_static_mesh(
-        "SensorTest_Slab",
-        unreal.Vector(1000.0, 0.0, 120.0),
-        unreal.Vector(6.0, 2.5, 0.35),
+        "SensorTest_TargetWall",
+        unreal.Vector(1100.0, 0.0, 240.0),
+        unreal.Vector(0.4, 6.0, 3.0),
         "/Engine/BasicShapes/Cube.Cube",
-        ["Slab"],
+        ["SensorTestTarget"],
+    )
+    _spawn_static_mesh(
+        "SensorTest_TargetCube",
+        unreal.Vector(700.0, -260.0, 80.0),
+        unreal.Vector(1.4, 1.4, 1.4),
+        "/Engine/BasicShapes/Cube.Cube",
+        ["SensorTestTarget"],
+    )
+    _spawn_static_mesh(
+        "SensorTest_TargetSphere",
+        unreal.Vector(850.0, 260.0, 120.0),
+        unreal.Vector(1.6, 1.6, 1.6),
+        "/Engine/BasicShapes/Sphere.Sphere",
+        ["SensorTestTarget"],
+    )
+    _spawn_static_mesh(
+        "SensorTest_TargetPillar",
+        unreal.Vector(500.0, 320.0, 160.0),
+        unreal.Vector(1.2, 1.2, 3.2),
+        "/Engine/BasicShapes/Cylinder.Cylinder",
+        ["SensorTestTarget"],
     )
 
     directional = _spawn(
         unreal.DirectionalLight,
         "SensorTest_DirectionalLight",
         unreal.Vector(0.0, 0.0, 800.0),
-        unreal.Rotator(-45.0, -35.0, 0.0),
+        unreal.Rotator(roll=0.0, pitch=-45.0, yaw=-35.0),
     )
     directional_component = directional.get_component_by_class(
         unreal.DirectionalLightComponent
@@ -207,13 +264,14 @@ def _build_test_scene():
         unreal.PlayerStart,
         "SensorTest_PlayerStart",
         unreal.Vector(-500.0, -700.0, 120.0),
-        unreal.Rotator(0.0, 35.0, 0.0),
+        unreal.Rotator(roll=0.0, pitch=0.0, yaw=35.0),
     )
 
 
 def main():
+    monitor_widget_class = _ensure_monitor_widget_class()
     _prepare_level()
-    _build_sensor_rig()
+    _build_sensor_rig(monitor_widget_class)
     _build_test_scene()
     if not LEVEL_SUBSYSTEM.save_current_level():
         raise RuntimeError("Unable to save {}".format(MAP_PATH))

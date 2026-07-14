@@ -2,10 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Styling/SlateBrush.h"
 #include "VirtualSensorMonitorWidget.generated.h"
 
 class AVirtualSensorManager;
 class FRHIGPUTextureReadback;
+class SImage;
 class STextBlock;
 class SWidget;
 class UButton;
@@ -468,4 +470,6 @@ private:
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
     TSharedPtr<STextBlock> NativeTitleTextBlock;
     TSharedPtr<STextBlock> NativeStatusTextBlock;
+    TSharedPtr<SImage> NativeViewImage;
+    FSlateBrush NativeViewBrush;
 };

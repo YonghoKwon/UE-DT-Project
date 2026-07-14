@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$MarkdownPath = "",
@@ -72,7 +72,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 
-$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $decisionReportScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 if (-not (Test-Path -LiteralPath $decisionReportScript -PathType Leaf)) {
     throw "export_monitor_wbp_decision_report.ps1 not found: $decisionReportScript"

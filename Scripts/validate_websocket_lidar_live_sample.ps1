@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -83,7 +83,7 @@ Assert-Condition -Condition ($handlerCppText.Contains("LIDAR_JSON_LIVE_FRAME")) 
 Assert-Condition -Condition ($handlerCppText.Contains("SOURCE_ID is required")) -Message "Handler does not guard ambiguous SOURCE_ID routing"
 Assert-Condition -Condition ($handlerCppText.Contains("TrimStartAndEndInline")) -Message "Handler does not trim JSON_LINES payloads"
 Assert-Condition -Condition ($handlerHeaderText.Contains("ULidarJsonLiveFrameTC")) -Message "Handler header is missing ULidarJsonLiveFrameTC"
-Assert-Condition -Condition ($defaultGameIniText.Contains("WebSocketDataTable=/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")) -Message "Config/DefaultGame.ini does not point DTCore at the project WebSocket transaction data table"
+Assert-Condition -Condition ($defaultGameIniText.Contains("WebSocketDataTable=/Game/MA0T10/Common/DataTables/DT_TransactionCode.DT_TransactionCode")) -Message "Config/DefaultGame.ini does not point DTCore at the project WebSocket transaction data table"
 Assert-Condition -Condition ($planDocText.Contains("Samples/websocket/lidar_json_live_frame_sample.json")) -Message "Adapter plan does not reference the WebSocket sample"
 Assert-Condition -Condition ($smokeDocText.Contains("validate_websocket_lidar_live_sample.ps1")) -Message "Smoke test doc does not reference the WebSocket sample validator"
 

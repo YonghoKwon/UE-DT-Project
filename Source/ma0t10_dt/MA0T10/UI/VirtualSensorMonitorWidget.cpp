@@ -4,6 +4,7 @@
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Blueprint/WidgetTree.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "HAL/FileManager.h"
@@ -17,7 +18,10 @@
 #include "RenderingThread.h"
 #include "TextureResource.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -479,21 +483,60 @@ TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
         return Super::RebuildWidget();
     }
 
-    return SNew(SBorder)
-        .Padding(12.0f)
+    return SNew(SOverlay)
+        + SOverlay::Slot()
+        .HAlign(HAlign_Left)
+        .VAlign(VAlign_Top)
+        .Padding(8.0f)
         [
-            SNew(SVerticalBox)
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(0.0f, 0.0f, 0.0f, 8.0f)
+            SNew(SBorder)
+            .Padding(10.0f)
             [
-                SAssignNew(NativeTitleTextBlock, STextBlock)
-                .Text(FText::FromString(BuildTitleText()))
-            ]
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(0.0f, 0.0f, 0.0f, 8.0f)
-            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+                [
+                    SAssignNew(NativeTitleTextBlock, STextBlock)
+                    .Text(FText::FromString(BuildTitleText()))
+                ]
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(0.0f, 0.0f, 0.0f, 6.0f)
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot()
+                    .AutoWidth()
+                    .Padding(0.0f, 0.0f, 8.0f, 0.0f)
+                    [
+                        SNew(SBox)
+                        .WidthOverride(480.0f)
+                        .HeightOverride(270.0f)
+                        [
+                            SAssignNew(NativeViewImage, SImage)
+                            .Image(&NativeViewBrush)
+                        ]
+                    ]
+                    + SHorizontalBox::Slot()
+                    .AutoWidth()
+                    [
+                        SNew(SBox)
+                        .WidthOverride(300.0f)
+                        .HeightOverride(270.0f)
+                        [
+                            SNew(SScrollBox)
+                            + SScrollBox::Slot()
+                            [
+                                SAssignNew(NativeStatusTextBlock, STextBlock)
+                                .AutoWrapText(true)
+                                .Text(FText::FromString(BuildStatusText()))
+                            ]
+                        ]
+                    ]
+                ]
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                [
                 SNew(SWrapBox)
                 .UseAllottedSize(true)
                 + SWrapBox::Slot()
@@ -653,17 +696,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorWidget::RebuildWidget()
                     })
                 ]
             ]
-            + SVerticalBox::Slot()
-            .FillHeight(1.0f)
-            [
-                SNew(SScrollBox)
-                + SScrollBox::Slot()
-                [
-                    SAssignNew(NativeStatusTextBlock, STextBlock)
-                    .AutoWrapText(true)
-                    .Text(FText::FromString(BuildStatusText()))
-                ]
-            ]
+        ]
         ];
 }
 
@@ -1290,11 +1323,6 @@ void UVirtualSensorMonitorWidget::HandleExportPointCloudButtonClicked()
 
 void UVirtualSensorMonitorWidget::RefreshImageBrush()
 {
-    if (!ViewImage)
-    {
-        return;
-    }
-
     UObject* Resource = nullptr;
     if (bShowingLidar)
     {
@@ -1314,10 +1342,20 @@ void UVirtualSensorMonitorWidget::RefreshImageBrush()
         return;
     }
 
-    FSlateBrush Brush;
-    Brush.SetResourceObject(Resource);
-    Brush.ImageSize = FVector2D(640.0f, 360.0f);
-    ViewImage->SetBrush(Brush);
+    if (ViewImage)
+    {
+        FSlateBrush Brush;
+        Brush.SetResourceObject(Resource);
+        Brush.ImageSize = FVector2D(640.0f, 360.0f);
+        ViewImage->SetBrush(Brush);
+    }
+
+    if (NativeViewImage)
+    {
+        NativeViewBrush.SetResourceObject(Resource);
+        NativeViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
+        NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);
+    }
 }
 
 void UVirtualSensorMonitorWidget::RefreshTitle()
@@ -1455,7 +1493,8 @@ FString UVirtualSensorMonitorWidget::BuildStatusText() const
 
 bool UVirtualSensorMonitorWidget::ShouldUseNativeFallbackWidget() const
 {
-    return GetClass() == UVirtualSensorMonitorWidget::StaticClass();
+    return GetClass() == UVirtualSensorMonitorWidget::StaticClass() ||
+        !WidgetTree || !WidgetTree->RootWidget;
 }
 
 void UVirtualSensorMonitorWidget::RefreshLocalCaptureButtonText()

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$EditorReviewPath = "",
@@ -64,7 +64,7 @@ if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
     $EvidencePath = Join-Path $ProjectRoot "Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"
 }
 
-$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 if (-not (Test-Path -LiteralPath $wbpPath -PathType Leaf)) {
     throw "Monitor WBP asset not found: $wbpPath"

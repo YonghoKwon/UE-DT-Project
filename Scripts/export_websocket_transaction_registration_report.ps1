@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [string]$OutputRoot = "",
     [switch]$NoWrite,
@@ -129,7 +129,7 @@ if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 $sampleReport = $sampleReportJson | ConvertFrom-Json
 
 $configuredTablePath = Get-IniValue -Path $defaultGameIni -Key "WebSocketDataTable"
-$expectedTablePath = "/Game/M7AT10/Common/DataTables/DT_TransactionCode.DT_TransactionCode"
+$expectedTablePath = "/Game/MA0T10/Common/DataTables/DT_TransactionCode.DT_TransactionCode"
 $transactionCodeName = "LIDAR_JSON_LIVE_FRAME"
 $messageClass = "/Script/ma0t10_dt.LidarJsonLiveFrameTC"
 $runtimeHandlerClass = "ULidarJsonLiveFrameTC"
@@ -170,7 +170,7 @@ $report = [PSCustomObject]@{
         PushFrame = $sampleReport.PushFrame
     }
     ManualSmokeSteps = @(
-        [PSCustomObject]@{ Order = 1; Text = "Open `/Game/M7AT10/Common/DataTables/DT_TransactionCode` in Unreal Editor." },
+        [PSCustomObject]@{ Order = 1; Text = "Open `/Game/MA0T10/Common/DataTables/DT_TransactionCode` in Unreal Editor." },
         [PSCustomObject]@{ Order = 2; Text = "Add or confirm a row named `LIDAR_JSON_LIVE_FRAME`." },
         [PSCustomObject]@{ Order = 3; Text = "Set `TransactionCodeName` to `LIDAR_JSON_LIVE_FRAME` and `TransactionCodeMessageClass` to `/Script/ma0t10_dt.LidarJsonLiveFrameTC`." },
         [PSCustomObject]@{ Order = 4; Text = "Place a `ULidarJsonLiveSourceComp` with `SourceId = JsonLiveLidarBridge` and a target `UVirtualLidarSensorComp`." },
