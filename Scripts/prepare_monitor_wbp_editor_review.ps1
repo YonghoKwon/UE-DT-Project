@@ -69,7 +69,7 @@ if ([string]::IsNullOrWhiteSpace($BackupRoot)) {
 New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
 $BackupRoot = (Resolve-Path -LiteralPath $BackupRoot).Path
 
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $acceptancePackageScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"

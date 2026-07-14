@@ -4,7 +4,8 @@ This checklist verifies the current virtual camera, virtual LiDAR, point-cloud-o
 
 ## Map Setup
 
-Use `BasicMap`, `TestMap`, or a small dedicated validation map.
+Use the repository-owned `SensorTestMap`. `BasicMap` remains a load-compatibility
+fixture; the legacy `TestMap` still references the not-yet-committed production WBP.
 
 Required actors/components:
 
@@ -12,7 +13,8 @@ Required actors/components:
 AVirtualSensorManager
 AVirtualSensorAct
 AVirtualCameraAct
-WBP_VirtualSensorMonitor
+AVirtualSensorMonitorHostActor
+an actor tagged Slab
 ```
 
 Recommended manager settings:
@@ -121,8 +123,8 @@ Map asset and sensor composition smoke tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.EditorSmoke; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `TestMap` can load in headless editor automation.
-`MA0T10.EditorSmoke.MapSensorComposition` verifies the validation map set includes at least one `AVirtualSensorManager`, `AVirtualSensorAct`, and `AVirtualCameraAct`.
+`MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `SensorTestMap` can load in headless editor automation.
+`MA0T10.EditorSmoke.MapSensorComposition` verifies `SensorTestMap` includes at least one `AVirtualSensorManager`, `AVirtualSensorAct`, `AVirtualCameraAct`, `AVirtualSensorMonitorHostActor`, and an actor tagged `Slab`.
 
 Real sensor source base tests:
 
@@ -139,7 +141,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_websocket_transaction
 ```
 
 The registration report is a static checklist for
-`/Game/MA0T10/Common/DataTables/DT_TransactionCode`. It expects a row named
+`/Game/M7AT10/Common/DataTables/DT_TransactionCode`. It expects a row named
 `LIDAR_JSON_LIVE_FRAME` with `TransactionCodeMessageClass` set to
 `/Script/ma0t10_dt.LidarJsonLiveFrameTC`. It intentionally does not mutate the
 binary `.uasset`; use it as the pre-editor evidence, then verify the row in

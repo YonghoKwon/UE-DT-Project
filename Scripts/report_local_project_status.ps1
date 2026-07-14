@@ -707,7 +707,7 @@ try {
 
     $pathsToCheck = @(
         [PSCustomObject]@{
-            Path = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+            Path = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
             Category = "ReviewCandidate"
             Recommendation = "Open in editor and commit only if this is the intended production monitor WBP."
             DecisionOwner = "ProjectOwnerRequired"

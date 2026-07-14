@@ -6,6 +6,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraAct.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorAct.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorHostActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditorMapAssetsLoadTest, "MA0T10.EditorSmoke.MapAssetsLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditorMapSensorCompositionTest, "MA0T10.EditorSmoke.MapSensorComposition", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -17,6 +18,8 @@ struct FEditorSmokeMapSummary
     int32 ManagerCount = 0;
     int32 LidarActorCount = 0;
     int32 CameraActorCount = 0;
+    int32 MonitorHostCount = 0;
+    int32 SlabActorCount = 0;
 };
 
 UWorld* LoadSmokeMap(FAutomationTestBase& Test, const TCHAR* MapObjectPath)
@@ -67,6 +70,14 @@ void AddMapComposition(UWorld* LoadedWorld, FEditorSmokeMapSummary& Summary)
         {
             ++Summary.CameraActorCount;
         }
+        if (Actor->IsA<AVirtualSensorMonitorHostActor>())
+        {
+            ++Summary.MonitorHostCount;
+        }
+        if (Actor->ActorHasTag(TEXT("Slab")))
+        {
+            ++Summary.SlabActorCount;
+        }
     }
 }
 }
@@ -74,21 +85,26 @@ void AddMapComposition(UWorld* LoadedWorld, FEditorSmokeMapSummary& Summary)
 bool FEditorMapAssetsLoadTest::RunTest(const FString& Parameters)
 {
     bool bAllLoaded = true;
-    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/BasicMap.BasicMap"));
-    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/TestMap.TestMap"));
+    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/M7AT10/Maps/BasicMap.BasicMap"));
+    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/M7AT10/Maps/SensorTestMap.SensorTestMap"));
     return bAllLoaded;
 }
 
 bool FEditorMapSensorCompositionTest::RunTest(const FString& Parameters)
 {
     FEditorSmokeMapSummary Summary;
-    AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/BasicMap.BasicMap")), Summary);
-    AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/TestMap.TestMap")), Summary);
+    AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/M7AT10/Maps/SensorTestMap.SensorTestMap")), Summary);
 
-    TestTrue(TEXT("validation maps include at least one AVirtualSensorManager"), Summary.ManagerCount > 0);
-    TestTrue(TEXT("validation maps include at least one AVirtualSensorAct"), Summary.LidarActorCount > 0);
-    TestTrue(TEXT("validation maps include at least one AVirtualCameraAct"), Summary.CameraActorCount > 0);
-    return Summary.ManagerCount > 0 && Summary.LidarActorCount > 0 && Summary.CameraActorCount > 0;
+    TestTrue(TEXT("SensorTestMap includes an AVirtualSensorManager"), Summary.ManagerCount > 0);
+    TestTrue(TEXT("SensorTestMap includes an AVirtualSensorAct"), Summary.LidarActorCount > 0);
+    TestTrue(TEXT("SensorTestMap includes an AVirtualCameraAct"), Summary.CameraActorCount > 0);
+    TestTrue(TEXT("SensorTestMap includes an AVirtualSensorMonitorHostActor"), Summary.MonitorHostCount > 0);
+    TestTrue(TEXT("SensorTestMap includes an actor tagged Slab"), Summary.SlabActorCount > 0);
+    return Summary.ManagerCount > 0 &&
+        Summary.LidarActorCount > 0 &&
+        Summary.CameraActorCount > 0 &&
+        Summary.MonitorHostCount > 0 &&
+        Summary.SlabActorCount > 0;
 }
 
 #endif

@@ -1,26 +1,23 @@
-﻿# UE-DT-Project
+# UE-DT-Project
 
-## CSV Preview Safety
+Unreal Engine 5.3 기반 Digital Twin 프로젝트입니다. 철강 제조 환경을 대상으로 가상 센서와 가상 카메라를 배치하고, 시뮬레이션 또는 실제 센서 입력을 Unreal 환경에 재현한 뒤 판단 서버로 측정 데이터를 전달하는 것을 목표로 합니다.
 
-`ACsvPointCloudPreviewActor` can auto-promote a large preview requested as
-`InstancedMesh` to the procedural preview path when
-`bAutoPromoteLargeInstancedPreviewToProcedural` is enabled. Telemetry records
-both requested and effective render modes, plus whether auto-promotion happened.
+현재 중심 기능은 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, sensor monitor widget/host actor, 로컬 smoke test 및 asset 상태 점검 스크립트입니다. Livox, RealSense, ROS2 직접 입력은 placeholder component까지 준비되어 있고 실제 SDK/bridge 연결은 후속 작업입니다.
 
-## Point Cloud Renderer Evidence Boundary
+## 빠른 시작
 
-`export_point_cloud_renderer_acceptance_package.ps1` can write a CSV preview
-performance report shell even when Unreal automation log evidence is missing.
-Treat CSV preview performance as accepted only when
-`CsvPreviewPerformanceAutomationEvidencePresent`,
-`CsvPreviewPerformanceReportValid`, and `ReadyToClaimCsvPreviewPerformance` are
-all true.
+```powershell
+git submodule update --init --recursive
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development ".\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
+```
 
-Unreal Engine 5.3 湲곕컲 Digital Twin ?꾨줈?앺듃?낅땲?? 泥좉컯 ?쒖“ ?섍꼍????곸쑝濡?媛???쇱꽌? 媛??移대찓?쇰? 諛곗튂?섍퀬, ?쒕??덉씠???먮뒗 ?ㅼ젣 ?쇱꽌 ?낅젰??Unreal ?섍꼍???ы쁽?????먮떒 ?쒕쾭濡?痢≪젙 ?곗씠?곕? ?꾨떖?섎뒗 寃껋쓣 紐⑺몴濡??⑸땲??
+기본 실행 맵은 `/Game/M7AT10/Maps/SensorTestMap`입니다. 이 맵에는 가상 LiDAR, 가상 카메라, 센서 매니저, Slab target과 네이티브 monitor fallback이 배치되어 있습니다.
 
-?꾩옱 釉뚮옖移섏쓽 以묒떖 湲곕뒫? 媛??LiDAR/移대찓?? point-cloud-only view, Slab 媛곷룄 遺꾩꽍 v1, CSV/JSONL replay source, sensor monitor widget/host actor, 濡쒖뺄 smoke test 諛?asset ?곹깭 ?먭? ?ㅽ겕由쏀듃?낅땲?? Livox, RealSense, ROS2 吏곸젒 ?낅젰? placeholder component源뚯? 以鍮꾨릺???덇퀬 ?ㅼ젣 SDK/bridge ?곌껐? ?꾩냽 ?묒뾽?낅땲??
+Widget Blueprint의 정확한 이름, `Is Variable`, 자동 버튼 binding, Level Blueprint 연결과 기능별 테스트 순서는 [가상 센서 테스트 맵과 Widget Blueprint 설정](docs/sensor_test_map_setup.ko.md)을 참고합니다.
 
-## HTTP Transport Backpressure
+## 안전 정책
+
+### HTTP Transport Backpressure
 
 `UVirtualSensorDataTransportComp` caps concurrent HTTP POST requests with
 `MaxInFlightHttpRequests`. Frames above the cap are rejected locally with
@@ -33,22 +30,38 @@ retried.
 `RetryExhaustedRequestCount` identifies retry-eligible failures that consumed
 their configured retry budget.
 
-## 紐⑺몴 湲곕뒫
+### CSV Preview Safety
 
-1. ?쒕??덉씠???곗씠?곕? Unreal???ы쁽?섍퀬 媛??移대찓??LiDAR 痢≪젙媛믪쓣 ?먮떒 ?쒕쾭濡??꾩넚?⑸땲??
-2. ?ㅼ젣 ?쇱꽌/移대찓???곗씠?곕? 諛쏆븘 Unreal ?섍꼍???ы쁽?⑸땲??
-3. 泥좉컯 怨듭젙??Slab 媛곷룄 ??댁쭚??LiDAR point cloud 湲곕컲?쇰줈 遺꾩꽍?⑸땲??
-4. ?먮떒 ?쒕쾭???먮낯/怨좊????곗씠?곗? ?먮뵒??UI??媛꾨왂 preview ?곗씠?곕? 遺꾨━?⑸땲??
+`ACsvPointCloudPreviewActor` can auto-promote a large preview requested as
+`InstancedMesh` to the procedural preview path when
+`bAutoPromoteLargeInstancedPreviewToProcedural` is enabled. Telemetry records
+both requested and effective render modes, plus whether auto-promotion happened.
 
-## ??μ냼 援ъ꽦
+### Point Cloud Renderer Evidence Boundary
+
+`export_point_cloud_renderer_acceptance_package.ps1` can write a CSV preview
+performance report shell even when Unreal automation log evidence is missing.
+Treat CSV preview performance as accepted only when
+`CsvPreviewPerformanceAutomationEvidencePresent`,
+`CsvPreviewPerformanceReportValid`, and `ReadyToClaimCsvPreviewPerformance` are
+all true.
+
+## 목표 기능
+
+1. 시뮬레이션 데이터를 Unreal에 재현하고 가상 카메라/LiDAR 측정값을 판단 서버로 전송합니다.
+2. 실제 센서/카메라 데이터를 받아 Unreal 환경에 재현합니다.
+3. 철강 공정의 Slab 각도 틀어짐을 LiDAR point cloud 기반으로 분석합니다.
+4. 판단 서버용 원본/고밀도 데이터와 에디터 UI용 간략 preview 데이터를 분리합니다.
+
+## 저장소 구성
 
 ```text
-Source/ma0t10_dt/MA0T10/Camera   媛??移대찓??component/actor
-Source/ma0t10_dt/MA0T10/Sensor   媛??LiDAR, ?쇱꽌 留ㅻ땲?, replay source, transport/recorder
-Source/ma0t10_dt/MA0T10/UI       ?쇱꽌 紐⑤땲??widget 諛?host actor
-Source/ma0t10_dt/MA0T10/Crane    ?щ젅???덉젣 援ы쁽
-Plugins/DTCore                   怨듯넻 Core ?뚮윭洹몄씤 submodule
-Content/MA0T10                   map, widget, Blueprint asset
+Source/ma0t10_dt/MA0T10/Camera   가상 카메라 component/actor
+Source/ma0t10_dt/MA0T10/Sensor   가상 LiDAR, 센서 매니저, replay source, transport/recorder
+Source/ma0t10_dt/MA0T10/UI       센서 모니터 widget 및 host actor
+Source/ma0t10_dt/MA0T10/Crane    크레인 예제 구현
+Plugins/DTCore                   공통 Core 플러그인 submodule
+Content/M7AT10                   map, widget, Blueprint asset
 docs                             payload schema, smoke test, adapter plan, widget setup
 Samples                          replay sample data
 Scripts                          smoke/status helper scripts
@@ -56,52 +69,52 @@ Scripts                          smoke/status helper scripts
 
 ## DTCore Submodule
 
-泥섏쓬 諛쏆? ?ㅼ뿉??諛섎뱶??submodule??珥덇린?뷀빀?덈떎.
+처음 받은 뒤에는 반드시 submodule을 초기화합니다.
 
 ```powershell
 git submodule update --init --recursive
 git submodule status
 ```
 
-湲곗? commit:
+기준 commit:
 
 ```text
 2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7 Plugins/DTCore
 ```
 
-?대쾲 ?묒뾽 踰붿쐞?먯꽌??DTCore ?대? ?뚯뒪瑜?吏곸젒 ?섏젙?섏? ?딆뒿?덈떎. ?꾩옱 DTCore 履쎌뿉??`EnhancedInput` dependency 寃쎄퀬媛 蹂댁씪 ???덉?留? DTCore ?섏젙 ?덉슜 ?꾧퉴吏 DT-Project 履쎌뿉?쒕뒗 ?고쉶?섏? ?딆뒿?덈떎.
+이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore 쪽에서 `EnhancedInput` dependency 경고가 보일 수 있지만, DTCore 수정 허용 전까지 DT-Project 쪽에서는 우회하지 않습니다.
 
-而ㅻ컠 ??DTCore submodule guard:
+커밋 전 DTCore submodule guard:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1" -Json
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1" -FailOnViolation
 ```
 
-??寃?щ뒗 read-only?낅땲?? `Plugins/DTCore`瑜??섏젙?섍굅??stage?섏? ?딄퀬,
-湲곕? 而ㅻ컠 `2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7` 諛?parent/submodule
-worktree 泥?껐 ?곹깭留??뺤씤?⑸땲??
+이 검사는 read-only입니다. `Plugins/DTCore`를 수정하거나 stage하지 않고,
+기대 커밋 `2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7` 및 parent/submodule
+worktree 청결 상태만 확인합니다.
 DTCore is an external submodule pinned to that commit; this repository must not
 stage gitlink changes or files under `Plugins/DTCore` during local decision
 cleanup.
 
-## 鍮뚮뱶
+## 빌드
 
 ```powershell
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development "C:\path\to\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
-濡쒖뺄 ?ㅽ뻾 ?꾨줈?앺듃 ?덉떆:
+로컬 실행 프로젝트 예시:
 
 ```powershell
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development "C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
-## LiDAR ?곗씠???뺤콉
+## LiDAR 데이터 정책
 
-`UVirtualLidarSensorComp`????踰덉쓽 scan ?먮뒗 replay frame?먯꽌 ?앹꽦???꾩껜 痢≪젙媛믪쓣 `LastPoints`???좎??⑸땲??
+`UVirtualLidarSensorComp`는 한 번의 scan 또는 replay frame에서 생성된 전체 측정값을 `LastPoints`에 유지합니다.
 
-?먮떒 ?쒕쾭 payload ?뺤콉:
+판단 서버 payload 정책:
 
 - `ServerPayloadStride`
 - `MaxServerPayloadPoints`
@@ -111,56 +124,56 @@ cleanup.
 - JSON `payloadPolicy.pointSelection = hit_only | hit_and_miss`
 - JSON `slabAnalysis`
 
-Editor/UI preview ?뺤콉:
+Editor/UI preview 정책:
 
 - `PreviewPointStride`
 - `MaxPreviewPoints`
 - `bPointCloudPreviewHitOnly`
 - JSON `previewPolicy`
 
-湲곕낯 諛⑺뼢? ?쒕쾭?먮뒗 ?먮낯??媛源뚯슫 hit point瑜?蹂대궡怨? Unreal Editor ?붾㈃?먮뒗 ?쒗븳??point留??쒖떆?섎뒗 寃껋엯?덈떎. 湲곗〈 `PayloadPointStride`, `MaxPayloadPoints`, `PointCloudPreviewStride`, `MaxPointCloudPreviewInstances`??Blueprint ?명솚???꾪빐 ?⑥븘 ?덉?留????뺤콉 ?꾨뱶瑜??곗꽑 ?ъ슜?⑸땲??
+기본 방향은 서버에는 원본에 가까운 hit point를 보내고, Unreal Editor 화면에는 제한된 point만 표시하는 것입니다. 기존 `PayloadPointStride`, `MaxPayloadPoints`, `PointCloudPreviewStride`, `MaxPointCloudPreviewInstances`는 Blueprint 호환을 위해 남아 있지만 새 정책 필드를 우선 사용합니다.
 
-`MaxServerPayloadPoints = 0`? ?쒕쾭 payload ?곹븳???녿떎???섎??대ŉ,
-?고???performance warning??uncapped ?곹깭媛 ?쒖떆?⑸땲??
+`MaxServerPayloadPoints = 0`은 서버 payload 상한이 없다는 의미이며,
+런타임 performance warning에 uncapped 상태가 표시됩니다.
 
-## Camera ?곗씠???뺤콉
+## Camera 데이터 정책
 
-`UVirtualCameraComp`??SceneCapture 湲곕컲 image payload? monitor ?곹깭 ?쒖떆瑜??쒓났?⑸땲??
+`UVirtualCameraComp`는 SceneCapture 기반 image payload와 monitor 상태 표시를 제공합니다.
 
 - JSON `schemaVersion = virtual-camera.v1`
 - resolution, capture mode, JPEG quality, capture interval
 - cached payload byte size
 - render target preview
-- file transport/export ?곕룞
+- file transport/export 연동
 
-Monitor??`ExportSelectedSensorServerPayload`???꾩옱 view???곕씪 LiDAR ?먮뒗 camera payload瑜?`Saved/SensorCaptures/<SensorId>/ServerPayload` ?꾨옒濡???ν빀?덈떎.
+Monitor의 `ExportSelectedSensorServerPayload`는 현재 view에 따라 LiDAR 또는 camera payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래로 저장합니다.
 
 ## File Replay Source
 
-`ULidarCsvReplaySourceComp`? `ULidarJsonLinesReplaySourceComp`????λ맂 point cloud瑜?`UVirtualLidarSensorComp::InjectPointCloudFrame`?쇰줈 二쇱엯?⑸땲?? ??寃쎈줈瑜??硫?replay ?곗씠?곕룄 LiDAR JSON payload, recorder, transport, preview, Slab 遺꾩꽍 ?먮쫫???숈씪?섍쾶 ?듦낵?⑸땲??
+`ULidarCsvReplaySourceComp`와 `ULidarJsonLinesReplaySourceComp`는 저장된 point cloud를 `UVirtualLidarSensorComp::InjectPointCloudFrame`으로 주입합니다. 이 경로를 타면 replay 데이터도 LiDAR JSON payload, recorder, transport, preview, Slab 분석 흐름을 동일하게 통과합니다.
 
-吏??CSV ?뺤떇:
+지원 CSV 형식:
 
 ```text
 row,col,x,y,z
 x,y,z
 ```
 
-吏??JSONL ?뺤떇:
+지원 JSONL 형식:
 
 ```text
 {"x":900,"y":-260,"z":0,"distance":936.8,"hit":true,"semanticLabel":"Slab"}
 {"worldLocation":[900,-260,0],"localDirection":[1,0,0],"hit":true,"semanticLabel":"Slab"}
 ```
 
-?섑뵆 ?뚯씪:
+샘플 파일:
 
 ```text
 Samples/slab_replay_sample.csv
 Samples/slab_replay_sample.jsonl
 ```
 
-Editor Details ?⑤꼸 踰꾪듉:
+Editor Details 패널 버튼:
 
 ```text
 PushFrameOnceInEditor
@@ -169,9 +182,9 @@ StartReplayInEditor
 StopReplayInEditor
 ```
 
-## ?ㅼ젣 ?쇱꽌 Source Placeholder
+## 실제 센서 Source Placeholder
 
-?꾩옱 以鍮꾨맂 placeholder component:
+현재 준비된 placeholder component:
 
 ```text
 URos2SensorBridgeSourceComp
@@ -179,26 +192,26 @@ ULivoxLidarSourceComp
 URealSenseCameraSourceComp
 ```
 
-?꾩쭅 SDK/bridge ?곌껐? ?섑뻾?섏? ?딄퀬 not-implemented ?곹깭 硫붿떆吏瑜??쒓났?⑸땲?? ?꾩냽 援ы쁽?먯꽌??媛?ν븳 ??`InjectPointCloudFrame` 媛숈? normalized frame 二쇱엯 寃쎈줈瑜?怨듭쑀?댁빞 ?⑸땲??
+아직 SDK/bridge 연결은 수행하지 않고 not-implemented 상태 메시지를 제공합니다. 후속 구현에서도 가능한 한 `InjectPointCloudFrame` 같은 normalized frame 주입 경로를 공유해야 합니다.
 
-## Slab 媛곷룄 遺꾩꽍 Workflow
+## Slab 각도 분석 Workflow
 
-1. Slab actor ?먮뒗 component ?대쫫/tag瑜?`Slab`, `SteelSlab`, `Plate` 以??섎굹? 留ㅼ묶?섍쾶 ?ㅼ젙?⑸땲??
-2. `UVirtualLidarSensorComp`?먯꽌 `SlabSemanticLabel = Slab`???좎??⑸땲??
-3. ?뺤긽 湲곗? 諛⑺뼢??留욎떠 `ReferenceSlabYawDegrees`瑜??ㅼ젙?⑸땲??
-4. LiDAR scan/replay ??`FVirtualLidarSlabAnalysisResult` ?먮뒗 JSON `slabAnalysis`瑜??뺤씤?⑸땲??
+1. Slab actor 또는 component 이름/tag를 `Slab`, `SteelSlab`, `Plate` 중 하나와 매칭되게 설정합니다.
+2. `UVirtualLidarSensorComp`에서 `SlabSemanticLabel = Slab`을 유지합니다.
+3. 정상 기준 방향에 맞춰 `ReferenceSlabYawDegrees`를 설정합니다.
+4. LiDAR scan/replay 후 `FVirtualLidarSlabAnalysisResult` 또는 JSON `slabAnalysis`를 확인합니다.
 
-遺꾩꽍 寃곌낵?먮뒗 slab hit point count, bounds, center, estimated yaw, reference yaw, angle deviation, confidence, status message媛 ?ы븿?⑸땲??
+분석 결과에는 slab hit point count, bounds, center, estimated yaw, reference yaw, angle deviation, confidence, status message가 포함됩니다.
 
-## Widget 議곗옉
+## Widget 조작
 
-沅뚯옣 Widget parent class:
+권장 Widget parent class:
 
 ```text
 UVirtualSensorMonitorWidget
 ```
 
-沅뚯옣 optional binding ?대쫫:
+권장 optional binding 이름:
 
 ```text
 ViewImage
@@ -274,58 +287,58 @@ TogglePointCloudOnlyView
 SetPointCloudOnlyMode
 ```
 
-Level Blueprint ?놁씠 monitor瑜??먮룞 ?앹꽦?섎젮硫?map??`AVirtualSensorMonitorHostActor`瑜?諛곗튂?섍퀬 `MonitorWidgetClass = WBP_VirtualSensorMonitor`瑜?吏?뺥빀?덈떎.
+Level Blueprint 없이 monitor를 자동 생성하려면 map에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
 
-`MonitorWidgetClass`媛 鍮꾩뼱 ?덇퀬 `bUseNativeMonitorWidgetFallback`??true?대㈃ HostActor媛 native `UVirtualSensorMonitorWidget`瑜??앹꽦?⑸땲?? ??fallback? smoke test? 湲곕낯 議곗옉 ?뺤씤?⑹씠硫? ?댁쁺 UI??Designer?먯꽌 留뚮뱺 `WBP_VirtualSensorMonitor` ?ъ슜??沅뚯옣?⑸땲??
+`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 smoke test와 기본 조작 확인용이며, 운영 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor` 사용을 권장합니다.
 
-## ?먮룞???뚯뒪??
+## 자동화 테스트
 
-Payload fixture 寃利?
+Payload fixture 검증:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
 ```
 
-Payload mock contract 寃利?
+Payload mock contract 검증:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1" -Json
 ```
 
-濡쒖뺄 readiness gate:
+로컬 readiness gate:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
 ```
 
-?대? 鍮뚮뱶???곹깭?먯꽌 鍮좊Ⅴ寃??뺤씤:
+이미 빌드된 상태에서 빠르게 확인:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
 ```
 
-asset report留??뺤씤?섍퀬 smoke test???앸왂:
+asset report만 확인하고 smoke test는 생략:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
 powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -SkipPayloadContract
 ```
 
-?꾩껜 濡쒖뺄 smoke gate:
+전체 로컬 smoke gate:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1"
 ```
 
-?대? 鍮뚮뱶??寃쎌슦:
+이미 빌드된 경우:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
 ```
 
-沅뚯옣 smoke ?ㅼ젙:
+권장 smoke 설정:
 
 ```text
 AVirtualSensorManager.bDiscoverOnBeginPlay = true
@@ -338,19 +351,19 @@ LiDAR ExportOnScan = false
 LiDAR bDrawDebugRays = false
 ```
 
-?깅뒫 臾몄젣媛 ?덉쑝硫??ㅼ쓬 ?쒖꽌濡?議곗젙?⑸땲??
+성능 문제가 있으면 다음 순서로 조정합니다.
 
 ```text
 1. LiDAR SimulationQuality = Debug
-2. PreviewPointStride 利앷?
-3. MaxPreviewPoints 媛먯냼
+2. PreviewPointStride 증가
+3. MaxPreviewPoints 감소
 4. Camera CaptureMode = PreviewOnly
-5. MultiHit / ExportOnScan / FullSpec 鍮꾪솢?깊솕
+5. MultiHit / ExportOnScan / FullSpec 비활성화
 ```
 
-## 濡쒖뺄 Asset ?곹깭 ?먭?
+## 로컬 Asset 상태 점검
 
-而ㅻ컠 ??吏꾪뻾瑜??⑥? ?묒뾽/而ㅻ컠 ?덉젙 ?뚯씪 ?붿빟:
+커밋 전 진행률/남은 작업/커밋 예정 파일 요약:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
@@ -557,19 +570,19 @@ size, and warning fields. These fields describe the most recent export attempt
 only; readable `.laz` acceptance still requires a produced file, known-reader
 validation, and owner acceptance.
 
-濡쒖뺄 ?꾨줈?앺듃 ?곹깭? untracked asset decision point ?뺤씤:
+로컬 프로젝트 상태와 untracked asset decision point 확인:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
 ```
 
-援ъ“?붾맂 寃곌낵:
+구조화된 결과:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
 ```
 
-Gate ?덉떆:
+Gate 예시:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
@@ -577,13 +590,14 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnUnclassifiedUntracked
 ```
 
-`Windows/`, `Windows.zip`, `launcher.config.json`? `.gitignore`???깅줉?섏뼱 git status?먯꽌???④꺼吏????덉?留? ???ㅽ겕由쏀듃???뚯씪 ?쒖뒪?쒖쓣 吏곸젒 ?뺤씤??議댁옱 ?щ?瑜?怨꾩냽 蹂닿퀬?⑸땲??
+`Windows/`, `Windows.zip`, `launcher.config.json`은 `.gitignore`에 등록되어 git status에서는 숨겨질 수 있지만, 이 스크립트는 파일 시스템을 직접 확인해 존재 여부를 계속 보고합니다.
 
-## 愿??臾몄꽌
+## 관련 문서
 
 ```text
 docs/lidar_payload_schema.md
 docs/camera_payload_schema.md
+docs/sensor_test_map_setup.ko.md
 docs/widget_designer_setup.md
 docs/editor_smoke_test.md
 docs/real_sensor_adapter_plan.md
@@ -591,18 +605,20 @@ docs/local_asset_report.md
 docs/remaining_work.md
 ```
 
-## ?뚮젮吏??쒗븳
+## 알려진 제한
 
-- Livox SDK, RealSense SDK, ROS2 bridge 吏곸젒 ?낅젰? ?꾩쭅 援ы쁽?섏? ?딆븯?듬땲??
-- `ExportLastPointCloudLaz()`???ㅼ젣 LAZ ?뺤텞???꾨떃?덈떎. ?꾩옱??`*_laz_source_*.las` ?뺤떇??LAS ?명솚 source ?뚯씪????ν븯怨?warning log瑜??④퉩?덈떎.
-- FullSpec, MultiHit, ExportOnScan???숈떆??耳쒕㈃ editor ?깅뒫???ш쾶 ?⑥뼱吏????덉뒿?덈떎.
-- ?洹쒕え point cloud rendering? ?꾩쭅 CPU/instance 湲곕컲 preview ?쒓퀎媛 ?덉뼱 GPU/Niagara 湲곕컲 renderer 寃?좉? ?꾩슂?⑸땲??
-  LiDAR `PreviewBackend`?먯꽌 Niagara/custom GPU ?꾨낫瑜??좏깮?????덉?留? ?꾩옱 ?꾨낫 媛믪? CPU fallback ?곹깭 ?쒖떆?⑹씠硫?GPU 援ы쁽 ?꾨즺 利앷굅媛 ?꾨떃?덈떎.
-  ?꾩옱 CPU fallback/GPU smoke evidence boundary???ㅼ쓬 ?⑦궎吏濡?濡쒖뺄??export?????덉뒿?덈떎:
+- 기존 `/Game/M7AT10/Maps/TestMap`은 누락된 `WBP_VirtualSensorMonitor`를 Level Blueprint에서 참조합니다. 기본 smoke test와 신규 작업은 `SensorTestMap`을 사용합니다.
+- C++ module은 `ma0t10_dt`, 기존 Content package는 `/Game/M7AT10`을 사용합니다. Content까지 이름을 바꾸려면 파일시스템 이동이 아니라 Unreal Editor의 asset rename/fix redirectors/resave 절차가 필요합니다.
+- Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현되지 않았습니다.
+- `ExportLastPointCloudLaz()`는 실제 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
+- FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
+- 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.
+  LiDAR `PreviewBackend`에서 Niagara/custom GPU 후보를 선택할 수 있지만, 현재 후보 값은 CPU fallback 상태 표시용이며 GPU 구현 완료 증거가 아닙니다.
+  현재 CPU fallback/GPU smoke evidence boundary는 다음 패키지로 로컬에 export할 수 있습니다:
   `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"`.
-- ?ㅼ젣 map?먯꽌??PIE smoke test? WBP Designer 諛곗튂 寃利앹? 蹂꾨룄 editor ?묒뾽???꾩슂?⑸땲??
-- `WBP_VirtualSensorMonitor.uasset`???ㅼ젣 ?덉씠?꾩썐 ?섏젙? Unreal Editor瑜?
-  ?듯빐?쒕쭔 吏꾪뻾?⑸땲?? 肄붾뱶/諛붿씤??API??Codex媛 ?섏젙 媛?ν븯吏留?`.uasset`
-  諛붿씠?덈━ 吏곸젒 ?⑥튂??湲덉??⑸땲??
+- `SensorTestMap`의 headless 구성 검사는 자동화되어 있지만, camera render target과 Designer WBP의 실제 화면은 PIE에서 별도 검증해야 합니다.
+- `WBP_VirtualSensorMonitor.uasset`의 실제 레이아웃 수정은 Unreal Editor를
+  통해서만 진행합니다. 코드/바인딩/API는 Codex가 수정 가능하지만 `.uasset`
+  바이너리 직접 패치는 금지합니다.
 
-?⑥? 援ы쁽/?먯뀑 寃곗젙/?꾨즺 ?먯젙 湲곗?? `docs/remaining_work.md`?먯꽌 異붿쟻?⑸땲??
+남은 구현/에셋 결정/완료 판정 기준은 `docs/remaining_work.md`에서 추적합니다.

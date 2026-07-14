@@ -62,7 +62,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
     throw "SourceRepoRoot not found: $SourceRepoRoot"
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\M7AT10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $setupDocPath = Join-Path $SourceRepoRoot "docs\widget_designer_setup.md"
 $assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
