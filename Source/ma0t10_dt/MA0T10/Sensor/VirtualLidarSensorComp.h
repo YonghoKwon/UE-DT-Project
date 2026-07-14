@@ -135,6 +135,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Export")
     bool ExportLastPointCloudCsvLasLaz(const FString& FileNamePrefix = TEXT("")) const;
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export")
+    FString GetLastPointCloudExportPath() const { return LastPointCloudExportPath; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Export|LAZ")
     FString GetLastLazExportStatusText() const { return LastLazExportStatusText; }
 
@@ -453,6 +456,7 @@ private:
     mutable FString LastLazExportWarningText;
     mutable FString LastLazLasSourcePath;
     mutable FString LastLazOutputPath;
+    mutable FString LastPointCloudExportPath;
     mutable bool bLastLazExportAttempted = false;
     mutable bool bLastLazExportSucceeded = false;
     mutable bool bLastLazExportPlaceholderOnly = false;

@@ -45,9 +45,20 @@ def _set_property(obj, cpp_name, value):
             return
         except Exception as error:  # Unreal reports property aliases at runtime.
             last_error = error
+    object_name = obj.get_name() if hasattr(obj, "get_name") else type(obj).__name__
     raise RuntimeError(
-        "Unable to set {}.{}: {}".format(obj.get_name(), cpp_name, last_error)
+        "Unable to set {}.{}: {}".format(object_name, cpp_name, last_error)
     )
+
+
+def _try_set_property(obj, cpp_name, value):
+    """Set an engine-version-sensitive presentation property when available."""
+    try:
+        _set_property(obj, cpp_name, value)
+        return True
+    except Exception as error:
+        unreal.log_warning("Optional property {} skipped: {}".format(cpp_name, error))
+        return False
 
 
 def _mark_managed(actor, label, folder="SensorTest"):
@@ -86,36 +97,50 @@ def _remove_managed_actors():
             ACTOR_SUBSYSTEM.destroy_actor(actor)
 
 
-def _ensure_monitor_widget_class(content_root=CONTENT_ROOT):
-    monitor_widget_path = content_root + "/UI/WBP_VirtualSensorMonitor"
-    monitor_widget_class_path = (
-        monitor_widget_path + ".WBP_VirtualSensorMonitor_C"
-    )
-    if not unreal.EditorAssetLibrary.does_asset_exist(monitor_widget_path):
+def _ensure_widget_class(asset_name, parent_class_path, content_root=CONTENT_ROOT):
+    widget_path = content_root + "/UI/" + asset_name
+    widget_class_path = widget_path + "." + asset_name + "_C"
+    if not unreal.EditorAssetLibrary.does_asset_exist(widget_path):
         factory = unreal.WidgetBlueprintFactory()
         _set_property(
             factory,
             "ParentClass",
-            _load_class("/Script/ma0t10_dt.VirtualSensorMonitorWidget"),
+            _load_class(parent_class_path),
         )
         widget_blueprint = ASSET_TOOLS.create_asset(
-            "WBP_VirtualSensorMonitor",
+            asset_name,
             content_root + "/UI",
             unreal.WidgetBlueprint,
             factory,
         )
         if not widget_blueprint:
-            raise RuntimeError(
-                "Unable to create {}".format(monitor_widget_path)
-            )
+            raise RuntimeError("Unable to create {}".format(widget_path))
         if not unreal.EditorAssetLibrary.save_loaded_asset(
             widget_blueprint, only_if_is_dirty=False
         ):
-            raise RuntimeError(
-                "Unable to save {}".format(monitor_widget_path)
-            )
+            raise RuntimeError("Unable to save {}".format(widget_path))
 
-    return _load_class(monitor_widget_class_path)
+    return _load_class(widget_class_path)
+
+
+def _ensure_widget_classes(content_root=CONTENT_ROOT):
+    return {
+        "monitor": _ensure_widget_class(
+            "WBP_VirtualSensorMonitor",
+            "/Script/ma0t10_dt.VirtualSensorMonitorWidget",
+            content_root,
+        ),
+        "settings": _ensure_widget_class(
+            "WBP_VirtualSensorSettings",
+            "/Script/ma0t10_dt.VirtualSensorSettingsWidget",
+            content_root,
+        ),
+        "capture_export": _ensure_widget_class(
+            "WBP_VirtualSensorCaptureExport",
+            "/Script/ma0t10_dt.VirtualSensorCaptureExportWidget",
+            content_root,
+        ),
+    }
 
 
 def _prepare_level():
@@ -128,7 +153,7 @@ def _prepare_level():
     _remove_managed_actors()
 
 
-def _build_sensor_rig(monitor_widget_class):
+def _build_sensor_rig(widget_classes):
     manager_class = _load_class("/Script/ma0t10_dt.VirtualSensorManager")
     lidar_actor_class = _load_class("/Script/ma0t10_dt.VirtualSensorAct")
     camera_actor_class = _load_class("/Script/ma0t10_dt.VirtualCameraAct")
@@ -148,8 +173,11 @@ def _build_sensor_rig(monitor_widget_class):
     lidar_actor = _spawn(
         lidar_actor_class,
         "SensorTest_LiDAR",
-        unreal.Vector(0.0, 0.0, 180.0),
+        unreal.Vector(0.0, 0.0, 150.0),
         unreal.Rotator(0.0, 0.0, 0.0),
+    )
+    lidar_actor.set_editor_property(
+        "tags", [MANAGED_TAG, unreal.Name("SensorTestPersistent_PrimaryLidar")]
     )
     lidar = lidar_actor.get_component_by_class(
         _load_class("/Script/ma0t10_dt.VirtualLidarSensorComp")
@@ -159,6 +187,13 @@ def _build_sensor_rig(monitor_widget_class):
     _set_property(lidar, "bAutoRegisterToManager", True)
     _set_property(lidar, "bUseMultiHit", False)
     _set_property(lidar, "bDrawDebugRays", False)
+    _set_property(lidar, "ScanInterval", 0.25)
+    _set_property(lidar, "MaxDistance", 4000.0)
+    _set_property(lidar, "HorizontalSamples", 120)
+    _set_property(lidar, "VerticalChannels", 24)
+    _set_property(lidar, "HorizontalFov", 360.0)
+    _set_property(lidar, "MinVerticalAngle", -7.0)
+    _set_property(lidar, "MaxVerticalAngle", 52.0)
     _set_property(lidar, "ServerPayloadStride", 1)
     _set_property(lidar, "MaxServerPayloadPoints", 0)
     _set_property(lidar, "bIncludeMissPointsInServerPayload", False)
@@ -176,8 +211,11 @@ def _build_sensor_rig(monitor_widget_class):
     camera_actor = _spawn(
         camera_actor_class,
         "SensorTest_Camera",
-        unreal.Vector(0.0, -450.0, 300.0),
-        unreal.Rotator(roll=0.0, pitch=-8.5, yaw=26.5),
+        unreal.Vector(-350.0, -220.0, 170.0),
+        unreal.Rotator(roll=0.0, pitch=-7.0, yaw=23.0),
+    )
+    camera_actor.set_editor_property(
+        "tags", [MANAGED_TAG, unreal.Name("SensorTestPersistent_PrimaryCamera")]
     )
     camera = camera_actor.get_component_by_class(
         _load_class("/Script/ma0t10_dt.VirtualCameraComp")
@@ -185,14 +223,21 @@ def _build_sensor_rig(monitor_widget_class):
     _set_property(camera, "SensorId", "VCAM-TEST-001")
     _set_property(camera, "bAutoStartCapture", True)
     _set_property(camera, "bAutoRegisterToManager", True)
+    _set_property(camera, "CaptureResolution", unreal.IntPoint(640, 360))
+    _set_property(camera, "CaptureInterval", 0.1)
+    _set_property(camera, "FOVAngle", 87.0)
 
     host = _spawn(
         host_actor_class,
         "SensorTest_MonitorHost",
         unreal.Vector(0.0, 0.0, 120.0),
     )
-    _set_property(host, "MonitorWidgetClass", monitor_widget_class)
+    _set_property(host, "MonitorWidgetClass", widget_classes["monitor"])
+    _set_property(host, "SettingsWidgetClass", widget_classes["settings"])
+    _set_property(host, "CaptureExportWidgetClass", widget_classes["capture_export"])
     _set_property(host, "bUseNativeMonitorWidgetFallback", True)
+    _set_property(host, "bUseNativeToolWidgetFallback", True)
+    _set_property(host, "bAutoCreateToolPanels", True)
     _set_property(host, "SensorManager", manager)
     _set_property(host, "bAutoCreateOnBeginPlay", True)
     _set_property(host, "bAutoFindSensorManager", True)
@@ -200,43 +245,60 @@ def _build_sensor_rig(monitor_widget_class):
     _set_property(host, "bShowLidarViewOnStart", False)
     _set_property(host, "bEnablePointCloudOnlyOnStart", False)
     _set_property(host, "ViewportZOrder", 10)
+    _set_property(host, "SettingsViewportZOrder", 20)
+    _set_property(host, "CaptureExportViewportZOrder", 30)
     _set_property(host, "bConfigurePlayerInputOnCreate", True)
     _set_property(host, "bShowMouseCursorOnCreate", True)
 
 
 def _build_test_scene():
+    # 16 m x 12 m x 4 m open-front indoor hall. Engine cubes are 100 cm.
     _spawn_static_mesh(
         "SensorTest_Floor",
-        unreal.Vector(600.0, 0.0, -60.0),
-        unreal.Vector(14.0, 10.0, 1.0),
+        unreal.Vector(0.0, 0.0, -10.0),
+        unreal.Vector(16.0, 12.0, 0.2),
         "/Engine/BasicShapes/Cube.Cube",
         ["KeepInPointCloudOnly", "SensorTestTarget"],
     )
     _spawn_static_mesh(
-        "SensorTest_TargetWall",
-        unreal.Vector(1100.0, 0.0, 240.0),
-        unreal.Vector(0.4, 6.0, 3.0),
+        "SensorTest_HallBackWall",
+        unreal.Vector(800.0, 0.0, 200.0),
+        unreal.Vector(0.2, 12.0, 4.0),
+        "/Engine/BasicShapes/Cube.Cube",
+        ["SensorTestTarget"],
+    )
+    _spawn_static_mesh(
+        "SensorTest_HallLeftWall",
+        unreal.Vector(0.0, -600.0, 200.0),
+        unreal.Vector(16.0, 0.2, 4.0),
+        "/Engine/BasicShapes/Cube.Cube",
+        ["SensorTestTarget"],
+    )
+    _spawn_static_mesh(
+        "SensorTest_HallRightWall",
+        unreal.Vector(0.0, 600.0, 200.0),
+        unreal.Vector(16.0, 0.2, 4.0),
         "/Engine/BasicShapes/Cube.Cube",
         ["SensorTestTarget"],
     )
     _spawn_static_mesh(
         "SensorTest_TargetCube",
-        unreal.Vector(700.0, -260.0, 80.0),
-        unreal.Vector(1.4, 1.4, 1.4),
+        unreal.Vector(160.0, -120.0, 60.0),
+        unreal.Vector(1.0, 1.0, 1.0),
         "/Engine/BasicShapes/Cube.Cube",
         ["SensorTestTarget"],
     )
     _spawn_static_mesh(
         "SensorTest_TargetSphere",
-        unreal.Vector(850.0, 260.0, 120.0),
-        unreal.Vector(1.6, 1.6, 1.6),
+        unreal.Vector(260.0, 130.0, 100.0),
+        unreal.Vector(1.2, 1.2, 1.2),
         "/Engine/BasicShapes/Sphere.Sphere",
         ["SensorTestTarget"],
     )
     _spawn_static_mesh(
         "SensorTest_TargetPillar",
-        unreal.Vector(500.0, 320.0, 160.0),
-        unreal.Vector(1.2, 1.2, 3.2),
+        unreal.Vector(100.0, 250.0, 130.0),
+        unreal.Vector(0.8, 0.8, 2.6),
         "/Engine/BasicShapes/Cylinder.Cylinder",
         ["SensorTestTarget"],
     )
@@ -245,12 +307,14 @@ def _build_test_scene():
         unreal.DirectionalLight,
         "SensorTest_DirectionalLight",
         unreal.Vector(0.0, 0.0, 800.0),
-        unreal.Rotator(roll=0.0, pitch=-45.0, yaw=-35.0),
+        unreal.Rotator(roll=0.0, pitch=-42.0, yaw=-25.0),
     )
     directional_component = directional.get_component_by_class(
         unreal.DirectionalLightComponent
     )
-    directional_component.set_editor_property("intensity", 7.5)
+    directional_component.set_editor_property("intensity", 3.0)
+    _try_set_property(directional_component, "UseTemperature", True)
+    _try_set_property(directional_component, "Temperature", 5500.0)
 
     skylight = _spawn(
         unreal.SkyLight,
@@ -258,20 +322,60 @@ def _build_test_scene():
         unreal.Vector(0.0, 0.0, 500.0),
     )
     skylight_component = skylight.get_component_by_class(unreal.SkyLightComponent)
-    skylight_component.set_editor_property("intensity", 1.0)
+    skylight_component.set_editor_property("intensity", 1.5)
+    _try_set_property(skylight_component, "RealTimeCapture", True)
+
+    # Four broad ceiling fixtures give predictable neutral illumination without
+    # relying on the directional light alone.
+    for index, (x_pos, y_pos) in enumerate(
+        [(-400.0, -280.0), (-400.0, 280.0), (350.0, -280.0), (350.0, 280.0)]
+    ):
+        rect_light = _spawn(
+            unreal.RectLight,
+            "SensorTest_CeilingRectLight_{:02d}".format(index + 1),
+            unreal.Vector(x_pos, y_pos, 380.0),
+            unreal.Rotator(roll=0.0, pitch=-90.0, yaw=0.0),
+        )
+        rect_component = rect_light.get_component_by_class(unreal.RectLightComponent)
+        rect_component.set_editor_property("intensity", 3500.0)
+        _try_set_property(rect_component, "SourceWidth", 350.0)
+        _try_set_property(rect_component, "SourceHeight", 220.0)
+        _try_set_property(rect_component, "UseTemperature", True)
+        _try_set_property(rect_component, "Temperature", 5000.0)
+
+    _spawn(
+        unreal.SkyAtmosphere,
+        "SensorTest_SkyAtmosphere",
+        unreal.Vector(0.0, 0.0, 0.0),
+    )
+
+    post_process = _spawn(
+        unreal.PostProcessVolume,
+        "SensorTest_PostProcess",
+        unreal.Vector(0.0, 0.0, 150.0),
+    )
+    _try_set_property(post_process, "bUnbound", True)
+    settings = post_process.get_editor_property("settings")
+    # UE 5.3 exposes these fields on FPostProcessSettings. Keep this optional so
+    # the map builder remains usable if an engine minor version renames them.
+    _try_set_property(settings, "bOverride_AutoExposureMinBrightness", True)
+    _try_set_property(settings, "bOverride_AutoExposureMaxBrightness", True)
+    _try_set_property(settings, "AutoExposureMinBrightness", 1.0)
+    _try_set_property(settings, "AutoExposureMaxBrightness", 1.0)
+    post_process.set_editor_property("settings", settings)
 
     _spawn(
         unreal.PlayerStart,
         "SensorTest_PlayerStart",
-        unreal.Vector(-500.0, -700.0, 120.0),
-        unreal.Rotator(roll=0.0, pitch=0.0, yaw=35.0),
+        unreal.Vector(-650.0, -450.0, 120.0),
+        unreal.Rotator(roll=0.0, pitch=0.0, yaw=30.0),
     )
 
 
 def main():
-    monitor_widget_class = _ensure_monitor_widget_class()
+    widget_classes = _ensure_widget_classes()
     _prepare_level()
-    _build_sensor_rig(monitor_widget_class)
+    _build_sensor_rig(widget_classes)
     _build_test_scene()
     if not LEVEL_SUBSYSTEM.save_current_level():
         raise RuntimeError("Unable to save {}".format(MAP_PATH))

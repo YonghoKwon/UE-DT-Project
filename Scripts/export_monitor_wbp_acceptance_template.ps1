@@ -127,7 +127,7 @@ $manualAcceptanceSections = [PSCustomObject]@{
         EvidencePath = ""
         Present = $false
         Accepted = $false
-        Description = "Optional widget bindings are checked against docs/widget_designer_setup.md and missing optional bindings are crash-safe."
+        Description = "Optional widget bindings are checked against docs/sensor_test_map_setup.ko.md and missing optional bindings are crash-safe."
     }
     PieSmokeEvidence = [PSCustomObject]@{
         Required = $true
@@ -252,7 +252,7 @@ $template = [PSCustomObject]@{
             EvidenceRunId = ""
             Operator = ""
             VerifiedAt = ""
-            SetupDocPath = "docs/widget_designer_setup.md"
+            SetupDocPath = "docs/sensor_test_map_setup.ko.md"
             OptionalBindings = @(
                 $optionalBindings |
                     ForEach-Object {

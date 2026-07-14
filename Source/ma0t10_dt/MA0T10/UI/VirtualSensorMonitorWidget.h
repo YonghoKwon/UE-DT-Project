@@ -1,7 +1,8 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorDraggableWidgetBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "Styling/SlateBrush.h"
 #include "VirtualSensorMonitorWidget.generated.h"
 
@@ -17,8 +18,6 @@ class UTexture2D;
 class URealSensorSourceComp;
 class UVirtualCameraComp;
 class UVirtualLidarSensorComp;
-
-enum class EVirtualLidarViewMode : uint8;
 
 struct FVirtualSensorPendingCameraReadback
 {
@@ -80,7 +79,7 @@ struct MA0T10_DT_API FVirtualSensorMonitorDisplayData
 };
 
 UCLASS()
-class MA0T10_DT_API UVirtualSensorMonitorWidget : public UUserWidget
+class MA0T10_DT_API UVirtualSensorMonitorWidget : public UVirtualSensorDraggableWidgetBase
 {
     GENERATED_BODY()
 
@@ -108,6 +107,20 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void CycleLidarViewMode();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarViewMode(EVirtualLidarViewMode InViewMode);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LidarView")
+    FString GetLidarViewModeDescription() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LidarView")
+    FString GetLidarViewLegendText() const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|UI")
+    void ResetMonitorUiPreferencesToDefault();
+
+    static FColor ResolveLidarPointDisplayColor(const UVirtualLidarSensorComp* InLidarComp, EVirtualLidarViewMode ViewMode, const FVirtualLidarPoint& Point, float NormalizedDistance);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void SetLidarPreviewBudget(int32 InStride, int32 InMaxPoints);
@@ -144,6 +157,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool IsLocalSensorCaptureActive() const { return bLocalSensorCaptureActive; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    const FString& GetLocalCaptureSessionDirectory() const { return LocalCaptureSessionDirectory; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     bool IsShowingLidar() const { return bShowingLidar; }
@@ -269,11 +285,16 @@ private:
     void RefreshNativeFallbackText();
     void RefreshLocalCaptureButtonText();
     void RefreshLidarViewModeButtonText();
+    void RestoreMonitorUiPreferences();
+    void SaveMonitorUiPreferences() const;
+    void SetLidarOverlayOptions(bool bAdaptiveDepth, bool bGrid, bool bDepthEdges);
+    FString BuildCompactStatusText() const;
+    FString BuildSemanticLegendText() const;
+    FLinearColor GetLidarLegendSwatchColor(int32 SwatchIndex) const;
     FString BuildTitleText() const;
     FString BuildStatusText() const;
     bool ShouldUseNativeFallbackWidget() const;
     FString GetLidarViewModeDisplayText() const;
-    FString GetLidarViewLegendText() const;
     UObject* GetLidarBrushResource();
     UTexture2D* RebuildEnhancedLidarViewTexture();
     void InvalidateEnhancedLidarView();
@@ -448,6 +469,7 @@ private:
     int32 MaxPendingCameraReadbacks = 1;
 
     bool bShowingLidar = false;
+    bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
     bool bLocalCaptureCameraWritePending = false;
     bool bLocalCaptureLidarWritePending = false;
@@ -468,8 +490,12 @@ private:
     FString LastRealSensorControlMessage;
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
+    TArray<TSharedPtr<EVirtualLidarViewMode>> NativeLidarViewModeOptions;
     TSharedPtr<STextBlock> NativeTitleTextBlock;
     TSharedPtr<STextBlock> NativeStatusTextBlock;
+    TSharedPtr<STextBlock> NativeDetailedStatusTextBlock;
+    TSharedPtr<STextBlock> NativeWarningTextBlock;
     TSharedPtr<SImage> NativeViewImage;
     FSlateBrush NativeViewBrush;
+    double StatusRefreshAccumulator = 0.0;
 };

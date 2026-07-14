@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 
 AVirtualSensorMonitorHostActor::AVirtualSensorMonitorHostActor()
 {
@@ -18,6 +21,10 @@ void AVirtualSensorMonitorHostActor::BeginPlay()
     if (bAutoCreateOnBeginPlay)
     {
         CreateAndBindMonitorWidget();
+        if (bAutoCreateToolPanels)
+        {
+            CreateAndBindToolWidgets();
+        }
     }
 }
 
@@ -76,7 +83,9 @@ UVirtualSensorMonitorWidget* AVirtualSensorMonitorHostActor::CreateAndBindMonito
     if (bAddToViewport)
     {
         MonitorWidget->AddToViewport(ViewportZOrder);
+        MonitorWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::RightCenter, FVector2D(820.0f, 430.0f));
     }
+    MonitorWidget->SetPanelPersistenceKey(TEXT("Monitor"));
 
     if (bConfigurePlayerInputOnCreate)
     {
@@ -92,6 +101,16 @@ UVirtualSensorMonitorWidget* AVirtualSensorMonitorHostActor::CreateAndBindMonito
 
 void AVirtualSensorMonitorHostActor::DestroyMonitorWidget()
 {
+    if (SettingsWidget)
+    {
+        SettingsWidget->RemoveFromParent();
+        SettingsWidget = nullptr;
+    }
+    if (CaptureExportWidget)
+    {
+        CaptureExportWidget->RemoveFromParent();
+        CaptureExportWidget = nullptr;
+    }
     if (MonitorWidget)
     {
         MonitorWidget->RemoveFromParent();
@@ -129,6 +148,96 @@ AVirtualSensorManager* AVirtualSensorMonitorHostActor::ResolveSensorManager()
         }
     }
     return nullptr;
+}
+
+void AVirtualSensorMonitorHostActor::CreateAndBindToolWidgets()
+{
+    UWorld* World = GetWorld();
+    AVirtualSensorManager* ResolvedManager = ResolveSensorManager();
+    if (!World || !ResolvedManager)
+    {
+        LastStatusMessage = TEXT("Tool widgets require a valid world and SensorManager.");
+        return;
+    }
+
+    TSubclassOf<UVirtualSensorSettingsWidget> EffectiveSettingsClass = SettingsWidgetClass;
+    if (!EffectiveSettingsClass && bUseNativeToolWidgetFallback)
+    {
+        EffectiveSettingsClass = UVirtualSensorSettingsWidget::StaticClass();
+    }
+    TSubclassOf<UVirtualSensorCaptureExportWidget> EffectiveCaptureClass = CaptureExportWidgetClass;
+    if (!EffectiveCaptureClass && bUseNativeToolWidgetFallback)
+    {
+        EffectiveCaptureClass = UVirtualSensorCaptureExportWidget::StaticClass();
+    }
+
+    if (!SettingsWidget && EffectiveSettingsClass)
+    {
+        SettingsWidget = CreateWidget<UVirtualSensorSettingsWidget>(World, EffectiveSettingsClass);
+        if (SettingsWidget)
+        {
+            SettingsWidget->SetPanelPersistenceKey(TEXT("Settings"));
+            SettingsWidget->BindHostActor(this);
+            SettingsWidget->BindSensorManager(ResolvedManager);
+            if (bAddToViewport)
+            {
+                SettingsWidget->AddToViewport(SettingsViewportZOrder);
+                SettingsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(450.0f, 640.0f));
+            }
+        }
+    }
+
+    if (!CaptureExportWidget && EffectiveCaptureClass)
+    {
+        CaptureExportWidget = CreateWidget<UVirtualSensorCaptureExportWidget>(World, EffectiveCaptureClass);
+        if (CaptureExportWidget)
+        {
+            CaptureExportWidget->SetPanelPersistenceKey(TEXT("CaptureExport"));
+            CaptureExportWidget->BindSensorManager(ResolvedManager);
+            CaptureExportWidget->BindMonitorWidget(MonitorWidget);
+            if (bAddToViewport)
+            {
+                CaptureExportWidget->AddToViewport(CaptureExportViewportZOrder);
+                CaptureExportWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::BottomCenter, FVector2D(760.0f, 280.0f));
+            }
+        }
+    }
+}
+
+void AVirtualSensorMonitorHostActor::ResetAllPanelUiPreferences()
+{
+    UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences();
+    if (MonitorWidget)
+    {
+        MonitorWidget->ResetMonitorUiPreferencesToDefault();
+        MonitorWidget->ResetPanelUiStateToDefault();
+    }
+    if (SettingsWidget)
+    {
+        SettingsWidget->ResetSettingsUiPreferencesToDefault();
+        SettingsWidget->ResetPanelUiStateToDefault();
+    }
+    if (CaptureExportWidget)
+    {
+        CaptureExportWidget->ResetPanelUiStateToDefault();
+    }
+    LastStatusMessage = TEXT("센서 UI 배치와 표시 설정을 기본값으로 초기화했습니다.");
+}
+
+void AVirtualSensorMonitorHostActor::QueueSensorStateForMapApply(const FVirtualSensorEditableState& SensorState)
+{
+    PendingMapApplySnapshot.SourceMapPackage = TEXT("/Game/MA0T10/Maps/SensorTestMap");
+    for (FVirtualSensorEditableState& Existing : PendingMapApplySnapshot.SensorStates)
+    {
+        if (Existing.PersistentActorTag == SensorState.PersistentActorTag)
+        {
+            Existing = SensorState;
+            LastStatusMessage = FString::Printf(TEXT("Updated queued map state for %s. Stop PIE to save."), *SensorState.SensorId);
+            return;
+        }
+    }
+    PendingMapApplySnapshot.SensorStates.Add(SensorState);
+    LastStatusMessage = FString::Printf(TEXT("Queued map state for %s. Stop PIE to save."), *SensorState.SensorId);
 }
 
 void AVirtualSensorMonitorHostActor::ConfigurePlayerInput()

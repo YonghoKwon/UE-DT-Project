@@ -1,11 +1,12 @@
-# Editor Smoke Test
+# Editor Smoke Test and Automation Reference
 
-This checklist verifies the current virtual camera, virtual LiDAR, point-cloud-only view, preview policy, and Slab analysis path.
+This document is the extended automation and acceptance reference. The short user-facing PIE procedure and WBP setup live in `docs/sensor_test_map_setup.ko.md`.
+
+The current smoke scope covers the three runtime panels, virtual camera, virtual LiDAR, point-cloud-only view, preview policy, capture/export, optional Slab analysis, and PIE-to-map snapshot queue.
 
 ## Map Setup
 
-Use the repository-owned `SensorTestMap`. `BasicMap` remains a load-compatibility
-fixture; the legacy `TestMap` still references the not-yet-committed production WBP.
+Use the repository-owned `SensorTestMap`. `BasicMap` remains only a load-compatibility fixture.
 
 Required actors/components:
 
@@ -14,8 +15,12 @@ AVirtualSensorManager
 AVirtualSensorAct
 AVirtualCameraAct
 AVirtualSensorMonitorHostActor
-an actor tagged Slab
+WBP_VirtualSensorMonitor
+WBP_VirtualSensorSettings
+WBP_VirtualSensorCaptureExport
 ```
+
+A `Slab` tagged actor is optional and user-owned; the setup script does not create a Slab mesh.
 
 Recommended manager settings:
 
@@ -38,7 +43,7 @@ ServerPayloadStride = 1
 MaxServerPayloadPoints = 0
 bIncludeMissPointsInServerPayload = false
 PreviewPointStride = 2
-MaxPreviewPoints = 5000
+MaxPreviewPoints = 3000
 bPointCloudPreviewHitOnly = true
 ```
 
@@ -72,9 +77,22 @@ bIncludeSlabAnalysisInPayload = true
 7. Confirm world visibility hides, collision-based LiDAR hits continue, and point cloud remains visible.
 8. Click or call preview more/less.
 9. Confirm preview count or preview policy changes without changing server payload policy.
-10. Confirm Slab status is valid when enough tagged points are hit.
+10. If a user mesh tagged `Slab` is present, confirm Slab status is valid when enough tagged points are hit.
+11. Drag, collapse, expand, and reset all three panels at 1920×1080 and 1280×720.
+12. Use the local/world gizmo and keyboard controls, confirm transform changes and the selected-sensor projection debug update immediately, then use `PIE 시작값으로 되돌리기`.
+13. Verify Capture & Export shows absolute/relative paths and recent results.
 
 ## Automation Tests
+
+Runtime control panels and map queue:
+
+```text
+MA0T10.SensorControl
+MA0T10.SensorDebug
+MA0T10.SensorExport
+```
+
+`MA0T10.SensorControl.EditableStateValidation` covers duplicate IDs, numeric ranges and NaN transforms. `GizmoMath` covers local/world movement and rotation. `MA0T10.SensorDebug.ProjectionBudget` protects the selected-sensor debug ray budget and legacy debug default. `MapApplyQueue` covers immutable-tag snapshot replacement, while `PanelClamp` covers viewport bounds. `MA0T10.SensorExport.StorageSummary` covers the documented storage roots.
 
 Run the full local smoke gate:
 
@@ -124,7 +142,7 @@ Map asset and sensor composition smoke tests:
 ```
 
 `MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `SensorTestMap` can load in headless editor automation.
-`MA0T10.EditorSmoke.MapSensorComposition` verifies `SensorTestMap` includes at least one `AVirtualSensorManager`, `AVirtualSensorAct`, `AVirtualCameraAct`, `AVirtualSensorMonitorHostActor`, and an actor tagged `Slab`.
+`MA0T10.EditorSmoke.MapSensorComposition` verifies `SensorTestMap` includes the manager, camera, LiDAR, monitor host, three open-front hall walls, four ceiling Rect Lights, ambient SkyLight, realistic sensor heights, and the three WBP bindings.
 
 Real sensor source base tests:
 
@@ -340,9 +358,9 @@ Manual PIE payload checks:
   next capture interval can continue.
 
 ```text
-1. Open the monitor in camera view and press Export Payload.
+1. Open the monitor in camera view and press `서버 Payload 내보내기` in the Capture & Export panel.
 2. Confirm Saved/SensorCaptures/<CameraSensorId>/ServerPayload contains a virtual-camera.v1 JSON file.
-3. Switch to LiDAR view and press Export Payload.
+3. Switch to LiDAR view and press `서버 Payload 내보내기` in the Capture & Export panel.
 4. Confirm Saved/SensorCaptures/<LidarSensorId>/ServerPayload contains a virtual-lidar.v1 JSON file.
 ```
 

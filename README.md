@@ -1,624 +1,287 @@
 # UE-DT-Project
 
-Unreal Engine 5.3 기반 Digital Twin 프로젝트입니다. 철강 제조 환경을 대상으로 가상 센서와 가상 카메라를 배치하고, 시뮬레이션 또는 실제 센서 입력을 Unreal 환경에 재현한 뒤 판단 서버로 측정 데이터를 전달하는 것을 목표로 합니다.
+Unreal Engine 5.3 기반 Digital Twin 센서 실험 프로젝트입니다. 가상 카메라와 LiDAR를 배치하고, 런타임 UI에서 센서 설정을 바꾸며, payload·point cloud·timed capture를 저장하고 테스트할 수 있습니다.
 
-현재 중심 기능은 가상 LiDAR/카메라, point-cloud-only view, Slab 각도 분석 v1, CSV/JSONL replay source, sensor monitor widget/host actor, 로컬 smoke test 및 asset 상태 점검 스크립트입니다. Livox, RealSense, ROS2 직접 입력은 placeholder component까지 준비되어 있고 실제 SDK/bridge 연결은 후속 작업입니다.
+현재 기본 검증 맵은 `/Game/MA0T10/Maps/SensorTestMap`입니다. PIE를 시작하면 별도 Level Blueprint 없이 모니터, 센서 설정, 캡처·내보내기 패널이 자동으로 표시됩니다.
 
 ## 빠른 시작
 
-```powershell
-git submodule update --init --recursive
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development ".\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
-```
+1. `ma0t10_dt.uproject`를 Unreal Editor 5.3으로 엽니다.
+2. `/Game/MA0T10/Maps/SensorTestMap`을 엽니다.
+3. PIE를 시작합니다.
+4. 화면의 세 패널에서 카메라/LiDAR 전환, 위치 변경, 캡처와 export를 시험합니다.
 
-기본 실행 맵은 `/Game/MA0T10/Maps/SensorTestMap`입니다. 가상 LiDAR, 가상 카메라, 센서 매니저, 일반 충돌 타깃과 자동 생성된 `WBP_VirtualSensorMonitor`가 배치되어 있어 PIE를 누르면 바로 센서/카메라를 조작할 수 있습니다. Slab mesh는 포함하지 않으며, 필요한 mesh에 `Slab` Actor Tag를 추가하면 기존 Slab 분석을 사용할 수 있습니다.
+기본 패널:
 
-Widget Blueprint의 정확한 이름, `Is Variable`, 자동 버튼 binding, Level Blueprint 연결과 기능별 테스트 순서는 [가상 센서 테스트 맵과 Widget Blueprint 설정](docs/sensor_test_map_setup.ko.md)을 참고합니다.
+| 패널 | 기본 위치 | 역할 |
+|---|---|---|
+| `WBP_VirtualSensorMonitor` | 오른쪽 중앙 | 카메라/LiDAR 화면, 센서 전환, 표시 모드 |
+| `WBP_VirtualSensorSettings` | 왼쪽 중앙 | 기즈모·키보드 Transform 조작, 센서 값, 투사 디버그 |
+| `WBP_VirtualSensorCaptureExport` | 하단 중앙 | payload·point cloud·timed capture와 저장 결과 |
 
-## 안전 정책
+세 패널은 밝은 맵에서도 읽기 쉬운 어두운 반투명 테마를 사용하며 제목 표시줄 드래그, 화면 경계 제한, `접기`, `위치 초기화`를 지원합니다. 패널 위치·접힘 상태와 LiDAR 표시 옵션은 `Saved/SaveGames/MA0T10_VirtualSensorUI_v1.sav`에 사용자별로 저장되고 다음 PIE에서 복원됩니다. Settings의 `전체 UI 초기화`는 이 UI 전용 상태만 기본값으로 되돌리며 센서 Transform이나 SensorTestMap 값은 변경하지 않습니다.
 
-### HTTP Transport Backpressure
+자세한 맵/WBP/PIE 절차는 [가상 센서 테스트 맵과 Widget Blueprint 설정](docs/sensor_test_map_setup.ko.md)을 참고합니다.
 
-`UVirtualSensorDataTransportComp` caps concurrent HTTP POST requests with
-`MaxInFlightHttpRequests`. Frames above the cap are rejected locally with
-`bBackpressureRejected=true` instead of growing an unbounded request queue.
-Runtime telemetry exposes current in-flight and cumulative rejection counts.
-`MaxHttpRetryAttempts` applies only to connection failures and 5xx responses
-when their policy toggles are enabled. 4xx responses are final and are not
-retried.
-`FailedHttpRequestCount` counts final non-accepted responses, while
-`RetryExhaustedRequestCount` identifies retry-eligible failures that consumed
-their configured retry budget.
+## 현재 구현된 기능
 
-### CSV Preview Safety
+### 가상 카메라
 
-`ACsvPointCloudPreviewActor` can auto-promote a large preview requested as
-`InstancedMesh` to the procedural preview path when
-`bAutoPromoteLargeInstancedPreviewToProcedural` is enabled. Telemetry records
-both requested and effective render modes, plus whether auto-promotion happened.
+- `AVirtualCameraAct` / `UVirtualCameraComp`
+- `virtual-camera.v1` JSON payload
+- RenderTarget preview와 JPEG 저장
+- 1회 캡처 및 timed local capture
+- server payload export
+- Intel RealSense D455 장비 메타데이터
+- `Debug`, `RealTimePreview`, `Balanced`, `FullSpec`, `Custom` 실행 품질
 
-### Point Cloud Renderer Evidence Boundary
+D455 기본 실행은 실제 depth stream을 재현하는 것이 아니라 `SceneCapture` preview입니다. 장비 메타데이터와 렌더링 예산은 분리되어 있습니다.
 
-`export_point_cloud_renderer_acceptance_package.ps1` can write a CSV preview
-performance report shell even when Unreal automation log evidence is missing.
-Treat CSV preview performance as accepted only when
-`CsvPreviewPerformanceAutomationEvidencePresent`,
-`CsvPreviewPerformanceReportValid`, and `ReadyToClaimCsvPreviewPerformance` are
-all true.
+### 가상 LiDAR
 
-## 목표 기능
+- `AVirtualSensorAct` / `UVirtualLidarSensorComp`
+- `virtual-lidar.v1` JSON payload
+- server payload와 editor preview 정책 분리
+- hit/miss, semantic label, grid 좌표와 Slab 분석
+- point-cloud-only view
+- CSV, JSONL, PCD, LAS, LAZ export
+- CSV/JSONL replay 및 normalized frame 주입
+- Livox Mid-360S 장비 메타데이터
 
-1. 시뮬레이션 데이터를 Unreal에 재현하고 가상 카메라/LiDAR 측정값을 판단 서버로 전송합니다.
-2. 실제 센서/카메라 데이터를 받아 Unreal 환경에 재현합니다.
-3. 철강 공정의 Slab 각도 틀어짐을 LiDAR point cloud 기반으로 분석합니다.
-4. 판단 서버용 원본/고밀도 데이터와 에디터 UI용 간략 preview 데이터를 분리합니다.
+기본 `RealTimePreview` 예산은 120×24 rays, 4 Hz, 40 m입니다. `FullSpec`, MultiHit, ExportOnScan 조합은 성능 검증용이며 기본값으로 사용하지 않습니다.
 
-## 저장소 구성
+Monitor의 `LiDAR 표시 방식` 드롭다운은 다음 네 가지입니다.
+
+| 방식 | 의미 |
+|---|---|
+| 거리 색상 | 가까운 점은 자홍·주황, 중간은 노랑, 먼 점은 청록·파랑, 미검출은 검정 |
+| 검출 마스크 | 검출 성공은 흰색, 미검출은 검정 |
+| 의미 분류 색상 | Actor 태그·클래스에서 계산한 `SemanticLabel`별 설정 색상, 미분류는 기본 회색 |
+| 거리 회색조 | 가까운 점은 밝게, 먼 점과 미검출은 어둡게 표시 |
+
+`적응형 거리`는 현재 프레임의 검출 범위로 색상 대비를 조정하고, `깊이 경계`는 거리 변화가 큰 윤곽을 흰색으로 강조하며, `격자`는 LiDAR 행·열 기준을 겹쳐 표시합니다. 세 옵션은 표시 방식과 독립적입니다. 모니터는 SensorId·프레임·주기·측정/검출 수를 먼저 보여주며 Payload·Preview·Slab·전송 정보는 `상세 진단 펼치기`에서 확인합니다.
+
+### 런타임 센서 설정
+
+Settings 패널에서 다음 값을 변경할 수 있습니다.
+
+- Camera/LiDAR 선택과 다음 센서 전환
+- SensorId 중복 검사
+- 위치 XYZ와 Pitch/Yaw/Roll
+- 마우스 3축 이동 기즈모와 Pitch/Yaw/Roll 회전 링
+- 로컬/월드 좌표계, 이동·회전 단위, 키보드 연속 조작
+- 선택 센서의 Camera frustum 또는 LiDAR 스캔 범위 표시
+- Device Profile과 Simulation Quality
+- 카메라 해상도, 캡처 주기, FOV, JPEG 품질, CaptureMode
+- LiDAR 거리, 주기, sample/channel, 수평·수직 FOV
+- server payload와 preview stride/max/hit 정책
+- multi-hit, max hits, 자동 CSV/JSONL/PCD export
+
+숫자는 Enter 또는 입력 포커스 해제, SpinBox 드래그 종료 시 한 번 적용됩니다. 체크박스·프로필·품질은 선택 즉시 반영합니다. 기즈모 조작 중 Transform과 디버그 형상은 매 프레임 움직이고 센서 미리보기는 최대 10Hz로 갱신되며 조작 종료 시 최종 프레임을 즉시 생성합니다. 잘못된 범위, 중복 SensorId, NaN Transform은 거부하고 마지막 런타임 값을 다시 표시합니다.
+
+`센서 조작 시작` 후 키보드는 다음과 같습니다.
 
 ```text
-Source/ma0t10_dt/MA0T10/Camera   가상 카메라 component/actor
-Source/ma0t10_dt/MA0T10/Sensor   가상 LiDAR, 센서 매니저, replay source, transport/recorder
-Source/ma0t10_dt/MA0T10/UI       센서 모니터 widget 및 host actor
-Source/ma0t10_dt/MA0T10/Crane    크레인 예제 구현
-Plugins/DTCore                   공통 Core 플러그인 submodule
-Content/MA0T10                   map, widget, Blueprint asset
-docs                             payload schema, smoke test, adapter plan, widget setup
-Samples                          replay sample data
-Scripts                          smoke/status helper scripts
+W/S 전후, A/D 좌우, Q/E 아래/위
+방향키 Pitch/Yaw, Z/C Roll
+Shift 5배, Ctrl 0.2배, Esc 조작 종료
 ```
 
-## DTCore Submodule
+버튼 의미:
 
-처음 받은 뒤에는 반드시 submodule을 초기화합니다.
+| 버튼 | 동작 |
+|---|---|
+| `PIE 시작값으로 되돌리기` | PIE 시작 시 맵에서 읽은 값으로 복구 |
+| `SensorTestMap에 저장 예약` | PIE 종료 시 원본 SensorTestMap에 저장할 스냅샷 등록 |
 
-```powershell
-git submodule update --init --recursive
-git submodule status
-```
+`SensorTestMap에 저장 예약`은 Editor PIE에서만 활성 의미가 있습니다. 투사 범위 토글과 기즈모 표시 상태는 런타임 UI 설정이므로 맵에 저장하지 않습니다. Editor 모듈은 PIE 종료 시 불변 관리 태그로 원본 Actor를 찾고 허용된 센서 설정만 Transaction으로 복사합니다. 다른 맵, 누락·중복 태그, 잘못된 Actor 타입이면 저장하지 않습니다. 파일 저장 실패 시 방금 적용한 Transaction을 Undo합니다.
 
-기준 commit:
+관리 태그:
 
 ```text
-2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7 Plugins/DTCore
+SensorTestPersistent_PrimaryCamera
+SensorTestPersistent_PrimaryLidar
 ```
 
-이번 작업 범위에서는 DTCore 내부 소스를 직접 수정하지 않습니다. 현재 DTCore 쪽에서 `EnhancedInput` dependency 경고가 보일 수 있지만, DTCore 수정 허용 전까지 DT-Project 쪽에서는 우회하지 않습니다.
+### 캡처와 내보내기
 
-커밋 전 DTCore submodule guard:
+Capture & Export 패널 기능:
+
+- `선택 센서 1회 캡처`
+- `서버 Payload 내보내기`
+- point cloud CSV/JSONL/PCD/LAS/LAZ 선택 export
+- timed local capture 시작/정지
+- 저장 루트와 최근 결과 폴더 열기
+- 최근 저장 경로를 클립보드에 복사
+- 비동기 진행 상태와 최근 결과 8개 표시
+
+저장 위치:
+
+```text
+Saved/SensorCaptures/<SensorId>/ServerPayload
+Saved/SensorCaptures/<SensorId>/PointCloud
+Saved/SensorCaptures/LocalTimedCapture/<UTC>/Camera
+Saved/SensorCaptures/LocalTimedCapture/<UTC>/Lidar
+Saved/SensorRecordings
+Saved/SensorCaptures/<SensorId>                 # Transport SaveToFile
+```
+
+외부 LAZ compressor가 설정되지 않은 경우 LAZ 요청은 실제 압축 완료로 표시하지 않으며 LAS-compatible source와 경고 상태를 남깁니다.
+
+### Sensor Manager와 데이터 경로
+
+`AVirtualSensorManager`가 카메라, LiDAR, transport, recorder, real-source placeholder와 UI 선택 상태를 연결합니다.
+
+```text
+Virtual/Replay/Live Source
+        -> normalized camera or LiDAR frame
+        -> sensor component cache
+        -> payload / recorder / transport / preview / UI
+```
+
+LiDAR 서버 정책과 preview 정책은 독립적입니다. preview 밀도나 point-cloud-only mode를 바꿔도 server payload 정책이 바뀌면 안 됩니다.
+
+세부 payload 계약:
+
+- [LiDAR Payload Schema](docs/lidar_payload_schema.md)
+- [Camera Payload Schema](docs/camera_payload_schema.md)
+- [Server Transport Contract](docs/server_transport_contract.md)
+
+실장비 입력은 공통 source interface와 JSON/HTTP/UDP/WebSocket bridge 기반 골격까지 구현되어 있습니다. 실제 Livox, RealSense, ROS2 SDK 연동과 장비 acceptance evidence는 아직 필요합니다. 상세 범위는 [Real Sensor Adapter Plan](docs/real_sensor_adapter_plan.md)을 참고합니다.
+
+## SensorTestMap 재생성
+
+`Scripts/setup_sensor_test_map.py`는 다음 작업을 수행합니다.
+
+- 누락된 세 WBP를 올바른 native parent로 생성
+- `SensorTestManaged` 태그 Actor만 교체
+- 카메라/LiDAR/Manager/HostActor와 테스트 타깃 배치
+- 약 16×12×4m의 밝은 개방형 실내 테스트 홀과 천장 Rect Light 4개 배치
+- HostActor에 세 WBP와 ZOrder 연결
+- 현실적인 장비 메타데이터와 `RealTimePreview` 기본값 적용
+
+사용자가 배치한 비관리 Actor는 삭제하지 않으며 Slab mesh는 생성하지 않습니다.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1" -FailOnViolation
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  ".\ma0t10_dt.uproject" `
+  -ExecutePythonScript=".\Scripts\setup_sensor_test_map.py" `
+  -Unattended -NoSplash -NoSound
 ```
-
-이 검사는 read-only입니다. `Plugins/DTCore`를 수정하거나 stage하지 않고,
-기대 커밋 `2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7` 및 parent/submodule
-worktree 청결 상태만 확인합니다.
-DTCore is an external submodule pinned to that commit; this repository must not
-stage gitlink changes or files under `Plugins/DTCore` during local decision
-cleanup.
 
 ## 빌드
 
-```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development "C:\path\to\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
-```
-
-로컬 실행 프로젝트 예시:
+Editor와 게임을 종료한 뒤 실행합니다. Live Coding이 켜진 Editor가 열려 있으면 UBT가 빌드를 거부합니다.
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development "C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" `
+  ma0t10_dtEditor Win64 Development `
+  "-Project=$PWD\ma0t10_dt.uproject" `
+  -WaitMutex -NoHotReloadFromIDE
 ```
 
-## LiDAR 데이터 정책
+Editor 안에서 반복 개발 중이면 `Ctrl+Alt+F11`로 Live Coding을 사용하고, IDE 빌드를 할 때는 Editor를 종료합니다.
 
-`UVirtualLidarSensorComp`는 한 번의 scan 또는 replay frame에서 생성된 전체 측정값을 `LastPoints`에 유지합니다.
+## 테스트
 
-판단 서버 payload 정책:
-
-- `ServerPayloadStride`
-- `MaxServerPayloadPoints`
-- `bIncludeMissPointsInServerPayload`
-- JSON `schemaVersion = virtual-lidar.v1`
-- JSON `payloadPolicy`
-- JSON `payloadPolicy.pointSelection = hit_only | hit_and_miss`
-- JSON `slabAnalysis`
-
-Editor/UI preview 정책:
-
-- `PreviewPointStride`
-- `MaxPreviewPoints`
-- `bPointCloudPreviewHitOnly`
-- JSON `previewPolicy`
-
-기본 방향은 서버에는 원본에 가까운 hit point를 보내고, Unreal Editor 화면에는 제한된 point만 표시하는 것입니다. 기존 `PayloadPointStride`, `MaxPayloadPoints`, `PointCloudPreviewStride`, `MaxPointCloudPreviewInstances`는 Blueprint 호환을 위해 남아 있지만 새 정책 필드를 우선 사용합니다.
-
-`MaxServerPayloadPoints = 0`은 서버 payload 상한이 없다는 의미이며,
-런타임 performance warning에 uncapped 상태가 표시됩니다.
-
-## Camera 데이터 정책
-
-`UVirtualCameraComp`는 SceneCapture 기반 image payload와 monitor 상태 표시를 제공합니다.
-
-- JSON `schemaVersion = virtual-camera.v1`
-- resolution, capture mode, JPEG quality, capture interval
-- cached payload byte size
-- render target preview
-- file transport/export 연동
-
-Monitor의 `ExportSelectedSensorServerPayload`는 현재 view에 따라 LiDAR 또는 camera payload를 `Saved/SensorCaptures/<SensorId>/ServerPayload` 아래로 저장합니다.
-
-## File Replay Source
-
-`ULidarCsvReplaySourceComp`와 `ULidarJsonLinesReplaySourceComp`는 저장된 point cloud를 `UVirtualLidarSensorComp::InjectPointCloudFrame`으로 주입합니다. 이 경로를 타면 replay 데이터도 LiDAR JSON payload, recorder, transport, preview, Slab 분석 흐름을 동일하게 통과합니다.
-
-지원 CSV 형식:
-
-```text
-row,col,x,y,z
-x,y,z
-```
-
-지원 JSONL 형식:
-
-```text
-{"x":900,"y":-260,"z":0,"distance":936.8,"hit":true,"semanticLabel":"Slab"}
-{"worldLocation":[900,-260,0],"localDirection":[1,0,0],"hit":true,"semanticLabel":"Slab"}
-```
-
-샘플 파일:
-
-```text
-Samples/slab_replay_sample.csv
-Samples/slab_replay_sample.jsonl
-```
-
-Editor Details 패널 버튼:
-
-```text
-PushFrameOnceInEditor
-PushFrameOnceNoTransportInEditor
-StartReplayInEditor
-StopReplayInEditor
-```
-
-## 실제 센서 Source Placeholder
-
-현재 준비된 placeholder component:
-
-```text
-URos2SensorBridgeSourceComp
-ULivoxLidarSourceComp
-URealSenseCameraSourceComp
-```
-
-아직 SDK/bridge 연결은 수행하지 않고 not-implemented 상태 메시지를 제공합니다. 후속 구현에서도 가능한 한 `InjectPointCloudFrame` 같은 normalized frame 주입 경로를 공유해야 합니다.
-
-## Slab 각도 분석 Workflow
-
-1. Slab actor 또는 component 이름/tag를 `Slab`, `SteelSlab`, `Plate` 중 하나와 매칭되게 설정합니다.
-2. `UVirtualLidarSensorComp`에서 `SlabSemanticLabel = Slab`을 유지합니다.
-3. 정상 기준 방향에 맞춰 `ReferenceSlabYawDegrees`를 설정합니다.
-4. LiDAR scan/replay 후 `FVirtualLidarSlabAnalysisResult` 또는 JSON `slabAnalysis`를 확인합니다.
-
-분석 결과에는 slab hit point count, bounds, center, estimated yaw, reference yaw, angle deviation, confidence, status message가 포함됩니다.
-
-## Widget 조작
-
-권장 Widget parent class:
-
-```text
-UVirtualSensorMonitorWidget
-```
-
-권장 optional binding 이름:
-
-```text
-ViewImage
-TitleText
-StatusText
-ToggleButton
-ToggleButtonText
-NextCameraButton
-NextLidarButton
-PointCloudOnlyButton
-LidarViewModeButton
-LidarViewModeButtonText
-LogPointCloudButton
-ExportPointCloudButton
-LocalSensorCaptureButton
-LocalSensorCaptureButtonText
-CaptureOnceButton
-ExportServerPayloadButton
-PreviewMoreButton
-PreviewLessButton
-PreviewHitOnlyButton
-PreviewHitOnlyButtonText
-StartRealSensorSourcesButton
-StopRealSensorSourcesButton
-PushRealSensorSourceButton
-```
-
-Status helper:
-
-```text
-GetMonitorTitleText
-GetMonitorStatusText
-GetMonitorDisplayData
-GetRealSensorDeploymentSummaryText
-GetTransportStatusSummaryText
-```
-
-SensorMonitor Blueprint API:
-
-```text
-BindRealSensorSource
-CaptureSelectedSensorsOnce
-StartRealSensorSources
-StopRealSensorSources
-PushSelectedRealSensorSourceOnce
-ExportSelectedSensorServerPayload
-ExportSelectedLidarServerPayload
-SetLidarPreviewBudget
-IncreaseLidarPreviewBudget
-DecreaseLidarPreviewBudget
-ToggleLidarPreviewHitOnly
-```
-
-The native fallback toolbar also exposes Start/Stop/Push controls for the
-selected real sensor source, so replay/live-source smoke does not depend on an
-accepted production WBP.
-
-SensorManager Blueprint API:
-
-```text
-CaptureSelectedOnce
-CaptureAllOnce
-RegisterRealSensorSource
-GetSelectedRealSensorSource
-GetRealSensorSourceSummaries
-GetHealthSummary
-StartAllRealSensorSources
-StopAllRealSensorSources
-PushSelectedRealSensorSourceOnce
-SetSelectedLidarPreviewPolicy
-AdjustSelectedLidarPreviewBudget
-TogglePointCloudOnlyView
-SetPointCloudOnlyMode
-```
-
-Level Blueprint 없이 monitor를 자동 생성하려면 map에 `AVirtualSensorMonitorHostActor`를 배치하고 `MonitorWidgetClass = WBP_VirtualSensorMonitor`를 지정합니다.
-
-`MonitorWidgetClass`가 비어 있고 `bUseNativeMonitorWidgetFallback`이 true이면 HostActor가 native `UVirtualSensorMonitorWidget`를 생성합니다. 이 fallback은 smoke test와 기본 조작 확인용이며, 운영 UI는 Designer에서 만든 `WBP_VirtualSensorMonitor` 사용을 권장합니다.
-
-## 자동화 테스트
-
-Payload fixture 검증:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
-```
-
-Payload mock contract 검증:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1" -Json
-```
-
-로컬 readiness gate:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1"
-```
-
-이미 빌드된 상태에서 빠르게 확인:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipBuild
-```
-
-asset report만 확인하고 smoke test는 생략:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke
-powershell -ExecutionPolicy Bypass -File ".\Scripts\check_project_readiness.ps1" -SkipSmoke -SkipPayloadContract
-```
-
-전체 로컬 smoke gate:
+전체 smoke script:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1"
 ```
 
-이미 빌드된 경우:
+이미 Editor target을 빌드했다면:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
 ```
 
-권장 smoke 설정:
+현재 주요 automation 그룹:
+
+| 그룹 | 범위 |
+|---|---|
+| `MA0T10.SensorControl` | 패널 clamp, UI 상태 직렬화, 상태 검증, 기즈모 좌표 계산, map apply queue, 현실적 프로필 |
+| `MA0T10.SensorDebug` | 선택 센서 투사 범위의 성능 예산과 기본값 |
+| `MA0T10.SensorExport` | 저장 경로 요약, 최근 경로 복사 오류와 export 계약 |
+| `MA0T10.SensorMonitor` | native fallback, 테마 대비, LiDAR 모드·의미 색상, status, payload export |
+| `MA0T10.EditorSmoke` | SensorTestMap, 센서, HostActor, WBP 구성 |
+| `MA0T10.SensorReplay` | CSV/JSONL replay, payload, export |
+| `MA0T10.SensorManager` | shared service와 point-cloud-only 정책 |
+| `MA0T10.SensorTransport` | HTTP loopback, retry와 backpressure |
+| `MA0T10.SensorRecorder` | recording save/load |
+| `MA0T10.RealSensorSource` | live JSON/HTTP/UDP/WebSocket source 경로 |
+| `MA0T10.Sensor.CsvPointCloudPreview` | 대용량 CSV preview fallback |
+
+개별 실행 예시:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  ".\ma0t10_dt.uproject" `
+  -NullRHI -Unattended -NoSplash -NoSound `
+  '-ExecCmds=Automation RunTests MA0T10.SensorControl; Quit' `
+  '-TestExit=Automation Test Queue Empty'
+```
+
+긴 acceptance·성능 검증 명령은 [Editor Smoke/Automation 문서](docs/editor_smoke_test.md)에 정리되어 있습니다.
+
+## 저장소 구조
 
 ```text
-AVirtualSensorManager.bDiscoverOnBeginPlay = true
-AVirtualSensorManager.bStartSensorsOnBeginPlay = true
-SharedSensorTransport.TransportMode = LogOnly
-LiDAR SimulationQuality = RealTimePreview
-Camera SimulationQuality = RealTimePreview
-LiDAR bUseMultiHit = false
-LiDAR ExportOnScan = false
-LiDAR bDrawDebugRays = false
+Content/MA0T10/                 Unreal assets, maps, WBP
+Source/ma0t10_dt/MA0T10/       runtime module
+Source/ma0t10_dtEditor/        Editor-only PIE map persistence
+Plugins/DTCore/                external git submodule
+Scripts/                       map setup, validation, report helpers
+Samples/                       replay/live payload samples
+docs/                          contracts and operating guides
 ```
 
-성능 문제가 있으면 다음 순서로 조정합니다.
+C++ module namespace는 `ma0t10_dt`, Content package namespace는 `/Game/MA0T10`입니다. 과거 `/Game/M7AT10` 경로는 새 코드나 asset 참조에 사용하지 않습니다.
 
-```text
-1. LiDAR SimulationQuality = Debug
-2. PreviewPointStride 증가
-3. MaxPreviewPoints 감소
-4. Camera CaptureMode = PreviewOnly
-5. MultiHit / ExportOnScan / FullSpec 비활성화
-```
+## DTCore submodule
 
-## 로컬 Asset 상태 점검
-
-커밋 전 진행률/남은 작업/커밋 예정 파일 요약:
+`Plugins/DTCore`는 외부 submodule입니다. 이 저장소 기능 작업에서 임의로 내부 소스나 gitlink를 변경하지 않습니다.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_local_decision_precommit_gate_policy.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_precommit_summary.ps1" -Json
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -ObservedCodexUsagePercent 84
+git submodule status
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_dtcore_submodule_guard.ps1"
 ```
 
-`invoke_local_decision_precommit_gate.ps1` is the fastest commit-time local
-decision guard. It allows the known local-only untracked files to remain local,
-but fails accidental staging or invariant violations for local decision paths,
-`Samples/PixelStreaming`, and `Plugins/DTCore`.
-`export_goal_progress_blocker_report.ps1` writes a read-only
-`Saved/Reports/GoalProgress` snapshot with the current progress percent,
-remaining percent, external-evidence blockers, PixelStreaming exclusion, rough
-calendar-time expectation, Codex-advanceable vs external-only blockers, and
-Codex-thread reset guidance.
-Pass `-ObservedCodexUsagePercent` only when the UI shows a usage percentage; the
-script records that user-observed value separately from project progress because
-it cannot read Codex GPT Plus quota directly or convert quota to calendar weeks.
+현재 작업 규칙과 고정 commit은 [AGENTS.md](AGENTS.md)를 따릅니다.
 
-Monitor WBP manual acceptance package:
+## 문서
 
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_post_edit_hash_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\ma0t10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_monitor_wbp_acceptance_evidence.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "." -EvidencePath "C:\Unreal Projects\ma0t10_dt\Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json" -Json
-```
+현재 유지하는 문서는 다음과 같습니다.
 
-The package writes local `Saved/Reports/MonitorWbpAcceptance` review files for
-Editor-open, optional binding, PIE smoke, exported payload, and owner acceptance
-evidence. It does not modify assets, stage files, or accept the binary WBP by
-itself.
-`prepare_monitor_wbp_editor_review.ps1` additionally creates a timestamped
-backup under `Saved/Backups/MonitorWbp`, records the pre-edit SHA256 hash,
-generates the WBP acceptance package, and writes a local editor-review checklist
-under `Saved/Reports/MonitorWbpEditorReview`. It writes only under `Saved`; it
-does not modify or stage `WBP_VirtualSensorMonitor.uasset`.
-`export_monitor_wbp_gap_summary.ps1` refreshes the WBP package, TODO, runbook,
-and validator output, then writes a compact phase summary and next manual action
-under `Saved/Reports/MonitorWbpAcceptance`. It is read-only for assets and git.
-The editor-review checklist enumerates the required DisplayData rows, including
-`LazExportText`, the `IsShowingLidar`/`HasBoundCamera`/`HasBoundLidar` helper
-checks, `GetLastManualExportMessage` export evidence, and the strict
-post-edit validation command to run after screenshot/log/export evidence paths
-are filled.
-After saving the WBP in Unreal Editor, run
-`export_monitor_wbp_post_edit_hash_report.ps1`, then run
-`update_monitor_wbp_acceptance_hash_evidence.ps1` to copy the reported
-`AssetHash`, `PostEditAssetHash`, and `PostEditHashReportPath` values into
-`monitor_wbp_acceptance.evidence.json` before strict validation or staging.
-The updater edits only the local Saved evidence JSON, creates a timestamped
-backup, and never modifies or stages the binary WBP asset.
-When the WBP acceptance package is regenerated, an existing
-`monitor_wbp_acceptance.evidence.json` is preserved and a fresh comparison
-template is written separately as `monitor_wbp_acceptance.template.fresh.json`.
-The WBP acceptance template and validator derive optional widget names from the
-native `BindWidgetOptional` fields in `VirtualSensorMonitorWidget.h`, then ask
-the reviewer to record `IsVariable`, `WidgetClass`, `BoundToExpectedCppName`,
-and `MissingOptionalDoesNotCrash` evidence for the actual Designer widget.
-The WBP acceptance validator and package also emit `MissingEvidenceActions`,
-mapping each failed check to an `EvidenceTarget` and concrete `NextAction`.
-The package writes `monitor_wbp_missing_evidence_actions.json` and
-`monitor_wbp_missing_evidence_actions.md`, grouped by `EvidencePhase` and
-`BlockingStage`, so the manual Editor/PIE pass has a focused checklist before
-any attempt to stage `WBP_VirtualSensorMonitor.uasset`.
-It also writes `monitor_wbp_evidence_todo.json` and
-`monitor_wbp_evidence_todo.md` with checkbox rows grouped by phase for the
-manual reviewer.
-After collecting Editor/PIE screenshots, logs, or exported payload files, use
-`update_monitor_wbp_manual_evidence_paths.ps1` to merge those paths and common
-run metadata into the Saved evidence JSON without touching the WBP asset.
-Use `update_monitor_wbp_manual_acceptance_sections.ps1` to mark manual
-acceptance sections present/accepted from real evidence files. Owner acceptance
-requires the explicit `-AcceptOwnerAcceptance` switch.
-Use `export_monitor_wbp_acceptance_runbook.ps1` to create
-`monitor_wbp_acceptance_runbook.md`, a one-page command sequence for the manual
-Editor/PIE acceptance pass.
-The evidence template also asks for a `DisplayData visual match`: during PIE,
-map each `GetMonitorDisplayData()` row to the visible WBP TextBlock so title,
-selected sensor, frame, measurement, server payload, preview, slab, warning,
-and view-mode rows are verified against the native status contract. Record
-`bShowingLidar`/`SensorMode` and accept the matching
-`DisplayDataScreenMatchEvidence` manual section before staging the binary WBP.
-The local `WBP_VirtualSensorMonitor.uasset` can exist as an untracked review
-candidate while `ReadyToStageMonitorWbpAsset` remains false. Do not stage it
-until editor-open, widget-binding, PIE-smoke, no-crash, and owner-acceptance
-evidence sections are complete.
-Codex can safely update native C++/Blueprint-callable monitor bindings and the
-acceptance tooling, but should not byte-patch the binary `.uasset` directly.
-Actual WBP layout/Designer changes must be made through Unreal Editor with a
-pre-edit hash/backup, compile/save evidence, post-edit hash, PIE smoke, and
-owner acceptance before the asset is staged.
-For WBP layout work, bind individual TextBlocks to the native summary getters
-such as `GetSelectedSensorIdText`, `GetFrameSummaryText`,
-`GetServerPayloadSummaryText`, `GetPreviewPolicySummaryText`, and
-`GetSlabAnalysisSummaryText`, plus `GetLazExportSummaryText` for the LAZ
-placeholder/compressor boundary, instead of parsing the full debug status text.
-`GetAcceptanceGateSummaryText` exposes WBP/manual PIE, server-payload, true-LAZ,
-and real-sensor deployment evidence state directly from the UE widget.
-Use `IsShowingLidar`, `HasBoundCamera`, `HasBoundLidar`, and
-`GetLastManualExportMessage` for WBP visibility/enabled-state rules.
+- [SensorTestMap과 WBP 설정](docs/sensor_test_map_setup.ko.md): 기본 사용자 가이드
+- [Editor Smoke/Automation](docs/editor_smoke_test.md): 상세 테스트와 acceptance 절차
+- [LiDAR Payload Schema](docs/lidar_payload_schema.md)
+- [Camera Payload Schema](docs/camera_payload_schema.md)
+- [Server Transport Contract](docs/server_transport_contract.md)
+- [Real Sensor Adapter Plan](docs/real_sensor_adapter_plan.md)
+- [Local Asset Report](docs/local_asset_report.md): 로컬 asset 판정 도구 설명
+- [Remaining Work](docs/remaining_work.md): 외부 결정·장비 증거가 필요한 장기 항목
+- [Pixel Streaming Setup](docs/pixel_streaming_setup.md): 현재 센서 범위 밖인 sample 보존 정책
 
-Judging-server acceptance package:
+모니터 Designer hierarchy와 Optional Bindings는 SensorTestMap/WBP 가이드에서 함께 관리합니다.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_judging_server_acceptance_package.ps1" -ProjectRoot "."
-```
+## 로컬 변경과 커밋 전 점검
 
-The package writes local `Saved/Reports/JudgingServerAcceptance` review files
-for payload contract, transport contract, and fillable real-server acceptance
-evidence. Endpoint URLs, tokens, passwords, and credential values must stay out
-of the repository and out of generated review artifacts.
-The fillable evidence draft separates endpoint ownership, authentication policy,
-response schema, real endpoint smoke, rate/backpressure, secret redaction, and
-owner acceptance sections; these sections are metadata and do not by themselves
-claim real judging-server acceptance.
-
-Real sensor adapter deployment package:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_deployment_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_real_sensor_adapter_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"
-```
-
-The package writes local `Saved/Reports/RealSensorAdapterDeployment` review
-files for adapter readiness, WebSocket sample/registration, broker-smoke draft,
-deployment evidence draft/validation, and follow-up evidence. It does not
-connect to external brokers or SDKs, does not write endpoint/credential values,
-and does not modify assets or stage files.
-The evidence draft separates deployment-path sections for replay, HTTP JSON
-live, DTCore WebSocket, UDP JSON live, ROS2, Livox, and RealSense. A path section
-is review metadata only; local loopback checks and placeholder SDK components
-do not prove production real-sensor deployment until the selected path has live
-smoke evidence and owner acceptance.
-`URealSensorSourceComp::GetDeploymentReadinessSummaryText()` exposes the same
-deployment boundary in UE runtime code for Details, Blueprint, or monitor
-integration: replay is a schema baseline, while JSON live, ROS2, Livox,
-RealSense, and custom sources require external deployment evidence.
-Generated deployment reports expose `PreDeploymentEvidenceOnly = true`,
-`BrokerlessDispatchIsDeploymentEvidence = false`,
-`LoopbackSmokeIsDeploymentBrokerEvidence = false`,
-`StaticTransactionRegistrationIsBrokerAcceptance = false`,
-`AcceptancePackageIsEvidenceShell = true`, and
-`AcceptancePackageIsDeploymentProof = false`. Report generation is not
-deployment acceptance, does not modify DTCore, and does not cover
-PixelStreaming.
-Use `export_real_sensor_adapter_gap_summary.ps1` to refresh the deployment
-package and validator output, then write a compact phase summary and next manual
-action under `Saved/Reports/RealSensorAdapterDeployment`. It never connects to
-brokers or SDKs, writes endpoint/credential values, modifies DTCore/assets, or
-stages files.
-PixelStreaming is out of scope for the current LiDAR/virtual-sensor work. The
-local `Samples/PixelStreaming/` folder should stay untracked, but its
-ownership/license decision is not counted as current remaining implementation
-work.
-
-LAZ compression acceptance package:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_laz_compression_gap_summary.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt"
-```
-
-The package writes local `Saved/Reports/LazCompressionAcceptance` review files
-for the current placeholder, compressor decision, reader/readable-output
-evidence, a fillable `LazCompressionAcceptanceEvidenceV1` draft, validation
-results, and follow-up commands. It does not install tools, run a compressor,
-modify assets, or stage files.
-Compressor/reader candidate discovery is readiness metadata, not acceptance
-evidence. The package is an evidence shell, not readable LAZ proof, until a
-produced `.laz` is validated by a known reader and owner acceptance is recorded.
-The evidence draft separates `CompressorSelection`, `ProducedLazEvidence`,
-`KnownReaderValidation`, `PlaceholderDistinction`, `RepeatableCommand`, and
-`OwnerAcceptance`, so placeholder or copy-surrogate output cannot be mistaken
-for accepted LAZ compression.
-The validator now checks that produced evidence is a non-empty `.laz`, that its
-recorded byte size matches the file, that it differs from the LAS source path,
-that a known reader probe exits with code 0 against the same `.laz`, and that
-the output is not a `_laz_source_` placeholder or copy-surrogate artifact. The
-package summary also reports top missing checks and true-LAZ blockers.
-The acceptance package also emits `EvidenceCopyHints` so readiness-report values
-such as selected compressor/reader paths, produced `.laz` path, byte size, and
-reader probe status can be copied into the fillable evidence JSON without
-guessing which section owns each value.
-Use `export_laz_compression_acceptance_runbook.ps1` to create
-`laz_compression_acceptance_runbook.md`, a command sequence for placeholder
-policy validation, compressor/reader readiness, produced `.laz` evidence,
-reader probing, evidence fill, and strict validation.
-Use `export_laz_compression_gap_summary.ps1` to refresh the LAZ package,
-runbook, and validator output, then write a compact phase summary and next
-manual action under `Saved/Reports/LazCompressionAcceptance`. It is read-only
-for assets, git, tools, and compressor execution.
-
-The LiDAR component also exposes last LAZ export telemetry for widgets and
-automation: status text, LAS source path, LAZ output path, placeholder-only,
-export attempt/success, external-compressor requested/attempted/succeeded,
-produced-output, true-validation, exported point count, return code, output
-size, and warning fields. These fields describe the most recent export attempt
-only; readable `.laz` acceptance still requires a produced file, known-reader
-validation, and owner acceptance.
-
-로컬 프로젝트 상태와 untracked asset decision point 확인:
+`Config/Game.ini`, marketplace content, packaged output, WBP `.uasset`, DTCore submodule 변경은 자동으로 커밋 대상으로 간주하지 않습니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\invoke_local_decision_precommit_gate.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_goal_progress_blocker_report.ps1"
 ```
 
-구조화된 결과:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -Json
-```
-
-Gate 예시:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnGeneratedOutput
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnCategory LargeContentCandidate,SampleOrThirdParty
-powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1" -FailOnUnclassifiedUntracked
-```
-
-`Windows/`, `Windows.zip`, `launcher.config.json`은 `.gitignore`에 등록되어 git status에서는 숨겨질 수 있지만, 이 스크립트는 파일 시스템을 직접 확인해 존재 여부를 계속 보고합니다.
-
-## 관련 문서
-
-```text
-docs/lidar_payload_schema.md
-docs/camera_payload_schema.md
-docs/sensor_test_map_setup.ko.md
-docs/widget_designer_setup.md
-docs/editor_smoke_test.md
-docs/real_sensor_adapter_plan.md
-docs/local_asset_report.md
-docs/remaining_work.md
-```
+이 도구들은 기본적으로 상태와 evidence gap을 보고하며 자동 staging을 수행하지 않습니다.
 
 ## 알려진 제한
 
-- `/Game/MA0T10/UI/WBP_VirtualSensorMonitor`는 `UVirtualSensorMonitorWidget` 기반으로 생성되며 `SensorTestMap`의 MonitorHost에 직접 연결됩니다. 신규 smoke test는 `SensorTestMap`을 사용합니다.
-- C++ module은 `ma0t10_dt`, Content package는 `/Game/MA0T10`을 사용합니다. 과거 `/Game/M7AT10` asset은 Unreal Editor rename, redirector fixup, resave를 거쳐 이전했습니다.
-- Livox SDK, RealSense SDK, ROS2 bridge 직접 입력은 아직 구현되지 않았습니다.
-- `ExportLastPointCloudLaz()`는 실제 LAZ 압축이 아닙니다. 현재는 `*_laz_source_*.las` 형식의 LAS 호환 source 파일을 저장하고 warning log를 남깁니다.
-- FullSpec, MultiHit, ExportOnScan을 동시에 켜면 editor 성능이 크게 떨어질 수 있습니다.
-- 대규모 point cloud rendering은 아직 CPU/instance 기반 preview 한계가 있어 GPU/Niagara 기반 renderer 검토가 필요합니다.
-  LiDAR `PreviewBackend`에서 Niagara/custom GPU 후보를 선택할 수 있지만, 현재 후보 값은 CPU fallback 상태 표시용이며 GPU 구현 완료 증거가 아닙니다.
-  현재 CPU fallback/GPU smoke evidence boundary는 다음 패키지로 로컬에 export할 수 있습니다:
-  `powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt"`.
-- `SensorTestMap`의 headless 구성 검사는 자동화되어 있지만, camera render target과 Designer WBP의 실제 화면은 PIE에서 별도 검증해야 합니다.
-- `WBP_VirtualSensorMonitor.uasset`의 실제 레이아웃 수정은 Unreal Editor를
-  통해서만 진행합니다. 코드/바인딩/API는 Codex가 수정 가능하지만 `.uasset`
-  바이너리 직접 패치는 금지합니다.
-
-남은 구현/에셋 결정/완료 판정 기준은 `docs/remaining_work.md`에서 추적합니다.
+- 실제 D455 depth calibration/stream이 아니라 SceneCapture 기반 preview입니다.
+- 실제 Livox/RealSense/ROS2 SDK adapter와 배포 장비 검증이 필요합니다.
+- 실제 LAZ 압축은 외부 compressor 설정과 검증이 필요합니다.
+- 고밀도 실시간 point cloud는 현재 CPU fallback 중심이며 GPU/Niagara backend는 후보 단계입니다.
+- 실제 judging server endpoint, 인증, 응답 schema와 운영 backpressure 정책은 환경 소유자 결정이 필요합니다.
+- DTCore는 일부 USTRUCT 기본 초기화 및 `EnhancedInput` dependency 경고를 출력할 수 있습니다.

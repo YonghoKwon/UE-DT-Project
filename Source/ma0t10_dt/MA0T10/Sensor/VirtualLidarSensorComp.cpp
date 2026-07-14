@@ -209,7 +209,7 @@ void UVirtualLidarSensorComp::ApplyDeviceProfile(EVirtualLidarDeviceProfile NewP
     DeviceProfile = NewProfile;
     if (DeviceProfile == EVirtualLidarDeviceProfile::LivoxMid360S)
     {
-        DeviceSpec.Manufacturer = TEXT("Livox"); DeviceSpec.Model = TEXT("Mid-360S"); DeviceSpec.HorizontalFovDegrees = 360.0f; DeviceSpec.VerticalFovDegrees = 59.0f; DeviceSpec.MinRangeCm = 10.0f; DeviceSpec.TypicalRangeCm = 4000.0f; DeviceSpec.MaxRangeCm = 10000.0f; DeviceSpec.FrameRateHz = 10.0f; DeviceSpec.PointRate = 200000; DeviceSpec.Notes = TEXT("Livox Mid-360S metadata profile. Simulation quality controls runtime ray count separately.");
+        DeviceSpec.Manufacturer = TEXT("Livox"); DeviceSpec.Model = TEXT("Mid-360S"); DeviceSpec.HorizontalFovDegrees = 360.0f; DeviceSpec.VerticalFovDegrees = 59.0f; DeviceSpec.MinRangeCm = 10.0f; DeviceSpec.TypicalRangeCm = 4000.0f; DeviceSpec.MaxRangeCm = 10000.0f; DeviceSpec.FrameRateHz = 10.0f; DeviceSpec.PointRate = 200000; DeviceSpec.Notes = TEXT("Livox Mid-360S: 40m at 10% reflectivity and 100m cutoff. Simulation quality controls runtime ray count separately.");
         HorizontalFov = DeviceSpec.HorizontalFovDegrees; MinVerticalAngle = -7.0f; MaxVerticalAngle = 52.0f; MaxDistance = DeviceSpec.TypicalRangeCm; Preset = EVirtualLidarPreset::Custom;
     }
     else { DeviceSpec.Manufacturer = TEXT("Generic"); DeviceSpec.Model = TEXT("Generic LiDAR"); }
@@ -702,7 +702,7 @@ void UVirtualLidarSensorComp::SaveJsonToDisk(const FString& JsonPayload) const {
 
 FString UVirtualLidarSensorComp::BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const
 {
-    const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud")); IFileManager::Get().MakeDirectory(*Dir, true); const FString Prefix = FileNamePrefix.IsEmpty() ? SensorId : FileNamePrefix; const FDateTime N = FDateTime::UtcNow(); const FString Ts = FString::Printf(TEXT("%s_%03d_%lld"), *N.ToString(TEXT("%Y%m%d_%H%M%S")), N.GetMillisecond(), N.GetTicks()); return FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Ts, *Extension));
+    const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud")); IFileManager::Get().MakeDirectory(*Dir, true); const FString Prefix = FileNamePrefix.IsEmpty() ? SensorId : FileNamePrefix; const FDateTime N = FDateTime::UtcNow(); const FString Ts = FString::Printf(TEXT("%s_%03d_%lld"), *N.ToString(TEXT("%Y%m%d_%H%M%S")), N.GetMillisecond(), N.GetTicks()); LastPointCloudExportPath = FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Ts, *Extension)); return LastPointCloudExportPath;
 }
 void UVirtualLidarSensorComp::CollectExportPoints(TArray<const FVirtualLidarPoint*>& Out) const { Out.Reset(); for (const FVirtualLidarPoint& P : LastPoints) if (!bExportHitOnlyPointCloud || P.bHit) Out.Add(&P); }
 
