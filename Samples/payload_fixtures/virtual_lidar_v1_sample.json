@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "virtual-lidar.v1",
+  "sensorType": "virtual_lidar",
+  "sensorId": "LIDAR-SLAB-01",
+  "manufacturer": "Livox",
+  "model": "Mid-360S",
+  "frameId": 42,
+  "timestampUtc": "2026-06-14T12:00:00.000Z",
+  "horizontalSamples": 6,
+  "verticalChannels": 3,
+  "rayCount": 18,
+  "totalPointCount": 18,
+  "hitPointCount": 12,
+  "payloadPointCount": 4,
+  "maxDistance": 4000.0,
+  "semanticClassification": true,
+  "payloadPolicy": {
+    "stride": 3,
+    "maxPoints": 5,
+    "includeMissPoints": false,
+    "pointSelection": "hit_only"
+  },
+  "previewPolicy": {
+    "stride": 2,
+    "maxPoints": 5000,
+    "hitOnly": true
+  },
+  "sensorTransform": {
+    "location": [0.0, 0.0, 250.0],
+    "rotation": [0.0, 0.0, 0.0],
+    "forward": [1.0, 0.0, 0.0],
+    "up": [0.0, 0.0, 1.0]
+  },
+  "slabAnalysis": {
+    "valid": true,
+    "slabHitPointCount": 12,
+    "boundsMin": [900.0, -260.0, 0.0],
+    "boundsMax": [1200.0, 260.0, 0.0],
+    "center": [1050.0, 0.0, 0.0],
+    "estimatedYawDegrees": 4.5,
+    "referenceYawDegrees": 0.0,
+    "angleDeviationDegrees": 4.5,
+    "confidence": 0.78,
+    "status": "ok"
+  },
+  "points": [
+    {
+      "pointIndex": 0,
+      "row": 0,
+      "col": 0,
+      "returnIndex": 0,
+      "gridCoordValid": true,
+      "gridCoordSource": "point_metadata",
+      "hit": true,
+      "distance": 936.8,
+      "hitActor": "BP_Slab_01",
+      "hitActorClass": "StaticMeshActor",
+      "hitActorTags": ["Slab", "SteelSlab"],
+      "semanticLabel": "Slab",
+      "worldLocation": [900.0, -260.0, 0.0],
+      "localDirection": [0.96, -0.28, -0.01]
+    },
+    {
+      "pointIndex": 3,
+      "row": 0,
+      "col": 3,
+      "returnIndex": 0,
+      "gridCoordValid": true,
+      "gridCoordSource": "point_metadata",
+      "hit": true,
+      "distance": 1050.0,
+      "hitActor": "BP_Slab_01",
+      "hitActorClass": "StaticMeshActor",
+      "hitActorTags": ["Slab", "SteelSlab"],
+      "semanticLabel": "Slab",
+      "worldLocation": [1050.0, -80.0, 0.0],
+      "localDirection": [0.99, -0.08, -0.01]
+    },
+    {
+      "pointIndex": 6,
+      "row": 1,
+      "col": 0,
+      "returnIndex": 0,
+      "gridCoordValid": true,
+      "gridCoordSource": "point_metadata",
+      "hit": true,
+      "distance": 1100.0,
+      "hitActor": "BP_Slab_01",
+      "hitActorClass": "StaticMeshActor",
+      "hitActorTags": ["Slab", "SteelSlab"],
+      "semanticLabel": "Slab",
+      "worldLocation": [1100.0, 90.0, 0.0],
+      "localDirection": [0.99, 0.08, -0.01]
+    },
+    {
+      "pointIndex": 9,
+      "row": 1,
+      "col": 3,
+      "returnIndex": 0,
+      "gridCoordValid": true,
+      "gridCoordSource": "point_metadata",
+      "hit": true,
+      "distance": 1227.3,
+      "hitActor": "BP_Slab_01",
+      "hitActorClass": "StaticMeshActor",
+      "hitActorTags": ["Slab", "SteelSlab"],
+      "semanticLabel": "Slab",
+      "worldLocation": [1200.0, 260.0, 0.0],
+      "localDirection": [0.98, 0.21, -0.01]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "MESSAGE_ID": "LIDAR_JSON_LIVE_FRAME",
+  "DATA_MAP": {
+    "SOURCE_ID": "JsonLiveLidarBridge",
+    "SEND_TRANSPORT": true,
+    "PUSH_FRAME": true,
+    "POINTS": [
+      {
+        "row": 0,
+        "col": 0,
+        "returnIndex": 0,
+        "x": 900.0,
+        "y": -260.0,
+        "z": 0.0,
+        "distance": 936.8,
+        "hit": true,
+        "semanticLabel": "Slab",
+        "tags": "Slab|Live"
+      },
+      {
+        "row": 0,
+        "col": 1,
+        "returnIndex": 0,
+        "x": 930.0,
+        "y": -210.0,
+        "z": 0.0,
+        "distance": 953.4,
+        "hit": true,
+        "semanticLabel": "Slab",
+        "tags": "Slab|Live"
+      },
+      {
+        "row": 1,
+        "col": 0,
+        "returnIndex": 0,
+        "x": 905.0,
+        "y": -255.0,
+        "z": 80.0,
+        "distance": 943.1,
+        "hit": true,
+        "semanticLabel": "Slab",
+        "tags": "Slab|Live"
+      }
+    ]
+  }
+}

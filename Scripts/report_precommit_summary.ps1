@@ -1,0 +1,1314 @@
+﻿param(
+    [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
+    [string]$SourceRepoRoot = "",
+    [string]$WbpAcceptanceEvidencePath = "",
+    [switch]$IncludeReadiness,
+    [switch]$Json
+)
+
+$ErrorActionPreference = "Stop"
+
+function Write-Section {
+    param([string]$Title)
+    Write-Host ""
+    Write-Host "== $Title =="
+}
+
+function Get-GitLines {
+    param(
+        [string]$WorkingDirectory,
+        [string[]]$GitArgs
+    )
+
+    Push-Location $WorkingDirectory
+    try {
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $output = @(& git.exe @GitArgs 2>&1 | Where-Object { $_ -notmatch "^warning:" })
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($LASTEXITCODE -ne 0) {
+            throw "git $($GitArgs -join ' ') failed with exit code $LASTEXITCODE"
+        }
+        return $output
+    }
+    finally {
+        if ($previousErrorActionPreference) {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        Pop-Location
+    }
+}
+
+function Get-LocalAssetSummary {
+    param([string]$ProjectRoot)
+
+    $assetReportScript = Join-Path $script:PSScriptRoot "report_local_project_status.ps1"
+    if (-not (Test-Path -LiteralPath $assetReportScript)) {
+        return $null
+    }
+
+    $jsonText = & powershell -ExecutionPolicy Bypass -File $assetReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Local asset report failed with exit code $LASTEXITCODE"
+    }
+
+    return $jsonText | ConvertFrom-Json
+}
+
+function Convert-ToSizeText {
+    param([int64]$Bytes)
+
+    if ($Bytes -ge 1GB) {
+        return "{0:N1} GB" -f ($Bytes / 1GB)
+    }
+    if ($Bytes -ge 1MB) {
+        return "{0:N1} MB" -f ($Bytes / 1MB)
+    }
+    if ($Bytes -ge 1KB) {
+        return "{0:N1} KB" -f ($Bytes / 1KB)
+    }
+    return "$Bytes B"
+}
+
+function Get-LargeContentDecisionSummary {
+    param([string]$ProjectRoot)
+
+    $largeContentReportScript = Join-Path $script:PSScriptRoot "export_large_content_decision_report.ps1"
+    if (-not (Test-Path -LiteralPath $largeContentReportScript -PathType Leaf)) {
+        return $null
+    }
+    $cleanupPlanScript = Join-Path $script:PSScriptRoot "export_large_content_cleanup_plan.ps1"
+    $unusedContentArchiveScript = Join-Path $script:PSScriptRoot "invoke_unused_content_archive.ps1"
+    $unusedContentArchiveEvidenceScript = Join-Path $script:PSScriptRoot "export_unused_content_archive_evidence.ps1"
+    $sampleDecisionReportScript = Join-Path $script:PSScriptRoot "export_sample_content_decision_report.ps1"
+
+    $jsonText = & powershell -ExecutionPolicy Bypass -File $largeContentReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Large content decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $largeReport = $jsonText | ConvertFrom-Json
+    $cleanupPlan = $null
+    if (Test-Path -LiteralPath $cleanupPlanScript -PathType Leaf) {
+        $cleanupPlanJson = & powershell -ExecutionPolicy Bypass -File $cleanupPlanScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Large content cleanup plan failed with exit code $LASTEXITCODE"
+        }
+        $cleanupPlan = $cleanupPlanJson | ConvertFrom-Json
+    }
+    $unusedContentArchiveReport = $null
+    if (Test-Path -LiteralPath $unusedContentArchiveScript -PathType Leaf) {
+        $archiveJson = & powershell -ExecutionPolicy Bypass -File $unusedContentArchiveScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unused content archive report failed with exit code $LASTEXITCODE"
+        }
+        $unusedContentArchiveReport = $archiveJson | ConvertFrom-Json
+    }
+    $unusedContentArchiveEvidence = $null
+    if (Test-Path -LiteralPath $unusedContentArchiveEvidenceScript -PathType Leaf) {
+        $archiveEvidenceJson = & powershell -ExecutionPolicy Bypass -File $unusedContentArchiveEvidenceScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unused content archive evidence failed with exit code $LASTEXITCODE"
+        }
+        $unusedContentArchiveEvidence = $archiveEvidenceJson | ConvertFrom-Json
+    }
+    $sampleDecisionReport = $null
+    if (Test-Path -LiteralPath $sampleDecisionReportScript -PathType Leaf) {
+        $sampleDecisionJson = & powershell -ExecutionPolicy Bypass -File $sampleDecisionReportScript -ProjectRoot $ProjectRoot -Json
+        if ($LASTEXITCODE -ne 0) {
+            throw "Sample content decision report failed with exit code $LASTEXITCODE"
+        }
+        $sampleDecisionReport = $sampleDecisionJson | ConvertFrom-Json
+    }
+
+    $unusedCleanupCandidates = @($largeReport.Candidates | Where-Object { $_.UnusedLocalCleanupCandidate })
+    $repositoryAcceptanceCandidates = @($largeReport.Candidates | Where-Object { $_.RepositoryAcceptanceRequired })
+    $sampleCandidates = @($largeReport.Candidates | Where-Object { $_.Category -eq "SampleOrThirdParty" })
+    $unusedCleanupBytes = [int64](($unusedCleanupCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
+    $sampleBytes = [int64](($sampleCandidates | Measure-Object -Property SizeBytes -Sum).Sum)
+    $largestCleanupCandidate = @($unusedCleanupCandidates | Sort-Object SizeBytes -Descending | Select-Object -First 1)
+    $largestSampleCandidate = @($sampleCandidates | Sort-Object SizeBytes -Descending | Select-Object -First 1)
+    $knownUnusedCleanupPaths = @(
+        "Content\ChemicalPlantEnv",
+        "Content\Mega_Crane",
+        "Content\Materials",
+        "Content\Meshes",
+        "Content\Textures"
+    )
+
+    return [PSCustomObject]@{
+        CandidateCount = [int]$largeReport.CandidateCount
+        UnusedCleanupCandidateCount = $unusedCleanupCandidates.Count
+        KnownUnusedCleanupCandidateMaxCount = $knownUnusedCleanupPaths.Count
+        PresentKnownUnusedCleanupCandidateCount = $unusedCleanupCandidates.Count
+        KnownUnusedCleanupCandidateAbsentOrArchivedCount = ($knownUnusedCleanupPaths.Count - $unusedCleanupCandidates.Count)
+        UnusedCleanupSizeBytes = $unusedCleanupBytes
+        UnusedCleanupSize = Convert-ToSizeText -Bytes $unusedCleanupBytes
+        RepositoryAcceptanceCandidateCount = $repositoryAcceptanceCandidates.Count
+        RepositoryAcceptanceCandidatePaths = @($repositoryAcceptanceCandidates | Select-Object -ExpandProperty Path)
+        LargestCleanupCandidatePath = if ($largestCleanupCandidate.Count -gt 0) { [string]$largestCleanupCandidate[0].Path } else { "" }
+        LargestCleanupCandidateSize = if ($largestCleanupCandidate.Count -gt 0) { [string]$largestCleanupCandidate[0].Size } else { "" }
+        CleanupBoundary = "Cleanup candidate means keep ignored or manually remove after map/WBP dependency checks; it is not ready to stage."
+        CleanupPlanAvailable = ($null -ne $cleanupPlan)
+        CleanupPlanCandidateCount = if ($cleanupPlan) { [int]$cleanupPlan.Summary.CleanupCandidateCount } else { 0 }
+        CleanupPlanRecoverableSize = if ($cleanupPlan) { [string]$cleanupPlan.Summary.TotalRecoverableSize } else { "" }
+        CleanupPlanDryRunOnly = if ($cleanupPlan) { [bool]$cleanupPlan.Summary.DryRunOnly } else { $true }
+        CleanupPlanDeletesFiles = if ($cleanupPlan) { [bool]$cleanupPlan.Summary.DeletesFiles } else { $false }
+        CleanupPlanModifiesAssets = if ($cleanupPlan) { [bool]$cleanupPlan.Summary.ModifiesAssets } else { $false }
+        CleanupPlanRequiredReferenceCheckCount = if ($cleanupPlan) { [int]$cleanupPlan.Summary.RequiredReferenceCheckCount } else { 0 }
+        CleanupPlanSafeToDeleteCount = if ($cleanupPlan) { [int]$cleanupPlan.Summary.SafeToDeleteCount } else { 0 }
+        CleanupPlanReadyForManualDeletionCount = if ($cleanupPlan) { [int]$cleanupPlan.Summary.ReadyForManualDeletionCount } else { 0 }
+        CleanupPlanDefaultAction = if ($cleanupPlan) { [string]$cleanupPlan.Summary.DefaultAction } else { "" }
+        UnusedContentArchiveAvailable = ($null -ne $unusedContentArchiveReport)
+        UnusedContentArchiveCandidateCount = if ($unusedContentArchiveReport) { [int]$unusedContentArchiveReport.Summary.CandidateCount } else { 0 }
+        UnusedContentArchivePreviewOnly = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.PreviewOnly } else { $true }
+        UnusedContentArchiveExecuteRequested = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.ExecuteRequested } else { $false }
+        UnusedContentArchiveRequiresExplicitArchiveRootForExecute = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.RequiresExplicitArchiveRootForExecute } else { $true }
+        UnusedContentArchiveDeletesFiles = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.DeletesFiles } else { $false }
+        UnusedContentArchiveStagesFiles = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.StagesFiles } else { $false }
+        UnusedContentArchiveModifiesAssets = if ($unusedContentArchiveReport) { [bool]$unusedContentArchiveReport.Summary.ModifiesAssets } else { $false }
+        UnusedContentArchiveBoundary = if ($unusedContentArchiveReport) { [string]$unusedContentArchiveReport.Summary.Boundary } else { "" }
+        ArchiveEvidenceAvailable = ($null -ne $unusedContentArchiveEvidence)
+        ArchiveEvidenceComplete = if ($unusedContentArchiveEvidence) { [bool]$unusedContentArchiveEvidence.Summary.ArchiveEvidenceComplete } else { $false }
+        ArchiveEvidenceArchiveRoot = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.ArchiveRoot } else { "" }
+        ArchiveEvidenceLatestRun = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.LatestArchiveRun } else { "" }
+        ArchiveEvidenceRootOutsideProject = if ($unusedContentArchiveEvidence) { [bool]$unusedContentArchiveEvidence.Summary.ArchiveRootOutsideProject } else { $false }
+        ArchiveEvidenceArchivedCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.ArchivedCount } else { 0 }
+        ArchiveEvidencePresentInProjectCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.PresentInProjectCount } else { 0 }
+        ArchiveEvidenceMissingCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.MissingArchiveEvidenceCount } else { 0 }
+        ArchiveEvidenceArchivedSize = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.ArchivedSize } else { "" }
+        ArchiveEvidenceRootGitState = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.ArchiveRootGitState } else { "" }
+        ArchiveEvidenceRootStagedFileCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.ArchiveRootStagedFileCount } else { 0 }
+        ArchiveEvidenceDTCoreTouchedFileCount = if ($unusedContentArchiveEvidence) { [int]$unusedContentArchiveEvidence.Summary.DTCoreTouchedFileCount } else { 0 }
+        ArchiveEvidenceBoundary = if ($unusedContentArchiveEvidence) { [string]$unusedContentArchiveEvidence.Summary.Boundary } else { "" }
+        SampleCandidateCount = $sampleCandidates.Count
+        SampleCandidateSizeBytes = $sampleBytes
+        SampleCandidateSize = Convert-ToSizeText -Bytes $sampleBytes
+        SampleCandidatePaths = @($sampleCandidates | Select-Object -ExpandProperty Path)
+        LargestSampleCandidatePath = if ($largestSampleCandidate.Count -gt 0) { [string]$largestSampleCandidate[0].Path } else { "" }
+        LargestSampleCandidateSize = if ($largestSampleCandidate.Count -gt 0) { [string]$largestSampleCandidate[0].Size } else { "" }
+        SampleBoundary = "Sample/third-party candidate means keep untracked unless project ownership, redistribution approval, and documentation alternative are accepted."
+        SampleDecisionReportAvailable = ($null -ne $sampleDecisionReport)
+        SampleDecisionReadyToStageCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.ReadyToStageCount } else { 0 }
+        SampleDecisionDocumentationAlternativePreferredCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.DocumentationAlternativePreferredCount } else { 0 }
+        SampleDecisionSetupAlternativePreferredCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.SetupAlternativePreferredCount } else { 0 }
+        SampleDecisionExcludedFromCurrentScopeCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.ExcludedFromCurrentScopeCount } else { 0 }
+        SampleDecisionCountsTowardRemainingWorkCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.CountsTowardRemainingWorkCount } else { 0 }
+        SampleDecisionMustRemainUntrackedCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.MustRemainUntrackedCount } else { 0 }
+        SampleDecisionMissingAcceptanceCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.MissingAcceptanceCount } else { 0 }
+        SampleDecisionDryRunOnly = if ($sampleDecisionReport) { [bool]$sampleDecisionReport.Summary.DryRunOnly } else { $true }
+        SampleDecisionCopiesSampleFiles = if ($sampleDecisionReport) { [bool]$sampleDecisionReport.Summary.CopiesSampleFiles } else { $false }
+        SampleDecisionSetupDocumentationPath = if ($sampleDecisionReport) { [string]$sampleDecisionReport.Summary.SetupDocumentationPath } else { "" }
+        SampleDecisionUnexpectedSampleStaged = if ($sampleDecisionReport) { [bool]$sampleDecisionReport.Summary.UnexpectedSampleStaged } else { $false }
+        SampleDecisionStagedSamplePathCount = if ($sampleDecisionReport) { [int]$sampleDecisionReport.Summary.StagedSamplePathCount } else { 0 }
+        SampleDecisionStagedSamplePaths = if ($sampleDecisionReport) { @($sampleDecisionReport.Summary.StagedSamplePaths) } else { @() }
+        SampleDecisionDefaultAction = if ($sampleDecisionReport) { [string]$sampleDecisionReport.Summary.DefaultAction } else { "" }
+        DefaultAction = [string]$largeReport.Summary.DefaultAction
+    }
+}
+
+function Get-DTCoreSubmoduleGuardSummary {
+    param([string]$ProjectRoot)
+
+    $dtCoreGuardScript = Join-Path $script:PSScriptRoot "validate_dtcore_submodule_guard.ps1"
+    if (-not (Test-Path -LiteralPath $dtCoreGuardScript -PathType Leaf)) {
+        return $null
+    }
+
+    $jsonText = & powershell -ExecutionPolicy Bypass -File $dtCoreGuardScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "DTCore submodule guard failed with exit code $LASTEXITCODE"
+    }
+
+    $guard = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        DTCoreInvariantValid = [bool]$guard.Summary.DTCoreInvariantValid
+        ExpectedCommit = [string]$guard.Summary.ExpectedCommit
+        ActualCommit = [string]$guard.Summary.ActualCommit
+        DTCoreExpectedCommit = [string]$guard.Summary.DTCoreExpectedCommit
+        DTCoreActualCommit = [string]$guard.Summary.DTCoreActualCommit
+        DTCoreSubmoduleStatus = [string]$guard.Summary.DTCoreSubmoduleStatus
+        DTCoreGitlinkStaged = [bool]$guard.Summary.DTCoreGitlinkStaged
+        DTCoreGitlinkModified = [bool]$guard.Summary.DTCoreGitlinkModified
+        DTCoreWorktreeClean = [bool]$guard.Summary.DTCoreWorktreeClean
+        DTCoreStagedPathCount = [int]$guard.Summary.DTCoreStagedPathCount
+        DTCoreModifiedPathCount = [int]$guard.Summary.DTCoreModifiedPathCount
+        DTCoreUntrackedPathCount = [int]$guard.Summary.DTCoreUntrackedPathCount
+        SubmodulePresent = [bool]$guard.Summary.SubmodulePresent
+        ExpectedCommitMatches = [bool]$guard.Summary.ExpectedCommitMatches
+        SubmoduleStatusClean = [bool]$guard.Summary.SubmoduleStatusClean
+        ParentDTCoreStatusLineCount = [int]$guard.Summary.ParentDTCoreStatusLineCount
+        StagedDTCorePathCount = [int]$guard.Summary.StagedDTCorePathCount
+        SubmoduleWorktreeLineCount = [int]$guard.Summary.SubmoduleWorktreeLineCount
+        ViolationCount = [int]$guard.Summary.ViolationCount
+        DryRunOnly = [bool]$guard.Summary.DryRunOnly
+        ReadOnly = [bool]$guard.Summary.ReadOnly
+        ModifiesSubmodule = [bool]$guard.Summary.ModifiesSubmodule
+        StagesDTCore = [bool]$guard.Summary.StagesDTCore
+        DoesNotUpdateSubmodule = [bool]$guard.Summary.DoesNotUpdateSubmodule
+        DoesNotStageFiles = [bool]$guard.Summary.DoesNotStageFiles
+        Boundary = [string]$guard.Summary.Boundary
+    }
+}
+
+function Get-WbpDecisionSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $wbpDecisionReportScript = Join-Path $script:PSScriptRoot "export_monitor_wbp_decision_report.ps1"
+    if (-not (Test-Path -LiteralPath $wbpDecisionReportScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $wbpDecisionReportScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Monitor WBP decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $wbpReport = $jsonText | ConvertFrom-Json
+    $missingChecklist = @($wbpReport.ManualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" })
+    return [PSCustomObject]@{
+        WbpPresent = [bool]$wbpReport.WbpPresent
+        WbpRelativePath = [string]$wbpReport.WbpRelativePath
+        WbpSize = [string]$wbpReport.WbpSize
+        GitState = [string]$wbpReport.GitState
+        ReviewQueue = [string]$wbpReport.Summary.ReviewQueue
+        CommitReadiness = [string]$wbpReport.Summary.CommitReadiness
+        EvidenceStatus = [string]$wbpReport.Summary.EvidenceStatus
+        EvidenceSatisfied = [bool]$wbpReport.Summary.EvidenceSatisfied
+        MissingEvidenceCount = [int]$wbpReport.Summary.MissingEvidenceCount
+        ManualAcceptanceMissingCount = [int]$wbpReport.Summary.ManualAcceptanceMissingCount
+        AcceptanceTemplateAvailable = [bool]$wbpReport.Summary.AcceptanceTemplateAvailable
+        AcceptanceTemplateRequiredEvidenceCount = [int]$wbpReport.Summary.AcceptanceTemplateRequiredEvidenceCount
+        MissingAcceptanceItems = @($missingChecklist | Select-Object -ExpandProperty Name)
+        RecommendedDecision = [string]$wbpReport.RecommendedDecision
+        MonitorPolicyValid = [bool]$wbpReport.Summary.MonitorPolicyValid
+        SetupDocContractComplete = [bool]$wbpReport.Summary.SetupDocContractComplete
+        ReadyToStage = [bool]$wbpReport.Summary.ReadyToStage
+        StagingBlocked = [bool]$wbpReport.Summary.StagingBlocked
+        ManualEditorVerificationStillRequired = [bool]$wbpReport.Summary.ManualEditorVerificationStillRequired
+        BlockingReason = if ($wbpReport.DecisionPoint) { [string]$wbpReport.DecisionPoint.BlockingReason } else { "" }
+        NextReviewAction = if ($wbpReport.DecisionPoint) { [string]$wbpReport.DecisionPoint.NextReviewAction } else { "" }
+        UnexpectedWbpStaged = ([string]$wbpReport.GitState -eq "Staged" -and -not [bool]$wbpReport.Summary.ReadyToStage)
+        MustRemainUntracked = ([bool]$wbpReport.WbpPresent -and -not [bool]$wbpReport.Summary.ReadyToStage)
+        Boundary = "Monitor WBP stays untracked until Unreal Editor open, optional binding check, PIE smoke, and production WBP acceptance evidence are recorded."
+    }
+}
+
+function Get-WbpPreflightSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $wbpPreflightScript = Join-Path $script:PSScriptRoot "export_monitor_wbp_preflight_report.ps1"
+    if (-not (Test-Path -LiteralPath $wbpPreflightScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $wbpPreflightScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Monitor WBP preflight report failed with exit code $LASTEXITCODE"
+    }
+
+    $preflight = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        WbpPresent = [bool]$preflight.Summary.WbpPresent
+        WbpUntracked = [bool]$preflight.Summary.WbpUntracked
+        WbpStaged = [bool]$preflight.Summary.WbpStaged
+        WbpWorktreeModified = [bool]$preflight.Summary.WbpWorktreeModified
+        AssetHash = [string]$preflight.Summary.AssetHash
+        SetupDocContractComplete = [bool]$preflight.Summary.SetupDocContractComplete
+        MissingSetupTermCount = [int]$preflight.Summary.MissingSetupTermCount
+        AcceptanceTemplateAvailable = [bool]$preflight.Summary.AcceptanceTemplateAvailable
+        RequiredEvidenceCount = [int]$preflight.Summary.RequiredEvidenceCount
+        PendingEvidenceCount = [int]$preflight.Summary.PendingEvidenceCount
+        DecisionReadyToStage = [bool]$preflight.Summary.DecisionReadyToStage
+        DecisionMissingEvidenceCount = [int]$preflight.Summary.DecisionMissingEvidenceCount
+        PreflightCheckCount = [int]$preflight.Summary.PreflightCheckCount
+        BlockedPreflightCheckCount = [int]$preflight.Summary.BlockedPreflightCheckCount
+        ReadyForManualEditorReview = [bool]$preflight.Summary.ReadyForManualEditorReview
+        ModifiesAssets = [bool]$preflight.Summary.ModifiesAssets
+        StagesWbp = [bool]$preflight.Summary.StagesWbp
+        Boundary = [string]$preflight.Summary.Boundary
+    }
+}
+
+function Get-WbpAcceptanceEvidenceSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot,
+        [string]$EvidencePath
+    )
+
+    $wbpEvidenceValidatorScript = Join-Path $script:PSScriptRoot "validate_monitor_wbp_acceptance_evidence.ps1"
+    if (-not (Test-Path -LiteralPath $wbpEvidenceValidatorScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $wbpEvidenceValidatorScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
+        $params += @("-EvidencePath", $EvidencePath)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Monitor WBP acceptance evidence validator failed with exit code $LASTEXITCODE"
+    }
+
+    $evidenceReport = $jsonText | ConvertFrom-Json
+    return [PSCustomObject]@{
+        EvidenceFilePresent = [bool]$evidenceReport.Summary.EvidenceFilePresent
+        EvidencePath = [string]$evidenceReport.EvidencePath
+        EvidenceRecordPresent = [bool]$evidenceReport.Summary.EvidenceRecordPresent
+        RequiredEvidenceCount = [int]$evidenceReport.Summary.RequiredEvidenceCount
+        ManualAcceptanceSectionCount = [int]$evidenceReport.Summary.ManualAcceptanceSectionCount
+        ManualAcceptanceSectionsPresent = [bool]$evidenceReport.Summary.ManualAcceptanceSectionsPresent
+        AcceptedManualAcceptanceSectionCount = [int]$evidenceReport.Summary.AcceptedManualAcceptanceSectionCount
+        ManualAcceptanceSections = @($evidenceReport.Summary.ManualAcceptanceSections)
+        MonitorWbpAssetPresent = [bool]$evidenceReport.Summary.MonitorWbpAssetPresent
+        MonitorWbpAssetTracked = [bool]$evidenceReport.Summary.MonitorWbpAssetTracked
+        MonitorWbpAssetStageAllowed = [bool]$evidenceReport.Summary.MonitorWbpAssetStageAllowed
+        ReadyToStageMonitorWbpAsset = [bool]$evidenceReport.Summary.ReadyToStageMonitorWbpAsset
+        EditorManualAcceptancePresent = [bool]$evidenceReport.Summary.EditorManualAcceptancePresent
+        MonitorWbpManualAcceptanceComplete = [bool]$evidenceReport.Summary.MonitorWbpManualAcceptanceComplete
+        PassedCheckCount = [int]$evidenceReport.Summary.PassedCheckCount
+        FailedCheckCount = [int]$evidenceReport.Summary.FailedCheckCount
+        ReadyToStageCandidate = [bool]$evidenceReport.Summary.ReadyToStageCandidate
+        WbpStaged = [bool]$evidenceReport.Summary.WbpStaged
+        DecisionReportReadyToStage = [bool]$evidenceReport.Summary.DecisionReportReadyToStage
+        DryRunOnly = [bool]$evidenceReport.Summary.DryRunOnly
+        ModifiesAssets = [bool]$evidenceReport.Summary.ModifiesAssets
+        StagesWbp = [bool]$evidenceReport.Summary.StagesWbp
+        Boundary = [string]$evidenceReport.Summary.Boundary
+    }
+}
+
+function Get-RuntimeConfigDecisionSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $runtimeConfigDecisionReportScript = Join-Path $script:PSScriptRoot "export_runtime_config_decision_report.ps1"
+    if (-not (Test-Path -LiteralPath $runtimeConfigDecisionReportScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $runtimeConfigDecisionReportScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Runtime config decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $configReport = $jsonText | ConvertFrom-Json
+    $missingChecklist = @($configReport.ManualAcceptanceChecklist | Where-Object { $_.Status -ne "Recorded" })
+    return [PSCustomObject]@{
+        GameIniPresent = [bool]$configReport.GameIniPresent
+        GameIniGitState = [string]$configReport.Summary.GameIniGitState
+        RuntimeOverridePresent = [bool]$configReport.RuntimeOverridePresent
+        RuntimeOverrideKeyCount = @($configReport.RuntimeOverrideKeys).Count
+        NonEmptyRuntimeOverrideKeyCount = @($configReport.NonEmptyRuntimeOverrideKeys).Count
+        ValuesRedacted = [bool]$configReport.ValuesRedacted
+        ReviewQueue = [string]$configReport.Summary.ReviewQueue
+        CommitReadiness = [string]$configReport.Summary.CommitReadiness
+        EvidenceStatus = [string]$configReport.Summary.EvidenceStatus
+        EvidenceSatisfied = [bool]$configReport.Summary.EvidenceSatisfied
+        MissingEvidenceCount = [int]$configReport.Summary.MissingEvidenceCount
+        ManualAcceptanceMissingCount = [int]$configReport.Summary.ManualAcceptanceMissingCount
+        MissingAcceptanceItems = @($missingChecklist | Select-Object -ExpandProperty Name)
+        ReadyToStage = [bool]$configReport.Summary.ReadyToStage
+        StagingBlocked = [bool]$configReport.Summary.StagingBlocked
+        ManualConfigOwnerDecisionStillRequired = [bool]$configReport.Summary.ManualConfigOwnerDecisionStillRequired
+        AcceptanceTemplateAvailable = [bool]$configReport.Summary.AcceptanceTemplateAvailable
+        AcceptanceTemplateRequiredEvidenceCount = [int]$configReport.Summary.AcceptanceTemplateRequiredEvidenceCount
+        UnexpectedGameIniStaged = ([string]$configReport.Summary.GameIniGitState -eq "Staged" -and -not [bool]$configReport.Summary.ReadyToStage)
+        MustRemainLocal = ([bool]$configReport.GameIniPresent -and -not [bool]$configReport.Summary.ReadyToStage)
+        Recommendation = [string]$configReport.Recommendation
+        Boundary = "Config/Game.ini stays local unless config owner accepts shared defaults with redacted diff, no endpoint/credential evidence, and runtime policy pass."
+    }
+}
+
+function Get-JudgingServerAcceptanceSummary {
+    param([string]$ProjectRoot)
+
+    $payloadContractReportScript = Join-Path $script:PSScriptRoot "export_payload_contract_report.ps1"
+    $acceptanceTemplateScript = Join-Path $script:PSScriptRoot "export_judging_server_acceptance_template.ps1"
+    if ((-not (Test-Path -LiteralPath $payloadContractReportScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $acceptanceTemplateScript -PathType Leaf))) {
+        return $null
+    }
+
+    $templateJson = & powershell -ExecutionPolicy Bypass -File $acceptanceTemplateScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Judging server acceptance template failed with exit code $LASTEXITCODE"
+    }
+    $template = $templateJson | ConvertFrom-Json
+
+    $contractJson = & powershell -ExecutionPolicy Bypass -File $payloadContractReportScript -OutputRoot (Join-Path $ProjectRoot "Saved\PayloadContractReports") -NoWrite -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Payload contract report failed with exit code $LASTEXITCODE"
+    }
+    $contract = $contractJson | ConvertFrom-Json
+
+    return [PSCustomObject]@{
+        AcceptanceTemplateAvailable = [bool]$contract.Summary.JudgingServerAcceptanceTemplateAvailable
+        RequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
+        PendingEvidenceCount = [int]$template.Summary.PendingEvidenceCount
+        EvidenceSectionCount = [int]$template.Summary.EvidenceSectionCount
+        RequiredEvidenceSections = @($template.Summary.RequiredEvidenceSections)
+        ValuesRedacted = [bool]$template.Summary.ValuesRedacted
+        ModifiesConfig = [bool]$template.Summary.ModifiesConfig
+        StagesConfig = [bool]$template.Summary.StagesConfig
+        WritesEndpointValues = [bool]$template.Summary.WritesEndpointValues
+        WritesCredentialValues = [bool]$template.Summary.WritesCredentialValues
+        RealJudgingServerAcceptancePresent = [bool]$contract.Summary.RealJudgingServerAcceptancePresent
+        JudgingServerEvidenceSectionsPresent = ([int]$template.Summary.EvidenceSectionCount -ge 7)
+        RealEndpointSmokeEvidencePresent = $false
+        ConnectsToExternalEndpoint = $false
+        OpenServerAcceptanceDecisionCount = [int]$contract.Summary.OpenServerAcceptanceDecisionCount
+        RealServerEvidenceGapCount = [int]$contract.Summary.RealServerEvidenceGapCount
+        CurrentReadyToClaimRealServerAcceptance = [bool]$template.Summary.CurrentReadyToClaimRealServerAcceptance
+        RecommendedNextAction = [string]$contract.Summary.RecommendedNextAction
+        Boundary = "Local fixture/mock/loopback evidence is not real judging-server acceptance. Claim real acceptance only after endpoint/auth/response/rate evidence is recorded with no secrets in repo."
+    }
+}
+
+function Get-RealSensorDeploymentSummary {
+    param([string]$ProjectRoot)
+
+    $deploymentTemplateScript = Join-Path $script:PSScriptRoot "export_real_sensor_adapter_deployment_template.ps1"
+    if (-not (Test-Path -LiteralPath $deploymentTemplateScript -PathType Leaf)) {
+        return $null
+    }
+
+    $templateJson = & powershell -ExecutionPolicy Bypass -File $deploymentTemplateScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Real sensor deployment template failed with exit code $LASTEXITCODE"
+    }
+    $template = $templateJson | ConvertFrom-Json
+
+    return [PSCustomObject]@{
+        DeploymentEvidenceTemplateAvailable = $true
+        RequiredEvidenceCount = [int]$template.Summary.RequiredEvidenceCount
+        PendingEvidenceCount = [int]$template.Summary.PendingEvidenceCount
+        DeploymentPathSectionCount = [int]$template.Summary.DeploymentPathSectionCount
+        DeploymentPathSections = @($template.Summary.DeploymentPathSections)
+        SelectedDeploymentPathCount = [int]$template.Summary.SelectedDeploymentPathCount
+        ReadyToClaimRealSensorDeployment = [bool]$template.Summary.ReadyToClaimRealSensorDeployment
+        PreDeploymentEvidenceOnly = [bool]$template.Summary.PreDeploymentEvidenceOnly
+        BrokerlessDispatchIsDeploymentEvidence = [bool]$template.Summary.BrokerlessDispatchIsDeploymentEvidence
+        LoopbackSmokeIsDeploymentBrokerEvidence = [bool]$template.Summary.LoopbackSmokeIsDeploymentBrokerEvidence
+        StaticTransactionRegistrationIsBrokerAcceptance = [bool]$template.Summary.StaticTransactionRegistrationIsBrokerAcceptance
+        RealBrokerOrSdkAcceptanceEvidencePresent = [bool]$template.Summary.RealBrokerOrSdkAcceptanceEvidencePresent
+        ExternalBrokerSmokeEvidencePresent = [bool]$template.Summary.ExternalBrokerSmokeEvidencePresent
+        ExternalSdkHardwareEvidencePresent = [bool]$template.Summary.ExternalSdkHardwareEvidencePresent
+        DeploymentBrokerAcceptanceComplete = [bool]$template.Summary.DeploymentBrokerAcceptanceComplete
+        SdkDeploymentAcceptanceComplete = [bool]$template.Summary.SdkDeploymentAcceptanceComplete
+        AcceptancePackageIsEvidenceShell = [bool]$template.Summary.AcceptancePackageIsEvidenceShell
+        AcceptancePackageIsDeploymentProof = [bool]$template.Summary.AcceptancePackageIsDeploymentProof
+        GeneratedReportDoesNotMeanDeploymentPassed = [bool]$template.Summary.GeneratedReportDoesNotMeanDeploymentPassed
+        ConnectsToExternalEndpoint = [bool]$template.Summary.ConnectsToExternalEndpoint
+        RunsSdkHardware = [bool]$template.Summary.RunsSdkHardware
+        DoesNotConnectToBroker = [bool]$template.Summary.DoesNotConnectToBroker
+        DoesNotConnectToSdk = [bool]$template.Summary.DoesNotConnectToSdk
+        DoesNotModifyDTCore = [bool]$template.Summary.DoesNotModifyDTCore
+        WritesEndpointValues = [bool]$template.Summary.WritesEndpointValues
+        WritesCredentialValues = [bool]$template.Summary.WritesCredentialValues
+        Boundary = "Real sensor deployment remains unclaimed until one selected production path has live smoke, handoff, redaction, judging-server, and owner-acceptance evidence."
+    }
+}
+
+function Get-LazExportDecisionSummary {
+    param([string]$ProjectRoot)
+
+    $decisionReportScript = Join-Path $script:PSScriptRoot "export_laz_compression_decision_report.ps1"
+    $readinessReportScript = Join-Path $script:PSScriptRoot "export_laz_compressor_readiness_report.ps1"
+    $acceptanceTemplateScript = Join-Path $script:PSScriptRoot "export_laz_compression_acceptance_template.ps1"
+    $acceptanceValidatorScript = Join-Path $script:PSScriptRoot "validate_laz_compression_acceptance_evidence.ps1"
+    if ((-not (Test-Path -LiteralPath $decisionReportScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $readinessReportScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $acceptanceTemplateScript -PathType Leaf)) -or
+        (-not (Test-Path -LiteralPath $acceptanceValidatorScript -PathType Leaf))) {
+        return $null
+    }
+
+    $decisionJson = & powershell -ExecutionPolicy Bypass -File $decisionReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ compression decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $readinessJson = & powershell -ExecutionPolicy Bypass -File $readinessReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ compressor readiness report failed with exit code $LASTEXITCODE"
+    }
+
+    $decisionReport = $decisionJson | ConvertFrom-Json
+    $readinessReport = $readinessJson | ConvertFrom-Json
+    $templateJson = & powershell -ExecutionPolicy Bypass -File $acceptanceTemplateScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ acceptance template failed with exit code $LASTEXITCODE"
+    }
+
+    $validationJson = & powershell -ExecutionPolicy Bypass -File $acceptanceValidatorScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "LAZ acceptance evidence validation failed with exit code $LASTEXITCODE"
+    }
+
+    $acceptanceTemplate = $templateJson | ConvertFrom-Json
+    $acceptanceValidation = $validationJson | ConvertFrom-Json
+    $acceptanceEvidence = @($decisionReport.AcceptanceEvidenceNeeded)
+    $candidatePaths = @($decisionReport.CandidatePaths | Select-Object -ExpandProperty Option)
+    $acceptanceChecks = @($acceptanceValidation.Checks)
+
+    return [PSCustomObject]@{
+        PlaceholderExplicit = [bool]$decisionReport.Summary.PlaceholderExplicit
+        WritesLasSourceOnly = [bool]$decisionReport.Summary.WritesLasSourceOnly
+        ExternalCompressorOptInImplemented = [bool]$decisionReport.Summary.ExternalCompressorOptInImplemented
+        ExternalCompressorContractHardened = [bool]$decisionReport.Summary.ExternalCompressorContractHardened
+        MissingCompressorGuardCovered = [bool]$decisionReport.Summary.MissingCompressorGuardCovered
+        ExternalCompressorSuccessCovered = [bool]$decisionReport.Summary.ExternalCompressorSuccessCovered
+        CompressorReadinessReportDeclared = [bool]$decisionReport.Summary.CompressorReadinessReportDeclared
+        AutomationCoverageDeclared = [bool]$decisionReport.Summary.AutomationCoverageDeclared
+        TrueCompressionIntegrated = [bool]$decisionReport.Summary.TrueCompressionIntegrated
+        CompressorCandidateFound = [bool]$readinessReport.Summary.CompressorCandidateFound
+        ReaderCandidateFound = [bool]$readinessReport.Summary.ReaderCandidateFound
+        ToolCandidateDiscoveryOnly = [bool]$readinessReport.Summary.ToolCandidateDiscoveryOnly
+        ToolReadinessOnly = [bool]$readinessReport.Summary.ToolReadinessOnly
+        ToolCandidateIsAcceptanceEvidence = [bool]$readinessReport.Summary.ToolCandidateIsAcceptanceEvidence
+        CompressorCandidateIsAcceptanceEvidence = [bool]$readinessReport.Summary.CompressorCandidateIsAcceptanceEvidence
+        ReaderCandidateIsAcceptanceEvidence = [bool]$readinessReport.Summary.ReaderCandidateIsAcceptanceEvidence
+        LazEvidenceFilePresent = [bool]$readinessReport.Summary.LazEvidenceFilePresent
+        ReaderProbeRequested = [bool]$readinessReport.Summary.ReaderProbeRequested
+        ReaderProbeBlockedReason = [string]$readinessReport.Summary.ReaderProbeBlockedReason
+        KnownPointCloudReader = [bool]$readinessReport.Summary.KnownPointCloudReader
+        ReaderProbeSucceeded = [bool]$readinessReport.Summary.ReaderProbeSucceeded
+        ReaderProbeRequiresProducedLaz = [bool]$readinessReport.Summary.ReaderProbeRequiresProducedLaz
+        ProducedLazReadinessEvidencePresent = [bool]$readinessReport.Summary.ProducedLazEvidencePresent
+        ReaderProbeIsAcceptanceEvidence = [bool]$readinessReport.Summary.ReaderProbeIsAcceptanceEvidence
+        ReaderProbeAcceptanceBlocked = [bool]$readinessReport.Summary.ReaderProbeAcceptanceBlocked
+        ReaderProbeAcceptanceBlockers = @($readinessReport.Summary.ReaderProbeAcceptanceBlockers)
+        ReadableOutputEvidencePresent = [bool]$readinessReport.Summary.ReadableOutputEvidencePresent
+        ReadableLazAcceptanceEvidencePresent = [bool]$readinessReport.Summary.ReadableLazAcceptanceEvidencePresent
+        ReadyToClaimReadableLazAcceptance = [bool]$readinessReport.Summary.ReadyToClaimReadableLazAcceptance
+        ReadableLazOutputMissingReason = [string]$readinessReport.Summary.ReadableLazOutputMissingReason
+        ReadyForRealLazAutomation = [bool]$readinessReport.Summary.ReadyForRealLazAutomation
+        CandidateToolCount = [int]$readinessReport.Summary.CandidateToolCount
+        FoundToolCount = [int]$readinessReport.Summary.FoundToolCount
+        CandidatePathCount = [int]$decisionReport.Summary.CandidatePathCount
+        CandidatePaths = $candidatePaths
+        AcceptanceEvidenceCount = [int]$decisionReport.Summary.AcceptanceEvidenceCount
+        AcceptanceEvidenceNeeded = $acceptanceEvidence
+        AcceptanceEvidenceSectionCount = [int]$acceptanceTemplate.Summary.EvidenceSectionCount
+        RequiredEvidenceSections = @($acceptanceTemplate.Summary.RequiredEvidenceSections)
+        AcceptanceEvidenceComplete = [bool]$acceptanceValidation.Summary.Complete
+        AcceptanceEvidenceFailedCheckCount = [int]$acceptanceValidation.Summary.FailedCheckCount
+        AcceptanceEvidenceRequiredSectionCount = [int]$acceptanceValidation.Summary.RequiredEvidenceSectionCount
+        LazCompressorSelectionPresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "CompressorSelection evidence path exists" -and $_.Passed }).Count -gt 0)
+        ProducedLazEvidencePresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "ProducedLazEvidence path exists" -and $_.Passed }).Count -gt 0)
+        KnownReaderValidationPresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "KnownReaderValidation probe succeeded" -and $_.Passed }).Count -gt 0)
+        RepeatableCommandPresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "RepeatableCommand evidence path exists" -and $_.Passed }).Count -gt 0)
+        LazOwnerAcceptancePresent = [bool](@($acceptanceChecks | Where-Object { $_.Name -eq "OwnerAcceptance accepted" -and $_.Passed }).Count -gt 0)
+        RecommendedNextDecision = [string]$decisionReport.Summary.RecommendedNextDecision
+        RecommendedNextAction = [string]$readinessReport.Summary.RecommendedNextAction
+        ReadyToClaimTrueLaz = ([bool]$decisionReport.Summary.TrueCompressionIntegrated -and [bool]$readinessReport.Summary.ReadyForRealLazAutomation -and [bool]$acceptanceValidation.Summary.Complete)
+        StagingBoundary = "Do not claim true LAZ until a produced .laz file is readable by a known point-cloud reader and the selected compressor/native/server workflow is accepted."
+    }
+}
+
+function Get-PointCloudRendererDecisionSummary {
+    param([string]$ProjectRoot)
+
+    $rendererDecisionReportScript = Join-Path $script:PSScriptRoot "export_point_cloud_renderer_decision_report.ps1"
+    if (-not (Test-Path -LiteralPath $rendererDecisionReportScript -PathType Leaf)) {
+        return $null
+    }
+
+    $jsonText = & powershell -ExecutionPolicy Bypass -File $rendererDecisionReportScript -ProjectRoot $ProjectRoot -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Point cloud renderer decision report failed with exit code $LASTEXITCODE"
+    }
+
+    $rendererReport = $jsonText | ConvertFrom-Json
+    $candidateRenderers = @($rendererReport.CandidateRenderers | Select-Object -ExpandProperty Option)
+    $gpuMissingFields = @($rendererReport.Summary.GpuViewportSmokeMissingEvidenceFields)
+
+    return [PSCustomObject]@{
+        RendererPhase = [string]$rendererReport.Summary.RendererPhase
+        GpuRendererIntegrated = [bool]$rendererReport.Summary.GpuRendererIntegrated
+        RecommendedFirstGpuCandidate = [string]$rendererReport.Summary.RecommendedFirstGpuCandidate
+        CpuPreviewFallbackEvidencePresent = [bool]$rendererReport.Summary.CpuPreviewFallbackEvidencePresent
+        CpuFallbackPerformanceEvidencePresent = [bool]$rendererReport.Summary.CpuFallbackPerformanceEvidencePresent
+        CpuIsmFallbackSmokePresent = [bool]$rendererReport.Summary.CpuIsmFallbackSmokePresent
+        CpuProceduralDenseEvidencePresent = [bool]$rendererReport.Summary.CpuProceduralDenseEvidencePresent
+        DefaultPreviewBackend = [string]$rendererReport.Summary.DefaultPreviewBackend
+        ConfiguredPreviewBackendSource = [string]$rendererReport.Summary.ConfiguredPreviewBackendSource
+        CandidatePreviewBackends = @($rendererReport.Summary.CandidatePreviewBackends)
+        PreviewBackendSelectionDeclared = [bool]$rendererReport.Summary.PreviewBackendSelectionDeclared
+        GpuPreviewBackendClaimBlocked = [bool]$rendererReport.Summary.GpuPreviewBackendClaimBlocked
+        CpuFallbackForcedForGpuCandidates = [bool]$rendererReport.Summary.CpuFallbackForcedForGpuCandidates
+        CpuFallbackPreserved = [bool]$rendererReport.Summary.CpuFallbackPreserved
+        CsvPerformanceEvidencePresent = [bool]$rendererReport.Summary.CsvPerformanceEvidencePresent
+        CsvPreviewPerformanceAutomationEvidencePresent = [bool]$rendererReport.Summary.CsvPreviewPerformanceAutomationEvidencePresent
+        CsvPreviewPerformanceEvidenceMissingReason = [string]$rendererReport.Summary.CsvPreviewPerformanceEvidenceMissingReason
+        CsvPreviewPerformanceRequiresAutomationLog = [bool]$rendererReport.Summary.CsvPreviewPerformanceRequiresAutomationLog
+        ReadyToClaimCsvPreviewPerformance = [bool]$rendererReport.Summary.ReadyToClaimCsvPreviewPerformance
+        CsvPreviewPerformanceAcceptanceBlocked = [bool]$rendererReport.Summary.CsvPreviewPerformanceAcceptanceBlocked
+        CsvPreviewPerformanceAcceptanceBlockers = @($rendererReport.Summary.CsvPreviewPerformanceAcceptanceBlockers)
+        CsvEvidenceLinesWithinRun = [bool]$rendererReport.Summary.CsvEvidenceLinesWithinRun
+        CsvFailureEvidencePresent = [bool]$rendererReport.Summary.CsvFailureEvidencePresent
+        CsvPreviewMaxAcceptedPoints = [int64]$rendererReport.Summary.CsvPreviewMaxAcceptedPoints
+        GpuViewportSmokeEvidencePresent = [bool]$rendererReport.Summary.GpuViewportSmokeEvidencePresent
+        GpuViewportSmokeMissingEvidenceFieldCount = [int]$rendererReport.Summary.GpuViewportSmokeMissingEvidenceFieldCount
+        GpuViewportSmokeMissingEvidenceFields = $gpuMissingFields
+        GpuFallbackPreservationEvidencePresent = [bool]$rendererReport.Summary.GpuFallbackPreservationEvidencePresent
+        GpuDenseFrameEvidencePresent = [bool]$rendererReport.Summary.GpuDenseFrameEvidencePresent
+        GpuSpikeActionPlanDeclared = [bool]$rendererReport.Summary.GpuSpikeActionPlanDeclared
+        GpuSpikeActionPlanItemCount = [int]$rendererReport.Summary.GpuSpikeActionPlanItemCount
+        CandidateRendererCount = [int]$rendererReport.Summary.CandidateRendererCount
+        CandidateRenderers = $candidateRenderers
+        DecisionGateCount = [int]$rendererReport.Summary.DecisionGateCount
+        AcceptanceEvidenceCount = [int]$rendererReport.Summary.AcceptanceEvidenceCount
+        RecommendedNextDecision = [string]$rendererReport.Summary.RecommendedNextDecision
+        ReadyToClaimGpuDensePreview = ([bool]$rendererReport.Summary.GpuRendererIntegrated -and [bool]$rendererReport.Summary.GpuViewportSmokeEvidencePresent -and [bool]$rendererReport.Summary.GpuFallbackPreservationEvidencePresent -and [bool]$rendererReport.Summary.GpuDenseFrameEvidencePresent)
+        Boundary = "Do not claim dense GPU/Niagara preview readiness until the GPU path exists and viewport, fallback-preservation, and dense-frame evidence are recorded."
+    }
+}
+
+function Get-ReadinessSummary {
+    param(
+        [string]$ProjectRoot,
+        [string]$SourceRepoRoot
+    )
+
+    $readinessScript = Join-Path $script:PSScriptRoot "check_project_readiness.ps1"
+    if (-not (Test-Path -LiteralPath $readinessScript -PathType Leaf)) {
+        return $null
+    }
+
+    $params = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $readinessScript,
+        "-ProjectRoot", $ProjectRoot,
+        "-SkipSmoke",
+        "-SkipWebSocketLidarSmokeEvidence",
+        "-SkipWebSocketBrokerSmokeReport",
+        "-SkipLazPlaceholderPolicy",
+        "-Json"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+        $params += @("-SourceRepoRoot", $SourceRepoRoot)
+    }
+
+    $jsonText = & powershell @params
+    if ($LASTEXITCODE -ne 0) {
+        throw "Project readiness summary failed with exit code $LASTEXITCODE"
+    }
+
+    $readiness = $jsonText | ConvertFrom-Json
+    $skippedSteps = @($readiness.Steps | Where-Object { $_.Status -eq "Skipped" })
+    return [PSCustomObject]@{
+        Passed = [bool]$readiness.Passed
+        FastReadinessPassed = [bool]$readiness.Passed
+        Mode = "FastStaticPrecommit"
+        ReadinessMode = "FastStaticPrecommit"
+        ManualEvidenceStillRequired = ($skippedSteps.Count -gt 0)
+        ReadinessCaveat = "Passed means fast/static pre-commit gates passed, not full PIE, broker, LAZ, editor, or deployment evidence complete."
+        Boundary = "Skipped readiness steps are intentional omissions from this fast pre-commit check, not proof that manual/editor/deployment evidence exists."
+        ProjectRoot = [string]$readiness.ProjectRoot
+        SourceRepoRoot = [string]$readiness.SourceRepoRoot
+        StepCount = [int]$readiness.StepCount
+        PassedStepCount = [int]$readiness.PassedStepCount
+        SkippedStepCount = [int]$readiness.SkippedStepCount
+        SkippedSteps = @($skippedSteps | Select-Object -ExpandProperty Label)
+        SkippedByPrecommitPolicy = @($skippedSteps | Select-Object -ExpandProperty Label)
+        SkippedStepDetails = @(
+            $skippedSteps |
+                ForEach-Object {
+                    [PSCustomObject]@{
+                        Label = $_.Label
+                        Reason = $_.Message
+                        EvidenceBoundary = "Not covered by fast readiness."
+                    }
+                }
+        )
+    }
+}
+
+function Get-RepoChangeSummary {
+    param([string]$RepoRoot)
+
+    $statusLines = Get-GitLines -WorkingDirectory $RepoRoot -GitArgs @("status", "--porcelain=v1")
+    $stagedChanges = @()
+    $unstagedChanges = @()
+    $untrackedChanges = @()
+
+    foreach ($line in $statusLines) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 3) {
+            continue
+        }
+
+        $indexStatus = $line.Substring(0, 1)
+        $worktreeStatus = $line.Substring(1, 1)
+        $path = $line.Substring(3)
+
+        if ($indexStatus -eq "?" -and $worktreeStatus -eq "?") {
+            $untrackedChanges += $path
+            continue
+        }
+
+        if ($indexStatus -ne " ") {
+            $stagedChanges += "$indexStatus`t$path"
+        }
+        if ($worktreeStatus -ne " ") {
+            $unstagedChanges += "$worktreeStatus`t$path"
+        }
+    }
+
+    return [PSCustomObject]@{
+        Staged = $stagedChanges
+        Unstaged = $unstagedChanges
+        Untracked = $untrackedChanges
+    }
+}
+
+function New-WorkArea {
+    param(
+        [string]$Name,
+        [int]$Percent,
+        [string]$Done,
+        [string]$Remaining
+    )
+
+    return [PSCustomObject]@{
+        Name = $Name
+        Percent = $Percent
+        Done = $Done
+        Remaining = $Remaining
+    }
+}
+
+$repoRoot = (Resolve-Path -LiteralPath (Get-Location).Path).Path
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+if ([string]::IsNullOrWhiteSpace($SourceRepoRoot)) {
+    $SourceRepoRoot = $repoRoot
+}
+$SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
+if ([string]::IsNullOrWhiteSpace($WbpAcceptanceEvidencePath)) {
+    $candidateWbpAcceptanceEvidencePath = Join-Path $ProjectRoot "Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"
+    if (Test-Path -LiteralPath $candidateWbpAcceptanceEvidencePath -PathType Leaf) {
+        $WbpAcceptanceEvidencePath = $candidateWbpAcceptanceEvidencePath
+    }
+}
+
+$workAreas = @(
+    (New-WorkArea `
+        -Name "Virtual sensor baseline" `
+        -Percent 96 `
+        -Done "LiDAR/camera payload, replay, preserved LiDAR grid coords, slab analysis, separated server/preview policies, monitor fallback, real-source controls, transport/retry telemetry, monitor camera capture pending-state guards, monitor policy validation, smoke/readiness scripts, and Designer-facing WBP display data are implemented." `
+        -Remaining "Full editor PIE validation and production map/WBP verification remain."),
+    (New-WorkArea `
+        -Name "Server payload contract" `
+        -Percent 94 `
+        -Done "LiDAR/camera schema docs, fixtures, validators, preserved row/col/returnIndex contract, local mock contract validation, HTTP 2xx/non-2xx response tracking, bounded in-flight backpressure, bounded connection/5xx retries, retry-exhaustion telemetry, outbound loopback automation, and exportable judging-server review packages are in place." `
+        -Remaining "Judging server approval, completed acceptance template evidence, real server accepted/rejected response evidence, final endpoint/auth/retry/batching owner decisions, and server-owned response schema tests remain."),
+    (New-WorkArea `
+        -Name "Local project asset decisions" `
+        -Percent 100 `
+        -Done "Decision points are reported, unclassified untracked files and staged decision paths are gated, large/sample folders include content summaries, per-decision GitState/CommitReadiness/ReviewQueue/DecisionOwner/DecisionStatus/EvidenceNeeded/EvidenceStatus/EvidenceSatisfied/DecisionChecklist fields are exported, review queues separate ReadyToStage/NeedsOwnerDecision/KeepLocal paths, unresolved owner/evidence metadata is documented and validated, ReadyToStage now requires AcceptedForRepository with complete evidence plus reviewer/date/source evidence, duplicate normalized evidence paths are rejected, an evidence template exporter is available, the evidence workflow and staged decision gate are covered by temp-project automation, runtime config validation inspects the real local project and emits a Game.ini RecommendedDecision, WBP metadata/Git/setup-contract decision reporting is available, and empty DTCore runtime override Game.ini files are now classified as KeepLocal local placeholders instead of owner-acceptance candidates. Local asset reports now include ReviewPriority, CommitBlocker, BlockingReason, NextReviewAction, ActionPlan, large-content RequiredAcceptance, DecisionBlockers, and TopBlockers. The evidence template now exports Summary, pending evidence counts, and TopBlockingPaths for owner review. The currently unused large Content folders are now classified as KeepLocal unused cleanup candidates instead of repository-acceptance candidates. A read-only large content cleanup plan exporter now summarizes cleanup candidates, recoverable local disk size, required pre-delete checks, and deletion/staging safety boundaries without deleting files or modifying assets. A separate unused-content archive tool now previews optional local folder moves to an explicit archive root outside the project, requires reference-check confirmation for execution, and never deletes files, stages git changes, or modifies Unreal assets. Pixel Streaming copied sample files are now explicitly excluded from the current LiDAR/virtual-sensor work scope while remaining untracked and guarded against accidental staging. A read-only DTCore submodule guard now checks that Plugins/DTCore stays pinned to 2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7 with no parent, staged, or submodule worktree changes. A consolidated local decision pre-commit gate now runs the DTCore guard, staged local-decision gate, sample staged-path gate, large-content policy, runtime-config policy, monitor widget policy, WBP preflight, WBP evidence report, and pre-commit summary in one read-only command. A dedicated local decision pre-commit gate policy validator now proves the default gate passes for the current known-local state while strict evidence mode fails until WBP acceptance evidence is complete. A monitor WBP acceptance package exporter now writes a local Saved/Reports bundle with preflight, decision, fillable evidence draft, validation summary, manual steps, and strict follow-up commands without modifying assets or staging files. A monitor WBP editor-review prep script now creates a Saved-only backup, records the pre-edit SHA256 hash, generates the acceptance package, and writes the manual editor checklist without modifying assets or staging the WBP. A monitor WBP post-edit hash report now records the current WBP SHA256, compares the pre-edit review/backup state, and emits exact evidence fields to copy after Unreal Editor saves the asset. The monitor WBP acceptance template, validator, package, editor-review prep, post-edit hash report, policy validator, and pre-commit summary now separate MonitorWbpAssetPresent from MonitorWbpAssetStageAllowed/ReadyToStageMonitorWbpAsset, expose manual sections for editor-open, widget binding, PIE smoke, sensor selection, LiDAR status panel, Slab analysis panel, no-crash, owner acceptance, and post-edit hash evidence, and keep MonitorWbpManualAcceptanceComplete false until every section is backed by accepted evidence. The pre-commit summary now consumes the large-content cleanup plan, archive tool preview, large-content decision report, sample content decision report, DTCore submodule guard, monitor-WBP decision report, monitor-WBP preflight report, and monitor-WBP acceptance evidence validator, surfacing unused cleanup candidate count/size, dry-run cleanup plan status, archive safety status, sample/third-party candidate count/size, sample setup documentation path, DTCore invariant status, WBP Git/evidence state, missing WBP acceptance items, WBP preflight readiness, WBP evidence validation completeness, the largest cleanup/sample blockers, and the remaining repository-acceptance candidate paths. The focused monitor WBP decision report and runtime config decision report now reuse the local asset decision engine, accept EvidencePath, expose ReviewQueue/CommitReadiness/EvidenceStatus/MissingEvidenceCount/ReadyToStage, export manual acceptance checklists, and can fail on incomplete evidence as opt-in pre-commit gates. The dedicated WBP acceptance evidence validator checks the accepted evidence file, SHA256 asset hash, post-edit hash report, editor-open evidence, optional binding crash safety, PIE smoke evidence, and production owner acceptance without modifying assets or staging the binary WBP. The large content decision report now flags BuiltDataHeavy, LargestFileRisk, StorageRiskReason, RedistributionReviewRequired, SampleRiskReason, UnusedLocalCleanupCandidate, RepositoryAcceptanceRequired, and CleanupReason for owner review. The project readiness wrapper now accepts SourceRepoRoot so source docs/policies can be checked while local Unreal asset/config decisions are scanned from the real project root, and the pre-commit summary can include the fast readiness JSON result with skipped-step evidence boundaries." `
+        -Remaining "Manual WBP editor-open/binding/PIE acceptance evidence file completion, optional execution of unused-content archive after map/WBP/reference checks with an explicit outside-project archive root, non-empty Game.ini endpoint/credential review if values are added later, and any final AcceptedForRepository evidence remain."),
+    (New-WorkArea `
+        -Name "Real sensor adapters" `
+        -Percent 90 `
+        -Done "ROS2/Livox/RealSense placeholders, normalized frame handoff path, replay samples, LiDAR JSON live bridge component, camera JSON live bridge component, generic live JSON payload bridge helper, optional HTTP and UDP JSON live bridge components, HTTP payload automation, local HTTP loopback POST smoke automation, local UDP datagram smoke automation, DTCore WebSocket transaction handler, safe routing guards, WebSocket live sample payload, editor sample/push helpers, transaction routing automation, static adapter-plan validation, exportable WebSocket transaction registration checklist, optional data-table registration evidence automation, editor-only row repair commandlet, DT_TransactionCode row pass evidence, row-based handler parse/process evidence, broker smoke evidence report tooling, WebSocket LiDAR smoke evidence workflow wrapper, brokerless DTCore dispatch automation, opt-in brokerless workflow execution, hardened camera JSON live payload validation with transport/recorder evidence, expanded malformed camera schema rejection coverage, and a consolidated real-sensor adapter readiness report are in place. The readiness report ranks deployment paths and exports RequiredEvidence, DeploymentBlockers, NextAction, and DeploymentActionPlan entries for replay, HTTP, WebSocket, UDP, and SDK routes. A real-sensor adapter deployment package exporter now writes a local Saved/Reports bundle with readiness, adapter-plan validation, WebSocket sample validation, transaction registration, broker-smoke draft, manual steps, and follow-up commands while explicitly avoiding external broker/SDK connections, asset edits, git staging, endpoint values, and credential values. Broker smoke reporting now requires concrete evidence fields such as run id, map/PIE session, log path, before/after frame counts, target point count, cached payload bytes or hash, broker client command, operator, and notes before marking the smoke complete. The deployment package now also creates a fillable RealSensorAdapterDeploymentEvidenceV1 evidence draft plus a validator that keeps real deployment readiness false until selected path, network/credential policy, live-frame smoke, transport/SDK smoke, judging-server handoff, secret scan, and owner acceptance evidence are recorded. The evidence draft now includes DeploymentPathEvidenceSections for replay, HTTP JSON live, DTCore WebSocket, UDP JSON live, ROS2, Livox, and RealSense so the selected production path and not-selected paths are reviewed separately without treating local loopback or placeholder SDK components as real deployment acceptance." `
+        -Remaining "Actual SDK/ROS2/Livox/RealSense connections, completed deployment STOMP/WebSocket broker PIE smoke evidence using the required evidence schema, HTTP/UDP deployment exposure and credential decisions, final production adapter owner approval, and successful real-frame smoke tests remain."),
+    (New-WorkArea `
+        -Name "Large point cloud rendering" `
+        -Percent 84 `
+        -Done "Server payload and preview policies are separated with preview caps, runtime warnings, point-cloud-only clamps, batched ISM AddInstances live preview uploads, procedural CSV high-density preview automation, instanced fallback automation, CSV preview parse/build/load telemetry, generous headless procedural performance-budget automation, exportable CSV preview performance evidence from Unreal automation logs, static preview-policy validation, and a high-density renderer decision report covering CPU fallback, Niagara, custom GPU buffers, and external viewer workflows. The CSV preview actor now auto-promotes large instanced CSV preview requests to the procedural preview path above a configurable threshold, records requested/effective render modes, and covers that safety path with automation so accidental high-instance editor loads are visible in telemetry. The renderer decision report consumes local CSV preview performance evidence, separates ISM smoke from procedural dense evidence, rejects failure lines inside the selected automation run block, records decision gates, recommends a Niagara point-renderer spike while preserving CPU preview fallback, exports GPU spike action-plan, renderer phase, viewport smoke, fallback-preservation, and dense-frame evidence gates, and is now surfaced in the pre-commit summary as a renderer decision/readiness boundary. The LiDAR component now exposes a preview backend selector that labels Niagara/custom GPU as candidate-only paths and keeps CPU instanced preview as the active fallback. A point cloud renderer acceptance package exporter now writes a local Saved/Reports bundle with the decision report, preview-policy validation, optional CSV performance evidence, GPU smoke follow-up commands, and explicit no-GPU-implementation/no-asset-edit/no-staging boundaries. The renderer decision and acceptance package now separate a CSV performance report shell from accepted Unreal automation evidence with CsvPreviewPerformanceReportShellWritten, CsvPreviewPerformanceAutomationEvidencePresent, CsvPreviewPerformanceReportIsAcceptanceEvidence, ReadyToClaimCsvPreviewPerformance, acceptance-blocked, and missing-reason fields, and the pre-commit summary surfaces the same boundary." `
+        -Remaining "Niagara spike implementation, actual viewport screenshot/nonblank pixel evidence, renderer-specific dense-frame performance validation, fallback-preservation verification after GPU integration, and final GPU asset/module ownership remain."),
+    (New-WorkArea `
+        -Name "LAZ export" `
+        -Percent 88 `
+        -Done "Placeholder behavior is explicit, tested as LAS-compatible source export, covered by static placeholder-policy validation, supported by a compression-path decision report, and now has an opt-in external compressor path with missing-compressor guard automation plus a positive external process-contract automation that verifies `{input}`/`{output}` handling and non-empty `.laz` output creation. LiDAR now records last LAZ export telemetry for export attempt/success, placeholder-only state, external compressor requested/attempted/succeeded, produced-output state, true-validation state, exported point count, compressor return code, output size, LAS source path, LAZ output path, status text, and warning text so UI and automation can distinguish runtime export state without claiming readable LAZ acceptance. A local compressor readiness report scans compressor/reader candidates, records that tool readiness is not readable-output evidence, is included in the project readiness gate, accepts explicit `.laz` evidence with an optional known-reader probe plus blocked-probe reporting, and is now surfaced in the pre-commit summary as a LAZ decision/readiness boundary. Tool candidate discovery now reports ToolCandidateDiscoveryOnly=true, CompressorCandidateIsAcceptanceEvidence=false, ReaderCandidateIsAcceptanceEvidence=false, ReaderProbeRequiresProducedLaz=true, ReadableLazAcceptanceEvidencePresent, and ReadyToClaimReadableLazAcceptance so candidate paths and version probes cannot be mistaken for accepted readable LAZ output. A LAZ compression acceptance package exporter now writes a local Saved/Reports bundle with the decision report, compressor readiness report, placeholder policy validation, manual acceptance steps, and follow-up commands while explicitly avoiding tool installation, compressor execution, asset edits, and git staging. The package marks AcceptancePackageIsEvidenceShell=true, AcceptancePackageIsReadableLazProof=false, and GeneratedReportDoesNotMeanAcceptancePassed=true, creates a fillable LazCompressionAcceptanceEvidenceV1 evidence draft with structured EvidenceSections, and now surfaces TopMissingAcceptanceChecks plus ReadyToClaimTrueLazBlockers. The acceptance validator checks .laz extension, non-empty output, byte-size match, distinct LAS source path, accepted production path, known-reader exit code 0 against the same .laz, and copy-surrogate/placeholder distinction before true LAZ can be claimed." `
+        -Remaining "Accepted compressor/tool selection, actual readable compressed `.laz` output evidence, native/server workflow decision if external CLI is not enough, and true compressed-output automation remain.")
+)
+
+$overallPercent = [int][Math]::Round((($workAreas | Measure-Object -Property Percent -Average).Average), 0)
+$changeSummary = Get-RepoChangeSummary -RepoRoot $repoRoot
+$staged = $changeSummary.Staged
+$unstaged = $changeSummary.Unstaged
+$untracked = $changeSummary.Untracked
+$branch = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("branch", "--show-current") | Select-Object -First 1)
+$recentCommit = (Get-GitLines -WorkingDirectory $repoRoot -GitArgs @("log", "--oneline", "-1") | Select-Object -First 1)
+$localAssetReport = Get-LocalAssetSummary -ProjectRoot $ProjectRoot
+$largeContentDecisionSummary = Get-LargeContentDecisionSummary -ProjectRoot $ProjectRoot
+$dtCoreSubmoduleGuardSummary = Get-DTCoreSubmoduleGuardSummary -ProjectRoot $ProjectRoot
+$wbpDecisionSummary = Get-WbpDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$wbpPreflightSummary = Get-WbpPreflightSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$wbpAcceptanceEvidenceSummary = Get-WbpAcceptanceEvidenceSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot -EvidencePath $WbpAcceptanceEvidencePath
+$runtimeConfigDecisionSummary = Get-RuntimeConfigDecisionSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot
+$judgingServerAcceptanceSummary = Get-JudgingServerAcceptanceSummary -ProjectRoot $SourceRepoRoot
+$realSensorDeploymentSummary = Get-RealSensorDeploymentSummary -ProjectRoot $SourceRepoRoot
+$lazExportDecisionSummary = Get-LazExportDecisionSummary -ProjectRoot $SourceRepoRoot
+$pointCloudRendererDecisionSummary = Get-PointCloudRendererDecisionSummary -ProjectRoot $SourceRepoRoot
+$readinessSummary = if ($IncludeReadiness) { Get-ReadinessSummary -ProjectRoot $ProjectRoot -SourceRepoRoot $SourceRepoRoot } else { $null }
+
+$report = [PSCustomObject]@{
+    RepositoryRoot = $repoRoot
+    LocalProjectRoot = $ProjectRoot
+    SourceRepoRoot = $SourceRepoRoot
+    Branch = $branch
+    RecentCommit = $recentCommit
+    OverallPercent = $overallPercent
+    WorkAreas = $workAreas
+    StagedChanges = $staged
+    UnstagedChanges = $unstaged
+    UntrackedChanges = $untracked
+    LocalAssetSummary = if ($localAssetReport) { $localAssetReport.Summary } else { $null }
+    LargeContentDecisionSummary = $largeContentDecisionSummary
+    DTCoreSubmoduleGuardSummary = $dtCoreSubmoduleGuardSummary
+    WbpDecisionSummary = $wbpDecisionSummary
+    WbpPreflightSummary = $wbpPreflightSummary
+    WbpAcceptanceEvidenceSummary = $wbpAcceptanceEvidenceSummary
+    RuntimeConfigDecisionSummary = $runtimeConfigDecisionSummary
+    JudgingServerAcceptanceSummary = $judgingServerAcceptanceSummary
+    RealSensorDeploymentSummary = $realSensorDeploymentSummary
+    LazExportDecisionSummary = $lazExportDecisionSummary
+    PointCloudRendererDecisionSummary = $pointCloudRendererDecisionSummary
+    ReadinessSummary = $readinessSummary
+}
+
+if ($Json) {
+    $report | ConvertTo-Json -Depth 6
+    exit 0
+}
+
+Write-Section "Progress"
+Write-Host "Overall progress: $overallPercent%"
+foreach ($area in $workAreas) {
+    Write-Host "$($area.Percent)% - $($area.Name)"
+    Write-Host "  done: $($area.Done)"
+    Write-Host "  remaining: $($area.Remaining)"
+}
+
+Write-Section "Git"
+Write-Host "Branch: $branch"
+Write-Host "Latest commit: $recentCommit"
+
+Write-Section "Commit candidates"
+if ($staged.Count -gt 0) {
+    Write-Host "Staged:"
+    $staged | ForEach-Object { Write-Host "  $_" }
+}
+else {
+    Write-Host "Staged: none"
+}
+
+if ($unstaged.Count -gt 0) {
+    Write-Host "Unstaged:"
+    $unstaged | ForEach-Object { Write-Host "  $_" }
+}
+else {
+    Write-Host "Unstaged: none"
+}
+
+if ($untracked.Count -gt 0) {
+    Write-Host "Untracked:"
+    $untracked | ForEach-Object { Write-Host "  $_" }
+}
+else {
+    Write-Host "Untracked: none"
+}
+
+if ($localAssetReport) {
+    Write-Section "Local asset decisions"
+    Write-Host "Present decision points: $($localAssetReport.Summary.PresentDecisionPoints)"
+    Write-Host "Generated/local-output items present: $($localAssetReport.Summary.GeneratedOrLocalOutputItemsPresent)"
+    Write-Host "Unclassified untracked paths: $($localAssetReport.Summary.UnclassifiedUntrackedCount)"
+}
+
+if ($largeContentDecisionSummary) {
+    Write-Section "Large content cleanup"
+    Write-Host "Unused cleanup candidates: $($largeContentDecisionSummary.UnusedCleanupCandidateCount)"
+    Write-Host "Known unused cleanup candidate max count: $($largeContentDecisionSummary.KnownUnusedCleanupCandidateMaxCount)"
+    Write-Host "Present known unused cleanup candidate count: $($largeContentDecisionSummary.PresentKnownUnusedCleanupCandidateCount)"
+    Write-Host "Known unused cleanup candidate absent or archived count: $($largeContentDecisionSummary.KnownUnusedCleanupCandidateAbsentOrArchivedCount)"
+    Write-Host "Unused cleanup size: $($largeContentDecisionSummary.UnusedCleanupSize)"
+    Write-Host "Largest cleanup candidate: $($largeContentDecisionSummary.LargestCleanupCandidatePath) ($($largeContentDecisionSummary.LargestCleanupCandidateSize))"
+    Write-Host "Repository-acceptance candidates: $($largeContentDecisionSummary.RepositoryAcceptanceCandidateCount)"
+    if ($largeContentDecisionSummary.RepositoryAcceptanceCandidatePaths.Count -gt 0) {
+        Write-Host "Repository-acceptance paths: $(@($largeContentDecisionSummary.RepositoryAcceptanceCandidatePaths) -join ', ')"
+    }
+    Write-Host "Boundary: $($largeContentDecisionSummary.CleanupBoundary)"
+    Write-Host "Cleanup plan available: $($largeContentDecisionSummary.CleanupPlanAvailable)"
+    Write-Host "Cleanup plan candidates: $($largeContentDecisionSummary.CleanupPlanCandidateCount)"
+    Write-Host "Cleanup plan recoverable size: $($largeContentDecisionSummary.CleanupPlanRecoverableSize)"
+    Write-Host "Cleanup plan dry run only: $($largeContentDecisionSummary.CleanupPlanDryRunOnly)"
+    Write-Host "Cleanup plan deletes files: $($largeContentDecisionSummary.CleanupPlanDeletesFiles)"
+    Write-Host "Cleanup plan modifies assets: $($largeContentDecisionSummary.CleanupPlanModifiesAssets)"
+    Write-Host "Cleanup plan required reference checks: $($largeContentDecisionSummary.CleanupPlanRequiredReferenceCheckCount)"
+    Write-Host "Cleanup plan safe-to-delete count: $($largeContentDecisionSummary.CleanupPlanSafeToDeleteCount)"
+    Write-Host "Cleanup plan ready-for-manual-deletion count: $($largeContentDecisionSummary.CleanupPlanReadyForManualDeletionCount)"
+    Write-Host "Cleanup plan default action: $($largeContentDecisionSummary.CleanupPlanDefaultAction)"
+    Write-Host "Unused content archive available: $($largeContentDecisionSummary.UnusedContentArchiveAvailable)"
+    Write-Host "Unused content archive candidates: $($largeContentDecisionSummary.UnusedContentArchiveCandidateCount)"
+    Write-Host "Unused content archive preview only: $($largeContentDecisionSummary.UnusedContentArchivePreviewOnly)"
+    Write-Host "Unused content archive execute requested: $($largeContentDecisionSummary.UnusedContentArchiveExecuteRequested)"
+    Write-Host "Unused content archive requires explicit archive root: $($largeContentDecisionSummary.UnusedContentArchiveRequiresExplicitArchiveRootForExecute)"
+    Write-Host "Unused content archive deletes files: $($largeContentDecisionSummary.UnusedContentArchiveDeletesFiles)"
+    Write-Host "Unused content archive stages files: $($largeContentDecisionSummary.UnusedContentArchiveStagesFiles)"
+    Write-Host "Unused content archive modifies assets: $($largeContentDecisionSummary.UnusedContentArchiveModifiesAssets)"
+    Write-Host "Unused content archive boundary: $($largeContentDecisionSummary.UnusedContentArchiveBoundary)"
+    Write-Host "Archive evidence available: $($largeContentDecisionSummary.ArchiveEvidenceAvailable)"
+    Write-Host "Archive evidence complete: $($largeContentDecisionSummary.ArchiveEvidenceComplete)"
+    Write-Host "Archive evidence root: $($largeContentDecisionSummary.ArchiveEvidenceArchiveRoot)"
+    Write-Host "Archive evidence latest run: $($largeContentDecisionSummary.ArchiveEvidenceLatestRun)"
+    Write-Host "Archive evidence root outside project: $($largeContentDecisionSummary.ArchiveEvidenceRootOutsideProject)"
+    Write-Host "Archive evidence archived count: $($largeContentDecisionSummary.ArchiveEvidenceArchivedCount)"
+    Write-Host "Archive evidence present in project count: $($largeContentDecisionSummary.ArchiveEvidencePresentInProjectCount)"
+    Write-Host "Archive evidence missing count: $($largeContentDecisionSummary.ArchiveEvidenceMissingCount)"
+    Write-Host "Archive evidence archived size: $($largeContentDecisionSummary.ArchiveEvidenceArchivedSize)"
+    Write-Host "Archive evidence root git state: $($largeContentDecisionSummary.ArchiveEvidenceRootGitState)"
+    Write-Host "Archive evidence root staged file count: $($largeContentDecisionSummary.ArchiveEvidenceRootStagedFileCount)"
+    Write-Host "Archive evidence DTCore touched file count: $($largeContentDecisionSummary.ArchiveEvidenceDTCoreTouchedFileCount)"
+    Write-Host "Archive evidence boundary: $($largeContentDecisionSummary.ArchiveEvidenceBoundary)"
+
+    Write-Section "Sample and third-party decisions"
+    Write-Host "Sample/third-party candidates: $($largeContentDecisionSummary.SampleCandidateCount)"
+    Write-Host "Sample/third-party size: $($largeContentDecisionSummary.SampleCandidateSize)"
+    Write-Host "Largest sample candidate: $($largeContentDecisionSummary.LargestSampleCandidatePath) ($($largeContentDecisionSummary.LargestSampleCandidateSize))"
+    if ($largeContentDecisionSummary.SampleCandidatePaths.Count -gt 0) {
+        Write-Host "Sample/third-party paths: $(@($largeContentDecisionSummary.SampleCandidatePaths) -join ', ')"
+    }
+    Write-Host "Boundary: $($largeContentDecisionSummary.SampleBoundary)"
+    Write-Host "Sample decision report available: $($largeContentDecisionSummary.SampleDecisionReportAvailable)"
+    Write-Host "Sample decision ready-to-stage count: $($largeContentDecisionSummary.SampleDecisionReadyToStageCount)"
+    Write-Host "Sample decision documentation alternative preferred: $($largeContentDecisionSummary.SampleDecisionDocumentationAlternativePreferredCount)"
+    Write-Host "Sample decision setup alternative preferred: $($largeContentDecisionSummary.SampleDecisionSetupAlternativePreferredCount)"
+    Write-Host "Sample decision excluded from current scope: $($largeContentDecisionSummary.SampleDecisionExcludedFromCurrentScopeCount)"
+    Write-Host "Sample decision counts toward remaining work: $($largeContentDecisionSummary.SampleDecisionCountsTowardRemainingWorkCount)"
+    Write-Host "Sample decision must remain untracked: $($largeContentDecisionSummary.SampleDecisionMustRemainUntrackedCount)"
+    Write-Host "Sample decision missing acceptance count: $($largeContentDecisionSummary.SampleDecisionMissingAcceptanceCount)"
+    Write-Host "Sample decision dry run only: $($largeContentDecisionSummary.SampleDecisionDryRunOnly)"
+    Write-Host "Sample decision copies sample files: $($largeContentDecisionSummary.SampleDecisionCopiesSampleFiles)"
+    Write-Host "Sample decision setup documentation: $($largeContentDecisionSummary.SampleDecisionSetupDocumentationPath)"
+    Write-Host "Sample decision unexpected sample staged: $($largeContentDecisionSummary.SampleDecisionUnexpectedSampleStaged)"
+    Write-Host "Sample decision staged sample path count: $($largeContentDecisionSummary.SampleDecisionStagedSamplePathCount)"
+    if ($largeContentDecisionSummary.SampleDecisionStagedSamplePaths.Count -gt 0) {
+        Write-Host "Sample decision staged sample paths: $(@($largeContentDecisionSummary.SampleDecisionStagedSamplePaths) -join ', ')"
+    }
+    Write-Host "Sample decision default action: $($largeContentDecisionSummary.SampleDecisionDefaultAction)"
+}
+
+if ($dtCoreSubmoduleGuardSummary) {
+    Write-Section "DTCore submodule guard"
+    Write-Host "Invariant valid: $($dtCoreSubmoduleGuardSummary.DTCoreInvariantValid)"
+    Write-Host "Expected commit: $($dtCoreSubmoduleGuardSummary.ExpectedCommit)"
+    Write-Host "Actual commit: $($dtCoreSubmoduleGuardSummary.ActualCommit)"
+    Write-Host "DTCore submodule status: $($dtCoreSubmoduleGuardSummary.DTCoreSubmoduleStatus)"
+    Write-Host "DTCore gitlink staged: $($dtCoreSubmoduleGuardSummary.DTCoreGitlinkStaged)"
+    Write-Host "DTCore gitlink modified: $($dtCoreSubmoduleGuardSummary.DTCoreGitlinkModified)"
+    Write-Host "DTCore worktree clean: $($dtCoreSubmoduleGuardSummary.DTCoreWorktreeClean)"
+    Write-Host "Submodule present: $($dtCoreSubmoduleGuardSummary.SubmodulePresent)"
+    Write-Host "Expected commit matches: $($dtCoreSubmoduleGuardSummary.ExpectedCommitMatches)"
+    Write-Host "Submodule status clean: $($dtCoreSubmoduleGuardSummary.SubmoduleStatusClean)"
+    Write-Host "Parent DTCore status lines: $($dtCoreSubmoduleGuardSummary.ParentDTCoreStatusLineCount)"
+    Write-Host "Staged DTCore paths: $($dtCoreSubmoduleGuardSummary.StagedDTCorePathCount)"
+    Write-Host "Submodule worktree lines: $($dtCoreSubmoduleGuardSummary.SubmoduleWorktreeLineCount)"
+    Write-Host "Violation count: $($dtCoreSubmoduleGuardSummary.ViolationCount)"
+    Write-Host "Dry run only: $($dtCoreSubmoduleGuardSummary.DryRunOnly)"
+    Write-Host "Read only: $($dtCoreSubmoduleGuardSummary.ReadOnly)"
+    Write-Host "Modifies submodule: $($dtCoreSubmoduleGuardSummary.ModifiesSubmodule)"
+    Write-Host "Stages DTCore: $($dtCoreSubmoduleGuardSummary.StagesDTCore)"
+    Write-Host "Does not update submodule: $($dtCoreSubmoduleGuardSummary.DoesNotUpdateSubmodule)"
+    Write-Host "Does not stage files: $($dtCoreSubmoduleGuardSummary.DoesNotStageFiles)"
+    Write-Host "Boundary: $($dtCoreSubmoduleGuardSummary.Boundary)"
+}
+
+if ($wbpDecisionSummary) {
+    Write-Section "Monitor WBP decision"
+    Write-Host "WBP present: $($wbpDecisionSummary.WbpPresent)"
+    Write-Host "WBP path: $($wbpDecisionSummary.WbpRelativePath)"
+    Write-Host "WBP size: $($wbpDecisionSummary.WbpSize)"
+    Write-Host "Git state: $($wbpDecisionSummary.GitState)"
+    Write-Host "Review queue: $($wbpDecisionSummary.ReviewQueue)"
+    Write-Host "Commit readiness: $($wbpDecisionSummary.CommitReadiness)"
+    Write-Host "Evidence status: $($wbpDecisionSummary.EvidenceStatus)"
+    Write-Host "Evidence satisfied: $($wbpDecisionSummary.EvidenceSatisfied)"
+    Write-Host "Missing evidence count: $($wbpDecisionSummary.MissingEvidenceCount)"
+    Write-Host "Missing acceptance items: $(@($wbpDecisionSummary.MissingAcceptanceItems) -join ', ')"
+    Write-Host "Recommended decision: $($wbpDecisionSummary.RecommendedDecision)"
+    Write-Host "Monitor policy valid: $($wbpDecisionSummary.MonitorPolicyValid)"
+    Write-Host "Setup doc contract complete: $($wbpDecisionSummary.SetupDocContractComplete)"
+    Write-Host "Ready to stage: $($wbpDecisionSummary.ReadyToStage)"
+    Write-Host "Staging blocked: $($wbpDecisionSummary.StagingBlocked)"
+    Write-Host "Manual editor verification still required: $($wbpDecisionSummary.ManualEditorVerificationStillRequired)"
+    Write-Host "Acceptance template available: $($wbpDecisionSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Acceptance template required evidence count: $($wbpDecisionSummary.AcceptanceTemplateRequiredEvidenceCount)"
+    Write-Host "Unexpected WBP staged: $($wbpDecisionSummary.UnexpectedWbpStaged)"
+    Write-Host "Must remain untracked: $($wbpDecisionSummary.MustRemainUntracked)"
+    Write-Host "Blocking reason: $($wbpDecisionSummary.BlockingReason)"
+    Write-Host "Next review action: $($wbpDecisionSummary.NextReviewAction)"
+    Write-Host "Boundary: $($wbpDecisionSummary.Boundary)"
+}
+
+if ($wbpPreflightSummary) {
+    Write-Section "Monitor WBP preflight"
+    Write-Host "WBP present: $($wbpPreflightSummary.WbpPresent)"
+    Write-Host "WBP untracked: $($wbpPreflightSummary.WbpUntracked)"
+    Write-Host "WBP staged: $($wbpPreflightSummary.WbpStaged)"
+    Write-Host "WBP worktree modified: $($wbpPreflightSummary.WbpWorktreeModified)"
+    Write-Host "Asset hash: $($wbpPreflightSummary.AssetHash)"
+    Write-Host "Setup doc contract complete: $($wbpPreflightSummary.SetupDocContractComplete)"
+    Write-Host "Missing setup term count: $($wbpPreflightSummary.MissingSetupTermCount)"
+    Write-Host "Acceptance template available: $($wbpPreflightSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Required evidence count: $($wbpPreflightSummary.RequiredEvidenceCount)"
+    Write-Host "Pending evidence count: $($wbpPreflightSummary.PendingEvidenceCount)"
+    Write-Host "Decision ready to stage: $($wbpPreflightSummary.DecisionReadyToStage)"
+    Write-Host "Decision missing evidence count: $($wbpPreflightSummary.DecisionMissingEvidenceCount)"
+    Write-Host "Preflight checks: $($wbpPreflightSummary.PreflightCheckCount)"
+    Write-Host "Blocked preflight checks: $($wbpPreflightSummary.BlockedPreflightCheckCount)"
+    Write-Host "Ready for manual editor review: $($wbpPreflightSummary.ReadyForManualEditorReview)"
+    Write-Host "Modifies assets: $($wbpPreflightSummary.ModifiesAssets)"
+    Write-Host "Stages WBP: $($wbpPreflightSummary.StagesWbp)"
+    Write-Host "Boundary: $($wbpPreflightSummary.Boundary)"
+}
+
+if ($wbpAcceptanceEvidenceSummary) {
+    Write-Section "Monitor WBP acceptance evidence"
+    Write-Host "Evidence file present: $($wbpAcceptanceEvidenceSummary.EvidenceFilePresent)"
+    Write-Host "Evidence record present: $($wbpAcceptanceEvidenceSummary.EvidenceRecordPresent)"
+    Write-Host "Required evidence count: $($wbpAcceptanceEvidenceSummary.RequiredEvidenceCount)"
+    Write-Host "Manual acceptance sections present: $($wbpAcceptanceEvidenceSummary.ManualAcceptanceSectionsPresent)"
+    Write-Host "Manual acceptance sections: $(@($wbpAcceptanceEvidenceSummary.ManualAcceptanceSections) -join ', ')"
+    Write-Host "Accepted manual acceptance sections: $($wbpAcceptanceEvidenceSummary.AcceptedManualAcceptanceSectionCount)/$($wbpAcceptanceEvidenceSummary.ManualAcceptanceSectionCount)"
+    Write-Host "Monitor WBP asset present: $($wbpAcceptanceEvidenceSummary.MonitorWbpAssetPresent)"
+    Write-Host "Monitor WBP asset tracked: $($wbpAcceptanceEvidenceSummary.MonitorWbpAssetTracked)"
+    Write-Host "Monitor WBP asset stage allowed: $($wbpAcceptanceEvidenceSummary.MonitorWbpAssetStageAllowed)"
+    Write-Host "Ready to stage monitor WBP asset: $($wbpAcceptanceEvidenceSummary.ReadyToStageMonitorWbpAsset)"
+    Write-Host "Editor manual acceptance present: $($wbpAcceptanceEvidenceSummary.EditorManualAcceptancePresent)"
+    Write-Host "Monitor WBP manual acceptance complete: $($wbpAcceptanceEvidenceSummary.MonitorWbpManualAcceptanceComplete)"
+    Write-Host "Passed checks: $($wbpAcceptanceEvidenceSummary.PassedCheckCount)"
+    Write-Host "Failed checks: $($wbpAcceptanceEvidenceSummary.FailedCheckCount)"
+    Write-Host "Ready to stage candidate: $($wbpAcceptanceEvidenceSummary.ReadyToStageCandidate)"
+    Write-Host "WBP staged: $($wbpAcceptanceEvidenceSummary.WbpStaged)"
+    Write-Host "Decision report ready to stage: $($wbpAcceptanceEvidenceSummary.DecisionReportReadyToStage)"
+    Write-Host "Dry run only: $($wbpAcceptanceEvidenceSummary.DryRunOnly)"
+    Write-Host "Modifies assets: $($wbpAcceptanceEvidenceSummary.ModifiesAssets)"
+    Write-Host "Stages WBP: $($wbpAcceptanceEvidenceSummary.StagesWbp)"
+    Write-Host "Boundary: $($wbpAcceptanceEvidenceSummary.Boundary)"
+}
+
+if ($runtimeConfigDecisionSummary) {
+    Write-Section "Runtime config decision"
+    Write-Host "Game.ini present: $($runtimeConfigDecisionSummary.GameIniPresent)"
+    Write-Host "Git state: $($runtimeConfigDecisionSummary.GameIniGitState)"
+    Write-Host "Runtime override present: $($runtimeConfigDecisionSummary.RuntimeOverridePresent)"
+    Write-Host "Runtime override key count: $($runtimeConfigDecisionSummary.RuntimeOverrideKeyCount)"
+    Write-Host "Non-empty runtime override key count: $($runtimeConfigDecisionSummary.NonEmptyRuntimeOverrideKeyCount)"
+    Write-Host "Values redacted: $($runtimeConfigDecisionSummary.ValuesRedacted)"
+    Write-Host "Review queue: $($runtimeConfigDecisionSummary.ReviewQueue)"
+    Write-Host "Commit readiness: $($runtimeConfigDecisionSummary.CommitReadiness)"
+    Write-Host "Evidence status: $($runtimeConfigDecisionSummary.EvidenceStatus)"
+    Write-Host "Missing evidence count: $($runtimeConfigDecisionSummary.MissingEvidenceCount)"
+    Write-Host "Missing acceptance items: $(@($runtimeConfigDecisionSummary.MissingAcceptanceItems) -join ', ')"
+    Write-Host "Ready to stage: $($runtimeConfigDecisionSummary.ReadyToStage)"
+    Write-Host "Staging blocked: $($runtimeConfigDecisionSummary.StagingBlocked)"
+    Write-Host "Manual config owner decision still required: $($runtimeConfigDecisionSummary.ManualConfigOwnerDecisionStillRequired)"
+    Write-Host "Acceptance template available: $($runtimeConfigDecisionSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Acceptance template required evidence count: $($runtimeConfigDecisionSummary.AcceptanceTemplateRequiredEvidenceCount)"
+    Write-Host "Unexpected Game.ini staged: $($runtimeConfigDecisionSummary.UnexpectedGameIniStaged)"
+    Write-Host "Must remain local: $($runtimeConfigDecisionSummary.MustRemainLocal)"
+    Write-Host "Recommendation: $($runtimeConfigDecisionSummary.Recommendation)"
+    Write-Host "Boundary: $($runtimeConfigDecisionSummary.Boundary)"
+}
+
+if ($judgingServerAcceptanceSummary) {
+    Write-Section "Judging server acceptance"
+    Write-Host "Acceptance template available: $($judgingServerAcceptanceSummary.AcceptanceTemplateAvailable)"
+    Write-Host "Required evidence count: $($judgingServerAcceptanceSummary.RequiredEvidenceCount)"
+    Write-Host "Pending evidence count: $($judgingServerAcceptanceSummary.PendingEvidenceCount)"
+    Write-Host "Evidence section count: $($judgingServerAcceptanceSummary.EvidenceSectionCount)"
+    Write-Host "Required evidence sections: $(@($judgingServerAcceptanceSummary.RequiredEvidenceSections) -join ', ')"
+    Write-Host "Values redacted: $($judgingServerAcceptanceSummary.ValuesRedacted)"
+    Write-Host "Modifies config: $($judgingServerAcceptanceSummary.ModifiesConfig)"
+    Write-Host "Stages config: $($judgingServerAcceptanceSummary.StagesConfig)"
+    Write-Host "Writes endpoint values: $($judgingServerAcceptanceSummary.WritesEndpointValues)"
+    Write-Host "Writes credential values: $($judgingServerAcceptanceSummary.WritesCredentialValues)"
+    Write-Host "Evidence sections present: $($judgingServerAcceptanceSummary.JudgingServerEvidenceSectionsPresent)"
+    Write-Host "Real judging-server acceptance present: $($judgingServerAcceptanceSummary.RealJudgingServerAcceptancePresent)"
+    Write-Host "Real endpoint smoke evidence present: $($judgingServerAcceptanceSummary.RealEndpointSmokeEvidencePresent)"
+    Write-Host "Connects to external endpoint: $($judgingServerAcceptanceSummary.ConnectsToExternalEndpoint)"
+    Write-Host "Open server acceptance decisions: $($judgingServerAcceptanceSummary.OpenServerAcceptanceDecisionCount)"
+    Write-Host "Real server evidence gaps: $($judgingServerAcceptanceSummary.RealServerEvidenceGapCount)"
+    Write-Host "Ready to claim real server acceptance: $($judgingServerAcceptanceSummary.CurrentReadyToClaimRealServerAcceptance)"
+    Write-Host "Recommended next action: $($judgingServerAcceptanceSummary.RecommendedNextAction)"
+    Write-Host "Boundary: $($judgingServerAcceptanceSummary.Boundary)"
+}
+
+if ($realSensorDeploymentSummary) {
+    Write-Section "Real sensor deployment evidence"
+    Write-Host "Deployment evidence template available: $($realSensorDeploymentSummary.DeploymentEvidenceTemplateAvailable)"
+    Write-Host "Required evidence count: $($realSensorDeploymentSummary.RequiredEvidenceCount)"
+    Write-Host "Pending evidence count: $($realSensorDeploymentSummary.PendingEvidenceCount)"
+    Write-Host "Deployment path section count: $($realSensorDeploymentSummary.DeploymentPathSectionCount)"
+    Write-Host "Deployment path sections: $(@($realSensorDeploymentSummary.DeploymentPathSections) -join ', ')"
+    Write-Host "Selected deployment path count: $($realSensorDeploymentSummary.SelectedDeploymentPathCount)"
+    Write-Host "Ready to claim real sensor deployment: $($realSensorDeploymentSummary.ReadyToClaimRealSensorDeployment)"
+    Write-Host "Pre-deployment evidence only: $($realSensorDeploymentSummary.PreDeploymentEvidenceOnly)"
+    Write-Host "Brokerless dispatch is deployment evidence: $($realSensorDeploymentSummary.BrokerlessDispatchIsDeploymentEvidence)"
+    Write-Host "Loopback smoke is deployment broker evidence: $($realSensorDeploymentSummary.LoopbackSmokeIsDeploymentBrokerEvidence)"
+    Write-Host "Static transaction registration is broker acceptance: $($realSensorDeploymentSummary.StaticTransactionRegistrationIsBrokerAcceptance)"
+    Write-Host "Real broker or SDK acceptance evidence present: $($realSensorDeploymentSummary.RealBrokerOrSdkAcceptanceEvidencePresent)"
+    Write-Host "Acceptance package is evidence shell: $($realSensorDeploymentSummary.AcceptancePackageIsEvidenceShell)"
+    Write-Host "Acceptance package is deployment proof: $($realSensorDeploymentSummary.AcceptancePackageIsDeploymentProof)"
+    Write-Host "Generated report does not mean deployment passed: $($realSensorDeploymentSummary.GeneratedReportDoesNotMeanDeploymentPassed)"
+    Write-Host "Connects to external endpoint: $($realSensorDeploymentSummary.ConnectsToExternalEndpoint)"
+    Write-Host "Runs SDK hardware: $($realSensorDeploymentSummary.RunsSdkHardware)"
+    Write-Host "Does not connect to broker: $($realSensorDeploymentSummary.DoesNotConnectToBroker)"
+    Write-Host "Does not connect to SDK: $($realSensorDeploymentSummary.DoesNotConnectToSdk)"
+    Write-Host "Does not modify DTCore: $($realSensorDeploymentSummary.DoesNotModifyDTCore)"
+    Write-Host "Writes endpoint values: $($realSensorDeploymentSummary.WritesEndpointValues)"
+    Write-Host "Writes credential values: $($realSensorDeploymentSummary.WritesCredentialValues)"
+    Write-Host "Boundary: $($realSensorDeploymentSummary.Boundary)"
+}
+
+if ($lazExportDecisionSummary) {
+    Write-Section "LAZ export decision"
+    Write-Host "Placeholder explicit: $($lazExportDecisionSummary.PlaceholderExplicit)"
+    Write-Host "Writes LAS source only: $($lazExportDecisionSummary.WritesLasSourceOnly)"
+    Write-Host "External compressor opt-in implemented: $($lazExportDecisionSummary.ExternalCompressorOptInImplemented)"
+    Write-Host "External compressor contract hardened: $($lazExportDecisionSummary.ExternalCompressorContractHardened)"
+    Write-Host "Missing-compressor guard covered: $($lazExportDecisionSummary.MissingCompressorGuardCovered)"
+    Write-Host "External compressor success covered: $($lazExportDecisionSummary.ExternalCompressorSuccessCovered)"
+    Write-Host "Compressor candidate found: $($lazExportDecisionSummary.CompressorCandidateFound)"
+    Write-Host "Reader candidate found: $($lazExportDecisionSummary.ReaderCandidateFound)"
+    Write-Host "Tool candidate discovery only: $($lazExportDecisionSummary.ToolCandidateDiscoveryOnly)"
+    Write-Host "Tool candidate is acceptance evidence: $($lazExportDecisionSummary.ToolCandidateIsAcceptanceEvidence)"
+    Write-Host "Compressor candidate is acceptance evidence: $($lazExportDecisionSummary.CompressorCandidateIsAcceptanceEvidence)"
+    Write-Host "Reader candidate is acceptance evidence: $($lazExportDecisionSummary.ReaderCandidateIsAcceptanceEvidence)"
+    Write-Host "Candidate tools: $($lazExportDecisionSummary.FoundToolCount)/$($lazExportDecisionSummary.CandidateToolCount) found"
+    Write-Host "LAZ evidence file present: $($lazExportDecisionSummary.LazEvidenceFilePresent)"
+    Write-Host "Reader probe requested: $($lazExportDecisionSummary.ReaderProbeRequested)"
+    Write-Host "Reader probe blocked reason: $($lazExportDecisionSummary.ReaderProbeBlockedReason)"
+    Write-Host "Reader probe requires produced LAZ: $($lazExportDecisionSummary.ReaderProbeRequiresProducedLaz)"
+    Write-Host "Produced LAZ readiness evidence present: $($lazExportDecisionSummary.ProducedLazReadinessEvidencePresent)"
+    Write-Host "Reader probe is acceptance evidence: $($lazExportDecisionSummary.ReaderProbeIsAcceptanceEvidence)"
+    Write-Host "Reader probe acceptance blocked: $($lazExportDecisionSummary.ReaderProbeAcceptanceBlocked)"
+    Write-Host "Reader probe acceptance blockers: $(@($lazExportDecisionSummary.ReaderProbeAcceptanceBlockers) -join '; ')"
+    Write-Host "Readable output evidence present: $($lazExportDecisionSummary.ReadableOutputEvidencePresent)"
+    Write-Host "Readable LAZ acceptance evidence present: $($lazExportDecisionSummary.ReadableLazAcceptanceEvidencePresent)"
+    Write-Host "Ready to claim readable LAZ acceptance: $($lazExportDecisionSummary.ReadyToClaimReadableLazAcceptance)"
+    Write-Host "Readable LAZ output missing reason: $($lazExportDecisionSummary.ReadableLazOutputMissingReason)"
+    Write-Host "Ready for real LAZ automation: $($lazExportDecisionSummary.ReadyForRealLazAutomation)"
+    Write-Host "True compression integrated: $($lazExportDecisionSummary.TrueCompressionIntegrated)"
+    Write-Host "Acceptance evidence sections: $($lazExportDecisionSummary.AcceptanceEvidenceSectionCount)"
+    Write-Host "Required evidence sections: $(@($lazExportDecisionSummary.RequiredEvidenceSections) -join ', ')"
+    Write-Host "Acceptance evidence complete: $($lazExportDecisionSummary.AcceptanceEvidenceComplete)"
+    Write-Host "Acceptance evidence failed checks: $($lazExportDecisionSummary.AcceptanceEvidenceFailedCheckCount)"
+    Write-Host "Compressor selection evidence present: $($lazExportDecisionSummary.LazCompressorSelectionPresent)"
+    Write-Host "Produced LAZ evidence present: $($lazExportDecisionSummary.ProducedLazEvidencePresent)"
+    Write-Host "Known reader validation present: $($lazExportDecisionSummary.KnownReaderValidationPresent)"
+    Write-Host "Repeatable command evidence present: $($lazExportDecisionSummary.RepeatableCommandPresent)"
+    Write-Host "LAZ owner acceptance present: $($lazExportDecisionSummary.LazOwnerAcceptancePresent)"
+    Write-Host "Ready to claim true LAZ: $($lazExportDecisionSummary.ReadyToClaimTrueLaz)"
+    Write-Host "Candidate paths: $(@($lazExportDecisionSummary.CandidatePaths) -join ', ')"
+    Write-Host "Acceptance evidence needed: $(@($lazExportDecisionSummary.AcceptanceEvidenceNeeded) -join '; ')"
+    Write-Host "Recommended next decision: $($lazExportDecisionSummary.RecommendedNextDecision)"
+    Write-Host "Recommended next action: $($lazExportDecisionSummary.RecommendedNextAction)"
+    Write-Host "Boundary: $($lazExportDecisionSummary.StagingBoundary)"
+}
+
+if ($pointCloudRendererDecisionSummary) {
+    Write-Section "Point cloud renderer decision"
+    Write-Host "Renderer phase: $($pointCloudRendererDecisionSummary.RendererPhase)"
+    Write-Host "GPU renderer integrated: $($pointCloudRendererDecisionSummary.GpuRendererIntegrated)"
+    Write-Host "Recommended first GPU candidate: $($pointCloudRendererDecisionSummary.RecommendedFirstGpuCandidate)"
+    Write-Host "CPU preview fallback evidence present: $($pointCloudRendererDecisionSummary.CpuPreviewFallbackEvidencePresent)"
+    Write-Host "CPU fallback performance evidence present: $($pointCloudRendererDecisionSummary.CpuFallbackPerformanceEvidencePresent)"
+    Write-Host "CPU ISM fallback smoke present: $($pointCloudRendererDecisionSummary.CpuIsmFallbackSmokePresent)"
+    Write-Host "CPU procedural dense evidence present: $($pointCloudRendererDecisionSummary.CpuProceduralDenseEvidencePresent)"
+    Write-Host "Default preview backend: $($pointCloudRendererDecisionSummary.DefaultPreviewBackend)"
+    Write-Host "Configured preview backend source: $($pointCloudRendererDecisionSummary.ConfiguredPreviewBackendSource)"
+    Write-Host "Preview backend selection declared: $($pointCloudRendererDecisionSummary.PreviewBackendSelectionDeclared)"
+    Write-Host "GPU preview backend claim blocked: $($pointCloudRendererDecisionSummary.GpuPreviewBackendClaimBlocked)"
+    Write-Host "CPU fallback forced for GPU candidates: $($pointCloudRendererDecisionSummary.CpuFallbackForcedForGpuCandidates)"
+    Write-Host "CPU fallback preserved: $($pointCloudRendererDecisionSummary.CpuFallbackPreserved)"
+    Write-Host "CSV performance evidence present: $($pointCloudRendererDecisionSummary.CsvPerformanceEvidencePresent)"
+    Write-Host "CSV performance automation evidence present: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceAutomationEvidencePresent)"
+    Write-Host "CSV performance requires automation log: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceRequiresAutomationLog)"
+    Write-Host "Ready to claim CSV preview performance: $($pointCloudRendererDecisionSummary.ReadyToClaimCsvPreviewPerformance)"
+    Write-Host "CSV performance acceptance blocked: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceAcceptanceBlocked)"
+    Write-Host "CSV performance acceptance blockers: $(@($pointCloudRendererDecisionSummary.CsvPreviewPerformanceAcceptanceBlockers) -join '; ')"
+    Write-Host "CSV performance evidence missing reason: $($pointCloudRendererDecisionSummary.CsvPreviewPerformanceEvidenceMissingReason)"
+    Write-Host "CSV evidence lines within run: $($pointCloudRendererDecisionSummary.CsvEvidenceLinesWithinRun)"
+    Write-Host "CSV failure evidence present: $($pointCloudRendererDecisionSummary.CsvFailureEvidencePresent)"
+    Write-Host "CSV preview max accepted points: $($pointCloudRendererDecisionSummary.CsvPreviewMaxAcceptedPoints)"
+    Write-Host "GPU viewport smoke evidence present: $($pointCloudRendererDecisionSummary.GpuViewportSmokeEvidencePresent)"
+    Write-Host "GPU viewport smoke missing fields: $($pointCloudRendererDecisionSummary.GpuViewportSmokeMissingEvidenceFieldCount)"
+    Write-Host "GPU fallback preservation evidence present: $($pointCloudRendererDecisionSummary.GpuFallbackPreservationEvidencePresent)"
+    Write-Host "GPU dense-frame evidence present: $($pointCloudRendererDecisionSummary.GpuDenseFrameEvidencePresent)"
+    Write-Host "Ready to claim GPU dense preview: $($pointCloudRendererDecisionSummary.ReadyToClaimGpuDensePreview)"
+    Write-Host "Candidate renderers: $(@($pointCloudRendererDecisionSummary.CandidateRenderers) -join ', ')"
+    Write-Host "Recommended next decision: $($pointCloudRendererDecisionSummary.RecommendedNextDecision)"
+    Write-Host "Boundary: $($pointCloudRendererDecisionSummary.Boundary)"
+}
+
+if ($readinessSummary) {
+    Write-Section "Fast readiness"
+    Write-Host "Passed: $($readinessSummary.Passed)"
+    Write-Host "Fast readiness passed: $($readinessSummary.FastReadinessPassed)"
+    Write-Host "Mode: $($readinessSummary.ReadinessMode)"
+    Write-Host "Manual evidence still required: $($readinessSummary.ManualEvidenceStillRequired)"
+    Write-Host "Caveat: $($readinessSummary.ReadinessCaveat)"
+    Write-Host "Boundary: $($readinessSummary.Boundary)"
+    Write-Host "Steps: $($readinessSummary.PassedStepCount)/$($readinessSummary.StepCount) passed, $($readinessSummary.SkippedStepCount) skipped"
+    Write-Host "Source repo root: $($readinessSummary.SourceRepoRoot)"
+    Write-Host "Local project root: $($readinessSummary.ProjectRoot)"
+    if (@($readinessSummary.SkippedStepDetails).Count -gt 0) {
+        Write-Host "Skipped (not covered by fast readiness):"
+        $readinessSummary.SkippedStepDetails | ForEach-Object {
+            Write-Host "  $($_.Label) - $($_.Reason)"
+        }
+    }
+}
