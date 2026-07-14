@@ -12,6 +12,8 @@ public class ma0t10_dtEditor : ModuleRules
             "CoreUObject",
             "Engine",
             "UnrealEd",
+            "Slate",
+            "SlateCore",
             "DTCore",
             "ma0t10_dt"
         });

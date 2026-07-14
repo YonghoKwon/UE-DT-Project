@@ -260,13 +260,17 @@ function Get-DecisionChecklist {
     )
 
     $normalizedPath = Normalize-RepoPath $RelativePath
-    if ($normalizedPath -eq "content/ma0t10/ui/wbp_virtualsensormonitor.uasset") {
+    if ($normalizedPath -in @(
+        "content/ma0t10/ui/wbp_virtualsensormonitor.uasset",
+        "content/ma0t10/ui/wbp_virtualsensorsettings.uasset",
+        "content/ma0t10/ui/wbp_virtualsensorcaptureexport.uasset"
+    )) {
         return @(
             "Open the widget in Unreal Editor.",
-            "Verify optional bindings against docs/widget_designer_setup.md.",
+            "Verify the native parent and optional bindings against docs/sensor_test_map_setup.ko.md.",
             "Run a PIE smoke test in the intended map.",
-            "Confirm camera/LiDAR switching and status text update correctly.",
-            "Commit only after accepting the binary asset as the production monitor WBP."
+            "Confirm the panel-specific sensor controls and status update correctly.",
+            "Commit only after accepting the binary asset as a repository-owned WBP."
         )
     }
 
@@ -713,6 +717,22 @@ try {
             DecisionOwner = "ProjectOwnerRequired"
             DecisionStatus = "EvidencePending"
             EvidenceNeeded = @("Editor open verification", "Optional binding check", "PIE smoke result", "Production WBP acceptance")
+        },
+        [PSCustomObject]@{
+            Path = "Content\MA0T10\UI\WBP_VirtualSensorSettings.uasset"
+            Category = "ReviewCandidate"
+            Recommendation = "Verify the native parent and runtime settings panel in PIE before committing the generated WBP."
+            DecisionOwner = "ProjectOwnerRequired"
+            DecisionStatus = "EvidencePending"
+            EvidenceNeeded = @("Editor open verification", "Native parent check", "PIE settings smoke result", "Generated WBP acceptance")
+        },
+        [PSCustomObject]@{
+            Path = "Content\MA0T10\UI\WBP_VirtualSensorCaptureExport.uasset"
+            Category = "ReviewCandidate"
+            Recommendation = "Verify the native parent and capture/export panel in PIE before committing the generated WBP."
+            DecisionOwner = "ProjectOwnerRequired"
+            DecisionStatus = "EvidencePending"
+            EvidenceNeeded = @("Editor open verification", "Native parent check", "PIE capture/export smoke result", "Generated WBP acceptance")
         },
         [PSCustomObject]@{
             Path = "Config\Game.ini"

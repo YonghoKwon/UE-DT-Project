@@ -422,6 +422,23 @@ void AVirtualSensorManager::CaptureSelectedOnce()
     }
 }
 
+void AVirtualSensorManager::RefreshSelectedSensorOnce(bool bLidar)
+{
+    if (bLidar)
+    {
+        if (UVirtualLidarSensorComp* LidarComp = GetSelectedLidar())
+        {
+            LidarComp->ScanAndSend();
+        }
+        return;
+    }
+
+    if (UVirtualCameraComp* CameraComp = GetSelectedCamera())
+    {
+        CameraComp->CaptureAndSendImage();
+    }
+}
+
 void AVirtualSensorManager::SetSelectedLidarPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly)
 {
     if (UVirtualLidarSensorComp* LidarComp = GetSelectedLidar())

@@ -64,7 +64,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 $wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
-$setupDocPath = Join-Path $SourceRepoRoot "docs\widget_designer_setup.md"
+$setupDocPath = Join-Path $SourceRepoRoot "docs\sensor_test_map_setup.ko.md"
 $assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
 $monitorPolicyScript = Join-Path $SourceRepoRoot "Scripts\validate_monitor_widget_policy.ps1"
 $acceptanceTemplateScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
@@ -147,7 +147,7 @@ $manualAcceptanceChecklist = @(
         Name = "Optional binding check"
         Required = $true
         Status = if ($setupDocPresent -and $missingSetupTerms.Count -eq 0 -and $wbpDecisionPoint -and @($wbpDecisionPoint.MissingEvidence) -notcontains "Optional binding check") { "Recorded" } else { "Missing" }
-        EvidenceNeeded = "Compare named widgets against docs/widget_designer_setup.md Optional Bindings and confirm missing optional widgets do not crash."
+        EvidenceNeeded = "Compare named widgets against docs/sensor_test_map_setup.ko.md Optional Bindings and confirm missing optional widgets do not crash."
     },
     [PSCustomObject]@{
         Name = "PIE smoke result"
@@ -173,7 +173,7 @@ $evidenceDraft = [PSCustomObject]@{
     Notes = $recommendation
     Evidence = @(
         [PSCustomObject]@{ Name = "Editor open verification"; Status = "Pending"; Source = ""; Note = "Open WBP_VirtualSensorMonitor in Unreal Editor and verify it loads without compile errors." },
-        [PSCustomObject]@{ Name = "Optional binding check"; Status = if ($setupDocPresent -and $missingSetupTerms.Count -eq 0) { "Pending" } else { "Blocked" }; Source = ""; Note = "Check named widgets against docs/widget_designer_setup.md optional binding list." },
+        [PSCustomObject]@{ Name = "Optional binding check"; Status = if ($setupDocPresent -and $missingSetupTerms.Count -eq 0) { "Pending" } else { "Blocked" }; Source = ""; Note = "Check named widgets against docs/sensor_test_map_setup.ko.md optional binding list." },
         [PSCustomObject]@{ Name = "PIE smoke result"; Status = "Pending"; Source = ""; Note = "Run PIE in intended map with AVirtualSensorMonitorHostActor or Level Blueprint binding." },
         [PSCustomObject]@{ Name = "Production WBP acceptance"; Status = "Pending"; Source = ""; Note = "Project owner confirms this binary asset is the production operator monitor widget." }
     )

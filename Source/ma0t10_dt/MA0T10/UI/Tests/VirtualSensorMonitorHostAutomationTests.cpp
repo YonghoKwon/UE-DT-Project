@@ -9,12 +9,14 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "MA0T10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorCameraStatusTextTest, "MA0T10.SensorMonitor.CameraStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorLidarStatusTextTest, "MA0T10.SensorMonitor.LidarStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorPerformanceWarningStatusTest, "MA0T10.SensorMonitor.PerformanceWarningStatusText", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorServerPayloadExportTest, "MA0T10.SensorMonitor.ServerPayloadExport", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorThemeAndLidarModesTest, "MA0T10.SensorMonitor.ThemeAndLidarModes", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 {
@@ -58,16 +60,16 @@ bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameter
     const FString TitleText = MonitorWidget->GetMonitorTitleText();
     const FString StatusText = MonitorWidget->GetMonitorStatusText();
 
-    TestTrue(TEXT("title shows camera view"), TitleText.Contains(TEXT("Camera")));
+    TestTrue(TEXT("title shows camera view"), TitleText.Contains(TEXT("카메라")));
     TestFalse(TEXT("monitor reports camera mode"), MonitorWidget->IsShowingLidar());
     TestTrue(TEXT("monitor reports bound camera"), MonitorWidget->HasBoundCamera());
     TestFalse(TEXT("monitor reports no bound lidar"), MonitorWidget->HasBoundLidar());
     TestTrue(TEXT("camera status includes selected sensor id"), StatusText.Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
-    TestTrue(TEXT("camera status includes schema version"), StatusText.Contains(TEXT("Schema: virtual-camera.v1")));
-    TestTrue(TEXT("camera status includes resolution"), StatusText.Contains(TEXT("Resolution: 800x450")));
-    TestTrue(TEXT("camera status includes capture mode"), StatusText.Contains(TEXT("Capture: Mode=")));
-    TestTrue(TEXT("camera status includes cached payload flag"), StatusText.Contains(TEXT("Cached=false")));
-    TestTrue(TEXT("camera status includes export path hint"), StatusText.Contains(TEXT("ServerPayload")));
+    TestTrue(TEXT("camera status includes schema version"), StatusText.Contains(TEXT("스키마: virtual-camera.v1")));
+    TestTrue(TEXT("camera status includes resolution"), StatusText.Contains(TEXT("해상도: 800x450")));
+    TestTrue(TEXT("camera status includes capture mode"), StatusText.Contains(TEXT("캡처: 모드=")));
+    TestTrue(TEXT("camera status includes cached payload flag"), StatusText.Contains(TEXT("캐시=없음")));
+    TestFalse(TEXT("monitor status omits capture/export controls"), StatusText.Contains(TEXT("Export Payload")) || StatusText.Contains(TEXT("CaptureOnce")));
     TestTrue(TEXT("camera selected sensor getter exposes sensor id"), MonitorWidget->GetSelectedSensorIdText().Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
     TestTrue(TEXT("camera frame summary getter exposes frame"), MonitorWidget->GetFrameSummaryText().Contains(TEXT("Frame:")));
     TestTrue(TEXT("camera measurement getter exposes resolution"), MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Resolution: 800x450")));
@@ -124,24 +126,24 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     const FString TitleText = MonitorWidget->GetMonitorTitleText();
     const FString StatusText = MonitorWidget->GetMonitorStatusText();
 
-    TestTrue(TEXT("title shows LiDAR view"), TitleText.Contains(TEXT("LIDAR")));
+    TestTrue(TEXT("title shows LiDAR view"), TitleText.Contains(TEXT("LiDAR")));
     TestTrue(TEXT("monitor reports lidar mode"), MonitorWidget->IsShowingLidar());
     TestTrue(TEXT("monitor reports bound lidar"), MonitorWidget->HasBoundLidar());
     TestFalse(TEXT("monitor reports no bound camera"), MonitorWidget->HasBoundCamera());
     TestTrue(TEXT("status includes selected sensor id"), StatusText.Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
-    TestTrue(TEXT("status includes frame id"), StatusText.Contains(TEXT("Frame:")));
-    TestTrue(TEXT("status includes scan interval"), StatusText.Contains(TEXT("Scan: 0.125s")));
-    TestTrue(TEXT("status includes ray count"), StatusText.Contains(TEXT("Rays=24")));
-    TestTrue(TEXT("status includes measured hit count"), StatusText.Contains(TEXT("Measured Points/Hits: 24/24")));
-    TestTrue(TEXT("status includes server payload policy"), StatusText.Contains(TEXT("Server Payload: Points=8 Bytes=")) && StatusText.Contains(TEXT("Stride=2 Max=8 IncludeMiss=false")));
-    TestTrue(TEXT("status includes preview policy"), StatusText.Contains(TEXT("Preview: On Points=5 Stride=3 Max=5 HitOnly=true")));
-    TestTrue(TEXT("status includes slab analysis"), StatusText.Contains(TEXT("Slab: Valid Points=24 Angle=")));
+    TestTrue(TEXT("status includes frame id"), StatusText.Contains(TEXT("프레임:")));
+    TestTrue(TEXT("status includes scan interval"), StatusText.Contains(TEXT("스캔 주기: 0.125초")));
+    TestTrue(TEXT("status includes ray count"), StatusText.Contains(TEXT("광선=24")));
+    TestTrue(TEXT("status includes measured hit count"), StatusText.Contains(TEXT("측정점/검출점: 24/24")));
+    TestTrue(TEXT("status includes server payload policy"), StatusText.Contains(TEXT("서버 Payload: 점=8 바이트=")) && StatusText.Contains(TEXT("간격=2 최대=8 미검출점=아니요")));
+    TestTrue(TEXT("status includes preview policy"), StatusText.Contains(TEXT("미리보기: 켜짐 점=5 간격=3 최대=5 검출점만=예")));
+    TestTrue(TEXT("status includes slab analysis"), StatusText.Contains(TEXT("Slab 분석: 유효 점=24 각도=")));
     TestTrue(TEXT("status includes laz export telemetry row"), StatusText.Contains(TEXT("LAZ Export: Attempted=false")));
-    TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("Transport/Warning:")));
-    TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR View:")));
+    TestTrue(TEXT("status includes transport warning row"), StatusText.Contains(TEXT("전송/경고:")));
+    TestTrue(TEXT("status includes view mode"), StatusText.Contains(TEXT("LiDAR 표시:")));
     TestTrue(TEXT("status includes acceptance gate row"), StatusText.Contains(TEXT("Acceptance Gates:")) && StatusText.Contains(TEXT("LAZ=TrueCompressionPending")));
     TestTrue(TEXT("status includes real sensor deployment row"), StatusText.Contains(TEXT("Deployment Gate: Source=TEST-REAL-SENSOR-REPLAY")));
-    TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV: row,col,returnIndex,x,y,z")));
+    TestTrue(TEXT("status includes export CSV contract"), StatusText.Contains(TEXT("CSV 열: row,col,returnIndex,x,y,z")));
     TestTrue(TEXT("lidar selected sensor getter exposes sensor id"), MonitorWidget->GetSelectedSensorIdText().Contains(TEXT("TEST-LIDAR-MONITOR-STATUS")));
     TestTrue(TEXT("lidar frame summary getter exposes scan interval"), MonitorWidget->GetFrameSummaryText().Contains(TEXT("Scan: 0.125s")));
     TestTrue(TEXT("lidar measurement getter exposes rays and hits"), MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Rays: 24")) && MonitorWidget->GetMeasurementSummaryText().Contains(TEXT("Points/Hits: 24/24")));
@@ -149,7 +151,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("lidar preview getter exposes preview policy"), MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("Points=5")) && MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("HitOnly=true")));
     TestTrue(TEXT("lidar slab getter exposes slab analysis"), MonitorWidget->GetSlabAnalysisSummaryText().Contains(TEXT("Slab: Valid")) && MonitorWidget->GetSlabAnalysisSummaryText().Contains(TEXT("Points=24")));
     TestTrue(TEXT("lidar laz getter exposes initial state"), MonitorWidget->GetLazExportSummaryText().Contains(TEXT("Attempted=false")));
-    TestTrue(TEXT("lidar warning getter exposes warning row"), MonitorWidget->GetTransportWarningText().Contains(TEXT("Transport/Warning:")));
+    TestTrue(TEXT("lidar warning getter exposes Korean warning row"), MonitorWidget->GetTransportWarningText().Contains(TEXT("상태/경고:")));
     TestTrue(TEXT("lidar view getter exposes view mode"), MonitorWidget->GetViewModeSummaryText().Contains(TEXT("LiDAR View:")));
     TestTrue(TEXT("lidar acceptance gate getter exposes cached server payload"), MonitorWidget->GetAcceptanceGateSummaryText().Contains(TEXT("Server=PayloadCached")));
     TestTrue(TEXT("lidar real sensor getter exposes replay baseline"), MonitorWidget->GetRealSensorDeploymentSummaryText().Contains(TEXT("Replay baseline")));
@@ -159,8 +161,8 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("lidar display data exposes payload"), LidarDisplayData.ServerPayloadText.Contains(TEXT("Points=8")));
     TestTrue(TEXT("lidar display data exposes preview independently"), LidarDisplayData.PreviewText.Contains(TEXT("Points=5")));
     TestTrue(TEXT("full status simultaneously exposes server and preview counts"),
-        LidarDisplayData.FullStatusText.Contains(TEXT("Server Payload: Points=8")) &&
-        LidarDisplayData.FullStatusText.Contains(TEXT("Preview: On Points=5")));
+        LidarDisplayData.FullStatusText.Contains(TEXT("서버 Payload: 점=8")) &&
+        LidarDisplayData.FullStatusText.Contains(TEXT("미리보기: 켜짐 점=5")));
     TestTrue(TEXT("lidar display data exposes slab"), LidarDisplayData.SlabText.Contains(TEXT("Slab: Valid")));
     TestTrue(TEXT("lidar display data exposes laz export"), LidarDisplayData.LazExportText.Contains(TEXT("LAZ Export:")));
     TestTrue(TEXT("lidar display data exposes acceptance gates"), LidarDisplayData.AcceptanceGateText.Contains(TEXT("WBP=ManualPIEPending")));
@@ -174,7 +176,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     MonitorWidget->ToggleLidarPreviewHitOnly();
     const FString ToggledStatusText = MonitorWidget->GetMonitorStatusText();
     TestFalse(TEXT("preview hit-only toggles off"), LidarComp->bPointCloudPreviewHitOnly);
-    TestTrue(TEXT("status reflects preview hit-only toggle"), ToggledStatusText.Contains(TEXT("Preview: On")) && ToggledStatusText.Contains(TEXT("Stride=3 Max=5 HitOnly=false")));
+    TestTrue(TEXT("status reflects preview hit-only toggle"), ToggledStatusText.Contains(TEXT("미리보기: 켜짐")) && ToggledStatusText.Contains(TEXT("간격=3 최대=5 검출점만=아니요")));
     TestTrue(TEXT("preview getter reflects hit-only toggle"), MonitorWidget->GetPreviewPolicySummaryText().Contains(TEXT("HitOnly=false")));
     TestEqual(TEXT("server payload stride unchanged after preview hit-only toggle"), LidarComp->ServerPayloadStride, 2);
     TestEqual(TEXT("server payload max unchanged after preview hit-only toggle"), LidarComp->MaxServerPayloadPoints, 8);
@@ -222,7 +224,7 @@ bool FVirtualSensorMonitorPerformanceWarningStatusTest::RunTest(const FString& P
     TestTrue(TEXT("monitor status includes fullspec multihit warning"), StatusText.Contains(TEXT("FullSpec+MultiHit")));
     TestTrue(TEXT("monitor status includes export warning"), StatusText.Contains(TEXT("FullSpec export-on-scan")));
     TestTrue(TEXT("monitor status includes uncapped preview warning"), StatusText.Contains(TEXT("Preview is uncapped")));
-    TestTrue(TEXT("monitor transport warning row includes warning"), StatusText.Contains(TEXT("Transport/Warning:")) && StatusText.Contains(Warning));
+    TestTrue(TEXT("monitor transport warning row includes warning"), StatusText.Contains(TEXT("전송/경고:")) && StatusText.Contains(Warning));
     return true;
 }
 
@@ -268,9 +270,38 @@ bool FVirtualSensorMonitorServerPayloadExportTest::RunTest(const FString& Parame
     FString SavedPayload;
     TestTrue(TEXT("server payload export file loads"), FFileHelper::LoadFileToString(SavedPayload, *ExportPath));
     TestEqual(TEXT("server payload export matches last payload"), SavedPayload, LidarComp->GetLastJsonPayload());
-    TestTrue(TEXT("monitor status includes server payload export result"), MonitorWidget->GetMonitorStatusText().Contains(TEXT("LiDAR Server Payload Export: saved")));
+    TestFalse(TEXT("monitor status excludes capture/export result ownership"), MonitorWidget->GetMonitorStatusText().Contains(TEXT("LiDAR Server Payload Export: saved")));
 
     IFileManager::Get().Delete(*ExportPath, false, true);
+    return true;
+}
+
+bool FVirtualSensorMonitorThemeAndLidarModesTest::RunTest(const FString& Parameters)
+{
+    TestTrue(TEXT("panel is intentionally translucent"), FVirtualSensorUiStyle::PanelBackground.A > 0.9f && FVirtualSensorUiStyle::PanelBackground.A < 1.0f);
+    TestTrue(TEXT("primary text meets contrast target"), FVirtualSensorUiStyle::ContrastRatio(FVirtualSensorUiStyle::PrimaryText, FVirtualSensorUiStyle::PanelBackground) >= 4.5f);
+
+    UVirtualLidarSensorComp* Lidar = NewObject<UVirtualLidarSensorComp>();
+    Lidar->SemanticClassRules.Reset();
+    FVirtualLidarSemanticClassRule Rule;
+    Rule.Label = TEXT("Slab");
+    Rule.DisplayColor = FLinearColor(0.8f, 0.1f, 0.2f, 1.0f);
+    Lidar->SemanticClassRules.Add(Rule);
+
+    FVirtualLidarPoint Point;
+    Point.bHit = true;
+    Point.SemanticLabel = TEXT("Slab");
+    const FColor SemanticColor = UVirtualSensorMonitorWidget::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::ActorClassColor, Point, 0.5f);
+    TestEqual(TEXT("semantic mode uses configured class color"), SemanticColor, Rule.DisplayColor.ToFColor(true));
+    TestEqual(TEXT("hit mask shows a hit as white"), UVirtualSensorMonitorWidget::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::HitMask, Point, 0.5f), FColor::White);
+    Point.bHit = false;
+    TestEqual(TEXT("hit mask shows a miss as black"), UVirtualSensorMonitorWidget::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::HitMask, Point, 1.0f), FColor::Black);
+
+    UVirtualSensorMonitorWidget* Monitor = NewObject<UVirtualSensorMonitorWidget>();
+    Monitor->BindVirtualLidar(Lidar);
+    Monitor->SetLidarViewMode(EVirtualLidarViewMode::ActorClassColor);
+    TestTrue(TEXT("semantic mode has Korean help"), Monitor->GetLidarViewModeDescription().Contains(TEXT("SemanticLabel")));
+    TestTrue(TEXT("semantic legend lists configured label"), Monitor->GetLidarViewLegendText().Contains(TEXT("Slab")));
     return true;
 }
 

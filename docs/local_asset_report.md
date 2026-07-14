@@ -79,11 +79,11 @@ This check passes when `Config/Game.ini` is absent or its
 `[DTCoreRuntimeOverride]` values are empty, and fails if local endpoint or
 credential values are present.
 
-`Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset` receives an additional
-detected note because it is a binary Designer widget. Keep it untracked until it
-has been opened in Unreal Editor, optional bindings have been checked against
-`docs/widget_designer_setup.md`, and a PIE smoke pass confirms that the widget
-does not crash or show stale sensor status.
+The three `Content/MA0T10/UI/WBP_VirtualSensor*.uasset` files receive explicit
+review-candidate entries because they are binary widgets. Keep a changed or new
+asset untracked until it has been opened in Unreal Editor, its native parent and
+optional bindings have been checked against `docs/sensor_test_map_setup.ko.md`,
+and a PIE smoke pass confirms that the panel does not crash or show stale state.
 Use `Scripts/export_monitor_wbp_decision_report.ps1` for a focused WBP review
 packet. It reuses `report_local_project_status.ps1`, reports the WBP
 `ReviewQueue`, `CommitReadiness`, `EvidenceStatus`, `MissingEvidenceCount`, and

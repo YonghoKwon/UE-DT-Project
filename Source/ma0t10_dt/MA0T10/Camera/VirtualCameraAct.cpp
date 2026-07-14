@@ -18,6 +18,7 @@ AVirtualCameraAct::AVirtualCameraAct()
 	EditorFrustumComp->FrustumStartDist = 20.0f;
 	EditorFrustumComp->FrustumEndDist = 600.0f;
 	EditorFrustumComp->FrustumAspectRatio = 16.0f / 9.0f;
+	EditorFrustumComp->SetHiddenInGame(true);
 }
 
 void AVirtualCameraAct::OnConstruction(const FTransform& Transform)
@@ -39,6 +40,10 @@ void AVirtualCameraAct::OnConstruction(const FTransform& Transform)
 void AVirtualCameraAct::BeginPlay()
 {
 	Super::BeginPlay();
+	if (EditorFrustumComp)
+	{
+		EditorFrustumComp->SetHiddenInGame(true);
+	}
 }
 
 void AVirtualCameraAct::Tick(float DeltaTime)

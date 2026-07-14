@@ -13,6 +13,7 @@ public class ma0t10_dt : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
+            "ApplicationCore",
             "InputCore",
             "WebSockets",
             "HTTP",

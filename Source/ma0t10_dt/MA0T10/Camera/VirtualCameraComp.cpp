@@ -153,13 +153,13 @@ void UVirtualCameraComp::ApplyDeviceProfile(EVirtualCameraDeviceProfile NewProfi
         DeviceSpec.Model = TEXT("RealSense D455");
         DeviceSpec.HorizontalFovDegrees = 87.0f;
         DeviceSpec.VerticalFovDegrees = 58.0f;
-        DeviceSpec.MinRangeCm = 60.0f;
+        DeviceSpec.MinRangeCm = 52.0f;
         DeviceSpec.TypicalRangeCm = 600.0f;
         DeviceSpec.MaxRangeCm = 600.0f;
         DeviceSpec.FrameRateHz = 30.0f;
         DeviceSpec.Width = 1280;
         DeviceSpec.Height = 720;
-        DeviceSpec.Notes = TEXT("Intel RealSense D455 metadata profile. Simulation quality controls runtime capture cost separately.");
+        DeviceSpec.Notes = TEXT("Intel RealSense D455 depth envelope: 87x58 FOV, ~0.52m Min-Z at max resolution, ideal 0.6-6m. SceneCapture preview is not calibrated depth. Simulation quality controls runtime cost separately.");
         FOVAngle = DeviceSpec.HorizontalFovDegrees;
         ApplySimulationQuality(SimulationQuality);
     }

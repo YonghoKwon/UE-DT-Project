@@ -43,7 +43,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.h" },
     [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.cpp" },
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
-    [PSCustomObject]@{ Label = "Widget setup document"; Path = "docs\widget_designer_setup.md" },
+    [PSCustomObject]@{ Label = "Widget setup document"; Path = "docs\sensor_test_map_setup.ko.md" },
     [PSCustomObject]@{ Label = "Local asset report document"; Path = "docs\local_asset_report.md" },
     [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
     [PSCustomObject]@{ Label = "Local project status report"; Path = "Scripts\report_local_project_status.ps1" },
@@ -70,7 +70,7 @@ $widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMon
 $hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.h"
 $hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
-$setupDoc = Join-Path $ProjectRoot "docs\widget_designer_setup.md"
+$setupDoc = Join-Path $ProjectRoot "docs\sensor_test_map_setup.ko.md"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $assetReportScript = Join-Path $ProjectRoot "Scripts\report_local_project_status.ps1"
@@ -134,7 +134,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "GetSlabAnalysisSummaryText"; Label = "Setup doc documents Designer getters" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "FVirtualSensorMonitorDisplayData"; Label = "Setup doc documents display data struct" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "native fallback"; Label = "Setup doc explains native fallback" },
-    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "binary Designer widget"; Label = "Local asset doc guards WBP binary" },
+    [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "binary widgets"; Label = "Local asset doc guards WBP binaries" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Production Monitor WBP"; Label = "Remaining work tracks WBP decision" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Commit the WBP only after manual editor verification."; Label = "Remaining work requires manual WBP verification" },
     [PSCustomObject]@{ Path = $assetReportScript; Pattern = "WBP_VirtualSensorMonitor.uasset"; Label = "Asset report tracks local WBP path" },

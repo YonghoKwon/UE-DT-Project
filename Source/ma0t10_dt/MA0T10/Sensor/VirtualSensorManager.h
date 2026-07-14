@@ -166,6 +166,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void CaptureSelectedOnce();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
+    void RefreshSelectedSensorOnce(bool bLidar);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|PointCloudPreview")
     void SetSelectedLidarPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly);
 
