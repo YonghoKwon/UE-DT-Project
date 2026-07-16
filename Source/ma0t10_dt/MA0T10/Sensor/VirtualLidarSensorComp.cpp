@@ -1,5 +1,6 @@
 ﻿#include "VirtualLidarSensorComp.h"
 
+#include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "DrawDebugHelpers.h"
@@ -17,6 +18,7 @@
 #include "Serialization/BufferArchive.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPerformanceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
 
 namespace
@@ -35,6 +37,144 @@ void AddVectorArray(TSharedRef<FJsonObject> Object, const TCHAR* FieldName, cons
     Array.Add(MakeShared<FJsonValueNumber>(Value.Y));
     Array.Add(MakeShared<FJsonValueNumber>(Value.Z));
     Object->SetArrayField(FieldName, Array);
+}
+
+struct FLidarScheduledPayloadSnapshot
+{
+    TArray<FVirtualLidarPoint> Points;
+    FString SensorId;
+    FString Manufacturer;
+    FString Model;
+    FString PreviewBackend;
+    int64 FrameId = 0;
+    int32 HorizontalSamples = 0;
+    int32 VerticalChannels = 0;
+    float MaxDistance = 0.0f;
+    int32 ServerPayloadStride = 1;
+    int32 MaxServerPayloadPoints = 0;
+    bool bIncludeMissPoints = false;
+    int32 PreviewPointStride = 1;
+    int32 MaxPreviewPoints = 0;
+    bool bPreviewHitOnly = true;
+    bool bSemanticClassification = true;
+    bool bGpuRequested = false;
+    bool bGpuActive = false;
+    bool bExperimentalGpuOptIn = false;
+    bool bIncludeSlabAnalysis = true;
+    FTransform SensorTransform = FTransform::Identity;
+    FVirtualLidarSlabAnalysisResult SlabAnalysis;
+};
+
+FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
+{
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    int32 HitPointCount = 0;
+    for (const FVirtualLidarPoint& Point : S.Points) if (Point.bHit) ++HitPointCount;
+
+    Root->SetStringField(TEXT("schemaVersion"), TEXT("virtual-lidar.v1"));
+    Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar"));
+    Root->SetStringField(TEXT("sensorId"), S.SensorId);
+    Root->SetStringField(TEXT("manufacturer"), S.Manufacturer);
+    Root->SetStringField(TEXT("model"), S.Model);
+    Root->SetNumberField(TEXT("frameId"), static_cast<double>(S.FrameId));
+    Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
+    Root->SetNumberField(TEXT("horizontalSamples"), S.HorizontalSamples);
+    Root->SetNumberField(TEXT("verticalChannels"), S.VerticalChannels);
+    Root->SetNumberField(TEXT("rayCount"), S.HorizontalSamples * S.VerticalChannels);
+    Root->SetNumberField(TEXT("totalPointCount"), S.Points.Num());
+    Root->SetNumberField(TEXT("hitPointCount"), HitPointCount);
+    Root->SetNumberField(TEXT("maxDistance"), S.MaxDistance);
+    Root->SetBoolField(TEXT("semanticClassification"), S.bSemanticClassification);
+    Root->SetNumberField(TEXT("serverPayloadStride"), S.ServerPayloadStride);
+    Root->SetNumberField(TEXT("maxServerPayloadPoints"), S.MaxServerPayloadPoints);
+    Root->SetBoolField(TEXT("includeMissPointsInServerPayload"), S.bIncludeMissPoints);
+    Root->SetNumberField(TEXT("previewPointStride"), S.PreviewPointStride);
+    Root->SetNumberField(TEXT("maxPreviewPoints"), S.MaxPreviewPoints);
+    Root->SetStringField(TEXT("previewBackend"), S.PreviewBackend);
+    Root->SetBoolField(TEXT("gpuPreviewBackendRequested"), S.bGpuRequested);
+    Root->SetBoolField(TEXT("gpuPreviewBackendActive"), S.bGpuActive);
+
+    TSharedRef<FJsonObject> PayloadPolicy = MakeShared<FJsonObject>();
+    PayloadPolicy->SetNumberField(TEXT("stride"), S.ServerPayloadStride);
+    PayloadPolicy->SetNumberField(TEXT("maxPoints"), S.MaxServerPayloadPoints);
+    PayloadPolicy->SetBoolField(TEXT("includeMissPoints"), S.bIncludeMissPoints);
+    PayloadPolicy->SetStringField(TEXT("pointSelection"), S.bIncludeMissPoints ? TEXT("hit_and_miss") : TEXT("hit_only"));
+    Root->SetObjectField(TEXT("payloadPolicy"), PayloadPolicy);
+
+    TSharedRef<FJsonObject> PreviewPolicy = MakeShared<FJsonObject>();
+    PreviewPolicy->SetNumberField(TEXT("stride"), S.PreviewPointStride);
+    PreviewPolicy->SetNumberField(TEXT("maxPoints"), S.MaxPreviewPoints);
+    PreviewPolicy->SetBoolField(TEXT("hitOnly"), S.bPreviewHitOnly);
+    PreviewPolicy->SetStringField(TEXT("backend"), S.PreviewBackend);
+    PreviewPolicy->SetBoolField(TEXT("gpuRequested"), S.bGpuRequested);
+    PreviewPolicy->SetBoolField(TEXT("gpuActive"), S.bGpuActive);
+    PreviewPolicy->SetBoolField(TEXT("experimentalGpuOptIn"), S.bExperimentalGpuOptIn);
+    PreviewPolicy->SetStringField(TEXT("activePath"), S.bGpuActive ? TEXT("gpu") : TEXT("cpu_instanced_mesh_fallback"));
+    Root->SetObjectField(TEXT("previewPolicy"), PreviewPolicy);
+
+    TSharedRef<FJsonObject> TransformObject = MakeShared<FJsonObject>();
+    AddVectorArray(TransformObject, TEXT("location"), S.SensorTransform.GetLocation());
+    const FRotator Rotation = S.SensorTransform.Rotator();
+    TArray<TSharedPtr<FJsonValue>> RotationJson;
+    RotationJson.Add(MakeShared<FJsonValueNumber>(Rotation.Pitch));
+    RotationJson.Add(MakeShared<FJsonValueNumber>(Rotation.Yaw));
+    RotationJson.Add(MakeShared<FJsonValueNumber>(Rotation.Roll));
+    TransformObject->SetArrayField(TEXT("rotation"), RotationJson);
+    AddVectorArray(TransformObject, TEXT("forward"), S.SensorTransform.GetUnitAxis(EAxis::X));
+    AddVectorArray(TransformObject, TEXT("up"), S.SensorTransform.GetUnitAxis(EAxis::Z));
+    Root->SetObjectField(TEXT("sensorTransform"), TransformObject);
+
+    if (S.bIncludeSlabAnalysis)
+    {
+        TSharedRef<FJsonObject> SlabObject = MakeShared<FJsonObject>();
+        SlabObject->SetBoolField(TEXT("valid"), S.SlabAnalysis.bValid);
+        SlabObject->SetNumberField(TEXT("slabHitPointCount"), S.SlabAnalysis.SlabHitPointCount);
+        AddVectorArray(SlabObject, TEXT("boundsMin"), S.SlabAnalysis.BoundsMin);
+        AddVectorArray(SlabObject, TEXT("boundsMax"), S.SlabAnalysis.BoundsMax);
+        AddVectorArray(SlabObject, TEXT("center"), S.SlabAnalysis.Center);
+        SlabObject->SetNumberField(TEXT("estimatedYawDegrees"), S.SlabAnalysis.EstimatedYawDegrees);
+        SlabObject->SetNumberField(TEXT("referenceYawDegrees"), S.SlabAnalysis.ReferenceYawDegrees);
+        SlabObject->SetNumberField(TEXT("angleDeviationDegrees"), S.SlabAnalysis.AngleDeviationDegrees);
+        SlabObject->SetNumberField(TEXT("confidence"), S.SlabAnalysis.Confidence);
+        SlabObject->SetStringField(TEXT("status"), S.SlabAnalysis.StatusMessage);
+        Root->SetObjectField(TEXT("slabAnalysis"), SlabObject);
+    }
+
+    TArray<TSharedPtr<FJsonValue>> JsonPoints;
+    const int32 SafeStride = FMath::Max(1, S.ServerPayloadStride);
+    const int32 SafeMax = FMath::Max(0, S.MaxServerPayloadPoints);
+    int32 Added = 0;
+    for (int32 I = 0; I < S.Points.Num(); I += SafeStride)
+    {
+        if (SafeMax > 0 && Added >= SafeMax) break;
+        const FVirtualLidarPoint& P = S.Points[I];
+        if (!S.bIncludeMissPoints && !P.bHit) continue;
+        TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+        O->SetNumberField(TEXT("pointIndex"), I);
+        O->SetNumberField(TEXT("row"), P.bHasGridCoord ? P.Row : (S.HorizontalSamples > 0 ? I / S.HorizontalSamples : 0));
+        O->SetNumberField(TEXT("col"), P.bHasGridCoord ? P.Col : (S.HorizontalSamples > 0 ? I % S.HorizontalSamples : I));
+        O->SetNumberField(TEXT("returnIndex"), P.ReturnIndex);
+        O->SetBoolField(TEXT("gridCoordValid"), P.bHasGridCoord);
+        O->SetStringField(TEXT("gridCoordSource"), P.bHasGridCoord ? TEXT("point_metadata") : TEXT("derived_from_point_index"));
+        O->SetBoolField(TEXT("hit"), P.bHit);
+        O->SetNumberField(TEXT("distance"), P.Distance);
+        O->SetStringField(TEXT("hitActor"), P.HitActorName.ToString());
+        O->SetStringField(TEXT("hitActorClass"), P.HitActorClassName.ToString());
+        O->SetStringField(TEXT("semanticLabel"), P.SemanticLabel.ToString());
+        TArray<TSharedPtr<FJsonValue>> Tags;
+        for (const FName& Tag : P.HitActorTags) Tags.Add(MakeShared<FJsonValueString>(Tag.ToString()));
+        O->SetArrayField(TEXT("hitActorTags"), Tags);
+        AddVectorArray(O, TEXT("worldLocation"), P.WorldLocation);
+        AddVectorArray(O, TEXT("localDirection"), P.LocalDirection);
+        JsonPoints.Add(MakeShared<FJsonValueObject>(O));
+        ++Added;
+    }
+    Root->SetNumberField(TEXT("payloadPointCount"), Added);
+    Root->SetArrayField(TEXT("points"), JsonPoints);
+    FString Output;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Output;
 }
 }
 
@@ -58,6 +198,9 @@ void UVirtualLidarSensorComp::BeginPlay()
 void UVirtualLidarSensorComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     StopScan();
+    ++ScheduledGeneration;
+    ScheduledPoints.Reset();
+    ScheduledHeatmapPixels.Reset();
     ClearPointCloudPreview();
     if (PointCloudPreviewComponent) { PointCloudPreviewComponent->DestroyComponent(); PointCloudPreviewComponent = nullptr; }
     Super::EndPlay(EndPlayReason);
@@ -67,9 +210,302 @@ void UVirtualLidarSensorComp::StartScan()
 {
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
-    GetWorld()->GetTimerManager().SetTimer(ScanTimerHandle, this, &UVirtualLidarSensorComp::ScanAndSend, ScanInterval, true, 0.0f);
+    NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
+    RegisterWithPerformanceSubsystem();
 }
-void UVirtualLidarSensorComp::StopScan() { if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle); }
+void UVirtualLidarSensorComp::StopScan()
+{
+    if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
+    UnregisterFromPerformanceSubsystem();
+    NextScheduledScanTime = -1.0;
+    bScheduledScanInProgress = false;
+    bScheduledPayloadBuildInFlight = false;
+    bScheduledAutoExportInFlight = false;
+    bScheduledPayloadRefreshPending = false;
+    RuntimeStatus.bAcquisitionInFlight = false;
+    ScheduledPoints.Reset();
+    ScheduledHeatmapPixels.Reset();
+    ++ScheduledGeneration;
+}
+
+void UVirtualLidarSensorComp::RegisterWithPerformanceSubsystem()
+{
+    if (!GetWorld() || bRegisteredWithPerformanceSubsystem) return;
+    if (UVirtualSensorPerformanceSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>())
+    {
+        Subsystem->RegisterLidar(this);
+        bRegisteredWithPerformanceSubsystem = true;
+    }
+}
+
+void UVirtualLidarSensorComp::UnregisterFromPerformanceSubsystem()
+{
+    if (!GetWorld() || !bRegisteredWithPerformanceSubsystem) return;
+    if (UVirtualSensorPerformanceSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>()) Subsystem->UnregisterLidar(this);
+    bRegisteredWithPerformanceSubsystem = false;
+}
+
+void UVirtualLidarSensorComp::PrepareScheduledScan(double NowSeconds)
+{
+    if (NextScheduledScanTime < 0.0) return;
+    const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
+    if (bScheduledScanInProgress && NowSeconds >= NextScheduledScanTime)
+    {
+        do
+        {
+            ++RuntimeStatus.DroppedAcquisitionFrameCount;
+            NextScheduledScanTime += SafeInterval;
+        }
+        while (NextScheduledScanTime <= NowSeconds);
+    }
+    if (!bScheduledScanInProgress && NowSeconds >= NextScheduledScanTime)
+    {
+        do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
+        BeginScheduledScan(NowSeconds);
+    }
+}
+
+void UVirtualLidarSensorComp::BeginScheduledScan(double NowSeconds)
+{
+    ScheduledScanWidth = FMath::Max(1, HorizontalSamples);
+    ScheduledScanHeight = FMath::Max(1, VerticalChannels);
+    ScheduledNextRayIndex = 0;
+    ScheduledScanTransform = GetComponentTransform();
+    ScheduledScanStartTime = FPlatformTime::Seconds();
+    ScheduledPoints.Reset();
+    ScheduledPoints.Reserve(ScheduledScanWidth * ScheduledScanHeight * (bUseMultiHit ? FMath::Max(1, MaxHitsPerRay) : 1));
+    ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);
+    bScheduledScanInProgress = true;
+    RuntimeStatus.bAcquisitionInFlight = true;
+}
+
+int32 UVirtualLidarSensorComp::ProcessScheduledScanChunk(int32 MaxRays)
+{
+    if (!bScheduledScanInProgress || MaxRays <= 0 || !GetWorld()) return 0;
+    UWorld* World = GetWorld();
+    const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
+    const int32 EndRay = FMath::Min(TotalRays, ScheduledNextRayIndex + FMath::Clamp(MaxRays, 128, 1024));
+    const FVector Origin = ScheduledScanTransform.GetLocation();
+    const FRotator BaseRotation = ScheduledScanTransform.Rotator();
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarScheduledSensor), false, GetOwner());
+
+    for (int32 RayIndex = ScheduledNextRayIndex; RayIndex < EndRay; ++RayIndex)
+    {
+        const int32 V = RayIndex / ScheduledScanWidth;
+        const int32 X = RayIndex % ScheduledScanWidth;
+        const float Pitch = FMath::Lerp(MinVerticalAngle, MaxVerticalAngle, ScheduledScanHeight == 1 ? 0.5f : static_cast<float>(V) / static_cast<float>(ScheduledScanHeight - 1));
+        const float Yaw = FMath::Lerp(-HorizontalFov * 0.5f, HorizontalFov * 0.5f, ScheduledScanWidth == 1 ? 0.5f : static_cast<float>(X) / static_cast<float>(ScheduledScanWidth - 1));
+        const FVector Direction = (BaseRotation + FRotator(Pitch, Yaw, 0.0f)).Vector();
+        const FVector End = Origin + Direction * MaxDistance;
+        FVirtualLidarPoint FirstPoint;
+        FirstPoint.LocalDirection = ScheduledScanTransform.InverseTransformVectorNoScale(Direction).GetSafeNormal();
+        FirstPoint.Distance = MaxDistance;
+        FirstPoint.WorldLocation = End;
+        FirstPoint.Row = V;
+        FirstPoint.Col = X;
+        FirstPoint.ReturnIndex = 0;
+        FirstPoint.bHasGridCoord = true;
+
+        if (bUseMultiHit)
+        {
+            TArray<FHitResult> Hits;
+            World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
+            int32 Added = 0;
+            for (const FHitResult& Hit : Hits)
+            {
+                if (ShouldIgnoreHitActor(Hit.GetActor())) continue;
+                FVirtualLidarPoint Point = FirstPoint;
+                Point.ReturnIndex = Added;
+                Point.bHit = true;
+                Point.Distance = Hit.Distance;
+                Point.WorldLocation = Hit.ImpactPoint;
+                PopulatePointSemanticMetadata(Point, Hit);
+                ScheduledPoints.Add(Point);
+                if (!FirstPoint.bHit) FirstPoint = Point;
+                if (++Added >= FMath::Max(1, MaxHitsPerRay)) break;
+            }
+            if (Added == 0) ScheduledPoints.Add(FirstPoint);
+        }
+        else
+        {
+            FHitResult Hit;
+            bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+            if (bHit && ShouldIgnoreHitActor(Hit.GetActor())) bHit = false;
+            FirstPoint.bHit = bHit;
+            FirstPoint.Distance = bHit ? Hit.Distance : MaxDistance;
+            FirstPoint.WorldLocation = bHit ? Hit.ImpactPoint : End;
+            if (bHit) PopulatePointSemanticMetadata(FirstPoint, Hit);
+            ScheduledPoints.Add(FirstPoint);
+        }
+        WriteHeatmapPixel(ScheduledHeatmapPixels, GetHeatmapPixelIndex(X, V, ScheduledScanWidth, ScheduledScanHeight), FirstPoint);
+        if (bDrawDebugRays) DrawDebugLine(World, Origin, FirstPoint.WorldLocation, FirstPoint.bHit ? ResolveSemanticColor(FirstPoint).ToFColor(true) : FColor::Silver, false, ScanInterval, 0, 0.5f);
+    }
+
+    const int32 Processed = EndRay - ScheduledNextRayIndex;
+    ScheduledNextRayIndex = EndRay;
+    if (ScheduledNextRayIndex >= TotalRays) CompleteScheduledScan(GetWorld()->GetTimeSeconds());
+    return Processed;
+}
+
+void UVirtualLidarSensorComp::CompleteScheduledScan(double NowSeconds)
+{
+    bScheduledScanInProgress = false;
+    RuntimeStatus.bAcquisitionInFlight = false;
+    RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
+    ++FrameId;
+    LastPoints = MoveTemp(ScheduledPoints);
+    LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
+    LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
+    LastPreviewPointCount = CountPreviewPoints(LastPoints);
+    LastPerformanceWarning = BuildPerformanceWarning();
+    bool bRefreshPreview = true;
+    if (const UVirtualSensorPerformanceSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>())
+    {
+        bRefreshPreview = Subsystem->ShouldRefreshLidarPreview(this);
+    }
+    if (bRefreshPreview)
+    {
+        UpdateLidarViewTexture(ScheduledHeatmapPixels);
+        RefreshPointCloudPreview();
+    }
+
+    RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;
+    LastScheduledCompletionTime = NowSeconds;
+    if (bScheduledPayloadBuildInFlight)
+    {
+        ++RuntimeStatus.DroppedDerivedFrameCount;
+        bScheduledPayloadRefreshPending = true;
+        RuntimeStatus.bDerivedWorkInFlight = true;
+        UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
+        return;
+    }
+    QueueScheduledPayloadBuild(FrameId, ScheduledScanStartTime);
+}
+
+void UVirtualLidarSensorComp::QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds)
+{
+    bScheduledPayloadBuildInFlight = true;
+    RuntimeStatus.bDerivedWorkInFlight = true;
+    const int32 Generation = ScheduledGeneration;
+    FLidarScheduledPayloadSnapshot Snapshot;
+    Snapshot.Points = LastPoints;
+    Snapshot.SensorId = SensorId;
+    Snapshot.Manufacturer = DeviceSpec.Manufacturer;
+    Snapshot.Model = DeviceSpec.Model;
+    Snapshot.PreviewBackend = GetPreviewBackendName();
+    Snapshot.FrameId = CapturedFrameId;
+    Snapshot.HorizontalSamples = HorizontalSamples;
+    Snapshot.VerticalChannels = VerticalChannels;
+    Snapshot.MaxDistance = MaxDistance;
+    Snapshot.ServerPayloadStride = ServerPayloadStride;
+    Snapshot.MaxServerPayloadPoints = MaxServerPayloadPoints;
+    Snapshot.bIncludeMissPoints = bIncludeMissPointsInServerPayload;
+    Snapshot.PreviewPointStride = PreviewPointStride;
+    Snapshot.MaxPreviewPoints = MaxPreviewPoints;
+    Snapshot.bPreviewHitOnly = bPointCloudPreviewHitOnly;
+    Snapshot.bSemanticClassification = bEnableSemanticClassification;
+    Snapshot.bGpuRequested = IsGpuPreviewBackendRequested();
+    Snapshot.bGpuActive = IsGpuPreviewBackendActive();
+    Snapshot.bExperimentalGpuOptIn = bAllowExperimentalGpuPreviewBackend;
+    Snapshot.bIncludeSlabAnalysis = bIncludeSlabAnalysisInPayload;
+    Snapshot.SensorTransform = ScheduledScanTransform;
+    Snapshot.SlabAnalysis = LastSlabAnalysis;
+    TWeakObjectPtr<UVirtualLidarSensorComp> WeakThis(this);
+
+    Async(EAsyncExecution::ThreadPool, [WeakThis, Generation, CapturedFrameId, Snapshot = MoveTemp(Snapshot), AcquisitionStartedSeconds]() mutable
+    {
+        FString Payload = BuildScheduledLidarJson(Snapshot);
+        AsyncTask(ENamedThreads::GameThread, [WeakThis, Generation, CapturedFrameId, Payload = MoveTemp(Payload), AcquisitionStartedSeconds]() mutable
+        {
+            if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;
+            WeakThis->CompleteScheduledPayloadBuild(CapturedFrameId, MoveTemp(Payload), AcquisitionStartedSeconds);
+        });
+    });
+}
+
+void UVirtualLidarSensorComp::CompleteScheduledPayloadBuild(int64 CapturedFrameId, FString&& JsonPayload, double AcquisitionStartedSeconds)
+{
+    bScheduledPayloadBuildInFlight = false;
+    RuntimeStatus.bDerivedWorkInFlight = false;
+    RuntimeStatus.LastPostProcessDurationMs = static_cast<float>((FPlatformTime::Seconds() - AcquisitionStartedSeconds) * 1000.0);
+    if (bScheduledPayloadRefreshPending && CapturedFrameId < FrameId)
+    {
+        bScheduledPayloadRefreshPending = false;
+        QueueScheduledPayloadBuild(FrameId, ScheduledScanStartTime);
+        return;
+    }
+    bScheduledPayloadRefreshPending = false;
+    if (JsonPayload.IsEmpty())
+    {
+        ++RuntimeStatus.DroppedDerivedFrameCount;
+        UpdateRuntimeStatusAfterScan(0);
+        return;
+    }
+    LastJsonPayload = MoveTemp(JsonPayload);
+    DispatchPayload(LastJsonPayload);
+    UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
+    if (RecorderComponent) RecorderComponent->RecordJsonFrame(SensorId, TEXT("virtual_lidar"), CapturedFrameId, LastJsonPayload);
+    QueueScheduledAutoExports();
+    OnScanCompleted.Broadcast(LastJsonPayload, LidarViewTexture);
+}
+
+void UVirtualLidarSensorComp::QueueScheduledAutoExports()
+{
+    if (!bExportCsvOnScan && !bExportJsonLinesOnScan && !bExportPcdOnScan) return;
+    if (bScheduledAutoExportInFlight)
+    {
+        ++RuntimeStatus.DroppedDerivedFrameCount;
+        return;
+    }
+
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud"));
+    IFileManager::Get().MakeDirectory(*Directory, true);
+    const FDateTime Now = FDateTime::UtcNow();
+    const FString Stamp = FString::Printf(TEXT("%s_%03d_%lld"), *Now.ToString(TEXT("%Y%m%d_%H%M%S")), Now.GetMillisecond(), Now.GetTicks());
+    const FString Prefix = FString::Printf(TEXT("%s_%s"), *SensorId, *Stamp);
+    const FString CsvPath = bExportCsvOnScan ? FPaths::Combine(Directory, Prefix + TEXT(".csv")) : FString();
+    const FString JsonlPath = bExportJsonLinesOnScan ? FPaths::Combine(Directory, Prefix + TEXT(".jsonl")) : FString();
+    const FString PcdPath = bExportPcdOnScan ? FPaths::Combine(Directory, Prefix + TEXT(".pcd")) : FString();
+    LastPointCloudExportPath = !PcdPath.IsEmpty() ? PcdPath : (!JsonlPath.IsEmpty() ? JsonlPath : CsvPath);
+    const bool bHitOnly = bExportHitOnlyPointCloud;
+    const int32 Generation = ScheduledGeneration;
+    TArray<FVirtualLidarPoint> Points = LastPoints;
+    TWeakObjectPtr<UVirtualLidarSensorComp> WeakThis(this);
+    bScheduledAutoExportInFlight = true;
+    RuntimeStatus.bDerivedWorkInFlight = true;
+
+    Async(EAsyncExecution::ThreadPool, [WeakThis, Generation, Points = MoveTemp(Points), CsvPath, JsonlPath, PcdPath, bHitOnly]() mutable
+    {
+        TArray<const FVirtualLidarPoint*> ExportPoints;
+        for (const FVirtualLidarPoint& Point : Points) if (!bHitOnly || Point.bHit) ExportPoints.Add(&Point);
+        bool bSuccess = true;
+        if (!CsvPath.IsEmpty())
+        {
+            FString Text = TEXT("x,y,z,distance,hit,actor,actor_class,semantic_label,tags\n");
+            for (const FVirtualLidarPoint* Point : ExportPoints) Text += FString::Printf(TEXT("%f,%f,%f,%f,%d,%s,%s,%s,%s\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z, Point->Distance, Point->bHit ? 1 : 0, *Point->HitActorName.ToString(), *Point->HitActorClassName.ToString(), *Point->SemanticLabel.ToString(), *JoinNames(Point->HitActorTags));
+            bSuccess = FFileHelper::SaveStringToFile(Text, *CsvPath) && bSuccess;
+        }
+        if (!JsonlPath.IsEmpty())
+        {
+            FString Text;
+            for (const FVirtualLidarPoint* Point : ExportPoints) Text += FString::Printf(TEXT("{\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"distance\":%.6f,\"hit\":%s,\"semanticLabel\":\"%s\"}\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z, Point->Distance, Point->bHit ? TEXT("true") : TEXT("false"), *Point->SemanticLabel.ToString());
+            bSuccess = FFileHelper::SaveStringToFile(Text, *JsonlPath) && bSuccess;
+        }
+        if (!PcdPath.IsEmpty())
+        {
+            FString Text = FString::Printf(TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), ExportPoints.Num(), ExportPoints.Num());
+            for (const FVirtualLidarPoint* Point : ExportPoints) Text += FString::Printf(TEXT("%f %f %f\n"), Point->WorldLocation.X, Point->WorldLocation.Y, Point->WorldLocation.Z);
+            bSuccess = FFileHelper::SaveStringToFile(Text, *PcdPath) && bSuccess;
+        }
+        AsyncTask(ENamedThreads::GameThread, [WeakThis, Generation, bSuccess]()
+        {
+            if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;
+            WeakThis->bScheduledAutoExportInFlight = false;
+            WeakThis->RuntimeStatus.bDerivedWorkInFlight = WeakThis->bScheduledPayloadBuildInFlight;
+            if (!bSuccess) ++WeakThis->RuntimeStatus.DroppedDerivedFrameCount;
+        });
+    });
+}
 void UVirtualLidarSensorComp::SetTransportComponent(UVirtualSensorDataTransportComp* InTransportComponent) { TransportComponent = InTransportComponent; }
 void UVirtualLidarSensorComp::SetRecorderComponent(UVirtualSensorRecorderComp* InRecorderComponent) { RecorderComponent = InRecorderComponent; }
 
@@ -610,9 +1046,26 @@ int32 UVirtualLidarSensorComp::GetHeatmapPixelIndex(int32 H, int32 V, int32 W, i
 void UVirtualLidarSensorComp::UpdateLidarViewTexture(const TArray<uint8>& Pixels)
 {
     const int32 W = FMath::Max(1, HorizontalSamples); const int32 H = FMath::Max(1, VerticalChannels); if (Pixels.Num() < W * H * 4) return;
-    if (!LidarViewTexture || LidarViewTexture->GetSizeX() != W || LidarViewTexture->GetSizeY() != H) { LidarViewTexture = UTexture2D::CreateTransient(W, H, PF_B8G8R8A8); if (LidarViewTexture) { LidarViewTexture->SRGB = true; LidarViewTexture->CompressionSettings = TC_VectorDisplacementmap; } }
-    if (!LidarViewTexture || !LidarViewTexture->GetPlatformData() || LidarViewTexture->GetPlatformData()->Mips.Num() <= 0) return;
-    FTexture2DMipMap& Mip = LidarViewTexture->GetPlatformData()->Mips[0]; void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE); if (Data) FMemory::Memcpy(Data, Pixels.GetData(), Pixels.Num()); Mip.BulkData.Unlock(); LidarViewTexture->UpdateResource();
+    if (!LidarViewTexture || LidarViewTexture->GetSizeX() != W || LidarViewTexture->GetSizeY() != H)
+    {
+        LidarViewTexture = UTexture2D::CreateTransient(W, H, PF_B8G8R8A8);
+        if (LidarViewTexture)
+        {
+            LidarViewTexture->SRGB = true;
+            LidarViewTexture->CompressionSettings = TC_VectorDisplacementmap;
+            LidarViewTexture->UpdateResource();
+        }
+    }
+    if (!LidarViewTexture || !LidarViewTexture->GetResource()) return;
+    uint8* UploadData = new uint8[Pixels.Num()];
+    FMemory::Memcpy(UploadData, Pixels.GetData(), Pixels.Num());
+    FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, W, H);
+    LidarViewTexture->UpdateTextureRegions(0, 1, Region, W * 4, 4, UploadData,
+        [Region](uint8* Data, const FUpdateTextureRegion2D*)
+        {
+            delete[] Data;
+            delete Region;
+        });
 }
 
 void UVirtualLidarSensorComp::UpdateRuntimeStatusAfterScan(int32 PayloadLength)
@@ -935,7 +1388,7 @@ UInstancedStaticMeshComponent* UVirtualLidarSensorComp::EnsurePointCloudPreviewC
 void UVirtualLidarSensorComp::RefreshPointCloudPreview()
 {
     UWorld* World = GetWorld(); if (!bPointCloudPreviewEnabled || !World) { ClearPointCloudPreview(); return; }
-    UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->ClearInstances(); Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);
+    UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);
     const int32 Stride = FMath::Max(1, PreviewPointStride); int32 Added = 0;
     const int32 PreviewCapacity = MaxPreviewPoints > 0 ? FMath::Min(MaxPreviewPoints, LastPoints.Num()) : LastPoints.Num();
     TArray<FTransform> InstanceTransforms;
@@ -947,11 +1400,27 @@ void UVirtualLidarSensorComp::RefreshPointCloudPreview()
         if (bDrawPointCloudPreviewDebugPoints) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, (bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P).ToFColor(true) : PointCloudPreviewColor.ToFColor(true), false, ScanInterval);
         ++Added;
     }
-    if (InstanceTransforms.Num() > 0)
+    const int32 ExistingCount = Comp->GetInstanceCount();
+    const int32 NewCount = InstanceTransforms.Num();
+    const int32 CommonCount = FMath::Min(ExistingCount, NewCount);
+    if (CommonCount > 0)
     {
-        Comp->AddInstances(InstanceTransforms, false, true);
-        Comp->MarkRenderStateDirty();
+        Comp->BatchUpdateInstancesTransforms(0, TArrayView<const FTransform>(InstanceTransforms.GetData(), CommonCount), false, false, true);
     }
+    if (NewCount > ExistingCount)
+    {
+        TArray<FTransform> AddedTransforms;
+        AddedTransforms.Append(InstanceTransforms.GetData() + ExistingCount, NewCount - ExistingCount);
+        Comp->AddInstances(AddedTransforms, false, true);
+    }
+    else if (ExistingCount > NewCount)
+    {
+        TArray<int32> RemovedIndices;
+        RemovedIndices.Reserve(ExistingCount - NewCount);
+        for (int32 Index = ExistingCount - 1; Index >= NewCount; --Index) RemovedIndices.Add(Index);
+        Comp->RemoveInstances(RemovedIndices, true);
+    }
+    Comp->MarkRenderStateDirty();
 }
 
 void UVirtualLidarSensorComp::TryAutoRegisterToManager()

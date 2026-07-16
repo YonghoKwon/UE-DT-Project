@@ -1,0 +1,404 @@
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPerformanceSubsystem.h"
+
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorAct.h"
+
+bool UVirtualSensorPerformanceSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+{
+    const UWorld* World = Cast<UWorld>(Outer);
+    return World && (World->WorldType == EWorldType::Game || World->WorldType == EWorldType::PIE);
+}
+
+TStatId UVirtualSensorPerformanceSubsystem::GetStatId() const
+{
+    RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorPerformanceSubsystem, STATGROUP_Tickables);
+}
+
+int32 UVirtualSensorPerformanceSubsystem::ResolveTargetFps(int32 CameraCount, int32 LidarCount)
+{
+    return CameraCount <= 2 && LidarCount <= 2 ? 60 : 30;
+}
+
+float UVirtualSensorPerformanceSubsystem::ResolveLidarBudgetMs(int32 TargetFps)
+{
+    return TargetFps >= 60 ? 4.0f : 8.0f;
+}
+
+bool UVirtualSensorPerformanceSubsystem::IsBestEffortConfiguration(int32 CameraCount, int32 LidarCount)
+{
+    return CameraCount > 4 || LidarCount > 4;
+}
+
+void UVirtualSensorPerformanceSubsystem::RegisterCamera(UVirtualCameraComp* Camera)
+{
+    if (Camera && !Cameras.Contains(Camera)) Cameras.Add(Camera);
+}
+
+void UVirtualSensorPerformanceSubsystem::UnregisterCamera(UVirtualCameraComp* Camera)
+{
+    if (PreferredCamera.Get() == Camera) PreferredCamera.Reset();
+    Cameras.RemoveAll([Camera](const TWeakObjectPtr<UVirtualCameraComp>& Item) { return !Item.IsValid() || Item.Get() == Camera; });
+    NextCameraIndex = Cameras.Num() > 0 ? NextCameraIndex % Cameras.Num() : 0;
+}
+
+void UVirtualSensorPerformanceSubsystem::RegisterLidar(UVirtualLidarSensorComp* Lidar)
+{
+    if (Lidar && !Lidars.Contains(Lidar)) Lidars.Add(Lidar);
+}
+
+void UVirtualSensorPerformanceSubsystem::UnregisterLidar(UVirtualLidarSensorComp* Lidar)
+{
+    if (PreferredLidar.Get() == Lidar) PreferredLidar.Reset();
+    Lidars.RemoveAll([Lidar](const TWeakObjectPtr<UVirtualLidarSensorComp>& Item) { return !Item.IsValid() || Item.Get() == Lidar; });
+    NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
+}
+
+void UVirtualSensorPerformanceSubsystem::SetPreferredCamera(UVirtualCameraComp* Camera)
+{
+    PreferredCamera = Camera;
+    bPreferCameraOnNextAdmission = true;
+}
+
+void UVirtualSensorPerformanceSubsystem::SetPreferredLidar(UVirtualLidarSensorComp* Lidar)
+{
+    PreferredLidar = Lidar;
+}
+
+bool UVirtualSensorPerformanceSubsystem::ShouldRefreshLidarPreview(const UVirtualLidarSensorComp* Lidar) const
+{
+    return !PreferredLidar.IsValid() || PreferredLidar.Get() == Lidar;
+}
+
+void UVirtualSensorPerformanceSubsystem::CompactRegistrations()
+{
+    Cameras.RemoveAll([](const TWeakObjectPtr<UVirtualCameraComp>& Item) { return !Item.IsValid(); });
+    Lidars.RemoveAll([](const TWeakObjectPtr<UVirtualLidarSensorComp>& Item) { return !Item.IsValid(); });
+    NextCameraIndex = Cameras.Num() > 0 ? NextCameraIndex % Cameras.Num() : 0;
+    NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
+}
+
+void UVirtualSensorPerformanceSubsystem::Tick(float DeltaTime)
+{
+    ConfigureCommandLineBenchmarkIfRequested();
+    CompactRegistrations();
+    if (DeltaTime > SMALL_NUMBER && DeltaTime < 1.0f)
+    {
+        RecentFrameTimesMs.Add(DeltaTime * 1000.0f);
+        constexpr int32 MaxFrameSamples = 600;
+        if (RecentFrameTimesMs.Num() > MaxFrameSamples)
+        {
+            RecentFrameTimesMs.RemoveAt(0, RecentFrameTimesMs.Num() - MaxFrameSamples, false);
+        }
+    }
+    const double StartSeconds = FPlatformTime::Seconds();
+    const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    const int32 TargetFps = ResolveTargetFps(Cameras.Num(), Lidars.Num());
+
+    for (const TWeakObjectPtr<UVirtualCameraComp>& Camera : Cameras)
+    {
+        if (Camera.IsValid()) Camera->TickScheduledCapture(NowSeconds, false);
+    }
+    constexpr double MaxAggregateCameraCaptureHz = 15.0;
+    if (Cameras.Num() > 0 && (LastCameraCaptureAdmissionTime < 0.0 || NowSeconds - LastCameraCaptureAdmissionTime >= 1.0 / MaxAggregateCameraCaptureHz))
+    {
+        int32 PreferredIndex = INDEX_NONE;
+        if (PreferredCamera.IsValid())
+        {
+            PreferredIndex = Cameras.IndexOfByPredicate([this](const TWeakObjectPtr<UVirtualCameraComp>& Item) { return Item.Get() == PreferredCamera.Get(); });
+        }
+
+        bool bCaptured = false;
+        if (bPreferCameraOnNextAdmission && Cameras.IsValidIndex(PreferredIndex) && Cameras[PreferredIndex]->TickScheduledCapture(NowSeconds, true))
+        {
+            LastCameraCaptureAdmissionTime = NowSeconds;
+            NextCameraIndex = (PreferredIndex + 1) % Cameras.Num();
+            bPreferCameraOnNextAdmission = false;
+            bCaptured = true;
+        }
+
+        for (int32 Attempt = 0; Attempt < Cameras.Num(); ++Attempt)
+        {
+            if (bCaptured) break;
+            const int32 Index = (NextCameraIndex + Attempt) % Cameras.Num();
+            if (Cameras.Num() > 1 && Index == PreferredIndex) continue;
+            if (Cameras[Index].IsValid() && Cameras[Index]->TickScheduledCapture(NowSeconds, true))
+            {
+                LastCameraCaptureAdmissionTime = NowSeconds;
+                NextCameraIndex = (Index + 1) % Cameras.Num();
+                bPreferCameraOnNextAdmission = true;
+                break;
+            }
+        }
+    }
+
+    for (const TWeakObjectPtr<UVirtualLidarSensorComp>& Lidar : Lidars)
+    {
+        if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
+    }
+
+    const float BudgetCeilingMs = ResolveLidarBudgetMs(TargetFps);
+    const float TargetFrameMs = 1000.0f / FMath::Max(1, TargetFps);
+    const float ObservedFrameMs = DeltaTime > SMALL_NUMBER ? DeltaTime * 1000.0f : TargetFrameMs;
+    if (ObservedFrameMs > TargetFrameMs * 1.05f)
+    {
+        EffectiveLidarBudgetMs = FMath::Max(1.0f, EffectiveLidarBudgetMs - 0.25f);
+    }
+    else if (ObservedFrameMs < TargetFrameMs * 0.98f)
+    {
+        EffectiveLidarBudgetMs = FMath::Min(BudgetCeilingMs, EffectiveLidarBudgetMs + 0.1f);
+    }
+    EffectiveLidarBudgetMs = FMath::Min(EffectiveLidarBudgetMs, BudgetCeilingMs);
+    const double BudgetSeconds = EffectiveLidarBudgetMs / 1000.0;
+    int32 ConsecutiveIdle = 0;
+    while (Lidars.Num() > 0 && FPlatformTime::Seconds() - StartSeconds < BudgetSeconds && ConsecutiveIdle < Lidars.Num())
+    {
+        const int32 Index = NextLidarIndex % Lidars.Num();
+        NextLidarIndex = (Index + 1) % Lidars.Num();
+        UVirtualLidarSensorComp* Lidar = Lidars[Index].Get();
+        const double ChunkStart = FPlatformTime::Seconds();
+        const int32 Processed = Lidar ? Lidar->ProcessScheduledScanChunk(AdaptiveLidarChunkSize) : 0;
+        const double ChunkMs = (FPlatformTime::Seconds() - ChunkStart) * 1000.0;
+
+        if (Processed <= 0)
+        {
+            ++ConsecutiveIdle;
+            continue;
+        }
+
+        ConsecutiveIdle = 0;
+        if (ChunkMs > 0.75 && AdaptiveLidarChunkSize > 128) AdaptiveLidarChunkSize = FMath::Max(128, AdaptiveLidarChunkSize / 2);
+        else if (ChunkMs < 0.25 && AdaptiveLidarChunkSize < 1024) AdaptiveLidarChunkSize = FMath::Min(1024, AdaptiveLidarChunkSize * 2);
+    }
+
+    RefreshTelemetry(static_cast<float>((FPlatformTime::Seconds() - StartSeconds) * 1000.0));
+
+    TelemetryLogAccumulator += FMath::Max(0.0f, DeltaTime);
+    if (TelemetryLogAccumulator >= 1.0f)
+    {
+        TelemetryLogAccumulator = FMath::Fmod(TelemetryLogAccumulator, 1.0f);
+        RefreshFrameStatistics();
+        UE_LOG(LogTemp, Display,
+            TEXT("[VirtualSensorPerf] targetFps=%d camera=%d lidar=%d averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f schedulerMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d bestEffort=%d"),
+            Telemetry.TargetFps,
+            Telemetry.ActiveCameraCount,
+            Telemetry.ActiveLidarCount,
+            Telemetry.AverageFps,
+            Telemetry.OnePercentLowFps,
+            Telemetry.P95FrameTimeMs,
+            Telemetry.LastSchedulerWorkMs,
+            Telemetry.PendingAcquisitionCount,
+            Telemetry.PendingDerivedWorkCount,
+            Telemetry.DroppedAcquisitionFrameCount,
+            Telemetry.DroppedDerivedFrameCount,
+            Telemetry.bBestEffort ? 1 : 0);
+
+        for (const TWeakObjectPtr<UVirtualCameraComp>& Camera : Cameras)
+        {
+            if (!Camera.IsValid()) continue;
+            const FVirtualSensorRuntimeStatus& Status = Camera->GetRuntimeStatus();
+            UE_LOG(LogTemp, Display,
+                TEXT("[VirtualSensorPerfSensor] kind=Camera sensorId=%s width=%d height=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d"),
+                *Camera->SensorId,
+                Camera->CaptureResolution.X,
+                Camera->CaptureResolution.Y,
+                Status.MeasuredCompletionRateHz,
+                Status.LastAcquisitionDurationMs,
+                Status.LastPostProcessDurationMs,
+                Status.bAcquisitionInFlight ? 1 : 0,
+                Status.bDerivedWorkInFlight ? 1 : 0,
+                Status.DroppedAcquisitionFrameCount,
+                Status.DroppedDerivedFrameCount);
+        }
+        for (const TWeakObjectPtr<UVirtualLidarSensorComp>& Lidar : Lidars)
+        {
+            if (!Lidar.IsValid()) continue;
+            const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
+            UE_LOG(LogTemp, Display,
+                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d"),
+                *Lidar->SensorId,
+                Lidar->HorizontalSamples,
+                Lidar->VerticalChannels,
+                Lidar->HorizontalSamples * Lidar->VerticalChannels,
+                Status.MeasuredCompletionRateHz,
+                Status.LastAcquisitionDurationMs,
+                Status.LastPostProcessDurationMs,
+                Status.bAcquisitionInFlight ? 1 : 0,
+                Status.bDerivedWorkInFlight ? 1 : 0,
+                Status.DroppedAcquisitionFrameCount,
+                Status.DroppedDerivedFrameCount);
+        }
+    }
+}
+
+void UVirtualSensorPerformanceSubsystem::ConfigureCommandLineBenchmarkIfRequested()
+{
+    if (bCommandLineBenchmarkConfigured) return;
+
+    int32 RequestedCameras = 0;
+    int32 RequestedLidars = 0;
+    const bool bHasCameraRequest = FParse::Value(FCommandLine::Get(), TEXT("VirtualSensorPerfCameras="), RequestedCameras);
+    const bool bHasLidarRequest = FParse::Value(FCommandLine::Get(), TEXT("VirtualSensorPerfLidars="), RequestedLidars);
+    if (!bHasCameraRequest && !bHasLidarRequest)
+    {
+        bCommandLineBenchmarkConfigured = true;
+        return;
+    }
+
+    bCommandLineBenchmarkConfigured = true;
+    RequestedCameras = FMath::Clamp(RequestedCameras, 0, 16);
+    RequestedLidars = FMath::Clamp(RequestedLidars, 0, 16);
+
+    const TArray<TWeakObjectPtr<UVirtualCameraComp>> ExistingCameras = Cameras;
+    const TArray<TWeakObjectPtr<UVirtualLidarSensorComp>> ExistingLidars = Lidars;
+    for (int32 Index = 0; Index < ExistingCameras.Num(); ++Index)
+    {
+        const TWeakObjectPtr<UVirtualCameraComp>& Camera = ExistingCameras[Index];
+        if (!Camera.IsValid()) continue;
+        if (Index >= RequestedCameras)
+        {
+            Camera->StopCapture();
+            continue;
+        }
+        Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+        Camera->CaptureMode = EVirtualCameraCaptureMode::Payload;
+        Camera->StartCapture();
+    }
+    for (int32 Index = 0; Index < ExistingLidars.Num(); ++Index)
+    {
+        const TWeakObjectPtr<UVirtualLidarSensorComp>& Lidar = ExistingLidars[Index];
+        if (!Lidar.IsValid()) continue;
+        if (Index >= RequestedLidars)
+        {
+            Lidar->StopScan();
+            continue;
+        }
+        Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+        Lidar->bUseMultiHit = false;
+        Lidar->bExportCsvOnScan = false;
+        Lidar->bExportJsonLinesOnScan = false;
+        Lidar->bExportPcdOnScan = false;
+        Lidar->StartScan();
+    }
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    CompactRegistrations();
+
+    for (int32 Index = Cameras.Num(); Index < RequestedCameras; ++Index)
+    {
+        AActor* Owner = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(FVector(0.0, Index * 50.0, 170.0)));
+        if (!Owner) continue;
+        UVirtualCameraComp* Camera = NewObject<UVirtualCameraComp>(Owner, *FString::Printf(TEXT("BenchmarkCamera_%02d"), Index + 1));
+        Camera->SensorId = FString::Printf(TEXT("BENCH-CAM-%02d"), Index + 1);
+        Camera->bAutoStartCapture = false;
+        Camera->bAutoRegisterToManager = false;
+        Camera->bApplyDeviceProfileOnBeginPlay = false;
+        Camera->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
+        Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+        Camera->CaptureMode = EVirtualCameraCaptureMode::Payload;
+        Owner->SetRootComponent(Camera);
+        Camera->RegisterComponent();
+        Camera->StartCapture();
+        CommandLineBenchmarkActors.Add(Owner);
+    }
+
+    for (int32 Index = Lidars.Num(); Index < RequestedLidars; ++Index)
+    {
+        AVirtualSensorAct* Owner = World->SpawnActor<AVirtualSensorAct>(AVirtualSensorAct::StaticClass(), FTransform(FVector(0.0, Index * 50.0, 150.0)));
+        if (!Owner || !Owner->LidarSensorComp) continue;
+        UVirtualLidarSensorComp* Lidar = Owner->LidarSensorComp;
+        Lidar->StopScan();
+        Lidar->SensorId = FString::Printf(TEXT("BENCH-LIDAR-%02d"), Index + 1);
+        Lidar->bAutoRegisterToManager = false;
+        Lidar->bApplyDeviceProfileOnBeginPlay = false;
+        Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::LivoxMid360S);
+        Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+        Lidar->bUseMultiHit = false;
+        Lidar->bExportCsvOnScan = false;
+        Lidar->bExportJsonLinesOnScan = false;
+        Lidar->bExportPcdOnScan = false;
+        Lidar->StartScan();
+        CommandLineBenchmarkActors.Add(Owner);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[VirtualSensorPerf] command-line FullSpec benchmark requested camera=%d lidar=%d"), RequestedCameras, RequestedLidars);
+}
+
+void UVirtualSensorPerformanceSubsystem::RefreshFrameStatistics()
+{
+    if (RecentFrameTimesMs.IsEmpty())
+    {
+        Telemetry.AverageFps = 0.0f;
+        Telemetry.OnePercentLowFps = 0.0f;
+        Telemetry.P95FrameTimeMs = 0.0f;
+        return;
+    }
+
+    double TotalMs = 0.0;
+    TArray<float> Sorted = RecentFrameTimesMs;
+    for (const float FrameMs : Sorted) TotalMs += FrameMs;
+    Sorted.Sort();
+
+    const float AverageFrameMs = static_cast<float>(TotalMs / Sorted.Num());
+    const int32 P95Index = FMath::Clamp(FMath::CeilToInt(Sorted.Num() * 0.95f) - 1, 0, Sorted.Num() - 1);
+    const int32 OnePercentLowIndex = FMath::Clamp(FMath::CeilToInt(Sorted.Num() * 0.99f) - 1, 0, Sorted.Num() - 1);
+    Telemetry.AverageFps = AverageFrameMs > SMALL_NUMBER ? 1000.0f / AverageFrameMs : 0.0f;
+    Telemetry.P95FrameTimeMs = Sorted[P95Index];
+    Telemetry.OnePercentLowFps = Sorted[OnePercentLowIndex] > SMALL_NUMBER ? 1000.0f / Sorted[OnePercentLowIndex] : 0.0f;
+}
+
+void UVirtualSensorPerformanceSubsystem::RefreshTelemetry(float WorkMs)
+{
+    Telemetry.ActiveCameraCount = Cameras.Num();
+    Telemetry.ActiveLidarCount = Lidars.Num();
+    Telemetry.TargetFps = ResolveTargetFps(Cameras.Num(), Lidars.Num());
+    Telemetry.LidarGameThreadBudgetMs = EffectiveLidarBudgetMs;
+    Telemetry.LidarGameThreadBudgetCeilingMs = ResolveLidarBudgetMs(Telemetry.TargetFps);
+    Telemetry.LastSchedulerWorkMs = WorkMs;
+    Telemetry.bBestEffort = IsBestEffortConfiguration(Cameras.Num(), Lidars.Num());
+    Telemetry.PendingAcquisitionCount = 0;
+    Telemetry.PendingDerivedWorkCount = 0;
+    Telemetry.DroppedAcquisitionFrameCount = 0;
+    Telemetry.DroppedDerivedFrameCount = 0;
+
+    auto Accumulate = [this](const FVirtualSensorRuntimeStatus& Status)
+    {
+        Telemetry.PendingAcquisitionCount += Status.bAcquisitionInFlight ? 1 : 0;
+        Telemetry.PendingDerivedWorkCount += Status.bDerivedWorkInFlight ? 1 : 0;
+        Telemetry.DroppedAcquisitionFrameCount += Status.DroppedAcquisitionFrameCount;
+        Telemetry.DroppedDerivedFrameCount += Status.DroppedDerivedFrameCount;
+    };
+    for (const TWeakObjectPtr<UVirtualCameraComp>& Camera : Cameras) if (Camera.IsValid()) Accumulate(Camera->GetRuntimeStatus());
+    for (const TWeakObjectPtr<UVirtualLidarSensorComp>& Lidar : Lidars) if (Lidar.IsValid()) Accumulate(Lidar->GetRuntimeStatus());
+
+    Telemetry.StatusMessage = Telemetry.bBestEffort
+        ? TEXT("지원 기준(카메라/LiDAR 각각 4대)을 초과해 30 FPS 최선 실행 중")
+        : FString::Printf(TEXT("자동 %d FPS 단계"), Telemetry.TargetFps);
+}
+
+FString UVirtualSensorPerformanceSubsystem::GetTelemetrySummaryText() const
+{
+    return FString::Printf(
+        TEXT("%s | 카메라=%d LiDAR=%d | 평균=%.1f FPS 1%% low=%.1f FPS p95=%.1fms | 스케줄러=%.2fms/적응 예산 %.1fms(최대 %.1fms) | 측정 대기=%d 후처리 대기=%d | 생략 측정=%d 파생=%d"),
+        *Telemetry.StatusMessage,
+        Telemetry.ActiveCameraCount,
+        Telemetry.ActiveLidarCount,
+        Telemetry.AverageFps,
+        Telemetry.OnePercentLowFps,
+        Telemetry.P95FrameTimeMs,
+        Telemetry.LastSchedulerWorkMs,
+        Telemetry.LidarGameThreadBudgetMs,
+        Telemetry.LidarGameThreadBudgetCeilingMs,
+        Telemetry.PendingAcquisitionCount,
+        Telemetry.PendingDerivedWorkCount,
+        Telemetry.DroppedAcquisitionFrameCount,
+        Telemetry.DroppedDerivedFrameCount);
+}

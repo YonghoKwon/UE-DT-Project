@@ -144,6 +144,25 @@ Map asset and sensor composition smoke tests:
 `MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `SensorTestMap` can load in headless editor automation.
 `MA0T10.EditorSmoke.MapSensorComposition` verifies `SensorTestMap` includes the manager, camera, LiDAR, monitor host, three open-front hall walls, four ceiling Rect Lights, ambient SkyLight, realistic sensor heights, and the three WBP bindings.
 
+FullSpec scheduler and help-contract automation:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorPerformance; Quit" -TestExit="Automation Test Queue Empty"
+```
+
+This verifies the 60/30 FPS tier selection, 4/8 ms LiDAR budgets, unchanged FullSpec dimensions/rates, load calculations, and Korean help descriptor coverage. It is a deterministic contract test, not GPU performance evidence.
+
+Actual RHI evidence for the 2+2 and 4+4 scenarios:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4
+```
+
+The runner launches the normal 1920x1080 renderer, creates command-line-only FullSpec sensors, warms up for 10 seconds, records 60 seconds, and writes JSON/Markdown under `Saved/Reports`. It verifies the scenario thresholds, 1280x720 camera frames, 21,600-ray LiDAR scans, and the one-job-per-sensor queue bound. The temporary benchmark actors are never saved to `SensorTestMap`.
+
+Reference evidence captured on 2026-07-17 with Ryzen 7 7800X3D, RTX 4070 Ti, D3D12: 2+2 averaged 58.94 FPS with 49.96 FPS 1% low and 18.41 ms rolling p95; 4+4 averaged 53.16 FPS with 33.91 FPS 1% low and 27.37 ms rolling p95. Treat these as machine-specific evidence, not a cross-machine guarantee.
+
 Real sensor source base tests:
 
 ```powershell

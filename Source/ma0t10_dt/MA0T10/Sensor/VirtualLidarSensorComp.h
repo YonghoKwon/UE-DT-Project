@@ -12,6 +12,7 @@ class UStaticMesh;
 class UTexture2D;
 class UVirtualSensorDataTransportComp;
 class UVirtualSensorRecorderComp;
+class UVirtualSensorPerformanceSubsystem;
 
 UENUM(BlueprintType)
 enum class ELidarPointCloudPreviewBackend : uint8
@@ -68,6 +69,11 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ScanAndSend();
+
+    // Automatic scan entry points used by UVirtualSensorPerformanceSubsystem.
+    // ScanAndSend remains the synchronous one-shot compatibility API.
+    void PrepareScheduledScan(double NowSeconds);
+    int32 ProcessScheduledScanChunk(int32 MaxRays);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Replay")
     void InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport = true);
@@ -434,6 +440,13 @@ private:
     bool SemanticRuleMatches(const FVirtualLidarSemanticClassRule& Rule, const AActor* Actor, const UPrimitiveComponent* Component) const;
     FLinearColor ResolveSemanticColor(const FVirtualLidarPoint& Point) const;
     void TryAutoRegisterToManager();
+    void RegisterWithPerformanceSubsystem();
+    void UnregisterFromPerformanceSubsystem();
+    void BeginScheduledScan(double NowSeconds);
+    void CompleteScheduledScan(double NowSeconds);
+    void QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds);
+    void CompleteScheduledPayloadBuild(int64 CapturedFrameId, FString&& JsonPayload, double AcquisitionStartedSeconds);
+    void QueueScheduledAutoExports();
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
     bool ExportLastPointCloudLasToPath(const FString& Path) const;
@@ -477,4 +490,20 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
+
+    double NextScheduledScanTime = -1.0;
+    double ScheduledScanStartTime = -1.0;
+    double LastScheduledCompletionTime = -1.0;
+    FTransform ScheduledScanTransform = FTransform::Identity;
+    int32 ScheduledScanWidth = 0;
+    int32 ScheduledScanHeight = 0;
+    int32 ScheduledNextRayIndex = 0;
+    int32 ScheduledGeneration = 0;
+    bool bRegisteredWithPerformanceSubsystem = false;
+    bool bScheduledScanInProgress = false;
+    bool bScheduledPayloadBuildInFlight = false;
+    bool bScheduledAutoExportInFlight = false;
+    bool bScheduledPayloadRefreshPending = false;
+    TArray<FVirtualLidarPoint> ScheduledPoints;
+    TArray<uint8> ScheduledHeatmapPixels;
 };

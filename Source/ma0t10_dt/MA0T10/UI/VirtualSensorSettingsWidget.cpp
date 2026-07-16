@@ -19,6 +19,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorAct.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPerformanceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
@@ -53,6 +54,55 @@ FString CaptureModeText(EVirtualCameraCaptureMode Mode)
 EVirtualCameraCaptureMode NextCaptureMode(EVirtualCameraCaptureMode Mode)
 {
     return static_cast<EVirtualCameraCaptureMode>((static_cast<int32>(Mode) + 1) % 3);
+}
+
+FVirtualSensorSettingHelpDescriptor MakeSettingHelp(const TCHAR* Key, const TCHAR* Label, const TCHAR* Description, const TCHAR* Unit, const TCHAR* Impact, const TCHAR* Recommended, const TCHAR* Caution = TEXT(""))
+{
+    FVirtualSensorSettingHelpDescriptor Result;
+    Result.Key = FName(Key);
+    Result.Label = FText::FromString(Label);
+    Result.Description = FText::FromString(Description);
+    Result.Unit = FText::FromString(Unit);
+    Result.PerformanceImpact = FText::FromString(Impact);
+    Result.RecommendedValue = FText::FromString(Recommended);
+    Result.Caution = FText::FromString(Caution);
+    return Result;
+}
+
+const TArray<FVirtualSensorSettingHelpDescriptor>& SettingHelpDescriptors()
+{
+    static const TArray<FVirtualSensorSettingHelpDescriptor> Descriptors = {
+        MakeSettingHelp(TEXT("SimulationQuality"), TEXT("시뮬레이션 품질"), TEXT("센서별 해상도·광선 수·명목 갱신 주기를 한 번에 적용하는 실행 예산입니다."), TEXT("Preset"), TEXT("FullSpec일수록 높음"), TEXT("일반 조작은 실시간 미리보기, 최종 검증은 FullSpec")),
+        MakeSettingHelp(TEXT("CameraInterval"), TEXT("카메라 캡처 주기"), TEXT("장면을 다시 렌더링하는 간격입니다. 값이 작을수록 초당 캡처 횟수가 증가합니다."), TEXT("초"), TEXT("렌더링·GPU readback 빈도에 반비례"), TEXT("FullSpec 0.033초(30Hz), 실시간 미리보기 0.1초")),
+        MakeSettingHelp(TEXT("CameraWidth"), TEXT("카메라 가로 해상도"), TEXT("렌더 타깃의 가로 픽셀 수입니다."), TEXT("px"), TEXT("세로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 1280")),
+        MakeSettingHelp(TEXT("CameraHeight"), TEXT("카메라 세로 해상도"), TEXT("렌더 타깃의 세로 픽셀 수입니다."), TEXT("px"), TEXT("가로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 720")),
+        MakeSettingHelp(TEXT("CameraFov"), TEXT("카메라 FOV"), TEXT("카메라의 수평 시야각입니다. 넓을수록 더 넓은 영역이 보이지만 물체가 작게 표현됩니다."), TEXT("도"), TEXT("동일 해상도에서는 영향 낮음"), TEXT("D455 87°")),
+        MakeSettingHelp(TEXT("JpegQuality"), TEXT("JPEG 품질"), TEXT("카메라 Payload의 JPEG 압축 품질입니다. 높을수록 화질과 파일 크기가 증가합니다."), TEXT("1~100"), TEXT("CPU 압축 시간·Payload 크기 증가"), TEXT("FullSpec 80, 실시간 미리보기 70")),
+        MakeSettingHelp(TEXT("CaptureMode"), TEXT("카메라 출력 모드"), TEXT("미리보기만은 readback을 생략하고, Payload만은 JSON을 캐시하며, Payload 및 출력은 전송까지 수행합니다."), TEXT("Mode"), TEXT("미리보기만 < Payload만 < Payload 및 출력"), TEXT("화면 확인은 미리보기만, 연동 검증은 Payload 및 출력")),
+        MakeSettingHelp(TEXT("LidarInterval"), TEXT("LiDAR 스캔 주기"), TEXT("새 스캔을 시작하는 명목 간격입니다."), TEXT("초"), TEXT("광선/s에 반비례"), TEXT("Mid-360S FullSpec 0.1초(10Hz)")),
+        MakeSettingHelp(TEXT("LidarRange"), TEXT("LiDAR 최대 거리"), TEXT("각 광선이 충돌을 검사하는 최대 거리입니다."), TEXT("cm"), TEXT("장면 복잡도에 따라 trace 비용 증가 가능"), TEXT("일반 검출 4000cm, 장비 cutoff 10000cm")),
+        MakeSettingHelp(TEXT("HorizontalSamples"), TEXT("LiDAR 수평 샘플 수"), TEXT("한 수직 채널에서 발사하는 수평 광선 수입니다."), TEXT("개/행"), TEXT("수직 채널과 곱해 선형 증가"), TEXT("FullSpec 360")),
+        MakeSettingHelp(TEXT("VerticalChannels"), TEXT("LiDAR 수직 채널 수"), TEXT("수직 방향의 광선 행 수입니다."), TEXT("채널"), TEXT("수평 샘플과 곱해 선형 증가"), TEXT("FullSpec 60")),
+        MakeSettingHelp(TEXT("HorizontalFov"), TEXT("LiDAR 수평 FOV"), TEXT("수평으로 스캔하는 전체 각도입니다. 광선 수가 같으면 값이 클수록 각도 간격이 넓어집니다."), TEXT("도"), TEXT("동일 광선 수에서는 영향 낮음"), TEXT("Mid-360S 360°")),
+        MakeSettingHelp(TEXT("VerticalMin"), TEXT("LiDAR 수직 최소 각도"), TEXT("수직 스캔 범위의 아래쪽 경계입니다."), TEXT("도"), TEXT("동일 채널 수에서는 영향 낮음"), TEXT("Mid-360S -7°")),
+        MakeSettingHelp(TEXT("VerticalMax"), TEXT("LiDAR 수직 최대 각도"), TEXT("수직 스캔 범위의 위쪽 경계입니다."), TEXT("도"), TEXT("동일 채널 수에서는 영향 낮음"), TEXT("Mid-360S 52°")),
+        MakeSettingHelp(TEXT("ServerStride"), TEXT("서버 Payload 간격"), TEXT("측정 배열에서 N번째 점마다 서버 Payload에 포함합니다."), TEXT("N개당 1점"), TEXT("값이 클수록 JSON·네트워크 부하 감소"), TEXT("정밀 전송 1, 실시간 연동은 2~8")),
+        MakeSettingHelp(TEXT("ServerMax"), TEXT("서버 최대 점 수"), TEXT("한 Payload에 넣을 최대 점 수입니다. 0은 제한 없음입니다."), TEXT("점"), TEXT("0은 큰 JSON과 메모리 사용 가능"), TEXT("FullSpec 원본 검증은 0, 실시간 서버는 수용량에 맞게 제한"), TEXT("서버 판정에 필요한 측정 밀도를 먼저 확인하세요.")),
+        MakeSettingHelp(TEXT("IncludeMisses"), TEXT("서버 Payload 미검출점 포함"), TEXT("충돌하지 않은 광선도 최대 거리의 miss 점으로 전송합니다."), TEXT("On/Off"), TEXT("Payload 점 수와 JSON 크기 증가"), TEXT("일반적으로 끔")),
+        MakeSettingHelp(TEXT("PreviewStride"), TEXT("미리보기 점 간격"), TEXT("화면에 표시할 점을 N개마다 선택합니다. 서버 Payload에는 영향을 주지 않습니다."), TEXT("N개당 1점"), TEXT("값이 클수록 ISM 갱신 비용 감소"), TEXT("FullSpec 6")),
+        MakeSettingHelp(TEXT("PreviewMax"), TEXT("미리보기 최대 점 수"), TEXT("화면에 그릴 최대 점 수입니다. 0은 제한 없음입니다."), TEXT("점"), TEXT("점 수에 따라 렌더·instance 갱신 증가"), TEXT("FullSpec 5000"), TEXT("FullSpec에서 0은 권장하지 않습니다.")),
+        MakeSettingHelp(TEXT("PreviewHitOnly"), TEXT("미리보기 검출점만 표시"), TEXT("miss 점을 제외하고 실제 충돌점만 화면에 표시합니다."), TEXT("On/Off"), TEXT("켜면 Preview 부하 감소"), TEXT("켬")),
+        MakeSettingHelp(TEXT("MultiHit"), TEXT("다중 검출"), TEXT("광선 하나가 통과하며 만나는 여러 충돌을 모두 수집합니다."), TEXT("On/Off"), TEXT("매우 높음"), TEXT("기본 끔"), TEXT("FullSpec과 함께 사용하면 완료 주기가 낮아질 수 있습니다.")),
+        MakeSettingHelp(TEXT("MaxHits"), TEXT("광선당 최대 검출 수"), TEXT("MultiHit에서 광선 하나가 저장할 최대 return 수입니다."), TEXT("점/광선"), TEXT("메모리·Payload가 값에 비례해 증가"), TEXT("3")),
+        MakeSettingHelp(TEXT("AutoExport"), TEXT("스캔 시 자동 내보내기"), TEXT("각 스캔 완료 후 CSV·JSONL·PCD를 디스크에 기록합니다."), TEXT("On/Off"), TEXT("직렬화·디스크 부하 매우 높음"), TEXT("FullSpec에서는 끄고 Capture/Export 패널 사용"))
+    };
+    return Descriptors;
+}
+
+FText SettingHelpTooltip(FName Key)
+{
+    const FVirtualSensorSettingHelpDescriptor* Help = SettingHelpDescriptors().FindByPredicate([Key](const FVirtualSensorSettingHelpDescriptor& Item) { return Item.Key == Key; });
+    return Help ? FText::Format(NSLOCTEXT("VirtualSensorSettingsWidget", "SharedSettingTip", "{0}\n성능 영향: {1}\n권장값: {2}"), Help->Description, Help->PerformanceImpact, Help->RecommendedValue) : FText::GetEmpty();
 }
 }
 
@@ -102,6 +152,83 @@ void UVirtualSensorSettingsWidget::BindSensorManager(AVirtualSensorManager* InSe
 void UVirtualSensorSettingsWidget::BindHostActor(AVirtualSensorMonitorHostActor* InHostActor)
 {
     HostActor = InHostActor;
+}
+
+TArray<FVirtualSensorSettingHelpDescriptor> UVirtualSensorSettingsWidget::GetAllSettingHelpDescriptors() const
+{
+    return SettingHelpDescriptors();
+}
+
+const FVirtualSensorSettingHelpDescriptor* UVirtualSensorSettingsWidget::FindSettingHelp(FName SettingKey) const
+{
+    return SettingHelpDescriptors().FindByPredicate([SettingKey](const FVirtualSensorSettingHelpDescriptor& Item) { return Item.Key == SettingKey; });
+}
+
+bool UVirtualSensorSettingsWidget::SelectSettingHelp(FName SettingKey)
+{
+    if (!FindSettingHelp(SettingKey)) return false;
+    SelectedSettingHelpKey = SettingKey;
+    RefreshNativeText();
+    return true;
+}
+
+FString UVirtualSensorSettingsWidget::GetSelectedSettingHelpText() const
+{
+    const FVirtualSensorSettingHelpDescriptor* Help = FindSettingHelp(SelectedSettingHelpKey);
+    if (!Help) return TEXT("설정 항목의 ⓘ 버튼을 누르면 의미와 성능 영향을 확인할 수 있습니다.");
+    FString Result = FString::Printf(TEXT("%s  [%s]\n%s\n성능 영향: %s\n권장값: %s"),
+        *Help->Label.ToString(), *Help->Unit.ToString(), *Help->Description.ToString(), *Help->PerformanceImpact.ToString(), *Help->RecommendedValue.ToString());
+    if (!Help->Caution.IsEmpty()) Result += FString::Printf(TEXT("\n주의: %s"), *Help->Caution.ToString());
+    return Result;
+}
+
+FString UVirtualSensorSettingsWidget::GetCurrentLoadSummaryText() const
+{
+    FString LoadText;
+    if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
+    {
+        const double RateHz = 1.0 / FMath::Max(0.001, static_cast<double>(PendingState.CameraCaptureInterval));
+        const double MegaPixelsPerSecond = CalculateCameraMegaPixelsPerSecond(PendingState);
+        const TCHAR* Level = MegaPixelsPerSecond < 10.0 ? TEXT("낮음") : (MegaPixelsPerSecond < 25.0 ? TEXT("보통") : TEXT("높음"));
+        LoadText = FString::Printf(TEXT("예상 부하: %.1f MP/s · %.1fHz · %s"), MegaPixelsPerSecond, RateHz, Level);
+    }
+    else
+    {
+        const int64 RaysPerScan = static_cast<int64>(PendingState.LidarHorizontalSamples) * PendingState.LidarVerticalChannels;
+        const double RateHz = 1.0 / FMath::Max(0.001, static_cast<double>(PendingState.LidarScanInterval));
+        const double RaysPerSecond = CalculateLidarRaysPerSecond(PendingState);
+        const int32 PayloadUpper = PendingState.MaxServerPayloadPoints > 0
+            ? FMath::Min(PendingState.MaxServerPayloadPoints, static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.ServerPayloadStride)))
+            : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.ServerPayloadStride));
+        const int32 PreviewUpper = PendingState.MaxPreviewPoints > 0
+            ? FMath::Min(PendingState.MaxPreviewPoints, static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride)))
+            : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride));
+        const TCHAR* Level = RaysPerSecond < 20000.0 ? TEXT("낮음") : (RaysPerSecond < 100000.0 ? TEXT("보통") : TEXT("높음"));
+        LoadText = FString::Printf(TEXT("예상 부하: %lld 광선/스캔 · %.0f 광선/s · Payload≤%d · Preview≤%d · %s"), RaysPerScan, RaysPerSecond, PayloadUpper, PreviewUpper, Level);
+    }
+
+    if (GetWorld())
+    {
+        if (const UVirtualSensorPerformanceSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>())
+        {
+            LoadText += TEXT("\n") + Subsystem->GetTelemetrySummaryText();
+        }
+    }
+    return LoadText;
+}
+
+double UVirtualSensorSettingsWidget::CalculateCameraMegaPixelsPerSecond(const FVirtualSensorEditableState& State)
+{
+    if (State.CameraCaptureInterval <= SMALL_NUMBER) return 0.0;
+    const double RateHz = 1.0 / static_cast<double>(State.CameraCaptureInterval);
+    return static_cast<double>(State.CameraResolution.X) * State.CameraResolution.Y * RateHz / 1000000.0;
+}
+
+double UVirtualSensorSettingsWidget::CalculateLidarRaysPerSecond(const FVirtualSensorEditableState& State)
+{
+    if (State.LidarScanInterval <= SMALL_NUMBER) return 0.0;
+    const double RateHz = 1.0 / static_cast<double>(State.LidarScanInterval);
+    return static_cast<double>(State.LidarHorizontalSamples) * State.LidarVerticalChannels * RateHz;
 }
 
 void UVirtualSensorSettingsWidget::SelectTargetKind(EVirtualSensorTargetKind InTargetKind)
@@ -316,20 +443,20 @@ TSharedRef<SWidget> UVirtualSensorSettingsWidget::RebuildWidget()
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[ SNew(STextBlock).Visibility_Lambda([this]() { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z")) ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[ SNew(STextBlock).Text(LOCTEXT("BasicSection", "3. 기본 센서 설정 (입력 확정 즉시 반영)")) ]
-                + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("시뮬레이션 품질: %s"), *QualityText(PendingState.SimulationQuality))); }).OnClicked_Lambda([this]() { PendingState.SimulationQuality = NextQuality(PendingState.SimulationQuality); ApplySelectedProfileAndQualityPreset(); return FReply::Handled(); }) ]
+                + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).ToolTipText(SettingHelpTooltip(TEXT("SimulationQuality"))).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("시뮬레이션 품질: %s"), *QualityText(PendingState.SimulationQuality))); }).OnClicked_Lambda([this]() { SelectSettingHelp(TEXT("SimulationQuality")); PendingState.SimulationQuality = NextQuality(PendingState.SimulationQuality); ApplySelectedProfileAndQualityPreset(); return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("장비 프로필: Intel RealSense D455 / Generic") : TEXT("장비 프로필: Livox Mid-360S / Generic")); }).OnClicked_Lambda([this]() { if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera) PendingState.CameraProfile = PendingState.CameraProfile == EVirtualCameraDeviceProfile::IntelRealSenseD455 ? EVirtualCameraDeviceProfile::Generic : EVirtualCameraDeviceProfile::IntelRealSenseD455; else PendingState.LidarProfile = PendingState.LidarProfile == EVirtualLidarDeviceProfile::LivoxMid360S ? EVirtualLidarDeviceProfile::Generic : EVirtualLidarDeviceProfile::LivoxMid360S; ApplySelectedProfileAndQualityPreset(); return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
                     SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraInterval", "카메라 캡처 주기 (초)"), [this]() { return PendingState.CameraCaptureInterval; }, [this](float V) { PendingState.CameraCaptureInterval = V; }, 0.033f, 60.0f) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraWidth", "카메라 가로 해상도"), [this]() { return PendingState.CameraResolution.X; }, [this](int32 V) { PendingState.CameraResolution.X = V; }, 160, 4096) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraHeight", "카메라 세로 해상도"), [this]() { return PendingState.CameraResolution.Y; }, [this](int32 V) { PendingState.CameraResolution.Y = V; }, 90, 2160) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraInterval", "카메라 캡처 주기 (초)"), [this]() { return PendingState.CameraCaptureInterval; }, [this](float V) { PendingState.CameraCaptureInterval = V; }, 0.033f, 60.0f, true, TEXT("CameraInterval")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraWidth", "카메라 가로 해상도"), [this]() { return PendingState.CameraResolution.X; }, [this](int32 V) { PendingState.CameraResolution.X = V; }, 160, 4096, TEXT("CameraWidth")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraHeight", "카메라 세로 해상도"), [this]() { return PendingState.CameraResolution.Y; }, [this](int32 V) { PendingState.CameraResolution.Y = V; }, 90, 2160, TEXT("CameraHeight")) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
                     SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarInterval", "LiDAR 스캔 주기 (초)"), [this]() { return PendingState.LidarScanInterval; }, [this](float V) { PendingState.LidarScanInterval = V; }, 0.033f, 60.0f) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarRange", "LiDAR 최대 거리 (cm)"), [this]() { return PendingState.LidarMaxDistance; }, [this](float V) { PendingState.LidarMaxDistance = V; }, 10.0f, 10000.0f) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarInterval", "LiDAR 스캔 주기 (초)"), [this]() { return PendingState.LidarScanInterval; }, [this](float V) { PendingState.LidarScanInterval = V; }, 0.033f, 60.0f, true, TEXT("LidarInterval")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarRange", "LiDAR 최대 거리 (cm)"), [this]() { return PendingState.LidarMaxDistance; }, [this](float V) { PendingState.LidarMaxDistance = V; }, 10.0f, 10000.0f, true, TEXT("LidarRange")) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bShowAdvanced ? TEXT("고급 설정 접기") : TEXT("고급 설정 펼치기")); }).OnClicked_Lambda([this]() { bShowAdvanced = !bShowAdvanced; return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight()
@@ -338,29 +465,29 @@ TSharedRef<SWidget> UVirtualSensorSettingsWidget::RebuildWidget()
                     + SVerticalBox::Slot().AutoHeight()
                     [
                         SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraFov", "카메라 FOV (도)"), [this]() { return PendingState.CameraFov; }, [this](float V) { PendingState.CameraFov = V; }, 5.0f, 170.0f) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("JpegQuality", "JPEG 품질"), [this]() { return PendingState.CameraJpegQuality; }, [this](int32 V) { PendingState.CameraJpegQuality = V; }, 1, 100) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("카메라 출력 모드: %s"), *CaptureModeText(PendingState.CameraCaptureMode))); }).OnClicked_Lambda([this]() { PendingState.CameraCaptureMode = NextCaptureMode(PendingState.CameraCaptureMode); ApplyPendingState(); return FReply::Handled(); }) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraFov", "카메라 FOV (도)"), [this]() { return PendingState.CameraFov; }, [this](float V) { PendingState.CameraFov = V; }, 5.0f, 170.0f, true, TEXT("CameraFov")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("JpegQuality", "JPEG 품질"), [this]() { return PendingState.CameraJpegQuality; }, [this](int32 V) { PendingState.CameraJpegQuality = V; }, 1, 100, TEXT("JpegQuality")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).ToolTipText(SettingHelpTooltip(TEXT("CaptureMode"))).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("카메라 출력 모드: %s"), *CaptureModeText(PendingState.CameraCaptureMode))); }).OnClicked_Lambda([this]() { SelectSettingHelp(TEXT("CaptureMode")); PendingState.CameraCaptureMode = NextCaptureMode(PendingState.CameraCaptureMode); ApplyPendingState(); return FReply::Handled(); }) ]
                     ]
                     + SVerticalBox::Slot().AutoHeight()
                     [
                         SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("HorizontalSamples", "LiDAR 수평 샘플 수"), [this]() { return PendingState.LidarHorizontalSamples; }, [this](int32 V) { PendingState.LidarHorizontalSamples = V; }, 1, 1440) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("VerticalChannels", "LiDAR 수직 채널 수"), [this]() { return PendingState.LidarVerticalChannels; }, [this](int32 V) { PendingState.LidarVerticalChannels = V; }, 1, 256) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("HorizontalFov", "LiDAR 수평 FOV (도)"), [this]() { return PendingState.LidarHorizontalFov; }, [this](float V) { PendingState.LidarHorizontalFov = V; }, 1.0f, 360.0f) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMin", "LiDAR 수직 최소 각도"), [this]() { return PendingState.LidarMinVerticalAngle; }, [this](float V) { PendingState.LidarMinVerticalAngle = V; }, -90.0f, 89.0f) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMax", "LiDAR 수직 최대 각도"), [this]() { return PendingState.LidarMaxVerticalAngle; }, [this](float V) { PendingState.LidarMaxVerticalAngle = V; }, -89.0f, 90.0f) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("ServerStride", "서버 Payload 간격"), [this]() { return PendingState.ServerPayloadStride; }, [this](int32 V) { PendingState.ServerPayloadStride = V; }, 1, 100) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("ServerMax", "서버 최대 점 수 (0=전체)"), [this]() { return PendingState.MaxServerPayloadPoints; }, [this](int32 V) { PendingState.MaxServerPayloadPoints = V; }, 0, 1000000) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return PendingState.bIncludeMissPointsInServerPayload ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { PendingState.bIncludeMissPointsInServerPayload = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("IncludeMisses", "서버 Payload에 미검출점 포함")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewStride", "미리보기 점 간격"), [this]() { return PendingState.PreviewPointStride; }, [this](int32 V) { PendingState.PreviewPointStride = V; }, 1, 100) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewMax", "미리보기 최대 점 수"), [this]() { return PendingState.MaxPreviewPoints; }, [this](int32 V) { PendingState.MaxPreviewPoints = V; }, 0, 1000000) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return PendingState.bPreviewHitOnly ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { PendingState.bPreviewHitOnly = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("PreviewHitOnly", "미리보기에서 검출점만 표시")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return PendingState.bUseMultiHit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { PendingState.bUseMultiHit = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("MultiHit", "다중 검출 사용 (고부하)")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("MaxHits", "광선당 최대 검출 수"), [this]() { return PendingState.MaxHitsPerRay; }, [this](int32 V) { PendingState.MaxHitsPerRay = V; }, 1, 16) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return PendingState.bExportCsvOnScan ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { PendingState.bExportCsvOnScan = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("AutoCsv", "스캔 시 CSV 자동 내보내기")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return PendingState.bExportJsonLinesOnScan ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { PendingState.bExportJsonLinesOnScan = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("AutoJsonl", "스캔 시 JSONL 자동 내보내기")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return PendingState.bExportPcdOnScan ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { PendingState.bExportPcdOnScan = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("AutoPcd", "스캔 시 PCD 자동 내보내기")) ] ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("HorizontalSamples", "LiDAR 수평 샘플 수"), [this]() { return PendingState.LidarHorizontalSamples; }, [this](int32 V) { PendingState.LidarHorizontalSamples = V; }, 1, 1440, TEXT("HorizontalSamples")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("VerticalChannels", "LiDAR 수직 채널 수"), [this]() { return PendingState.LidarVerticalChannels; }, [this](int32 V) { PendingState.LidarVerticalChannels = V; }, 1, 256, TEXT("VerticalChannels")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("HorizontalFov", "LiDAR 수평 FOV (도)"), [this]() { return PendingState.LidarHorizontalFov; }, [this](float V) { PendingState.LidarHorizontalFov = V; }, 1.0f, 360.0f, true, TEXT("HorizontalFov")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMin", "LiDAR 수직 최소 각도"), [this]() { return PendingState.LidarMinVerticalAngle; }, [this](float V) { PendingState.LidarMinVerticalAngle = V; }, -90.0f, 89.0f, true, TEXT("VerticalMin")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMax", "LiDAR 수직 최대 각도"), [this]() { return PendingState.LidarMaxVerticalAngle; }, [this](float V) { PendingState.LidarMaxVerticalAngle = V; }, -89.0f, 90.0f, true, TEXT("VerticalMax")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("ServerStride", "서버 Payload 간격"), [this]() { return PendingState.ServerPayloadStride; }, [this](int32 V) { PendingState.ServerPayloadStride = V; }, 1, 100, TEXT("ServerStride")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("ServerMax", "서버 최대 점 수 (0=전체)"), [this]() { return PendingState.MaxServerPayloadPoints; }, [this](int32 V) { PendingState.MaxServerPayloadPoints = V; }, 0, 1000000, TEXT("ServerMax")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("IncludeMisses"))).IsChecked_Lambda([this]() { return PendingState.bIncludeMissPointsInServerPayload ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("IncludeMisses")); PendingState.bIncludeMissPointsInServerPayload = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("IncludeMisses", "서버 Payload에 미검출점 포함")) ] ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewStride", "미리보기 점 간격"), [this]() { return PendingState.PreviewPointStride; }, [this](int32 V) { PendingState.PreviewPointStride = V; }, 1, 100, TEXT("PreviewStride")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewMax", "미리보기 최대 점 수"), [this]() { return PendingState.MaxPreviewPoints; }, [this](int32 V) { PendingState.MaxPreviewPoints = V; }, 0, 1000000, TEXT("PreviewMax")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("PreviewHitOnly"))).IsChecked_Lambda([this]() { return PendingState.bPreviewHitOnly ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("PreviewHitOnly")); PendingState.bPreviewHitOnly = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("PreviewHitOnly", "미리보기에서 검출점만 표시")) ] ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("MultiHit"))).IsChecked_Lambda([this]() { return PendingState.bUseMultiHit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("MultiHit")); PendingState.bUseMultiHit = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("MultiHit", "다중 검출 사용 (고부하)")) ] ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("MaxHits", "광선당 최대 검출 수"), [this]() { return PendingState.MaxHitsPerRay; }, [this](int32 V) { PendingState.MaxHitsPerRay = V; }, 1, 16, TEXT("MaxHits")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("AutoExport"))).IsChecked_Lambda([this]() { return PendingState.bExportCsvOnScan ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("AutoExport")); PendingState.bExportCsvOnScan = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("AutoCsv", "스캔 시 CSV 자동 내보내기")) ] ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("AutoExport"))).IsChecked_Lambda([this]() { return PendingState.bExportJsonLinesOnScan ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("AutoExport")); PendingState.bExportJsonLinesOnScan = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("AutoJsonl", "스캔 시 JSONL 자동 내보내기")) ] ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("AutoExport"))).IsChecked_Lambda([this]() { return PendingState.bExportPcdOnScan ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("AutoExport")); PendingState.bExportPcdOnScan = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("AutoPcd", "스캔 시 PCD 자동 내보내기")) ] ]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f)[ SNew(STextBlock).Text(LOCTEXT("RealSource", "외부 센서 소스")) ]
                     + SVerticalBox::Slot().AutoHeight()
@@ -369,6 +496,20 @@ TSharedRef<SWidget> UVirtualSensorSettingsWidget::RebuildWidget()
                         + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]() { StartAllRealSensorSources(); return FReply::Handled(); }) ]
                         + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]() { StopAllRealSensorSources(); return FReply::Handled(); }) ]
                         + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("PushSource", "선택 소스 1회 전송")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
+                    ]
+                ]
+                + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(FVirtualSensorUiStyle::SectionBackground)
+                    .Padding(8.0f)
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("LoadSummaryTitle", "현재 설정 예상 부하")) ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 7.0f)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetCurrentLoadSummaryText()); }) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("SettingHelpTitle", "선택한 설정 도움말")) ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 0.0f)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetSelectedSettingHelpText()); }) ]
                     ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)
@@ -722,10 +863,22 @@ FName UVirtualSensorSettingsWidget::ResolvePersistentActorTag(const AActor* Acto
     return Actor->GetFName();
 }
 
-TSharedRef<SWidget> UVirtualSensorSettingsWidget::MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit)
+TSharedRef<SWidget> UVirtualSensorSettingsWidget::MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit, FName HelpKey)
 {
+    const FVirtualSensorSettingHelpDescriptor* Help = FindSettingHelp(HelpKey);
+    const FText ToolTip = Help ? FText::Format(LOCTEXT("SettingTipFormat", "{0}\n성능 영향: {1}\n권장값: {2}"), Help->Description, Help->PerformanceImpact, Help->RecommendedValue) : FText::GetEmpty();
     return SNew(SHorizontalBox)
-        + SHorizontalBox::Slot().FillWidth(0.55f)[ SNew(STextBlock).Text(Label) ]
+        + SHorizontalBox::Slot().FillWidth(0.47f)[ SNew(STextBlock).Text(Label).ToolTipText(ToolTip) ]
+        + SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+        [
+            SNew(SButton)
+            .Visibility(Help ? EVisibility::Visible : EVisibility::Collapsed)
+            .ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+            .ForegroundColor(FVirtualSensorUiStyle::Accent)
+            .Text(LOCTEXT("InfoButton", "ⓘ"))
+            .ToolTipText(ToolTip)
+            .OnClicked_Lambda([this, HelpKey]() { SelectSettingHelp(HelpKey); return FReply::Handled(); })
+        ]
         + SHorizontalBox::Slot().FillWidth(0.45f)
         [
             SNew(SSpinBox<float>)
@@ -737,10 +890,22 @@ TSharedRef<SWidget> UVirtualSensorSettingsWidget::MakeFloatRow(const FText& Labe
         ];
 }
 
-TSharedRef<SWidget> UVirtualSensorSettingsWidget::MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max)
+TSharedRef<SWidget> UVirtualSensorSettingsWidget::MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max, FName HelpKey)
 {
+    const FVirtualSensorSettingHelpDescriptor* Help = FindSettingHelp(HelpKey);
+    const FText ToolTip = Help ? FText::Format(LOCTEXT("SettingIntTipFormat", "{0}\n성능 영향: {1}\n권장값: {2}"), Help->Description, Help->PerformanceImpact, Help->RecommendedValue) : FText::GetEmpty();
     return SNew(SHorizontalBox)
-        + SHorizontalBox::Slot().FillWidth(0.55f)[ SNew(STextBlock).Text(Label) ]
+        + SHorizontalBox::Slot().FillWidth(0.47f)[ SNew(STextBlock).Text(Label).ToolTipText(ToolTip) ]
+        + SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+        [
+            SNew(SButton)
+            .Visibility(Help ? EVisibility::Visible : EVisibility::Collapsed)
+            .ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+            .ForegroundColor(FVirtualSensorUiStyle::Accent)
+            .Text(LOCTEXT("InfoIntButton", "ⓘ"))
+            .ToolTipText(ToolTip)
+            .OnClicked_Lambda([this, HelpKey]() { SelectSettingHelp(HelpKey); return FReply::Handled(); })
+        ]
         + SHorizontalBox::Slot().FillWidth(0.45f)
         [
             SNew(SSpinBox<int32>)
