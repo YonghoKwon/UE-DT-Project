@@ -60,7 +60,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl|UI")
     void ResetSettingsUiPreferencesToDefault();
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorControl|Help")
+    TArray<FVirtualSensorSettingHelpDescriptor> GetAllSettingHelpDescriptors() const;
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl|Help")
+    bool SelectSettingHelp(FName SettingKey);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorControl|Help")
+    FString GetSelectedSettingHelpText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorControl|Performance")
+    FString GetCurrentLoadSummaryText() const;
+
     static bool ValidateEditableStateValues(const FVirtualSensorEditableState& State, const TArray<FString>& OtherSensorIds, FString& OutError);
+    static double CalculateCameraMegaPixelsPerSecond(const FVirtualSensorEditableState& State);
+    static double CalculateLidarRaysPerSecond(const FVirtualSensorEditableState& State);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl", meta = (ClampMin = "1.0", ClampMax = "1000.0"))
     float TranslationStepCm = 10.0f;
@@ -94,8 +108,9 @@ private:
     void SaveSettingsUiPreferences() const;
     FString BuildDeviceSpecText() const;
     FName ResolvePersistentActorTag(const AActor* Actor) const;
-    TSharedRef<SWidget> MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit = true);
-    TSharedRef<SWidget> MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max);
+    const FVirtualSensorSettingHelpDescriptor* FindSettingHelp(FName SettingKey) const;
+    TSharedRef<SWidget> MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit = true, FName HelpKey = NAME_None);
+    TSharedRef<SWidget> MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max, FName HelpKey = NAME_None);
 
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorManager> SensorManager;
@@ -121,4 +136,5 @@ private:
     double LastPreviewRefreshTime = -1.0;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
+    FName SelectedSettingHelpKey = TEXT("SimulationQuality");
 };

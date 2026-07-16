@@ -35,6 +35,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPerformanceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
 
@@ -402,13 +403,12 @@ FString UVirtualSensorMonitorWidget::GetTransportStatusSummaryText() const
         : (bShowingLidar && LidarComp
             ? LidarComp->TransportComponent.Get()
             : (!bShowingLidar && CameraComp ? CameraComp->TransportComponent.Get() : nullptr));
-    if (!TransportComp)
-    {
-        return TEXT("Transport: unavailable");
-    }
+    FString SchedulerText;
+    if (GetWorld()) if (const UVirtualSensorPerformanceSubsystem* Scheduler = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>()) SchedulerText = TEXT("\n성능: ") + Scheduler->GetTelemetrySummaryText();
+    if (!TransportComp) return TEXT("Transport: unavailable") + SchedulerText;
 
     const FVirtualSensorTransportResult& Result = TransportComp->LastResult;
-    return FString::Printf(TEXT("Transport: Mode=%s InFlight=%d/%d BackpressureRejected=%d Retries=%d Failed=%d RetryExhausted=%d LastRetries=%d LastSubmitted=%s LastAccepted=%s LastCode=%d"),
+    return FString::Printf(TEXT("Transport: Mode=%s InFlight=%d/%d BackpressureRejected=%d Retries=%d Failed=%d RetryExhausted=%d LastRetries=%d LastSubmitted=%s LastAccepted=%s LastCode=%d%s"),
         *TransportModeToText(TransportComp->TransportMode),
         TransportComp->InFlightHttpRequestCount,
         FMath::Max(1, TransportComp->MaxInFlightHttpRequests),
@@ -419,7 +419,8 @@ FString UVirtualSensorMonitorWidget::GetTransportStatusSummaryText() const
         Result.RetryAttemptCount,
         Result.bSubmitted ? TEXT("true") : TEXT("false"),
         Result.bAccepted ? TEXT("true") : TEXT("false"),
-        Result.HttpStatusCode);
+        Result.HttpStatusCode,
+        *SchedulerText);
 }
 
 FString UVirtualSensorMonitorWidget::GetViewModeSummaryText() const
@@ -771,6 +772,10 @@ void UVirtualSensorMonitorWidget::NativeTick(const FGeometry& MyGeometry, float 
 void UVirtualSensorMonitorWidget::BindVirtualCamera(UVirtualCameraComp* InCameraComp)
 {
     CameraComp = InCameraComp;
+    if (GetWorld())
+    {
+        if (UVirtualSensorPerformanceSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>()) Subsystem->SetPreferredCamera(InCameraComp);
+    }
     RefreshImageBrush();
     RefreshStatusText();
 }
@@ -778,6 +783,10 @@ void UVirtualSensorMonitorWidget::BindVirtualCamera(UVirtualCameraComp* InCamera
 void UVirtualSensorMonitorWidget::BindVirtualLidar(UVirtualLidarSensorComp* InLidarComp)
 {
     LidarComp = InLidarComp;
+    if (GetWorld())
+    {
+        if (UVirtualSensorPerformanceSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorPerformanceSubsystem>()) Subsystem->SetPreferredLidar(InLidarComp);
+    }
     RestoreMonitorUiPreferences();
     InvalidateEnhancedLidarView();
     if (bShowingLidar && LidarComp && !LidarComp->GetLidarViewTexture())

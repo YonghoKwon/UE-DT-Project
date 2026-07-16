@@ -10,6 +10,8 @@
 class UTextureRenderTarget2D;
 class UVirtualSensorDataTransportComp;
 class UVirtualSensorRecorderComp;
+class UVirtualSensorPerformanceSubsystem;
+class FRHIGPUTextureReadback;
 
 UENUM(BlueprintType)
 enum class EVirtualCameraOutputMode : uint8
@@ -51,6 +53,10 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera")
     void CaptureAndSendImage();
+
+    // Called by UVirtualSensorPerformanceSubsystem. Automatic capture uses this
+    // bounded asynchronous path; the public one-shot API above remains synchronous.
+    bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualCamera|External")
     bool InjectExternalJsonPayload(const FString& JsonPayload, bool bSendTransport = true);
@@ -118,6 +124,11 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     bool bAutoStartCapture = true;
 
+    // Keeps sensor preview geometry and direct lighting while disabling costly
+    // cinematic post effects, Lumen GI/reflections, AO, fog and temporal AA.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera|Performance")
+    bool bUsePerformanceOptimizedShowFlags = true;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualCamera")
     bool bApplyDeviceProfileOnBeginPlay = true;
 
@@ -144,6 +155,12 @@ private:
     void UpdateRuntimeStatus(int32 PayloadLength, const FString& Message);
     bool ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize) const;
     void TryAutoRegisterToManager();
+    void RegisterWithPerformanceSubsystem();
+    void UnregisterFromPerformanceSubsystem();
+    void QueueScheduledGpuReadback(double NowSeconds);
+    void PollScheduledGpuReadback(double NowSeconds);
+    void StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds);
+    void CompleteScheduledEncode(int64 CapturedFrameId, TArray64<uint8>&& JpegBytes, FString&& JsonPayload, double CaptureStartedSeconds);
 
 private:
     FTimerHandle CaptureTimerHandle;
@@ -153,4 +170,16 @@ private:
     FVirtualSensorRuntimeStatus RuntimeStatus;
 
     FString LastJsonPayload;
+
+    TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> ScheduledReadback;
+    double NextScheduledCaptureTime = -1.0;
+    double ScheduledCaptureStartTime = -1.0;
+    double LastScheduledCompletionTime = -1.0;
+    int32 ScheduledReadbackWidth = 0;
+    int32 ScheduledReadbackHeight = 0;
+    int64 ScheduledReadbackFrameId = 0;
+    int32 ScheduledGeneration = 0;
+    bool bRegisteredWithPerformanceSubsystem = false;
+    bool bScheduledCaptureAwaitingReadback = false;
+    bool bScheduledEncodeInFlight = false;
 };

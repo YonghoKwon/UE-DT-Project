@@ -79,6 +79,8 @@ Settings 패널에서 다음 값을 변경할 수 있습니다.
 
 숫자는 Enter 또는 입력 포커스 해제, SpinBox 드래그 종료 시 한 번 적용됩니다. 체크박스·프로필·품질은 선택 즉시 반영합니다. 기즈모 조작 중 Transform과 디버그 형상은 매 프레임 움직이고 센서 미리보기는 최대 10Hz로 갱신되며 조작 종료 시 최종 프레임을 즉시 생성합니다. 잘못된 범위, 중복 SensorId, NaN Transform은 거부하고 마지막 런타임 값을 다시 표시합니다.
 
+고급 설정의 각 행에는 `ⓘ` 버튼과 한글 툴팁이 있습니다. 버튼을 누르면 패널 아래 도움말 카드에 의미, 단위, 성능 영향, 권장값과 주의사항이 표시됩니다. 같은 카드의 `현재 예상 부하`는 카메라 MP/s 또는 LiDAR 광선/스캔·광선/s와 Preview/Payload 최대 점 수를 계산하고, 실행 중인 공용 스케줄러의 자동 60/30 FPS 단계·활성 센서 수·대기/생략 수·실측 FPS도 함께 보여줍니다.
+
 `센서 조작 시작` 후 키보드는 다음과 같습니다.
 
 ```text
@@ -95,6 +97,21 @@ Shift 5배, Ctrl 0.2배, Esc 조작 종료
 | `SensorTestMap에 저장 예약` | PIE 종료 시 원본 SensorTestMap에 저장할 스냅샷 등록 |
 
 `SensorTestMap에 저장 예약`은 Editor PIE에서만 활성 의미가 있습니다. 투사 범위 토글과 기즈모 표시 상태는 런타임 UI 설정이므로 맵에 저장하지 않습니다. Editor 모듈은 PIE 종료 시 불변 관리 태그로 원본 Actor를 찾고 허용된 센서 설정만 Transaction으로 복사합니다. 다른 맵, 누락·중복 태그, 잘못된 Actor 타입이면 저장하지 않습니다. 파일 저장 실패 시 방금 적용한 Transaction을 Undo합니다.
+
+### FullSpec 자동 실행 최적화
+
+FullSpec 규격은 Camera 1280×720·30Hz, LiDAR 360×60(21,600 rays)·10Hz입니다. `StartCapture()`와 `StartScan()` 자동 실행은 `UVirtualSensorPerformanceSubsystem`이 관리합니다.
+
+- Camera≤2·LiDAR≤2: 자동 60 FPS 단계, LiDAR game-thread trace 예산 4ms/frame
+- 각 종류 4대 이하: 자동 30 FPS 단계, trace 예산 8ms/frame
+- 어느 종류든 4대 초과: 30 FPS 최선 실행과 지원 범위 초과 경고
+- 카메라 GPU readback은 비동기이며 JPEG/Base64/JSON은 worker thread에서 처리
+- FullSpec 설정의 명목 30Hz는 유지하되, 여러 카메라에서는 GPU 장면 캡처를 전체 15Hz 상한으로 최신 프레임 분배하고 Monitor 선택 카메라를 격회 우선 처리
+- LiDAR는 128~1024 ray 적응형 chunk로 time-slice하고 스캔 중 Transform·설정을 고정
+- 센서별 acquisition 1개·derived 작업 1개만 유지하며 밀리면 오래된 파생 프레임을 누적하지 않고 생략 수를 기록
+- `PreviewOnly` 카메라는 GPU readback/JPEG를 생략하고, LiDAR texture는 부분 갱신, ISM은 수량 차이만 반영
+
+수동 `Capture Once`, `CaptureAndSendImage()`, `ScanAndSend()`는 생략하지 않는 기존 동기 계약을 유지합니다. 따라서 여러 카메라의 `실측 Hz`는 명목 30Hz보다 낮을 수 있으며, 이는 렌더링 FPS를 지키기 위한 최신 프레임 정책의 정상 결과입니다. 선택된 카메라 preview가 우선되고 비선택 LiDAR의 texture/ISM 갱신은 생략하지만 측정·Payload 순서는 바뀌지 않습니다. FullSpec에서 MultiHit와 스캔별 자동 export는 규격 밖의 추가 부하이므로 기본적으로 끄고 수동 export를 권장합니다. Payload 스키마에는 성능 필드를 추가하지 않았으며 Monitor `상세 진단`과 Settings 부하 카드에서만 확인합니다.
 
 관리 태그:
 
@@ -201,6 +218,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBu
 | 그룹 | 범위 |
 |---|---|
 | `MA0T10.SensorControl` | 패널 clamp, UI 상태 직렬화, 상태 검증, 기즈모 좌표 계산, map apply queue, 현실적 프로필 |
+| `MA0T10.SensorPerformance` | 60/30 FPS 단계, FullSpec 규격, 부하 계산과 도움말 coverage |
 | `MA0T10.SensorDebug` | 선택 센서 투사 범위의 성능 예산과 기본값 |
 | `MA0T10.SensorExport` | 저장 경로 요약, 최근 경로 복사 오류와 export 계약 |
 | `MA0T10.SensorMonitor` | native fallback, 테마 대비, LiDAR 모드·의미 색상, status, payload export |
@@ -223,6 +241,15 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBu
 ```
 
 긴 acceptance·성능 검증 명령은 [Editor Smoke/Automation 문서](docs/editor_smoke_test.md)에 정리되어 있습니다.
+
+실제 RHI FullSpec 2+2 측정은 다음 명령으로 실행합니다. 스크립트는 런타임에만 추가 센서를 생성하고 맵 asset은 변경하지 않으며, 10초 워밍업 뒤 60초 데이터를 `Saved/Reports`의 JSON/Markdown으로 저장합니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4
+```
+
+2026-07-17 현재 개발 PC(Ryzen 7 7800X3D, RTX 4070 Ti)의 D3D12 측정값은 2+2에서 평균 58.94 FPS / 1% low 49.96 / p95 18.41ms, 4+4에서 평균 53.16 FPS / 1% low 33.91 / p95 27.37ms였습니다. 이는 해당 실행의 증거이며 다른 맵·드라이버·장비에서의 보장값은 아닙니다.
 
 ## 저장소 구조
 
