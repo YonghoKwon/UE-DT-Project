@@ -145,6 +145,37 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	return true;
 }
 
+bool AVirtualCameraSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
+{
+	if (!CaptureComponent || bInteractiveManipulationActive) return CaptureComponent != nullptr;
+	Super::BeginInteractiveManipulation(Request);
+	bWasRunningBeforeInteraction = CaptureComponent->IsCaptureRunning();
+	SavedInteractionResolution = CaptureComponent->CaptureResolution;
+	SavedInteractionInterval = CaptureComponent->CaptureInterval;
+	SavedInteractionCaptureMode = static_cast<uint8>(CaptureComponent->CaptureMode);
+	CaptureComponent->StopCapture();
+	CaptureComponent->CaptureResolution = Request.CameraPreviewResolution;
+	CaptureComponent->CaptureInterval = Request.CameraPreviewInterval;
+	CaptureComponent->CaptureMode = EVirtualCameraCaptureMode::PreviewOnly;
+	if (bWasRunningBeforeInteraction) CaptureComponent->StartCapture();
+	return true;
+}
+
+void AVirtualCameraSensorActor::EndInteractiveManipulation()
+{
+	if (!CaptureComponent || !bInteractiveManipulationActive) return;
+	CaptureComponent->StopCapture();
+	CaptureComponent->CaptureResolution = SavedInteractionResolution;
+	CaptureComponent->CaptureInterval = SavedInteractionInterval;
+	CaptureComponent->CaptureMode = static_cast<EVirtualCameraCaptureMode>(SavedInteractionCaptureMode);
+	if (bWasRunningBeforeInteraction)
+	{
+		CaptureComponent->StartCapture();
+		CaptureComponent->RequestImmediateScheduledCapture();
+	}
+	Super::EndInteractiveManipulation();
+}
+
 bool AVirtualCameraSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError)
 {
 	if (!CaptureComponent || RequestedState.TargetKind != EVirtualSensorTargetKind::Camera)

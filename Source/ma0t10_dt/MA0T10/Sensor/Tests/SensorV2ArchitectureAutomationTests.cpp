@@ -32,6 +32,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"MA0T10.SensorV2.Architecture.SelectionIndependentFromMonitorView",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2InteractionBudgetTest,
+	"MA0T10.SensorV2.Architecture.InteractionBudgetRestoresFullSpec",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 {
 	AVirtualCameraSensorActor* Camera = NewObject<AVirtualCameraSensorActor>();
@@ -130,6 +135,28 @@ bool FSensorV2SelectionIndependenceTest::RunTest(const FString& Parameters)
 	Coordinator->SetViewMode(EVirtualSensorViewMode::Lidar);
 	TestEqual(TEXT("monitor view now resolves LiDAR"), Coordinator->GetSelectedSensorActor(), static_cast<AVirtualSensorActorBase*>(Lidar));
 	TestEqual(TEXT("settings can resolve camera while monitor shows LiDAR"), Coordinator->GetSelectedSensorActorByKind(EVirtualSensorKind::Camera), static_cast<AVirtualSensorActorBase*>(Camera));
+	return true;
+}
+
+bool FSensorV2InteractionBudgetTest::RunTest(const FString& Parameters)
+{
+	FVirtualSensorInteractionRequest Request;
+	AVirtualCameraSensorActor* Camera = NewObject<AVirtualCameraSensorActor>();
+	Camera->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	TestTrue(TEXT("Camera accepts interaction mode"), Camera->BeginInteractiveManipulation(Request));
+	TestEqual(TEXT("Camera interaction uses preview width"), Camera->CaptureComponent->CaptureResolution.X, 640);
+	TestEqual(TEXT("Camera interaction suppresses derived output"), Camera->CaptureComponent->CaptureMode, EVirtualCameraCaptureMode::PreviewOnly);
+	Camera->EndInteractiveManipulation();
+	TestEqual(TEXT("Camera restores FullSpec width"), Camera->CaptureComponent->CaptureResolution.X, 1280);
+
+	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
+	Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	TestTrue(TEXT("LiDAR accepts interaction mode"), Lidar->BeginInteractiveManipulation(Request));
+	TestEqual(TEXT("LiDAR interaction uses preview horizontal samples"), Lidar->ScanComponent->HorizontalSamples, 120);
+	TestEqual(TEXT("LiDAR interaction uses preview vertical channels"), Lidar->ScanComponent->VerticalChannels, 24);
+	Lidar->EndInteractiveManipulation();
+	TestEqual(TEXT("LiDAR restores FullSpec horizontal samples"), Lidar->ScanComponent->HorizontalSamples, 360);
+	TestEqual(TEXT("LiDAR restores FullSpec vertical channels"), Lidar->ScanComponent->VerticalChannels, 60);
 	return true;
 }
 

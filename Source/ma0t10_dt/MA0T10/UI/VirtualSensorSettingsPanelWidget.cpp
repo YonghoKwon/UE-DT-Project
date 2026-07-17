@@ -316,17 +316,32 @@ bool UVirtualSensorSettingsPanelWidget::QueuePendingStateForSensorTestMap()
 void UVirtualSensorSettingsPanelWidget::NudgeSelectedSensor(FVector TranslationDelta, FRotator RotationDelta)
 {
     PendingState.ActorTransform = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(PendingState.ActorTransform, CoordinateSpace, TranslationDelta, RotationDelta);
-    ApplyPendingState();
+	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+	{
+		if (!SensorActor->IsInteractiveManipulationActive()) SensorActor->BeginInteractiveManipulation(InteractionRequest);
+		SensorActor->UpdateInteractiveTransform(PendingState.ActorTransform);
+	}
+	LastControlMessage = TEXT("조작 중: 경량 미리보기");
+	RefreshNativeText();
 }
 
 void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabled)
 {
+	if (bManipulationEnabled == bEnabled) return;
     bManipulationEnabled = bEnabled;
     SpawnGizmoIfNeeded();
     if (GizmoActor) GizmoActor->SetManipulationEnabled(bEnabled);
+	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+	{
+		if (bEnabled) SensorActor->BeginInteractiveManipulation(InteractionRequest);
+		else SensorActor->EndInteractiveManipulation();
+	}
     LastControlMessage = bEnabled
         ? TEXT("센서 조작 모드가 켜졌습니다. WASD/QE와 방향키, Z/C를 사용할 수 있습니다.")
         : TEXT("센서 조작 모드가 꺼졌습니다.");
+	LastControlMessage = bEnabled
+		? TEXT("조작 중: 경량 미리보기 (WASD/QE 이동, 방향키/Z/C 회전)")
+		: TEXT("FullSpec 최종 갱신 중");
     RefreshNativeText();
 }
 
@@ -693,7 +708,12 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged(const FTrans
     if (Transform.ContainsNaN()) return;
     PendingState.ActorTransform = Transform;
     LastControlMessage = TEXT("미리보기 갱신 중...");
-    RefreshSelectedSensorNow(false);
+	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+	{
+		if (!SensorActor->IsInteractiveManipulationActive()) SensorActor->BeginInteractiveManipulation(InteractionRequest);
+		SensorActor->UpdateInteractiveTransform(Transform);
+	}
+	LastControlMessage = TEXT("조작 중: 경량 미리보기");
     RefreshNativeText();
 }
 
@@ -701,7 +721,11 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted(const FTra
 {
     if (Transform.ContainsNaN()) return;
     PendingState.ActorTransform = Transform;
-    RefreshSelectedSensorNow(true);
+	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+	{
+		SensorActor->UpdateInteractiveTransform(Transform);
+	}
+	LastControlMessage = TEXT("조작 위치가 PIE에 반영됨");
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
     RefreshNativeText();
 }

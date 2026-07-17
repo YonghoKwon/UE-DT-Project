@@ -58,6 +58,7 @@ public:
     // Called by UVirtualSensorSchedulerSubsystem. Automatic capture uses this
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
+	void RequestImmediateScheduledCapture();
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Camera; }
     virtual bool IsScheduledTaskActive() const override { return IsCaptureRunning(); }

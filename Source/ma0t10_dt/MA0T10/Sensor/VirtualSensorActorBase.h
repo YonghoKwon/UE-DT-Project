@@ -53,8 +53,23 @@ public:
 	virtual bool ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError);
 	virtual bool ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError);
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")
+	virtual bool BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")
+	virtual bool UpdateInteractiveTransform(const FTransform& Transform);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")
+	virtual void EndInteractiveManipulation();
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor|Interaction")
+	bool IsInteractiveManipulationActive() const { return bInteractiveManipulationActive; }
+
 	void SetSharedOutputServices(UVirtualSensorTransportComponent* Transport, UVirtualSensorRecorderComponent* Recorder);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|Sensor")
 	TObjectPtr<UVirtualSensorOutputComponent> OutputComponent;
+
+protected:
+	bool bInteractiveManipulationActive = false;
 };

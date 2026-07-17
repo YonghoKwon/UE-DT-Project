@@ -239,6 +239,20 @@ void UVirtualLidarScanComponent::StopScan()
     ++ScheduledGeneration;
 }
 
+void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
+{
+	if (NextScheduledScanTime >= 0.0 && GetWorld())
+	{
+		NextScheduledScanTime = GetWorld()->GetTimeSeconds();
+	}
+}
+
+void UVirtualLidarScanComponent::SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput)
+{
+	bInteractivePreviewMode = bEnabled;
+	bSuppressInteractiveDerivedOutput = bSuppressDerivedOutput;
+}
+
 void UVirtualLidarScanComponent::RegisterWithPerformanceSubsystem()
 {
     if (!GetWorld() || bRegisteredWithPerformanceSubsystem) return;
@@ -392,6 +406,13 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 
     RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;
     LastScheduledCompletionTime = NowSeconds;
+	if (bInteractivePreviewMode && bSuppressInteractiveDerivedOutput)
+	{
+		RuntimeStatus.LastPostProcessDurationMs = 0.0f;
+		UpdateRuntimeStatusAfterScan(0);
+		OnScanCompleted.Broadcast(FString(), LidarViewTexture);
+		return;
+	}
     if (bScheduledPayloadBuildInFlight)
     {
         ++RuntimeStatus.DroppedDerivedFrameCount;

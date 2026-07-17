@@ -142,6 +142,7 @@ private:
     EVirtualSensorGizmoMode GizmoMode = EVirtualSensorGizmoMode::Translate;
     EVirtualSensorCoordinateSpace CoordinateSpace = EVirtualSensorCoordinateSpace::Local;
     double LastPreviewRefreshTime = -1.0;
+	FVirtualSensorInteractionRequest InteractionRequest;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
     FName SelectedSettingHelpKey = TEXT("SimulationQuality");

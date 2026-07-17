@@ -79,6 +79,24 @@ bool AVirtualSensorActorBase::ApplyProfileAndSimulationQuality(const FVirtualSen
 	return false;
 }
 
+bool AVirtualSensorActorBase::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
+{
+	bInteractiveManipulationActive = true;
+	return true;
+}
+
+bool AVirtualSensorActorBase::UpdateInteractiveTransform(const FTransform& Transform)
+{
+	if (!bInteractiveManipulationActive || Transform.ContainsNaN()) return false;
+	SetActorTransform(Transform, false, nullptr, ETeleportType::TeleportPhysics);
+	return true;
+}
+
+void AVirtualSensorActorBase::EndInteractiveManipulation()
+{
+	bInteractiveManipulationActive = false;
+}
+
 void AVirtualSensorActorBase::SetSharedOutputServices(
 	UVirtualSensorTransportComponent* Transport,
 	UVirtualSensorRecorderComponent* Recorder)

@@ -43,10 +43,16 @@ public:
 	virtual bool ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const override;
 	virtual bool ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError) override;
 	virtual bool ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError) override;
+	virtual bool BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request) override;
+	virtual void EndInteractiveManipulation() override;
 
 private:
 	UFUNCTION()
 	void HandleCameraFrame(const FString& JsonPayload, UTextureRenderTarget2D* RenderTarget);
 
 	TOptional<bool> PendingExternalSendTransport;
+	FIntPoint SavedInteractionResolution = FIntPoint::ZeroValue;
+	float SavedInteractionInterval = 0.1f;
+	uint8 SavedInteractionCaptureMode = 0;
+	bool bWasRunningBeforeInteraction = false;
 };

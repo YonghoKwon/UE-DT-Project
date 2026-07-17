@@ -75,6 +75,8 @@ public:
     // ScanAndSend remains the synchronous one-shot compatibility API.
     void PrepareScheduledScan(double NowSeconds);
     int32 ProcessScheduledScanChunk(int32 MaxRays);
+	void RequestImmediateScheduledScan();
+	void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Lidar; }
     virtual bool IsScheduledTaskActive() const override { return IsScanRunning(); }
@@ -527,6 +529,8 @@ private:
     int32 ScheduledNextRayIndex = 0;
     int32 ScheduledGeneration = 0;
     bool bRegisteredWithPerformanceSubsystem = false;
+	bool bInteractivePreviewMode = false;
+	bool bSuppressInteractiveDerivedOutput = true;
     bool bGpuPreviewBackendRuntimeActive = false;
     bool bGpuPreviewBackendRuntimeRequested = false;
     FString GpuPreviewFallbackReason;

@@ -164,6 +164,14 @@ void UVirtualCameraCaptureComponent::StopCapture()
     ++ScheduledGeneration;
 }
 
+void UVirtualCameraCaptureComponent::RequestImmediateScheduledCapture()
+{
+	if (NextScheduledCaptureTime >= 0.0 && GetWorld())
+	{
+		NextScheduledCaptureTime = GetWorld()->GetTimeSeconds();
+	}
+}
+
 void UVirtualCameraCaptureComponent::RegisterWithPerformanceSubsystem()
 {
     if (!GetWorld() || bRegisteredWithPerformanceSubsystem) return;

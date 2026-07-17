@@ -11,6 +11,31 @@ enum class EVirtualSensorKind : uint8
 	Lidar UMETA(DisplayName = "LiDAR")
 };
 
+/** Temporary acquisition budget used while an operator moves a sensor in PIE. */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorInteractionRequest
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Interaction")
+	FIntPoint CameraPreviewResolution = FIntPoint(640, 360);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Interaction", meta = (ClampMin = "0.05"))
+	float CameraPreviewInterval = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Interaction", meta = (ClampMin = "1"))
+	int32 LidarHorizontalSamples = 120;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Interaction", meta = (ClampMin = "1"))
+	int32 LidarVerticalChannels = 24;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Interaction", meta = (ClampMin = "0.05"))
+	float LidarPreviewInterval = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Interaction")
+	bool bSuppressDerivedOutput = true;
+};
+
 /**
  * 센서 수집부와 출력부 사이에서 사용하는 불변 프레임 스냅샷입니다.
  * 큰 배열은 공유 포인터로 전달해 자동 수집 경로에서 불필요한 복사를 피합니다.

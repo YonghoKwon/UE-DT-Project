@@ -117,6 +117,39 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     return true;
 }
 
+bool AVirtualLidarSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
+{
+	if (!ScanComponent || bInteractiveManipulationActive) return ScanComponent != nullptr;
+	Super::BeginInteractiveManipulation(Request);
+	bWasRunningBeforeInteraction = ScanComponent->IsScanRunning();
+	SavedInteractionHorizontalSamples = ScanComponent->HorizontalSamples;
+	SavedInteractionVerticalChannels = ScanComponent->VerticalChannels;
+	SavedInteractionInterval = ScanComponent->ScanInterval;
+	ScanComponent->StopScan();
+	ScanComponent->HorizontalSamples = Request.LidarHorizontalSamples;
+	ScanComponent->VerticalChannels = Request.LidarVerticalChannels;
+	ScanComponent->ScanInterval = Request.LidarPreviewInterval;
+	ScanComponent->SetInteractivePreviewMode(true, Request.bSuppressDerivedOutput);
+	if (bWasRunningBeforeInteraction) ScanComponent->StartScan();
+	return true;
+}
+
+void AVirtualLidarSensorActor::EndInteractiveManipulation()
+{
+	if (!ScanComponent || !bInteractiveManipulationActive) return;
+	ScanComponent->StopScan();
+	ScanComponent->HorizontalSamples = SavedInteractionHorizontalSamples;
+	ScanComponent->VerticalChannels = SavedInteractionVerticalChannels;
+	ScanComponent->ScanInterval = SavedInteractionInterval;
+	ScanComponent->SetInteractivePreviewMode(false);
+	if (bWasRunningBeforeInteraction)
+	{
+		ScanComponent->StartScan();
+		ScanComponent->RequestImmediateScheduledScan();
+	}
+	Super::EndInteractiveManipulation();
+}
+
 bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError)
 {
     if (!ScanComponent || RequestedState.TargetKind != EVirtualSensorTargetKind::Lidar)
