@@ -4,6 +4,7 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Base64.h"
 #include "Misc/Paths.h"
 #include "HAL/PlatformTime.h"
 #include "IStompClient.h"
@@ -249,6 +250,16 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendBinary(const
     {
         Result = SaveBinary(SensorId, SensorType, Extension, Bytes);
     }
+    else if (TransportMode == EVirtualSensorTransportMode::HttpPost)
+    {
+        Result = SendHttpBinary(SensorId, SensorType, Extension, Bytes);
+    }
+    else if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
+    {
+        const FString Encoded = FBase64::Encode(Bytes);
+        const FString Envelope = FString::Printf(TEXT("{\"extension\":\"%s\",\"encoding\":\"base64\",\"data\":\"%s\"}"), *Extension, *Encoded);
+        Result = SendStomp(SensorId, SensorType, TEXT("manual-export"), 0, Envelope);
+    }
     else
     {
         Result.bSubmitted = true;
@@ -259,6 +270,78 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendBinary(const
 
     LastResult = Result;
     OnDataSent.Broadcast(Result);
+    return Result;
+}
+
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendHttpBinary(
+    const FString& SensorId,
+    const FString& SensorType,
+    const FString& Extension,
+    const TArray<uint8>& Bytes)
+{
+    FVirtualSensorTransportResult Result;
+    Result.Protocol = TEXT("HTTP");
+    Result.RequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+    Result.SensorId = SensorId;
+    Result.SensorType = SensorType;
+    Result.DataKind = TEXT("manual-export");
+    Result.Destination = HttpEndpoint;
+    Result.DataLength = Bytes.Num();
+    if (HttpEndpoint.IsEmpty())
+    {
+        Result.Message = TEXT("HTTP endpoint가 비어 있습니다.");
+        return Result;
+    }
+    if (Bytes.Num() > TransportProfile.MaxMessageBytes)
+    {
+        Result.Message = FString::Printf(TEXT("HTTP binary가 제한을 초과했습니다: %d / %d bytes"), Bytes.Num(), TransportProfile.MaxMessageBytes);
+        return Result;
+    }
+    if (InFlightHttpRequestCount >= FMath::Max(1, MaxInFlightHttpRequests))
+    {
+        Result.bBackpressureRejected = true;
+        ++BackpressureRejectedRequestCount;
+        Result.Message = TEXT("HTTP binary 전송이 backpressure 제한으로 거부되었습니다.");
+        return Result;
+    }
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(HttpEndpoint);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/octet-stream"));
+    Request->SetHeader(TEXT("X-Sensor-Id"), SensorId);
+    Request->SetHeader(TEXT("X-Sensor-Type"), SensorType);
+    Request->SetHeader(TEXT("X-Data-Kind"), TEXT("manual-export"));
+    Request->SetHeader(TEXT("X-File-Extension"), Extension);
+    Request->SetHeader(TEXT("X-Request-Id"), Result.RequestId);
+    if (!SessionBearerToken.IsEmpty()) Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + SessionBearerToken);
+    Request->SetTimeout(static_cast<float>(FMath::Max(1, HttpTimeoutSeconds)));
+    Request->SetContent(Bytes);
+    const double StartedSeconds = FPlatformTime::Seconds();
+    const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+    const FString RequestId = Result.RequestId;
+    ++InFlightHttpRequestCount;
+    Request->OnProcessRequestComplete().BindLambda([WeakThis, RequestId, StartedSeconds](FHttpRequestPtr, FHttpResponsePtr Response, bool bSucceeded)
+    {
+        if (!WeakThis.IsValid()) return;
+        UVirtualSensorTransportComponent* Self = WeakThis.Get();
+        Self->InFlightHttpRequestCount = FMath::Max(0, Self->InFlightHttpRequestCount - 1);
+        FVirtualSensorTransportResult Completed = Self->LastResult;
+        Completed.Protocol = TEXT("HTTP");
+        Completed.RequestId = RequestId;
+        Completed.HttpStatusCode = Response.IsValid() ? Response->GetResponseCode() : 0;
+        Completed.bSubmitted = true;
+        Completed.bAccepted = bSucceeded && Completed.HttpStatusCode >= 200 && Completed.HttpStatusCode < 300;
+        Completed.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
+        Completed.Message = Completed.bAccepted
+            ? FString::Printf(TEXT("HTTP binary 수락: %d"), Completed.HttpStatusCode)
+            : FString::Printf(TEXT("HTTP binary 실패: %d"), Completed.HttpStatusCode);
+        Self->LastResult = Completed;
+        Self->OnDataSent.Broadcast(Completed);
+    });
+    Result.bSubmitted = Request->ProcessRequest();
+    Result.Message = Result.bSubmitted ? TEXT("HTTP binary 전송 제출됨") : TEXT("HTTP binary 전송 제출 실패");
+    if (!Result.bSubmitted) InFlightHttpRequestCount = FMath::Max(0, InFlightHttpRequestCount - 1);
     return Result;
 }
 

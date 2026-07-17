@@ -79,5 +79,7 @@ public:
 	UPROPERTY(SaveGame) FString StompLidarTopic = TEXT("topic.virtual.sensor.lidar.0");
 	UPROPERTY(SaveGame) FString StompExportTopic = TEXT("topic.virtual.sensor.export.0");
 	UPROPERTY(SaveGame) FString StompUserName = TEXT("artemis");
+	UPROPERTY(SaveGame) FString StompAckTopic;
+	UPROPERTY(SaveGame) int32 OutboundMaxMessageBytes = 8388608;
 	UPROPERTY(SaveGame) FString OutboundHttpEndpoint;
 };

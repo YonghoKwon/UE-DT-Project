@@ -195,6 +195,7 @@ protected:
 private:
     FVirtualSensorTransportResult SendHttp(const FString& SensorId, const FString& SensorType, const FString& JsonText);
     bool SubmitHttpAttempt(const FString& SensorId, const FString& SensorType, const FString& JsonText, int32 AttemptIndex, int32 SubmittedDataLength);
+    FVirtualSensorTransportResult SendHttpBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes);
     FVirtualSensorTransportResult SaveJson(const FString& SensorId, const FString& SensorType, const FString& JsonText) const;
     FVirtualSensorTransportResult SaveBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes) const;
     FString BuildSavePath(const FString& SensorId, const FString& SensorType, const FString& Extension) const;

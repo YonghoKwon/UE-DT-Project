@@ -5,6 +5,7 @@
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
@@ -35,6 +36,8 @@ void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoo
 		DraftLidarTopic = Profile.LidarTopic;
 		DraftExportTopic = Profile.ExportTopic;
 		DraftUserName = Profile.UserName;
+		DraftAckTopic = Profile.AckTopic;
+		DraftMaxMessageBytes = Profile.MaxMessageBytes;
 		DraftHttpEndpoint = Profile.HttpEndpoint;
 	}
     RefreshNativeText();
@@ -175,9 +178,11 @@ bool UVirtualSensorCaptureExportPanelWidget::ApplyTransportProfile()
 	Profile.LidarTopic = DraftLidarTopic.TrimStartAndEnd();
 	Profile.ExportTopic = DraftExportTopic.TrimStartAndEnd();
 	Profile.UserName = DraftUserName.TrimStartAndEnd();
+	Profile.AckTopic = DraftAckTopic.TrimStartAndEnd();
+	Profile.MaxMessageBytes = FMath::Max(1024, DraftMaxMessageBytes);
 	Profile.HttpEndpoint = DraftHttpEndpoint.TrimStartAndEnd();
 	Transport->ConfigureTransportProfile(Profile);
-	Transport->SetSessionCredentials(SessionPasscode, FString());
+	Transport->SetSessionCredentials(SessionPasscode, SessionBearerToken);
 	Transport->TransportMode = bUseStompTransport ? EVirtualSensorTransportMode::StompWebSocket : EVirtualSensorTransportMode::HttpPost;
 	if (UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
 	{
@@ -186,6 +191,8 @@ bool UVirtualSensorCaptureExportPanelWidget::ApplyTransportProfile()
 		Preferences->StompLidarTopic = Profile.LidarTopic;
 		Preferences->StompExportTopic = Profile.ExportTopic;
 		Preferences->StompUserName = Profile.UserName;
+		Preferences->StompAckTopic = Profile.AckTopic;
+		Preferences->OutboundMaxMessageBytes = Profile.MaxMessageBytes;
 		Preferences->OutboundHttpEndpoint = Profile.HttpEndpoint;
 		UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
 	}
@@ -229,6 +236,30 @@ bool UVirtualSensorCaptureExportPanelWidget::SendSelectedPayloadToServer()
 		return false;
 	}
 	const FVirtualSensorTransportResult Result = Transport->SendJsonRequest(GetSelectedSensorId(), SensorType, TEXT("manual-payload"), FrameId, Payload, true);
+	LastUiMessage = Result.Message;
+	RefreshNativeText();
+	return Result.bSubmitted;
+}
+
+bool UVirtualSensorCaptureExportPanelWidget::SendLastExportToServer()
+{
+	if (!ApplyTransportProfile()) return false;
+	if (RecentResults.Num() == 0 || RecentResults[0].AbsolutePath.IsEmpty())
+	{
+		LastUiMessage = TEXT("전송할 최근 내보내기 파일이 없습니다.");
+		RefreshNativeText();
+		return false;
+	}
+	TArray<uint8> Bytes;
+	if (!FFileHelper::LoadFileToArray(Bytes, *RecentResults[0].AbsolutePath))
+	{
+		LastUiMessage = TEXT("최근 내보내기 파일을 읽지 못했습니다.");
+		RefreshNativeText();
+		return false;
+	}
+	UVirtualSensorTransportComponent* Transport = SensorManager ? SensorManager->SharedTransportComponent : nullptr;
+	const FString Extension = FPaths::GetExtension(RecentResults[0].AbsolutePath, true);
+	const FVirtualSensorTransportResult Result = Transport->SendBinary(GetSelectedSensorId(), TEXT("lidar"), Extension, Bytes);
 	LastUiMessage = Result.Message;
 	RefreshNativeText();
 	return Result.bSubmitted;
@@ -291,6 +322,8 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		DraftLidarTopic = Preferences->StompLidarTopic;
 		DraftExportTopic = Preferences->StompExportTopic;
 		DraftUserName = Preferences->StompUserName;
+		DraftAckTopic = Preferences->StompAckTopic;
+		DraftMaxMessageBytes = FMath::Max(1024, Preferences->OutboundMaxMessageBytes);
 		DraftHttpEndpoint = Preferences->OutboundHttpEndpoint;
 	}
 	TSharedPtr<EVirtualSensorExportKind> InitiallySelected = NativeExportKindOptions[0];
@@ -354,6 +387,10 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 					+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Visible : EVisibility::Collapsed; }).HintText(LOCTEXT("CameraTopic", "Camera Topic")).Text_Lambda([this]() { return FText::FromString(DraftCameraTopic); }).OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { DraftCameraTopic = T.ToString(); }) ]
 					+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Visible : EVisibility::Collapsed; }).HintText(LOCTEXT("StompUser", "사용자명")).Text_Lambda([this]() { return FText::FromString(DraftUserName); }).OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { DraftUserName = T.ToString(); }) ]
 					+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Visible : EVisibility::Collapsed; }).IsPassword(true).HintText(LOCTEXT("StompPassword", "비밀번호 (세션에만 유지)")).Text_Lambda([this]() { return FText::FromString(SessionPasscode); }).OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { SessionPasscode = T.ToString(); }) ]
+					+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Visible : EVisibility::Collapsed; }).HintText(LOCTEXT("AckTopic", "소비자 ACK Topic (선택)")).Text_Lambda([this]() { return FText::FromString(DraftAckTopic); }).OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { DraftAckTopic = T.ToString(); }) ]
+					+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Collapsed : EVisibility::Visible; }).IsPassword(true).HintText(LOCTEXT("BearerToken", "Bearer token (세션에만 유지)")).Text_Lambda([this]() { return FText::FromString(SessionBearerToken); }).OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { SessionBearerToken = T.ToString(); }) ]
+					+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).HintText(LOCTEXT("MaxMessageBytes", "최대 메시지 bytes")).Text_Lambda([this]() { return FText::AsNumber(DraftMaxMessageBytes); }).OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { DraftMaxMessageBytes = FMath::Max(1024, FCString::Atoi(*T.ToString())); }) ]
+					+ SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SendLastExport", "최근 내보내기 파일 전송")).OnClicked_Lambda([this]() { SendLastExportToServer(); return FReply::Handled(); }) ]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetTransportSummaryText()); }) ]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)[ SAssignNew(NativeStorageText, STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(FText::FromString(GetStorageSummaryText())) ]
 				]

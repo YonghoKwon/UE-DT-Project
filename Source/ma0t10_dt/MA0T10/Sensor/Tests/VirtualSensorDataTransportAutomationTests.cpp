@@ -35,6 +35,11 @@ bool FVirtualSensorTransportProfileTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("oversized STOMP message is not submitted"), Result.bSubmitted);
 	TestTrue(TEXT("oversized STOMP message reports limit"), Result.Message.Contains(TEXT("제한")));
 	TestEqual(TEXT("LiDAR topic is selected"), Result.Destination, Profile.LidarTopic);
+	TArray<uint8> OversizedBinary;
+	OversizedBinary.Init(0x7f, 2048);
+	const FVirtualSensorTransportResult BinaryResult = Transport->SendBinary(TEXT("LIDAR-TEST"), TEXT("lidar"), TEXT(".pcd"), OversizedBinary);
+	TestFalse(TEXT("oversized binary STOMP envelope is not submitted"), BinaryResult.bSubmitted);
+	TestTrue(TEXT("oversized binary STOMP envelope reports limit"), BinaryResult.Message.Contains(TEXT("제한")));
 	return true;
 }
 

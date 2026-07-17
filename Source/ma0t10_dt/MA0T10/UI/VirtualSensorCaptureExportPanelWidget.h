@@ -57,6 +57,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendSelectedPayloadToServer();
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
+	bool SendLastExportToServer();
+
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Transport")
 	FString GetTransportSummaryText() const;
 
@@ -97,7 +100,10 @@ private:
 	FString DraftLidarTopic = TEXT("topic.virtual.sensor.lidar.0");
 	FString DraftExportTopic = TEXT("topic.virtual.sensor.export.0");
 	FString DraftUserName = TEXT("artemis");
+	FString DraftAckTopic;
+	int32 DraftMaxMessageBytes = 8388608;
 	FString SessionPasscode;
+	FString SessionBearerToken;
 	FString DraftHttpEndpoint;
 	bool bUseStompTransport = true;
 };
