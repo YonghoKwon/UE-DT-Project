@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -23,6 +25,8 @@ struct FLidarPointCloudOnlyState
     int32 MaxPointCloudPreviewInstances = 0;
     int32 PreviewPointStride = 1;
     int32 MaxPreviewPoints = 0;
+    bool bHadVisualizationComponent = false;
+    bool bShowWorldPointCloud = false;
 };
 
 TMap<TWeakObjectPtr<UVirtualLidarScanComponent>, FLidarPointCloudOnlyState> GLidarPointCloudOnlyStates;
@@ -43,6 +47,14 @@ void SaveLidarViewState(UVirtualLidarScanComponent* LidarComp)
     State.MaxPointCloudPreviewInstances = LidarComp->MaxPointCloudPreviewInstances;
     State.PreviewPointStride = LidarComp->PreviewPointStride;
     State.MaxPreviewPoints = LidarComp->MaxPreviewPoints;
+    if (const AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()))
+    {
+        if (const UVirtualLidarVisualizationComponent* Visualization = LidarActor->VisualizationComponent)
+        {
+            State.bHadVisualizationComponent = true;
+            State.bShowWorldPointCloud = Visualization->GetVisualizationSettings().bShowWorldPointCloud;
+        }
+    }
     GLidarPointCloudOnlyStates.Add(LidarComp, State);
 }
 
@@ -62,6 +74,16 @@ void ApplyPointCloudOnlyToLidar(UVirtualLidarScanComponent* LidarComp, bool bSel
         : 3000;
     LidarComp->SetPreviewPolicy(PreviewStride, PreviewMaxPoints, true);
     LidarComp->SetPointCloudPreviewEnabled(bSelected);
+    if (AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()))
+    {
+        if (UVirtualLidarVisualizationComponent* Visualization = LidarActor->VisualizationComponent)
+        {
+            // The V2 visualization owns the final renderer choice. Keeping its
+            // setting in sync prevents the next completed scan from disabling
+            // the point-cloud-only preview again.
+            Visualization->SetWorldPointCloudEnabled(bSelected);
+        }
+    }
 }
 
 void RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp)
@@ -78,6 +100,16 @@ void RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp)
         LidarComp->PointCloudPreviewStride = State->PointCloudPreviewStride;
         LidarComp->MaxPointCloudPreviewInstances = State->MaxPointCloudPreviewInstances;
         LidarComp->SetPreviewPolicy(State->PreviewPointStride, State->MaxPreviewPoints, State->bPointCloudPreviewHitOnly);
+        if (State->bHadVisualizationComponent)
+        {
+            if (AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()))
+            {
+                if (UVirtualLidarVisualizationComponent* Visualization = LidarActor->VisualizationComponent)
+                {
+                    Visualization->SetWorldPointCloudEnabled(State->bShowWorldPointCloud);
+                }
+            }
+        }
         LidarComp->SetPointCloudPreviewEnabled(State->bPointCloudPreviewEnabled);
         GLidarPointCloudOnlyStates.Remove(LidarComp);
     }

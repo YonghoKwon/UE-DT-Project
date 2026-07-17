@@ -9,12 +9,15 @@
 #include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyPolicyTest, "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyV2VisualizationTest, "MA0T10.SensorManager.PointCloudOnlyKeepsV2VisualizationEnabled", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerSharedServicesTest, "MA0T10.SensorManager.SharedServicesAssigned", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
@@ -131,6 +134,48 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
 
     LidarOwnerA->Destroy();
     LidarOwnerB->Destroy();
+    Manager->Destroy();
+    return true;
+}
+
+bool FSensorManagerPointCloudOnlyV2VisualizationTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World) return false;
+
+    AVirtualSensorCoordinator* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
+    AVirtualLidarSensorActor* LidarActor = World->SpawnActor<AVirtualLidarSensorActor>();
+    TestNotNull(TEXT("sensor manager"), Manager);
+    TestNotNull(TEXT("V2 lidar actor"), LidarActor);
+    if (!Manager || !LidarActor || !LidarActor->ScanComponent || !LidarActor->VisualizationComponent)
+    {
+        if (LidarActor) LidarActor->Destroy();
+        if (Manager) Manager->Destroy();
+        return false;
+    }
+
+    Manager->bPointCloudOnlyHideWorld = false;
+    Manager->bPointCloudOnlyAutoSelectLidarView = false;
+    LidarActor->VisualizationComponent->SetWorldPointCloudEnabled(false);
+    Manager->RegisterLidar(LidarActor->ScanComponent);
+    Manager->SelectLidarByIndex(0);
+
+    Manager->SetPointCloudOnlyMode(true);
+    TestTrue(TEXT("point-cloud-only keeps the selected V2 renderer enabled"),
+        LidarActor->VisualizationComponent->GetVisualizationSettings().bShowWorldPointCloud);
+
+    // Re-applying the mode models later frame/binding refreshes and must not
+    // accidentally toggle the state back off.
+    Manager->SetPointCloudOnlyMode(true);
+    TestTrue(TEXT("point-cloud-only remains enabled across refreshes"),
+        LidarActor->VisualizationComponent->GetVisualizationSettings().bShowWorldPointCloud);
+
+    Manager->SetPointCloudOnlyMode(false);
+    TestFalse(TEXT("original V2 renderer visibility is restored"),
+        LidarActor->VisualizationComponent->GetVisualizationSettings().bShowWorldPointCloud);
+
+    LidarActor->Destroy();
     Manager->Destroy();
     return true;
 }
