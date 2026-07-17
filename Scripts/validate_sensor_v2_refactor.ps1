@@ -13,7 +13,7 @@ $requiredSource = @(
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h",
-    "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorSchedulerSubsystem.h",
+    "Source/ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h",
     "Source/ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h",
     "Source/ma0t10_dt/MA0T10/Camera/VirtualCameraPayloadCodec.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h",

@@ -20,7 +20,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"

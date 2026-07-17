@@ -3,7 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceTierTest, "MA0T10.SensorPerformance.AutomaticTier", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

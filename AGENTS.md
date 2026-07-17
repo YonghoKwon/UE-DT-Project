@@ -26,7 +26,7 @@
 - 설정은 Actor의 `ReadEditableState`, `ValidateEditableState`, `ApplyEditableState` 경로를 사용합니다.
 - 외부 프레임은 Actor의 `SubmitExternalFrame`을 우선 사용합니다. component 직접 주입은 호환성 테스트 fallback에만 둡니다.
 - 출력은 `UVirtualSensorOutputComponent`에서 Transport·Recorder로 라우팅하며 같은 SensorId/frame ID를 중복 출력하지 않습니다.
-- 자동 측정은 `UVirtualSensorSchedulerSubsystem`을 사용합니다. 수동 1회 측정 API의 동기 호환성은 유지합니다.
+- Camera와 LiDAR가 함께 사용하는 Subsystem은 `MA0T10/Core`에 둡니다. 자동 측정은 `UVirtualSensorSchedulerSubsystem`을 사용하며 수동 1회 측정 API의 동기 호환성은 유지합니다.
 - `virtual-camera.v1`, `virtual-lidar.v1`, FullSpec 규격, 저장 경로와 export 포맷을 변경할 때는 계약 테스트와 문서를 함께 갱신합니다.
 
 ## UI 기준
