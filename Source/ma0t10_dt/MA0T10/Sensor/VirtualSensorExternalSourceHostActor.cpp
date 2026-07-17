@@ -31,6 +31,7 @@ AVirtualSensorExternalSourceHostActor::AVirtualSensorExternalSourceHostActor()
 	LidarCsvReplay->SourceId = TEXT("Demo-LiDAR-CSV");
 	LidarCsvReplay->CsvFilePath = TEXT("Samples/slab_replay_sample.csv");
 	LidarJsonLinesReplay->SourceId = TEXT("Demo-LiDAR-JSONL");
+	LidarBufferedJson->SourceId = TEXT("Live-LiDAR-Buffered");
 	LidarJsonLinesReplay->JsonLinesFilePath = TEXT("Samples/slab_replay_sample.jsonl");
 	LidarHttpJson->SourceId = TEXT("Live-LiDAR-HTTP");
 	LidarHttpJson->ListenPort = 8082;

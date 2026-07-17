@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Engine/World.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "GameFramework/Actor.h"
 #include "HttpManager.h"
 #include "HttpModule.h"
@@ -1382,9 +1383,30 @@ bool FRealSensorSourceJsonLiveTransactionDataTableRegistrationTest::RunTest(cons
     const FString Payload = TEXT("{\"MESSAGE_ID\":\"LIDAR_JSON_LIVE_FRAME\",\"DATA_MAP\":{\"SOURCE_ID\":\"JsonLiveLidarBridge\",\"SEND_TRANSPORT\":false,\"PUSH_FRAME\":true,\"POINTS\":[{\"row\":0,\"col\":0,\"returnIndex\":0,\"x\":900,\"y\":-260,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"},{\"row\":0,\"col\":1,\"returnIndex\":0,\"x\":940,\"y\":-120,\"z\":0,\"hit\":true,\"semanticLabel\":\"Slab\"}]}}");
     const TSharedPtr<FTransactionCodeDataBase> ParsedData = Handler->ParseToStruct(Payload);
     TestTrue(TEXT("registered handler parses sample payload through base class"), ParsedData.IsValid());
+    ULidarJsonLiveFrameTC* ConcreteHandler = Cast<ULidarJsonLiveFrameTC>(Handler);
+    TestNotNull(TEXT("registered handler keeps concrete transaction type"), ConcreteHandler);
+    TestEqual(TEXT("registered handler world matches source world"), Handler->GetWorld(), World);
+    TestEqual(TEXT("registered source world matches handler world"), JsonLiveSource->GetWorld(), World);
+    const TSharedPtr<FLidarJsonLiveFrameTCData> ParsedLiveData = StaticCastSharedPtr<FLidarJsonLiveFrameTCData>(ParsedData);
+    TestEqual(TEXT("registered handler preserves source id"), ParsedLiveData->SourceId, FString(TEXT("JsonLiveLidarBridge")));
+    TestTrue(TEXT("registered handler preserves push-frame request"), ParsedLiveData->bPushFrame);
+    TestFalse(TEXT("registered handler preserves transport opt-out"), ParsedLiveData->bSendTransport);
+    TestFalse(TEXT("registered handler produces JSON lines"), ParsedLiveData->JsonLines.IsEmpty());
     if (ParsedData.IsValid())
     {
-        Handler->ProcessStructData(ParsedData);
+        if (IsInGameThread())
+        {
+            ConcreteHandler->ProcessStructData(ParsedData);
+        }
+        else
+        {
+            const FGraphEventRef ProcessEvent = FFunctionGraphTask::CreateAndDispatchWhenReady(
+                [ConcreteHandler, ParsedData]() { ConcreteHandler->ProcessStructData(ParsedData); },
+                TStatId(),
+                nullptr,
+                ENamedThreads::GameThread);
+            FTaskGraphInterface::Get().WaitUntilTaskCompletes(ProcessEvent);
+        }
     }
 
     TestEqual(TEXT("registered data-table handler pushes target LiDAR points"), TargetLidar->GetLastPoints().Num(), 2);
