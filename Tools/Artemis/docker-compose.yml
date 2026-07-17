@@ -1,0 +1,18 @@
+services:
+  artemis:
+    image: apache/artemis:2.55.0-alpine
+    container_name: ma0t10-artemis
+    restart: unless-stopped
+    environment:
+      ARTEMIS_USER: artemis
+      ARTEMIS_PASSWORD: artemis
+      ANONYMOUS_LOGIN: "false"
+    ports:
+      - "61616:61616"
+      - "8161:8161"
+    volumes:
+      - ./etc-override:/var/lib/artemis-instance/etc-override:ro
+      - artemis-data:/var/lib/artemis-instance/data
+
+volumes:
+  artemis-data:
