@@ -9,6 +9,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionMathTest, "MA0T10.Sensor
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarLegacyViewMappingTest, "MA0T10.SensorV2.LidarVisualization.LegacyMapping", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionNavigationTest, "MA0T10.SensorV2.LidarVisualization.ProjectionNavigation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarFramePoseCoherenceTest, "MA0T10.SensorV2.LidarVisualization.FramePoseCoherence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarPreviewPolicyReversibleTest, "MA0T10.SensorV2.LidarVisualization.PreviewPolicyReversible", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualLidarColorModeTest::RunTest(const FString& Parameters)
 {
@@ -88,6 +89,22 @@ bool FVirtualLidarFramePoseCoherenceTest::RunTest(const FString& Parameters)
 	const FTransform SensorAfterMove(FRotator::ZeroRotator, FVector(350.0, 20.0, 30.0));
 	TestEqual(TEXT("snapshot keeps the original local X"), AcquiredLocalPoint.X, 500.0);
 	TestNotEqual(TEXT("moving actor would reinterpret an old point"), SensorAfterMove.InverseTransformPosition(AcquiredWorldPoint).X, AcquiredLocalPoint.X);
+	return true;
+}
+
+bool FVirtualLidarPreviewPolicyReversibleTest::RunTest(const FString& Parameters)
+{
+	UVirtualLidarScanComponent* Scan = NewObject<UVirtualLidarScanComponent>();
+	FVirtualLidarPreviewPolicy Policy = Scan->GetPreviewPolicyState();
+	Policy.bHitOnly = true;
+	Scan->SetPreviewPolicyState(Policy);
+	TestTrue(TEXT("hit-only starts enabled"), Scan->GetPreviewPolicyState().bHitOnly);
+	Policy.bHitOnly = false;
+	Scan->SetPreviewPolicyState(Policy);
+	TestFalse(TEXT("hit-only can be disabled"), Scan->GetPreviewPolicyState().bHitOnly);
+	Policy.bHitOnly = true;
+	Scan->SetPreviewPolicyState(Policy);
+	TestTrue(TEXT("hit-only can be enabled again without a new scan"), Scan->GetPreviewPolicyState().bHitOnly);
 	return true;
 }
 

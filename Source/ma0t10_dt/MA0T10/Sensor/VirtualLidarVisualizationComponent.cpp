@@ -76,6 +76,7 @@ struct FLidarProjectionBuildInput
     int32 VerticalChannels = 1;
     bool bFlipHorizontal = false;
     bool bFlipVertical = false;
+	bool bHitOnly = true;
     uint64 Generation = 0;
 };
 
@@ -103,7 +104,7 @@ FColor ResolveProjectionColor(
     float NormalizedDistance,
     float NormalizedHeight)
 {
-    if (!Point.bHit) return Input.Settings.ColorMode == ELidarColorMode::HitMask ? FColor::Black : FColor(4, 8, 16, 255);
+	if (!Point.bHit) return Input.Settings.ColorMode == ELidarColorMode::HitMask ? FColor::Black : FColor(45, 60, 78, 72);
     switch (Input.Settings.ColorMode)
     {
     case ELidarColorMode::DistanceViridis: return Viridis(NormalizedDistance);
@@ -180,6 +181,7 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
     Depths.Init(TNumericLimits<float>::Max(), Result->RangePixels.Num());
     for (const FVirtualLidarPoint& Point : Points)
     {
+		if (Input.bHitOnly && !Point.bHit) continue;
         const int32 Row = Point.bHasGridCoord ? Point.Row : 0;
         const int32 Col = Point.bHasGridCoord ? Point.Col : 0;
         if (Row < 0 || Row >= Result->RangeHeight || Col < 0 || Col >= Result->RangeWidth) continue;
@@ -247,7 +249,7 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         }
         for (const FVirtualLidarPoint& Point : Points)
         {
-            if (!Point.bHit) continue;
+			if (Input.bHitOnly && !Point.bHit) continue;
             const FVector Local = Input.SensorTransform.InverseTransformPosition(Point.WorldLocation);
             const float Zoom = FMath::Clamp(Input.Settings.TopDownZoom, 0.1f, 20.0f);
             const FVector2D Center(Input.Settings.TopDownPanCm.Y, Input.MaxDistanceCm * 0.5f + Input.Settings.TopDownPanCm.X);
@@ -273,7 +275,7 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         const float DrawMaxHeight = MaxHeight + Padding;
         for (const FVirtualLidarPoint& Point : Points)
         {
-            if (!Point.bHit) continue;
+			if (Input.bHitOnly && !Point.bHit) continue;
             const FVector Local = Input.SensorTransform.InverseTransformPosition(Point.WorldLocation);
             const float Zoom = FMath::Clamp(Input.Settings.ElevationZoom, 0.1f, 20.0f);
             const float ForwardDistance = FVector2D(Local.X, Local.Y).Length();
@@ -552,6 +554,7 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
 	Input.VerticalChannels = Frame->VerticalChannels;
     Input.bFlipHorizontal = ScanComponent->bFlipLidarViewHorizontal;
     Input.bFlipVertical = ScanComponent->bFlipLidarViewVertical;
+	Input.bHitOnly = ScanComponent->GetPreviewPolicyState().bHitOnly;
     Input.DefaultSemanticColor = ScanComponent->DefaultSemanticColor.ToFColor(true);
     for (const FVirtualLidarSemanticClassRule& Rule : ScanComponent->SemanticClassRules)
     {
@@ -776,7 +779,8 @@ void UVirtualLidarVisualizationComponent::RefreshWorldPointCloud()
         UpdateRendererTelemetry(ELidarPointCloudRendererState::Disabled, 0, 0, TEXT("꺼짐"), TEXT("월드 3D 포인트 표시가 꺼져 있습니다."));
         return;
     }
-    if (ScanComponent->GetLastHitPointCount() <= 0)
+	const FVirtualLidarPreviewPolicy PreviewPolicy = ScanComponent->GetPreviewPolicyState();
+	if ((PreviewPolicy.bHitOnly && ScanComponent->GetLastHitPointCount() <= 0) || ScanComponent->GetLastPoints().Num() <= 0)
     {
         UpdateRendererTelemetry(
             ELidarPointCloudRendererState::Starting,
@@ -856,21 +860,24 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
     NiagaraPositions.Reserve(FMath::Min(MaxNiagaraPreviewPoints, Points.Num()));
     NiagaraColors.Reserve(NiagaraPositions.Max());
 	const FTransform SensorTransform = Frame->AcquisitionTransform;
-    const int32 HitCount = ScanComponent->GetLastHitPointCount();
-    const int32 Stride = FMath::Max(1, FMath::DivideAndRoundUp(HitCount, FMath::Max(1, MaxNiagaraPreviewPoints)));
-    int32 HitIndex = 0;
+	const FVirtualLidarPreviewPolicy PreviewPolicy = ScanComponent->GetPreviewPolicyState();
+	const int32 EligibleCount = PreviewPolicy.bHitOnly ? ScanComponent->GetLastHitPointCount() : Points.Num();
+	const int32 Stride = FMath::Max(1, FMath::DivideAndRoundUp(EligibleCount, FMath::Max(1, MaxNiagaraPreviewPoints)));
+	int32 EligibleIndex = 0;
     FBox WorldBounds(ForceInit);
     for (const FVirtualLidarPoint& Point : Points)
     {
-        if (!Point.bHit) continue;
-        if ((HitIndex++ % Stride) != 0) continue;
+		if (PreviewPolicy.bHitOnly && !Point.bHit) continue;
+		if ((EligibleIndex++ % Stride) != 0) continue;
         if (NiagaraPositions.Num() >= MaxNiagaraPreviewPoints) break;
         const FVector Local = SensorTransform.InverseTransformPosition(Point.WorldLocation);
         NiagaraPositions.Add(Point.WorldLocation);
         WorldBounds += Point.WorldLocation;
-        NiagaraColors.Add(FLinearColor(ResolveDisplayColor(ScanComponent, Settings.ColorMode, Point,
+		FLinearColor DisplayColor(ResolveDisplayColor(ScanComponent, Settings.ColorMode, Point,
             NormalizeValue(Point.Distance, Settings.bUseAdaptiveDistance ? LastMinDistanceCm : 0.0f, Settings.bUseAdaptiveDistance ? LastMaxDistanceCm : ScanComponent->MaxDistance),
-            NormalizeValue(Local.Z, LastMinHeightCm, LastMaxHeightCm))));
+			NormalizeValue(Local.Z, LastMinHeightCm, LastMaxHeightCm)));
+		if (!Point.bHit) DisplayColor.A = 0.25f;
+		NiagaraColors.Add(DisplayColor);
     }
     UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayPosition(NiagaraPointCloudComponent, TEXT("User.PointPositions"), NiagaraPositions);
     UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayColor(NiagaraPointCloudComponent, TEXT("User.PointColors"), NiagaraColors);

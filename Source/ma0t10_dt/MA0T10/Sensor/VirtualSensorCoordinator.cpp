@@ -18,7 +18,6 @@ namespace
 struct FLidarPointCloudOnlyState
 {
     bool bPointCloudPreviewEnabled = false;
-    bool bPointCloudPreviewHitOnly = true;
     bool bDrawDebugRays = false;
     bool bDrawPointCloudPreviewDebugPoints = false;
     int32 PointCloudPreviewStride = 1;
@@ -40,7 +39,6 @@ void SaveLidarViewState(UVirtualLidarScanComponent* LidarComp)
 
     FLidarPointCloudOnlyState State;
     State.bPointCloudPreviewEnabled = LidarComp->IsPointCloudPreviewEnabled();
-    State.bPointCloudPreviewHitOnly = LidarComp->bPointCloudPreviewHitOnly;
     State.bDrawDebugRays = LidarComp->bDrawDebugRays;
     State.bDrawPointCloudPreviewDebugPoints = LidarComp->bDrawPointCloudPreviewDebugPoints;
     State.PointCloudPreviewStride = LidarComp->PointCloudPreviewStride;
@@ -72,7 +70,9 @@ void ApplyPointCloudOnlyToLidar(UVirtualLidarScanComponent* LidarComp, bool bSel
     const int32 PreviewMaxPoints = LidarComp->MaxPreviewPoints > 0
         ? FMath::Min(LidarComp->MaxPreviewPoints, 3000)
         : 3000;
-    LidarComp->SetPreviewPolicy(PreviewStride, PreviewMaxPoints, true);
+	// Point-cloud-only changes visibility and sampling budget only. The user's
+	// hit/miss filter remains authoritative and can be toggled while this mode is active.
+    LidarComp->SetPreviewPolicy(PreviewStride, PreviewMaxPoints, LidarComp->bPointCloudPreviewHitOnly);
     LidarComp->SetPointCloudPreviewEnabled(bSelected);
     if (AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()))
     {
@@ -99,7 +99,7 @@ void RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp)
         LidarComp->bDrawPointCloudPreviewDebugPoints = State->bDrawPointCloudPreviewDebugPoints;
         LidarComp->PointCloudPreviewStride = State->PointCloudPreviewStride;
         LidarComp->MaxPointCloudPreviewInstances = State->MaxPointCloudPreviewInstances;
-        LidarComp->SetPreviewPolicy(State->PreviewPointStride, State->MaxPreviewPoints, State->bPointCloudPreviewHitOnly);
+		LidarComp->SetPreviewPolicy(State->PreviewPointStride, State->MaxPreviewPoints, LidarComp->bPointCloudPreviewHitOnly);
         if (State->bHadVisualizationComponent)
         {
             if (AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()))

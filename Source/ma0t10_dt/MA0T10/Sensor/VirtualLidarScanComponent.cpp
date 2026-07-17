@@ -21,6 +21,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include <atomic>
 
 namespace
@@ -580,6 +582,24 @@ void UVirtualLidarScanComponent::SetPreviewPolicy(int32 InStride, int32 InMaxPoi
     PointCloudPreviewStride = PreviewPointStride;
     MaxPointCloudPreviewInstances = MaxPreviewPoints;
     RefreshPointCloudPreview();
+	if (AVirtualLidarSensorActor* SensorActor = Cast<AVirtualLidarSensorActor>(GetOwner()))
+	{
+		if (SensorActor->VisualizationComponent) SensorActor->VisualizationComponent->RefreshLatestFrame();
+	}
+}
+
+void UVirtualLidarScanComponent::SetPreviewPolicyState(const FVirtualLidarPreviewPolicy& InPolicy)
+{
+	SetPreviewPolicy(InPolicy.PointStride, InPolicy.MaxPoints, InPolicy.bHitOnly);
+}
+
+FVirtualLidarPreviewPolicy UVirtualLidarScanComponent::GetPreviewPolicyState() const
+{
+	FVirtualLidarPreviewPolicy Policy;
+	Policy.PointStride = PreviewPointStride;
+	Policy.MaxPoints = MaxPreviewPoints;
+	Policy.bHitOnly = bPointCloudPreviewHitOnly;
+	return Policy;
 }
 
 void UVirtualLidarScanComponent::SetPreviewBackend(ELidarPointCloudPreviewBackend InBackend, bool bAllowExperimentalGpuBackend)

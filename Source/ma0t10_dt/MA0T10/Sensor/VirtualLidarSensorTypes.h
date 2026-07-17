@@ -65,6 +65,22 @@ enum class ELidarPointCloudRendererState : uint8
     Error UMETA(DisplayName = "오류")
 };
 
+/** One canonical policy shared by 2D projection, Niagara and CPU fallback previews. */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarPreviewPolicy
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Preview", meta = (ClampMin = "1", ClampMax = "100"))
+	int32 PointStride = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Preview", meta = (ClampMin = "0", ClampMax = "1000000"))
+	int32 MaxPoints = 5000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Preview")
+	bool bHitOnly = true;
+};
+
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualLidarRendererTelemetry
 {

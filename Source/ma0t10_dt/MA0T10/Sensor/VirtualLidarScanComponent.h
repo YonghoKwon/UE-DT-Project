@@ -105,6 +105,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     void SetPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly);
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+	void SetPreviewPolicyState(const FVirtualLidarPreviewPolicy& InPolicy);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
+	FVirtualLidarPreviewPolicy GetPreviewPolicyState() const;
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     void SetPreviewBackend(ELidarPointCloudPreviewBackend InBackend, bool bAllowExperimentalGpuBackend = false);
 

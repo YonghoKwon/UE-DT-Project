@@ -88,14 +88,14 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("selected lidar preview enabled"), LidarA->IsPointCloudPreviewEnabled());
     TestEqual(TEXT("selected lidar preview stride clamped for point cloud only"), LidarA->PreviewPointStride, 2);
     TestEqual(TEXT("selected lidar preview max clamped for point cloud only"), LidarA->MaxPreviewPoints, 3000);
-    TestTrue(TEXT("selected lidar preview hit only"), LidarA->bPointCloudPreviewHitOnly);
+	TestFalse(TEXT("selected lidar keeps user hit filter"), LidarA->bPointCloudPreviewHitOnly);
     TestFalse(TEXT("selected lidar debug rays disabled"), LidarA->bDrawDebugRays);
     TestFalse(TEXT("selected lidar debug point preview disabled"), LidarA->bDrawPointCloudPreviewDebugPoints);
 
     TestFalse(TEXT("unselected lidar preview disabled"), LidarB->IsPointCloudPreviewEnabled());
     TestEqual(TEXT("unselected lidar preview stride preserved when already >= 2"), LidarB->PreviewPointStride, 3);
     TestEqual(TEXT("unselected lidar preview max clamped for point cloud only"), LidarB->MaxPreviewPoints, 3000);
-    TestTrue(TEXT("unselected lidar preview hit only"), LidarB->bPointCloudPreviewHitOnly);
+	TestFalse(TEXT("unselected lidar keeps user hit filter"), LidarB->bPointCloudPreviewHitOnly);
 
     Manager->SelectNextLidar();
     TestFalse(TEXT("previous selected preview disabled after lidar selection changes"), LidarA->IsPointCloudPreviewEnabled());
