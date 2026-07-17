@@ -2,6 +2,7 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
@@ -20,6 +21,8 @@ AVirtualSensorUiHostActor::AVirtualSensorUiHostActor()
 void AVirtualSensorUiHostActor::BeginPlay()
 {
     Super::BeginPlay();
+    bScreenDebugLogVisible = GEngine ? GEngine->bEnableOnScreenDebugMessages : true;
+    if (bHideScreenDebugLogOnBeginPlay) SetScreenDebugLogVisible(false);
     if (PanelHostComponent)
     {
         PanelHostComponent->bAllowViewportFallback = bAllowViewportFallback;
@@ -37,7 +40,25 @@ void AVirtualSensorUiHostActor::BeginPlay()
 void AVirtualSensorUiHostActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     DestroyMonitorWidget();
+    if (bHasScreenDebugLogOverride && GEngine)
+    {
+        GEngine->bEnableOnScreenDebugMessages = bSavedScreenDebugLogState;
+        bScreenDebugLogVisible = bSavedScreenDebugLogState;
+        bHasScreenDebugLogOverride = false;
+    }
     Super::EndPlay(EndPlayReason);
+}
+
+void AVirtualSensorUiHostActor::SetScreenDebugLogVisible(bool bVisible)
+{
+    if (!GEngine) return;
+    if (!bHasScreenDebugLogOverride)
+    {
+        bSavedScreenDebugLogState = GEngine->bEnableOnScreenDebugMessages;
+        bHasScreenDebugLogOverride = true;
+    }
+    GEngine->bEnableOnScreenDebugMessages = bVisible;
+    bScreenDebugLogVisible = bVisible;
 }
 
 UVirtualSensorMonitorPanelWidget* AVirtualSensorUiHostActor::CreateAndBindMonitorWidget()

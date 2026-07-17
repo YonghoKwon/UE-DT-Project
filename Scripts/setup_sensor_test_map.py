@@ -266,6 +266,7 @@ def _build_sensor_rig(widget_classes):
     _set_property(host, "CaptureExportViewportZOrder", 30)
     _set_property(host, "bConfigurePlayerInputOnCreate", True)
     _set_property(host, "bShowMouseCursorOnCreate", True)
+    _set_property(host, "bHideScreenDebugLogOnBeginPlay", "/Tests/" in MAP_PATH)
 
     if "/Tests/" in MAP_PATH:
         _spawn(

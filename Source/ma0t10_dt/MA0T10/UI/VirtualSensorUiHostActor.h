@@ -39,6 +39,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void ResetAllPanelUiPreferences();
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Debug")
+    void SetScreenDebugLogVisible(bool bVisible);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Debug")
+    bool IsScreenDebugLogVisible() const { return bScreenDebugLogVisible; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
     UVirtualSensorMonitorPanelWidget* GetMonitorWidget() const { return MonitorWidget; }
 
@@ -106,6 +112,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor|Input", meta = (EditCondition = "bConfigurePlayerInputOnCreate"))
     bool bShowMouseCursorOnCreate = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor|Debug")
+    bool bHideScreenDebugLogOnBeginPlay = false;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Status")
     FString LastStatusMessage;
 
@@ -128,4 +137,8 @@ private:
 
     UPROPERTY(Transient)
     FVirtualSensorMapApplySnapshot PendingMapApplySnapshot;
+
+    bool bScreenDebugLogVisible = true;
+    bool bSavedScreenDebugLogState = false;
+    bool bHasScreenDebugLogOverride = false;
 };
