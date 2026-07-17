@@ -29,7 +29,9 @@ int32 UVirtualSensorSchedulerSubsystem::ResolveTargetFps(int32 CameraCount, int3
 
 float UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(int32 TargetFps)
 {
-    return TargetFps >= 60 ? 3.0f : 5.0f;
+    // Both supported tiers start with the same trace budget. The old 3 ms
+    // 60-FPS ceiling made a 2+2 setup complete fewer LiDAR scans than 4+4.
+    return 5.0f;
 }
 
 bool UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(int32 CameraCount, int32 LidarCount)
@@ -167,9 +169,9 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     // memory bandwidth. Keep the camera-only floor responsive, but allow the
     // mixed Camera+LiDAR tier to shed more stale camera frames before it
     // sacrifices the game-frame target.
-    const float CameraAdmissionFloorHz = Lidars.Num() > 0
-        ? (TargetFps >= 60 ? 4.0f : 2.0f)
-        : (TargetFps >= 60 ? 8.0f : 4.0f);
+    const float CameraAdmissionFloorHz = Cameras.Num() > 0
+        ? FMath::Min(12.0f, Cameras.Num() <= 2 ? 10.0f : 2.5f * static_cast<float>(FMath::Min(4, Cameras.Num())))
+        : 0.0f;
     EffectiveAggregateCameraCaptureHz = ResolveAdaptiveCameraAdmissionHz(
         EffectiveAggregateCameraCaptureHz,
         ObservedFrameMs,
@@ -207,7 +209,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     const float BudgetCeilingMs = ResolveLidarBudgetMs(TargetFps);
     if (ObservedFrameMs > TargetFrameMs * 1.05f)
     {
-        EffectiveLidarBudgetMs = FMath::Max(0.5f, EffectiveLidarBudgetMs - 0.25f);
+        EffectiveLidarBudgetMs = FMath::Max(2.5f, EffectiveLidarBudgetMs - 0.25f);
     }
     else if (ObservedFrameMs < TargetFrameMs * 0.98f)
     {
@@ -244,7 +246,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         TelemetryLogAccumulator = FMath::Fmod(TelemetryLogAccumulator, 1.0f);
         RefreshFrameStatistics();
         UE_LOG(LogTemp, Display,
-            TEXT("[VirtualSensorPerf] targetFps=%d camera=%d lidar=%d averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f schedulerMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d bestEffort=%d"),
+            TEXT("[VirtualSensorPerf] targetFps=%d camera=%d lidar=%d averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f schedulerMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d bestEffort=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d minCameraHz=%.2f minLidarHz=%.2f"),
             Telemetry.TargetFps,
             Telemetry.ActiveCameraCount,
             Telemetry.ActiveLidarCount,
@@ -256,14 +258,19 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
             Telemetry.PendingDerivedWorkCount,
             Telemetry.DroppedAcquisitionFrameCount,
             Telemetry.DroppedDerivedFrameCount,
-            Telemetry.bBestEffort ? 1 : 0);
+            Telemetry.bBestEffort ? 1 : 0,
+            Telemetry.BudgetSkippedAcquisitionFrameCount,
+            Telemetry.FailedAcquisitionFrameCount,
+            Telemetry.QueueOverflowCount,
+            Telemetry.MinimumCameraCompletionHz,
+            Telemetry.MinimumLidarCompletionHz);
 
         for (const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Camera : Cameras)
         {
             if (!Camera.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Camera->GetRuntimeStatus();
             UE_LOG(LogTemp, Display,
-                TEXT("[VirtualSensorPerfSensor] kind=Camera sensorId=%s width=%d height=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d"),
+                TEXT("[VirtualSensorPerfSensor] kind=Camera sensorId=%s width=%d height=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d"),
                 *Camera->SensorId,
                 Camera->CaptureResolution.X,
                 Camera->CaptureResolution.Y,
@@ -273,14 +280,17 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
                 Status.bAcquisitionInFlight ? 1 : 0,
                 Status.bDerivedWorkInFlight ? 1 : 0,
                 Status.DroppedAcquisitionFrameCount,
-                Status.DroppedDerivedFrameCount);
+                Status.DroppedDerivedFrameCount,
+                Status.BudgetSkippedAcquisitionFrameCount,
+                Status.FailedAcquisitionFrameCount,
+                Status.QueueOverflowCount);
         }
         for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
         {
             if (!Lidar.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
             UE_LOG(LogTemp, Display,
-                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d"),
+                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d"),
                 *Lidar->SensorId,
                 Lidar->HorizontalSamples,
                 Lidar->VerticalChannels,
@@ -291,7 +301,10 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
                 Status.bAcquisitionInFlight ? 1 : 0,
                 Status.bDerivedWorkInFlight ? 1 : 0,
                 Status.DroppedAcquisitionFrameCount,
-                Status.DroppedDerivedFrameCount);
+                Status.DroppedDerivedFrameCount,
+                Status.BudgetSkippedAcquisitionFrameCount,
+                Status.FailedAcquisitionFrameCount,
+                Status.QueueOverflowCount);
         }
     }
 }
@@ -466,6 +479,9 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
     Telemetry.PendingDerivedWorkCount = 0;
     Telemetry.DroppedAcquisitionFrameCount = 0;
     Telemetry.DroppedDerivedFrameCount = 0;
+    Telemetry.BudgetSkippedAcquisitionFrameCount = 0;
+    Telemetry.FailedAcquisitionFrameCount = 0;
+    Telemetry.QueueOverflowCount = 0;
     float CameraMinHz = TNumericLimits<float>::Max();
     float CameraMaxHz = 0.0f;
     float LidarMinHz = TNumericLimits<float>::Max();
@@ -477,6 +493,9 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
         Telemetry.PendingDerivedWorkCount += Status.bDerivedWorkInFlight ? 1 : 0;
         Telemetry.DroppedAcquisitionFrameCount += Status.DroppedAcquisitionFrameCount;
         Telemetry.DroppedDerivedFrameCount += Status.DroppedDerivedFrameCount;
+        Telemetry.BudgetSkippedAcquisitionFrameCount += Status.BudgetSkippedAcquisitionFrameCount;
+        Telemetry.FailedAcquisitionFrameCount += Status.FailedAcquisitionFrameCount;
+        Telemetry.QueueOverflowCount += Status.QueueOverflowCount;
     };
     for (const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Camera : Cameras)
     {
@@ -502,6 +521,8 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
     }
     Telemetry.CameraCompletionFairnessRatio = CameraMinHz < TNumericLimits<float>::Max() && CameraMinHz > SMALL_NUMBER ? CameraMaxHz / CameraMinHz : 1.0f;
     Telemetry.LidarCompletionFairnessRatio = LidarMinHz < TNumericLimits<float>::Max() && LidarMinHz > SMALL_NUMBER ? LidarMaxHz / LidarMinHz : 1.0f;
+    Telemetry.MinimumCameraCompletionHz = CameraMinHz < TNumericLimits<float>::Max() ? CameraMinHz : 0.0f;
+    Telemetry.MinimumLidarCompletionHz = LidarMinHz < TNumericLimits<float>::Max() ? LidarMinHz : 0.0f;
 
     Telemetry.StatusMessage = Telemetry.bBestEffort
         ? TEXT("지원 기준(카메라/LiDAR 각각 4대)을 초과해 30 FPS 최선 실행 중")
@@ -511,7 +532,7 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
 FString UVirtualSensorSchedulerSubsystem::GetTelemetrySummaryText() const
 {
     return FString::Printf(
-        TEXT("%s | 카메라=%d LiDAR=%d | 평균=%.1f FPS 1%% low=%.1f FPS p95=%.1fms | 스케줄러=%.2fms/적응 예산 %.1fms(최대 %.1fms) | 측정 대기=%d 후처리 대기=%d | 생략 측정=%d 파생=%d"),
+        TEXT("%s | 카메라=%d LiDAR=%d | 평균=%.1f FPS 1%% low=%.1f FPS p95=%.1fms | 스케줄러=%.2fms/적응 예산 %.1fms(최대 %.1fms) | 완료 하한 Camera/LiDAR=%.1f/%.1fHz | 측정 대기=%d 후처리 대기=%d | 예산 생략=%d 실패=%d 큐 초과=%d 파생 생략=%d"),
         *Telemetry.StatusMessage,
         Telemetry.ActiveCameraCount,
         Telemetry.ActiveLidarCount,
@@ -521,8 +542,12 @@ FString UVirtualSensorSchedulerSubsystem::GetTelemetrySummaryText() const
         Telemetry.LastSchedulerWorkMs,
         Telemetry.LidarGameThreadBudgetMs,
         Telemetry.LidarGameThreadBudgetCeilingMs,
+        Telemetry.MinimumCameraCompletionHz,
+        Telemetry.MinimumLidarCompletionHz,
         Telemetry.PendingAcquisitionCount,
         Telemetry.PendingDerivedWorkCount,
-        Telemetry.DroppedAcquisitionFrameCount,
+        Telemetry.BudgetSkippedAcquisitionFrameCount,
+        Telemetry.FailedAcquisitionFrameCount,
+        Telemetry.QueueOverflowCount,
         Telemetry.DroppedDerivedFrameCount);
 }

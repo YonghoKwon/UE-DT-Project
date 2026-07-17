@@ -285,6 +285,15 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 DroppedDerivedFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 BudgetSkippedAcquisitionFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 FailedAcquisitionFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 QueueOverflowCount = 0;
 };
 
 UENUM(BlueprintType)

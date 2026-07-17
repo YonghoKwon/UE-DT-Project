@@ -25,7 +25,10 @@
 namespace
 {
 std::atomic<int32> GVirtualLidarJsonJobs{0};
-constexpr int32 GVirtualLidarJsonJobLimit = 2;
+// Four supported FullSpec LiDARs may complete in the same scheduling window.
+// One immutable latest-frame JSON job per sensor avoids queue rejection while
+// preserving the per-sensor in-flight bound.
+constexpr int32 GVirtualLidarJsonJobLimit = 4;
 template <typename T> void WriteLasValue(FBufferArchive& A, const T& V) { A.Serialize(const_cast<T*>(&V), sizeof(T)); }
 void WriteLasFixedString(FBufferArchive& A, const ANSICHAR* Text, int32 Len) { TArray<ANSICHAR> B; B.SetNumZeroed(Len); if (Text) { FCStringAnsi::Strncpy(B.GetData(), Text, Len); } A.Serialize(B.GetData(), Len); }
 void WriteLasBytes(FBufferArchive& A, const uint8* Bytes, int32 Len) { A.Serialize(const_cast<uint8*>(Bytes), Len); }
@@ -260,7 +263,7 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
     {
         do
         {
-            ++RuntimeStatus.DroppedAcquisitionFrameCount;
+            ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
             NextScheduledScanTime += SafeInterval;
         }
         while (NextScheduledScanTime <= NowSeconds);
@@ -404,6 +407,7 @@ void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameI
     if (GVirtualLidarJsonJobs.fetch_add(1, std::memory_order_acq_rel) >= GVirtualLidarJsonJobLimit)
     {
         GVirtualLidarJsonJobs.fetch_sub(1, std::memory_order_acq_rel);
+        ++RuntimeStatus.QueueOverflowCount;
         ++RuntimeStatus.DroppedDerivedFrameCount;
         RuntimeStatus.bDerivedWorkInFlight = false;
         UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());

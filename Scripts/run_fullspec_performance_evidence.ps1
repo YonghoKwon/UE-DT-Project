@@ -107,12 +107,16 @@ for ($index = $firstLine - 1; $index -lt [Math]::Min($lines.Count, $lastLine + (
     $width = if ($line -match 'width=(\d+)') { [int]$Matches[1] } else { 0 }
     $height = if ($line -match 'height=(\d+)') { [int]$Matches[1] } else { 0 }
     $rays = if ($line -match 'rays=(\d+)') { [int]$Matches[1] } else { 0 }
+    $budgetSkipped = if ($line -match 'budgetSkipped=(\d+)') { [int]$Matches[1] } else { 0 }
+    $failedAcquisition = if ($line -match 'failedAcquisition=(\d+)') { [int]$Matches[1] } else { 0 }
+    $queueOverflow = if ($line -match 'queueOverflow=(\d+)') { [int]$Matches[1] } else { 0 }
     $sensor += [PSCustomObject]@{
         Line = $index + 1; Kind = $match.Groups['kind'].Value; SensorId = $match.Groups['id'].Value
         Width = $width; Height = $height; Rays = $rays; RateHz = [double]$match.Groups['rate'].Value
         AcquisitionMs = [double]$match.Groups['acquisition'].Value; PostMs = [double]$match.Groups['post'].Value
         PendingAcquisition = [int]$match.Groups['pendingA'].Value; PendingDerived = [int]$match.Groups['pendingD'].Value
         DroppedAcquisition = [int]$match.Groups['droppedA'].Value; DroppedDerived = [int]$match.Groups['droppedD'].Value
+        BudgetSkipped = $budgetSkipped; FailedAcquisition = $failedAcquisition; QueueOverflow = $queueOverflow
     }
 }
 
@@ -125,9 +129,9 @@ $lidarShapeValid = @($sensor | Where-Object Kind -eq 'Lidar' | Where-Object { $_
 $enoughSamples = $samples.Count -ge [Math]::Max(1, [Math]::Floor($SampleSeconds * 0.8))
 
 $threshold = if ($CameraCount -le 2 -and $LidarCount -le 2) {
-    [PSCustomObject]@{ AverageFps = 55.0; OnePercentLowFps = 45.0; P95FrameMs = 20.0 }
+    [PSCustomObject]@{ AverageFps = 55.0; OnePercentLowFps = 45.0; P95FrameMs = 20.0; CameraHz = 5.0; LidarHz = 2.0 }
 } elseif ($CameraCount -le 4 -and $LidarCount -le 4) {
-    [PSCustomObject]@{ AverageFps = 28.0; OnePercentLowFps = 24.0; P95FrameMs = 36.0 }
+    [PSCustomObject]@{ AverageFps = 28.0; OnePercentLowFps = 24.0; P95FrameMs = 36.0; CameraHz = 2.5; LidarHz = 2.0 }
 } else {
     $null
 }
@@ -141,6 +145,9 @@ $sensorSummary = @($sensor | Group-Object Kind, SensorId | ForEach-Object {
         MaxPostMs = ($group | Measure-Object PostMs -Maximum).Maximum
         FinalDroppedAcquisition = $group[-1].DroppedAcquisition
         FinalDroppedDerived = $group[-1].DroppedDerived
+        FinalBudgetSkipped = $group[-1].BudgetSkipped
+        FinalFailedAcquisition = $group[-1].FailedAcquisition
+        FinalQueueOverflow = $group[-1].QueueOverflow
     }
 })
 $getFairnessRatio = {
@@ -153,7 +160,13 @@ $getFairnessRatio = {
 $cameraFairnessRatio = & $getFairnessRatio @($sensorSummary | Where-Object Kind -eq 'Camera')
 $lidarFairnessRatio = & $getFairnessRatio @($sensorSummary | Where-Object Kind -eq 'Lidar')
 $fairnessPass = $cameraFairnessRatio -le 1.2 -and $lidarFairnessRatio -le 1.2
-$valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $fairnessPass
+$cameraRows = @($sensorSummary | Where-Object Kind -eq 'Camera')
+$lidarRows = @($sensorSummary | Where-Object Kind -eq 'Lidar')
+$minimumCameraHz = if ($cameraRows.Count -gt 0) { ($cameraRows | Measure-Object AverageRateHz -Minimum).Minimum } else { 0.0 }
+$minimumLidarHz = if ($lidarRows.Count -gt 0) { ($lidarRows | Measure-Object AverageRateHz -Minimum).Minimum } else { 0.0 }
+$completionRatePass = $null -eq $threshold -or (($CameraCount -eq 0 -or $minimumCameraHz -ge $threshold.CameraHz) -and ($LidarCount -eq 0 -or $minimumLidarHz -ge $threshold.LidarHz))
+$queueHealthPass = @($sensorSummary | Where-Object { $_.FinalFailedAcquisition -gt 0 -or $_.FinalQueueOverflow -gt 0 }).Count -eq 0
+$valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $completionRatePass -and $fairnessPass -and $queueHealthPass
 $lidarVisiblePointLimit = switch ($LidarRenderer) {
     "Niagara" { 21600 }
     "Cpu" { 5000 }
@@ -170,7 +183,9 @@ $report = [PSCustomObject]@{
         P95FrameTimeMs = [Math]::Round($p95FrameMs, 3); MaxPendingPerSensor = $maxPendingPerSensor
         CameraFrameShapeValid = $cameraShapeValid; LidarFrameShapeValid = $lidarShapeValid
         CameraFairnessRatio = [Math]::Round($cameraFairnessRatio, 3); LidarFairnessRatio = [Math]::Round($lidarFairnessRatio, 3)
-        FairnessPass = $fairnessPass; Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
+        MinimumCameraCompletionHz = [Math]::Round($minimumCameraHz, 3); MinimumLidarCompletionHz = [Math]::Round($minimumLidarHz, 3)
+        FairnessPass = $fairnessPass; CompletionRatePass = $completionRatePass; QueueHealthPass = $queueHealthPass
+        Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
     }
     Sensors = $sensorSummary
 }
@@ -191,15 +206,19 @@ $markdown = @(
     "- LiDAR scans are 21,600 rays: $lidarShapeValid",
     "- Camera max/min completion ratio: $($report.Summary.CameraFairnessRatio)",
     "- LiDAR max/min completion ratio: $($report.Summary.LidarFairnessRatio)",
+    "- Minimum Camera completion Hz: $($report.Summary.MinimumCameraCompletionHz)",
+    "- Minimum LiDAR completion Hz: $($report.Summary.MinimumLidarCompletionHz)",
+    "- Completion-rate threshold pass: $completionRatePass",
+    "- Queue/failure health pass: $queueHealthPass",
     "- Fairness ratio <= 1.2: $fairnessPass",
     "- Threshold pass: $thresholdPass",
     "- Valid: $valid", '',
     '## Per-sensor completion telemetry', '',
-    '| Kind | SensorId | Average Hz | Max acquisition ms | Max post ms | Dropped acquisition | Dropped derived |',
-    '| --- | --- | ---: | ---: | ---: | ---: | ---: |'
+    '| Kind | SensorId | Average Hz | Max acquisition ms | Max post ms | Budget skips | Failed acquisition | Queue overflow | Dropped derived |',
+    '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |'
 )
 foreach ($item in $sensorSummary) {
-    $markdown += "| $($item.Kind) | $($item.SensorId) | $($item.AverageRateHz) | $($item.MaxAcquisitionMs) | $($item.MaxPostMs) | $($item.FinalDroppedAcquisition) | $($item.FinalDroppedDerived) |"
+    $markdown += "| $($item.Kind) | $($item.SensorId) | $($item.AverageRateHz) | $($item.MaxAcquisitionMs) | $($item.MaxPostMs) | $($item.FinalBudgetSkipped) | $($item.FinalFailedAcquisition) | $($item.FinalQueueOverflow) | $($item.FinalDroppedDerived) |"
 }
 $markdown += @('', "This run uses the normal renderer with the requested LiDAR backend '$LidarRenderer'. It does not pass ``-NullRHI``. MultiHit and automatic per-scan exports are disabled by the benchmark command-line setup.")
 $markdown | Set-Content -LiteralPath $MarkdownPath -Encoding UTF8

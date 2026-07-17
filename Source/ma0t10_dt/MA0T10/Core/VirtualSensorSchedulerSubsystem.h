@@ -60,6 +60,21 @@ struct MA0T10_DT_API FVirtualSensorPerformanceTelemetry
     int32 DroppedDerivedFrameCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    int32 BudgetSkippedAcquisitionFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    int32 FailedAcquisitionFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    int32 QueueOverflowCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    float MinimumCameraCompletionHz = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    float MinimumLidarCompletionHz = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
     bool bBestEffort = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
@@ -112,7 +127,7 @@ private:
     int32 NextCameraIndex = 0;
     int32 NextLidarIndex = 0;
     int32 AdaptiveLidarChunkSize = 256;
-    float EffectiveLidarBudgetMs = 4.0f;
+    float EffectiveLidarBudgetMs = 5.0f;
     float EffectiveAggregateCameraCaptureHz = 12.0f;
     double LastCameraCaptureAdmissionTime = -1.0;
     float TelemetryLogAccumulator = 0.0f;

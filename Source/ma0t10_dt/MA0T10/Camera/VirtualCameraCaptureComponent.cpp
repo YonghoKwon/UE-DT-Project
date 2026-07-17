@@ -289,6 +289,7 @@ void UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPi
         GVirtualCameraEncodeJobs.fetch_sub(1, std::memory_order_acq_rel);
         bScheduledEncodeInFlight = false;
         RuntimeStatus.bDerivedWorkInFlight = false;
+        ++RuntimeStatus.QueueOverflowCount;
         ++RuntimeStatus.DroppedDerivedFrameCount;
         UpdateRuntimeStatus(RuntimeStatus.LastPayloadLength, TEXT("전역 JPEG 처리 한도 때문에 오래된 파생 프레임을 생략했습니다."));
         return;
