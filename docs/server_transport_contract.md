@@ -12,12 +12,14 @@ None
 LogOnly
 SaveToFile
 HttpPost
+StompWebSocket
 ```
 
 - `None` disables submission and reports that transport is disabled.
 - `LogOnly` keeps runtime/editor smoke tests safe by logging payload size only.
 - `SaveToFile` writes JSON or binary payloads under `Saved/<SaveSubDirectory>/`.
 - `HttpPost` submits JSON payloads with `Content-Type: application/json`.
+- `StompWebSocket` publishes to Artemis multicast topics and records the broker receipt separately from consumer acknowledgement.
 
 ## HTTP POST Request
 
@@ -32,6 +34,14 @@ headers:
 body: virtual-lidar.v1 or virtual-camera.v1 JSON
 timeout: HttpTimeoutSeconds, clamped to at least 1 second
 ```
+
+Manual exported files use the same endpoint with `Content-Type: application/octet-stream` plus `X-Data-Kind: manual-export` and `X-File-Extension`. The optional Bearer token is session-only and is never written to the UI SaveGame.
+
+## Artemis STOMP/WebSocket
+
+The development broker in `Tools/Artemis` exposes STOMP/WebSocket on port 61616 and multicast addresses for camera, LiDAR, and export traffic. Each message includes sensor ID/type, data kind, frame ID, request ID, content type, and `destination-type=MULTICAST`. A successful STOMP receipt means the broker accepted the message. It does not prove a consumer processed it; an application-level ACK Topic is required for that distinction.
+
+The CaptureExport panel persists non-secret broker URL, topics, username, endpoint, and message limit. Passwords and tokens remain in memory for the PIE session only. Export files are Base64-wrapped for STOMP because the UE STOMP interface sends text frames; HTTP uses raw binary.
 
 HTTP callback behavior:
 
