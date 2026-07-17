@@ -51,7 +51,10 @@ void LinkFunctionInput(
     const FNiagaraVariable& LinkedVariable)
 {
     UEdGraphPin& Pin = GetOrCreateOverridePin(Function, InputName, InputType);
-    if (Pin.LinkedTo.Num() > 0) return;
+    // The template already wires several defaults. Preserving those links made
+    // this commandlet report success while SpawnCount/Position/Color still used
+    // SimpleSpriteBurst values instead of the uploaded LiDAR arrays.
+    Pin.BreakAllPinLinks();
     TSet<FNiagaraVariable> KnownParameters;
     KnownParameters.Add(LinkedVariable);
     FNiagaraStackGraphUtilities::SetLinkedValueHandleForFunctionInput(
@@ -70,7 +73,7 @@ void ConfigureArrayDynamicInput(
     const FName UserArrayName)
 {
     UEdGraphPin& TargetPin = GetOrCreateOverridePin(Assignment, Target.GetName(), Target.GetType());
-    if (TargetPin.LinkedTo.Num() > 0) return;
+    TargetPin.BreakAllPinLinks();
 
     UNiagaraScript* DynamicInputScript = LoadObject<UNiagaraScript>(nullptr, DynamicInputPath);
     if (!DynamicInputScript)
@@ -154,12 +157,14 @@ bool ConfigurePointArrayEmitter(UNiagaraSystem& System)
             const TArray<FNiagaraVariable> Targets = {
                 SYS_PARAM_PARTICLES_POSITION,
                 SYS_PARAM_PARTICLES_COLOR,
-                SYS_PARAM_PARTICLES_SPRITE_SIZE
+                SYS_PARAM_PARTICLES_SPRITE_SIZE,
+                SYS_PARAM_PARTICLES_LIFETIME
             };
             const TArray<FString> Defaults = {
                 FNiagaraConstants::GetAttributeDefaultValue(SYS_PARAM_PARTICLES_POSITION),
                 FNiagaraConstants::GetAttributeDefaultValue(SYS_PARAM_PARTICLES_COLOR),
-                FNiagaraConstants::GetAttributeDefaultValue(SYS_PARAM_PARTICLES_SPRITE_SIZE)
+                FNiagaraConstants::GetAttributeDefaultValue(SYS_PARAM_PARTICLES_SPRITE_SIZE),
+                FNiagaraConstants::GetAttributeDefaultValue(SYS_PARAM_PARTICLES_LIFETIME)
             };
             PointAssignment = FNiagaraStackGraphUtilities::AddParameterModuleToStack(Targets, *ParticleSpawnOutput, INDEX_NONE, Defaults);
         }
@@ -173,6 +178,8 @@ bool ConfigurePointArrayEmitter(UNiagaraSystem& System)
             TEXT("Color Selection Array"), FNiagaraTypeDefinition(UNiagaraDataInterfaceArrayColor::StaticClass()), TEXT("User.PointColors"));
         LinkFunctionInput(*PointAssignment, SYS_PARAM_PARTICLES_SPRITE_SIZE.GetName(), FNiagaraTypeDefinition::GetVec2Def(),
             FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), TEXT("User.PointSpriteSize")));
+        LinkFunctionInput(*PointAssignment, SYS_PARAM_PARTICLES_LIFETIME.GetName(), FNiagaraTypeDefinition::GetFloatDef(),
+            FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.PointLifetime")));
 
         EmitterData->SimTarget = ENiagaraSimTarget::GPUComputeSim;
         bConfigured = true;
@@ -255,6 +262,7 @@ int32 USetupVirtualLidarNiagaraAssetsCommandlet::Main(const FString& Params)
     Parameters.AddParameter(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("User.PointCount")), false);
     Parameters.AddParameter(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.PointSize")), false);
     Parameters.AddParameter(FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), TEXT("User.PointSpriteSize")), false);
+    Parameters.AddParameter(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("User.PointLifetime")), false);
 
     for (FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
     {
@@ -276,6 +284,14 @@ int32 USetupVirtualLidarNiagaraAssetsCommandlet::Main(const FString& Params)
         return 4;
     }
     System->RequestCompile(false);
+    System->WaitForCompilationComplete(true, false);
+    if (!System->IsReadyToRun())
+    {
+        // GPU shader readiness can remain false in commandlet mode even after
+        // script compilation completed. Runtime still gates activation with
+        // IsReadyToRun and falls back to CPU until the shader is ready.
+        UE_LOG(LogTemp, Warning, TEXT("Niagara GPU shader is not runtime-ready in commandlet mode; saving the compiled graph for runtime validation"));
+    }
     if (!SaveAsset(System))
     {
         UE_LOG(LogTemp, Error, TEXT("Failed to save Niagara point cloud system"));

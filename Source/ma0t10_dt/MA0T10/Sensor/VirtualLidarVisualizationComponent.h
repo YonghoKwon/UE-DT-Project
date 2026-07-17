@@ -110,6 +110,8 @@ private:
     UTexture2D* UploadTexture(TObjectPtr<UTexture2D>& Texture, const TArray<FColor>& Pixels, int32 Width, int32 Height);
     void RefreshWorldPointCloud();
     bool TryRefreshNiagaraPointCloud();
+    void RefreshCpuPointCloud(const FString& Reason, bool bIsError = false);
+    void UpdateRendererTelemetry(ELidarPointCloudRendererState State, int32 UploadedPoints, int32 VisiblePoints, const FString& Renderer, const FString& Message);
 
     UPROPERTY(Transient)
     TObjectPtr<UVirtualLidarScanComponent> ScanComponent;
@@ -146,4 +148,6 @@ private:
     uint64 ProjectionGeneration = 0;
     bool bProjectionBuildInFlight = false;
     bool bForceCpuFallbackForBenchmark = false;
+    double NextNiagaraRetryTimeSeconds = 0.0;
+    int64 LastVisualizedFrameId = INDEX_NONE;
 };

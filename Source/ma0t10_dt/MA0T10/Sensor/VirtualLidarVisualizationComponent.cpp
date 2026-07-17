@@ -333,6 +333,7 @@ void UVirtualLidarVisualizationComponent::BindScanComponent(UVirtualLidarScanCom
 void UVirtualLidarVisualizationComponent::RefreshLatestFrame()
 {
     if (!ScanComponent) return;
+    LastVisualizedFrameId = ScanComponent->GetRuntimeStatus().FrameId;
     RebuildProjectionTextures();
     RefreshWorldPointCloud();
 }
@@ -425,6 +426,7 @@ void UVirtualLidarVisualizationComponent::SetWorldPointCloudEnabled(bool bEnable
 void UVirtualLidarVisualizationComponent::SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy InPolicy)
 {
     PointCloudRenderPolicy = InPolicy;
+    bForceCpuFallbackForBenchmark = InPolicy == ELidarPointCloudRenderPolicy::ForceCpu;
     RefreshWorldPointCloud();
 }
 
@@ -762,17 +764,34 @@ UTexture2D* UVirtualLidarVisualizationComponent::UploadTexture(TObjectPtr<UTextu
 void UVirtualLidarVisualizationComponent::RefreshWorldPointCloud()
 {
     if (!ScanComponent) return;
-    if (TryRefreshNiagaraPointCloud()) return;
-    ScanComponent->SetPointCloudPreviewEnabled(Settings.bShowWorldPointCloud);
-    VisiblePointCount = Settings.bShowWorldPointCloud ? ScanComponent->GetLastPreviewPointCount() : 0;
-    ActiveRendererName = ScanComponent->GetPreviewBackendName();
-    RendererFallbackReason = ScanComponent->IsGpuPreviewBackendRequested() && !ScanComponent->IsGpuPreviewBackendActive()
-        ? TEXT("Niagara GPU 자산 또는 런타임 경로를 사용할 수 없어 CPU ISM으로 표시합니다.") : FString();
-    ActiveRendererName = TEXT("CPU ISM fallback");
-    if (RendererFallbackReason.IsEmpty())
+    if (!Settings.bShowWorldPointCloud)
     {
-        RendererFallbackReason = TEXT("Niagara GPU 경로를 사용할 수 없어 CPU ISM으로 표시합니다.");
+        if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
+        ScanComponent->SetPointCloudPreviewEnabled(false);
+        VisiblePointCount = 0;
+        UpdateRendererTelemetry(ELidarPointCloudRendererState::Disabled, 0, 0, TEXT("꺼짐"), TEXT("월드 3D 포인트 표시가 꺼져 있습니다."));
+        return;
     }
+    if (ScanComponent->GetLastHitPointCount() <= 0)
+    {
+        UpdateRendererTelemetry(
+            ELidarPointCloudRendererState::Starting,
+            0,
+            VisiblePointCount,
+            ActiveRendererName,
+            VisiblePointCount > 0 ? TEXT("현재 스캔에 검출점이 없어 마지막 정상 포인트를 유지합니다.") : TEXT("검출점을 기다리는 중입니다."));
+        return;
+    }
+    if (TryRefreshNiagaraPointCloud()) return;
+    if (PointCloudRenderPolicy == ELidarPointCloudRenderPolicy::ForceNiagara && !bForceCpuFallbackForBenchmark)
+    {
+        if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
+        ScanComponent->SetPointCloudPreviewEnabled(false);
+        VisiblePointCount = 0;
+        UpdateRendererTelemetry(ELidarPointCloudRendererState::Error, 0, 0, TEXT("Niagara 오류"), RendererFallbackReason);
+        return;
+    }
+    RefreshCpuPointCloud(RendererFallbackReason);
 }
 
 bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
@@ -786,15 +805,22 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
         return true;
     }
 
-    UNiagaraSystem* System = bForceCpuFallbackForBenchmark ? nullptr : NiagaraPointCloudSystem.LoadSynchronous();
-    if (!System || !GetWorld() || GetWorld()->GetFeatureLevel() < ERHIFeatureLevel::SM5)
+    const bool bForceCpu = bForceCpuFallbackForBenchmark || PointCloudRenderPolicy == ELidarPointCloudRenderPolicy::ForceCpu;
+    const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    UNiagaraSystem* System = bForceCpu || NowSeconds < NextNiagaraRetryTimeSeconds ? nullptr : NiagaraPointCloudSystem.LoadSynchronous();
+    const bool bSystemReady = System && System->IsReadyToRun();
+    if (!System || !bSystemReady || !GetWorld() || GetWorld()->GetFeatureLevel() < ERHIFeatureLevel::SM5)
     {
         if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
-        RendererFallbackReason = bForceCpuFallbackForBenchmark
-            ? TEXT("성능 비교를 위해 CPU ISM fallback을 강제로 사용합니다.")
-            : System
-                ? TEXT("GPU Feature Level을 사용할 수 없어 CPU ISM으로 전환했습니다.")
-                : TEXT("NS_VirtualLidarPointCloud 자산이 없어 CPU ISM으로 전환했습니다.");
+        RendererFallbackReason = bForceCpu
+            ? TEXT("CPU 포인트 렌더러를 강제로 사용합니다.")
+            : NowSeconds < NextNiagaraRetryTimeSeconds
+                ? TEXT("Niagara 재시도 대기 중이라 CPU로 표시합니다.")
+                : System && !bSystemReady
+                    ? TEXT("Niagara 시스템 컴파일이 완료되지 않아 CPU로 전환했습니다.")
+                    : System
+                        ? TEXT("GPU Feature Level이 부족해 CPU로 전환했습니다.")
+                        : TEXT("Niagara 포인트 자산을 찾지 못해 CPU로 전환했습니다.");
         ScanComponent->SetGpuPreviewBackendRuntimeState(false, RendererFallbackReason);
         return false;
     }
@@ -812,6 +838,7 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
     }
     if (!NiagaraPointCloudComponent)
     {
+        NextNiagaraRetryTimeSeconds = NowSeconds + 2.0;
         RendererFallbackReason = TEXT("Niagara 컴포넌트를 만들 수 없어 CPU ISM으로 전환했습니다.");
         ScanComponent->SetGpuPreviewBackendRuntimeState(false, RendererFallbackReason);
         return false;
@@ -823,13 +850,18 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
     NiagaraPositions.Reserve(FMath::Min(MaxNiagaraPreviewPoints, Points.Num()));
     NiagaraColors.Reserve(NiagaraPositions.Max());
     const FTransform SensorTransform = ScanComponent->GetComponentTransform();
-    const int32 Stride = FMath::Max(1, FMath::DivideAndRoundUp(Points.Num(), FMath::Max(1, MaxNiagaraPreviewPoints)));
-    for (int32 Index = 0; Index < Points.Num() && NiagaraPositions.Num() < MaxNiagaraPreviewPoints; Index += Stride)
+    const int32 HitCount = ScanComponent->GetLastHitPointCount();
+    const int32 Stride = FMath::Max(1, FMath::DivideAndRoundUp(HitCount, FMath::Max(1, MaxNiagaraPreviewPoints)));
+    int32 HitIndex = 0;
+    FBox WorldBounds(ForceInit);
+    for (const FVirtualLidarPoint& Point : Points)
     {
-        const FVirtualLidarPoint& Point = Points[Index];
         if (!Point.bHit) continue;
+        if ((HitIndex++ % Stride) != 0) continue;
+        if (NiagaraPositions.Num() >= MaxNiagaraPreviewPoints) break;
         const FVector Local = SensorTransform.InverseTransformPosition(Point.WorldLocation);
         NiagaraPositions.Add(Point.WorldLocation);
+        WorldBounds += Point.WorldLocation;
         NiagaraColors.Add(FLinearColor(ResolveDisplayColor(ScanComponent, Settings.ColorMode, Point,
             NormalizeValue(Point.Distance, Settings.bUseAdaptiveDistance ? LastMinDistanceCm : 0.0f, Settings.bUseAdaptiveDistance ? LastMaxDistanceCm : ScanComponent->MaxDistance),
             NormalizeValue(Local.Z, LastMinHeightCm, LastMaxHeightCm))));
@@ -839,15 +871,64 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
     NiagaraPointCloudComponent->SetVariableInt(TEXT("User.PointCount"), NiagaraPositions.Num());
     NiagaraPointCloudComponent->SetVariableFloat(TEXT("User.PointSize"), Settings.PointSize);
     NiagaraPointCloudComponent->SetVariableVec2(TEXT("User.PointSpriteSize"), FVector2D(Settings.PointSize, Settings.PointSize));
-    NiagaraPointCloudComponent->SetSystemFixedBounds(FBox(FVector(-ScanComponent->MaxDistance), FVector(ScanComponent->MaxDistance)));
+    NiagaraPointCloudComponent->SetVariableFloat(TEXT("User.PointLifetime"), 60.0f);
+    if (WorldBounds.IsValid)
+    {
+        NiagaraPointCloudComponent->SetSystemFixedBounds(WorldBounds.ExpandBy(FMath::Max(25.0f, Settings.PointSize * 10.0f)));
+    }
     NiagaraPointCloudComponent->SetVisibility(true, true);
     NiagaraPointCloudComponent->ReinitializeSystem();
+    const bool bComponentReady = NiagaraPointCloudComponent->GetAsset() == System && NiagaraPointCloudComponent->IsRegistered() && NiagaraPointCloudComponent->IsActive();
+    if (!bComponentReady)
+    {
+        NiagaraPointCloudComponent->SetVisibility(false, true);
+        RendererFallbackReason = TEXT("Niagara 시스템이 실행 상태로 전환되지 않아 CPU ISM으로 전환했습니다.");
+        NextNiagaraRetryTimeSeconds = NowSeconds + 2.0;
+        ScanComponent->SetGpuPreviewBackendRuntimeState(false, RendererFallbackReason);
+        return false;
+    }
     ScanComponent->SetPointCloudPreviewEnabled(false);
     VisiblePointCount = NiagaraPositions.Num();
     ActiveRendererName = TEXT("Niagara GPU sprites");
     RendererFallbackReason.Reset();
+    NextNiagaraRetryTimeSeconds = 0.0;
     ScanComponent->SetGpuPreviewBackendRuntimeState(true, FString());
+    UpdateRendererTelemetry(ELidarPointCloudRendererState::NiagaraActive, NiagaraPositions.Num(), VisiblePointCount, ActiveRendererName, TEXT("Niagara 포인트 렌더러가 활성화되었습니다."));
     return true;
+}
+
+void UVirtualLidarVisualizationComponent::RefreshCpuPointCloud(const FString& Reason, bool bIsError)
+{
+    if (!ScanComponent) return;
+    if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
+    ScanComponent->SetGpuPreviewBackendRuntimeState(false, Reason);
+    ScanComponent->SetPointCloudPreviewEnabled(Settings.bShowWorldPointCloud);
+    VisiblePointCount = Settings.bShowWorldPointCloud ? ScanComponent->GetLastPreviewPointCount() : 0;
+    ActiveRendererName = TEXT("CPU ISM fallback");
+    RendererFallbackReason = Reason.IsEmpty() ? TEXT("CPU ISM으로 안정적으로 표시합니다.") : Reason;
+    UpdateRendererTelemetry(
+        bIsError ? ELidarPointCloudRendererState::Error : ELidarPointCloudRendererState::CpuFallback,
+        VisiblePointCount,
+        VisiblePointCount,
+        ActiveRendererName,
+        RendererFallbackReason);
+}
+
+void UVirtualLidarVisualizationComponent::UpdateRendererTelemetry(
+    ELidarPointCloudRendererState State,
+    int32 UploadedPoints,
+    int32 InVisiblePoints,
+    const FString& Renderer,
+    const FString& Message)
+{
+    RendererTelemetry.State = State;
+    RendererTelemetry.MeasuredPointCount = ScanComponent ? ScanComponent->GetRuntimeStatus().TotalPointCount : 0;
+    RendererTelemetry.HitPointCount = ScanComponent ? ScanComponent->GetLastHitPointCount() : 0;
+    RendererTelemetry.UploadedPointCount = UploadedPoints;
+    RendererTelemetry.VisiblePointCount = InVisiblePoints;
+    RendererTelemetry.RendererName = Renderer;
+    RendererTelemetry.Message = Message;
+    ActiveRendererName = Renderer;
 }
 
 FString UVirtualLidarVisualizationComponent::GetLegendText() const
