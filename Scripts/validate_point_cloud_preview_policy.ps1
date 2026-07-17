@@ -27,7 +27,8 @@ function Assert-ContainsText {
         [string]$Label
     )
 
-    if (-not (Select-String -LiteralPath $Path -Pattern $Pattern -SimpleMatch -Quiet)) {
+    $content = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+    if (-not $content.Contains($Pattern)) {
         throw "$Label missing required text '$Pattern' in $Path"
     }
 }
@@ -40,6 +41,8 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $requiredFiles = @(
     [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h" },
     [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR visualization implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarVisualizationComponent.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR Niagara system"; Path = "Content\MA0T10\Sensor\VFX\NS_VirtualLidarPointCloud.uasset" },
     [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h" },
     [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp" },
     [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp" },
@@ -49,7 +52,6 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "LiDAR payload schema"; Path = "docs\lidar_payload_schema.md" },
     [PSCustomObject]@{ Label = "Editor smoke test document"; Path = "docs\editor_smoke_test.md" },
-    [PSCustomObject]@{ Label = "Remaining work document"; Path = "docs\remaining_work.md" },
     [PSCustomObject]@{ Label = "Point cloud renderer acceptance package exporter"; Path = "Scripts\export_point_cloud_renderer_acceptance_package.ps1" }
 )
 
@@ -59,6 +61,7 @@ foreach ($file in $requiredFiles) {
 
 $lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h"
 $lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp"
+$visualizationCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarVisualizationComponent.cpp"
 $csvPreviewHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h"
 $csvPreviewCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.cpp"
 $managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp"
@@ -69,7 +72,6 @@ $csvPreviewTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\
 $monitorTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
-$remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $rendererDecisionReportScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_decision_report.ps1"
 $rendererAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_point_cloud_renderer_acceptance_package.ps1"
 $csvPreviewPerformanceReportScript = Join-Path $ProjectRoot "Scripts\export_csv_preview_performance_report.ps1"
@@ -95,11 +97,11 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "Preview is uncapped"; Label = "Uncapped preview warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec+MultiHit"; Label = "FullSpec multihit warning" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "FullSpec export-on-scan"; Label = "Export-on-scan warning" },
-    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "GPU preview backend is a candidate only; CPU fallback is active"; Label = "GPU preview candidate keeps CPU fallback warning" },
-    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "NiagaraCandidateCpuFallback"; Label = "Niagara candidate backend is labeled as CPU fallback" },
-    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "CustomGpuCandidateCpuFallback"; Label = "Custom GPU candidate backend is labeled as CPU fallback" },
+    [PSCustomObject]@{ Path = $visualizationCpp; Pattern = "SetNiagaraArrayPosition"; Label = "Niagara position array upload" },
+    [PSCustomObject]@{ Path = $visualizationCpp; Pattern = "SetNiagaraArrayColor"; Label = "Niagara color array upload" },
+    [PSCustomObject]@{ Path = $visualizationCpp; Pattern = "CPU ISM"; Label = "Niagara failure keeps CPU ISM fallback" },
     [PSCustomObject]@{ Path = $lidarCpp; Pattern = "cpu_instanced_mesh_fallback"; Label = "Payload marks active CPU fallback preview path" },
-    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "AddInstances(InstanceTransforms, false, true)"; Label = "Live preview uses batched ISM instance upload" },
+    [PSCustomObject]@{ Path = $lidarCpp; Pattern = "BatchUpdateInstancesTransforms"; Label = "Live preview uses batched ISM transform updates" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "ClampMax = `"100000`""; Label = "Procedural CSV batch metadata allows high-density sections" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "LastParseDurationMs"; Label = "CSV preview parse telemetry field" },
     [PSCustomObject]@{ Path = $csvPreviewHeader; Pattern = "LastBuildDurationMs"; Label = "CSV preview build telemetry field" },
@@ -108,7 +110,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Min(LidarComp->MaxPreviewPoints, 3000)"; Label = "PointCloudOnly preview max clamp" },
     [PSCustomObject]@{ Path = $managerCpp; Pattern = "FMath::Max(2, LidarComp->PreviewPointStride)"; Label = "PointCloudOnly preview stride clamp" },
     [PSCustomObject]@{ Path = $monitorCpp; Pattern = "PreviewPoints"; Label = "Monitor exposes preview point count" },
-    [PSCustomObject]@{ Path = $monitorCpp; Pattern = "상태/경고"; Label = "Monitor exposes localized warning row" },
+    [PSCustomObject]@{ Path = $monitorCpp; Pattern = "GetTransportStatusSummaryText"; Label = "Monitor exposes localized transport warning row" },
     [PSCustomObject]@{ Path = $replayTests; Pattern = "MA0T10.SensorReplay.PerformanceWarningStatus"; Label = "Replay warning automation test" },
     [PSCustomObject]@{ Path = $managerTests; Pattern = "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy"; Label = "PointCloudOnly policy automation test" },
     [PSCustomObject]@{ Path = $csvPreviewTests; Pattern = "MA0T10.Sensor.CsvPointCloudPreview.ProceduralHighDensityLoad"; Label = "CSV procedural high-density automation test" },
@@ -125,13 +127,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $schemaDoc; Pattern = 'Server-side judgment should not use `previewPolicy` as measurement truth.'; Label = "Schema documents preview/server split" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "PreviewPointStride = 2"; Label = "Smoke doc preview stride recommendation" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "MaxPreviewPoints = 3000"; Label = "Smoke doc preview max recommendation" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Large Point Cloud Renderer"; Label = "Remaining work tracks high-density renderer" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Remaining work documents renderer decision report" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Remaining work documents CSV preview performance report" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Smoke doc documents CSV preview performance report" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GpuViewportSmokeEvidence"; Label = "Remaining work documents GPU viewport smoke evidence object" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GpuIntegratedEvidencePending"; Label = "Remaining work documents GPU evidence pending phase" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "GpuEvidenceReady"; Label = "Remaining work documents GPU evidence ready phase" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "GPU/Niagara renderer smoke"; Label = "Smoke doc documents GPU renderer smoke checklist" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "NonBlankPixelCount"; Label = "Smoke doc documents nonblank pixel evidence" },
     [PSCustomObject]@{ Path = $smokeDoc; Pattern = "ObservedFallbackToggle"; Label = "Smoke doc documents fallback toggle evidence" },
@@ -180,8 +176,8 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "export_point_cloud_renderer_decision_report.ps1"; Label = "Renderer acceptance package includes decision report" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "validate_point_cloud_preview_policy.ps1"; Label = "Renderer acceptance package includes preview policy validation" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "export_csv_preview_performance_report.ps1"; Label = "Renderer acceptance package includes CSV performance evidence when available" },
-    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "DoesNotIntegrateGpuRenderer = `$true"; Label = "Renderer acceptance package does not claim GPU implementation" },
-    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "CreatesNiagaraAssets = `$false"; Label = "Renderer acceptance package does not create Niagara assets" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "GpuRendererImplementationPresent"; Label = "Renderer acceptance package reports integrated GPU implementation" },
+    [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "setup_lidar_niagara_assets.ps1"; Label = "Renderer acceptance package documents Niagara asset generation" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "RunsGpuViewportSmoke = `$false"; Label = "Renderer acceptance package does not run GPU viewport smoke" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "DoesNotModifyAssets = `$true"; Label = "Renderer acceptance package does not modify assets" },
     [PSCustomObject]@{ Path = $rendererAcceptancePackageScript; Pattern = "StagesFiles = `$false"; Label = "Renderer acceptance package does not stage files" },
@@ -216,8 +212,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "GpuDenseFrameEvidencePresent"; Label = "Pre-commit summary surfaces dense-frame evidence" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimGpuDensePreview"; Label = "Pre-commit summary avoids claiming GPU dense preview too early" },
     [PSCustomObject]@{ Path = $precommitSummaryScript; Pattern = "ReadyToClaimCsvPreviewPerformance"; Label = "Pre-commit summary avoids claiming CSV preview performance too early" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "CsvPreviewPerformanceReportShellWritten"; Label = "Remaining work documents CSV report shell boundary" },
-    [PSCustomObject]@{ Path = $remainingDoc; Pattern = "CsvPreviewPerformanceAutomationEvidencePresent"; Label = "Remaining work documents CSV automation evidence requirement" }
+    [PSCustomObject]@{ Path = $smokeDoc; Pattern = "CsvPreviewPerformanceAutomationEvidencePresent"; Label = "Smoke document records CSV automation evidence boundary" }
 )
 
 foreach ($item in $requiredTexts) {
@@ -247,7 +242,7 @@ $report = [PSCustomObject]@{
         PointCloudOnlyClampDeclared = $true
         BatchedInstanceUploadDeclared = $true
         RendererBackendSelectionDeclared = $true
-        GpuPreviewBackendClaimBlocked = $true
+        GpuRendererIntegrationDeclared = $true
         CpuFallbackForGpuCandidatesDeclared = $true
         RendererDecisionReportDeclared = $true
         RendererDecisionMatrixDeclared = $true
@@ -268,7 +263,7 @@ $report = [PSCustomObject]@{
         CsvPreviewFailureEvidenceGateDeclared = $true
         RendererDecisionExplicitLogPathDeclared = $true
         RendererAcceptancePackageDeclared = $true
-        RendererAcceptancePackageNoAssetNoGpuSmokeBoundaryDeclared = $true
+        RendererAcceptanceEvidenceBoundaryDeclared = $true
         PrecommitRendererSummaryDeclared = $true
         AutomationCoverageDeclared = $true
         Valid = $true
@@ -287,7 +282,7 @@ else {
     Write-Host "PointCloudOnly clamps declared: $($report.Summary.PointCloudOnlyClampDeclared)"
     Write-Host "Batched instance upload declared: $($report.Summary.BatchedInstanceUploadDeclared)"
     Write-Host "Renderer backend selection declared: $($report.Summary.RendererBackendSelectionDeclared)"
-    Write-Host "GPU preview backend claim blocked: $($report.Summary.GpuPreviewBackendClaimBlocked)"
+    Write-Host "GPU renderer integration declared: $($report.Summary.GpuRendererIntegrationDeclared)"
     Write-Host "CPU fallback for GPU candidates declared: $($report.Summary.CpuFallbackForGpuCandidatesDeclared)"
     Write-Host "Renderer decision report declared: $($report.Summary.RendererDecisionReportDeclared)"
     Write-Host "Renderer decision matrix declared: $($report.Summary.RendererDecisionMatrixDeclared)"
@@ -308,7 +303,7 @@ else {
     Write-Host "CSV preview failure evidence gate declared: $($report.Summary.CsvPreviewFailureEvidenceGateDeclared)"
     Write-Host "Renderer decision explicit log path declared: $($report.Summary.RendererDecisionExplicitLogPathDeclared)"
     Write-Host "Renderer acceptance package declared: $($report.Summary.RendererAcceptancePackageDeclared)"
-    Write-Host "Renderer acceptance package no-asset/no-GPU-smoke boundary declared: $($report.Summary.RendererAcceptancePackageNoAssetNoGpuSmokeBoundaryDeclared)"
+    Write-Host "Renderer acceptance evidence boundary declared: $($report.Summary.RendererAcceptanceEvidenceBoundaryDeclared)"
     Write-Host "Pre-commit renderer summary declared: $($report.Summary.PrecommitRendererSummaryDeclared)"
     Write-Host "Automation coverage declared: $($report.Summary.AutomationCoverageDeclared)"
 }

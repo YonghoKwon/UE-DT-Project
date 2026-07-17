@@ -159,18 +159,19 @@ FullSpec scheduler and help-contract automation:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorPerformance; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-This verifies the 60/30 FPS tier selection, 4/8 ms LiDAR budgets, unchanged FullSpec dimensions/rates, load calculations, and Korean help descriptor coverage. It is a deterministic contract test, not GPU performance evidence.
+This verifies the 60/30 FPS tier selection, 3/5 ms LiDAR budget ceilings, the aggregate 12 Hz fair camera-admission cap, unchanged FullSpec dimensions/rates, load calculations, and Korean help descriptor coverage. It is a deterministic contract test, not GPU performance evidence.
 
 Actual RHI evidence for the 2+2 and 4+4 scenarios:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2 -LidarRenderer Niagara
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4 -LidarRenderer Niagara
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4 -LidarRenderer Cpu
 ```
 
-The runner launches the normal 1920x1080 renderer, creates command-line-only FullSpec sensors, warms up for 10 seconds, records 60 seconds, and writes JSON/Markdown under `Saved/Reports`. It verifies the scenario thresholds, 1280x720 camera frames, 21,600-ray LiDAR scans, and the one-job-per-sensor queue bound. The temporary benchmark actors are never saved to `SensorTestMap`.
+The runner launches the normal 1920x1080 renderer, creates command-line-only FullSpec sensors, warms up for 10 seconds, resets the rolling statistics window, records 60 seconds, and writes renderer-specific JSON/Markdown under `Saved/Reports`. It verifies the scenario thresholds, 1280x720 camera frames, 21,600-ray LiDAR scans, the one-job-per-sensor queue bound, and a max/min completion ratio of 1.2 or less. `Niagara` visualizes up to 21,600 selected-LiDAR points, while forced `Cpu` fallback caps that preview at 5,000. The temporary benchmark actors are never saved to `SensorTestMap`.
 
-Reference evidence captured on 2026-07-17 with Ryzen 7 7800X3D, RTX 4070 Ti, D3D12: 2+2 averaged 58.94 FPS with 49.96 FPS 1% low and 18.41 ms rolling p95; 4+4 averaged 53.16 FPS with 33.91 FPS 1% low and 27.37 ms rolling p95. Treat these as machine-specific evidence, not a cross-machine guarantee.
+Reference evidence captured on 2026-07-17 with Ryzen 7 7800X3D, RTX 4070 Ti, D3D12 after the 10-second warmup reset: 2+2 Niagara averaged 60.00 FPS with 59.98 FPS 1% low, 16.67 ms p95, and Camera/LiDAR fairness ratios 1.000/1.002. 4+4 Niagara averaged 59.99 FPS with 58.18 FPS 1% low, 16.67 ms p95, and fairness 1.003/1.046. Forced 4+4 CPU fallback averaged 59.99 FPS with 59.34 FPS 1% low, 16.67 ms p95, and fairness 1.011/1.002. Treat these as machine-specific evidence, not a cross-machine guarantee.
 
 Real sensor source base tests:
 
@@ -292,8 +293,8 @@ Static preview-policy readiness:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"
 ```
 
-This check keeps the current CPU/instance preview safety policy explicit until a
-GPU/Niagara/custom high-density renderer is selected.
+This check validates the Niagara array-upload path, the generated Niagara system,
+and the retained CPU/instance fallback safety policy.
 
 Headless CSV preview coverage:
 
@@ -341,9 +342,9 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -SkipBuild
 ```
 
-This report proves the current CPU preview fallback telemetry was emitted from
+This report proves the CPU preview fallback telemetry was emitted from
 the automation log and that the automation run completed successfully. It does
-not replace the future GPU/Niagara viewport smoke evidence. The renderer
+not replace the Niagara viewport smoke evidence. The renderer
 decision report consumes the same local evidence and sets
 `CpuFallbackPerformanceEvidencePresent` when the instanced, 120,000-point
 procedural, and 250,000-point procedural budget scenarios plus
@@ -355,11 +356,11 @@ scenario success line, `TestCompleteLine`, and `EvidenceLinesWithinRun`.
 GPU/Niagara renderer smoke:
 
 ```text
-1. Before GPU code/assets exist, optionally set LiDAR PreviewBackend to NiagaraCandidate or CustomGpuCandidate and confirm the status still reports CPU fallback active.
-2. Open the target map with the candidate GPU/Niagara point renderer enabled only after the renderer path exists.
+1. Run `Scripts/setup_lidar_niagara_assets.ps1` and confirm both `/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud` and `M_VirtualLidarPointSprite` load.
+2. Open `SensorRefactorTestMap`, select a LiDAR, enable `월드 3D 포인트 표시`, and confirm the renderer status is `Niagara GPU sprites`.
 3. Load or replay a dense LiDAR frame and record map name, sensor id, renderer name, preview point count, and server payload point count.
 4. Capture a viewport screenshot and verify it contains nonblank point pixels, not only UI or an empty background.
-5. Toggle or force the CPU/ISM fallback path and confirm it still renders a usable preview.
+5. Temporarily clear the Niagara system reference (or run without SM5) and confirm the low-poly CPU/ISM fallback renders at most 5,000 points and reports the reason.
 6. Record whether the dense frame caused an editor stall, overlap, clipping, or monitor UI obstruction.
 7. Export the renderer decision report with the viewport smoke fields.
 ```
@@ -367,17 +368,18 @@ GPU/Niagara renderer smoke:
 Example evidence command after a GPU path exists:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 21600 -GpuSmokeMapName "SensorRefactorTestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "FullSpec viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 21600 -GpuSmokeMapName "SensorRefactorTestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "FullSpec viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
 ```
 
-Until a GPU renderer is actually integrated, the renderer decision report should
-remain in `RendererPhase = PreGpuSpike`. After GPU code or assets are detected,
-it should move to `GpuIntegratedEvidencePending` until viewport smoke, fallback
-preservation, and dense-frame evidence are all recorded.
-The LiDAR `PreviewBackend` selector is not evidence by itself: the candidate
-values intentionally report `GPU preview backend is a candidate only; CPU
-fallback is active` and keep `gpuPreviewBackendActive = false` in the payload.
+With the Niagara renderer integrated, the renderer decision report should be
+`GpuIntegratedEvidencePending` until viewport smoke, fallback preservation, and
+dense-frame evidence are recorded; after that it moves to `GpuEvidenceReady`.
+The runtime renderer name and fallback reason must be recorded together because
+the same UI toggle can use Niagara or the automatic CPU ISM fallback.
+
+`CsvPreviewPerformanceAutomationEvidencePresent`는 보고서 파일 생성 여부가 아니라,
+동일 자동화 실행 로그에서 CPU fallback 성능 시나리오가 통과했음을 뜻한다.
 
 Manual PIE payload checks:
 

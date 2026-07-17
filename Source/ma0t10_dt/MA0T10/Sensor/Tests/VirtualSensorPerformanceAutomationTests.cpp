@@ -16,17 +16,17 @@ bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("2 cameras and 2 lidars use the 60 FPS tier"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(2, 2), 60);
     TestEqual(TEXT("3 cameras move to the 30 FPS tier"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(3, 2), 30);
     TestEqual(TEXT("4 cameras and 4 lidars remain supported at 30 FPS"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(4, 4), 30);
-    TestEqual(TEXT("60 FPS tier uses a four millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(60), 4.0f);
-    TestEqual(TEXT("30 FPS tier uses an eight millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(30), 8.0f);
+    TestEqual(TEXT("60 FPS tier uses a three millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(60), 3.0f);
+    TestEqual(TEXT("30 FPS tier uses a five millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(30), 5.0f);
     TestFalse(TEXT("four of each sensor is not best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(4, 4));
     TestTrue(TEXT("five cameras is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(5, 2));
     TestTrue(TEXT("five lidars is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(2, 5));
-    TestEqual(TEXT("two cameras at the 60 FPS tier receive a nominal 30 Hz admission rate"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 2), 30.0f);
-    TestEqual(TEXT("four cameras at the 30 FPS tier use latest-frame best effort"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(30, 4), 7.5f);
+    TestEqual(TEXT("two cameras share the aggregate 12 Hz admission cap"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 2), 6.0f);
+    TestEqual(TEXT("four cameras share the aggregate 12 Hz admission cap"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(30, 4), 3.0f);
     TestEqual(TEXT("camera admission calculation is safe with no cameras"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 0), 0.0f);
-    TestTrue(TEXT("slow frames reduce camera admission"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(15.0f, 25.0f, 60) < 15.0f);
-    TestTrue(TEXT("fast frames recover camera admission gradually"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(15.0f, 10.0f, 60) > 15.0f);
-    TestEqual(TEXT("60 FPS camera admission has a smoothness floor"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(8.0f, 40.0f, 60), 8.0f);
+    TestTrue(TEXT("slow frames reduce camera admission"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(12.0f, 25.0f, 60) < 12.0f);
+    TestTrue(TEXT("fast frames recover camera admission gradually"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(10.0f, 10.0f, 60) > 10.0f);
+    TestEqual(TEXT("60 FPS camera admission has a smoothness floor"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(4.0f, 40.0f, 60), 4.0f);
     TestEqual(TEXT("mixed FullSpec tier can reduce stale camera work further"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(4.0f, 40.0f, 60, 4.0f), 4.0f);
     return true;
 }

@@ -33,7 +33,9 @@ public class ma0t10_dt : ModuleRules
             "ProceduralMeshComponent",
             "Sockets",
             "Networking",
-            "HTTPServer"
+            "HTTPServer",
+            "Niagara",
+            "NiagaraCore"
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });

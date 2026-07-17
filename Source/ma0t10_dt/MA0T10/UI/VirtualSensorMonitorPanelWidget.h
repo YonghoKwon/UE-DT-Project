@@ -18,6 +18,7 @@ class UTexture2D;
 class URealSensorSourceComponent;
 class UVirtualCameraCaptureComponent;
 class UVirtualLidarScanComponent;
+class UVirtualLidarVisualizationComponent;
 
 struct FVirtualSensorPendingCameraReadback
 {
@@ -110,6 +111,24 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void SetLidarViewMode(EVirtualLidarViewMode InViewMode);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarProjectionMode(ELidarMonitorProjectionMode InProjectionMode);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarColorMode(ELidarColorMode InColorMode);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarWorldPointCloudEnabled(bool bEnabled);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarPointSize(float InPointSize);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LidarView")
+    ELidarMonitorProjectionMode GetLidarProjectionMode() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LidarView")
+    ELidarColorMode GetLidarColorMode() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LidarView")
     FString GetLidarViewModeDescription() const;
@@ -296,6 +315,8 @@ private:
     bool ShouldUseNativeFallbackWidget() const;
     FString GetLidarViewModeDisplayText() const;
     UObject* GetLidarBrushResource();
+    UObject* GetSecondaryLidarBrushResource();
+    UVirtualLidarVisualizationComponent* GetLidarVisualizationComponent() const;
     UTexture2D* RebuildEnhancedLidarViewTexture();
     void InvalidateEnhancedLidarView();
     void CaptureLocalSensorFrame();
@@ -491,11 +512,15 @@ private:
     FTimerHandle LocalSensorCaptureTimerHandle;
     TArray<FVirtualSensorPendingCameraReadback> PendingCameraReadbacks;
     TArray<TSharedPtr<EVirtualLidarViewMode>> NativeLidarViewModeOptions;
+    TArray<TSharedPtr<ELidarMonitorProjectionMode>> NativeLidarProjectionOptions;
+    TArray<TSharedPtr<ELidarColorMode>> NativeLidarColorOptions;
     TSharedPtr<STextBlock> NativeTitleTextBlock;
     TSharedPtr<STextBlock> NativeStatusTextBlock;
     TSharedPtr<STextBlock> NativeDetailedStatusTextBlock;
     TSharedPtr<STextBlock> NativeWarningTextBlock;
     TSharedPtr<SImage> NativeViewImage;
+    TSharedPtr<SImage> NativeSecondaryViewImage;
     FSlateBrush NativeViewBrush;
+    FSlateBrush NativeSecondaryViewBrush;
     double StatusRefreshAccumulator = 0.0;
 };

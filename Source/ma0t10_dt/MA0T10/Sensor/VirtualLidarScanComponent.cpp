@@ -20,9 +20,12 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include <atomic>
 
 namespace
 {
+std::atomic<int32> GVirtualLidarJsonJobs{0};
+constexpr int32 GVirtualLidarJsonJobLimit = 2;
 template <typename T> void WriteLasValue(FBufferArchive& A, const T& V) { A.Serialize(const_cast<T*>(&V), sizeof(T)); }
 void WriteLasFixedString(FBufferArchive& A, const ANSICHAR* Text, int32 Len) { TArray<ANSICHAR> B; B.SetNumZeroed(Len); if (Text) { FCStringAnsi::Strncpy(B.GetData(), Text, Len); } A.Serialize(B.GetData(), Len); }
 void WriteLasBytes(FBufferArchive& A, const uint8* Bytes, int32 Len) { A.Serialize(const_cast<uint8*>(Bytes), Len); }
@@ -41,7 +44,7 @@ void AddVectorArray(TSharedRef<FJsonObject> Object, const TCHAR* FieldName, cons
 
 struct FLidarScheduledPayloadSnapshot
 {
-    TArray<FVirtualLidarPoint> Points;
+    TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points;
     FString SensorId;
     FString Manufacturer;
     FString Model;
@@ -68,8 +71,10 @@ struct FLidarScheduledPayloadSnapshot
 FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
 {
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    static const TArray<FVirtualLidarPoint> EmptyPoints;
+    const TArray<FVirtualLidarPoint>& Points = S.Points.IsValid() ? *S.Points : EmptyPoints;
     int32 HitPointCount = 0;
-    for (const FVirtualLidarPoint& Point : S.Points) if (Point.bHit) ++HitPointCount;
+    for (const FVirtualLidarPoint& Point : Points) if (Point.bHit) ++HitPointCount;
 
     Root->SetStringField(TEXT("schemaVersion"), TEXT("virtual-lidar.v1"));
     Root->SetStringField(TEXT("sensorType"), TEXT("virtual_lidar"));
@@ -81,7 +86,7 @@ FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
     Root->SetNumberField(TEXT("horizontalSamples"), S.HorizontalSamples);
     Root->SetNumberField(TEXT("verticalChannels"), S.VerticalChannels);
     Root->SetNumberField(TEXT("rayCount"), S.HorizontalSamples * S.VerticalChannels);
-    Root->SetNumberField(TEXT("totalPointCount"), S.Points.Num());
+    Root->SetNumberField(TEXT("totalPointCount"), Points.Num());
     Root->SetNumberField(TEXT("hitPointCount"), HitPointCount);
     Root->SetNumberField(TEXT("maxDistance"), S.MaxDistance);
     Root->SetBoolField(TEXT("semanticClassification"), S.bSemanticClassification);
@@ -144,10 +149,10 @@ FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
     const int32 SafeStride = FMath::Max(1, S.ServerPayloadStride);
     const int32 SafeMax = FMath::Max(0, S.MaxServerPayloadPoints);
     int32 Added = 0;
-    for (int32 I = 0; I < S.Points.Num(); I += SafeStride)
+    for (int32 I = 0; I < Points.Num(); I += SafeStride)
     {
         if (SafeMax > 0 && Added >= SafeMax) break;
-        const FVirtualLidarPoint& P = S.Points[I];
+        const FVirtualLidarPoint& P = Points[I];
         if (!S.bIncludeMissPoints && !P.bHit) continue;
         TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
         O->SetNumberField(TEXT("pointIndex"), I);
@@ -200,6 +205,8 @@ void UVirtualLidarScanComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
     StopScan();
     ++ScheduledGeneration;
     ScheduledPoints.Reset();
+    ScheduledHitPointCount = 0;
+    ScheduledSemanticCounts.Reset();
     ScheduledHeatmapPixels.Reset();
     ClearPointCloudPreview();
     if (PointCloudPreviewComponent) { PointCloudPreviewComponent->DestroyComponent(); PointCloudPreviewComponent = nullptr; }
@@ -321,6 +328,8 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
                 Point.WorldLocation = Hit.ImpactPoint;
                 PopulatePointSemanticMetadata(Point, Hit);
                 ScheduledPoints.Add(Point);
+                ++ScheduledHitPointCount;
+                ScheduledSemanticCounts.FindOrAdd(Point.SemanticLabel.IsNone() ? TEXT("Unclassified") : Point.SemanticLabel.ToString())++;
                 if (!FirstPoint.bHit) FirstPoint = Point;
                 if (++Added >= FMath::Max(1, MaxHitsPerRay)) break;
             }
@@ -336,6 +345,11 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
             FirstPoint.WorldLocation = bHit ? Hit.ImpactPoint : End;
             if (bHit) PopulatePointSemanticMetadata(FirstPoint, Hit);
             ScheduledPoints.Add(FirstPoint);
+            if (bHit)
+            {
+                ++ScheduledHitPointCount;
+                ScheduledSemanticCounts.FindOrAdd(FirstPoint.SemanticLabel.IsNone() ? TEXT("Unclassified") : FirstPoint.SemanticLabel.ToString())++;
+            }
         }
         WriteHeatmapPixel(ScheduledHeatmapPixels, GetHeatmapPixelIndex(X, V, ScheduledScanWidth, ScheduledScanHeight), FirstPoint);
         if (bDrawDebugRays) DrawDebugLine(World, Origin, FirstPoint.WorldLocation, FirstPoint.bHit ? ResolveSemanticColor(FirstPoint).ToFColor(true) : FColor::Silver, false, ScanInterval, 0, 0.5f);
@@ -353,7 +367,10 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
     ++FrameId;
-    LastPoints = MoveTemp(ScheduledPoints);
+    LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
+    const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
+    LastHitPointCount = ScheduledHitPointCount;
+    LastSemanticCounts = MoveTemp(ScheduledSemanticCounts);
     LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
     LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
     LastPreviewPointCount = CountPreviewPoints(LastPoints);
@@ -384,11 +401,19 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 
 void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds)
 {
+    if (GVirtualLidarJsonJobs.fetch_add(1, std::memory_order_acq_rel) >= GVirtualLidarJsonJobLimit)
+    {
+        GVirtualLidarJsonJobs.fetch_sub(1, std::memory_order_acq_rel);
+        ++RuntimeStatus.DroppedDerivedFrameCount;
+        RuntimeStatus.bDerivedWorkInFlight = false;
+        UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
+        return;
+    }
     bScheduledPayloadBuildInFlight = true;
     RuntimeStatus.bDerivedWorkInFlight = true;
     const int32 Generation = ScheduledGeneration;
     FLidarScheduledPayloadSnapshot Snapshot;
-    Snapshot.Points = LastPoints;
+    Snapshot.Points = GetLastPointSnapshot();
     Snapshot.SensorId = SensorId;
     Snapshot.Manufacturer = DeviceSpec.Manufacturer;
     Snapshot.Model = DeviceSpec.Model;
@@ -415,6 +440,7 @@ void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameI
     Async(EAsyncExecution::LargeThreadPool, [WeakThis, Generation, CapturedFrameId, Snapshot = MoveTemp(Snapshot), AcquisitionStartedSeconds]() mutable
     {
         FString Payload = BuildScheduledLidarJson(Snapshot);
+        GVirtualLidarJsonJobs.fetch_sub(1, std::memory_order_acq_rel);
         AsyncTask(ENamedThreads::GameThread, [WeakThis, Generation, CapturedFrameId, Payload = MoveTemp(Payload), AcquisitionStartedSeconds]() mutable
         {
             if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;
@@ -469,7 +495,7 @@ void UVirtualLidarScanComponent::QueueScheduledAutoExports()
     LastPointCloudExportPath = !PcdPath.IsEmpty() ? PcdPath : (!JsonlPath.IsEmpty() ? JsonlPath : CsvPath);
     const bool bHitOnly = bExportHitOnlyPointCloud;
     const int32 Generation = ScheduledGeneration;
-    TArray<FVirtualLidarPoint> Points = LastPoints;
+    TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points = GetLastPointSnapshot();
     TWeakObjectPtr<UVirtualLidarScanComponent> WeakThis(this);
     bScheduledAutoExportInFlight = true;
     RuntimeStatus.bDerivedWorkInFlight = true;
@@ -477,7 +503,7 @@ void UVirtualLidarScanComponent::QueueScheduledAutoExports()
     Async(EAsyncExecution::LargeThreadPool, [WeakThis, Generation, Points = MoveTemp(Points), CsvPath, JsonlPath, PcdPath, bHitOnly]() mutable
     {
         TArray<const FVirtualLidarPoint*> ExportPoints;
-        for (const FVirtualLidarPoint& Point : Points) if (!bHitOnly || Point.bHit) ExportPoints.Add(&Point);
+        if (Points.IsValid()) for (const FVirtualLidarPoint& Point : *Points) if (!bHitOnly || Point.bHit) ExportPoints.Add(&Point);
         bool bSuccess = true;
         if (!CsvPath.IsEmpty())
         {
@@ -539,6 +565,7 @@ void UVirtualLidarScanComponent::SetPreviewBackend(ELidarPointCloudPreviewBacken
 
 FString UVirtualLidarScanComponent::GetPreviewBackendName() const
 {
+    if (bGpuPreviewBackendRuntimeActive) return TEXT("NiagaraGpuSprites");
     switch (PreviewBackend)
     {
     case ELidarPointCloudPreviewBackend::NiagaraCandidate:
@@ -553,13 +580,21 @@ FString UVirtualLidarScanComponent::GetPreviewBackendName() const
 
 bool UVirtualLidarScanComponent::IsGpuPreviewBackendRequested() const
 {
-    return PreviewBackend == ELidarPointCloudPreviewBackend::NiagaraCandidate ||
+    return bGpuPreviewBackendRuntimeRequested ||
+        PreviewBackend == ELidarPointCloudPreviewBackend::NiagaraCandidate ||
         PreviewBackend == ELidarPointCloudPreviewBackend::CustomGpuCandidate;
 }
 
 bool UVirtualLidarScanComponent::IsGpuPreviewBackendActive() const
 {
-    return false;
+    return bGpuPreviewBackendRuntimeActive;
+}
+
+void UVirtualLidarScanComponent::SetGpuPreviewBackendRuntimeState(bool bActive, const FString& InFallbackReason)
+{
+    bGpuPreviewBackendRuntimeActive = bActive;
+    bGpuPreviewBackendRuntimeRequested = bActive || !InFallbackReason.IsEmpty();
+    GpuPreviewFallbackReason = InFallbackReason;
 }
 
 void UVirtualLidarScanComponent::SetPointCloudPreviewEnabled(bool bEnabled)
@@ -671,7 +706,11 @@ void UVirtualLidarScanComponent::ScanAndSend()
     ++FrameId;
 
     TArray<uint8> HeatmapPixels;
-    ExecuteScan(LastPoints, HeatmapPixels);
+    TArray<FVirtualLidarPoint> NewPoints;
+    ExecuteScan(NewPoints, HeatmapPixels);
+    LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(NewPoints));
+    const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
+    RebuildLastPointStatistics();
     LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
     LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
     LastPreviewPointCount = CountPreviewPoints(LastPoints);
@@ -696,7 +735,9 @@ void UVirtualLidarScanComponent::ScanAndSend()
 void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport)
 {
     ++FrameId;
-    LastPoints = Points;
+    LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(Points);
+    const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
+    RebuildLastPointStatistics();
     LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
     LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
     LastPreviewPointCount = CountPreviewPoints(LastPoints);
@@ -1070,6 +1111,7 @@ void UVirtualLidarScanComponent::UpdateLidarViewTexture(const TArray<uint8>& Pix
 
 void UVirtualLidarScanComponent::UpdateRuntimeStatusAfterScan(int32 PayloadLength)
 {
+    const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     RuntimeStatus.SensorId = SensorId;
     RuntimeStatus.SensorType = TEXT("virtual_lidar");
     RuntimeStatus.FrameId = FrameId;
@@ -1082,13 +1124,7 @@ void UVirtualLidarScanComponent::UpdateRuntimeStatusAfterScan(int32 PayloadLengt
     RuntimeStatus.PerformanceWarning = LastPerformanceWarning;
     RuntimeStatus.SlabAnalysis = LastSlabAnalysis;
 
-    for (const FVirtualLidarPoint& Point : LastPoints)
-    {
-        if (Point.bHit)
-        {
-            ++RuntimeStatus.HitPointCount;
-        }
-    }
+    RuntimeStatus.HitPointCount = LastHitPointCount;
 
     RuntimeStatus.LastMessage = FString::Printf(
         TEXT("Quality=%d Rays=%d Hits=%d ServerPoints=%d ServerStride=%d MaxServer=%d Preview=%s PreviewPoints=%d PreviewStride=%d PreviewBackend=%s GpuActive=%s Slab=%s Angle=%.2f Dev=%.2f Conf=%.2f Warning=%s"),
@@ -1157,10 +1193,23 @@ FString UVirtualLidarScanComponent::BuildExportPath(const FString& Extension, co
 {
     const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud")); IFileManager::Get().MakeDirectory(*Dir, true); const FString Prefix = FileNamePrefix.IsEmpty() ? SensorId : FileNamePrefix; const FDateTime N = FDateTime::UtcNow(); const FString Ts = FString::Printf(TEXT("%s_%03d_%lld"), *N.ToString(TEXT("%Y%m%d_%H%M%S")), N.GetMillisecond(), N.GetTicks()); LastPointCloudExportPath = FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Ts, *Extension)); return LastPointCloudExportPath;
 }
-void UVirtualLidarScanComponent::CollectExportPoints(TArray<const FVirtualLidarPoint*>& Out) const { Out.Reset(); for (const FVirtualLidarPoint& P : LastPoints) if (!bExportHitOnlyPointCloud || P.bHit) Out.Add(&P); }
+void UVirtualLidarScanComponent::RebuildLastPointStatistics()
+{
+    LastHitPointCount = 0;
+    LastSemanticCounts.Reset();
+    for (const FVirtualLidarPoint& Point : GetLastPoints())
+    {
+        if (!Point.bHit) continue;
+        ++LastHitPointCount;
+        LastSemanticCounts.FindOrAdd(Point.SemanticLabel.IsNone() ? TEXT("Unclassified") : Point.SemanticLabel.ToString())++;
+    }
+}
+
+void UVirtualLidarScanComponent::CollectExportPoints(TArray<const FVirtualLidarPoint*>& Out) const { Out.Reset(); for (const FVirtualLidarPoint& P : GetLastPoints()) if (!bExportHitOnlyPointCloud || P.bHit) Out.Add(&P); }
 
 void UVirtualLidarScanComponent::LogLastPointCloud(int32 MaxPointsToLog, bool bHitOnly) const
 {
+    const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     int32 Logged = 0, Candidates = 0; UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] PointCloud frame=%lld total=%d"), *SensorId, FrameId, LastPoints.Num());
     for (int32 Idx = 0; Idx < LastPoints.Num(); ++Idx) { const FVirtualLidarPoint& P = LastPoints[Idx]; if (bHitOnly && !P.bHit) continue; ++Candidates; if (MaxPointsToLog > 0 && Logged >= MaxPointsToLog) continue; UE_LOG(LogTemp, Warning, TEXT("[%d] x=%.3f y=%.3f z=%.3f d=%.3f hit=%d actor=%s class=%s label=%s tags=%s"), Idx, P.WorldLocation.X, P.WorldLocation.Y, P.WorldLocation.Z, P.Distance, P.bHit ? 1 : 0, *P.HitActorName.ToString(), *P.HitActorClassName.ToString(), *P.SemanticLabel.ToString(), *JoinNames(P.HitActorTags)); ++Logged; }
     UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] PointCloud log complete. candidates=%d logged=%d"), *SensorId, Candidates, Logged);
@@ -1380,7 +1429,7 @@ UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPrevi
     {
         UObject* PreviewOuter = GetOwner() ? Cast<UObject>(GetOwner()) : Cast<UObject>(this);
         PointCloudPreviewComponent = NewObject<UInstancedStaticMeshComponent>(PreviewOuter, TEXT("VirtualLidarPointCloudPreview"));
-        if (PointCloudPreviewComponent) { PointCloudPreviewComponent->SetupAttachment(this); PointCloudPreviewComponent->RegisterComponent(); if (!PointCloudPreviewMesh) PointCloudPreviewMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"))); if (PointCloudPreviewMesh) PointCloudPreviewComponent->SetStaticMesh(PointCloudPreviewMesh); }
+        if (PointCloudPreviewComponent) { PointCloudPreviewComponent->SetupAttachment(this); PointCloudPreviewComponent->NumCustomDataFloats = 4; PointCloudPreviewComponent->SetCastShadow(false); PointCloudPreviewComponent->RegisterComponent(); if (!PointCloudPreviewMesh) PointCloudPreviewMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"))); if (PointCloudPreviewMesh) PointCloudPreviewComponent->SetStaticMesh(PointCloudPreviewMesh); }
     }
     return PointCloudPreviewComponent;
 }
@@ -1388,6 +1437,7 @@ UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPrevi
 void UVirtualLidarScanComponent::RefreshPointCloudPreview()
 {
     UWorld* World = GetWorld(); if (!bPointCloudPreviewEnabled || !World) { ClearPointCloudPreview(); return; }
+    const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);
     const int32 Stride = FMath::Max(1, PreviewPointStride); int32 Added = 0;
     const int32 PreviewCapacity = MaxPreviewPoints > 0 ? FMath::Min(MaxPreviewPoints, LastPoints.Num()) : LastPoints.Num();
@@ -1421,6 +1471,17 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
         RemovedIndices.Reserve(ExistingCount - NewCount);
         for (int32 Index = ExistingCount - 1; Index >= NewCount; --Index) RemovedIndices.Add(Index);
         Comp->RemoveInstances(RemovedIndices, true);
+    }
+    for (int32 InstanceIndex = 0, PointIndex = 0; InstanceIndex < NewCount && PointIndex < LastPoints.Num(); ++PointIndex)
+    {
+        const FVirtualLidarPoint& Point = LastPoints[PointIndex];
+        if (PointIndex % Stride != 0 || (bPointCloudPreviewHitOnly && !Point.bHit)) continue;
+        const FLinearColor Color = bUseSemanticColorInPointCloudPreview && Point.bHit ? ResolveSemanticColor(Point) : PointCloudPreviewColor;
+        Comp->SetCustomDataValue(InstanceIndex, 0, Color.R, false);
+        Comp->SetCustomDataValue(InstanceIndex, 1, Color.G, false);
+        Comp->SetCustomDataValue(InstanceIndex, 2, Color.B, false);
+        Comp->SetCustomDataValue(InstanceIndex, 3, Color.A, InstanceIndex == NewCount - 1);
+        ++InstanceIndex;
     }
     Comp->MarkRenderStateDirty();
 }

@@ -44,6 +44,10 @@
 		{
 			"Name": "DTCore",
 			"Enabled": true
+		},
+		{
+			"Name": "Niagara",
+			"Enabled": true
 		}
 	]
 }

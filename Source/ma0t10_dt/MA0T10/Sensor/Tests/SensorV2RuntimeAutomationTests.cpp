@@ -9,6 +9,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
@@ -70,9 +71,23 @@ public:
 		if (!bRuntimeReady) return true;
 
 		UVirtualLidarScanComponent* Scan = Lidar->ScanComponent;
+		if (Lidar->VisualizationComponent)
+		{
+			// UI preferences are intentionally user-specific. Force the renderer on; NullRHI
+			// may either initialize Niagara or select the CPU fallback depending on the RHI.
+			Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
+			Lidar->VisualizationComponent->RefreshLatestFrame();
+		}
 		Test->TestTrue(TEXT("automatic LiDAR scan completes in PIE"), Scan->GetRuntimeStatus().FrameId > 0);
 		Test->TestTrue(TEXT("automatic LiDAR scan produces points"), Scan->GetLastPoints().Num() > 0);
-		Test->TestTrue(TEXT("spatial point-cloud preview is enabled"), Scan->IsPointCloudPreviewEnabled());
+		const bool bNiagaraActive = Scan->IsGpuPreviewBackendActive();
+		Test->TestTrue(TEXT("spatial point-cloud preview is enabled"),
+			bNiagaraActive || Scan->IsPointCloudPreviewEnabled());
+		if (bNiagaraActive && Lidar->VisualizationComponent)
+		{
+			Test->TestTrue(TEXT("Niagara preview uploads visible points"), Lidar->VisualizationComponent->GetVisiblePointCount() > 0);
+			Test->TestTrue(TEXT("Niagara renderer reports the active path"), Lidar->VisualizationComponent->GetActiveRendererName().Contains(TEXT("Niagara")));
+		}
 
 		TArray<UInstancedStaticMeshComponent*> PreviewComponents;
 		Lidar->GetComponents<UInstancedStaticMeshComponent>(PreviewComponents);
@@ -85,8 +100,11 @@ public:
 				break;
 			}
 		}
-		Test->TestNotNull(TEXT("point-cloud ISM preview component is created"), PointCloudPreview);
-		if (PointCloudPreview)
+		if (!bNiagaraActive)
+		{
+			Test->TestNotNull(TEXT("point-cloud ISM preview component is created for fallback"), PointCloudPreview);
+		}
+		if (!bNiagaraActive && PointCloudPreview)
 		{
 			Test->TestTrue(TEXT("point-cloud ISM has visible instances"), PointCloudPreview->GetInstanceCount() > 0);
 			if (PointCloudPreview->GetInstanceCount() > 0)

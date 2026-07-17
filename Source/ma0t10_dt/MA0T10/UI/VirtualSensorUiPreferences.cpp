@@ -1,19 +1,37 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 
-const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v1");
+const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v2");
+const FString UVirtualSensorUiPreferencesSaveGame::LegacySlotName = TEXT("MA0T10_VirtualSensorUI_v1");
 
 UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOrCreate()
 {
-    if (UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex))
+    const auto LoadSlot = [](const FString& Name) -> UVirtualSensorUiPreferencesSaveGame*
     {
-        if (UVirtualSensorUiPreferencesSaveGame* Loaded = Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex)))
+        return UGameplayStatics::DoesSaveGameExist(Name, UserIndex)
+            ? Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::LoadGameFromSlot(Name, UserIndex))
+            : nullptr;
+    };
+
+    if (UVirtualSensorUiPreferencesSaveGame* Loaded = LoadSlot(SlotName))
+    {
+        if (Loaded->Version == CurrentVersion) return Loaded;
+    }
+
+    if (UVirtualSensorUiPreferencesSaveGame* Legacy = LoadSlot(LegacySlotName))
+    {
+        if (Legacy->Version == 1)
         {
-            if (Loaded->Version == CurrentVersion)
-            {
-                return Loaded;
-            }
+            Legacy->LidarProjectionMode = ELidarMonitorProjectionMode::RangeImage;
+            Legacy->LidarColorMode = UVirtualLidarVisualizationComponent::MapLegacyViewMode(
+                static_cast<EVirtualLidarViewMode>(FMath::Clamp<int32>(Legacy->LidarViewMode, 0, 3)));
+            Legacy->bShowWorldLidarPointCloud = true;
+            Legacy->LidarPointSize = 2.0f;
+            Legacy->Version = CurrentVersion;
+            Save(Legacy);
+            return Legacy;
         }
     }
     return Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::CreateSaveGameObject(StaticClass()));
@@ -26,6 +44,9 @@ bool UVirtualSensorUiPreferencesSaveGame::Save(UVirtualSensorUiPreferencesSaveGa
 
 bool UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences()
 {
-    return !UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex) ||
+    const bool bDeletedCurrent = !UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex) ||
         UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex);
+    const bool bDeletedLegacy = !UGameplayStatics::DoesSaveGameExist(LegacySlotName, UserIndex) ||
+        UGameplayStatics::DeleteGameInSlot(LegacySlotName, UserIndex);
+    return bDeletedCurrent && bDeletedLegacy;
 }

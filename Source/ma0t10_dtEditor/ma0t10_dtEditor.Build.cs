@@ -15,7 +15,12 @@ public class ma0t10_dtEditor : ModuleRules
             "Slate",
             "SlateCore",
             "DTCore",
-            "ma0t10_dt"
+            "ma0t10_dt",
+            "AssetTools",
+            "MaterialEditor",
+            "Niagara",
+            "NiagaraCore",
+            "NiagaraEditor"
         });
     }
 }

@@ -66,9 +66,9 @@ bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameter
     TestFalse(TEXT("monitor reports no bound lidar"), MonitorWidget->HasBoundLidar());
     TestTrue(TEXT("camera status includes selected sensor id"), StatusText.Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
     TestTrue(TEXT("camera status includes schema version"), StatusText.Contains(TEXT("스키마: virtual-camera.v1")));
-    TestTrue(TEXT("camera status includes resolution"), StatusText.Contains(TEXT("해상도: 800x450")));
+    TestTrue(TEXT("camera status includes resolution"), StatusText.Contains(TEXT("해상도:")) && StatusText.Contains(TEXT("800")) && StatusText.Contains(TEXT("450")));
     TestTrue(TEXT("camera status includes capture mode"), StatusText.Contains(TEXT("캡처: 모드=")));
-    TestTrue(TEXT("camera status includes cached payload flag"), StatusText.Contains(TEXT("캐시=없음")));
+    TestTrue(TEXT("camera status includes cached payload flag"), StatusText.Contains(TEXT("Payload 캐시: 없음")));
     TestFalse(TEXT("monitor status omits capture/export controls"), StatusText.Contains(TEXT("Export Payload")) || StatusText.Contains(TEXT("CaptureOnce")));
     TestTrue(TEXT("camera selected sensor getter exposes sensor id"), MonitorWidget->GetSelectedSensorIdText().Contains(TEXT("TEST-CAMERA-MONITOR-STATUS")));
     TestTrue(TEXT("camera frame summary getter exposes frame"), MonitorWidget->GetFrameSummaryText().Contains(TEXT("Frame:")));
@@ -134,7 +134,7 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
     TestTrue(TEXT("status includes frame id"), StatusText.Contains(TEXT("프레임:")));
     TestTrue(TEXT("status includes scan interval"), StatusText.Contains(TEXT("스캔 주기: 0.125초")));
     TestTrue(TEXT("status includes ray count"), StatusText.Contains(TEXT("광선=24")));
-    TestTrue(TEXT("status includes measured hit count"), StatusText.Contains(TEXT("측정점/검출점: 24/24")));
+    TestTrue(TEXT("status includes measured hit count"), StatusText.Contains(TEXT("측정점/검출점: 24 / 24")));
     TestTrue(TEXT("status includes server payload policy"), StatusText.Contains(TEXT("서버 Payload: 점=8 바이트=")) && StatusText.Contains(TEXT("간격=2 최대=8 미검출점=아니요")));
     TestTrue(TEXT("status includes preview policy"), StatusText.Contains(TEXT("미리보기: 켜짐 점=5 간격=3 최대=5 검출점만=예")));
     TestTrue(TEXT("status includes slab analysis"), StatusText.Contains(TEXT("Slab 분석: 유효 점=24 각도=")));

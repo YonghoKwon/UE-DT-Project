@@ -5,6 +5,8 @@ param(
     [int]$LidarCount = 2,
     [int]$WarmupSeconds = 10,
     [int]$SampleSeconds = 60,
+    [ValidateSet("Niagara", "Cpu", "Off")]
+    [string]$LidarRenderer = "Niagara",
     [string]$LogPath = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -23,9 +25,10 @@ $projectPath = Join-Path $ProjectRoot "ma0t10_dt.uproject"
 $editorPath = Join-Path $EngineRoot "Engine\Binaries\Win64\UnrealEditor.exe"
 $buildPath = Join-Path $EngineRoot "Engine\Build\BatchFiles\Build.bat"
 $reportRoot = Join-Path $ProjectRoot "Saved\Reports"
-if ([string]::IsNullOrWhiteSpace($LogPath)) { $LogPath = Join-Path $reportRoot "fullspec_${CameraCount}c_${LidarCount}l.log" }
-if ([string]::IsNullOrWhiteSpace($MarkdownPath)) { $MarkdownPath = Join-Path $reportRoot "fullspec_${CameraCount}c_${LidarCount}l.md" }
-if ([string]::IsNullOrWhiteSpace($JsonPath)) { $JsonPath = Join-Path $reportRoot "fullspec_${CameraCount}c_${LidarCount}l.json" }
+$rendererSlug = $LidarRenderer.ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($LogPath)) { $LogPath = Join-Path $reportRoot "fullspec_${CameraCount}c_${LidarCount}l_${rendererSlug}.log" }
+if ([string]::IsNullOrWhiteSpace($MarkdownPath)) { $MarkdownPath = Join-Path $reportRoot "fullspec_${CameraCount}c_${LidarCount}l_${rendererSlug}.md" }
+if ([string]::IsNullOrWhiteSpace($JsonPath)) { $JsonPath = Join-Path $reportRoot "fullspec_${CameraCount}c_${LidarCount}l_${rendererSlug}.json" }
 
 foreach ($path in @($projectPath, $editorPath, $buildPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required file not found: $path" }
@@ -50,6 +53,8 @@ if (-not $SkipLaunch) {
         "-ExecCmds=`"t.IdleWhenNotForeground 0`"",
         "-VirtualSensorPerfCameras=$CameraCount",
         "-VirtualSensorPerfLidars=$LidarCount",
+        "-VirtualSensorPerfLidarRenderer=$LidarRenderer",
+        "-VirtualSensorPerfWarmupSeconds=$WarmupSeconds",
         "-abslog=`"$LogPath`""
     )
     $process = Start-Process -FilePath $editorPath -ArgumentList $arguments -PassThru -WindowStyle Hidden
@@ -127,8 +132,6 @@ $threshold = if ($CameraCount -le 2 -and $LidarCount -le 2) {
     $null
 }
 $thresholdPass = $null -eq $threshold -or ($averageFps -ge $threshold.AverageFps -and $onePercentLow -ge $threshold.OnePercentLowFps -and $p95FrameMs -le $threshold.P95FrameMs)
-$valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass
-
 $sensorSummary = @($sensor | Group-Object Kind, SensorId | ForEach-Object {
     $group = $_.Group
     [PSCustomObject]@{
@@ -140,16 +143,34 @@ $sensorSummary = @($sensor | Group-Object Kind, SensorId | ForEach-Object {
         FinalDroppedDerived = $group[-1].DroppedDerived
     }
 })
+$getFairnessRatio = {
+    param([object[]]$Rows)
+    if ($Rows.Count -le 1) { return 1.0 }
+    $rates = @($Rows | ForEach-Object AverageRateHz | Where-Object { $_ -gt 0.0 })
+    if ($rates.Count -ne $Rows.Count) { return [double]::PositiveInfinity }
+    return (($rates | Measure-Object -Maximum).Maximum / ($rates | Measure-Object -Minimum).Minimum)
+}
+$cameraFairnessRatio = & $getFairnessRatio @($sensorSummary | Where-Object Kind -eq 'Camera')
+$lidarFairnessRatio = & $getFairnessRatio @($sensorSummary | Where-Object Kind -eq 'Lidar')
+$fairnessPass = $cameraFairnessRatio -le 1.2 -and $lidarFairnessRatio -le 1.2
+$valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $fairnessPass
+$lidarVisiblePointLimit = switch ($LidarRenderer) {
+    "Niagara" { 21600 }
+    "Cpu" { 5000 }
+    default { 0 }
+}
 
 $report = [PSCustomObject]@{
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString('o')
     ProjectRoot = $ProjectRoot; LogPath = $LogPath; CameraCount = $CameraCount; LidarCount = $LidarCount
+    LidarRenderer = $LidarRenderer; LidarVisiblePointLimit = $lidarVisiblePointLimit
     WarmupSeconds = $WarmupSeconds; RequestedSampleSeconds = $SampleSeconds; Samples = $samples.Count
     Summary = [PSCustomObject]@{
         AverageFps = [Math]::Round($averageFps, 3); OnePercentLowFps = [Math]::Round($onePercentLow, 3)
         P95FrameTimeMs = [Math]::Round($p95FrameMs, 3); MaxPendingPerSensor = $maxPendingPerSensor
         CameraFrameShapeValid = $cameraShapeValid; LidarFrameShapeValid = $lidarShapeValid
-        Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
+        CameraFairnessRatio = [Math]::Round($cameraFairnessRatio, 3); LidarFairnessRatio = [Math]::Round($lidarFairnessRatio, 3)
+        FairnessPass = $fairnessPass; Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
     }
     Sensors = $sensorSummary
 }
@@ -159,6 +180,8 @@ $markdown = @(
     '# FullSpec Virtual Sensor Performance Report', '',
     "Generated UTC: $($report.GeneratedUtc)", '',
     "- Scenario: Camera $CameraCount + LiDAR $LidarCount",
+    "- LiDAR renderer: $LidarRenderer",
+    "- Selected LiDAR 3D visible-point limit: $lidarVisiblePointLimit",
     "- Samples: $($samples.Count) after ${WarmupSeconds}s warmup",
     "- Average FPS: $($report.Summary.AverageFps)",
     "- Conservative 1% low FPS: $($report.Summary.OnePercentLowFps)",
@@ -166,6 +189,9 @@ $markdown = @(
     "- Max pending jobs per sensor: $($report.Summary.MaxPendingPerSensor)",
     "- Camera frames are 1280x720: $cameraShapeValid",
     "- LiDAR scans are 21,600 rays: $lidarShapeValid",
+    "- Camera max/min completion ratio: $($report.Summary.CameraFairnessRatio)",
+    "- LiDAR max/min completion ratio: $($report.Summary.LidarFairnessRatio)",
+    "- Fairness ratio <= 1.2: $fairnessPass",
     "- Threshold pass: $thresholdPass",
     "- Valid: $valid", '',
     '## Per-sensor completion telemetry', '',
@@ -175,7 +201,7 @@ $markdown = @(
 foreach ($item in $sensorSummary) {
     $markdown += "| $($item.Kind) | $($item.SensorId) | $($item.AverageRateHz) | $($item.MaxAcquisitionMs) | $($item.MaxPostMs) | $($item.FinalDroppedAcquisition) | $($item.FinalDroppedDerived) |"
 }
-$markdown += @('', 'This run uses the normal renderer. It does not pass `-NullRHI`. MultiHit and automatic per-scan exports are disabled by the benchmark command-line setup.')
+$markdown += @('', "This run uses the normal renderer with the requested LiDAR backend '$LidarRenderer'. It does not pass ``-NullRHI``. MultiHit and automatic per-scan exports are disabled by the benchmark command-line setup.")
 $markdown | Set-Content -LiteralPath $MarkdownPath -Encoding UTF8
 
 if ($Json) { $report | ConvertTo-Json -Depth 7 } else {

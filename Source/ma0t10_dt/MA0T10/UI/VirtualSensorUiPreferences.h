@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "VirtualSensorUiPreferences.generated.h"
 
 USTRUCT(BlueprintType)
@@ -25,8 +26,9 @@ class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 1;
+    static constexpr int32 CurrentVersion = 2;
     static const FString SlotName;
+    static const FString LegacySlotName;
     static constexpr int32 UserIndex = 0;
 
     static UVirtualSensorUiPreferencesSaveGame* LoadOrCreate();
@@ -41,6 +43,18 @@ public:
 
     UPROPERTY(SaveGame)
     uint8 LidarViewMode = 2;
+
+    UPROPERTY(SaveGame)
+    ELidarMonitorProjectionMode LidarProjectionMode = ELidarMonitorProjectionMode::RangeImage;
+
+    UPROPERTY(SaveGame)
+    ELidarColorMode LidarColorMode = ELidarColorMode::DistanceTurbo;
+
+    UPROPERTY(SaveGame)
+    bool bShowWorldLidarPointCloud = true;
+
+    UPROPERTY(SaveGame)
+    float LidarPointSize = 2.0f;
 
     UPROPERTY(SaveGame)
     bool bUseAdaptiveLidarDepthRange = true;

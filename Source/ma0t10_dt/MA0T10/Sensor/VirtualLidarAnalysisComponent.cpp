@@ -26,3 +26,9 @@ void UVirtualLidarAnalysisComponent::AnalyzeLatestFrame()
 		LatestSemanticCounts.FindOrAdd(Label)++;
 	}
 }
+
+void UVirtualLidarAnalysisComponent::ApplyPrecomputedStatistics(int32 HitPointCount, const TMap<FString, int32>& SemanticCounts)
+{
+	LatestHitPointCount = HitPointCount;
+	LatestSemanticCounts = SemanticCounts;
+}

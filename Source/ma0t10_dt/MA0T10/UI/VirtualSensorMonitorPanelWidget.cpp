@@ -32,7 +32,9 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSchedulerSubsystem.h"
@@ -132,6 +134,48 @@ FString LidarViewModeDisplayText(EVirtualLidarViewMode ViewMode)
     if (ViewMode == EVirtualLidarViewMode::HitMask) return TEXT("검출 마스크");
     if (ViewMode == EVirtualLidarViewMode::ActorClassColor) return TEXT("의미 분류 색상");
     return TEXT("거리 회색조");
+    if (ViewMode == EVirtualLidarViewMode::DepthGradient) return TEXT("거리 색상");
+    if (ViewMode == EVirtualLidarViewMode::HitMask) return TEXT("검출 마스크");
+    if (ViewMode == EVirtualLidarViewMode::ActorClassColor) return TEXT("의미 분류 색상");
+    return TEXT("거리 회색조");
+}
+
+FString LidarProjectionDisplayText(ELidarMonitorProjectionMode Mode)
+{
+    if (Mode == ELidarMonitorProjectionMode::TopDown) return TEXT("조감도");
+    if (Mode == ELidarMonitorProjectionMode::Elevation) return TEXT("거리-높이 단면");
+    if (Mode == ELidarMonitorProjectionMode::Split) return TEXT("거리 영상 + 조감도");
+    return TEXT("거리 영상");
+    switch (Mode)
+    {
+    case ELidarMonitorProjectionMode::TopDown: return TEXT("조감도");
+    case ELidarMonitorProjectionMode::Elevation: return TEXT("거리-높이 단면");
+    case ELidarMonitorProjectionMode::Split: return TEXT("거리 영상 + 조감도");
+    default: return TEXT("거리 영상");
+    }
+}
+
+FString LidarColorDisplayText(ELidarColorMode Mode)
+{
+    if (Mode == ELidarColorMode::DistanceViridis) return TEXT("거리 Viridis (색각 친화)");
+    if (Mode == ELidarColorMode::RelativeHeight) return TEXT("센서 상대 높이");
+    if (Mode == ELidarColorMode::SemanticLabel) return TEXT("의미 분류 색상");
+    if (Mode == ELidarColorMode::VerticalChannel) return TEXT("수직 채널 / Ring");
+    if (Mode == ELidarColorMode::ReturnIndex) return TEXT("MultiHit Return 번호");
+    if (Mode == ELidarColorMode::HitMask) return TEXT("검출 마스크");
+    if (Mode == ELidarColorMode::DistanceGray) return TEXT("거리 회색조");
+    return TEXT("거리 Turbo");
+    switch (Mode)
+    {
+    case ELidarColorMode::DistanceViridis: return TEXT("거리 Viridis (색각 친화)");
+    case ELidarColorMode::RelativeHeight: return TEXT("센서 상대 높이");
+    case ELidarColorMode::SemanticLabel: return TEXT("의미 분류 색상");
+    case ELidarColorMode::VerticalChannel: return TEXT("수직 채널 / Ring");
+    case ELidarColorMode::ReturnIndex: return TEXT("MultiHit Return 번호");
+    case ELidarColorMode::HitMask: return TEXT("검출 마스크");
+    case ELidarColorMode::DistanceGray: return TEXT("거리 회색조");
+    default: return TEXT("거리 Turbo");
+    }
 }
 
 FColor ApplyMonitorGridOverlay(const FColor& InColor, bool bHit, bool bIsGrid)
@@ -462,22 +506,32 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
     }
 
     RestoreMonitorUiPreferences();
-    NativeLidarViewModeOptions.Reset();
-    NativeLidarViewModeOptions.Add(MakeShared<EVirtualLidarViewMode>(EVirtualLidarViewMode::DepthGradient));
-    NativeLidarViewModeOptions.Add(MakeShared<EVirtualLidarViewMode>(EVirtualLidarViewMode::HitMask));
-    NativeLidarViewModeOptions.Add(MakeShared<EVirtualLidarViewMode>(EVirtualLidarViewMode::ActorClassColor));
-    NativeLidarViewModeOptions.Add(MakeShared<EVirtualLidarViewMode>(EVirtualLidarViewMode::IntensityGray));
+    NativeLidarProjectionOptions.Reset();
+    NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::RangeImage));
+    NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::TopDown));
+    NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::Elevation));
+    NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::Split));
+    NativeLidarColorOptions.Reset();
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::DistanceTurbo));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::DistanceViridis));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::RelativeHeight));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::SemanticLabel));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::VerticalChannel));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::ReturnIndex));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::HitMask));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::DistanceGray));
 
-    TSharedPtr<EVirtualLidarViewMode> InitialMode = NativeLidarViewModeOptions[0];
+    TSharedPtr<ELidarMonitorProjectionMode> InitialProjection = NativeLidarProjectionOptions[0];
+    TSharedPtr<ELidarColorMode> InitialColor = NativeLidarColorOptions[0];
     if (const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
     {
-        for (const TSharedPtr<EVirtualLidarViewMode>& Option : NativeLidarViewModeOptions)
+        for (const TSharedPtr<ELidarMonitorProjectionMode>& Option : NativeLidarProjectionOptions)
         {
-            if (Option.IsValid() && static_cast<uint8>(*Option) == Preferences->LidarViewMode)
-            {
-                InitialMode = Option;
-                break;
-            }
+            if (Option.IsValid() && *Option == Preferences->LidarProjectionMode) { InitialProjection = Option; break; }
+        }
+        for (const TSharedPtr<ELidarColorMode>& Option : NativeLidarColorOptions)
+        {
+            if (Option.IsValid() && *Option == Preferences->LidarColorMode) { InitialColor = Option; break; }
         }
     }
     return SNew(SBorder)
@@ -528,7 +582,17 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                     .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
                     .BorderBackgroundColor(FLinearColor(0.01f, 0.015f, 0.025f, 1.0f))
                     .Padding(2.0f)
-                    [ SAssignNew(NativeViewImage, SImage).Image(&NativeViewBrush) ]
+                    [
+                        SNew(SVerticalBox)
+                        + SVerticalBox::Slot().FillHeight(1.0f)
+                        [ SAssignNew(NativeViewImage, SImage).Image(&NativeViewBrush) ]
+                        + SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 2.0f, 0.0f, 0.0f)
+                        [
+                            SAssignNew(NativeSecondaryViewImage, SImage)
+                            .Visibility_Lambda([this]() { return bShowingLidar && GetLidarProjectionMode() == ELidarMonitorProjectionMode::Split ? EVisibility::Visible : EVisibility::Collapsed; })
+                            .Image(&NativeSecondaryViewBrush)
+                        ]
+                    ]
                 ]
                 + SHorizontalBox::Slot().FillWidth(0.39f)
                 [
@@ -566,19 +630,39 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
-                            SNew(SComboBox<TSharedPtr<EVirtualLidarViewMode>>)
+                            SNew(SComboBox<TSharedPtr<ELidarMonitorProjectionMode>>)
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                            .OptionsSource(&NativeLidarViewModeOptions)
-                            .InitiallySelectedItem(InitialMode)
-                            .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualLidarViewMode> Item)
+                            .OptionsSource(&NativeLidarProjectionOptions)
+                            .InitiallySelectedItem(InitialProjection)
+                            .OnGenerateWidget_Lambda([](TSharedPtr<ELidarMonitorProjectionMode> Item)
                             {
-                                return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarViewModeDisplayText(*Item) : TEXT("없음")));
+                                return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarProjectionDisplayText(*Item) : TEXT("없음")));
                             })
-                            .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualLidarViewMode> Item, ESelectInfo::Type)
+                            .OnSelectionChanged_Lambda([this](TSharedPtr<ELidarMonitorProjectionMode> Item, ESelectInfo::Type)
                             {
-                                if (Item.IsValid()) SetLidarViewMode(*Item);
+                                if (Item.IsValid()) SetLidarProjectionMode(*Item);
                             })
-                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(GetLidarViewModeDisplayText()); }) ]
+                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarProjectionDisplayText(GetLidarProjectionMode())); }) ]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f, 0.0f, 2.0f)
+                        [
+                            SNew(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+                            .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("LidarColorLabel", "LiDAR 색상 방식"))
+                        ]
+                        + SVerticalBox::Slot().AutoHeight()
+                        [
+                            SNew(SComboBox<TSharedPtr<ELidarColorMode>>)
+                            .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+                            .OptionsSource(&NativeLidarColorOptions).InitiallySelectedItem(InitialColor)
+                            .OnGenerateWidget_Lambda([](TSharedPtr<ELidarColorMode> Item)
+                            {
+                                return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarColorDisplayText(*Item) : TEXT("없음")));
+                            })
+                            .OnSelectionChanged_Lambda([this](TSharedPtr<ELidarColorMode> Item, ESelectInfo::Type)
+                            {
+                                if (Item.IsValid()) SetLidarColorMode(*Item);
+                            })
+                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarColorDisplayText(GetLidarColorMode())); }) ]
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f, 0.0f, 2.0f)
                         [
@@ -591,6 +675,23 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 4.0f)
                         [ SNew(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetLidarViewModeDescription() + TEXT("\n") + GetLidarViewLegendText()); }) ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+                        [
+                            SNew(SHorizontalBox)
+                            .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [
+                                SNew(SCheckBox)
+                                .ToolTipText(LOCTEXT("WorldPointsTip", "선택한 LiDAR의 최신 검출점을 월드 공간 3D 포인트로 표시합니다."))
+                                .IsChecked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return V && V->GetVisualizationSettings().bShowWorldPointCloud ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+                                .OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarWorldPointCloudEnabled(V == ECheckBoxState::Checked); })
+                                [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("WorldPoints", "월드 3D 포인트 표시")) ]
+                            ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(3.0f, 0.0f)
+                            [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("PointSmaller", "포인트 -")).OnClicked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); SetLidarPointSize(V ? V->GetVisualizationSettings().PointSize - 0.5f : 1.5f); return FReply::Handled(); }) ]
+                            + SHorizontalBox::Slot().AutoWidth()
+                            [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("PointLarger", "포인트 +")).OnClicked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); SetLidarPointSize(V ? V->GetVisualizationSettings().PointSize + 0.5f : 2.5f); return FReply::Handled(); }) ]
+                        ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
                             SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
@@ -782,6 +883,13 @@ void UVirtualSensorMonitorPanelWidget::BindVirtualCamera(UVirtualCameraCaptureCo
 
 void UVirtualSensorMonitorPanelWidget::BindVirtualLidar(UVirtualLidarScanComponent* InLidarComp)
 {
+    if (LidarComp && LidarComp != InLidarComp)
+    {
+        if (AVirtualLidarSensorActor* PreviousActor = Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()))
+        {
+            if (PreviousActor->VisualizationComponent) PreviousActor->VisualizationComponent->SetWorldPointCloudEnabled(false);
+        }
+    }
     LidarComp = InLidarComp;
     if (GetWorld())
     {
@@ -876,12 +984,69 @@ void UVirtualSensorMonitorPanelWidget::SetLidarViewMode(EVirtualLidarViewMode In
         return;
     }
     LidarComp->ViewMode = InViewMode;
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        Visualization->SetColorMode(UVirtualLidarVisualizationComponent::MapLegacyViewMode(InViewMode));
+    }
     InvalidateEnhancedLidarView();
     RefreshLidarPreviewWithoutTransport();
     RefreshLidarViewModeButtonText();
     RefreshStatusText();
     RefreshImageBrush();
     SaveMonitorUiPreferences();
+}
+
+void UVirtualSensorMonitorPanelWidget::SetLidarProjectionMode(ELidarMonitorProjectionMode InProjectionMode)
+{
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        Visualization->SetProjectionMode(InProjectionMode);
+        RefreshImageBrush();
+        SaveMonitorUiPreferences();
+    }
+}
+
+void UVirtualSensorMonitorPanelWidget::SetLidarColorMode(ELidarColorMode InColorMode)
+{
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        Visualization->SetColorMode(InColorMode);
+        RefreshImageBrush();
+        RefreshStatusText();
+        SaveMonitorUiPreferences();
+    }
+}
+
+void UVirtualSensorMonitorPanelWidget::SetLidarWorldPointCloudEnabled(bool bEnabled)
+{
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        Visualization->SetWorldPointCloudEnabled(bEnabled);
+        SaveMonitorUiPreferences();
+    }
+}
+
+void UVirtualSensorMonitorPanelWidget::SetLidarPointSize(float InPointSize)
+{
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        FVirtualLidarVisualizationSettings Settings = Visualization->GetVisualizationSettings();
+        Settings.PointSize = FMath::Clamp(InPointSize, 0.25f, 12.0f);
+        Visualization->SetVisualizationSettings(Settings);
+        SaveMonitorUiPreferences();
+    }
+}
+
+ELidarMonitorProjectionMode UVirtualSensorMonitorPanelWidget::GetLidarProjectionMode() const
+{
+    const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent();
+    return Visualization ? Visualization->GetVisualizationSettings().ProjectionMode : ELidarMonitorProjectionMode::RangeImage;
+}
+
+ELidarColorMode UVirtualSensorMonitorPanelWidget::GetLidarColorMode() const
+{
+    const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent();
+    return Visualization ? Visualization->GetVisualizationSettings().ColorMode : ELidarColorMode::DistanceTurbo;
 }
 
 void UVirtualSensorMonitorPanelWidget::SetLidarPreviewBudget(int32 InStride, int32 InMaxPoints)
@@ -1319,6 +1484,13 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
         NativeViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
         NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);
     }
+
+    if (NativeSecondaryViewImage)
+    {
+        NativeSecondaryViewBrush.SetResourceObject(bShowingLidar ? GetSecondaryLidarBrushResource() : nullptr);
+        NativeSecondaryViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
+        NativeSecondaryViewImage->Invalidate(EInvalidateWidgetReason::Paint);
+    }
 }
 
 void UVirtualSensorMonitorPanelWidget::RefreshTitle()
@@ -1370,12 +1542,114 @@ void UVirtualSensorMonitorPanelWidget::RefreshNativeFallbackText()
 FString UVirtualSensorMonitorPanelWidget::BuildTitleText() const
 {
     const bool bPointCloudOnly = SensorManager && SensorManager->IsPointCloudOnlyModeEnabled();
-    return bPointCloudOnly ? TEXT("LiDAR 포인트 클라우드 전용 보기") : (bShowingLidar ? TEXT("가상 LiDAR 모니터") : TEXT("가상 카메라 모니터"));
+    return bPointCloudOnly ? TEXT("LiDAR 포인트 클라우드 전용 보기")
+        : (bShowingLidar ? TEXT("가상 LiDAR 모니터") : TEXT("가상 카메라 모니터"));
 }
 
 FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
 {
     FString Text;
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent();
+        const UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>() : nullptr;
+        const FVirtualSensorPerformanceTelemetry* Telemetry = Scheduler ? &Scheduler->GetTelemetry() : nullptr;
+        Text = FString::Printf(
+            TEXT("센서: %s\n프레임: %lld · 완료 주기: %.2f Hz\n광선/측정점/검출점: %d / %d / %d\n")
+            TEXT("Payload/미리보기 점: %d / %d · 대기 작업: %d\n")
+            TEXT("투영/색상: %s · %s\n3D 렌더러: %s · 표시점: %d\n")
+            TEXT("렌더러 상태: %s\n")
+            TEXT("성능 단계: %d FPS · 평균 %.1f FPS · 1%% low %.1f FPS · p95 %.1f ms\n")
+            TEXT("완료 공정성(Camera/LiDAR): %.2f / %.2f · 파생 프레임 생략: %d\n")
+            TEXT("경고: %s\n메시지: %s"),
+            *Status.SensorId,
+            Status.FrameId,
+            Status.MeasuredCompletionRateHz,
+            LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
+            Status.TotalPointCount,
+            Status.HitPointCount,
+            Status.ServerPayloadPointCount,
+            Status.PreviewPointCount,
+            Status.bAcquisitionInFlight || Status.bDerivedWorkInFlight ? 1 : 0,
+            *LidarProjectionDisplayText(GetLidarProjectionMode()),
+            *LidarColorDisplayText(GetLidarColorMode()),
+            Visualization ? *Visualization->GetActiveRendererName() : TEXT("사용 안 함"),
+            Visualization ? Visualization->GetVisiblePointCount() : 0,
+            Visualization && !Visualization->GetRendererFallbackReason().IsEmpty()
+                ? *Visualization->GetRendererFallbackReason() : TEXT("정상"),
+            Telemetry ? Telemetry->TargetFps : 0,
+            Telemetry ? Telemetry->AverageFps : 0.0f,
+            Telemetry ? Telemetry->OnePercentLowFps : 0.0f,
+            Telemetry ? Telemetry->P95FrameTimeMs : 0.0f,
+            Telemetry ? Telemetry->CameraCompletionFairnessRatio : 1.0f,
+            Telemetry ? Telemetry->LidarCompletionFairnessRatio : 1.0f,
+            Telemetry ? Telemetry->DroppedDerivedFrameCount : Status.DroppedDerivedFrameCount,
+            Status.PerformanceWarning.IsEmpty() ? TEXT("없음") : *Status.PerformanceWarning,
+            *Status.LastMessage);
+        Text += FString::Printf(
+            TEXT("\n스캔 주기: %.3f초 · 광선=%d")
+            TEXT("\n서버 Payload: 점=%d 바이트=%d 간격=%d 최대=%d 미검출점=%s")
+            TEXT("\n미리보기: %s 점=%d 간격=%d 최대=%d 검출점만=%s")
+            TEXT("\nSlab 분석: %s 점=%d 각도=%.2f 편차=%.2f 신뢰도=%.2f")
+            TEXT("\n%s\n전송/경고: %s\nLiDAR 표시: %s\n%s\n%s")
+            TEXT("\nCSV 열: row,col,returnIndex,x,y,z"),
+            LidarComp->ScanInterval,
+            LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
+            Status.ServerPayloadPointCount,
+            Status.LastPayloadLength,
+            LidarComp->ServerPayloadStride,
+            LidarComp->MaxServerPayloadPoints,
+            LidarComp->bIncludeMissPointsInServerPayload ? TEXT("예") : TEXT("아니요"),
+            LidarComp->IsPointCloudPreviewEnabled() || LidarComp->IsGpuPreviewBackendActive() ? TEXT("켜짐") : TEXT("꺼짐"),
+            Status.PreviewPointCount,
+            LidarComp->PreviewPointStride,
+            LidarComp->MaxPreviewPoints,
+            LidarComp->bPointCloudPreviewHitOnly ? TEXT("예") : TEXT("아니요"),
+            Status.SlabAnalysis.bValid ? TEXT("유효") : *Status.SlabAnalysis.StatusMessage,
+            Status.SlabAnalysis.SlabHitPointCount,
+            Status.SlabAnalysis.EstimatedYawDegrees,
+            Status.SlabAnalysis.AngleDeviationDegrees,
+            Status.SlabAnalysis.Confidence,
+            *GetLazExportSummaryText(),
+            Status.PerformanceWarning.IsEmpty() ? TEXT("없음") : *Status.PerformanceWarning,
+            *GetLidarViewModeDisplayText(),
+            *GetAcceptanceGateSummaryText(),
+            *GetRealSensorDeploymentSummaryText());
+        Text += FString::Printf(TEXT("\n%s"), *GetTransportStatusSummaryText());
+        if (!LastRealSensorControlMessage.IsEmpty()) Text += FString::Printf(TEXT("\n%s"), *LastRealSensorControlMessage);
+        return Text;
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        const FString DisplaySensorId = Status.SensorId.IsEmpty() ? CameraComp->SensorId : Status.SensorId;
+        Text = FString::Printf(
+            TEXT("센서: %s\n프레임: %lld · 완료 주기: %.2f Hz\n해상도: %d × %d · 캡처 주기: %.3f초\n")
+            TEXT("Payload: %d bytes · 대기: %s · 파생 프레임 생략: %d\n경고: %s\n메시지: %s"),
+            *DisplaySensorId,
+            Status.FrameId,
+            Status.MeasuredCompletionRateHz,
+            CameraComp->CaptureResolution.X,
+            CameraComp->CaptureResolution.Y,
+            CameraComp->CaptureInterval,
+            Status.LastPayloadLength,
+            Status.bAcquisitionInFlight || Status.bDerivedWorkInFlight ? TEXT("있음") : TEXT("없음"),
+            Status.DroppedDerivedFrameCount,
+            Status.PerformanceWarning.IsEmpty() ? TEXT("없음") : *Status.PerformanceWarning,
+            *Status.LastMessage);
+        Text += FString::Printf(
+            TEXT("\n스키마: virtual-camera.v1\n캡처: 모드=%d 품질=%d\nPayload 캐시: %s\n%s\n%s"),
+            static_cast<int32>(CameraComp->CaptureMode),
+            static_cast<int32>(CameraComp->GetSimulationQuality()),
+            CameraComp->GetLastJsonPayload().IsEmpty() ? TEXT("없음") : TEXT("있음"),
+            *GetAcceptanceGateSummaryText(),
+            *GetRealSensorDeploymentSummaryText());
+        Text += FString::Printf(TEXT("\n%s"), *GetTransportStatusSummaryText());
+        if (!LastRealSensorControlMessage.IsEmpty()) Text += FString::Printf(TEXT("\n%s"), *LastRealSensorControlMessage);
+        return Text;
+    }
+    return bShowingLidar ? TEXT("LiDAR 센서가 연결되지 않았습니다.") : TEXT("카메라 센서가 연결되지 않았습니다.");
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
@@ -1468,6 +1742,23 @@ FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
             Status.FrameId,
+            Status.MeasuredCompletionRateHz,
+            LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
+            Status.TotalPointCount,
+            Status.HitPointCount);
+    }
+    if (!bShowingLidar && CameraComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n해상도 %d × %d"),
+            Status.FrameId, Status.MeasuredCompletionRateHz, CameraComp->CaptureResolution.X, CameraComp->CaptureResolution.Y);
+    }
+    return TEXT("센서 연결 대기 중");
+    if (bShowingLidar && LidarComp)
+    {
+        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
+            Status.FrameId,
             LidarComp->ScanInterval > KINDA_SMALL_NUMBER ? 1.0f / LidarComp->ScanInterval : 0.0f,
             LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
             Status.TotalPointCount,
@@ -1517,6 +1808,10 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDisplayText() const
 
 FString UVirtualSensorMonitorPanelWidget::GetLidarViewLegendText() const
 {
+    if (const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        return Visualization->GetLegendText();
+    }
     if (!LidarComp)
     {
         return TEXT("LiDAR가 연결되지 않았습니다.");
@@ -1538,6 +1833,42 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewLegendText() const
 
 FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
 {
+    if (const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        const FVirtualLidarVisualizationSettings& Settings = Visualization->GetVisualizationSettings();
+        FString ProjectionDescription;
+        switch (Settings.ProjectionMode)
+        {
+        case ELidarMonitorProjectionMode::TopDown:
+            ProjectionDescription = TEXT("조감도: 센서 기준 XY 평면에 점을 투영하며 거리 원과 센서 전방 방향을 함께 표시합니다.");
+            break;
+        case ELidarMonitorProjectionMode::Elevation:
+            ProjectionDescription = TEXT("고도 단면: 센서로부터의 전방 거리와 상대 높이를 단면으로 표시합니다.");
+            break;
+        case ELidarMonitorProjectionMode::Split:
+            ProjectionDescription = TEXT("분할: 거리 영상과 조감도를 동시에 표시합니다.");
+            break;
+        case ELidarMonitorProjectionMode::RangeImage:
+        default:
+            ProjectionDescription = TEXT("거리 영상: LiDAR 수직 채널과 수평 샘플 순서대로 측정 결과를 표시합니다.");
+            break;
+        }
+
+        FString ColorDescription;
+        switch (Settings.ColorMode)
+        {
+        case ELidarColorMode::DistanceViridis: ColorDescription = TEXT("Viridis 거리 색상은 색각 친화 팔레트로 거리를 구분합니다."); break;
+        case ELidarColorMode::RelativeHeight: ColorDescription = TEXT("센서 상대 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다."); break;
+        case ELidarColorMode::SemanticLabel: ColorDescription = TEXT("SemanticLabel 규칙에 설정된 의미 분류 색상을 사용합니다."); break;
+        case ELidarColorMode::VerticalChannel: ColorDescription = TEXT("각 점을 수직 채널(ring) 번호로 구분합니다."); break;
+        case ELidarColorMode::ReturnIndex: ColorDescription = TEXT("MultiHit 측정의 return index를 서로 다른 색으로 구분합니다."); break;
+        case ELidarColorMode::HitMask: ColorDescription = TEXT("검출 성공은 흰색, 미검출은 검정으로 표시합니다."); break;
+        case ELidarColorMode::DistanceGray: ColorDescription = TEXT("가까운 점은 밝게, 먼 점은 어둡게 표시합니다."); break;
+        case ELidarColorMode::DistanceTurbo:
+        default: ColorDescription = TEXT("연속 Turbo 팔레트로 가까운 거리부터 먼 거리까지 표현합니다."); break;
+        }
+        return ProjectionDescription + TEXT("\n") + ColorDescription;
+    }
     if (!LidarComp) return TEXT("LiDAR를 연결하면 표시 방식의 설명과 범례를 확인할 수 있습니다.");
     if (LidarComp->ViewMode == EVirtualLidarViewMode::HitMask)
     {
@@ -1577,6 +1908,19 @@ FString UVirtualSensorMonitorPanelWidget::BuildSemanticLegendText() const
 
 FLinearColor UVirtualSensorMonitorPanelWidget::GetLidarLegendSwatchColor(int32 SwatchIndex) const
 {
+    if (const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        const int32 Index = FMath::Clamp(SwatchIndex, 0, 3);
+        FVirtualLidarPoint Sample;
+        Sample.bHit = true;
+        Sample.Row = LidarComp ? FMath::RoundToInt((LidarComp->VerticalChannels - 1) * (Index / 3.0f)) : Index;
+        Sample.ReturnIndex = Index;
+        Sample.SemanticLabel = LidarComp && LidarComp->SemanticClassRules.IsValidIndex(Index)
+            ? LidarComp->SemanticClassRules[Index].Label : NAME_None;
+        const float Normalized = Index / 3.0f;
+        return FLinearColor(UVirtualLidarVisualizationComponent::ResolveDisplayColor(
+            LidarComp, Visualization->GetVisualizationSettings().ColorMode, Sample, Normalized, Normalized));
+    }
     const EVirtualLidarViewMode ViewMode = LidarComp ? LidarComp->ViewMode : EVirtualLidarViewMode::DepthGradient;
     const int32 Index = FMath::Clamp(SwatchIndex, 0, 3);
     if (ViewMode == EVirtualLidarViewMode::HitMask)
@@ -1605,6 +1949,14 @@ void UVirtualSensorMonitorPanelWidget::SetLidarOverlayOptions(bool bAdaptiveDept
     bUseAdaptiveLidarDepthRange = bAdaptiveDepth;
     bOverlayLidarMonitorGrid = bGrid;
     bOverlayLidarDepthEdges = bDepthEdges;
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        FVirtualLidarVisualizationSettings Settings = Visualization->GetVisualizationSettings();
+        Settings.bUseAdaptiveDistance = bAdaptiveDepth;
+        Settings.bShowGrid = bGrid;
+        Settings.bShowDepthEdges = bDepthEdges;
+        Visualization->SetVisualizationSettings(Settings);
+    }
     InvalidateEnhancedLidarView();
     RefreshImageBrush();
     RefreshStatusText();
@@ -1623,6 +1975,18 @@ void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
     {
         LidarComp->ViewMode = static_cast<EVirtualLidarViewMode>(Preferences->LidarViewMode);
     }
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        FVirtualLidarVisualizationSettings Settings = Visualization->GetVisualizationSettings();
+        Settings.ProjectionMode = Preferences->LidarProjectionMode;
+        Settings.ColorMode = Preferences->LidarColorMode;
+        Settings.bShowWorldPointCloud = Preferences->bShowWorldLidarPointCloud;
+        Settings.PointSize = Preferences->LidarPointSize;
+        Settings.bUseAdaptiveDistance = bUseAdaptiveLidarDepthRange;
+        Settings.bShowGrid = bOverlayLidarMonitorGrid;
+        Settings.bShowDepthEdges = bOverlayLidarDepthEdges;
+        Visualization->SetVisualizationSettings(Settings);
+    }
 }
 
 void UVirtualSensorMonitorPanelWidget::SaveMonitorUiPreferences() const
@@ -1630,6 +1994,14 @@ void UVirtualSensorMonitorPanelWidget::SaveMonitorUiPreferences() const
     UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
     if (!Preferences) return;
     if (LidarComp) Preferences->LidarViewMode = static_cast<uint8>(LidarComp->ViewMode);
+    if (const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        const FVirtualLidarVisualizationSettings& Settings = Visualization->GetVisualizationSettings();
+        Preferences->LidarProjectionMode = Settings.ProjectionMode;
+        Preferences->LidarColorMode = Settings.ColorMode;
+        Preferences->bShowWorldLidarPointCloud = Settings.bShowWorldPointCloud;
+        Preferences->LidarPointSize = Settings.PointSize;
+    }
     Preferences->bUseAdaptiveLidarDepthRange = bUseAdaptiveLidarDepthRange;
     Preferences->bOverlayLidarMonitorGrid = bOverlayLidarMonitorGrid;
     Preferences->bOverlayLidarDepthEdges = bOverlayLidarDepthEdges;
@@ -1644,6 +2016,10 @@ void UVirtualSensorMonitorPanelWidget::ResetMonitorUiPreferencesToDefault()
     bOverlayLidarMonitorGrid = true;
     bOverlayLidarDepthEdges = true;
     if (LidarComp) LidarComp->ViewMode = EVirtualLidarViewMode::DepthGradient;
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        Visualization->SetVisualizationSettings(FVirtualLidarVisualizationSettings());
+    }
     InvalidateEnhancedLidarView();
     SaveMonitorUiPreferences();
     RefreshNativeFallbackText();
@@ -1654,6 +2030,10 @@ UObject* UVirtualSensorMonitorPanelWidget::GetLidarBrushResource()
     if (!LidarComp)
     {
         return nullptr;
+    }
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        if (UTexture2D* Texture = Visualization->GetPreviewTexture()) return Texture;
     }
     if (!bUseEnhancedLidarMonitorView)
     {
@@ -2203,6 +2583,18 @@ UVirtualLidarScanComponent* UVirtualSensorMonitorPanelWidget::GetTargetLidarForP
         return SensorManager->GetSelectedLidar();
     }
     return LidarComp;
+}
+
+UObject* UVirtualSensorMonitorPanelWidget::GetSecondaryLidarBrushResource()
+{
+    UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent();
+    return Visualization ? Visualization->GetSecondaryPreviewTexture() : nullptr;
+}
+
+UVirtualLidarVisualizationComponent* UVirtualSensorMonitorPanelWidget::GetLidarVisualizationComponent() const
+{
+    const AVirtualLidarSensorActor* Actor = LidarComp ? Cast<AVirtualLidarSensorActor>(LidarComp->GetOwner()) : nullptr;
+    return Actor ? Actor->VisualizationComponent : nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

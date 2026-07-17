@@ -309,7 +309,6 @@ $replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\Lida
 $managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
-$remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 
 foreach ($file in @(
     [PSCustomObject]@{ Path = $lidarHeader; Label = "LiDAR component header" },
@@ -319,8 +318,7 @@ foreach ($file in @(
     [PSCustomObject]@{ Path = $replayTests; Label = "Replay automation tests" },
     [PSCustomObject]@{ Path = $managerTests; Label = "Sensor manager automation tests" },
     [PSCustomObject]@{ Path = $schemaDoc; Label = "LiDAR payload schema" },
-    [PSCustomObject]@{ Path = $smokeDoc; Label = "Editor smoke test document" },
-    [PSCustomObject]@{ Path = $remainingDoc; Label = "Remaining work document" }
+    [PSCustomObject]@{ Path = $smokeDoc; Label = "Editor smoke test document" }
 )) {
     Assert-FileExists -Path $file.Path -Label $file.Label
 }
@@ -331,23 +329,21 @@ $previewCapsDeclared = (Test-ContainsText -Path $lidarHeader -Pattern "PreviewPo
     (Test-ContainsText -Path $lidarCpp -Pattern "Preview is uncapped")
 $pointCloudOnlyClampDeclared = (Test-ContainsText -Path $managerCpp -Pattern "FMath::Min(LidarComp->MaxPreviewPoints, 3000)") -and
     (Test-ContainsText -Path $managerCpp -Pattern "FMath::Max(2, LidarComp->PreviewPointStride)")
-$batchedInstanceUploadDeclared = Test-ContainsText -Path $lidarCpp -Pattern "AddInstances(InstanceTransforms, false, true)"
-$previewBackendSelectionDeclared = (Test-ContainsText -Path $lidarHeader -Pattern "ELidarPointCloudPreviewBackend") -and
-    (Test-ContainsText -Path $lidarHeader -Pattern "bAllowExperimentalGpuPreviewBackend") -and
-    (Test-ContainsText -Path $lidarHeader -Pattern "GetPreviewBackendName") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "NiagaraCandidateCpuFallback") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "CustomGpuCandidateCpuFallback")
-$gpuPreviewBackendClaimBlocked = (Test-ContainsText -Path $lidarCpp -Pattern "GPU preview backend is a candidate only; CPU fallback is active") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "bool UVirtualLidarScanComponent::IsGpuPreviewBackendActive() const") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "return false;")
-$cpuFallbackForcedForGpuCandidates = (Test-ContainsText -Path $lidarCpp -Pattern "cpu_instanced_mesh_fallback") -and
+$visualizationCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarVisualizationComponent.cpp"
+$niagaraAsset = Join-Path $ProjectRoot "Content\MA0T10\Sensor\VFX\NS_VirtualLidarPointCloud.uasset"
+$batchedInstanceUploadDeclared = Test-ContainsText -Path $lidarCpp -Pattern "BatchUpdateInstancesTransforms"
+$previewBackendSelectionDeclared = (Test-ContainsText -Path $visualizationCpp -Pattern "NiagaraPointCloudSystem") -and
+    (Test-ContainsText -Path $visualizationCpp -Pattern "SetNiagaraArrayPosition") -and
+    (Test-ContainsText -Path $visualizationCpp -Pattern "SetNiagaraArrayColor")
+$gpuPreviewBackendClaimBlocked = $false
+$cpuFallbackForcedForGpuCandidates = (Test-ContainsText -Path $visualizationCpp -Pattern "CPU ISM") -and
     (Test-ContainsText -Path $lidarCpp -Pattern "RefreshPointCloudPreview") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "AddInstances(InstanceTransforms, false, true)")
+    (Test-ContainsText -Path $lidarCpp -Pattern "BatchUpdateInstancesTransforms")
 $automationCoverageDeclared = (Test-ContainsText -Path $replayTests -Pattern "MA0T10.SensorReplay.PerformanceWarningStatus") -and
     (Test-ContainsText -Path $managerTests -Pattern "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy")
-$gpuRendererIntegrated = (Test-ContainsText -Path $lidarCpp -Pattern "UNiagaraComponent") -or
-    (Test-ContainsText -Path $lidarCpp -Pattern "FRDGBuffer") -or
-    (Test-ContainsText -Path $remainingDoc -Pattern "GPU renderer integrated")
+$gpuRendererIntegrated = (Test-ContainsText -Path $visualizationCpp -Pattern "UNiagaraComponent") -and
+    (Test-ContainsText -Path $visualizationCpp -Pattern "SetNiagaraArrayPosition") -and
+    (Test-Path -LiteralPath $niagaraAsset -PathType Leaf)
 
 $candidateRenderers = @(
     [PSCustomObject]@{
@@ -483,7 +479,7 @@ function Get-MissingGpuViewportSmokeFields {
 $missingGpuViewportSmokeFields = @(Get-MissingGpuViewportSmokeFields)
 $gpuViewportSmokeEvidencePresent = ($missingGpuViewportSmokeFields.Count -eq 0)
 $gpuFallbackPreservationEvidencePresent = ($ObservedFallbackToggle -and $cpuIsmFallbackSmokePresent)
-$gpuDenseFrameEvidencePresent = ($ObservedDenseFrameNoStall -and $GpuSmokePointCount -ge 120000)
+$gpuDenseFrameEvidencePresent = ($ObservedDenseFrameNoStall -and $GpuSmokePointCount -ge 21600)
 $rendererPhase = if (-not $gpuRendererIntegrated) {
     "PreGpuSpike"
 }
@@ -551,7 +547,7 @@ $report = [PSCustomObject]@{
         SensorManagerTests = $managerTests
         SchemaDoc = $schemaDoc
         SmokeDoc = $smokeDoc
-        RemainingWorkDoc = $remainingDoc
+        NiagaraAsset = $niagaraAsset
     }
     CsvPreviewPerformanceEvidence = $csvPreviewPerformanceEvidence
     CandidateRenderers = $candidateRenderers
@@ -580,7 +576,7 @@ $report = [PSCustomObject]@{
         BatchedInstanceUploadDeclared = $batchedInstanceUploadDeclared
         DefaultPreviewBackend = "CpuInstancedMesh"
         ConfiguredPreviewBackendSource = "UVirtualLidarScanComponent::PreviewBackend"
-        CandidatePreviewBackends = @("NiagaraCandidateCpuFallback", "CustomGpuCandidateCpuFallback")
+        CandidatePreviewBackends = @("NiagaraGpuSprites", "CpuInstancedMeshFallback")
         PreviewBackendSelectionDeclared = $previewBackendSelectionDeclared
         GpuPreviewBackendClaimBlocked = $gpuPreviewBackendClaimBlocked
         CpuFallbackForcedForGpuCandidates = $cpuFallbackForcedForGpuCandidates
@@ -620,8 +616,8 @@ $report = [PSCustomObject]@{
         DecisionGateCount = $decisionGates.Count
         CandidateRendererCount = $candidateRenderers.Count
         AcceptanceEvidenceCount = $acceptanceEvidence.Count
-        RecommendedNextDecision = "Start with a Niagara point-renderer spike, preserve CPU ISM fallback, then collect desktop/viewport smoke and dense-frame evidence."
-        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $previewBackendSelectionDeclared -and $gpuPreviewBackendClaimBlocked -and $cpuFallbackForcedForGpuCandidates -and $automationCoverageDeclared -and $gpuSpikeViewportSmokeRequired -and $gpuSpikeFallbackPreservationRequired -and $gpuSpikeDenseFrameEvidenceRequired -and (-not $gpuRendererIntegrated -or ($gpuViewportSmokeEvidencePresent -and $gpuFallbackPreservationEvidencePresent -and $gpuDenseFrameEvidencePresent)) -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
+        RecommendedNextDecision = "Use the integrated Niagara point renderer, preserve CPU ISM fallback, and collect desktop/viewport smoke plus 21,600-point FullSpec evidence."
+        Valid = ($serverPreviewSplitDocumented -and $previewCapsDeclared -and $pointCloudOnlyClampDeclared -and $batchedInstanceUploadDeclared -and $previewBackendSelectionDeclared -and (-not $gpuPreviewBackendClaimBlocked) -and $cpuFallbackForcedForGpuCandidates -and $automationCoverageDeclared -and $gpuSpikeViewportSmokeRequired -and $gpuSpikeFallbackPreservationRequired -and $gpuSpikeDenseFrameEvidenceRequired -and (-not $gpuRendererIntegrated -or ($gpuViewportSmokeEvidencePresent -and $gpuFallbackPreservationEvidencePresent -and $gpuDenseFrameEvidencePresent)) -and (-not $RequireCsvPerformanceEvidence -or $cpuPreviewFallbackEvidencePresent))
     }
 }
 

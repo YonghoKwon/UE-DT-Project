@@ -15,6 +15,7 @@ public:
 	UVirtualLidarAnalysisComponent();
 	void BindScanComponent(UVirtualLidarScanComponent* InScanComponent);
 	void AnalyzeLatestFrame();
+	void ApplyPrecomputedStatistics(int32 HitPointCount, const TMap<FString, int32>& SemanticCounts);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Analysis")
 	int32 GetLatestHitPointCount() const { return LatestHitPointCount; }

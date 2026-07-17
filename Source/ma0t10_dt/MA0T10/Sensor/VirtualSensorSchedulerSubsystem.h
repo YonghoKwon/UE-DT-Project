@@ -42,6 +42,12 @@ struct MA0T10_DT_API FVirtualSensorPerformanceTelemetry
     float P95FrameTimeMs = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    float CameraCompletionFairnessRatio = 1.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    float LidarCompletionFairnessRatio = 1.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
     int32 PendingAcquisitionCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
@@ -103,16 +109,17 @@ private:
     TArray<TWeakObjectPtr<UVirtualLidarScanComponent>> Lidars;
     TWeakObjectPtr<UVirtualCameraCaptureComponent> PreferredCamera;
     TWeakObjectPtr<UVirtualLidarScanComponent> PreferredLidar;
-    bool bPreferCameraOnNextAdmission = true;
     int32 NextCameraIndex = 0;
     int32 NextLidarIndex = 0;
     int32 AdaptiveLidarChunkSize = 256;
     float EffectiveLidarBudgetMs = 4.0f;
-    float EffectiveAggregateCameraCaptureHz = 15.0f;
+    float EffectiveAggregateCameraCaptureHz = 12.0f;
     double LastCameraCaptureAdmissionTime = -1.0;
     float TelemetryLogAccumulator = 0.0f;
     TArray<float> RecentFrameTimesMs;
     bool bCommandLineBenchmarkConfigured = false;
+    bool bCommandLineBenchmarkStatisticsReset = false;
+    double CommandLineBenchmarkStatisticsResetTime = -1.0;
 
     UPROPERTY(Transient)
     TArray<TObjectPtr<AActor>> CommandLineBenchmarkActors;

@@ -147,6 +147,10 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     Panel.bHasSavedPosition = true;
     Panel.bCollapsed = true;
     Preferences->LidarViewMode = static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor);
+    Preferences->LidarProjectionMode = ELidarMonitorProjectionMode::Split;
+    Preferences->LidarColorMode = ELidarColorMode::DistanceViridis;
+    Preferences->bShowWorldLidarPointCloud = false;
+    Preferences->LidarPointSize = 3.5f;
     Preferences->bMonitorDetailsExpanded = true;
     Preferences->bSettingsKeyboardHelpExpanded = true;
 
@@ -163,6 +167,10 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
         TestTrue(TEXT("collapsed state survives serialization"), LoadedPanel->bCollapsed);
     }
     TestEqual(TEXT("LiDAR mode survives serialization"), Loaded->LidarViewMode, static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor));
+    TestEqual(TEXT("LiDAR projection survives serialization"), Loaded->LidarProjectionMode, ELidarMonitorProjectionMode::Split);
+    TestEqual(TEXT("LiDAR color mode survives serialization"), Loaded->LidarColorMode, ELidarColorMode::DistanceViridis);
+    TestFalse(TEXT("world point visibility survives serialization"), Loaded->bShowWorldLidarPointCloud);
+    TestEqual(TEXT("point size survives serialization"), Loaded->LidarPointSize, 3.5f);
     TestTrue(TEXT("monitor detail state survives serialization"), Loaded->bMonitorDetailsExpanded);
     TestTrue(TEXT("keyboard help state survives serialization"), Loaded->bSettingsKeyboardHelpExpanded);
     return true;

@@ -6,6 +6,7 @@
 #include "VirtualLidarExportComponent.h"
 #include "VirtualLidarVisualizationComponent.h"
 #include "VirtualSensorOutputComponent.h"
+#include "VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 
 AVirtualLidarSensorActor::AVirtualLidarSensorActor()
@@ -165,8 +166,12 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
 void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTexture2D* ViewTexture)
 {
     if (!ScanComponent) return;
-    if (AnalysisComponent) AnalysisComponent->AnalyzeLatestFrame();
-    if (VisualizationComponent) VisualizationComponent->RefreshLatestFrame();
+    if (AnalysisComponent) AnalysisComponent->ApplyPrecomputedStatistics(ScanComponent->GetLastHitPointCount(), ScanComponent->GetLastSemanticCounts());
+    if (VisualizationComponent)
+    {
+        const UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>() : nullptr;
+        if (!Scheduler || Scheduler->ShouldRefreshLidarPreview(ScanComponent)) VisualizationComponent->RefreshLatestFrame();
+    }
     if (!OutputComponent || JsonPayload.IsEmpty()) return;
 
     FVirtualSensorFrameEnvelope Frame;
@@ -176,7 +181,7 @@ void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTex
     Frame.TimestampUtc = FDateTime::UtcNow();
     Frame.SchemaVersion = TEXT("virtual-lidar.v1");
     Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
-    Frame.PointSnapshot = MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(ScanComponent->GetLastPoints());
+    Frame.PointSnapshot = ScanComponent->GetLastPointSnapshot();
     Frame.bSendTransport = PendingExternalSendTransport.IsSet() ? PendingExternalSendTransport.GetValue() : true;
     Frame.bRecord = true;
     PendingExternalSendTransport.Reset();

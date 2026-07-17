@@ -22,9 +22,12 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include <atomic>
 
 namespace
 {
+std::atomic<int32> GVirtualCameraEncodeJobs{0};
+constexpr int32 GVirtualCameraEncodeJobLimit = 2;
 bool IsWholeNumber(double Value)
 {
     return FMath::IsFinite(Value) && FMath::IsNearlyEqual(Value, FMath::RoundToDouble(Value));
@@ -281,6 +284,15 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 
 void UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds)
 {
+    if (GVirtualCameraEncodeJobs.fetch_add(1, std::memory_order_acq_rel) >= GVirtualCameraEncodeJobLimit)
+    {
+        GVirtualCameraEncodeJobs.fetch_sub(1, std::memory_order_acq_rel);
+        bScheduledEncodeInFlight = false;
+        RuntimeStatus.bDerivedWorkInFlight = false;
+        ++RuntimeStatus.DroppedDerivedFrameCount;
+        UpdateRuntimeStatus(RuntimeStatus.LastPayloadLength, TEXT("전역 JPEG 처리 한도 때문에 오래된 파생 프레임을 생략했습니다."));
+        return;
+    }
     bScheduledEncodeInFlight = true;
     RuntimeStatus.bDerivedWorkInFlight = true;
     const int32 Generation = ScheduledGeneration;
@@ -319,6 +331,7 @@ void UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPi
                 }
             }
         }
+        GVirtualCameraEncodeJobs.fetch_sub(1, std::memory_order_acq_rel);
         AsyncTask(ENamedThreads::GameThread, [WeakThis, Generation, CapturedFrameId = Snapshot.FrameId, JpegBytes = MoveTemp(JpegBytes), JsonPayload = MoveTemp(JsonPayload), CaptureStartedSeconds]() mutable
         {
             if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;

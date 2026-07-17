@@ -200,7 +200,12 @@ public:
     FString GetLastLazExportWarningText() const { return LastLazExportWarningText; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
-    const TArray<FVirtualLidarPoint>& GetLastPoints() const { return LastPoints; }
+    const TArray<FVirtualLidarPoint>& GetLastPoints() const { return *LastPointStorage; }
+
+    TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> GetLastPointSnapshot() const
+    {
+        return StaticCastSharedPtr<const TArray<FVirtualLidarPoint>>(LastPointStorage);
+    }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     UTexture2D* GetLidarViewTexture() const { return LidarViewTexture; }
@@ -223,6 +228,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     int32 GetLastPreviewPointCount() const { return LastPreviewPointCount; }
 
+    int32 GetLastHitPointCount() const { return LastHitPointCount; }
+    const TMap<FString, int32>& GetLastSemanticCounts() const { return LastSemanticCounts; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     FString GetPreviewBackendName() const;
 
@@ -231,6 +239,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|PointCloudPreview")
     bool IsGpuPreviewBackendActive() const;
+
+    void SetGpuPreviewBackendRuntimeState(bool bActive, const FString& InFallbackReason);
+    const FString& GetGpuPreviewFallbackReason() const { return GpuPreviewFallbackReason; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
     FString GetPerformanceWarning() const { return LastPerformanceWarning; }
@@ -468,13 +479,16 @@ private:
     UInstancedStaticMeshComponent* EnsurePointCloudPreviewComponent();
     void RefreshPointCloudPreview();
     void CollectExportPoints(TArray<const FVirtualLidarPoint*>& OutExportPoints) const;
+    void RebuildLastPointStatistics();
 
 private:
     FTimerHandle ScanTimerHandle;
-    TArray<FVirtualLidarPoint> LastPoints;
+    TSharedPtr<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>();
     int64 FrameId = 0;
     int32 LastServerPayloadPointCount = 0;
     int32 LastPreviewPointCount = 0;
+    int32 LastHitPointCount = 0;
+    TMap<FString, int32> LastSemanticCounts;
     FString LastPerformanceWarning;
     FString LastJsonPayload;
     FVirtualLidarSlabAnalysisResult LastSlabAnalysis;
@@ -513,10 +527,15 @@ private:
     int32 ScheduledNextRayIndex = 0;
     int32 ScheduledGeneration = 0;
     bool bRegisteredWithPerformanceSubsystem = false;
+    bool bGpuPreviewBackendRuntimeActive = false;
+    bool bGpuPreviewBackendRuntimeRequested = false;
+    FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
     bool bScheduledPayloadBuildInFlight = false;
     bool bScheduledAutoExportInFlight = false;
     bool bScheduledPayloadRefreshPending = false;
     TArray<FVirtualLidarPoint> ScheduledPoints;
     TArray<uint8> ScheduledHeatmapPixels;
+    int32 ScheduledHitPointCount = 0;
+    TMap<FString, int32> ScheduledSemanticCounts;
 };
