@@ -1,10 +1,24 @@
 # MA0T10 Artemis 개발 Broker
 
-`docker compose up -d`로 로컬 개발 Broker를 시작합니다.
+프로젝트 루트에서 다음 명령으로 로컬 개발 Broker를 시작합니다.
+
+```powershell
+docker compose -f Tools/Artemis/docker-compose.yml up -d --wait
+```
 
 - STOMP WebSocket: `ws://127.0.0.1:61616`
 - 관리 콘솔: `http://127.0.0.1:8161`
 - 개발 계정: `artemis` / `artemis`
 - Camera, LiDAR, export 주소는 각각 multicast Topic으로 생성됩니다.
+- Broker 인스턴스 전체가 `artemis-instance` 볼륨에 저장되므로 재시작 후에도 주소와 메시지 저장소를 유지합니다.
 
-운영 환경에서는 별도의 계정과 TLS WebSocket(`wss://`)을 사용하고 비밀번호는 프로젝트 설정이나 SaveGame에 저장하지 마세요.
+상태와 로그는 다음 명령으로 확인합니다.
+
+```powershell
+docker compose -f Tools/Artemis/docker-compose.yml ps
+docker logs ma0t10-artemis --tail 100
+```
+
+종료할 때는 `docker compose -f Tools/Artemis/docker-compose.yml down`을 사용합니다. 저장된 Broker 인스턴스까지 초기화하려면 개발 데이터 삭제를 확인한 뒤 `down -v`를 사용합니다.
+
+운영 환경에서는 별도 계정과 TLS WebSocket(`wss://`)을 사용하고, 비밀번호나 Bearer token을 프로젝트 설정 또는 SaveGame에 저장하지 마세요.

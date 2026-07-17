@@ -12,7 +12,10 @@ services:
       - "8161:8161"
     volumes:
       - ./etc-override:/var/lib/artemis-instance/etc-override:ro
-      - artemis-data:/var/lib/artemis-instance/data
+      # Persist the complete broker instance. Mounting only the data directory
+      # hides the image-created journal hierarchy on a fresh volume and causes
+      # Artemis to restart with a missing server.lock parent directory.
+      - artemis-instance:/var/lib/artemis-instance
 
 volumes:
-  artemis-data:
+  artemis-instance:
