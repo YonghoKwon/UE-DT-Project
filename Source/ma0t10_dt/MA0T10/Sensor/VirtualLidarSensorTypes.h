@@ -45,6 +45,53 @@ enum class ELidarColorMode : uint8
     DistanceGray UMETA(DisplayName = "거리 회색조")
 };
 
+/** Runtime policy for the world-space LiDAR point renderer. */
+UENUM(BlueprintType)
+enum class ELidarPointCloudRenderPolicy : uint8
+{
+    AutoPreferNiagara UMETA(DisplayName = "자동 (Niagara 우선)"),
+    ForceNiagara UMETA(DisplayName = "Niagara 강제"),
+    ForceCpu UMETA(DisplayName = "CPU 강제")
+};
+
+/** Observable renderer state. Uploading an array alone is not considered active. */
+UENUM(BlueprintType)
+enum class ELidarPointCloudRendererState : uint8
+{
+    Disabled UMETA(DisplayName = "꺼짐"),
+    Starting UMETA(DisplayName = "시작 중"),
+    NiagaraActive UMETA(DisplayName = "Niagara 활성"),
+    CpuFallback UMETA(DisplayName = "CPU fallback"),
+    Error UMETA(DisplayName = "오류")
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarRendererTelemetry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    ELidarPointCloudRendererState State = ELidarPointCloudRendererState::Disabled;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 MeasuredPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 HitPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 UploadedPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 VisiblePointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    FString RendererName;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    FString Message;
+};
+
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualLidarVisualizationSettings
 {

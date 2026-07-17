@@ -422,6 +422,27 @@ void UVirtualLidarVisualizationComponent::SetWorldPointCloudEnabled(bool bEnable
     RefreshWorldPointCloud();
 }
 
+void UVirtualLidarVisualizationComponent::SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy InPolicy)
+{
+    PointCloudRenderPolicy = InPolicy;
+    RefreshWorldPointCloud();
+}
+
+ELidarPointCloudRendererState UVirtualLidarVisualizationComponent::ResolveRendererState(
+    ELidarPointCloudRenderPolicy Policy,
+    bool bWorldPointCloudEnabled,
+    int32 HitPointCount,
+    bool bNiagaraAvailable,
+    bool bNiagaraReady)
+{
+    if (!bWorldPointCloudEnabled) return ELidarPointCloudRendererState::Disabled;
+    if (HitPointCount <= 0) return ELidarPointCloudRendererState::Starting;
+    if (Policy == ELidarPointCloudRenderPolicy::ForceCpu) return ELidarPointCloudRendererState::CpuFallback;
+    if (bNiagaraAvailable && bNiagaraReady) return ELidarPointCloudRendererState::NiagaraActive;
+    if (Policy == ELidarPointCloudRenderPolicy::ForceNiagara) return ELidarPointCloudRendererState::Error;
+    return ELidarPointCloudRendererState::CpuFallback;
+}
+
 UTexture2D* UVirtualLidarVisualizationComponent::GetPreviewTexture() const
 {
     switch (Settings.ProjectionMode)

@@ -35,6 +35,9 @@ public:
     void SetWorldPointCloudEnabled(bool bEnabled);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
+    void SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy InPolicy);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
     void PanProjectionView(ELidarMonitorProjectionMode ProjectionMode, FVector2D PixelDelta, FVector2D ViewportSize);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
@@ -61,6 +64,9 @@ public:
     int32 GetVisiblePointCount() const { return VisiblePointCount; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Visualization")
+    const FVirtualLidarRendererTelemetry& GetRendererTelemetry() const { return RendererTelemetry; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Visualization")
     FString GetLegendText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Visualization")
@@ -82,9 +88,18 @@ public:
         float NormalizedHeight);
     static FIntPoint ProjectTopDown(const FVector& SensorLocalPoint, float MaxDistanceCm, int32 Resolution);
     static FIntPoint ProjectElevation(const FVector& SensorLocalPoint, float MaxDistanceCm, float MinHeightCm, float MaxHeightCm, int32 Width, int32 Height);
+    static ELidarPointCloudRendererState ResolveRendererState(
+        ELidarPointCloudRenderPolicy Policy,
+        bool bWorldPointCloudEnabled,
+        int32 HitPointCount,
+        bool bNiagaraAvailable,
+        bool bNiagaraReady);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
     FVirtualLidarVisualizationSettings Settings;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    ELidarPointCloudRenderPolicy PointCloudRenderPolicy = ELidarPointCloudRenderPolicy::AutoPreferNiagara;
 
 private:
     void RebuildProjectionTextures();
@@ -125,6 +140,7 @@ private:
     float LastMaxHeightCm = 0.0f;
     FString ActiveRendererName = TEXT("CPU ISM fallback");
     FString RendererFallbackReason;
+    FVirtualLidarRendererTelemetry RendererTelemetry;
     TArray<FVector> NiagaraPositions;
     TArray<FLinearColor> NiagaraColors;
     uint64 ProjectionGeneration = 0;
