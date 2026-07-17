@@ -174,60 +174,64 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
     Result->MinHeightCm = MinHeight;
     Result->MaxHeightCm = MaxHeight;
 
-    Result->RangeWidth = FMath::Max(1, Input.HorizontalSamples);
-    Result->RangeHeight = FMath::Max(1, Input.VerticalChannels);
-    Result->RangePixels.Init(FColor(4, 8, 16, 255), Result->RangeWidth * Result->RangeHeight);
-    TArray<float> Depths;
-    Depths.Init(TNumericLimits<float>::Max(), Result->RangePixels.Num());
-    for (const FVirtualLidarPoint& Point : Points)
+    if (Input.Settings.ProjectionMode == ELidarMonitorProjectionMode::RangeImage ||
+        Input.Settings.ProjectionMode == ELidarMonitorProjectionMode::Split)
     {
-		if (Input.bHitOnly && !Point.bHit) continue;
-        const int32 Row = Point.bHasGridCoord ? Point.Row : 0;
-        const int32 Col = Point.bHasGridCoord ? Point.Col : 0;
-        if (Row < 0 || Row >= Result->RangeHeight || Col < 0 || Col >= Result->RangeWidth) continue;
-        const int32 DrawCol = Input.bFlipHorizontal ? Result->RangeWidth - 1 - Col : Col;
-        const int32 DrawRow = Input.bFlipVertical ? Result->RangeHeight - 1 - Row : Row;
-        const int32 PixelIndex = DrawRow * Result->RangeWidth + DrawCol;
-        if (Point.bHit && Point.Distance > Depths[PixelIndex]) continue;
-        const float Height = Point.bHit ? Input.SensorTransform.InverseTransformPosition(Point.WorldLocation).Z : 0.0f;
-        Result->RangePixels[PixelIndex] = ResolveProjectionColor(Input, Point,
-            NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
-                Input.Settings.bUseAdaptiveDistance ? MaxDistance : Input.MaxDistanceCm),
-            NormalizeValue(Height, MinHeight, MaxHeight));
-        Depths[PixelIndex] = Point.bHit ? Point.Distance : TNumericLimits<float>::Max();
-    }
-    if (Input.Settings.bShowGrid)
-    {
-        const int32 ColumnStep = FMath::Max(1, Result->RangeWidth / 12);
-        const int32 RowStep = FMath::Max(1, Result->RangeHeight / 6);
-        for (int32 Y = 0; Y < Result->RangeHeight; ++Y)
+        Result->RangeWidth = FMath::Max(1, Input.HorizontalSamples);
+        Result->RangeHeight = FMath::Max(1, Input.VerticalChannels);
+        Result->RangePixels.Init(FColor(4, 8, 16, 255), Result->RangeWidth * Result->RangeHeight);
+        TArray<float> Depths;
+        Depths.Init(TNumericLimits<float>::Max(), Result->RangePixels.Num());
+        for (const FVirtualLidarPoint& Point : Points)
         {
-            for (int32 X = 0; X < Result->RangeWidth; ++X)
+            if (Input.bHitOnly && !Point.bHit) continue;
+            const int32 Row = Point.bHasGridCoord ? Point.Row : 0;
+            const int32 Col = Point.bHasGridCoord ? Point.Col : 0;
+            if (Row < 0 || Row >= Result->RangeHeight || Col < 0 || Col >= Result->RangeWidth) continue;
+            const int32 DrawCol = Input.bFlipHorizontal ? Result->RangeWidth - 1 - Col : Col;
+            const int32 DrawRow = Input.bFlipVertical ? Result->RangeHeight - 1 - Row : Row;
+            const int32 PixelIndex = DrawRow * Result->RangeWidth + DrawCol;
+            if (Point.bHit && Point.Distance > Depths[PixelIndex]) continue;
+            const float Height = Point.bHit ? Input.SensorTransform.InverseTransformPosition(Point.WorldLocation).Z : 0.0f;
+            Result->RangePixels[PixelIndex] = ResolveProjectionColor(Input, Point,
+                NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
+                    Input.Settings.bUseAdaptiveDistance ? MaxDistance : Input.MaxDistanceCm),
+                NormalizeValue(Height, MinHeight, MaxHeight));
+            Depths[PixelIndex] = Point.bHit ? Point.Distance : TNumericLimits<float>::Max();
+        }
+        if (Input.Settings.bShowGrid)
+        {
+            const int32 ColumnStep = FMath::Max(1, Result->RangeWidth / 12);
+            const int32 RowStep = FMath::Max(1, Result->RangeHeight / 6);
+            for (int32 Y = 0; Y < Result->RangeHeight; ++Y)
             {
-                if (X % ColumnStep == 0 || Y % RowStep == 0)
+                for (int32 X = 0; X < Result->RangeWidth; ++X)
                 {
-                    FColor& Pixel = Result->RangePixels[Y * Result->RangeWidth + X];
-                    Pixel = LerpColor(Pixel, FColor(210, 220, 235), 0.28f);
+                    if (X % ColumnStep == 0 || Y % RowStep == 0)
+                    {
+                        FColor& Pixel = Result->RangePixels[Y * Result->RangeWidth + X];
+                        Pixel = LerpColor(Pixel, FColor(210, 220, 235), 0.28f);
+                    }
                 }
             }
         }
-    }
-    if (Input.Settings.bShowDepthEdges)
-    {
-        TArray<FColor> EdgePixels = Result->RangePixels;
-        const float Threshold = FMath::Max(10.0f, Input.MaxDistanceCm * 0.01f);
-        for (int32 Y = 0; Y < Result->RangeHeight; ++Y)
+        if (Input.Settings.bShowDepthEdges)
         {
-            for (int32 X = 0; X < Result->RangeWidth; ++X)
+            TArray<FColor> EdgePixels = Result->RangePixels;
+            const float Threshold = FMath::Max(10.0f, Input.MaxDistanceCm * 0.01f);
+            for (int32 Y = 0; Y < Result->RangeHeight; ++Y)
             {
-                const int32 Index = Y * Result->RangeWidth + X;
-                if (Depths[Index] == TNumericLimits<float>::Max()) continue;
-                const bool bRight = X + 1 < Result->RangeWidth && Depths[Index + 1] != TNumericLimits<float>::Max() && FMath::Abs(Depths[Index] - Depths[Index + 1]) >= Threshold;
-                const bool bDown = Y + 1 < Result->RangeHeight && Depths[Index + Result->RangeWidth] != TNumericLimits<float>::Max() && FMath::Abs(Depths[Index] - Depths[Index + Result->RangeWidth]) >= Threshold;
-                if (bRight || bDown) EdgePixels[Index] = FColor::White;
+                for (int32 X = 0; X < Result->RangeWidth; ++X)
+                {
+                    const int32 Index = Y * Result->RangeWidth + X;
+                    if (Depths[Index] == TNumericLimits<float>::Max()) continue;
+                    const bool bRight = X + 1 < Result->RangeWidth && Depths[Index + 1] != TNumericLimits<float>::Max() && FMath::Abs(Depths[Index] - Depths[Index + 1]) >= Threshold;
+                    const bool bDown = Y + 1 < Result->RangeHeight && Depths[Index + Result->RangeWidth] != TNumericLimits<float>::Max() && FMath::Abs(Depths[Index] - Depths[Index + Result->RangeWidth]) >= Threshold;
+                    if (bRight || bDown) EdgePixels[Index] = FColor::White;
+                }
             }
+            Result->RangePixels = MoveTemp(EdgePixels);
         }
-        Result->RangePixels = MoveTemp(EdgePixels);
     }
 
     if (Input.Settings.ProjectionMode == ELidarMonitorProjectionMode::TopDown || Input.Settings.ProjectionMode == ELidarMonitorProjectionMode::Split)
@@ -610,7 +614,10 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
                 Self->LastMaxDistanceCm = Result->MaxDistanceCm;
                 Self->LastMinHeightCm = Result->MinHeightCm;
                 Self->LastMaxHeightCm = Result->MaxHeightCm;
-                Self->UploadTexture(Self->RangeTexture, Result->RangePixels, Result->RangeWidth, Result->RangeHeight);
+                if (Result->RangePixels.Num() > 0)
+                {
+                    Self->UploadTexture(Self->RangeTexture, Result->RangePixels, Result->RangeWidth, Result->RangeHeight);
+                }
                 if (Result->TopDownPixels.Num() > 0)
                 {
                     Self->UploadTexture(Self->TopDownTexture, Result->TopDownPixels, Result->TopDownWidth, Result->TopDownHeight);
@@ -923,11 +930,19 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
         NiagaraPointCloudComponent->SetSystemFixedBounds(WorldBounds.ExpandBy(FMath::Max(25.0f, Settings.PointSize * 10.0f)));
     }
     NiagaraPointCloudComponent->SetVisibility(true, true);
-    NiagaraPointCloudComponent->ReinitializeSystem();
-    // A registered/active component can still spawn zero particles and finish
-    // immediately. Advance once so that broken burst graphs are rejected before
-    // the GPU renderer is reported as successful.
-    NiagaraPointCloudComponent->AdvanceSimulation(1, 1.0f / 60.0f);
+    if (!bNiagaraSystemInitialized)
+    {
+        NiagaraPointCloudComponent->ReinitializeSystem();
+        // A registered/active component can still spawn zero particles and finish
+        // immediately. Advance once so that broken burst graphs are rejected before
+        // the GPU renderer is reported as successful.
+        NiagaraPointCloudComponent->AdvanceSimulation(1, 1.0f / 60.0f);
+        bNiagaraSystemInitialized = true;
+    }
+    else if (!NiagaraPointCloudComponent->IsActive())
+    {
+        NiagaraPointCloudComponent->Activate(true);
+    }
     const bool bComponentReady = NiagaraPointCloudComponent->GetAsset() == System &&
         NiagaraPointCloudComponent->IsRegistered() && NiagaraPointCloudComponent->IsActive() &&
         !NiagaraPointCloudComponent->IsComplete();
@@ -936,6 +951,7 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
         NiagaraPointCloudComponent->SetVisibility(false, true);
         RendererFallbackReason = TEXT("Niagara 시스템이 실행 상태로 전환되지 않아 CPU ISM으로 전환했습니다.");
         NextNiagaraRetryTimeSeconds = NowSeconds + 2.0;
+        bNiagaraSystemInitialized = false;
         ScanComponent->SetGpuPreviewBackendRuntimeState(false, RendererFallbackReason);
         return false;
     }

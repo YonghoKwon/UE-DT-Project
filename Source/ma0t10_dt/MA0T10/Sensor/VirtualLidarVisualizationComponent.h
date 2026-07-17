@@ -149,6 +149,7 @@ private:
     uint64 ProjectionGeneration = 0;
     bool bProjectionBuildInFlight = false;
     bool bForceCpuFallbackForBenchmark = false;
+    bool bNiagaraSystemInitialized = false;
     double NextNiagaraRetryTimeSeconds = 0.0;
     int64 LastVisualizedFrameId = INDEX_NONE;
 };

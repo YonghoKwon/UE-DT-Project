@@ -102,13 +102,18 @@ void UVirtualSensorSchedulerSubsystem::UnregisterCamera(UVirtualCameraCaptureCom
 
 void UVirtualSensorSchedulerSubsystem::RegisterLidar(UVirtualLidarScanComponent* Lidar)
 {
-    if (Lidar && !Lidars.Contains(Lidar)) Lidars.Add(Lidar);
+    if (Lidar && !Lidars.Contains(Lidar))
+    {
+        Lidars.Add(Lidar);
+        AdaptiveLidarChunkSizes.FindOrAdd(Lidar, 256);
+    }
 }
 
 void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponent* Lidar)
 {
     if (PreferredLidar.Get() == Lidar) PreferredLidar.Reset();
     Lidars.RemoveAll([Lidar](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid() || Item.Get() == Lidar; });
+    AdaptiveLidarChunkSizes.Remove(Lidar);
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
 
@@ -131,6 +136,10 @@ void UVirtualSensorSchedulerSubsystem::CompactRegistrations()
 {
     Cameras.RemoveAll([](const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Item) { return !Item.IsValid(); });
     Lidars.RemoveAll([](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid(); });
+    for (auto It = AdaptiveLidarChunkSizes.CreateIterator(); It; ++It)
+    {
+        if (!It.Key().IsValid()) It.RemoveCurrent();
+    }
     NextCameraIndex = Cameras.Num() > 0 ? NextCameraIndex % Cameras.Num() : 0;
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
@@ -227,8 +236,9 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         const int32 Index = NextLidarIndex % Lidars.Num();
         NextLidarIndex = (Index + 1) % Lidars.Num();
         UVirtualLidarScanComponent* Lidar = Lidars[Index].Get();
+        int32& AdaptiveChunkSize = AdaptiveLidarChunkSizes.FindOrAdd(Lidars[Index], 256);
         const double ChunkStart = FPlatformTime::Seconds();
-        const int32 Processed = Lidar ? Lidar->ProcessScheduledScanChunk(AdaptiveLidarChunkSize) : 0;
+        const int32 Processed = Lidar ? Lidar->ProcessScheduledScanChunk(AdaptiveChunkSize) : 0;
         const double ChunkMs = (FPlatformTime::Seconds() - ChunkStart) * 1000.0;
 
         if (Processed <= 0)
@@ -238,8 +248,8 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         }
 
         ConsecutiveIdle = 0;
-        if (ChunkMs > 0.75 && AdaptiveLidarChunkSize > 128) AdaptiveLidarChunkSize = FMath::Max(128, AdaptiveLidarChunkSize / 2);
-        else if (ChunkMs < 0.25 && AdaptiveLidarChunkSize < 1024) AdaptiveLidarChunkSize = FMath::Min(1024, AdaptiveLidarChunkSize * 2);
+        if (ChunkMs > 0.75 && AdaptiveChunkSize > 128) AdaptiveChunkSize = FMath::Max(128, AdaptiveChunkSize / 2);
+        else if (ChunkMs < 0.25 && AdaptiveChunkSize < 1024) AdaptiveChunkSize = FMath::Min(1024, AdaptiveChunkSize * 2);
     }
 
     RefreshTelemetry(static_cast<float>((FPlatformTime::Seconds() - StartSeconds) * 1000.0));

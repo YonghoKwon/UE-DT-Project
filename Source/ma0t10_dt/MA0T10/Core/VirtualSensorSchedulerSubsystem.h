@@ -126,7 +126,7 @@ private:
     TWeakObjectPtr<UVirtualLidarScanComponent> PreferredLidar;
     int32 NextCameraIndex = 0;
     int32 NextLidarIndex = 0;
-    int32 AdaptiveLidarChunkSize = 256;
+    TMap<TWeakObjectPtr<UVirtualLidarScanComponent>, int32> AdaptiveLidarChunkSizes;
     float EffectiveLidarBudgetMs = 5.0f;
     float EffectiveAggregateCameraCaptureHz = 12.0f;
     double LastCameraCaptureAdmissionTime = -1.0;
