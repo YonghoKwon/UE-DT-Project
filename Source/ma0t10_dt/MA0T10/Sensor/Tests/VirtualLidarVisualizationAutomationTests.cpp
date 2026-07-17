@@ -7,6 +7,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarColorModeTest, "MA0T10.SensorV2.LidarVisualization.ColorModes", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionMathTest, "MA0T10.SensorV2.LidarVisualization.ProjectionMath", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarLegacyViewMappingTest, "MA0T10.SensorV2.LidarVisualization.LegacyMapping", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionNavigationTest, "MA0T10.SensorV2.LidarVisualization.ProjectionNavigation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualLidarColorModeTest::RunTest(const FString& Parameters)
 {
@@ -44,6 +45,35 @@ bool FVirtualLidarLegacyViewMappingTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("legacy depth mode maps to Turbo"), UVirtualLidarVisualizationComponent::MapLegacyViewMode(EVirtualLidarViewMode::DepthGradient), ELidarColorMode::DistanceTurbo);
     TestEqual(TEXT("legacy semantic mode maps to semantic color"), UVirtualLidarVisualizationComponent::MapLegacyViewMode(EVirtualLidarViewMode::ActorClassColor), ELidarColorMode::SemanticLabel);
     TestEqual(TEXT("legacy grayscale round-trips without the old range bug"), UVirtualLidarVisualizationComponent::MapColorModeToLegacy(ELidarColorMode::DistanceGray), EVirtualLidarViewMode::IntensityGray);
+    return true;
+}
+
+bool FVirtualLidarProjectionNavigationTest::RunTest(const FString& Parameters)
+{
+    UVirtualLidarVisualizationComponent* Visualization = NewObject<UVirtualLidarVisualizationComponent>();
+    Visualization->PanProjectionView(ELidarMonitorProjectionMode::TopDown, FVector2D(40.0f, 20.0f), FVector2D(400.0f, 200.0f));
+    Visualization->RotateProjectionView(ELidarMonitorProjectionMode::TopDown, 15.0f);
+    Visualization->ZoomProjectionView(ELidarMonitorProjectionMode::TopDown, 2.0f);
+    const FVirtualLidarVisualizationSettings& TopDown = Visualization->GetVisualizationSettings();
+    TestNotEqual(TEXT("top-down drag changes pan"), TopDown.TopDownPanCm, FVector2D::ZeroVector);
+    TestEqual(TEXT("top-down right drag changes rotation"), TopDown.TopDownRotationDegrees, 15.0f);
+    TestEqual(TEXT("top-down wheel changes zoom"), TopDown.TopDownZoom, 2.0f);
+
+    Visualization->PanProjectionView(ELidarMonitorProjectionMode::Elevation, FVector2D(30.0f, -10.0f), FVector2D(300.0f, 150.0f));
+    Visualization->RotateProjectionView(ELidarMonitorProjectionMode::Elevation, -5.0f);
+    Visualization->ZoomProjectionView(ELidarMonitorProjectionMode::Elevation, 1.5f);
+    const FVirtualLidarVisualizationSettings& Elevation = Visualization->GetVisualizationSettings();
+    TestNotEqual(TEXT("elevation drag changes pan"), Elevation.ElevationPanCm, FVector2D::ZeroVector);
+    TestEqual(TEXT("elevation right drag changes rotation"), Elevation.ElevationRotationDegrees, -5.0f);
+    TestEqual(TEXT("elevation wheel changes zoom"), Elevation.ElevationZoom, 1.5f);
+
+    Visualization->ResetProjectionView(ELidarMonitorProjectionMode::TopDown);
+    Visualization->ResetProjectionView(ELidarMonitorProjectionMode::Elevation);
+    const FVirtualLidarVisualizationSettings& Reset = Visualization->GetVisualizationSettings();
+    TestEqual(TEXT("top-down reset clears pan"), Reset.TopDownPanCm, FVector2D::ZeroVector);
+    TestEqual(TEXT("top-down reset restores zoom"), Reset.TopDownZoom, 1.0f);
+    TestEqual(TEXT("elevation reset clears pan"), Reset.ElevationPanCm, FVector2D::ZeroVector);
+    TestEqual(TEXT("elevation reset restores zoom"), Reset.ElevationZoom, 1.0f);
     return true;
 }
 

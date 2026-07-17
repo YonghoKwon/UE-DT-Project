@@ -248,6 +248,11 @@ protected:
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual FReply NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual FReply NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual FReply NativeOnMouseWheel(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent) override;
 
 private:
     UFUNCTION()
@@ -317,6 +322,7 @@ private:
     UObject* GetLidarBrushResource();
     UObject* GetSecondaryLidarBrushResource();
     UVirtualLidarVisualizationComponent* GetLidarVisualizationComponent() const;
+    bool ResolveInteractiveProjection(const FVector2D& ScreenPosition, ELidarMonitorProjectionMode& OutProjection, FVector2D& OutViewportSize) const;
     UTexture2D* RebuildEnhancedLidarViewTexture();
     void InvalidateEnhancedLidarView();
     void CaptureLocalSensorFrame();
@@ -523,4 +529,8 @@ private:
     FSlateBrush NativeViewBrush;
     FSlateBrush NativeSecondaryViewBrush;
     double StatusRefreshAccumulator = 0.0;
+    bool bPanningLidarProjection = false;
+    bool bRotatingLidarProjection = false;
+    ELidarMonitorProjectionMode ActiveProjectionInteraction = ELidarMonitorProjectionMode::RangeImage;
+    FVector2D ActiveProjectionViewportSize = FVector2D(1.0f, 1.0f);
 };

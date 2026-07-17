@@ -79,6 +79,24 @@ struct MA0T10_DT_API FVirtualLidarVisualizationSettings
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization", meta = (ClampMin = "64", ClampMax = "1024"))
     int32 ElevationHeight = 256;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    FVector2D TopDownPanCm = FVector2D::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "0.1", ClampMax = "20.0"))
+    float TopDownZoom = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    float TopDownRotationDegrees = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    FVector2D ElevationPanCm = FVector2D::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "0.1", ClampMax = "20.0"))
+    float ElevationZoom = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    float ElevationRotationDegrees = 0.0f;
 };
 
 USTRUCT(BlueprintType)

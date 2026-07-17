@@ -126,6 +126,22 @@ FColor ResolveProjectionColor(
     }
 }
 
+FIntPoint ProjectInteractivePlane(
+    const FVector2D& Value,
+    const FVector2D& Center,
+    const FVector2D& HalfExtent,
+    float RotationDegrees,
+    int32 Width,
+    int32 Height)
+{
+    const FVector2D Relative = (Value - Center).GetRotated(-RotationDegrees);
+    const float NormalizedX = Relative.X / FMath::Max(1.0f, HalfExtent.X) * 0.5f + 0.5f;
+    const float NormalizedY = Relative.Y / FMath::Max(1.0f, HalfExtent.Y) * 0.5f + 0.5f;
+    return FIntPoint(
+        FMath::RoundToInt(NormalizedX * static_cast<float>(FMath::Max(1, Width) - 1)),
+        FMath::RoundToInt((1.0f - NormalizedY) * static_cast<float>(FMath::Max(1, Height) - 1)));
+}
+
 TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFrame(const FLidarProjectionBuildInput& Input)
 {
     TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> Result = MakeShared<FLidarProjectionBuildResult, ESPMode::ThreadSafe>();
@@ -233,7 +249,11 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         {
             if (!Point.bHit) continue;
             const FVector Local = Input.SensorTransform.InverseTransformPosition(Point.WorldLocation);
-            const FIntPoint Pixel = UVirtualLidarVisualizationComponent::ProjectTopDown(Local, Input.MaxDistanceCm, Result->TopDownWidth);
+            const float Zoom = FMath::Clamp(Input.Settings.TopDownZoom, 0.1f, 20.0f);
+            const FVector2D Center(Input.Settings.TopDownPanCm.Y, Input.MaxDistanceCm * 0.5f + Input.Settings.TopDownPanCm.X);
+            const FVector2D HalfExtent(Input.MaxDistanceCm / Zoom, Input.MaxDistanceCm * 0.5f / Zoom);
+            const FIntPoint Pixel = ProjectInteractivePlane(FVector2D(Local.Y, Local.X), Center, HalfExtent,
+                Input.Settings.TopDownRotationDegrees, Result->TopDownWidth, Result->TopDownHeight);
             DrawPixel(Result->TopDownPixels, Result->TopDownWidth, Result->TopDownHeight, Pixel.X, Pixel.Y,
                 ResolveProjectionColor(Input, Point,
                     NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
@@ -255,8 +275,14 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         {
             if (!Point.bHit) continue;
             const FVector Local = Input.SensorTransform.InverseTransformPosition(Point.WorldLocation);
-            const FIntPoint Pixel = UVirtualLidarVisualizationComponent::ProjectElevation(
-                Local, Input.MaxDistanceCm, DrawMinHeight, DrawMaxHeight, Result->ElevationWidth, Result->ElevationHeight);
+            const float Zoom = FMath::Clamp(Input.Settings.ElevationZoom, 0.1f, 20.0f);
+            const float ForwardDistance = FVector2D(Local.X, Local.Y).Length();
+            const FVector2D Center(Input.MaxDistanceCm * 0.5f + Input.Settings.ElevationPanCm.X,
+                (DrawMinHeight + DrawMaxHeight) * 0.5f + Input.Settings.ElevationPanCm.Y);
+            const FVector2D HalfExtent(Input.MaxDistanceCm * 0.5f / Zoom,
+                FMath::Max(1.0f, (DrawMaxHeight - DrawMinHeight) * 0.5f / Zoom));
+            const FIntPoint Pixel = ProjectInteractivePlane(FVector2D(ForwardDistance, Local.Z), Center, HalfExtent,
+                Input.Settings.ElevationRotationDegrees, Result->ElevationWidth, Result->ElevationHeight);
             DrawPixel(Result->ElevationPixels, Result->ElevationWidth, Result->ElevationHeight, Pixel.X, Pixel.Y,
                 ResolveProjectionColor(Input, Point,
                     NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
@@ -318,8 +344,63 @@ void UVirtualLidarVisualizationComponent::SetVisualizationSettings(const FVirtua
     Settings.TopDownResolution = FMath::Clamp(Settings.TopDownResolution, 128, 2048);
     Settings.ElevationWidth = FMath::Clamp(Settings.ElevationWidth, 128, 2048);
     Settings.ElevationHeight = FMath::Clamp(Settings.ElevationHeight, 64, 1024);
+    Settings.TopDownZoom = FMath::Clamp(Settings.TopDownZoom, 0.1f, 20.0f);
+    Settings.ElevationZoom = FMath::Clamp(Settings.ElevationZoom, 0.1f, 20.0f);
     if (ScanComponent) ScanComponent->ViewMode = MapColorModeToLegacy(Settings.ColorMode);
     RefreshLatestFrame();
+}
+
+void UVirtualLidarVisualizationComponent::PanProjectionView(ELidarMonitorProjectionMode ProjectionMode, FVector2D PixelDelta, FVector2D ViewportSize)
+{
+    const FVector2D SafeSize(FMath::Max(1.0f, ViewportSize.X), FMath::Max(1.0f, ViewportSize.Y));
+    const float MaxDistance = ScanComponent ? FMath::Max(1.0f, ScanComponent->MaxDistance) : 10000.0f;
+    if (ProjectionMode == ELidarMonitorProjectionMode::TopDown || ProjectionMode == ELidarMonitorProjectionMode::Split)
+    {
+        Settings.TopDownPanCm.X += PixelDelta.Y * (MaxDistance / Settings.TopDownZoom) / SafeSize.Y;
+        Settings.TopDownPanCm.Y -= PixelDelta.X * (MaxDistance * 2.0f / Settings.TopDownZoom) / SafeSize.X;
+    }
+    else if (ProjectionMode == ELidarMonitorProjectionMode::Elevation)
+    {
+        const float HeightRange = FMath::Max(200.0f, LastMaxHeightCm - LastMinHeightCm);
+        Settings.ElevationPanCm.X -= PixelDelta.X * (MaxDistance / Settings.ElevationZoom) / SafeSize.X;
+        Settings.ElevationPanCm.Y += PixelDelta.Y * (HeightRange / Settings.ElevationZoom) / SafeSize.Y;
+    }
+    RebuildProjectionTextures();
+}
+
+void UVirtualLidarVisualizationComponent::RotateProjectionView(ELidarMonitorProjectionMode ProjectionMode, float DeltaDegrees)
+{
+    if (ProjectionMode == ELidarMonitorProjectionMode::TopDown || ProjectionMode == ELidarMonitorProjectionMode::Split)
+        Settings.TopDownRotationDegrees = FMath::UnwindDegrees(Settings.TopDownRotationDegrees + DeltaDegrees);
+    else if (ProjectionMode == ELidarMonitorProjectionMode::Elevation)
+        Settings.ElevationRotationDegrees = FMath::UnwindDegrees(Settings.ElevationRotationDegrees + DeltaDegrees);
+    RebuildProjectionTextures();
+}
+
+void UVirtualLidarVisualizationComponent::ZoomProjectionView(ELidarMonitorProjectionMode ProjectionMode, float ZoomFactor)
+{
+    if (ProjectionMode == ELidarMonitorProjectionMode::TopDown || ProjectionMode == ELidarMonitorProjectionMode::Split)
+        Settings.TopDownZoom = FMath::Clamp(Settings.TopDownZoom * ZoomFactor, 0.1f, 20.0f);
+    else if (ProjectionMode == ELidarMonitorProjectionMode::Elevation)
+        Settings.ElevationZoom = FMath::Clamp(Settings.ElevationZoom * ZoomFactor, 0.1f, 20.0f);
+    RebuildProjectionTextures();
+}
+
+void UVirtualLidarVisualizationComponent::ResetProjectionView(ELidarMonitorProjectionMode ProjectionMode)
+{
+    if (ProjectionMode == ELidarMonitorProjectionMode::TopDown || ProjectionMode == ELidarMonitorProjectionMode::Split)
+    {
+        Settings.TopDownPanCm = FVector2D::ZeroVector;
+        Settings.TopDownZoom = 1.0f;
+        Settings.TopDownRotationDegrees = 0.0f;
+    }
+    if (ProjectionMode == ELidarMonitorProjectionMode::Elevation)
+    {
+        Settings.ElevationPanCm = FVector2D::ZeroVector;
+        Settings.ElevationZoom = 1.0f;
+        Settings.ElevationRotationDegrees = 0.0f;
+    }
+    RebuildProjectionTextures();
 }
 
 void UVirtualLidarVisualizationComponent::SetProjectionMode(ELidarMonitorProjectionMode InProjectionMode)

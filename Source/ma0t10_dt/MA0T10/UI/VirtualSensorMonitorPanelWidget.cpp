@@ -675,6 +675,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 4.0f)
                         [ SNew(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetLidarViewModeDescription() + TEXT("\n") + GetLidarViewLegendText()); }) ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 4.0f)
+                        [
+                            SNew(SHorizontalBox).Visibility_Lambda([this]() { const auto Mode = GetLidarProjectionMode(); return bShowingLidar && Mode != ELidarMonitorProjectionMode::RangeImage ? EVisibility::Visible : EVisibility::Collapsed; })
+                            + SHorizontalBox::Slot().FillWidth(1.0f)
+                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("ProjectionNavigationHelp", "보기에서 좌클릭 드래그=이동 · 우클릭 드래그=회전 · 휠=확대/축소")) ]
+                            + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f)
+                            [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ResetProjectionView", "보기 초기화")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) V->ResetProjectionView(GetLidarProjectionMode()); return FReply::Handled(); }) ]
+                        ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
                         [
                             SNew(SHorizontalBox)
@@ -868,6 +876,99 @@ void UVirtualSensorMonitorPanelWidget::NativeTick(const FGeometry& MyGeometry, f
         StatusRefreshAccumulator = 0.0;
         RefreshStatusText();
     }
+}
+
+bool UVirtualSensorMonitorPanelWidget::ResolveInteractiveProjection(const FVector2D& ScreenPosition, ELidarMonitorProjectionMode& OutProjection, FVector2D& OutViewportSize) const
+{
+    if (!bShowingLidar) return false;
+    const ELidarMonitorProjectionMode Mode = GetLidarProjectionMode();
+    auto IsUnder = [&ScreenPosition, &OutViewportSize](const FGeometry& Geometry)
+    {
+        if (!Geometry.IsUnderLocation(ScreenPosition)) return false;
+        OutViewportSize = Geometry.GetLocalSize();
+        return true;
+    };
+
+    if (Mode == ELidarMonitorProjectionMode::Split && NativeSecondaryViewImage.IsValid() && IsUnder(NativeSecondaryViewImage->GetCachedGeometry()))
+    {
+        OutProjection = ELidarMonitorProjectionMode::TopDown;
+        return true;
+    }
+    if (Mode != ELidarMonitorProjectionMode::RangeImage && Mode != ELidarMonitorProjectionMode::Split)
+    {
+        if (ViewImage && IsUnder(ViewImage->GetCachedGeometry())) { OutProjection = Mode; return true; }
+        if (NativeViewImage.IsValid() && IsUnder(NativeViewImage->GetCachedGeometry())) { OutProjection = Mode; return true; }
+    }
+    return false;
+}
+
+FReply UVirtualSensorMonitorPanelWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+    ELidarMonitorProjectionMode Projection;
+    FVector2D ViewportSize;
+    const FKey Button = InMouseEvent.GetEffectingButton();
+    if ((Button == EKeys::LeftMouseButton || Button == EKeys::RightMouseButton) &&
+        ResolveInteractiveProjection(InMouseEvent.GetScreenSpacePosition(), Projection, ViewportSize))
+    {
+        ActiveProjectionInteraction = Projection;
+        ActiveProjectionViewportSize = ViewportSize;
+        bPanningLidarProjection = Button == EKeys::LeftMouseButton;
+        bRotatingLidarProjection = Button == EKeys::RightMouseButton;
+        const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
+        return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+    }
+    return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+FReply UVirtualSensorMonitorPanelWidget::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+    if (bPanningLidarProjection || bRotatingLidarProjection)
+    {
+        bPanningLidarProjection = false;
+        bRotatingLidarProjection = false;
+        return FReply::Handled().ReleaseMouseCapture();
+    }
+    return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
+}
+
+FReply UVirtualSensorMonitorPanelWidget::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        if (bPanningLidarProjection && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+        {
+            Visualization->PanProjectionView(ActiveProjectionInteraction, InMouseEvent.GetCursorDelta(), ActiveProjectionViewportSize);
+            return FReply::Handled();
+        }
+        if (bRotatingLidarProjection && InMouseEvent.IsMouseButtonDown(EKeys::RightMouseButton))
+        {
+            Visualization->RotateProjectionView(ActiveProjectionInteraction, InMouseEvent.GetCursorDelta().X * 0.25f);
+            return FReply::Handled();
+        }
+    }
+    return Super::NativeOnMouseMove(InGeometry, InMouseEvent);
+}
+
+FReply UVirtualSensorMonitorPanelWidget::NativeOnMouseWheel(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+    ELidarMonitorProjectionMode Projection;
+    FVector2D ViewportSize;
+    if (ResolveInteractiveProjection(InMouseEvent.GetScreenSpacePosition(), Projection, ViewportSize))
+    {
+        if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+        {
+            Visualization->ZoomProjectionView(Projection, FMath::Pow(1.15f, InMouseEvent.GetWheelDelta()));
+            return FReply::Handled();
+        }
+    }
+    return Super::NativeOnMouseWheel(InGeometry, InMouseEvent);
+}
+
+void UVirtualSensorMonitorPanelWidget::NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
+{
+    bPanningLidarProjection = false;
+    bRotatingLidarProjection = false;
+    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
 }
 
 void UVirtualSensorMonitorPanelWidget::BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp)

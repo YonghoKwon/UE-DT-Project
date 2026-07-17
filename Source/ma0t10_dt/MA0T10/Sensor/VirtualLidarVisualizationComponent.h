@@ -34,6 +34,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
     void SetWorldPointCloudEnabled(bool bEnabled);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
+    void PanProjectionView(ELidarMonitorProjectionMode ProjectionMode, FVector2D PixelDelta, FVector2D ViewportSize);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
+    void RotateProjectionView(ELidarMonitorProjectionMode ProjectionMode, float DeltaDegrees);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
+    void ZoomProjectionView(ELidarMonitorProjectionMode ProjectionMode, float ZoomFactor);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
+    void ResetProjectionView(ELidarMonitorProjectionMode ProjectionMode);
+
     void SetForceCpuFallbackForBenchmark(bool bForce) { bForceCpuFallbackForBenchmark = bForce; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Visualization")
