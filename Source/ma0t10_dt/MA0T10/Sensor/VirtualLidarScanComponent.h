@@ -209,6 +209,8 @@ public:
         return StaticCastSharedPtr<const TArray<FVirtualLidarPoint>>(LastPointStorage);
     }
 
+	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> GetLastFrameSnapshot() const { return LastFrameSnapshot; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     UTexture2D* GetLidarViewTexture() const { return LidarViewTexture; }
 
@@ -447,6 +449,7 @@ public:
     TObjectPtr<UVirtualSensorRecorderComponent> RecorderComponent;
 
 private:
+	void PublishLastFrameSnapshot(const FTransform& AcquisitionTransform, int32 InHorizontalSamples, int32 InVerticalChannels, float InMaxDistanceCm);
     void ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels);
     FString BuildJsonPayload(const TArray<FVirtualLidarPoint>& Points) const;
     FVirtualLidarSlabAnalysisResult AnalyzeSlabPoints(const TArray<FVirtualLidarPoint>& Points) const;
@@ -486,6 +489,8 @@ private:
 private:
     FTimerHandle ScanTimerHandle;
     TSharedPtr<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>();
+	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> LastFrameSnapshot;
+	uint32 FrameSettingsRevision = 0;
     int64 FrameId = 0;
     int32 LastServerPayloadPointCount = 0;
     int32 LastPreviewPointCount = 0;

@@ -541,13 +541,15 @@ void UVirtualLidarVisualizationComponent::RebuildProjectionTextures()
 void UVirtualLidarVisualizationComponent::StartProjectionBuild()
 {
     if (!ScanComponent || bProjectionBuildInFlight) return;
+	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Frame = ScanComponent->GetLastFrameSnapshot();
+	if (!Frame.IsValid() || !Frame->IsValid()) return;
     FLidarProjectionBuildInput Input;
-    Input.Points = ScanComponent->GetLastPointSnapshot();
+	Input.Points = Frame->Points;
     Input.Settings = Settings;
-    Input.SensorTransform = ScanComponent->GetComponentTransform();
-    Input.MaxDistanceCm = ScanComponent->MaxDistance;
-    Input.HorizontalSamples = ScanComponent->HorizontalSamples;
-    Input.VerticalChannels = ScanComponent->VerticalChannels;
+	Input.SensorTransform = Frame->AcquisitionTransform;
+	Input.MaxDistanceCm = Frame->MaxDistanceCm;
+	Input.HorizontalSamples = Frame->HorizontalSamples;
+	Input.VerticalChannels = Frame->VerticalChannels;
     Input.bFlipHorizontal = ScanComponent->bFlipLidarViewHorizontal;
     Input.bFlipVertical = ScanComponent->bFlipLidarViewVertical;
     Input.DefaultSemanticColor = ScanComponent->DefaultSemanticColor.ToFColor(true);
@@ -597,14 +599,16 @@ void UVirtualLidarVisualizationComponent::BuildRangeImage(TArray<FColor>& OutPix
     OutPixels.Init(FColor(4, 8, 16, 255), OutWidth * OutHeight);
     if (!ScanComponent) return;
 
-    const TArray<FVirtualLidarPoint>& Points = ScanComponent->GetLastPoints();
+	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Frame = ScanComponent->GetLastFrameSnapshot();
+	if (!Frame.IsValid() || !Frame->IsValid()) return;
+	const TArray<FVirtualLidarPoint>& Points = *Frame->Points;
     TArray<float> Depths;
     Depths.Init(TNumericLimits<float>::Max(), OutPixels.Num());
     LastMinDistanceCm = TNumericLimits<float>::Max();
     LastMaxDistanceCm = 0.0f;
     LastMinHeightCm = TNumericLimits<float>::Max();
     LastMaxHeightCm = -TNumericLimits<float>::Max();
-    const FTransform SensorTransform = ScanComponent->GetComponentTransform();
+	const FTransform SensorTransform = Frame->AcquisitionTransform;
 
     for (const FVirtualLidarPoint& Point : Points)
     {
@@ -846,10 +850,12 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
 
     NiagaraPositions.Reset();
     NiagaraColors.Reset();
-    const TArray<FVirtualLidarPoint>& Points = ScanComponent->GetLastPoints();
+	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Frame = ScanComponent->GetLastFrameSnapshot();
+	if (!Frame.IsValid() || !Frame->IsValid()) return false;
+	const TArray<FVirtualLidarPoint>& Points = *Frame->Points;
     NiagaraPositions.Reserve(FMath::Min(MaxNiagaraPreviewPoints, Points.Num()));
     NiagaraColors.Reserve(NiagaraPositions.Max());
-    const FTransform SensorTransform = ScanComponent->GetComponentTransform();
+	const FTransform SensorTransform = Frame->AcquisitionTransform;
     const int32 HitCount = ScanComponent->GetLastHitPointCount();
     const int32 Stride = FMath::Max(1, FMath::DivideAndRoundUp(HitCount, FMath::Max(1, MaxNiagaraPreviewPoints)));
     int32 HitIndex = 0;

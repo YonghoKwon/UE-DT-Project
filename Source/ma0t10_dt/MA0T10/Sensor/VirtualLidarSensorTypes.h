@@ -296,6 +296,20 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
     int32 QueueOverflowCount = 0;
 };
 
+/** Immutable point frame and the exact pose/settings used to acquire it. */
+struct MA0T10_DT_API FVirtualLidarFrameSnapshot
+{
+	TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points;
+	FTransform AcquisitionTransform = FTransform::Identity;
+	int64 FrameId = 0;
+	int32 HorizontalSamples = 1;
+	int32 VerticalChannels = 1;
+	float MaxDistanceCm = 10000.0f;
+	uint32 SettingsRevision = 0;
+
+	bool IsValid() const { return Points.IsValid(); }
+};
+
 UENUM(BlueprintType)
 enum class EVirtualLidarOutputMode : uint8
 {

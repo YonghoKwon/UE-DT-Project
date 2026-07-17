@@ -8,6 +8,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarColorModeTest, "MA0T10.SensorV2.Li
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionMathTest, "MA0T10.SensorV2.LidarVisualization.ProjectionMath", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarLegacyViewMappingTest, "MA0T10.SensorV2.LidarVisualization.LegacyMapping", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionNavigationTest, "MA0T10.SensorV2.LidarVisualization.ProjectionNavigation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarFramePoseCoherenceTest, "MA0T10.SensorV2.LidarVisualization.FramePoseCoherence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualLidarColorModeTest::RunTest(const FString& Parameters)
 {
@@ -75,6 +76,19 @@ bool FVirtualLidarProjectionNavigationTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("elevation reset clears pan"), Reset.ElevationPanCm, FVector2D::ZeroVector);
     TestEqual(TEXT("elevation reset restores zoom"), Reset.ElevationZoom, 1.0f);
     return true;
+}
+
+bool FVirtualLidarFramePoseCoherenceTest::RunTest(const FString& Parameters)
+{
+	FVirtualLidarFrameSnapshot Frame;
+	Frame.AcquisitionTransform = FTransform(FRotator::ZeroRotator, FVector(100.0, 20.0, 30.0));
+	Frame.Points = MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>();
+	const FVector AcquiredWorldPoint(600.0, 20.0, 130.0);
+	const FVector AcquiredLocalPoint = Frame.AcquisitionTransform.InverseTransformPosition(AcquiredWorldPoint);
+	const FTransform SensorAfterMove(FRotator::ZeroRotator, FVector(350.0, 20.0, 30.0));
+	TestEqual(TEXT("snapshot keeps the original local X"), AcquiredLocalPoint.X, 500.0);
+	TestNotEqual(TEXT("moving actor would reinterpret an old point"), SensorAfterMove.InverseTransformPosition(AcquiredWorldPoint).X, AcquiredLocalPoint.X);
+	return true;
 }
 
 #endif

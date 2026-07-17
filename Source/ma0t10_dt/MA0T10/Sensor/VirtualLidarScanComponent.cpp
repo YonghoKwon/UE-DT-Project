@@ -386,6 +386,7 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
     ++FrameId;
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
+	PublishLastFrameSnapshot(ScheduledScanTransform, ScheduledScanWidth, ScheduledScanHeight, MaxDistance);
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     LastHitPointCount = ScheduledHitPointCount;
     LastSemanticCounts = MoveTemp(ScheduledSemanticCounts);
@@ -735,6 +736,7 @@ void UVirtualLidarScanComponent::ScanAndSend()
     TArray<FVirtualLidarPoint> NewPoints;
     ExecuteScan(NewPoints, HeatmapPixels);
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(NewPoints));
+	PublishLastFrameSnapshot(GetComponentTransform(), HorizontalSamples, VerticalChannels, MaxDistance);
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     RebuildLastPointStatistics();
     LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
@@ -762,6 +764,7 @@ void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLida
 {
     ++FrameId;
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(Points);
+	PublishLastFrameSnapshot(GetComponentTransform(), HorizontalSamples, VerticalChannels, MaxDistance);
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     RebuildLastPointStatistics();
     LastSlabAnalysis = AnalyzeSlabPoints(LastPoints);
@@ -795,6 +798,23 @@ void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLida
     }
 
     OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
+}
+
+void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
+	const FTransform& AcquisitionTransform,
+	int32 InHorizontalSamples,
+	int32 InVerticalChannels,
+	float InMaxDistanceCm)
+{
+	TSharedPtr<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = MakeShared<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe>();
+	Snapshot->Points = GetLastPointSnapshot();
+	Snapshot->AcquisitionTransform = AcquisitionTransform;
+	Snapshot->FrameId = FrameId;
+	Snapshot->HorizontalSamples = FMath::Max(1, InHorizontalSamples);
+	Snapshot->VerticalChannels = FMath::Max(1, InVerticalChannels);
+	Snapshot->MaxDistanceCm = FMath::Max(1.0f, InMaxDistanceCm);
+	Snapshot->SettingsRevision = ++FrameSettingsRevision;
+	LastFrameSnapshot = StaticCastSharedPtr<const FVirtualLidarFrameSnapshot>(Snapshot);
 }
 
 void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels)
