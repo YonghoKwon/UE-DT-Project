@@ -878,7 +878,13 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
     }
     NiagaraPointCloudComponent->SetVisibility(true, true);
     NiagaraPointCloudComponent->ReinitializeSystem();
-    const bool bComponentReady = NiagaraPointCloudComponent->GetAsset() == System && NiagaraPointCloudComponent->IsRegistered() && NiagaraPointCloudComponent->IsActive();
+    // A registered/active component can still spawn zero particles and finish
+    // immediately. Advance once so that broken burst graphs are rejected before
+    // the GPU renderer is reported as successful.
+    NiagaraPointCloudComponent->AdvanceSimulation(1, 1.0f / 60.0f);
+    const bool bComponentReady = NiagaraPointCloudComponent->GetAsset() == System &&
+        NiagaraPointCloudComponent->IsRegistered() && NiagaraPointCloudComponent->IsActive() &&
+        !NiagaraPointCloudComponent->IsComplete();
     if (!bComponentReady)
     {
         NiagaraPointCloudComponent->SetVisibility(false, true);
@@ -888,6 +894,7 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
         return false;
     }
     ScanComponent->SetPointCloudPreviewEnabled(false);
+    ScanComponent->bDrawPointCloudPreviewDebugPoints = false;
     VisiblePointCount = NiagaraPositions.Num();
     ActiveRendererName = TEXT("Niagara GPU sprites");
     RendererFallbackReason.Reset();
@@ -902,6 +909,11 @@ void UVirtualLidarVisualizationComponent::RefreshCpuPointCloud(const FString& Re
     if (!ScanComponent) return;
     if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
     ScanComponent->SetGpuPreviewBackendRuntimeState(false, Reason);
+    // The test hall is intentionally bright, so a default mesh material can be
+    // hard to distinguish. A capped representative debug overlay keeps the CPU
+    // fallback visible without drawing every FullSpec hit.
+    ScanComponent->bDrawPointCloudPreviewDebugPoints = Settings.bShowWorldPointCloud;
+    ScanComponent->PointCloudPreviewDebugPointSize = FMath::Max(12.0f, Settings.PointSize * 4.0f);
     ScanComponent->SetPointCloudPreviewEnabled(Settings.bShowWorldPointCloud);
     VisiblePointCount = Settings.bShowWorldPointCloud ? ScanComponent->GetLastPreviewPointCount() : 0;
     ActiveRendererName = TEXT("CPU ISM fallback");

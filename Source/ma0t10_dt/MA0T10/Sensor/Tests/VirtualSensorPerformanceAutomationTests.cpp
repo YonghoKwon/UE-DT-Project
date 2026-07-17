@@ -17,7 +17,7 @@ bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("3 cameras move to the 30 FPS tier"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(3, 2), 30);
     TestEqual(TEXT("4 cameras and 4 lidars remain supported at 30 FPS"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(4, 4), 30);
     TestEqual(TEXT("60 FPS tier keeps the anti-starvation lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(60), 5.0f);
-    TestEqual(TEXT("30 FPS tier uses a five millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(30), 5.0f);
+    TestEqual(TEXT("30 FPS tier uses a seven millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(30), 7.0f);
     TestFalse(TEXT("four of each sensor is not best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(4, 4));
     TestTrue(TEXT("five cameras is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(5, 2));
     TestTrue(TEXT("five lidars is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(2, 5));

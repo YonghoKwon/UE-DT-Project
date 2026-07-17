@@ -3,9 +3,14 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
+#include "RHIGlobals.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
+#include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -43,6 +48,16 @@ public:
 	virtual bool Update() override
 	{
 		if (StartedAtSeconds < 0.0) StartedAtSeconds = FPlatformTime::Seconds();
+		if (bScreenshotRequested)
+		{
+			const bool bScreenshotWritten = IFileManager::Get().FileSize(*ScreenshotPath) > 4096;
+			if (!bScreenshotWritten && FPlatformTime::Seconds() - ScreenshotRequestedAtSeconds < 8.0)
+			{
+				return false;
+			}
+			Test->TestTrue(TEXT("RHI point-cloud screenshot is written"), bScreenshotWritten);
+			return true;
+		}
 		UWorld* World = FindPieWorld();
 		AVirtualSensorCoordinator* Coordinator = nullptr;
 		AVirtualLidarSensorActor* Lidar = nullptr;
@@ -58,7 +73,7 @@ public:
 
 		const bool bRuntimeReady = Coordinator && Lidar && Camera && UiHost && UiHost->GetSettingsWidget() &&
 			Lidar->ScanComponent && Lidar->ScanComponent->GetRuntimeStatus().FrameId > 0 &&
-			Lidar->ScanComponent->GetLastPoints().Num() > 0;
+			Lidar->ScanComponent->GetLastPoints().Num() > 0 && Lidar->ScanComponent->GetLastHitPointCount() > 0;
 		if (!bRuntimeReady && FPlatformTime::Seconds() - StartedAtSeconds < 8.0)
 		{
 			return false;
@@ -80,6 +95,7 @@ public:
 		}
 		Test->TestTrue(TEXT("automatic LiDAR scan completes in PIE"), Scan->GetRuntimeStatus().FrameId > 0);
 		Test->TestTrue(TEXT("automatic LiDAR scan produces points"), Scan->GetLastPoints().Num() > 0);
+		Test->TestTrue(TEXT("automatic LiDAR scan produces renderable hit points"), Scan->GetLastHitPointCount() > 0);
 		const bool bNiagaraActive = Scan->IsGpuPreviewBackendActive();
 		Test->TestTrue(TEXT("spatial point-cloud preview is enabled"),
 			bNiagaraActive || Scan->IsPointCloudPreviewEnabled());
@@ -88,6 +104,16 @@ public:
 			Test->TestTrue(TEXT("Niagara preview uploads visible points"), Lidar->VisualizationComponent->GetVisiblePointCount() > 0);
 			Test->TestTrue(TEXT("Niagara renderer reports the active path"), Lidar->VisualizationComponent->GetActiveRendererName().Contains(TEXT("Niagara")));
 		}
+
+		// A real CPU fallback must contain render instances, not just a non-empty
+		// point array. This keeps the button useful even if Niagara compilation or
+		// feature-level support is unavailable on the current machine.
+		Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceCpu);
+		Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
+		Lidar->VisualizationComponent->RefreshLatestFrame();
+		Test->TestEqual(TEXT("forced CPU reports fallback state"),
+			Lidar->VisualizationComponent->GetRendererTelemetry().State,
+			ELidarPointCloudRendererState::CpuFallback);
 
 		TArray<UInstancedStaticMeshComponent*> PreviewComponents;
 		Lidar->GetComponents<UInstancedStaticMeshComponent>(PreviewComponents);
@@ -100,13 +126,15 @@ public:
 				break;
 			}
 		}
-		if (!bNiagaraActive)
-		{
-			Test->TestNotNull(TEXT("point-cloud ISM preview component is created for fallback"), PointCloudPreview);
-		}
-		if (!bNiagaraActive && PointCloudPreview)
+		Test->TestNotNull(TEXT("point-cloud ISM preview component is created for fallback"), PointCloudPreview);
+		if (PointCloudPreview)
 		{
 			Test->TestTrue(TEXT("point-cloud ISM has visible instances"), PointCloudPreview->GetInstanceCount() > 0);
+			bool bAnyPointProjectsInsideViewport = false;
+			APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
+			int32 ViewportWidth = 0;
+			int32 ViewportHeight = 0;
+			if (PlayerController) PlayerController->GetViewportSize(ViewportWidth, ViewportHeight);
 			if (PointCloudPreview->GetInstanceCount() > 0)
 			{
 				FTransform InstanceWorldTransform;
@@ -117,6 +145,24 @@ public:
 				});
 				Test->TestTrue(TEXT("point-cloud instance uses a measured world location"), bMatchesMeasuredPoint);
 			}
+			if (PlayerController && ViewportWidth > 0 && ViewportHeight > 0)
+			{
+				const int32 ProjectionSampleCount = FMath::Min(PointCloudPreview->GetInstanceCount(), 256);
+				for (int32 InstanceIndex = 0; InstanceIndex < ProjectionSampleCount; ++InstanceIndex)
+				{
+					FTransform InstanceWorldTransform;
+					FVector2D ScreenPosition;
+					if (PointCloudPreview->GetInstanceTransform(InstanceIndex, InstanceWorldTransform, true) &&
+						PlayerController->ProjectWorldLocationToScreen(InstanceWorldTransform.GetLocation(), ScreenPosition, false) &&
+						ScreenPosition.X >= 0.0f && ScreenPosition.X < ViewportWidth &&
+						ScreenPosition.Y >= 0.0f && ScreenPosition.Y < ViewportHeight)
+					{
+						bAnyPointProjectsInsideViewport = true;
+						break;
+					}
+				}
+			}
+			Test->TestTrue(TEXT("point-cloud bounds overlap the game viewport"), bAnyPointProjectsInsideViewport);
 		}
 
 		UVirtualSensorSettingsPanelWidget* Settings = UiHost->GetSettingsWidget();
@@ -153,12 +199,41 @@ public:
 		{
 			Test->TestEqual(TEXT("gizmo follows the selected Camera"), Settings->GetTransformGizmoActor()->GetBoundTargetActor(), static_cast<AActor*>(Camera));
 		}
+
+		if (!GUsingNullRHI)
+		{
+			Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
+			Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceNiagara);
+			Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
+			Lidar->VisualizationComponent->RefreshLatestFrame();
+			const FVirtualLidarRendererTelemetry NiagaraTelemetry = Lidar->VisualizationComponent->GetRendererTelemetry();
+			Test->TestTrue(TEXT("forced Niagara reports active rendering or an explicit error"),
+				NiagaraTelemetry.State == ELidarPointCloudRendererState::NiagaraActive ||
+				NiagaraTelemetry.State == ELidarPointCloudRendererState::Error);
+			Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::AutoPreferNiagara);
+			Lidar->VisualizationComponent->RefreshLatestFrame();
+			const FVirtualLidarRendererTelemetry AutoTelemetry = Lidar->VisualizationComponent->GetRendererTelemetry();
+			Test->TestTrue(TEXT("automatic renderer selects live Niagara or CPU fallback"),
+				AutoTelemetry.State == ELidarPointCloudRendererState::NiagaraActive ||
+				AutoTelemetry.State == ELidarPointCloudRendererState::CpuFallback);
+			Test->TestTrue(TEXT("automatic renderer keeps visible hit points"), AutoTelemetry.VisiblePointCount > 0);
+			ScreenshotPath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Reports/point_cloud_rhi_smoke.png"));
+			IFileManager::Get().MakeDirectory(*FPaths::GetPath(ScreenshotPath), true);
+			IFileManager::Get().Delete(*ScreenshotPath, false, true);
+			FScreenshotRequest::RequestScreenshot(ScreenshotPath, false, false);
+			bScreenshotRequested = true;
+			ScreenshotRequestedAtSeconds = FPlatformTime::Seconds();
+			return false;
+		}
 		return true;
 	}
 
 private:
 	FAutomationTestBase* Test = nullptr;
 	double StartedAtSeconds = -1.0;
+	double ScreenshotRequestedAtSeconds = -1.0;
+	bool bScreenshotRequested = false;
+	FString ScreenshotPath;
 };
 }
 

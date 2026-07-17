@@ -80,7 +80,16 @@ LiDAR 모니터는 투영과 색상을 독립적으로 선택합니다.
 
 RangeImage 전용 오버레이인 적응형 거리·깊이 경계·격자는 TopDown/Elevation의 축·거리 원·높이 기준선과 별개입니다. 포인트 크기와 3D 표시 여부도 v2 UI SaveGame에 저장됩니다.
 
-FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera admission은 전체 12Hz 상한을 strict round-robin으로 공유하며, LiDAR trace는 60 FPS 단계 3ms·30 FPS 단계 5ms에서 시작해 rolling p95와 1% low가 나빠지면 0.5ms까지 줄입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
+FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera admission은 전체 12Hz 상한을 strict round-robin으로 공유하며, LiDAR trace는 60 FPS 단계 5ms·30 FPS 단계 7ms 상한을 사용하고 rolling p95와 1% low가 나빠지면 2.5ms까지 줄입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
+
+### 포인트 클라우드 렌더러 상태
+
+- 렌더 정책은 `Auto / Niagara 강제 / CPU 강제`입니다. 기본 `Auto`는 Niagara 컴파일·시스템 실행·점 업로드가 모두 성공한 경우에만 GPU 렌더러를 사용하고, 그 외에는 CPU ISM으로 자동 전환합니다.
+- `포인트 클라우드 전용 켜기/끄기`는 토글입니다. 새 스캔이 빈 프레임이어도 직전의 정상 클라우드를 유지하며, 선택 LiDAR가 바뀌면 표시 상태도 새 LiDAR로 옮겨갑니다.
+- 상세 진단은 측정점·검출점·업로드점·표시점 수, 현재 렌더러, fallback/실패 사유, `검출점 없음`을 별도로 표시합니다.
+- 실제 RHI 회귀 검증은 `Scripts/run_point_cloud_rhi_smoke.ps1`을 사용합니다. D3D12에서 `SensorRefactorTestMap` PIE를 실행하고, 실제 hit과 CPU fallback ISM 인스턴스·월드 좌표·뷰포트 투영 영역을 검증한 후 PNG·JSON·Markdown·log를 `Saved/Reports/point_cloud_rhi_smoke.*`에 생성합니다.
+
+성능 보고서는 요청 규격(1280×720·30Hz, 360×60·10Hz)과 실제 완료 Hz를 분리합니다. FPS만 통과해도 Camera/LiDAR 최소 완료 Hz, 공정성, queue overflow, acquisition 실패 기준을 만족하지 못하면 실패입니다. `budget skip`은 성능 예산을 지키기 위한 정상적인 최신 프레임 정책으로, 실제 처리 실패와 다르게 집계됩니다.
 
 센서 Actor 계층은 `AInteractableActor → AVirtualSensorActorBase → AVirtualCameraSensorActor/AVirtualLidarSensorActor`이며 Camera·LiDAR 공용 Scheduler Subsystem은 `MA0T10/Core`에 위치합니다.
 

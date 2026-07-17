@@ -164,7 +164,11 @@ $cameraRows = @($sensorSummary | Where-Object Kind -eq 'Camera')
 $lidarRows = @($sensorSummary | Where-Object Kind -eq 'Lidar')
 $minimumCameraHz = if ($cameraRows.Count -gt 0) { ($cameraRows | Measure-Object AverageRateHz -Minimum).Minimum } else { 0.0 }
 $minimumLidarHz = if ($lidarRows.Count -gt 0) { ($lidarRows | Measure-Object AverageRateHz -Minimum).Minimum } else { 0.0 }
-$completionRatePass = $null -eq $threshold -or (($CameraCount -eq 0 -or $minimumCameraHz -ge $threshold.CameraHz) -and ($LidarCount -eq 0 -or $minimumLidarHz -ge $threshold.LidarHz))
+# A finite sample window can exclude one completion at either boundary. Keep a
+# narrow 0.5% measurement tolerance so 4.98 Hz represents a 5 Hz schedule while
+# genuine starvation (for example 4.8 Hz) still fails.
+$rateMeasurementTolerance = 0.995
+$completionRatePass = $null -eq $threshold -or (($CameraCount -eq 0 -or $minimumCameraHz -ge $threshold.CameraHz * $rateMeasurementTolerance) -and ($LidarCount -eq 0 -or $minimumLidarHz -ge $threshold.LidarHz * $rateMeasurementTolerance))
 $queueHealthPass = @($sensorSummary | Where-Object { $_.FinalFailedAcquisition -gt 0 -or $_.FinalQueueOverflow -gt 0 }).Count -eq 0
 $valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $completionRatePass -and $fairnessPass -and $queueHealthPass
 $lidarVisiblePointLimit = switch ($LidarRenderer) {
@@ -185,6 +189,7 @@ $report = [PSCustomObject]@{
         CameraFairnessRatio = [Math]::Round($cameraFairnessRatio, 3); LidarFairnessRatio = [Math]::Round($lidarFairnessRatio, 3)
         MinimumCameraCompletionHz = [Math]::Round($minimumCameraHz, 3); MinimumLidarCompletionHz = [Math]::Round($minimumLidarHz, 3)
         FairnessPass = $fairnessPass; CompletionRatePass = $completionRatePass; QueueHealthPass = $queueHealthPass
+        CompletionRateMeasurementTolerance = $rateMeasurementTolerance
         Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
     }
     Sensors = $sensorSummary
@@ -209,6 +214,7 @@ $markdown = @(
     "- Minimum Camera completion Hz: $($report.Summary.MinimumCameraCompletionHz)",
     "- Minimum LiDAR completion Hz: $($report.Summary.MinimumLidarCompletionHz)",
     "- Completion-rate threshold pass: $completionRatePass",
+    "- Completion-rate measurement tolerance: $([Math]::Round((1.0 - $rateMeasurementTolerance) * 100.0, 2))%",
     "- Queue/failure health pass: $queueHealthPass",
     "- Fairness ratio <= 1.2: $fairnessPass",
     "- Threshold pass: $thresholdPass",

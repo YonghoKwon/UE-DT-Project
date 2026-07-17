@@ -315,7 +315,7 @@ void UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPi
     IImageWrapperModule* ImageWrapperModule = &FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     TWeakObjectPtr<UVirtualCameraCaptureComponent> WeakThis(this);
 
-    Async(EAsyncExecution::LargeThreadPool, [WeakThis, Generation, ImageWrapperModule, Snapshot = MoveTemp(Snapshot), RawPixels = MoveTemp(RawPixels), Quality, CaptureStartedSeconds]() mutable
+    Async(EAsyncExecution::ThreadPool, [WeakThis, Generation, ImageWrapperModule, Snapshot = MoveTemp(Snapshot), RawPixels = MoveTemp(RawPixels), Quality, CaptureStartedSeconds]() mutable
     {
         TArray64<uint8> JpegBytes;
         FString JsonPayload;

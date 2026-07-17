@@ -29,9 +29,10 @@ int32 UVirtualSensorSchedulerSubsystem::ResolveTargetFps(int32 CameraCount, int3
 
 float UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(int32 TargetFps)
 {
-    // Both supported tiers start with the same trace budget. The old 3 ms
-    // 60-FPS ceiling made a 2+2 setup complete fewer LiDAR scans than 4+4.
-    return 5.0f;
+    // The 60-FPS tier keeps the anti-starvation floor introduced for 2+2.
+    // Four FullSpec LiDARs need a wider ceiling to sustain 2 Hz each; the
+    // rolling frame guard can still contract this toward 2.5 ms.
+    return TargetFps <= 30 ? 7.0f : 5.0f;
 }
 
 bool UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(int32 CameraCount, int32 LidarCount)
@@ -169,8 +170,11 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     // memory bandwidth. Keep the camera-only floor responsive, but allow the
     // mixed Camera+LiDAR tier to shed more stale camera frames before it
     // sacrifices the game-frame target.
+    // Keep a small scheduling margin above the evidence threshold. An exact
+    // 10 Hz aggregate floor can measure as 4.98-4.99 Hz per camera because of
+    // frame-boundary jitter even when no acquisition was skipped.
     const float CameraAdmissionFloorHz = Cameras.Num() > 0
-        ? FMath::Min(12.0f, Cameras.Num() <= 2 ? 10.0f : 2.5f * static_cast<float>(FMath::Min(4, Cameras.Num())))
+        ? FMath::Min(12.0f, Cameras.Num() <= 2 ? 10.5f : 2.625f * static_cast<float>(FMath::Min(4, Cameras.Num())))
         : 0.0f;
     EffectiveAggregateCameraCaptureHz = ResolveAdaptiveCameraAdmissionHz(
         EffectiveAggregateCameraCaptureHz,
