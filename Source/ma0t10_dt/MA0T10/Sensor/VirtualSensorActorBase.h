@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "InteractableActor/InteractableActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorActorBase.generated.h"
@@ -13,7 +13,7 @@ class UVirtualSensorTransportComponent;
 struct FVirtualSensorEditableState;
 
 UCLASS(Abstract, BlueprintType)
-class MA0T10_DT_API AVirtualSensorActorBase : public AActor
+class MA0T10_DT_API AVirtualSensorActorBase : public AInteractableActor
 {
 	GENERATED_BODY()
 

@@ -1,7 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "InteractableActor/InteractableActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarAnalysisComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarExportComponent.h"
@@ -34,6 +36,13 @@ bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 {
 	AVirtualCameraSensorActor* Camera = NewObject<AVirtualCameraSensorActor>();
 	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
+
+	TestTrue(TEXT("Virtual sensor base derives from DTCore interactable actor"),
+		AVirtualSensorActorBase::StaticClass()->IsChildOf(AInteractableActor::StaticClass()));
+	TestTrue(TEXT("Camera derives through the virtual sensor base"),
+		AVirtualCameraSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
+	TestTrue(TEXT("LiDAR derives through the virtual sensor base"),
+		AVirtualLidarSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
 
 	TestNotNull(TEXT("Camera V2 capture component"), Camera->CaptureComponent.Get());
 	TestNotNull(TEXT("Camera V2 output component"), Camera->OutputComponent.Get());
