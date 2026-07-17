@@ -13,6 +13,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2ActorCompositionTest,
@@ -42,6 +43,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2ExternalSourceHostTest,
 	"MA0T10.SensorV2.Architecture.ExternalSourceHostDefaultsStopped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2ManipulationMonitorFollowTest,
+	"MA0T10.SensorV2.UI.ManipulationMonitorFollow",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
@@ -183,6 +189,27 @@ bool FSensorV2ExternalSourceHostTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("external source does not auto-start"), Source->bAutoStartSource);
 		TestFalse(TEXT("external input is not forwarded unless Capture/Export requests it"), Source->bSendTransportByDefault);
 	}
+	return true;
+}
+
+bool FSensorV2ManipulationMonitorFollowTest::RunTest(const FString& Parameters)
+{
+	AVirtualSensorCoordinator* Coordinator = NewObject<AVirtualSensorCoordinator>();
+	AVirtualCameraSensorActor* Camera = NewObject<AVirtualCameraSensorActor>();
+	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
+	Coordinator->RegisterSensorActor(Camera);
+	Coordinator->RegisterSensorActor(Lidar);
+	Coordinator->RegisterCamera(Camera->CaptureComponent);
+	Coordinator->RegisterLidar(Lidar->ScanComponent);
+	Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);
+
+	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	Settings->BindSensorManager(Coordinator);
+	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
+	Settings->SetSensorManipulationEnabled(true);
+	TestEqual(TEXT("monitor follows manipulated LiDAR"), Coordinator->GetViewMode(), EVirtualSensorViewMode::Lidar);
+	Settings->SetSensorManipulationEnabled(false);
+	TestEqual(TEXT("monitor view is restored after manipulation"), Coordinator->GetViewMode(), EVirtualSensorViewMode::Camera);
 	return true;
 }
 

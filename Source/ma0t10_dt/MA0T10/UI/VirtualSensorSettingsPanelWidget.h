@@ -109,6 +109,8 @@ private:
     void HandleGizmoTransformChanged(const FTransform& Transform);
     void HandleGizmoTransformCommitted(const FTransform& Transform);
     void RefreshSelectedSensorNow(bool bForce);
+    void BeginMonitorFollowForManipulation();
+    void EndMonitorFollowForManipulation();
     void StartAllRealSensorSources();
     void StopAllRealSensorSources();
     void PushSelectedRealSensorSource();
@@ -138,6 +140,10 @@ private:
     bool bKeyboardHelpExpanded = false;
     bool bGizmoVisible = true;
     bool bManipulationEnabled = false;
+    bool bMonitorAutoFollowingManipulation = false;
+    bool bRestoreMonitorViewAfterManipulation = false;
+    uint8 MonitorViewBeforeManipulation = 0;
+    uint8 AutoFollowMonitorView = 0;
     bool bProjectionDebugEnabled = false;
     EVirtualSensorGizmoMode GizmoMode = EVirtualSensorGizmoMode::Translate;
     EVirtualSensorCoordinateSpace CoordinateSpace = EVirtualSensorCoordinateSpace::Local;

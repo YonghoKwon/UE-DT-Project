@@ -140,6 +140,13 @@ void UVirtualSensorSettingsPanelWidget::NativeTick(const FGeometry& MyGeometry, 
         bManipulationEnabled = GizmoActor->IsManipulationEnabled();
         GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
     }
+    if (bManipulationEnabled && bMonitorAutoFollowingManipulation && SensorManager &&
+        static_cast<uint8>(SensorManager->GetViewMode()) != AutoFollowMonitorView)
+    {
+        // A direct monitor selection during manipulation is an explicit user override.
+        bMonitorAutoFollowingManipulation = false;
+        bRestoreMonitorViewAfterManipulation = false;
+    }
 }
 
 void UVirtualSensorSettingsPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
@@ -234,9 +241,19 @@ double UVirtualSensorSettingsPanelWidget::CalculateLidarRaysPerSecond(const FVir
 
 void UVirtualSensorSettingsPanelWidget::SelectTargetKind(EVirtualSensorTargetKind InTargetKind)
 {
+    AVirtualSensorActorBase* PreviousActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+    if (bManipulationEnabled && PreviousActor) PreviousActor->EndInteractiveManipulation();
     PendingState.TargetKind = InTargetKind;
     RefreshPendingState(true);
     SyncGizmoTarget();
+    if (bManipulationEnabled)
+    {
+        if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+        {
+            SensorActor->BeginInteractiveManipulation(InteractionRequest);
+        }
+        BeginMonitorFollowForManipulation();
+    }
 }
 
 void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
@@ -336,13 +353,42 @@ void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabl
 		if (bEnabled) SensorActor->BeginInteractiveManipulation(InteractionRequest);
 		else SensorActor->EndInteractiveManipulation();
 	}
+    if (bEnabled) BeginMonitorFollowForManipulation();
+    else EndMonitorFollowForManipulation();
     LastControlMessage = bEnabled
         ? TEXT("센서 조작 모드가 켜졌습니다. WASD/QE와 방향키, Z/C를 사용할 수 있습니다.")
         : TEXT("센서 조작 모드가 꺼졌습니다.");
 	LastControlMessage = bEnabled
 		? TEXT("조작 중: 경량 미리보기 (WASD/QE 이동, 방향키/Z/C 회전)")
 		: TEXT("FullSpec 최종 갱신 중");
-    RefreshNativeText();
+	RefreshNativeText();
+}
+
+void UVirtualSensorSettingsPanelWidget::BeginMonitorFollowForManipulation()
+{
+    if (!SensorManager) return;
+    const EVirtualSensorViewMode DesiredMode = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
+        ? EVirtualSensorViewMode::Lidar
+        : EVirtualSensorViewMode::Camera;
+    if (!bMonitorAutoFollowingManipulation)
+    {
+        MonitorViewBeforeManipulation = static_cast<uint8>(SensorManager->GetViewMode());
+    }
+    AutoFollowMonitorView = static_cast<uint8>(DesiredMode);
+    bMonitorAutoFollowingManipulation = true;
+    bRestoreMonitorViewAfterManipulation = true;
+    SensorManager->SetViewMode(DesiredMode);
+}
+
+void UVirtualSensorSettingsPanelWidget::EndMonitorFollowForManipulation()
+{
+    if (SensorManager && bRestoreMonitorViewAfterManipulation && bMonitorAutoFollowingManipulation &&
+        static_cast<uint8>(SensorManager->GetViewMode()) == AutoFollowMonitorView)
+    {
+        SensorManager->SetViewMode(static_cast<EVirtualSensorViewMode>(MonitorViewBeforeManipulation));
+    }
+    bMonitorAutoFollowingManipulation = false;
+    bRestoreMonitorViewAfterManipulation = false;
 }
 
 void UVirtualSensorSettingsPanelWidget::SetSensorGizmoMode(EVirtualSensorGizmoMode InMode)
@@ -504,7 +550,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                         SNew(SWrapBox).UseAllottedSize(true)
                         + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]() { StartAllRealSensorSources(); return FReply::Handled(); }) ]
                         + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]() { StopAllRealSensorSources(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("PushSource", "선택 소스 1회 전송")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
+                        + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 캡처/내보내기 패널에서 실행합니다.")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
                     ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
@@ -748,8 +794,10 @@ void UVirtualSensorSettingsPanelWidget::StopAllRealSensorSources()
 
 void UVirtualSensorSettingsPanelWidget::PushSelectedRealSensorSource()
 {
-    const bool bSucceeded = SensorManager && SensorManager->PushSelectedRealSensorSourceOnce(true);
-    LastControlMessage = bSucceeded ? TEXT("선택한 외부 센서 프레임을 전송했습니다.") : TEXT("선택한 외부 센서 프레임 전송에 실패했습니다.");
+    const bool bSucceeded = SensorManager && SensorManager->PushSelectedRealSensorSourceOnce(false);
+    LastControlMessage = bSucceeded
+        ? TEXT("선택한 외부 Source 프레임을 센서에 1회 주입했습니다. 외부 전송은 캡처/내보내기 패널에서 선택하세요.")
+        : TEXT("선택한 외부 Source 프레임 주입에 실패했습니다. Source 선택과 입력 데이터를 확인하세요.");
     RefreshNativeText();
 }
 
