@@ -171,6 +171,7 @@ def _build_sensor_rig(widget_classes):
     lidar_actor_class = _load_class("/Script/ma0t10_dt.VirtualLidarSensorActor")
     camera_actor_class = _load_class("/Script/ma0t10_dt.VirtualCameraSensorActor")
     host_actor_class = _load_class("/Script/ma0t10_dt.VirtualSensorUiHostActor")
+    external_source_host_class = _load_class("/Script/ma0t10_dt.VirtualSensorExternalSourceHostActor")
 
     manager = _spawn(
         manager_class,
@@ -265,6 +266,13 @@ def _build_sensor_rig(widget_classes):
     _set_property(host, "CaptureExportViewportZOrder", 30)
     _set_property(host, "bConfigurePlayerInputOnCreate", True)
     _set_property(host, "bShowMouseCursorOnCreate", True)
+
+    if "/Tests/" in MAP_PATH:
+        _spawn(
+            external_source_host_class,
+            "SensorTest_ExternalSources",
+            unreal.Vector(-150.0, 0.0, 80.0),
+        )
 
 
 def _build_test_scene():

@@ -10,6 +10,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -35,6 +37,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2InteractionBudgetTest,
 	"MA0T10.SensorV2.Architecture.InteractionBudgetRestoresFullSpec",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2ExternalSourceHostTest,
+	"MA0T10.SensorV2.Architecture.ExternalSourceHostDefaultsStopped",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
@@ -157,6 +164,25 @@ bool FSensorV2InteractionBudgetTest::RunTest(const FString& Parameters)
 	Lidar->EndInteractiveManipulation();
 	TestEqual(TEXT("LiDAR restores FullSpec horizontal samples"), Lidar->ScanComponent->HorizontalSamples, 360);
 	TestEqual(TEXT("LiDAR restores FullSpec vertical channels"), Lidar->ScanComponent->VerticalChannels, 60);
+	return true;
+}
+
+bool FSensorV2ExternalSourceHostTest::RunTest(const FString& Parameters)
+{
+	AVirtualSensorExternalSourceHostActor* Host = NewObject<AVirtualSensorExternalSourceHostActor>();
+	TestNotNull(TEXT("CSV replay source"), Host->LidarCsvReplay.Get());
+	TestNotNull(TEXT("JSONL replay source"), Host->LidarJsonLinesReplay.Get());
+	TestNotNull(TEXT("buffered LiDAR JSON source"), Host->LidarBufferedJson.Get());
+	TestNotNull(TEXT("HTTP LiDAR source"), Host->LidarHttpJson.Get());
+	TestNotNull(TEXT("UDP LiDAR source"), Host->LidarUdpJson.Get());
+	TestNotNull(TEXT("buffered camera JSON source"), Host->CameraBufferedJson.Get());
+	TInlineComponentArray<URealSensorSourceComponent*> Sources;
+	Host->GetComponents(Sources);
+	for (const URealSensorSourceComponent* Source : Sources)
+	{
+		TestFalse(TEXT("external source does not auto-start"), Source->bAutoStartSource);
+		TestFalse(TEXT("external input is not forwarded unless Capture/Export requests it"), Source->bSendTransportByDefault);
+	}
 	return true;
 }
 
