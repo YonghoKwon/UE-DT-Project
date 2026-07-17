@@ -76,9 +76,13 @@ LiDAR 모니터는 투영과 색상을 독립적으로 선택합니다.
 - 월드 3D 포인트: 선택 LiDAR는 Niagara GPU sprite로 최대 21,600점을 표시합니다. Niagara 자산·SM5·업로드 경로를 사용할 수 없으면 저폴리곤 CPU ISM으로 자동 전환하고 모니터 진단에 이유를 표시합니다.
 - 자산 재생성: `Scripts/setup_lidar_niagara_assets.ps1`
 
+조감도와 거리-높이 단면은 이미지 위에서 직접 탐색할 수 있습니다. 좌클릭 드래그는 pan, 우클릭 드래그는 회전, 마우스 휠은 확대·축소이며 `보기 초기화`로 해당 투영의 기본 시점으로 돌아갑니다. 분할 모드에서는 아래쪽 조감도 영역만 탐색됩니다.
+
 RangeImage 전용 오버레이인 적응형 거리·깊이 경계·격자는 TopDown/Elevation의 축·거리 원·높이 기준선과 별개입니다. 포인트 크기와 3D 표시 여부도 v2 UI SaveGame에 저장됩니다.
 
 FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera admission은 전체 12Hz 상한을 strict round-robin으로 공유하며, LiDAR trace는 60 FPS 단계 3ms·30 FPS 단계 5ms에서 시작해 rolling p95와 1% low가 나빠지면 0.5ms까지 줄입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
+
+센서 Actor 계층은 `AInteractableActor → AVirtualSensorActorBase → AVirtualCameraSensorActor/AVirtualLidarSensorActor`이며 Camera·LiDAR 공용 Scheduler Subsystem은 `MA0T10/Core`에 위치합니다.
 
 ## 테스트
 
