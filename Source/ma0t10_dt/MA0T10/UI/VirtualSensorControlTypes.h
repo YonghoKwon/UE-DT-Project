@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "VirtualSensorControlTypes.generated.h"
 
 UENUM(BlueprintType)

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -41,8 +41,8 @@ function New-Check {
 }
 
 $ProjectRoot = Resolve-ProjectRoot
-$transportHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorDataTransportComp.h"
-$transportSource = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorDataTransportComp.cpp"
+$transportHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorTransportComponent.h"
+$transportSource = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorTransportComponent.cpp"
 $transportDoc = Join-Path $ProjectRoot "docs\server_transport_contract.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
@@ -69,7 +69,7 @@ $checks = @(
     (New-Check -Path $transportSource -Pattern 'Request->SetHeader(TEXT("X-Sensor-Id"), SensorId)' -Label "HTTP sensor id header"),
     (New-Check -Path $transportSource -Pattern 'Request->SetHeader(TEXT("X-Sensor-Type"), SensorType)' -Label "HTTP sensor type header"),
     (New-Check -Path $transportSource -Pattern "FMath::Max(1, HttpTimeoutSeconds)" -Label "HTTP timeout is clamped"),
-    (New-Check -Path $transportSource -Pattern "TWeakObjectPtr<UVirtualSensorDataTransportComp>" -Label "HTTP callback uses weak component pointer"),
+    (New-Check -Path $transportSource -Pattern "TWeakObjectPtr<UVirtualSensorTransportComponent>" -Label "HTTP callback uses weak component pointer"),
     (New-Check -Path $transportSource -Pattern "ResponseCode >= 200 && ResponseCode < 300" -Label "HTTP acceptance requires 2xx"),
     (New-Check -Path $transportSource -Pattern "GetContentAsString" -Label "HTTP response body captured"),
     (New-Check -Path $transportDoc -Pattern "## Decisions Still Required" -Label "Transport decisions section"),

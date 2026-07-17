@@ -21,6 +21,152 @@ enum class EVirtualLidarViewMode : uint8
     ActorClassColor UMETA(DisplayName = "Semantic Color - Tag/Class")
 };
 
+/** 2D diagnostic projection. This is intentionally independent from colour mapping. */
+UENUM(BlueprintType)
+enum class ELidarMonitorProjectionMode : uint8
+{
+    RangeImage UMETA(DisplayName = "거리 영상"),
+    TopDown UMETA(DisplayName = "조감도"),
+	Elevation UMETA(DisplayName = "방사 거리-높이 프로파일"),
+	Split UMETA(DisplayName = "거리 영상 + 조감도"),
+	/** Appended for serialized enum compatibility. */
+	ForwardSlice UMETA(DisplayName = "전방 수직 슬라이스")
+};
+
+/** Colour policy shared by the monitor textures and the world point renderer. */
+UENUM(BlueprintType)
+enum class ELidarColorMode : uint8
+{
+    DistanceTurbo UMETA(DisplayName = "거리 Turbo"),
+    DistanceViridis UMETA(DisplayName = "거리 Viridis"),
+    RelativeHeight UMETA(DisplayName = "상대 높이"),
+    SemanticLabel UMETA(DisplayName = "의미 분류"),
+    VerticalChannel UMETA(DisplayName = "수직 채널"),
+    ReturnIndex UMETA(DisplayName = "Return Index"),
+    HitMask UMETA(DisplayName = "검출 마스크"),
+    DistanceGray UMETA(DisplayName = "거리 회색조")
+};
+
+/** Runtime policy for the world-space LiDAR point renderer. */
+UENUM(BlueprintType)
+enum class ELidarPointCloudRenderPolicy : uint8
+{
+    AutoPreferNiagara UMETA(DisplayName = "자동 (Niagara 우선)"),
+    ForceNiagara UMETA(DisplayName = "Niagara 강제"),
+    ForceCpu UMETA(DisplayName = "CPU 강제")
+};
+
+/** Observable renderer state. Uploading an array alone is not considered active. */
+UENUM(BlueprintType)
+enum class ELidarPointCloudRendererState : uint8
+{
+    Disabled UMETA(DisplayName = "꺼짐"),
+    Starting UMETA(DisplayName = "시작 중"),
+    NiagaraActive UMETA(DisplayName = "Niagara 활성"),
+    CpuFallback UMETA(DisplayName = "CPU fallback"),
+    Error UMETA(DisplayName = "오류")
+};
+
+/** One canonical policy shared by 2D projection, Niagara and CPU fallback previews. */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarPreviewPolicy
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Preview", meta = (ClampMin = "1", ClampMax = "100"))
+	int32 PointStride = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Preview", meta = (ClampMin = "0", ClampMax = "1000000"))
+	int32 MaxPoints = 5000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Preview")
+	bool bHitOnly = true;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarRendererTelemetry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    ELidarPointCloudRendererState State = ELidarPointCloudRendererState::Disabled;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 MeasuredPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 HitPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 UploadedPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    int32 VisiblePointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    FString RendererName;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Visualization")
+    FString Message;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarVisualizationSettings
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    ELidarMonitorProjectionMode ProjectionMode = ELidarMonitorProjectionMode::RangeImage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    ELidarColorMode ColorMode = ELidarColorMode::DistanceTurbo;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    bool bUseAdaptiveDistance = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    bool bShowGrid = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    bool bShowDepthEdges = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    bool bShowWorldPointCloud = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization", meta = (ClampMin = "0.25", ClampMax = "12.0"))
+    float PointSize = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization", meta = (ClampMin = "128", ClampMax = "2048"))
+    int32 TopDownResolution = 512;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization", meta = (ClampMin = "128", ClampMax = "2048"))
+    int32 ElevationWidth = 512;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization", meta = (ClampMin = "64", ClampMax = "1024"))
+    int32 ElevationHeight = 256;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    FVector2D TopDownPanCm = FVector2D::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "0.1", ClampMax = "20.0"))
+    float TopDownZoom = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    float TopDownRotationDegrees = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    FVector2D ElevationPanCm = FVector2D::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "0.1", ClampMax = "20.0"))
+    float ElevationZoom = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+    float ElevationRotationDegrees = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "1.0", ClampMax = "10000.0"))
+	float ForwardSliceThicknessCm = 100.0f;
+};
+
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualLidarPoint
 {
@@ -160,6 +306,29 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 DroppedDerivedFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 BudgetSkippedAcquisitionFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 FailedAcquisitionFrameCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 QueueOverflowCount = 0;
+};
+
+/** Immutable point frame and the exact pose/settings used to acquire it. */
+struct MA0T10_DT_API FVirtualLidarFrameSnapshot
+{
+	TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points;
+	FTransform AcquisitionTransform = FTransform::Identity;
+	int64 FrameId = 0;
+	int32 HorizontalSamples = 1;
+	int32 VerticalChannels = 1;
+	float MaxDistanceCm = 10000.0f;
+	uint32 SettingsRevision = 0;
+
+	bool IsValid() const { return Points.IsValid(); }
 };
 
 UENUM(BlueprintType)

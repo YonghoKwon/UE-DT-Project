@@ -64,7 +64,7 @@ int32 UEnsureLidarJsonLiveFrameTransactionCommandlet::Main(const FString& Params
     Row.TransactionCodeName = TEXT("LIDAR_JSON_LIVE_FRAME");
     Row.TransactionCodeInfo = TEXT("JSON live LiDAR frame bridge");
     Row.TransactionCodeMessageClass = ULidarJsonLiveFrameTC::StaticClass();
-    Row.Comment = TEXT("Routes WebSocket JSON LiDAR frames into ULidarJsonLiveSourceComp.");
+    Row.Comment = TEXT("Routes WebSocket JSON LiDAR frames into ULidarJsonLiveSourceComponent.");
 
     if (!Row.TransactionCodeMessageClass)
     {

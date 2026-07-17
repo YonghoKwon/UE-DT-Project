@@ -1,20 +1,23 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "EngineGlobals.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorManager.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyPolicyTest, "MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerPointCloudOnlyV2VisualizationTest, "MA0T10.SensorManager.PointCloudOnlyKeepsV2VisualizationEnabled", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorManagerSharedServicesTest, "MA0T10.SensorManager.SharedServicesAssigned", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
@@ -26,7 +29,7 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    AVirtualSensorManager* Manager = World->SpawnActor<AVirtualSensorManager>();
+    AVirtualSensorCoordinator* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
     AActor* LidarOwnerA = World->SpawnActor<AActor>();
     AActor* LidarOwnerB = World->SpawnActor<AActor>();
     TestNotNull(TEXT("sensor manager"), Manager);
@@ -37,8 +40,8 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    UVirtualLidarSensorComp* LidarA = NewObject<UVirtualLidarSensorComp>(LidarOwnerA);
-    UVirtualLidarSensorComp* LidarB = NewObject<UVirtualLidarSensorComp>(LidarOwnerB);
+    UVirtualLidarScanComponent* LidarA = NewObject<UVirtualLidarScanComponent>(LidarOwnerA);
+    UVirtualLidarScanComponent* LidarB = NewObject<UVirtualLidarScanComponent>(LidarOwnerB);
     TestNotNull(TEXT("lidar A"), LidarA);
     TestNotNull(TEXT("lidar B"), LidarB);
     if (!LidarA || !LidarB)
@@ -85,14 +88,14 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("selected lidar preview enabled"), LidarA->IsPointCloudPreviewEnabled());
     TestEqual(TEXT("selected lidar preview stride clamped for point cloud only"), LidarA->PreviewPointStride, 2);
     TestEqual(TEXT("selected lidar preview max clamped for point cloud only"), LidarA->MaxPreviewPoints, 3000);
-    TestTrue(TEXT("selected lidar preview hit only"), LidarA->bPointCloudPreviewHitOnly);
+	TestFalse(TEXT("selected lidar keeps user hit filter"), LidarA->bPointCloudPreviewHitOnly);
     TestFalse(TEXT("selected lidar debug rays disabled"), LidarA->bDrawDebugRays);
     TestFalse(TEXT("selected lidar debug point preview disabled"), LidarA->bDrawPointCloudPreviewDebugPoints);
 
     TestFalse(TEXT("unselected lidar preview disabled"), LidarB->IsPointCloudPreviewEnabled());
     TestEqual(TEXT("unselected lidar preview stride preserved when already >= 2"), LidarB->PreviewPointStride, 3);
     TestEqual(TEXT("unselected lidar preview max clamped for point cloud only"), LidarB->MaxPreviewPoints, 3000);
-    TestTrue(TEXT("unselected lidar preview hit only"), LidarB->bPointCloudPreviewHitOnly);
+	TestFalse(TEXT("unselected lidar keeps user hit filter"), LidarB->bPointCloudPreviewHitOnly);
 
     Manager->SelectNextLidar();
     TestFalse(TEXT("previous selected preview disabled after lidar selection changes"), LidarA->IsPointCloudPreviewEnabled());
@@ -135,6 +138,48 @@ bool FSensorManagerPointCloudOnlyPolicyTest::RunTest(const FString& Parameters)
     return true;
 }
 
+bool FSensorManagerPointCloudOnlyV2VisualizationTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = GWorld;
+    TestNotNull(TEXT("editor world"), World);
+    if (!World) return false;
+
+    AVirtualSensorCoordinator* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
+    AVirtualLidarSensorActor* LidarActor = World->SpawnActor<AVirtualLidarSensorActor>();
+    TestNotNull(TEXT("sensor manager"), Manager);
+    TestNotNull(TEXT("V2 lidar actor"), LidarActor);
+    if (!Manager || !LidarActor || !LidarActor->ScanComponent || !LidarActor->VisualizationComponent)
+    {
+        if (LidarActor) LidarActor->Destroy();
+        if (Manager) Manager->Destroy();
+        return false;
+    }
+
+    Manager->bPointCloudOnlyHideWorld = false;
+    Manager->bPointCloudOnlyAutoSelectLidarView = false;
+    LidarActor->VisualizationComponent->SetWorldPointCloudEnabled(false);
+    Manager->RegisterLidar(LidarActor->ScanComponent);
+    Manager->SelectLidarByIndex(0);
+
+    Manager->SetPointCloudOnlyMode(true);
+    TestTrue(TEXT("point-cloud-only keeps the selected V2 renderer enabled"),
+        LidarActor->VisualizationComponent->GetVisualizationSettings().bShowWorldPointCloud);
+
+    // Re-applying the mode models later frame/binding refreshes and must not
+    // accidentally toggle the state back off.
+    Manager->SetPointCloudOnlyMode(true);
+    TestTrue(TEXT("point-cloud-only remains enabled across refreshes"),
+        LidarActor->VisualizationComponent->GetVisualizationSettings().bShowWorldPointCloud);
+
+    Manager->SetPointCloudOnlyMode(false);
+    TestFalse(TEXT("original V2 renderer visibility is restored"),
+        LidarActor->VisualizationComponent->GetVisualizationSettings().bShowWorldPointCloud);
+
+    LidarActor->Destroy();
+    Manager->Destroy();
+    return true;
+}
+
 bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
 {
     UWorld* World = GWorld;
@@ -144,7 +189,7 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    AVirtualSensorManager* Manager = World->SpawnActor<AVirtualSensorManager>();
+    AVirtualSensorCoordinator* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
     AActor* CameraOwner = World->SpawnActor<AActor>();
     AActor* LidarOwner = World->SpawnActor<AActor>();
     TestNotNull(TEXT("sensor manager"), Manager);
@@ -155,9 +200,9 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    UVirtualCameraComp* CameraComp = NewObject<UVirtualCameraComp>(CameraOwner);
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>(LidarOwner);
-    ULidarCsvReplaySourceComp* RealSourceComp = NewObject<ULidarCsvReplaySourceComp>(LidarOwner);
+    UVirtualCameraCaptureComponent* CameraComp = NewObject<UVirtualCameraCaptureComponent>(CameraOwner);
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>(LidarOwner);
+    ULidarCsvReplaySourceComponent* RealSourceComp = NewObject<ULidarCsvReplaySourceComponent>(LidarOwner);
     TestNotNull(TEXT("camera component"), CameraComp);
     TestNotNull(TEXT("lidar component"), LidarComp);
     TestNotNull(TEXT("real sensor replay source"), RealSourceComp);
@@ -178,8 +223,8 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     RealSourceComp->ReplaySemanticLabel = TEXT("Slab");
     RealSourceComp->bSendTransportByDefault = false;
 
-    UVirtualSensorDataTransportComp* SharedTransport = Manager->SharedTransportComponent;
-    UVirtualSensorRecorderComp* SharedRecorder = Manager->SharedRecorderComponent;
+    UVirtualSensorTransportComponent* SharedTransport = Manager->SharedTransportComponent;
+    UVirtualSensorRecorderComponent* SharedRecorder = Manager->SharedRecorderComponent;
     TestNotNull(TEXT("manager shared transport"), SharedTransport);
     TestNotNull(TEXT("manager shared recorder"), SharedRecorder);
     SharedTransport->TransportMode = EVirtualSensorTransportMode::HttpPost;
@@ -204,7 +249,7 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("real sensor source summary count"), Manager->GetRealSensorSourceSummaries().Num(), 1);
     TestEqual(TEXT("selected camera"), Manager->GetSelectedCamera(), CameraComp);
     TestEqual(TEXT("selected lidar"), Manager->GetSelectedLidar(), LidarComp);
-    TestEqual(TEXT("selected real sensor source matches selected lidar"), Manager->GetSelectedRealSensorSource(), Cast<URealSensorSourceComp>(RealSourceComp));
+    TestEqual(TEXT("selected real sensor source matches selected lidar"), Manager->GetSelectedRealSensorSource(), Cast<URealSensorSourceComponent>(RealSourceComp));
     TestTrue(TEXT("real sensor source summary exposes source id"), Manager->GetRealSensorSourceSummaries()[0].SensorId.Contains(TEXT("TEST-MANAGER-REAL-SOURCE")));
 
     const FVirtualSensorHealthSummary Health = Manager->GetHealthSummary();
@@ -213,7 +258,7 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("health reports no real source errors"), Health.ErrorRealSensorSourceCount, 0);
     TestTrue(TEXT("health summary exposes real source counts"), Health.Summary.Contains(TEXT("RealSources=1")) && Health.Summary.Contains(TEXT("ExternalEvidenceRequired=0")));
 
-    UVirtualSensorMonitorWidget* MonitorWidget = NewObject<UVirtualSensorMonitorWidget>();
+    UVirtualSensorMonitorPanelWidget* MonitorWidget = NewObject<UVirtualSensorMonitorPanelWidget>();
     TestNotNull(TEXT("monitor widget"), MonitorWidget);
     if (!MonitorWidget)
     {

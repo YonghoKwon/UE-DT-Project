@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [string]$OutputRoot = "",
     [string]$BrokerUrl = "",
@@ -280,7 +280,7 @@ $report = [PSCustomObject]@{
     }
     ManualSmokeSteps = @(
         [PSCustomObject]@{ Order = 1; Text = "Run MA0T10.Evidence.WebSocketTransactionRegistration against the same project build." },
-        [PSCustomObject]@{ Order = 2; Text = "Open PIE with a ULidarJsonLiveSourceComp whose SourceId is '$SourceId' and whose TargetLidar is set." },
+        [PSCustomObject]@{ Order = 2; Text = "Open PIE with a ULidarJsonLiveSourceComponent whose SourceId is '$SourceId' and whose TargetLidar is set." },
         [PSCustomObject]@{ Order = 3; Text = "Send '$samplePath' to topic '$Topic' on broker '$BrokerUrl'." },
         [PSCustomObject]@{ Order = 4; Text = "Confirm the JSON live source frame count changes." },
         [PSCustomObject]@{ Order = 5; Text = "Confirm target LiDAR point count and cached server payload update." },

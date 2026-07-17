@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -38,10 +38,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp" },
-    [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.h" },
-    [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp" },
+    [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.h" },
+    [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.cpp" },
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Widget setup document"; Path = "docs\sensor_test_map_setup.ko.md" },
     [PSCustomObject]@{ Label = "Local asset report document"; Path = "docs\local_asset_report.md" },
@@ -65,10 +65,10 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
-$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
-$hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.h"
-$hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorHostActor.cpp"
+$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h"
+$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
+$hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.h"
+$hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
 $setupDoc = Join-Path $ProjectRoot "docs\sensor_test_map_setup.ko.md"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"
@@ -129,7 +129,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar payload getter exposes server policy"; Label = "Automation covers Designer payload getter" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "lidar slab getter exposes slab analysis"; Label = "Automation covers Designer slab getter" },
     [PSCustomObject]@{ Path = $testsCpp; Pattern = "MA0T10.SensorMonitor.ServerPayloadExport"; Label = "Server payload export automation test" },
-    [PSCustomObject]@{ Path = $setupDoc; Pattern = "WBP_VirtualSensorMonitor"; Label = "Setup doc names production WBP" },
+    [PSCustomObject]@{ Path = $setupDoc; Pattern = "WBP_VirtualSensorMonitorPanel"; Label = "Setup doc names production WBP" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "Optional Bindings"; Label = "Setup doc lists optional bindings" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "GetSlabAnalysisSummaryText"; Label = "Setup doc documents Designer getters" },
     [PSCustomObject]@{ Path = $setupDoc; Pattern = "FVirtualSensorMonitorDisplayData"; Label = "Setup doc documents display data struct" },
@@ -137,7 +137,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $localAssetDoc; Pattern = "binary widgets"; Label = "Local asset doc guards WBP binaries" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Production Monitor WBP"; Label = "Remaining work tracks WBP decision" },
     [PSCustomObject]@{ Path = $remainingDoc; Pattern = "Commit the WBP only after manual editor verification."; Label = "Remaining work requires manual WBP verification" },
-    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "WBP_VirtualSensorMonitor.uasset"; Label = "Asset report tracks local WBP path" },
+    [PSCustomObject]@{ Path = $assetReportScript; Pattern = "WBP_VirtualSensorMonitorPanel.uasset"; Label = "Asset report tracks local WBP path" },
     [PSCustomObject]@{ Path = $assetReportScript; Pattern = "Detected binary monitor WBP asset"; Label = "Asset report emits WBP decision note" },
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "RecommendedDecision"; Label = "WBP decision report emits recommendation" },
     [PSCustomObject]@{ Path = $monitorWbpReportScript; Pattern = "Evidence Draft"; Label = "WBP decision report emits evidence draft" },

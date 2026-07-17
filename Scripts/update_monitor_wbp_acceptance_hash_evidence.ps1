@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$EvidencePath = "",
@@ -130,7 +130,7 @@ $report = [PSCustomObject]@{
         AssetHashCopied = $currentHash
         EditorEvidenceUpdated = $true
         BackupCreated = (-not [bool]$DryRun)
-        Boundary = "This script updates only the Saved acceptance evidence JSON. It does not edit, accept, or stage WBP_VirtualSensorMonitor.uasset."
+        Boundary = "This script updates only the Saved acceptance evidence JSON. It does not edit, accept, or stage WBP_VirtualSensorMonitorPanel.uasset."
         Valid = $true
     }
 }

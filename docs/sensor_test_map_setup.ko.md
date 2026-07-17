@@ -1,559 +1,162 @@
-# 가상 센서 테스트 맵과 Widget Blueprint 설정
+# SensorTestMap과 V2 Widget 설정
 
-이 문서는 Unreal Engine 5.3에서 가상 LiDAR, 가상 카메라, 센서 매니저와 모니터 UI를 한 번에 검증하는 절차를 설명합니다.
+## 자산 생성
 
-## 1. 저장소에 포함된 테스트 맵
-
-기본 smoke-test 맵은 다음 경로입니다.
-
-```text
-/Game/MA0T10/Maps/SensorTestMap
-Content/MA0T10/Maps/SensorTestMap.umap
-```
-
-`Config/DefaultEngine.ini`의 `EditorStartupMap`과 `GameDefaultMap`도 이 맵을 사용합니다.
-
-맵에는 다음 항목이 들어 있습니다.
-
-```text
-SensorTest_Manager          AVirtualSensorManager
-SensorTest_LiDAR            AVirtualSensorAct
-SensorTest_Camera           AVirtualCameraAct
-SensorTest_MonitorHost      AVirtualSensorMonitorHostActor
-SensorTest_Floor            StaticMeshActor, Actor Tag = KeepInPointCloudOnly
-SensorTest_HallBackWall     StaticMeshActor
-SensorTest_HallLeftWall     StaticMeshActor
-SensorTest_HallRightWall    StaticMeshActor
-SensorTest_TargetCube       StaticMeshActor
-SensorTest_TargetSphere     StaticMeshActor
-SensorTest_TargetPillar     StaticMeshActor
-DirectionalLight / SkyLight / RectLight x4 / SkyAtmosphere / PostProcess / PlayerStart
-```
-
-다음 세 WBP도 저장소에 포함됩니다. Designer hierarchy가 비어 있어도 각 C++ 부모의 native-backed UI가 표시됩니다.
-
-```text
-WBP_VirtualSensorMonitor       UVirtualSensorMonitorWidget          오른쪽 중앙
-WBP_VirtualSensorSettings      UVirtualSensorSettingsWidget         왼쪽 중앙
-WBP_VirtualSensorCaptureExport UVirtualSensorCaptureExportWidget    아래 중앙
-```
-
-세 패널은 밝은 맵 위에서도 구분되는 어두운 반투명 테마를 사용합니다. 제목 표시줄을 왼쪽 마우스로 끌어 이동할 수 있고 `접기`, `위치 초기화`를 제공합니다. 패널 위치와 접힘 상태는 사용자별 UI SaveGame에 저장됩니다. `SensorTest_MonitorHost`가 모두 생성·바인딩하므로 Level Blueprint는 필요하지 않습니다. 기본 공간은 약 16×12×4m의 밝은 개방형 실내 테스트 홀입니다.
-
-테스트 맵에는 Slab mesh를 넣지 않습니다. 사용자가 원하는 mesh를 배치한 뒤 Actor Tag `Slab`을 추가하면 기존 Slab 분석 기능을 그대로 사용할 수 있습니다.
-
-## 2. 테스트 맵 재생성
-
-맵 구성은 `Scripts/setup_sensor_test_map.py`로 재생성할 수 있습니다. 이 스크립트는 WBP가 없으면 먼저 생성하고, `SensorTestManaged` 태그가 있는 액터만 교체한 뒤 WBP를 MonitorHost에 연결합니다.
-
-먼저 Editor target을 빌드합니다.
+Unreal Editor를 종료하고 Editor target을 빌드한 뒤 아래 순서로 실행합니다.
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development ".\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
+& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
+  "$PWD\ma0t10_dt.uproject" `
+  -ExecutePythonScript="$PWD\Scripts\setup_sensor_refactor_test_map.py" `
+  -Unattended -NoSplash -NoSound
 ```
 
-한글이 들어간 OneDrive 경로에서 MSVC가 파일을 찾지 못하면 ASCII 경로를 매핑합니다.
+이 스크립트는 다음 V2 WBP를 올바른 native parent로 생성하고 회귀맵에 배치합니다.
+
+- `WBP_VirtualSensorMonitorPanel` → `UVirtualSensorMonitorPanelWidget`
+- `WBP_VirtualSensorSettingsPanel` → `UVirtualSensorSettingsPanelWidget`
+- `WBP_VirtualSensorCaptureExportPanel` → `UVirtualSensorCaptureExportPanelWidget`
+
+먼저 `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap`을 PIE로 검증합니다. 정상 확인 후 `Scripts/setup_sensor_test_map.py`를 실행해 운영 `SensorTestMap`을 V2로 갱신합니다.
+
+스크립트는 `SensorTestManaged` Actor만 재구성합니다. 태그가 없는 사용자 Actor·Mesh는 보존하고 Slab mesh는 생성하지 않습니다.
+
+## WBP를 직접 만들 때
+
+1. Content Browser의 `/Game/MA0T10/UI`에서 Widget Blueprint를 만듭니다.
+2. 위 표의 native parent를 정확히 선택합니다.
+3. Designer가 비어 있어도 native fallback UI가 표시되므로 먼저 PIE 동작을 확인합니다.
+4. 커스텀 Designer를 추가할 때 `BindWidgetOptional` 이름과 대소문자를 맞추고 `Is Variable`을 켭니다.
+5. native에서 이미 연결한 버튼을 Event Graph에 다시 연결하지 않습니다.
+6. `AVirtualSensorUiHostActor`의 Monitor/Settings/CaptureExport class에 WBP를 지정합니다.
+
+## Main UI와 Viewport fallback
+
+`AVirtualSensorUiHostActor`는 세 패널을 한 번만 생성합니다. `UVirtualSensorPanelHostComponent`가 Main Widget의 `AddWidgetPanel`을 찾으면 일반 Canvas 자식으로 배치하고, 찾지 못하면 Viewport에 배치합니다. 0.25초마다 Main 교체를 감지해 같은 인스턴스를 재호스팅하므로 Level Blueprint에서 별도로 `Create Widget`을 호출하면 안 됩니다.
+
+접기 버튼은 본문을 숨기는 동시에 실제 높이를 약 48px로 줄입니다. Main에서는 `UCanvasPanelSlot::SetSize`, Viewport fallback에서는 desired size를 사용합니다. 펼치면 직전 크기를 복원하고 화면 경계 안으로 보정합니다.
+
+## PIE 조작
+
+Settings 패널에서 센서를 선택하고 `센서 조작 시작`을 누릅니다.
+
+- `W/S`: 전진/후진
+- `A/D`: 좌/우
+- `Q/E`: 아래/위
+- 방향키 좌/우: Yaw
+- 방향키 위/아래: Pitch
+- `Z/C`: Roll
+- `Shift`: 5배
+- `Ctrl`: 0.2배
+- `Esc`: 조작 종료
+
+이동 기본 단위는 10cm, 회전 기본 단위는 5°이며 로컬/월드 좌표계를 전환할 수 있습니다. 숫자는 Enter 또는 포커스 해제 시 한 번 적용되고 체크박스·프로필·품질은 선택 즉시 적용됩니다. 오류가 있으면 Actor를 변경하지 않고 이전 값으로 복원합니다.
+
+조작 시작 시 Monitor는 조작 대상 센서를 자동으로 따라가고 종료하면 이전 Camera/LiDAR 화면으로 돌아갑니다. 조작 도중 Monitor에서 사용자가 센서를 직접 바꾸면 자동 추적과 자동 복원은 해제됩니다. FullSpec 설정 자체는 유지되지만 조작 중에는 출력·JPEG·전송을 생략한 경량 미리보기 요청만 실행하므로 Transform 반응성을 우선합니다. 완료 프레임은 측정 당시 Transform을 포함한 immutable snapshot이므로 센서 이동 도중에도 이전 좌표와 현재 좌표가 한 화면에서 섞이지 않습니다.
+
+`투사 범위 표시`는 선택 센서에만 적용됩니다. Camera는 FOV 절두체와 중심선, LiDAR는 수평·수직 범위와 최대 64개 대표 광선을 표시합니다. 런타임 UI 상태이며 맵에 저장하지 않습니다.
+
+## 맵에 영구 반영
+
+PIE 변경은 자동 저장되지 않습니다. Settings의 `SensorTestMap에 저장 예약`을 명시적으로 눌러야 Editor 종료 파이프라인이 관리 태그 Actor의 Transform과 허용 설정만 원본 맵에 복사합니다. 다른 맵, 중복 태그, Actor 누락, 저장 실패 시 원본 맵을 변경하지 않습니다.
+
+## 패널 역할
+
+- Monitor: Camera/LiDAR 미리보기, 센서 전환, LiDAR 표시 방식·오버레이, 상세 진단
+- Settings: Transform·기즈모, 기본/고급 설정, 도움말, 투사 범위, 맵 저장 예약
+- CaptureExport: 1회 캡처, Payload, CSV/JSONL/PCD/LAS/LAZ, timed capture, 최근 결과와 경로
+
+패널 위치·접힘·LiDAR 표시 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v2.sav`에 저장됩니다. 기존 v1 파일은 자동 변환되며 센서 Transform과 장비 설정은 이 SaveGame에 저장되지 않습니다.
+
+## 고급 설정 해석
+
+- Camera 해상도·주기: 픽셀 수와 초당 캡처 횟수에 비례해 렌더·readback 비용 증가
+- FOV: 수평 시야각, D455 기준 권장 87°
+- JPEG 품질: 높을수록 압축 CPU와 Payload 크기 증가
+- 출력 모드: 미리보기만은 readback/JPEG 생략, Payload 계열은 비동기 encode와 출력 수행
+- LiDAR 수평 샘플×수직 채널: 스캔당 광선 수
+- FOV·수직 각도: 같은 광선 수에서는 범위와 밀도를 변경
+- Payload 간격·최대 점·미검출 포함: 서버 직렬화 크기 제어
+- Preview 간격·최대 점·검출점만: 화면 표시 비용만 제어. `검출점만=true`는 hit만, `false`는 miss를 최대 거리 endpoint에 낮은 투명도로 표시하며 True→False→True를 새 스캔 없이 마지막 snapshot으로 다시 그립니다.
+- MultiHit·최대 검출 수: 한 광선의 복수 충돌을 수집하는 고부하 옵션
+- 스캔별 자동 내보내기: 디스크·직렬화 부하가 커서 FullSpec에서는 수동 내보내기 권장
+
+도움말 카드에는 Camera MP/s, LiDAR 광선/scan·광선/s, Preview/Payload 최대 점 수와 부하 등급이 표시됩니다.
+
+## LiDAR 표시
+
+### 투영 방식
+
+- 거리 영상: 수직 채널과 수평 샘플을 행·열로 펼쳐 센서 원본 스캔 구조를 봅니다.
+- 조감도: 센서 로컬 XY를 위에서 보며 축, 전방 방향, 거리 원으로 공간 분포를 봅니다.
+- 방사 거리-높이 프로파일: X축은 센서로부터의 수평 방사거리 `sqrt(local X²+local Y²)`, Y축은 상대 높이 Z입니다. 좌우 방향은 합쳐지므로 바닥·천장·경사·물체 높이를 분석할 때 사용합니다.
+- 전방 수직 슬라이스: 회전 가능한 센서 로컬 X–Z 기준면과 설정 두께 안의 점만 표시합니다. 특정 방향의 벽·기둥·설비 높이를 분리해서 볼 때 사용합니다.
+- 분할: 거리 영상과 조감도를 동시에 비교합니다.
+- 조감도/거리-높이 단면 조작: 이미지 위 좌클릭 드래그로 이동, 우클릭 드래그로 회전, 휠로 확대·축소합니다. `보기 초기화`는 현재 투영의 pan/회전/zoom을 기본값으로 되돌립니다.
+- 분할 모드에서는 거리 영상은 센서 고정 시점으로 유지되고 아래쪽 조감도만 자유 시점 조작 대상입니다.
+
+### 색상 방식
+
+- Turbo/Viridis 거리, 상대 높이, SemanticLabel, 수직 채널/ring, MultiHit return index, 검출 마스크, 거리 회색조를 투영 방식과 자유롭게 조합합니다.
+- 범례는 현재 프레임의 최소·중간·최대 거리/높이 또는 채널·return 번호를 표시합니다.
+- 적응형 거리·깊이 경계·격자는 거리 영상 전용입니다. 조감도/단면은 축·거리 원·높이 기준선을 사용합니다.
+- `월드 3D 포인트 표시`는 선택 LiDAR를 Niagara GPU sprite로 최대 21,600점 렌더링합니다. 실패 시 CPU ISM 5,000점 fallback과 원인을 진단에 표시합니다.
+- Niagara 자산이 손상되거나 누락되면 `Scripts/setup_lidar_niagara_assets.ps1`로 다시 생성합니다.
+
+### 3D 포인트 클라우드 문제 확인
+
+1. 선택 대상을 LiDAR로 바꾸고 `포인트 클라우드 전용 켜기`를 누릅니다. Camera가 선택된 경우 UI가 LiDAR 선택을 안내합니다.
+2. 상세 진단의 `검출점`이 0이면 렌더 문제가 아니라 스캔 경로에 충돌 대상이 없는 상태입니다.
+3. `업로드점`은 0보다 큰데 `표시점`이 0이면 렌더러 상태와 fallback 사유를 확인합니다. `Auto`에서는 Niagara가 실제로 준비된 경우에만 GPU를 사용하고 나머지는 CPU ISM으로 전환됩니다.
+4. 신규 프레임의 hit가 없어도 마지막 정상 클라우드는 유지됩니다. 버튼을 다시 눌러 전용 모드를 끜 경우에만 이전 2D 투영·오버레이 상태로 돌아갑니다.
+
+RHI 자동 검증:
 
 ```powershell
-subst U: "$PWD"
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" ma0t10_dtEditor Win64 Development "U:\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_point_cloud_rhi_smoke.ps1"
 ```
 
-맵 생성 스크립트를 실행합니다.
+이 스크립트는 D3D12로 `SensorRefactorTestMap` PIE를 실행하고 검출 hit, CPU fallback 실제 ISM 인스턴스, 측정 월드 좌표 일치, 포인트 영역의 게임 뷰포트 중첩을 검증합니다. 결과는 `Saved/Reports/point_cloud_rhi_smoke.png`, `.md`, `.json`, `.log`에 저장됩니다.
 
-```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "U:\ma0t10_dt.uproject" -ExecutePythonScript="U:\Scripts\setup_sensor_test_map.py" -Unattended -NoSplash -NoSound
-```
+- 거리 색상: 가까운 점 자홍·주황, 중간 노랑, 먼 점 청록·파랑
+- 검출 마스크: hit 흰색, miss 검정
+- 의미 분류 색상: `SemanticLabel` 규칙 색상, 미분류 회색
+- 거리 회색조: 가까운 점 밝게, 먼 점과 miss 어둡게
 
-작업 후 임시 드라이브가 필요 없으면 해제합니다.
+적응형 거리, 깊이 경계, 격자는 색상 모드와 별개인 오버레이입니다.
 
-```powershell
-subst U: /D
-```
+## 저장 위치
 
-## 3. 맵 액터의 권장 Details 값
+- Payload: `Saved/SensorCaptures/<SensorId>/ServerPayload`
+- Point cloud: `Saved/SensorCaptures/<SensorId>/PointCloud`
+- Timed Camera: `Saved/SensorCaptures/LocalTimedCapture/<UTC>/Camera`
+- Timed LiDAR: `Saved/SensorCaptures/LocalTimedCapture/<UTC>/Lidar`
+- Recorder: `Saved/SensorRecordings`
 
-### SensorTest_Manager
+CaptureExport 패널에서 절대 경로와 프로젝트 상대 경로를 확인하고 최근 저장 경로를 복사할 수 있습니다.
 
-`AVirtualSensorManager`를 선택하고 다음 값을 확인합니다.
+## 외부 센서 Source 사용
 
-```text
-DigitalTwin | SensorManager
-  bDiscoverOnBeginPlay                 true
-  bStartSensorsOnBeginPlay             true
-  bUseSynchronizedCapture              false
+`SensorRefactorTestMap`에는 `SensorTest_ExternalSources`가 관리 Actor로 배치됩니다. 모두 기본 정지 상태입니다.
 
-DigitalTwin | SensorManager | PointCloudOnly
-  bPointCloudOnlyHideWorld             true
-  bPointCloudOnlyAutoSelectLidarView   true
-```
+- `LidarCsvReplay`: `Samples/slab_replay_sample.csv`
+- `LidarJsonLinesReplay`: `Samples/slab_replay_sample.jsonl`
+- `LidarBufferedJson`: Blueprint/C++에서 buffered JSON 주입
+- `LidarHttpJson`: `POST http://127.0.0.1:8082/ma0t10/lidar/live`
+- `LidarUdpJson`: 로컬 UDP JSON. 기본 포트 0이므로 사용할 포트를 먼저 지정
+- `CameraBufferedJson`: Camera JSON buffered 주입
 
-`SharedSensorTransport` component의 값은 첫 테스트에서 다음처럼 둡니다.
+Settings의 Source 시작/중지는 입력 lifecycle만 관리하고 `선택 Source 1회 주입`은 선택 입력의 다음 프레임을 센서 Actor의 `SubmitExternalFrame`으로 넘깁니다. 입력 프레임을 다른 서버로 보낼지는 CaptureExport 패널에서 별도로 선택합니다. ROS2, Livox SDK, RealSense SDK는 현재 비활성 확장 항목이며 SDK 연동 구현이 필요합니다.
 
-```text
-TransportMode = LogOnly
-```
+## Artemis STOMP와 HTTP 전송
 
-`HttpPost`는 로컬 기능 검증이 끝난 후 endpoint와 backpressure/retry 정책을 함께 확인할 때만 켭니다.
+CaptureExport 패널에서 Broker/endpoint, Topic, 사용자명, 최대 메시지 크기, 선택 ACK Topic을 입력하고 `연결 시험`을 누릅니다. 비밀번호와 Bearer token은 SaveGame에 저장되지 않고 현재 PIE 세션에만 존재합니다.
 
-### SensorTest_LiDAR
+- STOMP 기본 Topic: `topic.virtual.sensor.camera.0`, `topic.virtual.sensor.lidar.0`, `topic.virtual.sensor.export.0`
+- Artemis routing: `destination-type=MULTICAST`
+- HTTP Payload: `application/json`
+- HTTP 최근 내보내기 파일: `application/octet-stream`
+- STOMP 최근 내보내기 파일: Base64 JSON envelope
+- `Broker 수락, 소비자 처리 미확인`: receipt는 성공했지만 실제 consumer ACK는 확인하지 않은 상태
 
-`AVirtualSensorAct`의 `LidarSensorComp`를 선택합니다.
-
-```text
-SensorId                          LIDAR-TEST-001
-DeviceProfile                     LivoxMid360S
-SimulationQuality                 RealTimePreview
-OutputMode                        LogOnly
-ScanInterval                      0.25
-bAutoStartScan                    true
-bAutoRegisterToManager            true
-bUseMultiHit                      false
-bDrawDebugRays                    false
-```
-
-서버 payload와 화면 preview는 서로 다른 정책입니다.
-
-```text
-ServerPayloadStride               1
-MaxServerPayloadPoints            0
-bIncludeMissPointsInServerPayload false
-
-PreviewPointStride                2
-MaxPreviewPoints                  3000
-bPointCloudPreviewHitOnly         true
-bPointCloudPreviewEnabled         false
-```
-
-`bPointCloudPreviewEnabled`는 평상시 false여도 됩니다. `Point Cloud Only` 버튼을 누르면 Manager가 선택된 LiDAR preview를 켭니다.
-
-자동 파일 export는 smoke test 중 꺼 둡니다.
-
-```text
-bExportCsvOnScan          false
-bExportJsonLinesOnScan    false
-bExportPcdOnScan          false
-```
-
-Slab 분석 값은 다음처럼 둡니다.
-
-```text
-SlabSemanticLabel                 Slab
-ReferenceSlabYawDegrees           0
-MinSlabPointsForAnalysis          12
-bIncludeSlabAnalysisInPayload     true
-```
-
-### SensorTest_Camera
-
-`AVirtualCameraAct`의 `VirtualCameraComp`를 선택합니다.
-
-```text
-SensorId                 VCAM-TEST-001
-DeviceProfile            IntelRealSenseD455
-SimulationQuality        RealTimePreview
-CaptureResolution        640 x 360
-CaptureInterval          0.1
-CaptureMode              PayloadAndOutput
-OutputMode               LogOnly
-bAutoStartCapture         true
-bAutoRegisterToManager    true
-```
-
-카메라 preview가 검게 보이면 다음을 확인합니다.
-
-1. Settings 패널에서 카메라를 선택하고 `선택 센서 투사 범위 표시`를 켜 청록색 frustum이 일반 타깃 방향을 향하는지 확인합니다.
-2. `DirectionalLight`, `SkyLight`, 천장 `RectLight` 4개가 활성화되어 있는지 확인합니다.
-3. `CameraRenderTarget`이 비어 있어도 런타임에 생성되지만, 운영 WBP에서 고정 render target을 쓰려면 별도 `TextureRenderTarget2D`를 지정합니다.
-4. 성능이 무거우면 `CaptureMode = PreviewOnly`로 먼저 확인합니다.
-
-### 사용자 Slab mesh (선택)
-
-맵에는 Slab mesh가 기본 배치되지 않습니다. 분석할 mesh를 직접 배치하고 Actor의 `Tags` 배열에 정확히 다음 값을 넣습니다.
-
-```text
-Slab
-```
-
-LiDAR는 이 tag를 semantic label `Slab`으로 분류합니다. `ReferenceSlabYawDegrees = 0`은 정상 진행 방향을 월드 X축으로 본다는 뜻입니다.
-
-### SensorTest_MonitorHost
-
-```text
-MonitorWidgetClass                WBP_VirtualSensorMonitor
-SettingsWidgetClass               WBP_VirtualSensorSettings
-CaptureExportWidgetClass          WBP_VirtualSensorCaptureExport
-bUseNativeMonitorWidgetFallback   true
-bUseNativeToolWidgetFallback      true
-bAutoCreateToolPanels             true
-SensorManager                     SensorTest_Manager
-bAutoCreateOnBeginPlay            true
-bAutoFindSensorManager            true
-bAddToViewport                    true
-bShowLidarViewOnStart             false
-bEnablePointCloudOnlyOnStart      false
-ViewportZOrder                    10
-SettingsViewportZOrder            20
-CaptureExportViewportZOrder       30
-bConfigurePlayerInputOnCreate     true
-bShowMouseCursorOnCreate          true
-```
-
-PIE 시작 시 `Game and UI` 입력 모드와 마우스 커서가 자동 설정됩니다. 별도의 Level Blueprint에서 `Create Widget`이나 입력 모드 노드를 만들 필요가 없습니다.
-
-### 런타임 Sensor Settings
-
-Settings 패널에서 Camera/LiDAR를 선택하고 위치, 회전, 프로필, Simulation Quality와 기본 성능값을 수정합니다. 기본 좌표계는 센서 로컬입니다.
-
-숫자는 Enter/포커스 해제 또는 SpinBox 드래그가 끝날 때 한 번 적용됩니다. SensorId commit, profile/quality 버튼과 고급 checkbox는 유효성 검사 후 현재 PIE Actor에 즉시 적용됩니다. 범위 오류, 중복 SensorId, NaN Transform은 거부하고 마지막 runtime 값을 다시 표시합니다.
-
-```text
-센서 조작 시작                 기즈모와 키보드 입력 활성화
-모드: 이동/회전                3축 화살표와 회전 링 전환
-좌표: 로컬/월드                조작 기준 전환
-PIE 시작값으로 되돌리기        PIE 시작 시 맵 값으로 복구
-SensorTestMap에 저장 예약      현재 값을 저장 대기열에 추가
-```
-
-키보드는 `W/S` 전후, `A/D` 좌우, `Q/E` 아래/위, 방향키 Pitch/Yaw, `Z/C` Roll입니다. `Shift`는 5배, `Ctrl`은 0.2배이며 `Esc`는 조작 모드를 종료합니다. 텍스트 입력칸에 포커스가 있을 때는 조작 키를 무시합니다.
-
-단축키 설명은 `단축키 도움말 펼치기`에서 확인합니다. `전체 UI 초기화`는 세 패널의 위치·접힘 상태와 Monitor 표시 옵션을 기본값으로 되돌리지만 센서 값과 맵 저장 대기열에는 영향을 주지 않습니다.
-
-`고급 설정 펼치기`에는 Camera FOV/JPEG/CaptureMode, LiDAR sample/channel/FOV/수직 각도, server payload와 preview 정책, multi-hit/max hits, 자동 CSV/JSONL/PCD export, 외부 source 시작/중지를 노출합니다. HTTP endpoint, semantic rule 배열과 외부 LAZ 실행 파일은 런타임 패널에서 편집하지 않습니다.
-
-각 설정 행의 `ⓘ`를 누르면 아래 도움말 카드에 단위, 성능 영향, 권장값과 주의사항이 표시됩니다.
-
-| 항목 | 의미와 성능 영향 | 권장값 |
-|---|---|---|
-| 시뮬레이션 품질 | 해상도·광선 수·명목 주기를 함께 적용하는 preset | 조작은 실시간 미리보기, 최종 검증은 FullSpec |
-| 카메라 해상도 | 가로×세로 픽셀 수에 비례해 렌더/readback/압축량 증가 | FullSpec 1280×720 |
-| 카메라 캡처 주기 | 값이 작을수록 초당 캡처 횟수 증가 | FullSpec 0.033초(30Hz) |
-| 카메라 FOV | 수평 시야각. 같은 해상도에서는 주로 화면 밀도 변화 | D455 87° |
-| JPEG 품질 | 높을수록 압축 CPU와 Payload 크기 증가 | FullSpec 80 |
-| 출력 모드 | 미리보기만은 readback 생략, Payload만은 JSON 생성, Payload 및 출력은 전송까지 수행 | 보기만 할 때 `미리보기만` |
-| LiDAR 수평 샘플×수직 채널 | 스캔당 광선 수이며 두 값의 곱에 trace 비용이 비례 | FullSpec 360×60 |
-| LiDAR 스캔 주기 | 값이 작을수록 광선/s 증가 | FullSpec 0.1초(10Hz) |
-| 최대 거리 | 광선의 trace 거리. 복잡한 장면에서는 비용 증가 가능 | 일반 40m, 장비 cutoff 100m |
-| 수평 FOV·수직 최소/최대 | 측정 각도 범위. 광선 수가 같으면 주로 각도 밀도 변화 | 360°, -7°~52° |
-| 서버 Payload 간격 | N번째 점마다 서버 JSON에 포함 | 정밀 1, 실시간 2~8 |
-| 서버 최대 점 수 | Payload 상한. 0은 제한 없음 | 수신 서버 한도에 맞춤 |
-| 미검출점 포함 | miss 광선도 최대 거리 점으로 전송 | 일반적으로 끔 |
-| 미리보기 간격·최대 점 수 | 화면 렌더링 전용이며 서버 Payload에는 영향 없음 | FullSpec stride 6, 최대 5000 |
-| 미리보기 검출점만 | miss 점을 화면에서 제외해 ISM 부하 감소 | 켬 |
-| MultiHit·광선당 최대 검출 수 | 한 광선의 복수 충돌을 모아 trace/메모리/Payload 증가 | 기본 끔, 최대 3 |
-| 스캔별 자동 내보내기 | 매 스캔 직렬화·디스크 기록 | FullSpec에서는 끄고 수동 export |
-
-`현재 예상 부하`는 Camera MP/s, LiDAR 광선/스캔과 광선/s, Payload/Preview 최대 점 수를 낮음·보통·높음으로 표시합니다. 자동 성능 단계, 활성 Camera/LiDAR 수, 평균 FPS·1% low·p95 frame time, 스케줄러 작업 시간, 작업 대기와 생략 수도 같은 카드와 Monitor `상세 진단`에 표시됩니다.
-
-### FullSpec 실행 정책
-
-자동 시작 경로는 공용 스케줄러가 센서를 round-robin으로 처리합니다. Camera 2대+LiDAR 2대 이하는 60 FPS 단계(프레임당 LiDAR trace 4ms), 각 종류 4대 이하는 30 FPS 단계(8ms), 그 이상은 30 FPS 최선 실행입니다. 엔진 FPS를 강제하지 않고 센서용 game-thread 예산만 제어합니다.
-
-LiDAR 360×60 스캔은 128~1024 ray chunk로 나뉘며 시작 Transform과 설정을 완료 때까지 고정합니다. 카메라는 `FRHIGPUTextureReadback`으로 비동기 회수하고 JPEG/Base64/JSON을 worker thread에서 처리합니다. 센서별 acquisition/readback과 파생 작업은 각각 하나만 허용하므로 처리보다 입력이 빠르면 오래된 파생 프레임을 쌓지 않고 최신 프레임을 우선하며 생략 수를 올립니다.
-
-카메라 FullSpec 설정은 30Hz를 유지하지만 여러 카메라의 실제 GPU 장면 캡처는 전체 15Hz 상한으로 공정 분배하고, Monitor에서 선택한 카메라는 격회 우선합니다. 따라서 실측 카메라 Hz가 30보다 낮은 것은 FPS 보호 동작이며 Payload 규격 변경이 아닙니다. 선택 LiDAR의 texture/ISM preview도 우선합니다. 비선택 LiDAR는 같은 순서로 측정하고 Payload를 만들되 화면 preview 파생 작업만 생략하며, 선택되는 즉시 다음 완료 스캔부터 다시 표시합니다. 수동 `Capture Once`는 이 backpressure로 생략되지 않습니다.
-
-FullSpec 자체 규격은 Camera 1280×720·30Hz, LiDAR 21,600 rays·10Hz를 유지합니다. MultiHit와 스캔별 자동 내보내기는 추가 부하로 분류되므로 완료 주기를 보장하지 않습니다.
-
-`선택 센서 투사 범위 표시`는 Camera frustum 또는 LiDAR FOV/최대 거리 대표 광선을 표시합니다. 선택 센서 하나만 표시하며 LiDAR는 최대 64개 광선으로 제한됩니다. 이 토글은 맵에 저장되지 않고 legacy `bDrawDebugRays`도 켜지 않습니다.
-
-`SensorTestMap에 저장 예약` 후 PIE를 종료하면 Editor 모듈이 `SensorTestPersistent_PrimaryCamera` 또는 `SensorTestPersistent_PrimaryLidar` 태그로 원본 Actor를 찾아 `/Game/MA0T10/Maps/SensorTestMap`을 저장합니다. 다른 맵이 열려 있거나 태그가 중복/누락되면 저장하지 않고 Editor 알림을 표시합니다. 이 기능은 packaged build에서는 동작하지 않습니다.
-
-### Monitor와 LiDAR 표시 방식
-
-Monitor는 선택 센서, 프레임, 주기, 해상도 또는 측정점/검출점을 기본 요약으로 표시합니다. Payload·Preview·Slab·전송·배포 진단은 `상세 진단 펼치기`에 있습니다.
-
-| 표시 방식 | 화면에서 보이는 의미 |
-|---|---|
-| 거리 색상 | 자홍/주황=가까움, 노랑=중간, 청록/파랑=멀음, 검정=미검출 |
-| 검출 마스크 | 흰색=검출, 검정=미검출 |
-| 의미 분류 색상 | `SemanticLabel`에 연결된 분류 색상, 미분류는 기본 회색 |
-| 거리 회색조 | 가까울수록 밝고 멀수록 어두움 |
-
-`적응형 거리`는 현재 프레임에서 검출된 최소·최대 거리로 색상 범위를 다시 잡습니다. `깊이 경계`는 인접 점의 거리 차이가 큰 곳을 흰색 윤곽으로 표시하고, `격자`는 스캔 행·열 기준선을 표시합니다. 이 세 오버레이는 드롭다운 표시 방식과 별도로 켜고 끌 수 있습니다.
-
-다음 UI 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v1.sav`에 저장됩니다.
-
-```text
-Monitor / Settings / CaptureExport 패널 위치와 접힘 상태
-LiDAR 표시 방식, 적응형 거리, 깊이 경계, 격자
-Monitor 상세 진단과 Settings 단축키 도움말 펼침 상태
-```
-
-SaveGame이 없거나 손상되었거나 버전이 맞지 않으면 기본 배치와 기본 표시 옵션을 사용합니다. 이 파일은 사용자 로컬 UI 환경이며 저장소에 커밋하지 않습니다.
-
-### Capture & Export 저장 위치
-
-Capture & Export 패널은 작업 결과와 절대 경로, 파일 크기를 최근 8개까지 보여주며 저장 폴더를 Explorer로 열거나 `최근 저장 경로 복사`로 클립보드에 복사할 수 있습니다. 최근 파일이 삭제됐거나 경로가 없으면 복사하지 않고 한글 오류를 표시합니다.
-
-```text
-Server payload       Saved/SensorCaptures/<SensorId>/ServerPayload
-Point cloud          Saved/SensorCaptures/<SensorId>/PointCloud
-Timed camera         Saved/SensorCaptures/LocalTimedCapture/<UTC>/Camera
-Timed LiDAR          Saved/SensorCaptures/LocalTimedCapture/<UTC>/Lidar
-Recorder             Saved/SensorRecordings
-Transport SaveToFile Saved/SensorCaptures/<SensorId>
-```
-
-Point cloud 형식 버튼은 CSV → JSONL → PCD → LAS → LAZ 순으로 전환됩니다. 외부 compressor를 설정하지 않은 LAZ는 기존 정책대로 LAS-compatible source만 생성하고 경고 상태를 표시합니다.
-
-## 4. WBP 확인과 Designer 확장
-
-### 4.1 자동 생성된 Widget Blueprint 확인
-
-1. Content Browser에서 `Content/MA0T10/UI` 폴더를 엽니다.
-2. 세 WBP의 `Class Settings > Parent Class`를 확인합니다.
-
-```text
-WBP_VirtualSensorMonitor       VirtualSensorMonitorWidget
-WBP_VirtualSensorSettings      VirtualSensorSettingsWidget
-WBP_VirtualSensorCaptureExport VirtualSensorCaptureExportWidget
-```
-
-3. 아무 Designer widget도 추가하지 않은 상태에서는 각 부모의 C++ native fallback UI가 자동으로 표시됩니다.
-4. 자체 모니터 디자인을 만들려면 아래 hierarchy와 정확한 변수 이름을 추가한 뒤 Compile/Save합니다. Settings/Capture 패널은 현재 native UI를 기준으로 사용하고, Designer 확장 시에도 parent class와 HostActor binding을 유지합니다.
-
-부모 클래스가 일반 `UserWidget`이면 C++ 자동 바인딩, Manager 연결, payload/preview 상태 갱신 기능을 사용할 수 없습니다.
-
-### 4.2 권장 Designer Hierarchy
-
-다음 구조로 시작하면 기능 확인이 쉽습니다.
-
-```text
-CanvasPanel
-└─ Border
-   └─ VerticalBox
-      ├─ TitleText                         TextBlock
-      ├─ ViewImage                         Image
-      ├─ StatusText                        TextBlock
-      ├─ HorizontalBox_View
-      │  ├─ ToggleButton                   Button
-      │  │  └─ ToggleButtonText            TextBlock
-      │  ├─ NextCameraButton               Button
-      │  ├─ NextLidarButton                Button
-      │  ├─ PointCloudOnlyButton           Button
-      │  └─ LidarViewModeButton            Button
-      │     └─ LidarViewModeButtonText     TextBlock
-```
-
-Monitor에는 보기 기능만 둡니다. 캡처·저장은 `WBP_VirtualSensorCaptureExport`, 센서 값·preview 정책·외부 source 제어는 `WBP_VirtualSensorSettings`가 담당합니다.
-
-권장 크기:
-
-```text
-ViewImage.MinDesiredWidth   640
-ViewImage.MinDesiredHeight  360
-StatusText.AutoWrapText     true
-```
-
-### 4.3 Optional Bindings와 Is Variable
-
-아래 이름은 C++의 `BindWidgetOptional` 이름과 대소문자까지 같아야 합니다. 각 위젯에서 `Is Variable`을 체크합니다.
-
-```text
-ViewImage
-TitleText
-StatusText
-ToggleButton
-ToggleButtonText
-NextCameraButton
-NextLidarButton
-PointCloudOnlyButton
-LidarViewModeButton
-LidarViewModeButtonText
-```
-
-전부 optional이므로 일부가 없어도 크래시가 나면 안 됩니다. 과거 Capture/Preview/RealSource optional binding과 Blueprint 함수는 기존 사용자 WBP 호환성을 위해 C++에 남아 있지만 새 Monitor Designer에는 추가하지 않습니다.
-
-운영용 binary WBP를 Designer에서 수정하기 전후에는 로컬 backup/hash evidence 도구를 사용할 수 있습니다. 두 명령은 asset을 자동 stage하지 않습니다.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\prepare_monitor_wbp_editor_review.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_monitor_wbp_post_edit_hash_report.ps1" -ProjectRoot "C:\Unreal Projects\ma0t10_dt" -SourceRepoRoot "."
-```
-
-### 4.4 버튼 OnClicked Graph를 만들지 않는 이유
-
-정확한 이름의 Button은 `UVirtualSensorMonitorWidget::NativeConstruct()`에서 C++ handler에 자동 연결됩니다.
-
-보기 기능 예:
-
-```text
-PointCloudOnlyButton    -> SensorManager.TogglePointCloudOnlyView
-ToggleButton            -> ToggleView
-NextCameraButton        -> SelectNextCamera
-NextLidarButton         -> SelectNextLidar
-LidarViewModeButton     -> CycleLidarViewMode
-```
-
-Designer의 `OnClicked`에 같은 함수를 다시 연결하면 한 번 클릭할 때 두 번 실행될 수 있습니다. 특별한 추가 동작이 없으면 Button Event Graph는 비워 둡니다.
-
-### 4.5 HostActor 방식 - 권장
-
-1. `SensorTestMap`에 `VirtualSensorMonitorHostActor`를 배치합니다.
-2. `MonitorWidgetClass = WBP_VirtualSensorMonitor`로 지정합니다.
-3. `SensorManager = SensorTest_Manager`로 지정하거나 `bAutoFindSensorManager = true`를 사용합니다.
-4. `bAutoCreateOnBeginPlay`, `bAddToViewport`를 true로 둡니다.
-5. Level Blueprint에는 UI 생성 노드를 추가하지 않습니다.
-
-이 방식은 맵마다 BeginPlay graph를 복사하지 않아도 되고, 생성 순서와 Manager binding을 C++에서 한 곳에서 관리합니다.
-
-### 4.6 Level Blueprint 방식 - HostActor를 쓰지 않을 때
-
-Level Blueprint에 다음 순서로 연결합니다.
-
-```text
-Event BeginPlay
-  -> Get Actor Of Class
-       Actor Class = VirtualSensorManager
-  -> Create Widget
-       Class = WBP_VirtualSensorMonitor
-       Owning Player = Get Player Controller(0)
-  -> BindSensorManager
-       Target = Create Widget Return Value
-       InSensorManager = Get Actor Of Class Return Value
-  -> Add To Viewport
-       Target = Create Widget Return Value
-```
-
-`Create Widget` return value는 `MonitorWidgetRef` 변수로 Promote해 두면 이후 테스트가 쉽습니다.
-
-주의:
-
-- Manager가 있는데도 `BindVirtualCamera`, `BindVirtualLidar`를 따로 호출하지 않습니다.
-- `BindSensorManager`가 선택된 Camera/LiDAR와 real source를 WBP에 전달합니다.
-- HostActor 방식과 Level Blueprint 방식을 동시에 사용하면 Widget이 두 개 생성됩니다.
-- 기존 `TestMap`은 누락된 WBP를 `Create Widget`에서 참조하므로, 복구 전에는 기본 테스트 맵으로 사용하지 않습니다.
-
-### 4.7 상태를 여러 TextBlock으로 나누고 싶을 때
-
-기본 `StatusText` 하나만 사용하면 C++이 자동 갱신합니다. 운영 UI에서 줄을 나누려면 `GetMonitorDisplayData()`를 사용합니다.
-
-반환 타입은 `FVirtualSensorMonitorDisplayData`입니다. 개별 Blueprint pure getter가 필요하면 `GetSelectedSensorIdText`, `GetFrameSummaryText`, `GetServerPayloadSummaryText`, `GetPreviewPolicySummaryText`, `GetSlabAnalysisSummaryText`, `GetLazExportSummaryText`, `GetTransportWarningText`를 사용할 수 있습니다.
-
-Blueprint 예시:
-
-```text
-Event Construct
-  -> Set Timer by Event (Time = 0.25, Looping = true)
-       -> GetMonitorDisplayData
-       -> Break VirtualSensorMonitorDisplayData
-       -> SetText(SelectedSensorTextBlock)
-       -> SetText(FrameTextBlock)
-       -> SetText(ServerPayloadTextBlock)
-       -> SetText(PreviewTextBlock)
-       -> SetText(SlabTextBlock)
-       -> SetText(WarningTextBlock)
-```
-
-매 프레임 복잡한 text binding을 평가하는 것보다 0.25초 timer로 갱신하는 편이 운영 UI에 적합합니다.
-
-## 5. PIE 수동 테스트 순서
-
-### 5.1 시작 확인
-
-1. `SensorTestMap`을 엽니다.
-2. Play 버튼 옆 옵션에서 `Selected Viewport`로 PIE를 시작합니다.
-3. 모니터에 `VCAM-TEST-001` 또는 `LIDAR-TEST-001`이 표시되는지 확인합니다.
-4. Output Log에서 센서 등록 수와 `LogOnly` payload 로그를 확인합니다.
-
-### 5.2 가상 카메라
-
-1. `카메라/LiDAR 전환` 또는 `다음 카메라`를 눌러 Camera view로 전환합니다.
-2. Capture & Export 패널에서 `선택 센서 1회 캡처`를 누릅니다.
-3. `FrameId`, resolution, capture mode, cached payload byte 수가 갱신되는지 확인합니다.
-4. `ViewImage`에 render target 영상이 표시되는지 확인합니다.
-
-### 5.3 가상 LiDAR
-
-1. `카메라/LiDAR 전환` 또는 `다음 LiDAR`를 눌러 LiDAR view로 전환합니다.
-2. Capture & Export 패널에서 `선택 센서 1회 캡처`를 누릅니다.
-3. ray count, hit count, server payload point count, preview point count가 갱신되는지 확인합니다.
-4. Settings의 고급 설정에서 미리보기 점 간격/최대 점 수를 바꾸고 server payload 정책은 유지되는지 확인합니다.
-5. `미리보기에서 검출점만 표시`를 전환해 miss point 포함 여부가 바뀌는지 확인합니다.
-
-### 5.4 위치 조작과 투사 범위
-
-1. Settings에서 Camera 또는 LiDAR를 선택하고 `센서 조작 시작`을 누릅니다.
-2. 이동 기즈모 축을 드래그하고 `W/A/S/D/Q/E`로 세밀하게 이동합니다.
-3. `모드: 회전`으로 전환해 회전 링과 방향키, `Z/C`를 확인합니다.
-4. `좌표: 로컬/월드`를 전환해 축 기준이 바뀌는지 확인합니다.
-5. `선택 센서 투사 범위 표시`를 켜고 Camera frustum 또는 LiDAR 범위가 위치·FOV·거리에 즉시 맞춰지는지 확인합니다.
-6. 잘못된 값을 입력했을 때 Actor가 변하지 않고 `적용 실패` 상태가 한글로 표시되는지 확인합니다.
-
-### 5.5 Point Cloud Only
-
-1. `포인트 클라우드 전용` 버튼을 누릅니다.
-2. 일반 타깃 mesh가 숨겨지고 `KeepInPointCloudOnly` 태그가 있는 Floor는 남는지 확인합니다.
-3. LiDAR point preview는 계속 표시되는지 확인합니다.
-4. hit count가 0으로 떨어지지 않는지 확인합니다. 이 모드는 visibility만 숨기고 collision은 유지해야 합니다.
-5. 버튼을 다시 눌러 원래 visibility가 복원되는지 확인합니다.
-
-### 5.6 Slab 분석
-
-1. 직접 배치한 mesh의 Actor Tag가 `Slab`인지 확인합니다.
-2. LiDAR capture 후 slab point count가 12 이상인지 확인합니다.
-3. estimated yaw, reference yaw, angle deviation, confidence가 Status에 표시되는지 확인합니다.
-4. 해당 mesh의 Yaw를 10도로 바꾸고 다시 capture하여 angle deviation이 변하는지 확인합니다.
-
-### 5.7 Export
-
-`서버 Payload 내보내기`는 현재 선택된 센서의 서버 JSON을 다음 위치에 저장합니다.
-
-```text
-Saved/SensorCaptures/<SensorId>/ServerPayload
-```
-
-`포인트 클라우드 내보내기`는 LiDAR point cloud 파일을 저장합니다. LAZ는 외부 compressor가 연결되지 않으면 실제 압축 LAZ가 아니라 LAS-compatible source 경고 경로입니다.
-
-### 5.8 외부 Sensor Source
-
-현재 Livox/RealSense/ROS2 class는 adapter 또는 placeholder 단계입니다. Settings의 고급 영역에서 외부 source를 시작했을 때 not-implemented 또는 deployment-evidence-pending 상태가 나오는 것은 현재 제한을 정확히 표시하는 동작입니다. 실제 SDK가 연결됐다는 증거로 해석하면 안 됩니다.
-
-## 6. 자동화 테스트
-
-Editor target 빌드 후:
-
-```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "U:\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.EditorSmoke; Quit" -TestExit="Automation Test Queue Empty"
-```
-
-기능별 테스트:
-
-```text
-MA0T10.EditorSmoke       맵 로드와 SensorTestMap 구성
-MA0T10.SensorReplay      CSV/JSONL replay, payload, export
-MA0T10.SensorManager     shared service와 point-cloud-only 정책
-MA0T10.SensorMonitor     Widget status와 payload export
-MA0T10.SensorControl     Transform/설정 검증, panel clamp, map apply queue
-MA0T10.SensorPerformance 자동 단계, FullSpec 규격, 부하 계산, 설정 도움말
-MA0T10.SensorDebug       투사 디버그 광선 예산과 기본값
-MA0T10.SensorExport      저장 경로와 export 결과 계약
-MA0T10.SensorTransport   HTTP loopback/backpressure 계약
-MA0T10.RealSensorSource  placeholder/live JSON source 경로
-```
-
-전체 스크립트:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_smoke_tests.ps1" -SkipBuild
-```
-
-실제 GPU/RHI 성능 보고서:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4
-```
-
-이 스크립트는 `-NullRHI`를 사용하지 않습니다. command-line benchmark sensor는 runtime에서만 만들어지고 맵에 저장되지 않습니다. 결과는 `Saved/Reports/fullspec_<N>c_<N>l.json`과 `.md`에 기록되며 평균 FPS, 보수적인 1% low, 최악 rolling p95, 센서별 완료 Hz·처리 시간·생략 수와 대기 작업 상한을 포함합니다.
-
-HTTP transport 계약의 대표 automation은 `MA0T10.SensorTransport.HttpPostLoopbackAcceptance`입니다.
-
-## 7. 현재 제한과 후속 작업
-
-1. 자동 생성 WBP는 즉시 테스트 가능한 native-backed UI입니다. 운영용 디자인이 필요하면 4장의 hierarchy/변수 이름 규칙에 맞춰 Designer를 꾸미고 1920×1080과 1280×720 PIE로 검수합니다.
-2. 실제 D455 depth calibration/stream이 아니라 SceneCapture preview를 사용합니다.
-3. DTCore의 일부 `USTRUCT` field는 기본 초기화 누락 오류를 출력할 수 있습니다. DTCore 수정은 별도 저장소에서 처리한 후 submodule pin을 명시적으로 갱신해야 합니다.
-4. 실제 Livox, RealSense, ROS2 입력은 SDK/bridge 연결과 장비 기반 acceptance evidence가 별도로 필요합니다.
-5. 실제 LAZ 압축과 고밀도 GPU/Niagara point renderer는 외부 도구 또는 후속 backend 검증이 필요합니다.
+개발용 Broker는 `Tools/Artemis`에서 `docker compose up -d`로 실행합니다. 운영 URL·계정·token은 저장소나 화면 캡처에 포함하지 마세요.

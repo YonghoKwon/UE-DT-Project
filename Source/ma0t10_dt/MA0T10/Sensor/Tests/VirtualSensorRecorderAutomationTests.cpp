@@ -1,17 +1,17 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorRecorderSaveLoadTest, "MA0T10.SensorRecorder.SaveLoadSession", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorRecorderSaveLoadTest::RunTest(const FString& Parameters)
 {
-    UVirtualSensorRecorderComp* RecorderComp = NewObject<UVirtualSensorRecorderComp>();
-    UVirtualSensorRecorderComp* LoadedRecorderComp = NewObject<UVirtualSensorRecorderComp>();
+    UVirtualSensorRecorderComponent* RecorderComp = NewObject<UVirtualSensorRecorderComponent>();
+    UVirtualSensorRecorderComponent* LoadedRecorderComp = NewObject<UVirtualSensorRecorderComponent>();
     TestNotNull(TEXT("recorder component"), RecorderComp);
     TestNotNull(TEXT("loaded recorder component"), LoadedRecorderComp);
     if (!RecorderComp || !LoadedRecorderComp)

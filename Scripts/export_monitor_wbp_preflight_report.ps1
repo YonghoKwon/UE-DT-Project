@@ -79,7 +79,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $decisionReportScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 $acceptanceTemplateScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_template.ps1"
@@ -110,10 +110,10 @@ $worktreeModifiedLines = @($gitLines | Where-Object { $_.Length -ge 2 -and $_.Su
 
 $setupDocPresent = Test-Path -LiteralPath $setupDocPath -PathType Leaf
 $setupTerms = @(
-    "WBP_VirtualSensorMonitor",
+    "WBP_VirtualSensorMonitorPanel",
     "Optional Bindings",
     "BindSensorManager",
-    "AVirtualSensorMonitorHostActor",
+    "AVirtualSensorUiHostActor",
     "ExportServerPayloadButton",
     "PreviewHitOnlyButton",
     "StatusText"
@@ -168,9 +168,9 @@ $readyForManualEditorReview = ($blockedCount -eq 0 -and $wbpPresent -and $staged
 
 $recommendedManualCommands = @(
     "Open Unreal Editor 5.3 with C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject.",
-    "Open Content/MA0T10/UI/WBP_VirtualSensorMonitor and compile/save only if the project owner accepts the asset update.",
+    "Open Content/MA0T10/UI/WBP_VirtualSensorMonitorPanel and compile/save only if the project owner accepts the asset update.",
     "Compare optional bindings against docs/sensor_test_map_setup.ko.md.",
-    "Run PIE in the intended map with AVirtualSensorMonitorHostActor or Level Blueprint binding.",
+    "Run PIE in the intended map with AVirtualSensorUiHostActor or Level Blueprint binding.",
     "Fill Scripts/export_monitor_wbp_acceptance_template.ps1 output with editor-open, binding, PIE, and owner acceptance evidence before staging the WBP."
 )
 

@@ -16,6 +16,7 @@ import unreal
 
 CONTENT_ROOT = "/Game/MA0T10"
 MAP_PATH = CONTENT_ROOT + "/Maps/SensorTestMap"
+DELETE_LEGACY_WIDGET_ASSETS = True
 MANAGED_TAG = unreal.Name("SensorTestManaged")
 LEVEL_SUBSYSTEM = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 ACTOR_SUBSYSTEM = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -126,21 +127,33 @@ def _ensure_widget_class(asset_name, parent_class_path, content_root=CONTENT_ROO
 def _ensure_widget_classes(content_root=CONTENT_ROOT):
     return {
         "monitor": _ensure_widget_class(
-            "WBP_VirtualSensorMonitor",
-            "/Script/ma0t10_dt.VirtualSensorMonitorWidget",
+            "WBP_VirtualSensorMonitorPanel",
+            "/Script/ma0t10_dt.VirtualSensorMonitorPanelWidget",
             content_root,
         ),
         "settings": _ensure_widget_class(
-            "WBP_VirtualSensorSettings",
-            "/Script/ma0t10_dt.VirtualSensorSettingsWidget",
+            "WBP_VirtualSensorSettingsPanel",
+            "/Script/ma0t10_dt.VirtualSensorSettingsPanelWidget",
             content_root,
         ),
         "capture_export": _ensure_widget_class(
-            "WBP_VirtualSensorCaptureExport",
-            "/Script/ma0t10_dt.VirtualSensorCaptureExportWidget",
+            "WBP_VirtualSensorCaptureExportPanel",
+            "/Script/ma0t10_dt.VirtualSensorCaptureExportPanelWidget",
             content_root,
         ),
     }
+
+
+def _delete_legacy_widget_assets(content_root=CONTENT_ROOT):
+    for asset_name in (
+        "WBP_VirtualSensorMonitor",
+        "WBP_VirtualSensorSettings",
+        "WBP_VirtualSensorCaptureExport",
+    ):
+        asset_path = content_root + "/UI/" + asset_name
+        if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+            if not unreal.EditorAssetLibrary.delete_asset(asset_path):
+                unreal.log_warning("Unable to delete legacy widget asset: " + asset_path)
 
 
 def _prepare_level():
@@ -154,10 +167,11 @@ def _prepare_level():
 
 
 def _build_sensor_rig(widget_classes):
-    manager_class = _load_class("/Script/ma0t10_dt.VirtualSensorManager")
-    lidar_actor_class = _load_class("/Script/ma0t10_dt.VirtualSensorAct")
-    camera_actor_class = _load_class("/Script/ma0t10_dt.VirtualCameraAct")
-    host_actor_class = _load_class("/Script/ma0t10_dt.VirtualSensorMonitorHostActor")
+    manager_class = _load_class("/Script/ma0t10_dt.VirtualSensorCoordinator")
+    lidar_actor_class = _load_class("/Script/ma0t10_dt.VirtualLidarSensorActor")
+    camera_actor_class = _load_class("/Script/ma0t10_dt.VirtualCameraSensorActor")
+    host_actor_class = _load_class("/Script/ma0t10_dt.VirtualSensorUiHostActor")
+    external_source_host_class = _load_class("/Script/ma0t10_dt.VirtualSensorExternalSourceHostActor")
 
     manager = _spawn(
         manager_class,
@@ -180,7 +194,7 @@ def _build_sensor_rig(widget_classes):
         "tags", [MANAGED_TAG, unreal.Name("SensorTestPersistent_PrimaryLidar")]
     )
     lidar = lidar_actor.get_component_by_class(
-        _load_class("/Script/ma0t10_dt.VirtualLidarSensorComp")
+        _load_class("/Script/ma0t10_dt.VirtualLidarScanComponent")
     )
     _set_property(lidar, "SensorId", "LIDAR-TEST-001")
     _set_property(lidar, "bAutoStartScan", True)
@@ -199,6 +213,9 @@ def _build_sensor_rig(widget_classes):
     _set_property(lidar, "bIncludeMissPointsInServerPayload", False)
     _set_property(lidar, "PreviewPointStride", 2)
     _set_property(lidar, "MaxPreviewPoints", 3000)
+    # SensorTestMap is an immediately runnable feature map, so the spatial
+    # point-cloud preview must be visible without first entering a special view.
+    _set_property(lidar, "bPointCloudPreviewEnabled", True)
     _set_property(lidar, "bPointCloudPreviewHitOnly", True)
     _set_property(lidar, "bExportCsvOnScan", False)
     _set_property(lidar, "bExportJsonLinesOnScan", False)
@@ -218,7 +235,7 @@ def _build_sensor_rig(widget_classes):
         "tags", [MANAGED_TAG, unreal.Name("SensorTestPersistent_PrimaryCamera")]
     )
     camera = camera_actor.get_component_by_class(
-        _load_class("/Script/ma0t10_dt.VirtualCameraComp")
+        _load_class("/Script/ma0t10_dt.VirtualCameraCaptureComponent")
     )
     _set_property(camera, "SensorId", "VCAM-TEST-001")
     _set_property(camera, "bAutoStartCapture", True)
@@ -241,7 +258,7 @@ def _build_sensor_rig(widget_classes):
     _set_property(host, "SensorManager", manager)
     _set_property(host, "bAutoCreateOnBeginPlay", True)
     _set_property(host, "bAutoFindSensorManager", True)
-    _set_property(host, "bAddToViewport", True)
+    _set_property(host, "bAllowViewportFallback", True)
     _set_property(host, "bShowLidarViewOnStart", False)
     _set_property(host, "bEnablePointCloudOnlyOnStart", False)
     _set_property(host, "ViewportZOrder", 10)
@@ -249,6 +266,14 @@ def _build_sensor_rig(widget_classes):
     _set_property(host, "CaptureExportViewportZOrder", 30)
     _set_property(host, "bConfigurePlayerInputOnCreate", True)
     _set_property(host, "bShowMouseCursorOnCreate", True)
+    _set_property(host, "bHideScreenDebugLogOnBeginPlay", "/Tests/" in MAP_PATH)
+
+    if "/Tests/" in MAP_PATH:
+        _spawn(
+            external_source_host_class,
+            "SensorTest_ExternalSources",
+            unreal.Vector(-150.0, 0.0, 80.0),
+        )
 
 
 def _build_test_scene():
@@ -379,7 +404,10 @@ def main():
     _build_test_scene()
     if not LEVEL_SUBSYSTEM.save_current_level():
         raise RuntimeError("Unable to save {}".format(MAP_PATH))
+    if DELETE_LEGACY_WIDGET_ASSETS:
+        _delete_legacy_widget_assets()
     unreal.log("Sensor test map created: {}".format(MAP_PATH))
 
 
-main()
+if __name__ == "__main__":
+    main()

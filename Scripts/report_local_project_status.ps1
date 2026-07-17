@@ -711,7 +711,7 @@ try {
 
     $pathsToCheck = @(
         [PSCustomObject]@{
-            Path = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+            Path = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
             Category = "ReviewCandidate"
             Recommendation = "Open in editor and commit only if this is the intended production monitor WBP."
             DecisionOwner = "ProjectOwnerRequired"
@@ -719,7 +719,7 @@ try {
             EvidenceNeeded = @("Editor open verification", "Optional binding check", "PIE smoke result", "Production WBP acceptance")
         },
         [PSCustomObject]@{
-            Path = "Content\MA0T10\UI\WBP_VirtualSensorSettings.uasset"
+            Path = "Content\MA0T10\UI\WBP_VirtualSensorSettingsPanel.uasset"
             Category = "ReviewCandidate"
             Recommendation = "Verify the native parent and runtime settings panel in PIE before committing the generated WBP."
             DecisionOwner = "ProjectOwnerRequired"
@@ -727,7 +727,7 @@ try {
             EvidenceNeeded = @("Editor open verification", "Native parent check", "PIE settings smoke result", "Generated WBP acceptance")
         },
         [PSCustomObject]@{
-            Path = "Content\MA0T10\UI\WBP_VirtualSensorCaptureExport.uasset"
+            Path = "Content\MA0T10\UI\WBP_VirtualSensorCaptureExportPanel.uasset"
             Category = "ReviewCandidate"
             Recommendation = "Verify the native parent and capture/export panel in PIE before committing the generated WBP."
             DecisionOwner = "ProjectOwnerRequired"

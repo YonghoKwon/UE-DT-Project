@@ -126,7 +126,7 @@ function New-MissingEvidenceAction {
     $blockingStage = "Acceptance validation"
     if ($name -match "Editor|EditorOpenEvidence") {
         $target = "RequiredEvidence.Editor open verification"
-        $action = "Open WBP_VirtualSensorMonitor in Unreal Editor, compile it, and attach editor log or screenshot evidence plus post-edit hash report."
+        $action = "Open WBP_VirtualSensorMonitorPanel in Unreal Editor, compile it, and attach editor log or screenshot evidence plus post-edit hash report."
         $phase = "Unreal Editor review"
         $blockingStage = "Manual WBP acceptance"
     }
@@ -210,9 +210,9 @@ function New-MissingEvidenceAction {
 function Get-MonitorOptionalBindingNames {
     param([string]$SourceRepoRoot)
 
-    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
+    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h"
     if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
-        throw "VirtualSensorMonitorWidget.h not found: $headerPath"
+        throw "VirtualSensorMonitorPanelWidget.h not found: $headerPath"
     }
 
     $lines = Get-Content -LiteralPath $headerPath
@@ -253,7 +253,7 @@ if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
     $EvidencePath = Join-Path $SourceRepoRoot "docs\local_asset_decisions.evidence.json"
 }
 
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $decisionScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"

@@ -8,8 +8,8 @@
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "Widgets/SWidget.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 
 namespace
 {
@@ -484,13 +484,13 @@ void AVirtualSensorTransformGizmoActor::DrawGizmo() const
 void AVirtualSensorTransformGizmoActor::DrawProjectionDebug() const
 {
     if (!bProjectionDebugEnabled || !TargetActor || !GetWorld()) return;
-    if (TargetActor->FindComponentByClass<UVirtualCameraComp>()) DrawCameraProjectionDebug();
-    else if (TargetActor->FindComponentByClass<UVirtualLidarSensorComp>()) DrawLidarProjectionDebug();
+    if (TargetActor->FindComponentByClass<UVirtualCameraCaptureComponent>()) DrawCameraProjectionDebug();
+    else if (TargetActor->FindComponentByClass<UVirtualLidarScanComponent>()) DrawLidarProjectionDebug();
 }
 
 void AVirtualSensorTransformGizmoActor::DrawCameraProjectionDebug() const
 {
-    const UVirtualCameraComp* Camera = TargetActor ? TargetActor->FindComponentByClass<UVirtualCameraComp>() : nullptr;
+    const UVirtualCameraCaptureComponent* Camera = TargetActor ? TargetActor->FindComponentByClass<UVirtualCameraCaptureComponent>() : nullptr;
     if (!Camera) return;
     const FTransform Transform = Camera->GetComponentTransform();
     const FVector Origin = Transform.GetLocation();
@@ -528,7 +528,7 @@ void AVirtualSensorTransformGizmoActor::DrawCameraProjectionDebug() const
 
 void AVirtualSensorTransformGizmoActor::DrawLidarProjectionDebug() const
 {
-    const UVirtualLidarSensorComp* Lidar = TargetActor ? TargetActor->FindComponentByClass<UVirtualLidarSensorComp>() : nullptr;
+    const UVirtualLidarScanComponent* Lidar = TargetActor ? TargetActor->FindComponentByClass<UVirtualLidarScanComponent>() : nullptr;
     if (!Lidar) return;
     const FTransform Transform = Lidar->GetComponentTransform();
     const FVector Origin = Transform.GetLocation();

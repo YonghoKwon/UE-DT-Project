@@ -1,0 +1,21 @@
+services:
+  artemis:
+    image: apache/artemis:2.55.0-alpine
+    container_name: ma0t10-artemis
+    restart: unless-stopped
+    environment:
+      ARTEMIS_USER: artemis
+      ARTEMIS_PASSWORD: artemis
+      ANONYMOUS_LOGIN: "false"
+    ports:
+      - "61616:61616"
+      - "8161:8161"
+    volumes:
+      - ./etc-override:/var/lib/artemis-instance/etc-override:ro
+      # Persist the complete broker instance. Mounting only the data directory
+      # hides the image-created journal hierarchy on a fresh volume and causes
+      # Artemis to restart with a missing server.lock parent directory.
+      - artemis-instance:/var/lib/artemis-instance
+
+volumes:
+  artemis-instance:

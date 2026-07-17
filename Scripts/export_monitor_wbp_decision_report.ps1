@@ -62,7 +62,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
     throw "SourceRepoRoot not found: $SourceRepoRoot"
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $setupDocPath = Join-Path $SourceRepoRoot "docs\sensor_test_map_setup.ko.md"
 $assetReportScript = Join-Path $SourceRepoRoot "Scripts\report_local_project_status.ps1"
@@ -92,10 +92,10 @@ elseif (@($gitStatusLines | Where-Object { $_.Length -ge 2 -and $_.Substring(1, 
 
 $setupDocPresent = Test-Path -LiteralPath $setupDocPath -PathType Leaf
 $requiredSetupTerms = @(
-    "WBP_VirtualSensorMonitor",
+    "WBP_VirtualSensorMonitorPanel",
     "Optional Bindings",
     "BindSensorManager",
-    "AVirtualSensorMonitorHostActor",
+    "AVirtualSensorUiHostActor",
     "GetMonitorStatusText",
     "MA0T10.SensorMonitor.LidarStatusTextContract"
 )
@@ -129,7 +129,7 @@ if ($wbpItem -and -not $wbpDecisionPoint) {
 
 $recommendedDecision = "NotPresent"
 $riskLevel = "None"
-$recommendation = "WBP_VirtualSensorMonitor.uasset is not present in the local project."
+$recommendation = "WBP_VirtualSensorMonitorPanel.uasset is not present in the local project."
 if ($wbpItem) {
     $recommendedDecision = "PendingOwnerDecision"
     $riskLevel = "Medium"
@@ -141,7 +141,7 @@ $manualAcceptanceChecklist = @(
         Name = "Editor open verification"
         Required = $true
         Status = if ($wbpDecisionPoint -and @($wbpDecisionPoint.MissingEvidence) -notcontains "Editor open verification") { "Recorded" } else { "Missing" }
-        EvidenceNeeded = "Open WBP_VirtualSensorMonitor in Unreal Editor and verify it loads and compiles without errors."
+        EvidenceNeeded = "Open WBP_VirtualSensorMonitorPanel in Unreal Editor and verify it loads and compiles without errors."
     },
     [PSCustomObject]@{
         Name = "Optional binding check"
@@ -172,9 +172,9 @@ $evidenceDraft = [PSCustomObject]@{
     EvidenceSource = "Scripts/export_monitor_wbp_decision_report.ps1"
     Notes = $recommendation
     Evidence = @(
-        [PSCustomObject]@{ Name = "Editor open verification"; Status = "Pending"; Source = ""; Note = "Open WBP_VirtualSensorMonitor in Unreal Editor and verify it loads without compile errors." },
+        [PSCustomObject]@{ Name = "Editor open verification"; Status = "Pending"; Source = ""; Note = "Open WBP_VirtualSensorMonitorPanel in Unreal Editor and verify it loads without compile errors." },
         [PSCustomObject]@{ Name = "Optional binding check"; Status = if ($setupDocPresent -and $missingSetupTerms.Count -eq 0) { "Pending" } else { "Blocked" }; Source = ""; Note = "Check named widgets against docs/sensor_test_map_setup.ko.md optional binding list." },
-        [PSCustomObject]@{ Name = "PIE smoke result"; Status = "Pending"; Source = ""; Note = "Run PIE in intended map with AVirtualSensorMonitorHostActor or Level Blueprint binding." },
+        [PSCustomObject]@{ Name = "PIE smoke result"; Status = "Pending"; Source = ""; Note = "Run PIE in intended map with AVirtualSensorUiHostActor or Level Blueprint binding." },
         [PSCustomObject]@{ Name = "Production WBP acceptance"; Status = "Pending"; Source = ""; Note = "Project owner confirms this binary asset is the production operator monitor widget." }
     )
 }

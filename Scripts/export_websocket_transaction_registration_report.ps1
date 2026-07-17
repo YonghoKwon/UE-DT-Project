@@ -173,7 +173,7 @@ $report = [PSCustomObject]@{
         [PSCustomObject]@{ Order = 1; Text = "Open `/Game/MA0T10/Common/DataTables/DT_TransactionCode` in Unreal Editor." },
         [PSCustomObject]@{ Order = 2; Text = "Add or confirm a row named `LIDAR_JSON_LIVE_FRAME`." },
         [PSCustomObject]@{ Order = 3; Text = "Set `TransactionCodeName` to `LIDAR_JSON_LIVE_FRAME` and `TransactionCodeMessageClass` to `/Script/ma0t10_dt.LidarJsonLiveFrameTC`." },
-        [PSCustomObject]@{ Order = 4; Text = "Place a `ULidarJsonLiveSourceComp` with `SourceId = JsonLiveLidarBridge` and a target `UVirtualLidarSensorComp`." },
+        [PSCustomObject]@{ Order = 4; Text = "Place a `ULidarJsonLiveSourceComponent` with `SourceId = JsonLiveLidarBridge` and a target `UVirtualLidarScanComponent`." },
         [PSCustomObject]@{ Order = 5; Text = "Send `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment WebSocket broker in PIE." },
         [PSCustomObject]@{ Order = 6; Text = "Confirm source frame/point counts, target LiDAR cached server payload, and optional transport result." }
     )

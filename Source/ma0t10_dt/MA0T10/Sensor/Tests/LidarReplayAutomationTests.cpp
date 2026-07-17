@@ -1,4 +1,4 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Json.h"
 #include "HAL/FileManager.h"
@@ -7,10 +7,10 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
-#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLinesReplaySourceComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLinesReplaySourceComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarCsvReplayLoadTest, "MA0T10.SensorReplay.CsvLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarJsonLinesReplayLoadTest, "MA0T10.SensorReplay.JsonLinesLoadSample", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -27,7 +27,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarLazExternalCompressorFakeWritesOutputTest
 
 bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     ReplayComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
     ReplayComp->ReplaySemanticLabel = TEXT("Slab");
@@ -51,7 +51,7 @@ bool FLidarCsvReplayLoadTest::RunTest(const FString& Parameters)
 
 bool FLidarJsonLinesReplayLoadTest::RunTest(const FString& Parameters)
 {
-    ULidarJsonLinesReplaySourceComp* ReplayComp = NewObject<ULidarJsonLinesReplaySourceComp>();
+    ULidarJsonLinesReplaySourceComponent* ReplayComp = NewObject<ULidarJsonLinesReplaySourceComponent>();
     TestNotNull(TEXT("JSONL replay component"), ReplayComp);
     ReplayComp->JsonLinesFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.jsonl"));
 
@@ -70,8 +70,8 @@ bool FLidarJsonLinesReplayLoadTest::RunTest(const FString& Parameters)
 
 bool FLidarReplayInjectFrameTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
 
@@ -104,8 +104,8 @@ bool FLidarReplayInjectFrameTest::RunTest(const FString& Parameters)
 
 bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
 
@@ -195,7 +195,7 @@ bool FLidarReplayPayloadPolicyJsonTest::RunTest(const FString& Parameters)
 
 bool FLidarPayloadPreviewPolicyBoundaryTest::RunTest(const FString& Parameters)
 {
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!LidarComp)
     {
@@ -253,8 +253,8 @@ bool FLidarPayloadPreviewPolicyBoundaryTest::RunTest(const FString& Parameters)
 
 bool FLidarJsonByteFingerprintTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!ReplayComp || !LidarComp)
@@ -304,7 +304,7 @@ bool FLidarJsonByteFingerprintTest::RunTest(const FString& Parameters)
 
 bool FLidarReplayPayloadGridCoordTest::RunTest(const FString& Parameters)
 {
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!LidarComp)
     {
@@ -380,9 +380,9 @@ bool FLidarReplayPayloadGridCoordTest::RunTest(const FString& Parameters)
 
 bool FLidarReplayTransportSaveToFileTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
-    UVirtualSensorDataTransportComp* TransportComp = NewObject<UVirtualSensorDataTransportComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
+    UVirtualSensorTransportComponent* TransportComp = NewObject<UVirtualSensorTransportComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     TestNotNull(TEXT("transport component"), TransportComp);
@@ -442,8 +442,8 @@ bool FLidarReplayTransportSaveToFileTest::RunTest(const FString& Parameters)
 
 bool FLidarReplayPerformanceWarningTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!ReplayComp || !LidarComp)
@@ -493,8 +493,8 @@ bool FLidarReplayPerformanceWarningTest::RunTest(const FString& Parameters)
 
 bool FLidarLazPlaceholderExportTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!ReplayComp || !LidarComp)
@@ -558,8 +558,8 @@ bool FLidarLazPlaceholderExportTest::RunTest(const FString& Parameters)
 
 bool FLidarLazExternalCompressorMissingTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!ReplayComp || !LidarComp)
@@ -626,8 +626,8 @@ bool FLidarLazExternalCompressorMissingTest::RunTest(const FString& Parameters)
 
 bool FLidarLazExternalCompressorFakeWritesOutputTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
-    UVirtualLidarSensorComp* LidarComp = NewObject<UVirtualLidarSensorComp>();
+    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
+    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     if (!ReplayComp || !LidarComp)

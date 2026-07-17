@@ -1,10 +1,10 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPerformanceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsWidget.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceTierTest, "MA0T10.SensorPerformance.AutomaticTier", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceFullSpecContractTest, "MA0T10.SensorPerformance.FullSpecContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -13,21 +13,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorSettingHelpCoverageTest, "MA0T10.
 
 bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
 {
-    TestEqual(TEXT("2 cameras and 2 lidars use the 60 FPS tier"), UVirtualSensorPerformanceSubsystem::ResolveTargetFps(2, 2), 60);
-    TestEqual(TEXT("3 cameras move to the 30 FPS tier"), UVirtualSensorPerformanceSubsystem::ResolveTargetFps(3, 2), 30);
-    TestEqual(TEXT("4 cameras and 4 lidars remain supported at 30 FPS"), UVirtualSensorPerformanceSubsystem::ResolveTargetFps(4, 4), 30);
-    TestEqual(TEXT("60 FPS tier uses a four millisecond lidar budget"), UVirtualSensorPerformanceSubsystem::ResolveLidarBudgetMs(60), 4.0f);
-    TestEqual(TEXT("30 FPS tier uses an eight millisecond lidar budget"), UVirtualSensorPerformanceSubsystem::ResolveLidarBudgetMs(30), 8.0f);
-    TestFalse(TEXT("four of each sensor is not best effort"), UVirtualSensorPerformanceSubsystem::IsBestEffortConfiguration(4, 4));
-    TestTrue(TEXT("five cameras is best effort"), UVirtualSensorPerformanceSubsystem::IsBestEffortConfiguration(5, 2));
-    TestTrue(TEXT("five lidars is best effort"), UVirtualSensorPerformanceSubsystem::IsBestEffortConfiguration(2, 5));
+    TestEqual(TEXT("2 cameras and 2 lidars use the 60 FPS tier"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(2, 2), 60);
+    TestEqual(TEXT("3 cameras move to the 30 FPS tier"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(3, 2), 30);
+    TestEqual(TEXT("4 cameras and 4 lidars remain supported at 30 FPS"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(4, 4), 30);
+    TestEqual(TEXT("60 FPS tier keeps the anti-starvation lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(60), 5.0f);
+    TestEqual(TEXT("30 FPS tier uses a seven millisecond lidar budget"), UVirtualSensorSchedulerSubsystem::ResolveLidarBudgetMs(30), 7.0f);
+    TestFalse(TEXT("four of each sensor is not best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(4, 4));
+    TestTrue(TEXT("five cameras is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(5, 2));
+    TestTrue(TEXT("five lidars is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(2, 5));
+    TestEqual(TEXT("two cameras share the aggregate 12 Hz admission cap"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 2), 6.0f);
+    TestEqual(TEXT("four cameras share the aggregate 12 Hz admission cap"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(30, 4), 3.0f);
+    TestEqual(TEXT("camera admission calculation is safe with no cameras"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 0), 0.0f);
+    TestTrue(TEXT("slow frames reduce camera admission"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(12.0f, 25.0f, 60) < 12.0f);
+    TestTrue(TEXT("fast frames recover camera admission gradually"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(10.0f, 10.0f, 60) > 10.0f);
+    TestEqual(TEXT("60 FPS camera admission has a smoothness floor"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(4.0f, 40.0f, 60), 4.0f);
+    TestEqual(TEXT("mixed FullSpec tier can reduce stale camera work further"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(4.0f, 40.0f, 60, 4.0f), 4.0f);
     return true;
 }
 
 bool FVirtualSensorPerformanceFullSpecContractTest::RunTest(const FString& Parameters)
 {
-    UVirtualCameraComp* Camera = NewObject<UVirtualCameraComp>();
-    UVirtualLidarSensorComp* Lidar = NewObject<UVirtualLidarSensorComp>();
+    UVirtualCameraCaptureComponent* Camera = NewObject<UVirtualCameraCaptureComponent>();
+    UVirtualLidarScanComponent* Lidar = NewObject<UVirtualLidarScanComponent>();
     Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
     Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 
@@ -48,20 +55,20 @@ bool FVirtualSensorPerformanceLoadCalculationTest::RunTest(const FString& Parame
     State.LidarHorizontalSamples = 360;
     State.LidarVerticalChannels = 60;
     State.LidarScanInterval = 0.1f;
-    const double CameraMpPerSecond = UVirtualSensorSettingsWidget::CalculateCameraMegaPixelsPerSecond(State);
-    const double LidarRaysPerSecond = UVirtualSensorSettingsWidget::CalculateLidarRaysPerSecond(State);
+    const double CameraMpPerSecond = UVirtualSensorSettingsPanelWidget::CalculateCameraMegaPixelsPerSecond(State);
+    const double LidarRaysPerSecond = UVirtualSensorSettingsPanelWidget::CalculateLidarRaysPerSecond(State);
     TestTrue(TEXT("camera MP/s is calculated from pixels and interval"), FMath::IsNearlyEqual(CameraMpPerSecond, 27.648, 0.001));
     TestTrue(TEXT("lidar rays/s is calculated from samples, channels, and interval"), FMath::IsNearlyEqual(LidarRaysPerSecond, 216000.0, 0.1));
     State.CameraCaptureInterval = 0.0f;
     State.LidarScanInterval = 0.0f;
-    TestEqual(TEXT("zero camera interval is safe"), UVirtualSensorSettingsWidget::CalculateCameraMegaPixelsPerSecond(State), 0.0);
-    TestEqual(TEXT("zero lidar interval is safe"), UVirtualSensorSettingsWidget::CalculateLidarRaysPerSecond(State), 0.0);
+    TestEqual(TEXT("zero camera interval is safe"), UVirtualSensorSettingsPanelWidget::CalculateCameraMegaPixelsPerSecond(State), 0.0);
+    TestEqual(TEXT("zero lidar interval is safe"), UVirtualSensorSettingsPanelWidget::CalculateLidarRaysPerSecond(State), 0.0);
     return true;
 }
 
 bool FVirtualSensorSettingHelpCoverageTest::RunTest(const FString& Parameters)
 {
-    UVirtualSensorSettingsWidget* Widget = NewObject<UVirtualSensorSettingsWidget>();
+    UVirtualSensorSettingsPanelWidget* Widget = NewObject<UVirtualSensorSettingsPanelWidget>();
     const TArray<FVirtualSensorSettingHelpDescriptor> Descriptors = Widget->GetAllSettingHelpDescriptors();
     TSet<FName> Keys;
     for (const FVirtualSensorSettingHelpDescriptor& Descriptor : Descriptors)

@@ -1,4 +1,4 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "HttpModule.h"
 #include "HttpManager.h"
@@ -13,9 +13,35 @@
 #include "Misc/Guid.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorTransportHttpPostLoopbackTest, "MA0T10.SensorTransport.HttpPostLoopbackAcceptance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorTransportProfileTest, "MA0T10.SensorTransport.ArtemisProfileAndMessageLimit", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorTransportProfileTest::RunTest(const FString& Parameters)
+{
+	UVirtualSensorTransportComponent* Transport = NewObject<UVirtualSensorTransportComponent>();
+	FVirtualSensorTransportProfile Profile;
+	Profile.BrokerUrl = TEXT("ws://127.0.0.1:61616");
+	Profile.LidarTopic = TEXT("topic.virtual.sensor.lidar.0");
+	Profile.MaxMessageBytes = 16;
+	Transport->ConfigureTransportProfile(Profile);
+	TestEqual(TEXT("message limit clamps to safe minimum"), Transport->GetTransportProfile().MaxMessageBytes, 1024);
+	Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
+	FString Oversized;
+	Oversized.Reserve(2048);
+	for (int32 Index = 0; Index < 2048; ++Index) Oversized.AppendChar(TEXT('x'));
+	const FVirtualSensorTransportResult Result = Transport->SendJsonRequest(TEXT("LIDAR-TEST"), TEXT("lidar"), TEXT("manual-payload"), 1, Oversized, true);
+	TestFalse(TEXT("oversized STOMP message is not submitted"), Result.bSubmitted);
+	TestTrue(TEXT("oversized STOMP message reports limit"), Result.Message.Contains(TEXT("제한")));
+	TestEqual(TEXT("LiDAR topic is selected"), Result.Destination, Profile.LidarTopic);
+	TArray<uint8> OversizedBinary;
+	OversizedBinary.Init(0x7f, 2048);
+	const FVirtualSensorTransportResult BinaryResult = Transport->SendBinary(TEXT("LIDAR-TEST"), TEXT("lidar"), TEXT(".pcd"), OversizedBinary);
+	TestFalse(TEXT("oversized binary STOMP envelope is not submitted"), BinaryResult.bSubmitted);
+	TestTrue(TEXT("oversized binary STOMP envelope reports limit"), BinaryResult.Message.Contains(TEXT("제한")));
+	return true;
+}
 
 namespace
 {
@@ -272,7 +298,7 @@ private:
 
         FHttpServerModule::Get().StartAllListeners();
 
-        Transport = NewObject<UVirtualSensorDataTransportComp>();
+        Transport = NewObject<UVirtualSensorTransportComponent>();
         Test->TestNotNull(TEXT("transport component"), Transport.Get());
         if (!Transport.IsValid())
         {
@@ -377,7 +403,7 @@ private:
     FString ExhaustPayload;
     TSharedPtr<IHttpRouter> Router;
     FHttpRouteHandle RouteHandle;
-    TWeakObjectPtr<UVirtualSensorDataTransportComp> Transport;
+    TWeakObjectPtr<UVirtualSensorTransportComponent> Transport;
 };
 
 bool FVirtualSensorTransportHttpPostLoopbackTest::RunTest(const FString& Parameters)

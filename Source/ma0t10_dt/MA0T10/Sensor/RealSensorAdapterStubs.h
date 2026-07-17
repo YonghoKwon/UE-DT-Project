@@ -1,16 +1,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RealSensorSourceComp.h"
+#include "RealSensorSourceComponent.h"
 #include "RealSensorAdapterStubs.generated.h"
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class MA0T10_DT_API URos2SensorBridgeSourceComp : public URealSensorSourceComp
+class MA0T10_DT_API URos2SensorBridgeSourceComponent : public URealSensorSourceComponent
 {
     GENERATED_BODY()
 
 public:
-    URos2SensorBridgeSourceComp();
+    URos2SensorBridgeSourceComponent();
 
     virtual bool StartSource() override;
     virtual bool PushFrameOnce(bool bSendTransport = true) override;
@@ -23,12 +23,12 @@ public:
 };
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class MA0T10_DT_API ULivoxLidarSourceComp : public URealSensorSourceComp
+class MA0T10_DT_API ULivoxLidarSourceComponent : public URealSensorSourceComponent
 {
     GENERATED_BODY()
 
 public:
-    ULivoxLidarSourceComp();
+    ULivoxLidarSourceComponent();
 
     virtual bool StartSource() override;
     virtual bool PushFrameOnce(bool bSendTransport = true) override;
@@ -41,12 +41,12 @@ public:
 };
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
-class MA0T10_DT_API URealSenseCameraSourceComp : public URealSensorSourceComp
+class MA0T10_DT_API URealSenseCameraSourceComponent : public URealSensorSourceComponent
 {
     GENERATED_BODY()
 
 public:
-    URealSenseCameraSourceComp();
+    URealSenseCameraSourceComponent();
 
     virtual bool StartSource() override;
     virtual bool PushFrameOnce(bool bSendTransport = true) override;

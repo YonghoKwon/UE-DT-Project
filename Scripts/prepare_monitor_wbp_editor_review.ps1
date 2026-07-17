@@ -69,7 +69,7 @@ if ([string]::IsNullOrWhiteSpace($BackupRoot)) {
 New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
 $BackupRoot = (Resolve-Path -LiteralPath $BackupRoot).Path
 
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 $preflightScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_preflight_report.ps1"
 $acceptancePackageScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_acceptance_package.ps1"
@@ -91,7 +91,7 @@ if (-not $assetPresent) {
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $assetHash = (Get-FileHash -LiteralPath $wbpPath -Algorithm SHA256).Hash
-$backupPath = Join-Path $BackupRoot ("WBP_VirtualSensorMonitor.{0}.{1}.uasset" -f $timestamp, $assetHash.Substring(0, 12))
+$backupPath = Join-Path $BackupRoot ("WBP_VirtualSensorMonitorPanel.{0}.{1}.uasset" -f $timestamp, $assetHash.Substring(0, 12))
 $backupHash = ""
 $backupCreated = $false
 
@@ -177,7 +177,7 @@ $report = [PSCustomObject]@{
         StagesFiles = $false
         StagesWbp = $false
         WritesSavedOnly = $true
-        Boundary = "This script prepares backup and review evidence under Saved only. It does not edit, accept, or stage WBP_VirtualSensorMonitor.uasset."
+        Boundary = "This script prepares backup and review evidence under Saved only. It does not edit, accept, or stage WBP_VirtualSensorMonitorPanel.uasset."
         Valid = ($backupCreated -and $backupHash -eq $assetHash -and [bool]$acceptancePackage.Summary.PackageCreated)
     }
 }

@@ -1,10 +1,10 @@
-﻿#include "LidarJsonLiveFrameTC.h"
+#include "LidarJsonLiveFrameTC.h"
 
 #include "Async/Async.h"
 #include "Json.h"
 #include "Engine/World.h"
 #include "UObject/UObjectIterator.h"
-#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLiveSourceComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLiveSourceComponent.h"
 
 namespace
 {
@@ -124,19 +124,19 @@ FString BuildJsonLinesFromPayloadObject(const TSharedPtr<FJsonObject>& PayloadOb
     return JsonLines;
 }
 
-ULidarJsonLiveSourceComp* FindJsonLiveSource(UWorld* World, const FString& SourceId)
+ULidarJsonLiveSourceComponent* FindJsonLiveSource(UWorld* World, const FString& SourceId)
 {
     if (!World)
     {
         return nullptr;
     }
 
-    ULidarJsonLiveSourceComp* SingleFallbackSource = nullptr;
+    ULidarJsonLiveSourceComponent* SingleFallbackSource = nullptr;
     int32 FallbackSourceCount = 0;
 
-    for (TObjectIterator<ULidarJsonLiveSourceComp> It; It; ++It)
+    for (TObjectIterator<ULidarJsonLiveSourceComponent> It; It; ++It)
     {
-        ULidarJsonLiveSourceComp* Source = *It;
+        ULidarJsonLiveSourceComponent* Source = *It;
         if (!IsValid(Source) || Source->GetWorld() != World)
         {
             continue;
@@ -162,7 +162,7 @@ ULidarJsonLiveSourceComp* FindJsonLiveSource(UWorld* World, const FString& Sourc
         }
         if (FallbackSourceCount > 1)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[LidarJsonLiveFrameTC] SOURCE_ID is required when multiple ULidarJsonLiveSourceComp instances exist. count=%d"), FallbackSourceCount);
+            UE_LOG(LogTemp, Warning, TEXT("[LidarJsonLiveFrameTC] SOURCE_ID is required when multiple ULidarJsonLiveSourceComponent instances exist. count=%d"), FallbackSourceCount);
         }
     }
 
@@ -231,10 +231,10 @@ void ULidarJsonLiveFrameTC::ProcessStructData(const TSharedPtr<FTransactionCodeD
         return;
     }
 
-    ULidarJsonLiveSourceComp* LiveSource = FindJsonLiveSource(GetWorld(), ParsedData->SourceId);
+    ULidarJsonLiveSourceComponent* LiveSource = FindJsonLiveSource(GetWorld(), ParsedData->SourceId);
     if (!LiveSource)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[LidarJsonLiveFrameTC] ULidarJsonLiveSourceComp not found. sourceId=%s"), *ParsedData->SourceId);
+        UE_LOG(LogTemp, Warning, TEXT("[LidarJsonLiveFrameTC] ULidarJsonLiveSourceComponent not found. sourceId=%s"), *ParsedData->SourceId);
         return;
     }
 

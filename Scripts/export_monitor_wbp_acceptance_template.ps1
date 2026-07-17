@@ -33,9 +33,9 @@ function Convert-ToMarkdownCell {
 function Get-MonitorOptionalBindingNames {
     param([string]$SourceRepoRoot)
 
-    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.h"
+    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h"
     if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
-        throw "VirtualSensorMonitorWidget.h not found: $headerPath"
+        throw "VirtualSensorMonitorPanelWidget.h not found: $headerPath"
     }
 
     $lines = Get-Content -LiteralPath $headerPath
@@ -72,7 +72,7 @@ if (-not (Test-Path -LiteralPath $SourceRepoRoot -PathType Container)) {
 }
 $SourceRepoRoot = (Resolve-Path -LiteralPath $SourceRepoRoot).Path
 
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
 $decisionReportScript = Join-Path $SourceRepoRoot "Scripts\export_monitor_wbp_decision_report.ps1"
 if (-not (Test-Path -LiteralPath $decisionReportScript -PathType Leaf)) {
     throw "export_monitor_wbp_decision_report.ps1 not found: $decisionReportScript"
@@ -365,7 +365,7 @@ $template = [PSCustomObject]@{
         RequiredEvidenceCount = 5
         PendingEvidenceCount = 5
         OptionalBindingCount = $optionalBindings.Count
-        OptionalBindingSource = "VirtualSensorMonitorWidget.h BindWidgetOptional"
+        OptionalBindingSource = "VirtualSensorMonitorPanelWidget.h BindWidgetOptional"
         DisplayDataRowCount = $displayDataRows.Count
         DisplayDataSourceFunction = "GetMonitorDisplayData"
         DisplayDataModeField = "bShowingLidar"

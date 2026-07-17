@@ -6,18 +6,18 @@ The current smoke scope covers the three runtime panels, virtual camera, virtual
 
 ## Map Setup
 
-Use the repository-owned `SensorTestMap`. `BasicMap` remains only a load-compatibility fixture.
+Run V2 changes first in `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap`, then verify the migrated repository-owned `SensorTestMap`. `BasicMap` remains only a load-compatibility fixture.
 
 Required actors/components:
 
 ```text
-AVirtualSensorManager
-AVirtualSensorAct
-AVirtualCameraAct
-AVirtualSensorMonitorHostActor
-WBP_VirtualSensorMonitor
-WBP_VirtualSensorSettings
-WBP_VirtualSensorCaptureExport
+AVirtualSensorCoordinator
+AVirtualLidarSensorActor
+AVirtualCameraSensorActor
+AVirtualSensorUiHostActor
+WBP_VirtualSensorMonitorPanel
+WBP_VirtualSensorSettingsPanel
+WBP_VirtualSensorCaptureExportPanel
 ```
 
 A `Slab` tagged actor is optional and user-owned; the setup script does not create a Slab mesh.
@@ -92,6 +92,15 @@ MA0T10.SensorDebug
 MA0T10.SensorExport
 ```
 
+V2 architecture, payload parity, panel geometry, and regression-map composition:
+
+```text
+MA0T10.SensorV2.Architecture
+MA0T10.SensorV2.Parity
+MA0T10.SensorV2.UI
+MA0T10.SensorV2.EditorSmoke
+```
+
 `MA0T10.SensorControl.EditableStateValidation` covers duplicate IDs, numeric ranges and NaN transforms. `GizmoMath` covers local/world movement and rotation. `MA0T10.SensorDebug.ProjectionBudget` protects the selected-sensor debug ray budget and legacy debug default. `MapApplyQueue` covers immutable-tag snapshot replacement, while `PanelClamp` covers viewport bounds. `MA0T10.SensorExport.StorageSummary` covers the documented storage roots.
 
 Run the full local smoke gate:
@@ -114,7 +123,7 @@ Replay tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorDataTransportComp` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
+`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorTransportComponent` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
 
 Outbound transport tests:
 
@@ -141,7 +150,7 @@ Map asset and sensor composition smoke tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.EditorSmoke; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap` and `SensorTestMap` can load in headless editor automation.
+`MA0T10.EditorSmoke.MapAssetsLoad` verifies `BasicMap`, `SensorTestMap`, and `SensorRefactorTestMap` can load in headless editor automation.
 `MA0T10.EditorSmoke.MapSensorComposition` verifies `SensorTestMap` includes the manager, camera, LiDAR, monitor host, three open-front hall walls, four ceiling Rect Lights, ambient SkyLight, realistic sensor heights, and the three WBP bindings.
 
 FullSpec scheduler and help-contract automation:
@@ -150,18 +159,19 @@ FullSpec scheduler and help-contract automation:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorPerformance; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-This verifies the 60/30 FPS tier selection, 4/8 ms LiDAR budgets, unchanged FullSpec dimensions/rates, load calculations, and Korean help descriptor coverage. It is a deterministic contract test, not GPU performance evidence.
+This verifies the 60/30 FPS tier selection, 3/5 ms LiDAR budget ceilings, the aggregate 12 Hz fair camera-admission cap, unchanged FullSpec dimensions/rates, load calculations, and Korean help descriptor coverage. It is a deterministic contract test, not GPU performance evidence.
 
 Actual RHI evidence for the 2+2 and 4+4 scenarios:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2
-powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 2 -LidarCount 2 -LidarRenderer Niagara
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4 -LidarRenderer Niagara
+powershell -ExecutionPolicy Bypass -File ".\Scripts\run_fullspec_performance_evidence.ps1" -CameraCount 4 -LidarCount 4 -LidarRenderer Cpu
 ```
 
-The runner launches the normal 1920x1080 renderer, creates command-line-only FullSpec sensors, warms up for 10 seconds, records 60 seconds, and writes JSON/Markdown under `Saved/Reports`. It verifies the scenario thresholds, 1280x720 camera frames, 21,600-ray LiDAR scans, and the one-job-per-sensor queue bound. The temporary benchmark actors are never saved to `SensorTestMap`.
+The runner launches the normal 1920x1080 renderer, creates command-line-only FullSpec sensors, warms up for 10 seconds, resets the rolling statistics window, records 60 seconds, and writes renderer-specific JSON/Markdown under `Saved/Reports`. It verifies the scenario thresholds, 1280x720 camera frames, 21,600-ray LiDAR scans, the one-job-per-sensor queue bound, and a max/min completion ratio of 1.2 or less. `Niagara` visualizes up to 21,600 selected-LiDAR points, while forced `Cpu` fallback caps that preview at 5,000. The temporary benchmark actors are never saved to `SensorTestMap`.
 
-Reference evidence captured on 2026-07-17 with Ryzen 7 7800X3D, RTX 4070 Ti, D3D12: 2+2 averaged 58.94 FPS with 49.96 FPS 1% low and 18.41 ms rolling p95; 4+4 averaged 53.16 FPS with 33.91 FPS 1% low and 27.37 ms rolling p95. Treat these as machine-specific evidence, not a cross-machine guarantee.
+Reference evidence captured on 2026-07-17 with Ryzen 7 7800X3D, RTX 4070 Ti, D3D12 after the 10-second warmup reset: 2+2 Niagara averaged 60.00 FPS with 59.98 FPS 1% low, 16.67 ms p95, and Camera/LiDAR fairness ratios 1.000/1.002. 4+4 Niagara averaged 59.99 FPS with 58.18 FPS 1% low, 16.67 ms p95, and fairness 1.003/1.046. Forced 4+4 CPU fallback averaged 59.99 FPS with 59.34 FPS 1% low, 16.67 ms p95, and fairness 1.011/1.002. Treat these as machine-specific evidence, not a cross-machine guarantee.
 
 Real sensor source base tests:
 
@@ -202,7 +212,7 @@ If the row is missing, create it through the DT-Project commandlet:
 
 After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
 `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment
-WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComp` updates
+WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComponent` updates
 its source frame/point counts and that the target LiDAR exposes a cached server
 payload when `SEND_TRANSPORT` is enabled.
 
@@ -219,15 +229,15 @@ the broker; it captures evidence from a real PIE/broker run.
 Before data-table registration, use the same component-level smoke path:
 
 ```text
-ULidarJsonLiveSourceComp -> AppendSampleWebSocketFrameInEditor
-ULidarJsonLiveSourceComp -> PushBufferedFrameNoTransportInEditor
+ULidarJsonLiveSourceComponent -> AppendSampleWebSocketFrameInEditor
+ULidarJsonLiveSourceComponent -> PushBufferedFrameNoTransportInEditor
 ```
 
 `AppendSampleWebSocketFrameInEditor` replaces the current live buffer with the
 checked sample payload. The no-transport push verifies sample payload parsing and
 target LiDAR handoff without sending to the judging server.
 HTTP, UDP, or Blueprint bridge prototypes can call
-`ULidarJsonLiveSourceComp::AppendLivePayloadJson` with the same payload shape,
+`ULidarJsonLiveSourceComponent::AppendLivePayloadJson` with the same payload shape,
 then call `PushFrameOnce(false)` for a no-transport local handoff check.
 `MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the optional
 HTTP wrapper reuses this handoff path, supports auto-push and buffer-only
@@ -248,7 +258,7 @@ MA0T10.RealSensorSource.JsonLiveDTCoreDispatch
 
 This PIE automation starts a GameInstance-backed world, queues the checked
 `LIDAR_JSON_LIVE_FRAME` sample through `UDxDataSubsystem::EnqueueWebSocketData`,
-and waits for the matching `ULidarJsonLiveSourceComp` and target LiDAR to update.
+and waits for the matching `ULidarJsonLiveSourceComponent` and target LiDAR to update.
 It does not replace the deployment broker smoke because it bypasses STOMP
 endpoint, credential, subscription, and network receive checks.
 
@@ -267,12 +277,12 @@ Monitor host fallback tests:
 `MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
 `MA0T10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
 `MA0T10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
-`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraComp` without renderer-dependent capture.
+`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraCaptureComponent` without renderer-dependent capture.
 `MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the inbound HTTP JSON live wrapper feeds the same shared payload shape into the normalized handoff path without requiring a real listener in automation.
 `MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies that the inbound HTTP JSON live wrapper can accept a real loopback POST through `HTTPServer` and return an accepted response after target LiDAR handoff.
 `MA0T10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.
 `MA0T10.RealSensorSource.JsonLiveTransactionRouting` verifies that the WebSocket transaction handler routes by `SOURCE_ID`, honors `PUSH_FRAME=false`, rejects ambiguous no-`SOURCE_ID` multi-source routing, and can push a matched frame into the target LiDAR.
-`MA0T10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComp`.
+`MA0T10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComponent`.
 `MA0T10.SensorMonitor.CameraStatusTextContract` verifies that the monitor camera view exposes sensor id, `virtual-camera.v1`, resolution, capture mode, cached payload state, and server payload export hint.
 `MA0T10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count/byte size, preview count, Slab analysis, warning, view mode, and CSV row/return contract.
 `MA0T10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.
@@ -283,8 +293,8 @@ Static preview-policy readiness:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_point_cloud_preview_policy.ps1"
 ```
 
-This check keeps the current CPU/instance preview safety policy explicit until a
-GPU/Niagara/custom high-density renderer is selected.
+This check validates the Niagara array-upload path, the generated Niagara system,
+and the retained CPU/instance fallback safety policy.
 
 Headless CSV preview coverage:
 
@@ -332,9 +342,9 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_
 powershell -ExecutionPolicy Bypass -File ".\Scripts\run_csv_preview_performance_evidence.ps1" -LocalProjectRoot "C:\Unreal Projects\ma0t10_dt" -SkipBuild
 ```
 
-This report proves the current CPU preview fallback telemetry was emitted from
+This report proves the CPU preview fallback telemetry was emitted from
 the automation log and that the automation run completed successfully. It does
-not replace the future GPU/Niagara viewport smoke evidence. The renderer
+not replace the Niagara viewport smoke evidence. The renderer
 decision report consumes the same local evidence and sets
 `CpuFallbackPerformanceEvidencePresent` when the instanced, 120,000-point
 procedural, and 250,000-point procedural budget scenarios plus
@@ -346,11 +356,11 @@ scenario success line, `TestCompleteLine`, and `EvidenceLinesWithinRun`.
 GPU/Niagara renderer smoke:
 
 ```text
-1. Before GPU code/assets exist, optionally set LiDAR PreviewBackend to NiagaraCandidate or CustomGpuCandidate and confirm the status still reports CPU fallback active.
-2. Open the target map with the candidate GPU/Niagara point renderer enabled only after the renderer path exists.
+1. Run `Scripts/setup_lidar_niagara_assets.ps1` and confirm both `/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud` and `M_VirtualLidarPointSprite` load.
+2. Open `SensorRefactorTestMap`, select a LiDAR, enable `월드 3D 포인트 표시`, and confirm the renderer status is `Niagara GPU sprites`.
 3. Load or replay a dense LiDAR frame and record map name, sensor id, renderer name, preview point count, and server payload point count.
 4. Capture a viewport screenshot and verify it contains nonblank point pixels, not only UI or an empty background.
-5. Toggle or force the CPU/ISM fallback path and confirm it still renders a usable preview.
+5. Temporarily clear the Niagara system reference (or run without SM5) and confirm the low-poly CPU/ISM fallback renders at most 5,000 points and reports the reason.
 6. Record whether the dense frame caused an editor stall, overlap, clipping, or monitor UI obstruction.
 7. Export the renderer decision report with the viewport smoke fields.
 ```
@@ -358,17 +368,18 @@ GPU/Niagara renderer smoke:
 Example evidence command after a GPU path exists:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
-powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 120000 -GpuSmokeMapName "TestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "dense frame viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_decision_report.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 21600 -GpuSmokeMapName "SensorRefactorTestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "FullSpec viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_point_cloud_renderer_acceptance_package.ps1" -ViewportScreenshotPath "C:\path\to\gpu_viewport.png" -ViewportScreenshotBytes 123456 -NonBlankPixelCount 1000 -GpuSmokePointCount 21600 -GpuSmokeMapName "SensorRefactorTestMap" -GpuSmokeSensorId "Lidar01" -GpuSmokeRendererName "Niagara point renderer" -GpuSmokeOperator "name" -GpuSmokeNotes "FullSpec viewport smoke" -ObservedDenseFrameNoStall -ObservedFallbackToggle
 ```
 
-Until a GPU renderer is actually integrated, the renderer decision report should
-remain in `RendererPhase = PreGpuSpike`. After GPU code or assets are detected,
-it should move to `GpuIntegratedEvidencePending` until viewport smoke, fallback
-preservation, and dense-frame evidence are all recorded.
-The LiDAR `PreviewBackend` selector is not evidence by itself: the candidate
-values intentionally report `GPU preview backend is a candidate only; CPU
-fallback is active` and keep `gpuPreviewBackendActive = false` in the payload.
+With the Niagara renderer integrated, the renderer decision report should be
+`GpuIntegratedEvidencePending` until viewport smoke, fallback preservation, and
+dense-frame evidence are recorded; after that it moves to `GpuEvidenceReady`.
+The runtime renderer name and fallback reason must be recorded together because
+the same UI toggle can use Niagara or the automatic CPU ISM fallback.
+
+`CsvPreviewPerformanceAutomationEvidencePresent`는 보고서 파일 생성 여부가 아니라,
+동일 자동화 실행 로그에서 CPU fallback 성능 시나리오가 통과했음을 뜻한다.
 
 Manual PIE payload checks:
 
@@ -389,7 +400,7 @@ Local project status and asset decision inventory:
 powershell -ExecutionPolicy Bypass -File ".\Scripts\report_local_project_status.ps1"
 ```
 
-Use this before committing local Unreal assets so `WBP_VirtualSensorMonitor.uasset`, environment packs, packaged `Windows` output, and launcher files are intentionally included or left untracked.
+Use this before committing local Unreal assets so `WBP_VirtualSensorMonitorPanel.uasset`, environment packs, packaged `Windows` output, and launcher files are intentionally included or left untracked.
 The report classifies each path as a review candidate, large content candidate, sample/third-party candidate, generated output, or local config so packaging outputs are not mixed into code commits by accident.
 Use `-Json` when an automated job needs machine-readable output. Use `-FailOnGeneratedOutput` when packaged output directories or archives should fail the validation gate. Use `-FailOnCategory` when a gate should fail on a specific decision category such as `LargeContentCandidate` or `SampleOrThirdParty`.
 `Windows/`, `Windows.zip`, and `launcher.config.json` are ignored by git, but this report still checks their filesystem presence so local generated output is visible during handoff.
