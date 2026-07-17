@@ -1,4 +1,4 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "HttpModule.h"
 #include "HttpManager.h"
@@ -13,7 +13,7 @@
 #include "Misc/Guid.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorTransportHttpPostLoopbackTest, "MA0T10.SensorTransport.HttpPostLoopbackAcceptance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -272,7 +272,7 @@ private:
 
         FHttpServerModule::Get().StartAllListeners();
 
-        Transport = NewObject<UVirtualSensorDataTransportComp>();
+        Transport = NewObject<UVirtualSensorTransportComponent>();
         Test->TestNotNull(TEXT("transport component"), Transport.Get());
         if (!Transport.IsValid())
         {
@@ -377,7 +377,7 @@ private:
     FString ExhaustPayload;
     TSharedPtr<IHttpRouter> Router;
     FHttpRouteHandle RouteHandle;
-    TWeakObjectPtr<UVirtualSensorDataTransportComp> Transport;
+    TWeakObjectPtr<UVirtualSensorTransportComponent> Transport;
 };
 
 bool FVirtualSensorTransportHttpPostLoopbackTest::RunTest(const FString& Parameters)

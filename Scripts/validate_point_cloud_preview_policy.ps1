@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [switch]$Json
 )
@@ -38,11 +38,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h" },
-    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h" },
+    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp" },
     [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h" },
-    [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorManager.cpp" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp" },
+    [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp" },
     [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Sensor manager automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "CSV point cloud preview automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp" },
@@ -57,12 +57,12 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp"
 $csvPreviewHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h"
 $csvPreviewCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.cpp"
-$managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorManager.cpp"
-$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
+$managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
 $replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
 $managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
 $csvPreviewTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp"

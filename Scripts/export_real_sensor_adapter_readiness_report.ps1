@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [string]$MarkdownPath = "",
     [string]$JsonPath = "",
@@ -143,7 +143,7 @@ $headlessAutomationGroups = @(
 )
 
 $implementedBridges = @(
-    [PSCustomObject]@{ Name = "CSV/JSONL replay"; Evidence = "Feeds saved LiDAR frames into URealSensorSourceComp::PushPointFrameToTarget." },
+    [PSCustomObject]@{ Name = "CSV/JSONL replay"; Evidence = "Feeds saved LiDAR frames into URealSensorSourceComponent::PushPointFrameToTarget." },
     [PSCustomObject]@{ Name = "LiDAR JSON live"; Evidence = "Shared AppendLivePayloadJson path covers WebSocket, HTTP, UDP, and Blueprint-fed frames." },
     [PSCustomObject]@{ Name = "Camera JSON live"; Evidence = "InjectExternalJsonPayload validates virtual-camera.v1 payloads without SceneCapture readback." },
     [PSCustomObject]@{ Name = "HTTP JSON live"; Evidence = "Loopback POST automation covers a real local HTTP request path." },

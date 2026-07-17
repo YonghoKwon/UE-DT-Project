@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$EvidencePath = "",
@@ -233,7 +233,7 @@ $report = [PSCustomObject]@{
         EditorEvidenceTouched = ($updatedFields | Where-Object { $_ -match "^Editor\." }).Count -gt 0
         PieEvidenceTouched = ($updatedFields | Where-Object { $_ -match "^PIE\." }).Count -gt 0
         DisplayDataEvidenceTouched = ($updatedFields | Where-Object { $_ -match "^DisplayData\." }).Count -gt 0
-        Boundary = "This script updates only the Saved acceptance evidence JSON. It validates referenced evidence files and never edits, accepts, or stages WBP_VirtualSensorMonitor.uasset."
+        Boundary = "This script updates only the Saved acceptance evidence JSON. It validates referenced evidence files and never edits, accepts, or stages WBP_VirtualSensorMonitorPanel.uasset."
         Valid = $true
     }
 }

@@ -64,7 +64,7 @@ if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
     $EvidencePath = Join-Path $ProjectRoot "Saved\Reports\MonitorWbpAcceptance\monitor_wbp_acceptance.evidence.json"
 }
 
-$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+$wbpRelativePath = "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
 $wbpPath = Join-Path $ProjectRoot $wbpRelativePath
 if (-not (Test-Path -LiteralPath $wbpPath -PathType Leaf)) {
     throw "Monitor WBP asset not found: $wbpPath"
@@ -149,7 +149,7 @@ $report = [PSCustomObject]@{
         ModifiesAssets = $false
         StagesFiles = $false
         StagesWbp = $false
-        Boundary = "This report records post-edit WBP hash evidence only. It does not edit, accept, or stage WBP_VirtualSensorMonitor.uasset."
+        Boundary = "This report records post-edit WBP hash evidence only. It does not edit, accept, or stage WBP_VirtualSensorMonitorPanel.uasset."
         Valid = $true
     }
 }

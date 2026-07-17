@@ -7,11 +7,11 @@
 #include "ScopedTransaction.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraAct.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorComp.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorAct.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorHostActor.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 
 namespace
 {
@@ -36,8 +36,8 @@ bool ApplyStateToEditorActor(AActor* Actor, const FVirtualSensorEditableState& S
 
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
-        AVirtualCameraAct* CameraActor = Cast<AVirtualCameraAct>(Actor);
-        UVirtualCameraComp* Camera = CameraActor ? CameraActor->VirtualCameraComp : nullptr;
+        AVirtualCameraSensorActor* CameraActor = Cast<AVirtualCameraSensorActor>(Actor);
+        UVirtualCameraCaptureComponent* Camera = CameraActor ? CameraActor->CaptureComponent : nullptr;
         if (!Camera) return false;
         Camera->Modify();
         Camera->ApplyDeviceProfile(State.CameraProfile);
@@ -52,8 +52,8 @@ bool ApplyStateToEditorActor(AActor* Actor, const FVirtualSensorEditableState& S
         return true;
     }
 
-    AVirtualSensorAct* LidarActor = Cast<AVirtualSensorAct>(Actor);
-    UVirtualLidarSensorComp* Lidar = LidarActor ? LidarActor->LidarSensorComp : nullptr;
+    AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(Actor);
+    UVirtualLidarScanComponent* Lidar = LidarActor ? LidarActor->ScanComponent : nullptr;
     if (!Lidar) return false;
     Lidar->Modify();
     Lidar->ApplyDeviceProfile(State.LidarProfile);
@@ -81,11 +81,11 @@ bool IsEditorActorCompatible(const AActor* Actor, const FVirtualSensorEditableSt
 {
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
-        const AVirtualCameraAct* CameraActor = Cast<AVirtualCameraAct>(Actor);
-        return CameraActor && CameraActor->VirtualCameraComp;
+        const AVirtualCameraSensorActor* CameraActor = Cast<AVirtualCameraSensorActor>(Actor);
+        return CameraActor && CameraActor->CaptureComponent;
     }
-    const AVirtualSensorAct* LidarActor = Cast<AVirtualSensorAct>(Actor);
-    return LidarActor && LidarActor->LidarSensorComp;
+    const AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(Actor);
+    return LidarActor && LidarActor->ScanComponent;
 }
 }
 
@@ -112,7 +112,7 @@ private:
         UWorld* PieWorld = GEditor ? GEditor->PlayWorld : nullptr;
         if (!PieWorld) return;
 
-        for (TActorIterator<AVirtualSensorMonitorHostActor> It(PieWorld); It; ++It)
+        for (TActorIterator<AVirtualSensorUiHostActor> It(PieWorld); It; ++It)
         {
             if (It->HasPendingMapApplySnapshot())
             {

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "",
     [string]$LocalProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$LogPath = "",
@@ -301,10 +301,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $csvPreviewPerformanceEvidence = Get-CsvPreviewPerformanceEvidence -ProjectRoot $ProjectRoot -LocalProjectRoot $LocalProjectRoot -LogPath $LogPath
 
-$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarSensorComp.cpp"
-$managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorManager.cpp"
-$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorWidget.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h"
+$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp"
+$managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
 $replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
 $managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
@@ -338,7 +338,7 @@ $previewBackendSelectionDeclared = (Test-ContainsText -Path $lidarHeader -Patter
     (Test-ContainsText -Path $lidarCpp -Pattern "NiagaraCandidateCpuFallback") -and
     (Test-ContainsText -Path $lidarCpp -Pattern "CustomGpuCandidateCpuFallback")
 $gpuPreviewBackendClaimBlocked = (Test-ContainsText -Path $lidarCpp -Pattern "GPU preview backend is a candidate only; CPU fallback is active") -and
-    (Test-ContainsText -Path $lidarCpp -Pattern "bool UVirtualLidarSensorComp::IsGpuPreviewBackendActive() const") -and
+    (Test-ContainsText -Path $lidarCpp -Pattern "bool UVirtualLidarScanComponent::IsGpuPreviewBackendActive() const") -and
     (Test-ContainsText -Path $lidarCpp -Pattern "return false;")
 $cpuFallbackForcedForGpuCandidates = (Test-ContainsText -Path $lidarCpp -Pattern "cpu_instanced_mesh_fallback") -and
     (Test-ContainsText -Path $lidarCpp -Pattern "RefreshPointCloudPreview") -and
@@ -579,7 +579,7 @@ $report = [PSCustomObject]@{
         PointCloudOnlyClampDeclared = $pointCloudOnlyClampDeclared
         BatchedInstanceUploadDeclared = $batchedInstanceUploadDeclared
         DefaultPreviewBackend = "CpuInstancedMesh"
-        ConfiguredPreviewBackendSource = "UVirtualLidarSensorComp::PreviewBackend"
+        ConfiguredPreviewBackendSource = "UVirtualLidarScanComponent::PreviewBackend"
         CandidatePreviewBackends = @("NiagaraCandidateCpuFallback", "CustomGpuCandidateCpuFallback")
         PreviewBackendSelectionDeclared = $previewBackendSelectionDeclared
         GpuPreviewBackendClaimBlocked = $gpuPreviewBackendClaimBlocked

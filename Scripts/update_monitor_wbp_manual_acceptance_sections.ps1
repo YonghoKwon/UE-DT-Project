@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectRoot = "C:\Unreal Projects\ma0t10_dt",
     [string]$SourceRepoRoot = "",
     [string]$EvidencePath = "",
@@ -179,7 +179,7 @@ $report = [PSCustomObject]@{
         UpdatedSectionCount = $updates.Count
         OwnerAcceptanceTouched = (@($updates | Where-Object { [string]$_.Section -eq "OwnerAcceptance" }).Count -gt 0)
         BackupCreated = (-not [bool]$DryRun)
-        Boundary = "This script updates only ManualAcceptanceSections in the Saved evidence JSON. OwnerAcceptance requires -AcceptOwnerAcceptance and it never edits, accepts, or stages WBP_VirtualSensorMonitor.uasset by itself."
+        Boundary = "This script updates only ManualAcceptanceSections in the Saved evidence JSON. OwnerAcceptance requires -AcceptOwnerAcceptance and it never edits, accepts, or stages WBP_VirtualSensorMonitorPanel.uasset by itself."
         Valid = $true
     }
 }

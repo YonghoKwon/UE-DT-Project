@@ -88,7 +88,7 @@ $commands = @(
     [PSCustomObject]@{
         Step = 2
         Name = "Open WBP in Unreal Editor"
-        Command = "Open $ProjectRoot\ma0t10_dt.uproject in Unreal Editor 5.3, then open Content/MA0T10/UI/WBP_VirtualSensorMonitor and compile/save through the editor."
+        Command = "Open $ProjectRoot\ma0t10_dt.uproject in Unreal Editor 5.3, then open Content/MA0T10/UI/WBP_VirtualSensorMonitorPanel and compile/save through the editor."
     },
     [PSCustomObject]@{
         Step = 3

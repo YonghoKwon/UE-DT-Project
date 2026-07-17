@@ -174,7 +174,7 @@ NotRuntimeOverride=value
 "@ | Set-Content -LiteralPath "Config\Game.ini" -Encoding UTF8
 
         New-Item -ItemType Directory -Path "Content\MA0T10\UI" -Force | Out-Null
-        "dummy widget asset" | Set-Content -LiteralPath "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset" -Encoding UTF8
+        "dummy widget asset" | Set-Content -LiteralPath "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset" -Encoding UTF8
 
         New-Item -ItemType Directory -Path "Content\Materials" -Force | Out-Null
         "dummy material asset" | Set-Content -LiteralPath "Content\Materials\M_Test.uasset" -Encoding UTF8
@@ -225,7 +225,7 @@ try {
     Assert-Equal -Actual @($configPoint.MissingEvidence).Count -Expected 0 -Label "No-evidence missing evidence count"
     $results.Add([PSCustomObject]@{ Case = "NoEvidenceRecord"; Path = $configPoint.Path; ReviewQueue = $configPoint.ReviewQueue; EvidenceStatus = $configPoint.EvidenceStatus }) | Out-Null
 
-    $widgetPoint = Get-DecisionPoint -Report $baseline.Report -Path "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset"
+    $widgetPoint = Get-DecisionPoint -Report $baseline.Report -Path "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset"
     Assert-Equal -Actual $widgetPoint.ReviewPriority -Expected 10 -Label "WBP review priority"
     Assert-True -Value ([bool]$widgetPoint.CommitBlocker) -Label "WBP commit blocker"
     Assert-Contains -Text $widgetPoint.NextReviewAction -Expected "Unreal Editor" -Label "WBP next review action"
@@ -371,11 +371,11 @@ try {
         Assert-Equal -Actual $readyGate.ExitCode -Expected 0 -Label "Ready staged decision path gate"
         Assert-Equal -Actual $readyGate.Report.Summary.StagedBlockedDecisionPointCount -Expected 0 -Label "Ready staged blocked count"
 
-        git add -- "Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset" | Out-Null
+        git add -- "Content/MA0T10/UI/WBP_VirtualSensorMonitorPanel.uasset" | Out-Null
         $mixedGate = Invoke-AssetReport -ProjectRoot $tempDir -EvidencePath $completePath
         Assert-Equal -Actual $mixedGate.Report.Summary.StagedDecisionPointCount -Expected 2 -Label "Mixed staged decision count"
         Assert-Equal -Actual $mixedGate.Report.Summary.StagedBlockedDecisionPointCount -Expected 1 -Label "Mixed staged blocked count"
-        Assert-True -Value (@($mixedGate.Report.StagedBlockedDecisionPaths) -contains "Content/MA0T10/UI/WBP_VirtualSensorMonitor.uasset") -Label "Mixed staged blocked path"
+        Assert-True -Value (@($mixedGate.Report.StagedBlockedDecisionPaths) -contains "Content/MA0T10/UI/WBP_VirtualSensorMonitorPanel.uasset") -Label "Mixed staged blocked path"
     }
     finally {
         Pop-Location
@@ -384,7 +384,7 @@ try {
 
     Assert-True -Value (@($baseline.Report.ActionPlan).Count -gt 0) -Label "Baseline action plan has blocking items"
     $firstAction = @($baseline.Report.ActionPlan | Sort-Object Priority, Path | Select-Object -First 1)[0]
-    Assert-Equal -Actual $firstAction.Path -Expected "Content\MA0T10\UI\WBP_VirtualSensorMonitor.uasset" -Label "Action plan starts with WBP review"
+    Assert-Equal -Actual $firstAction.Path -Expected "Content\MA0T10\UI\WBP_VirtualSensorMonitorPanel.uasset" -Label "Action plan starts with WBP review"
     Assert-Equal -Actual $baseline.Report.Summary.ActionPlanItemCount -Expected @($baseline.Report.ActionPlan).Count -Label "Action plan count summary"
     $results.Add([PSCustomObject]@{ Case = "ActionPlanMetadata"; Path = $firstAction.Path; ReviewQueue = $firstAction.ReviewQueue; EvidenceStatus = "priority/action verified" }) | Out-Null
 }

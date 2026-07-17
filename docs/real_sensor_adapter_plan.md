@@ -1,4 +1,4 @@
-﻿# Real Sensor Adapter Plan
+# Real Sensor Adapter Plan
 
 This document defines the next implementation path for real sensor input without modifying DTCore in the current scope.
 
@@ -19,25 +19,25 @@ Current common base:
 
 ```text
 URealSensorSourceComponent
-URealSensorSourceComp
+URealSensorSourceComponent
 ```
 
 Current concrete/placeholder components:
 
 ```text
-ULidarCsvReplaySourceComp
-ULidarJsonLinesReplaySourceComp
-UCameraJsonLiveSourceComp
-ULidarJsonLiveSourceComp
-ULidarHttpJsonLiveSourceComp
-ULidarUdpJsonLiveSourceComp
+ULidarCsvReplaySourceComponent
+ULidarJsonLinesReplaySourceComponent
+UCameraJsonLiveSourceComponent
+ULidarJsonLiveSourceComponent
+ULidarHttpJsonLiveSourceComponent
+ULidarUdpJsonLiveSourceComponent
 ULidarJsonLiveFrameTC
-URos2SensorBridgeSourceComp
-ULivoxLidarSourceComp
-URealSenseCameraSourceComp
+URos2SensorBridgeSourceComponent
+ULivoxLidarSourceComponent
+URealSenseCameraSourceComponent
 ```
 
-`URos2SensorBridgeSourceComp`, `ULivoxLidarSourceComp`, and `URealSenseCameraSourceComp` are intentional placeholders. They expose configuration fields and state messages, but `StartSource` and `PushFrameOnce` return false until SDK/bridge integration is implemented.
+`URos2SensorBridgeSourceComponent`, `ULivoxLidarSourceComponent`, and `URealSenseCameraSourceComponent` are intentional placeholders. They expose configuration fields and state messages, but `StartSource` and `PushFrameOnce` return false until SDK/bridge integration is implemented.
 
 Suggested normalized frame structs:
 
@@ -98,7 +98,7 @@ encoding
 imageBase64 or file path
 ```
 
-`UVirtualCameraComp::InjectExternalJsonPayload` accepts an already-normalized
+`UVirtualCameraCaptureComponent::InjectExternalJsonPayload` accepts an already-normalized
 `virtual-camera.v1` JSON payload from a real camera bridge, validates the
 schema, caches it as the camera's latest server payload, updates runtime status,
 records the JSON frame when a recorder is assigned, and optionally sends it
@@ -106,9 +106,9 @@ through the same JSON transport path as virtual camera captures. It does not
 require a render-target readback, does not update the preview render target, and
 does not send the optional binary JPEG side channel used by virtual captures.
 
-`UCameraJsonLiveSourceComp` is the first DT-Project camera live bridge. It
+`UCameraJsonLiveSourceComponent` is the first DT-Project camera live bridge. It
 buffers one `virtual-camera.v1` payload and pushes it into a target
-`UVirtualCameraComp` through `InjectExternalJsonPayload`. This gives future
+`UVirtualCameraCaptureComponent` through `InjectExternalJsonPayload`. This gives future
 RealSense, ROS2 image, HTTP, WebSocket, or Blueprint camera adapters a shared
 handoff point without modifying DTCore source.
 
@@ -124,23 +124,23 @@ preservation after rejected frames.
 DT-Project now includes file replay adapters:
 
 ```text
-ULidarCsvReplaySourceComp
-ULidarJsonLinesReplaySourceComp
+ULidarCsvReplaySourceComponent
+ULidarJsonLinesReplaySourceComponent
 ```
 
 Purpose:
 
 ```text
-CSV point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
-JSONL point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
-Buffered JSON live lines -> FVirtualLidarPoint[] -> URealSensorSourceComp::PushPointFrameToTarget
+CSV point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComponent::PushPointFrameToTarget
+JSONL point cloud -> FVirtualLidarPoint[] -> URealSensorSourceComponent::PushPointFrameToTarget
+Buffered JSON live lines -> FVirtualLidarPoint[] -> URealSensorSourceComponent::PushPointFrameToTarget
 ```
 
 This allows saved or bridge-fed measurement data to enter the same LiDAR payload, recorder, transport, preview, and Slab analysis path as a virtual scan.
 
-`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, WebSocket, HTTP, UDP, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarSensorComp::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent. If a bridge already receives the shared JSON live payload shape, call `ULidarJsonLiveSourceComp::AppendLivePayloadJson` and then `PushFrameOnce` instead of using the WebSocket-named helper directly.
+`PushPointFrameToTarget` is the DT-Project-side normalized LiDAR frame handoff point for SDK adapters. ROS2, Livox, WebSocket, HTTP, UDP, and other future LiDAR sources should normalize packets into `FVirtualLidarPoint[]` and call this helper instead of calling `UVirtualLidarScanComponent::InjectPointCloudFrame` directly. That keeps target resolution, optional LiDAR dimension updates, frame counters, point counts, and source state messages consistent. If a bridge already receives the shared JSON live payload shape, call `ULidarJsonLiveSourceComponent::AppendLivePayloadJson` and then `PushFrameOnce` instead of using the WebSocket-named helper directly.
 
-`ULidarJsonLiveSourceComp` is the first live bridge step. It does not open a
+`ULidarJsonLiveSourceComponent` is the first live bridge step. It does not open a
 socket by itself; instead, a DTCore WebSocket route, HTTP handler, UDP listener,
 or Blueprint integration can append one JSON point per line with
 `AppendJsonLine`/`AppendJsonLines`, then call `PushFrameOnce`. The pushed frame
@@ -152,9 +152,9 @@ DTCore's `UDxDataSubsystem`. Register it in the DTCore WebSocket data table with
 `TransactionCodeName = LIDAR_JSON_LIVE_FRAME` and
 `TransactionCodeMessageClass = ULidarJsonLiveFrameTC`. The handler accepts either
 `POINTS`/`points` arrays or a `JSON_LINES`/`jsonLines` string, then forwards the
-frame to the matching `ULidarJsonLiveSourceComp`. Set `SOURCE_ID` for normal
+frame to the matching `ULidarJsonLiveSourceComponent`. Set `SOURCE_ID` for normal
 operation. If it is omitted, routing is allowed only when exactly one
-`ULidarJsonLiveSourceComp` exists in the current World; multiple live sources
+`ULidarJsonLiveSourceComponent` exists in the current World; multiple live sources
 without `SOURCE_ID` are rejected to avoid sending a real frame to the wrong
 sensor.
 
@@ -213,7 +213,7 @@ This automation loads `UDTCoreSettings::WebSocketDataTable`, finds the
 `LIDAR_JSON_LIVE_FRAME` row, verifies `TransactionCodeName`, and checks that
 `TransactionCodeMessageClass` resolves to `ULidarJsonLiveFrameTC`. It also
 instantiates the row handler through the `UTransactionCodeMessage` base class and
-processes a sample payload into `ULidarJsonLiveSourceComp`. It is kept out of the
+processes a sample payload into `ULidarJsonLiveSourceComponent`. It is kept out of the
 default real-sensor test group because it is evidence for the binary data-table
 route rather than a pure component-unit test.
 
@@ -238,7 +238,7 @@ credentials, subscription, or network receive.
 
 After `DT_TransactionCode.uasset` contains the `LIDAR_JSON_LIVE_FRAME` row,
 send this sample through the deployment WebSocket broker and confirm the target
-`ULidarJsonLiveSourceComp` frame count, target LiDAR point count, and optional
+`ULidarJsonLiveSourceComponent` frame count, target LiDAR point count, and optional
 transport payload update in PIE.
 
 Record deployment broker smoke evidence with:
@@ -317,13 +317,13 @@ blocked.
 
 The DT-Project side now owns conservative HTTP and UDP listener wrappers over
 the transport-neutral JSON live handoff entry point,
-`ULidarJsonLiveSourceComp::AppendLivePayloadJson`. Both wrappers feed the same
+`ULidarJsonLiveSourceComponent::AppendLivePayloadJson`. Both wrappers feed the same
 sample payload shape without going through the WebSocket-specific function
 name. Deployment ownership is still open for endpoint exposure, authentication,
 rate limits, and whether HTTP, UDP, WebSocket, or SDK input is the production
 bridge.
 
-`ULidarHttpJsonLiveSourceComp` is the optional inbound HTTP wrapper. It keeps
+`ULidarHttpJsonLiveSourceComponent` is the optional inbound HTTP wrapper. It keeps
 `bAutoStartSource=false`, binds one POST route with Unreal's `HTTPServer`
 module when `StartSource` is called, caps request body size with
 `MaxRequestBytes`, and pushes accepted bodies through `AppendLivePayloadJson`
@@ -345,7 +345,7 @@ unique localhost path and high test port, sends a real HTTP POST through
 `FHttpModule`, and waits for the target LiDAR frame update and HTTP 202
 response.
 
-`ULidarUdpJsonLiveSourceComp` is the first optional UDP wrapper for that path.
+`ULidarUdpJsonLiveSourceComponent` is the first optional UDP wrapper for that path.
 It binds conservatively to loopback by default, keeps `bAutoStartSource=false`,
 marshals received datagrams back to the game thread, and feeds text payloads
 through `AppendLivePayloadJson` plus optional `PushFrameOnce`. Treat it as local
@@ -377,14 +377,14 @@ validity marker instead of promoting fallback coordinates to source metadata.
 
 Recommended use:
 
-1. Add `ULidarCsvReplaySourceComp` to the same actor as a `UVirtualLidarSensorComp`, or set `TargetLidar` manually.
+1. Add `ULidarCsvReplaySourceComponent` to the same actor as a `UVirtualLidarScanComponent`, or set `TargetLidar` manually.
 2. Set `CsvFilePath`.
 3. Set `ReplaySemanticLabel = Slab` for Slab angle tests.
 4. Call `PushFrameOnce`, or enable `bAutoStartReplay`.
 
 Recommended live bridge use:
 
-1. Add `ULidarJsonLiveSourceComp` to the same actor as a `UVirtualLidarSensorComp`, or set `TargetLidar` manually.
+1. Add `ULidarJsonLiveSourceComponent` to the same actor as a `UVirtualLidarScanComponent`, or set `TargetLidar` manually.
 2. Set a stable `SourceId`, especially when more than one live LiDAR bridge exists.
 3. Call `StartSource` when the external bridge is ready.
 4. Append incoming JSON point lines until one sensor frame is buffered.
@@ -392,7 +392,7 @@ Recommended live bridge use:
 
 Recommended pre-registration editor smoke:
 
-1. Add `ULidarJsonLiveSourceComp` to the target LiDAR actor.
+1. Add `ULidarJsonLiveSourceComponent` to the target LiDAR actor.
 2. Keep `SampleWebSocketPayloadPath = Samples/websocket/lidar_json_live_frame_sample.json`.
 3. Click `AppendSampleWebSocketFrameInEditor`; this replaces the current buffer
    with the checked sample payload.

@@ -46,7 +46,8 @@ if (-not $SkipLaunch) {
         "`"$projectPath`"",
         "/Game/MA0T10/Maps/SensorTestMap",
         "-game", "-windowed", "-ResX=1920", "-ResY=1080",
-        "-NoSplash", "-NoSound", "-NoVSync", "-Unattended",
+        "-NoSplash", "-NoSound", "-NoVSync", "-Unattended", "-RenderOffscreen",
+        "-ExecCmds=`"t.IdleWhenNotForeground 0`"",
         "-VirtualSensorPerfCameras=$CameraCount",
         "-VirtualSensorPerfLidars=$LidarCount",
         "-abslog=`"$LogPath`""

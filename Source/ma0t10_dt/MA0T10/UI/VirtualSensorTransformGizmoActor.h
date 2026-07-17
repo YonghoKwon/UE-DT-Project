@@ -55,6 +55,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorControl")
     EVirtualSensorCoordinateSpace GetCoordinateSpace() const { return CoordinateSpace; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorControl")
+    AActor* GetBoundTargetActor() const { return TargetActor; }
+
     static FVector ResolveAxisVector(const FTransform& TargetTransform, EVirtualSensorCoordinateSpace Space, EAxis::Type Axis);
     static FTransform ApplyKeyboardDelta(const FTransform& TargetTransform, EVirtualSensorCoordinateSpace Space, const FVector& TranslationAxes, const FRotator& RotationDegrees);
     static constexpr int32 ProjectionDebugRayBudget = 64;

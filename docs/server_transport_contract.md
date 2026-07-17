@@ -1,11 +1,11 @@
-﻿# Server Transport Contract
+# Server Transport Contract
 
 This document tracks the current DT-Project transport contract for sending
 virtual or replayed sensor payloads to a judging server.
 
 ## Current Modes
 
-`UVirtualSensorDataTransportComp` currently supports:
+`UVirtualSensorTransportComponent` currently supports:
 
 ```text
 None
@@ -53,7 +53,7 @@ MA0T10.SensorTransport.HttpPostLoopbackAcceptance
 ```
 
 This automation starts a localhost mock judging-server route with Unreal
-`HTTPServer`, sends payloads through `UVirtualSensorDataTransportComp` in
+`HTTPServer`, sends payloads through `UVirtualSensorTransportComponent` in
 `HttpPost` mode, verifies `POST`, `Content-Type: application/json`,
 `X-Sensor-Id`, `X-Sensor-Type`, and `virtual-lidar.v1` body identity, then
 checks that HTTP 202 sets `bAccepted=true` while HTTP 400 preserves the response
@@ -62,7 +62,7 @@ body and sets `bAccepted=false`.
 Current implementation file:
 
 ```text
-Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorDataTransportComp.cpp
+Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.cpp
 ```
 
 ## Inbound HTTP Live Bridge
@@ -71,7 +71,7 @@ Inbound real-sensor HTTP is intentionally separate from outbound judging-server
 `HttpPost` transport.
 
 ```text
-component: ULidarHttpJsonLiveSourceComp
+component: ULidarHttpJsonLiveSourceComponent
 method: POST
 default route: /ma0t10/lidar/live
 body: LIDAR_JSON_LIVE_FRAME-compatible JSON payload
@@ -106,7 +106,7 @@ judging-server acceptance evidence.
 
 ## Outbound Backpressure
 
-`UVirtualSensorDataTransportComp::MaxInFlightHttpRequests` caps concurrent HTTP
+`UVirtualSensorTransportComponent::MaxInFlightHttpRequests` caps concurrent HTTP
 POST work. A frame above the cap returns `bSubmitted=false`,
 `bAccepted=false`, and `bBackpressureRejected=true`; it is not queued or sent.
 `InFlightHttpRequestCount` and `BackpressureRejectedRequestCount` expose runtime
