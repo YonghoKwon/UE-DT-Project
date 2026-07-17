@@ -716,7 +716,18 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                 + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("ToggleView", "카메라/LiDAR 전환")).OnClicked_Lambda([this]() { HandleToggleButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
                 + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("NextCamera", "다음 카메라")).OnClicked_Lambda([this]() { HandleNextCameraButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
                 + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("NextLidar", "다음 LiDAR")).OnClicked_Lambda([this]() { HandleNextLidarButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
-                + SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("PointCloudOnly", "포인트 클라우드 전용")).OnClicked_Lambda([this]() { HandlePointCloudOnlyButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
+                + SWrapBox::Slot()
+                [
+                    SNew(SButton)
+                    .ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                    .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
+                    .OnClicked_Lambda([this]() { HandlePointCloudOnlyButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); })
+                    [
+                        SNew(STextBlock)
+                        .ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText)
+                        .Text_Lambda([this]() { return BuildPointCloudOnlyButtonText(); })
+                    ]
+                ]
             ]
         ];
 }
@@ -1647,6 +1658,38 @@ FString UVirtualSensorMonitorPanelWidget::BuildTitleText() const
         : (bShowingLidar ? TEXT("가상 LiDAR 모니터") : TEXT("가상 카메라 모니터"));
 }
 
+FText UVirtualSensorMonitorPanelWidget::BuildPointCloudOnlyButtonText() const
+{
+    return FText::FromString(SensorManager && SensorManager->IsPointCloudOnlyModeEnabled()
+        ? TEXT("포인트 클라우드 전용 끄기")
+        : TEXT("포인트 클라우드 전용 켜기"));
+}
+
+FString UVirtualSensorMonitorPanelWidget::GetPointCloudRendererStatusText() const
+{
+    const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent();
+    if (!Visualization) return TEXT("3D 포인트 렌더러: 사용할 수 없음");
+    const FVirtualLidarRendererTelemetry& Render = Visualization->GetRendererTelemetry();
+    const TCHAR* StateText = TEXT("꺼짐");
+    switch (Render.State)
+    {
+    case ELidarPointCloudRendererState::Starting: StateText = TEXT("시작 중"); break;
+    case ELidarPointCloudRendererState::NiagaraActive: StateText = TEXT("Niagara 활성"); break;
+    case ELidarPointCloudRendererState::CpuFallback: StateText = TEXT("CPU fallback"); break;
+    case ELidarPointCloudRendererState::Error: StateText = TEXT("오류"); break;
+    case ELidarPointCloudRendererState::Disabled:
+    default: break;
+    }
+    return FString::Printf(
+        TEXT("3D 포인트 렌더러: %s | 측정=%d 검출=%d 업로드=%d 표시=%d | %s"),
+        StateText,
+        Render.MeasuredPointCount,
+        Render.HitPointCount,
+        Render.UploadedPointCount,
+        Render.VisiblePointCount,
+        Render.Message.IsEmpty() ? TEXT("상태 메시지 없음") : *Render.Message);
+}
+
 FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
 {
     FString Text;
@@ -1688,6 +1731,7 @@ FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
             Telemetry ? Telemetry->DroppedDerivedFrameCount : Status.DroppedDerivedFrameCount,
             Status.PerformanceWarning.IsEmpty() ? TEXT("없음") : *Status.PerformanceWarning,
             *Status.LastMessage);
+        Text += TEXT("\n") + GetPointCloudRendererStatusText();
         Text += FString::Printf(
             TEXT("\n스캔 주기: %.3f초 · 광선=%d")
             TEXT("\n서버 Payload: 점=%d 바이트=%d 간격=%d 최대=%d 미검출점=%s")

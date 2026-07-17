@@ -235,6 +235,9 @@ public:
     FString GetRealSensorDeploymentSummaryText() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
+    FString GetPointCloudRendererStatusText() const;
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     const FString& GetLastManualExportPath() const { return LastManualExportPath; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
@@ -317,6 +320,7 @@ private:
     FLinearColor GetLidarLegendSwatchColor(int32 SwatchIndex) const;
     FString BuildTitleText() const;
     FString BuildStatusText() const;
+    FText BuildPointCloudOnlyButtonText() const;
     bool ShouldUseNativeFallbackWidget() const;
     FString GetLidarViewModeDisplayText() const;
     UObject* GetLidarBrushResource();
