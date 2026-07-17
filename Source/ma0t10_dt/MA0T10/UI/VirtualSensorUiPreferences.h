@@ -70,4 +70,14 @@ public:
 
     UPROPERTY(SaveGame)
     bool bSettingsKeyboardHelpExpanded = false;
+
+	UPROPERTY(SaveGame)
+    uint8 SelectedPointCloudExportKind = 1;
+
+	UPROPERTY(SaveGame) FString StompBrokerUrl = TEXT("ws://127.0.0.1:61616");
+	UPROPERTY(SaveGame) FString StompCameraTopic = TEXT("topic.virtual.sensor.camera.0");
+	UPROPERTY(SaveGame) FString StompLidarTopic = TEXT("topic.virtual.sensor.lidar.0");
+	UPROPERTY(SaveGame) FString StompExportTopic = TEXT("topic.virtual.sensor.export.0");
+	UPROPERTY(SaveGame) FString StompUserName = TEXT("artemis");
+	UPROPERTY(SaveGame) FString OutboundHttpEndpoint;
 };

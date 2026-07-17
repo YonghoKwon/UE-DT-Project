@@ -7,6 +7,7 @@
 class AVirtualSensorCoordinator;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
+struct FVirtualSensorTransportProfile;
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSensorPanelWidgetBase
@@ -41,6 +42,24 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
     bool CopyLastResultPath();
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	void SetSelectedPointCloudExportKind(EVirtualSensorExportKind Kind);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
+	EVirtualSensorExportKind GetSelectedPointCloudExportKind() const { return SelectedPointCloudKind; }
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
+	bool ApplyTransportProfile();
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
+	bool TestServerConnection();
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
+	bool SendSelectedPayloadToServer();
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Transport")
+	FString GetTransportSummaryText() const;
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
     FString GetStorageSummaryText() const;
 
@@ -70,6 +89,15 @@ private:
     TArray<FVirtualSensorExportResult> RecentResults;
 
     EVirtualSensorExportKind SelectedPointCloudKind = EVirtualSensorExportKind::PointCloudCsv;
+	TArray<TSharedPtr<EVirtualSensorExportKind>> NativeExportKindOptions;
     TSharedPtr<STextBlock> NativeStorageText;
     FString LastUiMessage;
+	FString DraftBrokerUrl = TEXT("ws://127.0.0.1:61616");
+	FString DraftCameraTopic = TEXT("topic.virtual.sensor.camera.0");
+	FString DraftLidarTopic = TEXT("topic.virtual.sensor.lidar.0");
+	FString DraftExportTopic = TEXT("topic.virtual.sensor.export.0");
+	FString DraftUserName = TEXT("artemis");
+	FString SessionPasscode;
+	FString DraftHttpEndpoint;
+	bool bUseStompTransport = true;
 };

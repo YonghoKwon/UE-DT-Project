@@ -5,6 +5,9 @@
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "HAL/PlatformTime.h"
+#include "IStompClient.h"
+#include "StompModule.h"
 
 UVirtualSensorTransportComponent::UVirtualSensorTransportComponent()
 {
@@ -30,6 +33,10 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJson(const F
     {
         Result = SendHttp(SensorId, SensorType, JsonText);
     }
+	else if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
+	{
+		Result = SendStomp(SensorId, SensorType, TEXT("frame"), 0, JsonText);
+	}
     else
     {
         Result.bSubmitted = true;
@@ -41,6 +48,190 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJson(const F
     LastResult = Result;
     OnDataSent.Broadcast(Result);
     return Result;
+}
+
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonRequest(
+	const FString& SensorId,
+	const FString& SensorType,
+	const FString& DataKind,
+	int64 FrameId,
+	const FString& JsonText,
+	bool bManualRequest)
+{
+	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
+	{
+		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText);
+		LastResult = Result;
+		OnDataSent.Broadcast(Result);
+		return Result;
+	}
+	return SendJson(SensorId, SensorType, JsonText);
+}
+
+void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile)
+{
+	const bool bBrokerChanged = TransportProfile.BrokerUrl != InProfile.BrokerUrl || TransportProfile.UserName != InProfile.UserName;
+	TransportProfile = InProfile;
+	TransportProfile.MaxMessageBytes = FMath::Max(1024, TransportProfile.MaxMessageBytes);
+	TransportProfile.TimeoutSeconds = FMath::Clamp(TransportProfile.TimeoutSeconds, 1, 120);
+	HttpEndpoint = TransportProfile.HttpEndpoint;
+	HttpTimeoutSeconds = TransportProfile.TimeoutSeconds;
+	if (bBrokerChanged && StompClient.IsValid())
+	{
+		StompClient->Disconnect();
+		StompClient.Reset();
+	}
+}
+
+void UVirtualSensorTransportComponent::SetSessionCredentials(const FString& InPasscode, const FString& InBearerToken)
+{
+	SessionPasscode = InPasscode;
+	SessionBearerToken = InBearerToken;
+}
+
+bool UVirtualSensorTransportComponent::IsStompConnected() const
+{
+	return StompClient.IsValid() && StompClient->IsConnected();
+}
+
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::TestConnection()
+{
+	FVirtualSensorTransportResult Result;
+	Result.Protocol = TransportMode == EVirtualSensorTransportMode::StompWebSocket ? TEXT("STOMP/WS") : TEXT("HTTP");
+	Result.RequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
+	{
+		EnsureStompClient();
+		Result.bSubmitted = StompClient.IsValid();
+		Result.bAccepted = IsStompConnected();
+		Result.Destination = TransportProfile.BrokerUrl;
+		Result.Message = Result.bAccepted ? TEXT("Artemis STOMP 연결됨") : TEXT("Artemis STOMP 연결을 시작했습니다");
+	}
+	else
+	{
+		Result = SendHttp(TEXT("CONNECTION-TEST"), TEXT("diagnostic"), TEXT("{\"type\":\"connection-test\"}"));
+	}
+	LastResult = Result;
+	OnDataSent.Broadcast(Result);
+	return Result;
+}
+
+FString UVirtualSensorTransportComponent::ResolveTopic(const FString& SensorType, const FString& DataKind) const
+{
+	if (DataKind.Contains(TEXT("export"), ESearchCase::IgnoreCase)) return TransportProfile.ExportTopic;
+	if (SensorType.Contains(TEXT("lidar"), ESearchCase::IgnoreCase)) return TransportProfile.LidarTopic;
+	return TransportProfile.CameraTopic;
+}
+
+void UVirtualSensorTransportComponent::EnsureStompClient()
+{
+	if (StompClient.IsValid())
+	{
+		if (!StompClient->IsConnected()) StompClient->Connect();
+		return;
+	}
+	if (TransportProfile.BrokerUrl.IsEmpty()) return;
+	StompClient = FStompModule::Get().CreateClient(TransportProfile.BrokerUrl, SessionBearerToken);
+	StompClient->OnConnected().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompConnected);
+	StompClient->OnConnectionError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
+	StompClient->OnError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
+	StompClient->OnClosed().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
+	FStompHeader Headers;
+	if (!TransportProfile.UserName.IsEmpty()) Headers.Add(TEXT("login"), TransportProfile.UserName);
+	if (!SessionPasscode.IsEmpty()) Headers.Add(TEXT("passcode"), SessionPasscode);
+	StompClient->Connect(Headers);
+}
+
+void UVirtualSensorTransportComponent::HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString)
+{
+	LastResult.Protocol = TEXT("STOMP/WS");
+	LastResult.bSubmitted = true;
+	LastResult.bAccepted = true;
+	LastResult.Destination = TransportProfile.BrokerUrl;
+	LastResult.Message = FString::Printf(TEXT("Artemis STOMP 연결됨 · protocol=%s · session=%s"), *ProtocolVersion, *SessionId);
+	OnDataSent.Broadcast(LastResult);
+}
+
+void UVirtualSensorTransportComponent::HandleStompFailure(const FString& Error)
+{
+	LastResult.Protocol = TEXT("STOMP/WS");
+	LastResult.bAccepted = false;
+	LastResult.Message = FString::Printf(TEXT("Artemis STOMP 오류: %s"), *Error);
+	OnDataSent.Broadcast(LastResult);
+}
+
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
+	const FString& SensorId,
+	const FString& SensorType,
+	const FString& DataKind,
+	int64 FrameId,
+	const FString& JsonText)
+{
+	FVirtualSensorTransportResult Result;
+	Result.Protocol = TEXT("STOMP/WS");
+	Result.RequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	Result.SensorId = SensorId;
+	Result.SensorType = SensorType;
+	Result.DataKind = DataKind;
+	Result.Destination = ResolveTopic(SensorType, DataKind);
+	FTCHARToUTF8 Utf8(*JsonText);
+	Result.DataLength = Utf8.Length();
+	if (Result.DataLength > TransportProfile.MaxMessageBytes)
+	{
+		Result.Message = FString::Printf(TEXT("STOMP 메시지가 제한을 초과했습니다: %d / %d bytes"), Result.DataLength, TransportProfile.MaxMessageBytes);
+		return Result;
+	}
+	EnsureStompClient();
+	if (!IsStompConnected())
+	{
+		Result.Message = TEXT("Artemis STOMP 연결 중입니다. 연결 후 다시 전송하세요.");
+		return Result;
+	}
+	FStompHeader Headers;
+	Headers.Add(TEXT("destination-type"), TEXT("MULTICAST"));
+	Headers.Add(TEXT("content-type"), TEXT("application/json;charset=utf-8"));
+	Headers.Add(TEXT("x-sensor-id"), SensorId);
+	Headers.Add(TEXT("x-sensor-type"), SensorType);
+	Headers.Add(TEXT("x-data-kind"), DataKind);
+	Headers.Add(TEXT("x-frame-id"), LexToString(FrameId));
+	Headers.Add(TEXT("x-request-id"), Result.RequestId);
+	const double StartedSeconds = FPlatformTime::Seconds();
+	const FString RequestId = Result.RequestId;
+	const FString Destination = Result.Destination;
+	TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+	StompClient->Send(Result.Destination, JsonText, Headers, FStompRequestCompleted::CreateLambda(
+		[WeakThis, RequestId, Destination, StartedSeconds](bool bSuccess, const FString& Error)
+		{
+			if (!WeakThis.IsValid()) return;
+			FVirtualSensorTransportResult Receipt = WeakThis->LastResult;
+			Receipt.Protocol = TEXT("STOMP/WS");
+			Receipt.RequestId = RequestId;
+			Receipt.Destination = Destination;
+			Receipt.bSubmitted = true;
+			Receipt.bAccepted = bSuccess;
+			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
+			Receipt.Message = bSuccess
+				? (WeakThis->TransportProfile.AckTopic.IsEmpty() ? TEXT("Broker 수락, 소비자 처리 미확인") : TEXT("Broker receipt 수락 · 소비자 ACK 대기"))
+				: FString::Printf(TEXT("STOMP 전송 실패: %s"), *Error);
+			WeakThis->LastResult = Receipt;
+			WeakThis->OnDataSent.Broadcast(Receipt);
+		}));
+	Result.bSubmitted = true;
+	Result.Message = TEXT("STOMP 전송 제출됨 · Broker receipt 대기");
+	LastStompSubmitSeconds = StartedSeconds;
+	return Result;
+}
+
+void UVirtualSensorTransportComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (StompClient.IsValid())
+	{
+		StompClient->Disconnect();
+		StompClient.Reset();
+	}
+	SessionPasscode.Reset();
+	SessionBearerToken.Reset();
+	Super::EndPlay(EndPlayReason);
 }
 
 FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes)
@@ -128,6 +319,7 @@ bool UVirtualSensorTransportComponent::SubmitHttpAttempt(
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetHeader(TEXT("X-Sensor-Id"), SensorId);
     Request->SetHeader(TEXT("X-Sensor-Type"), SensorType);
+	if (!SessionBearerToken.IsEmpty()) Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + SessionBearerToken);
     Request->SetTimeout(static_cast<float>(FMath::Max(1, HttpTimeoutSeconds)));
     Request->SetContentAsString(JsonText);
 
