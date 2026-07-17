@@ -39,6 +39,12 @@ bool FVirtualLidarProjectionMathTest::RunTest(const FString& Parameters)
     const FIntPoint Elevated = UVirtualLidarVisualizationComponent::ProjectElevation(FVector(500.0, 0.0, 100.0), 1000.0f, -100.0f, 100.0f, 101, 101);
     TestEqual(TEXT("elevation half range maps to center X"), Elevated.X, 50);
     TestEqual(TEXT("maximum height maps to top row"), Elevated.Y, 0);
+	bool bInsideSlice = false;
+	const FIntPoint Slice = UVirtualLidarVisualizationComponent::ProjectForwardSlice(FVector(500.0, 20.0, 100.0), 0.0f, 1000.0f, -100.0f, 100.0f, 101, 101, bInsideSlice, 100.0f);
+	TestTrue(TEXT("point inside slice thickness is accepted"), bInsideSlice);
+	TestEqual(TEXT("forward slice maps local X to horizontal axis"), Slice.X, 50);
+	UVirtualLidarVisualizationComponent::ProjectForwardSlice(FVector(500.0, 80.0, 0.0), 0.0f, 1000.0f, -100.0f, 100.0f, 101, 101, bInsideSlice, 100.0f);
+	TestFalse(TEXT("point outside slice thickness is rejected"), bInsideSlice);
     return true;
 }
 

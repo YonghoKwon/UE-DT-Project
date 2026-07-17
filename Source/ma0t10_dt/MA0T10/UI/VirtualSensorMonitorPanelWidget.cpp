@@ -143,7 +143,8 @@ FString LidarViewModeDisplayText(EVirtualLidarViewMode ViewMode)
 FString LidarProjectionDisplayText(ELidarMonitorProjectionMode Mode)
 {
     if (Mode == ELidarMonitorProjectionMode::TopDown) return TEXT("조감도");
-    if (Mode == ELidarMonitorProjectionMode::Elevation) return TEXT("거리-높이 단면");
+	if (Mode == ELidarMonitorProjectionMode::Elevation) return TEXT("방사 거리-높이 프로파일");
+	if (Mode == ELidarMonitorProjectionMode::ForwardSlice) return TEXT("전방 수직 슬라이스");
     if (Mode == ELidarMonitorProjectionMode::Split) return TEXT("거리 영상 + 조감도");
     return TEXT("거리 영상");
     switch (Mode)
@@ -510,6 +511,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::RangeImage));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::TopDown));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::Elevation));
+	NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::ForwardSlice));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::Split));
     NativeLidarColorOptions.Reset();
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::DistanceTurbo));
@@ -683,6 +685,17 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                             + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f)
                             [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ResetProjectionView", "보기 초기화")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) V->ResetProjectionView(GetLidarProjectionMode()); return FReply::Handled(); }) ]
                         ]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
+						[
+							SNew(SHorizontalBox)
+							.Visibility_Lambda([this]() { return bShowingLidar && GetLidarProjectionMode() == ELidarMonitorProjectionMode::ForwardSlice ? EVisibility::Visible : EVisibility::Collapsed; })
+							+ SHorizontalBox::Slot().FillWidth(1.0f)
+							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(FString::Printf(TEXT("슬라이스 두께 %.2fm"), V ? V->GetVisualizationSettings().ForwardSliceThicknessCm * 0.01f : 1.0f)); }) ]
+							+ SHorizontalBox::Slot().AutoWidth().Padding(3.0f, 0.0f)
+							[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SliceThinner", "두께 -")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) { auto S = V->GetVisualizationSettings(); S.ForwardSliceThicknessCm = FMath::Max(10.0f, S.ForwardSliceThicknessCm - 25.0f); V->SetVisualizationSettings(S); } return FReply::Handled(); }) ]
+							+ SHorizontalBox::Slot().AutoWidth()
+							[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SliceThicker", "두께 +")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) { auto S = V->GetVisualizationSettings(); S.ForwardSliceThicknessCm = FMath::Min(10000.0f, S.ForwardSliceThicknessCm + 25.0f); V->SetVisualizationSettings(S); } return FReply::Handled(); }) ]
+						]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
                         [
                             SNew(SHorizontalBox)
@@ -1988,7 +2001,10 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
             ProjectionDescription = TEXT("조감도: 센서 기준 XY 평면에 점을 투영하며 거리 원과 센서 전방 방향을 함께 표시합니다.");
             break;
         case ELidarMonitorProjectionMode::Elevation:
-            ProjectionDescription = TEXT("고도 단면: 센서로부터의 전방 거리와 상대 높이를 단면으로 표시합니다.");
+			ProjectionDescription = TEXT("방사 거리-높이 프로파일: X축은 sqrt(X²+Y²) 수평 방사거리, Y축은 센서 기준 높이입니다. 좌우 방향은 합쳐지며 바닥·천장·경사·물체 높이 분석에 적합합니다.");
+			break;
+		case ELidarMonitorProjectionMode::ForwardSlice:
+			ProjectionDescription = TEXT("전방 수직 슬라이스: 선택한 방향과 두께 범위 안의 점만 센서 로컬 X-Z 단면으로 표시합니다. 우클릭 드래그로 슬라이스 방향을 회전합니다.");
             break;
         case ELidarMonitorProjectionMode::Split:
             ProjectionDescription = TEXT("분할: 거리 영상과 조감도를 동시에 표시합니다.");

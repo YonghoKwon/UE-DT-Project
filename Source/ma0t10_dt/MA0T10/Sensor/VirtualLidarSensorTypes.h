@@ -27,8 +27,10 @@ enum class ELidarMonitorProjectionMode : uint8
 {
     RangeImage UMETA(DisplayName = "거리 영상"),
     TopDown UMETA(DisplayName = "조감도"),
-    Elevation UMETA(DisplayName = "고도 단면"),
-    Split UMETA(DisplayName = "거리 영상 + 조감도")
+	Elevation UMETA(DisplayName = "방사 거리-높이 프로파일"),
+	Split UMETA(DisplayName = "거리 영상 + 조감도"),
+	/** Appended for serialized enum compatibility. */
+	ForwardSlice UMETA(DisplayName = "전방 수직 슬라이스")
 };
 
 /** Colour policy shared by the monitor textures and the world point renderer. */
@@ -160,6 +162,9 @@ struct MA0T10_DT_API FVirtualLidarVisualizationSettings
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
     float ElevationRotationDegrees = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "1.0", ClampMax = "10000.0"))
+	float ForwardSliceThicknessCm = 100.0f;
 };
 
 USTRUCT(BlueprintType)

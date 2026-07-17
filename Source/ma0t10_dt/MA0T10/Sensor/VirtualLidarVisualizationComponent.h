@@ -88,6 +88,7 @@ public:
         float NormalizedHeight);
     static FIntPoint ProjectTopDown(const FVector& SensorLocalPoint, float MaxDistanceCm, int32 Resolution);
     static FIntPoint ProjectElevation(const FVector& SensorLocalPoint, float MaxDistanceCm, float MinHeightCm, float MaxHeightCm, int32 Width, int32 Height);
+	static FIntPoint ProjectForwardSlice(const FVector& SensorLocalPoint, float SliceYawDegrees, float MaxDistanceCm, float MinHeightCm, float MaxHeightCm, int32 Width, int32 Height, bool& bOutInsideSlice, float SliceThicknessCm);
     static ELidarPointCloudRendererState ResolveRendererState(
         ELidarPointCloudRenderPolicy Policy,
         bool bWorldPointCloudEnabled,
