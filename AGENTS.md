@@ -46,6 +46,20 @@
 - `.umap`, `.uasset`을 raw binary patch하지 말고 Unreal Editor Python이나 Editor API로 생성·저장합니다.
 - Slab mesh는 자동 생성하지 않습니다.
 
+## 다른 프로젝트 이식 기준
+
+- Sensor V2를 다른 프로젝트로 옮길 때 C++ 파일 복사와 `ma0t10` 일괄 치환만으로 완료됐다고 판단하지 않습니다. C++ 모듈, DTCore 의존성, Content 자산, soft object path, Editor 도구를 각각 검사합니다.
+- 현재 DTCore 결합 지점은 `AInteractableActor`, `UStatusVisualizerCompBase`, `UDxWidget`, `UDxWidgetSubsystem`입니다. 대상 프로젝트가 DTCore를 사용하지 않으면 동일 역할의 base/interface와 Viewport host를 먼저 제공해야 합니다.
+- 모듈명을 변경하면 include prefix, `*_API` export macro, `/Script/<Module>` class path, Build.cs 의존성을 함께 변경합니다. `MA0T10`이라는 단순 source 하위 폴더명은 기능상 필수 변경 대상이 아닙니다.
+- `/Game/MA0T10` 자산은 Unreal Editor의 Migrate 또는 Editor API로 이전합니다. `.uasset`을 파일 탐색기로 개별 복사하거나 binary patch하지 않습니다.
+- 최소 이전 자산은 세 V2 WBP, `NS_VirtualLidarPointCloud`, `M_VirtualLidarPointSprite`이며 Asset Registry에서 누락된 dependency가 없는지 확인합니다.
+- 임의 레벨의 기본 구성은 `AVirtualSensorCoordinator` 1개, 필요한 Camera/LiDAR Actor, `AVirtualSensorUiHostActor` 1개입니다. 외부 입력이 필요할 때만 `AVirtualSensorExternalSourceHostActor`를 추가합니다.
+- `/Game/MA0T10/Maps/SensorTestMap`에 고정된 PIE→Editor 영구 저장 기능을 다른 Map에 그대로 적용하지 않습니다. 저장 대상은 설정 가능한 soft path로 바꾸거나 대상 프로젝트에서 명시적으로 비활성화합니다.
+- 새 프로젝트가 기존 Blueprint/Map 자산을 가져오지 않는다면 MA0T10 구 클래스용 CoreRedirect를 불필요하게 복사하지 않습니다. 기존 자산을 마이그레이션할 때만 실제 old/new module 경로로 redirect를 작성합니다.
+- 여러 프로젝트에서 재사용할 구현은 `DTVirtualSensorRuntime`, `DTVirtualSensorEditor`, plugin Content로 분리하는 것을 기본 방향으로 삼습니다. 프로젝트별 이름 치환보다 안정적인 plugin mount path와 설정 객체를 우선합니다.
+- 플러그인화할 때 WBP/Niagara 경로, 저장 대상 Map, UI SaveGame 슬롯, 캡처 저장 루트, 전송 Topic을 hard-coded `/Game/MA0T10` 값으로 두지 않고 설정 또는 soft object property로 노출합니다.
+- 이식 검증에는 대상 프로젝트 Editor Development 빌드, WBP compile, Niagara 로드와 CPU fallback, Coordinator의 센서 발견, UI Host의 Main/Viewport fallback, Capture/Export, PIE 종료 정리를 포함합니다.
+
 ## 검증 순서
 
 1. Unreal Editor와 Live Coding을 종료합니다.
