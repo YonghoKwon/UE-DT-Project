@@ -329,6 +329,8 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
             MaxWorldZ = FMath::Max(MaxWorldZ, static_cast<float>(Point.WorldLocation.Z));
         }
         if (MinWorldZ == TNumericLimits<float>::Max()) { MinWorldZ = 0.0f; MaxWorldZ = 1.0f; }
+        Result->MinHeightCm = MinWorldZ;
+        Result->MaxHeightCm = MaxWorldZ;
 
         for (const FVirtualLidarPoint& Point : Points)
         {
@@ -1181,7 +1183,12 @@ FString UVirtualLidarVisualizationComponent::GetLegendText() const
     {
     case ELidarColorMode::DistanceTurbo: return FString::Printf(TEXT("Turbo 거리: %.1fm → %.1fm"), LastMinDistanceCm * 0.01f, LastMaxDistanceCm * 0.01f);
     case ELidarColorMode::DistanceViridis: return FString::Printf(TEXT("Viridis 거리: %.1fm → %.1fm"), LastMinDistanceCm * 0.01f, LastMaxDistanceCm * 0.01f);
-    case ELidarColorMode::RelativeHeight: return FString::Printf(TEXT("센서 상대 높이: %.2fm → %.2fm"), LastMinHeightCm * 0.01f, LastMaxHeightCm * 0.01f);
+    case ELidarColorMode::RelativeHeight:
+        if (Settings.ProjectionMode == ELidarMonitorProjectionMode::WorldTopDown)
+        {
+            return FString::Printf(TEXT("월드 Z 높이: %.2fm → %.2fm"), LastMinHeightCm * 0.01f, LastMaxHeightCm * 0.01f);
+        }
+        return FString::Printf(TEXT("센서 상대 높이: %.2fm → %.2fm"), LastMinHeightCm * 0.01f, LastMaxHeightCm * 0.01f);
     case ELidarColorMode::SemanticLabel: return TEXT("SemanticLabel 설정 색상 · 미분류=회색");
     case ELidarColorMode::VerticalChannel: return ScanComponent ? FString::Printf(TEXT("수직 채널: 0 → %d"), FMath::Max(0, ScanComponent->VerticalChannels - 1)) : TEXT("수직 채널");
     case ELidarColorMode::ReturnIndex: return TEXT("Return index: 0, 1, 2… · MultiHit에서 구분");

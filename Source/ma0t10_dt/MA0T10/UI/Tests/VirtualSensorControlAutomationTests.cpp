@@ -153,6 +153,7 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     Preferences->LidarColorMode = ELidarColorMode::DistanceViridis;
     Preferences->bShowWorldLidarPointCloud = false;
     Preferences->LidarPointSize = 3.5f;
+    Preferences->bWorldTopDownAutoFit = false;
     Preferences->bMonitorDetailsExpanded = true;
     Preferences->bSettingsKeyboardHelpExpanded = true;
 
@@ -175,6 +176,7 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     TestEqual(TEXT("LiDAR color mode survives serialization"), Loaded->LidarColorMode, ELidarColorMode::DistanceViridis);
     TestFalse(TEXT("world point visibility survives serialization"), Loaded->bShowWorldLidarPointCloud);
     TestEqual(TEXT("point size survives serialization"), Loaded->LidarPointSize, 3.5f);
+    TestFalse(TEXT("world top-down auto-fit survives serialization"), Loaded->bWorldTopDownAutoFit);
     TestTrue(TEXT("monitor detail state survives serialization"), Loaded->bMonitorDetailsExpanded);
     TestTrue(TEXT("keyboard help state survives serialization"), Loaded->bSettingsKeyboardHelpExpanded);
     return true;

@@ -32,8 +32,9 @@ class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 3;
+    static constexpr int32 CurrentVersion = 4;
     static const FString SlotName;
+    static const FString Version3SlotName;
     static const FString Version2SlotName;
     static const FString LegacySlotName;
     static constexpr int32 UserIndex = 0;
@@ -71,6 +72,9 @@ public:
 
     UPROPERTY(SaveGame)
     bool bOverlayLidarDepthEdges = true;
+
+    UPROPERTY(SaveGame)
+    bool bWorldTopDownAutoFit = true;
 
     UPROPERTY(SaveGame)
     bool bMonitorDetailsExpanded = false;
