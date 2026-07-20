@@ -49,6 +49,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
     void ResetProjectionView(ELidarMonitorProjectionMode ProjectionMode);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
+    void SetWorldTopDownAutoFit(bool bEnabled);
+
     void SetForceCpuFallbackForBenchmark(bool bForce) { bForceCpuFallbackForBenchmark = bForce; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Visualization")
@@ -87,6 +90,8 @@ public:
         float NormalizedDistance,
         float NormalizedHeight);
     static FIntPoint ProjectTopDown(const FVector& SensorLocalPoint, float MaxDistanceCm, int32 Resolution);
+    static FIntPoint ProjectWorldTopDown(const FVector& WorldPoint, const FVector2D& CenterWorldYX, const FVector2D& HalfExtentWorldYX, float RotationDegrees, int32 Width, int32 Height);
+    static bool CalculateWorldTopDownView(const TArray<FVirtualLidarPoint>& Points, const FVector& SensorWorldLocation, float MaxDistanceCm, FVector2D& OutCenterWorldYX, FVector2D& OutHalfExtentWorldYX);
     static FIntPoint ProjectElevation(const FVector& SensorLocalPoint, float MaxDistanceCm, float MinHeightCm, float MaxHeightCm, int32 Width, int32 Height);
 	static FIntPoint ProjectForwardSlice(const FVector& SensorLocalPoint, float SliceYawDegrees, float MaxDistanceCm, float MinHeightCm, float MaxHeightCm, int32 Width, int32 Height, bool& bOutInsideSlice, float SliceThicknessCm);
     static ELidarPointCloudRendererState ResolveRendererState(
@@ -141,6 +146,7 @@ private:
     float LastMaxDistanceCm = 0.0f;
     float LastMinHeightCm = 0.0f;
     float LastMaxHeightCm = 0.0f;
+    FVector2D LastWorldTopDownHalfExtentCm = FVector2D(10000.0f, 10000.0f);
     FString ActiveRendererName = TEXT("CPU ISM fallback");
     FString RendererFallbackReason;
     FVirtualLidarRendererTelemetry RendererTelemetry;

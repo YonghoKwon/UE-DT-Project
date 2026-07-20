@@ -30,7 +30,9 @@ enum class ELidarMonitorProjectionMode : uint8
 	Elevation UMETA(DisplayName = "방사 거리-높이 프로파일"),
 	Split UMETA(DisplayName = "거리 영상 + 조감도"),
 	/** Appended for serialized enum compatibility. */
-	ForwardSlice UMETA(DisplayName = "전방 수직 슬라이스")
+	ForwardSlice UMETA(DisplayName = "전방 수직 슬라이스"),
+	/** World-space floor plan. Appended for serialized enum compatibility. */
+	WorldTopDown UMETA(DisplayName = "월드 XY 조감도")
 };
 
 /** Colour policy shared by the monitor textures and the world point renderer. */
@@ -151,8 +153,22 @@ struct MA0T10_DT_API FVirtualLidarVisualizationSettings
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "0.1", ClampMax = "20.0"))
     float TopDownZoom = 1.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
-    float TopDownRotationDegrees = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+	float TopDownRotationDegrees = 0.0f;
+
+	/** World-space pan axes are screen axes: X = World Y, Y = World X. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+	FVector2D WorldTopDownPanCm = FVector2D::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View", meta = (ClampMin = "0.1", ClampMax = "20.0"))
+	float WorldTopDownZoom = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+	float WorldTopDownRotationDegrees = 0.0f;
+
+	/** Fits the viewport to the current hit-point bounds, independent of sensor rotation. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
+	bool bWorldTopDownAutoFit = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization|View")
     FVector2D ElevationPanCm = FVector2D::ZeroVector;
