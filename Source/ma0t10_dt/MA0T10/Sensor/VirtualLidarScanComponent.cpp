@@ -409,6 +409,9 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 
     RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;
     LastScheduledCompletionTime = NowSeconds;
+	UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
+	OnFrameAcquired.Broadcast(FrameId);
+	OnFrameAcquiredNative.Broadcast(FrameId);
 	if (bInteractivePreviewMode && bSuppressInteractiveDerivedOutput)
 	{
 		RuntimeStatus.LastPostProcessDurationMs = 0.0f;
@@ -765,6 +768,9 @@ void UVirtualLidarScanComponent::ScanAndSend()
     LastPerformanceWarning = BuildPerformanceWarning();
     UpdateLidarViewTexture(HeatmapPixels);
     RefreshPointCloudPreview();
+	UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
+	OnFrameAcquired.Broadcast(FrameId);
+	OnFrameAcquiredNative.Broadcast(FrameId);
 
     const FString JsonPayload = BuildJsonPayload(LastPoints);
     LastJsonPayload = JsonPayload;
@@ -803,6 +809,9 @@ void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLida
     }
     UpdateLidarViewTexture(HeatmapPixels);
     RefreshPointCloudPreview();
+	UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
+	OnFrameAcquired.Broadcast(FrameId);
+	OnFrameAcquiredNative.Broadcast(FrameId);
 
     const FString JsonPayload = BuildJsonPayload(LastPoints);
     LastJsonPayload = JsonPayload;

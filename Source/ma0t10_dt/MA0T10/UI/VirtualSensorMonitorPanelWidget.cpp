@@ -134,26 +134,16 @@ FString LidarViewModeDisplayText(EVirtualLidarViewMode ViewMode)
     if (ViewMode == EVirtualLidarViewMode::HitMask) return TEXT("검출 마스크");
     if (ViewMode == EVirtualLidarViewMode::ActorClassColor) return TEXT("의미 분류 색상");
     return TEXT("거리 회색조");
-    if (ViewMode == EVirtualLidarViewMode::DepthGradient) return TEXT("거리 색상");
-    if (ViewMode == EVirtualLidarViewMode::HitMask) return TEXT("검출 마스크");
-    if (ViewMode == EVirtualLidarViewMode::ActorClassColor) return TEXT("의미 분류 색상");
-    return TEXT("거리 회색조");
 }
 
 FString LidarProjectionDisplayText(ELidarMonitorProjectionMode Mode)
 {
-    if (Mode == ELidarMonitorProjectionMode::TopDown) return TEXT("조감도");
+	if (Mode == ELidarMonitorProjectionMode::TopDown) return TEXT("센서 로컬 조감도");
+	if (Mode == ELidarMonitorProjectionMode::WorldTopDown) return TEXT("월드 XY 조감도");
 	if (Mode == ELidarMonitorProjectionMode::Elevation) return TEXT("방사 거리-높이 프로파일");
 	if (Mode == ELidarMonitorProjectionMode::ForwardSlice) return TEXT("전방 수직 슬라이스");
     if (Mode == ELidarMonitorProjectionMode::Split) return TEXT("거리 영상 + 조감도");
     return TEXT("거리 영상");
-    switch (Mode)
-    {
-    case ELidarMonitorProjectionMode::TopDown: return TEXT("조감도");
-    case ELidarMonitorProjectionMode::Elevation: return TEXT("거리-높이 단면");
-    case ELidarMonitorProjectionMode::Split: return TEXT("거리 영상 + 조감도");
-    default: return TEXT("거리 영상");
-    }
 }
 
 FString LidarColorDisplayText(ELidarColorMode Mode)
@@ -166,17 +156,6 @@ FString LidarColorDisplayText(ELidarColorMode Mode)
     if (Mode == ELidarColorMode::HitMask) return TEXT("검출 마스크");
     if (Mode == ELidarColorMode::DistanceGray) return TEXT("거리 회색조");
     return TEXT("거리 Turbo");
-    switch (Mode)
-    {
-    case ELidarColorMode::DistanceViridis: return TEXT("거리 Viridis (색각 친화)");
-    case ELidarColorMode::RelativeHeight: return TEXT("센서 상대 높이");
-    case ELidarColorMode::SemanticLabel: return TEXT("의미 분류 색상");
-    case ELidarColorMode::VerticalChannel: return TEXT("수직 채널 / Ring");
-    case ELidarColorMode::ReturnIndex: return TEXT("MultiHit Return 번호");
-    case ELidarColorMode::HitMask: return TEXT("검출 마스크");
-    case ELidarColorMode::DistanceGray: return TEXT("거리 회색조");
-    default: return TEXT("거리 Turbo");
-    }
 }
 
 FColor ApplyMonitorGridOverlay(const FColor& InColor, bool bHit, bool bIsGrid)
@@ -510,6 +489,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
     NativeLidarProjectionOptions.Reset();
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::RangeImage));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::TopDown));
+    NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::WorldTopDown));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::Elevation));
 	NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::ForwardSlice));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::Split));
@@ -571,6 +551,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         .Text(LOCTEXT("ResetUi", "위치 초기화"))
                         .ToolTipText(LOCTEXT("ResetUiTip", "이 패널을 기본 위치로 되돌립니다."))
                         .OnClicked_Lambda([this]() { ResetPanelPosition(); return FReply::Handled(); })
+                    ]
+                    + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
+                    [
+                        SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                        .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
+                        .Text(LOCTEXT("ResetMonitorSize", "크기 초기화"))
+                        .ToolTipText(LOCTEXT("ResetMonitorSizeTip", "모니터를 현재 화면 해상도의 기본 크기로 되돌립니다."))
+                        .OnClicked_Lambda([this]() { ResetPanelSize(); return FReply::Handled(); })
                     ]
                 ]
             ]
@@ -688,6 +676,21 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
 						[
 							SNew(SHorizontalBox)
+							.Visibility_Lambda([this]() { return bShowingLidar && GetLidarProjectionMode() == ELidarMonitorProjectionMode::WorldTopDown ? EVisibility::Visible : EVisibility::Collapsed; })
+							+ SHorizontalBox::Slot().FillWidth(1.0f)
+							[
+								SNew(SCheckBox)
+								.ToolTipText(LOCTEXT("WorldTopDownAutoFitTip", "현재 프레임의 검출점 월드 XY 경계를 찾아 화면에 자동으로 맞춥니다."))
+								.IsChecked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return V && V->GetVisualizationSettings().bWorldTopDownAutoFit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+								.OnCheckStateChanged_Lambda([this](ECheckBoxState State) { SetLidarWorldTopDownAutoFit(State == ECheckBoxState::Checked); })
+								[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("WorldTopDownAutoFit", "검출점 자동 맞춤")) ]
+							]
+							+ SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f)
+							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("WorldTopDownAxes", "가로=월드 Y · 세로=월드 X")) ]
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
+						[
+							SNew(SHorizontalBox)
 							.Visibility_Lambda([this]() { return bShowingLidar && GetLidarProjectionMode() == ELidarMonitorProjectionMode::ForwardSlice ? EVisibility::Visible : EVisibility::Collapsed; })
 							+ SHorizontalBox::Slot().FillWidth(1.0f)
 							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(FString::Printf(TEXT("슬라이스 두께 %.2fm"), V ? V->GetVisualizationSettings().ForwardSliceThicknessCm * 0.01f : 1.0f)); }) ]
@@ -741,6 +744,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         .Text_Lambda([this]() { return BuildPointCloudOnlyButtonText(); })
                     ]
                 ]
+            ]
+            + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
+            [
+                SNew(STextBlock)
+                .Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
+                .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
+                .Text(LOCTEXT("MonitorResizeHint", "↘ 드래그: 모니터 크기 조절"))
+                .ToolTipText(LOCTEXT("MonitorResizeHintTip", "패널 오른쪽 아래를 드래그해 가로와 세로 크기를 자유롭게 조절합니다."))
             ]
         ];
 }
@@ -1147,6 +1158,16 @@ void UVirtualSensorMonitorPanelWidget::SetLidarWorldPointCloudEnabled(bool bEnab
     if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
     {
         Visualization->SetWorldPointCloudEnabled(bEnabled);
+        SaveMonitorUiPreferences();
+    }
+}
+
+void UVirtualSensorMonitorPanelWidget::SetLidarWorldTopDownAutoFit(bool bEnabled)
+{
+    if (UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
+    {
+        Visualization->SetWorldTopDownAutoFit(bEnabled);
+        RefreshImageBrush();
         SaveMonitorUiPreferences();
     }
 }
@@ -1998,8 +2019,11 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
         switch (Settings.ProjectionMode)
         {
         case ELidarMonitorProjectionMode::TopDown:
-            ProjectionDescription = TEXT("조감도: 센서 기준 XY 평면에 점을 투영하며 거리 원과 센서 전방 방향을 함께 표시합니다.");
+            ProjectionDescription = TEXT("센서 로컬 조감도: 센서 기준 XY 평면에 점을 투영합니다. 수평 설치 센서의 전방·좌우 분포를 볼 때 적합합니다.");
             break;
+		case ELidarMonitorProjectionMode::WorldTopDown:
+			ProjectionDescription = TEXT("월드 XY 조감도: 센서 회전과 무관하게 월드 바닥 평면에 점을 투영합니다. 가로는 월드 Y, 세로는 월드 X이며 수직 설치 센서의 평면도에 적합합니다.");
+			break;
         case ELidarMonitorProjectionMode::Elevation:
 			ProjectionDescription = TEXT("방사 거리-높이 프로파일: X축은 sqrt(X²+Y²) 수평 방사거리, Y축은 센서 기준 높이입니다. 좌우 방향은 합쳐지며 바닥·천장·경사·물체 높이 분석에 적합합니다.");
 			break;
@@ -2019,7 +2043,11 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
         switch (Settings.ColorMode)
         {
         case ELidarColorMode::DistanceViridis: ColorDescription = TEXT("Viridis 거리 색상은 색각 친화 팔레트로 거리를 구분합니다."); break;
-        case ELidarColorMode::RelativeHeight: ColorDescription = TEXT("센서 상대 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다."); break;
+        case ELidarColorMode::RelativeHeight:
+            ColorDescription = Settings.ProjectionMode == ELidarMonitorProjectionMode::WorldTopDown
+                ? TEXT("월드 Z 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다.")
+                : TEXT("센서 상대 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다.");
+            break;
         case ELidarColorMode::SemanticLabel: ColorDescription = TEXT("SemanticLabel 규칙에 설정된 의미 분류 색상을 사용합니다."); break;
         case ELidarColorMode::VerticalChannel: ColorDescription = TEXT("각 점을 수직 채널(ring) 번호로 구분합니다."); break;
         case ELidarColorMode::ReturnIndex: ColorDescription = TEXT("MultiHit 측정의 return index를 서로 다른 색으로 구분합니다."); break;
@@ -2146,6 +2174,7 @@ void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
         Settings.bUseAdaptiveDistance = bUseAdaptiveLidarDepthRange;
         Settings.bShowGrid = bOverlayLidarMonitorGrid;
         Settings.bShowDepthEdges = bOverlayLidarDepthEdges;
+        Settings.bWorldTopDownAutoFit = Preferences->bWorldTopDownAutoFit;
         Visualization->SetVisualizationSettings(Settings);
     }
 }
@@ -2162,6 +2191,7 @@ void UVirtualSensorMonitorPanelWidget::SaveMonitorUiPreferences() const
         Preferences->LidarColorMode = Settings.ColorMode;
         Preferences->bShowWorldLidarPointCloud = Settings.bShowWorldPointCloud;
         Preferences->LidarPointSize = Settings.PointSize;
+        Preferences->bWorldTopDownAutoFit = Settings.bWorldTopDownAutoFit;
     }
     Preferences->bUseAdaptiveLidarDepthRange = bUseAdaptiveLidarDepthRange;
     Preferences->bOverlayLidarMonitorGrid = bOverlayLidarMonitorGrid;

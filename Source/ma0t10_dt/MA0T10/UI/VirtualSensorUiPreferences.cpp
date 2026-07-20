@@ -3,7 +3,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 
-const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v2");
+const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v4");
+const FString UVirtualSensorUiPreferencesSaveGame::Version3SlotName = TEXT("MA0T10_VirtualSensorUI_v3");
+const FString UVirtualSensorUiPreferencesSaveGame::Version2SlotName = TEXT("MA0T10_VirtualSensorUI_v2");
 const FString UVirtualSensorUiPreferencesSaveGame::LegacySlotName = TEXT("MA0T10_VirtualSensorUI_v1");
 
 UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOrCreate()
@@ -18,6 +20,27 @@ UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOr
     if (UVirtualSensorUiPreferencesSaveGame* Loaded = LoadSlot(SlotName))
     {
         if (Loaded->Version == CurrentVersion) return Loaded;
+    }
+
+    if (UVirtualSensorUiPreferencesSaveGame* Version3 = LoadSlot(Version3SlotName))
+    {
+        if (Version3->Version == 3)
+        {
+            Version3->bWorldTopDownAutoFit = true;
+            Version3->Version = CurrentVersion;
+            Save(Version3);
+            return Version3;
+        }
+    }
+
+    if (UVirtualSensorUiPreferencesSaveGame* Version2 = LoadSlot(Version2SlotName))
+    {
+        if (Version2->Version == 2)
+        {
+            Version2->Version = CurrentVersion;
+            Save(Version2);
+            return Version2;
+        }
     }
 
     if (UVirtualSensorUiPreferencesSaveGame* Legacy = LoadSlot(LegacySlotName))
@@ -46,7 +69,11 @@ bool UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences()
 {
     const bool bDeletedCurrent = !UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex) ||
         UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex);
+    const bool bDeletedVersion3 = !UGameplayStatics::DoesSaveGameExist(Version3SlotName, UserIndex) ||
+        UGameplayStatics::DeleteGameInSlot(Version3SlotName, UserIndex);
+    const bool bDeletedVersion2 = !UGameplayStatics::DoesSaveGameExist(Version2SlotName, UserIndex) ||
+        UGameplayStatics::DeleteGameInSlot(Version2SlotName, UserIndex);
     const bool bDeletedLegacy = !UGameplayStatics::DoesSaveGameExist(LegacySlotName, UserIndex) ||
         UGameplayStatics::DeleteGameInSlot(LegacySlotName, UserIndex);
-    return bDeletedCurrent && bDeletedLegacy;
+    return bDeletedCurrent && bDeletedVersion3 && bDeletedVersion2 && bDeletedLegacy;
 }

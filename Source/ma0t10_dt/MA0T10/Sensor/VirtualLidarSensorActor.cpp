@@ -34,6 +34,7 @@ void AVirtualLidarSensorActor::BeginPlay()
         ScanComponent->SetTransportComponent(nullptr);
         ScanComponent->SetRecorderComponent(nullptr);
         ScanComponent->OutputMode = EVirtualLidarOutputMode::None;
+        ScanComponent->OnFrameAcquired.AddDynamic(this, &AVirtualLidarSensorActor::HandleLidarFrameAcquired);
         ScanComponent->OnScanCompleted.AddDynamic(this, &AVirtualLidarSensorActor::HandleLidarFrame);
         if (AnalysisComponent) AnalysisComponent->BindScanComponent(ScanComponent);
         if (VisualizationComponent) VisualizationComponent->BindScanComponent(ScanComponent);
@@ -115,6 +116,30 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     ScanComponent->bExportPcdOnScan = State.bExportPcdOnScan;
     ScanComponent->StartScan();
     return true;
+}
+
+void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
+{
+    const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = ScanComponent
+        ? ScanComponent->GetLastFrameSnapshot()
+        : nullptr;
+    if (!Snapshot.IsValid() || FrameId != Snapshot->FrameId)
+    {
+        return;
+    }
+
+    if (AnalysisComponent)
+    {
+        AnalysisComponent->ApplyPrecomputedStatistics(ScanComponent->GetLastHitPointCount(), ScanComponent->GetLastSemanticCounts());
+    }
+    if (VisualizationComponent)
+    {
+        const UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>() : nullptr;
+        if (!Scheduler || Scheduler->ShouldRefreshLidarPreview(ScanComponent))
+        {
+            VisualizationComponent->RefreshLatestFrame();
+        }
+    }
 }
 
 bool AVirtualLidarSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
@@ -199,12 +224,6 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
 void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTexture2D* ViewTexture)
 {
     if (!ScanComponent) return;
-    if (AnalysisComponent) AnalysisComponent->ApplyPrecomputedStatistics(ScanComponent->GetLastHitPointCount(), ScanComponent->GetLastSemanticCounts());
-    if (VisualizationComponent)
-    {
-        const UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>() : nullptr;
-        if (!Scheduler || Scheduler->ShouldRefreshLidarPreview(ScanComponent)) VisualizationComponent->RefreshLatestFrame();
-    }
     if (!OutputComponent || JsonPayload.IsEmpty()) return;
 
     FVirtualSensorFrameEnvelope Frame;

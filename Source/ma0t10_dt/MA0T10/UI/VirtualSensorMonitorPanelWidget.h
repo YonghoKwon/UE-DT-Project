@@ -122,6 +122,9 @@ public:
     void SetLidarWorldPointCloudEnabled(bool bEnabled);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
+    void SetLidarWorldTopDownAutoFit(bool bEnabled);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void SetLidarPointSize(float InPointSize);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LidarView")

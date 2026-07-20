@@ -146,11 +146,14 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     Panel.NormalizedPosition = FVector2D(0.75f, 0.25f);
     Panel.bHasSavedPosition = true;
     Panel.bCollapsed = true;
+    Panel.ExpandedSize = FVector2D(1040.0f, 620.0f);
+    Panel.bHasSavedSize = true;
     Preferences->LidarViewMode = static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor);
     Preferences->LidarProjectionMode = ELidarMonitorProjectionMode::Split;
     Preferences->LidarColorMode = ELidarColorMode::DistanceViridis;
     Preferences->bShowWorldLidarPointCloud = false;
     Preferences->LidarPointSize = 3.5f;
+    Preferences->bWorldTopDownAutoFit = false;
     Preferences->bMonitorDetailsExpanded = true;
     Preferences->bSettingsKeyboardHelpExpanded = true;
 
@@ -165,12 +168,15 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     {
         TestEqual(TEXT("normalized position survives serialization"), LoadedPanel->NormalizedPosition, FVector2D(0.75f, 0.25f));
         TestTrue(TEXT("collapsed state survives serialization"), LoadedPanel->bCollapsed);
+        TestTrue(TEXT("saved size flag survives serialization"), LoadedPanel->bHasSavedSize);
+        TestEqual(TEXT("expanded size survives serialization"), LoadedPanel->ExpandedSize, FVector2D(1040.0f, 620.0f));
     }
     TestEqual(TEXT("LiDAR mode survives serialization"), Loaded->LidarViewMode, static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor));
     TestEqual(TEXT("LiDAR projection survives serialization"), Loaded->LidarProjectionMode, ELidarMonitorProjectionMode::Split);
     TestEqual(TEXT("LiDAR color mode survives serialization"), Loaded->LidarColorMode, ELidarColorMode::DistanceViridis);
     TestFalse(TEXT("world point visibility survives serialization"), Loaded->bShowWorldLidarPointCloud);
     TestEqual(TEXT("point size survives serialization"), Loaded->LidarPointSize, 3.5f);
+    TestFalse(TEXT("world top-down auto-fit survives serialization"), Loaded->bWorldTopDownAutoFit);
     TestTrue(TEXT("monitor detail state survives serialization"), Loaded->bMonitorDetailsExpanded);
     TestTrue(TEXT("keyboard help state survives serialization"), Loaded->bSettingsKeyboardHelpExpanded);
     return true;
