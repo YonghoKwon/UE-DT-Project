@@ -572,6 +572,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         .ToolTipText(LOCTEXT("ResetUiTip", "이 패널을 기본 위치로 되돌립니다."))
                         .OnClicked_Lambda([this]() { ResetPanelPosition(); return FReply::Handled(); })
                     ]
+                    + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
+                    [
+                        SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                        .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
+                        .Text(LOCTEXT("ResetMonitorSize", "크기 초기화"))
+                        .ToolTipText(LOCTEXT("ResetMonitorSizeTip", "모니터를 현재 화면 해상도의 기본 크기로 되돌립니다."))
+                        .OnClicked_Lambda([this]() { ResetPanelSize(); return FReply::Handled(); })
+                    ]
                 ]
             ]
             + SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 8.0f, 0.0f, 6.0f)
@@ -741,6 +749,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         .Text_Lambda([this]() { return BuildPointCloudOnlyButtonText(); })
                     ]
                 ]
+            ]
+            + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
+            [
+                SNew(STextBlock)
+                .Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
+                .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
+                .Text(LOCTEXT("MonitorResizeHint", "↘ 드래그: 모니터 크기 조절"))
+                .ToolTipText(LOCTEXT("MonitorResizeHintTip", "패널 오른쪽 아래를 드래그해 가로와 세로 크기를 자유롭게 조절합니다."))
             ]
         ];
 }

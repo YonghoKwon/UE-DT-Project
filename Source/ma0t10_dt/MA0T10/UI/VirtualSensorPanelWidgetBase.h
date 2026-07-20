@@ -37,11 +37,29 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPanel")
     FVector2D GetEffectivePanelSize() const;
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel")
+    void SetPanelResizable(bool bResizable) { bPanelResizable = bResizable; }
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel")
+    void SetPanelResizeLimits(FVector2D InMinimumSize, FVector2D InMaximumSize);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel")
+    void SetPanelExpandedSize(FVector2D InExpandedSize, bool bPersist = true);
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel")
+    void ResetPanelSize();
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPanel")
+    FVector2D GetPanelExpandedSize() const { return DesiredPanelSize; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPanel")
     static FVector2D ClampPanelPosition(FVector2D Position, FVector2D PanelSize, FVector2D ViewportSize, float Margin);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPanel")
     static FVector2D CalculateDraggedPanelPosition(FVector2D CurrentPosition, FVector2D CursorDelta, float DpiScale);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPanel")
+    static FVector2D CalculateResizedPanelSize(FVector2D CurrentSize, FVector2D CursorDelta, float DpiScale, FVector2D MinimumSize, FVector2D MaximumSize);
 
     void SetPanelHostComponent(UVirtualSensorPanelHostComponent* InHostComponent) { PanelHostComponent = InHostComponent; }
     void RefreshHostedPanelLayout();
@@ -62,8 +80,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorPanel")
     bool bClampPanelToViewport = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorPanel")
+    bool bPanelResizable = false;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorPanel", meta = (ClampMin = "16.0", ClampMax = "96.0"))
     float DragHandleHeight = 38.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorPanel", meta = (ClampMin = "8.0", ClampMax = "48.0"))
+    float ResizeHandleSize = 18.0f;
 
 private:
     void ApplyInitialPanelLayout(FVector2D ViewportSize);
@@ -75,15 +99,21 @@ private:
     FVector2D ResolveLogicalViewportSize() const;
     void SetPanelPositionInternal(FVector2D NewPosition);
     void ApplyPanelSize();
+    FVector2D ResolveMaximumPanelSize() const;
+    bool IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const;
 
     EVirtualSensorPanelPlacement DefaultPlacement = EVirtualSensorPanelPlacement::RightCenter;
     FVector2D RequestedPanelSize = FVector2D(820.0f, 430.0f);
+    FVector2D DefaultResolvedPanelSize = FVector2D(820.0f, 430.0f);
     FVector2D DesiredPanelSize = FVector2D(820.0f, 430.0f);
+    FVector2D MinimumPanelSize = FVector2D(160.0f, 80.0f);
+    FVector2D MaximumPanelSize = FVector2D::ZeroVector;
     FVector2D CurrentViewportPosition = FVector2D::ZeroVector;
     FName PanelPersistenceKey = NAME_None;
     float ViewportMargin = 18.0f;
     float CollapsedPanelHeight = 48.0f;
     bool bDraggingPanel = false;
+    bool bResizingPanel = false;
     bool bPanelCollapsed = false;
     bool bInitialLayoutPending = false;
     bool bPanelLayoutConfigured = false;

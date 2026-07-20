@@ -33,6 +33,7 @@
 
 - V2 패널 native parent는 각각 `UVirtualSensorMonitorPanelWidget`, `UVirtualSensorSettingsPanelWidget`, `UVirtualSensorCaptureExportPanelWidget`입니다.
 - 공통 base `UVirtualSensorPanelWidgetBase : UDxWidget`가 drag, DPI clamp, 접기, 위치 복원을 담당합니다.
+- Monitor는 공통 base의 자유 resize를 활성화합니다. 오른쪽 아래 grip, DPI 보정, 화면 clamp, 접힘 시 확장 크기 보존과 UI SaveGame v3 복원을 함께 유지합니다.
 - `UVirtualSensorPanelHostComponent`는 Main `AddWidgetPanel`을 우선 사용하고 Viewport fallback을 제공합니다.
 - 접기는 실제 Canvas slot 또는 viewport desired height를 약 48px로 줄여 빈 hit-test 영역을 남기지 않아야 합니다.
 - native fallback UI와 사용자 WBP의 optional binding/API를 함께 유지합니다. 동일 버튼을 Blueprint Event Graph에 중복 연결하지 않습니다.

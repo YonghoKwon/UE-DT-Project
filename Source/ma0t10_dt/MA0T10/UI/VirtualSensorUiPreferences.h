@@ -18,6 +18,12 @@ struct MA0T10_DT_API FVirtualSensorPanelUiState
 
     UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
     bool bCollapsed = false;
+
+    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+    FVector2D ExpandedSize = FVector2D::ZeroVector;
+
+    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+    bool bHasSavedSize = false;
 };
 
 UCLASS()
@@ -26,8 +32,9 @@ class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 2;
+    static constexpr int32 CurrentVersion = 3;
     static const FString SlotName;
+    static const FString Version2SlotName;
     static const FString LegacySlotName;
     static constexpr int32 UserIndex = 0;
 

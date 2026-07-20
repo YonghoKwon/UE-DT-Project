@@ -10,6 +10,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarLegacyViewMappingTest, "MA0T10.Sen
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarProjectionNavigationTest, "MA0T10.SensorV2.LidarVisualization.ProjectionNavigation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarFramePoseCoherenceTest, "MA0T10.SensorV2.LidarVisualization.FramePoseCoherence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarPreviewPolicyReversibleTest, "MA0T10.SensorV2.LidarVisualization.PreviewPolicyReversible", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualLidarAcquisitionNotificationTest, "MA0T10.SensorV2.LidarVisualization.AcquisitionNotification", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualLidarColorModeTest::RunTest(const FString& Parameters)
 {
@@ -112,6 +113,36 @@ bool FVirtualLidarPreviewPolicyReversibleTest::RunTest(const FString& Parameters
 	Scan->SetPreviewPolicyState(Policy);
 	TestTrue(TEXT("hit-only can be enabled again without a new scan"), Scan->GetPreviewPolicyState().bHitOnly);
 	return true;
+}
+
+bool FVirtualLidarAcquisitionNotificationTest::RunTest(const FString& Parameters)
+{
+    UVirtualLidarScanComponent* Scan = NewObject<UVirtualLidarScanComponent>();
+    bool bReceived = false;
+    bool bPayloadWasStillPending = false;
+    int64 ReceivedFrameId = INDEX_NONE;
+    Scan->OnFrameAcquiredNative.AddLambda([&](int64 FrameId)
+    {
+        bReceived = true;
+        ReceivedFrameId = FrameId;
+        bPayloadWasStillPending = Scan->GetLastJsonPayload().IsEmpty();
+    });
+
+    FVirtualLidarPoint Point;
+    Point.bHit = true;
+    Point.Distance = 100.0f;
+    Point.WorldLocation = FVector(100.0, 0.0, 0.0);
+    Scan->InjectPointCloudFrame({ Point }, false);
+
+    const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = Scan->GetLastFrameSnapshot();
+    TestTrue(TEXT("acquisition notification fires for an injected frame"), bReceived);
+    TestTrue(TEXT("notification is independent of JSON post processing"), bPayloadWasStillPending);
+    TestTrue(TEXT("immutable snapshot is available during notification"), Snapshot.IsValid());
+    if (Snapshot.IsValid())
+    {
+        TestEqual(TEXT("notification frame matches snapshot"), ReceivedFrameId, Snapshot->FrameId);
+    }
+    return true;
 }
 
 #endif

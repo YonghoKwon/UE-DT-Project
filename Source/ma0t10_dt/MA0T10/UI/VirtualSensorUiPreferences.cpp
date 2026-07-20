@@ -3,7 +3,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 
-const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v2");
+const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v3");
+const FString UVirtualSensorUiPreferencesSaveGame::Version2SlotName = TEXT("MA0T10_VirtualSensorUI_v2");
 const FString UVirtualSensorUiPreferencesSaveGame::LegacySlotName = TEXT("MA0T10_VirtualSensorUI_v1");
 
 UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOrCreate()
@@ -18,6 +19,16 @@ UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOr
     if (UVirtualSensorUiPreferencesSaveGame* Loaded = LoadSlot(SlotName))
     {
         if (Loaded->Version == CurrentVersion) return Loaded;
+    }
+
+    if (UVirtualSensorUiPreferencesSaveGame* Version2 = LoadSlot(Version2SlotName))
+    {
+        if (Version2->Version == 2)
+        {
+            Version2->Version = CurrentVersion;
+            Save(Version2);
+            return Version2;
+        }
     }
 
     if (UVirtualSensorUiPreferencesSaveGame* Legacy = LoadSlot(LegacySlotName))
@@ -46,7 +57,9 @@ bool UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences()
 {
     const bool bDeletedCurrent = !UGameplayStatics::DoesSaveGameExist(SlotName, UserIndex) ||
         UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex);
+    const bool bDeletedVersion2 = !UGameplayStatics::DoesSaveGameExist(Version2SlotName, UserIndex) ||
+        UGameplayStatics::DeleteGameInSlot(Version2SlotName, UserIndex);
     const bool bDeletedLegacy = !UGameplayStatics::DoesSaveGameExist(LegacySlotName, UserIndex) ||
         UGameplayStatics::DeleteGameInSlot(LegacySlotName, UserIndex);
-    return bDeletedCurrent && bDeletedLegacy;
+    return bDeletedCurrent && bDeletedVersion2 && bDeletedLegacy;
 }

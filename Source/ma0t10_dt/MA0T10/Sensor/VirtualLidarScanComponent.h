@@ -48,6 +48,8 @@ struct MA0T10_DT_API FVirtualLidarSemanticClassRule
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualLidarScanCompleted, const FString&, JsonPayload, UTexture2D*, LidarViewTexture);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarFrameAcquired, int64, FrameId);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarFrameAcquiredNative, int64);
 
 UCLASS(ClassGroup = (DTCore), meta = (BlueprintSpawnableComponent))
 class MA0T10_DT_API UVirtualLidarScanComponent : public USceneComponent, public IVirtualSensorScheduledTask
@@ -264,6 +266,12 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
+
+    /** Fired as soon as an immutable measurement snapshot is ready, before JSON/output work. */
+    UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
+    FOnVirtualLidarFrameAcquired OnFrameAcquired;
+
+    FOnVirtualLidarFrameAcquiredNative OnFrameAcquiredNative;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     FString SensorId = TEXT("LIDAR-001");

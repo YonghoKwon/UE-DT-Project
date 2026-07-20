@@ -32,6 +32,36 @@ void UVirtualSensorPanelWidgetBase::ConfigurePanelLayout(EVirtualSensorPanelPlac
     bInitialLayoutPending = true;
 }
 
+void UVirtualSensorPanelWidgetBase::SetPanelResizeLimits(FVector2D InMinimumSize, FVector2D InMaximumSize)
+{
+    MinimumPanelSize.X = FMath::Max(160.0f, InMinimumSize.X);
+    MinimumPanelSize.Y = FMath::Max(80.0f, InMinimumSize.Y);
+    MaximumPanelSize.X = FMath::Max(0.0f, InMaximumSize.X);
+    MaximumPanelSize.Y = FMath::Max(0.0f, InMaximumSize.Y);
+    SetPanelExpandedSize(DesiredPanelSize, false);
+}
+
+void UVirtualSensorPanelWidgetBase::SetPanelExpandedSize(FVector2D InExpandedSize, bool bPersist)
+{
+    DesiredPanelSize = CalculateResizedPanelSize(
+        FVector2D::ZeroVector,
+        InExpandedSize,
+        1.0f,
+        MinimumPanelSize,
+        ResolveMaximumPanelSize());
+    ApplyPanelSize();
+    SetPanelPositionInternal(CurrentViewportPosition);
+    if (bPersist)
+    {
+        SavePanelUiState();
+    }
+}
+
+void UVirtualSensorPanelWidgetBase::ResetPanelSize()
+{
+    SetPanelExpandedSize(DefaultResolvedPanelSize, true);
+}
+
 void UVirtualSensorPanelWidgetBase::RefreshHostedPanelLayout()
 {
     ApplyPanelSize();
@@ -74,8 +104,9 @@ void UVirtualSensorPanelWidgetBase::ApplyInitialPanelLayout(FVector2D ViewportSi
             ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 160.0f);
         }
     }
-    DesiredPanelSize.X = FMath::Max(160.0f, ResolvedSize.X);
-    DesiredPanelSize.Y = FMath::Max(80.0f, ResolvedSize.Y);
+    DefaultResolvedPanelSize.X = FMath::Max(160.0f, ResolvedSize.X);
+    DefaultResolvedPanelSize.Y = FMath::Max(80.0f, ResolvedSize.Y);
+    DesiredPanelSize = DefaultResolvedPanelSize;
     ApplyPanelSize();
     if (!Cast<UCanvasPanelSlot>(Slot))
     {
@@ -127,6 +158,7 @@ void UVirtualSensorPanelWidgetBase::TogglePanelCollapsed()
 void UVirtualSensorPanelWidgetBase::ResetPanelUiStateToDefault()
 {
     bPanelCollapsed = false;
+    DesiredPanelSize = DefaultResolvedPanelSize;
     ApplyPanelSize();
     ResetPanelPositionInternal(true);
 }
@@ -150,10 +182,30 @@ FVector2D UVirtualSensorPanelWidgetBase::CalculateDraggedPanelPosition(FVector2D
     return CurrentPosition + CursorDelta / FMath::Max(0.01f, DpiScale);
 }
 
+FVector2D UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
+    FVector2D CurrentSize,
+    FVector2D CursorDelta,
+    float DpiScale,
+    FVector2D MinimumSize,
+    FVector2D MaximumSize)
+{
+    const FVector2D Candidate = CurrentSize + CursorDelta / FMath::Max(0.01f, DpiScale);
+    return FVector2D(
+        FMath::Clamp(Candidate.X, MinimumSize.X, FMath::Max(MinimumSize.X, MaximumSize.X)),
+        FMath::Clamp(Candidate.Y, MinimumSize.Y, FMath::Max(MinimumSize.Y, MaximumSize.Y)));
+}
+
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     if (PanelHostComponent) PanelHostComponent->BringPanelToFront(this);
     const FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+    if (bPanelResizable && !bPanelCollapsed && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton &&
+        IsInResizeHandle(InGeometry, InMouseEvent.GetScreenSpacePosition()))
+    {
+        bResizingPanel = true;
+        const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
+        return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+    }
     if (bPanelDraggable && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && LocalPosition.Y <= DragHandleHeight)
     {
         bDraggingPanel = true;
@@ -165,6 +217,12 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& I
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
+    if (bResizingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+    {
+        bResizingPanel = false;
+        SavePanelUiState();
+        return FReply::Handled().ReleaseMouseCapture();
+    }
     if (bDraggingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
     {
         bDraggingPanel = false;
@@ -176,6 +234,17 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonUp(const FGeometry& InG
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
+    if (bResizingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+    {
+        const float DpiScale = UWidgetLayoutLibrary::GetViewportScale(this);
+        SetPanelExpandedSize(CalculateResizedPanelSize(
+            DesiredPanelSize,
+            InMouseEvent.GetCursorDelta(),
+            DpiScale,
+            MinimumPanelSize,
+            ResolveMaximumPanelSize()), false);
+        return FReply::Handled();
+    }
     if (bDraggingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
         const float DpiScale = UWidgetLayoutLibrary::GetViewportScale(this);
@@ -187,8 +256,9 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeome
 
 void UVirtualSensorPanelWidgetBase::NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 {
-    const bool bWasDragging = bDraggingPanel;
+    const bool bWasDragging = bDraggingPanel || bResizingPanel;
     bDraggingPanel = false;
+    bResizingPanel = false;
     if (bWasDragging)
     {
         SavePanelUiState();
@@ -228,6 +298,15 @@ void UVirtualSensorPanelWidgetBase::RestorePanelUiState()
         return;
     }
     bPanelCollapsed = State->bCollapsed;
+    if (State->bHasSavedSize)
+    {
+        DesiredPanelSize = CalculateResizedPanelSize(
+            FVector2D::ZeroVector,
+            State->ExpandedSize,
+            1.0f,
+            MinimumPanelSize,
+            ResolveMaximumPanelSize());
+    }
     ApplyPanelSize();
     if (State->bHasSavedPosition)
     {
@@ -250,7 +329,28 @@ void UVirtualSensorPanelWidgetBase::SavePanelUiState() const
     State.NormalizedPosition = ToNormalizedPanelPosition(CurrentViewportPosition, ResolveLogicalViewportSize());
     State.bHasSavedPosition = true;
     State.bCollapsed = bPanelCollapsed;
+    State.ExpandedSize = DesiredPanelSize;
+    State.bHasSavedSize = true;
     UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
+}
+
+FVector2D UVirtualSensorPanelWidgetBase::ResolveMaximumPanelSize() const
+{
+    const FVector2D ViewportSize = ResolveLogicalViewportSize();
+    const FVector2D ViewportMaximum(
+        FMath::Max(MinimumPanelSize.X, ViewportSize.X - ViewportMargin * 2.0f),
+        FMath::Max(MinimumPanelSize.Y, ViewportSize.Y - ViewportMargin * 2.0f));
+    return FVector2D(
+        MaximumPanelSize.X > 0.0f ? FMath::Min(MaximumPanelSize.X, ViewportMaximum.X) : ViewportMaximum.X,
+        MaximumPanelSize.Y > 0.0f ? FMath::Min(MaximumPanelSize.Y, ViewportMaximum.Y) : ViewportMaximum.Y);
+}
+
+bool UVirtualSensorPanelWidgetBase::IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const
+{
+    const FVector2D LocalPosition = Geometry.AbsoluteToLocal(ScreenPosition);
+    const FVector2D LocalSize = Geometry.GetLocalSize();
+    return LocalPosition.X >= LocalSize.X - ResizeHandleSize &&
+        LocalPosition.Y >= LocalSize.Y - ResizeHandleSize;
 }
 
 FVector2D UVirtualSensorPanelWidgetBase::ToNormalizedPanelPosition(FVector2D Position, FVector2D ViewportSize) const

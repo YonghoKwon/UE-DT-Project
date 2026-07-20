@@ -109,6 +109,9 @@ UVirtualSensorMonitorPanelWidget* AVirtualSensorUiHostActor::CreateAndBindMonito
 
     MonitorWidget->SetPanelPersistenceKey(TEXT("Monitor"));
     MonitorWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::RightCenter, FVector2D(820.0f, 430.0f));
+    MonitorWidget->SetPanelResizable(true);
+    MonitorWidget->ResizeHandleSize = 32.0f;
+    MonitorWidget->SetPanelResizeLimits(FVector2D(480.0f, 300.0f), FVector2D::ZeroVector);
     if (PanelHostComponent)
     {
         PanelHostComponent->RegisterPanel(MonitorWidget, ViewportZOrder);
