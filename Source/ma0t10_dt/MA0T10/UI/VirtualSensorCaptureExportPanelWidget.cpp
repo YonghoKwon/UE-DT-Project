@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "EngineUtils.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -19,6 +20,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
@@ -30,6 +32,15 @@
 void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
     SensorManager = InSensorManager;
+	TopicReceiverHost = nullptr;
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AVirtualSensorExternalSourceHostActor> It(World); It; ++It)
+		{
+			TopicReceiverHost = *It;
+			break;
+		}
+	}
 	if (SensorManager && SensorManager->SharedTransportComponent)
 	{
 		const FVirtualSensorTransportProfile& Profile = SensorManager->SharedTransportComponent->GetTransportProfile();
@@ -198,6 +209,10 @@ bool UVirtualSensorCaptureExportPanelWidget::ApplyTransportProfile()
 	Transport->ConfigureTransportProfile(Profile);
 	Transport->SetSessionCredentials(SessionPasscode, SessionBearerToken);
 	Transport->TransportMode = bUseStompTransport ? EVirtualSensorTransportMode::StompWebSocket : EVirtualSensorTransportMode::HttpPost;
+	if (TopicReceiverHost)
+	{
+		TopicReceiverHost->ConfigureReceiverTopics(Profile.LidarTopic, Profile.CameraTopic, Profile.ExportTopic);
+	}
 	if (UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
 	{
 		Preferences->StompBrokerUrl = Profile.BrokerUrl;
@@ -587,15 +602,99 @@ FString UVirtualSensorCaptureExportPanelWidget::BuildTransportLogText() const
 	return Text;
 }
 
+void UVirtualSensorCaptureExportPanelWidget::StopTopicReceivers()
+{
+	if (TopicReceiverHost)
+	{
+		TopicReceiverHost->StopTopicReceivers();
+		LastUiMessage = TEXT("센서 Topic 수신 구독을 해제했습니다.");
+	}
+	else
+	{
+		LastUiMessage = TEXT("SensorRefactorTestMap의 ExternalSourceHost를 찾지 못했습니다.");
+	}
+	CachedTopicReceiverSummary = GetTopicReceiverSummaryText();
+	RefreshNativeText();
+}
+
+void UVirtualSensorCaptureExportPanelWidget::ReconnectTopicReceivers()
+{
+	if (TopicReceiverHost)
+	{
+		TopicReceiverHost->ConfigureReceiverTopics(DraftLidarTopic, DraftCameraTopic, DraftExportTopic);
+		TopicReceiverHost->ReconnectTopicReceivers();
+		LastUiMessage = TEXT("DTCore 센서 Topic 수신을 다시 연결합니다.");
+	}
+	else
+	{
+		LastUiMessage = TEXT("SensorRefactorTestMap의 ExternalSourceHost를 찾지 못했습니다.");
+	}
+	CachedTopicReceiverSummary = GetTopicReceiverSummaryText();
+	RefreshNativeText();
+}
+
+FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() const
+{
+	if (!TopicReceiverHost) return TEXT("수신 진단 Host 없음 · SensorRefactorTestMap에서 확인하십시오.");
+	const FString ReceiverBroker = TopicReceiverHost->GetReceiverBrokerUrl();
+	FString Text = FString::Printf(TEXT("DTCore 수신 Broker: %s\n수신 상태: %s · Actor 재주입/재송신 없음"),
+		ReceiverBroker.IsEmpty() ? TEXT("설정 없음") : *ReceiverBroker,
+		TopicReceiverHost->AreTopicReceiversRequested() ? TEXT("자동 구독 사용") : TEXT("구독 해제"));
+	if (bUseStompTransport && !ReceiverBroker.IsEmpty() && !DraftBrokerUrl.IsEmpty() &&
+		!ReceiverBroker.Equals(DraftBrokerUrl, ESearchCase::IgnoreCase))
+	{
+		Text += FString::Printf(TEXT("\n경고: 송신 Broker(%s)와 DTCore 수신 Broker가 다릅니다."), *DraftBrokerUrl);
+	}
+	for (const FVirtualSensorTopicReceiverStatus& Status : TopicReceiverHost->GetTopicReceiverStatuses())
+	{
+		const TCHAR* Kind = Status.Kind == EVirtualSensorTopicReceiveKind::Camera ? TEXT("Camera")
+			: Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR");
+		const TCHAR* State = Status.State == EVirtualSensorTopicReceiverState::Active ? TEXT("수신 중")
+			: Status.State == EVirtualSensorTopicReceiverState::Subscribing ? TEXT("구독 중")
+			: Status.State == EVirtualSensorTopicReceiverState::WaitingForConnection ? TEXT("연결 대기")
+			: Status.State == EVirtualSensorTopicReceiverState::Error ? TEXT("오류") : TEXT("중지");
+		Text += FString::Printf(TEXT("\n[%s] %s · %s\n  수신 %lld · 정상 %lld · 실패 %lld · 대기교체 %lld · 상세검증 %lld\n  sensor=%s frame=%lld bytes=%d parse=%.2fms\n  %s"),
+			State, Kind, *Status.Topic, Status.ReceivedCount, Status.ValidatedCount, Status.ValidationFailureCount,
+			Status.ReplacedPendingCount, Status.DeepValidationCount,
+			Status.LastSensorId.IsEmpty() ? TEXT("-") : *Status.LastSensorId, Status.LastFrameId,
+			Status.LastMessageBytes, Status.LastParseLatencyMs, *Status.LastMessage);
+	}
+	const TArray<FVirtualSensorTopicReceiveLogEntry>& Entries = TopicReceiverHost->GetRecentTopicReceiveLogs();
+	Text += TEXT("\n\n최근 수신 검증 이벤트 (최대 20개 표시)");
+	for (int32 Index = 0; Index < FMath::Min(20, Entries.Num()); ++Index)
+	{
+		const FVirtualSensorTopicReceiveLogEntry& Entry = Entries[Index];
+		const TCHAR* Kind = Entry.Kind == EVirtualSensorTopicReceiveKind::Camera ? TEXT("Camera")
+			: Entry.Kind == EVirtualSensorTopicReceiveKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR");
+		Text += FString::Printf(TEXT("\n%s [%s/%s] sensor=%s frame=%lld bytes=%d %.2fms%s\n  %s"),
+			*Entry.TimestampUtc.ToString(TEXT("%H:%M:%S")), Kind, Entry.bValid ? TEXT("정상") : TEXT("실패"),
+			Entry.SensorId.IsEmpty() ? TEXT("-") : *Entry.SensorId, Entry.FrameId, Entry.MessageBytes,
+			Entry.ParseLatencyMs, Entry.bDeepValidated ? TEXT(" · 상세") : TEXT(""), *Entry.Message);
+	}
+	return Text;
+}
+
 void UVirtualSensorCaptureExportPanelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
+	if (!TopicReceiverHost)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			for (TActorIterator<AVirtualSensorExternalSourceHostActor> It(World); It; ++It)
+			{
+				TopicReceiverHost = *It;
+				break;
+			}
+		}
+	}
 	const double Now = FPlatformTime::Seconds();
 	if (LastNativeStatusRefreshSeconds < 0.0 || Now - LastNativeStatusRefreshSeconds >= 0.2)
 	{
 		LastNativeStatusRefreshSeconds = Now;
 		CachedLiveStreamSummary = GetLiveStreamSummaryText();
 		CachedTransportLog = BuildTransportLogText();
+		CachedTopicReceiverSummary = GetTopicReceiverSummaryText();
 		RefreshNativeText();
 	}
 }
@@ -697,7 +796,13 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildConnectionLogTa
 			+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Collapsed : EVisibility::Visible; }).IsPassword(true).HintText(LOCTEXT("BearerV2", "Bearer token (세션에서만 유지)")).Text_Lambda([this]() { return FText::FromString(SessionBearerToken); }).OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { SessionBearerToken = Text.ToString(); }) ]
 			+ SVerticalBox::Slot().AutoHeight()[ SNew(SEditableTextBox).HintText(LOCTEXT("MaxBytesV2", "최대 메시지 bytes")).Text_Lambda([this]() { return FText::AsNumber(DraftMaxMessageBytes); }).OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { DraftMaxMessageBytes = FMath::Max(1024, FCString::Atoi(*Text.ToString())); }) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetTransportSummaryText()); }) ]
-			+ SVerticalBox::Slot().FillHeight(1.0f)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(CachedTransportLog.IsEmpty() ? BuildTransportLogText() : CachedTransportLog); }) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("ReceiverTitle", "DTCore 자체 수신 검증")) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2)[ SNew(SWrapBox).UseAllottedSize(true)
+				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("StopReceivers", "수신 구독 끊기")).OnClicked_Lambda([this]() { StopTopicReceivers(); return FReply::Handled(); }) ]
+				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ReconnectReceivers", "수신 다시 연결")).OnClicked_Lambda([this]() { ReconnectTopicReceivers(); return FReply::Handled(); }) ]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(CachedTopicReceiverSummary.IsEmpty() ? GetTopicReceiverSummaryText() : CachedTopicReceiverSummary); }) ]
+			+ SVerticalBox::Slot().FillHeight(1.0f).Padding(0, 8, 0, 0)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(CachedTransportLog.IsEmpty() ? BuildTransportLogText() : CachedTransportLog); }) ]
 		];
 }
 

@@ -5,6 +5,7 @@
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
+class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
 struct FVirtualSensorTransportProfile;
@@ -72,6 +73,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Transport")
 	FString GetTransportSummaryText() const;
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Receiver")
+	void StopTopicReceivers();
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Receiver")
+	void ReconnectTopicReceivers();
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Receiver")
+	FString GetTopicReceiverSummaryText() const;
+
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
 	void SetActiveTab(EVirtualSensorCaptureExportTab NewTab);
 
@@ -121,8 +131,11 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorCoordinator> SensorManager;
 
-    UPROPERTY(Transient)
-    TObjectPtr<UVirtualSensorMonitorPanelWidget> MonitorWidget;
+	UPROPERTY(Transient)
+	TObjectPtr<UVirtualSensorMonitorPanelWidget> MonitorWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AVirtualSensorExternalSourceHostActor> TopicReceiverHost;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorExport", meta = (AllowPrivateAccess = "true"))
     TArray<FVirtualSensorExportResult> RecentResults;
@@ -147,5 +160,6 @@ private:
 	int32 StreamReceiptInterval = 10;
 	FString CachedLiveStreamSummary;
 	FString CachedTransportLog;
+	FString CachedTopicReceiverSummary;
 	double LastNativeStatusRefreshSeconds = -1.0;
 };
