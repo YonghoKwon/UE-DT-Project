@@ -235,6 +235,7 @@ private:
 	FString ResolveTopic(const FString& SensorType, const FString& DataKind) const;
 
 	TSharedPtr<class IStompClient> StompClient;
+	TAtomic<bool> bStompConnected { false };
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;

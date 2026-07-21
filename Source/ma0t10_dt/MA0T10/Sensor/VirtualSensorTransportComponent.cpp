@@ -106,6 +106,7 @@ void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualS
 	HttpTimeoutSeconds = TransportProfile.TimeoutSeconds;
 	if (bBrokerChanged && StompClient.IsValid())
 	{
+		bStompConnected.Store(false);
 		StompClient->Disconnect();
 		StompClient.Reset();
 	}
@@ -119,11 +120,13 @@ void UVirtualSensorTransportComponent::SetSessionCredentials(const FString& InPa
 
 bool UVirtualSensorTransportComponent::IsStompConnected() const
 {
-	return StompClient.IsValid() && StompClient->IsConnected();
+	return StompClient.IsValid() && (bStompConnected.Load() || StompClient->IsConnected());
 }
 
 FVirtualSensorTransportResult UVirtualSensorTransportComponent::TestConnection()
 {
+	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] connection test owner=%s mode=%d broker=%s"),
+		*GetNameSafe(GetOwner()), static_cast<int32>(TransportMode), *TransportProfile.BrokerUrl);
 	FVirtualSensorTransportResult Result;
 	Result.Protocol = TransportMode == EVirtualSensorTransportMode::StompWebSocket ? TEXT("STOMP/WS") : TEXT("HTTP");
 	Result.RequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
@@ -153,6 +156,7 @@ FString UVirtualSensorTransportComponent::ResolveTopic(const FString& SensorType
 
 void UVirtualSensorTransportComponent::RequestStompReconnect()
 {
+	bStompConnected.Store(false);
 	if (StompClient.IsValid())
 	{
 		StompClient->Disconnect();
@@ -169,6 +173,8 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 		return;
 	}
 	if (TransportProfile.BrokerUrl.IsEmpty()) return;
+	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] creating STOMP client owner=%s broker=%s"),
+		*GetNameSafe(GetOwner()), *TransportProfile.BrokerUrl);
 	StompClient = FStompModule::Get().CreateClient(TransportProfile.BrokerUrl, SessionBearerToken);
 	StompClient->OnConnected().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompConnected);
 	StompClient->OnConnectionError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
@@ -182,6 +188,9 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 
 void UVirtualSensorTransportComponent::HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString)
 {
+	bStompConnected.Store(true);
+	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] STOMP connected owner=%s protocol=%s session=%s"),
+		*GetNameSafe(GetOwner()), *ProtocolVersion, *SessionId);
 	LastResult.Protocol = TEXT("STOMP/WS");
 	LastResult.bSubmitted = true;
 	LastResult.bAccepted = true;
@@ -193,6 +202,9 @@ void UVirtualSensorTransportComponent::HandleStompConnected(const FString& Proto
 
 void UVirtualSensorTransportComponent::HandleStompFailure(const FString& Error)
 {
+	bStompConnected.Store(false);
+	UE_LOG(LogTemp, Warning, TEXT("[SensorStreamTransport] STOMP connection lost owner=%s error=%s"),
+		*GetNameSafe(GetOwner()), *Error);
 	AckSubscriptionId.Reset();
 	LastResult.Protocol = TEXT("STOMP/WS");
 	LastResult.bAccepted = false;
@@ -327,6 +339,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 
 void UVirtualSensorTransportComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	bStompConnected.Store(false);
 	if (StompClient.IsValid())
 	{
 		StompClient->Disconnect();
