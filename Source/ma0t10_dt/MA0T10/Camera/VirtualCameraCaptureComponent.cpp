@@ -206,7 +206,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     // A queued readback/encode already represents the newest completed capture.
     // Avoid rendering another SceneCapture frame that would be discarded before
     // readback; this is the main GPU backpressure boundary for FullSpec cameras.
-    if (CaptureMode != EVirtualCameraCaptureMode::PreviewOnly && (bScheduledCaptureAwaitingReadback || ScheduledReadback.IsValid() || bScheduledEncodeInFlight))
+    if (ShouldGeneratePayload() && (bScheduledCaptureAwaitingReadback || ScheduledReadback.IsValid() || bScheduledEncodeInFlight))
     {
         ++RuntimeStatus.DroppedDerivedFrameCount;
         RuntimeStatus.bDerivedWorkInFlight = true;
@@ -221,7 +221,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - CaptureStart) * 1000.0);
     RuntimeStatus.bAcquisitionInFlight = false;
 
-    if (CaptureMode == EVirtualCameraCaptureMode::PreviewOnly)
+    if (!ShouldGeneratePayload())
     {
         const double PreviousCompletion = LastScheduledCompletionTime;
         LastScheduledCompletionTime = NowSeconds;
@@ -470,7 +470,7 @@ void UVirtualCameraCaptureComponent::CaptureAndSendImage()
     CaptureScene();
     ++FrameId;
 
-    if (CaptureMode == EVirtualCameraCaptureMode::PreviewOnly)
+    if (!ShouldGeneratePayload())
     {
         LastJpegSnapshot.Reset();
         UpdateRuntimeStatus(0, TEXT("Preview only"));

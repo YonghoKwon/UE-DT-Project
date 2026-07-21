@@ -2,6 +2,7 @@
 
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 
 UVirtualSensorOutputComponent::UVirtualSensorOutputComponent()
 {
@@ -10,10 +11,12 @@ UVirtualSensorOutputComponent::UVirtualSensorOutputComponent()
 
 void UVirtualSensorOutputComponent::SetSharedServices(
 	UVirtualSensorTransportComponent* InTransport,
-	UVirtualSensorRecorderComponent* InRecorder)
+	UVirtualSensorRecorderComponent* InRecorder,
+	UVirtualSensorStreamPublisherComponent* InStreamPublisher)
 {
 	TransportComponent = InTransport;
 	RecorderComponent = InRecorder;
+	StreamPublisherComponent = InStreamPublisher;
 }
 
 bool UVirtualSensorOutputComponent::RouteFrame(const FVirtualSensorFrameEnvelope& Frame)
@@ -33,15 +36,13 @@ bool UVirtualSensorOutputComponent::RouteFrame(const FVirtualSensorFrameEnvelope
 	LastJsonPayload = *Frame.JsonPayload;
 
 	const FString SensorType = BuildSensorType(Frame.SensorKind);
-	if (TransportComponent && Frame.bSendTransport)
+	if (StreamPublisherComponent)
+	{
+		StreamPublisherComponent->SubmitFrame(Frame);
+	}
+	else if (TransportComponent && Frame.bSendTransport)
 	{
 		TransportComponent->SendJson(Frame.SensorId, SensorType, LastJsonPayload);
-		if (Frame.BinaryPayload.IsValid() && Frame.BinaryPayload->Num() > 0)
-		{
-			TArray<uint8> BinaryBytes;
-			BinaryBytes.Append(Frame.BinaryPayload->GetData(), static_cast<int32>(Frame.BinaryPayload->Num()));
-			TransportComponent->SendBinary(Frame.SensorId, SensorType + TEXT("_frame"), TEXT("jpg"), BinaryBytes);
-		}
 	}
 	if (RecorderComponent && Frame.bRecord)
 	{

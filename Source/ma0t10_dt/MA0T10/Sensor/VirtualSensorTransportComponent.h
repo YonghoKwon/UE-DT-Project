@@ -102,6 +102,15 @@ struct MA0T10_DT_API FVirtualSensorTransportResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
 	float LatencyMs = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+	bool bManualRequest = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+	bool bReceiptRequested = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+	bool bReceiptReceived = false;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorDataSent, const FVirtualSensorTransportResult&, Result);
@@ -123,11 +132,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	FVirtualSensorTransportResult SendJsonRequest(const FString& SensorId, const FString& SensorType, const FString& DataKind, int64 FrameId, const FString& JsonText, bool bManualRequest = false);
 
+	/** Stream-oriented request. Automatic callers can sample receipts without changing manual request semantics. */
+	FVirtualSensorTransportResult SendJsonStreamRequest(
+		const FString& SensorId,
+		const FString& SensorType,
+		const FString& DataKind,
+		int64 FrameId,
+		const FString& JsonText,
+		bool bRequestReceipt);
+
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	void ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	const FVirtualSensorTransportProfile& GetTransportProfile() const { return TransportProfile; }
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
+	FString ResolveDestination(const FString& SensorType, const FString& DataKind) const { return ResolveTopic(SensorType, DataKind); }
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	void SetSessionCredentials(const FString& InPasscode, const FString& InBearerToken);
@@ -189,6 +210,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	bool IsStompConnected() const;
 
+	/** Drops the current socket and starts a clean reconnect. Used after repeated sampled receipt timeouts. */
+	void RequestStompReconnect();
+
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -199,7 +223,7 @@ private:
     FVirtualSensorTransportResult SaveJson(const FString& SensorId, const FString& SensorType, const FString& JsonText) const;
     FVirtualSensorTransportResult SaveBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes) const;
     FString BuildSavePath(const FString& SensorId, const FString& SensorType, const FString& Extension) const;
-	FVirtualSensorTransportResult SendStomp(const FString& SensorId, const FString& SensorType, const FString& DataKind, int64 FrameId, const FString& JsonText);
+	FVirtualSensorTransportResult SendStomp(const FString& SensorId, const FString& SensorType, const FString& DataKind, int64 FrameId, const FString& JsonText, bool bManualRequest, bool bRequestReceipt);
 	void EnsureStompClient();
 	void HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString);
 	void HandleStompFailure(const FString& Error);

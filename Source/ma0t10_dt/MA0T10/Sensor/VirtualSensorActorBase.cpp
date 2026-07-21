@@ -99,10 +99,11 @@ void AVirtualSensorActorBase::EndInteractiveManipulation()
 
 void AVirtualSensorActorBase::SetSharedOutputServices(
 	UVirtualSensorTransportComponent* Transport,
-	UVirtualSensorRecorderComponent* Recorder)
+	UVirtualSensorRecorderComponent* Recorder,
+	UVirtualSensorStreamPublisherComponent* StreamPublisher)
 {
 	if (OutputComponent)
 	{
-		OutputComponent->SetSharedServices(Transport, Recorder);
+		OutputComponent->SetSharedServices(Transport, Recorder, StreamPublisher);
 	}
 }

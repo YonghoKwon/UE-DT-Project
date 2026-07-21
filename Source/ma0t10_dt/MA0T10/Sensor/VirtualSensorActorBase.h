@@ -10,6 +10,7 @@ class UTexture;
 class UVirtualSensorOutputComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorTransportComponent;
+class UVirtualSensorStreamPublisherComponent;
 struct FVirtualSensorEditableState;
 
 UCLASS(Abstract, BlueprintType)
@@ -65,7 +66,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor|Interaction")
 	bool IsInteractiveManipulationActive() const { return bInteractiveManipulationActive; }
 
-	void SetSharedOutputServices(UVirtualSensorTransportComponent* Transport, UVirtualSensorRecorderComponent* Recorder);
+	void SetSharedOutputServices(UVirtualSensorTransportComponent* Transport, UVirtualSensorRecorderComponent* Recorder, UVirtualSensorStreamPublisherComponent* StreamPublisher = nullptr);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|Sensor")
 	TObjectPtr<UVirtualSensorOutputComponent> OutputComponent;

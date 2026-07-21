@@ -36,7 +36,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJson(const F
     }
 	else if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
 	{
-		Result = SendStomp(SensorId, SensorType, TEXT("frame"), 0, JsonText);
+		Result = SendStomp(SensorId, SensorType, TEXT("frame"), 0, JsonText, false, false);
 	}
     else
     {
@@ -61,12 +61,37 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonRequest(
 {
 	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
 	{
-		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText);
-		LastResult = Result;
+		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText, bManualRequest, bManualRequest);
+		if (bManualRequest)
+		{
+			LastResult = Result;
+		}
 		OnDataSent.Broadcast(Result);
 		return Result;
 	}
 	return SendJson(SensorId, SensorType, JsonText);
+}
+
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonStreamRequest(
+	const FString& SensorId,
+	const FString& SensorType,
+	const FString& DataKind,
+	int64 FrameId,
+	const FString& JsonText,
+	bool bRequestReceipt)
+{
+	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
+	{
+		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText, false, bRequestReceipt);
+		OnDataSent.Broadcast(Result);
+		return Result;
+	}
+	FVirtualSensorTransportResult Result = SendJson(SensorId, SensorType, JsonText);
+	Result.SensorId = SensorId;
+	Result.SensorType = SensorType;
+	Result.DataKind = DataKind;
+	Result.bManualRequest = false;
+	return Result;
 }
 
 void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile)
@@ -119,9 +144,19 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::TestConnection()
 
 FString UVirtualSensorTransportComponent::ResolveTopic(const FString& SensorType, const FString& DataKind) const
 {
-	if (DataKind.Contains(TEXT("export"), ESearchCase::IgnoreCase)) return TransportProfile.ExportTopic;
+	if (DataKind.Contains(TEXT("export"), ESearchCase::IgnoreCase) || DataKind.Contains(TEXT("pointcloud"), ESearchCase::IgnoreCase)) return TransportProfile.ExportTopic;
 	if (SensorType.Contains(TEXT("lidar"), ESearchCase::IgnoreCase)) return TransportProfile.LidarTopic;
 	return TransportProfile.CameraTopic;
+}
+
+void UVirtualSensorTransportComponent::RequestStompReconnect()
+{
+	if (StompClient.IsValid())
+	{
+		StompClient->Disconnect();
+		StompClient.Reset();
+	}
+	EnsureStompClient();
 }
 
 void UVirtualSensorTransportComponent::EnsureStompClient()
@@ -166,7 +201,9 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	const FString& SensorType,
 	const FString& DataKind,
 	int64 FrameId,
-	const FString& JsonText)
+	const FString& JsonText,
+	bool bManualRequest,
+	bool bRequestReceipt)
 {
 	FVirtualSensorTransportResult Result;
 	Result.Protocol = TEXT("STOMP/WS");
@@ -174,6 +211,8 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	Result.SensorId = SensorId;
 	Result.SensorType = SensorType;
 	Result.DataKind = DataKind;
+	Result.bManualRequest = bManualRequest;
+	Result.bReceiptRequested = bRequestReceipt;
 	Result.Destination = ResolveTopic(SensorType, DataKind);
 	FTCHARToUTF8 Utf8(*JsonText);
 	Result.DataLength = Utf8.Length();
@@ -200,21 +239,33 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	const FString RequestId = Result.RequestId;
 	const FString Destination = Result.Destination;
 	TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+	if (!bRequestReceipt)
+	{
+		StompClient->Send(Result.Destination, JsonText, Headers);
+		Result.bSubmitted = true;
+		Result.Message = TEXT("STOMP 전송 제출됨 · 이번 프레임은 receipt 생략");
+		LastStompSubmitSeconds = StartedSeconds;
+		return Result;
+	}
 	StompClient->Send(Result.Destination, JsonText, Headers, FStompRequestCompleted::CreateLambda(
-		[WeakThis, RequestId, Destination, StartedSeconds](bool bSuccess, const FString& Error)
+		[WeakThis, SubmittedResult = Result, RequestId, Destination, StartedSeconds](bool bSuccess, const FString& Error)
 		{
 			if (!WeakThis.IsValid()) return;
-			FVirtualSensorTransportResult Receipt = WeakThis->LastResult;
+			FVirtualSensorTransportResult Receipt = SubmittedResult;
 			Receipt.Protocol = TEXT("STOMP/WS");
 			Receipt.RequestId = RequestId;
 			Receipt.Destination = Destination;
 			Receipt.bSubmitted = true;
 			Receipt.bAccepted = bSuccess;
+			Receipt.bReceiptReceived = bSuccess;
 			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
 			Receipt.Message = bSuccess
 				? (WeakThis->TransportProfile.AckTopic.IsEmpty() ? TEXT("Broker 수락, 소비자 처리 미확인") : TEXT("Broker receipt 수락 · 소비자 ACK 대기"))
 				: FString::Printf(TEXT("STOMP 전송 실패: %s"), *Error);
-			WeakThis->LastResult = Receipt;
+			if (Receipt.bManualRequest)
+			{
+				WeakThis->LastResult = Receipt;
+			}
 			WeakThis->OnDataSent.Broadcast(Receipt);
 		}));
 	Result.bSubmitted = true;
@@ -258,7 +309,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendBinary(const
     {
         const FString Encoded = FBase64::Encode(Bytes);
         const FString Envelope = FString::Printf(TEXT("{\"extension\":\"%s\",\"encoding\":\"base64\",\"data\":\"%s\"}"), *Extension, *Encoded);
-        Result = SendStomp(SensorId, SensorType, TEXT("manual-export"), 0, Envelope);
+        Result = SendStomp(SensorId, SensorType, TEXT("manual-export"), 0, Envelope, true, true);
     }
     else
     {

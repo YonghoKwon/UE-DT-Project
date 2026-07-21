@@ -58,7 +58,11 @@ public:
     // Called by UVirtualSensorSchedulerSubsystem. Automatic capture uses this
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
-	void RequestImmediateScheduledCapture();
+    void RequestImmediateScheduledCapture();
+
+	/** Requests JSON+JPEG production for a live stream without changing the persisted CaptureMode setting. */
+	void SetRuntimeStreamOutputDemand(bool bEnabled) { bRuntimeStreamOutputDemand = bEnabled; }
+	bool HasRuntimeStreamOutputDemand() const { return bRuntimeStreamOutputDemand; }
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Camera; }
     virtual bool IsScheduledTaskActive() const override { return IsCaptureRunning(); }
@@ -176,6 +180,7 @@ private:
     void PollScheduledGpuReadback(double NowSeconds);
     void StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds);
     void CompleteScheduledEncode(int64 CapturedFrameId, TArray64<uint8>&& JpegBytes, FString&& JsonPayload, double CaptureStartedSeconds);
+	bool ShouldGeneratePayload() const { return CaptureMode != EVirtualCameraCaptureMode::PreviewOnly || bRuntimeStreamOutputDemand; }
 
 private:
     FTimerHandle CaptureTimerHandle;
@@ -198,4 +203,5 @@ private:
     bool bRegisteredWithPerformanceSubsystem = false;
     bool bScheduledCaptureAwaitingReadback = false;
     bool bScheduledEncodeInFlight = false;
+	bool bRuntimeStreamOutputDemand = false;
 };

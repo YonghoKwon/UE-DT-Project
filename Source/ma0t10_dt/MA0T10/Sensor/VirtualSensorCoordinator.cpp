@@ -12,6 +12,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 
 namespace
 {
@@ -125,6 +126,8 @@ AVirtualSensorCoordinator::AVirtualSensorCoordinator()
     PrimaryActorTick.bCanEverTick = false;
     SharedTransportComponent = CreateDefaultSubobject<UVirtualSensorTransportComponent>(TEXT("SharedSensorTransport"));
     SharedRecorderComponent = CreateDefaultSubobject<UVirtualSensorRecorderComponent>(TEXT("SharedSensorRecorder"));
+    StreamPublisherComponent = CreateDefaultSubobject<UVirtualSensorStreamPublisherComponent>(TEXT("SensorStreamPublisher"));
+    StreamPublisherComponent->SetTransportComponent(SharedTransportComponent);
 }
 
 void AVirtualSensorCoordinator::BeginPlay()
@@ -499,7 +502,7 @@ void AVirtualSensorCoordinator::RegisterSensorActor(AVirtualSensorActorBase* Sen
 {
     if (!SensorActor || SensorActors.Contains(SensorActor)) return;
     SensorActors.Add(SensorActor);
-    SensorActor->SetSharedOutputServices(SharedTransportComponent, SharedRecorderComponent);
+    SensorActor->SetSharedOutputServices(SharedTransportComponent, SharedRecorderComponent, StreamPublisherComponent);
 }
 
 void AVirtualSensorCoordinator::SetSelectedLidarPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly)
