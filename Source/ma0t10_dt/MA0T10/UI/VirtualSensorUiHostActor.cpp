@@ -229,7 +229,10 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
             CaptureExportWidget->SetPanelPersistenceKey(TEXT("CaptureExport"));
             CaptureExportWidget->BindSensorManager(ResolvedManager);
             CaptureExportWidget->BindMonitorWidget(MonitorWidget);
-            CaptureExportWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::BottomCenter, FVector2D(760.0f, 280.0f));
+            CaptureExportWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::BottomCenter, FVector2D(900.0f, 620.0f));
+            CaptureExportWidget->SetPanelResizable(true);
+            CaptureExportWidget->ResizeHandleSize = 32.0f;
+            CaptureExportWidget->SetPanelResizeLimits(FVector2D(620.0f, 360.0f), FVector2D::ZeroVector);
             if (PanelHostComponent)
             {
                 PanelHostComponent->RegisterPanel(CaptureExportWidget, CaptureExportViewportZOrder);
