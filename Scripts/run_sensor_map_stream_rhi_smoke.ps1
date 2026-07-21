@@ -54,18 +54,27 @@ try {
     $D3d12 = $EditorText -match "D3D12RHI|DirectX 12|D3D12 Adapter"
     $TestPassed = $EditorText -match "Test Completed\. Result=\{Success\}.*ContinuousThreeStreamSmoke"
     $PerformanceMatch = [regex]::Match($EditorText, '\[SensorStreamRhi\] averageFps=(?<average>[0-9.]+) onePercentLowFps=(?<low>[0-9.]+) p95FrameMs=(?<p95>[0-9.]+) samples=(?<samples>\d+)')
+	$ReceiverMatch = [regex]::Match($EditorText, '\[SensorTopicReceiverRhi\] lidar=(?<lidar>\d+) camera=(?<camera>\d+) pointcloud=(?<pointcloud>\d+) failures=(?<failures>-?\d+)')
     $AverageFps = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['average'].Value } else { 0.0 }
     $OnePercentLowFps = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['low'].Value } else { 0.0 }
     $P95FrameMs = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['p95'].Value } else { 0.0 }
     $FrameSamples = if ($PerformanceMatch.Success) { [int]$PerformanceMatch.Groups['samples'].Value } else { 0 }
+	$ReceiverLidar = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['lidar'].Value } else { 0 }
+	$ReceiverCamera = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['camera'].Value } else { 0 }
+	$ReceiverPointCloud = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['pointcloud'].Value } else { 0 }
+	$ReceiverFailures = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['failures'].Value } else { -1 }
     $ProbeResult | Add-Member -NotePropertyName d3d12Detected -NotePropertyValue $D3d12 -Force
     $ProbeResult | Add-Member -NotePropertyName unrealAutomationPassed -NotePropertyValue $TestPassed -Force
     $ProbeResult | Add-Member -NotePropertyName averageFps -NotePropertyValue $AverageFps -Force
     $ProbeResult | Add-Member -NotePropertyName onePercentLowFps -NotePropertyValue $OnePercentLowFps -Force
     $ProbeResult | Add-Member -NotePropertyName p95FrameMs -NotePropertyValue $P95FrameMs -Force
     $ProbeResult | Add-Member -NotePropertyName frameSamples -NotePropertyValue $FrameSamples -Force
+	$ProbeResult | Add-Member -NotePropertyName internalReceiverLidar -NotePropertyValue $ReceiverLidar -Force
+	$ProbeResult | Add-Member -NotePropertyName internalReceiverCamera -NotePropertyValue $ReceiverCamera -Force
+	$ProbeResult | Add-Member -NotePropertyName internalReceiverPointCloud -NotePropertyValue $ReceiverPointCloud -Force
+	$ProbeResult | Add-Member -NotePropertyName internalReceiverFailures -NotePropertyValue $ReceiverFailures -Force
     $ProbeResult | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProbeReport -Encoding UTF8
-    $Passed = $ProbeResult.success -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success
+    $Passed = $ProbeResult.success -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success -and $ReceiverMatch.Success -and $ReceiverLidar -ge 2 -and $ReceiverCamera -ge 2 -and $ReceiverPointCloud -ge 2 -and $ReceiverFailures -eq 0
     $MarkdownText = @"
 # SensorRefactorTestMap continuous stream RHI smoke
 
@@ -80,6 +89,10 @@ try {
 - 1% low FPS: $OnePercentLowFps
 - p95 frame time: $P95FrameMs ms
 - Frame samples: $FrameSamples
+- Internal LiDAR receiver validated: $ReceiverLidar
+- Internal Camera receiver validated: $ReceiverCamera
+- Internal Point Cloud receiver validated: $ReceiverPointCloud
+- Internal receiver failures: $ReceiverFailures
 - Probe report: $ProbeReport
 - Editor log: $EditorLog
 "@

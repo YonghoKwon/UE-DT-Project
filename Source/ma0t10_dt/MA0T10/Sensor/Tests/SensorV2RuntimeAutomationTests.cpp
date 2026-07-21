@@ -19,6 +19,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
@@ -276,13 +277,15 @@ public:
 		AVirtualSensorCoordinator* Coordinator = nullptr;
 		AVirtualLidarSensorActor* Lidar = nullptr;
 		AVirtualCameraSensorActor* Camera = nullptr;
+		AVirtualSensorExternalSourceHostActor* ReceiverHost = nullptr;
 		if (World)
 		{
 			for (TActorIterator<AVirtualSensorCoordinator> It(World); It; ++It) { Coordinator = *It; break; }
 			for (TActorIterator<AVirtualLidarSensorActor> It(World); It; ++It) { Lidar = *It; break; }
 			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) { Camera = *It; break; }
+			for (TActorIterator<AVirtualSensorExternalSourceHostActor> It(World); It; ++It) { ReceiverHost = *It; break; }
 		}
-		if (!Coordinator || !Coordinator->StreamPublisherComponent || !Coordinator->SharedTransportComponent || !Lidar || !Camera)
+		if (!Coordinator || !Coordinator->StreamPublisherComponent || !Coordinator->SharedTransportComponent || !Lidar || !Camera || !ReceiverHost)
 		{
 			if (FPlatformTime::Seconds() - StartedAtSeconds < 8.0) return false;
 			Test->AddError(TEXT("SensorRefactorTestMap stream services were not ready."));
@@ -306,6 +309,7 @@ public:
 			Transport->ConfigureTransportProfile(Profile);
 			Transport->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")), FString());
 			Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
+			ReceiverHost->ConfigureReceiverTopics(Profile.LidarTopic, Profile.CameraTopic, Profile.ExportTopic);
 			Transport->TestConnection();
 			bConnectionRequested = true;
 			return false;
@@ -345,6 +349,12 @@ public:
 			const FVirtualSensorStreamStatus* Status = StatusByKind.Find(Kind);
 			bAllReady &= Status && Status->InputFrameCount >= 2 && Status->SubmittedFrameCount >= 2 && Status->ReceiptReceivedCount >= 1;
 		}
+		const TArray<FVirtualSensorTopicReceiverStatus> ReceiverStatuses = ReceiverHost->GetTopicReceiverStatuses();
+		bAllReady &= ReceiverStatuses.Num() == 3;
+		for (const FVirtualSensorTopicReceiverStatus& Status : ReceiverStatuses)
+		{
+			bAllReady &= Status.State == EVirtualSensorTopicReceiverState::Active && Status.ValidatedCount >= 2;
+		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
 		if (StreamElapsedSeconds >= 2.0)
 		{
@@ -377,6 +387,20 @@ public:
 			bCameraPayloadParsed && CameraEncoding == TEXT("jpeg/base64") && !CameraImage.IsEmpty());
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
+		Test->TestEqual(TEXT("three internal DTCore Topic receivers are present"), ReceiverStatuses.Num(), 3);
+		for (const FVirtualSensorTopicReceiverStatus& Status : ReceiverStatuses)
+		{
+			Test->TestEqual(TEXT("internal receiver stays active"), Status.State, EVirtualSensorTopicReceiverState::Active);
+			Test->TestTrue(TEXT("internal receiver validates repeated frames"), Status.ValidatedCount >= 2);
+			Test->TestEqual(TEXT("internal receiver has no validation failures"), Status.ValidationFailureCount, static_cast<int64>(0));
+			Test->TestTrue(TEXT("internal receiver retains at most bounded work"), Status.ReplacedPendingCount >= 0);
+		}
+		UE_LOG(LogTemp, Display, TEXT("[SensorTopicReceiverRhi] lidar=%lld camera=%lld pointcloud=%lld failures=%lld"),
+			ReceiverStatuses.IsValidIndex(0) ? ReceiverStatuses[0].ValidatedCount : 0,
+			ReceiverStatuses.IsValidIndex(1) ? ReceiverStatuses[1].ValidatedCount : 0,
+			ReceiverStatuses.IsValidIndex(2) ? ReceiverStatuses[2].ValidatedCount : 0,
+			ReceiverStatuses.IsValidIndex(0) && ReceiverStatuses.IsValidIndex(1) && ReceiverStatuses.IsValidIndex(2)
+				? ReceiverStatuses[0].ValidationFailureCount + ReceiverStatuses[1].ValidationFailureCount + ReceiverStatuses[2].ValidationFailureCount : -1);
 		Test->TestTrue(TEXT("stream performance collected enough rendered frames"), FrameTimesMs.Num() >= 120);
 		if (!FrameTimesMs.IsEmpty())
 		{
@@ -396,6 +420,13 @@ public:
 			Test->TestTrue(TEXT("active three-stream p95 frame time remains at most 20 ms"), P95FrameMs <= 20.0);
 		}
 		Publisher->StopAllStreams(FString());
+		ReceiverHost->StopTopicReceivers();
+		for (const FVirtualSensorTopicReceiverStatus& Status : ReceiverHost->GetTopicReceiverStatuses())
+		{
+			Test->TestEqual(TEXT("manual receiver stop clears every subscription state"), Status.State, EVirtualSensorTopicReceiverState::Stopped);
+		}
+		ReceiverHost->ReconnectTopicReceivers();
+		Test->TestTrue(TEXT("manual receiver reconnect re-enables requested state"), ReceiverHost->AreTopicReceiversRequested());
 		return true;
 	}
 
