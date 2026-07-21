@@ -21,6 +21,16 @@ The machine-readable result is written to
 `Tools/Artemis/stomp_probe.mjs` when consumer-processing acknowledgement is
 also required; a broker receipt alone only proves broker acceptance.
 
+To validate continuous streams produced by the real Camera and LiDAR actors in
+`SensorRefactorTestMap`, including D3D12 frame-time thresholds, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild
+```
+
+The combined broker and performance evidence is stored in
+`Saved/Reports/sensor_map_stream_rhi_smoke.json` and `.md`.
+
 - STOMP WebSocket: `ws://127.0.0.1:61616`
 - 관리 콘솔: `http://127.0.0.1:8161`
 - 개발 계정: `artemis` / `artemis`

@@ -43,4 +43,14 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\run_artemis_stream_smoke.ps1
 
 결과는 `Saved/Reports/artemis_sensor_stream_smoke.json`에 저장됩니다. 성공 보고서는 각 Topic의 `sensorId`, `dataKind`, `frameId`, byte 수와 schema를 포함합니다.
 
+실제 `SensorRefactorTestMap`의 Camera와 LiDAR가 측정 주기마다 세 Topic을 연속 발행하는지, 그리고 전송 중 프레임 성능이 유지되는지는 다음 D3D12 테스트로 확인합니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild
+```
+
+이 테스트는 PIE 초기화 중 DTCore WebSocket 연결이 안정된 뒤 센서용 STOMP 연결을 시작하고, 세 Topic을 각각 두 건 이상 별도 소비자로 수신합니다. 이후 스트림을 10초 동안 유지하면서 평균 FPS, 1% low와 p95 frame time을 측정합니다. 결과는 `Saved/Reports/sensor_map_stream_rhi_smoke.json`과 `.md`에 저장됩니다.
+
+로컬 기본 통과 기준은 평균 55 FPS 이상, 1% low 45 FPS 이상, p95 20 ms 이하입니다. 이는 비동기·bounded 설계가 게임 스레드 정지를 방지한다는 회귀 기준이며, 실제 부하는 센서 수, 해상도, Payload 크기와 네트워크 대역폭에 따라 달라질 수 있습니다.
+
 UI 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v5.sav`에 저장됩니다. 패널 크기·탭·Topic·전송 간격은 복원하지만 비밀번호, token, 스트림 실행 상태는 저장하지 않습니다.
