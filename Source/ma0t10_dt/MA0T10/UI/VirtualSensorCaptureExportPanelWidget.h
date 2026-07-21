@@ -5,9 +5,19 @@
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
+class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
 struct FVirtualSensorTransportProfile;
+
+UENUM(BlueprintType)
+enum class EVirtualSensorCaptureExportTab : uint8
+{
+	LiveStream UMETA(DisplayName = "실시간 전송"),
+	Capture UMETA(DisplayName = "캡처"),
+	Export UMETA(DisplayName = "내보내기"),
+	ConnectionLog UMETA(DisplayName = "연결 및 로그")
+};
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSensorPanelWidgetBase
@@ -63,6 +73,33 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Transport")
 	FString GetTransportSummaryText() const;
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Receiver")
+	void StopTopicReceivers();
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Receiver")
+	void ReconnectTopicReceivers();
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Receiver")
+	FString GetTopicReceiverSummaryText() const;
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
+	void SetActiveTab(EVirtualSensorCaptureExportTab NewTab);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
+	EVirtualSensorCaptureExportTab GetActiveTab() const { return ActiveTab; }
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
+	void ToggleSelectedStream(EVirtualSensorStreamKind StreamKind);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
+	void ToggleAllStreams();
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
+	FString GetLiveStreamSummaryText() const;
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
+	bool ExportTransportDiagnosticReport();
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
     FString GetStorageSummaryText() const;
 
@@ -74,6 +111,7 @@ public:
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
     void AddResult(EVirtualSensorExportKind Kind, const FString& SensorId, bool bSucceeded, const FString& Path, const FString& Message);
@@ -81,12 +119,23 @@ private:
     FString GetSelectedSensorId() const;
     FString ExportKindText(EVirtualSensorExportKind Kind) const;
     EVirtualSensorExportKind CyclePointCloudKind(EVirtualSensorExportKind Kind) const;
+	FString GetSelectedSensorIdForStream(EVirtualSensorStreamKind StreamKind) const;
+	void ApplyStreamConfig(EVirtualSensorStreamKind StreamKind, const FString& SensorId, bool bEnabled);
+	TSharedRef<SWidget> BuildLiveStreamTab();
+	TSharedRef<SWidget> BuildCaptureTab();
+	TSharedRef<SWidget> BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected);
+	TSharedRef<SWidget> BuildConnectionLogTab();
+	FString BuildTransportLogText() const;
+	FText TabLabel(EVirtualSensorCaptureExportTab Tab) const;
 
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorCoordinator> SensorManager;
 
-    UPROPERTY(Transient)
-    TObjectPtr<UVirtualSensorMonitorPanelWidget> MonitorWidget;
+	UPROPERTY(Transient)
+	TObjectPtr<UVirtualSensorMonitorPanelWidget> MonitorWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AVirtualSensorExternalSourceHostActor> TopicReceiverHost;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorExport", meta = (AllowPrivateAccess = "true"))
     TArray<FVirtualSensorExportResult> RecentResults;
@@ -106,4 +155,11 @@ private:
 	FString SessionBearerToken;
 	FString DraftHttpEndpoint;
 	bool bUseStompTransport = true;
+	EVirtualSensorCaptureExportTab ActiveTab = EVirtualSensorCaptureExportTab::LiveStream;
+	int32 StreamFrameStride = 1;
+	int32 StreamReceiptInterval = 10;
+	FString CachedLiveStreamSummary;
+	FString CachedTransportLog;
+	FString CachedTopicReceiverSummary;
+	double LastNativeStatusRefreshSeconds = -1.0;
 };

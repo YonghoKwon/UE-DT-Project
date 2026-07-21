@@ -28,6 +28,9 @@
 - 출력은 `UVirtualSensorOutputComponent`에서 Transport·Recorder로 라우팅하며 같은 SensorId/frame ID를 중복 출력하지 않습니다.
 - Camera와 LiDAR가 함께 사용하는 Subsystem은 `MA0T10/Core`에 둡니다. 자동 측정은 `UVirtualSensorSchedulerSubsystem`을 사용하며 수동 1회 측정 API의 동기 호환성은 유지합니다.
 - `virtual-camera.v1`, `virtual-lidar.v1`, FullSpec 규격, 저장 경로와 export 포맷을 변경할 때는 계약 테스트와 문서를 함께 갱신합니다.
+- 기존 센서 송신 Body에는 `MESSAGE_ID`가 없습니다. 에디터 자체 수신 진단은 `DT_TransactionCode`에 등록하거나 송신 계약을 바꾸지 말고, `UDxWebSocketSubsystem`의 Topic 직접 구독과 세 전용 `UTransactionCodeMessage` Handler를 유지합니다.
+- Topic 수신 진단은 검증·로그 전용입니다. 수신 결과를 `SubmitExternalFrame`에 전달하거나 Transport로 다시 보내 재주입·재송신 루프를 만들지 않습니다.
+- 수신 파싱은 Topic별 처리 중 1개와 최신 대기 1개, 전체 동시 처리 최대 2개라는 bounded 정책을 유지합니다. 전체 Payload나 Base64 본문을 로그에 출력하지 않습니다.
 
 ## UI 기준
 

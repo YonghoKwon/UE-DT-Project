@@ -11,6 +11,168 @@ enum class EVirtualSensorKind : uint8
 	Lidar UMETA(DisplayName = "LiDAR")
 };
 
+UENUM(BlueprintType)
+enum class EVirtualSensorStreamKind : uint8
+{
+	LidarPayload UMETA(DisplayName = "LiDAR Payload"),
+	CameraImage UMETA(DisplayName = "Camera Image"),
+	PointCloud UMETA(DisplayName = "Point Cloud")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualPointCloudStreamFormat : uint8
+{
+	CSV,
+	JSONL,
+	PCD,
+	LAS,
+	LAZ
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorStreamConfig
+{
+	GENERATED_BODY()
+
+	/** Empty means every sensor of the matching kind. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString SensorId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	bool bEnabled = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "1000"))
+	int32 FrameStride = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualPointCloudStreamFormat PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+
+	/** Automatic streams request a broker receipt every N submitted frames. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "1000"))
+	int32 ReceiptSampleInterval = 10;
+
+	/** True LAZ compression is capped to this rate even when acquisition is faster. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "0.1", ClampMax = "1.0"))
+	float MaxLazHz = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString LazCompressorPath;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString LazCompressorArguments = TEXT("-i {input} -o {output}");
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorStreamStatus
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString SensorId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	bool bEnabled = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	bool bProcessing = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	bool bPendingLatestFrame = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 LastInputFrameId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 LastSubmittedFrameId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 InputFrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 SubmittedFrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 ReplacedPendingFrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 BandwidthDeferredFrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 EncodeFailureCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 ReceiptTimeoutCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 ReceiptReceivedCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 TotalSubmittedBytes = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	float InputHz = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	float SubmittedHz = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	float LastReceiptLatencyMs = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString LastRequestId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString Destination;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	FString Message;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorTransportLogEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FDateTime TimestampUtc;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FString SensorId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FString RequestId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FString Destination;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FString Protocol;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FString State;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	FString Message;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	int64 FrameId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	int32 Bytes = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport")
+	float LatencyMs = 0.0f;
+};
+
 /** Temporary acquisition budget used while an operator moves a sensor in PIE. */
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorInteractionRequest

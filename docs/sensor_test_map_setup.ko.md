@@ -145,6 +145,10 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\run_point_cloud_rhi_smoke.ps
 - Timed LiDAR: `Saved/SensorCaptures/LocalTimedCapture/<UTC>/Lidar`
 - Recorder: `Saved/SensorRecordings`
 
+## 최신 실시간 Topic 안내
+
+캡처/내보내기 패널의 크기 조절, 네 탭 구성과 LiDAR·Camera·Point Cloud 자동 스트림은 [sensor_streaming.ko.md](sensor_streaming.ko.md)를 기준으로 사용하십시오. 스트림은 기본적으로 중지 상태이며 센서마다 최신 대기 프레임 하나만 유지합니다.
+
 CaptureExport 패널에서 절대 경로와 프로젝트 상대 경로를 확인하고 최근 저장 경로를 복사할 수 있습니다.
 
 ## 외부 센서 Source 사용

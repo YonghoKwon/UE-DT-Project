@@ -20,6 +20,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorStorageSummaryTest, "MA0T10.Senso
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorGizmoMathTest, "MA0T10.SensorControl.GizmoMath", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorDebugBudgetTest, "MA0T10.SensorDebug.ProjectionBudget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorUiPreferencesSerializationTest, "MA0T10.SensorControl.UiPreferencesSerialization", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCapturePanelResizeTest, "MA0T10.SensorControl.CapturePanelResize", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorPanelClampTest::RunTest(const FString& Parameters)
 {
@@ -156,6 +157,9 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     Preferences->bWorldTopDownAutoFit = false;
     Preferences->bMonitorDetailsExpanded = true;
     Preferences->bSettingsKeyboardHelpExpanded = true;
+	Preferences->CaptureExportActiveTab = static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog);
+	Preferences->SensorStreamFrameStride = 3;
+	Preferences->SensorStreamReceiptInterval = 10;
 
     TArray<uint8> Bytes;
     TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
@@ -179,7 +183,28 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
     TestFalse(TEXT("world top-down auto-fit survives serialization"), Loaded->bWorldTopDownAutoFit);
     TestTrue(TEXT("monitor detail state survives serialization"), Loaded->bMonitorDetailsExpanded);
     TestTrue(TEXT("keyboard help state survives serialization"), Loaded->bSettingsKeyboardHelpExpanded);
+	TestEqual(TEXT("capture/export tab survives serialization"), Loaded->CaptureExportActiveTab, static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog));
+	TestEqual(TEXT("stream stride survives serialization"), Loaded->SensorStreamFrameStride, 3);
+	TestEqual(TEXT("receipt sampling survives serialization"), Loaded->SensorStreamReceiptInterval, 10);
     return true;
+}
+
+bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)
+{
+	const FVector2D Resized = UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
+		FVector2D(900.0f, 620.0f), FVector2D(200.0f, 100.0f), 1.0f,
+		FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
+	TestEqual(TEXT("capture panel grows from bottom-right grip"), Resized, FVector2D(1100.0f, 720.0f));
+	const FVector2D Minimum = UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
+		FVector2D(900.0f, 620.0f), FVector2D(-1000.0f, -1000.0f), 1.0f,
+		FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
+	TestEqual(TEXT("capture panel respects its minimum size"), Minimum, FVector2D(620.0f, 360.0f));
+	UVirtualSensorCaptureExportPanelWidget* Widget = NewObject<UVirtualSensorCaptureExportPanelWidget>();
+	Widget->SetPanelResizable(true);
+	TestTrue(TEXT("capture/export panel can opt into common resize behavior"), Widget->bPanelResizable);
+	Widget->SetActiveTab(EVirtualSensorCaptureExportTab::Export);
+	TestEqual(TEXT("four-tab selection is explicit"), Widget->GetActiveTab(), EVirtualSensorCaptureExportTab::Export);
+	return true;
 }
 
 #endif

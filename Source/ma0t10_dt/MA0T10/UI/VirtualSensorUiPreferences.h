@@ -32,8 +32,9 @@ class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 4;
+    static constexpr int32 CurrentVersion = 5;
     static const FString SlotName;
+    static const FString Version4SlotName;
     static const FString Version3SlotName;
     static const FString Version2SlotName;
     static const FString LegacySlotName;
@@ -93,4 +94,7 @@ public:
 	UPROPERTY(SaveGame) FString StompAckTopic;
 	UPROPERTY(SaveGame) int32 OutboundMaxMessageBytes = 8388608;
 	UPROPERTY(SaveGame) FString OutboundHttpEndpoint;
+	UPROPERTY(SaveGame) uint8 CaptureExportActiveTab = 0;
+	UPROPERTY(SaveGame) int32 SensorStreamFrameStride = 1;
+	UPROPERTY(SaveGame) int32 SensorStreamReceiptInterval = 10;
 };

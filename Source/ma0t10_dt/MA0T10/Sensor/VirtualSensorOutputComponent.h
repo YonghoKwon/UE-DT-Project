@@ -7,6 +7,7 @@
 
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorTransportComponent;
+class UVirtualSensorStreamPublisherComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualSensorFrameRouted, const FString&, SensorId, int64, FrameId);
 
@@ -18,7 +19,7 @@ class MA0T10_DT_API UVirtualSensorOutputComponent : public UActorComponent
 public:
 	UVirtualSensorOutputComponent();
 
-	void SetSharedServices(UVirtualSensorTransportComponent* InTransport, UVirtualSensorRecorderComponent* InRecorder);
+	void SetSharedServices(UVirtualSensorTransportComponent* InTransport, UVirtualSensorRecorderComponent* InRecorder, UVirtualSensorStreamPublisherComponent* InStreamPublisher = nullptr);
 	bool RouteFrame(const FVirtualSensorFrameEnvelope& Frame);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorOutput")
@@ -35,6 +36,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorOutput")
 	TObjectPtr<UVirtualSensorRecorderComponent> RecorderComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|SensorOutput")
+	TObjectPtr<UVirtualSensorStreamPublisherComponent> StreamPublisherComponent;
 
 private:
 	FString BuildSensorType(EVirtualSensorKind Kind) const;

@@ -14,6 +14,7 @@ class UVirtualLidarScanComponent;
 class UVirtualSensorMonitorPanelWidget;
 class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
+class UVirtualSensorStreamPublisherComponent;
 
 UENUM(BlueprintType)
 enum class EVirtualSensorViewMode : uint8
@@ -249,6 +250,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
     TObjectPtr<UVirtualSensorRecorderComponent> SharedRecorderComponent;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
+    TObjectPtr<UVirtualSensorStreamPublisherComponent> StreamPublisherComponent;
 
 private:
     void ApplyWidgetBinding();
