@@ -1,5 +1,7 @@
 # UE-DT-Project
 
+> 센서 캡처/내보내기 패널, 세 가지 실시간 Topic, 부하 제한 정책과 로컬 Artemis 검증 방법은 [docs/sensor_streaming.ko.md](docs/sensor_streaming.ko.md)를 참고하십시오.
+
 Unreal Engine 5.3 기반 Digital Twin 가상 센서 프로젝트입니다. Camera와 LiDAR를 맵에 배치해 실시간 미리보기, 설정 변경, 디버그 표시, Payload 전송, 녹화와 point cloud 내보내기를 시험할 수 있습니다.
 
 ## 빠른 시작

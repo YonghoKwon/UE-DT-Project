@@ -6,6 +6,21 @@
 docker compose -f Tools/Artemis/docker-compose.yml up -d --wait
 ```
 
+## Unreal three-stream smoke test
+
+With the broker running, execute the following from the project root. It starts
+a real STOMP subscriber and verifies one Unreal-originated message on each
+LiDAR, Camera, and Point Cloud topic.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Scripts\run_artemis_stream_smoke.ps1
+```
+
+The machine-readable result is written to
+`Saved/Reports/artemis_sensor_stream_smoke.json`. Use `--ack-topic` with
+`Tools/Artemis/stomp_probe.mjs` when consumer-processing acknowledgement is
+also required; a broker receipt alone only proves broker acceptance.
+
 - STOMP WebSocket: `ws://127.0.0.1:61616`
 - 관리 콘솔: `http://127.0.0.1:8161`
 - 개발 계정: `artemis` / `artemis`

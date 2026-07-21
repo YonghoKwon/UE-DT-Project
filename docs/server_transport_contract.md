@@ -175,3 +175,13 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_server_transport_co
 
 Use `SaveToFile` when you need a concrete payload artifact for the judging-server
 team before the final endpoint is available.
+
+## Bounded sensor streams
+
+The V2 capture/export panel can publish three independent latest-frame streams:
+`virtual-lidar.v1` JSON, `virtual-camera.v1` JSON containing one Base64 JPEG,
+and a `virtual-pointcloud.v1` envelope containing the selected point-cloud
+format. Each sensor/stream key is bounded to one processing item and one
+replaceable latest item. Automatic sends sample broker receipts (default every
+10 messages); consumer completion requires a correlated ACK topic response.
+See `docs/sensor_streaming.ko.md` and `Scripts/run_artemis_stream_smoke.ps1`.
