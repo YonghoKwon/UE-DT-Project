@@ -538,12 +538,17 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleAllStreams()
 		LastUiMessage = TEXT("실시간 스트림 발행기가 연결되지 않았습니다.");
 		return;
 	}
-	const bool bAllEnabled = Publisher->IsStreamEnabled(EVirtualSensorStreamKind::LidarPayload, FString()) &&
-		Publisher->IsStreamEnabled(EVirtualSensorStreamKind::CameraImage, FString()) &&
-		Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud, FString());
-	ApplyStreamConfig(EVirtualSensorStreamKind::LidarPayload, FString(), !bAllEnabled);
-	ApplyStreamConfig(EVirtualSensorStreamKind::CameraImage, FString(), !bAllEnabled);
-	ApplyStreamConfig(EVirtualSensorStreamKind::PointCloud, FString(), !bAllEnabled);
+	bool bAnyEnabled = false;
+	for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses()) bAnyEnabled |= Status.bEnabled;
+	if (bAnyEnabled)
+	{
+		Publisher->StopAllStreams(FString());
+		LastUiMessage = TEXT("모든 실시간 스트림을 중지했습니다.");
+		return;
+	}
+	ApplyStreamConfig(EVirtualSensorStreamKind::LidarPayload, FString(), true);
+	ApplyStreamConfig(EVirtualSensorStreamKind::CameraImage, FString(), true);
+	ApplyStreamConfig(EVirtualSensorStreamKind::PointCloud, FString(), true);
 }
 
 FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const

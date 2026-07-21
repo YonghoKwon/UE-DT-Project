@@ -212,6 +212,7 @@ void UVirtualSensorStreamPublisherComponent::EndPlay(const EEndPlayReason::Type 
 	bEndingPlay = true;
 	if (TransportComponent) TransportComponent->OnDataSent.RemoveDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
 	WaitingReceipts.Reset();
+	RequestToStreamKey.Reset();
 	StreamRuntimes.Reset();
 	Super::EndPlay(EndPlayReason);
 }
@@ -288,6 +289,20 @@ void UVirtualSensorStreamPublisherComponent::StartAllStreams(const FString& Sens
 
 void UVirtualSensorStreamPublisherComponent::StopAllStreams(const FString& SensorId)
 {
+	if (SensorId.TrimStartAndEnd().IsEmpty())
+	{
+		for (TPair<FString, FStreamRuntime>& Pair : StreamRuntimes)
+		{
+			Pair.Value.Config.bEnabled = false;
+			Pair.Value.Status.bEnabled = false;
+			Pair.Value.PendingFrame.Reset();
+			Pair.Value.PreparedMessage.Reset();
+			Pair.Value.Status.bPendingLatestFrame = false;
+			Pair.Value.Status.Message = TEXT("중지됨");
+		}
+		UpdateCameraStreamDemand();
+		return;
+	}
 	StopStream(EVirtualSensorStreamKind::LidarPayload, SensorId);
 	StopStream(EVirtualSensorStreamKind::CameraImage, SensorId);
 	StopStream(EVirtualSensorStreamKind::PointCloud, SensorId);
@@ -316,6 +331,11 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Key);
 		if (!Runtime || !Runtime->Config.bEnabled || !StreamMatchesFrame(Runtime->Config.StreamKind, Frame.SensorKind)) continue;
 		if (!Runtime->Config.SensorId.IsEmpty() && !Runtime->Config.SensorId.Equals(Frame.SensorId, ESearchCase::CaseSensitive)) continue;
+		if (Runtime->Config.SensorId.IsEmpty())
+		{
+			const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(Runtime->Config.StreamKind, Frame.SensorId));
+			if (Exact && Exact->Config.bEnabled) continue;
+		}
 		QueueFrameForRuntime(Key, *Runtime, Frame);
 	}
 }
@@ -474,6 +494,14 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			Runtime->Status.SubmittedHz = static_cast<float>(Runtime->Status.SubmittedFrameCount / FMath::Max(0.001, NowSeconds - Runtime->FirstSubmitSeconds));
 			if (Runtime->Config.PointCloudFormat == EVirtualPointCloudStreamFormat::LAZ) Runtime->LastLazSubmitSeconds = NowSeconds;
 			if (bReceipt && !Result.RequestId.IsEmpty()) WaitingReceipts.Add(Result.RequestId, {Keys[Index], NowSeconds});
+			if (!Result.RequestId.IsEmpty())
+			{
+				RequestToStreamKey.Add(Result.RequestId, Keys[Index]);
+				if (RequestToStreamKey.Num() > 512)
+				{
+					for (auto It = RequestToStreamKey.CreateIterator(); It && RequestToStreamKey.Num() > 384; ++It) It.RemoveCurrent();
+				}
+			}
 			AddLog(Keys[Index], bReceipt ? TEXT("submitted-receipt") : TEXT("submitted"), Result.Message, &Result, Message.FrameId);
 			Runtime->PreparedMessage.Reset();
 			Runtime->Status.bPendingLatestFrame = Runtime->PendingFrame.IsSet();
@@ -523,8 +551,19 @@ void UVirtualSensorStreamPublisherComponent::OnTransportResult(const FVirtualSen
 void UVirtualSensorStreamPublisherComponent::HandleTransportResult(const FVirtualSensorTransportResult& Result)
 {
 	if (Result.RequestId.IsEmpty()) return;
+	const FString* KnownStreamKey = RequestToStreamKey.Find(Result.RequestId);
+	if (Result.bConsumerAckReceived)
+	{
+		if (KnownStreamKey) AddLog(*KnownStreamKey, TEXT("consumer-ack"), Result.Message, &Result);
+		RequestToStreamKey.Remove(Result.RequestId);
+		return;
+	}
 	FReceiptWait Wait;
-	if (!WaitingReceipts.RemoveAndCopyValue(Result.RequestId, Wait)) return;
+	if (!WaitingReceipts.RemoveAndCopyValue(Result.RequestId, Wait))
+	{
+		if (KnownStreamKey && !Result.bSubmitted) AddLog(*KnownStreamKey, TEXT("transport-error"), Result.Message, &Result);
+		return;
+	}
 	if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey))
 	{
 		Runtime->Status.LastReceiptLatencyMs = Result.LatencyMs;
@@ -532,6 +571,7 @@ void UVirtualSensorStreamPublisherComponent::HandleTransportResult(const FVirtua
 	}
 	ConsecutiveReceiptTimeouts = Result.bAccepted ? 0 : ConsecutiveReceiptTimeouts + 1;
 	AddLog(Wait.StreamKey, Result.bAccepted ? TEXT("receipt") : TEXT("receipt-failed"), Result.Message, &Result);
+	if (TransportComponent && TransportComponent->GetTransportProfile().AckTopic.IsEmpty()) RequestToStreamKey.Remove(Result.RequestId);
 }
 
 void UVirtualSensorStreamPublisherComponent::AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result, int64 FrameId)
@@ -608,15 +648,6 @@ bool UVirtualSensorStreamPublisherComponent::ExportDiagnosticReport(FString& Out
 
 void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 {
-	bool bAnyCameraStreamEnabled = false;
-	for (const TPair<FString, FStreamRuntime>& Pair : StreamRuntimes)
-	{
-		if (Pair.Value.Config.bEnabled && Pair.Value.Config.StreamKind == EVirtualSensorStreamKind::CameraImage)
-		{
-			bAnyCameraStreamEnabled = true;
-			break;
-		}
-	}
 	if (AVirtualSensorCoordinator* Coordinator = Cast<AVirtualSensorCoordinator>(GetOwner()))
 	{
 		for (AVirtualSensorActorBase* SensorActor : Coordinator->GetSensorActors())
@@ -624,7 +655,9 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 			if (!SensorActor || SensorActor->GetSensorKind() != EVirtualSensorKind::Camera) continue;
 			if (UVirtualCameraCaptureComponent* Camera = SensorActor->FindComponentByClass<UVirtualCameraCaptureComponent>())
 			{
-				Camera->SetRuntimeStreamOutputDemand(bAnyCameraStreamEnabled);
+				const FStreamRuntime* Global = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, FString()));
+				const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, SensorActor->GetSensorId()));
+				Camera->SetRuntimeStreamOutputDemand((Global && Global->Config.bEnabled) || (Exact && Exact->Config.bEnabled));
 			}
 		}
 	}

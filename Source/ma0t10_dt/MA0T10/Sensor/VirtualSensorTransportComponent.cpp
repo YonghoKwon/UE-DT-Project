@@ -6,8 +6,10 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Base64.h"
 #include "Misc/Paths.h"
+#include "Json.h"
 #include "HAL/PlatformTime.h"
 #include "IStompClient.h"
+#include "IStompMessage.h"
 #include "StompModule.h"
 
 UVirtualSensorTransportComponent::UVirtualSensorTransportComponent()
@@ -96,7 +98,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonStreamRe
 
 void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile)
 {
-	const bool bBrokerChanged = TransportProfile.BrokerUrl != InProfile.BrokerUrl || TransportProfile.UserName != InProfile.UserName;
+	const bool bBrokerChanged = TransportProfile.BrokerUrl != InProfile.BrokerUrl || TransportProfile.UserName != InProfile.UserName || TransportProfile.AckTopic != InProfile.AckTopic;
 	TransportProfile = InProfile;
 	TransportProfile.MaxMessageBytes = FMath::Max(1024, TransportProfile.MaxMessageBytes);
 	TransportProfile.TimeoutSeconds = FMath::Clamp(TransportProfile.TimeoutSeconds, 1, 120);
@@ -186,14 +188,63 @@ void UVirtualSensorTransportComponent::HandleStompConnected(const FString& Proto
 	LastResult.Destination = TransportProfile.BrokerUrl;
 	LastResult.Message = FString::Printf(TEXT("Artemis STOMP 연결됨 · protocol=%s · session=%s"), *ProtocolVersion, *SessionId);
 	OnDataSent.Broadcast(LastResult);
+	SubscribeToAckTopic();
 }
 
 void UVirtualSensorTransportComponent::HandleStompFailure(const FString& Error)
 {
+	AckSubscriptionId.Reset();
 	LastResult.Protocol = TEXT("STOMP/WS");
 	LastResult.bAccepted = false;
 	LastResult.Message = FString::Printf(TEXT("Artemis STOMP 오류: %s"), *Error);
 	OnDataSent.Broadcast(LastResult);
+}
+
+void UVirtualSensorTransportComponent::SubscribeToAckTopic()
+{
+	if (!StompClient.IsValid() || !StompClient->IsConnected() || TransportProfile.AckTopic.IsEmpty() || !AckSubscriptionId.IsEmpty()) return;
+	TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+	AckSubscriptionId = StompClient->Subscribe(
+		TransportProfile.AckTopic,
+		FStompSubscriptionEvent::CreateLambda([WeakThis](const IStompMessage& Message)
+		{
+			if (WeakThis.IsValid()) WeakThis->HandleAckMessage(Message);
+		}),
+		FStompRequestCompleted::CreateLambda([WeakThis](bool bSuccess, const FString& Error)
+		{
+			if (!WeakThis.IsValid()) return;
+			FVirtualSensorTransportResult Result;
+			Result.Protocol = TEXT("STOMP/WS");
+			Result.Destination = WeakThis->TransportProfile.AckTopic;
+			Result.bSubmitted = true;
+			Result.bAccepted = bSuccess;
+			Result.DataKind = TEXT("ack-subscription");
+			Result.Message = bSuccess ? TEXT("소비자 ACK Topic 구독 완료") : FString::Printf(TEXT("ACK Topic 구독 실패: %s"), *Error);
+			WeakThis->OnDataSent.Broadcast(Result);
+		}));
+}
+
+void UVirtualSensorTransportComponent::HandleAckMessage(const IStompMessage& Message)
+{
+	FString RequestId;
+	const FStompHeader& Headers = Message.GetHeader();
+	if (const FString* HeaderRequestId = Headers.Find(TEXT("x-request-id"))) RequestId = *HeaderRequestId;
+	if (RequestId.IsEmpty())
+	{
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message.GetBodyAsString());
+		if (FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()) Root->TryGetStringField(TEXT("requestId"), RequestId);
+	}
+	FVirtualSensorTransportResult Result;
+	Result.Protocol = TEXT("STOMP/WS");
+	Result.RequestId = RequestId;
+	Result.Destination = TransportProfile.AckTopic;
+	Result.DataKind = TEXT("consumer-ack");
+	Result.bSubmitted = true;
+	Result.bAccepted = !RequestId.IsEmpty();
+	Result.bConsumerAckReceived = !RequestId.IsEmpty();
+	Result.Message = RequestId.IsEmpty() ? TEXT("소비자 ACK를 받았지만 requestId가 없습니다.") : TEXT("소비자 처리 ACK 수신");
+	OnDataSent.Broadcast(Result);
 }
 
 FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
@@ -281,6 +332,7 @@ void UVirtualSensorTransportComponent::EndPlay(const EEndPlayReason::Type EndPla
 		StompClient->Disconnect();
 		StompClient.Reset();
 	}
+	AckSubscriptionId.Reset();
 	SessionPasscode.Reset();
 	SessionBearerToken.Reset();
 	Super::EndPlay(EndPlayReason);

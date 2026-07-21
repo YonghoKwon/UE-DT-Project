@@ -111,6 +111,9 @@ struct MA0T10_DT_API FVirtualSensorTransportResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
 	bool bReceiptReceived = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
+	bool bConsumerAckReceived = false;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorDataSent, const FVirtualSensorTransportResult&, Result);
@@ -227,9 +230,12 @@ private:
 	void EnsureStompClient();
 	void HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString);
 	void HandleStompFailure(const FString& Error);
+	void SubscribeToAckTopic();
+	void HandleAckMessage(const class IStompMessage& Message);
 	FString ResolveTopic(const FString& SensorType, const FString& DataKind) const;
 
 	TSharedPtr<class IStompClient> StompClient;
+	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;
 	double LastStompSubmitSeconds = 0.0;

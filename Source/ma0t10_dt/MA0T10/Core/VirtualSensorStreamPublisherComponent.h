@@ -116,6 +116,7 @@ private:
 
 	TMap<FString, FStreamRuntime> StreamRuntimes;
 	TMap<FString, FReceiptWait> WaitingReceipts;
+	TMap<FString, FString> RequestToStreamKey;
 	TArray<FVirtualSensorTransportLogEntry> RecentLogEntries;
 	int32 RoundRobinCursor = 0;
 	int32 ConsecutiveReceiptTimeouts = 0;

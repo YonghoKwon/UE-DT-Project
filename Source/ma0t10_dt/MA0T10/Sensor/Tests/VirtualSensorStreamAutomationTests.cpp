@@ -50,6 +50,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"MA0T10.SensorStream.TopicRouting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorStreamGlobalControlTest,
+	"MA0T10.SensorStream.GlobalAndPerSensorControl",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FVirtualSensorStreamTopicRoutingTest::RunTest(const FString& Parameters)
 {
 	UVirtualSensorTransportComponent* Transport = NewObject<UVirtualSensorTransportComponent>();
@@ -62,6 +67,36 @@ bool FVirtualSensorStreamTopicRoutingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("LiDAR stream topic"), Transport->ResolveDestination(TEXT("lidar"), TEXT("lidar-stream")), Profile.LidarTopic);
 	TestEqual(TEXT("point-cloud stream topic"), Transport->ResolveDestination(TEXT("lidar"), TEXT("pointcloud-stream")), Profile.ExportTopic);
 	TestEqual(TEXT("legacy export remains compatible"), Transport->ResolveDestination(TEXT("lidar"), TEXT("manual-export")), Profile.ExportTopic);
+	return true;
+}
+
+bool FVirtualSensorStreamGlobalControlTest::RunTest(const FString& Parameters)
+{
+	UVirtualSensorTransportComponent* Transport = NewObject<UVirtualSensorTransportComponent>();
+	Transport->TransportMode = EVirtualSensorTransportMode::LogOnly;
+	UVirtualSensorStreamPublisherComponent* Publisher = NewObject<UVirtualSensorStreamPublisherComponent>();
+	Publisher->SetTransportComponent(Transport);
+	FVirtualSensorStreamConfig Global;
+	Global.StreamKind = EVirtualSensorStreamKind::LidarPayload;
+	Global.bEnabled = true;
+	Publisher->ConfigureStream(Global);
+	FVirtualSensorStreamConfig Exact = Global;
+	Exact.SensorId = TEXT("LIDAR-A");
+	Publisher->ConfigureStream(Exact);
+
+	FVirtualSensorFrameEnvelope Frame;
+	Frame.SensorId = TEXT("LIDAR-A");
+	Frame.SensorKind = EVirtualSensorKind::Lidar;
+	Frame.FrameId = 7;
+	Frame.TimestampUtc = FDateTime::UtcNow();
+	Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(TEXT("{\"frameId\":7}"));
+	Publisher->SubmitFrame(Frame);
+	Publisher->PumpPublisherOnce(FPlatformTime::Seconds());
+	int64 TotalSubmitted = 0;
+	for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses()) TotalSubmitted += Status.SubmittedFrameCount;
+	TestEqual(TEXT("exact stream suppresses duplicate global delivery"), TotalSubmitted, static_cast<int64>(1));
+	Publisher->StopAllStreams(FString());
+	for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses()) TestFalse(TEXT("global stop disables every configured stream"), Status.bEnabled);
 	return true;
 }
 
