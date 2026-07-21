@@ -5,6 +5,8 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
+#include "Json.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "RHIGlobals.h"
@@ -12,10 +14,12 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
@@ -23,6 +27,11 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeFeatureSmokeTest,
 	"MA0T10.SensorV2.Runtime.FeatureSmoke",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2RuntimeContinuousStreamTest,
+	"MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace
@@ -246,6 +255,175 @@ bool FSensorV2RuntimeFeatureSmokeTest::RunTest(const FString& Parameters)
 	}
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
 	ADD_LATENT_AUTOMATION_COMMAND(FSensorV2RuntimeFeatureCheckCommand(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+namespace
+{
+class FSensorV2RuntimeContinuousStreamCommand final : public IAutomationLatentCommand
+{
+public:
+	explicit FSensorV2RuntimeContinuousStreamCommand(FAutomationTestBase* InTest)
+		: Test(InTest)
+	{
+	}
+
+	virtual bool Update() override
+	{
+		if (StartedAtSeconds < 0.0) StartedAtSeconds = FPlatformTime::Seconds();
+		UWorld* World = FindPieWorld();
+		AVirtualSensorCoordinator* Coordinator = nullptr;
+		AVirtualLidarSensorActor* Lidar = nullptr;
+		AVirtualCameraSensorActor* Camera = nullptr;
+		if (World)
+		{
+			for (TActorIterator<AVirtualSensorCoordinator> It(World); It; ++It) { Coordinator = *It; break; }
+			for (TActorIterator<AVirtualLidarSensorActor> It(World); It; ++It) { Lidar = *It; break; }
+			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) { Camera = *It; break; }
+		}
+		if (!Coordinator || !Coordinator->StreamPublisherComponent || !Coordinator->SharedTransportComponent || !Lidar || !Camera)
+		{
+			if (FPlatformTime::Seconds() - StartedAtSeconds < 8.0) return false;
+			Test->AddError(TEXT("SensorRefactorTestMap stream services were not ready."));
+			return true;
+		}
+
+		UVirtualSensorTransportComponent* Transport = Coordinator->SharedTransportComponent;
+		UVirtualSensorStreamPublisherComponent* Publisher = Coordinator->StreamPublisherComponent;
+		// The map also starts DTCore WebSocket clients during PIE bootstrap. Match
+		// the real UI workflow by allowing those handshakes to settle before the
+		// user-facing sensor transport opens its independent STOMP connection.
+		if (!bConnectionRequested && FPlatformTime::Seconds() - StartedAtSeconds < 2.0) return false;
+		if (!bConnectionRequested)
+		{
+			FVirtualSensorTransportProfile Profile;
+			const FString BrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
+			const FString UserName = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
+			if (!BrokerUrl.IsEmpty()) Profile.BrokerUrl = BrokerUrl;
+			if (!UserName.IsEmpty()) Profile.UserName = UserName;
+			Profile.MaxMessageBytes = 32 * 1024 * 1024;
+			Transport->ConfigureTransportProfile(Profile);
+			Transport->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")), FString());
+			Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
+			Transport->TestConnection();
+			bConnectionRequested = true;
+			return false;
+		}
+		if (!Transport->IsStompConnected())
+		{
+			if (FPlatformTime::Seconds() - StartedAtSeconds < 12.0) return false;
+			Test->AddError(TEXT("SensorRefactorTestMap could not connect to the Artemis STOMP broker."));
+			return true;
+		}
+
+		if (!bStreamsStarted)
+		{
+			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
+			{
+				FVirtualSensorStreamConfig Config;
+				Config.StreamKind = Kind;
+				Config.bEnabled = true;
+				Config.FrameStride = 1;
+				Config.ReceiptSampleInterval = 2;
+				Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+				Publisher->ConfigureStream(Config);
+			}
+			StreamsStartedAtSeconds = FPlatformTime::Seconds();
+			bStreamsStarted = true;
+			return false;
+		}
+
+		TMap<EVirtualSensorStreamKind, FVirtualSensorStreamStatus> StatusByKind;
+		for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
+		{
+			if (Status.SensorId.IsEmpty()) StatusByKind.Add(Status.StreamKind, Status);
+		}
+		bool bAllReady = StatusByKind.Num() == 3;
+		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
+		{
+			const FVirtualSensorStreamStatus* Status = StatusByKind.Find(Kind);
+			bAllReady &= Status && Status->InputFrameCount >= 2 && Status->SubmittedFrameCount >= 2 && Status->ReceiptReceivedCount >= 1;
+		}
+		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
+		if (StreamElapsedSeconds >= 2.0)
+		{
+			const double SampleNow = FPlatformTime::Seconds();
+			if (LastFrameSampleSeconds > 0.0) FrameTimesMs.Add((SampleNow - LastFrameSampleSeconds) * 1000.0);
+			LastFrameSampleSeconds = SampleNow;
+		}
+		if ((!bAllReady || StreamElapsedSeconds < 10.0) && StreamElapsedSeconds < 15.0) return false;
+
+		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), 3);
+		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
+		{
+			const FVirtualSensorStreamStatus* Status = StatusByKind.Find(Kind);
+			Test->TestNotNull(TEXT("stream status exists"), Status);
+			if (!Status) continue;
+			Test->TestTrue(TEXT("stream receives repeated acquisition frames"), Status->InputFrameCount >= 2);
+			Test->TestTrue(TEXT("stream submits repeated broker messages"), Status->SubmittedFrameCount >= 2);
+			Test->TestTrue(TEXT("sampled broker receipt is correlated"), Status->ReceiptReceivedCount >= 1);
+			Test->TestEqual(TEXT("stream encoding stays healthy"), Status->EncodeFailureCount, static_cast<int64>(0));
+			Test->TestEqual(TEXT("stream receipt stays healthy"), Status->ReceiptTimeoutCount, static_cast<int64>(0));
+		}
+		TSharedPtr<FJsonObject> CameraPayload;
+		FString CameraEncoding;
+		FString CameraImage;
+		const FString CameraJson = Camera->CaptureComponent ? Camera->CaptureComponent->GetLastJsonPayload() : FString();
+		const bool bCameraPayloadParsed = FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(CameraJson), CameraPayload) &&
+			CameraPayload.IsValid() && CameraPayload->TryGetStringField(TEXT("encoding"), CameraEncoding) &&
+			CameraPayload->TryGetStringField(TEXT("image"), CameraImage);
+		Test->TestTrue(TEXT("camera stream payload contains a Base64 JPEG"),
+			bCameraPayloadParsed && CameraEncoding == TEXT("jpeg/base64") && !CameraImage.IsEmpty());
+		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
+			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
+		Test->TestTrue(TEXT("stream performance collected enough rendered frames"), FrameTimesMs.Num() >= 120);
+		if (!FrameTimesMs.IsEmpty())
+		{
+			double TotalFrameMs = 0.0;
+			for (const double FrameMs : FrameTimesMs) TotalFrameMs += FrameMs;
+			TArray<double> SortedFrameTimes = FrameTimesMs;
+			SortedFrameTimes.Sort();
+			const double AverageFrameMs = TotalFrameMs / FrameTimesMs.Num();
+			const double AverageFps = 1000.0 / FMath::Max(0.001, AverageFrameMs);
+			const double P95FrameMs = SortedFrameTimes[FMath::Clamp(FMath::CeilToInt(SortedFrameTimes.Num() * 0.95) - 1, 0, SortedFrameTimes.Num() - 1)];
+			const double P99FrameMs = SortedFrameTimes[FMath::Clamp(FMath::CeilToInt(SortedFrameTimes.Num() * 0.99) - 1, 0, SortedFrameTimes.Num() - 1)];
+			const double OnePercentLowFps = 1000.0 / FMath::Max(0.001, P99FrameMs);
+			UE_LOG(LogTemp, Display, TEXT("[SensorStreamRhi] averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f samples=%d"),
+				AverageFps, OnePercentLowFps, P95FrameMs, FrameTimesMs.Num());
+			Test->TestTrue(TEXT("active three-stream average FPS remains at least 55"), AverageFps >= 55.0);
+			Test->TestTrue(TEXT("active three-stream one-percent-low FPS remains at least 45"), OnePercentLowFps >= 45.0);
+			Test->TestTrue(TEXT("active three-stream p95 frame time remains at most 20 ms"), P95FrameMs <= 20.0);
+		}
+		Publisher->StopAllStreams(FString());
+		return true;
+	}
+
+private:
+	FAutomationTestBase* Test = nullptr;
+	double StartedAtSeconds = -1.0;
+	double StreamsStartedAtSeconds = -1.0;
+	bool bConnectionRequested = false;
+	bool bStreamsStarted = false;
+	double LastFrameSampleSeconds = -1.0;
+	TArray<double> FrameTimesMs;
+};
+}
+
+bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
+{
+	if (!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
+	{
+		AddInfo(TEXT("Continuous SensorRefactorTestMap stream smoke skipped. Use Scripts/run_sensor_map_stream_rhi_smoke.ps1."));
+		return true;
+	}
+	if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
+	{
+		AddError(TEXT("SensorRefactorTestMap could not be opened"));
+		return false;
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
+	ADD_LATENT_AUTOMATION_COMMAND(FSensorV2RuntimeContinuousStreamCommand(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }
