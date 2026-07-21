@@ -199,12 +199,23 @@ UVirtualSensorStreamPublisherComponent::UVirtualSensorStreamPublisherComponent()
 	PrimaryComponentTick.TickInterval = 0.0f;
 }
 
+bool UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(
+	const FVirtualSensorFrameEnvelope& Frame,
+	const FVirtualSensorStreamConfig& Config,
+	FString& OutExtension,
+	TArray<uint8>& OutBytes,
+	int32& OutPointCount,
+	FString& OutError)
+{
+	return SerializePointCloud(Frame, Config, OutExtension, OutBytes, OutPointCount, OutError);
+}
+
 void UVirtualSensorStreamPublisherComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	LastTokenUpdateSeconds = FPlatformTime::Seconds();
 	TokenBucketBytes = BandwidthLimitMegabytesPerSecond * 1024.0 * 1024.0;
-	if (TransportComponent) TransportComponent->OnDataSent.AddDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
+	if (TransportComponent) TransportComponent->OnDataSent.AddUniqueDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
 }
 
 void UVirtualSensorStreamPublisherComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -222,7 +233,7 @@ void UVirtualSensorStreamPublisherComponent::SetTransportComponent(UVirtualSenso
 	if (TransportComponent == InTransportComponent) return;
 	if (TransportComponent) TransportComponent->OnDataSent.RemoveDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
 	TransportComponent = InTransportComponent;
-	if (TransportComponent && HasBegunPlay()) TransportComponent->OnDataSent.AddDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
+	if (TransportComponent) TransportComponent->OnDataSent.AddUniqueDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
 }
 
 FString UVirtualSensorStreamPublisherComponent::MakeStreamKey(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const
@@ -469,7 +480,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 	{
 		const int32 Index = (RoundRobinCursor + Attempt) % Keys.Num();
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Keys[Index]);
-		if (!Runtime || !Runtime->Config.bEnabled || !Runtime->PreparedMessage.IsSet()) continue;
+		if (!Runtime || !Runtime->Config.bEnabled || !Runtime->PreparedMessage.IsSet() || NowSeconds < Runtime->NextSubmitAttemptSeconds) continue;
 		const FPreparedMessage& Message = Runtime->PreparedMessage.GetValue();
 		if (Message.ByteCount > TokenBucketBytes)
 		{
@@ -486,6 +497,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		Runtime->Status.Message = Result.Message;
 		if (Result.bSubmitted)
 		{
+			Runtime->NextSubmitAttemptSeconds = 0.0;
 			TokenBucketBytes -= Message.ByteCount;
 			++Runtime->Status.SubmittedFrameCount;
 			Runtime->Status.LastSubmittedFrameId = Message.FrameId;
@@ -510,6 +522,9 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		}
 		else
 		{
+			// Do not retry a disconnected broker on every game frame. The latest
+			// prepared message remains bounded to one item while acquisition continues.
+			Runtime->NextSubmitAttemptSeconds = NowSeconds + 0.5;
 			AddLog(Keys[Index], TEXT("submit-failed"), Result.Message, &Result, Message.FrameId);
 			break;
 		}
@@ -568,6 +583,7 @@ void UVirtualSensorStreamPublisherComponent::HandleTransportResult(const FVirtua
 	{
 		Runtime->Status.LastReceiptLatencyMs = Result.LatencyMs;
 		Runtime->Status.Message = Result.Message;
+		if (Result.bReceiptReceived) ++Runtime->Status.ReceiptReceivedCount;
 	}
 	ConsecutiveReceiptTimeouts = Result.bAccepted ? 0 : ConsecutiveReceiptTimeouts + 1;
 	AddLog(Wait.StreamKey, Result.bAccepted ? TEXT("receipt") : TEXT("receipt-failed"), Result.Message, &Result);
@@ -632,6 +648,7 @@ bool UVirtualSensorStreamPublisherComponent::ExportDiagnosticReport(FString& Out
 		Object->SetNumberField(TEXT("bandwidthDeferred"), static_cast<double>(Status.BandwidthDeferredFrameCount));
 		Object->SetNumberField(TEXT("encodeFailures"), static_cast<double>(Status.EncodeFailureCount));
 		Object->SetNumberField(TEXT("receiptTimeouts"), static_cast<double>(Status.ReceiptTimeoutCount));
+		Object->SetNumberField(TEXT("receipts"), static_cast<double>(Status.ReceiptReceivedCount));
 		Object->SetStringField(TEXT("message"), Status.Message);
 		StatusValues.Add(MakeShared<FJsonValueObject>(Object));
 		Markdown += FString::Printf(TEXT("| %s | %d | %lld | %lld | %lld | %lld | %lld | %lld | %s |\n"), *Status.SensorId, static_cast<int32>(Status.StreamKind), Status.InputFrameCount, Status.SubmittedFrameCount, Status.ReplacedPendingFrameCount, Status.BandwidthDeferredFrameCount, Status.EncodeFailureCount, Status.ReceiptTimeoutCount, *Status.Message.Replace(TEXT("|"), TEXT("/")));

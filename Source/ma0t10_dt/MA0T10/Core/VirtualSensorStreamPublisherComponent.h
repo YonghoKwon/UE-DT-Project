@@ -28,6 +28,13 @@ public:
 	void SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent);
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
 	void PumpPublisherOnce(double NowSeconds);
+	static bool SerializePointCloudForTesting(
+		const FVirtualSensorFrameEnvelope& Frame,
+		const FVirtualSensorStreamConfig& Config,
+		FString& OutExtension,
+		TArray<uint8>& OutBytes,
+		int32& OutPointCount,
+		FString& OutError);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);
@@ -90,6 +97,7 @@ private:
 		double FirstInputSeconds = 0.0;
 		double FirstSubmitSeconds = 0.0;
 		double LastLazSubmitSeconds = -DBL_MAX;
+		double NextSubmitAttemptSeconds = 0.0;
 		bool bSerializationInFlight = false;
 	};
 

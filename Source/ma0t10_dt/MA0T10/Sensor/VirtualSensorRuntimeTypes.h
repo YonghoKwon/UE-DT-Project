@@ -110,6 +110,9 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	int64 ReceiptTimeoutCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 ReceiptReceivedCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 TotalSubmittedBytes = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
