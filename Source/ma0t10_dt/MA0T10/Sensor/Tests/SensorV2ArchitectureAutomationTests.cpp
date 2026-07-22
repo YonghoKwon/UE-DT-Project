@@ -179,12 +179,12 @@ bool FSensorV2KindSpecificSelectionTest::RunTest(const FString& Parameters)
 	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
 	Settings->BindSensorManager(Coordinator);
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
-	TestEqual(TEXT("repeated Camera selection advances only Camera"), Coordinator->GetSelectedCamera(), CameraB->CaptureComponent);
-	TestEqual(TEXT("Camera selection keeps first LiDAR"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent);
+	TestEqual(TEXT("repeated Camera selection advances only Camera"), Coordinator->GetSelectedCamera(), CameraB->CaptureComponent.Get());
+	TestEqual(TEXT("Camera selection keeps first LiDAR"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent.Get());
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
-	TestEqual(TEXT("first LiDAR selection changes kind without advancing"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent);
+	TestEqual(TEXT("first LiDAR selection changes kind without advancing"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent.Get());
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
-	TestEqual(TEXT("repeated LiDAR selection advances only LiDAR"), Coordinator->GetSelectedLidar(), LidarB->ScanComponent);
+	TestEqual(TEXT("repeated LiDAR selection advances only LiDAR"), Coordinator->GetSelectedLidar(), LidarB->ScanComponent.Get());
 	return true;
 }
 
