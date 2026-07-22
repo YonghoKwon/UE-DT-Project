@@ -21,6 +21,18 @@
 
 Camera 스트림은 JSON과 이미지 바이너리를 중복 전송하지 않습니다. 한 메시지에 메타데이터와 Base64 JPEG가 함께 들어갑니다. Point Cloud 스트림의 LAZ는 LAS 확장자만 바꾸지 않으며, 실제 LAZ 압축 실행 파일이 설정된 경우에만 동작하고 최대 1 Hz로 제한됩니다.
 
+Point Cloud 실시간 형식은 내보내기·로컬 캡처 형식과 별도 드롭다운으로 관리합니다. 형식을 바꾸면 진행 중인 이전 revision의 직렬화 결과는 폐기되고 다음 완료 프레임부터 새 형식이 적용됩니다. ML-X(80) FullSpec 20Hz에서 `전송 간격(프레임)=1`은 모든 완료 스캔을 대상으로 하고 `receipt 간격=10`은 정상 처리 시 약 0.5초마다 Broker receipt를 요청합니다. 직렬화나 대역폭이 따라오지 못해도 센서 측정을 막지 않고 최신 대기 한 프레임으로 교체합니다.
+
+## 로컬 캡처 주기와 출력
+
+- `캡처 간격(초)`: 0.05~3600초, 기본 1.0초
+- `센서 주기 사용`: 선택 Camera의 캡처 주기 또는 LiDAR의 스캔 주기를 복사
+- Camera 출력: JPEG, Camera Payload JSON
+- LiDAR 출력: LiDAR Payload JSON, Point Cloud
+- Point Cloud 형식: CSV/JSONL/PCD/LAS/LAZ
+
+로컬 캡처 주기는 Topic의 `전송 간격(프레임)`과 무관합니다. 시간 지정 캡처는 매번 동기 스캔하지 않고 최신 완료 프레임을 사용하며, Point Cloud 직렬화와 파일 저장은 처리 중 한 건으로 제한합니다. 1회 캡처는 새 scheduled frame을 요청하고 해당 FrameId가 완료된 뒤 선택 출력을 저장합니다.
+
 ## 부하 및 유실 방지 정책
 
 - 획득과 네트워크 처리를 분리하여 센서 스캔·캡처가 브로커를 기다리지 않습니다.
@@ -76,4 +88,4 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smo
 
 로컬 기본 통과 기준은 평균 55 FPS 이상, 1% low 45 FPS 이상, p95 20 ms 이하입니다. 이는 비동기·bounded 설계가 게임 스레드 정지를 방지한다는 회귀 기준이며, 실제 부하는 센서 수, 해상도, Payload 크기와 네트워크 대역폭에 따라 달라질 수 있습니다.
 
-UI 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v5.sav`에 저장됩니다. 패널 크기·탭·Topic·전송 간격은 복원하지만 비밀번호, token, 스트림 실행 상태는 저장하지 않습니다.
+UI 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v6.sav`에 저장됩니다. 패널 크기·탭·Topic·전송 간격·Point Cloud 스트림 형식·로컬 캡처 간격/출력·듀얼 카메라 선택은 복원하지만 비밀번호, token, 스트림 실행 상태는 저장하지 않습니다.
