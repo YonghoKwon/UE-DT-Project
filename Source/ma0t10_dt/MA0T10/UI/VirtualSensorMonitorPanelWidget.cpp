@@ -1095,6 +1095,7 @@ void UVirtualSensorMonitorPanelWidget::BindSensorManager(AVirtualSensorCoordinat
     SensorManager = InSensorManager;
     if (SensorManager)
     {
+		RestoreMonitorUiPreferences();
 		RefreshCameraSelectionOptions();
 		ResolveDualCameraSelection();
         SensorManager->BindMonitorWidget(this);
@@ -2346,9 +2347,13 @@ void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
     bOverlayLidarMonitorGrid = Preferences->bOverlayLidarMonitorGrid;
     bOverlayLidarDepthEdges = Preferences->bOverlayLidarDepthEdges;
     bMonitorDetailsExpanded = Preferences->bMonitorDetailsExpanded;
-	bDualCameraModeEnabled = Preferences->bDualCameraModeEnabled;
-	PreferredPrimaryCameraId = Preferences->PrimaryCameraSensorId;
-	PreferredSecondaryCameraId = Preferences->SecondaryCameraSensorId;
+	if (!bMonitorPreferencesRestored)
+	{
+		bDualCameraModeEnabled = Preferences->bDualCameraModeEnabled;
+		PreferredPrimaryCameraId = Preferences->PrimaryCameraSensorId;
+		PreferredSecondaryCameraId = Preferences->SecondaryCameraSensorId;
+		bMonitorPreferencesRestored = true;
+	}
     if (LidarComp && Preferences->LidarViewMode <= static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor))
     {
         LidarComp->ViewMode = static_cast<EVirtualLidarViewMode>(Preferences->LidarViewMode);

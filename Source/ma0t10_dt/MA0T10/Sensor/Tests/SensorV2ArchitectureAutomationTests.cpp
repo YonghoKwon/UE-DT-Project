@@ -243,6 +243,7 @@ bool FSensorV2ManipulationMonitorFollowTest::RunTest(const FString& Parameters)
 	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
 	Settings->BindSensorManager(Coordinator);
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
+	Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);
 	Settings->SetSensorManipulationEnabled(true);
 	TestEqual(TEXT("monitor follows manipulated LiDAR"), Coordinator->GetViewMode(), EVirtualSensorViewMode::Lidar);
 	Settings->SetSensorManipulationEnabled(false);

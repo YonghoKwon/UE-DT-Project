@@ -542,6 +542,7 @@ private:
 
     bool bShowingLidar = false;
 	bool bDualCameraModeEnabled = false;
+	bool bMonitorPreferencesRestored = false;
     bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
 	FVirtualSensorCaptureSelection LocalCaptureSelection;

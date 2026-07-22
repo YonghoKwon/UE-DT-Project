@@ -32,6 +32,7 @@ struct FEditorSmokeMapSummary
     int32 CeilingRectLightCount = 0;
     int32 SkyLightCount = 0;
     bool bCameraPlacementRealistic = false;
+	bool bOverheadCameraConfigured = false;
     bool bLidarPlacementRealistic = false;
     bool bLegacyLidarDebugDisabled = false;
     bool bLidarPointCloudPreviewEnabled = false;
@@ -89,6 +90,11 @@ void AddMapComposition(UWorld* LoadedWorld, FEditorSmokeMapSummary& Summary)
         {
             ++Summary.CameraActorCount;
             Summary.bCameraPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 170.0f, 1.0f);
+			const AVirtualCameraSensorActor* CameraActor = CastChecked<AVirtualCameraSensorActor>(Actor);
+			Summary.bOverheadCameraConfigured |= CameraActor->CaptureComponent &&
+				CameraActor->CaptureComponent->SensorId == TEXT("VCAM-TEST-002") &&
+				FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 1000.0f, 1.0f) &&
+				FMath::IsNearlyEqual(Actor->GetActorRotation().Pitch, -90.0f, 0.1f);
         }
         if (Actor->IsA<AVirtualSensorUiHostActor>())
         {
@@ -173,12 +179,13 @@ bool FSensorV2RefactorMapCompositionTest::RunTest(const FString& Parameters)
     FEditorSmokeMapSummary Summary;
     AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap.SensorRefactorTestMap")), Summary);
     TestEqual(TEXT("V2 regression map has one coordinator"), Summary.ManagerCount, 1);
-    TestTrue(TEXT("V2 regression map has Camera V2"), Summary.CameraActorCount > 0);
+    TestEqual(TEXT("V2 regression map has diagonal and overhead cameras"), Summary.CameraActorCount, 2);
+	TestTrue(TEXT("V2 regression map overhead camera has the expected pose and SensorId"), Summary.bOverheadCameraConfigured);
     TestTrue(TEXT("V2 regression map has LiDAR V2"), Summary.LidarActorCount > 0);
     TestEqual(TEXT("V2 regression map has one UI host"), Summary.MonitorHostCount, 1);
     TestTrue(TEXT("V2 regression map UI host is ready"), Summary.ReadyMonitorHostCount == 1);
     TestTrue(TEXT("V2 regression map enables the LiDAR point-cloud preview"), Summary.bLidarPointCloudPreviewEnabled);
-    return Summary.ManagerCount == 1 && Summary.CameraActorCount > 0 && Summary.LidarActorCount > 0 &&
+    return Summary.ManagerCount == 1 && Summary.CameraActorCount == 2 && Summary.bOverheadCameraConfigured && Summary.LidarActorCount > 0 &&
         Summary.MonitorHostCount == 1 && Summary.ReadyMonitorHostCount == 1 && Summary.bLidarPointCloudPreviewEnabled;
 }
 
