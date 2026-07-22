@@ -101,6 +101,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Performance")
     void ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality);
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
+    static FVirtualLidarProfilePreset ResolveProfilePreset(EVirtualLidarDeviceProfile Profile, EVirtualSensorSimulationQuality Quality);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetServerPayloadPolicy(int32 InStride, int32 InMaxPoints, bool bInIncludeMissPoints);
 
@@ -312,7 +315,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "0.033"))
     float ScanInterval = 0.25f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1.0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "10.0", ClampMax = "20000.0"))
     float MaxDistance = 4000.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar", meta = (ClampMin = "1", ClampMax = "1440"))

@@ -72,6 +72,25 @@ bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Mid-360S real-time horizontal ray budget"), Lidar->HorizontalSamples, 120);
     TestEqual(TEXT("Mid-360S real-time vertical ray budget"), Lidar->VerticalChannels, 24);
     TestEqual(TEXT("Mid-360S real-time range remains realistic"), Lidar->MaxDistance, 4000.0f);
+
+    Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80);
+    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+    const FVirtualSensorDeviceSpec& MlxSpec = Lidar->GetDeviceSpec();
+    TestEqual(TEXT("ML-X(80) model"), MlxSpec.Model, FString(TEXT("ML-X(80)")));
+    TestEqual(TEXT("ML-X(80) maximum range cm"), Lidar->MaxDistance, 15000.0f);
+    TestEqual(TEXT("ML-X(80) horizontal samples"), Lidar->HorizontalSamples, 200);
+    TestEqual(TEXT("ML-X(80) vertical channels"), Lidar->VerticalChannels, 56);
+    TestEqual(TEXT("ML-X(80) scan interval"), Lidar->ScanInterval, 0.05f);
+    TestEqual(TEXT("ML-X(80) horizontal FOV"), Lidar->HorizontalFov, 80.0f);
+    TestEqual(TEXT("ML-X(80) minimum vertical angle"), Lidar->MinVerticalAngle, -11.65f);
+    TestEqual(TEXT("ML-X(80) maximum vertical angle"), Lidar->MaxVerticalAngle, 11.65f);
+    TestEqual(TEXT("ML-X(80) point rate"), MlxSpec.PointRate, 224000);
+
+    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::Balanced);
+    TestEqual(TEXT("ML-X(80) balanced horizontal samples"), Lidar->HorizontalSamples, 160);
+    TestEqual(TEXT("ML-X(80) balanced vertical channels"), Lidar->VerticalChannels, 42);
+    TestTrue(TEXT("ML-X(80) balanced rate is 15Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 1.0f / 15.0f));
+    TestEqual(TEXT("ML-X(80) balanced preserves range"), Lidar->MaxDistance, 15000.0f);
     return true;
 }
 
@@ -95,6 +114,11 @@ bool FVirtualSensorEditableStateValidationTest::RunTest(const FString& Parameter
     State.ActorTransform = FTransform::Identity;
     State.TargetKind = EVirtualSensorTargetKind::Lidar;
     State.SensorId = TEXT("LIDAR-A");
+    State.LidarMaxDistance = 15000.0f;
+    TestTrue(TEXT("150m LiDAR range is accepted"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    State.LidarMaxDistance = 20001.0f;
+    TestFalse(TEXT("LiDAR range above 200m is rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    State.LidarMaxDistance = 15000.0f;
     State.LidarMinVerticalAngle = 52.0f;
     State.LidarMaxVerticalAngle = -7.0f;
     TestFalse(TEXT("inverted LiDAR vertical angles are rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));

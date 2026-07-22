@@ -6,6 +6,7 @@
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SBorder.h"
@@ -147,6 +148,18 @@ void UVirtualSensorSettingsPanelWidget::NativeTick(const FGeometry& MyGeometry, 
         bMonitorAutoFollowingManipulation = false;
         bRestoreMonitorViewAfterManipulation = false;
     }
+}
+
+FString CameraProfileText(EVirtualCameraDeviceProfile Profile)
+{
+    return Profile == EVirtualCameraDeviceProfile::IntelRealSenseD455 ? TEXT("Intel RealSense D455") : TEXT("Generic Camera");
+}
+
+FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
+{
+    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80) return TEXT("아이요봇 ML-X(80)");
+    if (Profile == EVirtualLidarDeviceProfile::LivoxMid360S) return TEXT("Livox Mid-360S");
+    return TEXT("Generic LiDAR");
 }
 
 void UVirtualSensorSettingsPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
@@ -433,6 +446,22 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
         return Super::RebuildWidget();
     }
 
+    NativeQualityOptions = {
+        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Debug),
+        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::RealTimePreview),
+        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Balanced),
+        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::FullSpec),
+        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Custom)
+    };
+    NativeCameraProfileOptions = {
+        MakeShared<EVirtualCameraDeviceProfile>(EVirtualCameraDeviceProfile::Generic),
+        MakeShared<EVirtualCameraDeviceProfile>(EVirtualCameraDeviceProfile::IntelRealSenseD455)
+    };
+    NativeLidarProfileOptions = {
+        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::Generic),
+        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::LivoxMid360S),
+        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80)
+    };
     RestoreSettingsUiPreferences();
     return SNew(SBorder)
     .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
@@ -505,20 +534,44 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[ SNew(STextBlock).Visibility_Lambda([this]() { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z")) ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[ SNew(STextBlock).Text(LOCTEXT("BasicSection", "3. 기본 센서 설정 (입력 확정 즉시 반영)")) ]
-                + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).ToolTipText(SettingHelpTooltip(TEXT("SimulationQuality"))).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("시뮬레이션 품질: %s"), *QualityText(PendingState.SimulationQuality))); }).OnClicked_Lambda([this]() { SelectSettingHelp(TEXT("SimulationQuality")); SetSelectedSimulationQuality(NextQuality(PendingState.SimulationQuality)); return FReply::Handled(); }) ]
-                + SVerticalBox::Slot().AutoHeight()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("장비 프로필: Intel RealSense D455 / Generic") : TEXT("장비 프로필: Livox Mid-360S / Generic")); }).OnClicked_Lambda([this]() { if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera) PendingState.CameraProfile = PendingState.CameraProfile == EVirtualCameraDeviceProfile::IntelRealSenseD455 ? EVirtualCameraDeviceProfile::Generic : EVirtualCameraDeviceProfile::IntelRealSenseD455; else PendingState.LidarProfile = PendingState.LidarProfile == EVirtualLidarDeviceProfile::LivoxMid360S ? EVirtualLidarDeviceProfile::Generic : EVirtualLidarDeviceProfile::LivoxMid360S; ApplySelectedProfileAndQualityPreset(); return FReply::Handled(); }) ]
+                + SVerticalBox::Slot().AutoHeight()
+                [
+                    SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>)
+                    .OptionsSource(&NativeQualityOptions)
+                    .OnGenerateWidget_Lambda([](TSharedPtr<EVirtualSensorSimulationQuality> Item) { return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? QualityText(*Item) : TEXT("없음"))); })
+                    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item, ESelectInfo::Type) { if (Item.IsValid()) { SelectSettingHelp(TEXT("SimulationQuality")); SetSelectedSimulationQuality(*Item); } })
+                    [ SNew(STextBlock).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("시뮬레이션 품질: %s"), *QualityText(PendingState.SimulationQuality))); }) ]
+                ]
+                + SVerticalBox::Slot().AutoHeight()
+                [
+                    SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>)
+                    .Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
+                    .OptionsSource(&NativeCameraProfileOptions)
+                    .OnGenerateWidget_Lambda([](TSharedPtr<EVirtualCameraDeviceProfile> Item) { return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? CameraProfileText(*Item) : TEXT("없음"))); })
+                    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualCameraDeviceProfile> Item, ESelectInfo::Type) { if (Item.IsValid()) { PendingState.CameraProfile = *Item; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec; ApplySelectedProfileAndQualityPreset(); } })
+                    [ SNew(STextBlock).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("장비 프로필: %s"), *CameraProfileText(PendingState.CameraProfile))); }) ]
+                ]
+                + SVerticalBox::Slot().AutoHeight()
+                [
+                    SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>)
+                    .Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
+                    .OptionsSource(&NativeLidarProfileOptions)
+                    .OnGenerateWidget_Lambda([](TSharedPtr<EVirtualLidarDeviceProfile> Item) { return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? LidarProfileText(*Item) : TEXT("없음"))); })
+                    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualLidarDeviceProfile> Item, ESelectInfo::Type) { if (Item.IsValid()) { PendingState.LidarProfile = *Item; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec; ApplySelectedProfileAndQualityPreset(); } })
+                    [ SNew(STextBlock).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("장비 프로필: %s"), *LidarProfileText(PendingState.LidarProfile))); }) ]
+                ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
                     SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraInterval", "카메라 캡처 주기 (초)"), [this]() { return PendingState.CameraCaptureInterval; }, [this](float V) { PendingState.CameraCaptureInterval = V; }, 0.033f, 60.0f, true, TEXT("CameraInterval")) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraWidth", "카메라 가로 해상도"), [this]() { return PendingState.CameraResolution.X; }, [this](int32 V) { PendingState.CameraResolution.X = V; }, 160, 4096, TEXT("CameraWidth")) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraHeight", "카메라 세로 해상도"), [this]() { return PendingState.CameraResolution.Y; }, [this](int32 V) { PendingState.CameraResolution.Y = V; }, 90, 2160, TEXT("CameraHeight")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraInterval", "카메라 캡처 주기 (초)"), [this]() { return PendingState.CameraCaptureInterval; }, [this](float V) { PendingState.CameraCaptureInterval = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 0.033f, 60.0f, true, TEXT("CameraInterval")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraWidth", "카메라 가로 해상도"), [this]() { return PendingState.CameraResolution.X; }, [this](int32 V) { PendingState.CameraResolution.X = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 160, 4096, TEXT("CameraWidth")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraHeight", "카메라 세로 해상도"), [this]() { return PendingState.CameraResolution.Y; }, [this](int32 V) { PendingState.CameraResolution.Y = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 90, 2160, TEXT("CameraHeight")) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
                     SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarInterval", "LiDAR 스캔 주기 (초)"), [this]() { return PendingState.LidarScanInterval; }, [this](float V) { PendingState.LidarScanInterval = V; }, 0.033f, 60.0f, true, TEXT("LidarInterval")) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarRange", "LiDAR 최대 거리 (cm)"), [this]() { return PendingState.LidarMaxDistance; }, [this](float V) { PendingState.LidarMaxDistance = V; }, 10.0f, 10000.0f, true, TEXT("LidarRange")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarInterval", "LiDAR 스캔 주기 (초)"), [this]() { return PendingState.LidarScanInterval; }, [this](float V) { PendingState.LidarScanInterval = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 0.033f, 60.0f, true, TEXT("LidarInterval")) ]
+                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarRange", "LiDAR 최대 거리 (cm, 150m=15000)"), [this]() { return PendingState.LidarMaxDistance; }, [this](float V) { PendingState.LidarMaxDistance = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 10.0f, 20000.0f, true, TEXT("LidarRange")) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bShowAdvanced ? TEXT("고급 설정 접기") : TEXT("고급 설정 펼치기")); }).OnClicked_Lambda([this]() { bShowAdvanced = !bShowAdvanced; return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight()
@@ -527,17 +580,17 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                     + SVerticalBox::Slot().AutoHeight()
                     [
                         SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraFov", "카메라 FOV (도)"), [this]() { return PendingState.CameraFov; }, [this](float V) { PendingState.CameraFov = V; }, 5.0f, 170.0f, true, TEXT("CameraFov")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraFov", "카메라 FOV (도)"), [this]() { return PendingState.CameraFov; }, [this](float V) { PendingState.CameraFov = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 5.0f, 170.0f, true, TEXT("CameraFov")) ]
                         + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("JpegQuality", "JPEG 품질"), [this]() { return PendingState.CameraJpegQuality; }, [this](int32 V) { PendingState.CameraJpegQuality = V; }, 1, 100, TEXT("JpegQuality")) ]
                     ]
                     + SVerticalBox::Slot().AutoHeight()
                     [
                         SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("HorizontalSamples", "LiDAR 수평 샘플 수"), [this]() { return PendingState.LidarHorizontalSamples; }, [this](int32 V) { PendingState.LidarHorizontalSamples = V; }, 1, 1440, TEXT("HorizontalSamples")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("VerticalChannels", "LiDAR 수직 채널 수"), [this]() { return PendingState.LidarVerticalChannels; }, [this](int32 V) { PendingState.LidarVerticalChannels = V; }, 1, 256, TEXT("VerticalChannels")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("HorizontalFov", "LiDAR 수평 FOV (도)"), [this]() { return PendingState.LidarHorizontalFov; }, [this](float V) { PendingState.LidarHorizontalFov = V; }, 1.0f, 360.0f, true, TEXT("HorizontalFov")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMin", "LiDAR 수직 최소 각도"), [this]() { return PendingState.LidarMinVerticalAngle; }, [this](float V) { PendingState.LidarMinVerticalAngle = V; }, -90.0f, 89.0f, true, TEXT("VerticalMin")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMax", "LiDAR 수직 최대 각도"), [this]() { return PendingState.LidarMaxVerticalAngle; }, [this](float V) { PendingState.LidarMaxVerticalAngle = V; }, -89.0f, 90.0f, true, TEXT("VerticalMax")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("HorizontalSamples", "LiDAR 수평 샘플 수"), [this]() { return PendingState.LidarHorizontalSamples; }, [this](int32 V) { PendingState.LidarHorizontalSamples = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1, 1440, TEXT("HorizontalSamples")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("VerticalChannels", "LiDAR 수직 채널 수"), [this]() { return PendingState.LidarVerticalChannels; }, [this](int32 V) { PendingState.LidarVerticalChannels = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1, 256, TEXT("VerticalChannels")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("HorizontalFov", "LiDAR 수평 FOV (도)"), [this]() { return PendingState.LidarHorizontalFov; }, [this](float V) { PendingState.LidarHorizontalFov = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1.0f, 360.0f, true, TEXT("HorizontalFov")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMin", "LiDAR 수직 최소 각도"), [this]() { return PendingState.LidarMinVerticalAngle; }, [this](float V) { PendingState.LidarMinVerticalAngle = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, -90.0f, 89.0f, true, TEXT("VerticalMin")) ]
+                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMax", "LiDAR 수직 최대 각도"), [this]() { return PendingState.LidarMaxVerticalAngle; }, [this](float V) { PendingState.LidarMaxVerticalAngle = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, -89.0f, 90.0f, true, TEXT("VerticalMax")) ]
                         + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewStride", "미리보기 점 간격"), [this]() { return PendingState.PreviewPointStride; }, [this](int32 V) { PendingState.PreviewPointStride = V; }, 1, 100, TEXT("PreviewStride")) ]
                         + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewMax", "미리보기 최대 점 수"), [this]() { return PendingState.MaxPreviewPoints; }, [this](int32 V) { PendingState.MaxPreviewPoints = V; }, 0, 1000000, TEXT("PreviewMax")) ]
                         + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("PreviewHitOnly"))).IsChecked_Lambda([this]() { return PendingState.bPreviewHitOnly ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("PreviewHitOnly")); PendingState.bPreviewHitOnly = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNew(STextBlock).Text(LOCTEXT("PreviewHitOnly", "미리보기에서 검출점만 표시")) ] ]
@@ -673,7 +726,7 @@ bool UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(const FVirtu
             return false;
         }
     }
-    else if (State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f || State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 10000.0f ||
+    else if (State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f || State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 20000.0f ||
         State.LidarHorizontalSamples < 1 || State.LidarHorizontalSamples > 1440 || State.LidarVerticalChannels < 1 || State.LidarVerticalChannels > 256 ||
         State.LidarHorizontalFov < 1.0f || State.LidarHorizontalFov > 360.0f || State.LidarMinVerticalAngle < -90.0f || State.LidarMaxVerticalAngle > 90.0f ||
         State.LidarMinVerticalAngle >= State.LidarMaxVerticalAngle || State.ServerPayloadStride < 1 || State.ServerPayloadStride > 100 ||

@@ -14,7 +14,8 @@ UENUM(BlueprintType)
 enum class EVirtualLidarDeviceProfile : uint8
 {
     Generic UMETA(DisplayName = "Generic LiDAR"),
-    LivoxMid360S UMETA(DisplayName = "Livox Mid-360S")
+    LivoxMid360S UMETA(DisplayName = "Livox Mid-360S"),
+    IYOBOT_MLX80 UMETA(DisplayName = "IYOBOT ML-X(80)")
 };
 
 UENUM(BlueprintType)
@@ -67,4 +68,41 @@ struct MA0T10_DT_API FVirtualSensorDeviceSpec
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|DeviceProfile")
     FString Notes;
+};
+
+/** Resolved runtime values for a LiDAR device profile and quality pair. */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarProfilePreset
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    FVirtualSensorDeviceSpec DeviceSpec;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    float ScanIntervalSeconds = 0.25f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    float MaxDistanceCm = 4000.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    int32 HorizontalSamples = 120;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    int32 VerticalChannels = 24;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    float HorizontalFovDegrees = 360.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    float MinVerticalAngleDegrees = -7.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    float MaxVerticalAngleDegrees = 52.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    int32 PreviewPointStride = 2;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|DeviceProfile")
+    int32 MaxPreviewPoints = 3000;
 };

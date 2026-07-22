@@ -135,6 +135,9 @@ private:
     FVirtualSensorEditableState PendingState;
 
     TMap<FName, FVirtualSensorEditableState> InitialStates;
+    TArray<TSharedPtr<EVirtualSensorSimulationQuality>> NativeQualityOptions;
+    TArray<TSharedPtr<EVirtualCameraDeviceProfile>> NativeCameraProfileOptions;
+    TArray<TSharedPtr<EVirtualLidarDeviceProfile>> NativeLidarProfileOptions;
     TSharedPtr<STextBlock> NativeStatusText;
     bool bShowAdvanced = false;
     bool bKeyboardHelpExpanded = false;
