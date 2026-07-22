@@ -193,6 +193,9 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	Preferences->bLocalCaptureLidarPayload = false;
 	Preferences->bLocalCapturePointCloud = true;
 	Preferences->LocalCapturePointCloudFormat = static_cast<uint8>(EVirtualSensorExportKind::PointCloudPcd);
+	Preferences->bDualCameraModeEnabled = true;
+	Preferences->PrimaryCameraSensorId = TEXT("VCAM-TEST-001");
+	Preferences->SecondaryCameraSensorId = TEXT("VCAM-TEST-002");
 
     TArray<uint8> Bytes;
     TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
@@ -227,6 +230,9 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	TestFalse(TEXT("LiDAR payload selection survives serialization"), Loaded->bLocalCaptureLidarPayload);
 	TestTrue(TEXT("Point Cloud selection survives serialization"), Loaded->bLocalCapturePointCloud);
 	TestEqual(TEXT("capture Point Cloud format survives serialization"), Loaded->LocalCapturePointCloudFormat, static_cast<uint8>(EVirtualSensorExportKind::PointCloudPcd));
+	TestTrue(TEXT("dual camera mode survives serialization"), Loaded->bDualCameraModeEnabled);
+	TestEqual(TEXT("primary camera selection survives serialization"), Loaded->PrimaryCameraSensorId, FString(TEXT("VCAM-TEST-001")));
+	TestEqual(TEXT("secondary camera selection survives serialization"), Loaded->SecondaryCameraSensorId, FString(TEXT("VCAM-TEST-002")));
     return true;
 }
 

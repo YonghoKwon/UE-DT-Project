@@ -244,6 +244,26 @@ def _build_sensor_rig(widget_classes):
     _set_property(camera, "CaptureInterval", 0.1)
     _set_property(camera, "FOVAngle", 87.0)
 
+    if MAP_PATH == "/Game/MA0T10/Maps/Tests/SensorRefactorTestMap":
+        overhead_camera_actor = _spawn(
+            camera_actor_class,
+            "SensorTest_CameraOverhead",
+            unreal.Vector(0.0, 0.0, 1000.0),
+            unreal.Rotator(roll=0.0, pitch=-90.0, yaw=0.0),
+        )
+        overhead_camera_actor.set_editor_property(
+            "tags", [MANAGED_TAG, unreal.Name("SensorTestPersistent_OverheadCamera")]
+        )
+        overhead_camera = overhead_camera_actor.get_component_by_class(
+            _load_class("/Script/ma0t10_dt.VirtualCameraCaptureComponent")
+        )
+        _set_property(overhead_camera, "SensorId", "VCAM-TEST-002")
+        _set_property(overhead_camera, "bAutoStartCapture", True)
+        _set_property(overhead_camera, "bAutoRegisterToManager", True)
+        _set_property(overhead_camera, "CaptureResolution", unreal.IntPoint(640, 360))
+        _set_property(overhead_camera, "CaptureInterval", 0.1)
+        _set_property(overhead_camera, "FOVAngle", 87.0)
+
     host = _spawn(
         host_actor_class,
         "SensorTest_MonitorHost",

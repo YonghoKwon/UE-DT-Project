@@ -36,6 +36,9 @@ UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOr
 			Version5->bLocalCaptureLidarPayload = true;
 			Version5->bLocalCapturePointCloud = true;
 			Version5->LocalCapturePointCloudFormat = 1;
+			Version5->bDualCameraModeEnabled = false;
+			Version5->PrimaryCameraSensorId.Reset();
+			Version5->SecondaryCameraSensorId.Reset();
             Version5->Version = CurrentVersion;
             Save(Version5);
             return Version5;

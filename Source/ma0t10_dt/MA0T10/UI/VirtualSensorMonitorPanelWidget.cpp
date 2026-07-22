@@ -479,6 +479,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
     }
 
     RestoreMonitorUiPreferences();
+	RefreshCameraSelectionOptions();
     NativeLidarProjectionOptions.Reset();
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::RangeImage));
     NativeLidarProjectionOptions.Add(MakeShared<ELidarMonitorProjectionMode>(ELidarMonitorProjectionMode::TopDown));
@@ -567,14 +568,20 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                     .Padding(2.0f)
                     [
                         SNew(SVerticalBox)
-                        + SVerticalBox::Slot().FillHeight(1.0f)
+                        + SVerticalBox::Slot().FillHeight(0.7f)
                         [ SAssignNew(NativeViewImage, SImage).Image(&NativeViewBrush) ]
-                        + SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 2.0f, 0.0f, 0.0f)
+                        + SVerticalBox::Slot().FillHeight(0.3f).Padding(0.0f, 2.0f, 0.0f, 0.0f)
                         [
                             SAssignNew(NativeSecondaryViewImage, SImage)
                             .Visibility_Lambda([this]() { return bShowingLidar && GetLidarProjectionMode() == ELidarMonitorProjectionMode::Split ? EVisibility::Visible : EVisibility::Collapsed; })
                             .Image(&NativeSecondaryViewBrush)
                         ]
+						+ SVerticalBox::Slot().FillHeight(0.3f).Padding(0.0f, 2.0f, 0.0f, 0.0f)
+						[
+							SAssignNew(NativeSecondaryCameraImage, SImage)
+							.Visibility_Lambda([this]() { return !bShowingLidar && bDualCameraModeEnabled && SecondaryCameraComp ? EVisibility::Visible : EVisibility::Collapsed; })
+							.Image(&NativeSecondaryCameraBrush)
+						]
                     ]
                 ]
                 + SHorizontalBox::Slot().FillWidth(0.39f)
@@ -605,6 +612,39 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                             .Text(FText::FromString(BuildStatusText()))
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
+						[
+							SNew(STextBlock)
+							.Visibility_Lambda([this]() { return !bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+							.ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
+							.Text(LOCTEXT("CameraViewModeLabel", "카메라 보기"))
+						]
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							SNew(SCheckBox)
+							.Visibility_Lambda([this]() { return !bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+							.IsChecked_Lambda([this]() { return bDualCameraModeEnabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+							.OnCheckStateChanged_Lambda([this](ECheckBoxState State) { SetDualCameraModeEnabled(State == ECheckBoxState::Checked); })
+							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("DualCameraMode", "카메라 2대 동시 보기")) ]
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
+						[
+							SAssignNew(NativePrimaryCameraCombo, SComboBox<TSharedPtr<FString>>)
+							.Visibility_Lambda([this]() { return !bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+							.OptionsSource(&NativeCameraOptions)
+							.OnGenerateWidget_Lambda([](TSharedPtr<FString> Item) { return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
+							.OnSelectionChanged_Lambda([this](TSharedPtr<FString> Item, ESelectInfo::Type) { if (Item.IsValid()) SelectPrimaryCameraBySensorId(*Item); })
+							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("주 카메라: %s"), PreferredPrimaryCameraId.IsEmpty() ? TEXT("없음") : *PreferredPrimaryCameraId)); }) ]
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
+						[
+							SAssignNew(NativeSecondaryCameraCombo, SComboBox<TSharedPtr<FString>>)
+							.Visibility_Lambda([this]() { return !bShowingLidar && bDualCameraModeEnabled ? EVisibility::Visible : EVisibility::Collapsed; })
+							.OptionsSource(&NativeCameraOptions)
+							.OnGenerateWidget_Lambda([](TSharedPtr<FString> Item) { return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
+							.OnSelectionChanged_Lambda([this](TSharedPtr<FString> Item, ESelectInfo::Type) { if (Item.IsValid()) SelectSecondaryCameraBySensorId(*Item); })
+							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("보조 카메라: %s"), PreferredSecondaryCameraId.IsEmpty() ? TEXT("없음") : *PreferredSecondaryCameraId)); }) ]
+						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
                         [
                             SNew(STextBlock)
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
@@ -1015,6 +1055,8 @@ void UVirtualSensorMonitorPanelWidget::NativeOnMouseCaptureLost(const FCaptureLo
 void UVirtualSensorMonitorPanelWidget::BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp)
 {
     CameraComp = InCameraComp;
+	if (CameraComp) PreferredPrimaryCameraId = CameraComp->SensorId;
+	ResolveDualCameraSelection();
     if (GetWorld())
     {
         if (UVirtualSensorSchedulerSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>()) Subsystem->SetPreferredCamera(InCameraComp);
@@ -1053,9 +1095,86 @@ void UVirtualSensorMonitorPanelWidget::BindSensorManager(AVirtualSensorCoordinat
     SensorManager = InSensorManager;
     if (SensorManager)
     {
+		RefreshCameraSelectionOptions();
+		ResolveDualCameraSelection();
         SensorManager->BindMonitorWidget(this);
     }
     RefreshStatusText();
+}
+
+void UVirtualSensorMonitorPanelWidget::RefreshCameraSelectionOptions()
+{
+	NativeCameraOptions.Reset();
+	if (SensorManager)
+	{
+		for (int32 Index = 0; Index < SensorManager->GetCameraCount(); ++Index)
+		{
+			if (const UVirtualCameraCaptureComponent* Camera = SensorManager->GetCameraByIndex(Index)) NativeCameraOptions.Add(MakeShared<FString>(Camera->SensorId));
+		}
+	}
+	if (NativePrimaryCameraCombo.IsValid()) NativePrimaryCameraCombo->RefreshOptions();
+	if (NativeSecondaryCameraCombo.IsValid()) NativeSecondaryCameraCombo->RefreshOptions();
+}
+
+void UVirtualSensorMonitorPanelWidget::ResolveDualCameraSelection()
+{
+	if (!SensorManager) return;
+	if (!PreferredPrimaryCameraId.IsEmpty())
+	{
+		const int32 PrimaryIndex = SensorManager->FindCameraIndexBySensorId(PreferredPrimaryCameraId);
+		if (PrimaryIndex != INDEX_NONE && SensorManager->GetSelectedCamera() != SensorManager->GetCameraByIndex(PrimaryIndex)) SensorManager->SelectCameraByIndex(PrimaryIndex);
+	}
+	UVirtualCameraCaptureComponent* Primary = SensorManager->GetSelectedCamera();
+	if (Primary) PreferredPrimaryCameraId = Primary->SensorId;
+	SecondaryCameraComp = nullptr;
+	if (!PreferredSecondaryCameraId.IsEmpty())
+	{
+		const int32 SecondaryIndex = SensorManager->FindCameraIndexBySensorId(PreferredSecondaryCameraId);
+		if (SecondaryIndex != INDEX_NONE) SecondaryCameraComp = SensorManager->GetCameraByIndex(SecondaryIndex);
+	}
+	if (!SecondaryCameraComp || SecondaryCameraComp == Primary)
+	{
+		for (int32 Index = 0; Index < SensorManager->GetCameraCount(); ++Index)
+		{
+			UVirtualCameraCaptureComponent* Candidate = SensorManager->GetCameraByIndex(Index);
+			if (Candidate && Candidate != Primary) { SecondaryCameraComp = Candidate; break; }
+		}
+	}
+	PreferredSecondaryCameraId = SecondaryCameraComp ? SecondaryCameraComp->SensorId : FString();
+	if (SensorManager->GetCameraCount() < 2) bDualCameraModeEnabled = false;
+}
+
+void UVirtualSensorMonitorPanelWidget::SetDualCameraModeEnabled(bool bEnabled)
+{
+	bDualCameraModeEnabled = bEnabled && SensorManager && SensorManager->GetCameraCount() >= 2;
+	ResolveDualCameraSelection();
+	SaveMonitorUiPreferences();
+	RefreshImageBrush();
+}
+
+bool UVirtualSensorMonitorPanelWidget::SelectPrimaryCameraBySensorId(const FString& SensorId)
+{
+	if (!SensorManager) return false;
+	const int32 Index = SensorManager->FindCameraIndexBySensorId(SensorId);
+	if (Index == INDEX_NONE) return false;
+	PreferredPrimaryCameraId = SensorId;
+	SensorManager->SelectCameraByIndex(Index);
+	ShowCameraView();
+	ResolveDualCameraSelection();
+	SaveMonitorUiPreferences();
+	return true;
+}
+
+bool UVirtualSensorMonitorPanelWidget::SelectSecondaryCameraBySensorId(const FString& SensorId)
+{
+	if (!SensorManager) return false;
+	UVirtualCameraCaptureComponent* Candidate = SensorManager->GetCameraByIndex(SensorManager->FindCameraIndexBySensorId(SensorId));
+	if (!Candidate || Candidate == CameraComp) return false;
+	SecondaryCameraComp = Candidate;
+	PreferredSecondaryCameraId = SensorId;
+	SaveMonitorUiPreferences();
+	RefreshImageBrush();
+	return true;
 }
 
 void UVirtualSensorMonitorPanelWidget::BindRealSensorSource(URealSensorSourceComponent* InRealSensorSourceComponent)
@@ -1646,6 +1765,7 @@ void UVirtualSensorMonitorPanelWidget::HandleExportPointCloudButtonClicked()
 void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
 {
     UObject* Resource = nullptr;
+	bool bPrimaryFrameChanged = true;
     if (bShowingLidar)
     {
         if (LidarComp && !LidarComp->GetLidarViewTexture())
@@ -1657,6 +1777,9 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
     else
     {
         Resource = CameraComp ? CameraComp->GetCameraRenderTarget() : nullptr;
+		const int64 CurrentFrameId = CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE;
+		bPrimaryFrameChanged = CurrentFrameId != LastPrimaryCameraDisplayFrameId;
+		LastPrimaryCameraDisplayFrameId = CurrentFrameId;
     }
 
     if (!Resource)
@@ -1674,9 +1797,12 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
 
     if (NativeViewImage)
     {
-        NativeViewBrush.SetResourceObject(Resource);
-        NativeViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
-        NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);
+		if (bShowingLidar || bPrimaryFrameChanged || NativeViewBrush.GetResourceObject() != Resource)
+		{
+			NativeViewBrush.SetResourceObject(Resource);
+			NativeViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
+			NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);
+		}
     }
 
     if (NativeSecondaryViewImage)
@@ -1685,6 +1811,18 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
         NativeSecondaryViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
         NativeSecondaryViewImage->Invalidate(EInvalidateWidgetReason::Paint);
     }
+	if (NativeSecondaryCameraImage)
+	{
+		UObject* SecondaryResource = !bShowingLidar && bDualCameraModeEnabled && SecondaryCameraComp ? SecondaryCameraComp->GetCameraRenderTarget() : nullptr;
+		const int64 SecondaryFrameId = SecondaryCameraComp ? SecondaryCameraComp->GetRuntimeStatus().FrameId : INDEX_NONE;
+		if (SecondaryFrameId != LastSecondaryCameraDisplayFrameId || NativeSecondaryCameraBrush.GetResourceObject() != SecondaryResource)
+		{
+			LastSecondaryCameraDisplayFrameId = SecondaryFrameId;
+			NativeSecondaryCameraBrush.SetResourceObject(SecondaryResource);
+			NativeSecondaryCameraBrush.ImageSize = FVector2D(640.0f, 360.0f);
+			NativeSecondaryCameraImage->Invalidate(EInvalidateWidgetReason::Paint);
+		}
+	}
 }
 
 void UVirtualSensorMonitorPanelWidget::RefreshTitle()
@@ -2208,6 +2346,9 @@ void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
     bOverlayLidarMonitorGrid = Preferences->bOverlayLidarMonitorGrid;
     bOverlayLidarDepthEdges = Preferences->bOverlayLidarDepthEdges;
     bMonitorDetailsExpanded = Preferences->bMonitorDetailsExpanded;
+	bDualCameraModeEnabled = Preferences->bDualCameraModeEnabled;
+	PreferredPrimaryCameraId = Preferences->PrimaryCameraSensorId;
+	PreferredSecondaryCameraId = Preferences->SecondaryCameraSensorId;
     if (LidarComp && Preferences->LidarViewMode <= static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor))
     {
         LidarComp->ViewMode = static_cast<EVirtualLidarViewMode>(Preferences->LidarViewMode);
@@ -2245,12 +2386,19 @@ void UVirtualSensorMonitorPanelWidget::SaveMonitorUiPreferences() const
     Preferences->bOverlayLidarMonitorGrid = bOverlayLidarMonitorGrid;
     Preferences->bOverlayLidarDepthEdges = bOverlayLidarDepthEdges;
     Preferences->bMonitorDetailsExpanded = bMonitorDetailsExpanded;
+	Preferences->bDualCameraModeEnabled = bDualCameraModeEnabled;
+	Preferences->PrimaryCameraSensorId = PreferredPrimaryCameraId;
+	Preferences->SecondaryCameraSensorId = PreferredSecondaryCameraId;
     UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
 }
 
 void UVirtualSensorMonitorPanelWidget::ResetMonitorUiPreferencesToDefault()
 {
     bMonitorDetailsExpanded = false;
+	bDualCameraModeEnabled = false;
+	PreferredPrimaryCameraId.Reset();
+	PreferredSecondaryCameraId.Reset();
+	SecondaryCameraComp = nullptr;
     bUseAdaptiveLidarDepthRange = true;
     bOverlayLidarMonitorGrid = true;
     bOverlayLidarDepthEdges = true;

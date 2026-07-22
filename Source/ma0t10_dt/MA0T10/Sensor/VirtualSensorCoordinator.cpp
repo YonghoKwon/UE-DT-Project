@@ -528,6 +528,20 @@ UVirtualCameraCaptureComponent* AVirtualSensorCoordinator::GetSelectedCamera() c
     return Cameras.IsValidIndex(SelectedCameraIndex) ? Cameras[SelectedCameraIndex] : nullptr;
 }
 
+UVirtualCameraCaptureComponent* AVirtualSensorCoordinator::GetCameraByIndex(int32 Index) const
+{
+	return Cameras.IsValidIndex(Index) ? Cameras[Index].Get() : nullptr;
+}
+
+int32 AVirtualSensorCoordinator::FindCameraIndexBySensorId(const FString& SensorId) const
+{
+	for (int32 Index = 0; Index < Cameras.Num(); ++Index)
+	{
+		if (Cameras[Index] && Cameras[Index]->SensorId.Equals(SensorId, ESearchCase::CaseSensitive)) return Index;
+	}
+	return INDEX_NONE;
+}
+
 UVirtualLidarScanComponent* AVirtualSensorCoordinator::GetSelectedLidar() const
 {
     return Lidars.IsValidIndex(SelectedLidarIndex) ? Lidars[SelectedLidarIndex] : nullptr;

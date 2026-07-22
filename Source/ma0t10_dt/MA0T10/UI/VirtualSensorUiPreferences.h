@@ -107,4 +107,7 @@ public:
 	UPROPERTY(SaveGame) bool bLocalCaptureLidarPayload = true;
 	UPROPERTY(SaveGame) bool bLocalCapturePointCloud = true;
 	UPROPERTY(SaveGame) uint8 LocalCapturePointCloudFormat = 1;
+	UPROPERTY(SaveGame) bool bDualCameraModeEnabled = false;
+	UPROPERTY(SaveGame) FString PrimaryCameraSensorId;
+	UPROPERTY(SaveGame) FString SecondaryCameraSensorId;
 };

@@ -12,6 +12,7 @@ class FRHIGPUTextureReadback;
 class SImage;
 class STextBlock;
 class SWidget;
+template <typename OptionType> class SComboBox;
 class UButton;
 class UImage;
 class UTextBlock;
@@ -214,6 +215,18 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetSelectedSensorIdText() const;
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Camera")
+	void SetDualCameraModeEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Camera")
+	bool IsDualCameraModeEnabled() const { return bDualCameraModeEnabled; }
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Camera")
+	bool SelectPrimaryCameraBySensorId(const FString& SensorId);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Camera")
+	bool SelectSecondaryCameraBySensorId(const FString& SensorId);
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetFrameSummaryText() const;
 
@@ -342,6 +355,8 @@ private:
     bool ResolveInteractiveProjection(const FVector2D& ScreenPosition, ELidarMonitorProjectionMode& OutProjection, FVector2D& OutViewportSize) const;
     UTexture2D* RebuildEnhancedLidarViewTexture();
     void InvalidateEnhancedLidarView();
+	void RefreshCameraSelectionOptions();
+	void ResolveDualCameraSelection();
     void CaptureLocalSensorFrame();
 	void CaptureConfiguredFrame();
     bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
@@ -526,9 +541,15 @@ private:
     int32 MaxPendingCameraReadbacks = 1;
 
     bool bShowingLidar = false;
+	bool bDualCameraModeEnabled = false;
     bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
 	FVirtualSensorCaptureSelection LocalCaptureSelection;
+	UPROPERTY(Transient) TObjectPtr<UVirtualCameraCaptureComponent> SecondaryCameraComp;
+	FString PreferredPrimaryCameraId;
+	FString PreferredSecondaryCameraId;
+	int64 LastPrimaryCameraDisplayFrameId = INDEX_NONE;
+	int64 LastSecondaryCameraDisplayFrameId = INDEX_NONE;
 	bool bConfiguredOneShotPending = false;
 	bool bConfiguredOneShotLidar = false;
 	int64 ConfiguredOneShotStartFrameId = INDEX_NONE;
@@ -561,6 +582,11 @@ private:
     TSharedPtr<STextBlock> NativeWarningTextBlock;
     TSharedPtr<SImage> NativeViewImage;
     TSharedPtr<SImage> NativeSecondaryViewImage;
+	TSharedPtr<SImage> NativeSecondaryCameraImage;
+	FSlateBrush NativeSecondaryCameraBrush;
+	TArray<TSharedPtr<FString>> NativeCameraOptions;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> NativePrimaryCameraCombo;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> NativeSecondaryCameraCombo;
     FSlateBrush NativeViewBrush;
     FSlateBrush NativeSecondaryViewBrush;
     double StatusRefreshAccumulator = 0.0;

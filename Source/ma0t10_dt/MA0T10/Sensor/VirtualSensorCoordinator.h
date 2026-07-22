@@ -184,6 +184,15 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     UVirtualCameraCaptureComponent* GetSelectedCamera() const;
 
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+	int32 GetCameraCount() const { return Cameras.Num(); }
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+	UVirtualCameraCaptureComponent* GetCameraByIndex(int32 Index) const;
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
+	int32 FindCameraIndexBySensorId(const FString& SensorId) const;
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     UVirtualLidarScanComponent* GetSelectedLidar() const;
 
