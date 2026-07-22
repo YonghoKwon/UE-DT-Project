@@ -36,6 +36,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2KindSpecificSelectionTest,
+	"MA0T10.SensorV2.UI.SelectionCyclesWithinSensorKind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2InteractionBudgetTest,
 	"MA0T10.SensorV2.Architecture.InteractionBudgetRestoresFullSpec",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -148,6 +153,38 @@ bool FSensorV2SelectionIndependenceTest::RunTest(const FString& Parameters)
 	Coordinator->SetViewMode(EVirtualSensorViewMode::Lidar);
 	TestEqual(TEXT("monitor view now resolves LiDAR"), Coordinator->GetSelectedSensorActor(), static_cast<AVirtualSensorActorBase*>(Lidar));
 	TestEqual(TEXT("settings can resolve camera while monitor shows LiDAR"), Coordinator->GetSelectedSensorActorByKind(EVirtualSensorKind::Camera), static_cast<AVirtualSensorActorBase*>(Camera));
+	return true;
+}
+
+bool FSensorV2KindSpecificSelectionTest::RunTest(const FString& Parameters)
+{
+	AVirtualSensorCoordinator* Coordinator = NewObject<AVirtualSensorCoordinator>();
+	AVirtualCameraSensorActor* CameraA = NewObject<AVirtualCameraSensorActor>();
+	AVirtualCameraSensorActor* CameraB = NewObject<AVirtualCameraSensorActor>();
+	AVirtualLidarSensorActor* LidarA = NewObject<AVirtualLidarSensorActor>();
+	AVirtualLidarSensorActor* LidarB = NewObject<AVirtualLidarSensorActor>();
+	CameraA->CaptureComponent->SensorId = TEXT("CAM-A");
+	CameraB->CaptureComponent->SensorId = TEXT("CAM-B");
+	LidarA->ScanComponent->SensorId = TEXT("LIDAR-A");
+	LidarB->ScanComponent->SensorId = TEXT("LIDAR-B");
+	for (AVirtualSensorActorBase* Sensor : { static_cast<AVirtualSensorActorBase*>(CameraA), static_cast<AVirtualSensorActorBase*>(CameraB), static_cast<AVirtualSensorActorBase*>(LidarA), static_cast<AVirtualSensorActorBase*>(LidarB) })
+	{
+		Coordinator->RegisterSensorActor(Sensor);
+	}
+	Coordinator->RegisterCamera(CameraA->CaptureComponent);
+	Coordinator->RegisterCamera(CameraB->CaptureComponent);
+	Coordinator->RegisterLidar(LidarA->ScanComponent);
+	Coordinator->RegisterLidar(LidarB->ScanComponent);
+
+	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	Settings->BindSensorManager(Coordinator);
+	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
+	TestEqual(TEXT("repeated Camera selection advances only Camera"), Coordinator->GetSelectedCamera(), CameraB->CaptureComponent);
+	TestEqual(TEXT("Camera selection keeps first LiDAR"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent);
+	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
+	TestEqual(TEXT("first LiDAR selection changes kind without advancing"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent);
+	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
+	TestEqual(TEXT("repeated LiDAR selection advances only LiDAR"), Coordinator->GetSelectedLidar(), LidarB->ScanComponent);
 	return true;
 }
 

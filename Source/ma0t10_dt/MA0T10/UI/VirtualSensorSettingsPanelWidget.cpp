@@ -256,6 +256,18 @@ void UVirtualSensorSettingsPanelWidget::SelectTargetKind(EVirtualSensorTargetKin
 {
     AVirtualSensorActorBase* PreviousActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
     if (bManipulationEnabled && PreviousActor) PreviousActor->EndInteractiveManipulation();
+    const bool bCycleWithinCurrentKind = PendingState.TargetKind == InTargetKind;
+    if (SensorManager)
+    {
+        if (bCycleWithinCurrentKind)
+        {
+            if (InTargetKind == EVirtualSensorTargetKind::Camera) SensorManager->SelectNextCamera();
+            else SensorManager->SelectNextLidar();
+        }
+        SensorManager->SetViewMode(InTargetKind == EVirtualSensorTargetKind::Camera
+            ? EVirtualSensorViewMode::Camera
+            : EVirtualSensorViewMode::Lidar);
+    }
     PendingState.TargetKind = InTargetKind;
     RefreshPendingState(true);
     SyncGizmoTarget();
@@ -497,7 +509,6 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().FillWidth(1.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Camera", "카메라")).OnClicked_Lambda([this]() { SelectTargetKind(EVirtualSensorTargetKind::Camera); return FReply::Handled(); }) ]
                     + SHorizontalBox::Slot().FillWidth(1.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Lidar", "LiDAR")).OnClicked_Lambda([this]() { SelectTargetKind(EVirtualSensorTargetKind::Lidar); return FReply::Handled(); }) ]
-                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Next", "다음 센서")).OnClicked_Lambda([this]() { SelectNextTarget(); return FReply::Handled(); }) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)
                 [
