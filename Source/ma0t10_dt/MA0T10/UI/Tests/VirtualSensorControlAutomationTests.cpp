@@ -184,6 +184,7 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	Preferences->CaptureExportActiveTab = static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog);
 	Preferences->SensorStreamFrameStride = 3;
 	Preferences->SensorStreamReceiptInterval = 10;
+	Preferences->SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD);
 
     TArray<uint8> Bytes;
     TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
@@ -210,6 +211,7 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	TestEqual(TEXT("capture/export tab survives serialization"), Loaded->CaptureExportActiveTab, static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog));
 	TestEqual(TEXT("stream stride survives serialization"), Loaded->SensorStreamFrameStride, 3);
 	TestEqual(TEXT("receipt sampling survives serialization"), Loaded->SensorStreamReceiptInterval, 10);
+	TestEqual(TEXT("Point Cloud stream format survives serialization"), Loaded->SelectedPointCloudStreamFormat, static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD));
     return true;
 }
 

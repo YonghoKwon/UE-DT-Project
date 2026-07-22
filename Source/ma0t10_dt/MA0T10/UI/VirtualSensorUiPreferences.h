@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorUiPreferences.generated.h"
 
 USTRUCT(BlueprintType)
@@ -32,8 +33,9 @@ class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 5;
+    static constexpr int32 CurrentVersion = 6;
     static const FString SlotName;
+    static const FString Version5SlotName;
     static const FString Version4SlotName;
     static const FString Version3SlotName;
     static const FString Version2SlotName;
@@ -97,4 +99,5 @@ public:
 	UPROPERTY(SaveGame) uint8 CaptureExportActiveTab = 0;
 	UPROPERTY(SaveGame) int32 SensorStreamFrameStride = 1;
 	UPROPERTY(SaveGame) int32 SensorStreamReceiptInterval = 10;
+	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::CSV);
 };

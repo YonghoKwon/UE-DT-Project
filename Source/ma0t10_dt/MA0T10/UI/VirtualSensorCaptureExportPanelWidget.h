@@ -94,6 +94,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
 	void ToggleAllStreams();
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
+	void SetSelectedPointCloudStreamFormat(EVirtualPointCloudStreamFormat Format);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
+	EVirtualPointCloudStreamFormat GetSelectedPointCloudStreamFormat() const { return SelectedPointCloudStreamFormat; }
+
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
 	FString GetLiveStreamSummaryText() const;
 
@@ -142,6 +148,7 @@ private:
 
     EVirtualSensorExportKind SelectedPointCloudKind = EVirtualSensorExportKind::PointCloudCsv;
 	TArray<TSharedPtr<EVirtualSensorExportKind>> NativeExportKindOptions;
+	TArray<TSharedPtr<EVirtualPointCloudStreamFormat>> NativeStreamFormatOptions;
     TSharedPtr<STextBlock> NativeStorageText;
     FString LastUiMessage;
 	FString DraftBrokerUrl = TEXT("ws://127.0.0.1:61616");
@@ -158,6 +165,7 @@ private:
 	EVirtualSensorCaptureExportTab ActiveTab = EVirtualSensorCaptureExportTab::LiveStream;
 	int32 StreamFrameStride = 1;
 	int32 StreamReceiptInterval = 10;
+	EVirtualPointCloudStreamFormat SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::CSV;
 	FString CachedLiveStreamSummary;
 	FString CachedTransportLog;
 	FString CachedTopicReceiverSummary;

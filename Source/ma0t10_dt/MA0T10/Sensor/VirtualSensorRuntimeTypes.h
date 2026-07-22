@@ -107,6 +107,12 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	int64 EncodeFailureCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 StaleResultDiscardCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int32 ConfigRevision = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 ReceiptTimeoutCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")

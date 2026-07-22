@@ -47,6 +47,39 @@ bool FVirtualSensorStreamLatestFrameTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorStreamFormatRevisionTest,
+	"MA0T10.SensorStream.PointCloudFormatRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorStreamFormatRevisionTest::RunTest(const FString& Parameters)
+{
+	UVirtualSensorStreamPublisherComponent* Publisher = NewObject<UVirtualSensorStreamPublisherComponent>();
+	FVirtualSensorStreamConfig Config;
+	Config.StreamKind = EVirtualSensorStreamKind::PointCloud;
+	Config.SensorId = TEXT("LIDAR-REVISION");
+	Config.bEnabled = true;
+	Config.FrameStride = 1;
+	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+	Publisher->ConfigureStream(Config);
+
+	const TArray<FVirtualSensorStreamStatus> Initial = Publisher->GetStreamStatuses();
+	TestEqual(TEXT("one Point Cloud stream is configured"), Initial.Num(), 1);
+	if (Initial.Num() != 1) return false;
+	const int32 InitialRevision = Initial[0].ConfigRevision;
+
+	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+	Publisher->ConfigureStream(Config);
+	const TArray<FVirtualSensorStreamStatus> Changed = Publisher->GetStreamStatuses();
+	TestEqual(TEXT("format change increments serialization revision"), Changed[0].ConfigRevision, InitialRevision + 1);
+	TestFalse(TEXT("format change clears a pending old-format result"), Changed[0].bPendingLatestFrame);
+
+	Publisher->ConfigureStream(Config);
+	const TArray<FVirtualSensorStreamStatus> Unchanged = Publisher->GetStreamStatuses();
+	TestEqual(TEXT("reapplying the same format keeps the revision"), Unchanged[0].ConfigRevision, Changed[0].ConfigRevision);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FVirtualSensorStreamTopicRoutingTest,
 	"MA0T10.SensorStream.TopicRouting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
