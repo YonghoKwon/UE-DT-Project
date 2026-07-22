@@ -47,6 +47,33 @@ enum class EVirtualSensorExportKind : uint8
 };
 
 USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorCaptureSelection
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture")
+    bool bCameraImage = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture")
+    bool bCameraPayload = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture")
+    bool bLidarPayload = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture")
+    bool bPointCloud = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture")
+    EVirtualSensorExportKind PointCloudFormat = EVirtualSensorExportKind::PointCloudCsv;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture", meta = (ClampMin = "0.05", ClampMax = "3600.0"))
+    float IntervalSeconds = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorCapture")
+    bool bUseSensorInterval = false;
+};
+
+USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorSettingHelpDescriptor
 {
     GENERATED_BODY()

@@ -29,6 +29,13 @@ UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOr
         if (Version5->Version == 5)
         {
             Version5->SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::CSV);
+			Version5->LocalCaptureIntervalSeconds = 1.0f;
+			Version5->bLocalCaptureUseSensorInterval = false;
+			Version5->bLocalCaptureCameraImage = true;
+			Version5->bLocalCaptureCameraPayload = false;
+			Version5->bLocalCaptureLidarPayload = true;
+			Version5->bLocalCapturePointCloud = true;
+			Version5->LocalCapturePointCloudFormat = 1;
             Version5->Version = CurrentVersion;
             Save(Version5);
             return Version5;

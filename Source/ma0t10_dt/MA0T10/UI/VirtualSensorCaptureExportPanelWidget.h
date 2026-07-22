@@ -43,6 +43,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
     void ToggleTimedCapture();
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
+	void SetCaptureIntervalSeconds(float IntervalSeconds);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
+	void UseSelectedSensorCaptureInterval();
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
+	void SetCaptureSelection(const FVirtualSensorCaptureSelection& Selection);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Capture")
+	FVirtualSensorCaptureSelection GetCaptureSelection() const { return CaptureSelection; }
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
     bool OpenCaptureRootFolder();
 
@@ -133,6 +145,8 @@ private:
 	TSharedRef<SWidget> BuildConnectionLogTab();
 	FString BuildTransportLogText() const;
 	FText TabLabel(EVirtualSensorCaptureExportTab Tab) const;
+	void ApplyCaptureSelectionToMonitor();
+	void SaveCapturePreferences() const;
 
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorCoordinator> SensorManager;
@@ -166,6 +180,7 @@ private:
 	int32 StreamFrameStride = 1;
 	int32 StreamReceiptInterval = 10;
 	EVirtualPointCloudStreamFormat SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::CSV;
+	FVirtualSensorCaptureSelection CaptureSelection;
 	FString CachedLiveStreamSummary;
 	FString CachedTransportLog;
 	FString CachedTopicReceiverSummary;

@@ -10,6 +10,7 @@
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -71,19 +72,21 @@ void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoo
 void UVirtualSensorCaptureExportPanelWidget::BindMonitorWidget(UVirtualSensorMonitorPanelWidget* InMonitorWidget)
 {
     MonitorWidget = InMonitorWidget;
+	ApplyCaptureSelectionToMonitor();
     RefreshNativeText();
 }
 
 void UVirtualSensorCaptureExportPanelWidget::CaptureOnce()
 {
-    if (SensorManager)
+    if (MonitorWidget)
     {
-        SensorManager->RefreshSelectedSensorOnce(MonitorWidget && MonitorWidget->IsShowingLidar());
-        AddResult(EVirtualSensorExportKind::TimedCapture, GetSelectedSensorId(), true, FString(), TEXT("선택 센서 1회 캡처를 실행했습니다"));
+		ApplyCaptureSelectionToMonitor();
+		MonitorWidget->CaptureConfiguredOutputsOnce();
+        AddResult(EVirtualSensorExportKind::TimedCapture, GetSelectedSensorId(), true, FString(), TEXT("새 coherent 프레임을 요청했습니다. 완료되는 즉시 선택 출력을 저장합니다."));
     }
     else
     {
-        AddResult(EVirtualSensorExportKind::TimedCapture, FString(), false, FString(), TEXT("SensorManager가 연결되지 않았습니다"));
+        AddResult(EVirtualSensorExportKind::TimedCapture, FString(), false, FString(), TEXT("모니터 Widget이 연결되지 않았습니다"));
     }
 }
 
@@ -132,9 +135,79 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleTimedCapture()
         AddResult(EVirtualSensorExportKind::TimedCapture, FString(), false, FString(), TEXT("모니터 Widget이 연결되지 않았습니다"));
         return;
     }
+	ApplyCaptureSelectionToMonitor();
     MonitorWidget->ToggleLocalSensorCapture();
     AddResult(EVirtualSensorExportKind::TimedCapture, GetSelectedSensorId(), true, MonitorWidget->GetLocalCaptureSessionDirectory(),
         MonitorWidget->IsLocalSensorCaptureActive() ? TEXT("시간 지정 캡처를 시작했습니다") : TEXT("시간 지정 캡처를 중지했습니다"));
+}
+
+void UVirtualSensorCaptureExportPanelWidget::SetCaptureIntervalSeconds(float IntervalSeconds)
+{
+	CaptureSelection.IntervalSeconds = FMath::Clamp(IntervalSeconds, 0.05f, 3600.0f);
+	CaptureSelection.bUseSensorInterval = false;
+	ApplyCaptureSelectionToMonitor();
+	SaveCapturePreferences();
+}
+
+void UVirtualSensorCaptureExportPanelWidget::UseSelectedSensorCaptureInterval()
+{
+	float Interval = 1.0f;
+	if (MonitorWidget && MonitorWidget->IsShowingLidar())
+	{
+		if (const UVirtualLidarScanComponent* Lidar = SensorManager ? SensorManager->GetSelectedLidar() : nullptr) Interval = Lidar->ScanInterval;
+	}
+	else if (const UVirtualCameraCaptureComponent* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
+	{
+		Interval = Camera->CaptureInterval;
+	}
+	CaptureSelection.IntervalSeconds = FMath::Clamp(Interval, 0.05f, 3600.0f);
+	CaptureSelection.bUseSensorInterval = true;
+	ApplyCaptureSelectionToMonitor();
+	SaveCapturePreferences();
+	LastUiMessage = FString::Printf(TEXT("선택 센서 주기 %.3f초를 캡처 간격으로 복사했습니다."), CaptureSelection.IntervalSeconds);
+}
+
+void UVirtualSensorCaptureExportPanelWidget::SetCaptureSelection(const FVirtualSensorCaptureSelection& Selection)
+{
+	CaptureSelection = Selection;
+	CaptureSelection.IntervalSeconds = FMath::Clamp(Selection.IntervalSeconds, 0.05f, 3600.0f);
+	if (CaptureSelection.PointCloudFormat < EVirtualSensorExportKind::PointCloudCsv || CaptureSelection.PointCloudFormat > EVirtualSensorExportKind::PointCloudLaz)
+	{
+		CaptureSelection.PointCloudFormat = EVirtualSensorExportKind::PointCloudCsv;
+	}
+	ApplyCaptureSelectionToMonitor();
+	SaveCapturePreferences();
+}
+
+void UVirtualSensorCaptureExportPanelWidget::ApplyCaptureSelectionToMonitor()
+{
+	if (CaptureSelection.bUseSensorInterval && SensorManager)
+	{
+		if (MonitorWidget && MonitorWidget->IsShowingLidar())
+		{
+			if (const UVirtualLidarScanComponent* Lidar = SensorManager->GetSelectedLidar()) CaptureSelection.IntervalSeconds = FMath::Clamp(Lidar->ScanInterval, 0.05f, 3600.0f);
+		}
+		else if (const UVirtualCameraCaptureComponent* Camera = SensorManager->GetSelectedCamera())
+		{
+			CaptureSelection.IntervalSeconds = FMath::Clamp(Camera->CaptureInterval, 0.05f, 3600.0f);
+		}
+	}
+	if (MonitorWidget) MonitorWidget->ConfigureLocalCapture(CaptureSelection);
+}
+
+void UVirtualSensorCaptureExportPanelWidget::SaveCapturePreferences() const
+{
+	if (UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
+	{
+		Preferences->LocalCaptureIntervalSeconds = CaptureSelection.IntervalSeconds;
+		Preferences->bLocalCaptureUseSensorInterval = CaptureSelection.bUseSensorInterval;
+		Preferences->bLocalCaptureCameraImage = CaptureSelection.bCameraImage;
+		Preferences->bLocalCaptureCameraPayload = CaptureSelection.bCameraPayload;
+		Preferences->bLocalCaptureLidarPayload = CaptureSelection.bLidarPayload;
+		Preferences->bLocalCapturePointCloud = CaptureSelection.bPointCloud;
+		Preferences->LocalCapturePointCloudFormat = static_cast<uint8>(CaptureSelection.PointCloudFormat);
+		UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
+	}
 }
 
 bool UVirtualSensorCaptureExportPanelWidget::OpenCaptureRootFolder()
@@ -184,18 +257,6 @@ void UVirtualSensorCaptureExportPanelWidget::SetSelectedPointCloudExportKind(EVi
 	{
 		Preferences->SelectedPointCloudExportKind = static_cast<uint8>(Kind);
 		UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
-	}
-	if (UVirtualSensorStreamPublisherComponent* Publisher = SensorManager ? SensorManager->StreamPublisherComponent : nullptr)
-	{
-		const FString LidarId = GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);
-		if (!LidarId.IsEmpty() && Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud, LidarId))
-		{
-			ApplyStreamConfig(EVirtualSensorStreamKind::PointCloud, LidarId, true);
-		}
-		if (Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud, FString()))
-		{
-			ApplyStreamConfig(EVirtualSensorStreamKind::PointCloud, FString(), true);
-		}
 	}
 	RefreshNativeText();
 }
@@ -375,7 +436,15 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		StreamFrameStride = FMath::Max(1, Preferences->SensorStreamFrameStride);
 		StreamReceiptInterval = FMath::Max(1, Preferences->SensorStreamReceiptInterval);
 		SelectedPointCloudStreamFormat = static_cast<EVirtualPointCloudStreamFormat>(FMath::Clamp<int32>(Preferences->SelectedPointCloudStreamFormat, 0, 4));
+		CaptureSelection.IntervalSeconds = FMath::Clamp(Preferences->LocalCaptureIntervalSeconds, 0.05f, 3600.0f);
+		CaptureSelection.bUseSensorInterval = Preferences->bLocalCaptureUseSensorInterval;
+		CaptureSelection.bCameraImage = Preferences->bLocalCaptureCameraImage;
+		CaptureSelection.bCameraPayload = Preferences->bLocalCaptureCameraPayload;
+		CaptureSelection.bLidarPayload = Preferences->bLocalCaptureLidarPayload;
+		CaptureSelection.bPointCloud = Preferences->bLocalCapturePointCloud;
+		CaptureSelection.PointCloudFormat = static_cast<EVirtualSensorExportKind>(FMath::Clamp<int32>(Preferences->LocalCapturePointCloudFormat, static_cast<int32>(EVirtualSensorExportKind::PointCloudCsv), static_cast<int32>(EVirtualSensorExportKind::PointCloudLaz)));
 	}
+	ApplyCaptureSelectionToMonitor();
 	TSharedPtr<EVirtualSensorExportKind> InitiallySelected = NativeExportKindOptions[0];
 	for (const TSharedPtr<EVirtualSensorExportKind>& Option : NativeExportKindOptions) if (Option.IsValid() && *Option == SelectedPointCloudKind) { InitiallySelected = Option; break; }
 
@@ -796,7 +865,29 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildCaptureTab()
 			+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("CaptureOnceV2", "선택 센서 1회 캡처")).OnClicked_Lambda([this]() { CaptureOnce(); return FReply::Handled(); }) ]
 			+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([this]() { return FText::FromString(MonitorWidget && MonitorWidget->IsLocalSensorCaptureActive() ? TEXT("시간 지정 캡처 중지") : TEXT("시간 지정 캡처 시작")); }).OnClicked_Lambda([this]() { ToggleTimedCapture(); return FReply::Handled(); }) ]
 		]
-		+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("CaptureHelp", "1회 캡처는 현재 센서 프레임을 즉시 요청합니다. 시간 지정 캡처는 로컬 Saved/SensorCaptures/LocalTimedCapture 아래에 기록하며 서버 스트림과 별개입니다.")) ];
+		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f)[ SNew(SEditableTextBox).HintText(LOCTEXT("CaptureInterval", "캡처 간격(초), 0.05~3600")).Text_Lambda([this]() { return FText::AsNumber(CaptureSelection.IntervalSeconds); }).OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { SetCaptureIntervalSeconds(FCString::Atof(*Text.ToString())); }) ]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("UseSensorInterval", "센서 주기 사용")).OnClicked_Lambda([this]() { UseSelectedSensorCaptureInterval(); return FReply::Handled(); }) ]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
+		[
+			SNew(SWrapBox).UseAllottedSize(true)
+			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bCameraImage ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bCameraImage = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("CaptureCameraJpeg", "Camera JPEG")) ] ]
+			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bCameraPayload ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bCameraPayload = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("CaptureCameraPayload", "Camera Payload JSON")) ] ]
+			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bLidarPayload ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bLidarPayload = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("CaptureLidarPayload", "LiDAR Payload JSON")) ] ]
+			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bPointCloud ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bPointCloud = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("CapturePointCloud", "Point Cloud")) ] ]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
+		[
+			SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>)
+			.OptionsSource(&NativeExportKindOptions)
+			.OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item) { return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? ExportKindText(*Item) : TEXT("CSV"))); })
+			.OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item, ESelectInfo::Type) { if (Item.IsValid()) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.PointCloudFormat = *Item; SetCaptureSelection(Next); } })
+			[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("캡처 Point Cloud 형식: %s"), *ExportKindText(CaptureSelection.PointCloudFormat))); }) ]
+		]
+		+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("CaptureHelp", "1회 캡처는 새 coherent 프레임을 비동기로 요청한 뒤 저장합니다. 시간 지정 캡처는 완료된 최신 프레임을 지정 간격마다 저장하며 Topic 스트림 주기와 독립적입니다.")) ];
 }
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected)

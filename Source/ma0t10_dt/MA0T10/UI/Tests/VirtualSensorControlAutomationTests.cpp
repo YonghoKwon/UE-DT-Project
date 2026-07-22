@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
@@ -185,6 +186,13 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	Preferences->SensorStreamFrameStride = 3;
 	Preferences->SensorStreamReceiptInterval = 10;
 	Preferences->SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD);
+	Preferences->LocalCaptureIntervalSeconds = 0.05f;
+	Preferences->bLocalCaptureUseSensorInterval = true;
+	Preferences->bLocalCaptureCameraImage = false;
+	Preferences->bLocalCaptureCameraPayload = true;
+	Preferences->bLocalCaptureLidarPayload = false;
+	Preferences->bLocalCapturePointCloud = true;
+	Preferences->LocalCapturePointCloudFormat = static_cast<uint8>(EVirtualSensorExportKind::PointCloudPcd);
 
     TArray<uint8> Bytes;
     TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
@@ -212,7 +220,40 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	TestEqual(TEXT("stream stride survives serialization"), Loaded->SensorStreamFrameStride, 3);
 	TestEqual(TEXT("receipt sampling survives serialization"), Loaded->SensorStreamReceiptInterval, 10);
 	TestEqual(TEXT("Point Cloud stream format survives serialization"), Loaded->SelectedPointCloudStreamFormat, static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD));
+	TestEqual(TEXT("local capture interval survives serialization"), Loaded->LocalCaptureIntervalSeconds, 0.05f);
+	TestTrue(TEXT("sensor interval mode survives serialization"), Loaded->bLocalCaptureUseSensorInterval);
+	TestFalse(TEXT("camera image selection survives serialization"), Loaded->bLocalCaptureCameraImage);
+	TestTrue(TEXT("camera payload selection survives serialization"), Loaded->bLocalCaptureCameraPayload);
+	TestFalse(TEXT("LiDAR payload selection survives serialization"), Loaded->bLocalCaptureLidarPayload);
+	TestTrue(TEXT("Point Cloud selection survives serialization"), Loaded->bLocalCapturePointCloud);
+	TestEqual(TEXT("capture Point Cloud format survives serialization"), Loaded->LocalCapturePointCloudFormat, static_cast<uint8>(EVirtualSensorExportKind::PointCloudPcd));
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorCaptureSelectionTest,
+	"MA0T10.SensorExport.CaptureSelection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorCaptureSelectionTest::RunTest(const FString& Parameters)
+{
+	UVirtualSensorMonitorPanelWidget* Monitor = NewObject<UVirtualSensorMonitorPanelWidget>();
+	FVirtualSensorCaptureSelection Selection;
+	Selection.IntervalSeconds = 0.001f;
+	Selection.bCameraImage = false;
+	Selection.bCameraPayload = true;
+	Selection.bLidarPayload = false;
+	Selection.bPointCloud = true;
+	Selection.PointCloudFormat = EVirtualSensorExportKind::PointCloudPcd;
+	Monitor->ConfigureLocalCapture(Selection);
+	const FVirtualSensorCaptureSelection Applied = Monitor->GetLocalCaptureSelection();
+	TestEqual(TEXT("capture interval clamps to 50 milliseconds"), Applied.IntervalSeconds, 0.05f);
+	TestFalse(TEXT("camera image selection applies"), Applied.bCameraImage);
+	TestTrue(TEXT("camera payload selection applies"), Applied.bCameraPayload);
+	TestFalse(TEXT("LiDAR payload selection applies"), Applied.bLidarPayload);
+	TestTrue(TEXT("Point Cloud selection applies"), Applied.bPointCloud);
+	TestEqual(TEXT("Point Cloud format applies"), Applied.PointCloudFormat, EVirtualSensorExportKind::PointCloudPcd);
+	return true;
 }
 
 bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)

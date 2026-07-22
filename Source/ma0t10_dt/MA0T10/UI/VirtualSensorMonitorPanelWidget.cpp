@@ -38,6 +38,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
 
@@ -45,14 +46,6 @@
 
 namespace
 {
-struct FLocalLidarCsvPoint
-{
-    int32 Row = 0;
-    int32 Col = 0;
-    int32 ReturnIndex = 0;
-    FVector Point = FVector::ZeroVector;
-};
-
 FString BuildPointCloudTimestamp()
 {
     const FDateTime NowUtc = FDateTime::UtcNow();
@@ -904,6 +897,19 @@ void UVirtualSensorMonitorPanelWidget::NativeTick(const FGeometry& MyGeometry, f
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
     ProcessPendingCameraReadbacks();
+	if (bConfiguredOneShotPending)
+	{
+		const int64 CurrentFrameId = bConfiguredOneShotLidar
+			? (LidarComp ? LidarComp->GetRuntimeStatus().FrameId : INDEX_NONE)
+			: (CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE);
+		const bool bNewFrameReady = CurrentFrameId > ConfiguredOneShotStartFrameId;
+		const bool bTimedOut = FPlatformTime::Seconds() - ConfiguredOneShotStartedSeconds >= 2.0;
+		if (bNewFrameReady || bTimedOut)
+		{
+			bConfiguredOneShotPending = false;
+			CaptureConfiguredFrame();
+		}
+	}
     RefreshImageBrush();
     StatusRefreshAccumulator += InDeltaTime;
     if (StatusRefreshAccumulator >= 0.2)
@@ -1160,6 +1166,48 @@ void UVirtualSensorMonitorPanelWidget::SetLidarWorldPointCloudEnabled(bool bEnab
         Visualization->SetWorldPointCloudEnabled(bEnabled);
         SaveMonitorUiPreferences();
     }
+}
+
+void UVirtualSensorMonitorPanelWidget::ConfigureLocalCapture(const FVirtualSensorCaptureSelection& Selection)
+{
+	LocalCaptureSelection = Selection;
+	LocalCaptureSelection.IntervalSeconds = FMath::Clamp(Selection.IntervalSeconds, 0.05f, 3600.0f);
+	LocalCaptureIntervalSeconds = LocalCaptureSelection.IntervalSeconds;
+	bLocalCaptureSaveCameraFrames = LocalCaptureSelection.bCameraImage;
+	bLocalCaptureSaveCameraPayload = LocalCaptureSelection.bCameraPayload;
+	bLocalCaptureSaveLidarPayload = LocalCaptureSelection.bLidarPayload;
+	bLocalCaptureSaveLidarPointCloud = LocalCaptureSelection.bPointCloud;
+	bLocalCaptureSaveLidarCsv = LocalCaptureSelection.PointCloudFormat == EVirtualSensorExportKind::PointCloudCsv;
+	bLocalCaptureSaveLidarJsonLines = LocalCaptureSelection.PointCloudFormat == EVirtualSensorExportKind::PointCloudJsonLines;
+	bLocalCaptureSaveLidarPcd = LocalCaptureSelection.PointCloudFormat == EVirtualSensorExportKind::PointCloudPcd;
+	bLocalCaptureSaveLidarLas = LocalCaptureSelection.PointCloudFormat == EVirtualSensorExportKind::PointCloudLas;
+	bLocalCaptureSaveLidarLaz = LocalCaptureSelection.PointCloudFormat == EVirtualSensorExportKind::PointCloudLaz;
+
+	if (bLocalSensorCaptureActive)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(LocalSensorCaptureTimerHandle, this, &UVirtualSensorMonitorPanelWidget::CaptureLocalSensorFrame, LocalCaptureIntervalSeconds, true);
+		}
+	}
+}
+
+void UVirtualSensorMonitorPanelWidget::CaptureConfiguredOutputsOnce()
+{
+	bConfiguredOneShotLidar = bShowingLidar;
+	ConfiguredOneShotStartFrameId = bConfiguredOneShotLidar
+		? (LidarComp ? LidarComp->GetRuntimeStatus().FrameId : INDEX_NONE)
+		: (CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE);
+	ConfiguredOneShotStartedSeconds = FPlatformTime::Seconds();
+	bConfiguredOneShotPending = true;
+	if (bConfiguredOneShotLidar)
+	{
+		if (LidarComp) LidarComp->RequestImmediateScheduledScan();
+	}
+	else if (CameraComp)
+	{
+		CameraComp->RequestImmediateScheduledCapture();
+	}
 }
 
 void UVirtualSensorMonitorPanelWidget::SetLidarWorldTopDownAutoFit(bool bEnabled)
@@ -2432,11 +2480,20 @@ void UVirtualSensorMonitorPanelWidget::CaptureLocalSensorFrame()
     {
         return;
     }
+	CaptureConfiguredFrame();
+}
 
+void UVirtualSensorMonitorPanelWidget::CaptureConfiguredFrame()
+{
     ++LocalCaptureFrameIndex;
     const FString FramePrefix = FString::Printf(TEXT("frame_%06d_%s"), LocalCaptureFrameIndex, *BuildPointCloudTimestamp());
-    const bool bCameraQueued = bLocalCaptureSaveCameraFrames && SaveCameraSnapshotToDisk(FramePrefix);
-    const bool bLidarQueued = bLocalCaptureSaveLidarPointCloud && SaveLidarPointCloudToDisk(FramePrefix);
+	const bool bCaptureLidar = bShowingLidar;
+    const bool bCameraQueued = !bCaptureLidar && bLocalCaptureSaveCameraFrames && SaveCameraSnapshotToDisk(FramePrefix);
+    const bool bLidarQueued = bCaptureLidar && bLocalCaptureSaveLidarPointCloud && SaveLidarPointCloudToDisk(FramePrefix);
+	if ((!bCaptureLidar && bLocalCaptureSaveCameraPayload) || (bCaptureLidar && bLocalCaptureSaveLidarPayload))
+	{
+		ExportSelectedSensorServerPayload(FramePrefix + TEXT("_payload"));
+	}
     UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local capture frame=%d camera=%s lidar=%s folder=%s"), LocalCaptureFrameIndex, bCameraQueued ? TEXT("queued") : TEXT("skipped"), bLidarQueued ? TEXT("queued") : TEXT("skipped"), *LocalCaptureSessionDirectory);
 }
 
@@ -2641,7 +2698,7 @@ bool UVirtualSensorMonitorPanelWidget::SaveLidarPointCloudToDisk(const FString& 
     {
         return false;
     }
-    if (!bLocalCaptureSaveLidarCsv && !bLocalCaptureSaveLidarLas && !bLocalCaptureSaveLidarLaz)
+    if (!bLocalCaptureSaveLidarCsv && !bLocalCaptureSaveLidarJsonLines && !bLocalCaptureSaveLidarPcd && !bLocalCaptureSaveLidarLas && !bLocalCaptureSaveLidarLaz)
     {
         return false;
     }
@@ -2650,60 +2707,43 @@ bool UVirtualSensorMonitorPanelWidget::SaveLidarPointCloudToDisk(const FString& 
         RefreshLidarPreviewWithoutTransport();
     }
 
-    const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
-    if (Points.Num() <= 0)
+    const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = LidarComp->GetLastFrameSnapshot();
+    if (!Snapshot.IsValid() || !Snapshot->Points.IsValid() || Snapshot->Points->IsEmpty())
     {
         return false;
     }
 
-    const bool bSyncLasSaved = bLocalCaptureSaveLidarLas ? LidarComp->ExportLastPointCloudLas(FramePrefix) : false;
-    const bool bSyncLazSaved = bLocalCaptureSaveLidarLaz ? LidarComp->ExportLastPointCloudLaz(FramePrefix) : false;
-
-    if (!bLocalCaptureSaveLidarCsv)
-    {
-        return bSyncLasSaved || bSyncLazSaved;
-    }
-
-    TArray<FLocalLidarCsvPoint> CsvPoints;
-    CsvPoints.Reserve(Points.Num());
-    for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
-    {
-        const FVirtualLidarPoint& Point = Points[PointIndex];
-        if (LidarComp->bExportHitOnlyPointCloud && !Point.bHit)
-        {
-            continue;
-        }
-
-        const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
-        FLocalLidarCsvPoint CsvPoint;
-        CsvPoint.Row = GridCoord.X;
-        CsvPoint.Col = GridCoord.Y;
-        CsvPoint.ReturnIndex = Point.ReturnIndex;
-        CsvPoint.Point = Point.WorldLocation;
-        CsvPoints.Add(CsvPoint);
-    }
-    if (CsvPoints.Num() <= 0)
-    {
-        return bSyncLasSaved || bSyncLazSaved;
-    }
-
+	FVirtualSensorFrameEnvelope Frame;
+	Frame.SensorId = LidarComp->SensorId;
+	Frame.SensorKind = EVirtualSensorKind::Lidar;
+	Frame.FrameId = Snapshot->FrameId;
+	Frame.TimestampUtc = FDateTime::UtcNow();
+	Frame.PointSnapshot = Snapshot->Points;
+	FVirtualSensorStreamConfig Config;
+	Config.StreamKind = EVirtualSensorStreamKind::PointCloud;
+	Config.PointCloudFormat = bLocalCaptureSaveLidarPcd ? EVirtualPointCloudStreamFormat::PCD
+		: bLocalCaptureSaveLidarJsonLines ? EVirtualPointCloudStreamFormat::JSONL
+		: bLocalCaptureSaveLidarLas ? EVirtualPointCloudStreamFormat::LAS
+		: bLocalCaptureSaveLidarLaz ? EVirtualPointCloudStreamFormat::LAZ
+		: EVirtualPointCloudStreamFormat::CSV;
+	Config.LazCompressorPath = LidarComp->bUseExternalLazCompressor ? LidarComp->ExternalLazCompressorPath : FString();
+	Config.LazCompressorArguments = LidarComp->ExternalLazCompressorArguments;
     const FString LidarDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Lidar"));
     IFileManager::Get().MakeDirectory(*LidarDirectory, true);
-    const FString Path = FPaths::Combine(LidarDirectory, FString::Printf(TEXT("%s_%s.csv"), *FramePrefix, *LidarComp->SensorId));
+	const FString SensorId = LidarComp->SensorId;
     TWeakObjectPtr<UVirtualSensorMonitorPanelWidget> WeakThis(this);
     bLocalCaptureLidarWritePending = true;
 
-    Async(EAsyncExecution::ThreadPool, [WeakThis, CsvPoints = MoveTemp(CsvPoints), Path]() mutable
+    Async(EAsyncExecution::ThreadPool, [WeakThis, Frame = MoveTemp(Frame), Config, LidarDirectory, FramePrefix, SensorId]() mutable
     {
-        FString Text;
-        Text.Reserve(FMath::Max(128, CsvPoints.Num() * 64));
-        Text += TEXT("row,col,returnIndex,x,y,z\n");
-        for (const FLocalLidarCsvPoint& CsvPoint : CsvPoints)
-        {
-            Text += FString::Printf(TEXT("%d,%d,%d,%f,%f,%f\n"), CsvPoint.Row, CsvPoint.Col, CsvPoint.ReturnIndex, CsvPoint.Point.X, CsvPoint.Point.Y, CsvPoint.Point.Z);
-        }
-        const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
-        AsyncTask(ENamedThreads::GameThread, [WeakThis, Path, bSaved]()
+		FString Extension;
+		FString Error;
+		TArray<uint8> Bytes;
+		int32 PointCount = 0;
+		const bool bSerialized = UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, PointCount, Error);
+		const FString Path = bSerialized ? FPaths::Combine(LidarDirectory, FString::Printf(TEXT("%s_%s.%s"), *FramePrefix, *SensorId, *Extension)) : FString();
+		const bool bSaved = bSerialized && FFileHelper::SaveArrayToFile(Bytes, *Path);
+		AsyncTask(ENamedThreads::GameThread, [WeakThis, Path, Error = MoveTemp(Error), bSaved, PointCount]()
         {
             if (!WeakThis.IsValid())
             {
@@ -2712,11 +2752,11 @@ bool UVirtualSensorMonitorPanelWidget::SaveLidarPointCloudToDisk(const FString& 
             WeakThis->bLocalCaptureLidarWritePending = false;
             if (bSaved)
             {
-                UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Async lidar CSV save saved: %s"), *Path);
+				UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Async LiDAR capture saved: %s points=%d"), *Path, PointCount);
             }
             else
             {
-                UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Async lidar CSV save failed: %s"), *Path);
+				UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Async LiDAR capture failed: %s %s"), *Path, *Error);
             }
         });
     });

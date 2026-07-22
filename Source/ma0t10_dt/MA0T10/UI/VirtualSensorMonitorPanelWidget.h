@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "Styling/SlateBrush.h"
 #include "VirtualSensorMonitorPanelWidget.generated.h"
@@ -183,6 +184,15 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     const FString& GetLocalCaptureSessionDirectory() const { return LocalCaptureSessionDirectory; }
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    void ConfigureLocalCapture(const FVirtualSensorCaptureSelection& Selection);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    FVirtualSensorCaptureSelection GetLocalCaptureSelection() const { return LocalCaptureSelection; }
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    void CaptureConfiguredOutputsOnce();
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     bool IsShowingLidar() const { return bShowingLidar; }
 
@@ -333,6 +343,7 @@ private:
     UTexture2D* RebuildEnhancedLidarViewTexture();
     void InvalidateEnhancedLidarView();
     void CaptureLocalSensorFrame();
+	void CaptureConfiguredFrame();
     bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
     bool QueueCameraGpuReadbackToDisk(const FString& FramePrefix);
     bool SaveCameraSnapshotToDiskSynchronous(const FString& FramePrefix);
@@ -480,8 +491,20 @@ private:
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool bLocalCaptureSaveLidarPointCloud = true;
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureSaveCameraPayload = false;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureSaveLidarPayload = true;
+
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
     bool bLocalCaptureSaveLidarCsv = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarJsonLines = false;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarPcd = false;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
     bool bLocalCaptureSaveLidarLas = false;
@@ -505,6 +528,11 @@ private:
     bool bShowingLidar = false;
     bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
+	FVirtualSensorCaptureSelection LocalCaptureSelection;
+	bool bConfiguredOneShotPending = false;
+	bool bConfiguredOneShotLidar = false;
+	int64 ConfiguredOneShotStartFrameId = INDEX_NONE;
+	double ConfiguredOneShotStartedSeconds = 0.0;
     bool bLocalCaptureCameraWritePending = false;
     bool bLocalCaptureLidarWritePending = false;
     int32 LocalCaptureFrameIndex = 0;

@@ -100,4 +100,11 @@ public:
 	UPROPERTY(SaveGame) int32 SensorStreamFrameStride = 1;
 	UPROPERTY(SaveGame) int32 SensorStreamReceiptInterval = 10;
 	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::CSV);
+	UPROPERTY(SaveGame) float LocalCaptureIntervalSeconds = 1.0f;
+	UPROPERTY(SaveGame) bool bLocalCaptureUseSensorInterval = false;
+	UPROPERTY(SaveGame) bool bLocalCaptureCameraImage = true;
+	UPROPERTY(SaveGame) bool bLocalCaptureCameraPayload = false;
+	UPROPERTY(SaveGame) bool bLocalCaptureLidarPayload = true;
+	UPROPERTY(SaveGame) bool bLocalCapturePointCloud = true;
+	UPROPERTY(SaveGame) uint8 LocalCapturePointCloudFormat = 1;
 };
