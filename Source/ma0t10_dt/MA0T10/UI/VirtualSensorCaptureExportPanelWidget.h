@@ -43,6 +43,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
     void ToggleTimedCapture();
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
+	void SetCaptureIntervalSeconds(float IntervalSeconds);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
+	void UseSelectedSensorCaptureInterval();
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
+	void SetCaptureSelection(const FVirtualSensorCaptureSelection& Selection);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Capture")
+	FVirtualSensorCaptureSelection GetCaptureSelection() const { return CaptureSelection; }
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
     bool OpenCaptureRootFolder();
 
@@ -94,6 +106,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
 	void ToggleAllStreams();
 
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
+	void SetSelectedPointCloudStreamFormat(EVirtualPointCloudStreamFormat Format);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
+	EVirtualPointCloudStreamFormat GetSelectedPointCloudStreamFormat() const { return SelectedPointCloudStreamFormat; }
+
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
 	FString GetLiveStreamSummaryText() const;
 
@@ -127,6 +145,8 @@ private:
 	TSharedRef<SWidget> BuildConnectionLogTab();
 	FString BuildTransportLogText() const;
 	FText TabLabel(EVirtualSensorCaptureExportTab Tab) const;
+	void ApplyCaptureSelectionToMonitor();
+	void SaveCapturePreferences() const;
 
     UPROPERTY(Transient)
     TObjectPtr<AVirtualSensorCoordinator> SensorManager;
@@ -142,6 +162,7 @@ private:
 
     EVirtualSensorExportKind SelectedPointCloudKind = EVirtualSensorExportKind::PointCloudCsv;
 	TArray<TSharedPtr<EVirtualSensorExportKind>> NativeExportKindOptions;
+	TArray<TSharedPtr<EVirtualPointCloudStreamFormat>> NativeStreamFormatOptions;
     TSharedPtr<STextBlock> NativeStorageText;
     FString LastUiMessage;
 	FString DraftBrokerUrl = TEXT("ws://127.0.0.1:61616");
@@ -158,6 +179,8 @@ private:
 	EVirtualSensorCaptureExportTab ActiveTab = EVirtualSensorCaptureExportTab::LiveStream;
 	int32 StreamFrameStride = 1;
 	int32 StreamReceiptInterval = 10;
+	EVirtualPointCloudStreamFormat SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::CSV;
+	FVirtualSensorCaptureSelection CaptureSelection;
 	FString CachedLiveStreamSummary;
 	FString CachedTransportLog;
 	FString CachedTopicReceiverSummary;

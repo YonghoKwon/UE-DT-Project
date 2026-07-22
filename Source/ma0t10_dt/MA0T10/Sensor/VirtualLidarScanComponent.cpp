@@ -728,27 +728,97 @@ void UVirtualLidarScanComponent::ApplyPreset(EVirtualLidarPreset NewPreset)
 void UVirtualLidarScanComponent::ApplyDeviceProfile(EVirtualLidarDeviceProfile NewProfile)
 {
     DeviceProfile = NewProfile;
-    if (DeviceProfile == EVirtualLidarDeviceProfile::LivoxMid360S)
-    {
-        DeviceSpec.Manufacturer = TEXT("Livox"); DeviceSpec.Model = TEXT("Mid-360S"); DeviceSpec.HorizontalFovDegrees = 360.0f; DeviceSpec.VerticalFovDegrees = 59.0f; DeviceSpec.MinRangeCm = 10.0f; DeviceSpec.TypicalRangeCm = 4000.0f; DeviceSpec.MaxRangeCm = 10000.0f; DeviceSpec.FrameRateHz = 10.0f; DeviceSpec.PointRate = 200000; DeviceSpec.Notes = TEXT("Livox Mid-360S: 40m at 10% reflectivity and 100m cutoff. Simulation quality controls runtime ray count separately.");
-        HorizontalFov = DeviceSpec.HorizontalFovDegrees; MinVerticalAngle = -7.0f; MaxVerticalAngle = 52.0f; MaxDistance = DeviceSpec.TypicalRangeCm; Preset = EVirtualLidarPreset::Custom;
-    }
-    else { DeviceSpec.Manufacturer = TEXT("Generic"); DeviceSpec.Model = TEXT("Generic LiDAR"); }
     ApplySimulationQuality(SimulationQuality);
 }
 
 void UVirtualLidarScanComponent::ApplySimulationQuality(EVirtualSensorSimulationQuality NewQuality)
 {
     SimulationQuality = NewQuality;
-    if (SimulationQuality == EVirtualSensorSimulationQuality::Debug) { HorizontalSamples = 60; VerticalChannels = 8; ScanInterval = 0.5f; PreviewPointStride = 1; MaxPreviewPoints = 1000; }
-    else if (SimulationQuality == EVirtualSensorSimulationQuality::RealTimePreview) { HorizontalSamples = 120; VerticalChannels = 24; ScanInterval = 0.25f; PreviewPointStride = 2; MaxPreviewPoints = 3000; }
-    else if (SimulationQuality == EVirtualSensorSimulationQuality::Balanced) { HorizontalSamples = 240; VerticalChannels = 32; ScanInterval = 0.2f; PreviewPointStride = 3; MaxPreviewPoints = 5000; }
-    else if (SimulationQuality == EVirtualSensorSimulationQuality::FullSpec) { HorizontalSamples = 360; VerticalChannels = 60; ScanInterval = 0.1f; PreviewPointStride = 6; MaxPreviewPoints = 5000; }
+    if (SimulationQuality != EVirtualSensorSimulationQuality::Custom)
+    {
+        const FVirtualLidarProfilePreset Resolved = ResolveProfilePreset(DeviceProfile, SimulationQuality);
+        DeviceSpec = Resolved.DeviceSpec;
+        ScanInterval = Resolved.ScanIntervalSeconds;
+        MaxDistance = Resolved.MaxDistanceCm;
+        HorizontalSamples = Resolved.HorizontalSamples;
+        VerticalChannels = Resolved.VerticalChannels;
+        HorizontalFov = Resolved.HorizontalFovDegrees;
+        MinVerticalAngle = Resolved.MinVerticalAngleDegrees;
+        MaxVerticalAngle = Resolved.MaxVerticalAngleDegrees;
+        PreviewPointStride = Resolved.PreviewPointStride;
+        MaxPreviewPoints = Resolved.MaxPreviewPoints;
+        Preset = EVirtualLidarPreset::Custom;
+    }
 
     PointCloudPreviewStride = PreviewPointStride;
     MaxPointCloudPreviewInstances = MaxPreviewPoints;
     PayloadPointStride = ServerPayloadStride;
     MaxPayloadPoints = MaxServerPayloadPoints;
+}
+
+FVirtualLidarProfilePreset UVirtualLidarScanComponent::ResolveProfilePreset(
+    EVirtualLidarDeviceProfile Profile,
+    EVirtualSensorSimulationQuality Quality)
+{
+    FVirtualLidarProfilePreset Result;
+    Result.DeviceSpec.Manufacturer = TEXT("Generic");
+    Result.DeviceSpec.Model = TEXT("Generic LiDAR");
+    Result.DeviceSpec.HorizontalFovDegrees = 360.0f;
+    Result.DeviceSpec.VerticalFovDegrees = 59.0f;
+    Result.DeviceSpec.MinRangeCm = 10.0f;
+    Result.DeviceSpec.TypicalRangeCm = 4000.0f;
+    Result.DeviceSpec.MaxRangeCm = 20000.0f;
+
+    if (Profile == EVirtualLidarDeviceProfile::LivoxMid360S)
+    {
+        Result.DeviceSpec.Manufacturer = TEXT("Livox");
+        Result.DeviceSpec.Model = TEXT("Mid-360S");
+        Result.DeviceSpec.HorizontalFovDegrees = 360.0f;
+        Result.DeviceSpec.VerticalFovDegrees = 59.0f;
+        Result.DeviceSpec.MinRangeCm = 10.0f;
+        Result.DeviceSpec.TypicalRangeCm = 4000.0f;
+        Result.DeviceSpec.MaxRangeCm = 10000.0f;
+        Result.DeviceSpec.FrameRateHz = 10.0f;
+        Result.DeviceSpec.PointRate = 200000;
+        Result.DeviceSpec.Notes = TEXT("Livox Mid-360S: 40m at 10% reflectivity and 100m cutoff.");
+        Result.MaxDistanceCm = 4000.0f;
+        Result.HorizontalFovDegrees = 360.0f;
+        Result.MinVerticalAngleDegrees = -7.0f;
+        Result.MaxVerticalAngleDegrees = 52.0f;
+    }
+    else if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80)
+    {
+        Result.DeviceSpec.Manufacturer = TEXT("IYOBOT");
+        Result.DeviceSpec.Model = TEXT("ML-X(80)");
+        Result.DeviceSpec.HorizontalFovDegrees = 80.0f;
+        Result.DeviceSpec.VerticalFovDegrees = 23.3f;
+        Result.DeviceSpec.MinRangeCm = 10.0f;
+        Result.DeviceSpec.TypicalRangeCm = 15000.0f;
+        Result.DeviceSpec.MaxRangeCm = 15000.0f;
+        Result.DeviceSpec.FrameRateHz = 20.0f;
+        Result.DeviceSpec.PointRate = 224000;
+        Result.DeviceSpec.Notes = TEXT("IYOBOT ML-X(80): 200x56 at 20Hz, 150m maximum range, 80x23.3 degree field of view.");
+        Result.MaxDistanceCm = 15000.0f;
+        Result.HorizontalFovDegrees = 80.0f;
+        Result.MinVerticalAngleDegrees = -11.65f;
+        Result.MaxVerticalAngleDegrees = 11.65f;
+    }
+
+    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80)
+    {
+        if (Quality == EVirtualSensorSimulationQuality::Debug) { Result.HorizontalSamples = 50; Result.VerticalChannels = 14; Result.ScanIntervalSeconds = 0.2f; Result.PreviewPointStride = 1; Result.MaxPreviewPoints = 1000; }
+        else if (Quality == EVirtualSensorSimulationQuality::RealTimePreview) { Result.HorizontalSamples = 100; Result.VerticalChannels = 28; Result.ScanIntervalSeconds = 0.1f; Result.PreviewPointStride = 1; Result.MaxPreviewPoints = 2800; }
+        else if (Quality == EVirtualSensorSimulationQuality::Balanced) { Result.HorizontalSamples = 160; Result.VerticalChannels = 42; Result.ScanIntervalSeconds = 1.0f / 15.0f; Result.PreviewPointStride = 2; Result.MaxPreviewPoints = 5000; }
+        else { Result.HorizontalSamples = 200; Result.VerticalChannels = 56; Result.ScanIntervalSeconds = 0.05f; Result.PreviewPointStride = 3; Result.MaxPreviewPoints = 5000; }
+    }
+    else
+    {
+        if (Quality == EVirtualSensorSimulationQuality::Debug) { Result.HorizontalSamples = 60; Result.VerticalChannels = 8; Result.ScanIntervalSeconds = 0.5f; Result.PreviewPointStride = 1; Result.MaxPreviewPoints = 1000; }
+        else if (Quality == EVirtualSensorSimulationQuality::RealTimePreview) { Result.HorizontalSamples = 120; Result.VerticalChannels = 24; Result.ScanIntervalSeconds = 0.25f; Result.PreviewPointStride = 2; Result.MaxPreviewPoints = 3000; }
+        else if (Quality == EVirtualSensorSimulationQuality::Balanced) { Result.HorizontalSamples = 240; Result.VerticalChannels = 32; Result.ScanIntervalSeconds = 0.2f; Result.PreviewPointStride = 3; Result.MaxPreviewPoints = 5000; }
+        else { Result.HorizontalSamples = 360; Result.VerticalChannels = 60; Result.ScanIntervalSeconds = 0.1f; Result.PreviewPointStride = 6; Result.MaxPreviewPoints = 5000; }
+    }
+    return Result;
 }
 
 void UVirtualLidarScanComponent::ScanAndSend()
@@ -1004,6 +1074,10 @@ FString UVirtualLidarScanComponent::BuildPerformanceWarning() const
     if (MaxServerPayloadPoints == 0)
     {
         Warnings.Add(TEXT("Server payload is uncapped (MaxServerPayloadPoints=0)"));
+    }
+    if (MaxDistance >= 15000.0f)
+    {
+        Warnings.Add(TEXT("장거리 LiDAR trace가 활성화되어 복잡한 레벨에서는 처리 비용이 증가할 수 있습니다"));
     }
     if (IsGpuPreviewBackendRequested())
     {

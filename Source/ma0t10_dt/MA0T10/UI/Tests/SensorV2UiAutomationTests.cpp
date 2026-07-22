@@ -4,6 +4,8 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2PanelCollapseGeometryTest,
@@ -13,6 +15,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2PanelHostDeduplicationTest,
 	"MA0T10.SensorV2.UI.HostDeduplication",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2DualCameraSelectionTest,
+	"MA0T10.SensorV2.UI.DualCameraSelection",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorV2PanelCollapseGeometryTest::RunTest(const FString& Parameters)
@@ -56,6 +63,31 @@ bool FSensorV2PanelHostDeduplicationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("same panel instance is hosted once"), Host->GetHostedPanelCount(), 1);
 	Host->UnregisterAllPanels();
 	TestEqual(TEXT("unregister clears hosted panels"), Host->GetHostedPanelCount(), 0);
+	return true;
+}
+
+bool FSensorV2DualCameraSelectionTest::RunTest(const FString& Parameters)
+{
+	AVirtualSensorCoordinator* Coordinator = NewObject<AVirtualSensorCoordinator>();
+	AVirtualCameraSensorActor* CameraA = NewObject<AVirtualCameraSensorActor>();
+	AVirtualCameraSensorActor* CameraB = NewObject<AVirtualCameraSensorActor>();
+	CameraA->CaptureComponent->SensorId = TEXT("VCAM-A");
+	CameraB->CaptureComponent->SensorId = TEXT("VCAM-B");
+	Coordinator->RegisterSensorActor(CameraA);
+	Coordinator->RegisterSensorActor(CameraB);
+	Coordinator->RegisterCamera(CameraA->CaptureComponent);
+	Coordinator->RegisterCamera(CameraB->CaptureComponent);
+	TestEqual(TEXT("camera count API exposes both cameras"), Coordinator->GetCameraCount(), 2);
+	TestEqual(TEXT("SensorId lookup finds second camera"), Coordinator->FindCameraIndexBySensorId(TEXT("VCAM-B")), 1);
+
+	UVirtualSensorMonitorPanelWidget* Monitor = NewObject<UVirtualSensorMonitorPanelWidget>();
+	Monitor->BindSensorManager(Coordinator);
+	Monitor->SetDualCameraModeEnabled(true);
+	TestTrue(TEXT("dual camera mode enables when two cameras exist"), Monitor->IsDualCameraModeEnabled());
+	TestTrue(TEXT("primary camera can be selected by SensorId"), Monitor->SelectPrimaryCameraBySensorId(TEXT("VCAM-B")));
+	TestEqual(TEXT("primary selection synchronizes coordinator"), Coordinator->GetSelectedCamera(), CameraB->CaptureComponent.Get());
+	TestFalse(TEXT("same camera cannot be selected as secondary"), Monitor->SelectSecondaryCameraBySensorId(TEXT("VCAM-B")));
+	TestTrue(TEXT("other camera can be selected as secondary"), Monitor->SelectSecondaryCameraBySensorId(TEXT("VCAM-A")));
 	return true;
 }
 

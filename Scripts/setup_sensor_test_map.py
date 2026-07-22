@@ -244,6 +244,26 @@ def _build_sensor_rig(widget_classes):
     _set_property(camera, "CaptureInterval", 0.1)
     _set_property(camera, "FOVAngle", 87.0)
 
+    if MAP_PATH == "/Game/MA0T10/Maps/Tests/SensorRefactorTestMap":
+        overhead_camera_actor = _spawn(
+            camera_actor_class,
+            "SensorTest_CameraOverhead",
+            unreal.Vector(0.0, 0.0, 1000.0),
+            unreal.Rotator(roll=0.0, pitch=-90.0, yaw=0.0),
+        )
+        overhead_camera_actor.set_editor_property(
+            "tags", [MANAGED_TAG, unreal.Name("SensorTestPersistent_OverheadCamera")]
+        )
+        overhead_camera = overhead_camera_actor.get_component_by_class(
+            _load_class("/Script/ma0t10_dt.VirtualCameraCaptureComponent")
+        )
+        _set_property(overhead_camera, "SensorId", "VCAM-TEST-002")
+        _set_property(overhead_camera, "bAutoStartCapture", True)
+        _set_property(overhead_camera, "bAutoRegisterToManager", True)
+        _set_property(overhead_camera, "CaptureResolution", unreal.IntPoint(640, 360))
+        _set_property(overhead_camera, "CaptureInterval", 0.1)
+        _set_property(overhead_camera, "FOVAngle", 87.0)
+
     host = _spawn(
         host_actor_class,
         "SensorTest_MonitorHost",
@@ -337,6 +357,9 @@ def _build_test_scene():
     directional_component = directional.get_component_by_class(
         unreal.DirectionalLightComponent
     )
+    _try_set_property(
+        directional_component, "Mobility", unreal.ComponentMobility.MOVABLE
+    )
     directional_component.set_editor_property("intensity", 3.0)
     _try_set_property(directional_component, "UseTemperature", True)
     _try_set_property(directional_component, "Temperature", 5500.0)
@@ -347,6 +370,7 @@ def _build_test_scene():
         unreal.Vector(0.0, 0.0, 500.0),
     )
     skylight_component = skylight.get_component_by_class(unreal.SkyLightComponent)
+    _try_set_property(skylight_component, "Mobility", unreal.ComponentMobility.MOVABLE)
     skylight_component.set_editor_property("intensity", 1.5)
     _try_set_property(skylight_component, "RealTimeCapture", True)
 
@@ -362,6 +386,7 @@ def _build_test_scene():
             unreal.Rotator(roll=0.0, pitch=-90.0, yaw=0.0),
         )
         rect_component = rect_light.get_component_by_class(unreal.RectLightComponent)
+        _try_set_property(rect_component, "Mobility", unreal.ComponentMobility.MOVABLE)
         rect_component.set_editor_property("intensity", 3500.0)
         _try_set_property(rect_component, "SourceWidth", 350.0)
         _try_set_property(rect_component, "SourceHeight", 220.0)

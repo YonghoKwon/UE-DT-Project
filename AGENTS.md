@@ -36,7 +36,16 @@
 
 - V2 패널 native parent는 각각 `UVirtualSensorMonitorPanelWidget`, `UVirtualSensorSettingsPanelWidget`, `UVirtualSensorCaptureExportPanelWidget`입니다.
 - 공통 base `UVirtualSensorPanelWidgetBase : UDxWidget`가 drag, DPI clamp, 접기, 위치 복원을 담당합니다.
-- Monitor는 공통 base의 자유 resize를 활성화합니다. 오른쪽 아래 grip, DPI 보정, 화면 clamp, 접힘 시 확장 크기 보존과 UI SaveGame v4 복원을 함께 유지합니다.
+- Monitor와 CaptureExport는 공통 base의 자유 resize를 활성화합니다. 오른쪽 아래 grip, DPI 보정, 화면 clamp, 접힘 시 확장 크기 보존과 UI SaveGame v6 복원을 함께 유지합니다.
+
+### ML-X(80), 캡처와 듀얼 카메라
+
+- `IYOBOT_MLX80` enum은 기존 직렬화 값을 보존하기 위해 항상 프로필 enum 끝에 추가합니다. 원본 FullSpec은 200×56, 0.05초, 15,000cm, 80°, -11.65°~11.65°입니다.
+- 프로필/품질 변경은 Actor의 단일 설정 트랜잭션으로 적용하고 한 번만 재예약합니다. 직접 물리 값을 편집한 경우 품질을 Custom으로 표시합니다.
+- 로컬 캡처 간격은 Topic 전송 간격과 분리합니다. 시간 지정 캡처는 최신 완료 snapshot을 저장하며 동기 측정을 반복하지 않습니다.
+- Point Cloud 스트림 포맷, 로컬 캡처 포맷, 수동 내보내기 포맷은 서로 독립된 상태입니다. 포맷 revision이 바뀌면 이전 비동기 결과를 적용하지 않습니다.
+- 듀얼 카메라는 기존 RenderTarget을 공유하고 추가 캡처/readback을 만들지 않습니다. 주 카메라만 Coordinator 선택과 동기화하고 보조 카메라는 보기 전용으로 유지하며 동일 SensorId를 거부합니다.
+- `SensorRefactorTestMap`은 관리 대상 `VCAM-TEST-001`과 수직 하향 `VCAM-TEST-002`를 포함합니다. 운영 `SensorTestMap`과 사용자 비관리 Actor에는 두 번째 카메라를 자동 추가하지 않습니다.
 - `ELidarMonitorProjectionMode`는 SaveGame/Blueprint 직렬화 호환 타입입니다. 기존 enum 값의 순서를 바꾸지 말고 새 투영은 항상 마지막에 추가합니다. 센서 로컬 `TopDown`과 센서 회전과 무관한 `WorldTopDown`의 좌표 의미를 섞지 않습니다.
 - `UVirtualSensorPanelHostComponent`는 Main `AddWidgetPanel`을 우선 사용하고 Viewport fallback을 제공합니다.
 - 접기는 실제 Canvas slot 또는 viewport desired height를 약 48px로 줄여 빈 hit-test 영역을 남기지 않아야 합니다.

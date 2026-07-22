@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "Styling/SlateBrush.h"
 #include "VirtualSensorMonitorPanelWidget.generated.h"
@@ -11,6 +12,7 @@ class FRHIGPUTextureReadback;
 class SImage;
 class STextBlock;
 class SWidget;
+template <typename OptionType> class SComboBox;
 class UButton;
 class UImage;
 class UTextBlock;
@@ -183,6 +185,15 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     const FString& GetLocalCaptureSessionDirectory() const { return LocalCaptureSessionDirectory; }
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    void ConfigureLocalCapture(const FVirtualSensorCaptureSelection& Selection);
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    FVirtualSensorCaptureSelection GetLocalCaptureSelection() const { return LocalCaptureSelection; }
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    void CaptureConfiguredOutputsOnce();
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     bool IsShowingLidar() const { return bShowingLidar; }
 
@@ -203,6 +214,18 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetSelectedSensorIdText() const;
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Camera")
+	void SetDualCameraModeEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Camera")
+	bool IsDualCameraModeEnabled() const { return bDualCameraModeEnabled; }
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Camera")
+	bool SelectPrimaryCameraBySensorId(const FString& SensorId);
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|Camera")
+	bool SelectSecondaryCameraBySensorId(const FString& SensorId);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor|Status")
     FString GetFrameSummaryText() const;
@@ -332,7 +355,10 @@ private:
     bool ResolveInteractiveProjection(const FVector2D& ScreenPosition, ELidarMonitorProjectionMode& OutProjection, FVector2D& OutViewportSize) const;
     UTexture2D* RebuildEnhancedLidarViewTexture();
     void InvalidateEnhancedLidarView();
+	void RefreshCameraSelectionOptions();
+	void ResolveDualCameraSelection();
     void CaptureLocalSensorFrame();
+	void CaptureConfiguredFrame();
     bool SaveCameraSnapshotToDisk(const FString& FramePrefix);
     bool QueueCameraGpuReadbackToDisk(const FString& FramePrefix);
     bool SaveCameraSnapshotToDiskSynchronous(const FString& FramePrefix);
@@ -480,8 +506,20 @@ private:
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
     bool bLocalCaptureSaveLidarPointCloud = true;
 
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureSaveCameraPayload = false;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture")
+    bool bLocalCaptureSaveLidarPayload = true;
+
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
     bool bLocalCaptureSaveLidarCsv = true;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarJsonLines = false;
+
+    UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
+    bool bLocalCaptureSaveLidarPcd = false;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|SensorMonitor|LocalCapture|PointCloudFormat")
     bool bLocalCaptureSaveLidarLas = false;
@@ -503,8 +541,20 @@ private:
     int32 MaxPendingCameraReadbacks = 1;
 
     bool bShowingLidar = false;
+	bool bDualCameraModeEnabled = false;
+	bool bMonitorPreferencesRestored = false;
     bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
+	FVirtualSensorCaptureSelection LocalCaptureSelection;
+	UPROPERTY(Transient) TObjectPtr<UVirtualCameraCaptureComponent> SecondaryCameraComp;
+	FString PreferredPrimaryCameraId;
+	FString PreferredSecondaryCameraId;
+	int64 LastPrimaryCameraDisplayFrameId = INDEX_NONE;
+	int64 LastSecondaryCameraDisplayFrameId = INDEX_NONE;
+	bool bConfiguredOneShotPending = false;
+	bool bConfiguredOneShotLidar = false;
+	int64 ConfiguredOneShotStartFrameId = INDEX_NONE;
+	double ConfiguredOneShotStartedSeconds = 0.0;
     bool bLocalCaptureCameraWritePending = false;
     bool bLocalCaptureLidarWritePending = false;
     int32 LocalCaptureFrameIndex = 0;
@@ -533,6 +583,11 @@ private:
     TSharedPtr<STextBlock> NativeWarningTextBlock;
     TSharedPtr<SImage> NativeViewImage;
     TSharedPtr<SImage> NativeSecondaryViewImage;
+	TSharedPtr<SImage> NativeSecondaryCameraImage;
+	FSlateBrush NativeSecondaryCameraBrush;
+	TArray<TSharedPtr<FString>> NativeCameraOptions;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> NativePrimaryCameraCombo;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> NativeSecondaryCameraCombo;
     FSlateBrush NativeViewBrush;
     FSlateBrush NativeSecondaryViewBrush;
     double StatusRefreshAccumulator = 0.0;

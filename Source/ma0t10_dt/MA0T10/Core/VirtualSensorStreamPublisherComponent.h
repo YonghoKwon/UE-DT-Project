@@ -86,6 +86,7 @@ private:
 		int64 FrameId = 0;
 		FString Json;
 		int32 ByteCount = 0;
+		int32 ConfigRevision = 0;
 	};
 
 	struct FStreamRuntime
@@ -99,6 +100,7 @@ private:
 		double LastLazSubmitSeconds = -DBL_MAX;
 		double NextSubmitAttemptSeconds = 0.0;
 		bool bSerializationInFlight = false;
+		int32 ConfigRevision = 0;
 	};
 
 	struct FReceiptWait
@@ -111,7 +113,7 @@ private:
 	FStreamRuntime& FindOrAddRuntime(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
 	void QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
 	void StartPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
-	void CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error);
+	void CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error, int32 CapturedConfigRevision);
 	void PumpPreparedMessages(double NowSeconds);
 	void CheckReceiptTimeouts(double NowSeconds);
 	void AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result = nullptr, int64 FrameId = 0);

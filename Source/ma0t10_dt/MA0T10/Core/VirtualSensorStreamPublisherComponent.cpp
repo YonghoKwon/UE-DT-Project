@@ -256,12 +256,24 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 {
 	FStreamRuntime& Runtime = FindOrAddRuntime(Config.StreamKind, Config.SensorId.TrimStartAndEnd());
 	const bool bWasEnabled = Runtime.Config.bEnabled;
+	const bool bSerializationContractChanged = Runtime.Config.PointCloudFormat != Config.PointCloudFormat ||
+		Runtime.Config.FrameStride != Config.FrameStride ||
+		Runtime.Config.LazCompressorPath != Config.LazCompressorPath ||
+		Runtime.Config.LazCompressorArguments != Config.LazCompressorArguments;
+	if (bSerializationContractChanged)
+	{
+		++Runtime.ConfigRevision;
+		Runtime.PendingFrame.Reset();
+		Runtime.PreparedMessage.Reset();
+		Runtime.Status.bPendingLatestFrame = false;
+	}
 	Runtime.Config = Config;
 	Runtime.Config.SensorId = Config.SensorId.TrimStartAndEnd();
 	Runtime.Config.FrameStride = FMath::Max(1, Config.FrameStride);
 	Runtime.Config.ReceiptSampleInterval = FMath::Max(1, Config.ReceiptSampleInterval);
 	Runtime.Config.MaxLazHz = FMath::Clamp(Config.MaxLazHz, 0.1f, 1.0f);
 	Runtime.Status.bEnabled = Runtime.Config.bEnabled;
+	Runtime.Status.ConfigRevision = Runtime.ConfigRevision;
 	if (bWasEnabled != Runtime.Config.bEnabled) UpdateCameraStreamDemand();
 }
 
@@ -384,8 +396,9 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	Message.SensorId = Frame.SensorId;
 	Message.StreamKind = Runtime.Config.StreamKind;
 	Message.FrameId = Frame.FrameId;
-	Message.Json = *Frame.JsonPayload;
-	Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
+		Message.Json = *Frame.JsonPayload;
+		Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
+		Message.ConfigRevision = Runtime.ConfigRevision;
 	if (Runtime.PreparedMessage.IsSet()) ++Runtime.Status.ReplacedPendingFrameCount;
 	Runtime.PreparedMessage = MoveTemp(Message);
 	Runtime.Status.bPendingLatestFrame = true;
@@ -405,8 +418,9 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 	Runtime.bSerializationInFlight = true;
 	Runtime.Status.bProcessing = true;
 	const FVirtualSensorStreamConfig Config = Runtime.Config;
+	const int32 CapturedConfigRevision = Runtime.ConfigRevision;
 	const TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> WeakThis(this);
-	Async(EAsyncExecution::ThreadPool, [WeakThis, StreamKey, Frame, Config]()
+	Async(EAsyncExecution::ThreadPool, [WeakThis, StreamKey, Frame, Config, CapturedConfigRevision]()
 	{
 		FString Extension, Error;
 		TArray<uint8> Bytes;
@@ -414,26 +428,39 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 		const bool bSucceeded = SerializePointCloud(Frame, Config, Extension, Bytes, PointCount, Error);
 		FPreparedMessage Message;
 		Message.SensorId = Frame.SensorId;
-		Message.StreamKind = EVirtualSensorStreamKind::PointCloud;
-		Message.FrameId = Frame.FrameId;
+			Message.StreamKind = EVirtualSensorStreamKind::PointCloud;
+			Message.FrameId = Frame.FrameId;
+			Message.ConfigRevision = CapturedConfigRevision;
 		if (bSucceeded)
 		{
 			Message.Json = BuildPointCloudEnvelope(Frame, Extension, Bytes, PointCount);
 			Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
 		}
-		AsyncTask(ENamedThreads::GameThread, [WeakThis, StreamKey, Message = MoveTemp(Message), Error = MoveTemp(Error)]() mutable
+		AsyncTask(ENamedThreads::GameThread, [WeakThis, StreamKey, Message = MoveTemp(Message), Error = MoveTemp(Error), CapturedConfigRevision]() mutable
 		{
-			if (WeakThis.IsValid()) WeakThis->CompletePointCloudSerialization(StreamKey, MoveTemp(Message), Error);
+			if (WeakThis.IsValid()) WeakThis->CompletePointCloudSerialization(StreamKey, MoveTemp(Message), Error, CapturedConfigRevision);
 		});
 	});
 }
 
-void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error)
+void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error, int32 CapturedConfigRevision)
 {
 	FStreamRuntime* Runtime = StreamRuntimes.Find(StreamKey);
 	if (!Runtime) return;
 	Runtime->bSerializationInFlight = false;
 	Runtime->Status.bProcessing = false;
+	if (CapturedConfigRevision != Runtime->ConfigRevision)
+	{
+		++Runtime->Status.StaleResultDiscardCount;
+		Runtime->Status.Message = TEXT("설정 변경 전에 시작된 Point Cloud 결과를 폐기했습니다.");
+		if (Runtime->Config.bEnabled && Runtime->PendingFrame.IsSet())
+		{
+			FVirtualSensorFrameEnvelope Pending = MoveTemp(Runtime->PendingFrame.GetValue());
+			Runtime->PendingFrame.Reset();
+			StartPointCloudSerialization(StreamKey, *Runtime, Pending);
+		}
+		return;
+	}
 	if (!Error.IsEmpty() || Message.Json.IsEmpty())
 	{
 		++Runtime->Status.EncodeFailureCount;

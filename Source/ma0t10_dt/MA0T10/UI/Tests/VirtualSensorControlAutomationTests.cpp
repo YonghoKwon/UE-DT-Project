@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
@@ -72,6 +73,25 @@ bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Mid-360S real-time horizontal ray budget"), Lidar->HorizontalSamples, 120);
     TestEqual(TEXT("Mid-360S real-time vertical ray budget"), Lidar->VerticalChannels, 24);
     TestEqual(TEXT("Mid-360S real-time range remains realistic"), Lidar->MaxDistance, 4000.0f);
+
+    Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80);
+    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+    const FVirtualSensorDeviceSpec& MlxSpec = Lidar->GetDeviceSpec();
+    TestEqual(TEXT("ML-X(80) model"), MlxSpec.Model, FString(TEXT("ML-X(80)")));
+    TestEqual(TEXT("ML-X(80) maximum range cm"), Lidar->MaxDistance, 15000.0f);
+    TestEqual(TEXT("ML-X(80) horizontal samples"), Lidar->HorizontalSamples, 200);
+    TestEqual(TEXT("ML-X(80) vertical channels"), Lidar->VerticalChannels, 56);
+    TestEqual(TEXT("ML-X(80) scan interval"), Lidar->ScanInterval, 0.05f);
+    TestEqual(TEXT("ML-X(80) horizontal FOV"), Lidar->HorizontalFov, 80.0f);
+    TestEqual(TEXT("ML-X(80) minimum vertical angle"), Lidar->MinVerticalAngle, -11.65f);
+    TestEqual(TEXT("ML-X(80) maximum vertical angle"), Lidar->MaxVerticalAngle, 11.65f);
+    TestEqual(TEXT("ML-X(80) point rate"), MlxSpec.PointRate, 224000);
+
+    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::Balanced);
+    TestEqual(TEXT("ML-X(80) balanced horizontal samples"), Lidar->HorizontalSamples, 160);
+    TestEqual(TEXT("ML-X(80) balanced vertical channels"), Lidar->VerticalChannels, 42);
+    TestTrue(TEXT("ML-X(80) balanced rate is 15Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 1.0f / 15.0f));
+    TestEqual(TEXT("ML-X(80) balanced preserves range"), Lidar->MaxDistance, 15000.0f);
     return true;
 }
 
@@ -95,6 +115,11 @@ bool FVirtualSensorEditableStateValidationTest::RunTest(const FString& Parameter
     State.ActorTransform = FTransform::Identity;
     State.TargetKind = EVirtualSensorTargetKind::Lidar;
     State.SensorId = TEXT("LIDAR-A");
+    State.LidarMaxDistance = 15000.0f;
+    TestTrue(TEXT("150m LiDAR range is accepted"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    State.LidarMaxDistance = 20001.0f;
+    TestFalse(TEXT("LiDAR range above 200m is rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    State.LidarMaxDistance = 15000.0f;
     State.LidarMinVerticalAngle = 52.0f;
     State.LidarMaxVerticalAngle = -7.0f;
     TestFalse(TEXT("inverted LiDAR vertical angles are rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
@@ -160,6 +185,17 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	Preferences->CaptureExportActiveTab = static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog);
 	Preferences->SensorStreamFrameStride = 3;
 	Preferences->SensorStreamReceiptInterval = 10;
+	Preferences->SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD);
+	Preferences->LocalCaptureIntervalSeconds = 0.05f;
+	Preferences->bLocalCaptureUseSensorInterval = true;
+	Preferences->bLocalCaptureCameraImage = false;
+	Preferences->bLocalCaptureCameraPayload = true;
+	Preferences->bLocalCaptureLidarPayload = false;
+	Preferences->bLocalCapturePointCloud = true;
+	Preferences->LocalCapturePointCloudFormat = static_cast<uint8>(EVirtualSensorExportKind::PointCloudPcd);
+	Preferences->bDualCameraModeEnabled = true;
+	Preferences->PrimaryCameraSensorId = TEXT("VCAM-TEST-001");
+	Preferences->SecondaryCameraSensorId = TEXT("VCAM-TEST-002");
 
     TArray<uint8> Bytes;
     TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
@@ -186,7 +222,44 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	TestEqual(TEXT("capture/export tab survives serialization"), Loaded->CaptureExportActiveTab, static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog));
 	TestEqual(TEXT("stream stride survives serialization"), Loaded->SensorStreamFrameStride, 3);
 	TestEqual(TEXT("receipt sampling survives serialization"), Loaded->SensorStreamReceiptInterval, 10);
+	TestEqual(TEXT("Point Cloud stream format survives serialization"), Loaded->SelectedPointCloudStreamFormat, static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD));
+	TestEqual(TEXT("local capture interval survives serialization"), Loaded->LocalCaptureIntervalSeconds, 0.05f);
+	TestTrue(TEXT("sensor interval mode survives serialization"), Loaded->bLocalCaptureUseSensorInterval);
+	TestFalse(TEXT("camera image selection survives serialization"), Loaded->bLocalCaptureCameraImage);
+	TestTrue(TEXT("camera payload selection survives serialization"), Loaded->bLocalCaptureCameraPayload);
+	TestFalse(TEXT("LiDAR payload selection survives serialization"), Loaded->bLocalCaptureLidarPayload);
+	TestTrue(TEXT("Point Cloud selection survives serialization"), Loaded->bLocalCapturePointCloud);
+	TestEqual(TEXT("capture Point Cloud format survives serialization"), Loaded->LocalCapturePointCloudFormat, static_cast<uint8>(EVirtualSensorExportKind::PointCloudPcd));
+	TestTrue(TEXT("dual camera mode survives serialization"), Loaded->bDualCameraModeEnabled);
+	TestEqual(TEXT("primary camera selection survives serialization"), Loaded->PrimaryCameraSensorId, FString(TEXT("VCAM-TEST-001")));
+	TestEqual(TEXT("secondary camera selection survives serialization"), Loaded->SecondaryCameraSensorId, FString(TEXT("VCAM-TEST-002")));
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorCaptureSelectionTest,
+	"MA0T10.SensorExport.CaptureSelection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorCaptureSelectionTest::RunTest(const FString& Parameters)
+{
+	UVirtualSensorMonitorPanelWidget* Monitor = NewObject<UVirtualSensorMonitorPanelWidget>();
+	FVirtualSensorCaptureSelection Selection;
+	Selection.IntervalSeconds = 0.001f;
+	Selection.bCameraImage = false;
+	Selection.bCameraPayload = true;
+	Selection.bLidarPayload = false;
+	Selection.bPointCloud = true;
+	Selection.PointCloudFormat = EVirtualSensorExportKind::PointCloudPcd;
+	Monitor->ConfigureLocalCapture(Selection);
+	const FVirtualSensorCaptureSelection Applied = Monitor->GetLocalCaptureSelection();
+	TestEqual(TEXT("capture interval clamps to 50 milliseconds"), Applied.IntervalSeconds, 0.05f);
+	TestFalse(TEXT("camera image selection applies"), Applied.bCameraImage);
+	TestTrue(TEXT("camera payload selection applies"), Applied.bCameraPayload);
+	TestFalse(TEXT("LiDAR payload selection applies"), Applied.bLidarPayload);
+	TestTrue(TEXT("Point Cloud selection applies"), Applied.bPointCloud);
+	TestEqual(TEXT("Point Cloud format applies"), Applied.PointCloudFormat, EVirtualSensorExportKind::PointCloudPcd);
+	return true;
 }
 
 bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)

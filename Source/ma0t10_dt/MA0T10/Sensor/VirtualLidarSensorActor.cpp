@@ -203,7 +203,7 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
         return false;
     }
     if (State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f ||
-        State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 10000.0f ||
+        State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 20000.0f ||
         State.LidarHorizontalSamples < 1 || State.LidarHorizontalSamples > 1440 ||
         State.LidarVerticalChannels < 1 || State.LidarVerticalChannels > 256 ||
         State.LidarHorizontalFov < 1.0f || State.LidarHorizontalFov > 360.0f ||
