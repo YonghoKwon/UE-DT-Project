@@ -74,6 +74,9 @@ FVirtualSensorSettingHelpDescriptor MakeSettingHelp(const TCHAR* Key, const TCHA
 const TArray<FVirtualSensorSettingHelpDescriptor>& SettingHelpDescriptors()
 {
     static const TArray<FVirtualSensorSettingHelpDescriptor> Descriptors = {
+        MakeSettingHelp(TEXT("LidarFidelity"), TEXT("LiDAR 충실도"), TEXT("Ideal Truth는 엔진 기준값, 공개 사양 기반은 공개된 오차·Intensity·검출 모델, 실장비 캘리브레이션은 제공된 보정표, Replay는 외부 프레임을 뜻합니다."), TEXT("Mode"), TEXT("공개 사양/캘리브레이션 모델은 추가 계산이 필요함"), TEXT("Golden Dataset이 없으면 공개 사양 기반"), TEXT("공개 사양 기반 결과를 제조사 원시 패킷과 동일하다고 해석하면 안 됩니다.")),
+        MakeSettingHelp(TEXT("LidarBackend"), TEXT("LiDAR 측정 백엔드"), TEXT("Auto는 FullSpec ML-X에서 GPU Depth Projection을 우선하고 지원되지 않으면 Accurate CPU Trace로 전환합니다. GPU 방식은 첫 표면을 빠르게 측정하고 CPU 방식은 정밀 회귀와 MultiHit에 적합합니다."), TEXT("Backend"), TEXT("CPU 광선 추적은 센서 수와 광선 수에 비례해 게임 스레드 부하 증가"), TEXT("다중 FullSpec은 Auto, 회귀 테스트는 Accurate CPU"), TEXT("GPU Depth Projection은 현재 투명체와 두 번째 Echo를 물리적으로 분리하지 못합니다.")),
+        MakeSettingHelp(TEXT("LidarIntensity"), TEXT("LiDAR Intensity"), TEXT("940nm 표면 반사율, 입사각, 거리 감쇠와 주변광으로 원시/정규화 Intensity를 계산합니다. Physical Material 응답 컴포넌트로 반사율을 지정할 수 있습니다."), TEXT("0~65535"), TEXT("검출 확률과 Echo 생성에 작은 추가 비용"), TEXT("표면별 940nm 반사율을 실측값으로 보정"), TEXT("캘리브레이션 자료가 없으면 정성적 에뮬레이션입니다.")),
         MakeSettingHelp(TEXT("SimulationQuality"), TEXT("시뮬레이션 품질"), TEXT("센서별 해상도·광선 수·명목 갱신 주기를 한 번에 적용하는 실행 예산입니다."), TEXT("Preset"), TEXT("FullSpec일수록 높음"), TEXT("일반 조작은 실시간 미리보기, 최종 검증은 FullSpec")),
         MakeSettingHelp(TEXT("CameraInterval"), TEXT("카메라 캡처 주기"), TEXT("장면을 다시 렌더링하는 간격입니다. 값이 작을수록 초당 캡처 횟수가 증가합니다."), TEXT("초"), TEXT("렌더링·GPU readback 빈도에 반비례"), TEXT("FullSpec 0.033초(30Hz), 실시간 미리보기 0.1초")),
         MakeSettingHelp(TEXT("CameraWidth"), TEXT("카메라 가로 해상도"), TEXT("렌더 타깃의 가로 픽셀 수입니다."), TEXT("px"), TEXT("세로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 1280")),
@@ -227,6 +230,40 @@ FString UVirtualSensorSettingsPanelWidget::GetCurrentLoadSummaryText() const
             : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride));
         const TCHAR* Level = RaysPerSecond < 20000.0 ? TEXT("낮음") : (RaysPerSecond < 100000.0 ? TEXT("보통") : TEXT("높음"));
         LoadText = FString::Printf(TEXT("예상 부하: %lld 광선/스캔 · %.0f 광선/s · Payload≤%d · Preview≤%d · %s"), RaysPerScan, RaysPerSecond, PayloadUpper, PreviewUpper, Level);
+    }
+
+    if (PendingState.TargetKind == EVirtualSensorTargetKind::Lidar && SensorManager)
+    {
+        if (const UVirtualLidarScanComponent* Lidar = SensorManager->GetSelectedLidar())
+        {
+            const TCHAR* ProfileBadge =
+                Lidar->ProfileClass == EVirtualLidarProfileClass::PublicSpecNative ? TEXT("원본 사양")
+                : Lidar->ProfileClass == EVirtualLidarProfileClass::IntegrationDownsampled ? TEXT("통합/다운샘플")
+                : Lidar->ProfileClass == EVirtualLidarProfileClass::UserCustom ? TEXT("사용자 설정")
+                : TEXT("일반");
+            const TCHAR* Fidelity =
+                Lidar->FidelityMode == EVirtualSensorFidelityMode::HardwareCalibrated ? TEXT("실장비 캘리브레이션 적용")
+                : Lidar->FidelityMode == EVirtualSensorFidelityMode::PublicSpecBased ? TEXT("공개 사양 기반 에뮬레이션")
+                : Lidar->FidelityMode == EVirtualSensorFidelityMode::ReplayOrHardwareInput ? TEXT("Replay/실장비 입력")
+                : TEXT("Ideal Truth");
+            const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
+            const FString BackendSuffix = Status.AcquisitionBackendMessage.IsEmpty()
+                ? FString()
+                : FString::Printf(TEXT(" (%s)"), *Status.AcquisitionBackendMessage);
+            LoadText += FString::Printf(
+                TEXT("\n프로필: %s · 충실도: %s · 프로토콜 검증: %s")
+                TEXT("\n측정: 요청 %.1fHz / 완료 %.1fHz · 출력 %.1fHz · deadline miss %d")
+                TEXT("\n백엔드: %s%s"),
+                ProfileBadge,
+                Fidelity,
+                Lidar->GetDeviceSpec().bProtocolVerifiedAgainstHardware ? TEXT("완료") : TEXT("미검증"),
+                Status.RequestedAcquisitionRateHz,
+                Status.MeasuredAcquisitionRateHz,
+                Status.MeasuredOutputRateHz,
+                Status.DeadlineMissCount,
+                *Status.ActiveAcquisitionBackend,
+                *BackendSuffix);
+        }
     }
 
     if (GetWorld())

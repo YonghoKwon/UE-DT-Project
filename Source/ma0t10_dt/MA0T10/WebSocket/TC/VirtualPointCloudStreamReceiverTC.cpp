@@ -26,6 +26,7 @@ bool HasPointCloudSignature(const FString& Format, const TArray<uint8>& Bytes)
 	}
 	if (Format == TEXT("PCD")) return StartsWithBytes(Bytes, "# .PCD");
 	if (Format == TEXT("LAS") || Format == TEXT("LAZ")) return StartsWithBytes(Bytes, "LASF");
+	if (Format == TEXT("VLB2")) return StartsWithBytes(Bytes, "VLDR2");
 	return false;
 }
 }
@@ -66,7 +67,7 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseTo
 	Data->DeclaredByteCount = static_cast<int32>(ByteCount);
 	Data->Format = Data->Format.ToUpper();
 	const bool bKnownFormat = Data->Format == TEXT("CSV") || Data->Format == TEXT("JSONL") || Data->Format == TEXT("PCD") ||
-		Data->Format == TEXT("LAS") || Data->Format == TEXT("LAZ");
+		Data->Format == TEXT("LAS") || Data->Format == TEXT("LAZ") || Data->Format == TEXT("VLB2");
 	if (Data->SchemaVersion != TEXT("virtual-pointcloud.v1") || Data->Encoding != TEXT("base64") ||
 		!bKnownFormat || Data->PointCount <= 0 || Data->DeclaredByteCount <= 0)
 	{

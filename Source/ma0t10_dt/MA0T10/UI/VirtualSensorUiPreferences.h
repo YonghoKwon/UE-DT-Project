@@ -99,7 +99,7 @@ public:
 	UPROPERTY(SaveGame) uint8 CaptureExportActiveTab = 0;
 	UPROPERTY(SaveGame) int32 SensorStreamFrameStride = 1;
 	UPROPERTY(SaveGame) int32 SensorStreamReceiptInterval = 10;
-	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::CSV);
+	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::CompactBinary);
 	UPROPERTY(SaveGame) float LocalCaptureIntervalSeconds = 1.0f;
 	UPROPERTY(SaveGame) bool bLocalCaptureUseSensorInterval = false;
 	UPROPERTY(SaveGame) bool bLocalCaptureCameraImage = true;

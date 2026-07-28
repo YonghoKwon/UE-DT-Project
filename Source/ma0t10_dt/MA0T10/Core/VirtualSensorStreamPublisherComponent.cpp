@@ -12,6 +12,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarPayloadCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 namespace
@@ -107,6 +108,34 @@ bool SerializePointCloud(
 	}
 	const TArray<FVirtualLidarPoint>& Points = *Frame.PointSnapshot;
 	FString Text;
+	if (Config.PointCloudFormat == EVirtualPointCloudStreamFormat::CompactBinary)
+	{
+		if (!Frame.LidarFrameSnapshot.IsValid())
+		{
+			OutError = TEXT("Compact Binary 전송에는 virtual-lidar.v2 물리 프레임이 필요합니다.");
+			return false;
+		}
+		FVirtualLidarV2EncodeOptions Options;
+		Options.bIncludeInvalidPoints = false;
+		TArray64<uint8> CompactBytes;
+		if (!FVirtualLidarPayloadCodec::EncodeCompactBinary(
+			*Frame.LidarFrameSnapshot,
+			Options,
+			CompactBytes,
+			OutPointCount))
+		{
+			OutError = TEXT("Compact Binary로 인코딩할 유효점이 없습니다.");
+			return false;
+		}
+		if (CompactBytes.Num() > MAX_int32)
+		{
+			OutError = TEXT("Compact Binary 프레임이 단일 STOMP 메시지 한도를 초과합니다.");
+			return false;
+		}
+		OutBytes.Append(CompactBytes.GetData(), static_cast<int32>(CompactBytes.Num()));
+		OutExtension = TEXT("vlb2");
+		return true;
+	}
 	if (Config.PointCloudFormat == EVirtualPointCloudStreamFormat::CSV)
 	{
 		OutExtension = TEXT("csv");

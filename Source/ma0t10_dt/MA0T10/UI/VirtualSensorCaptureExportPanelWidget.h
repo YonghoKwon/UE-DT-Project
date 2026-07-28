@@ -179,7 +179,7 @@ private:
 	EVirtualSensorCaptureExportTab ActiveTab = EVirtualSensorCaptureExportTab::LiveStream;
 	int32 StreamFrameStride = 1;
 	int32 StreamReceiptInterval = 10;
-	EVirtualPointCloudStreamFormat SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::CSV;
+	EVirtualPointCloudStreamFormat SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::CompactBinary;
 	FVirtualSensorCaptureSelection CaptureSelection;
 	FString CachedLiveStreamSummary;
 	FString CachedTransportLog;

@@ -157,6 +157,14 @@ bool FVirtualSensorPointCloudSerializationTest::RunTest(const FString& Parameter
 	FVirtualLidarPoint& Miss = Points.AddDefaulted_GetRef();
 	Miss.bHit = false;
 	Frame.PointSnapshot = MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(Points));
+	TSharedPtr<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> PhysicalFrame =
+		MakeShared<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe>();
+	PhysicalFrame->FrameId = Frame.FrameId;
+	PhysicalFrame->ProfileKey = TEXT("iyobot-mlx80-native");
+	PhysicalFrame->RequestedRayCount = 2;
+	PhysicalFrame->ValidPointCount = 1;
+	PhysicalFrame->Points = Frame.PointSnapshot;
+	Frame.LidarFrameSnapshot = StaticCastSharedPtr<const FVirtualLidarFrameSnapshot>(PhysicalFrame);
 
 	for (const TPair<EVirtualPointCloudStreamFormat, FString>& Case : {
 		TPair<EVirtualPointCloudStreamFormat, FString>(EVirtualPointCloudStreamFormat::CSV, TEXT("csv")),
@@ -174,6 +182,19 @@ bool FVirtualSensorPointCloudSerializationTest::RunTest(const FString& Parameter
 		TestEqual(FString::Printf(TEXT("%s extension"), *Case.Value), Extension, Case.Value);
 		TestEqual(FString::Printf(TEXT("%s includes hit only"), *Case.Value), PointCount, 1);
 		TestTrue(FString::Printf(TEXT("%s has bytes"), *Case.Value), !Bytes.IsEmpty());
+	}
+
+	{
+		FVirtualSensorStreamConfig Config;
+		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CompactBinary;
+		FString Extension, Error;
+		TArray<uint8> Bytes;
+		int32 PointCount = 0;
+		TestTrue(TEXT("compact binary serialization succeeds"),
+			UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, PointCount, Error));
+		TestEqual(TEXT("compact binary extension"), Extension, FString(TEXT("vlb2")));
+		TestEqual(TEXT("compact binary includes the valid point"), PointCount, 1);
+		TestTrue(TEXT("compact binary includes a header and point record"), Bytes.Num() > 32);
 	}
 
 	FVirtualSensorStreamConfig LazConfig;
