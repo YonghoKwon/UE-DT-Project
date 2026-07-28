@@ -467,6 +467,27 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
     float MeasuredCompletionRateHz = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    float RequestedAcquisitionRateHz = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    float MeasuredAcquisitionRateHz = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    float MeasuredOutputRateHz = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int32 DeadlineMissCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    FString RequestedAcquisitionBackend;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    FString ActiveAcquisitionBackend;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    FString AcquisitionBackendMessage;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     bool bAcquisitionInFlight = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")

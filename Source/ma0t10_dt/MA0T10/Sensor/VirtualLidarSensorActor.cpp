@@ -4,6 +4,7 @@
 #include "VirtualLidarScanComponent.h"
 #include "VirtualLidarAnalysisComponent.h"
 #include "VirtualLidarExportComponent.h"
+#include "VirtualLidarGpuDepthProjectionComponent.h"
 #include "VirtualLidarVisualizationComponent.h"
 #include "VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
@@ -18,6 +19,9 @@ AVirtualLidarSensorActor::AVirtualLidarSensorActor()
     AnalysisComponent = CreateDefaultSubobject<UVirtualLidarAnalysisComponent>(TEXT("LidarAnalysisComponent"));
     VisualizationComponent = CreateDefaultSubobject<UVirtualLidarVisualizationComponent>(TEXT("LidarVisualizationComponent"));
     ExportComponent = CreateDefaultSubobject<UVirtualLidarExportComponent>(TEXT("LidarExportComponent"));
+    GpuDepthProjectionComponent = CreateDefaultSubobject<UVirtualLidarGpuDepthProjectionComponent>(TEXT("LidarGpuDepthProjectionComponent"));
+    GpuDepthProjectionComponent->SetupAttachment(ScanComponent);
+    ScanComponent->BindGpuDepthProjectionComponent(GpuDepthProjectionComponent);
 
     EditorForwardArrowComp = CreateDefaultSubobject<UArrowComponent>(TEXT("EditorForwardArrowComp"));
     EditorForwardArrowComp->SetupAttachment(RootComponent);
@@ -233,7 +237,10 @@ void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTex
     Frame.TimestampUtc = FDateTime::UtcNow();
     Frame.SchemaVersion = TEXT("virtual-lidar.v1");
     Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
-    Frame.PointSnapshot = ScanComponent->GetLastPointSnapshot();
+    Frame.LidarFrameSnapshot = ScanComponent->GetLastFrameSnapshot();
+    Frame.PointSnapshot = Frame.LidarFrameSnapshot.IsValid()
+        ? Frame.LidarFrameSnapshot->Points
+        : ScanComponent->GetLastPointSnapshot();
     Frame.bSendTransport = PendingExternalSendTransport.IsSet() ? PendingExternalSendTransport.GetValue() : true;
     Frame.bRecord = true;
     PendingExternalSendTransport.Reset();

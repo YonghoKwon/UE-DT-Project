@@ -131,6 +131,7 @@ void UVirtualCameraCaptureComponent::EndPlay(const EEndPlayReason::Type EndPlayR
     StopCapture();
     ++ScheduledGeneration;
     ScheduledReadback.Reset();
+    bScheduledReadbackInFlight = false;
     Super::EndPlay(EndPlayReason);
 }
 
@@ -201,18 +202,14 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     if (NextScheduledCaptureTime < 0.0 || NowSeconds + KINDA_SMALL_NUMBER < NextScheduledCaptureTime) return false;
 
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(CaptureInterval));
+    RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
+    RuntimeStatus.RequestedAcquisitionBackend = TEXT("scene_capture_gpu");
+    RuntimeStatus.ActiveAcquisitionBackend = TEXT("scene_capture_gpu");
     do { NextScheduledCaptureTime += SafeInterval; } while (NextScheduledCaptureTime <= NowSeconds);
 
-    // A queued readback/encode already represents the newest completed capture.
-    // Avoid rendering another SceneCapture frame that would be discarded before
-    // readback; this is the main GPU backpressure boundary for FullSpec cameras.
-    if (ShouldGeneratePayload() && (bScheduledCaptureAwaitingReadback || ScheduledReadback.IsValid() || bScheduledEncodeInFlight))
-    {
-        ++RuntimeStatus.DroppedDerivedFrameCount;
-        RuntimeStatus.bDerivedWorkInFlight = true;
-        UpdateRuntimeStatus(RuntimeStatus.LastPayloadLength, TEXT("최신 프레임 우선: GPU 캡처와 후처리 생략"));
-        return false;
-    }
+    // Keep acquisition independent from bounded readback/JPEG work.
+    const bool bDerivedBackpressured = ShouldGeneratePayload()
+        && (bScheduledCaptureAwaitingReadback || bScheduledReadbackInFlight || bScheduledEncodeInFlight);
 
     const double CaptureStart = FPlatformTime::Seconds();
     EnsureRenderTarget();
@@ -220,6 +217,10 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     ++FrameId;
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - CaptureStart) * 1000.0);
     RuntimeStatus.bAcquisitionInFlight = false;
+    RuntimeStatus.MeasuredAcquisitionRateHz = LastAcquisitionCompletionTime >= 0.0
+        ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastAcquisitionCompletionTime))
+        : 0.0f;
+    LastAcquisitionCompletionTime = NowSeconds;
 
     if (!ShouldGeneratePayload())
     {
@@ -227,6 +228,16 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
         LastScheduledCompletionTime = NowSeconds;
         RuntimeStatus.MeasuredCompletionRateHz = PreviousCompletion >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - PreviousCompletion)) : 0.0f;
         UpdateRuntimeStatus(0, TEXT("비동기 미리보기"));
+        OnFrameCaptured.Broadcast(TEXT(""), CameraRenderTarget);
+        return true;
+    }
+
+    if (bDerivedBackpressured)
+    {
+        ++RuntimeStatus.DroppedDerivedFrameCount;
+        RuntimeStatus.bDerivedWorkInFlight = true;
+        RuntimeStatus.AcquisitionBackendMessage = TEXT("SceneCapture completed; stale JPEG/readback work was replaced");
+        UpdateRuntimeStatus(RuntimeStatus.LastPayloadLength, TEXT("측정 완료, 파생 출력은 최신 프레임 우선으로 생략"));
         OnFrameCaptured.Broadcast(TEXT(""), CameraRenderTarget);
         return true;
     }
@@ -252,25 +263,30 @@ void UVirtualCameraCaptureComponent::QueueScheduledGpuReadback(double NowSeconds
 
     ScheduledReadbackWidth = CameraRenderTarget->SizeX;
     ScheduledReadbackHeight = CameraRenderTarget->SizeY;
-    ScheduledReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualCameraScheduledReadback"));
+    if (!ScheduledReadback.IsValid())
+    {
+        ScheduledReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualCameraScheduledReadback"));
+    }
     TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = ScheduledReadback;
     ENQUEUE_RENDER_COMMAND(VirtualCameraScheduledReadback)([Readback, Texture](FRHICommandListImmediate& RHICmdList)
     {
         if (Readback.IsValid() && Texture.IsValid()) Readback->EnqueueCopy(RHICmdList, Texture);
     });
+    bScheduledReadbackInFlight = true;
     RuntimeStatus.bAcquisitionInFlight = true;
     RuntimeStatus.bDerivedWorkInFlight = true;
 }
 
 void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 {
-    if (!ScheduledReadback.IsValid() || !ScheduledReadback->IsReady()) return;
+    if (!ScheduledReadback.IsValid() || !bScheduledReadbackInFlight || !ScheduledReadback->IsReady()) return;
     int32 RowPitchInPixels = 0;
     void* LockedData = ScheduledReadback->Lock(RowPitchInPixels);
     if (!LockedData || RowPitchInPixels < ScheduledReadbackWidth || ScheduledReadbackWidth <= 0 || ScheduledReadbackHeight <= 0)
     {
         if (LockedData) ScheduledReadback->Unlock();
         ScheduledReadback.Reset();
+        bScheduledReadbackInFlight = false;
         RuntimeStatus.bAcquisitionInFlight = false;
         RuntimeStatus.bDerivedWorkInFlight = false;
         ++RuntimeStatus.DroppedDerivedFrameCount;
@@ -285,7 +301,7 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
         FMemory::Memcpy(RawPixels.GetData() + Y * ScheduledReadbackWidth, SourcePixels + Y * RowPitchInPixels, ScheduledReadbackWidth * sizeof(FColor));
     }
     ScheduledReadback->Unlock();
-    ScheduledReadback.Reset();
+    bScheduledReadbackInFlight = false;
     RuntimeStatus.bAcquisitionInFlight = false;
     StartScheduledEncode(MoveTemp(RawPixels), ScheduledReadbackWidth, ScheduledReadbackHeight, ScheduledReadbackFrameId, ScheduledCaptureStartTime);
 }
@@ -372,6 +388,10 @@ void UVirtualCameraCaptureComponent::CompleteScheduledEncode(int64 CapturedFrame
 
     const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
     RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;
+    RuntimeStatus.MeasuredOutputRateHz = LastOutputCompletionTime >= 0.0
+        ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastOutputCompletionTime))
+        : 0.0f;
+    LastOutputCompletionTime = NowSeconds;
     LastScheduledCompletionTime = NowSeconds;
     LastJpegSnapshot = MakeShared<const TArray64<uint8>, ESPMode::ThreadSafe>(MoveTemp(JpegBytes));
     UpdateRuntimeStatus(LastJsonPayload.Len(), StatusMessage);

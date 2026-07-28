@@ -15,7 +15,9 @@ class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorSchedulerSubsystem;
 class UVirtualLidarSurfaceResponseComponent;
+class UVirtualLidarGpuDepthProjectionComponent;
 struct FVirtualLidarV2EncodeOptions;
+struct FVirtualLidarDepthAcquisitionFrame;
 
 UENUM(BlueprintType)
 enum class ELidarPointCloudPreviewBackend : uint8
@@ -80,7 +82,8 @@ public:
     void PrepareScheduledScan(double NowSeconds);
     int32 ProcessScheduledScanChunk(int32 MaxRays);
 	void RequestImmediateScheduledScan();
-	void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
+    void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
+    void BindGpuDepthProjectionComponent(UVirtualLidarGpuDepthProjectionComponent* InComponent);
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Lidar; }
     virtual bool IsScheduledTaskActive() const override { return IsScanRunning(); }
@@ -288,6 +291,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
     EVirtualSensorSimulationQuality GetSimulationQuality() const { return SimulationQuality; }
+
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
+    EVirtualLidarAcquisitionBackend GetActiveAcquisitionBackend() const { return ActiveAcquisitionBackend; }
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
@@ -540,6 +546,10 @@ public:
 
 private:
 	void PublishLastFrameSnapshot(const FTransform& AcquisitionTransform, int32 InHorizontalSamples, int32 InVerticalChannels, float InMaxDistanceCm);
+    EVirtualLidarAcquisitionBackend ResolveAcquisitionBackend(FString& OutReason) const;
+    bool BeginGpuDepthScan(double NowSeconds);
+    int32 ProcessGpuDepthScan();
+    void ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame);
     void BuildBeamAngleTables(int32 InHorizontalSamples, int32 InVerticalChannels, TArray<float>& OutHorizontalAngles, TArray<float>& OutVerticalAngles) const;
     void InitializePhysicalPoint(FVirtualLidarPoint& Point, int32 Row, int32 Col, int32 RayIndex, int32 RayCount, const FVector& LocalDirection) const;
     bool ApplyPhysicalHitModel(FVirtualLidarPoint& Point, const FHitResult& Hit, const FVector& WorldDirection, const FTransform& AcquisitionTransform, int32 RayIndex, int32 ReturnIndex) const;
@@ -637,6 +647,7 @@ private:
     double NextScheduledScanTime = -1.0;
     double ScheduledScanStartTime = -1.0;
     double LastScheduledCompletionTime = -1.0;
+    double LastScheduledOutputTime = -1.0;
     FTransform ScheduledScanTransform = FTransform::Identity;
     int32 ScheduledScanWidth = 0;
     int32 ScheduledScanHeight = 0;
@@ -650,6 +661,7 @@ private:
     bool bGpuPreviewBackendRuntimeRequested = false;
     FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
+    bool bGpuDepthScanInProgress = false;
     bool bScheduledPayloadBuildInFlight = false;
     bool bScheduledAutoExportInFlight = false;
     bool bScheduledPayloadRefreshPending = false;
@@ -660,4 +672,7 @@ private:
     int32 ScheduledHitPointCount = 0;
     TMap<FString, int32> ScheduledSemanticCounts;
     mutable TMap<TWeakObjectPtr<UPrimitiveComponent>, FSurfaceResponseCacheEntry> SurfaceResponseCache;
+    TWeakObjectPtr<UVirtualLidarGpuDepthProjectionComponent> GpuDepthProjectionComponent;
+    EVirtualLidarAcquisitionBackend ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+    FString AcquisitionBackendFallbackReason;
 };

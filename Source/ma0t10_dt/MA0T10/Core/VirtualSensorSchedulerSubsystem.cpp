@@ -42,7 +42,19 @@ bool UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(int32 CameraCou
 
 float UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(int32 TargetFps, int32 CameraCount)
 {
-    return CameraCount > 0 ? 12.0f / static_cast<float>(CameraCount) : 0.0f;
+    return CameraCount > 0
+        ? FMath::Min(
+            30.0f,
+            static_cast<float>(TargetFps * ResolveCameraCapturesPerFrame(TargetFps, CameraCount))
+                / static_cast<float>(CameraCount))
+        : 0.0f;
+}
+
+int32 UVirtualSensorSchedulerSubsystem::ResolveCameraCapturesPerFrame(int32 TargetFps, int32 CameraCount)
+{
+    if (CameraCount <= 0) return 0;
+    if (CameraCount <= 2) return 1;
+    return TargetFps <= 30 ? 2 : 1;
 }
 
 float UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(float CurrentHz, float ObservedFrameMs, int32 TargetFps, float MinimumAdmissionHz)
@@ -175,41 +187,42 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     const float TailFrameMs = Telemetry.P95FrameTimeMs > 0.0f ? Telemetry.P95FrameTimeMs : InstantFrameMs;
     const float OnePercentFrameMs = Telemetry.OnePercentLowFps > SMALL_NUMBER ? 1000.0f / Telemetry.OnePercentLowFps : InstantFrameMs;
     const float ObservedFrameMs = FMath::Max3(InstantFrameMs, TailFrameMs, OnePercentFrameMs);
-    // FullSpec SceneCapture and CPU ray tracing contend for both render and
-    // memory bandwidth. Keep the camera-only floor responsive, but allow the
-    // mixed Camera+LiDAR tier to shed more stale camera frames before it
-    // sacrifices the game-frame target.
-    // Keep a small scheduling margin above the evidence threshold. An exact
-    // 10 Hz aggregate floor can measure as 4.98-4.99 Hz per camera because of
-    // frame-boundary jitter even when no acquisition was skipped.
-    const float CameraAdmissionFloorHz = Cameras.Num() > 0
-        ? FMath::Min(12.0f, Cameras.Num() <= 2 ? 10.5f : 2.625f * static_cast<float>(FMath::Min(4, Cameras.Num())))
-        : 0.0f;
-    EffectiveAggregateCameraCaptureHz = ResolveAdaptiveCameraAdmissionHz(
-        EffectiveAggregateCameraCaptureHz,
-        ObservedFrameMs,
-        TargetFps,
-        CameraAdmissionFloorHz);
-    EffectiveAggregateCameraCaptureHz = FMath::Min(12.0f, EffectiveAggregateCameraCaptureHz);
+    EffectiveAggregateCameraCaptureHz =
+        ResolveNominalCameraRatePerSensor(TargetFps, Cameras.Num()) * Cameras.Num();
 
     for (const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Camera : Cameras)
     {
         if (Camera.IsValid()) Camera->TickScheduledCapture(NowSeconds, false);
     }
-    // Admit at most one new SceneCapture per game frame. At the supported
-    // 60-FPS tier this gives two FullSpec cameras a fair nominal 30 Hz each,
-    // while per-sensor readback/encode backpressure still drops stale work.
-    if (Cameras.Num() > 0 && (LastCameraCaptureAdmissionTime < 0.0 ||
-        NowSeconds - LastCameraCaptureAdmissionTime >= 1.0 / FMath::Max(1.0f, EffectiveAggregateCameraCaptureHz)))
+    // Acquisition is independent from bounded readback/JPEG output. Two
+    // SceneCaptures per frame are allowed for the 4-camera/30-FPS tier.
+    int32 CameraCapturesThisFrame = ResolveCameraCapturesPerFrame(TargetFps, Cameras.Num());
+    if (ObservedFrameMs > TargetFrameMs * 1.10f)
     {
-        for (int32 Attempt = 0; Attempt < Cameras.Num(); ++Attempt)
+        CameraCapturesThisFrame = FMath::Min(CameraCapturesThisFrame, 1);
+    }
+    int32 CameraAdmissions = 0;
+    int32 CameraAttempts = 0;
+    while (Cameras.Num() > 0
+        && CameraAdmissions < CameraCapturesThisFrame
+        && CameraAttempts < Cameras.Num())
+    {
+        const int32 Index = NextCameraIndex % Cameras.Num();
+        NextCameraIndex = (Index + 1) % Cameras.Num();
+        ++CameraAttempts;
+        if (Cameras[Index].IsValid() && Cameras[Index]->TickScheduledCapture(NowSeconds, true))
         {
-            const int32 Index = (NextCameraIndex + Attempt) % Cameras.Num();
-            if (Cameras[Index].IsValid() && Cameras[Index]->TickScheduledCapture(NowSeconds, true))
+            ++CameraAdmissions;
+            LastCameraCaptureAdmissionTime = NowSeconds;
+        }
+    }
+    if (CameraAdmissions >= CameraCapturesThisFrame && CameraCapturesThisFrame > 0)
+    {
+        for (const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Camera : Cameras)
+        {
+            if (Camera.IsValid() && Camera->IsScheduledCaptureDue(NowSeconds))
             {
-                LastCameraCaptureAdmissionTime = NowSeconds;
-                NextCameraIndex = (Index + 1) % Cameras.Num();
-                break;
+                Camera->MarkBudgetSkippedAcquisition();
             }
         }
     }
@@ -284,41 +297,49 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
             if (!Camera.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Camera->GetRuntimeStatus();
             UE_LOG(LogTemp, Display,
-                TEXT("[VirtualSensorPerfSensor] kind=Camera sensorId=%s width=%d height=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d"),
+                TEXT("[VirtualSensorPerfSensor] kind=Camera sensorId=%s width=%d height=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d backend=%s"),
                 *Camera->SensorId,
                 Camera->CaptureResolution.X,
                 Camera->CaptureResolution.Y,
-                Status.MeasuredCompletionRateHz,
+                Status.RequestedAcquisitionRateHz,
+                Status.MeasuredAcquisitionRateHz,
+                Status.MeasuredOutputRateHz,
                 Status.LastAcquisitionDurationMs,
                 Status.LastPostProcessDurationMs,
                 Status.bAcquisitionInFlight ? 1 : 0,
                 Status.bDerivedWorkInFlight ? 1 : 0,
                 Status.DroppedAcquisitionFrameCount,
                 Status.DroppedDerivedFrameCount,
+                Status.DeadlineMissCount,
                 Status.BudgetSkippedAcquisitionFrameCount,
                 Status.FailedAcquisitionFrameCount,
-                Status.QueueOverflowCount);
+                Status.QueueOverflowCount,
+                *Status.ActiveAcquisitionBackend);
         }
         for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
         {
             if (!Lidar.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
             UE_LOG(LogTemp, Display,
-                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d rateHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d"),
+                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d backend=%s"),
                 *Lidar->SensorId,
                 Lidar->HorizontalSamples,
                 Lidar->VerticalChannels,
                 Lidar->HorizontalSamples * Lidar->VerticalChannels,
-                Status.MeasuredCompletionRateHz,
+                Status.RequestedAcquisitionRateHz,
+                Status.MeasuredAcquisitionRateHz,
+                Status.MeasuredOutputRateHz,
                 Status.LastAcquisitionDurationMs,
                 Status.LastPostProcessDurationMs,
                 Status.bAcquisitionInFlight ? 1 : 0,
                 Status.bDerivedWorkInFlight ? 1 : 0,
                 Status.DroppedAcquisitionFrameCount,
                 Status.DroppedDerivedFrameCount,
+                Status.DeadlineMissCount,
                 Status.BudgetSkippedAcquisitionFrameCount,
                 Status.FailedAcquisitionFrameCount,
-                Status.QueueOverflowCount);
+                Status.QueueOverflowCount,
+                *Status.ActiveAcquisitionBackend);
         }
     }
 }
@@ -342,6 +363,23 @@ void UVirtualSensorSchedulerSubsystem::ConfigureCommandLineBenchmarkIfRequested(
     RequestedLidars = FMath::Clamp(RequestedLidars, 0, 16);
     FString RequestedLidarRenderer = TEXT("Niagara");
     FParse::Value(FCommandLine::Get(), TEXT("VirtualSensorPerfLidarRenderer="), RequestedLidarRenderer);
+    FString RequestedLidarProfile = TEXT("Mid360");
+    FParse::Value(FCommandLine::Get(), TEXT("VirtualSensorPerfLidarProfile="), RequestedLidarProfile);
+    FString RequestedLidarAcquisition = TEXT("Auto");
+    FParse::Value(FCommandLine::Get(), TEXT("VirtualSensorPerfLidarAcquisition="), RequestedLidarAcquisition);
+
+    const EVirtualLidarDeviceProfile BenchmarkProfile =
+        RequestedLidarProfile.Equals(TEXT("MLX80Native"), ESearchCase::IgnoreCase)
+            ? EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE
+            : RequestedLidarProfile.Equals(TEXT("MLX80Integration"), ESearchCase::IgnoreCase)
+                ? EVirtualLidarDeviceProfile::IYOBOT_MLX80
+                : EVirtualLidarDeviceProfile::LivoxMid360S;
+    const EVirtualLidarAcquisitionBackend BenchmarkAcquisition =
+        RequestedLidarAcquisition.Equals(TEXT("Cpu"), ESearchCase::IgnoreCase)
+            ? EVirtualLidarAcquisitionBackend::AccurateCpuTrace
+            : RequestedLidarAcquisition.Equals(TEXT("Gpu"), ESearchCase::IgnoreCase)
+                ? EVirtualLidarAcquisitionBackend::GpuDepthProjection
+                : EVirtualLidarAcquisitionBackend::Auto;
 
     const TArray<TWeakObjectPtr<UVirtualCameraCaptureComponent>> ExistingCameras = Cameras;
     const TArray<TWeakObjectPtr<UVirtualLidarScanComponent>> ExistingLidars = Lidars;
@@ -367,7 +405,9 @@ void UVirtualSensorSchedulerSubsystem::ConfigureCommandLineBenchmarkIfRequested(
             Lidar->StopScan();
             continue;
         }
+        Lidar->ApplyDeviceProfile(BenchmarkProfile);
         Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+        Lidar->AcquisitionBackend = BenchmarkAcquisition;
         Lidar->bUseMultiHit = false;
         Lidar->bExportCsvOnScan = false;
         Lidar->bExportJsonLinesOnScan = false;
@@ -412,8 +452,9 @@ void UVirtualSensorSchedulerSubsystem::ConfigureCommandLineBenchmarkIfRequested(
         Lidar->SensorId = FString::Printf(TEXT("BENCH-LIDAR-%02d"), Index + 1);
         Lidar->bAutoRegisterToManager = false;
         Lidar->bApplyDeviceProfileOnBeginPlay = false;
-        Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::LivoxMid360S);
+        Lidar->ApplyDeviceProfile(BenchmarkProfile);
         Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+        Lidar->AcquisitionBackend = BenchmarkAcquisition;
         Lidar->bUseMultiHit = false;
         Lidar->bExportCsvOnScan = false;
         Lidar->bExportJsonLinesOnScan = false;
@@ -454,7 +495,15 @@ void UVirtualSensorSchedulerSubsystem::ConfigureCommandLineBenchmarkIfRequested(
         if (!bSelected || bOff) Lidar->SetPointCloudPreviewEnabled(false);
     }
 
-    UE_LOG(LogTemp, Display, TEXT("[VirtualSensorPerf] command-line FullSpec benchmark requested camera=%d lidar=%d renderer=%s"), RequestedCameras, RequestedLidars, *RequestedLidarRenderer);
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("[VirtualSensorPerf] command-line FullSpec benchmark requested camera=%d lidar=%d renderer=%s profile=%s acquisition=%s"),
+        RequestedCameras,
+        RequestedLidars,
+        *RequestedLidarRenderer,
+        *RequestedLidarProfile,
+        *RequestedLidarAcquisition);
 }
 
 void UVirtualSensorSchedulerSubsystem::RefreshFrameStatistics()
@@ -516,10 +565,13 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
         if (!Camera.IsValid()) continue;
         const FVirtualSensorRuntimeStatus& Status = Camera->GetRuntimeStatus();
         Accumulate(Status);
-        if (Status.MeasuredCompletionRateHz > SMALL_NUMBER)
+        const float AcquisitionHz = Status.MeasuredAcquisitionRateHz > SMALL_NUMBER
+            ? Status.MeasuredAcquisitionRateHz
+            : Status.MeasuredCompletionRateHz;
+        if (AcquisitionHz > SMALL_NUMBER)
         {
-            CameraMinHz = FMath::Min(CameraMinHz, Status.MeasuredCompletionRateHz);
-            CameraMaxHz = FMath::Max(CameraMaxHz, Status.MeasuredCompletionRateHz);
+            CameraMinHz = FMath::Min(CameraMinHz, AcquisitionHz);
+            CameraMaxHz = FMath::Max(CameraMaxHz, AcquisitionHz);
         }
     }
     for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
@@ -527,10 +579,13 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
         if (!Lidar.IsValid()) continue;
         const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
         Accumulate(Status);
-        if (Status.MeasuredCompletionRateHz > SMALL_NUMBER)
+        const float AcquisitionHz = Status.MeasuredAcquisitionRateHz > SMALL_NUMBER
+            ? Status.MeasuredAcquisitionRateHz
+            : Status.MeasuredCompletionRateHz;
+        if (AcquisitionHz > SMALL_NUMBER)
         {
-            LidarMinHz = FMath::Min(LidarMinHz, Status.MeasuredCompletionRateHz);
-            LidarMaxHz = FMath::Max(LidarMaxHz, Status.MeasuredCompletionRateHz);
+            LidarMinHz = FMath::Min(LidarMinHz, AcquisitionHz);
+            LidarMaxHz = FMath::Max(LidarMaxHz, AcquisitionHz);
         }
     }
     Telemetry.CameraCompletionFairnessRatio = CameraMinHz < TNumericLimits<float>::Max() && CameraMinHz > SMALL_NUMBER ? CameraMaxHz / CameraMinHz : 1.0f;
