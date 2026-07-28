@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "VirtualLidarSensorTypes.generated.h"
 
 UENUM(BlueprintType)
@@ -183,8 +184,102 @@ struct MA0T10_DT_API FVirtualLidarVisualizationSettings
 	float ForwardSliceThicknessCm = 100.0f;
 };
 
+UENUM(BlueprintType)
+enum class EVirtualLidarEchoType : uint8
+{
+    None UMETA(DisplayName = "None"),
+    Single UMETA(DisplayName = "Single"),
+    First UMETA(DisplayName = "First"),
+    Strongest UMETA(DisplayName = "Strongest"),
+    Last UMETA(DisplayName = "Last")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualLidarPointValidity : uint8
+{
+    Valid UMETA(DisplayName = "Valid"),
+    NoReturn UMETA(DisplayName = "No Return"),
+    BelowSignalThreshold UMETA(DisplayName = "Below Signal Threshold"),
+    Saturated UMETA(DisplayName = "Saturated"),
+    OutOfRange UMETA(DisplayName = "Out Of Range"),
+    InvalidCalibration UMETA(DisplayName = "Invalid Calibration")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualLidarTimeSyncState : uint8
+{
+    Unsynchronized UMETA(DisplayName = "Unsynchronized"),
+    SimulationClock UMETA(DisplayName = "Simulation Clock"),
+    PtpSimulated UMETA(DisplayName = "PTP Simulated"),
+    HardwarePtpLocked UMETA(DisplayName = "Hardware PTP Locked")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualLidarEchoSelectionPolicy : uint8
+{
+    FirstOnly UMETA(DisplayName = "First Only"),
+    StrongestOnly UMETA(DisplayName = "Strongest Only"),
+    FirstAndLast UMETA(DisplayName = "First And Last"),
+    AllAvailable UMETA(DisplayName = "All Available")
+};
+
+/**
+ * Hardware-shaped measurement fields. Coordinates and ranges intentionally use
+ * SI-friendly sensor-local units so they can be compared with a real device.
+ */
 USTRUCT(BlueprintType)
-struct MA0T10_DT_API FVirtualLidarPoint
+struct MA0T10_DT_API FVirtualPhysicalLidarPoint
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    FVector SensorLocalPositionMeters = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 RangeMillimeters = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 RawIntensity = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    float NormalizedIntensity = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 Ring = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 HorizontalIndex = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 EchoIndex = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 EchoCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    EVirtualLidarEchoType EchoType = EVirtualLidarEchoType::None;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int64 PointTimeOffsetNanoseconds = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    EVirtualLidarPointValidity Validity = EVirtualLidarPointValidity::NoReturn;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    float Confidence = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    float SurfaceReflectivity = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    float IncidenceCosine = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    float AmbientLux = 0.0f;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarPoint : public FVirtualPhysicalLidarPoint
 {
     GENERATED_BODY()
 
@@ -223,6 +318,66 @@ struct MA0T10_DT_API FVirtualLidarPoint
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
     FName SemanticLabel = NAME_None;
+};
+
+/**
+ * Immutable hardware-shaped frame header. Points are shared with the legacy
+ * digital-twin frame so preview, codecs and exports do not copy full frames.
+ */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualPhysicalLidarFrame
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    FString SchemaVersion = TEXT("virtual-lidar.v2");
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    FString ProfileKey = TEXT("generic");
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    FString CalibrationId = TEXT("none");
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    FString FirmwareVersion = TEXT("simulation");
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    FString CoordinateConvention = TEXT("sensor-local RH X-forward Y-left Z-up, meters");
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int64 AcquisitionStartUnixNanoseconds = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int64 AcquisitionEndUnixNanoseconds = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 RequestedRayCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 ValidPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 InvalidPointCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 FirstEchoCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    int32 SecondEchoCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    EVirtualSensorFidelityMode FidelityMode = EVirtualSensorFidelityMode::IdealTruth;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    EVirtualLidarAcquisitionBackend AcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    EVirtualLidarTimeSyncState TimeSyncState = EVirtualLidarTimeSyncState::SimulationClock;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
+    bool bProtocolVerifiedAgainstHardware = false;
+
+    TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points;
 };
 
 USTRUCT(BlueprintType)
@@ -334,9 +489,8 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 };
 
 /** Immutable point frame and the exact pose/settings used to acquire it. */
-struct MA0T10_DT_API FVirtualLidarFrameSnapshot
+struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFrame
 {
-	TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
 	int32 HorizontalSamples = 1;

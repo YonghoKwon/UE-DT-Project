@@ -157,7 +157,8 @@ FString CameraProfileText(EVirtualCameraDeviceProfile Profile)
 
 FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
 {
-    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80) return TEXT("아이요봇 ML-X(80)");
+    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80) return TEXT("아이요봇 ML-X(80) - 통합 200×56");
+    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE) return TEXT("아이요봇 ML-X(80) - 원본 사양");
     if (Profile == EVirtualLidarDeviceProfile::LivoxMid360S) return TEXT("Livox Mid-360S");
     return TEXT("Generic LiDAR");
 }
@@ -472,7 +473,8 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
     NativeLidarProfileOptions = {
         MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::Generic),
         MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::LivoxMid360S),
-        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80)
+        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80),
+        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE)
     };
     RestoreSettingsUiPreferences();
     return SNew(SBorder)
