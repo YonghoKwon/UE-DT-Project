@@ -181,7 +181,10 @@ team before the final endpoint is available.
 The V2 capture/export panel can publish three independent latest-frame streams:
 `virtual-lidar.v1` JSON, `virtual-camera.v1` JSON containing one Base64 JPEG,
 and a `virtual-pointcloud.v1` envelope containing the selected point-cloud
-format. Each sensor/stream key is bounded to one processing item and one
+format. High-rate ML-X streams should select compact `VLB2`; CSV/JSONL/PCD/LAS/LAZ
+remain compatibility and export formats. VLB2 carries `virtual-lidar.v2` physical
+fields but is still Base64-wrapped when sent through the current STOMP JSON
+compatibility transport. Each sensor/stream key is bounded to one processing item and one
 replaceable latest item. Automatic sends sample broker receipts (default every
 10 messages); consumer completion requires a correlated ACK topic response.
 See `docs/sensor_streaming.ko.md` and `Scripts/run_artemis_stream_smoke.ps1`.

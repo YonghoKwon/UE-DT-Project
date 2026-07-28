@@ -17,11 +17,11 @@
 |---|---|---|
 | LiDAR 값 | `topic.virtual.sensor.lidar.0` | 스캔 완료 시 `virtual-lidar.v1` JSON |
 | Camera 이미지 | `topic.virtual.sensor.camera.0` | 캡처 완료 시 Base64 JPEG가 포함된 `virtual-camera.v1` JSON 한 건 |
-| Point Cloud | `topic.virtual.sensor.export.0` | 스캔 완료 시 선택한 CSV/JSONL/PCD/LAS/LAZ 바이트를 Base64로 감싼 `virtual-pointcloud.v1` JSON |
+| Point Cloud | `topic.virtual.sensor.export.0` | 스캔 완료 시 선택한 Compact Binary(VLB2)/CSV/JSONL/PCD/LAS/LAZ 바이트를 Base64로 감싼 `virtual-pointcloud.v1` JSON |
 
 Camera 스트림은 JSON과 이미지 바이너리를 중복 전송하지 않습니다. 한 메시지에 메타데이터와 Base64 JPEG가 함께 들어갑니다. Point Cloud 스트림의 LAZ는 LAS 확장자만 바꾸지 않으며, 실제 LAZ 압축 실행 파일이 설정된 경우에만 동작하고 최대 1 Hz로 제한됩니다.
 
-Point Cloud 실시간 형식은 내보내기·로컬 캡처 형식과 별도 드롭다운으로 관리합니다. 형식을 바꾸면 진행 중인 이전 revision의 직렬화 결과는 폐기되고 다음 완료 프레임부터 새 형식이 적용됩니다. ML-X(80) FullSpec 20Hz에서 `전송 간격(프레임)=1`은 모든 완료 스캔을 대상으로 하고 `receipt 간격=10`은 정상 처리 시 약 0.5초마다 Broker receipt를 요청합니다. 직렬화나 대역폭이 따라오지 못해도 센서 측정을 막지 않고 최신 대기 한 프레임으로 교체합니다.
+Point Cloud 실시간 형식은 내보내기·로컬 캡처 형식과 별도 드롭다운으로 관리합니다. 고주기 전송은 물리 필드를 little-endian 고정 레코드로 보존하는 `Compact Binary(VLB2)`가 기본 권장값입니다. VLB2는 `virtual-lidar.v2`의 프로젝트 전송 규격이며 제조사 ML-X 패킷은 아닙니다. CSV/JSONL/PCD/LAS/LAZ는 호환·수동 내보내기 또는 저주기 스트림에 사용합니다. 형식을 바꾸면 진행 중인 이전 revision의 직렬화 결과는 폐기되고 다음 완료 프레임부터 새 형식이 적용됩니다. ML-X(80) FullSpec 20Hz에서 `전송 간격(프레임)=1`은 모든 완료 스캔을 대상으로 하고 `receipt 간격=10`은 정상 처리 시 약 0.5초마다 Broker receipt를 요청합니다. 직렬화나 대역폭이 따라오지 못해도 센서 측정을 막지 않고 최신 대기 한 프레임으로 교체합니다.
 
 ## 로컬 캡처 주기와 출력
 
@@ -53,7 +53,7 @@ Point Cloud 실시간 형식은 내보내기·로컬 캡처 형식과 별도 드
 |---|---|---|
 | LiDAR | `UVirtualLidarStreamReceiverTC` | schema, SensorId, FrameId, 측정·검출·Payload 점 수, 해상도와 points 배열 일관성 |
 | Camera | `UVirtualCameraStreamReceiverTC` | schema, 해상도, encoding, byteSize, image 존재와 JPEG 바이트 |
-| Point Cloud | `UVirtualPointCloudStreamReceiverTC` | schema, format, pointCount, byteCount, data와 CSV/JSONL/PCD/LAS/LAZ 형식 서명 |
+| Point Cloud | `UVirtualPointCloudStreamReceiverTC` | schema, format, pointCount, byteCount, data와 VLB2/CSV/JSONL/PCD/LAS/LAZ 형식 서명 |
 
 기존 송신 Body에는 `MESSAGE_ID`가 없으므로 이 수신기는 `DT_TransactionCode` 자동 분배에 등록하지 않습니다. 구독한 Topic이 Handler를 결정하며, 각 Handler는 `ParseToStruct`에서 백그라운드 파싱하고 `ProcessStructData`에서 게임 스레드 상태와 제한된 로그만 갱신합니다. 수신 프레임을 Sensor Actor에 주입하거나 다시 송신하지 않으므로 자체 수신이 재송신 루프를 만들지 않습니다.
 
