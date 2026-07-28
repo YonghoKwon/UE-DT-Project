@@ -95,6 +95,7 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 	CaptureSceneDeferred();
 	bAcquisitionActive = true;
 	bReadbackQueued = false;
+	AcquisitionSubmittedSeconds = FPlatformTime::Seconds();
 	StatusMessage = TEXT("GPU SceneDepth capture submitted");
 	return true;
 }
@@ -106,8 +107,15 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 	const FTextureRHIRef Texture = Resource ? Resource->GetRenderTargetTexture() : FTextureRHIRef();
 	if (!Texture.IsValid())
 	{
-		StatusMessage = TEXT("GPU SceneDepth texture unavailable");
-		bAcquisitionActive = false;
+		if (FPlatformTime::Seconds() - AcquisitionSubmittedSeconds > 1.0)
+		{
+			StatusMessage = TEXT("GPU SceneDepth texture initialization failed");
+			bAcquisitionActive = false;
+		}
+		else
+		{
+			StatusMessage = TEXT("GPU SceneDepth texture initialization pending");
+		}
 		return;
 	}
 

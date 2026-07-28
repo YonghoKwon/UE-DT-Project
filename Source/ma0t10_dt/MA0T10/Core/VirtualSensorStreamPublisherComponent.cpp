@@ -452,6 +452,10 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 
 void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame)
 {
+	if (Runtime.Status.InputFrameCount > 0 && Runtime.Status.LastInputFrameId == Frame.FrameId)
+	{
+		return;
+	}
 	++Runtime.Status.InputFrameCount;
 	Runtime.Status.LastInputFrameId = Frame.FrameId;
 	const double Now = FPlatformTime::Seconds();

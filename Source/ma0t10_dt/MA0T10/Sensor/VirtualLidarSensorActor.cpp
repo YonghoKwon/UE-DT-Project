@@ -132,6 +132,21 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         return;
     }
 
+    if (OutputComponent)
+    {
+        FVirtualSensorFrameEnvelope AcquiredFrame;
+        AcquiredFrame.SensorId = ScanComponent->SensorId;
+        AcquiredFrame.SensorKind = EVirtualSensorKind::Lidar;
+        AcquiredFrame.FrameId = Snapshot->FrameId;
+        AcquiredFrame.TimestampUtc = FDateTime::UtcNow();
+        AcquiredFrame.SchemaVersion = TEXT("virtual-lidar.v2");
+        AcquiredFrame.PointSnapshot = Snapshot->Points;
+        AcquiredFrame.LidarFrameSnapshot = Snapshot;
+        AcquiredFrame.bSendTransport = false;
+        AcquiredFrame.bRecord = false;
+        OutputComponent->RouteAcquiredFrame(AcquiredFrame);
+    }
+
     if (AnalysisComponent)
     {
         AnalysisComponent->ApplyPrecomputedStatistics(ScanComponent->GetLastHitPointCount(), ScanComponent->GetLastSemanticCounts());

@@ -21,6 +21,8 @@ public:
 
 	void SetSharedServices(UVirtualSensorTransportComponent* InTransport, UVirtualSensorRecorderComponent* InRecorder, UVirtualSensorStreamPublisherComponent* InStreamPublisher = nullptr);
 	bool RouteFrame(const FVirtualSensorFrameEnvelope& Frame);
+	/** Routes an immutable acquisition frame to bounded streams before optional legacy JSON is ready. */
+	bool RouteAcquiredFrame(const FVirtualSensorFrameEnvelope& Frame);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorOutput")
 	FString GetLastJsonPayload() const { return LastJsonPayload; }

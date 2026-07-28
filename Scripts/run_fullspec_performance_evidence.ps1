@@ -1,6 +1,7 @@
 param(
     [string]$ProjectRoot = "",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
+    [string]$MapPath = "/Game/MA0T10/Maps/SensorTestMap",
     [int]$CameraCount = 2,
     [int]$LidarCount = 2,
     [int]$WarmupSeconds = 10,
@@ -53,7 +54,7 @@ if (-not $SkipLaunch) {
     Remove-Item -LiteralPath $LogPath -Force -ErrorAction SilentlyContinue
     $arguments = @(
         "`"$projectPath`"",
-        "/Game/MA0T10/Maps/SensorTestMap",
+        $MapPath,
         "-game", "-windowed", "-ResX=1920", "-ResY=1080",
         "-NoSplash", "-NoSound", "-NoVSync", "-Unattended", "-RenderOffscreen",
         "-ExecCmds=`"t.IdleWhenNotForeground 0`"",
@@ -206,7 +207,7 @@ $lidarVisiblePointLimit = switch ($LidarRenderer) {
 
 $report = [PSCustomObject]@{
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString('o')
-    ProjectRoot = $ProjectRoot; LogPath = $LogPath; CameraCount = $CameraCount; LidarCount = $LidarCount
+    ProjectRoot = $ProjectRoot; LogPath = $LogPath; MapPath = $MapPath; CameraCount = $CameraCount; LidarCount = $LidarCount
     LidarRenderer = $LidarRenderer; LidarProfile = $LidarProfile; LidarAcquisition = $LidarAcquisition
     ExpectedLidarRays = $expectedLidarRays; LidarVisiblePointLimit = $lidarVisiblePointLimit
     WarmupSeconds = $WarmupSeconds; RequestedSampleSeconds = $SampleSeconds; Samples = $samples.Count
@@ -228,6 +229,7 @@ $markdown = @(
     '# FullSpec Virtual Sensor Performance Report', '',
     "Generated UTC: $($report.GeneratedUtc)", '',
     "- Scenario: Camera $CameraCount + LiDAR $LidarCount",
+    "- Map: $MapPath",
     "- LiDAR renderer: $LidarRenderer",
     "- LiDAR profile: $LidarProfile ($expectedLidarRays rays/frame)",
     "- LiDAR acquisition backend request: $LidarAcquisition",

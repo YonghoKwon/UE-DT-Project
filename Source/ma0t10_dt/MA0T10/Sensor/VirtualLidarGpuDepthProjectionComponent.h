@@ -52,5 +52,6 @@ private:
 	int32 PendingCaptureHeight = 0;
 	bool bAcquisitionActive = false;
 	bool bReadbackQueued = false;
+	double AcquisitionSubmittedSeconds = 0.0;
 	FString StatusMessage = TEXT("GPU depth backend idle");
 };

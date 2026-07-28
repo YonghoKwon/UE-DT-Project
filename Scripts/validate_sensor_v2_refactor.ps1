@@ -17,6 +17,7 @@ $requiredSource = @(
     "Source/ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h",
     "Source/ma0t10_dt/MA0T10/Camera/VirtualCameraPayloadCodec.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h",
+    "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorStressSceneActor.h",
     "Source/ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h",
     "Source/ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 )
@@ -49,6 +50,7 @@ if ($RequireAssets) {
         "Content/MA0T10/UI/WBP_VirtualSensorSettingsPanel.uasset",
         "Content/MA0T10/UI/WBP_VirtualSensorCaptureExportPanel.uasset",
         "Content/MA0T10/Maps/Tests/SensorRefactorTestMap.umap",
+        "Content/MA0T10/Maps/Tests/SensorScaleStressMap.umap",
         "Content/MA0T10/Maps/SensorTestMap.umap"
     )
     foreach ($relativePath in $requiredAssets) {

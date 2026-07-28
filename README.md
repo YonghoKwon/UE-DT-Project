@@ -126,6 +126,8 @@ FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용�
 
 성능 보고서는 요청 규격과 실제 acquisition Hz 및 파생 output Hz를 분리합니다. `run_fullspec_performance_evidence.ps1`의 `-LidarProfile Mid360|MLX80Integration|MLX80Native`와 `-LidarAcquisition Auto|Cpu|Gpu`로 프레임 형상과 백엔드를 명시합니다. FPS만 통과해도 센서별 최소 acquisition Hz, 공정성, queue overflow, acquisition 실패 기준을 만족하지 못하면 실패입니다. `budget skip`은 성능 예산을 지키기 위한 정상적인 최신 프레임 정책으로, 실제 처리 실패와 다르게 집계됩니다.
 
+대규모 장면 회귀는 `/Game/MA0T10/Maps/Tests/SensorScaleStressMap`을 사용합니다. `AVirtualSensorStressSceneActor` 하나가 HISM으로 10,000개 정적 primitive와 1,000개 이동 proxy를 구성하므로 11,000개의 Actor Tick을 만들지 않습니다. 맵을 다시 만들려면 Editor 빌드 후 `Scripts/setup_sensor_scale_stress_map.py`를 실행합니다.
+
 센서 Actor 계층은 `AInteractableActor → AVirtualSensorActorBase → AVirtualCameraSensorActor/AVirtualLidarSensorActor`이며 Camera·LiDAR 공용 Scheduler Subsystem은 `MA0T10/Core`에 위치합니다.
 
 ## 다른 Unreal 프로젝트로 이전

@@ -53,6 +53,20 @@ bool UVirtualSensorOutputComponent::RouteFrame(const FVirtualSensorFrameEnvelope
 	return true;
 }
 
+bool UVirtualSensorOutputComponent::RouteAcquiredFrame(const FVirtualSensorFrameEnvelope& Frame)
+{
+	if (Frame.SensorId.IsEmpty() || !StreamPublisherComponent)
+	{
+		return false;
+	}
+	if (!Frame.PointSnapshot.IsValid() && !Frame.BinaryPayload.IsValid())
+	{
+		return false;
+	}
+	StreamPublisherComponent->SubmitFrame(Frame);
+	return true;
+}
+
 FString UVirtualSensorOutputComponent::BuildSensorType(EVirtualSensorKind Kind) const
 {
 	return Kind == EVirtualSensorKind::Camera ? TEXT("virtual_camera") : TEXT("virtual_lidar");
