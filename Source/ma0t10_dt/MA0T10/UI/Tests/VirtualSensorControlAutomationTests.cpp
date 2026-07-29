@@ -77,7 +77,7 @@ bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
     Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80);
     Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
     const FVirtualSensorDeviceSpec& MlxSpec = Lidar->GetDeviceSpec();
-    TestEqual(TEXT("ML-X(80) model"), MlxSpec.Model, FString(TEXT("ML-X(80)")));
+    TestEqual(TEXT("ML-X(80) integration model"), MlxSpec.Model, FString(TEXT("ML-X(80) Integration 200")));
     TestEqual(TEXT("ML-X(80) maximum range cm"), Lidar->MaxDistance, 15000.0f);
     TestEqual(TEXT("ML-X(80) horizontal samples"), Lidar->HorizontalSamples, 200);
     TestEqual(TEXT("ML-X(80) vertical channels"), Lidar->VerticalChannels, 56);
@@ -86,12 +86,26 @@ bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("ML-X(80) minimum vertical angle"), Lidar->MinVerticalAngle, -11.65f);
     TestEqual(TEXT("ML-X(80) maximum vertical angle"), Lidar->MaxVerticalAngle, 11.65f);
     TestEqual(TEXT("ML-X(80) point rate"), MlxSpec.PointRate, 224000);
+    TestEqual(TEXT("ML-X(80) integration profile class"), Lidar->ProfileClass, EVirtualLidarProfileClass::IntegrationDownsampled);
 
     Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::Balanced);
     TestEqual(TEXT("ML-X(80) balanced horizontal samples"), Lidar->HorizontalSamples, 160);
     TestEqual(TEXT("ML-X(80) balanced vertical channels"), Lidar->VerticalChannels, 42);
     TestTrue(TEXT("ML-X(80) balanced rate is 15Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 1.0f / 15.0f));
     TestEqual(TEXT("ML-X(80) balanced preserves range"), Lidar->MaxDistance, 15000.0f);
+
+    Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
+    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+    const FVirtualSensorDeviceSpec& NativeSpec = Lidar->GetDeviceSpec();
+    TestEqual(TEXT("ML-X(80) native model"), NativeSpec.Model, FString(TEXT("ML-X(80) Native")));
+    TestEqual(TEXT("ML-X(80) native horizontal samples"), Lidar->HorizontalSamples, 576);
+    TestEqual(TEXT("ML-X(80) native vertical channels"), Lidar->VerticalChannels, 56);
+    TestTrue(TEXT("ML-X(80) native runs at 20Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 0.05f));
+    TestEqual(TEXT("ML-X(80) native point rate"), NativeSpec.PointRate, 645120);
+    TestEqual(TEXT("ML-X(80) native maximum echoes"), NativeSpec.MaxEchoesPerPixel, 2);
+    TestEqual(TEXT("ML-X(80) native profile class"), Lidar->ProfileClass, EVirtualLidarProfileClass::PublicSpecNative);
+    TestEqual(TEXT("ML-X(80) native fidelity is public spec based"), Lidar->FidelityMode, EVirtualSensorFidelityMode::PublicSpecBased);
+    TestFalse(TEXT("public profile never claims vendor protocol verification"), NativeSpec.bProtocolVerifiedAgainstHardware);
     return true;
 }
 

@@ -1,5 +1,22 @@
 # LiDAR Payload Schema v1
 
+## Physical frame: `virtual-lidar.v2`
+
+`virtual-lidar.v2` is the hardware-shaped contract used by the ML-X fidelity path. It keeps sensor measurements separate from project-only digital-twin metadata:
+
+- sensor-local right-handed XYZ in metres (`X forward, Y left, Z up`)
+- raw range in millimetres
+- raw and normalized Intensity
+- Ring/channel and horizontal sample index
+- Echo index/count/type
+- acquisition timestamp and per-point nanosecond offset
+- validity, confidence and miss reason
+- profile, calibration, firmware and time-sync identifiers
+
+Actor name/class/tags, `SemanticLabel`, world-space transform and Slab analysis are not hardware measurements. They are emitted only under `digitalTwinExtensions`. `virtual-lidar.v1` remains the compatibility payload used by existing Blueprints and Topic consumers.
+
+The compact `VLB2` stream begins with the `VLDR2` magic and fixed little-endian records containing the physical fields. This is a MA0T10 project contract, not a byte-for-byte claim about a proprietary ML-X packet. Until vendor SDK/packet documentation and a hardware Golden Dataset are validated, ML-X output is labelled `PublicSpecBased` and `bProtocolVerifiedAgainstHardware=false`.
+
 Schema version:
 
 ```text

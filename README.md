@@ -64,7 +64,9 @@ Camera 화면에서는 `단일 / 카메라 2대`를 선택할 수 있습니다. 
 
 ### 아이요봇 ML-X(80)
 
-Settings의 장비 프로필에서 `아이요봇 ML-X(80)`을 선택하면 FullSpec과 원본 사양이 한 트랜잭션으로 즉시 적용됩니다: 200×56, 0.05초(20Hz), 최대 15,000cm(150m), 수평 FOV 80°, 수직 -11.65°~11.65°입니다. 품질을 낮추면 거리와 FOV는 유지하고 샘플 밀도/주기만 Debug 50×14·5Hz, RealTimePreview 100×28·10Hz, Balanced 160×42·15Hz로 낮아집니다. 직접 수치를 바꾸면 품질은 `Custom`이 되며, 최대 거리 검증 상한은 20,000cm입니다.
+ML-X(80)은 두 프로필로 구분합니다. `ML-X(80) - Native`는 공개 FOV/각 해상도로 계산한 약 576×56, 0.05초(20Hz), 최대 15,000cm(150m), 최대 2 Echo이며 `원본 사양` 배지를 표시합니다. `ML-X(80) - Integration 200`은 기존 프로젝트 계약인 200×56·20Hz를 유지하는 `통합/다운샘플` 모드입니다. 두 모드 모두 수평 FOV 80°, 수직 -11.65°~11.65°를 사용하고 최대 거리 검증 상한은 20,000cm입니다.
+
+현재 구현은 `공개 사양 기반 에뮬레이션`입니다. 센서 로컬 XYZ(m), 거리(mm), Intensity, Ring/수평 인덱스, Echo, 점별 시간 오프셋, validity/confidence를 `virtual-lidar.v2`로 제공하고 Actor·Semantic·World Transform은 `digitalTwinExtensions`로 분리합니다. 다만 ML-X SDK, 패킷 명세, 캘리브레이션과 원시 캡처가 없으므로 제조사 패킷과 동일하다고 표기하지 않습니다. 실제 자료가 확보되면 `실장비 캘리브레이션 적용` 및 `프로토콜 검증 완료` 단계로 올립니다.
 
 Capture 탭의 `캡처 간격(초)`은 로컬 파일 저장 주기이며 Topic 스트림 주기와 독립적입니다. `센서 주기 사용`을 누르면 선택 센서의 현재 주기를 복사하므로 ML-X(80) FullSpec은 0.05초가 됩니다. Camera JPEG/Payload, LiDAR Payload/Point Cloud와 Point Cloud 파일 형식을 선택할 수 있습니다. 시간 지정 캡처는 별도 측정을 만들지 않고 최신 완료 프레임을 bounded 비동기 저장합니다.
 
@@ -104,7 +106,7 @@ LiDAR 모니터는 투영과 색상을 독립적으로 선택합니다.
 
 RangeImage 전용 오버레이인 적응형 거리·깊이 경계·격자는 TopDown/Elevation의 축·거리 원·높이 기준선과 별개입니다. 포인트 크기, 3D 표시 여부와 월드 조감도 자동 맞춤은 v6 UI SaveGame에 저장됩니다.
 
-FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera admission은 전체 12Hz 상한을 strict round-robin으로 공유하며, LiDAR trace는 60 FPS 단계 5ms·30 FPS 단계 7ms 상한을 사용하고 rolling p95와 1% low가 나빠지면 2.5ms까지 줄입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
+FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera acquisition은 2대 구성에서 센서별 최대 30Hz, 4대 구성에서 센서별 최대 15Hz를 공정하게 배분하며 JPEG/전송 출력률과 별도로 측정합니다. ML-X FullSpec `Auto`는 GPU Depth Projection을 우선하고 RHI가 없거나 초기화에 실패하면 Accurate CPU Trace로 전환합니다. GPU 방식은 첫 표면 대규모 측정용이고 CPU 방식은 정밀 회귀/MultiHit용입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
 
 ## 외부 Source와 서버 전송
 
@@ -122,7 +124,9 @@ FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용�
 - 상세 진단은 측정점·검출점·업로드점·표시점 수, 현재 렌더러, fallback/실패 사유, `검출점 없음`을 별도로 표시합니다.
 - 실제 RHI 회귀 검증은 `Scripts/run_point_cloud_rhi_smoke.ps1`을 사용합니다. D3D12에서 `SensorRefactorTestMap` PIE를 실행하고, 실제 hit과 CPU fallback ISM 인스턴스·월드 좌표·뷰포트 투영 영역을 검증한 후 PNG·JSON·Markdown·log를 `Saved/Reports/point_cloud_rhi_smoke.*`에 생성합니다.
 
-성능 보고서는 요청 규격(1280×720·30Hz, 360×60·10Hz)과 실제 완료 Hz를 분리합니다. FPS만 통과해도 Camera/LiDAR 최소 완료 Hz, 공정성, queue overflow, acquisition 실패 기준을 만족하지 못하면 실패입니다. `budget skip`은 성능 예산을 지키기 위한 정상적인 최신 프레임 정책으로, 실제 처리 실패와 다르게 집계됩니다.
+성능 보고서는 요청 규격과 실제 acquisition Hz 및 파생 output Hz를 분리합니다. `run_fullspec_performance_evidence.ps1`의 `-LidarProfile Mid360|MLX80Integration|MLX80Native`와 `-LidarAcquisition Auto|Cpu|Gpu`로 프레임 형상과 백엔드를 명시합니다. FPS만 통과해도 센서별 최소 acquisition Hz, 공정성, queue overflow, acquisition 실패 기준을 만족하지 못하면 실패입니다. `budget skip`은 성능 예산을 지키기 위한 정상적인 최신 프레임 정책으로, 실제 처리 실패와 다르게 집계됩니다.
+
+대규모 장면 회귀는 `/Game/MA0T10/Maps/Tests/SensorScaleStressMap`을 사용합니다. `AVirtualSensorStressSceneActor` 하나가 HISM으로 10,000개 정적 primitive와 1,000개 이동 proxy를 구성하므로 11,000개의 Actor Tick을 만들지 않습니다. 맵을 다시 만들려면 Editor 빌드 후 `Scripts/setup_sensor_scale_stress_map.py`를 실행합니다.
 
 센서 Actor 계층은 `AInteractableActor → AVirtualSensorActorBase → AVirtualCameraSensorActor/AVirtualLidarSensorActor`이며 Camera·LiDAR 공용 Scheduler Subsystem은 `MA0T10/Core`에 위치합니다.
 

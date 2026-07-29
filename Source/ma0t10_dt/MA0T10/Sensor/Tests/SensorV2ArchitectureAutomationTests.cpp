@@ -7,10 +7,12 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarAnalysisComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarExportComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorStressSceneActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
@@ -75,8 +77,12 @@ bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("LiDAR V2 analysis component"), Lidar->AnalysisComponent.Get());
 	TestNotNull(TEXT("LiDAR V2 visualization component"), Lidar->VisualizationComponent.Get());
 	TestNotNull(TEXT("LiDAR V2 export component"), Lidar->ExportComponent.Get());
+	TestNotNull(TEXT("LiDAR V2 GPU depth acquisition component"), Lidar->GpuDepthProjectionComponent.Get());
 	TestNotNull(TEXT("LiDAR V2 output component"), Lidar->OutputComponent.Get());
 	TestEqual(TEXT("LiDAR V2 kind"), Lidar->GetSensorKind(), EVirtualSensorKind::Lidar);
+	const AVirtualSensorStressSceneActor* StressScene = NewObject<AVirtualSensorStressSceneActor>();
+	TestEqual(TEXT("stress fixture defaults to ten thousand static primitives"), StressScene->StaticPrimitiveCount, 10000);
+	TestEqual(TEXT("stress fixture defaults to one thousand moving proxies"), StressScene->MovingProxyCount, 1000);
 	return true;
 }
 

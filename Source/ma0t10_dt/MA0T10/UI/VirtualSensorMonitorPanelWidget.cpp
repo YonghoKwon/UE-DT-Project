@@ -1288,6 +1288,33 @@ void UVirtualSensorMonitorPanelWidget::SetLidarWorldPointCloudEnabled(bool bEnab
     }
 }
 
+FString LidarFidelitySummary(const UVirtualLidarScanComponent* Lidar)
+{
+    if (!Lidar) return TEXT("LiDAR 충실도 정보 없음");
+    const TCHAR* ProfileBadge =
+        Lidar->ProfileClass == EVirtualLidarProfileClass::PublicSpecNative ? TEXT("원본 사양")
+        : Lidar->ProfileClass == EVirtualLidarProfileClass::IntegrationDownsampled ? TEXT("통합/다운샘플")
+        : Lidar->ProfileClass == EVirtualLidarProfileClass::UserCustom ? TEXT("사용자 설정")
+        : TEXT("일반");
+    const TCHAR* Fidelity =
+        Lidar->FidelityMode == EVirtualSensorFidelityMode::HardwareCalibrated ? TEXT("실장비 캘리브레이션")
+        : Lidar->FidelityMode == EVirtualSensorFidelityMode::PublicSpecBased ? TEXT("공개 사양 기반")
+        : Lidar->FidelityMode == EVirtualSensorFidelityMode::ReplayOrHardwareInput ? TEXT("Replay/실장비")
+        : TEXT("Ideal Truth");
+    const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
+    return FString::Printf(
+        TEXT("프로필 %s · 충실도 %s · 프로토콜 %s\n")
+        TEXT("요청 %.1fHz · 측정 %.1fHz · 출력 %.1fHz · deadline miss %d · backend %s"),
+        ProfileBadge,
+        Fidelity,
+        Lidar->GetDeviceSpec().bProtocolVerifiedAgainstHardware ? TEXT("검증 완료") : TEXT("미검증"),
+        Status.RequestedAcquisitionRateHz,
+        Status.MeasuredAcquisitionRateHz,
+        Status.MeasuredOutputRateHz,
+        Status.DeadlineMissCount,
+        *Status.ActiveAcquisitionBackend);
+}
+
 void UVirtualSensorMonitorPanelWidget::ConfigureLocalCapture(const FVirtualSensorCaptureSelection& Selection)
 {
 	LocalCaptureSelection = Selection;
@@ -1953,6 +1980,7 @@ FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
             Status.PerformanceWarning.IsEmpty() ? TEXT("없음") : *Status.PerformanceWarning,
             *Status.LastMessage);
         Text += TEXT("\n") + GetPointCloudRendererStatusText();
+        Text += TEXT("\n") + LidarFidelitySummary(LidarComp);
         Text += FString::Printf(
             TEXT("\n스캔 주기: %.3f초 · 광선=%d")
             TEXT("\n서버 Payload: 점=%d 바이트=%d 간격=%d 최대=%d 미검출점=%s")

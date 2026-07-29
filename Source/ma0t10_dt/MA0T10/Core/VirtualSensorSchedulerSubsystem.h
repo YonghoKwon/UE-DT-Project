@@ -112,6 +112,7 @@ public:
     static float ResolveLidarBudgetMs(int32 TargetFps);
     static bool IsBestEffortConfiguration(int32 CameraCount, int32 LidarCount);
     static float ResolveNominalCameraRatePerSensor(int32 TargetFps, int32 CameraCount);
+    static int32 ResolveCameraCapturesPerFrame(int32 TargetFps, int32 CameraCount);
     static float ResolveAdaptiveCameraAdmissionHz(float CurrentHz, float ObservedFrameMs, int32 TargetFps, float MinimumAdmissionHz = -1.0f);
 
 private:

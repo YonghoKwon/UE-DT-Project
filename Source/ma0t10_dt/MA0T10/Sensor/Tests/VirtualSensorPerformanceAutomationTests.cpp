@@ -21,8 +21,10 @@ bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("four of each sensor is not best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(4, 4));
     TestTrue(TEXT("five cameras is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(5, 2));
     TestTrue(TEXT("five lidars is best effort"), UVirtualSensorSchedulerSubsystem::IsBestEffortConfiguration(2, 5));
-    TestEqual(TEXT("two cameras share the aggregate 12 Hz admission cap"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 2), 6.0f);
-    TestEqual(TEXT("four cameras share the aggregate 12 Hz admission cap"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(30, 4), 3.0f);
+    TestEqual(TEXT("two cameras receive 30Hz acquisition capacity"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 2), 30.0f);
+    TestEqual(TEXT("four cameras receive 15Hz acquisition capacity"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(30, 4), 15.0f);
+    TestEqual(TEXT("two camera tier admits one capture per frame"), UVirtualSensorSchedulerSubsystem::ResolveCameraCapturesPerFrame(60, 2), 1);
+    TestEqual(TEXT("four camera tier admits two captures per frame"), UVirtualSensorSchedulerSubsystem::ResolveCameraCapturesPerFrame(30, 4), 2);
     TestEqual(TEXT("camera admission calculation is safe with no cameras"), UVirtualSensorSchedulerSubsystem::ResolveNominalCameraRatePerSensor(60, 0), 0.0f);
     TestTrue(TEXT("slow frames reduce camera admission"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(12.0f, 25.0f, 60) < 12.0f);
     TestTrue(TEXT("fast frames recover camera admission gradually"), UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(10.0f, 10.0f, 60) > 10.0f);

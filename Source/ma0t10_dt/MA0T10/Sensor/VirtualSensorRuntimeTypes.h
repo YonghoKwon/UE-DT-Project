@@ -26,7 +26,9 @@ enum class EVirtualPointCloudStreamFormat : uint8
 	JSONL,
 	PCD,
 	LAS,
-	LAZ
+	LAZ,
+	/** Compact little-endian virtual-lidar.v2 point records. Not a vendor packet. */
+	CompactBinary
 };
 
 USTRUCT(BlueprintType)
@@ -218,6 +220,8 @@ struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 	TSharedPtr<const FString, ESPMode::ThreadSafe> JsonPayload;
 	TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> BinaryPayload;
 	TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> PointSnapshot;
+	/** Shared immutable physical frame; preferred by binary codecs to avoid rebuilding metadata or copying points. */
+	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> LidarFrameSnapshot;
 	bool bSendTransport = true;
 	bool bRecord = true;
 

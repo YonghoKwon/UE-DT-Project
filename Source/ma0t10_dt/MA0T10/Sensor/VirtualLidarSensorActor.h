@@ -10,6 +10,7 @@ class UVirtualLidarScanComponent;
 class UVirtualLidarAnalysisComponent;
 class UVirtualLidarExportComponent;
 class UVirtualLidarVisualizationComponent;
+class UVirtualLidarGpuDepthProjectionComponent;
 
 UCLASS()
 class MA0T10_DT_API AVirtualLidarSensorActor : public AVirtualSensorActorBase
@@ -30,6 +31,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
     TObjectPtr<UVirtualLidarExportComponent> ExportComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
+    TObjectPtr<UVirtualLidarGpuDepthProjectionComponent> GpuDepthProjectionComponent;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|EditorVisualization")
     TObjectPtr<UArrowComponent> EditorForwardArrowComp;

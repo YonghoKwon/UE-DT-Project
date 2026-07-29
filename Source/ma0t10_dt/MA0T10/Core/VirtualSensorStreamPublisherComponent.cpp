@@ -12,6 +12,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarPayloadCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 namespace
@@ -78,8 +79,15 @@ bool SerializeLas(const TArray<FVirtualLidarPoint>& Source, TArray<uint8>& OutBy
 		WriteLasValue<int32>(Archive, static_cast<int32>(FMath::RoundToDouble(((Point->WorldLocation.X * CmToM) - OX) / Scale)));
 		WriteLasValue<int32>(Archive, static_cast<int32>(FMath::RoundToDouble(((Point->WorldLocation.Y * CmToM) - OY) / Scale)));
 		WriteLasValue<int32>(Archive, static_cast<int32>(FMath::RoundToDouble(((Point->WorldLocation.Z * CmToM) - OZ) / Scale)));
-		WriteLasValue<uint16>(Archive, static_cast<uint16>(FMath::Clamp(FMath::RoundToInt(Point->Distance), 0, 65535)));
-		WriteLasValue<uint8>(Archive, 1); WriteLasValue<uint8>(Archive, 1); WriteLasValue<int8>(Archive, 0); WriteLasValue<uint8>(Archive, 0); WriteLasValue<uint16>(Archive, 0);
+		WriteLasValue<uint16>(Archive, static_cast<uint16>(FMath::Clamp(Point->RawIntensity, 0, 65535)));
+		const uint8 ReturnBits = static_cast<uint8>(
+			(FMath::Clamp(Point->EchoIndex + 1, 1, 7) & 0x07)
+			| ((FMath::Clamp(Point->EchoCount, 1, 7) & 0x07) << 3));
+		WriteLasValue<uint8>(Archive, ReturnBits);
+		WriteLasValue<uint8>(Archive, 1);
+		WriteLasValue<int8>(Archive, 0);
+		WriteLasValue<uint8>(Archive, 0);
+		WriteLasValue<uint16>(Archive, static_cast<uint16>(FMath::Clamp(Point->Ring, 0, 65535)));
 	}
 	OutBytes.Append(Archive.GetData(), Archive.Num());
 	return true;
@@ -100,14 +108,63 @@ bool SerializePointCloud(
 	}
 	const TArray<FVirtualLidarPoint>& Points = *Frame.PointSnapshot;
 	FString Text;
+	if (Config.PointCloudFormat == EVirtualPointCloudStreamFormat::CompactBinary)
+	{
+		if (!Frame.LidarFrameSnapshot.IsValid())
+		{
+			OutError = TEXT("Compact Binary 전송에는 virtual-lidar.v2 물리 프레임이 필요합니다.");
+			return false;
+		}
+		FVirtualLidarV2EncodeOptions Options;
+		Options.bIncludeInvalidPoints = false;
+		TArray64<uint8> CompactBytes;
+		if (!FVirtualLidarPayloadCodec::EncodeCompactBinary(
+			*Frame.LidarFrameSnapshot,
+			Options,
+			CompactBytes,
+			OutPointCount))
+		{
+			OutError = TEXT("Compact Binary로 인코딩할 유효점이 없습니다.");
+			return false;
+		}
+		if (CompactBytes.Num() > MAX_int32)
+		{
+			OutError = TEXT("Compact Binary 프레임이 단일 STOMP 메시지 한도를 초과합니다.");
+			return false;
+		}
+		OutBytes.Append(CompactBytes.GetData(), static_cast<int32>(CompactBytes.Num()));
+		OutExtension = TEXT("vlb2");
+		return true;
+	}
 	if (Config.PointCloudFormat == EVirtualPointCloudStreamFormat::CSV)
 	{
 		OutExtension = TEXT("csv");
-		Text = TEXT("x,y,z,distance,hit,row,col,return,actor,actor_class,semantic_label,tags\n");
+		Text = TEXT("x,y,z,distance,hit,sensor_x_m,sensor_y_m,sensor_z_m,range_mm,intensity,ring,horizontal_index,echo_index,echo_count,time_offset_ns,validity,confidence,actor,actor_class,semantic_label,tags\n");
 		for (const FVirtualLidarPoint& Point : Points) if (Point.bHit)
 		{
 			++OutPointCount;
-			Text += FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f,1,%d,%d,%d,%s,%s,%s,%s\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.Row, Point.Col, Point.ReturnIndex, *Point.HitActorName.ToString(), *Point.HitActorClassName.ToString(), *Point.SemanticLabel.ToString(), *JoinPointTags(Point.HitActorTags));
+			Text += FString::Printf(
+				TEXT("%.6f,%.6f,%.6f,%.6f,1,%.9f,%.9f,%.9f,%d,%d,%d,%d,%d,%d,%lld,%d,%.6f,%s,%s,%s,%s\n"),
+				Point.WorldLocation.X,
+				Point.WorldLocation.Y,
+				Point.WorldLocation.Z,
+				Point.Distance,
+				Point.SensorLocalPositionMeters.X,
+				Point.SensorLocalPositionMeters.Y,
+				Point.SensorLocalPositionMeters.Z,
+				Point.RangeMillimeters,
+				Point.RawIntensity,
+				Point.Ring,
+				Point.HorizontalIndex,
+				Point.EchoIndex,
+				Point.EchoCount,
+				Point.PointTimeOffsetNanoseconds,
+				static_cast<int32>(Point.Validity),
+				Point.Confidence,
+				*Point.HitActorName.ToString(),
+				*Point.HitActorClassName.ToString(),
+				*Point.SemanticLabel.ToString(),
+				*JoinPointTags(Point.HitActorTags));
 		}
 	}
 	else if (Config.PointCloudFormat == EVirtualPointCloudStreamFormat::JSONL)
@@ -116,17 +173,47 @@ bool SerializePointCloud(
 		for (const FVirtualLidarPoint& Point : Points) if (Point.bHit)
 		{
 			++OutPointCount;
-			Text += FString::Printf(TEXT("{\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"distance\":%.6f,\"hit\":true,\"row\":%d,\"col\":%d,\"returnIndex\":%d,\"semanticLabel\":\"%s\"}\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance, Point.Row, Point.Col, Point.ReturnIndex, *Point.SemanticLabel.ToString());
+			Text += FString::Printf(
+				TEXT("{\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"distance\":%.6f,\"hit\":true,\"sensorPositionMeters\":[%.9f,%.9f,%.9f],\"rangeMillimeters\":%d,\"intensity\":%d,\"ring\":%d,\"horizontalIndex\":%d,\"echoIndex\":%d,\"echoCount\":%d,\"pointTimeOffsetNanoseconds\":\"%lld\",\"validity\":%d,\"confidence\":%.6f,\"semanticLabel\":\"%s\"}\n"),
+				Point.WorldLocation.X,
+				Point.WorldLocation.Y,
+				Point.WorldLocation.Z,
+				Point.Distance,
+				Point.SensorLocalPositionMeters.X,
+				Point.SensorLocalPositionMeters.Y,
+				Point.SensorLocalPositionMeters.Z,
+				Point.RangeMillimeters,
+				Point.RawIntensity,
+				Point.Ring,
+				Point.HorizontalIndex,
+				Point.EchoIndex,
+				Point.EchoCount,
+				Point.PointTimeOffsetNanoseconds,
+				static_cast<int32>(Point.Validity),
+				Point.Confidence,
+				*Point.SemanticLabel.ToString());
 		}
 	}
 	else if (Config.PointCloudFormat == EVirtualPointCloudStreamFormat::PCD)
 	{
 		OutExtension = TEXT("pcd");
 		for (const FVirtualLidarPoint& Point : Points) if (Point.bHit) ++OutPointCount;
-		Text = FString::Printf(TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z distance\nSIZE 4 4 4 4\nTYPE F F F F\nCOUNT 1 1 1 1\nWIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), OutPointCount, OutPointCount);
+		Text = FString::Printf(TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\nSIZE 4 4 4 2 2 2 1 1 8 1 4\nTYPE F F F U U U U U I U F\nCOUNT 1 1 1 1 1 1 1 1 1 1 1\nWIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), OutPointCount, OutPointCount);
 		for (const FVirtualLidarPoint& Point : Points) if (Point.bHit)
 		{
-			Text += FString::Printf(TEXT("%.6f %.6f %.6f %.6f\n"), Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z, Point.Distance);
+			Text += FString::Printf(
+				TEXT("%.9f %.9f %.9f %d %d %d %d %d %lld %d %.6f\n"),
+				Point.SensorLocalPositionMeters.X,
+				Point.SensorLocalPositionMeters.Y,
+				Point.SensorLocalPositionMeters.Z,
+				Point.RawIntensity,
+				Point.Ring,
+				Point.HorizontalIndex,
+				Point.EchoIndex,
+				Point.EchoCount,
+				Point.PointTimeOffsetNanoseconds,
+				static_cast<int32>(Point.Validity),
+				Point.Confidence);
 		}
 	}
 	else
@@ -365,6 +452,10 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 
 void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame)
 {
+	if (Runtime.Status.InputFrameCount > 0 && Runtime.Status.LastInputFrameId == Frame.FrameId)
+	{
+		return;
+	}
 	++Runtime.Status.InputFrameCount;
 	Runtime.Status.LastInputFrameId = Frame.FrameId;
 	const double Now = FPlatformTime::Seconds();

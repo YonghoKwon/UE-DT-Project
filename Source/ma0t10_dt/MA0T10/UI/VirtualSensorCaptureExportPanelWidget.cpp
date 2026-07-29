@@ -38,6 +38,7 @@ FString PointCloudStreamFormatText(EVirtualPointCloudStreamFormat Format)
     if (Format == EVirtualPointCloudStreamFormat::PCD) return TEXT("PCD");
     if (Format == EVirtualPointCloudStreamFormat::LAS) return TEXT("LAS");
     if (Format == EVirtualPointCloudStreamFormat::LAZ) return TEXT("LAZ");
+    if (Format == EVirtualPointCloudStreamFormat::CompactBinary) return TEXT("Compact Binary (VLB2)");
     return TEXT("CSV");
 }
 }
@@ -416,7 +417,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		NativeExportKindOptions.Add(MakeShared<EVirtualSensorExportKind>(Kind));
 	}
 	NativeStreamFormatOptions.Reset();
-	for (EVirtualPointCloudStreamFormat Format : { EVirtualPointCloudStreamFormat::CSV, EVirtualPointCloudStreamFormat::PCD, EVirtualPointCloudStreamFormat::JSONL, EVirtualPointCloudStreamFormat::LAS, EVirtualPointCloudStreamFormat::LAZ })
+	for (EVirtualPointCloudStreamFormat Format : { EVirtualPointCloudStreamFormat::CompactBinary, EVirtualPointCloudStreamFormat::PCD, EVirtualPointCloudStreamFormat::CSV, EVirtualPointCloudStreamFormat::JSONL, EVirtualPointCloudStreamFormat::LAS, EVirtualPointCloudStreamFormat::LAZ })
 	{
 		NativeStreamFormatOptions.Add(MakeShared<EVirtualPointCloudStreamFormat>(Format));
 	}
@@ -435,7 +436,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		ActiveTab = static_cast<EVirtualSensorCaptureExportTab>(FMath::Clamp<int32>(Preferences->CaptureExportActiveTab, 0, 3));
 		StreamFrameStride = FMath::Max(1, Preferences->SensorStreamFrameStride);
 		StreamReceiptInterval = FMath::Max(1, Preferences->SensorStreamReceiptInterval);
-		SelectedPointCloudStreamFormat = static_cast<EVirtualPointCloudStreamFormat>(FMath::Clamp<int32>(Preferences->SelectedPointCloudStreamFormat, 0, 4));
+		SelectedPointCloudStreamFormat = static_cast<EVirtualPointCloudStreamFormat>(FMath::Clamp<int32>(Preferences->SelectedPointCloudStreamFormat, 0, 5));
 		CaptureSelection.IntervalSeconds = FMath::Clamp(Preferences->LocalCaptureIntervalSeconds, 0.05f, 3600.0f);
 		CaptureSelection.bUseSensorInterval = Preferences->bLocalCaptureUseSensorInterval;
 		CaptureSelection.bCameraImage = Preferences->bLocalCaptureCameraImage;
@@ -836,7 +837,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("LiveTitle", "세 가지 독립 실시간 스트림")) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG, Point Cloud는 선택한 CSV/JSONL/PCD/LAS/LAZ를 virtual-pointcloud.v1 봉투에 담아 스캔 완료 때 전송합니다.")) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 호환용 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG로 전송합니다. 고주기 Point Cloud는 Compact Binary(VLB2)를 권장하며 CSV/JSONL/PCD/LAS/LAZ는 virtual-pointcloud.v1 봉투에 담깁니다. VLB2는 프로젝트 규격이며 ML-X 제조사 패킷과 동일하다는 뜻은 아닙니다.")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNew(SWrapBox).UseAllottedSize(true)
 				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([StreamButtonText]() { return StreamButtonText(EVirtualSensorStreamKind::LidarPayload); }).OnClicked_Lambda([this]() { ToggleSelectedStream(EVirtualSensorStreamKind::LidarPayload); return FReply::Handled(); }) ]
 				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([StreamButtonText]() { return StreamButtonText(EVirtualSensorStreamKind::CameraImage); }).OnClicked_Lambda([this]() { ToggleSelectedStream(EVirtualSensorStreamKind::CameraImage); return FReply::Handled(); }) ]

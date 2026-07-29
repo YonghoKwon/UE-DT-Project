@@ -14,6 +14,10 @@ class UTexture2D;
 class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorSchedulerSubsystem;
+class UVirtualLidarSurfaceResponseComponent;
+class UVirtualLidarGpuDepthProjectionComponent;
+struct FVirtualLidarV2EncodeOptions;
+struct FVirtualLidarDepthAcquisitionFrame;
 
 UENUM(BlueprintType)
 enum class ELidarPointCloudPreviewBackend : uint8
@@ -78,7 +82,8 @@ public:
     void PrepareScheduledScan(double NowSeconds);
     int32 ProcessScheduledScanChunk(int32 MaxRays);
 	void RequestImmediateScheduledScan();
-	void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
+    void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
+    void BindGpuDepthProjectionComponent(UVirtualLidarGpuDepthProjectionComponent* InComponent);
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Lidar; }
     virtual bool IsScheduledTaskActive() const override { return IsScanRunning(); }
@@ -103,6 +108,26 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|DeviceProfile")
     static FVirtualLidarProfilePreset ResolveProfilePreset(EVirtualLidarDeviceProfile Profile, EVirtualSensorSimulationQuality Quality);
+
+    const FVirtualPhysicalLidarFrame* GetLastPhysicalFrame() const
+    {
+        return LastFrameSnapshot.IsValid() ? static_cast<const FVirtualPhysicalLidarFrame*>(LastFrameSnapshot.Get()) : nullptr;
+    }
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    void InvalidateSurfaceResponseCache();
+
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Codec")
+    FString BuildLastPhysicalJsonPayload(
+        int32 PointStride = 1,
+        int32 MaxPoints = 0,
+        bool bIncludeInvalidPoints = false,
+        bool bIncludeDigitalTwinExtensions = false) const;
+
+    bool BuildLastPhysicalCompactBinary(
+        const FVirtualLidarV2EncodeOptions& Options,
+        TArray64<uint8>& OutBytes,
+        int32& OutEncodedPointCount) const;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Transport")
     void SetServerPayloadPolicy(int32 InStride, int32 InMaxPoints, bool bInIncludeMissPoints);
@@ -267,6 +292,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
     EVirtualSensorSimulationQuality GetSimulationQuality() const { return SimulationQuality; }
 
+    UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
+    EVirtualLidarAcquisitionBackend GetActiveAcquisitionBackend() const { return ActiveAcquisitionBackend; }
+
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
 
@@ -287,6 +315,57 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Performance")
     EVirtualSensorSimulationQuality SimulationQuality = EVirtualSensorSimulationQuality::RealTimePreview;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    EVirtualLidarProfileClass ProfileClass = EVirtualLidarProfileClass::Generic;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    EVirtualSensorFidelityMode FidelityMode = EVirtualSensorFidelityMode::IdealTruth;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    EVirtualLidarAcquisitionBackend AcquisitionBackend = EVirtualLidarAcquisitionBackend::Auto;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    FString CalibrationId = TEXT("none");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    EVirtualLidarEchoSelectionPolicy EchoSelectionPolicy = EVirtualLidarEchoSelectionPolicy::FirstAndLast;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    bool bUseProfileEchoCapability = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    bool bEnableRangeNoise = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity", meta = (ClampMin = "0.0", ClampMax = "30.0"))
+    float RangeNoiseStandardDeviationMillimeters = 8.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity", meta = (ClampMin = "0.0", ClampMax = "30.0"))
+    float MaximumRangeErrorMillimeters = 30.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity", meta = (ClampMin = "0.0", ClampMax = "200000.0"))
+    float AmbientLightLux = 10000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity", meta = (ClampMin = "0.001", ClampMax = "1.0"))
+    float DefaultSurfaceReflectivity = 0.2f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    int32 DeterministicNoiseSeed = 1337;
+
+    /**
+     * Public-spec-derived scans use zero point offsets by default because the
+     * real ML-X firing order is not public. Enable only when a calibration
+     * capture establishes a rolling acquisition order.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    bool bUseRollingPointTimestamps = false;
+
+    /** Optional exact per-column/per-channel calibration tables. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    TArray<float> HorizontalCalibrationAnglesDegrees;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    TArray<float> VerticalCalibrationAnglesDegrees;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Transport", meta = (ClampMin = "1", ClampMax = "100"))
     int32 ServerPayloadStride = 1;
@@ -467,6 +546,18 @@ public:
 
 private:
 	void PublishLastFrameSnapshot(const FTransform& AcquisitionTransform, int32 InHorizontalSamples, int32 InVerticalChannels, float InMaxDistanceCm);
+    EVirtualLidarAcquisitionBackend ResolveAcquisitionBackend(FString& OutReason) const;
+    bool BeginGpuDepthScan(double NowSeconds);
+    int32 ProcessGpuDepthScan();
+    void ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame);
+    void BuildBeamAngleTables(int32 InHorizontalSamples, int32 InVerticalChannels, TArray<float>& OutHorizontalAngles, TArray<float>& OutVerticalAngles) const;
+    void InitializePhysicalPoint(FVirtualLidarPoint& Point, int32 Row, int32 Col, int32 RayIndex, int32 RayCount, const FVector& LocalDirection) const;
+    bool ApplyPhysicalHitModel(FVirtualLidarPoint& Point, const FHitResult& Hit, const FVector& WorldDirection, const FTransform& AcquisitionTransform, int32 RayIndex, int32 ReturnIndex) const;
+    void FinalizeEchoMetadata(TArray<FVirtualLidarPoint>& Points, int32 StartIndex, int32 EchoCount) const;
+    void RebuildPhysicalFrameStatistics(FVirtualLidarFrameSnapshot& Snapshot) const;
+    float DeterministicUnitRandom(int32 RayIndex, int32 ReturnIndex, uint32 Salt) const;
+    float DeterministicGaussian(int32 RayIndex, int32 ReturnIndex) const;
+    int64 CalculatePointTimeOffsetNanoseconds(int32 RayIndex, int32 RayCount) const;
     void ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels);
     FString BuildJsonPayload(const TArray<FVirtualLidarPoint>& Points) const;
     FVirtualLidarSlabAnalysisResult AnalyzeSlabPoints(const TArray<FVirtualLidarPoint>& Points) const;
@@ -502,6 +593,17 @@ private:
     void RefreshPointCloudPreview();
     void CollectExportPoints(TArray<const FVirtualLidarPoint*>& OutExportPoints) const;
     void RebuildLastPointStatistics();
+
+    struct FSurfaceResponseCacheEntry
+    {
+        float Reflectivity = 0.2f;
+        float IntensityGain = 1.0f;
+        float DetectionProbabilityScale = 1.0f;
+        bool bTwoSided = false;
+        bool bAllowSaturation = true;
+    };
+
+    FSurfaceResponseCacheEntry ResolveSurfaceResponse(const UPrimitiveComponent* Primitive) const;
 
 private:
     FTimerHandle ScanTimerHandle;
@@ -545,11 +647,13 @@ private:
     double NextScheduledScanTime = -1.0;
     double ScheduledScanStartTime = -1.0;
     double LastScheduledCompletionTime = -1.0;
+    double LastScheduledOutputTime = -1.0;
     FTransform ScheduledScanTransform = FTransform::Identity;
     int32 ScheduledScanWidth = 0;
     int32 ScheduledScanHeight = 0;
     int32 ScheduledNextRayIndex = 0;
     int32 ScheduledGeneration = 0;
+    int64 ScheduledAcquisitionStartUnixNanoseconds = 0;
     bool bRegisteredWithPerformanceSubsystem = false;
 	bool bInteractivePreviewMode = false;
 	bool bSuppressInteractiveDerivedOutput = true;
@@ -557,11 +661,18 @@ private:
     bool bGpuPreviewBackendRuntimeRequested = false;
     FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
+    bool bGpuDepthScanInProgress = false;
     bool bScheduledPayloadBuildInFlight = false;
     bool bScheduledAutoExportInFlight = false;
     bool bScheduledPayloadRefreshPending = false;
     TArray<FVirtualLidarPoint> ScheduledPoints;
     TArray<uint8> ScheduledHeatmapPixels;
+    TArray<float> ScheduledHorizontalAnglesDegrees;
+    TArray<float> ScheduledVerticalAnglesDegrees;
     int32 ScheduledHitPointCount = 0;
     TMap<FString, int32> ScheduledSemanticCounts;
+    mutable TMap<TWeakObjectPtr<UPrimitiveComponent>, FSurfaceResponseCacheEntry> SurfaceResponseCache;
+    TWeakObjectPtr<UVirtualLidarGpuDepthProjectionComponent> GpuDepthProjectionComponent;
+    EVirtualLidarAcquisitionBackend ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+    FString AcquisitionBackendFallbackReason;
 };

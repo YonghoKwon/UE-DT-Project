@@ -68,7 +68,8 @@ bool FVirtualPointCloudTopicReceiverParserTest::RunTest(const FString& Parameter
 		{ TEXT("JSONL"), TArray<uint8>({ '{', '"', 'x', '"', ':', '1', '}', '\n' }) },
 		{ TEXT("PCD"), TArray<uint8>({ '#', ' ', '.', 'P', 'C', 'D', ' ', 'v', '0', '.', '7', '\n' }) },
 		{ TEXT("LAS"), TArray<uint8>({ 'L', 'A', 'S', 'F', 0, 0, 0, 0 }) },
-		{ TEXT("LAZ"), TArray<uint8>({ 'L', 'A', 'S', 'F', 1, 2, 3, 4 }) }
+		{ TEXT("LAZ"), TArray<uint8>({ 'L', 'A', 'S', 'F', 1, 2, 3, 4 }) },
+		{ TEXT("VLB2"), TArray<uint8>({ 'V', 'L', 'D', 'R', '2', 0, 0, 0 }) }
 	};
 	for (const FFormatFixture& Fixture : Fixtures)
 	{

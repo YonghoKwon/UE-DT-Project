@@ -59,6 +59,15 @@ public:
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
     void RequestImmediateScheduledCapture();
+    bool IsScheduledCaptureDue(double NowSeconds) const
+    {
+        return NextScheduledCaptureTime >= 0.0 && NowSeconds + KINDA_SMALL_NUMBER >= NextScheduledCaptureTime;
+    }
+    void MarkBudgetSkippedAcquisition()
+    {
+        ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
+        ++RuntimeStatus.DeadlineMissCount;
+    }
 
 	/** Requests JSON+JPEG production for a live stream without changing the persisted CaptureMode setting. */
 	void SetRuntimeStreamOutputDemand(bool bEnabled) { bRuntimeStreamOutputDemand = bEnabled; }
@@ -193,9 +202,12 @@ private:
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> LastJpegSnapshot;
 
     TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> ScheduledReadback;
+    bool bScheduledReadbackInFlight = false;
     double NextScheduledCaptureTime = -1.0;
     double ScheduledCaptureStartTime = -1.0;
     double LastScheduledCompletionTime = -1.0;
+    double LastAcquisitionCompletionTime = -1.0;
+    double LastOutputCompletionTime = -1.0;
     int32 ScheduledReadbackWidth = 0;
     int32 ScheduledReadbackHeight = 0;
     int64 ScheduledReadbackFrameId = 0;
