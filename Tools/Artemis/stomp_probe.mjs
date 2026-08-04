@@ -38,6 +38,7 @@ let measurementTimer = null;
 let warmupTimer = null;
 let warmupStarted = false;
 let finished = false;
+let heartbeatTimer = null;
 
 function frame(command, headers = {}, body = '') {
   const lines = [command, ...Object.entries(headers).map(([key, value]) => `${key}:${String(value).replaceAll('\\', '\\\\').replaceAll(':', '\\c').replaceAll('\n', '\\n')}`), '', body];
@@ -146,6 +147,7 @@ function report(success, reason) {
   finished = true;
   if (measurementTimer) clearTimeout(measurementTimer);
   if (warmupTimer) clearTimeout(warmupTimer);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
   const finishedMs = Date.now();
   const measuredSeconds = measurementStartedMs > 0 ? Math.max(0.001, (finishedMs - measurementStartedMs) / 1000) : 0;
   const metrics = Object.fromEntries([...topicMetrics.entries()].map(([topic, value]) => [topic, {
@@ -221,7 +223,7 @@ function updateMetrics(destination, entry) {
 
 const socket = new WebSocket(url, ['v12.stomp']);
 socket.addEventListener('open', () => {
-  socket.send(frame('CONNECT', { 'accept-version': '1.2', host: 'localhost', login: user, passcode: password, 'heart-beat': '0,0' }));
+  socket.send(frame('CONNECT', { 'accept-version': '1.2', host: 'localhost', login: user, passcode: password, 'heart-beat': '10000,10000' }));
 });
 
 socket.addEventListener('message', async event => {
@@ -236,6 +238,9 @@ socket.addEventListener('message', async event => {
 	if (!parsed) break;
     if (parsed.command === 'CONNECTED') {
       connected = true;
+      if (!heartbeatTimer) heartbeatTimer = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) socket.send('\n');
+      }, 10000);
       topics.forEach((topic, index) => socket.send(frame('SUBSCRIBE', { id: `probe-${index}`, destination: topic, ack: 'auto', 'subscription-type': 'MULTICAST' })));
 	  if (selfTest) {
 		setTimeout(() => topics.forEach((topic, index) => {

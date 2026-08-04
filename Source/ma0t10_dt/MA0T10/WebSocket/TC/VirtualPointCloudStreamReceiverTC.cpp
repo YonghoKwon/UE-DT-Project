@@ -165,7 +165,13 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 		Data->Message = TEXT("Binary PCD required STOMP headers are missing.");
 		return Data;
 	}
-	if (!FDateTime::ParseIso8601(*TimestampText, Data->SourceTimestampUtc))
+	int64 TimestampUnixMilliseconds = 0;
+	if (LexTryParseString(TimestampUnixMilliseconds, *TimestampText) && TimestampUnixMilliseconds > 0)
+	{
+		Data->SourceTimestampUtc = FDateTime::FromUnixTimestamp(TimestampUnixMilliseconds / 1000LL) +
+			FTimespan::FromMilliseconds(TimestampUnixMilliseconds % 1000LL);
+	}
+	else if (!FDateTime::ParseIso8601(*TimestampText, Data->SourceTimestampUtc))
 	{
 		Data->Message = FString::Printf(TEXT("Binary PCD x-utc header is invalid: %s"), *TimestampText);
 		return Data;

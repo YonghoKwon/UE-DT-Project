@@ -45,6 +45,8 @@ The CaptureExport panel persists non-secret broker URL, topics, username, endpoi
 
 The realtime Point Cloud stream is an explicit exception to the legacy text-envelope path. It sends a complete PCD v0.7 `DATA binary` file through `IStompClient::Send(FStompBuffer)` with `content-type=application/vnd.pcd` and `schema=virtual-pointcloud.pcd.v1`. It never Base64-encodes or JSON-wraps the body. Manual exports and the legacy `virtual-pointcloud.v1` API remain compatible.
 
+`x-utc` is a decimal Unix epoch-millisecond value. This avoids the UE 5.3 STOMP encoder's non-standard colon escaping in ISO-8601 header values while preserving an unambiguous UTC timestamp. Long-running diagnostic subscribers negotiate and send STOMP heartbeats.
+
 HTTP callback behavior:
 
 ```text

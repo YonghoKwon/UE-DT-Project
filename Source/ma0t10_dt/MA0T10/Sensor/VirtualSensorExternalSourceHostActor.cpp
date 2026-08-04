@@ -175,6 +175,11 @@ TArray<FVirtualSensorTopicReceiverStatus> AVirtualSensorExternalSourceHostActor:
 
 FString AVirtualSensorExternalSourceHostActor::GetReceiverBrokerUrl() const
 {
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
+	{
+		const FString TestBrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
+		if (!TestBrokerUrl.IsEmpty()) return TestBrokerUrl;
+	}
 	FString RuntimeUrl;
 	if (GConfig && GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketUrl"), RuntimeUrl, GGameIni) && !RuntimeUrl.IsEmpty()) return RuntimeUrl;
 	const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
@@ -338,6 +343,13 @@ void AVirtualSensorExternalSourceHostActor::EnsureRawPointCloudClient()
 	{
 		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), Login, GGameIni);
 		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), Passcode, GGameIni);
+	}
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
+	{
+		const FString TestLogin = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
+		const FString TestPasscode = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD"));
+		if (!TestLogin.IsEmpty()) Login = TestLogin;
+		if (!TestPasscode.IsEmpty()) Passcode = TestPasscode;
 	}
 	RawPointCloudClient = FStompModule::Get().CreateClient(BrokerUrl);
 	RawPointCloudClient->OnConnected().AddUObject(this, &AVirtualSensorExternalSourceHostActor::HandleRawPointCloudConnected);

@@ -18,7 +18,7 @@
 | 큐 | 입력 20, 직렬화 완료 body 20, receipt 대기 body/checksum 보관 |
 | 실패 | 큐 초과 또는 receipt 3회 재시도 소진 시 명시적 과부하 오류로 스트림 중지 |
 
-STOMP header에는 SensorId, FrameId, UTC, point/source-point count, filter revision, acquisition profile, SHA1 checksum과 멱등 request ID가 포함됩니다. `POINTS 0`도 정상 프레임이므로 대상 없음과 전송 실패를 구분할 수 있습니다. Broker receipt는 Broker 수락이며 `UVirtualPointCloudStreamReceiverTC`의 소비자 수신/검증 카운터가 실제 소비를 나타냅니다.
+STOMP header에는 SensorId, FrameId, UTC Unix epoch milliseconds(`x-utc`), point/source-point count, filter revision, acquisition profile, SHA1 checksum과 멱등 request ID가 포함됩니다. UE 5.3 STOMP header escape와 Artemis의 충돌을 피하기 위해 `x-utc`는 구두점 없는 숫자로 보냅니다. `POINTS 0`도 정상 프레임이므로 대상 없음과 전송 실패를 구분할 수 있습니다. Broker receipt는 Broker 수락이며 `UVirtualPointCloudStreamReceiverTC`의 소비자 수신/검증 카운터가 실제 소비를 나타냅니다.
 
 필터는 `전체 검출점`, `대상 물체만`, `Tag·Semantic`, `센서 로컬 ROI`를 제공합니다. `대상 물체만`은 대상 Mesh Actor에 `PointCloudTarget` Tag를 붙입니다. Tag/Semantic 그룹과 ROI/거리 범위는 AND, 같은 그룹 안의 값은 OR, exclude는 마지막에 우선합니다. Tag와 SemanticLabel은 Digital Twin 전용이고 실제 ML-X 패킷 기능이라는 뜻이 아닙니다.
 

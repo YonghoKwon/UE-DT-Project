@@ -243,6 +243,7 @@ private:
 
 	TSharedPtr<class IStompClient> StompClient;
 	TAtomic<bool> bStompConnected { false };
+	TAtomic<bool> bStompConnecting { false };
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;

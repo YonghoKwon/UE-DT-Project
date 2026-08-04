@@ -47,7 +47,9 @@ The combined broker and performance evidence is stored in
 The default run warms up for 10 seconds and measures for 60 seconds. It checks
 raw PCD checksum/record layout, FrameId continuity, publisher/receipt/internal
 consumer count equality, at least 19 Hz, serialization p95, and D3D12 frame
-time. Longer loopback/soak reports use a unique label:
+time. The Node probe negotiates 10-second STOMP heartbeats so Artemis does not
+close a long-running subscriber at the connection TTL. Longer loopback/soak
+reports use a unique label:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -MeasurementSeconds 600 -ReportLabel mlx80_pcd_10min

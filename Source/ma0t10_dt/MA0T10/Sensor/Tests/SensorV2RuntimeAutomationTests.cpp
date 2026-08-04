@@ -8,6 +8,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Json.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "RHIGlobals.h"
 #include "Tests/AutomationCommon.h"
@@ -519,6 +520,18 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 	{
 		AddInfo(TEXT("Continuous SensorRefactorTestMap stream smoke skipped. Use Scripts/run_sensor_map_stream_rhi_smoke.ps1."));
 		return true;
+	}
+	// The integration runner provides credentials through process environment
+	// variables. Apply them to the in-memory DTCore override before PIE creates
+	// its GameInstance subsystem; do not write local Config/Game.ini.
+	if (GConfig)
+	{
+		const FString BrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
+		const FString UserName = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
+		const FString Password = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD"));
+		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketUrl"), *BrokerUrl, GGameIni);
+		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), *UserName, GGameIni);
+		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), *Password, GGameIni);
 	}
 	if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
 	{
