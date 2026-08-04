@@ -483,6 +483,10 @@ void UVirtualLidarScanComponent::RebuildPhysicalFrameStatistics(FVirtualLidarFra
     {
         return;
     }
+	double RangeSumMeters = 0.0;
+	double IntensitySum = 0.0;
+	Snapshot.MinRangeMeters = TNumericLimits<float>::Max();
+	Snapshot.MinIntensity = TNumericLimits<float>::Max();
     for (const FVirtualLidarPoint& Point : *Snapshot.Points)
     {
         if (Point.bHit)
@@ -490,12 +494,31 @@ void UVirtualLidarScanComponent::RebuildPhysicalFrameStatistics(FVirtualLidarFra
             ++Snapshot.ValidPointCount;
             if (Point.EchoIndex == 0) ++Snapshot.FirstEchoCount;
             else if (Point.EchoIndex == 1) ++Snapshot.SecondEchoCount;
+			const float RangeMeters = Point.RangeMillimeters > 0
+				? Point.RangeMillimeters / 1000.0f
+				: Point.Distance / 100.0f;
+			Snapshot.MinRangeMeters = FMath::Min(Snapshot.MinRangeMeters, RangeMeters);
+			Snapshot.MaxRangeMeters = FMath::Max(Snapshot.MaxRangeMeters, RangeMeters);
+			Snapshot.MinIntensity = FMath::Min(Snapshot.MinIntensity, Point.NormalizedIntensity);
+			Snapshot.MaxIntensity = FMath::Max(Snapshot.MaxIntensity, Point.NormalizedIntensity);
+			RangeSumMeters += RangeMeters;
+			IntensitySum += Point.NormalizedIntensity;
         }
         else
         {
             ++Snapshot.InvalidPointCount;
         }
     }
+	if (Snapshot.ValidPointCount > 0)
+	{
+		Snapshot.MeanRangeMeters = static_cast<float>(RangeSumMeters / Snapshot.ValidPointCount);
+		Snapshot.MeanIntensity = static_cast<float>(IntensitySum / Snapshot.ValidPointCount);
+	}
+	else
+	{
+		Snapshot.MinRangeMeters = 0.0f;
+		Snapshot.MinIntensity = 0.0f;
+	}
 }
 
 void UVirtualLidarScanComponent::BeginPlay()

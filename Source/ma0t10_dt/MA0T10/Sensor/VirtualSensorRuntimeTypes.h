@@ -108,6 +108,44 @@ struct MA0T10_DT_API FVirtualPointCloudBinaryMetadata
 };
 
 USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualCameraJpegMetadata
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") FString Schema = TEXT("virtual-camera.jpeg.v1");
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 Width = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 Height = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 JpegQuality = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 ByteCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") FString ChecksumSha1;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarTelemetryFrame
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") FString Schema = TEXT("virtual-lidar.telemetry.v1");
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") FString ProfileKey;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") FString AcquisitionBackend;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 HorizontalSamples = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 VerticalChannels = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 RequestedRayCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 ValidPointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 InvalidPointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 FirstEchoCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 SecondEchoCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MinRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MaxRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MeanRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MinIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MaxIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MeanIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 AcquisitionStartUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 AcquisitionEndUnixNanoseconds = 0;
+};
+
+USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorStreamConfig
 {
 	GENERATED_BODY()
@@ -343,6 +381,7 @@ struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 	TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> PointSnapshot;
 	/** Shared immutable physical frame; preferred by binary codecs to avoid rebuilding metadata or copying points. */
 	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> LidarFrameSnapshot;
+	FVirtualCameraJpegMetadata CameraJpegMetadata;
 	bool bSendTransport = true;
 	bool bRecord = true;
 

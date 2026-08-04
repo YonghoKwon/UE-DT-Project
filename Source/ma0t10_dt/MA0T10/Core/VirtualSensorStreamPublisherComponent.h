@@ -91,13 +91,20 @@ private:
 		FString SensorId;
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
+		FDateTime TimestampUtc;
 		FString Json;
 		TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> BinaryBody;
+		TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> BinaryBody64;
 		FVirtualPointCloudBinaryMetadata BinaryMetadata;
+		FVirtualCameraJpegMetadata CameraMetadata;
+		TMap<FString, FString> BinaryHeaders;
+		FString BinarySchema;
+		FString BinaryContentType;
 		int32 ByteCount = 0;
 		int32 ConfigRevision = 0;
 		int32 RetryAttempt = 0;
 		bool bBinaryPcd = false;
+		bool bHighThroughputBinary = false;
 	};
 
 	struct FStreamRuntime

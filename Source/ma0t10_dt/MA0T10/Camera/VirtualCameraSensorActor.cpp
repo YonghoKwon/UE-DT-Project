@@ -217,7 +217,9 @@ bool AVirtualCameraSensorActor::ValidateEditableState(const FVirtualSensorEditab
 
 void AVirtualCameraSensorActor::HandleCameraFrame(const FString& JsonPayload, UTextureRenderTarget2D* RenderTarget)
 {
-	if (!OutputComponent || JsonPayload.IsEmpty() || !CaptureComponent) return;
+	if (!OutputComponent || !CaptureComponent) return;
+	const TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> JpegSnapshot = CaptureComponent->GetLastJpegSnapshot();
+	if (JsonPayload.IsEmpty() && !JpegSnapshot.IsValid()) return;
 	FVirtualSensorFrameEnvelope Frame;
 	const FVirtualSensorRuntimeStatus& Status = CaptureComponent->GetRuntimeStatus();
 	Frame.SensorId = PendingExternalSendTransport.IsSet() && !Status.SensorId.IsEmpty()
@@ -227,17 +229,16 @@ void AVirtualCameraSensorActor::HandleCameraFrame(const FString& JsonPayload, UT
 	Frame.FrameId = Status.FrameId;
 	Frame.TimestampUtc = FDateTime::UtcNow();
 	Frame.SchemaVersion = TEXT("virtual-camera.v1");
-	Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
+	if (!JsonPayload.IsEmpty()) Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
 	Frame.bSendTransport = PendingExternalSendTransport.IsSet()
 		? PendingExternalSendTransport.GetValue()
 		: CaptureComponent->CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput;
 	Frame.bRecord = true;
-	if (Frame.bSendTransport)
-	{
-		Frame.BinaryPayload = CaptureComponent->GetLastJpegSnapshot();
-	}
+	Frame.BinaryPayload = JpegSnapshot;
+	Frame.CameraJpegMetadata = CaptureComponent->GetLastJpegMetadata();
 	PendingExternalSendTransport.Reset();
-	OutputComponent->RouteFrame(Frame);
+	if (Frame.HasJsonPayload()) OutputComponent->RouteFrame(Frame);
+	else OutputComponent->RouteAcquiredFrame(Frame);
 }
 
 void AVirtualCameraSensorActor::Tick(float DeltaTime)

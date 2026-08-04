@@ -118,7 +118,7 @@ public:
 		const FVirtualSensorHighThroughputProfile& InProfile,
 		FString InPasscode)
 		: Profile(InProfile)
-		, Passcode(MoveTemp(InPasscode))
+		, Passcode(InPasscode.IsEmpty() ? InProfile.UserName : MoveTemp(InPasscode))
 	{
 		for (TAtomic<int32>& Count : QueueCounts) Count.Store(0);
 	}
@@ -796,6 +796,9 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 		{
 		case EWorkerEventType::Submitted:
 			++Telemetry.SubmittedCount;
+			if (Telemetry.FirstSubmittedSeconds <= 0.0) Telemetry.FirstSubmittedSeconds = FPlatformTime::Seconds();
+			Telemetry.SubmittedHz = static_cast<float>(Telemetry.SubmittedCount /
+				FMath::Max(0.001, FPlatformTime::Seconds() - Telemetry.FirstSubmittedSeconds));
 			Telemetry.LastSocketWriteLatencyMs = Event.LatencyMs;
 			Telemetry.State = TEXT("submitted");
 			break;
@@ -806,9 +809,23 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 			break;
 		case EWorkerEventType::Consumed:
 			++Telemetry.ConsumerReceivedCount;
+			if (Telemetry.FirstConsumerSeconds <= 0.0) Telemetry.FirstConsumerSeconds = FPlatformTime::Seconds();
+			Telemetry.ConsumerHz = static_cast<float>(Telemetry.ConsumerReceivedCount /
+				FMath::Max(0.001, FPlatformTime::Seconds() - Telemetry.FirstConsumerSeconds));
 			Telemetry.FrameGapCount += Event.GapDelta;
 			Telemetry.DuplicateCount += Event.DuplicateDelta;
 			Telemetry.LastEndToEndLatencyMs = Event.LatencyMs;
+			Telemetry.EndToEndLatencySamples.Add(Event.LatencyMs);
+			if (Telemetry.EndToEndLatencySamples.Num() > 256)
+			{
+				Telemetry.EndToEndLatencySamples.RemoveAt(0, Telemetry.EndToEndLatencySamples.Num() - 256, false);
+			}
+			{
+				TArray<float> Sorted = Telemetry.EndToEndLatencySamples;
+				Sorted.Sort();
+				const int32 P95Index = FMath::Clamp(FMath::CeilToInt(Sorted.Num() * 0.95f) - 1, 0, Sorted.Num() - 1);
+				Telemetry.EndToEndP95LatencyMs = Sorted[P95Index];
+			}
 			Telemetry.State = TEXT("consumer-validated");
 			break;
 		case EWorkerEventType::ValidationFailed:

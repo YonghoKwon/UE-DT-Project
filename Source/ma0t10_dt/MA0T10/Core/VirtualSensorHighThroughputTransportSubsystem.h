@@ -61,6 +61,10 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastReceiptLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastEndToEndLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float EndToEndP95LatencyMs = 0.0f;
+
+	double FirstSubmittedSeconds = 0.0;
+	double FirstConsumerSeconds = 0.0;
+	TArray<float> EndToEndLatencySamples;
 };
 
 /** Shared immutable frame handed directly to the socket worker. */

@@ -805,10 +805,15 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 		}
 		const FString Kind = Status.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("Camera")
 			: Status.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR Payload");
-		Text += FString::Printf(TEXT("\n[%s] %s / %s · 입력 %.1fHz · 전송 %.1fHz · frame %lld · 교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · receipt %lld · timeout %lld\n  %s"),
+		const FString Backend = Status.ActiveTransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput
+			? TEXT("Raw TCP 고성능") : TEXT("Engine STOMP 호환");
+		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · p95 e2e %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
 			Status.bEnabled ? TEXT("실행") : TEXT("중지"), *Kind, Status.SensorId.IsEmpty() ? TEXT("전체 센서") : *Status.SensorId,
-			Status.InputHz, Status.SubmittedHz, Status.LastSubmittedFrameId, Status.ReplacedPendingFrameCount,
-			Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptReceivedCount, Status.ReceiptTimeoutCount, *Status.Message);
+			*Backend, Status.InputHz, Status.SubmittedHz, Status.ReceiptReceivedCount, Status.ConsumerReceivedHz, Status.ConsumerReceivedCount,
+			Status.LastSubmittedFrameId, Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
+			Status.ConsumerFrameGapCount, Status.ConsumerValidationFailureCount, Status.ConsumerDuplicateCount,
+			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs, Status.EndToEndP95LatencyMs,
+			Status.ReplacedPendingFrameCount, Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptTimeoutCount, *Status.Message);
 	}
 	return Text;
 }

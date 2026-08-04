@@ -392,6 +392,38 @@ FString BuildPointCloudEnvelope(const FVirtualSensorFrameEnvelope& Frame, const 
 		TEXT("{\"schema\":\"virtual-pointcloud.v1\",\"sensorId\":\"%s\",\"frameId\":%lld,\"timestampUtc\":\"%s\",\"format\":\"%s\",\"encoding\":\"base64\",\"pointCount\":%d,\"byteCount\":%d,\"data\":\"%s\"}"),
 		*Frame.SensorId, Frame.FrameId, *Frame.TimestampUtc.ToIso8601(), *Extension.ToUpper(), PointCount, Bytes.Num(), *Encoded);
 }
+
+FString BuildLidarTelemetryJson(const FVirtualSensorFrameEnvelope& Frame)
+{
+	if (!Frame.LidarFrameSnapshot.IsValid()) return FString();
+	const FVirtualLidarFrameSnapshot& Snapshot = *Frame.LidarFrameSnapshot;
+	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+	Root->SetStringField(TEXT("schema"), TEXT("virtual-lidar.telemetry.v1"));
+	Root->SetStringField(TEXT("sensorId"), Frame.SensorId);
+	Root->SetNumberField(TEXT("frameId"), static_cast<double>(Frame.FrameId));
+	Root->SetStringField(TEXT("timestampUtc"), Frame.TimestampUtc.ToIso8601());
+	Root->SetStringField(TEXT("profile"), Snapshot.ProfileKey);
+	Root->SetNumberField(TEXT("acquisitionBackend"), static_cast<int32>(Snapshot.AcquisitionBackend));
+	Root->SetNumberField(TEXT("horizontalSamples"), Snapshot.HorizontalSamples);
+	Root->SetNumberField(TEXT("verticalChannels"), Snapshot.VerticalChannels);
+	Root->SetNumberField(TEXT("requestedRayCount"), Snapshot.RequestedRayCount);
+	Root->SetNumberField(TEXT("validPointCount"), Snapshot.ValidPointCount);
+	Root->SetNumberField(TEXT("invalidPointCount"), Snapshot.InvalidPointCount);
+	Root->SetNumberField(TEXT("firstEchoCount"), Snapshot.FirstEchoCount);
+	Root->SetNumberField(TEXT("secondEchoCount"), Snapshot.SecondEchoCount);
+	Root->SetNumberField(TEXT("minRangeMeters"), Snapshot.MinRangeMeters);
+	Root->SetNumberField(TEXT("maxRangeMeters"), Snapshot.MaxRangeMeters);
+	Root->SetNumberField(TEXT("meanRangeMeters"), Snapshot.MeanRangeMeters);
+	Root->SetNumberField(TEXT("minIntensity"), Snapshot.MinIntensity);
+	Root->SetNumberField(TEXT("maxIntensity"), Snapshot.MaxIntensity);
+	Root->SetNumberField(TEXT("meanIntensity"), Snapshot.MeanIntensity);
+	Root->SetNumberField(TEXT("acquisitionStartUnixNanoseconds"), static_cast<double>(Snapshot.AcquisitionStartUnixNanoseconds));
+	Root->SetNumberField(TEXT("acquisitionEndUnixNanoseconds"), static_cast<double>(Snapshot.AcquisitionEndUnixNanoseconds));
+	FString Json;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+	FJsonSerializer::Serialize(Root, Writer);
+	return Json;
+}
 }
 
 UVirtualSensorStreamPublisherComponent::UVirtualSensorStreamPublisherComponent()
@@ -599,10 +631,13 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 
 void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame)
 {
+	const bool bHighThroughputBinary = Runtime.Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+		((Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage && Frame.BinaryPayload.IsValid()) ||
+		 (Runtime.Config.StreamKind == EVirtualSensorStreamKind::LidarPayload && Frame.LidarFrameSnapshot.IsValid()));
 	// Preview/acquisition envelopes can arrive before asynchronous JSON
 	// derivation. They are not failed stream frames and should not affect
 	// no-loss input or encode-failure telemetry.
-	if (Runtime.Config.StreamKind != EVirtualSensorStreamKind::PointCloud && !Frame.HasJsonPayload())
+	if (Runtime.Config.StreamKind != EVirtualSensorStreamKind::PointCloud && !Frame.HasJsonPayload() && !bHighThroughputBinary)
 	{
 		return;
 	}
@@ -662,6 +697,56 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 				Runtime.Status.bPendingLatestFrame = true;
 			}
 		}
+		RefreshQueueTelemetry(Runtime);
+		return;
+	}
+	if (bHighThroughputBinary)
+	{
+		FPreparedMessage Message;
+		Message.SensorId = Frame.SensorId;
+		Message.StreamKind = Runtime.Config.StreamKind;
+		Message.FrameId = Frame.FrameId;
+		Message.TimestampUtc = Frame.TimestampUtc;
+		Message.ConfigRevision = Runtime.ConfigRevision;
+		Message.bHighThroughputBinary = true;
+		if (Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage)
+		{
+			Message.BinaryBody64 = Frame.BinaryPayload;
+			Message.CameraMetadata = Frame.CameraJpegMetadata;
+			Message.BinarySchema = TEXT("virtual-camera.jpeg.v1");
+			Message.BinaryContentType = TEXT("image/jpeg");
+			Message.ByteCount = static_cast<int32>(FMath::Min<int64>(MAX_int32, Frame.BinaryPayload->Num()));
+			Message.BinaryHeaders.Add(TEXT("checksum"), Frame.CameraJpegMetadata.ChecksumSha1);
+			Message.BinaryHeaders.Add(TEXT("width"), FString::FromInt(Frame.CameraJpegMetadata.Width));
+			Message.BinaryHeaders.Add(TEXT("height"), FString::FromInt(Frame.CameraJpegMetadata.Height));
+			Message.BinaryHeaders.Add(TEXT("jpeg-quality"), FString::FromInt(Frame.CameraJpegMetadata.JpegQuality));
+		}
+		else
+		{
+			const FString TelemetryJson = BuildLidarTelemetryJson(Frame);
+			FTCHARToUTF8 Utf8(*TelemetryJson);
+			TArray<uint8> Body;
+			Body.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+			uint8 Hash[FSHA1::DigestSize];
+			FSHA1::HashBuffer(Body.GetData(), Body.Num(), Hash);
+			Message.BinaryBody = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(MoveTemp(Body));
+			Message.BinarySchema = TEXT("virtual-lidar.telemetry.v1");
+			Message.BinaryContentType = TEXT("application/json");
+			Message.ByteCount = Message.BinaryBody->Num();
+			Message.BinaryHeaders.Add(TEXT("checksum"), BytesToHex(Hash, FSHA1::DigestSize).ToLower());
+			Message.BinaryHeaders.Add(TEXT("profile"), Frame.LidarFrameSnapshot->ProfileKey);
+			Message.BinaryHeaders.Add(TEXT("valid-point-count"), FString::FromInt(Frame.LidarFrameSnapshot->ValidPointCount));
+			Message.BinaryHeaders.Add(TEXT("invalid-point-count"), FString::FromInt(Frame.LidarFrameSnapshot->InvalidPointCount));
+		}
+
+		const int32 MaxQueue = Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage ? 8 : 20;
+		if (Runtime.PreparedMessageQueue.Num() >= MaxQueue)
+		{
+			StopForPointCloudOverload(StreamKey, Runtime, TEXT("High-throughput stream prepared queue reached its limit."));
+			return;
+		}
+		Runtime.PreparedMessageQueue.Add(MoveTemp(Message));
+		Runtime.Status.bPendingLatestFrame = true;
 		RefreshQueueTelemetry(Runtime);
 		return;
 	}
@@ -763,6 +848,7 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 		Message.SensorId = Frame.SensorId;
 			Message.StreamKind = EVirtualSensorStreamKind::PointCloud;
 			Message.FrameId = Frame.FrameId;
+			Message.TimestampUtc = Frame.TimestampUtc;
 			Message.ConfigRevision = CapturedConfigRevision;
 		if (bSucceeded)
 		{
@@ -924,8 +1010,11 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const int32 Index = (RoundRobinCursor + Attempt) % Keys.Num();
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Keys[Index]);
 		if (!Runtime || !Runtime->Config.bEnabled || NowSeconds < Runtime->NextSubmitAttemptSeconds) continue;
-		const bool bNoLoss = Runtime->Config.StreamKind == EVirtualSensorStreamKind::PointCloud &&
-			Runtime->Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
+		const bool bHighThroughputQueued = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+			!Runtime->PreparedMessageQueue.IsEmpty();
+		const bool bNoLoss = bHighThroughputQueued ||
+			(Runtime->Config.StreamKind == EVirtualSensorStreamKind::PointCloud &&
+			 Runtime->Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss);
 		RefreshQueueTelemetry(*Runtime);
 		if (bNoLoss && Runtime->Status.ReceiptQueueDepth >= Runtime->Config.MaxBufferedFrames) continue;
 		FPreparedMessage* MessagePtr = bNoLoss
@@ -944,7 +1033,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
 		const bool bUseHighThroughput = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
-			Message.bBinaryPcd;
+			(Message.bBinaryPcd || Message.bHighThroughputBinary);
 		if (bUseHighThroughput)
 		{
 			FString SubmitError;
@@ -1061,24 +1150,37 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	const FStreamRuntime& Runtime,
 	FString& OutError)
 {
-	if (!Message.BinaryBody.IsValid() || !EnsureHighThroughputTransport(OutError)) return false;
+	if ((!Message.BinaryBody.IsValid() && !Message.BinaryBody64.IsValid()) || !EnsureHighThroughputTransport(OutError)) return false;
 	UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
 	FVirtualSensorBinaryFrame Frame;
 	Frame.StreamKind = Message.StreamKind;
 	Frame.SensorId = Message.SensorId;
 	Frame.FrameId = Message.FrameId;
-	FDateTime::ParseIso8601(*Message.BinaryMetadata.TimestampUtc, Frame.TimestampUtc);
+	Frame.TimestampUtc = Message.TimestampUtc;
+	if (Frame.TimestampUtc.GetTicks() <= 0 && !Message.BinaryMetadata.TimestampUtc.IsEmpty())
+	{
+		FDateTime::ParseIso8601(*Message.BinaryMetadata.TimestampUtc, Frame.TimestampUtc);
+	}
 	if (Frame.TimestampUtc.GetTicks() <= 0) Frame.TimestampUtc = FDateTime::UtcNow();
-	Frame.Schema = Message.BinaryMetadata.Schema;
-	Frame.ContentType = TEXT("application/vnd.pcd");
-	Frame.Destination = TransportComponent->ResolveDestination(TEXT("lidar"), TEXT("pointcloud-stream"));
-	Frame.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Message.SensorId, Message.FrameId, *Message.BinaryMetadata.ChecksumSha1);
+	Frame.Schema = Message.bBinaryPcd ? Message.BinaryMetadata.Schema : Message.BinarySchema;
+	Frame.ContentType = Message.bBinaryPcd ? TEXT("application/vnd.pcd") : Message.BinaryContentType;
+	const FString SensorType = Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar");
+	const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
+		: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
+	Frame.Destination = TransportComponent->ResolveDestination(SensorType, DataKind);
 	Frame.Body32 = Message.BinaryBody;
-	Frame.Headers.Add(TEXT("checksum"), Message.BinaryMetadata.ChecksumSha1);
-	Frame.Headers.Add(TEXT("point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
-	Frame.Headers.Add(TEXT("source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
-	Frame.Headers.Add(TEXT("filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
-	Frame.Headers.Add(TEXT("acquisition-profile"), Message.BinaryMetadata.ProfileKey);
+	Frame.Body64 = Message.BinaryBody64;
+	Frame.Headers = Message.BinaryHeaders;
+	const FString Checksum = Message.bBinaryPcd ? Message.BinaryMetadata.ChecksumSha1 : Message.BinaryHeaders.FindRef(TEXT("checksum"));
+	Frame.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Message.SensorId, Message.FrameId, *Checksum);
+	if (Message.bBinaryPcd)
+	{
+		Frame.Headers.Add(TEXT("checksum"), Message.BinaryMetadata.ChecksumSha1);
+		Frame.Headers.Add(TEXT("point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
+		Frame.Headers.Add(TEXT("source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
+		Frame.Headers.Add(TEXT("filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
+		Frame.Headers.Add(TEXT("acquisition-profile"), Message.BinaryMetadata.ProfileKey);
+	}
 	return Subsystem->EnqueueBinaryFrame(Frame, OutError);
 }
 
@@ -1095,8 +1197,10 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		if (!Runtime || Runtime->Config.TransportBackend != EVirtualSensorStreamTransportBackend::TcpStompHighThroughput) continue;
 		Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 		Runtime->Status.SubmittedFrameCount = Item.SubmittedCount;
+		Runtime->Status.SubmittedHz = Item.SubmittedHz;
 		Runtime->Status.ReceiptReceivedCount = Item.ReceiptCount;
 		Runtime->Status.ConsumerReceivedCount = Item.ConsumerReceivedCount;
+		Runtime->Status.ConsumerReceivedHz = Item.ConsumerHz;
 		Runtime->Status.ConsumerValidationFailureCount = Item.ValidationFailureCount;
 		Runtime->Status.ConsumerFrameGapCount = Item.FrameGapCount;
 		Runtime->Status.ConsumerDuplicateCount = Item.DuplicateCount;
@@ -1304,7 +1408,10 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 			{
 				const FStreamRuntime* Global = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, FString()));
 				const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, SensorActor->GetSensorId()));
-				Camera->SetRuntimeStreamOutputDemand((Global && Global->Config.bEnabled) || (Exact && Exact->Config.bEnabled));
+				const FStreamRuntime* Active = Exact && Exact->Config.bEnabled ? Exact : (Global && Global->Config.bEnabled ? Global : nullptr);
+				Camera->SetRuntimeStreamOutputDemand(
+					Active != nullptr,
+					Active && Active->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput);
 			}
 		}
 	}

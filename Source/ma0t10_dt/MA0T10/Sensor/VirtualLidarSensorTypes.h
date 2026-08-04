@@ -365,6 +365,13 @@ struct MA0T10_DT_API FVirtualPhysicalLidarFrame
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
     int32 SecondEchoCount = 0;
 
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical") float MinRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical") float MaxRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical") float MeanRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical") float MinIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical") float MaxIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical") float MeanIntensity = 0.0f;
+
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar|Physical")
     EVirtualSensorFidelityMode FidelityMode = EVirtualSensorFidelityMode::IdealTruth;
 
