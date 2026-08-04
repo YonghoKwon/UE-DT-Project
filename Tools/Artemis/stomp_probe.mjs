@@ -17,6 +17,7 @@ const durationSeconds = Number(args.get('--duration') ?? '0');
 const warmupSeconds = Number(args.get('--warmup') ?? '0');
 const requireContiguousPcd = (args.get('--require-contiguous-pcd') ?? 'false').toLowerCase() === 'true';
 const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
+const selfTestPoints = Math.max(1, Number(args.get('--self-test-points') ?? '1'));
 const output = args.get('--output') ?? path.resolve('Saved', 'Reports', `artemis_probe_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.json`);
 const messages = [];
 const counts = new Map(topics.map(topic => [topic, 0]));
@@ -51,7 +52,7 @@ function binaryFrame(command, headers, body) {
   return Buffer.concat([Buffer.from(headerText, 'utf8'), body, Buffer.from([0])]);
 }
 
-function buildSelfTestBinaryPcd() {
+function buildSelfTestBinaryPcd(pointCount = 1) {
   const header = Buffer.from([
     '# .PCD v0.7 - Point Cloud Data file format',
     'VERSION 0.7',
@@ -59,26 +60,29 @@ function buildSelfTestBinaryPcd() {
     'SIZE 4 4 4 2 2 2 1 1 8 1 4',
     'TYPE F F F U U U U U I U F',
     'COUNT 1 1 1 1 1 1 1 1 1 1 1',
-    'WIDTH 1',
+    `WIDTH ${pointCount}`,
     'HEIGHT 1',
     'VIEWPOINT 0 0 0 1 0 0 0',
-    'POINTS 1',
+    `POINTS ${pointCount}`,
     'DATA binary',
     '',
   ].join('\n'), 'ascii');
-  const point = Buffer.alloc(33);
-  point.writeFloatLE(1.0, 0);
-  point.writeFloatLE(2.0, 4);
-  point.writeFloatLE(3.0, 8);
-  point.writeUInt16LE(32768, 12);
-  point.writeUInt16LE(7, 14);
-  point.writeUInt16LE(11, 16);
-  point.writeUInt8(0, 18);
-  point.writeUInt8(1, 19);
-  point.writeBigInt64LE(1234n, 20);
-  point.writeUInt8(1, 28);
-  point.writeFloatLE(0.9, 29);
-  return Buffer.concat([header, point]);
+  const points = Buffer.alloc(pointCount * 33);
+  for (let index = 0; index < pointCount; ++index) {
+    const offset = index * 33;
+    points.writeFloatLE(1.0 + index * 0.001, offset);
+    points.writeFloatLE(2.0, offset + 4);
+    points.writeFloatLE(3.0, offset + 8);
+    points.writeUInt16LE(32768, offset + 12);
+    points.writeUInt16LE(index % 56, offset + 14);
+    points.writeUInt16LE(index % 576, offset + 16);
+    points.writeUInt8(0, offset + 18);
+    points.writeUInt8(1, offset + 19);
+    points.writeBigInt64LE(BigInt(index * 1000), offset + 20);
+    points.writeUInt8(1, offset + 28);
+    points.writeFloatLE(0.9, offset + 29);
+  }
+  return Buffer.concat([header, points]);
 }
 
 function parseFrame(rawHeader, body) {
@@ -244,10 +248,11 @@ socket.addEventListener('message', async event => {
       topics.forEach((topic, index) => socket.send(frame('SUBSCRIBE', { id: `probe-${index}`, destination: topic, ack: 'auto', 'subscription-type': 'MULTICAST' })));
 	  if (selfTest) {
 		setTimeout(() => topics.forEach((topic, index) => {
-		  const requestId = `probe-${Date.now()}-${index}`;
+		 for (let messageIndex = 0; messageIndex < expectedPerTopic; ++messageIndex) {
+		  const requestId = `probe-${Date.now()}-${index}-${messageIndex}`;
 		  const kind = index === 0 ? 'lidar-stream' : index === 1 ? 'camera-stream' : 'pointcloud-stream';
 		  if (index === 2) {
-			const pcd = buildSelfTestBinaryPcd();
+			const pcd = buildSelfTestBinaryPcd(selfTestPoints);
 			const checksum = crypto.createHash('sha1').update(pcd).digest('hex');
 			socket.send(binaryFrame('SEND', {
 			  destination: topic,
@@ -258,15 +263,15 @@ socket.addEventListener('message', async event => {
 			  'x-sensor-id': 'PROBE-2',
 			  'x-sensor-type': 'lidar',
 			  'x-data-kind': kind,
-			  'x-frame-id': 3,
+			  'x-frame-id': messageIndex + 1,
 			  'x-utc': new Date().toISOString(),
-			  'x-point-count': 1,
-			  'x-source-point-count': 1,
+			  'x-point-count': selfTestPoints,
+			  'x-source-point-count': selfTestPoints,
 			  'x-filter-revision': 0,
 			  'x-acquisition-profile': 'iyobot-mlx80-native',
 			  'x-checksum-sha1': checksum,
 			}, pcd));
-			return;
+			continue;
 		  }
 		  socket.send(frame('SEND', {
 			destination: topic,
@@ -276,8 +281,9 @@ socket.addEventListener('message', async event => {
 			'x-sensor-id': `PROBE-${index}`,
 			'x-sensor-type': index === 1 ? 'camera' : 'lidar',
 			'x-data-kind': kind,
-			'x-frame-id': index + 1,
+			'x-frame-id': messageIndex + 1,
 		  }, JSON.stringify({ schema: index === 0 ? 'virtual-lidar.v1' : index === 1 ? 'virtual-camera.v1' : 'virtual-pointcloud.v1', probe: true })));
+		 }
 		}), 250);
 	  }
       continue;
