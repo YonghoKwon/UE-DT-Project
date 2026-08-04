@@ -44,6 +44,7 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") FString Message;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 EnqueuedCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 SubmittedCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 SubmittedBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 ReceiptCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 ConsumerReceivedCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 ValidationFailureCount = 0;
@@ -56,6 +57,7 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 LastFrameId = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 LastFrameBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float SubmittedHz = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float SubmittedMegabytesPerSecond = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float ConsumerHz = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastSocketWriteLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastReceiptLatencyMs = 0.0f;

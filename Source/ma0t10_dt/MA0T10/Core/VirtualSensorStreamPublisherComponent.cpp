@@ -1201,6 +1201,7 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 		Runtime->Status.SubmittedFrameCount = Item.SubmittedCount;
 		Runtime->Status.SubmittedHz = Item.SubmittedHz;
+		Runtime->Status.SubmittedMegabytesPerSecond = Item.SubmittedMegabytesPerSecond;
 		Runtime->Status.ReceiptReceivedCount = Item.ReceiptCount;
 		Runtime->Status.ConsumerReceivedCount = Item.ConsumerReceivedCount;
 		Runtime->Status.ConsumerReceivedHz = Item.ConsumerHz;

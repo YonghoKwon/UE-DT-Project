@@ -818,9 +818,14 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 		{
 		case EWorkerEventType::Submitted:
 			++Telemetry.SubmittedCount;
+			Telemetry.SubmittedBytes += Event.Bytes;
 			if (Telemetry.FirstSubmittedSeconds <= 0.0) Telemetry.FirstSubmittedSeconds = FPlatformTime::Seconds();
-			Telemetry.SubmittedHz = static_cast<float>(Telemetry.SubmittedCount /
-				FMath::Max(0.001, FPlatformTime::Seconds() - Telemetry.FirstSubmittedSeconds));
+			{
+				const double SubmittedSeconds = FMath::Max(0.001, FPlatformTime::Seconds() - Telemetry.FirstSubmittedSeconds);
+				Telemetry.SubmittedHz = static_cast<float>(Telemetry.SubmittedCount / SubmittedSeconds);
+				Telemetry.SubmittedMegabytesPerSecond = static_cast<float>(Telemetry.SubmittedBytes /
+					(1024.0 * 1024.0 * SubmittedSeconds));
+			}
 			Telemetry.LastSocketWriteLatencyMs = Event.LatencyMs;
 			Telemetry.State = TEXT("submitted");
 			break;
