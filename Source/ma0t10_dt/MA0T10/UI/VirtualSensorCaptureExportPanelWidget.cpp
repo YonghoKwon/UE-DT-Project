@@ -787,20 +787,18 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleAllStreams()
 FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 {
 	const UVirtualSensorStreamPublisherComponent* Publisher = SensorManager ? SensorManager->StreamPublisherComponent : nullptr;
-	if (!Publisher) return TEXT("스트림 발행기 연결 없음");
+	if (!Publisher) return TEXT("스트림 발행기가 연결되지 않았습니다.");
 	const UVirtualLidarScanComponent* SelectedLidar = SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
 	const float RequestedHz = SelectedLidar && SelectedLidar->ScanInterval > SMALL_NUMBER ? 1.0f / SelectedLidar->ScanInterval : 0.0f;
-	const float ReceiptHz = RequestedHz / FMath::Max(1, StreamFrameStride * StreamReceiptInterval);
-	FString Text = FString::Printf(TEXT("스트림은 센서 측정을 막지 않으며 최신 프레임 하나만 대기합니다. Point Cloud=%s · 전송 간격=%d · receipt 간격=%d\n선택 LiDAR 요청 %.1fHz · 예상 receipt %.1f회/초\n"),
-		*PointCloudStreamFormatText(SelectedPointCloudStreamFormat), StreamFrameStride, StreamReceiptInterval, RequestedHz, ReceiptHz);
+	FString Text = FString::Printf(TEXT("LiDAR/Camera JSON은 최신 프레임 우선입니다. Point Cloud는 PCD Binary 고정, 완료 프레임 전체, 프레임마다 Broker receipt를 요청합니다.\n선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
 	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
 	if (Statuses.IsEmpty()) return Text + TEXT("아직 시작한 스트림이 없습니다.");
 	for (const FVirtualSensorStreamStatus& Status : Statuses)
 	{
 		if (Status.StreamKind == EVirtualSensorStreamKind::PointCloud)
 		{
-			Text += FString::Printf(TEXT("\n[PCD Binary 무손실] 직렬화 %.1fHz / %.2fms · 전송 %.2fMiB/s · 점 %d/%d · %d bytes/frame · queue 입력/준비/receipt=%d/%d/%d · gap=%lld retry=%lld overload=%lld"),
-				Status.SerializationHz, Status.LastSerializationLatencyMs, Status.SubmittedMegabytesPerSecond,
+			Text += FString::Printf(TEXT("\n[PCD Binary 무손실] 직렬화 %.1fHz(%lld개) · 최근/p95 %.2f/%.2fms · 전송 %.2fMiB/s · 점 %d/%d · %d bytes/frame · queue 입력/준비/receipt=%d/%d/%d · gap=%lld retry=%lld overload=%lld"),
+				Status.SerializationHz, Status.SerializedFrameCount, Status.LastSerializationLatencyMs, Status.SerializationP95LatencyMs, Status.SubmittedMegabytesPerSecond,
 				Status.LastPointCount, Status.LastSourcePointCount, Status.LastFrameBytes,
 				Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
 				Status.FrameGapCount, Status.RetryCount, Status.OverloadCount);
@@ -879,7 +877,8 @@ FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() co
 	{
 		if (Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud)
 		{
-			Text += FString::Printf(TEXT("\n[Binary PCD 연속성] gap=%lld · duplicate=%lld · validation-fail=%lld"),
+			Text += FString::Printf(TEXT("\n[Binary PCD 연속성] 수신 %.1fHz · end-to-end 최근/p95 %.2f/%.2fms · gap=%lld · duplicate=%lld · validation-fail=%lld"),
+				Status.ValidatedHz, Status.LastEndToEndLatencyMs, Status.EndToEndP95LatencyMs,
 				Status.FrameGapCount, Status.DuplicateFrameCount, Status.ValidationFailureCount);
 		}
 		const TCHAR* Kind = Status.Kind == EVirtualSensorTopicReceiveKind::Camera ? TEXT("Camera")
@@ -983,7 +982,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 			[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true)
 				.Text(LOCTEXT("PointCloudFilterHelp", "대상 물체만은 Mesh Actor의 PointCloudTarget Tag를 사용합니다. Tag·Semantic은 Digital Twin 메타데이터 필터이고, 센서 로컬 ROI는 실제 장비 crop과 유사한 공간 필터입니다.")) ]
 			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("LiveTitle", "세 가지 독립 실시간 스트림")) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 호환용 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG로 전송합니다. 고주기 Point Cloud는 Compact Binary(VLB2)를 권장하며 CSV/JSONL/PCD/LAS/LAZ는 virtual-pointcloud.v1 봉투에 담깁니다. VLB2는 프로젝트 규격이며 ML-X 제조사 패킷과 동일하다는 뜻은 아닙니다.")) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 호환용 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG로 전송합니다. 실시간 Point Cloud는 PCD v0.7 DATA binary 원본을 STOMP binary body로 보내며 Base64/JSON 복사를 하지 않습니다. CSV/JSONL/LAS/LAZ는 수동 내보내기에서만 사용합니다.")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNew(SWrapBox).UseAllottedSize(true)
 				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([StreamButtonText]() { return StreamButtonText(EVirtualSensorStreamKind::LidarPayload); }).OnClicked_Lambda([this]() { ToggleSelectedStream(EVirtualSensorStreamKind::LidarPayload); return FReply::Handled(); }) ]
 				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([StreamButtonText]() { return StreamButtonText(EVirtualSensorStreamKind::CameraImage); }).OnClicked_Lambda([this]() { ToggleSelectedStream(EVirtualSensorStreamKind::CameraImage); return FReply::Handled(); }) ]

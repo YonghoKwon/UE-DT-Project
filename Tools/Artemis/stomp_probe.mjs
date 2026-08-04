@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i], process.argv[i + 1]);
@@ -12,22 +13,75 @@ const topics = (args.get('--topics') ?? 'topic.virtual.sensor.lidar.0,topic.virt
 const ackTopic = args.get('--ack-topic') ?? '';
 const timeoutSeconds = Number(args.get('--timeout') ?? '30');
 const expectedPerTopic = Number(args.get('--count') ?? '1');
+const durationSeconds = Number(args.get('--duration') ?? '0');
+const warmupSeconds = Number(args.get('--warmup') ?? '0');
+const requireContiguousPcd = (args.get('--require-contiguous-pcd') ?? 'false').toLowerCase() === 'true';
 const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
 const output = args.get('--output') ?? path.resolve('Saved', 'Reports', `artemis_probe_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.json`);
 const messages = [];
 const counts = new Map(topics.map(topic => [topic, 0]));
-let buffer = '';
+const topicMetrics = new Map(topics.map(topic => [topic, {
+  validCount: 0,
+  invalidCount: 0,
+  totalBytes: 0,
+  firstReceivedMs: 0,
+  lastReceivedMs: 0,
+  firstFrameId: null,
+  lastFrameId: null,
+  frameGaps: 0,
+  duplicates: 0,
+}]));
+let buffer = Buffer.alloc(0);
 let connected = false;
+let measurementStartedMs = 0;
+let measurementTimer = null;
+let warmupTimer = null;
+let warmupStarted = false;
+let finished = false;
 
 function frame(command, headers = {}, body = '') {
   const lines = [command, ...Object.entries(headers).map(([key, value]) => `${key}:${String(value).replaceAll('\\', '\\\\').replaceAll(':', '\\c').replaceAll('\n', '\\n')}`), '', body];
   return `${lines.join('\n')}\0`;
 }
 
-function parseFrame(raw) {
-  const split = raw.indexOf('\n\n');
-  const headerText = split >= 0 ? raw.slice(0, split) : raw;
-  const body = split >= 0 ? raw.slice(split + 2) : '';
+function binaryFrame(command, headers, body) {
+  const normalized = { ...headers, 'content-length': body.length };
+  const headerText = [command, ...Object.entries(normalized).map(([key, value]) => `${key}:${String(value).replaceAll('\\', '\\\\').replaceAll(':', '\\c').replaceAll('\n', '\\n')}`), '', ''].join('\n');
+  return Buffer.concat([Buffer.from(headerText, 'utf8'), body, Buffer.from([0])]);
+}
+
+function buildSelfTestBinaryPcd() {
+  const header = Buffer.from([
+    '# .PCD v0.7 - Point Cloud Data file format',
+    'VERSION 0.7',
+    'FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence',
+    'SIZE 4 4 4 2 2 2 1 1 8 1 4',
+    'TYPE F F F U U U U U I U F',
+    'COUNT 1 1 1 1 1 1 1 1 1 1 1',
+    'WIDTH 1',
+    'HEIGHT 1',
+    'VIEWPOINT 0 0 0 1 0 0 0',
+    'POINTS 1',
+    'DATA binary',
+    '',
+  ].join('\n'), 'ascii');
+  const point = Buffer.alloc(33);
+  point.writeFloatLE(1.0, 0);
+  point.writeFloatLE(2.0, 4);
+  point.writeFloatLE(3.0, 8);
+  point.writeUInt16LE(32768, 12);
+  point.writeUInt16LE(7, 14);
+  point.writeUInt16LE(11, 16);
+  point.writeUInt8(0, 18);
+  point.writeUInt8(1, 19);
+  point.writeBigInt64LE(1234n, 20);
+  point.writeUInt8(1, 28);
+  point.writeFloatLE(0.9, 29);
+  return Buffer.concat([header, point]);
+}
+
+function parseFrame(rawHeader, body) {
+  const headerText = rawHeader.toString('utf8');
   const lines = headerText.replaceAll('\r', '').split('\n');
   const command = lines.shift() ?? '';
   const headers = {};
@@ -38,7 +92,67 @@ function parseFrame(raw) {
   return { command, headers, body };
 }
 
+function takeNextFrame() {
+  while (buffer.length > 0 && (buffer[0] === 0 || buffer[0] === 10 || buffer[0] === 13)) buffer = buffer.subarray(1);
+  const delimiter = Buffer.from('\n\n');
+  const headerEnd = buffer.indexOf(delimiter);
+  if (headerEnd < 0) return null;
+  const header = buffer.subarray(0, headerEnd);
+  const headerLines = header.toString('utf8').replaceAll('\r', '').split('\n');
+  const headers = {};
+  for (const line of headerLines.slice(1)) {
+    const separator = line.indexOf(':');
+    if (separator > 0) headers[line.slice(0, separator)] = line.slice(separator + 1).replaceAll('\\n', '\n').replaceAll('\\c', ':').replaceAll('\\\\', '\\');
+  }
+  const bodyStart = headerEnd + delimiter.length;
+  const declaredLength = headers['content-length'] == null ? null : Number(headers['content-length']);
+  let bodyEnd;
+  if (Number.isFinite(declaredLength)) {
+    bodyEnd = bodyStart + declaredLength;
+    if (buffer.length < bodyEnd + 1) return null;
+  } else {
+    bodyEnd = buffer.indexOf(0, bodyStart);
+    if (bodyEnd < 0) return null;
+  }
+  const body = Buffer.from(buffer.subarray(bodyStart, bodyEnd));
+  const terminatorIndex = bodyEnd;
+  if (buffer[terminatorIndex] !== 0) throw new Error('STOMP frame is missing its NUL terminator');
+  buffer = buffer.subarray(terminatorIndex + 1);
+  return parseFrame(header, body);
+}
+
+function validateBinaryPcd(headers, body) {
+  const marker = Buffer.from('DATA binary\n');
+  const payloadOffset = body.indexOf(marker) + marker.length;
+  const headerText = payloadOffset >= marker.length ? body.subarray(0, payloadOffset).toString('utf8') : '';
+  const pointCount = Number(headers['x-point-count'] ?? '-1');
+  const checksum = crypto.createHash('sha1').update(body).digest('hex');
+  const checks = {
+    schema: headers.schema === 'virtual-pointcloud.pcd.v1',
+    contentType: headers['content-type'] === 'application/vnd.pcd',
+    signature: body.subarray(0, 11).toString('ascii') === '# .PCD v0.7',
+    fields: headerText.includes('FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence'),
+    pointCount: Number.isInteger(pointCount) && pointCount >= 0 && headerText.includes(`POINTS ${pointCount}`),
+    marker: payloadOffset >= marker.length,
+    bodyLength: body.length === payloadOffset + pointCount * 33,
+    checksum: checksum.toLowerCase() === String(headers['x-checksum-sha1'] ?? '').toLowerCase(),
+  };
+  const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
+  return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks };
+}
+
 function report(success, reason) {
+  if (finished) return;
+  finished = true;
+  if (measurementTimer) clearTimeout(measurementTimer);
+  if (warmupTimer) clearTimeout(warmupTimer);
+  const finishedMs = Date.now();
+  const measuredSeconds = measurementStartedMs > 0 ? Math.max(0.001, (finishedMs - measurementStartedMs) / 1000) : 0;
+  const metrics = Object.fromEntries([...topicMetrics.entries()].map(([topic, value]) => [topic, {
+    ...value,
+    receiveHz: measuredSeconds > 0 ? value.validCount / measuredSeconds : 0,
+    megabytesPerSecond: measuredSeconds > 0 ? value.totalBytes / measuredSeconds / 1024 / 1024 : 0,
+  }]));
   const result = {
     generatedUtc: new Date().toISOString(),
     success,
@@ -46,7 +160,12 @@ function report(success, reason) {
     brokerUrl: url,
     topics,
     expectedPerTopic,
+    durationSeconds,
+    warmupSeconds,
+    measuredSeconds,
+    requireContiguousPcd,
     counts: Object.fromEntries(counts),
+    metrics,
     messages,
   };
   fs.mkdirSync(path.dirname(output), { recursive: true });
@@ -59,20 +178,62 @@ function hasAllExpected() {
   return [...counts.values()].every(count => count >= expectedPerTopic);
 }
 
+function finishDurationMeasurement(socket) {
+  const pointCloudTopic = topics.find(topic => topic.includes('export')) ?? topics.at(-1);
+  const pointCloudMetrics = pointCloudTopic ? topicMetrics.get(pointCloudTopic) : null;
+  const hasData = [...topicMetrics.values()].every(value => value.validCount > 0);
+  const contiguous = !requireContiguousPcd || !pointCloudMetrics ||
+    (pointCloudMetrics.frameGaps === 0 && pointCloudMetrics.duplicates === 0 && pointCloudMetrics.invalidCount === 0);
+  report(hasData && contiguous,
+    !hasData ? 'duration elapsed before every topic produced a valid message'
+      : !contiguous ? 'binary PCD FrameId continuity validation failed'
+        : `duration measurement completed (${durationSeconds}s)`);
+  socket.close();
+}
+
+function beginDurationMeasurement(socket) {
+  measurementStartedMs = Date.now();
+  measurementTimer = setTimeout(() => finishDurationMeasurement(socket), durationSeconds * 1000);
+}
+
+function updateMetrics(destination, entry) {
+  const metric = topicMetrics.get(destination);
+  if (!metric) return;
+  const now = Date.now();
+  if (metric.firstReceivedMs === 0) metric.firstReceivedMs = now;
+  metric.lastReceivedMs = now;
+  metric.totalBytes += entry.bytes;
+  if (!entry.valid) {
+    metric.invalidCount += 1;
+    return;
+  }
+  metric.validCount += 1;
+  const frameId = Number(entry.frameId);
+  if (Number.isSafeInteger(frameId)) {
+    if (metric.firstFrameId == null) metric.firstFrameId = frameId;
+    if (metric.lastFrameId != null) {
+      if (frameId <= metric.lastFrameId) metric.duplicates += 1;
+      else if (frameId > metric.lastFrameId + 1) metric.frameGaps += frameId - metric.lastFrameId - 1;
+    }
+    metric.lastFrameId = Math.max(metric.lastFrameId ?? frameId, frameId);
+  }
+}
+
 const socket = new WebSocket(url, ['v12.stomp']);
 socket.addEventListener('open', () => {
   socket.send(frame('CONNECT', { 'accept-version': '1.2', host: 'localhost', login: user, passcode: password, 'heart-beat': '0,0' }));
 });
 
 socket.addEventListener('message', async event => {
-  const chunk = typeof event.data === 'string' ? event.data : event.data instanceof Blob ? await event.data.text() : Buffer.from(event.data).toString('utf8');
-  buffer += chunk;
-  while (buffer.includes('\0')) {
-    const end = buffer.indexOf('\0');
-    const raw = buffer.slice(0, end).replace(/^\n+/, '');
-    buffer = buffer.slice(end + 1);
-    if (!raw.trim()) continue;
-    const parsed = parseFrame(raw);
+	const chunk = typeof event.data === 'string'
+		? Buffer.from(event.data, 'utf8')
+		: event.data instanceof Blob
+			? Buffer.from(await event.data.arrayBuffer())
+			: Buffer.from(event.data);
+  buffer = Buffer.concat([buffer, chunk]);
+  while (true) {
+	const parsed = takeNextFrame();
+	if (!parsed) break;
     if (parsed.command === 'CONNECTED') {
       connected = true;
       topics.forEach((topic, index) => socket.send(frame('SUBSCRIBE', { id: `probe-${index}`, destination: topic, ack: 'auto', 'subscription-type': 'MULTICAST' })));
@@ -80,6 +241,28 @@ socket.addEventListener('message', async event => {
 		setTimeout(() => topics.forEach((topic, index) => {
 		  const requestId = `probe-${Date.now()}-${index}`;
 		  const kind = index === 0 ? 'lidar-stream' : index === 1 ? 'camera-stream' : 'pointcloud-stream';
+		  if (index === 2) {
+			const pcd = buildSelfTestBinaryPcd();
+			const checksum = crypto.createHash('sha1').update(pcd).digest('hex');
+			socket.send(binaryFrame('SEND', {
+			  destination: topic,
+			  'destination-type': 'MULTICAST',
+			  schema: 'virtual-pointcloud.pcd.v1',
+			  'content-type': 'application/vnd.pcd',
+			  'x-request-id': requestId,
+			  'x-sensor-id': 'PROBE-2',
+			  'x-sensor-type': 'lidar',
+			  'x-data-kind': kind,
+			  'x-frame-id': 3,
+			  'x-utc': new Date().toISOString(),
+			  'x-point-count': 1,
+			  'x-source-point-count': 1,
+			  'x-filter-revision': 0,
+			  'x-acquisition-profile': 'iyobot-mlx80-native',
+			  'x-checksum-sha1': checksum,
+			}, pcd));
+			return;
+		  }
 		  socket.send(frame('SEND', {
 			destination: topic,
 			'destination-type': 'MULTICAST',
@@ -96,9 +279,14 @@ socket.addEventListener('message', async event => {
     }
     if (parsed.command === 'MESSAGE') {
       const destination = parsed.headers.destination ?? '';
-      if (counts.has(destination)) counts.set(destination, counts.get(destination) + 1);
+      const isBinaryPcd = parsed.headers.schema === 'virtual-pointcloud.pcd.v1' || parsed.headers['content-type'] === 'application/vnd.pcd';
+      const pcdValidation = isBinaryPcd ? validateBinaryPcd(parsed.headers, parsed.body) : null;
       let schema = '';
-      try { schema = JSON.parse(parsed.body).schema ?? JSON.parse(parsed.body).schemaVersion ?? ''; } catch {}
+	  if (isBinaryPcd) schema = parsed.headers.schema ?? '';
+	  else {
+		try { const json = JSON.parse(parsed.body.toString('utf8')); schema = json.schema ?? json.schemaVersion ?? ''; } catch {}
+	  }
+	  const messageValid = isBinaryPcd ? pcdValidation.valid : schema.startsWith('virtual-');
       const entry = {
         receivedUtc: new Date().toISOString(),
         destination,
@@ -108,16 +296,31 @@ socket.addEventListener('message', async event => {
         dataKind: parsed.headers['x-data-kind'] ?? '',
         frameId: parsed.headers['x-frame-id'] ?? '',
         contentType: parsed.headers['content-type'] ?? '',
-        bytes: Buffer.byteLength(parsed.body, 'utf8'),
+		bytes: parsed.body.length,
         schema,
-        bodyPreview: parsed.body.slice(0, 180),
+		valid: messageValid,
+		pointCount: pcdValidation?.pointCount ?? null,
+		checksum: pcdValidation?.checksum ?? '',
+		validationErrors: pcdValidation?.failedChecks ?? [],
+		bodyPreview: isBinaryPcd ? parsed.body.subarray(0, 32).toString('hex') : parsed.body.subarray(0, 180).toString('utf8'),
       };
-      messages.push(entry);
+      const shouldMeasure = durationSeconds <= 0 || measurementStartedMs > 0;
+      if (shouldMeasure) {
+        if (counts.has(destination) && messageValid) counts.set(destination, counts.get(destination) + 1);
+        updateMetrics(destination, entry);
+        messages.push(entry);
+        if (messages.length > 200) messages.shift();
+      }
       console.error(`[MESSAGE] ${destination} request=${entry.requestId} sensor=${entry.sensorId} frame=${entry.frameId} bytes=${entry.bytes} schema=${entry.schema}`);
       if (ackTopic && entry.requestId) {
-        socket.send(frame('SEND', { destination: ackTopic, 'destination-type': 'MULTICAST', 'content-type': 'application/json', 'x-request-id': entry.requestId }, JSON.stringify({ requestId: entry.requestId, processed: true, source: 'ma0t10-stomp-probe' })));
+		socket.send(frame('SEND', { destination: ackTopic, 'destination-type': 'MULTICAST', 'content-type': 'application/json', 'x-request-id': entry.requestId }, JSON.stringify({ requestId: entry.requestId, processed: true, source: 'ma0t10-stomp-probe' })));
       }
-      if (hasAllExpected()) {
+      if (durationSeconds > 0 && messageValid && !warmupStarted) {
+        warmupStarted = true;
+        if (warmupSeconds > 0) warmupTimer = setTimeout(() => beginDurationMeasurement(socket), warmupSeconds * 1000);
+        else beginDurationMeasurement(socket);
+      }
+      if (durationSeconds <= 0 && hasAllExpected()) {
         report(true, 'expected messages received from every topic');
         socket.close();
       }
@@ -128,7 +331,7 @@ socket.addEventListener('message', async event => {
       process.exitCode = 2;
       socket.close();
     }
-  }
+	}
 });
 
 socket.addEventListener('error', event => {
@@ -139,14 +342,14 @@ socket.addEventListener('error', event => {
 });
 
 socket.addEventListener('close', () => {
-  if (!hasAllExpected() && process.exitCode == null) {
+  if (!finished && process.exitCode == null) {
     report(false, connected ? 'socket closed before expected messages arrived' : 'socket closed before STOMP CONNECTED');
     process.exitCode = 4;
   }
 });
 
 setTimeout(() => {
-  if (!hasAllExpected()) {
+  if (!finished && (durationSeconds > 0 || !hasAllExpected())) {
     report(false, `timeout after ${timeoutSeconds}s`);
     process.exitCode = 5;
     socket.close();

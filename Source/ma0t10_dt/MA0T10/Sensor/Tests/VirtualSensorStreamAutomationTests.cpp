@@ -3,7 +3,9 @@
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
 #include "HAL/PlatformMisc.h"
+#include "Misc/SecureHash.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FVirtualSensorStreamLatestFrameTest,
@@ -353,6 +355,102 @@ bool FVirtualSensorBinaryPcdContractTest::RunTest(const FString& Parameters)
 		UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, PointCount, Error));
 	TestEqual(TEXT("exclude rules take precedence"), PointCount, 0);
 	TestTrue(TEXT("zero-point PCD still carries its header"), Bytes.Num() > 100);
+
+	for (const int32 ScalePointCount : {32256, 64512})
+	{
+		TArray<FVirtualLidarPoint> ScalePoints;
+		ScalePoints.Reserve(ScalePointCount);
+		for (int32 Index = 0; Index < ScalePointCount; ++Index)
+		{
+			ScalePoints.Add(MakePoint(
+				FVector(1.0 + (Index % 576) * 0.01, (Index % 56) * 0.01, 0.5),
+				TEXT("ScaleTarget"), {TEXT("PointCloudTarget")}, Index % 576));
+		}
+		FVirtualSensorFrameEnvelope ScaleFrame;
+		ScaleFrame.SensorId = TEXT("LIDAR-PCD-SCALE");
+		ScaleFrame.SensorKind = EVirtualSensorKind::Lidar;
+		ScaleFrame.FrameId = ScalePointCount;
+		ScaleFrame.TimestampUtc = Frame.TimestampUtc;
+		ScaleFrame.PointSnapshot = MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScalePoints));
+		FVirtualSensorStreamConfig ScaleConfig;
+		ScaleConfig.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+		ScaleConfig.PcdDataMode = EVirtualPcdDataMode::Binary;
+		Bytes.Reset();
+		PointCount = 0;
+		TestTrue(FString::Printf(TEXT("%d-point binary PCD serializes"), ScalePointCount),
+			UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(
+				ScaleFrame, ScaleConfig, Extension, Bytes, PointCount, Error));
+		TestEqual(FString::Printf(TEXT("%d-point PCD preserves every point"), ScalePointCount), PointCount, ScalePointCount);
+		TestTrue(FString::Printf(TEXT("%d-point PCD body stays below 16 MiB"), ScalePointCount), Bytes.Num() < 16 * 1024 * 1024);
+		TestTrue(FString::Printf(TEXT("%d-point PCD contains exactly 33 bytes per record plus header"), ScalePointCount),
+			Bytes.Num() > ScalePointCount * 33 && Bytes.Num() < ScalePointCount * 33 + 1024);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorBinaryPcdReceiverTest,
+	"MA0T10.SensorStream.BinaryPcdReceiverValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorBinaryPcdReceiverTest::RunTest(const FString& Parameters)
+{
+	FVirtualLidarPoint Point;
+	Point.bHit = true;
+	Point.SensorLocalPositionMeters = FVector(1.25, -2.5, 0.75);
+	Point.RangeMillimeters = 2880;
+	Point.RawIntensity = 4321;
+	Point.Ring = 8;
+	Point.HorizontalIndex = 17;
+	Point.EchoCount = 1;
+	Point.Validity = EVirtualLidarPointValidity::Valid;
+	Point.Confidence = 0.95f;
+	TArray<FVirtualLidarPoint> Points;
+	Points.Add(Point);
+	FVirtualSensorFrameEnvelope Frame;
+	Frame.SensorId = TEXT("LIDAR-PCD-RECEIVER");
+	Frame.SensorKind = EVirtualSensorKind::Lidar;
+	Frame.FrameId = 77;
+	Frame.TimestampUtc = FDateTime(2026, 8, 4, 12, 0, 0);
+	Frame.PointSnapshot = MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(Points));
+	FVirtualSensorStreamConfig Config;
+	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+	Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+	FString Extension, Error;
+	TArray<uint8> Bytes;
+	int32 PointCount = 0;
+	TestTrue(TEXT("receiver fixture serializes"), UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(
+		Frame, Config, Extension, Bytes, PointCount, Error));
+
+	uint8 Hash[FSHA1::DigestSize];
+	FSHA1::HashBuffer(Bytes.GetData(), Bytes.Num(), Hash);
+	TMap<FName, FString> Headers;
+	Headers.Add(TEXT("schema"), TEXT("virtual-pointcloud.pcd.v1"));
+	Headers.Add(TEXT("content-type"), TEXT("application/vnd.pcd"));
+	Headers.Add(TEXT("x-sensor-id"), Frame.SensorId);
+	Headers.Add(TEXT("x-frame-id"), LexToString(Frame.FrameId));
+	Headers.Add(TEXT("x-point-count"), LexToString(PointCount));
+	Headers.Add(TEXT("x-source-point-count"), TEXT("1"));
+	Headers.Add(TEXT("x-filter-revision"), TEXT("3"));
+	Headers.Add(TEXT("x-acquisition-profile"), TEXT("iyobot-mlx80-native"));
+	Headers.Add(TEXT("x-utc"), Frame.TimestampUtc.ToIso8601());
+	Headers.Add(TEXT("x-checksum-sha1"), BytesToHex(Hash, FSHA1::DigestSize).ToLower());
+
+	UVirtualPointCloudStreamReceiverTC* Receiver = NewObject<UVirtualPointCloudStreamReceiverTC>();
+	TSharedPtr<FVirtualPointCloudStreamReceiverData> Parsed = StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(
+		Receiver->ParseBinaryPcdToStruct(Bytes, Headers));
+	TestTrue(TEXT("raw PCD receiver accepts the binary contract"), Parsed.IsValid() && Parsed->bValid);
+	if (Parsed.IsValid())
+	{
+		TestEqual(TEXT("receiver keeps frame id"), Parsed->FrameId, Frame.FrameId);
+		TestEqual(TEXT("receiver validates point count"), Parsed->PointCount, 1);
+		TestTrue(TEXT("receiver performs checksum validation every frame"), Parsed->bDeepValidated);
+	}
+
+	Headers[TEXT("x-checksum-sha1")] = TEXT("0000000000000000000000000000000000000000");
+	Parsed = StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Bytes, Headers));
+	TestTrue(TEXT("checksum mismatch is rejected"), Parsed.IsValid() && !Parsed->bValid);
+	TestTrue(TEXT("checksum failure is explained"), Parsed.IsValid() && Parsed->Message.Contains(TEXT("checksum")));
 	return true;
 }
 
@@ -464,7 +562,12 @@ bool FVirtualSensorArtemisIntegrationSmokeTest::RunTest(const FString& Parameter
 		Config.StreamKind = Kind;
 		Config.bEnabled = true;
 		Config.ReceiptSampleInterval = 1;
-		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+		Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+		Config.DeliveryMode = Kind == EVirtualSensorStreamKind::PointCloud
+			? EVirtualPointCloudDeliveryMode::ConnectedNoLoss
+			: EVirtualPointCloudDeliveryMode::LatestFrame;
+		Config.MaxBufferedFrames = 20;
 		State->Publisher->ConfigureStream(Config);
 	}
 	State->StartedSeconds = FPlatformTime::Seconds();

@@ -783,9 +783,22 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 				if (FStreamRuntime* Runtime = WeakThis->StreamRuntimes.Find(StreamKey))
 				{
 					Runtime->Status.LastSerializationLatencyMs = SerializationLatencyMs;
+					Runtime->SerializationLatencySamples.Add(SerializationLatencyMs);
+					if (Runtime->SerializationLatencySamples.Num() > 256)
+					{
+						Runtime->SerializationLatencySamples.RemoveAt(0, Runtime->SerializationLatencySamples.Num() - 256, false);
+					}
+					TArray<float> SortedLatency = Runtime->SerializationLatencySamples;
+					SortedLatency.Sort();
+					if (!SortedLatency.IsEmpty())
+					{
+						const int32 P95Index = FMath::Clamp(FMath::CeilToInt(SortedLatency.Num() * 0.95f) - 1, 0, SortedLatency.Num() - 1);
+						Runtime->Status.SerializationP95LatencyMs = SortedLatency[P95Index];
+					}
 					const double NowSeconds = FPlatformTime::Seconds();
 					if (Runtime->FirstSerializationSeconds <= 0.0) Runtime->FirstSerializationSeconds = NowSeconds;
 					++Runtime->SerializationCompletedCount;
+					Runtime->Status.SerializedFrameCount = Runtime->SerializationCompletedCount;
 					Runtime->Status.SerializationHz = static_cast<float>(Runtime->SerializationCompletedCount /
 						FMath::Max(0.001, NowSeconds - Runtime->FirstSerializationSeconds));
 				}
@@ -801,6 +814,15 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 	if (!Runtime) return;
 	Runtime->bSerializationInFlight = false;
 	Runtime->Status.bProcessing = false;
+	if (!Runtime->Config.bEnabled || Runtime->Status.bOverloaded)
+	{
+		// An overload stop deliberately clears every retained frame. A worker
+		// that was already running must not repopulate the prepared queue after
+		// that stop, otherwise the UI would report a drained error state while a
+		// megabyte-scale body remains retained indefinitely.
+		RefreshQueueTelemetry(*Runtime);
+		return;
+	}
 	const bool bNoLoss = Runtime->Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
 	if (CapturedConfigRevision != Runtime->ConfigRevision)
 	{

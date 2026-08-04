@@ -236,7 +236,9 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 LastSourcePointCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 LastFrameBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SerializationHz = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 SerializedFrameCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastSerializationLatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SerializationP95LatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SubmittedMegabytesPerSecond = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") bool bOverloaded = false;
 };

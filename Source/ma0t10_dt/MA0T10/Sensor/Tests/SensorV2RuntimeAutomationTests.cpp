@@ -323,16 +323,32 @@ public:
 
 		if (!bStreamsStarted)
 		{
+			// Exercise the production contract, not the legacy CSV envelope used by
+			// the early three-stream smoke. Applying the profile once keeps the
+			// acquisition at 576x56, 20 Hz while the stream subscribes to completed
+			// immutable frames without triggering an extra scan.
+			Lidar->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
+			Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 			{
 				FVirtualSensorStreamConfig Config;
 				Config.StreamKind = Kind;
 				Config.bEnabled = true;
 				Config.FrameStride = 1;
-				Config.ReceiptSampleInterval = 2;
-				Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+				Config.ReceiptSampleInterval = Kind == EVirtualSensorStreamKind::PointCloud ? 1 : 2;
+				Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+				Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+				Config.DeliveryMode = Kind == EVirtualSensorStreamKind::PointCloud
+					? EVirtualPointCloudDeliveryMode::ConnectedNoLoss
+					: EVirtualPointCloudDeliveryMode::LatestFrame;
+				Config.MaxBufferedFrames = 20;
+				Config.MaxReceiptRetries = 3;
 				Publisher->ConfigureStream(Config);
 			}
+			const FString RequestedSeconds = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_MEASURE_SECONDS"));
+			MeasurementSeconds = RequestedSeconds.IsEmpty()
+				? 10.0
+				: FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
 			bStreamsStarted = true;
 			return false;
@@ -362,7 +378,24 @@ public:
 			if (LastFrameSampleSeconds > 0.0) FrameTimesMs.Add((SampleNow - LastFrameSampleSeconds) * 1000.0);
 			LastFrameSampleSeconds = SampleNow;
 		}
-		if ((!bAllReady || StreamElapsedSeconds < 10.0) && StreamElapsedSeconds < 15.0) return false;
+		if ((!bAllReady || StreamElapsedSeconds < MeasurementSeconds) &&
+			StreamElapsedSeconds < MeasurementSeconds + 10.0) return false;
+
+		if (!bAcquisitionStopped)
+		{
+			Coordinator->StopAllSensors();
+			bAcquisitionStopped = true;
+			DrainStartedAtSeconds = FPlatformTime::Seconds();
+			return false;
+		}
+		const FVirtualSensorStreamStatus* PointCloudBeforeAssertions = StatusByKind.Find(EVirtualSensorStreamKind::PointCloud);
+		const bool bPointCloudDrained = PointCloudBeforeAssertions && !PointCloudBeforeAssertions->bProcessing &&
+			PointCloudBeforeAssertions->InputQueueDepth == 0 && PointCloudBeforeAssertions->PreparedQueueDepth == 0 &&
+			PointCloudBeforeAssertions->ReceiptQueueDepth == 0 &&
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SerializedFrameCount &&
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SubmittedFrameCount &&
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->ReceiptReceivedCount;
+		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 15.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), 3);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
@@ -375,6 +408,30 @@ public:
 			Test->TestTrue(TEXT("sampled broker receipt is correlated"), Status->ReceiptReceivedCount >= 1);
 			Test->TestEqual(TEXT("stream encoding stays healthy"), Status->EncodeFailureCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream receipt stays healthy"), Status->ReceiptTimeoutCount, static_cast<int64>(0));
+			if (Kind == EVirtualSensorStreamKind::PointCloud)
+			{
+				Test->TestEqual(TEXT("binary PCD keeps every publisher input frame"), Status->FrameGapCount, static_cast<int64>(0));
+				Test->TestEqual(TEXT("every binary PCD input is serialized"), Status->SerializedFrameCount, Status->InputFrameCount);
+				Test->TestEqual(TEXT("every binary PCD input is submitted"), Status->SubmittedFrameCount, Status->InputFrameCount);
+				Test->TestEqual(TEXT("every binary PCD submission receives a receipt"), Status->ReceiptReceivedCount, Status->InputFrameCount);
+				Test->TestEqual(TEXT("binary PCD never replaces a pending frame"), Status->ReplacedPendingFrameCount, static_cast<int64>(0));
+				Test->TestEqual(TEXT("binary PCD queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
+				Test->TestTrue(TEXT("binary PCD serialization sustains at least 19 Hz"), Status->SerializationHz >= 19.0f);
+				Test->TestTrue(TEXT("binary PCD submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
+				Test->TestTrue(TEXT("binary PCD serialization p95 remains below 20 ms"), Status->SerializationP95LatencyMs <= 20.0f);
+				Test->TestTrue(TEXT("binary PCD queues remain bounded"),
+					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);
+			}
+		}
+		if (PointCloudBeforeAssertions)
+		{
+			UE_LOG(LogTemp, Display, TEXT("[SensorPcdNoLossRhi] input=%lld serialized=%lld submitted=%lld receipts=%lld serializeHz=%.2f serializeP95Ms=%.2f inputQueue=%d preparedQueue=%d receiptQueue=%d gaps=%lld retries=%lld overload=%lld"),
+				PointCloudBeforeAssertions->InputFrameCount, PointCloudBeforeAssertions->SerializedFrameCount,
+				PointCloudBeforeAssertions->SubmittedFrameCount, PointCloudBeforeAssertions->ReceiptReceivedCount,
+				PointCloudBeforeAssertions->SerializationHz, PointCloudBeforeAssertions->SerializationP95LatencyMs,
+				PointCloudBeforeAssertions->InputQueueDepth, PointCloudBeforeAssertions->PreparedQueueDepth,
+				PointCloudBeforeAssertions->ReceiptQueueDepth, PointCloudBeforeAssertions->FrameGapCount,
+				PointCloudBeforeAssertions->RetryCount, PointCloudBeforeAssertions->OverloadCount);
 		}
 		TSharedPtr<FJsonObject> CameraPayload;
 		FString CameraEncoding;
@@ -394,6 +451,18 @@ public:
 			Test->TestTrue(TEXT("internal receiver validates repeated frames"), Status.ValidatedCount >= 2);
 			Test->TestEqual(TEXT("internal receiver has no validation failures"), Status.ValidationFailureCount, static_cast<int64>(0));
 			Test->TestTrue(TEXT("internal receiver retains at most bounded work"), Status.ReplacedPendingCount >= 0);
+			if (Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud)
+			{
+				if (PointCloudBeforeAssertions)
+				{
+					Test->TestEqual(TEXT("internal raw PCD consumer receives every submitted frame"),
+						Status.ValidatedCount, PointCloudBeforeAssertions->SubmittedFrameCount);
+				}
+				Test->TestEqual(TEXT("raw PCD receiver observes no FrameId gaps"), Status.FrameGapCount, static_cast<int64>(0));
+				Test->TestEqual(TEXT("raw PCD receiver observes no duplicate FrameId"), Status.DuplicateFrameCount, static_cast<int64>(0));
+				Test->TestTrue(TEXT("raw PCD consumer sustains at least 19 Hz"), Status.ValidatedHz >= 19.0f);
+				Test->TestTrue(TEXT("raw PCD end-to-end p95 remains below 200 ms"), Status.EndToEndP95LatencyMs <= 200.0f);
+			}
 		}
 		UE_LOG(LogTemp, Display, TEXT("[SensorTopicReceiverRhi] lidar=%lld camera=%lld pointcloud=%lld failures=%lld"),
 			ReceiverStatuses.IsValidIndex(0) ? ReceiverStatuses[0].ValidatedCount : 0,
@@ -436,7 +505,10 @@ private:
 	double StreamsStartedAtSeconds = -1.0;
 	bool bConnectionRequested = false;
 	bool bStreamsStarted = false;
+	bool bAcquisitionStopped = false;
+	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
+	double MeasurementSeconds = 10.0;
 	TArray<double> FrameTimesMs;
 };
 }

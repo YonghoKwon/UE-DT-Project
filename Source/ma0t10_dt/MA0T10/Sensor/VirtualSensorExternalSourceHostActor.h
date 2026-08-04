@@ -94,15 +94,24 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	struct FRawPointCloudPayload
+	{
+		TArray<uint8> Body;
+		TMap<FName, FString> Headers;
+	};
+
 	struct FReceiverRuntime
 	{
 		FVirtualSensorTopicReceiverStatus Status;
 		FString SubscriptionId;
 		TOptional<FString> PendingBody;
+		TArray<FRawPointCloudPayload> PendingBinaryBodies;
 		bool bSubscriptionPending = false;
 		bool bParsing = false;
 		int32 RetryAttempt = 0;
 		double SubscriptionStartedSeconds = 0.0;
+		double FirstValidatedSeconds = 0.0;
+		TArray<float> EndToEndLatencySamples;
 	};
 
 	UFUNCTION()
@@ -126,6 +135,12 @@ private:
 	void InitializeTopicReceiverRuntime();
 	void AttemptTopicSubscriptions();
 	void SubscribeRuntime(EVirtualSensorTopicReceiveKind Kind);
+	void EnsureRawPointCloudClient();
+	void SubscribeRawPointCloud();
+	void HandleRawPointCloudConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString);
+	void HandleRawPointCloudFailure(const FString& Error);
+	void HandleRawPointCloudMessage(const class IStompMessage& Message);
+	void QueueRawPointCloudPayload(TArray<uint8>&& Body, TMap<FName, FString>&& Headers);
 	void CompleteSubscription(EVirtualSensorTopicReceiveKind Kind, bool bSuccess, const FString& Error);
 	void QueueTopicPayload(EVirtualSensorTopicReceiveKind Kind, FString Body);
 	void TryStartQueuedParses();
@@ -145,4 +160,6 @@ private:
 	int32 ReceiverRoundRobinCursor = 0;
 	bool bTopicReceiversRequested = false;
 	bool bEndingPlay = false;
+	TSharedPtr<class IStompClient> RawPointCloudClient;
+	FString RawPointCloudSubscriptionId;
 };

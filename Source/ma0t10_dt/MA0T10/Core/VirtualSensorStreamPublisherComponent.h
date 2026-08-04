@@ -111,6 +111,7 @@ private:
 		double NextSubmitAttemptSeconds = 0.0;
 		bool bSerializationInFlight = false;
 		int64 SerializationCompletedCount = 0;
+		TArray<float> SerializationLatencySamples;
 		int32 ConfigRevision = 0;
 	};
 
