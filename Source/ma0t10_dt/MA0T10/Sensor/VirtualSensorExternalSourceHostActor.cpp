@@ -616,16 +616,33 @@ void AVirtualSensorExternalSourceHostActor::CompleteTopicParse(
 	}
 	else
 	{
+		bool bStaleOrDuplicatePointCloudFrame = false;
 		if (Kind == EVirtualSensorTopicReceiveKind::PointCloud && Data->bValid && Runtime->Status.LastFrameId >= 0)
 		{
-			if (Data->FrameId == Runtime->Status.LastFrameId || Data->FrameId < Runtime->Status.LastFrameId)
+			if (Data->FrameId <= Runtime->Status.LastFrameId)
 			{
 				++Runtime->Status.DuplicateFrameCount;
+				bStaleOrDuplicatePointCloudFrame = true;
 			}
 			else if (Data->FrameId > Runtime->Status.LastFrameId + 1)
 			{
 				Runtime->Status.FrameGapCount += Data->FrameId - Runtime->Status.LastFrameId - 1;
 			}
+		}
+		if (bStaleOrDuplicatePointCloudFrame)
+		{
+			// A receipt timeout retry is intentionally at-least-once. Validate the
+			// frame body, but do not move LastFrameId backwards or count it as a
+			// second consumer result; doing so manufactured a large gap on the next
+			// good frame. SensorId/FrameId is the PCD consumer idempotency key.
+			Runtime->Status.LastMessage = FString::Printf(
+				TEXT("Duplicate/stale Binary PCD ignored by SensorId/FrameId: %s/%lld"),
+				*Data->SensorId,
+				Data->FrameId);
+			Runtime->Status.State = EVirtualSensorTopicReceiverState::Active;
+			AddReceiveLog(*Runtime, *Data, ParseLatencyMs);
+			TryStartQueuedParses();
+			return;
 		}
 		Runtime->Status.LastSensorId = Data->SensorId;
 		Runtime->Status.LastFrameId = Data->FrameId;

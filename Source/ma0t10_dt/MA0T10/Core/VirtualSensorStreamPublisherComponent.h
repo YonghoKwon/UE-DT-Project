@@ -77,7 +77,7 @@ public:
 
 	/** First binary PCD receipt may include broker large-message/session warmup. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "5.0", ClampMax = "120.0"))
-	float BinaryPcdReceiptTimeoutSeconds = 15.0f;
+	float BinaryPcdReceiptTimeoutSeconds = 30.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "60.0"))
 	float ReconnectCooldownSeconds = 5.0f;
