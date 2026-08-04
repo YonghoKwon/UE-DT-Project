@@ -391,6 +391,20 @@ public:
 			bAllReady &= Status.State == EVirtualSensorTopicReceiverState::Active && Status.ValidatedCount >= 2;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
+		if (bAllReady && !bAuxiliaryRegressionStreamsStopped)
+		{
+			// Camera/LiDAR JSON only need a repeated-frame regression proof. The
+			// published 55 FPS acceptance target is explicitly one ML-X(80) Native
+			// binary PCD stream, so remove those auxiliary acquisitions before the
+			// timed frame samples begin instead of measuring a different workload.
+			Publisher->StopStream(EVirtualSensorStreamKind::CameraImage, FString());
+			Publisher->StopStream(EVirtualSensorStreamKind::LidarPayload, FString());
+			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It)
+			{
+				if (It->CaptureComponent) It->CaptureComponent->StopCapture();
+			}
+			bAuxiliaryRegressionStreamsStopped = true;
+		}
 		if (StreamElapsedSeconds >= 2.0)
 		{
 			const double SampleNow = FPlatformTime::Seconds();
@@ -525,6 +539,7 @@ private:
 	double StreamsStartedAtSeconds = -1.0;
 	bool bConnectionRequested = false;
 	bool bStreamsStarted = false;
+	bool bAuxiliaryRegressionStreamsStopped = false;
 	bool bAcquisitionStopped = false;
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
