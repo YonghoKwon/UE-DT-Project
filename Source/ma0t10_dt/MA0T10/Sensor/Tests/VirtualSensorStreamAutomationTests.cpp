@@ -80,6 +80,55 @@ bool FVirtualSensorStreamFormatRevisionTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorConnectedNoLossQueueTest,
+	"MA0T10.SensorStream.ConnectedNoLossQueue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorConnectedNoLossQueueTest::RunTest(const FString& Parameters)
+{
+	UVirtualSensorStreamPublisherComponent* Publisher = NewObject<UVirtualSensorStreamPublisherComponent>();
+	FVirtualSensorStreamConfig Config;
+	Config.StreamKind = EVirtualSensorStreamKind::PointCloud;
+	Config.SensorId = TEXT("LIDAR-NO-LOSS");
+	Config.bEnabled = true;
+	Config.FrameStride = 7;
+	Config.ReceiptSampleInterval = 10;
+	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+	Config.PcdDataMode = EVirtualPcdDataMode::Ascii;
+	Config.DeliveryMode = EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
+	Config.MaxBufferedFrames = 20;
+	Publisher->ConfigureStream(Config);
+
+	TArray<FVirtualLidarPoint> Points;
+	FVirtualLidarPoint& Point = Points.AddDefaulted_GetRef();
+	Point.bHit = true;
+	Point.SensorLocalPositionMeters = FVector(1.0, 0.0, 0.0);
+	Point.Validity = EVirtualLidarPointValidity::Valid;
+	const TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Snapshot =
+		MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(Points));
+
+	for (int64 FrameId = 1; FrameId <= 22; ++FrameId)
+	{
+		FVirtualSensorFrameEnvelope Frame;
+		Frame.SensorId = Config.SensorId;
+		Frame.SensorKind = EVirtualSensorKind::Lidar;
+		Frame.FrameId = FrameId;
+		Frame.TimestampUtc = FDateTime::UtcNow();
+		Frame.PointSnapshot = Snapshot;
+		Publisher->SubmitFrame(Frame);
+	}
+
+	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
+	TestEqual(TEXT("one no-loss stream exists"), Statuses.Num(), 1);
+	if (Statuses.Num() != 1) return false;
+	TestTrue(TEXT("queue overflow stops the stream explicitly"), Statuses[0].bOverloaded);
+	TestFalse(TEXT("overloaded stream is no longer enabled"), Statuses[0].bEnabled);
+	TestEqual(TEXT("no latest-frame replacement occurs"), Statuses[0].ReplacedPendingFrameCount, static_cast<int64>(0));
+	TestEqual(TEXT("overload is counted"), Statuses[0].OverloadCount, static_cast<int64>(1));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FVirtualSensorStreamTopicRoutingTest,
 	"MA0T10.SensorStream.TopicRouting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
