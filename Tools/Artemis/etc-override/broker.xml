@@ -11,7 +11,7 @@
 	<paging-directory>data/paging</paging-directory>
     <large-messages-directory>data/largemessages</large-messages-directory>
     <acceptors>
-      <acceptor name="stomp-ws">tcp://0.0.0.0:61616?protocols=STOMP;webSocketEnabled=true;webSocketMaxFramePayloadLength=16777216;webSocketCompressionSupported=true;stompMinLargeMessageSize=1048576</acceptor>
+      <acceptor name="stomp-ws">tcp://0.0.0.0:61616?protocols=STOMP;webSocketEnabled=true;webSocketMaxFramePayloadLength=16777216;webSocketCompressionSupported=true;stompMinLargeMessageSize=4194304</acceptor>
     </acceptors>
 	<address-settings>
 	  <address-setting match="topic.virtual.sensor.export.0">

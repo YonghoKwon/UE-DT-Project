@@ -5,13 +5,14 @@
 버전 관리되는 `etc-override/broker.xml`은 ML-X(80) 실시간 PCD를 위해 다음 값을 사용합니다.
 
 - WebSocket 단일 frame 상한: 16MiB
-- STOMP large-message 전환: `stompMinLargeMessageSize=1048576`
+- STOMP large-message 전환: `stompMinLargeMessageSize=4194304`
+  - ML-X(80) Binary PCD는 1 Echo 약 1.1MiB, 2 Echo 최악 약 2.2MiB입니다. 1MiB 임계값은 모든 정상 프레임을 디스크 large-message 경로로 보내 로컬 실측 처리율을 약 0.7Hz까지 낮췄습니다. 4MiB는 이 계약을 메모리 경로로 유지하며, 그보다 큰 예외 메시지만 large-message로 전환합니다.
 - `topic.virtual.sensor.export.0`: `PAGE`, page 10MiB, read-page 64MiB
 - journal, paging, large-message 디렉터리를 분리해 Broker 디스크 사용량을 진단 가능하게 유지
 
 실시간 Point Cloud body는 Base64 JSON이 아니라 `application/vnd.pcd` raw binary입니다. Native 2 Echo 최악 조건도 약 2.13MB/frame으로 16MiB WebSocket 상한 아래입니다. 20Hz에서는 약 40~50MB/s가 될 수 있으므로 Broker 데이터 디렉터리의 디스크 처리량과 용량을 함께 확인하십시오.
 
-로컬 설치형 Broker `C:\Project\apache-artemis-2.44.0\bin\myTest`를 사용할 때도 acceptor의 `stompMinLargeMessageSize=1048576`, WebSocket 16MiB, export Topic PAGE/read-page 64MiB가 같아야 합니다. 설정 변경 후 Broker를 재시작해야 적용됩니다.
+로컬 설치형 Broker `C:\Project\apache-artemis-2.44.0\bin\myTest`를 사용할 때도 acceptor의 `stompMinLargeMessageSize=4194304`, WebSocket 16MiB, export Topic PAGE/read-page 64MiB가 같아야 합니다. 설정 변경 후 Broker를 재시작해야 적용됩니다.
 
 프로젝트 루트에서 다음 명령으로 로컬 개발 Broker를 시작합니다.
 
