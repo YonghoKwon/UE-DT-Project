@@ -422,12 +422,19 @@ public:
 			return false;
 		}
 		const FVirtualSensorStreamStatus* PointCloudBeforeAssertions = StatusByKind.Find(EVirtualSensorStreamKind::PointCloud);
+		const FVirtualSensorTopicReceiverStatus* PointCloudReceiverBeforeAssertions = ReceiverStatuses.FindByPredicate(
+			[](const FVirtualSensorTopicReceiverStatus& Status)
+			{
+				return Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud;
+			});
 		const bool bPointCloudDrained = PointCloudBeforeAssertions && !PointCloudBeforeAssertions->bProcessing &&
 			PointCloudBeforeAssertions->InputQueueDepth == 0 && PointCloudBeforeAssertions->PreparedQueueDepth == 0 &&
 			PointCloudBeforeAssertions->ReceiptQueueDepth == 0 &&
 			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SerializedFrameCount &&
 			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SubmittedFrameCount &&
-			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->ReceiptReceivedCount;
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->ReceiptReceivedCount &&
+			PointCloudReceiverBeforeAssertions &&
+			PointCloudReceiverBeforeAssertions->ValidatedCount == PointCloudBeforeAssertions->SubmittedFrameCount;
 		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), 3);
