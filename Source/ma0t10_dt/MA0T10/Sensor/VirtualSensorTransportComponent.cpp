@@ -13,33 +13,6 @@
 #include "IStompClient.h"
 #include "IStompMessage.h"
 #include "StompModule.h"
-#include "IWebSocket.h"
-#include "WebSocketsModule.h"
-
-namespace
-{
-void AppendUtf8(TArray<uint8>& Out, const FString& Text)
-{
-	FTCHARToUTF8 Utf8(*Text);
-	Out.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
-}
-
-FString EscapeStompHeaderValue(const FString& Value)
-{
-	FString Escaped = Value.Replace(TEXT("\\"), TEXT("\\\\"));
-	Escaped = Escaped.Replace(TEXT("\r"), TEXT("\\r"));
-	Escaped = Escaped.Replace(TEXT("\n"), TEXT("\\n"));
-	return Escaped.Replace(TEXT(":"), TEXT("\\c"));
-}
-
-FString UnescapeStompHeaderValue(const FString& Value)
-{
-	FString Result = Value.Replace(TEXT("\\c"), TEXT(":"));
-	Result = Result.Replace(TEXT("\\n"), TEXT("\n"));
-	Result = Result.Replace(TEXT("\\r"), TEXT("\r"));
-	return Result.Replace(TEXT("\\\\"), TEXT("\\"));
-}
-}
 
 UVirtualSensorTransportComponent::UVirtualSensorTransportComponent()
 {
@@ -149,10 +122,10 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 		return Result;
 	}
 
-	EnsureBinaryPcdSocket();
-	if (!bBinaryPcdStompConnected.Load())
+	EnsureStompClient();
+	if (!IsStompConnected())
 	{
-		Result.Message = TEXT("Artemis binary STOMP is not connected; binary PCD was not submitted.");
+		Result.Message = TEXT("Artemis STOMP is not connected; binary PCD was not submitted.");
 		return Result;
 	}
 
@@ -180,183 +153,27 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 	Headers.Add(TEXT("x-acquisition-profile"), Metadata.ProfileKey);
 	Headers.Add(TEXT("x-checksum-sha1"), Metadata.ChecksumSha1);
 
-	Headers.Add(TEXT("receipt"), Result.RequestId);
-	Headers.Add(TEXT("destination"), Result.Destination);
-	Headers.Add(TEXT("content-length"), LexToString(Bytes.Num()));
-	TArray<uint8> StompFrame;
-	StompFrame.Reserve(Bytes.Num() + 1024);
-	AppendUtf8(StompFrame, TEXT("SEND\n"));
-	for (const TPair<FName, FString>& Header : Headers)
-	{
-		AppendUtf8(StompFrame, Header.Key.ToString().ToLower() + TEXT(":") + EscapeStompHeaderValue(Header.Value) + TEXT("\n"));
-	}
-	StompFrame.Add(static_cast<uint8>('\n'));
-	StompFrame.Append(Bytes);
-	StompFrame.Add(0);
-
 	const double StartedSeconds = FPlatformTime::Seconds();
-	BinaryPcdPendingReceipts.Add(Result.RequestId, {Result, StartedSeconds});
-	BinaryPcdSocket->Send(StompFrame.GetData(), StompFrame.Num(), true);
+	const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+	StompClient->Send(Result.Destination, Bytes, Headers, FStompRequestCompleted::CreateLambda(
+		[WeakThis, SubmittedResult = Result, StartedSeconds](bool bSuccess, const FString& Error)
+		{
+			if (!WeakThis.IsValid()) return;
+			FVirtualSensorTransportResult Receipt = SubmittedResult;
+			Receipt.bSubmitted = true;
+			Receipt.bAccepted = bSuccess;
+			Receipt.bReceiptReceived = bSuccess;
+			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
+			Receipt.Message = bSuccess
+				? TEXT("Binary PCD broker receipt received; consumer processing is tracked separately.")
+				: FString::Printf(TEXT("Binary PCD broker receipt failed: %s"), *Error);
+			WeakThis->OnDataSent.Broadcast(Receipt);
+		}));
 	Result.bSubmitted = true;
-	Result.Message = TEXT("Binary PCD submitted over raw binary WebSocket; waiting for broker receipt.");
+	Result.Message = TEXT("Binary PCD submitted through IStompClient; waiting for broker receipt.");
 	LastStompSubmitSeconds = StartedSeconds;
 	OnDataSent.Broadcast(Result);
 	return Result;
-}
-
-void UVirtualSensorTransportComponent::EnsureBinaryPcdSocket()
-{
-	if (BinaryPcdSocket.IsValid())
-	{
-		if (!BinaryPcdSocket->IsConnected() && !bBinaryPcdSocketConnecting.Load())
-		{
-			bBinaryPcdSocketConnecting.Store(true);
-			BinaryPcdSocket->Connect();
-		}
-		return;
-	}
-	if (TransportProfile.BrokerUrl.IsEmpty() || bBinaryPcdSocketConnecting.Exchange(true)) return;
-	BinaryPcdSocket = FWebSocketsModule::Get().CreateWebSocket(TransportProfile.BrokerUrl);
-	BinaryPcdSocket->OnConnected().AddUObject(this, &UVirtualSensorTransportComponent::HandleBinaryPcdSocketConnected);
-	BinaryPcdSocket->OnConnectionError().AddUObject(this, &UVirtualSensorTransportComponent::HandleBinaryPcdSocketFailure);
-	BinaryPcdSocket->OnClosed().AddLambda([WeakThis = TWeakObjectPtr<UVirtualSensorTransportComponent>(this)](int32 Status, const FString& Reason, bool bWasClean)
-	{
-		if (WeakThis.IsValid()) WeakThis->HandleBinaryPcdSocketFailure(Reason.IsEmpty() ? TEXT("Binary STOMP socket closed") : Reason);
-	});
-	BinaryPcdSocket->OnRawMessage().AddUObject(this, &UVirtualSensorTransportComponent::HandleBinaryPcdSocketRawMessage);
-	BinaryPcdSocket->Connect();
-}
-
-void UVirtualSensorTransportComponent::HandleBinaryPcdSocketConnected()
-{
-	bBinaryPcdSocketConnecting.Store(false);
-	SendBinaryPcdConnectFrame();
-}
-
-void UVirtualSensorTransportComponent::SendBinaryPcdConnectFrame()
-{
-	if (!BinaryPcdSocket.IsValid() || !BinaryPcdSocket->IsConnected()) return;
-	TArray<uint8> Frame;
-	AppendUtf8(Frame, TEXT("CONNECT\naccept-version:1.2\nhost:localhost\nheart-beat:10000,10000\n"));
-	if (!TransportProfile.UserName.IsEmpty()) AppendUtf8(Frame, TEXT("login:") + EscapeStompHeaderValue(TransportProfile.UserName) + TEXT("\n"));
-	if (!SessionPasscode.IsEmpty()) AppendUtf8(Frame, TEXT("passcode:") + EscapeStompHeaderValue(SessionPasscode) + TEXT("\n"));
-	Frame.Add(static_cast<uint8>('\n'));
-	Frame.Add(0);
-	BinaryPcdSocket->Send(Frame.GetData(), Frame.Num(), true);
-}
-
-void UVirtualSensorTransportComponent::HandleBinaryPcdSocketRawMessage(const void* Data, SIZE_T Size, SIZE_T BytesRemaining)
-{
-	if (Data && Size > 0 && Size <= static_cast<SIZE_T>(MAX_int32))
-	{
-		BinaryPcdReceiveBuffer.Append(static_cast<const uint8*>(Data), static_cast<int32>(Size));
-	}
-	if (BytesRemaining == 0 && !BinaryPcdReceiveBuffer.IsEmpty())
-	{
-		// Artemis may coalesce several small RECEIPT frames into one WebSocket
-		// message. Process every NUL-terminated STOMP frame; otherwise only the
-		// first receipt is correlated and the no-loss queue eventually stalls.
-		int32 FrameStart = 0;
-		for (int32 Index = 0; Index < BinaryPcdReceiveBuffer.Num(); ++Index)
-		{
-			if (BinaryPcdReceiveBuffer[Index] != 0) continue;
-			if (Index > FrameStart)
-			{
-				TArray<uint8> CompleteFrame;
-				CompleteFrame.Append(BinaryPcdReceiveBuffer.GetData() + FrameStart, Index - FrameStart + 1);
-				ProcessBinaryPcdStompFrame(CompleteFrame);
-			}
-			FrameStart = Index + 1;
-			while (FrameStart < BinaryPcdReceiveBuffer.Num() &&
-				(BinaryPcdReceiveBuffer[FrameStart] == '\n' || BinaryPcdReceiveBuffer[FrameStart] == '\r'))
-			{
-				++FrameStart;
-			}
-			Index = FrameStart - 1;
-		}
-		if (FrameStart < BinaryPcdReceiveBuffer.Num())
-		{
-			TArray<uint8> Remaining;
-			Remaining.Append(BinaryPcdReceiveBuffer.GetData() + FrameStart, BinaryPcdReceiveBuffer.Num() - FrameStart);
-			BinaryPcdReceiveBuffer = MoveTemp(Remaining);
-		}
-		else
-		{
-			BinaryPcdReceiveBuffer.Reset();
-		}
-	}
-}
-
-void UVirtualSensorTransportComponent::ProcessBinaryPcdStompFrame(const TArray<uint8>& FrameBytes)
-{
-	const ANSICHAR* Data = reinterpret_cast<const ANSICHAR*>(FrameBytes.GetData());
-	const int32 Length = FrameBytes.Num();
-	int32 HeaderEnd = INDEX_NONE;
-	for (int32 Index = 0; Index + 1 < Length; ++Index)
-	{
-		if (Data[Index] == '\n' && Data[Index + 1] == '\n') { HeaderEnd = Index; break; }
-	}
-	if (HeaderEnd == INDEX_NONE) return;
-	const FString HeaderText = FString(UTF8_TO_TCHAR(Data)).Left(HeaderEnd);
-	TArray<FString> Lines;
-	HeaderText.ParseIntoArrayLines(Lines, false);
-	if (Lines.IsEmpty()) return;
-	const FString Command = Lines[0].TrimStartAndEnd();
-	TMap<FString, FString> ParsedHeaders;
-	for (int32 Index = 1; Index < Lines.Num(); ++Index)
-	{
-		FString Key, Value;
-		if (Lines[Index].Split(TEXT(":"), &Key, &Value)) ParsedHeaders.Add(Key.ToLower(), UnescapeStompHeaderValue(Value));
-	}
-	if (Command == TEXT("CONNECTED"))
-	{
-		bBinaryPcdStompConnected.Store(true);
-		return;
-	}
-	if (Command == TEXT("RECEIPT"))
-	{
-		const FString ReceiptId = ParsedHeaders.FindRef(TEXT("receipt-id"));
-		FBinaryPcdPendingReceipt Pending;
-		if (BinaryPcdPendingReceipts.RemoveAndCopyValue(ReceiptId, Pending))
-		{
-			FVirtualSensorTransportResult Receipt = Pending.SubmittedResult;
-			Receipt.bSubmitted = true;
-			Receipt.bAccepted = true;
-			Receipt.bReceiptReceived = true;
-			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Pending.StartedSeconds) * 1000.0);
-			Receipt.Message = TEXT("Binary PCD broker receipt received; consumer processing is tracked separately.");
-			OnDataSent.Broadcast(Receipt);
-		}
-		return;
-	}
-	if (Command == TEXT("ERROR"))
-	{
-		HandleBinaryPcdSocketFailure(ParsedHeaders.FindRef(TEXT("message")));
-	}
-}
-
-void UVirtualSensorTransportComponent::HandleBinaryPcdSocketFailure(const FString& Error)
-{
-	bBinaryPcdStompConnected.Store(false);
-	bBinaryPcdSocketConnecting.Store(false);
-	for (const TPair<FString, FBinaryPcdPendingReceipt>& Pair : BinaryPcdPendingReceipts)
-	{
-		FVirtualSensorTransportResult Failed = Pair.Value.SubmittedResult;
-		Failed.bSubmitted = true;
-		Failed.Message = FString::Printf(TEXT("Binary PCD broker receipt failed: %s"), *Error.Left(256));
-		OnDataSent.Broadcast(Failed);
-	}
-	BinaryPcdPendingReceipts.Reset();
-}
-
-void UVirtualSensorTransportComponent::ResetBinaryPcdSocket()
-{
-	bBinaryPcdStompConnected.Store(false);
-	bBinaryPcdSocketConnecting.Store(false);
-	BinaryPcdPendingReceipts.Reset();
-	BinaryPcdReceiveBuffer.Reset();
-	if (BinaryPcdSocket.IsValid() && BinaryPcdSocket->IsConnected()) BinaryPcdSocket->Close();
-	BinaryPcdSocket.Reset();
 }
 
 void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile)
@@ -374,7 +191,6 @@ void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualS
 		StompClient->Disconnect();
 		StompClient.Reset();
 	}
-	if (bBrokerChanged) ResetBinaryPcdSocket();
 }
 
 void UVirtualSensorTransportComponent::SetSessionCredentials(const FString& InPasscode, const FString& InBearerToken)
@@ -428,9 +244,7 @@ void UVirtualSensorTransportComponent::RequestStompReconnect()
 		StompClient->Disconnect();
 		StompClient.Reset();
 	}
-	ResetBinaryPcdSocket();
 	EnsureStompClient();
-	EnsureBinaryPcdSocket();
 }
 
 void UVirtualSensorTransportComponent::EnsureStompClient()
@@ -617,7 +431,6 @@ void UVirtualSensorTransportComponent::EndPlay(const EEndPlayReason::Type EndPla
 		StompClient->Disconnect();
 		StompClient.Reset();
 	}
-	ResetBinaryPcdSocket();
 	AckSubscriptionId.Reset();
 	SessionPasscode.Reset();
 	SessionBearerToken.Reset();

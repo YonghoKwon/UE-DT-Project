@@ -239,28 +239,11 @@ private:
 	void HandleStompFailure(const FString& Error);
 	void SubscribeToAckTopic();
 	void HandleAckMessage(const class IStompMessage& Message);
-	void EnsureBinaryPcdSocket();
-	void HandleBinaryPcdSocketConnected();
-	void HandleBinaryPcdSocketFailure(const FString& Error);
-	void HandleBinaryPcdSocketRawMessage(const void* Data, SIZE_T Size, SIZE_T BytesRemaining);
-	void SendBinaryPcdConnectFrame();
-	void ProcessBinaryPcdStompFrame(const TArray<uint8>& FrameBytes);
-	void ResetBinaryPcdSocket();
 	FString ResolveTopic(const FString& SensorType, const FString& DataKind) const;
 
 	TSharedPtr<class IStompClient> StompClient;
 	TAtomic<bool> bStompConnected { false };
 	TAtomic<bool> bStompConnecting { false };
-	TSharedPtr<class IWebSocket> BinaryPcdSocket;
-	TAtomic<bool> bBinaryPcdStompConnected { false };
-	TAtomic<bool> bBinaryPcdSocketConnecting { false };
-	TArray<uint8> BinaryPcdReceiveBuffer;
-	struct FBinaryPcdPendingReceipt
-	{
-		FVirtualSensorTransportResult SubmittedResult;
-		double StartedSeconds = 0.0;
-	};
-	TMap<FString, FBinaryPcdPendingReceipt> BinaryPcdPendingReceipts;
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;
