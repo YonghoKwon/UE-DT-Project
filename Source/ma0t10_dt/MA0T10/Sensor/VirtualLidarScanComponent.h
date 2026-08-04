@@ -662,6 +662,7 @@ private:
     FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
     bool bGpuDepthScanInProgress = false;
+    bool bDeadlineMissRecordedForActiveAcquisition = false;
     bool bScheduledPayloadBuildInFlight = false;
     bool bScheduledAutoExportInFlight = false;
     bool bScheduledPayloadRefreshPending = false;

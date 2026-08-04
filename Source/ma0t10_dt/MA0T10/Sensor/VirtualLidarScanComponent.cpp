@@ -527,6 +527,7 @@ void UVirtualLidarScanComponent::StartScan()
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
+    bDeadlineMissRecordedForActiveAcquisition = false;
     RegisterWithPerformanceSubsystem();
 }
 void UVirtualLidarScanComponent::StopScan()
@@ -536,6 +537,7 @@ void UVirtualLidarScanComponent::StopScan()
     NextScheduledScanTime = -1.0;
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
+    bDeadlineMissRecordedForActiveAcquisition = false;
     if (GpuDepthProjectionComponent.IsValid()) GpuDepthProjectionComponent->CancelAcquisition();
     bScheduledPayloadBuildInFlight = false;
     bScheduledAutoExportInFlight = false;
@@ -822,17 +824,22 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
     const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
     if (bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
     {
-        do
+        // Do not move the deadline beyond the active acquisition here. The
+        // scheduler polls completion later in the same Tick; advancing the
+        // deadline first introduced an artificial idle period of one complete
+        // ML-X scan interval. Record the miss once and let the post-poll
+        // PrepareScheduledScan call admit the next coherent capture.
+        if (!bDeadlineMissRecordedForActiveAcquisition)
         {
             ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
             ++RuntimeStatus.DeadlineMissCount;
-            NextScheduledScanTime += SafeInterval;
+            bDeadlineMissRecordedForActiveAcquisition = true;
         }
-        while (NextScheduledScanTime <= NowSeconds);
     }
     if (!bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
     {
         do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
+        bDeadlineMissRecordedForActiveAcquisition = false;
         ActiveAcquisitionBackend = ResolveAcquisitionBackend(AcquisitionBackendFallbackReason);
         if (ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection)
         {

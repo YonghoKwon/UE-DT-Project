@@ -283,6 +283,16 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         else if (ChunkMs < 0.25 && AdaptiveChunkSize < 1024) AdaptiveChunkSize = FMath::Min(1024, AdaptiveChunkSize * 2);
     }
 
+    // A GPU acquisition can complete inside ProcessScheduledScanChunk after
+    // the pre-pass has already observed it as in-flight. Re-run only the cheap
+    // admission step so a due ML-X frame starts in this Tick instead of idling
+    // for another complete 0.05-second period. No additional scan is queued;
+    // every component still permits exactly one acquisition in flight.
+    for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
+    {
+        if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
+    }
+
     RefreshTelemetry(static_cast<float>((FPlatformTime::Seconds() - StartSeconds) * 1000.0));
 
     TelemetryLogAccumulator += FMath::Max(0.0f, DeltaTime);
