@@ -330,6 +330,24 @@ public:
 			// immutable frames without triggering an extra scan.
 			Lidar->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
 			Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+			// The PCD acceptance target is one native ML-X stream. Keep the two
+			// map cameras alive at Debug quality so Camera JSON remains covered,
+			// but do not let their preview workload redefine the 20 Hz LiDAR
+			// transport result. LiDAR JSON is deliberately sampled/capped; the
+			// lossless 32,256-point payload belongs to the binary PCD stream.
+			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It)
+			{
+				if (!It->CaptureComponent) continue;
+				It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::Debug);
+				It->CaptureComponent->CaptureMode = EVirtualCameraCaptureMode::Payload;
+			}
+			Lidar->ScanComponent->ServerPayloadStride = 32;
+			Lidar->ScanComponent->MaxServerPayloadPoints = 1024;
+			Lidar->ScanComponent->bIncludeMissPointsInServerPayload = false;
+			if (Lidar->VisualizationComponent)
+			{
+				Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);
+			}
 			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 			{
 				FVirtualSensorStreamConfig Config;
