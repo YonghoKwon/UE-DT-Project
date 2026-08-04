@@ -42,9 +42,9 @@ try {
     # independent warmup and measurement windows.
     $env:MA0T10_STREAM_MEASURE_SECONDS = [string]($WarmupSeconds + $MeasurementSeconds + 15)
     $EditorArgs = @(
-        $Project, "-unattended", "-nop4", "-nosplash", "-windowed", "-RenderOffscreen",
+        $Project, "-unattended", "-nop4", "-nosplash", "-windowed", "-RenderOffscreen", "-NoVSync",
         "-ResX=1280", "-ResY=720", "-NoSound",
-        "-ExecCmds=Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
+        "-ExecCmds=t.MaxFPS 0,r.VSync 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
         "-TestExit=Automation Test Queue Empty", "-abslog=$EditorLog"
     )
     & $Editor @EditorArgs
