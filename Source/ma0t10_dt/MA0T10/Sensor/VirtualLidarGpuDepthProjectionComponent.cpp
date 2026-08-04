@@ -2,7 +2,6 @@
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "HAL/PlatformTime.h"
-#include "Math/Float16Color.h"
 #include "RHI.h"
 #include "RHICommandList.h"
 #include "RHIGPUReadback.h"
@@ -66,9 +65,12 @@ bool UVirtualLidarGpuDepthProjectionComponent::EnsureRenderTarget(const FVirtual
 	}
 	if (DepthRenderTarget->SizeX != PendingCaptureWidth || DepthRenderTarget->SizeY != PendingCaptureHeight)
 	{
-		DepthRenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
+		// SceneDepth only consumes the red channel. A single-channel float target
+		// halves the render-target/readback traffic compared with PF_FloatRGBA and
+		// avoids copying three unused half-float channels for every 20 Hz scan.
+		DepthRenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_R32f;
 		DepthRenderTarget->ClearColor = FLinearColor::Black;
-		DepthRenderTarget->InitCustomFormat(PendingCaptureWidth, PendingCaptureHeight, PF_FloatRGBA, false);
+		DepthRenderTarget->InitCustomFormat(PendingCaptureWidth, PendingCaptureHeight, PF_R32_FLOAT, false);
 		DepthRenderTarget->UpdateResourceImmediate(true);
 	}
 	TextureTarget = DepthRenderTarget;
@@ -197,12 +199,12 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 			if (LockedData && RowPitchInPixels >= Width && Width > 0 && Height > 0)
 			{
 				Frame.ForwardDepthCentimeters.SetNumUninitialized(Width * Height);
-				const FFloat16Color* Source = static_cast<const FFloat16Color*>(LockedData);
+				const float* Source = static_cast<const float*>(LockedData);
 				for (int32 Y = 0; Y < Height; ++Y)
 				{
 					for (int32 X = 0; X < Width; ++X)
 					{
-						Frame.ForwardDepthCentimeters[Y * Width + X] = Source[Y * RowPitchInPixels + X].R.GetFloat();
+						Frame.ForwardDepthCentimeters[Y * Width + X] = Source[Y * RowPitchInPixels + X];
 					}
 				}
 				bCopySucceeded = true;
