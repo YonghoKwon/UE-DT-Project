@@ -20,6 +20,13 @@ enum class EVirtualSensorStreamKind : uint8
 };
 
 UENUM(BlueprintType)
+enum class EVirtualSensorStreamTransportBackend : uint8
+{
+	TcpStompHighThroughput UMETA(DisplayName = "Raw TCP STOMP (High Throughput)"),
+	EngineStompCompatibility UMETA(DisplayName = "Engine STOMP (Compatibility)")
+};
+
+UENUM(BlueprintType)
 enum class EVirtualPointCloudStreamFormat : uint8
 {
 	CSV,
@@ -114,6 +121,10 @@ struct MA0T10_DT_API FVirtualSensorStreamConfig
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	bool bEnabled = false;
+
+	/** Raw TCP keeps large binary bodies off the game thread. WSS always falls back to compatibility mode. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualSensorStreamTransportBackend TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "1000"))
 	int32 FrameStride = 1;
@@ -241,6 +252,15 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SerializationP95LatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SubmittedMegabytesPerSecond = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") bool bOverloaded = false;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") EVirtualSensorStreamTransportBackend ActiveTransportBackend = EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerReceivedCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerValidationFailureCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerFrameGapCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerDuplicateCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float ConsumerReceivedHz = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastSocketWriteLatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastConsumerLatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float EndToEndP95LatencyMs = 0.0f;
 };
 
 USTRUCT(BlueprintType)
