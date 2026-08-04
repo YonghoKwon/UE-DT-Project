@@ -140,7 +140,7 @@ function validateBinaryPcd(headers, body) {
     pointCount: Number.isInteger(pointCount) && pointCount >= 0 && headerText.includes(`POINTS ${pointCount}`),
     marker: payloadOffset >= marker.length,
     bodyLength: body.length === payloadOffset + pointCount * 33,
-    checksum: checksum.toLowerCase() === String(headers['x-checksum-sha1'] ?? '').toLowerCase(),
+    checksum: checksum.toLowerCase() === String(headers['x-checksum-sha1'] ?? headers.checksum ?? '').toLowerCase(),
   };
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks };
@@ -291,27 +291,38 @@ socket.addEventListener('message', async event => {
     if (parsed.command === 'MESSAGE') {
       const destination = parsed.headers.destination ?? '';
       const isBinaryPcd = parsed.headers.schema === 'virtual-pointcloud.pcd.v1' || parsed.headers['content-type'] === 'application/vnd.pcd';
+	  const isCameraJpeg = parsed.headers.schema === 'virtual-camera.jpeg.v1' || parsed.headers['content-type'] === 'image/jpeg';
+	  const isLidarTelemetry = parsed.headers.schema === 'virtual-lidar.telemetry.v1';
       const pcdValidation = isBinaryPcd ? validateBinaryPcd(parsed.headers, parsed.body) : null;
       let schema = '';
-	  if (isBinaryPcd) schema = parsed.headers.schema ?? '';
+	  if (isBinaryPcd || isCameraJpeg || isLidarTelemetry) schema = parsed.headers.schema ?? '';
 	  else {
 		try { const json = JSON.parse(parsed.body.toString('utf8')); schema = json.schema ?? json.schemaVersion ?? ''; } catch {}
 	  }
-	  const messageValid = isBinaryPcd ? pcdValidation.valid : schema.startsWith('virtual-');
+	  const declaredChecksum = parsed.headers.checksum ?? parsed.headers['x-checksum-sha1'] ?? '';
+	  const actualChecksum = crypto.createHash('sha1').update(parsed.body).digest('hex');
+	  const cameraValid = isCameraJpeg && parsed.body.length >= 4 && parsed.body[0] === 0xff && parsed.body[1] === 0xd8 &&
+		parsed.body[parsed.body.length - 2] === 0xff && parsed.body[parsed.body.length - 1] === 0xd9 &&
+		(!declaredChecksum || declaredChecksum.toLowerCase() === actualChecksum);
+	  let lidarTelemetryValid = false;
+	  if (isLidarTelemetry) {
+		try { lidarTelemetryValid = JSON.parse(parsed.body.toString('utf8')).schema === 'virtual-lidar.telemetry.v1'; } catch {}
+	  }
+	  const messageValid = isBinaryPcd ? pcdValidation.valid : isCameraJpeg ? cameraValid : isLidarTelemetry ? lidarTelemetryValid : schema.startsWith('virtual-');
       const entry = {
         receivedUtc: new Date().toISOString(),
         destination,
-        requestId: parsed.headers['x-request-id'] ?? '',
-        sensorId: parsed.headers['x-sensor-id'] ?? '',
+        requestId: parsed.headers['x-request-id'] ?? parsed.headers['request-id'] ?? '',
+        sensorId: parsed.headers['x-sensor-id'] ?? parsed.headers['sensor-id'] ?? '',
         sensorType: parsed.headers['x-sensor-type'] ?? '',
         dataKind: parsed.headers['x-data-kind'] ?? '',
-        frameId: parsed.headers['x-frame-id'] ?? '',
+        frameId: parsed.headers['x-frame-id'] ?? parsed.headers['frame-id'] ?? '',
         contentType: parsed.headers['content-type'] ?? '',
 		bytes: parsed.body.length,
         schema,
 		valid: messageValid,
 		pointCount: pcdValidation?.pointCount ?? null,
-		checksum: pcdValidation?.checksum ?? '',
+		checksum: pcdValidation?.checksum ?? actualChecksum,
 		validationErrors: pcdValidation?.failedChecks ?? [],
 		bodyPreview: isBinaryPcd ? parsed.body.subarray(0, 32).toString('hex') : parsed.body.subarray(0, 180).toString('utf8'),
       };

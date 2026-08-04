@@ -5,7 +5,10 @@
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "IPAddress.h"
+#include "Dom/JsonObject.h"
 #include "Misc/SecureHash.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
 
@@ -354,7 +357,7 @@ private:
 			? FString::Printf(TEXT("%s-%lld-%s"), *Frame.SensorId, Frame.FrameId, *HeaderValue(Frame.Headers, TEXT("checksum")))
 			: Frame.RequestId;
 		FString Header = FString::Printf(
-			TEXT("SEND\ndestination:%s\ncontent-type:%s\ncontent-length:%lld\nreceipt:%s\npersistent:true\ndestination-type:MULTICAST\nschema:%s\nsensor-id:%s\nframe-id:%lld\ntimestamp-utc:%s\nrequest-id:%s\n"),
+			TEXT("SEND\ndestination:%s\ncontent-type:%s\ncontent-length:%lld\nreceipt:%s\npersistent:true\ndestination-type:MULTICAST\nschema:%s\nsensor-id:%s\nframe-id:%lld\ntimestamp-utc:%s\nrequest-id:%s\nx-sensor-id:%s\nx-frame-id:%lld\nx-request-id:%s\nx-data-kind:%s\nx-sensor-type:%s\n"),
 			*FVirtualSensorStompParser::EscapeHeader(Frame.Destination),
 			*FVirtualSensorStompParser::EscapeHeader(Frame.ContentType),
 			Frame.NumBytes(),
@@ -363,7 +366,13 @@ private:
 			*FVirtualSensorStompParser::EscapeHeader(Frame.SensorId),
 			Frame.FrameId,
 			*FVirtualSensorStompParser::EscapeHeader(Frame.TimestampUtc.ToIso8601()),
-			*FVirtualSensorStompParser::EscapeHeader(RequestId));
+			*FVirtualSensorStompParser::EscapeHeader(RequestId),
+			*FVirtualSensorStompParser::EscapeHeader(Frame.SensorId),
+			Frame.FrameId,
+			*FVirtualSensorStompParser::EscapeHeader(RequestId),
+			Frame.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
+				: Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream"),
+			Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar"));
 		for (const TPair<FString, FString>& Pair : Frame.Headers)
 		{
 			if (Pair.Key.Equals(TEXT("schema"), ESearchCase::IgnoreCase) ||
@@ -399,7 +408,7 @@ private:
 		Event.FrameId = Frame.FrameId;
 		Event.Bytes = static_cast<int32>(FMath::Min<int64>(MAX_int32, Frame.NumBytes()));
 		Event.QueueDepth = QueueCounts[static_cast<int32>(Frame.StreamKind)].Load();
-		Event.ReceiptDepth = PendingReceipts.Num();
+		Event.ReceiptDepth = CountPendingReceipts(Frame.StreamKind);
 		Event.LatencyMs = static_cast<float>((LastSocketActivitySeconds - Started) * 1000.0);
 		Event.Message = TEXT("Raw TCP STOMP frame submitted; waiting for broker receipt.");
 		Events.Enqueue(MoveTemp(Event));
@@ -474,7 +483,7 @@ private:
 				Event.SensorId = Pending->Frame.SensorId;
 				Event.FrameId = Pending->Frame.FrameId;
 				Event.Bytes = static_cast<int32>(FMath::Min<int64>(MAX_int32, Pending->Frame.NumBytes()));
-				Event.ReceiptDepth = FMath::Max(0, PendingReceipts.Num() - 1);
+				Event.ReceiptDepth = FMath::Max(0, CountPendingReceipts(Pending->Frame.StreamKind) - 1);
 				Event.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Pending->SubmittedSeconds) * 1000.0);
 				Event.Message = TEXT("Broker receipt received.");
 				Events.Enqueue(MoveTemp(Event));
@@ -524,7 +533,10 @@ private:
 		{
 			FUTF8ToTCHAR Text(reinterpret_cast<const ANSICHAR*>(Frame.Body.GetData()), Frame.Body.Num());
 			const FString Json(Text.Length(), Text.Get());
-			bValid = Json.Contains(TEXT("\"schema\":\"virtual-lidar.telemetry.v1\""));
+			TSharedPtr<FJsonObject> Root;
+			const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+			bValid = FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid() &&
+				Root->GetStringField(TEXT("schema")) == TEXT("virtual-lidar.telemetry.v1");
 			ValidationMessage = bValid ? TEXT("LiDAR telemetry schema validated.") : TEXT("LiDAR telemetry schema validation failed.");
 		}
 
@@ -631,6 +643,16 @@ private:
 			ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
 			Socket = nullptr;
 		}
+	}
+
+	int32 CountPendingReceipts(EVirtualSensorStreamKind Kind) const
+	{
+		int32 Count = 0;
+		for (const TPair<FString, FPendingReceipt>& Pair : PendingReceipts)
+		{
+			if (Pair.Value.Frame.StreamKind == Kind) ++Count;
+		}
+		return Count;
 	}
 
 	FVirtualSensorHighThroughputProfile Profile;

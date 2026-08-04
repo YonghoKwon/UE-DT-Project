@@ -1177,8 +1177,11 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	{
 		Frame.Headers.Add(TEXT("checksum"), Message.BinaryMetadata.ChecksumSha1);
 		Frame.Headers.Add(TEXT("point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
+		Frame.Headers.Add(TEXT("x-point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
 		Frame.Headers.Add(TEXT("source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
+		Frame.Headers.Add(TEXT("x-source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
 		Frame.Headers.Add(TEXT("filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
+		Frame.Headers.Add(TEXT("x-filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
 		Frame.Headers.Add(TEXT("acquisition-profile"), Message.BinaryMetadata.ProfileKey);
 	}
 	return Subsystem->EnqueueBinaryFrame(Frame, OutError);
@@ -1204,7 +1207,8 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.ConsumerValidationFailureCount = Item.ValidationFailureCount;
 		Runtime->Status.ConsumerFrameGapCount = Item.FrameGapCount;
 		Runtime->Status.ConsumerDuplicateCount = Item.DuplicateCount;
-		Runtime->Status.InputQueueDepth = FMath::Max(Runtime->Status.InputQueueDepth, Item.InputQueueDepth);
+		Runtime->Status.InputQueueDepth = Runtime->PendingFrameQueue.Num() + (Runtime->PendingFrame.IsSet() ? 1 : 0) + Item.InputQueueDepth;
+		Runtime->Status.PreparedQueueDepth = Runtime->PreparedMessageQueue.Num() + (Runtime->PreparedMessage.IsSet() ? 1 : 0);
 		Runtime->Status.ReceiptQueueDepth = Item.ReceiptQueueDepth;
 		Runtime->Status.LastSocketWriteLatencyMs = Item.LastSocketWriteLatencyMs;
 		Runtime->Status.LastReceiptLatencyMs = Item.LastReceiptLatencyMs;
