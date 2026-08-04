@@ -92,11 +92,22 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 
 	PendingRequest = Request;
 	SetWorldTransform(Request.AcquisitionTransform);
-	CaptureSceneDeferred();
 	bAcquisitionActive = true;
 	bReadbackQueued = false;
 	AcquisitionSubmittedSeconds = FPlatformTime::Seconds();
-	StatusMessage = TEXT("GPU SceneDepth capture submitted");
+
+	// CaptureSceneDeferred waits for the next main-view render and the previous
+	// implementation then waited another scheduler tick before enqueueing the
+	// readback. At 40-60 game FPS that state machine alone limited a nominal
+	// 20 Hz ML-X scan to roughly 10-14 Hz. CaptureScene enqueues this component's
+	// render pass immediately; QueueReadback follows it on the render command
+	// list, so the copy still observes the coherent capture while removing one
+	// full game-frame of latency. PollAcquisition remains non-blocking.
+	CaptureScene();
+	QueueReadback();
+	StatusMessage = bReadbackQueued
+		? TEXT("GPU SceneDepth capture and readback submitted")
+		: TEXT("GPU SceneDepth capture submitted; readback pending");
 	return true;
 }
 
