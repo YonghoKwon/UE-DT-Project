@@ -995,7 +995,10 @@ void UVirtualSensorStreamPublisherComponent::CheckReceiptTimeouts(double NowSeco
 	TArray<FString> TimedOut;
 	for (const TPair<FString, FReceiptWait>& Pair : WaitingReceipts)
 	{
-		if (NowSeconds - Pair.Value.SubmittedSeconds >= ReceiptTimeoutSeconds) TimedOut.Add(Pair.Key);
+		const float EffectiveTimeoutSeconds = Pair.Value.Message.bBinaryPcd
+			? FMath::Max(ReceiptTimeoutSeconds, BinaryPcdReceiptTimeoutSeconds)
+			: ReceiptTimeoutSeconds;
+		if (NowSeconds - Pair.Value.SubmittedSeconds >= EffectiveTimeoutSeconds) TimedOut.Add(Pair.Key);
 	}
 	for (const FString& RequestId : TimedOut)
 	{
