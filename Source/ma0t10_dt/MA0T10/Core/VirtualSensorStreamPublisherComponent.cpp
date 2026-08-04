@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
 #include "Async/Async.h"
 #include "HAL/FileManager.h"
@@ -417,6 +418,8 @@ void UVirtualSensorStreamPublisherComponent::BeginPlay()
 	TokenBucketBytes = BandwidthLimitMegabytesPerSecond * 1024.0 * 1024.0;
 	PointCloudTokenBucketBytes = PointCloudBandwidthLimitMegabytesPerSecond * 1024.0 * 1024.0;
 	if (TransportComponent) TransportComponent->OnDataSent.AddUniqueDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
+	FString HighThroughputError;
+	EnsureHighThroughputTransport(HighThroughputError);
 }
 
 void UVirtualSensorStreamPublisherComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -426,6 +429,13 @@ void UVirtualSensorStreamPublisherComponent::EndPlay(const EEndPlayReason::Type 
 	WaitingReceipts.Reset();
 	RequestToStreamKey.Reset();
 	StreamRuntimes.Reset();
+	if (GetWorld())
+	{
+		if (UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
+		{
+			Subsystem->StopHighThroughputTransport();
+		}
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -899,6 +909,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPublisherOnce(double Now)
 	LastTokenUpdateSeconds = Now;
 	PumpPreparedMessages(Now);
 	CheckReceiptTimeouts(Now);
+	MergeHighThroughputTelemetry();
 }
 
 void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeconds)
@@ -932,6 +943,35 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const FString SensorType = Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar");
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
+		const bool bUseHighThroughput = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+			Message.bBinaryPcd;
+		if (bUseHighThroughput)
+		{
+			FString SubmitError;
+			if (!TrySubmitHighThroughput(Message, *Runtime, SubmitError))
+			{
+				Runtime->NextSubmitAttemptSeconds = NowSeconds + 0.5;
+				Runtime->Status.Message = SubmitError;
+				Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
+				AddLog(Keys[Index], TEXT("raw-tcp-submit-failed"), SubmitError, nullptr, Message.FrameId);
+				break;
+			}
+
+			Runtime->NextSubmitAttemptSeconds = 0.0;
+			ActiveTokenBucket -= Message.ByteCount;
+			Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
+			Runtime->Status.LastSubmittedFrameId = Message.FrameId;
+			Runtime->Status.LastFrameBytes = Message.ByteCount;
+			Runtime->Status.LastPointCount = Message.BinaryMetadata.PointCount;
+			Runtime->Status.LastSourcePointCount = Message.BinaryMetadata.SourcePointCount;
+			Runtime->Status.Message = TEXT("Raw TCP worker queue accepted Binary PCD.");
+			Runtime->PreparedMessageQueue.RemoveAt(0, 1, false);
+			TryStartNextPointCloudSerialization(Keys[Index], *Runtime);
+			RefreshQueueTelemetry(*Runtime);
+			++SubmittedThisFrame;
+			RoundRobinCursor = (Index + 1) % Keys.Num();
+			continue;
+		}
 		const FVirtualSensorTransportResult Result = Message.bBinaryPcd
 			? TransportComponent->SendStompBinaryStreamRequest(*Message.BinaryBody, Message.BinaryMetadata)
 			: TransportComponent->SendJsonStreamRequest(Message.SensorId, SensorType, DataKind, Message.FrameId, Message.Json, bReceipt);
@@ -987,6 +1027,86 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			AddLog(Keys[Index], TEXT("submit-failed"), Result.Message, &Result, Message.FrameId);
 			break;
 		}
+	}
+}
+
+bool UVirtualSensorStreamPublisherComponent::EnsureHighThroughputTransport(FString& OutError)
+{
+	OutError.Reset();
+	if (!TransportComponent || TransportComponent->TransportMode != EVirtualSensorTransportMode::StompWebSocket || !GetWorld())
+	{
+		OutError = TEXT("STOMP transport is not active.");
+		return false;
+	}
+	UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	if (!Subsystem)
+	{
+		OutError = TEXT("High-throughput transport subsystem is unavailable.");
+		return false;
+	}
+	const FVirtualSensorTransportProfile& Profile = TransportComponent->GetTransportProfile();
+	if (!UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(Profile.BrokerUrl, &OutError)) return false;
+	if (!Subsystem->StartHighThroughputTransport(
+		UVirtualSensorHighThroughputTransportSubsystem::MakeProfile(Profile),
+		TransportComponent->GetSessionPasscodeForHighThroughput()))
+	{
+		OutError = TEXT("Failed to start Raw TCP STOMP worker.");
+		return false;
+	}
+	return true;
+}
+
+bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
+	const FPreparedMessage& Message,
+	const FStreamRuntime& Runtime,
+	FString& OutError)
+{
+	if (!Message.BinaryBody.IsValid() || !EnsureHighThroughputTransport(OutError)) return false;
+	UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	FVirtualSensorBinaryFrame Frame;
+	Frame.StreamKind = Message.StreamKind;
+	Frame.SensorId = Message.SensorId;
+	Frame.FrameId = Message.FrameId;
+	FDateTime::ParseIso8601(*Message.BinaryMetadata.TimestampUtc, Frame.TimestampUtc);
+	if (Frame.TimestampUtc.GetTicks() <= 0) Frame.TimestampUtc = FDateTime::UtcNow();
+	Frame.Schema = Message.BinaryMetadata.Schema;
+	Frame.ContentType = TEXT("application/vnd.pcd");
+	Frame.Destination = TransportComponent->ResolveDestination(TEXT("lidar"), TEXT("pointcloud-stream"));
+	Frame.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Message.SensorId, Message.FrameId, *Message.BinaryMetadata.ChecksumSha1);
+	Frame.Body32 = Message.BinaryBody;
+	Frame.Headers.Add(TEXT("checksum"), Message.BinaryMetadata.ChecksumSha1);
+	Frame.Headers.Add(TEXT("point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
+	Frame.Headers.Add(TEXT("source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
+	Frame.Headers.Add(TEXT("filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
+	Frame.Headers.Add(TEXT("acquisition-profile"), Message.BinaryMetadata.ProfileKey);
+	return Subsystem->EnqueueBinaryFrame(Frame, OutError);
+}
+
+void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
+{
+	if (!GetWorld()) return;
+	const UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	if (!Subsystem) return;
+	const TArray<FVirtualSensorStreamTelemetry> Telemetry = Subsystem->GetStreamTelemetry();
+	for (const FVirtualSensorStreamTelemetry& Item : Telemetry)
+	{
+		FStreamRuntime* Runtime = StreamRuntimes.Find(MakeStreamKey(Item.StreamKind, Item.SensorId));
+		if (!Runtime) Runtime = StreamRuntimes.Find(MakeStreamKey(Item.StreamKind, FString()));
+		if (!Runtime || Runtime->Config.TransportBackend != EVirtualSensorStreamTransportBackend::TcpStompHighThroughput) continue;
+		Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
+		Runtime->Status.SubmittedFrameCount = Item.SubmittedCount;
+		Runtime->Status.ReceiptReceivedCount = Item.ReceiptCount;
+		Runtime->Status.ConsumerReceivedCount = Item.ConsumerReceivedCount;
+		Runtime->Status.ConsumerValidationFailureCount = Item.ValidationFailureCount;
+		Runtime->Status.ConsumerFrameGapCount = Item.FrameGapCount;
+		Runtime->Status.ConsumerDuplicateCount = Item.DuplicateCount;
+		Runtime->Status.InputQueueDepth = FMath::Max(Runtime->Status.InputQueueDepth, Item.InputQueueDepth);
+		Runtime->Status.ReceiptQueueDepth = Item.ReceiptQueueDepth;
+		Runtime->Status.LastSocketWriteLatencyMs = Item.LastSocketWriteLatencyMs;
+		Runtime->Status.LastReceiptLatencyMs = Item.LastReceiptLatencyMs;
+		Runtime->Status.LastConsumerLatencyMs = Item.LastEndToEndLatencyMs;
+		Runtime->Status.EndToEndP95LatencyMs = Item.EndToEndP95LatencyMs;
+		Runtime->Status.Message = Item.Message;
 	}
 }
 

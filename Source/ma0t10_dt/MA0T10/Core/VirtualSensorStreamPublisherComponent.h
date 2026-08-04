@@ -140,6 +140,9 @@ private:
 	void AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result = nullptr, int64 FrameId = 0);
 	void HandleTransportResult(const FVirtualSensorTransportResult& Result);
 	void UpdateCameraStreamDemand();
+	bool EnsureHighThroughputTransport(FString& OutError);
+	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
+	void MergeHighThroughputTelemetry();
 	static bool StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind);
 
 	UFUNCTION()

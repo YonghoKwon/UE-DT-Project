@@ -157,6 +157,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	const FVirtualSensorTransportProfile& GetTransportProfile() const { return TransportProfile; }
 
+	/** C++ high-throughput worker access; the passcode remains session-only and is never serialized. */
+	const FString& GetSessionPasscodeForHighThroughput() const { return SessionPasscode; }
+
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	FString ResolveDestination(const FString& SensorType, const FString& DataKind) const { return ResolveTopic(SensorType, DataKind); }
 
