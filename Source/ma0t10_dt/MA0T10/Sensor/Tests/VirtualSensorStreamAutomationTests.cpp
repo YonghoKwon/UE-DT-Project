@@ -151,6 +151,16 @@ bool FVirtualSensorPointCloudSerializationTest::RunTest(const FString& Parameter
 	Hit.bHit = true;
 	Hit.WorldLocation = FVector(100.0, 200.0, 300.0);
 	Hit.Distance = 374.1657f;
+	Hit.SensorLocalPositionMeters = FVector(1.0, 2.0, 3.0);
+	Hit.RangeMillimeters = 3742;
+	Hit.RawIntensity = 1234;
+	Hit.Ring = 2;
+	Hit.HorizontalIndex = 3;
+	Hit.EchoIndex = 0;
+	Hit.EchoCount = 1;
+	Hit.PointTimeOffsetNanoseconds = 5000;
+	Hit.Validity = EVirtualLidarPointValidity::Valid;
+	Hit.Confidence = 0.75f;
 	Hit.Row = 2;
 	Hit.Col = 3;
 	Hit.SemanticLabel = TEXT("TestObject");
@@ -205,6 +215,95 @@ bool FVirtualSensorPointCloudSerializationTest::RunTest(const FString& Parameter
 	TestFalse(TEXT("LAZ without a real compressor is rejected"),
 		UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, LazConfig, LazExtension, LazBytes, LazPointCount, LazError));
 	TestTrue(TEXT("LAZ rejection explains the missing compressor"), LazError.Contains(TEXT("LAZ")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVirtualSensorBinaryPcdContractTest,
+	"MA0T10.SensorStream.BinaryPcdContractAndFilter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorBinaryPcdContractTest::RunTest(const FString& Parameters)
+{
+	auto MakePoint = [](const FVector& LocalMeters, FName Semantic, const TArray<FName>& Tags, int32 HorizontalIndex)
+	{
+		FVirtualLidarPoint Point;
+		Point.bHit = true;
+		Point.SensorLocalPositionMeters = LocalMeters;
+		Point.Distance = static_cast<float>(LocalMeters.Size() * 100.0);
+		Point.RangeMillimeters = FMath::RoundToInt(LocalMeters.Size() * 1000.0);
+		Point.RawIntensity = 1000 + HorizontalIndex;
+		Point.Ring = 4;
+		Point.HorizontalIndex = HorizontalIndex;
+		Point.EchoIndex = 1;
+		Point.EchoCount = 2;
+		Point.PointTimeOffsetNanoseconds = 25000 + HorizontalIndex;
+		Point.Validity = EVirtualLidarPointValidity::Valid;
+		Point.Confidence = 0.8f;
+		Point.SemanticLabel = Semantic;
+		Point.HitActorTags = Tags;
+		return Point;
+	};
+
+	TArray<FVirtualLidarPoint> Points;
+	Points.Add(MakePoint(FVector(1.0, 0.0, 0.0), TEXT("Crate"), {TEXT("PointCloudTarget")}, 10));
+	Points.Add(MakePoint(FVector(2.0, 0.0, 0.0), TEXT("Wall"), {TEXT("PointCloudTarget")}, 11));
+	Points.Add(MakePoint(FVector(1.0, 5.0, 0.0), TEXT("Crate"), {TEXT("Other")}, 12));
+	FVirtualLidarPoint& Miss = Points.AddDefaulted_GetRef();
+	Miss.bHit = false;
+
+	FVirtualSensorFrameEnvelope Frame;
+	Frame.SensorId = TEXT("LIDAR-PCD-BINARY");
+	Frame.SensorKind = EVirtualSensorKind::Lidar;
+	Frame.FrameId = 100;
+	Frame.TimestampUtc = FDateTime(2026, 8, 4, 10, 0, 0);
+	Frame.PointSnapshot = MakeShared<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(Points));
+
+	FVirtualSensorStreamConfig Config;
+	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+	Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+	Config.PointCloudFilter.IncludeActorTags = {TEXT("PointCloudTarget")};
+	Config.PointCloudFilter.IncludeSemanticLabels = {TEXT("Crate")};
+	Config.PointCloudFilter.bEnableSensorLocalRoi = true;
+	Config.PointCloudFilter.SensorLocalRoiMinCm = FVector(0.0, -100.0, -100.0);
+	Config.PointCloudFilter.SensorLocalRoiMaxCm = FVector(150.0, 100.0, 100.0);
+	Config.PointCloudFilter.MinRangeCm = 50.0f;
+	Config.PointCloudFilter.MaxRangeCm = 150.0f;
+
+	FString Extension, Error;
+	TArray<uint8> Bytes;
+	int32 PointCount = 0;
+	TestTrue(TEXT("filtered binary PCD serializes"),
+		UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, PointCount, Error));
+	TestEqual(TEXT("binary PCD extension"), Extension, FString(TEXT("pcd")));
+	TestEqual(TEXT("Tag, semantic and ROI groups are ANDed"), PointCount, 1);
+
+	const ANSICHAR Marker[] = "DATA binary\n";
+	int32 PayloadOffset = INDEX_NONE;
+	for (int32 Index = 0; Index + static_cast<int32>(sizeof(Marker) - 1) <= Bytes.Num(); ++Index)
+	{
+		if (FMemory::Memcmp(Bytes.GetData() + Index, Marker, sizeof(Marker) - 1) == 0)
+		{
+			PayloadOffset = Index + static_cast<int32>(sizeof(Marker) - 1);
+			break;
+		}
+	}
+	TestTrue(TEXT("PCD declares DATA binary"), PayloadOffset != INDEX_NONE);
+	if (PayloadOffset != INDEX_NONE)
+	{
+		TestEqual(TEXT("binary record is explicitly packed to 33 bytes"), Bytes.Num() - PayloadOffset, 33);
+		float X = 0.0f;
+		FMemory::Memcpy(&X, Bytes.GetData() + PayloadOffset, sizeof(float));
+		TestEqual(TEXT("sensor-local X is written in metres"), X, 1.0f);
+	}
+
+	Config.PointCloudFilter.ExcludeSemanticLabels = {TEXT("Crate")};
+	Bytes.Reset();
+	PointCount = -1;
+	TestTrue(TEXT("zero-point binary PCD remains a valid frame"),
+		UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, PointCount, Error));
+	TestEqual(TEXT("exclude rules take precedence"), PointCount, 0);
+	TestTrue(TEXT("zero-point PCD still carries its header"), Bytes.Num() > 100);
 	return true;
 }
 
