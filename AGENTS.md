@@ -31,6 +31,10 @@
 - 기존 센서 송신 Body에는 `MESSAGE_ID`가 없습니다. 에디터 자체 수신 진단은 `DT_TransactionCode`에 등록하거나 송신 계약을 바꾸지 말고, `UDxWebSocketSubsystem`의 Topic 직접 구독과 세 전용 `UTransactionCodeMessage` Handler를 유지합니다.
 - Topic 수신 진단은 검증·로그 전용입니다. 수신 결과를 `SubmitExternalFrame`에 전달하거나 Transport로 다시 보내 재주입·재송신 루프를 만들지 않습니다.
 - 수신 파싱은 Camera/LiDAR Topic별 처리 중 1개와 최신 대기 1개를 유지합니다. Binary PCD 수신은 최대 20개 FIFO이며 초과 시 교체하지 않고 오류로 처리합니다. 전체 동시 파싱은 최대 2개이고 전체 Payload, Base64 또는 binary body를 로그에 출력하지 않습니다.
+- FullSpec 3-stream 고성능 경로는 `UVirtualSensorHighThroughputTransportSubsystem`의 Raw TCP STOMP worker를 사용합니다. 대용량 body 조립·socket send·receipt·자체 수신 검증을 게임 스레드로 되돌리지 않습니다.
+- 고성능 Camera body는 원본 JPEG `virtual-camera.jpeg.v1`, LiDAR body는 포인트 배열 없는 `virtual-lidar.telemetry.v1`, Point Cloud body는 `virtual-pointcloud.pcd.v1` Binary PCD입니다. 기존 v1 Base64 JSON은 호환 backend에서만 유지합니다.
+- `wss://`는 TLS가 필요한 Engine STOMP compatibility fallback입니다. Raw TCP 성능 보장 대상으로 표기하지 않으며, 사용자가 선택한 보안 연결을 임의로 평문 TCP로 바꾸지 않습니다.
+- 스트림 성능 테스트는 acquisition, encode/serialization, submit, receipt, consumer receive를 별도 집계합니다. 평균 FPS만으로 통과시키지 말고 세 스트림의 Hz, gap, invalid, overflow와 내부·외부 수신 결과를 함께 판정합니다.
 
 ## UI 기준
 

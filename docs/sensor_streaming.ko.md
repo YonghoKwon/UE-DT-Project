@@ -1,6 +1,20 @@
 # 센서 실시간 스트리밍과 캡처/내보내기
 
-> 2026-08 Binary PCD 계약입니다. Camera와 LiDAR JSON 호환 스트림은 변경되지 않았습니다.
+> 2026-08 고성능 3-stream 계약입니다. 기존 Camera와 LiDAR JSON 스트림은 호환 backend에 유지됩니다.
+
+## 60 FPS 고성능 3-stream 모드
+
+`D455 Camera 1대 + ML-X(80) Native LiDAR 1대`의 기본 성능 경로는 `UVirtualSensorHighThroughputTransportSubsystem`이 소유한 전용 Raw TCP STOMP 1.2 worker입니다. worker가 Artemis 61616 acceptor에 연결해 인증, heartbeat, reconnect, SEND/SUBSCRIBE, receipt와 MESSAGE 수신을 처리합니다. 게임 스레드는 immutable shared body를 큐에 넘기고 작은 진단 결과만 받으므로 대용량 STOMP frame 조립·복사·수신 파싱을 하지 않습니다.
+
+| 스트림 | 주기 | 고성능 Body | schema |
+|---|---:|---|---|
+| Camera | 30Hz | 1280×720 원본 JPEG binary | `virtual-camera.jpeg.v1` |
+| LiDAR 값 | 20Hz | 포인트 배열을 제외한 측정 시각·프로필·count·거리/Intensity 통계 JSON | `virtual-lidar.telemetry.v1` |
+| Point Cloud | 20Hz | 완전한 PCD v0.7 `DATA binary` | `virtual-pointcloud.pcd.v1` |
+
+Camera queue는 8개, LiDAR/PCD queue는 각각 20개이며 모든 프레임에 receipt를 요청합니다. 정상 연결 중에는 FIFO와 FrameId 순서를 보존하고 상한을 넘으면 조용히 교체하지 않고 해당 스트림을 과부하 오류로 전환합니다. 연결 해제 중 acquisition은 계속되지만 프레임을 디스크에 영구 보존하지 않습니다.
+
+입력 URL은 기존 UI의 `ws://host:61616` 또는 `tcp://host:61616`을 사용할 수 있으며 고성능 worker는 동일 Artemis raw TCP acceptor로 연결합니다. `wss://`는 Engine STOMP compatibility backend로 fallback하고 TLS/WebSocket 비용 때문에 아래 60FPS 보장 범위에서 제외됩니다. 기존 Base64 `virtual-camera.v1`과 포인트 배열이 있는 `virtual-lidar.v1`은 Blueprint/API 호환 모드에 남습니다.
 
 ## ML-X(80) 20Hz 실시간 Point Cloud
 
@@ -39,8 +53,8 @@ Native 576×56에서 1 Echo는 약 20~25MB/s, 모든 광선 2 Echo는 약 40~50M
 
 | 스트림 | 기본 Topic | 메시지 |
 |---|---|---|
-| LiDAR 값 | `topic.virtual.sensor.lidar.0` | 스캔 완료 시 `virtual-lidar.v1` JSON |
-| Camera 이미지 | `topic.virtual.sensor.camera.0` | 캡처 완료 시 Base64 JPEG가 포함된 `virtual-camera.v1` JSON 한 건 |
+| LiDAR 값 | `topic.virtual.sensor.lidar.0` | 고성능: `virtual-lidar.telemetry.v1`, 호환: `virtual-lidar.v1` JSON |
+| Camera 이미지 | `topic.virtual.sensor.camera.0` | 고성능: 원본 JPEG `virtual-camera.jpeg.v1`, 호환: Base64 JPEG `virtual-camera.v1` JSON |
 | Point Cloud | `topic.virtual.sensor.export.0` | 스캔 완료 시 raw PCD v0.7 `DATA binary` body와 `virtual-pointcloud.pcd.v1` STOMP header |
 
 Camera 스트림은 JSON과 이미지 바이너리를 중복 전송하지 않습니다. 한 메시지에 메타데이터와 Base64 JPEG가 함께 들어갑니다. LAZ는 실시간 형식이 아니며 수동 내보내기에서 실제 압축 실행 파일이 설정된 경우에만 동작합니다.
@@ -71,12 +85,12 @@ Point Cloud 실시간 형식은 `PCD Binary 고정`입니다. UI의 기존 포�
 
 ## 에디터 내부 Topic 자체 수신
 
-`SensorRefactorTestMap`의 `SensorTest_ExternalSources`는 맵 시작 시 DTCore의 기존 `UDxWebSocketSubsystem` 연결을 통해 세 Topic을 자동 구독합니다. 송신 Broker에 제출했다는 사실만 확인하는 것이 아니라, 같은 에디터가 실제 메시지를 다시 수신하고 형식까지 검증하는 진단 기능입니다.
+호환 JSON 모드에서 `SensorRefactorTestMap`의 `SensorTest_ExternalSources`는 DTCore의 기존 `UDxWebSocketSubsystem`을 사용합니다. 고성능 모드에서는 프로젝트 Raw TCP worker가 세 Topic을 직접 SUBSCRIBE하고 body를 백그라운드 검증합니다. 어느 모드도 수신 데이터를 Sensor Actor에 재주입하거나 재송신하지 않습니다.
 
 | Topic | 수신·검증 클래스 | 검증 내용 |
 |---|---|---|
-| LiDAR | `UVirtualLidarStreamReceiverTC` | schema, SensorId, FrameId, 측정·검출·Payload 점 수, 해상도와 points 배열 일관성 |
-| Camera | `UVirtualCameraStreamReceiverTC` | schema, 해상도, encoding, byteSize, image 존재와 JPEG 바이트 |
+| LiDAR | `UVirtualLidarStreamReceiverTC` 또는 Raw TCP worker | 호환 v1 points 일관성 또는 telemetry schema·count·통계 |
+| Camera | `UVirtualCameraStreamReceiverTC` 또는 Raw TCP worker | 호환 Base64 JPEG 또는 raw JPEG 크기·SHA1·SOI/EOI |
 | Point Cloud | `UVirtualPointCloudStreamReceiverTC` | raw PCD header, 33-byte record 크기, point count, SHA1, FrameId 연속성 |
 
 기존 송신 Body에는 `MESSAGE_ID`가 없으므로 이 수신기는 `DT_TransactionCode` 자동 분배에 등록하지 않습니다. 구독한 Topic이 Handler를 결정하며, 각 Handler는 `ParseToStruct`에서 백그라운드 파싱하고 `ProcessStructData`에서 게임 스레드 상태와 제한된 로그만 갱신합니다. 수신 프레임을 Sensor Actor에 주입하거나 다시 송신하지 않으므로 자체 수신이 재송신 루프를 만들지 않습니다.
@@ -108,7 +122,9 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\run_artemis_stream_smoke.ps1
 powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -WarmupSeconds 10 -MeasurementSeconds 60
 ```
 
-이 테스트는 ML-X(80) Native 576×56·20Hz로 전환한 뒤 Node raw STOMP 소비자와 에디터 내부 수신기를 함께 실행합니다. 입력=직렬화=제출=receipt=내부 소비자 수신 수, FrameId gap/duplicate 0, 큐 overflow 0, 직렬화·소비 Hz와 p95 지연, D3D12 FPS를 판정합니다. 기본은 10초 warmup 후 60초 측정이며 결과는 `Saved/Reports/sensor_map_stream_rhi_smoke.json`과 `.md`에 저장됩니다.
+이 테스트는 D455 1280×720·30Hz와 ML-X(80) Native 576×56·20Hz를 구성한 뒤 Camera JPEG, LiDAR telemetry, Binary PCD를 동시에 발행합니다. Node raw STOMP 소비자와 에디터 내부 worker가 함께 수신하며 입력=직렬화=제출=receipt=내부 소비자 수, FrameId gap/duplicate 0, queue overflow 0, 직렬화·소비 Hz와 game-frame p95를 판정합니다. 기본은 10초 warmup 후 60초 측정이며 결과는 `Saved/Reports/sensor_map_stream_rhi_smoke.json`과 `.md`에 저장됩니다.
+
+2026-08-05 기준 목표 PC의 실제 D3D12 60초 보고서에서는 Camera 외부 수신 1,797건, LiDAR 1,199건, PCD 1,199건, PCD 19.98Hz·20.18MiB/s, 평균 60.00FPS, 1% low 59.99FPS, game-frame p95 16.67ms를 기록했습니다. 내부 검증 실패, FrameId gap, duplicate, invalid, queue overflow와 retry는 모두 0이었습니다. 이 수치는 로컬 Artemis 결과이며 다른 PC·Broker·네트워크에서는 같은 스크립트로 다시 측정해야 합니다.
 
 장시간 검증은 같은 스크립트에서 시간을 늘리고 별도 보고서 이름을 지정합니다. 결과 파일은 커밋하지 않습니다.
 
