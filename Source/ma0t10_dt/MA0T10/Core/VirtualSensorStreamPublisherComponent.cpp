@@ -589,6 +589,13 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 
 void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame)
 {
+	// Preview/acquisition envelopes can arrive before asynchronous JSON
+	// derivation. They are not failed stream frames and should not affect
+	// no-loss input or encode-failure telemetry.
+	if (Runtime.Config.StreamKind != EVirtualSensorStreamKind::PointCloud && !Frame.HasJsonPayload())
+	{
+		return;
+	}
 	if (Runtime.Status.InputFrameCount > 0 && Runtime.Status.LastInputFrameId == Frame.FrameId)
 	{
 		return;
