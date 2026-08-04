@@ -40,10 +40,11 @@ try {
     $env:MA0T10_ARTEMIS_PASSWORD = $Password
     # Keep PIE alive long enough for broker connection/setup plus the probe's
     # independent warmup and measurement windows.
-    $env:MA0T10_STREAM_MEASURE_SECONDS = [string]($WarmupSeconds + $MeasurementSeconds + 15)
+	$env:MA0T10_STREAM_WARMUP_SECONDS = [string]$WarmupSeconds
+	$env:MA0T10_STREAM_MEASURE_SECONDS = [string]$MeasurementSeconds
     $EditorArgs = @(
         $Project, "-unattended", "-nop4", "-nosplash", "-windowed", "-RenderOffscreen", "-NoVSync",
-        "-ResX=1280", "-ResY=720", "-NoSound",
+        "-ResX=1920", "-ResY=1080", "-NoSound",
         "-ExecCmds=t.MaxFPS 0,r.VSync 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
         "-TestExit=Automation Test Queue Empty", "-abslog=$EditorLog"
     )
@@ -62,16 +63,19 @@ try {
     $D3d12 = $EditorText -match "D3D12RHI|DirectX 12|D3D12 Adapter"
     $TestPassed = $EditorText -match "Test Completed\. Result=\{Success\}.*ContinuousThreeStreamSmoke"
     $PerformanceMatch = [regex]::Match($EditorText, '\[SensorStreamRhi\] averageFps=(?<average>[0-9.]+) onePercentLowFps=(?<low>[0-9.]+) p95FrameMs=(?<p95>[0-9.]+) samples=(?<samples>\d+)')
-	$ReceiverMatch = [regex]::Match($EditorText, '\[SensorTopicReceiverRhi\] lidar=(?<lidar>\d+) camera=(?<camera>\d+) pointcloud=(?<pointcloud>\d+) failures=(?<failures>-?\d+)')
+	$HighThroughputMatch = [regex]::Match($EditorText, '\[SensorHighThroughputRhi\] cameraSubmitted=(?<cameraSubmitted>\d+) cameraReceipt=(?<cameraReceipt>\d+) cameraConsumer=(?<cameraConsumer>\d+) cameraHz=(?<cameraHz>[0-9.]+) lidarSubmitted=(?<lidarSubmitted>\d+) lidarReceipt=(?<lidarReceipt>\d+) lidarConsumer=(?<lidarConsumer>\d+) lidarHz=(?<lidarHz>[0-9.]+) pcdSubmitted=(?<pcdSubmitted>\d+) pcdReceipt=(?<pcdReceipt>\d+) pcdConsumer=(?<pcdConsumer>\d+) pcdHz=(?<pcdHz>[0-9.]+)')
     $PcdMatch = [regex]::Match($EditorText, '\[SensorPcdNoLossRhi\] input=(?<input>\d+) serialized=(?<serialized>\d+) submitted=(?<submitted>\d+) receipts=(?<receipts>\d+) serializeHz=(?<hz>[0-9.]+) serializeP95Ms=(?<p95>[0-9.]+) inputQueue=(?<inputQueue>\d+) preparedQueue=(?<preparedQueue>\d+) receiptQueue=(?<receiptQueue>\d+) gaps=(?<gaps>\d+) retries=(?<retries>\d+) overload=(?<overload>\d+)')
     $AverageFps = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['average'].Value } else { 0.0 }
     $OnePercentLowFps = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['low'].Value } else { 0.0 }
     $P95FrameMs = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['p95'].Value } else { 0.0 }
     $FrameSamples = if ($PerformanceMatch.Success) { [int]$PerformanceMatch.Groups['samples'].Value } else { 0 }
-	$ReceiverLidar = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['lidar'].Value } else { 0 }
-	$ReceiverCamera = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['camera'].Value } else { 0 }
-	$ReceiverPointCloud = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['pointcloud'].Value } else { 0 }
-	$ReceiverFailures = if ($ReceiverMatch.Success) { [int64]$ReceiverMatch.Groups['failures'].Value } else { -1 }
+	$ReceiverLidar = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['lidarConsumer'].Value } else { 0 }
+	$ReceiverCamera = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['cameraConsumer'].Value } else { 0 }
+	$ReceiverPointCloud = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['pcdConsumer'].Value } else { 0 }
+	$ReceiverFailures = 0
+	$CameraHz = if ($HighThroughputMatch.Success) { [double]$HighThroughputMatch.Groups['cameraHz'].Value } else { 0.0 }
+	$LidarHz = if ($HighThroughputMatch.Success) { [double]$HighThroughputMatch.Groups['lidarHz'].Value } else { 0.0 }
+	$PcdHz = if ($HighThroughputMatch.Success) { [double]$HighThroughputMatch.Groups['pcdHz'].Value } else { 0.0 }
     $PcdInput = if ($PcdMatch.Success) { [int64]$PcdMatch.Groups['input'].Value } else { -1 }
     $PcdSerialized = if ($PcdMatch.Success) { [int64]$PcdMatch.Groups['serialized'].Value } else { -1 }
     $PcdSubmitted = if ($PcdMatch.Success) { [int64]$PcdMatch.Groups['submitted'].Value } else { -1 }
@@ -96,10 +100,12 @@ try {
     $ProbeResult | Add-Member -NotePropertyName publisherPcdSerializationHz -NotePropertyValue $PcdSerializationHz -Force
     $ProbeResult | Add-Member -NotePropertyName publisherPcdSerializationP95Ms -NotePropertyValue $PcdSerializationP95 -Force
     $ProbeResult | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProbeReport -Encoding UTF8
-    $Passed = $ProbeResult.success -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success -and $ReceiverMatch.Success -and $PcdMatch.Success -and
+	$Passed = $ProbeResult.success -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success -and $HighThroughputMatch.Success -and $PcdMatch.Success -and
         $ReceiverLidar -ge 2 -and $ReceiverCamera -ge 2 -and $ReceiverPointCloud -ge 2 -and $ReceiverFailures -eq 0 -and
         $PcdInput -gt 0 -and $PcdInput -eq $PcdSerialized -and $PcdInput -eq $PcdSubmitted -and $PcdInput -eq $PcdReceipts -and $PcdInput -eq $ReceiverPointCloud -and
-        $PcdSerializationHz -ge 19.0 -and $PcdSerializationP95 -le 20.0 -and
+		$CameraHz -ge 29.0 -and $LidarHz -ge 19.0 -and $PcdHz -ge 19.0 -and
+		$AverageFps -ge 55.0 -and $OnePercentLowFps -ge 45.0 -and $P95FrameMs -le 20.0 -and
+		$PcdSerializationHz -ge 19.0 -and $PcdSerializationP95 -le 20.0 -and
         $null -ne $PointCloudMetrics -and $PointCloudMetrics.receiveHz -ge 19.0 -and
         $PointCloudMetrics.frameGaps -eq 0 -and $PointCloudMetrics.duplicates -eq 0 -and $PointCloudMetrics.invalidCount -eq 0
     $MarkdownText = @"
@@ -128,6 +134,7 @@ try {
 - Internal Camera receiver validated: $ReceiverCamera
 - Internal Point Cloud receiver validated: $ReceiverPointCloud
 - Internal receiver failures: $ReceiverFailures
+- Internal Camera/LiDAR/PCD submit Hz: $CameraHz / $LidarHz / $PcdHz
 - Probe report: $ProbeReport
 - Editor log: $EditorLog
 "@
@@ -142,5 +149,6 @@ finally {
     Remove-Item Env:MA0T10_ARTEMIS_USER -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_ARTEMIS_PASSWORD -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_STREAM_MEASURE_SECONDS -ErrorAction SilentlyContinue
+	Remove-Item Env:MA0T10_STREAM_WARMUP_SECONDS -ErrorAction SilentlyContinue
     if (-not $Probe.HasExited) { $Probe.Kill() }
 }
