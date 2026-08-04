@@ -118,7 +118,7 @@ FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용�
 
 ML-X(80) Native 20Hz Point Cloud는 `연결 중 무손실` 정책을 사용합니다. 센서별 입력/직렬화 완료 큐는 각각 최대 20개이고 receipt 대기 body와 checksum을 보존합니다. 정상 연결에서는 FIFO 순서와 FrameId를 유지하며, 큐가 한계에 도달하거나 receipt 재시도 3회를 소진하면 프레임을 조용히 교체하지 않고 스트림을 `과부하 오류`로 중지합니다. Point Cloud 전용 예산은 64MiB/s입니다. 1 Echo는 약 20~25MB/s, 2 Echo 최악 조건은 약 40~50MB/s이므로 보장 범위는 ML-X(80) Native 한 대와 정상 로컬 또는 1Gbps 이상 LAN Broker입니다.
 
-실시간 필터 기본값은 전체 검출점입니다. `대상 물체만`을 선택하면 Mesh Actor의 `PointCloudTarget` Tag가 있는 물체의 점만 전송합니다. Tag/Semantic 조건과 센서 로컬 ROI는 AND, 같은 배열 안의 값은 OR이며 exclude가 마지막에 우선합니다. 필터 결과가 없어도 `POINTS 0` PCD를 정상 전송합니다. Actor Tag와 SemanticLabel은 Digital Twin 확장 정보이며 ML-X 실장비 고유 기능으로 표기하지 않습니다.
+실시간 필터 기본값은 전체 검출점입니다. `대상 물체만`을 선택하면 Mesh Actor의 `PointCloudTarget` Tag가 있는 물체의 점만 전송합니다. Tag/Semantic 조건과 센서 로컬 ROI는 AND, 같은 배열 안의 값은 OR이며 exclude가 마지막에 우선합니다. 필터 결과가 없어도 `POINTS 0` PCD를 정상 전송합니다. Actor Tag와 SemanticLabel은 Digital Twin 확장 정보이며 ML-X 실장비 고유 기능으로 표기하지 않습니다. Tag/Semantic 필터는 CPU Trace·Replay·외부 입력처럼 Actor 메타데이터가 있는 프레임에서 사용합니다. FullSpec `GpuDepthProjection`은 깊이만 측정해 Actor identity가 없으므로, 20Hz 경로에서 물체 영역만 전송하려면 센서 로컬 ROI를 사용합니다.
 
 로컬 Artemis와 실제 D3D12 맵을 함께 검증하려면 `Scripts/run_sensor_map_stream_rhi_smoke.ps1`을 사용합니다. 기본 10초 warmup+60초 측정에서 19Hz, FrameId gap 0, 입력/직렬화/제출/receipt/내부 소비자 수 일치, 직렬화 p95와 FPS를 JSON/Markdown으로 저장합니다. 10분/60분 연속 검증 명령은 [Artemis 개발 Broker 안내](Tools/Artemis/README.md)에 있습니다.
 

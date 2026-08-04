@@ -980,7 +980,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2)
 			[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true)
-				.Text(LOCTEXT("PointCloudFilterHelp", "대상 물체만은 Mesh Actor의 PointCloudTarget Tag를 사용합니다. Tag·Semantic은 Digital Twin 메타데이터 필터이고, 센서 로컬 ROI는 실제 장비 crop과 유사한 공간 필터입니다.")) ]
+				.Text(LOCTEXT("PointCloudFilterHelp", "대상 물체만은 Mesh Actor의 PointCloudTarget Tag를 사용합니다. Tag·Semantic은 CPU/Replay처럼 Actor 메타데이터가 있는 프레임에서 동작합니다. FullSpec GPU Depth는 Actor identity를 제공하지 않으므로 고성능 물체 영역 전송에는 센서 로컬 ROI를 사용하세요.")) ]
 			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("LiveTitle", "세 가지 독립 실시간 스트림")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 호환용 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG로 전송합니다. 실시간 Point Cloud는 PCD v0.7 DATA binary 원본을 STOMP binary body로 보내며 Base64/JSON 복사를 하지 않습니다. CSV/JSONL/LAS/LAZ는 수동 내보내기에서만 사용합니다.")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNew(SWrapBox).UseAllottedSize(true)
