@@ -130,7 +130,7 @@ void UVirtualCameraCaptureComponent::EndPlay(const EEndPlayReason::Type EndPlayR
 {
     StopCapture();
     ++ScheduledGeneration;
-    ScheduledReadback.Reset();
+    ReleaseScheduledReadbackOnRenderThread();
     bScheduledReadbackInFlight = false;
     Super::EndPlay(EndPlayReason);
 }
@@ -157,7 +157,7 @@ void UVirtualCameraCaptureComponent::StopCapture()
     }
     UnregisterFromPerformanceSubsystem();
     NextScheduledCaptureTime = -1.0;
-    ScheduledReadback.Reset();
+    ReleaseScheduledReadbackOnRenderThread();
     bScheduledCaptureAwaitingReadback = false;
     bScheduledEncodeInFlight = false;
     RuntimeStatus.bAcquisitionInFlight = false;
@@ -280,30 +280,73 @@ void UVirtualCameraCaptureComponent::QueueScheduledGpuReadback(double NowSeconds
 void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 {
     if (!ScheduledReadback.IsValid() || !bScheduledReadbackInFlight || !ScheduledReadback->IsReady()) return;
-    int32 RowPitchInPixels = 0;
-    void* LockedData = ScheduledReadback->Lock(RowPitchInPixels);
-    if (!LockedData || RowPitchInPixels < ScheduledReadbackWidth || ScheduledReadbackWidth <= 0 || ScheduledReadbackHeight <= 0)
+    const int32 Width = ScheduledReadbackWidth;
+    const int32 Height = ScheduledReadbackHeight;
+    const int64 CapturedFrameId = ScheduledReadbackFrameId;
+    const double CaptureStartedSeconds = ScheduledCaptureStartTime;
+    const int32 Generation = ScheduledGeneration;
+    TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = MoveTemp(ScheduledReadback);
+    TWeakObjectPtr<UVirtualCameraCaptureComponent> WeakThis(this);
+
+    // FRHIGPUTextureReadback::Lock/Unlock maps an RHI staging surface through
+    // the immediate command list. UE 5.3 requires that operation on the render
+    // thread; doing it from this game-thread scheduler eventually asserts in
+    // FRHICommandListImmediate::ExecuteAndReset during sustained capture.
+    ENQUEUE_RENDER_COMMAND(VirtualCameraConsumeScheduledReadback)(
+        [Readback = MoveTemp(Readback), WeakThis, Width, Height, CapturedFrameId, CaptureStartedSeconds, Generation](FRHICommandListImmediate& RHICmdList) mutable
+        {
+            TArray<FColor> RawPixels;
+            bool bCopySucceeded = false;
+            int32 RowPitchInPixels = 0;
+            void* LockedData = Readback.IsValid() ? Readback->Lock(RowPitchInPixels) : nullptr;
+            if (LockedData && RowPitchInPixels >= Width && Width > 0 && Height > 0)
+            {
+                RawPixels.SetNumUninitialized(Width * Height);
+                const FColor* SourcePixels = static_cast<const FColor*>(LockedData);
+                for (int32 Y = 0; Y < Height; ++Y)
+                {
+                    FMemory::Memcpy(RawPixels.GetData() + Y * Width, SourcePixels + Y * RowPitchInPixels, Width * sizeof(FColor));
+                }
+                bCopySucceeded = true;
+            }
+            if (LockedData)
+            {
+                Readback->Unlock();
+            }
+
+            AsyncTask(ENamedThreads::GameThread,
+                [WeakThis, Width, Height, CapturedFrameId, CaptureStartedSeconds, Generation, bCopySucceeded, RawPixels = MoveTemp(RawPixels)]() mutable
+                {
+                    if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation)
+                    {
+                        return;
+                    }
+                    WeakThis->bScheduledReadbackInFlight = false;
+                    WeakThis->RuntimeStatus.bAcquisitionInFlight = false;
+                    if (!bCopySucceeded)
+                    {
+                        WeakThis->RuntimeStatus.bDerivedWorkInFlight = false;
+                        ++WeakThis->RuntimeStatus.DroppedDerivedFrameCount;
+                        return;
+                    }
+                    WeakThis->StartScheduledEncode(MoveTemp(RawPixels), Width, Height, CapturedFrameId, CaptureStartedSeconds);
+                });
+        });
+}
+
+void UVirtualCameraCaptureComponent::ReleaseScheduledReadbackOnRenderThread()
+{
+    if (!ScheduledReadback.IsValid())
     {
-        if (LockedData) ScheduledReadback->Unlock();
-        ScheduledReadback.Reset();
-        bScheduledReadbackInFlight = false;
-        RuntimeStatus.bAcquisitionInFlight = false;
-        RuntimeStatus.bDerivedWorkInFlight = false;
-        ++RuntimeStatus.DroppedDerivedFrameCount;
         return;
     }
 
-    TArray<FColor> RawPixels;
-    RawPixels.SetNumUninitialized(ScheduledReadbackWidth * ScheduledReadbackHeight);
-    const FColor* SourcePixels = static_cast<const FColor*>(LockedData);
-    for (int32 Y = 0; Y < ScheduledReadbackHeight; ++Y)
-    {
-        FMemory::Memcpy(RawPixels.GetData() + Y * ScheduledReadbackWidth, SourcePixels + Y * RowPitchInPixels, ScheduledReadbackWidth * sizeof(FColor));
-    }
-    ScheduledReadback->Unlock();
-    bScheduledReadbackInFlight = false;
-    RuntimeStatus.bAcquisitionInFlight = false;
-    StartScheduledEncode(MoveTemp(RawPixels), ScheduledReadbackWidth, ScheduledReadbackHeight, ScheduledReadbackFrameId, ScheduledCaptureStartTime);
+    TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = MoveTemp(ScheduledReadback);
+    ENQUEUE_RENDER_COMMAND(VirtualCameraReleaseScheduledReadback)(
+        [Readback = MoveTemp(Readback)](FRHICommandListImmediate& RHICmdList) mutable
+        {
+            Readback.Reset();
+        });
 }
 
 void UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds)

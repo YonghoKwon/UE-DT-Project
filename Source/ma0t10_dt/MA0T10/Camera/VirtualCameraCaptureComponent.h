@@ -187,6 +187,7 @@ private:
     void UnregisterFromPerformanceSubsystem();
     void QueueScheduledGpuReadback(double NowSeconds);
     void PollScheduledGpuReadback(double NowSeconds);
+    void ReleaseScheduledReadbackOnRenderThread();
     void StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds);
     void CompleteScheduledEncode(int64 CapturedFrameId, TArray64<uint8>&& JpegBytes, FString&& JsonPayload, double CaptureStartedSeconds);
 	bool ShouldGeneratePayload() const { return CaptureMode != EVirtualCameraCaptureMode::PreviewOnly || bRuntimeStreamOutputDemand; }
