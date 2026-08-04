@@ -85,8 +85,11 @@ private:
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
 		FString Json;
+		TArray<uint8> BinaryBody;
+		FVirtualPointCloudBinaryMetadata BinaryMetadata;
 		int32 ByteCount = 0;
 		int32 ConfigRevision = 0;
+		bool bBinaryPcd = false;
 	};
 
 	struct FStreamRuntime

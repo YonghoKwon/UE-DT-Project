@@ -4,6 +4,8 @@
 #include "Components/ActorComponent.h"
 #include "VirtualSensorTransportComponent.generated.h"
 
+struct FVirtualPointCloudBinaryMetadata;
+
 UENUM(BlueprintType)
 enum class EVirtualSensorTransportMode : uint8
 {
@@ -143,6 +145,11 @@ public:
 		int64 FrameId,
 		const FString& JsonText,
 		bool bRequestReceipt);
+
+	/** Sends a complete PCD file as the STOMP binary body without Base64 or JSON wrapping. */
+	FVirtualSensorTransportResult SendStompBinaryStreamRequest(
+		const TArray<uint8>& Bytes,
+		const FVirtualPointCloudBinaryMetadata& Metadata);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	void ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile);

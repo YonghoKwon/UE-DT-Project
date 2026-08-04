@@ -1,5 +1,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
@@ -93,6 +95,77 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonStreamRe
 	Result.SensorType = SensorType;
 	Result.DataKind = DataKind;
 	Result.bManualRequest = false;
+	return Result;
+}
+
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryStreamRequest(
+	const TArray<uint8>& Bytes,
+	const FVirtualPointCloudBinaryMetadata& Metadata)
+{
+	FVirtualSensorTransportResult Result;
+	Result.Protocol = TEXT("STOMP/WS");
+	Result.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Metadata.SensorId, Metadata.FrameId, *Metadata.ChecksumSha1);
+	Result.SensorId = Metadata.SensorId;
+	Result.SensorType = TEXT("lidar");
+	Result.DataKind = TEXT("pointcloud-stream-binary-pcd");
+	Result.bReceiptRequested = true;
+	Result.Destination = ResolveTopic(Result.SensorType, Result.DataKind);
+	Result.DataLength = Bytes.Num();
+	if (Bytes.Num() != Metadata.ByteCount || Bytes.IsEmpty())
+	{
+		Result.Message = TEXT("Binary PCD metadata byte count does not match the body.");
+		return Result;
+	}
+	if (Result.DataLength > TransportProfile.MaxMessageBytes)
+	{
+		Result.Message = FString::Printf(TEXT("Binary PCD exceeds the STOMP limit: %d / %d bytes"), Result.DataLength, TransportProfile.MaxMessageBytes);
+		return Result;
+	}
+
+	EnsureStompClient();
+	if (!IsStompConnected())
+	{
+		Result.Message = TEXT("Artemis STOMP is not connected; binary PCD was not submitted.");
+		return Result;
+	}
+
+	FStompHeader Headers;
+	Headers.Add(TEXT("destination-type"), TEXT("MULTICAST"));
+	Headers.Add(TEXT("content-type"), TEXT("application/vnd.pcd"));
+	Headers.Add(TEXT("persistent"), TEXT("true"));
+	Headers.Add(TEXT("schema"), Metadata.Schema);
+	Headers.Add(TEXT("x-sensor-id"), Metadata.SensorId);
+	Headers.Add(TEXT("x-sensor-type"), TEXT("lidar"));
+	Headers.Add(TEXT("x-data-kind"), Result.DataKind);
+	Headers.Add(TEXT("x-frame-id"), LexToString(Metadata.FrameId));
+	Headers.Add(TEXT("x-request-id"), Result.RequestId);
+	Headers.Add(TEXT("x-utc"), Metadata.TimestampUtc);
+	Headers.Add(TEXT("x-point-count"), LexToString(Metadata.PointCount));
+	Headers.Add(TEXT("x-source-point-count"), LexToString(Metadata.SourcePointCount));
+	Headers.Add(TEXT("x-filter-revision"), LexToString(Metadata.FilterRevision));
+	Headers.Add(TEXT("x-acquisition-profile"), Metadata.ProfileKey);
+	Headers.Add(TEXT("x-checksum-sha1"), Metadata.ChecksumSha1);
+
+	const double StartedSeconds = FPlatformTime::Seconds();
+	const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+	StompClient->Send(Result.Destination, Bytes, Headers, FStompRequestCompleted::CreateLambda(
+		[WeakThis, SubmittedResult = Result, StartedSeconds](bool bSuccess, const FString& Error)
+		{
+			if (!WeakThis.IsValid()) return;
+			FVirtualSensorTransportResult Receipt = SubmittedResult;
+			Receipt.bSubmitted = true;
+			Receipt.bAccepted = bSuccess;
+			Receipt.bReceiptReceived = bSuccess;
+			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
+			Receipt.Message = bSuccess
+				? TEXT("Binary PCD broker receipt received; consumer processing is tracked separately.")
+				: FString::Printf(TEXT("Binary PCD broker receipt failed: %s"), *Error);
+			WeakThis->OnDataSent.Broadcast(Receipt);
+		}));
+	Result.bSubmitted = true;
+	Result.Message = TEXT("Binary PCD submitted; waiting for broker receipt.");
+	LastStompSubmitSeconds = StartedSeconds;
+	OnDataSent.Broadcast(Result);
 	return Result;
 }
 

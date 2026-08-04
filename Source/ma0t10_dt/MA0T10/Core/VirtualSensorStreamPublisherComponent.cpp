@@ -7,6 +7,7 @@
 #include "Serialization/BufferArchive.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
@@ -456,6 +457,8 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 	FStreamRuntime& Runtime = FindOrAddRuntime(Config.StreamKind, Config.SensorId.TrimStartAndEnd());
 	const bool bWasEnabled = Runtime.Config.bEnabled;
 	const bool bSerializationContractChanged = Runtime.Config.PointCloudFormat != Config.PointCloudFormat ||
+		Runtime.Config.PcdDataMode != Config.PcdDataMode ||
+		Runtime.Config.PointCloudFilter.Revision != Config.PointCloudFilter.Revision ||
 		Runtime.Config.FrameStride != Config.FrameStride ||
 		Runtime.Config.LazCompressorPath != Config.LazCompressorPath ||
 		Runtime.Config.LazCompressorArguments != Config.LazCompressorArguments;
@@ -625,6 +628,7 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 	const TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> WeakThis(this);
 	Async(EAsyncExecution::ThreadPool, [WeakThis, StreamKey, Frame, Config, CapturedConfigRevision]()
 	{
+		const double SerializationStartedSeconds = FPlatformTime::Seconds();
 		FString Extension, Error;
 		TArray<uint8> Bytes;
 		int32 PointCount = 0;
@@ -636,12 +640,43 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 			Message.ConfigRevision = CapturedConfigRevision;
 		if (bSucceeded)
 		{
-			Message.Json = BuildPointCloudEnvelope(Frame, Extension, Bytes, PointCount);
-			Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
+			const bool bRawBinaryPcd = Config.PointCloudFormat == EVirtualPointCloudStreamFormat::PCD &&
+				Config.PcdDataMode == EVirtualPcdDataMode::Binary;
+			if (bRawBinaryPcd)
+			{
+				uint8 Hash[FSHA1::DigestSize];
+				FSHA1::HashBuffer(Bytes.GetData(), Bytes.Num(), Hash);
+				Message.bBinaryPcd = true;
+				Message.BinaryMetadata.SensorId = Frame.SensorId;
+				Message.BinaryMetadata.FrameId = Frame.FrameId;
+				Message.BinaryMetadata.TimestampUtc = Frame.TimestampUtc.ToIso8601();
+				Message.BinaryMetadata.ProfileKey = Frame.LidarFrameSnapshot.IsValid()
+					? Frame.LidarFrameSnapshot->ProfileKey : TEXT("unknown");
+				Message.BinaryMetadata.SourcePointCount = Frame.PointSnapshot.IsValid() ? Frame.PointSnapshot->Num() : 0;
+				Message.BinaryMetadata.PointCount = PointCount;
+				Message.BinaryMetadata.ByteCount = Bytes.Num();
+				Message.BinaryMetadata.FilterRevision = Config.PointCloudFilter.Revision;
+				Message.BinaryMetadata.ChecksumSha1 = BytesToHex(Hash, FSHA1::DigestSize).ToLower();
+				Message.ByteCount = Bytes.Num();
+				Message.BinaryBody = MoveTemp(Bytes);
+			}
+			else
+			{
+				Message.Json = BuildPointCloudEnvelope(Frame, Extension, Bytes, PointCount);
+				Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
+			}
 		}
-		AsyncTask(ENamedThreads::GameThread, [WeakThis, StreamKey, Message = MoveTemp(Message), Error = MoveTemp(Error), CapturedConfigRevision]() mutable
+		const float SerializationLatencyMs = static_cast<float>((FPlatformTime::Seconds() - SerializationStartedSeconds) * 1000.0);
+		AsyncTask(ENamedThreads::GameThread, [WeakThis, StreamKey, Message = MoveTemp(Message), Error = MoveTemp(Error), CapturedConfigRevision, SerializationLatencyMs]() mutable
 		{
-			if (WeakThis.IsValid()) WeakThis->CompletePointCloudSerialization(StreamKey, MoveTemp(Message), Error, CapturedConfigRevision);
+			if (WeakThis.IsValid())
+			{
+				if (FStreamRuntime* Runtime = WeakThis->StreamRuntimes.Find(StreamKey))
+				{
+					Runtime->Status.LastSerializationLatencyMs = SerializationLatencyMs;
+				}
+				WeakThis->CompletePointCloudSerialization(StreamKey, MoveTemp(Message), Error, CapturedConfigRevision);
+			}
 		});
 	});
 }
@@ -664,7 +699,7 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 		}
 		return;
 	}
-	if (!Error.IsEmpty() || Message.Json.IsEmpty())
+	if (!Error.IsEmpty() || (Message.Json.IsEmpty() && Message.BinaryBody.IsEmpty()))
 	{
 		++Runtime->Status.EncodeFailureCount;
 		Runtime->Status.Message = Error.IsEmpty() ? TEXT("포인트 클라우드 직렬화 실패") : Error;
@@ -717,11 +752,13 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			++Runtime->Status.BandwidthDeferredFrameCount;
 			continue;
 		}
-		const bool bReceipt = ((Runtime->Status.SubmittedFrameCount + 1) % Runtime->Config.ReceiptSampleInterval) == 0;
+		const bool bReceipt = Message.bBinaryPcd || ((Runtime->Status.SubmittedFrameCount + 1) % Runtime->Config.ReceiptSampleInterval) == 0;
 		const FString SensorType = Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar");
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
-		const FVirtualSensorTransportResult Result = TransportComponent->SendJsonStreamRequest(Message.SensorId, SensorType, DataKind, Message.FrameId, Message.Json, bReceipt);
+		const FVirtualSensorTransportResult Result = Message.bBinaryPcd
+			? TransportComponent->SendStompBinaryStreamRequest(Message.BinaryBody, Message.BinaryMetadata)
+			: TransportComponent->SendJsonStreamRequest(Message.SensorId, SensorType, DataKind, Message.FrameId, Message.Json, bReceipt);
 		Runtime->Status.LastRequestId = Result.RequestId;
 		Runtime->Status.Destination = Result.Destination;
 		Runtime->Status.Message = Result.Message;
@@ -732,6 +769,12 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			++Runtime->Status.SubmittedFrameCount;
 			Runtime->Status.LastSubmittedFrameId = Message.FrameId;
 			Runtime->Status.TotalSubmittedBytes += Message.ByteCount;
+			Runtime->Status.LastFrameBytes = Message.ByteCount;
+			if (Message.bBinaryPcd)
+			{
+				Runtime->Status.LastPointCount = Message.BinaryMetadata.PointCount;
+				Runtime->Status.LastSourcePointCount = Message.BinaryMetadata.SourcePointCount;
+			}
 			if (Runtime->FirstSubmitSeconds <= 0.0) Runtime->FirstSubmitSeconds = NowSeconds;
 			Runtime->Status.SubmittedHz = static_cast<float>(Runtime->Status.SubmittedFrameCount / FMath::Max(0.001, NowSeconds - Runtime->FirstSubmitSeconds));
 			if (Runtime->Config.PointCloudFormat == EVirtualPointCloudStreamFormat::LAZ) Runtime->LastLazSubmitSeconds = NowSeconds;
