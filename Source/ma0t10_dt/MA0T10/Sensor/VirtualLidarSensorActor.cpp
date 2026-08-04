@@ -153,8 +153,12 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
     }
     if (VisualizationComponent)
     {
-        const UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>() : nullptr;
-        if (!Scheduler || Scheduler->ShouldRefreshLidarPreview(ScanComponent))
+        UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>() : nullptr;
+        // Measurement and transport stay at the configured sensor frequency.
+        // Rendering the same 32k-point snapshot at 20 Hz is optional derived
+        // work, so keep the selected monitor responsive at 10 Hz without
+        // delaying the next ML-X acquisition.
+        if (!Scheduler || Scheduler->ConsumeLidarPreviewRefresh(ScanComponent, 10.0f))
         {
             VisualizationComponent->RefreshLatestFrame();
         }

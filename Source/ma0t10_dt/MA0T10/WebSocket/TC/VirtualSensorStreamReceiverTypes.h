@@ -52,6 +52,12 @@ struct MA0T10_DT_API FVirtualSensorTopicReceiverStatus
 	int64 DeepValidationCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
+	int64 FrameGapCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
+	int64 DuplicateFrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
 	FString LastSensorId;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
@@ -62,6 +68,15 @@ struct MA0T10_DT_API FVirtualSensorTopicReceiverStatus
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
 	float LastParseLatencyMs = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
+	float ValidatedHz = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
+	float LastEndToEndLatencyMs = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
+	float EndToEndP95LatencyMs = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorReceiver")
 	FDateTime LastReceivedUtc;
@@ -116,5 +131,6 @@ struct FVirtualSensorTopicReceivedDataBase : FTransactionCodeDataBase
 	FString SensorId;
 	int64 FrameId = -1;
 	int32 MessageBytes = 0;
+	FDateTime SourceTimestampUtc;
 	FString Message;
 };

@@ -5,6 +5,9 @@
 #include "Core/DTCoreSettings.h"
 #include "EngineUtils.h"
 #include "Misc/ConfigCacheIni.h"
+#include "IStompClient.h"
+#include "IStompMessage.h"
+#include "StompModule.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/CameraJsonLiveSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComponent.h"
@@ -114,6 +117,13 @@ void AVirtualSensorExternalSourceHostActor::StopTopicReceivers()
 	bTopicReceiversRequested = false;
 	GetWorldTimerManager().ClearTimer(TopicReceiverRetryTimer);
 	UDxWebSocketSubsystem* WebSocket = GetGameInstance() ? GetGameInstance()->GetSubsystem<UDxWebSocketSubsystem>() : nullptr;
+	if (RawPointCloudClient.IsValid())
+	{
+		if (!RawPointCloudSubscriptionId.IsEmpty()) RawPointCloudClient->Unsubscribe(RawPointCloudSubscriptionId);
+		RawPointCloudClient->Disconnect();
+		RawPointCloudClient.Reset();
+	}
+	RawPointCloudSubscriptionId.Reset();
 	for (FReceiverRuntime& Runtime : ReceiverRuntimes)
 	{
 		if (WebSocket && !Runtime.SubscriptionId.IsEmpty())
@@ -122,6 +132,7 @@ void AVirtualSensorExternalSourceHostActor::StopTopicReceivers()
 		}
 		Runtime.SubscriptionId.Reset();
 		Runtime.PendingBody.Reset();
+		Runtime.PendingBinaryBodies.Reset();
 		Runtime.bSubscriptionPending = false;
 		Runtime.SubscriptionStartedSeconds = 0.0;
 		Runtime.RetryAttempt = 0;
@@ -164,6 +175,11 @@ TArray<FVirtualSensorTopicReceiverStatus> AVirtualSensorExternalSourceHostActor:
 
 FString AVirtualSensorExternalSourceHostActor::GetReceiverBrokerUrl() const
 {
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
+	{
+		const FString TestBrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
+		if (!TestBrokerUrl.IsEmpty()) return TestBrokerUrl;
+	}
 	FString RuntimeUrl;
 	if (GConfig && GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketUrl"), RuntimeUrl, GGameIni) && !RuntimeUrl.IsEmpty()) return RuntimeUrl;
 	const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
@@ -212,7 +228,16 @@ void AVirtualSensorExternalSourceHostActor::AttemptTopicSubscriptions()
 	{
 		if (Runtime.bSubscriptionPending && Runtime.SubscriptionStartedSeconds > 0.0 && Now - Runtime.SubscriptionStartedSeconds >= 5.0)
 		{
-			if (WebSocket && !Runtime.SubscriptionId.IsEmpty()) WebSocket->Unsubscribe(Runtime.SubscriptionId, FSTOMPRequestCompleted());
+			if (Runtime.Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud)
+			{
+				if (RawPointCloudClient.IsValid()) RawPointCloudClient->Disconnect();
+				RawPointCloudClient.Reset();
+				RawPointCloudSubscriptionId.Reset();
+			}
+			else if (WebSocket && !Runtime.SubscriptionId.IsEmpty())
+			{
+				WebSocket->Unsubscribe(Runtime.SubscriptionId, FSTOMPRequestCompleted());
+			}
 			Runtime.SubscriptionId.Reset();
 			Runtime.bSubscriptionPending = false;
 			Runtime.SubscriptionStartedSeconds = 0.0;
@@ -232,6 +257,11 @@ void AVirtualSensorExternalSourceHostActor::SubscribeRuntime(EVirtualSensorTopic
 {
 	FReceiverRuntime* Runtime = FindRuntime(Kind);
 	if (!Runtime || !Runtime->SubscriptionId.IsEmpty() || Runtime->bSubscriptionPending) return;
+	if (Kind == EVirtualSensorTopicReceiveKind::PointCloud)
+	{
+		EnsureRawPointCloudClient();
+		return;
+	}
 	Runtime->Status.Topic = GetTopic(Kind);
 	if (Runtime->Status.Topic.IsEmpty())
 	{
@@ -278,6 +308,164 @@ void AVirtualSensorExternalSourceHostActor::SubscribeRuntime(EVirtualSensorTopic
 		Runtime->Status.LastMessage = TEXT("구독 요청이 시작되지 않아 재시도합니다.");
 		++Runtime->RetryAttempt;
 	}
+}
+
+void AVirtualSensorExternalSourceHostActor::EnsureRawPointCloudClient()
+{
+	FReceiverRuntime* Runtime = FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud);
+	if (!Runtime || bEndingPlay || !bTopicReceiversRequested) return;
+	Runtime->Status.Topic = PointCloudReceiveTopic;
+	if (Runtime->Status.Topic.IsEmpty())
+	{
+		Runtime->Status.State = EVirtualSensorTopicReceiverState::Error;
+		Runtime->Status.LastMessage = TEXT("Point Cloud receive Topic is empty.");
+		return;
+	}
+	if (RawPointCloudClient.IsValid())
+	{
+		if (RawPointCloudClient->IsConnected()) SubscribeRawPointCloud();
+		else RawPointCloudClient->Connect();
+		return;
+	}
+
+	const UDTCoreSettings* Settings = GetDefault<UDTCoreSettings>();
+	const FString BrokerUrl = GetReceiverBrokerUrl();
+	if (BrokerUrl.IsEmpty())
+	{
+		Runtime->Status.State = EVirtualSensorTopicReceiverState::WaitingForConnection;
+		Runtime->Status.LastMessage = TEXT("DTCore WebSocket URL is empty.");
+		++Runtime->RetryAttempt;
+		return;
+	}
+	FString Login = Settings ? Settings->WebSocketLogin : FString();
+	FString Passcode = Settings ? Settings->WebSocketPasscode : FString();
+	if (GConfig)
+	{
+		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), Login, GGameIni);
+		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), Passcode, GGameIni);
+	}
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
+	{
+		const FString TestLogin = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
+		const FString TestPasscode = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD"));
+		if (!TestLogin.IsEmpty()) Login = TestLogin;
+		if (!TestPasscode.IsEmpty()) Passcode = TestPasscode;
+	}
+	RawPointCloudClient = FStompModule::Get().CreateClient(BrokerUrl);
+	RawPointCloudClient->OnConnected().AddUObject(this, &AVirtualSensorExternalSourceHostActor::HandleRawPointCloudConnected);
+	RawPointCloudClient->OnConnectionError().AddUObject(this, &AVirtualSensorExternalSourceHostActor::HandleRawPointCloudFailure);
+	RawPointCloudClient->OnError().AddUObject(this, &AVirtualSensorExternalSourceHostActor::HandleRawPointCloudFailure);
+	RawPointCloudClient->OnClosed().AddUObject(this, &AVirtualSensorExternalSourceHostActor::HandleRawPointCloudFailure);
+	FStompHeader ConnectHeaders;
+	if (!Login.IsEmpty()) ConnectHeaders.Add(TEXT("login"), Login);
+	if (!Passcode.IsEmpty()) ConnectHeaders.Add(TEXT("passcode"), Passcode);
+	Runtime->bSubscriptionPending = true;
+	Runtime->SubscriptionStartedSeconds = FPlatformTime::Seconds();
+	Runtime->Status.State = EVirtualSensorTopicReceiverState::Subscribing;
+	Runtime->Status.LastMessage = TEXT("Raw STOMP Binary PCD connection starting.");
+	RawPointCloudClient->Connect(ConnectHeaders);
+}
+
+void AVirtualSensorExternalSourceHostActor::HandleRawPointCloudConnected(
+	const FString& ProtocolVersion,
+	const FString& SessionId,
+	const FString& ServerString)
+{
+	if (FReceiverRuntime* Runtime = FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud))
+	{
+		Runtime->bSubscriptionPending = false;
+		Runtime->SubscriptionStartedSeconds = 0.0;
+		Runtime->Status.LastMessage = FString::Printf(TEXT("Raw STOMP connected: protocol=%s session=%s"), *ProtocolVersion, *SessionId);
+	}
+	SubscribeRawPointCloud();
+}
+
+void AVirtualSensorExternalSourceHostActor::SubscribeRawPointCloud()
+{
+	FReceiverRuntime* Runtime = FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud);
+	if (!Runtime || !RawPointCloudClient.IsValid() || !RawPointCloudClient->IsConnected() ||
+		!RawPointCloudSubscriptionId.IsEmpty() || !bTopicReceiversRequested)
+	{
+		return;
+	}
+	Runtime->bSubscriptionPending = true;
+	Runtime->SubscriptionStartedSeconds = FPlatformTime::Seconds();
+	Runtime->Status.State = EVirtualSensorTopicReceiverState::Subscribing;
+	const TWeakObjectPtr<AVirtualSensorExternalSourceHostActor> WeakThis(this);
+	RawPointCloudSubscriptionId = RawPointCloudClient->Subscribe(
+		PointCloudReceiveTopic,
+		FStompSubscriptionEvent::CreateLambda([WeakThis](const IStompMessage& Message)
+		{
+			if (WeakThis.IsValid()) WeakThis->HandleRawPointCloudMessage(Message);
+		}),
+		FStompRequestCompleted::CreateLambda([WeakThis](bool bSuccess, const FString& Error)
+		{
+			if (!WeakThis.IsValid()) return;
+			if (FReceiverRuntime* Runtime = WeakThis->FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud))
+			{
+				Runtime->SubscriptionId = bSuccess ? WeakThis->RawPointCloudSubscriptionId : FString();
+			}
+			WeakThis->CompleteSubscription(EVirtualSensorTopicReceiveKind::PointCloud, bSuccess, Error);
+		}));
+}
+
+void AVirtualSensorExternalSourceHostActor::HandleRawPointCloudFailure(const FString& Error)
+{
+	RawPointCloudSubscriptionId.Reset();
+	RawPointCloudClient.Reset();
+	FReceiverRuntime* Runtime = FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud);
+	if (!Runtime || bEndingPlay || !bTopicReceiversRequested) return;
+	Runtime->SubscriptionId.Reset();
+	Runtime->bSubscriptionPending = false;
+	Runtime->SubscriptionStartedSeconds = 0.0;
+	Runtime->Status.State = EVirtualSensorTopicReceiverState::WaitingForConnection;
+	Runtime->Status.LastMessage = FString::Printf(TEXT("Raw STOMP Binary PCD connection error: %s"), *Error.Left(256));
+	++Runtime->RetryAttempt;
+	ScheduleSubscriptionRetry();
+}
+
+void AVirtualSensorExternalSourceHostActor::HandleRawPointCloudMessage(const IStompMessage& Message)
+{
+	const SIZE_T RawLength = Message.GetRawBodyLength();
+	if (RawLength > static_cast<SIZE_T>(MAX_int32))
+	{
+		HandleRawPointCloudFailure(TEXT("Binary PCD body exceeds the processable size."));
+		return;
+	}
+	TArray<uint8> Body;
+	Body.Append(Message.GetRawBody(), static_cast<int32>(RawLength));
+	TMap<FName, FString> Headers = Message.GetHeader();
+	QueueRawPointCloudPayload(MoveTemp(Body), MoveTemp(Headers));
+}
+
+void AVirtualSensorExternalSourceHostActor::QueueRawPointCloudPayload(
+	TArray<uint8>&& Body,
+	TMap<FName, FString>&& Headers)
+{
+	if (bEndingPlay || !bTopicReceiversRequested) return;
+	FReceiverRuntime* Runtime = FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud);
+	if (!Runtime) return;
+	++Runtime->Status.ReceivedCount;
+	Runtime->Status.LastReceivedUtc = FDateTime::UtcNow();
+	Runtime->Status.LastMessageBytes = Body.Num();
+	if (Body.Num() > FMath::Clamp(MaxReceiverMessageBytes, 1024, 16777216))
+	{
+		++Runtime->Status.ValidationFailureCount;
+		Runtime->Status.State = EVirtualSensorTopicReceiverState::Error;
+		Runtime->Status.LastMessage = FString::Printf(TEXT("Binary PCD receive size limit exceeded: %d bytes"), Body.Num());
+		return;
+	}
+	if (Runtime->PendingBinaryBodies.Num() >= 20)
+	{
+		++Runtime->Status.ValidationFailureCount;
+		Runtime->Status.State = EVirtualSensorTopicReceiverState::Error;
+		Runtime->Status.LastMessage = TEXT("Binary PCD validation queue overloaded; no frame was silently replaced.");
+		return;
+	}
+	FRawPointCloudPayload& Payload = Runtime->PendingBinaryBodies.AddDefaulted_GetRef();
+	Payload.Body = MoveTemp(Body);
+	Payload.Headers = MoveTemp(Headers);
+	TryStartQueuedParses();
 }
 
 void AVirtualSensorExternalSourceHostActor::ScheduleSubscriptionRetry()
@@ -355,9 +543,34 @@ void AVirtualSensorExternalSourceHostActor::TryStartQueuedParses()
 	{
 		const int32 Index = (ReceiverRoundRobinCursor + Attempt) % ReceiverRuntimes.Num();
 		FReceiverRuntime& Runtime = ReceiverRuntimes[Index];
-		if (Runtime.bParsing || !Runtime.PendingBody.IsSet()) continue;
+		const bool bHasBinaryPointCloud = Runtime.Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud && !Runtime.PendingBinaryBodies.IsEmpty();
+		if (Runtime.bParsing || (!Runtime.PendingBody.IsSet() && !bHasBinaryPointCloud)) continue;
 		UTransactionCodeMessage* Handler = FindHandler(Runtime.Status.Kind);
 		if (!Handler) continue;
+		if (bHasBinaryPointCloud)
+		{
+			FRawPointCloudPayload Payload = MoveTemp(Runtime.PendingBinaryBodies[0]);
+			Runtime.PendingBinaryBodies.RemoveAt(0, 1, false);
+			Runtime.bParsing = true;
+			++ActiveReceiverParseCount;
+			ReceiverRoundRobinCursor = (Index + 1) % ReceiverRuntimes.Num();
+			const TWeakObjectPtr<AVirtualSensorExternalSourceHostActor> WeakThis(this);
+			const TWeakObjectPtr<UVirtualPointCloudStreamReceiverTC> WeakHandler(PointCloudTopicHandler);
+			AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask,
+				[WeakThis, WeakHandler, Payload = MoveTemp(Payload)]() mutable
+				{
+					const double Started = FPlatformTime::Seconds();
+					TSharedPtr<FTransactionCodeDataBase> Parsed;
+					if (WeakHandler.IsValid()) Parsed = WeakHandler->ParseBinaryPcdToStruct(Payload.Body, Payload.Headers);
+					const float LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Started) * 1000.0);
+					AsyncTask(ENamedThreads::GameThread, [WeakThis, Parsed = MoveTemp(Parsed), LatencyMs]()
+					{
+						if (WeakThis.IsValid()) WeakThis->CompleteTopicParse(EVirtualSensorTopicReceiveKind::PointCloud, Parsed, LatencyMs);
+					});
+				});
+			Attempt = -1;
+			continue;
+		}
 		FString Body = MoveTemp(Runtime.PendingBody.GetValue());
 		Runtime.PendingBody.Reset();
 		Runtime.bParsing = true;
@@ -403,10 +616,59 @@ void AVirtualSensorExternalSourceHostActor::CompleteTopicParse(
 	}
 	else
 	{
+		bool bStaleOrDuplicatePointCloudFrame = false;
+		if (Kind == EVirtualSensorTopicReceiveKind::PointCloud && Data->bValid && Runtime->Status.LastFrameId >= 0)
+		{
+			if (Data->FrameId <= Runtime->Status.LastFrameId)
+			{
+				++Runtime->Status.DuplicateFrameCount;
+				bStaleOrDuplicatePointCloudFrame = true;
+			}
+			else if (Data->FrameId > Runtime->Status.LastFrameId + 1)
+			{
+				Runtime->Status.FrameGapCount += Data->FrameId - Runtime->Status.LastFrameId - 1;
+			}
+		}
+		if (bStaleOrDuplicatePointCloudFrame)
+		{
+			// A receipt timeout retry is intentionally at-least-once. Validate the
+			// frame body, but do not move LastFrameId backwards or count it as a
+			// second consumer result; doing so manufactured a large gap on the next
+			// good frame. SensorId/FrameId is the PCD consumer idempotency key.
+			Runtime->Status.LastMessage = FString::Printf(
+				TEXT("Duplicate/stale Binary PCD ignored by SensorId/FrameId: %s/%lld"),
+				*Data->SensorId,
+				Data->FrameId);
+			Runtime->Status.State = EVirtualSensorTopicReceiverState::Active;
+			AddReceiveLog(*Runtime, *Data, ParseLatencyMs);
+			TryStartQueuedParses();
+			return;
+		}
 		Runtime->Status.LastSensorId = Data->SensorId;
 		Runtime->Status.LastFrameId = Data->FrameId;
 		Runtime->Status.LastMessageBytes = Data->MessageBytes;
 		Runtime->Status.LastParseLatencyMs = ParseLatencyMs;
+		const double NowSeconds = FPlatformTime::Seconds();
+		if (Data->bValid)
+		{
+			if (Runtime->FirstValidatedSeconds <= 0.0) Runtime->FirstValidatedSeconds = NowSeconds;
+			Runtime->Status.ValidatedHz = static_cast<float>(Runtime->Status.ValidatedCount + 1) /
+				FMath::Max(0.001, static_cast<float>(NowSeconds - Runtime->FirstValidatedSeconds));
+			if (Kind == EVirtualSensorTopicReceiveKind::PointCloud && Data->SourceTimestampUtc.GetTicks() > 0)
+			{
+				const float EndToEndMs = static_cast<float>((FDateTime::UtcNow() - Data->SourceTimestampUtc).GetTotalMilliseconds());
+				Runtime->Status.LastEndToEndLatencyMs = FMath::Max(0.0f, EndToEndMs);
+				Runtime->EndToEndLatencySamples.Add(Runtime->Status.LastEndToEndLatencyMs);
+				if (Runtime->EndToEndLatencySamples.Num() > 256)
+				{
+					Runtime->EndToEndLatencySamples.RemoveAt(0, Runtime->EndToEndLatencySamples.Num() - 256, false);
+				}
+				TArray<float> SortedLatency = Runtime->EndToEndLatencySamples;
+				SortedLatency.Sort();
+				const int32 P95Index = FMath::Clamp(FMath::CeilToInt(SortedLatency.Num() * 0.95f) - 1, 0, SortedLatency.Num() - 1);
+				Runtime->Status.EndToEndP95LatencyMs = SortedLatency[P95Index];
+			}
+		}
 		Runtime->Status.LastMessage = Data->Message;
 		Runtime->Status.State = Data->bValid ? EVirtualSensorTopicReceiverState::Active : EVirtualSensorTopicReceiverState::Error;
 		if (Data->bValid) ++Runtime->Status.ValidatedCount;

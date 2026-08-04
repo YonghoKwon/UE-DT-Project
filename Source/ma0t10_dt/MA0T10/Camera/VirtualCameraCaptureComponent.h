@@ -69,9 +69,14 @@ public:
         ++RuntimeStatus.DeadlineMissCount;
     }
 
-	/** Requests JSON+JPEG production for a live stream without changing the persisted CaptureMode setting. */
-	void SetRuntimeStreamOutputDemand(bool bEnabled) { bRuntimeStreamOutputDemand = bEnabled; }
+	/** Requests JPEG production for a live stream without changing the persisted CaptureMode setting. */
+	void SetRuntimeStreamOutputDemand(bool bEnabled, bool bHighThroughputOnly = false)
+	{
+		bRuntimeStreamOutputDemand = bEnabled;
+		bRuntimeHighThroughputStreamDemand = bEnabled && bHighThroughputOnly;
+	}
 	bool HasRuntimeStreamOutputDemand() const { return bRuntimeStreamOutputDemand; }
+	bool HasHighThroughputStreamOutputDemand() const { return bRuntimeHighThroughputStreamDemand; }
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Camera; }
     virtual bool IsScheduledTaskActive() const override { return IsCaptureRunning(); }
@@ -108,6 +113,7 @@ public:
     const FString& GetLastJsonPayload() const { return LastJsonPayload; }
 
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> GetLastJpegSnapshot() const { return LastJpegSnapshot; }
+	const FVirtualCameraJpegMetadata& GetLastJpegMetadata() const { return LastJpegMetadata; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
@@ -185,11 +191,16 @@ private:
     void TryAutoRegisterToManager();
     void RegisterWithPerformanceSubsystem();
     void UnregisterFromPerformanceSubsystem();
-    void QueueScheduledGpuReadback(double NowSeconds);
+	void QueuePendingGpuReadbacks();
+	bool QueueScheduledGpuReadback(int64 CapturedFrameId, double CaptureStartedSeconds);
     void PollScheduledGpuReadback(double NowSeconds);
-    void StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds);
-    void CompleteScheduledEncode(int64 CapturedFrameId, TArray64<uint8>&& JpegBytes, FString&& JsonPayload, double CaptureStartedSeconds);
+    void ReleaseScheduledReadbackOnRenderThread();
+	void PumpScheduledEncodeQueue();
+	bool StartScheduledEncode(TArray<FColor>&& RawPixels, int32 Width, int32 Height, int64 CapturedFrameId, double CaptureStartedSeconds);
+	void CompleteScheduledEncode(int64 CapturedFrameId, int32 Width, int32 Height, int32 Quality, FString&& Checksum, TArray64<uint8>&& JpegBytes, FString&& JsonPayload, double CaptureStartedSeconds);
+	void FlushCompletedEncodes();
 	bool ShouldGeneratePayload() const { return CaptureMode != EVirtualCameraCaptureMode::PreviewOnly || bRuntimeStreamOutputDemand; }
+	bool ShouldBuildCompatibilityJson() const { return CaptureMode != EVirtualCameraCaptureMode::PreviewOnly || !bRuntimeHighThroughputStreamDemand; }
 
 private:
     FTimerHandle CaptureTimerHandle;
@@ -200,20 +211,54 @@ private:
 
     FString LastJsonPayload;
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> LastJpegSnapshot;
+	FVirtualCameraJpegMetadata LastJpegMetadata;
 
-    TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> ScheduledReadback;
-    bool bScheduledReadbackInFlight = false;
+	struct FScheduledReadbackSlot
+	{
+		TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback;
+		bool bInFlight = false;
+		bool bConsumeQueued = false;
+		int32 Width = 0;
+		int32 Height = 0;
+		int64 FrameId = 0;
+		double CaptureStartedSeconds = 0.0;
+		int32 Generation = 0;
+	};
+	struct FPendingReadbackRequest
+	{
+		int64 FrameId = 0;
+		double CaptureStartedSeconds = 0.0;
+	};
+	struct FPendingEncodeInput
+	{
+		TArray<FColor> RawPixels;
+		int32 Width = 0;
+		int32 Height = 0;
+		int64 FrameId = 0;
+		double CaptureStartedSeconds = 0.0;
+	};
+	struct FCompletedEncode
+	{
+		TArray64<uint8> JpegBytes;
+		FString JsonPayload;
+		FString Checksum;
+		int32 Width = 0;
+		int32 Height = 0;
+		int32 Quality = 0;
+		double CaptureStartedSeconds = 0.0;
+	};
+	TArray<FScheduledReadbackSlot> ScheduledReadbackSlots;
+	TArray<FPendingReadbackRequest> PendingReadbackRequests;
+	TArray<FPendingEncodeInput> PendingEncodeInputs;
+	TArray<int64> EncodeOrder;
+	TMap<int64, FCompletedEncode> CompletedEncodes;
+	int32 ScheduledEncodeInFlightCount = 0;
     double NextScheduledCaptureTime = -1.0;
-    double ScheduledCaptureStartTime = -1.0;
     double LastScheduledCompletionTime = -1.0;
     double LastAcquisitionCompletionTime = -1.0;
     double LastOutputCompletionTime = -1.0;
-    int32 ScheduledReadbackWidth = 0;
-    int32 ScheduledReadbackHeight = 0;
-    int64 ScheduledReadbackFrameId = 0;
     int32 ScheduledGeneration = 0;
     bool bRegisteredWithPerformanceSubsystem = false;
-    bool bScheduledCaptureAwaitingReadback = false;
-    bool bScheduledEncodeInFlight = false;
 	bool bRuntimeStreamOutputDemand = false;
+	bool bRuntimeHighThroughputStreamDemand = false;
 };

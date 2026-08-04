@@ -69,8 +69,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "1024.0"))
 	float BandwidthLimitMegabytesPerSecond = 16.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "1024.0"))
+	float PointCloudBandwidthLimitMegabytesPerSecond = 64.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "30.0"))
 	float ReceiptTimeoutSeconds = 5.0f;
+
+	/** First binary PCD receipt may include broker large-message/session warmup. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "5.0", ClampMax = "120.0"))
+	float BinaryPcdReceiptTimeoutSeconds = 30.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "60.0"))
 	float ReconnectCooldownSeconds = 5.0f;
@@ -84,9 +91,20 @@ private:
 		FString SensorId;
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
+		FDateTime TimestampUtc;
 		FString Json;
+		TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> BinaryBody;
+		TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> BinaryBody64;
+		FVirtualPointCloudBinaryMetadata BinaryMetadata;
+		FVirtualCameraJpegMetadata CameraMetadata;
+		TMap<FString, FString> BinaryHeaders;
+		FString BinarySchema;
+		FString BinaryContentType;
 		int32 ByteCount = 0;
 		int32 ConfigRevision = 0;
+		int32 RetryAttempt = 0;
+		bool bBinaryPcd = false;
+		bool bHighThroughputBinary = false;
 	};
 
 	struct FStreamRuntime
@@ -95,11 +113,16 @@ private:
 		FVirtualSensorStreamStatus Status;
 		TOptional<FVirtualSensorFrameEnvelope> PendingFrame;
 		TOptional<FPreparedMessage> PreparedMessage;
+		TArray<FVirtualSensorFrameEnvelope> PendingFrameQueue;
+		TArray<FPreparedMessage> PreparedMessageQueue;
 		double FirstInputSeconds = 0.0;
+		double FirstSerializationSeconds = 0.0;
 		double FirstSubmitSeconds = 0.0;
 		double LastLazSubmitSeconds = -DBL_MAX;
 		double NextSubmitAttemptSeconds = 0.0;
 		bool bSerializationInFlight = false;
+		int64 SerializationCompletedCount = 0;
+		TArray<float> SerializationLatencySamples;
 		int32 ConfigRevision = 0;
 	};
 
@@ -107,6 +130,7 @@ private:
 	{
 		FString StreamKey;
 		double SubmittedSeconds = 0.0;
+		FPreparedMessage Message;
 	};
 
 	FString MakeStreamKey(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const;
@@ -114,11 +138,18 @@ private:
 	void QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
 	void StartPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
 	void CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error, int32 CapturedConfigRevision);
+	void TryStartNextPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime);
+	void StopForPointCloudOverload(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason);
+	void RefreshQueueTelemetry(FStreamRuntime& Runtime);
+	bool RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error);
 	void PumpPreparedMessages(double NowSeconds);
 	void CheckReceiptTimeouts(double NowSeconds);
 	void AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result = nullptr, int64 FrameId = 0);
 	void HandleTransportResult(const FVirtualSensorTransportResult& Result);
 	void UpdateCameraStreamDemand();
+	bool EnsureHighThroughputTransport(FString& OutError);
+	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
+	void MergeHighThroughputTelemetry();
 	static bool StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind);
 
 	UFUNCTION()
@@ -132,6 +163,7 @@ private:
 	int32 ConsecutiveReceiptTimeouts = 0;
 	double LastReconnectSeconds = -DBL_MAX;
 	double TokenBucketBytes = 0.0;
+	double PointCloudTokenBucketBytes = 0.0;
 	double LastTokenUpdateSeconds = 0.0;
 	bool bEndingPlay = false;
 };

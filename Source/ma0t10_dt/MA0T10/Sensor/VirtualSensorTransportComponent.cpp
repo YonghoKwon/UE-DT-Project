@@ -1,5 +1,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
@@ -96,6 +98,84 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonStreamRe
 	return Result;
 }
 
+FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryStreamRequest(
+	const TArray<uint8>& Bytes,
+	const FVirtualPointCloudBinaryMetadata& Metadata)
+{
+	FVirtualSensorTransportResult Result;
+	Result.Protocol = TEXT("STOMP/WS");
+	Result.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Metadata.SensorId, Metadata.FrameId, *Metadata.ChecksumSha1);
+	Result.SensorId = Metadata.SensorId;
+	Result.SensorType = TEXT("lidar");
+	Result.DataKind = TEXT("pointcloud-stream-binary-pcd");
+	Result.bReceiptRequested = true;
+	Result.Destination = ResolveTopic(Result.SensorType, Result.DataKind);
+	Result.DataLength = Bytes.Num();
+	if (Bytes.Num() != Metadata.ByteCount || Bytes.IsEmpty())
+	{
+		Result.Message = TEXT("Binary PCD metadata byte count does not match the body.");
+		return Result;
+	}
+	if (Result.DataLength > TransportProfile.MaxMessageBytes)
+	{
+		Result.Message = FString::Printf(TEXT("Binary PCD exceeds the STOMP limit: %d / %d bytes"), Result.DataLength, TransportProfile.MaxMessageBytes);
+		return Result;
+	}
+
+	EnsureStompClient();
+	if (!IsStompConnected())
+	{
+		Result.Message = TEXT("Artemis STOMP is not connected; binary PCD was not submitted.");
+		return Result;
+	}
+
+	FStompHeader Headers;
+	Headers.Add(TEXT("destination-type"), TEXT("MULTICAST"));
+	Headers.Add(TEXT("content-type"), TEXT("application/vnd.pcd"));
+	Headers.Add(TEXT("persistent"), TEXT("true"));
+	Headers.Add(TEXT("schema"), Metadata.Schema);
+	Headers.Add(TEXT("x-sensor-id"), Metadata.SensorId);
+	Headers.Add(TEXT("x-sensor-type"), TEXT("lidar"));
+	Headers.Add(TEXT("x-data-kind"), Result.DataKind);
+	Headers.Add(TEXT("x-frame-id"), LexToString(Metadata.FrameId));
+	Headers.Add(TEXT("x-request-id"), Result.RequestId);
+	FDateTime TimestampUtc;
+	const int64 TimestampUnixMilliseconds = FDateTime::ParseIso8601(*Metadata.TimestampUtc, TimestampUtc)
+		? TimestampUtc.ToUnixTimestamp() * 1000LL + TimestampUtc.GetMillisecond()
+		: 0LL;
+	// UE 5.3 escapes ':' in STOMP headers as '\:' instead of the STOMP 1.2
+	// '\c' sequence, which Artemis rejects before reading the binary body.
+	// Epoch milliseconds preserve UTC ordering without header metacharacters.
+	Headers.Add(TEXT("x-utc"), LexToString(TimestampUnixMilliseconds));
+	Headers.Add(TEXT("x-point-count"), LexToString(Metadata.PointCount));
+	Headers.Add(TEXT("x-source-point-count"), LexToString(Metadata.SourcePointCount));
+	Headers.Add(TEXT("x-filter-revision"), LexToString(Metadata.FilterRevision));
+	Headers.Add(TEXT("x-acquisition-profile"), Metadata.ProfileKey);
+	Headers.Add(TEXT("x-checksum-sha1"), Metadata.ChecksumSha1);
+
+	const double StartedSeconds = FPlatformTime::Seconds();
+	const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
+	StompClient->Send(Result.Destination, Bytes, Headers, FStompRequestCompleted::CreateLambda(
+		[WeakThis, SubmittedResult = Result, StartedSeconds](bool bSuccess, const FString& Error)
+		{
+			if (!WeakThis.IsValid()) return;
+			FVirtualSensorTransportResult Receipt = SubmittedResult;
+			Receipt.bSubmitted = true;
+			Receipt.bAccepted = bSuccess;
+			Receipt.bReceiptReceived = bSuccess;
+			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
+			Receipt.Message = bSuccess
+				? TEXT("Binary PCD broker receipt received; consumer processing is tracked separately.")
+				: FString::Printf(TEXT("Binary PCD broker receipt failed: %s"), *Error);
+			WeakThis->OnDataSent.Broadcast(Receipt);
+		}));
+	Result.bSubmitted = true;
+	Result.Message = TEXT("Binary PCD submitted through IStompClient; waiting for broker receipt.");
+	LastStompSubmitSeconds = StartedSeconds;
+	OnDataSent.Broadcast(Result);
+	return Result;
+}
+
 void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile)
 {
 	const bool bBrokerChanged = TransportProfile.BrokerUrl != InProfile.BrokerUrl || TransportProfile.UserName != InProfile.UserName || TransportProfile.AckTopic != InProfile.AckTopic;
@@ -107,6 +187,7 @@ void UVirtualSensorTransportComponent::ConfigureTransportProfile(const FVirtualS
 	if (bBrokerChanged && StompClient.IsValid())
 	{
 		bStompConnected.Store(false);
+		bStompConnecting.Store(false);
 		StompClient->Disconnect();
 		StompClient.Reset();
 	}
@@ -157,6 +238,7 @@ FString UVirtualSensorTransportComponent::ResolveTopic(const FString& SensorType
 void UVirtualSensorTransportComponent::RequestStompReconnect()
 {
 	bStompConnected.Store(false);
+	bStompConnecting.Store(false);
 	if (StompClient.IsValid())
 	{
 		StompClient->Disconnect();
@@ -169,7 +251,7 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 {
 	if (StompClient.IsValid())
 	{
-		if (!StompClient->IsConnected()) StompClient->Connect();
+		if (!StompClient->IsConnected() && !bStompConnecting.Exchange(true)) StompClient->Connect();
 		return;
 	}
 	if (TransportProfile.BrokerUrl.IsEmpty()) return;
@@ -183,12 +265,14 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 	FStompHeader Headers;
 	if (!TransportProfile.UserName.IsEmpty()) Headers.Add(TEXT("login"), TransportProfile.UserName);
 	if (!SessionPasscode.IsEmpty()) Headers.Add(TEXT("passcode"), SessionPasscode);
+	bStompConnecting.Store(true);
 	StompClient->Connect(Headers);
 }
 
 void UVirtualSensorTransportComponent::HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString)
 {
 	bStompConnected.Store(true);
+	bStompConnecting.Store(false);
 	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] STOMP connected owner=%s protocol=%s session=%s"),
 		*GetNameSafe(GetOwner()), *ProtocolVersion, *SessionId);
 	LastResult.Protocol = TEXT("STOMP/WS");
@@ -203,6 +287,7 @@ void UVirtualSensorTransportComponent::HandleStompConnected(const FString& Proto
 void UVirtualSensorTransportComponent::HandleStompFailure(const FString& Error)
 {
 	bStompConnected.Store(false);
+	bStompConnecting.Store(false);
 	UE_LOG(LogTemp, Warning, TEXT("[SensorStreamTransport] STOMP connection lost owner=%s error=%s"),
 		*GetNameSafe(GetOwner()), *Error);
 	AckSubscriptionId.Reset();
@@ -340,6 +425,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 void UVirtualSensorTransportComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	bStompConnected.Store(false);
+	bStompConnecting.Store(false);
 	if (StompClient.IsValid())
 	{
 		StompClient->Disconnect();

@@ -4,6 +4,8 @@
 #include "Components/ActorComponent.h"
 #include "VirtualSensorTransportComponent.generated.h"
 
+struct FVirtualPointCloudBinaryMetadata;
+
 UENUM(BlueprintType)
 enum class EVirtualSensorTransportMode : uint8
 {
@@ -144,11 +146,19 @@ public:
 		const FString& JsonText,
 		bool bRequestReceipt);
 
+	/** Sends a complete PCD file as the STOMP binary body without Base64 or JSON wrapping. */
+	FVirtualSensorTransportResult SendStompBinaryStreamRequest(
+		const TArray<uint8>& Bytes,
+		const FVirtualPointCloudBinaryMetadata& Metadata);
+
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	void ConfigureTransportProfile(const FVirtualSensorTransportProfile& InProfile);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	const FVirtualSensorTransportProfile& GetTransportProfile() const { return TransportProfile; }
+
+	/** C++ high-throughput worker access; the passcode remains session-only and is never serialized. */
+	const FString& GetSessionPasscodeForHighThroughput() const { return SessionPasscode; }
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	FString ResolveDestination(const FString& SensorType, const FString& DataKind) const { return ResolveTopic(SensorType, DataKind); }
@@ -236,6 +246,7 @@ private:
 
 	TSharedPtr<class IStompClient> StompClient;
 	TAtomic<bool> bStompConnected { false };
+	TAtomic<bool> bStompConnecting { false };
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;

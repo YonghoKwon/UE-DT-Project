@@ -126,6 +126,7 @@ void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponen
     if (PreferredLidar.Get() == Lidar) PreferredLidar.Reset();
     Lidars.RemoveAll([Lidar](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid() || Item.Get() == Lidar; });
     AdaptiveLidarChunkSizes.Remove(Lidar);
+    LastLidarPreviewRefreshTimes.Remove(Lidar);
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
 
@@ -144,11 +145,28 @@ bool UVirtualSensorSchedulerSubsystem::ShouldRefreshLidarPreview(const UVirtualL
     return !PreferredLidar.IsValid() || PreferredLidar.Get() == Lidar;
 }
 
+bool UVirtualSensorSchedulerSubsystem::ConsumeLidarPreviewRefresh(
+    UVirtualLidarScanComponent* Lidar,
+    float MaximumRefreshHz)
+{
+    if (!Lidar || !ShouldRefreshLidarPreview(Lidar)) return false;
+    const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    const double MinimumInterval = 1.0 / FMath::Max(1.0f, MaximumRefreshHz);
+    double& LastRefreshSeconds = LastLidarPreviewRefreshTimes.FindOrAdd(Lidar, -1.0e30);
+    if (NowSeconds - LastRefreshSeconds < MinimumInterval) return false;
+    LastRefreshSeconds = NowSeconds;
+    return true;
+}
+
 void UVirtualSensorSchedulerSubsystem::CompactRegistrations()
 {
     Cameras.RemoveAll([](const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Item) { return !Item.IsValid(); });
     Lidars.RemoveAll([](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid(); });
     for (auto It = AdaptiveLidarChunkSizes.CreateIterator(); It; ++It)
+    {
+        if (!It.Key().IsValid()) It.RemoveCurrent();
+    }
+    for (auto It = LastLidarPreviewRefreshTimes.CreateIterator(); It; ++It)
     {
         if (!It.Key().IsValid()) It.RemoveCurrent();
     }
@@ -263,6 +281,16 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         ConsecutiveIdle = 0;
         if (ChunkMs > 0.75 && AdaptiveChunkSize > 128) AdaptiveChunkSize = FMath::Max(128, AdaptiveChunkSize / 2);
         else if (ChunkMs < 0.25 && AdaptiveChunkSize < 1024) AdaptiveChunkSize = FMath::Min(1024, AdaptiveChunkSize * 2);
+    }
+
+    // A GPU acquisition can complete inside ProcessScheduledScanChunk after
+    // the pre-pass has already observed it as in-flight. Re-run only the cheap
+    // admission step so a due ML-X frame starts in this Tick instead of idling
+    // for another complete 0.05-second period. No additional scan is queued;
+    // every component still permits exactly one acquisition in flight.
+    for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
+    {
+        if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
     }
 
     RefreshTelemetry(static_cast<float>((FPlatformTime::Seconds() - StartSeconds) * 1000.0));

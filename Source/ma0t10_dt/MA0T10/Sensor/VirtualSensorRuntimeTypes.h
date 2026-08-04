@@ -20,6 +20,13 @@ enum class EVirtualSensorStreamKind : uint8
 };
 
 UENUM(BlueprintType)
+enum class EVirtualSensorStreamTransportBackend : uint8
+{
+	TcpStompHighThroughput UMETA(DisplayName = "Raw TCP STOMP (High Throughput)"),
+	EngineStompCompatibility UMETA(DisplayName = "Engine STOMP (Compatibility)")
+};
+
+UENUM(BlueprintType)
 enum class EVirtualPointCloudStreamFormat : uint8
 {
 	CSV,
@@ -29,6 +36,113 @@ enum class EVirtualPointCloudStreamFormat : uint8
 	LAZ,
 	/** Compact little-endian virtual-lidar.v2 point records. Not a vendor packet. */
 	CompactBinary
+};
+
+UENUM(BlueprintType)
+enum class EVirtualPcdDataMode : uint8
+{
+	Ascii UMETA(DisplayName = "PCD ASCII"),
+	Binary UMETA(DisplayName = "PCD Binary")
+};
+
+UENUM(BlueprintType)
+enum class EVirtualPointCloudDeliveryMode : uint8
+{
+	LatestFrame UMETA(DisplayName = "Latest Frame"),
+	ConnectedNoLoss UMETA(DisplayName = "Connected No Loss")
+};
+
+/** Filtering applied only to the real-time point-cloud stream. */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualPointCloudFilterConfig
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	TArray<FName> IncludeActorTags;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	TArray<FName> IncludeSemanticLabels;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	TArray<FName> ExcludeActorTags;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	TArray<FName> ExcludeSemanticLabels;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	bool bEnableSensorLocalRoi = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	FVector SensorLocalRoiMinCm = FVector(-15000.0, -15000.0, -15000.0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	FVector SensorLocalRoiMaxCm = FVector(15000.0, 15000.0, 15000.0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter", meta = (ClampMin = "0.0"))
+	float MinRangeCm = 0.0f;
+
+	/** Zero disables the upper range filter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter", meta = (ClampMin = "0.0"))
+	float MaxRangeCm = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|PointCloudFilter")
+	int32 Revision = 0;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualPointCloudBinaryMetadata
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString Schema = TEXT("virtual-pointcloud.pcd.v1");
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString SensorId;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int64 FrameId = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString TimestampUtc;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString ProfileKey;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int32 SourcePointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int32 PointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int32 ByteCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int32 FilterRevision = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString ChecksumSha1;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualCameraJpegMetadata
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") FString Schema = TEXT("virtual-camera.jpeg.v1");
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 Width = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 Height = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 JpegQuality = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 ByteCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") FString ChecksumSha1;
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarTelemetryFrame
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") FString Schema = TEXT("virtual-lidar.telemetry.v1");
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") FString ProfileKey;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") FString AcquisitionBackend;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 HorizontalSamples = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 VerticalChannels = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 RequestedRayCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 ValidPointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 InvalidPointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 FirstEchoCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int32 SecondEchoCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MinRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MaxRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MeanRangeMeters = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MinIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MaxIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MeanIntensity = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 AcquisitionStartUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 AcquisitionEndUnixNanoseconds = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -46,11 +160,30 @@ struct MA0T10_DT_API FVirtualSensorStreamConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	bool bEnabled = false;
 
+	/** Raw TCP keeps large binary bodies off the game thread. WSS always falls back to compatibility mode. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualSensorStreamTransportBackend TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "1000"))
 	int32 FrameStride = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	EVirtualPointCloudStreamFormat PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualPcdDataMode PcdDataMode = EVirtualPcdDataMode::Binary;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	EVirtualPointCloudDeliveryMode DeliveryMode = EVirtualPointCloudDeliveryMode::LatestFrame;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	FVirtualPointCloudFilterConfig PointCloudFilter;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "120"))
+	int32 MaxBufferedFrames = 20;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "0", ClampMax = "10"))
+	int32 MaxReceiptRetries = 3;
 
 	/** Automatic streams request a broker receipt every N submitted frames. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "1000"))
@@ -140,6 +273,32 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	FString Message;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 InputQueueDepth = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 PreparedQueueDepth = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 ReceiptQueueDepth = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 FrameGapCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 RetryCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 DuplicateReceiptCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 OverloadCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 LastPointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 LastSourcePointCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 LastFrameBytes = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SerializationHz = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 SerializedFrameCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastSerializationLatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SerializationP95LatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float SubmittedMegabytesPerSecond = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") bool bOverloaded = false;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") EVirtualSensorStreamTransportBackend ActiveTransportBackend = EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerReceivedCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerValidationFailureCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerFrameGapCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 ConsumerDuplicateCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float ConsumerReceivedHz = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastSocketWriteLatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastConsumerLatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float EndToEndP95LatencyMs = 0.0f;
 };
 
 USTRUCT(BlueprintType)
@@ -222,6 +381,7 @@ struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 	TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> PointSnapshot;
 	/** Shared immutable physical frame; preferred by binary codecs to avoid rebuilding metadata or copying points. */
 	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> LidarFrameSnapshot;
+	FVirtualCameraJpegMetadata CameraJpegMetadata;
 	bool bSendTransport = true;
 	bool bRecord = true;
 

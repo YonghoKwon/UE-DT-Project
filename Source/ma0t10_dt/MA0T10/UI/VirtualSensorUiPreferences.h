@@ -99,7 +99,16 @@ public:
 	UPROPERTY(SaveGame) uint8 CaptureExportActiveTab = 0;
 	UPROPERTY(SaveGame) int32 SensorStreamFrameStride = 1;
 	UPROPERTY(SaveGame) int32 SensorStreamReceiptInterval = 10;
-	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::CompactBinary);
+	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD);
+	UPROPERTY(SaveGame) uint8 PointCloudStreamFilterPreset = 0;
+	UPROPERTY(SaveGame) TArray<FName> PointCloudIncludeActorTags;
+	UPROPERTY(SaveGame) TArray<FName> PointCloudIncludeSemanticLabels;
+	UPROPERTY(SaveGame) TArray<FName> PointCloudExcludeActorTags;
+	UPROPERTY(SaveGame) TArray<FName> PointCloudExcludeSemanticLabels;
+	UPROPERTY(SaveGame) FVector PointCloudRoiMinCm = FVector(0.0, -5000.0, -3000.0);
+	UPROPERTY(SaveGame) FVector PointCloudRoiMaxCm = FVector(15000.0, 5000.0, 3000.0);
+	UPROPERTY(SaveGame) float PointCloudMinRangeCm = 0.0f;
+	UPROPERTY(SaveGame) float PointCloudMaxRangeCm = 0.0f;
 	UPROPERTY(SaveGame) float LocalCaptureIntervalSeconds = 1.0f;
 	UPROPERTY(SaveGame) bool bLocalCaptureUseSensorInterval = false;
 	UPROPERTY(SaveGame) bool bLocalCaptureCameraImage = true;

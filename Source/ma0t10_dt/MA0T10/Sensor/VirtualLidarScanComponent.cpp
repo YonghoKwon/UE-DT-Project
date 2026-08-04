@@ -483,6 +483,10 @@ void UVirtualLidarScanComponent::RebuildPhysicalFrameStatistics(FVirtualLidarFra
     {
         return;
     }
+	double RangeSumMeters = 0.0;
+	double IntensitySum = 0.0;
+	Snapshot.MinRangeMeters = TNumericLimits<float>::Max();
+	Snapshot.MinIntensity = TNumericLimits<float>::Max();
     for (const FVirtualLidarPoint& Point : *Snapshot.Points)
     {
         if (Point.bHit)
@@ -490,12 +494,31 @@ void UVirtualLidarScanComponent::RebuildPhysicalFrameStatistics(FVirtualLidarFra
             ++Snapshot.ValidPointCount;
             if (Point.EchoIndex == 0) ++Snapshot.FirstEchoCount;
             else if (Point.EchoIndex == 1) ++Snapshot.SecondEchoCount;
+			const float RangeMeters = Point.RangeMillimeters > 0
+				? Point.RangeMillimeters / 1000.0f
+				: Point.Distance / 100.0f;
+			Snapshot.MinRangeMeters = FMath::Min(Snapshot.MinRangeMeters, RangeMeters);
+			Snapshot.MaxRangeMeters = FMath::Max(Snapshot.MaxRangeMeters, RangeMeters);
+			Snapshot.MinIntensity = FMath::Min(Snapshot.MinIntensity, Point.NormalizedIntensity);
+			Snapshot.MaxIntensity = FMath::Max(Snapshot.MaxIntensity, Point.NormalizedIntensity);
+			RangeSumMeters += RangeMeters;
+			IntensitySum += Point.NormalizedIntensity;
         }
         else
         {
             ++Snapshot.InvalidPointCount;
         }
     }
+	if (Snapshot.ValidPointCount > 0)
+	{
+		Snapshot.MeanRangeMeters = static_cast<float>(RangeSumMeters / Snapshot.ValidPointCount);
+		Snapshot.MeanIntensity = static_cast<float>(IntensitySum / Snapshot.ValidPointCount);
+	}
+	else
+	{
+		Snapshot.MinRangeMeters = 0.0f;
+		Snapshot.MinIntensity = 0.0f;
+	}
 }
 
 void UVirtualLidarScanComponent::BeginPlay()
@@ -527,6 +550,7 @@ void UVirtualLidarScanComponent::StartScan()
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
+    bDeadlineMissRecordedForActiveAcquisition = false;
     RegisterWithPerformanceSubsystem();
 }
 void UVirtualLidarScanComponent::StopScan()
@@ -536,6 +560,7 @@ void UVirtualLidarScanComponent::StopScan()
     NextScheduledScanTime = -1.0;
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
+    bDeadlineMissRecordedForActiveAcquisition = false;
     if (GpuDepthProjectionComponent.IsValid()) GpuDepthProjectionComponent->CancelAcquisition();
     bScheduledPayloadBuildInFlight = false;
     bScheduledAutoExportInFlight = false;
@@ -677,44 +702,38 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
     ScheduledAcquisitionStartUnixNanoseconds = Frame.Request.AcquisitionStartUnixNanoseconds;
     ScheduledPoints.Reset();
     ScheduledPoints.Reserve(ScheduledScanWidth * ScheduledScanHeight);
-    ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);
+    bScheduledGenerateHeatmap = true;
+    if (const UWorld* World = GetWorld())
+    {
+        if (const UVirtualSensorSchedulerSubsystem* Subsystem = World->GetSubsystem<UVirtualSensorSchedulerSubsystem>())
+        {
+            bScheduledGenerateHeatmap = Subsystem->ShouldRefreshLidarPreview(this);
+        }
+    }
+    if (bScheduledGenerateHeatmap)
+    {
+        ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);
+    }
+    else
+    {
+        ScheduledHeatmapPixels.Reset();
+    }
     ScheduledHitPointCount = 0;
     ScheduledSemanticCounts.Reset();
 
-    TArray<float> HorizontalAngles;
-    TArray<float> VerticalAngles;
-    BuildBeamAngleTables(ScheduledScanWidth, ScheduledScanHeight, HorizontalAngles, VerticalAngles);
-    const float HalfHorizontalTangent = FMath::Tan(FMath::DegreesToRadians(Frame.Request.HorizontalFovDegrees * 0.5f));
-    const float CaptureAspect = static_cast<float>(FMath::Max(1, Frame.CaptureWidth))
-        / static_cast<float>(FMath::Max(1, Frame.CaptureHeight));
-    const float HalfVerticalTangent = HalfHorizontalTangent / FMath::Max(0.001f, CaptureAspect);
+    EnsureGpuDepthBeamLookup(Frame);
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
 
     for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
     {
-        const float PitchDegrees = VerticalAngles[Ring];
-        const float PitchRadians = FMath::DegreesToRadians(PitchDegrees);
-        const float NormalizedVertical = FMath::Tan(PitchRadians) / FMath::Max(0.001f, HalfVerticalTangent);
-        const int32 PixelY = FMath::Clamp(
-            FMath::RoundToInt((0.5f - 0.5f * NormalizedVertical) * static_cast<float>(FMath::Max(0, Frame.CaptureHeight - 1))),
-            0,
-            FMath::Max(0, Frame.CaptureHeight - 1));
-
         for (int32 Column = 0; Column < ScheduledScanWidth; ++Column)
         {
             const int32 RayIndex = Ring * ScheduledScanWidth + Column;
-            const float YawDegrees = HorizontalAngles[Column];
-            const float YawRadians = FMath::DegreesToRadians(YawDegrees);
-            const float NormalizedHorizontal = FMath::Tan(YawRadians) / FMath::Max(0.001f, HalfHorizontalTangent);
-            const int32 PixelX = FMath::Clamp(
-                FMath::RoundToInt((0.5f + 0.5f * NormalizedHorizontal) * static_cast<float>(FMath::Max(0, Frame.CaptureWidth - 1))),
-                0,
-                FMath::Max(0, Frame.CaptureWidth - 1));
-            const int32 DepthIndex = PixelY * Frame.CaptureWidth + PixelX;
+            const int32 DepthIndex = GpuDepthPixelIndices[RayIndex];
             const float ForwardDepthCm = Frame.ForwardDepthCentimeters.IsValidIndex(DepthIndex)
                 ? Frame.ForwardDepthCentimeters[DepthIndex]
                 : 0.0f;
-            const FVector LocalDirection = FRotator(PitchDegrees, YawDegrees, 0.0f).Vector();
+            const FVector& LocalDirection = GpuDepthLocalDirections[RayIndex];
             const FVector WorldDirection = ScheduledScanTransform.TransformVectorNoScale(LocalDirection).GetSafeNormal();
             const float DirectionForward = FMath::Max(0.001f, LocalDirection.X);
             const float RadialDistanceCm = ForwardDepthCm / DirectionForward;
@@ -782,12 +801,80 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
                 }
             }
             ScheduledPoints.Add(Point);
-            WriteHeatmapPixel(
-                ScheduledHeatmapPixels,
-                GetHeatmapPixelIndex(Column, Ring, ScheduledScanWidth, ScheduledScanHeight),
-                Point);
+            if (bScheduledGenerateHeatmap)
+            {
+                WriteHeatmapPixel(
+                    ScheduledHeatmapPixels,
+                    GetHeatmapPixelIndex(Column, Ring, ScheduledScanWidth, ScheduledScanHeight),
+                    Point);
+            }
         }
     }
+}
+
+void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
+{
+    const bool bLookupMatches =
+        GpuDepthLookupHorizontalSamples == ScheduledScanWidth
+        && GpuDepthLookupVerticalChannels == ScheduledScanHeight
+        && GpuDepthLookupCaptureWidth == Frame.CaptureWidth
+        && GpuDepthLookupCaptureHeight == Frame.CaptureHeight
+        && FMath::IsNearlyEqual(GpuDepthLookupHorizontalFov, Frame.Request.HorizontalFovDegrees)
+        && FMath::IsNearlyEqual(GpuDepthLookupMinVerticalAngle, Frame.Request.MinVerticalAngleDegrees)
+        && FMath::IsNearlyEqual(GpuDepthLookupMaxVerticalAngle, Frame.Request.MaxVerticalAngleDegrees)
+        && GpuDepthLookupHorizontalCalibrationCount == HorizontalCalibrationAnglesDegrees.Num()
+        && GpuDepthLookupVerticalCalibrationCount == VerticalCalibrationAnglesDegrees.Num()
+        && GpuDepthLocalDirections.Num() == ScheduledScanWidth * ScheduledScanHeight
+        && GpuDepthPixelIndices.Num() == ScheduledScanWidth * ScheduledScanHeight;
+    if (bLookupMatches)
+    {
+        return;
+    }
+
+    TArray<float> HorizontalAngles;
+    TArray<float> VerticalAngles;
+    BuildBeamAngleTables(ScheduledScanWidth, ScheduledScanHeight, HorizontalAngles, VerticalAngles);
+    const float HalfHorizontalTangent = FMath::Tan(FMath::DegreesToRadians(Frame.Request.HorizontalFovDegrees * 0.5f));
+    const float CaptureAspect = static_cast<float>(FMath::Max(1, Frame.CaptureWidth))
+        / static_cast<float>(FMath::Max(1, Frame.CaptureHeight));
+    const float HalfVerticalTangent = HalfHorizontalTangent / FMath::Max(0.001f, CaptureAspect);
+    const int32 RayCount = ScheduledScanWidth * ScheduledScanHeight;
+    GpuDepthLocalDirections.SetNumUninitialized(RayCount);
+    GpuDepthPixelIndices.SetNumUninitialized(RayCount);
+
+    for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
+    {
+        const float PitchDegrees = VerticalAngles[Ring];
+        const float NormalizedVertical = FMath::Tan(FMath::DegreesToRadians(PitchDegrees))
+            / FMath::Max(0.001f, HalfVerticalTangent);
+        const int32 PixelY = FMath::Clamp(
+            FMath::RoundToInt((0.5f - 0.5f * NormalizedVertical) * static_cast<float>(FMath::Max(0, Frame.CaptureHeight - 1))),
+            0,
+            FMath::Max(0, Frame.CaptureHeight - 1));
+        for (int32 Column = 0; Column < ScheduledScanWidth; ++Column)
+        {
+            const int32 RayIndex = Ring * ScheduledScanWidth + Column;
+            const float YawDegrees = HorizontalAngles[Column];
+            const float NormalizedHorizontal = FMath::Tan(FMath::DegreesToRadians(YawDegrees))
+                / FMath::Max(0.001f, HalfHorizontalTangent);
+            const int32 PixelX = FMath::Clamp(
+                FMath::RoundToInt((0.5f + 0.5f * NormalizedHorizontal) * static_cast<float>(FMath::Max(0, Frame.CaptureWidth - 1))),
+                0,
+                FMath::Max(0, Frame.CaptureWidth - 1));
+            GpuDepthLocalDirections[RayIndex] = FRotator(PitchDegrees, YawDegrees, 0.0f).Vector();
+            GpuDepthPixelIndices[RayIndex] = PixelY * Frame.CaptureWidth + PixelX;
+        }
+    }
+
+    GpuDepthLookupHorizontalSamples = ScheduledScanWidth;
+    GpuDepthLookupVerticalChannels = ScheduledScanHeight;
+    GpuDepthLookupCaptureWidth = Frame.CaptureWidth;
+    GpuDepthLookupCaptureHeight = Frame.CaptureHeight;
+    GpuDepthLookupHorizontalFov = Frame.Request.HorizontalFovDegrees;
+    GpuDepthLookupMinVerticalAngle = Frame.Request.MinVerticalAngleDegrees;
+    GpuDepthLookupMaxVerticalAngle = Frame.Request.MaxVerticalAngleDegrees;
+    GpuDepthLookupHorizontalCalibrationCount = HorizontalCalibrationAnglesDegrees.Num();
+    GpuDepthLookupVerticalCalibrationCount = VerticalCalibrationAnglesDegrees.Num();
 }
 
 void UVirtualLidarScanComponent::RegisterWithPerformanceSubsystem()
@@ -822,17 +909,22 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
     const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
     if (bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
     {
-        do
+        // Do not move the deadline beyond the active acquisition here. The
+        // scheduler polls completion later in the same Tick; advancing the
+        // deadline first introduced an artificial idle period of one complete
+        // ML-X scan interval. Record the miss once and let the post-poll
+        // PrepareScheduledScan call admit the next coherent capture.
+        if (!bDeadlineMissRecordedForActiveAcquisition)
         {
             ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
             ++RuntimeStatus.DeadlineMissCount;
-            NextScheduledScanTime += SafeInterval;
+            bDeadlineMissRecordedForActiveAcquisition = true;
         }
-        while (NextScheduledScanTime <= NowSeconds);
     }
     if (!bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
     {
         do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
+        bDeadlineMissRecordedForActiveAcquisition = false;
         ActiveAcquisitionBackend = ResolveAcquisitionBackend(AcquisitionBackendFallbackReason);
         if (ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection)
         {
@@ -989,15 +1081,23 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
     LastServerPayloadPointCount = CountServerPayloadPoints(LastPoints);
     LastPreviewPointCount = CountPreviewPoints(LastPoints);
     LastPerformanceWarning = BuildPerformanceWarning();
-    bool bRefreshPreview = true;
-    if (const UVirtualSensorSchedulerSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>())
-    {
-        bRefreshPreview = Subsystem->ShouldRefreshLidarPreview(this);
-    }
+    const bool bRefreshPreview = ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection
+        ? bScheduledGenerateHeatmap
+        : (GetWorld() && GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>()
+            ? GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>()->ShouldRefreshLidarPreview(this)
+            : true);
     if (bRefreshPreview)
     {
         UpdateLidarViewTexture(ScheduledHeatmapPixels);
-        RefreshPointCloudPreview();
+        // V2 actors route world visualization through
+        // UVirtualLidarVisualizationComponent from HandleFrameAcquired. Do not
+        // also rebuild the legacy CPU ISM here; that duplicated every preview
+        // update and made a FullSpec scan pay the render cost twice.
+        const AVirtualLidarSensorActor* SensorOwner = Cast<AVirtualLidarSensorActor>(GetOwner());
+        if (!SensorOwner || !SensorOwner->VisualizationComponent)
+        {
+            RefreshPointCloudPreview();
+        }
     }
 
     RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;

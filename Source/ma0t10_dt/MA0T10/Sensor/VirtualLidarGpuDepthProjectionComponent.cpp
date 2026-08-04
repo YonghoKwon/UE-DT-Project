@@ -92,11 +92,22 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 
 	PendingRequest = Request;
 	SetWorldTransform(Request.AcquisitionTransform);
-	CaptureSceneDeferred();
 	bAcquisitionActive = true;
 	bReadbackQueued = false;
 	AcquisitionSubmittedSeconds = FPlatformTime::Seconds();
-	StatusMessage = TEXT("GPU SceneDepth capture submitted");
+
+	// CaptureSceneDeferred waits for the next main-view render and the previous
+	// implementation then waited another scheduler tick before enqueueing the
+	// readback. At 40-60 game FPS that state machine alone limited a nominal
+	// 20 Hz ML-X scan to roughly 10-14 Hz. CaptureScene enqueues this component's
+	// render pass immediately; QueueReadback follows it on the render command
+	// list, so the copy still observes the coherent capture while removing one
+	// full game-frame of latency. PollAcquisition remains non-blocking.
+	CaptureScene();
+	QueueReadback();
+	StatusMessage = bReadbackQueued
+		? TEXT("GPU SceneDepth capture and readback submitted")
+		: TEXT("GPU SceneDepth capture submitted; readback pending");
 	return true;
 }
 
@@ -136,6 +147,15 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAcquisition(
 	FVirtualLidarDepthAcquisitionFrame& OutFrame)
 {
+	if (CompletedFrame.IsSet())
+	{
+		OutFrame = MoveTemp(CompletedFrame.GetValue());
+		CompletedFrame.Reset();
+		bAcquisitionActive = false;
+		bReadbackQueued = false;
+		StatusMessage = TEXT("GPU SceneDepth frame completed");
+		return EVirtualSensorBackendPollResult::Completed;
+	}
 	if (!bAcquisitionActive)
 	{
 		return StatusMessage.Contains(TEXT("failed")) || StatusMessage.Contains(TEXT("unavailable"))
@@ -147,53 +167,95 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 		QueueReadback();
 		return bAcquisitionActive ? EVirtualSensorBackendPollResult::Pending : EVirtualSensorBackendPollResult::Failed;
 	}
-	if (!Readback.IsValid() || !Readback->IsReady())
+	if (bReadbackCopyInFlight || !Readback.IsValid() || !Readback->IsReady())
 	{
 		return EVirtualSensorBackendPollResult::Pending;
 	}
 
-	int32 RowPitchInPixels = 0;
-	void* LockedData = Readback->Lock(RowPitchInPixels);
-	if (!LockedData || RowPitchInPixels < PendingCaptureWidth)
-	{
-		if (LockedData) Readback->Unlock();
-		CancelAcquisition();
-		StatusMessage = TEXT("GPU SceneDepth readback failed");
-		return EVirtualSensorBackendPollResult::Failed;
-	}
+	const int32 Width = PendingCaptureWidth;
+	const int32 Height = PendingCaptureHeight;
+	const int32 Generation = AcquisitionGeneration;
+	const FVirtualLidarDepthAcquisitionRequest Request = PendingRequest;
+	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = MoveTemp(Readback);
+	TWeakObjectPtr<UVirtualLidarGpuDepthProjectionComponent> WeakThis(this);
+	bReadbackCopyInFlight = true;
+	StatusMessage = TEXT("GPU SceneDepth staging copy pending");
 
-	OutFrame.Request = PendingRequest;
-	OutFrame.CaptureWidth = PendingCaptureWidth;
-	OutFrame.CaptureHeight = PendingCaptureHeight;
-	OutFrame.ForwardDepthCentimeters.SetNumUninitialized(PendingCaptureWidth * PendingCaptureHeight);
-	const FFloat16Color* Source = static_cast<const FFloat16Color*>(LockedData);
-	for (int32 Y = 0; Y < PendingCaptureHeight; ++Y)
-	{
-		for (int32 X = 0; X < PendingCaptureWidth; ++X)
+	// Lock/Unlock maps an RHI staging texture and must run on the rendering
+	// thread in UE 5.3. Keeping that work off the game-thread scheduler avoids
+	// forced RHI command-list flushes and the associated FullSpec hitch.
+	ENQUEUE_RENDER_COMMAND(VirtualLidarConsumeGpuDepthReadback)(
+		[CapturedReadback = MoveTemp(CapturedReadback), WeakThis, Request, Width, Height, Generation](FRHICommandListImmediate& RHICmdList) mutable
 		{
-			OutFrame.ForwardDepthCentimeters[Y * PendingCaptureWidth + X] = Source[Y * RowPitchInPixels + X].R.GetFloat();
-		}
-	}
-	Readback->Unlock();
-	Readback.Reset();
-	bAcquisitionActive = false;
-	bReadbackQueued = false;
-	OutFrame.AcquisitionEndUnixNanoseconds = GpuDepthUtcNowUnixNanoseconds();
-	StatusMessage = TEXT("GPU SceneDepth frame completed");
-	return EVirtualSensorBackendPollResult::Completed;
+			FVirtualLidarDepthAcquisitionFrame Frame;
+			Frame.Request = Request;
+			Frame.CaptureWidth = Width;
+			Frame.CaptureHeight = Height;
+			bool bCopySucceeded = false;
+			int32 RowPitchInPixels = 0;
+			void* LockedData = CapturedReadback.IsValid() ? CapturedReadback->Lock(RowPitchInPixels) : nullptr;
+			if (LockedData && RowPitchInPixels >= Width && Width > 0 && Height > 0)
+			{
+				Frame.ForwardDepthCentimeters.SetNumUninitialized(Width * Height);
+				const FFloat16Color* Source = static_cast<const FFloat16Color*>(LockedData);
+				for (int32 Y = 0; Y < Height; ++Y)
+				{
+					for (int32 X = 0; X < Width; ++X)
+					{
+						Frame.ForwardDepthCentimeters[Y * Width + X] = Source[Y * RowPitchInPixels + X].R.GetFloat();
+					}
+				}
+				bCopySucceeded = true;
+			}
+			if (LockedData)
+			{
+				CapturedReadback->Unlock();
+			}
+			Frame.AcquisitionEndUnixNanoseconds = GpuDepthUtcNowUnixNanoseconds();
+
+			AsyncTask(ENamedThreads::GameThread,
+				[WeakThis, Generation, bCopySucceeded, Frame = MoveTemp(Frame)]() mutable
+				{
+					if (!WeakThis.IsValid() || WeakThis->AcquisitionGeneration != Generation)
+					{
+						return;
+					}
+					WeakThis->bReadbackCopyInFlight = false;
+					if (!bCopySucceeded)
+					{
+						WeakThis->bAcquisitionActive = false;
+						WeakThis->bReadbackQueued = false;
+						WeakThis->StatusMessage = TEXT("GPU SceneDepth readback failed");
+						return;
+					}
+					WeakThis->CompletedFrame = MoveTemp(Frame);
+					WeakThis->StatusMessage = TEXT("GPU SceneDepth staging copy completed");
+				});
+		});
+	return EVirtualSensorBackendPollResult::Pending;
 }
 
 void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisition()
 {
-	if (Readback.IsValid() && Readback->IsReady())
-	{
-		Readback.Reset();
-	}
-	else
-	{
-		Readback.Reset();
-	}
+	++AcquisitionGeneration;
+	ReleaseReadbackOnRenderThread();
+	CompletedFrame.Reset();
 	bAcquisitionActive = false;
 	bReadbackQueued = false;
+	bReadbackCopyInFlight = false;
 	StatusMessage = TEXT("GPU depth acquisition cancelled");
+}
+
+void UVirtualLidarGpuDepthProjectionComponent::ReleaseReadbackOnRenderThread()
+{
+	if (!Readback.IsValid())
+	{
+		return;
+	}
+	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = MoveTemp(Readback);
+	ENQUEUE_RENDER_COMMAND(VirtualLidarReleaseGpuDepthReadback)(
+		[CapturedReadback = MoveTemp(CapturedReadback)](FRHICommandListImmediate& RHICmdList) mutable
+		{
+			CapturedReadback.Reset();
+		});
 }

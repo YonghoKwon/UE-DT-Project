@@ -8,6 +8,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Json.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "RHIGlobals.h"
 #include "Tests/AutomationCommon.h"
@@ -15,6 +16,7 @@
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
@@ -285,7 +287,7 @@ public:
 			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) { Camera = *It; break; }
 			for (TActorIterator<AVirtualSensorExternalSourceHostActor> It(World); It; ++It) { ReceiverHost = *It; break; }
 		}
-		if (!Coordinator || !Coordinator->StreamPublisherComponent || !Coordinator->SharedTransportComponent || !Lidar || !Camera || !ReceiverHost)
+		if (!Coordinator || !Coordinator->StreamPublisherComponent || !Coordinator->SharedTransportComponent || !Lidar || !Camera)
 		{
 			if (FPlatformTime::Seconds() - StartedAtSeconds < 8.0) return false;
 			Test->AddError(TEXT("SensorRefactorTestMap stream services were not ready."));
@@ -309,30 +311,73 @@ public:
 			Transport->ConfigureTransportProfile(Profile);
 			Transport->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")), FString());
 			Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
-			ReceiverHost->ConfigureReceiverTopics(Profile.LidarTopic, Profile.CameraTopic, Profile.ExportTopic);
-			Transport->TestConnection();
+			if (ReceiverHost)
+			{
+				ReceiverHost->ConfigureReceiverTopics(Profile.LidarTopic, Profile.CameraTopic, Profile.ExportTopic);
+				// Raw TCP self-validation replaces the game-thread WebSocket receivers
+				// during the performance acceptance workload.
+				ReceiverHost->StopTopicReceivers();
+			}
 			bConnectionRequested = true;
 			return false;
-		}
-		if (!Transport->IsStompConnected())
-		{
-			if (FPlatformTime::Seconds() - StartedAtSeconds < 12.0) return false;
-			Test->AddError(TEXT("SensorRefactorTestMap could not connect to the Artemis STOMP broker."));
-			return true;
 		}
 
 		if (!bStreamsStarted)
 		{
+			// Exercise the production contract, not the legacy CSV envelope used by
+			// the early three-stream smoke. Applying the profile once keeps the
+			// acquisition at 576x56, 20 Hz while the stream subscribes to completed
+			// immutable frames without triggering an extra scan.
+			Lidar->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
+			Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+			// Acceptance is exactly one D455 FullSpec camera plus one ML-X(80)
+			// Native LiDAR. The overhead test camera remains in the map but is
+			// stopped so it cannot alter the declared workload.
+			bool bPrimaryCameraConfigured = false;
+			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It)
+			{
+				if (!It->CaptureComponent) continue;
+				if (!bPrimaryCameraConfigured)
+				{
+					Camera = *It;
+					It->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
+					It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+					It->CaptureComponent->CaptureMode = EVirtualCameraCaptureMode::PreviewOnly;
+					bPrimaryCameraConfigured = true;
+				}
+				else
+				{
+					It->CaptureComponent->StopCapture();
+				}
+			}
+			Lidar->ScanComponent->ServerPayloadStride = 32;
+			Lidar->ScanComponent->MaxServerPayloadPoints = 1024;
+			Lidar->ScanComponent->bIncludeMissPointsInServerPayload = false;
+			if (Lidar->VisualizationComponent)
+			{
+				Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);
+			}
 			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 			{
 				FVirtualSensorStreamConfig Config;
 				Config.StreamKind = Kind;
 				Config.bEnabled = true;
+				Config.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 				Config.FrameStride = 1;
-				Config.ReceiptSampleInterval = 2;
-				Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+				Config.ReceiptSampleInterval = 1;
+				Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+				Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+				Config.DeliveryMode = Kind == EVirtualSensorStreamKind::PointCloud
+					? EVirtualPointCloudDeliveryMode::ConnectedNoLoss
+					: EVirtualPointCloudDeliveryMode::LatestFrame;
+				Config.MaxBufferedFrames = 20;
+				Config.MaxReceiptRetries = 3;
 				Publisher->ConfigureStream(Config);
 			}
+			const FString RequestedWarmup = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_WARMUP_SECONDS"));
+			const FString RequestedSeconds = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_MEASURE_SECONDS"));
+			WarmupSeconds = RequestedWarmup.IsEmpty() ? 10.0 : FMath::Clamp(FCString::Atod(*RequestedWarmup), 1.0, 3600.0);
+			MeasurementSeconds = RequestedSeconds.IsEmpty() ? 60.0 : FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
 			bStreamsStarted = true;
 			return false;
@@ -347,22 +392,38 @@ public:
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
 			const FVirtualSensorStreamStatus* Status = StatusByKind.Find(Kind);
-			bAllReady &= Status && Status->InputFrameCount >= 2 && Status->SubmittedFrameCount >= 2 && Status->ReceiptReceivedCount >= 1;
-		}
-		const TArray<FVirtualSensorTopicReceiverStatus> ReceiverStatuses = ReceiverHost->GetTopicReceiverStatuses();
-		bAllReady &= ReceiverStatuses.Num() == 3;
-		for (const FVirtualSensorTopicReceiverStatus& Status : ReceiverStatuses)
-		{
-			bAllReady &= Status.State == EVirtualSensorTopicReceiverState::Active && Status.ValidatedCount >= 2;
+			bAllReady &= Status && Status->InputFrameCount >= 2 && Status->SubmittedFrameCount >= 2 &&
+				Status->ReceiptReceivedCount >= 2 && Status->ConsumerReceivedCount >= 2 &&
+				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
-		if (StreamElapsedSeconds >= 2.0)
+		if (StreamElapsedSeconds >= WarmupSeconds)
 		{
 			const double SampleNow = FPlatformTime::Seconds();
-			if (LastFrameSampleSeconds > 0.0) FrameTimesMs.Add((SampleNow - LastFrameSampleSeconds) * 1000.0);
+			const double GameFrameMs = World->GetDeltaSeconds() * 1000.0;
+			if (GameFrameMs > 0.0 && GameFrameMs < 1000.0) FrameTimesMs.Add(GameFrameMs);
+			if (LastFrameSampleSeconds > 0.0) WallPacingTimesMs.Add((SampleNow - LastFrameSampleSeconds) * 1000.0);
 			LastFrameSampleSeconds = SampleNow;
 		}
-		if ((!bAllReady || StreamElapsedSeconds < 10.0) && StreamElapsedSeconds < 15.0) return false;
+		if ((!bAllReady || StreamElapsedSeconds < WarmupSeconds + MeasurementSeconds) &&
+			StreamElapsedSeconds < WarmupSeconds + MeasurementSeconds + 15.0) return false;
+
+		if (!bAcquisitionStopped)
+		{
+			Coordinator->StopAllSensors();
+			bAcquisitionStopped = true;
+			DrainStartedAtSeconds = FPlatformTime::Seconds();
+			return false;
+		}
+		const FVirtualSensorStreamStatus* PointCloudBeforeAssertions = StatusByKind.Find(EVirtualSensorStreamKind::PointCloud);
+		const bool bPointCloudDrained = PointCloudBeforeAssertions && !PointCloudBeforeAssertions->bProcessing &&
+			PointCloudBeforeAssertions->InputQueueDepth == 0 && PointCloudBeforeAssertions->PreparedQueueDepth == 0 &&
+			PointCloudBeforeAssertions->ReceiptQueueDepth == 0 &&
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SerializedFrameCount &&
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SubmittedFrameCount &&
+			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->ReceiptReceivedCount &&
+			PointCloudBeforeAssertions->ConsumerReceivedCount == PointCloudBeforeAssertions->SubmittedFrameCount;
+		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), 3);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
@@ -372,35 +433,67 @@ public:
 			if (!Status) continue;
 			Test->TestTrue(TEXT("stream receives repeated acquisition frames"), Status->InputFrameCount >= 2);
 			Test->TestTrue(TEXT("stream submits repeated broker messages"), Status->SubmittedFrameCount >= 2);
-			Test->TestTrue(TEXT("sampled broker receipt is correlated"), Status->ReceiptReceivedCount >= 1);
+			Test->TestEqual(TEXT("every high-throughput submission receives a receipt"), Status->ReceiptReceivedCount, Status->SubmittedFrameCount);
+			Test->TestEqual(TEXT("self receiver validates every submitted frame"), Status->ConsumerReceivedCount, Status->SubmittedFrameCount);
+			Test->TestEqual(TEXT("self receiver reports no invalid frames"), Status->ConsumerValidationFailureCount, static_cast<int64>(0));
+			Test->TestEqual(TEXT("self receiver reports no FrameId gaps"), Status->ConsumerFrameGapCount, static_cast<int64>(0));
+			Test->TestEqual(TEXT("self receiver reports no duplicates"), Status->ConsumerDuplicateCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream encoding stays healthy"), Status->EncodeFailureCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream receipt stays healthy"), Status->ReceiptTimeoutCount, static_cast<int64>(0));
+			Test->TestEqual(TEXT("stream queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
+			if (Kind == EVirtualSensorStreamKind::CameraImage)
+			{
+				Test->TestTrue(TEXT("D455 JPEG submission sustains at least 29 Hz"), Status->SubmittedHz >= 29.0f);
+				Test->TestTrue(TEXT("D455 JPEG consumer sustains at least 29 Hz"), Status->ConsumerReceivedHz >= 29.0f);
+				Test->TestTrue(TEXT("D455 JPEG end-to-end p95 remains below 250 ms"), Status->EndToEndP95LatencyMs <= 250.0f);
+			}
+			else
+			{
+				Test->TestTrue(TEXT("ML-X stream submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
+				Test->TestTrue(TEXT("ML-X stream consumer sustains at least 19 Hz"), Status->ConsumerReceivedHz >= 19.0f);
+			}
+			if (Kind == EVirtualSensorStreamKind::PointCloud)
+			{
+				Test->TestEqual(TEXT("binary PCD keeps every publisher input frame"), Status->FrameGapCount, static_cast<int64>(0));
+				Test->TestEqual(TEXT("every binary PCD input is serialized"), Status->SerializedFrameCount, Status->InputFrameCount);
+				Test->TestEqual(TEXT("every binary PCD input is submitted"), Status->SubmittedFrameCount, Status->InputFrameCount);
+				Test->TestEqual(TEXT("every binary PCD submission receives a receipt"), Status->ReceiptReceivedCount, Status->InputFrameCount);
+				Test->TestEqual(TEXT("binary PCD never replaces a pending frame"), Status->ReplacedPendingFrameCount, static_cast<int64>(0));
+				Test->TestEqual(TEXT("binary PCD queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
+				Test->TestTrue(TEXT("binary PCD serialization sustains at least 19 Hz"), Status->SerializationHz >= 19.0f);
+				Test->TestTrue(TEXT("binary PCD submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
+				Test->TestTrue(TEXT("binary PCD serialization p95 remains below 20 ms"), Status->SerializationP95LatencyMs <= 20.0f);
+				Test->TestTrue(TEXT("binary PCD queues remain bounded"),
+					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);
+			}
 		}
-		TSharedPtr<FJsonObject> CameraPayload;
-		FString CameraEncoding;
-		FString CameraImage;
-		const FString CameraJson = Camera->CaptureComponent ? Camera->CaptureComponent->GetLastJsonPayload() : FString();
-		const bool bCameraPayloadParsed = FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(CameraJson), CameraPayload) &&
-			CameraPayload.IsValid() && CameraPayload->TryGetStringField(TEXT("encoding"), CameraEncoding) &&
-			CameraPayload->TryGetStringField(TEXT("image"), CameraImage);
-		Test->TestTrue(TEXT("camera stream payload contains a Base64 JPEG"),
-			bCameraPayloadParsed && CameraEncoding == TEXT("jpeg/base64") && !CameraImage.IsEmpty());
+		if (PointCloudBeforeAssertions)
+		{
+			UE_LOG(LogTemp, Display, TEXT("[SensorPcdNoLossRhi] input=%lld serialized=%lld submitted=%lld receipts=%lld serializeHz=%.2f serializeP95Ms=%.2f inputQueue=%d preparedQueue=%d receiptQueue=%d gaps=%lld retries=%lld overload=%lld"),
+				PointCloudBeforeAssertions->InputFrameCount, PointCloudBeforeAssertions->SerializedFrameCount,
+				PointCloudBeforeAssertions->SubmittedFrameCount, PointCloudBeforeAssertions->ReceiptReceivedCount,
+				PointCloudBeforeAssertions->SerializationHz, PointCloudBeforeAssertions->SerializationP95LatencyMs,
+				PointCloudBeforeAssertions->InputQueueDepth, PointCloudBeforeAssertions->PreparedQueueDepth,
+				PointCloudBeforeAssertions->ReceiptQueueDepth, PointCloudBeforeAssertions->FrameGapCount,
+				PointCloudBeforeAssertions->RetryCount, PointCloudBeforeAssertions->OverloadCount);
+		}
+		const TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> CameraJpeg = Camera->CaptureComponent
+			? Camera->CaptureComponent->GetLastJpegSnapshot() : nullptr;
+		Test->TestTrue(TEXT("camera stream retains a raw JPEG snapshot"),
+			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
-		Test->TestEqual(TEXT("three internal DTCore Topic receivers are present"), ReceiverStatuses.Num(), 3);
-		for (const FVirtualSensorTopicReceiverStatus& Status : ReceiverStatuses)
-		{
-			Test->TestEqual(TEXT("internal receiver stays active"), Status.State, EVirtualSensorTopicReceiverState::Active);
-			Test->TestTrue(TEXT("internal receiver validates repeated frames"), Status.ValidatedCount >= 2);
-			Test->TestEqual(TEXT("internal receiver has no validation failures"), Status.ValidationFailureCount, static_cast<int64>(0));
-			Test->TestTrue(TEXT("internal receiver retains at most bounded work"), Status.ReplacedPendingCount >= 0);
-		}
-		UE_LOG(LogTemp, Display, TEXT("[SensorTopicReceiverRhi] lidar=%lld camera=%lld pointcloud=%lld failures=%lld"),
-			ReceiverStatuses.IsValidIndex(0) ? ReceiverStatuses[0].ValidatedCount : 0,
-			ReceiverStatuses.IsValidIndex(1) ? ReceiverStatuses[1].ValidatedCount : 0,
-			ReceiverStatuses.IsValidIndex(2) ? ReceiverStatuses[2].ValidatedCount : 0,
-			ReceiverStatuses.IsValidIndex(0) && ReceiverStatuses.IsValidIndex(1) && ReceiverStatuses.IsValidIndex(2)
-				? ReceiverStatuses[0].ValidationFailureCount + ReceiverStatuses[1].ValidationFailureCount + ReceiverStatuses[2].ValidationFailureCount : -1);
+		const FVirtualSensorStreamStatus* CameraStatus = StatusByKind.Find(EVirtualSensorStreamKind::CameraImage);
+		const FVirtualSensorStreamStatus* LidarStatus = StatusByKind.Find(EVirtualSensorStreamKind::LidarPayload);
+		UE_LOG(LogTemp, Display, TEXT("[SensorHighThroughputRhi] cameraSubmitted=%lld cameraReceipt=%lld cameraConsumer=%lld cameraHz=%.2f lidarSubmitted=%lld lidarReceipt=%lld lidarConsumer=%lld lidarHz=%.2f pcdSubmitted=%lld pcdReceipt=%lld pcdConsumer=%lld pcdHz=%.2f"),
+			CameraStatus ? CameraStatus->SubmittedFrameCount : 0, CameraStatus ? CameraStatus->ReceiptReceivedCount : 0,
+			CameraStatus ? CameraStatus->ConsumerReceivedCount : 0, CameraStatus ? CameraStatus->SubmittedHz : 0.0f,
+			LidarStatus ? LidarStatus->SubmittedFrameCount : 0, LidarStatus ? LidarStatus->ReceiptReceivedCount : 0,
+			LidarStatus ? LidarStatus->ConsumerReceivedCount : 0, LidarStatus ? LidarStatus->SubmittedHz : 0.0f,
+			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->SubmittedFrameCount : 0,
+			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->ReceiptReceivedCount : 0,
+			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->ConsumerReceivedCount : 0,
+			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->SubmittedHz : 0.0f);
 		Test->TestTrue(TEXT("stream performance collected enough rendered frames"), FrameTimesMs.Num() >= 120);
 		if (!FrameTimesMs.IsEmpty())
 		{
@@ -419,14 +512,18 @@ public:
 			Test->TestTrue(TEXT("active three-stream one-percent-low FPS remains at least 45"), OnePercentLowFps >= 45.0);
 			Test->TestTrue(TEXT("active three-stream p95 frame time remains at most 20 ms"), P95FrameMs <= 20.0);
 		}
-		Publisher->StopAllStreams(FString());
-		ReceiverHost->StopTopicReceivers();
-		for (const FVirtualSensorTopicReceiverStatus& Status : ReceiverHost->GetTopicReceiverStatuses())
+		if (!WallPacingTimesMs.IsEmpty())
 		{
-			Test->TestEqual(TEXT("manual receiver stop clears every subscription state"), Status.State, EVirtualSensorTopicReceiverState::Stopped);
+			double TotalWallMs = 0.0;
+			for (const double FrameMs : WallPacingTimesMs) TotalWallMs += FrameMs;
+			TArray<double> SortedWallTimes = WallPacingTimesMs;
+			SortedWallTimes.Sort();
+			const double AverageWallFps = 1000.0 / FMath::Max(0.001, TotalWallMs / WallPacingTimesMs.Num());
+			const double WallP95Ms = SortedWallTimes[FMath::Clamp(FMath::CeilToInt(SortedWallTimes.Num() * 0.95) - 1, 0, SortedWallTimes.Num() - 1)];
+			UE_LOG(LogTemp, Display, TEXT("[SensorStreamWallPacing] averageFps=%.2f p95CallbackMs=%.2f samples=%d"),
+				AverageWallFps, WallP95Ms, WallPacingTimesMs.Num());
 		}
-		ReceiverHost->ReconnectTopicReceivers();
-		Test->TestTrue(TEXT("manual receiver reconnect re-enables requested state"), ReceiverHost->AreTopicReceiversRequested());
+		Publisher->StopAllStreams(FString());
 		return true;
 	}
 
@@ -436,8 +533,13 @@ private:
 	double StreamsStartedAtSeconds = -1.0;
 	bool bConnectionRequested = false;
 	bool bStreamsStarted = false;
+	bool bAcquisitionStopped = false;
+	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
+	double MeasurementSeconds = 60.0;
+	double WarmupSeconds = 10.0;
 	TArray<double> FrameTimesMs;
+	TArray<double> WallPacingTimesMs;
 };
 }
 
@@ -447,6 +549,18 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 	{
 		AddInfo(TEXT("Continuous SensorRefactorTestMap stream smoke skipped. Use Scripts/run_sensor_map_stream_rhi_smoke.ps1."));
 		return true;
+	}
+	// The integration runner provides credentials through process environment
+	// variables. Apply them to the in-memory DTCore override before PIE creates
+	// its GameInstance subsystem; do not write local Config/Game.ini.
+	if (GConfig)
+	{
+		const FString BrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
+		const FString UserName = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
+		const FString Password = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD"));
+		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketUrl"), *BrokerUrl, GGameIni);
+		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), *UserName, GGameIni);
+		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), *Password, GGameIni);
 	}
 	if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
 	{

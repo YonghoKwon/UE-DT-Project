@@ -6,10 +6,24 @@
     <name>ma0t10-artemis</name>
     <persistence-enabled>true</persistence-enabled>
     <journal-type>NIO</journal-type>
+	<bindings-directory>data/bindings</bindings-directory>
+	<journal-directory>data/journal</journal-directory>
+	<paging-directory>data/paging</paging-directory>
     <large-messages-directory>data/largemessages</large-messages-directory>
     <acceptors>
-      <acceptor name="stomp-ws">tcp://0.0.0.0:61616?protocols=STOMP;webSocketEnabled=true;webSocketMaxFramePayloadLength=8388608;webSocketCompressionSupported=true;amqpMinLargeMessageSize=262144</acceptor>
+      <acceptor name="stomp-ws">tcp://0.0.0.0:61616?protocols=STOMP;webSocketEnabled=true;webSocketMaxFramePayloadLength=16777216;webSocketCompressionSupported=true;stompMinLargeMessageSize=4194304</acceptor>
     </acceptors>
+	<address-settings>
+	  <address-setting match="topic.virtual.sensor.export.0">
+		<address-full-policy>PAGE</address-full-policy>
+		<page-size-bytes>10M</page-size-bytes>
+		<max-size-bytes>-1</max-size-bytes>
+		<max-read-page-messages>-1</max-read-page-messages>
+		<max-read-page-bytes>64M</max-read-page-bytes>
+		<auto-create-addresses>true</auto-create-addresses>
+		<auto-create-queues>true</auto-create-queues>
+	  </address-setting>
+	</address-settings>
     <security-settings>
       <security-setting match="#">
         <permission type="createNonDurableQueue" roles="amq"/>

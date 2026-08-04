@@ -10,6 +10,7 @@ public class ma0t10_dtTarget : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V4;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_3;
+		ExtraModuleNames.Add("ma0t10_dtBootstrap");
 		ExtraModuleNames.Add("ma0t10_dt");
 
 		// // [추가] 프로젝트 고유의 빌드 환경을 사용하도록 설정 (로그 설정을 덮어쓰기 위해 필요)

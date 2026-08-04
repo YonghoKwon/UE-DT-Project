@@ -30,7 +30,11 @@
 - `virtual-camera.v1`, `virtual-lidar.v1`, FullSpec 규격, 저장 경로와 export 포맷을 변경할 때는 계약 테스트와 문서를 함께 갱신합니다.
 - 기존 센서 송신 Body에는 `MESSAGE_ID`가 없습니다. 에디터 자체 수신 진단은 `DT_TransactionCode`에 등록하거나 송신 계약을 바꾸지 말고, `UDxWebSocketSubsystem`의 Topic 직접 구독과 세 전용 `UTransactionCodeMessage` Handler를 유지합니다.
 - Topic 수신 진단은 검증·로그 전용입니다. 수신 결과를 `SubmitExternalFrame`에 전달하거나 Transport로 다시 보내 재주입·재송신 루프를 만들지 않습니다.
-- 수신 파싱은 Topic별 처리 중 1개와 최신 대기 1개, 전체 동시 처리 최대 2개라는 bounded 정책을 유지합니다. 전체 Payload나 Base64 본문을 로그에 출력하지 않습니다.
+- 수신 파싱은 Camera/LiDAR Topic별 처리 중 1개와 최신 대기 1개를 유지합니다. Binary PCD 수신은 최대 20개 FIFO이며 초과 시 교체하지 않고 오류로 처리합니다. 전체 동시 파싱은 최대 2개이고 전체 Payload, Base64 또는 binary body를 로그에 출력하지 않습니다.
+- FullSpec 3-stream 고성능 경로는 `UVirtualSensorHighThroughputTransportSubsystem`의 Raw TCP STOMP worker를 사용합니다. 대용량 body 조립·socket send·receipt·자체 수신 검증을 게임 스레드로 되돌리지 않습니다.
+- 고성능 Camera body는 원본 JPEG `virtual-camera.jpeg.v1`, LiDAR body는 포인트 배열 없는 `virtual-lidar.telemetry.v1`, Point Cloud body는 `virtual-pointcloud.pcd.v1` Binary PCD입니다. 기존 v1 Base64 JSON은 호환 backend에서만 유지합니다.
+- `wss://`는 TLS가 필요한 Engine STOMP compatibility fallback입니다. Raw TCP 성능 보장 대상으로 표기하지 않으며, 사용자가 선택한 보안 연결을 임의로 평문 TCP로 바꾸지 않습니다.
+- 스트림 성능 테스트는 acquisition, encode/serialization, submit, receipt, consumer receive를 별도 집계합니다. 평균 FPS만으로 통과시키지 말고 세 스트림의 Hz, gap, invalid, overflow와 내부·외부 수신 결과를 함께 판정합니다.
 
 ## UI 기준
 
@@ -40,10 +44,13 @@
 
 ### ML-X(80), 캡처와 듀얼 카메라
 
-- `IYOBOT_MLX80` enum은 기존 직렬화 값을 보존하기 위해 항상 프로필 enum 끝에 추가합니다. 원본 FullSpec은 200×56, 0.05초, 15,000cm, 80°, -11.65°~11.65°입니다.
+- 기존 `IYOBOT_MLX80`은 Integration 200 호환 프로필(200×56)이고 `IYOBOT_MLX80_NATIVE`는 공개 사양 해석 기반 원본 배열(576×56)입니다. 두 enum의 기존 직렬화 순서를 바꾸지 않습니다. 둘 다 FullSpec 0.05초, 15,000cm, 80°, -11.65°~11.65°를 유지합니다.
 - 프로필/품질 변경은 Actor의 단일 설정 트랜잭션으로 적용하고 한 번만 재예약합니다. 직접 물리 값을 편집한 경우 품질을 Custom으로 표시합니다.
 - 로컬 캡처 간격은 Topic 전송 간격과 분리합니다. 시간 지정 캡처는 최신 완료 snapshot을 저장하며 동기 측정을 반복하지 않습니다.
 - Point Cloud 스트림 포맷, 로컬 캡처 포맷, 수동 내보내기 포맷은 서로 독립된 상태입니다. 포맷 revision이 바뀌면 이전 비동기 결과를 적용하지 않습니다.
+- 실시간 Point Cloud는 `virtual-pointcloud.pcd.v1` raw PCD `DATA binary`로 고정합니다. Base64/JSON 호환 경로는 기존 API에만 남기고 새 실시간 UI에서 사용하지 않습니다.
+- `ConnectedNoLoss`는 센서별 입력/완료 FIFO와 receipt body를 최대 20개씩 보존합니다. 큐 초과 시 최신 프레임으로 교체하지 말고 명시적 오류로 중지하며 Camera/LiDAR JSON의 최신 프레임 정책과 섞지 않습니다.
+- `PointCloudTarget` Actor Tag 및 Semantic/ROI 필터는 Digital Twin 확장입니다. 실제 ML-X 하드웨어 기능이나 제조사 패킷이라고 표기하지 않습니다.
 - 듀얼 카메라는 기존 RenderTarget을 공유하고 추가 캡처/readback을 만들지 않습니다. 주 카메라만 Coordinator 선택과 동기화하고 보조 카메라는 보기 전용으로 유지하며 동일 SensorId를 거부합니다.
 - `SensorRefactorTestMap`은 관리 대상 `VCAM-TEST-001`과 수직 하향 `VCAM-TEST-002`를 포함합니다. 운영 `SensorTestMap`과 사용자 비관리 Actor에는 두 번째 카메라를 자동 추가하지 않습니다.
 - `ELidarMonitorProjectionMode`는 SaveGame/Blueprint 직렬화 호환 타입입니다. 기존 enum 값의 순서를 바꾸지 말고 새 투영은 항상 마지막에 추가합니다. 센서 로컬 `TopDown`과 센서 회전과 무관한 `WorldTopDown`의 좌표 의미를 섞지 않습니다.

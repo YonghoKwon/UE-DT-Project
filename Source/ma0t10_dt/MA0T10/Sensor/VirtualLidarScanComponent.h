@@ -550,6 +550,7 @@ private:
     bool BeginGpuDepthScan(double NowSeconds);
     int32 ProcessGpuDepthScan();
     void ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame);
+    void EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame);
     void BuildBeamAngleTables(int32 InHorizontalSamples, int32 InVerticalChannels, TArray<float>& OutHorizontalAngles, TArray<float>& OutVerticalAngles) const;
     void InitializePhysicalPoint(FVirtualLidarPoint& Point, int32 Row, int32 Col, int32 RayIndex, int32 RayCount, const FVector& LocalDirection) const;
     bool ApplyPhysicalHitModel(FVirtualLidarPoint& Point, const FHitResult& Hit, const FVector& WorldDirection, const FTransform& AcquisitionTransform, int32 RayIndex, int32 ReturnIndex) const;
@@ -662,6 +663,7 @@ private:
     FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
     bool bGpuDepthScanInProgress = false;
+    bool bDeadlineMissRecordedForActiveAcquisition = false;
     bool bScheduledPayloadBuildInFlight = false;
     bool bScheduledAutoExportInFlight = false;
     bool bScheduledPayloadRefreshPending = false;
@@ -669,6 +671,18 @@ private:
     TArray<uint8> ScheduledHeatmapPixels;
     TArray<float> ScheduledHorizontalAnglesDegrees;
     TArray<float> ScheduledVerticalAnglesDegrees;
+    TArray<FVector> GpuDepthLocalDirections;
+    TArray<int32> GpuDepthPixelIndices;
+    int32 GpuDepthLookupHorizontalSamples = 0;
+    int32 GpuDepthLookupVerticalChannels = 0;
+    int32 GpuDepthLookupCaptureWidth = 0;
+    int32 GpuDepthLookupCaptureHeight = 0;
+    float GpuDepthLookupHorizontalFov = 0.0f;
+    float GpuDepthLookupMinVerticalAngle = 0.0f;
+    float GpuDepthLookupMaxVerticalAngle = 0.0f;
+    int32 GpuDepthLookupHorizontalCalibrationCount = 0;
+    int32 GpuDepthLookupVerticalCalibrationCount = 0;
+    bool bScheduledGenerateHeatmap = true;
     int32 ScheduledHitPointCount = 0;
     TMap<FString, int32> ScheduledSemanticCounts;
     mutable TMap<TWeakObjectPtr<UPrimitiveComponent>, FSurfaceResponseCacheEntry> SurfaceResponseCache;

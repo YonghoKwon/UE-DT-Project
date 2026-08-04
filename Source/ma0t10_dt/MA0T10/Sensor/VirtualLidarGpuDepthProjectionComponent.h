@@ -42,6 +42,7 @@ public:
 private:
 	bool EnsureRenderTarget(const FVirtualLidarDepthAcquisitionRequest& Request);
 	void QueueReadback();
+	void ReleaseReadbackOnRenderThread();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> DepthRenderTarget;
@@ -52,6 +53,9 @@ private:
 	int32 PendingCaptureHeight = 0;
 	bool bAcquisitionActive = false;
 	bool bReadbackQueued = false;
+	bool bReadbackCopyInFlight = false;
+	int32 AcquisitionGeneration = 0;
+	TOptional<FVirtualLidarDepthAcquisitionFrame> CompletedFrame;
 	double AcquisitionSubmittedSeconds = 0.0;
 	FString StatusMessage = TEXT("GPU depth backend idle");
 };

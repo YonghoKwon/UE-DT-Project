@@ -41,6 +41,17 @@ FString PointCloudStreamFormatText(EVirtualPointCloudStreamFormat Format)
     if (Format == EVirtualPointCloudStreamFormat::CompactBinary) return TEXT("Compact Binary (VLB2)");
     return TEXT("CSV");
 }
+
+FString PointCloudFilterPresetText(EVirtualPointCloudStreamFilterPreset Preset)
+{
+	switch (Preset)
+	{
+	case EVirtualPointCloudStreamFilterPreset::TargetActorTag: return TEXT("대상 물체만 (PointCloudTarget Tag)");
+	case EVirtualPointCloudStreamFilterPreset::TagOrSemantic: return TEXT("Tag·Semantic 조건");
+	case EVirtualPointCloudStreamFilterPreset::SensorLocalRoi: return TEXT("센서 로컬 ROI");
+	default: return TEXT("전체 검출점");
+	}
+}
 }
 
 void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
@@ -417,9 +428,15 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		NativeExportKindOptions.Add(MakeShared<EVirtualSensorExportKind>(Kind));
 	}
 	NativeStreamFormatOptions.Reset();
-	for (EVirtualPointCloudStreamFormat Format : { EVirtualPointCloudStreamFormat::CompactBinary, EVirtualPointCloudStreamFormat::PCD, EVirtualPointCloudStreamFormat::CSV, EVirtualPointCloudStreamFormat::JSONL, EVirtualPointCloudStreamFormat::LAS, EVirtualPointCloudStreamFormat::LAZ })
+	NativeStreamFormatOptions.Add(MakeShared<EVirtualPointCloudStreamFormat>(EVirtualPointCloudStreamFormat::PCD));
+	NativeStreamFilterOptions.Reset();
+	for (EVirtualPointCloudStreamFilterPreset Preset : {
+		EVirtualPointCloudStreamFilterPreset::AllHits,
+		EVirtualPointCloudStreamFilterPreset::TargetActorTag,
+		EVirtualPointCloudStreamFilterPreset::TagOrSemantic,
+		EVirtualPointCloudStreamFilterPreset::SensorLocalRoi })
 	{
-		NativeStreamFormatOptions.Add(MakeShared<EVirtualPointCloudStreamFormat>(Format));
+		NativeStreamFilterOptions.Add(MakeShared<EVirtualPointCloudStreamFilterPreset>(Preset));
 	}
 	if (const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
 	{
@@ -436,7 +453,22 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		ActiveTab = static_cast<EVirtualSensorCaptureExportTab>(FMath::Clamp<int32>(Preferences->CaptureExportActiveTab, 0, 3));
 		StreamFrameStride = FMath::Max(1, Preferences->SensorStreamFrameStride);
 		StreamReceiptInterval = FMath::Max(1, Preferences->SensorStreamReceiptInterval);
-		SelectedPointCloudStreamFormat = static_cast<EVirtualPointCloudStreamFormat>(FMath::Clamp<int32>(Preferences->SelectedPointCloudStreamFormat, 0, 5));
+		SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::PCD;
+		SelectedPointCloudStreamFilterPreset = static_cast<EVirtualPointCloudStreamFilterPreset>(
+			FMath::Clamp<int32>(Preferences->PointCloudStreamFilterPreset, 0, 3));
+		PointCloudStreamFilter.IncludeActorTags = Preferences->PointCloudIncludeActorTags;
+		PointCloudStreamFilter.IncludeSemanticLabels = Preferences->PointCloudIncludeSemanticLabels;
+		PointCloudStreamFilter.ExcludeActorTags = Preferences->PointCloudExcludeActorTags;
+		PointCloudStreamFilter.ExcludeSemanticLabels = Preferences->PointCloudExcludeSemanticLabels;
+		PointCloudStreamFilter.SensorLocalRoiMinCm = Preferences->PointCloudRoiMinCm;
+		PointCloudStreamFilter.SensorLocalRoiMaxCm = Preferences->PointCloudRoiMaxCm;
+		PointCloudStreamFilter.MinRangeCm = Preferences->PointCloudMinRangeCm;
+		PointCloudStreamFilter.MaxRangeCm = Preferences->PointCloudMaxRangeCm;
+		PointCloudStreamFilter.bEnableSensorLocalRoi = SelectedPointCloudStreamFilterPreset == EVirtualPointCloudStreamFilterPreset::SensorLocalRoi;
+		if (SelectedPointCloudStreamFilterPreset == EVirtualPointCloudStreamFilterPreset::TargetActorTag)
+		{
+			PointCloudStreamFilter.IncludeActorTags = {TEXT("PointCloudTarget")};
+		}
 		CaptureSelection.IntervalSeconds = FMath::Clamp(Preferences->LocalCaptureIntervalSeconds, 0.05f, 3600.0f);
 		CaptureSelection.bUseSensorInterval = Preferences->bLocalCaptureUseSensorInterval;
 		CaptureSelection.bCameraImage = Preferences->bLocalCaptureCameraImage;
@@ -606,6 +638,17 @@ void UVirtualSensorCaptureExportPanelWidget::ApplyStreamConfig(EVirtualSensorStr
 	Config.FrameStride = FMath::Max(1, StreamFrameStride);
 	Config.ReceiptSampleInterval = FMath::Max(1, StreamReceiptInterval);
 	Config.PointCloudFormat = SelectedPointCloudStreamFormat;
+	if (StreamKind == EVirtualSensorStreamKind::PointCloud)
+	{
+		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+		Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+		Config.DeliveryMode = EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
+		Config.FrameStride = 1;
+		Config.ReceiptSampleInterval = 1;
+		Config.MaxBufferedFrames = 20;
+		Config.MaxReceiptRetries = 3;
+		Config.PointCloudFilter = PointCloudStreamFilter;
+	}
 	if (const UVirtualLidarScanComponent* Lidar = SensorManager->GetSelectedLidar())
 	{
 		Config.LazCompressorPath = Lidar->ExternalLazCompressorPath;
@@ -631,10 +674,11 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleSelectedStream(EVirtualSensor
 
 void UVirtualSensorCaptureExportPanelWidget::SetSelectedPointCloudStreamFormat(EVirtualPointCloudStreamFormat Format)
 {
-	SelectedPointCloudStreamFormat = Format;
+	// Existing Blueprint calls remain valid, but the realtime wire contract is fixed.
+	SelectedPointCloudStreamFormat = EVirtualPointCloudStreamFormat::PCD;
 	if (UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
 	{
-		Preferences->SelectedPointCloudStreamFormat = static_cast<uint8>(Format);
+		Preferences->SelectedPointCloudStreamFormat = static_cast<uint8>(SelectedPointCloudStreamFormat);
 		UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
 	}
 	UVirtualSensorStreamPublisherComponent* Publisher = SensorManager ? SensorManager->StreamPublisherComponent : nullptr;
@@ -650,6 +694,73 @@ void UVirtualSensorCaptureExportPanelWidget::SetSelectedPointCloudStreamFormat(E
 		}
 	}
 	LastUiMessage = FString::Printf(TEXT("Point Cloud 실시간 전송 형식을 %s로 변경했습니다."), *PointCloudStreamFormatText(Format));
+}
+
+void UVirtualSensorCaptureExportPanelWidget::ReconfigureEnabledPointCloudStreams()
+{
+	UVirtualSensorStreamPublisherComponent* Publisher = SensorManager ? SensorManager->StreamPublisherComponent : nullptr;
+	if (!Publisher) return;
+	for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
+	{
+		if (Status.StreamKind == EVirtualSensorStreamKind::PointCloud && Status.bEnabled)
+		{
+			ApplyStreamConfig(EVirtualSensorStreamKind::PointCloud, Status.SensorId, true);
+		}
+	}
+}
+
+void UVirtualSensorCaptureExportPanelWidget::SetPointCloudStreamFilterPreset(EVirtualPointCloudStreamFilterPreset Preset)
+{
+	SelectedPointCloudStreamFilterPreset = Preset;
+	FVirtualPointCloudFilterConfig Filter;
+	Filter.Revision = PointCloudStreamFilter.Revision + 1;
+	if (Preset == EVirtualPointCloudStreamFilterPreset::TargetActorTag)
+	{
+		Filter.IncludeActorTags.Add(TEXT("PointCloudTarget"));
+	}
+	else if (Preset == EVirtualPointCloudStreamFilterPreset::TagOrSemantic)
+	{
+		Filter.IncludeActorTags = PointCloudStreamFilter.IncludeActorTags;
+		Filter.IncludeSemanticLabels = PointCloudStreamFilter.IncludeSemanticLabels;
+		Filter.ExcludeActorTags = PointCloudStreamFilter.ExcludeActorTags;
+		Filter.ExcludeSemanticLabels = PointCloudStreamFilter.ExcludeSemanticLabels;
+		if (Filter.IncludeActorTags.IsEmpty() && Filter.IncludeSemanticLabels.IsEmpty())
+		{
+			Filter.IncludeActorTags.Add(TEXT("PointCloudTarget"));
+		}
+	}
+	else if (Preset == EVirtualPointCloudStreamFilterPreset::SensorLocalRoi)
+	{
+		Filter.bEnableSensorLocalRoi = true;
+		Filter.SensorLocalRoiMinCm = PointCloudStreamFilter.SensorLocalRoiMinCm;
+		Filter.SensorLocalRoiMaxCm = PointCloudStreamFilter.SensorLocalRoiMaxCm;
+		Filter.MinRangeCm = PointCloudStreamFilter.MinRangeCm;
+		Filter.MaxRangeCm = PointCloudStreamFilter.MaxRangeCm;
+	}
+	SetPointCloudStreamFilterConfig(Filter);
+}
+
+void UVirtualSensorCaptureExportPanelWidget::SetPointCloudStreamFilterConfig(const FVirtualPointCloudFilterConfig& Filter)
+{
+	const int32 PreviousRevision = PointCloudStreamFilter.Revision;
+	PointCloudStreamFilter = Filter;
+	PointCloudStreamFilter.Revision = FMath::Max(PointCloudStreamFilter.Revision, PreviousRevision + 1);
+	if (UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
+	{
+		Preferences->PointCloudStreamFilterPreset = static_cast<uint8>(SelectedPointCloudStreamFilterPreset);
+		Preferences->PointCloudIncludeActorTags = PointCloudStreamFilter.IncludeActorTags;
+		Preferences->PointCloudIncludeSemanticLabels = PointCloudStreamFilter.IncludeSemanticLabels;
+		Preferences->PointCloudExcludeActorTags = PointCloudStreamFilter.ExcludeActorTags;
+		Preferences->PointCloudExcludeSemanticLabels = PointCloudStreamFilter.ExcludeSemanticLabels;
+		Preferences->PointCloudRoiMinCm = PointCloudStreamFilter.SensorLocalRoiMinCm;
+		Preferences->PointCloudRoiMaxCm = PointCloudStreamFilter.SensorLocalRoiMaxCm;
+		Preferences->PointCloudMinRangeCm = PointCloudStreamFilter.MinRangeCm;
+		Preferences->PointCloudMaxRangeCm = PointCloudStreamFilter.MaxRangeCm;
+		UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
+	}
+	ReconfigureEnabledPointCloudStreams();
+	LastUiMessage = FString::Printf(TEXT("Point Cloud 필터 적용: %s · revision %d"),
+		*PointCloudFilterPresetText(SelectedPointCloudStreamFilterPreset), PointCloudStreamFilter.Revision);
 }
 
 void UVirtualSensorCaptureExportPanelWidget::ToggleAllStreams()
@@ -676,22 +787,33 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleAllStreams()
 FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 {
 	const UVirtualSensorStreamPublisherComponent* Publisher = SensorManager ? SensorManager->StreamPublisherComponent : nullptr;
-	if (!Publisher) return TEXT("스트림 발행기 연결 없음");
+	if (!Publisher) return TEXT("스트림 발행기가 연결되지 않았습니다.");
 	const UVirtualLidarScanComponent* SelectedLidar = SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
 	const float RequestedHz = SelectedLidar && SelectedLidar->ScanInterval > SMALL_NUMBER ? 1.0f / SelectedLidar->ScanInterval : 0.0f;
-	const float ReceiptHz = RequestedHz / FMath::Max(1, StreamFrameStride * StreamReceiptInterval);
-	FString Text = FString::Printf(TEXT("스트림은 센서 측정을 막지 않으며 최신 프레임 하나만 대기합니다. Point Cloud=%s · 전송 간격=%d · receipt 간격=%d\n선택 LiDAR 요청 %.1fHz · 예상 receipt %.1f회/초\n"),
-		*PointCloudStreamFormatText(SelectedPointCloudStreamFormat), StreamFrameStride, StreamReceiptInterval, RequestedHz, ReceiptHz);
+	FString Text = FString::Printf(TEXT("LiDAR/Camera JSON은 최신 프레임 우선입니다. Point Cloud는 PCD Binary 고정, 완료 프레임 전체, 프레임마다 Broker receipt를 요청합니다.\n선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
 	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
 	if (Statuses.IsEmpty()) return Text + TEXT("아직 시작한 스트림이 없습니다.");
 	for (const FVirtualSensorStreamStatus& Status : Statuses)
 	{
+		if (Status.StreamKind == EVirtualSensorStreamKind::PointCloud)
+		{
+			Text += FString::Printf(TEXT("\n[PCD Binary 무손실] 직렬화 %.1fHz(%lld개) · 최근/p95 %.2f/%.2fms · 전송 %.2fMiB/s · 점 %d/%d · %d bytes/frame · queue 입력/준비/receipt=%d/%d/%d · gap=%lld retry=%lld overload=%lld"),
+				Status.SerializationHz, Status.SerializedFrameCount, Status.LastSerializationLatencyMs, Status.SerializationP95LatencyMs, Status.SubmittedMegabytesPerSecond,
+				Status.LastPointCount, Status.LastSourcePointCount, Status.LastFrameBytes,
+				Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
+				Status.FrameGapCount, Status.RetryCount, Status.OverloadCount);
+		}
 		const FString Kind = Status.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("Camera")
 			: Status.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR Payload");
-		Text += FString::Printf(TEXT("\n[%s] %s / %s · 입력 %.1fHz · 전송 %.1fHz · frame %lld · 교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · receipt %lld · timeout %lld\n  %s"),
+		const FString Backend = Status.ActiveTransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput
+			? TEXT("Raw TCP 고성능") : TEXT("Engine STOMP 호환");
+		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · p95 e2e %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
 			Status.bEnabled ? TEXT("실행") : TEXT("중지"), *Kind, Status.SensorId.IsEmpty() ? TEXT("전체 센서") : *Status.SensorId,
-			Status.InputHz, Status.SubmittedHz, Status.LastSubmittedFrameId, Status.ReplacedPendingFrameCount,
-			Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptReceivedCount, Status.ReceiptTimeoutCount, *Status.Message);
+			*Backend, Status.InputHz, Status.SubmittedHz, Status.ReceiptReceivedCount, Status.ConsumerReceivedHz, Status.ConsumerReceivedCount,
+			Status.LastSubmittedFrameId, Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
+			Status.ConsumerFrameGapCount, Status.ConsumerValidationFailureCount, Status.ConsumerDuplicateCount,
+			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs, Status.EndToEndP95LatencyMs,
+			Status.ReplacedPendingFrameCount, Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptTimeoutCount, *Status.Message);
 	}
 	return Text;
 }
@@ -758,6 +880,12 @@ FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() co
 	}
 	for (const FVirtualSensorTopicReceiverStatus& Status : TopicReceiverHost->GetTopicReceiverStatuses())
 	{
+		if (Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud)
+		{
+			Text += FString::Printf(TEXT("\n[Binary PCD 연속성] 수신 %.1fHz · end-to-end 최근/p95 %.2f/%.2fms · gap=%lld · duplicate=%lld · validation-fail=%lld"),
+				Status.ValidatedHz, Status.LastEndToEndLatencyMs, Status.EndToEndP95LatencyMs,
+				Status.FrameGapCount, Status.DuplicateFrameCount, Status.ValidationFailureCount);
+		}
 		const TCHAR* Kind = Status.Kind == EVirtualSensorTopicReceiveKind::Camera ? TEXT("Camera")
 			: Status.Kind == EVirtualSensorTopicReceiveKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR");
 		const TCHAR* State = Status.State == EVirtualSensorTopicReceiverState::Active ? TEXT("수신 중")
@@ -836,8 +964,30 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 		+ SScrollBox::Slot()
 		[
 			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
+			[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).AutoWrapText(true)
+				.Text(LOCTEXT("BinaryPcdContract", "Point Cloud 실시간 전송: PCD v0.7 DATA binary 고정 · 완료 프레임 모두 · 매 프레임 receipt · 연결 중 FIFO 무손실")) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 3)
+			[
+				SNew(SComboBox<TSharedPtr<EVirtualPointCloudStreamFilterPreset>>)
+				.OptionsSource(&NativeStreamFilterOptions)
+				.OnGenerateWidget_Lambda([](TSharedPtr<EVirtualPointCloudStreamFilterPreset> Item)
+				{
+					return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText)
+						.Text(FText::FromString(Item.IsValid() ? PointCloudFilterPresetText(*Item) : TEXT("전체 검출점")));
+				})
+				.OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualPointCloudStreamFilterPreset> Item, ESelectInfo::Type)
+				{
+					if (Item.IsValid()) SetPointCloudStreamFilterPreset(*Item);
+				})
+				[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText)
+					.Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("전송 필터: %s"), *PointCloudFilterPresetText(SelectedPointCloudStreamFilterPreset))); }) ]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+			[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true)
+				.Text(LOCTEXT("PointCloudFilterHelp", "대상 물체만은 Mesh Actor의 PointCloudTarget Tag를 사용합니다. Tag·Semantic은 CPU/Replay처럼 Actor 메타데이터가 있는 프레임에서 동작합니다. FullSpec GPU Depth는 Actor identity를 제공하지 않으므로 고성능 물체 영역 전송에는 센서 로컬 ROI를 사용하세요.")) ]
 			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("LiveTitle", "세 가지 독립 실시간 스트림")) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 호환용 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG로 전송합니다. 고주기 Point Cloud는 Compact Binary(VLB2)를 권장하며 CSV/JSONL/PCD/LAS/LAZ는 virtual-pointcloud.v1 봉투에 담깁니다. VLB2는 프로젝트 규격이며 ML-X 제조사 패킷과 동일하다는 뜻은 아닙니다.")) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("LiveHelp", "LiDAR 값은 호환용 virtual-lidar.v1 JSON, Camera는 virtual-camera.v1 JSON 안의 Base64 JPEG로 전송합니다. 실시간 Point Cloud는 PCD v0.7 DATA binary 원본을 STOMP binary body로 보내며 Base64/JSON 복사를 하지 않습니다. CSV/JSONL/LAS/LAZ는 수동 내보내기에서만 사용합니다.")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNew(SWrapBox).UseAllottedSize(true)
 				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([StreamButtonText]() { return StreamButtonText(EVirtualSensorStreamKind::LidarPayload); }).OnClicked_Lambda([this]() { ToggleSelectedStream(EVirtualSensorStreamKind::LidarPayload); return FReply::Handled(); }) ]
 				+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([StreamButtonText]() { return StreamButtonText(EVirtualSensorStreamKind::CameraImage); }).OnClicked_Lambda([this]() { ToggleSelectedStream(EVirtualSensorStreamKind::CameraImage); return FReply::Handled(); }) ]
