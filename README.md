@@ -112,9 +112,15 @@ FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용�
 
 `SensorRefactorTestMap`의 `SensorTest_ExternalSources`는 CSV/JSONL replay, buffered Camera/LiDAR JSON, LiDAR HTTP(`127.0.0.1:8082/ma0t10/lidar/live`)와 UDP 입력 Component를 기본 정지 상태로 제공합니다. Settings의 `선택 Source 1회 주입`은 프레임을 `SubmitExternalFrame`으로 전달할 뿐 외부 서버로 다시 보내지 않습니다. ROS2, Livox SDK, RealSense SDK adapter는 아직 구현되지 않은 확장 지점입니다.
 
-외부 전송은 CaptureExport 패널에서만 실행합니다. CSV/JSONL/PCD/LAS/LAZ는 드롭다운으로 고르고, 완료 Payload 또는 최근 내보내기 파일을 HTTP POST나 Artemis STOMP/WS로 전송할 수 있습니다. HTTP 파일 전송은 raw `application/octet-stream`, STOMP 파일 전송은 Base64 envelope입니다. 비밀번호와 Bearer token은 세션 메모리에만 유지됩니다. STOMP receipt는 Broker 수락만 뜻하며 ACK Topic을 실제 소비자가 처리하기 전에는 소비자 처리 완료로 간주하지 않습니다. 개발용 Broker는 `Tools/Artemis/docker-compose.yml`을 사용합니다.
+외부 전송은 CaptureExport 패널에서만 실행합니다. 수동 CSV/JSONL/PCD/LAS/LAZ 내보내기와 실시간 Point Cloud 계약은 분리됩니다. 실시간 Point Cloud는 PCD v0.7 `DATA binary`로 고정하며 Base64/JSON 봉투 없이 STOMP binary body로 전송합니다. Camera와 LiDAR Payload JSON 호환 스트림은 기존 계약을 유지합니다. HTTP 파일 전송은 raw `application/octet-stream`이며 비밀번호와 Bearer token은 세션 메모리에만 유지됩니다. STOMP receipt는 Broker 수락만 뜻하며 실제 소비자 수신 카운터와 구분합니다. 개발용 Broker는 `Tools/Artemis/docker-compose.yml`을 사용합니다.
 
-`SensorRefactorTestMap`에서는 `SensorTest_ExternalSources`가 DTCore WebSocket 연결을 재사용해 Camera, LiDAR, Point Cloud Topic을 자동 구독합니다. 기존 송신 Body에는 `MESSAGE_ID`가 없으므로 Topic이 세 전용 TC Handler를 직접 선택합니다. 수신기는 schema와 메타데이터를 매 프레임 검사하고 매 10번째 Camera/Point Cloud 프레임의 실제 Base64 바이트와 형식 서명까지 검증하며, 수신 데이터를 Sensor Actor에 재주입하거나 다시 송신하지 않습니다. CaptureExport의 `서버/로그` 탭에서 구독 해제·재연결, Topic별 성공·실패·교체 횟수와 최근 검증 결과를 확인할 수 있습니다. 자세한 사용법은 [센서 스트리밍 가이드](docs/sensor_streaming.ko.md)를 참고하세요.
+`SensorRefactorTestMap`에서는 `SensorTest_ExternalSources`가 Camera/LiDAR JSON은 DTCore WebSocket 연결로, Point Cloud는 프로젝트의 raw STOMP 구독으로 자동 수신합니다. `UVirtualPointCloudStreamReceiverTC`는 PCD 헤더, 33-byte little-endian 레코드 크기, point count, SHA1, FrameId 연속성을 모든 프레임에서 검증합니다. 수신 데이터를 Sensor Actor에 재주입하거나 다시 송신하지 않습니다. CaptureExport의 `서버/로그` 탭에서 구독 해제·재연결, receipt와 실제 소비자 수신, gap·duplicate·검증 실패를 구분해 확인할 수 있습니다. 자세한 사용법은 [센서 스트리밍 가이드](docs/sensor_streaming.ko.md)를 참고하세요.
+
+ML-X(80) Native 20Hz Point Cloud는 `연결 중 무손실` 정책을 사용합니다. 센서별 입력/직렬화 완료 큐는 각각 최대 20개이고 receipt 대기 body와 checksum을 보존합니다. 정상 연결에서는 FIFO 순서와 FrameId를 유지하며, 큐가 한계에 도달하거나 receipt 재시도 3회를 소진하면 프레임을 조용히 교체하지 않고 스트림을 `과부하 오류`로 중지합니다. Point Cloud 전용 예산은 64MiB/s입니다. 1 Echo는 약 20~25MB/s, 2 Echo 최악 조건은 약 40~50MB/s이므로 보장 범위는 ML-X(80) Native 한 대와 정상 로컬 또는 1Gbps 이상 LAN Broker입니다.
+
+실시간 필터 기본값은 전체 검출점입니다. `대상 물체만`을 선택하면 Mesh Actor의 `PointCloudTarget` Tag가 있는 물체의 점만 전송합니다. Tag/Semantic 조건과 센서 로컬 ROI는 AND, 같은 배열 안의 값은 OR이며 exclude가 마지막에 우선합니다. 필터 결과가 없어도 `POINTS 0` PCD를 정상 전송합니다. Actor Tag와 SemanticLabel은 Digital Twin 확장 정보이며 ML-X 실장비 고유 기능으로 표기하지 않습니다.
+
+로컬 Artemis와 실제 D3D12 맵을 함께 검증하려면 `Scripts/run_sensor_map_stream_rhi_smoke.ps1`을 사용합니다. 기본 10초 warmup+60초 측정에서 19Hz, FrameId gap 0, 입력/직렬화/제출/receipt/내부 소비자 수 일치, 직렬화 p95와 FPS를 JSON/Markdown으로 저장합니다. 10분/60분 연속 검증 명령은 [Artemis 개발 Broker 안내](Tools/Artemis/README.md)에 있습니다.
 
 ### 포인트 클라우드 렌더러 상태
 

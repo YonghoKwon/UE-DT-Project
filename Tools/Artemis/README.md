@@ -1,5 +1,18 @@
 # MA0T10 Artemis 개발 Broker
 
+## Binary PCD 20Hz 설정
+
+버전 관리되는 `etc-override/broker.xml`은 ML-X(80) 실시간 PCD를 위해 다음 값을 사용합니다.
+
+- WebSocket 단일 frame 상한: 16MiB
+- STOMP large-message 전환: `stompMinLargeMessageSize=1048576`
+- `topic.virtual.sensor.export.0`: `PAGE`, page 10MiB, read-page 64MiB
+- journal, paging, large-message 디렉터리를 분리해 Broker 디스크 사용량을 진단 가능하게 유지
+
+실시간 Point Cloud body는 Base64 JSON이 아니라 `application/vnd.pcd` raw binary입니다. Native 2 Echo 최악 조건도 약 2.13MB/frame으로 16MiB WebSocket 상한 아래입니다. 20Hz에서는 약 40~50MB/s가 될 수 있으므로 Broker 데이터 디렉터리의 디스크 처리량과 용량을 함께 확인하십시오.
+
+로컬 설치형 Broker `C:\Project\apache-artemis-2.44.0\bin\myTest`를 사용할 때도 acceptor의 `stompMinLargeMessageSize=1048576`, WebSocket 16MiB, export Topic PAGE/read-page 64MiB가 같아야 합니다. 설정 변경 후 Broker를 재시작해야 적용됩니다.
+
 프로젝트 루트에서 다음 명령으로 로컬 개발 Broker를 시작합니다.
 
 ```powershell
@@ -30,6 +43,16 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smo
 
 The combined broker and performance evidence is stored in
 `Saved/Reports/sensor_map_stream_rhi_smoke.json` and `.md`.
+
+The default run warms up for 10 seconds and measures for 60 seconds. It checks
+raw PCD checksum/record layout, FrameId continuity, publisher/receipt/internal
+consumer count equality, at least 19 Hz, serialization p95, and D3D12 frame
+time. Longer loopback/soak reports use a unique label:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -MeasurementSeconds 600 -ReportLabel mlx80_pcd_10min
+powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -MeasurementSeconds 3600 -ReportLabel mlx80_pcd_60min
+```
 
 - STOMP WebSocket: `ws://127.0.0.1:61616`
 - 관리 콘솔: `http://127.0.0.1:8161`

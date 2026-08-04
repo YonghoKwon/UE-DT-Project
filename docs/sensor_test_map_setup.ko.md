@@ -153,7 +153,7 @@ powershell -ExecutionPolicy Bypass -File ".\Scripts\run_point_cloud_rhi_smoke.ps
 
 ## 최신 실시간 Topic 안내
 
-캡처/내보내기 패널의 크기 조절, 네 탭 구성과 LiDAR·Camera·Point Cloud 자동 스트림은 [sensor_streaming.ko.md](sensor_streaming.ko.md)를 기준으로 사용하십시오. 스트림은 기본적으로 중지 상태이며 센서마다 최신 대기 프레임 하나만 유지합니다.
+캡처/내보내기 패널의 크기 조절, 네 탭 구성과 LiDAR·Camera·Point Cloud 자동 스트림은 [sensor_streaming.ko.md](sensor_streaming.ko.md)를 기준으로 사용하십시오. 스트림은 기본적으로 중지 상태입니다. Camera/LiDAR JSON은 최신 프레임 정책을 유지하지만, 실시간 Point Cloud는 raw Binary PCD 전용 FIFO 무손실 모드이며 큐 한계에 도달하면 명시적으로 중지됩니다.
 
 CaptureExport 패널에서 절대 경로와 프로젝트 상대 경로를 확인하고 최근 저장 경로를 복사할 수 있습니다.
 

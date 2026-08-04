@@ -43,6 +43,8 @@ The development broker in `Tools/Artemis` exposes STOMP/WebSocket on port 61616 
 
 The CaptureExport panel persists non-secret broker URL, topics, username, endpoint, and message limit. Passwords and tokens remain in memory for the PIE session only. Export files are Base64-wrapped for STOMP because the UE STOMP interface sends text frames; HTTP uses raw binary.
 
+The realtime Point Cloud stream is an explicit exception to the legacy text-envelope path. It sends a complete PCD v0.7 `DATA binary` file through `IStompClient::Send(FStompBuffer)` with `content-type=application/vnd.pcd` and `schema=virtual-pointcloud.pcd.v1`. It never Base64-encodes or JSON-wraps the body. Manual exports and the legacy `virtual-pointcloud.v1` API remain compatible.
+
 HTTP callback behavior:
 
 ```text
@@ -178,13 +180,13 @@ team before the final endpoint is available.
 
 ## Bounded sensor streams
 
-The V2 capture/export panel can publish three independent latest-frame streams:
+The V2 capture/export panel publishes two independent latest-frame JSON streams:
 `virtual-lidar.v1` JSON, `virtual-camera.v1` JSON containing one Base64 JPEG,
-and a `virtual-pointcloud.v1` envelope containing the selected point-cloud
-format. High-rate ML-X streams should select compact `VLB2`; CSV/JSONL/PCD/LAS/LAZ
-remain compatibility and export formats. VLB2 carries `virtual-lidar.v2` physical
-fields but is still Base64-wrapped when sent through the current STOMP JSON
-compatibility transport. Each sensor/stream key is bounded to one processing item and one
-replaceable latest item. Automatic sends sample broker receipts (default every
-10 messages); consumer completion requires a correlated ACK topic response.
+plus one connected/no-loss realtime Point Cloud stream. Point Cloud is fixed to
+raw binary PCD, uses per-sensor FIFO input and prepared-body queues capped at 20,
+retains receipt-pending bodies/checksums, requests a receipt for every frame, and
+retries up to three times. Queue overflow stops the stream with an explicit error
+instead of silently replacing a frame. Manual CSV/JSONL/PCD/LAS/LAZ exports and
+legacy `virtual-pointcloud.v1` callers remain available. Consumer completion is
+reported separately from broker receipt acceptance.
 See `docs/sensor_streaming.ko.md` and `Scripts/run_artemis_stream_smoke.ps1`.
