@@ -253,9 +253,37 @@ void UVirtualSensorTransportComponent::HandleBinaryPcdSocketRawMessage(const voi
 	}
 	if (BytesRemaining == 0 && !BinaryPcdReceiveBuffer.IsEmpty())
 	{
-		TArray<uint8> CompleteFrame = MoveTemp(BinaryPcdReceiveBuffer);
-		BinaryPcdReceiveBuffer.Reset();
-		ProcessBinaryPcdStompFrame(CompleteFrame);
+		// Artemis may coalesce several small RECEIPT frames into one WebSocket
+		// message. Process every NUL-terminated STOMP frame; otherwise only the
+		// first receipt is correlated and the no-loss queue eventually stalls.
+		int32 FrameStart = 0;
+		for (int32 Index = 0; Index < BinaryPcdReceiveBuffer.Num(); ++Index)
+		{
+			if (BinaryPcdReceiveBuffer[Index] != 0) continue;
+			if (Index > FrameStart)
+			{
+				TArray<uint8> CompleteFrame;
+				CompleteFrame.Append(BinaryPcdReceiveBuffer.GetData() + FrameStart, Index - FrameStart + 1);
+				ProcessBinaryPcdStompFrame(CompleteFrame);
+			}
+			FrameStart = Index + 1;
+			while (FrameStart < BinaryPcdReceiveBuffer.Num() &&
+				(BinaryPcdReceiveBuffer[FrameStart] == '\n' || BinaryPcdReceiveBuffer[FrameStart] == '\r'))
+			{
+				++FrameStart;
+			}
+			Index = FrameStart - 1;
+		}
+		if (FrameStart < BinaryPcdReceiveBuffer.Num())
+		{
+			TArray<uint8> Remaining;
+			Remaining.Append(BinaryPcdReceiveBuffer.GetData() + FrameStart, BinaryPcdReceiveBuffer.Num() - FrameStart);
+			BinaryPcdReceiveBuffer = MoveTemp(Remaining);
+		}
+		else
+		{
+			BinaryPcdReceiveBuffer.Reset();
+		}
 	}
 }
 
