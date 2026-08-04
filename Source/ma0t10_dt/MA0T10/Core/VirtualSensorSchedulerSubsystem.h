@@ -101,6 +101,7 @@ public:
     void SetPreferredCamera(UVirtualCameraCaptureComponent* Camera);
     void SetPreferredLidar(UVirtualLidarScanComponent* Lidar);
     bool ShouldRefreshLidarPreview(const UVirtualLidarScanComponent* Lidar) const;
+    bool ConsumeLidarPreviewRefresh(UVirtualLidarScanComponent* Lidar, float MaximumRefreshHz = 10.0f);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPerformance")
     const FVirtualSensorPerformanceTelemetry& GetTelemetry() const { return Telemetry; }
@@ -128,6 +129,7 @@ private:
     int32 NextCameraIndex = 0;
     int32 NextLidarIndex = 0;
     TMap<TWeakObjectPtr<UVirtualLidarScanComponent>, int32> AdaptiveLidarChunkSizes;
+    TMap<TWeakObjectPtr<UVirtualLidarScanComponent>, double> LastLidarPreviewRefreshTimes;
     float EffectiveLidarBudgetMs = 5.0f;
     float EffectiveAggregateCameraCaptureHz = 12.0f;
     double LastCameraCaptureAdmissionTime = -1.0;

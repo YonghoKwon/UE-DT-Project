@@ -126,6 +126,7 @@ void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponen
     if (PreferredLidar.Get() == Lidar) PreferredLidar.Reset();
     Lidars.RemoveAll([Lidar](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid() || Item.Get() == Lidar; });
     AdaptiveLidarChunkSizes.Remove(Lidar);
+    LastLidarPreviewRefreshTimes.Remove(Lidar);
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
 
@@ -144,11 +145,28 @@ bool UVirtualSensorSchedulerSubsystem::ShouldRefreshLidarPreview(const UVirtualL
     return !PreferredLidar.IsValid() || PreferredLidar.Get() == Lidar;
 }
 
+bool UVirtualSensorSchedulerSubsystem::ConsumeLidarPreviewRefresh(
+    UVirtualLidarScanComponent* Lidar,
+    float MaximumRefreshHz)
+{
+    if (!Lidar || !ShouldRefreshLidarPreview(Lidar)) return false;
+    const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    const double MinimumInterval = 1.0 / FMath::Max(1.0f, MaximumRefreshHz);
+    double& LastRefreshSeconds = LastLidarPreviewRefreshTimes.FindOrAdd(Lidar, -1.0e30);
+    if (NowSeconds - LastRefreshSeconds < MinimumInterval) return false;
+    LastRefreshSeconds = NowSeconds;
+    return true;
+}
+
 void UVirtualSensorSchedulerSubsystem::CompactRegistrations()
 {
     Cameras.RemoveAll([](const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Item) { return !Item.IsValid(); });
     Lidars.RemoveAll([](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid(); });
     for (auto It = AdaptiveLidarChunkSizes.CreateIterator(); It; ++It)
+    {
+        if (!It.Key().IsValid()) It.RemoveCurrent();
+    }
+    for (auto It = LastLidarPreviewRefreshTimes.CreateIterator(); It; ++It)
     {
         if (!It.Key().IsValid()) It.RemoveCurrent();
     }

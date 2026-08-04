@@ -997,7 +997,15 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
     if (bRefreshPreview)
     {
         UpdateLidarViewTexture(ScheduledHeatmapPixels);
-        RefreshPointCloudPreview();
+        // V2 actors route world visualization through
+        // UVirtualLidarVisualizationComponent from HandleFrameAcquired. Do not
+        // also rebuild the legacy CPU ISM here; that duplicated every preview
+        // update and made a FullSpec scan pay the render cost twice.
+        const AVirtualLidarSensorActor* SensorOwner = Cast<AVirtualLidarSensorActor>(GetOwner());
+        if (!SensorOwner || !SensorOwner->VisualizationComponent)
+        {
+            RefreshPointCloudPreview();
+        }
     }
 
     RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;
