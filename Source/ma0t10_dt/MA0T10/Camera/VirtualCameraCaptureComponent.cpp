@@ -144,6 +144,7 @@ void UVirtualCameraCaptureComponent::EndPlay(const EEndPlayReason::Type EndPlayR
 	PendingEncodeInputs.Reset();
 	EncodeOrder.Reset();
 	CompletedEncodes.Reset();
+	CaptureTimings.Reset();
 	ScheduledEncodeInFlightCount = 0;
     Super::EndPlay(EndPlayReason);
 }
@@ -180,6 +181,7 @@ void UVirtualCameraCaptureComponent::StopCapture()
 	PendingEncodeInputs.Reset();
 	EncodeOrder.Reset();
 	CompletedEncodes.Reset();
+	CaptureTimings.Reset();
 	ScheduledEncodeInFlightCount = 0;
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.bDerivedWorkInFlight = false;
@@ -228,19 +230,22 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(CaptureInterval));
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
-    RuntimeStatus.RequestedAcquisitionBackend = TEXT("scene_capture_gpu");
-    RuntimeStatus.ActiveAcquisitionBackend = TEXT("scene_capture_gpu");
+	RuntimeStatus.RequestedAcquisitionBackend = TEXT("scene_capture_gpu");
+	RuntimeStatus.ActiveAcquisitionBackend = TEXT("scene_capture_gpu");
 	FVirtualSensorCadenceDeadline Deadline;
-	if (!CadenceState.ConsumeDeadline(NowSeconds, CameraUtcNowUnixNanoseconds(), Deadline)) return false;
+	const int64 AcquisitionStartUnixNanoseconds = CameraUtcNowUnixNanoseconds();
+	if (!CadenceState.ConsumeDeadline(NowSeconds, AcquisitionStartUnixNanoseconds, Deadline)) return false;
 	NextScheduledCaptureTime = CadenceState.GetNextDeadlineMonotonicSeconds();
 	RuntimeStatus.DeadlineMissCount = static_cast<int32>(FMath::Min<int64>(MAX_int32, CadenceState.GetTelemetry().DeadlineMissCount));
 
     const double CaptureStart = FPlatformTime::Seconds();
     EnsureRenderTarget();
-    CaptureSceneDeferred();
-    ++FrameId;
-    RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - CaptureStart) * 1000.0);
-	CadenceState.MarkAcquisitionEnd(CameraUtcNowUnixNanoseconds());
+	CaptureSceneDeferred();
+	++FrameId;
+	FCaptureTiming& Timing = CaptureTimings.Add(FrameId);
+	Timing.ScheduledUnixNanoseconds = Deadline.ScheduledUnixNanoseconds;
+	Timing.AcquisitionStartUnixNanoseconds = AcquisitionStartUnixNanoseconds;
+	RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - CaptureStart) * 1000.0);
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.MeasuredAcquisitionRateHz = LastAcquisitionCompletionTime >= 0.0
         ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastAcquisitionCompletionTime))
@@ -254,6 +259,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
         RuntimeStatus.MeasuredCompletionRateHz = PreviousCompletion >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - PreviousCompletion)) : 0.0f;
         UpdateRuntimeStatus(0, TEXT("비동기 미리보기"));
         OnFrameCaptured.Broadcast(TEXT(""), CameraRenderTarget);
+		CaptureTimings.Remove(FrameId);
         return true;
     }
 
@@ -262,6 +268,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 		++RuntimeStatus.QueueOverflowCount;
 		++RuntimeStatus.DroppedDerivedFrameCount;
 		RuntimeStatus.AcquisitionBackendMessage = TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
+		CaptureTimings.Remove(FrameId);
 		return true;
 	}
 	FPendingReadbackRequest& Request = PendingReadbackRequests.AddDefaulted_GetRef();
@@ -332,6 +339,11 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 		const int32 Width = Slot.Width;
 		const int32 Height = Slot.Height;
 		const int64 CapturedFrameId = Slot.FrameId;
+		if (FCaptureTiming* Timing = CaptureTimings.Find(CapturedFrameId))
+		{
+			Timing->AcquisitionEndUnixNanoseconds = CameraUtcNowUnixNanoseconds();
+			CadenceState.MarkAcquisitionEnd(Timing->AcquisitionEndUnixNanoseconds);
+		}
 		const double CaptureStartedSeconds = Slot.CaptureStartedSeconds;
 		const int32 Generation = Slot.Generation;
 		TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = MoveTemp(Slot.Readback);
@@ -371,12 +383,14 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 						if (!bCopySucceeded)
 						{
 							++WeakThis->RuntimeStatus.DroppedDerivedFrameCount;
+							WeakThis->CaptureTimings.Remove(CapturedFrameId);
 							return;
 						}
 						if (WeakThis->PendingEncodeInputs.Num() >= 4)
 						{
 							++WeakThis->RuntimeStatus.QueueOverflowCount;
 							++WeakThis->RuntimeStatus.DroppedDerivedFrameCount;
+							WeakThis->CaptureTimings.Remove(CapturedFrameId);
 							return;
 						}
 						FPendingEncodeInput& Input = WeakThis->PendingEncodeInputs.AddDefaulted_GetRef();
@@ -507,6 +521,10 @@ void UVirtualCameraCaptureComponent::CompleteScheduledEncode(
 	Completed.Height = Height;
 	Completed.Quality = Quality;
 	Completed.CaptureStartedSeconds = CaptureStartedSeconds;
+	if (FCaptureTiming* Timing = CaptureTimings.Find(CapturedFrameId))
+	{
+		Timing->DerivedCompleteUnixNanoseconds = CameraUtcNowUnixNanoseconds();
+	}
 	FlushCompletedEncodes();
 	PumpScheduledEncodeQueue();
 }
@@ -521,6 +539,8 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		FCompletedEncode Result = MoveTemp(*Completed);
 		CompletedEncodes.Remove(CompletedFrameId);
 		EncodeOrder.RemoveAt(0, 1, false);
+		const FCaptureTiming Timing = CaptureTimings.FindRef(CompletedFrameId);
+		CaptureTimings.Remove(CompletedFrameId);
 
 		RuntimeStatus.LastPostProcessDurationMs = static_cast<float>((FPlatformTime::Seconds() - Result.CaptureStartedSeconds) * 1000.0);
 		if (Result.JpegBytes.IsEmpty())
@@ -555,6 +575,10 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		LastJpegMetadata.JpegQuality = Result.Quality;
 		LastJpegMetadata.ByteCount = static_cast<int32>(Result.JpegBytes.Num());
 		LastJpegMetadata.ChecksumSha1 = Result.Checksum;
+		LastJpegMetadata.ScheduledUnixNanoseconds = Timing.ScheduledUnixNanoseconds;
+		LastJpegMetadata.AcquisitionStartUnixNanoseconds = Timing.AcquisitionStartUnixNanoseconds;
+		LastJpegMetadata.AcquisitionEndUnixNanoseconds = Timing.AcquisitionEndUnixNanoseconds;
+		LastJpegMetadata.DerivedCompleteUnixNanoseconds = Timing.DerivedCompleteUnixNanoseconds;
 		LastJpegSnapshot = MakeShared<const TArray64<uint8>, ESPMode::ThreadSafe>(MoveTemp(Result.JpegBytes));
 		UpdateRuntimeStatus(LastJsonPayload.Len(), StatusMessage);
 		RuntimeStatus.FrameId = CompletedFrameId;
@@ -649,8 +673,10 @@ void UVirtualCameraCaptureComponent::EnsureRenderTarget()
 
 void UVirtualCameraCaptureComponent::CaptureAndSendImage()
 {
+	const int64 AcquisitionStartUnixNanoseconds = CameraUtcNowUnixNanoseconds();
     EnsureRenderTarget();
     CaptureScene();
+	const int64 AcquisitionEndUnixNanoseconds = CameraUtcNowUnixNanoseconds();
     ++FrameId;
 
     if (!ShouldGeneratePayload())
@@ -688,6 +714,15 @@ void UVirtualCameraCaptureComponent::CaptureAndSendImage()
     }
 
     LastJpegSnapshot = MakeShared<const TArray64<uint8>, ESPMode::ThreadSafe>(MoveTemp(JpegBytes));
+	LastJpegMetadata.Schema = TEXT("virtual-camera.jpeg.v1");
+	LastJpegMetadata.Width = CaptureResolution.X;
+	LastJpegMetadata.Height = CaptureResolution.Y;
+	LastJpegMetadata.JpegQuality = JpegQuality;
+	LastJpegMetadata.ByteCount = LastJpegSnapshot.IsValid() ? static_cast<int32>(LastJpegSnapshot->Num()) : 0;
+	LastJpegMetadata.ScheduledUnixNanoseconds = AcquisitionStartUnixNanoseconds;
+	LastJpegMetadata.AcquisitionStartUnixNanoseconds = AcquisitionStartUnixNanoseconds;
+	LastJpegMetadata.AcquisitionEndUnixNanoseconds = AcquisitionEndUnixNanoseconds;
+	LastJpegMetadata.DerivedCompleteUnixNanoseconds = CameraUtcNowUnixNanoseconds();
 
     UpdateRuntimeStatus(JsonPayload.Len(), StatusMessage);
     OnFrameCaptured.Broadcast(JsonPayload, CameraRenderTarget);

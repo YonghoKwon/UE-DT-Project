@@ -249,11 +249,19 @@ private:
 		int32 Quality = 0;
 		double CaptureStartedSeconds = 0.0;
 	};
+	struct FCaptureTiming
+	{
+		int64 ScheduledUnixNanoseconds = 0;
+		int64 AcquisitionStartUnixNanoseconds = 0;
+		int64 AcquisitionEndUnixNanoseconds = 0;
+		int64 DerivedCompleteUnixNanoseconds = 0;
+	};
 	TArray<FScheduledReadbackSlot> ScheduledReadbackSlots;
 	TArray<FPendingReadbackRequest> PendingReadbackRequests;
 	TArray<FPendingEncodeInput> PendingEncodeInputs;
 	TArray<int64> EncodeOrder;
 	TMap<int64, FCompletedEncode> CompletedEncodes;
+	TMap<int64, FCaptureTiming> CaptureTimings;
 	int32 ScheduledEncodeInFlightCount = 0;
     double NextScheduledCaptureTime = -1.0;
 	FVirtualSensorCadenceState CadenceState;

@@ -105,6 +105,10 @@ struct MA0T10_DT_API FVirtualPointCloudBinaryMetadata
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int32 ByteCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int32 FilterRevision = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString ChecksumSha1;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int64 ScheduledUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int64 AcquisitionStartUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int64 AcquisitionEndUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") int64 DerivedCompleteUnixNanoseconds = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -118,6 +122,10 @@ struct MA0T10_DT_API FVirtualCameraJpegMetadata
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 JpegQuality = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int32 ByteCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") FString ChecksumSha1;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int64 ScheduledUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int64 AcquisitionStartUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int64 AcquisitionEndUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Camera") int64 DerivedCompleteUnixNanoseconds = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -143,6 +151,7 @@ struct MA0T10_DT_API FVirtualLidarTelemetryFrame
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") float MeanIntensity = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 AcquisitionStartUnixNanoseconds = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 AcquisitionEndUnixNanoseconds = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|LiDAR") int64 ScheduledUnixNanoseconds = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -375,6 +384,10 @@ struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 	EVirtualSensorKind SensorKind = EVirtualSensorKind::Camera;
 	int64 FrameId = 0;
 	FDateTime TimestampUtc;
+	int64 ScheduledUnixNanoseconds = 0;
+	int64 AcquisitionStartUnixNanoseconds = 0;
+	int64 AcquisitionEndUnixNanoseconds = 0;
+	int64 DerivedCompleteUnixNanoseconds = 0;
 	FString SchemaVersion;
 	TSharedPtr<const FString, ESPMode::ThreadSafe> JsonPayload;
 	TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> BinaryPayload;

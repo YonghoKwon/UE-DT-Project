@@ -1739,6 +1739,7 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
     Snapshot->TimeSyncState = EVirtualLidarTimeSyncState::SimulationClock;
     Snapshot->bProtocolVerifiedAgainstHardware = DeviceSpec.bProtocolVerifiedAgainstHardware;
 	Snapshot->AcquisitionTransform = AcquisitionTransform;
+	Snapshot->ScheduledUnixNanoseconds = ScheduledDeadlineUnixNanoseconds;
 	Snapshot->FrameId = FrameId;
 	Snapshot->HorizontalSamples = FMath::Max(1, InHorizontalSamples);
 	Snapshot->VerticalChannels = FMath::Max(1, InVerticalChannels);
@@ -1746,7 +1747,8 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
 	Snapshot->SettingsRevision = ++FrameSettingsRevision;
     RebuildPhysicalFrameStatistics(*Snapshot);
 	LastFrameSnapshot = StaticCastSharedPtr<const FVirtualLidarFrameSnapshot>(Snapshot);
-    ScheduledAcquisitionStartUnixNanoseconds = 0;
+	ScheduledAcquisitionStartUnixNanoseconds = 0;
+	ScheduledDeadlineUnixNanoseconds = 0;
 }
 
 void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels)

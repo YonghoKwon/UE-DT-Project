@@ -2,9 +2,11 @@
 
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCadence.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceLongRunTest, "MA0T10.SensorPerformance.RealtimeCadenceLongRun", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceMissAndResumeTest, "MA0T10.SensorPerformance.RealtimeCadenceMissAndResume", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceHeaderContractTest, "MA0T10.SensorStream.HighThroughput.CadenceHeaders", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorCadenceLongRunTest::RunTest(const FString& Parameters)
 {
@@ -41,6 +43,16 @@ bool FVirtualSensorCadenceMissAndResumeTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("resume does not immediately replay paused deadlines"), Cadence.IsDue(30.0));
 	TestTrue(TEXT("resume starts on the next clean period"), Cadence.ConsumeDeadline(30.05, 4050000000000LL, Deadline));
 	TestEqual(TEXT("pause duration is not counted as a deadline miss"), Cadence.GetTelemetry().DeadlineMissCount, static_cast<int64>(2));
+	return true;
+}
+
+bool FVirtualSensorCadenceHeaderContractTest::RunTest(const FString& Parameters)
+{
+	const TMap<FString, FString> Headers = UVirtualSensorStreamPublisherComponent::BuildCadenceHeaders(100, 110, 120, 130);
+	TestEqual(TEXT("scheduled timestamp header"), Headers.FindRef(TEXT("x-scheduled-unix-ns")), FString(TEXT("100")));
+	TestEqual(TEXT("acquisition start timestamp header"), Headers.FindRef(TEXT("x-acquisition-start-unix-ns")), FString(TEXT("110")));
+	TestEqual(TEXT("acquisition end timestamp header"), Headers.FindRef(TEXT("x-acquisition-end-unix-ns")), FString(TEXT("120")));
+	TestEqual(TEXT("derived completion timestamp header"), Headers.FindRef(TEXT("x-derived-complete-unix-ns")), FString(TEXT("130")));
 	return true;
 }
 

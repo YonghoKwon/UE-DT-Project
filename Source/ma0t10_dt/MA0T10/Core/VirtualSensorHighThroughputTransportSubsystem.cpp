@@ -353,6 +353,8 @@ private:
 
 	bool SendFrame(const FVirtualSensorBinaryFrame& Frame, int32 RetryAttempt)
 	{
+		static const FDateTime UnixEpoch(1970, 1, 1);
+		const int64 SubmitUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
 		const FString RequestId = Frame.RequestId.IsEmpty()
 			? FString::Printf(TEXT("%s-%lld-%s"), *Frame.SensorId, Frame.FrameId, *HeaderValue(Frame.Headers, TEXT("checksum")))
 			: Frame.RequestId;
@@ -373,6 +375,7 @@ private:
 			Frame.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 				: Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream"),
 			Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar"));
+		Header += FString::Printf(TEXT("x-submit-unix-ns:%lld\n"), SubmitUnixNanoseconds);
 		for (const TPair<FString, FString>& Pair : Frame.Headers)
 		{
 			if (Pair.Key.Equals(TEXT("schema"), ESearchCase::IgnoreCase) ||

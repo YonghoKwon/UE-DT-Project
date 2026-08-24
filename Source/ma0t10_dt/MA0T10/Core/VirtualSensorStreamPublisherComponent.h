@@ -35,6 +35,11 @@ public:
 		TArray<uint8>& OutBytes,
 		int32& OutPointCount,
 		FString& OutError);
+	static TMap<FString, FString> BuildCadenceHeaders(
+		int64 ScheduledUnixNanoseconds,
+		int64 AcquisitionStartUnixNanoseconds,
+		int64 AcquisitionEndUnixNanoseconds,
+		int64 DerivedCompleteUnixNanoseconds);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);
@@ -92,6 +97,10 @@ private:
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
 		FDateTime TimestampUtc;
+		int64 ScheduledUnixNanoseconds = 0;
+		int64 AcquisitionStartUnixNanoseconds = 0;
+		int64 AcquisitionEndUnixNanoseconds = 0;
+		int64 DerivedCompleteUnixNanoseconds = 0;
 		FString Json;
 		TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> BinaryBody;
 		TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> BinaryBody64;

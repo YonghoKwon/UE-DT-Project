@@ -419,6 +419,7 @@ FString BuildLidarTelemetryJson(const FVirtualSensorFrameEnvelope& Frame)
 	Root->SetNumberField(TEXT("meanIntensity"), Snapshot.MeanIntensity);
 	Root->SetNumberField(TEXT("acquisitionStartUnixNanoseconds"), static_cast<double>(Snapshot.AcquisitionStartUnixNanoseconds));
 	Root->SetNumberField(TEXT("acquisitionEndUnixNanoseconds"), static_cast<double>(Snapshot.AcquisitionEndUnixNanoseconds));
+	Root->SetNumberField(TEXT("scheduledUnixNanoseconds"), static_cast<double>(Snapshot.ScheduledUnixNanoseconds));
 	FString Json;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
 	FJsonSerializer::Serialize(Root, Writer);
@@ -441,6 +442,20 @@ bool UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(
 	FString& OutError)
 {
 	return SerializePointCloud(Frame, Config, OutExtension, OutBytes, OutPointCount, OutError);
+}
+
+TMap<FString, FString> UVirtualSensorStreamPublisherComponent::BuildCadenceHeaders(
+	int64 ScheduledUnixNanoseconds,
+	int64 AcquisitionStartUnixNanoseconds,
+	int64 AcquisitionEndUnixNanoseconds,
+	int64 DerivedCompleteUnixNanoseconds)
+{
+	TMap<FString, FString> Headers;
+	Headers.Add(TEXT("x-scheduled-unix-ns"), LexToString(ScheduledUnixNanoseconds));
+	Headers.Add(TEXT("x-acquisition-start-unix-ns"), LexToString(AcquisitionStartUnixNanoseconds));
+	Headers.Add(TEXT("x-acquisition-end-unix-ns"), LexToString(AcquisitionEndUnixNanoseconds));
+	Headers.Add(TEXT("x-derived-complete-unix-ns"), LexToString(DerivedCompleteUnixNanoseconds));
+	return Headers;
 }
 
 void UVirtualSensorStreamPublisherComponent::BeginPlay()
@@ -707,6 +722,10 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 		Message.StreamKind = Runtime.Config.StreamKind;
 		Message.FrameId = Frame.FrameId;
 		Message.TimestampUtc = Frame.TimestampUtc;
+		Message.ScheduledUnixNanoseconds = Frame.ScheduledUnixNanoseconds;
+		Message.AcquisitionStartUnixNanoseconds = Frame.AcquisitionStartUnixNanoseconds;
+		Message.AcquisitionEndUnixNanoseconds = Frame.AcquisitionEndUnixNanoseconds;
+		Message.DerivedCompleteUnixNanoseconds = Frame.DerivedCompleteUnixNanoseconds;
 		Message.ConfigRevision = Runtime.ConfigRevision;
 		Message.bHighThroughputBinary = true;
 		if (Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage)
@@ -760,9 +779,14 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	Message.SensorId = Frame.SensorId;
 	Message.StreamKind = Runtime.Config.StreamKind;
 	Message.FrameId = Frame.FrameId;
-		Message.Json = *Frame.JsonPayload;
-		Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
-		Message.ConfigRevision = Runtime.ConfigRevision;
+	Message.TimestampUtc = Frame.TimestampUtc;
+	Message.ScheduledUnixNanoseconds = Frame.ScheduledUnixNanoseconds;
+	Message.AcquisitionStartUnixNanoseconds = Frame.AcquisitionStartUnixNanoseconds;
+	Message.AcquisitionEndUnixNanoseconds = Frame.AcquisitionEndUnixNanoseconds;
+	Message.DerivedCompleteUnixNanoseconds = Frame.DerivedCompleteUnixNanoseconds;
+	Message.Json = *Frame.JsonPayload;
+	Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
+	Message.ConfigRevision = Runtime.ConfigRevision;
 	if (Runtime.PreparedMessage.IsSet()) ++Runtime.Status.ReplacedPendingFrameCount;
 	Runtime.PreparedMessage = MoveTemp(Message);
 	Runtime.Status.bPendingLatestFrame = true;
@@ -849,6 +873,10 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 			Message.StreamKind = EVirtualSensorStreamKind::PointCloud;
 			Message.FrameId = Frame.FrameId;
 			Message.TimestampUtc = Frame.TimestampUtc;
+			Message.ScheduledUnixNanoseconds = Frame.ScheduledUnixNanoseconds;
+			Message.AcquisitionStartUnixNanoseconds = Frame.AcquisitionStartUnixNanoseconds;
+			Message.AcquisitionEndUnixNanoseconds = Frame.AcquisitionEndUnixNanoseconds;
+			Message.DerivedCompleteUnixNanoseconds = Frame.DerivedCompleteUnixNanoseconds;
 			Message.ConfigRevision = CapturedConfigRevision;
 		if (bSucceeded)
 		{
@@ -869,6 +897,10 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 				Message.BinaryMetadata.ByteCount = Bytes.Num();
 				Message.BinaryMetadata.FilterRevision = Config.PointCloudFilter.Revision;
 				Message.BinaryMetadata.ChecksumSha1 = BytesToHex(Hash, FSHA1::DigestSize).ToLower();
+				Message.BinaryMetadata.ScheduledUnixNanoseconds = Frame.ScheduledUnixNanoseconds;
+				Message.BinaryMetadata.AcquisitionStartUnixNanoseconds = Frame.AcquisitionStartUnixNanoseconds;
+				Message.BinaryMetadata.AcquisitionEndUnixNanoseconds = Frame.AcquisitionEndUnixNanoseconds;
+				Message.BinaryMetadata.DerivedCompleteUnixNanoseconds = Frame.DerivedCompleteUnixNanoseconds;
 				Message.ByteCount = Bytes.Num();
 				Message.BinaryBody = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(MoveTemp(Bytes));
 			}
@@ -1171,6 +1203,14 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	Frame.Body32 = Message.BinaryBody;
 	Frame.Body64 = Message.BinaryBody64;
 	Frame.Headers = Message.BinaryHeaders;
+	for (const TPair<FString, FString>& Pair : BuildCadenceHeaders(
+		Message.ScheduledUnixNanoseconds,
+		Message.AcquisitionStartUnixNanoseconds,
+		Message.AcquisitionEndUnixNanoseconds,
+		Message.DerivedCompleteUnixNanoseconds))
+	{
+		Frame.Headers.Add(Pair.Key, Pair.Value);
+	}
 	const FString Checksum = Message.bBinaryPcd ? Message.BinaryMetadata.ChecksumSha1 : Message.BinaryHeaders.FindRef(TEXT("checksum"));
 	Frame.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Message.SensorId, Message.FrameId, *Checksum);
 	if (Message.bBinaryPcd)

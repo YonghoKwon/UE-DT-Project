@@ -520,6 +520,7 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFrame
 {
 	FTransform AcquisitionTransform = FTransform::Identity;
+	int64 ScheduledUnixNanoseconds = 0;
 	int64 FrameId = 0;
 	int32 HorizontalSamples = 1;
 	int32 VerticalChannels = 1;

@@ -8,6 +8,14 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 
+namespace
+{
+FDateTime CameraUnixNanosecondsToUtc(int64 UnixNanoseconds)
+{
+	return UnixNanoseconds > 0 ? FDateTime(1970, 1, 1) + FTimespan(UnixNanoseconds / 100) : FDateTime::UtcNow();
+}
+}
+
 AVirtualCameraSensorActor::AVirtualCameraSensorActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -227,7 +235,11 @@ void AVirtualCameraSensorActor::HandleCameraFrame(const FString& JsonPayload, UT
 		: CaptureComponent->SensorId;
 	Frame.SensorKind = EVirtualSensorKind::Camera;
 	Frame.FrameId = Status.FrameId;
-	Frame.TimestampUtc = FDateTime::UtcNow();
+	Frame.TimestampUtc = CameraUnixNanosecondsToUtc(CaptureComponent->GetLastJpegMetadata().AcquisitionStartUnixNanoseconds);
+	Frame.ScheduledUnixNanoseconds = CaptureComponent->GetLastJpegMetadata().ScheduledUnixNanoseconds;
+	Frame.AcquisitionStartUnixNanoseconds = CaptureComponent->GetLastJpegMetadata().AcquisitionStartUnixNanoseconds;
+	Frame.AcquisitionEndUnixNanoseconds = CaptureComponent->GetLastJpegMetadata().AcquisitionEndUnixNanoseconds;
+	Frame.DerivedCompleteUnixNanoseconds = CaptureComponent->GetLastJpegMetadata().DerivedCompleteUnixNanoseconds;
 	Frame.SchemaVersion = TEXT("virtual-camera.v1");
 	if (!JsonPayload.IsEmpty()) Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
 	Frame.bSendTransport = PendingExternalSendTransport.IsSet()
