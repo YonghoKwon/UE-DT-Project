@@ -272,6 +272,9 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	float SubmittedHz = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	float ReceiptHz = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	float LastReceiptLatencyMs = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
@@ -308,6 +311,7 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastSocketWriteLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float LastConsumerLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float EndToEndP95LatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float AcquisitionToSubmitP95LatencyMs = 0.0f;
 };
 
 USTRUCT(BlueprintType)

@@ -252,7 +252,7 @@ FString UVirtualSensorSettingsPanelWidget::GetCurrentLoadSummaryText() const
                 : FString::Printf(TEXT(" (%s)"), *Status.AcquisitionBackendMessage);
             LoadText += FString::Printf(
                 TEXT("\n프로필: %s · 충실도: %s · 프로토콜 검증: %s")
-                TEXT("\n측정: 요청 %.1fHz / 완료 %.1fHz · 출력 %.1fHz · deadline miss %d")
+				TEXT("\n측정: 요청 %.1fHz / 완료 %.1fHz · 출력 %.1fHz · 주기 누락 %d · 시작/간격 오차 p95 %.2f/%.2fms")
                 TEXT("\n백엔드: %s%s"),
                 ProfileBadge,
                 Fidelity,
@@ -261,6 +261,8 @@ FString UVirtualSensorSettingsPanelWidget::GetCurrentLoadSummaryText() const
                 Status.MeasuredAcquisitionRateHz,
                 Status.MeasuredOutputRateHz,
                 Status.DeadlineMissCount,
+				Status.CadenceStartJitterP95Ms,
+				Status.CadenceIntervalErrorP95Ms,
                 *Status.ActiveAcquisitionBackend,
                 *BackendSuffix);
         }

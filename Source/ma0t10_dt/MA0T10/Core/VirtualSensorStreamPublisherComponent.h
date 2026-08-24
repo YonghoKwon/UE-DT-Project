@@ -40,6 +40,9 @@ public:
 		int64 AcquisitionStartUnixNanoseconds,
 		int64 AcquisitionEndUnixNanoseconds,
 		int64 DerivedCompleteUnixNanoseconds);
+	static FVirtualSensorStreamConfig ApplyEffectiveCadenceDeliveryPolicy(
+		const FVirtualSensorStreamConfig& Config,
+		bool bRawHighThroughputAvailable);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);
@@ -159,6 +162,7 @@ private:
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
 	void MergeHighThroughputTelemetry();
+	bool IsHighThroughputRuntimeAvailable(const FVirtualSensorStreamConfig& Config) const;
 	static bool StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind);
 
 	UFUNCTION()

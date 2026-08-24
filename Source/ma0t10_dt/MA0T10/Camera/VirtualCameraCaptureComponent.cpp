@@ -237,6 +237,8 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 	if (!CadenceState.ConsumeDeadline(NowSeconds, AcquisitionStartUnixNanoseconds, Deadline)) return false;
 	NextScheduledCaptureTime = CadenceState.GetNextDeadlineMonotonicSeconds();
 	RuntimeStatus.DeadlineMissCount = static_cast<int32>(FMath::Min<int64>(MAX_int32, CadenceState.GetTelemetry().DeadlineMissCount));
+	RuntimeStatus.CadenceStartJitterP95Ms = CadenceState.GetTelemetry().StartJitterP95Ms;
+	RuntimeStatus.CadenceIntervalErrorP95Ms = CadenceState.GetTelemetry().IntervalErrorP95Ms;
 
     const double CaptureStart = FPlatformTime::Seconds();
     EnsureRenderTarget();

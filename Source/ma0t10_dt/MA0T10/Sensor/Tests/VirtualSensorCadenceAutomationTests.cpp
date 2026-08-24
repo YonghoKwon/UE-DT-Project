@@ -7,6 +7,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceLongRunTest, "MA0T10.SensorPerformance.RealtimeCadenceLongRun", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceMissAndResumeTest, "MA0T10.SensorPerformance.RealtimeCadenceMissAndResume", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceHeaderContractTest, "MA0T10.SensorStream.HighThroughput.CadenceHeaders", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCadenceDeliveryPolicyTest, "MA0T10.SensorStream.HighThroughput.CadenceDeliveryPolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorCadenceLongRunTest::RunTest(const FString& Parameters)
 {
@@ -53,6 +54,22 @@ bool FVirtualSensorCadenceHeaderContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("acquisition start timestamp header"), Headers.FindRef(TEXT("x-acquisition-start-unix-ns")), FString(TEXT("110")));
 	TestEqual(TEXT("acquisition end timestamp header"), Headers.FindRef(TEXT("x-acquisition-end-unix-ns")), FString(TEXT("120")));
 	TestEqual(TEXT("derived completion timestamp header"), Headers.FindRef(TEXT("x-derived-complete-unix-ns")), FString(TEXT("130")));
+	return true;
+}
+
+bool FVirtualSensorCadenceDeliveryPolicyTest::RunTest(const FString& Parameters)
+{
+	FVirtualSensorStreamConfig Config;
+	Config.StreamKind = EVirtualSensorStreamKind::CameraImage;
+	Config.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
+	Config.FrameStride = 5;
+	Config.ReceiptSampleInterval = 10;
+	const FVirtualSensorStreamConfig Raw = UVirtualSensorStreamPublisherComponent::ApplyEffectiveCadenceDeliveryPolicy(Config, true);
+	TestEqual(TEXT("raw high-throughput sends every completed sensor frame"), Raw.FrameStride, 1);
+	TestEqual(TEXT("raw high-throughput requests every receipt"), Raw.ReceiptSampleInterval, 1);
+	const FVirtualSensorStreamConfig Fallback = UVirtualSensorStreamPublisherComponent::ApplyEffectiveCadenceDeliveryPolicy(Config, false);
+	TestEqual(TEXT("compatibility fallback preserves configured frame stride"), Fallback.FrameStride, 5);
+	TestEqual(TEXT("compatibility fallback preserves configured receipt sampling"), Fallback.ReceiptSampleInterval, 10);
 	return true;
 }
 

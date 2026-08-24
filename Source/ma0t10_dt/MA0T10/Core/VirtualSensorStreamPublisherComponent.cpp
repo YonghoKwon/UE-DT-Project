@@ -458,6 +458,21 @@ TMap<FString, FString> UVirtualSensorStreamPublisherComponent::BuildCadenceHeade
 	return Headers;
 }
 
+FVirtualSensorStreamConfig UVirtualSensorStreamPublisherComponent::ApplyEffectiveCadenceDeliveryPolicy(
+	const FVirtualSensorStreamConfig& Config,
+	bool bRawHighThroughputAvailable)
+{
+	FVirtualSensorStreamConfig Result = Config;
+	Result.FrameStride = FMath::Max(1, Result.FrameStride);
+	Result.ReceiptSampleInterval = FMath::Max(1, Result.ReceiptSampleInterval);
+	if (Result.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput && bRawHighThroughputAvailable)
+	{
+		Result.FrameStride = 1;
+		Result.ReceiptSampleInterval = 1;
+	}
+	return Result;
+}
+
 void UVirtualSensorStreamPublisherComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -536,6 +551,7 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 	Runtime.Config.ReceiptSampleInterval = FMath::Max(1, Config.ReceiptSampleInterval);
 	Runtime.Config.MaxBufferedFrames = FMath::Clamp(Config.MaxBufferedFrames, 1, 120);
 	Runtime.Config.MaxReceiptRetries = FMath::Clamp(Config.MaxReceiptRetries, 0, 10);
+	Runtime.Config = ApplyEffectiveCadenceDeliveryPolicy(Runtime.Config, IsHighThroughputRuntimeAvailable(Runtime.Config));
 	if (Runtime.Config.StreamKind == EVirtualSensorStreamKind::PointCloud &&
 		Runtime.Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss)
 	{
@@ -646,7 +662,7 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 
 void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame)
 {
-	const bool bHighThroughputBinary = Runtime.Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+	const bool bHighThroughputBinary = IsHighThroughputRuntimeAvailable(Runtime.Config) &&
 		((Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage && Frame.BinaryPayload.IsValid()) ||
 		 (Runtime.Config.StreamKind == EVirtualSensorStreamKind::LidarPayload && Frame.LidarFrameSnapshot.IsValid()));
 	// Preview/acquisition envelopes can arrive before asynchronous JSON
@@ -1042,7 +1058,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const int32 Index = (RoundRobinCursor + Attempt) % Keys.Num();
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Keys[Index]);
 		if (!Runtime || !Runtime->Config.bEnabled || NowSeconds < Runtime->NextSubmitAttemptSeconds) continue;
-		const bool bHighThroughputQueued = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+		const bool bHighThroughputQueued = IsHighThroughputRuntimeAvailable(Runtime->Config) &&
 			!Runtime->PreparedMessageQueue.IsEmpty();
 		const bool bNoLoss = bHighThroughputQueued ||
 			(Runtime->Config.StreamKind == EVirtualSensorStreamKind::PointCloud &&
@@ -1064,7 +1080,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const FString SensorType = Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar");
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
-		const bool bUseHighThroughput = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+		const bool bUseHighThroughput = IsHighThroughputRuntimeAvailable(Runtime->Config) &&
 			(Message.bBinaryPcd || Message.bHighThroughputBinary);
 		if (bUseHighThroughput)
 		{
@@ -1243,6 +1259,7 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.SubmittedHz = Item.SubmittedHz;
 		Runtime->Status.SubmittedMegabytesPerSecond = Item.SubmittedMegabytesPerSecond;
 		Runtime->Status.ReceiptReceivedCount = Item.ReceiptCount;
+		Runtime->Status.ReceiptHz = Item.ReceiptHz;
 		Runtime->Status.ConsumerReceivedCount = Item.ConsumerReceivedCount;
 		Runtime->Status.ConsumerReceivedHz = Item.ConsumerHz;
 		Runtime->Status.ConsumerValidationFailureCount = Item.ValidationFailureCount;
@@ -1255,8 +1272,16 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.LastReceiptLatencyMs = Item.LastReceiptLatencyMs;
 		Runtime->Status.LastConsumerLatencyMs = Item.LastEndToEndLatencyMs;
 		Runtime->Status.EndToEndP95LatencyMs = Item.EndToEndP95LatencyMs;
+		Runtime->Status.AcquisitionToSubmitP95LatencyMs = Item.AcquisitionToSubmitP95LatencyMs;
 		Runtime->Status.Message = Item.Message;
 	}
+}
+
+bool UVirtualSensorStreamPublisherComponent::IsHighThroughputRuntimeAvailable(const FVirtualSensorStreamConfig& Config) const
+{
+	if (Config.TransportBackend != EVirtualSensorStreamTransportBackend::TcpStompHighThroughput || !TransportComponent) return false;
+	FString Reason;
+	return UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(TransportComponent->GetTransportProfile().BrokerUrl, &Reason);
 }
 
 void UVirtualSensorStreamPublisherComponent::CheckReceiptTimeouts(double NowSeconds)
@@ -1456,7 +1481,7 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 				const FStreamRuntime* Active = Exact && Exact->Config.bEnabled ? Exact : (Global && Global->Config.bEnabled ? Global : nullptr);
 				Camera->SetRuntimeStreamOutputDemand(
 					Active != nullptr,
-					Active && Active->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput);
+					Active && IsHighThroughputRuntimeAvailable(Active->Config));
 			}
 		}
 	}
