@@ -1,13 +1,147 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 
 #include "Blueprint/WidgetLayoutLibrary.h"
+#include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/TextBlock.h"
 #include "Components/PanelWidget.h"
 #include "Input/Reply.h"
 #include "InputCoreTypes.h"
 #include "Widgets/SWidget.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Types/ISlateMetaData.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h"
+
+namespace
+{
+FSimpleMulticastDelegate GVirtualSensorFontScaleChanged;
+
+class FVirtualSensorFontBaselineMetaData final : public ISlateMetaData
+{
+public:
+	SLATE_METADATA_TYPE(FVirtualSensorFontBaselineMetaData, ISlateMetaData)
+	explicit FVirtualSensorFontBaselineMetaData(int32 InBaseSize) : BaseSize(InBaseSize) {}
+	int32 BaseSize = 10;
+};
+
+void ApplySlateFontScaleRecursive(const TSharedRef<SWidget>& Widget, float Scale)
+{
+	if (Widget->GetType() == FName(TEXT("STextBlock")))
+	{
+		const TSharedRef<STextBlock> Text = StaticCastSharedRef<STextBlock>(Widget);
+		TSharedPtr<FVirtualSensorFontBaselineMetaData> Baseline = Widget->GetMetaData<FVirtualSensorFontBaselineMetaData>();
+		if (!Baseline.IsValid())
+		{
+			Baseline = MakeShared<FVirtualSensorFontBaselineMetaData>(FMath::Max(1, Text->GetFont().Size));
+			Widget->AddMetadata(Baseline.ToSharedRef());
+		}
+		FSlateFontInfo Font = Text->GetFont();
+		Font.Size = UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(Baseline->BaseSize, Scale);
+		Text->SetFont(Font);
+	}
+	else if (Widget->GetType() == FName(TEXT("SEditableTextBox")))
+	{
+		const TSharedRef<SEditableTextBox> Editable = StaticCastSharedRef<SEditableTextBox>(Widget);
+		TSharedPtr<FVirtualSensorFontBaselineMetaData> Baseline = Widget->GetMetaData<FVirtualSensorFontBaselineMetaData>();
+		if (!Baseline.IsValid())
+		{
+			const int32 BaseSize = FMath::Max(1, FVirtualSensorUiStyle::EditableTextBoxStyle().TextStyle.Font.Size);
+			Baseline = MakeShared<FVirtualSensorFontBaselineMetaData>(BaseSize);
+			Widget->AddMetadata(Baseline.ToSharedRef());
+		}
+		FSlateFontInfo Font = FVirtualSensorUiStyle::EditableTextBoxStyle().TextStyle.Font;
+		Font.Size = UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(Baseline->BaseSize, Scale);
+		Editable->SetFont(Font);
+	}
+
+	FChildren* Children = Widget->GetChildren();
+	if (!Children) return;
+	for (int32 Index = 0; Index < Children->Num(); ++Index)
+	{
+		ApplySlateFontScaleRecursive(Children->GetChildAt(Index), Scale);
+	}
+}
+}
+
+void UVirtualSensorPanelWidgetBase::NativeConstruct()
+{
+	Super::NativeConstruct();
+	if (!FontScaleChangedHandle.IsValid())
+	{
+		FontScaleChangedHandle = GVirtualSensorFontScaleChanged.AddUObject(this, &UVirtualSensorPanelWidgetBase::HandleGlobalFontScaleChanged);
+	}
+	ApplyGlobalFontScale();
+}
+
+void UVirtualSensorPanelWidgetBase::NativeDestruct()
+{
+	if (FontScaleChangedHandle.IsValid())
+	{
+		GVirtualSensorFontScaleChanged.Remove(FontScaleChangedHandle);
+		FontScaleChangedHandle.Reset();
+	}
+	Super::NativeDestruct();
+}
+
+void UVirtualSensorPanelWidgetBase::SetGlobalSensorUiFontScale(float InScale)
+{
+	UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
+	if (!Preferences) return;
+	const float ClampedScale = FMath::Clamp(InScale, 0.75f, 1.75f);
+	Preferences->GlobalFontScale = ClampedScale;
+	UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
+	GVirtualSensorFontScaleChanged.Broadcast();
+}
+
+float UVirtualSensorPanelWidgetBase::GetGlobalSensorUiFontScale() const
+{
+	const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
+	return Preferences ? FMath::Clamp(Preferences->GlobalFontScale, 0.75f, 1.75f) : 1.0f;
+}
+
+void UVirtualSensorPanelWidgetBase::ResetGlobalSensorUiFontScale()
+{
+	SetGlobalSensorUiFontScale(1.0f);
+}
+
+int32 UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(int32 BaseSize, float Scale)
+{
+	return FMath::Clamp(FMath::RoundToInt(FMath::Max(1, BaseSize) * FMath::Clamp(Scale, 0.75f, 1.75f)), 8, 48);
+}
+
+void UVirtualSensorPanelWidgetBase::HandleGlobalFontScaleChanged()
+{
+	ApplyGlobalFontScale();
+}
+
+void UVirtualSensorPanelWidgetBase::ApplyGlobalFontScale()
+{
+	const float Scale = GetGlobalSensorUiFontScale();
+	if (const TSharedPtr<SWidget> Root = GetCachedWidget())
+	{
+		ApplySlateFontScaleRecursive(Root.ToSharedRef(), Scale);
+	}
+	if (WidgetTree)
+	{
+		WidgetTree->ForEachWidget([this, Scale](UWidget* Widget)
+		{
+			if (UTextBlock* Text = Cast<UTextBlock>(Widget))
+			{
+				int32& BaseSize = UmgTextBaseSizes.FindOrAdd(Text, FMath::Max(1, Text->GetFont().Size));
+				FSlateFontInfo Font = Text->GetFont();
+				Font.Size = CalculateScaledFontSize(BaseSize, Scale);
+				Text->SetFont(Font);
+			}
+		});
+	}
+	InvalidateLayoutAndVolatility();
+	ApplyPanelSize();
+	SetPanelPositionInternal(CurrentViewportPosition);
+	OnSensorUiFontScaleChanged(Scale);
+}
 
 void UVirtualSensorPanelWidgetBase::SetPanelPersistenceKey(FName InPanelPersistenceKey)
 {

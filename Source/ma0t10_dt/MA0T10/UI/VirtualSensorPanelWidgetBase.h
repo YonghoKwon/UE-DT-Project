@@ -13,6 +13,20 @@ class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDxWidget
     GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel|Accessibility")
+	void SetGlobalSensorUiFontScale(float InScale);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorPanel|Accessibility")
+	float GetGlobalSensorUiFontScale() const;
+
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel|Accessibility")
+	void ResetGlobalSensorUiFontScale();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "DigitalTwin|SensorPanel|Accessibility")
+	void OnSensorUiFontScaleChanged(float NewScale);
+
+	static int32 CalculateScaledFontSize(int32 BaseSize, float Scale);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel")
     void SetPanelPersistenceKey(FName InPanelPersistenceKey);
 
@@ -65,6 +79,8 @@ public:
     void RefreshHostedPanelLayout();
 
 protected:
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual FReply NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -101,6 +117,8 @@ private:
     void ApplyPanelSize();
     FVector2D ResolveMaximumPanelSize() const;
     bool IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const;
+	void ApplyGlobalFontScale();
+	void HandleGlobalFontScaleChanged();
 
     EVirtualSensorPanelPlacement DefaultPlacement = EVirtualSensorPanelPlacement::RightCenter;
     FVector2D RequestedPanelSize = FVector2D(820.0f, 430.0f);
@@ -117,6 +135,8 @@ private:
     bool bPanelCollapsed = false;
     bool bInitialLayoutPending = false;
     bool bPanelLayoutConfigured = false;
+	FDelegateHandle FontScaleChangedHandle;
+	TMap<TWeakObjectPtr<class UTextBlock>, int32> UmgTextBaseSizes;
 
     UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorPanelHostComponent> PanelHostComponent;

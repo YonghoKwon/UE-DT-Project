@@ -542,6 +542,15 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
             + SScrollBox::Slot()
             [
                 SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 8.0f)
+				[
+					SNew(SWrapBox).UseAllottedSize(true)
+					+ SWrapBox::Slot()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("UiScaleTitle", "UI 글자 크기")) ]
+					+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("FontSmaller", "글자 -")).ToolTipText(LOCTEXT("FontSmallerTip", "세 센서 패널의 글자를 한 단계 작게 표시합니다.")).OnClicked_Lambda([this]() { const float S = GetGlobalSensorUiFontScale(); SetGlobalSensorUiFontScale(S > 1.25f ? 1.25f : S > 1.0f ? 1.0f : 0.85f); return FReply::Handled(); }) ]
+					+ SWrapBox::Slot()[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("%.0f%%"), GetGlobalSensorUiFontScale() * 100.0f)); }) ]
+					+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("FontLarger", "글자 +")).ToolTipText(LOCTEXT("FontLargerTip", "세 센서 패널의 글자를 한 단계 크게 표시합니다.")).OnClicked_Lambda([this]() { const float S = GetGlobalSensorUiFontScale(); SetGlobalSensorUiFontScale(S < 1.0f ? 1.0f : S < 1.25f ? 1.25f : 1.5f); return FReply::Handled(); }) ]
+					+ SWrapBox::Slot()[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("FontReset", "기본 100%" )).OnClicked_Lambda([this]() { ResetGlobalSensorUiFontScale(); return FReply::Handled(); }) ]
+				]
                 + SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).Text(LOCTEXT("SelectSection", "1. 센서 선택")) ]
                 + SVerticalBox::Slot().AutoHeight()
                 [

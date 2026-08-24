@@ -244,6 +244,9 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
 void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
 {
     UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences();
+	if (SettingsWidget) SettingsWidget->ResetGlobalSensorUiFontScale();
+	else if (MonitorWidget) MonitorWidget->ResetGlobalSensorUiFontScale();
+	else if (CaptureExportWidget) CaptureExportWidget->ResetGlobalSensorUiFontScale();
     if (MonitorWidget)
     {
         MonitorWidget->ResetMonitorUiPreferencesToDefault();
