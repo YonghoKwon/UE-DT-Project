@@ -33,6 +33,7 @@ struct MA0T10_DT_API FVirtualSensorCadenceState
 	void Start(double NowMonotonicSeconds, int64 NowUnixNanoseconds, double IntervalSeconds, double PhaseSeconds = 0.0);
 	void Stop();
 	void Resume(double NowMonotonicSeconds, int64 NowUnixNanoseconds);
+	void ForceDue(double NowMonotonicSeconds, int64 NowUnixNanoseconds);
 	bool IsRunning() const { return NextDeadlineMonotonicSeconds >= 0.0; }
 	bool IsDue(double NowMonotonicSeconds) const;
 	bool ConsumeDeadline(double NowMonotonicSeconds, int64 ActualStartUnixNanoseconds, FVirtualSensorCadenceDeadline& OutDeadline);

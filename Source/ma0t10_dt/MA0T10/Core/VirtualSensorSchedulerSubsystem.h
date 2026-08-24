@@ -90,6 +90,7 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual TStatId GetStatId() const override;
     virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual bool IsTickableWhenPaused() const override { return true; }
 
     void RegisterCamera(UVirtualCameraCaptureComponent* Camera);
     void UnregisterCamera(UVirtualCameraCaptureComponent* Camera);
@@ -138,6 +139,7 @@ private:
     bool bCommandLineBenchmarkConfigured = false;
     bool bCommandLineBenchmarkStatisticsReset = false;
     double CommandLineBenchmarkStatisticsResetTime = -1.0;
+	bool bCadencePaused = false;
 
     UPROPERTY(Transient)
     TArray<TObjectPtr<AActor>> CommandLineBenchmarkActors;

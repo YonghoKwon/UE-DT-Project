@@ -43,6 +43,14 @@ void FVirtualSensorCadenceState::Resume(double NowMonotonicSeconds, int64 NowUni
 	LastActualStartUnixNanoseconds = 0;
 }
 
+void FVirtualSensorCadenceState::ForceDue(double NowMonotonicSeconds, int64 NowUnixNanoseconds)
+{
+	if (!IsRunning()) return;
+	AnchorMonotonicSeconds = NowMonotonicSeconds;
+	AnchorUnixNanoseconds = NowUnixNanoseconds;
+	NextDeadlineMonotonicSeconds = NowMonotonicSeconds;
+}
+
 bool FVirtualSensorCadenceState::IsDue(double NowMonotonicSeconds) const
 {
 	return IsRunning() && NowMonotonicSeconds + UE_DOUBLE_SMALL_NUMBER >= NextDeadlineMonotonicSeconds;
