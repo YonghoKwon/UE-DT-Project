@@ -349,6 +349,28 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& I
     return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
+FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (PanelHostComponent) PanelHostComponent->BringPanelToFront(this);
+	if (bPanelResizable && !bPanelCollapsed && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton &&
+		IsInResizeHandle(InGeometry, InMouseEvent.GetScreenSpacePosition()))
+	{
+		bResizingPanel = true;
+		const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
+		return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+	}
+	return Super::NativeOnPreviewMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+FCursorReply UVirtualSensorPanelWidgetBase::NativeOnCursorQuery(const FGeometry& InGeometry, const FPointerEvent& InCursorEvent)
+{
+	if (bPanelResizable && !bPanelCollapsed && IsInResizeHandle(InGeometry, InCursorEvent.GetScreenSpacePosition()))
+	{
+		return FCursorReply::Cursor(EMouseCursor::ResizeSouthEast);
+	}
+	return Super::NativeOnCursorQuery(InGeometry, InCursorEvent);
+}
+
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     if (bResizingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)

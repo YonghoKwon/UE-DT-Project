@@ -305,6 +305,14 @@ bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("capture/export panel can opt into common resize behavior"), Widget->bPanelResizable);
 	Widget->SetActiveTab(EVirtualSensorCaptureExportTab::Export);
 	TestEqual(TEXT("four-tab selection is explicit"), Widget->GetActiveTab(), EVirtualSensorCaptureExportTab::Export);
+	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	Settings->SetPanelResizable(true);
+	Settings->SetPanelResizeLimits(FVector2D(360.0f, 320.0f), FVector2D::ZeroVector);
+	TestTrue(TEXT("settings panel opts into common resize behavior"), Settings->bPanelResizable);
+	const FVector2D SettingsMinimum = UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
+		FVector2D(450.0f, 640.0f), FVector2D(-1000.0f, -1000.0f), 1.0f,
+		FVector2D(360.0f, 320.0f), FVector2D(1600.0f, 1000.0f));
+	TestEqual(TEXT("settings panel respects its minimum size"), SettingsMinimum, FVector2D(360.0f, 320.0f));
 	return true;
 }
 

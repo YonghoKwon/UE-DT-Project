@@ -689,6 +689,14 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 + SVerticalBox::Slot().AutoHeight()[ SAssignNew(NativeStatusText, STextBlock).ColorAndOpacity_Lambda([this]() { return LastControlMessage.Contains(TEXT("실패")) ? FVirtualSensorUiStyle::Error : (LastControlMessage.Contains(TEXT("대기")) || LastControlMessage.Contains(TEXT("갱신")) ? FVirtualSensorUiStyle::Warning : FVirtualSensorUiStyle::Success); }).AutoWrapText(true).Text(FText::FromString(GetControlStatusText())) ]
             ]
         ]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 3.0f, 1.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
+			.ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
+			.Text(LOCTEXT("SettingsResizeHint", "↘ 크기 조절"))
+			.ToolTipText(LOCTEXT("SettingsResizeHintTip", "오른쪽 아래를 드래그해 센서 설정 패널 크기를 조절합니다."))
+		]
     ];
 }
 
