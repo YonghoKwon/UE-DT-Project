@@ -225,10 +225,16 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     PollScheduledGpuReadback(NowSeconds);
 	QueuePendingGpuReadbacks();
 	PumpScheduledEncodeQueue();
+	const double ConfiguredInterval = FMath::Max(0.001, static_cast<double>(CaptureInterval));
+	if (CadenceState.IsRunning() && !FMath::IsNearlyEqual(CadenceState.GetIntervalSeconds(), ConfiguredInterval, 1.0e-6))
+	{
+		CadenceState.Start(NowSeconds, CameraUtcNowUnixNanoseconds(), ConfiguredInterval);
+		NextScheduledCaptureTime = CadenceState.GetNextDeadlineMonotonicSeconds();
+	}
     if (!bAllowNewCapture) return false;
     if (!CadenceState.IsDue(NowSeconds)) return false;
 
-    const double SafeInterval = FMath::Max(0.001, static_cast<double>(CaptureInterval));
+	const double SafeInterval = ConfiguredInterval;
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
 	RuntimeStatus.RequestedAcquisitionBackend = TEXT("scene_capture_gpu");
 	RuntimeStatus.ActiveAcquisitionBackend = TEXT("scene_capture_gpu");

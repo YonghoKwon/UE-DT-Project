@@ -912,6 +912,11 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 {
 	if (!CadenceState.IsRunning()) return;
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
+	if (!FMath::IsNearlyEqual(CadenceState.GetIntervalSeconds(), SafeInterval, 1.0e-6))
+	{
+		CadenceState.Start(NowSeconds, UtcNowUnixNanoseconds(), SafeInterval);
+		NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
+	}
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
     RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
         ? TEXT("auto")

@@ -44,6 +44,9 @@ bool FVirtualSensorCadenceMissAndResumeTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("resume does not immediately replay paused deadlines"), Cadence.IsDue(30.0));
 	TestTrue(TEXT("resume starts on the next clean period"), Cadence.ConsumeDeadline(30.05, 4050000000000LL, Deadline));
 	TestEqual(TEXT("pause duration is not counted as a deadline miss"), Cadence.GetTelemetry().DeadlineMissCount, static_cast<int64>(2));
+	Cadence.Start(40.0, 5000000000000LL, 1.0 / 20.0);
+	TestTrue(TEXT("profile interval change is applied immediately"), Cadence.ConsumeDeadline(40.0, 5000000000000LL, Deadline));
+	TestTrue(TEXT("profile interval change updates target rate"), FMath::IsNearlyEqual(Cadence.GetTelemetry().TargetHz, 20.0f));
 	return true;
 }
 
