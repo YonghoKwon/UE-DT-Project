@@ -70,7 +70,7 @@ PIE 변경은 자동 저장되지 않습니다. Settings의 `SensorTestMap에 �
 - Settings: Transform·기즈모, 기본/고급 설정, 도움말, 투사 범위, 맵 저장 예약
 - CaptureExport: 1회 캡처, Payload, CSV/JSONL/PCD/LAS/LAZ, timed capture, 최근 결과와 경로
 
-패널 위치·접힘·LiDAR 표시 상태, 확장 크기, 듀얼 카메라와 캡처 선택은 `Saved/SaveGames/MA0T10_VirtualSensorUI_v6.sav`에 저장됩니다. 기존 v1~v5 파일은 자동 변환되며 센서 Transform과 장비 설정은 이 SaveGame에 저장되지 않습니다.
+패널 위치·접힘·LiDAR 표시 상태, 확장 크기, 세 패널 공통 글자 배율, 듀얼 카메라와 캡처 선택은 `Saved/SaveGames/MA0T10_VirtualSensorUI_v7.sav`에 저장됩니다. 기존 v1~v6 파일은 자동 변환되며 센서 Transform과 장비 설정은 이 SaveGame에 저장되지 않습니다.
 
 Camera 보기에서 `카메라 2대 동시 보기`를 켜고 주/보조 드롭다운에서 서로 다른 SensorId를 선택합니다. 주 카메라는 Settings 선택과 함께 바뀌고 보조 카메라는 보기 전용입니다. Refactor Map의 `VCAM-TEST-001`은 대각선, `VCAM-TEST-002`는 높이 10m·Pitch -90° 수직 하향 카메라입니다. 화면은 기존 RenderTarget만 공유하므로 듀얼 모드가 센서 캡처 횟수를 늘리지 않습니다.
 
