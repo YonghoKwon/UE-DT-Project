@@ -48,7 +48,7 @@ Payload 계약은 `virtual-camera.v1`, `virtual-lidar.v1`을 유지합니다. �
 
 `AVirtualSensorUiHostActor`의 `UVirtualSensorPanelHostComponent`는 Main Widget의 `AddWidgetPanel`이 유효한 Canvas이면 패널을 그 아래에 배치합니다. Main이 없으면 같은 패널을 Viewport에 배치하고, Main 교체를 감지하면 중복 생성 없이 재호스팅합니다.
 
-접기 버튼은 본문 visibility만 바꾸지 않고 실제 slot 높이를 약 48px로 줄입니다. 펼칠 때 이전 크기를 복원하며 DPI와 화면 크기에 맞춰 위치를 보정합니다. Monitor와 CaptureExport 패널은 오른쪽 아래 `↘` 영역을 드래그해 가로·세로를 자유롭게 조절할 수 있고 `크기 초기화`로 현재 해상도의 기본 크기로 돌아갑니다. 위치·접힘·확장 크기·LiDAR 표시·듀얼 카메라·스트림/캡처 선택은 `Saved/SaveGames/MA0T10_VirtualSensorUI_v6.sav`에 사용자별로 저장됩니다. 기존 v1~v5 파일은 처음 로드할 때 자동 변환됩니다.
+접기 버튼은 실제 slot 높이를 약 48px로 줄이고 펼칠 때 이전 크기를 복원합니다. Monitor, Settings, CaptureExport 세 패널 모두 오른쪽 아래 `↘` grip을 드래그해 자유롭게 크기를 바꿀 수 있으며 DPI와 화면 경계에 맞춰 보정됩니다. Settings의 `글자 - / 글자 + / 기본 100%`로 세 패널 글자를 85%·100%·125%·150%로 함께 조절합니다. 위치·접힘·확장 크기·글자 배율·LiDAR 표시·듀얼 카메라·스트림/캡처 선택은 `Saved/SaveGames/MA0T10_VirtualSensorUI_v7.sav`에 저장되고 기존 v1~v6은 자동 변환됩니다.
 
 Camera 화면에서는 `단일 / 카메라 2대`를 선택할 수 있습니다. 듀얼 모드는 주 카메라를 약 70%, 보조 카메라를 약 30%로 표시하며 두 드롭다운에서 서로 다른 SensorId를 고릅니다. 주 카메라는 Settings와 Coordinator 선택에 동기화되고 보조 카메라는 보기 전용입니다. 두 화면 모두 기존 RenderTarget을 직접 사용하므로 듀얼 보기 자체가 추가 캡처나 GPU readback을 만들지 않습니다. `SensorRefactorTestMap`에는 대각선 `VCAM-TEST-001`과 높이 10m의 수직 하향 `VCAM-TEST-002`가 기본 배치됩니다.
 
@@ -106,7 +106,7 @@ LiDAR 모니터는 투영과 색상을 독립적으로 선택합니다.
 
 RangeImage 전용 오버레이인 적응형 거리·깊이 경계·격자는 TopDown/Elevation의 축·거리 원·높이 기준선과 별개입니다. 포인트 크기, 3D 표시 여부와 월드 조감도 자동 맞춤은 v6 UI SaveGame에 저장됩니다.
 
-FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera acquisition은 2대 구성에서 센서별 최대 30Hz, 4대 구성에서 센서별 최대 15Hz를 공정하게 배분하며 JPEG/전송 출력률과 별도로 측정합니다. ML-X FullSpec `Auto`는 GPU Depth Projection을 우선하고 RHI가 없거나 초기화에 실패하면 Accurate CPU Trace로 전환합니다. GPU 방식은 첫 표면 대규모 측정용이고 CPU 방식은 정밀 회귀/MultiHit용입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
+FullSpec 스케줄러는 `FPlatformTime` 단조 실시간 deadline으로 D455 30Hz와 ML-X(80) 20Hz를 유지합니다. 프로필·품질 변경으로 interval이 바뀌면 한 번 재동기화하고, hitch가 한 주기를 넘으면 가짜 프레임을 복제하지 않고 `주기 누락`으로 기록합니다. 예정 측정, 실제 시작·종료, 파생 완료, socket 제출 시각이 STOMP header까지 보존되며 UI에서 시작/간격 오차 p95를 확인할 수 있습니다. ML-X FullSpec `Auto`는 GPU Depth Projection을 우선하고 실패하면 Accurate CPU Trace로 전환합니다.
 
 ## 외부 Source와 서버 전송
 

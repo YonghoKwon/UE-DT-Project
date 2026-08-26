@@ -214,6 +214,9 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
             SettingsWidget->BindHostActor(this);
             SettingsWidget->BindSensorManager(ResolvedManager);
             SettingsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(450.0f, 640.0f));
+			SettingsWidget->SetPanelResizable(true);
+			SettingsWidget->ResizeHandleSize = 32.0f;
+			SettingsWidget->SetPanelResizeLimits(FVector2D(360.0f, 320.0f), FVector2D::ZeroVector);
             if (PanelHostComponent)
             {
                 PanelHostComponent->RegisterPanel(SettingsWidget, SettingsViewportZOrder);
@@ -244,6 +247,9 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
 void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
 {
     UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences();
+	if (SettingsWidget) SettingsWidget->ResetGlobalSensorUiFontScale();
+	else if (MonitorWidget) MonitorWidget->ResetGlobalSensorUiFontScale();
+	else if (CaptureExportWidget) CaptureExportWidget->ResetGlobalSensorUiFontScale();
     if (MonitorWidget)
     {
         MonitorWidget->ResetMonitorUiPreferencesToDefault();

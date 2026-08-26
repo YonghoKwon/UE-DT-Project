@@ -399,6 +399,12 @@ public:
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
 		if (StreamElapsedSeconds >= WarmupSeconds)
 		{
+			if (!bMeasurementCadenceBaselineCaptured)
+			{
+				CameraDeadlineMissBaseline = Camera->CaptureComponent->GetRuntimeStatus().DeadlineMissCount;
+				LidarDeadlineMissBaseline = Lidar->ScanComponent->GetRuntimeStatus().DeadlineMissCount;
+				bMeasurementCadenceBaselineCaptured = true;
+			}
 			const double SampleNow = FPlatformTime::Seconds();
 			const double GameFrameMs = World->GetDeltaSeconds() * 1000.0;
 			if (GameFrameMs > 0.0 && GameFrameMs < 1000.0) FrameTimesMs.Add(GameFrameMs);
@@ -483,6 +489,17 @@ public:
 			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
+		const FVirtualSensorRuntimeStatus& CameraRuntime = Camera->CaptureComponent->GetRuntimeStatus();
+		const FVirtualSensorRuntimeStatus& LidarRuntime = Lidar->ScanComponent->GetRuntimeStatus();
+		const int32 CameraMeasurementMisses = CameraRuntime.DeadlineMissCount - CameraDeadlineMissBaseline;
+		const int32 LidarMeasurementMisses = LidarRuntime.DeadlineMissCount - LidarDeadlineMissBaseline;
+		Test->TestEqual(TEXT("D455 realtime cadence has no missed sensor periods after warmup"), CameraMeasurementMisses, 0);
+		Test->TestEqual(TEXT("ML-X realtime cadence has no missed sensor periods after warmup"), LidarMeasurementMisses, 0);
+		Test->TestTrue(TEXT("D455 acquisition interval p95 error remains below 2.5 ms"), CameraRuntime.CadenceIntervalErrorP95Ms <= 2.5f);
+		Test->TestTrue(TEXT("ML-X acquisition interval p95 error remains below 2.5 ms"), LidarRuntime.CadenceIntervalErrorP95Ms <= 2.5f);
+		UE_LOG(LogTemp, Display, TEXT("[SensorCadenceRhi] cameraStartJitterP95Ms=%.2f cameraIntervalErrorP95Ms=%.2f cameraDeadlineMiss=%d lidarStartJitterP95Ms=%.2f lidarIntervalErrorP95Ms=%.2f lidarDeadlineMiss=%d"),
+			CameraRuntime.CadenceStartJitterP95Ms, CameraRuntime.CadenceIntervalErrorP95Ms, CameraMeasurementMisses,
+			LidarRuntime.CadenceStartJitterP95Ms, LidarRuntime.CadenceIntervalErrorP95Ms, LidarMeasurementMisses);
 		const FVirtualSensorStreamStatus* CameraStatus = StatusByKind.Find(EVirtualSensorStreamKind::CameraImage);
 		const FVirtualSensorStreamStatus* LidarStatus = StatusByKind.Find(EVirtualSensorStreamKind::LidarPayload);
 		UE_LOG(LogTemp, Display, TEXT("[SensorHighThroughputRhi] cameraSubmitted=%lld cameraReceipt=%lld cameraConsumer=%lld cameraHz=%.2f lidarSubmitted=%lld lidarReceipt=%lld lidarConsumer=%lld lidarHz=%.2f pcdSubmitted=%lld pcdReceipt=%lld pcdConsumer=%lld pcdHz=%.2f"),
@@ -540,6 +557,9 @@ private:
 	double WarmupSeconds = 10.0;
 	TArray<double> FrameTimesMs;
 	TArray<double> WallPacingTimesMs;
+	bool bMeasurementCadenceBaselineCaptured = false;
+	int32 CameraDeadlineMissBaseline = 0;
+	int32 LidarDeadlineMissBaseline = 0;
 };
 }
 

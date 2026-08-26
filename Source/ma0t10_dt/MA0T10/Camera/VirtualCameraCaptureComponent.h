@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorCadence.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
@@ -61,12 +62,11 @@ public:
     void RequestImmediateScheduledCapture();
     bool IsScheduledCaptureDue(double NowSeconds) const
     {
-        return NextScheduledCaptureTime >= 0.0 && NowSeconds + KINDA_SMALL_NUMBER >= NextScheduledCaptureTime;
+        return CadenceState.IsDue(NowSeconds);
     }
     void MarkBudgetSkippedAcquisition()
     {
         ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
-        ++RuntimeStatus.DeadlineMissCount;
     }
 
 	/** Requests JPEG production for a live stream without changing the persisted CaptureMode setting. */
@@ -77,6 +77,8 @@ public:
 	}
 	bool HasRuntimeStreamOutputDemand() const { return bRuntimeStreamOutputDemand; }
 	bool HasHighThroughputStreamOutputDemand() const { return bRuntimeHighThroughputStreamDemand; }
+	void ResumeRealtimeCadence(double NowMonotonicSeconds, int64 NowUnixNanoseconds);
+	const FVirtualSensorCadenceTelemetry& GetCadenceTelemetry() const { return CadenceState.GetTelemetry(); }
 
     virtual EVirtualSensorKind GetScheduledSensorKind() const override { return EVirtualSensorKind::Camera; }
     virtual bool IsScheduledTaskActive() const override { return IsCaptureRunning(); }
@@ -107,7 +109,7 @@ public:
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera")
-    bool IsCaptureRunning() const { return NextScheduledCaptureTime >= 0.0; }
+    bool IsCaptureRunning() const { return CadenceState.IsRunning(); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|Transport")
     const FString& GetLastJsonPayload() const { return LastJsonPayload; }
@@ -247,13 +249,22 @@ private:
 		int32 Quality = 0;
 		double CaptureStartedSeconds = 0.0;
 	};
+	struct FCaptureTiming
+	{
+		int64 ScheduledUnixNanoseconds = 0;
+		int64 AcquisitionStartUnixNanoseconds = 0;
+		int64 AcquisitionEndUnixNanoseconds = 0;
+		int64 DerivedCompleteUnixNanoseconds = 0;
+	};
 	TArray<FScheduledReadbackSlot> ScheduledReadbackSlots;
 	TArray<FPendingReadbackRequest> PendingReadbackRequests;
 	TArray<FPendingEncodeInput> PendingEncodeInputs;
 	TArray<int64> EncodeOrder;
 	TMap<int64, FCompletedEncode> CompletedEncodes;
+	TMap<int64, FCaptureTiming> CaptureTimings;
 	int32 ScheduledEncodeInFlightCount = 0;
     double NextScheduledCaptureTime = -1.0;
+	FVirtualSensorCadenceState CadenceState;
     double LastScheduledCompletionTime = -1.0;
     double LastAcquisitionCompletionTime = -1.0;
     double LastOutputCompletionTime = -1.0;

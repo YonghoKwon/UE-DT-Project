@@ -57,16 +57,20 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 LastFrameId = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 LastFrameBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float SubmittedHz = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float ReceiptHz = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float SubmittedMegabytesPerSecond = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float ConsumerHz = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastSocketWriteLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastReceiptLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float LastEndToEndLatencyMs = 0.0f;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float EndToEndP95LatencyMs = 0.0f;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float AcquisitionToSubmitP95LatencyMs = 0.0f;
 
 	double FirstSubmittedSeconds = 0.0;
 	double FirstConsumerSeconds = 0.0;
+	double FirstReceiptSeconds = 0.0;
 	TArray<float> EndToEndLatencySamples;
+	TArray<float> AcquisitionToSubmitLatencySamples;
 };
 
 /** Shared immutable frame handed directly to the socket worker. */
