@@ -1,4 +1,5 @@
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "SensorToolWidgetDecl.h"
 
 #include "Async/Async.h"
 #include "Components/Button.h"
@@ -527,20 +528,20 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                     SNew(SHorizontalBox)
                     + SHorizontalBox::Slot().FillWidth(1.0f)
                     [
-                        SAssignNew(NativeTitleTextBlock, STextBlock)
+                        SAssignSensorTool(NativeTitleTextBlock, STextBlock)
                         .ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText)
                         .Text(FText::FromString(BuildTitleText()))
                     ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f)
                     [
-                        SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                        SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
                         .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
                         .Text_Lambda([this]() { return FText::FromString(IsPanelCollapsed() ? TEXT("펼치기") : TEXT("접기")); })
                         .OnClicked_Lambda([this]() { TogglePanelCollapsed(); return FReply::Handled(); })
                     ]
                     + SHorizontalBox::Slot().AutoWidth()
                     [
-                        SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                        SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
                         .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
                         .Text(LOCTEXT("ResetUi", "위치 초기화"))
                         .ToolTipText(LOCTEXT("ResetUiTip", "이 패널을 기본 위치로 되돌립니다."))
@@ -548,7 +549,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                     ]
                     + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 0.0f, 0.0f)
                     [
-                        SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                        SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
                         .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
                         .Text(LOCTEXT("ResetMonitorSize", "크기 초기화"))
                         .ToolTipText(LOCTEXT("ResetMonitorSizeTip", "모니터를 현재 화면 해상도의 기본 크기로 되돌립니다."))
@@ -591,21 +592,21 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                     [
                         SNew(SVerticalBox)
                         + SVerticalBox::Slot().AutoHeight()
-                        [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(GetSelectedSensorIdText()); }) ]
+                        [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(GetSelectedSensorIdText()); }) ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
-                        [ SAssignNew(NativeStatusTextBlock, STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).AutoWrapText(true).Text(FText::FromString(BuildCompactStatusText())) ]
+                        [ SAssignSensorTool(NativeStatusTextBlock, STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).AutoWrapText(true).Text(FText::FromString(BuildCompactStatusText())) ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 5.0f)
-                        [ SAssignNew(NativeWarningTextBlock, STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Warning).AutoWrapText(true).Text(FText::FromString(GetTransportWarningText())) ]
+                        [ SAssignSensorTool(NativeWarningTextBlock, STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Warning).AutoWrapText(true).Text(FText::FromString(GetTransportWarningText())) ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
-                            SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                            SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
                             .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
                             .Text_Lambda([this]() { return FText::FromString(bMonitorDetailsExpanded ? TEXT("상세 진단 접기") : TEXT("상세 진단 펼치기")); })
                             .OnClicked_Lambda([this]() { bMonitorDetailsExpanded = !bMonitorDetailsExpanded; SaveMonitorUiPreferences(); return FReply::Handled(); })
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)
                         [
-                            SAssignNew(NativeDetailedStatusTextBlock, STextBlock)
+                            SAssignSensorTool(NativeDetailedStatusTextBlock, STextBlock)
                             .Visibility_Lambda([this]() { return bMonitorDetailsExpanded ? EVisibility::Visible : EVisibility::Collapsed; })
                             .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
                             .AutoWrapText(true)
@@ -613,7 +614,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
 						[
-							SNew(STextBlock)
+							SNewSensorTool(STextBlock)
 							.Visibility_Lambda([this]() { return !bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
 							.ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
 							.Text(LOCTEXT("CameraViewModeLabel", "카메라 보기"))
@@ -624,29 +625,29 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
 							.Visibility_Lambda([this]() { return !bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
 							.IsChecked_Lambda([this]() { return bDualCameraModeEnabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
 							.OnCheckStateChanged_Lambda([this](ECheckBoxState State) { SetDualCameraModeEnabled(State == ECheckBoxState::Checked); })
-							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("DualCameraMode", "카메라 2대 동시 보기")) ]
+							[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("DualCameraMode", "카메라 2대 동시 보기")) ]
 						]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
 						[
 							SAssignNew(NativePrimaryCameraCombo, SComboBox<TSharedPtr<FString>>)
 							.Visibility_Lambda([this]() { return !bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
 							.OptionsSource(&NativeCameraOptions)
-							.OnGenerateWidget_Lambda([](TSharedPtr<FString> Item) { return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
+							.OnGenerateWidget_Lambda([this](TSharedPtr<FString> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
 							.OnSelectionChanged_Lambda([this](TSharedPtr<FString> Item, ESelectInfo::Type) { if (Item.IsValid()) SelectPrimaryCameraBySensorId(*Item); })
-							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("주 카메라: %s"), PreferredPrimaryCameraId.IsEmpty() ? TEXT("없음") : *PreferredPrimaryCameraId)); }) ]
+							[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("주 카메라: %s"), PreferredPrimaryCameraId.IsEmpty() ? TEXT("없음") : *PreferredPrimaryCameraId)); }) ]
 						]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
 						[
 							SAssignNew(NativeSecondaryCameraCombo, SComboBox<TSharedPtr<FString>>)
 							.Visibility_Lambda([this]() { return !bShowingLidar && bDualCameraModeEnabled ? EVisibility::Visible : EVisibility::Collapsed; })
 							.OptionsSource(&NativeCameraOptions)
-							.OnGenerateWidget_Lambda([](TSharedPtr<FString> Item) { return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
+							.OnGenerateWidget_Lambda([this](TSharedPtr<FString> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
 							.OnSelectionChanged_Lambda([this](TSharedPtr<FString> Item, ESelectInfo::Type) { if (Item.IsValid()) SelectSecondaryCameraBySensorId(*Item); })
-							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("보조 카메라: %s"), PreferredSecondaryCameraId.IsEmpty() ? TEXT("없음") : *PreferredSecondaryCameraId)); }) ]
+							[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("보조 카메라: %s"), PreferredSecondaryCameraId.IsEmpty() ? TEXT("없음") : *PreferredSecondaryCameraId)); }) ]
 						]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
                         [
-                            SNew(STextBlock)
+                            SNewSensorTool(STextBlock)
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
                             .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
                             .Text(LOCTEXT("LidarModeLabel", "LiDAR 표시 방식"))
@@ -657,19 +658,19 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
                             .OptionsSource(&NativeLidarProjectionOptions)
                             .InitiallySelectedItem(InitialProjection)
-                            .OnGenerateWidget_Lambda([](TSharedPtr<ELidarMonitorProjectionMode> Item)
+                            .OnGenerateWidget_Lambda([this](TSharedPtr<ELidarMonitorProjectionMode> Item)
                             {
-                                return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarProjectionDisplayText(*Item) : TEXT("없음")));
+                                return SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarProjectionDisplayText(*Item) : TEXT("없음")));
                             })
                             .OnSelectionChanged_Lambda([this](TSharedPtr<ELidarMonitorProjectionMode> Item, ESelectInfo::Type)
                             {
                                 if (Item.IsValid()) SetLidarProjectionMode(*Item);
                             })
-                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarProjectionDisplayText(GetLidarProjectionMode())); }) ]
+                            [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarProjectionDisplayText(GetLidarProjectionMode())); }) ]
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f, 0.0f, 2.0f)
                         [
-                            SNew(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
+                            SNewSensorTool(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
                             .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("LidarColorLabel", "LiDAR 색상 방식"))
                         ]
                         + SVerticalBox::Slot().AutoHeight()
@@ -677,15 +678,15 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                             SNew(SComboBox<TSharedPtr<ELidarColorMode>>)
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
                             .OptionsSource(&NativeLidarColorOptions).InitiallySelectedItem(InitialColor)
-                            .OnGenerateWidget_Lambda([](TSharedPtr<ELidarColorMode> Item)
+                            .OnGenerateWidget_Lambda([this](TSharedPtr<ELidarColorMode> Item)
                             {
-                                return SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarColorDisplayText(*Item) : TEXT("없음")));
+                                return SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(FText::FromString(Item.IsValid() ? LidarColorDisplayText(*Item) : TEXT("없음")));
                             })
                             .OnSelectionChanged_Lambda([this](TSharedPtr<ELidarColorMode> Item, ESelectInfo::Type)
                             {
                                 if (Item.IsValid()) SetLidarColorMode(*Item);
                             })
-                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarColorDisplayText(GetLidarColorMode())); }) ]
+                            [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarColorDisplayText(GetLidarColorMode())); }) ]
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f, 0.0f, 2.0f)
                         [
@@ -697,14 +698,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                             + SHorizontalBox::Slot().AutoWidth()[ SNew(SBox).WidthOverride(28.0f).HeightOverride(12.0f)[ SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor_Lambda([this]() { return GetLidarLegendSwatchColor(3); }) ] ]
                         ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 4.0f)
-                        [ SNew(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetLidarViewModeDescription() + TEXT("\n") + GetLidarViewLegendText()); }) ]
+                        [ SNewSensorTool(STextBlock).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetLidarViewModeDescription() + TEXT("\n") + GetLidarViewLegendText()); }) ]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 4.0f)
                         [
                             SNew(SHorizontalBox).Visibility_Lambda([this]() { const auto Mode = GetLidarProjectionMode(); return bShowingLidar && Mode != ELidarMonitorProjectionMode::RangeImage ? EVisibility::Visible : EVisibility::Collapsed; })
                             + SHorizontalBox::Slot().FillWidth(1.0f)
-                            [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("ProjectionNavigationHelp", "보기에서 좌클릭 드래그=이동 · 우클릭 드래그=회전 · 휠=확대/축소")) ]
+                            [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("ProjectionNavigationHelp", "보기에서 좌클릭 드래그=이동 · 우클릭 드래그=회전 · 휠=확대/축소")) ]
                             + SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f)
-                            [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ResetProjectionView", "보기 초기화")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) V->ResetProjectionView(GetLidarProjectionMode()); return FReply::Handled(); }) ]
+                            [ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ResetProjectionView", "보기 초기화")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) V->ResetProjectionView(GetLidarProjectionMode()); return FReply::Handled(); }) ]
                         ]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
 						[
@@ -716,21 +717,21 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
 								.ToolTipText(LOCTEXT("WorldTopDownAutoFitTip", "현재 프레임의 검출점 월드 XY 경계를 찾아 화면에 자동으로 맞춥니다."))
 								.IsChecked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return V && V->GetVisualizationSettings().bWorldTopDownAutoFit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
 								.OnCheckStateChanged_Lambda([this](ECheckBoxState State) { SetLidarWorldTopDownAutoFit(State == ECheckBoxState::Checked); })
-								[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("WorldTopDownAutoFit", "검출점 자동 맞춤")) ]
+								[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("WorldTopDownAutoFit", "검출점 자동 맞춤")) ]
 							]
 							+ SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f)
-							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("WorldTopDownAxes", "가로=월드 Y · 세로=월드 X")) ]
+							[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("WorldTopDownAxes", "가로=월드 Y · 세로=월드 X")) ]
 						]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
 						[
 							SNew(SHorizontalBox)
 							.Visibility_Lambda([this]() { return bShowingLidar && GetLidarProjectionMode() == ELidarMonitorProjectionMode::ForwardSlice ? EVisibility::Visible : EVisibility::Collapsed; })
 							+ SHorizontalBox::Slot().FillWidth(1.0f)
-							[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(FString::Printf(TEXT("슬라이스 두께 %.2fm"), V ? V->GetVisualizationSettings().ForwardSliceThicknessCm * 0.01f : 1.0f)); }) ]
+							[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(FString::Printf(TEXT("슬라이스 두께 %.2fm"), V ? V->GetVisualizationSettings().ForwardSliceThicknessCm * 0.01f : 1.0f)); }) ]
 							+ SHorizontalBox::Slot().AutoWidth().Padding(3.0f, 0.0f)
-							[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SliceThinner", "두께 -")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) { auto S = V->GetVisualizationSettings(); S.ForwardSliceThicknessCm = FMath::Max(10.0f, S.ForwardSliceThicknessCm - 25.0f); V->SetVisualizationSettings(S); } return FReply::Handled(); }) ]
+							[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SliceThinner", "두께 -")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) { auto S = V->GetVisualizationSettings(); S.ForwardSliceThicknessCm = FMath::Max(10.0f, S.ForwardSliceThicknessCm - 25.0f); V->SetVisualizationSettings(S); } return FReply::Handled(); }) ]
 							+ SHorizontalBox::Slot().AutoWidth()
-							[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SliceThicker", "두께 +")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) { auto S = V->GetVisualizationSettings(); S.ForwardSliceThicknessCm = FMath::Min(10000.0f, S.ForwardSliceThicknessCm + 25.0f); V->SetVisualizationSettings(S); } return FReply::Handled(); }) ]
+							[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("SliceThicker", "두께 +")).OnClicked_Lambda([this]() { if (auto* V = GetLidarVisualizationComponent()) { auto S = V->GetVisualizationSettings(); S.ForwardSliceThicknessCm = FMath::Min(10000.0f, S.ForwardSliceThicknessCm + 25.0f); V->SetVisualizationSettings(S); } return FReply::Handled(); }) ]
 						]
                         + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
                         [
@@ -742,19 +743,19 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                                 .ToolTipText(LOCTEXT("WorldPointsTip", "선택한 LiDAR의 최신 검출점을 월드 공간 3D 포인트로 표시합니다."))
                                 .IsChecked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return V && V->GetVisualizationSettings().bShowWorldPointCloud ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
                                 .OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarWorldPointCloudEnabled(V == ECheckBoxState::Checked); })
-                                [ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("WorldPoints", "월드 3D 포인트 표시")) ]
+                                [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("WorldPoints", "월드 3D 포인트 표시")) ]
                             ]
                             + SHorizontalBox::Slot().AutoWidth().Padding(3.0f, 0.0f)
-                            [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("PointSmaller", "포인트 -")).OnClicked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); SetLidarPointSize(V ? V->GetVisualizationSettings().PointSize - 0.5f : 1.5f); return FReply::Handled(); }) ]
+                            [ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("PointSmaller", "포인트 -")).OnClicked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); SetLidarPointSize(V ? V->GetVisualizationSettings().PointSize - 0.5f : 1.5f); return FReply::Handled(); }) ]
                             + SHorizontalBox::Slot().AutoWidth()
-                            [ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("PointLarger", "포인트 +")).OnClicked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); SetLidarPointSize(V ? V->GetVisualizationSettings().PointSize + 0.5f : 2.5f); return FReply::Handled(); }) ]
+                            [ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("PointLarger", "포인트 +")).OnClicked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); SetLidarPointSize(V ? V->GetVisualizationSettings().PointSize + 0.5f : 2.5f); return FReply::Handled(); }) ]
                         ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
                             SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                            + SWrapBox::Slot()[ SNew(SCheckBox).ToolTipText(LOCTEXT("AdaptiveTip", "현재 프레임의 검출 거리 범위를 기준으로 색상 대비를 자동 조정합니다.")).IsChecked_Lambda([this]() { return bUseAdaptiveLidarDepthRange ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarOverlayOptions(V == ECheckBoxState::Checked, bOverlayLidarMonitorGrid, bOverlayLidarDepthEdges); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Adaptive", "적응형 거리")) ] ]
-                            + SWrapBox::Slot()[ SNew(SCheckBox).ToolTipText(LOCTEXT("EdgeTip", "인접 측정점의 거리 차이가 큰 경계를 흰색 선으로 강조합니다.")).IsChecked_Lambda([this]() { return bOverlayLidarDepthEdges ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarOverlayOptions(bUseAdaptiveLidarDepthRange, bOverlayLidarMonitorGrid, V == ECheckBoxState::Checked); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Edges", "깊이 경계")) ] ]
-                            + SWrapBox::Slot()[ SNew(SCheckBox).ToolTipText(LOCTEXT("GridTip", "LiDAR 행과 열의 간격을 확인할 수 있도록 기준 격자를 겹쳐 표시합니다.")).IsChecked_Lambda([this]() { return bOverlayLidarMonitorGrid ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarOverlayOptions(bUseAdaptiveLidarDepthRange, V == ECheckBoxState::Checked, bOverlayLidarDepthEdges); })[ SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Grid", "격자")) ] ]
+                            + SWrapBox::Slot()[ SNew(SCheckBox).ToolTipText(LOCTEXT("AdaptiveTip", "현재 프레임의 검출 거리 범위를 기준으로 색상 대비를 자동 조정합니다.")).IsChecked_Lambda([this]() { return bUseAdaptiveLidarDepthRange ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarOverlayOptions(V == ECheckBoxState::Checked, bOverlayLidarMonitorGrid, bOverlayLidarDepthEdges); })[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Adaptive", "적응형 거리")) ] ]
+                            + SWrapBox::Slot()[ SNew(SCheckBox).ToolTipText(LOCTEXT("EdgeTip", "인접 측정점의 거리 차이가 큰 경계를 흰색 선으로 강조합니다.")).IsChecked_Lambda([this]() { return bOverlayLidarDepthEdges ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarOverlayOptions(bUseAdaptiveLidarDepthRange, bOverlayLidarMonitorGrid, V == ECheckBoxState::Checked); })[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Edges", "깊이 경계")) ] ]
+                            + SWrapBox::Slot()[ SNew(SCheckBox).ToolTipText(LOCTEXT("GridTip", "LiDAR 행과 열의 간격을 확인할 수 있도록 기준 격자를 겹쳐 표시합니다.")).IsChecked_Lambda([this]() { return bOverlayLidarMonitorGrid ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SetLidarOverlayOptions(bUseAdaptiveLidarDepthRange, V == ECheckBoxState::Checked, bOverlayLidarDepthEdges); })[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Grid", "격자")) ] ]
                         ]
                     ]
                 ]
@@ -762,17 +763,17 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
             + SVerticalBox::Slot().AutoHeight()
             [
                 SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
-                + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("ToggleView", "카메라/LiDAR 전환")).OnClicked_Lambda([this]() { HandleToggleButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
-                + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("NextCamera", "다음 카메라")).OnClicked_Lambda([this]() { HandleNextCameraButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
-                + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("NextLidar", "다음 LiDAR")).OnClicked_Lambda([this]() { HandleNextLidarButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
+                + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("ToggleView", "카메라/LiDAR 전환")).OnClicked_Lambda([this]() { HandleToggleButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
+                + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("NextCamera", "다음 카메라")).OnClicked_Lambda([this]() { HandleNextCameraButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
+                + SWrapBox::Slot().Padding(0.0f, 0.0f, 6.0f, 0.0f)[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("NextLidar", "다음 LiDAR")).OnClicked_Lambda([this]() { HandleNextLidarButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); }) ]
                 + SWrapBox::Slot()
                 [
-                    SNew(SButton)
+                    SNewSensorTool(SButton)
                     .ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
                     .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
                     .OnClicked_Lambda([this]() { HandlePointCloudOnlyButtonClicked(); RefreshNativeFallbackText(); return FReply::Handled(); })
                     [
-                        SNew(STextBlock)
+                        SNewSensorTool(STextBlock)
                         .ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText)
                         .Text_Lambda([this]() { return BuildPointCloudOnlyButtonText(); })
                     ]
@@ -780,7 +781,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
             ]
             + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
             [
-                SNew(STextBlock)
+                SNewSensorTool(STextBlock)
                 .Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
                 .ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText)
                 .Text(LOCTEXT("MonitorResizeHint", "↘ 드래그: 모니터 크기 조절"))

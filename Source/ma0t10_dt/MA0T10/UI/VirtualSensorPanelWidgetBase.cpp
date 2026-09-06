@@ -8,6 +8,60 @@
 #include "Widgets/SWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h"
+#include "VirtualSensorUiHostActor.h"
+#include "Components/TextBlock.h"
+#include "Components/EditableTextBox.h"
+
+void UVirtualSensorPanelWidgetBase::SetSensorAppearanceOwner(AVirtualSensorUiHostActor* Host)
+{
+	SensorAppearanceOwner = Host;
+	if (Host) ApplySensorToolFontScale(Host->GetSensorToolFontScale());
+}
+void UVirtualSensorPanelWidgetBase::SetSensorToolFontScale(float Scale)
+{
+	if (SensorAppearanceOwner.IsValid()) SensorAppearanceOwner->SetSensorToolFontScale(Scale);
+}
+void UVirtualSensorPanelWidgetBase::ApplySensorToolFontScale(float Scale)
+{
+	if (!SensorAppearanceOwner.IsValid() || !FMath::IsFinite(Scale)) return;
+	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
+	for (auto& Setter : SensorFontSetters) Setter(SensorToolFontScale);
+	InvalidateLayoutAndVolatility();
+}
+void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args)
+{
+	const FSlateFontInfo Base = Widget->GetFont();
+	SensorFontSetters.Add([Weak=TWeakPtr<STextBlock>(Widget), Base](float Scale) { if (auto W = Weak.Pin()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); W->SetFont(Font); } });
+	if (SensorAppearanceOwner.IsValid()) SensorFontSetters.Last()(SensorToolFontScale);
+}
+void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SButton> Widget, const SButton::FArguments& Args)
+{
+	// Only SButton's own default caption, never user-supplied children.
+	if (Args._Content.Widget == SNullWidget::NullWidget && Widget->GetContent()->GetType() == FName(TEXT("STextBlock")))
+		RegisterSensorNativeFont(StaticCastSharedRef<STextBlock>(Widget->GetContent()), STextBlock::FArguments());
+}
+void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SEditableTextBox> Widget, const SEditableTextBox::FArguments& Args)
+{
+	const FSlateFontInfo Base = Args._Font.Get(Args._Style->TextStyle.Font);
+	SensorFontSetters.Add([Weak=TWeakPtr<SEditableTextBox>(Widget), Base](float Scale) { if (auto W = Weak.Pin()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); W->SetFont(Font); } });
+	if (SensorAppearanceOwner.IsValid()) SensorFontSetters.Last()(SensorToolFontScale);
+}
+void UVirtualSensorPanelWidgetBase::RegisterSensorTextControl(UTextBlock* Text)
+{
+	if (!Text || Text->GetTypedOuter<UUserWidget>() != this || RegisteredSensorUmg.Contains(Text)) return;
+	RegisteredSensorUmg.Add(Text);
+	const FSlateFontInfo Base = Text->GetFont();
+	SensorFontSetters.Add([Weak=TWeakObjectPtr<UTextBlock>(Text), Base](float Scale) { if (Weak.IsValid()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); Weak->SetFont(Font); } });
+	if (SensorAppearanceOwner.IsValid()) SensorFontSetters.Last()(SensorToolFontScale);
+}
+void UVirtualSensorPanelWidgetBase::RegisterSensorInputControl(UEditableTextBox* Input)
+{
+	if (!Input || Input->GetTypedOuter<UUserWidget>() != this || RegisteredSensorUmg.Contains(Input)) return;
+	RegisteredSensorUmg.Add(Input);
+	const FEditableTextBoxStyle Base = Input->WidgetStyle;
+	SensorFontSetters.Add([Weak=TWeakObjectPtr<UEditableTextBox>(Input), Base](float Scale) { if (Weak.IsValid()) { auto Style=Base; Style.TextStyle.Font.Size=FMath::Max(8, FMath::RoundToInt(Base.TextStyle.Font.Size * Scale)); Weak->WidgetStyle=Style; Weak->SynchronizeProperties(); } });
+	if (SensorAppearanceOwner.IsValid()) SensorFontSetters.Last()(SensorToolFontScale);
+}
 
 void UVirtualSensorPanelWidgetBase::SetPanelPersistenceKey(FName InPanelPersistenceKey)
 {

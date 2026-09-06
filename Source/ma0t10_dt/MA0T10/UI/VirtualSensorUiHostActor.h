@@ -17,6 +17,13 @@ class MA0T10_DT_API AVirtualSensorUiHostActor : public AActor
     GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorMonitor|Appearance")
+	void SetSensorToolFontScale(float Scale);
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|SensorMonitor|Appearance")
+	float GetSensorToolFontScale() const { return SensorToolFontScale; }
+private:
+	float SensorToolFontScale = 1.0f;
+public:
     AVirtualSensorUiHostActor();
 
 protected:

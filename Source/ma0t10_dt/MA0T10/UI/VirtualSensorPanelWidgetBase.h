@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "UI/DxWidget.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "VirtualSensorPanelWidgetBase.generated.h"
 
@@ -13,6 +16,18 @@ class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDxWidget
     GENERATED_BODY()
 
 public:
+	void SetSensorAppearanceOwner(class AVirtualSensorUiHostActor* Host);
+	void ApplySensorToolFontScale(float Scale);
+	float GetSensorToolFontScale() const { return SensorToolFontScale; }
+	void RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args);
+	void RegisterSensorNativeFont(TSharedRef<SButton> Widget, const SButton::FArguments& Args);
+	void RegisterSensorNativeFont(TSharedRef<SEditableTextBox> Widget, const SEditableTextBox::FArguments& Args);
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Appearance")
+	void RegisterSensorTextControl(class UTextBlock* Text);
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Appearance")
+	void RegisterSensorInputControl(class UEditableTextBox* Input);
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Appearance")
+	void SetSensorToolFontScale(float Scale);
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorPanel")
     void SetPanelPersistenceKey(FName InPanelPersistenceKey);
 
@@ -90,6 +105,10 @@ public:
     float ResizeHandleSize = 18.0f;
 
 private:
+	TArray<TFunction<void(float)>> SensorFontSetters;
+	TWeakObjectPtr<class AVirtualSensorUiHostActor> SensorAppearanceOwner;
+	float SensorToolFontScale = 1.0f;
+	TSet<TWeakObjectPtr<UWidget>> RegisteredSensorUmg;
     void ApplyInitialPanelLayout(FVector2D ViewportSize);
     void ResetPanelPositionInternal(bool bPersist);
     void RestorePanelUiState();
