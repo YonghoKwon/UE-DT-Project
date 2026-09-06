@@ -7,6 +7,20 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStompAuthContractTest, "MA0T10.SensorStream.StompAuthContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FStompAuthContractTest::RunTest(const FString& Parameters)
+{
+	TMap<FName,FString> Headers; FString Error;
+	TestTrue(TEXT("empty password is a broker decision, never an engine assertion"),
+		UVirtualSensorTransportComponent::BuildStompConnectHeaders(TEXT("user"),TEXT(""),TEXT(""),Headers,Error));
+	TestTrue(TEXT("login and passcode keys travel together"),Headers.Contains(TEXT("login")) && Headers.Contains(TEXT("passcode")));
+	TestFalse(TEXT("mixed upgrade and CONNECT auth rejected before engine call"),
+		UVirtualSensorTransportComponent::BuildStompConnectHeaders(TEXT("user"),TEXT("secret"),TEXT("token"),Headers,Error));
+	TestTrue(TEXT("token-only auth has no CONNECT login"),
+		UVirtualSensorTransportComponent::BuildStompConnectHeaders(TEXT(""),TEXT(""),TEXT("token"),Headers,Error) && Headers.IsEmpty());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdNativeLimitTest, "MA0T10.SensorStream.NativePcdLimits", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FPcdNativeLimitTest::RunTest(const FString& Parameters)
 {

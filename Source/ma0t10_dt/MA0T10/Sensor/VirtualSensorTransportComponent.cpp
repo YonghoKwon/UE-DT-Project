@@ -248,12 +248,38 @@ void UVirtualSensorTransportComponent::RequestStompReconnect()
 	EnsureStompClient();
 }
 
+bool UVirtualSensorTransportComponent::BuildStompConnectHeaders(const FString& User, const FString& Passcode,
+	const FString& UpgradeToken, TMap<FName, FString>& OutHeaders, FString& OutError)
+{
+	OutHeaders.Reset(); OutError.Reset();
+	if (!UpgradeToken.IsEmpty() && (!User.IsEmpty() || !Passcode.IsEmpty()))
+	{
+		OutError = TEXT("STOMP 인증 설정 충돌: 사용자/비밀번호와 WebSocket Bearer 인증 중 하나만 사용하십시오.");
+		return false;
+	}
+	if (!User.IsEmpty())
+	{
+		OutHeaders.Add(TEXT("login"), User);
+		// UE requires the key even for an empty password; the broker may reject it.
+		OutHeaders.Add(TEXT("passcode"), Passcode);
+	}
+	return true;
+}
+
 void UVirtualSensorTransportComponent::EnsureStompClient()
 {
+	FStompHeader Headers;
+	FString AuthError;
+	if (!BuildStompConnectHeaders(TransportProfile.UserName, SessionPasscode, SessionBearerToken, Headers, AuthError))
+	{
+		LastResult.bSubmitted = false; LastResult.bAccepted = false; LastResult.Message = AuthError;
+		return;
+	}
 	if (StompClient.IsValid())
 	{
-		if (!StompClient->IsConnected() && !bStompConnecting.Exchange(true)) StompClient->Connect();
-		return;
+		if (StompClient->IsConnected() || bStompConnecting.Load()) return;
+		// Recreate to avoid duplicate socket callbacks and restore credentials.
+		StompClient.Reset();
 	}
 	if (TransportProfile.BrokerUrl.IsEmpty()) return;
 	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] creating STOMP client owner=%s broker=%s"),
@@ -263,9 +289,6 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 	StompClient->OnConnectionError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
 	StompClient->OnError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
 	StompClient->OnClosed().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
-	FStompHeader Headers;
-	if (!TransportProfile.UserName.IsEmpty()) Headers.Add(TEXT("login"), TransportProfile.UserName);
-	if (!SessionPasscode.IsEmpty()) Headers.Add(TEXT("passcode"), SessionPasscode);
 	bStompConnecting.Store(true);
 	StompClient->Connect(Headers);
 }

@@ -166,6 +166,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	void SetSessionCredentials(const FString& InPasscode, const FString& InBearerToken);
 
+	static bool BuildStompConnectHeaders(const FString& User, const FString& Passcode,
+		const FString& UpgradeToken, TMap<FName, FString>& OutHeaders, FString& OutError);
+
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	FVirtualSensorTransportResult TestConnection();
 
