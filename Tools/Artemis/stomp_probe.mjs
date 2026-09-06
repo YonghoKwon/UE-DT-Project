@@ -16,6 +16,8 @@ const expectedPerTopic = Number(args.get('--count') ?? '1');
 const durationSeconds = Number(args.get('--duration') ?? '0');
 const warmupSeconds = Number(args.get('--warmup') ?? '0');
 const requireContiguousPcd = (args.get('--require-contiguous-pcd') ?? 'false').toLowerCase() === 'true';
+const requiredSlabRuns = Number(args.get('--slab-runs') ?? '0');
+const slabRuns = new Map();
 const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
 const selfTestPoints = Math.max(1, Number(args.get('--self-test-points') ?? '1'));
 const output = args.get('--output') ?? path.resolve('Saved', 'Reports', `artemis_probe_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.json`);
@@ -172,6 +174,7 @@ function report(success, reason) {
     requireContiguousPcd,
     counts: Object.fromEntries(counts),
     metrics,
+    slabRuns: Object.fromEntries(slabRuns),
     messages,
   };
   fs.mkdirSync(path.dirname(output), { recursive: true });
@@ -190,8 +193,12 @@ function finishDurationMeasurement(socket) {
   const hasData = [...topicMetrics.values()].every(value => value.validCount > 0);
   const contiguous = !requireContiguousPcd || !pointCloudMetrics ||
     (pointCloudMetrics.frameGaps === 0 && pointCloudMetrics.duplicates === 0 && pointCloudMetrics.invalidCount === 0);
-  report(hasData && contiguous,
+  const slabValid = requiredSlabRuns === 0 || (slabRuns.size === requiredSlabRuns && [...slabRuns.values()].every(run => topics.every(topic => {
+    const m = run[topic]; return m && m.invalid === 0 && m.gaps === 0 && m.duplicates === 0 && m.count / 30 >= (topic.includes('camera') ? 29 : 19);
+  })));
+  report(hasData && contiguous && slabValid,
     !hasData ? 'duration elapsed before every topic produced a valid message'
+      : !slabValid ? 'Slab session correlation/rate validation failed'
       : !contiguous ? 'binary PCD FrameId continuity validation failed'
         : `duration measurement completed (${durationSeconds}s)`);
   socket.close();
@@ -215,6 +222,7 @@ function updateMetrics(destination, entry) {
   }
   metric.validCount += 1;
   const frameId = Number(entry.frameId);
+  if (entry.runId && metric.lastRun !== entry.runId) { metric.lastFrameId = null; metric.lastRun = entry.runId; }
   if (Number.isSafeInteger(frameId)) {
     if (metric.firstFrameId == null) metric.firstFrameId = frameId;
     if (metric.lastFrameId != null) {
@@ -317,6 +325,10 @@ socket.addEventListener('message', async event => {
         sensorType: parsed.headers['x-sensor-type'] ?? '',
         dataKind: parsed.headers['x-data-kind'] ?? '',
         frameId: parsed.headers['x-frame-id'] ?? parsed.headers['frame-id'] ?? '',
+        runId: parsed.headers['x-run-uuid'] ?? '',
+        mtlNo: parsed.headers['x-mtl-no'] ?? '',
+        slabFrameNo: Number(parsed.headers['x-slab-frame-no'] ?? '-1'),
+        slabElapsedSec: Number(parsed.headers['x-slab-elapsed-sec'] ?? '-1'),
         contentType: parsed.headers['content-type'] ?? '',
 		bytes: parsed.body.length,
         schema,
@@ -326,7 +338,21 @@ socket.addEventListener('message', async event => {
 		validationErrors: pcdValidation?.failedChecks ?? [],
 		bodyPreview: isBinaryPcd ? parsed.body.subarray(0, 32).toString('hex') : parsed.body.subarray(0, 180).toString('utf8'),
       };
-      const shouldMeasure = durationSeconds <= 0 || measurementStartedMs > 0;
+      if (requiredSlabRuns > 0) {
+        const correlationValid = /^[0-9a-f-]{36}$/i.test(entry.runId) && entry.mtlNo === 'SQ83521 047' &&
+          Number.isInteger(entry.slabFrameNo) && entry.slabFrameNo >= 0 && entry.slabFrameNo < 600 && Math.abs(entry.slabElapsedSec - entry.slabFrameNo * 0.05) < 0.00001;
+        entry.valid &&= correlationValid;
+        if (!correlationValid) entry.validationErrors.push('invalid slab correlation');
+        const run = slabRuns.get(entry.runId) ?? {};
+        const m = run[destination] ?? { count: 0, invalid: 0, gaps: 0, duplicates: 0, lastSensorFrame: null, firstSlabFrame: entry.slabFrameNo, lastSlabFrame: -1 };
+        if (entry.valid) ++m.count; else ++m.invalid;
+        const sensorFrame = Number(entry.frameId);
+        if (m.lastSensorFrame != null) { if (sensorFrame <= m.lastSensorFrame) ++m.duplicates; else m.gaps += Math.max(0, sensorFrame - m.lastSensorFrame - 1); }
+        if (entry.slabFrameNo < m.lastSlabFrame) ++m.invalid;
+        m.lastSensorFrame = sensorFrame; m.lastSlabFrame = entry.slabFrameNo;
+        run[destination] = m; slabRuns.set(entry.runId, run);
+      }
+      const shouldMeasure = requiredSlabRuns > 0 || durationSeconds <= 0 || measurementStartedMs > 0;
       if (shouldMeasure) {
         if (counts.has(destination) && messageValid) counts.set(destination, counts.get(destination) + 1);
         updateMetrics(destination, entry);

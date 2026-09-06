@@ -8,6 +8,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Json.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "RHIGlobals.h"
@@ -26,6 +27,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "VirtualSlabSensorTestDriver.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeFeatureSmokeTest,
@@ -307,7 +309,7 @@ public:
 			const FString UserName = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
 			if (!BrokerUrl.IsEmpty()) Profile.BrokerUrl = BrokerUrl;
 			if (!UserName.IsEmpty()) Profile.UserName = UserName;
-			Profile.MaxMessageBytes = 32 * 1024 * 1024;
+			Profile.MaxMessageBytes = 8 * 1024 * 1024;
 			Transport->ConfigureTransportProfile(Profile);
 			Transport->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")), FString());
 			Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
@@ -324,6 +326,7 @@ public:
 
 		if (!bStreamsStarted)
 		{
+			bScenarioMode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SLAB_SCENARIO_SMOKE")).Equals(TEXT("1"));
 			// Exercise the production contract, not the legacy CSV envelope used by
 			// the early three-stream smoke. Applying the profile once keeps the
 			// acquisition at 576x56, 20 Hz while the stream subscribes to completed
@@ -361,7 +364,7 @@ public:
 			{
 				FVirtualSensorStreamConfig Config;
 				Config.StreamKind = Kind;
-				Config.bEnabled = true;
+				Config.bEnabled = !bScenarioMode;
 				Config.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 				Config.FrameStride = 1;
 				Config.ReceiptSampleInterval = 1;
@@ -382,11 +385,20 @@ public:
 			bStreamsStarted = true;
 			return false;
 		}
+		if (bScenarioMode)
+		{
+			if (!ScenarioDriver.IsValid() && FPlatformTime::Seconds()-StreamsStartedAtSeconds>=WarmupSeconds)
+			{
+				ScenarioDriver=World->SpawnActor<AVirtualSlabSensorTestDriver>();
+				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,{Camera->GetSensorId(),Lidar->GetSensorId()}));
+			}
+			if (ScenarioDriver.IsValid() && ScenarioDriver->HasFailed()) { Test->AddError(TEXT("Slab fixture failed; inspect session_runs.json")); return true; }
+		}
 
 		TMap<EVirtualSensorStreamKind, FVirtualSensorStreamStatus> StatusByKind;
 		for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
 		{
-			if (Status.SensorId.IsEmpty()) StatusByKind.Add(Status.StreamKind, Status);
+			if ((!bScenarioMode && Status.SensorId.IsEmpty()) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
 		}
 		bool bAllReady = StatusByKind.Num() == 3;
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
@@ -400,13 +412,15 @@ public:
 		if (StreamElapsedSeconds >= WarmupSeconds)
 		{
 			const double SampleNow = FPlatformTime::Seconds();
-			const double GameFrameMs = World->GetDeltaSeconds() * 1000.0;
+			const double GameFrameMs = FApp::GetDeltaTime() * 1000.0;
 			if (GameFrameMs > 0.0 && GameFrameMs < 1000.0) FrameTimesMs.Add(GameFrameMs);
 			if (LastFrameSampleSeconds > 0.0) WallPacingTimesMs.Add((SampleNow - LastFrameSampleSeconds) * 1000.0);
 			LastFrameSampleSeconds = SampleNow;
 		}
 		if ((!bAllReady || StreamElapsedSeconds < WarmupSeconds + MeasurementSeconds) &&
 			StreamElapsedSeconds < WarmupSeconds + MeasurementSeconds + 15.0) return false;
+		if (bScenarioMode && ScenarioDriver.IsValid() && !ScenarioDriver->IsFinished() && StreamElapsedSeconds<100.0) return false;
+		if (bScenarioMode) Test->TestTrue(TEXT("two distinct 30-second sessions finish and drain"),ScenarioDriver.IsValid() && ScenarioDriver->IsFinished() && ScenarioDriver->GetCompletedRuns()==2);
 
 		if (!bAcquisitionStopped)
 		{
@@ -495,6 +509,7 @@ public:
 			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->ConsumerReceivedCount : 0,
 			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->SubmittedHz : 0.0f);
 		Test->TestTrue(TEXT("stream performance collected enough rendered frames"), FrameTimesMs.Num() >= 120);
+		Test->TestFalse(TEXT("benchmark must not use a synthetic fixed timestep"),FApp::UseFixedTimeStep() || GEngine->bUseFixedFrameRate);
 		if (!FrameTimesMs.IsEmpty())
 		{
 			double TotalFrameMs = 0.0;
@@ -534,6 +549,8 @@ private:
 	bool bConnectionRequested = false;
 	bool bStreamsStarted = false;
 	bool bAcquisitionStopped = false;
+	bool bScenarioMode=false;
+	TWeakObjectPtr<AVirtualSlabSensorTestDriver> ScenarioDriver;
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
 	double MeasurementSeconds = 60.0;
