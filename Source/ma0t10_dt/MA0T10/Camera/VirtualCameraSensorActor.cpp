@@ -227,6 +227,7 @@ void AVirtualCameraSensorActor::HandleCameraFrame(const FString& JsonPayload, UT
 		: CaptureComponent->SensorId;
 	Frame.SensorKind = EVirtualSensorKind::Camera;
 	Frame.FrameId = Status.FrameId;
+	Frame.SlabContext=CaptureComponent->GetLastSlabContext();
 	Frame.TimestampUtc = FDateTime::UtcNow();
 	Frame.SchemaVersion = TEXT("virtual-camera.v1");
 	if (!JsonPayload.IsEmpty()) Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);

@@ -756,6 +756,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 		Message.TimestampUtc = Frame.TimestampUtc;
 		Message.ConfigRevision = Runtime.ConfigRevision;
 		Message.bHighThroughputBinary = true;
+		Message.BinaryHeaders=Frame.SlabContext.ToHeaders();
 		if (Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage)
 		{
 			Message.BinaryBody64 = Frame.BinaryPayload;
@@ -894,6 +895,7 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 		FPreparedMessage Message;
 		Message.SensorId = Frame.SensorId;
 			Message.StreamKind = EVirtualSensorStreamKind::PointCloud;
+			Message.BinaryHeaders=Frame.SlabContext.ToHeaders();
 			Message.FrameId = Frame.FrameId;
 			Message.TimestampUtc = Frame.TimestampUtc;
 			Message.ConfigRevision = CapturedConfigRevision;

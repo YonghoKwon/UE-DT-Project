@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "VirtualLidarSensorTypes.generated.h"
 
@@ -519,6 +520,7 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 /** Immutable point frame and the exact pose/settings used to acquire it. */
 struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFrame
 {
+	FVirtualSlabFrameContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
 	int32 HorizontalSamples = 1;

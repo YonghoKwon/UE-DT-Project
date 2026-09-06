@@ -138,6 +138,7 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         AcquiredFrame.SensorId = ScanComponent->SensorId;
         AcquiredFrame.SensorKind = EVirtualSensorKind::Lidar;
         AcquiredFrame.FrameId = Snapshot->FrameId;
+		AcquiredFrame.SlabContext = Snapshot->SlabContext;
         AcquiredFrame.TimestampUtc = FDateTime::UtcNow();
         AcquiredFrame.SchemaVersion = TEXT("virtual-lidar.v2");
         AcquiredFrame.PointSnapshot = Snapshot->Points;
@@ -257,6 +258,7 @@ void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTex
     Frame.SchemaVersion = TEXT("virtual-lidar.v1");
     Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
     Frame.LidarFrameSnapshot = ScanComponent->GetLastFrameSnapshot();
+	if (Frame.LidarFrameSnapshot.IsValid()) Frame.SlabContext=Frame.LidarFrameSnapshot->SlabContext;
     Frame.PointSnapshot = Frame.LidarFrameSnapshot.IsValid()
         ? Frame.LidarFrameSnapshot->Points
         : ScanComponent->GetLastPointSnapshot();

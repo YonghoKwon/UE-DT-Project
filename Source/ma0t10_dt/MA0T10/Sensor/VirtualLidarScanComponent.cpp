@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -636,6 +637,8 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
 {
     if (!GpuDepthProjectionComponent.IsValid()) return false;
     FVirtualLidarDepthAcquisitionRequest Request;
+	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Request.SlabContext=Slab->CaptureContext(SensorId,FrameId+1);
+	ScheduledSlabContext=Request.SlabContext;
     Request.AcquisitionTransform = GetComponentTransform();
     Request.FrameId = FrameId + 1;
     Request.HorizontalSamples = FMath::Max(1, HorizontalSamples);
@@ -696,6 +699,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 
 void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame)
 {
+	ScheduledSlabContext=Frame.Request.SlabContext;
     ScheduledScanWidth = FMath::Max(1, Frame.Request.HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, Frame.Request.VerticalChannels);
     ScheduledScanTransform = Frame.Request.AcquisitionTransform;
@@ -947,6 +951,7 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 
 void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
+	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) ScheduledSlabContext=Slab->CaptureContext(SensorId,FrameId+1);
     ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     ScheduledScanWidth = FMath::Max(1, HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, VerticalChannels);
@@ -1720,6 +1725,9 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
     Snapshot->TimeSyncState = EVirtualLidarTimeSyncState::SimulationClock;
     Snapshot->bProtocolVerifiedAgainstHardware = DeviceSpec.bProtocolVerifiedAgainstHardware;
 	Snapshot->AcquisitionTransform = AcquisitionTransform;
+	Snapshot->SlabContext=ScheduledSlabContext;
+	if (GetWorld()) if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId);
+	ScheduledSlabContext=FVirtualSlabFrameContext();
 	Snapshot->FrameId = FrameId;
 	Snapshot->HorizontalSamples = FMath::Max(1, InHorizontalSamples);
 	Snapshot->VerticalChannels = FMath::Max(1, InVerticalChannels);

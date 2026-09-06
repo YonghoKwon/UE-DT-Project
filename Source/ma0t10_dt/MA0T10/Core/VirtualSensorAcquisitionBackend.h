@@ -1,10 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 
 struct MA0T10_DT_API FVirtualLidarDepthAcquisitionRequest
 {
+	FVirtualSlabFrameContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
 	int32 HorizontalSamples = 1;

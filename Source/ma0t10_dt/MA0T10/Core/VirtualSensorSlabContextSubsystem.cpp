@@ -1,0 +1,110 @@
+#include "VirtualSensorSlabContextSubsystem.h"
+#include "EngineUtils.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+
+TMap<FString,FString> FVirtualSlabFrameContext::ToHeaders() const
+{
+	TMap<FString,FString> Result;
+	if (!bEligible) return Result;
+	Result.Add(TEXT("x-run-uuid"), RunId);
+	Result.Add(TEXT("x-mtl-no"), MtlNo);
+	Result.Add(TEXT("x-slab-frame-no"), LexToString(SlabFrameNo));
+	Result.Add(TEXT("x-slab-elapsed-sec"), FString::Printf(TEXT("%.6f"), ElapsedSec));
+	Result.Add(TEXT("x-session-segment"), LexToString(Segment));
+	return Result;
+}
+bool UVirtualSensorSlabContextSubsystem::CheckRun(const FString& Id)
+{
+	if (!IsInGameThread() || Id.IsEmpty() || Id != Status.RunId) { Status.Message=TEXT("실행 UUID가 일치하지 않습니다."); return false; }
+	return true;
+}
+FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString& RequestedId, const TArray<FString>& Ids)
+{
+	if (!IsInGameThread() || !GetWorld()) return FString();
+	if (Status.State==EVirtualSlabSessionState::Ready || Status.State==EVirtualSlabSessionState::Running || Status.State==EVirtualSlabSessionState::Paused || Status.State==EVirtualSlabSessionState::Draining)
+	{ Status.Message=TEXT("진행 중인 세션이 있습니다."); return FString(); }
+	FGuid Guid;
+	if (RequestedId.IsEmpty()) Guid=FGuid::NewGuid();
+	else if (!FGuid::Parse(RequestedId,Guid) || !Guid.IsValid()) { Status.Message=TEXT("유효한 UUID가 필요합니다."); return FString(); }
+	const FString Id=Guid.ToString(EGuidFormats::DigitsWithHyphensLower);
+	if (UsedRunIds.Contains(Id)) { Status.Message=TEXT("재실행에는 새로운 UUID를 사용하세요."); return FString(); }
+	TArray<AVirtualSensorCoordinator*> Managers;
+	for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It; ++It) Managers.Add(*It);
+	if (Managers.Num()!=1) { Status.Message=TEXT("센서 Coordinator가 정확히 하나 필요합니다."); return FString(); }
+	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> NewTargets;
+	for (auto* Actor : Managers[0]->GetSensorActors())
+	{
+		if (!IsValid(Actor) || (!Ids.IsEmpty() && !Ids.Contains(Actor->GetSensorId()))) continue;
+		if (Actor->GetSensorId().IsEmpty() || NewTargets.Contains(Actor->GetSensorId())) { Status.Message=TEXT("중복 또는 빈 SensorId입니다."); return FString(); }
+		NewTargets.Add(Actor->GetSensorId(),Actor);
+	}
+	if (NewTargets.IsEmpty()) { Status.Message=TEXT("대상 센서가 없습니다."); return FString(); }
+	for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
+	Coordinator=Managers[0]; Targets=MoveTemp(NewTargets); PendingKeys.Reset(); StartedSensors.Reset();
+	Status=FVirtualSlabSessionStatus(); Status.RunId=Id; Status.State=EVirtualSlabSessionState::Ready;
+	Status.CurrentSlab.RunId=Id; Status.CurrentSlab.Generation=++Generation;
+	Status.Message=TEXT("첫 Slab 프레임 적용 대기 중"); UsedRunIds.Add(Id);
+	for (const auto& Pair : Targets) ControlledIds.Add(Pair.Key);
+	return Id;
+}
+bool UVirtualSensorSlabContextSubsystem::NotifySlabFrameApplied(const FString& Id,const FString& Mtl,int64 Frame,double Seconds)
+{
+	if (!CheckRun(Id)) return false;
+	if (Status.State!=EVirtualSlabSessionState::Ready && Status.State!=EVirtualSlabSessionState::Running) return false;
+	if (Mtl.TrimStartAndEnd().IsEmpty() || Mtl.Len()>256 || Mtl.Contains(TEXT("\n")) || Mtl.Contains(TEXT("\r")) || Frame<0 || !FMath::IsFinite(Seconds) || Seconds<0)
+	{ Status.Message=TEXT("Slab 프레임 값이 잘못되었습니다."); return false; }
+	const auto& Previous=Status.CurrentSlab;
+	if (Frame==Previous.SlabFrameNo) return Mtl==Previous.MtlNo && Seconds==Previous.ElapsedSec;
+	if (Frame<Previous.SlabFrameNo || Seconds<Previous.ElapsedSec) { Status.Message=TEXT("Slab 프레임 또는 시간이 역순입니다."); return false; }
+	Status.CurrentSlab.MtlNo=Mtl; Status.CurrentSlab.SlabFrameNo=Frame; Status.CurrentSlab.ElapsedSec=Seconds;
+	Status.CurrentSlab.bEligible=true; Status.State=EVirtualSlabSessionState::Running; Status.Message=TEXT("Slab 연동 센서 송신 중");
+	return true;
+}
+bool UVirtualSensorSlabContextSubsystem::SetSlabSensorSessionPaused(const FString& Id,bool Paused)
+{
+	if (!CheckRun(Id)) return false;
+	if (Paused && Status.State==EVirtualSlabSessionState::Running) Status.State=EVirtualSlabSessionState::Paused;
+	else if (!Paused && Status.State==EVirtualSlabSessionState::Paused) { Status.State=EVirtualSlabSessionState::Running; ++Status.CurrentSlab.Segment; }
+	else return false;
+	return true;
+}
+bool UVirtualSensorSlabContextSubsystem::EndSlabSensorSession(const FString& Id,bool Aborted)
+{
+	if (!CheckRun(Id)) return false;
+	if (Status.State==EVirtualSlabSessionState::Draining || Status.State==EVirtualSlabSessionState::Completed) return true;
+	if (Status.State!=EVirtualSlabSessionState::Running && Status.State!=EVirtualSlabSessionState::Paused && Status.State!=EVirtualSlabSessionState::Ready) return false;
+	Status.bAborted=Aborted; Status.State=EVirtualSlabSessionState::Draining; DrainStarted=FPlatformTime::Seconds();
+	Status.Message=TEXT("마지막 데이터 전송 중"); return true;
+}
+FVirtualSlabFrameContext UVirtualSensorSlabContextSubsystem::CaptureContext(const FString& SensorId,int64 FrameId)
+{
+	FVirtualSlabFrameContext Result;
+	if (!Targets.Contains(SensorId) || Status.State!=EVirtualSlabSessionState::Running) return Result;
+	Result=Status.CurrentSlab; Result.AcquisitionUtcTicks=FDateTime::UtcNow().GetTicks();
+	PendingKeys.Add(SensorId+TEXT("|")+LexToString(FrameId)); Status.PendingAcquisitions=PendingKeys.Num();
+	return Result;
+}
+void UVirtualSensorSlabContextSubsystem::CompleteAcquisition(const FString& Id,int64 FrameId)
+{
+	PendingKeys.Remove(Id+TEXT("|")+LexToString(FrameId)); Status.PendingAcquisitions=PendingKeys.Num();
+}
+bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVirtualSlabFrameContext& Context) const
+{
+	if (!ControlsSensor(Id)) return !Context.bEligible;
+	return Context.bEligible && Context.RunId==Status.RunId && Context.Generation==Generation &&
+		(Status.State==EVirtualSlabSessionState::Running || Status.State==EVirtualSlabSessionState::Paused || Status.State==EVirtualSlabSessionState::Draining);
+}
+void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
+{
+	if (Status.State==EVirtualSlabSessionState::Draining && PendingKeys.IsEmpty()) Finish(false);
+	else if (Status.State==EVirtualSlabSessionState::Draining && FPlatformTime::Seconds()-DrainStarted>10.0) Finish(true);
+}
+void UVirtualSensorSlabContextSubsystem::Finish(bool TimedOut)
+{
+	Status.UnfinishedFrames=PendingKeys.Num(); PendingKeys.Reset(); Status.PendingAcquisitions=0;
+	Status.State=TimedOut ? EVirtualSlabSessionState::Incomplete : EVirtualSlabSessionState::Completed;
+	Status.Message=TimedOut ? TEXT("종료 제한 시간 초과: 미완료 데이터 확인 필요") : TEXT("Slab 센서 세션 완료");
+}
+TStatId UVirtualSensorSlabContextSubsystem::GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorSlabContextSubsystem,STATGROUP_Tickables); }
+void UVirtualSensorSlabContextSubsystem::Deinitialize() { PendingKeys.Reset(); Targets.Reset(); Super::Deinitialize(); }

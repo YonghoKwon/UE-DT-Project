@@ -371,6 +371,7 @@ struct MA0T10_DT_API FVirtualSensorInteractionRequest
  */
 struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 {
+	FVirtualSlabFrameContext SlabContext;
 	FString SensorId;
 	EVirtualSensorKind SensorKind = EVirtualSensorKind::Camera;
 	int64 FrameId = 0;

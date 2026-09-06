@@ -212,6 +212,12 @@ private:
     FString LastJsonPayload;
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> LastJpegSnapshot;
 	FVirtualCameraJpegMetadata LastJpegMetadata;
+	TMap<int64,FVirtualSlabFrameContext> SlabCaptureContexts;
+	FVirtualSlabFrameContext LastSlabContext;
+	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id);
+public:
+	const FVirtualSlabFrameContext& GetLastSlabContext() const { return LastSlabContext; }
+private:
 
 	struct FScheduledReadbackSlot
 	{

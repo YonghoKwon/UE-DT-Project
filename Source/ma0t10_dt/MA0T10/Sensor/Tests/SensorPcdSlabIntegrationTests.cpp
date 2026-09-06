@@ -60,4 +60,18 @@ bool FPcdLiveEntryTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("lower limit remains enforced"), Publisher->ValidateBinaryBodySize(64512LL * 33 + 1024, 1024, Error));
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabContextSnapshotTest, "MA0T10.SensorStream.SlabContextSnapshot", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSlabContextSnapshotTest::RunTest(const FString& Parameters)
+{
+	FVirtualSlabFrameContext Current;
+	Current.RunId=FGuid::NewGuid().ToString(); Current.MtlNo=TEXT("SQ83521 047"); Current.SlabFrameNo=100; Current.ElapsedSec=5; Current.Generation=1; Current.bEligible=true;
+	FVirtualSensorFrameEnvelope SensorFrame;
+	SensorFrame.FrameId=9001; SensorFrame.SlabContext=Current;
+	Current.SlabFrameNo=101; Current.MtlNo=TEXT("NEXT-SLAB");
+	const auto Headers=SensorFrame.SlabContext.ToHeaders();
+	TestEqual(TEXT("delayed result keeps acquisition slab number"), Headers.FindRef(TEXT("x-slab-frame-no")), FString(TEXT("100")));
+	TestEqual(TEXT("material id includes original whitespace"), Headers.FindRef(TEXT("x-mtl-no")), FString(TEXT("SQ83521 047")));
+	TestEqual(TEXT("sensor frame independent of slab frame"), SensorFrame.FrameId, static_cast<int64>(9001));
+	return true;
+}
 #endif

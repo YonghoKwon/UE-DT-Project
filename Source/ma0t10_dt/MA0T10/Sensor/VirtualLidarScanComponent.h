@@ -647,6 +647,7 @@ private:
 
     double NextScheduledScanTime = -1.0;
     double ScheduledScanStartTime = -1.0;
+	FVirtualSlabFrameContext ScheduledSlabContext;
     double LastScheduledCompletionTime = -1.0;
     double LastScheduledOutputTime = -1.0;
     FTransform ScheduledScanTransform = FTransform::Identity;

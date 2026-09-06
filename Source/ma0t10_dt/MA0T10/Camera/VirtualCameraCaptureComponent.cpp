@@ -1,5 +1,6 @@
 // VirtualCameraCaptureComponent.cpp
 #include "VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "VirtualCameraPayloadCodec.h"
 
 #include "Async/Async.h"
@@ -159,6 +160,8 @@ void UVirtualCameraCaptureComponent::StartCapture()
 
 void UVirtualCameraCaptureComponent::StopCapture()
 {
+	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
+	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id);
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
@@ -216,6 +219,11 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     do { NextScheduledCaptureTime += SafeInterval; } while (NextScheduledCaptureTime <= NowSeconds);
 
     const double CaptureStart = FPlatformTime::Seconds();
+	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	{
+		const auto Context=Slab->CaptureContext(SensorId,FrameId+1);
+		if (Context.bEligible) SlabCaptureContexts.Add(FrameId+1,Context);
+	}
     EnsureRenderTarget();
     CaptureSceneDeferred();
     ++FrameId;
@@ -228,6 +236,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 
     if (!ShouldGeneratePayload())
     {
+		LastSlabContext=CompleteSlabAcquisition(FrameId);
         const double PreviousCompletion = LastScheduledCompletionTime;
         LastScheduledCompletionTime = NowSeconds;
         RuntimeStatus.MeasuredCompletionRateHz = PreviousCompletion >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - PreviousCompletion)) : 0.0f;
@@ -241,6 +250,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 		++RuntimeStatus.QueueOverflowCount;
 		++RuntimeStatus.DroppedDerivedFrameCount;
 		RuntimeStatus.AcquisitionBackendMessage = TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
+		CompleteSlabAcquisition(FrameId);
 		return true;
 	}
 	FPendingReadbackRequest& Request = PendingReadbackRequests.AddDefaulted_GetRef();
@@ -504,6 +514,7 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		RuntimeStatus.LastPostProcessDurationMs = static_cast<float>((FPlatformTime::Seconds() - Result.CaptureStartedSeconds) * 1000.0);
 		if (Result.JpegBytes.IsEmpty())
 		{
+			CompleteSlabAcquisition(CompletedFrameId);
 			++RuntimeStatus.DroppedDerivedFrameCount;
 			UpdateRuntimeStatus(0, TEXT("비동기 JPEG 생성 실패"));
 			continue;
@@ -537,6 +548,7 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		LastJpegSnapshot = MakeShared<const TArray64<uint8>, ESPMode::ThreadSafe>(MoveTemp(Result.JpegBytes));
 		UpdateRuntimeStatus(LastJsonPayload.Len(), StatusMessage);
 		RuntimeStatus.FrameId = CompletedFrameId;
+		LastSlabContext=CompleteSlabAcquisition(CompletedFrameId);
 		OnFrameCaptured.Broadcast(LastJsonPayload, CameraRenderTarget);
 	}
 }
@@ -544,6 +556,14 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 void UVirtualCameraCaptureComponent::SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent)
 {
     TransportComponent = InTransportComponent;
+}
+
+FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id)
+{
+	FVirtualSlabFrameContext Context;
+	SlabCaptureContexts.RemoveAndCopyValue(Id, Context);
+	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,Id);
+	return Context;
 }
 
 void UVirtualCameraCaptureComponent::SetRecorderComponent(UVirtualSensorRecorderComponent* InRecorderComponent)
