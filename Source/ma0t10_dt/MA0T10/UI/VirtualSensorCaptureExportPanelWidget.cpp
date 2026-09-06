@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "EngineUtils.h"
@@ -794,6 +795,11 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 	FString Text = FString::Printf(TEXT("LiDAR/Camera JSON은 최신 프레임 우선입니다. Point Cloud는 PCD Binary 고정, 완료 프레임 전체, 프레임마다 Broker receipt를 요청합니다.\n선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
 	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
 	if (Statuses.IsEmpty()) return Text + TEXT("아직 시작한 스트림이 없습니다.");
+	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	{
+		const auto S=Slab->GetSlabSensorSessionStatus();
+		if (!S.RunId.IsEmpty()) Text+=FString::Printf(TEXT("\n[Slab 연동] %s\nUUID %s · 소재 %s · Slab frame %lld · %.2f초 · 미완료 %lld"),*S.Message,*S.RunId,*S.CurrentSlab.MtlNo,S.CurrentSlab.SlabFrameNo,S.CurrentSlab.ElapsedSec,S.UnfinishedFrames);
+	}
 	for (const FVirtualSensorStreamStatus& Status : Statuses)
 	{
 		if (Status.StreamKind == EVirtualSensorStreamKind::PointCloud)

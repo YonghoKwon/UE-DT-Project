@@ -113,6 +113,7 @@ public:
 	bool IsHighThroughputTransportRunning() const;
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
+	void CancelRun(const FString& RunId);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;

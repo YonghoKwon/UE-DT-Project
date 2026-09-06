@@ -160,6 +160,13 @@ public:
 	{
 		while (!bStopRequested.Load())
 		{
+			FString Cancelled;
+			while (RunCancellations.Dequeue(Cancelled))
+			{
+				CancelledRuns.Add(Cancelled);
+				for (auto It=PendingReceipts.CreateIterator(); It; ++It)
+					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) It.RemoveCurrent();
+			}
 			if (!bConnected)
 			{
 				const double Now = FPlatformTime::Seconds();
@@ -210,6 +217,7 @@ public:
 		Frames.Enqueue(Frame);
 		return true;
 	}
+	void CancelRun(const FString& RunId) { RunCancellations.Enqueue(RunId); }
 
 	bool DequeueEvent(FWorkerEvent& OutEvent)
 	{
@@ -342,6 +350,7 @@ private:
 		{
 			const int32 Index = static_cast<int32>(Frame.StreamKind);
 			--QueueCounts[Index];
+			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) continue;
 			if (!SendFrame(Frame, 0))
 			{
 				HandleDisconnect(TEXT("Socket write failed; acquisition remains active and stream will reconnect."));
@@ -554,14 +563,15 @@ private:
 		Event.FrameId = FrameId;
 		Event.Bytes = Frame.Body.Num();
 		Event.Message = ValidationMessage;
-		const int32 Index = static_cast<int32>(Kind);
-		const int64 Previous = LastConsumerFrameIds[Index];
+		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+HeaderValue(Frame.Headers,TEXT("x-run-uuid"))+TEXT("|")+HeaderValue(Frame.Headers,TEXT("x-session-segment"));
+		int64& LastSeen=ConsumerSequenceIds.FindOrAdd(SequenceKey);
+		const int64 Previous = LastSeen;
 		if (bValid && Previous > 0)
 		{
 			if (FrameId == Previous) Event.DuplicateDelta = 1;
 			else if (FrameId > Previous + 1) Event.GapDelta = FrameId - Previous - 1;
 		}
-		if (bValid && FrameId > Previous) LastConsumerFrameIds[Index] = FrameId;
+		if (bValid && FrameId > Previous) LastSeen = FrameId;
 		FDateTime SourceUtc;
 		if (FDateTime::ParseIso8601(*HeaderValue(Frame.Headers, TEXT("timestamp-utc")), SourceUtc))
 		{
@@ -656,6 +666,9 @@ private:
 	}
 
 	FVirtualSensorHighThroughputProfile Profile;
+	TQueue<FString,EQueueMode::Mpsc> RunCancellations;
+	TSet<FString> CancelledRuns;
+	TMap<FString,int64> ConsumerSequenceIds;
 	FString Passcode;
 	FRunnableThread* Thread = nullptr;
 	FSocket* Socket = nullptr;
@@ -764,6 +777,11 @@ TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsy
 	TArray<FVirtualSensorStreamTelemetry> Result;
 	TelemetryByKey.GenerateValueArray(Result);
 	return Result;
+}
+
+void UVirtualSensorHighThroughputTransportSubsystem::CancelRun(const FString& RunId)
+{
+	if (Worker) Worker->CancelRun(RunId);
 }
 
 bool UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(const FString& BrokerUrl, FString* OutReason)

@@ -1,5 +1,7 @@
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "EngineUtils.h"
+#include "VirtualSensorStreamPublisherComponent.h"
+#include "VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
@@ -46,6 +48,23 @@ FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString
 	Status.CurrentSlab.RunId=Id; Status.CurrentSlab.Generation=++Generation;
 	Status.Message=TEXT("첫 Slab 프레임 적용 대기 중"); UsedRunIds.Add(Id);
 	for (const auto& Pair : Targets) ControlledIds.Add(Pair.Key);
+	for (const auto& Pair : Targets)
+	{
+		auto* Actor=Pair.Value.Get();
+		auto* Publisher=Coordinator->StreamPublisherComponent.Get();
+		if (Publisher)
+		{
+			Publisher->StopAllStreams(Pair.Key);
+			for (auto Kind : {EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::PointCloud})
+			{
+				if ((Kind==EVirtualSensorStreamKind::CameraImage) != (Actor->GetSensorKind()==EVirtualSensorKind::Camera)) continue;
+				auto Config=Publisher->GetEffectiveStreamConfig(Kind,Pair.Key);
+				Config.bEnabled=true; Config.FrameStride=1; Config.ReceiptSampleInterval=1;
+				Publisher->ConfigureStream(Config);
+			}
+		}
+		if (!Actor->IsSensorRunning()) { StartedSensors.Add(Pair.Key); Actor->StartSensor(); }
+	}
 	return Id;
 }
 bool UVirtualSensorSlabContextSubsystem::NotifySlabFrameApplied(const FString& Id,const FString& Mtl,int64 Frame,double Seconds)
@@ -97,12 +116,38 @@ bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVi
 }
 void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 {
-	if (Status.State==EVirtualSlabSessionState::Draining && PendingKeys.IsEmpty()) Finish(false);
-	else if (Status.State==EVirtualSlabSessionState::Draining && FPlatformTime::Seconds()-DrainStarted>10.0) Finish(true);
+	if (Status.State!=EVirtualSlabSessionState::Draining) return;
+	int64 Waiting=PendingKeys.Num();
+	bool Failed=false;
+	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
+	{
+		for (const auto& S : Coordinator->StreamPublisherComponent->GetStreamStatuses())
+		{
+			if (!Targets.Contains(S.SensorId)) continue;
+			Waiting+=S.InputQueueDepth+S.PreparedQueueDepth+(S.bProcessing ? 1 : 0);
+			if (S.ActiveTransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput) Waiting+=S.ReceiptQueueDepth;
+			Failed|=S.bOverloaded || S.EncodeFailureCount>0 || S.ConsumerValidationFailureCount>0;
+		}
+	}
+	if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
+	{
+		for (const auto& S : Raw->GetStreamTelemetry()) if (Targets.Contains(S.SensorId))
+		{
+			Waiting+=FMath::Max<int64>(0,S.EnqueuedCount-S.ReceiptCount);
+			Failed|=S.OverloadCount>0 || S.ValidationFailureCount>0;
+		}
+	}
+	Status.UnfinishedFrames=Waiting;
+	if (Waiting==0) Finish(Failed);
+	else if (FPlatformTime::Seconds()-DrainStarted>10.0) Finish(true);
 }
 void UVirtualSensorSlabContextSubsystem::Finish(bool TimedOut)
 {
-	Status.UnfinishedFrames=PendingKeys.Num(); PendingKeys.Reset(); Status.PendingAcquisitions=0;
+	PendingKeys.Reset(); Status.PendingAcquisitions=0;
+	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
+		for (const auto& Pair : Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
+	for (const auto& Pair : Targets) if (StartedSensors.Contains(Pair.Key) && Pair.Value.IsValid()) Pair.Value->StopSensor();
+	if (TimedOut) if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
 	Status.State=TimedOut ? EVirtualSlabSessionState::Incomplete : EVirtualSlabSessionState::Completed;
 	Status.Message=TimedOut ? TEXT("종료 제한 시간 초과: 미완료 데이터 확인 필요") : TEXT("Slab 센서 세션 완료");
 }

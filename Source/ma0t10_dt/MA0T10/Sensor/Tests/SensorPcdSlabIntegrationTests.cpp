@@ -1,5 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
+#include "Tests/AutomationEditorCommon.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
@@ -72,6 +76,44 @@ bool FSlabContextSnapshotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("delayed result keeps acquisition slab number"), Headers.FindRef(TEXT("x-slab-frame-no")), FString(TEXT("100")));
 	TestEqual(TEXT("material id includes original whitespace"), Headers.FindRef(TEXT("x-mtl-no")), FString(TEXT("SQ83521 047")));
 	TestEqual(TEXT("sensor frame independent of slab frame"), SensorFrame.FrameId, static_cast<int64>(9001));
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabLifecycleTest, "MA0T10.SensorStream.SlabSessionLifecycle", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSlabLifecycleTest::RunTest(const FString& Parameters)
+{
+	UWorld* World=FAutomationEditorCommonUtils::CreateNewMap();
+	auto* Manager=World->SpawnActor<AVirtualSensorCoordinator>();
+	auto* Sensor=World->SpawnActor<AVirtualLidarSensorActor>();
+	Manager->RegisterSensorActor(Sensor);
+	auto* Slab=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
+	TestNotNull(TEXT("world adapter exists"),Slab);
+	if (!Slab) return false;
+	const FString Run=Slab->BeginSlabSensorSession(FString(),{});
+	TestFalse(TEXT("begin creates UUID"),Run.IsEmpty());
+	TestFalse(TEXT("ready state does not admit sensor frames"),Slab->CaptureContext(Sensor->GetSensorId(),9001).bEligible);
+	TestTrue(TEXT("first applied slab activates session"),Slab->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),100,5.0));
+	const auto Captured=Slab->CaptureContext(Sensor->GetSensorId(),9001);
+	TestTrue(TEXT("duplicate applied data is idempotent"),Slab->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),100,5.0));
+	TestFalse(TEXT("reversed slab frame rejected"),Slab->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),99,4.95));
+	TestFalse(TEXT("wrong run rejected"),Slab->EndSlabSensorSession(TEXT("wrong"),false));
+	Slab->NotifySlabFrameApplied(Run,TEXT("NEXT"),101,5.05);
+	TestEqual(TEXT("captured context stays at earlier applied slab frame"),Captured.SlabFrameNo,static_cast<int64>(100));
+	Slab->SetSlabSensorSessionPaused(Run,true);
+	TestFalse(TEXT("paused acquisition not admitted"),Slab->CaptureContext(Sensor->GetSensorId(),9002).bEligible);
+	TestTrue(TEXT("pre-pause acquisition can drain"),Slab->AllowsFrame(Sensor->GetSensorId(),Captured));
+	Slab->SetSlabSensorSessionPaused(Run,false);
+	Slab->EndSlabSensorSession(Run,false);
+	TestFalse(TEXT("new acquisition after movement end rejected"),Slab->CaptureContext(Sensor->GetSensorId(),9003).bEligible);
+	Slab->Tick(0.01f);
+	TestEqual(TEXT("in-flight acquisition holds draining state"),Slab->GetSlabSensorSessionStatus().State,EVirtualSlabSessionState::Draining);
+	Slab->CompleteAcquisition(Sensor->GetSensorId(),9001); Slab->Tick(0.01f);
+	TestEqual(TEXT("all pending work completed"),Slab->GetSlabSensorSessionStatus().State,EVirtualSlabSessionState::Completed);
+	TestTrue(TEXT("used UUID cannot be reused"),Slab->BeginSlabSensorSession(Run,{}).IsEmpty());
+	const FString Next=Slab->BeginSlabSensorSession(FString(),{});
+	TestTrue(TEXT("new run succeeds"),!Next.IsEmpty() && Next!=Run);
+	TestFalse(TEXT("previous run result never leaks"),Slab->AllowsFrame(Sensor->GetSensorId(),Captured));
+	Slab->EndSlabSensorSession(Next,true); Slab->Tick(0.01f);
+	Sensor->StopSensor(); Sensor->Destroy(); Manager->Destroy();
 	return true;
 }
 #endif

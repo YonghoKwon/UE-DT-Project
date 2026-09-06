@@ -128,6 +128,7 @@ private:
 		bool bSerializationInFlight = false;
 		int64 SerializationCompletedCount = 0;
 		TArray<float> SerializationLatencySamples;
+		FString LastSlabSegment;
 		int32 ConfigRevision = 0;
 	};
 

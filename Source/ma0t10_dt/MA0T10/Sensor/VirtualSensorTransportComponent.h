@@ -144,7 +144,7 @@ public:
 		const FString& DataKind,
 		int64 FrameId,
 		const FString& JsonText,
-		bool bRequestReceipt);
+		bool bRequestReceipt, const TMap<FString,FString>& AdditionalHeaders = {});
 
 	/** Sends a complete PCD file as the STOMP binary body without Base64 or JSON wrapping. */
 	FVirtualSensorTransportResult SendStompBinaryStreamRequest(
@@ -236,7 +236,7 @@ private:
     FVirtualSensorTransportResult SaveJson(const FString& SensorId, const FString& SensorType, const FString& JsonText) const;
     FVirtualSensorTransportResult SaveBinary(const FString& SensorId, const FString& SensorType, const FString& Extension, const TArray<uint8>& Bytes) const;
     FString BuildSavePath(const FString& SensorId, const FString& SensorType, const FString& Extension) const;
-	FVirtualSensorTransportResult SendStomp(const FString& SensorId, const FString& SensorType, const FString& DataKind, int64 FrameId, const FString& JsonText, bool bManualRequest, bool bRequestReceipt);
+	FVirtualSensorTransportResult SendStomp(const FString& SensorId, const FString& SensorType, const FString& DataKind, int64 FrameId, const FString& JsonText, bool bManualRequest, bool bRequestReceipt, const TMap<FString,FString>& AdditionalHeaders = {});
 	void EnsureStompClient();
 	void HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString);
 	void HandleStompFailure(const FString& Error);

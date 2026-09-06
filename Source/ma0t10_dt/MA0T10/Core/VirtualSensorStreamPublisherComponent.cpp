@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "VirtualSensorSlabContextSubsystem.h"
 
 #include "Async/Async.h"
 #include "HAL/FileManager.h"
@@ -647,6 +648,8 @@ bool UVirtualSensorStreamPublisherComponent::StreamMatchesFrame(EVirtualSensorSt
 
 void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFrameEnvelope& Frame)
 {
+	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+		if (!Slab->AllowsFrame(Frame.SensorId,Frame.SlabContext)) return;
 	if (bEndingPlay || Frame.SensorId.IsEmpty()) return;
 	TArray<FString> Keys;
 	StreamRuntimes.GetKeys(Keys);
@@ -680,7 +683,9 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	{
 		return;
 	}
-	if (Runtime.Status.InputFrameCount > 0 && Frame.FrameId > Runtime.Status.LastInputFrameId + 1)
+	const FString SegmentKey=Frame.SlabContext.RunId+TEXT("|")+LexToString(Frame.SlabContext.Segment);
+	if (Runtime.LastSlabSegment!=SegmentKey) { Runtime.LastSlabSegment=SegmentKey; Runtime.Status.LastInputFrameId=0; }
+	if (Runtime.Status.LastInputFrameId > 0 && Frame.FrameId > Runtime.Status.LastInputFrameId + 1)
 	{
 		Runtime.Status.FrameGapCount += Frame.FrameId - Runtime.Status.LastInputFrameId - 1;
 	}
@@ -809,6 +814,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	Message.StreamKind = Runtime.Config.StreamKind;
 	Message.FrameId = Frame.FrameId;
 		Message.Json = *Frame.JsonPayload;
+	Message.BinaryHeaders=Frame.SlabContext.ToHeaders();
 		Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
 		Message.ConfigRevision = Runtime.ConfigRevision;
 	if (Runtime.PreparedMessage.IsSet()) ++Runtime.Status.ReplacedPendingFrameCount;
@@ -909,6 +915,7 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 				FSHA1::HashBuffer(Bytes.GetData(), Bytes.Num(), Hash);
 				Message.bBinaryPcd = true;
 				Message.BinaryMetadata.SensorId = Frame.SensorId;
+				Message.BinaryMetadata.SlabContext=Frame.SlabContext;
 				Message.BinaryMetadata.FrameId = Frame.FrameId;
 				Message.BinaryMetadata.TimestampUtc = Frame.TimestampUtc.ToIso8601();
 				Message.BinaryMetadata.ProfileKey = Frame.LidarFrameSnapshot.IsValid()
@@ -1119,7 +1126,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		}
 		const FVirtualSensorTransportResult Result = Message.bBinaryPcd
 			? TransportComponent->SendStompBinaryStreamRequest(*Message.BinaryBody, Message.BinaryMetadata)
-			: TransportComponent->SendJsonStreamRequest(Message.SensorId, SensorType, DataKind, Message.FrameId, Message.Json, bReceipt);
+			: TransportComponent->SendJsonStreamRequest(Message.SensorId, SensorType, DataKind, Message.FrameId, Message.Json, bReceipt, Message.BinaryHeaders);
 		Runtime->Status.LastRequestId = Result.RequestId;
 		Runtime->Status.Destination = Result.Destination;
 		Runtime->Status.Message = Result.Message;

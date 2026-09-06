@@ -94,6 +94,7 @@ USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualPointCloudBinaryMetadata
 {
 	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) FVirtualSlabFrameContext SlabContext;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString Schema = TEXT("virtual-pointcloud.pcd.v1");
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|PointCloud") FString SensorId;

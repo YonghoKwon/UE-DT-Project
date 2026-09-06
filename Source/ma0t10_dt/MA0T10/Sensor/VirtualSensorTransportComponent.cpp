@@ -82,11 +82,11 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonStreamRe
 	const FString& DataKind,
 	int64 FrameId,
 	const FString& JsonText,
-	bool bRequestReceipt)
+	bool bRequestReceipt, const TMap<FString,FString>& AdditionalHeaders)
 {
 	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
 	{
-		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText, false, bRequestReceipt);
+		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText, false, bRequestReceipt, AdditionalHeaders);
 		OnDataSent.Broadcast(Result);
 		return Result;
 	}
@@ -152,6 +152,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 	Headers.Add(TEXT("x-filter-revision"), LexToString(Metadata.FilterRevision));
 	Headers.Add(TEXT("x-acquisition-profile"), Metadata.ProfileKey);
 	Headers.Add(TEXT("x-checksum-sha1"), Metadata.ChecksumSha1);
+	for (const auto& Pair : Metadata.SlabContext.ToHeaders()) Headers.Add(FName(*Pair.Key),Pair.Value);
 
 	const double StartedSeconds = FPlatformTime::Seconds();
 	const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
@@ -351,7 +352,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	int64 FrameId,
 	const FString& JsonText,
 	bool bManualRequest,
-	bool bRequestReceipt)
+	bool bRequestReceipt, const TMap<FString,FString>& AdditionalHeaders)
 {
 	FVirtualSensorTransportResult Result;
 	Result.Protocol = TEXT("STOMP/WS");
@@ -384,6 +385,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	Headers.Add(TEXT("x-frame-id"), LexToString(FrameId));
 	Headers.Add(TEXT("x-request-id"), Result.RequestId);
 	const double StartedSeconds = FPlatformTime::Seconds();
+	for (const auto& Pair : AdditionalHeaders) if (Pair.Key.StartsWith(TEXT("x-"))) Headers.Add(FName(*Pair.Key),Pair.Value);
 	const FString RequestId = Result.RequestId;
 	const FString Destination = Result.Destination;
 	TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
