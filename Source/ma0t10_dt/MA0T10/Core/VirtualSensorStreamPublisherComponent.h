@@ -35,17 +35,15 @@ public:
 		TArray<uint8>& OutBytes,
 		int32& OutPointCount,
 		FString& OutError);
-	static TMap<FString, FString> BuildCadenceHeaders(
-		int64 ScheduledUnixNanoseconds,
-		int64 AcquisitionStartUnixNanoseconds,
-		int64 AcquisitionEndUnixNanoseconds,
-		int64 DerivedCompleteUnixNanoseconds);
-	static FVirtualSensorStreamConfig ApplyEffectiveCadenceDeliveryPolicy(
-		const FVirtualSensorStreamConfig& Config,
-		bool bRawHighThroughputAvailable);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);
+
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Stream")
+	FVirtualSensorStreamConfig GetEffectiveStreamConfig(EVirtualSensorStreamKind Kind, const FString& SensorId) const;
+	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
+	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
+	bool CanUseHighThroughputTransport() const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
@@ -96,14 +94,11 @@ public:
 private:
 	struct FPreparedMessage
 	{
+		FVirtualSlabFrameContext SlabContext;
 		FString SensorId;
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
 		FDateTime TimestampUtc;
-		int64 ScheduledUnixNanoseconds = 0;
-		int64 AcquisitionStartUnixNanoseconds = 0;
-		int64 AcquisitionEndUnixNanoseconds = 0;
-		int64 DerivedCompleteUnixNanoseconds = 0;
 		FString Json;
 		TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> BinaryBody;
 		TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> BinaryBody64;
@@ -135,6 +130,7 @@ private:
 		bool bSerializationInFlight = false;
 		int64 SerializationCompletedCount = 0;
 		TArray<float> SerializationLatencySamples;
+		FString LastSlabSegment;
 		int32 ConfigRevision = 0;
 	};
 
@@ -152,6 +148,7 @@ private:
 	void CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error, int32 CapturedConfigRevision);
 	void TryStartNextPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime);
 	void StopForPointCloudOverload(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason);
+	void StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId);
 	void RefreshQueueTelemetry(FStreamRuntime& Runtime);
 	bool RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error);
 	void PumpPreparedMessages(double NowSeconds);
@@ -162,7 +159,6 @@ private:
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
 	void MergeHighThroughputTelemetry();
-	bool IsHighThroughputRuntimeAvailable(const FVirtualSensorStreamConfig& Config) const;
 	static bool StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind);
 
 	UFUNCTION()
@@ -179,4 +175,5 @@ private:
 	double PointCloudTokenBucketBytes = 0.0;
 	double LastTokenUpdateSeconds = 0.0;
 	bool bEndingPlay = false;
+	TOptional<bool> LastRawTransportAvailable;
 };

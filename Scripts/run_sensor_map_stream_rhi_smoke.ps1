@@ -6,7 +6,8 @@ param(
     [ValidateRange(10, 3600)][int]$MeasurementSeconds = 60,
     [int]$TimeoutSeconds = 100,
     [ValidatePattern('^[A-Za-z0-9_.-]+$')][string]$ReportLabel = "sensor_map_stream_rhi_smoke",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$SlabSessions
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,10 +32,12 @@ $ProbeScript = Join-Path $ProjectRoot "Tools\Artemis\stomp_probe.mjs"
 $MinimumTimeout = $WarmupSeconds + $MeasurementSeconds + 25
 if ($TimeoutSeconds -lt $MinimumTimeout) { $TimeoutSeconds = $MinimumTimeout }
 $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup $WarmupSeconds --duration $MeasurementSeconds --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`""
+if ($SlabSessions) { $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup 0 --duration 63 --slab-runs 2 --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`"" }
 $Probe = Start-Process -FilePath "node" -ArgumentList $ProbeArgs -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $ProbeStdOut -RedirectStandardError $ProbeStdErr
 
 try {
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE = "1"
+    $env:MA0T10_RUN_SLAB_SCENARIO_SMOKE = if ($SlabSessions) { '1' } else { '0' }
     $env:MA0T10_ARTEMIS_URL = $BrokerUrl
     $env:MA0T10_ARTEMIS_USER = $UserName
     $env:MA0T10_ARTEMIS_PASSWORD = $Password
@@ -49,7 +52,7 @@ try {
         "-TestExit=Automation Test Queue Empty", "-abslog=$EditorLog"
     )
     & $Editor @EditorArgs
-    if ($LASTEXITCODE -ne 0) { throw "Unreal runtime stream automation failed with exit code $LASTEXITCODE" }
+    $EditorExitCode = $LASTEXITCODE
     if (-not $Probe.WaitForExit(($TimeoutSeconds + 10) * 1000)) {
         $Probe.Kill()
         throw "STOMP probe timed out"
@@ -61,13 +64,15 @@ try {
     $ProbeResult = Get-Content $ProbeReport -Raw | ConvertFrom-Json
     $EditorText = Get-Content $EditorLog -Raw
     $D3d12 = $EditorText -match "D3D12RHI|DirectX 12|D3D12 Adapter"
-    $TestPassed = $EditorText -match "Test Completed\. Result=\{Success\}.*ContinuousThreeStreamSmoke"
+    $TestPassed = $EditorExitCode -eq 0 -and $EditorText -match "Test Completed\. Result=\{Success\}.*ContinuousThreeStreamSmoke"
     $PerformanceMatch = [regex]::Match($EditorText, '\[SensorStreamRhi\] averageFps=(?<average>[0-9.]+) onePercentLowFps=(?<low>[0-9.]+) p95FrameMs=(?<p95>[0-9.]+) samples=(?<samples>\d+)')
 	$HighThroughputMatch = [regex]::Match($EditorText, '\[SensorHighThroughputRhi\] cameraSubmitted=(?<cameraSubmitted>\d+) cameraReceipt=(?<cameraReceipt>\d+) cameraConsumer=(?<cameraConsumer>\d+) cameraHz=(?<cameraHz>[0-9.]+) lidarSubmitted=(?<lidarSubmitted>\d+) lidarReceipt=(?<lidarReceipt>\d+) lidarConsumer=(?<lidarConsumer>\d+) lidarHz=(?<lidarHz>[0-9.]+) pcdSubmitted=(?<pcdSubmitted>\d+) pcdReceipt=(?<pcdReceipt>\d+) pcdConsumer=(?<pcdConsumer>\d+) pcdHz=(?<pcdHz>[0-9.]+)')
     $PcdMatch = [regex]::Match($EditorText, '\[SensorPcdNoLossRhi\] input=(?<input>\d+) serialized=(?<serialized>\d+) submitted=(?<submitted>\d+) receipts=(?<receipts>\d+) serializeHz=(?<hz>[0-9.]+) serializeP95Ms=(?<p95>[0-9.]+) inputQueue=(?<inputQueue>\d+) preparedQueue=(?<preparedQueue>\d+) receiptQueue=(?<receiptQueue>\d+) gaps=(?<gaps>\d+) retries=(?<retries>\d+) overload=(?<overload>\d+)')
     $AverageFps = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['average'].Value } else { 0.0 }
     $OnePercentLowFps = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['low'].Value } else { 0.0 }
     $P95FrameMs = if ($PerformanceMatch.Success) { [double]$PerformanceMatch.Groups['p95'].Value } else { 0.0 }
+    $WallMatch = [regex]::Match($EditorText, '\[SensorStreamWallPacing\] averageFps=(?<fps>[0-9.]+) p95CallbackMs=(?<p95>[0-9.]+)')
+    $WallP95 = if ($WallMatch.Success) { [double]$WallMatch.Groups['p95'].Value } else { 0.0 }
     $FrameSamples = if ($PerformanceMatch.Success) { [int]$PerformanceMatch.Groups['samples'].Value } else { 0 }
 	$ReceiverLidar = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['lidarConsumer'].Value } else { 0 }
 	$ReceiverCamera = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['cameraConsumer'].Value } else { 0 }
@@ -106,7 +111,7 @@ try {
 		$CameraHz -ge 29.0 -and $LidarHz -ge 19.0 -and $PcdHz -ge 19.0 -and
 		$AverageFps -ge 55.0 -and $OnePercentLowFps -ge 45.0 -and $P95FrameMs -le 20.0 -and
 		$PcdSerializationHz -ge 19.0 -and $PcdSerializationP95 -le 20.0 -and
-        $null -ne $PointCloudMetrics -and $PointCloudMetrics.receiveHz -ge 19.0 -and
+        $null -ne $PointCloudMetrics -and ($SlabSessions -or $PointCloudMetrics.receiveHz -ge 19.0) -and
         $PointCloudMetrics.frameGaps -eq 0 -and $PointCloudMetrics.duplicates -eq 0 -and $PointCloudMetrics.invalidCount -eq 0
     $MarkdownText = @"
 # SensorRefactorTestMap continuous stream RHI smoke
@@ -116,6 +121,7 @@ try {
 - Unreal automation passed: $TestPassed
 - Warmup: $WarmupSeconds s
 - Measurement: $MeasurementSeconds s
+- Slab sessions: $SlabSessions (two 30-second runs when enabled; external rates validated per run)
 - LiDAR received: $($ProbeResult.counts.'topic.virtual.sensor.lidar.0')
 - Camera received: $($ProbeResult.counts.'topic.virtual.sensor.camera.0')
 - Point Cloud received: $($ProbeResult.counts.'topic.virtual.sensor.export.0')
@@ -128,7 +134,8 @@ try {
 - Publisher PCD serialization: $PcdSerializationHz Hz, p95 $PcdSerializationP95 ms
 - Average FPS: $AverageFps
 - 1% low FPS: $OnePercentLowFps
-- p95 frame time: $P95FrameMs ms
+- p95 engine frame time (FApp delta, fixed timestep rejected): $P95FrameMs ms
+- p95 automation callback wall-clock pacing: $WallP95 ms
 - Frame samples: $FrameSamples
 - Internal LiDAR receiver validated: $ReceiverLidar
 - Internal Camera receiver validated: $ReceiverCamera
@@ -144,6 +151,7 @@ try {
     Write-Host $Markdown
 }
 finally {
+    Remove-Item Env:MA0T10_RUN_SLAB_SCENARIO_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_ARTEMIS_URL -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_ARTEMIS_USER -ErrorAction SilentlyContinue

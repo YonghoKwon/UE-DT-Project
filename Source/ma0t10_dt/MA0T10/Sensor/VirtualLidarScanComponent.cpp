@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -549,20 +550,16 @@ void UVirtualLidarScanComponent::StartScan()
 {
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
-	const double NowMonotonicSeconds = FPlatformTime::Seconds();
-	const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
-	const double PhaseSeconds = (GetTypeHash(SensorId) % 1000) / 1000.0 * SafeInterval;
-	CadenceState.Start(NowMonotonicSeconds, UtcNowUnixNanoseconds(), SafeInterval, PhaseSeconds);
-	NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
+    NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
     bDeadlineMissRecordedForActiveAcquisition = false;
     RegisterWithPerformanceSubsystem();
 }
 void UVirtualLidarScanComponent::StopScan()
 {
+	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
     if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     UnregisterFromPerformanceSubsystem();
     NextScheduledScanTime = -1.0;
-	CadenceState.Stop();
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
     bDeadlineMissRecordedForActiveAcquisition = false;
@@ -578,17 +575,10 @@ void UVirtualLidarScanComponent::StopScan()
 
 void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
 {
-	if (CadenceState.IsRunning())
+	if (NextScheduledScanTime >= 0.0 && GetWorld())
 	{
-		CadenceState.ForceDue(FPlatformTime::Seconds(), UtcNowUnixNanoseconds());
-		NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
+		NextScheduledScanTime = GetWorld()->GetTimeSeconds();
 	}
-}
-
-void UVirtualLidarScanComponent::ResumeRealtimeCadence(double NowMonotonicSeconds, int64 NowUnixNanoseconds)
-{
-	CadenceState.Resume(NowMonotonicSeconds, NowUnixNanoseconds);
-	NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
 }
 
 void UVirtualLidarScanComponent::SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput)
@@ -648,6 +638,8 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
 {
     if (!GpuDepthProjectionComponent.IsValid()) return false;
     FVirtualLidarDepthAcquisitionRequest Request;
+	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Request.SlabContext=Slab->CaptureContext(SensorId,FrameId+1);
+	ScheduledSlabContext=Request.SlabContext;
     Request.AcquisitionTransform = GetComponentTransform();
     Request.FrameId = FrameId + 1;
     Request.HorizontalSamples = FMath::Max(1, HorizontalSamples);
@@ -656,8 +648,7 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
     Request.MinVerticalAngleDegrees = MinVerticalAngle;
     Request.MaxVerticalAngleDegrees = MaxVerticalAngle;
     Request.MaxDistanceCm = MaxDistance;
-	Request.AcquisitionStartUnixNanoseconds = ScheduledAcquisitionStartUnixNanoseconds > 0
-		? ScheduledAcquisitionStartUnixNanoseconds : UtcNowUnixNanoseconds();
+    Request.AcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
 
     if (!GpuDepthProjectionComponent->BeginAcquisition(Request))
     {
@@ -685,6 +676,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
     }
     if (Result == EVirtualSensorBackendPollResult::Failed)
     {
+		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
         ++RuntimeStatus.FailedAcquisitionFrameCount;
         bGpuDepthScanInProgress = false;
         RuntimeStatus.bAcquisitionInFlight = false;
@@ -692,8 +684,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
         ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
         RuntimeStatus.ActiveAcquisitionBackend = TEXT("accurate_cpu_trace");
         RuntimeStatus.AcquisitionBackendMessage = AcquisitionBackendFallbackReason;
-		CadenceState.ForceDue(FPlatformTime::Seconds(), UtcNowUnixNanoseconds());
-		NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
+        if (GetWorld()) NextScheduledScanTime = GetWorld()->GetTimeSeconds();
         return 0;
     }
     if (Result != EVirtualSensorBackendPollResult::Completed)
@@ -710,6 +701,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 
 void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame)
 {
+	ScheduledSlabContext=Frame.Request.SlabContext;
     ScheduledScanWidth = FMath::Max(1, Frame.Request.HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, Frame.Request.VerticalChannels);
     ScheduledScanTransform = Frame.Request.AcquisitionTransform;
@@ -910,13 +902,8 @@ void UVirtualLidarScanComponent::UnregisterFromPerformanceSubsystem()
 
 void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 {
-	if (!CadenceState.IsRunning()) return;
+    if (NextScheduledScanTime < 0.0) return;
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
-	if (!FMath::IsNearlyEqual(CadenceState.GetIntervalSeconds(), SafeInterval, 1.0e-6))
-	{
-		CadenceState.Start(NowSeconds, UtcNowUnixNanoseconds(), SafeInterval);
-		NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
-	}
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
     RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
         ? TEXT("auto")
@@ -926,7 +913,7 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
                 ? TEXT("hardware_ray_tracing")
                 : TEXT("accurate_cpu_trace")));
     const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
-    if (bAcquisitionInProgress && CadenceState.IsDue(NowSeconds))
+    if (bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
     {
         // Do not move the deadline beyond the active acquisition here. The
         // scheduler polls completion later in the same Tick; advancing the
@@ -936,19 +923,13 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
         if (!bDeadlineMissRecordedForActiveAcquisition)
         {
             ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
+            ++RuntimeStatus.DeadlineMissCount;
             bDeadlineMissRecordedForActiveAcquisition = true;
         }
     }
-    if (!bAcquisitionInProgress && CadenceState.IsDue(NowSeconds))
+    if (!bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
     {
-		FVirtualSensorCadenceDeadline Deadline;
-		if (!CadenceState.ConsumeDeadline(NowSeconds, UtcNowUnixNanoseconds(), Deadline)) return;
-		ScheduledDeadlineUnixNanoseconds = Deadline.ScheduledUnixNanoseconds;
-		ScheduledAcquisitionStartUnixNanoseconds = Deadline.ActualStartUnixNanoseconds;
-		NextScheduledScanTime = CadenceState.GetNextDeadlineMonotonicSeconds();
-		RuntimeStatus.DeadlineMissCount = static_cast<int32>(FMath::Min<int64>(MAX_int32, CadenceState.GetTelemetry().DeadlineMissCount));
-		RuntimeStatus.CadenceStartJitterP95Ms = CadenceState.GetTelemetry().StartJitterP95Ms;
-		RuntimeStatus.CadenceIntervalErrorP95Ms = CadenceState.GetTelemetry().IntervalErrorP95Ms;
+        do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
         bDeadlineMissRecordedForActiveAcquisition = false;
         ActiveAcquisitionBackend = ResolveAcquisitionBackend(AcquisitionBackendFallbackReason);
         if (ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection)
@@ -972,13 +953,14 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 
 void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
+	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) ScheduledSlabContext=Slab->CaptureContext(SensorId,FrameId+1);
     ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     ScheduledScanWidth = FMath::Max(1, HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, VerticalChannels);
     ScheduledNextRayIndex = 0;
     ScheduledScanTransform = GetComponentTransform();
     ScheduledScanStartTime = FPlatformTime::Seconds();
-	if (ScheduledAcquisitionStartUnixNanoseconds <= 0) ScheduledAcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
+    ScheduledAcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
     ScheduledPoints.Reset();
     ScheduledHitPointCount = 0;
     ScheduledSemanticCounts.Reset();
@@ -1096,7 +1078,6 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
     bScheduledScanInProgress = false;
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
-	CadenceState.MarkAcquisitionEnd(UtcNowUnixNanoseconds());
     ++FrameId;
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
 	PublishLastFrameSnapshot(ScheduledScanTransform, ScheduledScanWidth, ScheduledScanHeight, MaxDistance);
@@ -1746,7 +1727,9 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
     Snapshot->TimeSyncState = EVirtualLidarTimeSyncState::SimulationClock;
     Snapshot->bProtocolVerifiedAgainstHardware = DeviceSpec.bProtocolVerifiedAgainstHardware;
 	Snapshot->AcquisitionTransform = AcquisitionTransform;
-	Snapshot->ScheduledUnixNanoseconds = ScheduledDeadlineUnixNanoseconds;
+	Snapshot->SlabContext=ScheduledSlabContext;
+	if (GetWorld()) if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId);
+	ScheduledSlabContext=FVirtualSlabFrameContext();
 	Snapshot->FrameId = FrameId;
 	Snapshot->HorizontalSamples = FMath::Max(1, InHorizontalSamples);
 	Snapshot->VerticalChannels = FMath::Max(1, InVerticalChannels);
@@ -1754,8 +1737,7 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
 	Snapshot->SettingsRevision = ++FrameSettingsRevision;
     RebuildPhysicalFrameStatistics(*Snapshot);
 	LastFrameSnapshot = StaticCastSharedPtr<const FVirtualLidarFrameSnapshot>(Snapshot);
-	ScheduledAcquisitionStartUnixNanoseconds = 0;
-	ScheduledDeadlineUnixNanoseconds = 0;
+    ScheduledAcquisitionStartUnixNanoseconds = 0;
 }
 
 void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels)

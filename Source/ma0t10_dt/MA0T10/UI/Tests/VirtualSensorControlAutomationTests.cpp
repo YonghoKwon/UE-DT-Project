@@ -22,7 +22,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorGizmoMathTest, "MA0T10.SensorCont
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorDebugBudgetTest, "MA0T10.SensorDebug.ProjectionBudget", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorUiPreferencesSerializationTest, "MA0T10.SensorControl.UiPreferencesSerialization", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCapturePanelResizeTest, "MA0T10.SensorControl.CapturePanelResize", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorFontScaleTest, "MA0T10.SensorControl.GlobalFontScale", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorPanelClampTest::RunTest(const FString& Parameters)
 {
@@ -211,7 +210,6 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	Preferences->bDualCameraModeEnabled = true;
 	Preferences->PrimaryCameraSensorId = TEXT("VCAM-TEST-001");
 	Preferences->SecondaryCameraSensorId = TEXT("VCAM-TEST-002");
-	Preferences->GlobalFontScale = 1.5f;
 
     TArray<uint8> Bytes;
     TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
@@ -249,19 +247,7 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	TestTrue(TEXT("dual camera mode survives serialization"), Loaded->bDualCameraModeEnabled);
 	TestEqual(TEXT("primary camera selection survives serialization"), Loaded->PrimaryCameraSensorId, FString(TEXT("VCAM-TEST-001")));
 	TestEqual(TEXT("secondary camera selection survives serialization"), Loaded->SecondaryCameraSensorId, FString(TEXT("VCAM-TEST-002")));
-	TestEqual(TEXT("global font scale survives serialization"), Loaded->GlobalFontScale, 1.5f);
-	TestEqual(TEXT("UI preferences schema is v7"), Loaded->Version, 7);
     return true;
-}
-
-bool FVirtualSensorFontScaleTest::RunTest(const FString& Parameters)
-{
-	TestEqual(TEXT("small font preset scales base size"), UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(12, 0.85f), 10);
-	TestEqual(TEXT("default font preset preserves base size"), UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(12, 1.0f), 12);
-	TestEqual(TEXT("large font preset scales base size"), UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(12, 1.25f), 15);
-	TestEqual(TEXT("extra large font preset scales base size"), UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(12, 1.5f), 18);
-	TestEqual(TEXT("font scale clamps to safe maximum"), UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(40, 10.0f), 48);
-	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -305,14 +291,6 @@ bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("capture/export panel can opt into common resize behavior"), Widget->bPanelResizable);
 	Widget->SetActiveTab(EVirtualSensorCaptureExportTab::Export);
 	TestEqual(TEXT("four-tab selection is explicit"), Widget->GetActiveTab(), EVirtualSensorCaptureExportTab::Export);
-	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
-	Settings->SetPanelResizable(true);
-	Settings->SetPanelResizeLimits(FVector2D(360.0f, 320.0f), FVector2D::ZeroVector);
-	TestTrue(TEXT("settings panel opts into common resize behavior"), Settings->bPanelResizable);
-	const FVector2D SettingsMinimum = UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
-		FVector2D(450.0f, 640.0f), FVector2D(-1000.0f, -1000.0f), 1.0f,
-		FVector2D(360.0f, 320.0f), FVector2D(1600.0f, 1000.0f));
-	TestEqual(TEXT("settings panel respects its minimum size"), SettingsMinimum, FVector2D(360.0f, 320.0f));
 	return true;
 }
 

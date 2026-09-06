@@ -11,6 +11,9 @@
 #include "Serialization/JsonSerializer.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#endif
 
 namespace
 {
@@ -23,7 +26,8 @@ enum class EWorkerEventType : uint8
 	Consumed,
 	ValidationFailed,
 	Retry,
-	Overload
+	Overload,
+	DeliveryFailed
 };
 
 struct FWorkerEvent
@@ -38,7 +42,6 @@ struct FWorkerEvent
 	int64 GapDelta = 0;
 	int64 DuplicateDelta = 0;
 	float LatencyMs = 0.0f;
-	float AcquisitionToSubmitLatencyMs = 0.0f;
 	FString Message;
 };
 
@@ -161,6 +164,13 @@ public:
 	{
 		while (!bStopRequested.Load())
 		{
+			FString Cancelled;
+			while (RunCancellations.Dequeue(Cancelled))
+			{
+				CancelledRuns.Add(Cancelled);
+				for (auto It=PendingReceipts.CreateIterator(); It; ++It)
+					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) { AdjustRunPending(It.Value().Frame,-1); It.RemoveCurrent(); }
+			}
 			if (!bConnected)
 			{
 				const double Now = FPlatformTime::Seconds();
@@ -208,8 +218,21 @@ public:
 			return false;
 		}
 		++QueueCounts[Index];
+		AdjustRunPending(Frame,1);
 		Frames.Enqueue(Frame);
 		return true;
+	}
+	void CancelRun(const FString& RunId) { RunCancellations.Enqueue(RunId); }
+	int32 GetRunPending(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunPendingCounts.FindRef(RunId); }
+	int32 GetRunFailures(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunFailureCounts.FindRef(RunId); }
+	void AdjustRunPending(const FVirtualSensorBinaryFrame& Frame,int32 Delta,bool bFailed = false)
+	{
+		const FString RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
+		if (RunId.IsEmpty()) return;
+		FScopeLock Lock(&RunPendingMutex);
+		if (bFailed) ++RunFailureCounts.FindOrAdd(RunId);
+		int32& Count=RunPendingCounts.FindOrAdd(RunId); Count=FMath::Max(0,Count+Delta);
+		if (Count==0) RunPendingCounts.Remove(RunId);
 	}
 
 	bool DequeueEvent(FWorkerEvent& OutEvent)
@@ -220,6 +243,20 @@ public:
 	bool IsRunning() const { return Thread != nullptr && !bStopRequested.Load(); }
 
 private:
+	friend class FSensorRawTerminalLedgerTest;
+	void FailFrame(const FVirtualSensorBinaryFrame& Frame, const FString& Reason)
+	{
+		// Record failure atomically with the decrement; the game thread must not
+		// observe zero pending and declare success before it drains the event queue.
+		AdjustRunPending(Frame, -1, true);
+		FWorkerEvent Event;
+		Event.Type = EWorkerEventType::DeliveryFailed;
+		Event.StreamKind = Frame.StreamKind;
+		Event.SensorId = Frame.SensorId;
+		Event.FrameId = Frame.FrameId;
+		Event.Message = Reason;
+		Events.Enqueue(MoveTemp(Event));
+	}
 	bool Connect()
 	{
 		CloseSocket();
@@ -343,8 +380,10 @@ private:
 		{
 			const int32 Index = static_cast<int32>(Frame.StreamKind);
 			--QueueCounts[Index];
+			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { AdjustRunPending(Frame,-1); continue; }
 			if (!SendFrame(Frame, 0))
 			{
+				FailFrame(Frame, TEXT("Socket write failed; frame has no remaining delivery path."));
 				HandleDisconnect(TEXT("Socket write failed; acquisition remains active and stream will reconnect."));
 				return;
 			}
@@ -354,8 +393,6 @@ private:
 
 	bool SendFrame(const FVirtualSensorBinaryFrame& Frame, int32 RetryAttempt)
 	{
-		static const FDateTime UnixEpoch(1970, 1, 1);
-		const int64 SubmitUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
 		const FString RequestId = Frame.RequestId.IsEmpty()
 			? FString::Printf(TEXT("%s-%lld-%s"), *Frame.SensorId, Frame.FrameId, *HeaderValue(Frame.Headers, TEXT("checksum")))
 			: Frame.RequestId;
@@ -376,7 +413,6 @@ private:
 			Frame.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 				: Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream"),
 			Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar"));
-		Header += FString::Printf(TEXT("x-submit-unix-ns:%lld\n"), SubmitUnixNanoseconds);
 		for (const TPair<FString, FString>& Pair : Frame.Headers)
 		{
 			if (Pair.Key.Equals(TEXT("schema"), ESearchCase::IgnoreCase) ||
@@ -414,12 +450,6 @@ private:
 		Event.QueueDepth = QueueCounts[static_cast<int32>(Frame.StreamKind)].Load();
 		Event.ReceiptDepth = CountPendingReceipts(Frame.StreamKind);
 		Event.LatencyMs = static_cast<float>((LastSocketActivitySeconds - Started) * 1000.0);
-		int64 AcquisitionStartUnixNanoseconds = 0;
-		if (LexTryParseString(AcquisitionStartUnixNanoseconds, *HeaderValue(Frame.Headers, TEXT("x-acquisition-start-unix-ns"))) && AcquisitionStartUnixNanoseconds > 0)
-		{
-			const int64 SubmittedUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
-			Event.AcquisitionToSubmitLatencyMs = static_cast<float>(FMath::Max<int64>(0, SubmittedUnixNanoseconds - AcquisitionStartUnixNanoseconds) / 1.0e6);
-		}
 		Event.Message = TEXT("Raw TCP STOMP frame submitted; waiting for broker receipt.");
 		Events.Enqueue(MoveTemp(Event));
 		return true;
@@ -497,6 +527,7 @@ private:
 				Event.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Pending->SubmittedSeconds) * 1000.0);
 				Event.Message = TEXT("Broker receipt received.");
 				Events.Enqueue(MoveTemp(Event));
+				AdjustRunPending(Pending->Frame,-1);
 				PendingReceipts.Remove(ReceiptId);
 			}
 			return;
@@ -564,14 +595,15 @@ private:
 		Event.FrameId = FrameId;
 		Event.Bytes = Frame.Body.Num();
 		Event.Message = ValidationMessage;
-		const int32 Index = static_cast<int32>(Kind);
-		const int64 Previous = LastConsumerFrameIds[Index];
+		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+HeaderValue(Frame.Headers,TEXT("x-run-uuid"))+TEXT("|")+HeaderValue(Frame.Headers,TEXT("x-session-segment"));
+		int64& LastSeen=ConsumerSequenceIds.FindOrAdd(SequenceKey);
+		const int64 Previous = LastSeen;
 		if (bValid && Previous > 0)
 		{
 			if (FrameId == Previous) Event.DuplicateDelta = 1;
 			else if (FrameId > Previous + 1) Event.GapDelta = FrameId - Previous - 1;
 		}
-		if (bValid && FrameId > Previous) LastConsumerFrameIds[Index] = FrameId;
+		if (bValid && FrameId > Previous) LastSeen = FrameId;
 		FDateTime SourceUtc;
 		if (FDateTime::ParseIso8601(*HeaderValue(Frame.Headers, TEXT("timestamp-utc")), SourceUtc))
 		{
@@ -594,13 +626,7 @@ private:
 			if (!PendingReceipts.RemoveAndCopyValue(Id, Pending)) continue;
 			if (Pending.RetryAttempt >= 3)
 			{
-				FWorkerEvent Event;
-				Event.Type = EWorkerEventType::Overload;
-				Event.StreamKind = Pending.Frame.StreamKind;
-				Event.SensorId = Pending.Frame.SensorId;
-				Event.FrameId = Pending.Frame.FrameId;
-				Event.Message = TEXT("Broker receipt retry limit was exhausted.");
-				Events.Enqueue(MoveTemp(Event));
+				FailFrame(Pending.Frame, TEXT("Broker receipt retry limit was exhausted."));
 				continue;
 			}
 			FWorkerEvent RetryEvent;
@@ -612,6 +638,7 @@ private:
 			Events.Enqueue(MoveTemp(RetryEvent));
 			if (!SendFrame(Pending.Frame, Pending.RetryAttempt + 1))
 			{
+				FailFrame(Pending.Frame, TEXT("Receipt retry socket write failed."));
 				HandleDisconnect(TEXT("Receipt retry socket write failed."));
 				return;
 			}
@@ -645,6 +672,8 @@ private:
 	void CloseSocket()
 	{
 		bConnected = false;
+		for (const auto& Pair : PendingReceipts)
+			FailFrame(Pair.Value.Frame, TEXT("Connection closed before broker receipt; delivery outcome is unconfirmed."));
 		PendingReceipts.Reset();
 		Parser.Reset();
 		if (Socket)
@@ -666,6 +695,12 @@ private:
 	}
 
 	FVirtualSensorHighThroughputProfile Profile;
+	TQueue<FString,EQueueMode::Mpsc> RunCancellations;
+	TSet<FString> CancelledRuns;
+	TMap<FString,int64> ConsumerSequenceIds;
+	mutable FCriticalSection RunPendingMutex;
+	TMap<FString,int32> RunPendingCounts;
+	TMap<FString,int32> RunFailureCounts;
 	FString Passcode;
 	FRunnableThread* Thread = nullptr;
 	FSocket* Socket = nullptr;
@@ -776,6 +811,21 @@ TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsy
 	return Result;
 }
 
+void UVirtualSensorHighThroughputTransportSubsystem::CancelRun(const FString& RunId)
+{
+	if (Worker) Worker->CancelRun(RunId);
+}
+
+int32 UVirtualSensorHighThroughputTransportSubsystem::GetPendingRunFrameCount(const FString& RunId) const
+{
+	return Worker ? Worker->GetRunPending(RunId) : 0;
+}
+
+int32 UVirtualSensorHighThroughputTransportSubsystem::GetFailedRunFrameCount(const FString& RunId) const
+{
+	return Worker ? Worker->GetRunFailures(RunId) : 0;
+}
+
 bool UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(const FString& BrokerUrl, FString* OutReason)
 {
 	FString Host;
@@ -837,23 +887,10 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 					(1024.0 * 1024.0 * SubmittedSeconds));
 			}
 			Telemetry.LastSocketWriteLatencyMs = Event.LatencyMs;
-			Telemetry.AcquisitionToSubmitLatencySamples.Add(Event.AcquisitionToSubmitLatencyMs);
-			if (Telemetry.AcquisitionToSubmitLatencySamples.Num() > 256)
-			{
-				Telemetry.AcquisitionToSubmitLatencySamples.RemoveAt(0, Telemetry.AcquisitionToSubmitLatencySamples.Num() - 256, false);
-			}
-			{
-				TArray<float> Sorted = Telemetry.AcquisitionToSubmitLatencySamples;
-				Sorted.Sort();
-				Telemetry.AcquisitionToSubmitP95LatencyMs = Sorted[FMath::Clamp(FMath::CeilToInt(Sorted.Num() * 0.95f) - 1, 0, Sorted.Num() - 1)];
-			}
 			Telemetry.State = TEXT("submitted");
 			break;
 		case EWorkerEventType::Receipt:
 			++Telemetry.ReceiptCount;
-			if (Telemetry.FirstReceiptSeconds <= 0.0) Telemetry.FirstReceiptSeconds = FPlatformTime::Seconds();
-			Telemetry.ReceiptHz = static_cast<float>(Telemetry.ReceiptCount /
-				FMath::Max(0.001, FPlatformTime::Seconds() - Telemetry.FirstReceiptSeconds));
 			Telemetry.LastReceiptLatencyMs = Event.LatencyMs;
 			Telemetry.State = TEXT("receipt");
 			break;
@@ -890,7 +927,48 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 			++Telemetry.OverloadCount;
 			Telemetry.State = TEXT("overload");
 			break;
+		case EWorkerEventType::DeliveryFailed:
+			++Telemetry.DeliveryFailureCount;
+			Telemetry.State = TEXT("delivery-failed");
+			break;
 		default: break;
 		}
 	}
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawTerminalLedgerTest, "MA0T10.SensorStream.RawTerminalLedger", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSensorRawTerminalLedgerTest::RunTest(const FString& Parameters)
+{
+	FVirtualSensorHighThroughputTransportWorker Worker{FVirtualSensorHighThroughputProfile(), FString()};
+	FVirtualSensorBinaryFrame Frame;
+	Frame.SensorId = TEXT("LEDGER-TEST");
+	Frame.Headers.Add(TEXT("x-run-uuid"), TEXT("run-a"));
+	Frame.Body32 = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(TArray<uint8>{1});
+	FString Error;
+	TestTrue(TEXT("enqueue accepts frame"), Worker.Enqueue(Frame, Error));
+	Worker.PumpSend(); // no socket: deterministic terminal write failure, no network IO
+	TestEqual(TEXT("failed initial write balances pending"), Worker.GetRunPending(TEXT("run-a")), 0);
+	TestEqual(TEXT("failed initial write recorded before event drain"), Worker.GetRunFailures(TEXT("run-a")), 1);
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		FPendingReceipt Pending; Pending.Frame = Frame;
+		Worker.AdjustRunPending(Frame, 1);
+		Worker.PendingReceipts.Add(LexToString(Index), Pending);
+	}
+	Worker.CloseSocket();
+	TestEqual(TEXT("disconnect retires every receipt wait"), Worker.GetRunPending(TEXT("run-a")), 0);
+	TestEqual(TEXT("disconnect reports unconfirmed delivery"), Worker.GetRunFailures(TEXT("run-a")), 3);
+	for (int32 RetryAttempt : {3, 0})
+	{
+		FPendingReceipt Pending; Pending.Frame = Frame; Pending.RetryAttempt = RetryAttempt;
+		Worker.AdjustRunPending(Frame, 1);
+		Worker.PendingReceipts.Add(TEXT("retry"), Pending);
+		Worker.CheckReceiptTimeouts();
+		TestEqual(TEXT("retry exhaustion/write failure balances pending"), Worker.GetRunPending(TEXT("run-a")), 0);
+	}
+	TestEqual(TEXT("all terminal paths counted once"), Worker.GetRunFailures(TEXT("run-a")), 5);
+	TestEqual(TEXT("different run is not contaminated"), Worker.GetRunFailures(TEXT("run-b")), 0);
+	return true;
+}
+#endif

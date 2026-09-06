@@ -187,31 +187,10 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
             RecentFrameTimesMs.RemoveAt(0, RecentFrameTimesMs.Num() - MaxFrameSamples, false);
         }
     }
-	const double StartSeconds = FPlatformTime::Seconds();
-	const double NowSeconds = StartSeconds;
-	const double WorldNowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
-	const bool bWorldPaused = GetWorld() && GetWorld()->IsPaused();
-	if (bWorldPaused)
-	{
-		bCadencePaused = true;
-		return;
-	}
-	if (bCadencePaused)
-	{
-		static const FDateTime UnixEpoch(1970, 1, 1);
-		const int64 NowUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
-		for (const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Camera : Cameras)
-		{
-			if (Camera.IsValid()) Camera->ResumeRealtimeCadence(NowSeconds, NowUnixNanoseconds);
-		}
-		for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
-		{
-			if (Lidar.IsValid()) Lidar->ResumeRealtimeCadence(NowSeconds, NowUnixNanoseconds);
-		}
-		bCadencePaused = false;
-	}
+    const double StartSeconds = FPlatformTime::Seconds();
+    const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
     if (!bCommandLineBenchmarkStatisticsReset && CommandLineBenchmarkStatisticsResetTime >= 0.0 &&
-        WorldNowSeconds >= CommandLineBenchmarkStatisticsResetTime)
+        NowSeconds >= CommandLineBenchmarkStatisticsResetTime)
     {
         RecentFrameTimesMs.Reset();
         Telemetry.AverageFps = 0.0f;

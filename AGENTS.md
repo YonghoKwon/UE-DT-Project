@@ -40,8 +40,7 @@
 
 - V2 패널 native parent는 각각 `UVirtualSensorMonitorPanelWidget`, `UVirtualSensorSettingsPanelWidget`, `UVirtualSensorCaptureExportPanelWidget`입니다.
 - 공통 base `UVirtualSensorPanelWidgetBase : UDxWidget`가 drag, DPI clamp, 접기, 위치 복원을 담당합니다.
-- Monitor, Settings, CaptureExport는 공통 base의 자유 resize를 활성화합니다. 오른쪽 아래 32px grip, preview 입력, DPI 보정, 화면 clamp, 접힘 시 확장 크기 보존과 UI SaveGame v7 복원을 함께 유지합니다.
-- 세 패널 글자 배율은 공통 85/100/125/150%이며 native Slate와 사용자 WBP에 함께 적용합니다. font 변경 후 layout invalidation, scroll, panel clamp를 회귀 검증합니다.
+- Monitor와 CaptureExport는 공통 base의 자유 resize를 활성화합니다. 오른쪽 아래 grip, DPI 보정, 화면 clamp, 접힘 시 확장 크기 보존과 UI SaveGame v6 복원을 함께 유지합니다.
 
 ### ML-X(80), 캡처와 듀얼 카메라
 
@@ -51,7 +50,6 @@
 - Point Cloud 스트림 포맷, 로컬 캡처 포맷, 수동 내보내기 포맷은 서로 독립된 상태입니다. 포맷 revision이 바뀌면 이전 비동기 결과를 적용하지 않습니다.
 - 실시간 Point Cloud는 `virtual-pointcloud.pcd.v1` raw PCD `DATA binary`로 고정합니다. Base64/JSON 호환 경로는 기존 API에만 남기고 새 실시간 UI에서 사용하지 않습니다.
 - `ConnectedNoLoss`는 센서별 입력/완료 FIFO와 receipt body를 최대 20개씩 보존합니다. 큐 초과 시 최신 프레임으로 교체하지 말고 명시적 오류로 중지하며 Camera/LiDAR JSON의 최신 프레임 정책과 섞지 않습니다.
-- 자동 측정 deadline은 단조 실시간 시계를 사용합니다. 프로필 interval 변경과 PIE pause/resume은 재동기화하되 hitch 중 누락된 주기는 복제하지 않고 telemetry에 기록합니다. `TimestampUtc`를 파생 완료 시각으로 다시 찍지 않습니다.
 - `PointCloudTarget` Actor Tag 및 Semantic/ROI 필터는 Digital Twin 확장입니다. 실제 ML-X 하드웨어 기능이나 제조사 패킷이라고 표기하지 않습니다.
 - 듀얼 카메라는 기존 RenderTarget을 공유하고 추가 캡처/readback을 만들지 않습니다. 주 카메라만 Coordinator 선택과 동기화하고 보조 카메라는 보기 전용으로 유지하며 동일 SensorId를 거부합니다.
 - `SensorRefactorTestMap`은 관리 대상 `VCAM-TEST-001`과 수직 하향 `VCAM-TEST-002`를 포함합니다. 운영 `SensorTestMap`과 사용자 비관리 Actor에는 두 번째 카메라를 자동 추가하지 않습니다.

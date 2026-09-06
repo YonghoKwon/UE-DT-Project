@@ -8,6 +8,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Json.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "RHIGlobals.h"
@@ -15,6 +16,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -26,6 +28,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "VirtualSlabSensorTestDriver.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeFeatureSmokeTest,
@@ -307,7 +310,7 @@ public:
 			const FString UserName = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
 			if (!BrokerUrl.IsEmpty()) Profile.BrokerUrl = BrokerUrl;
 			if (!UserName.IsEmpty()) Profile.UserName = UserName;
-			Profile.MaxMessageBytes = 32 * 1024 * 1024;
+			Profile.MaxMessageBytes = 8 * 1024 * 1024;
 			Transport->ConfigureTransportProfile(Profile);
 			Transport->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")), FString());
 			Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
@@ -324,6 +327,7 @@ public:
 
 		if (!bStreamsStarted)
 		{
+			bScenarioMode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SLAB_SCENARIO_SMOKE")).Equals(TEXT("1"));
 			// Exercise the production contract, not the legacy CSV envelope used by
 			// the early three-stream smoke. Applying the profile once keeps the
 			// acquisition at 576x56, 20 Hz while the stream subscribes to completed
@@ -361,7 +365,7 @@ public:
 			{
 				FVirtualSensorStreamConfig Config;
 				Config.StreamKind = Kind;
-				Config.bEnabled = true;
+				Config.bEnabled = !bScenarioMode;
 				Config.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 				Config.FrameStride = 1;
 				Config.ReceiptSampleInterval = 1;
@@ -382,11 +386,20 @@ public:
 			bStreamsStarted = true;
 			return false;
 		}
+		if (bScenarioMode)
+		{
+			if (!ScenarioDriver.IsValid() && FPlatformTime::Seconds()-StreamsStartedAtSeconds>=WarmupSeconds)
+			{
+				ScenarioDriver=World->SpawnActor<AVirtualSlabSensorTestDriver>();
+				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,{Camera->GetSensorId(),Lidar->GetSensorId()}));
+			}
+			if (ScenarioDriver.IsValid() && ScenarioDriver->HasFailed()) { Test->AddError(TEXT("Slab fixture failed; inspect session_runs.json")); return true; }
+		}
 
 		TMap<EVirtualSensorStreamKind, FVirtualSensorStreamStatus> StatusByKind;
 		for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
 		{
-			if (Status.SensorId.IsEmpty()) StatusByKind.Add(Status.StreamKind, Status);
+			if ((!bScenarioMode && Status.SensorId.IsEmpty()) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
 		}
 		bool bAllReady = StatusByKind.Num() == 3;
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
@@ -399,20 +412,33 @@ public:
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
 		if (StreamElapsedSeconds >= WarmupSeconds)
 		{
-			if (!bMeasurementCadenceBaselineCaptured)
+			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
+			if (!bCaptureViewStatesChecked)
 			{
-				CameraDeadlineMissBaseline = Camera->CaptureComponent->GetRuntimeStatus().DeadlineMissCount;
-				LidarDeadlineMissBaseline = Lidar->ScanComponent->GetRuntimeStatus().DeadlineMissCount;
-				bMeasurementCadenceBaselineCaptured = true;
+				bCaptureViewStatesChecked = true;
+				Test->TestTrue(TEXT("scheduled Camera retains render state"), Camera->CaptureComponent->bAlwaysPersistRenderingState);
+				Test->TestTrue(TEXT("scheduled depth capture retains render state"), DepthCapture && DepthCapture->bAlwaysPersistRenderingState);
+				CameraViewState = Camera->CaptureComponent->GetViewState(0);
+				LidarViewState = DepthCapture ? DepthCapture->GetViewState(0) : nullptr;
+				Test->TestNotNull(TEXT("Camera has persistent view state"), CameraViewState);
+				Test->TestNotNull(TEXT("LiDAR has persistent view state"), LidarViewState);
+			}
+			if (CameraViewState != Camera->CaptureComponent->GetViewState(0) ||
+				!DepthCapture || LidarViewState != DepthCapture->GetViewState(0))
+			{
+				Test->AddError(TEXT("Sensor capture view state was replaced during streaming"));
+				return true;
 			}
 			const double SampleNow = FPlatformTime::Seconds();
-			const double GameFrameMs = World->GetDeltaSeconds() * 1000.0;
+			const double GameFrameMs = FApp::GetDeltaTime() * 1000.0;
 			if (GameFrameMs > 0.0 && GameFrameMs < 1000.0) FrameTimesMs.Add(GameFrameMs);
 			if (LastFrameSampleSeconds > 0.0) WallPacingTimesMs.Add((SampleNow - LastFrameSampleSeconds) * 1000.0);
 			LastFrameSampleSeconds = SampleNow;
 		}
 		if ((!bAllReady || StreamElapsedSeconds < WarmupSeconds + MeasurementSeconds) &&
 			StreamElapsedSeconds < WarmupSeconds + MeasurementSeconds + 15.0) return false;
+		if (bScenarioMode && ScenarioDriver.IsValid() && !ScenarioDriver->IsFinished() && StreamElapsedSeconds<100.0) return false;
+		if (bScenarioMode) Test->TestTrue(TEXT("two distinct 30-second sessions finish and drain"),ScenarioDriver.IsValid() && ScenarioDriver->IsFinished() && ScenarioDriver->GetCompletedRuns()==2);
 
 		if (!bAcquisitionStopped)
 		{
@@ -489,17 +515,6 @@ public:
 			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
-		const FVirtualSensorRuntimeStatus& CameraRuntime = Camera->CaptureComponent->GetRuntimeStatus();
-		const FVirtualSensorRuntimeStatus& LidarRuntime = Lidar->ScanComponent->GetRuntimeStatus();
-		const int32 CameraMeasurementMisses = CameraRuntime.DeadlineMissCount - CameraDeadlineMissBaseline;
-		const int32 LidarMeasurementMisses = LidarRuntime.DeadlineMissCount - LidarDeadlineMissBaseline;
-		Test->TestEqual(TEXT("D455 realtime cadence has no missed sensor periods after warmup"), CameraMeasurementMisses, 0);
-		Test->TestEqual(TEXT("ML-X realtime cadence has no missed sensor periods after warmup"), LidarMeasurementMisses, 0);
-		Test->TestTrue(TEXT("D455 acquisition interval p95 error remains below 2.5 ms"), CameraRuntime.CadenceIntervalErrorP95Ms <= 2.5f);
-		Test->TestTrue(TEXT("ML-X acquisition interval p95 error remains below 2.5 ms"), LidarRuntime.CadenceIntervalErrorP95Ms <= 2.5f);
-		UE_LOG(LogTemp, Display, TEXT("[SensorCadenceRhi] cameraStartJitterP95Ms=%.2f cameraIntervalErrorP95Ms=%.2f cameraDeadlineMiss=%d lidarStartJitterP95Ms=%.2f lidarIntervalErrorP95Ms=%.2f lidarDeadlineMiss=%d"),
-			CameraRuntime.CadenceStartJitterP95Ms, CameraRuntime.CadenceIntervalErrorP95Ms, CameraMeasurementMisses,
-			LidarRuntime.CadenceStartJitterP95Ms, LidarRuntime.CadenceIntervalErrorP95Ms, LidarMeasurementMisses);
 		const FVirtualSensorStreamStatus* CameraStatus = StatusByKind.Find(EVirtualSensorStreamKind::CameraImage);
 		const FVirtualSensorStreamStatus* LidarStatus = StatusByKind.Find(EVirtualSensorStreamKind::LidarPayload);
 		UE_LOG(LogTemp, Display, TEXT("[SensorHighThroughputRhi] cameraSubmitted=%lld cameraReceipt=%lld cameraConsumer=%lld cameraHz=%.2f lidarSubmitted=%lld lidarReceipt=%lld lidarConsumer=%lld lidarHz=%.2f pcdSubmitted=%lld pcdReceipt=%lld pcdConsumer=%lld pcdHz=%.2f"),
@@ -512,6 +527,7 @@ public:
 			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->ConsumerReceivedCount : 0,
 			PointCloudBeforeAssertions ? PointCloudBeforeAssertions->SubmittedHz : 0.0f);
 		Test->TestTrue(TEXT("stream performance collected enough rendered frames"), FrameTimesMs.Num() >= 120);
+		Test->TestFalse(TEXT("benchmark must not use a synthetic fixed timestep"),FApp::UseFixedTimeStep() || GEngine->bUseFixedFrameRate);
 		if (!FrameTimesMs.IsEmpty())
 		{
 			double TotalFrameMs = 0.0;
@@ -551,15 +567,17 @@ private:
 	bool bConnectionRequested = false;
 	bool bStreamsStarted = false;
 	bool bAcquisitionStopped = false;
+	bool bScenarioMode=false;
+	bool bCaptureViewStatesChecked = false;
+	FSceneViewStateInterface* CameraViewState = nullptr;
+	FSceneViewStateInterface* LidarViewState = nullptr;
+	TWeakObjectPtr<AVirtualSlabSensorTestDriver> ScenarioDriver;
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
 	double MeasurementSeconds = 60.0;
 	double WarmupSeconds = 10.0;
 	TArray<double> FrameTimesMs;
 	TArray<double> WallPacingTimesMs;
-	bool bMeasurementCadenceBaselineCaptured = false;
-	int32 CameraDeadlineMissBaseline = 0;
-	int32 LidarDeadlineMissBaseline = 0;
 };
 }
 

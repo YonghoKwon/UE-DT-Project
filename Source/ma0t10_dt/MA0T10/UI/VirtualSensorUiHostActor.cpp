@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "SensorToolAppearance.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/World.h"
@@ -107,6 +108,8 @@ UVirtualSensorMonitorPanelWidget* AVirtualSensorUiHostActor::CreateAndBindMonito
         MonitorWidget->ShowLidarView();
     }
 
+	SensorToolFontScale = USensorToolAppearance::LoadScale();
+	MonitorWidget->SetSensorAppearanceOwner(this);
     MonitorWidget->SetPanelPersistenceKey(TEXT("Monitor"));
     MonitorWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::RightCenter, FVector2D(820.0f, 430.0f));
     MonitorWidget->SetPanelResizable(true);
@@ -211,12 +214,10 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
         if (SettingsWidget)
         {
             SettingsWidget->SetPanelPersistenceKey(TEXT("Settings"));
+			SettingsWidget->SetSensorAppearanceOwner(this);
             SettingsWidget->BindHostActor(this);
             SettingsWidget->BindSensorManager(ResolvedManager);
             SettingsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(450.0f, 640.0f));
-			SettingsWidget->SetPanelResizable(true);
-			SettingsWidget->ResizeHandleSize = 32.0f;
-			SettingsWidget->SetPanelResizeLimits(FVector2D(360.0f, 320.0f), FVector2D::ZeroVector);
             if (PanelHostComponent)
             {
                 PanelHostComponent->RegisterPanel(SettingsWidget, SettingsViewportZOrder);
@@ -230,6 +231,7 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
         if (CaptureExportWidget)
         {
             CaptureExportWidget->SetPanelPersistenceKey(TEXT("CaptureExport"));
+			CaptureExportWidget->SetSensorAppearanceOwner(this);
             CaptureExportWidget->BindSensorManager(ResolvedManager);
             CaptureExportWidget->BindMonitorWidget(MonitorWidget);
             CaptureExportWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::BottomCenter, FVector2D(900.0f, 620.0f));
@@ -246,10 +248,8 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
 
 void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
 {
+	ResetSensorToolAppearance();
     UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences();
-	if (SettingsWidget) SettingsWidget->ResetGlobalSensorUiFontScale();
-	else if (MonitorWidget) MonitorWidget->ResetGlobalSensorUiFontScale();
-	else if (CaptureExportWidget) CaptureExportWidget->ResetGlobalSensorUiFontScale();
     if (MonitorWidget)
     {
         MonitorWidget->ResetMonitorUiPreferencesToDefault();
@@ -265,6 +265,20 @@ void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
         CaptureExportWidget->ResetPanelUiStateToDefault();
     }
     LastStatusMessage = TEXT("센서 UI 배치와 표시 설정을 기본값으로 초기화했습니다.");
+}
+
+void AVirtualSensorUiHostActor::ResetSensorToolAppearance()
+{
+	SetSensorToolFontScale(1.0f);
+}
+
+void AVirtualSensorUiHostActor::SetSensorToolFontScale(float Scale)
+{
+	if (!FMath::IsFinite(Scale)) return;
+	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
+	for (UVirtualSensorPanelWidgetBase* Panel : {static_cast<UVirtualSensorPanelWidgetBase*>(MonitorWidget), static_cast<UVirtualSensorPanelWidgetBase*>(SettingsWidget), static_cast<UVirtualSensorPanelWidgetBase*>(CaptureExportWidget)})
+		if (Panel) Panel->ApplySensorToolFontScale(SensorToolFontScale);
+	USensorToolAppearance::SaveScale(SensorToolFontScale);
 }
 
 void AVirtualSensorUiHostActor::QueueSensorStateForMapApply(const FVirtualSensorEditableState& SensorState)

@@ -5,6 +5,10 @@
 #include "Engine/RectLight.h"
 #include "Engine/SkyLight.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/CommandLine.h"
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -40,7 +44,25 @@ struct FEditorSmokeMapSummary
 
 UWorld* LoadSmokeMap(FAutomationTestBase& Test, const TCHAR* MapObjectPath)
 {
-    UWorld* LoadedWorld = LoadObject<UWorld>(nullptr, MapObjectPath);
+    FString ResolvedObjectPath = MapObjectPath;
+    FString SnapshotDirectory;
+    if (ResolvedObjectPath == TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap") &&
+        FParse::Value(FCommandLine::Get(), TEXT("SensorSmokeMapDirectory="), SnapshotDirectory))
+    {
+        SnapshotDirectory = FPaths::ConvertRelativePathToFull(SnapshotDirectory);
+        const FString ReportsDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Reports"));
+        if (!FPaths::IsUnderDirectory(SnapshotDirectory, ReportsDirectory) ||
+            !IFileManager::Get().FileExists(*(SnapshotDirectory / TEXT("SensorTestMap.umap"))))
+        {
+            Test.AddError(TEXT("Committed-map snapshot must be an existing map under Saved/Reports."));
+            return nullptr;
+        }
+        // Test the exact archived commit without replacing the user's working map.
+        FPackageName::RegisterMountPoint(TEXT("/SensorSmokeBaseline/"), SnapshotDirectory + TEXT("/"));
+        ResolvedObjectPath = TEXT("/SensorSmokeBaseline/SensorTestMap.SensorTestMap");
+        Test.AddInfo(TEXT("Testing archived SensorTestMap; all original layout assertions remain enabled."));
+    }
+    UWorld* LoadedWorld = LoadObject<UWorld>(nullptr, *ResolvedObjectPath);
     Test.TestNotNull(FString::Printf(TEXT("map asset loads: %s"), MapObjectPath), LoadedWorld);
     if (!LoadedWorld)
     {

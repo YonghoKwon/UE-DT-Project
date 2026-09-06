@@ -82,11 +82,11 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendJsonStreamRe
 	const FString& DataKind,
 	int64 FrameId,
 	const FString& JsonText,
-	bool bRequestReceipt)
+	bool bRequestReceipt, const TMap<FString,FString>& AdditionalHeaders)
 {
 	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
 	{
-		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText, false, bRequestReceipt);
+		FVirtualSensorTransportResult Result = SendStomp(SensorId, SensorType, DataKind, FrameId, JsonText, false, bRequestReceipt, AdditionalHeaders);
 		OnDataSent.Broadcast(Result);
 		return Result;
 	}
@@ -152,6 +152,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 	Headers.Add(TEXT("x-filter-revision"), LexToString(Metadata.FilterRevision));
 	Headers.Add(TEXT("x-acquisition-profile"), Metadata.ProfileKey);
 	Headers.Add(TEXT("x-checksum-sha1"), Metadata.ChecksumSha1);
+	for (const auto& Pair : Metadata.SlabContext.ToHeaders()) Headers.Add(FName(*Pair.Key),Pair.Value);
 
 	const double StartedSeconds = FPlatformTime::Seconds();
 	const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);
@@ -247,12 +248,38 @@ void UVirtualSensorTransportComponent::RequestStompReconnect()
 	EnsureStompClient();
 }
 
+bool UVirtualSensorTransportComponent::BuildStompConnectHeaders(const FString& User, const FString& Passcode,
+	const FString& UpgradeToken, TMap<FName, FString>& OutHeaders, FString& OutError)
+{
+	OutHeaders.Reset(); OutError.Reset();
+	if (!UpgradeToken.IsEmpty() && (!User.IsEmpty() || !Passcode.IsEmpty()))
+	{
+		OutError = TEXT("STOMP 인증 설정 충돌: 사용자/비밀번호와 WebSocket Bearer 인증 중 하나만 사용하십시오.");
+		return false;
+	}
+	if (!User.IsEmpty())
+	{
+		OutHeaders.Add(TEXT("login"), User);
+		// UE requires the key even for an empty password; the broker may reject it.
+		OutHeaders.Add(TEXT("passcode"), Passcode);
+	}
+	return true;
+}
+
 void UVirtualSensorTransportComponent::EnsureStompClient()
 {
+	FStompHeader Headers;
+	FString AuthError;
+	if (!BuildStompConnectHeaders(TransportProfile.UserName, SessionPasscode, SessionBearerToken, Headers, AuthError))
+	{
+		LastResult.bSubmitted = false; LastResult.bAccepted = false; LastResult.Message = AuthError;
+		return;
+	}
 	if (StompClient.IsValid())
 	{
-		if (!StompClient->IsConnected() && !bStompConnecting.Exchange(true)) StompClient->Connect();
-		return;
+		if (StompClient->IsConnected() || bStompConnecting.Load()) return;
+		// Recreate to avoid duplicate socket callbacks and restore credentials.
+		StompClient.Reset();
 	}
 	if (TransportProfile.BrokerUrl.IsEmpty()) return;
 	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] creating STOMP client owner=%s broker=%s"),
@@ -262,9 +289,6 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 	StompClient->OnConnectionError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
 	StompClient->OnError().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
 	StompClient->OnClosed().AddUObject(this, &UVirtualSensorTransportComponent::HandleStompFailure);
-	FStompHeader Headers;
-	if (!TransportProfile.UserName.IsEmpty()) Headers.Add(TEXT("login"), TransportProfile.UserName);
-	if (!SessionPasscode.IsEmpty()) Headers.Add(TEXT("passcode"), SessionPasscode);
 	bStompConnecting.Store(true);
 	StompClient->Connect(Headers);
 }
@@ -351,7 +375,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	int64 FrameId,
 	const FString& JsonText,
 	bool bManualRequest,
-	bool bRequestReceipt)
+	bool bRequestReceipt, const TMap<FString,FString>& AdditionalHeaders)
 {
 	FVirtualSensorTransportResult Result;
 	Result.Protocol = TEXT("STOMP/WS");
@@ -384,6 +408,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	Headers.Add(TEXT("x-frame-id"), LexToString(FrameId));
 	Headers.Add(TEXT("x-request-id"), Result.RequestId);
 	const double StartedSeconds = FPlatformTime::Seconds();
+	for (const auto& Pair : AdditionalHeaders) if (Pair.Key.StartsWith(TEXT("x-"))) Headers.Add(FName(*Pair.Key),Pair.Value);
 	const FString RequestId = Result.RequestId;
 	const FString Destination = Result.Destination;
 	TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);

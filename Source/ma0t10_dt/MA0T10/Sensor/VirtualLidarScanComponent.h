@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorCadence.h"
 #include "Components/SceneComponent.h"
 #include "VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
@@ -255,9 +254,7 @@ public:
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
-    bool IsScanRunning() const { return CadenceState.IsRunning(); }
-	void ResumeRealtimeCadence(double NowMonotonicSeconds, int64 NowUnixNanoseconds);
-	const FVirtualSensorCadenceTelemetry& GetCadenceTelemetry() const { return CadenceState.GetTelemetry(); }
+    bool IsScanRunning() const { return NextScheduledScanTime >= 0.0; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|SlabAnalysis")
     const FVirtualLidarSlabAnalysisResult& GetLastSlabAnalysis() const { return LastSlabAnalysis; }
@@ -649,8 +646,8 @@ private:
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 
     double NextScheduledScanTime = -1.0;
-	FVirtualSensorCadenceState CadenceState;
     double ScheduledScanStartTime = -1.0;
+	FVirtualSlabFrameContext ScheduledSlabContext;
     double LastScheduledCompletionTime = -1.0;
     double LastScheduledOutputTime = -1.0;
     FTransform ScheduledScanTransform = FTransform::Identity;
@@ -658,7 +655,6 @@ private:
     int32 ScheduledScanHeight = 0;
     int32 ScheduledNextRayIndex = 0;
     int32 ScheduledGeneration = 0;
-	int64 ScheduledDeadlineUnixNanoseconds = 0;
     int64 ScheduledAcquisitionStartUnixNanoseconds = 0;
     bool bRegisteredWithPerformanceSubsystem = false;
 	bool bInteractivePreviewMode = false;

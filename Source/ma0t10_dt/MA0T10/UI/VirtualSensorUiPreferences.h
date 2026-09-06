@@ -33,9 +33,8 @@ class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 7;
+    static constexpr int32 CurrentVersion = 6;
     static const FString SlotName;
-	static const FString Version6SlotName;
     static const FString Version5SlotName;
     static const FString Version4SlotName;
     static const FString Version3SlotName;
@@ -120,5 +119,4 @@ public:
 	UPROPERTY(SaveGame) bool bDualCameraModeEnabled = false;
 	UPROPERTY(SaveGame) FString PrimaryCameraSensorId;
 	UPROPERTY(SaveGame) FString SecondaryCameraSensorId;
-	UPROPERTY(SaveGame) float GlobalFontScale = 1.0f;
 };
