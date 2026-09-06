@@ -44,6 +44,7 @@ FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString
 	if (NewTargets.IsEmpty()) { Status.Message=TEXT("대상 센서가 없습니다."); return FString(); }
 	for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
 	Coordinator=Managers[0]; Targets=MoveTemp(NewTargets); PendingKeys.Reset(); StartedSensors.Reset();
+	InitialStreamErrors=CountStreamErrors();
 	Status=FVirtualSlabSessionStatus(); Status.RunId=Id; Status.State=EVirtualSlabSessionState::Ready;
 	Status.CurrentSlab.RunId=Id; Status.CurrentSlab.Generation=++Generation;
 	Status.Message=TEXT("첫 Slab 프레임 적용 대기 중"); UsedRunIds.Add(Id);
@@ -104,9 +105,11 @@ FVirtualSlabFrameContext UVirtualSensorSlabContextSubsystem::CaptureContext(cons
 	PendingKeys.Add(SensorId+TEXT("|")+LexToString(FrameId)); Status.PendingAcquisitions=PendingKeys.Num();
 	return Result;
 }
-void UVirtualSensorSlabContextSubsystem::CompleteAcquisition(const FString& Id,int64 FrameId)
+void UVirtualSensorSlabContextSubsystem::CompleteAcquisition(const FString& Id,int64 FrameId,bool Success)
 {
-	PendingKeys.Remove(Id+TEXT("|")+LexToString(FrameId)); Status.PendingAcquisitions=PendingKeys.Num();
+	const bool Removed=PendingKeys.Remove(Id+TEXT("|")+LexToString(FrameId))>0;
+	if (Removed && !Success) ++Status.AcquisitionFailures;
+	Status.PendingAcquisitions=PendingKeys.Num();
 }
 bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVirtualSlabFrameContext& Context) const
 {
@@ -118,7 +121,7 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 {
 	if (Status.State!=EVirtualSlabSessionState::Draining) return;
 	int64 Waiting=PendingKeys.Num();
-	bool Failed=false;
+	bool Failed=Status.AcquisitionFailures>0 || CountStreamErrors()>InitialStreamErrors;
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
 	{
 		for (const auto& S : Coordinator->StreamPublisherComponent->GetStreamStatuses())
@@ -126,16 +129,11 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 			if (!Targets.Contains(S.SensorId)) continue;
 			Waiting+=S.InputQueueDepth+S.PreparedQueueDepth+(S.bProcessing ? 1 : 0);
 			if (S.ActiveTransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput) Waiting+=S.ReceiptQueueDepth;
-			Failed|=S.bOverloaded || S.EncodeFailureCount>0 || S.ConsumerValidationFailureCount>0;
 		}
 	}
 	if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
 	{
-		for (const auto& S : Raw->GetStreamTelemetry()) if (Targets.Contains(S.SensorId))
-		{
-			Waiting+=FMath::Max<int64>(0,S.EnqueuedCount-S.ReceiptCount);
-			Failed|=S.OverloadCount>0 || S.ValidationFailureCount>0;
-		}
+		Waiting+=Raw->GetPendingRunFrameCount(Status.RunId);
 	}
 	Status.UnfinishedFrames=Waiting;
 	if (Waiting==0) Finish(Failed);
@@ -152,4 +150,13 @@ void UVirtualSensorSlabContextSubsystem::Finish(bool TimedOut)
 	Status.Message=TimedOut ? TEXT("종료 제한 시간 초과: 미완료 데이터 확인 필요") : TEXT("Slab 센서 세션 완료");
 }
 TStatId UVirtualSensorSlabContextSubsystem::GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorSlabContextSubsystem,STATGROUP_Tickables); }
+int64 UVirtualSensorSlabContextSubsystem::CountStreamErrors() const
+{
+	int64 Count=0;
+	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
+		for (const auto& S : Coordinator->StreamPublisherComponent->GetStreamStatuses()) if (Targets.Contains(S.SensorId)) Count+=S.OverloadCount+S.EncodeFailureCount+S.ConsumerValidationFailureCount;
+	if (GetWorld()) if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
+		for (const auto& S : Raw->GetStreamTelemetry()) if (Targets.Contains(S.SensorId)) Count+=S.OverloadCount+S.ValidationFailureCount;
+	return Count;
+}
 void UVirtualSensorSlabContextSubsystem::Deinitialize() { PendingKeys.Reset(); Targets.Reset(); Super::Deinitialize(); }

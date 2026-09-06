@@ -114,6 +114,7 @@ public:
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
+	int32 GetPendingRunFrameCount(const FString& RunId) const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;

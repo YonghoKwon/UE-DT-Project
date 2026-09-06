@@ -556,6 +556,7 @@ void UVirtualLidarScanComponent::StartScan()
 }
 void UVirtualLidarScanComponent::StopScan()
 {
+	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
     if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     UnregisterFromPerformanceSubsystem();
     NextScheduledScanTime = -1.0;
@@ -675,6 +676,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
     }
     if (Result == EVirtualSensorBackendPollResult::Failed)
     {
+		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
         ++RuntimeStatus.FailedAcquisitionFrameCount;
         bGpuDepthScanInProgress = false;
         RuntimeStatus.bAcquisitionInFlight = false;

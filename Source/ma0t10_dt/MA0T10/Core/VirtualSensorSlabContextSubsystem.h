@@ -23,7 +23,7 @@ public:
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|SlabSensorSession")
 	FVirtualSlabSessionStatus GetSlabSensorSessionStatus() const { return Status; }
 	FVirtualSlabFrameContext CaptureContext(const FString& SensorId, int64 SensorFrameId);
-	void CompleteAcquisition(const FString& SensorId, int64 SensorFrameId);
+	void CompleteAcquisition(const FString& SensorId, int64 SensorFrameId, bool bSuccess=true);
 	bool ControlsSensor(const FString& SensorId) const { return ControlledIds.Contains(SensorId); }
 	bool AllowsFrame(const FString& SensorId, const FVirtualSlabFrameContext& Context) const;
 	virtual void Tick(float DeltaTime) override;
@@ -32,6 +32,7 @@ public:
 private:
 	bool CheckRun(const FString& RunId);
 	void Finish(bool bTimedOut);
+	int64 CountStreamErrors() const;
 	UPROPERTY(Transient) FVirtualSlabSessionStatus Status;
 	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Targets;
 	TSet<FString> ControlledIds;
@@ -41,4 +42,5 @@ private:
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
 	int32 Generation = 0;
 	double DrainStarted = 0;
+	int64 InitialStreamErrors=0;
 };

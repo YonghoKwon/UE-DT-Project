@@ -165,7 +165,7 @@ public:
 			{
 				CancelledRuns.Add(Cancelled);
 				for (auto It=PendingReceipts.CreateIterator(); It; ++It)
-					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) It.RemoveCurrent();
+					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) { AdjustRunPending(It.Value().Frame,-1); It.RemoveCurrent(); }
 			}
 			if (!bConnected)
 			{
@@ -214,10 +214,20 @@ public:
 			return false;
 		}
 		++QueueCounts[Index];
+		AdjustRunPending(Frame,1);
 		Frames.Enqueue(Frame);
 		return true;
 	}
 	void CancelRun(const FString& RunId) { RunCancellations.Enqueue(RunId); }
+	int32 GetRunPending(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunPendingCounts.FindRef(RunId); }
+	void AdjustRunPending(const FVirtualSensorBinaryFrame& Frame,int32 Delta)
+	{
+		const FString RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
+		if (RunId.IsEmpty()) return;
+		FScopeLock Lock(&RunPendingMutex);
+		int32& Count=RunPendingCounts.FindOrAdd(RunId); Count=FMath::Max(0,Count+Delta);
+		if (Count==0) RunPendingCounts.Remove(RunId);
+	}
 
 	bool DequeueEvent(FWorkerEvent& OutEvent)
 	{
@@ -350,7 +360,7 @@ private:
 		{
 			const int32 Index = static_cast<int32>(Frame.StreamKind);
 			--QueueCounts[Index];
-			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) continue;
+			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { AdjustRunPending(Frame,-1); continue; }
 			if (!SendFrame(Frame, 0))
 			{
 				HandleDisconnect(TEXT("Socket write failed; acquisition remains active and stream will reconnect."));
@@ -496,6 +506,7 @@ private:
 				Event.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Pending->SubmittedSeconds) * 1000.0);
 				Event.Message = TEXT("Broker receipt received.");
 				Events.Enqueue(MoveTemp(Event));
+				AdjustRunPending(Pending->Frame,-1);
 				PendingReceipts.Remove(ReceiptId);
 			}
 			return;
@@ -669,6 +680,8 @@ private:
 	TQueue<FString,EQueueMode::Mpsc> RunCancellations;
 	TSet<FString> CancelledRuns;
 	TMap<FString,int64> ConsumerSequenceIds;
+	mutable FCriticalSection RunPendingMutex;
+	TMap<FString,int32> RunPendingCounts;
 	FString Passcode;
 	FRunnableThread* Thread = nullptr;
 	FSocket* Socket = nullptr;
@@ -782,6 +795,11 @@ TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsy
 void UVirtualSensorHighThroughputTransportSubsystem::CancelRun(const FString& RunId)
 {
 	if (Worker) Worker->CancelRun(RunId);
+}
+
+int32 UVirtualSensorHighThroughputTransportSubsystem::GetPendingRunFrameCount(const FString& RunId) const
+{
+	return Worker ? Worker->GetRunPending(RunId) : 0;
 }
 
 bool UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(const FString& BrokerUrl, FString* OutReason)

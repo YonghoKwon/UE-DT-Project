@@ -31,4 +31,5 @@ struct MA0T10_DT_API FVirtualSlabSessionStatus
 	UPROPERTY(BlueprintReadOnly) int32 PendingAcquisitions = 0;
 	UPROPERTY(BlueprintReadOnly) int64 UnfinishedFrames = 0;
 	UPROPERTY(BlueprintReadOnly) bool bAborted = false;
+	UPROPERTY(BlueprintReadOnly) int32 AcquisitionFailures = 0;
 };

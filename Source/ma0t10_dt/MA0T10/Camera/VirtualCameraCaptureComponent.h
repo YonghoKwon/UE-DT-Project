@@ -214,7 +214,7 @@ private:
 	FVirtualCameraJpegMetadata LastJpegMetadata;
 	TMap<int64,FVirtualSlabFrameContext> SlabCaptureContexts;
 	FVirtualSlabFrameContext LastSlabContext;
-	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id);
+	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true);
 public:
 	const FVirtualSlabFrameContext& GetLastSlabContext() const { return LastSlabContext; }
 private:

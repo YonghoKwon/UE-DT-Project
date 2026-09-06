@@ -161,7 +161,7 @@ void UVirtualCameraCaptureComponent::StartCapture()
 void UVirtualCameraCaptureComponent::StopCapture()
 {
 	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
-	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id);
+	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false);
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
@@ -250,11 +250,13 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 		++RuntimeStatus.QueueOverflowCount;
 		++RuntimeStatus.DroppedDerivedFrameCount;
 		RuntimeStatus.AcquisitionBackendMessage = TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
-		CompleteSlabAcquisition(FrameId);
+		CompleteSlabAcquisition(FrameId,false);
 		return true;
 	}
 	FPendingReadbackRequest& Request = PendingReadbackRequests.AddDefaulted_GetRef();
 	Request.FrameId = FrameId;
+	// Establish delivery order at acquisition, not at completion of readback slots.
+	EncodeOrder.Add(FrameId);
 	Request.CaptureStartedSeconds = CaptureStart;
     RuntimeStatus.bAcquisitionInFlight = true;
     RuntimeStatus.bDerivedWorkInFlight = true;
@@ -289,6 +291,7 @@ bool UVirtualCameraCaptureComponent::QueueScheduledGpuReadback(int64 CapturedFra
 	FTextureRHIRef Texture = Resource ? Resource->GetRenderTargetTexture() : FTextureRHIRef();
 	if (!Texture.IsValid())
 	{
+		CompleteSlabAcquisition(CapturedFrameId,false);
 		++RuntimeStatus.DroppedDerivedFrameCount;
 		return true;
 	}
@@ -359,11 +362,13 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 						WeakThis->RuntimeStatus.bAcquisitionInFlight = false;
 						if (!bCopySucceeded)
 						{
+							WeakThis->CompleteSlabAcquisition(CapturedFrameId,false);
 							++WeakThis->RuntimeStatus.DroppedDerivedFrameCount;
 							return;
 						}
 						if (WeakThis->PendingEncodeInputs.Num() >= 4)
 						{
+							WeakThis->CompleteSlabAcquisition(CapturedFrameId,false);
 							++WeakThis->RuntimeStatus.QueueOverflowCount;
 							++WeakThis->RuntimeStatus.DroppedDerivedFrameCount;
 							return;
@@ -404,6 +409,7 @@ void UVirtualCameraCaptureComponent::PumpScheduledEncodeQueue()
 		PendingEncodeInputs.RemoveAt(0, 1, false);
 		if (!StartScheduledEncode(MoveTemp(Input.RawPixels), Input.Width, Input.Height, Input.FrameId, Input.CaptureStartedSeconds))
 		{
+			CompleteSlabAcquisition(Input.FrameId,false);
 			++RuntimeStatus.QueueOverflowCount;
 			++RuntimeStatus.DroppedDerivedFrameCount;
 			break;
@@ -421,7 +427,6 @@ bool UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPi
 		return false;
 	}
 	++ScheduledEncodeInFlightCount;
-	EncodeOrder.Add(CapturedFrameId);
     RuntimeStatus.bDerivedWorkInFlight = true;
     const int32 Generation = ScheduledGeneration;
     const int32 Quality = FMath::Clamp(JpegQuality, 1, 100);
@@ -514,7 +519,7 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		RuntimeStatus.LastPostProcessDurationMs = static_cast<float>((FPlatformTime::Seconds() - Result.CaptureStartedSeconds) * 1000.0);
 		if (Result.JpegBytes.IsEmpty())
 		{
-			CompleteSlabAcquisition(CompletedFrameId);
+			CompleteSlabAcquisition(CompletedFrameId,false);
 			++RuntimeStatus.DroppedDerivedFrameCount;
 			UpdateRuntimeStatus(0, TEXT("비동기 JPEG 생성 실패"));
 			continue;
@@ -558,11 +563,12 @@ void UVirtualCameraCaptureComponent::SetTransportComponent(UVirtualSensorTranspo
     TransportComponent = InTransportComponent;
 }
 
-FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id)
+FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success)
 {
+	if (!Success) EncodeOrder.Remove(Id);
 	FVirtualSlabFrameContext Context;
 	SlabCaptureContexts.RemoveAndCopyValue(Id, Context);
-	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,Id);
+	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,Id,Success);
 	return Context;
 }
 

@@ -756,6 +756,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	{
 		FPreparedMessage Message;
 		Message.SensorId = Frame.SensorId;
+		Message.SlabContext=Frame.SlabContext;
 		Message.StreamKind = Runtime.Config.StreamKind;
 		Message.FrameId = Frame.FrameId;
 		Message.TimestampUtc = Frame.TimestampUtc;
@@ -811,6 +812,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	}
 	FPreparedMessage Message;
 	Message.SensorId = Frame.SensorId;
+	Message.SlabContext=Frame.SlabContext;
 	Message.StreamKind = Runtime.Config.StreamKind;
 	Message.FrameId = Frame.FrameId;
 		Message.Json = *Frame.JsonPayload;
@@ -901,6 +903,7 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 		FPreparedMessage Message;
 		Message.SensorId = Frame.SensorId;
 			Message.StreamKind = EVirtualSensorStreamKind::PointCloud;
+			Message.SlabContext=Frame.SlabContext;
 			Message.BinaryHeaders=Frame.SlabContext.ToHeaders();
 			Message.FrameId = Frame.FrameId;
 			Message.TimestampUtc = Frame.TimestampUtc;
@@ -1078,6 +1081,17 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			: (Runtime->PreparedMessage.IsSet() ? &Runtime->PreparedMessage.GetValue() : nullptr);
 		if (!MessagePtr) continue;
 		FPreparedMessage& Message = *MessagePtr;
+		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+		{
+			if (!Slab->AllowsFrame(Message.SensorId,Message.SlabContext))
+			{
+				++Runtime->Status.StaleResultDiscardCount;
+				if (bNoLoss) Runtime->PreparedMessageQueue.RemoveAt(0,1,false); else Runtime->PreparedMessage.Reset();
+				TryStartNextPointCloudSerialization(Keys[Index],*Runtime);
+				RefreshQueueTelemetry(*Runtime);
+				continue;
+			}
+		}
 		FString BodyError;
 		if (!ValidateBinaryBodySize(Message.ByteCount, TransportComponent->GetTransportProfile().MaxMessageBytes, BodyError))
 		{

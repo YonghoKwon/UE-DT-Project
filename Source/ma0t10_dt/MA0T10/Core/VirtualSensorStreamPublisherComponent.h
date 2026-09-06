@@ -93,6 +93,7 @@ public:
 private:
 	struct FPreparedMessage
 	{
+		FVirtualSlabFrameContext SlabContext;
 		FString SensorId;
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
