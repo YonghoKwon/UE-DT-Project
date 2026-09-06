@@ -52,6 +52,7 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 DuplicateCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 RetryCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 OverloadCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 DeliveryFailureCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 InputQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 ReceiptQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 LastFrameId = 0;
@@ -115,6 +116,7 @@ public:
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
 	int32 GetPendingRunFrameCount(const FString& RunId) const;
+	int32 GetFailedRunFrameCount(const FString& RunId) const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;

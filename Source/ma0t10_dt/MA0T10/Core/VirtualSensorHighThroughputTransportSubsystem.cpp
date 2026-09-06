@@ -11,6 +11,9 @@
 #include "Serialization/JsonSerializer.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#endif
 
 namespace
 {
@@ -23,7 +26,8 @@ enum class EWorkerEventType : uint8
 	Consumed,
 	ValidationFailed,
 	Retry,
-	Overload
+	Overload,
+	DeliveryFailed
 };
 
 struct FWorkerEvent
@@ -220,11 +224,13 @@ public:
 	}
 	void CancelRun(const FString& RunId) { RunCancellations.Enqueue(RunId); }
 	int32 GetRunPending(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunPendingCounts.FindRef(RunId); }
-	void AdjustRunPending(const FVirtualSensorBinaryFrame& Frame,int32 Delta)
+	int32 GetRunFailures(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunFailureCounts.FindRef(RunId); }
+	void AdjustRunPending(const FVirtualSensorBinaryFrame& Frame,int32 Delta,bool bFailed = false)
 	{
 		const FString RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
 		if (RunId.IsEmpty()) return;
 		FScopeLock Lock(&RunPendingMutex);
+		if (bFailed) ++RunFailureCounts.FindOrAdd(RunId);
 		int32& Count=RunPendingCounts.FindOrAdd(RunId); Count=FMath::Max(0,Count+Delta);
 		if (Count==0) RunPendingCounts.Remove(RunId);
 	}
@@ -237,6 +243,20 @@ public:
 	bool IsRunning() const { return Thread != nullptr && !bStopRequested.Load(); }
 
 private:
+	friend class FSensorRawTerminalLedgerTest;
+	void FailFrame(const FVirtualSensorBinaryFrame& Frame, const FString& Reason)
+	{
+		// Record failure atomically with the decrement; the game thread must not
+		// observe zero pending and declare success before it drains the event queue.
+		AdjustRunPending(Frame, -1, true);
+		FWorkerEvent Event;
+		Event.Type = EWorkerEventType::DeliveryFailed;
+		Event.StreamKind = Frame.StreamKind;
+		Event.SensorId = Frame.SensorId;
+		Event.FrameId = Frame.FrameId;
+		Event.Message = Reason;
+		Events.Enqueue(MoveTemp(Event));
+	}
 	bool Connect()
 	{
 		CloseSocket();
@@ -363,6 +383,7 @@ private:
 			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { AdjustRunPending(Frame,-1); continue; }
 			if (!SendFrame(Frame, 0))
 			{
+				FailFrame(Frame, TEXT("Socket write failed; frame has no remaining delivery path."));
 				HandleDisconnect(TEXT("Socket write failed; acquisition remains active and stream will reconnect."));
 				return;
 			}
@@ -605,13 +626,7 @@ private:
 			if (!PendingReceipts.RemoveAndCopyValue(Id, Pending)) continue;
 			if (Pending.RetryAttempt >= 3)
 			{
-				FWorkerEvent Event;
-				Event.Type = EWorkerEventType::Overload;
-				Event.StreamKind = Pending.Frame.StreamKind;
-				Event.SensorId = Pending.Frame.SensorId;
-				Event.FrameId = Pending.Frame.FrameId;
-				Event.Message = TEXT("Broker receipt retry limit was exhausted.");
-				Events.Enqueue(MoveTemp(Event));
+				FailFrame(Pending.Frame, TEXT("Broker receipt retry limit was exhausted."));
 				continue;
 			}
 			FWorkerEvent RetryEvent;
@@ -623,6 +638,7 @@ private:
 			Events.Enqueue(MoveTemp(RetryEvent));
 			if (!SendFrame(Pending.Frame, Pending.RetryAttempt + 1))
 			{
+				FailFrame(Pending.Frame, TEXT("Receipt retry socket write failed."));
 				HandleDisconnect(TEXT("Receipt retry socket write failed."));
 				return;
 			}
@@ -656,6 +672,8 @@ private:
 	void CloseSocket()
 	{
 		bConnected = false;
+		for (const auto& Pair : PendingReceipts)
+			FailFrame(Pair.Value.Frame, TEXT("Connection closed before broker receipt; delivery outcome is unconfirmed."));
 		PendingReceipts.Reset();
 		Parser.Reset();
 		if (Socket)
@@ -682,6 +700,7 @@ private:
 	TMap<FString,int64> ConsumerSequenceIds;
 	mutable FCriticalSection RunPendingMutex;
 	TMap<FString,int32> RunPendingCounts;
+	TMap<FString,int32> RunFailureCounts;
 	FString Passcode;
 	FRunnableThread* Thread = nullptr;
 	FSocket* Socket = nullptr;
@@ -802,6 +821,11 @@ int32 UVirtualSensorHighThroughputTransportSubsystem::GetPendingRunFrameCount(co
 	return Worker ? Worker->GetRunPending(RunId) : 0;
 }
 
+int32 UVirtualSensorHighThroughputTransportSubsystem::GetFailedRunFrameCount(const FString& RunId) const
+{
+	return Worker ? Worker->GetRunFailures(RunId) : 0;
+}
+
 bool UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(const FString& BrokerUrl, FString* OutReason)
 {
 	FString Host;
@@ -903,7 +927,48 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 			++Telemetry.OverloadCount;
 			Telemetry.State = TEXT("overload");
 			break;
+		case EWorkerEventType::DeliveryFailed:
+			++Telemetry.DeliveryFailureCount;
+			Telemetry.State = TEXT("delivery-failed");
+			break;
 		default: break;
 		}
 	}
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawTerminalLedgerTest, "MA0T10.SensorStream.RawTerminalLedger", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSensorRawTerminalLedgerTest::RunTest(const FString& Parameters)
+{
+	FVirtualSensorHighThroughputTransportWorker Worker{FVirtualSensorHighThroughputProfile(), FString()};
+	FVirtualSensorBinaryFrame Frame;
+	Frame.SensorId = TEXT("LEDGER-TEST");
+	Frame.Headers.Add(TEXT("x-run-uuid"), TEXT("run-a"));
+	Frame.Body32 = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(TArray<uint8>{1});
+	FString Error;
+	TestTrue(TEXT("enqueue accepts frame"), Worker.Enqueue(Frame, Error));
+	Worker.PumpSend(); // no socket: deterministic terminal write failure, no network IO
+	TestEqual(TEXT("failed initial write balances pending"), Worker.GetRunPending(TEXT("run-a")), 0);
+	TestEqual(TEXT("failed initial write recorded before event drain"), Worker.GetRunFailures(TEXT("run-a")), 1);
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		FPendingReceipt Pending; Pending.Frame = Frame;
+		Worker.AdjustRunPending(Frame, 1);
+		Worker.PendingReceipts.Add(LexToString(Index), Pending);
+	}
+	Worker.CloseSocket();
+	TestEqual(TEXT("disconnect retires every receipt wait"), Worker.GetRunPending(TEXT("run-a")), 0);
+	TestEqual(TEXT("disconnect reports unconfirmed delivery"), Worker.GetRunFailures(TEXT("run-a")), 3);
+	for (int32 RetryAttempt : {3, 0})
+	{
+		FPendingReceipt Pending; Pending.Frame = Frame; Pending.RetryAttempt = RetryAttempt;
+		Worker.AdjustRunPending(Frame, 1);
+		Worker.PendingReceipts.Add(TEXT("retry"), Pending);
+		Worker.CheckReceiptTimeouts();
+		TestEqual(TEXT("retry exhaustion/write failure balances pending"), Worker.GetRunPending(TEXT("run-a")), 0);
+	}
+	TestEqual(TEXT("all terminal paths counted once"), Worker.GetRunFailures(TEXT("run-a")), 5);
+	TestEqual(TEXT("different run is not contaminated"), Worker.GetRunFailures(TEXT("run-b")), 0);
+	return true;
+}
+#endif

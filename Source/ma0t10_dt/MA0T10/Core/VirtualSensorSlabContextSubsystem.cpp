@@ -138,6 +138,7 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 	if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
 	{
 		Waiting+=Raw->GetPendingRunFrameCount(Status.RunId);
+		Status.StreamFailures += Raw->GetFailedRunFrameCount(Status.RunId);
 	}
 	Status.UnfinishedFrames=Waiting;
 	if (Waiting == 0)
