@@ -102,6 +102,8 @@ bool FSlabLifecycleTest::RunTest(const FString& Parameters)
 	auto* Slab=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 	TestNotNull(TEXT("world adapter exists"),Slab);
 	if (!Slab) return false;
+	TestTrue(TEXT("log-only transport cannot claim a Topic session"),Slab->BeginSlabSensorSession(FString(),{}).IsEmpty());
+	Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
 	const FString Run=Slab->BeginSlabSensorSession(FString(),{});
 	TestFalse(TEXT("begin creates UUID"),Run.IsEmpty());
 	TestFalse(TEXT("ready state does not admit sensor frames"),Slab->CaptureContext(Sensor->GetSensorId(),9001).bEligible);

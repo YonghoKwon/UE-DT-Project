@@ -4,6 +4,7 @@
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 TMap<FString,FString> FVirtualSlabFrameContext::ToHeaders() const
 {
@@ -34,6 +35,9 @@ FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString
 	TArray<AVirtualSensorCoordinator*> Managers;
 	for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It; ++It) Managers.Add(*It);
 	if (Managers.Num()!=1) { Status.Message=TEXT("센서 Coordinator가 정확히 하나 필요합니다."); return FString(); }
+	const auto* Transport=Managers[0]->SharedTransportComponent.Get();
+	if (!Transport || Transport->TransportMode!=EVirtualSensorTransportMode::StompWebSocket || Transport->GetTransportProfile().BrokerUrl.IsEmpty())
+	{ Status.Message=TEXT("세션 시작 전에 캡처/내보내기에서 STOMP 서버 설정을 적용하십시오. 로그 전용 출력을 Topic 송신으로 처리하지 않습니다."); return FString(); }
 	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> NewTargets;
 	for (auto* Actor : Managers[0]->GetSensorActors())
 	{
