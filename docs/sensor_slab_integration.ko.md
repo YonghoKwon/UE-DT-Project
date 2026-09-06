@@ -61,6 +61,8 @@ Ready → Running → Draining → Completed/Incomplete 상태를 제공합니�
 
 PCD 크기 제한 거부는 `BodyLimitRejectedCount`, 재시도 없이 끝난 receipt 실패는 `DeliveryFailureCount`로 집계합니다. 용량 오류로 스트림이 중지되더라도 세션을 성공으로 판정하지 않습니다. 세션의 `StreamFailures`는 실행 시작 이후의 오류만 집계하며 이전 실행의 오류를 다음 실행에 가져오지 않습니다.
 
+Raw TCP의 전송 실패·receipt 재시도 소진·연결 종료 시에는 더 이상 전달 경로가 없는 프레임의 pending 수를 감소시키고 실행 UUID별 실패를 동시에 기록합니다. 게임 스레드 진단 이벤트 처리가 늦더라도 거짓 성공이나 유령 pending에 의한 timeout으로 바뀌지 않습니다. 연결 종료 시 receipt 미확인 프레임은 소비자가 실제 받았을 가능성이 있어도 전달 미확인 실패로 취급합니다.
+
 Begin은 센서 프로필·주기를 유지하며 정지된 대상의 측정을 시작합니다. End는 신규 세션 데이터 접수를 막고 종료 전에 시작한 유효 측정의 인코딩·직렬화·송신·receipt를 최대 10초 동안 마무리합니다. 네트워크 수신은 Slab 움직임 종료보다 늦을 수 있습니다. 실패 시 미완료 수와 사유를 표시합니다.
 
 세션 종료 후 대상 자동 스트림은 자동 재개하지 않습니다. 원래 실행 중이던 Preview 측정은 유지하고, 세션이 시작했던 측정만 중지합니다. 다음 실행은 새 UUID로 Begin을 호출합니다. 이 버전의 세션 대상은 World 수명 동안 관리됩니다. 수동 내보내기는 별개입니다.
@@ -75,6 +77,8 @@ Native 32,256점과 synthetic 64,512점은 각각 약 1.02MiB, 2.03MiB(헤더 �
 
 실제 backend·포맷·point count·body bytes·설정 한도를 함께 확인하십시오. 회사 프로젝트에서 같은 원인으로 오류가 발생하는지는 호출 경로 로그로 대조해야 합니다. wss://는 Raw TCP를 사용할 수 없으므로 Engine 호환 backend와 서버 설정을 별도로 확인합니다.
 
+WSS는 Engine STOMP로 분기하고 Camera도 호환 JSON을 생성합니다. URL을 평문 TCP로 바꾸지 않습니다. 서버 방식 변경 전에 준비된 binary-only Camera/telemetry 파생 프레임은 stale로 기록해 폐기하고 다음 프레임을 사용합니다. 운영 서버를 바꿀 때는 세션/스트림을 먼저 종료한 뒤 설정을 적용하십시오. TLS 인증서·서버 설정은 별도 실제 환경 검증 대상입니다.
+
 Engine STOMP 호환 경로는 login/passcode 헤더를 항상 쌍으로 구성합니다. 비밀번호가 비었다고 에디터 assertion으로 종료하지 않으며 Broker 인증 결과로 처리합니다. WebSocket upgrade Bearer와 STOMP login 인증의 혼용은 연결 전에 거부합니다. 연결 성공, Broker receipt, 소비자 검증은 서로 다른 상태입니다.
 
 ## 세 센서 패널 전용 글자 크기
@@ -86,6 +90,18 @@ native 컨트롤은 `SNewSensorTool`/`SAssignSensorTool` 생성 위치에서 등
 사용자 WBP는 Event Construct에서 본인이 소유한 TextBlock에 `Register Sensor Text Control`, EditableTextBox에 `Register Sensor Input Control`을 호출합니다. 동료의 중첩 WBP 컨트롤은 거부됩니다. Host가 생성한 세 패널만 appearance owner를 받습니다.
 
 설정은 `Saved/SaveGames/MA0T10_SensorToolAppearance_v1.sav`에 저장합니다. 100% 버튼은 글자 배율만 변경하고 기존 v6/v7·동료 설정을 삭제하지 않습니다. 기존 drag·resize·접기는 유지됩니다.
+
+`전체 UI 초기화`는 해당 센서 Host의 live 배율과 별도 appearance 저장값도 100%로 초기화합니다. 글자만 초기화하려면 `ResetSensorToolAppearance`를 사용할 수 있습니다.
+
+구 `Set/Get/ResetGlobalSensorUiFontScale` 이름도 호환 wrapper로 유지하지만 동작 범위는 동일한 센서 Host로 제한합니다. 미등록 동료 위젯에서는 setter/reset이 아무 작업도 하지 않습니다. `OnSensorUiFontScaleChanged` 이벤트는 구성 완료된 센서 소유 패널에서만 전달합니다.
+
+## UE 5.3 캡처 ViewState
+
+주기식 Camera와 GPU LiDAR 캡처는 `bCaptureEveryFrame=false`를 유지하고 `bAlwaysPersistRenderingState=true`로 ViewState를 재사용합니다. UE 5.3의 ViewState 없는 병렬 visibility 경로에서 relevance 해제와 occlusion 완료 이벤트의 순서 문제가 관찰되어, 센서 캡처가 해당 경로에 진입하지 않도록 한 프로젝트 수준 대응입니다.
+
+LiDAR는 측정마다 camera-cut 플래그로 이전 영상 이력을 버리므로 현재 장면의 depth를 사용합니다. 전역 occlusion 설정, 렌더러 task schedule, 엔진 소스와 다른 SceneCapture는 변경하지 않습니다. 정상 occlusion 설정에서의 센서 경로 대응이며, `r.AllowOcclusionQueries=0` 등 별도 설정 또는 UE 엔진 전체의 모든 visibility 문제를 해결했다는 뜻은 아닙니다.
+
+실제 RHI 시험은 Camera/LiDAR ViewState가 null이 아니고 측정 구간 동안 동일한 인스턴스로 유지되는지도 검증합니다.
 
 ## 재현 테스트
 
