@@ -983,6 +983,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeFloatRow(const FText&
         + SHorizontalBox::Slot().FillWidth(0.45f)
         [
             SNew(SSpinBox<float>)
+            .Font_Lambda([this]() { auto Font=FCoreStyle::GetDefaultFontStyle("Regular",10); Font.Size=FMath::RoundToInt(10.0f*GetSensorToolFontScale()); return Font; })
             .MinValue(Min).MaxValue(Max)
             .Value_Lambda([Getter]() { return Getter(); })
             .OnValueChanged_Lambda([Setter](float Value) { Setter(Value); })
@@ -1010,6 +1011,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeIntRow(const FText& L
         + SHorizontalBox::Slot().FillWidth(0.45f)
         [
             SNew(SSpinBox<int32>)
+            .Font_Lambda([this]() { auto Font=FCoreStyle::GetDefaultFontStyle("Regular",10); Font.Size=FMath::RoundToInt(10.0f*GetSensorToolFontScale()); return Font; })
             .MinValue(Min).MaxValue(Max)
             .Value_Lambda([Getter]() { return Getter(); })
             .OnValueChanged_Lambda([Setter](int32 Value) { Setter(Value); })
