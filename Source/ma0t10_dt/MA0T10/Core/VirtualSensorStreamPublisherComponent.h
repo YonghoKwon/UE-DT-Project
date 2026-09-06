@@ -147,6 +147,7 @@ private:
 	void CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error, int32 CapturedConfigRevision);
 	void TryStartNextPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime);
 	void StopForPointCloudOverload(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason);
+	void StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId);
 	void RefreshQueueTelemetry(FStreamRuntime& Runtime);
 	bool RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error);
 	void PumpPreparedMessages(double NowSeconds);

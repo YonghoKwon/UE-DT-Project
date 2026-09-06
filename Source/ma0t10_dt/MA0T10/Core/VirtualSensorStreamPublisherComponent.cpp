@@ -704,9 +704,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 			FString SizeError;
 			if (!ValidateBinaryBodySize(Estimate, TransportComponent->GetTransportProfile().MaxMessageBytes, SizeError))
 			{
-				Runtime.Config.bEnabled = Runtime.Status.bEnabled = false;
-				Runtime.Status.Message = TEXT("[시작 전 크기 검사] ") + SizeError;
-				AddLog(StreamKey, TEXT("body-limit-preflight"), Runtime.Status.Message, nullptr, Frame.FrameId);
+				StopForBodyLimit(StreamKey, Runtime, TEXT("[시작 전 크기 검사] ") + SizeError, Frame.FrameId);
 				return;
 			}
 		}
@@ -835,6 +833,17 @@ void UVirtualSensorStreamPublisherComponent::RefreshQueueTelemetry(FStreamRuntim
 	}
 	Runtime.Status.ReceiptQueueDepth = ReceiptDepth;
 	Runtime.Status.bPendingLatestFrame = Runtime.Status.InputQueueDepth > 0 || Runtime.Status.PreparedQueueDepth > 0;
+}
+
+void UVirtualSensorStreamPublisherComponent::StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId)
+{
+	// Stop clears unsent queues but retains receipt tracking for accepted frames.
+	// Persist a failure counter even after Finish() replaces the current UI message.
+	const FString SensorId = Runtime.Config.SensorId;
+	StopStream(Runtime.Config.StreamKind, SensorId);
+	++Runtime.Status.BodyLimitRejectedCount;
+	Runtime.Status.Message = Reason;
+	AddLog(StreamKey, TEXT("body-limit-rejected"), Reason, nullptr, FrameId);
 }
 
 void UVirtualSensorStreamPublisherComponent::StopForPointCloudOverload(
@@ -1095,7 +1104,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		FString BodyError;
 		if (!ValidateBinaryBodySize(Message.ByteCount, TransportComponent->GetTransportProfile().MaxMessageBytes, BodyError))
 		{
-			StopForPointCloudOverload(Keys[Index], *Runtime, BodyError);
+			StopForBodyLimit(Keys[Index], *Runtime, BodyError, Message.FrameId);
 			continue;
 		}
 		double& ActiveTokenBucket = Message.bBinaryPcd ? PointCloudTokenBucketBytes : TokenBucketBytes;
@@ -1316,6 +1325,7 @@ void UVirtualSensorStreamPublisherComponent::CheckReceiptTimeouts(double NowSeco
 			Runtime->Status.Message = TEXT("Broker receipt 제한 시간 초과");
 		}
 		if (RequeueReceiptForRetry(Wait, TEXT("Broker receipt timeout"))) continue;
+		if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey)) ++Runtime->Status.DeliveryFailureCount;
 		++ConsecutiveReceiptTimeouts;
 		AddLog(Wait.StreamKey, TEXT("receipt-timeout"), TEXT("Broker receipt가 5초 안에 도착하지 않았습니다."));
 	}
@@ -1393,6 +1403,7 @@ void UVirtualSensorStreamPublisherComponent::HandleTransportResult(const FVirtua
 		RequestToStreamKey.Remove(Result.RequestId);
 		AddLog(Wait.StreamKey, TEXT("receipt-failed"), Result.Message, &Result, Wait.Message.FrameId);
 		if (RequeueReceiptForRetry(Wait, Result.Message)) return;
+		if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey)) ++Runtime->Status.DeliveryFailureCount;
 	}
 	if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey))
 	{
@@ -1463,6 +1474,8 @@ bool UVirtualSensorStreamPublisherComponent::ExportDiagnosticReport(FString& Out
 		Object->SetNumberField(TEXT("replacedPending"), static_cast<double>(Status.ReplacedPendingFrameCount));
 		Object->SetNumberField(TEXT("bandwidthDeferred"), static_cast<double>(Status.BandwidthDeferredFrameCount));
 		Object->SetNumberField(TEXT("encodeFailures"), static_cast<double>(Status.EncodeFailureCount));
+		Object->SetNumberField(TEXT("bodyLimitRejected"), static_cast<double>(Status.BodyLimitRejectedCount));
+		Object->SetNumberField(TEXT("deliveryFailures"), static_cast<double>(Status.DeliveryFailureCount));
 		Object->SetNumberField(TEXT("receiptTimeouts"), static_cast<double>(Status.ReceiptTimeoutCount));
 		Object->SetNumberField(TEXT("receipts"), static_cast<double>(Status.ReceiptReceivedCount));
 		Object->SetStringField(TEXT("message"), Status.Message);

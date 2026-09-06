@@ -31,8 +31,11 @@ public:
 	virtual void Deinitialize() override;
 private:
 	bool CheckRun(const FString& RunId);
-	void Finish(bool bTimedOut);
+	void Finish(EVirtualSlabSessionEndReason Reason);
 	int64 CountStreamErrors() const;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabSessionFailureTest;
+#endif
 	UPROPERTY(Transient) FVirtualSlabSessionStatus Status;
 	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Targets;
 	TSet<FString> ControlledIds;

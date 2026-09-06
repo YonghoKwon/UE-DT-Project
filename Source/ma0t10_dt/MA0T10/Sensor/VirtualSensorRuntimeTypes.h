@@ -242,6 +242,14 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 EncodeFailureCount = 0;
 
+	/** Permanent size rejection, distinct from queue overload and codec failures. */
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 BodyLimitRejectedCount = 0;
+
+	/** Receipt failure after the transport has no retry left for this frame. */
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
+	int64 DeliveryFailureCount = 0;
+
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 StaleResultDiscardCount = 0;
 

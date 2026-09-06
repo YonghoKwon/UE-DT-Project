@@ -125,7 +125,7 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 {
 	if (Status.State!=EVirtualSlabSessionState::Draining) return;
 	int64 Waiting=PendingKeys.Num();
-	bool Failed=Status.AcquisitionFailures>0 || CountStreamErrors()>InitialStreamErrors;
+	Status.StreamFailures = FMath::Max<int64>(0, CountStreamErrors() - InitialStreamErrors);
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
 	{
 		for (const auto& S : Coordinator->StreamPublisherComponent->GetStreamStatuses())
@@ -140,25 +140,51 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 		Waiting+=Raw->GetPendingRunFrameCount(Status.RunId);
 	}
 	Status.UnfinishedFrames=Waiting;
-	if (Waiting==0) Finish(Failed);
-	else if (FPlatformTime::Seconds()-DrainStarted>10.0) Finish(true);
+	if (Waiting == 0)
+	{
+		const auto Reason = Status.AcquisitionFailures > 0 ? EVirtualSlabSessionEndReason::AcquisitionFailure
+			: Status.StreamFailures > 0 ? EVirtualSlabSessionEndReason::StreamFailure
+			: Status.bAborted ? EVirtualSlabSessionEndReason::Aborted : EVirtualSlabSessionEndReason::Completed;
+		Finish(Reason);
+	}
+	else if (FPlatformTime::Seconds()-DrainStarted>10.0) Finish(EVirtualSlabSessionEndReason::DrainTimeout);
 }
-void UVirtualSensorSlabContextSubsystem::Finish(bool TimedOut)
+void UVirtualSensorSlabContextSubsystem::Finish(EVirtualSlabSessionEndReason Reason)
 {
+	const bool bFailed = Reason == EVirtualSlabSessionEndReason::AcquisitionFailure ||
+		Reason == EVirtualSlabSessionEndReason::StreamFailure || Reason == EVirtualSlabSessionEndReason::DrainTimeout;
 	PendingKeys.Reset(); Status.PendingAcquisitions=0;
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
 		for (const auto& Pair : Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
 	for (const auto& Pair : Targets) if (StartedSensors.Contains(Pair.Key) && Pair.Value.IsValid()) Pair.Value->StopSensor();
-	if (TimedOut) if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
-	Status.State=TimedOut ? EVirtualSlabSessionState::Incomplete : EVirtualSlabSessionState::Completed;
-	Status.Message=TimedOut ? TEXT("종료 제한 시간 초과: 미완료 데이터 확인 필요") : TEXT("Slab 센서 세션 완료");
+	if (bFailed) if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
+	Status.EndReason = Reason;
+	Status.State = bFailed ? EVirtualSlabSessionState::Incomplete : EVirtualSlabSessionState::Completed;
+	switch (Reason)
+	{
+	case EVirtualSlabSessionEndReason::AcquisitionFailure:
+		Status.Message = FString::Printf(TEXT("센서 측정 실패: %d건 · 송신 오류 %lld건 (전송 로그 확인)"), Status.AcquisitionFailures, Status.StreamFailures);
+		break;
+	case EVirtualSlabSessionEndReason::StreamFailure:
+		Status.Message = FString::Printf(TEXT("센서 데이터 처리/송신 실패: %lld건 (크기 제한·직렬화·receipt 등 전송 로그 확인)"), Status.StreamFailures);
+		break;
+	case EVirtualSlabSessionEndReason::DrainTimeout:
+		Status.Message = FString::Printf(TEXT("종료 제한 시간 초과: 미완료 %lld건"), Status.UnfinishedFrames);
+		break;
+	case EVirtualSlabSessionEndReason::Aborted:
+		Status.Message = TEXT("Slab 시뮬레이션 중단: 접수된 데이터 전송 마무리 완료");
+		break;
+	default:
+		Status.Message = TEXT("Slab 센서 세션 완료");
+		break;
+	}
 }
 TStatId UVirtualSensorSlabContextSubsystem::GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorSlabContextSubsystem,STATGROUP_Tickables); }
 int64 UVirtualSensorSlabContextSubsystem::CountStreamErrors() const
 {
 	int64 Count=0;
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
-		for (const auto& S : Coordinator->StreamPublisherComponent->GetStreamStatuses()) if (Targets.Contains(S.SensorId)) Count+=S.OverloadCount+S.EncodeFailureCount+S.ConsumerValidationFailureCount;
+		for (const auto& S : Coordinator->StreamPublisherComponent->GetStreamStatuses()) if (Targets.Contains(S.SensorId)) Count+=S.OverloadCount+S.EncodeFailureCount+S.ConsumerValidationFailureCount+S.BodyLimitRejectedCount+S.DeliveryFailureCount;
 	if (GetWorld()) if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
 		for (const auto& S : Raw->GetStreamTelemetry()) if (Targets.Contains(S.SensorId)) Count+=S.OverloadCount+S.ValidationFailureCount;
 	return Count;

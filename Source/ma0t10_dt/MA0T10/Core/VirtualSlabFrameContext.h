@@ -20,6 +20,12 @@ struct MA0T10_DT_API FVirtualSlabFrameContext
 UENUM(BlueprintType)
 enum class EVirtualSlabSessionState : uint8 { Idle, Ready, Running, Paused, Draining, Completed, Incomplete };
 
+UENUM(BlueprintType)
+enum class EVirtualSlabSessionEndReason : uint8
+{
+	None, Completed, Aborted, AcquisitionFailure, StreamFailure, DrainTimeout
+};
+
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSlabSessionStatus
 {
@@ -32,4 +38,6 @@ struct MA0T10_DT_API FVirtualSlabSessionStatus
 	UPROPERTY(BlueprintReadOnly) int64 UnfinishedFrames = 0;
 	UPROPERTY(BlueprintReadOnly) bool bAborted = false;
 	UPROPERTY(BlueprintReadOnly) int32 AcquisitionFailures = 0;
+	UPROPERTY(BlueprintReadOnly) int64 StreamFailures = 0;
+	UPROPERTY(BlueprintReadOnly) EVirtualSlabSessionEndReason EndReason = EVirtualSlabSessionEndReason::None;
 };
