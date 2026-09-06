@@ -670,6 +670,7 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame)
 {
 	const bool bHighThroughputBinary = Runtime.Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+		CanUseHighThroughputTransport() &&
 		((Runtime.Config.StreamKind == EVirtualSensorStreamKind::CameraImage && Frame.BinaryPayload.IsValid()) ||
 		 (Runtime.Config.StreamKind == EVirtualSensorStreamKind::LidarPayload && Frame.LidarFrameSnapshot.IsValid()));
 	// Preview/acquisition envelopes can arrive before asynchronous JSON
@@ -1056,6 +1057,12 @@ void UVirtualSensorStreamPublisherComponent::TickComponent(float DeltaTime, ELev
 
 void UVirtualSensorStreamPublisherComponent::PumpPublisherOnce(double Now)
 {
+	const bool bRawAvailable = CanUseHighThroughputTransport();
+	if (!LastRawTransportAvailable.IsSet() || LastRawTransportAvailable.GetValue() != bRawAvailable)
+	{
+		LastRawTransportAvailable = bRawAvailable;
+		UpdateCameraStreamDemand();
+	}
 	const double RateBytes = FMath::Max(1.0f, BandwidthLimitMegabytesPerSecond) * 1024.0 * 1024.0;
 	const double PointCloudRateBytes = FMath::Max(1.0f, PointCloudBandwidthLimitMegabytesPerSecond) * 1024.0 * 1024.0;
 	TokenBucketBytes = FMath::Min(RateBytes, TokenBucketBytes + (Now - LastTokenUpdateSeconds) * RateBytes);
@@ -1090,6 +1097,16 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			: (Runtime->PreparedMessage.IsSet() ? &Runtime->PreparedMessage.GetValue() : nullptr);
 		if (!MessagePtr) continue;
 		FPreparedMessage& Message = *MessagePtr;
+		if (Message.bHighThroughputBinary && !CanUseHighThroughputTransport())
+		{
+			// A broker/backend change invalidates the old binary-only camera/telemetry
+			// derivation. Never downgrade WSS to TCP or retry the incompatible body forever.
+			++Runtime->Status.StaleResultDiscardCount;
+			AddLog(Keys[Index], TEXT("backend-changed"), TEXT("서버 방식 변경 전의 파생 프레임 폐기; 다음 프레임은 호환 Payload 사용"), nullptr, Message.FrameId);
+			if (bNoLoss) Runtime->PreparedMessageQueue.RemoveAt(0, 1, false); else Runtime->PreparedMessage.Reset();
+			RefreshQueueTelemetry(*Runtime);
+			continue;
+		}
 		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
 		{
 			if (!Slab->AllowsFrame(Message.SensorId,Message.SlabContext))
@@ -1118,7 +1135,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
 		const bool bUseHighThroughput = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
-			TransportComponent->TransportMode == EVirtualSensorTransportMode::StompWebSocket &&
+			CanUseHighThroughputTransport() &&
 			(Message.bBinaryPcd || Message.bHighThroughputBinary);
 		if (bUseHighThroughput)
 		{
@@ -1203,6 +1220,12 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			break;
 		}
 	}
+}
+
+bool UVirtualSensorStreamPublisherComponent::CanUseHighThroughputTransport() const
+{
+	return TransportComponent && TransportComponent->TransportMode == EVirtualSensorTransportMode::StompWebSocket &&
+		UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(TransportComponent->GetTransportProfile().BrokerUrl);
 }
 
 bool UVirtualSensorStreamPublisherComponent::EnsureHighThroughputTransport(FString& OutError)
@@ -1506,7 +1529,7 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 				const FStreamRuntime* Active = Exact && Exact->Config.bEnabled ? Exact : (Global && Global->Config.bEnabled ? Global : nullptr);
 				Camera->SetRuntimeStreamOutputDemand(
 					Active != nullptr,
-					Active && Active->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput);
+					Active && Active->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput && CanUseHighThroughputTransport());
 			}
 		}
 	}

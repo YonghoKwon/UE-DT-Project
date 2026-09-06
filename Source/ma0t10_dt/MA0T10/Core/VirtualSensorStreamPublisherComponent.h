@@ -43,6 +43,7 @@ public:
 	FVirtualSensorStreamConfig GetEffectiveStreamConfig(EVirtualSensorStreamKind Kind, const FString& SensorId) const;
 	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
 	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
+	bool CanUseHighThroughputTransport() const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
@@ -174,4 +175,5 @@ private:
 	double PointCloudTokenBucketBytes = 0.0;
 	double LastTokenUpdateSeconds = 0.0;
 	bool bEndingPlay = false;
+	TOptional<bool> LastRawTransportAvailable;
 };

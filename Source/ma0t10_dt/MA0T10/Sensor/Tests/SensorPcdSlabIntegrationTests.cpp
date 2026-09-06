@@ -7,6 +7,34 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWssFallbackTest, "MA0T10.SensorStream.WssCompatibilityRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSensorWssFallbackTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = FAutomationEditorCommonUtils::CreateNewMap();
+	auto* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
+	auto* Camera = World->SpawnActor<AVirtualCameraSensorActor>();
+	Manager->RegisterSensorActor(Camera);
+	auto* Publisher = Manager->StreamPublisherComponent.Get();
+	auto* Transport = Manager->SharedTransportComponent.Get();
+	Publisher->SetTransportComponent(Transport);
+	Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
+	Transport->TransportProfile.BrokerUrl = TEXT("ws://127.0.0.1:61616");
+	Publisher->StartStream(EVirtualSensorStreamKind::CameraImage, Camera->GetSensorId());
+	TestTrue(TEXT("plain local STOMP supports raw backend"), Publisher->CanUseHighThroughputTransport());
+	TestTrue(TEXT("raw path may omit compatibility JSON"), Camera->CaptureComponent->HasHighThroughputStreamOutputDemand());
+	Transport->TransportProfile.BrokerUrl = TEXT("wss://example.invalid:61616/stomp");
+	Publisher->PumpPublisherOnce(FPlatformTime::Seconds()); // no queued body: does not connect
+	TestFalse(TEXT("WSS never enters raw TCP submit"), Publisher->CanUseHighThroughputTransport());
+	TestFalse(TEXT("WSS camera disables binary-only demand"), Camera->CaptureComponent->HasHighThroughputStreamOutputDemand());
+	TestTrue(TEXT("WSS camera keeps output demand for compatibility JSON"), Camera->CaptureComponent->HasRuntimeStreamOutputDemand());
+	TestEqual(TEXT("secure URL is never rewritten to plaintext"), Transport->TransportProfile.BrokerUrl, FString(TEXT("wss://example.invalid:61616/stomp")));
+	Publisher->StopAllStreams(FString());
+	Camera->Destroy(); Manager->Destroy();
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorCaptureViewPolicyTest, "MA0T10.SensorV2.Architecture.CaptureViewStatePolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorCaptureViewPolicyTest::RunTest(const FString& Parameters)
