@@ -248,6 +248,7 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
 
 void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
 {
+	ResetSensorToolAppearance();
     UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences();
     if (MonitorWidget)
     {
@@ -264,6 +265,11 @@ void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
         CaptureExportWidget->ResetPanelUiStateToDefault();
     }
     LastStatusMessage = TEXT("센서 UI 배치와 표시 설정을 기본값으로 초기화했습니다.");
+}
+
+void AVirtualSensorUiHostActor::ResetSensorToolAppearance()
+{
+	SetSensorToolFontScale(1.0f);
 }
 
 void AVirtualSensorUiHostActor::SetSensorToolFontScale(float Scale)

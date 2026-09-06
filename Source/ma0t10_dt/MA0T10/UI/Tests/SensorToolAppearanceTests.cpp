@@ -4,6 +4,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "UObject/UnrealType.h"
+#include "ma0t10_dt/MA0T10/UI/SensorToolAppearance.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorFontIsolationTest, "MA0T10.SensorControl.ToolFontIsolation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
@@ -50,6 +51,11 @@ bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("foreign control remains unchanged through compatibility API"), OtherText->GetFont().Size, 20.0f);
 	Own->ResetGlobalSensorUiFontScale();
 	TestEqual(TEXT("legacy reset restores baseline"), OwnText->GetFont().Size, 20.0f);
+	Own->SetGlobalSensorUiFontScale(1.5f);
+	Host->ResetSensorToolAppearance(); // the font part of ResetAll, without deleting user panel saves
+	TestEqual(TEXT("appearance reset restores live scale"), OwnText->GetFont().Size, 20.0f);
+	TestEqual(TEXT("appearance reset persists default for next launch"), USensorToolAppearance::LoadScale(), 1.0f);
+	TestEqual(TEXT("appearance reset does not change colleague widget"), OtherText->GetFont().Size, 20.0f);
 	return true;
 }
 #endif
