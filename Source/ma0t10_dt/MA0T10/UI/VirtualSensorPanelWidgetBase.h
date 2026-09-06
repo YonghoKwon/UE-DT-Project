@@ -16,6 +16,16 @@ class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDxWidget
     GENERATED_BODY()
 
 public:
+	// PR17 compatibility names. They no longer change any global UI state.
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Accessibility")
+	void SetGlobalSensorUiFontScale(float InScale);
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|SensorPanel|Accessibility")
+	float GetGlobalSensorUiFontScale() const;
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Accessibility")
+	void ResetGlobalSensorUiFontScale();
+	UFUNCTION(BlueprintImplementableEvent, Category="DigitalTwin|SensorPanel|Accessibility")
+	void OnSensorUiFontScaleChanged(float NewScale);
+	static int32 CalculateScaledFontSize(int32 BaseSize, float Scale);
 	void SetSensorAppearanceOwner(class AVirtualSensorUiHostActor* Host);
 	void ApplySensorToolFontScale(float Scale);
 	float GetSensorToolFontScale() const { return SensorToolFontScale; }
@@ -80,6 +90,8 @@ public:
     void RefreshHostedPanelLayout();
 
 protected:
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual FReply NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -105,6 +117,7 @@ public:
     float ResizeHandleSize = 18.0f;
 
 private:
+	bool bSensorPanelConstructed = false;
 	TArray<TFunction<void(float)>> SensorFontSetters;
 	TWeakObjectPtr<class AVirtualSensorUiHostActor> SensorAppearanceOwner;
 	float SensorToolFontScale = 1.0f;

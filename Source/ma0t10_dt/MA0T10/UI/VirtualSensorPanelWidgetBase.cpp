@@ -12,6 +12,39 @@
 #include "Components/TextBlock.h"
 #include "Components/EditableTextBox.h"
 
+void UVirtualSensorPanelWidgetBase::SetGlobalSensorUiFontScale(float InScale)
+{
+	SetSensorToolFontScale(InScale);
+}
+
+float UVirtualSensorPanelWidgetBase::GetGlobalSensorUiFontScale() const
+{
+	return SensorAppearanceOwner.IsValid() ? SensorAppearanceOwner->GetSensorToolFontScale() : 1.0f;
+}
+
+void UVirtualSensorPanelWidgetBase::ResetGlobalSensorUiFontScale()
+{
+	SetSensorToolFontScale(1.0f);
+}
+
+int32 UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(int32 BaseSize, float Scale)
+{
+	return FMath::Max(8, FMath::RoundToInt(BaseSize * (FMath::IsFinite(Scale) ? FMath::Clamp(Scale, 0.85f, 1.5f) : 1.0f)));
+}
+
+void UVirtualSensorPanelWidgetBase::NativeConstruct()
+{
+	Super::NativeConstruct();
+	bSensorPanelConstructed = true;
+	if (SensorAppearanceOwner.IsValid()) OnSensorUiFontScaleChanged(SensorToolFontScale);
+}
+
+void UVirtualSensorPanelWidgetBase::NativeDestruct()
+{
+	bSensorPanelConstructed = false;
+	Super::NativeDestruct();
+}
+
 void UVirtualSensorPanelWidgetBase::SetSensorAppearanceOwner(AVirtualSensorUiHostActor* Host)
 {
 	SensorAppearanceOwner = Host;
@@ -24,9 +57,12 @@ void UVirtualSensorPanelWidgetBase::SetSensorToolFontScale(float Scale)
 void UVirtualSensorPanelWidgetBase::ApplySensorToolFontScale(float Scale)
 {
 	if (!SensorAppearanceOwner.IsValid() || !FMath::IsFinite(Scale)) return;
+	const float PreviousScale = SensorToolFontScale;
 	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
 	for (auto& Setter : SensorFontSetters) Setter(SensorToolFontScale);
 	InvalidateLayoutAndVolatility();
+	if (bSensorPanelConstructed && !FMath::IsNearlyEqual(PreviousScale, SensorToolFontScale))
+		OnSensorUiFontScaleChanged(SensorToolFontScale);
 }
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args)
 {

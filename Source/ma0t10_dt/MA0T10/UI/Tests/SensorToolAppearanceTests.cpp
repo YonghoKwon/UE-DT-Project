@@ -3,6 +3,7 @@
 #include "Components/TextBlock.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "UObject/UnrealType.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorFontIsolationTest, "MA0T10.SensorControl.ToolFontIsolation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
@@ -34,6 +35,21 @@ bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
 	Foreign->SlatePrepass(1.0f);
 	TestEqual(TEXT("native registered label scales"), NativeText->GetFont().Size, 30.0f);
 	TestEqual(TEXT("foreign geometry unchanged"), FVector2D(Foreign->GetDesiredSize()), ForeignSize);
+	const auto* SettingsProperty = FindFProperty<FObjectPropertyBase>(Host->GetClass(), TEXT("SettingsWidget"));
+	TestNotNull(TEXT("host settings ownership slot exists"), SettingsProperty);
+	if (!SettingsProperty) return false;
+	SettingsProperty->SetObjectPropertyValue_InContainer(Host, Own);
+	for (const FName Name : {FName(TEXT("SetGlobalSensorUiFontScale")), FName(TEXT("GetGlobalSensorUiFontScale")),
+		FName(TEXT("ResetGlobalSensorUiFontScale")), FName(TEXT("OnSensorUiFontScaleChanged"))})
+		TestNotNull(TEXT("legacy Blueprint function resolves"), Own->FindFunction(Name));
+	Own->SetGlobalSensorUiFontScale(1.25f);
+	TestEqual(TEXT("legacy setter scales only host owned controls"), OwnText->GetFont().Size, 25.0f);
+	Other->SetGlobalSensorUiFontScale(1.5f);
+	TestEqual(TEXT("foreign legacy setter cannot change host scale"), Host->GetSensorToolFontScale(), 1.25f);
+	TestEqual(TEXT("foreign legacy getter has no global state"), Other->GetGlobalSensorUiFontScale(), 1.0f);
+	TestEqual(TEXT("foreign control remains unchanged through compatibility API"), OtherText->GetFont().Size, 20.0f);
+	Own->ResetGlobalSensorUiFontScale();
+	TestEqual(TEXT("legacy reset restores baseline"), OwnText->GetFont().Size, 20.0f);
 	return true;
 }
 #endif
