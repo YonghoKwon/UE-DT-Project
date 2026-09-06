@@ -14,8 +14,6 @@
 
 Camera queue는 8개, LiDAR/PCD queue는 각각 20개이며 모든 프레임에 receipt를 요청합니다. 정상 연결 중에는 FIFO와 FrameId 순서를 보존하고 상한을 넘으면 조용히 교체하지 않고 해당 스트림을 과부하 오류로 전환합니다. 연결 해제 중 acquisition은 계속되지만 프레임을 디스크에 영구 보존하지 않습니다.
 
-센서 수집은 단조 실시간 deadline을 사용합니다. D455는 33.333ms, ML-X(80)은 50ms 간격을 누적해 장시간 drift를 방지합니다. 예정 측정 시각, 실제 측정 시작·종료, 파생 완료와 socket 제출 시각은 각각 `x-scheduled-unix-ns`, `x-acquisition-start-unix-ns`, `x-acquisition-end-unix-ns`, `x-derived-complete-unix-ns`, `x-submit-unix-ns` header로 구분됩니다. PC나 Broker가 주기를 감당하지 못하면 이전 프레임을 복제하지 않고 deadline miss와 interval error를 표시합니다.
-
 입력 URL은 기존 UI의 `ws://host:61616` 또는 `tcp://host:61616`을 사용할 수 있으며 고성능 worker는 동일 Artemis raw TCP acceptor로 연결합니다. `wss://`는 Engine STOMP compatibility backend로 fallback하고 TLS/WebSocket 비용 때문에 아래 60FPS 보장 범위에서 제외됩니다. 기존 Base64 `virtual-camera.v1`과 포인트 배열이 있는 `virtual-lidar.v1`은 Blueprint/API 호환 모드에 남습니다.
 
 ## ML-X(80) 20Hz 실시간 Point Cloud
@@ -140,4 +138,4 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smo
 
 로컬 기본 통과 기준은 평균 55 FPS 이상, 1% low 45 FPS 이상, p95 20 ms 이하입니다. 이는 비동기·bounded 설계가 게임 스레드 정지를 방지한다는 회귀 기준이며, 실제 부하는 센서 수, 해상도, Payload 크기와 네트워크 대역폭에 따라 달라질 수 있습니다.
 
-UI 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v7.sav`에 저장됩니다. 세 패널 위치·크기·접힘, 공통 글자 배율, 탭·Topic·Point Cloud 필터·로컬 캡처 간격/출력·듀얼 카메라 선택을 복원합니다. 비밀번호, token과 스트림 실행 상태는 저장하지 않습니다.
+UI 상태는 `Saved/SaveGames/MA0T10_VirtualSensorUI_v6.sav`에 저장됩니다. 패널 크기·탭·Topic·Point Cloud 필터·로컬 캡처 간격/출력·듀얼 카메라 선택은 복원하지만 비밀번호, token, 스트림 실행 상태는 저장하지 않습니다.

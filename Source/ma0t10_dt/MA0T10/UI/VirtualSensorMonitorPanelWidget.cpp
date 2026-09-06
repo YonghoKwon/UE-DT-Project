@@ -1304,7 +1304,7 @@ FString LidarFidelitySummary(const UVirtualLidarScanComponent* Lidar)
     const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
     return FString::Printf(
         TEXT("프로필 %s · 충실도 %s · 프로토콜 %s\n")
-		TEXT("요청 %.1fHz · 측정 %.1fHz · 출력 %.1fHz · 주기 누락 %d · 시작/간격 오차 p95 %.2f/%.2fms · backend %s"),
+        TEXT("요청 %.1fHz · 측정 %.1fHz · 출력 %.1fHz · deadline miss %d · backend %s"),
         ProfileBadge,
         Fidelity,
         Lidar->GetDeviceSpec().bProtocolVerifiedAgainstHardware ? TEXT("검증 완료") : TEXT("미검증"),
@@ -1312,8 +1312,6 @@ FString LidarFidelitySummary(const UVirtualLidarScanComponent* Lidar)
         Status.MeasuredAcquisitionRateHz,
         Status.MeasuredOutputRateHz,
         Status.DeadlineMissCount,
-		Status.CadenceStartJitterP95Ms,
-		Status.CadenceIntervalErrorP95Ms,
         *Status.ActiveAcquisitionBackend);
 }
 

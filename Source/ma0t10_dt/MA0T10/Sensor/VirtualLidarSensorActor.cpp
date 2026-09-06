@@ -10,14 +10,6 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 
-namespace
-{
-FDateTime LidarUnixNanosecondsToUtc(int64 UnixNanoseconds)
-{
-	return UnixNanoseconds > 0 ? FDateTime(1970, 1, 1) + FTimespan(UnixNanoseconds / 100) : FDateTime::UtcNow();
-}
-}
-
 AVirtualLidarSensorActor::AVirtualLidarSensorActor()
 {
     PrimaryActorTick.bCanEverTick = false;
@@ -146,11 +138,7 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         AcquiredFrame.SensorId = ScanComponent->SensorId;
         AcquiredFrame.SensorKind = EVirtualSensorKind::Lidar;
         AcquiredFrame.FrameId = Snapshot->FrameId;
-		AcquiredFrame.TimestampUtc = LidarUnixNanosecondsToUtc(Snapshot->AcquisitionStartUnixNanoseconds);
-		AcquiredFrame.ScheduledUnixNanoseconds = Snapshot->ScheduledUnixNanoseconds;
-		AcquiredFrame.AcquisitionStartUnixNanoseconds = Snapshot->AcquisitionStartUnixNanoseconds;
-		AcquiredFrame.AcquisitionEndUnixNanoseconds = Snapshot->AcquisitionEndUnixNanoseconds;
-		AcquiredFrame.DerivedCompleteUnixNanoseconds = Snapshot->AcquisitionEndUnixNanoseconds;
+        AcquiredFrame.TimestampUtc = FDateTime::UtcNow();
         AcquiredFrame.SchemaVersion = TEXT("virtual-lidar.v2");
         AcquiredFrame.PointSnapshot = Snapshot->Points;
         AcquiredFrame.LidarFrameSnapshot = Snapshot;
@@ -265,19 +253,10 @@ void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTex
     Frame.SensorId = ScanComponent->SensorId;
     Frame.SensorKind = EVirtualSensorKind::Lidar;
     Frame.FrameId = ScanComponent->GetRuntimeStatus().FrameId;
-	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = ScanComponent->GetLastFrameSnapshot();
-	Frame.TimestampUtc = LidarUnixNanosecondsToUtc(Snapshot.IsValid() ? Snapshot->AcquisitionStartUnixNanoseconds : 0);
-	if (Snapshot.IsValid())
-	{
-		Frame.ScheduledUnixNanoseconds = Snapshot->ScheduledUnixNanoseconds;
-		Frame.AcquisitionStartUnixNanoseconds = Snapshot->AcquisitionStartUnixNanoseconds;
-		Frame.AcquisitionEndUnixNanoseconds = Snapshot->AcquisitionEndUnixNanoseconds;
-	}
-	static const FDateTime UnixEpoch(1970, 1, 1);
-	Frame.DerivedCompleteUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
+    Frame.TimestampUtc = FDateTime::UtcNow();
     Frame.SchemaVersion = TEXT("virtual-lidar.v1");
     Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
-	Frame.LidarFrameSnapshot = Snapshot;
+    Frame.LidarFrameSnapshot = ScanComponent->GetLastFrameSnapshot();
     Frame.PointSnapshot = Frame.LidarFrameSnapshot.IsValid()
         ? Frame.LidarFrameSnapshot->Points
         : ScanComponent->GetLastPointSnapshot();

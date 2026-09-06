@@ -38,7 +38,6 @@ struct FWorkerEvent
 	int64 GapDelta = 0;
 	int64 DuplicateDelta = 0;
 	float LatencyMs = 0.0f;
-	float AcquisitionToSubmitLatencyMs = 0.0f;
 	FString Message;
 };
 
@@ -354,8 +353,6 @@ private:
 
 	bool SendFrame(const FVirtualSensorBinaryFrame& Frame, int32 RetryAttempt)
 	{
-		static const FDateTime UnixEpoch(1970, 1, 1);
-		const int64 SubmitUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
 		const FString RequestId = Frame.RequestId.IsEmpty()
 			? FString::Printf(TEXT("%s-%lld-%s"), *Frame.SensorId, Frame.FrameId, *HeaderValue(Frame.Headers, TEXT("checksum")))
 			: Frame.RequestId;
@@ -376,7 +373,6 @@ private:
 			Frame.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 				: Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream"),
 			Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar"));
-		Header += FString::Printf(TEXT("x-submit-unix-ns:%lld\n"), SubmitUnixNanoseconds);
 		for (const TPair<FString, FString>& Pair : Frame.Headers)
 		{
 			if (Pair.Key.Equals(TEXT("schema"), ESearchCase::IgnoreCase) ||
@@ -414,12 +410,6 @@ private:
 		Event.QueueDepth = QueueCounts[static_cast<int32>(Frame.StreamKind)].Load();
 		Event.ReceiptDepth = CountPendingReceipts(Frame.StreamKind);
 		Event.LatencyMs = static_cast<float>((LastSocketActivitySeconds - Started) * 1000.0);
-		int64 AcquisitionStartUnixNanoseconds = 0;
-		if (LexTryParseString(AcquisitionStartUnixNanoseconds, *HeaderValue(Frame.Headers, TEXT("x-acquisition-start-unix-ns"))) && AcquisitionStartUnixNanoseconds > 0)
-		{
-			const int64 SubmittedUnixNanoseconds = (FDateTime::UtcNow() - UnixEpoch).GetTicks() * 100;
-			Event.AcquisitionToSubmitLatencyMs = static_cast<float>(FMath::Max<int64>(0, SubmittedUnixNanoseconds - AcquisitionStartUnixNanoseconds) / 1.0e6);
-		}
 		Event.Message = TEXT("Raw TCP STOMP frame submitted; waiting for broker receipt.");
 		Events.Enqueue(MoveTemp(Event));
 		return true;
@@ -837,23 +827,10 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 					(1024.0 * 1024.0 * SubmittedSeconds));
 			}
 			Telemetry.LastSocketWriteLatencyMs = Event.LatencyMs;
-			Telemetry.AcquisitionToSubmitLatencySamples.Add(Event.AcquisitionToSubmitLatencyMs);
-			if (Telemetry.AcquisitionToSubmitLatencySamples.Num() > 256)
-			{
-				Telemetry.AcquisitionToSubmitLatencySamples.RemoveAt(0, Telemetry.AcquisitionToSubmitLatencySamples.Num() - 256, false);
-			}
-			{
-				TArray<float> Sorted = Telemetry.AcquisitionToSubmitLatencySamples;
-				Sorted.Sort();
-				Telemetry.AcquisitionToSubmitP95LatencyMs = Sorted[FMath::Clamp(FMath::CeilToInt(Sorted.Num() * 0.95f) - 1, 0, Sorted.Num() - 1)];
-			}
 			Telemetry.State = TEXT("submitted");
 			break;
 		case EWorkerEventType::Receipt:
 			++Telemetry.ReceiptCount;
-			if (Telemetry.FirstReceiptSeconds <= 0.0) Telemetry.FirstReceiptSeconds = FPlatformTime::Seconds();
-			Telemetry.ReceiptHz = static_cast<float>(Telemetry.ReceiptCount /
-				FMath::Max(0.001, FPlatformTime::Seconds() - Telemetry.FirstReceiptSeconds));
 			Telemetry.LastReceiptLatencyMs = Event.LatencyMs;
 			Telemetry.State = TEXT("receipt");
 			break;
