@@ -2,6 +2,8 @@
 
 > PR #16 기반의 **세 센서 패널 전용 글자 배율**, **실시간 PCD 진입점 정규화**, **Slab 시뮬레이션 시작·프레임 적용·종료 연동 함수**는 [Slab 연동 가이드](docs/sensor_slab_integration.ko.md)를 참고하십시오. Slab frame_no와 센서 FrameId는 독립적으로 유지합니다.
 
+> 이 기능 PR은 PR #17의 revert도 포함합니다. 유지·제거되는 기능과 외부 Blueprint 주의점은 [PR #16 기준 병합 범위](docs/sensor_pr16_merge_notes.ko.md)를 확인하십시오.
+
 > 센서 캡처/내보내기 패널, 세 가지 실시간 Topic, 부하 제한 정책과 로컬 Artemis 검증 방법은 [docs/sensor_streaming.ko.md](docs/sensor_streaming.ko.md)를 참고하십시오.
 
 Unreal Engine 5.3 기반 Digital Twin 가상 센서 프로젝트입니다. Camera와 LiDAR를 맵에 배치해 실시간 미리보기, 설정 변경, 디버그 표시, Payload 전송, 녹화와 point cloud 내보내기를 시험할 수 있습니다.

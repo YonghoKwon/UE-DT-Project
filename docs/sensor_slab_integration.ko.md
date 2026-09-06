@@ -57,6 +57,10 @@ CPU/GPU 측정 요청이 시작될 때 context를 복사합니다. GPU readback�
 
 Ready → Running → Draining → Completed/Incomplete 상태를 제공합니다. 벌크 네트워크 수신 완료와 실제 재생 시작을 구분하십시오. 첫 Notify 전에는 송신하지 않습니다.
 
+`GetSlabSensorSessionStatus().EndReason`으로 정상 완료(`Completed`), 사용자 중단(`Aborted`), 측정 실패(`AcquisitionFailure`), 처리/송신 실패(`StreamFailure`), 종료 대기 초과(`DrainTimeout`)를 구분합니다. 사용자 중단 후 접수 데이터가 모두 마무리되면 State는 Completed이고 bAborted=true입니다. 실패나 timeout은 Incomplete이며, 일반 실패를 timeout으로 표시하지 않습니다.
+
+PCD 크기 제한 거부는 `BodyLimitRejectedCount`, 재시도 없이 끝난 receipt 실패는 `DeliveryFailureCount`로 집계합니다. 용량 오류로 스트림이 중지되더라도 세션을 성공으로 판정하지 않습니다. 세션의 `StreamFailures`는 실행 시작 이후의 오류만 집계하며 이전 실행의 오류를 다음 실행에 가져오지 않습니다.
+
 Begin은 센서 프로필·주기를 유지하며 정지된 대상의 측정을 시작합니다. End는 신규 세션 데이터 접수를 막고 종료 전에 시작한 유효 측정의 인코딩·직렬화·송신·receipt를 최대 10초 동안 마무리합니다. 네트워크 수신은 Slab 움직임 종료보다 늦을 수 있습니다. 실패 시 미완료 수와 사유를 표시합니다.
 
 세션 종료 후 대상 자동 스트림은 자동 재개하지 않습니다. 원래 실행 중이던 Preview 측정은 유지하고, 세션이 시작했던 측정만 중지합니다. 다음 실행은 새 UUID로 Begin을 호출합니다. 이 버전의 세션 대상은 World 수명 동안 관리됩니다. 수동 내보내기는 별개입니다.
