@@ -72,7 +72,7 @@ bool FVirtualSensorStreamFormatRevisionTest::RunTest(const FString& Parameters)
 	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
 	Publisher->ConfigureStream(Config);
 	const TArray<FVirtualSensorStreamStatus> Changed = Publisher->GetStreamStatuses();
-	TestEqual(TEXT("format change increments serialization revision"), Changed[0].ConfigRevision, InitialRevision + 1);
+	TestEqual(TEXT("live PCD normalization prevents accidental ASCII/CSV revision changes"), Changed[0].ConfigRevision, InitialRevision);
 	TestFalse(TEXT("format change clears a pending old-format result"), Changed[0].bPendingLatestFrame);
 
 	Publisher->ConfigureStream(Config);

@@ -495,8 +495,42 @@ UVirtualSensorStreamPublisherComponent::FStreamRuntime& UVirtualSensorStreamPubl
 	return Runtime;
 }
 
-void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSensorStreamConfig& Config)
+FVirtualSensorStreamConfig UVirtualSensorStreamPublisherComponent::NormalizeLiveConfig(FVirtualSensorStreamConfig Config)
 {
+	if (Config.StreamKind == EVirtualSensorStreamKind::PointCloud)
+	{
+		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+		Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+		Config.DeliveryMode = EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
+		Config.FrameStride = 1;
+		Config.ReceiptSampleInterval = 1;
+	}
+	return Config;
+}
+
+FVirtualSensorStreamConfig UVirtualSensorStreamPublisherComponent::GetEffectiveStreamConfig(EVirtualSensorStreamKind Kind, const FString& SensorId) const
+{
+	if (const FStreamRuntime* Runtime = StreamRuntimes.Find(MakeStreamKey(Kind, SensorId))) return Runtime->Config;
+	FVirtualSensorStreamConfig Config;
+	Config.StreamKind = Kind;
+	Config.SensorId = SensorId;
+	return NormalizeLiveConfig(Config);
+}
+
+bool UVirtualSensorStreamPublisherComponent::ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error)
+{
+	if (Bytes <= 0 || Bytes > Limit)
+	{
+		Error = FString::Printf(TEXT("[메시지 크기] Binary body=%lld bytes, 설정 한도=%lld bytes. 센서 점 수와 메시지 한도를 확인하세요."), Bytes, Limit);
+		return false;
+	}
+	Error.Reset();
+	return true;
+}
+
+void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSensorStreamConfig& RequestedConfig)
+{
+	const FVirtualSensorStreamConfig Config = NormalizeLiveConfig(RequestedConfig);
 	FStreamRuntime& Runtime = FindOrAddRuntime(Config.StreamKind, Config.SensorId.TrimStartAndEnd());
 	const bool bWasEnabled = Runtime.Config.bEnabled;
 	const bool bSerializationContractChanged = Runtime.Config.PointCloudFormat != Config.PointCloudFormat ||
@@ -539,6 +573,7 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 void UVirtualSensorStreamPublisherComponent::StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
 {
 	FStreamRuntime& Runtime = FindOrAddRuntime(StreamKind, SensorId.TrimStartAndEnd());
+	Runtime.Config = NormalizeLiveConfig(Runtime.Config);
 	Runtime.Config.bEnabled = true;
 	Runtime.Status.bEnabled = true;
 	Runtime.Status.bOverloaded = false;
@@ -658,6 +693,18 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 
 	if (Runtime.Config.StreamKind == EVirtualSensorStreamKind::PointCloud)
 	{
+		if (TransportComponent && Frame.PointSnapshot.IsValid())
+		{
+			const int64 Estimate = Frame.PointSnapshot->Num() * 33LL + 1024;
+			FString SizeError;
+			if (!ValidateBinaryBodySize(Estimate, TransportComponent->GetTransportProfile().MaxMessageBytes, SizeError))
+			{
+				Runtime.Config.bEnabled = Runtime.Status.bEnabled = false;
+				Runtime.Status.Message = TEXT("[시작 전 크기 검사] ") + SizeError;
+				AddLog(StreamKey, TEXT("body-limit-preflight"), Runtime.Status.Message, nullptr, Frame.FrameId);
+				return;
+			}
+		}
 		const bool bNoLoss = Runtime.Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
 		if (!Runtime.bSerializationInFlight)
 		{
@@ -1022,6 +1069,12 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			: (Runtime->PreparedMessage.IsSet() ? &Runtime->PreparedMessage.GetValue() : nullptr);
 		if (!MessagePtr) continue;
 		FPreparedMessage& Message = *MessagePtr;
+		FString BodyError;
+		if (!ValidateBinaryBodySize(Message.ByteCount, TransportComponent->GetTransportProfile().MaxMessageBytes, BodyError))
+		{
+			StopForPointCloudOverload(Keys[Index], *Runtime, BodyError);
+			continue;
+		}
 		double& ActiveTokenBucket = Message.bBinaryPcd ? PointCloudTokenBucketBytes : TokenBucketBytes;
 		if (Message.ByteCount > ActiveTokenBucket)
 		{
@@ -1033,6 +1086,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
 			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
 		const bool bUseHighThroughput = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
+			TransportComponent->TransportMode == EVirtualSensorTransportMode::StompWebSocket &&
 			(Message.bBinaryPcd || Message.bHighThroughputBinary);
 		if (bUseHighThroughput)
 		{

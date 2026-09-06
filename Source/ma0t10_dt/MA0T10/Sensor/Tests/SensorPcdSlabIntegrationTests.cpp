@@ -41,4 +41,23 @@ bool FPcdNativeLimitTest::RunTest(const FString& Parameters)
 	}
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdLiveEntryTest, "MA0T10.SensorStream.LivePcdEntryPoints", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FPcdLiveEntryTest::RunTest(const FString& Parameters)
+{
+	auto* Publisher = NewObject<UVirtualSensorStreamPublisherComponent>();
+	Publisher->StartStream(EVirtualSensorStreamKind::PointCloud, TEXT("DIRECT-BP"));
+	auto Config = Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud, TEXT("DIRECT-BP"));
+	TestEqual(TEXT("direct Blueprint start uses PCD"), Config.PointCloudFormat, EVirtualPointCloudStreamFormat::PCD);
+	TestEqual(TEXT("direct start never uses ASCII/base64"), Config.PcdDataMode, EVirtualPcdDataMode::Binary);
+	Config.PointCloudFormat = EVirtualPointCloudStreamFormat::CSV;
+	Config.PcdDataMode = EVirtualPcdDataMode::Ascii;
+	Config.FrameStride = 10;
+	Publisher->ConfigureStream(Config);
+	Config = Publisher->GetEffectiveStreamConfig(Config.StreamKind, Config.SensorId);
+	TestEqual(TEXT("configured stream preserves every acquisition"), Config.FrameStride, 1);
+	FString Error;
+	TestTrue(TEXT("2-echo binary fits 8MiB"), Publisher->ValidateBinaryBodySize(64512LL * 33 + 1024, 8 * 1024 * 1024, Error));
+	TestFalse(TEXT("lower limit remains enforced"), Publisher->ValidateBinaryBodySize(64512LL * 33 + 1024, 1024, Error));
+	return true;
+}
 #endif

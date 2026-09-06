@@ -39,6 +39,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);
 
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Stream")
+	FVirtualSensorStreamConfig GetEffectiveStreamConfig(EVirtualSensorStreamKind Kind, const FString& SensorId) const;
+	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
+	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
+
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
 
