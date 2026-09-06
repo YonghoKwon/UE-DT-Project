@@ -1,5 +1,6 @@
 // VirtualCameraCaptureComponent.cpp
 #include "VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "VirtualCameraPayloadCodec.h"
 
@@ -637,6 +638,7 @@ void UVirtualCameraCaptureComponent::ApplySimulationQuality(EVirtualSensorSimula
 
 void UVirtualCameraCaptureComponent::EnsureRenderTarget()
 {
+	VirtualSensorCaptureRendering::Prepare(*this);
     if (!CameraRenderTarget)
     {
         CameraRenderTarget = NewObject<UTextureRenderTarget2D>(this, TEXT("VirtualCameraRenderTarget"));

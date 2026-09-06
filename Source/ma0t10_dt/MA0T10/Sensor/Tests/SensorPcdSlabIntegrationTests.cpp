@@ -6,6 +6,23 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorCaptureViewPolicyTest, "MA0T10.SensorV2.Architecture.CaptureViewStatePolicy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSensorCaptureViewPolicyTest::RunTest(const FString& Parameters)
+{
+	auto* SensorCapture = NewObject<USceneCaptureComponent2D>();
+	auto* OtherCapture = NewObject<USceneCaptureComponent2D>();
+	SensorCapture->bCaptureEveryFrame = false;
+	SensorCapture->bAlwaysPersistRenderingState = false;
+	const bool OtherPolicy = OtherCapture->bAlwaysPersistRenderingState;
+	VirtualSensorCaptureRendering::Prepare(*SensorCapture, true);
+	TestTrue(TEXT("scheduled sensor capture persists view state"), SensorCapture->bAlwaysPersistRenderingState);
+	TestFalse(TEXT("policy does not enable extra every-frame captures"), SensorCapture->bCaptureEveryFrame);
+	TestTrue(TEXT("depth frame discards temporal history"), SensorCapture->bCameraCutThisFrame);
+	TestEqual(TEXT("unrelated capture unchanged"), OtherCapture->bAlwaysPersistRenderingState, OtherPolicy);
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStompAuthContractTest, "MA0T10.SensorStream.StompAuthContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FStompAuthContractTest::RunTest(const FString& Parameters)

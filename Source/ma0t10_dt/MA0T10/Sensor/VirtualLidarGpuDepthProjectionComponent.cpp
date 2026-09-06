@@ -1,4 +1,5 @@
 #include "VirtualLidarGpuDepthProjectionComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "HAL/PlatformTime.h"
@@ -43,6 +44,8 @@ bool UVirtualLidarGpuDepthProjectionComponent::IsAvailable() const
 
 bool UVirtualLidarGpuDepthProjectionComponent::EnsureRenderTarget(const FVirtualLidarDepthAcquisitionRequest& Request)
 {
+	// Each depth frame measures the current scene, not a temporal image history.
+	VirtualSensorCaptureRendering::Prepare(*this, true);
 	const float VerticalFovDegrees = FMath::Max(
 		1.0f,
 		Request.MaxVerticalAngleDegrees - Request.MinVerticalAngleDegrees);

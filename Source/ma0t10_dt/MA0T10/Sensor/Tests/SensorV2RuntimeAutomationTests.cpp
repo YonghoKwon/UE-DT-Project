@@ -16,6 +16,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -411,6 +412,23 @@ public:
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
 		if (StreamElapsedSeconds >= WarmupSeconds)
 		{
+			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
+			if (!bCaptureViewStatesChecked)
+			{
+				bCaptureViewStatesChecked = true;
+				Test->TestTrue(TEXT("scheduled Camera retains render state"), Camera->CaptureComponent->bAlwaysPersistRenderingState);
+				Test->TestTrue(TEXT("scheduled depth capture retains render state"), DepthCapture && DepthCapture->bAlwaysPersistRenderingState);
+				CameraViewState = Camera->CaptureComponent->GetViewState(0);
+				LidarViewState = DepthCapture ? DepthCapture->GetViewState(0) : nullptr;
+				Test->TestNotNull(TEXT("Camera has persistent view state"), CameraViewState);
+				Test->TestNotNull(TEXT("LiDAR has persistent view state"), LidarViewState);
+			}
+			if (CameraViewState != Camera->CaptureComponent->GetViewState(0) ||
+				!DepthCapture || LidarViewState != DepthCapture->GetViewState(0))
+			{
+				Test->AddError(TEXT("Sensor capture view state was replaced during streaming"));
+				return true;
+			}
 			const double SampleNow = FPlatformTime::Seconds();
 			const double GameFrameMs = FApp::GetDeltaTime() * 1000.0;
 			if (GameFrameMs > 0.0 && GameFrameMs < 1000.0) FrameTimesMs.Add(GameFrameMs);
@@ -550,6 +568,9 @@ private:
 	bool bStreamsStarted = false;
 	bool bAcquisitionStopped = false;
 	bool bScenarioMode=false;
+	bool bCaptureViewStatesChecked = false;
+	FSceneViewStateInterface* CameraViewState = nullptr;
+	FSceneViewStateInterface* LidarViewState = nullptr;
 	TWeakObjectPtr<AVirtualSlabSensorTestDriver> ScenarioDriver;
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
