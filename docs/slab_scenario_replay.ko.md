@@ -132,4 +132,5 @@ Replay->UnregisterPlaybackAdapter(this);
 - 외부 수신 PCD는 `Saved/Reports/slab_replay_received.pcd`, 보고서는 `slab_replay_external.json`, `slab_replay_runtime.log/json`에 남습니다. `python Scripts/read_pcd_context.py Saved/Reports/slab_replay_received.pcd`로 파일 내부 원본/실행 UUID를 확인합니다.
 - 2026-09-07 첫 RHI 결과: 관찰 송신 0건, PCD 1,196건 제출/receipt/소비자 일치, context invalid 0, 평균 엔진 FPS 53.89. 이는 60 FPS 성능 통과 증거가 아닙니다.
 - 단독 재검증: 관찰 1회 + PCD 2회, PCD 1,197건 제출/receipt/소비자 일치, context invalid 0, 평균 엔진 FPS 59.83, 엔진 frame p95 16.67ms. 이 수치는 해당 테스트 환경의 엔진 delta 기준이며 모든 PC나 화면 크기의 성능을 보장하지 않습니다. 자동 렌더 캡처 `slab_replay_runtime.png`는 887×500 에디터 화면이며, 1920×1080/1280×720 직접 조작 완료 증거가 아닙니다.
-- Computer Use는 모니터 캡처 오류 및 GetCursorPos 액세스 거부(0x80070005)로 직접 조작을 완료하지 못했습니다. 실제 동료 클래스 연결과 직접 UI 조작은 완료로 표시하지 않습니다.
+- 2026-09-07 Computer Use 재시도에서는 New Editor Window PIE의 목록 선택·재생, 제목 드래그, 우하단 resize, 접기/펼치기, 접힌 영역의 클릭 통과, 재생 중 시점 변경을 직접 확인했습니다. 30초 관찰 재생 두 번 모두 600행을 적용했고 실행 UUID가 바뀌었습니다. 새 PIE에서 UI Host만 생성했을 때 목록이 비어 있는 것도 확인했습니다. 실제 창 캡처는 테두리 포함 816×726이므로 1920×1080/1280×720 검증으로 표시하지 않습니다.
+- 알려진 작은 문제: 확대 후 `배치 초기화`는 크기를 복원하지만, 위치 계산을 크기 복원보다 먼저 수행해 최초 위치와 오차가 생깁니다. 아직 수정하지 않았습니다. 상세 증거는 `Saved/Reports/slab_replay_mouse_validation.md`와 `.log`에 있습니다. 실제 동료 클래스 연결, 여러 항목의 수동 스크롤 및 목표 해상도별 검증은 별도 확인이 필요합니다.
