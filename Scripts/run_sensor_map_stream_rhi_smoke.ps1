@@ -34,7 +34,7 @@ $MinimumTimeout = $WarmupSeconds + $MeasurementSeconds + 25
 if ($TimeoutSeconds -lt $MinimumTimeout) { $TimeoutSeconds = $MinimumTimeout }
 $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup $WarmupSeconds --duration $MeasurementSeconds --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`""
 if ($SlabSessions) { $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup 0 --duration 63 --slab-runs 2 --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`"" }
-if ($PointCloudOnly) { $ProbeArgs += ' --topics topic.virtual.sensor.export.0' }
+if ($PointCloudOnly) { $ProbeArgs += ' --topics topic.virtual.sensor.export.0'; $ProbeArgs += " --save-first-pcd `"$(Join-Path $ReportDir "$ReportLabel.pcd")`"" }
 $Probe = Start-Process -FilePath "node" -ArgumentList $ProbeArgs -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $ProbeStdOut -RedirectStandardError $ProbeStdErr
 
 try {

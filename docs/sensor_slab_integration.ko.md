@@ -58,7 +58,7 @@ CPU/GPU 측정 요청이 시작될 때 context를 복사합니다. GPU readback�
 | `x-slab-elapsed-sec` | 해당 Slab 상태의 시나리오 시각 |
 | `x-session-segment` | pause/resume 구간 번호 |
 
-기존 `frame-id`/`x-frame-id`는 센서 번호로 유지됩니다. PCD schema와 binary 본문도 유지합니다. Camera와 LiDAR telemetry에도 동일한 연계 header를 제공합니다. 일반 비연동 프레임에는 Slab header가 없습니다.
+기존 `frame-id`/`x-frame-id`는 센서 번호로 유지됩니다. 실시간 PCD는 내부 `# MA0T10_META {JSON}` 주석에도 동일한 연계 정보를 저장합니다. `frame_no`는 Slab 번호, `sensor_frame_id`는 센서 번호이며 파일만으로 읽을 수 있습니다. PCD 포인트 레코드와 schema는 유지합니다. Camera와 LiDAR telemetry에는 기존 연계 header를 제공합니다. 일반 비연동 프레임에는 Slab 정보가 없습니다.
 
 `mtl_no`는 업무 연계 정보이며 전체 장면 PCD의 모든 점이 그 Slab에 속한다는 뜻은 아닙니다. 물체 전용 필터는 별도 기능입니다.
 
