@@ -7,6 +7,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 AVirtualSlabSensorTestDriver::AVirtualSlabSensorTestDriver()
 {
@@ -45,8 +47,9 @@ FString AVirtualSlabSensorTestDriver::MakeSyntheticBulkJson()
 	Meta->SetNumberField(TEXT("frame_count"),600); Root->SetObjectField(TEXT("_meta"),Meta);
 	FString Json; FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Json)); return Json;
 }
-bool AVirtualSlabSensorTestDriver::StartTest(int32 Runs,const TArray<FString>& SensorIds)
+bool AVirtualSlabSensorTestDriver::StartTest(int32 Runs,const TArray<FString>& SensorIds,bool bOnlyPointCloud)
 {
+	bPointCloudOnly=bOnlyPointCloud;
 	if (!Frames.IsEmpty()) return false;
 	const FString Bulk=MakeSyntheticBulkJson();
 	TSharedPtr<FJsonObject> Root;
@@ -60,7 +63,7 @@ bool AVirtualSlabSensorTestDriver::StartTest(int32 Runs,const TArray<FString>& S
 bool AVirtualSlabSensorTestDriver::BeginRun()
 {
 	auto* Adapter=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
-	RunId=Adapter->BeginSlabSensorSession(FString(),Targets);
+	RunId=Adapter->BeginSlabSensorSession(FString(),Targets,bPointCloudOnly);
 	if (RunId.IsEmpty()) { bFinished=bFailed=true; return false; }
 	LastApplied=-1; AppliedCount=SkippedCount=0; bEndingRun=false; StartSeconds=FPlatformTime::Seconds();
 	UE_LOG(LogTemp,Display,TEXT("[SlabSensorTest] begin uuid=%s frames=600 duration=30"),*RunId);
@@ -121,5 +124,11 @@ static FAutoConsoleCommandWithWorld GSlabSensorDemo(TEXT("ma0t10.SlabSensorTest"
 	if (!World || !World->IsGameWorld()) return;
 	for (TActorIterator<AVirtualSlabSensorTestDriver> It(World);It;++It) if (!It->IsFinished()) return;
 	World->SpawnActor<AVirtualSlabSensorTestDriver>()->StartTest(1,{});
+}));
+static FAutoConsoleCommandWithWorld GSlabSensorPcdDemo(TEXT("ma0t10.SlabSensorPcdTest"),TEXT("Run a transient 30-second Slab fixture with PCD-only publication."),FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+{
+	if(!World||!World->IsGameWorld()) return;
+	for(TActorIterator<AVirtualSlabSensorTestDriver> It(World);It;++It) if(!It->IsFinished()) return;
+	World->SpawnActor<AVirtualSlabSensorTestDriver>()->StartTest(1,{},true);
 }));
 #endif

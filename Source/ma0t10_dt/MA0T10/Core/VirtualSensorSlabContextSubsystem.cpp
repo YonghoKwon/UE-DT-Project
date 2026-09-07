@@ -22,7 +22,7 @@ bool UVirtualSensorSlabContextSubsystem::CheckRun(const FString& Id)
 	if (!IsInGameThread() || Id.IsEmpty() || Id != Status.RunId) { Status.Message=TEXT("실행 UUID가 일치하지 않습니다."); return false; }
 	return true;
 }
-FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString& RequestedId, const TArray<FString>& Ids)
+FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString& RequestedId, const TArray<FString>& Ids, bool bPointCloudOnly)
 {
 	if (!IsInGameThread() || !GetWorld()) return FString();
 	if (Status.State==EVirtualSlabSessionState::Ready || Status.State==EVirtualSlabSessionState::Running || Status.State==EVirtualSlabSessionState::Paused || Status.State==EVirtualSlabSessionState::Draining)
@@ -46,10 +46,16 @@ FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString
 		NewTargets.Add(Actor->GetSensorId(),Actor);
 	}
 	if (NewTargets.IsEmpty()) { Status.Message=TEXT("대상 센서가 없습니다."); return FString(); }
+	if(bPointCloudOnly)
+	{
+		bool bHasLidar=false; for(const auto& P:NewTargets) bHasLidar|=P.Value.IsValid()&&P.Value->GetSensorKind()==EVirtualSensorKind::Lidar;
+		if(!bHasLidar) { Status.Message=TEXT("PCD 전용 세션에는 LiDAR 대상이 필요합니다."); return FString(); }
+	}
 	for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
 	Coordinator=Managers[0]; Targets=MoveTemp(NewTargets); PendingKeys.Reset(); StartedSensors.Reset();
 	InitialStreamErrors=CountStreamErrors();
 	Status=FVirtualSlabSessionStatus(); Status.RunId=Id; Status.State=EVirtualSlabSessionState::Ready;
+	Status.bPointCloudOnly=bPointCloudOnly;
 	Status.CurrentSlab.RunId=Id; Status.CurrentSlab.Generation=++Generation;
 	Status.Message=TEXT("첫 Slab 프레임 적용 대기 중"); UsedRunIds.Add(Id);
 	for (const auto& Pair : Targets) ControlledIds.Add(Pair.Key);
@@ -62,13 +68,14 @@ FString UVirtualSensorSlabContextSubsystem::BeginSlabSensorSession(const FString
 			Publisher->StopAllStreams(Pair.Key);
 			for (auto Kind : {EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::PointCloud})
 			{
+				if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
 				if ((Kind==EVirtualSensorStreamKind::CameraImage) != (Actor->GetSensorKind()==EVirtualSensorKind::Camera)) continue;
 				auto Config=Publisher->GetEffectiveStreamConfig(Kind,Pair.Key);
 				Config.bEnabled=true; Config.FrameStride=1; Config.ReceiptSampleInterval=1;
 				Publisher->ConfigureStream(Config);
 			}
 		}
-		if (!Actor->IsSensorRunning()) { StartedSensors.Add(Pair.Key); Actor->StartSensor(); }
+		if (!Actor->IsSensorRunning() && (!bPointCloudOnly || Actor->GetSensorKind()==EVirtualSensorKind::Lidar)) { StartedSensors.Add(Pair.Key); Actor->StartSensor(); }
 	}
 	return Id;
 }
@@ -82,7 +89,7 @@ bool UVirtualSensorSlabContextSubsystem::NotifySlabFrameApplied(const FString& I
 	if (Frame==Previous.SlabFrameNo) return Mtl==Previous.MtlNo && Seconds==Previous.ElapsedSec;
 	if (Frame<Previous.SlabFrameNo || Seconds<Previous.ElapsedSec) { Status.Message=TEXT("Slab 프레임 또는 시간이 역순입니다."); return false; }
 	Status.CurrentSlab.MtlNo=Mtl; Status.CurrentSlab.SlabFrameNo=Frame; Status.CurrentSlab.ElapsedSec=Seconds;
-	Status.CurrentSlab.bEligible=true; Status.State=EVirtualSlabSessionState::Running; Status.Message=TEXT("Slab 연동 센서 송신 중");
+	Status.CurrentSlab.bEligible=true; Status.State=EVirtualSlabSessionState::Running; Status.Message=Status.bPointCloudOnly?TEXT("Slab 연동 PCD 전용 송신 중"):TEXT("Slab 연동 센서 송신 중");
 	return true;
 }
 bool UVirtualSensorSlabContextSubsystem::SetSlabSensorSessionPaused(const FString& Id,bool Paused)
