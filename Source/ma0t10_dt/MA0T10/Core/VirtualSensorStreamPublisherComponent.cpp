@@ -97,6 +97,7 @@ void AppendFloatLittleEndian(TArray<uint8>& OutBytes, float Value)
 
 bool SerializeBinaryPcd(
 	const TArray<FVirtualLidarPoint>& Source,
+	const FVirtualSensorFrameEnvelope& Frame,
 	const FVirtualPointCloudFilterConfig& Filter,
 	TArray<uint8>& OutBytes,
 	int32& OutPointCount)
@@ -108,12 +109,29 @@ bool SerializeBinaryPcd(
 		if (PointPassesStreamFilter(Point, Filter)) FilteredPoints.Add(&Point);
 	}
 	OutPointCount = FilteredPoints.Num();
+	// Per-frame metadata stays with a saved PCD without changing its point layout.
+	const auto Metadata = MakeShared<FJsonObject>();
+	Metadata->SetStringField(TEXT("schema"), TEXT("virtual-pointcloud.context.v1"));
+	Metadata->SetStringField(TEXT("sensor_id"), Frame.SensorId);
+	Metadata->SetStringField(TEXT("sensor_frame_id"), LexToString(Frame.FrameId));
+	Metadata->SetStringField(TEXT("timestamp_utc"), Frame.TimestampUtc.ToIso8601());
+	if (Frame.SlabContext.bEligible)
+	{
+		Metadata->SetStringField(TEXT("run_uuid"), Frame.SlabContext.RunId);
+		Metadata->SetStringField(TEXT("mtl_no"), Frame.SlabContext.MtlNo);
+		Metadata->SetStringField(TEXT("frame_no"), LexToString(Frame.SlabContext.SlabFrameNo));
+		Metadata->SetStringField(TEXT("elapsed_sec"), FString::Printf(TEXT("%.6f"), Frame.SlabContext.ElapsedSec));
+		Metadata->SetStringField(TEXT("session_segment"), LexToString(Frame.SlabContext.Segment));
+	}
+	FString MetadataJson;
+	const auto MetadataWriter = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&MetadataJson);
+	FJsonSerializer::Serialize(Metadata, MetadataWriter);
 
 	const FString Header = FString::Printf(
-		TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\n")
+		TEXT("# .PCD v0.7\n# MA0T10_META %s\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\n")
 		TEXT("SIZE 4 4 4 2 2 2 1 1 8 1 4\nTYPE F F F U U U U U I U F\nCOUNT 1 1 1 1 1 1 1 1 1 1 1\n")
 		TEXT("WIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA binary\n"),
-		OutPointCount,
+		*MetadataJson, OutPointCount,
 		OutPointCount);
 	FTCHARToUTF8 HeaderUtf8(*Header);
 	constexpr int32 PointRecordBytes = 33;
@@ -311,7 +329,7 @@ bool SerializePointCloud(
 		OutExtension = TEXT("pcd");
 		if (Config.PcdDataMode == EVirtualPcdDataMode::Binary)
 		{
-			return SerializeBinaryPcd(Points, Config.PointCloudFilter, OutBytes, OutPointCount);
+			return SerializeBinaryPcd(Points, Frame, Config.PointCloudFilter, OutBytes, OutPointCount);
 		}
 		for (const FVirtualLidarPoint& Point : Points) if (Point.bHit) ++OutPointCount;
 		Text = FString::Printf(TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\nSIZE 4 4 4 2 2 2 1 1 8 1 4\nTYPE F F F U U U U U I U F\nCOUNT 1 1 1 1 1 1 1 1 1 1 1\nWIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), OutPointCount, OutPointCount);

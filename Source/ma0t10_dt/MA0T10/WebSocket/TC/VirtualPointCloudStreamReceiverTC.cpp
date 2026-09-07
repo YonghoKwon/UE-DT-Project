@@ -149,8 +149,38 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 	Data->Format = TEXT("PCD");
 	Data->Encoding = TEXT("binary");
 	Data->DecodedByteCount = Body.Num();
+	const int32 PayloadOffset = FindBinaryPayloadOffset(Body);
+	if (PayloadOffset == INDEX_NONE)
+	{
+		Data->Message = TEXT("PCD DATA binary marker is missing.");
+		return Data;
+	}
+	FUTF8ToTCHAR HeaderUtf8(reinterpret_cast<const ANSICHAR*>(Body.GetData()), PayloadOffset);
+	const FString Header(HeaderUtf8.Length(), HeaderUtf8.Get());
+	TMap<FName,FString> CombinedHeaders = IncomingHeaders;
+	TSharedPtr<FJsonObject> Embedded;
+	TArray<FString> Lines; Header.ParseIntoArrayLines(Lines);
+	for (const FString& Line : Lines)
+	{
+		if (!Line.StartsWith(TEXT("# MA0T10_META "))) continue;
+		if (Embedded.IsValid() || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Line.Mid(14)), Embedded) || !Embedded.IsValid())
+		{ Data->Message=TEXT("PCD 내부 메타데이터 JSON 오류 또는 중복"); return Data; }
+		FString Schema;
+		if (!Embedded->TryGetStringField(TEXT("schema"),Schema) || Schema!=TEXT("virtual-pointcloud.context.v1"))
+		{ Data->Message=TEXT("PCD 내부 메타데이터 schema 오류"); return Data; }
+		const TCHAR* Fields[][2]={{TEXT("run_uuid"),TEXT("x-run-uuid")},{TEXT("mtl_no"),TEXT("x-mtl-no")},
+			{TEXT("frame_no"),TEXT("x-slab-frame-no")},{TEXT("elapsed_sec"),TEXT("x-slab-elapsed-sec")},{TEXT("session_segment"),TEXT("x-session-segment")}};
+		for (const auto& Field : Fields)
+		{
+			FString Value;
+			if (!Embedded->TryGetStringField(Field[0], Value)) continue;
+			if (const FString* Existing=CombinedHeaders.Find(Field[1]))
+				if (*Existing!=Value) { Data->Message=TEXT("PCD 내부 Slab 정보와 STOMP 헤더가 다릅니다."); return Data; }
+			CombinedHeaders.Add(Field[1],Value);
+		}
+	}
 	TMap<FName,FString> Headers;
-	if(!FVirtualSensorPcdReceiveContract::Normalize(IncomingHeaders,Headers,*Data)) return Data;
+	if(!FVirtualSensorPcdReceiveContract::Normalize(CombinedHeaders,Headers,*Data)) return Data;
 
 	FString ContentType;
 	FString TimestampText;
@@ -168,13 +198,8 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 		Data->Message = TEXT("Binary PCD required STOMP headers are missing.");
 		return Data;
 	}
-	int64 TimestampUnixMilliseconds = 0;
-	if (LexTryParseString(TimestampUnixMilliseconds, *TimestampText) && TimestampUnixMilliseconds > 0)
-	{
-		Data->SourceTimestampUtc = FDateTime::FromUnixTimestamp(TimestampUnixMilliseconds / 1000LL) +
-			FTimespan::FromMilliseconds(TimestampUnixMilliseconds % 1000LL);
-	}
-	else if (!FDateTime::ParseIso8601(*TimestampText, Data->SourceTimestampUtc))
+	// Normalize has already converted both wire timestamp formats to ISO8601.
+	if (!FDateTime::ParseIso8601(*TimestampText, Data->SourceTimestampUtc))
 	{
 		Data->Message = FString::Printf(TEXT("Binary PCD x-utc header is invalid: %s"), *TimestampText);
 		return Data;
@@ -189,14 +214,14 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 		return Data;
 	}
 
-	const int32 PayloadOffset = FindBinaryPayloadOffset(Body);
-	if (PayloadOffset == INDEX_NONE)
+	if (Embedded.IsValid())
 	{
-		Data->Message = TEXT("PCD DATA binary marker is missing.");
-		return Data;
+		FString Sensor, Frame, Utc;
+		if (!Embedded->TryGetStringField(TEXT("sensor_id"),Sensor) || Sensor!=Data->SensorId ||
+			!Embedded->TryGetStringField(TEXT("sensor_frame_id"),Frame) || Frame!=LexToString(Data->FrameId) ||
+			!Embedded->TryGetStringField(TEXT("timestamp_utc"),Utc) || Utc!=TimestampText)
+		{ Data->Message=TEXT("PCD 내부 센서 식별 정보와 STOMP 헤더가 다릅니다."); return Data; }
 	}
-	FUTF8ToTCHAR HeaderUtf8(reinterpret_cast<const ANSICHAR*>(Body.GetData()), PayloadOffset);
-	const FString Header(HeaderUtf8.Length(), HeaderUtf8.Get());
 	const FString RequiredFields = TEXT("FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence");
 	const bool bHeaderContractValid = Header.Contains(TEXT("# .PCD v0.7")) && Header.Contains(TEXT("VERSION 0.7")) &&
 		Header.Contains(RequiredFields) && Header.Contains(TEXT("SIZE 4 4 4 2 2 2 1 1 8 1 4")) &&

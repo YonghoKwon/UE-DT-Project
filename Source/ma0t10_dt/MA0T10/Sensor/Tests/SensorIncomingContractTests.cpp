@@ -12,6 +12,11 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	for(const int32 InputCount:{0,32256,64512})
 	{
 	FVirtualSensorFrameEnvelope Source;
+	Source.SensorId=TEXT("LIDAR-TEST-001"); Source.FrameId=2657;
+	FDateTime::ParseIso8601(TEXT("2026-09-07T02:22:48.137Z"),Source.TimestampUtc);
+	Source.SlabContext.RunId=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	Source.SlabContext.MtlNo=TEXT("SQ83521 047 / 소재 \"A\"\nB");
+	Source.SlabContext.SlabFrameNo=580; Source.SlabContext.ElapsedSec=29.0; Source.SlabContext.bEligible=true;
 	TArray<FVirtualLidarPoint> Points; Points.SetNum(InputCount);
 	for (auto& P:Points) { P.bHit=true; P.Validity=EVirtualLidarPointValidity::Valid; P.SensorLocalPositionMeters=FVector(1,2,3); }
 	Source.PointSnapshot=MakeShared<const TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>(MoveTemp(Points));
@@ -20,10 +25,9 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	TArray<uint8> Body; FString Extension,Error; int32 Count=0;
 	TestTrue(TEXT("production serializer"),UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Source,Config,Extension,Body,Count,Error));
 	FVirtualPointCloudBinaryMetadata Meta;
-	Meta.SensorId=TEXT("LIDAR-TEST-001"); Meta.FrameId=2657; Meta.TimestampUtc=FDateTime::UtcNow().ToIso8601();
+	Meta.SensorId=Source.SensorId; Meta.FrameId=Source.FrameId; Meta.TimestampUtc=Source.TimestampUtc.ToIso8601();
 	Meta.ProfileKey=TEXT("MLX80_Native"); Meta.PointCount=Count; Meta.SourcePointCount=InputCount; Meta.ByteCount=Body.Num();
-	Meta.SlabContext.RunId=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
-	Meta.SlabContext.MtlNo=TEXT("SQ83521 047"); Meta.SlabContext.SlabFrameNo=580; Meta.SlabContext.ElapsedSec=29.0; Meta.SlabContext.bEligible=true;
+	Meta.SlabContext=Source.SlabContext;
 	uint8 Hash[FSHA1::DigestSize]; FSHA1::HashBuffer(Body.GetData(),Body.Num(),Hash); Meta.ChecksumSha1=BytesToHex(Hash,FSHA1::DigestSize).ToLower();
 	FVirtualSensorBinaryFrame Wire;
 	Wire.SensorId=Meta.SensorId; Wire.FrameId=Meta.FrameId; FDateTime::ParseIso8601(*Meta.TimestampUtc,Wire.TimestampUtc);
@@ -41,6 +45,15 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Slab frame preserved independently"),Raw->SlabFrameNo,static_cast<int64>(580));
 	TestEqual(TEXT("sensor frame remains independent"),Raw->FrameId,static_cast<int64>(2657));
 	TestEqual(TEXT("engine UTC normalized"),Engine->SourceTimestampUtc,Raw->SourceTimestampUtc);
+	TestEqual(TEXT("actual acquisition UTC preserved"),Raw->SourceTimestampUtc,Source.TimestampUtc);
+	auto BodyOnlyContextHeaders=RawHeaders;
+	for(const TCHAR* Key:{TEXT("x-run-uuid"),TEXT("x-mtl-no"),TEXT("x-slab-frame-no"),TEXT("x-slab-elapsed-sec"),TEXT("x-session-segment")}) BodyOnlyContextHeaders.Remove(Key);
+	const auto BodyContext=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,BodyOnlyContextHeaders));
+	TestTrue(TEXT("PCD Slab context independent of STOMP metadata"),BodyContext->bValid);
+	TestEqual(TEXT("escaped Unicode material restored from PCD"),BodyContext->MtlNo,Source.SlabContext.MtlNo);
+	TestEqual(TEXT("Slab frame restored from PCD"),BodyContext->SlabFrameNo,static_cast<int64>(580));
+	BodyOnlyContextHeaders.Add(TEXT("x-mtl-no"),TEXT("WRONG"));
+	TestFalse(TEXT("body and header context conflict rejected"),StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,BodyOnlyContextHeaders))->bValid);
 	RawHeaders.Remove(TEXT("x-checksum-sha1")); RawHeaders.Remove(TEXT("x-acquisition-profile")); RawHeaders.Remove(TEXT("x-utc"));
 	TestTrue(TEXT("already deployed Raw header aliases accepted"),StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,RawHeaders))->bValid);
 	RawHeaders.Add(TEXT("x-checksum-sha1"),FString::ChrN(40,TEXT('0')));
