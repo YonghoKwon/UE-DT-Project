@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
 
@@ -1284,14 +1285,7 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	Frame.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Message.SensorId, Message.FrameId, *Checksum);
 	if (Message.bBinaryPcd)
 	{
-		Frame.Headers.Add(TEXT("checksum"), Message.BinaryMetadata.ChecksumSha1);
-		Frame.Headers.Add(TEXT("point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
-		Frame.Headers.Add(TEXT("x-point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
-		Frame.Headers.Add(TEXT("source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
-		Frame.Headers.Add(TEXT("x-source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
-		Frame.Headers.Add(TEXT("filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
-		Frame.Headers.Add(TEXT("x-filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
-		Frame.Headers.Add(TEXT("acquisition-profile"), Message.BinaryMetadata.ProfileKey);
+		Frame.Headers = FVirtualSensorWireHeaders::RawPcd(Message.BinaryMetadata);
 	}
 	return Subsystem->EnqueueBinaryFrame(Frame, OutError);
 }

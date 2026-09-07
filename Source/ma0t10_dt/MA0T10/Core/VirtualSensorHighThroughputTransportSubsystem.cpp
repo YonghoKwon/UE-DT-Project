@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStompProtocol.h"
+#include "VirtualSensorWireHeaders.h"
 #include "Containers/Queue.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
@@ -396,32 +397,10 @@ private:
 		const FString RequestId = Frame.RequestId.IsEmpty()
 			? FString::Printf(TEXT("%s-%lld-%s"), *Frame.SensorId, Frame.FrameId, *HeaderValue(Frame.Headers, TEXT("checksum")))
 			: Frame.RequestId;
-		FString Header = FString::Printf(
-			TEXT("SEND\ndestination:%s\ncontent-type:%s\ncontent-length:%lld\nreceipt:%s\npersistent:true\ndestination-type:MULTICAST\nschema:%s\nsensor-id:%s\nframe-id:%lld\ntimestamp-utc:%s\nrequest-id:%s\nx-sensor-id:%s\nx-frame-id:%lld\nx-request-id:%s\nx-data-kind:%s\nx-sensor-type:%s\n"),
-			*FVirtualSensorStompParser::EscapeHeader(Frame.Destination),
-			*FVirtualSensorStompParser::EscapeHeader(Frame.ContentType),
-			Frame.NumBytes(),
-			*FVirtualSensorStompParser::EscapeHeader(RequestId),
-			*FVirtualSensorStompParser::EscapeHeader(Frame.Schema),
-			*FVirtualSensorStompParser::EscapeHeader(Frame.SensorId),
-			Frame.FrameId,
-			*FVirtualSensorStompParser::EscapeHeader(Frame.TimestampUtc.ToIso8601()),
-			*FVirtualSensorStompParser::EscapeHeader(RequestId),
-			*FVirtualSensorStompParser::EscapeHeader(Frame.SensorId),
-			Frame.FrameId,
-			*FVirtualSensorStompParser::EscapeHeader(RequestId),
-			Frame.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
-				: Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream"),
-			Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar"));
-		for (const TPair<FString, FString>& Pair : Frame.Headers)
+		FString Header = TEXT("SEND\n");
+		for (const auto& Pair : FVirtualSensorWireHeaders::RawFrame(Frame))
 		{
-			if (Pair.Key.Equals(TEXT("schema"), ESearchCase::IgnoreCase) ||
-				Pair.Key.Equals(TEXT("sensor-id"), ESearchCase::IgnoreCase) ||
-				Pair.Key.Equals(TEXT("frame-id"), ESearchCase::IgnoreCase)) continue;
-			Header += FVirtualSensorStompParser::EscapeHeader(Pair.Key);
-			Header += TEXT(":");
-			Header += FVirtualSensorStompParser::EscapeHeader(Pair.Value);
-			Header += TEXT("\n");
+			Header += FVirtualSensorStompParser::EscapeHeader(Pair.Key) + TEXT(":") + FVirtualSensorStompParser::EscapeHeader(Pair.Value) + TEXT("\n");
 		}
 		Header += TEXT("\n");
 		TArray<uint8> HeaderBytes;
