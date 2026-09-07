@@ -1,5 +1,7 @@
 # UE-DT-Project
 
+> 센서 도구 화면은 상단 도구 막대와 모니터 중심 Workspace로 구성됩니다. 네 패널 전용 저장·폰트·숨김 동작 및 동료 Widget 영향 격리는 [UI Workspace 가이드](docs/sensor_tool_workspace.ko.md)를 참고하십시오.
+
 > Slab 벌크 JSON을 실행 중 최근 10개 보관하고 기존 재생기로 다시 전달하는 기능은 [시나리오 재생 가이드](docs/slab_scenario_replay.ko.md)를 참고하십시오. `_meta.UUID`가 필수이며, PCD 재송신은 기본 꺼짐입니다. 실제 동료 클래스는 adapter 연결이 필요합니다.
 
 > PR #16 기반의 **세 센서 패널 전용 글자 배율**, **실시간 PCD 진입점 정규화**, **Slab 시뮬레이션 시작·프레임 적용·종료 연동 함수**는 [Slab 연동 가이드](docs/sensor_slab_integration.ko.md)를 참고하십시오. Slab frame_no와 센서 FrameId는 독립적으로 유지합니다.
