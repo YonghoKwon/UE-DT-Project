@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualSensorStreamReceiverTypes.h"
 #include "VirtualSensorHighThroughputTransportSubsystem.generated.h"
 
 USTRUCT(BlueprintType)
@@ -53,6 +54,7 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 RetryCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 OverloadCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 DeliveryFailureCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") FString LastDeliveryFailureMessage;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 InputQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 ReceiptQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 LastFrameId = 0;
@@ -91,6 +93,24 @@ struct MA0T10_DT_API FVirtualSensorBinaryFrame
 
 class FVirtualSensorHighThroughputTransportWorker;
 
+struct FVirtualSensorReceiveSelection
+{
+	bool bEnabled=true, bAllTopics=true;
+	int64 Generation=0;
+	int32 MaxMessageBytes=8388608;
+	TSet<FString> StreamKeys;
+	bool WantsKind(int32 Kind) const
+	{
+		if(!bEnabled) return false;
+		if(bAllTopics) return true;
+		const FString Prefix=LexToString(Kind)+TEXT("|");
+		for(const FString& K:StreamKeys) if(K.StartsWith(Prefix)) return true;
+		return false;
+	}
+	bool Accepts(int32 Kind,const FString& Id) const { return WantsKind(Kind)&&(bAllTopics||Id.IsEmpty()||StreamKeys.Contains(LexToString(Kind)+TEXT("|")+Id)); }
+};
+DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorReceiveEvent,const TSharedPtr<FVirtualSensorTopicReceivedDataBase>&);
+
 /** World facade for a binary-safe Raw TCP STOMP worker. */
 UCLASS()
 class MA0T10_DT_API UVirtualSensorHighThroughputTransportSubsystem : public UTickableWorldSubsystem
@@ -120,6 +140,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;
+	void ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection);
+	FVirtualSensorReceiveEvent OnReceived;
+	int64 GetDroppedReceiveEvents() const;
 
 	static bool CanUseRawTcp(const FString& BrokerUrl, FString* OutReason = nullptr);
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);
@@ -130,4 +153,5 @@ private:
 	TMap<FString, FVirtualSensorStreamTelemetry> TelemetryByKey;
 	FVirtualSensorHighThroughputProfile ActiveProfile;
 	FString ActivePasscode;
+	FVirtualSensorReceiveSelection ReceiverSelection;
 };

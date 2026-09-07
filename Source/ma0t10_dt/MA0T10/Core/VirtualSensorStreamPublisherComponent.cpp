@@ -570,6 +570,7 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 	Runtime.Status.ConfigRevision = Runtime.ConfigRevision;
 	RefreshQueueTelemetry(Runtime);
 	if (bWasEnabled != Runtime.Config.bEnabled) UpdateCameraStreamDemand();
+	OnStreamConfigurationChanged.Broadcast();
 }
 
 void UVirtualSensorStreamPublisherComponent::StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
@@ -582,6 +583,7 @@ void UVirtualSensorStreamPublisherComponent::StartStream(EVirtualSensorStreamKin
 	Runtime.Status.Message = TEXT("실시간 전송 대기 중");
 	AddLog(MakeStreamKey(StreamKind, SensorId.TrimStartAndEnd()), TEXT("started"), TEXT("스트림을 시작했습니다."));
 	UpdateCameraStreamDemand();
+	OnStreamConfigurationChanged.Broadcast();
 }
 
 void UVirtualSensorStreamPublisherComponent::StopStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
@@ -601,6 +603,7 @@ void UVirtualSensorStreamPublisherComponent::StopStream(EVirtualSensorStreamKind
 		AddLog(Key, TEXT("stopped"), TEXT("스트림을 중지했습니다."));
 	}
 	UpdateCameraStreamDemand();
+	OnStreamConfigurationChanged.Broadcast();
 }
 
 void UVirtualSensorStreamPublisherComponent::StartAllStreams(const FString& SensorId)
@@ -627,6 +630,7 @@ void UVirtualSensorStreamPublisherComponent::StopAllStreams(const FString& Senso
 			Pair.Value.Status.Message = TEXT("중지됨");
 		}
 		UpdateCameraStreamDemand();
+		OnStreamConfigurationChanged.Broadcast();
 		return;
 	}
 	StopStream(EVirtualSensorStreamKind::LidarPayload, SensorId);
@@ -1309,6 +1313,8 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.ConsumerReceivedCount = Item.ConsumerReceivedCount;
 		Runtime->Status.ConsumerReceivedHz = Item.ConsumerHz;
 		Runtime->Status.ConsumerValidationFailureCount = Item.ValidationFailureCount;
+		Runtime->Status.RawDeliveryFailureCount=Item.DeliveryFailureCount;
+		Runtime->Status.LastRawDeliveryFailureMessage=Item.LastDeliveryFailureMessage;
 		Runtime->Status.ConsumerFrameGapCount = Item.FrameGapCount;
 		Runtime->Status.ConsumerDuplicateCount = Item.DuplicateCount;
 		Runtime->Status.InputQueueDepth = Runtime->PendingFrameQueue.Num() + (Runtime->PendingFrame.IsSet() ? 1 : 0) + Item.InputQueueDepth;

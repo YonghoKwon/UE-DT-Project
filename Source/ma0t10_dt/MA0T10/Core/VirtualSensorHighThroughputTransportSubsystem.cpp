@@ -2,6 +2,9 @@
 
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStompProtocol.h"
 #include "VirtualSensorWireHeaders.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualCameraStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualLidarStreamReceiverTC.h"
 #include "Containers/Queue.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
@@ -33,6 +36,7 @@ enum class EWorkerEventType : uint8
 
 struct FWorkerEvent
 {
+	TSharedPtr<FVirtualSensorTopicReceivedDataBase> ReceivedData;
 	EWorkerEventType Type = EWorkerEventType::Disconnected;
 	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 	FString SensorId;
@@ -165,6 +169,10 @@ public:
 	{
 		while (!bStopRequested.Load())
 		{
+			FVirtualSensorReceiveSelection NextSelection;
+			bool bChanged=false;
+			while(ReceiverChanges.Dequeue(NextSelection)) { ReceiveSelection=MoveTemp(NextSelection); bChanged=true; }
+			if(bChanged && bConnected) SyncSubscriptions();
 			FString Cancelled;
 			while (RunCancellations.Dequeue(Cancelled))
 			{
@@ -238,8 +246,12 @@ public:
 
 	bool DequeueEvent(FWorkerEvent& OutEvent)
 	{
-		return Events.Dequeue(OutEvent);
+		if(!Events.Dequeue(OutEvent)) return false;
+		if(OutEvent.ReceivedData) --PendingReceiveEvents;
+		return true;
 	}
+	void ConfigureReceiver(const FVirtualSensorReceiveSelection& S) { ReceiverChanges.Enqueue(S); }
+	int64 GetDroppedReceiveEvents() const { return DroppedReceiveEvents.Load(); }
 
 	bool IsRunning() const { return Thread != nullptr && !bStopRequested.Load(); }
 
@@ -356,9 +368,7 @@ private:
 
 	void SubscribeAll()
 	{
-		SendSubscribe(TEXT("ma0t10-camera-loopback"), Profile.CameraTopic);
-		SendSubscribe(TEXT("ma0t10-lidar-loopback"), Profile.LidarTopic);
-		SendSubscribe(TEXT("ma0t10-pcd-loopback"), Profile.PointCloudTopic);
+		SyncSubscriptions();
 	}
 
 	void SendSubscribe(const FString& Id, const FString& Destination)
@@ -371,6 +381,21 @@ private:
 		AppendUtf8(Bytes, Text);
 		Bytes.Add(0);
 		SendAll(Bytes.GetData(), Bytes.Num(), 2.0);
+	}
+
+	void SyncSubscriptions()
+	{
+		const FString Topics[]={Profile.LidarTopic,Profile.CameraTopic,Profile.PointCloudTopic};
+		for(int32 Kind=0;Kind<3;++Kind)
+		{
+			const FString Id=TEXT("ma0t10-shared-receiver-")+LexToString(Kind);
+			if(ReceiveSelection.WantsKind(Kind) && !SubscribedKinds.Contains(Kind))
+			{ SendSubscribe(Id,Topics[Kind]); SubscribedKinds.Add(Kind); }
+			else if(!ReceiveSelection.WantsKind(Kind) && SubscribedKinds.Contains(Kind))
+			{
+				TArray<uint8> B; AppendUtf8(B,TEXT("UNSUBSCRIBE\nid:")+Id+TEXT("\n\n")); B.Add(0); SendAll(B.GetData(),B.Num(),2.0); SubscribedKinds.Remove(Kind);
+			}
+		}
 	}
 
 	void PumpSend()
@@ -524,70 +549,84 @@ private:
 
 	void ValidateConsumedFrame(const FVirtualSensorStompFrame& Frame)
 	{
-		const FString Schema = HeaderValue(Frame.Headers, TEXT("schema"));
-		EVirtualSensorStreamKind Kind = EVirtualSensorStreamKind::LidarPayload;
-		if (Schema == TEXT("virtual-camera.jpeg.v1")) Kind = EVirtualSensorStreamKind::CameraImage;
-		else if (Schema == TEXT("virtual-pointcloud.pcd.v1")) Kind = EVirtualSensorStreamKind::PointCloud;
-		else if (Schema != TEXT("virtual-lidar.telemetry.v1")) return;
+		const FString Schema=HeaderValue(Frame.Headers,TEXT("schema"));
+		EVirtualSensorStreamKind Kind=EVirtualSensorStreamKind::LidarPayload;
+		if(Schema==TEXT("virtual-camera.jpeg.v1")) Kind=EVirtualSensorStreamKind::CameraImage;
+		else if(Schema==TEXT("virtual-pointcloud.pcd.v1")) Kind=EVirtualSensorStreamKind::PointCloud;
+		else if(Schema!=TEXT("virtual-lidar.telemetry.v1")) return;
+		if(!ReceiveSelection.WantsKind(static_cast<int32>(Kind))) return;
 
-		const FString SensorId = HeaderValue(Frame.Headers, TEXT("sensor-id"));
-		int64 FrameId = 0;
-		const bool bFrameIdValid = LexTryParseString(FrameId, *HeaderValue(Frame.Headers, TEXT("frame-id")));
-		bool bValid = bFrameIdValid && !SensorId.IsEmpty() && !Frame.Body.IsEmpty();
-		FString ValidationMessage;
-		if (bValid && Kind == EVirtualSensorStreamKind::CameraImage)
+		FString SensorId=HeaderValue(Frame.Headers,TEXT("sensor-id"));
+		if(SensorId.IsEmpty()) SensorId=HeaderValue(Frame.Headers,TEXT("x-sensor-id"));
+		int64 FrameId=-1; FString IdText=HeaderValue(Frame.Headers,TEXT("frame-id"));
+		if(IdText.IsEmpty()) IdText=HeaderValue(Frame.Headers,TEXT("x-frame-id"));
+		LexTryParseString(FrameId,*IdText);
+		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data;
+		if(Kind==EVirtualSensorStreamKind::PointCloud) Data=MakeShared<FVirtualPointCloudStreamReceiverData>();
+		else if(Kind==EVirtualSensorStreamKind::CameraImage) Data=MakeShared<FVirtualCameraStreamReceiverData>();
+		else Data=MakeShared<FVirtualLidarStreamReceiverData>();
+		Data->Kind=static_cast<EVirtualSensorTopicReceiveKind>(Kind);
+		Data->SensorId=SensorId; Data->FrameId=FrameId; Data->SchemaVersion=Schema;
+		Data->bFiltered=!ReceiveSelection.Accepts(static_cast<int32>(Kind),SensorId);
+		const double ParseStarted=FPlatformTime::Seconds();
+		if(!Data->bFiltered && Frame.Body.Num()>ReceiveSelection.MaxMessageBytes)
 		{
-			bValid = Frame.Body.Num() >= 4 && Frame.Body[0] == 0xff && Frame.Body[1] == 0xd8 &&
-				Frame.Body[Frame.Body.Num() - 2] == 0xff && Frame.Body.Last() == 0xd9;
-			ValidationMessage = bValid ? TEXT("JPEG signature and size validated.") : TEXT("JPEG signature validation failed.");
+			Data->ErrorCode=TEXT("receive-size-limit"); Data->Message=TEXT("수신 메시지 크기 한도 초과");
 		}
-		else if (bValid && Kind == EVirtualSensorStreamKind::PointCloud)
+		else if(!Data->bFiltered && Kind==EVirtualSensorStreamKind::PointCloud)
 		{
-			const int32 HeaderProbe = FMath::Min(Frame.Body.Num(), 2048);
-			FUTF8ToTCHAR Text(reinterpret_cast<const ANSICHAR*>(Frame.Body.GetData()), HeaderProbe);
-			const FString PcdHeader(Text.Length(), Text.Get());
-			bValid = PcdHeader.Contains(TEXT(".PCD v0.7")) && PcdHeader.Contains(TEXT("DATA binary"));
-			ValidationMessage = bValid ? TEXT("Binary PCD header and body validated.") : TEXT("Binary PCD header validation failed.");
+			TMap<FName,FString> Headers;
+			for(const auto& P:Frame.Headers) Headers.Add(FName(*P.Key),P.Value);
+			Data=StaticCastSharedPtr<FVirtualSensorTopicReceivedDataBase>(UVirtualPointCloudStreamReceiverTC::ParseBinaryPcdToStruct(Frame.Body,Headers));
+			SensorId=Data->SensorId; FrameId=Data->FrameId;
 		}
-		else if (bValid)
+		else if(!Data->bFiltered)
 		{
-			FUTF8ToTCHAR Text(reinterpret_cast<const ANSICHAR*>(Frame.Body.GetData()), Frame.Body.Num());
-			const FString Json(Text.Length(), Text.Get());
-			TSharedPtr<FJsonObject> Root;
-			const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
-			bValid = FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid() &&
-				Root->GetStringField(TEXT("schema")) == TEXT("virtual-lidar.telemetry.v1");
-			ValidationMessage = bValid ? TEXT("LiDAR telemetry schema validated.") : TEXT("LiDAR telemetry schema validation failed.");
+			// Existing lightweight high-throughput validation is retained for non-PCD
+			// streams. The PCD path above is the authoritative full body validator.
+			Data->bValid=FrameId>=0&&!SensorId.IsEmpty()&&!Frame.Body.IsEmpty();
+			if(Data->bValid && Kind==EVirtualSensorStreamKind::CameraImage)
+				Data->bValid=Frame.Body.Num()>=4&&Frame.Body[0]==0xff&&Frame.Body[1]==0xd8&&Frame.Body[Frame.Body.Num()-2]==0xff&&Frame.Body.Last()==0xd9;
+			else if(Data->bValid)
+			{
+				FUTF8ToTCHAR Text(reinterpret_cast<const ANSICHAR*>(Frame.Body.GetData()),Frame.Body.Num());
+				TSharedPtr<FJsonObject> Json; FString ParsedSchema;
+				Data->bValid=FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FString(Text.Length(),Text.Get())),Json)&&Json.IsValid()&&
+					Json->TryGetStringField(TEXT("schema"),ParsedSchema)&&ParsedSchema==Schema;
+			}
+			const FString Checksum=HeaderValue(Frame.Headers,TEXT("checksum"));
+			if(Data->bValid&&!Checksum.IsEmpty()) Data->bValid=Sha1Hex(Frame.Body.GetData(),Frame.Body.Num()).Equals(Checksum,ESearchCase::IgnoreCase);
+			Data->Message=Data->bValid?TEXT("Raw MESSAGE 기본 형식·checksum 검증 정상"):TEXT("Raw MESSAGE 형식/checksum 오류");
 		}
-
-		const FString ExpectedChecksum = HeaderValue(Frame.Headers, TEXT("checksum"));
-		if (bValid && !ExpectedChecksum.IsEmpty())
-		{
-			bValid = Sha1Hex(Frame.Body.GetData(), Frame.Body.Num()).Equals(ExpectedChecksum, ESearchCase::IgnoreCase);
-			if (!bValid) ValidationMessage = TEXT("Frame checksum validation failed.");
-		}
-
+		Data->Topic=HeaderValue(Frame.Headers,TEXT("destination")); Data->Backend=TEXT("Raw TCP 공유 수신");
+		Data->RequestId=HeaderValue(Frame.Headers,TEXT("request-id")); Data->MessageBytes=Frame.Body.Num();
+		Data->ReceiveGeneration=ReceiveSelection.Generation;
+		if(Data->RunId.IsEmpty()) Data->RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
+		if(Data->bFiltered) Data->Message=TEXT("활성 송신 SensorId가 아닌 메시지: 검증 대상 외");
+		FDateTime SourceUtc=Data->SourceTimestampUtc;
+		if(SourceUtc.GetTicks()==0) FDateTime::ParseIso8601(*HeaderValue(Frame.Headers,TEXT("timestamp-utc")),SourceUtc);
+		Data->SourceTimestampUtc=SourceUtc;
 		FWorkerEvent Event;
-		Event.Type = bValid ? EWorkerEventType::Consumed : EWorkerEventType::ValidationFailed;
-		Event.StreamKind = Kind;
-		Event.SensorId = SensorId;
-		Event.FrameId = FrameId;
-		Event.Bytes = Frame.Body.Num();
-		Event.Message = ValidationMessage;
-		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+HeaderValue(Frame.Headers,TEXT("x-run-uuid"))+TEXT("|")+HeaderValue(Frame.Headers,TEXT("x-session-segment"));
-		int64& LastSeen=ConsumerSequenceIds.FindOrAdd(SequenceKey);
-		const int64 Previous = LastSeen;
-		if (bValid && Previous > 0)
+		Event.Type=Data->bValid?EWorkerEventType::Consumed:EWorkerEventType::ValidationFailed;
+		Event.StreamKind=Kind; Event.SensorId=SensorId; Event.FrameId=FrameId; Event.Bytes=Frame.Body.Num();
+		Event.Message=Data->Message;
+		Event.LatencyMs=SourceUtc.GetTicks()>0?static_cast<float>(FMath::Max(0.0,(FDateTime::UtcNow()-SourceUtc).GetTotalMilliseconds())):0;
+		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+Data->RunId+TEXT("|")+
+			HeaderValue(Frame.Headers,TEXT("x-session-segment"))+TEXT("|")+LexToString(ReceiveSelection.Generation);
+		if(Data->bValid)
 		{
-			if (FrameId == Previous) Event.DuplicateDelta = 1;
-			else if (FrameId > Previous + 1) Event.GapDelta = FrameId - Previous - 1;
+			const int64* Previous=ConsumerSequenceIds.Find(SequenceKey);
+			if(Previous)
+			{
+				if(FrameId<=*Previous) Event.DuplicateDelta=1;
+				else if(FrameId>*Previous+1) Event.GapDelta=FrameId-*Previous-1;
+			}
+			if(!Previous||FrameId>*Previous) ConsumerSequenceIds.Add(SequenceKey,FrameId);
 		}
-		if (bValid && FrameId > Previous) LastSeen = FrameId;
-		FDateTime SourceUtc;
-		if (FDateTime::ParseIso8601(*HeaderValue(Frame.Headers, TEXT("timestamp-utc")), SourceUtc))
-		{
-			Event.LatencyMs = static_cast<float>(FMath::Max(0.0, (FDateTime::UtcNow() - SourceUtc).GetTotalMilliseconds()));
-		}
+		Data->FrameGapDelta=Event.GapDelta; Data->bDuplicate=Event.DuplicateDelta>0;
+		Data->ParseLatencyMs=static_cast<float>((FPlatformTime::Seconds()-ParseStarted)*1000.0);
+		if(PendingReceiveEvents.Load()>=256) { ++DroppedReceiveEvents; return; }
+		++PendingReceiveEvents; Event.ReceivedData=MoveTemp(Data);
 		Events.Enqueue(MoveTemp(Event));
 	}
 
@@ -651,6 +690,7 @@ private:
 	void CloseSocket()
 	{
 		bConnected = false;
+		SubscribedKinds.Reset();
 		for (const auto& Pair : PendingReceipts)
 			FailFrame(Pair.Value.Frame, TEXT("Connection closed before broker receipt; delivery outcome is unconfirmed."));
 		PendingReceipts.Reset();
@@ -674,6 +714,11 @@ private:
 	}
 
 	FVirtualSensorHighThroughputProfile Profile;
+	FVirtualSensorReceiveSelection ReceiveSelection;
+	TQueue<FVirtualSensorReceiveSelection,EQueueMode::Mpsc> ReceiverChanges;
+	TSet<int32> SubscribedKinds;
+	TAtomic<int32> PendingReceiveEvents{0};
+	TAtomic<int64> DroppedReceiveEvents{0};
 	TQueue<FString,EQueueMode::Mpsc> RunCancellations;
 	TSet<FString> CancelledRuns;
 	TMap<FString,int64> ConsumerSequenceIds;
@@ -736,6 +781,7 @@ bool UVirtualSensorHighThroughputTransportSubsystem::StartHighThroughputTranspor
 	ActiveProfile = Profile;
 	ActivePasscode = SessionPasscode;
 	Worker = new FVirtualSensorHighThroughputTransportWorker(Profile, SessionPasscode);
+	Worker->ConfigureReceiver(ReceiverSelection);
 	if (!Worker->Start())
 	{
 		delete Worker;
@@ -754,6 +800,13 @@ void UVirtualSensorHighThroughputTransportSubsystem::StopHighThroughputTransport
 		Worker = nullptr;
 	}
 }
+
+void UVirtualSensorHighThroughputTransportSubsystem::ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection)
+{
+	ReceiverSelection=Selection;
+	if(Worker) Worker->ConfigureReceiver(Selection);
+}
+int64 UVirtualSensorHighThroughputTransportSubsystem::GetDroppedReceiveEvents() const { return Worker?Worker->GetDroppedReceiveEvents():0; }
 
 bool UVirtualSensorHighThroughputTransportSubsystem::IsHighThroughputTransportRunning() const
 {
@@ -836,6 +889,11 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 	while (Drained < 256 && Worker->DequeueEvent(Event))
 	{
 		++Drained;
+		if(Event.ReceivedData && Event.ReceivedData->ReceiveGeneration==ReceiverSelection.Generation)
+		{
+			OnReceived.Broadcast(Event.ReceivedData);
+			if(Event.ReceivedData->bFiltered) continue;
+		}
 		if (Event.Type == EWorkerEventType::Connected || Event.Type == EWorkerEventType::Disconnected)
 		{
 			for (TPair<FString, FVirtualSensorStreamTelemetry>& Pair : TelemetryByKey)
@@ -908,6 +966,7 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 			break;
 		case EWorkerEventType::DeliveryFailed:
 			++Telemetry.DeliveryFailureCount;
+			Telemetry.LastDeliveryFailureMessage=FString::Printf(TEXT("sensor=%s frame=%lld: %s"),*Event.SensorId,Event.FrameId,*Event.Message);
 			Telemetry.State = TEXT("delivery-failed");
 			break;
 		default: break;

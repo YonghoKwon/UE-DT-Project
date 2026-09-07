@@ -17,6 +17,8 @@ class UTransactionCodeMessage;
 class UVirtualLidarStreamReceiverTC;
 class UVirtualCameraStreamReceiverTC;
 class UVirtualPointCloudStreamReceiverTC;
+class UVirtualSensorStreamPublisherComponent;
+class AVirtualSensorCoordinator;
 
 /** Test-map host that exposes every implemented external source without auto-starting network listeners. */
 UCLASS(BlueprintType)
@@ -25,6 +27,12 @@ class MA0T10_DT_API AVirtualSensorExternalSourceHostActor : public AActor
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|ExternalSource|TopicReceiver")
+	void SetTopicReceiverScope(EVirtualSensorTopicReceiverScope Scope);
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|ExternalSource|TopicReceiver")
+	EVirtualSensorTopicReceiverScope GetTopicReceiverScope() const { return ReceiverScope; }
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|ExternalSource|TopicReceiver")
+	bool UsesSharedReceiver() const { return bUsingSharedReceiver; }
 	AVirtualSensorExternalSourceHostActor();
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|ExternalSource|TopicReceiver")
@@ -94,6 +102,19 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	AVirtualSensorCoordinator* FindCoordinator() const;
+	bool TrySharedReceiver();
+	bool IsActiveReceiveKind(EVirtualSensorTopicReceiveKind Kind) const;
+	void HandleSharedReceived(const TSharedPtr<FVirtualSensorTopicReceivedDataBase>& Data);
+	EVirtualSensorTopicReceiverScope ReceiverScope=EVirtualSensorTopicReceiverScope::ActiveTransmitOnly;
+	bool bUsingSharedReceiver=false;
+	int64 ReceiverGeneration=0;
+	FString SelectionSignature;
+	FDelegateHandle SharedReceiveHandle, PublisherChangeHandle;
+	TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> BoundPublisher;
+	FTimerHandle ReceiverRefreshTimer;
+	TMap<FString,double> ReceiveDrainDeadlines;
+	TMap<FString,int64> LastReceivedSequence;
 	struct FRawPointCloudPayload
 	{
 		TArray<uint8> Body;
@@ -108,6 +129,7 @@ private:
 		TArray<FRawPointCloudPayload> PendingBinaryBodies;
 		bool bSubscriptionPending = false;
 		bool bParsing = false;
+		int64 ParsingGeneration=0;
 		int32 RetryAttempt = 0;
 		double SubscriptionStartedSeconds = 0.0;
 		double FirstValidatedSeconds = 0.0;
@@ -144,7 +166,7 @@ private:
 	void CompleteSubscription(EVirtualSensorTopicReceiveKind Kind, bool bSuccess, const FString& Error);
 	void QueueTopicPayload(EVirtualSensorTopicReceiveKind Kind, FString Body);
 	void TryStartQueuedParses();
-	void CompleteTopicParse(EVirtualSensorTopicReceiveKind Kind, const TSharedPtr<FTransactionCodeDataBase>& ParsedData, float ParseLatencyMs);
+	void CompleteTopicParse(EVirtualSensorTopicReceiveKind Kind, const TSharedPtr<FTransactionCodeDataBase>& ParsedData, float ParseLatencyMs, int64 Generation=-1);
 	void ScheduleSubscriptionRetry();
 	void AddReceiveLog(const FReceiverRuntime& Runtime, const FVirtualSensorTopicReceivedDataBase& Data, float ParseLatencyMs);
 	FReceiverRuntime* FindRuntime(EVirtualSensorTopicReceiveKind Kind);

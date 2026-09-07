@@ -19,6 +19,7 @@ class MA0T10_DT_API UVirtualSensorStreamPublisherComponent : public UActorCompon
 	GENERATED_BODY()
 
 public:
+	FSimpleMulticastDelegate OnStreamConfigurationChanged;
 	UVirtualSensorStreamPublisherComponent();
 
 	virtual void BeginPlay() override;
