@@ -150,6 +150,8 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	bool bWorkspaceLiveDetails=false;
+	TMap<EVirtualSensorStreamKind,FString> WorkspaceStreamCards;
     void AddResult(EVirtualSensorExportKind Kind, const FString& SensorId, bool bSucceeded, const FString& Path, const FString& Message);
     void RefreshNativeText();
     FString GetSelectedSensorId() const;

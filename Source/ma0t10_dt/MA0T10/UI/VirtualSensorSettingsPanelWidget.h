@@ -98,6 +98,7 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;
     bool ApplyStateToRuntime(const FVirtualSensorEditableState& State, FString& OutError);
     bool ValidateState(const FVirtualSensorEditableState& State, FString& OutError) const;
@@ -154,5 +155,5 @@ private:
 	FVirtualSensorInteractionRequest InteractionRequest;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
-    FName SelectedSettingHelpKey = TEXT("SimulationQuality");
+    FName SelectedSettingHelpKey = NAME_None;
 };

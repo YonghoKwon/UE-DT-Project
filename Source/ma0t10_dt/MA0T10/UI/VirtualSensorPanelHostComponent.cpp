@@ -52,8 +52,9 @@ void UVirtualSensorPanelHostComponent::UnregisterAllPanels()
 {
 	for (FVirtualSensorHostedPanel& Entry : HostedPanels)
 	{
-		if (Entry.Panel)
-		{
+        if (Entry.Panel)
+        {
+			if(auto* Workspace=Entry.Panel->GetToolWorkspace())Workspace->UnregisterPanel(Entry.Panel);
 			Entry.Panel->SetPanelHostComponent(nullptr);
 			Entry.Panel->RemoveFromParent();
 		}
