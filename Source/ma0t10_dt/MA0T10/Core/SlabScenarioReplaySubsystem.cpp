@@ -101,10 +101,10 @@ bool USlabScenarioReplaySubsystem::GetScenarioJson(const FString& UUID,FString& 
 bool USlabScenarioReplaySubsystem::IsReplayBusy() const
 { return Status.State==ESlabScenarioReplayState::Starting||Status.State==ESlabScenarioReplayState::Playing||Status.State==ESlabScenarioReplayState::Draining; }
 bool USlabScenarioReplaySubsystem::CanReplay() const
-{ return bInitialized&&!bLivePlaybackActive&&!IsReplayBusy()&&PlaybackAdapter.IsValid()&&PlaybackAdapter->GetWorld()==GetWorld()&&!SessionBusy(GetWorld()); }
+{ return bInitialized&&GetWorld()&&!bLivePlaybackActive&&!IsReplayBusy()&&PlaybackAdapter.IsValid()&&PlaybackAdapter->GetWorld()==GetWorld()&&!SessionBusy(GetWorld()); }
 bool USlabScenarioReplaySubsystem::RegisterPlaybackAdapter(UObject* Adapter)
 {
-	if (!IsInGameThread()||IsReplayBusy()||!IsValid(Adapter)||!Adapter->GetClass()->ImplementsInterface(USlabScenarioPlaybackAdapter::StaticClass())||Adapter->GetWorld()!=GetWorld()) return false;
+	if (!IsInGameThread()||!GetWorld()||IsReplayBusy()||!IsValid(Adapter)||!Adapter->GetClass()->ImplementsInterface(USlabScenarioPlaybackAdapter::StaticClass())||Adapter->GetWorld()!=GetWorld()) return false;
 	PlaybackAdapter=Adapter; return true;
 }
 void USlabScenarioReplaySubsystem::UnregisterPlaybackAdapter(UObject* Adapter)
