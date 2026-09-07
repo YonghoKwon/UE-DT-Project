@@ -524,12 +524,12 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
         SNew(SVerticalBox)
         + SVerticalBox::Slot().AutoHeight()[ BuildToolPanelHeader(LOCTEXT("SettingsWorkspaceTitle","센서 설정")) ]
         + SVerticalBox::Slot().AutoHeight().Padding(0,8)
-        [ SNew(SWrapBox).UseAllottedSize(true)
+        [ SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabBasic","기본 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=0;return FReply::Handled();})]
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabPose","위치·회전")).OnClicked_Lambda([this](){WorkspaceSettingsTab=1;return FReply::Handled();})]
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabAdvanced","고급 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=2;bShowAdvanced=true;return FReply::Handled();})]
         ]
-        + SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); }) ]
+        + SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); }) ]
         + SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 8.0f, 0.0f, 0.0f)
         [
             SNew(SScrollBox).Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })

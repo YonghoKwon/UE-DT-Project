@@ -521,7 +521,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
             SNew(SVerticalBox)
             + SVerticalBox::Slot().AutoHeight()[ BuildToolPanelHeader(LOCTEXT("WorkspaceMonitorTitle","모니터")) ]
             + SVerticalBox::Slot().AutoHeight().Padding(0,6)
-            [ SNew(SHorizontalBox)
+            [ SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
               + SHorizontalBox::Slot().FillWidth(1)[ SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(true).Text(FText::FromString(BuildCompactStatusText())) ]
               + SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).Text(LOCTEXT("ViewOptions","표시 옵션")).OnClicked_Lambda([this](){bWorkspaceViewOptions=!bWorkspaceViewOptions;return FReply::Handled();})]
             ]
