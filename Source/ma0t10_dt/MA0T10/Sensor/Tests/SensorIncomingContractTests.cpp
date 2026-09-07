@@ -15,6 +15,7 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	Source.SensorId=TEXT("LIDAR-TEST-001"); Source.FrameId=2657;
 	FDateTime::ParseIso8601(TEXT("2026-09-07T02:22:48.137Z"),Source.TimestampUtc);
 	Source.SlabContext.RunId=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	Source.SlabContext.ScenarioUUID=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
 	Source.SlabContext.MtlNo=TEXT("SQ83521 047 / 소재 \"A\"\nB");
 	Source.SlabContext.SlabFrameNo=580; Source.SlabContext.ElapsedSec=29.0; Source.SlabContext.bEligible=true;
 	TArray<FVirtualLidarPoint> Points; Points.SetNum(InputCount);
@@ -47,9 +48,10 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("engine UTC normalized"),Engine->SourceTimestampUtc,Raw->SourceTimestampUtc);
 	TestEqual(TEXT("actual acquisition UTC preserved"),Raw->SourceTimestampUtc,Source.TimestampUtc);
 	auto BodyOnlyContextHeaders=RawHeaders;
-	for(const TCHAR* Key:{TEXT("x-run-uuid"),TEXT("x-mtl-no"),TEXT("x-slab-frame-no"),TEXT("x-slab-elapsed-sec"),TEXT("x-session-segment")}) BodyOnlyContextHeaders.Remove(Key);
+	for(const TCHAR* Key:{TEXT("x-scenario-uuid"),TEXT("x-run-uuid"),TEXT("x-mtl-no"),TEXT("x-slab-frame-no"),TEXT("x-slab-elapsed-sec"),TEXT("x-session-segment")}) BodyOnlyContextHeaders.Remove(Key);
 	const auto BodyContext=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,BodyOnlyContextHeaders));
 	TestTrue(TEXT("PCD Slab context independent of STOMP metadata"),BodyContext->bValid);
+	TestEqual(TEXT("original scenario independent of execution UUID"),BodyContext->ScenarioUUID,Source.SlabContext.ScenarioUUID);
 	TestEqual(TEXT("escaped Unicode material restored from PCD"),BodyContext->MtlNo,Source.SlabContext.MtlNo);
 	TestEqual(TEXT("Slab frame restored from PCD"),BodyContext->SlabFrameNo,static_cast<int64>(580));
 	BodyOnlyContextHeaders.Add(TEXT("x-mtl-no"),TEXT("WRONG"));

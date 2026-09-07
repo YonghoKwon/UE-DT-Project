@@ -139,7 +139,7 @@ struct MA0T10_DT_API FVirtualSensorTopicReceiveLogEntry
 /** 순수 파싱 스레드에서 생성되고 게임 스레드에서 소비되는 공통 결과입니다. */
 struct FVirtualSensorTopicReceivedDataBase : FTransactionCodeDataBase
 {
-	FString Topic, Backend, RequestId, RunId, MtlNo, ErrorCode;
+	FString Topic, Backend, RequestId, RunId, MtlNo, ErrorCode, ScenarioUUID;
 	int64 SlabFrameNo = -1;
 	double SlabElapsedSec = 0;
 	int32 Segment = 0;
