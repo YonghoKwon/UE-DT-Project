@@ -18,6 +18,7 @@ const warmupSeconds = Number(args.get('--warmup') ?? '0');
 const requireContiguousPcd = (args.get('--require-contiguous-pcd') ?? 'false').toLowerCase() === 'true';
 const requiredSlabRuns = Number(args.get('--slab-runs') ?? '0');
 const slabRuns = new Map();
+let firstPcdSaved = false;
 const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
 const selfTestPoints = Math.max(1, Number(args.get('--self-test-points') ?? '1'));
 const output = args.get('--output') ?? path.resolve('Saved', 'Reports', `artemis_probe_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.json`);
@@ -144,6 +145,18 @@ function validateBinaryPcd(headers, body) {
     bodyLength: body.length === payloadOffset + pointCount * 33,
     checksum: checksum.toLowerCase() === String(headers['x-checksum-sha1'] ?? headers.checksum ?? '').toLowerCase(),
   };
+  const metadataLines = headerText.split('\n').filter(line => line.startsWith('# MA0T10_META '));
+  if (metadataLines.length || requiredSlabRuns > 0) {
+    try {
+      const meta = JSON.parse(metadataLines[0]?.slice(14));
+      checks.embeddedMetadata = metadataLines.length === 1 && meta.schema === 'virtual-pointcloud.context.v1' &&
+        meta.sensor_id === (headers['sensor-id'] ?? headers['x-sensor-id']) &&
+        meta.sensor_frame_id === (headers['frame-id'] ?? headers['x-frame-id']);
+      if (requiredSlabRuns > 0) checks.embeddedSlab = meta.run_uuid === headers['x-run-uuid'] &&
+        meta.mtl_no === headers['x-mtl-no'] && meta.frame_no === headers['x-slab-frame-no'] &&
+        Number(meta.elapsed_sec) === Number(headers['x-slab-elapsed-sec']);
+    } catch { checks.embeddedMetadata = false; }
+  }
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks };
 }
@@ -317,6 +330,10 @@ socket.addEventListener('message', async event => {
 		try { lidarTelemetryValid = JSON.parse(parsed.body.toString('utf8')).schema === 'virtual-lidar.telemetry.v1'; } catch {}
 	  }
 	  const messageValid = isBinaryPcd ? pcdValidation.valid : isCameraJpeg ? cameraValid : isLidarTelemetry ? lidarTelemetryValid : schema.startsWith('virtual-');
+      if (isBinaryPcd && messageValid && !firstPcdSaved && args.has('--save-first-pcd')) {
+        fs.writeFileSync(args.get('--save-first-pcd'), parsed.body);
+        firstPcdSaved = true;
+      }
       const entry = {
         receivedUtc: new Date().toISOString(),
         destination,

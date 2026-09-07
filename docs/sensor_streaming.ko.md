@@ -24,7 +24,19 @@ Camera queue는 8개, LiDAR/PCD queue는 각각 20개이며 모든 프레임에 
 
 PCD 수신은 `sensor-id`/`x-sensor-id`, `frame-id`/`x-frame-id`, `checksum`/`x-checksum-sha1`, `acquisition-profile`/`x-acquisition-profile` 등 기존 두 송신 경로의 별칭을 지원합니다. UTC는 ISO8601 또는 epoch milliseconds를 정규화하고 별칭 값이 충돌하면 오류로 표시합니다. `Binary PCD required STOMP headers are missing` 문제를 해결하기 위해 Broker 한도를 올릴 필요는 없습니다.
 
-Slab 정보는 여전히 STOMP의 `x-run-uuid`, `x-mtl-no`, `x-slab-frame-no`, `x-slab-elapsed-sec`에 있습니다. **PCD 본문에 이 정보를 삽입하는 변경은 포함하지 않습니다.** 일반 비연동 PCD에는 Slab 정보가 없어도 유효합니다. UI 최근 수신 이벤트에서 센서 FrameId와 Slab 프레임을 독립적으로 확인할 수 있습니다.
+실시간 Binary PCD 파일은 이제 `# MA0T10_META {JSON}` 주석 한 줄에 측정 시작 당시의 센서/Slab 정보를 저장합니다. 파일만 보관해도 복원할 수 있으며, 기존 STOMP Slab 헤더는 소비자 호환성을 위해 유지합니다. 일반 비연동 PCD는 센서 정보만 포함합니다. 과거 메타데이터 없는 PCD도 수신 가능합니다. 본문과 STOMP 연계 정보가 충돌하면 검증 실패입니다.
+
+```text
+# .PCD v0.7
+# MA0T10_META {"schema":"virtual-pointcloud.context.v1","sensor_id":"LIDAR-TEST-001","sensor_frame_id":"4739","timestamp_utc":"2026-09-07T02:22:48.137Z","run_uuid":"d93cabfa-492a-c3e9-ef9e-69a1ade20910","mtl_no":"SQ83521 047","frame_no":"580","elapsed_sec":"29.000000","session_segment":"0"}
+VERSION 0.7
+...
+DATA binary
+```
+
+`frame_no`는 Slab 상태 번호이고 `sensor_frame_id`는 센서 측정 번호입니다. 식별 정수는 JSON 숫자 정밀도 손실을 막기 위해 문자열로 기록하며 필요 시 `int()`로 변환합니다. UTF-8 소재명과 개행/따옴표는 JSON escape로 보존합니다. 이 메타데이터는 포인트마다 반복되지 않으며 33바이트 포인트 레코드, 좌표 단위, PCD schema는 변경하지 않습니다. checksum과 content-length는 주석까지 포함한 전체 PCD 바이트 기준입니다.
+
+일반 PCD 로더는 주석을 포인트 속성으로 반환하지 않을 수 있으므로 연계 정보는 별도로 읽으십시오. `python Scripts/read_pcd_context.py received.pcd`는 STOMP 헤더 없이 파일 내부 정보를 출력합니다. 포인트 전용 라이브러리로 다시 저장하면 사용자 정의 주석이 유실될 수 있으므로 원본 바이트를 보관하십시오. 이 변경은 실시간 Binary PCD 경로이며 기존 수동 ASCII 내보내기에 자동 적용되지는 않습니다.
 
 수신 구독 해제는 송신과 Broker receipt 처리를 중지하지 않습니다. 송신 중지 후 마지막 진단은 보존됩니다. 표시 Hz는 누적 통계이므로 과거 대기·중지 구간이 포함될 수 있습니다. 세션 실패 수와 헤더 검증 오류는 별개이며, 실제 Raw 전달 실패의 마지막 원인을 함께 확인하십시오.
 
