@@ -31,9 +31,15 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	auto* Receiver=NewObject<UVirtualPointCloudStreamReceiverTC>();
 	const auto Raw=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,RawHeaders));
 	const auto Engine=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,FVirtualSensorWireHeaders::EnginePcd(Meta,TEXT("engine-test"))));
-	// Characterization of the reported defect; replaced by acceptance after normalization is added.
-	TestFalse(TEXT("reproduces Raw sender versus UI receiver mismatch"),Raw->bValid);
+	TestTrue(TEXT("Raw production sender is accepted by UI receiver"),Raw->bValid);
 	TestTrue(TEXT("same body already passes Engine sender headers"),Engine->bValid);
+	RawHeaders.Remove(TEXT("x-checksum-sha1")); RawHeaders.Remove(TEXT("x-acquisition-profile")); RawHeaders.Remove(TEXT("x-utc"));
+	TestTrue(TEXT("already deployed Raw header aliases accepted"),StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,RawHeaders))->bValid);
+	RawHeaders.Add(TEXT("x-checksum-sha1"),FString::ChrN(40,TEXT('0')));
+	TestFalse(TEXT("conflicting aliases rejected"),StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,RawHeaders))->bValid);
+	RawHeaders.Remove(TEXT("x-checksum-sha1")); RawHeaders.Remove(TEXT("checksum"));
+	const auto Missing=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,RawHeaders));
+	TestTrue(TEXT("missing header identifies required name"),Missing->Message.Contains(TEXT("checksum")));
 	return true;
 }
 #endif

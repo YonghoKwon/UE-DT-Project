@@ -12,6 +12,9 @@ TMap<FString,FString> FVirtualSensorWireHeaders::RawPcd(const FVirtualPointCloud
 	H.Add(TEXT("filter-revision"), LexToString(M.FilterRevision));
 	H.Add(TEXT("x-filter-revision"), LexToString(M.FilterRevision));
 	H.Add(TEXT("acquisition-profile"), M.ProfileKey);
+	H.Add(TEXT("x-acquisition-profile"), M.ProfileKey);
+	H.Add(TEXT("x-checksum-sha1"), M.ChecksumSha1);
+	H.Add(TEXT("x-utc"), M.TimestampUtc);
 	return H;
 }
 

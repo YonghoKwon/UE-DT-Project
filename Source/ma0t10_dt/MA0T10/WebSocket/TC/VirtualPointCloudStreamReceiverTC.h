@@ -28,9 +28,9 @@ public:
 	UVirtualPointCloudStreamReceiverTC();
 	virtual TSharedPtr<FTransactionCodeDataBase> ParseToStruct(const FString& JsonString) const override;
 	virtual void ProcessStructData(const TSharedPtr<FTransactionCodeDataBase>& Data) override;
-	TSharedPtr<FTransactionCodeDataBase> ParseBinaryPcdToStruct(
+	static TSharedPtr<FTransactionCodeDataBase> ParseBinaryPcdToStruct(
 		const TArray<uint8>& Body,
-		const TMap<FName, FString>& Headers) const;
+		const TMap<FName, FString>& Headers);
 
 private:
 	double LastOutputLogSeconds = -1.0;

@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPcdReceiveContract.h"
 
 #include "Json.h"
 #include "Misc/Base64.h"
@@ -140,7 +141,7 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseTo
 
 TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBinaryPcdToStruct(
 	const TArray<uint8>& Body,
-	const TMap<FName, FString>& Headers) const
+	const TMap<FName, FString>& IncomingHeaders)
 {
 	TSharedPtr<FVirtualPointCloudStreamReceiverData> Data = MakeShared<FVirtualPointCloudStreamReceiverData>();
 	Data->Kind = EVirtualSensorTopicReceiveKind::PointCloud;
@@ -148,6 +149,8 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 	Data->Format = TEXT("PCD");
 	Data->Encoding = TEXT("binary");
 	Data->DecodedByteCount = Body.Num();
+	TMap<FName,FString> Headers;
+	if(!FVirtualSensorPcdReceiveContract::Normalize(IncomingHeaders,Headers,*Data)) return Data;
 
 	FString ContentType;
 	FString TimestampText;
@@ -229,7 +232,7 @@ void UVirtualPointCloudStreamReceiverTC::ProcessStructData(const TSharedPtr<FTra
 	const TSharedPtr<FVirtualPointCloudStreamReceiverData> PointCloud = StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Data);
 	if (!PointCloud.IsValid()) return;
 	const double Now = FPlatformTime::Seconds();
-	if (!PointCloud->bValid || LastOutputLogSeconds < 0.0 || Now - LastOutputLogSeconds >= 1.0)
+	if (LastOutputLogSeconds < 0.0 || Now - LastOutputLogSeconds >= 1.0)
 	{
 		LastOutputLogSeconds = Now;
 		UE_LOG(LogMA0T10, Log, TEXT("[SensorTopicReceiver][PointCloud] sensor=%s frame=%lld bytes=%d valid=%s %s"),
