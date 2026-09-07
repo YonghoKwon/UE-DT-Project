@@ -7,6 +7,7 @@ struct MA0T10_DT_API FVirtualSlabFrameContext
 {
 	GENERATED_BODY()
 	UPROPERTY(BlueprintReadOnly) FString RunId;
+	UPROPERTY(BlueprintReadOnly) FString ScenarioUUID;
 	UPROPERTY(BlueprintReadOnly) FString MtlNo;
 	UPROPERTY(BlueprintReadOnly) int64 SlabFrameNo = -1;
 	UPROPERTY(BlueprintReadOnly) double ElapsedSec = 0;
@@ -30,6 +31,7 @@ USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSlabSessionStatus
 {
 	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) bool bObservationOnly=false;
 	UPROPERTY(BlueprintReadOnly) FString RunId;
 	UPROPERTY(BlueprintReadOnly) EVirtualSlabSessionState State = EVirtualSlabSessionState::Idle;
 	UPROPERTY(BlueprintReadOnly) FVirtualSlabFrameContext CurrentSlab;
