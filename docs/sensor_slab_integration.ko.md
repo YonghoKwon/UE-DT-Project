@@ -18,6 +18,15 @@ World에는 Coordinator가 하나 필요합니다. 빈 SensorId, 중복 SensorId
 
 ## C++ 호출 예제
 
+PCD만 필요하면 `BeginSlabSensorSession`의 세 번째 인자 `bPointCloudOnly`를 `true`로 전달합니다. Blueprint에서는 **PCD만 송신** 핀을 켭니다. 기존 두 인자 호출은 Camera/LiDAR/PCD 세 종류를 유지하므로, PCD만 수동으로 켰더라도 기존 세션 시작 코드가 있으면 세 종류가 자동 활성화될 수 있습니다.
+
+```cpp
+RunId = Sensors->BeginSlabSensorSession(FString(),
+    {TEXT("LIDAR-TEST-001")}, true);
+```
+
+이 선택은 Topic 출력만 제한하며 센서 미리보기와 독립적입니다. 테스트맵 PIE의 `ma0t10.SlabSensorPcdTest` 명령은 임시 Slab를 사용하는 30초 PCD 전용 테스트입니다. 운영맵을 저장하거나 동료의 Slab 구현을 변경하지 않습니다.
+
 ```cpp
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 
