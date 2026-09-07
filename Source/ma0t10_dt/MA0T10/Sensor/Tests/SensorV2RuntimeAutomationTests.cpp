@@ -319,7 +319,7 @@ public:
 				ReceiverHost->ConfigureReceiverTopics(Profile.LidarTopic, Profile.CameraTopic, Profile.ExportTopic);
 				// Raw TCP self-validation replaces the game-thread WebSocket receivers
 				// during the performance acceptance workload.
-				ReceiverHost->StopTopicReceivers();
+				ReceiverHost->StartTopicReceivers();
 			}
 			bConnectionRequested = true;
 			return false;
@@ -327,6 +327,7 @@ public:
 
 		if (!bStreamsStarted)
 		{
+			bPointCloudOnly=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_ONLY")).Equals(TEXT("1"));
 			bScenarioMode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SLAB_SCENARIO_SMOKE")).Equals(TEXT("1"));
 			// Exercise the production contract, not the legacy CSV envelope used by
 			// the early three-stream smoke. Applying the profile once keeps the
@@ -365,7 +366,7 @@ public:
 			{
 				FVirtualSensorStreamConfig Config;
 				Config.StreamKind = Kind;
-				Config.bEnabled = !bScenarioMode;
+				Config.bEnabled = !bScenarioMode && (!bPointCloudOnly || Kind==EVirtualSensorStreamKind::PointCloud);
 				Config.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 				Config.FrameStride = 1;
 				Config.ReceiptSampleInterval = 1;
@@ -391,7 +392,7 @@ public:
 			if (!ScenarioDriver.IsValid() && FPlatformTime::Seconds()-StreamsStartedAtSeconds>=WarmupSeconds)
 			{
 				ScenarioDriver=World->SpawnActor<AVirtualSlabSensorTestDriver>();
-				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,{Camera->GetSensorId(),Lidar->GetSensorId()}));
+				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,{Camera->GetSensorId(),Lidar->GetSensorId()},bPointCloudOnly));
 			}
 			if (ScenarioDriver.IsValid() && ScenarioDriver->HasFailed()) { Test->AddError(TEXT("Slab fixture failed; inspect session_runs.json")); return true; }
 		}
@@ -399,11 +400,13 @@ public:
 		TMap<EVirtualSensorStreamKind, FVirtualSensorStreamStatus> StatusByKind;
 		for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
 		{
+			if(bPointCloudOnly && Status.StreamKind!=EVirtualSensorStreamKind::PointCloud) continue;
 			if ((!bScenarioMode && Status.SensorId.IsEmpty()) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
 		}
-		bool bAllReady = StatusByKind.Num() == 3;
+		bool bAllReady = StatusByKind.Num() == (bPointCloudOnly?1:3);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
+			if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
 			const FVirtualSensorStreamStatus* Status = StatusByKind.Find(Kind);
 			bAllReady &= Status && Status->InputFrameCount >= 2 && Status->SubmittedFrameCount >= 2 &&
 				Status->ReceiptReceivedCount >= 2 && Status->ConsumerReceivedCount >= 2 &&
@@ -457,9 +460,10 @@ public:
 			PointCloudBeforeAssertions->ConsumerReceivedCount == PointCloudBeforeAssertions->SubmittedFrameCount;
 		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
-		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), 3);
+		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), bPointCloudOnly?1:3);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
+			if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
 			const FVirtualSensorStreamStatus* Status = StatusByKind.Find(Kind);
 			Test->TestNotNull(TEXT("stream status exists"), Status);
 			if (!Status) continue;
@@ -499,6 +503,28 @@ public:
 					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);
 			}
 		}
+		if (ReceiverHost && PointCloudBeforeAssertions)
+		{
+			Test->TestTrue(TEXT("actual UI receiver remains enabled"),ReceiverHost->AreTopicReceiversRequested());
+			Test->TestTrue(TEXT("UI shares actual broker MESSAGE validation"),ReceiverHost->UsesSharedReceiver());
+			for(const auto& R:ReceiverHost->GetTopicReceiverStatuses())
+			{
+				if(R.Kind==EVirtualSensorTopicReceiveKind::PointCloud)
+				{
+					Test->TestEqual(TEXT("UI validates every submitted PCD"),R.ValidatedCount,PointCloudBeforeAssertions->SubmittedFrameCount);
+					Test->TestEqual(TEXT("UI PCD validation failures"),R.ValidationFailureCount,static_cast<int64>(0));
+					Test->TestEqual(TEXT("UI diagnostic losses"),R.DiagnosticDropCount,static_cast<int64>(0));
+					UE_LOG(LogTemp,Display,TEXT("[SensorUiReceiverRhi] pcdReceived=%lld pcdValidated=%lld failures=%lld gaps=%lld"),R.ReceivedCount,R.ValidatedCount,R.ValidationFailureCount,R.FrameGapCount);
+				}
+				else if(bPointCloudOnly) Test->TestEqual(TEXT("PCD-only does not receive camera/lidar diagnostics"),R.ReceivedCount,static_cast<int64>(0));
+			}
+			for(const auto& E:ReceiverHost->GetRecentTopicReceiveLogs())
+				if(E.Kind==EVirtualSensorTopicReceiveKind::PointCloud && bScenarioMode)
+				{
+					Test->TestEqual(TEXT("UI preserves material id"),E.MtlNo,FString(TEXT("SQ83521 047")));
+					Test->TestTrue(TEXT("UI preserves independent Slab frame"),E.SlabFrameNo>=0&&E.SlabFrameNo<600&&!E.RunId.IsEmpty());
+				}
+		}
 		if (PointCloudBeforeAssertions)
 		{
 			UE_LOG(LogTemp, Display, TEXT("[SensorPcdNoLossRhi] input=%lld serialized=%lld submitted=%lld receipts=%lld serializeHz=%.2f serializeP95Ms=%.2f inputQueue=%d preparedQueue=%d receiptQueue=%d gaps=%lld retries=%lld overload=%lld"),
@@ -511,7 +537,7 @@ public:
 		}
 		const TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> CameraJpeg = Camera->CaptureComponent
 			? Camera->CaptureComponent->GetLastJpegSnapshot() : nullptr;
-		Test->TestTrue(TEXT("camera stream retains a raw JPEG snapshot"),
+		if(!bPointCloudOnly) Test->TestTrue(TEXT("camera stream retains a raw JPEG snapshot"),
 			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
@@ -568,6 +594,7 @@ private:
 	bool bStreamsStarted = false;
 	bool bAcquisitionStopped = false;
 	bool bScenarioMode=false;
+	bool bPointCloudOnly=false;
 	bool bCaptureViewStatesChecked = false;
 	FSceneViewStateInterface* CameraViewState = nullptr;
 	FSceneViewStateInterface* LidarViewState = nullptr;
