@@ -22,7 +22,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorMonitor|Appearance")
 	void ResetSensorToolAppearance();
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|SensorMonitor|Appearance")
-	float GetSensorToolFontScale() const { return SensorToolFontScale; }
+	float GetSensorToolFontScale() const;
 private:
 	float SensorToolFontScale = 1.0f;
 public:
