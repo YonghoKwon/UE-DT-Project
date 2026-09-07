@@ -1,4 +1,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
 #include "Async/Async.h"
 #include "Components/SceneComponent.h"
@@ -86,11 +89,23 @@ void AVirtualSensorExternalSourceHostActor::EndPlay(const EEndPlayReason::Type E
 {
 	bEndingPlay = true;
 	StopTopicReceivers();
+	GetWorldTimerManager().ClearTimer(ReceiverRefreshTimer);
+	if(BoundPublisher.IsValid()) BoundPublisher->OnStreamConfigurationChanged.Remove(PublisherChangeHandle);
+	if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->OnReceived.Remove(SharedReceiveHandle);
 	Super::EndPlay(EndPlayReason);
 }
 
 void AVirtualSensorExternalSourceHostActor::InitializeTopicReceiverRuntime()
 {
+	if(GetWorld()&&!SharedReceiveHandle.IsValid())
+		if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) SharedReceiveHandle=Raw->OnReceived.AddUObject(this,&AVirtualSensorExternalSourceHostActor::HandleSharedReceived);
+	if(!BoundPublisher.IsValid()) if(auto* C=FindCoordinator()) if(C->StreamPublisherComponent)
+	{
+		BoundPublisher=C->StreamPublisherComponent;
+		PublisherChangeHandle=BoundPublisher->OnStreamConfigurationChanged.AddUObject(this,&AVirtualSensorExternalSourceHostActor::AttemptTopicSubscriptions);
+	}
+	if(GetWorld()&&!GetWorldTimerManager().IsTimerActive(ReceiverRefreshTimer))
+		GetWorldTimerManager().SetTimer(ReceiverRefreshTimer,this,&AVirtualSensorExternalSourceHostActor::AttemptTopicSubscriptions,0.2f,true);
 	if (!LidarTopicHandler) LidarTopicHandler = NewObject<UVirtualLidarStreamReceiverTC>(this, TEXT("LidarTopicHandler"));
 	if (!CameraTopicHandler) CameraTopicHandler = NewObject<UVirtualCameraStreamReceiverTC>(this, TEXT("CameraTopicHandler"));
 	if (!PointCloudTopicHandler) PointCloudTopicHandler = NewObject<UVirtualPointCloudStreamReceiverTC>(this, TEXT("PointCloudTopicHandler"));
@@ -105,6 +120,84 @@ void AVirtualSensorExternalSourceHostActor::InitializeTopicReceiverRuntime()
 	}
 }
 
+AVirtualSensorCoordinator* AVirtualSensorExternalSourceHostActor::FindCoordinator() const
+{
+	if(GetWorld()) for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It) return *It;
+	return nullptr;
+}
+void AVirtualSensorExternalSourceHostActor::SetTopicReceiverScope(EVirtualSensorTopicReceiverScope Scope)
+{
+	if(ReceiverScope==Scope) return;
+	ReceiverScope=Scope;
+	if(bTopicReceiversRequested) ReconnectTopicReceivers();
+}
+bool AVirtualSensorExternalSourceHostActor::IsActiveReceiveKind(EVirtualSensorTopicReceiveKind Kind) const
+{
+	if(auto* C=FindCoordinator()) if(C->StreamPublisherComponent)
+		for(const auto& S:C->StreamPublisherComponent->GetStreamStatuses())
+			if(static_cast<int32>(S.StreamKind)==static_cast<int32>(Kind)&&(S.bEnabled||S.InputQueueDepth||S.PreparedQueueDepth||S.ReceiptQueueDepth)) return true;
+	return false;
+}
+bool AVirtualSensorExternalSourceHostActor::TrySharedReceiver()
+{
+	auto* C=FindCoordinator(); auto* P=C?C->StreamPublisherComponent.Get():nullptr;
+	auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
+	const bool bCanShare=ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly && P && P->CanUseHighThroughputTransport() && Raw;
+	if(!bCanShare)
+	{
+		if(bUsingSharedReceiver) { StopTopicReceivers(); bTopicReceiversRequested=true; }
+		return false;
+	}
+	if(!bUsingSharedReceiver) { StopTopicReceivers(); bTopicReceiversRequested=true; bUsingSharedReceiver=true; }
+	const auto& Profile=C->SharedTransportComponent->GetTransportProfile();
+	LidarReceiveTopic=Profile.LidarTopic; CameraReceiveTopic=Profile.CameraTopic; PointCloudReceiveTopic=Profile.ExportTopic;
+	FVirtualSensorReceiveSelection Selection; Selection.bEnabled=true; Selection.bAllTopics=false;
+	Selection.MaxMessageBytes=FMath::Clamp(MaxReceiverMessageBytes,1024,16777216);
+	const double Now=FPlatformTime::Seconds();
+	for(const auto& S:P->GetStreamStatuses())
+	{
+		const FString Prefix=LexToString(static_cast<int32>(S.StreamKind))+TEXT("|");
+		TArray<FString> Ids;
+		if(!S.SensorId.IsEmpty()) Ids.Add(S.SensorId);
+		else for(auto* A:C->GetSensorActors()) if(A && ((S.StreamKind==EVirtualSensorStreamKind::CameraImage)==(A->GetSensorKind()==EVirtualSensorKind::Camera))) Ids.Add(A->GetSensorId());
+		for(const FString& Id:Ids)
+		{
+			const FString Key=Prefix+Id;
+			if(S.bEnabled) ReceiveDrainDeadlines.Add(Key,Now+10.0);
+			const bool bPending=S.InputQueueDepth||S.PreparedQueueDepth||S.ReceiptQueueDepth||S.SubmittedFrameCount>S.ConsumerReceivedCount;
+			if(S.bEnabled || (bPending&&ReceiveDrainDeadlines.FindRef(Key)>Now)) Selection.StreamKeys.Add(Key);
+		}
+	}
+	TArray<FString> Keys=Selection.StreamKeys.Array(); Keys.Sort();
+	const FString Signature=Profile.BrokerUrl+LidarReceiveTopic+CameraReceiveTopic+PointCloudReceiveTopic+FString::Join(Keys,TEXT(";"))+LexToString(Selection.MaxMessageBytes);
+	if(Signature!=SelectionSignature)
+	{
+		SelectionSignature=Signature; Selection.Generation=++ReceiverGeneration; Raw->ConfigureReceiver(Selection);
+	}
+	for(auto& R:ReceiverRuntimes)
+	{
+		R.Status.Topic=GetTopic(R.Status.Kind); R.Status.Backend=TEXT("Raw TCP 공유 수신");
+		R.Status.DiagnosticDropCount=Raw->GetDroppedReceiveEvents();
+		if(Selection.WantsKind(static_cast<int32>(R.Status.Kind)))
+		{
+			R.SubscriptionId=TEXT("shared:")+LexToString(static_cast<int32>(R.Status.Kind));
+			if(R.Status.State!=EVirtualSensorTopicReceiverState::Active) { R.Status.State=EVirtualSensorTopicReceiverState::WaitingForConnection; R.Status.LastMessage=TEXT("활성 송신의 Broker MESSAGE 대기 중"); }
+		}
+		else { R.SubscriptionId.Reset(); R.Status.State=EVirtualSensorTopicReceiverState::Stopped; R.Status.LastMessage=TEXT("활성 송신 없음 · 마지막 수신 결과 유지"); }
+	}
+	return true;
+}
+void AVirtualSensorExternalSourceHostActor::HandleSharedReceived(const TSharedPtr<FVirtualSensorTopicReceivedDataBase>& Data)
+{
+	if(!Data||bEndingPlay||!bTopicReceiversRequested||!bUsingSharedReceiver||Data->ReceiveGeneration!=ReceiverGeneration) return;
+	if(auto* R=FindRuntime(Data->Kind))
+	{
+		if(Data->bFiltered) { ++R->Status.IgnoredCount; return; }
+		++R->Status.ReceivedCount; R->Status.LastReceivedUtc=FDateTime::UtcNow();
+		CompleteTopicParse(Data->Kind,Data,Data->ParseLatencyMs,ReceiverGeneration);
+	}
+}
+
 void AVirtualSensorExternalSourceHostActor::StartTopicReceivers()
 {
 	InitializeTopicReceiverRuntime();
@@ -115,6 +208,10 @@ void AVirtualSensorExternalSourceHostActor::StartTopicReceivers()
 void AVirtualSensorExternalSourceHostActor::StopTopicReceivers()
 {
 	bTopicReceiversRequested = false;
+	++ReceiverGeneration; SelectionSignature.Reset();
+	if(GetWorld()) if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
+	{ FVirtualSensorReceiveSelection Off; Off.bEnabled=false; Off.Generation=ReceiverGeneration; Raw->ConfigureReceiver(Off); }
+	bUsingSharedReceiver=false;
 	GetWorldTimerManager().ClearTimer(TopicReceiverRetryTimer);
 	UDxWebSocketSubsystem* WebSocket = GetGameInstance() ? GetGameInstance()->GetSubsystem<UDxWebSocketSubsystem>() : nullptr;
 	if (RawPointCloudClient.IsValid())
@@ -126,7 +223,7 @@ void AVirtualSensorExternalSourceHostActor::StopTopicReceivers()
 	RawPointCloudSubscriptionId.Reset();
 	for (FReceiverRuntime& Runtime : ReceiverRuntimes)
 	{
-		if (WebSocket && !Runtime.SubscriptionId.IsEmpty())
+		if (WebSocket && !Runtime.SubscriptionId.IsEmpty() && !Runtime.SubscriptionId.StartsWith(TEXT("shared:")))
 		{
 			WebSocket->Unsubscribe(Runtime.SubscriptionId, FSTOMPRequestCompleted());
 		}
@@ -175,6 +272,8 @@ TArray<FVirtualSensorTopicReceiverStatus> AVirtualSensorExternalSourceHostActor:
 
 FString AVirtualSensorExternalSourceHostActor::GetReceiverBrokerUrl() const
 {
+	if(ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly)
+		if(auto* C=FindCoordinator()) if(C->SharedTransportComponent) return C->SharedTransportComponent->GetTransportProfile().BrokerUrl;
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
 	{
 		const FString TestBrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
@@ -220,6 +319,8 @@ FString AVirtualSensorExternalSourceHostActor::GetTopic(EVirtualSensorTopicRecei
 
 void AVirtualSensorExternalSourceHostActor::AttemptTopicSubscriptions()
 {
+	if(bEndingPlay||!bTopicReceiversRequested) return;
+	if(TrySharedReceiver()) return;
 	if (bEndingPlay || !bTopicReceiversRequested) return;
 	InitializeTopicReceiverRuntime();
 	const double Now = FPlatformTime::Seconds();
@@ -255,6 +356,7 @@ void AVirtualSensorExternalSourceHostActor::AttemptTopicSubscriptions()
 
 void AVirtualSensorExternalSourceHostActor::SubscribeRuntime(EVirtualSensorTopicReceiveKind Kind)
 {
+	if(ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly && !IsActiveReceiveKind(Kind)) return;
 	FReceiverRuntime* Runtime = FindRuntime(Kind);
 	if (!Runtime || !Runtime->SubscriptionId.IsEmpty() || Runtime->bSubscriptionPending) return;
 	if (Kind == EVirtualSensorTopicReceiveKind::PointCloud)
@@ -344,6 +446,9 @@ void AVirtualSensorExternalSourceHostActor::EnsureRawPointCloudClient()
 		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), Login, GGameIni);
 		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), Passcode, GGameIni);
 	}
+	if(ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly)
+		if(auto* C=FindCoordinator()) if(C->SharedTransportComponent)
+		{ Login=C->SharedTransportComponent->GetTransportProfile().UserName; Passcode=C->SharedTransportComponent->GetSessionPasscodeForHighThroughput(); }
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
 	{
 		const FString TestLogin = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
@@ -358,7 +463,7 @@ void AVirtualSensorExternalSourceHostActor::EnsureRawPointCloudClient()
 	RawPointCloudClient->OnClosed().AddUObject(this, &AVirtualSensorExternalSourceHostActor::HandleRawPointCloudFailure);
 	FStompHeader ConnectHeaders;
 	if (!Login.IsEmpty()) ConnectHeaders.Add(TEXT("login"), Login);
-	if (!Passcode.IsEmpty()) ConnectHeaders.Add(TEXT("passcode"), Passcode);
+	if (!Login.IsEmpty()) ConnectHeaders.Add(TEXT("passcode"), Passcode);
 	Runtime->bSubscriptionPending = true;
 	Runtime->SubscriptionStartedSeconds = FPlatformTime::Seconds();
 	Runtime->Status.State = EVirtualSensorTopicReceiverState::Subscribing;
@@ -394,13 +499,13 @@ void AVirtualSensorExternalSourceHostActor::SubscribeRawPointCloud()
 	const TWeakObjectPtr<AVirtualSensorExternalSourceHostActor> WeakThis(this);
 	RawPointCloudSubscriptionId = RawPointCloudClient->Subscribe(
 		PointCloudReceiveTopic,
-		FStompSubscriptionEvent::CreateLambda([WeakThis](const IStompMessage& Message)
+		FStompSubscriptionEvent::CreateLambda([WeakThis,Generation=ReceiverGeneration](const IStompMessage& Message)
 		{
-			if (WeakThis.IsValid()) WeakThis->HandleRawPointCloudMessage(Message);
+			if (WeakThis.IsValid() && WeakThis->ReceiverGeneration==Generation) WeakThis->HandleRawPointCloudMessage(Message);
 		}),
-		FStompRequestCompleted::CreateLambda([WeakThis](bool bSuccess, const FString& Error)
+		FStompRequestCompleted::CreateLambda([WeakThis,Generation=ReceiverGeneration](bool bSuccess, const FString& Error)
 		{
-			if (!WeakThis.IsValid()) return;
+			if (!WeakThis.IsValid() || WeakThis->ReceiverGeneration!=Generation) return;
 			if (FReceiverRuntime* Runtime = WeakThis->FindRuntime(EVirtualSensorTopicReceiveKind::PointCloud))
 			{
 				Runtime->SubscriptionId = bSuccess ? WeakThis->RawPointCloudSubscriptionId : FString();
@@ -427,7 +532,7 @@ void AVirtualSensorExternalSourceHostActor::HandleRawPointCloudFailure(const FSt
 void AVirtualSensorExternalSourceHostActor::HandleRawPointCloudMessage(const IStompMessage& Message)
 {
 	const SIZE_T RawLength = Message.GetRawBodyLength();
-	if (RawLength > static_cast<SIZE_T>(MAX_int32))
+	if (RawLength > static_cast<SIZE_T>(FMath::Clamp(MaxReceiverMessageBytes,1024,16777216)))
 	{
 		HandleRawPointCloudFailure(TEXT("Binary PCD body exceeds the processable size."));
 		return;
@@ -552,20 +657,21 @@ void AVirtualSensorExternalSourceHostActor::TryStartQueuedParses()
 			FRawPointCloudPayload Payload = MoveTemp(Runtime.PendingBinaryBodies[0]);
 			Runtime.PendingBinaryBodies.RemoveAt(0, 1, false);
 			Runtime.bParsing = true;
+		Runtime.ParsingGeneration=ReceiverGeneration;
 			++ActiveReceiverParseCount;
 			ReceiverRoundRobinCursor = (Index + 1) % ReceiverRuntimes.Num();
 			const TWeakObjectPtr<AVirtualSensorExternalSourceHostActor> WeakThis(this);
 			const TWeakObjectPtr<UVirtualPointCloudStreamReceiverTC> WeakHandler(PointCloudTopicHandler);
 			AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask,
-				[WeakThis, WeakHandler, Payload = MoveTemp(Payload)]() mutable
+				[WeakThis, WeakHandler, Payload = MoveTemp(Payload), Generation=ReceiverGeneration]() mutable
 				{
 					const double Started = FPlatformTime::Seconds();
 					TSharedPtr<FTransactionCodeDataBase> Parsed;
 					if (WeakHandler.IsValid()) Parsed = WeakHandler->ParseBinaryPcdToStruct(Payload.Body, Payload.Headers);
 					const float LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Started) * 1000.0);
-					AsyncTask(ENamedThreads::GameThread, [WeakThis, Parsed = MoveTemp(Parsed), LatencyMs]()
+					AsyncTask(ENamedThreads::GameThread, [WeakThis, Parsed = MoveTemp(Parsed), LatencyMs, Generation]()
 					{
-						if (WeakThis.IsValid()) WeakThis->CompleteTopicParse(EVirtualSensorTopicReceiveKind::PointCloud, Parsed, LatencyMs);
+						if (WeakThis.IsValid()) WeakThis->CompleteTopicParse(EVirtualSensorTopicReceiveKind::PointCloud, Parsed, LatencyMs, Generation);
 					});
 				});
 			Attempt = -1;
@@ -574,20 +680,21 @@ void AVirtualSensorExternalSourceHostActor::TryStartQueuedParses()
 		FString Body = MoveTemp(Runtime.PendingBody.GetValue());
 		Runtime.PendingBody.Reset();
 		Runtime.bParsing = true;
+		Runtime.ParsingGeneration=ReceiverGeneration;
 		++ActiveReceiverParseCount;
 		ReceiverRoundRobinCursor = (Index + 1) % ReceiverRuntimes.Num();
 		const EVirtualSensorTopicReceiveKind Kind = Runtime.Status.Kind;
 		const TWeakObjectPtr<AVirtualSensorExternalSourceHostActor> WeakThis(this);
 		const TWeakObjectPtr<UTransactionCodeMessage> WeakHandler(Handler);
-		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [WeakThis, WeakHandler, Kind, Body = MoveTemp(Body)]()
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [WeakThis, WeakHandler, Kind, Body = MoveTemp(Body), Generation=ReceiverGeneration]()
 		{
 			const double Started = FPlatformTime::Seconds();
 			TSharedPtr<FTransactionCodeDataBase> Parsed;
 			if (WeakHandler.IsValid()) Parsed = WeakHandler->ParseToStruct(Body);
 			const float LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Started) * 1000.0);
-			AsyncTask(ENamedThreads::GameThread, [WeakThis, Kind, Parsed = MoveTemp(Parsed), LatencyMs]()
+			AsyncTask(ENamedThreads::GameThread, [WeakThis, Kind, Parsed = MoveTemp(Parsed), LatencyMs, Generation]()
 			{
-				if (WeakThis.IsValid()) WeakThis->CompleteTopicParse(Kind, Parsed, LatencyMs);
+				if (WeakThis.IsValid()) WeakThis->CompleteTopicParse(Kind, Parsed, LatencyMs, Generation);
 			});
 		});
 		Attempt = -1;
@@ -597,12 +704,13 @@ void AVirtualSensorExternalSourceHostActor::TryStartQueuedParses()
 void AVirtualSensorExternalSourceHostActor::CompleteTopicParse(
 	EVirtualSensorTopicReceiveKind Kind,
 	const TSharedPtr<FTransactionCodeDataBase>& ParsedData,
-	float ParseLatencyMs)
+	float ParseLatencyMs, int64 Generation)
 {
-	ActiveReceiverParseCount = FMath::Max(0, ActiveReceiverParseCount - 1);
 	FReceiverRuntime* Runtime = FindRuntime(Kind);
 	if (!Runtime) return;
-	Runtime->bParsing = false;
+	if(Runtime->bParsing && (Generation<0||Generation==Runtime->ParsingGeneration))
+	{ Runtime->bParsing=false; ActiveReceiverParseCount=FMath::Max(0,ActiveReceiverParseCount-1); }
+	if(Generation>=0&&Generation!=ReceiverGeneration) { TryStartQueuedParses(); return; }
 	if (bEndingPlay || !bTopicReceiversRequested)
 	{
 		Runtime->PendingBody.Reset();
@@ -617,17 +725,22 @@ void AVirtualSensorExternalSourceHostActor::CompleteTopicParse(
 	else
 	{
 		bool bStaleOrDuplicatePointCloudFrame = false;
-		if (Kind == EVirtualSensorTopicReceiveKind::PointCloud && Data->bValid && Runtime->Status.LastFrameId >= 0)
+		if(Kind==EVirtualSensorTopicReceiveKind::PointCloud&&Data->bValid)
 		{
-			if (Data->FrameId <= Runtime->Status.LastFrameId)
+			const FString Key=Data->SensorId+TEXT("|")+Data->RunId+TEXT("|")+LexToString(Data->Segment)+TEXT("|")+LexToString(ReceiverGeneration);
+			const int64* Previous=LastReceivedSequence.Find(Key);
+			if(Data->Backend==TEXT("Raw TCP 공유 수신"))
 			{
-				++Runtime->Status.DuplicateFrameCount;
-				bStaleOrDuplicatePointCloudFrame = true;
+				Runtime->Status.FrameGapCount+=Data->FrameGapDelta;
+				bStaleOrDuplicatePointCloudFrame=Data->bDuplicate;
 			}
-			else if (Data->FrameId > Runtime->Status.LastFrameId + 1)
+			else if(Previous)
 			{
-				Runtime->Status.FrameGapCount += Data->FrameId - Runtime->Status.LastFrameId - 1;
+				if(Data->FrameId<=*Previous) bStaleOrDuplicatePointCloudFrame=true;
+				else if(Data->FrameId>*Previous+1) Runtime->Status.FrameGapCount+=Data->FrameId-*Previous-1;
 			}
+			if(bStaleOrDuplicatePointCloudFrame) ++Runtime->Status.DuplicateFrameCount;
+			else LastReceivedSequence.Add(Key,Data->FrameId);
 		}
 		if (bStaleOrDuplicatePointCloudFrame)
 		{
@@ -645,6 +758,8 @@ void AVirtualSensorExternalSourceHostActor::CompleteTopicParse(
 			return;
 		}
 		Runtime->Status.LastSensorId = Data->SensorId;
+		Runtime->Status.Schema=Data->SchemaVersion;
+		Runtime->Status.Backend=Data->Backend.IsEmpty()?TEXT("독립 STOMP 수신"):Data->Backend;
 		Runtime->Status.LastFrameId = Data->FrameId;
 		Runtime->Status.LastMessageBytes = Data->MessageBytes;
 		Runtime->Status.LastParseLatencyMs = ParseLatencyMs;
@@ -696,6 +811,8 @@ void AVirtualSensorExternalSourceHostActor::AddReceiveLog(
 	Entry.bValid = Data.bValid;
 	Entry.bDeepValidated = Data.bDeepValidated;
 	Entry.Message = Data.Message.Left(512);
+	Entry.Schema=Data.SchemaVersion; Entry.Backend=Data.Backend; Entry.RequestId=Data.RequestId;
+	Entry.RunId=Data.RunId; Entry.MtlNo=Data.MtlNo; Entry.SlabFrameNo=Data.SlabFrameNo; Entry.SlabElapsedSec=Data.SlabElapsedSec; Entry.ErrorCode=Data.ErrorCode;
 	RecentTopicReceiveLogs.Insert(MoveTemp(Entry), 0);
 	if (RecentTopicReceiveLogs.Num() > 200) RecentTopicReceiveLogs.SetNum(200, false);
 }

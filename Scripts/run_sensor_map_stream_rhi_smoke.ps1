@@ -7,7 +7,8 @@ param(
     [int]$TimeoutSeconds = 100,
     [ValidatePattern('^[A-Za-z0-9_.-]+$')][string]$ReportLabel = "sensor_map_stream_rhi_smoke",
     [switch]$SkipBuild,
-    [switch]$SlabSessions
+    [switch]$SlabSessions,
+    [switch]$PointCloudOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,10 +34,12 @@ $MinimumTimeout = $WarmupSeconds + $MeasurementSeconds + 25
 if ($TimeoutSeconds -lt $MinimumTimeout) { $TimeoutSeconds = $MinimumTimeout }
 $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup $WarmupSeconds --duration $MeasurementSeconds --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`""
 if ($SlabSessions) { $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup 0 --duration 63 --slab-runs 2 --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`"" }
+if ($PointCloudOnly) { $ProbeArgs += ' --topics topic.virtual.sensor.export.0' }
 $Probe = Start-Process -FilePath "node" -ArgumentList $ProbeArgs -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $ProbeStdOut -RedirectStandardError $ProbeStdErr
 
 try {
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE = "1"
+    $env:MA0T10_PCD_ONLY = if ($PointCloudOnly) { "1" } else { "0" }
     $env:MA0T10_RUN_SLAB_SCENARIO_SMOKE = if ($SlabSessions) { '1' } else { '0' }
     $env:MA0T10_ARTEMIS_URL = $BrokerUrl
     $env:MA0T10_ARTEMIS_USER = $UserName
@@ -77,7 +80,9 @@ try {
 	$ReceiverLidar = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['lidarConsumer'].Value } else { 0 }
 	$ReceiverCamera = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['cameraConsumer'].Value } else { 0 }
 	$ReceiverPointCloud = if ($HighThroughputMatch.Success) { [int64]$HighThroughputMatch.Groups['pcdConsumer'].Value } else { 0 }
-	$ReceiverFailures = 0
+	$UiMatch = [regex]::Match($EditorText, '\[SensorUiReceiverRhi\] pcdReceived=(?<received>\d+) pcdValidated=(?<valid>\d+) failures=(?<failed>\d+) gaps=(?<gaps>\d+)')
+    $UiPcdValidated = if ($UiMatch.Success) { [int64]$UiMatch.Groups['valid'].Value } else { -1 }
+    $ReceiverFailures = if ($UiMatch.Success) { [int64]$UiMatch.Groups['failed'].Value } else { -1 }
 	$CameraHz = if ($HighThroughputMatch.Success) { [double]$HighThroughputMatch.Groups['cameraHz'].Value } else { 0.0 }
 	$LidarHz = if ($HighThroughputMatch.Success) { [double]$HighThroughputMatch.Groups['lidarHz'].Value } else { 0.0 }
 	$PcdHz = if ($HighThroughputMatch.Success) { [double]$HighThroughputMatch.Groups['pcdHz'].Value } else { 0.0 }
@@ -106,9 +111,9 @@ try {
     $ProbeResult | Add-Member -NotePropertyName publisherPcdSerializationP95Ms -NotePropertyValue $PcdSerializationP95 -Force
     $ProbeResult | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProbeReport -Encoding UTF8
 	$Passed = $ProbeResult.success -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success -and $HighThroughputMatch.Success -and $PcdMatch.Success -and
-        $ReceiverLidar -ge 2 -and $ReceiverCamera -ge 2 -and $ReceiverPointCloud -ge 2 -and $ReceiverFailures -eq 0 -and
-        $PcdInput -gt 0 -and $PcdInput -eq $PcdSerialized -and $PcdInput -eq $PcdSubmitted -and $PcdInput -eq $PcdReceipts -and $PcdInput -eq $ReceiverPointCloud -and
-		$CameraHz -ge 29.0 -and $LidarHz -ge 19.0 -and $PcdHz -ge 19.0 -and
+        ($PointCloudOnly -or ($ReceiverLidar -ge 2 -and $ReceiverCamera -ge 2)) -and $ReceiverPointCloud -ge 2 -and $ReceiverFailures -eq 0 -and
+        $PcdInput -gt 0 -and $PcdInput -eq $PcdSerialized -and $PcdInput -eq $PcdSubmitted -and $PcdInput -eq $PcdReceipts -and $PcdInput -eq $ReceiverPointCloud -and $UiPcdValidated -eq $PcdInput -and
+		($PointCloudOnly -or ($CameraHz -ge 29.0 -and $LidarHz -ge 19.0)) -and $PcdHz -ge 19.0 -and
 		$AverageFps -ge 55.0 -and $OnePercentLowFps -ge 45.0 -and $P95FrameMs -le 20.0 -and
 		$PcdSerializationHz -ge 19.0 -and $PcdSerializationP95 -le 20.0 -and
         $null -ne $PointCloudMetrics -and ($SlabSessions -or $PointCloudMetrics.receiveHz -ge 19.0) -and
@@ -141,6 +146,8 @@ try {
 - Internal Camera receiver validated: $ReceiverCamera
 - Internal Point Cloud receiver validated: $ReceiverPointCloud
 - Internal receiver failures: $ReceiverFailures
+- UI Host PCD validated: $UiPcdValidated
+- Point Cloud only: $PointCloudOnly
 - Internal Camera/LiDAR/PCD submit Hz: $CameraHz / $LidarHz / $PcdHz
 - Probe report: $ProbeReport
 - Editor log: $EditorLog

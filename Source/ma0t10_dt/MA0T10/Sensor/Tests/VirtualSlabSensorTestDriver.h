@@ -12,7 +12,7 @@ public:
 	AVirtualSlabSensorTestDriver();
 	virtual void Tick(float DeltaTime) override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
-	bool StartTest(int32 Runs, const TArray<FString>& SensorIds);
+	bool StartTest(int32 Runs, const TArray<FString>& SensorIds, bool bOnlyPointCloud=false);
 	static FString MakeSyntheticBulkJson();
 	bool IsFinished() const { return bFinished; }
 	bool HasFailed() const { return bFailed; }
@@ -35,4 +35,5 @@ private:
 	bool bEndingRun=false;
 	bool bFinished=false;
 	bool bFailed=false;
+	bool bPointCloudOnly=false;
 };

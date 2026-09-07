@@ -821,6 +821,8 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 			Status.ConsumerFrameGapCount, Status.ConsumerValidationFailureCount, Status.ConsumerDuplicateCount,
 			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs, Status.EndToEndP95LatencyMs,
 			Status.ReplacedPendingFrameCount, Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptTimeoutCount, *Status.Message);
+		Text+=FString::Printf(TEXT("\n  Hz는 누적 평균(중지/대기 구간 포함 가능) · Raw 전송 미확인/실패 누적 %lld · 크기 거부 %lld"),Status.RawDeliveryFailureCount,Status.BodyLimitRejectedCount);
+		if(!Status.LastRawDeliveryFailureMessage.IsEmpty()) Text+=TEXT("\n  마지막 실제 전송 실패: ")+Status.LastRawDeliveryFailureMessage;
 	}
 	return Text;
 }
@@ -877,9 +879,11 @@ FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() co
 {
 	if (!TopicReceiverHost) return TEXT("수신 진단 Host 없음 · SensorRefactorTestMap에서 확인하십시오.");
 	const FString ReceiverBroker = TopicReceiverHost->GetReceiverBrokerUrl();
-	FString Text = FString::Printf(TEXT("DTCore 수신 Broker: %s\n수신 상태: %s · Actor 재주입/재송신 없음"),
+	FString Text = FString::Printf(TEXT("실제 수신 Broker: %s\n수신 상태: %s · Actor 재주입/재송신 없음"),
 		ReceiverBroker.IsEmpty() ? TEXT("설정 없음") : *ReceiverBroker,
 		TopicReceiverHost->AreTopicReceiversRequested() ? TEXT("자동 구독 사용") : TEXT("구독 해제"));
+	Text+=TopicReceiverHost->UsesSharedReceiver()?TEXT("\n수신 경로: Raw TCP 공유 · Broker MESSAGE 검증 1회"):TEXT("\n수신 경로: 독립 수신");
+	Text+=TopicReceiverHost->GetTopicReceiverScope()==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly?TEXT(" · 활성 송신만 확인"):TEXT(" · 전체 Topic 확인");
 	if (bUseStompTransport && !ReceiverBroker.IsEmpty() && !DraftBrokerUrl.IsEmpty() &&
 		!ReceiverBroker.Equals(DraftBrokerUrl, ESearchCase::IgnoreCase))
 	{
@@ -904,6 +908,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() co
 			Status.ReplacedPendingCount, Status.DeepValidationCount,
 			Status.LastSensorId.IsEmpty() ? TEXT("-") : *Status.LastSensorId, Status.LastFrameId,
 			Status.LastMessageBytes, Status.LastParseLatencyMs, *Status.LastMessage);
+		Text+=FString::Printf(TEXT("\n  backend=%s schema=%s 대상외=%lld 진단유실=%lld"),*Status.Backend,*Status.Schema,Status.IgnoredCount,Status.DiagnosticDropCount);
 	}
 	const TArray<FVirtualSensorTopicReceiveLogEntry>& Entries = TopicReceiverHost->GetRecentTopicReceiveLogs();
 	Text += TEXT("\n\n최근 수신 검증 이벤트 (최대 20개 표시)");
@@ -916,6 +921,8 @@ FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() co
 			*Entry.TimestampUtc.ToString(TEXT("%H:%M:%S")), Kind, Entry.bValid ? TEXT("정상") : TEXT("실패"),
 			Entry.SensorId.IsEmpty() ? TEXT("-") : *Entry.SensorId, Entry.FrameId, Entry.MessageBytes,
 			Entry.ParseLatencyMs, Entry.bDeepValidated ? TEXT(" · 상세") : TEXT(""), *Entry.Message);
+		Text+=FString::Printf(TEXT("\n  topic=%s schema=%s request=%s"),*Entry.Topic,*Entry.Schema,*Entry.RequestId);
+		if(!Entry.RunId.IsEmpty()) Text+=FString::Printf(TEXT("\n  run=%s mtl_no=%s slab_frame_no=%lld elapsed=%.2f"),*Entry.RunId,*Entry.MtlNo,Entry.SlabFrameNo,Entry.SlabElapsedSec);
 	}
 	return Text;
 }
@@ -1094,10 +1101,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildConnectionLogTa
 			+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(SEditableTextBox).Visibility_Lambda([this]() { return bUseStompTransport ? EVisibility::Collapsed : EVisibility::Visible; }).IsPassword(true).HintText(LOCTEXT("BearerV2", "Bearer token (세션에서만 유지)")).Text_Lambda([this]() { return FText::FromString(SessionBearerToken); }).OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { SessionBearerToken = Text.ToString(); }) ]
 			+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(SEditableTextBox).HintText(LOCTEXT("MaxBytesV2", "최대 메시지 bytes")).Text_Lambda([this]() { return FText::AsNumber(DraftMaxMessageBytes); }).OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { DraftMaxMessageBytes = FMath::Max(1024, FCString::Atoi(*Text.ToString())); }) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetTransportSummaryText()); }) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("ReceiverTitle", "DTCore 자체 수신 검증")) ]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("ReceiverTitle", "Broker 실제 수신 검증")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2)[ SNew(SWrapBox).UseAllottedSize(true)
 				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("StopReceivers", "수신 구독 끊기")).OnClicked_Lambda([this]() { StopTopicReceivers(); return FReply::Handled(); }) ]
 				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ReconnectReceivers", "수신 다시 연결")).OnClicked_Lambda([this]() { ReconnectTopicReceivers(); return FReply::Handled(); }) ]
+				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("ActiveReceiveOnly", "활성 송신만")).OnClicked_Lambda([this]() { if(TopicReceiverHost) TopicReceiverHost->SetTopicReceiverScope(EVirtualSensorTopicReceiverScope::ActiveTransmitOnly); return FReply::Handled(); }) ]
+				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("AllReceiveTopics", "전체 Topic")).OnClicked_Lambda([this]() { if(TopicReceiverHost) TopicReceiverHost->SetTopicReceiverScope(EVirtualSensorTopicReceiverScope::AllTopics); return FReply::Handled(); }) ]
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(CachedTopicReceiverSummary.IsEmpty() ? GetTopicReceiverSummaryText() : CachedTopicReceiverSummary); }) ]
 			+ SVerticalBox::Slot().FillHeight(1.0f).Padding(0, 8, 0, 0)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(CachedTransportLog.IsEmpty() ? BuildTransportLogText() : CachedTransportLog); }) ]

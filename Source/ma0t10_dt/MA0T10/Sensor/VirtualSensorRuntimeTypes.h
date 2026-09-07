@@ -249,6 +249,8 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	/** Receipt failure after the transport has no retry left for this frame. */
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 DeliveryFailureCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 RawDeliveryFailureCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") FString LastRawDeliveryFailureMessage;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 StaleResultDiscardCount = 0;

@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorWireHeaders.h"
 
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 
@@ -129,30 +130,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 		return Result;
 	}
 
-	FStompHeader Headers;
-	Headers.Add(TEXT("destination-type"), TEXT("MULTICAST"));
-	Headers.Add(TEXT("content-type"), TEXT("application/vnd.pcd"));
-	Headers.Add(TEXT("persistent"), TEXT("true"));
-	Headers.Add(TEXT("schema"), Metadata.Schema);
-	Headers.Add(TEXT("x-sensor-id"), Metadata.SensorId);
-	Headers.Add(TEXT("x-sensor-type"), TEXT("lidar"));
-	Headers.Add(TEXT("x-data-kind"), Result.DataKind);
-	Headers.Add(TEXT("x-frame-id"), LexToString(Metadata.FrameId));
-	Headers.Add(TEXT("x-request-id"), Result.RequestId);
-	FDateTime TimestampUtc;
-	const int64 TimestampUnixMilliseconds = FDateTime::ParseIso8601(*Metadata.TimestampUtc, TimestampUtc)
-		? TimestampUtc.ToUnixTimestamp() * 1000LL + TimestampUtc.GetMillisecond()
-		: 0LL;
-	// UE 5.3 escapes ':' in STOMP headers as '\:' instead of the STOMP 1.2
-	// '\c' sequence, which Artemis rejects before reading the binary body.
-	// Epoch milliseconds preserve UTC ordering without header metacharacters.
-	Headers.Add(TEXT("x-utc"), LexToString(TimestampUnixMilliseconds));
-	Headers.Add(TEXT("x-point-count"), LexToString(Metadata.PointCount));
-	Headers.Add(TEXT("x-source-point-count"), LexToString(Metadata.SourcePointCount));
-	Headers.Add(TEXT("x-filter-revision"), LexToString(Metadata.FilterRevision));
-	Headers.Add(TEXT("x-acquisition-profile"), Metadata.ProfileKey);
-	Headers.Add(TEXT("x-checksum-sha1"), Metadata.ChecksumSha1);
-	for (const auto& Pair : Metadata.SlabContext.ToHeaders()) Headers.Add(FName(*Pair.Key),Pair.Value);
+	FStompHeader Headers = FVirtualSensorWireHeaders::EnginePcd(Metadata, Result.RequestId);
 
 	const double StartedSeconds = FPlatformTime::Seconds();
 	const TWeakObjectPtr<UVirtualSensorTransportComponent> WeakThis(this);

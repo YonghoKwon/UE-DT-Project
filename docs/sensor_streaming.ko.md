@@ -18,6 +18,18 @@ Camera queue는 8개, LiDAR/PCD queue는 각각 20개이며 모든 프레임에 
 
 ## ML-X(80) 20Hz 실시간 Point Cloud
 
+### 수신 검증과 Slab 연계
+
+기본 **활성 송신만 확인**은 현재 송신 중인 종류와 SensorId를 검사합니다. Raw TCP에서는 실제 Broker MESSAGE의 백그라운드 검증 결과를 수신 TC와 Capture/Export UI가 공유합니다. receipt를 복사해 수신 성공으로 표시하지 않습니다. PCD만 활성화하면 Camera/LiDAR 수신 이벤트를 추가하지 않습니다. **전체 Topic 확인**은 외부 발행자를 검사하는 독립 수신 모드입니다.
+
+PCD 수신은 `sensor-id`/`x-sensor-id`, `frame-id`/`x-frame-id`, `checksum`/`x-checksum-sha1`, `acquisition-profile`/`x-acquisition-profile` 등 기존 두 송신 경로의 별칭을 지원합니다. UTC는 ISO8601 또는 epoch milliseconds를 정규화하고 별칭 값이 충돌하면 오류로 표시합니다. `Binary PCD required STOMP headers are missing` 문제를 해결하기 위해 Broker 한도를 올릴 필요는 없습니다.
+
+Slab 정보는 여전히 STOMP의 `x-run-uuid`, `x-mtl-no`, `x-slab-frame-no`, `x-slab-elapsed-sec`에 있습니다. **PCD 본문에 이 정보를 삽입하는 변경은 포함하지 않습니다.** 일반 비연동 PCD에는 Slab 정보가 없어도 유효합니다. UI 최근 수신 이벤트에서 센서 FrameId와 Slab 프레임을 독립적으로 확인할 수 있습니다.
+
+수신 구독 해제는 송신과 Broker receipt 처리를 중지하지 않습니다. 송신 중지 후 마지막 진단은 보존됩니다. 표시 Hz는 누적 통계이므로 과거 대기·중지 구간이 포함될 수 있습니다. 세션 실패 수와 헤더 검증 오류는 별개이며, 실제 Raw 전달 실패의 마지막 원인을 함께 확인하십시오.
+
+현재 우선 검증 범위는 Raw TCP PCD와 UI 공유 경로입니다. 독립 Camera/JPEG 및 LiDAR telemetry의 형식별 파서 확장은 후속 검증 대상이며, 기존 JSON 호환 경로와 혼동하지 않습니다.
+
 실시간 Point Cloud Topic은 PCD v0.7 `DATA binary` 완전한 파일 바이트를 STOMP binary body로 직접 전송합니다. 형식은 `PCD Binary 고정`이며 CSV/JSONL/LAS/LAZ는 로컬 캡처와 수동 내보내기에서만 선택합니다.
 
 | 항목 | 값 |

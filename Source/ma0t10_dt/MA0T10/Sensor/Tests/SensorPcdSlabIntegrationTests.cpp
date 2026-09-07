@@ -240,6 +240,11 @@ bool FSlabSessionFailureTest::RunTest(const FString& Parameters)
 	const FString AbortedRun = Slab->BeginSlabSensorSession(FString(), {SensorId});
 	Slab->EndSlabSensorSession(AbortedRun, true); Slab->Tick(0);
 	TestEqual(TEXT("intentional abort is not timeout"), Slab->GetSlabSensorSessionStatus().EndReason, EVirtualSlabSessionEndReason::Aborted);
+	const FString PcdRun=Slab->BeginSlabSensorSession(FString(),{SensorId},true);
+	TestTrue(TEXT("PCD-only session starts point cloud"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,SensorId));
+	TestFalse(TEXT("PCD-only does not enable lidar telemetry"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::LidarPayload,SensorId));
+	TestFalse(TEXT("PCD-only does not enable camera"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::CameraImage,SensorId));
+	Slab->EndSlabSensorSession(PcdRun,false); Slab->Tick(0);
 	Sensor->StopSensor(); Sensor->Destroy(); Manager->Destroy();
 	return true;
 }

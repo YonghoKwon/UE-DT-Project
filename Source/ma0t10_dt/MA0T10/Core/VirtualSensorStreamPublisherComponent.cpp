@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
 
@@ -569,6 +570,7 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 	Runtime.Status.ConfigRevision = Runtime.ConfigRevision;
 	RefreshQueueTelemetry(Runtime);
 	if (bWasEnabled != Runtime.Config.bEnabled) UpdateCameraStreamDemand();
+	OnStreamConfigurationChanged.Broadcast();
 }
 
 void UVirtualSensorStreamPublisherComponent::StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
@@ -581,6 +583,7 @@ void UVirtualSensorStreamPublisherComponent::StartStream(EVirtualSensorStreamKin
 	Runtime.Status.Message = TEXT("실시간 전송 대기 중");
 	AddLog(MakeStreamKey(StreamKind, SensorId.TrimStartAndEnd()), TEXT("started"), TEXT("스트림을 시작했습니다."));
 	UpdateCameraStreamDemand();
+	OnStreamConfigurationChanged.Broadcast();
 }
 
 void UVirtualSensorStreamPublisherComponent::StopStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
@@ -600,6 +603,7 @@ void UVirtualSensorStreamPublisherComponent::StopStream(EVirtualSensorStreamKind
 		AddLog(Key, TEXT("stopped"), TEXT("스트림을 중지했습니다."));
 	}
 	UpdateCameraStreamDemand();
+	OnStreamConfigurationChanged.Broadcast();
 }
 
 void UVirtualSensorStreamPublisherComponent::StartAllStreams(const FString& SensorId)
@@ -626,6 +630,7 @@ void UVirtualSensorStreamPublisherComponent::StopAllStreams(const FString& Senso
 			Pair.Value.Status.Message = TEXT("중지됨");
 		}
 		UpdateCameraStreamDemand();
+		OnStreamConfigurationChanged.Broadcast();
 		return;
 	}
 	StopStream(EVirtualSensorStreamKind::LidarPayload, SensorId);
@@ -1284,14 +1289,7 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	Frame.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Message.SensorId, Message.FrameId, *Checksum);
 	if (Message.bBinaryPcd)
 	{
-		Frame.Headers.Add(TEXT("checksum"), Message.BinaryMetadata.ChecksumSha1);
-		Frame.Headers.Add(TEXT("point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
-		Frame.Headers.Add(TEXT("x-point-count"), FString::FromInt(Message.BinaryMetadata.PointCount));
-		Frame.Headers.Add(TEXT("source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
-		Frame.Headers.Add(TEXT("x-source-point-count"), FString::FromInt(Message.BinaryMetadata.SourcePointCount));
-		Frame.Headers.Add(TEXT("filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
-		Frame.Headers.Add(TEXT("x-filter-revision"), FString::FromInt(Message.BinaryMetadata.FilterRevision));
-		Frame.Headers.Add(TEXT("acquisition-profile"), Message.BinaryMetadata.ProfileKey);
+		Frame.Headers = FVirtualSensorWireHeaders::RawPcd(Message.BinaryMetadata);
 	}
 	return Subsystem->EnqueueBinaryFrame(Frame, OutError);
 }
@@ -1315,6 +1313,8 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.ConsumerReceivedCount = Item.ConsumerReceivedCount;
 		Runtime->Status.ConsumerReceivedHz = Item.ConsumerHz;
 		Runtime->Status.ConsumerValidationFailureCount = Item.ValidationFailureCount;
+		Runtime->Status.RawDeliveryFailureCount=Item.DeliveryFailureCount;
+		Runtime->Status.LastRawDeliveryFailureMessage=Item.LastDeliveryFailureMessage;
 		Runtime->Status.ConsumerFrameGapCount = Item.FrameGapCount;
 		Runtime->Status.ConsumerDuplicateCount = Item.DuplicateCount;
 		Runtime->Status.InputQueueDepth = Runtime->PendingFrameQueue.Num() + (Runtime->PendingFrame.IsSet() ? 1 : 0) + Item.InputQueueDepth;
