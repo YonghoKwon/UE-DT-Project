@@ -3,14 +3,24 @@
 
 namespace
 {
+bool IsUnsignedInteger(const FString& S)
+{
+	if(S.IsEmpty()) return false;
+	for(TCHAR C:S) if(C<TEXT('0')||C>TEXT('9')) return false;
+	return true;
+}
 bool Canonical(FString& S,int32 Type)
 {
 	if(S.IsEmpty()) return false;
-	if(Type==1) { int64 N=0; if(!LexTryParseString(N,*S)) return false; S=LexToString(N); }
+	if(Type==1) { int64 N=0; if(!IsUnsignedInteger(S)||!LexTryParseString(N,*S)||N<0) return false; S=LexToString(N); }
 	if(Type==2)
 	{
 		FDateTime D; int64 Ms=0;
-		if(LexTryParseString(Ms,*S) && Ms>0) D=FDateTime::FromUnixTimestamp(Ms/1000)+FTimespan::FromMilliseconds(Ms%1000);
+		if(IsUnsignedInteger(S))
+		{
+			if(!LexTryParseString(Ms,*S)||Ms<=0||Ms>253402300799999LL) return false;
+			D=FDateTime::FromUnixTimestamp(Ms/1000)+FTimespan((Ms%1000)*ETimespan::TicksPerMillisecond);
+		}
 		else if(!FDateTime::ParseIso8601(*S,D)) return false;
 		S=D.ToIso8601();
 	}
