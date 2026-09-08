@@ -23,7 +23,7 @@ void USensorToolToolbarWidget::SelectSensor(const FString& Id)
 {
 	auto* W=Workspace();auto* C=W?W->GetCoordinator():nullptr;if(!C)return;
 	int32 Camera=0,Lidar=0;
-	for(auto* A:C->GetSensorActors())if(A){const bool IsCamera=A->GetSensorKind()==EVirtualSensorKind::Camera;if(A->GetSensorId()==Id){if(IsCamera){C->SelectCameraByIndex(Camera);C->SetViewMode(EVirtualSensorViewMode::Camera);}else{C->SelectLidarByIndex(Lidar);C->SetViewMode(EVirtualSensorViewMode::Lidar);}return;}if(IsCamera)++Camera;else++Lidar;}
+	for(auto* A:C->GetSensorActors())if(A){const bool IsCamera=A->GetSensorKind()==EVirtualSensorKind::Camera;if(A->GetSensorId()==Id){if(IsCamera){C->SelectCameraByIndex(Camera);C->SetViewMode(EVirtualSensorViewMode::Camera);}else{C->SelectLidarByIndex(Lidar);C->SetViewMode(EVirtualSensorViewMode::Lidar);}W->SynchronizeOwnedSelection();return;}if(IsCamera)++Camera;else++Lidar;}
 }
 FText USensorToolToolbarWidget::SelectedSensorText() const
 {
@@ -34,7 +34,7 @@ FText USensorToolToolbarWidget::SelectedSensorText() const
 TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 {
 	RefreshSensors();auto Bar=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,6));
-	Bar->AddSlot()[SNew(SComboBox<TSharedPtr<FString>>).OptionsSource(&SensorOptions).OnComboBoxOpening_Lambda([this](){RefreshSensors();})
+	Bar->AddSlot()[SAssignNew(SensorCombo,SComboBox<TSharedPtr<FString>>).OptionsSource(&SensorOptions).OnComboBoxOpening_Lambda([this](){RefreshSensors();if(SensorCombo.IsValid())SensorCombo->RefreshOptions();})
 	.OnGenerateWidget_Lambda([](TSharedPtr<FString> Id){return SNew(STextBlock).Font(FSensorToolWorkspaceStyle::Font(16)).Text(FText::FromString(*Id));})
 	.OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type){if(Id)SelectSensor(*Id);})
 	[SNew(STextBlock).Font(FSensorToolWorkspaceStyle::Font(16)).ColorAndOpacity(FSensorToolWorkspaceStyle::Text()).Text_Lambda([this](){return SelectedSensorText();})]];

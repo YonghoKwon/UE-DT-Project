@@ -58,6 +58,9 @@ public:
 			Monitor->SetPanelExpandedSize(Size*.7,true);W->ResetOwnedPanelLayout(ESensorToolPanelRole::Monitor);
 			Test->TestTrue(TEXT("size then anchor reset is stable"),P.Equals(Monitor->GetCurrentPanelPosition(),1)&&Size.Equals(Monitor->GetPanelExpandedSize(),1));
 			W->SetPanelOpen(ESensorToolPanelRole::Replay,false);W->SetPanelOpen(ESensorToolPanelRole::Data,false);
+			C->SetViewMode(EVirtualSensorViewMode::Lidar);W->SynchronizeOwnedSelection();W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
+			Test->TestTrue(TEXT("real PIE settings display selected LiDAR"),Settings->GetPendingState().TargetKind==EVirtualSensorTargetKind::Lidar);
+			Test->TestEqual(TEXT("real PIE settings ID matches selected actor"),Settings->GetPendingState().SensorId,C->GetSelectedSensorActor()->GetSensorId());
 			const FString Path=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_WORKSPACE_SCREENSHOT"));if(!Path.IsEmpty())FScreenshotRequest::RequestScreenshot(Path,true,false);
 			return true;
 		}

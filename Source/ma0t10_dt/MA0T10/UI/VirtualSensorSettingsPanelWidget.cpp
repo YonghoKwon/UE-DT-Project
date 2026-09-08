@@ -135,7 +135,11 @@ void UVirtualSensorSettingsPanelWidget::NativeDestruct()
 void UVirtualSensorSettingsPanelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
-    if (AActor* SelectedActor = GetSelectedSensorActor(); SelectedActor != LastSyncedSensorActor.Get())
+    if (IsWorkspaceOwned())
+    {
+        SynchronizeWorkspaceSelection();
+    }
+    else if (AActor* SelectedActor = GetSelectedSensorActor(); SelectedActor != LastSyncedSensorActor.Get())
     {
         RefreshPendingState(true);
         SyncGizmoTarget();
@@ -170,9 +174,41 @@ FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
 void UVirtualSensorSettingsPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
     SensorManager = InSensorManager;
-    RefreshPendingState(true);
+    if (IsWorkspaceOwned() && SensorManager) SynchronizeWorkspaceSelection(true);
+    else RefreshPendingState(true);
     SpawnGizmoIfNeeded();
     SyncGizmoTarget();
+}
+
+bool UVirtualSensorSettingsPanelWidget::SynchronizeWorkspaceSelection(bool bForceRefresh)
+{
+    if (!IsWorkspaceOwned() || !SensorManager) return false;
+    AVirtualSensorActorBase* Selected = SensorManager->GetSelectedSensorActor();
+    const auto Kind = Selected
+        ? (Selected->GetSensorKind()==EVirtualSensorKind::Lidar ? EVirtualSensorTargetKind::Lidar : EVirtualSensorTargetKind::Camera)
+        : (SensorManager->GetViewMode()==EVirtualSensorViewMode::Camera ? EVirtualSensorTargetKind::Camera : EVirtualSensorTargetKind::Lidar);
+    const FString Id = Selected ? Selected->GetSensorId() : FString();
+    const bool bSame = Selected==LastSyncedSensorActor.Get() && PendingState.TargetKind==Kind && PendingState.SensorId==Id;
+    if (bSame && !bForceRefresh) return false;
+
+    if (!bSame && bManipulationEnabled)
+    {
+        // Do not restore the old monitor view here: the user's new selection wins.
+        if (auto* Previous=Cast<AVirtualSensorActorBase>(LastSyncedSensorActor.Get())) Previous->EndInteractiveManipulation();
+        bManipulationEnabled=false;
+        bMonitorAutoFollowingManipulation=false;
+        bRestoreMonitorViewAfterManipulation=false;
+        if (GizmoActor) GizmoActor->SetManipulationEnabled(false);
+    }
+    PendingState.TargetKind=Kind;
+    if (Selected) RefreshPendingState(true);
+    else
+    {
+        PendingState=FVirtualSensorEditableState(); PendingState.TargetKind=Kind;
+        PendingState.SensorId.Reset(); LastControlMessage=TEXT("선택한 종류의 센서가 없습니다."); RefreshNativeText();
+    }
+    SyncGizmoTarget(); LastSyncedSensorActor=Selected;
+    return true;
 }
 
 void UVirtualSensorSettingsPanelWidget::BindHostActor(AVirtualSensorUiHostActor* InHostActor)

@@ -15,6 +15,8 @@ class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPan
     GENERATED_BODY()
 
 public:
+	/** Follow the workspace selection without cycling or applying edited values. Legacy panels opt out. */
+	bool SynchronizeWorkspaceSelection(bool bForceRefresh=false);
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void BindSensorManager(AVirtualSensorCoordinator* InSensorManager);
 

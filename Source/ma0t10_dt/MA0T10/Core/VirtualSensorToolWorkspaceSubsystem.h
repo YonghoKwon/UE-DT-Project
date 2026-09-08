@@ -52,6 +52,7 @@ public:
 	void SavePanel(ESensorToolPanelRole Role);
 	void RestorePanel(ESensorToolPanelRole Role);
 	void UnregisterPanel(UVirtualSensorPanelWidgetBase* Panel);
+	void SynchronizeOwnedSelection();
 	static const FString SlotName;
 private:
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;

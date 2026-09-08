@@ -142,11 +142,16 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 	if(auto* Monitor=Cast<UVirtualSensorMonitorPanelWidget>(GetOwnedPanel(ESensorToolPanelRole::Monitor)))
 		Monitor->PumpPendingCaptureWork();
 	PollTime+=D;if(PollTime<.2f||Panels.IsEmpty())return;PollTime=0;EnsureRoot();RefreshHosting();
+	SynchronizeOwnedSelection();
 	if(!Canvas)return;const FVector2D Size=Canvas->GetCachedGeometry().GetLocalSize();
 	if(Size.X>=320&&Size.Y>=200&&!Size.Equals(LastCanvasSize,1))
 	{
 		LastCanvasSize=Size;if(auto* S=Cast<UCanvasPanelSlot>(Toolbar->Slot))S->SetSize(FVector2D(Size.X-32,88));
 		for(const auto& P:Panels)RestorePanel(P.Key);
 	}
+}
+void UVirtualSensorToolWorkspaceSubsystem::SynchronizeOwnedSelection()
+{
+	if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(GetOwnedPanel(ESensorToolPanelRole::Settings))) Settings->SynchronizeWorkspaceSelection();
 }
 TStatId UVirtualSensorToolWorkspaceSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorToolWorkspaceSubsystem,STATGROUP_Tickables);}
