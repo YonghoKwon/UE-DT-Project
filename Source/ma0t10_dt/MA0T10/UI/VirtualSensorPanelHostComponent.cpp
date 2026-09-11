@@ -52,8 +52,9 @@ void UVirtualSensorPanelHostComponent::UnregisterAllPanels()
 {
 	for (FVirtualSensorHostedPanel& Entry : HostedPanels)
 	{
-		if (Entry.Panel)
-		{
+        if (Entry.Panel)
+        {
+			if(auto* Workspace=Entry.Panel->GetToolWorkspace())Workspace->UnregisterPanel(Entry.Panel);
 			Entry.Panel->SetPanelHostComponent(nullptr);
 			Entry.Panel->RemoveFromParent();
 		}
@@ -98,7 +99,8 @@ UCanvasPanel* UVirtualSensorPanelHostComponent::ResolveMainCanvas() const
 void UVirtualSensorPanelHostComponent::AttachPanel(FVirtualSensorHostedPanel& Entry, UCanvasPanel* TargetCanvas)
 {
 	UVirtualSensorPanelWidgetBase* Panel = Entry.Panel;
-	if (!Panel) return;
+    if (!Panel) return;
+	if(auto* Workspace=Panel->GetToolWorkspace()){Workspace->AttachOwnedPanel(Panel);return;}
 	Panel->RemoveFromParent();
 	if (TargetCanvas)
 	{

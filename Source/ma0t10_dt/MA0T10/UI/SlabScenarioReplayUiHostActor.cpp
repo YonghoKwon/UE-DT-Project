@@ -12,6 +12,7 @@ void ASlabScenarioReplayUiHostActor::ShowReplayPanel()
 	if(!Class) Class=LoadClass<USlabScenarioReplayPanelWidget>(nullptr,TEXT("/Game/MA0T10/UI/WBP_SlabScenarioReplayPanel.WBP_SlabScenarioReplayPanel_C"));
 	if(!Class) Class=USlabScenarioReplayPanelWidget::StaticClass();
 	ReplayWidget=CreateWidget<USlabScenarioReplayPanelWidget>(GetWorld(),Class);
+	GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Replay,ReplayWidget);
 	ReplayWidget->SetPanelPersistenceKey(TEXT("SlabScenarioReplay"));
 	ReplayWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::RightCenter,FVector2D(600,540));
 	ReplayWidget->SetPanelResizable(true); ReplayWidget->ResizeHandleSize=32;

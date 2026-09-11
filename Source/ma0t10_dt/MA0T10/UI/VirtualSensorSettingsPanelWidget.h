@@ -15,6 +15,8 @@ class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPan
     GENERATED_BODY()
 
 public:
+	/** Follow the workspace selection without cycling or applying edited values. Legacy panels opt out. */
+	bool SynchronizeWorkspaceSelection(bool bForceRefresh=false);
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void BindSensorManager(AVirtualSensorCoordinator* InSensorManager);
 
@@ -98,6 +100,7 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;
     bool ApplyStateToRuntime(const FVirtualSensorEditableState& State, FString& OutError);
     bool ValidateState(const FVirtualSensorEditableState& State, FString& OutError) const;
@@ -154,5 +157,5 @@ private:
 	FVirtualSensorInteractionRequest InteractionRequest;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
-    FName SelectedSettingHelpKey = TEXT("SimulationQuality");
+    FName SelectedSettingHelpKey = NAME_None;
 };

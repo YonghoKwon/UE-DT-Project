@@ -87,6 +87,8 @@ class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPane
     GENERATED_BODY()
 
 public:
+	void PumpPendingCaptureWork();
+	bool IsConfiguredCapturePending() const { return bConfiguredOneShotPending; }
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp);
 
@@ -284,6 +286,7 @@ protected:
     virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent) override;
 
 private:
+	bool bWorkspaceViewOptions=false;
     UFUNCTION()
     void HandleToggleButtonClicked();
 

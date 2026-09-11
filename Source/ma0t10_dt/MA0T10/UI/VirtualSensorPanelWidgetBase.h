@@ -6,6 +6,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "VirtualSensorPanelWidgetBase.generated.h"
 
 class UVirtualSensorPanelHostComponent;
@@ -16,6 +17,15 @@ class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDxWidget
     GENERATED_BODY()
 
 public:
+	void SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role);
+	UVirtualSensorToolWorkspaceSubsystem* GetToolWorkspace() const { return ToolWorkspace.Get(); }
+	ESensorToolPanelRole GetToolRole() const { return ToolRole; }
+	bool IsWorkspaceOwned() const { return ToolWorkspace.IsValid(); }
+	FVirtualSensorPanelUiState CaptureWorkspaceLayout() const;
+	void ApplyWorkspaceLayout(const FVirtualSensorPanelUiState& State);
+	FVector2D GetPanelLayoutViewport() const { return ResolveLogicalViewportSize(); }
+	void SetWorkspacePosition(FVector2D Position) { if(IsWorkspaceOwned())SetPanelPositionInternal(Position); }
+	TSharedRef<SWidget> BuildToolPanelHeader(const FText& Title);
 	// PR17 compatibility names. They no longer change any global UI state.
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Accessibility")
 	void SetGlobalSensorUiFontScale(float InScale);
@@ -90,6 +100,7 @@ public:
     void RefreshHostedPanelLayout();
 
 protected:
+	virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -117,6 +128,8 @@ public:
     float ResizeHandleSize = 18.0f;
 
 private:
+	TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> ToolWorkspace;
+	ESensorToolPanelRole ToolRole=ESensorToolPanelRole::Monitor;
 	bool bSensorPanelConstructed = false;
 	TArray<TFunction<void(float)>> SensorFontSetters;
 	TWeakObjectPtr<class AVirtualSensorUiHostActor> SensorAppearanceOwner;

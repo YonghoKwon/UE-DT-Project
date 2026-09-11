@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "SensorToolAppearance.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/World.h"
@@ -94,6 +95,9 @@ UVirtualSensorMonitorPanelWidget* AVirtualSensorUiHostActor::CreateAndBindMonito
     }
 
     AVirtualSensorCoordinator* ResolvedManager = ResolveSensorManager();
+	auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+	Workspace->SetCoordinator(ResolvedManager);
+	Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,MonitorWidget);
     if (ResolvedManager)
     {
         MonitorWidget->BindSensorManager(ResolvedManager);
@@ -213,6 +217,7 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
         SettingsWidget = CreateWidget<UVirtualSensorSettingsPanelWidget>(World, EffectiveSettingsClass);
         if (SettingsWidget)
         {
+			World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Settings,SettingsWidget);
             SettingsWidget->SetPanelPersistenceKey(TEXT("Settings"));
 			SettingsWidget->SetSensorAppearanceOwner(this);
             SettingsWidget->BindHostActor(this);
@@ -230,6 +235,7 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
         CaptureExportWidget = CreateWidget<UVirtualSensorCaptureExportPanelWidget>(World, EffectiveCaptureClass);
         if (CaptureExportWidget)
         {
+			World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Data,CaptureExportWidget);
             CaptureExportWidget->SetPanelPersistenceKey(TEXT("CaptureExport"));
 			CaptureExportWidget->SetSensorAppearanceOwner(this);
             CaptureExportWidget->BindSensorManager(ResolvedManager);
@@ -248,8 +254,8 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
 
 void AVirtualSensorUiHostActor::ResetAllPanelUiPreferences()
 {
+	if(GetWorld())if(auto* Workspace=GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()){Workspace->ResetOwnedWorkspaceLayout();return;}
 	ResetSensorToolAppearance();
-    UVirtualSensorUiPreferencesSaveGame::DeleteSavedPreferences();
     if (MonitorWidget)
     {
         MonitorWidget->ResetMonitorUiPreferencesToDefault();
@@ -271,9 +277,15 @@ void AVirtualSensorUiHostActor::ResetSensorToolAppearance()
 {
 	SetSensorToolFontScale(1.0f);
 }
+float AVirtualSensorUiHostActor::GetSensorToolFontScale() const
+{
+	if(GetWorld())if(auto* W=GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>())if(MonitorWidget&&MonitorWidget->GetToolWorkspace()==W)return W->GetOwnedPanelFontScale();
+	return SensorToolFontScale;
+}
 
 void AVirtualSensorUiHostActor::SetSensorToolFontScale(float Scale)
 {
+	if(GetWorld())if(auto* Workspace=GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>())if(Workspace->GetOwnedPanel(ESensorToolPanelRole::Monitor)){Workspace->SetOwnedPanelFontScale(Scale);SensorToolFontScale=Workspace->GetOwnedPanelFontScale();return;}
 	if (!FMath::IsFinite(Scale)) return;
 	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
 	for (UVirtualSensorPanelWidgetBase* Panel : {static_cast<UVirtualSensorPanelWidgetBase*>(MonitorWidget), static_cast<UVirtualSensorPanelWidgetBase*>(SettingsWidget), static_cast<UVirtualSensorPanelWidgetBase*>(CaptureExportWidget)})

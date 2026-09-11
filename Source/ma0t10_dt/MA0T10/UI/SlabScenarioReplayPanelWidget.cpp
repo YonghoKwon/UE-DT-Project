@@ -1,4 +1,6 @@
 #include "SlabScenarioReplayPanelWidget.h"
+#include "SensorToolWidgetDecl.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "VirtualSensorUiStyle.h"
 #include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
 #include "Engine/GameInstance.h"
@@ -33,34 +35,27 @@ void USlabScenarioReplayPanelWidget::RefreshList()
 	for(const auto& E:Entries)
 	{
 		List->AddSlot().AutoHeight().Padding(0,3)
-		[SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+		[SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
 		.OnClicked_Lambda([this,Id=E.UUID](){SelectScenario(Id);return FReply::Handled();})
-		[SNew(STextBlock).AutoWrapText(true).ColorAndOpacity_Lambda([this,Id=E.UUID](){return FSlateColor(Id==SelectedUUID?FVirtualSensorUiStyle::Accent:FVirtualSensorUiStyle::PrimaryText);})
-		.Text(FText::FromString(FString::Printf(TEXT("%s\nUUID: %s\n소재: %s · %d행 · 마지막 데이터 %.2f초\n수신: %s"),*E.Name,*E.UUID,*E.MaterialSummary,E.RowCount,E.LastElapsedSec,*E.ReceivedUtc.ToIso8601())))]];
+		[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity_Lambda([this,Id=E.UUID](){return FSlateColor(Id==SelectedUUID?FVirtualSensorUiStyle::Accent:FVirtualSensorUiStyle::PrimaryText);})
+		.Text(FText::FromString(FString::Printf(TEXT("%s\n%s · %d행"),*E.Name,*E.MaterialSummary,E.RowCount)))]];
 	}
 }
 TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
 {
-	if(WidgetTree&&WidgetTree->RootWidget) return Super::RebuildWidget();
-	auto Result=SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FVirtualSensorUiStyle::PanelBackground).Padding(10)
-	[SNew(SVerticalBox)
-	+SVerticalBox::Slot().AutoHeight()
-	[SNew(SHorizontalBox)
-	 +SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Title","Slab 시나리오 재생 | 제목 드래그"))]
-	 +SHorizontalBox::Slot().AutoWidth()[SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text_Lambda([this](){return IsPanelCollapsed()?LOCTEXT("Expand","펼치기"):LOCTEXT("Collapse","접기");}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]
-	 +SHorizontalBox::Slot().AutoWidth().Padding(3,0)[SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("Reset","배치 초기화")).OnClicked_Lambda([this](){ResetPanelPosition();ResetPanelSize();return FReply::Handled();})]]
-	+SVerticalBox::Slot().FillHeight(1).Padding(0,8)
-	[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
-	 +SScrollBox::Slot()[SNew(SVerticalBox)
-	  +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("Memory","최근 10개 · 이번 실행 중에만 보관 · 재생 중 자유 시점 관찰 가능"))]
-	  +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this](){auto* M=Manager();return FText::FromString(M?M->GetRegistrationMessage():TEXT("관리자 연결 대기"));})]
-	  +SVerticalBox::Slot().AutoHeight()[SAssignNew(List,SVerticalBox)]
-	  +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SCheckBox).IsChecked_Lambda([this](){return bSendPcd?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState V){bSendPcd=V==ECheckBoxState::Checked;})[SNew(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("Send","재생 중 PCD 송신 (기본 꺼짐)"))]]
-	  +SVerticalBox::Slot().AutoHeight()[SNew(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Text(LOCTEXT("Play","선택한 시나리오 처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
-	  +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this](){auto* M=Manager();if(!M)return LOCTEXT("NoManager","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?TEXT("대기 · 재생 adapter가 연결되어야 시작할 수 있습니다."):S.Message+TEXT("\n실행 UUID: ")+S.RunUUID);})]
-	 ]]
-	+SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Justification(ETextJustify::Right).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).Text(LOCTEXT("Grip","우하단 드래그로 크기 조절 ◢"))]
-	];
-	RefreshList(); return Result;
+    if(WidgetTree&&WidgetTree->RootWidget)return Super::RebuildWidget();
+    auto Result=SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FVirtualSensorUiStyle::PanelBackground).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Padding(12)
+    [SNew(SVerticalBox)
+     +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("ReplayTitle","시나리오"))]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this](){auto* M=Manager();return FText::FromString(M?M->GetRegistrationMessage():TEXT("연결 대기"));})]
+     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[SAssignNew(List,SVerticalBox)]]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,8)
+     [SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details","선택 항목 상세"))]
+      .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("UUID: %s\n수신: %s\n마지막 데이터: %.2f초"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
+     +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendPcd?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendPcd=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("Send","재생 중 PCD 송신")).ToolTipText(LOCTEXT("SendTip","다음 재생부터 적용됩니다. 기본은 관찰 전용입니다."))]]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
+     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?TEXT("대기 · 재생 adapter 연결 필요"):S.Message);})]
+    ]; RefreshList();return Result;
 }
 #undef LOCTEXT_NAMESPACE
