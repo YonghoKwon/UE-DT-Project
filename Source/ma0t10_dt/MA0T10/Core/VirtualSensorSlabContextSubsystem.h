@@ -15,6 +15,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	FString BeginSlabSensorSession(const FString& RunId, const TArray<FString>& TargetSensorIds, UPARAM(DisplayName="PCD만 송신") bool bPointCloudOnly=false);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
+	FString BeginReplaySensorSession(const FString& RunId,const TArray<FString>& TargetSensorIds,const FString& ScenarioUUID,bool bSendPcd=false);
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool NotifySlabFrameApplied(const FString& RunId, const FString& MtlNo, int64 SlabFrameNo, double ElapsedSec);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool SetSlabSensorSessionPaused(const FString& RunId, bool bPaused);
@@ -30,6 +32,7 @@ public:
 	virtual TStatId GetStatId() const override;
 	virtual void Deinitialize() override;
 private:
+	FString BeginSessionInternal(const FString& RunId,const TArray<FString>& TargetSensorIds,bool bPointCloudOnly,bool bObservationOnly,const FString& ScenarioUUID);
 	bool CheckRun(const FString& RunId);
 	void Finish(EVirtualSlabSessionEndReason Reason);
 	int64 CountStreamErrors() const;

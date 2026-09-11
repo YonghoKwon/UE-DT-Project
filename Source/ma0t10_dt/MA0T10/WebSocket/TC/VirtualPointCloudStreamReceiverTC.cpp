@@ -168,7 +168,7 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 		FString Schema;
 		if (!Embedded->TryGetStringField(TEXT("schema"),Schema) || Schema!=TEXT("virtual-pointcloud.context.v1"))
 		{ Data->Message=TEXT("PCD 내부 메타데이터 schema 오류"); return Data; }
-		const TCHAR* Fields[][2]={{TEXT("run_uuid"),TEXT("x-run-uuid")},{TEXT("mtl_no"),TEXT("x-mtl-no")},
+		const TCHAR* Fields[][2]={{TEXT("scenario_uuid"),TEXT("x-scenario-uuid")},{TEXT("run_uuid"),TEXT("x-run-uuid")},{TEXT("mtl_no"),TEXT("x-mtl-no")},
 			{TEXT("frame_no"),TEXT("x-slab-frame-no")},{TEXT("elapsed_sec"),TEXT("x-slab-elapsed-sec")},{TEXT("session_segment"),TEXT("x-session-segment")}};
 		for (const auto& Field : Fields)
 		{

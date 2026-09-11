@@ -155,6 +155,7 @@ function validateBinaryPcd(headers, body) {
       if (requiredSlabRuns > 0) checks.embeddedSlab = meta.run_uuid === headers['x-run-uuid'] &&
         meta.mtl_no === headers['x-mtl-no'] && meta.frame_no === headers['x-slab-frame-no'] &&
         Number(meta.elapsed_sec) === Number(headers['x-slab-elapsed-sec']);
+      if (args.get('--scenario-replay') === 'true') checks.originalScenario = meta.scenario_uuid === 'd8ddf0b1-b00b-4724-a529-90b8348726e6' && meta.scenario_uuid !== meta.run_uuid;
     } catch { checks.embeddedMetadata = false; }
   }
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);

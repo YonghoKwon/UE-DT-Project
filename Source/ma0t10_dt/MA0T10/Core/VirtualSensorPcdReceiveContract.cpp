@@ -51,6 +51,8 @@ bool FVirtualSensorPcdReceiveContract::Normalize(const TMap<FName,FString>& Inpu
 		Output.Add(F.A,VA);
 	}
 	D.RunId=Input.FindRef(TEXT("x-run-uuid")); D.MtlNo=Input.FindRef(TEXT("x-mtl-no"));
+	D.ScenarioUUID=Input.FindRef(TEXT("x-scenario-uuid"));
+	if(!D.ScenarioUUID.IsEmpty()) { FGuid Id; if(!FGuid::Parse(D.ScenarioUUID,Id)||!Id.IsValid()) { D.ErrorCode=TEXT("scenario-uuid-invalid"); D.Message=TEXT("원본 시나리오 UUID 오류"); return false; } }
 	if(!D.RunId.IsEmpty()||!D.MtlNo.IsEmpty()||Input.Contains(TEXT("x-slab-frame-no")))
 	{
 		FGuid Id; FString N=Input.FindRef(TEXT("x-slab-frame-no")), T=Input.FindRef(TEXT("x-slab-elapsed-sec"));

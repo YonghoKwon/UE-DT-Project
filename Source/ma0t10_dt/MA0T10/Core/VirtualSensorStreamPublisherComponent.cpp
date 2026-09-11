@@ -118,6 +118,7 @@ bool SerializeBinaryPcd(
 	if (Frame.SlabContext.bEligible)
 	{
 		Metadata->SetStringField(TEXT("run_uuid"), Frame.SlabContext.RunId);
+		if(!Frame.SlabContext.ScenarioUUID.IsEmpty()) Metadata->SetStringField(TEXT("scenario_uuid"),Frame.SlabContext.ScenarioUUID);
 		Metadata->SetStringField(TEXT("mtl_no"), Frame.SlabContext.MtlNo);
 		Metadata->SetStringField(TEXT("frame_no"), LexToString(Frame.SlabContext.SlabFrameNo));
 		Metadata->SetStringField(TEXT("elapsed_sec"), FString::Printf(TEXT("%.6f"), Frame.SlabContext.ElapsedSec));
