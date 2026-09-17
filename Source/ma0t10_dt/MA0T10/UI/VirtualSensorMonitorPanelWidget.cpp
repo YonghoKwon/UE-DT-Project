@@ -147,7 +147,8 @@ FString LidarColorDisplayText(ELidarColorMode Mode)
 {
     if (Mode == ELidarColorMode::DistanceViridis) return TEXT("거리 Viridis (색각 친화)");
     if (Mode == ELidarColorMode::RelativeHeight) return TEXT("높이 색상 (기준 선택)");
-    if (Mode == ELidarColorMode::SemanticLabel) return TEXT("의미 분류 색상");
+    if (Mode == ELidarColorMode::SemanticLabel) return TEXT("태그 기반 의미 분류");
+    if (Mode == ELidarColorMode::GeometrySeparation) return TEXT("자동 형상 구분 — 태그 불필요");
     if (Mode == ELidarColorMode::VerticalChannel) return TEXT("수직 채널 / Ring");
     if (Mode == ELidarColorMode::ReturnIndex) return TEXT("MultiHit Return 번호");
     if (Mode == ELidarColorMode::HitMask) return TEXT("검출 마스크");
@@ -500,10 +501,11 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::ReturnIndex));
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::HitMask));
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::DistanceGray));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::GeometrySeparation));
 
     TSharedPtr<ELidarMonitorProjectionMode> InitialProjection = NativeLidarProjectionOptions[0];
     TSharedPtr<ELidarColorMode> InitialColor = NativeLidarColorOptions[0];
-    if (const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
+    if (const UVirtualSensorUiPreferencesSaveGame* Preferences = bPersistMonitorPreferences ? UVirtualSensorUiPreferencesSaveGame::LoadOrCreate() : nullptr)
     {
         for (const TSharedPtr<ELidarMonitorProjectionMode>& Option : NativeLidarProjectionOptions)
         {
@@ -2267,6 +2269,7 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
                 : TEXT("센서 상대 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다.");
             break;
         case ELidarColorMode::SemanticLabel: ColorDescription = TEXT("SemanticLabel 규칙에 설정된 의미 분류 색상을 사용합니다."); break;
+        case ELidarColorMode::GeometrySeparation: ColorDescription = TEXT("측정 XYZ만으로 주요 수평면과 돌출 부분을 구분합니다. 판을 찾지 못하면 월드 높이 색상으로 표시합니다. 태그·재질은 사용하지 않습니다."); break;
         case ELidarColorMode::VerticalChannel: ColorDescription = TEXT("각 점을 수직 채널(ring) 번호로 구분합니다."); break;
         case ELidarColorMode::ReturnIndex: ColorDescription = TEXT("MultiHit 측정의 return index를 서로 다른 색으로 구분합니다."); break;
         case ELidarColorMode::HitMask: ColorDescription = TEXT("검출 성공은 흰색, 미검출은 검정으로 표시합니다."); break;
@@ -2317,6 +2320,8 @@ FLinearColor UVirtualSensorMonitorPanelWidget::GetLidarLegendSwatchColor(int32 S
 {
     if (const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent())
     {
+        if (Visualization->Settings.ColorMode == ELidarColorMode::GeometrySeparation)
+            return FLinearColor(VirtualLidarGeometry::Color(SwatchIndex==0?ELidarGeometryClass::Plane:SwatchIndex==1?ELidarGeometryClass::Protrusion:ELidarGeometryClass::Unknown));
         const int32 Index = FMath::Clamp(SwatchIndex, 0, 3);
         FVirtualLidarPoint Sample;
         Sample.bHit = true;
@@ -2372,6 +2377,7 @@ void UVirtualSensorMonitorPanelWidget::SetLidarOverlayOptions(bool bAdaptiveDept
 
 void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
 {
+    if (!bPersistMonitorPreferences) return;
     const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
     if (!Preferences) return;
     bUseAdaptiveLidarDepthRange = Preferences->bUseAdaptiveLidarDepthRange;
@@ -2410,6 +2416,7 @@ void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
 
 void UVirtualSensorMonitorPanelWidget::SaveMonitorUiPreferences() const
 {
+    if (!bPersistMonitorPreferences) return;
     UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
     if (!Preferences) return;
     if (LidarComp) Preferences->LidarViewMode = static_cast<uint8>(LidarComp->ViewMode);

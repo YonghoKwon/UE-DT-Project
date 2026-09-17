@@ -109,6 +109,8 @@ struct FLidarProjectionBuildInput
     bool bFlipVertical = false;
 	bool bHitOnly = true;
     uint64 Generation = 0;
+    int64 FrameId = INDEX_NONE;
+    FVirtualLidarGeometryResult Geometry;
 };
 
 struct FLidarProjectionBuildResult
@@ -128,6 +130,8 @@ struct FLidarProjectionBuildResult
     float MaxHeightCm = 100.0f;
     FVector2D WorldTopDownHalfExtentCm = FVector2D(10000.0f, 10000.0f);
     uint64 Generation = 0;
+    int64 FrameId = INDEX_NONE;
+    FVirtualLidarGeometryResult Geometry;
 };
 
 FColor ResolveProjectionColor(
@@ -141,6 +145,8 @@ FColor ResolveProjectionColor(
     {
     case ELidarColorMode::DistanceViridis: return Viridis(NormalizedDistance);
     case ELidarColorMode::RelativeHeight: return Viridis(NormalizedHeight);
+    case ELidarColorMode::GeometrySeparation:
+        return Input.Geometry.bReliable ? VirtualLidarGeometry::Color(Input.Geometry.Classify(Point.WorldLocation)) : Viridis(NormalizedHeight);
     case ELidarColorMode::SemanticLabel:
         if (const FColor* Color = Input.SemanticColors.Find(Point.SemanticLabel)) return *Color;
         return Input.DefaultSemanticColor;
@@ -175,11 +181,22 @@ FIntPoint ProjectInteractivePlane(
         FMath::RoundToInt((1.0f - NormalizedY) * static_cast<float>(FMath::Max(1, Height) - 1)));
 }
 
-TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFrame(const FLidarProjectionBuildInput& Input)
+TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFrame(FLidarProjectionBuildInput Input)
 {
     TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> Result = MakeShared<FLidarProjectionBuildResult, ESPMode::ThreadSafe>();
     Result->Generation = Input.Generation;
     const TArray<FVirtualLidarPoint>& Points = Input.Points.IsValid() ? *Input.Points : TArray<FVirtualLidarPoint>();
+    Result->FrameId = Input.FrameId;
+    if (Input.Settings.ColorMode == ELidarColorMode::GeometrySeparation)
+    {
+        TArray<FVector> XYZ;
+        XYZ.Reserve(Points.Num());
+        for (const auto& P : Points) if (P.bHit && !P.WorldLocation.ContainsNaN()) XYZ.Add(P.WorldLocation);
+        Input.Geometry = VirtualLidarGeometry::Analyze(XYZ, &Input.Geometry);
+        Result->Geometry = Input.Geometry;
+        Input.Settings.HeightReference = ELidarHeightReference::WorldZ;
+        Input.Settings.bAutoHeightRange = true;
+    }
 
     float MinDistance = TNumericLimits<float>::Max();
     float MaxDistance = 0.0f;
@@ -489,7 +506,7 @@ void UVirtualLidarVisualizationComponent::RefreshLatestFrame()
         LastMaxHeightCm = Range.Y;
     }
     RebuildProjectionTextures();
-    RefreshWorldPointCloud();
+    if (Settings.ColorMode != ELidarColorMode::GeometrySeparation) RefreshWorldPointCloud();
 }
 
 void UVirtualLidarVisualizationComponent::SetVisualizationSettings(const FVirtualLidarVisualizationSettings& InSettings)
@@ -817,6 +834,8 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
         Input.SemanticColors.Add(Rule.Label, Rule.DisplayColor.ToFColor(true));
     }
     Input.Generation = ProjectionGeneration;
+    Input.FrameId = Frame->FrameId;
+    if (Settings.ColorMode == ELidarColorMode::GeometrySeparation) Input.Geometry = GeometryResult;
     bProjectionBuildInFlight = true;
     TWeakObjectPtr<UVirtualLidarVisualizationComponent> WeakThis(this);
     Async(EAsyncExecution::ThreadPool, [Input = MoveTemp(Input), WeakThis]() mutable
@@ -830,6 +849,8 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
             if (Result.IsValid() && Result->Generation == Self->ProjectionGeneration)
             {
                 Self->LastMinDistanceCm = Result->MinDistanceCm;
+                Self->GeometryResult = Result->Geometry;
+                Self->GeometryFrameId = Result->FrameId;
                 Self->LastMaxDistanceCm = Result->MaxDistanceCm;
                 Self->LastMinHeightCm = Result->MinHeightCm;
                 Self->LastMaxHeightCm = Result->MaxHeightCm;
@@ -846,6 +867,7 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
                 {
                     Self->UploadTexture(Self->ElevationTexture, Result->ElevationPixels, Result->ElevationWidth, Result->ElevationHeight);
                 }
+                if (Self->Settings.ColorMode == ELidarColorMode::GeometrySeparation) Self->RefreshWorldPointCloud();
             }
             if (Result.IsValid() && Result->Generation != Self->ProjectionGeneration)
             {
@@ -1226,6 +1248,13 @@ FLinearColor UVirtualLidarVisualizationComponent::GetPointDisplayColor(const FVi
 {
     const auto Frame = ScanComponent ? ScanComponent->GetLastFrameSnapshot() : nullptr;
     const FTransform Pose = Frame.IsValid() ? Frame->AcquisitionTransform : FTransform::Identity;
+    if (Settings.ColorMode == ELidarColorMode::GeometrySeparation)
+    {
+        if (!Frame.IsValid() || Frame->FrameId != GeometryFrameId) return FLinearColor(FColor(140,140,140));
+        if (!Point.bHit) return FLinearColor(.02f,.03f,.04f,.25f);
+        return FLinearColor(GeometryResult.bReliable ? VirtualLidarGeometry::Color(GeometryResult.Classify(Point.WorldLocation))
+            : Viridis(NormalizeValue(Point.WorldLocation.Z, LastMinHeightCm, LastMaxHeightCm)));
+    }
     return FLinearColor(ResolveDisplayColor(ScanComponent, Settings.ColorMode, Point,
         NormalizeValue(Point.Distance, Settings.bUseAdaptiveDistance ? LastMinDistanceCm : 0.0f,
             Settings.bUseAdaptiveDistance ? LastMaxDistanceCm : (Frame.IsValid() ? Frame->MaxDistanceCm : 10000.0f)),
@@ -1236,6 +1265,9 @@ FString UVirtualLidarVisualizationComponent::GetLegendText() const
 {
     switch (Settings.ColorMode)
     {
+    case ELidarColorMode::GeometrySeparation:
+        return FString::Printf(TEXT("%s\n기준면=파랑 · 돌출=주황 · 판단 불가=회색\n표시 frame %lld · 판 %d · 돌출 %d · 불명 %d · 분석 %.2fms"),
+            *GeometryResult.Reason, GeometryFrameId, GeometryResult.PlanePoints, GeometryResult.ProtrusionPoints, GeometryResult.UnknownPoints, GeometryResult.ProcessingMs);
     case ELidarColorMode::DistanceTurbo: return FString::Printf(TEXT("Turbo 거리: %.1fm → %.1fm"), LastMinDistanceCm * 0.01f, LastMaxDistanceCm * 0.01f);
     case ELidarColorMode::DistanceViridis: return FString::Printf(TEXT("Viridis 거리: %.1fm → %.1fm"), LastMinDistanceCm * 0.01f, LastMaxDistanceCm * 0.01f);
     case ELidarColorMode::RelativeHeight:

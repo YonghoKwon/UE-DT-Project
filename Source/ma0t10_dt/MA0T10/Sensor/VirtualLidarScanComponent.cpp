@@ -1028,7 +1028,6 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
     const int32 EndRay = FMath::Min(TotalRays, ScheduledNextRayIndex + FMath::Clamp(MaxRays, 128, 1024));
     const FVector Origin = ScheduledScanTransform.GetLocation();
-    const FRotator BaseRotation = ScheduledScanTransform.Rotator();
     FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarScheduledSensor), false, GetOwner());
     const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
     const bool bEffectiveMultiHit = bUseMultiHit || bProfileMultiEcho;
@@ -1042,7 +1041,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
         const int32 X = RayIndex % ScheduledScanWidth;
         const float Pitch = ScheduledVerticalAnglesDegrees[V];
         const float Yaw = ScheduledHorizontalAnglesDegrees[X];
-        const FVector Direction = (BaseRotation + FRotator(Pitch, Yaw, 0.0f)).Vector();
+        const FVector Direction = ScheduledScanTransform.TransformVectorNoScale(FRotator(Pitch, Yaw, 0.0f).Vector()).GetSafeNormal();
         const FVector End = Origin + Direction * MaxDistance;
         FVirtualLidarPoint FirstPoint;
         InitializePhysicalPoint(
@@ -1806,7 +1805,6 @@ void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoin
     if (!World) return;
     const FTransform AcquisitionTransform = GetComponentTransform();
     const FVector Origin = AcquisitionTransform.GetLocation();
-    const FRotator BaseRotation = AcquisitionTransform.Rotator();
     FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarSensor), false, GetOwner());
     TArray<float> HorizontalAngles;
     TArray<float> VerticalAngles;
@@ -1819,7 +1817,7 @@ void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoin
         {
             const int32 RayIndex = V * W + X;
             const float Yaw = HorizontalAngles[X];
-            const FVector Direction = (BaseRotation + FRotator(Pitch, Yaw, 0.0f)).Vector();
+            const FVector Direction = AcquisitionTransform.TransformVectorNoScale(FRotator(Pitch, Yaw, 0.0f).Vector()).GetSafeNormal();
             const FVector End = Origin + Direction * MaxDistance;
             FVirtualLidarPoint FirstPoint;
             InitializePhysicalPoint(

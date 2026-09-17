@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ActorComponent/StatusVisualizerCompBase.h"
 #include "VirtualLidarSensorTypes.h"
+#include "VirtualLidarGeometry.h"
 #include "VirtualLidarVisualizationComponent.generated.h"
 
 class UTexture2D;
@@ -83,6 +84,8 @@ public:
 
     static ELidarColorMode MapLegacyViewMode(EVirtualLidarViewMode LegacyMode);
     FLinearColor GetPointDisplayColor(const FVirtualLidarPoint& Point) const;
+    const FVirtualLidarGeometryResult& GetGeometryDiagnostics() const { return GeometryResult; }
+    int64 GetDisplayedGeometryFrameId() const { return GeometryFrameId; }
 #if WITH_DEV_AUTOMATION_TESTS
     static TArray<FColor> BuildProjectionPixelsForTesting(const TArray<FVirtualLidarPoint>& Points, const FVirtualLidarVisualizationSettings& Settings, const FTransform& Pose);
 #endif
@@ -162,4 +165,6 @@ private:
     bool bNiagaraSystemInitialized = false;
     double NextNiagaraRetryTimeSeconds = 0.0;
     int64 LastVisualizedFrameId = INDEX_NONE;
+    FVirtualLidarGeometryResult GeometryResult;
+    int64 GeometryFrameId = INDEX_NONE;
 };
