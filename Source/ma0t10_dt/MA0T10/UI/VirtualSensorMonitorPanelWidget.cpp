@@ -505,7 +505,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
 
     TSharedPtr<ELidarMonitorProjectionMode> InitialProjection = NativeLidarProjectionOptions[0];
     TSharedPtr<ELidarColorMode> InitialColor = NativeLidarColorOptions[0];
-    if (const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
+    if (const UVirtualSensorUiPreferencesSaveGame* Preferences = bPersistMonitorPreferences ? UVirtualSensorUiPreferencesSaveGame::LoadOrCreate() : nullptr)
     {
         for (const TSharedPtr<ELidarMonitorProjectionMode>& Option : NativeLidarProjectionOptions)
         {

@@ -21,6 +21,18 @@ bool FLidarGeometryTest::RunTest(const FString&)
     TArray<FVector> Vertical;
     for(int Y=0;Y<30;++Y) for(int Z=0;Z<30;++Z) Vertical.Add(FVector(0,Y*5,Z*5));
     TestFalse(TEXT("wall is not a support plane"),VirtualLidarGeometry::Analyze(Vertical).bReliable);
+    TArray<FVector> Flat;
+    for(int X=0;X<40;++X) for(int Y=0;Y<40;++Y) Flat.Add(FVector(X*5,Y*5,0));
+    auto Raised=Flat; Raised.Add(FVector(50,50,5.1));
+    const auto Previous=VirtualLidarGeometry::Analyze(Raised);
+    Raised.Last().Z=4.0;
+    const auto Next=VirtualLidarGeometry::Analyze(Raised,&Previous);
+    TestEqual(TEXT("hysteresis retains 4cm protrusion"),Next.Classify(Raised.Last()),ELidarGeometryClass::Protrusion);
+    const auto Cleared=VirtualLidarGeometry::Analyze(Flat,&Next);
+    TestEqual(TEXT("no ghost after object leaves"),Cleared.ProtrusionPoints,0);
+    auto Ambiguous=Flat;
+    for(const auto& P:Flat) Ambiguous.Add(P+FVector(300,0,25));
+    TestFalse(TEXT("equally supported parallel planes are ambiguous"),VirtualLidarGeometry::Analyze(Ambiguous).bReliable);
     return true;
 }
 #endif

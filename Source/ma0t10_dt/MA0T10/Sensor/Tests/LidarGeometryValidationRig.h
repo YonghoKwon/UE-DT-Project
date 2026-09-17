@@ -28,6 +28,7 @@ public:
     bool bMoving = true;
     void ToggleBackend();
     void ToggleDisplay();
+    void SaveEvidence();
     FString Status;
 private:
     bool bInitialized=false;

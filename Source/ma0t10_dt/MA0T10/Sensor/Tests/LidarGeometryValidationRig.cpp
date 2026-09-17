@@ -2,6 +2,11 @@
 #include "Engine/StaticMeshActor.h"
 #include "Camera/CameraActor.h"
 #include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
+#include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
+#include "Components/StaticMeshComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Widgets/SWeakWidget.h"
 #include "Widgets/Layout/SBorder.h"
@@ -67,6 +72,7 @@ void ALidarGeometryValidationRig::Tick(float Delta)
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("이동 / 정지"),[this](){bMoving=!bMoving;})]
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("형상 / 높이"),[this](){ToggleDisplay();})]
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("3D 포인트"),[this](){auto* V=Sensor->VisualizationComponent.Get();V->SetWorldPointCloudEnabled(!V->Settings.bShowWorldPointCloud);})]
+                    +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증 화면 저장"),[this](){SaveEvidence();})]
                 ]
                 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(Status);})]
             ]]
@@ -102,7 +108,20 @@ void ALidarGeometryValidationRig::ToggleDisplay()
 void ALidarGeometryValidationRig::EndPlay(const EEndPlayReason::Type Reason)
 {
     if(Monitor) Monitor->RemoveFromParent();
-    if(Controls && GetWorld()->GetGameViewport()) GetWorld()->GetGameViewport()->RemoveViewportWidgetContent(Controls.ToSharedRef());
+    if(Controls && GetWorld() && GetWorld()->GetGameViewport()) GetWorld()->GetGameViewport()->RemoveViewportWidgetContent(Controls.ToSharedRef());
     Controls.Reset();
     Super::EndPlay(Reason);
+}
+
+void ALidarGeometryValidationRig::SaveEvidence()
+{
+    auto* Viewport=GetWorld()?GetWorld()->GetGameViewport():nullptr;
+    if(!Viewport||!Viewport->Viewport)return;
+    const FString Root=FPaths::ProjectSavedDir()/TEXT("Reports");
+    IFileManager::Get().MakeDirectory(*Root,true);
+    const FIntPoint Size=Viewport->Viewport->GetSizeXY();
+    const FString Report=FString::Printf(TEXT("# Actual mouse evidence\n\nViewport: %d x %d\nTags empty: %d\nSame material: %d\n%s\n"),Size.X,Size.Y,
+        Plate->Tags.IsEmpty()&&MovingObject->Tags.IsEmpty(),Plate->GetStaticMeshComponent()->GetMaterial(0)==MovingObject->GetStaticMeshComponent()->GetMaterial(0),*Status);
+    FFileHelper::SaveStringToFile(Report,*(Root/TEXT("geometry_manual.md")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FScreenshotRequest::RequestScreenshot(Root/TEXT("geometry_manual.png"),true,false);
 }

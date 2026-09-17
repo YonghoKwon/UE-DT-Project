@@ -33,6 +33,8 @@ public:
         if(Started==0) Started=Now;
         UWorld* World=nullptr;
         for(const auto& C:GEngine->GetWorldContexts()) if(C.WorldType==EWorldType::PIE){World=C.World();break;}
+        if(ObservedWorld.Get()!=World){ObservedWorld=World;Started=Now;bStopped=false;return false;}
+        if(Now-Started<3)return false;
         ALidarGeometryValidationRig* Rig=nullptr;
         if(World) for(TActorIterator<ALidarGeometryValidationRig> It(World);It;++It){Rig=*It;break;}
         if(!Rig || !Rig->Monitor || !Rig->Sensor)
@@ -130,6 +132,7 @@ private:
     FAutomationTestBase* Test;double Started=0,PhaseStart=0,MotionUntil=0,FirstCenter=0;int32 Phase=0,Width=0,Height=0;bool bStopped=false,bMapping=false;
     TSharedPtr<FRHIGPUTextureReadback,ESPMode::ThreadSafe> Readback;
     TSharedPtr<FGeometryPixelEvidence,ESPMode::ThreadSafe> Evidence;
+    TWeakObjectPtr<UWorld> ObservedWorld;
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGeometryRuntimeTest,"MA0T10.LidarGeometry.ActualMapPixels",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FGeometryRuntimeTest::RunTest(const FString&)
