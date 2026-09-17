@@ -165,6 +165,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Semantic")
     void ResetDefaultSemanticClassRules();
 
+    FName ResolveSemanticLabelForComponent(const UPrimitiveComponent* Component) const;
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Semantic")
     FLinearColor GetSemanticColorForLabel(FName SemanticLabel) const;
 
@@ -683,6 +685,7 @@ private:
     float GpuDepthLookupMaxVerticalAngle = 0.0f;
     int32 GpuDepthLookupHorizontalCalibrationCount = 0;
     int32 GpuDepthLookupVerticalCalibrationCount = 0;
+    uint32 GpuDepthLookupCalibrationHash = 0;
     bool bScheduledGenerateHeatmap = true;
     int32 ScheduledHitPointCount = 0;
     TMap<FString, int32> ScheduledSemanticCounts;

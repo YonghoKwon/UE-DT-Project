@@ -1,4 +1,6 @@
 #include "VirtualLidarGpuDepthProjectionComponent.h"
+#include "VirtualLidarSemanticScene.h"
+#include "VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 
 #include "Engine/TextureRenderTarget2D.h"
@@ -37,9 +39,25 @@ UVirtualLidarGpuDepthProjectionComponent::UVirtualLidarGpuDepthProjectionCompone
 	}
 }
 
+UVirtualLidarGpuDepthProjectionComponent::~UVirtualLidarGpuDepthProjectionComponent() = default;
+
+void UVirtualLidarGpuDepthProjectionComponent::EndPlay(const EEndPlayReason::Type Reason)
+{
+    CancelAcquisition();
+    SemanticScene.Reset();
+    Super::EndPlay(Reason);
+}
+
 bool UVirtualLidarGpuDepthProjectionComponent::IsAvailable() const
 {
 	return FApp::CanEverRender() && GDynamicRHI != nullptr && IsRegistered() && GetWorld() != nullptr;
+}
+
+void UVirtualLidarGpuDepthProjectionComponent::OnUnregister()
+{
+    CancelAcquisition();
+    SemanticScene.Reset();
+    Super::OnUnregister();
 }
 
 bool UVirtualLidarGpuDepthProjectionComponent::EnsureRenderTarget(const FVirtualLidarDepthAcquisitionRequest& Request)
@@ -69,9 +87,9 @@ bool UVirtualLidarGpuDepthProjectionComponent::EnsureRenderTarget(const FVirtual
 	}
 	if (DepthRenderTarget->SizeX != PendingCaptureWidth || DepthRenderTarget->SizeY != PendingCaptureHeight)
 	{
-		DepthRenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA16f;
+		DepthRenderTarget->RenderTargetFormat = ETextureRenderTargetFormat::RTF_RGBA32f;
 		DepthRenderTarget->ClearColor = FLinearColor::Black;
-		DepthRenderTarget->InitCustomFormat(PendingCaptureWidth, PendingCaptureHeight, PF_FloatRGBA, false);
+		DepthRenderTarget->InitAutoFormat(PendingCaptureWidth, PendingCaptureHeight);
 		DepthRenderTarget->UpdateResourceImmediate(true);
 	}
 	TextureTarget = DepthRenderTarget;
@@ -107,6 +125,18 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 	// list, so the copy still observes the coherent capture while removing one
 	// full game-frame of latency. PollAcquisition remains non-blocking.
 	CaptureScene();
+	PendingSemanticIdentities.Reset();
+	PendingSemanticStatus = TEXT("GPU 의미 분류 비활성");
+	if (Request.bRequestSemantics)
+	{
+		if (auto* Scan = GetOwner() ? GetOwner()->FindComponentByClass<UVirtualLidarScanComponent>() : nullptr)
+		{
+			if (!SemanticScene) SemanticScene = MakeUnique<FVirtualLidarSemanticScene>();
+			if (SemanticScene->Capture(*Scan, Request, PendingCaptureWidth, PendingCaptureHeight))
+				PendingSemanticIdentities = SemanticScene->Identities;
+			PendingSemanticStatus = SemanticScene->Status;
+		}
+	}
 	QueueReadback();
 	StatusMessage = bReadbackQueued
 		? TEXT("GPU SceneDepth capture and readback submitted")
@@ -134,14 +164,23 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 	}
 
 	Readback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarGpuDepthReadback"));
+	FTextureRHIRef SemanticTexture;
+	if (PendingRequest.bRequestSemantics && SemanticScene && PendingSemanticIdentities.Num() > 0)
+	{
+		SemanticTexture = SemanticScene->GetTarget()->GameThread_GetRenderTargetResource()->GetRenderTargetTexture();
+		if (!SemanticTexture.IsValid()) { StatusMessage = TEXT("GPU semantic target initialization pending"); return; }
+		if (SemanticTexture.IsValid()) SemanticReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarSemanticReadback"));
+	}
+	const auto CapturedSemanticReadback = SemanticReadback;
 	const TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = Readback;
 	ENQUEUE_RENDER_COMMAND(VirtualLidarGpuDepthReadback)(
-		[CapturedReadback, Texture](FRHICommandListImmediate& RHICmdList)
+		[CapturedReadback, Texture, CapturedSemanticReadback, SemanticTexture](FRHICommandListImmediate& RHICmdList)
 		{
 			if (CapturedReadback.IsValid() && Texture.IsValid())
 			{
 				CapturedReadback->EnqueueCopy(RHICmdList, Texture);
 			}
+			if (CapturedSemanticReadback.IsValid() && SemanticTexture.IsValid()) CapturedSemanticReadback->EnqueueCopy(RHICmdList, SemanticTexture);
 		});
 	bReadbackQueued = true;
 	StatusMessage = TEXT("GPU SceneDepth readback pending");
@@ -170,7 +209,7 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 		QueueReadback();
 		return bAcquisitionActive ? EVirtualSensorBackendPollResult::Pending : EVirtualSensorBackendPollResult::Failed;
 	}
-	if (bReadbackCopyInFlight || !Readback.IsValid() || !Readback->IsReady())
+	if (bReadbackCopyInFlight || !Readback.IsValid() || !Readback->IsReady() || (SemanticReadback.IsValid() && !SemanticReadback->IsReady()))
 	{
 		return EVirtualSensorBackendPollResult::Pending;
 	}
@@ -180,6 +219,9 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 	const int32 Generation = AcquisitionGeneration;
 	const FVirtualLidarDepthAcquisitionRequest Request = PendingRequest;
 	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = MoveTemp(Readback);
+	auto CapturedSemanticReadback = MoveTemp(SemanticReadback);
+	auto Identities = MoveTemp(PendingSemanticIdentities);
+	const FString SemanticStatus = PendingSemanticStatus;
 	TWeakObjectPtr<UVirtualLidarGpuDepthProjectionComponent> WeakThis(this);
 	bReadbackCopyInFlight = true;
 	StatusMessage = TEXT("GPU SceneDepth staging copy pending");
@@ -188,24 +230,26 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 	// thread in UE 5.3. Keeping that work off the game-thread scheduler avoids
 	// forced RHI command-list flushes and the associated FullSpec hitch.
 	ENQUEUE_RENDER_COMMAND(VirtualLidarConsumeGpuDepthReadback)(
-		[CapturedReadback = MoveTemp(CapturedReadback), WeakThis, Request, Width, Height, Generation](FRHICommandListImmediate& RHICmdList) mutable
+		[CapturedReadback = MoveTemp(CapturedReadback), CapturedSemanticReadback = MoveTemp(CapturedSemanticReadback), Identities = MoveTemp(Identities), SemanticStatus, WeakThis, Request, Width, Height, Generation](FRHICommandListImmediate& RHICmdList) mutable
 		{
 			FVirtualLidarDepthAcquisitionFrame Frame;
 			Frame.Request = Request;
 			Frame.CaptureWidth = Width;
 			Frame.CaptureHeight = Height;
+			Frame.SemanticIdentities = MoveTemp(Identities);
+			Frame.SemanticStatus = SemanticStatus;
 			bool bCopySucceeded = false;
 			int32 RowPitchInPixels = 0;
 			void* LockedData = CapturedReadback.IsValid() ? CapturedReadback->Lock(RowPitchInPixels) : nullptr;
 			if (LockedData && RowPitchInPixels >= Width && Width > 0 && Height > 0)
 			{
 				Frame.ForwardDepthCentimeters.SetNumUninitialized(Width * Height);
-				const FFloat16Color* Source = static_cast<const FFloat16Color*>(LockedData);
+				const FLinearColor* Source = static_cast<const FLinearColor*>(LockedData);
 				for (int32 Y = 0; Y < Height; ++Y)
 				{
 					for (int32 X = 0; X < Width; ++X)
 					{
-						Frame.ForwardDepthCentimeters[Y * Width + X] = Source[Y * RowPitchInPixels + X].R.GetFloat();
+						Frame.ForwardDepthCentimeters[Y * Width + X] = Source[Y * RowPitchInPixels + X].R;
 					}
 				}
 				bCopySucceeded = true;
@@ -213,6 +257,17 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 			if (LockedData)
 			{
 				CapturedReadback->Unlock();
+			}
+			if (CapturedSemanticReadback.IsValid())
+			{
+				int32 Pitch = 0;
+				const FLinearColor* Pixels = static_cast<const FLinearColor*>(CapturedSemanticReadback->Lock(Pitch));
+				if (Pixels && Pitch >= Width)
+				{
+					Frame.SemanticIdDepth.SetNumUninitialized(Width * Height);
+					for (int32 Y = 0; Y < Height; ++Y) FMemory::Memcpy(Frame.SemanticIdDepth.GetData() + Y * Width, Pixels + Y * Pitch, Width * sizeof(FLinearColor));
+				}
+				if (Pixels) CapturedSemanticReadback->Unlock();
 			}
 			Frame.AcquisitionEndUnixNanoseconds = GpuDepthUtcNowUnixNanoseconds();
 
@@ -251,6 +306,8 @@ void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisition()
 
 void UVirtualLidarGpuDepthProjectionComponent::ReleaseReadbackOnRenderThread()
 {
+	auto Semantic = MoveTemp(SemanticReadback);
+	if (Semantic.IsValid()) ENQUEUE_RENDER_COMMAND(ReleaseLidarSemantic)([Semantic = MoveTemp(Semantic)](FRHICommandListImmediate&) mutable { Semantic.Reset(); });
 	if (!Readback.IsValid())
 	{
 		return;

@@ -335,6 +335,9 @@ public:
 			// immutable frames without triggering an extra scan.
 			Lidar->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
 			Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+			const bool bSemanticBenchmark = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LIDAR_SEMANTIC_BENCHMARK")).Equals(TEXT("1"));
+			if (Lidar->VisualizationComponent) Lidar->VisualizationComponent->SetColorMode(bSemanticBenchmark ? ELidarColorMode::SemanticLabel : ELidarColorMode::DistanceTurbo);
+			Test->AddInfo(FString::Printf(TEXT("[LidarSemanticBenchmark] enabled=%d"), bSemanticBenchmark));
 			// Acceptance is exactly one D455 FullSpec camera plus one ML-X(80)
 			// Native LiDAR. The overhead test camera remains in the map but is
 			// stopped so it cannot alter the declared workload.

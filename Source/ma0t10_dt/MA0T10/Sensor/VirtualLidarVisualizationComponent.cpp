@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "VirtualLidarHeight.h"
 
 #include "Async/Async.h"
 #include "Engine/Texture2D.h"
@@ -54,6 +55,19 @@ void DrawPixel(TArray<FColor>& Pixels, int32 Width, int32 Height, int32 X, int32
                 Pixels[DrawY * Width + DrawX] = Color;
             }
         }
+    }
+}
+
+void DrawSurfacePoint(TArray<FColor>& Pixels, TArray<float>& Surfaces, int32 Width, int32 Height, FIntPoint Pixel, float DepthKey, const FColor& Color, int32 Radius)
+{
+    for (int32 DY = -Radius; DY <= Radius; ++DY) for (int32 DX = -Radius; DX <= Radius; ++DX)
+    {
+        const int32 X = Pixel.X + DX, Y = Pixel.Y + DY;
+        if (X < 0 || X >= Width || Y < 0 || Y >= Height) continue;
+        const int32 I = Y * Width + X;
+        if (DepthKey < Surfaces[I]) continue;
+        Surfaces[I] = DepthKey;
+        Pixels[I] = Color;
     }
 }
 
@@ -187,10 +201,12 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         MinHeight = -100.0f;
         MaxHeight = 100.0f;
     }
+    const FVector2D ColorHeightRange = VirtualLidarHeight::Range(Input.Settings, Input.SensorTransform, Points);
+    auto ColorHeight = [&](const FVirtualLidarPoint& P) { return VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(Input.Settings, Input.SensorTransform, P), ColorHeightRange); };
     Result->MinDistanceCm = MinDistance;
     Result->MaxDistanceCm = MaxDistance;
-    Result->MinHeightCm = MinHeight;
-    Result->MaxHeightCm = MaxHeight;
+    Result->MinHeightCm = ColorHeightRange.X;
+    Result->MaxHeightCm = ColorHeightRange.Y;
 
     if (Input.Settings.ProjectionMode == ELidarMonitorProjectionMode::RangeImage ||
         Input.Settings.ProjectionMode == ELidarMonitorProjectionMode::Split)
@@ -209,12 +225,12 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
             const int32 DrawCol = Input.bFlipHorizontal ? Result->RangeWidth - 1 - Col : Col;
             const int32 DrawRow = Input.bFlipVertical ? Result->RangeHeight - 1 - Row : Row;
             const int32 PixelIndex = DrawRow * Result->RangeWidth + DrawCol;
-            if (Point.bHit && Point.Distance > Depths[PixelIndex]) continue;
+            if ((!Point.bHit && Depths[PixelIndex] < TNumericLimits<float>::Max()) || (Point.bHit && Point.Distance > Depths[PixelIndex])) continue;
             const float Height = Point.bHit ? Input.SensorTransform.InverseTransformPosition(Point.WorldLocation).Z : 0.0f;
             Result->RangePixels[PixelIndex] = ResolveProjectionColor(Input, Point,
                 NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
                     Input.Settings.bUseAdaptiveDistance ? MaxDistance : Input.MaxDistanceCm),
-                NormalizeValue(Height, MinHeight, MaxHeight));
+                ColorHeight(Point));
             Depths[PixelIndex] = Point.bHit ? Point.Distance : TNumericLimits<float>::Max();
         }
         if (Input.Settings.bShowGrid)
@@ -258,6 +274,8 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         Result->TopDownPixels.Init(FColor(5, 10, 18, 255), Result->TopDownWidth * Result->TopDownHeight);
         const int32 CenterX = Result->TopDownWidth / 2;
         const int32 BottomY = Result->TopDownHeight - 1;
+        TArray<float> LocalSurface;
+        LocalSurface.Init(-TNumericLimits<float>::Max(), Result->TopDownPixels.Num());
         for (int32 Ring = 1; Ring <= 4; ++Ring)
         {
             const int32 Radius = FMath::RoundToInt(static_cast<float>(Result->TopDownWidth) * 0.5f * Ring / 4.0f);
@@ -278,11 +296,12 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
             const FVector2D HalfExtent(Input.MaxDistanceCm / Zoom, Input.MaxDistanceCm * 0.5f / Zoom);
             const FIntPoint Pixel = ProjectInteractivePlane(FVector2D(Local.Y, Local.X), Center, HalfExtent,
                 Input.Settings.TopDownRotationDegrees, Result->TopDownWidth, Result->TopDownHeight);
-            DrawPixel(Result->TopDownPixels, Result->TopDownWidth, Result->TopDownHeight, Pixel.X, Pixel.Y,
+            DrawSurfacePoint(Result->TopDownPixels, LocalSurface, Result->TopDownWidth, Result->TopDownHeight, Pixel,
+                Point.bHit ? Local.Z : -TNumericLimits<float>::Max(),
                 ResolveProjectionColor(Input, Point,
                     NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
                         Input.Settings.bUseAdaptiveDistance ? MaxDistance : Input.MaxDistanceCm),
-                    NormalizeValue(Local.Z, MinHeight, MaxHeight)), Input.Settings.PointSize >= 3.0f ? 1 : 0);
+                    ColorHeight(Point)), Input.Settings.PointSize >= 3.0f ? 1 : 0);
         }
         DrawPixel(Result->TopDownPixels, Result->TopDownWidth, Result->TopDownHeight, CenterX, BottomY, FColor::White, 2);
     }
@@ -329,8 +348,8 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
             MaxWorldZ = FMath::Max(MaxWorldZ, static_cast<float>(Point.WorldLocation.Z));
         }
         if (MinWorldZ == TNumericLimits<float>::Max()) { MinWorldZ = 0.0f; MaxWorldZ = 1.0f; }
-        Result->MinHeightCm = MinWorldZ;
-        Result->MaxHeightCm = MaxWorldZ;
+        TArray<float> TopSurface;
+        TopSurface.Init(-TNumericLimits<float>::Max(), Result->TopDownPixels.Num());
 
         for (const FVirtualLidarPoint& Point : Points)
         {
@@ -338,11 +357,12 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
             const FIntPoint Pixel = UVirtualLidarVisualizationComponent::ProjectWorldTopDown(
                 Point.WorldLocation, CenterWorldYX, HalfExtentWorldYX, Input.Settings.WorldTopDownRotationDegrees,
                 Result->TopDownWidth, Result->TopDownHeight);
-            DrawPixel(Result->TopDownPixels, Result->TopDownWidth, Result->TopDownHeight, Pixel.X, Pixel.Y,
+            const float SurfaceZ = Point.bHit ? Point.WorldLocation.Z : -TNumericLimits<float>::Max();
+            DrawSurfacePoint(Result->TopDownPixels, TopSurface, Result->TopDownWidth, Result->TopDownHeight, Pixel, SurfaceZ,
                 ResolveProjectionColor(Input, Point,
                     NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
                         Input.Settings.bUseAdaptiveDistance ? MaxDistance : Input.MaxDistanceCm),
-                    NormalizeValue(Point.WorldLocation.Z, MinWorldZ, MaxWorldZ)), Input.Settings.PointSize >= 3.0f ? 1 : 0);
+                    ColorHeight(Point)), Input.Settings.PointSize >= 3.0f ? 1 : 0);
         }
 
         const FVector SensorWorldLocation = Input.SensorTransform.GetLocation();
@@ -367,6 +387,8 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
         Result->ElevationWidth = FMath::Clamp(Input.Settings.ElevationWidth, 128, 2048);
         Result->ElevationHeight = FMath::Clamp(Input.Settings.ElevationHeight, 64, 1024);
         Result->ElevationPixels.Init(FColor(5, 10, 18, 255), Result->ElevationWidth * Result->ElevationHeight);
+        TArray<float> ProfileSurface;
+        ProfileSurface.Init(-TNumericLimits<float>::Max(), Result->ElevationPixels.Num());
         const float Padding = FMath::Max(25.0f, (MaxHeight - MinHeight) * 0.05f);
         const float DrawMinHeight = MinHeight - Padding;
         const float DrawMaxHeight = MaxHeight + Padding;
@@ -394,11 +416,12 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
 				? Input.Settings.ElevationRotationDegrees : 0.0f;
 			const FIntPoint Pixel = ProjectInteractivePlane(FVector2D(ForwardDistance, Local.Z), Center, HalfExtent,
 				ChartRotation, Result->ElevationWidth, Result->ElevationHeight);
-            DrawPixel(Result->ElevationPixels, Result->ElevationWidth, Result->ElevationHeight, Pixel.X, Pixel.Y,
+            DrawSurfacePoint(Result->ElevationPixels, ProfileSurface, Result->ElevationWidth, Result->ElevationHeight, Pixel,
+                Point.bHit ? -Point.Distance : -TNumericLimits<float>::Max(),
                 ResolveProjectionColor(Input, Point,
                     NormalizeValue(Point.Distance, Input.Settings.bUseAdaptiveDistance ? MinDistance : 0.0f,
                         Input.Settings.bUseAdaptiveDistance ? MaxDistance : Input.MaxDistanceCm),
-                    NormalizeValue(Local.Z, MinHeight, MaxHeight)), Input.Settings.PointSize >= 3.0f ? 1 : 0);
+                    ColorHeight(Point)), Input.Settings.PointSize >= 3.0f ? 1 : 0);
         }
         const int32 ZeroY = FMath::Clamp(FMath::RoundToInt((1.0f - NormalizeValue(0.0f, DrawMinHeight, DrawMaxHeight)) * (Result->ElevationHeight - 1)), 0, Result->ElevationHeight - 1);
         for (int32 X = 0; X < Result->ElevationWidth; ++X)
@@ -409,6 +432,20 @@ TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFram
     return Result;
 }
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+TArray<FColor> UVirtualLidarVisualizationComponent::BuildProjectionPixelsForTesting(const TArray<FVirtualLidarPoint>& Points, const FVirtualLidarVisualizationSettings& Settings, const FTransform& Pose)
+{
+    FLidarProjectionBuildInput Input;
+    Input.Points = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(Points);
+    Input.Settings = Settings; Input.SensorTransform = Pose; Input.MaxDistanceCm = 2000;
+    Input.HorizontalSamples = 2; Input.VerticalChannels = 2;
+    const auto Result = BuildProjectionFrame(Input);
+    if (Result->TopDownPixels.Num()) return Result->TopDownPixels;
+    if (Result->ElevationPixels.Num()) return Result->ElevationPixels;
+    return Result->RangePixels;
+}
+#endif
 
 UVirtualLidarVisualizationComponent::UVirtualLidarVisualizationComponent()
 {
@@ -445,6 +482,12 @@ void UVirtualLidarVisualizationComponent::RefreshLatestFrame()
 {
     if (!ScanComponent) return;
     LastVisualizedFrameId = ScanComponent->GetRuntimeStatus().FrameId;
+    if (const auto Frame = ScanComponent->GetLastFrameSnapshot(); Frame.IsValid() && Frame->Points.IsValid())
+    {
+        const FVector2D Range = VirtualLidarHeight::Range(Settings, Frame->AcquisitionTransform, *Frame->Points);
+        LastMinHeightCm = Range.X;
+        LastMaxHeightCm = Range.Y;
+    }
     RebuildProjectionTextures();
     RefreshWorldPointCloud();
 }
@@ -452,6 +495,11 @@ void UVirtualLidarVisualizationComponent::RefreshLatestFrame()
 void UVirtualLidarVisualizationComponent::SetVisualizationSettings(const FVirtualLidarVisualizationSettings& InSettings)
 {
     Settings = InSettings;
+    if (!FMath::IsFinite(Settings.HeightMinMeters) || !FMath::IsFinite(Settings.HeightMaxMeters) || Settings.HeightMaxMeters <= Settings.HeightMinMeters)
+    {
+        Settings.bAutoHeightRange = true;
+        Settings.HeightMinMeters = 0.0f; Settings.HeightMaxMeters = 1.0f;
+    }
     Settings.PointSize = FMath::Clamp(Settings.PointSize, 0.25f, 12.0f);
     Settings.TopDownResolution = FMath::Clamp(Settings.TopDownResolution, 128, 2048);
     Settings.ElevationWidth = FMath::Clamp(Settings.ElevationWidth, 128, 2048);
@@ -1082,12 +1130,9 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
 		if (PreviewPolicy.bHitOnly && !Point.bHit) continue;
 		if ((EligibleIndex++ % Stride) != 0) continue;
         if (NiagaraPositions.Num() >= MaxNiagaraPreviewPoints) break;
-        const FVector Local = SensorTransform.InverseTransformPosition(Point.WorldLocation);
         NiagaraPositions.Add(Point.WorldLocation);
         WorldBounds += Point.WorldLocation;
-		FLinearColor DisplayColor(ResolveDisplayColor(ScanComponent, Settings.ColorMode, Point,
-            NormalizeValue(Point.Distance, Settings.bUseAdaptiveDistance ? LastMinDistanceCm : 0.0f, Settings.bUseAdaptiveDistance ? LastMaxDistanceCm : ScanComponent->MaxDistance),
-			NormalizeValue(Local.Z, LastMinHeightCm, LastMaxHeightCm)));
+		FLinearColor DisplayColor = GetPointDisplayColor(Point);
 		if (!Point.bHit) DisplayColor.A = 0.25f;
 		NiagaraColors.Add(DisplayColor);
     }
@@ -1177,6 +1222,16 @@ void UVirtualLidarVisualizationComponent::UpdateRendererTelemetry(
     ActiveRendererName = Renderer;
 }
 
+FLinearColor UVirtualLidarVisualizationComponent::GetPointDisplayColor(const FVirtualLidarPoint& Point) const
+{
+    const auto Frame = ScanComponent ? ScanComponent->GetLastFrameSnapshot() : nullptr;
+    const FTransform Pose = Frame.IsValid() ? Frame->AcquisitionTransform : FTransform::Identity;
+    return FLinearColor(ResolveDisplayColor(ScanComponent, Settings.ColorMode, Point,
+        NormalizeValue(Point.Distance, Settings.bUseAdaptiveDistance ? LastMinDistanceCm : 0.0f,
+            Settings.bUseAdaptiveDistance ? LastMaxDistanceCm : (Frame.IsValid() ? Frame->MaxDistanceCm : 10000.0f)),
+        VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(Settings, Pose, Point), FVector2D(LastMinHeightCm, LastMaxHeightCm))));
+}
+
 FString UVirtualLidarVisualizationComponent::GetLegendText() const
 {
     switch (Settings.ColorMode)
@@ -1184,12 +1239,12 @@ FString UVirtualLidarVisualizationComponent::GetLegendText() const
     case ELidarColorMode::DistanceTurbo: return FString::Printf(TEXT("Turbo 거리: %.1fm → %.1fm"), LastMinDistanceCm * 0.01f, LastMaxDistanceCm * 0.01f);
     case ELidarColorMode::DistanceViridis: return FString::Printf(TEXT("Viridis 거리: %.1fm → %.1fm"), LastMinDistanceCm * 0.01f, LastMaxDistanceCm * 0.01f);
     case ELidarColorMode::RelativeHeight:
-        if (Settings.ProjectionMode == ELidarMonitorProjectionMode::WorldTopDown)
+        if (VirtualLidarHeight::IsWorld(Settings))
         {
             return FString::Printf(TEXT("월드 Z 높이: %.2fm → %.2fm"), LastMinHeightCm * 0.01f, LastMaxHeightCm * 0.01f);
         }
         return FString::Printf(TEXT("센서 상대 높이: %.2fm → %.2fm"), LastMinHeightCm * 0.01f, LastMaxHeightCm * 0.01f);
-    case ELidarColorMode::SemanticLabel: return TEXT("SemanticLabel 설정 색상 · 미분류=회색");
+    case ELidarColorMode::SemanticLabel: return TEXT("SemanticLabel 설정 색상 · 미분류=회색\n") + (ScanComponent ? ScanComponent->GetRuntimeStatus().AcquisitionBackendMessage : FString());
     case ELidarColorMode::VerticalChannel: return ScanComponent ? FString::Printf(TEXT("수직 채널: 0 → %d"), FMath::Max(0, ScanComponent->VerticalChannels - 1)) : TEXT("수직 채널");
     case ELidarColorMode::ReturnIndex: return TEXT("Return index: 0, 1, 2… · MultiHit에서 구분");
     case ELidarColorMode::HitMask: return TEXT("검출=흰색 · 미검출=검정");

@@ -61,6 +61,11 @@ public:
     UPROPERTY(SaveGame)
     ELidarColorMode LidarColorMode = ELidarColorMode::DistanceTurbo;
 
+    UPROPERTY(SaveGame) ELidarHeightReference LidarHeightReference = ELidarHeightReference::ProjectionDefault;
+    UPROPERTY(SaveGame) bool bLidarAutoHeightRange = true;
+    UPROPERTY(SaveGame) float LidarHeightMinMeters = 0.0f;
+    UPROPERTY(SaveGame) float LidarHeightMaxMeters = 1.0f;
+
     UPROPERTY(SaveGame)
     bool bShowWorldLidarPointCloud = true;
 

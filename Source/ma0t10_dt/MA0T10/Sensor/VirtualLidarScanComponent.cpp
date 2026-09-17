@@ -27,6 +27,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Misc/Crc.h"
 #include <atomic>
 
 namespace
@@ -649,6 +651,15 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
     Request.MaxVerticalAngleDegrees = MaxVerticalAngle;
     Request.MaxDistanceCm = MaxDistance;
     Request.AcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
+    BuildBeamAngleTables(Request.HorizontalSamples, Request.VerticalChannels, Request.HorizontalAngles, Request.VerticalAngles);
+    Request.bRequestSemantics = bEnableSemanticClassification && ViewMode == EVirtualLidarViewMode::ActorClassColor;
+    for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It && !Request.bRequestSemantics; ++It)
+    {
+        const auto* Publisher = It->StreamPublisherComponent.Get();
+        if (!Publisher || !Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud, SensorId)) continue;
+        const auto Filter = Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud, SensorId).PointCloudFilter;
+        Request.bRequestSemantics = Filter.IncludeActorTags.Num() || Filter.ExcludeActorTags.Num() || Filter.IncludeSemanticLabels.Num() || Filter.ExcludeSemanticLabels.Num();
+    }
 
     if (!GpuDepthProjectionComponent->BeginAcquisition(Request))
     {
@@ -661,7 +672,9 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
     bGpuDepthScanInProgress = true;
     RuntimeStatus.bAcquisitionInFlight = true;
     RuntimeStatus.ActiveAcquisitionBackend = TEXT("gpu_depth_projection");
-    RuntimeStatus.AcquisitionBackendMessage = TEXT("GPU first-surface depth active; multi-echo and semantic extensions require CPU/HWRT");
+    RuntimeStatus.AcquisitionBackendMessage = Request.bRequestSemantics
+        ? TEXT("GPU 깊이·의미 분류 캡처 중 (첫 표면, 다중 Echo 미지원)")
+        : TEXT("GPU 깊이 측정 중 (첫 표면, 다중 Echo 미지원)");
     return true;
 }
 
@@ -701,6 +714,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 
 void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame)
 {
+	RuntimeStatus.AcquisitionBackendMessage = Frame.SemanticStatus;
 	ScheduledSlabContext=Frame.Request.SlabContext;
     ScheduledScanWidth = FMath::Max(1, Frame.Request.HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, Frame.Request.VerticalChannels);
@@ -729,6 +743,7 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
 
     EnsureGpuDepthBeamLookup(Frame);
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
+    TMap<int32, int32> SemanticIdCounts;
 
     for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
     {
@@ -744,7 +759,7 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
             const float DirectionForward = FMath::Max(0.001f, LocalDirection.X);
             const float RadialDistanceCm = ForwardDepthCm / DirectionForward;
 
-            FVirtualLidarPoint Point;
+            FVirtualLidarPoint& Point = ScheduledPoints.AddDefaulted_GetRef();
             InitializePhysicalPoint(Point, Ring, Column, RayIndex, TotalRays, LocalDirection);
             Point.Distance = MaxDistance;
             Point.WorldLocation = ScheduledScanTransform.GetLocation() + WorldDirection * MaxDistance;
@@ -798,6 +813,23 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
                         : EVirtualLidarPointValidity::Valid;
                     Point.EchoCount = 1;
                     Point.EchoType = EVirtualLidarEchoType::Single;
+                    if (Frame.SemanticIdDepth.IsValidIndex(DepthIndex))
+                    {
+                        const FLinearColor IdDepth = Frame.SemanticIdDepth[DepthIndex];
+                        // ID and depth come from one proxy capture. An unsupported occluder
+                        // must never inherit the identity of a different surface behind it.
+                        if (FMath::IsFinite(IdDepth.R) && FMath::IsFinite(IdDepth.A) && FMath::Abs(IdDepth.A - ForwardDepthCm) <= 1.0f)
+                        {
+                            if (const auto* Identity = Frame.SemanticIdentities.Find(FMath::RoundToInt(IdDepth.R)))
+                            {
+                                Point.SemanticLabel = Identity->Label;
+                                Point.HitActorName = Identity->ActorName;
+                                Point.HitActorClassName = Identity->ActorClass;
+                                Point.HitActorTags = Identity->ActorTags;
+                                ++SemanticIdCounts.FindOrAdd(FMath::RoundToInt(IdDepth.R));
+                            }
+                        }
+                    }
                     ++ScheduledHitPointCount;
                 }
                 else
@@ -806,7 +838,6 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
                     Point.Confidence = DetectionProbability;
                 }
             }
-            ScheduledPoints.Add(Point);
             if (bScheduledGenerateHeatmap)
             {
                 WriteHeatmapPixel(
@@ -816,12 +847,20 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
             }
         }
     }
+    // Convert names once per surface, not once per 32,256-point scan element.
+    for (const auto& Count : SemanticIdCounts)
+        if (const auto* Identity = Frame.SemanticIdentities.Find(Count.Key))
+            ScheduledSemanticCounts.FindOrAdd(Identity->Label.ToString()) += Count.Value;
 }
 
 void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
 {
+    const uint32 CalibrationHash = HashCombine(
+        FCrc::MemCrc32(Frame.Request.HorizontalAngles.GetData(), Frame.Request.HorizontalAngles.Num() * sizeof(float)),
+        FCrc::MemCrc32(Frame.Request.VerticalAngles.GetData(), Frame.Request.VerticalAngles.Num() * sizeof(float)));
     const bool bLookupMatches =
-        GpuDepthLookupHorizontalSamples == ScheduledScanWidth
+        GpuDepthLookupCalibrationHash == CalibrationHash
+        && GpuDepthLookupHorizontalSamples == ScheduledScanWidth
         && GpuDepthLookupVerticalChannels == ScheduledScanHeight
         && GpuDepthLookupCaptureWidth == Frame.CaptureWidth
         && GpuDepthLookupCaptureHeight == Frame.CaptureHeight
@@ -840,6 +879,8 @@ void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDep
     TArray<float> HorizontalAngles;
     TArray<float> VerticalAngles;
     BuildBeamAngleTables(ScheduledScanWidth, ScheduledScanHeight, HorizontalAngles, VerticalAngles);
+    if (Frame.Request.HorizontalAngles.Num() == ScheduledScanWidth) HorizontalAngles = Frame.Request.HorizontalAngles;
+    if (Frame.Request.VerticalAngles.Num() == ScheduledScanHeight) VerticalAngles = Frame.Request.VerticalAngles;
     const float HalfHorizontalTangent = FMath::Tan(FMath::DegreesToRadians(Frame.Request.HorizontalFovDegrees * 0.5f));
     const float CaptureAspect = static_cast<float>(FMath::Max(1, Frame.CaptureWidth))
         / static_cast<float>(FMath::Max(1, Frame.CaptureHeight));
@@ -873,6 +914,7 @@ void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDep
     }
 
     GpuDepthLookupHorizontalSamples = ScheduledScanWidth;
+    GpuDepthLookupCalibrationHash = CalibrationHash;
     GpuDepthLookupVerticalChannels = ScheduledScanHeight;
     GpuDepthLookupCaptureWidth = Frame.CaptureWidth;
     GpuDepthLookupCaptureHeight = Frame.CaptureHeight;
@@ -1433,8 +1475,14 @@ bool UVirtualLidarScanComponent::SemanticRuleMatches(const FVirtualLidarSemantic
 
 FName UVirtualLidarScanComponent::ResolveSemanticLabel(const FHitResult& Hit) const
 {
-    if (!bEnableSemanticClassification || !Hit.GetActor()) return DefaultSemanticLabel;
-    for (const FVirtualLidarSemanticClassRule& R : SemanticClassRules) { if (SemanticRuleMatches(R, Hit.GetActor(), Hit.GetComponent())) return R.Label; }
+    return ResolveSemanticLabelForComponent(Hit.GetComponent());
+}
+
+FName UVirtualLidarScanComponent::ResolveSemanticLabelForComponent(const UPrimitiveComponent* Component) const
+{
+    const AActor* Actor = Component ? Component->GetOwner() : nullptr;
+    if (!bEnableSemanticClassification || !Actor) return DefaultSemanticLabel;
+    for (const FVirtualLidarSemanticClassRule& R : SemanticClassRules) { if (SemanticRuleMatches(R, Actor, Component)) return R.Label; }
     return DefaultSemanticLabel;
 }
 
@@ -2549,11 +2597,14 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
     const int32 DebugPointStride = FMath::Max(1, FMath::DivideAndRoundUp(PreviewCapacity, 512));
     TArray<FTransform> InstanceTransforms;
     InstanceTransforms.Reserve(PreviewCapacity);
+    const AVirtualLidarSensorActor* SensorOwner = Cast<AVirtualLidarSensorActor>(GetOwner());
+    const UVirtualLidarVisualizationComponent* Visualizer = SensorOwner ? SensorOwner->VisualizationComponent : nullptr;
+    auto DisplayColor = [&](const FVirtualLidarPoint& P) { return Visualizer ? Visualizer->GetPointDisplayColor(P) : ((bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P) : PointCloudPreviewColor); };
     for (int32 I = 0; I < LastPoints.Num(); I += Stride)
     {
         const FVirtualLidarPoint& P = LastPoints[I]; if (bPointCloudPreviewHitOnly && !P.bHit) continue; if (MaxPreviewPoints > 0 && Added >= MaxPreviewPoints) break;
         InstanceTransforms.Add(FTransform(FRotator::ZeroRotator, P.WorldLocation, FVector(PointCloudPreviewPointScale)));
-        if (bDrawPointCloudPreviewDebugPoints && Added % DebugPointStride == 0) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, (bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P).ToFColor(true) : PointCloudPreviewColor.ToFColor(true), false, FMath::Max(ScanInterval, 0.2f));
+        if (bDrawPointCloudPreviewDebugPoints && Added % DebugPointStride == 0) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, DisplayColor(P).ToFColor(true), false, FMath::Max(ScanInterval, 0.2f));
         ++Added;
     }
     const int32 ExistingCount = Comp->GetInstanceCount();
@@ -2582,7 +2633,7 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
     {
         const FVirtualLidarPoint& Point = LastPoints[PointIndex];
         if (PointIndex % Stride != 0 || (bPointCloudPreviewHitOnly && !Point.bHit)) continue;
-        const FLinearColor Color = bUseSemanticColorInPointCloudPreview && Point.bHit ? ResolveSemanticColor(Point) : PointCloudPreviewColor;
+        const FLinearColor Color = DisplayColor(Point);
         Comp->SetCustomDataValue(InstanceIndex, 0, Color.R, false);
         Comp->SetCustomDataValue(InstanceIndex, 1, Color.G, false);
         Comp->SetCustomDataValue(InstanceIndex, 2, Color.B, false);

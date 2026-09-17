@@ -3,10 +3,12 @@
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorAcquisitionBackend.h"
+#include "VirtualLidarSemanticScene.h"
 #include "VirtualLidarGpuDepthProjectionComponent.generated.h"
 
 class FRHIGPUTextureReadback;
 class UTextureRenderTarget2D;
+class FVirtualLidarSemanticScene;
 
 /**
  * Asynchronous SceneDepth acquisition for dense solid-state LiDAR profiles.
@@ -22,6 +24,9 @@ class MA0T10_DT_API UVirtualLidarGpuDepthProjectionComponent
 
 public:
 	UVirtualLidarGpuDepthProjectionComponent();
+	virtual ~UVirtualLidarGpuDepthProjectionComponent() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+	virtual void OnUnregister() override;
 
 	virtual EVirtualLidarAcquisitionBackend GetBackendType() const override
 	{
@@ -48,6 +53,10 @@ private:
 	TObjectPtr<UTextureRenderTarget2D> DepthRenderTarget;
 
 	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback;
+	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> SemanticReadback;
+	TUniquePtr<FVirtualLidarSemanticScene> SemanticScene;
+	TMap<int32, FVirtualLidarGpuSemanticIdentity> PendingSemanticIdentities;
+	FString PendingSemanticStatus;
 	FVirtualLidarDepthAcquisitionRequest PendingRequest;
 	int32 PendingCaptureWidth = 0;
 	int32 PendingCaptureHeight = 0;
