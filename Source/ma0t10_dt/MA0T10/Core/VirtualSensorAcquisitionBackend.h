@@ -6,6 +6,9 @@
 
 struct MA0T10_DT_API FVirtualLidarDepthAcquisitionRequest
 {
+	bool bRequestSemantics = false;
+	TArray<float> HorizontalAngles;
+	TArray<float> VerticalAngles;
 	FVirtualSlabFrameContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
@@ -17,12 +20,22 @@ struct MA0T10_DT_API FVirtualLidarDepthAcquisitionRequest
 	float MaxDistanceCm = 10000.0f;
 	int64 AcquisitionStartUnixNanoseconds = 0;
 };
+struct FVirtualLidarGpuSemanticIdentity
+{
+	FName Label;
+	FName ActorName;
+	FName ActorClass;
+	TArray<FName> ActorTags;
+};
 struct MA0T10_DT_API FVirtualLidarDepthAcquisitionFrame
 {
 	FVirtualLidarDepthAcquisitionRequest Request;
 	int32 CaptureWidth = 0;
 	int32 CaptureHeight = 0;
 	TArray<float> ForwardDepthCentimeters;
+	TArray<FLinearColor> SemanticIdDepth;
+	TMap<int32, FVirtualLidarGpuSemanticIdentity> SemanticIdentities;
+	FString SemanticStatus;
 	int64 AcquisitionEndUnixNanoseconds = 0;
 };
 
