@@ -57,6 +57,24 @@ bool FLidarPrePr16CoordinateContract::RunTest(const FString&)
             TestTrue(TEXT("local binary XYZ reconstructs original world position"), Restored[I].Equals((*Points)[I].WorldLocation, 0.01));
         }
         TestTrue(TEXT("25cm object remains 25cm above plate at every pose"), FMath::IsNearlyEqual(Restored[1].Z - Restored[0].Z, 25.0, 0.01));
+        Config.PcdDataMode = EVirtualPcdDataMode::Ascii;
+        Bytes.Reset();
+        if (!TestTrue(TEXT("legacy ASCII serializer"), UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, Count, Error))) return false;
+        FUTF8ToTCHAR AsciiText(reinterpret_cast<const ANSICHAR*>(Bytes.GetData()), Bytes.Num());
+        const FString Text(AsciiText.Length(), AsciiText.Get());
+        const FString DataMarker(TEXT("DATA ascii\n"));
+        const int32 DataStart = Text.Find(DataMarker);
+        if (!TestTrue(TEXT("ASCII header boundary"), DataStart != INDEX_NONE)) return false;
+        TArray<FString> Rows;
+        Text.Mid(DataStart + DataMarker.Len()).ParseIntoArrayLines(Rows);
+        if (!TestEqual(TEXT("ASCII and binary point count"), Rows.Num(), 2)) return false;
+        for (int32 I = 0; I < Rows.Num(); ++I)
+        {
+            TArray<FString> Fields; Rows[I].ParseIntoArrayWS(Fields);
+            if (!TestEqual(TEXT("legacy fields unchanged"), Fields.Num(), 11)) return false;
+            const FVector Local(FCString::Atod(*Fields[0]), FCString::Atod(*Fields[1]), FCString::Atod(*Fields[2]));
+            TestTrue(TEXT("ASCII retains the same local-metre contract"), Local.Equals((*Points)[I].SensorLocalPositionMeters, 1e-6));
+        }
     }
     return true;
 }

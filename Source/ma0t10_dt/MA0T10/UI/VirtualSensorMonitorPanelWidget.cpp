@@ -565,8 +565,6 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         SNew(SVerticalBox)
                         + SVerticalBox::Slot().AutoHeight()
                         [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(GetSelectedSensorIdText()); }) ]
-                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
-                        [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).AutoWrapText(true).Text(FText::FromString(BuildCompactStatusText())) ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
                             SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())

@@ -672,7 +672,9 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
     bGpuDepthScanInProgress = true;
     RuntimeStatus.bAcquisitionInFlight = true;
     RuntimeStatus.ActiveAcquisitionBackend = TEXT("gpu_depth_projection");
-    RuntimeStatus.AcquisitionBackendMessage = TEXT("GPU first-surface depth active; multi-echo and semantic extensions require CPU/HWRT");
+    RuntimeStatus.AcquisitionBackendMessage = Request.bRequestSemantics
+        ? TEXT("GPU 깊이·의미 분류 캡처 중 (첫 표면, 다중 Echo 미지원)")
+        : TEXT("GPU 깊이 측정 중 (첫 표면, 다중 Echo 미지원)");
     return true;
 }
 
