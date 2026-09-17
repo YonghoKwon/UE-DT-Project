@@ -82,6 +82,7 @@ public:
     int32 GetTextureResourceCreateCount() const { return TextureResourceCreateCount; }
 
     static ELidarColorMode MapLegacyViewMode(EVirtualLidarViewMode LegacyMode);
+    FLinearColor GetPointDisplayColor(const FVirtualLidarPoint& Point) const;
     static EVirtualLidarViewMode MapColorModeToLegacy(ELidarColorMode ColorMode);
     static FColor ResolveDisplayColor(
         const UVirtualLidarScanComponent* ScanComponent,

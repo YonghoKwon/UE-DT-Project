@@ -2549,11 +2549,14 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
     const int32 DebugPointStride = FMath::Max(1, FMath::DivideAndRoundUp(PreviewCapacity, 512));
     TArray<FTransform> InstanceTransforms;
     InstanceTransforms.Reserve(PreviewCapacity);
+    const AVirtualLidarSensorActor* SensorOwner = Cast<AVirtualLidarSensorActor>(GetOwner());
+    const UVirtualLidarVisualizationComponent* Visualizer = SensorOwner ? SensorOwner->VisualizationComponent : nullptr;
+    auto DisplayColor = [&](const FVirtualLidarPoint& P) { return Visualizer ? Visualizer->GetPointDisplayColor(P) : ((bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P) : PointCloudPreviewColor); };
     for (int32 I = 0; I < LastPoints.Num(); I += Stride)
     {
         const FVirtualLidarPoint& P = LastPoints[I]; if (bPointCloudPreviewHitOnly && !P.bHit) continue; if (MaxPreviewPoints > 0 && Added >= MaxPreviewPoints) break;
         InstanceTransforms.Add(FTransform(FRotator::ZeroRotator, P.WorldLocation, FVector(PointCloudPreviewPointScale)));
-        if (bDrawPointCloudPreviewDebugPoints && Added % DebugPointStride == 0) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, (bUseSemanticColorInPointCloudPreview && P.bHit) ? ResolveSemanticColor(P).ToFColor(true) : PointCloudPreviewColor.ToFColor(true), false, FMath::Max(ScanInterval, 0.2f));
+        if (bDrawPointCloudPreviewDebugPoints && Added % DebugPointStride == 0) DrawDebugPoint(World, P.WorldLocation, PointCloudPreviewDebugPointSize, DisplayColor(P).ToFColor(true), false, FMath::Max(ScanInterval, 0.2f));
         ++Added;
     }
     const int32 ExistingCount = Comp->GetInstanceCount();
@@ -2582,7 +2585,7 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
     {
         const FVirtualLidarPoint& Point = LastPoints[PointIndex];
         if (PointIndex % Stride != 0 || (bPointCloudPreviewHitOnly && !Point.bHit)) continue;
-        const FLinearColor Color = bUseSemanticColorInPointCloudPreview && Point.bHit ? ResolveSemanticColor(Point) : PointCloudPreviewColor;
+        const FLinearColor Color = DisplayColor(Point);
         Comp->SetCustomDataValue(InstanceIndex, 0, Color.R, false);
         Comp->SetCustomDataValue(InstanceIndex, 1, Color.G, false);
         Comp->SetCustomDataValue(InstanceIndex, 2, Color.B, false);

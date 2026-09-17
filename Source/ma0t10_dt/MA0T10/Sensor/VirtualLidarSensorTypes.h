@@ -51,6 +51,15 @@ enum class ELidarColorMode : uint8
     DistanceGray UMETA(DisplayName = "거리 회색조")
 };
 
+/** Zero preserves old saves: world Z for WorldTopDown, sensor Z otherwise. */
+UENUM(BlueprintType)
+enum class ELidarHeightReference : uint8
+{
+    ProjectionDefault,
+    SensorLocalZ,
+    WorldZ
+};
+
 /** Runtime policy for the world-space LiDAR point renderer. */
 UENUM(BlueprintType)
 enum class ELidarPointCloudRenderPolicy : uint8
@@ -124,6 +133,18 @@ struct MA0T10_DT_API FVirtualLidarVisualizationSettings
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
     ELidarColorMode ColorMode = ELidarColorMode::DistanceTurbo;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    ELidarHeightReference HeightReference = ELidarHeightReference::ProjectionDefault;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    bool bAutoHeightRange = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    float HeightMinMeters = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
+    float HeightMaxMeters = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Visualization")
     bool bUseAdaptiveDistance = true;

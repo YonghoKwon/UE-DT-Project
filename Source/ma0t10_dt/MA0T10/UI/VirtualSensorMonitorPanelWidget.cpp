@@ -22,6 +22,8 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarHeight.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -144,7 +146,7 @@ FString LidarProjectionDisplayText(ELidarMonitorProjectionMode Mode)
 FString LidarColorDisplayText(ELidarColorMode Mode)
 {
     if (Mode == ELidarColorMode::DistanceViridis) return TEXT("거리 Viridis (색각 친화)");
-    if (Mode == ELidarColorMode::RelativeHeight) return TEXT("센서 상대 높이");
+    if (Mode == ELidarColorMode::RelativeHeight) return TEXT("높이 색상 (기준 선택)");
     if (Mode == ELidarColorMode::SemanticLabel) return TEXT("의미 분류 색상");
     if (Mode == ELidarColorMode::VerticalChannel) return TEXT("수직 채널 / Ring");
     if (Mode == ELidarColorMode::ReturnIndex) return TEXT("MultiHit Return 번호");
@@ -655,6 +657,26 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                                 if (Item.IsValid()) SetLidarColorMode(*Item);
                             })
                             [ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(LidarColorDisplayText(GetLidarColorMode())); }) ]
+                        ]
+                        + SVerticalBox::Slot().AutoHeight()
+                        [ SNew(SVerticalBox).Visibility_Lambda([this]() { return bShowingLidar && GetLidarColorMode() == ELidarColorMode::RelativeHeight ? EVisibility::Visible : EVisibility::Collapsed; })
+                            + SVerticalBox::Slot().AutoHeight()
+                            [ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
+                                .Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(V && VirtualLidarHeight::IsWorld(V->Settings) ? TEXT("높이 기준: 월드 Z (클릭 전환)") : TEXT("높이 기준: 센서 로컬 Z (클릭 전환)")); })
+                                .OnClicked_Lambda([this]() { if (const auto* V = GetLidarVisualizationComponent()) { const auto S = V->Settings; SetLidarHeightDisplay(VirtualLidarHeight::IsWorld(S) ? ELidarHeightReference::SensorLocalZ : ELidarHeightReference::WorldZ, S.bAutoHeightRange, S.HeightMinMeters, S.HeightMaxMeters); } return FReply::Handled(); }) ]
+                            + SVerticalBox::Slot().AutoHeight()
+                            [ SNew(SCheckBox).IsChecked_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return V && V->Settings.bAutoHeightRange ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+                                .OnCheckStateChanged_Lambda([this](ECheckBoxState State) { if (const auto* V = GetLidarVisualizationComponent()) { const auto S = V->Settings; SetLidarHeightDisplay(S.HeightReference, State == ECheckBoxState::Checked, S.HeightMinMeters, S.HeightMaxMeters); } })
+                                [ SNewSensorTool(STextBlock).Text(LOCTEXT("AutoHeight", "높이 범위 자동 (수동 입력 단위: m)")) ] ]
+                            + SVerticalBox::Slot().AutoHeight()
+                            [ SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1)[ SNewSensorTool(SEditableTextBox).HintText(LOCTEXT("HeightMin", "최소 높이(m)"))
+                                    .Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(FString::SanitizeFloat(V ? V->Settings.HeightMinMeters : 0.f)); })
+                                    .OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { float Value; if (const auto* V = GetLidarVisualizationComponent(); V && LexTryParseString(Value, *T.ToString())) { const auto S = V->Settings; SetLidarHeightDisplay(S.HeightReference, false, Value, S.HeightMaxMeters); } }) ]
+                                + SHorizontalBox::Slot().FillWidth(1)[ SNewSensorTool(SEditableTextBox).HintText(LOCTEXT("HeightMax", "최대 높이(m)"))
+                                    .Text_Lambda([this]() { const auto* V = GetLidarVisualizationComponent(); return FText::FromString(FString::SanitizeFloat(V ? V->Settings.HeightMaxMeters : 1.f)); })
+                                    .OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type) { float Value; if (const auto* V = GetLidarVisualizationComponent(); V && LexTryParseString(Value, *T.ToString())) { const auto S = V->Settings; SetLidarHeightDisplay(S.HeightReference, false, S.HeightMinMeters, Value); } }) ]
+                            ]
                         ]
                         + SVerticalBox::Slot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return bShowingLidar?EVisibility::Visible:EVisibility::Collapsed;}).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("LegendFold","범례 · 표시 설명"))].BodyContent()[SNew(SVerticalBox)
 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f, 0.0f, 2.0f)
@@ -1237,6 +1259,18 @@ void UVirtualSensorMonitorPanelWidget::SetLidarProjectionMode(ELidarMonitorProje
         RefreshImageBrush();
         SaveMonitorUiPreferences();
     }
+}
+
+bool UVirtualSensorMonitorPanelWidget::SetLidarHeightDisplay(ELidarHeightReference Reference, bool bAutoRange, float MinMeters, float MaxMeters)
+{
+    auto* V = GetLidarVisualizationComponent();
+    if (!V || !FMath::IsFinite(MinMeters) || !FMath::IsFinite(MaxMeters) || MaxMeters <= MinMeters) return false;
+    auto S = V->GetVisualizationSettings();
+    S.HeightReference = Reference; S.bAutoHeightRange = bAutoRange;
+    S.HeightMinMeters = MinMeters; S.HeightMaxMeters = MaxMeters;
+    V->SetVisualizationSettings(S);
+    SaveMonitorUiPreferences();
+    return true;
 }
 
 void UVirtualSensorMonitorPanelWidget::SetLidarColorMode(ELidarColorMode InColorMode)
@@ -2364,6 +2398,10 @@ void UVirtualSensorMonitorPanelWidget::RestoreMonitorUiPreferences()
         Settings.ColorMode = Preferences->LidarColorMode;
         Settings.bShowWorldPointCloud = Preferences->bShowWorldLidarPointCloud;
         Settings.PointSize = Preferences->LidarPointSize;
+        Settings.HeightReference = Preferences->LidarHeightReference;
+        Settings.bAutoHeightRange = Preferences->bLidarAutoHeightRange;
+        Settings.HeightMinMeters = Preferences->LidarHeightMinMeters;
+        Settings.HeightMaxMeters = Preferences->LidarHeightMaxMeters;
         Settings.bUseAdaptiveDistance = bUseAdaptiveLidarDepthRange;
         Settings.bShowGrid = bOverlayLidarMonitorGrid;
         Settings.bShowDepthEdges = bOverlayLidarDepthEdges;
@@ -2384,6 +2422,10 @@ void UVirtualSensorMonitorPanelWidget::SaveMonitorUiPreferences() const
         Preferences->LidarColorMode = Settings.ColorMode;
         Preferences->bShowWorldLidarPointCloud = Settings.bShowWorldPointCloud;
         Preferences->LidarPointSize = Settings.PointSize;
+        Preferences->LidarHeightReference = Settings.HeightReference;
+        Preferences->bLidarAutoHeightRange = Settings.bAutoHeightRange;
+        Preferences->LidarHeightMinMeters = Settings.HeightMinMeters;
+        Preferences->LidarHeightMaxMeters = Settings.HeightMaxMeters;
         Preferences->bWorldTopDownAutoFit = Settings.bWorldTopDownAutoFit;
     }
     Preferences->bUseAdaptiveLidarDepthRange = bUseAdaptiveLidarDepthRange;

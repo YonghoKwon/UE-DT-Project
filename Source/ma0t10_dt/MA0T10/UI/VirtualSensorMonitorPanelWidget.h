@@ -122,6 +122,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void SetLidarColorMode(ELidarColorMode InColorMode);
 
+    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Monitor")
+    bool SetLidarHeightDisplay(ELidarHeightReference Reference, bool bAutoRange, float MinMeters, float MaxMeters);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor|LidarView")
     void SetLidarWorldPointCloudEnabled(bool bEnabled);
 

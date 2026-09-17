@@ -2,6 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarHeight.h"
 
 // f7ec4ab4 contract: sensor local metres, X forward/Y left/Z up.
 // Binary transport changes representation, not the frame of reference.
@@ -55,6 +56,32 @@ bool FLidarPrePr16CoordinateContract::RunTest(const FString&)
         }
         TestTrue(TEXT("25cm object remains 25cm above plate at every pose"), FMath::IsNearlyEqual(Restored[1].Z - Restored[0].Z, 25.0, 0.01));
     }
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarHeightReferenceRegression,
+    "MA0T10.LidarRegression.HeightReference", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLidarHeightReferenceRegression::RunTest(const FString&)
+{
+    FVirtualLidarVisualizationSettings S;
+    S.ProjectionMode = ELidarMonitorProjectionMode::WorldTopDown;
+    FVirtualLidarPoint Plate, Object;
+    Plate.bHit = Object.bHit = true;
+    Plate.WorldLocation = FVector(0, 0, 100);
+    Object.WorldLocation = FVector(0, 0, 125);
+    const TArray<FVirtualLidarPoint> Points{Plate, Object};
+    for (const FRotator Rotation : {FRotator::ZeroRotator, FRotator(-90, 0, 0)})
+    {
+        const FTransform Pose(Rotation, FVector(0,0,1000));
+        const auto Range = VirtualLidarHeight::Range(S, Pose, Points);
+        TestEqual(TEXT("world height min"), Range.X, 100.0);
+        TestEqual(TEXT("world height max"), Range.Y, 125.0);
+        TestEqual(TEXT("plate at lower color stop"), VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(S, Pose, Plate), Range), 0.0f);
+        TestEqual(TEXT("object at upper color stop even downward sensor"), VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(S, Pose, Object), Range), 1.0f);
+    }
+    S.HeightReference = ELidarHeightReference::SensorLocalZ;
+    TestFalse(TEXT("explicit local overrides projection default"), VirtualLidarHeight::IsWorld(S));
+    S.bAutoHeightRange = false; S.HeightMinMeters = 0.5f; S.HeightMaxMeters = 1.5f;
+    TestEqual(TEXT("manual meters become cm"), VirtualLidarHeight::Range(S, FTransform::Identity, Points), FVector2D(50,150));
     return true;
 }
 #endif
