@@ -3,6 +3,8 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarHeight.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualPointCloudCoordinates.h"
+#include "Json.h"
 
 // f7ec4ab4 contract: sensor local metres, X forward/Y left/Z up.
 // Binary transport changes representation, not the frame of reference.
@@ -58,6 +60,37 @@ bool FLidarPrePr16CoordinateContract::RunTest(const FString&)
     }
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarPcdPoseMetadata,
+    "MA0T10.LidarRegression.PcdPoseMetadata", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLidarPcdPoseMetadata::RunTest(const FString&)
+{
+    const FTransform Pose(FRotator(-90,30,10), FVector(100,-200,1000));
+    auto Snapshot = MakeShared<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe>();
+    Snapshot->AcquisitionTransform = Pose;
+    FVirtualLidarPoint Point; Point.bHit = true;
+    Point.SensorLocalPositionMeters = FVector(9.75,0.5,-0.25);
+    FVirtualSensorFrameEnvelope Frame;
+    Frame.PointSnapshot = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(TArray<FVirtualLidarPoint>{Point});
+    Frame.LidarFrameSnapshot = Snapshot;
+    FVirtualSensorStreamConfig Config; Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
+    Config.PcdDataMode = EVirtualPcdDataMode::Binary;
+    TArray<uint8> Bytes; FString Extension, Error; int32 Count;
+    if (!TestTrue(TEXT("production serializer"), UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame,Config,Extension,Bytes,Count,Error))) return false;
+    int32 End = 0; while (End < Bytes.Num() && Bytes[End] != '\n') ++End;
+    const int32 Begin = ++End; while (End < Bytes.Num() && Bytes[End] != '\n') ++End;
+    FUTF8ToTCHAR Header(reinterpret_cast<const ANSICHAR*>(Bytes.GetData() + Begin), End - Begin);
+    FString Line(Header.Length(), Header.Get());
+    Line.RemoveFromStart(TEXT("# MA0T10_META "));
+    TSharedPtr<FJsonObject> Meta;
+    if (!TestTrue(TEXT("metadata JSON"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Line), Meta))) return false;
+    const auto Matrix = Meta->GetArrayField(TEXT("sensor_to_world_m"));
+    FVector World;
+    for (int32 R = 0; R < 3; ++R)
+        World[R] = Matrix[R*4]->AsNumber()*Point.SensorLocalPositionMeters.X + Matrix[R*4+1]->AsNumber()*Point.SensorLocalPositionMeters.Y + Matrix[R*4+2]->AsNumber()*Point.SensorLocalPositionMeters.Z + Matrix[R*4+3]->AsNumber();
+    TestTrue(TEXT("consumer matrix includes Y handedness, metres and rotation"), World.Equals(VirtualPointCloudCoordinates::ToWorldMeters(Pose,Point.SensorLocalPositionMeters),1e-6));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarHeightReferenceRegression,
     "MA0T10.LidarRegression.HeightReference", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLidarHeightReferenceRegression::RunTest(const FString&)

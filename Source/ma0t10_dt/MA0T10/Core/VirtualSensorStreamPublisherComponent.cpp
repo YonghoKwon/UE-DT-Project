@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "VirtualPointCloudCoordinates.h"
 #include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
@@ -115,6 +116,11 @@ bool SerializeBinaryPcd(
 	Metadata->SetStringField(TEXT("sensor_id"), Frame.SensorId);
 	Metadata->SetStringField(TEXT("sensor_frame_id"), LexToString(Frame.FrameId));
 	Metadata->SetStringField(TEXT("timestamp_utc"), Frame.TimestampUtc.ToIso8601());
+	// External frames without an acquisition snapshot must not claim an identity pose.
+	if (Frame.LidarFrameSnapshot.IsValid())
+	{
+		VirtualPointCloudCoordinates::AddMetadata(*Metadata, Frame.LidarFrameSnapshot->AcquisitionTransform);
+	}
 	if (Frame.SlabContext.bEligible)
 	{
 		Metadata->SetStringField(TEXT("run_uuid"), Frame.SlabContext.RunId);
