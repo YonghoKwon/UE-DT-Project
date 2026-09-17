@@ -117,4 +117,25 @@ bool FLidarHeightReferenceRegression::RunTest(const FString&)
     TestEqual(TEXT("manual meters become cm"), VirtualLidarHeight::Range(S, FTransform::Identity, Points), FVector2D(50,150));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarSurfaceOrderRegression,
+    "MA0T10.LidarRegression.SurfaceOrder", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLidarSurfaceOrderRegression::RunTest(const FString&)
+{
+    FVirtualLidarPoint Plate, Object;
+    Plate.bHit = Object.bHit = true;
+    Plate.WorldLocation = FVector(500,0,0); Object.WorldLocation = FVector(500,0,25);
+    Plate.Distance = 500; Object.Distance = 475;
+    FVirtualLidarVisualizationSettings S;
+    S.ColorMode = ELidarColorMode::RelativeHeight;
+    S.bShowGrid = S.bShowDepthEdges = false;
+    S.PointSize = 4;
+    for (auto Mode : {ELidarMonitorProjectionMode::WorldTopDown, ELidarMonitorProjectionMode::TopDown, ELidarMonitorProjectionMode::RangeImage})
+    {
+        S.ProjectionMode = Mode;
+        const auto A = UVirtualLidarVisualizationComponent::BuildProjectionPixelsForTesting({Plate,Object}, S, FTransform::Identity);
+        const auto B = UVirtualLidarVisualizationComponent::BuildProjectionPixelsForTesting({Object,Plate}, S, FTransform::Identity);
+        TestTrue(TEXT("surface selection independent of point array order"), A.Num() > 0 && A == B);
+    }
+    return true;
+}
 #endif

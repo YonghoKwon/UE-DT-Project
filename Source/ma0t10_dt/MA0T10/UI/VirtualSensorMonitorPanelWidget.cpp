@@ -2264,7 +2264,7 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
         {
         case ELidarColorMode::DistanceViridis: ColorDescription = TEXT("Viridis 거리 색상은 색각 친화 팔레트로 거리를 구분합니다."); break;
         case ELidarColorMode::RelativeHeight:
-            ColorDescription = Settings.ProjectionMode == ELidarMonitorProjectionMode::WorldTopDown
+            ColorDescription = VirtualLidarHeight::IsWorld(Settings)
                 ? TEXT("월드 Z 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다.")
                 : TEXT("센서 상대 높이에 따라 낮은 점부터 높은 점까지 색상을 매핑합니다.");
             break;
