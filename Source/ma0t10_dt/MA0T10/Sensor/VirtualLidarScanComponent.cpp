@@ -741,6 +741,7 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
 
     EnsureGpuDepthBeamLookup(Frame);
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
+    TMap<int32, int32> SemanticIdCounts;
 
     for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
     {
@@ -756,7 +757,7 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
             const float DirectionForward = FMath::Max(0.001f, LocalDirection.X);
             const float RadialDistanceCm = ForwardDepthCm / DirectionForward;
 
-            FVirtualLidarPoint Point;
+            FVirtualLidarPoint& Point = ScheduledPoints.AddDefaulted_GetRef();
             InitializePhysicalPoint(Point, Ring, Column, RayIndex, TotalRays, LocalDirection);
             Point.Distance = MaxDistance;
             Point.WorldLocation = ScheduledScanTransform.GetLocation() + WorldDirection * MaxDistance;
@@ -823,7 +824,7 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
                                 Point.HitActorName = Identity->ActorName;
                                 Point.HitActorClassName = Identity->ActorClass;
                                 Point.HitActorTags = Identity->ActorTags;
-                                ++ScheduledSemanticCounts.FindOrAdd(Identity->Label.ToString());
+                                ++SemanticIdCounts.FindOrAdd(FMath::RoundToInt(IdDepth.R));
                             }
                         }
                     }
@@ -835,7 +836,6 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
                     Point.Confidence = DetectionProbability;
                 }
             }
-            ScheduledPoints.Add(Point);
             if (bScheduledGenerateHeatmap)
             {
                 WriteHeatmapPixel(
@@ -845,6 +845,10 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
             }
         }
     }
+    // Convert names once per surface, not once per 32,256-point scan element.
+    for (const auto& Count : SemanticIdCounts)
+        if (const auto* Identity = Frame.SemanticIdentities.Find(Count.Key))
+            ScheduledSemanticCounts.FindOrAdd(Identity->Label.ToString()) += Count.Value;
 }
 
 void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
