@@ -87,6 +87,8 @@ class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPane
     GENERATED_BODY()
 
 public:
+    /** Test/tool opt-out; normal sensor panels retain their existing preference behavior. */
+    bool bPersistMonitorPreferences = true;
 	void PumpPendingCaptureWork();
 	bool IsConfiguredCapturePending() const { return bConfiguredOneShotPending; }
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
