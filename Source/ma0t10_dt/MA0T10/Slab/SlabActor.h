@@ -47,6 +47,8 @@ public:
 	uint32 GetMetricsConfigurationHash() const;
 	bool ReceiveScenario(FSlabScenarioDataPtr Data);
 	void AdvanceSimulation(double DeltaSeconds);
+	/** Motion component callback: pose already applied; update metadata/metrics and session lifecycle. */
+	void OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 RowIndex,double Time,bool bEnd);
 	USlabDataSyncComponent* GetDataSyncComponent() const { return DataSyncComponent; }
 	UPROPERTY(BlueprintAssignable,Category="Slab") FSlabStateChanged OnSlabStateChanged;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Routing") FString ReceiverId=TEXT("SlabScenario.Main");
@@ -74,17 +76,12 @@ private:
 	UPROPERTY(Transient) FSlabSimulationStatus Status;
 	FSlabScenarioDataPtr Scenario;
 	FTransform InitialTrackTransform;
-	FTransform RunTrackTransform;
-	FVector RunSizeCm=FVector::OneVector;
-	ESlabInputUnit RunPositionUnit=ESlabInputUnit::Centimeters;
-	double Elapsed=0;
 	int32 LastNotifiedIndex=INDEX_NONE;
 	uint64 ParseGeneration=0;
 	bool bParsing=false;
 	bool bEnding=false;
 	bool bRegistered=false;
 	bool StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,bool bReplay);
-	void ApplyAtTime(double Time);
 	void FinishSimulation(bool bAborted,const FString& Error=FString());
 	void UpdateAppearance();
 	void UpdateDimensions();

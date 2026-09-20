@@ -36,7 +36,8 @@ void ASlabActor::OnConstruction(const FTransform& Transform)
 void ASlabActor::BeginPlay()
 {
 	Super::BeginPlay(); InitialTrackTransform=GetActorTransform(); InitialTrackTransform.SetScale3D(FVector::OneVector);
-	RunTrackTransform=GetTrackTransform(); UpdateDimensions(); UpdateAppearance(); VisualizationComponent->UpdateGeometry(GetSizeCm());
+	MotionComponent->OnPoseApplied.BindUObject(this,&ASlabActor::OnSlabPoseApplied);
+	UpdateDimensions(); UpdateAppearance(); VisualizationComponent->UpdateGeometry(GetSizeCm());
 	if(UGameInstance* GI=GetGameInstance())
 	{
 		if(auto* Process=GI->GetSubsystem<UDxProcessSubsystem>())
@@ -125,15 +126,16 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 		if(Session->BeginScenarioSensorSession(RunUUID,TargetSensorIds,Data->ScenarioUUID,SensorOutputs).IsEmpty())
 		{ Replay->SetLiveScenarioPlaybackActive(false,FString()); ReportFailure(Session->GetSlabSensorSessionStatus().Message); return false; }
 	}
-	Scenario=Data; RunSizeCm=Size; RunPositionUnit=PositionUnit; RunTrackTransform=GetTrackTransform();
-	Elapsed=0; LastNotifiedIndex=INDEX_NONE; Status=FSlabSimulationStatus();
+	Scenario=Data; LastNotifiedIndex=INDEX_NONE; Status=FSlabSimulationStatus();
 	Status.State=ESlabSimulationState::Playing; Status.ScenarioUUID=Data->ScenarioUUID; Status.RunUUID=RunUUID; Status.MtlNo=First.MtlNo;
 	Status.RowCount=Data->Rows.Num(); Status.DurationSec=Data->DurationSec; Status.bReplay=bReplay;
 	Status.Message=Data->bDimensionsChanged?TEXT("재생 중 · 첫 행의 치수를 고정 적용합니다."):TEXT("재생 중 · 위치와 각도를 시간 기준으로 보간합니다.");
-	SlabMesh->SetRelativeScale3D(RunSizeCm/100); VisualizationComponent->UpdateGeometry(RunSizeCm);
+	SlabMesh->SetRelativeScale3D(Size/100); VisualizationComponent->UpdateGeometry(Size);
 	if(bReplay&&!Replay->NotifyPlaybackStarted(RunUUID)) { Status.State=ESlabSimulationState::Failed; return false; }
-	ApplyAtTime(0); if(Status.State!=ESlabSimulationState::Playing) return false;
-	MotionComponent->SetComponentTickEnabled(true); OnSlabStateChanged.Broadcast(); return true;
+	if(!MotionComponent->StartPlayback(Data,GetTrackTransform(),Size,PositionUnit))
+	{ if(IsSimulationActive()) FinishSimulation(true,TEXT("Slab 이동 컴포넌트를 시작하지 못했습니다.")); return false; }
+	if(Status.State!=ESlabSimulationState::Playing) return false;
+	OnSlabStateChanged.Broadcast(); return true;
 }
 FTransform ASlabActor::GetTrackTransform() const
 {
@@ -142,20 +144,19 @@ FTransform ASlabActor::GetTrackTransform() const
 }
 FVector ASlabActor::GetSizeCm() const
 {
-	if(IsSimulationActive()) return RunSizeCm;
+	if(IsSimulationActive()&&MotionComponent->IsPlaybackRunning()) return MotionComponent->GetSlabSizeCm();
 	const FVector Raw=Scenario.IsValid()&&!Scenario->Rows.IsEmpty()?FVector(Scenario->Rows[0].Length,Scenario->Rows[0].Width,Scenario->Rows[0].Thickness):InitialDimensions;
 	return FVector(FSlabScenarioCodec::ToCm(Raw.X,DimensionUnit),FSlabScenarioCodec::ToCm(Raw.Y,DimensionUnit),FSlabScenarioCodec::ToCm(Raw.Z,DimensionUnit));
 }
 FTransform ASlabActor::MakePose(const FSlabScenarioRow& Row) const
 {
-	const FTransform Track=IsSimulationActive()?RunTrackTransform:GetTrackTransform();
-	const ESlabInputUnit Units=IsSimulationActive()?RunPositionUnit:PositionUnit;
-	const FVector Size=GetSizeCm();
-	return FTransform(Track.GetRotation()*FRotator(0,Row.LeftAngle,0).Quaternion(),Track.TransformPositionNoScale(FVector(FSlabScenarioCodec::ToCm(Row.CenterX,Units),0,Size.Z/2)),FVector::OneVector);
+	const bool bPlayback=IsSimulationActive()&&MotionComponent->IsPlaybackRunning();
+	return USlabMotionComponent::BuildPose(Row,bPlayback?MotionComponent->GetPlaybackTrack():GetTrackTransform(),GetSizeCm(),
+		bPlayback?MotionComponent->GetPlaybackPositionUnit():PositionUnit);
 }
 FSlabMetrics ASlabActor::CalculateMetricsForRow(const FSlabScenarioRow& Row) const
 {
-	const FTransform Track=IsSimulationActive()?RunTrackTransform:GetTrackTransform();
+	const FTransform Track=IsSimulationActive()&&MotionComponent->IsPlaybackRunning()?MotionComponent->GetPlaybackTrack():GetTrackTransform();
 	return USlabMetricsComponent::Calculate(Row,MakePose(Row),GetSizeCm(),Track,TrackReference?TrackReference->LeftRailYcm:0,
 		TrackReference?TrackReference->RightRailYcm:0,TrackReference&&TrackReference->HasValidRails());
 }
@@ -167,18 +168,16 @@ uint32 ASlabActor::GetMetricsConfigurationHash() const
 	if(TrackReference) { Hash=HashCombine(Hash,GetTypeHash(TrackReference->LeftRailYcm)); Hash=HashCombine(Hash,GetTypeHash(TrackReference->RightRailYcm)); Hash=HashCombine(Hash,GetTypeHash(TrackReference->bRailsConfigured)); }
 	return Hash;
 }
-void ASlabActor::ApplyAtTime(double Time)
+void ASlabActor::OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 Index,double Time,bool bEnd)
 {
-	if(!Scenario.IsValid()) return; FSlabScenarioRow Row; int32 Index=0;
-	if(!FSlabScenarioCodec::Sample(*Scenario,Time,Row,Index)) return;
-	SetActorTransform(MakePose(Row),false,nullptr,ETeleportType::TeleportPhysics);
+	if(!IsSimulationActive()||!Scenario.IsValid()||!Scenario->Rows.IsValidIndex(Index)) return;
 	Status.ElapsedSec=FMath::Clamp(Time,0.0,Status.DurationSec); Status.Progress=Status.DurationSec>0?Status.ElapsedSec/Status.DurationSec:0;
 	Status.FrameNo=Row.FrameNo; Status.RowIndex=Index;
 	FSlabMetrics Metrics=CalculateMetricsForRow(Row); Metrics.ElapsedSec=Status.ElapsedSec;
 	if(Index+1<Scenario->Rows.Num())
 	{
 		const auto& A=Scenario->Rows[Index]; const auto& B=Scenario->Rows[Index+1];
-		Metrics.SpeedCmPerSec=FSlabScenarioCodec::ToCm((B.CenterX-A.CenterX)/(B.ElapsedSec-A.ElapsedSec),RunPositionUnit);
+		Metrics.SpeedCmPerSec=FSlabScenarioCodec::ToCm((B.CenterX-A.CenterX)/(B.ElapsedSec-A.ElapsedSec),MotionComponent->GetPlaybackPositionUnit());
 	}
 	MetricsComponent->Update(Metrics);
 	if(Index!=LastNotifiedIndex)
@@ -189,12 +188,11 @@ void ASlabActor::ApplyAtTime(double Time)
 			{ FinishSimulation(true,TEXT("Slab 프레임과 센서 세션 연동에 실패했습니다.")); return; }
 		LastNotifiedIndex=Index;
 	}
+	if(bEnd&&Status.State==ESlabSimulationState::Playing) FinishSimulation(false);
 }
 void ASlabActor::AdvanceSimulation(double DeltaSeconds)
 {
-	if(Status.State!=ESlabSimulationState::Playing||!FMath::IsFinite(DeltaSeconds)||DeltaSeconds<0) return;
-	Elapsed=FMath::Min(Elapsed+DeltaSeconds,Status.DurationSec); ApplyAtTime(Elapsed);
-	if(Status.State==ESlabSimulationState::Playing&&Elapsed>=Status.DurationSec) FinishSimulation(false);
+	MotionComponent->AdvancePlayback(DeltaSeconds);
 }
 bool ASlabActor::SetSimulationPaused(bool bPaused)
 {
@@ -204,13 +202,13 @@ bool ASlabActor::SetSimulationPaused(bool bPaused)
 	if(Session&&!Session->SetSlabSensorSessionPaused(Status.RunUUID,bPaused)) return false;
 	Status.State=bPaused?ESlabSimulationState::Paused:ESlabSimulationState::Playing;
 	Status.Message=bPaused?TEXT("일시정지 · 센서 세션의 신규 송신을 보류합니다."):TEXT("재생 중");
-	MotionComponent->SetComponentTickEnabled(!bPaused); OnSlabStateChanged.Broadcast(); return true;
+	MotionComponent->SetPlaybackPaused(bPaused); OnSlabStateChanged.Broadcast(); return true;
 }
 void ASlabActor::StopSimulation() { ++ParseGeneration; bParsing=false; if(IsSimulationActive()) FinishSimulation(true); }
 void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 {
 	if(!IsSimulationActive()) return;
-	MotionComponent->SetComponentTickEnabled(false);
+	MotionComponent->StopPlayback();
 	if(auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
 	{
 		if(Status.bReplay) Replay->NotifyPlaybackFinished(Status.RunUUID,bAborted);

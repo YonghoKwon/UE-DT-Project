@@ -142,6 +142,8 @@ Editor와 Live Coding을 종료한 후 프로젝트 폴더에서 실행합니다
 - `GetSensorOutputs`, `SetSensorOutputs`: 다음 신규 벌크 실행의 출력 정책.
 - `SetHotAppearance`, `SetDiagnosticHelpersVisible`: 외형/보조 표시.
 
+재생 시간·보간·실제 Transform 적용은 `USlabMotionComponent`가 소유합니다. Actor는 센서 세션과 UI 상태를 연결합니다. 외형 상세의 `Oxidation`, `Roughness`, `EmissiveStrength`는 각각 산화 얼룩·거칠기·고온 발광 강도입니다.
+
 `USlabScenarioReplaySubsystem`:
 
 - `RequestScenarioReplayWithOutputs(ScenarioUUID, Outputs, TargetSensorIds)`.
@@ -177,7 +179,7 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:\TestData\scenario.json"
 
 기본 접속은 `127.0.0.1:61616`이며 `--host`, `--port`로 바꿀 수 있습니다. 로컬 개발 기본 인증값 대신 다른 계정을 쓰면 `ARTEMIS_USER`, `ARTEMIS_PASSWORD` 환경변수로 제공합니다. 운영 비밀번호를 명령행·저장소에 넣지 마세요.
 
-생성 데이터는 약 185KiB이며 실제 byte 수는 발행기 출력에서 확인합니다. 원본 0·1·580번 값을 유지하고 중간을 보간한 600행(0~599, 0.00~29.95초)입니다. 581~599는 최종 자세를 유지하며 전체 종료는 명시적인 30.00초입니다. 파일 기본 위치는 `Saved/Reports/Slab/synthetic_30s.json`입니다. 발행기 `brokerAccepted:true`는 receipt 확인일 뿐이므로 Editor 진행률 증가도 별도로 확인해야 합니다.
+생성 데이터는 약 186KB(182KiB)이며 실제 byte 수는 발행기 출력에서 확인합니다. 원본 0·1·580번 값을 유지하고 중간을 보간한 600행(0~599, 0.00~29.95초)입니다. 581~599는 최종 자세를 유지하며 전체 종료는 명시적인 30.00초입니다. 파일 기본 위치는 `Saved/Reports/Slab/synthetic_30s.json`입니다. 발행기 `brokerAccepted:true`는 receipt 확인일 뿐이므로 Editor 진행률 증가도 별도로 확인해야 합니다.
 
 ### 회귀 검증 목록
 
