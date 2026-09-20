@@ -34,6 +34,7 @@ void USlabScenarioReplaySubsystem::Deinitialize()
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 	FWorldDelegates::OnWorldCleanup.Remove(CleanupHandle);
 	PendingJson.Reset(); Entries.Reset(); PlaybackAdapter.Reset(); PlaybackWorld.Reset(); bParsing=false; bLivePlaybackActive=false; LiveScenarioUUID.Reset();
+	ActiveRegistrationSerial=0; DeletedRegistrationCutoffs.Reset();
 	Super::Deinitialize();
 }
 bool USlabScenarioReplaySubsystem::ValidateScenario(const FString& Json,FSlabScenarioSummary& Summary,FString& Error)
@@ -51,21 +52,23 @@ bool USlabScenarioReplaySubsystem::RegisterScenarioJsonWithMissingUuidPolicy(con
 	if (!IsInGameThread()||!bInitialized) return false;
 	if (Json.Len()>8*1024*1024||FTCHARToUTF8(*Json).Length()>8*1024*1024) { RegistrationMessage=TEXT("등록 거부: JSON 8MiB 제한 초과"); return false; }
 	if (PendingJson.Num()>=2) { RegistrationMessage=TEXT("등록 거부: 대기 2건 초과"); return false; }
-	PendingJson.Add({Json,AllowMissingUuid}); RegistrationMessage=TEXT("시나리오 등록 중"); StartNextRegistration(); return true;
+	PendingJson.Add({Json,AllowMissingUuid,++NextRegistrationSerial}); RegistrationMessage=TEXT("시나리오 등록 중"); StartNextRegistration(); return true;
 }
 void USlabScenarioReplaySubsystem::StartNextRegistration()
 {
 	if (bParsing||PendingJson.IsEmpty()||!bInitialized) return;
-	FPendingScenario Pending=MoveTemp(PendingJson[0]); PendingJson.RemoveAt(0); bParsing=true;
+	FPendingScenario Pending=MoveTemp(PendingJson[0]); PendingJson.RemoveAt(0); bParsing=true; ActiveRegistrationSerial=Pending.RegistrationSerial;
 	const uint64 Epoch=Generation; TWeakObjectPtr<ThisClass> Weak(this);
 	Async(EAsyncExecution::ThreadPool,[Weak,Epoch,Pending=MoveTemp(Pending)]() mutable {
 		FSlabScenarioDataPtr Data; FString Error; const bool Valid=FSlabScenarioCodec::Parse(Pending.Json,Data,Error,Pending.bAllowMissingUuid);
-		AsyncTask(ENamedThreads::GameThread,[Weak,Epoch,Valid,Data=MoveTemp(Data),Error=MoveTemp(Error)]() mutable {
+		const uint64 Serial=Pending.RegistrationSerial;
+		AsyncTask(ENamedThreads::GameThread,[Weak,Epoch,Serial,Valid,Data=MoveTemp(Data),Error=MoveTemp(Error)]() mutable {
 			if (!Weak.IsValid()||!Weak->bInitialized||Weak->Generation!=Epoch) return;
-			Weak->bParsing=false;
-			if (Valid) Weak->RegisterValidatedScenario(MoveTemp(Data));
+			Weak->bParsing=false; Weak->ActiveRegistrationSerial=0;
+			if (Valid) Weak->RegisterValidatedScenarioAtSerial(MoveTemp(Data),Serial);
 			else { Weak->RegistrationMessage=Error; Weak->OnRegistrationFinished.Broadcast(FString(),false,Error); }
 			Weak->StartNextRegistration();
+			Weak->PruneDeletedRegistrationCutoffs();
 		});
 	});
 }
@@ -77,14 +80,23 @@ void USlabScenarioReplaySubsystem::StoreValidated(FSlabScenarioSummary Summary,F
 }
 bool USlabScenarioReplaySubsystem::RegisterValidatedScenario(FSlabScenarioDataPtr Data)
 {
+	if(!IsInGameThread()||!bInitialized) return false;
+	return RegisterValidatedScenarioAtSerial(MoveTemp(Data),++NextRegistrationSerial);
+}
+bool USlabScenarioReplaySubsystem::RegisterValidatedScenarioAtSerial(FSlabScenarioDataPtr Data,uint64 Serial)
+{
 	if(!IsInGameThread()||!bInitialized||!Data.IsValid()||Data->Rows.IsEmpty()||CanonicalId(Data->ScenarioUUID).IsEmpty()) return false;
 	FSlabScenarioSummary Summary=MakeSummary(*Data);
+	if(const uint64* Cutoff=DeletedRegistrationCutoffs.Find(Summary.UUID)) if(Serial<=*Cutoff)
+	{ RegistrationMessage=TEXT("삭제 이전에 접수된 시나리오 등록 결과를 폐기했습니다."); OnRegistrationFinished.Broadcast(Summary.UUID,false,RegistrationMessage); return false; }
 	if (Entries.ContainsByPredicate([&](const auto& E){return E.Summary.UUID==Summary.UUID;}))
 	{ RegistrationMessage=TEXT("같은 UUID가 이미 있어 추가하지 않았습니다."); OnRegistrationFinished.Broadcast(Summary.UUID,false,RegistrationMessage); return false; }
 	if (Entries.Num()>=10)
 	{
+		bool Removed=false;
 		for (int32 I=Entries.Num()-1;I>=0;--I)
-			if ((!IsReplayBusy()||Entries[I].Summary.UUID!=Status.ScenarioUUID)&&(!bLivePlaybackActive||Entries[I].Summary.UUID!=LiveScenarioUUID)) { Entries.RemoveAt(I); break; }
+			if (!IsScenarioProtected(Entries[I].Summary.UUID)) { Entries.RemoveAt(I); Removed=true; break; }
+		if(!Removed) { RegistrationMessage=TEXT("재생 중인 시나리오는 정리할 수 없어 등록하지 못했습니다."); OnRegistrationFinished.Broadcast(Summary.UUID,false,RegistrationMessage); return false; }
 	}
 	const FString UUID=Summary.UUID; Entries.Insert({MoveTemp(Summary),MoveTemp(Data)},0);
 	RegistrationMessage=TEXT("시나리오 등록 완료 · 현재 실행 중에만 보관"); OnScenariosChanged.Broadcast(); OnRegistrationFinished.Broadcast(UUID,true,RegistrationMessage);
@@ -96,6 +108,46 @@ bool USlabScenarioReplaySubsystem::GetScenarioJson(const FString& UUID,FString& 
 { const auto Data=GetValidatedScenario(UUID); if(!Data.IsValid()) return false; Json=Data->OriginalJson; return true; }
 FSlabScenarioDataPtr USlabScenarioReplaySubsystem::GetValidatedScenario(const FString& UUID) const
 { const FString Key=CanonicalId(UUID); for(const auto& E:Entries) if(E.Summary.UUID==Key) return E.Data; return nullptr; }
+bool USlabScenarioReplaySubsystem::IsScenarioProtected(const FString& UUID,FString* OutReason) const
+{
+	auto Protect=[OutReason](const TCHAR* Reason){ if(OutReason) *OutReason=Reason; return true; };
+	if(IsReplayBusy()&&Status.ScenarioUUID==UUID) return Protect(TEXT("재생 준비·재생·송신 정리 중인 시나리오는 삭제할 수 없습니다."));
+	if(bLivePlaybackActive&&(LiveScenarioUUID.IsEmpty()||LiveScenarioUUID==UUID))
+		return Protect(LiveScenarioUUID.IsEmpty()?TEXT("진행 중인 실시간 재생의 UUID를 확인할 수 없어 삭제를 보류합니다."):TEXT("실시간 재생 중인 시나리오는 삭제할 수 없습니다."));
+	// Live playback releases its flag before sensor drain; an aborted replay can also be Failed while draining.
+	const UWorld* Worlds[]={GetWorld(),PlaybackWorld.Get()};
+	for(const UWorld* World:Worlds) if(World) if(const auto* Session=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	{
+		const auto S=Session->GetSlabSensorSessionStatus();
+		if(S.CurrentSlab.ScenarioUUID==UUID&&(S.State==EVirtualSlabSessionState::Ready||S.State==EVirtualSlabSessionState::Running||S.State==EVirtualSlabSessionState::Paused||S.State==EVirtualSlabSessionState::Draining))
+			return Protect(TEXT("센서 세션 준비·진행·일시정지·송신 정리가 끝난 뒤 삭제할 수 있습니다."));
+	}
+	return false;
+}
+bool USlabScenarioReplaySubsystem::CanDeleteScenario(const FString& UUID,FString& OutReason) const
+{
+	OutReason.Reset();
+	if(!IsInGameThread()||!bInitialized) { OutReason=TEXT("시나리오 보관 관리자가 준비되지 않았습니다."); return false; }
+	const FString Key=CanonicalId(UUID);
+	if(Key.IsEmpty()||!Entries.ContainsByPredicate([&](const auto& E){return E.Summary.UUID==Key;}))
+	{ OutReason=TEXT("보관 목록에서 시나리오를 찾을 수 없습니다."); return false; }
+	return !IsScenarioProtected(Key,&OutReason);
+}
+bool USlabScenarioReplaySubsystem::DeleteScenario(const FString& UUID,FString& OutReason)
+{
+	if(!CanDeleteScenario(UUID,OutReason)) return false;
+	const FString Key=CanonicalId(UUID);
+	DeletedRegistrationCutoffs.Add(Key,NextRegistrationSerial);
+	Entries.RemoveAll([&](const auto& E){return E.Summary.UUID==Key;});
+	RegistrationMessage=TEXT("보관 목록에서 삭제했습니다. 새로 수신하면 다시 보관할 수 있습니다.");
+	OnScenariosChanged.Broadcast(); PruneDeletedRegistrationCutoffs(); return true;
+}
+void USlabScenarioReplaySubsystem::PruneDeletedRegistrationCutoffs()
+{
+	uint64 Earliest=ActiveRegistrationSerial?ActiveRegistrationSerial:MAX_uint64;
+	for(const auto& Pending:PendingJson) Earliest=FMath::Min(Earliest,Pending.RegistrationSerial);
+	for(auto It=DeletedRegistrationCutoffs.CreateIterator();It;++It) if(Earliest>It.Value()) It.RemoveCurrent();
+}
 bool USlabScenarioReplaySubsystem::IsReplayBusy() const
 { return Status.State==ESlabScenarioReplayState::Starting||Status.State==ESlabScenarioReplayState::Playing||Status.State==ESlabScenarioReplayState::Draining; }
 bool USlabScenarioReplaySubsystem::CanReplay() const

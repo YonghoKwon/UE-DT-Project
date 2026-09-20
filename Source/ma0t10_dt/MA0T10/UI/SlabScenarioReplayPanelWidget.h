@@ -12,6 +12,12 @@ class MA0T10_DT_API USlabScenarioReplayPanelWidget : public UVirtualSensorPanelW
 public:
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool SelectScenario(const FString& UUID);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool ReplaySelected();
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool CopyScenarioUUID(const FString& UUID);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool RequestScenarioDeletion(const FString& UUID);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool ConfirmScenarioDeletion();
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void CancelScenarioDeletion();
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetPendingDeleteScenarioUUID() const { return PendingDeleteUUID; }
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetScenarioActionMessage() const { return ActionMessage; }
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetSelectedScenarioUUID() const { return SelectedUUID; }
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendPcd=false;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendCameraImage=false;
@@ -28,5 +34,15 @@ private:
 	UFUNCTION() void RefreshList();
 	USlabScenarioReplaySubsystem* Manager() const;
 	FString SelectedUUID;
+	FString PendingDeleteUUID;
+	FString ActionMessage;
+	TArray<FString> PreviousListIds;
+	static FString ResolveStableSelection(const TArray<FString>& PreviousIds,const TArray<FString>& CurrentIds,const FString& Selected);
+	FSlateFontInfo GetListFont(bool bSecondary=false) const;
+	bool IsDeletionAllowed(const FString& UUID) const;
+	FText GetDeletionTooltip(const FString& UUID) const;
 	TSharedPtr<SVerticalBox> List;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabScenarioDeletionUiTest;
+#endif
 };
