@@ -96,7 +96,9 @@ void UVirtualSensorPanelWidgetBase::ApplySensorToolFontScale(float Scale)
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args)
 {
 	FSlateFontInfo Base = Widget->GetFont();
-	if(IsWorkspaceOwned()){const auto Color=Widget->GetColorAndOpacity().GetSpecifiedColor();const int32 RoleSize=(Color.Equals(FVirtualSensorUiStyle::SecondaryText)||Color.Equals(GetToolMutedColor()))?14:16;Base.Size=FMath::Max(RoleSize,Base.Size);Widget->SetAutoWrapText(true);}
+	// Respect the local control's wrapping contract. Forcing every caption to wrap
+	// makes short buttons/checkboxes split into syllables at larger font scales.
+	if(IsWorkspaceOwned()){const auto Color=Widget->GetColorAndOpacity().GetSpecifiedColor();const int32 RoleSize=(Color.Equals(FVirtualSensorUiStyle::SecondaryText)||Color.Equals(GetToolMutedColor()))?14:16;Base.Size=FMath::Max(RoleSize,Base.Size);}
 	AddFontRegistration([Weak=TWeakPtr<STextBlock>(Widget), Base](float Scale) { if (auto W = Weak.Pin()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); W->SetFont(Font); } },[Weak=TWeakPtr<STextBlock>(Widget)](){return Weak.IsValid();});
 	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(SensorToolFontScale);
 }
