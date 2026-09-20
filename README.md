@@ -1,6 +1,6 @@
 # UE-DT-Project
 
-> **DTCore Slab 시뮬레이션**: 벌크 JSON을 받아 보간 이동·외곽선·자체 Slate/UMG 차트·진행률·재실행을 제공합니다. 신규 벌크는 **PCD만 기본 송신**, Camera 이미지와 LiDAR 정보는 선택 사항입니다. 저장 목록 재생은 관찰 전용이 기본입니다. 배치, 단위(cm 기본 / 검증맵 치수 mm), Topic 테스트와 API는 [Slab 시뮬레이션 가이드](docs/slab_simulation.ko.md)를 참고하세요.
+> **DTCore Slab 시뮬레이션**: 벌크 JSON을 받아 보간 이동·분석 표시·자체 Slate/UMG 차트·진행률·재실행을 제공합니다. 기울기·중심 이탈·좌우 Margin의 **3개 차트를 진행한 시점까지만** 표시하며, 재생 목록에서 전체 UUID 복사와 보호된 개별 삭제를 지원합니다. 기본 표면은 얼룩 없는 냉각/고온 금속입니다. 신규 벌크는 **PCD만 기본 송신**, Camera 이미지와 LiDAR 정보는 선택 사항이고 저장 목록 재생은 관찰 전용이 기본입니다. 다른 맵 연결, 단위(cm 기본 / 검증맵 치수 mm), Topic 테스트와 API는 [Slab 시뮬레이션 가이드](docs/slab_simulation.ko.md)를 참고하세요. 테스트용 `SlabScenarioValidationRig`는 운영맵에 옮기지 않습니다.
 
 > 센서 도구 화면은 상단 도구 막대와 모니터 중심 Workspace로 구성됩니다. 네 패널 전용 저장·폰트·숨김 동작 및 동료 Widget 영향 격리는 [UI Workspace 가이드](docs/sensor_tool_workspace.ko.md)를 참고하십시오.
 

@@ -4,6 +4,10 @@
 
 ## 보관 정책
 
+운영 `ASlabActor` 경로와 새 3중 차트·3D 분석·다른 맵 연결은 [Slab 시뮬레이션 가이드](slab_simulation.ko.md)를 따릅니다. 아래 UUID 필수 규칙은 기존 `RegisterScenarioJson` API의 계약입니다. 새 Actor 입력 경로는 원문을 보존하면서 UUID 누락에 내부 보관 ID를 부여할 수 있습니다.
+
+목록 행에는 전체 UUID 또는 내부 보관 ID, 복사, 삭제 버튼이 표시됩니다. 삭제는 행 안의 확인/취소를 거치며 메모리 보관본만 제거합니다. live/replay 준비·실행·일시정지·센서 송신 정리 중인 항목은 `CanDeleteScenario`와 자동 목록 정리에서 공통 보호합니다. `DeleteScenario`는 원본 파일·Broker·Slab Actor·현재 완료 차트를 삭제하지 않습니다. 선택 항목 삭제 후에는 남은 최신 항목을 선택합니다.
+
 - 게임 인스턴스별 최근 10개. PIE/프로그램 종료 시 모두 삭제하고 디스크에는 저장하지 않습니다.
 - `_meta.UUID`가 필수입니다. UUID 누락 시 임의 생성하지 않습니다. `MESSAGE_ID`는 `IFactory-agent`, `DATA_MAP`은 비어 있지 않은 배열이어야 합니다.
 - `_meta.scenario`, `CREATE_TIMESTAMP`, 각 행의 소재/프레임/시각/숫자/boolean을 검사합니다. 원본 좌표·단위·문자열은 변환하지 않습니다.

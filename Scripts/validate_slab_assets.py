@@ -21,7 +21,9 @@ for name, parent in parents.items():
         raise RuntimeError('Wrong parent/generated class: ' + path)
     unreal.log('SLAB_WBP_VALIDATED ' + name)
 for path in ['/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap',
-             '/Game/MA0T10/Slab/Materials/M_SlabSurface']:
+             '/Game/MA0T10/Slab/Materials/M_SlabSurface',
+             '/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain',
+             '/Game/MA0T10/Slab/Materials/M_SlabAnalysisOverlay']:
     if not unreal.EditorAssetLibrary.does_asset_exist(path):
         raise RuntimeError('Missing ' + path)
 unreal.log('SLAB_ASSET_VALIDATION_PASSED; no asset saved')

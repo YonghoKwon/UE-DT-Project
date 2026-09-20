@@ -69,6 +69,13 @@ void ASlabScenarioValidationRig::Tick(float Delta)
         }
         if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_LOCAL_BROKER"))==TEXT("1"))ConfigureLocalBroker();
         PC->bShowMouseCursor=true;PC->SetInputMode(FInputModeGameAndUI());
+        // Explicit test-only comparison switch; never changes production defaults or saves actors.
+        if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_ANALYSIS_OFF"))==TEXT("1"))
+        {
+            FSlabAnalysisDisplaySettings Off;
+            Off.bOutline=Off.bCross=Off.bReferencePose=Off.bCenterline=Off.bYaw=Off.bMargins=Off.bStatus=false;
+            SlabActor->SetAnalysisDisplaySettings(Off);
+        }
         auto Button=[](const TCHAR* Label,TFunction<void()> Action){return SNew(SButton).Text(FText::FromString(Label)).OnClicked_Lambda([Action](){Action();return FReply::Handled();});};
         Controls=SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)
             +SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]
@@ -115,6 +122,8 @@ void ASlabScenarioValidationRig::WriteReport()
     Root->SetStringField(TEXT("message"),S.Message);Root->SetNumberField(TEXT("last_slab_frame"),S.FrameNo);
     Root->SetNumberField(TEXT("elapsed"),S.ElapsedSec);Root->SetNumberField(TEXT("duration"),S.DurationSec);
     Root->SetBoolField(TEXT("completed"),S.State==ESlabSimulationState::Completed);
+    const auto Display=SlabActor->GetAnalysisDisplaySettings();
+    Root->SetBoolField(TEXT("analysis_display_enabled"),Display.bOutline||Display.bCross||Display.bReferencePose||Display.bCenterline||Display.bYaw||Display.bMargins||Display.bStatus);
     if(auto* V=GetWorld()->GetGameViewport();V&&V->Viewport)
     {
         Root->SetNumberField(TEXT("viewport_width"),V->Viewport->GetSizeXY().X);
