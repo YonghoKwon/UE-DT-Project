@@ -529,7 +529,16 @@ void UVirtualSensorPanelWidgetBase::ApplyWorkspaceLayout(const FVirtualSensorPan
 	if(S.bHasSavedPosition&&FMath::IsFinite(S.NormalizedPosition.X)&&FMath::IsFinite(S.NormalizedPosition.Y))SetPanelPositionInternal(FromNormalizedPanelPosition(S.NormalizedPosition,ResolveLogicalViewportSize()));
 }
 FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
-{if(ToolWorkspace.IsValid())ToolWorkspace->BringOwnedPanelToFront(ToolRole);return Super::NativeOnPreviewMouseButtonDown(G,E);}
+{
+	if(ToolWorkspace.IsValid())
+	{
+		ToolWorkspace->BringOwnedPanelToFront(ToolRole);
+		// DTCore's unrelated OpenWidgets list does not contain these owned panels.
+		// Its BringToFront would immediately overwrite our local z-order with 1.
+		return FReply::Unhandled();
+	}
+	return Super::NativeOnPreviewMouseButtonDown(G,E);
+}
 TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FText& Title)
 {
 	return SNew(SHorizontalBox)

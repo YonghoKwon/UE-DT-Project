@@ -6,6 +6,21 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
+namespace
+{
+FString SlabOutputStateMessage(const FVirtualSlabSensorOutputSelection& Outputs,bool bPaused)
+{
+	if(!Outputs.HasAnyOutput())
+		return bPaused?TEXT("일시정지 · 관찰 전용 · 자동 송신 없음"):TEXT("관찰 전용 · 자동 송신 없음");
+	TArray<FString> Names;
+	if(Outputs.bPointCloud) Names.Add(!Outputs.bCameraImage&&!Outputs.bLidarTelemetry?TEXT("PCD 전용"):TEXT("PCD"));
+	if(Outputs.bCameraImage) Names.Add(TEXT("Camera 이미지"));
+	if(Outputs.bLidarTelemetry) Names.Add(TEXT("LiDAR 정보"));
+	const FString Selected=FString::Join(Names,TEXT(" · "));
+	return bPaused?FString::Printf(TEXT("일시정지 · %s 신규 송신 보류"),*Selected):FString::Printf(TEXT("Slab 연동 %s 송신 중"),*Selected);
+}
+}
+
 TMap<FString,FString> FVirtualSlabFrameContext::ToHeaders() const
 {
 	TMap<FString,FString> Result;
@@ -115,7 +130,8 @@ bool UVirtualSensorSlabContextSubsystem::NotifySlabFrameApplied(const FString& I
 	if (Frame==Previous.SlabFrameNo) return Mtl==Previous.MtlNo && Seconds==Previous.ElapsedSec;
 	if (Frame<Previous.SlabFrameNo || Seconds<Previous.ElapsedSec) { Status.Message=TEXT("Slab 프레임 또는 시간이 역순입니다."); return false; }
 	Status.CurrentSlab.MtlNo=Mtl; Status.CurrentSlab.SlabFrameNo=Frame; Status.CurrentSlab.ElapsedSec=Seconds;
-	Status.CurrentSlab.bEligible=true; Status.State=EVirtualSlabSessionState::Running; Status.Message=Status.bPointCloudOnly?TEXT("Slab 연동 PCD 전용 송신 중"):TEXT("Slab 연동 센서 송신 중");
+	Status.CurrentSlab.bEligible=true; Status.State=EVirtualSlabSessionState::Running;
+	Status.Message=SlabOutputStateMessage(Status.Outputs,false);
 	return true;
 }
 bool UVirtualSensorSlabContextSubsystem::SetSlabSensorSessionPaused(const FString& Id,bool Paused)
@@ -124,6 +140,7 @@ bool UVirtualSensorSlabContextSubsystem::SetSlabSensorSessionPaused(const FStrin
 	if (Paused && Status.State==EVirtualSlabSessionState::Running) Status.State=EVirtualSlabSessionState::Paused;
 	else if (!Paused && Status.State==EVirtualSlabSessionState::Paused) { Status.State=EVirtualSlabSessionState::Running; ++Status.CurrentSlab.Segment; }
 	else return false;
+	Status.Message=SlabOutputStateMessage(Status.Outputs,Paused);
 	return true;
 }
 bool UVirtualSensorSlabContextSubsystem::EndSlabSensorSession(const FString& Id,bool Aborted)
@@ -132,7 +149,7 @@ bool UVirtualSensorSlabContextSubsystem::EndSlabSensorSession(const FString& Id,
 	if (Status.State==EVirtualSlabSessionState::Draining || Status.State==EVirtualSlabSessionState::Completed) return true;
 	if (Status.State!=EVirtualSlabSessionState::Running && Status.State!=EVirtualSlabSessionState::Paused && Status.State!=EVirtualSlabSessionState::Ready) return false;
 	Status.bAborted=Aborted; Status.State=EVirtualSlabSessionState::Draining; DrainStarted=FPlatformTime::Seconds();
-	Status.Message=TEXT("마지막 데이터 전송 중"); return true;
+	Status.Message=Status.Outputs.HasAnyOutput()?TEXT("마지막 데이터 전송 중"):TEXT("관찰 종료 정리 중 · 자동 송신 없음"); return true;
 }
 FVirtualSlabFrameContext UVirtualSensorSlabContextSubsystem::CaptureContext(const FString& SensorId,int64 FrameId)
 {

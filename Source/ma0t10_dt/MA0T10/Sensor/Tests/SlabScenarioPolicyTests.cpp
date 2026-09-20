@@ -55,6 +55,11 @@ bool FSlabScenarioOutputPolicyTest::RunTest(const FString&)
 	const FString Observer=Session->BeginScenarioSensorSession(FString(),{},Scenario,FVirtualSlabSensorOutputSelection::ObservationOnly());
 	TestFalse(TEXT("observation works without sensors or Coordinator"),Observer.IsEmpty());
 	TestTrue(TEXT("observer row accepted"),Session->NotifySlabFrameApplied(Observer,TEXT("SQ83521 047"),0,0));
+	TestEqual(TEXT("observation does not claim active transmission"),Session->GetSlabSensorSessionStatus().Message,FString(TEXT("관찰 전용 · 자동 송신 없음")));
+	TestTrue(TEXT("observer pause accepted"),Session->SetSlabSensorSessionPaused(Observer,true));
+	TestEqual(TEXT("paused observer stays output-free"),Session->GetSlabSensorSessionStatus().Message,FString(TEXT("일시정지 · 관찰 전용 · 자동 송신 없음")));
+	TestTrue(TEXT("observer resume accepted"),Session->SetSlabSensorSessionPaused(Observer,false));
+	TestEqual(TEXT("resumed observer stays output-free"),Session->GetSlabSensorSessionStatus().Message,FString(TEXT("관찰 전용 · 자동 송신 없음")));
 	Session->EndSlabSensorSession(Observer,false); Session->Tick(0);
 	TestEqual(TEXT("observer finishes without broker"),Session->GetSlabSensorSessionStatus().State,EVirtualSlabSessionState::Completed);
 	auto* Manager=World->SpawnActor<AVirtualSensorCoordinator>(); auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>(); auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();
@@ -67,6 +72,11 @@ bool FSlabScenarioOutputPolicyTest::RunTest(const FString&)
 	const FString Run=Session->BeginScenarioSensorSession(FString(),{},Scenario,Outputs);
 	TestFalse(TEXT("PCD default session begins"),Run.IsEmpty());
 	Session->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),0,0);
+	TestEqual(TEXT("PCD-only running label matches output policy"),Session->GetSlabSensorSessionStatus().Message,FString(TEXT("Slab 연동 PCD 전용 송신 중")));
+	Session->SetSlabSensorSessionPaused(Run,true);
+	TestEqual(TEXT("PCD-only pause label is not active transmission"),Session->GetSlabSensorSessionStatus().Message,FString(TEXT("일시정지 · PCD 전용 신규 송신 보류")));
+	Session->SetSlabSensorSessionPaused(Run,false);
+	TestEqual(TEXT("PCD-only resume restores policy label"),Session->GetSlabSensorSessionStatus().Message,FString(TEXT("Slab 연동 PCD 전용 송신 중")));
 	const auto LidarContext=Session->CaptureContext(Lidar->GetSensorId(),7100);
 	const auto CameraContext=Session->CaptureContext(Camera->GetSensorId(),7101);
 	TestEqual(TEXT("camera off does not add pending acquisition"),Session->GetSlabSensorSessionStatus().PendingAcquisitions,1);

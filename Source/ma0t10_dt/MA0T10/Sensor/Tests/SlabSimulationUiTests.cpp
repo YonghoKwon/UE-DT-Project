@@ -68,4 +68,35 @@ bool FSlabPanelIsolationTest::RunTest(const FString&)
 	Workspace->UnregisterPanel(Charts); Workspace->UnregisterPanel(Progress);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabWorkspaceDeferredLayoutTest, "MA0T10.Slab.UI.DeferredOwnedLayout", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FSlabWorkspaceDeferredLayoutTest::RunTest(const FString&)
+{
+	auto* World = FAutomationEditorCommonUtils::CreateNewMap();
+	auto* Workspace = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+	auto* Progress = NewObject<USlabProgressPanelWidget>(World);
+	const auto Role = ESensorToolPanelRole::SlabProgress;
+	const auto OriginalPreferences = Workspace->Preferences->Panels;
+	auto& Saved = Workspace->Preferences->Panels.FindOrAdd(Role);
+	Saved.bOpen = false; Saved.Layout.bHasSavedSize = true; Saved.Layout.bHasSavedPosition = true;
+	Saved.Layout.ExpandedSize = FVector2D(650, 440); Saved.Layout.NormalizedPosition = FVector2D(.25, .4);
+	TestTrue(TEXT("registration accepted"), Workspace->RegisterOwnedPanel(Role, Progress));
+	TestTrue(TEXT("registration schedules first layout"), Workspace->PendingInitialLayouts.Contains(Role));
+	TestFalse(TEXT("unattached panel is not layout-ready"), Workspace->IsOwnedPanelLayoutReady(Role));
+	Progress->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(520, 420));
+	Progress->SetPanelResizeLimits(FVector2D(360, 280), FVector2D::ZeroVector);
+	Workspace->RestorePanel(Role);
+	Workspace->SavePanel(Role);
+	TestTrue(TEXT("startup does not lose pending layout"), Workspace->PendingInitialLayouts.Contains(Role));
+	TestEqual(TEXT("provisional minimum cannot overwrite saved width/height"), Workspace->Preferences->Panels[Role].Layout.ExpandedSize, FVector2D(650, 440));
+	TestEqual(TEXT("provisional position cannot overwrite saved placement"), Workspace->Preferences->Panels[Role].Layout.NormalizedPosition, FVector2D(.25, .4));
+	Workspace->SetPanelOpen(Role, true);
+	TestTrue(TEXT("first show still waits for actual Canvas arrangement"), Workspace->PendingInitialLayouts.Contains(Role));
+	TestEqual(TEXT("first show preserves user size"), Workspace->Preferences->Panels[Role].Layout.ExpandedSize, FVector2D(650, 440));
+	Workspace->UnregisterPanel(Progress);
+	TestFalse(TEXT("pending entry cleaned up"), Workspace->PendingInitialLayouts.Contains(Role));
+	TestEqual(TEXT("shutdown before first layout cannot save transient size"), Workspace->Preferences->Panels[Role].Layout.ExpandedSize, FVector2D(650, 440));
+	Workspace->Preferences->Panels = OriginalPreferences;
+	return true;
+}
 #endif

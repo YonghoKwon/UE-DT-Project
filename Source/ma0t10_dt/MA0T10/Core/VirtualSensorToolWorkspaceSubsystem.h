@@ -53,8 +53,13 @@ public:
 	void RestorePanel(ESensorToolPanelRole Role);
 	void UnregisterPanel(UVirtualSensorPanelWidgetBase* Panel);
 	void SynchronizeOwnedSelection();
+	/** Startup layout must use the actually arranged owned Canvas, never a provisional viewport. */
+	bool IsOwnedPanelLayoutReady(ESensorToolPanelRole Role) const;
 	static const FString SlotName;
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabWorkspaceDeferredLayoutTest;
+#endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;
 	UPROPERTY(Transient) TMap<ESensorToolPanelRole,TObjectPtr<UVirtualSensorPanelWidgetBase>> Panels;
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Root;
@@ -66,6 +71,7 @@ private:
 	float PollTime=0;
 	int32 Front=10;
 	bool bApplying=false;
+	TSet<ESensorToolPanelRole> PendingInitialLayouts;
 	void EnsureRoot();
 	void RefreshHosting();
 	void ApplyDefault(ESensorToolPanelRole Role);
