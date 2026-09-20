@@ -26,7 +26,11 @@ bool USlabScenarioReplayPanelWidget::SelectScenario(const FString& UUID)
 	return false;
 }
 bool USlabScenarioReplayPanelWidget::ReplaySelected()
-{ auto* M=Manager(); return M&&M->RequestScenarioReplay(SelectedUUID,bSendPcd,TargetSensorIds); }
+{ auto* M=Manager(); return M&&M->RequestScenarioReplayWithOutputs(SelectedUUID,GetReplayOutputs(),TargetSensorIds); }
+void USlabScenarioReplayPanelWidget::SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs)
+{ bSendPcd=Outputs.bPointCloud; bSendCameraImage=Outputs.bCameraImage; bSendLidarTelemetry=Outputs.bLidarTelemetry; }
+FVirtualSlabSensorOutputSelection USlabScenarioReplayPanelWidget::GetReplayOutputs() const
+{ FVirtualSlabSensorOutputSelection S;S.bPointCloud=bSendPcd;S.bCameraImage=bSendCameraImage;S.bLidarTelemetry=bSendLidarTelemetry;return S; }
 void USlabScenarioReplayPanelWidget::RefreshList()
 {
 	if(!List.IsValid()) return; List->ClearChildren(); auto* M=Manager(); if(!M) return;
@@ -52,8 +56,10 @@ TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)
      [SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details","선택 항목 상세"))]
-      .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("UUID: %s\n수신: %s\n마지막 데이터: %.2f초"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
+      .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendPcd?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendPcd=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("Send","재생 중 PCD 송신")).ToolTipText(LOCTEXT("SendTip","다음 재생부터 적용됩니다. 기본은 관찰 전용입니다."))]]
+     +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendCameraImage?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendCameraImage=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("SendCamera","Camera 이미지 Topic 송신")).ToolTipText(LOCTEXT("CameraTip","다음 재생부터 적용됩니다. 로컬 이미지 캡처 파일을 자동 저장하지 않습니다."))]]
+     +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendLidarTelemetry?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendLidarTelemetry=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("SendLidar","LiDAR 정보 Topic 송신")).ToolTipText(LOCTEXT("LidarTip","다음 재생부터 적용됩니다. 고성능 경로에서는 전체 점 배열 대신 telemetry를 보냅니다."))]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?TEXT("대기 · 재생 adapter 연결 필요"):S.Message);})]
     ]; RefreshList();return Result;

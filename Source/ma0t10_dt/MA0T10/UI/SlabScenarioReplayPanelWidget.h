@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "SlabScenarioReplayPanelWidget.generated.h"
 class USlabScenarioReplaySubsystem;
 class SVerticalBox;
@@ -13,6 +14,10 @@ public:
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool ReplaySelected();
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetSelectedScenarioUUID() const { return SelectedUUID; }
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendPcd=false;
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendCameraImage=false;
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendLidarTelemetry=false;
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FVirtualSlabSensorOutputSelection GetReplayOutputs() const;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") TArray<FString> TargetSensorIds;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;

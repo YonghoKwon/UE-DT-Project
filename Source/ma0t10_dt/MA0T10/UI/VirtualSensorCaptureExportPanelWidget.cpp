@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "EngineUtils.h"
@@ -32,6 +33,27 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 
 #define LOCTEXT_NAMESPACE "VirtualSensorCaptureExportPanelWidget"
+
+void UVirtualSensorCaptureExportPanelWidget::BindScenarioSlabActor(ASlabActor* InSlab)
+{ ScenarioSlabActor=IsValid(InSlab)&&InSlab->GetWorld()==GetWorld()?InSlab:nullptr;AutoScenarioSlabActor.Reset();NextScenarioSlabLookup=0; }
+ASlabActor* UVirtualSensorCaptureExportPanelWidget::ResolveScenarioSlabActor() const
+{
+	if(IsValid(ScenarioSlabActor))return ScenarioSlabActor;
+	const double Now=FPlatformTime::Seconds();
+	if(Now<NextScenarioSlabLookup)return AutoScenarioSlabActor.Get();
+	NextScenarioSlabLookup=Now+.5;
+	ASlabActor* Result=nullptr;
+	if(GetWorld())for(TActorIterator<ASlabActor> It(GetWorld());It;++It){if(Result){AutoScenarioSlabActor.Reset();return nullptr;}Result=*It;}
+	AutoScenarioSlabActor=Result;
+	return Result;
+}
+bool UVirtualSensorCaptureExportPanelWidget::SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs)
+{
+	if(auto* A=ResolveScenarioSlabActor())if(A->SetSensorOutputs(Outputs)){LastUiMessage=TEXT("신규 벌크 시나리오의 출력 선택을 변경했습니다. 다음 실행부터 적용됩니다.");return true;}
+	LastUiMessage=TEXT("Slab Actor가 없거나 여러 개입니다. BindScenarioSlabActor로 대상을 연결하세요.");return false;
+}
+FVirtualSlabSensorOutputSelection UVirtualSensorCaptureExportPanelWidget::GetLiveScenarioOutputs() const
+{if(auto* A=ResolveScenarioSlabActor())return A->GetSensorOutputs();return FVirtualSlabSensorOutputSelection();}
 
 namespace
 {
@@ -904,6 +926,16 @@ bool UVirtualSensorCaptureExportPanelWidget::ExportTransportDiagnosticReport()
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 {
     auto Cards=SNew(SVerticalBox);
+	// This policy configures the next Slab session. It never toggles manual live streams here.
+	auto ScenarioOutputs=SNew(SVerticalBox);
+	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("ScenarioOutputTitle","신규 Slab 시나리오 자동 송신 · 다음 실행부터 적용")).ColorAndOpacity(FVirtualSensorUiStyle::Accent)];
+	const FText OutputLabels[]={LOCTEXT("ScenarioPcd","PCD 포인트 클라우드 (기본)"),LOCTEXT("ScenarioCamera","Camera 이미지 Topic (선택)"),LOCTEXT("ScenarioLidar","LiDAR 정보 Topic (선택)")};
+	for(int32 I=0;I<3;++I)ScenarioOutputs->AddSlot().AutoHeight().Padding(0,3)
+	[SNew(SCheckBox).IsEnabled_Lambda([this](){return ResolveScenarioSlabActor()!=nullptr;})
+	 .IsChecked_Lambda([this,I](){const auto O=GetLiveScenarioOutputs();return (I==0?O.bPointCloud:I==1?O.bCameraImage:O.bLidarTelemetry)?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	 .OnCheckStateChanged_Lambda([this,I](ECheckBoxState S){auto O=GetLiveScenarioOutputs();const bool V=S==ECheckBoxState::Checked;if(I==0)O.bPointCloud=V;else if(I==1)O.bCameraImage=V;else O.bLidarTelemetry=V;SetLiveScenarioOutputs(O);})
+	 [SNewSensorTool(STextBlock).Text(OutputLabels[I])]];
+	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("ScenarioOutputsHelp","Slab 움직임 시작~종료 구간에만 적용합니다. Camera 선택은 로컬 캡처가 아닌 Topic 이미지 송신입니다. 저장 목록 재생은 재생 패널에서 별도로 선택합니다."))];
     for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
     {
         const FText Label=Kind==EVirtualSensorStreamKind::PointCloud?LOCTEXT("PcdCard","Point Cloud · PCD Binary"):Kind==EVirtualSensorStreamKind::CameraImage?LOCTEXT("CameraCard","Camera 이미지"):LOCTEXT("LidarCard","LiDAR 측정값");
@@ -920,6 +952,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
     }
     return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::Warning).Text_Lambda([this](){return FText::FromString(LastUiMessage);})]
+	   +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FVirtualSensorUiStyle::SectionBackground).Padding(10)[ScenarioOutputs]]
        +SVerticalBox::Slot().AutoHeight()[Cards]
        +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("PcdPolicy","PCD: 완료 프레임 모두 · 매 프레임 receipt · 연결 중 FIFO"))]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 3)

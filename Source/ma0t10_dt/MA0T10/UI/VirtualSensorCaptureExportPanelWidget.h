@@ -2,12 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
 class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
+class ASlabActor;
 struct FVirtualSensorTransportProfile;
 
 UENUM(BlueprintType)
@@ -34,6 +36,9 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
     GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|Outputs") FVirtualSlabSensorOutputSelection GetLiveScenarioOutputs() const;
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
     void BindSensorManager(AVirtualSensorCoordinator* InSensorManager);
 
@@ -146,6 +151,10 @@ public:
     FOnVirtualSensorExportCompleted OnExportCompleted;
 
 protected:
+	ASlabActor* ResolveScenarioSlabActor() const;
+	UPROPERTY(Transient) TObjectPtr<ASlabActor> ScenarioSlabActor;
+	mutable TWeakObjectPtr<ASlabActor> AutoScenarioSlabActor;
+	mutable double NextScenarioSlabLookup = 0;
     virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 

@@ -10,7 +10,7 @@ class UCanvasPanel;
 class AVirtualSensorCoordinator;
 
 UENUM(BlueprintType)
-enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay };
+enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress };
 USTRUCT()
 struct FSensorToolWorkspacePanelState
 {
