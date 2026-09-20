@@ -624,6 +624,13 @@ private:
 			if(!Previous||FrameId>*Previous) ConsumerSequenceIds.Add(SequenceKey,FrameId);
 		}
 		Data->FrameGapDelta=Event.GapDelta; Data->bDuplicate=Event.DuplicateDelta>0;
+		if(!Data->bFiltered&&!Data->bValid&&!Data->RunId.IsEmpty())
+		{
+			FScopeLock Lock(&RunPendingMutex);
+			const FString Key=SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId);
+			TSet<FString>& Invalid=RunInvalidFrames.FindOrAdd(Data->RunId);
+			if(!Invalid.Contains(Key)) { Invalid.Add(Key); ++RunFailureCounts.FindOrAdd(Data->RunId); }
+		}
 		Data->ParseLatencyMs=static_cast<float>((FPlatformTime::Seconds()-ParseStarted)*1000.0);
 		if(PendingReceiveEvents.Load()>=256) { ++DroppedReceiveEvents; return; }
 		++PendingReceiveEvents; Event.ReceivedData=MoveTemp(Data);
@@ -725,6 +732,7 @@ private:
 	mutable FCriticalSection RunPendingMutex;
 	TMap<FString,int32> RunPendingCounts;
 	TMap<FString,int32> RunFailureCounts;
+	TMap<FString,TSet<FString>> RunInvalidFrames;
 	FString Passcode;
 	FRunnableThread* Thread = nullptr;
 	FSocket* Socket = nullptr;

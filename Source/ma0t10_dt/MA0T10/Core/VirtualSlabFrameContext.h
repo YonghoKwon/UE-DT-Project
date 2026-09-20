@@ -2,6 +2,18 @@
 #include "CoreMinimal.h"
 #include "VirtualSlabFrameContext.generated.h"
 
+/** Per-run automatic Topic output policy. Local capture/recording is independent. */
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSlabSensorOutputSelection
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPointCloud = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bCameraImage = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bLidarTelemetry = false;
+	bool HasAnyOutput() const { return bPointCloud || bCameraImage || bLidarTelemetry; }
+	static FVirtualSlabSensorOutputSelection ObservationOnly() { FVirtualSlabSensorOutputSelection V; V.bPointCloud=false; return V; }
+};
+
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSlabFrameContext
 {
@@ -31,6 +43,7 @@ USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSlabSessionStatus
 {
 	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) FVirtualSlabSensorOutputSelection Outputs;
 	UPROPERTY(BlueprintReadOnly) bool bObservationOnly=false;
 	UPROPERTY(BlueprintReadOnly) FString RunId;
 	UPROPERTY(BlueprintReadOnly) EVirtualSlabSessionState State = EVirtualSlabSessionState::Idle;

@@ -29,6 +29,10 @@ public:
 	void SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent);
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
 	void PumpPublisherOnce(double NowSeconds);
+	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */
+	int64 GetPendingSlabRunCount(const FString& RunId) const;
+	int64 GetFailedSlabRunCount(const FString& RunId) const;
+	void RefreshSessionOutputDemand() { UpdateCameraStreamDemand(); }
 	static bool SerializePointCloudForTesting(
 		const FVirtualSensorFrameEnvelope& Frame,
 		const FVirtualSensorStreamConfig& Config,
@@ -129,9 +133,13 @@ private:
 		double LastLazSubmitSeconds = -DBL_MAX;
 		double NextSubmitAttemptSeconds = 0.0;
 		bool bSerializationInFlight = false;
+		FVirtualSlabFrameContext LastInputSlabContext;
+		FString SerializationRunId;
+		int64 SerializationFrameId=0;
 		int64 SerializationCompletedCount = 0;
 		TArray<float> SerializationLatencySamples;
 		FString LastSlabSegment;
+		bool bHasInputFrameInSegment=false;
 		int32 ConfigRevision = 0;
 	};
 
@@ -157,6 +165,8 @@ private:
 	void AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result = nullptr, int64 FrameId = 0);
 	void HandleTransportResult(const FVirtualSensorTransportResult& Result);
 	void UpdateCameraStreamDemand();
+	void RecordSlabFailure(const FString& RunId, const FString& SensorId, EVirtualSensorStreamKind Kind, int64 FrameId);
+	void RecordDiscardedSlabFrames(const FStreamRuntime& Runtime);
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
 	void MergeHighThroughputTelemetry();
@@ -168,6 +178,7 @@ private:
 	TMap<FString, FStreamRuntime> StreamRuntimes;
 	TMap<FString, FReceiptWait> WaitingReceipts;
 	TMap<FString, FString> RequestToStreamKey;
+	TMap<FString,TSet<FString>> SlabRunFailures;
 	TArray<FVirtualSensorTransportLogEntry> RecentLogEntries;
 	int32 RoundRobinCursor = 0;
 	int32 ConsecutiveReceiptTimeouts = 0;
