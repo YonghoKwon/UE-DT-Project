@@ -5,19 +5,30 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "TimerManager.h"
+#include "Engine/World.h"
 
 ASlabSimulationUiHostActor::ASlabSimulationUiHostActor()
 { PrimaryActorTick.bCanEverTick = false; PanelHost = CreateDefaultSubobject<UVirtualSensorPanelHostComponent>(TEXT("SlabPanelHost")); }
-void ASlabSimulationUiHostActor::BeginPlay() { Super::BeginPlay(); ShowSimulationPanels(); }
+void ASlabSimulationUiHostActor::BeginPlay() { Super::BeginPlay(); bEnding=false; InitializationAttempts=0; ShowSimulationPanels(); }
 void ASlabSimulationUiHostActor::BindSlabActor(ASlabActor* InSlab)
 {
-	SlabActor = InSlab;
-	if (ChartsWidget) ChartsWidget->BindSlabActor(InSlab);
-	if (ProgressWidget) ProgressWidget->BindSlabActor(InSlab);
+	SlabActor = IsValid(InSlab)&&InSlab->GetWorld()==GetWorld()?InSlab:nullptr;
+	if (ChartsWidget) ChartsWidget->BindSlabActor(SlabActor);
+	if (ProgressWidget) ProgressWidget->BindSlabActor(SlabActor);
 }
 void ASlabSimulationUiHostActor::ShowSimulationPanels()
 {
-	if (!GetWorld() || !GetWorld()->GetFirstPlayerController()) return;
+	if (bEnding||!GetWorld()||GetNetMode()==NM_DedicatedServer) return;
+	if (!GetWorld()->GetFirstPlayerController())
+	{
+		if(++InitializationAttempts<=40)
+		{ InitializationMessage=TEXT("PlayerController 준비 대기 중 (최대 10초)"); GetWorldTimerManager().SetTimer(InitializationRetry,this,&ASlabSimulationUiHostActor::ShowSimulationPanels,.25f,false); }
+		else { GetWorldTimerManager().ClearTimer(InitializationRetry); InitializationMessage=TEXT("PlayerController가 없어 Slab UI를 만들지 못했습니다. 준비 후 ShowSimulationPanels를 호출하세요."); }
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(InitializationRetry);
+	if(SlabActor&&(!IsValid(SlabActor)||SlabActor->GetWorld()!=GetWorld())) SlabActor=nullptr;
 	if (!SlabActor)
 	{
 		ASlabActor* Only = nullptr;
@@ -34,8 +45,8 @@ void ASlabSimulationUiHostActor::ShowSimulationPanels()
 		ChartsWidget = CreateWidget<USlabChartsPanelWidget>(GetWorld(), Class);
 		if (Workspace->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts, ChartsWidget))
 		{
-			ChartsWidget->SetPanelPersistenceKey(TEXT("SlabCharts")); ChartsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(720, 540));
-			ChartsWidget->SetPanelResizable(true); ChartsWidget->ResizeHandleSize = 32; ChartsWidget->SetPanelResizeLimits(FVector2D(420, 320), FVector2D::ZeroVector);
+			ChartsWidget->SetPanelPersistenceKey(TEXT("SlabCharts")); ChartsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(780, 820));
+			ChartsWidget->SetPanelResizable(true); ChartsWidget->ResizeHandleSize = 32; ChartsWidget->SetPanelResizeLimits(FVector2D(720, 720), FVector2D::ZeroVector);
 			PanelHost->RegisterPanel(ChartsWidget, 50);
 		}
 	}
@@ -53,9 +64,11 @@ void ASlabSimulationUiHostActor::ShowSimulationPanels()
 		}
 	}
 	BindSlabActor(SlabActor);
+	InitializationMessage=SlabActor?TEXT("Slab UI 연결 완료"):TEXT("Slab를 하나로 결정할 수 없습니다. Host의 SlabActor를 직접 연결하세요.");
 }
 void ASlabSimulationUiHostActor::EndPlay(const EEndPlayReason::Type Reason)
 {
+	bEnding=true; if(GetWorld()) GetWorldTimerManager().ClearTimer(InitializationRetry);
 	PanelHost->UnregisterAllPanels();
 	if (ChartsWidget) ChartsWidget->RemoveFromParent(); if (ProgressWidget) ProgressWidget->RemoveFromParent();
 	ChartsWidget = nullptr; ProgressWidget = nullptr; Super::EndPlay(Reason);

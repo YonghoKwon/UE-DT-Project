@@ -18,5 +18,5 @@ private:
 	UPROPERTY(Transient) TObjectPtr<ASlabActor> Slab;
 	float RefreshAccumulator = 0;
 	float Progress = 0;
-	FString Summary, Detail, SensorStatus;
+	FString Summary, Detail, SensorStatus, SetupStatus;
 };

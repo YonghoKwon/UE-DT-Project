@@ -4,6 +4,7 @@
 #include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "SlabScenarioTypes.h"
+#include "SlabAnalysisTypes.h"
 #include "SlabActor.generated.h"
 
 class USlabDataSyncComponent;
@@ -40,6 +41,11 @@ public:
 	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetHotAppearance() const { return bHotAppearance; }
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetHotAppearance(bool bHot);
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetDiagnosticHelpersVisible(bool bVisible);
+	UFUNCTION(BlueprintPure,Category="Slab|Analysis") FSlabAnalysisDisplaySettings GetAnalysisDisplaySettings() const { return AnalysisDisplaySettings; }
+	UFUNCTION(BlueprintCallable,Category="Slab|Analysis") void SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings);
+	UFUNCTION(BlueprintPure,Category="Slab|Appearance") FString GetEffectiveSurfaceMaterialPath() const;
+	UFUNCTION(BlueprintCallable,Category="Slab|Setup") FSlabSetupValidation ValidateSlabSetup() const;
+	static FSoftObjectPath ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured);
 	UFUNCTION(BlueprintPure,Category="Slab|Outputs") FVirtualSlabSensorOutputSelection GetSensorOutputs() const { return SensorOutputs; }
 	UFUNCTION(BlueprintCallable,Category="Slab|Outputs") bool SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs);
 	FSlabScenarioDataPtr GetScenario() const { return Scenario; }
@@ -60,6 +66,7 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Outputs") FVirtualSlabSensorOutputSelection SensorOutputs;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance") TSoftObjectPtr<UMaterialInterface> SurfaceMaterial;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance") bool bHotAppearance=false;
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Analysis") FSlabAnalysisDisplaySettings AnalysisDisplaySettings;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance",meta=(ClampMin="0",ClampMax="1")) float Oxidation=0.6f;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance",meta=(ClampMin="0",ClampMax="1")) float Roughness=0.65f;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance",meta=(ClampMin="0",ClampMax="20")) float EmissiveStrength=3.0f;
@@ -84,6 +91,7 @@ private:
 	bool StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,bool bReplay);
 	void FinishSimulation(bool bAborted,const FString& Error=FString());
 	void UpdateAppearance();
+	UMaterialInterface* GetExplicitSlotSurfaceMaterial() const;
 	void UpdateDimensions();
 	FTransform GetTrackTransform() const;
 	FVector GetSizeCm() const;

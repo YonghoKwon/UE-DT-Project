@@ -7,6 +7,15 @@
 #include "SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "Core/DxProcessSubsystem.h"
+#include "Core/DTCoreSettings.h"
+#include "WebSocket/TransactionCodeStruct.h"
+#include "WebSocket/TransactionCodeMessage.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
+#include "EngineUtils.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -28,7 +37,7 @@ ASlabActor::ASlabActor()
 	MotionComponent=CreateDefaultSubobject<USlabMotionComponent>(TEXT("SlabMotion"));
 	VisualizationComponent=CreateDefaultSubobject<USlabVisualizationComponent>(TEXT("SlabVisualization"));
 	MetricsComponent=CreateDefaultSubobject<USlabMetricsComponent>(TEXT("SlabMetrics"));
-	SurfaceMaterial=TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface.M_SlabSurface")));
+	SurfaceMaterial=TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain.M_SlabSurfacePlain")));
 	HighlightMode=EHighlightMode::IndividualMesh; DisplayName=TEXT("시나리오 Slab");
 }
 void ASlabActor::OnConstruction(const FTransform& Transform)
@@ -37,7 +46,7 @@ void ASlabActor::BeginPlay()
 {
 	Super::BeginPlay(); InitialTrackTransform=GetActorTransform(); InitialTrackTransform.SetScale3D(FVector::OneVector);
 	MotionComponent->OnPoseApplied.BindUObject(this,&ASlabActor::OnSlabPoseApplied);
-	UpdateDimensions(); UpdateAppearance(); VisualizationComponent->UpdateGeometry(GetSizeCm());
+	UpdateDimensions(); UpdateAppearance(); VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings); VisualizationComponent->UpdateGeometry(GetSizeCm());
 	if(UGameInstance* GI=GetGameInstance())
 	{
 		if(auto* Process=GI->GetSubsystem<UDxProcessSubsystem>())
@@ -180,6 +189,8 @@ void ASlabActor::OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 Index,doubl
 		Metrics.SpeedCmPerSec=FSlabScenarioCodec::ToCm((B.CenterX-A.CenterX)/(B.ElapsedSec-A.ElapsedSec),MotionComponent->GetPlaybackPositionUnit());
 	}
 	MetricsComponent->Update(Metrics);
+	VisualizationComponent->UpdateAnalysis(Row,Metrics,Status,GetSizeCm(),MotionComponent->GetPlaybackTrack(),
+		TrackReference?TrackReference->LeftRailYcm:0,TrackReference?TrackReference->RightRailYcm:0,TrackReference&&TrackReference->HasValidRails(),TrackReference?TrackReference->RailLengthCm:0);
 	if(Index!=LastNotifiedIndex)
 	{
 		// Notify only after this rendered pose has been applied; never start an extra sensor scan.
@@ -230,14 +241,53 @@ bool ASlabActor::SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs)
 { SensorOutputs=Outputs; OnSlabStateChanged.Broadcast(); return true; }
 void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance(); OnSlabStateChanged.Broadcast(); }
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
+void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)
+{ AnalysisDisplaySettings=Settings; VisualizationComponent->ConfigureDisplay(Settings); OnSlabStateChanged.Broadcast(); }
+FSoftObjectPath ASlabActor::ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured)
+{
+	if(Configured.IsNull()||Configured.GetLongPackageName()==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface"))
+		return FSoftObjectPath(TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain.M_SlabSurfacePlain"));
+	return Configured;
+}
+UMaterialInterface* ASlabActor::GetExplicitSlotSurfaceMaterial() const
+{
+	const FSoftObjectPath Configured=SurfaceMaterial.ToSoftObjectPath();
+	const FString Package=Configured.GetLongPackageName();
+	const bool bDefaultProperty=Configured.IsNull()||Package==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface")||Package==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain");
+	if(!bDefaultProperty||!SlabMesh||SlabMesh->GetNumOverrideMaterials()<1) return nullptr;
+	UMaterialInterface* Slot=SlabMesh->GetMaterial(0);
+	if(!Slot||Slot==SurfaceInstance) return nullptr;
+	if(Slot->IsA<UMaterialInstanceDynamic>()&&Slot->IsIn(this)&&Slot->GetName().StartsWith(TEXT("SlabOwnedSurface"))) return nullptr;
+	if(const auto* Legacy=Cast<UMaterialInstanceDynamic>(Slot))
+	{
+		// Older construction-created MIDs could be serialized in component overrides while
+		// the transient SurfaceInstance pointer was not. Recognize only stock auto-named MIDs.
+		const FString ParentPackage=Legacy->Parent?FSoftObjectPath(Legacy->Parent.Get()).GetLongPackageName():FString();
+		if(Legacy->IsIn(this)&&Legacy->GetName().StartsWith(TEXT("MaterialInstanceDynamic"))&&
+			(ParentPackage==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface")||ParentPackage==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain"))) return nullptr;
+	}
+	const FString SlotPackage=FSoftObjectPath(Slot).GetLongPackageName();
+	if(SlotPackage==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface")||SlotPackage==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain")) return nullptr;
+	return Slot;
+}
+FString ASlabActor::GetEffectiveSurfaceMaterialPath() const
+{
+	if(UMaterialInterface* Slot=GetExplicitSlotSurfaceMaterial()) return Slot->GetPathName();
+	return ResolveSurfaceMaterialPath(SurfaceMaterial.ToSoftObjectPath()).ToString();
+}
 void ASlabActor::UpdateDimensions()
 { if(SlabMesh) SlabMesh->SetRelativeScale3D(GetSizeCm().ComponentMax(FVector(0.01))/100); }
 void ASlabActor::UpdateAppearance()
 {
 	if(!SlabMesh) return;
-	UMaterialInterface* Material=SurfaceMaterial.LoadSynchronous();
+	// A slot-level user assignment remains untouched, including its material-instance parameters.
+	// A non-default Actor SurfaceMaterial is an explicit higher-priority override.
+	if(GetExplicitSlotSurfaceMaterial()) return;
+	UMaterialInterface* Material=Cast<UMaterialInterface>(ResolveSurfaceMaterialPath(SurfaceMaterial.ToSoftObjectPath()).TryLoad());
 	if(!Material) Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	if(!SurfaceInstance||SurfaceInstance->Parent!=Material) { SurfaceInstance=Material?UMaterialInstanceDynamic::Create(Material,this):nullptr; if(SurfaceInstance) SlabMesh->SetMaterial(0,SurfaceInstance); }
+	if(!SurfaceInstance||SurfaceInstance->Parent!=Material)
+		SurfaceInstance=Material?UMaterialInstanceDynamic::Create(Material,this,MakeUniqueObjectName(this,UMaterialInstanceDynamic::StaticClass(),TEXT("SlabOwnedSurface"))):nullptr;
+	if(SurfaceInstance&&SlabMesh->GetMaterial(0)!=SurfaceInstance) SlabMesh->SetMaterial(0,SurfaceInstance);
 	if(SurfaceInstance)
 	{
 		SurfaceInstance->SetScalarParameterValue(TEXT("Hotness"),bHotAppearance?1:0); SurfaceInstance->SetScalarParameterValue(TEXT("Oxidation"),Oxidation);
@@ -245,4 +295,64 @@ void ASlabActor::UpdateAppearance()
 		SurfaceInstance->SetScalarParameterValue(TEXT("EmissiveStrength"),FMath::IsFinite(EmissiveStrength)?FMath::Clamp(EmissiveStrength,0.0f,20.0f):3.0f);
 		SurfaceInstance->SetVectorParameterValue(TEXT("Color"),bHotAppearance?FLinearColor(1,0.08,0.01):FLinearColor(0.12,0.14,0.16));
 	}
+}
+FSlabSetupValidation ASlabActor::ValidateSlabSetup() const
+{
+	FSlabSetupValidation Result;
+	if(!GetWorld()) { Result.Errors.Add(TEXT("Slab의 월드가 없습니다.")); return Result; }
+	if(ReceiverId.TrimStartAndEnd().IsEmpty()) Result.Errors.Add(TEXT("ReceiverId가 비어 있습니다."));
+	int32 SameReceiver=0,SlabCount=0; for(TActorIterator<ASlabActor> It(GetWorld());It;++It) { ++SlabCount; if(It->ReceiverId==ReceiverId) ++SameReceiver; }
+	if(SameReceiver>1) Result.Errors.Add(TEXT("동일 ReceiverId의 Slab가 여러 개 있습니다."));
+	if(SlabCount>1) Result.Warnings.Add(TEXT("한 월드의 재생 adapter는 하나입니다. 사용할 Slab와 UI를 명시적으로 연결하세요."));
+	if(GetGameInstance()) if(auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>())
+		if(Replay->GetPlaybackAdapter()!=this) Result.Warnings.Add(TEXT("현재 재생 adapter가 이 Slab가 아닙니다. 재생 대상 연결을 확인하세요."));
+	const FVector SizeCm=GetSizeCm();
+	if(SizeCm.ContainsNaN()||SizeCm.GetMin()<=0||SizeCm.GetMax()>1000000) Result.Errors.Add(TEXT("현재 단위로 변환한 Slab 치수가 유효하지 않습니다."));
+	if(SizeCm.GetMax()>5000) Result.Warnings.Add(TEXT("Slab 크기가 50m를 초과합니다. 원본 치수가 cm인지 mm인지 확인하세요."));
+	if(TrackReference&&TrackReference->GetWorld()!=GetWorld()) Result.Errors.Add(TEXT("TrackReference가 다른 월드에 속합니다."));
+	else if(!TrackReference) Result.Warnings.Add(TEXT("TrackReference 미지정: Slab 초기 위치·회전이 원점이고 가드레일 Margin은 N/A입니다."));
+	else
+	{
+		if(!TrackReference->HasValidRails()) Result.Warnings.Add(TEXT("좌우 가드레일 내부면이 설정되지 않아 Margin은 N/A입니다."));
+		if(!TrackReference->GetActorScale3D().Equals(FVector::OneVector)) Result.Warnings.Add(TEXT("TrackReference의 Scale은 무시됩니다. 원점·회전과 cm 길이를 직접 설정하세요."));
+	}
+	const auto* Settings=GetDefault<UDTCoreSettings>(); bool bRoute=false;
+	if(Settings)
+	{
+		if(UDataTable* Table=Settings->WebSocketDataTable.LoadSynchronous())
+			for(const auto& Pair:Table->GetRowMap())
+			{
+				if(Table->GetRowStruct()!=FTransactionCodeStruct::StaticStruct()) break;
+				const auto* Row=reinterpret_cast<const FTransactionCodeStruct*>(Pair.Value);
+				const auto* Handler=Row->TransactionCodeMessageClass?Row->TransactionCodeMessageClass.GetDefaultObject():nullptr;
+				if(Handler&&Handler->TransactionCode==TEXT("IFactory-agent"))
+				{
+					const auto* SlabHandler=Cast<UFactoryAgentScenarioTC>(Handler);
+					bRoute=SlabHandler&&SlabHandler->ReceiverId==ReceiverId;
+					if(!bRoute) Result.Warnings.Add(TEXT("IFactory-agent 담당 TC 또는 ReceiverId가 현재 Slab와 다릅니다. 다른 구현을 자동 교체하지 않습니다."));
+				}
+			}
+		if(Settings->WebSocketTopics.IsEmpty()) Result.Warnings.Add(TEXT("DTCore WebSocket Topic이 비어 있습니다."));
+	}
+	if(!bRoute) Result.Warnings.Add(TEXT("DTCore IFactory-agent 수신 경로를 확인하세요. 직접 JSON 주입·보관 재생은 별도 경로입니다."));
+	bool bUi=false; for(TActorIterator<ASlabSimulationUiHostActor> It(GetWorld());It;++It) if(It->SlabActor==this||(!It->SlabActor&&SlabCount==1)) bUi=true;
+	if(!bUi) Result.Warnings.Add(TEXT("연결된 Slab UI Host가 없습니다. 도구 막대에서 열거나 SlabActor를 명시적으로 연결하세요."));
+	Result.bCanSimulate=Result.Errors.IsEmpty();
+	TArray<AVirtualSensorCoordinator*> Coordinators; for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It) Coordinators.Add(*It);
+	Result.bCanSendSelectedOutputs=!SensorOutputs.HasAnyOutput();
+	if(SensorOutputs.HasAnyOutput())
+	{
+		if(Coordinators.Num()!=1) Result.Errors.Add(TEXT("선택된 Topic 송신에는 Coordinator가 정확히 하나 필요합니다."));
+		else
+		{
+			auto* Coordinator=Coordinators[0]; auto* Transport=Coordinator->SharedTransportComponent.Get(); bool bCamera=false,bLidar=false;
+			TSet<FString> Found; for(auto* Sensor:Coordinator->GetSensorActors()) if(IsValid(Sensor)&&(TargetSensorIds.IsEmpty()||TargetSensorIds.Contains(Sensor->GetSensorId())))
+			{ Found.Add(Sensor->GetSensorId()); bCamera|=Sensor->GetSensorKind()==EVirtualSensorKind::Camera; bLidar|=Sensor->GetSensorKind()==EVirtualSensorKind::Lidar; }
+			bool bIds=true; for(const auto& Id:TargetSensorIds) bIds&=Found.Contains(Id);
+			const bool bTransport=Transport&&Transport->TransportMode==EVirtualSensorTransportMode::StompWebSocket&&!Transport->GetTransportProfile().BrokerUrl.IsEmpty();
+			Result.bCanSendSelectedOutputs=bTransport&&bIds&&(!SensorOutputs.bCameraImage||bCamera)&&(!(SensorOutputs.bPointCloud||SensorOutputs.bLidarTelemetry)||bLidar);
+			if(!Result.bCanSendSelectedOutputs) Result.Errors.Add(TEXT("송신 설정 확인: STOMP profile, 대상 SensorId와 선택 출력에 맞는 Camera/LiDAR가 필요합니다."));
+		}
+	}
+	return Result;
 }

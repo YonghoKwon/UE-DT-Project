@@ -55,7 +55,7 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
             if (*It == Scan.GetOwner()) continue;
             TInlineComponentArray<UStaticMeshComponent*> Components(*It);
             for (auto* Source : Components)
-                if (Source && Source->GetStaticMesh() && !Proxies.Contains(Source)) Proxies.Add(Source, FProxy());
+                if (Source && !Source->bHiddenInSceneCapture && Source->GetStaticMesh() && !Proxies.Contains(Source)) Proxies.Add(Source, FProxy());
         }
     }
     Identities.Reset();
@@ -64,7 +64,9 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
     {
         auto* Source = It.Key().Get();
         FProxy& Entry = It.Value();
-        if (!Source || !Source->IsRegistered())
+        // Diagnostic meshes must not enter the isolated semantic capture either.
+        // Remove an existing proxy immediately when capture visibility changes.
+        if (!Source || !Source->IsRegistered() || Source->bHiddenInSceneCapture)
         {
             if (Entry.Mesh) { Scene.RemoveComponent(Entry.Mesh); Entry.Mesh->DestroyComponent(); }
             It.RemoveCurrent(); continue;

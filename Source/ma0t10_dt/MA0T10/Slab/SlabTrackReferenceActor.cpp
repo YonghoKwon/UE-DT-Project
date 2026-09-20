@@ -17,6 +17,8 @@ ASlabTrackReferenceActor::ASlabTrackReferenceActor()
 		Mesh->SetupAttachment(RootComponent); Mesh->SetStaticMesh(Cube.Object);
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision); Mesh->SetGenerateOverlapEvents(false);
 		Mesh->SetHiddenInSceneCapture(true); Mesh->SetCastShadow(false);
+		Mesh->SetAffectDynamicIndirectLighting(false); Mesh->SetAffectDistanceFieldLighting(false); Mesh->SetAffectIndirectLightingWhileHidden(false);
+		Mesh->SetVisibleInRayTracing(false); Mesh->bVisibleInReflectionCaptures=false; Mesh->bVisibleInRealTimeSkyCaptures=false;
 	}
 }
 bool ASlabTrackReferenceActor::HasValidRails() const

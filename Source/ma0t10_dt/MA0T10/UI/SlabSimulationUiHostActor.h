@@ -22,7 +22,16 @@ public:
 	UPROPERTY(Transient, BlueprintReadOnly, Category="Slab|UI") TObjectPtr<USlabProgressPanelWidget> ProgressWidget;
 	UFUNCTION(BlueprintCallable, Category="Slab|UI") void ShowSimulationPanels();
 	UFUNCTION(BlueprintCallable, Category="Slab|UI") void BindSlabActor(ASlabActor* InSlab);
+	UFUNCTION(BlueprintPure, Category="Slab|UI") FString GetInitializationMessage() const { return InitializationMessage; }
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+private:
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabUiHostRetryTest;
+#endif
+	FTimerHandle InitializationRetry;
+	FString InitializationMessage;
+	int32 InitializationAttempts=0;
+	bool bEnding=false;
 };

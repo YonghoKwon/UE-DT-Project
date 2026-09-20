@@ -12,6 +12,7 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabDataSyncComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 
 namespace
@@ -58,7 +59,7 @@ public:
 			TArray<UStaticMeshComponent*> Meshes; Slab->GetComponents(Meshes);
 			int32 Helpers=0; for(auto* Mesh:Meshes) if(Mesh!=Slab->SlabMesh)
 			{++Helpers;Test->TestEqual(TEXT("helpers never enter CPU sensor traces"),Mesh->GetCollisionEnabled(),ECollisionEnabled::NoCollision);Test->TestTrue(TEXT("helpers excluded from camera/GPU sensor captures"),bool(Mesh->bHiddenInSceneCapture));}
-			Test->TestEqual(TEXT("outline four edges, cross two axes, centre marker"),Helpers,7);
+			Test->TestEqual(TEXT("bounded reusable analysis line pool"),Helpers,USlabVisualizationComponent::MaxLineHelpers);
 			Test->TestTrue(TEXT("pause accepted"),Slab->SetSimulationPaused(true));
 			PausedTime=Slab->GetSimulationStatus().ElapsedSec; PausedPose=Slab->GetActorTransform(); PauseAt=FPlatformTime::Seconds(); Stage=2; return false;
 		}
