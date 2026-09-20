@@ -59,6 +59,8 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance") TSoftObjectPtr<UMaterialInterface> SurfaceMaterial;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance") bool bHotAppearance=false;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance",meta=(ClampMin="0",ClampMax="1")) float Oxidation=0.6f;
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance",meta=(ClampMin="0",ClampMax="1")) float Roughness=0.65f;
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance",meta=(ClampMin="0",ClampMax="20")) float EmissiveStrength=3.0f;
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category="Slab|Components") TObjectPtr<UStaticMeshComponent> SlabMesh;
 protected:
 	virtual void BeginPlay() override;

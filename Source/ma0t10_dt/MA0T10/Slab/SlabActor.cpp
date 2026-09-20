@@ -243,7 +243,8 @@ void ASlabActor::UpdateAppearance()
 	if(SurfaceInstance)
 	{
 		SurfaceInstance->SetScalarParameterValue(TEXT("Hotness"),bHotAppearance?1:0); SurfaceInstance->SetScalarParameterValue(TEXT("Oxidation"),Oxidation);
-		SurfaceInstance->SetScalarParameterValue(TEXT("Roughness"),0.65); SurfaceInstance->SetScalarParameterValue(TEXT("EmissiveStrength"),3);
+		SurfaceInstance->SetScalarParameterValue(TEXT("Roughness"),FMath::IsFinite(Roughness)?FMath::Clamp(Roughness,0.0f,1.0f):0.65f);
+		SurfaceInstance->SetScalarParameterValue(TEXT("EmissiveStrength"),FMath::IsFinite(EmissiveStrength)?FMath::Clamp(EmissiveStrength,0.0f,20.0f):3.0f);
 		SurfaceInstance->SetVectorParameterValue(TEXT("Color"),bHotAppearance?FLinearColor(1,0.08,0.01):FLinearColor(0.12,0.14,0.16));
 	}
 }
