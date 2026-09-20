@@ -26,6 +26,17 @@ public:
 	FVector2D GetPanelLayoutViewport() const { return ResolveLogicalViewportSize(); }
 	void SetWorkspacePosition(FVector2D Position) { if(IsWorkspaceOwned())SetPanelPositionInternal(Position); }
 	TSharedRef<SWidget> BuildToolPanelHeader(const FText& Title);
+	const FSlateBrush* GetToolPanelBrush() const;
+	const FSlateBrush* GetToolSectionBrush() const;
+	FLinearColor GetToolPanelColor() const;
+	FLinearColor GetToolHeaderColor() const;
+	FLinearColor GetToolSectionColor() const;
+	FLinearColor GetToolTextColor() const;
+	FLinearColor GetToolMutedColor() const;
+	FLinearColor GetToolAccentColor() const;
+	const FButtonStyle& GetToolButtonStyle(bool bDanger=false) const;
+	const FEditableTextBoxStyle& GetToolInputStyle() const;
+	int32 GetRegisteredFontControlCount() const { return SensorFontSetters.Num(); }
 	// PR17 compatibility names. They no longer change any global UI state.
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Accessibility")
 	void SetGlobalSensorUiFontScale(float InScale);
@@ -132,6 +143,9 @@ private:
 	ESensorToolPanelRole ToolRole=ESensorToolPanelRole::Monitor;
 	bool bSensorPanelConstructed = false;
 	TArray<TFunction<void(float)>> SensorFontSetters;
+	TArray<TFunction<bool()>> SensorFontLifetimes;
+	void AddFontRegistration(TFunction<void(float)> Setter,TFunction<bool()> IsAlive);
+	void PruneFontRegistrations();
 	TWeakObjectPtr<class AVirtualSensorUiHostActor> SensorAppearanceOwner;
 	float SensorToolFontScale = 1.0f;
 	TSet<TWeakObjectPtr<UWidget>> RegisteredSensorUmg;
