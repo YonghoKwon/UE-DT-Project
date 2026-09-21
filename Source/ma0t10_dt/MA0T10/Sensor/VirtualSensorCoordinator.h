@@ -6,6 +6,7 @@
 #include "VirtualSensorCoordinator.generated.h"
 
 class UActorComponent;
+class APlayerController;
 class AVirtualSensorActorBase;
 class UPrimitiveComponent;
 class URealSensorSourceComponent;
@@ -289,6 +290,10 @@ private:
 
     UPROPERTY(Transient)
     TArray<FVirtualSensorHiddenComponentState> HiddenComponentStates;
+
+    // View-local ownership only. Never hide source primitives from sensor SceneCaptures.
+    TWeakObjectPtr<APlayerController> PointCloudOnlyViewController;
+    TArray<TWeakObjectPtr<UPrimitiveComponent>> OwnedViewHiddenComponents;
 
     int32 SelectedCameraIndex = 0;
     int32 SelectedLidarIndex = 0;

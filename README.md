@@ -1,8 +1,10 @@
 # UE-DT-Project
 
-> 센서 도구 화면은 상단 도구 막대와 모니터 중심 Workspace로 구성됩니다. 네 패널 전용 저장·폰트·숨김 동작 및 동료 Widget 영향 격리는 [UI Workspace 가이드](docs/sensor_tool_workspace.ko.md)를 참고하십시오.
+> **DTCore Slab 시뮬레이션**: 벌크 JSON을 받아 보간 이동·분석 표시·자체 Slate/UMG 차트·진행률·재실행을 제공합니다. 기울기·중심 이탈·좌우 Margin의 **3개 차트를 진행한 시점까지만** 표시하며, 재생 목록에서 전체 UUID 복사와 보호된 개별 삭제를 지원합니다. 기본 표면은 얼룩 없는 냉각/고온 금속입니다. 신규 벌크는 **PCD만 기본 송신**, Camera 이미지와 LiDAR 정보는 선택 사항이고 저장 목록 재생은 관찰 전용이 기본입니다. 다른 맵 연결, 단위(cm 기본 / 검증맵 치수 mm), Topic 테스트와 API는 [Slab 시뮬레이션 가이드](docs/slab_simulation.ko.md)를 참고하세요. 테스트용 `SlabScenarioValidationRig`는 운영맵에 옮기지 않습니다.
 
-> Slab 벌크 JSON을 실행 중 최근 10개 보관하고 기존 재생기로 다시 전달하는 기능은 [시나리오 재생 가이드](docs/slab_scenario_replay.ko.md)를 참고하십시오. `_meta.UUID`가 필수이며, PCD 재송신은 기본 꺼짐입니다. 실제 동료 클래스는 adapter 연결이 필요합니다.
+> 센서 도구는 **선택 센서 / 센서 도구 / Slab 도구 / UI 표시** 메뉴로 6개 등록 패널을 관리합니다. 기본 화면을 간소화하고 데이터 패널의 **새 프레임·현재 프레임·주기 파일 저장**을 비동기 월드 서비스로 분리했습니다. 고급 옵션·저장 API·동료 Widget 영향 격리와 검증 상태는 [UI Workspace 가이드](docs/sensor_tool_workspace.ko.md)를 참고하십시오.
+
+> Slab 벌크 JSON을 실행 중 최근 10개 보관하는 기존 API·외부 재생 adapter는 [시나리오 재생 가이드](docs/slab_scenario_replay.ko.md)를 참고하십시오. 기존 `RegisterScenarioJson`은 `_meta.UUID`를 요구하며, 신규 Slab 입력 경로는 원문을 보존하면서 누락 UUID에 내부 보관 ID를 부여합니다. 새 `ASlabActor`는 운영 adapter를 자체 등록합니다.
 
 > PR #16 기반의 **세 센서 패널 전용 글자 배율**, **실시간 PCD 진입점 정규화**, **Slab 시뮬레이션 시작·프레임 적용·종료 연동 함수**는 [Slab 연동 가이드](docs/sensor_slab_integration.ko.md)를 참고하십시오. Slab frame_no와 센서 FrameId는 독립적으로 유지합니다.
 

@@ -17,7 +17,12 @@ const durationSeconds = Number(args.get('--duration') ?? '0');
 const warmupSeconds = Number(args.get('--warmup') ?? '0');
 const requireContiguousPcd = (args.get('--require-contiguous-pcd') ?? 'false').toLowerCase() === 'true';
 const requiredSlabRuns = Number(args.get('--slab-runs') ?? '0');
+const scenarioReplay = (args.get('--scenario-replay') ?? 'false').toLowerCase() === 'true';
+const expectedScenarioUuid = (args.get('--expected-scenario-uuid') ?? 'd8ddf0b1-b00b-4724-a529-90b8348726e6').toLowerCase();
+const quiet = (args.get('--quiet') ?? 'false').toLowerCase() === 'true';
+let observedScenarioUuid = '';
 const slabRuns = new Map();
+const sequenceFrames = new Map();
 let firstPcdSaved = false;
 const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
 const selfTestPoints = Math.max(1, Number(args.get('--self-test-points') ?? '1'));
@@ -43,6 +48,11 @@ let warmupTimer = null;
 let warmupStarted = false;
 let finished = false;
 let heartbeatTimer = null;
+
+function validUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) &&
+    value.replaceAll('-', '') !== '00000000000000000000000000000000';
+}
 
 function frame(command, headers = {}, body = '') {
   const lines = [command, ...Object.entries(headers).map(([key, value]) => `${key}:${String(value).replaceAll('\\', '\\\\').replaceAll(':', '\\c').replaceAll('\n', '\\n')}`), '', body];
@@ -146,7 +156,8 @@ function validateBinaryPcd(headers, body) {
     checksum: checksum.toLowerCase() === String(headers['x-checksum-sha1'] ?? headers.checksum ?? '').toLowerCase(),
   };
   const metadataLines = headerText.split('\n').filter(line => line.startsWith('# MA0T10_META '));
-  if (metadataLines.length || requiredSlabRuns > 0) {
+  let scenarioUuid = '';
+  if (metadataLines.length || requiredSlabRuns > 0 || scenarioReplay) {
     try {
       const meta = JSON.parse(metadataLines[0]?.slice(14));
       checks.embeddedMetadata = metadataLines.length === 1 && meta.schema === 'virtual-pointcloud.context.v1' &&
@@ -155,10 +166,18 @@ function validateBinaryPcd(headers, body) {
       if (requiredSlabRuns > 0) checks.embeddedSlab = meta.run_uuid === headers['x-run-uuid'] &&
         meta.mtl_no === headers['x-mtl-no'] && meta.frame_no === headers['x-slab-frame-no'] &&
         Number(meta.elapsed_sec) === Number(headers['x-slab-elapsed-sec']);
-      if (args.get('--scenario-replay') === 'true') checks.originalScenario = meta.scenario_uuid === 'd8ddf0b1-b00b-4724-a529-90b8348726e6' && meta.scenario_uuid !== meta.run_uuid;
+      if (scenarioReplay) {
+        scenarioUuid = typeof meta.scenario_uuid === 'string' ? meta.scenario_uuid.toLowerCase() : '';
+        const sourceMatches = expectedScenarioUuid === 'any'
+          ? (!observedScenarioUuid || scenarioUuid === observedScenarioUuid)
+          : scenarioUuid === expectedScenarioUuid;
+        checks.originalScenario = validUuid(scenarioUuid) && validUuid(meta.run_uuid) &&
+          scenarioUuid !== meta.run_uuid.toLowerCase() && sourceMatches;
+      }
     } catch { checks.embeddedMetadata = false; }
   }
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
+  if (scenarioReplay && failedChecks.length === 0 && !observedScenarioUuid) observedScenarioUuid = scenarioUuid;
   return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks };
 }
 
@@ -186,6 +205,8 @@ function report(success, reason) {
     warmupSeconds,
     measuredSeconds,
     requireContiguousPcd,
+    expectedScenarioUuid: scenarioReplay ? expectedScenarioUuid : null,
+    observedScenarioUuid: observedScenarioUuid || null,
     counts: Object.fromEntries(counts),
     metrics,
     slabRuns: Object.fromEntries(slabRuns),
@@ -236,14 +257,17 @@ function updateMetrics(destination, entry) {
   }
   metric.validCount += 1;
   const frameId = Number(entry.frameId);
-  if (entry.runId && metric.lastRun !== entry.runId) { metric.lastFrameId = null; metric.lastRun = entry.runId; }
+  const sequenceKey = JSON.stringify([destination, entry.sensorId, entry.runId, entry.sessionSegment]);
   if (Number.isSafeInteger(frameId)) {
     if (metric.firstFrameId == null) metric.firstFrameId = frameId;
-    if (metric.lastFrameId != null) {
-      if (frameId <= metric.lastFrameId) metric.duplicates += 1;
-      else if (frameId > metric.lastFrameId + 1) metric.frameGaps += frameId - metric.lastFrameId - 1;
+    const previous = sequenceFrames.get(sequenceKey);
+    if (previous != null) {
+      if (frameId <= previous) metric.duplicates += 1;
+      else if (frameId > previous + 1) metric.frameGaps += frameId - previous - 1;
     }
-    metric.lastFrameId = Math.max(metric.lastFrameId ?? frameId, frameId);
+    sequenceFrames.set(sequenceKey, Math.max(previous ?? frameId, frameId));
+    metric.lastFrameId = frameId;
+    metric.lastRun = entry.runId;
   }
 }
 
@@ -344,6 +368,7 @@ socket.addEventListener('message', async event => {
         dataKind: parsed.headers['x-data-kind'] ?? '',
         frameId: parsed.headers['x-frame-id'] ?? parsed.headers['frame-id'] ?? '',
         runId: parsed.headers['x-run-uuid'] ?? '',
+        sessionSegment: parsed.headers['x-session-segment'] ?? '0',
         mtlNo: parsed.headers['x-mtl-no'] ?? '',
         slabFrameNo: Number(parsed.headers['x-slab-frame-no'] ?? '-1'),
         slabElapsedSec: Number(parsed.headers['x-slab-elapsed-sec'] ?? '-1'),
@@ -354,34 +379,41 @@ socket.addEventListener('message', async event => {
 		pointCount: pcdValidation?.pointCount ?? null,
 		checksum: pcdValidation?.checksum ?? actualChecksum,
 		validationErrors: pcdValidation?.failedChecks ?? [],
-		bodyPreview: isBinaryPcd ? parsed.body.subarray(0, 32).toString('hex') : parsed.body.subarray(0, 180).toString('utf8'),
       };
       if (requiredSlabRuns > 0) {
-        const correlationValid = /^[0-9a-f-]{36}$/i.test(entry.runId) && entry.mtlNo === 'SQ83521 047' &&
+        const correlationValid = validUuid(entry.runId) && entry.mtlNo === 'SQ83521 047' &&
           Number.isInteger(entry.slabFrameNo) && entry.slabFrameNo >= 0 && entry.slabFrameNo < 600 && Math.abs(entry.slabElapsedSec - entry.slabFrameNo * 0.05) < 0.00001;
         entry.valid &&= correlationValid;
         if (!correlationValid) entry.validationErrors.push('invalid slab correlation');
         const run = slabRuns.get(entry.runId) ?? {};
-        const m = run[destination] ?? { count: 0, invalid: 0, gaps: 0, duplicates: 0, lastSensorFrame: null, firstSlabFrame: entry.slabFrameNo, lastSlabFrame: -1 };
+        const m = run[destination] ?? { count: 0, invalid: 0, gaps: 0, duplicates: 0, lastSensorFrame: null, firstSlabFrame: entry.slabFrameNo, lastSlabFrame: -1, sequences: {} };
         if (entry.valid) ++m.count; else ++m.invalid;
         const sensorFrame = Number(entry.frameId);
-        if (m.lastSensorFrame != null) { if (sensorFrame <= m.lastSensorFrame) ++m.duplicates; else m.gaps += Math.max(0, sensorFrame - m.lastSensorFrame - 1); }
-        if (entry.slabFrameNo < m.lastSlabFrame) ++m.invalid;
+        const key = JSON.stringify([entry.sensorId, entry.sessionSegment]);
+        const previous = m.sequences[key];
+        if (entry.valid && Number.isSafeInteger(sensorFrame)) {
+          if (previous) {
+            if (sensorFrame <= previous.sensorFrame) ++m.duplicates;
+            else m.gaps += Math.max(0, sensorFrame - previous.sensorFrame - 1);
+            if (entry.slabFrameNo < previous.slabFrame) ++m.invalid;
+          }
+          m.sequences[key] = { sensorFrame: Math.max(previous?.sensorFrame ?? sensorFrame, sensorFrame), slabFrame: Math.max(previous?.slabFrame ?? entry.slabFrameNo, entry.slabFrameNo) };
+        }
         m.lastSensorFrame = sensorFrame; m.lastSlabFrame = entry.slabFrameNo;
         run[destination] = m; slabRuns.set(entry.runId, run);
       }
       const shouldMeasure = requiredSlabRuns > 0 || durationSeconds <= 0 || measurementStartedMs > 0;
       if (shouldMeasure) {
-        if (counts.has(destination) && messageValid) counts.set(destination, counts.get(destination) + 1);
+        if (counts.has(destination) && entry.valid) counts.set(destination, counts.get(destination) + 1);
         updateMetrics(destination, entry);
         messages.push(entry);
         if (messages.length > 200) messages.shift();
       }
-      console.error(`[MESSAGE] ${destination} request=${entry.requestId} sensor=${entry.sensorId} frame=${entry.frameId} bytes=${entry.bytes} schema=${entry.schema}`);
+      if (!quiet) console.error(`[MESSAGE] ${destination} request=${entry.requestId} sensor=${entry.sensorId} frame=${entry.frameId} bytes=${entry.bytes} schema=${entry.schema}`);
       if (ackTopic && entry.requestId) {
 		socket.send(frame('SEND', { destination: ackTopic, 'destination-type': 'MULTICAST', 'content-type': 'application/json', 'x-request-id': entry.requestId }, JSON.stringify({ requestId: entry.requestId, processed: true, source: 'ma0t10-stomp-probe' })));
       }
-      if (durationSeconds > 0 && messageValid && !warmupStarted) {
+      if (durationSeconds > 0 && entry.valid && !warmupStarted) {
         warmupStarted = true;
         if (warmupSeconds > 0) warmupTimer = setTimeout(() => beginDurationMeasurement(socket), warmupSeconds * 1000);
         else beginDurationMeasurement(socket);
@@ -393,7 +425,7 @@ socket.addEventListener('message', async event => {
       continue;
     }
     if (parsed.command === 'ERROR') {
-      report(false, `broker error: ${parsed.headers.message ?? parsed.body}`);
+      report(false, `broker error: ${parsed.headers.message ?? 'no summary header (body omitted)'}`);
       process.exitCode = 2;
       socket.close();
     }

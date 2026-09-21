@@ -248,6 +248,9 @@ public:
     }
 
 	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> GetLastFrameSnapshot() const { return LastFrameSnapshot; }
+	int32 GetFileCaptureRevision() const { return ScheduledGeneration; }
+	/** Captures only immutable values on the GT; invoke the returned encoder on a worker. */
+	TFunction<FString()> CreateLocalFilePayloadEncoder(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame) const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
     UTexture2D* GetLidarViewTexture() const { return LidarViewTexture; }

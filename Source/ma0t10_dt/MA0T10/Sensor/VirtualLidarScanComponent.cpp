@@ -66,6 +66,7 @@ struct FLidarScheduledPayloadSnapshot
     FString Model;
     FString PreviewBackend;
     int64 FrameId = 0;
+    FDateTime TimestampUtc;
     int32 HorizontalSamples = 0;
     int32 VerticalChannels = 0;
     float MaxDistance = 0.0f;
@@ -98,7 +99,7 @@ FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
     Root->SetStringField(TEXT("manufacturer"), S.Manufacturer);
     Root->SetStringField(TEXT("model"), S.Model);
     Root->SetNumberField(TEXT("frameId"), static_cast<double>(S.FrameId));
-    Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
+    Root->SetStringField(TEXT("timestampUtc"), (S.TimestampUtc.GetTicks()>0?S.TimestampUtc:FDateTime::UtcNow()).ToIso8601());
     Root->SetNumberField(TEXT("horizontalSamples"), S.HorizontalSamples);
     Root->SetNumberField(TEXT("verticalChannels"), S.VerticalChannels);
     Root->SetNumberField(TEXT("rayCount"), S.HorizontalSamples * S.VerticalChannels);
@@ -1221,6 +1222,20 @@ void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameI
             WeakThis->CompleteScheduledPayloadBuild(CapturedFrameId, MoveTemp(Payload), AcquisitionStartedSeconds);
         });
     });
+}
+
+TFunction<FString()> UVirtualLidarScanComponent::CreateLocalFilePayloadEncoder(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame) const
+{
+	check(IsInGameThread()); if(!Frame.IsValid()||!Frame->Points.IsValid()) return {};
+	FLidarScheduledPayloadSnapshot Snapshot;
+	Snapshot.Points=Frame->Points; Snapshot.SensorId=SensorId; Snapshot.Manufacturer=DeviceSpec.Manufacturer; Snapshot.Model=DeviceSpec.Model;
+	Snapshot.TimestampUtc=Frame->AcquisitionStartUnixNanoseconds>0?FDateTime(1970,1,1)+FTimespan(Frame->AcquisitionStartUnixNanoseconds/100):FDateTime::UtcNow();
+	Snapshot.PreviewBackend=GetPreviewBackendName();Snapshot.FrameId=Frame->FrameId;Snapshot.HorizontalSamples=Frame->HorizontalSamples;Snapshot.VerticalChannels=Frame->VerticalChannels;Snapshot.MaxDistance=Frame->MaxDistanceCm;
+	Snapshot.ServerPayloadStride=ServerPayloadStride;Snapshot.MaxServerPayloadPoints=MaxServerPayloadPoints;Snapshot.bIncludeMissPoints=bIncludeMissPointsInServerPayload;
+	Snapshot.PreviewPointStride=PreviewPointStride;Snapshot.MaxPreviewPoints=MaxPreviewPoints;Snapshot.bPreviewHitOnly=bPointCloudPreviewHitOnly;
+	Snapshot.bSemanticClassification=bEnableSemanticClassification;Snapshot.bGpuRequested=IsGpuPreviewBackendRequested();Snapshot.bGpuActive=IsGpuPreviewBackendActive();Snapshot.bExperimentalGpuOptIn=bAllowExperimentalGpuPreviewBackend;
+	Snapshot.bIncludeSlabAnalysis=bIncludeSlabAnalysisInPayload;Snapshot.SensorTransform=Frame->AcquisitionTransform;Snapshot.SlabAnalysis=LastSlabAnalysis;
+	return [Snapshot=MoveTemp(Snapshot)](){return BuildScheduledLidarJson(Snapshot);};
 }
 
 void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(int64 CapturedFrameId, FString&& JsonPayload, double AcquisitionStartedSeconds)

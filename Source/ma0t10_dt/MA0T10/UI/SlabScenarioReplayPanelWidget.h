@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "SlabScenarioReplayPanelWidget.generated.h"
 class USlabScenarioReplaySubsystem;
 class SVerticalBox;
@@ -11,8 +12,18 @@ class MA0T10_DT_API USlabScenarioReplayPanelWidget : public UVirtualSensorPanelW
 public:
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool SelectScenario(const FString& UUID);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool ReplaySelected();
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool CopyScenarioUUID(const FString& UUID);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool RequestScenarioDeletion(const FString& UUID);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool ConfirmScenarioDeletion();
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void CancelScenarioDeletion();
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetPendingDeleteScenarioUUID() const { return PendingDeleteUUID; }
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetScenarioActionMessage() const { return ActionMessage; }
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FString GetSelectedScenarioUUID() const { return SelectedUUID; }
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendPcd=false;
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendCameraImage=false;
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendLidarTelemetry=false;
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FVirtualSlabSensorOutputSelection GetReplayOutputs() const;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") TArray<FString> TargetSensorIds;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -23,5 +34,19 @@ private:
 	UFUNCTION() void RefreshList();
 	USlabScenarioReplaySubsystem* Manager() const;
 	FString SelectedUUID;
+	FString PendingDeleteUUID;
+	FString ActionMessage;
+	TArray<FString> PreviousListIds;
+	static FString ResolveStableSelection(const TArray<FString>& PreviousIds,const TArray<FString>& CurrentIds,const FString& Selected);
+	FSlateFontInfo GetListFont(bool bSecondary=false) const;
+	bool IsDeletionAllowed(const FString& UUID) const;
+	FText GetDeletionTooltip(const FString& UUID) const;
+	bool UsesSimplifiedNativeLayout() const;
+	bool AreRowActionsVisible(const FString& UUID) const;
+	TSharedRef<SWidget> BuildAdditionalOutputOptions(bool bCollapsedMenu);
 	TSharedPtr<SVerticalBox> List;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabScenarioDeletionUiTest;
+	friend class FSlabUiSimplificationTest;
+#endif
 };

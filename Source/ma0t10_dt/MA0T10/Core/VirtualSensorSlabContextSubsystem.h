@@ -5,6 +5,7 @@
 #include "VirtualSensorSlabContextSubsystem.generated.h"
 class AVirtualSensorActorBase;
 class AVirtualSensorCoordinator;
+enum class EVirtualSensorStreamKind : uint8;
 
 /** Adapter for the colleague-owned scenario player. No Topic subscription or scene mutation. */
 UCLASS()
@@ -17,6 +18,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	FString BeginReplaySensorSession(const FString& RunId,const TArray<FString>& TargetSensorIds,const FString& ScenarioUUID,bool bSendPcd=false);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
+	FString BeginScenarioSensorSession(const FString& RunId,const TArray<FString>& TargetSensorIds,const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs);
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool NotifySlabFrameApplied(const FString& RunId, const FString& MtlNo, int64 SlabFrameNo, double ElapsedSec);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool SetSlabSensorSessionPaused(const FString& RunId, bool bPaused);
@@ -28,11 +31,15 @@ public:
 	void CompleteAcquisition(const FString& SensorId, int64 SensorFrameId, bool bSuccess=true);
 	bool ControlsSensor(const FString& SensorId) const { return ControlledIds.Contains(SensorId); }
 	bool AllowsFrame(const FString& SensorId, const FVirtualSlabFrameContext& Context) const;
+	bool AllowsStreamFrame(const FString& SensorId, EVirtualSensorStreamKind Kind, const FVirtualSlabFrameContext& Context) const;
+	bool AllowsStreamDemand(const FString& SensorId, EVirtualSensorStreamKind Kind) const;
+	bool HasSelectedOutputForSensor(const FString& SensorId) const;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	virtual void Deinitialize() override;
 private:
-	FString BeginSessionInternal(const FString& RunId,const TArray<FString>& TargetSensorIds,bool bPointCloudOnly,bool bObservationOnly,const FString& ScenarioUUID);
+	FString BeginSessionInternal(const FString& RunId,const TArray<FString>& TargetSensorIds,const FVirtualSlabSensorOutputSelection& Outputs,const FString& ScenarioUUID,bool bRequireEachRequestedKind=true);
+	bool IsOutputSelected(EVirtualSensorStreamKind Kind) const;
 	bool CheckRun(const FString& RunId);
 	void Finish(EVirtualSlabSessionEndReason Reason);
 	int64 CountStreamErrors() const;

@@ -13,6 +13,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -552,9 +553,9 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
     };
     RestoreSettingsUiPreferences();
     return SNew(SBorder)
-    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-    .BorderBackgroundColor(FVirtualSensorUiStyle::PanelBackground)
-    .ForegroundColor(FVirtualSensorUiStyle::PrimaryText)
+    .BorderImage(GetToolPanelBrush())
+    .BorderBackgroundColor(GetToolPanelColor())
+    .ForegroundColor(GetToolTextColor())
     .Padding(10.0f)
     [
         SNew(SVerticalBox)
@@ -565,7 +566,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabPose","위치·회전")).OnClicked_Lambda([this](){WorkspaceSettingsTab=1;return FReply::Handled();})]
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabAdvanced","고급 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=2;bShowAdvanced=true;return FReply::Handled();})]
         ]
-        + SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); }) ]
+        + SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); }) ]
         + SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 8.0f, 0.0f, 0.0f)
         [
             SNew(SScrollBox).Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
@@ -575,8 +576,9 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)
                 [
                     SNewSensorTool(SEditableTextBox)
-                    .Style(&FVirtualSensorUiStyle::EditableTextBoxStyle())
+                    .Style(&GetToolInputStyle())
                     .HintText(LOCTEXT("SensorIdHint", "SensorId"))
+                    .Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
                     .Text_Lambda([this]() { return FText::FromString(PendingState.SensorId); })
                     .OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { PendingState.SensorId = Text.ToString().TrimStartAndEnd(); ApplyPendingState(); })
                 ]
@@ -585,10 +587,10 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 + SVerticalBox::Slot().AutoHeight()
                 [
                     SNew(SWrapBox).UseAllottedSize(true)
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bManipulationEnabled ? TEXT("조작 종료") : TEXT("센서 조작 시작")); }).OnClicked_Lambda([this]() { SetSensorManipulationEnabled(!bManipulationEnabled); return FReply::Handled(); }) ]
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(GizmoMode == EVirtualSensorGizmoMode::Translate ? TEXT("모드: 이동") : TEXT("모드: 회전")); }).OnClicked_Lambda([this]() { SetSensorGizmoMode(GizmoMode == EVirtualSensorGizmoMode::Translate ? EVirtualSensorGizmoMode::Rotate : EVirtualSensorGizmoMode::Translate); return FReply::Handled(); }) ]
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? TEXT("좌표: 로컬") : TEXT("좌표: 월드")); }).OnClicked_Lambda([this]() { SetSensorCoordinateSpace(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? EVirtualSensorCoordinateSpace::World : EVirtualSensorCoordinateSpace::Local); return FReply::Handled(); }) ]
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bGizmoVisible ? TEXT("기즈모 숨기기") : TEXT("기즈모 보이기")); }).OnClicked_Lambda([this]() { bGizmoVisible = !bGizmoVisible; if (GizmoActor) GizmoActor->SetGizmoVisible(bGizmoVisible); return FReply::Handled(); }) ]
+                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bManipulationEnabled ? TEXT("조작 종료") : TEXT("센서 조작 시작")); }).OnClicked_Lambda([this]() { SetSensorManipulationEnabled(!bManipulationEnabled); return FReply::Handled(); }) ]
+                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(GizmoMode == EVirtualSensorGizmoMode::Translate ? TEXT("모드: 이동") : TEXT("모드: 회전")); }).OnClicked_Lambda([this]() { SetSensorGizmoMode(GizmoMode == EVirtualSensorGizmoMode::Translate ? EVirtualSensorGizmoMode::Rotate : EVirtualSensorGizmoMode::Translate); return FReply::Handled(); }) ]
+                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? TEXT("좌표: 로컬") : TEXT("좌표: 월드")); }).OnClicked_Lambda([this]() { SetSensorCoordinateSpace(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? EVirtualSensorCoordinateSpace::World : EVirtualSensorCoordinateSpace::Local); return FReply::Handled(); }) ]
+                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bGizmoVisible ? TEXT("기즈모 숨기기") : TEXT("기즈모 보이기")); }).OnClicked_Lambda([this]() { bGizmoVisible = !bGizmoVisible; if (GizmoActor) GizmoActor->SetGizmoVisible(bGizmoVisible); return FReply::Handled(); }) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
@@ -605,8 +607,8 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Roll", "Roll (도)"), [this]() { return PendingState.ActorTransform.Rotator().Roll; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Roll = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("MoveStep", "이동 단위 (cm)"), [this]() { return TranslationStepCm; }, [this](float V) { TranslationStepCm = V; }, 1.0f, 1000.0f, false) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("RotateStep", "회전 단위 (도)"), [this]() { return RotationStepDegrees; }, [this](float V) { RotationStepDegrees = V; }, 0.1f, 90.0f, false) ]
-                + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
-                + SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this]() { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z")) ]
+                + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
+                + SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this]() { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z")) ]
 
 ]
 + SVerticalBox::Slot().AutoHeight()[ SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==0?EVisibility::Visible:EVisibility::Collapsed;})
@@ -675,40 +677,78 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                         + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("MultiHit"))).IsChecked_Lambda([this]() { return PendingState.bUseMultiHit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("MultiHit")); PendingState.bUseMultiHit = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNewSensorTool(STextBlock).Text(LOCTEXT("MultiHit", "다중 검출 사용 (고부하)")) ] ]
                         + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("MaxHits", "광선당 최대 검출 수"), [this]() { return PendingState.MaxHitsPerRay; }, [this](int32 V) { PendingState.MaxHitsPerRay = V; }, 1, 16, TEXT("MaxHits")) ]
                     ]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f)[ SNewSensorTool(STextBlock).Text(LOCTEXT("RealSource", "외부 센서 소스")) ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;}).Text(LOCTEXT("RealSource", "외부 센서 소스")) ]
                     + SVerticalBox::Slot().AutoHeight()
                     [
-                        SNew(SWrapBox).UseAllottedSize(true)
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]() { StartAllRealSensorSources(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]() { StopAllRealSensorSources(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 캡처/내보내기 패널에서 실행합니다.")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text_Lambda([this]() { return FText::FromString(HostActor && HostActor->IsScreenDebugLogVisible() ? TEXT("화면 디버그 로그 숨기기") : TEXT("화면 디버그 로그 표시")); }).OnClicked_Lambda([this]() { if (HostActor) HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible()); return FReply::Handled(); }) ]
+                        SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
+                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]() { StartAllRealSensorSources(); return FReply::Handled(); }) ]
+                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]() { StopAllRealSensorSources(); return FReply::Handled(); }) ]
+                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 캡처/내보내기 패널에서 실행합니다.")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
+                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(HostActor && HostActor->IsScreenDebugLogVisible() ? TEXT("화면 디버그 로그 숨기기") : TEXT("화면 디버그 로그 표시")); }).OnClicked_Lambda([this]() { if (HostActor) HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible()); return FReply::Handled(); }) ]
                     ]
                 ]
+                + SVerticalBox::Slot().AutoHeight()[BuildOwnedAdministrativeControls()]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
                 [
-                    SNew(SBorder).Visibility_Lambda([this](){return SelectedSettingHelpKey.IsNone()?EVisibility::Collapsed:EVisibility::Visible;})
-                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-                    .BorderBackgroundColor(FVirtualSensorUiStyle::SectionBackground)
+                    SNew(SBorder).Visibility_Lambda([this](){return SelectedSettingHelpKey.IsNone()||(IsWorkspaceOwned()&&!bOwnedSettingHelpOpen)?EVisibility::Collapsed:EVisibility::Visible;})
+                    .BorderImage(GetToolPanelBrush())
+                    .BorderBackgroundColor(GetToolSectionColor())
                     .Padding(8.0f)
                     [
                         SNew(SVerticalBox)
-                        + SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("LoadSummaryTitle", "현재 설정 예상 부하")) ]
-                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 7.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::SecondaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetCurrentLoadSummaryText()); }) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::Accent).Text(LOCTEXT("SettingHelpTitle", "선택한 설정 도움말")) ]
-                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 0.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(FVirtualSensorUiStyle::PrimaryText).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetSelectedSettingHelpText()); }) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("LoadSummaryTitle", "현재 설정 예상 부하")) ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 7.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetCurrentLoadSummaryText()); }) ]
+                        + SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("SettingHelpTitle", "선택한 설정 도움말")) ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 0.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetSelectedSettingHelpText()); }) ]
+                        + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("CloseOwnedHelp","도움말 닫기")).OnClicked_Lambda([this](){bOwnedSettingHelpOpen=false;return FReply::Handled();})]
                     ]
                 ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)
                 [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("ResetValues", "PIE 시작값으로 되돌리기")).OnClicked_Lambda([this]() { ResetPendingStateToMapValue(); return FReply::Handled(); }) ]
-                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle()).ForegroundColor(FVirtualSensorUiStyle::PrimaryText).Text(LOCTEXT("ApplyMap", "SensorTestMap에 저장 예약")).OnClicked_Lambda([this]() { QueuePendingStateForSensorTestMap(); return FReply::Handled(); }) ]
+                    SNew(SHorizontalBox).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
+                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ResetValues", "PIE 시작값으로 되돌리기")).OnClicked_Lambda([this]() { ResetPendingStateToMapValue(); return FReply::Handled(); }) ]
+                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ApplyMap", "SensorTestMap에 저장 예약")).OnClicked_Lambda([this]() { QueuePendingStateForSensorTestMap(); return FReply::Handled(); }) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight()[ SAssignSensorTool(NativeStatusText, STextBlock).ColorAndOpacity_Lambda([this]() { return LastControlMessage.Contains(TEXT("실패")) ? FVirtualSensorUiStyle::Error : (LastControlMessage.Contains(TEXT("대기")) || LastControlMessage.Contains(TEXT("갱신")) ? FVirtualSensorUiStyle::Warning : FVirtualSensorUiStyle::Success); }).AutoWrapText(true).Text(FText::FromString(GetControlStatusText())) ]
             ]
         ]
     ];
+}
+
+TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeControls()
+{
+    if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
+    auto Utilities=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
+    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedIdentity","센서 식별 정보 변경"))]
+      .BodyContent()[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedIdentityHelp","SensorId는 전송·세션에서 센서를 구분하는 식별자입니다. 일반 측정값 조정과 별개입니다."))]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(SEditableTextBox).Style(&GetToolInputStyle()).HintText(LOCTEXT("OwnedSensorId","SensorId"))
+          .Text_Lambda([this](){return FText::FromString(PendingState.SensorId);})
+          .OnTextCommitted_Lambda([this](const FText& T,ETextCommit::Type){PendingState.SensorId=T.ToString().TrimStartAndEnd();ApplyPendingState();})]
+      ]];
+    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedExternal","외부 측정 프레임 입력"))]
+      .BodyContent()[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedExternalHelp","Replay·실장비 adapter에서 가상 센서로 프레임을 받는 기능입니다. 서버 송신이나 Broker 자체 수신 검증을 시작하지 않습니다. 전체 동작은 등록된 외부 입력 Source 모두에 적용됩니다."))]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,5))
+          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedStartInputs","입력 Source 전체 시작")).OnClicked_Lambda([this](){StartAllRealSensorSources();return FReply::Handled();})]
+          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedStopInputs","입력 Source 전체 중지")).OnClicked_Lambda([this](){StopAllRealSensorSources();return FReply::Handled();})]
+          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedPushInput","선택 입력 1회 주입")).OnClicked_Lambda([this](){PushSelectedRealSensorSource();return FReply::Handled();})]]
+      ]];
+    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedDebugLogs","개발용 화면 로그"))]
+      .BodyContent()[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return HostActor!=nullptr;}).Text_Lambda([this](){return FText::FromString(HostActor&&HostActor->IsScreenDebugLogVisible()?TEXT("화면 디버그 로그 숨기기"):TEXT("화면 디버그 로그 표시"));})
+        .OnClicked_Lambda([this](){if(HostActor)HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible());return FReply::Handled();})]];
+    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedMapActions","초기화와 원본 맵 반영"))]
+      .BodyContent()[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedMapHelp","PIE 시작값 복원은 현재 실행 값만 되돌립니다. 맵 저장 예약은 PIE 종료 시 SensorTestMap 원본에 반영하는 별도 동작입니다."))]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,5))
+          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedRestore","PIE 시작값 복원")).OnClicked_Lambda([this](){ResetPendingStateToMapValue();return FReply::Handled();})]
+          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedMapQueue","SensorTestMap 저장 예약")).IsEnabled_Lambda([this](){return HostActor!=nullptr;}).OnClicked_Lambda([this](){QueuePendingStateForSensorTestMap();return FReply::Handled();})]]
+      ]];
+    return Utilities;
 }
 
 bool UVirtualSensorSettingsPanelWidget::ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const
@@ -992,16 +1032,16 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeFloatRow(const FText&
         [
             SNewSensorTool(SButton)
             .Visibility(Help ? EVisibility::Visible : EVisibility::Collapsed)
-            .ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
-            .ForegroundColor(FVirtualSensorUiStyle::Accent)
+            .ButtonStyle(&GetToolButtonStyle())
+            .ForegroundColor(GetToolAccentColor())
             .Text(LOCTEXT("InfoButton", "ⓘ"))
             .ToolTipText(ToolTip)
-            .OnClicked_Lambda([this, HelpKey]() { SelectSettingHelp(HelpKey); return FReply::Handled(); })
+            .OnClicked_Lambda([this, HelpKey]() { SelectSettingHelp(HelpKey); if(IsWorkspaceOwned())bOwnedSettingHelpOpen=true; return FReply::Handled(); })
         ]
         + SHorizontalBox::Slot().FillWidth(0.45f)
         [
             SNew(SSpinBox<float>)
-            .Font_Lambda([this]() { auto Font=FCoreStyle::GetDefaultFontStyle("Regular",10); Font.Size=FMath::RoundToInt(10.0f*GetSensorToolFontScale()); return Font; })
+            .Font_Lambda([this]() { const int32 Size=IsWorkspaceOwned()?14:10; auto Font=FCoreStyle::GetDefaultFontStyle("Regular",Size); Font.Size=FMath::RoundToInt(Size*GetSensorToolFontScale()); return Font; })
             .MinValue(Min).MaxValue(Max)
             .Value_Lambda([Getter]() { return Getter(); })
             .OnValueChanged_Lambda([Setter](float Value) { Setter(Value); })
@@ -1020,16 +1060,16 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeIntRow(const FText& L
         [
             SNewSensorTool(SButton)
             .Visibility(Help ? EVisibility::Visible : EVisibility::Collapsed)
-            .ButtonStyle(&FVirtualSensorUiStyle::ButtonStyle())
-            .ForegroundColor(FVirtualSensorUiStyle::Accent)
+            .ButtonStyle(&GetToolButtonStyle())
+            .ForegroundColor(GetToolAccentColor())
             .Text(LOCTEXT("InfoIntButton", "ⓘ"))
             .ToolTipText(ToolTip)
-            .OnClicked_Lambda([this, HelpKey]() { SelectSettingHelp(HelpKey); return FReply::Handled(); })
+            .OnClicked_Lambda([this, HelpKey]() { SelectSettingHelp(HelpKey); if(IsWorkspaceOwned())bOwnedSettingHelpOpen=true; return FReply::Handled(); })
         ]
         + SHorizontalBox::Slot().FillWidth(0.45f)
         [
             SNew(SSpinBox<int32>)
-            .Font_Lambda([this]() { auto Font=FCoreStyle::GetDefaultFontStyle("Regular",10); Font.Size=FMath::RoundToInt(10.0f*GetSensorToolFontScale()); return Font; })
+            .Font_Lambda([this]() { const int32 Size=IsWorkspaceOwned()?14:10; auto Font=FCoreStyle::GetDefaultFontStyle("Regular",Size); Font.Size=FMath::RoundToInt(Size*GetSensorToolFontScale()); return Font; })
             .MinValue(Min).MaxValue(Max)
             .Value_Lambda([Getter]() { return Getter(); })
             .OnValueChanged_Lambda([Setter](int32 Value) { Setter(Value); })

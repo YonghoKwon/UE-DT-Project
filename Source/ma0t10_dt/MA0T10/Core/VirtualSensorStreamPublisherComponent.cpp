@@ -488,6 +488,7 @@ void UVirtualSensorStreamPublisherComponent::EndPlay(const EEndPlayReason::Type 
 	WaitingReceipts.Reset();
 	RequestToStreamKey.Reset();
 	StreamRuntimes.Reset();
+	SlabRunFailures.Reset();
 	if (GetWorld())
 	{
 		if (UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
@@ -569,6 +570,7 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 		Runtime.Config.LazCompressorArguments != Config.LazCompressorArguments;
 	if (bSerializationContractChanged)
 	{
+		RecordDiscardedSlabFrames(Runtime);
 		++Runtime.ConfigRevision;
 		Runtime.PendingFrame.Reset();
 		Runtime.PreparedMessage.Reset();
@@ -616,6 +618,7 @@ void UVirtualSensorStreamPublisherComponent::StopStream(EVirtualSensorStreamKind
 	const FString Key = MakeStreamKey(StreamKind, SensorId.TrimStartAndEnd());
 	if (FStreamRuntime* Runtime = StreamRuntimes.Find(Key))
 	{
+		RecordDiscardedSlabFrames(*Runtime);
 		Runtime->Config.bEnabled = false;
 		Runtime->Status.bEnabled = false;
 		Runtime->PendingFrame.Reset();
@@ -644,6 +647,7 @@ void UVirtualSensorStreamPublisherComponent::StopAllStreams(const FString& Senso
 	{
 		for (TPair<FString, FStreamRuntime>& Pair : StreamRuntimes)
 		{
+			RecordDiscardedSlabFrames(Pair.Value);
 			Pair.Value.Config.bEnabled = false;
 			Pair.Value.Status.bEnabled = false;
 			Pair.Value.PendingFrame.Reset();
@@ -688,6 +692,8 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Key);
 		if (!Runtime || !Runtime->Config.bEnabled || !StreamMatchesFrame(Runtime->Config.StreamKind, Frame.SensorKind)) continue;
 		if (!Runtime->Config.SensorId.IsEmpty() && !Runtime->Config.SensorId.Equals(Frame.SensorId, ESearchCase::CaseSensitive)) continue;
+		if (GetWorld()) if (const auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+			if(!Slab->AllowsStreamFrame(Frame.SensorId,Runtime->Config.StreamKind,Frame.SlabContext)) continue;
 		if (Runtime->Config.SensorId.IsEmpty())
 		{
 			const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(Runtime->Config.StreamKind, Frame.SensorId));
@@ -710,18 +716,20 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	{
 		return;
 	}
-	if (Runtime.Status.InputFrameCount > 0 && Runtime.Status.LastInputFrameId == Frame.FrameId)
+	const FString SegmentKey=Frame.SlabContext.RunId+TEXT("|")+LexToString(Frame.SlabContext.Segment);
+	if (Runtime.LastSlabSegment!=SegmentKey) { Runtime.LastSlabSegment=SegmentKey; Runtime.Status.LastInputFrameId=0; Runtime.bHasInputFrameInSegment=false; }
+	if (Runtime.bHasInputFrameInSegment && Runtime.Status.LastInputFrameId == Frame.FrameId)
 	{
 		return;
 	}
-	const FString SegmentKey=Frame.SlabContext.RunId+TEXT("|")+LexToString(Frame.SlabContext.Segment);
-	if (Runtime.LastSlabSegment!=SegmentKey) { Runtime.LastSlabSegment=SegmentKey; Runtime.Status.LastInputFrameId=0; }
-	if (Runtime.Status.LastInputFrameId > 0 && Frame.FrameId > Runtime.Status.LastInputFrameId + 1)
+	Runtime.LastInputSlabContext=Frame.SlabContext;
+	if (Runtime.bHasInputFrameInSegment && Frame.FrameId > Runtime.Status.LastInputFrameId + 1)
 	{
 		Runtime.Status.FrameGapCount += Frame.FrameId - Runtime.Status.LastInputFrameId - 1;
 	}
 	++Runtime.Status.InputFrameCount;
 	Runtime.Status.LastInputFrameId = Frame.FrameId;
+	Runtime.bHasInputFrameInSegment=true;
 	const double Now = FPlatformTime::Seconds();
 	if (Runtime.FirstInputSeconds <= 0.0) Runtime.FirstInputSeconds = Now;
 	Runtime.Status.InputHz = static_cast<float>(Runtime.Status.InputFrameCount / FMath::Max(0.001, Now - Runtime.FirstInputSeconds));
@@ -835,6 +843,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	}
 	if (!Frame.HasJsonPayload())
 	{
+		RecordSlabFailure(Frame.SlabContext.RunId,Frame.SensorId,Runtime.Config.StreamKind,Frame.FrameId);
 		++Runtime.Status.EncodeFailureCount;
 		Runtime.Status.Message = TEXT("완료된 JSON Payload가 없습니다.");
 		return;
@@ -868,6 +877,8 @@ void UVirtualSensorStreamPublisherComponent::RefreshQueueTelemetry(FStreamRuntim
 
 void UVirtualSensorStreamPublisherComponent::StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId)
 {
+	RecordSlabFailure(Runtime.LastInputSlabContext.RunId,Runtime.Config.SensorId,Runtime.Config.StreamKind,FrameId);
+	RecordDiscardedSlabFrames(Runtime);
 	// Stop clears unsent queues but retains receipt tracking for accepted frames.
 	// Persist a failure counter even after Finish() replaces the current UI message.
 	const FString SensorId = Runtime.Config.SensorId;
@@ -882,6 +893,8 @@ void UVirtualSensorStreamPublisherComponent::StopForPointCloudOverload(
 	FStreamRuntime& Runtime,
 	const FString& Reason)
 {
+	RecordSlabFailure(Runtime.LastInputSlabContext.RunId,Runtime.Config.SensorId,Runtime.Config.StreamKind,Runtime.Status.LastInputFrameId);
+	RecordDiscardedSlabFrames(Runtime);
 	++Runtime.Status.OverloadCount;
 	Runtime.Status.bOverloaded = true;
 	Runtime.Status.bEnabled = false;
@@ -929,6 +942,8 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 		return;
 	}
 	Runtime.bSerializationInFlight = true;
+	Runtime.SerializationRunId=Frame.SlabContext.RunId;
+	Runtime.SerializationFrameId=Frame.FrameId;
 	Runtime.Status.bProcessing = true;
 	const FVirtualSensorStreamConfig Config = Runtime.Config;
 	const int32 CapturedConfigRevision = Runtime.ConfigRevision;
@@ -1015,6 +1030,7 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 	FStreamRuntime* Runtime = StreamRuntimes.Find(StreamKey);
 	if (!Runtime) return;
 	Runtime->bSerializationInFlight = false;
+	Runtime->SerializationRunId.Reset();
 	Runtime->Status.bProcessing = false;
 	if (!Runtime->Config.bEnabled || Runtime->Status.bOverloaded)
 	{
@@ -1028,6 +1044,7 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 	const bool bNoLoss = Runtime->Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
 	if (CapturedConfigRevision != Runtime->ConfigRevision)
 	{
+		RecordSlabFailure(Message.SlabContext.RunId,Message.SensorId,Message.StreamKind,Message.FrameId);
 		++Runtime->Status.StaleResultDiscardCount;
 		Runtime->Status.Message = TEXT("설정 변경 전에 시작된 Point Cloud 결과를 폐기했습니다.");
 		if (bNoLoss)
@@ -1045,6 +1062,7 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 	}
 	if (!Error.IsEmpty() || (Message.Json.IsEmpty() && !Message.BinaryBody.IsValid()))
 	{
+		RecordSlabFailure(Message.SlabContext.RunId,Message.SensorId,Message.StreamKind,Message.FrameId);
 		++Runtime->Status.EncodeFailureCount;
 		Runtime->Status.Message = Error.IsEmpty() ? TEXT("포인트 클라우드 직렬화 실패") : Error;
 		AddLog(StreamKey, TEXT("encode-failed"), Runtime->Status.Message, nullptr, Message.FrameId);
@@ -1129,6 +1147,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		FPreparedMessage& Message = *MessagePtr;
 		if (Message.bHighThroughputBinary && !CanUseHighThroughputTransport())
 		{
+			RecordSlabFailure(Message.SlabContext.RunId,Message.SensorId,Message.StreamKind,Message.FrameId);
 			// A broker/backend change invalidates the old binary-only camera/telemetry
 			// derivation. Never downgrade WSS to TCP or retry the incompatible body forever.
 			++Runtime->Status.StaleResultDiscardCount;
@@ -1139,7 +1158,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		}
 		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
 		{
-			if (!Slab->AllowsFrame(Message.SensorId,Message.SlabContext))
+			if (!Slab->AllowsStreamFrame(Message.SensorId,Message.StreamKind,Message.SlabContext))
 			{
 				++Runtime->Status.StaleResultDiscardCount;
 				if (bNoLoss) Runtime->PreparedMessageQueue.RemoveAt(0,1,false); else Runtime->PreparedMessage.Reset();
@@ -1373,6 +1392,7 @@ void UVirtualSensorStreamPublisherComponent::CheckReceiptTimeouts(double NowSeco
 			Runtime->Status.Message = TEXT("Broker receipt 제한 시간 초과");
 		}
 		if (RequeueReceiptForRetry(Wait, TEXT("Broker receipt timeout"))) continue;
+		RecordSlabFailure(Wait.Message.SlabContext.RunId,Wait.Message.SensorId,Wait.Message.StreamKind,Wait.Message.FrameId);
 		if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey)) ++Runtime->Status.DeliveryFailureCount;
 		++ConsecutiveReceiptTimeouts;
 		AddLog(Wait.StreamKey, TEXT("receipt-timeout"), TEXT("Broker receipt가 5초 안에 도착하지 않았습니다."));
@@ -1397,12 +1417,14 @@ bool UVirtualSensorStreamPublisherComponent::RequeueReceiptForRetry(const FRecei
 	}
 	if (Wait.Message.RetryAttempt >= Runtime->Config.MaxReceiptRetries)
 	{
+		RecordSlabFailure(Wait.Message.SlabContext.RunId,Wait.Message.SensorId,Wait.Message.StreamKind,Wait.Message.FrameId);
 		StopForPointCloudOverload(Wait.StreamKey, *Runtime,
 			FString::Printf(TEXT("Binary PCD receipt retry limit exhausted: %s"), *Error));
 		return true;
 	}
 	if (Runtime->PreparedMessageQueue.Num() >= Runtime->Config.MaxBufferedFrames)
 	{
+		RecordSlabFailure(Wait.Message.SlabContext.RunId,Wait.Message.SensorId,Wait.Message.StreamKind,Wait.Message.FrameId);
 		StopForPointCloudOverload(Wait.StreamKey, *Runtime,
 			FString::Printf(TEXT("Binary PCD retry queue is full: %s"), *Error));
 		return true;
@@ -1451,6 +1473,7 @@ void UVirtualSensorStreamPublisherComponent::HandleTransportResult(const FVirtua
 		RequestToStreamKey.Remove(Result.RequestId);
 		AddLog(Wait.StreamKey, TEXT("receipt-failed"), Result.Message, &Result, Wait.Message.FrameId);
 		if (RequeueReceiptForRetry(Wait, Result.Message)) return;
+		RecordSlabFailure(Wait.Message.SlabContext.RunId,Wait.Message.SensorId,Wait.Message.StreamKind,Wait.Message.FrameId);
 		if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey)) ++Runtime->Status.DeliveryFailureCount;
 	}
 	if (FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey))
@@ -1552,10 +1575,50 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 				const FStreamRuntime* Global = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, FString()));
 				const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, SensorActor->GetSensorId()));
 				const FStreamRuntime* Active = Exact && Exact->Config.bEnabled ? Exact : (Global && Global->Config.bEnabled ? Global : nullptr);
+				if(GetWorld()) if(const auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+					if(!Slab->AllowsStreamDemand(SensorActor->GetSensorId(),EVirtualSensorStreamKind::CameraImage)) Active=nullptr;
 				Camera->SetRuntimeStreamOutputDemand(
 					Active != nullptr,
 					Active && Active->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput && CanUseHighThroughputTransport());
 			}
 		}
 	}
+}
+
+int64 UVirtualSensorStreamPublisherComponent::GetPendingSlabRunCount(const FString& RunId) const
+{
+	if(RunId.IsEmpty()) return 0;
+	int64 Count=0;
+	for(const auto& Pair:StreamRuntimes)
+	{
+		const auto& R=Pair.Value;
+		if(R.bSerializationInFlight&&R.SerializationRunId==RunId) ++Count;
+		if(R.PendingFrame.IsSet()&&R.PendingFrame->SlabContext.RunId==RunId) ++Count;
+		if(R.PreparedMessage.IsSet()&&R.PreparedMessage->SlabContext.RunId==RunId) ++Count;
+		for(const auto& F:R.PendingFrameQueue) if(F.SlabContext.RunId==RunId) ++Count;
+		for(const auto& M:R.PreparedMessageQueue) if(M.SlabContext.RunId==RunId) ++Count;
+	}
+	for(const auto& Pair:WaitingReceipts) if(Pair.Value.Message.SlabContext.RunId==RunId) ++Count;
+	return Count;
+}
+int64 UVirtualSensorStreamPublisherComponent::GetFailedSlabRunCount(const FString& RunId) const
+{
+	const auto* Failures=SlabRunFailures.Find(RunId); return Failures?Failures->Num():0;
+}
+void UVirtualSensorStreamPublisherComponent::RecordSlabFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId)
+{
+	if(RunId.IsEmpty()) return;
+	if(!SlabRunFailures.Contains(RunId)&&SlabRunFailures.Num()>=32)
+		for(auto It=SlabRunFailures.CreateIterator();It;++It) if(It.Key()!=RunId) { It.RemoveCurrent(); break; }
+	SlabRunFailures.FindOrAdd(RunId).Add(SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId));
+}
+void UVirtualSensorStreamPublisherComponent::RecordDiscardedSlabFrames(const FStreamRuntime& R)
+{
+	if(R.bSerializationInFlight) RecordSlabFailure(R.SerializationRunId,R.Config.SensorId,R.Config.StreamKind,R.SerializationFrameId);
+	auto Record=[this,&R](const auto& Item){ RecordSlabFailure(Item.SlabContext.RunId,Item.SensorId,R.Config.StreamKind,Item.FrameId); };
+	if(R.PendingFrame.IsSet()) Record(R.PendingFrame.GetValue());
+	if(R.PreparedMessage.IsSet()) Record(R.PreparedMessage.GetValue());
+	for(const auto& F:R.PendingFrameQueue) Record(F);
+	for(const auto& M:R.PreparedMessageQueue) Record(M);
+	for(const auto& Pair:WaitingReceipts) if(Pair.Value.StreamKey==MakeStreamKey(R.Config.StreamKind,R.Config.SensorId)) Record(Pair.Value.Message);
 }

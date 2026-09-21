@@ -43,7 +43,8 @@ enum class EVirtualSensorExportKind : uint8
     PointCloudPcd,
     PointCloudLas,
     PointCloudLaz,
-    TimedCapture
+    TimedCapture,
+    CameraJpeg
 };
 
 USTRUCT(BlueprintType)

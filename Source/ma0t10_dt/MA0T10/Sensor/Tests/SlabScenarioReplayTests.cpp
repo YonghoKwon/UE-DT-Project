@@ -15,6 +15,7 @@ bool FSlabReplayCatalogTest::RunTest(const FString&)
 {
 	auto* GameInstance=NewObject<UGameInstance>();
 	auto* Catalog=NewObject<USlabScenarioReplaySubsystem>(GameInstance);
+	Catalog->bInitialized=true;
 	TSharedPtr<FJsonObject> Root;
 	FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(AVirtualSlabSensorTestDriver::MakeSyntheticBulkJson()),Root);
 	FSlabScenarioSummary Summary; FString Error,Json,FirstId;

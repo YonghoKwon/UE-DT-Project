@@ -22,6 +22,14 @@ class UVirtualCameraCaptureComponent;
 class UVirtualLidarScanComponent;
 class UVirtualLidarVisualizationComponent;
 
+UENUM(BlueprintType)
+enum class EVirtualSensorMonitorPresentation : uint8
+{
+    TwoDimensional UMETA(DisplayName="2D"),
+    WorldOverlay UMETA(DisplayName="2D + 월드 포인트"),
+    PointCloudOnly UMETA(DisplayName="포인트 전용")
+};
+
 struct FVirtualSensorPendingCameraReadback
 {
     TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback;
@@ -87,6 +95,12 @@ class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPane
     GENERATED_BODY()
 
 public:
+    UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorMonitor|Presentation")
+    void SetMonitorPresentation(EVirtualSensorMonitorPresentation Presentation);
+    UFUNCTION(BlueprintPure, Category="DigitalTwin|SensorMonitor|Presentation")
+    EVirtualSensorMonitorPresentation GetMonitorPresentation() const;
+    static bool SupportsRangeOverlays(ELidarMonitorProjectionMode Projection);
+    static bool SupportsAdaptiveDistance(ELidarColorMode Color);
     /** Test/tool opt-out; normal sensor panels retain their existing preference behavior. */
     bool bPersistMonitorPreferences = true;
 	void PumpPendingCaptureWork();
@@ -341,6 +355,8 @@ private:
     void HandlePushRealSensorSourceButtonClicked();
 
     void RefreshImageBrush();
+    TSharedRef<SWidget> BuildOwnedMonitorWidget(TSharedPtr<ELidarMonitorProjectionMode> InitialProjection, TSharedPtr<ELidarColorMode> InitialColor);
+    TSharedRef<SWidget> BuildOwnedAdvancedViewMenu();
     void RefreshTitle();
     void RefreshStatusText();
     void RefreshNativeFallbackText();
@@ -585,6 +601,8 @@ private:
     TArray<TSharedPtr<EVirtualLidarViewMode>> NativeLidarViewModeOptions;
     TArray<TSharedPtr<ELidarMonitorProjectionMode>> NativeLidarProjectionOptions;
     TArray<TSharedPtr<ELidarColorMode>> NativeLidarColorOptions;
+    TArray<TSharedPtr<EVirtualSensorMonitorPresentation>> NativePresentationOptions;
+    bool bOwnedAdvancedMenuOpen = false;
     TSharedPtr<STextBlock> NativeTitleTextBlock;
     TSharedPtr<STextBlock> NativeStatusTextBlock;
     TSharedPtr<STextBlock> NativeDetailedStatusTextBlock;
