@@ -188,6 +188,12 @@ private:
 	TArray<FString> DeliveredFileRequests;
 	int32 OwnedFileAction=0; // 0=new, 1=current, 2=periodic; no new persistent enum/slot.
 	bool bOwnedScenarioStreamView=false,bOwnedExtraScenarioOutputs=false;
+	bool bOwnedEntryInitialized=false;
+	void InitializeOwnedEntryView(EVirtualSensorCaptureExportTab PreviousTab);
+	FString OwnedScenarioSummary;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabMinimalUiTest;
+#endif
 	bool bOwnedStorageExpanded=false,bOwnedReceiverExpanded=false,bOwnedTransportLogExpanded=false;
 	bool bOwnedCanSaveCurrent=false,bOwnedSaveBusy=false,bOwnedPeriodicActive=false;
 	FString OwnedSelectionText,OwnedFileStatusText,OwnedPeriodicStatusText,OwnedConnectionText;

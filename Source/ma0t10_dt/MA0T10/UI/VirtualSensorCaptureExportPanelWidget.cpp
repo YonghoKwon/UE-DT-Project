@@ -450,6 +450,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetStorageSummaryText() const
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 {
+	const auto PreviousTab=ActiveTab;
     if (WidgetTree && WidgetTree->RootWidget)
     {
         return Super::RebuildWidget();
@@ -512,7 +513,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 	ApplyCaptureSelectionToMonitor();
 	TSharedPtr<EVirtualSensorExportKind> InitiallySelected = NativeExportKindOptions[0];
 	for (const TSharedPtr<EVirtualSensorExportKind>& Option : NativeExportKindOptions) if (Option.IsValid() && *Option == SelectedPointCloudKind) { InitiallySelected = Option; break; }
-	if(IsWorkspaceOwned()) { OwnedFileAction=ActiveTab==EVirtualSensorCaptureExportTab::Export?1:0;BindFileService();return BuildOwnedWidget(); }
+	if(IsWorkspaceOwned()) { InitializeOwnedEntryView(PreviousTab);OwnedFileAction=ActiveTab==EVirtualSensorCaptureExportTab::Export?1:0;BindFileService();return BuildOwnedWidget(); }
 
 
 	return SNew(SBorder)

@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
@@ -25,6 +26,12 @@
 
 int32 UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab Tab)
 { return Tab==EVirtualSensorCaptureExportTab::LiveStream?0:Tab==EVirtualSensorCaptureExportTab::ConnectionLog?2:1; }
+void UVirtualSensorCaptureExportPanelWidget::InitializeOwnedEntryView(EVirtualSensorCaptureExportTab PreviousTab)
+{
+	if(!IsWorkspaceOwned())return;
+	if(!bOwnedEntryInitialized){ActiveTab=EVirtualSensorCaptureExportTab::LiveStream;bOwnedScenarioStreamView=true;bOwnedEntryInitialized=true;}
+	else ActiveTab=PreviousTab;
+}
 
 void UVirtualSensorCaptureExportPanelWidget::NativeConstruct()
 { Super::NativeConstruct();if(IsWorkspaceOwned()){BindFileService();if(!OwnedFileRequestId.IsEmpty())HandleFileSaveUpdated(GetActiveFileSaveStatus());} }
@@ -111,6 +118,19 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 	bOwnedSaveBusy=Actor&&FileSaveService.IsValid()&&FileSaveService->HasPendingSave(Actor);
 	if(ActiveTab==EVirtualSensorCaptureExportTab::LiveStream)
 	{
+		if(bOwnedScenarioStreamView)
+		{
+			if(const auto* Slab=ResolveScenarioSlabActor())
+			{
+				const auto O=Slab->GetSensorOutputs();TArray<FString> Names;if(O.bPointCloud)Names.Add(TEXT("PCD"));if(O.bCameraImage)Names.Add(TEXT("Camera"));if(O.bLidarTelemetry)Names.Add(TEXT("LiDAR 정보"));
+				FString Reason;const auto* Context=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();const bool Ready=Context&&Context->ValidateScenarioOutputs(Slab->TargetSensorIds,O,Reason);
+				const auto Admission=Slab->GetLastScenarioAdmissionStatus();
+				OwnedScenarioSummary=TEXT("다음 시나리오 출력: ")+ (Names.IsEmpty()?FString(TEXT("관찰 전용")):FString::Join(Names,TEXT(" · ")))+TEXT("\n")+
+					(Ready?TEXT("설정 준비됨 · Broker 수락은 실행 후 별도 확인"):TEXT("송신 준비 안 됨: ")+Reason);
+				if(Admission.Result!=ESlabScenarioAdmission::None)OwnedScenarioSummary+=TEXT("\n최근 수신: ")+Admission.Reason;
+			}
+			else OwnedScenarioSummary=TEXT("Slab Actor 연결 필요 · 화면을 여는 것만으로 송신하지 않습니다.");
+		}
 		WorkspaceStreamCards.Reset();
 		if(SensorManager&&SensorManager->StreamPublisherComponent)for(const auto& S:SensorManager->StreamPublisherComponent->GetStreamStatuses())
 		{
@@ -171,6 +191,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	 .ForegroundColor_Lambda([this,Scenario](){return bOwnedScenarioStreamView==Scenario?GetToolAccentColor():GetToolTextColor();})
 	 .OnClicked_Lambda([this,Scenario](){bOwnedScenarioStreamView=Scenario;return FReply::Handled();})];
 	auto Auto=SNew(SVerticalBox);
+	Auto->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(OwnedScenarioSummary);})];
 	Auto->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("AutoHelp","새 Slab 시나리오의 다음 실행에 적용합니다. 저장 목록 재생의 선택은 재생 창에서 별도로 지정합니다."))];
 	auto Output=[this](int32 Index,const FText& Text)->TSharedRef<SWidget>
 	{return SNew(SCheckBox).IsEnabled_Lambda([this](){return ResolveScenarioSlabActor()!=nullptr;})
