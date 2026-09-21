@@ -100,6 +100,8 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
+	bool bOwnedSettingHelpOpen=false;
 	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;
     bool ApplyStateToRuntime(const FVirtualSensorEditableState& State, FString& OutError);

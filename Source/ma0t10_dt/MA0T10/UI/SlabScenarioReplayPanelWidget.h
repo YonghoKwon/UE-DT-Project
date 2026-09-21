@@ -41,8 +41,12 @@ private:
 	FSlateFontInfo GetListFont(bool bSecondary=false) const;
 	bool IsDeletionAllowed(const FString& UUID) const;
 	FText GetDeletionTooltip(const FString& UUID) const;
+	bool UsesSimplifiedNativeLayout() const;
+	bool AreRowActionsVisible(const FString& UUID) const;
+	TSharedRef<SWidget> BuildAdditionalOutputOptions(bool bCollapsedMenu);
 	TSharedPtr<SVerticalBox> List;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabScenarioDeletionUiTest;
+	friend class FSlabUiSimplificationTest;
 #endif
 };

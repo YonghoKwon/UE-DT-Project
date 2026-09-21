@@ -41,6 +41,7 @@ public:
 	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetHotAppearance() const { return bHotAppearance; }
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetHotAppearance(bool bHot);
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetDiagnosticHelpersVisible(bool bVisible);
+	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetDiagnosticHelpersVisible() const;
 	UFUNCTION(BlueprintPure,Category="Slab|Analysis") FSlabAnalysisDisplaySettings GetAnalysisDisplaySettings() const { return AnalysisDisplaySettings; }
 	UFUNCTION(BlueprintCallable,Category="Slab|Analysis") void SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings);
 	UFUNCTION(BlueprintPure,Category="Slab|Appearance") FString GetEffectiveSurfaceMaterialPath() const;

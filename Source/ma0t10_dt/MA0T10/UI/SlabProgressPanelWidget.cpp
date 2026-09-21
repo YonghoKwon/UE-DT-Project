@@ -56,6 +56,11 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 	Config->AddSlot()[SNew(SCheckBox).IsEnabled_Lambda([this]() { return Slab != nullptr; }).IsChecked_Lambda([this]() { return Slab && Slab->GetHotAppearance() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState S) { if (Slab) Slab->SetHotAppearance(S == ECheckBoxState::Checked); })[SNewSensorTool(STextBlock).Text(LOCTEXT("Hot", "고온 Slab 외형 (해제: 냉각 철강)"))]];
 	if (IsWorkspaceOwned())
 	{
+		auto MasterDisplay=SNew(SCheckBox).IsEnabled_Lambda([this](){return IsValid(Slab);})
+		 .IsChecked_Lambda([this](){return IsValid(Slab)&&Slab->GetDiagnosticHelpersVisible()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+		 .OnCheckStateChanged_Lambda([this](ECheckBoxState State){if(IsValid(Slab))Slab->SetDiagnosticHelpersVisible(State==ECheckBoxState::Checked);})
+		 .ToolTipText(LOCTEXT("MasterAnalysisTip","3D 분석 표시를 한 번에 숨기거나 복원합니다. 아래의 개별 표시 선택은 그대로 유지됩니다."))
+		 [SNewSensorTool(STextBlock).Text(LOCTEXT("MasterAnalysis","3D 분석 표시"))];
 		auto Display = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(12, 8));
 		auto Toggle = [this, Display](FText Label, bool FSlabAnalysisDisplaySettings::* Field)
 		{
@@ -78,11 +83,12 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		   // Controls are before all variable-length content: status wrapping cannot move them.
 		   + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 8)[Controls]
 		   + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)[SNew(SProgressBar).Percent_Lambda([this]() { return TOptional<float>(Progress); }).FillColorAndOpacity(GetToolAccentColor())]
+		   + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[MasterDisplay]
 		   + SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)
 		     + SScrollBox::Slot()[SNew(SVerticalBox)
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 10)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this]() { return FText::FromString(Summary); })]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 12)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(SensorStatus); })]
-		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[SNew(SExpandableArea).InitiallyCollapsed(false).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Analysis", "3D 분석 표시"))].BodyContent()[Display]]
+		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AnalysisDetails", "세부 표시 선택"))].BodyContent()[Display]]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Appearance", "단위·표면 설정"))].BodyContent()[Config]]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details", "실행 정보·맵 연결 점검"))].BodyContent()
 		         [SNew(SVerticalBox)

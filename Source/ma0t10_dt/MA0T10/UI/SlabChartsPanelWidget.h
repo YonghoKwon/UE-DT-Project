@@ -48,9 +48,17 @@ private:
 	float TextAccumulator = 0;
 	FString StatusText;
 	FString HoverTexts[3];
+	FString CurrentTexts[3];
 	UFUNCTION() void SynchronizeViewRange(double Minimum, double Maximum);
 	UFUNCTION() void HandleSlabStateChanged();
 	void InitializeCharts(bool bCreateNative);
 	void UpdateProgressiveState();
 	TSharedRef<SWidget> BuildChartCard(int32 SlotIndex);
+	TSharedRef<SWidget> BuildChartControls(int32 SlotIndex,bool bConfigurationMenu);
+	bool UsesSimplifiedNativeLayout() const;
+	bool AreSeriesSelectorsVisible(int32 SlotIndex) const;
+	void ApplyChartSeriesVisibility(int32 SlotIndex);
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabUiSimplificationTest;
+#endif
 };

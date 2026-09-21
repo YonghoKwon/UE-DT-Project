@@ -6,6 +6,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -25,7 +26,8 @@ namespace
 		}
 	}
 	const TCHAR* MetricUnit(ESlabChartMetric M) { return M==ESlabChartMetric::Angles?TEXT("도"):M==ESlabChartMetric::Speed?TEXT("cm/s"):TEXT("cm"); }
-	FString CurrentValue(const FSlabChartSample& S,ESlabChartMetric M)
+	bool HasTwoSeries(ESlabChartMetric M) { return M==ESlabChartMetric::Angles||M==ESlabChartMetric::RailMargins; }
+	FString CurrentValue(const FSlabChartSample& S,ESlabChartMetric M,bool IncludeSampleTime=true)
 	{
 		FString Values;
 		switch(M)
@@ -36,7 +38,7 @@ namespace
 		case ESlabChartMetric::CornerOffset:Values=FString::Printf(TEXT("%.3f cm"),S.MaxCornerOffsetCm);break;
 		default:Values=FString::Printf(TEXT("%.3f cm/s (직전→현재 표본)"),S.SpeedCmPerSec);break;
 		}
-		return FString::Printf(TEXT("현재 표본 · %.2f초 / frame %lld · %s"),S.Time,S.Frame,*Values);
+		return IncludeSampleTime?FString::Printf(TEXT("현재 표본 · %.2f초 / frame %lld · %s"),S.Time,S.Frame,*Values):Values;
 	}
 }
 
@@ -60,7 +62,7 @@ void USlabChartsPanelWidget::InitializeCharts(bool bCreateNative)
 			Chart->SetProgressiveReveal(IsWorkspaceOwned());Chart->SetSharedSamples(SharedSamples);
 			Chart->SetTimelineDuration(Scenario?Scenario->DurationSec:0);
 			Chart->OnViewRangeChanged.AddUniqueDynamic(this,&ThisClass::SynchronizeViewRange);
-			for(int32 S=0;S<2;++S)Chart->SetSeriesVisible(S,bShowSeries[I][S]);
+			ApplyChartSeriesVisibility(I);
 		}
 	}
 }
@@ -103,7 +105,21 @@ void USlabChartsPanelWidget::SetChartMetric(ESlabChartMetric M){SetChartSlotMetr
 void USlabChartsPanelWidget::SetChartSlotMetric(int32 I,ESlabChartMetric M)
 {
 	if(I<0||I>=3||static_cast<uint8>(M)>static_cast<uint8>(ESlabChartMetric::Speed))return;
-	SelectedMetrics[I]=M;HoverTexts[I].Empty();if(auto* C=GetChartWidget(I))C->SetMetric(M);
+	SelectedMetrics[I]=M;HoverTexts[I].Empty();CurrentTexts[I].Empty();if(auto* C=GetChartWidget(I))C->SetMetric(M);ApplyChartSeriesVisibility(I);
+}
+bool USlabChartsPanelWidget::UsesSimplifiedNativeLayout() const
+{ return IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget); }
+bool USlabChartsPanelWidget::AreSeriesSelectorsVisible(int32 I) const
+{ return I>=0&&I<3&&(!UsesSimplifiedNativeLayout()||HasTwoSeries(SelectedMetrics[I])); }
+void USlabChartsPanelWidget::ApplyChartSeriesVisibility(int32 I)
+{
+	if(I<0||I>=3) return;
+	if(auto* C=GetChartWidget(I))
+	{
+		// Single-value charts remain visible when switching away from a hidden dual-series preference.
+		C->SetSeriesVisible(0,(UsesSimplifiedNativeLayout()&&!HasTwoSeries(SelectedMetrics[I]))||bShowSeries[I][0]);
+		C->SetSeriesVisible(1,bShowSeries[I][1]);
+	}
 }
 ESlabChartMetric USlabChartsPanelWidget::GetChartSlotMetric(int32 I) const{return I>=0&&I<3?SelectedMetrics[I]:ESlabChartMetric::Angles;}
 USlabScenarioChartWidget* USlabChartsPanelWidget::GetChartWidget(int32 I) const{return Charts.IsValidIndex(I)?Charts[I].Get():nullptr;}
@@ -145,6 +161,7 @@ void USlabChartsPanelWidget::UpdateProgressiveState()
 		LastRunUUID=State.RunUUID;
 		for(const auto& C:Charts)if(C){C->SetRevealedTime(-1);C->ClearHover();C->ResetChartView();}
 		for(auto& H:HoverTexts)H.Empty();
+		for(auto& V:CurrentTexts)V.Empty();
 	}
 	for(const auto& C:Charts)if(C)
 	{
@@ -170,30 +187,55 @@ void USlabChartsPanelWidget::NativeTick(const FGeometry& G,float D)
 		for(int32 I=0;I<3;++I)
 		{
 			auto* C=GetChartWidget(I);HoverTexts[I]=C?C->GetHoverSummary():FString();
+			const int32 N=C?C->GetRevealedSampleCount():0;
+			CurrentTexts[I]=N>0&&SharedSamples?TEXT("현재 · ")+CurrentValue((*SharedSamples)[N-1],SelectedMetrics[I],false):TEXT("시뮬레이션 시작 대기");
 			if(HoverTexts[I].IsEmpty())
 			{
-				const int32 N=C?C->GetRevealedSampleCount():0;
 				HoverTexts[I]=N>0&&SharedSamples?CurrentValue((*SharedSamples)[N-1],SelectedMetrics[I]):TEXT("시뮬레이션 시작 대기");
 			}
 		}
 	}
 }
-TSharedRef<SWidget> USlabChartsPanelWidget::BuildChartCard(int32 I)
+TSharedRef<SWidget> USlabChartsPanelWidget::BuildChartControls(int32 I,bool ConfigurationMenu)
 {
 	auto Controls=SNew(SHorizontalBox);
 	Controls->AddSlot().FillWidth(1)
 	[SNew(SComboBox<TSharedPtr<ESlabChartMetric>>).OptionsSource(&MetricOptions).ComboBoxStyle(&MetricComboStyle).ForegroundColor(GetToolTextColor()).ContentPadding(FMargin(4,2))
-	 .OnGenerateWidget_Lambda([this](TSharedPtr<ESlabChartMetric> M){return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(M?MetricLabel(*M):FText::GetEmpty());})
+	 .OnGenerateWidget_Lambda([this,ConfigurationMenu](TSharedPtr<ESlabChartMetric> M)->TSharedRef<SWidget>{
+		 if(ConfigurationMenu)return SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(M?MetricLabel(*M):FText::GetEmpty());
+		 return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(M?MetricLabel(*M):FText::GetEmpty());})
 	 .OnSelectionChanged_Lambda([this,I](TSharedPtr<ESlabChartMetric> M,ESelectInfo::Type){if(M)SetChartSlotMetric(I,*M);})
 	 [SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this,I](){return FText::FromString(FString::Printf(TEXT("%d. %s · %s"),I+1,*MetricLabel(SelectedMetrics[I]).ToString(),MetricUnit(SelectedMetrics[I])));} )]];
 	for(int32 S=0;S<2;++S)Controls->AddSlot().AutoWidth().Padding(8,0)
-	[SNew(SCheckBox).Visibility_Lambda([this,I,S](){return S==0||SelectedMetrics[I]==ESlabChartMetric::Angles||SelectedMetrics[I]==ESlabChartMetric::RailMargins?EVisibility::Visible:EVisibility::Collapsed;})
+	[SNew(SCheckBox).Visibility_Lambda([this,I,S,ConfigurationMenu](){return (ConfigurationMenu?AreSeriesSelectorsVisible(I):(S==0||HasTwoSeries(SelectedMetrics[I])))?EVisibility::Visible:EVisibility::Collapsed;})
 	 .IsChecked_Lambda([this,I,S](){return bShowSeries[I][S]?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-	 .OnCheckStateChanged_Lambda([this,I,S](ECheckBoxState V){bShowSeries[I][S]=V==ECheckBoxState::Checked;if(auto* C=GetChartWidget(I))C->SetSeriesVisible(S,bShowSeries[I][S]);})
+	 .OnCheckStateChanged_Lambda([this,I,S](ECheckBoxState V){bShowSeries[I][S]=V==ECheckBoxState::Checked;ApplyChartSeriesVisibility(I);})
 	 [SNewSensorTool(STextBlock).ColorAndOpacity(S==0?FLinearColor(.2,.8,1):FLinearColor(1,.55,.2)).Text(S==0?LOCTEXT("Left","좌/값"):LOCTEXT("Right","우"))]];
+	return Controls;
+}
+TSharedRef<SWidget> USlabChartsPanelWidget::BuildChartCard(int32 I)
+{
+	if(UsesSimplifiedNativeLayout())
+	{
+		auto Legend=SNew(SHorizontalBox);
+		Legend->AddSlot().AutoWidth().Padding(0,0,12,0)
+		[SNewSensorTool(STextBlock).Font(FCoreStyle::GetDefaultFontStyle("Regular",12)).ColorAndOpacity(FLinearColor(.2,.8,1))
+		 .Text_Lambda([this,I](){return HasTwoSeries(SelectedMetrics[I])?(bShowSeries[I][0]?LOCTEXT("LegendLeft","좌"):LOCTEXT("LegendLeftHidden","좌 · 숨김")):LOCTEXT("LegendValue","값");})];
+		Legend->AddSlot().AutoWidth()
+		[SNewSensorTool(STextBlock).Font(FCoreStyle::GetDefaultFontStyle("Regular",12)).ColorAndOpacity(FLinearColor(1,.55,.2))
+		 .Visibility_Lambda([this,I](){return HasTwoSeries(SelectedMetrics[I])?EVisibility::Visible:EVisibility::Collapsed;})
+		 .Text_Lambda([this,I](){return bShowSeries[I][1]?LOCTEXT("LegendRight","우"):LOCTEXT("LegendRightHidden","우 · 숨김");})];
+		return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(10)
+		[SNew(SVerticalBox)
+		 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this,I](){return FText::FromString(FString::Printf(TEXT("%d. %s · %s"),I+1,*MetricLabel(SelectedMetrics[I]).ToString(),MetricUnit(SelectedMetrics[I])));})]
+		 +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this,I](){return FText::FromString(CurrentTexts[I]);}).ToolTipText_Lambda([this,I](){return FText::FromString(HoverTexts[I]);})]
+		 +SVerticalBox::Slot().AutoHeight()[Legend]
+		 +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(SBox).ToolTipText_Lambda([this,I](){return FText::FromString(HoverTexts[I]);}).HeightOverride_Lambda([this](){const double Scale=GetSensorToolFontScale();return FMath::Max(100.0*Scale,(GetEffectivePanelSize().Y-360.0*Scale)/3.0);})[Charts[I]->TakeWidget()]]
+		];
+	}
 	return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(10)
 	[SNew(SVerticalBox)
-	 +SVerticalBox::Slot().AutoHeight()[Controls]
+	 +SVerticalBox::Slot().AutoHeight()[BuildChartControls(I,false)]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,5)
 	 [SNew(SBox).HeightOverride_Lambda([this](){const double Scale=GetSensorToolFontScale();return FMath::Max(100.0*Scale,(GetEffectivePanelSize().Y-420.0*Scale)/3.0);})[Charts[I]->TakeWidget()]]
 	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Font(FCoreStyle::GetDefaultFontStyle("Regular",12)).Text_Lambda([this,I](){return FText::FromString(HoverTexts[I]);})]
@@ -211,12 +253,20 @@ TSharedRef<SWidget> USlabChartsPanelWidget::RebuildWidget()
 	Top->AddSlot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("Reset","전체 보기 초기화")).OnClicked_Lambda([this](){ResetAllChartViews();return FReply::Handled();})];
 	auto Cards=SNew(SVerticalBox);
 	for(int32 I=0;I<3;++I)Cards->AddSlot().AutoHeight().Padding(0,4)[BuildChartCard(I)];
+	TSharedRef<SWidget> Configuration=SNullWidget::NullWidget;
+	if(UsesSimplifiedNativeLayout())
+	{
+		auto Rows=SNew(SVerticalBox);
+		for(int32 I=0;I<3;++I)Rows->AddSlot().AutoHeight().Padding(0,4)[BuildChartControls(I,true)];
+		Configuration=SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ChartConfiguration","차트 구성"))].BodyContent()[Rows];
+	}
 	return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
 	[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("Title","Slab 실시간 차트"))]
 	 +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
 	  +SScrollBox::Slot()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Top]
+	   +SVerticalBox::Slot().AutoHeight()[Configuration]
 	   +SVerticalBox::Slot().AutoHeight()[Cards]
 	   +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(StatusText);}).ToolTipText(LOCTEXT("Help","진행된 시간까지만 표시합니다. 차트 드래그/휠은 세 보기 범위만 함께 이동하며 재생 위치는 바꾸지 않습니다. 초록선: 현재 재생. center_x는 전진 위치이며 중심 이탈이 아닙니다. 계열 색상은 좌/값=청록, 우=주황입니다."))]
 	  ]]

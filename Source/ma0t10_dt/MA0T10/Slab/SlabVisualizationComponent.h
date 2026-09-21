@@ -23,6 +23,7 @@ public:
 	static float CalculateReadableTextSize(double ViewDepthCm,double HorizontalFovDegrees,int32 ViewportHeight,double AspectRatio,bool bOrthographic=false,double OrthoWidthCm=0);
 	static FVector PullLabelTowardCamera(const FVector& Position,const FVector& CameraPosition,const FVector& CameraForward,double ViewDepthCm,double PullCm,bool bOrthographic,float& OutTextScale);
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetHelpersVisible(bool bVisible);
+	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetHelpersVisible() const { return bHelpersVisible; }
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
 	void EnsureHelpers();

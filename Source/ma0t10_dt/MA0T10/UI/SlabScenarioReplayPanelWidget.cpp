@@ -23,7 +23,11 @@ void USlabScenarioReplayPanelWidget::ReleaseSlateResources(bool Children)
 { Super::ReleaseSlateResources(Children); List.Reset(); }
 bool USlabScenarioReplayPanelWidget::SelectScenario(const FString& UUID)
 {
-	if(auto* M=Manager()) if(const auto Data=M->GetValidatedScenario(UUID)) { SelectedUUID=Data->ScenarioUUID; return true; }
+	if(auto* M=Manager()) if(const auto Data=M->GetValidatedScenario(UUID))
+	{
+		if(UsesSimplifiedNativeLayout()&&SelectedUUID!=Data->ScenarioUUID) PendingDeleteUUID.Reset();
+		SelectedUUID=Data->ScenarioUUID; return true;
+	}
 	return false;
 }
 bool USlabScenarioReplayPanelWidget::ReplaySelected()
@@ -37,7 +41,7 @@ bool USlabScenarioReplayPanelWidget::CopyScenarioUUID(const FString& UUID)
 	if(auto* M=Manager()) if(const auto Data=M->GetValidatedScenario(UUID))
 	{
 		FPlatformApplicationMisc::ClipboardCopy(*Data->ScenarioUUID);
-		ActionMessage=TEXT("시나리오 UUID를 복사했습니다."); return true;
+		ActionMessage=Data->bGeneratedArchiveId?TEXT("내부 보관 ID를 복사했습니다. 원본 전문에 UUID가 없는 항목입니다."):TEXT("원본 시나리오 UUID를 복사했습니다."); return true;
 	}
 	ActionMessage=TEXT("복사할 시나리오를 찾을 수 없습니다."); return false;
 }
@@ -67,6 +71,20 @@ FText USlabScenarioReplayPanelWidget::GetDeletionTooltip(const FString& UUID) co
 {
 	FString Reason; auto* M=Manager();
 	return M&&M->CanDeleteScenario(UUID,Reason)?LOCTEXT("DeleteTip","메모리 보관 목록에서만 제거합니다. 이후 같은 UUID를 새로 수신하면 다시 보관할 수 있습니다."):FText::FromString(Reason);
+}
+bool USlabScenarioReplayPanelWidget::UsesSimplifiedNativeLayout() const
+{ return IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget); }
+bool USlabScenarioReplayPanelWidget::AreRowActionsVisible(const FString& UUID) const
+{ return !UsesSimplifiedNativeLayout()||SelectedUUID==UUID; }
+TSharedRef<SWidget> USlabScenarioReplayPanelWidget::BuildAdditionalOutputOptions(bool CollapsedMenu)
+{
+	auto Options=SNew(SVerticalBox)
+	+SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendCameraImage?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendCameraImage=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("SendCamera","Camera 이미지 Topic 송신")).ToolTipText(LOCTEXT("CameraTip","다음 재생부터 적용됩니다. 로컬 이미지 캡처 파일을 자동 저장하지 않습니다."))]]
+	+SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendLidarTelemetry?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendLidarTelemetry=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("SendLidar","LiDAR 정보 Topic 송신")).ToolTipText(LOCTEXT("LidarTip","다음 재생부터 적용됩니다. 고성능 경로에서는 전체 점 배열 대신 telemetry를 보냅니다."))]];
+	if(!CollapsedMenu) return Options;
+	return SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+	.HeaderContent()[SNewSensorTool(STextBlock).Text_Lambda([this](){const int32 Enabled=(bSendCameraImage?1:0)+(bSendLidarTelemetry?1:0);return Enabled?FText::Format(LOCTEXT("AdditionalOutputsEnabled","추가 송신 옵션 · {0}개 켜짐"),FText::AsNumber(Enabled)):LOCTEXT("AdditionalOutputs","추가 송신 옵션");})]
+	.BodyContent()[Options];
 }
 FString USlabScenarioReplayPanelWidget::ResolveStableSelection(const TArray<FString>& PreviousIds,const TArray<FString>& CurrentIds,const FString& Selected)
 {
@@ -99,17 +117,17 @@ void USlabScenarioReplayPanelWidget::RefreshList()
 		 [SNew(STextBlock).Font_Lambda([this](){return GetListFont(true);}).AutoWrapText(true).ColorAndOpacity_Lambda([this](){return GetToolMutedColor();})
 		  .Text(FText::FromString(FString::Printf(TEXT("%s: %s"),E.bGeneratedArchiveId?TEXT("내부 보관 ID"):TEXT("UUID"),*Id)))]
 		 +SVerticalBox::Slot().AutoHeight()
-		 [SNew(SHorizontalBox)
+		 [SNew(SHorizontalBox).Visibility_Lambda([this,Id](){return AreRowActionsVisible(Id)?EVisibility::Visible:EVisibility::Collapsed;})
 		  +SHorizontalBox::Slot().AutoWidth().Padding(0,0,6,0)
 		  [SNew(SButton).ButtonStyle(&GetToolButtonStyle()).OnClicked_Lambda([this,Id](){CopyScenarioUUID(Id);return FReply::Handled();})
-		   [SNew(STextBlock).Font_Lambda([this](){return GetListFont(true);}).ColorAndOpacity_Lambda([this](){return GetToolTextColor();}).Text(LOCTEXT("CopyUUID","UUID 복사"))]]
+		   [SNew(STextBlock).Font_Lambda([this](){return GetListFont(true);}).ColorAndOpacity_Lambda([this](){return GetToolTextColor();}).Text(E.bGeneratedArchiveId?LOCTEXT("CopyInternalID","내부 ID 복사"):LOCTEXT("CopyUUID","UUID 복사"))]]
 		  +SHorizontalBox::Slot().AutoWidth()
 		  [SNew(SButton).ButtonStyle(&GetToolButtonStyle(true)).IsEnabled_Lambda([this,Id](){return IsDeletionAllowed(Id);})
 		   .ToolTipText_Lambda([this,Id](){return GetDeletionTooltip(Id);})
 		   .OnClicked_Lambda([this,Id](){RequestScenarioDeletion(Id);return FReply::Handled();})
 		   [SNew(STextBlock).Font_Lambda([this](){return GetListFont(true);}).ColorAndOpacity_Lambda([this](){return GetToolTextColor();}).Text(LOCTEXT("Delete","삭제"))]]]
 		 +SVerticalBox::Slot().AutoHeight().Padding(0,6,0,0)
-		 [SNew(SVerticalBox).Visibility_Lambda([this,Id](){return PendingDeleteUUID==Id?EVisibility::Visible:EVisibility::Collapsed;})
+		 [SNew(SVerticalBox).Visibility_Lambda([this,Id](){return PendingDeleteUUID==Id&&AreRowActionsVisible(Id)?EVisibility::Visible:EVisibility::Collapsed;})
 		  +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return GetListFont(true);}).AutoWrapText(true).ColorAndOpacity_Lambda([this](){return GetToolTextColor();}).Text(LOCTEXT("DeleteQuestion","이 항목을 보관 목록에서 삭제할까요?"))]
 		  +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNew(SHorizontalBox)
 		   +SHorizontalBox::Slot().AutoWidth().Padding(0,0,6,0)[SNew(SButton).ButtonStyle(&GetToolButtonStyle(true)).IsEnabled_Lambda([this,Id](){return IsDeletionAllowed(Id);}).OnClicked_Lambda([this](){ConfirmScenarioDeletion();return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return GetListFont(true);}).ColorAndOpacity_Lambda([this](){return GetToolTextColor();}).Text(LOCTEXT("ConfirmDelete","삭제 확인"))]]
@@ -131,8 +149,7 @@ TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details","선택 항목 상세"))]
       .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendPcd?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendPcd=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("Send","재생 중 PCD 송신")).ToolTipText(LOCTEXT("SendTip","다음 재생부터 적용됩니다. 기본은 관찰 전용입니다."))]]
-     +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendCameraImage?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendCameraImage=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("SendCamera","Camera 이미지 Topic 송신")).ToolTipText(LOCTEXT("CameraTip","다음 재생부터 적용됩니다. 로컬 이미지 캡처 파일을 자동 저장하지 않습니다."))]]
-     +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendLidarTelemetry?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendLidarTelemetry=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("SendLidar","LiDAR 정보 Topic 송신")).ToolTipText(LOCTEXT("LidarTip","다음 재생부터 적용됩니다. 고성능 경로에서는 전체 점 배열 대신 telemetry를 보냅니다."))]]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,UsesSimplifiedNativeLayout()?4.0f:0.0f)[BuildAdditionalOutputOptions(UsesSimplifiedNativeLayout())]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?(M->CanReplay()?TEXT("재생 준비됨 · 보관 시나리오를 선택하세요."):TEXT("현재 실행 종료와 재생 adapter 연결을 확인하세요.")):S.Message);})]
     ]; RefreshList();return Result;

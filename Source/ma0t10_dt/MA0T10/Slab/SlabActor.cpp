@@ -241,6 +241,7 @@ bool ASlabActor::SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs)
 { SensorOutputs=Outputs; OnSlabStateChanged.Broadcast(); return true; }
 void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance(); OnSlabStateChanged.Broadcast(); }
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
+bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }
 void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)
 { AnalysisDisplaySettings=Settings; VisualizationComponent->ConfigureDisplay(Settings); OnSlabStateChanged.Broadcast(); }
 FSoftObjectPath ASlabActor::ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured)
