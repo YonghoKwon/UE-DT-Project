@@ -2,6 +2,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Font.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/Actor.h"
@@ -16,7 +17,7 @@ void Isolate(UPrimitiveComponent* P)
 	P->SetAffectDistanceFieldLighting(false); P->SetAffectIndirectLightingWhileHidden(false);
 	P->SetVisibleInRayTracing(false); P->bVisibleInReflectionCaptures=false; P->bVisibleInRealTimeSkyCaptures=false;
 }
-const FLinearColor Cyan(0.05,0.9,0.75),Grey(0.55,0.6,0.7),Yellow(1,0.8,0.08),Red(1,0.12,0.08),Green(0.1,1,0.25);
+const FLinearColor Cyan(0.01,0.18,0.95),Grey(0.015,0.025,0.04),Yellow(1,0.26,0.015),Red(0.95,0.012,0.02),Green(0.0,0.42,0.28);
 }
 USlabVisualizationComponent::USlabVisualizationComponent()
 { PrimaryComponentTick.bCanEverTick=true; PrimaryComponentTick.bStartWithTickEnabled=false; PrimaryComponentTick.TickInterval=0.2f; }
@@ -24,8 +25,9 @@ void USlabVisualizationComponent::EnsureHelpers()
 {
 	if(bEnding||!Helpers.IsEmpty()||!GetOwner()||!GetOwner()->GetRootComponent()) return;
 	UStaticMesh* Cube=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
-	UMaterialInterface* Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Slab/Materials/M_SlabAnalysisOverlay.M_SlabAnalysisOverlay"));
+	UMaterialInterface* Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Slab/Materials/M_SlabAnalysisReadable.M_SlabAnalysisReadable"));
 	if(!Material) Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	AppliedLineColors.Init(FLinearColor(-1,-1,-1,-1),MaxLineHelpers);
 	for(int32 I=0;I<MaxLineHelpers;++I)
 	{
 		auto* M=NewObject<UStaticMeshComponent>(GetOwner(),*FString::Printf(TEXT("SlabDiagnosticLine%d"),I));
@@ -35,12 +37,18 @@ void USlabVisualizationComponent::EnsureHelpers()
 		if(Material) M->SetMaterial(0,UMaterialInstanceDynamic::Create(Material,M));
 		M->RegisterComponent(); M->SetVisibility(false); Helpers.Add(M);
 	}
+	auto* TextMaterial=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Slab/Materials/M_SlabTextReadable.M_SlabTextReadable"));
+	auto* Font=LoadObject<UFont>(nullptr,TEXT("/Game/MA0T10/Slab/Materials/F_SlabDiagnostics.F_SlabDiagnostics"));
 	for(int32 I=0;I<MaxTextHelpers;++I)
 	{
 		auto* T=NewObject<UTextRenderComponent>(GetOwner(),*FString::Printf(TEXT("SlabDiagnosticText%d"),I));
 		T->SetupAttachment(GetOwner()->GetRootComponent()); T->SetMobility(EComponentMobility::Movable); Isolate(T);
 		T->SetHorizontalAlignment(EHTA_Center); T->SetVerticalAlignment(EVRTA_TextCenter); T->SetTextRenderColor(FColor::White);
+		if(Font)T->SetFont(Font);if(TextMaterial)T->SetTextMaterial(TextMaterial);
 		T->RegisterComponent(); T->SetVisibility(false); Labels.Add(T);
+		auto* B=NewObject<UStaticMeshComponent>(GetOwner(),*FString::Printf(TEXT("SlabLabelBackground%d"),I));B->SetStaticMesh(Cube);B->SetupAttachment(GetOwner()->GetRootComponent());B->SetMobility(EComponentMobility::Movable);Isolate(B);
+		if(Material){auto* MID=UMaterialInstanceDynamic::Create(Material,B);MID->SetVectorParameterValue(TEXT("Color"),FLinearColor(.003,.005,.009,1));B->SetMaterial(0,MID);}
+		B->RegisterComponent();B->SetVisibility(false);LabelBackgrounds.Add(B);
 	}
 }
 void USlabVisualizationComponent::UpdateGeometry(const FVector& S)
@@ -48,18 +56,18 @@ void USlabVisualizationComponent::UpdateGeometry(const FVector& S)
 	if(bEnding) return; Size=S; EnsureHelpers(); DrawAnalysis();
 }
 void USlabVisualizationComponent::SetHelpersVisible(bool bVisible)
-{ if(bEnding) return; bHelpersVisible=bVisible; DrawAnalysis(); UpdateLabels(); SetComponentTickEnabled(bHasAnalysis&&bVisible&&(Display.bYaw||Display.bMargins||Display.bStatus)); }
+{ if(bEnding) return; bHelpersVisible=bVisible; DrawAnalysis(); UpdateLabels(); SetComponentTickEnabled(bHasAnalysis&&bVisible&&Display.HasAny()); }
 void USlabVisualizationComponent::EndPlay(const EEndPlayReason::Type Reason)
-{ bEnding=true; SetComponentTickEnabled(false); for(UStaticMeshComponent* H:Helpers) if(H) H->DestroyComponent(); Helpers.Reset(); for(UTextRenderComponent* T:Labels) if(T) T->DestroyComponent(); Labels.Reset(); Super::EndPlay(Reason); }
+{ bEnding=true; SetComponentTickEnabled(false); for(UStaticMeshComponent* H:Helpers) if(H) H->DestroyComponent(); Helpers.Reset(); for(UTextRenderComponent* T:Labels) if(T) T->DestroyComponent(); Labels.Reset();for(UStaticMeshComponent* B:LabelBackgrounds)if(B)B->DestroyComponent();LabelBackgrounds.Reset();Super::EndPlay(Reason); }
 void USlabVisualizationComponent::ConfigureDisplay(const FSlabAnalysisDisplaySettings& Settings)
-{ if(bEnding) return; Display=Settings; DrawAnalysis(); UpdateLabels(); SetComponentTickEnabled(bHasAnalysis&&bHelpersVisible&&(Display.bYaw||Display.bMargins||Display.bStatus)); }
+{ if(bEnding) return; Display=Settings;Display.Sanitize();DrawAnalysis();UpdateLabels();SetComponentTickEnabled(bHasAnalysis&&bHelpersVisible&&Display.HasAny()); }
 void USlabVisualizationComponent::UpdateAnalysis(const FSlabScenarioRow&,const FSlabMetrics& Metrics,const FSlabSimulationStatus& Status,const FVector& S,const FTransform& Track,double LeftRailYcm,double RightRailYcm,bool bRailsValid,double ReferenceLengthCm)
 {
 	if(bEnding) return; Size=S; TrackTransform=Track; LastMetrics=Metrics; LeftRail=LeftRailYcm; RightRail=RightRailYcm; bRails=bRailsValid;
 	FixedReferenceLength=ReferenceLengthCm>0&&FMath::IsFinite(ReferenceLengthCm)?ReferenceLengthCm:Size.X*1.2;
 	if(MaterialId!=Status.MtlNo) MaterialId=Status.MtlNo;
 	FrameNo=Status.FrameNo; Elapsed=Status.ElapsedSec; Duration=Status.DurationSec; Progress=Status.Progress; bHasAnalysis=true;
-	EnsureHelpers(); DrawAnalysis(); SetComponentTickEnabled(bHelpersVisible&&(Display.bYaw||Display.bMargins||Display.bStatus));
+	EnsureHelpers();DrawAnalysis();SetComponentTickEnabled(bHelpersVisible&&Display.HasAny());
 }
 void USlabVisualizationComponent::SetLine(int32 I,const FVector& A,const FVector& B,float Thickness,FLinearColor Color,bool Visible)
 {
@@ -67,13 +75,21 @@ void USlabVisualizationComponent::SetLine(int32 I,const FVector& A,const FVector
 	auto* M=Helpers[I].Get(); M->SetVisibility(bHelpersVisible&&Visible); if(!bHelpersVisible||!Visible) return;
 	const FVector Delta=B-A;
 	M->SetWorldTransform(FTransform(Delta.Rotation(),(A+B)/2,FVector(FMath::Max(Thickness,static_cast<float>(Delta.Length()))/100,Thickness/100,Thickness/100)));
-	if(auto* MID=Cast<UMaterialInstanceDynamic>(M->GetMaterial(0))) MID->SetVectorParameterValue(TEXT("Color"),Color);
+	if(AppliedLineColors[I]!=Color)if(auto* MID=Cast<UMaterialInstanceDynamic>(M->GetMaterial(0))){MID->SetVectorParameterValue(TEXT("Color"),Color);AppliedLineColors[I]=Color;}
+}
+float USlabVisualizationComponent::ResolveStrokeSize() const
+{
+	const auto* PC=GetWorld()?GetWorld()->GetFirstPlayerController():nullptr;
+	if(!PC||!PC->PlayerCameraManager)return Display.LineWidthPixels;
+	const auto& View=PC->PlayerCameraManager->GetCameraCacheView();int32 W=0,H=0;PC->GetViewportSize(W,H);if(W<=0||H<=0){W=1280;H=720;}
+	double Aspect=double(W)/H;if(View.bConstrainAspectRatio&&View.AspectRatio>0){Aspect=View.AspectRatio;H=FMath::Min(H,FMath::RoundToInt(W/Aspect));}
+	const double Depth=FVector::DotProduct(GetOwner()->GetActorLocation()-View.Location,View.Rotation.Vector());
+	return CalculateScreenWorldSize(Depth,View.FOV,H,Aspect,Display.LineWidthPixels,View.ProjectionMode==ECameraProjectionMode::Orthographic,View.OrthoWidth);
 }
 void USlabVisualizationComponent::DrawAnalysis()
 {
 	if(Helpers.Num()!=MaxLineHelpers||!GetOwner()) return;
-	for(int32 I=28;I<MaxLineHelpers;++I) Helpers[I]->SetVisibility(false);
-	const FTransform Pose=GetOwner()->GetActorTransform(); const float Stroke=FMath::Clamp(FMath::Min(Size.X,Size.Y)*0.003,0.8,4.0); const double Z=Size.Z/2+3;
+	const FTransform Pose=GetOwner()->GetActorTransform();const float Stroke=ResolveStrokeSize();const double Z=Size.Z/2+FMath::Max(3.f,Stroke);
 	FVector Corners[4]; const FVector Local[4]={FVector(-Size.X/2,-Size.Y/2,Z),FVector(Size.X/2,-Size.Y/2,Z),FVector(Size.X/2,Size.Y/2,Z),FVector(-Size.X/2,Size.Y/2,Z)};
 	for(int32 I=0;I<4;++I) Corners[I]=Pose.TransformPositionNoScale(Local[I]);
 	for(int32 I=0;I<4;++I) SetLine(I,Corners[I],Corners[(I+1)%4],Stroke,Cyan,Display.bOutline);
@@ -101,15 +117,18 @@ void USlabVisualizationComponent::DrawAnalysis()
 		const FVector Start=Corners[Side?Right:Left]; FVector End=TrackTransform.InverseTransformPositionNoScale(Start); End.Y=Side?RightRail:LeftRail;
 		const double Gap=Side?LastMetrics.MarginRightCm:LastMetrics.MarginLeftCm;
 		SetLine(26+Side,Start,TrackTransform.TransformPositionNoScale(End),Stroke*1.3f,Gap<0?Red:Green,Display.bMargins&&bRails);
+		const FVector Tick=TrackTransform.GetUnitAxis(EAxis::X)*Stroke*2.5f;const FVector Finish=TrackTransform.TransformPositionNoScale(End);
+		SetLine(28+Side*2,Start-Tick,Start+Tick,Stroke,Gap<0?Red:Green,Display.bMargins&&bRails);
+		SetLine(29+Side*2,Finish-Tick,Finish+Tick,Stroke,Gap<0?Red:Green,Display.bMargins&&bRails);
 	}
 }
 void USlabVisualizationComponent::UpdateLabels()
 {
 	if(Labels.Num()!=MaxTextHelpers||!GetOwner()) return;
-	if(!bHelpersVisible||!bHasAnalysis) { for(UTextRenderComponent* T:Labels) T->SetVisibility(false); return; }
+	if(!bHelpersVisible||!bHasAnalysis) { for(UTextRenderComponent* T:Labels) T->SetVisibility(false);for(UStaticMeshComponent* B:LabelBackgrounds)B->SetVisibility(false);return; }
 	const FTransform Pose=GetOwner()->GetActorTransform(); const double Z=Size.Z/2+FMath::Max(15.0,Size.Y*.2);
 	const FString ShortId=MaterialId.Len()>24?MaterialId.Left(21)+TEXT("..."):MaterialId;
-	const FString Texts[5]={FString::Printf(TEXT("Yaw %+.2f deg"),LastMetrics.LeftAngle),bRails?FString::Printf(TEXT("L %+.1f cm"),LastMetrics.MarginLeftCm):TEXT("L N/A"),bRails?FString::Printf(TEXT("R %+.1f cm"),LastMetrics.MarginRightCm):TEXT("R N/A"),FString::Printf(TEXT("%s | frame %lld\n%.1f / %.1f s  %.1f%%"),*ShortId,FrameNo,Elapsed,Duration,Progress*100),FMath::IsNearlyZero(LastMetrics.CenterOffsetCm,.01)?TEXT("Center aligned"):FString::Printf(TEXT("Center %+.1f cm"),LastMetrics.CenterOffsetCm)};
+	const FString Texts[5]={FString::Printf(TEXT("Yaw %+.2f deg"),LastMetrics.LeftAngle),bRails?FString::Printf(TEXT("L %+.1f cm%s"),LastMetrics.MarginLeftCm,LastMetrics.MarginLeftCm<0?TEXT(" [침범]"):TEXT("")):TEXT("L N/A"),bRails?FString::Printf(TEXT("R %+.1f cm%s"),LastMetrics.MarginRightCm,LastMetrics.MarginRightCm<0?TEXT(" [침범]"):TEXT("")):TEXT("R N/A"),FString::Printf(TEXT("%s | frame %lld\n%.1f / %.1f s  %.1f%%"),*ShortId,FrameNo,Elapsed,Duration,Progress*100),FMath::IsNearlyZero(LastMetrics.CenterOffsetCm,.01)?TEXT("Center aligned"):FString::Printf(TEXT("Center %+.1f cm"),LastMetrics.CenterOffsetCm)};
 	const FVector Positions[5]={FVector(Size.Y*.65,0,Z),FVector(0,-Size.Y*.8,Z),FVector(0,Size.Y*.8,Z),FVector(-Size.X*.35,0,Z+20),FVector(Size.X*.3,0,Z)};
 	const bool Visible[5]={Display.bYaw,Display.bMargins,Display.bMargins,Display.bStatus,Display.bCenterline};
 	APlayerController* PC=GetWorld()?GetWorld()->GetFirstPlayerController():nullptr;
@@ -125,7 +144,7 @@ void USlabVisualizationComponent::UpdateLabels()
 		double Aspect=double(Width)/Height;
 		if(View.bConstrainAspectRatio&&View.AspectRatio>0) {Aspect=View.AspectRatio; Height=FMath::Min(Height,FMath::RoundToInt(Width/Aspect));}
 		const bool bOrtho=View.ProjectionMode==ECameraProjectionMode::Orthographic;
-		TextSize=CalculateReadableTextSize(Depth,View.FOV,Height,Aspect,bOrtho,View.OrthoWidth);
+		TextSize=CalculateScreenWorldSize(Depth,View.FOV,Height,Aspect,Display.TextHeightPixels,bOrtho,View.OrthoWidth);
 		const FVector AxisX=Pose.GetUnitAxis(EAxis::X),AxisY=Pose.GetUnitAxis(EAxis::Y),AxisZ=Pose.GetUnitAxis(EAxis::Z);
 		auto Extent=[&](const FVector& Axis){return .5*(FMath::Abs(FVector::DotProduct(AxisX,Axis))*Size.X+FMath::Abs(FVector::DotProduct(AxisY,Axis))*Size.Y+FMath::Abs(FVector::DotProduct(AxisZ,Axis))*Size.Z);};
 		const double X=Extent(Right),Y=Extent(Up),Side=FVector::DotProduct(TrackTransform.GetUnitAxis(EAxis::Y),Right)<0?-1.0:1.0;
@@ -168,11 +187,22 @@ void USlabVisualizationComponent::UpdateLabels()
 	}
 	for(int32 I=0;I<MaxTextHelpers;++I)
 	{
-		auto* T=Labels[I].Get(); T->SetVisibility(Visible[I]); if(!Visible[I]) continue;
-		T->SetText(FText::FromString(Texts[I])); T->SetWorldSize(TextSize); T->SetWorldLocation(WorldPositions[I]);
+		auto* T=Labels[I].Get();T->SetVisibility(Visible[I]);if(LabelBackgrounds.IsValidIndex(I))LabelBackgrounds[I]->SetVisibility(Visible[I]);if(!Visible[I])continue;
+		if(T->Text.ToString()!=Texts[I])T->SetText(FText::FromString(Texts[I]));T->SetWorldSize(TextSize);T->SetWorldLocation(WorldPositions[I]);
 		if(PC&&PC->PlayerCameraManager) T->SetWorldRotation((PC->PlayerCameraManager->GetCameraLocation()-T->GetComponentLocation()).Rotation());
 		T->SetTextRenderColor((I==1&&LastMetrics.MarginLeftCm<0)||(I==2&&LastMetrics.MarginRightCm<0)?FColor::Red:FColor::White);
+		if(LabelBackgrounds.IsValidIndex(I))
+		{
+			const FVector Bounds=T->GetTextLocalSize();
+			LabelBackgrounds[I]->SetWorldTransform(FTransform(T->GetComponentQuat(),T->GetComponentLocation()-T->GetForwardVector()*FMath::Max(.5f,TextSize*.08f),FVector(.002,FMath::Max(TextSize*2.f,float(Bounds.Y))+TextSize*.6f,FMath::Max(TextSize,float(Bounds.Z))+TextSize*.35f)/FVector(1,100,100)));
+		}
 	}
+}
+float USlabVisualizationComponent::CalculateScreenWorldSize(double Depth,double Fov,int32 Height,double Aspect,float Pixels,bool Ortho,double OrthoWidth)
+{
+	if(!FMath::IsFinite(Depth)||!FMath::IsFinite(Fov)||!FMath::IsFinite(Aspect)||!FMath::IsFinite(Pixels)||Height<=0||Aspect<=0)return 4;
+	const double Width=Ortho?(FMath::IsFinite(OrthoWidth)?FMath::Max(1.,OrthoWidth):1600.):2*FMath::Max(1.,Depth)*FMath::Tan(FMath::DegreesToRadians(FMath::Clamp(Fov,5.,170.))*.5);
+	return float(FMath::Clamp(Pixels*Width/(Aspect*Height),.05,2000.));
 }
 float USlabVisualizationComponent::CalculateReadableTextSize(double ViewDepthCm,double HorizontalFovDegrees,int32 ViewportHeight,double AspectRatio,bool bOrthographic,double OrthoWidthCm)
 {
@@ -190,4 +220,4 @@ FVector USlabVisualizationComponent::PullLabelTowardCamera(const FVector& Positi
 	return CameraPosition+(Position-CameraPosition)*Scale;
 }
 void USlabVisualizationComponent::TickComponent(float Delta,ELevelTick TickType,FActorComponentTickFunction* TickFunction)
-{ Super::TickComponent(Delta,TickType,TickFunction); UpdateLabels(); }
+{ Super::TickComponent(Delta,TickType,TickFunction);DrawAnalysis();UpdateLabels(); }

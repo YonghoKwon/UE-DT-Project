@@ -94,21 +94,38 @@ bool ASlabActor::SubmitScenarioJson(const FString& Json)
 	}); return true;
 }
 bool ASlabActor::StartSyntheticScenario() { return SubmitScenarioJson(FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower))); }
+void ASlabActor::RecordAdmission(ESlabScenarioAdmission Result,const FString& ScenarioId,const FString& Reason)
+{
+	LastAdmission=FSlabScenarioAdmissionStatus();LastAdmission.Result=Result;LastAdmission.ScenarioUUID=ScenarioId;LastAdmission.Reason=Reason;LastAdmission.RequestedOutputs=SensorOutputs;
+	if(Result==ESlabScenarioAdmission::Started||Result==ESlabScenarioAdmission::StartedWithoutTransmission)
+	{
+		LastAdmission.RunUUID=Status.RunUUID;
+		if(auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())LastAdmission.AppliedOutputs=Session->GetSlabSensorSessionStatus().Outputs;
+	}
+	UE_LOG(LogTemp,Display,TEXT("[SlabAdmission] receiver=%s actor=%s scenario=%s result=%d requested=%d/%d/%d applied=%d/%d/%d reason=%s"),
+		*ReceiverId,*GetPathName(),*ScenarioId,int32(Result),SensorOutputs.bPointCloud,SensorOutputs.bCameraImage,SensorOutputs.bLidarTelemetry,
+		LastAdmission.AppliedOutputs.bPointCloud,LastAdmission.AppliedOutputs.bCameraImage,LastAdmission.AppliedOutputs.bLidarTelemetry,*Reason);
+	OnSlabStateChanged.Broadcast();
+}
 bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 {
-	check(IsInGameThread()); if(!Data.IsValid()||bEnding||!GetGameInstance()) return false;
+	check(IsInGameThread()); if(!Data.IsValid()||bEnding||!GetGameInstance()) {RecordAdmission(ESlabScenarioAdmission::Rejected,FString(),TEXT("유효한 시나리오와 실행 중인 GameInstance가 필요합니다."));return false;}
 	auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
+	const bool Duplicate=Replay&&Replay->GetValidatedScenario(Data->ScenarioUUID).IsValid();
 	if(Replay&&!Replay->RegisterValidatedScenario(Data))
 	{
-		Status.Message=TEXT("이미 보관된 UUID입니다. 자동 재실행하지 않습니다. 재생 목록에서 다시 실행할 수 있습니다.");
-		OnSlabStateChanged.Broadcast(); return false;
+		Status.Message=Duplicate?TEXT("이미 보관된 UUID입니다. 자동 재실행하지 않습니다. 수신 경로에서 보관 API를 중복 호출하지 마세요."):Replay->GetRegistrationMessage();
+		RecordAdmission(Duplicate?ESlabScenarioAdmission::Duplicate:ESlabScenarioAdmission::Rejected,Data->ScenarioUUID,Status.Message);return false;
 	}
 	const auto* Session=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
 	const auto SessionState=Session?Session->GetSlabSensorSessionStatus().State:EVirtualSlabSessionState::Idle;
 	const bool bSessionBusy=SessionState==EVirtualSlabSessionState::Ready||SessionState==EVirtualSlabSessionState::Running||SessionState==EVirtualSlabSessionState::Paused||SessionState==EVirtualSlabSessionState::Draining;
 	if(IsSimulationActive()||(Replay&&Replay->IsReplayBusy())||bSessionBusy)
-	{ Status.Message=TEXT("새 시나리오는 보관했습니다. 현재 재생·송신 정리 후 목록에서 실행하세요."); OnSlabStateChanged.Broadcast(); return false; }
-	return StartScenario(Data,FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),false);
+	{ Status.Message=TEXT("새 시나리오는 보관했습니다. 현재 재생·송신 정리 후 목록에서 실행하세요.");RecordAdmission(ESlabScenarioAdmission::StoredOnlyBusy,Data->ScenarioUUID,Status.Message);return false; }
+	const bool Started=StartScenario(Data,FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),false);
+	RecordAdmission(Started?(Status.TransmissionWarning.IsEmpty()?ESlabScenarioAdmission::Started:ESlabScenarioAdmission::StartedWithoutTransmission):ESlabScenarioAdmission::Rejected,
+		Data->ScenarioUUID,Started&&!Status.TransmissionWarning.IsEmpty()?Status.TransmissionWarning:Status.Message);
+	return Started;
 }
 bool ASlabActor::StartScenarioPlayback_Implementation(const FString& Json,const FString& ScenarioUUID,const FString& RunUUID)
 {
@@ -125,19 +142,24 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 	if(!Data.IsValid()||Data->Rows.IsEmpty()||!GetWorld()||!GetGameInstance()) return false;
 	auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 	auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
-	if(!Session||!Replay) return false;
+	if(!Session||!Replay) {ReportFailure(TEXT("Slab 실행 Subsystem이 준비되지 않았습니다."));return false;}
 	const auto& First=Data->Rows[0];
 	const FVector Size(FSlabScenarioCodec::ToCm(First.Length,DimensionUnit),FSlabScenarioCodec::ToCm(First.Width,DimensionUnit),FSlabScenarioCodec::ToCm(First.Thickness,DimensionUnit));
 	if(Size.ContainsNaN()||Size.GetMin()<=0||Size.GetMax()>1000000) { ReportFailure(TEXT("변환된 Slab 치수는 0보다 크고 10km 이하여야 합니다.")); return false; }
+	FString TransmissionWarning;
 	if(!bReplay)
 	{
 		if(!Replay->SetLiveScenarioPlaybackActive(true,Data->ScenarioUUID)) { ReportFailure(TEXT("다른 Slab 재생이 진행 중입니다.")); return false; }
-		if(Session->BeginScenarioSensorSession(RunUUID,TargetSensorIds,Data->ScenarioUUID,SensorOutputs).IsEmpty())
+		const bool Ready=Session->ValidateScenarioOutputs(TargetSensorIds,SensorOutputs,TransmissionWarning);
+		const FString SessionId=Ready?Session->BeginScenarioSensorSession(RunUUID,TargetSensorIds,Data->ScenarioUUID,SensorOutputs)
+			:Session->BeginUnboundObservationSession(RunUUID,Data->ScenarioUUID);
+		if(SessionId.IsEmpty())
 		{ Replay->SetLiveScenarioPlaybackActive(false,FString()); ReportFailure(Session->GetSlabSensorSessionStatus().Message); return false; }
 	}
 	Scenario=Data; LastNotifiedIndex=INDEX_NONE; Status=FSlabSimulationStatus();
 	Status.State=ESlabSimulationState::Playing; Status.ScenarioUUID=Data->ScenarioUUID; Status.RunUUID=RunUUID; Status.MtlNo=First.MtlNo;
 	Status.RowCount=Data->Rows.Num(); Status.DurationSec=Data->DurationSec; Status.bReplay=bReplay;
+	Status.TransmissionWarning=TransmissionWarning.IsEmpty()?FString():TEXT("선택 출력 미송신 · ")+TransmissionWarning+TEXT(" 이번 실행은 관찰만 진행합니다.");
 	Status.Message=Data->bDimensionsChanged?TEXT("재생 중 · 첫 행의 치수를 고정 적용합니다."):TEXT("재생 중 · 위치와 각도를 시간 기준으로 보간합니다.");
 	SlabMesh->SetRelativeScale3D(Size/100); VisualizationComponent->UpdateGeometry(Size);
 	if(bReplay&&!Replay->NotifyPlaybackStarted(RunUUID)) { Status.State=ESlabSimulationState::Failed; return false; }
@@ -243,7 +265,7 @@ void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppear
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
 bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }
 void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)
-{ AnalysisDisplaySettings=Settings; VisualizationComponent->ConfigureDisplay(Settings); OnSlabStateChanged.Broadcast(); }
+{ AnalysisDisplaySettings=Settings;AnalysisDisplaySettings.Sanitize();VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings);OnSlabStateChanged.Broadcast(); }
 FSoftObjectPath ASlabActor::ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured)
 {
 	if(Configured.IsNull()||Configured.GetLongPackageName()==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface"))

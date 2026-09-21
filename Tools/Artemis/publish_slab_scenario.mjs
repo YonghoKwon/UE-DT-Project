@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i], process.argv[i + 1]);
-const topic = args.get('--topic') ?? 'topic.cep.output.0';
+const topic = args.get('--topic') ?? 'topic.scenario';
 const id = args.get('--uuid') ?? crypto.randomUUID();
 const anchors = [
   { frame_no: 0, left: -.2, right: .2, pos: 0, y: .1, mov: 1210 },

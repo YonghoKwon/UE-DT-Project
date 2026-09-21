@@ -81,7 +81,7 @@ bool FSlabDiagnosticMasterTest::RunTest(const FString&)
 	TestTrue(TEXT("master initially enabled"),Slab->GetDiagnosticHelpersVisible());
 	auto* Visual=Slab->FindComponentByClass<USlabVisualizationComponent>(); Visual->UpdateGeometry(FVector(1083,110,25));
 	const int32 HelperCount=Visual->GetOwnedHelperCount();
-	TestEqual(TEXT("bounded analysis helper pool created once"),HelperCount,USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxTextHelpers);
+	TestEqual(TEXT("bounded analysis helper and background pool created once"),HelperCount,USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxTextHelpers+USlabVisualizationComponent::MaxLabelBackgrounds);
 	Slab->SetDiagnosticHelpersVisible(false); TestFalse(TEXT("master disabled through Actor API"),Slab->GetDiagnosticHelpersVisible());
 	S.bYaw=true; Slab->SetAnalysisDisplaySettings(S);
 	TestFalse(TEXT("editing a detail cannot override disabled master"),Slab->GetDiagnosticHelpersVisible());

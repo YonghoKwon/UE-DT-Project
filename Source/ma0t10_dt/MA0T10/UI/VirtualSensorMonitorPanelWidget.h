@@ -603,6 +603,10 @@ private:
     TArray<TSharedPtr<ELidarColorMode>> NativeLidarColorOptions;
     TArray<TSharedPtr<EVirtualSensorMonitorPresentation>> NativePresentationOptions;
     bool bOwnedAdvancedMenuOpen = false;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabMinimalUiTest;
+#endif
+	TSharedPtr<SWidget> OwnedQuickViewControls;
     TSharedPtr<STextBlock> NativeTitleTextBlock;
     TSharedPtr<STextBlock> NativeStatusTextBlock;
     TSharedPtr<STextBlock> NativeDetailedStatusTextBlock;

@@ -855,14 +855,14 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
       .OnGenerateWidget_Lambda([this,PresentationText](TSharedPtr<EVirtualSensorMonitorPresentation> P){return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(P?PresentationText(*P):FText());})
       .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorMonitorPresentation> P,ESelectInfo::Type){if(P)SetMonitorPresentation(*P);})
       [SNewSensorTool(STextBlock).Text_Lambda([this,PresentationText](){return PresentationText(GetMonitorPresentation());})]];
+    OwnedQuickViewControls=Quick;
     return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(10)
     [SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("OwnedMonitor","모니터"))]
      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
-       +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(true).Text(FText::FromString(BuildCompactStatusText()))]
-       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedView","고급 보기"))]]]
-     +SVerticalBox::Slot().AutoHeight()[SAssignSensorTool(NativeWarningTextBlock,STextBlock).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::Warning).Text(FText::FromString(GetTransportWarningText())).Visibility_Lambda([this](){return !IsPanelCollapsed()&&NativeWarningTextBlock&&!NativeWarningTextBlock->GetText().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})]
-     +SVerticalBox::Slot().AutoHeight()[Quick]
+       +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text(FText::FromString(BuildCompactStatusText()))]
+       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedView","보기 설정"))]]]
+     +SVerticalBox::Slot().AutoHeight()[SAssignSensorTool(NativeWarningTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FVirtualSensorUiStyle::Warning).Text(FText::FromString(GetTransportWarningText().Replace(TEXT("\n"),TEXT(" ")).Replace(TEXT("\r"),TEXT(" ")))).Visibility_Lambda([this](){return !IsPanelCollapsed()&&NativeWarningTextBlock&&!NativeWarningTextBlock->GetText().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})]
      +SVerticalBox::Slot().FillHeight(1).Padding(0,8,0,2)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(FLinearColor(.01,.015,.025,1)).Padding(2).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        [SNew(SVerticalBox)
         +SVerticalBox::Slot().FillHeight(.7f)[SAssignNew(NativeViewImage,SImage).Image(&NativeViewBrush)]
@@ -876,6 +876,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedAdvancedViewMenu
 {
     RefreshCameraSelectionOptions();
     auto Content=SNew(SVerticalBox);
+    if(OwnedQuickViewControls)Content->AddSlot().AutoHeight().Padding(0,8)[OwnedQuickViewControls.ToSharedRef()];
     Content->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("ViewHelp","표시만 변경합니다. 측정값·PCD 출력은 바꾸지 않습니다.")).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor())];
     Content->AddSlot().AutoHeight().Padding(0,8)[SNew(SVerticalBox).Visibility_Lambda([this](){return bShowingLidar?EVisibility::Collapsed:EVisibility::Visible;})
       +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).IsChecked_Lambda([this](){return bDualCameraModeEnabled?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){SetDualCameraModeEnabled(S==ECheckBoxState::Checked);})[SNewSensorTool(STextBlock).Text(LOCTEXT("DualOwned","카메라 2대 동시 보기"))]]
@@ -2010,7 +2011,9 @@ void UVirtualSensorMonitorPanelWidget::RefreshStatusText()
     }
     if (NativeWarningTextBlock.IsValid())
     {
-        NativeWarningTextBlock->SetText(FText::FromString(GetTransportWarningText()));
+        const FString Warning=GetTransportWarningText();
+        NativeWarningTextBlock->SetText(FText::FromString(IsWorkspaceOwned()?Warning.Replace(TEXT("\n"),TEXT(" ")).Replace(TEXT("\r"),TEXT(" ")):Warning));
+        if(IsWorkspaceOwned())NativeWarningTextBlock->SetToolTipText(FText::FromString(Warning));
     }
 }
 
@@ -2255,8 +2258,8 @@ FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        if(IsWorkspaceOwned())return FString::Printf(TEXT("LiDAR %s · 프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
-            *LidarComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz,LidarComp->HorizontalSamples*LidarComp->VerticalChannels,Status.TotalPointCount,Status.HitPointCount);
+        if(IsWorkspaceOwned())return FString::Printf(TEXT("LiDAR %s · 프레임 %lld · %.2f Hz"),
+            *LidarComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz);
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
             Status.FrameId,
             Status.MeasuredCompletionRateHz,
@@ -2267,8 +2270,8 @@ FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
     if (!bShowingLidar && CameraComp)
     {
         const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
-        if(IsWorkspaceOwned())return FString::Printf(TEXT("Camera %s · 프레임 %lld · %.2f Hz\n해상도 %d × %d"),
-            *CameraComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz,CameraComp->CaptureResolution.X,CameraComp->CaptureResolution.Y);
+        if(IsWorkspaceOwned())return FString::Printf(TEXT("Camera %s · 프레임 %lld · %.2f Hz"),
+            *CameraComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz);
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n해상도 %d × %d"),
             Status.FrameId, Status.MeasuredCompletionRateHz, CameraComp->CaptureResolution.X, CameraComp->CaptureResolution.Y);
     }
