@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -10,6 +11,8 @@ class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
 class ASlabActor;
+class AVirtualSensorActorBase;
+class UVirtualSensorFileSaveSubsystem;
 struct FVirtualSensorTransportProfile;
 
 UENUM(BlueprintType)
@@ -150,15 +153,45 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorExport")
     FOnVirtualSensorExportCompleted OnExportCompleted;
 
+	/** Additive asynchronous UI path. Legacy synchronous Blueprint methods above retain their contract. */
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorExport|Async") FString RequestFileSave(EVirtualSensorFileSaveMode Mode);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorExport|Async") FVirtualSensorFileSaveStatus GetActiveFileSaveStatus() const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorExport|Stream") bool IsSelectedStreamScenarioControlled(EVirtualSensorStreamKind Kind) const;
+	static int32 ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab Tab);
+
 protected:
 	ASlabActor* ResolveScenarioSlabActor() const;
 	UPROPERTY(Transient) TObjectPtr<ASlabActor> ScenarioSlabActor;
 	mutable TWeakObjectPtr<ASlabActor> AutoScenarioSlabActor;
 	mutable double NextScenarioSlabLookup = 0;
     virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	TSharedRef<SWidget> BuildOwnedWidget();
+	TSharedRef<SWidget> BuildOwnedLiveTab();
+	TSharedRef<SWidget> BuildOwnedFileTab();
+	TSharedRef<SWidget> BuildOwnedConnectionTab();
+	void BindFileService();
+	void TickOwnedUi(double Now);
+	void ToggleOwnedPeriodicSave();
+	void ToggleOwnedStream(EVirtualSensorStreamKind Kind);
+	bool IsOwnedCompatibilityTransport() const;
+	AVirtualSensorActorBase* ResolveOwnedSelectedActor() const;
+	FVirtualSensorCaptureSelection ResolveOwnedFileSelection() const;
+	UFUNCTION() void HandleFileSaveUpdated(const FVirtualSensorFileSaveStatus& Status);
+	TWeakObjectPtr<UVirtualSensorFileSaveSubsystem> FileSaveService;
+	FString OwnedFileRequestId,OwnedPeriodicSessionId;
+	TSet<FString> OwnedFileRequests;
+	TArray<FString> DeliveredFileRequests;
+	int32 OwnedFileAction=0; // 0=new, 1=current, 2=periodic; no new persistent enum/slot.
+	bool bOwnedScenarioStreamView=false,bOwnedExtraScenarioOutputs=false;
+	bool bOwnedStorageExpanded=false,bOwnedReceiverExpanded=false,bOwnedTransportLogExpanded=false;
+	bool bOwnedCanSaveCurrent=false,bOwnedSaveBusy=false,bOwnedPeriodicActive=false;
+	FString OwnedSelectionText,OwnedFileStatusText,OwnedPeriodicStatusText,OwnedConnectionText;
+	double NextReceiverLookup=0,ReceiverLookupDelay=.5;
 	bool bWorkspaceLiveDetails=false;
 	TMap<EVirtualSensorStreamKind,FString> WorkspaceStreamCards;
     void AddResult(EVirtualSensorExportKind Kind, const FString& SensorId, bool bSucceeded, const FString& Path, const FString& Message);

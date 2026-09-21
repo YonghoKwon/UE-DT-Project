@@ -161,6 +161,7 @@ void UVirtualCameraCaptureComponent::StartCapture()
 
 void UVirtualCameraCaptureComponent::StopCapture()
 {
+	CancelLocalFileFrame();
 	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
 	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false);
     if (GetWorld())
@@ -187,6 +188,14 @@ void UVirtualCameraCaptureComponent::RequestImmediateScheduledCapture()
 		NextScheduledCaptureTime = GetWorld()->GetTimeSeconds();
 	}
 }
+bool UVirtualCameraCaptureComponent::TryAcquireLocalFileEncodeSlot()
+{
+	if(GVirtualCameraEncodeJobs.fetch_add(1,std::memory_order_acq_rel)>=GVirtualCameraEncodeJobLimit)
+	{ GVirtualCameraEncodeJobs.fetch_sub(1,std::memory_order_acq_rel); return false; }
+	return true;
+}
+void UVirtualCameraCaptureComponent::ReleaseLocalFileEncodeSlot()
+{ GVirtualCameraEncodeJobs.fetch_sub(1,std::memory_order_acq_rel); }
 
 void UVirtualCameraCaptureComponent::RegisterWithPerformanceSubsystem()
 {
@@ -226,8 +235,9 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
 		if (Context.bEligible) SlabCaptureContexts.Add(FrameId+1,Context);
 	}
     EnsureRenderTarget();
-    CaptureSceneDeferred();
     ++FrameId;
+	RecordLocalFileAcquisition(CaptureStart);
+    CaptureSceneDeferred();
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - CaptureStart) * 1000.0);
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.MeasuredAcquisitionRateHz = LastAcquisitionCompletionTime >= 0.0
@@ -657,8 +667,9 @@ void UVirtualCameraCaptureComponent::EnsureRenderTarget()
 void UVirtualCameraCaptureComponent::CaptureAndSendImage()
 {
     EnsureRenderTarget();
-    CaptureScene();
     ++FrameId;
+	RecordLocalFileAcquisition(FPlatformTime::Seconds());
+    CaptureScene();
 
     if (!ShouldGeneratePayload())
     {
@@ -705,7 +716,8 @@ bool UVirtualCameraCaptureComponent::InjectExternalJsonPayload(const FString& Js
     FString PayloadSensorId;
     int64 PayloadFrameId = 0;
     int64 PayloadByteSize = 0;
-    if (!ReadExternalPayloadMetadata(JsonPayload, PayloadSensorId, PayloadFrameId, PayloadByteSize))
+    FDateTime PayloadTimestamp;
+    if (!ReadExternalPayloadMetadata(JsonPayload, PayloadSensorId, PayloadFrameId, PayloadByteSize,PayloadTimestamp))
     {
         UpdateRuntimeStatus(0, TEXT("External camera payload rejected"));
         return false;
@@ -713,8 +725,14 @@ bool UVirtualCameraCaptureComponent::InjectExternalJsonPayload(const FString& Js
 
     LastJsonPayload = JsonPayload;
     LastJpegSnapshot.Reset();
+	bHasFileAcquisition=false;
     FrameId = FMath::Max(FrameId, PayloadFrameId);
     const FString RecordSensorId = PayloadSensorId.IsEmpty() ? SensorId : PayloadSensorId;
+	auto FileFrame=MakeShared<FVirtualSensorFrameEnvelope,ESPMode::ThreadSafe>();
+	FileFrame->SensorId=RecordSensorId;FileFrame->SensorKind=EVirtualSensorKind::Camera;FileFrame->FrameId=PayloadFrameId;
+	FileFrame->JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(JsonPayload);
+	FileFrame->TimestampUtc=PayloadTimestamp;
+	ExternalFileFrame=FileFrame;
 
     if (bSendTransport)
     {
@@ -853,7 +871,7 @@ void UVirtualCameraCaptureComponent::DispatchJsonPayloadOnly(const FString& Json
     }
 }
 
-bool UVirtualCameraCaptureComponent::ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize) const
+bool UVirtualCameraCaptureComponent::ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize,FDateTime& OutTimestampUtc) const
 {
     TSharedPtr<FJsonObject> RootObject;
     const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonPayload);
@@ -980,6 +998,7 @@ bool UVirtualCameraCaptureComponent::ReadExternalPayloadMetadata(const FString& 
     OutSensorId = SensorIdField.TrimStartAndEnd();
     OutFrameId = static_cast<int64>(FrameIdNumber);
     OutByteSize = static_cast<int64>(ByteSize);
+    OutTimestampUtc=ParsedTimestampUtc;
     return true;
 }
 

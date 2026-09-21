@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 
 #include "Blueprint/WidgetTree.h"
@@ -115,6 +116,7 @@ void UVirtualSensorCaptureExportPanelWidget::BindMonitorWidget(UVirtualSensorMon
 
 void UVirtualSensorCaptureExportPanelWidget::CaptureOnce()
 {
+	if(IsWorkspaceOwned()){RequestFileSave(EVirtualSensorFileSaveMode::NewFrame);return;}
     if (MonitorWidget)
     {
 		ApplyCaptureSelectionToMonitor();
@@ -423,7 +425,12 @@ FString UVirtualSensorCaptureExportPanelWidget::GetStorageSummaryText() const
     const FString SensorId = GetSelectedSensorId().IsEmpty() ? TEXT("<SensorId>") : GetSelectedSensorId();
     const FString SavedRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
     FString Text = FString::Printf(TEXT("절대 저장 루트: %s\nPayload: Saved/SensorCaptures/%s/ServerPayload\n포인트 클라우드: Saved/SensorCaptures/%s/PointCloud\n시간 지정 캡처: Saved/SensorCaptures/LocalTimedCapture/<UTC>/Camera | Lidar\nRecorder: Saved/SensorRecordings\nTransport SaveToFile: Saved/SensorCaptures/%s"), *SavedRoot, *SensorId, *SensorId, *SensorId);
-    if (MonitorWidget)
+    if(IsWorkspaceOwned()&&GetWorld()&&!OwnedPeriodicSessionId.IsEmpty())
+    {
+        const auto State=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>()->GetPeriodicStatus(OwnedPeriodicSessionId);
+        Text+=FString::Printf(TEXT("\n주기 저장: %s · 대상 %s\n세션: %s"),State.bActive?TEXT("기록 중"):TEXT("중지됨"),*State.SensorId,*State.Folder);
+    }
+    else if (!IsWorkspaceOwned()&&MonitorWidget)
     {
         Text += FString::Printf(TEXT("\n시간 지정 캡처: %s  세션: %s"), MonitorWidget->IsLocalSensorCaptureActive() ? TEXT("기록 중") : TEXT("중지됨"), *MonitorWidget->GetLocalCaptureSessionDirectory());
     }
@@ -505,6 +512,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 	ApplyCaptureSelectionToMonitor();
 	TSharedPtr<EVirtualSensorExportKind> InitiallySelected = NativeExportKindOptions[0];
 	for (const TSharedPtr<EVirtualSensorExportKind>& Option : NativeExportKindOptions) if (Option.IsValid() && *Option == SelectedPointCloudKind) { InitiallySelected = Option; break; }
+	if(IsWorkspaceOwned()) { OwnedFileAction=ActiveTab==EVirtualSensorCaptureExportTab::Export?1:0;BindFileService();return BuildOwnedWidget(); }
 
 
 	return SNew(SBorder)
@@ -550,6 +558,8 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 void UVirtualSensorCaptureExportPanelWidget::SetActiveTab(EVirtualSensorCaptureExportTab NewTab)
 {
 	ActiveTab = NewTab;
+	if(IsWorkspaceOwned()&&(NewTab==EVirtualSensorCaptureExportTab::Capture||NewTab==EVirtualSensorCaptureExportTab::Export)) OwnedFileAction=NewTab==EVirtualSensorCaptureExportTab::Export?1:0;
+	LastNativeStatusRefreshSeconds=-1;
 	if (UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
 	{
 		Preferences->CaptureExportActiveTab = static_cast<uint8>(NewTab);
@@ -883,6 +893,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetTopicReceiverSummaryText() co
 void UVirtualSensorCaptureExportPanelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
+	if(IsWorkspaceOwned()) { TickOwnedUi(FPlatformTime::Seconds());return; }
 	if (!TopicReceiverHost)
 	{
 		if (UWorld* World = GetWorld())
@@ -1087,6 +1098,7 @@ void UVirtualSensorCaptureExportPanelWidget::AddResult(EVirtualSensorExportKind 
 
 void UVirtualSensorCaptureExportPanelWidget::RefreshNativeText()
 {
+    if(IsWorkspaceOwned()&&(!bOwnedStorageExpanded||GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())) return;
     if (NativeStorageText.IsValid()) NativeStorageText->SetText(FText::FromString(GetStorageSummaryText()));
 }
 
@@ -1104,6 +1116,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetSelectedSensorId() const
 
 FString UVirtualSensorCaptureExportPanelWidget::ExportKindText(EVirtualSensorExportKind Kind) const
 {
+    if (Kind == EVirtualSensorExportKind::CameraJpeg) return TEXT("Camera JPEG");
     if (Kind == EVirtualSensorExportKind::ServerPayload) return TEXT("Server Payload JSON");
     if (Kind == EVirtualSensorExportKind::PointCloudCsv) return TEXT("CSV");
     if (Kind == EVirtualSensorExportKind::PointCloudJsonLines) return TEXT("JSONL");

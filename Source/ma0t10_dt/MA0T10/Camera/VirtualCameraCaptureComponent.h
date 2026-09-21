@@ -6,6 +6,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "VirtualCameraPayloadCodec.h"
 #include "VirtualCameraCaptureComponent.generated.h"
 
 class UTextureRenderTarget2D;
@@ -13,6 +14,15 @@ class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorSchedulerSubsystem;
 class FRHIGPUTextureReadback;
+struct FVirtualCameraLocalReadbackState;
+struct MA0T10_DT_API FVirtualCameraLocalSaveFrame
+{
+	FVirtualCameraPayloadSnapshot Payload;
+	FVirtualSlabFrameContext SlabContext;
+	TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe> Jpeg;
+	double AcquisitionSeconds=0;
+};
+using FVirtualCameraLocalSaveCallback=TFunction<void(TSharedPtr<const FVirtualCameraLocalSaveFrame,ESPMode::ThreadSafe>,const FString&)>;
 
 UENUM(BlueprintType)
 enum class EVirtualCameraOutputMode : uint8
@@ -59,6 +69,13 @@ public:
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
     void RequestImmediateScheduledCapture();
+	/** File-only request; never enables a stream, changes CaptureMode or calls the sync capture API. */
+	bool RequestLocalFileFrame(bool bNewFrame,FVirtualCameraLocalSaveCallback Callback,FString& Error);
+	void PollLocalFileFrame();
+	void CancelLocalFileFrame();
+	int32 GetFileCaptureRevision() const { return ScheduledGeneration; }
+	int64 GetAvailableLocalFrameId() const;
+	TSharedPtr<const FVirtualSensorFrameEnvelope,ESPMode::ThreadSafe> GetExternalFileFrame() const { return ExternalFileFrame; }
     bool IsScheduledCaptureDue(double NowSeconds) const
     {
         return NextScheduledCaptureTime >= 0.0 && NowSeconds + KINDA_SMALL_NUMBER >= NextScheduledCaptureTime;
@@ -187,7 +204,7 @@ private:
     void PostJson(const FString& JsonPayload) const;
     void SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const;
     void UpdateRuntimeStatus(int32 PayloadLength, const FString& Message);
-    bool ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize) const;
+    bool ReadExternalPayloadMetadata(const FString& JsonPayload, FString& OutSensorId, int64& OutFrameId, int64& OutByteSize,FDateTime& OutTimestampUtc) const;
     void TryAutoRegisterToManager();
     void RegisterWithPerformanceSubsystem();
     void UnregisterFromPerformanceSubsystem();
@@ -216,8 +233,26 @@ private:
 	FVirtualSlabFrameContext LastSlabContext;
 	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true);
 public:
+    virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) override;
 	const FVirtualSlabFrameContext& GetLastSlabContext() const { return LastSlabContext; }
 private:
+    void RecordLocalFileAcquisition(double CaptureStartedSeconds);
+    void QueueLocalFileReadback();
+    static bool TryAcquireLocalFileEncodeSlot();
+    static void ReleaseLocalFileEncodeSlot();
+    TSharedPtr<FVirtualCameraLocalReadbackState,ESPMode::ThreadSafe> LocalFileReadback;
+    FVirtualCameraPayloadSnapshot LastFileAcquisition;
+    FVirtualCameraPayloadSnapshot PendingFileAcquisition;
+    FVirtualSlabFrameContext PendingFileSlabContext;
+    FVirtualSlabFrameContext LastFileSlabContext;
+    double LastFileAcquisitionSeconds=0;
+    bool bHasFileAcquisition=false;
+    bool bFileAcquisitionPendingRender=false;
+#if WITH_DEV_AUTOMATION_TESTS
+    int32 LocalFileRenderDispatchCount=0;
+    friend class FSensorCameraLocalDispatchTest;
+#endif
+    TSharedPtr<const FVirtualSensorFrameEnvelope,ESPMode::ThreadSafe> ExternalFileFrame;
 
 	struct FScheduledReadbackSlot
 	{
