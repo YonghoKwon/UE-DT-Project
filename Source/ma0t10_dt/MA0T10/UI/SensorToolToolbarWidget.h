@@ -22,4 +22,8 @@ private:
 	void RefreshSensors();
 	void SelectSensor(const FString& Id);
 	FText SelectedSensorText() const;
+	FSlateFontInfo ToolFont(int32 Size=16) const;
+	TSharedRef<SWidget> BuildPanelMenu(bool bSlab);
+	TSharedRef<SWidget> BuildAppearanceMenu();
+	TSharedRef<SWidget> BuildLegacyToolbar();
 };

@@ -55,6 +55,9 @@ public:
 	void SynchronizeOwnedSelection();
 	/** Startup layout must use the actually arranged owned Canvas, never a provisional viewport. */
 	bool IsOwnedPanelLayoutReady(ESensorToolPanelRole Role) const;
+	bool OwnsToolbar(const UUserWidget* Widget) const { return Toolbar==Widget; }
+	float GetToolbarReservedTop() const { return ToolbarReservedTop; }
+	static float CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight);
 	static const FString SlotName;
 private:
 #if WITH_DEV_AUTOMATION_TESTS
@@ -69,6 +72,7 @@ private:
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
 	FVector2D LastCanvasSize=FVector2D::ZeroVector;
 	float PollTime=0;
+	float ToolbarReservedTop=64;
 	int32 Front=10;
 	bool bApplying=false;
 	TSet<ESensorToolPanelRole> PendingInitialLayouts;

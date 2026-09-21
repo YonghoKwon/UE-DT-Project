@@ -26,6 +26,7 @@ public:
 	FVector2D GetPanelLayoutViewport() const { return ResolveLogicalViewportSize(); }
 	void SetWorkspacePosition(FVector2D Position) { if(IsWorkspaceOwned())SetPanelPositionInternal(Position); }
 	TSharedRef<SWidget> BuildToolPanelHeader(const FText& Title);
+	FVector2D GetResolvedPanelMinimum() const;
 	const FSlateBrush* GetToolPanelBrush() const;
 	const FSlateBrush* GetToolSectionBrush() const;
 	FLinearColor GetToolPanelColor() const;

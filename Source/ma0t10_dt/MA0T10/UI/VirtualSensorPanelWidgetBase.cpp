@@ -16,6 +16,8 @@
 #include "VirtualSensorUiStyle.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Widgets/SBoxPanel.h"
 
 const FSlateBrush* UVirtualSensorPanelWidgetBase::GetToolPanelBrush() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::PanelBrush():FCoreStyle::Get().GetBrush("WhiteBrush");}
@@ -107,7 +109,7 @@ void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SButton>
 	if(IsWorkspaceOwned())
 	{
 		if(Args._ButtonStyle==&FVirtualSensorUiStyle::ButtonStyle()||Args._ButtonStyle==&FSensorToolWorkspaceStyle::Button()||Args._ButtonStyle==&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))Widget->SetButtonStyle(&GetToolButtonStyle());
-		Widget->SetForegroundColor(GetToolTextColor());
+		if(!Args._ForegroundColor.IsBound())Widget->SetForegroundColor(GetToolTextColor());
 	}
 	// Only SButton's own default caption, never user-supplied children.
 	if (Args._Content.Widget == SNullWidget::NullWidget && Widget->GetContent()->GetType() == FName(TEXT("STextBlock")))
@@ -176,7 +178,7 @@ void UVirtualSensorPanelWidgetBase::SetPanelExpandedSize(FVector2D InExpandedSiz
         FVector2D::ZeroVector,
         InExpandedSize,
         1.0f,
-        MinimumPanelSize,
+        GetResolvedPanelMinimum(),
         ResolveMaximumPanelSize());
     ApplyPanelSize();
     SetPanelPositionInternal(CurrentViewportPosition);
@@ -470,12 +472,24 @@ void UVirtualSensorPanelWidgetBase::SavePanelUiState() const
 FVector2D UVirtualSensorPanelWidgetBase::ResolveMaximumPanelSize() const
 {
     const FVector2D ViewportSize = ResolveLogicalViewportSize();
+    if(IsWorkspaceOwned()&&ViewportSize.X>=320&&ViewportSize.Y>=200)
+    {
+        const FVector2D Available(FMath::Max(160.0,ViewportSize.X-ViewportMargin*2),FMath::Max(80.0,ViewportSize.Y-ToolWorkspace->GetToolbarReservedTop()-ViewportMargin));
+        return FVector2D(MaximumPanelSize.X>0?FMath::Min(MaximumPanelSize.X,Available.X):Available.X,MaximumPanelSize.Y>0?FMath::Min(MaximumPanelSize.Y,Available.Y):Available.Y);
+    }
     const FVector2D ViewportMaximum(
         FMath::Max(MinimumPanelSize.X, ViewportSize.X - ViewportMargin * 2.0f),
         FMath::Max(MinimumPanelSize.Y, ViewportSize.Y - ViewportMargin * 2.0f));
     return FVector2D(
         MaximumPanelSize.X > 0.0f ? FMath::Min(MaximumPanelSize.X, ViewportMaximum.X) : ViewportMaximum.X,
         MaximumPanelSize.Y > 0.0f ? FMath::Min(MaximumPanelSize.Y, ViewportMaximum.Y) : ViewportMaximum.Y);
+}
+
+FVector2D UVirtualSensorPanelWidgetBase::GetResolvedPanelMinimum() const
+{
+    if(!IsWorkspaceOwned())return MinimumPanelSize;
+    const FVector2D Maximum=ResolveMaximumPanelSize();
+    return FVector2D(FMath::Min(MinimumPanelSize.X,Maximum.X),FMath::Min(MinimumPanelSize.Y,Maximum.Y));
 }
 
 bool UVirtualSensorPanelWidgetBase::IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const
@@ -514,7 +528,8 @@ void UVirtualSensorPanelWidgetBase::SetPanelPositionInternal(FVector2D NewPositi
         NewPosition = ClampPanelPosition(NewPosition, EffectiveSize, ResolveLogicalViewportSize(), ViewportMargin);
 		if(IsWorkspaceOwned()){
 			const FVector2D V=ResolveLogicalViewportSize();
-			NewPosition.Y=FMath::Clamp(NewPosition.Y,104.0,FMath::Max(104.0,V.Y-EffectiveSize.Y-16));
+			const double Top=ToolWorkspace->GetToolbarReservedTop();
+			NewPosition.Y=FMath::Clamp(NewPosition.Y,Top,FMath::Max(Top,V.Y-EffectiveSize.Y-ViewportMargin));
 		}
     }
     CurrentViewportPosition = NewPosition;
@@ -576,7 +591,12 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FT
 		 +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Bold",FMath::RoundToInt(18*GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(Title).ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절")))]
 		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text_Lambda([this](){return FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기"));}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]
 		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("숨김"))).ToolTipText(FText::FromString(TEXT("패널만 숨깁니다. 측정·송신·재생은 계속됩니다."))).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("배치"))).ToolTipText(FText::FromString(TEXT("이 패널의 위치와 크기만 초기화합니다."))).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);return FReply::Handled();})]
+		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
+		  .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
+		  .OnGetMenuContent_Lambda([this](){return SNew(SButton).ButtonStyle(&GetToolButtonStyle())
+		   .OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
+		   [SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))];})
+		  .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolMutedColor()).Text(NSLOCTEXT("SensorToolPanel","More","더보기"))]]
 		];
 	}
 	return SNew(SHorizontalBox)

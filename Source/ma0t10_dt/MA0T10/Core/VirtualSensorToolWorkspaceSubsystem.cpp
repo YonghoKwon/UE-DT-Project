@@ -21,6 +21,11 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=TEXT("MA0T10_SensorToolWorkspace_v1");
+float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight)
+{
+	const float Height=FMath::IsFinite(DesiredHeight)?DesiredHeight:48;
+	return 16+FMath::Clamp(Height,40.0f,FMath::Max(40.0f,ViewportHeight*.4f));
+}
 void UVirtualSensorToolWorkspaceSubsystem::SetCoordinator(AVirtualSensorCoordinator* C){Coordinator=C;}
 AVirtualSensorCoordinator* UVirtualSensorToolWorkspaceSubsystem::GetCoordinator() const{return Coordinator.Get();}
 void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& C)
@@ -54,7 +59,7 @@ void UVirtualSensorToolWorkspaceSubsystem::EnsureRoot()
 	Canvas=Root->WidgetTree->ConstructWidget<UCanvasPanel>();Root->WidgetTree->RootWidget=Canvas;
 	Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	Toolbar=CreateWidget<UUserWidget>(GetWorld(),USensorToolToolbarWidget::StaticClass());
-	auto* S=Canvas->AddChildToCanvas(Toolbar);S->SetPosition(FVector2D(16,8));S->SetSize(FVector2D(1000,88));S->SetZOrder(10000);
+	auto* S=Canvas->AddChildToCanvas(Toolbar);S->SetPosition(FVector2D(16,8));S->SetSize(FVector2D(1000,48));S->SetZOrder(10000);
 	RefreshHosting();
 }
 void UVirtualSensorToolWorkspaceSubsystem::RefreshHosting()
@@ -85,13 +90,13 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVector2D Size=Monitor?FVector2D(FMath::Min(1100.0,V.X*.65),FMath::Min(700.0,V.Y-120)):R==ESensorToolPanelRole::Data?FVector2D(760,580):R==ESensorToolPanelRole::Settings?FVector2D(460,640):FVector2D(580,520);
 	if(R==ESensorToolPanelRole::SlabCharts)Size=FVector2D(780,820);
 	if(R==ESensorToolPanelRole::SlabProgress)Size=FVector2D(520,420);
-	Size.X=FMath::Min(Size.X,V.X-32);Size.Y=FMath::Min(Size.Y,V.Y-120);
+	Size.X=FMath::Min(Size.X,V.X-32);Size.Y=FMath::Min(Size.Y,V.Y-ToolbarReservedTop-16);
 	P->SetPanelResizable(true);P->ResizeHandleSize=32;
 	P->SetPanelResizeLimits(R==ESensorToolPanelRole::SlabCharts?FVector2D(720,720):Monitor?FVector2D(480,300):FVector2D(360,280),FVector2D::ZeroVector);
 	FVirtualSensorPanelUiState S;S.bHasSavedSize=true;S.ExpandedSize=Size;
 	P->ApplyWorkspaceLayout(S);
 	const double Offset=static_cast<int32>(R)*24;
-	P->SetWorkspacePosition(Monitor?FVector2D(V.X-Size.X-16,104):FVector2D(16+Offset,104+Offset));
+	P->SetWorkspacePosition(Monitor?FVector2D(V.X-Size.X-16,ToolbarReservedTop):FVector2D(16+Offset,ToolbarReservedTop+Offset));
 }
 void UVirtualSensorToolWorkspaceSubsystem::RestorePanel(ESensorToolPanelRole R)
 {
@@ -160,6 +165,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetOwnedPanelFontScale(float S)
 {
 	if(!Preferences||!FMath::IsFinite(S))return;Preferences->FontScale=FMath::Clamp(S,.85f,1.5f);
 	for(auto& P:Panels)if(P.Value)P.Value->ApplySensorToolFontScale(Preferences->FontScale);Save();
+	if(Toolbar)Toolbar->InvalidateLayoutAndVolatility();
 }
 void UVirtualSensorToolWorkspaceSubsystem::UnregisterPanel(UVirtualSensorPanelWidgetBase* P)
 {if(P&&GetOwnedPanel(P->GetToolRole())==P){SavePanel(P->GetToolRole());Panels.Remove(P->GetToolRole());PendingInitialLayouts.Remove(P->GetToolRole());P->SetToolWorkspace(nullptr,P->GetToolRole());}}
@@ -173,8 +179,18 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 	if(Size.X>=320&&Size.Y>=200)
 	{
 		const bool SizeChanged=!Size.Equals(LastCanvasSize,1);
-		if(SizeChanged){LastCanvasSize=Size;if(auto* S=Cast<UCanvasPanelSlot>(Toolbar->Slot))S->SetSize(FVector2D(Size.X-32,88));}
-		for(const auto& P:Panels)if(SizeChanged||PendingInitialLayouts.Contains(P.Key))RestorePanel(P.Key);
+		const float DesiredTop=CalculateToolbarReservedTop(Toolbar->GetDesiredSize().Y,Size.Y);
+		const bool ToolbarChanged=!FMath::IsNearlyEqual(ToolbarReservedTop,DesiredTop,1.0f);
+		if(SizeChanged||ToolbarChanged)
+		{
+			LastCanvasSize=Size;ToolbarReservedTop=DesiredTop;
+			if(auto* S=Cast<UCanvasPanelSlot>(Toolbar->Slot))S->SetSize(FVector2D(Size.X-32,ToolbarReservedTop-16));
+		}
+		for(const auto& P:Panels)
+		{
+			if(SizeChanged||PendingInitialLayouts.Contains(P.Key))RestorePanel(P.Key);
+			else if(ToolbarChanged&&P.Value){P.Value->SetPanelExpandedSize(P.Value->GetPanelExpandedSize(),false);P.Value->RefreshHostedPanelLayout();}
+		}
 	}
 }
 void UVirtualSensorToolWorkspaceSubsystem::SynchronizeOwnedSelection()
