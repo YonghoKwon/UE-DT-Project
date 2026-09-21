@@ -2255,6 +2255,8 @@ FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+        if(IsWorkspaceOwned())return FString::Printf(TEXT("LiDAR %s · 프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
+            *LidarComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz,LidarComp->HorizontalSamples*LidarComp->VerticalChannels,Status.TotalPointCount,Status.HitPointCount);
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
             Status.FrameId,
             Status.MeasuredCompletionRateHz,
@@ -2265,6 +2267,8 @@ FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
     if (!bShowingLidar && CameraComp)
     {
         const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+        if(IsWorkspaceOwned())return FString::Printf(TEXT("Camera %s · 프레임 %lld · %.2f Hz\n해상도 %d × %d"),
+            *CameraComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz,CameraComp->CaptureResolution.X,CameraComp->CaptureResolution.Y);
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n해상도 %d × %d"),
             Status.FrameId, Status.MeasuredCompletionRateHz, CameraComp->CaptureResolution.X, CameraComp->CaptureResolution.Y);
     }

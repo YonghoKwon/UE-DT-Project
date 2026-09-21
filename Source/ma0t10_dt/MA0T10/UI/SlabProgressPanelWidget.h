@@ -3,6 +3,8 @@
 #include "VirtualSensorPanelWidgetBase.h"
 #include "SlabProgressPanelWidget.generated.h"
 class ASlabActor;
+struct FSlabSimulationStatus;
+struct FVirtualSlabSessionStatus;
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API USlabProgressPanelWidget : public UVirtualSensorPanelWidgetBase
@@ -19,4 +21,8 @@ private:
 	float RefreshAccumulator = 0;
 	float Progress = 0;
 	FString Summary, Detail, SensorStatus, SetupStatus;
+	static FText ResolveOwnedMovementState(const FSlabSimulationStatus& Simulation,const FVirtualSlabSessionStatus& Session);
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSlabProgressOutcomeTest;
+#endif
 };

@@ -576,6 +576,11 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeom
 	if(ToolWorkspace.IsValid())
 	{
 		ToolWorkspace->BringOwnedPanelToFront(ToolRole);
+		if(bPanelResizable&&!bPanelCollapsed&&E.GetEffectingButton()==EKeys::LeftMouseButton&&IsInResizeHandle(G,E.GetScreenSpacePosition()))
+		{
+			bResizingPanel=true;bDraggingPanel=false;
+			if(const auto W=GetCachedWidget())return FReply::Handled().CaptureMouse(W.ToSharedRef());
+		}
 		// DTCore's unrelated OpenWidgets list does not contain these owned panels.
 		// Its BringToFront would immediately overwrite our local z-order with 1.
 		return FReply::Unhandled();

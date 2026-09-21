@@ -8,6 +8,7 @@
 #include "Layout/Children.h"
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
@@ -91,5 +92,26 @@ bool FSlabDiagnosticMasterTest::RunTest(const FString&)
 	TestEqual(TEXT("yaw preference retained"),Restored.bYaw,S.bYaw); TestEqual(TEXT("margin preference retained"),Restored.bMargins,S.bMargins); TestEqual(TEXT("status preference retained"),Restored.bStatus,S.bStatus);
 	TestEqual(TEXT("master toggles do not allocate more render helpers"),Visual->GetOwnedHelperCount(),HelperCount);
 	Slab->Destroy(); return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabProgressOutcomeTest,"MA0T10.SensorUi.SlabProgressHonestOutcome",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSlabProgressOutcomeTest::RunTest(const FString&)
+{
+	FSlabSimulationStatus Simulation;Simulation.State=ESlabSimulationState::Completed;Simulation.RunUUID=TEXT("run-a");Simulation.DurationSec=30;Simulation.ElapsedSec=21.4;
+	FVirtualSlabSessionStatus Session;Session.RunId=Simulation.RunUUID;Session.State=EVirtualSlabSessionState::Draining;Session.bAborted=true;
+	TestEqual(TEXT("early stop while draining is not normal completion"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	Session.State=EVirtualSlabSessionState::Completed;Session.EndReason=EVirtualSlabSessionEndReason::Aborted;
+	TestEqual(TEXT("drained stop keeps stopped label"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	Session.RunId=TEXT("another-run");
+	TestEqual(TEXT("new session cannot turn an earlier partial run into completed"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	Simulation.ElapsedSec=30;
+	TestEqual(TEXT("unrelated abort cannot change complete movement"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("움직임 완료")));
+	Session.RunId=Simulation.RunUUID;
+	TestEqual(TEXT("explicit abort at end still reported honestly"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	Session.bAborted=false;Session.State=EVirtualSlabSessionState::Incomplete;Session.EndReason=EVirtualSlabSessionEndReason::StreamFailure;
+	TestEqual(TEXT("network failure is separate from completed movement"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("움직임 완료")));
+	Simulation.State=ESlabSimulationState::Failed;
+	TestEqual(TEXT("actual movement failure retains priority"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("실패")));
+	return true;
 }
 #endif

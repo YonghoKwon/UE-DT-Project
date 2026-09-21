@@ -19,6 +19,25 @@ namespace
 	ESlabInputUnit NextUnit(ESlabInputUnit U) { return U == ESlabInputUnit::Centimeters ? ESlabInputUnit::Millimeters : U == ESlabInputUnit::Millimeters ? ESlabInputUnit::Meters : ESlabInputUnit::Centimeters; }
 }
 void USlabProgressPanelWidget::BindSlabActor(ASlabActor* InSlab) { Slab = IsValid(InSlab) && InSlab->GetWorld() == GetWorld() ? InSlab : nullptr; RefreshAccumulator = 1; }
+FText USlabProgressPanelWidget::ResolveOwnedMovementState(const FSlabSimulationStatus& Simulation,const FVirtualSlabSessionStatus& Session)
+{
+	switch(Simulation.State)
+	{
+	case ESlabSimulationState::Playing:return LOCTEXT("OutcomePlaying","실행 중");
+	case ESlabSimulationState::Paused:return LOCTEXT("OutcomePaused","일시정지");
+	case ESlabSimulationState::Failed:return LOCTEXT("OutcomeFailed","실패");
+	case ESlabSimulationState::Completed:
+	{
+		const bool MatchingAbort=!Simulation.RunUUID.IsEmpty()&&Session.RunId==Simulation.RunUUID&&Session.bAborted;
+		// The movement enum intentionally retains Completed for a user stop. A newer
+		// sensor session must not erase the earlier run's visible early-stop outcome.
+		const bool EndedEarly=FMath::IsFinite(Simulation.DurationSec)&&FMath::IsFinite(Simulation.ElapsedSec)&&
+			Simulation.DurationSec>0&&Simulation.ElapsedSec+1.e-4<Simulation.DurationSec;
+		return MatchingAbort||EndedEarly?LOCTEXT("OutcomeStopped","중단됨"):LOCTEXT("OutcomeComplete","움직임 완료");
+	}
+	default:return LOCTEXT("OutcomeIdle","대기");
+	}
+}
 void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 {
 	Super::NativeTick(G, D);
@@ -27,8 +46,11 @@ void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 	RefreshAccumulator += D; if (RefreshAccumulator < .2f) return; RefreshAccumulator = 0;
 	if (!Slab) { Summary = TEXT("Slab Actor 연결 필요"); Detail.Empty(); SensorStatus.Empty(); Progress = 0; return; }
 	const auto S = Slab->GetSimulationStatus(); Progress = S.Progress;
-	const TCHAR* State = S.State == ESlabSimulationState::Playing ? TEXT("실행 중") : S.State == ESlabSimulationState::Paused ? TEXT("일시정지") : S.State == ESlabSimulationState::Completed ? TEXT("움직임 완료") : S.State == ESlabSimulationState::Failed ? TEXT("실패") : TEXT("대기");
-	Summary = FString::Printf(TEXT("%s · %s\n원본 frame %lld · 행 %d/%d · %.2f / %.2f초 (%.1f%%)"), State, *S.MtlNo, S.FrameNo, S.RowCount > 0 ? S.RowIndex + 1 : 0, S.RowCount, S.ElapsedSec, S.DurationSec, S.Progress * 100);
+	const auto* SessionSubsystem=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
+	const auto Session=SessionSubsystem?SessionSubsystem->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
+	FString State = S.State == ESlabSimulationState::Playing ? TEXT("실행 중") : S.State == ESlabSimulationState::Paused ? TEXT("일시정지") : S.State == ESlabSimulationState::Completed ? TEXT("움직임 완료") : S.State == ESlabSimulationState::Failed ? TEXT("실패") : TEXT("대기");
+	if(IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget)) State=ResolveOwnedMovementState(S,Session).ToString();
+	Summary = FString::Printf(TEXT("%s · %s\n원본 frame %lld · 행 %d/%d · %.2f / %.2f초 (%.1f%%)"), *State, *S.MtlNo, S.FrameNo, S.RowCount > 0 ? S.RowIndex + 1 : 0, S.RowCount, S.ElapsedSec, S.DurationSec, S.Progress * 100);
 	const auto Metrics = Slab->GetCurrentMetrics();
 	Summary += FMath::IsNearlyZero(Metrics.CenterOffsetCm, .001) ? TEXT("\n중심선 일치") : FString::Printf(TEXT("\n중심 이탈 %+.1f cm"), Metrics.CenterOffsetCm);
 	Summary += Metrics.bMarginsValid ? FString::Printf(TEXT(" · 좌/우 간격 %.1f / %.1f cm"), Metrics.MarginLeftCm, Metrics.MarginRightCm) : TEXT(" · 가드레일 N/A");
@@ -39,7 +61,7 @@ void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 		Detail += FString::Printf(TEXT("\n실제 크기: 길이 %.3fm · 폭 %.3fm · 두께 %.3fm\n무게 원본: %.1f (정보용, 물리 질량 미적용)"), R.Length * Scale, R.Width * Scale, R.Thickness * Scale, R.Weight);
 	}
 	SensorStatus = TEXT("센서 송신 세션 없음 · 관찰 전용 가능");
-	if (auto* C = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) { const auto T = C->GetSlabSensorSessionStatus(); if (!S.RunUUID.IsEmpty() && T.RunId == S.RunUUID) SensorStatus = FString::Printf(TEXT("센서 송신: %s · 미완료 %lld"), *T.Message, T.UnfinishedFrames); }
+	if(!S.RunUUID.IsEmpty()&&Session.RunId==S.RunUUID) SensorStatus=FString::Printf(TEXT("센서 송신: %s · 미완료 %lld"),*Session.Message,Session.UnfinishedFrames);
 }
 TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 {

@@ -228,9 +228,13 @@ TSharedRef<SWidget> USlabChartsPanelWidget::BuildChartCard(int32 I)
 		return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(10)
 		[SNew(SVerticalBox)
 		 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this,I](){return FText::FromString(FString::Printf(TEXT("%d. %s · %s"),I+1,*MetricLabel(SelectedMetrics[I]).ToString(),MetricUnit(SelectedMetrics[I])));})]
-		 +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this,I](){return FText::FromString(CurrentTexts[I]);}).ToolTipText_Lambda([this,I](){return FText::FromString(HoverTexts[I]);})]
-		 +SVerticalBox::Slot().AutoHeight()[Legend]
-		 +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(SBox).ToolTipText_Lambda([this,I](){return FText::FromString(HoverTexts[I]);}).HeightOverride_Lambda([this](){const double Scale=GetSensorToolFontScale();return FMath::Max(100.0*Scale,(GetEffectivePanelSize().Y-360.0*Scale)/3.0);})[Charts[I]->TakeWidget()]]
+		 +SVerticalBox::Slot().AutoHeight().Padding(0,4)
+		 [SNew(SHorizontalBox)
+		  +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this,I](){return FText::FromString(CurrentTexts[I]);}).ToolTipText_Lambda([this,I](){return FText::FromString(HoverTexts[I]);})]
+		  +SHorizontalBox::Slot().AutoWidth().Padding(12,0,0,0).VAlign(VAlign_Center)[Legend]]
+		 // Reserve the owned header/config/status, card titles and padding before dividing the plot budget.
+		 // Legacy cards keep their original geometry below. Very small/large-font panels may still scroll.
+		 +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(SBox).ToolTipText_Lambda([this,I](){return FText::FromString(HoverTexts[I]);}).HeightOverride_Lambda([this](){const double Scale=GetSensorToolFontScale();return FMath::Max(100.0*Scale,(GetEffectivePanelSize().Y-520.0*Scale)/3.0);})[Charts[I]->TakeWidget()]]
 		];
 	}
 	return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(10)
