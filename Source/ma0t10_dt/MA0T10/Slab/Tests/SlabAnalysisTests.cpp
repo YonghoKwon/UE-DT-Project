@@ -54,7 +54,7 @@ bool FSlabOverlayIsolationTest::RunTest(const FString&)
 	FSlabScenarioRow Row; Row.LeftAngle=-5; FSlabMetrics Metrics; Metrics.LeftAngle=-5; Metrics.bMarginsValid=true; Metrics.MarginLeftCm=-3; Metrics.MarginRightCm=20;
 	FSlabSimulationStatus Status; Status.FrameNo=12; Status.MtlNo=TEXT("TEST"); Status.ElapsedSec=.6; Status.DurationSec=30; Status.Progress=.02;
 	const FVector Size(1083,110,25); Visual->UpdateAnalysis(Row,Metrics,Status,Size,FTransform::Identity,-70,70,true);
-	TestEqual(TEXT("fixed pool maximum"),Visual->GetOwnedHelperCount(),USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxTextHelpers);
+	TestEqual(TEXT("fixed pool includes reusable label backgrounds"),Visual->GetOwnedHelperCount(),USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxTextHelpers+USlabVisualizationComponent::MaxLabelBackgrounds);
 	TArray<UPrimitiveComponent*> Parts; Slab->GetComponents(Parts); int32 Count=0;
 	for(auto* P:Parts) if(P!=Slab->SlabMesh)
 	{

@@ -10,6 +10,7 @@
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Notifications/SProgressBar.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/SBoxPanel.h"
 #define LOCTEXT_NAMESPACE "SlabProgressPanel"
 
@@ -99,6 +100,15 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		Toggle(LOCTEXT("Yaw", "기울기"), &FSlabAnalysisDisplaySettings::bYaw);
 		Toggle(LOCTEXT("Margins", "좌우 간격"), &FSlabAnalysisDisplaySettings::bMargins);
 		Toggle(LOCTEXT("Status", "3D 상태"), &FSlabAnalysisDisplaySettings::bStatus);
+		for(bool Text:{false,true})
+		{
+			Display->AddSlot()[SNew(SHorizontalBox)
+			 +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Text?LOCTEXT("TextSize","문자 크기 (px)"):LOCTEXT("LineSize","선 굵기 (px)"))]
+			 +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SSpinBox<float>).MinValue(Text?18.f:2.f).MaxValue(Text?56.f:12.f).Delta(1.f).MinDesiredWidth(80)
+			  .IsEnabled_Lambda([this](){return IsValid(Slab);}).Value_Lambda([this,Text](){const auto S=Slab?Slab->GetAnalysisDisplaySettings():FSlabAnalysisDisplaySettings();return Text?S.TextHeightPixels:S.LineWidthPixels;})
+			  .OnValueChanged_Lambda([this,Text](float V){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();if(Text)S.TextHeightPixels=V;else S.LineWidthPixels=V;Slab->SetAnalysisDisplaySettings(S);}})]];
+		}
+		Display->AddSlot()[SNewSensorTool(SButton).Text(LOCTEXT("ReadableReset","가독성 초기화")).OnClicked_Lambda([this](){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();S.LineWidthPixels=4;S.TextHeightPixels=28;Slab->SetAnalysisDisplaySettings(S);}return FReply::Handled();})];
 		return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
 		[SNew(SVerticalBox)
 		 + SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("Title", "Slab 진행"))]

@@ -59,7 +59,7 @@ public:
 			TArray<UStaticMeshComponent*> Meshes; Slab->GetComponents(Meshes);
 			int32 Helpers=0; for(auto* Mesh:Meshes) if(Mesh!=Slab->SlabMesh)
 			{++Helpers;Test->TestEqual(TEXT("helpers never enter CPU sensor traces"),Mesh->GetCollisionEnabled(),ECollisionEnabled::NoCollision);Test->TestTrue(TEXT("helpers excluded from camera/GPU sensor captures"),bool(Mesh->bHiddenInSceneCapture));}
-			Test->TestEqual(TEXT("bounded reusable analysis line pool"),Helpers,USlabVisualizationComponent::MaxLineHelpers);
+			Test->TestEqual(TEXT("bounded reusable lines and label backgrounds"),Helpers,USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxLabelBackgrounds);
 			Test->TestTrue(TEXT("pause accepted"),Slab->SetSimulationPaused(true));
 			PausedTime=Slab->GetSimulationStatus().ElapsedSec; PausedPose=Slab->GetActorTransform(); PauseAt=FPlatformTime::Seconds(); Stage=2; return false;
 		}
