@@ -4,6 +4,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
 #include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -772,6 +773,14 @@ void AVirtualSensorCoordinator::ApplyPointCloudOnlyVisibility()
         return;
     }
 
+    APlayerController* Controller = BoundMonitorWidget ? BoundMonitorWidget->GetOwningPlayer() : nullptr;
+    if (!Controller) Controller = World->GetFirstPlayerController();
+    if (!Controller || Controller->GetWorld() != World) return;
+    PointCloudOnlyViewController = Controller;
+    TSet<TWeakObjectPtr<UPrimitiveComponent>> AlreadyHidden;
+    AlreadyHidden.Reserve(Controller->HiddenPrimitiveComponents.Num());
+    for (const auto& Component : Controller->HiddenPrimitiveComponents) AlreadyHidden.Add(Component);
+
     for (TActorIterator<AActor> It(World); It; ++It)
     {
         AActor* Actor = *It;
@@ -789,28 +798,39 @@ void AVirtualSensorCoordinator::ApplyPointCloudOnlyVisibility()
                 continue;
             }
 
-            FVirtualSensorHiddenComponentState State;
-            State.Component = PrimitiveComp;
-            State.bWasHiddenInGame = PrimitiveComp->bHiddenInGame;
-            State.bWasVisible = PrimitiveComp->IsVisible();
-            HiddenComponentStates.Add(State);
-
-            PrimitiveComp->SetHiddenInGame(true);
-            PrimitiveComp->SetVisibility(false, true);
+            const TWeakObjectPtr<UPrimitiveComponent> Component(PrimitiveComp);
+            // Preserve somebody else's pre-existing hidden entry. SceneCaptures do
+            // not consume this PlayerController list, so GPU depth remains unchanged.
+            if (!AlreadyHidden.Contains(Component))
+            {
+                AlreadyHidden.Add(Component);
+                Controller->HiddenPrimitiveComponents.Add(Component);
+                OwnedViewHiddenComponents.Add(Component);
+            }
         }
     }
 }
 
 void AVirtualSensorCoordinator::RestorePointCloudOnlyVisibility()
 {
-    for (const FVirtualSensorHiddenComponentState& State : HiddenComponentStates)
+    if (APlayerController* Controller = PointCloudOnlyViewController.Get())
     {
-        if (State.Component)
+        // Remove one entry we inserted, not every matching/third-party entry.
+        // Compact once: repeated RemoveSingle would be quadratic in a large scene.
+        TSet<TWeakObjectPtr<UPrimitiveComponent>> RemainingOwned;
+        RemainingOwned.Reserve(OwnedViewHiddenComponents.Num());
+        for (const auto& Component : OwnedViewHiddenComponents) RemainingOwned.Add(Component);
+        int32 WriteIndex = 0;
+        for (const auto& Component : Controller->HiddenPrimitiveComponents)
         {
-            State.Component->SetHiddenInGame(State.bWasHiddenInGame);
-            State.Component->SetVisibility(State.bWasVisible, true);
+            if (RemainingOwned.Remove(Component) > 0) continue;
+            Controller->HiddenPrimitiveComponents[WriteIndex++] = Component;
         }
+        Controller->HiddenPrimitiveComponents.SetNum(WriteIndex, false);
     }
+    OwnedViewHiddenComponents.Reset();
+    PointCloudOnlyViewController.Reset();
+    // Retained reflected legacy field for compatibility, no longer populated.
     HiddenComponentStates.Reset();
 }
 
