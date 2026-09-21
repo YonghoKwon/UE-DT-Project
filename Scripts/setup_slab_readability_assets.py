@@ -27,6 +27,12 @@ if not font:
 for name, text in [('M_SlabAnalysisReadable', False), ('M_SlabTextReadable', True)]:
     path = ROOT + '/' + name
     if E.does_asset_exist(path):
+        if text:
+            existing = unreal.load_asset(path)
+            if abs(existing.get_editor_property('opacity_mask_clip_value') - .5) > .001:
+                existing.set_editor_property('opacity_mask_clip_value', .5)
+                M.recompile_material(existing)
+                E.save_loaded_asset(existing, only_if_is_dirty=False)
         unreal.log('READABLE_ASSET_PRESERVED ' + path)
         continue
     asset = T.create_asset(name, ROOT, unreal.Material, unreal.MaterialFactoryNew())
@@ -36,6 +42,7 @@ for name, text in [('M_SlabAnalysisReadable', False), ('M_SlabTextReadable', Tru
         return M.create_material_expression(asset, cls, -300, 0)
     if text:
         asset.set_editor_property('blend_mode', unreal.BlendMode.BLEND_MASKED)
+        asset.set_editor_property('opacity_mask_clip_value', .5)
         color = node(unreal.MaterialExpressionVertexColor)
         sample = node(unreal.MaterialExpressionFontSampleParameter)
         sample.set_editor_property('parameter_name', 'Font')

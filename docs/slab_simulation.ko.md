@@ -64,7 +64,33 @@ Editor와 Live Coding을 종료한 후 프로젝트 폴더에서 실행합니다
 
 그 다음 **Editor를 새로 실행**하세요. DTCore가 초기화 시 읽은 전문 테이블을 이전 Editor 세션이 계속 사용하게 두지 않습니다. 맵 스크립트는 이미 있는 검증맵을 덮어쓰지 않습니다. 운영 `SensorTestMap`도 저장하지 않습니다.
 
-입력 Topic은 고정 계약이 아닙니다. 기존 DTCore `UDTCoreSettings.WebSocketTopics`의 업무 Topic을 사용하세요. 테스트 발행기의 기본값은 `topic.cep.output.0`입니다. 다른 Topic을 사용하면 DTCore 구독 설정과 발행기의 `--topic`을 동일하게 맞추세요. 센서 출력용 Camera/LiDAR/PCD Topic 설정과는 별개입니다.
+현재 Slab 입력 Topic은 `topic.scenario`이며 테스트 발행기도 이를 기본값으로 사용합니다. DTCore `UDTCoreSettings.WebSocketTopics`에 이 Topic이 있는지 확인하세요. 다른 업무 구독은 삭제하지 않으며 코드가 공통 설정을 자동 변경하지 않습니다. 다른 Topic을 사용하면 구독 설정과 발행기의 `--topic`을 동일하게 맞추세요. Camera/LiDAR/PCD 송신 Topic과는 별개입니다.
+
+### 목록에는 들어오지만 수신 즉시 움직이지 않을 때
+
+수신 진입점은 **DTCore → `UFactoryAgentScenarioTC` → Slab DataSync** 또는 별도 연동 코드의 **`SlabActor.SubmitScenarioJson(Json)`** 중 하나만 사용합니다. Actor 진입 전에 `RegisterScenarioJson`을 별도로 호출하면 같은 UUID가 이미 보관되어 중복 실행 방지에 걸립니다. 설정을 고쳐 테스트할 때도 새 UUID를 사용하거나 목록의 재생 버튼을 이용하세요.
+
+`GetLastScenarioAdmissionStatus()`에서 자동 실행, 송신 없이 실행, 실행 중 보관, 중복, 거절을 구분할 수 있습니다. 원문을 출력하지 않는 `[SlabAdmission]` 로그에는 ReceiverId·Actor·UUID·요청/적용 출력·사유가 남습니다.
+
+신규 live 시나리오의 송신 구성(Coordinator, STOMP 모드/URL, 필요한 센서/TargetSensorId)이 부족하면 Slab 이동은 **송신 없는 관찰 세션**으로 진행합니다. 이 fallback은 센서를 시작·중지하거나 기존 독립 스트림을 변경하지 않습니다. 요청한 출력은 다음 실행을 위해 유지하며, 실행 중 설정을 복구해도 중간부터 자동 송신하지 않습니다. `TransmissionWarning`은 자세·pause 갱신 후에도 남습니다. 데이터 오류·중복 UUID·진행 중 세션은 이 fallback으로 우회하지 않습니다.
+
+이 준비 검사는 Broker 연결 성공이나 receipt를 보장하지 않습니다. 정상 송신 시작 후에는 제출·Broker 수락·실제 소비자 수신을 별도로 확인하세요. 회사 프로젝트의 실제 원인은 해당 코드/로그가 없으므로 확정하지 않았습니다.
+
+### 밝은 장면의 3D 분석 표시
+
+Slab 진행 → **세부 표시**에서 선 굵기(기본 4px, 2~12px)와 문자 크기(기본 28px, 18~56px)를 조절합니다. `가독성 초기화`는 두 크기만 초기화하며 개별 표시 선택은 유지합니다. 선 두께는 시점에 따라 월드 크기로 환산하며, 진단 재질만 노출 보정을 사용합니다. 맵 조명·Post Process는 변경하지 않습니다.
+
+문자는 Unlit 재질·어두운 배경판을 사용하고, 음수 Margin에는 `[침범]`을 표시합니다. Margin 양끝 눈금은 측정 구간을 구분하며 안전 판정을 추가하지 않습니다. 진단 선·문자·배경판은 충돌과 Camera/GPU LiDAR 캡처에서 제외합니다.
+
+다른 프로젝트로 이식할 때 `M_SlabAnalysisReadable`, `M_SlabTextReadable`, `F_SlabDiagnostics`도 Migrate하세요. 폰트는 한글 두 글자를 포함한 offline atlas이므로 실행 PC에 글꼴 설치가 필요하지 않습니다. 자산 재생성 스크립트 `setup_slab_readability_assets.py`를 실행하는 제작 PC에는 Malgun Gothic이 필요합니다. 기존 사용자 Slab 표면 재질은 덮어쓰지 않습니다.
+
+### 2026-09-22 후속 검증
+
+- 자동 실행/fallback 조건 3개, 최소 UI/소유권 관련 3개, 분석 표시·실제 RHI 격리 9개 집중 검사가 통과했습니다. Camera 픽셀 및 GPU depth/semantic의 표시 OFF/ON 차이는 0이었고 양성 대조군 변화도 확인했습니다.
+- 전체 자동화 168개 중 엔진 Success 166(조건부 skip 9 포함), Fail 2였습니다. 실패 중 과거 helper pool 기대값 37을 배경판 포함 42로 갱신하고 관련 3개를 재검증해 통과했습니다. 남은 운영맵 LiDAR 높이 fixture는 사용자 맵을 바꾸지 않고 실패로 기록했습니다.
+- 100,000 lux 임시 PIE에서 실제 마우스로 크기 조절·복원·`[침범]` 글자·간단 모니터·시나리오 기본 화면을 확인했습니다. 확보된 viewport는 내장 988×521, 별도 창 1174×683이며 목표 해상도 통과로 표기하지 않습니다.
+- 실제 PCD 30초 실행 두 번: 599/600개 제출·receipt·내부/외부 수신 일치, 약 20Hz, invalid/gap/duplicate/overflow 0. 평균 59.999/59.799 FPS, 1% low 59.940/45.019 FPS, p95 16.667ms. 자동화 viewport는 753×403입니다. 두 번째 실행의 1% low 저하는 별도 성능 변동으로 남기며 무회귀라고 단정하지 않습니다.
+- 최종 빌드, WBP 6개 메모리 컴파일, V2 자산 검사가 통과했습니다. 회사 프로젝트와 고정 DTCore gitlink의 clean checkout은 별도 미검증 범위입니다. 로컬 증거는 `Saved/Reports/SlabVisibility/report.ko.md`에 있습니다.
 
 ## 맵에서 배치하는 방법
 
@@ -239,13 +265,13 @@ Slab 차트 패널은 기울기(left/right), 실제 중심 이탈, 좌우 Margin
 node Tools/Artemis/publish_slab_scenario.mjs --generate-only true
 
 # DTCore가 구독 중인 로컬 Artemis Topic으로 전송
-node Tools/Artemis/publish_slab_scenario.mjs --topic topic.cep.output.0
+node Tools/Artemis/publish_slab_scenario.mjs --topic topic.scenario
 
 # 다른 입력 Topic 또는 UUID가 없는 입력 시험
 node Tools/Artemis/publish_slab_scenario.mjs --topic topic.virtual.agent.scenario.0 --without-uuid true
 
 # 실제 입력 파일을 그대로 전송
-node Tools/Artemis/publish_slab_scenario.mjs --input "C:\TestData\scenario.json" --topic topic.cep.output.0
+node Tools/Artemis/publish_slab_scenario.mjs --input "C:\TestData\scenario.json" --topic topic.scenario
 ```
 
 기본 접속은 `127.0.0.1:61616`이며 `--host`, `--port`로 바꿀 수 있습니다. 로컬 개발 기본 인증값 대신 다른 계정을 쓰면 `ARTEMIS_USER`, `ARTEMIS_PASSWORD` 환경변수로 제공합니다. 운영 비밀번호를 명령행·저장소에 넣지 마세요.

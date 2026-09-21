@@ -21,7 +21,7 @@ bool FSlabReadabilityTest::RunTest(const FString&)
 	auto* Font=LoadObject<UFont>(nullptr,TEXT("/Game/MA0T10/Slab/Materials/F_SlabDiagnostics.F_SlabDiagnostics"));TestNotNull(TEXT("portable diagnostic font asset"),Font);
 	if(Font){TestTrue(TEXT("Korean intrusion characters have real atlas mappings"),Font->CharRemap.Contains(uint16(TEXT('침')))&&Font->CharRemap.Contains(uint16(TEXT('범'))));float W=0,H=0;Font->GetCharSize(TEXT('침'),W,H);TestTrue(TEXT("Korean glyph has positive extent"),W>0&&H>0);}
 	for(const TCHAR* Name:{TEXT("M_SlabAnalysisReadable"),TEXT("M_SlabTextReadable")})
-	{auto* Mat=LoadObject<UMaterial>(nullptr,*FString::Printf(TEXT("/Game/MA0T10/Slab/Materials/%s.%s"),Name,Name));TestNotNull(TEXT("owned readable material exists"),Mat);if(Mat)TestTrue(TEXT("diagnostics are unlit"),Mat->GetShadingModels().HasShadingModel(MSM_Unlit));}
+	{auto* Mat=LoadObject<UMaterial>(nullptr,*FString::Printf(TEXT("/Game/MA0T10/Slab/Materials/%s.%s"),Name,Name));TestNotNull(TEXT("owned readable material exists"),Mat);if(Mat){TestTrue(TEXT("diagnostics are unlit"),Mat->GetShadingModels().HasShadingModel(MSM_Unlit));if(FString(Name).Contains(TEXT("Text")))TestEqual(TEXT("distance-field boundary prevents inflated glyphs"),Mat->OpacityMaskClipValue,.5f);}}
 	Slab->Destroy();return true;
 }
 #endif

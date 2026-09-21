@@ -104,7 +104,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		{
 			Display->AddSlot()[SNew(SHorizontalBox)
 			 +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Text?LOCTEXT("TextSize","문자 크기 (px)"):LOCTEXT("LineSize","선 굵기 (px)"))]
-			 +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SSpinBox<float>).MinValue(Text?18.f:2.f).MaxValue(Text?56.f:12.f).Delta(1.f).MinDesiredWidth(80)
+			 +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SSpinBox<float>).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",FMath::RoundToInt(16*GetSensorToolFontScale()));}).MinValue(Text?18.f:2.f).MaxValue(Text?56.f:12.f).Delta(1.f).MinDesiredWidth(80)
 			  .IsEnabled_Lambda([this](){return IsValid(Slab);}).Value_Lambda([this,Text](){const auto S=Slab?Slab->GetAnalysisDisplaySettings():FSlabAnalysisDisplaySettings();return Text?S.TextHeightPixels:S.LineWidthPixels;})
 			  .OnValueChanged_Lambda([this,Text](float V){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();if(Text)S.TextHeightPixels=V;else S.LineWidthPixels=V;Slab->SetAnalysisDisplaySettings(S);}})]];
 		}
