@@ -17,6 +17,20 @@ class UMaterialInstanceDynamic;
 class ASlabTrackReferenceActor;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSlabStateChanged);
 
+UENUM(BlueprintType)
+enum class ESlabScenarioAdmission : uint8 { None, Started, StartedWithoutTransmission, StoredOnlyBusy, Duplicate, Rejected };
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FSlabScenarioAdmissionStatus
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly) ESlabScenarioAdmission Result=ESlabScenarioAdmission::None;
+	UPROPERTY(BlueprintReadOnly) FString ScenarioUUID;
+	UPROPERTY(BlueprintReadOnly) FString RunUUID;
+	UPROPERTY(BlueprintReadOnly) FString Reason;
+	UPROPERTY(BlueprintReadOnly) FVirtualSlabSensorOutputSelection RequestedOutputs;
+	UPROPERTY(BlueprintReadOnly) FVirtualSlabSensorOutputSelection AppliedOutputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
+};
+
 /** Project-owned scenario Slab. DTCore components own input, movement and diagnostics. */
 UCLASS()
 class MA0T10_DT_API ASlabActor : public AFacilityBase,public ISlabScenarioPlaybackAdapter
@@ -32,6 +46,7 @@ public:
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool SetSimulationPaused(bool bPaused);
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") void StopSimulation();
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabSimulationStatus GetSimulationStatus() const { return Status; }
+	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabScenarioAdmissionStatus GetLastScenarioAdmissionStatus() const { return LastAdmission; }
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabMetrics GetCurrentMetrics() const;
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") bool IsSimulationActive() const;
 	UFUNCTION(BlueprintPure,Category="Slab|Configuration") ESlabInputUnit GetDimensionUnit() const { return DimensionUnit; }
@@ -82,6 +97,7 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabMetricsComponent> MetricsComponent;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> SurfaceInstance;
 	UPROPERTY(Transient) FSlabSimulationStatus Status;
+	UPROPERTY(Transient) FSlabScenarioAdmissionStatus LastAdmission;
 	FSlabScenarioDataPtr Scenario;
 	FTransform InitialTrackTransform;
 	int32 LastNotifiedIndex=INDEX_NONE;
@@ -98,4 +114,5 @@ private:
 	FVector GetSizeCm() const;
 	FTransform MakePose(const FSlabScenarioRow& Row) const;
 	void ReportFailure(const FString& Message);
+	void RecordAdmission(ESlabScenarioAdmission Result,const FString& ScenarioId,const FString& Reason);
 };

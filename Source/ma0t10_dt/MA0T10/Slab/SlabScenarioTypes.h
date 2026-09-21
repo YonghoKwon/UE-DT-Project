@@ -77,4 +77,6 @@ struct MA0T10_DT_API FSlabSimulationStatus
 	UPROPERTY(BlueprintReadOnly) float Progress=0;
 	UPROPERTY(BlueprintReadOnly) FString Message;
 	UPROPERTY(BlueprintReadOnly) bool bReplay=false;
+	/** Persists across pose/pause updates; distinct from movement and delivery state. */
+	UPROPERTY(BlueprintReadOnly) FString TransmissionWarning;
 };

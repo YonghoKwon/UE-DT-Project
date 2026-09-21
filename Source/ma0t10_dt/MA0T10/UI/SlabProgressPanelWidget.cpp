@@ -62,6 +62,7 @@ void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 	}
 	SensorStatus = TEXT("센서 송신 세션 없음 · 관찰 전용 가능");
 	if(!S.RunUUID.IsEmpty()&&Session.RunId==S.RunUUID) SensorStatus=FString::Printf(TEXT("센서 송신: %s · 미완료 %lld"),*Session.Message,Session.UnfinishedFrames);
+	if(IsWorkspaceOwned()&&!S.TransmissionWarning.IsEmpty())SensorStatus+=TEXT("\n주의: ")+S.TransmissionWarning;
 }
 TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 {

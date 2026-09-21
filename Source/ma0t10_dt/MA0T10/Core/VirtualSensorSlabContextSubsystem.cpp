@@ -54,6 +54,49 @@ FString UVirtualSensorSlabContextSubsystem::BeginScenarioSensorSession(const FSt
 	FGuid Id; if(!FGuid::Parse(ScenarioUUID,Id)||!Id.IsValid()) { Status.Message=TEXT("원본 시나리오 UUID가 필요합니다."); return FString(); }
 	return BeginSessionInternal(Run,Ids,Outputs,Id.ToString(EGuidFormats::DigitsWithHyphensLower));
 }
+bool UVirtualSensorSlabContextSubsystem::ValidateScenarioOutputs(const TArray<FString>& Ids,const FVirtualSlabSensorOutputSelection& Outputs,FString& Reason) const
+{
+	Reason.Empty();
+	if(!IsInGameThread()||!GetWorld()){Reason=TEXT("유효한 실행 월드가 없습니다.");return false;}
+	if(!Outputs.HasAnyOutput())return true;
+	TArray<AVirtualSensorCoordinator*> Managers;
+	for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)Managers.Add(*It);
+	if(Managers.Num()!=1){Reason=TEXT("송신에는 센서 Coordinator가 정확히 하나 필요합니다.");return false;}
+	const auto* Transport=Managers[0]->SharedTransportComponent.Get();
+	if(!Transport||Transport->TransportMode!=EVirtualSensorTransportMode::StompWebSocket||Transport->GetTransportProfile().BrokerUrl.IsEmpty())
+	{Reason=TEXT("STOMP 서버 설정이 적용되지 않았습니다. 연결·진단에서 설정을 적용하세요.");return false;}
+	TSet<FString> Found;bool Camera=false,Lidar=false;
+	for(auto* Sensor:Managers[0]->GetSensorActors())
+	{
+		if(!IsValid(Sensor)||(!Ids.IsEmpty()&&!Ids.Contains(Sensor->GetSensorId())))continue;
+		const FString Id=Sensor->GetSensorId();
+		if(Id.IsEmpty()||Found.Contains(Id)){Reason=TEXT("중복 또는 빈 SensorId입니다.");return false;}
+		Found.Add(Id);Camera|=Sensor->GetSensorKind()==EVirtualSensorKind::Camera;Lidar|=Sensor->GetSensorKind()==EVirtualSensorKind::Lidar;
+	}
+	for(const FString& Id:Ids)if(!Found.Contains(Id)){Reason=TEXT("요청한 SensorId를 찾을 수 없습니다: ")+Id;return false;}
+	if((Outputs.bPointCloud||Outputs.bLidarTelemetry)&&!Lidar){Reason=TEXT("선택한 출력에 필요한 대상 LiDAR가 없습니다.");return false;}
+	if(Outputs.bCameraImage&&!Camera){Reason=TEXT("선택한 출력에 필요한 대상 Camera가 없습니다.");return false;}
+	return true;
+}
+FString UVirtualSensorSlabContextSubsystem::BeginUnboundObservationSession(const FString& Run,const FString& ScenarioUUID)
+{
+	if(!IsInGameThread()||!GetWorld())return FString();
+	if(Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining)
+	{Status.Message=TEXT("진행 중인 세션이 있습니다.");return FString();}
+	FGuid RunGuid,ScenarioGuid;
+	if(!FGuid::Parse(Run,RunGuid)||!RunGuid.IsValid()||!FGuid::Parse(ScenarioUUID,ScenarioGuid)||!ScenarioGuid.IsValid())
+	{Status.Message=TEXT("유효한 실행·시나리오 UUID가 필요합니다.");return FString();}
+	const FString Id=RunGuid.ToString(EGuidFormats::DigitsWithHyphensLower);
+	if(UsedRunIds.Contains(Id)){Status.Message=TEXT("재실행에는 새로운 UUID를 사용하세요.");return FString();}
+	// Do not use BeginSessionInternal(..., {}, ObservationOnly): it claims all known
+	// sensors and stops their independent streams. This path owns no sensor at all.
+	Coordinator.Reset();Targets.Reset();PendingKeys.Reset();StartedSensors.Reset();InitialStreamErrors=0;
+	Status=FVirtualSlabSessionStatus();Status.RunId=Id;Status.State=EVirtualSlabSessionState::Ready;
+	Status.Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Status.bObservationOnly=true;
+	Status.CurrentSlab.RunId=Id;Status.CurrentSlab.ScenarioUUID=ScenarioGuid.ToString(EGuidFormats::DigitsWithHyphensLower);
+	Status.CurrentSlab.Generation=++Generation;Status.Message=TEXT("관찰 실행 · 첫 Slab 프레임 대기 중");UsedRunIds.Add(Id);
+	return Id;
+}
 FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& RequestedId,const TArray<FString>& Ids,const FVirtualSlabSensorOutputSelection& Outputs,const FString& ScenarioUUID,bool bRequireEachRequestedKind)
 {
 	if (!IsInGameThread() || !GetWorld()) return FString();

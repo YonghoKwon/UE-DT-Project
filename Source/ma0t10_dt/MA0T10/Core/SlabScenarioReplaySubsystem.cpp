@@ -80,12 +80,15 @@ void USlabScenarioReplaySubsystem::StoreValidated(FSlabScenarioSummary Summary,F
 }
 bool USlabScenarioReplaySubsystem::RegisterValidatedScenario(FSlabScenarioDataPtr Data)
 {
-	if(!IsInGameThread()||!bInitialized) return false;
+	if(!IsInGameThread())return false;
+	if(!bInitialized){RegistrationMessage=TEXT("시나리오 보관 서비스가 초기화되지 않았습니다.");return false;}
 	return RegisterValidatedScenarioAtSerial(MoveTemp(Data),++NextRegistrationSerial);
 }
 bool USlabScenarioReplaySubsystem::RegisterValidatedScenarioAtSerial(FSlabScenarioDataPtr Data,uint64 Serial)
 {
-	if(!IsInGameThread()||!bInitialized||!Data.IsValid()||Data->Rows.IsEmpty()||CanonicalId(Data->ScenarioUUID).IsEmpty()) return false;
+	if(!IsInGameThread())return false;
+	if(!bInitialized||!Data.IsValid()||Data->Rows.IsEmpty()||CanonicalId(Data->ScenarioUUID).IsEmpty())
+	{RegistrationMessage=TEXT("유효한 UUID·시나리오 행과 준비된 보관 서비스가 필요합니다.");return false;}
 	FSlabScenarioSummary Summary=MakeSummary(*Data);
 	if(const uint64* Cutoff=DeletedRegistrationCutoffs.Find(Summary.UUID)) if(Serial<=*Cutoff)
 	{ RegistrationMessage=TEXT("삭제 이전에 접수된 시나리오 등록 결과를 폐기했습니다."); OnRegistrationFinished.Broadcast(Summary.UUID,false,RegistrationMessage); return false; }

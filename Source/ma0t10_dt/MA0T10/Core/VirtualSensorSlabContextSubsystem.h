@@ -19,6 +19,11 @@ public:
 	FString BeginReplaySensorSession(const FString& RunId,const TArray<FString>& TargetSensorIds,const FString& ScenarioUUID,bool bSendPcd=false);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	FString BeginScenarioSensorSession(const FString& RunId,const TArray<FString>& TargetSensorIds,const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs);
+	/** Read-only configuration check; does not imply a Broker connection/receipt. */
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|SlabSensorSession")
+	bool ValidateScenarioOutputs(const TArray<FString>& TargetSensorIds,const FVirtualSlabSensorOutputSelection& Outputs,FString& Reason) const;
+	/** Motion-only fallback: never discovers, starts or stops sensors/streams. */
+	FString BeginUnboundObservationSession(const FString& RunId,const FString& ScenarioUUID);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool NotifySlabFrameApplied(const FString& RunId, const FString& MtlNo, int64 SlabFrameNo, double ElapsedSec);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
