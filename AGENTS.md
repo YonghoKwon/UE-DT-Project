@@ -1,95 +1,95 @@
-# AGENTS.md
+# 작업 지침 — UE-DT-Project
 
-이 문서는 저장소를 수정하는 개발자와 자동화 agent가 지켜야 할 작업 기준입니다.
+기준: UE 5.3, 기능 커밋 `f7bdd3b` / PR #26 병합 `0db2f63` (2026-09-22).
+이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
 
-## 프로젝트 기준
+## 1. 네 개의 관리 문서
 
-- Engine: Unreal Engine 5.3
-- Runtime module: `ma0t10_dt`
-- Editor module: `ma0t10_dtEditor`
-- Content root: `/Game/MA0T10`
-- 운영 테스트맵: `/Game/MA0T10/Maps/SensorTestMap`
-- V2 회귀맵: `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap`
-- 맵 생성 source of truth: `Scripts/setup_sensor_test_map.py`
+| 문서 | 책임 |
+|---|---|
+| [AGENTS.md](AGENTS.md) | 권한·보호 범위·구현 경계·검증 및 완료 규칙 |
+| [README.md](README.md) | 현재 구현·설치/사용·입출력 계약·최신 검증 요약 |
+| [보완 필요 사항](docs/IMPROVEMENTS.md) | 우선순위·근거·재현·개별 완료 기준 |
+| [최종 목표 로드맵](docs/ROADMAP.md) | 단계별 의존 관계·플러그인 경계·출시 gate |
 
-## 변경 금지 범위
+- `Agent.md`를 별도 생성하지 않는다. 기존 `docs` 문서는 경로를 보존한 고정 참고자료다. 오래된 UI/성능 설명보다 현재 코드와 README를 우선한다.
+- 보완 목록/로드맵에 있다는 이유만으로 전부 구현하지 않는다. 요청한 항목과 직접 관련된 회귀만 처리한다.
+- 설명·진단·검토는 읽기 전용, 문서 작성은 문서만, 기능 구현은 해당 기능만 변경한다.
+- 범위 안의 조사·명확한 구현·비파괴 테스트를 매번 재승인받지 않는다. 중요한 동작 정책이 미정이거나 보호 대상 변경이 필요할 때 질문한다. 코드에서 알 수 있는 사항은 먼저 조사한다.
+- 환경 때문에 한 검증이 막혀도 가능한 검증은 계속한다. 기능 완료는 구현·관련 검증·문서·제한 보고까지이며, 미수행을 통과로 바꾸지 않는다.
 
-- 사용자 요청 없이는 `Plugins/DTCore` 내부와 parent gitlink를 수정하거나 stage하지 않습니다.
-- 로컬 override인 `Config/Game.ini`를 수정하거나 stage하지 않습니다.
-- `Binaries`, `Intermediate`, `Saved`, `.vs`, packaged 결과를 커밋하지 않습니다.
-- 사용자 worktree의 기존 변경을 되돌리거나 덮어쓰지 않습니다.
-- `SensorTestManaged` 태그가 없는 맵 Actor와 Mesh를 삭제·이동하지 않습니다.
+## 2. 보호·승인 규칙
 
-## Sensor V2 경계
+- 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
+- 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
+- DTCore는 별도 개발 중이다. 프로젝트 측 adapter로 해결하고, 공통 플러그인 수정이 필수라면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
+- `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
+- `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.
+- destructive reset/checkout, 재귀 삭제, 서비스 재시작, Broker 설정 변경을 통상 구현 단계로 추정하지 않는다. 필요하면 구체적으로 확인한다.
+- 커밋이 요청 범위에 포함된 작업은 관련 검증 후 의미 단위로 커밋한다. 명시적 파일 목록을 stage하고 `git add -A`를 기본으로 사용하지 않는다. 문서 작업은 문서 변경만 묶는다. 문서 작성 요청만으로 커밋·외부 게시 권한을 새로 부여하지 않는다.
+- push·PR·merge는 별도 요청 범위대로만 수행한다. PR 요청은 해당 브랜치 push/PR 생성을 포함하지만 master 직접 merge는 포함하지 않는다.
+- 새 지침·로드맵은 위 권한을 확대하지 않는다. 보호 규칙 완화가 필요하면 변경과 영향을 먼저 사용자에게 알린다.
 
-- UI, Source, Gizmo는 Capture/Scan Component의 public 필드를 직접 변경하지 않습니다.
-- 설정은 Actor의 `ReadEditableState`, `ValidateEditableState`, `ApplyEditableState` 경로를 사용합니다.
-- 외부 프레임은 Actor의 `SubmitExternalFrame`을 우선 사용합니다. component 직접 주입은 호환성 테스트 fallback에만 둡니다.
-- 출력은 `UVirtualSensorOutputComponent`에서 Transport·Recorder로 라우팅하며 같은 SensorId/frame ID를 중복 출력하지 않습니다.
-- Camera와 LiDAR가 함께 사용하는 Subsystem은 `MA0T10/Core`에 둡니다. 자동 측정은 `UVirtualSensorSchedulerSubsystem`을 사용하며 수동 1회 측정 API의 동기 호환성은 유지합니다.
-- `virtual-camera.v1`, `virtual-lidar.v1`, FullSpec 규격, 저장 경로와 export 포맷을 변경할 때는 계약 테스트와 문서를 함께 갱신합니다.
-- 기존 센서 송신 Body에는 `MESSAGE_ID`가 없습니다. 에디터 자체 수신 진단은 `DT_TransactionCode`에 등록하거나 송신 계약을 바꾸지 말고, `UDxWebSocketSubsystem`의 Topic 직접 구독과 세 전용 `UTransactionCodeMessage` Handler를 유지합니다.
-- Topic 수신 진단은 검증·로그 전용입니다. 수신 결과를 `SubmitExternalFrame`에 전달하거나 Transport로 다시 보내 재주입·재송신 루프를 만들지 않습니다.
-- 수신 파싱은 Camera/LiDAR Topic별 처리 중 1개와 최신 대기 1개를 유지합니다. Binary PCD 수신은 최대 20개 FIFO이며 초과 시 교체하지 않고 오류로 처리합니다. 전체 동시 파싱은 최대 2개이고 전체 Payload, Base64 또는 binary body를 로그에 출력하지 않습니다.
-- FullSpec 3-stream 고성능 경로는 `UVirtualSensorHighThroughputTransportSubsystem`의 Raw TCP STOMP worker를 사용합니다. 대용량 body 조립·socket send·receipt·자체 수신 검증을 게임 스레드로 되돌리지 않습니다.
-- 고성능 Camera body는 원본 JPEG `virtual-camera.jpeg.v1`, LiDAR body는 포인트 배열 없는 `virtual-lidar.telemetry.v1`, Point Cloud body는 `virtual-pointcloud.pcd.v1` Binary PCD입니다. 기존 v1 Base64 JSON은 호환 backend에서만 유지합니다.
-- `wss://`는 TLS가 필요한 Engine STOMP compatibility fallback입니다. Raw TCP 성능 보장 대상으로 표기하지 않으며, 사용자가 선택한 보안 연결을 임의로 평문 TCP로 바꾸지 않습니다.
-- 스트림 성능 테스트는 acquisition, encode/serialization, submit, receipt, consumer receive를 별도 집계합니다. 평균 FPS만으로 통과시키지 말고 세 스트림의 Hz, gap, invalid, overflow와 내부·외부 수신 결과를 함께 판정합니다.
+## 3. 구현 경계
 
-## UI 기준
+### 센서·측정·비동기 수명
 
-- V2 패널 native parent는 각각 `UVirtualSensorMonitorPanelWidget`, `UVirtualSensorSettingsPanelWidget`, `UVirtualSensorCaptureExportPanelWidget`입니다.
-- 공통 base `UVirtualSensorPanelWidgetBase : UDxWidget`가 drag, DPI clamp, 접기, 위치 복원을 담당합니다.
-- Monitor와 CaptureExport는 공통 base의 자유 resize를 활성화합니다. 오른쪽 아래 grip, DPI 보정, 화면 clamp, 접힘 시 확장 크기 보존과 UI SaveGame v6 복원을 함께 유지합니다.
+- Runtime은 `ma0t10_dt`, Editor는 `ma0t10_dtEditor`, 조기 초기화는 `ma0t10_dtBootstrap` 모듈이다. 센서 기능은 아직 독립 플러그인이 아니다.
+- DTCore `AInteractableActor → AVirtualSensorActorBase → Camera/LiDAR Actor` 계층을 유지한다. 공용 센서 Subsystem은 `MA0T10/Core`에 둔다.
+- UI/Source/Gizmo는 Capture/Scan 필드를 직접 변경하지 않는다. Actor의 `ReadEditableState`, `ValidateEditableState`, `ApplyEditableState` 및 interaction API를 사용한다.
+- 외부 입력은 `SubmitExternalFrame`을 사용한다. 측정·출력·진단 수신을 분리하고 진단 결과를 다시 센서/Transport에 주입하지 않는다.
+- 자동 측정은 Scheduler, 수동 동기 API는 호환 경로다. 새 native UI의 파일 저장은 FileSave/PeriodicFileSave 비동기 서비스를 사용하며 숨겨진 동기 스캔을 추가하지 않는다.
+- acquisition Transform·FrameId·UTC·revision·context는 immutable snapshot으로 끝까지 전달한다. 송신 당시 최신 Transform/Slab 상태로 덮어쓰지 않는다.
+- 비동기 결과는 weak ownership과 generation/revision을 검사한다. PIE 종료·삭제·설정 변경 뒤 결과를 적용하지 않는다. worker/socket/readback/file writer 종료도 검증한다.
+- 조작 임시 품질과 원설정 복원을 유지한다. Esc·선택 변경·패널 숨김·종료를 함께 검증한다. 현재 Esc 경계 문제는 IMPROVEMENTS의 RT-02를 참조한다.
 
-### ML-X(80), 캡처와 듀얼 카메라
+### 송신·PCD·세션
 
-- 기존 `IYOBOT_MLX80`은 Integration 200 호환 프로필(200×56)이고 `IYOBOT_MLX80_NATIVE`는 공개 사양 해석 기반 원본 배열(576×56)입니다. 두 enum의 기존 직렬화 순서를 바꾸지 않습니다. 둘 다 FullSpec 0.05초, 15,000cm, 80°, -11.65°~11.65°를 유지합니다.
-- 프로필/품질 변경은 Actor의 단일 설정 트랜잭션으로 적용하고 한 번만 재예약합니다. 직접 물리 값을 편집한 경우 품질을 Custom으로 표시합니다.
-- 로컬 캡처 간격은 Topic 전송 간격과 분리합니다. 시간 지정 캡처는 최신 완료 snapshot을 저장하며 동기 측정을 반복하지 않습니다.
-- Point Cloud 스트림 포맷, 로컬 캡처 포맷, 수동 내보내기 포맷은 서로 독립된 상태입니다. 포맷 revision이 바뀌면 이전 비동기 결과를 적용하지 않습니다.
-- 실시간 Point Cloud는 `virtual-pointcloud.pcd.v1` raw PCD `DATA binary`로 고정합니다. Base64/JSON 호환 경로는 기존 API에만 남기고 새 실시간 UI에서 사용하지 않습니다.
-- `ConnectedNoLoss`는 센서별 입력/완료 FIFO와 receipt body를 최대 20개씩 보존합니다. 큐 초과 시 최신 프레임으로 교체하지 말고 명시적 오류로 중지하며 Camera/LiDAR JSON의 최신 프레임 정책과 섞지 않습니다.
-- `PointCloudTarget` Actor Tag 및 Semantic/ROI 필터는 Digital Twin 확장입니다. 실제 ML-X 하드웨어 기능이나 제조사 패킷이라고 표기하지 않습니다.
-- 듀얼 카메라는 기존 RenderTarget을 공유하고 추가 캡처/readback을 만들지 않습니다. 주 카메라만 Coordinator 선택과 동기화하고 보조 카메라는 보기 전용으로 유지하며 동일 SensorId를 거부합니다.
-- `SensorRefactorTestMap`은 관리 대상 `VCAM-TEST-001`과 수직 하향 `VCAM-TEST-002`를 포함합니다. 운영 `SensorTestMap`과 사용자 비관리 Actor에는 두 번째 카메라를 자동 추가하지 않습니다.
-- `ELidarMonitorProjectionMode`는 SaveGame/Blueprint 직렬화 호환 타입입니다. 기존 enum 값의 순서를 바꾸지 말고 새 투영은 항상 마지막에 추가합니다. 센서 로컬 `TopDown`과 센서 회전과 무관한 `WorldTopDown`의 좌표 의미를 섞지 않습니다.
-- `UVirtualSensorPanelHostComponent`는 Main `AddWidgetPanel`을 우선 사용하고 Viewport fallback을 제공합니다.
-- 접기는 실제 Canvas slot 또는 viewport desired height를 약 48px로 줄여 빈 hit-test 영역을 남기지 않아야 합니다.
-- native fallback UI와 사용자 WBP의 optional binding/API를 함께 유지합니다. 동일 버튼을 Blueprint Event Graph에 중복 연결하지 않습니다.
-- 사용자 노출 문구는 한글을 기본으로 하되 SensorId, FOV, JPEG, JSONL 같은 기술 용어는 유지합니다.
+- 고성능 경로는 Raw TCP STOMP worker다. 대용량 body 조립·socket I/O·검증을 게임 스레드로 되돌리지 않는다. `wss://` 보안 선택을 평문으로 바꾸지 않는다.
+- 일반 JSON/업무 전문은 DTCore를 활용한다. Binary PCD/JPEG를 BodyString에 맞추려고 Base64로 바꾸지 않는다. 진단 Topic을 `MESSAGE_ID` 업무 분배에 임의 등록하지 않는다.
+- 기존 v1 JSON, binary JPEG/telemetry/PCD 계약과 Blueprint API를 유지한다. 계약 변경 시 버전·adapter·fixture·문서를 함께 제공한다.
+- Binary PCD XYZ는 센서 로컬 meter, X 전방/Y 좌측/Z 위쪽이다. 33-byte little-endian 명시적 레코드이며 구조체 padding을 사용하지 않는다. 월드 복원은 snapshot의 `sensor_to_world_m`를 따른다.
+- 센서 FrameId, Slab frame_no, 시나리오 UUID, 실행 UUID를 구분한다. `MA0T10_META`와 기존 STOMP 연계 헤더 의미를 보존한다.
+- acquisition 생략, 파생 프레임 교체, 송신 오류, Broker receipt, 소비자 수신/업무 ACK를 따로 집계한다. receipt는 소비자 처리 완료가 아니다.
+- ConnectedNoLoss는 정상 연결 중 FIFO 정책이다. 무한 큐나 조용한 교체로 부하를 숨기지 않는다. Raw receipt 대기 상한 연결은 RT-01 보완 대상이다.
+- 비밀번호·토큰·원본 대용량 body를 로그/SaveGame에 남기지 않는다. 미지원 TLS/영구 보존/업무 ACK를 지원 완료로 표시하지 않는다.
 
-## 맵과 자산
+### Slab
 
-- 먼저 `setup_sensor_refactor_test_map.py`로 V2 전용 회귀맵을 검증합니다.
-- 검증 후 `setup_sensor_test_map.py`로 운영 테스트맵의 관리 Actor만 교체합니다.
-- 새 WBP를 생성하고 맵을 저장한 뒤에만 구 WBP를 삭제합니다.
-- `.umap`, `.uasset`을 raw binary patch하지 말고 Unreal Editor Python이나 Editor API로 생성·저장합니다.
-- Slab mesh는 자동 생성하지 않습니다.
+- 수신은 DTCore → `UFactoryAgentScenarioTC` → DataSync → Actor 또는 `SubmitScenarioJson` 한 경로다. archive 등록을 선행 중복 호출하지 않는다.
+- 현재 입력 Topic은 `topic.scenario`, MESSAGE_ID는 `IFactory-agent`다. 다른 업무 구독을 제거하거나 공유 설정을 자동 덮어쓰지 않는다.
+- `USlabMotionComponent`가 World time/보간을 소유한다. 자세 적용 뒤 원본 행 경계에서 context를 알리며 행마다 센서 스캔을 호출하지 않는다.
+- 신규 벌크는 기본 PCD만, replay는 기본 관찰 전용이다. 명시적 선택은 보존한다. 준비 실패 fallback은 센서/독립 스트림을 건드리지 않는 unbound observation이다.
+- 중복/오류/busy/drain을 fallback으로 우회하지 않는다. 실행 중 새 벌크는 보관만 하고 자동 큐에 넣지 않는다. 중간부터 자동 송신하지 않는다.
+- 원본 JSON·최대 10개 메모리 보관·삭제 보호를 유지한다. 재실행은 새 RunUUID를 사용한다. 영상 복원·영구 replay와 혼동하지 않는다.
 
-## 다른 프로젝트 이식 기준
+### UI·자산
 
-- Sensor V2를 다른 프로젝트로 옮길 때 C++ 파일 복사와 `ma0t10` 일괄 치환만으로 완료됐다고 판단하지 않습니다. C++ 모듈, DTCore 의존성, Content 자산, soft object path, Editor 도구를 각각 검사합니다.
-- 현재 DTCore 결합 지점은 `AInteractableActor`, `UStatusVisualizerCompBase`, `UDxWidget`, `UDxWidgetSubsystem`입니다. 대상 프로젝트가 DTCore를 사용하지 않으면 동일 역할의 base/interface와 Viewport host를 먼저 제공해야 합니다.
-- 모듈명을 변경하면 include prefix, `*_API` export macro, `/Script/<Module>` class path, Build.cs 의존성을 함께 변경합니다. `MA0T10`이라는 단순 source 하위 폴더명은 기능상 필수 변경 대상이 아닙니다.
-- `/Game/MA0T10` 자산은 Unreal Editor의 Migrate 또는 Editor API로 이전합니다. `.uasset`을 파일 탐색기로 개별 복사하거나 binary patch하지 않습니다.
-- 최소 이전 자산은 세 V2 WBP, `NS_VirtualLidarPointCloud`, `M_VirtualLidarPointSprite`이며 Asset Registry에서 누락된 dependency가 없는지 확인합니다.
-- 임의 레벨의 기본 구성은 `AVirtualSensorCoordinator` 1개, 필요한 Camera/LiDAR Actor, `AVirtualSensorUiHostActor` 1개입니다. 외부 입력이 필요할 때만 `AVirtualSensorExternalSourceHostActor`를 추가합니다.
-- `/Game/MA0T10/Maps/SensorTestMap`에 고정된 PIE→Editor 영구 저장 기능을 다른 Map에 그대로 적용하지 않습니다. 저장 대상은 설정 가능한 soft path로 바꾸거나 대상 프로젝트에서 명시적으로 비활성화합니다.
-- 새 프로젝트가 기존 Blueprint/Map 자산을 가져오지 않는다면 MA0T10 구 클래스용 CoreRedirect를 불필요하게 복사하지 않습니다. 기존 자산을 마이그레이션할 때만 실제 old/new module 경로로 redirect를 작성합니다.
-- 여러 프로젝트에서 재사용할 구현은 `DTVirtualSensorRuntime`, `DTVirtualSensorEditor`, plugin Content로 분리하는 것을 기본 방향으로 삼습니다. 프로젝트별 이름 치환보다 안정적인 plugin mount path와 설정 객체를 우선합니다.
-- 플러그인화할 때 WBP/Niagara 경로, 저장 대상 Map, UI SaveGame 슬롯, 캡처 저장 루트, 전송 Topic을 hard-coded `/Game/MA0T10` 값으로 두지 않고 설정 또는 soft object property로 노출합니다.
-- 이식 검증에는 대상 프로젝트 Editor Development 빌드, WBP compile, Niagara 로드와 CPU fallback, Coordinator의 센서 발견, UI Host의 Main/Viewport fallback, Capture/Export, PIE 종료 정리를 포함합니다.
+- Host가 명시적으로 등록한 6개 패널만 스타일·폰트·배치·초기화 대상이다. 공통 부모 상속만으로 등록하지 않는다.
+- 동료 Widget·중첩 외부 UserWidget·Main·엔진 Slate 스타일/DPI를 일괄 변경하지 않는다. Designer·optional binding·기존 enum 순서를 보존한다.
+- 숨김은 파괴나 송신/저장/재생 중지가 아니다. 설정 숨김은 조작 모드만 종료한다. Main Canvas/Viewport 재호스팅은 같은 인스턴스를 유지한다.
+- Workspace v1(창), SensorUI v6(센서 표시/출력), Appearance v1(이전 폰트)의 책임을 구분한다. 새 기능을 위해 기존 저장값을 삭제하지 않는다.
+- resize는 DPI·경계·최소 크기·접기 전 크기 복원을 검증한다. 진단 문자열은 최대 5Hz, 숨긴 상세 문자열 조립은 줄인다.
+- 포인트 전용은 선택 플레이어 뷰만 숨긴다. 전역 visibility로 Camera/GPU LiDAR를 오염시키지 않는다.
+- Slab 진단 선·문자·배경판은 충돌/SceneCapture/GPU 분류/그림자·반사 측정에서 제외한다.
+- `.umap`/`.uasset`은 Unreal API로 작업한다. 생성 스크립트는 필요할 때만 대상/관리 범위를 확인해 실행한다. 일반 빌드·검증을 위해 운영맵을 매번 재생성하지 않는다.
 
-## 검증 순서
+## 4. 검증과 완료 보고
 
-1. Unreal Editor와 Live Coding을 종료합니다.
-2. `ma0t10_dtEditor Win64 Development`를 빌드합니다.
-3. V2 회귀맵 생성 후 `MA0T10.SensorV2` 자동화 테스트를 실행합니다.
-4. 운영 테스트맵 갱신 후 WBP compile과 Asset Registry 참조를 확인합니다.
-5. `rg`에서 구 타입 참조가 CoreRedirect와 마이그레이션 문서 외 0건인지 확인합니다.
-   `Scripts/validate_sensor_v2_refactor.ps1 -RequireAssets`를 사용합니다.
-6. 1920×1080과 1280×720 PIE에서 패널 재호스팅·실제 크기 접기·설정·디버그·캡처·내보내기·맵 저장을 확인합니다.
-7. 커밋 전 `git diff --check`와 `git status --short`로 금지 범위가 stage되지 않았는지 확인합니다.
+1. 문서 변경은 링크·경로·코드/증거 일치와 `git diff --check`를 검사한다. 문서만 바꿨다는 이유로 전체 빌드를 반복하지 않는다.
+2. C++ 변경은 Editor/Live Coding 정상 종료 후 UE 5.3 Development를 빌드한다. 관련 자동화를 먼저, 전체 회귀는 통합 시 수행한다.
+3. WBP·자산 검사는 가능한 읽기/메모리 컴파일로 한다. 테스트를 맞추려고 보호된 맵을 저장하지 않는다.
+4. RHI/GPU/성능은 실제 RHI로 검사한다. NullRHI skip, Success 안의 skip, 다른 SHA의 옛 결과를 실제 통과로 세지 않는다.
+5. UI는 Computer Use로 직접 조작하고 실제 client viewport/DPI·폰트 배율을 기록한다. 자동 캡처와 마우스 검증을 구분한다.
+6. 동일 SHA/의존성/맵/프로필/센서 수/backend/출력/UI/warmup을 기록한다. engine frame과 callback wall pacing을 구분하고 0Hz 센서를 평균에서 빼지 않는다.
+7. acquisition/encode/submit/receipt/내부 검증/외부 수신 수·Hz·gap·invalid·overflow·메모리/큐를 대조한다. 운영맵 fixture와 신규 회귀를 구분한다.
+8. 종료·취소·선택 변경·반복 실행·재호스팅·미등록 Widget 불변을 검사한다. 테스트한 개인 UI 저장값은 백업 후 복원한다.
+9. 수행·실패·skip·미수행, 커밋, 보호 경로, 다음 필요한 작업을 보고한다. 증거는 `Saved/Reports`, 재현 조건/요약은 관리 문서에 남긴다.
 
-IDE 빌드에서 `Unable to build while Live Coding is active`가 나오면 Editor를 종료하거나 Editor 안에서 `Ctrl+Alt+F11`로 Live Coding을 종료한 다음 다시 빌드합니다.
+## 5. 플러그인화 후속 규칙
+
+- DTCore 필수 의존을 유지한다. Slab 업무·Topic·차트는 host에 남기고 중립적 extension API로 연결한다.
+- 플러그인이 host `ma0t10_dt`를 역참조하지 않게 먼저 경계를 정리한다. Runtime 편집 상태를 UI에 둔 채 순환 의존을 만들지 않는다.
+- 자산·맵·저장 슬롯·프로필 기본값을 설정화하고 기존 enum/API/PCD를 adapter로 보존한다.
+- 한 Actor 진입점은 GameMode/GameInstance/Main/Broker/전역 WebSocket 정책을 몰래 교체하지 않는다. 자신이 생성·시작한 자원만 정리한다.
+- 단계·완료 gate는 ROADMAP을 따른다. DTCore 업데이트는 별도 승인된 단계이며 미래 기능을 현재 구현처럼 설명하지 않는다.
