@@ -1,223 +1,267 @@
-# UE-DT-Project
+# UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-> **DTCore Slab 시뮬레이션**: 벌크 JSON을 받아 보간 이동·분석 표시·자체 Slate/UMG 차트·진행률·재실행을 제공합니다. 기울기·중심 이탈·좌우 Margin의 **3개 차트를 진행한 시점까지만** 표시하며, 재생 목록에서 전체 UUID 복사와 보호된 개별 삭제를 지원합니다. 기본 표면은 얼룩 없는 냉각/고온 금속입니다. 신규 벌크는 **PCD만 기본 송신**, Camera 이미지와 LiDAR 정보는 선택 사항이고 저장 목록 재생은 관찰 전용이 기본입니다. 다른 맵 연결, 단위(cm 기본 / 검증맵 치수 mm), Topic 테스트와 API는 [Slab 시뮬레이션 가이드](docs/slab_simulation.ko.md)를 참고하세요. 테스트용 `SlabScenarioValidationRig`는 운영맵에 옮기지 않습니다.
+현재 기능 기준: **`f7bdd3b` / PR #26 병합 `0db2f63`, 2026-09-22**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
-> 센서 도구는 **선택 센서 / 센서 도구 / Slab 도구 / UI 표시** 메뉴로 6개 등록 패널을 관리합니다. 기본 화면을 간소화하고 데이터 패널의 **새 프레임·현재 프레임·주기 파일 저장**을 비동기 월드 서비스로 분리했습니다. 고급 옵션·저장 API·동료 Widget 영향 격리와 검증 상태는 [UI Workspace 가이드](docs/sensor_tool_workspace.ko.md)를 참고하십시오.
+**아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
-> Slab 벌크 JSON을 실행 중 최근 10개 보관하는 기존 API·외부 재생 adapter는 [시나리오 재생 가이드](docs/slab_scenario_replay.ko.md)를 참고하십시오. 기존 `RegisterScenarioJson`은 `_meta.UUID`를 요구하며, 신규 Slab 입력 경로는 원문을 보존하면서 누락 UUID에 내부 보관 ID를 부여합니다. 새 `ASlabActor`는 운영 adapter를 자체 등록합니다.
+## 관리 문서 4개
 
-> PR #16 기반의 **세 센서 패널 전용 글자 배율**, **실시간 PCD 진입점 정규화**, **Slab 시뮬레이션 시작·프레임 적용·종료 연동 함수**는 [Slab 연동 가이드](docs/sensor_slab_integration.ko.md)를 참고하십시오. Slab frame_no와 센서 FrameId는 독립적으로 유지합니다.
+| 문서 | 읽는 목적 |
+|---|---|
+| [AGENTS.md](AGENTS.md) | 개발·수정 시 반드시 지킬 경계와 완료 기준 |
+| [README.md](README.md) | 현재 기능, 실행·연동 방법, 계약과 제한 |
+| [보완 필요 사항](docs/IMPROVEMENTS.md) | 우선 구현할 문제, 근거, 테스트와 완료 조건 |
+| [최종 목표 로드맵](docs/ROADMAP.md) | 다중 센서 → 신뢰성 → 설정화 → 플러그인 → 간편 설치 순서 |
 
-> 이 기능 PR은 PR #17의 revert도 포함합니다. 유지·제거되는 기능과 외부 Blueprint 주의점은 [PR #16 기준 병합 범위](docs/sensor_pr16_merge_notes.ko.md)를 확인하십시오.
+기존 문서는 경로를 보존한 **고정 참고자료**다. 아래 “참고자료”에서 찾을 수 있다. 새 기능/동작 변경은 위 네 문서에 반영하며 과거 기록을 현재 보장으로 읽지 않는다.
 
-> 센서 캡처/내보내기 패널, 세 가지 실시간 Topic, 부하 제한 정책과 로컬 Artemis 검증 방법은 [docs/sensor_streaming.ko.md](docs/sensor_streaming.ko.md)를 참고하십시오.
+## 1. 현재 가능한 것과 아닌 것
 
-Unreal Engine 5.3 기반 Digital Twin 가상 센서 프로젝트입니다. Camera와 LiDAR를 맵에 배치해 실시간 미리보기, 설정 변경, 디버그 표시, Payload 전송, 녹화와 point cloud 내보내기를 시험할 수 있습니다.
+| 영역 | 현재 구현 | 아직 보장하지 않는 것 |
+|---|---|---|
+| 배치·조작 | Editor Actor 배치, PIE 선택 센서 기즈모/키보드 이동·회전, 경량 조작 미리보기, 명시적 맵 저장 예약 | 완성된 다중 센서 생성/복제/삭제 UI, 일반 프로젝트 저장 workflow, 모든 종료 경로·대규모 무지연 |
+| 측정 | Camera SceneCapture, CPU LiDAR chunk, GPU depth projection, immutable snapshot, 비동기 파생 처리 | 모든 backend의 물리 동등성, 실제 ML-X/D455 패킷·depth stream 동일성 |
+| 출력 | JPEG/telemetry/Binary PCD, Raw TCP STOMP worker, 호환 STOMP/HTTP, 비동기 로컬 파일 저장 | 네트워크 장애 중 영구 무손실, 모든 소비자의 업무 처리 완료, 고성능 Raw TCP TLS |
+| Slab | 벌크 수신, 보간 이동, 단위·Track 설정, 3D 표시, 3중 점진 차트, 메모리 보관/재실행 | 녹화 영상/과거 월드 복원, 디스크 영구 시나리오 보관, AI 사행 감지 |
+| UI | 명시적 소유 패널 6개, 글자 배율·drag·resize·접기·숨김·Main/Viewport 배치 | 타 프로젝트 Widget 전수 검증, 모든 해상도·DPI·3D 라벨 겹침 자동 해결 |
+| 이식 | 같은 DTCore 기반 프로젝트에 소스·자산·설정을 함께 옮길 수 있음 | 플러그인 복사 후 클래스 하나만 배치하는 완성된 설치 방식 |
 
-## 빠른 시작
+수정 후보와 검증 공백은 [IMPROVEMENTS](docs/IMPROVEMENTS.md)에 있다. 이미 있는 Scheduler·snapshot·비동기 전송을 다시 만드는 대신 경계 조건과 확장성을 보강한다.
 
-1. Unreal Editor와 Live Coding을 모두 종료한 상태에서 `ma0t10_dtEditor`를 빌드합니다.
-2. `Scripts/setup_sensor_refactor_test_map.py`를 실행해 `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap`을 생성합니다.
-3. 회귀 검증 후 `Scripts/setup_sensor_test_map.py`로 `/Game/MA0T10/Maps/SensorTestMap`을 갱신합니다.
-4. 맵을 열고 PIE를 실행합니다.
+## 2. 빌드와 안전한 시작
+
+- Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
+- 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, 조기 설정용 `ma0t10_dtBootstrap`.
+- DTCore는 필수 submodule이다. 현재 parent gitlink는 `2eec1fe`, 최근 검증 환경의 로컬 checkout은 `a1b333e`였다. 두 revision 사이 Source 변경은 없고 문서만 다르지만, pinned clean checkout 검증은 별도로 필요하다. 기존 로컬 checkout을 자동 갱신하지 않는다.
+- 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
+
+Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat" `
-  ma0t10_dtEditor Win64 Development `
-  "-Project=$PWD\ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
-
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
-  "$PWD\ma0t10_dt.uproject" `
-  -ExecutePythonScript="$PWD\Scripts\setup_sensor_refactor_test_map.py" `
-  -Unattended -NoSplash -NoSound
+& "C:/Program Files/Epic Games/UE_5.3/Engine/Build/BatchFiles/Build.bat" ma0t10_dtEditor Win64 Development "-Project=$($PWD.Path)/ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
-자세한 에디터 조작과 WBP 설정은 [센서 테스트 가이드](docs/sensor_test_map_setup.ko.md)를 참고하세요.
+빌드 후 **이미 커밋된 테스트맵을 열고** PIE를 시작한다. 테스트를 위해 운영맵을 재생성하거나 덮어쓰지 않는다.
 
-## Sensor V2 구조
-
-- `AVirtualSensorActorBase`: 센서 공통 실행, 상태, 설정, Preview, 외부 프레임 API
-- `AVirtualCameraSensorActor`: `UVirtualCameraCaptureComponent`, 상태 없는 `FVirtualCameraPayloadCodec`, 공통 출력 조립
-- `AVirtualLidarSensorActor`: Scan, Analysis, Visualization, Export Component 조립
-- `AVirtualSensorCoordinator`: 센서 검색, 선택, 시작·중지와 일괄 측정
-- `UVirtualSensorSchedulerSubsystem`: Camera/LiDAR 자동 작업을 round-robin으로 배분
-- `UVirtualSensorOutputComponent`: Transport와 Recorder로 출력하고 중복 frame을 차단
-- `URealSensorSourceComponent`: Replay·실장비 adapter가 Actor의 `SubmitExternalFrame`으로 프레임 전달
-- `AVirtualSensorExternalSourceHostActor`: 외부 입력 Source와 DTCore 기반 Camera/LiDAR/Point Cloud Topic 자체 수신 진단을 관리
-- `UVirtualCameraStreamReceiverTC`, `UVirtualLidarStreamReceiverTC`, `UVirtualPointCloudStreamReceiverTC`: Topic별 Payload를 백그라운드 파싱하고 형식을 검증
-
-Payload 계약은 `virtual-camera.v1`, `virtual-lidar.v1`을 유지합니다. 저장 기본 경로는 `Saved/SensorCaptures`, 녹화 경로는 `Saved/SensorRecordings`입니다.
-
-## V2 UI
-
-| WBP | Native parent | 역할 |
-|---|---|---|
-| `WBP_VirtualSensorMonitorPanel` | `UVirtualSensorMonitorPanelWidget` | Camera/LiDAR 보기, 센서 전환, LiDAR 표시 방식과 진단 |
-| `WBP_VirtualSensorSettingsPanel` | `UVirtualSensorSettingsPanelWidget` | Transform, 설정, 기즈모, 투사 범위, 맵 저장 예약 |
-| `WBP_VirtualSensorCaptureExportPanel` | `UVirtualSensorCaptureExportPanelWidget` | 1회 캡처, Payload·point cloud 내보내기, timed capture, 송신·자체 수신 진단 |
-
-`AVirtualSensorUiHostActor`의 `UVirtualSensorPanelHostComponent`는 Main Widget의 `AddWidgetPanel`이 유효한 Canvas이면 패널을 그 아래에 배치합니다. Main이 없으면 같은 패널을 Viewport에 배치하고, Main 교체를 감지하면 중복 생성 없이 재호스팅합니다.
-
-접기 버튼은 본문 visibility만 바꾸지 않고 실제 slot 높이를 약 48px로 줄입니다. 펼칠 때 이전 크기를 복원하며 DPI와 화면 크기에 맞춰 위치를 보정합니다. Monitor와 CaptureExport 패널은 오른쪽 아래 `↘` 영역을 드래그해 가로·세로를 자유롭게 조절할 수 있고 `크기 초기화`로 현재 해상도의 기본 크기로 돌아갑니다. 위치·접힘·확장 크기·LiDAR 표시·듀얼 카메라·스트림/캡처 선택은 `Saved/SaveGames/MA0T10_VirtualSensorUI_v6.sav`에 사용자별로 저장됩니다. 기존 v1~v5 파일은 처음 로드할 때 자동 변환됩니다.
-
-Camera 화면에서는 `단일 / 카메라 2대`를 선택할 수 있습니다. 듀얼 모드는 주 카메라를 약 70%, 보조 카메라를 약 30%로 표시하며 두 드롭다운에서 서로 다른 SensorId를 고릅니다. 주 카메라는 Settings와 Coordinator 선택에 동기화되고 보조 카메라는 보기 전용입니다. 두 화면 모두 기존 RenderTarget을 직접 사용하므로 듀얼 보기 자체가 추가 캡처나 GPU readback을 만들지 않습니다. `SensorRefactorTestMap`에는 대각선 `VCAM-TEST-001`과 높이 10m의 수직 하향 `VCAM-TEST-002`가 기본 배치됩니다.
-
-## FullSpec과 최신 프레임 정책
-
-- Camera FullSpec: 1280×720, 30Hz
-- LiDAR FullSpec: 360×60, 10Hz
-- Camera 2대 + LiDAR 2대 이하: 센서 작업 60 FPS 예산
-- 각 종류 4대 이하: 센서 작업 30 FPS 예산
-- 4대를 초과하는 종류가 있으면 30 FPS 최선 실행과 경고
-
-자동 경로는 LiDAR trace를 센서별 독립 chunk로 나누고 Camera readback·encode와 파생 출력을 비동기로 처리합니다. 센서별 acquisition/derived 작업은 쌓지 않고 최신 프레임을 우선하며 생략 수를 런타임 진단에 표시합니다. 수동 `Capture Once`는 생략하지 않습니다. FullSpec 센서를 기즈모로 조작하는 동안에는 설정값을 덮어쓰지 않고 Camera 640×360·최대 5Hz, LiDAR 120×24·최대 4Hz의 출력 없는 경량 요청만 사용합니다. 조작 종료 뒤 스케줄러가 coherent FullSpec 프레임을 다시 생성합니다.
-
-### 아이요봇 ML-X(80)
-
-ML-X(80)은 두 프로필로 구분합니다. `ML-X(80) - Native`는 공개 FOV/각 해상도로 계산한 약 576×56, 0.05초(20Hz), 최대 15,000cm(150m), 최대 2 Echo이며 `원본 사양` 배지를 표시합니다. `ML-X(80) - Integration 200`은 기존 프로젝트 계약인 200×56·20Hz를 유지하는 `통합/다운샘플` 모드입니다. 두 모드 모두 수평 FOV 80°, 수직 -11.65°~11.65°를 사용하고 최대 거리 검증 상한은 20,000cm입니다.
-
-현재 구현은 `공개 사양 기반 에뮬레이션`입니다. 센서 로컬 XYZ(m), 거리(mm), Intensity, Ring/수평 인덱스, Echo, 점별 시간 오프셋, validity/confidence를 `virtual-lidar.v2`로 제공하고 Actor·Semantic·World Transform은 `digitalTwinExtensions`로 분리합니다. 다만 ML-X SDK, 패킷 명세, 캘리브레이션과 원시 캡처가 없으므로 제조사 패킷과 동일하다고 표기하지 않습니다. 실제 자료가 확보되면 `실장비 캘리브레이션 적용` 및 `프로토콜 검증 완료` 단계로 올립니다.
-
-Capture 탭의 `캡처 간격(초)`은 로컬 파일 저장 주기이며 Topic 스트림 주기와 독립적입니다. `센서 주기 사용`을 누르면 선택 센서의 현재 주기를 복사하므로 ML-X(80) FullSpec은 0.05초가 됩니다. Camera JPEG/Payload, LiDAR Payload/Point Cloud와 Point Cloud 파일 형식을 선택할 수 있습니다. 시간 지정 캡처는 별도 측정을 만들지 않고 최신 완료 프레임을 bounded 비동기 저장합니다.
-
-## LiDAR 표시 방식
-
-| 방식 | 의미 |
+| 맵 | 용도 |
 |---|---|
-| 거리 색상 | 가까운 점은 자홍·주황, 중간은 노랑, 먼 점은 청록·파랑 |
-| 검출 마스크 | 검출 성공은 흰색, 미검출은 검정 |
-| 의미 분류 색상 | Actor 태그·클래스로 계산한 `SemanticLabel` 규칙 색상 |
-| 거리 회색조 | 가까운 점은 밝고 먼 점과 미검출은 어둡게 표시 |
+| `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap` | 센서/카메라 V2 UI·조작·출력 확인 |
+| `/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap` | synthetic Slab, 차트·진행·PCD 연계 검증 |
+| `/Game/MA0T10/Maps/Tests/LidarSemanticValidationMap` | 같은 재질·태그 없는 판/물체의 형상 구분 |
+| `/Game/MA0T10/Maps/Tests/SensorScaleStressMap` | 10,000 정적/1,000 이동 proxy 스트레스 fixture; 성능 보증 아님 |
+| `/Game/MA0T10/Maps/SensorTestMap` | 기존 운영 테스트맵; 로컬 사용자 변경 보호 |
 
-적응형 거리, 깊이 경계, 격자는 색상 모드와 독립적인 오버레이입니다.
+맵 생성 스크립트는 신규 fixture가 필요할 때만 대상·기존 자산을 확인하고 실행한다. `SlabScenarioValidationRig`는 센서 ID·프로필·로컬 Broker 등을 바꾸는 **테스트 도구**이므로 운영맵에 옮기지 않는다.
 
-### V2 투영·색상 조합과 3D 포인트
+## 3. 다른 맵에서 현재 기능 연결
 
-LiDAR 모니터는 투영과 색상을 독립적으로 선택합니다.
+### 센서만 사용
 
-- 투영: 거리 영상, 센서 로컬 XY 조감도, 월드 XY 조감도, 방사 거리-높이 프로파일, 전방 수직 슬라이스, 거리 영상+조감도 분할
-- 색상: Turbo 거리, 색각 친화 Viridis 거리, 센서 상대 높이, SemanticLabel, 수직 채널/ring, MultiHit return 번호, 검출 마스크, 거리 회색조
-- 월드 3D 포인트: 선택 LiDAR는 Niagara GPU sprite로 최대 21,600점을 표시합니다. Niagara 자산·SM5·업로드 경로를 사용할 수 없으면 저폴리곤 CPU ISM으로 자동 전환하고 모니터 진단에 이유를 표시합니다.
-- 자산 재생성: `Scripts/setup_lidar_niagara_assets.ps1`
+1. `AVirtualSensorCoordinator` 하나와 필요한 `AVirtualCameraSensorActor`/`AVirtualLidarSensorActor`를 배치한다.
+2. 고유한 SensorId, Transform, 장비/품질/backend를 지정한다.
+3. `AVirtualSensorUiHostActor`를 배치한다. 제공 WBP 또는 native fallback을 사용한다.
+4. 외부 입력/자체 수신 진단이 필요할 때만 `AVirtualSensorExternalSourceHostActor`를 추가한다.
+5. 서버 송신은 데이터 패널에서 설정을 적용하고 필요한 출력만 시작한다. Widget을 여는 것만으로 송신하지 않는다.
 
-`방사 거리-높이 프로파일`의 X축은 `sqrt(local X² + local Y²)`, Y축은 센서 기준 Z입니다. 좌우 점을 같은 방사거리로 합치므로 바닥·천장·경사와 물체 높이 분석용이며 방향 판별용은 아닙니다. 방향이 필요한 경우 `전방 수직 슬라이스`를 사용합니다. 이 모드는 회전한 센서 로컬 X–Z 기준면 주변의 설정 두께 안에 있는 점만 보여 줍니다. 조감도와 슬라이스는 좌클릭 pan, 우클릭 회전, 휠 zoom을 지원합니다.
+### Slab도 사용
 
-수직으로 설치한 LiDAR의 검출점을 공장 평면도처럼 보려면 `월드 XY 조감도`를 선택합니다. 이 모드는 센서의 Pitch/Roll/Yaw와 무관하게 가로축을 월드 Y, 세로축을 월드 X로 고정하고 검출점의 월드 XY 경계를 자동으로 맞춥니다. 반면 `센서 로컬 조감도`는 센서 로컬 XY를 사용하므로 센서를 아래로 90° 기울이면 바닥 평면이 아니라 센서 기준 단면처럼 보이는 것이 정상입니다. 자동 맞춤을 끄면 이미지 위 좌클릭 이동, 우클릭 회전, 휠 확대·축소로 원하는 구도를 유지할 수 있고 `보기 초기화`로 자동 맞춤 상태에 돌아갑니다.
+- `ASlabTrackReferenceActor`: 로컬 X 진행, Y 오른쪽, Z 위쪽 및 레일 내부면 기준.
+- `ASlabActor`: TrackReference, ReceiverId, 치수/위치 단위, TargetSensorIds, 출력 정책 지정.
+- `ASlabSimulationUiHostActor`: 대상 Slab와 차트·진행 WBP 연결.
+- 재생 목록은 `ASlabScenarioReplayUiHostActor` 또는 도구 막대의 재생 메뉴로 연다. 운영 Slab가 replay adapter를 등록한다.
+- 센서 없는 관찰 실행도 가능하다. 송신을 선택할 때만 센서/Coordinator/STOMP 구성이 필요하다.
 
-첨부 예시와 같은 결과를 만드는 권장 순서는 다음과 같습니다.
+현재 맵 저장 예약은 **SensorTestMap 전용 경로가 남아 있다**. 다른 맵의 영구 저장까지 일반화됐다고 생각하지 말고, 대상 검증/비활성화 또는 별도 승인된 이식 작업이 필요하다.
 
-1. LiDAR를 대상 위에 배치하고 광선이 대상과 교차하도록 Pitch와 수직 FOV를 설정합니다.
-2. Monitor의 `LiDAR 표시 방식`에서 `월드 XY 조감도`를 선택합니다.
-3. `검출점 자동 맞춤`을 켜고, 빈 최대거리 endpoint를 숨기려면 Settings의 `미리보기에서 검출점만 표시`를 켭니다.
-4. 윤곽을 단색으로 보려면 `검출 마스크`, 거리나 높이를 구분하려면 Turbo/Viridis 또는 `센서 상대 높이`를 선택합니다. 월드 조감도에서 이 높이 모드는 월드 Z를 사용합니다.
-5. 모니터 오른쪽 아래 resize grip으로 패널을 키운 뒤 필요하면 pan/rotate/zoom을 조정합니다.
+### 이식 시 누락하기 쉬운 항목
 
-투영 좌표계를 바꿔도 실제 측정 광선이나 FOV는 바뀌지 않습니다. 따라서 화면이 비어 있으면 먼저 상세 진단의 `검출점` 수와 디버그 투사 범위가 대상에 닿는지 확인해야 합니다.
+- C++ 파일 외에 Build.cs/module API macro/include 경로/`/Script/ma0t10_dt` 경로, DTCore 의존성, TC DataTable 등록을 함께 검사한다.
+- Unreal **Migrate**로 WBP/Niagara/material 및 의존 자산을 옮긴다. 수동 파일 복사나 일괄 문자열 치환만으로 완료되지 않는다.
+- 센서 자산: 세 센서 WBP, `NS_VirtualLidarPointCloud`, `M_VirtualLidarPointSprite`, GPU 분류용 `M_LidarSemanticId`.
+- Slab 자산: 재생·차트·진행 WBP, 기본 표면/분석 재질, `M_SlabAnalysisReadable`, `M_SlabTextReadable`, `F_SlabDiagnostics`.
+- 진단 폰트는 offline atlas라 실행 PC에 글꼴 설치가 필요 없다. 제작용 재생성 스크립트는 Malgun Gothic을 사용한다.
+- 공용 설정 객체와 단일 Bootstrap 진입점은 아직 구현되지 않았다. 자세한 분리 계획은 [ROADMAP](docs/ROADMAP.md)을 따른다.
 
-RangeImage 전용 오버레이인 적응형 거리·깊이 경계·격자는 TopDown/Elevation의 축·거리 원·높이 기준선과 별개입니다. 포인트 크기, 3D 표시 여부와 월드 조감도 자동 맞춤은 v6 UI SaveGame에 저장됩니다.
+## 4. UI와 조작
 
-FullSpec 스케줄러는 선택 센서 우선순위를 측정 순서에 사용하지 않고 표시 갱신에만 사용합니다. Camera acquisition은 2대 구성에서 센서별 최대 30Hz, 4대 구성에서 센서별 최대 15Hz를 공정하게 배분하며 JPEG/전송 출력률과 별도로 측정합니다. ML-X FullSpec `Auto`는 GPU Depth Projection을 우선하고 RHI가 없거나 초기화에 실패하면 Accurate CPU Trace로 전환합니다. GPU 방식은 첫 표면 대규모 측정용이고 CPU 방식은 정밀 회귀/MultiHit용입니다. 완료 point frame은 shared immutable snapshot으로 Payload·Visualization·Output에 전달합니다.
+상단은 **선택 센서 / 센서 도구 / Slab 도구 / UI 표시**다. Host가 명시적으로 등록한 인스턴스만 관리하며 다른 Widget의 스타일·입력·저장값을 건드리지 않는다.
 
-## 외부 Source와 서버 전송
+| 패널 / WBP | 현재 역할 |
+|---|---|
+| 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상 + SensorId/프레임/Hz/경고. 투영·색상·듀얼 카메라·범례·진단은 **보기 설정** |
+| 센서 설정 / `WBP_VirtualSensorSettingsPanel` | 장비/품질·측정값, 위치/회전, 고급 식별/Source/디버그/저장 예약 |
+| 데이터 / `WBP_VirtualSensorCaptureExportPanel` | **실시간 전송 / 파일 저장 / 연결·진단**. 새 PIE는 시나리오 연동 화면 |
+| 재생 / `WBP_SlabScenarioReplayPanel` | 전체 UUID/내부 보관 ID, 선택 항목 재실행·복사·삭제, 출력 선택 |
+| 차트 / `WBP_SlabChartsPanel` | 기울기·중심 이탈·Margin 3개를 진행 시점까지만 표시 |
+| 진행 / `WBP_SlabProgressPanel` | 상태·진행률·pause/resume/중단, 세부 3D 표시와 단위/외형 |
 
-`SensorRefactorTestMap`의 `SensorTest_ExternalSources`는 CSV/JSONL replay, buffered Camera/LiDAR JSON, LiDAR HTTP(`127.0.0.1:8082/ma0t10/lidar/live`)와 UDP 입력 Component를 기본 정지 상태로 제공합니다. Settings의 `선택 Source 1회 주입`은 프레임을 `SubmitExternalFrame`으로 전달할 뿐 외부 서버로 다시 보내지 않습니다. ROS2, Livox SDK, RealSense SDK adapter는 아직 구현되지 않은 확장 지점입니다.
+- 제목 drag, 우하단 resize, 실제 영역 접기, 숨김/다시 열기를 지원한다. 숨김은 측정·파일 저장·송신·재생 중지가 아니다.
+- `더보기 → 이 창 위치·크기 초기화`는 해당 패널만, `UI 표시 → 센서 도구 UI 초기화`는 소유 패널 배치·열림·폰트만 초기화한다.
+- 글자 배율은 85/100/125/150%. 작은 창은 스크롤하거나 확대한다. 외부 UserWidget 내부를 재귀 변경하지 않는다.
+- 듀얼 카메라는 기존 RenderTarget을 공유한다. 보조 카메라는 보기 전용이며 추가 capture/readback을 만들지 않는다.
+- 현재 `Esc` 조작 종료 연결에 정적 경로상 위험이 있어 RT-02로 관리한다. 수정 전에는 설정 패널의 조작 종료를 사용하고 정상 품질 복원을 확인한다.
 
-외부 전송은 CaptureExport 패널에서만 실행합니다. 수동 CSV/JSONL/PCD/LAS/LAZ 내보내기와 실시간 Point Cloud 계약은 분리됩니다. 고성능 모드에서는 프로젝트 전용 백그라운드 Raw TCP STOMP 1.2 worker가 Camera 원본 JPEG(`virtual-camera.jpeg.v1`), LiDAR 경량 통계(`virtual-lidar.telemetry.v1`), PCD v0.7 `DATA binary`(`virtual-pointcloud.pcd.v1`)를 Base64/JSON 대용량 복사 없이 전송·자체 수신합니다. 기존 `virtual-camera.v1`·`virtual-lidar.v1` JSON은 호환 backend에 유지되고 `wss://`는 Engine STOMP fallback을 사용합니다. HTTP 파일 전송은 raw `application/octet-stream`이며 비밀번호와 Bearer token은 세션 메모리에만 유지됩니다. STOMP receipt는 Broker 수락만 뜻하며 실제 소비자 수신 카운터와 구분합니다. 개발용 Broker는 `Tools/Artemis/docker-compose.yml`을 사용합니다.
+| 저장 파일(`Saved/SaveGames`) | 내용 |
+|---|---|
+| `MA0T10_SensorToolWorkspace_v1.sav` | 소유 창 배치·크기·접힘·열림·글자 배율 |
+| `MA0T10_VirtualSensorUI_v6.sav` | 센서 보기·캡처/출력/연결의 비밀정보 아닌 옵션; 이전 슬롯 migration |
+| `MA0T10_SensorToolAppearance_v1.sav` | 기존 폰트 설정 호환용 |
+| Slab 시나리오 | **파일 저장 없음**. GameInstance 메모리에 최근 최대 10개 |
 
-`SensorRefactorTestMap`에서는 `SensorTest_ExternalSources`가 Camera/LiDAR JSON은 DTCore WebSocket 연결로, Point Cloud는 프로젝트의 raw STOMP 구독으로 자동 수신합니다. `UVirtualPointCloudStreamReceiverTC`는 PCD 헤더, 33-byte little-endian 레코드 크기, point count, SHA1, FrameId 연속성을 모든 프레임에서 검증합니다. 수신 데이터를 Sensor Actor에 재주입하거나 다시 송신하지 않습니다. CaptureExport의 `서버/로그` 탭에서 구독 해제·재연결, receipt와 실제 소비자 수신, gap·duplicate·검증 실패를 구분해 확인할 수 있습니다. 자세한 사용법은 [센서 스트리밍 가이드](docs/sensor_streaming.ko.md)를 참고하세요.
+센서 Transform/장비 설정을 UI SaveGame에 저장하지 않는다. PIE 변경의 원본 맵 반영은 명시적 저장 예약으로만 수행한다.
 
-ML-X(80) Native 20Hz Point Cloud는 `연결 중 무손실` 정책을 사용합니다. 센서별 입력/직렬화 완료 큐는 각각 최대 20개이고 receipt 대기 body와 checksum을 보존합니다. 정상 연결에서는 FIFO 순서와 FrameId를 유지하며, 큐가 한계에 도달하거나 receipt 재시도 3회를 소진하면 프레임을 조용히 교체하지 않고 스트림을 `과부하 오류`로 중지합니다. Point Cloud 전용 예산은 64MiB/s입니다. 1 Echo는 약 20~25MB/s, 2 Echo 최악 조건은 약 40~50MB/s이므로 보장 범위는 ML-X(80) Native 한 대와 정상 로컬 또는 1Gbps 이상 LAN Broker입니다.
+### LiDAR 보기의 차이
 
-실시간 필터 기본값은 전체 검출점입니다. `대상 물체만`을 선택하면 Mesh Actor의 `PointCloudTarget` Tag가 있는 물체의 점만 전송합니다. Tag/Semantic 조건과 센서 로컬 ROI는 AND, 같은 배열 안의 값은 OR이며 exclude가 마지막에 우선합니다. 필터 결과가 없어도 `POINTS 0` PCD를 정상 전송합니다. Actor Tag와 SemanticLabel은 Digital Twin 확장 정보이며 ML-X 실장비 고유 기능으로 표기하지 않습니다. Tag/Semantic 필터는 CPU Trace·Replay·외부 입력처럼 Actor 메타데이터가 있는 프레임에서 사용합니다. FullSpec `GpuDepthProjection`은 깊이만 측정해 Actor identity가 없으므로, 20Hz 경로에서 물체 영역만 전송하려면 센서 로컬 ROI를 사용합니다.
+- **태그 기반 의미 분류:** Actor Tag/클래스/이름 규칙. 태그가 없으면 같은 회색일 수 있다.
+- **자동 형상 구분:** XYZ의 기준면/돌출 분석. 파랑/주황 표시이며 Slab 인식 AI나 개별 물체 추적이 아니다. 모호한 기준면은 높이 색상 fallback으로 표시한다.
+- **높이 색상:** 센서 로컬 Z 또는 월드 Z의 연속값. 수직 설치에서 현장 높이가 필요하면 월드 Z를 사용한다.
+- **월드 XY 조감도:** 설치 회전과 무관한 평면도. 로컬 XY 조감도는 센서 기준이며 수직 센서에서는 다른 단면처럼 보일 수 있다.
+- **방사 거리-높이:** X=`sqrt(local X²+Y²)`, Y=local Z. 좌우 방향이 합쳐진다.
+- **전방 수직 슬라이스:** 회전한 로컬 X-Z 평면의 설정 두께 내 점. 방향 분석에 사용한다.
+- 거리 영상/Split 전용 격자·깊이 경계와 조감도의 축/거리 원은 별개다.
+- 표현은 **2D / 2D+월드 포인트 / 포인트 전용**. 전용 보기는 플레이어 뷰만 숨겨 센서 SceneCapture를 보존한다. 현재 진입 이후 새 Actor 자동 추적은 별도 보완 대상이다.
+- GPU 측정과 Niagara 표시 renderer는 별개다. Niagara가 실패하면 CPU ISM fallback/사유를 표시하며 자산 로드만으로 성공 판정하지 않는다.
 
-로컬 Artemis와 실제 D3D12 맵을 함께 검증하려면 `Scripts/run_sensor_map_stream_rhi_smoke.ps1`을 사용합니다. 기본 10초 warmup+60초 측정에서 D455 1280×720 JPEG 30Hz, ML-X(80) Native telemetry·Binary PCD 20Hz를 동시에 발행하고 내부 worker와 별도 Node 구독자가 모두 검증합니다. 평균 55FPS, 1% low 45FPS, game-frame p95 20ms 이하, FrameId gap·invalid·queue overflow 0을 판정하고 JSON/Markdown 보고서를 저장합니다. 10분/60분 연속 검증 명령은 [센서 스트리밍 가이드](docs/sensor_streaming.ko.md)에 있습니다.
+GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 지원한다. 깊이 일치·설정 revision을 검사한다. 투명/마스크/WPO/미지원 geometry는 추정하지 않는다. “GPU는 무조건 태그 정보를 가질 수 없다”는 오래된 설명은 현재와 다르며, 필터 사용 전 해당 프레임의 semantic 지원 상태를 확인한다.
 
-### 포인트 클라우드 렌더러 상태
+## 5. Slab 데이터·자동 실행·재실행
 
-- 렌더 정책은 `Auto / Niagara 강제 / CPU 강제`입니다. 기본 `Auto`는 Niagara 컴파일·시스템 실행·점 업로드가 모두 성공한 경우에만 GPU 렌더러를 사용하고, 그 외에는 CPU ISM으로 자동 전환합니다.
-- `포인트 클라우드 전용 켜기/끄기`는 토글입니다. 새 스캔이 빈 프레임이어도 직전의 정상 클라우드를 유지하며, 선택 LiDAR가 바뀌면 표시 상태도 새 LiDAR로 옮겨갑니다.
-- 거리 영상·조감도·각 단면·3D 포인트는 JSON 직렬화나 서버 전송 완료를 기다리지 않고 LiDAR 측정 snapshot이 완성되는 즉시 갱신됩니다. 움직이는 물체가 다음 스캔에 검출되면 포인트 클라우드 전용 토글을 다시 누르지 않아도 화면에 반영됩니다.
-- 상세 진단은 측정점·검출점·업로드점·표시점 수, 현재 렌더러, fallback/실패 사유, `검출점 없음`을 별도로 표시합니다.
-- 실제 RHI 회귀 검증은 `Scripts/run_point_cloud_rhi_smoke.ps1`을 사용합니다. D3D12에서 `SensorRefactorTestMap` PIE를 실행하고, 실제 hit과 CPU fallback ISM 인스턴스·월드 좌표·뷰포트 투영 영역을 검증한 후 PNG·JSON·Markdown·log를 `Saved/Reports/point_cloud_rhi_smoke.*`에 생성합니다.
+- 입력 Topic: **`topic.scenario`**, MESSAGE_ID: **`IFactory-agent`**. DTCore `WebSocketTopics`에 구독되어야 한다. 다른 업무 Topic을 삭제하지 않는다.
+- TC는 백그라운드 parse 후 게임 스레드에서 `ReceiverId`로 DataSync를 찾는다. 기본 ID는 `SlabScenario.Main`이며 Actor와 handler가 같아야 한다.
+- 수신 경로는 **DTCore→TC→DataSync** 또는 **`ASlabActor::SubmitScenarioJson(Json)`** 하나다. Actor 호출 전에 archive 등록 API를 별도로 호출하면 중복 UUID로 자동 실행이 막힐 수 있다.
+- 직접 API는 게임 스레드에서 호출한다. `SubmitScenarioJson`의 `true`는 비동기 파싱 요청 접수이며 실행 성공이 아니다. 실제 결과는 `GetLastScenarioAdmissionStatus()`와 실행 상태·경고로 확인한다.
 
-성능 보고서는 요청 규격과 실제 acquisition Hz 및 파생 output Hz를 분리합니다. `run_fullspec_performance_evidence.ps1`의 `-LidarProfile Mid360|MLX80Integration|MLX80Native`와 `-LidarAcquisition Auto|Cpu|Gpu`로 프레임 형상과 백엔드를 명시합니다. FPS만 통과해도 센서별 최소 acquisition Hz, 공정성, queue overflow, acquisition 실패 기준을 만족하지 못하면 실패입니다. `budget skip`은 성능 예산을 지키기 위한 정상적인 최신 프레임 정책으로, 실제 처리 실패와 다르게 집계됩니다.
+| 필드 | 현재 해석 |
+|---|---|
+| frame_no | 원본 Slab 상태 번호. 센서 FrameId/렌더 프레임과 독립 |
+| mtl_no | 한 시나리오의 소재 식별자 |
+| slab_len/wth/thk | 형상 치수. 입력 단위를 cm로 변환 |
+| center_x | Track 로컬 X 위치 |
+| left_skew_angle | 실제 회전각(도); right는 비교 차트 |
+| elapsed_sec | 시간 기준 보간 |
+| mov_pos / center_y | 이동에는 사용하지 않고 원문 보존 |
+| slab_wt | 표시 정보; 물리 질량 아님 |
+| _meta.UUID | 원본 시나리오 ID. 신규 입력에서 누락하면 내부 ID 생성 |
+| _meta.duration_sec | 있으면 종료 시각. 없으면 마지막 시각+sample period(기본 .05초) |
 
-대규모 장면 회귀는 `/Game/MA0T10/Maps/Tests/SensorScaleStressMap`을 사용합니다. `AVirtualSensorStressSceneActor` 하나가 HISM으로 10,000개 정적 primitive와 1,000개 이동 proxy를 구성하므로 11,000개의 Actor Tick을 만들지 않습니다. 맵을 다시 만들려면 Editor 빌드 후 `Scripts/setup_sensor_scale_stress_map.py`를 실행합니다.
+**치수·위치 기본 단위는 cm다.** `slab_len=10830`은 기본값에서 108.3m다. 검증맵은 치수 mm/위치 cm이므로 길이 10.83m이다. 단위를 추정하거나 원문을 변환해 덮어쓰지 않는다. 원본 행이 건너뛰어도 행을 만들어 넣지 않고 자세만 보간한다.
 
-센서 Actor 계층은 `AInteractableActor → AVirtualSensorActorBase → AVirtualCameraSensorActor/AVirtualLidarSensorActor`이며 Camera·LiDAR 공용 Scheduler Subsystem은 `MA0T10/Core`에 위치합니다.
+신규 벌크는 보관 후 자동 실행한다. 단, 중복 UUID/잘못된 입력은 거절하고 기존 실행·pause·drain 중 새 벌크는 **보관만** 한다. 나중에 자동 큐로 실행하지 않는다.
 
-## 다른 Unreal 프로젝트로 이전
+- 기본 출력: PCD만. Camera 이미지/LiDAR 정보는 선택 사항이며 이미 시작한 실행에는 소급 적용하지 않는다.
+- 송신 구성이 부족하면 **unbound 관찰 fallback**으로 Slab 이동만 진행한다. 기존 독립 스트림을 중지·재예약하지 않고 `TransmissionWarning`을 남긴다.
+- 준비 검사는 설정 검사이지 Broker 연결/receipt 보장이 아니다. 실행 중 설정을 복구해도 해당 관찰 실행에서 송신을 저절로 켜지 않는다.
+- `GetLastScenarioAdmissionStatus()`는 자동 실행/송신 없이 실행/보관만/중복/거절과 이유·요청/적용 출력을 제공한다.
+- 목록 재실행은 원문/시나리오 ID를 유지하고 **새 RunUUID**를 만든다. 기본 관찰 전용이다. 움직임 종료와 승인된 데이터의 송신 drain(최대 10초)은 별도 상태다.
+- 준비·재생·pause·drain 항목은 삭제하지 않는다. 목록 삭제는 원본 파일/Broker/Slab Actor를 삭제하는 기능이 아니다.
 
-현재 Sensor V2는 독립 플러그인이 아니라 `ma0t10_dt` 프로젝트 모듈 안에 있으므로 C++ 파일만 복사하고 `ma0t10` 문자열을 일괄 치환하는 방식으로는 완전히 이전되지 않습니다. 다음 결합 지점을 함께 처리해야 합니다.
+진행 패널의 3D 분석은 선 기본 4px(2~12), 글자 28px(18~56), 어두운 배경판, signed Margin과 `[침범]`을 제공한다. 음수 Margin은 기하학적 침범이며 안전 기준/AI 판정이 아니다. 보조 표시는 센서 측정에서 제외한다.
 
-- `AVirtualSensorActorBase`는 DTCore의 `AInteractableActor`를 상속합니다.
-- `UVirtualLidarVisualizationComponent`는 DTCore의 `UStatusVisualizerCompBase`를 사용합니다.
-- 센서 패널은 DTCore의 `UDxWidget`과 `UDxWidgetSubsystem`을 사용합니다.
-- Runtime 모듈은 DTCore 외에도 Niagara, Stomp, HTTP, RHI, UMG, EnhancedInput 등의 모듈에 의존합니다.
-- WBP와 Niagara Material/System은 `/Game/MA0T10` 아래의 별도 Content 자산입니다.
-- Niagara 기본 경로, UI SaveGame 슬롯, 맵 저장 대상과 Editor 생성 스크립트에는 `/Game/MA0T10`, `/Script/ma0t10_dt` 또는 `MA0T10` 이름이 남아 있습니다.
+테스트 발행(로컬 Broker가 이미 정상 실행되고 입력 Topic을 구독한 경우):
 
-### 같은 DTCore 기반 프로젝트로 빠르게 이전
+```powershell
+node Tools/Artemis/publish_slab_scenario.mjs --topic topic.scenario
+node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json" --topic topic.scenario
+```
 
-1. `Camera`, `Sensor`, `Core/VirtualSensorSchedulerSubsystem`, 센서 관련 `UI` C++ 코드를 대상 Runtime 모듈로 옮깁니다.
-2. Unreal Editor의 **Migrate** 기능으로 다음 자산과 의존성을 옮깁니다. 탐색기에서 `.uasset`만 복사하지 않습니다.
-   - `WBP_VirtualSensorMonitorPanel`
-   - `WBP_VirtualSensorSettingsPanel`
-   - `WBP_VirtualSensorCaptureExportPanel`
-   - `NS_VirtualLidarPointCloud`
-   - `M_VirtualLidarPointSprite`
-3. 대상 `Build.cs`와 `.uproject`에 DTCore, Niagara, UMG/Slate, EnhancedInput, RenderCore/RHI, ImageWrapper, Json, HTTP/HTTPServer, WebSockets/Stomp, Sockets/Networking 등의 실제 사용 의존성을 추가합니다.
-4. 대상 Runtime 모듈 이름이 예를 들어 `FactoryDT`라면 다음 항목을 변경합니다.
-   - include prefix: `ma0t10_dt/...` → `FactoryDT/...`
-   - export macro: `MA0T10_DT_API` → `FACTORYDT_API`
-   - script class path: `/Script/ma0t10_dt.*` → `/Script/FactoryDT.*`
-   - 옮긴 Content 위치에 맞춰 `/Game/MA0T10/...` soft object path와 생성 스크립트 경로 변경
-5. 새 레벨에 `AVirtualSensorCoordinator` 1개, Camera/LiDAR Actor, `AVirtualSensorUiHostActor` 1개를 배치합니다. Replay·HTTP·UDP 같은 외부 입력이 필요하면 `AVirtualSensorExternalSourceHostActor`도 배치합니다.
-6. UI Host에 세 WBP class를 연결합니다. WBP를 연결하지 않아도 native fallback UI는 표시되지만 Niagara 자산이 없으면 LiDAR 3D 표시는 CPU fallback을 사용합니다.
+## 6. 측정 프로필과 출력 계약
 
-`Source/.../MA0T10`이라는 단순 폴더 이름은 반드시 바꿀 필요가 없습니다. 빌드와 Reflection에 직접 영향을 주는 것은 모듈명, include 경로, export macro, `/Script/<Module>` 경로입니다. 새 프로젝트에서 기존 자산을 이어 쓰지 않는다면 구 클래스용 CoreRedirect도 복사할 필요가 없습니다.
+### 프로젝트 프리셋
 
-현재 `SensorTestMap에 저장 예약`은 `/Game/MA0T10/Maps/SensorTestMap` 전용 Editor 흐름입니다. 다른 레벨에서 사용하려면 저장 대상 Map을 설정값으로 바꾸거나 이 기능을 비활성화해야 하며, 런타임 측정·미리보기·캡처·내보내기 기능은 이 Editor 저장 기능과 독립적입니다.
+| FullSpec | 설정된 규격 |
+|---|---|
+| D455 Camera | 1280×720 / 30Hz / JPEG 기본 품질 80 |
+| Livox 계열 기본 LiDAR | 360×60 / 10Hz |
+| ML-X(80) Integration 200 | 200×56 / 20Hz / 최대 150m |
+| ML-X(80) Native | 576×56 / 20Hz / 최대 150m / 공개 사양 해석 기반 밀도 |
 
-### 권장: 재사용 플러그인으로 분리
+프로필 값과 **실제 완료율**은 다르다. ML-X Native는 제조사 원시 패킷/실장비 보정 완료가 아니며 D455 SceneCapture는 실장비 depth stream이 아니다. CPU/GPU의 geometry·Echo 지원 차이, 캘리브레이션 근거와 fidelity 상태를 함께 확인한다. enum에 HardwareRayTracing/SDK 이름이 있다고 실장비 backend가 완성된 것은 아니다.
 
-여러 프로젝트에서 사용할 계획이라면 프로젝트마다 이름을 치환하기보다 다음처럼 `DTVirtualSensor` 플러그인으로 한 번 분리하는 방식을 권장합니다.
+### Topic/Body
+
+| 방향·용도 | 기본 Topic | Body / schema |
+|---|---|---|
+| Slab 입력 | topic.scenario | JSON, MESSAGE_ID=IFactory-agent |
+| Camera 출력 | topic.virtual.sensor.camera.0 | 고성능 원본 JPEG / virtual-camera.jpeg.v1 |
+| LiDAR 값 출력 | topic.virtual.sensor.lidar.0 | point 배열 없는 통계 JSON / virtual-lidar.telemetry.v1 |
+| PCD 출력 | topic.virtual.sensor.export.0 | 완전한 PCD v0.7 DATA binary / virtual-pointcloud.pcd.v1 |
+
+Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한다. 기존 JSON `virtual-camera.v1`/`virtual-lidar.v1`은 호환 경로에 남는다. HTTP JSON/raw file POST도 별도 지원한다. `wss://`는 Engine STOMP 호환 경로이며 Raw TCP TLS 지원으로 보지 않는다.
+
+**receipt는 Broker 수락이다.** 내부/외부 소비자 수신 검증, 최종 업무 처리 ACK, 로컬 파일 완료는 각각 별개다. 정상 연결 중 FIFO여도 네트워크 단절 중 프레임을 디스크에 영구 보존하는 기능은 아니다. Raw outstanding receipt 상한의 보완은 RT-01에서 추적한다.
+
+### PCD 소비자가 알아야 할 최소 계약
 
 ```text
-Plugins/DTVirtualSensor/
-├─ DTVirtualSensor.uplugin
-├─ Source/
-│  ├─ DTVirtualSensorRuntime/
-│  │  ├─ Camera/
-│  │  ├─ Sensor/
-│  │  ├─ Core/
-│  │  └─ UI/
-│  └─ DTVirtualSensorEditor/
-└─ Content/
-   ├─ UI/
-   └─ VFX/
+FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence
+SIZE 4 4 4 2 2 2 1 1 8 1 4
+TYPE F F F U U U U U I U F
+COUNT 1 1 1 1 1 1 1 1 1 1 1
+DATA binary
 ```
 
-Runtime 모듈에는 측정·시각화·UI·Source·Transport를, Editor 모듈에는 Map 영구 반영과 Niagara/WBP 생성 도구를 둡니다. WBP, Niagara System/Material, 저장 대상 Map, SaveGame 슬롯, 저장 루트와 기본 전송 Topic은 플러그인 설정 또는 soft object property로 노출합니다. 그러면 다른 프로젝트에서는 DTCore와 `DTVirtualSensor` 플러그인을 활성화하고 Actor만 원하는 레벨에 배치하면 되며, 프로젝트 모듈 이름을 다시 치환할 필요가 없습니다.
-
-## 테스트
+- 한 점 33바이트, little-endian. XYZ는 센서 로컬 **m**, X 전방/Y 좌측/Z 위쪽이다. 12/36/40바이트 stride로 읽으면 안 된다.
+- `# MA0T10_META {JSON}` 주석에 sensor_id, sensor_frame_id, timestamp_utc 및 선택적 run_uuid/scenario_uuid/mtl_no/frame_no/elapsed_sec가 있다. Slab frame_no와 sensor_frame_id는 다른 번호이며 식별 정수는 문자열로 보존한다.
+- snapshot pose가 있으면 `sensor_to_world_m`(row-major 4×4, column vector 적용)로 UE 월드 meter를 복원한다. 센서를 회전한 경우 로컬 Z에 센서 높이만 더하면 틀린다.
+- `POINTS 0`도 정상 프레임이다. checksum/content-length는 주석을 포함한 전체 파일 바이트 기준이다. 일반 PCD 라이브러리 재저장은 사용자 주석을 제거할 수 있다.
+- 실시간 PCD는 Binary 고정이다. 수동 ASCII/기존 API의 주석 포함 여부를 동일하다고 가정하지 않는다.
+- Tag/Semantic/ROI 필터는 측정 출력 조건이다. `PointCloudTarget`/Semantic은 Digital Twin 정보이며 ML-X 고유 기능이라고 표기하지 않는다. `mtl_no`가 붙어도 모든 점이 그 Slab 점이라는 뜻은 아니다.
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
-  "$PWD\ma0t10_dt.uproject" `
-  -ExecCmds="Automation RunTests MA0T10.SensorV2;Quit" `
-  -Unattended -NoSplash -NoSound -NullRHI
+python Scripts/read_pcd_context.py received.pcd
+python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 ```
 
-주요 그룹은 `MA0T10.SensorV2.Architecture`, `MA0T10.SensorV2.UI`, 기존 Payload·Replay·Export·Transport·Recorder 회귀 테스트입니다. 실제 RHI 성능은 1920×1080 PIE에서 별도로 확인합니다.
+### 파일 저장과 외부 입력
 
-구 타입 참조와 보호 경로 stage 여부는 `Scripts/validate_sensor_v2_refactor.ps1`로 검사합니다. WBP와 맵 생성 후에는 `-RequireAssets`를 함께 사용합니다.
+- 새 프레임 저장: 실행 중인 센서의 요청 후 완료 프레임을 최대 2초 기다린다. 정지 센서를 몰래 켜거나 이전 프레임으로 대체하지 않는다.
+- 현재 프레임 저장: 기존 완료 snapshot을 고정하며 추가 측정하지 않는다. 없는 출력은 비활성/실패 안내한다.
+- 주기 저장: .05~3600초, 최신 완료 프레임을 비동기 저장한다. 같은 FrameId·busy·새 프레임 없음은 저장 기회 생략으로 집계한다. Topic 주기와 독립적이다.
+- 기본 루트 `Saved/SensorCaptures`, 주기 저장 `LocalTimedCapture/<UTC>/Camera|Lidar`, Recorder `Saved/SensorRecordings`.
+- 요청 대상·출력·revision을 고정하고 실제 파일 생성 후 완료 이벤트를 보낸다. LAZ는 외부 compressor가 필요하며 프로세스 timeout/cancel 보완이 남아 있다.
+- 외부 Source(CSV/JSONL replay, Camera buffered JSON, LiDAR HTTP/UDP)는 센서 입력이다. 서버 수신 진단은 출력 검사다. ROS2/Livox/RealSense SDK 클래스는 현재 stub/확장 지점이며 실제 SDK 지원 완료가 아니다.
 
-## 주의사항
+## 7. 구조와 현재 재사용 경계
 
-- `Plugins/DTCore`는 git submodule입니다. 이 프로젝트 작업에서 임의로 gitlink나 내부 소스를 변경하지 않습니다.
-- `Config/Game.ini`는 로컬 override이므로 커밋하지 않습니다.
-- 맵 생성 스크립트는 `SensorTestManaged` 태그 Actor만 교체합니다. 사용자가 배치한 비관리 Actor와 Mesh는 보존합니다.
-- 구 클래스 이름은 `Config/DefaultEngine.ini`의 `CoreRedirects`로 로드를 지원합니다. 변경된 Blueprint 함수 노드는 수동 재연결이 필요할 수 있습니다.
+| 기존 구성 | 책임 |
+|---|---|
+| VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API |
+| Capture / Scan / Analysis / Visualization / Export | 측정과 파생 처리 분담 |
+| VirtualSensorSchedulerSubsystem | 자동 작업 분배; 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
+| IVirtualSensorAcquisitionBackend | 기존 GPU LiDAR 경계; 아직 Camera/SDK 전체의 범용 확장 계약은 아님 |
+| Output / StreamPublisher / Transport / Recorder | 프레임 라우팅·직렬화·송수신·기록 |
+| FileSave / PeriodicFileSave | Widget 수명과 독립적인 bounded 파일 작업 |
+| SlabContext / Replay / SlabActor | 업무 세션·보관·이동; 미래 플러그인에서는 host 경계로 분리 필요 |
+| ToolWorkspace / PanelHost | 명시적 소유 UI·Main/Viewport 재호스팅 |
 
-마이그레이션 세부사항은 [Sensor V2 마이그레이션](docs/sensor_v2_migration.ko.md)을 참고하세요.
+`UVirtualSensorIntegrationSettings`/`UVirtualSensorDtCoreBridgeSubsystem`는 현재 소스에 없다. 예전 제안이 구현 완료된 것으로 오인하지 않는다. 분산된 기본값과 Slab 직접 참조를 먼저 정리해야 한다.
+
+## 8. 최신 검증과 제한
+
+아래는 **2026-09-22 / f7bdd3b**의 기존 실행 증거다. 이번 문서 정리에서 Unreal 시험을 새로 실행한 결과가 아니다.
+
+- Development 빌드, 6개 WBP 메모리 컴파일, V2 자산 검사 통과.
+- 전체 168개 기록: 실제 통과 157 / 실패 2 / 조건부 skip 9. helper pool의 과거 37개 기대값을 42로 갱신하고 최종 집중 3/3 통과. 남은 운영맵 높이 fixture는 사용자 맵을 수정하지 않았다.
+- 실제 RHI 표시 OFF/ON: Camera 변경 0픽셀, GPU depth/semantic 변경 0점. 양성 대조군 Camera는 2,533픽셀 변화.
+- ML-X Native 한 대 PCD-only, warmup 10초 후 30초×2, **실제 viewport 753×403**: 제출/receipt/내부/외부 수신 599+600=1,199개 일치, invalid/gap/duplicate/overflow 0, 활성 구간 약20Hz.
+- 평균 FPS 59.999/59.799, 1% low 59.940/45.019, frame p95 16.667ms. 후반 1% low 저하를 무시하지 않는다. 다중 센서나 3-stream/1920×1080 보증으로 확대하지 않는다.
+- Computer Use 실제 viewport: 내장 988×521, 별도 창 1174×683. 목표 1280×720/1920×1080 전수 검증, 회사 프로젝트, pinned clean checkout, 장시간 soak는 미완료다.
+- 증거: `Saved/Reports/SlabVisibility/report.ko.md`, `all.log`, `final_focused.log`, `pcd_external.json`, `pcd_rhi.log`, 실제 밝은 화면 PNG. Saved는 git에 포함되지 않는다.
+
+검증 명령/그룹은 사용 목적에 맞게 선택한다. 기본 quick check가 운영맵 생성이나 전체 성능 테스트를 뜻하지 않는다.
+
+```powershell
+& Scripts/validate_sensor_v2_refactor.ps1 -RequireAssets
+& "C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "$($PWD.Path)/ma0t10_dt.uproject" -d3d12 -unattended -nosplash -nop4 "-ExecCmds=Automation RunTests MA0T10;Quit" "-TestExit=Automation Test Queue Empty"
+```
+
+실제 RHI/Artemis 그룹은 해당 환경변수·Broker·외부 구독자가 필요하다. skip을 pass로 세지 않는다. `run_sensor_map_stream_rhi_smoke.ps1`, `run_fullspec_performance_evidence.ps1`, `run_lidar_geometry_stream_test.ps1`의 인자를 먼저 확인한다.
+
+## 고정 참고자료
+
+아래 문서는 이전 상세 명세/작업 기록이며 현재 UI·지원 성능의 기준 문서는 아니다. 경로를 참조하는 스크립트를 위해 보존한다.
+
+- 계약: [Camera v1](docs/camera_payload_schema.md), [LiDAR v1/v2](docs/lidar_payload_schema.md), [전송](docs/server_transport_contract.md), [과거 스트리밍 상세](docs/sensor_streaming.ko.md)
+- 센서: [테스트맵](docs/sensor_test_map_setup.ko.md), [높이·좌표](docs/lidar_height_semantic_coordinates.ko.md), [태그 없는 형상](docs/lidar_geometry_validation.ko.md), [V2 migration](docs/sensor_v2_migration.ko.md)
+- Slab/UI: [시뮬레이션 상세](docs/slab_simulation.ko.md), [재생 상세](docs/slab_scenario_replay.ko.md), [센서 연동](docs/sensor_slab_integration.ko.md), [Workspace 상세](docs/sensor_tool_workspace.ko.md)
+- 이력/범위: [PR16 병합 기록](docs/sensor_pr16_merge_notes.ko.md), [Editor smoke 이력](docs/editor_smoke_test.md), [실장비 adapter 제안](docs/real_sensor_adapter_plan.md), [PixelStreaming 참고](docs/pixel_streaming_setup.md)
