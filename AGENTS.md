@@ -1,6 +1,6 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, 기능 커밋 `f7bdd3b` / PR #26 병합 `0db2f63` (2026-09-22).
+기준: UE 5.3, 안정성 수정 `d2024bf`·`59d1027` / PR #27 병합 `68f8f2f` 기반 (2026-09-22).
 이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
 
 ## 1. 네 개의 관리 문서
@@ -41,7 +41,7 @@
 - 자동 측정은 Scheduler, 수동 동기 API는 호환 경로다. 새 native UI의 파일 저장은 FileSave/PeriodicFileSave 비동기 서비스를 사용하며 숨겨진 동기 스캔을 추가하지 않는다.
 - acquisition Transform·FrameId·UTC·revision·context는 immutable snapshot으로 끝까지 전달한다. 송신 당시 최신 Transform/Slab 상태로 덮어쓰지 않는다.
 - 비동기 결과는 weak ownership과 generation/revision을 검사한다. PIE 종료·삭제·설정 변경 뒤 결과를 적용하지 않는다. worker/socket/readback/file writer 종료도 검증한다.
-- 조작 임시 품질과 원설정 복원을 유지한다. Esc·선택 변경·패널 숨김·종료를 함께 검증한다. 현재 Esc 경계 문제는 IMPROVEMENTS의 RT-02를 참조한다.
+- 조작 임시 품질과 원설정 복원을 유지한다. Esc·선택 변경·패널 숨김·종료는 Settings의 단일 종료 경로와 시작 시 고정한 Actor를 사용한다. RT-02 자동 회귀를 유지하고 실제 키보드 검증의 미완료 여부는 IMPROVEMENTS를 참조한다.
 
 ### 송신·PCD·세션
 

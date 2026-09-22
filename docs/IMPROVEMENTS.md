@@ -1,6 +1,6 @@
 # 보완 필요 사항 — 구현 백로그
 
-기준: **f7bdd3b / PR #26 병합 0db2f63, 2026-09-22**. 이번 문서 작업에서는 코드를 수정하거나 새 성능 시험을 실행하지 않았다.
+기준: **59d1027 (RT-02 d2024bf 포함) / PR #27 병합 68f8f2f 기반, 2026-09-22**. RT-02/03만 구현·자동 검증했으며 다른 백로그와 대규모 성능 목표는 완료하지 않았다.
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md)
 
@@ -10,17 +10,17 @@
 - **검증 공백:** 구현이 있으나 해당 조건의 근거가 부족하다. 먼저 재현/계측하고 실패가 확인되면 고친다.
 - **신규 기능:** 현재 없는 목표 기능이다. 기존 결함으로 취급하지 않는다.
 - **P0:** 다중 센서 확대 전에 데이터 정확성·상태 복원·자원 한계를 확인/수정. **P1:** 다음 안정화 단계. **P2:** 제품화·선택 기능.
-- 상태는 모두 **미착수**다. 선택한 항목의 조사→재현→수정→관련 테스트→문서/증거→커밋을 마친 뒤에만 완료로 바꾼다.
+- 별도 상태가 없는 항목은 **미착수**다. RT-02/03은 아래의 구현·검증·남은 제한을 따른다. 실제 화면 검증 미수행을 완료로 바꾸지 않는다.
 - 미래 요구를 현재 기능이라고 설명하지 않는다. 항목 ID는 커밋/PR/시험 보고서에서 유지한다.
 
 ## 우선순위 요약
 
 | ID | 분류 | 우선 | 핵심 | 로드맵 |
 |---|---|---:|---|---|
-| RT-02 | 조작 / 정적 위험 | P0 | Esc의 Gizmo·Widget·Actor 종료 상태 통일 | R1 |
+| RT-02 | 조작 / 구현·자동검증 완료 | P0 | 종료 상태 통일; 실제 키보드 검증 대기 | R1 |
 | RT-01 | 성능·전송 / 정적 위험 | P0 | Raw receipt 보관량의 authoritative 상한 | R1 |
 | RT-04 | 데이터 / 검증 공백 | P0 | Camera 픽셀과 FrameId/context 동일성 | R1 |
-| RT-03 | 진단 / 정적 위험 | P1 | 0Hz 센서가 최소율·공정성에서 빠지는 문제 | R1 |
+| RT-03 | 진단 / 구현·자동검증 완료 | P1 | 0Hz·신선도·공정성 판정 수정; 화면 확인 대기 | R1 |
 | QA-01 | 품질 / 검증 공백 | P0 | 고정 의존성·깨끗한 checkout·fixture 분리 | R0 |
 | RT-05 | 성능 / 검증 공백 | P1 | 최신 SHA 다중 센서 지원 매트릭스 | R2 |
 | RT-06 | 사용자 / 검증 공백 | P1 | 측정 중 배치 입력 지연·원설정 복원 | R2 |
@@ -49,20 +49,23 @@
 - 수정: worker가 센서별/전역 미확인 프레임 수·바이트의 기준값을 소유하고 producer admission까지 backpressure를 전달한다. 큐·receipt·retry 소유권을 중복 세지 않는다.
 - 완료: receipt만 지연/누락하는 fake Broker 시험에서 모든 단계의 상한 유지, silent replacement 0, 명시적 과부하/timeout, 해제 뒤 메모리 복귀. 정상 PCD/JPEG FIFO·checksum 계약 유지.
 
-### RT-02 — Esc 조작 종료 연결 (정적 위험, P0)
+### RT-02 — Esc 조작 종료 연결 (구현·자동검증 완료, 수동 검증 대기)
 
-**근거:** [Gizmo](../Source/ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.cpp)의 Esc 처리는 Gizmo `SetManipulationEnabled(false)`만 호출한다. 실제 Actor `EndInteractiveManipulation`은 [Settings](../Source/ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.cpp)의 `SetSensorManipulationEnabled`에 있으며 transform commit handler는 Transform만 갱신한다. Settings NativeTick은 Gizmo의 false를 Widget bool에 복사하지만 Actor 종료는 호출하지 않는다.
+**수정 전 근거:** Gizmo Esc가 Actor 종료와 분리되어 있었고 Settings가 종료할 때 현재 선택 Actor를 조회했다. 새 회귀 테스트에서 선택 변경 후 원래 Camera의 640px·0.2초·미리보기 모드가 복원되지 않는 것을 재현했다.
 
-- 위험: Gizmo/Widget은 종료로 보이지만 Actor가 경량 preview·파생 출력 억제 상태에 남는 경로. false가 복사된 뒤 Widget의 종료 setter도 early-return할 수 있다. 문서 작업에서는 실제 PIE 재현하지 않았다.
-- 수정: Esc 종료 요청을 소유 controller/Settings의 단일 종료 경로로 보낸다. 정상 drag commit과 조작 모드 종료를 구분하고 중복 종료는 idempotent하게 만든다.
-- 완료: Camera/LiDAR에서 시작→이동→Esc, 버튼 종료, 선택 변경, 패널 숨김, Actor 삭제, EndPlay를 각각 확인. 세 상태 모두 종료, 이전 규격/주기/실행 상태 복원, 최종 coherent frame 갱신, 불필요한 sync 측정 0.
+- 구현 `d2024bf`: 종료 요청 이벤트 → Settings 단일 정리 → 시작 때 고정한 약한 Actor 참조. 일반 drag commit과 종료를 분리하고 직접 Gizmo 비활성도 정리한다. 선택 변경은 새 센서 조작을 자동 시작하거나 이전 monitor 선택을 덮어쓰지 않는다.
+- 검증: 단위 lifecycle/monitor follow 및 D3D12 PIE runtime 3/3. Camera/LiDAR FullSpec 복원·후속 프레임·숨김·Gizmo EndPlay·반복 종료, 정지 상태·삭제된 대상·Widget 파괴를 검사했다. 동기 측정을 추가하지 않았다.
+- 남음: 실제 마우스/키보드 Esc 입력은 Computer Use 오류 `0x80070057`/`0x80070005`로 미수행. 자동화 종료 요청을 물리 키 입력 검증으로 표기하지 않는다. 실제 viewport 미계측.
+- 증거: `Saved/Reports/SensorStability/reproduction.log`, `final-rhi/index.json`, `report.ko.md`.
 
-### RT-03 — 0Hz 최소율/공정성 (정적 위험, P1)
+### RT-03 — 0Hz 최소율/공정성 (구현·자동검증 완료, 화면 확인 대기)
 
-**근거:** [Scheduler](../Source/ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.cpp)의 sensor min/max 집계는 `AcquisitionHz > SMALL_NUMBER`인 대상만 포함한다. 모두 0Hz인 상태나 한 센서의 완전 정체를 평균이 숨길 수 있다. 외부 성능 판정 스크립트는 0Hz를 실패로 보는 부분이 있어 UI와 차이가 있다.
+**수정 전 근거:** Scheduler min/max가 양수 Hz만 포함해 완전히 멈춘 센서를 숨길 수 있었다. 마지막 acquisition-rate 값도 자동 만료되지 않았다.
 
-- 수정: configured/running/warmup/paused/starved/failed를 분리하고 첫 완료 후 경과시간을 포함한다. 시작 유예가 끝난 활성 센서는 0Hz도 min/fairness에 포함한다.
-- 완료: 두 센서 중 하나의 완료를 중단하면 유예 후 min=0·starved ID가 표시되고 정상 판정을 막는다. pause/의도된 interaction 제한은 이유를 구분한다.
+- 구현 `59d1027`: World-time 진행 시각, 시작 유예 `max(1초, 실제 주기×3)`, 오래된 양수 Hz→0Hz, 정체 ID 및 공정성 유효성 flag. pause는 측정 없이 진단만 갱신하고 조작용 임시 주기는 정격 공정성 통과에서 제외한다. 센서 주기는 변경하지 않았다.
+- 검증: SensorPerformance 5/5, 보고서 판정식 정상/0Hz/센서 누락 3/3. 두 센서 중 하나/모두 정체, 복구·시작/재등록 유예·pause·저주기·조작·실패 이력·빈 그룹을 검사했다. 기존 전체 회귀에서 신규 실패 0.
+- 주의: 기존 fairness 수치 0은 판정 불가 sentinel이다. 외부 Blueprint는 추가된 `bCameraFairnessEvaluable`/`bLidarFairnessEvaluable`을 확인해야 한다. Camera는 기존 acquisition 정의이며 GPU 픽셀 완료 검증은 RT-04다.
+- 남음: 실제 화면에서 정체/일시정지 표시 확인은 미수행. 증거 `Saved/Reports/SensorStability/rt03-focused`, `full-regression`, `report.ko.md`.
 
 ### RT-04 — Camera FrameId와 실제 픽셀 (검증 공백, P0)
 
@@ -191,8 +194,8 @@
 
 ## 다음 착수 순서
 
-1. QA-01의 현재 baseline을 고정하고 **RT-02**를 작은 기능 커밋으로 해결한다.
-2. **RT-01 + RT-03**, **RT-04**를 각각 재현/시험 단위로 처리한다.
+1. RT-02/03의 남은 수동 화면 검증과 QA-01의 고정 baseline/운영맵 fixture 분리를 마무리한다.
+2. **RT-01**, **RT-04**를 각각 재현/시험 단위로 처리한다. 이번 작은 안정성 수정으로 이 두 항목을 해결했다고 보지 않는다.
 3. 이후 RT-05/06과 UX-01로 실제 다중 배치 workflow를 확장한다.
 4. 데이터 정확성 기준이 정해진 뒤 PL-01/02/03 → PL-04 순으로 플러그인화한다.
 

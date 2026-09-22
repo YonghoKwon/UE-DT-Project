@@ -1,6 +1,6 @@
 # 최종 목표를 위한 로드맵
 
-기준: **f7bdd3b / PR #26 병합 0db2f63, 2026-09-22**.
+기준: **59d1027 / PR #27 병합 68f8f2f 기반, 2026-09-22**.
 이 문서는 후속 개발 순서와 승인 기준이다. 플러그인 생성이나 모든 단계의 구현을 지금 승인하는 문서는 아니다.
 
 [AGENTS](../AGENTS.md) · [현재 구현](../README.md) · [개별 보완 백로그](IMPROVEMENTS.md)
@@ -36,6 +36,8 @@ R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래�
 **완료 gate:** 개인 Game.ini/SaveGame 없이 빌드·WBP·계약·핵심 RHI 재현, 운영맵/보호 경로 hash 불변. 관련 백로그: QA-01.
 
 ### R1 — 확장 전에 데이터·수명 정확성 확보
+
+진행: RT-02(`d2024bf`)·RT-03(`59d1027`) 구현·자동 검증 완료. 실제 키보드/화면 검증은 데스크톱 접근 오류로 남아 있다. RT-01/04·LIFE-01과 전체 R1 gate는 미완료다.
 
 1. Esc 종료를 단일 interaction 종료 경로로 통합한다. Drag commit과 mode exit를 구분한다.
 2. Raw worker의 receipt 대기 frame/byte 한도와 producer backpressure를 연결한다. 0Hz/starvation을 진단에서 숨기지 않는다.
