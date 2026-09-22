@@ -57,6 +57,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"MA0T10.SensorV2.UI.ManipulationMonitorFollow",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FSensorV2ManipulationLifecycleTest,
+	"MA0T10.SensorV2.UI.ManipulationLifecycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 {
 	AVirtualCameraSensorActor* Camera = NewObject<AVirtualCameraSensorActor>();
@@ -232,6 +237,57 @@ bool FSensorV2ExternalSourceHostTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("external source does not auto-start"), Source->bAutoStartSource);
 		TestFalse(TEXT("external input is not forwarded unless Capture/Export requests it"), Source->bSendTransportByDefault);
 	}
+	return true;
+}
+
+bool FSensorV2ManipulationLifecycleTest::RunTest(const FString& Parameters)
+{
+	auto* Coordinator = NewObject<AVirtualSensorCoordinator>();
+	auto* Camera = NewObject<AVirtualCameraSensorActor>();
+	auto* OtherCamera = NewObject<AVirtualCameraSensorActor>();
+	auto* Lidar = NewObject<AVirtualLidarSensorActor>();
+	Coordinator->RegisterSensorActor(Camera);
+	Coordinator->RegisterSensorActor(OtherCamera);
+	Coordinator->RegisterSensorActor(Lidar);
+	Coordinator->RegisterCamera(Camera->CaptureComponent);
+	Coordinator->RegisterCamera(OtherCamera->CaptureComponent);
+	Coordinator->RegisterLidar(Lidar->ScanComponent);
+	auto* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	Settings->BindSensorManager(Coordinator);
+	Camera->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	const auto OriginalMode = Camera->CaptureComponent->CaptureMode;
+	const float OriginalInterval = Camera->CaptureComponent->CaptureInterval;
+	Settings->SetSensorManipulationEnabled(true);
+	TestTrue(TEXT("camera enters interaction"), Camera->IsInteractiveManipulationActive());
+	Coordinator->SelectNextCamera(); // Selection can change before the widget's next tick.
+	Settings->SetSensorManipulationEnabled(false);
+	TestFalse(TEXT("widget exit state is synchronized"), Settings->bManipulationEnabled);
+	TestFalse(TEXT("exit cleans the original camera, not the new selection"), Camera->IsInteractiveManipulationActive());
+	TestEqual(TEXT("original camera resolution restored"), Camera->CaptureComponent->CaptureResolution.X, 1280);
+	TestEqual(TEXT("original camera mode restored"), Camera->CaptureComponent->CaptureMode, OriginalMode);
+	TestEqual(TEXT("original camera interval restored"), Camera->CaptureComponent->CaptureInterval, OriginalInterval);
+	TestFalse(TEXT("original stopped camera stays stopped"), Camera->CaptureComponent->IsCaptureRunning());
+	TestFalse(TEXT("new camera never enters interaction"), OtherCamera->IsInteractiveManipulationActive());
+	Settings->SetSensorManipulationEnabled(false);
+	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
+	Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	Settings->SetSensorManipulationEnabled(true);
+	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
+	TestFalse(TEXT("kind selection ends original LiDAR interaction"), Lidar->IsInteractiveManipulationActive());
+	TestFalse(TEXT("kind selection does not implicitly manipulate new camera"), OtherCamera->IsInteractiveManipulationActive());
+	TestEqual(TEXT("LiDAR restores full resolution"), Lidar->ScanComponent->HorizontalSamples, 360);
+	TestFalse(TEXT("original stopped LiDAR stays stopped"), Lidar->ScanComponent->IsScanRunning());
+	Settings->SetSensorManipulationEnabled(true);
+	Settings->NativeDestruct();
+	TestFalse(TEXT("widget destruction restores manipulated camera"), OtherCamera->IsInteractiveManipulationActive());
+	TestFalse(TEXT("widget destruction clears its own state"), Settings->bManipulationEnabled);
+	Settings->SetSensorManipulationEnabled(true);
+	OtherCamera->MarkAsGarbage();
+	Settings->SetSensorManipulationEnabled(false);
+	TestFalse(TEXT("deleted target still allows widget cleanup"), Settings->bManipulationEnabled);
+	Settings->BindSensorManager(nullptr);
+	Settings->SetSensorManipulationEnabled(true);
+	TestFalse(TEXT("missing target cannot enter interaction"), Settings->bManipulationEnabled);
 	return true;
 }
 

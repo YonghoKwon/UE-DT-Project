@@ -123,8 +123,10 @@ void UVirtualSensorSettingsPanelWidget::NativeConstruct()
 
 void UVirtualSensorSettingsPanelWidget::NativeDestruct()
 {
+    FinishSensorManipulation(false);
     if (GizmoActor)
     {
+        GizmoActor->OnManipulationExitRequested.RemoveAll(this);
         GizmoActor->OnTransformChanged.RemoveAll(this);
         GizmoActor->OnTransformCommitted.RemoveAll(this);
         GizmoActor->Destroy();
@@ -142,14 +144,18 @@ void UVirtualSensorSettingsPanelWidget::NativeTick(const FGeometry& MyGeometry, 
     }
     else if (AActor* SelectedActor = GetSelectedSensorActor(); SelectedActor != LastSyncedSensorActor.Get())
     {
+        FinishSensorManipulation(false);
         RefreshPendingState(true);
         SyncGizmoTarget();
     }
-    if (GizmoActor)
+    if (IsValid(GizmoActor))
     {
-        bManipulationEnabled = GizmoActor->IsManipulationEnabled();
+        // A legacy caller may turn the gizmo off directly; still finalize the actor.
+        if (bManipulationEnabled && (!GizmoActor->IsManipulationEnabled() || !ManipulationTarget.IsValid()))
+            FinishSensorManipulation(true);
         GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
     }
+    else if (bManipulationEnabled) FinishSensorManipulation(true);
     if (bManipulationEnabled && bMonitorAutoFollowingManipulation && SensorManager &&
         static_cast<uint8>(SensorManager->GetViewMode()) != AutoFollowMonitorView)
     {
@@ -174,6 +180,7 @@ FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
 
 void UVirtualSensorSettingsPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
+    if (SensorManager != InSensorManager) FinishSensorManipulation(false);
     SensorManager = InSensorManager;
     if (IsWorkspaceOwned() && SensorManager) SynchronizeWorkspaceSelection(true);
     else RefreshPendingState(true);
@@ -192,14 +199,10 @@ bool UVirtualSensorSettingsPanelWidget::SynchronizeWorkspaceSelection(bool bForc
     const bool bSame = Selected==LastSyncedSensorActor.Get() && PendingState.TargetKind==Kind && PendingState.SensorId==Id;
     if (bSame && !bForceRefresh) return false;
 
-    if (!bSame && bManipulationEnabled)
+    if (!bSame)
     {
         // Do not restore the old monitor view here: the user's new selection wins.
-        if (auto* Previous=Cast<AVirtualSensorActorBase>(LastSyncedSensorActor.Get())) Previous->EndInteractiveManipulation();
-        bManipulationEnabled=false;
-        bMonitorAutoFollowingManipulation=false;
-        bRestoreMonitorViewAfterManipulation=false;
-        if (GizmoActor) GizmoActor->SetManipulationEnabled(false);
+        FinishSensorManipulation(false);
     }
     PendingState.TargetKind=Kind;
     if (Selected) RefreshPendingState(true);
@@ -330,8 +333,7 @@ double UVirtualSensorSettingsPanelWidget::CalculateLidarRaysPerSecond(const FVir
 
 void UVirtualSensorSettingsPanelWidget::SelectTargetKind(EVirtualSensorTargetKind InTargetKind)
 {
-    AVirtualSensorActorBase* PreviousActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
-    if (bManipulationEnabled && PreviousActor) PreviousActor->EndInteractiveManipulation();
+    FinishSensorManipulation(false);
     const bool bCycleWithinCurrentKind = PendingState.TargetKind == InTargetKind;
     if (SensorManager)
     {
@@ -347,18 +349,11 @@ void UVirtualSensorSettingsPanelWidget::SelectTargetKind(EVirtualSensorTargetKin
     PendingState.TargetKind = InTargetKind;
     RefreshPendingState(true);
     SyncGizmoTarget();
-    if (bManipulationEnabled)
-    {
-        if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
-        {
-            SensorActor->BeginInteractiveManipulation(InteractionRequest);
-        }
-        BeginMonitorFollowForManipulation();
-    }
 }
 
 void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
 {
+    FinishSensorManipulation(false);
     if (!SensorManager)
     {
         LastControlMessage = TEXT("SensorManager가 연결되지 않았습니다.");
@@ -445,24 +440,53 @@ void UVirtualSensorSettingsPanelWidget::NudgeSelectedSensor(FVector TranslationD
 
 void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabled)
 {
-	if (bManipulationEnabled == bEnabled) return;
-    bManipulationEnabled = bEnabled;
+    if (!bEnabled)
+    {
+        FinishSensorManipulation(true);
+        return;
+    }
+    auto* Target = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+    if (bManipulationEnabled && ManipulationTarget.Get() == Target && IsValid(Target) && Target->IsInteractiveManipulationActive()) return;
+    FinishSensorManipulation(false);
+    if (!IsValid(Target) || !Target->BeginInteractiveManipulation(InteractionRequest))
+    {
+        LastControlMessage = TEXT("센서 조작을 시작할 수 없습니다: 유효한 센서를 선택하세요.");
+        RefreshNativeText();
+        return;
+    }
+    ManipulationTarget = Target;
+    bManipulationEnabled = true;
     SpawnGizmoIfNeeded();
-    if (GizmoActor) GizmoActor->SetManipulationEnabled(bEnabled);
-	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
-	{
-		if (bEnabled) SensorActor->BeginInteractiveManipulation(InteractionRequest);
-		else SensorActor->EndInteractiveManipulation();
-	}
-    if (bEnabled) BeginMonitorFollowForManipulation();
-    else EndMonitorFollowForManipulation();
-    LastControlMessage = bEnabled
-        ? TEXT("센서 조작 모드가 켜졌습니다. WASD/QE와 방향키, Z/C를 사용할 수 있습니다.")
-        : TEXT("센서 조작 모드가 꺼졌습니다.");
-	LastControlMessage = bEnabled
-		? TEXT("조작 중: 경량 미리보기 (WASD/QE 이동, 방향키/Z/C 회전)")
-		: TEXT("FullSpec 최종 갱신 중");
-	RefreshNativeText();
+    if (GizmoActor)
+    {
+        GizmoActor->BindTarget(Target);
+        GizmoActor->SetManipulationEnabled(true);
+    }
+    BeginMonitorFollowForManipulation();
+    LastControlMessage = TEXT("조작 중: 경량 미리보기 (WASD/QE 이동, 방향키/Z/C 회전)");
+    RefreshNativeText();
+}
+
+void UVirtualSensorSettingsPanelWidget::HandleManipulationExitRequested()
+{
+    FinishSensorManipulation(true);
+}
+
+void UVirtualSensorSettingsPanelWidget::FinishSensorManipulation(bool bRestoreMonitorView)
+{
+    const bool bWasManipulating = bManipulationEnabled || ManipulationTarget.IsValid();
+    if (ManipulationTarget.IsValid() && ManipulationTarget.Get() != GetSelectedSensorActor()) bRestoreMonitorView = false;
+    if (IsValid(GizmoActor)) GizmoActor->SetManipulationEnabled(false);
+    bManipulationEnabled = false;
+    if (auto* Target = ManipulationTarget.Get()) Target->EndInteractiveManipulation();
+    ManipulationTarget.Reset();
+    if (!bRestoreMonitorView) bRestoreMonitorViewAfterManipulation = false;
+    EndMonitorFollowForManipulation();
+    if (bWasManipulating)
+    {
+        LastControlMessage = TEXT("조작 종료: 원래 센서 설정·실행 상태 복원");
+        RefreshNativeText();
+    }
 }
 
 void UVirtualSensorSettingsPanelWidget::BeginMonitorFollowForManipulation()
@@ -883,11 +907,12 @@ void UVirtualSensorSettingsPanelWidget::RefreshNativeText()
 
 void UVirtualSensorSettingsPanelWidget::SpawnGizmoIfNeeded()
 {
-    if (GizmoActor || !GetWorld()) return;
+    if (IsValid(GizmoActor) || !GetWorld()) return;
     GizmoActor = GetWorld()->SpawnActor<AVirtualSensorTransformGizmoActor>();
     if (!GizmoActor) return;
     GizmoActor->OnTransformChanged.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged);
     GizmoActor->OnTransformCommitted.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted);
+    GizmoActor->OnManipulationExitRequested.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleManipulationExitRequested);
     GizmoActor->SetGizmoMode(GizmoMode);
     GizmoActor->SetCoordinateSpace(CoordinateSpace);
     GizmoActor->SetGizmoVisible(bGizmoVisible);
@@ -900,6 +925,7 @@ void UVirtualSensorSettingsPanelWidget::SyncGizmoTarget()
 {
     if (!GizmoActor) return;
     AActor* SelectedActor = GetSelectedSensorActor();
+    if (bManipulationEnabled && ManipulationTarget.Get() != SelectedActor) FinishSensorManipulation(false);
     GizmoActor->BindTarget(SelectedActor);
     LastSyncedSensorActor = SelectedActor;
     GizmoActor->SetProjectionDebugEnabled(bProjectionDebugEnabled);
@@ -916,12 +942,11 @@ AActor* UVirtualSensorSettingsPanelWidget::GetSelectedSensorActor() const
 
 void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged(const FTransform& Transform)
 {
-    if (Transform.ContainsNaN()) return;
+    if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
     PendingState.ActorTransform = Transform;
     LastControlMessage = TEXT("미리보기 갱신 중...");
-	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+	if (AVirtualSensorActorBase* SensorActor = ManipulationTarget.Get())
 	{
-		if (!SensorActor->IsInteractiveManipulationActive()) SensorActor->BeginInteractiveManipulation(InteractionRequest);
 		SensorActor->UpdateInteractiveTransform(Transform);
 	}
 	LastControlMessage = TEXT("조작 중: 경량 미리보기");
@@ -930,9 +955,9 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged(const FTrans
 
 void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted(const FTransform& Transform)
 {
-    if (Transform.ContainsNaN()) return;
+    if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
     PendingState.ActorTransform = Transform;
-	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
+	if (AVirtualSensorActorBase* SensorActor = ManipulationTarget.Get())
 	{
 		SensorActor->UpdateInteractiveTransform(Transform);
 	}

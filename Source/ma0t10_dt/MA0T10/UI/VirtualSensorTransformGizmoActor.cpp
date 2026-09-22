@@ -101,7 +101,18 @@ void AVirtualSensorTransformGizmoActor::SetManipulationEnabled(bool bEnabled)
     {
         EndMouseDrag();
     }
+    if (!bEnabled && bKeyboardManipulating)
+    {
+        bKeyboardManipulating = false;
+        if (IsValid(TargetActor)) OnTransformCommitted.Broadcast(TargetActor->GetActorTransform());
+    }
     SetHandleCollisionEnabled(bManipulationEnabled && bGizmoVisible && TargetActor != nullptr);
+}
+
+void AVirtualSensorTransformGizmoActor::RequestManipulationExit()
+{
+    SetManipulationEnabled(false);
+    OnManipulationExitRequested.Broadcast();
 }
 
 void AVirtualSensorTransformGizmoActor::SetGizmoVisible(bool bVisible)
@@ -124,8 +135,9 @@ void AVirtualSensorTransformGizmoActor::SetStepSizes(float InTranslationStepCm, 
 void AVirtualSensorTransformGizmoActor::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
-    if (!TargetActor)
+    if (!IsValid(TargetActor))
     {
+        if (bManipulationEnabled) RequestManipulationExit();
         SetHandleCollisionEnabled(false);
         return;
     }
@@ -139,9 +151,11 @@ void AVirtualSensorTransformGizmoActor::Tick(float DeltaSeconds)
 
 void AVirtualSensorTransformGizmoActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    RequestManipulationExit();
     TargetActor = nullptr;
     OnTransformChanged.Clear();
     OnTransformCommitted.Clear();
+    OnManipulationExitRequested.Clear();
     Super::EndPlay(EndPlayReason);
 }
 
@@ -278,12 +292,7 @@ void AVirtualSensorTransformGizmoActor::HandleKeyboardInput(float DeltaSeconds)
     }
     if (Controller->WasInputKeyJustPressed(EKeys::Escape))
     {
-        SetManipulationEnabled(false);
-        if (bKeyboardManipulating)
-        {
-            bKeyboardManipulating = false;
-            OnTransformCommitted.Broadcast(TargetActor->GetActorTransform());
-        }
+        RequestManipulationExit();
         return;
     }
 

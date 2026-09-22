@@ -5,6 +5,7 @@
 #include "VirtualSensorSettingsPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
+class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
 class AVirtualSensorTransformGizmoActor;
 class STextBlock;
@@ -100,6 +101,9 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FSensorV2ManipulationLifecycleTest;
+#endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
 	bool bOwnedSettingHelpOpen=false;
 	int32 WorkspaceSettingsTab=0;
@@ -113,6 +117,8 @@ private:
     AActor* GetSelectedSensorActor() const;
     void HandleGizmoTransformChanged(const FTransform& Transform);
     void HandleGizmoTransformCommitted(const FTransform& Transform);
+    void HandleManipulationExitRequested();
+    void FinishSensorManipulation(bool bRestoreMonitorView);
     void RefreshSelectedSensorNow(bool bForce);
     void BeginMonitorFollowForManipulation();
     void EndMonitorFollowForManipulation();
@@ -158,6 +164,7 @@ private:
     double LastPreviewRefreshTime = -1.0;
 	FVirtualSensorInteractionRequest InteractionRequest;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
+    TWeakObjectPtr<AVirtualSensorActorBase> ManipulationTarget;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
     FName SelectedSettingHelpKey = NAME_None;
 };

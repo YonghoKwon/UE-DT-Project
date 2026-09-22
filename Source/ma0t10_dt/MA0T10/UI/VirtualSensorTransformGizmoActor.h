@@ -9,6 +9,7 @@ class UBoxComponent;
 class USceneComponent;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorGizmoTransformChanged, const FTransform&);
+DECLARE_MULTICAST_DELEGATE(FOnVirtualSensorGizmoManipulationExitRequested);
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API AVirtualSensorTransformGizmoActor : public AActor
@@ -31,6 +32,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetManipulationEnabled(bool bEnabled);
+
+    /** Escape/end request, distinct from committing a single drag. */
+    void RequestManipulationExit();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetGizmoVisible(bool bVisible);
@@ -64,6 +68,7 @@ public:
 
     FOnVirtualSensorGizmoTransformChanged OnTransformChanged;
     FOnVirtualSensorGizmoTransformChanged OnTransformCommitted;
+    FOnVirtualSensorGizmoManipulationExitRequested OnManipulationExitRequested;
 
 protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
