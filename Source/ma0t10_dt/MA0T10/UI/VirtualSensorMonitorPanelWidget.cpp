@@ -2077,7 +2077,7 @@ FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
             TEXT("투영/색상: %s · %s\n3D 렌더러: %s · 표시점: %d\n")
             TEXT("렌더러 상태: %s\n")
             TEXT("성능 단계: %d FPS · 평균 %.1f FPS · 1%% low %.1f FPS · p95 %.1f ms\n")
-            TEXT("완료 공정성(Camera/LiDAR): %.2f / %.2f · 파생 프레임 생략: %d\n")
+            TEXT("완료 공정성(Camera/LiDAR): %s / %s · 파생 프레임 생략: %d\n")
             TEXT("경고: %s\n메시지: %s"),
             *Status.SensorId,
             Status.FrameId,
@@ -2098,13 +2098,14 @@ FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
             Telemetry ? Telemetry->AverageFps : 0.0f,
             Telemetry ? Telemetry->OnePercentLowFps : 0.0f,
             Telemetry ? Telemetry->P95FrameTimeMs : 0.0f,
-            Telemetry ? Telemetry->CameraCompletionFairnessRatio : 1.0f,
-            Telemetry ? Telemetry->LidarCompletionFairnessRatio : 1.0f,
+            Telemetry && Telemetry->bCameraFairnessEvaluable ? *FString::Printf(TEXT("%.2f"), Telemetry->CameraCompletionFairnessRatio) : TEXT("판정 불가"),
+            Telemetry && Telemetry->bLidarFairnessEvaluable ? *FString::Printf(TEXT("%.2f"), Telemetry->LidarCompletionFairnessRatio) : TEXT("판정 불가"),
             Telemetry ? Telemetry->DroppedDerivedFrameCount : Status.DroppedDerivedFrameCount,
             Status.PerformanceWarning.IsEmpty() ? TEXT("없음") : *Status.PerformanceWarning,
             *Status.LastMessage);
         Text += TEXT("\n") + GetPointCloudRendererStatusText();
         Text += TEXT("\n") + LidarFidelitySummary(LidarComp);
+        if (Telemetry && !Telemetry->StarvedSensorIds.IsEmpty()) Text += TEXT("\n측정 정체: ") + FString::Join(Telemetry->StarvedSensorIds, TEXT(", "));
         Text += FString::Printf(
             TEXT("\n스캔 주기: %.3f초 · 광선=%d")
             TEXT("\n서버 Payload: 점=%d 바이트=%d 간격=%d 최대=%d 미검출점=%s")

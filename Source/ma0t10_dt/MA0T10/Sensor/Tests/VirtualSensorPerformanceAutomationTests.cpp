@@ -11,6 +11,75 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceFullSpecContractTest, 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceLoadCalculationTest, "MA0T10.SensorPerformance.LoadCalculation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorSettingHelpCoverageTest, "MA0T10.SensorControl.SettingHelpCoverage", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorRateHealthTest, "MA0T10.SensorPerformance.RateHealth", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorRateAggregationTest, "MA0T10.SensorPerformance.ZeroRateAggregation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVirtualSensorRateHealthTest::RunTest(const FString&)
+{
+    using Scheduler = UVirtualSensorSchedulerSubsystem;
+    auto Rate = Scheduler::EvaluateRate(0.5, 0, -1, 0, 0.05f, true, false, false, 0);
+    TestEqual(TEXT("new sensor has a grace period"), Rate.State, EVirtualSensorRateState::WarmingUp);
+    TestFalse(TEXT("warmup is not evaluable"), Rate.bEvaluable);
+    Rate = Scheduler::EvaluateRate(2, 0, -1, 0, 0.05f, true, false, false, 0);
+    TestEqual(TEXT("no first completion is starved after grace"), Rate.State, EVirtualSensorRateState::Starved);
+    TestTrue(TEXT("zero-rate starvation participates in minimum"), Rate.bEvaluable);
+    Rate = Scheduler::EvaluateRate(3, 0, 1, 20, 0.05f, true, false, false, 0);
+    TestEqual(TEXT("old nonzero rate expires"), Rate.EffectiveHz, 0.0f);
+    Rate = Scheduler::EvaluateRate(3, 0, 2.95, 20, 0.05f, true, false, false, 0);
+    TestEqual(TEXT("new progress recovers automatically"), Rate.State, EVirtualSensorRateState::Running);
+    TestEqual(TEXT("fresh rate preserved"), Rate.EffectiveHz, 20.0f);
+    Rate = Scheduler::EvaluateRate(3, 0, 1, 20, 0.05f, true, true, false, 0);
+    TestEqual(TEXT("pause is not starvation"), Rate.State, EVirtualSensorRateState::Paused);
+    TestFalse(TEXT("pause is not assessed"), Rate.bEvaluable);
+    Rate = Scheduler::EvaluateRate(3, 0, 1, 20, 0.05f, false, false, false, 0);
+    TestEqual(TEXT("intentional stop is not starvation"), Rate.State, EVirtualSensorRateState::Stopped);
+    Rate = Scheduler::EvaluateRate(3, 2.5, 1, 20, 0.05f, true, false, false, 0);
+    TestEqual(TEXT("re-registration restarts grace and ignores old progress"), Rate.State, EVirtualSensorRateState::WarmingUp);
+    Rate = Scheduler::EvaluateRate(5, 0, 4.8, 4, 0.25f, true, false, true, 0);
+    TestEqual(TEXT("interaction rate is explicitly marked"), Rate.State, EVirtualSensorRateState::InteractionPreview);
+    Rate = Scheduler::EvaluateRate(5, 0, 3.5, 0.5f, 2.0f, true, false, false, 0);
+    TestEqual(TEXT("slow configured sensor receives three-period grace"), Rate.State, EVirtualSensorRateState::WarmingUp);
+    Rate = Scheduler::EvaluateRate(7, 0, 5.5, 0.5f, 2.0f, true, false, false, 0);
+    TestEqual(TEXT("slow sensor is not falsely starved"), Rate.State, EVirtualSensorRateState::Running);
+    Rate = Scheduler::EvaluateRate(3, 0, -1, 0, 0.05f, true, false, false, 1);
+    TestEqual(TEXT("stalled sensor exposes recorded failures"), Rate.State, EVirtualSensorRateState::Failed);
+    return true;
+}
+
+bool FVirtualSensorRateAggregationTest::RunTest(const FString&)
+{
+    using Scheduler = UVirtualSensorSchedulerSubsystem;
+    for (const FString Kind : {FString(TEXT("Camera")), FString(TEXT("LiDAR"))})
+    {
+        FVirtualSensorPerformanceTelemetry T;
+        auto A = Scheduler::EvaluateRate(3, 0, 2.99, 20, 0.05f, true, false, false, 0);
+        A.SensorId = TEXT("healthy"); A.SensorKind = Kind;
+        auto B = Scheduler::EvaluateRate(3, 0, 1, 20, 0.05f, true, false, false, 0);
+        B.SensorId = TEXT("stalled"); B.SensorKind = Kind;
+        T.SensorRates = {A, B};
+        Scheduler::AggregateRateDiagnostics(T);
+        const bool bCamera = Kind == TEXT("Camera");
+        TestEqual(TEXT("zero rate remains in kind minimum"), bCamera ? T.MinimumCameraCompletionHz : T.MinimumLidarCompletionHz, 0.0f);
+        TestFalse(TEXT("one dead sensor cannot pass fairness"), bCamera ? T.bCameraFairnessEvaluable : T.bLidarFairnessEvaluable);
+        TestTrue(TEXT("starved SensorId reported"), T.StarvedSensorIds.Contains(TEXT("stalled")));
+        TestEqual(TEXT("undefined fairness is finite zero, never healthy 1.0"), bCamera ? T.CameraCompletionFairnessRatio : T.LidarCompletionFairnessRatio, 0.0f);
+        T.SensorRates[0] = B;
+        Scheduler::AggregateRateDiagnostics(T);
+        TestFalse(TEXT("all-zero group cannot pass"), bCamera ? T.bCameraFairnessEvaluable : T.bLidarFairnessEvaluable);
+        T.SensorRates = {A}; // Stopped/deleted components are removed by scheduler unregister.
+        Scheduler::AggregateRateDiagnostics(T);
+        TestTrue(TEXT("remaining healthy sensor can be evaluated"), bCamera ? T.bCameraFairnessEvaluable : T.bLidarFairnessEvaluable);
+        TestTrue(TEXT("old starvation is cleared"), T.StarvedSensorIds.IsEmpty());
+        T.SensorRates[0].bInteractionPreview = true;
+        Scheduler::AggregateRateDiagnostics(T);
+        TestFalse(TEXT("interaction quality is not a rated fairness success"), bCamera ? T.bCameraFairnessEvaluable : T.bLidarFairnessEvaluable);
+        T.SensorRates.Reset();
+        Scheduler::AggregateRateDiagnostics(T);
+        TestFalse(TEXT("empty group is not evaluable"), bCamera ? T.bCameraFairnessEvaluable : T.bLidarFairnessEvaluable);
+    }
+    return true;
+}
+
 bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("2 cameras and 2 lidars use the 60 FPS tier"), UVirtualSensorSchedulerSubsystem::ResolveTargetFps(2, 2), 60);

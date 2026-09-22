@@ -156,6 +156,12 @@ void UVirtualCameraCaptureComponent::StartCapture()
 
     GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
     NextScheduledCaptureTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, CaptureInterval);
+    if (!bRegisteredWithPerformanceSubsystem)
+    {
+        RuntimeStatus.LastAcquisitionProgressWorldSeconds = -1.0;
+        RuntimeStatus.MeasuredAcquisitionRateHz = 0.0f;
+        LastAcquisitionCompletionTime = -1.0;
+    }
     RegisterWithPerformanceSubsystem();
 }
 
@@ -244,6 +250,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
         ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastAcquisitionCompletionTime))
         : 0.0f;
     LastAcquisitionCompletionTime = NowSeconds;
+    RuntimeStatus.LastAcquisitionProgressWorldSeconds = NowSeconds;
 
     if (!ShouldGeneratePayload())
     {

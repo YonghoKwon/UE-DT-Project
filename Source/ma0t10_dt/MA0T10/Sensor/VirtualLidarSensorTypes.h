@@ -502,6 +502,10 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     float MeasuredAcquisitionRateHz = 0.0f;
 
+    /** World-time freshness of the acquisition-rate sample, not JPEG/transport completion. */
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    double LastAcquisitionProgressWorldSeconds = -1.0;
+
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     float MeasuredOutputRateHz = 0.0f;
 

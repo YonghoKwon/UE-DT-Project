@@ -555,6 +555,12 @@ void UVirtualLidarScanComponent::StartScan()
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
     bDeadlineMissRecordedForActiveAcquisition = false;
+    if (!bRegisteredWithPerformanceSubsystem)
+    {
+        RuntimeStatus.LastAcquisitionProgressWorldSeconds = -1.0;
+        RuntimeStatus.MeasuredAcquisitionRateHz = 0.0f;
+        LastScheduledCompletionTime = -1.0;
+    }
     RegisterWithPerformanceSubsystem();
 }
 void UVirtualLidarScanComponent::StopScan()
@@ -1151,6 +1157,7 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 
     RuntimeStatus.MeasuredCompletionRateHz = LastScheduledCompletionTime >= 0.0 ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastScheduledCompletionTime)) : 0.0f;
     RuntimeStatus.MeasuredAcquisitionRateHz = RuntimeStatus.MeasuredCompletionRateHz;
+    RuntimeStatus.LastAcquisitionProgressWorldSeconds = NowSeconds;
     LastScheduledCompletionTime = NowSeconds;
 	UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
 	OnFrameAcquired.Broadcast(FrameId);
