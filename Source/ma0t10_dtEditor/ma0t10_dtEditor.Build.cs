@@ -5,6 +5,7 @@ public class ma0t10_dtEditor : ModuleRules
     public ma0t10_dtEditor(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        PrivateDependencyModuleNames.Add("UMG");
 
         PublicDependencyModuleNames.AddRange(new string[]
         {

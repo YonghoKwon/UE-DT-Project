@@ -76,6 +76,9 @@
 
 ## 4. 검증과 완료 보고
 
+- Runtime 모듈의 에디터 전용 자동화는 `WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR`로 보호한다. EditorContext 플래그만으로 게임 빌드에서 에디터 헤더가 제외되지는 않는다.
+- 패키징은 직접 선택한 맵뿐 아니라 DataTable의 간접 맵 참조도 쿠킹한다. 승인된 참조 복구는 대상 패키지만 백업/저장하고 사용자 변경 맵을 재생성하지 않는다. `RepairTestMapMonitorReference`는 기본 dry-run, `-Apply`에서 TestMap만 저장한다.
+
 1. 문서 변경은 링크·경로·코드/증거 일치와 `git diff --check`를 검사한다. 문서만 바꿨다는 이유로 전체 빌드를 반복하지 않는다.
 2. C++ 변경은 Editor/Live Coding 정상 종료 후 UE 5.3 Development를 빌드한다. 관련 자동화를 먼저, 전체 회귀는 통합 시 수행한다.
 3. WBP·자산 검사는 가능한 읽기/메모리 컴파일로 한다. 테스트를 맞추려고 보호된 맵을 저장하지 않는다.

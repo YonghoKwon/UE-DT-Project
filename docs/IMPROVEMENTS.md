@@ -6,6 +6,8 @@
 
 ## 읽는 방법
 
+2026-09-29 패키징 보완: Runtime의 에디터 전용 테스트11파일을 WITH_EDITOR로 제한하고, 승인된 TestMap의 누락 모니터 참조를 복구했다. Windows Development 전체 Build/Cook/Stage/Archive와 관련 D3D12 자동화29건(실패0,17건 초기 SaveGame 부재 경고)을 확인했다. 실제 런처 설치/실행은 별도 수용이며 다른 센서/성능 백로그의 완료를 의미하지 않는다. DTCore EnhancedInput 의존 선언 경고, Shipping/Linux·회사망 검증은 남는다. 보호된 SensorTestMap/Config/Game.ini/DTCore 사용자 변경은 보존했다.
+
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.
 - **검증 공백:** 구현이 있으나 해당 조건의 근거가 부족하다. 먼저 재현/계측하고 실패가 확인되면 고친다.
 - **신규 기능:** 현재 없는 목표 기능이다. 기존 결함으로 취급하지 않는다.
