@@ -6,6 +6,8 @@
 
 ## 읽는 방법
 
+같은2026-09-29 실제 실행 후속: 격리된 관리형 런처 GUI에서328파일 설치/해시·UE 창·런처 종료 후 동일 UE 프로세스 유지·정상 종료를 확인했다. DTCore CustomLogs가 설치 경로에 쓰이는 점을 발견했으므로 회사 Program Files 권한/로그 위치는 미검증으로 남긴다. 실제 버전 변경/복구·Shipping/Linux·운영망 검증은 이 결과로 완료되지 않는다.
+
 2026-09-29 패키징 보완: Runtime의 에디터 전용 테스트11파일을 WITH_EDITOR로 제한하고, 승인된 TestMap의 누락 모니터 참조를 복구했다. Windows Development 전체 Build/Cook/Stage/Archive와 관련 D3D12 자동화29건(실패0,17건 초기 SaveGame 부재 경고)을 확인했다. 실제 런처 설치/실행은 별도 수용이며 다른 센서/성능 백로그의 완료를 의미하지 않는다. DTCore EnhancedInput 의존 선언 경고, Shipping/Linux·회사망 검증은 남는다. 보호된 SensorTestMap/Config/Game.ini/DTCore 사용자 변경은 보존했다.
 
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.
