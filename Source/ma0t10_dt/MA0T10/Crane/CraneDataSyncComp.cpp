@@ -31,7 +31,7 @@ void UCraneDataSyncComp::OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr)
 	if (!DataPtr.IsValid()) return;
 
 	// 2. 타입 확인 (데이터 자체가 자신의 타입을 알고 있음)
-	if (DataPtr->GetType() == EDxDataType::CraneState)
+	if (DataPtr->GetType() == static_cast<int32>(EMa0t10DataType::CraneState))
 	{
 		// 3. 안전한 캐스팅 (StaticCastSharedPtr)
 		// FDxDataBase -> FCraneStateData로 포인터 변환

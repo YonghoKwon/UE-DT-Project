@@ -1,0 +1,6 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.3",
+  "Modules": [{ "Name": "DTCoreCompatHost", "Type": "Runtime", "LoadingPhase": "Default" }],
+  "Plugins": [{ "Name": "DTCore", "Enabled": true }, { "Name": "EnhancedInput", "Enabled": true }]
+}
