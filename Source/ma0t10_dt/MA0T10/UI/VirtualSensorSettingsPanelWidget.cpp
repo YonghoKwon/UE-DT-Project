@@ -374,6 +374,12 @@ void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
 
 bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
 {
+    if (bManipulationEnabled)
+    {
+        const FVirtualSensorEditableState Requested = PendingState;
+        FinishSensorManipulation(false);
+        PendingState = Requested;
+    }
     FString Error;
     if (!ValidateState(PendingState, Error) || !ApplyStateToRuntime(PendingState, Error))
     {
@@ -389,6 +395,22 @@ bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
     }
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
     RefreshSelectedSensorNow(true);
+    RefreshNativeText();
+    return true;
+}
+
+bool UVirtualSensorSettingsPanelWidget::ApplyPendingTransform()
+{
+    auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+    FString Error;
+    if (!Sensor || (bManipulationEnabled && ManipulationTarget.Get() != Sensor) ||
+        !Sensor->ApplyEditableTransform(PendingState.ActorTransform, Error))
+    {
+        LastControlMessage = FString::Printf(TEXT("위치 적용 실패: %s"), *Error);
+        RefreshNativeText();
+        return false;
+    }
+    LastControlMessage = bManipulationEnabled ? TEXT("조작 중: 경량 미리보기 · 위치 적용됨") : TEXT("위치가 PIE에 반영됨");
     RefreshNativeText();
     return true;
 }
@@ -623,12 +645,12 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                     .OnCheckStateChanged_Lambda([this](ECheckBoxState State) { SetProjectionDebugEnabled(State == ECheckBoxState::Checked); })
                     [ SNewSensorTool(STextBlock).Text(LOCTEXT("ProjectionDebug", "선택 센서 투사 범위 표시")) ]
                 ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationX", "위치 X (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().X; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.X = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationY", "위치 Y (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().Y; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.Y = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationZ", "위치 Z (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().Z; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.Z = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Pitch", "Pitch (도)"), [this]() { return PendingState.ActorTransform.Rotator().Pitch; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Pitch = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Yaw", "Yaw (도)"), [this]() { return PendingState.ActorTransform.Rotator().Yaw; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Yaw = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Roll", "Roll (도)"), [this]() { return PendingState.ActorTransform.Rotator().Roll; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Roll = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f) ]
+                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationX", "위치 X (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().X; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.X = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true) ]
+                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationY", "위치 Y (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().Y; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.Y = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true) ]
+                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationZ", "위치 Z (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().Z; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.Z = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true) ]
+                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Pitch", "Pitch (도)"), [this]() { return PendingState.ActorTransform.Rotator().Pitch; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Pitch = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
+                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Yaw", "Yaw (도)"), [this]() { return PendingState.ActorTransform.Rotator().Yaw; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Yaw = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
+                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Roll", "Roll (도)"), [this]() { return PendingState.ActorTransform.Rotator().Roll; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Roll = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("MoveStep", "이동 단위 (cm)"), [this]() { return TranslationStepCm; }, [this](float V) { TranslationStepCm = V; }, 1.0f, 1000.0f, false) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("RotateStep", "회전 단위 (도)"), [this]() { return RotationStepDegrees; }, [this](float V) { RotationStepDegrees = V; }, 0.1f, 90.0f, false) ]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
@@ -794,6 +816,12 @@ bool UVirtualSensorSettingsPanelWidget::SetSelectedSimulationQuality(EVirtualSen
 
 bool UVirtualSensorSettingsPanelWidget::ApplySelectedProfileAndQualityPreset()
 {
+    if (bManipulationEnabled)
+    {
+        const FVirtualSensorEditableState Requested = PendingState;
+        FinishSensorManipulation(false);
+        PendingState = Requested;
+    }
     const EVirtualSensorKind RequestedKind = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
         ? EVirtualSensorKind::Lidar
         : EVirtualSensorKind::Camera;
@@ -1048,7 +1076,7 @@ FName UVirtualSensorSettingsPanelWidget::ResolvePersistentActorTag(const AActor*
     return Actor->GetFName();
 }
 
-TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit, FName HelpKey)
+TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit, FName HelpKey, bool bTransformOnly)
 {
     const FVirtualSensorSettingHelpDescriptor* Help = FindSettingHelp(HelpKey);
     const FText ToolTip = Help ? FText::Format(LOCTEXT("SettingTipFormat", "{0}\n성능 영향: {1}\n권장값: {2}"), Help->Description, Help->PerformanceImpact, Help->RecommendedValue) : FText::GetEmpty();
@@ -1071,8 +1099,8 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::MakeFloatRow(const FText&
             .MinValue(Min).MaxValue(Max)
             .Value_Lambda([Getter]() { return Getter(); })
             .OnValueChanged_Lambda([Setter](float Value) { Setter(Value); })
-            .OnValueCommitted_Lambda([this, Setter, bApplyOnCommit](float Value, ETextCommit::Type) { Setter(Value); if (bApplyOnCommit) ApplyPendingState(); })
-            .OnEndSliderMovement_Lambda([this, Setter, bApplyOnCommit](float Value) { Setter(Value); if (bApplyOnCommit) ApplyPendingState(); })
+            .OnValueCommitted_Lambda([this, Setter, bApplyOnCommit, bTransformOnly](float Value, ETextCommit::Type) { Setter(Value); if (bApplyOnCommit) { if(bTransformOnly) ApplyPendingTransform(); else ApplyPendingState(); } })
+            .OnEndSliderMovement_Lambda([this, Setter, bApplyOnCommit, bTransformOnly](float Value) { Setter(Value); if (bApplyOnCommit) { if(bTransformOnly) ApplyPendingTransform(); else ApplyPendingState(); } })
         ];
 }
 

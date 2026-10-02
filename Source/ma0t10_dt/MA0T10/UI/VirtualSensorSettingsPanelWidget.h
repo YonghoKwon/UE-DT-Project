@@ -109,6 +109,7 @@ private:
 	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;
     bool ApplyStateToRuntime(const FVirtualSensorEditableState& State, FString& OutError);
+	bool ApplyPendingTransform();
     bool ValidateState(const FVirtualSensorEditableState& State, FString& OutError) const;
     void RefreshPendingState(bool bCaptureInitialValue);
     void RefreshNativeText();
@@ -130,7 +131,7 @@ private:
     FString BuildDeviceSpecText() const;
     FName ResolvePersistentActorTag(const AActor* Actor) const;
     const FVirtualSensorSettingHelpDescriptor* FindSettingHelp(FName SettingKey) const;
-    TSharedRef<SWidget> MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit = true, FName HelpKey = NAME_None);
+    TSharedRef<SWidget> MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit = true, FName HelpKey = NAME_None, bool bTransformOnly = false);
     TSharedRef<SWidget> MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max, FName HelpKey = NAME_None);
 
     UPROPERTY(Transient)

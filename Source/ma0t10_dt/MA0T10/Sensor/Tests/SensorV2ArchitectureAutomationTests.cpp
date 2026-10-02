@@ -259,6 +259,11 @@ bool FSensorV2ManipulationLifecycleTest::RunTest(const FString& Parameters)
 	const float OriginalInterval = Camera->CaptureComponent->CaptureInterval;
 	Settings->SetSensorManipulationEnabled(true);
 	TestTrue(TEXT("camera enters interaction"), Camera->IsInteractiveManipulationActive());
+	Settings->PendingState.ActorTransform.SetLocation(FVector(10,20,30));
+	TestTrue(TEXT("camera numeric transform applies without acquisition reset"), Settings->ApplyPendingTransform());
+	TestEqual(TEXT("numeric commit keeps lightweight camera resolution"), Camera->CaptureComponent->CaptureResolution.X, 640);
+	TestEqual(TEXT("numeric commit keeps lightweight camera interval"), Camera->CaptureComponent->CaptureInterval, 0.2f);
+	TestTrue(TEXT("camera transform changed through actor API"), Camera->GetActorLocation().Equals(FVector(10,20,30)));
 	Coordinator->SelectNextCamera(); // Selection can change before the widget's next tick.
 	Settings->SetSensorManipulationEnabled(false);
 	TestFalse(TEXT("widget exit state is synchronized"), Settings->bManipulationEnabled);
@@ -272,6 +277,11 @@ bool FSensorV2ManipulationLifecycleTest::RunTest(const FString& Parameters)
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
 	Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 	Settings->SetSensorManipulationEnabled(true);
+	Settings->PendingState.ActorTransform.SetLocation(FVector(20,30,40));
+	TestTrue(TEXT("LiDAR numeric transform applies without restoring full scan"), Settings->ApplyPendingTransform());
+	TestEqual(TEXT("numeric commit keeps lightweight LiDAR samples"), Lidar->ScanComponent->HorizontalSamples, 120);
+	TestEqual(TEXT("numeric commit keeps lightweight LiDAR interval"), Lidar->ScanComponent->ScanInterval, 0.25f);
+	TestTrue(TEXT("LiDAR transform changed through actor API"), Lidar->GetActorLocation().Equals(FVector(20,30,40)));
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
 	TestFalse(TEXT("kind selection ends original LiDAR interaction"), Lidar->IsInteractiveManipulationActive());
 	TestFalse(TEXT("kind selection does not implicitly manipulate new camera"), OtherCamera->IsInteractiveManipulationActive());

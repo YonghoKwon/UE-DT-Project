@@ -52,6 +52,8 @@ public:
 	virtual bool ReadEditableState(FVirtualSensorEditableState& OutState) const;
 	virtual bool ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const;
 	virtual bool ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")
+	virtual bool ApplyEditableTransform(const FTransform& Transform, FString& OutError);
 	virtual bool ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")

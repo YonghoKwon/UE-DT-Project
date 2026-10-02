@@ -92,6 +92,18 @@ bool AVirtualSensorActorBase::UpdateInteractiveTransform(const FTransform& Trans
 	return true;
 }
 
+bool AVirtualSensorActorBase::ApplyEditableTransform(const FTransform& Transform, FString& OutError)
+{
+	OutError.Reset();
+	if (Transform.ContainsNaN())
+	{
+		OutError = TEXT("Transform 값이 유효하지 않습니다.");
+		return false;
+	}
+	if (bInteractiveManipulationActive) return UpdateInteractiveTransform(Transform);
+	return SetActorTransform(Transform, false, nullptr, ETeleportType::TeleportPhysics);
+}
+
 void AVirtualSensorActorBase::EndInteractiveManipulation()
 {
 	bInteractiveManipulationActive = false;
