@@ -62,6 +62,7 @@ void UVirtualCameraCaptureComponent::UpdateSceneCaptureContents(FSceneInterface*
 	if(BeforeSceneCaptureForTests&&bFileAcquisitionPendingRender)BeforeSceneCaptureForTests(Snapshot.FrameId);
 #endif
 	Snapshot.TimestampUtc=FDateTime::UtcNow();Snapshot.Width=CameraRenderTarget?CameraRenderTarget->SizeX:CaptureResolution.X;
+	Snapshot.AcquisitionRevision=ScheduledGeneration;
 	Snapshot.Height=CameraRenderTarget?CameraRenderTarget->SizeY:CaptureResolution.Y;Snapshot.HorizontalFov=FOVAngle;Snapshot.VerticalFov=DeviceSpec.VerticalFovDegrees;
 	Snapshot.Location=GetComponentLocation();Snapshot.Rotation=GetComponentRotation();Snapshot.Forward=GetForwardVector();Snapshot.Up=GetUpVector();
 	Super::UpdateSceneCaptureContents(Scene);

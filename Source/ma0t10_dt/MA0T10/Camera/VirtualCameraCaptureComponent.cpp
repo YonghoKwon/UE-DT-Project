@@ -580,6 +580,9 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		{LastCompletedAcquisition=*Acquired;RuntimeStatus.LastUpdateUtc=Acquired->TimestampUtc;}
 		ScheduledAcquisitionSnapshots.Remove(CompletedFrameId);
 		LastSlabContext=CompleteSlabAcquisition(CompletedFrameId);
+#if WITH_DEV_AUTOMATION_TESTS
+		if(OnScheduledFrameForTests)OnScheduledFrameForTests(LastCompletedAcquisition,LastSlabContext,LastJpegSnapshot);
+#endif
 		OnFrameCaptured.Broadcast(LastJsonPayload, CameraRenderTarget);
 	}
 }

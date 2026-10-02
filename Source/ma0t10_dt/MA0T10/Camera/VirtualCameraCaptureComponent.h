@@ -300,6 +300,8 @@ private:
 	friend class FSensorCameraCoherenceUnitTest;
 public:
 	TFunction<void(int64)> BeforeSceneCaptureForTests;
+	TFunction<void(const FVirtualCameraPayloadSnapshot&,const FVirtualSlabFrameContext&,TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe>)> OnScheduledFrameForTests;
+	int32 GetAcquisitionRevisionForTests() const { return ScheduledGeneration; }
 	bool ForceReadbackSaturationForTests=false;
 	float EncodeDelayForTests=0;
 private:
