@@ -131,6 +131,7 @@ public:
 
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> GetLastJpegSnapshot() const { return LastJpegSnapshot; }
 	const FVirtualCameraJpegMetadata& GetLastJpegMetadata() const { return LastJpegMetadata; }
+	const FVirtualCameraPayloadSnapshot& GetLastCompletedAcquisition() const { return LastCompletedAcquisition; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
@@ -293,6 +294,16 @@ private:
 	TArray<FPendingEncodeInput> PendingEncodeInputs;
 	TArray<int64> EncodeOrder;
 	TMap<int64, FCompletedEncode> CompletedEncodes;
+	TMap<int64,FVirtualCameraPayloadSnapshot> ScheduledAcquisitionSnapshots;
+	FVirtualCameraPayloadSnapshot LastCompletedAcquisition;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSensorCameraCoherenceUnitTest;
+public:
+	TFunction<void(int64)> BeforeSceneCaptureForTests;
+	bool ForceReadbackSaturationForTests=false;
+	float EncodeDelayForTests=0;
+private:
+#endif
 	int32 ScheduledEncodeInFlightCount = 0;
     double NextScheduledCaptureTime = -1.0;
     double LastScheduledCompletionTime = -1.0;

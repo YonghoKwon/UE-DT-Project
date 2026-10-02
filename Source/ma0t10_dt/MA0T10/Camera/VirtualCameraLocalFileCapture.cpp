@@ -58,6 +58,9 @@ void UVirtualCameraCaptureComponent::UpdateSceneCaptureContents(FSceneInterface*
 	// Never dispatch another component's deferred capture in response to a file request.
 	const double ActualStart=FPlatformTime::Seconds();
 	FVirtualCameraPayloadSnapshot Snapshot=PendingFileAcquisition;
+#if WITH_DEV_AUTOMATION_TESTS
+	if(BeforeSceneCaptureForTests&&bFileAcquisitionPendingRender)BeforeSceneCaptureForTests(Snapshot.FrameId);
+#endif
 	Snapshot.TimestampUtc=FDateTime::UtcNow();Snapshot.Width=CameraRenderTarget?CameraRenderTarget->SizeX:CaptureResolution.X;
 	Snapshot.Height=CameraRenderTarget?CameraRenderTarget->SizeY:CaptureResolution.Y;Snapshot.HorizontalFov=FOVAngle;Snapshot.VerticalFov=DeviceSpec.VerticalFovDegrees;
 	Snapshot.Location=GetComponentLocation();Snapshot.Rotation=GetComponentRotation();Snapshot.Forward=GetForwardVector();Snapshot.Up=GetUpVector();
@@ -67,6 +70,11 @@ void UVirtualCameraCaptureComponent::UpdateSceneCaptureContents(FSceneInterface*
 #endif
 	if(!bFileAcquisitionPendingRender)return;
 	bFileAcquisitionPendingRender=false;LastFileAcquisition=MoveTemp(Snapshot);LastFileSlabContext=PendingFileSlabContext;LastFileAcquisitionSeconds=ActualStart;bHasFileAcquisition=true;ExternalFileFrame.Reset();
+	if(ShouldGeneratePayload()&&!PendingReadbackRequests.IsEmpty())
+	{
+		ScheduledAcquisitionSnapshots.Add(LastFileAcquisition.FrameId,LastFileAcquisition);
+		QueuePendingGpuReadbacks();
+	}
 	if(LocalFileReadback&&LocalFileReadback->WaitingForNewFrame) {LocalFileReadback->WaitingForNewFrame=false;QueueLocalFileReadback();}
 }
 void UVirtualCameraCaptureComponent::QueueLocalFileReadback()

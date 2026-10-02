@@ -31,6 +31,7 @@
 #include "EdGraphSchema_K2.h"
 #include "K2Node_Event.h"
 #include "K2Node_VariableSet.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 
 class FDTCoreFakeStomp : public IStompClient
 {
@@ -70,6 +71,38 @@ bool UDTCoreContractListener::CompileBlueprintForValidation(UBlueprint* Blueprin
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorCameraCoherenceUnitTest,"MA0T10.SensorFiles.CameraAcquisitionSnapshot",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorCameraCoherenceUnitTest::RunTest(const FString&)
+{
+    auto Camera=MakeShared<TStrongObjectPtr<UVirtualCameraCaptureComponent>>(NewObject<UVirtualCameraCaptureComponent>());
+    auto* C=Camera->Get(); C->CaptureMode=EVirtualCameraCaptureMode::Payload; C->OutputMode=EVirtualCameraOutputMode::None;
+    FVirtualCameraPayloadSnapshot Snapshot; Snapshot.FrameId=17;Snapshot.SensorId=TEXT("snapshot-fixture");
+    Snapshot.Width=8;Snapshot.Height=8;Snapshot.Location=FVector(10,20,30);Snapshot.TimestampUtc=FDateTime(2026,10,2,12,0,0);
+    C->ScheduledAcquisitionSnapshots.Add(17,Snapshot);C->EncodeOrder.Add(17);
+    C->SetWorldLocation(FVector(900,800,700));
+    TArray<FColor> Pixels;Pixels.Init(FColor::Blue,64);
+    TestTrue(TEXT("delayed encode accepted"),C->StartScheduledEncode(MoveTemp(Pixels),8,8,17,FPlatformTime::Seconds()));
+    const double Start=FPlatformTime::Seconds();
+    ADD_LATENT_AUTOMATION_COMMAND(FDTCoreCallbackCommand([this,Camera,Snapshot,Start]()
+    {
+        if(FPlatformTime::Seconds()-Start>5){AddError(TEXT("JPEG encode did not finish"));return true;}
+        if(!Camera->Get()->GetLastJpegSnapshot().IsValid())return false;
+        const auto& Result=Camera->Get()->GetLastCompletedAcquisition();
+        TestEqual(TEXT("encode retains acquisition pose rather than current pose"),Result.Location,Snapshot.Location);
+        TestEqual(TEXT("acquisition UTC survives encode"),Camera->Get()->GetRuntimeStatus().LastUpdateUtc,Snapshot.TimestampUtc);
+        TestEqual(TEXT("acquisition frame id survives encode"),Camera->Get()->GetRuntimeStatus().FrameId,int64(17));
+        UVirtualCameraCaptureComponent::FPendingReadbackRequest Missing;Missing.FrameId=18;
+        Camera->Get()->PendingReadbackRequests.Add(Missing);Camera->Get()->EncodeOrder.Add(18);
+        Camera->Get()->LastFileAcquisition.FrameId=19;
+        Camera->Get()->QueuePendingGpuReadbacks();
+        TestTrue(TEXT("old metadata request cannot wait for a newer target"),Camera->Get()->PendingReadbackRequests.IsEmpty());
+        TestFalse(TEXT("failed old frame is removed from ordered completion queue"),Camera->Get()->EncodeOrder.Contains(18));
+        return true;
+    }));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreBlueprintCloseTest,"MA0T10.DTCoreIntegration.BlueprintCloseDispatch",
     EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDTCoreBlueprintCloseTest::RunTest(const FString&)
