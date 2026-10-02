@@ -13,6 +13,20 @@ class FFinalAcceptanceMeasurement
     static FString Key(const FVirtualSensorTransportObservation& O){return FString::Printf(TEXT("%d|%s|%lld"),int32(O.Kind),*O.SensorId,O.FrameId);}
 public:
     ~FFinalAcceptanceMeasurement(){if(Raw.IsValid())Raw->OnTransportObservation.Remove(Handle);}
+    bool IsContiguousAndComplete() const
+    {
+        TMap<FString,TArray<int64>> Ids;
+        for(const auto& P:Rows)
+        {
+            const auto& R=P.Value;if(R.Submit<=0||R.Receipt<=0||R.Consumed<=0||!R.ClockValid)return false;
+            Ids.FindOrAdd(FString::Printf(TEXT("%d|%s"),int32(R.Accepted.Kind),*R.Accepted.SensorId)).Add(R.Accepted.FrameId);
+        }
+        if(Rows.IsEmpty())return false;
+        for(auto& P:Ids){P.Value.Sort();for(int32 I=1;I<P.Value.Num();++I)if(P.Value[I]!=P.Value[I-1]+1)return false;}
+        return true;
+    }
+    double GetRate(EVirtualSensorStreamKind Kind) const
+    {int32 Count=0;for(const auto& P:Rows)Count+=P.Value.Accepted.Kind==Kind?1:0;return Count/FMath::Max(.001,End-Begin);}
     void Start(UVirtualSensorHighThroughputTransportSubsystem* In,double Start,double Duration)
     {
         Raw=In;Begin=Start;End=Start+Duration;

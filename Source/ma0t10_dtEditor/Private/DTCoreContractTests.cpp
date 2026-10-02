@@ -32,6 +32,15 @@
 #include "K2Node_Event.h"
 #include "K2Node_VariableSet.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
+#include "Settings/LevelEditorPlaySettings.h"
+#include "Json.h"
 
 class FDTCoreFakeStomp : public IStompClient
 {
@@ -68,6 +77,29 @@ bool UDTCoreContractListener::CompileBlueprintForValidation(UBlueprint* Blueprin
     if (!Blueprint) return false;
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     return Blueprint->Status != BS_Error && Blueprint->GeneratedClass != nullptr;
+}
+
+void UDTCoreContractListener::PrepareFinalAcceptanceEditor()
+{
+    auto* S=GetMutableDefault<UDTCoreSettings>();S->WebSocketUrl=TEXT("ws://127.0.0.1:61616");S->WebSocketLogin=TEXT("artemis");S->WebSocketPasscode=TEXT("artemis");S->WebSocketTopics.AddUnique(TEXT("topic.scenario"));
+    auto* P=GetMutableDefault<ULevelEditorPlaySettings>();P->NewWindowWidth=1286;P->NewWindowHeight=760;
+    UE_LOG(LogTemp,Display,TEXT("Acceptance GUI process-local settings configured; no SaveConfig"));
+}
+
+FString UDTCoreContractListener::GetFinalAcceptanceRuntimeState()
+{
+    UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();
+    if(!W)return TEXT("{\"pie\":false}");
+    auto J=MakeShared<FJsonObject>();J->SetBoolField(TEXT("pie"),true);
+    auto* View=W->GetGameInstance()->GetGameViewportClient();const auto Size=View&&View->Viewport?View->Viewport->GetSizeXY():FIntPoint::ZeroValue;
+    J->SetNumberField(TEXT("width"),Size.X);J->SetNumberField(TEXT("height"),Size.Y);
+    auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+    if(auto* C=Workspace->GetCoordinator())if(auto* A=C->GetSelectedSensorActor())
+    {J->SetStringField(TEXT("sensor"),A->GetSensorId());J->SetStringField(TEXT("pose"),A->GetActorTransform().ToString());J->SetBoolField(TEXT("interactive"),A->IsInteractiveManipulationActive());J->SetNumberField(TEXT("frame"),A->GetSensorRuntimeStatus().FrameId);}
+    if(auto* PC=W->GetFirstPlayerController())J->SetStringField(TEXT("player_view"),PC->GetControlRotation().ToString());
+    TArray<TSharedPtr<FJsonValue>> Panels;for(int32 I=0;I<6;++I)if(auto* P=Workspace->GetOwnedPanel(static_cast<ESensorToolPanelRole>(I)))
+    {auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("role"),I);R->SetBoolField(TEXT("open"),Workspace->IsPanelOpen(static_cast<ESensorToolPanelRole>(I)));R->SetBoolField(TEXT("visible"),P->IsVisible());R->SetStringField(TEXT("geometry"),P->GetCachedGeometry().GetLocalSize().ToString());Panels.Add(MakeShared<FJsonValueObject>(R));}
+    J->SetArrayField(TEXT("panels"),Panels);FString Text;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Text));return Text;
 }
 
 #if WITH_DEV_AUTOMATION_TESTS

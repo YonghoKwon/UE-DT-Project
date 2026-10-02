@@ -4,9 +4,18 @@
 #include "WebSocket/TransactionCodeMessage.h"
 #include "WebSocket/FTransactionCodeDataBase.h"
 #include "HAL/PlatformProcess.h"
+#include "UI/DxWidget.h"
 #include "DTCoreContractListener.generated.h"
 
 class UBlueprint;
+
+UCLASS()
+class UDTCoreMainAcceptanceWidget : public UDxWidget
+{
+    GENERATED_BODY()
+protected:
+    void NativeOnInitialized() override;
+};
 
 struct FDTCoreParseProbe
 {
@@ -36,6 +45,10 @@ class UDTCoreContractListener : public UObject
 public:
     UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
     static bool CompileBlueprintForValidation(UBlueprint* Blueprint);
+    UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
+    static void PrepareFinalAcceptanceEditor();
+    UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
+    static FString GetFinalAcceptanceRuntimeState();
     int32 ReceivedCount = 0;
     int32 ReadyCount = 0;
     UFUNCTION() void ReceiveReady(FString Protocol, FString Session, FString Server) { ++ReadyCount; }

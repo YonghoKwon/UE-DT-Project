@@ -8,6 +8,7 @@ public class ma0t10_dtEditor : ModuleRules
         PrivateDependencyModuleNames.Add("UMG");
         PrivateDependencyModuleNames.Add("HTTP");
         PrivateDependencyModuleNames.Add("InputCore");
+        PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("Stomp");
         PrivateDependencyModuleNames.AddRange(new[] { "BlueprintGraph", "UMGEditor", "KismetCompiler" });
 

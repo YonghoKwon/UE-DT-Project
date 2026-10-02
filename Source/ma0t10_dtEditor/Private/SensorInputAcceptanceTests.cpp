@@ -14,6 +14,25 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "DTCoreContractListener.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
+#include "Core/DxWidgetSubsystem.h"
+#include "UObject/UnrealType.h"
+
+void UDTCoreMainAcceptanceWidget::NativeOnInitialized()
+{
+    Super::NativeOnInitialized();
+    auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(),TEXT("AddWidgetPanel"));
+    Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);WidgetTree->RootWidget=Canvas;
+    auto* Button=WidgetTree->ConstructWidget<UButton>();auto* Text=WidgetTree->ConstructWidget<UTextBlock>();
+    Text->SetText(FText::FromString(TEXT("Foreign fixture control")));auto Font=Text->GetFont();Font.Size=23;Text->SetFont(Font);Button->AddChild(Text);
+    auto* CanvasSlot=Canvas->AddChildToCanvas(Button);CanvasSlot->SetPosition(FVector2D(16,580));CanvasSlot->SetSize(FVector2D(280,48));
+    SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+}
 
 namespace
 {
@@ -21,8 +40,14 @@ class FInputAcceptanceCheck:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Start=FPlatformTime::Seconds(),PhaseAt=0;int32 Phase=0;
     TWeakObjectPtr<AVirtualSensorActorBase> Target;int64 FrameBefore=0;
+    TWeakObjectPtr<UDxWidgetSubsystem> Widgets;TWeakObjectPtr<UDxWidget> OriginalMain,FixtureMain;
 public:
     explicit FInputAcceptanceCheck(FAutomationTestBase* T):Test(T){}
+    ~FInputAcceptanceCheck()
+    {
+        if(FixtureMain.IsValid())FixtureMain->RemoveFromParent();
+        if(Widgets.IsValid())if(auto* P=FindFProperty<FObjectProperty>(UDxWidgetSubsystem::StaticClass(),TEXT("MainWidgetInstance")))P->SetObjectPropertyValue_InContainer(Widgets.Get(),OriginalMain.Get());
+    }
     bool Update() override
     {
         if(FPlatformTime::Seconds()-Start>20){Test->AddError(TEXT("Input acceptance timed out"));return true;}
@@ -54,9 +79,24 @@ public:
         }
         if(FPlatformTime::Seconds()-PhaseAt<.3)return false;
         auto* Data=Workspace->GetOwnedPanel(ESensorToolPanelRole::Data);
-        Test->TestNotNull(TEXT("Data panel exists"),Data);
-        if(Data){Test->TestTrue(TEXT("Data actually visible"),Data->IsVisible());Test->TestTrue(TEXT("Data has usable rendered geometry"),Data->GetCachedGeometry().GetLocalSize().X>=360&&Data->GetCachedGeometry().GetLocalSize().Y>=280);}
-        Workspace->SetPanelOpen(ESensorToolPanelRole::Data,false);return true;
+        if(Phase==2)
+        {
+            Test->TestNotNull(TEXT("Data panel exists"),Data);
+            if(Data){Test->TestTrue(TEXT("Data actually visible"),Data->IsVisible());Test->TestTrue(TEXT("Data has usable rendered geometry"),Data->GetCachedGeometry().GetLocalSize().X>=360&&Data->GetCachedGeometry().GetLocalSize().Y>=280);}
+            Workspace->SetPanelOpen(ESensorToolPanelRole::Data,false);
+            Widgets=W->GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>();OriginalMain=Widgets->GetMainWidget();
+            FixtureMain=CreateWidget<UDTCoreMainAcceptanceWidget>(W,UDTCoreMainAcceptanceWidget::StaticClass());FixtureMain->AddToViewport();
+            auto* Property=FindFProperty<FObjectProperty>(UDxWidgetSubsystem::StaticClass(),TEXT("MainWidgetInstance"));Property->SetObjectPropertyValue_InContainer(Widgets.Get(),FixtureMain.Get());
+            Phase=3;PhaseAt=FPlatformTime::Seconds();return false;
+        }
+        auto* InnerCanvas=Workspace->GetOwnedPanel(ESensorToolPanelRole::Monitor)->GetParent();
+        auto* RootWidget=InnerCanvas?InnerCanvas->GetTypedOuter<UUserWidget>():nullptr;
+        Test->TestTrue(TEXT("workspace rehosts to actual DTCore Main AddWidgetPanel"),RootWidget&&RootWidget->GetParent()==Widgets->GetAddWidgetPanel());
+        const float OldScale=Workspace->GetOwnedPanelFontScale();Workspace->SetOwnedPanelFontScale(1.5f);
+        TArray<UWidget*> Children;FixtureMain->WidgetTree->GetAllWidgets(Children);
+        for(auto* Child:Children)if(auto* Text=Cast<UTextBlock>(Child))Test->TestEqual(TEXT("foreign Main control font stays unchanged"),Text->GetFont().Size,23.0f);
+        Workspace->SetOwnedPanelFontScale(OldScale);
+        return true;
     }
 };
 }

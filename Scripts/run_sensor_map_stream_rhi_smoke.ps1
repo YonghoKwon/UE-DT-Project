@@ -58,7 +58,7 @@ try {
     $EditorArgs = @(
         $Project, "-unattended", "-nop4", "-nosplash", "-windowed", "-RenderOffscreen", "-NoVSync",
         "-ResX=1920", "-ResY=1080", "-NoSound",
-        "-ExecCmds=t.MaxFPS 0,r.VSync 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
+        "-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
         "-TestExit=Automation Test Queue Empty", "-abslog=$EditorLog"
     )
     & $Editor @EditorArgs
@@ -128,7 +128,7 @@ try {
             if($Row.submit_monotonic -le 0 -or $Row.receipt_monotonic -le 0 -or $Row.consumer_monotonic -le 0){++$InternalMissing}
             $Match=$ExternalById[$Row.request_id]
             if(-not $Match -or -not $Match.valid){++$Missing}else{
-                $Delay=([DateTimeOffset]::Parse($Match.receivedUtc)-[DateTimeOffset]::Parse($Row.acquisition_utc)).TotalMilliseconds
+                $Delay=([DateTimeOffset]$Match.receivedUtc).Subtract([DateTimeOffset]$Row.acquisition_utc).TotalMilliseconds
                 if($Delay -lt 0){++$ClockErrors}else{$ExternalE2e+=$Delay}
             }
             $E2e+=[double]$Row.e2e_ms;$Receipts+=[double]$Row.receipt_ms

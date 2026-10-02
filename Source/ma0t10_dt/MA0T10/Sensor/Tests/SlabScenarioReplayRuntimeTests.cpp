@@ -10,6 +10,9 @@
 #include "Misc/Paths.h"
 #include "Json.h"
 #include "UnrealClient.h"
+#include "Editor/EditorPerformanceSettings.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "FinalAcceptanceTestSession.h"
 #include "SlabScenarioReplayTestAdapter.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
@@ -37,14 +40,19 @@ class FReplayRuntimeCheck : public IAutomationLatentCommand
 	FDelegateHandle ReceiveHandle;
 	int64 Correlated=0,InvalidContext=0;
 	TArray<double> FrameTimes;
+	TMap<int32,TArray<double>> PhaseFrameTimes;
+	bool OldThrottle=false,OldMonitor=false;
 public:
-	explicit FReplayRuntimeCheck(FAutomationTestBase* T):Test(T){}
-	virtual ~FReplayRuntimeCheck() { if(Raw.IsValid()) Raw->OnReceived.Remove(ReceiveHandle); }
+	explicit FReplayRuntimeCheck(FAutomationTestBase* T):Test(T)
+	{auto* S=GetMutableDefault<UEditorPerformanceSettings>();OldThrottle=S->bThrottleCPUWhenNotForeground;OldMonitor=S->bMonitorEditorPerformance;S->bThrottleCPUWhenNotForeground=false;S->bMonitorEditorPerformance=false;}
+	virtual ~FReplayRuntimeCheck() { if(Raw.IsValid()) Raw->OnReceived.Remove(ReceiveHandle);auto* S=GetMutableDefault<UEditorPerformanceSettings>();S->bThrottleCPUWhenNotForeground=OldThrottle;S->bMonitorEditorPerformance=OldMonitor; }
 	bool Update() override
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SensorReplayAcceptanceUpdate);
 		if(FPlatformTime::Seconds()-Start>155) { Test->AddError(TEXT("Scenario replay timeout")); return true; }
 		UWorld* World=nullptr; for(const auto& C:GEngine->GetWorldContexts()) if(C.WorldType==EWorldType::PIE) {World=C.World();break;}
 		if(!World||!World->GetGameInstance()) return false;
+		if(!FinalAcceptanceViewportReady(World))return false;
 		auto* Catalog=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
 		AVirtualSensorCoordinator* Coordinator=nullptr; for(TActorIterator<AVirtualSensorCoordinator> It(World);It;++It){Coordinator=*It;break;}
 		if(!Coordinator) return false;
@@ -75,14 +83,18 @@ public:
 			Test->TestEqual(TEXT("async result stored"),Catalog->GetScenarios().Num(),1);
 			Catalog->SetLivePlaybackActive(true); Test->TestFalse(TEXT("existing live playback blocks request"),Catalog->RequestScenarioReplay(Scenario,false,{LidarId})); Catalog->SetLivePlaybackActive(false);
 			Test->TestTrue(TEXT("UI selects stored scenario"),Ui->ReplayWidget->SelectScenario(Scenario));
+			if(Ui->ReplayWidget->IsPanelCollapsed())Ui->ReplayWidget->TogglePanelCollapsed();
 			const FVector2D Expanded=Ui->ReplayWidget->GetEffectivePanelSize();
-			Ui->ReplayWidget->TogglePanelCollapsed(); Test->TestTrue(TEXT("replay panel collapses real slot"),Ui->ReplayWidget->GetEffectivePanelSize().Y<=48.0f);
+			Ui->ReplayWidget->TogglePanelCollapsed();
+			const double HeaderHeight=FMath::Max(Ui->ReplayWidget->DragHandleHeight,48.0f);
+			Test->TestTrue(TEXT("replay panel collapses to its configured header"),Ui->ReplayWidget->IsPanelCollapsed()&&FMath::IsNearlyEqual(Ui->ReplayWidget->GetEffectivePanelSize().Y,HeaderHeight)&&HeaderHeight<Expanded.Y);
 			Ui->ReplayWidget->TogglePanelCollapsed(); Test->TestEqual(TEXT("expanded replay size restored"),Ui->ReplayWidget->GetEffectivePanelSize(),Expanded);
 			Ui->ReplayWidget->TargetSensorIds={LidarId}; Test->TestFalse(TEXT("PCD default off"),Ui->ReplayWidget->bSendPcd);
 			Test->TestTrue(TEXT("UI starts observation"),Ui->ReplayWidget->ReplaySelected());
 			Runs.Add(Catalog->GetReplayStatus().RunUUID); Stage=1; return false;
 		}
 		FrameTimes.Add(World->GetDeltaSeconds()*1000.0);
+		PhaseFrameTimes.FindOrAdd(Stage).Add(World->GetDeltaSeconds()*1000.0);
 		if(Catalog->GetReplayStatus().State==ESlabScenarioReplayState::Failed){Test->AddError(Catalog->GetReplayStatus().Message);return true;}
 		if(Catalog->IsReplayBusy()) return false;
 		if(Adapter->CompletedRuns<Stage) return false;
@@ -111,8 +123,11 @@ public:
 		Test->TestEqual(TEXT("all real messages correlate"),Correlated,Pcd.SubmittedCount); Test->TestEqual(TEXT("valid original/run metadata"),InvalidContext,static_cast<int64>(0));
 		Test->TestEqual(TEXT("no gaps"),Pcd.FrameGapCount,static_cast<int64>(0)); Test->TestEqual(TEXT("no duplicates"),Pcd.DuplicateCount,static_cast<int64>(0));Test->TestEqual(TEXT("no overload"),Pcd.OverloadCount,static_cast<int64>(0));
 		double Sum=0; for(double V:FrameTimes)Sum+=V; FrameTimes.Sort(); const double Fps=1000.0*FrameTimes.Num()/FMath::Max(1.0,Sum);
+		const double P95=FrameTimes[FMath::Clamp(FMath::CeilToInt(FrameTimes.Num()*.95)-1,0,FrameTimes.Num()-1)];
+		Test->TestTrue(TEXT("replay full measurement p95 at most 20 ms"),P95<=20);
 		auto Report=MakeShared<FJsonObject>(); Report->SetStringField(TEXT("scenario_uuid"),Scenario); Report->SetNumberField(TEXT("replays"),3); Report->SetNumberField(TEXT("submitted"),Pcd.SubmittedCount);Report->SetNumberField(TEXT("receipt"),Pcd.ReceiptCount);Report->SetNumberField(TEXT("consumer"),Pcd.ConsumerReceivedCount);Report->SetNumberField(TEXT("invalid_context"),InvalidContext);Report->SetNumberField(TEXT("average_engine_fps"),Fps);Report->SetNumberField(TEXT("engine_frame_p95_ms"),FrameTimes[FMath::Clamp(FMath::CeilToInt(FrameTimes.Num()*0.95)-1,0,FrameTimes.Num()-1)]);
 		FString Text;FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Text));
+		TArray<TSharedPtr<FJsonValue>> Phases;for(auto& Pair:PhaseFrameTimes){Pair.Value.Sort();auto J=MakeShared<FJsonObject>();J->SetNumberField(TEXT("phase"),Pair.Key);J->SetNumberField(TEXT("samples"),Pair.Value.Num());J->SetNumberField(TEXT("p95_ms"),Pair.Value[FMath::Clamp(FMath::CeilToInt(Pair.Value.Num()*.95)-1,0,Pair.Value.Num()-1)]);Phases.Add(MakeShared<FJsonValueObject>(J));}Report->SetArrayField(TEXT("phases"),Phases);FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Text));
 		const FString ReportPath=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPLAY_REPORT"));
 		Test->TestTrue(TEXT("runtime JSON evidence saved"),!ReportPath.IsEmpty()&&FFileHelper::SaveStringToFile(Text,*ReportPath));
 		FScreenshotRequest::RequestScreenshot(FPaths::ChangeExtension(ReportPath,TEXT("png")),true,false);
@@ -128,6 +143,6 @@ bool FSlabReplayRuntimeTest::RunTest(const FString&)
 	for(const auto& Pair:TArray<TPair<FString,FString>>{{TEXT("WebSocketUrl"),TEXT("MA0T10_ARTEMIS_URL")},{TEXT("WebSocketLogin"),TEXT("MA0T10_ARTEMIS_USER")},{TEXT("WebSocketPasscode"),TEXT("MA0T10_ARTEMIS_PASSWORD")}})
 		GConfig->SetString(TEXT("DTCoreRuntimeOverride"),*Pair.Key,*FPlatformMisc::GetEnvironmentVariable(*Pair.Value),GGameIni);
 	if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
-	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false)); ADD_LATENT_AUTOMATION_COMMAND(FReplayRuntimeCheck(this)); ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+	ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE()); ADD_LATENT_AUTOMATION_COMMAND(FReplayRuntimeCheck(this)); ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 #endif

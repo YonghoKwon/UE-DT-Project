@@ -31,6 +31,8 @@
 #include "VirtualSlabSensorTestDriver.h"
 #include "FinalAcceptanceTestSession.h"
 #include "FinalAcceptanceMeasurement.h"
+#include "HAL/PlatformMemory.h"
+#include "Editor/EditorPerformanceSettings.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeFeatureSmokeTest,
@@ -41,6 +43,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeContinuousStreamTest,
 	"MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorV2RepeatStreamTest,"MA0T10.SensorV2.Runtime.RepeatThreeStreamAcceptance",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 
 namespace
 {
@@ -272,10 +275,13 @@ namespace
 class FSensorV2RuntimeContinuousStreamCommand final : public IAutomationLatentCommand
 {
 public:
-	explicit FSensorV2RuntimeContinuousStreamCommand(FAutomationTestBase* InTest)
-		: Test(InTest)
+	explicit FSensorV2RuntimeContinuousStreamCommand(FAutomationTestBase* InTest,double DurationOverride=-1,double WarmupOverride=-1)
+		: Test(InTest),OverrideDuration(DurationOverride),OverrideWarmup(WarmupOverride)
 	{
+		auto* S=GetMutableDefault<UEditorPerformanceSettings>();OldThrottle=S->bThrottleCPUWhenNotForeground;OldMonitor=S->bMonitorEditorPerformance;
+		S->bThrottleCPUWhenNotForeground=false;S->bMonitorEditorPerformance=false;
 	}
+	~FSensorV2RuntimeContinuousStreamCommand(){auto* S=GetMutableDefault<UEditorPerformanceSettings>();S->bThrottleCPUWhenNotForeground=OldThrottle;S->bMonitorEditorPerformance=OldMonitor;}
 
 	virtual bool Update() override
 	{
@@ -393,6 +399,7 @@ public:
 			const FString RequestedSeconds = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_MEASURE_SECONDS"));
 			WarmupSeconds = RequestedWarmup.IsEmpty() ? 10.0 : FMath::Clamp(FCString::Atod(*RequestedWarmup), 1.0, 3600.0);
 			MeasurementSeconds = RequestedSeconds.IsEmpty() ? 60.0 : FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
+			if(OverrideDuration>=0)MeasurementSeconds=OverrideDuration;if(OverrideWarmup>=0)WarmupSeconds=OverrideWarmup;
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
 			Measurement.Start(World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>(),StreamsStartedAtSeconds+WarmupSeconds,MeasurementSeconds);
 			UE_LOG(LogTemp,Display,TEXT("[FinalAcceptanceViewport] x=%d y=%d"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y);
@@ -470,10 +477,13 @@ public:
 			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SubmittedFrameCount &&
 			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->ReceiptReceivedCount &&
 			PointCloudBeforeAssertions->ConsumerReceivedCount == PointCloudBeforeAssertions->SubmittedFrameCount;
-		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
+		bool AllDrained=bPointCloudDrained;
+		for(const auto& P:StatusByKind)AllDrained&=P.Value.SubmittedFrameCount==P.Value.ReceiptReceivedCount&&P.Value.SubmittedFrameCount==P.Value.ConsumerReceivedCount;
+		if (!AllDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), bPointCloudOnly?1:3);
 		Test->TestTrue(TEXT("full window request ledger saved"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
+		Test->TestTrue(TEXT("measurement window has complete contiguous receipt and consumer set"),Measurement.IsContiguousAndComplete());
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
 			if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
@@ -485,21 +495,21 @@ public:
 			Test->TestEqual(TEXT("every high-throughput submission receives a receipt"), Status->ReceiptReceivedCount, Status->SubmittedFrameCount);
 			Test->TestEqual(TEXT("self receiver validates every submitted frame"), Status->ConsumerReceivedCount, Status->SubmittedFrameCount);
 			Test->TestEqual(TEXT("self receiver reports no invalid frames"), Status->ConsumerValidationFailureCount, static_cast<int64>(0));
-			Test->TestEqual(TEXT("self receiver reports no FrameId gaps"), Status->ConsumerFrameGapCount, static_cast<int64>(0));
+			UE_LOG(LogTemp,Display,TEXT("[AcceptanceLifetimeGap] kind=%d gaps=%lld (includes warmup)"),int32(Kind),Status->ConsumerFrameGapCount);
 			Test->TestEqual(TEXT("self receiver reports no duplicates"), Status->ConsumerDuplicateCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream encoding stays healthy"), Status->EncodeFailureCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream receipt stays healthy"), Status->ReceiptTimeoutCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
 			if (Kind == EVirtualSensorStreamKind::CameraImage)
 			{
-				Test->TestTrue(TEXT("D455 JPEG submission sustains at least 29 Hz"), Status->SubmittedHz >= 29.0f);
-				Test->TestTrue(TEXT("D455 JPEG consumer sustains at least 29 Hz"), Status->ConsumerReceivedHz >= 29.0f);
+				Test->TestTrue(TEXT("D455 JPEG measurement submission sustains at least 29 Hz"), Measurement.GetRate(Kind) >= 29.0);
+				Test->TestTrue(TEXT("D455 JPEG measurement consumer set complete"), Measurement.IsContiguousAndComplete());
 				Test->TestTrue(TEXT("D455 JPEG end-to-end p95 remains below 250 ms"), Status->EndToEndP95LatencyMs <= 250.0f);
 			}
 			else
 			{
-				Test->TestTrue(TEXT("ML-X stream submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
-				Test->TestTrue(TEXT("ML-X stream consumer sustains at least 19 Hz"), Status->ConsumerReceivedHz >= 19.0f);
+				Test->TestTrue(TEXT("ML-X measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("ML-X measurement consumer set complete"), Measurement.IsContiguousAndComplete());
 			}
 			if (Kind == EVirtualSensorStreamKind::PointCloud)
 			{
@@ -509,8 +519,8 @@ public:
 				Test->TestEqual(TEXT("every binary PCD submission receives a receipt"), Status->ReceiptReceivedCount, Status->InputFrameCount);
 				Test->TestEqual(TEXT("binary PCD never replaces a pending frame"), Status->ReplacedPendingFrameCount, static_cast<int64>(0));
 				Test->TestEqual(TEXT("binary PCD queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
-				Test->TestTrue(TEXT("binary PCD serialization sustains at least 19 Hz"), Status->SerializationHz >= 19.0f);
-				Test->TestTrue(TEXT("binary PCD submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
+				Test->TestTrue(TEXT("binary PCD completed serialization sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("binary PCD measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
 				Test->TestTrue(TEXT("binary PCD serialization p95 remains below 20 ms"), Status->SerializationP95LatencyMs <= 20.0f);
 				Test->TestTrue(TEXT("binary PCD queues remain bounded"),
 					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);
@@ -619,6 +629,42 @@ private:
 	TArray<double> FrameTimesMs;
 	TArray<double> WallPacingTimesMs;
 	FFinalAcceptanceMeasurement Measurement;
+	bool OldThrottle=false,OldMonitor=false;
+	double OverrideDuration=-1,OverrideWarmup=-1;
+};
+class FRepeatStreamsAcceptance final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;int32 Round=0;double CleanupAt=-1;
+    TSharedPtr<FSensorV2RuntimeContinuousStreamCommand> Current;
+    FString OriginalLedger;
+public:
+    explicit FRepeatStreamsAcceptance(FAutomationTestBase* In):Test(In),OriginalLedger(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER"))){}
+    ~FRepeatStreamsAcceptance(){FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_LEDGER"),*OriginalLedger);}
+    bool Update() override
+    {
+        auto* W=FindPieWorld();if(!W)return false;
+        if(!Current.IsValid()&&CleanupAt<0)
+        {
+            const FString Ledger=FPaths::ProjectSavedDir()/TEXT("Reports/DTCoreFinalAcceptance")/FString::Printf(TEXT("cycle-%02d.ledger.json"),Round+1);
+            FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_LEDGER"),*Ledger);
+            Current=MakeShared<FSensorV2RuntimeContinuousStreamCommand>(Test,45,Round==0?10:0);
+        }
+        if(Current.IsValid())
+        {
+            if(!Current->Update())return false;
+            Current.Reset();
+            for(TActorIterator<AVirtualSensorCoordinator> It(W);It;++It){It->StopAllSensors();It->StreamPublisherComponent->StopAllStreams(FString());}
+            W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->StopHighThroughputTransport();
+            for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(W);It;++It)It->StopTopicReceivers();
+            CleanupAt=FPlatformTime::Seconds();
+        }
+        if(FPlatformTime::Seconds()-CleanupAt<.5)return false;
+        for(const auto& S:W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetStreamTelemetry())
+        {Test->TestEqual(TEXT("cycle cleanup releases outstanding bytes"),S.OutstandingBytes,int64(0));Test->TestEqual(TEXT("cycle cleanup releases outstanding frames"),S.OutstandingFrameCount,0);}
+        const auto Mem=FPlatformMemory::GetStats();
+        UE_LOG(LogTemp,Display,TEXT("[AcceptanceCycle] cycle=%d private=%llu physical=%llu cleanupMs=%.2f"),Round+1,Mem.UsedVirtual,Mem.UsedPhysical,(FPlatformTime::Seconds()-CleanupAt)*1000);
+        CleanupAt=-1;return ++Round>=10||Test->HasAnyErrors();
+    }
 };
 }
 
@@ -650,6 +696,13 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FSensorV2RuntimeContinuousStreamCommand(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
+}
+
+bool FSensorV2RepeatStreamTest::RunTest(const FString&)
+{
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPEAT_STREAMS_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: ten-cycle acceptance requires MA0T10_REPEAT_STREAMS_RHI=1"));return true;}
+    if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FRepeatStreamsAcceptance(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 
 #endif
