@@ -18,6 +18,12 @@ Its plugin junction shared the checkout with the main project. Do not build its
 Editor target while the main Editor or commandlet is running: both use the same
 DTCore DLL. Execute builds and runtime tests sequentially.
 
+Final acceptance on 2026-10-03 uses `Saved/FinalAcceptanceCompatHost`, with a
+separate plugin archive from validated DTCore `067195b`, not the earlier junction.
+Its Editor/Shipping outputs are independent of the current project's DLLs.
+`Scripts/run_final_build_matrix.ps1` validates both hosts and the current Windows
+Development package. This still does not certify another real consumer project.
+
 Current-project contract tests are `MA0T10.DTCoreIntegration`. The opt-in real
 Slab Broker test additionally requires `MA0T10_DTCORE_SLAB_BROKER=1` and the
 external publisher to send to `topic.scenario` after the log reports
