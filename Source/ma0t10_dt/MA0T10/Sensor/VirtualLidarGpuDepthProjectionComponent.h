@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "RenderCommandFence.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorAcquisitionBackend.h"
 #include "VirtualLidarSemanticScene.h"
 #include "VirtualLidarGpuDepthProjectionComponent.generated.h"
@@ -59,6 +60,7 @@ private:
 	FIntPoint ReadbackDimensions = FIntPoint::ZeroValue;
 	uint64 ReadbackAllocationCount = 0;
 	bool bPendingSemanticReadback = false;
+	FRenderCommandFence ReadbackSubmissionFence;
 	TUniquePtr<FVirtualLidarSemanticScene> SemanticScene;
 	TMap<int32, FVirtualLidarGpuSemanticIdentity> PendingSemanticIdentities;
 	FString PendingSemanticStatus;

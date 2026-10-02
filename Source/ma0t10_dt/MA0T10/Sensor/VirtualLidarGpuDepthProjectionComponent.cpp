@@ -197,6 +197,9 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 			}
 			if (CapturedSemanticReadback.IsValid() && SemanticTexture.IsValid()) CapturedSemanticReadback->EnqueueCopy(RHICmdList, SemanticTexture);
 		});
+	// A retained readback still has the previous GPU fence signalled until the
+	// render thread executes EnqueueCopy. Do not poll that old fence meanwhile.
+	ReadbackSubmissionFence.BeginFence();
 	bReadbackQueued = true;
 	StatusMessage = TEXT("GPU SceneDepth readback pending");
 }
@@ -224,7 +227,7 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 		QueueReadback();
 		return bAcquisitionActive ? EVirtualSensorBackendPollResult::Pending : EVirtualSensorBackendPollResult::Failed;
 	}
-	if (bReadbackCopyInFlight || !Readback.IsValid() || !Readback->IsReady() || (bPendingSemanticReadback && SemanticReadback.IsValid() && !SemanticReadback->IsReady()))
+	if (bReadbackCopyInFlight || !ReadbackSubmissionFence.IsFenceComplete() || !Readback.IsValid() || !Readback->IsReady() || (bPendingSemanticReadback && SemanticReadback.IsValid() && !SemanticReadback->IsReady()))
 	{
 		return EVirtualSensorBackendPollResult::Pending;
 	}
