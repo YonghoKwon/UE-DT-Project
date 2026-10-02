@@ -20,6 +20,8 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
+#include "Components/BoxComponent.h"
+#include "UnrealClient.h"
 #include "Core/DxWidgetSubsystem.h"
 #include "UObject/UnrealType.h"
 
@@ -56,6 +58,7 @@ public:
         auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Coordinator=Workspace->GetCoordinator();if(!Coordinator)return false;
         if(Phase==0)
         {
+            if(Workspace->IsPanelOpen(ESensorToolPanelRole::Monitor))Workspace->SetPanelOpen(ESensorToolPanelRole::Monitor,false);
             if(FPlatformTime::Seconds()-Start<3)return false;
             Workspace->SetPanelOpen(ESensorToolPanelRole::Settings,true);
             auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
@@ -63,6 +66,30 @@ public:
             auto View=W->GetGameInstance()->GetGameViewportClient()->GetGameViewportWidget();auto& App=FSlateApplication::Get();
             auto Window=App.FindWidgetWindow(View.ToSharedRef());Window->BringToFront(true);App.SetKeyboardFocus(View,EFocusCause::SetDirectly);
             Test->TestTrue(TEXT("active own viewport focus recognized"),Settings->GetTransformGizmoActor()->IsInputFocusOwned());
+            auto* Gizmo=Settings->GetTransformGizmoActor();
+            const auto OriginalTransform=Target->GetActorTransform();FString Scratch;
+            auto* PC=W->GetFirstPlayerController();FVector Location;FRotator Rotation;PC->GetPlayerViewPoint(Location,Rotation);
+            Workspace->SetPanelOpen(ESensorToolPanelRole::Monitor,false);
+            Target->ApplyEditableTransform(FTransform(Rotation,Location+Rotation.Vector()*500),Scratch);
+            Gizmo->Tick(.016f);
+            TArray<UBoxComponent*> Boxes;Gizmo->GetComponents(Boxes);bool PointerTested=false;
+            for(auto* Box:Boxes)if(Box->ComponentHasTag(TEXT("SensorGizmo_MoveY")))
+            {
+                PointerTested=true;
+                FVector2D Pixel;PC->ProjectWorldLocationToScreen(Box->GetComponentLocation(),Pixel);
+                const auto& Geometry=View->GetCachedGeometry();const auto Size=W->GetGameInstance()->GetGameViewportClient()->Viewport->GetSizeXY();
+                const auto Screen=Geometry.LocalToAbsolute(Pixel*Geometry.GetLocalSize()/FVector2D(Size));
+                const bool OldLook=PC->IsLookInputIgnored(),OldMove=PC->IsMoveInputIgnored();
+                const FVector Before=Target->GetActorLocation();
+                Test->TestTrue(TEXT("owned pointer handle accepts press"),Gizmo->HandleOwnedPointerDown(Screen));
+                Gizmo->HandleOwnedPointerMove(Screen+FVector2D(80,0));Gizmo->HandleOwnedPointerUp(Screen+FVector2D(80,0));
+                Test->TestTrue(TEXT("pointer updates actual transform between game ticks"),!Target->GetActorLocation().Equals(Before,1));
+                Test->TestEqual(TEXT("pointer restores prior look ignore"),PC->IsLookInputIgnored(),OldLook);
+                Test->TestEqual(TEXT("pointer restores prior move ignore"),PC->IsMoveInputIgnored(),OldMove);
+                break;
+            }
+            Test->TestTrue(TEXT("pointer fixture found its real collision handle"),PointerTested);
+            Target->ApplyEditableTransform(OriginalTransform,Scratch);
             const bool Down=App.ProcessKeyDownEvent(FKeyEvent(EKeys::Escape,FModifierKeysState(),0,false,0,27));
             Test->TestTrue(TEXT("first Escape consumed before Editor stop"),Down);
             Test->TestFalse(TEXT("Escape restores acquired actor"),Target->IsInteractiveManipulationActive());
@@ -75,7 +102,9 @@ public:
         {
             if(FPlatformTime::Seconds()-PhaseAt<1)return false;
             Test->TestTrue(TEXT("PIE and post-Escape sensor frames remain alive"),Target.IsValid()&&Target->GetSensorRuntimeStatus().FrameId>FrameBefore);
-            Workspace->SetPanelOpen(ESensorToolPanelRole::Data,true);Phase=2;PhaseAt=FPlatformTime::Seconds();return false;
+            Workspace->SetPanelOpen(ESensorToolPanelRole::Data,true);
+            if(auto* Panel=Workspace->GetOwnedPanel(ESensorToolPanelRole::Data))if(Panel->IsPanelCollapsed())Panel->TogglePanelCollapsed();
+            Phase=2;PhaseAt=FPlatformTime::Seconds();return false;
         }
         if(FPlatformTime::Seconds()-PhaseAt<.3)return false;
         auto* Data=Workspace->GetOwnedPanel(ESensorToolPanelRole::Data);
@@ -93,6 +122,12 @@ public:
         auto* RootWidget=InnerCanvas?InnerCanvas->GetTypedOuter<UUserWidget>():nullptr;
         Test->TestTrue(TEXT("workspace rehosts to actual DTCore Main AddWidgetPanel"),RootWidget&&RootWidget->GetParent()==Widgets->GetAddWidgetPanel());
         const float OldScale=Workspace->GetOwnedPanelFontScale();Workspace->SetOwnedPanelFontScale(1.5f);
+        if(auto* Settings=Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings))
+        {
+            Settings->SetPanelExpandedSize(FVector2D(360,320),false);
+            Test->TestTrue(TEXT("large owned fonts keep enough header width"),Settings->GetPanelExpandedSize().X>=Settings->GetResolvedPanelMinimum().X);
+            Test->TestTrue(TEXT("150 percent header minimum grows without global DPI change"),Settings->GetResolvedPanelMinimum().X>=540);
+        }
         TArray<UWidget*> Children;FixtureMain->WidgetTree->GetAllWidgets(Children);
         for(auto* Child:Children)if(auto* Text=Cast<UTextBlock>(Child))Test->TestEqual(TEXT("foreign Main control font stays unchanged"),Text->GetFont().Size,23.0f);
         Workspace->SetOwnedPanelFontScale(OldScale);

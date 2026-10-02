@@ -39,6 +39,10 @@ public:
     void RequestManipulationExit();
     void SetInputOwner(UWidget* InOwner);
     bool IsInputFocusOwned() const;
+    bool HandleOwnedPointerDown(const FVector2D& ScreenPosition);
+    bool HandleOwnedPointerMove(const FVector2D& ScreenPosition);
+    bool HandleOwnedPointerUp(const FVector2D& ScreenPosition);
+    void CancelOwnedPointerDrag();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetGizmoVisible(bool bVisible);
@@ -109,6 +113,10 @@ private:
     bool IsEditableTextFocused() const;
     void RefreshInputRouter();
     void ReleasePointerOwnership();
+    bool UpdateOwnedPointerPosition(const FVector2D& ScreenPosition);
+    bool bRouterPointerDragging=false;
+    bool bHasPointerPosition=false;
+    FVector2D PointerViewportPosition=FVector2D::ZeroVector;
     TWeakObjectPtr<UWidget> InputOwner;
     TSharedPtr<IInputProcessor> InputRouter;
     TWeakObjectPtr<APlayerController> PointerController;

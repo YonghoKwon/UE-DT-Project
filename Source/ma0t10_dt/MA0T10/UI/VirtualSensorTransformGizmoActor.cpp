@@ -15,7 +15,10 @@
 #include "Components/Widget.h"
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
+#include "UnrealClient.h"
 #include "Player/DxPlayerControllerBase.h"
+#include "Core/DxWidgetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 
@@ -28,7 +31,10 @@ public:
     bool EscapeHeld=false;
     explicit FSensorManipulationInputRouter(AVirtualSensorTransformGizmoActor* In):Gizmo(In){}
     void Tick(const float,FSlateApplication&,TSharedRef<ICursor>) override
-    {if(EscapeHeld&&(!Gizmo.IsValid()||!Gizmo->IsInputFocusOwned()))EscapeHeld=false;}
+    {
+        if(EscapeHeld&&(!Gizmo.IsValid()||!Gizmo->IsInputFocusOwned()))EscapeHeld=false;
+        if(Gizmo.IsValid()&&!Gizmo->IsInputFocusOwned())Gizmo->CancelOwnedPointerDrag();
+    }
     bool HandleKeyDownEvent(FSlateApplication&,const FKeyEvent& Event) override
     {
         if(Event.GetKey()!=EKeys::Escape)return false;
@@ -38,6 +44,12 @@ public:
     }
     bool HandleKeyUpEvent(FSlateApplication&,const FKeyEvent& Event) override
     {if(Event.GetKey()!=EKeys::Escape||!EscapeHeld)return false;EscapeHeld=false;return true;}
+    bool HandleMouseButtonDownEvent(FSlateApplication&,const FPointerEvent& Event) override
+    {return Event.GetEffectingButton()==EKeys::LeftMouseButton&&Gizmo.IsValid()&&Gizmo->HandleOwnedPointerDown(Event.GetScreenSpacePosition());}
+    bool HandleMouseMoveEvent(FSlateApplication&,const FPointerEvent& Event) override
+    {return Gizmo.IsValid()&&Gizmo->HandleOwnedPointerMove(Event.GetScreenSpacePosition());}
+    bool HandleMouseButtonUpEvent(FSlateApplication&,const FPointerEvent& Event) override
+    {return Event.GetEffectingButton()==EKeys::LeftMouseButton&&Gizmo.IsValid()&&Gizmo->HandleOwnedPointerUp(Event.GetScreenSpacePosition());}
 };
 constexpr int32 RingSegments = 16;
 constexpr float BaseAxisLength = 115.0f;
@@ -166,6 +178,8 @@ void AVirtualSensorTransformGizmoActor::RefreshInputRouter()
 
 void AVirtualSensorTransformGizmoActor::ReleasePointerOwnership()
 {
+    bRouterPointerDragging=false;
+    bHasPointerPosition=false;
     if(auto* PC=PointerController.Get())
     {
         PC->SetIgnoreLookInput(false);PC->SetIgnoreMoveInput(false);
@@ -173,6 +187,63 @@ void AVirtualSensorTransformGizmoActor::ReleasePointerOwnership()
     }
     PointerController.Reset();
 }
+
+bool AVirtualSensorTransformGizmoActor::UpdateOwnedPointerPosition(const FVector2D& ScreenPosition)
+{
+    auto* PC=GetWorld()?GetWorld()->GetFirstPlayerController():nullptr;
+    auto* View=PC&&PC->GetLocalPlayer()?PC->GetLocalPlayer()->ViewportClient.Get():nullptr;
+    const auto Widget=View?View->GetGameViewportWidget():TSharedPtr<SViewport>();
+    if(!Widget.IsValid()||!View->Viewport)return false;
+    const auto& Geometry=Widget->GetCachedGeometry();
+    const auto Size=Geometry.GetLocalSize();if(Size.X<=0||Size.Y<=0)return false;
+    const auto Local=Geometry.AbsoluteToLocal(ScreenPosition);
+    const auto Pixels=View->Viewport->GetSizeXY();
+    PointerViewportPosition=Local*FVector2D(Pixels.X/Size.X,Pixels.Y/Size.Y);
+    bHasPointerPosition=true;return true;
+}
+
+bool AVirtualSensorTransformGizmoActor::HandleOwnedPointerDown(const FVector2D& ScreenPosition)
+{
+    if(!bManipulationEnabled||!bGizmoVisible||!TargetActor||!IsInputFocusOwned())return false;
+    auto& App=FSlateApplication::Get();
+    const auto HitPath=App.LocateWindowUnderMouse(ScreenPosition,App.GetInteractiveTopLevelWindows());
+    auto* ViewClient=GetWorld()->GetGameInstance()?GetWorld()->GetGameInstance()->GetGameViewportClient():nullptr;
+    const auto ViewWidget=ViewClient?ViewClient->GetGameViewportWidget():TSharedPtr<SViewport>();
+    // 가려진 기즈모 뒤의 Actor를 클릭해도 외부 Widget 입력을 빼앗지 않는다.
+    if(!HitPath.IsValid()||!ViewWidget.IsValid()||HitPath.GetLastWidget()!=ViewWidget)
+    {
+#if WITH_DEV_AUTOMATION_TESTS
+        UE_LOG(LogTemp,Display,TEXT("[SensorPointerRejected] Slate leaf=%s at=%s"),HitPath.IsValid()?*HitPath.GetLastWidget()->GetTypeAsString():TEXT("none"),*ScreenPosition.ToString());
+#endif
+        return false;
+    }
+    if(auto* GI=GetWorld()->GetGameInstance())if(auto* UI=GI->GetSubsystem<UDxWidgetSubsystem>())if(UI->IsMouseOverAnyWidget())return false;
+    if(!UpdateOwnedPointerPosition(ScreenPosition))return false;
+    FVector Origin,Direction;FHitResult Hit;
+    if(!DeprojectMouseRay(Origin,Direction)||!GetWorld()->LineTraceSingleByChannel(Hit,Origin,Origin+Direction*1000000.0f,ECC_Visibility)||Hit.GetActor()!=this)
+    {bHasPointerPosition=false;return false;}
+    const auto* Box=Cast<UBoxComponent>(Hit.GetComponent());
+    const auto Kind=ResolveHandleKind(Box);if(Kind==EHandleKind::None){bHasPointerPosition=false;return false;}
+    bRouterPointerDragging=true;BeginMouseDrag(Kind);
+    if(auto* PC=GetWorld()->GetFirstPlayerController())if(auto* Player=PC->GetLocalPlayer())
+        if(Player->ViewportClient)App.SetKeyboardFocus(Player->ViewportClient->GetGameViewportWidget(),EFocusCause::Mouse);
+    return true;
+}
+
+bool AVirtualSensorTransformGizmoActor::HandleOwnedPointerMove(const FVector2D& ScreenPosition)
+{
+    if(!bRouterPointerDragging||!bMouseDragging)return false;
+    if(UpdateOwnedPointerPosition(ScreenPosition))UpdateMouseDrag();return true;
+}
+
+bool AVirtualSensorTransformGizmoActor::HandleOwnedPointerUp(const FVector2D& ScreenPosition)
+{
+    if(!bRouterPointerDragging||!bMouseDragging)return false;
+    if(UpdateOwnedPointerPosition(ScreenPosition))UpdateMouseDrag();EndMouseDrag();return true;
+}
+
+void AVirtualSensorTransformGizmoActor::CancelOwnedPointerDrag()
+{if(bRouterPointerDragging&&bMouseDragging)EndMouseDrag();}
 
 void AVirtualSensorTransformGizmoActor::RequestManipulationExit()
 {
@@ -325,6 +396,7 @@ void AVirtualSensorTransformGizmoActor::SetHandleCollisionEnabled(bool bEnabled)
 
 void AVirtualSensorTransformGizmoActor::HandleMouseInput()
 {
+    if(bRouterPointerDragging)return;
     APlayerController* Controller = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
     if (!Controller || !bManipulationEnabled || !bGizmoVisible)
     {
@@ -349,6 +421,7 @@ void AVirtualSensorTransformGizmoActor::HandleMouseInput()
     }
     if (bMouseDragging && Controller->WasInputKeyJustReleased(EKeys::LeftMouseButton))
     {
+        UpdateMouseDrag();
         EndMouseDrag();
     }
 }
@@ -493,6 +566,7 @@ void AVirtualSensorTransformGizmoActor::EndMouseDrag()
 bool AVirtualSensorTransformGizmoActor::DeprojectMouseRay(FVector& OutOrigin, FVector& OutDirection) const
 {
     const APlayerController* Controller = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+    if(Controller&&bHasPointerPosition)return Controller->DeprojectScreenPositionToWorld(PointerViewportPosition.X,PointerViewportPosition.Y,OutOrigin,OutDirection);
     return Controller && Controller->DeprojectMousePositionToWorld(OutOrigin, OutDirection);
 }
 
