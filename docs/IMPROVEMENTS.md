@@ -1,6 +1,6 @@
 # 보완 필요 사항 — 구현 백로그
 
-기준: **59d1027 (RT-02 d2024bf 포함) / PR #27 병합 68f8f2f 기반, 2026-09-22**. RT-02/03만 구현·자동 검증했으며 다른 백로그와 대규모 성능 목표는 완료하지 않았다.
+기준: **dc5a537 이후 DTCore b22 동기화 안정화·RT-01 a120ba6·RT-04 017d20f, 2026-10-02**. RT-01/04 집중 검증을 추가했으며 전체 R1·다중 센서·플러그인화 완료는 아니다.
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md)
 
@@ -14,7 +14,7 @@
 - **검증 공백:** 구현이 있으나 해당 조건의 근거가 부족하다. 먼저 재현/계측하고 실패가 확인되면 고친다.
 - **신규 기능:** 현재 없는 목표 기능이다. 기존 결함으로 취급하지 않는다.
 - **P0:** 다중 센서 확대 전에 데이터 정확성·상태 복원·자원 한계를 확인/수정. **P1:** 다음 안정화 단계. **P2:** 제품화·선택 기능.
-- 별도 상태가 없는 항목은 **미착수**다. RT-02/03은 아래의 구현·검증·남은 제한을 따른다. 실제 화면 검증 미수행을 완료로 바꾸지 않는다.
+- 별도 상태가 없는 항목은 **미착수**다. RT-01~04는 아래의 구현·검증·남은 제한을 따른다. 실제 화면 검증 미수행을 완료로 바꾸지 않는다.
 - 미래 요구를 현재 기능이라고 설명하지 않는다. 항목 ID는 커밋/PR/시험 보고서에서 유지한다.
 
 ## 우선순위 요약
@@ -22,8 +22,8 @@
 | ID | 분류 | 우선 | 핵심 | 로드맵 |
 |---|---|---:|---|---|
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | 종료 상태 통일; 실제 키보드 검증 대기 | R1 |
-| RT-01 | 성능·전송 / 정적 위험 | P0 | Raw receipt 보관량의 authoritative 상한 | R1 |
-| RT-04 | 데이터 / 검증 공백 | P0 | Camera 픽셀과 FrameId/context 동일성 | R1 |
+| RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | authoritative frame/byte reservation·과부하 진단 | R1 |
+| RT-04 | 데이터 / 구현·집중검증 완료 | P0 | capture 직후 readback·immutable metadata; 전체 fault 조합은 후속 | R1 |
 | RT-03 | 진단 / 구현·자동검증 완료 | P1 | 0Hz·신선도·공정성 판정 수정; 화면 확인 대기 | R1 |
 | QA-01 | 품질 / 검증 공백 | P0 | 고정 의존성·깨끗한 checkout·fixture 분리 | R0 |
 | RT-05 | 성능 / 검증 공백 | P1 | 최신 SHA 다중 센서 지원 매트릭스 | R2 |
@@ -45,13 +45,13 @@
 
 ## 1. 성능·측정·전송
 
-### RT-01 — Raw TCP receipt 대기 상한 (정적 위험, P0)
+### RT-01 — Raw TCP receipt 대기 상한 (구현·집중검증 완료, P0)
 
-**근거:** [StreamPublisher](../Source/ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.cpp)의 `RefreshQueueTelemetry`는 호환 경로 `WaitingReceipts`를 집계하고 `PumpPreparedMessages`가 이 값으로 cap을 검사한다. Raw 제출은 이 map에 넣지 않는다. [고성능 worker](../Source/ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.cpp)의 `SendFrame`은 body를 `PendingReceipts`에 유지하지만 명시적인 outstanding frame/byte cap이 보이지 않는다.
+**수정 전 근거:** Raw body는 PendingReceipts에 보관됐지만 호환 WaitingReceipts와 UI admission 기준이 분리돼 있었다.
 
-- 위험: socket이 빨리 받지만 receipt가 늦을 때 실제 보관량과 UI/admission 기준이 어긋날 수 있다. 무한 증가가 실측됐다는 뜻은 아니다; timeout/retry와 함께 계측해야 한다.
-- 수정: worker가 센서별/전역 미확인 프레임 수·바이트의 기준값을 소유하고 producer admission까지 backpressure를 전달한다. 큐·receipt·retry 소유권을 중복 세지 않는다.
-- 완료: receipt만 지연/누락하는 fake Broker 시험에서 모든 단계의 상한 유지, silent replacement 0, 명시적 과부하/timeout, 해제 뒤 메모리 복귀. 정상 PCD/JPEG FIFO·checksum 계약 유지.
+- 구현 `a120ba6`: worker가 접수부터 receipt/최종 실패/종료까지 request reservation을 소유한다. 전역128MiB/스트림64MiB, Camera8/기타20프레임. 같은 body retry는 중복 집계하지 않는다. UI는 worker 실제 보관량을 조회한다.
+- 집중 검증 3/3: cap/terminal ledger 및 실제 TCP fake Broker receipt 누락(20 SEND/60 bytes 후 21번째 거부, 종료 후 reservation0). 실제 Artemis PCD/세 스트림 정상 FIFO·checksum·외부 수신도 검사했다. 전체 네트워크 장애 조합과60분 soak는 후속이다.
+- 증거: `Saved/Reports/DTCoreSync/raw-fault`, `receipt-probe.json`, `dtcore_after_pcd.json`, `dtcore_after_three.json`. 전역상한은 특정 구성의 지원 보장이 아니다.
 
 ### RT-02 — Esc 조작 종료 연결 (구현·자동검증 완료, 수동 검증 대기)
 
@@ -62,6 +62,8 @@
 - 남음: 실제 마우스/키보드 Esc 입력은 Computer Use 오류 `0x80070057`/`0x80070005`로 미수행. 자동화 종료 요청을 물리 키 입력 검증으로 표기하지 않는다. 실제 viewport 미계측.
 - 증거: `Saved/Reports/SensorStability/reproduction.log`, `final-rhi/index.json`, `report.ko.md`.
 
+2026-10-02 후속: 실제1606×728에서 조작 시작/preview·Settings drag/resize·LiDAR 설정 숨김 후4Hz 복귀를 확인했다. Esc는 Editor Stop PIE를 실행했으므로 PIE 유지 상태의 조작 종료 및 실제 센서 이동 검증은 여전히 남는다. Computer Use 창 활성화/캡처 복구 오류 이후 나머지를 통과로 처리하지 않았다. 증거 `Saved/Reports/DTCoreSync/manual-camera.png`, `manual-lidar.png`, `gui-final.log`.
+
 ### RT-03 — 0Hz 최소율/공정성 (구현·자동검증 완료, 화면 확인 대기)
 
 **수정 전 근거:** Scheduler min/max가 양수 Hz만 포함해 완전히 멈춘 센서를 숨길 수 있었다. 마지막 acquisition-rate 값도 자동 만료되지 않았다.
@@ -71,17 +73,18 @@
 - 주의: 기존 fairness 수치 0은 판정 불가 sentinel이다. 외부 Blueprint는 추가된 `bCameraFairnessEvaluable`/`bLidarFairnessEvaluable`을 확인해야 한다. Camera는 기존 acquisition 정의이며 GPU 픽셀 완료 검증은 RT-04다.
 - 남음: 실제 화면에서 정체/일시정지 표시 확인은 미수행. 증거 `Saved/Reports/SensorStability/rt03-focused`, `full-regression`, `report.ko.md`.
 
-### RT-04 — Camera FrameId와 실제 픽셀 (검증 공백, P0)
+### RT-04 — Camera FrameId와 실제 픽셀 (구현·집중검증 완료, P0)
 
-**근거:** [Camera Capture](../Source/ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.cpp)는 단일 RenderTarget에 deferred capture하며, readback slot이 없으면 metadata 요청을 보관하고 나중에 현재 target을 읽는 경로가 있다. 파일 전용 readback의 자기 capture hook 검증은 이미 있으나 고성능 스트림의 포화 조건과 동일 시험은 아니다.
+**수정 전 근거:** 스트리밍 readback slot 부족 시 metadata를 보관하고 나중의 현재 RenderTarget을 읽을 수 있었다.
 
-- 먼저 매 프레임 색/번호 marker와 GPU/readback/encode 지연을 주입한다. 아직 픽셀 불일치가 입증된 것은 아니다.
-- 재현되면 capture+copy를 같은 frame에 고정하거나 풀링된 frame buffer를 유지한다. 보존할 수 없는 경우 명시적 정책으로 실패/생략 처리하고 옛 ID에 새 픽셀을 붙이지 않는다.
-- 완료: JPEG marker, SensorFrameId, SlabFrameNo, acquisition UTC/pose가 일치. worker 완료 역순·설정 변경·취소에도 순서/소유권 보존.
+- 구현 `017d20f`: 자연 capture hook에서 pose/UTC/context를 고정하고 해당 capture 직후 readback copy를 예약한다. coalesced frame/slot 부족은 명시적 파생 실패이며 나중 픽셀을 옛 ID에 붙이지 않는다. Actor의 프레임 UTC도 encode 완료 시각이 아니라 acquisition 시각을 사용한다.
+- CameraAcquisitionSnapshot 단위 및 실제 D3D12 CameraMarkerRhi 통과. red/blue unlit marker, encode 지연, forced saturation 후 정상복귀, 관측한 JPEG와 pose/UTC를 비교했다. 관측 완료 JPEG25개이며 폴링 때문에 모든30Hz 프레임을 독립 검사한 것은 아니다. 초기 harness의 ShowOnly/cold shader 문제와 최종 통과 로그를 모두 보존한다.
+- 증거: `Saved/Reports/DTCoreSync/camera-unit`, `camera-rhi4`, marker JPEG. 같은 장면의 출력 성능은 10+60초 전후 비교했다. 모든 이동/context/삭제/설정 변경 조합의 stress 인증은 후속이다.
 
 ### RT-05 — 다중 센서 실측 지원 범위 (검증 공백, P1)
 
 - 최근 근거는 ML-X Native **한 대 PCD-only, 753×403, 30초×2**다. 1,199건 송수신 일치, 후반 1% low 45.019 FPS. 옛 2+2/4+4 저출력률 시험을 현재 정격 지원 근거로 쓰지 않는다.
+- 2026-10-02 추가 근거: 실제1274×680 PCD-only/1+1 세 스트림10+60초와10분 연속 송수신 통과(README 요약). 재생 통합의 p9525.07ms는20ms 목표 미달이다. 어느 결과도1920×1080·다중센서 지원을 대신하지 않는다.
 - 1+1 → 2+2 → 4+4를 동일 SHA/고정 fixture에서 검증한다. 8+8은 탐색용 best effort이며 자동 지원으로 분류하지 않는다.
 - 각 단계에서 실제 client 해상도, profile/backend/echo, preview/출력 on/off, FPS·1% low·p95/p99, 센서별 acquisition/encode/submit/receipt/내외부 receive, queue/bytes/memory를 기록한다.
 - 완료: 60초 회귀를 통과한 구성만 10분 안정성, release 후보는 60분 soak로 확장한다. 요청값을 낮춰놓고 원래 FullSpec 통과로 발표하지 않는다. 목표 수치는 ROADMAP의 제안 gate를 승인·고정한 뒤 적용한다.
@@ -190,7 +193,7 @@
 
 ## 5. QA-01 — 재현 가능한 기준선 (검증 공백, P0)
 
-- 현재 parent DTCore는 `2eec1fe`, 로컬 검증은 `a1b333e`다. 두 revision의 **Source 차이는 없고 문서만 다름**을 확인했다. API 불일치가 입증된 것으로 쓰지 않는다.
+- 이번에는 동기화본 `b22af0b`의 새 공개 API를 유지하고 검증한 plugin 커밋으로 parent pin을 갱신한다. 현재 프로젝트와 `Tools/DTCoreCompatHost` 격리 호스트는 검사하지만 다른 실제 소비 프로젝트 호환성을 대신 보장하지 않는다.
 - 그럼에도 개인 Game.ini/SaveGame/수정 운영맵에 의존하지 않는 clean checkout build/asset load 기준선이 필요하다.
 - 운영맵 Z=150cm fixture를 통과시키기 위해 사용자 맵을 수정하지 않는다. 커밋된 스냅샷 검사 또는 임시 검증 scene으로 fixture와 실사용 편집을 분리한다.
 - 보고서에 commit/submodule SHA, Engine/toolchain/GPU/driver, 실제 viewport/DPI, 설정 hash, 실행한 tests/skip, 원본 count를 남긴다. 문서 요약과 원본 JSON을 자동 대조한다.
@@ -199,7 +202,7 @@
 ## 다음 착수 순서
 
 1. RT-02/03의 남은 수동 화면 검증과 QA-01의 고정 baseline/운영맵 fixture 분리를 마무리한다.
-2. **RT-01**, **RT-04**를 각각 재현/시험 단위로 처리한다. 이번 작은 안정성 수정으로 이 두 항목을 해결했다고 보지 않는다.
+2. RT-01/04 집중 검증을 유지하면서 LIFE-01의 나머지 fault 조합과 QA-01 clean-consumer 범위를 보완한다. 전체 R1 완료로 확대하지 않는다.
 3. 이후 RT-05/06과 UX-01로 실제 다중 배치 workflow를 확장한다.
 4. 데이터 정확성 기준이 정해진 뒤 PL-01/02/03 → PL-04 순으로 플러그인화한다.
 

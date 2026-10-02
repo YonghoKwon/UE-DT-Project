@@ -1,6 +1,6 @@
 # 최종 목표를 위한 로드맵
 
-기준: **59d1027 / PR #27 병합 68f8f2f 기반, 2026-09-22**.
+기준: **dc5a537 이후 DTCore b22 동기화 안정화·RT-01/04 보강, 2026-10-02**.
 이 문서는 후속 개발 순서와 승인 기준이다. 플러그인 생성이나 모든 단계의 구현을 지금 승인하는 문서는 아니다.
 
 [AGENTS](../AGENTS.md) · [현재 구현](../README.md) · [개별 보완 백로그](IMPROVEMENTS.md)
@@ -20,7 +20,7 @@
 
 “느려짐 없이”는 무제한 센서·어떤 PC에서도 60FPS를 의미하지 않는다. **고정 장비/장면/출력 조합의 지원 매트릭스**를 만들고, 한계 초과를 미리 알리며 요청 규격을 몰래 낮추지 않는 것을 제품 기준으로 삼는다.
 
-DTCore는 필수 의존성으로 사용하지만 **이번 로드맵의 선행 단계에서는 소스/gitlink를 변경하지 않는다.** 공통 플러그인 개발이 완료되면 별도 compatibility gate로 업데이트한다. AI 모델 학습/실장비 SDK 전체 구현은 센서 플랫폼 완성의 자동 포함 범위가 아니다.
+DTCore는 필수 의존성이다. 이번에는 사용자가 별도로 승인한 동기화 안정화 단계에서 공통 소스와 gitlink를 검증·이관한다. 이후 업데이트도 별도 compatibility gate가 필요하며 로드맵만으로 수정 권한을 부여하지 않는다. AI 모델 학습/실장비 SDK 전체 구현은 센서 플랫폼 완성의 자동 포함 범위가 아니다.
 
 ## 2. 권장 순서와 단계별 결과물
 
@@ -33,7 +33,7 @@ R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래�
 **현재:** 핵심 문서 4개 체계는 이번 문서 작업 결과다. clean checkout·고정 의존성 재검증은 아직 남아 있다.
 
 - 코드/DTCore SHA, Engine/toolchain/GPU/driver, actual viewport/DPI, profile/backend/output/UI 상태를 manifest로 기록한다.
-- 현재 DTCore pin `2eec1fe`와 로컬 `a1b333e`의 Source는 같고 문서만 다르다. API 결함으로 단정하지 말고 깨끗한 checkout에서 확인한다.
+- 동기화 기준 `b22af0b`에서 새 API를 유지하며 compile/lifecycle 문제를 복구했다. 검증한 plugin commit으로 pin하고 격리 host의 Editor/Shipping 및 현재 프로젝트 WBP/계약을 검사한다. 타 실제 프로젝트 검증은 별도다.
 - 운영맵 사용자 변경을 검증 fixture에서 분리한다. map regeneration을 quick-start 필수 단계에서 제거하고 임시/커밋된 test scene을 사용한다.
 - 최신 단일 ML-X PCD 기준선을 재현하고 각 test의 실제 수행/skip과 원본 보고서를 연결한다.
 
@@ -41,7 +41,7 @@ R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래�
 
 ### R1 — 확장 전에 데이터·수명 정확성 확보
 
-진행: RT-02(`d2024bf`)·RT-03(`59d1027`) 구현·자동 검증 완료. 실제 키보드/화면 검증은 데스크톱 접근 오류로 남아 있다. RT-01/04·LIFE-01과 전체 R1 gate는 미완료다.
+진행: RT-02(`d2024bf`)·RT-03(`59d1027`)와 RT-01(`a120ba6`)·RT-04(`017d20f`) 구현·집중 검증. 공통 DTCore 종료·로그·registry·구독·Widget 계약도 보강했다. LIFE-01 전체 fault 조합과 전체 R1 gate는 아직 미완료이며 수동 검증 범위는 최신 README/보고서를 따른다.
 
 1. Esc 종료를 단일 interaction 종료 경로로 통합한다. Drag commit과 mode exit를 구분한다.
 2. Raw worker의 receipt 대기 frame/byte 한도와 producer backpressure를 연결한다. 0Hz/starvation을 진단에서 숨기지 않는다.
@@ -141,7 +141,7 @@ Bootstrap의 확정할 기본 동작:
 
 | 구성 | 화면 목표 | 정격/데이터 목표 | 현재 상태 |
 |---|---|---|---|
-| D455 1 + ML-X Native 1 | 평균≥55 FPS, 1% low≥45, frame p95≤20ms | Camera acquisition/JPEG≥29Hz, LiDAR/PCD≥19Hz(선택 출력) | 최신 PCD-only 단일 LiDAR 근거만 있음; 현재 SHA 전체 3-stream 재검증 필요 |
+| D455 1 + ML-X Native 1 | 평균≥55 FPS, 1% low≥45, frame p95≤20ms | Camera acquisition/JPEG≥29Hz, LiDAR/PCD≥19Hz(선택 출력) | 2026-10-02 실제1274×680에서 PCD-only/3stream10+60초 통과; 목표해상도·장면별 인증은 별도 |
 | 2 + 2 | 같은 60FPS 계열 기준 | 센서별 같은 요청 규격; 편차/정체 없음 | 미검증 |
 | 4 + 4 | 평균≥28 FPS, 1% low≥24, frame p95≤36ms | 정격 유지 목표. 불가능하면 지원 한계를 명시, 몰래 15Hz로 바꾸지 않음 | 미검증 |
 | 8 + 8 이상 | 탐색 시험 후 등급 설정 | Best Effort/지원/미지원 구분 | 보장 없음 |

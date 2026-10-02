@@ -1,6 +1,6 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, 안정성 수정 `d2024bf`·`59d1027` / PR #27 병합 `68f8f2f` 기반 (2026-09-22).
+기준: UE 5.3, `dc5a537` 이후 DTCore b22 동기화 안정화와 RT-01/04 보강 (2026-10-02). 검증 범위와 제한은 README를 따른다.
 이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
 
 ## 1. 네 개의 관리 문서
@@ -22,7 +22,7 @@
 
 - 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
-- DTCore는 별도 개발 중이다. 프로젝트 측 adapter로 해결하고, 공통 플러그인 수정이 필수라면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
+- DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소다. 명시적으로 승인된 동기화 안정화 작업에서는 plugin/parent를 각각 검증·커밋하고 검증한 gitlink만 고정한다. 그 외 작업은 프로젝트 측 adapter를 우선하며 공통 변경이 필수이면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
 - `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.
 - destructive reset/checkout, 재귀 삭제, 서비스 재시작, Broker 설정 변경을 통상 구현 단계로 추정하지 않는다. 필요하면 구체적으로 확인한다.
@@ -51,7 +51,7 @@
 - Binary PCD XYZ는 센서 로컬 meter, X 전방/Y 좌측/Z 위쪽이다. 33-byte little-endian 명시적 레코드이며 구조체 padding을 사용하지 않는다. 월드 복원은 snapshot의 `sensor_to_world_m`를 따른다.
 - 센서 FrameId, Slab frame_no, 시나리오 UUID, 실행 UUID를 구분한다. `MA0T10_META`와 기존 STOMP 연계 헤더 의미를 보존한다.
 - acquisition 생략, 파생 프레임 교체, 송신 오류, Broker receipt, 소비자 수신/업무 ACK를 따로 집계한다. receipt는 소비자 처리 완료가 아니다.
-- ConnectedNoLoss는 정상 연결 중 FIFO 정책이다. 무한 큐나 조용한 교체로 부하를 숨기지 않는다. Raw receipt 대기 상한 연결은 RT-01 보완 대상이다.
+- ConnectedNoLoss는 정상 연결 중 FIFO 정책이다. 무한 큐나 조용한 교체로 부하를 숨기지 않는다. Raw worker가 접수부터 receipt/종료까지 프레임·바이트 reservation을 소유하고 재시도에서 중복 집계하지 않는다. 기본 전역 128MiB/스트림 64MiB 상한과 Camera 8/기타 20프레임 한도를 유지한다.
 - 비밀번호·토큰·원본 대용량 body를 로그/SaveGame에 남기지 않는다. 미지원 TLS/영구 보존/업무 ACK를 지원 완료로 표시하지 않는다.
 
 ### Slab
