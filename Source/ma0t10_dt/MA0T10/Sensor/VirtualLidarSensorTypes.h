@@ -555,6 +555,8 @@ struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFr
 	uint32 SettingsRevision = 0;
 
 	bool IsValid() const { return Points.IsValid(); }
+	FDateTime GetAcquisitionStartUtc() const
+	{ return AcquisitionStartUnixNanoseconds>0 ? FDateTime(1970,1,1)+FTimespan(AcquisitionStartUnixNanoseconds/100) : FDateTime(); }
 };
 
 UENUM(BlueprintType)

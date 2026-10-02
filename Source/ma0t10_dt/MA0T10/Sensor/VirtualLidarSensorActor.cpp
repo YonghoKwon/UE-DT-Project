@@ -139,7 +139,8 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         AcquiredFrame.SensorKind = EVirtualSensorKind::Lidar;
         AcquiredFrame.FrameId = Snapshot->FrameId;
 		AcquiredFrame.SlabContext = Snapshot->SlabContext;
-        AcquiredFrame.TimestampUtc = FDateTime::UtcNow();
+        AcquiredFrame.TimestampUtc = Snapshot->GetAcquisitionStartUtc();
+        if(AcquiredFrame.TimestampUtc.GetTicks()<=0)AcquiredFrame.TimestampUtc=FDateTime::UtcNow();
         AcquiredFrame.SchemaVersion = TEXT("virtual-lidar.v2");
         AcquiredFrame.PointSnapshot = Snapshot->Points;
         AcquiredFrame.LidarFrameSnapshot = Snapshot;

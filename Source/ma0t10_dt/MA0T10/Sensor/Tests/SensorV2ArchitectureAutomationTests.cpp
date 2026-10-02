@@ -17,6 +17,18 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorAcquisitionUtcTest,"MA0T10.SensorV2.Frame.AcquisitionUtc",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorAcquisitionUtcTest::RunTest(const FString&)
+{
+	FVirtualLidarFrameSnapshot Frame;
+	const FDateTime Expected(2026,10,3,0,0,1,123);
+	Frame.AcquisitionStartUnixNanoseconds=(Expected-FDateTime(1970,1,1)).GetTicks()*100;
+	TestEqual(TEXT("snapshot UTC uses acquisition start, not later processing time"),Frame.GetAcquisitionStartUtc(),Expected);
+	Frame.AcquisitionStartUnixNanoseconds=0;
+	TestEqual(TEXT("missing acquisition is explicitly unset"),Frame.GetAcquisitionStartUtc().GetTicks(),int64(0));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2ActorCompositionTest,
 	"MA0T10.SensorV2.Architecture.ActorComposition",
