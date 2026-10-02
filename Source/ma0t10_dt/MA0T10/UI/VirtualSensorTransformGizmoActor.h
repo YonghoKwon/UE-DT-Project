@@ -7,6 +7,8 @@
 
 class UBoxComponent;
 class USceneComponent;
+class UWidget;
+class IInputProcessor;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorGizmoTransformChanged, const FTransform&);
 DECLARE_MULTICAST_DELEGATE(FOnVirtualSensorGizmoManipulationExitRequested);
@@ -35,6 +37,8 @@ public:
 
     /** Escape/end request, distinct from committing a single drag. */
     void RequestManipulationExit();
+    void SetInputOwner(UWidget* InOwner);
+    bool IsInputFocusOwned() const;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetGizmoVisible(bool bVisible);
@@ -103,6 +107,12 @@ private:
     void DrawCameraProjectionDebug() const;
     void DrawLidarProjectionDebug() const;
     bool IsEditableTextFocused() const;
+    void RefreshInputRouter();
+    void ReleasePointerOwnership();
+    TWeakObjectPtr<UWidget> InputOwner;
+    TSharedPtr<IInputProcessor> InputRouter;
+    TWeakObjectPtr<APlayerController> PointerController;
+    bool PreviousPossibleClick=true;
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<USceneComponent> SceneRoot;

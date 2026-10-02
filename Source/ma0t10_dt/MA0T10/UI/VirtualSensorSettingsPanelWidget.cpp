@@ -910,6 +910,7 @@ void UVirtualSensorSettingsPanelWidget::SpawnGizmoIfNeeded()
     if (IsValid(GizmoActor) || !GetWorld()) return;
     GizmoActor = GetWorld()->SpawnActor<AVirtualSensorTransformGizmoActor>();
     if (!GizmoActor) return;
+    GizmoActor->SetInputOwner(this);
     GizmoActor->OnTransformChanged.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged);
     GizmoActor->OnTransformCommitted.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted);
     GizmoActor->OnManipulationExitRequested.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleManipulationExitRequested);
