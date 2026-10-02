@@ -13,4 +13,6 @@ UCLASS()
 class MA0T10_DT_API ADxPlayerControllerTest : public ADxPlayerControllerBase
 {
 	GENERATED_BODY()
+public:
+	ADxPlayerControllerTest();
 };

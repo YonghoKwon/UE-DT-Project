@@ -7,6 +7,8 @@ public class ma0t10_dtEditor : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PrivateDependencyModuleNames.Add("UMG");
         PrivateDependencyModuleNames.Add("HTTP");
+        PrivateDependencyModuleNames.Add("Stomp");
+        PrivateDependencyModuleNames.AddRange(new[] { "BlueprintGraph", "UMGEditor", "KismetCompiler" });
 
         PublicDependencyModuleNames.AddRange(new string[]
         {

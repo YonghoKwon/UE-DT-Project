@@ -2,3 +2,8 @@
 
 
 #include "DxPlayerControllerTest.h"
+
+ADxPlayerControllerTest::ADxPlayerControllerTest()
+{
+	ClickActivationPolicy=EDxClickActivationPolicy::SingleRelease;
+}

@@ -50,7 +50,9 @@ bool UVirtualSensorToolWorkspaceSubsystem::RegisterOwnedPanel(ESensorToolPanelRo
 	const bool Allowed=(R==ESensorToolPanelRole::Monitor&&P->IsA<UVirtualSensorMonitorPanelWidget>())||(R==ESensorToolPanelRole::Settings&&P->IsA<UVirtualSensorSettingsPanelWidget>())||(R==ESensorToolPanelRole::Data&&P->IsA<UVirtualSensorCaptureExportPanelWidget>())||(R==ESensorToolPanelRole::Replay&&P->IsA<USlabScenarioReplayPanelWidget>())||(R==ESensorToolPanelRole::SlabCharts&&P->IsA<USlabChartsPanelWidget>())||(R==ESensorToolPanelRole::SlabProgress&&P->IsA<USlabProgressPanelWidget>());
 	if(!Allowed)return false;
 	if(auto* Existing=GetOwnedPanel(R))return Existing==P;
-	Panels.Add(R,P);PendingInitialLayouts.Add(R);P->SetToolWorkspace(this,R);P->ApplySensorToolFontScale(GetOwnedPanelFontScale());return true;
+	Panels.Add(R,P);PendingInitialLayouts.Add(R);P->SetToolWorkspace(this,R);P->ApplySensorToolFontScale(GetOwnedPanelFontScale());
+	if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->RegisterExternalInputBlocker(P);
+	return true;
 }
 void UVirtualSensorToolWorkspaceSubsystem::EnsureRoot()
 {
@@ -59,6 +61,7 @@ void UVirtualSensorToolWorkspaceSubsystem::EnsureRoot()
 	Canvas=Root->WidgetTree->ConstructWidget<UCanvasPanel>();Root->WidgetTree->RootWidget=Canvas;
 	Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	Toolbar=CreateWidget<UUserWidget>(GetWorld(),USensorToolToolbarWidget::StaticClass());
+	if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->RegisterExternalInputBlocker(Toolbar);
 	auto* S=Canvas->AddChildToCanvas(Toolbar);S->SetPosition(FVector2D(16,8));S->SetSize(FVector2D(1000,48));S->SetZOrder(10000);
 	RefreshHosting();
 }
@@ -168,7 +171,13 @@ void UVirtualSensorToolWorkspaceSubsystem::SetOwnedPanelFontScale(float S)
 	if(Toolbar)Toolbar->InvalidateLayoutAndVolatility();
 }
 void UVirtualSensorToolWorkspaceSubsystem::UnregisterPanel(UVirtualSensorPanelWidgetBase* P)
-{if(P&&GetOwnedPanel(P->GetToolRole())==P){SavePanel(P->GetToolRole());Panels.Remove(P->GetToolRole());PendingInitialLayouts.Remove(P->GetToolRole());P->SetToolWorkspace(nullptr,P->GetToolRole());}}
+{
+	if(P&&GetOwnedPanel(P->GetToolRole())==P)
+	{
+		if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->UnregisterExternalInputBlocker(P);
+		SavePanel(P->GetToolRole());Panels.Remove(P->GetToolRole());PendingInitialLayouts.Remove(P->GetToolRole());P->SetToolWorkspace(nullptr,P->GetToolRole());
+	}
+}
 void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 {
 	if(auto* Monitor=Cast<UVirtualSensorMonitorPanelWidget>(GetOwnedPanel(ESensorToolPanelRole::Monitor)))
