@@ -67,6 +67,14 @@ public:
             auto Window=App.FindWidgetWindow(View.ToSharedRef());Window->BringToFront(true);App.SetKeyboardFocus(View,EFocusCause::SetDirectly);
             Test->TestTrue(TEXT("active own viewport focus recognized"),Settings->GetTransformGizmoActor()->IsInputFocusOwned());
             auto* Gizmo=Settings->GetTransformGizmoActor();
+            Test->AddInfo(FString::Printf(TEXT("pointer fixture initial mode=%d visible=%d globalUiHover=%d"),static_cast<int32>(Gizmo->GetGizmoMode()),Gizmo->IsGizmoVisible(),W->GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>()->IsMouseOverAnyWidget()));
+            Settings->SetSensorGizmoMode(EVirtualSensorGizmoMode::Translate);
+            Gizmo->SetGizmoVisible(true);
+            const auto PanelPoint=Settings->GetCachedGeometry().LocalToAbsolute(FVector2D(24,24));
+            const TSet<FKey> NoButtons;
+            App.ProcessMouseMoveEvent(FPointerEvent(0,PanelPoint,PanelPoint,NoButtons,FKey(),0,FModifierKeysState()),false);
+            Test->TestTrue(TEXT("fixture retains prior panel hover before the new click position"),W->GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>()->IsMouseOverAnyWidget());
+            Test->TestFalse(TEXT("owned panel controls cannot begin a viewport drag"),Gizmo->HandleOwnedPointerDown(PanelPoint));
             const auto OriginalTransform=Target->GetActorTransform();FString Scratch;
             auto* PC=W->GetFirstPlayerController();FVector Location;FRotator Rotation;PC->GetPlayerViewPoint(Location,Rotation);
             Workspace->SetPanelOpen(ESensorToolPanelRole::Monitor,false);
@@ -81,8 +89,10 @@ public:
                 const auto Screen=Geometry.LocalToAbsolute(Pixel*Geometry.GetLocalSize()/FVector2D(Size));
                 const bool OldLook=PC->IsLookInputIgnored(),OldMove=PC->IsMoveInputIgnored();
                 const FVector Before=Target->GetActorLocation();
+                Test->AddInfo(FString::Printf(TEXT("pointer collision=%d uiHover=%d point=%s"),static_cast<int32>(Box->GetCollisionEnabled()),W->GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>()->IsMouseOverAnyWidget(),*Screen.ToString()));
                 Test->TestTrue(TEXT("owned pointer handle accepts press"),Gizmo->HandleOwnedPointerDown(Screen));
                 Gizmo->HandleOwnedPointerMove(Screen+FVector2D(80,0));Gizmo->HandleOwnedPointerUp(Screen+FVector2D(80,0));
+                App.ProcessMouseMoveEvent(FPointerEvent(0,Screen,PanelPoint,NoButtons,FKey(),0,FModifierKeysState()),false);
                 Test->TestTrue(TEXT("pointer updates actual transform between game ticks"),!Target->GetActorLocation().Equals(Before,1));
                 Test->TestEqual(TEXT("pointer restores prior look ignore"),PC->IsLookInputIgnored(),OldLook);
                 Test->TestEqual(TEXT("pointer restores prior move ignore"),PC->IsMoveInputIgnored(),OldMove);

@@ -217,7 +217,10 @@ bool AVirtualSensorTransformGizmoActor::HandleOwnedPointerDown(const FVector2D& 
 #endif
         return false;
     }
-    if(auto* GI=GetWorld()->GetGameInstance())if(auto* UI=GI->GetSubsystem<UDxWidgetSubsystem>())if(UI->IsMouseOverAnyWidget())return false;
+    // The event-position path above is authoritative. Global IsHovered may
+    // still describe the previous cursor position (or a synthetic test input),
+    // and an ancestor Main can cover empty viewport space. Its actual controls
+    // remain protected because their Slate leaf is not this owned viewport.
     if(!UpdateOwnedPointerPosition(ScreenPosition))return false;
     FVector Origin,Direction;FHitResult Hit;
     if(!DeprojectMouseRay(Origin,Direction)||!GetWorld()->LineTraceSingleByChannel(Hit,Origin,Origin+Direction*1000000.0f,ECC_Visibility)||Hit.GetActor()!=this)
