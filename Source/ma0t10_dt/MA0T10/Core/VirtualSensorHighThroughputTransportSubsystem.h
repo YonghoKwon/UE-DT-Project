@@ -32,6 +32,10 @@ struct MA0T10_DT_API FVirtualSensorHighThroughputProfile
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Transport", meta = (ClampMin = "100", ClampMax = "60000"))
 	int32 HeartbeatIntervalMs = 5000;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Transport", meta=(ClampMin="1"))
+	int64 MaxOutstandingBytes = 128LL * 1024 * 1024;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Transport", meta=(ClampMin="1"))
+	int64 MaxOutstandingBytesPerStream = 64LL * 1024 * 1024;
 };
 
 USTRUCT(BlueprintType)
@@ -57,6 +61,9 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") FString LastDeliveryFailureMessage;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 InputQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 ReceiptQueueDepth = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Transport") int32 OutstandingFrameCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Transport") int64 OutstandingBytes = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Transport") int64 GlobalOutstandingBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 LastFrameId = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 LastFrameBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float SubmittedHz = 0.0f;

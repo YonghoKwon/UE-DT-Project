@@ -288,6 +288,9 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 InputQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 PreparedQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int32 ReceiptQueueDepth = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Stream") int32 RawOutstandingFrameCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Stream") int64 RawOutstandingBytes = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Stream") int64 RawGlobalOutstandingBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 FrameGapCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 RetryCount = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") int64 DuplicateReceiptCount = 0;

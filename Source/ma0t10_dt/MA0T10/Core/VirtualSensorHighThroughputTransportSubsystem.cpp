@@ -158,6 +158,12 @@ public:
 			Thread = nullptr;
 		}
 		CloseSocket();
+		FVirtualSensorBinaryFrame Abandoned;
+		while (Frames.Dequeue(Abandoned))
+		{
+			--QueueCounts[static_cast<int32>(Abandoned.StreamKind)];
+			FailFrame(Abandoned,TEXT("Transport stopped before socket submission."));
+		}
 	}
 
 	void Stop() override
@@ -178,7 +184,7 @@ public:
 			{
 				CancelledRuns.Add(Cancelled);
 				for (auto It=PendingReceipts.CreateIterator(); It; ++It)
-					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) { AdjustRunPending(It.Value().Frame,-1); It.RemoveCurrent(); }
+					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) { ReleaseOutstanding(It.Value().Frame); AdjustRunPending(It.Value().Frame,-1); It.RemoveCurrent(); }
 			}
 			if (!bConnected)
 			{
@@ -213,9 +219,24 @@ public:
 			return false;
 		}
 		const int32 Limit = Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? 8 : 20;
-		if (QueueCounts[Index].Load() >= Limit)
+		FVirtualSensorBinaryFrame Normalized=Frame;
+		if (Normalized.RequestId.IsEmpty()) Normalized.RequestId=FString::Printf(TEXT("%d-%s-%lld-%s"),Index,*Frame.SensorId,Frame.FrameId,*HeaderValue(Frame.Headers,TEXT("checksum")));
+		bool Accepted=false;
 		{
-			OutError = FString::Printf(TEXT("High-throughput %s queue reached %d frames."), *Frame.SensorId, Limit);
+			FScopeLock Lock(&OutstandingMutex);
+			const FString Key=TelemetryKey(Frame.StreamKind,Frame.SensorId);
+			if (!bStopRequested.Load() && QueueCounts[Index].Load()<Limit && OutstandingCounts.FindRef(Key)<Limit &&
+				Frame.NumBytes()<=Profile.MaxOutstandingBytes && HeldBytes<=Profile.MaxOutstandingBytes-Frame.NumBytes() &&
+				Frame.NumBytes()<=Profile.MaxOutstandingBytesPerStream && HeldBytesPerStream.FindRef(Key)<=Profile.MaxOutstandingBytesPerStream-Frame.NumBytes() && !OutstandingFrames.Contains(Normalized.RequestId))
+			{
+				OutstandingFrames.Add(Normalized.RequestId,{Key,Frame.NumBytes(),true});
+				++OutstandingCounts.FindOrAdd(Key); HeldBytes+=Frame.NumBytes(); HeldBytesPerStream.FindOrAdd(Key)+=Frame.NumBytes(); ++QueueCounts[Index]; Accepted=true;
+			}
+		}
+		if (!Accepted)
+		{
+			OutError = FString::Printf(TEXT("High-throughput %s outstanding frame/byte limit reached (frames=%d, global bytes=%lld), or duplicate request ID."),*Frame.SensorId,Limit,Profile.MaxOutstandingBytes);
+			AdjustRunPending(Frame,0,true);
 			FWorkerEvent Event;
 			Event.Type = EWorkerEventType::Overload;
 			Event.StreamKind = Frame.StreamKind;
@@ -226,10 +247,15 @@ public:
 			Events.Enqueue(MoveTemp(Event));
 			return false;
 		}
-		++QueueCounts[Index];
 		AdjustRunPending(Frame,1);
-		Frames.Enqueue(Frame);
+		Frames.Enqueue(MoveTemp(Normalized));
 		return true;
+	}
+	void SnapshotOutstanding(EVirtualSensorStreamKind Kind,const FString& Sensor,int32& FramesOut,int64& BytesOut,int64& GlobalOut,int32& QueuedOut) const
+	{
+		FScopeLock Lock(&OutstandingMutex); FramesOut=0; BytesOut=0; QueuedOut=0; GlobalOut=HeldBytes;
+		const FString Key=TelemetryKey(Kind,Sensor);
+		for(const auto& Pair:OutstandingFrames) if(Pair.Value.Key==Key) { ++FramesOut; BytesOut+=Pair.Value.Bytes; QueuedOut+=Pair.Value.bQueued?1:0; }
 	}
 	void CancelRun(const FString& RunId) { RunCancellations.Enqueue(RunId); }
 	int32 GetRunPending(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunPendingCounts.FindRef(RunId); }
@@ -257,8 +283,23 @@ public:
 
 private:
 	friend class FSensorRawTerminalLedgerTest;
+	friend class FSensorRawOutstandingLimitTest;
+	friend class FSensorRawReceiptProbeTest;
+	struct FOutstanding { FString Key; int64 Bytes=0; bool bQueued=true; };
+	mutable FCriticalSection OutstandingMutex;
+	TMap<FString,FOutstanding> OutstandingFrames;
+	TMap<FString,int32> OutstandingCounts;
+	TMap<FString,int64> HeldBytesPerStream;
+	int64 HeldBytes=0;
+	void ReleaseOutstanding(const FVirtualSensorBinaryFrame& Frame)
+	{
+		FScopeLock Lock(&OutstandingMutex); FOutstanding Removed;
+		if(OutstandingFrames.RemoveAndCopyValue(Frame.RequestId,Removed))
+		{ HeldBytes-=Removed.Bytes; HeldBytesPerStream.FindOrAdd(Removed.Key)-=Removed.Bytes; int32& Count=OutstandingCounts.FindOrAdd(Removed.Key); if(--Count<=0){OutstandingCounts.Remove(Removed.Key);HeldBytesPerStream.Remove(Removed.Key);} }
+	}
 	void FailFrame(const FVirtualSensorBinaryFrame& Frame, const FString& Reason)
 	{
+		ReleaseOutstanding(Frame);
 		// Record failure atomically with the decrement; the game thread must not
 		// observe zero pending and declare success before it drains the event queue.
 		AdjustRunPending(Frame, -1, true);
@@ -406,7 +447,8 @@ private:
 		{
 			const int32 Index = static_cast<int32>(Frame.StreamKind);
 			--QueueCounts[Index];
-			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { AdjustRunPending(Frame,-1); continue; }
+			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { ReleaseOutstanding(Frame); AdjustRunPending(Frame,-1); continue; }
+			{ FScopeLock Lock(&OutstandingMutex); if(auto* Held=OutstandingFrames.Find(Frame.RequestId)) Held->bQueued=false; }
 			if (!SendFrame(Frame, 0))
 			{
 				FailFrame(Frame, TEXT("Socket write failed; frame has no remaining delivery path."));
@@ -532,6 +574,7 @@ private:
 				Event.Message = TEXT("Broker receipt received.");
 				Events.Enqueue(MoveTemp(Event));
 				AdjustRunPending(Pending->Frame,-1);
+				ReleaseOutstanding(Pending->Frame);
 				PendingReceipts.Remove(ReceiptId);
 			}
 			return;
@@ -783,6 +826,8 @@ bool UVirtualSensorHighThroughputTransportSubsystem::StartHighThroughputTranspor
 		ActiveProfile.CameraTopic == Profile.CameraTopic &&
 		ActiveProfile.LidarTopic == Profile.LidarTopic &&
 		ActiveProfile.PointCloudTopic == Profile.PointCloudTopic &&
+		ActiveProfile.MaxOutstandingBytes == Profile.MaxOutstandingBytes &&
+		ActiveProfile.MaxOutstandingBytesPerStream == Profile.MaxOutstandingBytesPerStream &&
 		ActivePasscode == SessionPasscode;
 	if (bSameProfile && Worker->IsRunning()) return true;
 	StopHighThroughputTransport();
@@ -835,7 +880,7 @@ bool UVirtualSensorHighThroughputTransportSubsystem::EnqueueBinaryFrame(
 	Telemetry.SensorId = Frame.SensorId;
 	if (!Worker->Enqueue(Frame, OutError))
 	{
-		++Telemetry.OverloadCount;
+	// Overload is counted once when the worker event is drained.
 		Telemetry.State = TEXT("overload");
 		Telemetry.Message = OutError;
 		return false;
@@ -848,6 +893,16 @@ TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsy
 {
 	TArray<FVirtualSensorStreamTelemetry> Result;
 	TelemetryByKey.GenerateValueArray(Result);
+	for(auto& Item:Result)
+	{
+		if(Worker)
+		{
+			int32 Queued=0;
+			Worker->SnapshotOutstanding(Item.StreamKind,Item.SensorId,Item.OutstandingFrameCount,Item.OutstandingBytes,Item.GlobalOutstandingBytes,Queued);
+			Item.InputQueueDepth=Queued; Item.ReceiptQueueDepth=Item.OutstandingFrameCount-Queued;
+		}
+		else { Item.OutstandingFrameCount=0; Item.OutstandingBytes=0; Item.GlobalOutstandingBytes=0; Item.InputQueueDepth=0; Item.ReceiptQueueDepth=0; }
+	}
 	return Result;
 }
 
@@ -983,6 +1038,65 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawReceiptProbeTest,"MA0T10.SensorStream.RawReceiptProbe",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorRawReceiptProbeTest::RunTest(const FString&)
+{
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RAW_PROBE"))!=TEXT("1")) { AddInfo(TEXT("SKIP: local receipt fault probe is not enabled"));return true; }
+	FVirtualSensorHighThroughputProfile Profile;Profile.BrokerUrl=TEXT("tcp://127.0.0.1:18617");
+	FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};Worker.Start();
+	FVirtualSensorBinaryFrame Frame;Frame.StreamKind=EVirtualSensorStreamKind::PointCloud;Frame.SensorId=TEXT("receipt-probe");
+	Frame.Body32=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(TArray<uint8>{1,2,3});
+	FString Error;
+	for(int32 I=0;I<20;++I){Frame.FrameId=I+1;Frame.RequestId=FString::FromInt(I);TestTrue(TEXT("initial bounded frames admitted"),Worker.Enqueue(Frame,Error));}
+	int32 Submitted=0;const double Deadline=FPlatformTime::Seconds()+4;
+	while(Submitted<20&&FPlatformTime::Seconds()<Deadline)
+	{
+		FWorkerEvent Event;while(Worker.DequeueEvent(Event))if(Event.Type==EWorkerEventType::Submitted)++Submitted;
+		FPlatformProcess::SleepNoStats(0.005f);
+	}
+	TestEqual(TEXT("fake broker actually receives all socket submissions"),Submitted,20);
+	Frame.RequestId=TEXT("over-cap");TestFalse(TEXT("missing receipts apply admission even after input queue drains"),Worker.Enqueue(Frame,Error));
+	Worker.StopWorker();int32 Count,Queued;int64 Bytes,Global;
+	Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
+	TestEqual(TEXT("fault-probe stop releases all held bytes"),Global,int64(0));return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawOutstandingLimitTest,"MA0T10.SensorStream.RawOutstandingLimits",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorRawOutstandingLimitTest::RunTest(const FString&)
+{
+	FVirtualSensorHighThroughputProfile Profile;
+	FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};
+	FVirtualSensorBinaryFrame Frame; Frame.StreamKind=EVirtualSensorStreamKind::PointCloud; Frame.SensorId=TEXT("cap-test");
+	Frame.Headers.Add(TEXT("x-run-uuid"),TEXT("cap-run"));
+	Frame.Body32=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(TArray<uint8>{1,2,3});
+	FString Error;
+	for(int32 Index=0;Index<20;++Index)
+	{
+		Frame.FrameId=Index+1;Frame.RequestId=LexToString(Index);
+		TestTrue(TEXT("bounded FIFO accepts each available reservation"),Worker.Enqueue(Frame,Error));
+		FVirtualSensorBinaryFrame Sent;Worker.Frames.Dequeue(Sent);--Worker.QueueCounts[static_cast<int32>(Sent.StreamKind)];
+		Worker.OutstandingFrames.FindChecked(Sent.RequestId).bQueued=false;
+		FPendingReceipt Pending;Pending.Frame=Sent;Pending.SubmittedSeconds=FPlatformTime::Seconds();Worker.PendingReceipts.Add(Sent.RequestId,Pending);
+	}
+	Frame.RequestId=TEXT("twenty-one");
+	TestFalse(TEXT("empty input queue cannot bypass receipt-wait frame cap"),Worker.Enqueue(Frame,Error));
+	int32 Count,Queued;int64 Bytes,Global;
+	Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
+	TestEqual(TEXT("twenty bodies counted once across queue and receipt phases"),Bytes,int64(60));
+	TestEqual(TEXT("receipt-only waiting has no queued frames"),Queued,0);
+	FVirtualSensorStompFrame Receipt;Receipt.Command=TEXT("RECEIPT");Receipt.Headers.Add(TEXT("receipt-id"),TEXT("0"));Worker.HandleFrame(Receipt);
+	TestTrue(TEXT("receipt releases admission immediately"),Worker.Enqueue(Frame,Error));
+	Worker.StopWorker();Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
+	TestEqual(TEXT("stop retires queued and unconfirmed bodies"),Global,int64(0));
+	TestEqual(TEXT("stop balances run pending"),Worker.GetRunPending(TEXT("cap-run")),0);
+	Profile.MaxOutstandingBytes=4;Profile.MaxOutstandingBytesPerStream=4;
+	FVirtualSensorHighThroughputTransportWorker Small{Profile,FString()};
+	Frame.RequestId=TEXT("a");TestTrue(TEXT("first body fits byte budget"),Small.Enqueue(Frame,Error));
+	Frame.SensorId=TEXT("other");Frame.RequestId=TEXT("b");TestFalse(TEXT("global byte budget spans different sensors"),Small.Enqueue(Frame,Error));
+	Small.StopWorker();
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawTerminalLedgerTest, "MA0T10.SensorStream.RawTerminalLedger", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorRawTerminalLedgerTest::RunTest(const FString& Parameters)
 {

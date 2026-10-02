@@ -1364,6 +1364,9 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 		Runtime->Status.InputQueueDepth = Runtime->PendingFrameQueue.Num() + (Runtime->PendingFrame.IsSet() ? 1 : 0) + Item.InputQueueDepth;
 		Runtime->Status.PreparedQueueDepth = Runtime->PreparedMessageQueue.Num() + (Runtime->PreparedMessage.IsSet() ? 1 : 0);
 		Runtime->Status.ReceiptQueueDepth = Item.ReceiptQueueDepth;
+		Runtime->Status.RawOutstandingFrameCount=Item.OutstandingFrameCount;
+		Runtime->Status.RawOutstandingBytes=Item.OutstandingBytes;
+		Runtime->Status.RawGlobalOutstandingBytes=Item.GlobalOutstandingBytes;
 		Runtime->Status.LastSocketWriteLatencyMs = Item.LastSocketWriteLatencyMs;
 		Runtime->Status.LastReceiptLatencyMs = Item.LastReceiptLatencyMs;
 		Runtime->Status.LastConsumerLatencyMs = Item.LastEndToEndLatencyMs;

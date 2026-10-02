@@ -778,6 +778,8 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 			: Status.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR Payload");
 		const FString Backend = Status.ActiveTransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput
 			? TEXT("Raw TCP 고성능") : TEXT("Engine STOMP 호환");
+		if(Status.ActiveTransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput)
+			Text+=FString::Printf(TEXT("\nRaw 보관: %d프레임 · %.2fMiB · 전역 %.2fMiB"),Status.RawOutstandingFrameCount,Status.RawOutstandingBytes/1048576.0,Status.RawGlobalOutstandingBytes/1048576.0);
 		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · p95 e2e %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
 			Status.bEnabled ? TEXT("실행") : TEXT("중지"), *Kind, Status.SensorId.IsEmpty() ? TEXT("전체 센서") : *Status.SensorId,
 			*Backend, Status.InputHz, Status.SubmittedHz, Status.ReceiptReceivedCount, Status.ConsumerReceivedHz, Status.ConsumerReceivedCount,
