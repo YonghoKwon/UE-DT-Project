@@ -47,6 +47,10 @@ struct FWorkerEvent
 	int64 GapDelta = 0;
 	int64 DuplicateDelta = 0;
 	float LatencyMs = 0.0f;
+	FString RequestId;
+	FDateTime AcquisitionUtc;
+	FDateTime ObservedUtc;
+	double ObservedSeconds=0;
 	FString Message;
 };
 
@@ -493,6 +497,8 @@ private:
 		Event.SensorId = Frame.SensorId;
 		Event.FrameId = Frame.FrameId;
 		Event.Bytes = static_cast<int32>(FMath::Min<int64>(MAX_int32, Frame.NumBytes()));
+		Event.RequestId=RequestId;Event.AcquisitionUtc=Frame.TimestampUtc;
+		Event.ObservedUtc=FDateTime::UtcNow();Event.ObservedSeconds=LastSocketActivitySeconds;
 		Event.QueueDepth = QueueCounts[static_cast<int32>(Frame.StreamKind)].Load();
 		Event.ReceiptDepth = CountPendingReceipts(Frame.StreamKind);
 		Event.LatencyMs = static_cast<float>((LastSocketActivitySeconds - Started) * 1000.0);
@@ -568,6 +574,8 @@ private:
 				Event.StreamKind = Pending->Frame.StreamKind;
 				Event.SensorId = Pending->Frame.SensorId;
 				Event.FrameId = Pending->Frame.FrameId;
+				Event.RequestId=ReceiptId;Event.AcquisitionUtc=Pending->Frame.TimestampUtc;
+				Event.ObservedUtc=FDateTime::UtcNow();Event.ObservedSeconds=FPlatformTime::Seconds();
 				Event.Bytes = static_cast<int32>(FMath::Min<int64>(MAX_int32, Pending->Frame.NumBytes()));
 				Event.ReceiptDepth = FMath::Max(0, CountPendingReceipts(Pending->Frame.StreamKind) - 1);
 				Event.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Pending->SubmittedSeconds) * 1000.0);
@@ -652,6 +660,8 @@ private:
 		FWorkerEvent Event;
 		Event.Type=Data->bValid?EWorkerEventType::Consumed:EWorkerEventType::ValidationFailed;
 		Event.StreamKind=Kind; Event.SensorId=SensorId; Event.FrameId=FrameId; Event.Bytes=Frame.Body.Num();
+		Event.RequestId=Data->RequestId;Event.AcquisitionUtc=SourceUtc;
+		Event.ObservedUtc=FDateTime::UtcNow();Event.ObservedSeconds=FPlatformTime::Seconds();
 		Event.Message=Data->Message;
 		Event.LatencyMs=SourceUtc.GetTicks()>0?static_cast<float>(FMath::Max(0.0,(FDateTime::UtcNow()-SourceUtc).GetTotalMilliseconds())):0;
 		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+Data->RunId+TEXT("|")+
@@ -886,6 +896,14 @@ bool UVirtualSensorHighThroughputTransportSubsystem::EnqueueBinaryFrame(
 		return false;
 	}
 	++Telemetry.EnqueuedCount;
+	if(OnTransportObservation.IsBound())
+	{
+		FVirtualSensorTransportObservation O;
+		O.Kind=Frame.StreamKind;O.SensorId=Frame.SensorId;O.FrameId=Frame.FrameId;O.RequestId=Frame.RequestId;
+		O.AcquisitionUtc=Frame.TimestampUtc;O.ObservedUtc=FDateTime::UtcNow();O.MonotonicSeconds=FPlatformTime::Seconds();
+		O.bClockValid=O.AcquisitionUtc.GetTicks()>0&&O.ObservedUtc>=O.AcquisitionUtc;
+		OnTransportObservation.Broadcast(O);
+	}
 	return true;
 }
 
@@ -952,6 +970,17 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 	while (Drained < 256 && Worker->DequeueEvent(Event))
 	{
 		++Drained;
+		if(OnTransportObservation.IsBound()&&!Event.RequestId.IsEmpty())
+		{
+			FVirtualSensorTransportObservation O;
+			O.Phase=Event.Type==EWorkerEventType::Submitted?EVirtualSensorTransportObservationPhase::Submitted:
+				Event.Type==EWorkerEventType::Receipt?EVirtualSensorTransportObservationPhase::Receipt:
+				Event.Type==EWorkerEventType::Consumed?EVirtualSensorTransportObservationPhase::Consumed:EVirtualSensorTransportObservationPhase::Failed;
+			O.Kind=Event.StreamKind;O.SensorId=Event.SensorId;O.FrameId=Event.FrameId;O.RequestId=Event.RequestId;
+			O.AcquisitionUtc=Event.AcquisitionUtc;O.ObservedUtc=Event.ObservedUtc;O.MonotonicSeconds=Event.ObservedSeconds;O.LatencyMs=Event.LatencyMs;
+			O.bClockValid=O.AcquisitionUtc.GetTicks()>0&&O.ObservedUtc>=O.AcquisitionUtc;
+			OnTransportObservation.Broadcast(O);
+		}
 		if(Event.ReceivedData && Event.ReceivedData->ReceiveGeneration==ReceiverSelection.Generation)
 		{
 			OnReceived.Broadcast(Event.ReceivedData);

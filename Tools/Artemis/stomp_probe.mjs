@@ -28,6 +28,7 @@ const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
 const selfTestPoints = Math.max(1, Number(args.get('--self-test-points') ?? '1'));
 const output = args.get('--output') ?? path.resolve('Saved', 'Reports', `artemis_probe_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.json`);
 const messages = [];
+const metadataLedger = [];
 const counts = new Map(topics.map(topic => [topic, 0]));
 const topicMetrics = new Map(topics.map(topic => [topic, {
   validCount: 0,
@@ -211,6 +212,7 @@ function report(success, reason) {
     metrics,
     slabRuns: Object.fromEntries(slabRuns),
     messages,
+    metadataLedger: args.has('--metadata-ledger') ? metadataLedger : undefined,
   };
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, JSON.stringify(result, null, 2), 'utf8');
@@ -361,6 +363,7 @@ socket.addEventListener('message', async event => {
       }
       const entry = {
         receivedUtc: new Date().toISOString(),
+        acquisitionUtc: parsed.headers['timestamp-utc'] ?? parsed.headers['x-utc'] ?? '',
         destination,
         requestId: parsed.headers['x-request-id'] ?? parsed.headers['request-id'] ?? '',
         sensorId: parsed.headers['x-sensor-id'] ?? parsed.headers['sensor-id'] ?? '',
@@ -380,6 +383,11 @@ socket.addEventListener('message', async event => {
 		checksum: pcdValidation?.checksum ?? actualChecksum,
 		validationErrors: pcdValidation?.failedChecks ?? [],
       };
+      if (args.has('--metadata-ledger')) {
+        if(metadataLedger.length>=300000) { report(false,'metadata ledger capacity exceeded');socket.close();return; }
+        metadataLedger.push({requestId:entry.requestId,sensorId:entry.sensorId,frameId:entry.frameId,destination,
+          acquisitionUtc:entry.acquisitionUtc,receivedUtc:entry.receivedUtc,valid:entry.valid,checksum:entry.checksum});
+      }
       if (requiredSlabRuns > 0) {
         const correlationValid = validUuid(entry.runId) && entry.mtlNo === 'SQ83521 047' &&
           Number.isInteger(entry.slabFrameNo) && entry.slabFrameNo >= 0 && entry.slabFrameNo < 600 && Math.abs(entry.slabElapsedSec - entry.slabFrameNo * 0.05) < 0.00001;

@@ -118,6 +118,21 @@ struct FVirtualSensorReceiveSelection
 };
 DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorReceiveEvent,const TSharedPtr<FVirtualSensorTopicReceivedDataBase>&);
 
+/** 검수 관찰은 본문을 보유하지 않는다. worker 발생 시각과 GT 적용 시각을 구분한다. */
+enum class EVirtualSensorTransportObservationPhase : uint8 { Accepted, Submitted, Receipt, Consumed, Failed };
+struct FVirtualSensorTransportObservation
+{
+	EVirtualSensorTransportObservationPhase Phase=EVirtualSensorTransportObservationPhase::Accepted;
+	EVirtualSensorStreamKind Kind=EVirtualSensorStreamKind::LidarPayload;
+	FString SensorId,RequestId;
+	int64 FrameId=0;
+	FDateTime AcquisitionUtc,ObservedUtc;
+	double MonotonicSeconds=0;
+	float LatencyMs=0;
+	bool bClockValid=true;
+};
+DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorTransportObservationEvent,const FVirtualSensorTransportObservation&);
+
 /** World facade for a binary-safe Raw TCP STOMP worker. */
 UCLASS()
 class MA0T10_DT_API UVirtualSensorHighThroughputTransportSubsystem : public UTickableWorldSubsystem
@@ -149,6 +164,7 @@ public:
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection);
 	FVirtualSensorReceiveEvent OnReceived;
+	FVirtualSensorTransportObservationEvent OnTransportObservation;
 	int64 GetDroppedReceiveEvents() const;
 
 	static bool CanUseRawTcp(const FString& BrokerUrl, FString* OutReason = nullptr);

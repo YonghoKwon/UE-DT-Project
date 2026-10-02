@@ -29,6 +29,8 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "VirtualSlabSensorTestDriver.h"
+#include "FinalAcceptanceTestSession.h"
+#include "FinalAcceptanceMeasurement.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeFeatureSmokeTest,
@@ -299,6 +301,11 @@ public:
 
 		UVirtualSensorTransportComponent* Transport = Coordinator->SharedTransportComponent;
 		UVirtualSensorStreamPublisherComponent* Publisher = Coordinator->StreamPublisherComponent;
+		if(!FinalAcceptanceViewportReady(World))
+		{
+			if(FPlatformTime::Seconds()-StartedAtSeconds>10){Test->AddError(TEXT("Actual PIE client pixel size does not match acceptance request."));return true;}
+			return false;
+		}
 		// The map also starts DTCore WebSocket clients during PIE bootstrap. Match
 		// the real UI workflow by allowing those handshakes to settle before the
 		// user-facing sensor transport opens its independent STOMP connection.
@@ -387,6 +394,8 @@ public:
 			WarmupSeconds = RequestedWarmup.IsEmpty() ? 10.0 : FMath::Clamp(FCString::Atod(*RequestedWarmup), 1.0, 3600.0);
 			MeasurementSeconds = RequestedSeconds.IsEmpty() ? 60.0 : FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
+			Measurement.Start(World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>(),StreamsStartedAtSeconds+WarmupSeconds,MeasurementSeconds);
+			UE_LOG(LogTemp,Display,TEXT("[FinalAcceptanceViewport] x=%d y=%d"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y);
 			bStreamsStarted = true;
 			return false;
 		}
@@ -416,7 +425,7 @@ public:
 				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
-		if (StreamElapsedSeconds >= WarmupSeconds)
+		if (StreamElapsedSeconds >= WarmupSeconds && !bAcquisitionStopped && StreamElapsedSeconds < WarmupSeconds+MeasurementSeconds)
 		{
 			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
 			if (!bCaptureViewStatesChecked)
@@ -464,6 +473,7 @@ public:
 		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), bPointCloudOnly?1:3);
+		Test->TestTrue(TEXT("full window request ledger saved"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
 			if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
@@ -608,6 +618,7 @@ private:
 	double WarmupSeconds = 10.0;
 	TArray<double> FrameTimesMs;
 	TArray<double> WallPacingTimesMs;
+	FFinalAcceptanceMeasurement Measurement;
 };
 }
 
@@ -635,7 +646,7 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 		AddError(TEXT("SensorRefactorTestMap could not be opened"));
 		return false;
 	}
-	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
+	ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());
 	ADD_LATENT_AUTOMATION_COMMAND(FSensorV2RuntimeContinuousStreamCommand(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
