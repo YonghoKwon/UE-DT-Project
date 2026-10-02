@@ -163,15 +163,30 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 		return;
 	}
 
-	Readback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarGpuDepthReadback"));
+	// UE 5.3 readback reuse assumes identical format/extent. A new acquisition
+	// is admitted only after the previous render-thread Lock/Unlock completed.
+	const FIntPoint Dimensions(PendingCaptureWidth, PendingCaptureHeight);
+	if (ReadbackDimensions != Dimensions) ReleaseReadbackOnRenderThread();
+	ReadbackDimensions = Dimensions;
+	if (!Readback.IsValid())
+	{
+		Readback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarGpuDepthReadback"));
+		++ReadbackAllocationCount;
+	}
+	bPendingSemanticReadback = false;
 	FTextureRHIRef SemanticTexture;
 	if (PendingRequest.bRequestSemantics && SemanticScene && PendingSemanticIdentities.Num() > 0)
 	{
 		SemanticTexture = SemanticScene->GetTarget()->GameThread_GetRenderTargetResource()->GetRenderTargetTexture();
 		if (!SemanticTexture.IsValid()) { StatusMessage = TEXT("GPU semantic target initialization pending"); return; }
-		if (SemanticTexture.IsValid()) SemanticReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarSemanticReadback"));
+		if (!SemanticReadback.IsValid())
+		{
+			SemanticReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarSemanticReadback"));
+			++ReadbackAllocationCount;
+		}
+		bPendingSemanticReadback = true;
 	}
-	const auto CapturedSemanticReadback = SemanticReadback;
+	const auto CapturedSemanticReadback = bPendingSemanticReadback ? SemanticReadback : nullptr;
 	const TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = Readback;
 	ENQUEUE_RENDER_COMMAND(VirtualLidarGpuDepthReadback)(
 		[CapturedReadback, Texture, CapturedSemanticReadback, SemanticTexture](FRHICommandListImmediate& RHICmdList)
@@ -209,7 +224,7 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 		QueueReadback();
 		return bAcquisitionActive ? EVirtualSensorBackendPollResult::Pending : EVirtualSensorBackendPollResult::Failed;
 	}
-	if (bReadbackCopyInFlight || !Readback.IsValid() || !Readback->IsReady() || (SemanticReadback.IsValid() && !SemanticReadback->IsReady()))
+	if (bReadbackCopyInFlight || !Readback.IsValid() || !Readback->IsReady() || (bPendingSemanticReadback && SemanticReadback.IsValid() && !SemanticReadback->IsReady()))
 	{
 		return EVirtualSensorBackendPollResult::Pending;
 	}
@@ -218,8 +233,8 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 	const int32 Height = PendingCaptureHeight;
 	const int32 Generation = AcquisitionGeneration;
 	const FVirtualLidarDepthAcquisitionRequest Request = PendingRequest;
-	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = MoveTemp(Readback);
-	auto CapturedSemanticReadback = MoveTemp(SemanticReadback);
+	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = Readback;
+	auto CapturedSemanticReadback = bPendingSemanticReadback ? SemanticReadback : nullptr;
 	auto Identities = MoveTemp(PendingSemanticIdentities);
 	const FString SemanticStatus = PendingSemanticStatus;
 	TWeakObjectPtr<UVirtualLidarGpuDepthProjectionComponent> WeakThis(this);
@@ -301,11 +316,13 @@ void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisition()
 	bAcquisitionActive = false;
 	bReadbackQueued = false;
 	bReadbackCopyInFlight = false;
+	bPendingSemanticReadback = false;
 	StatusMessage = TEXT("GPU depth acquisition cancelled");
 }
 
 void UVirtualLidarGpuDepthProjectionComponent::ReleaseReadbackOnRenderThread()
 {
+	ReadbackDimensions = FIntPoint::ZeroValue;
 	auto Semantic = MoveTemp(SemanticReadback);
 	if (Semantic.IsValid()) ENQUEUE_RENDER_COMMAND(ReleaseLidarSemantic)([Semantic = MoveTemp(Semantic)](FRHICommandListImmediate&) mutable { Semantic.Reset(); });
 	if (!Readback.IsValid())

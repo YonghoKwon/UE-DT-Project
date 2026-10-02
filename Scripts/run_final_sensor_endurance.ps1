@@ -15,6 +15,7 @@ try {
     $probeArgs=@("`"$(Join-Path $root 'Tools/Artemis/stomp_probe.mjs')`"",'--url','ws://127.0.0.1:61616','--user','artemis','--password','artemis','--warmup','10','--duration',"$seconds",'--timeout','720','--metadata-ledger','true','--quiet','true','--output',"`"$(Join-Path $report "$label.external.json")`"")
     $probe=Start-Process node -ArgumentList $probeArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $report "$label.probe.log") -RedirectStandardError (Join-Path $report "$label.probe.err")
     $editorArgs=@("`"$(Join-Path $root 'ma0t10_dt.uproject')`"",'-d3d12','-RenderOffscreen','-unattended','-nosplash','-NoSound','-NoVSync',"-ExecCmds=`"t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.$group;Quit`"",'-TestExit="Automation Test Queue Empty"',"-ReportExportPath=`"$(Join-Path $report "$label.automation")`"","-abslog=`"$(Join-Path $report "$label.log")`"")
+    if($env:MA0T10_ACCEPTANCE_TRACE_PATH){$editorArgs+=@('-trace=cpu,frame,gpu,bookmark,loadtime',"-tracefile=`"$env:MA0T10_ACCEPTANCE_TRACE_PATH`"")}
     $editor=Start-Process 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' -ArgumentList $editorArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru
     $deadline=[DateTime]::UtcNow.AddSeconds(800)
     while(-not $editor.HasExited){

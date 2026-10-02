@@ -61,6 +61,7 @@ try {
         "-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
         "-TestExit=Automation Test Queue Empty", "-abslog=$EditorLog"
     )
+    if($env:MA0T10_ACCEPTANCE_TRACE_PATH){$EditorArgs+=@('-trace=cpu,frame,gpu,bookmark,loadtime',"-tracefile=$env:MA0T10_ACCEPTANCE_TRACE_PATH")}
     & $Editor @EditorArgs
     $EditorExitCode = $LASTEXITCODE
     if($EditorExitCode -ne 0){if(-not $Probe.HasExited){$Probe.Kill()};throw "Editor acceptance test failed with exit code $EditorExitCode. See $EditorLog"}
