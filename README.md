@@ -259,7 +259,30 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 ## 8. 최신 검증과 제한
 
+### 최종 검수 진행 — 2026-10-03
+
+현재 production source는 `2eb30f0`, DTCore는 `067195b`다. DTCore 공통 소스·wire schema·센서 규격은 이번 최종 검수에서 바꾸지 않았다. 숫자 Transform 편집의 경량 조작 유지, 실제 Slate 포인터 경로, 큰 글자에서 소유 패널 최소 폭을 보완했다.
+
+현재 시험의 `1% low` 표기는 `1000 / frame-time p99` 계산값이다. 최악1% 프레임의 평균을 사용하는 다른 벤치마크 정의와 같다고 해석하지 않는다. engine FApp delta와 실제 callback wall pacing도 별도로 기록한다.
+
+- LiDAR envelope UTC가 측정 완료 시점이던 결함을 `c1b86eb`에서 실제 측정 시작 시점으로 수정했다. 이전 12회 비교와 장시간 시험의 PCD 지연 27~36ms는 completion-to-consumer 기록이며 acquisition-to-consumer 통과 근거가 아니다. 전달 건수·checksum·FrameId 증거와 시각 기준을 분리한다. 독립 baseline에도 같은 시각 변환만 적용해 비교를 정규화했다.
+- 정규화 후 기준선에서 간헐적인 성능 실패가 발생했다(1280×720 세 스트림: 평균 56.90FPS/1% low 33.70FPS/p95 28.61ms, 1920×1080 PCD: 평균 59.08FPS/1% low 34.40FPS). 동일 조건의 추적 재시험 3회는 통과했지만 원인은 아직 확정되지 않았다. 실패를 정상 재시험으로 지우지 않으며, 최종 12회 비교·전후 5% gate는 미완료다. 사용자 요청에 따라 다른 앱·서비스를 중지하지 않고 현재 환경에서 분석 중이다.
+- `117e6e3`의 1920×1080 세 스트림 집중 시험은 평균 59.79FPS/1% low 59.57FPS/p95 16.67ms, 전체 구간 acquisition-to-consumer p95 Camera 49ms·PCD 66ms·LiDAR telemetry 72ms였다. 제출·receipt·내부 검증·외부 MESSAGE 집합을 대조했다. 한 번의 집중 시험이며 전체 비교 또는 다른 맵/다중 센서 지원 인증이 아니다.
+- 현재 환경의 10분 trace에서 렌더 작업 대기와 D3D12 텍스처 생성 지연을 관측했다. 매 LiDAR 프레임의 staging readback 생성을 `0c502af`에서 재사용으로 변경했고, 동일 크기·해상도 변경·진행 중 취소/재시작의 실제 깊이와 generation 시험을 포함한 관련 6개 테스트를 통과했다. 수정 후 1920×1080 세 스트림60초는 평균59.75FPS/1% low55.28FPS/p9516.7ms, PCD19.963Hz·gap/invalid/duplicate0으로 통과했다. 외부 CPU 부하도 함께 관측됐고 개별 RHI 자원 이름은 trace에 없어, 간헐적 지연의 전체 인과 또는 완전 해결을 단정하지 않는다.
+- `e6afe4f`는 재사용 버퍼의 이전 GPU fence를 새 완료로 읽지 않도록 nonblocking render 제출 fence를 추가했다. `2eb30f0`는 기즈모 클릭 위치가 viewport인데 전역의 이전 UI hover 때문에 거부되던 회귀를 수정했다. 실제 클릭 위치의 소유 viewport hit path를 사용하고 실제 패널 위 클릭은 거부한다. 의도적으로 이전 패널 hover를 남긴 Slate 회귀를 통과했으며 DTCore의 공통 hover API는 변경하지 않았다.
+- Camera는 실제 장면의 64bit acquisition token+CRC16 격자를 완료 JPEG마다 독립 해독해 990개 프레임을 검사했다. 이전 JPEG/새 metadata 음성 대조군, readback 포화·설정 변경·Stop/재시작·삭제를 포함한다. 관측한 JPEG만 폴링하던 이전 시험과 구분한다.
+- 재생은 관찰 1회와 30초 PCD 2회, 1,200건 제출/receipt/소비자 검증 일치·context 오류 0·평균 59.93FPS·p95 16.67ms다. 시험 프로세스의 Editor background throttle을 명시적으로 해제하고 복원했으며 사용자 설정은 저장하지 않았다. 이전 25.07ms 결과를 숨기거나 production 최적화 효과로 표시하지 않는다.
+- 현재 `2eb30f0`의 전체 `MA0T10` 보고서는190건 Success/실패0이다. 그중185건을 실제 수행했고 geometry 성능·replay runtime·continuous stream·repeat·production Slab의5건은 opt-in skip이다. continuous/repeat는 아래 현재 source의 집중 시험으로 갱신하고, 다른3건의 이전 source 증거는 최신 통과로 합산하지 않는다. 앞선 입력 hover 회귀1건의 실패 원본도 보존했다. 커밋된 운영맵은 Saved에 격리해 기존 assertion을 그대로 검사하고 사용자 맵은 보존한다.
+- Slate 입력 시험은 첫 Esc/키 반복 후 PIE 유지, 원설정 복구, Data 패널 geometry, Main 재호스팅과 미등록 Widget font 불변을 확인했다. 이 결과를 직접 마우스 검증으로 대신 표시하지 않는다.
+- 현재 source의 실제1920×1080 10분 실행은 PCD/telemetry 각12,000건(20Hz), Camera17,999건(29.998Hz)의 승인 요청/제출/receipt/내부·외부 검증 집합 일치와 missing/invalid/gap/duplicate0을 확인했다. 평균59.99FPS·1% low59.96FPS·frame p9516.67ms, 외부 acquisition-to-consumer p95 PCD73ms·Camera47ms였다. callback wall p9522.75ms는 별도로 기록한다. 첫1분 이후 private bytes8.03~8.13GB에는 전체 측정 ledger 보관 비용도 포함되며, 장기 무누수 인증은 아니다. 호환 JSON 파생 출력 생략·acquisition deadline miss는 승인된 PCD 전달 누락과 별도로 기록한다.
+- 현재 source의 45초 실행+정리10회를 통과했다. 모든 회차의 승인 요청/제출/receipt/내부·외부 검증 집합과 missing/invalid/gap/duplicate0, outstanding frame/bytes0 반환을 확인했다. Camera29.956~30Hz·PCD19.956~20Hz, 외부 p95 Camera48~49ms·PCD71~73ms였다. 정리503~507ms, 정리 후 private bytes8.12~8.15GB로 약32MB 증가했으며 이 결과를 장기 무누수 또는 완전한 메모리 plateau로 표현하지 않는다. 중단된 초기 fixture·외부 probe timeout은 별도 보존했다.
+- 운영 Slab adapter의 신규 실행+같은 시나리오 재생 2회 및 LiDAR geometry 표시/PCD 전송 시험도 실제 Artemis·외부 구독자로 통과했다. 출력 선택과 서로 다른 RunUUID·원본 scenario UUID·Slab frame의 계약을 유지한다. 전체 시험의 조건부 항목은 이러한 집중 실행 증거와 이름별로 연결하며 skip 자체를 통과로 세지 않는다.
+- 현재 source의 프로젝트·독립 최소 host Editor Development/Shipping 빌드, Windows Development Build/Cook/Stage/Archive, 16개 Blueprint 메모리 컴파일(저장0), V2 자산 검사를 통과했다. 독립 host는 별도 복사한 검증된 DTCore source/DLL을 사용하며 다른 실제 소비 프로젝트의 검증을 대신하지 않는다.
+- 직접 마우스로 Camera/LiDAR 이동, LiDAR 회전, 첫 Esc의 PIE 유지, 네 글자 배율과 패널 resize/접기를 확인했다. 현재 source에서는 Camera Z170→180 입력 후5Hz 경량 조작 유지, Settings 숨김 후 기존640×360/10Hz 미리보기 복귀, 실제 client1280×720의150% 제목/버튼 가독성을 추가 확인했다. 일반 PIE 전체화면 단축키는 크기를 바꾸지 않았고 앞선 최대 client는1920×998였으므로1920×1080 직접 조작은 환경상 미완료다. 자동화의 정확한1920×1080 측정과 혼동하지 않는다. 남은 직접 조작·최종3개 opt-in 회귀·12회 비교 gate 때문에 **최종 검수 완료가 아니다**. 증거는 `Saved/Reports/DTCoreFinalAcceptance`에 둔다. 개인 UI9개와 테스트 fullscreen 설정은 복원했다.
+
 ### DTCore 동기화·센서 출력 안정화 — 2026-10-02
+
+아래는 이전 안정화 단계의 기록이다. 최종 검수의 신규 증거와 제한은 위 항목을 우선한다.
 
 - 동기화본의 `GetType(): int32`, Widget byte API를 유지한다. 구형 Widget 식별자 0~6은 Hidden 호환 항목으로 보존한다. 현재 Crane 생산/소비 코드를 함께 이관했다.
 - HTTP UTF-8 Body와 URL 우선순위, 수동 Disconnect 의도·generation·구독 receipt 5초 timeout, parse/log worker 종료와 registry GC 보유를 검증한다. 전송 연결 이벤트와 전체 구독 준비 이벤트를 구분한다.

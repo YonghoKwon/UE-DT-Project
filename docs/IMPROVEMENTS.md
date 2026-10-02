@@ -55,6 +55,12 @@
 
 ### RT-02 — Esc 조작 종료 연결 (구현·자동검증 완료, 수동 검증 대기)
 
+2026-10-03 검수: 소유 패널/PIE viewport에 한정된 Slate 입력 중재기, 첫 Esc·repeat/release, 원설정 복귀 및 Main/외부 Widget 격리 시험을 통과했다. 직접 마우스로 Camera/LiDAR 이동·LiDAR 회전·첫 Esc의 PIE 유지도 확인했다. 숫자 Transform 편집이 전체 측정 설정을 재시작하던 회귀와 빠른 pointer drag 누락을 수정했다. Camera 회전·숨김 복귀 등 전체 직접 조작과 1920×1080 수동 gate는 아직 미완료다.
+
+추가 회귀 `2eb30f0`: 이전 커서 위치의 global UI hover가 실제 viewport 클릭을 거부했다. 우리 기즈모의 event-position hit path만 사용하도록 수정하고, 이전 패널 hover를 강제로 남긴 시험에서 viewport drag 수락·실제 패널 클릭 거부를 확인했다. 공통 DTCore hover·다른 Widget 정책은 변경하지 않았다.
+
+현재 source의 직접 조작 추가 증거: Camera Z170→180 숫자 변경 후5Hz 경량 조작 유지, Settings 숨김으로 종료 후 원래640×360/10Hz 미리보기 복귀, 실제 client1280×720의150% 제목/버튼 가독성. 전체 두 해상도/모든 경계의 수동 완료로 확대하지 않는다.
+
 **수정 전 근거:** Gizmo Esc가 Actor 종료와 분리되어 있었고 Settings가 종료할 때 현재 선택 Actor를 조회했다. 새 회귀 테스트에서 선택 변경 후 원래 Camera의 640px·0.2초·미리보기 모드가 복원되지 않는 것을 재현했다.
 
 - 구현 `d2024bf`: 종료 요청 이벤트 → Settings 단일 정리 → 시작 때 고정한 약한 Actor 참조. 일반 drag commit과 종료를 분리하고 직접 Gizmo 비활성도 정리한다. 선택 변경은 새 센서 조작을 자동 시작하거나 이전 monitor 선택을 덮어쓰지 않는다.
@@ -75,19 +81,29 @@
 
 ### RT-04 — Camera FrameId와 실제 픽셀 (구현·집중검증 완료, P0)
 
+2026-10-03 검수: 완료 이벤트의 immutable JPEG/metadata를 bounded decoder에 전달해 고유 acquisition token+CRC16을 990개 모두 대조했다. 포화·encode 역순·pose/revision/Slab context·Stop/재시작·삭제와 이전 이미지 음성 대조군을 포함한다. 현재 source의 전체 자동화와 독립 host 빌드는 통과했다. LiDAR 측정 시작 UTC 보정 후 성능 비교에서 간헐적인 기준선 실패가 있어 재분석 중이며, 예전 12회 결과를 최종 source 통과로 사용하지 않는다.
+
 **수정 전 근거:** 스트리밍 readback slot 부족 시 metadata를 보관하고 나중의 현재 RenderTarget을 읽을 수 있었다.
 
 - 구현 `017d20f`: 자연 capture hook에서 pose/UTC/context를 고정하고 해당 capture 직후 readback copy를 예약한다. coalesced frame/slot 부족은 명시적 파생 실패이며 나중 픽셀을 옛 ID에 붙이지 않는다. Actor의 프레임 UTC도 encode 완료 시각이 아니라 acquisition 시각을 사용한다.
-- CameraAcquisitionSnapshot 단위 및 실제 D3D12 CameraMarkerRhi 통과. red/blue unlit marker, encode 지연, forced saturation 후 정상복귀, 관측한 JPEG와 pose/UTC를 비교했다. 관측 완료 JPEG25개이며 폴링 때문에 모든30Hz 프레임을 독립 검사한 것은 아니다. 초기 harness의 ShowOnly/cold shader 문제와 최종 통과 로그를 모두 보존한다.
+- 이전 안정화 단계 기록: CameraAcquisitionSnapshot 및 D3D12의 red/blue marker·encode 지연·포화 복귀를 JPEG25개 폴링으로 확인했다. 이 제한된 시험은 위의 최종 고유 token/CRC990개 완료 이벤트 검증과 구분한다. 초기 harness의 ShowOnly/cold shader 문제와 최종 통과 로그를 모두 보존한다.
 - 증거: `Saved/Reports/DTCoreSync/camera-unit`, `camera-rhi4`, marker JPEG. 같은 장면의 출력 성능은 10+60초 전후 비교했다. 모든 이동/context/삭제/설정 변경 조합의 stress 인증은 후속이다.
 
 ### RT-05 — 다중 센서 실측 지원 범위 (검증 공백, P1)
 
-- 최근 근거는 ML-X Native **한 대 PCD-only, 753×403, 30초×2**다. 1,199건 송수신 일치, 후반 1% low 45.019 FPS. 옛 2+2/4+4 저출력률 시험을 현재 정격 지원 근거로 쓰지 않는다.
+- 이전 근거는 ML-X Native **한 대 PCD-only, 753×403, 30초×2**다. 1,199건 송수신 일치, 후반1% low45.019FPS. 이후 실제1280×720/1920×1080 및1+1 정격 시험은 README의 source별 기록을 따른다. 옛2+2/4+4 저출력률 시험을 현재 정격 지원 근거로 쓰지 않는다.
 - 2026-10-02 추가 근거: 실제1274×680 PCD-only/1+1 세 스트림10+60초와10분 연속 송수신 통과(README 요약). 재생 통합의 p9525.07ms는20ms 목표 미달이다. 어느 결과도1920×1080·다중센서 지원을 대신하지 않는다.
 - 1+1 → 2+2 → 4+4를 동일 SHA/고정 fixture에서 검증한다. 8+8은 탐색용 best effort이며 자동 지원으로 분류하지 않는다.
 - 각 단계에서 실제 client 해상도, profile/backend/echo, preview/출력 on/off, FPS·1% low·p95/p99, 센서별 acquisition/encode/submit/receipt/내외부 receive, queue/bytes/memory를 기록한다.
+- 현재 `1% low`는 frame-time p99의 역수이며, 최악1% 평균과 다르다. 지원 gate를 확정할 때 계산식을 고정하고 전체 frame-time 원시 배열을 보관해 두 정의를 함께 산출하는 계측 보강이 필요하다. engine delta·실제 wall pacing·trace의 대기 시간을 합쳐 하나의 FPS로 표시하지 않는다.
 - 완료: 60초 회귀를 통과한 구성만 10분 안정성, release 후보는 60분 soak로 확장한다. 요청값을 낮춰놓고 원래 FullSpec 통과로 발표하지 않는다. 목표 수치는 ROADMAP의 제안 gate를 승인·고정한 뒤 적용한다.
+
+### RT-09 — Camera staging texture 재사용 및 지연 원인 분리 (구현 공백, P1)
+
+- 2026-10-03 trace에서 game-thread render 대기와 D3D12 texture 생성 지연을 관측했다. LiDAR의 매 프레임 readback 생성은 `0c502af/e6afe4f`에서 재사용·현재 제출 fence 검사로 수정했다. 개별 trace 자원 이름이 없어 모든 생성 지연이 LiDAR라고 단정하지 않는다.
+- Camera `QueueScheduledGpuReadback`은 현재도 슬롯을3개로 제한하지만 프레임마다 `FRHIGPUTextureReadback`을 생성하고 완료 후 해제한다. **슬롯 수 제한과 staging GPU 자원 재사용은 다른 기능**이다. Camera 재사용 최적화는 이번에 구현하지 않았다.
+- 후속 변경은 동일 크기/format 슬롯 자원 보존, 새로운 copy의 fence 확인, resize/Stop/삭제 시 render-thread 해제, 고유 token/CRC 회귀로 구성한다. 이미지·metadata 정합성이나 출력 주기를 희생하지 않는다.
+- 완료: 동일 조건의 전후3회 trace에서 해당 readback allocation 감소를 확인하고, 실제 제출/receipt/수신Hz·지연·FPS·990개 identity·장시간 반환을 재검증한다. 외부 CPU 부하와 엔진 자원 지연은 인과 증거 없이 하나의 원인으로 합치지 않는다.
 
 ### RT-06 — 조작 중 입력 지연 (검증 공백, P1)
 
