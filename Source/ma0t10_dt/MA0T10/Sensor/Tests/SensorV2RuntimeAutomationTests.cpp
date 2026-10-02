@@ -395,6 +395,12 @@ public:
 				Config.MaxReceiptRetries = 3;
 				Publisher->ConfigureStream(Config);
 			}
+			if (OverrideDuration >= 0)
+			{
+				// 반복 시험은 앞 회차에서 중지한 센서를 실제 API로 다시 시작한다.
+				Camera->CaptureComponent->StartCapture();
+				Lidar->ScanComponent->StartScan();
+			}
 			const FString RequestedWarmup = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_WARMUP_SECONDS"));
 			const FString RequestedSeconds = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_MEASURE_SECONDS"));
 			WarmupSeconds = RequestedWarmup.IsEmpty() ? 10.0 : FMath::Clamp(FCString::Atod(*RequestedWarmup), 1.0, 3600.0);
