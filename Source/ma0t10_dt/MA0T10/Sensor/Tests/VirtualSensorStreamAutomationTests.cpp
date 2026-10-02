@@ -562,6 +562,8 @@ bool FVirtualSensorArtemisIntegrationSmokeTest::RunTest(const FString& Parameter
 		Config.StreamKind = Kind;
 		Config.bEnabled = true;
 		Config.ReceiptSampleInterval = 1;
+		// 이 fixture는 월드가 없는 Engine STOMP 호환 경로를 검증한다.
+		Config.TransportBackend = EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
 		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
 		Config.PcdDataMode = EVirtualPcdDataMode::Binary;
 		Config.DeliveryMode = Kind == EVirtualSensorStreamKind::PointCloud

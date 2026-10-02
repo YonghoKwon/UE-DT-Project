@@ -4,6 +4,8 @@
 #include "Misc/SecureHash.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStompProtocol.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorWireHeaders.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FVirtualSensorIncrementalStompParserTest,
@@ -156,6 +158,18 @@ bool FVirtualSensorRawTcpArtemisLoopbackTest::RunTest(const FString& Parameters)
 		Frame.ContentType = ContentType;
 		Frame.Destination = Destination;
 		Frame.Headers.Add(TEXT("checksum"), TestSha1(Body));
+		if (Kind == EVirtualSensorStreamKind::PointCloud)
+		{
+			FVirtualPointCloudBinaryMetadata Metadata;
+			Metadata.PointCount = 0;
+			Metadata.SourcePointCount = 0;
+			Metadata.FilterRevision = 0;
+			Metadata.ProfileKey = TEXT("raw-loopback-fixture");
+			Metadata.TimestampUtc = Frame.TimestampUtc.ToIso8601();
+			Metadata.ChecksumSha1 = TestSha1(Body);
+			// 운영 송신과 동일한 header builder를 사용한다.
+			Frame.Headers = FVirtualSensorWireHeaders::RawPcd(Metadata);
+		}
 		Frame.Body64 = MakeShared<const TArray64<uint8>, ESPMode::ThreadSafe>(MoveTemp(Body));
 		FString Error;
 		TestTrue(FString::Printf(TEXT("enqueue %s"), *Schema), State->Subsystem->EnqueueBinaryFrame(Frame, Error));
@@ -172,7 +186,7 @@ bool FVirtualSensorRawTcpArtemisLoopbackTest::RunTest(const FString& Parameters)
 	LidarBody.Append(reinterpret_cast<const uint8*>(LidarUtf8.Get()), LidarUtf8.Length());
 	Enqueue(EVirtualSensorStreamKind::LidarPayload, TEXT("LIDAR-RAW-SMOKE"), 2, TEXT("virtual-lidar.telemetry.v1"), TEXT("application/json"), Profile.LidarTopic, MoveTemp(LidarBody));
 
-	const FString PcdText = TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\nWIDTH 0\nHEIGHT 1\nPOINTS 0\nDATA binary\n");
+	const FString PcdText = TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\nSIZE 4 4 4 2 2 2 1 1 8 1 4\nTYPE F F F U U U U U I U F\nCOUNT 1 1 1 1 1 1 1 1 1 1 1\nWIDTH 0\nHEIGHT 1\nPOINTS 0\nDATA binary\n");
 	FTCHARToUTF8 PcdUtf8(*PcdText);
 	TArray64<uint8> PcdBody;
 	PcdBody.Append(reinterpret_cast<const uint8*>(PcdUtf8.Get()), PcdUtf8.Length());
