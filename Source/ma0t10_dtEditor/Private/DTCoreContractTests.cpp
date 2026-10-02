@@ -330,6 +330,19 @@ bool FDTCoreHttpContractTest::RunTest(const FString&)
     Api->DxRequestApiWithBody(TEXT("capture"), FDxApiCallback(), FString());
     TestTrue(TEXT("empty body remains empty"), CapturedBody.IsEmpty());
     TestEqual(TEXT("exactly one request constructed per invocation"), Requests, 3);
+    auto* Listener=NewObject<UDTCoreContractListener>();
+    FDxApiCallback Callback; Callback.BindDynamic(Listener,&UDTCoreContractListener::ReceiveHttp);
+    UDxApiSubsystem::FDxHttpRequestContext OldContext;
+    OldContext.Generation=Api->RequestGeneration; OldContext.Callback=Callback;
+    auto Pending=FHttpModule::Get().CreateRequest();
+    Pending->OnProcessRequestComplete().BindUObject(Api,&UDxApiSubsystem::InternalOnResponseReceived,OldContext);
+    Api->ActiveHttpRequests.Add(Pending);
+    Api->Deinitialize();
+    TestFalse(TEXT("shutdown unbinds outstanding completion"),Pending->OnProcessRequestComplete().IsBound());
+    Api->InternalOnResponseReceived(Pending,nullptr,false,OldContext);
+    Api->DxHttpCall(TEXT("http://shutdown.invalid"),TEXT("POST"),Body,{},Callback);
+    TestEqual(TEXT("late completion and shutdown submission cannot apply callbacks"),Listener->ReceivedCount,0);
+    TestEqual(TEXT("shutdown cannot construct new requests"),Requests,3);
     return true;
 }
 

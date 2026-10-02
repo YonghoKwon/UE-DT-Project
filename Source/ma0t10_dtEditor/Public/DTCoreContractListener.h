@@ -39,6 +39,7 @@ public:
     int32 ReceivedCount = 0;
     int32 ReadyCount = 0;
     UFUNCTION() void ReceiveReady(FString Protocol, FString Session, FString Server) { ++ReadyCount; }
+    UFUNCTION() void ReceiveHttp(bool bSuccess, int32 Code, const FString& Content) { ++ReceivedCount; }
     FCranePositionData LastPosition;
     UFUNCTION() void ReceivePosition(const FCranePositionData& Position)
     {
