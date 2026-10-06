@@ -24,6 +24,7 @@
 #include "UnrealClient.h"
 #include "Core/DxWidgetSubsystem.h"
 #include "UObject/UnrealType.h"
+#include "Widgets/Input/SEditableTextBox.h"
 
 void UDTCoreMainAcceptanceWidget::NativeOnInitialized()
 {
@@ -38,6 +39,26 @@ void UDTCoreMainAcceptanceWidget::NativeOnInitialized()
 
 namespace
 {
+TSharedPtr<SWidget> FindEditableDescendant(const TSharedRef<SWidget>& Widget,bool bRequireArranged=false)
+{
+    if(!Widget->GetVisibility().IsVisible())return nullptr;
+    if(Widget->GetTypeAsString()==TEXT("SEditableText") && (!bRequireArranged || Widget->GetCachedGeometry().GetLocalSize().X>1))return Widget;
+    FChildren* Children=Widget->GetChildren();
+    for(int32 Index=0;Children && Index<Children->Num();++Index)
+        if(auto Found=FindEditableDescendant(Children->GetChildAt(Index),bRequireArranged))return Found;
+    return nullptr;
+}
+
+TSharedPtr<SWidget> FindArrangedSpinBox(const TSharedRef<SWidget>& Widget)
+{
+    if(!Widget->GetVisibility().IsVisible())return nullptr;
+    if(Widget->GetTypeAsString().Contains(TEXT("SpinBox")) && Widget->GetCachedGeometry().GetLocalSize().X>1)return Widget;
+    FChildren* Children=Widget->GetChildren();
+    for(int32 Index=0;Children && Index<Children->Num();++Index)
+        if(auto Found=FindArrangedSpinBox(Children->GetChildAt(Index)))return Found;
+    return nullptr;
+}
+
 class FInputAcceptanceCheck:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Start=FPlatformTime::Seconds(),PhaseAt=0;int32 Phase=0;
@@ -100,6 +121,24 @@ public:
             }
             Test->TestTrue(TEXT("pointer fixture found its real collision handle"),PointerTested);
             Target->ApplyEditableTransform(OriginalTransform,Scratch);
+            auto ForeignEditor=SNew(SEditableTextBox).Text(FText::FromString(TEXT("foreign input")));
+            W->GetGameInstance()->GetGameViewportClient()->AddViewportWidgetContent(ForeignEditor);
+            auto ForeignFocus=FindEditableDescendant(ForeignEditor);
+            Test->TestTrue(TEXT("foreign input fixture exposes its editor"),ForeignFocus.IsValid());
+            if(ForeignFocus.IsValid())App.SetKeyboardFocus(ForeignFocus,EFocusCause::SetDirectly);
+            Test->TestFalse(TEXT("foreign text input is outside Escape ownership"),Gizmo->IsInputFocusOwned(true));
+            W->GetGameInstance()->GetGameViewportClient()->RemoveViewportWidgetContent(ForeignEditor);
+            auto OwnedFocus=FindArrangedSpinBox(Settings->GetCachedWidget().ToSharedRef());
+            Test->TestTrue(TEXT("owned Settings contains an arranged numeric control"),OwnedFocus.IsValid());
+            if(OwnedFocus.IsValid())App.SetKeyboardFocus(OwnedFocus,EFocusCause::SetDirectly);
+            if(const auto Focused=App.GetKeyboardFocusedWidget())
+            {
+                FWidgetPath FocusPath;App.GeneratePathToWidgetUnchecked(Focused.ToSharedRef(),FocusPath);
+                FString Types;for(int32 I=0;I<FocusPath.Widgets.Num();++I){const auto& Entry=FocusPath.Widgets[I];Types+=Entry.Widget->GetTypeAsString()+(Entry.Widget==Settings->GetCachedWidget()?TEXT("[OWNER]/"):TEXT("/"));}
+                Test->AddInfo(FString::Printf(TEXT("owned editor focus actual=%s requested=%s path=%s"),*Focused->GetTypeAsString(),OwnedFocus.IsValid()?*OwnedFocus->GetTypeAsString():TEXT("none"),*Types));
+            }
+            Test->TestFalse(TEXT("editing numbers still blocks movement shortcuts"),Gizmo->IsInputFocusOwned());
+            Test->TestTrue(TEXT("Escape recognizes only owned Settings text input"),Gizmo->IsInputFocusOwned(true));
             const bool Down=App.ProcessKeyDownEvent(FKeyEvent(EKeys::Escape,FModifierKeysState(),0,false,0,27));
             Test->TestTrue(TEXT("first Escape consumed before Editor stop"),Down);
             Test->TestFalse(TEXT("Escape restores acquired actor"),Target->IsInteractiveManipulationActive());

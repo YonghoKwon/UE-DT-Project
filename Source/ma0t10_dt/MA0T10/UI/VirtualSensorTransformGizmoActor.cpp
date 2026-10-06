@@ -32,14 +32,14 @@ public:
     explicit FSensorManipulationInputRouter(AVirtualSensorTransformGizmoActor* In):Gizmo(In){}
     void Tick(const float,FSlateApplication&,TSharedRef<ICursor>) override
     {
-        if(EscapeHeld&&(!Gizmo.IsValid()||!Gizmo->IsInputFocusOwned()))EscapeHeld=false;
+        if(EscapeHeld&&(!Gizmo.IsValid()||!Gizmo->IsInputFocusOwned(true)))EscapeHeld=false;
         if(Gizmo.IsValid()&&!Gizmo->IsInputFocusOwned())Gizmo->CancelOwnedPointerDrag();
     }
     bool HandleKeyDownEvent(FSlateApplication&,const FKeyEvent& Event) override
     {
         if(Event.GetKey()!=EKeys::Escape)return false;
         if(EscapeHeld)return true;
-        if(!Gizmo.IsValid()||!Gizmo->IsManipulationEnabled()||!Gizmo->IsInputFocusOwned())return false;
+        if(!Gizmo.IsValid()||!Gizmo->IsManipulationEnabled()||!Gizmo->IsInputFocusOwned(true))return false;
         EscapeHeld=true;Gizmo->RequestManipulationExit();return true;
     }
     bool HandleKeyUpEvent(FSlateApplication&,const FKeyEvent& Event) override
@@ -148,7 +148,7 @@ void AVirtualSensorTransformGizmoActor::SetManipulationEnabled(bool bEnabled)
     SetHandleCollisionEnabled(bManipulationEnabled && bGizmoVisible && TargetActor != nullptr);
 }
 
-bool AVirtualSensorTransformGizmoActor::IsInputFocusOwned() const
+bool AVirtualSensorTransformGizmoActor::IsInputFocusOwned(bool bAllowOwnedTextInput) const
 {
     if(!InputOwner.IsValid()||!FSlateApplication::IsInitialized()||!GetWorld()||!GetWorld()->IsGameWorld())return false;
     auto& App=FSlateApplication::Get();if(App.GetActiveModalWindow().IsValid())return false;
@@ -158,11 +158,21 @@ bool AVirtualSensorTransformGizmoActor::IsInputFocusOwned() const
     auto Active=App.GetActiveTopLevelWindow();auto PlayWindow=App.FindWidgetWindow(ViewWidget.ToSharedRef());
     if(Active!=PlayWindow)return false;
     auto Focus=App.GetKeyboardFocusedWidget();if(!Focus.IsValid())return true;
-    if(Focus->GetTypeAsString().Contains(TEXT("EditableText")))return false;
+    const bool bTextInput = Focus->GetTypeAsString().Contains(TEXT("EditableText"));
+    if(bTextInput && !bAllowOwnedTextInput)return false;
     FWidgetPath Path;if(!App.GeneratePathToWidgetUnchecked(Focus.ToSharedRef(),Path))return false;
     auto OwnerWidget=InputOwner->GetCachedWidget();
-    for(int32 I=0;I<Path.Widgets.Num();++I)if(Path.Widgets[I].Widget==ViewWidget||Path.Widgets[I].Widget==OwnerWidget)return true;
-    return false;
+    bool bOwnerPath = false;
+    bool bViewportPath = false;
+    for(int32 I=0;I<Path.Widgets.Num();++I)
+    {
+        const auto& Widget = Path.Widgets[I].Widget;
+        if(Widget==OwnerWidget)bOwnerPath=true;
+        else if(bOwnerPath && Widget->GetTypeAsString()==TEXT("SObjectWidget"))return false;
+        if(Widget==ViewWidget)bViewportPath=true;
+    }
+    // Esc만 우리 패널의 편집창에서 허용한다. 숫자 입력 중 이동 키는 계속 차단한다.
+    return bOwnerPath || (!bTextInput && bViewportPath);
 }
 
 void AVirtualSensorTransformGizmoActor::SetInputOwner(UWidget* InOwner){InputOwner=InOwner;}

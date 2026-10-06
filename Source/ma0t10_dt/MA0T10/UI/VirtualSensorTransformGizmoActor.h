@@ -38,7 +38,7 @@ public:
     /** Escape/end request, distinct from committing a single drag. */
     void RequestManipulationExit();
     void SetInputOwner(UWidget* InOwner);
-    bool IsInputFocusOwned() const;
+    bool IsInputFocusOwned(bool bAllowOwnedTextInput = false) const;
     bool HandleOwnedPointerDown(const FVector2D& ScreenPosition);
     bool HandleOwnedPointerMove(const FVector2D& ScreenPosition);
     bool HandleOwnedPointerUp(const FVector2D& ScreenPosition);
