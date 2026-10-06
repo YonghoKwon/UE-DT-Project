@@ -15,4 +15,9 @@ class MA0T10_DT_API ADxPlayerControllerTest : public ADxPlayerControllerBase
 	GENERATED_BODY()
 public:
 	ADxPlayerControllerTest();
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+private:
+	void ApplyProjectViewportPolicy();
+	FDelegateHandle WorldBeginPlayHandle;
 };

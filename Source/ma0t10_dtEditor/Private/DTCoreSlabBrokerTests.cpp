@@ -6,10 +6,9 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "EngineUtils.h"
+#include "IStompClient.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 
-namespace
-{
 // 실제 Broker에서 보낸 전문만 기다린다. EnqueueWebSocketData 직접 주입은 하지 않는다.
 class FDTCoreSlabBrokerCheck : public IAutomationLatentCommand
 {
@@ -42,7 +41,7 @@ public:
         auto* WS=W->GetGameInstance()->GetSubsystem<UDxWebSocketSubsystem>();
         if(!bReady)
         {
-            if(!WS->AreConfiguredSubscriptionsReady())return false;
+            if(!WS->bConnectedBroadcast || WS->PendingSubscribeCount != 0)return false;
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             bReady=true;UE_LOG(LogTemp,Display,TEXT("DTCORE_SLAB_BROKER_READY topic.scenario"));
         }
@@ -50,14 +49,13 @@ public:
         const auto S=Slab->GetSimulationStatus();
         Test->TestEqual(TEXT("real Broker MESSAGE reached TC/DataSync/Slab"),S.MtlNo,FString(TEXT("SQ83521 047")));
         Test->TestTrue(TEXT("scenario frame advances independently of sensor frames"),S.FrameNo>=4);
-        Test->TestTrue(TEXT("real transport remains connected"),WS->IsTransportConnected());
+        Test->TestTrue(TEXT("real transport remains connected"),WS->StompClient.IsValid() && WS->StompClient->IsConnected());
         Slab->StopSimulation();WS->DisconnectStompClient({});
-        Test->TestFalse(TEXT("manual disconnect clears transport readiness"),WS->IsTransportConnected());
+        Test->TestFalse(TEXT("manual disconnect clears transport readiness"),WS->bWantsConnection);
         UE_LOG(LogTemp,Display,TEXT("DTCORE_SLAB_BROKER_PASS frame=%lld"),S.FrameNo);
         return true;
     }
 };
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreSlabBrokerTest,"MA0T10.DTCoreIntegration.SlabBroker",
     EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

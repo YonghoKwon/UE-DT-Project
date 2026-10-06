@@ -5,6 +5,7 @@
 #include "WebSocket/FTransactionCodeDataBase.h"
 #include "HAL/PlatformProcess.h"
 #include "UI/DxWidget.h"
+#include "Core/DxWebSocketSubsystem.h"
 #include "DTCoreContractListener.generated.h"
 
 class UBlueprint;
@@ -50,6 +51,7 @@ public:
     UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
     static FString GetFinalAcceptanceRuntimeState();
     int32 ReceivedCount = 0;
+    UFUNCTION() void ReceiveMessage(const FWebSocketMessage& Message) { ++ReceivedCount; }
     int32 ReadyCount = 0;
     UFUNCTION() void ReceiveReady(FString Protocol, FString Session, FString Server) { ++ReadyCount; }
     UFUNCTION() void ReceiveHttp(bool bSuccess, int32 Code, const FString& Content) { ++ReceivedCount; }
@@ -58,5 +60,20 @@ public:
     {
         ++ReceivedCount;
         LastPosition = Position;
+    }
+};
+
+UCLASS()
+class UDTCoreCloseOrderWidget : public UDxWidget
+{
+    GENERATED_BODY()
+public:
+    TSharedPtr<TArray<FString>> CloseTrace;
+    bool bRemovedBeforeHook=false;
+    void CloseWidgetAddLogic_Implementation() override
+    {
+        bRemovedBeforeHook=GetParent()==nullptr;
+        if(CloseTrace)CloseTrace->Add(GetName());
+        CloseWidget();
     }
 };

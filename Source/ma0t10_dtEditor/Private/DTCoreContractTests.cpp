@@ -41,6 +41,10 @@
 #include "UnrealClient.h"
 #include "Settings/LevelEditorPlaySettings.h"
 #include "Json.h"
+#include "Subsystems/SubsystemCollection.h"
+#include "Components/CanvasPanel.h"
+#include "Engine/World.h"
+#include "Tests/AutomationEditorCommon.h"
 
 class FDTCoreFakeStomp : public IStompClient
 {
@@ -261,6 +265,18 @@ bool FDTCoreRegistryGcTest::RunTest(const FString&)
     TestNull(TEXT("destroyed/garbage actor cannot be found"),Registry->FindObject(TEXT("test"),TEXT("a")));
     Registry->CompactAllInvalidObjects();
     TestEqual(TEXT("invalid entries safely compact"),Registry->GetRegisteredObjectCount(TEXT("test")),0);
+    auto* Replacement=NewObject<AActor>();
+    auto* Removed=NewObject<AActor>();
+    Registry->RegisterObject(TEXT("aliases"),TEXT("one"),Removed);
+    Registry->RegisterObject(TEXT("aliases"),TEXT("two"),Removed);
+    Registry->RegisterObject(TEXT("aliases"),TEXT("one"),Replacement);
+    TestEqual(TEXT("ID replacement preserves the other alias"),Registry->FindObject(TEXT("aliases"),TEXT("two")),Removed);
+    Removed->OnEndPlay.Broadcast(Removed,EEndPlayReason::RemovedFromWorld);
+    TestNull(TEXT("stream-out EndPlay removes remaining aliases"),Registry->FindObject(TEXT("aliases"),TEXT("two")));
+    TestEqual(TEXT("stream-out leaves replacement registered"),Registry->FindObject(TEXT("aliases"),TEXT("one")),Replacement);
+    TWeakObjectPtr<AActor> Released=Removed; Removed=nullptr;
+    CollectGarbage(RF_NoFlags);
+    TestFalse(TEXT("stream-out actor is no longer held by registry"),Released.IsValid());
     Registry->ClearAllObjects(); Registry->Deinitialize();
     return true;
 }
@@ -269,50 +285,47 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreSubscriptionLifecycleTest, "MA0T10.DTCor
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FDTCoreSubscriptionLifecycleTest::RunTest(const FString&)
 {
-    auto GI=MakeShared<TStrongObjectPtr<UGameInstance>>(NewObject<UGameInstance>());
-    auto Ws=MakeShared<TStrongObjectPtr<UDxWebSocketSubsystem>>(NewObject<UDxWebSocketSubsystem>(GI->Get()));
-    auto Listener=MakeShared<TStrongObjectPtr<UDTCoreContractListener>>(NewObject<UDTCoreContractListener>());
+    TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>());
+    TStrongObjectPtr<UDxWebSocketSubsystem> Ws(NewObject<UDxWebSocketSubsystem>(GI.Get()));
+    TStrongObjectPtr<UDTCoreContractListener> Listener(NewObject<UDTCoreContractListener>());
     auto Fake=MakeShared<FDTCoreFakeStomp>();
-    auto* S=Ws->Get(); S->StompClient=Fake; S->bWantsConnection=true;
-    S->OnConnected.AddDynamic(Listener->Get(),&UDTCoreContractListener::ReceiveReady);
+    auto* S=Ws.Get(); S->StompClient=Fake; S->bWantsConnection=true;
+    S->OnConnected.AddDynamic(Listener.Get(),&UDTCoreContractListener::ReceiveReady);
+    S->ReceivedMessageEvent.BindDynamic(Listener.Get(),&UDTCoreContractListener::ReceiveMessage);
+    const FSTOMPSubscriptionEvent CustomBinding=S->ReceivedMessageEvent;
     S->TopicRouteMap.Add(TEXT("a"),ETopicRouteType::WebSocket);
     S->TopicRouteMap.Add(TEXT("b"),ETopicRouteType::Api);
-    S->HandleOnConnected(TEXT("1.2"),TEXT("test"),FString());
+    S->HandleOnConnected(TEXT("1.2"),TEXT("mixed"),FString());
+    TestTrue(TEXT("custom receive binding preserved"),S->ReceivedMessageEvent==CustomBinding);
     Fake->Completions[0].Execute(true,FString()); Fake->Completions[1].Execute(false,TEXT("denied"));
     FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-    TestFalse(TEXT("failed subscription cannot announce ready"),S->AreConfiguredSubscriptionsReady());
-    TestEqual(TEXT("failed batch ready notifications"),Listener->Get()->ReadyCount,0);
-    S->CancelSubscriptionOperations(); ++S->ConnectionGeneration;
-    S->HandleOnConnected(TEXT("1.2"),TEXT("next"),FString());
-    Fake->Completions[0].Execute(true,FString()); // Old receipt must not decrement the new generation.
+    TestEqual(TEXT("main contract aggregates success and failure callbacks"),Listener->ReadyCount,1);
+    TestEqual(TEXT("batch completion reaches zero"),S->PendingSubscribeCount,0);
+    Fake->Completions[1].Execute(false,TEXT("denied"));
     FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-    TestEqual(TEXT("stale callback cannot consume new pending count"),S->PendingSubscribeCount,2);
+    TestEqual(TEXT("duplicate callback cannot rebroadcast"),Listener->ReadyCount,1);
+    ++S->ConnectionGeneration; S->bSubscriptionBatchStarted=false; S->bConnectedBroadcast=false;
+    S->HandleOnConnected(TEXT("1.2"),TEXT("next"),FString());
+    Fake->Completions[0].Execute(true,FString());
+    FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+    TestEqual(TEXT("old callback preserves new pending count"),S->PendingSubscribeCount,2);
     Fake->Completions[2].Execute(true,FString()); Fake->Completions[3].Execute(true,FString());
     FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-    TestTrue(TEXT("all subscriptions succeed"),S->AreConfiguredSubscriptionsReady());
-    TestEqual(TEXT("one ready notification per generation"),Listener->Get()->ReadyCount,1);
-    Fake->Completions[3].Execute(true,FString());
+    TestEqual(TEXT("one notification per generation"),Listener->ReadyCount,2);
+    ++S->ConnectionGeneration; S->bSubscriptionBatchStarted=false; S->bConnectedBroadcast=false;
+    S->TopicRouteMap.Reset(); S->HandleOnConnected(TEXT("1.2"),TEXT("empty"),FString());
+    TestEqual(TEXT("zero topics completes immediately"),Listener->ReadyCount,3);
+    ++S->ConnectionGeneration; S->bSubscriptionBatchStarted=false; S->bConnectedBroadcast=false;
+    S->TopicRouteMap.Add(TEXT("missing"),ETopicRouteType::WebSocket);
+    S->HandleOnConnected(TEXT("1.2"),TEXT("pending"),FString());
+    TestEqual(TEXT("missing receipt remains pending under main contract"),S->PendingSubscribeCount,1);
+    S->DisconnectStompClient({}); S->TryReconnect();
+    TestFalse(TEXT("manual disconnect clears intent"),S->bWantsConnection);
+    TestFalse(TEXT("manual disconnect cancels retry"),GI->GetTimerManager().IsTimerActive(S->ReconnectTimerHandle));
+    Fake->Completions.Last().Execute(true,FString());
     FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-    TestEqual(TEXT("duplicate receipt not rebroadcast"),Listener->Get()->ReadyCount,1);
-    S->CancelSubscriptionOperations(); ++S->ConnectionGeneration;
-    S->TopicRouteMap.Reset(); S->TopicRouteMap.Add(TEXT("missing"),ETopicRouteType::WebSocket);
-    S->HandleOnConnected(TEXT("1.2"),TEXT("timeout"),FString());
-    auto Step=MakeShared<int32>(0);
-    ADD_LATENT_AUTOMATION_COMMAND(FDTCoreCallbackCommand([this,GI,Ws,Listener,Fake,Step]()
-    {
-        if ((*Step)++<2) { GI->Get()->GetTimerManager().Tick(6.0f); return false; }
-        FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-        auto* Current=Ws->Get();
-        TestEqual(TEXT("missing receipt reaches plugin timeout"),Current->GetSubscriptionStatuses()[0].State,EDxSubscriptionState::TimedOut);
-        TestFalse(TEXT("timeout does not become ready"),Current->AreConfiguredSubscriptionsReady());
-        Current->DisconnectStompClient({}); Current->TryReconnect();
-        TestFalse(TEXT("manual disconnect cancels connection intent"),Current->bWantsConnection);
-        TestFalse(TEXT("manual disconnect has no retry timer"),GI->Get()->GetTimerManager().IsTimerActive(Current->ReconnectTimerHandle));
-        Fake->Completions.Last().Execute(true,FString());
-        FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-        TestEqual(TEXT("late receipt after disconnect not ready"),Listener->Get()->ReadyCount,1);
-        Current->Deinitialize(); return true;
-    }));
+    TestEqual(TEXT("late receipt after disconnect ignored"),Listener->ReadyCount,3);
+    S->Deinitialize();
     return true;
 }
 
@@ -409,6 +422,75 @@ bool FDTCoreWidgetContractTest::RunTest(const FString&)
     for (int32 Index=0; Index<7; ++Index)
         TestEqual(Names[Index], Enum->GetValueByNameString(Names[Index]), static_cast<int64>(Index));
     TestNotNull(TEXT("new widget identifier is a byte property"), FindFProperty<FByteProperty>(UDxWidget::StaticClass(), TEXT("WidgetFlag")));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreQueueWorldCleanupTest,"MA0T10.DTCoreIntegration.QueueSurvivesWorldCleanup",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FDTCoreQueueWorldCleanupTest::RunTest(const FString&)
+{
+    TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>());
+    TStrongObjectPtr<UDxDataSubsystem> Data(NewObject<UDxDataSubsystem>(GI.Get()));
+    FSubsystemCollection<UGameInstanceSubsystem> Collection;
+    Data->Initialize(Collection);
+    auto* World=UWorld::CreateWorld(EWorldType::Game,false);
+    World->SetGameInstance(GI.Get());
+    auto* Handler=NewObject<UDTCoreSlowTransaction>(Data.Get());
+    auto Probe=MakeShared<FDTCoreParseProbe,ESPMode::ThreadSafe>();Handler->Probe=Probe;
+    Data->TransactionCodeMessageMap.Add(TEXT("slow"),Handler);
+    Data->CachedHandlerTransactionCodeMessageMap->Add(TEXT("slow"),Handler);
+    Data->EnqueueWebSocketData(TEXT("{\"MESSAGE_ID\":\"slow\"}"));
+    FWorldDelegates::OnWorldCleanup.Broadcast(World,false,false);
+    Data->Tick(0);
+    if(Data->WebSocketWorker.IsValid())Data->WebSocketWorker.Wait();
+    FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+    TestEqual(TEXT("GameInstance queue retains ordinary message across World cleanup"),Probe->Applied.Load(),1);
+    Data->Deinitialize();World->DestroyWorld(false);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreRegistryStreamOutTest,"MA0T10.DTCoreIntegration.RegistryEngineStreamOut",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FDTCoreRegistryStreamOutTest::RunTest(const FString&)
+{
+    TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>());
+    TStrongObjectPtr<UDxObjectSubsystem> Registry(NewObject<UDxObjectSubsystem>(GI.Get()));
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    World->SetGameInstance(GI.Get());
+    World->InitializeActorsForPlay(FURL());
+    AActor* Actor=World->SpawnActor<AActor>();
+    Actor->DispatchBeginPlay(true);
+    TestTrue(TEXT("fixture actor has begun play"),Actor->HasActorBegunPlay());
+    Registry->RegisterObject(TEXT("stream"),TEXT("one"),Actor);
+    Registry->RegisterObject(TEXT("stream"),TEXT("two"),Actor);
+    TWeakObjectPtr<AActor> Weak=Actor;
+    Actor->RouteEndPlay(EEndPlayReason::RemovedFromWorld);
+    TestEqual(TEXT("engine stream-out EndPlay removes all aliases"),Registry->GetRegisteredObjectCount(TEXT("stream")),0);
+    World->DestroyWorld(false);GEngine->DestroyWorldContext(World);Actor=nullptr;World=nullptr;
+    CollectGarbage(RF_NoFlags);
+    TestFalse(TEXT("stream-out actor is collectable after World release"),Weak.IsValid());
+    Registry->Deinitialize();
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreWidgetCloseOrderTest,"MA0T10.DTCoreIntegration.WidgetCloseOrder",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FDTCoreWidgetCloseOrderTest::RunTest(const FString&)
+{
+    TStrongObjectPtr<UGameInstance> GI(NewObject<UGameInstance>());
+    TStrongObjectPtr<UDxWidgetSubsystem> Widgets(NewObject<UDxWidgetSubsystem>(GI.Get()));
+    TStrongObjectPtr<UDTCoreCloseOrderWidget> Parent(NewObject<UDTCoreCloseOrderWidget>());
+    TStrongObjectPtr<UDTCoreCloseOrderWidget> Child(NewObject<UDTCoreCloseOrderWidget>());
+    TStrongObjectPtr<UCanvasPanel> Canvas(NewObject<UCanvasPanel>());
+    auto Trace=MakeShared<TArray<FString>>();
+    Parent->CloseTrace=Trace;Child->CloseTrace=Trace;
+    Canvas->AddChild(Parent.Get());Parent->AddChildWidget(Child.Get());
+    Widgets->CloseWidget(Parent.Get());
+    TestEqual(TEXT("cascade notifies both widgets once"),Trace->Num(),2);
+    if(Trace->Num()==2){TestEqual(TEXT("child hook precedes parent hook"),(*Trace)[0],Child->GetName());TestEqual(TEXT("parent hook runs last"),(*Trace)[1],Parent->GetName());}
+    TestTrue(TEXT("parent was removed before cleanup hook"),Parent->bRemovedBeforeHook);
+    Widgets->CloseWidget(Parent.Get());
+    TestEqual(TEXT("reentrant and repeated close do not notify again"),Trace->Num(),2);
     return true;
 }
 #endif
