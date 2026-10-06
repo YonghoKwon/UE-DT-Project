@@ -4,6 +4,12 @@
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
+## 2026-10-06 main 기반 최소 DTCore 적용
+
+DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `b2504d1`을 사용한다. 기존 센서·Slab 기능을 유지하는 별도 연동 브랜치에서 검증했다. `OnConnected`는 성공/실패를 포함한 구독 완료 callback 집계이며 모든 구독 성공을 보증하지 않는다. custom 수신 binding을 보존하고, 공통 5초 timeout·all-ready 상태기계·World cleanup의 GI 전역 큐 폐기는 포함하지 않는다. 이전 안정화 기록의 해당 API 설명은 현재 계약으로 사용하지 않는다.
+
+로그 쓰기·parse 종료 안전성, Registry EndPlay/stream-out 정리와 Widget 제거 후 Blueprint hook을 검증했다. SingleRelease와 FPS 숨김은 프로젝트 Controller가 선택하며, 미등록 Widget 정책은 유지한다. 공통 변경 이유와 소비자 이관은 [최소 수정 계약](Plugins/DTCore/docs/MINIMAL_MAIN_MIGRATION.md)을 참조한다. 검증 결과는 `Saved/Reports/DTCoreMinimalAcceptance/FINAL_STATUS.md`에 있다. 최종 `443b48a` 전체 RHI 자동화184 Success(실제179·opt-in skip5), 신규 실패0이며 독립 host/프로젝트 Editor·Shipping과 Development 패키징을 통과했다. 직접1286×760 PIE에서 조작·숫자 입력창 첫 Esc·폰트·패널·Slab 실행/재생을 확인했다. PCD 전용과 세 stream의 별도1920×1080·10+60초 시험은20/30Hz·평균60FPS·p9516.67ms, 승인 request 집합의 내부/외부 누락0이다. **재생 성능20ms 조건은 기존24.908ms/최소수정24.925ms로 두 버전 모두 실패**하므로 성능을 포함한 최종 검수 완료로 표시하지 않는다. Geometry 성능·10회 stream 반복의 최종 버전 시험은 미수행이다. 이후 발견한 소유 숫자 편집창 Esc는 프로젝트에서 수정했고 전송 계약은 동일하다.
+
 ## 관리 문서 4개
 
 | 문서 | 읽는 목적 |
@@ -44,7 +50,7 @@
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
 - 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, 조기 설정용 `ma0t10_dtBootstrap`.
-- DTCore는 필수 submodule이다. 이번 승인된 작업은 동기화본 `b22af0b`의 새 API를 유지하고 공통 안정화 커밋을 별도 생성한다. parent gitlink는 검증한 plugin 커밋으로 고정한다. enum 반환형 소비 코드는 이관이 필요하며 무수정 호환이라고 설명하지 않는다. [이전 안내](Plugins/DTCore/docs/MIGRATION_b22.md)를 따른다.
+- DTCore는 필수 submodule이다. 이번 승인된 작업은 동기화본 `b22af0b`의 새 API를 유지하고 공통 안정화 커밋을 별도 생성한다. parent gitlink는 검증한 plugin 커밋으로 고정한다. enum 반환형 소비 코드는 이관이 필요하며 무수정 호환이라고 설명하지 않는다. [main 최소 수정 계약](Plugins/DTCore/docs/MINIMAL_MAIN_MIGRATION.md)를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
 
 Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
