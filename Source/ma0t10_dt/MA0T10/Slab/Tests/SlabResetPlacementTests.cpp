@@ -5,6 +5,10 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
+#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
@@ -51,8 +55,13 @@ public:
 			Slab->SensorOutputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
 			Test->TestFalse(TEXT("before BeginPlay reset rejected"),Slab->CanResetToInitialPlacement(Reason));
 			Slab->FinishSpawning(Placement);
+			auto* Charts=CreateWidget<USlabChartsPanelWidget>(World,USlabChartsPanelWidget::StaticClass());Charts->TakeWidget();Charts->BindSlabActor(Slab);
+			auto* Progress=CreateWidget<USlabProgressPanelWidget>(World,USlabProgressPanelWidget::StaticClass());Progress->BindSlabActor(Slab);
 			const auto Data=ResetFixture(Unit);Test->TestTrue(TEXT("600 row fixture parsed"),Data.IsValid());
 			Test->TestTrue(TEXT("new bulk starts observation"),Slab->ReceiveScenario(Data));
+			Charts->RefreshChartData();
+			for(int32 I=0;I<3;++I)Test->TestTrue(TEXT("chart has scenario data before reset"),Charts->GetChartWidget(I)&&Charts->GetChartWidget(I)->GetRevealedSampleCount()>0);
+			Test->TestFalse(TEXT("progress API uses the same busy guard"),Progress->CanResetSlabToInitialPlacement(Reason));
 			Test->TestFalse(TEXT("first scenario pose differs from level placement"),Slab->GetActorLocation().Equals(Placement.GetLocation(),.1));
 			Test->TestFalse(TEXT("playing reset rejected"),Slab->ResetToInitialPlacement(Reason));
 			Test->TestTrue(TEXT("pause accepted"),Slab->SetSimulationPaused(true));
@@ -62,7 +71,12 @@ public:
 			const auto MeshScale=Slab->SlabMesh->GetRelativeScale3D();auto* Material=Slab->SlabMesh->GetMaterial(0);const auto Mesh=Slab->SlabMesh->GetStaticMesh();
 			Slab->SetActorScale3D(FVector(1.2,.8,1.4));const auto ActorScale=Slab->GetActorScale3D();
 			const auto BeforeSession=Session->GetSlabSensorSessionStatus();const int32 Stored=Archive->GetScenarios().Num();
-			Test->TestTrue(TEXT("finished reset accepted"),Slab->ResetToInitialPlacement(Reason));
+			const int32 HelperCount=Slab->FindComponentByClass<USlabVisualizationComponent>()->GetOwnedHelperCount();
+			Test->TestTrue(TEXT("finished reset accepted through progress API"),Progress->ResetSlabToInitialPlacement(Reason));
+			for(int32 I=0;I<3;++I){auto* Chart=Charts->GetChartWidget(I);Test->TestEqual(TEXT("all chart samples hidden after reset"),Chart->GetRevealedSampleCount(),0);Test->TestTrue(TEXT("chart hover cleared"),Chart->GetHoverSummary().IsEmpty());}
+			Charts->BindSlabActor(Slab);for(int32 I=0;I<3;++I)Test->TestEqual(TEXT("chart rebind cannot reveal old results"),Charts->GetChartWidget(I)->GetRevealedSampleCount(),0);
+			Test->TestEqual(TEXT("reset reuses diagnostic pool"),Slab->FindComponentByClass<USlabVisualizationComponent>()->GetOwnedHelperCount(),HelperCount);
+			TArray<UTextRenderComponent*> Labels;Slab->GetComponents(Labels);for(auto* Label:Labels)Test->TestFalse(TEXT("old 3D analysis labels hidden"),Label->IsVisible());
 			Test->TestTrue(TEXT("exact initial world location"),Slab->GetActorLocation().Equals(Placement.GetLocation(),.1));
 			Test->TestTrue(TEXT("exact initial world rotation"),Slab->GetActorQuat().AngularDistance(Placement.GetRotation())<=FMath::DegreesToRadians(.01));
 			Test->TestEqual(TEXT("current actor scale retained"),Slab->GetActorScale3D(),ActorScale);
@@ -83,6 +97,7 @@ public:
 			Slab->AdvanceSimulation(2);Slab->StopSimulation();Session->Tick(0);
 			Test->TestTrue(TEXT("early stop cleanup permits reset"),Slab->ResetToInitialPlacement(Reason));
 			const auto Next=ResetFixture(Unit);Test->TestTrue(TEXT("new UUID autoplays after reset"),Slab->ReceiveScenario(Next));
+			Charts->RefreshChartData();for(int32 I=0;I<3;++I)Test->TestTrue(TEXT("next run repopulates charts"),Charts->GetChartWidget(I)->GetRevealedSampleCount()>0);
 			Slab->StopSimulation();Session->Tick(0);
 			Test->TestTrue(TEXT("async JSON request accepted"),Slab->SubmitScenarioJson(Data->OriginalJson));
 			Test->TestFalse(TEXT("actor parse preparation blocks reset"),Slab->CanResetToInitialPlacement(Reason));

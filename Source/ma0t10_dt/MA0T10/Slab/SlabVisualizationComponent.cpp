@@ -57,6 +57,12 @@ void USlabVisualizationComponent::UpdateGeometry(const FVector& S)
 }
 void USlabVisualizationComponent::SetHelpersVisible(bool bVisible)
 { if(bEnding) return; bHelpersVisible=bVisible; DrawAnalysis(); UpdateLabels(); SetComponentTickEnabled(bHasAnalysis&&bVisible&&Display.HasAny()); }
+void USlabVisualizationComponent::ClearAnalysis()
+{
+	if(bEnding)return;
+	bHasAnalysis=false;LastMetrics=FSlabMetrics();MaterialId.Empty();FrameNo=INDEX_NONE;Elapsed=Duration=0;Progress=0;
+	SetComponentTickEnabled(false);DrawAnalysis();UpdateLabels();
+}
 void USlabVisualizationComponent::EndPlay(const EEndPlayReason::Type Reason)
 { bEnding=true; SetComponentTickEnabled(false); for(UStaticMeshComponent* H:Helpers) if(H) H->DestroyComponent(); Helpers.Reset(); for(UTextRenderComponent* T:Labels) if(T) T->DestroyComponent(); Labels.Reset();for(UStaticMeshComponent* B:LabelBackgrounds)if(B)B->DestroyComponent();LabelBackgrounds.Reset();Super::EndPlay(Reason); }
 void USlabVisualizationComponent::ConfigureDisplay(const FSlabAnalysisDisplaySettings& Settings)

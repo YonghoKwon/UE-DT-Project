@@ -59,8 +59,8 @@ void USlabChartsPanelWidget::InitializeCharts(bool bCreateNative)
 		if(auto* Chart=Charts[I].Get())
 		{
 			Chart->SetMetric(SelectedMetrics[I]);Chart->SetFrameAxis(bFrameAxis);
-			Chart->SetProgressiveReveal(IsWorkspaceOwned());Chart->SetSharedSamples(SharedSamples);
-			Chart->SetTimelineDuration(Scenario?Scenario->DurationSec:0);
+			Chart->SetProgressiveReveal(IsWorkspaceOwned());Chart->SetSharedSamples(bIdlePresentation?nullptr:SharedSamples);
+			Chart->SetTimelineDuration(!bIdlePresentation&&Scenario?Scenario->DurationSec:0);
 			Chart->OnViewRangeChanged.AddUniqueDynamic(this,&ThisClass::SynchronizeViewRange);
 			ApplyChartSeriesVisibility(I);
 		}
@@ -91,6 +91,7 @@ void USlabChartsPanelWidget::HandleSlabStateChanged()
 {
 	if(!IsValid(Slab))return;
 	const auto State=Slab->GetSimulationStatus();
+	if(State.RunUUID.IsEmpty()){ClearIdlePresentation();return;}
 	const bool BodyVisible=GetVisibility()!=ESlateVisibility::Collapsed&&GetVisibility()!=ESlateVisibility::Hidden&&!IsPanelCollapsed();
 	if(!BodyVisible)
 	{
@@ -134,6 +135,7 @@ double USlabChartsPanelWidget::CalculateHistoricalSpeed(const TArray<FSlabScenar
 }
 void USlabChartsPanelWidget::RefreshChartData()
 {
+	if(!Slab||Slab->GetSimulationStatus().RunUUID.IsEmpty()){ClearIdlePresentation();return;}
 	const auto Scenario=Slab?Slab->GetScenario():nullptr;LastScenario=Scenario.Get();LastConfigurationHash=Slab?Slab->GetMetricsConfigurationHash():0;
 	auto Samples=MakeShared<TArray<FSlabChartSample>>();
 	if(Slab&&Scenario)
@@ -155,6 +157,12 @@ void USlabChartsPanelWidget::RefreshChartData()
 void USlabChartsPanelWidget::UpdateProgressiveState()
 {
 	const auto State=Slab?Slab->GetSimulationStatus():FSlabSimulationStatus();
+	if(State.RunUUID.IsEmpty()){ClearIdlePresentation();return;}
+	if(bIdlePresentation)
+	{
+		bIdlePresentation=false;
+		for(const auto& C:Charts)if(C){C->SetSharedSamples(SharedSamples);C->SetTimelineDuration(Slab&&Slab->GetScenario()?Slab->GetScenario()->DurationSec:0);}
+	}
 	const bool NewRun=LastRunUUID!=State.RunUUID;
 	if(NewRun)
 	{
@@ -172,11 +180,20 @@ void USlabChartsPanelWidget::UpdateProgressiveState()
 		if(IsWorkspaceOwned())C->SetChartPalette(GetToolSectionColor(),GetToolMutedColor(),GetToolMutedColor()*.24f);
 	}
 }
+void USlabChartsPanelWidget::ClearIdlePresentation()
+{
+	if(bIdlePresentation)return;
+	bIdlePresentation=true;LastRunUUID.Empty();
+	StatusText=TEXT("시뮬레이션 시작 대기 · 진행률 0% · 현재 프레임 —");
+	for(const auto& C:Charts)if(C){C->SetSharedSamples(nullptr);C->SetRevealedTime(-1);C->SetTimelineDuration(0);C->SetPlaybackCursor(0,INDEX_NONE);C->ClearHover();C->ResetChartView();}
+	for(auto& H:HoverTexts)H.Empty();for(auto& V:CurrentTexts)V=TEXT("시뮬레이션 시작 대기");
+}
 void USlabChartsPanelWidget::NativeTick(const FGeometry& G,float D)
 {
 	Super::NativeTick(G,D);if(!IsValid(Slab))Slab=nullptr;
 	if(GetVisibility()==ESlateVisibility::Collapsed||GetVisibility()==ESlateVisibility::Hidden||IsPanelCollapsed()){bWasBodyVisible=false;return;}
 	RefreshAccumulator+=D;TextAccumulator+=D;if(RefreshAccumulator<.1f)return;RefreshAccumulator=0;
+	if(!Slab||Slab->GetSimulationStatus().RunUUID.IsEmpty()){ClearIdlePresentation();return;}
 	const auto Scenario=Slab?Slab->GetScenario():nullptr;const uint32 Config=Slab?Slab->GetMetricsConfigurationHash():0;
 	if(LastScenario!=Scenario.Get()||Config!=LastConfigurationHash){RefreshChartData();LastConfigurationHash=Config;}
 	bWasBodyVisible=true;UpdateProgressiveState();

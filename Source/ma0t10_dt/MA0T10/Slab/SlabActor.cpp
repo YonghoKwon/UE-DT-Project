@@ -270,6 +270,7 @@ bool ASlabActor::ResetToInitialPlacement(FString& OutError)
 	Status=FSlabSimulationStatus(); Status.FrameNo=INDEX_NONE; Status.RowIndex=INDEX_NONE;
 	Status.Message=TEXT("초기 배치 복귀 완료 · 대기"); LastNotifiedIndex=INDEX_NONE;
 	if(MetricsComponent)MetricsComponent->Update(FSlabMetrics());
+	if(VisualizationComponent)VisualizationComponent->ClearAnalysis();
 	OnSlabStateChanged.Broadcast();
 	return true;
 }
