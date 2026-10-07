@@ -11,6 +11,7 @@
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "Editor/EditorPerformanceSettings.h"
+#include "Components/StaticMeshComponent.h"
 namespace
 {
 class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
@@ -20,6 +21,9 @@ class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
     int32 Stage=0;
     FString ArchiveId,FirstRun;
     int64 FirstCount=0;
+	FTransform InitialPlacement;
+	double ResetAt=0;
+	bool bResetBetweenRuns=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_RESET_RHI"))==TEXT("1");
     bool OldThrottle=false,OldMonitor=false;
 public:
     explicit FSlabProductionRuntimeCheck(FAutomationTestBase* T):Test(T)
@@ -49,9 +53,22 @@ public:
         if(Stage==0)
         {
             if(FPlatformTime::Seconds()-Start<10)return false;
+			InitialPlacement=Slab->GetActorTransform();
             Rig->SubmitSynthetic(true);Stage=1;return false;
         }
         const auto S=Slab->GetSimulationStatus();
+		if(Stage==20)
+		{
+			if(FPlatformTime::Seconds()-ResetAt<1)return false;
+			int64 Count=0;for(const auto& T:Raw->GetStreamTelemetry())Count+=T.SubmittedCount;
+			Test->TestEqual(TEXT("reset introduces zero socket submissions"),Count,FirstCount);
+			Test->TestEqual(TEXT("reset remains idle"),S.State,ESlabSimulationState::Idle);
+			Test->TestTrue(TEXT("reset remains at level placement"),Slab->GetActorLocation().Equals(InitialPlacement.GetLocation(),.1));
+			FVirtualSlabSensorOutputSelection Outputs;
+			Test->TestTrue(TEXT("same archived scenario replays after reset"),Catalog->RequestScenarioReplayWithOutputs(ArchiveId,Outputs,{}));
+			Test->TestNotEqual(TEXT("reset replay has fresh RunUUID"),Catalog->GetReplayStatus().RunUUID,FirstRun);
+			Stage=3;return false;
+		}
         if(S.State==ESlabSimulationState::Failed){Test->AddError(S.Message);return true;}
         if(Stage==1)
         {
@@ -84,6 +101,15 @@ public:
         {
             Rig->SaveEvidence(false); // Persist the first run before the second replaces its status.
             FirstCount=Receive;Test->TestTrue(TEXT("first run real PCD data"),FirstCount>=570);
+			if(bResetBetweenRuns)
+			{
+				FString Reason;const auto Shape=Slab->SlabMesh->GetRelativeScale3D();
+				Test->TestTrue(TEXT("drained live run permits reset"),Slab->ResetToInitialPlacement(Reason));
+				Test->TestTrue(TEXT("reset uses initial level placement"),Slab->GetActorLocation().Equals(InitialPlacement.GetLocation(),.1));
+				Test->TestEqual(TEXT("reset preserves active slab dimensions"),Slab->SlabMesh->GetRelativeScale3D(),Shape);
+				Test->TestTrue(TEXT("reset preserves archived data"),Catalog->GetValidatedScenario(ArchiveId).IsValid());
+				ResetAt=FPlatformTime::Seconds();Stage=20;return false;
+			}
             FVirtualSlabSensorOutputSelection Outputs;
             Test->TestTrue(TEXT("production adapter replay accepted"),Catalog->RequestScenarioReplayWithOutputs(ArchiveId,Outputs,{}));
             Test->TestNotEqual(TEXT("replay gets new RunUUID"),Catalog->GetReplayStatus().RunUUID,FirstRun);

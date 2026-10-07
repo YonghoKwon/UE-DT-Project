@@ -99,6 +99,15 @@ public:
 			const auto Next=ResetFixture(Unit);Test->TestTrue(TEXT("new UUID autoplays after reset"),Slab->ReceiveScenario(Next));
 			Charts->RefreshChartData();for(int32 I=0;I<3;++I)Test->TestTrue(TEXT("next run repopulates charts"),Charts->GetChartWidget(I)->GetRevealedSampleCount()>0);
 			Slab->StopSimulation();Session->Tick(0);
+			Test->TestFalse(TEXT("unavailable replay data fails explicitly"),Slab->StartScenarioPlayback_Implementation(TEXT("{}"),FGuid::NewGuid().ToString(),FGuid::NewGuid().ToString()));
+			Test->TestEqual(TEXT("failed playback records failed state"),Slab->GetSimulationStatus().State,ESlabSimulationState::Failed);
+			Test->TestTrue(TEXT("failure without pending work permits reset"),Slab->ResetToInitialPlacement(Reason));
+			const FString PreparingRun=Session->BeginUnboundObservationSession(FGuid::NewGuid().ToString(),Data->ScenarioUUID);
+			Test->TestFalse(TEXT("observation preparation created"),PreparingRun.IsEmpty());
+			Test->TestFalse(TEXT("ready sensor session blocks actor reset"),Slab->CanResetToInitialPlacement(Reason));
+			Test->TestFalse(TEXT("ready sensor session blocks progress reset"),Progress->ResetSlabToInitialPlacement(Reason));
+			Session->EndSlabSensorSession(PreparingRun,true);Session->Tick(0);
+			Test->TestTrue(TEXT("aborted preparation cleanup permits reset"),Slab->ResetToInitialPlacement(Reason));
 			Test->TestTrue(TEXT("async JSON request accepted"),Slab->SubmitScenarioJson(Data->OriginalJson));
 			Test->TestFalse(TEXT("actor parse preparation blocks reset"),Slab->CanResetToInitialPlacement(Reason));
 			Slab->StopSimulation();Test->TestTrue(TEXT("cancelled parse cannot block reset"),Slab->ResetToInitialPlacement(Reason));
