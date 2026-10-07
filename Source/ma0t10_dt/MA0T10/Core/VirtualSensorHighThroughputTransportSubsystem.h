@@ -154,6 +154,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	bool IsHighThroughputTransportRunning() const;
+	/** Prepare without replacing a connection owned by another stream. */
+	bool PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|VirtualSensor|Transport") bool IsTransportConnected() const { return bTransportConnected; }
+	int64 GetConnectionRevision() const { return ConnectionRevision; }
+	FString GetConnectionMessage() const { return ConnectionMessage; }
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
@@ -171,6 +176,9 @@ public:
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);
 
 private:
+	bool bTransportConnected=false;
+	int64 ConnectionRevision=0;
+	FString ConnectionMessage;
 	void DrainWorkerEvents();
 	FVirtualSensorHighThroughputTransportWorker* Worker = nullptr;
 	TMap<FString, FVirtualSensorStreamTelemetry> TelemetryByKey;

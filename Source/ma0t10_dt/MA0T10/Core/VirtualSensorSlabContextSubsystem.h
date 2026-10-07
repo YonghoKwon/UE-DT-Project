@@ -24,6 +24,8 @@ public:
 	bool ValidateScenarioOutputs(const TArray<FString>& TargetSensorIds,const FVirtualSlabSensorOutputSelection& Outputs,FString& Reason) const;
 	/** Motion-only fallback: never discovers, starts or stops sensors/streams. */
 	FString BeginUnboundObservationSession(const FString& RunId,const FString& ScenarioUUID);
+	bool PrepareScenarioTransmission(const FString& RunId,const TArray<FString>& Ids,const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs,const FSlabExecutionOptions& Options,FString& Error);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SlabSensorSession") bool IsSensorConfigurationLocked(const FString& SensorId) const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool NotifySlabFrameApplied(const FString& RunId, const FString& MtlNo, int64 SlabFrameNo, double ElapsedSec);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
@@ -43,6 +45,19 @@ public:
 	virtual TStatId GetStatId() const override;
 	virtual void Deinitialize() override;
 private:
+	TArray<FString> PreparationIds;
+	FSlabExecutionOptions ExecutionOptions;
+	TMap<FString,FString> ConfigurationSnapshots;
+	uint32 TransportConfigurationHash=0;
+	bool bRequireRaw=false,bRequireEngine=false;
+	int64 RawConnectionRevision=0,EngineConnectionRevision=0;
+	double PreparationStarted=0,RunningStartedWorld=0;
+	float RequiredCheckAccumulator=0;
+	bool IsTransmissionReady() const;
+	FString CheckRequiredDataHealth() const;
+	static FString SensorConfiguration(const AVirtualSensorActorBase* Sensor);
+	uint32 CurrentTransportHash() const;
+	void FailPreparation(const FString& Error);
 	FString BeginSessionInternal(const FString& RunId,const TArray<FString>& TargetSensorIds,const FVirtualSlabSensorOutputSelection& Outputs,const FString& ScenarioUUID,bool bRequireEachRequestedKind=true);
 	bool IsOutputSelected(EVirtualSensorStreamKind Kind) const;
 	bool CheckRun(const FString& RunId);

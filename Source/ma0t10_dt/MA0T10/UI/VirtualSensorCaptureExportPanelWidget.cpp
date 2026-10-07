@@ -943,6 +943,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 	// This policy configures the next Slab session. It never toggles manual live streams here.
 	auto ScenarioOutputs=SNew(SVerticalBox);
 	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("ScenarioOutputTitle","신규 Slab 시나리오 자동 송신 · 다음 실행부터 적용")).ColorAndOpacity(GetToolAccentColor())];
+	ScenarioOutputs->AddSlot().AutoHeight()[SNew(SCheckBox)
+	 .IsEnabled_Lambda([this](){auto* A=ResolveScenarioSlabActor();return A&&!A->IsSimulationActive();})
+	 .IsChecked_Lambda([this](){auto* A=ResolveScenarioSlabActor();return A&&A->GetExecutionOptions().Policy==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	 .OnCheckStateChanged_Lambda([this](ECheckBoxState S){if(auto* A=ResolveScenarioSlabActor()){auto O=A->GetExecutionOptions();O.Policy=S==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;A->SetExecutionOptions(O);}})
+	 [SNewSensorTool(STextBlock).Text(LOCTEXT("ScenarioRequireData","데이터 필수 실행 · 연결 준비 후 시작"))]];
+	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){const auto* S=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;return FText::FromString(S?S->GetSlabSensorSessionStatus().Message:TEXT("실행 대기"));})];
 	const FText OutputLabels[]={LOCTEXT("ScenarioPcd","PCD 포인트 클라우드 (기본)"),LOCTEXT("ScenarioCamera","Camera 이미지 Topic (선택)"),LOCTEXT("ScenarioLidar","LiDAR 정보 Topic (선택)")};
 	for(int32 I=0;I<3;++I)ScenarioOutputs->AddSlot().AutoHeight().Padding(0,3)
 	[SNew(SCheckBox).IsEnabled_Lambda([this](){return ResolveScenarioSlabActor()!=nullptr;})

@@ -2,6 +2,7 @@
 
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 
 AVirtualSensorActorBase::AVirtualSensorActorBase()
 {
@@ -81,7 +82,15 @@ bool AVirtualSensorActorBase::ApplyProfileAndSimulationQuality(const FVirtualSen
 
 bool AVirtualSensorActorBase::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {
+	FString Reason;if(!CanEditSensorConfiguration(Reason))return false;
 	bInteractiveManipulationActive = true;
+	return true;
+}
+bool AVirtualSensorActorBase::CanEditSensorConfiguration(FString& OutReason) const
+{
+	OutReason.Reset();
+	if(GetWorld())if(const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+		if(Session->IsSensorConfigurationLocked(GetSensorId())){OutReason=TEXT("데이터 필수 실행의 준비·실행·송신 정리가 끝난 뒤 센서 규격을 편집할 수 있습니다.");return false;}
 	return true;
 }
 

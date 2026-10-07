@@ -7,7 +7,7 @@ UENUM(BlueprintType)
 enum class ESlabInputUnit : uint8 { Centimeters, Millimeters, Meters };
 
 UENUM(BlueprintType)
-enum class ESlabSimulationState : uint8 { Idle, Playing, Paused, Completed, Failed };
+enum class ESlabSimulationState : uint8 { Idle, Playing, Paused, Completed, Failed, Preparing };
 
 /** Source values are retained verbatim in their declared input units. */
 USTRUCT(BlueprintType)

@@ -216,6 +216,7 @@ FString UVirtualSensorTransportComponent::ResolveTopic(const FString& SensorType
 
 void UVirtualSensorTransportComponent::RequestStompReconnect()
 {
+	++StompConnectionRevision;
 	bStompConnected.Store(false);
 	bStompConnecting.Store(false);
 	if (StompClient.IsValid())
@@ -224,6 +225,16 @@ void UVirtualSensorTransportComponent::RequestStompReconnect()
 		StompClient.Reset();
 	}
 	EnsureStompClient();
+}
+
+bool UVirtualSensorTransportComponent::PrepareStompConnection(FString& Error)
+{
+	Error.Reset();
+	if(TransportMode!=EVirtualSensorTransportMode::StompWebSocket || TransportProfile.BrokerUrl.IsEmpty())
+	{Error=TEXT("STOMP 서버 설정이 필요합니다.");return false;}
+	EnsureStompClient();
+	if(!StompClient.IsValid()){Error=LastResult.Message.IsEmpty()?TEXT("STOMP 연결 준비 실패"):LastResult.Message;return false;}
+	return true;
 }
 
 bool UVirtualSensorTransportComponent::BuildStompConnectHeaders(const FString& User, const FString& Passcode,
@@ -273,6 +284,7 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 
 void UVirtualSensorTransportComponent::HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString)
 {
+	++StompConnectionRevision;
 	bStompConnected.Store(true);
 	bStompConnecting.Store(false);
 	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] STOMP connected owner=%s protocol=%s session=%s"),
@@ -288,6 +300,7 @@ void UVirtualSensorTransportComponent::HandleStompConnected(const FString& Proto
 
 void UVirtualSensorTransportComponent::HandleStompFailure(const FString& Error)
 {
+	++StompConnectionRevision;
 	bStompConnected.Store(false);
 	bStompConnecting.Store(false);
 	UE_LOG(LogTemp, Warning, TEXT("[SensorStreamTransport] STOMP connection lost owner=%s error=%s"),

@@ -225,6 +225,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	bool IsStompConnected() const;
+	bool PrepareStompConnection(FString& Error);
+	int64 GetStompConnectionRevision() const { return StompConnectionRevision.Load(); }
 
 	/** Drops the current socket and starts a clean reconnect. Used after repeated sampled receipt timeouts. */
 	void RequestStompReconnect();
@@ -250,6 +252,7 @@ private:
 	TSharedPtr<class IStompClient> StompClient;
 	TAtomic<bool> bStompConnected { false };
 	TAtomic<bool> bStompConnecting { false };
+	TAtomic<int64> StompConnectionRevision { 0 };
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;

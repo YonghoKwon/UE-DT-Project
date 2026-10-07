@@ -29,6 +29,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor")
 	virtual bool IsSensorRunning() const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") bool CanEditSensorConfiguration(FString& OutReason) const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor")
 	virtual void StartSensor();

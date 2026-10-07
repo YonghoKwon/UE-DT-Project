@@ -171,7 +171,7 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
 bool AVirtualLidarSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {
 	if (!ScanComponent || bInteractiveManipulationActive) return ScanComponent != nullptr;
-	Super::BeginInteractiveManipulation(Request);
+    if(!Super::BeginInteractiveManipulation(Request))return false;
 	bWasRunningBeforeInteraction = ScanComponent->IsScanRunning();
 	SavedInteractionHorizontalSamples = ScanComponent->HorizontalSamples;
 	SavedInteractionVerticalChannels = ScanComponent->VerticalChannels;
@@ -203,6 +203,7 @@ void AVirtualLidarSensorActor::EndInteractiveManipulation()
 
 bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError)
 {
+    if(!CanEditSensorConfiguration(OutError))return false;
     if (!ScanComponent || RequestedState.TargetKind != EVirtualSensorTargetKind::Lidar)
     {
         OutError = TEXT("선택한 LiDAR 센서를 사용할 수 없습니다.");
@@ -218,6 +219,7 @@ bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSe
 
 bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
+    if(!CanEditSensorConfiguration(OutError))return false;
     if (!ScanComponent || State.TargetKind != EVirtualSensorTargetKind::Lidar)
     {
         OutError = TEXT("선택한 LiDAR 센서를 사용할 수 없습니다.");

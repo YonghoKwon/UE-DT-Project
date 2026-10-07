@@ -149,7 +149,7 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 bool AVirtualCameraSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {
 	if (!CaptureComponent || bInteractiveManipulationActive) return CaptureComponent != nullptr;
-	Super::BeginInteractiveManipulation(Request);
+	if(!Super::BeginInteractiveManipulation(Request))return false;
 	bWasRunningBeforeInteraction = CaptureComponent->IsCaptureRunning();
 	SavedInteractionResolution = CaptureComponent->CaptureResolution;
 	SavedInteractionInterval = CaptureComponent->CaptureInterval;
@@ -179,6 +179,7 @@ void AVirtualCameraSensorActor::EndInteractiveManipulation()
 
 bool AVirtualCameraSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError)
 {
+	if(!CanEditSensorConfiguration(OutError))return false;
 	if (!CaptureComponent || RequestedState.TargetKind != EVirtualSensorTargetKind::Camera)
 	{
 		OutError = TEXT("선택한 Camera 센서를 사용할 수 없습니다.");
@@ -194,6 +195,7 @@ bool AVirtualCameraSensorActor::ApplyProfileAndSimulationQuality(const FVirtualS
 
 bool AVirtualCameraSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
+	if(!CanEditSensorConfiguration(OutError))return false;
 	if (!CaptureComponent || State.TargetKind != EVirtualSensorTargetKind::Camera)
 	{
 		OutError = TEXT("선택한 Camera 센서를 사용할 수 없습니다.");

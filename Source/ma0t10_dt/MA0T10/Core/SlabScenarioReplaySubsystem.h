@@ -69,6 +69,7 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") UObject* GetPlaybackAdapter() const { return PlaybackAdapter.Get(); }
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool RequestScenarioReplay(const FString& ScenarioUUID,bool bSendPcd,const TArray<FString>& TargetSensorIds);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool RequestScenarioReplayWithOutputs(const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& TargetSensorIds);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool RequestScenarioReplayWithExecutionOptions(const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& TargetSensorIds,const FSlabExecutionOptions& Options);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool NotifyPlaybackStarted(const FString& RunUUID);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool NotifyPlaybackFinished(const FString& RunUUID,bool bAborted);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool SetLivePlaybackActive(bool bActive);
@@ -106,6 +107,8 @@ private:
 	bool bLivePlaybackActive=false;
 	FString LiveScenarioUUID;
 	double StartRequestedSeconds=0;
+	bool bWaitingForTransmission=false;
+	void InvokePlaybackAdapter();
 	void StartNextRegistration();
 	void StoreValidated(FSlabScenarioSummary Summary,FString Json);
 	bool RegisterValidatedScenarioAtSerial(FSlabScenarioDataPtr Scenario,uint64 RegistrationSerial);

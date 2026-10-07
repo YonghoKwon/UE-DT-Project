@@ -27,7 +27,7 @@
 
 ASlabActor::ASlabActor()
 {
-	PrimaryActorTick.bCanEverTick=false;
+	PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.bStartWithTickEnabled=false;PrimaryActorTick.TickGroup=TG_PrePhysics;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("SlabRoot")));
 	SlabMesh=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SlabMesh")); SlabMesh->SetupAttachment(RootComponent);
 	SlabMesh->SetMobility(EComponentMobility::Movable); SlabMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -71,7 +71,20 @@ void ASlabActor::EndPlay(const EEndPlayReason::Type Reason)
 	}
 	Scenario.Reset(); Super::EndPlay(Reason);
 }
-bool ASlabActor::IsSimulationActive() const { return Status.State==ESlabSimulationState::Playing||Status.State==ESlabSimulationState::Paused; }
+bool ASlabActor::IsSimulationActive() const { return Status.State==ESlabSimulationState::Playing||Status.State==ESlabSimulationState::Paused||Status.State==ESlabSimulationState::Preparing; }
+void ASlabActor::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);if(bEnding||!GetWorld())return;
+	const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();const auto S=Session->GetSlabSensorSessionStatus();
+	if(Status.State==ESlabSimulationState::Preparing)
+	{
+		if(S.RunId!=Status.RunUUID||S.State==EVirtualSlabSessionState::Incomplete)
+		{const FString Error=S.Message;PendingScenario.Reset();Status.State=ESlabSimulationState::Failed;Status.Message=Error;GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->SetLiveScenarioPlaybackActive(false,FString());SetActorTickEnabled(false);OnSlabStateChanged.Broadcast();return;}
+		if(S.State==EVirtualSlabSessionState::Ready&&PendingScenario.IsValid())
+		{const auto Data=PendingScenario;const FString Run=Status.RunUUID;PendingScenario.Reset();if(!StartScenario(Data,Run,false)){GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndSlabSensorSession(Run,true);GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->SetLiveScenarioPlaybackActive(false,FString());Status.State=ESlabSimulationState::Failed;SetActorTickEnabled(false);OnSlabStateChanged.Broadcast();}}
+	}
+	else if(IsSimulationActive()&&S.RunId==Status.RunUUID&&!S.RequiredDataError.IsEmpty())FinishSimulation(true,S.RequiredDataError);
+}
 void ASlabActor::ReportFailure(const FString& Message)
 {
 	// A refused incoming run must never change the active run state.
@@ -99,7 +112,7 @@ bool ASlabActor::StartSyntheticScenario() { return SubmitScenarioJson(FSlabScena
 void ASlabActor::RecordAdmission(ESlabScenarioAdmission Result,const FString& ScenarioId,const FString& Reason)
 {
 	LastAdmission=FSlabScenarioAdmissionStatus();LastAdmission.Result=Result;LastAdmission.ScenarioUUID=ScenarioId;LastAdmission.Reason=Reason;LastAdmission.RequestedOutputs=SensorOutputs;
-	if(Result==ESlabScenarioAdmission::Started||Result==ESlabScenarioAdmission::StartedWithoutTransmission)
+	if(Result==ESlabScenarioAdmission::Started||Result==ESlabScenarioAdmission::StartedWithoutTransmission||Result==ESlabScenarioAdmission::Preparing)
 	{
 		LastAdmission.RunUUID=Status.RunUUID;
 		if(auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())LastAdmission.AppliedOutputs=Session->GetSlabSensorSessionStatus().Outputs;
@@ -121,10 +134,22 @@ bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 	}
 	const auto* Session=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
 	const auto SessionState=Session?Session->GetSlabSensorSessionStatus().State:EVirtualSlabSessionState::Idle;
-	const bool bSessionBusy=SessionState==EVirtualSlabSessionState::Ready||SessionState==EVirtualSlabSessionState::Running||SessionState==EVirtualSlabSessionState::Paused||SessionState==EVirtualSlabSessionState::Draining;
+	const bool bSessionBusy=SessionState==EVirtualSlabSessionState::Preparing||SessionState==EVirtualSlabSessionState::Ready||SessionState==EVirtualSlabSessionState::Running||SessionState==EVirtualSlabSessionState::Paused||SessionState==EVirtualSlabSessionState::Draining;
 	if(IsSimulationActive()||(Replay&&Replay->IsReplayBusy())||bSessionBusy)
 	{ Status.Message=TEXT("새 시나리오는 보관했습니다. 현재 재생·송신 정리 후 목록에서 실행하세요.");RecordAdmission(ESlabScenarioAdmission::StoredOnlyBusy,Data->ScenarioUUID,Status.Message);return false; }
-	const bool Started=StartScenario(Data,FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),false);
+	const FString Run=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	if(ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData)
+	{
+		auto* Catalog=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();FString Error;
+		if(!Catalog->SetLiveScenarioPlaybackActive(true,Data->ScenarioUUID))return false;
+		auto* MutableSession=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
+		if(!MutableSession->PrepareScenarioTransmission(Run,TargetSensorIds,Data->ScenarioUUID,SensorOutputs,ExecutionOptions,Error))
+		{Catalog->SetLiveScenarioPlaybackActive(false,FString());ReportFailure(Error);RecordAdmission(ESlabScenarioAdmission::Rejected,Data->ScenarioUUID,Error);return false;}
+		PendingScenario=Data;Status=FSlabSimulationStatus();Status.State=ESlabSimulationState::Preparing;Status.FrameNo=INDEX_NONE;Status.RowIndex=INDEX_NONE;
+		Status.RunUUID=Run;Status.ScenarioUUID=Data->ScenarioUUID;Status.MtlNo=Data->Rows[0].MtlNo;Status.DurationSec=Data->DurationSec;Status.Message=TEXT("데이터 필수 · Broker 연결 준비 중");
+		SetActorTickEnabled(true);RecordAdmission(ESlabScenarioAdmission::Preparing,Data->ScenarioUUID,Status.Message);return true;
+	}
+	const bool Started=StartScenario(Data,Run,false);
 	RecordAdmission(Started?(Status.TransmissionWarning.IsEmpty()?ESlabScenarioAdmission::Started:ESlabScenarioAdmission::StartedWithoutTransmission):ESlabScenarioAdmission::Rejected,
 		Data->ScenarioUUID,Started&&!Status.TransmissionWarning.IsEmpty()?Status.TransmissionWarning:Status.Message);
 	return Started;
@@ -152,8 +177,9 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 	if(!bReplay)
 	{
 		if(!Replay->SetLiveScenarioPlaybackActive(true,Data->ScenarioUUID)) { ReportFailure(TEXT("다른 Slab 재생이 진행 중입니다.")); return false; }
-		const bool Ready=Session->ValidateScenarioOutputs(TargetSensorIds,SensorOutputs,TransmissionWarning);
-		const FString SessionId=Ready?Session->BeginScenarioSensorSession(RunUUID,TargetSensorIds,Data->ScenarioUUID,SensorOutputs)
+		const bool Prepared=Session->GetSlabSensorSessionStatus().RunId==RunUUID&&Session->GetSlabSensorSessionStatus().State==EVirtualSlabSessionState::Ready;
+		const bool Ready=Prepared||Session->ValidateScenarioOutputs(TargetSensorIds,SensorOutputs,TransmissionWarning);
+		const FString SessionId=Prepared?RunUUID:Ready?Session->BeginScenarioSensorSession(RunUUID,TargetSensorIds,Data->ScenarioUUID,SensorOutputs)
 			:Session->BeginUnboundObservationSession(RunUUID,Data->ScenarioUUID);
 		if(SessionId.IsEmpty())
 		{ Replay->SetLiveScenarioPlaybackActive(false,FString()); ReportFailure(Session->GetSlabSensorSessionStatus().Message); return false; }
@@ -168,6 +194,7 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 	if(!MotionComponent->StartPlayback(Data,GetTrackTransform(),Size,PositionUnit))
 	{ if(IsSimulationActive()) FinishSimulation(true,TEXT("Slab 이동 컴포넌트를 시작하지 못했습니다.")); return false; }
 	if(Status.State!=ESlabSimulationState::Playing) return false;
+	SetActorTickEnabled(Session->GetSlabSensorSessionStatus().ExecutionPolicy==ESlabExecutionPolicy::RequireData);
 	OnSlabStateChanged.Broadcast(); return true;
 }
 FTransform ASlabActor::GetTrackTransform() const
@@ -254,7 +281,7 @@ bool ASlabActor::CanResetToInitialPlacement(FString& OutReason) const
 	if(const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
 	{
 		const auto State=Session->GetSlabSensorSessionStatus().State;
-		if(State==EVirtualSlabSessionState::Ready||State==EVirtualSlabSessionState::Running||State==EVirtualSlabSessionState::Paused||State==EVirtualSlabSessionState::Draining)
+		if(State==EVirtualSlabSessionState::Preparing||State==EVirtualSlabSessionState::Ready||State==EVirtualSlabSessionState::Running||State==EVirtualSlabSessionState::Paused||State==EVirtualSlabSessionState::Draining)
 		{ OutReason=TEXT("센서 송신 정리가 끝난 뒤 초기 위치로 복귀할 수 있습니다."); return false; }
 	}
 	return true;
@@ -277,6 +304,7 @@ bool ASlabActor::ResetToInitialPlacement(FString& OutError)
 void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 {
 	if(!IsSimulationActive()) return;
+	PendingScenario.Reset();SetActorTickEnabled(false);
 	MotionComponent->StopPlayback();
 	if(auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
 	{
@@ -297,6 +325,8 @@ bool ASlabActor::SetPositionUnit(ESlabInputUnit Value)
 { if(IsSimulationActive()) return false; PositionUnit=Value; OnSlabStateChanged.Broadcast(); return true; }
 bool ASlabActor::SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs)
 { SensorOutputs=Outputs; OnSlabStateChanged.Broadcast(); return true; }
+bool ASlabActor::SetExecutionOptions(FSlabExecutionOptions Options)
+{if(!FMath::IsFinite(Options.PreparationTimeoutSeconds)||Options.PreparationTimeoutSeconds<1||Options.PreparationTimeoutSeconds>120||IsSimulationActive())return false;ExecutionOptions=Options;OnSlabStateChanged.Broadcast();return true;}
 void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance(); OnSlabStateChanged.Broadcast(); }
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
 bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }

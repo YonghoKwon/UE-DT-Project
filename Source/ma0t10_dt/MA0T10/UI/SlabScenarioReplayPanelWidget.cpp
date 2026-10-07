@@ -31,7 +31,7 @@ bool USlabScenarioReplayPanelWidget::SelectScenario(const FString& UUID)
 	return false;
 }
 bool USlabScenarioReplayPanelWidget::ReplaySelected()
-{ auto* M=Manager(); return M&&M->RequestScenarioReplayWithOutputs(SelectedUUID,GetReplayOutputs(),TargetSensorIds); }
+{ auto* M=Manager(); return M&&M->RequestScenarioReplayWithExecutionOptions(SelectedUUID,GetReplayOutputs(),TargetSensorIds,ExecutionOptions); }
 void USlabScenarioReplayPanelWidget::SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs)
 { bSendPcd=Outputs.bPointCloud; bSendCameraImage=Outputs.bCameraImage; bSendLidarTelemetry=Outputs.bLidarTelemetry; }
 FVirtualSlabSensorOutputSelection USlabScenarioReplayPanelWidget::GetReplayOutputs() const
@@ -149,6 +149,10 @@ TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details","선택 항목 상세"))]
       .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendPcd?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendPcd=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("Send","재생 중 PCD 송신")).ToolTipText(LOCTEXT("SendTip","다음 재생부터 적용됩니다. 기본은 관찰 전용입니다."))]]
+     +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+      .IsChecked_Lambda([this](){return ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+      .OnCheckStateChanged_Lambda([this](ECheckBoxState S){ExecutionOptions.Policy=S==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;})
+      [SNewSensorTool(STextBlock).Text(LOCTEXT("RequireData","데이터 필수 실행 · 연결 준비 후 시작"))]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,UsesSimplifiedNativeLayout()?4.0f:0.0f)[BuildAdditionalOutputOptions(UsesSimplifiedNativeLayout())]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?(M->CanReplay()?TEXT("재생 준비됨 · 보관 시나리오를 선택하세요."):TEXT("현재 실행 종료와 재생 adapter 연결을 확인하세요.")):S.Message);})]

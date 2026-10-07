@@ -91,7 +91,7 @@ void USlabChartsPanelWidget::HandleSlabStateChanged()
 {
 	if(!IsValid(Slab))return;
 	const auto State=Slab->GetSimulationStatus();
-	if(State.RunUUID.IsEmpty()){ClearIdlePresentation();return;}
+	if(State.RunUUID.IsEmpty()||State.State==ESlabSimulationState::Preparing){ClearIdlePresentation();return;}
 	const bool BodyVisible=GetVisibility()!=ESlateVisibility::Collapsed&&GetVisibility()!=ESlateVisibility::Hidden&&!IsPanelCollapsed();
 	if(!BodyVisible)
 	{
@@ -135,7 +135,7 @@ double USlabChartsPanelWidget::CalculateHistoricalSpeed(const TArray<FSlabScenar
 }
 void USlabChartsPanelWidget::RefreshChartData()
 {
-	if(!Slab||Slab->GetSimulationStatus().RunUUID.IsEmpty()){ClearIdlePresentation();return;}
+	if(!Slab||Slab->GetSimulationStatus().RunUUID.IsEmpty()||Slab->GetSimulationStatus().State==ESlabSimulationState::Preparing){ClearIdlePresentation();return;}
 	const auto Scenario=Slab?Slab->GetScenario():nullptr;LastScenario=Scenario.Get();LastConfigurationHash=Slab?Slab->GetMetricsConfigurationHash():0;
 	auto Samples=MakeShared<TArray<FSlabChartSample>>();
 	if(Slab&&Scenario)
@@ -157,7 +157,7 @@ void USlabChartsPanelWidget::RefreshChartData()
 void USlabChartsPanelWidget::UpdateProgressiveState()
 {
 	const auto State=Slab?Slab->GetSimulationStatus():FSlabSimulationStatus();
-	if(State.RunUUID.IsEmpty()){ClearIdlePresentation();return;}
+	if(State.RunUUID.IsEmpty()||State.State==ESlabSimulationState::Preparing){ClearIdlePresentation();return;}
 	if(bIdlePresentation)
 	{
 		bIdlePresentation=false;
@@ -193,7 +193,7 @@ void USlabChartsPanelWidget::NativeTick(const FGeometry& G,float D)
 	Super::NativeTick(G,D);if(!IsValid(Slab))Slab=nullptr;
 	if(GetVisibility()==ESlateVisibility::Collapsed||GetVisibility()==ESlateVisibility::Hidden||IsPanelCollapsed()){bWasBodyVisible=false;return;}
 	RefreshAccumulator+=D;TextAccumulator+=D;if(RefreshAccumulator<.1f)return;RefreshAccumulator=0;
-	if(!Slab||Slab->GetSimulationStatus().RunUUID.IsEmpty()){ClearIdlePresentation();return;}
+	if(!Slab||Slab->GetSimulationStatus().RunUUID.IsEmpty()||Slab->GetSimulationStatus().State==ESlabSimulationState::Preparing){ClearIdlePresentation();return;}
 	const auto Scenario=Slab?Slab->GetScenario():nullptr;const uint32 Config=Slab?Slab->GetMetricsConfigurationHash():0;
 	if(LastScenario!=Scenario.Get()||Config!=LastConfigurationHash){RefreshChartData();LastConfigurationHash=Config;}
 	bWasBodyVisible=true;UpdateProgressiveState();

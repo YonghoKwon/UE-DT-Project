@@ -37,6 +37,7 @@ FText USlabProgressPanelWidget::ResolveOwnedMovementState(const FSlabSimulationS
 	case ESlabSimulationState::Playing:return LOCTEXT("OutcomePlaying","실행 중");
 	case ESlabSimulationState::Paused:return LOCTEXT("OutcomePaused","일시정지");
 	case ESlabSimulationState::Failed:return LOCTEXT("OutcomeFailed","실패");
+	case ESlabSimulationState::Preparing:return LOCTEXT("OutcomePreparing","연결 준비 중");
 	case ESlabSimulationState::Completed:
 	{
 		const bool MatchingAbort=!Simulation.RunUUID.IsEmpty()&&Session.RunId==Simulation.RunUUID&&Session.bAborted;
@@ -57,6 +58,7 @@ void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 	RefreshAccumulator += D; if (RefreshAccumulator < .2f) return; RefreshAccumulator = 0;
 	if (!Slab) { Summary = TEXT("Slab Actor 연결 필요"); Detail.Empty(); SensorStatus.Empty(); Progress = 0; return; }
 	const auto S = Slab->GetSimulationStatus(); Progress = S.Progress;
+	if(S.State==ESlabSimulationState::Preparing){Summary=TEXT("데이터 필수 · 실제 Broker 연결 준비 중\n현재 프레임 — · 진행률 0%");Detail=S.Message;SensorStatus=TEXT("준비 완료 전 Slab 이동·해당 실행 송신 없음");return;}
 	const auto* SessionSubsystem=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
 	const auto Session=SessionSubsystem?SessionSubsystem->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
 	FString State = S.State == ESlabSimulationState::Playing ? TEXT("실행 중") : S.State == ESlabSimulationState::Paused ? TEXT("일시정지") : S.State == ESlabSimulationState::Completed ? TEXT("움직임 완료") : S.State == ESlabSimulationState::Failed ? TEXT("실패") : TEXT("대기");
@@ -87,7 +89,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 	if (WidgetTree && WidgetTree->RootWidget) return Super::RebuildWidget();
 	auto Controls = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8, 6));
 	Controls->AddSlot()[SNewSensorTool(SButton).Text_Lambda([this]() { return Slab && Slab->GetSimulationStatus().State == ESlabSimulationState::Paused ? LOCTEXT("Resume", "재개") : LOCTEXT("Pause", "일시정지"); }).IsEnabled_Lambda([this]() { if (!Slab) return false; auto S = Slab->GetSimulationStatus().State; return S == ESlabSimulationState::Playing || S == ESlabSimulationState::Paused; }).OnClicked_Lambda([this]() { if (Slab) Slab->SetSimulationPaused(Slab->GetSimulationStatus().State != ESlabSimulationState::Paused); return FReply::Handled(); })];
-	Controls->AddSlot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).Text(LOCTEXT("Stop", "중단")).IsEnabled_Lambda([this]() { if (!Slab) return false; auto S = Slab->GetSimulationStatus().State; return S == ESlabSimulationState::Playing || S == ESlabSimulationState::Paused; }).OnClicked_Lambda([this]() { if (Slab) Slab->StopSimulation(); return FReply::Handled(); })];
+	Controls->AddSlot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).Text(LOCTEXT("Stop", "중단")).IsEnabled_Lambda([this]() { return Slab&&Slab->IsSimulationActive(); }).OnClicked_Lambda([this]() { if (Slab) Slab->StopSimulation(); return FReply::Handled(); })];
 	Controls->AddSlot()[SNewSensorTool(SButton).Text(LOCTEXT("ResetPlacement","초기 위치로 복귀"))
 	 .IsEnabled_Lambda([this](){FString Reason;return CanResetSlabToInitialPlacement(Reason);})
 	 .ToolTipText_Lambda([this](){FString Reason;return FText::FromString(CanResetSlabToInitialPlacement(Reason)?TEXT("레벨 배치 위치·회전으로 즉시 복귀합니다. 현재 형상·보관 목록은 유지하고 진행 표시만 초기화합니다."):Reason);})

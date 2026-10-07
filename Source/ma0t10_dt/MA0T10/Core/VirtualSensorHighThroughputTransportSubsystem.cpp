@@ -856,12 +856,24 @@ bool UVirtualSensorHighThroughputTransportSubsystem::StartHighThroughputTranspor
 
 void UVirtualSensorHighThroughputTransportSubsystem::StopHighThroughputTransport()
 {
+	bTransportConnected=false;++ConnectionRevision;
 	if (Worker)
 	{
 		Worker->StopWorker();
 		delete Worker;
 		Worker = nullptr;
 	}
+}
+
+bool UVirtualSensorHighThroughputTransportSubsystem::PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error)
+{
+	Error.Reset();
+	if(Worker && Worker->IsRunning() && (ActiveProfile.BrokerUrl!=Profile.BrokerUrl || ActiveProfile.UserName!=Profile.UserName ||
+		ActiveProfile.CameraTopic!=Profile.CameraTopic || ActiveProfile.LidarTopic!=Profile.LidarTopic || ActiveProfile.PointCloudTopic!=Profile.PointCloudTopic ||
+		ActiveProfile.MaxOutstandingBytes!=Profile.MaxOutstandingBytes || ActiveProfile.MaxOutstandingBytesPerStream!=Profile.MaxOutstandingBytesPerStream || ActivePasscode!=Passcode))
+	{ Error=TEXT("공유 Raw TCP 연결의 설정이 다릅니다. 기존 스트림을 변경하지 않고 준비를 거절했습니다.");return false; }
+	if(!StartHighThroughputTransport(Profile,Passcode)){Error=TEXT("Raw TCP 연결 준비 요청 실패");return false;}
+	return true;
 }
 
 void UVirtualSensorHighThroughputTransportSubsystem::ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection)
@@ -988,6 +1000,7 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 		}
 		if (Event.Type == EWorkerEventType::Connected || Event.Type == EWorkerEventType::Disconnected)
 		{
+			bTransportConnected=Event.Type==EWorkerEventType::Connected;++ConnectionRevision;ConnectionMessage=Event.Message;
 			for (TPair<FString, FVirtualSensorStreamTelemetry>& Pair : TelemetryByKey)
 			{
 				Pair.Value.State = Event.Type == EWorkerEventType::Connected ? TEXT("connected") : TEXT("reconnecting");

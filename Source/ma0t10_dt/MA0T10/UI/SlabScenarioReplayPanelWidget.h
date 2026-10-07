@@ -22,6 +22,7 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendPcd=false;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendCameraImage=false;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") bool bSendLidarTelemetry=false;
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") FSlabExecutionOptions ExecutionOptions;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FVirtualSlabSensorOutputSelection GetReplayOutputs() const;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") TArray<FString> TargetSensorIds;

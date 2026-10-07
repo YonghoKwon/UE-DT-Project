@@ -19,7 +19,7 @@ bool SessionBusy(const UWorld* World)
 {
 	if (!World) return false;
 	const auto S=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->GetSlabSensorSessionStatus().State;
-	return S==EVirtualSlabSessionState::Ready||S==EVirtualSlabSessionState::Running||S==EVirtualSlabSessionState::Paused||S==EVirtualSlabSessionState::Draining;
+	return S==EVirtualSlabSessionState::Preparing||S==EVirtualSlabSessionState::Ready||S==EVirtualSlabSessionState::Running||S==EVirtualSlabSessionState::Paused||S==EVirtualSlabSessionState::Draining;
 }
 }
 void USlabScenarioReplaySubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -172,18 +172,28 @@ bool USlabScenarioReplaySubsystem::RequestScenarioReplay(const FString& UUID,boo
 	return RequestScenarioReplayWithOutputs(UUID,Outputs,Ids);
 }
 bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithOutputs(const FString& UUID,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Ids)
+{return RequestScenarioReplayWithExecutionOptions(UUID,Outputs,Ids,FSlabExecutionOptions());}
+bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithExecutionOptions(const FString& UUID,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Ids,const FSlabExecutionOptions& Options)
 {
 	if (!IsInGameThread()) return false;
 	if (!CanReplay()) { Status.Message=TEXT("현재 실행 종료와 adapter 연결을 확인하십시오."); return false; }
 	FString Json; if(!GetScenarioJson(UUID,Json)) { Status.Message=TEXT("저장된 시나리오가 없습니다."); return false; }
 	const FString Run=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
 	auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
-	if (Session->BeginScenarioSensorSession(Run,Ids,CanonicalId(UUID),Outputs).IsEmpty()) { Status.Message=Session->GetSlabSensorSessionStatus().Message; return false; }
+	FString Error;bWaitingForTransmission=Options.Policy==ESlabExecutionPolicy::RequireData;
+	if(bWaitingForTransmission)
+	{if(!Session->PrepareScenarioTransmission(Run,Ids,CanonicalId(UUID),Outputs,Options,Error)){bWaitingForTransmission=false;Status.Message=Error;return false;}}
+	else if (Session->BeginScenarioSensorSession(Run,Ids,CanonicalId(UUID),Outputs).IsEmpty()) { Status.Message=Session->GetSlabSensorSessionStatus().Message; return false; }
 	Status=FSlabScenarioReplayStatus(); Status.State=ESlabScenarioReplayState::Starting; Status.ScenarioUUID=CanonicalId(UUID); Status.RunUUID=Run; Status.bSendPcd=Outputs.bPointCloud; Status.Outputs=Outputs;
 	Status.Message=TEXT("재생 준비 중"); PlaybackWorld=GetWorld(); StartRequestedSeconds=FPlatformTime::Seconds();
-	const bool Accepted=ISlabScenarioPlaybackAdapter::Execute_StartScenarioPlayback(PlaybackAdapter.Get(),Json,Status.ScenarioUUID,Run);
-	if (!Accepted && Status.RunUUID==Run) { AbortReplay(TEXT("기존 재생기가 시작을 거절했습니다.")); return false; }
-	return true;
+	if(!bWaitingForTransmission)InvokePlaybackAdapter();
+	return Status.State!=ESlabScenarioReplayState::Failed;
+}
+void USlabScenarioReplaySubsystem::InvokePlaybackAdapter()
+{
+	FString Json;if(!PlaybackAdapter.IsValid()||!GetScenarioJson(Status.ScenarioUUID,Json)){AbortReplay(TEXT("재생 adapter 또는 원본 데이터가 없습니다."));return;}
+	bWaitingForTransmission=false;StartRequestedSeconds=FPlatformTime::Seconds();const FString Run=Status.RunUUID;
+	if(!ISlabScenarioPlaybackAdapter::Execute_StartScenarioPlayback(PlaybackAdapter.Get(),Json,Status.ScenarioUUID,Run)&&Status.RunUUID==Run)AbortReplay(TEXT("기존 재생기가 시작을 거절했습니다."));
 }
 bool USlabScenarioReplaySubsystem::NotifyPlaybackStarted(const FString& Run)
 {
@@ -200,6 +210,7 @@ bool USlabScenarioReplaySubsystem::NotifyPlaybackFinished(const FString& Run,boo
 void USlabScenarioReplaySubsystem::AbortReplay(const FString& Reason)
 {
 	if(!IsReplayBusy()) return;
+	bWaitingForTransmission=false;
 	const FString Run=Status.RunUUID;
 	if (PlaybackWorld.IsValid()) PlaybackWorld->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndSlabSensorSession(Run,true);
 	Status.State=ESlabScenarioReplayState::Failed; Status.Message=Reason;
@@ -209,7 +220,13 @@ bool USlabScenarioReplaySubsystem::Poll(float Delta)
 {
 	if (!bInitialized) return false;
 	if (IsReplayBusy()&&(!PlaybackAdapter.IsValid()||!PlaybackWorld.IsValid())) AbortReplay(TEXT("재생 월드 또는 adapter가 종료되었습니다."));
-	if(Status.State==ESlabScenarioReplayState::Starting&&FPlatformTime::Seconds()-StartRequestedSeconds>5) AbortReplay(TEXT("실제 재생 시작 알림 시간 초과 (5초)"));
+	if(Status.State==ESlabScenarioReplayState::Starting&&bWaitingForTransmission&&PlaybackWorld.IsValid())
+	{
+		const auto S=PlaybackWorld->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->GetSlabSensorSessionStatus();
+		if(S.RunId!=Status.RunUUID||S.State==EVirtualSlabSessionState::Incomplete)AbortReplay(S.Message);
+		else if(S.State==EVirtualSlabSessionState::Ready)InvokePlaybackAdapter();
+	}
+	if(Status.State==ESlabScenarioReplayState::Starting&&!bWaitingForTransmission&&FPlatformTime::Seconds()-StartRequestedSeconds>5) AbortReplay(TEXT("실제 재생 시작 알림 시간 초과 (5초)"));
 	if (Status.State==ESlabScenarioReplayState::Draining&&PlaybackWorld.IsValid())
 	{
 		const auto S=PlaybackWorld->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->GetSlabSensorSessionStatus();
