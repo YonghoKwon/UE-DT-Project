@@ -2602,7 +2602,19 @@ UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPrevi
     {
         UObject* PreviewOuter = GetOwner() ? Cast<UObject>(GetOwner()) : Cast<UObject>(this);
         PointCloudPreviewComponent = NewObject<UInstancedStaticMeshComponent>(PreviewOuter, TEXT("VirtualLidarPointCloudPreview"));
-        if (PointCloudPreviewComponent) { PointCloudPreviewComponent->SetupAttachment(this); PointCloudPreviewComponent->NumCustomDataFloats = 4; PointCloudPreviewComponent->SetCastShadow(false); PointCloudPreviewComponent->RegisterComponent(); if (!PointCloudPreviewMesh) PointCloudPreviewMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"))); if (PointCloudPreviewMesh) PointCloudPreviewComponent->SetStaticMesh(PointCloudPreviewMesh); if (!PointCloudPreviewMaterial && GEngine) PointCloudPreviewMaterial = GEngine->DebugMeshMaterial; ApplyPointCloudPreviewStyle(); }
+        if (PointCloudPreviewComponent)
+        {
+            // Preview instances are diagnostic markers, never physical scene objects.
+            // Configure before registration so thousands of bodies/nav updates are
+            // not created and moved during repeated FullSpec preview refreshes.
+            PointCloudPreviewComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            PointCloudPreviewComponent->SetGenerateOverlapEvents(false);
+            PointCloudPreviewComponent->SetCanEverAffectNavigation(false);
+            PointCloudPreviewComponent->SetupAttachment(this);PointCloudPreviewComponent->NumCustomDataFloats=4;PointCloudPreviewComponent->SetCastShadow(false);PointCloudPreviewComponent->RegisterComponent();
+            if(!PointCloudPreviewMesh)PointCloudPreviewMesh=Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(),nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
+            if(PointCloudPreviewMesh)PointCloudPreviewComponent->SetStaticMesh(PointCloudPreviewMesh);
+            if(!PointCloudPreviewMaterial&&GEngine)PointCloudPreviewMaterial=GEngine->DebugMeshMaterial;ApplyPointCloudPreviewStyle();
+        }
     }
     return PointCloudPreviewComponent;
 }
