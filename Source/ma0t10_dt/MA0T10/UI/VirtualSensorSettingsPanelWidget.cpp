@@ -374,6 +374,7 @@ void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
 
 bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
 {
+    const TWeakObjectPtr<AVirtualSensorActorBase> RequestedActor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
     if (bManipulationEnabled)
     {
         const FVirtualSensorEditableState Requested = PendingState;
@@ -381,7 +382,7 @@ bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
         PendingState = Requested;
     }
     FString Error;
-    if (!ValidateState(PendingState, Error) || !ApplyStateToRuntime(PendingState, Error))
+    if (!RequestedActor.IsValid() || RequestedActor.Get()!=GetSelectedSensorActor() || !ValidateState(PendingState, Error) || !RequestedActor->ApplyEditableState(PendingState, Error))
     {
         FVirtualSensorEditableState CurrentRuntimeState;
         CurrentRuntimeState.TargetKind = PendingState.TargetKind;
@@ -888,7 +889,8 @@ bool UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(const FVirtu
     if (OtherSensorIds.Contains(State.SensorId)) { OutError = TEXT("이미 사용 중인 SensorId입니다"); return false; }
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
-        if (State.CameraResolution.X < 160 || State.CameraResolution.X > 4096 || State.CameraResolution.Y < 90 || State.CameraResolution.Y > 2160 ||
+        if (!FMath::IsFinite(State.CameraCaptureInterval) || !FMath::IsFinite(State.CameraFov) ||
+            State.CameraResolution.X < 160 || State.CameraResolution.X > 4096 || State.CameraResolution.Y < 90 || State.CameraResolution.Y > 2160 ||
             State.CameraCaptureInterval < 0.033f || State.CameraCaptureInterval > 60.0f || State.CameraFov < 5.0f || State.CameraFov > 170.0f ||
             State.CameraJpegQuality < 1 || State.CameraJpegQuality > 100)
         {
@@ -896,7 +898,9 @@ bool UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(const FVirtu
             return false;
         }
     }
-    else if (State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f || State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 20000.0f ||
+    else if (!FMath::IsFinite(State.LidarScanInterval) || !FMath::IsFinite(State.LidarMaxDistance) || !FMath::IsFinite(State.LidarHorizontalFov) ||
+        !FMath::IsFinite(State.LidarMinVerticalAngle) || !FMath::IsFinite(State.LidarMaxVerticalAngle) ||
+        State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f || State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 20000.0f ||
         State.LidarHorizontalSamples < 1 || State.LidarHorizontalSamples > 1440 || State.LidarVerticalChannels < 1 || State.LidarVerticalChannels > 256 ||
         State.LidarHorizontalFov < 1.0f || State.LidarHorizontalFov > 360.0f || State.LidarMinVerticalAngle < -90.0f || State.LidarMaxVerticalAngle > 90.0f ||
         State.LidarMinVerticalAngle >= State.LidarMaxVerticalAngle || State.ServerPayloadStride < 1 || State.ServerPayloadStride > 100 ||
@@ -1001,7 +1005,11 @@ void UVirtualSensorSettingsPanelWidget::RefreshSelectedSensorNow(bool bForce)
     const double Now = GetWorld()->GetTimeSeconds();
     if (!bForce && LastPreviewRefreshTime >= 0.0 && Now - LastPreviewRefreshTime < 0.1) return;
     LastPreviewRefreshTime = Now;
-    SensorManager->RefreshSelectedSensorOnce(PendingState.TargetKind == EVirtualSensorTargetKind::Lidar);
+    // UI edits only request the scheduler. Legacy explicit one-shot APIs remain synchronous.
+    if(PendingState.TargetKind==EVirtualSensorTargetKind::Lidar)
+    { if(auto* Lidar=SensorManager->GetSelectedLidar();Lidar&&Lidar->IsScanRunning())Lidar->RequestImmediateScheduledScan(); }
+    else
+    { if(auto* Camera=SensorManager->GetSelectedCamera();Camera&&Camera->IsCaptureRunning())Camera->RequestImmediateScheduledCapture(); }
 }
 
 void UVirtualSensorSettingsPanelWidget::StartAllRealSensorSources()

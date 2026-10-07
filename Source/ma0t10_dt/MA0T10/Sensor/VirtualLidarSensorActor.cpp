@@ -99,6 +99,7 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     {
         return false;
     }
+    const bool bWasRunning=ScanComponent->IsScanRunning();
     SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
     ScanComponent->StopScan();
     ScanComponent->ApplyDeviceProfile(State.LidarProfile);
@@ -118,7 +119,7 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     ScanComponent->bExportCsvOnScan = State.bExportCsvOnScan;
     ScanComponent->bExportJsonLinesOnScan = State.bExportJsonLinesOnScan;
     ScanComponent->bExportPcdOnScan = State.bExportPcdOnScan;
-    ScanComponent->StartScan();
+    if(bWasRunning) ScanComponent->StartScan();
     return true;
 }
 
@@ -227,7 +228,9 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
         OutError = TEXT("SensorId 또는 Transform 값이 올바르지 않습니다.");
         return false;
     }
-    if (State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f ||
+    if (!FMath::IsFinite(State.LidarScanInterval) || !FMath::IsFinite(State.LidarMaxDistance) ||
+        !FMath::IsFinite(State.LidarHorizontalFov) || !FMath::IsFinite(State.LidarMinVerticalAngle) || !FMath::IsFinite(State.LidarMaxVerticalAngle) ||
+        State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f ||
         State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 20000.0f ||
         State.LidarHorizontalSamples < 1 || State.LidarHorizontalSamples > 1440 ||
         State.LidarVerticalChannels < 1 || State.LidarVerticalChannels > 256 ||

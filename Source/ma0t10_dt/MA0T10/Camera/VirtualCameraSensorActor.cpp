@@ -131,6 +131,7 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	{
 		return false;
 	}
+	const bool bWasRunning=CaptureComponent->IsCaptureRunning();
 	SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
 	CaptureComponent->StopCapture();
 	CaptureComponent->ApplyDeviceProfile(State.CameraProfile);
@@ -141,7 +142,7 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	CaptureComponent->FOVAngle = State.CameraFov;
 	CaptureComponent->JpegQuality = State.CameraJpegQuality;
 	CaptureComponent->CaptureMode = State.CameraCaptureMode;
-	CaptureComponent->StartCapture();
+	if(bWasRunning) CaptureComponent->StartCapture();
 	return true;
 }
 
@@ -203,7 +204,8 @@ bool AVirtualCameraSensorActor::ValidateEditableState(const FVirtualSensorEditab
 		OutError = TEXT("SensorId 또는 Transform 값이 올바르지 않습니다.");
 		return false;
 	}
-	if (State.CameraResolution.X < 160 || State.CameraResolution.X > 4096 ||
+	if (!FMath::IsFinite(State.CameraCaptureInterval) || !FMath::IsFinite(State.CameraFov) ||
+		State.CameraResolution.X < 160 || State.CameraResolution.X > 4096 ||
 		State.CameraResolution.Y < 90 || State.CameraResolution.Y > 2160 ||
 		State.CameraCaptureInterval < 0.033f || State.CameraCaptureInterval > 60.0f ||
 		State.CameraFov < 5.0f || State.CameraFov > 170.0f ||
