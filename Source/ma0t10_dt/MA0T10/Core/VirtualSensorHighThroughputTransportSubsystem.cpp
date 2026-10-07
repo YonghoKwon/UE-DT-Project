@@ -164,7 +164,7 @@ public:
 		}
 		CloseSocket();
 		FVirtualSensorBinaryFrame Abandoned;
-		while (Frames.Dequeue(Abandoned))
+		while (DequeueFrame(Abandoned))
 		{
 			--QueueCounts[static_cast<int32>(Abandoned.StreamKind)];
 			FailFrame(Abandoned,TEXT("Transport stopped before socket submission."));
@@ -184,13 +184,8 @@ public:
 			bool bChanged=false;
 			while(ReceiverChanges.Dequeue(NextSelection)) { ReceiveSelection=MoveTemp(NextSelection); bChanged=true; }
 			if(bChanged && bConnected) SyncSubscriptions();
-			FString Cancelled;
-			while (RunCancellations.Dequeue(Cancelled))
-			{
-				CancelledRuns.Add(Cancelled);
-				for (auto It=PendingReceipts.CreateIterator(); It; ++It)
-					if (HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Cancelled) { ReleaseOutstanding(It.Value().Frame); AdjustRunPending(It.Value().Frame,-1); It.RemoveCurrent(); }
-			}
+			ProcessRunCancellations();
+			CollectRetiredRuns();
 			if (!bConnected)
 			{
 				const double Now = FPlatformTime::Seconds();
@@ -225,6 +220,16 @@ public:
 		}
 		const int32 Limit = Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? 8 : 20;
 		FVirtualSensorBinaryFrame Normalized=Frame;
+		{
+			FScopeLock Lock(&RunPendingMutex);
+			const FString Run=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
+			if(const auto* Token=KnownRunGenerations.Find(Run))
+			{
+				if(!ActiveRunGenerations.Contains(Run)||(Frame.ManagedRunGeneration&&Frame.ManagedRunGeneration!=*Token))
+				{OutError=TEXT("종료되었거나 이전 generation인 실행 프레임입니다.");return false;}
+				Normalized.ManagedRunGeneration=*Token;
+			}
+		}
 		if (Normalized.RequestId.IsEmpty()) Normalized.RequestId=FString::Printf(TEXT("%d-%s-%lld-%s"),Index,*Frame.SensorId,Frame.FrameId,*HeaderValue(Frame.Headers,TEXT("checksum")));
 		bool Accepted=false;
 		{
@@ -234,7 +239,7 @@ public:
 				Frame.NumBytes()<=Profile.MaxOutstandingBytes && HeldBytes<=Profile.MaxOutstandingBytes-Frame.NumBytes() &&
 				Frame.NumBytes()<=Profile.MaxOutstandingBytesPerStream && HeldBytesPerStream.FindRef(Key)<=Profile.MaxOutstandingBytesPerStream-Frame.NumBytes() && !OutstandingFrames.Contains(Normalized.RequestId))
 			{
-				OutstandingFrames.Add(Normalized.RequestId,{Key,Frame.NumBytes(),true});
+				OutstandingFrames.Add(Normalized.RequestId,{Key,Frame.NumBytes(),true,false,HeaderValue(Frame.Headers,TEXT("x-run-uuid"))});
 				++OutstandingCounts.FindOrAdd(Key); HeldBytes+=Frame.NumBytes(); HeldBytesPerStream.FindOrAdd(Key)+=Frame.NumBytes(); ++QueueCounts[Index]; Accepted=true;
 			}
 		}
@@ -250,7 +255,7 @@ public:
 			Event.FrameId = Frame.FrameId;
 			Event.QueueDepth = QueueCounts[Index].Load();
 			Event.Message = OutError;
-			Events.Enqueue(MoveTemp(Event));
+			QueueEvent(MoveTemp(Event));
 			return false;
 		}
 		AdjustRunPending(Frame,1);
@@ -263,7 +268,30 @@ public:
 		const FString Key=TelemetryKey(Kind,Sensor);
 		for(const auto& Pair:OutstandingFrames) if(Pair.Value.Key==Key) { ++FramesOut; BytesOut+=Pair.Value.Bytes; QueuedOut+=Pair.Value.bQueued?1:0; }
 	}
-	void CancelRun(const FString& RunId) { RunCancellations.Enqueue(RunId); }
+	void CancelRun(const FString& RunId)
+	{
+		{FScopeLock Lock(&RunPendingMutex);if(!KnownRunGenerations.Contains(RunId))KnownRunGenerations.Add(RunId,0);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);}
+		RunCancellations.Enqueue(RunId);
+	}
+	void RegisterRun(const FString& RunId,uint64 Token,bool Active)
+	{
+		FScopeLock Lock(&RunPendingMutex);KnownRunGenerations.Add(RunId,Token);
+		if(Active)ActiveRunGenerations.Add(RunId,Token);
+	}
+	void RetireRun(const FString& RunId)
+	{
+		FScopeLock Lock(&RunPendingMutex);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);
+	}
+	FVirtualSensorRunRetentionSnapshot SnapshotRetention(const FString& RunId) const
+	{
+		FVirtualSensorRunRetentionSnapshot S;
+		{FScopeLock Lock(&RunPendingMutex);S.ActiveRuns=ActiveRunGenerations.Num();S.RetiringRuns=RetiringRuns.Num();S.CompletedRuns=CompletedRunOrder.Num();S.KnownRunIds=KnownRunGenerations.Num();S.SequenceEntries=ConsumerSequenceIds.Num();S.LateRunEvents=LateRunEvents;
+		 for(const auto& P:RunInvalidFrames)S.InvalidFrameEntries+=P.Value.Num();
+		 if(RunId.IsEmpty()){for(const auto& P:RunEventCounts)S.PendingEvents+=P.Value;}else S.PendingEvents=RunEventCounts.FindRef(RunId);}
+		{FScopeLock Lock(&OutstandingMutex);for(const auto& P:OutstandingFrames)if(RunId.IsEmpty()||P.Value.RunId==RunId)
+		 {S.OutstandingBytes+=P.Value.Bytes;if(P.Value.bQueued)++S.QueuedFrames;else if(P.Value.bSubmitted)++S.ReceiptWaitingFrames;else ++S.SocketWritingFrames;}}
+		return S;
+	}
 	int32 GetRunPending(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunPendingCounts.FindRef(RunId); }
 	int32 GetRunFailures(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunFailureCounts.FindRef(RunId); }
 	void AdjustRunPending(const FVirtualSensorBinaryFrame& Frame,int32 Delta,bool bFailed = false)
@@ -280,6 +308,7 @@ public:
 	{
 		if(!Events.Dequeue(OutEvent)) return false;
 		if(OutEvent.ReceivedData) --PendingReceiveEvents;
+		if(!OutEvent.RunId.IsEmpty()) {FScopeLock Lock(&RunPendingMutex);auto* Count=RunEventCounts.Find(OutEvent.RunId);if(Count&&--*Count<=0)RunEventCounts.Remove(OutEvent.RunId);}
 		return true;
 	}
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& S) { ReceiverChanges.Enqueue(S); }
@@ -291,12 +320,54 @@ private:
 	friend class FSensorRawTerminalLedgerTest;
 	friend class FSensorRawOutstandingLimitTest;
 	friend class FSensorRawReceiptProbeTest;
-	struct FOutstanding { FString Key; int64 Bytes=0; bool bQueued=true; };
+	friend class FSensorRawRunRetentionTest;
+	struct FOutstanding { FString Key; int64 Bytes=0; bool bQueued=true; bool bSubmitted=false; FString RunId; };
 	mutable FCriticalSection OutstandingMutex;
 	TMap<FString,FOutstanding> OutstandingFrames;
 	TMap<FString,int32> OutstandingCounts;
 	TMap<FString,int64> HeldBytesPerStream;
 	int64 HeldBytes=0;
+	void QueueEvent(FWorkerEvent&& Event)
+	{
+		if(!Event.RunId.IsEmpty()){FScopeLock Lock(&RunPendingMutex);++RunEventCounts.FindOrAdd(Event.RunId);}
+		Events.Enqueue(MoveTemp(Event));
+	}
+	bool IsClosedManagedFrame(const FVirtualSensorBinaryFrame& Frame) const
+	{
+		if(!Frame.ManagedRunGeneration)return false;
+		FScopeLock Lock(&RunPendingMutex);
+		return ActiveRunGenerations.FindRef(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))!=Frame.ManagedRunGeneration;
+	}
+	void ProcessRunCancellations()
+	{
+		FString Run;
+		while(RunCancellations.Dequeue(Run))
+		{
+			CancelledRuns.Add(Run);
+			for(auto It=PendingReceipts.CreateIterator();It;++It)if(HeaderValue(It.Value().Frame.Headers,TEXT("x-run-uuid"))==Run)
+			{ReleaseOutstanding(It.Value().Frame);AdjustRunPending(It.Value().Frame,-1);It.RemoveCurrent();}
+			TArray<FVirtualSensorBinaryFrame> Keep;FVirtualSensorBinaryFrame Frame;
+			while(DequeueFrame(Frame))
+			{
+				if(HeaderValue(Frame.Headers,TEXT("x-run-uuid"))==Run){--QueueCounts[static_cast<int32>(Frame.StreamKind)];ReleaseOutstanding(Frame);AdjustRunPending(Frame,-1);}
+				else Keep.Add(MoveTemp(Frame));
+			}
+			DeferredFrames=MoveTemp(Keep); // Older unrelated frames stay ahead of concurrent enqueue.
+		}
+	}
+	void CollectRetiredRuns()
+	{
+		FScopeLock Lock(&RunPendingMutex);
+		for(auto It=RetiringRuns.CreateIterator();It;++It)
+		{
+			const auto& Run=*It;
+			if(RunPendingCounts.FindRef(Run)||RunEventCounts.FindRef(Run))continue;
+			CancelledRuns.Remove(Run);RunInvalidFrames.Remove(Run);RunPendingCounts.Remove(Run);
+			for(auto Sequence=ConsumerSequenceIds.CreateIterator();Sequence;++Sequence)if(Sequence.Value().RunId==Run)Sequence.RemoveCurrent();
+			if(!CompletedRunOrder.Contains(Run))CompletedRunOrder.Add(Run);It.RemoveCurrent();
+		}
+		while(CompletedRunOrder.Num()>20){RunFailureCounts.Remove(CompletedRunOrder[0]);CompletedRunOrder.RemoveAt(0);}
+	}
 	void ReleaseOutstanding(const FVirtualSensorBinaryFrame& Frame)
 	{
 		FScopeLock Lock(&OutstandingMutex); FOutstanding Removed;
@@ -316,7 +387,7 @@ private:
 		Event.SensorId = Frame.SensorId;
 		Event.FrameId = Frame.FrameId;
 		Event.Message = Reason;
-		Events.Enqueue(MoveTemp(Event));
+		QueueEvent(MoveTemp(Event));
 	}
 	bool Connect()
 	{
@@ -450,11 +521,11 @@ private:
 	{
 		int32 SentThisPass = 0;
 		FVirtualSensorBinaryFrame Frame;
-		while (SentThisPass < 8 && Frames.Dequeue(Frame))
+		while (SentThisPass < 8 && DequeueFrame(Frame))
 		{
 			const int32 Index = static_cast<int32>(Frame.StreamKind);
 			--QueueCounts[Index];
-			if (CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { ReleaseOutstanding(Frame); AdjustRunPending(Frame,-1); continue; }
+			if (IsClosedManagedFrame(Frame)||CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { ReleaseOutstanding(Frame); AdjustRunPending(Frame,-1); continue; }
 			{ FScopeLock Lock(&OutstandingMutex); if(auto* Held=OutstandingFrames.Find(Frame.RequestId)) Held->bQueued=false; }
 			if (!SendFrame(Frame, 0))
 			{
@@ -493,6 +564,7 @@ private:
 		Pending.SubmittedSeconds = LastSocketActivitySeconds;
 		Pending.RetryAttempt = RetryAttempt;
 		PendingReceipts.Add(RequestId, MoveTemp(Pending));
+		{FScopeLock Lock(&OutstandingMutex);if(auto* Held=OutstandingFrames.Find(Frame.RequestId))Held->bSubmitted=true;}
 
 		FWorkerEvent Event;
 		Event.Type = EWorkerEventType::Submitted;
@@ -506,7 +578,7 @@ private:
 		Event.ReceiptDepth = CountPendingReceipts(Frame.StreamKind);
 		Event.LatencyMs = static_cast<float>((LastSocketActivitySeconds - Started) * 1000.0);
 		Event.Message = TEXT("Raw TCP STOMP frame submitted; waiting for broker receipt.");
-		Events.Enqueue(MoveTemp(Event));
+		QueueEvent(MoveTemp(Event));
 		return true;
 	}
 
@@ -583,7 +655,7 @@ private:
 				Event.ReceiptDepth = FMath::Max(0, CountPendingReceipts(Pending->Frame.StreamKind) - 1);
 				Event.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - Pending->SubmittedSeconds) * 1000.0);
 				Event.Message = TEXT("Broker receipt received.");
-				Events.Enqueue(MoveTemp(Event));
+				QueueEvent(MoveTemp(Event));
 				AdjustRunPending(Pending->Frame,-1);
 				ReleaseOutstanding(Pending->Frame);
 				PendingReceipts.Remove(ReceiptId);
@@ -669,28 +741,31 @@ private:
 		Event.LatencyMs=SourceUtc.GetTicks()>0?static_cast<float>(FMath::Max(0.0,(FDateTime::UtcNow()-SourceUtc).GetTotalMilliseconds())):0;
 		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+Data->RunId+TEXT("|")+
 			HeaderValue(Frame.Headers,TEXT("x-session-segment"))+TEXT("|")+LexToString(ReceiveSelection.Generation);
-		if(Data->bValid)
 		{
-			const int64* Previous=ConsumerSequenceIds.Find(SequenceKey);
-			if(Previous)
+			FScopeLock Lock(&RunPendingMutex);
+			const bool Closed=KnownRunGenerations.Contains(Data->RunId)&&!ActiveRunGenerations.Contains(Data->RunId);
+			if(Closed)++LateRunEvents;
+			else if(Data->bValid)
 			{
-				if(FrameId<=*Previous) Event.DuplicateDelta=1;
-				else if(FrameId>*Previous+1) Event.GapDelta=FrameId-*Previous-1;
+				const auto* Previous=ConsumerSequenceIds.Find(SequenceKey);
+				if(Previous){if(FrameId<=Previous->FrameId)Event.DuplicateDelta=1;else if(FrameId>Previous->FrameId+1)Event.GapDelta=FrameId-Previous->FrameId-1;}
+				if(!Previous||FrameId>Previous->FrameId)ConsumerSequenceIds.Add(SequenceKey,{FrameId,Data->RunId,++SequenceOrdinal});
+				if(ConsumerSequenceIds.Num()>256)
+				{FString Oldest;uint64 Order=MAX_uint64;for(const auto& P:ConsumerSequenceIds)if(P.Value.Order<Order){Order=P.Value.Order;Oldest=P.Key;}ConsumerSequenceIds.Remove(Oldest);}
 			}
-			if(!Previous||FrameId>*Previous) ConsumerSequenceIds.Add(SequenceKey,FrameId);
 		}
 		Data->FrameGapDelta=Event.GapDelta; Data->bDuplicate=Event.DuplicateDelta>0;
 		if(!Data->bFiltered&&!Data->bValid&&!Data->RunId.IsEmpty())
 		{
 			FScopeLock Lock(&RunPendingMutex);
 			const FString Key=SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId);
-			TSet<FString>& Invalid=RunInvalidFrames.FindOrAdd(Data->RunId);
-			if(!Invalid.Contains(Key)) { Invalid.Add(Key); ++RunFailureCounts.FindOrAdd(Data->RunId); }
+			if(ActiveRunGenerations.Contains(Data->RunId))
+			{TSet<FString>& Invalid=RunInvalidFrames.FindOrAdd(Data->RunId);if(!Invalid.Contains(Key)){Invalid.Add(Key);++RunFailureCounts.FindOrAdd(Data->RunId);}}
 		}
 		Data->ParseLatencyMs=static_cast<float>((FPlatformTime::Seconds()-ParseStarted)*1000.0);
 		if(PendingReceiveEvents.Load()>=256) { ++DroppedReceiveEvents; return; }
 		++PendingReceiveEvents; Event.ReceivedData=MoveTemp(Data);
-		Events.Enqueue(MoveTemp(Event));
+		QueueEvent(MoveTemp(Event));
 	}
 
 	void CheckReceiptTimeouts()
@@ -716,7 +791,7 @@ private:
 			RetryEvent.SensorId = Pending.Frame.SensorId;
 			RetryEvent.FrameId = Pending.Frame.FrameId;
 			RetryEvent.Message = TEXT("Broker receipt timed out; retrying the idempotent frame.");
-			Events.Enqueue(MoveTemp(RetryEvent));
+			QueueEvent(MoveTemp(RetryEvent));
 			if (!SendFrame(Pending.Frame, Pending.RetryAttempt + 1))
 			{
 				FailFrame(Pending.Frame, TEXT("Receipt retry socket write failed."));
@@ -747,7 +822,7 @@ private:
 		FWorkerEvent Event;
 		Event.Type = bNowConnected ? EWorkerEventType::Connected : EWorkerEventType::Disconnected;
 		Event.Message = Message;
-		Events.Enqueue(MoveTemp(Event));
+		QueueEvent(MoveTemp(Event));
 	}
 
 	void CloseSocket()
@@ -784,8 +859,15 @@ private:
 	TAtomic<int64> DroppedReceiveEvents{0};
 	TQueue<FString,EQueueMode::Mpsc> RunCancellations;
 	TSet<FString> CancelledRuns;
-	TMap<FString,int64> ConsumerSequenceIds;
+	struct FConsumerSequence {int64 FrameId=0;FString RunId;uint64 Order=0;};
+	TMap<FString,FConsumerSequence> ConsumerSequenceIds;
+	uint64 SequenceOrdinal=0;
 	mutable FCriticalSection RunPendingMutex;
+	TMap<FString,uint64> KnownRunGenerations,ActiveRunGenerations;
+	TSet<FString> RetiringRuns;
+	TArray<FString> CompletedRunOrder;
+	TMap<FString,int32> RunEventCounts;
+	int64 LateRunEvents=0;
 	TMap<FString,int32> RunPendingCounts;
 	TMap<FString,int32> RunFailureCounts;
 	TMap<FString,TSet<FString>> RunInvalidFrames;
@@ -801,6 +883,12 @@ private:
 	double LastSocketActivitySeconds = 0.0;
 	FVirtualSensorStompParser Parser;
 	TQueue<FVirtualSensorBinaryFrame, EQueueMode::Mpsc> Frames;
+	TArray<FVirtualSensorBinaryFrame> DeferredFrames;
+	bool DequeueFrame(FVirtualSensorBinaryFrame& Frame)
+	{
+		if(DeferredFrames.IsEmpty())return Frames.Dequeue(Frame);
+		Frame=MoveTemp(DeferredFrames[0]);DeferredFrames.RemoveAt(0,1,false);return true;
+	}
 	TQueue<FWorkerEvent, EQueueMode::Mpsc> Events;
 	TAtomic<int32> QueueCounts[3];
 	TMap<FString, FPendingReceipt> PendingReceipts;
@@ -848,6 +936,7 @@ bool UVirtualSensorHighThroughputTransportSubsystem::StartHighThroughputTranspor
 	ActivePasscode = SessionPasscode;
 	Worker = new FVirtualSensorHighThroughputTransportWorker(Profile, SessionPasscode);
 	Worker->ConfigureReceiver(ReceiverSelection);
+	for(const auto& Run:KnownManagedRuns)Worker->RegisterRun(Run.Key,Run.Value,ActiveManagedRuns.Contains(Run.Key));
 	if (!Worker->Start())
 	{
 		delete Worker;
@@ -896,6 +985,9 @@ bool UVirtualSensorHighThroughputTransportSubsystem::EnqueueBinaryFrame(
 	const FVirtualSensorBinaryFrame& Frame,
 	FString& OutError)
 {
+	const FString RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
+	if(KnownManagedRuns.Contains(RunId)&&!ActiveManagedRuns.Contains(RunId))
+	{OutError=TEXT("종료된 실행의 프레임은 접수할 수 없습니다.");return false;}
 	if (!Worker || !Worker->IsRunning())
 	{
 		OutError = TEXT("High-throughput transport is not running.");
@@ -942,7 +1034,31 @@ TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsy
 
 void UVirtualSensorHighThroughputTransportSubsystem::CancelRun(const FString& RunId)
 {
+	ActiveManagedRuns.Remove(RunId);
+	if(!RunId.IsEmpty()&&!KnownManagedRuns.Contains(RunId))KnownManagedRuns.Add(RunId,++NextManagedRunGeneration);
 	if (Worker) Worker->CancelRun(RunId);
+}
+
+bool UVirtualSensorHighThroughputTransportSubsystem::RegisterManagedRun(const FString& RunId)
+{
+	if(!IsInGameThread()||RunId.IsEmpty())return false;
+	if(KnownManagedRuns.Contains(RunId))return ActiveManagedRuns.Contains(RunId);
+	const uint64 Generation=++NextManagedRunGeneration;KnownManagedRuns.Add(RunId,Generation);ActiveManagedRuns.Add(RunId,Generation);
+	if(Worker)Worker->RegisterRun(RunId,Generation,true);return true;
+}
+void UVirtualSensorHighThroughputTransportSubsystem::RetireManagedRun(const FString& RunId)
+{
+	ActiveManagedRuns.Remove(RunId);if(Worker)Worker->RetireRun(RunId);
+}
+FVirtualSensorRunRetentionSnapshot UVirtualSensorHighThroughputTransportSubsystem::GetRunRetentionSnapshot(const FString& RunId) const
+{
+	auto S=Worker?Worker->SnapshotRetention(RunId):FVirtualSensorRunRetentionSnapshot();
+	S.KnownRunIds=KnownManagedRuns.Num();return S;
+}
+void UVirtualSensorHighThroughputTransportSubsystem::FlushRunObservations(const FString& RunId)
+{
+	// A bounded game-thread drain; no worker waits for this callback.
+	for(int32 Pass=0;Worker&&Pass<4&&Worker->SnapshotRetention(RunId).PendingEvents>0;++Pass)DrainWorkerEvents();
 }
 
 int32 UVirtualSensorHighThroughputTransportSubsystem::GetPendingRunFrameCount(const FString& RunId) const
@@ -1084,6 +1200,37 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawRunRetentionTest,"MA0T10.SlabReliability.RawRunRetention",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorRawRunRetentionTest::RunTest(const FString&)
+{
+	FVirtualSensorHighThroughputProfile Profile;FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};
+	FVirtualSensorStompFrame Message;Message.Command=TEXT("MESSAGE");Message.Body={0xff,0xd8,0xff,0xd9};
+	Message.Headers.Add(TEXT("schema"),TEXT("virtual-camera.jpeg.v1"));Message.Headers.Add(TEXT("sensor-id"),TEXT("retention-camera"));Message.Headers.Add(TEXT("frame-id"),TEXT("1"));
+	FVirtualSensorBinaryFrame Binary;Binary.SensorId=TEXT("retention-camera");Binary.StreamKind=EVirtualSensorStreamKind::CameraImage;Binary.FrameId=1;Binary.Body32=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(Message.Body);
+	FString First;
+	for(int32 I=1;I<=45;++I)
+	{
+		const FString Run=FGuid::NewGuid().ToString();if(I==1)First=Run;
+		Worker.RegisterRun(Run,I,true);Message.Headers.Add(TEXT("x-run-uuid"),Run);Binary.Headers.Add(TEXT("x-run-uuid"),Run);
+		Worker.ValidateConsumedFrame(Message);Worker.AdjustRunPending(Binary,0,true);
+		Worker.RetireRun(Run);Worker.CollectRetiredRuns();TestEqual(TEXT("queued observation protects run until delivered"),Worker.SnapshotRetention(Run).RetiringRuns,1);
+		FWorkerEvent Event;while(Worker.DequeueEvent(Event)){}Worker.CollectRetiredRuns();
+		const auto Snapshot=Worker.SnapshotRetention(Run);
+		TestEqual(TEXT("retired sequence state released"),Snapshot.SequenceEntries,0);TestTrue(TEXT("completed diagnostics bounded"),Snapshot.CompletedRuns<=20);TestEqual(TEXT("no retained event"),Snapshot.PendingEvents,0);
+	}
+	TestEqual(TEXT("minimal ownership IDs retained separately"),Worker.SnapshotRetention(FString()).KnownRunIds,45);
+	TestEqual(TEXT("only twenty failure aggregates retained"),Worker.RunFailureCounts.Num(),20);
+	FString Error;Binary.Headers.Add(TEXT("x-run-uuid"),First);Binary.RequestId=TEXT("late-frame");TestFalse(TEXT("late enqueue rejected after history eviction"),Worker.Enqueue(Binary,Error));
+	Message.Headers.Add(TEXT("x-run-uuid"),First);Worker.ValidateConsumedFrame(Message);TestEqual(TEXT("late MESSAGE cannot resurrect sequence"),Worker.SnapshotRetention(FString()).SequenceEntries,0);
+	FWorkerEvent Event;while(Worker.DequeueEvent(Event)){}TestTrue(TEXT("late result diagnosed"),Worker.SnapshotRetention(FString()).LateRunEvents>0);
+	const FString Current=FGuid::NewGuid().ToString();Worker.RegisterRun(Current,46,true);Binary.Headers.Add(TEXT("x-run-uuid"),Current);Binary.RequestId=TEXT("cancel-queued");TestTrue(TEXT("current frame queued"),Worker.Enqueue(Binary,Error));
+	FVirtualSensorBinaryFrame Independent=Binary;Independent.Headers.Reset();Independent.RequestId=TEXT("independent");TestTrue(TEXT("independent frame queued"),Worker.Enqueue(Independent,Error));
+	Worker.CancelRun(Current);Worker.ProcessRunCancellations();Worker.CollectRetiredRuns();
+	TestEqual(TEXT("cancelled run returns bytes even while disconnected"),Worker.SnapshotRetention(Current).OutstandingBytes,int64(0));
+	TestEqual(TEXT("unrelated independent frame remains"),Worker.SnapshotRetention(FString()).QueuedFrames,1);
+	Worker.StopWorker();TestEqual(TEXT("stop returns all bytes"),Worker.SnapshotRetention(FString()).OutstandingBytes,int64(0));return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawReceiptProbeTest,"MA0T10.SensorStream.RawReceiptProbe",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorRawReceiptProbeTest::RunTest(const FString&)
 {

@@ -82,6 +82,8 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 /** Shared immutable frame handed directly to the socket worker. */
 struct MA0T10_DT_API FVirtualSensorBinaryFrame
 {
+	// Process-local ownership token; never serialized into STOMP or PCD.
+	uint64 ManagedRunGeneration = 0;
 	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 	FString SensorId;
 	int64 FrameId = 0;
@@ -99,6 +101,14 @@ struct MA0T10_DT_API FVirtualSensorBinaryFrame
 };
 
 class FVirtualSensorHighThroughputTransportWorker;
+
+struct FVirtualSensorRunRetentionSnapshot
+{
+	int32 ActiveRuns=0,RetiringRuns=0,CompletedRuns=0,KnownRunIds=0;
+	int32 SequenceEntries=0,InvalidFrameEntries=0,PendingEvents=0;
+	int32 QueuedFrames=0,SocketWritingFrames=0,ReceiptWaitingFrames=0;
+	int64 OutstandingBytes=0,LateRunEvents=0;
+};
 
 struct FVirtualSensorReceiveSelection
 {
@@ -162,6 +172,10 @@ public:
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
+	bool RegisterManagedRun(const FString& RunId);
+	void RetireManagedRun(const FString& RunId);
+	FVirtualSensorRunRetentionSnapshot GetRunRetentionSnapshot(const FString& RunId=FString()) const;
+	void FlushRunObservations(const FString& RunId);
 	int32 GetPendingRunFrameCount(const FString& RunId) const;
 	int32 GetFailedRunFrameCount(const FString& RunId) const;
 
@@ -176,6 +190,9 @@ public:
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);
 
 private:
+	TMap<FString,uint64> KnownManagedRuns;
+	TMap<FString,uint64> ActiveManagedRuns;
+	uint64 NextManagedRunGeneration=0;
 	bool bTransportConnected=false;
 	int64 ConnectionRevision=0;
 	FString ConnectionMessage;
