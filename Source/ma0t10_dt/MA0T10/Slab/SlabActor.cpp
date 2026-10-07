@@ -44,7 +44,9 @@ void ASlabActor::OnConstruction(const FTransform& Transform)
 { Super::OnConstruction(Transform); UpdateDimensions(); UpdateAppearance(); }
 void ASlabActor::BeginPlay()
 {
-	Super::BeginPlay(); InitialTrackTransform=GetActorTransform(); InitialTrackTransform.SetScale3D(FVector::OneVector);
+	InitialPlacementTransform=GetActorTransform();
+	bInitialPlacementCaptured=!InitialPlacementTransform.ContainsNaN();
+	Super::BeginPlay(); InitialTrackTransform=InitialPlacementTransform; InitialTrackTransform.SetScale3D(FVector::OneVector);
 	MotionComponent->OnPoseApplied.BindUObject(this,&ASlabActor::OnSlabPoseApplied);
 	UpdateDimensions(); UpdateAppearance(); VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings); VisualizationComponent->UpdateGeometry(GetSizeCm());
 	if(UGameInstance* GI=GetGameInstance())
@@ -238,6 +240,39 @@ bool ASlabActor::SetSimulationPaused(bool bPaused)
 	MotionComponent->SetPlaybackPaused(bPaused); OnSlabStateChanged.Broadcast(); return true;
 }
 void ASlabActor::StopSimulation() { ++ParseGeneration; bParsing=false; if(IsSimulationActive()) FinishSimulation(true); }
+bool ASlabActor::CanResetToInitialPlacement(FString& OutReason) const
+{
+	OutReason.Empty();
+	if(!IsInGameThread()) { OutReason=TEXT("초기 위치 복귀는 게임 스레드에서 호출해야 합니다."); return false; }
+	if(bEnding||!HasActorBegunPlay()||!GetWorld()) { OutReason=TEXT("실행 중인 Slab Actor가 필요합니다."); return false; }
+	if(!bInitialPlacementCaptured) { OutReason=TEXT("레벨의 초기 배치 자세가 준비되지 않았습니다."); return false; }
+	if(bParsing) { OutReason=TEXT("시나리오 데이터를 준비 중입니다."); return false; }
+	if(IsSimulationActive()||(MotionComponent&&MotionComponent->IsPlaybackRunning()))
+	{ OutReason=TEXT("중단 후 송신 정리가 끝나면 초기 위치로 복귀할 수 있습니다."); return false; }
+	if(const auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
+		if(Replay->IsReplayBusy()) { OutReason=TEXT("재생 준비·재생·송신 정리가 끝난 뒤 사용할 수 있습니다."); return false; }
+	if(const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	{
+		const auto State=Session->GetSlabSensorSessionStatus().State;
+		if(State==EVirtualSlabSessionState::Ready||State==EVirtualSlabSessionState::Running||State==EVirtualSlabSessionState::Paused||State==EVirtualSlabSessionState::Draining)
+		{ OutReason=TEXT("센서 송신 정리가 끝난 뒤 초기 위치로 복귀할 수 있습니다."); return false; }
+	}
+	return true;
+}
+bool ASlabActor::ResetToInitialPlacement(FString& OutError)
+{
+	if(!CanResetToInitialPlacement(OutError))return false;
+	if(MotionComponent)MotionComponent->StopPlayback();
+	++ParseGeneration;
+	const bool Moved=SetActorLocationAndRotation(InitialPlacementTransform.GetLocation(),InitialPlacementTransform.GetRotation(),false,nullptr,ETeleportType::TeleportPhysics);
+	if(!Moved) { OutError=TEXT("Slab의 초기 배치 자세를 적용하지 못했습니다."); return false; }
+	// 마지막 형상과 보관 데이터는 유지한다. 이 자세는 새로운 시나리오 프레임이 아니다.
+	Status=FSlabSimulationStatus(); Status.FrameNo=INDEX_NONE; Status.RowIndex=INDEX_NONE;
+	Status.Message=TEXT("초기 배치 복귀 완료 · 대기"); LastNotifiedIndex=INDEX_NONE;
+	if(MetricsComponent)MetricsComponent->Update(FSlabMetrics());
+	OnSlabStateChanged.Broadcast();
+	return true;
+}
 void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 {
 	if(!IsSimulationActive()) return;

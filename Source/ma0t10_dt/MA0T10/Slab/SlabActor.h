@@ -45,6 +45,8 @@ public:
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool StartSyntheticScenario();
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool SetSimulationPaused(bool bPaused);
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") void StopSimulation();
+	UFUNCTION(BlueprintPure,Category="Slab|Simulation") bool CanResetToInitialPlacement(FString& OutReason) const;
+	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool ResetToInitialPlacement(FString& OutError);
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabSimulationStatus GetSimulationStatus() const { return Status; }
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabScenarioAdmissionStatus GetLastScenarioAdmissionStatus() const { return LastAdmission; }
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabMetrics GetCurrentMetrics() const;
@@ -100,6 +102,8 @@ private:
 	UPROPERTY(Transient) FSlabScenarioAdmissionStatus LastAdmission;
 	FSlabScenarioDataPtr Scenario;
 	FTransform InitialTrackTransform;
+	FTransform InitialPlacementTransform;
+	bool bInitialPlacementCaptured=false;
 	int32 LastNotifiedIndex=INDEX_NONE;
 	uint64 ParseGeneration=0;
 	bool bParsing=false;
