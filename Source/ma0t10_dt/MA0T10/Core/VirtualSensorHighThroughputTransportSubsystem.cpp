@@ -439,6 +439,18 @@ private:
 		}
 		Socket->SetNonBlocking(true);
 
+		// A nonblocking Connect can be accepted before TCP is ready. Wait for
+		// writability rather than treating an in-progress socket as STOMP-ready.
+		bool TcpReady=false;
+		const double TcpDeadline=FPlatformTime::Seconds()+FMath::Clamp(Profile.ConnectTimeoutSeconds,1,120);
+		while(!bStopRequested.Load()&&FPlatformTime::Seconds()<TcpDeadline)
+		{
+			ProcessRunCancellations();CollectRetiredRuns();
+			if(Socket->Wait(ESocketWaitConditions::WaitForWrite,FTimespan::FromMilliseconds(10))&&Socket->GetConnectionState()==SCS_Connected){TcpReady=true;break;}
+			if(Socket->GetConnectionState()==SCS_ConnectionError)break;
+		}
+		if(!TcpReady){PushConnectionEvent(false,TEXT("TCP connection did not become ready within its deadline."));CloseSocket();return false;}
+
 		FString ConnectFrame = FString::Printf(
 			TEXT("CONNECT\naccept-version:1.2\nhost:%s\nlogin:%s\npasscode:%s\nheart-beat:%d,%d\n\n"),
 			*FVirtualSensorStompParser::EscapeHeader(Host),

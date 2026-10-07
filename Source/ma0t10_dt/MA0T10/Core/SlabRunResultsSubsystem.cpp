@@ -31,6 +31,12 @@ void USlabRunResultsSubsystem::Tick(float)
 }
 TStatId USlabRunResultsSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(USlabRunResultsSubsystem,STATGROUP_Tickables);}
 void USlabRunResultsSubsystem::Changed(bool Broadcast){++ResultsRevision;if(Broadcast&&!bEnding)OnResultsChanged.Broadcast();}
+#if WITH_DEV_AUTOMATION_TESTS
+TArray<USlabRunResultsSubsystem::FFrameAudit> USlabRunResultsSubsystem::GetRunFrameAuditForTesting(const FString& Run) const
+{
+    TArray<FFrameAudit> Audit;if(Run==ActiveRun){Audit.Reserve(Requests.Num());for(const auto& P:Requests)if(P.Value.Flags&LedgerAccepted)Audit.Add({P.Key,P.Value.RequestId,P.Value.Flags});}return Audit;
+}
+#endif
 FSlabRunDeliverySummary* USlabRunResultsSubsystem::Find(const FString& Run){return Results.FindByPredicate([&](const auto& R){return R.RunUUID==Run;});}
 bool USlabRunResultsSubsystem::GetRunResult(const FString& Run,FSlabRunDeliverySummary& Out) const
 {if(const auto* R=Results.FindByPredicate([&](const auto& Item){return Item.RunUUID==Run;})){Out=*R;return true;}return false;}
@@ -118,9 +124,10 @@ void USlabRunResultsSubsystem::Finalize(const FVirtualSlabSessionStatus& S,bool 
     if(!S.RequiredDataError.IsEmpty())R->Reason=S.RequiredDataError;else if(R->Reason.IsEmpty())R->Reason=S.Message;
     R->Outcome=PreparationFailed?ESlabRunDeliveryOutcome::PreparationFailed:
         !S.RequiredDataError.IsEmpty()||S.State==EVirtualSlabSessionState::Incomplete||R->DeliveryFailures||R->AcquisitionFailures||R->Unfinished?ESlabRunDeliveryOutcome::Partial:
-        S.bAborted?ESlabRunDeliveryOutcome::UserStopped:!R->Outputs.HasAnyOutput()?ESlabRunDeliveryOutcome::ObservationCompleted:
+        S.bAborted?ESlabRunDeliveryOutcome::UserStopped:(!R->Outputs.HasAnyOutput()||S.bObservationOnly||!S.Outputs.HasAnyOutput())?ESlabRunDeliveryOutcome::ObservationCompleted:
         R->Accepted>0&&R->Receipts==R->Accepted?ESlabRunDeliveryOutcome::BrokerAccepted:ESlabRunDeliveryOutcome::Partial;
-    if(R->ConsumerInvalid)R->Warning=TEXT("자체 수신 검증 실패가 있습니다. Broker 수락과 별도 결과입니다.");
+    if(R->Outcome==ESlabRunDeliveryOutcome::ObservationCompleted&&R->Outputs.HasAnyOutput())R->Warning=TEXT("요청한 출력은 미송신이며 관찰만 완료했습니다.");
+    if(R->ConsumerInvalid){if(!R->Warning.IsEmpty())R->Warning+=TEXT("\n");R->Warning+=TEXT("자체 수신 검증 실패가 있습니다. Broker 수락과 별도 결과입니다.");}
     R->SaveState=TEXT("저장 요청 접수");QueueReport(*R);Changed(true);
 }
 FString USlabRunResultsSubsystem::SerializeSummary(const FSlabRunDeliverySummary& S)

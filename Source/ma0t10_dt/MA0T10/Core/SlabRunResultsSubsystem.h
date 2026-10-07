@@ -15,6 +15,10 @@ class MA0T10_DT_API USlabRunResultsSubsystem : public UTickableWorldSubsystem
 {
     GENERATED_BODY()
 public:
+#if WITH_DEV_AUTOMATION_TESTS
+    struct FFrameAudit { FString Key,RequestId;uint8 Flags=0; };
+    TArray<FFrameAudit> GetRunFrameAuditForTesting(const FString& Run) const;
+#endif
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
     virtual void Tick(float Delta) override;

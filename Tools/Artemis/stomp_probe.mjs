@@ -385,7 +385,7 @@ socket.addEventListener('message', async event => {
       };
       if (args.has('--metadata-ledger')) {
         if(metadataLedger.length>=300000) { report(false,'metadata ledger capacity exceeded');socket.close();return; }
-        metadataLedger.push({requestId:entry.requestId,sensorId:entry.sensorId,frameId:entry.frameId,destination,
+        metadataLedger.push({requestId:entry.requestId,runId:entry.runId,sensorId:entry.sensorId,frameId:entry.frameId,destination,
           acquisitionUtc:entry.acquisitionUtc,receivedUtc:entry.receivedUtc,valid:entry.valid,checksum:entry.checksum});
       }
       if (requiredSlabRuns > 0) {

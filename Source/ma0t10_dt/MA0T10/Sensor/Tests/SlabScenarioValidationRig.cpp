@@ -1,4 +1,5 @@
 #include "SlabScenarioValidationRig.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -152,6 +153,17 @@ void ASlabScenarioValidationRig::WriteReport()
         Streams.Add(MakeShared<FJsonValueObject>(R));
     }
     Root->SetArrayField(TEXT("streams"),Streams);
+    const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();const auto Held=Raw->GetRunRetentionSnapshot();
+    auto Retention=MakeShared<FJsonObject>();Retention->SetNumberField(TEXT("worker_serial"),Raw->GetWorkerInstanceSerial());Retention->SetNumberField(TEXT("connection_revision"),Raw->GetConnectionRevision());
+    Retention->SetNumberField(TEXT("active_runs"),Held.ActiveRuns);Retention->SetNumberField(TEXT("retiring_runs"),Held.RetiringRuns);Retention->SetNumberField(TEXT("completed_runs"),Held.CompletedRuns);Retention->SetNumberField(TEXT("minimal_known_ids"),Held.KnownRunIds);
+    Retention->SetNumberField(TEXT("sequence_entries"),Held.SequenceEntries);Retention->SetNumberField(TEXT("invalid_frame_entries"),Held.InvalidFrameEntries);Retention->SetNumberField(TEXT("pending_events"),Held.PendingEvents);Retention->SetNumberField(TEXT("outstanding_bytes"),Held.OutstandingBytes);
+    Root->SetObjectField(TEXT("retention"),Retention);
+#if WITH_DEV_AUTOMATION_TESTS
+    TArray<TSharedPtr<FJsonValue>> Audit;
+    for(const auto& A:GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunFrameAuditForTesting(S.RunUUID))
+    {auto Item=MakeShared<FJsonObject>();Item->SetStringField(TEXT("key"),A.Key);Item->SetStringField(TEXT("request_id"),A.RequestId);Item->SetNumberField(TEXT("flags"),A.Flags);Audit.Add(MakeShared<FJsonValueObject>(Item));}
+    Root->SetArrayField(TEXT("accepted_requests"),Audit);
+#endif
     const FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/Slab");IFileManager::Get().MakeDirectory(*Dir,true);
     FString Text;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Text));
     FFileHelper::SaveStringToFile(Text,*(Dir/(S.RunUUID+TEXT(".json"))),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);

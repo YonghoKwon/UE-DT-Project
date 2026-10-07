@@ -39,6 +39,9 @@ bool FSlabRunHistoryTest::RunTest(const FString&)
  Panel->SetVisibility(ESlateVisibility::Visible);Panel->RefreshNativeText();TestEqual(TEXT("show preserves selection"),Panel->GetSelectedScenarioRunId(),Run);
  for(int I=0;I<21;++I)Results->BeginRun(FGuid::NewGuid().ToString(),Scenario,ESlabExecutionPolicy::ObservationAllowed,FVirtualSlabSensorOutputSelection::ObservationOnly());Panel->RefreshRunResults();
  TestNotEqual(TEXT("evicted selection falls back to latest"),Panel->GetSelectedScenarioRunId(),Run);TestFalse(TEXT("eviction notice visible"),Panel->RunSelectionNotice.IsEmpty());TestEqual(TEXT("selector bounded"),Panel->RunResultOptions.Num(),20);
+ const auto Fallback=FGuid::NewGuid().ToString();Results->BeginRun(Fallback,Scenario,ESlabExecutionPolicy::ObservationAllowed,FVirtualSlabSensorOutputSelection());
+ Status.RunId=Fallback;Status.bObservationOnly=true;Status.Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Results->Finalize(Status);Results->GetRunResult(Fallback,After);
+ TestEqual(TEXT("allowed observation fallback has observation outcome"),After.Outcome,ESlabRunDeliveryOutcome::ObservationCompleted);TestTrue(TEXT("requested but unsent output remains explicit"),After.Outputs.bPointCloud&&!After.AppliedOutputs.bPointCloud&&!After.Warning.IsEmpty());
  W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->UnregisterPanel(Panel);return true;
 }
 #endif

@@ -1,13 +1,15 @@
-param([string[]]$Modes=@('auth','delay','close','no_receipt','overload','delete'))
+param([string[]]$Modes=@('auth','delay','close','no_receipt','overload','delete'),[ValidateRange(1,2)][int]$Cycles=1,[string]$ReportDirectory='Saved/Reports/ScenarioDataReliability/faults')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$report=Join-Path $root 'Saved/Reports/ScenarioDataReliability/faults'
+$report=Join-Path $root $ReportDirectory
 New-Item -ItemType Directory -Force $report | Out-Null
 $previous=$env:MA0T10_SCENARIO_FAULT_MODE
+$previousCycles=$env:MA0T10_SCENARIO_FAULT_CYCLES
 foreach($mode in $Modes){
     if($mode -notin @('auth','delay','close','no_receipt','overload','delete')){throw 'Unknown fixture mode'}
     $server=$null
     try{
+        $env:MA0T10_SCENARIO_FAULT_CYCLES="$Cycles"
         $server=Start-Process node -ArgumentList @("`"$(Join-Path $root 'Tools/Artemis/scenario_fault_server.mjs')`"",'--mode',$mode,'--port','18679','--report',"`"$(Join-Path $report ($mode+'.server.json'))`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $report ($mode+'.server.log')) -RedirectStandardError (Join-Path $report ($mode+'.server.err'))
         $limit=[DateTime]::UtcNow.AddSeconds(10)
         while(-not (Test-Path (Join-Path $report ($mode+'.server.json')))){if($server.HasExited -or [DateTime]::UtcNow -gt $limit){throw 'Fixture failed to start'};Start-Sleep -Milliseconds 100}
@@ -17,6 +19,7 @@ foreach($mode in $Modes){
         Write-Output "Fault fixture passed: $mode"
     }finally{
         $env:MA0T10_SCENARIO_FAULT_MODE=$previous
+        $env:MA0T10_SCENARIO_FAULT_CYCLES=$previousCycles
         if($server -and -not $server.HasExited){Stop-Process -Id $server.Id}
     }
 }

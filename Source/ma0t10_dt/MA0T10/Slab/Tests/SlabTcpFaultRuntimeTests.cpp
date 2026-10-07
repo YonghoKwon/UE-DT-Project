@@ -19,6 +19,7 @@ namespace
 class FSlabTcpFaultCheck : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;FString Mode,Run;double Started=FPlatformTime::Seconds();int Stage=0;bool WasPlaying=false;
+    int CyclesDone=0;TSet<FString> PreviousRuns;
     TWeakObjectPtr<ASlabActor> Slab;TWeakObjectPtr<AVirtualLidarSensorActor> Lidar;TWeakObjectPtr<AVirtualSensorCoordinator> Manager;FTransform Placement;
 public:
     FSlabTcpFaultCheck(FAutomationTestBase* T,FString M):Test(T),Mode(M){}
@@ -57,7 +58,10 @@ public:
         {Test->TestTrue(TEXT("fault happens after actual start"),WasPlaying);Test->TestEqual(TEXT("fault stops movement"),Slab->GetSimulationStatus().State,ESlabSimulationState::Failed);Test->TestTrue(TEXT("movement stopped before end"),S.ElapsedSec<60);Test->TestEqual(TEXT("network failure recorded as partial"),R.Outcome,ESlabRunDeliveryOutcome::Partial);}
         Test->TestFalse(TEXT("report saved without sensor body"),R.ReportPath.IsEmpty());FString Reason;Test->TestTrue(TEXT("drain completion permits initial reset"),Slab->ResetToInitialPlacement(Reason));
         FSlabRunDeliverySummary After;Test->TestTrue(TEXT("reset retains run result"),Results->GetRunResult(Run,After));Test->TestEqual(TEXT("reset preserves prior outcome"),After.Outcome,R.Outcome);
-        Slab->Destroy();if(Lidar.IsValid())Lidar->Destroy();Manager->Destroy();return true;
+        Test->TestFalse(TEXT("fault repeat uses fresh run"),PreviousRuns.Contains(Run));PreviousRuns.Add(Run);
+        Slab->Destroy();if(Lidar.IsValid())Lidar->Destroy();Manager->Destroy();
+        const int Cycles=FMath::Clamp(FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SCENARIO_FAULT_CYCLES"))),1,2);
+        if(++CyclesDone<Cycles){Stage=0;WasPlaying=false;Started=FPlatformTime::Seconds();return false;}return true;
     }
 };
 }

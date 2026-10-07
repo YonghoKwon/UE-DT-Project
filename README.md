@@ -1,8 +1,17 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`3c9c95c` 기반 시나리오 송신 신뢰성·센서 설정 적용 개선, DTCore `b2504d1`, 2026-10-07**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+현재 기능 기준: **`eb5d2de` 기반 Slab 반복 실행·종료 결과·현재 PIE 결과 조회 개선, DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
+
+## 2026-10-08 Slab 반복 실행과 결과 조회 검증
+
+- 같은 월드·Raw worker·연결로 30초×10회 PCD 전용과 세 출력 실행을 검사했다. PCD 전용6,000건, 세 출력 Camera8,999/LiDAR정보6,000/PCD6,000건의 승인 request ID·제출·receipt·실제 내부 검증·독립 외부 수신을 대조했다. invalid/gap/duplicate/overflow0, 복귀 추가 제출0, 종료 outstanding bytes/sequence0이다.
+- 실제1920×1080에서 최종 반복은 PCD59.90~60.00FPS·1% low≥52.91, 세 출력59.91~59.99FPS·1% low≥54.27, p95≤16.672ms. 같은 조건 변경 전후 각3회의 중앙값 FPS는 PCD59.96→59.99, 세 출력59.89→59.96이며 p95 증가5% 이내다. 장비는 현재 RTX4070Ti/UE5.3 한 대 구성이다.
+- 최초 반복 후반 p95약25ms와 ISM update 최대15.9ms를 trace로 재현했다. 진단 미리보기 인스턴스의 충돌/물리/navigation을 제외한 뒤 같은 후반30초 갱신 inclusive2.122초→0.044초, 최대0.291ms를 확인했다. 점 수·센서 측정 규격은 동일하다. 과거 다른 SHA/조건의24.9ms 기록과 모든 PC 지원은 별도다.
+- 최종 D3D12 `MA0T10`203개 목록 중 최초202 Success/1 Fail(외부 publisher 준비 누락), 실제 `topic.scenario` 발행을 준비한 해당 시험 재검증 통과. 명시 opt-in skip5개는 제외해 실제198개 수행으로 구분한다. TCP 장애6종 각2회, 집중 종료/저장/preview isolation 및 WBP6개 메모리 컴파일/저장0을 확인했다.
+- 직접 client1174×683에서 결과 선택·숨김 보존·저장 실패→mouse retry→실제 저장 완료·초기 복귀 결과 보존·9.37초 중단/187 receipt·UUID 복사를 확인했다. 목표1280×720·1920×1080 전체 직접 조작 및 직접 준비 취소는 미완료다. 자동화 exact1920과 구분한다.
+- 세부 증거·원본 실패·제한: `Saved/Reports/SlabRepeatRunStability/FINAL_STATUS.md`. 재현: `Scripts/run_slab_repeat_stability.ps1 -Repeated [-AllOutputs]`, `Scripts/analyze_slab_repeat_stability.ps1`. DTCore/운영맵/개인 UI 저장값은 보존했다.
 
 ## 2026-10-06 main 기반 최소 DTCore 적용
 
@@ -191,8 +200,13 @@ GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 
 - 준비/실행/drain 동안 해당 센서의 규격 편집과 경량 조작 모드는 잠근다. 센서 설정 적용은 원래 실행/정지 상태를 유지하고 Scheduler로 갱신하며, 설정 적용 때문에 동기 캡처·스캔·파일 저장을 추가하지 않는다. NaN/무한대는 거절한다.
 - 결과는 `준비 실패 / 사용자 중단 / 부분 전송 / Broker 수락 완료 / 관찰 완료`로 표시한다. Broker 수락은 해당 실행의 승인 프레임 receipt 기준이며 측정률·자체 검증·외부 업무 처리는 별개다.
 - 진행 패널과 데이터의 `연결·진단 → 실행별 전송 결과`에서 최근 20개 요약을 확인한다. 초기 위치 복귀·새 실행·목록 삭제에도 이전 요약을 유지한다. 결과 폴더에는 작은 JSON만 저장하며, 기본 100개를 넘으면 이 기능의 schema/파일명에 해당하는 파일만 정리한다. 저장 실패는 전송 실패와 구분한다.
+- 목록에서 실행을 선택하면 전체 실행/시나리오 UUID, 요청/적용 출력, 대상 센서와 설정 revision, 기록 시점의 측정률, 종료 사유를 확인한다. 새 실행과 패널 숨김은 선택을 유지한다. 선택 항목이 20개 범위에서 빠지면 최신 결과를 선택하고 안내한다. 이전 PIE의 파일은 목록으로 불러오지 않는다.
+- `실행 UUID 복사`와 `선택 결과 폴더 열기`를 제공한다. 저장 실패 시 `요약 저장 재시도`는 같은 확정 JSON만 다시 저장한다. 중복 클릭/저장 중/미확정 결과는 거절하며 시나리오 재생이나 Topic 재전송은 시작하지 않는다.
+- 종료 JSON의 `terminalSnapshot`은 정리 직전 측정·출력 준비·socket 대기/기록·receipt 대기를 구분한다. `uniqueUnfinished`는 요청 식별자를 합쳐 중복을 제거한 값이다. 단계별 수를 단순 합산하지 않는다. `consumerSnapshotUtc` 이후 도착한 자체 검증은 이미 확정한 결과를 바꾸지 않는다.
+- 같은 연결에서 재생할 때 종료된 상세 진단은 회수하고 최근 종료 집계만 20개 보관한다. 재사용/늦은 프레임을 차단하는 최소 UUID·generation 기록은 별도로 유지한다. 이는 65,536건 실행별 ledger 제한을 없애거나 장시간 수집을 인증하는 변경이 아니다.
 - 파일: `Saved/Reports/ScenarioRuns/slab-run-<RunUUID>.json`, schema `ma0t10.slab-run.v1`. 원본 PCD/JPEG·인증 정보는 포함하지 않는다. 실행 중 진단 식별자는 65,536건으로 제한하며 초과를 명시적 오류로 처리한다. 장시간 수집 지원 인증은 별도다.
 - API: `FSlabExecutionOptions`, `ASlabActor::SetExecutionOptions`, `RequestScenarioReplayWithExecutionOptions`, `USlabRunResultsSubsystem::GetRecentRunResults/GetRunResult/OpenRunReport`. 기존 재생 API는 기본 관찰 정책으로 유지한다. 사용자 WBP는 데이터 패널의 `SetLiveScenarioExecutionOptions/GetScenarioRunResults/OpenScenarioRunReport`를 사용할 수 있다.
+- 추가 API: 결과 Subsystem의 `CanRetryRunReportSave/RetryRunReportSave/GetResultsRevision`, 데이터 패널의 `SelectScenarioRunResult/GetSelectedScenarioRunResult/GetSelectedScenarioRunId/RetrySelectedScenarioRunReport`. 기존 함수·schema·PCD/JPEG 계약은 유지한다.
 
 ### 초기 배치로 복귀
 
