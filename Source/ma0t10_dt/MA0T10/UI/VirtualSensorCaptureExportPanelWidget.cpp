@@ -85,6 +85,63 @@ TArray<FSlabRunDeliverySummary> UVirtualSensorCaptureExportPanelWidget::GetScena
 {const auto* R=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return R?R->GetRecentRunResults():TArray<FSlabRunDeliverySummary>();}
 bool UVirtualSensorCaptureExportPanelWidget::OpenScenarioRunReport(const FString& Run)
 {auto* R=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return R&&R->OpenRunReport(Run);}
+bool UVirtualSensorCaptureExportPanelWidget::SelectScenarioRunResult(const FString& Run)
+{
+	FSlabRunDeliverySummary R;const auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;
+	if(!Results||!Results->GetRunResult(Run,R))return false;
+	SelectedScenarioRunId=Run;RunSelectionNotice.Reset();CachedRunResultsRevision=-1;return true;
+}
+bool UVirtualSensorCaptureExportPanelWidget::GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const
+{const auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return Results&&Results->GetRunResult(SelectedScenarioRunId,Result);}
+bool UVirtualSensorCaptureExportPanelWidget::RetrySelectedScenarioRunReport(FString& Reason)
+{auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;const bool Success=Results&&Results->RetryRunReportSave(SelectedScenarioRunId,Reason);LastUiMessage=Success?TEXT("요약 JSON 저장을 다시 요청했습니다."):Reason;CachedRunResultsRevision=-1;return Success;}
+
+TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsContent()
+{
+	CachedRunResultsRevision=-1;
+	return SNew(SVerticalBox)
+	+SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultCombo,SComboBox<TSharedPtr<FString>>).OptionsSource(&RunResultOptions)
+	 .OnGenerateWidget_Lambda([this](TSharedPtr<FString> Id){return SNewSensorTool(STextBlock).Text(FText::FromString(Id?RunResultLabels.FindRef(*Id):FString()));})
+	 .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type Info){if(Id&&Info!=ESelectInfo::Direct)SelectScenarioRunResult(*Id);})
+	 [SNewSensorTool(STextBlock).Text_Lambda([this](){return FText::FromString(SelectedScenarioRunId.IsEmpty()?TEXT("실행 결과가 없습니다"):RunResultLabels.FindRef(SelectedScenarioRunId));})]]
+	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CopyRunUUID","실행 UUID 복사")).IsEnabled_Lambda([this](){return !SelectedScenarioRunId.IsEmpty();}).OnClicked_Lambda([this](){FPlatformApplicationMisc::ClipboardCopy(*SelectedScenarioRunId);return FReply::Handled();})]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SelectedRunFolder","선택 결과 폴더 열기")).IsEnabled_Lambda([this](){return bSelectedRunReportSaved;}).OnClicked_Lambda([this](){OpenScenarioRunReport(SelectedScenarioRunId);return FReply::Handled();})]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
+	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(RunSelectionNotice);})]
+	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})];
+}
+void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
+{
+	auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;
+	if(!Results||Results->GetResultsRevision()==CachedRunResultsRevision)return;
+	const auto Runs=Results->GetRecentRunResults();bool ShapeChanged=Runs.Num()!=RunResultOptions.Num();
+	if(!ShapeChanged)for(int32 I=0;I<Runs.Num();++I)if(*RunResultOptions[I]!=Runs[Runs.Num()-1-I].RunUUID){ShapeChanged=true;break;}
+	RunResultLabels.Reset();
+	for(int32 I=Runs.Num()-1;I>=0;--I){const auto& R=Runs[I];FString Head=USlabRunResultsSubsystem::Describe(R);int32 Newline;if(Head.FindChar(TEXT('\n'),Newline))Head=Head.Left(Newline);RunResultLabels.Add(R.RunUUID,R.PreparedUtc.ToString(TEXT("%H:%M:%S"))+TEXT(" · ")+Head+TEXT(" · ")+R.RunUUID.Left(8));}
+	if(!SelectedScenarioRunId.IsEmpty()&&!RunResultLabels.Contains(SelectedScenarioRunId)){RunSelectionNotice=TEXT("선택한 실행은 최근 20개 보관 범위에서 제외되었습니다. 최신 결과를 선택했습니다.");SelectedScenarioRunId.Reset();}
+	if(SelectedScenarioRunId.IsEmpty()&&!Runs.IsEmpty())SelectedScenarioRunId=Runs.Last().RunUUID;
+	if(ShapeChanged)
+	{
+		RunResultOptions.Reset();for(int32 I=Runs.Num()-1;I>=0;--I)RunResultOptions.Add(MakeShared<FString>(Runs[I].RunUUID));
+		if(RunResultCombo){RunResultCombo->RefreshOptions();for(const auto& Id:RunResultOptions)if(*Id==SelectedScenarioRunId){RunResultCombo->SetSelectedItem(Id);break;}}
+	}
+	FSlabRunDeliverySummary R;RunResultsText=TEXT("현재 PIE의 실행 결과가 없습니다.");bSelectedRunReportSaved=false;
+	if(Results->GetRunResult(SelectedScenarioRunId,R))
+	{
+		auto Outputs=[](const FVirtualSlabSensorOutputSelection& O){return FString::Printf(TEXT("PCD %s / Camera %s / LiDAR %s"),O.bPointCloud?TEXT("ON"):TEXT("OFF"),O.bCameraImage?TEXT("ON"):TEXT("OFF"),O.bLidarTelemetry?TEXT("ON"):TEXT("OFF"));};
+		RunResultsText=TEXT("실행 UUID: ")+R.RunUUID+TEXT("\n시나리오 UUID: ")+R.ScenarioUUID+TEXT("\n")+USlabRunResultsSubsystem::Describe(R)+
+		 TEXT("\n요청 출력: ")+Outputs(R.Outputs)+TEXT("\n적용 출력: ")+Outputs(R.AppliedOutputs)+TEXT("\n마지막 Slab frame: ")+LexToString(R.LastSlabFrame);
+		for(const auto& S:R.Sensors)RunResultsText+=FString::Printf(TEXT("\n%s · 설정 revision %d · 요청 %.1fHz / 기록 시점 %.1fHz"),*S.SensorId,S.SettingsRevision,S.RequestedHz,S.MeasuredHz);
+		RunResultsText+=TEXT("\nBroker 수락은 외부 소비자의 저장·AI 처리 완료를 뜻하지 않습니다.");
+		auto Time=[](const FDateTime& T){return T.GetTicks()>0?T.ToIso8601():FString(TEXT("—"));};
+		RunResultsText+=TEXT("\n준비 UTC: ")+Time(R.PreparedUtc)+TEXT("\n시작 UTC: ")+Time(R.StartedUtc)+TEXT("\n중단/종료 UTC: ")+Time(R.StoppedUtc)+TEXT(" / ")+Time(R.FinishedUtc);
+		const auto& S=R.TerminalSnapshot;
+		RunResultsText+=FString::Printf(TEXT("\n종료 snapshot UTC: %s\n측정/출력 준비/socket 대기/기록 중/receipt 대기: %lld/%lld/%lld/%lld/%lld\n자체 검증 집계 UTC: %s"),*Time(S.CapturedUtc),S.PendingAcquisitions,S.PendingOutputPreparation,S.QueuedForSocket,S.SocketWritesInFlight,S.AwaitingBrokerReceipt,*Time(R.ConsumerSnapshotUtc));
+		bSelectedRunReportSaved=!R.ReportPath.IsEmpty()&&IFileManager::Get().FileExists(*R.ReportPath);
+	}
+	bCanRetrySelectedRun=Results->CanRetryRunReportSave(SelectedScenarioRunId,RunRetryReason);CachedRunResultsRevision=Results->GetResultsRevision();
+}
 bool UVirtualSensorCaptureExportPanelWidget::SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options)
 {auto* A=ResolveScenarioSlabActor();return A&&A->SetExecutionOptions(Options);}
 FSlabExecutionOptions UVirtualSensorCaptureExportPanelWidget::GetLiveScenarioExecutionOptions() const
@@ -1072,10 +1129,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildConnectionLogTa
 			+ SVerticalBox::Slot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true)
 			 .OnAreaExpansionChanged_Lambda([this](bool Open){bRunResultsExpanded=Open;RefreshNativeText();})
 			 .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunResults","실행별 전송 결과 · 최근 20개"))]
-			 .BodyContent()[SNew(SVerticalBox)
-			  +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("OpenRunResult","최근 실행 결과 폴더 열기"))
-			   .IsEnabled_Lambda([this](){return !LatestRunReportId.IsEmpty();}).OnClicked_Lambda([this](){OpenScenarioRunReport(LatestRunReportId);return FReply::Handled();})]
-			  +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})]]]
+			 .BodyContent()[BuildRunResultsContent()]]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text_Lambda([this]() { return FText::FromString(bUseStompTransport ? TEXT("방식: Artemis STOMP") : TEXT("방식: HTTP POST")); }).OnClicked_Lambda([this]() { bUseStompTransport = !bUseStompTransport; return FReply::Handled(); }) ]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("ApplyConnectionV2", "설정 적용")).OnClicked_Lambda([this]() { ApplyTransportProfile(); return FReply::Handled(); }) ]
@@ -1123,13 +1177,8 @@ void UVirtualSensorCaptureExportPanelWidget::AddResult(EVirtualSensorExportKind 
 
 void UVirtualSensorCaptureExportPanelWidget::RefreshNativeText()
 {
-	if(bRunResultsExpanded)
-	{
-		RunResultsText.Empty();LatestRunReportId.Empty();const auto Runs=GetScenarioRunResults();
-		for(int32 I=Runs.Num()-1;I>=0;--I){const auto& R=Runs[I];if(LatestRunReportId.IsEmpty()&&!R.ReportPath.IsEmpty())LatestRunReportId=R.RunUUID;
-			RunResultsText+=TEXT("실행 UUID: ")+R.RunUUID+TEXT("\n시나리오 UUID: ")+R.ScenarioUUID+TEXT("\n")+USlabRunResultsSubsystem::Describe(R)+TEXT("\n\n");}
-		if(RunResultsText.IsEmpty())RunResultsText=TEXT("실행 결과가 없습니다.");
-	}
+    if(GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())return;
+	if(bRunResultsExpanded&&ActiveTab==EVirtualSensorCaptureExportTab::ConnectionLog)RefreshRunResults();
     if(IsWorkspaceOwned()&&(!bOwnedStorageExpanded||GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())) return;
     if (NativeStorageText.IsValid()) NativeStorageText->SetText(FText::FromString(GetStorageSummaryText()));
 }

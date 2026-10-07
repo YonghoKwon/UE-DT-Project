@@ -11,6 +11,7 @@ class AVirtualSensorCoordinator;
 class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
+template<typename OptionType> class SComboBox;
 class ASlabActor;
 class AVirtualSensorActorBase;
 class UVirtualSensorFileSaveSubsystem;
@@ -42,6 +43,10 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
 public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioRunResult(const FString& RunId);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetSelectedScenarioRunId() const { return SelectedScenarioRunId; }
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") bool GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const;
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool RetrySelectedScenarioRunReport(FString& Reason);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
@@ -176,7 +181,14 @@ protected:
 
 private:
 	bool bRunResultsExpanded=false;
-	FString RunResultsText,LatestRunReportId;
+	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;
+	int64 CachedRunResultsRevision=-1;
+	TArray<TSharedPtr<FString>> RunResultOptions;
+	TMap<FString,FString> RunResultLabels;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> RunResultCombo;
+	bool bSelectedRunReportSaved=false,bCanRetrySelectedRun=false;
+	TSharedRef<SWidget> BuildRunResultsContent();
+	void RefreshRunResults();
 	TSharedRef<SWidget> BuildOwnedWidget();
 	TSharedRef<SWidget> BuildOwnedLiveTab();
 	TSharedRef<SWidget> BuildOwnedFileTab();
@@ -200,6 +212,7 @@ private:
 	FString OwnedScenarioSummary;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabMinimalUiTest;
+	friend class FSlabRunHistoryTest;
 #endif
 	bool bOwnedStorageExpanded=false,bOwnedReceiverExpanded=false,bOwnedTransportLogExpanded=false;
 	bool bOwnedCanSaveCurrent=false,bOwnedSaveBusy=false,bOwnedPeriodicActive=false;
