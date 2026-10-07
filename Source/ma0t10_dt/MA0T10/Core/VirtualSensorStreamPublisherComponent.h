@@ -31,6 +31,7 @@ public:
 	void PumpPublisherOnce(double NowSeconds);
 	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */
 	int64 GetPendingSlabRunCount(const FString& RunId) const;
+	void GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;
 	int64 GetFailedSlabRunCount(const FString& RunId) const;
 	void RefreshSessionOutputDemand() { UpdateCameraStreamDemand(); }
 	static bool SerializePointCloudForTesting(
@@ -135,6 +136,7 @@ private:
 		bool bSerializationInFlight = false;
 		FVirtualSlabFrameContext LastInputSlabContext;
 		FString SerializationRunId;
+		FString SerializationSensorId;
 		int64 SerializationFrameId=0;
 		int64 SerializationCompletedCount = 0;
 		TArray<float> SerializationLatencySamples;

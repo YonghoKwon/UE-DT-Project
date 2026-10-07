@@ -944,6 +944,7 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 	}
 	Runtime.bSerializationInFlight = true;
 	Runtime.SerializationRunId=Frame.SlabContext.RunId;
+	Runtime.SerializationSensorId=Frame.SensorId;
 	Runtime.SerializationFrameId=Frame.FrameId;
 	Runtime.Status.bProcessing = true;
 	const FVirtualSensorStreamConfig Config = Runtime.Config;
@@ -1604,6 +1605,23 @@ int64 UVirtualSensorStreamPublisherComponent::GetPendingSlabRunCount(const FStri
 	}
 	for(const auto& Pair:WaitingReceipts) if(Pair.Value.Message.SlabContext.RunId==RunId) ++Count;
 	return Count;
+}
+void UVirtualSensorStreamPublisherComponent::GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation,int64* Receipts) const
+{
+	if(RunId.IsEmpty())return;
+	TSet<FString> StageKeys;
+	auto Add=[&](EVirtualSensorStreamKind Kind,const FString& Sensor,int64 Frame){const auto Key=Sensor+TEXT("|")+LexToString(Frame);SensorFrames.Add(Key);const auto OutputKey=LexToString(static_cast<int32>(Kind))+TEXT("|")+Key;Outputs.Add(OutputKey);StageKeys.Add(OutputKey);};
+	for(const auto& Pair:StreamRuntimes)
+	{
+		const auto& R=Pair.Value;
+		if(R.bSerializationInFlight&&R.SerializationRunId==RunId)Add(R.Config.StreamKind,R.SerializationSensorId,R.SerializationFrameId);
+		auto Item=[&](const auto& M){if(M.SlabContext.RunId==RunId)Add(R.Config.StreamKind,M.SensorId,M.FrameId);};
+		if(R.PendingFrame.IsSet())Item(*R.PendingFrame);if(R.PreparedMessage.IsSet())Item(*R.PreparedMessage);
+		for(const auto& M:R.PendingFrameQueue)Item(M);for(const auto& M:R.PreparedMessageQueue)Item(M);
+	}
+	if(Preparation)*Preparation=StageKeys.Num();StageKeys.Reset();
+	for(const auto& Pair:WaitingReceipts){const auto& M=Pair.Value.Message;if(M.SlabContext.RunId==RunId)Add(M.StreamKind,M.SensorId,M.FrameId);}
+	if(Receipts)*Receipts=StageKeys.Num();
 }
 int64 UVirtualSensorStreamPublisherComponent::GetFailedSlabRunCount(const FString& RunId) const
 {

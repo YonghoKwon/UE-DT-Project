@@ -168,6 +168,7 @@ public:
 	bool PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error,bool bAllowIdleReplacement=false);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|VirtualSensor|Transport") bool IsTransportConnected() const { return bTransportConnected; }
 	int64 GetConnectionRevision() const { return ConnectionRevision; }
+	int64 GetWorkerInstanceSerial() const { return WorkerInstanceSerial; }
 	FString GetConnectionMessage() const { return ConnectionMessage; }
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
@@ -176,6 +177,7 @@ public:
 	void RetireManagedRun(const FString& RunId);
 	FVirtualSensorRunRetentionSnapshot GetRunRetentionSnapshot(const FString& RunId=FString()) const;
 	void FlushRunObservations(const FString& RunId);
+	void GatherPendingRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const;
 	int32 GetPendingRunFrameCount(const FString& RunId) const;
 	int32 GetFailedRunFrameCount(const FString& RunId) const;
 
@@ -193,6 +195,7 @@ private:
 	TMap<FString,uint64> KnownManagedRuns;
 	TMap<FString,uint64> ActiveManagedRuns;
 	uint64 NextManagedRunGeneration=0;
+	int64 WorkerInstanceSerial=0;
 	bool bTransportConnected=false;
 	int64 ConnectionRevision=0;
 	FString ConnectionMessage;

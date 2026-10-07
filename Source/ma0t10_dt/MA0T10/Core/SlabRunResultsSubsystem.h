@@ -26,6 +26,8 @@ public:
     void SetAppliedOutputs(const FString& Run,const FVirtualSlabSensorOutputSelection& Outputs);
     void SetMeasuredRates(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors);
     int64 GetUnconfirmedCount(const FString& Run) const;
+    void GatherUnconfirmedKeys(const FString& Run,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const;
+    void RecordTerminalSnapshot(const FString& Run,const FSlabRunTerminalSnapshot& Snapshot);
     void UpdateProgress(const FString& Run,const FString& Mtl,int64 Frame,double Elapsed);
     void RecordOutputFailure(const FString& Run,const FString& Sensor,int32 Kind,int64 Frame,const FString& Reason);
     void ObserveTransport(const FVirtualSensorTransportObservation& Event);
@@ -34,6 +36,9 @@ public:
     UFUNCTION(BlueprintPure,Category="Slab|Results") TArray<FSlabRunDeliverySummary> GetRecentRunResults() const { return Results; }
     UFUNCTION(BlueprintPure,Category="Slab|Results") bool GetRunResult(const FString& Run,FSlabRunDeliverySummary& Result) const;
     UFUNCTION(BlueprintCallable,Category="Slab|Results") bool OpenRunReport(const FString& Run) const;
+    UFUNCTION(BlueprintPure,Category="Slab|Results") bool CanRetryRunReportSave(const FString& Run,FString& Reason) const;
+    UFUNCTION(BlueprintCallable,Category="Slab|Results") bool RetryRunReportSave(const FString& Run,FString& Reason);
+    UFUNCTION(BlueprintPure,Category="Slab|Results") int64 GetResultsRevision() const { return ResultsRevision; }
     static FString Describe(const FSlabRunDeliverySummary& Result);
     UPROPERTY(BlueprintAssignable) FSlabRunResultsChanged OnResultsChanged;
 private:
@@ -42,6 +47,8 @@ private:
     TMap<FString,FRequestState> Requests;
     TArray<FSlabRunDeliverySummary> Results;
     TArray<TFuture<FWriteResult>> Writes;
+    TSet<FString> WritingRuns;
+    int64 ResultsRevision=0;
     FString ActiveRun;
     FDelegateHandle ObservationHandle,ReceiveHandle;
     TWeakObjectPtr<UVirtualSensorTransportComponent> BoundTransport;
@@ -50,10 +57,13 @@ private:
     void HandleReceive(const TSharedPtr<FVirtualSensorTopicReceivedDataBase>& Result);
     FSlabRunDeliverySummary* Find(const FString& Run);
     void QueueReport(const FSlabRunDeliverySummary& Summary);
+    void Changed(bool Broadcast=false);
     void ApplyWriteResult(const FWriteResult& Result);
     static FWriteResult WriteReport(FString Run,FString Json,FString Directory,int32 MaxFiles);
     static FString SerializeSummary(const FSlabRunDeliverySummary& Summary);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunLedgerTest;
+    friend class FSlabRunHistoryTest;
+    FString ReportDirectoryOverrideForTests;
 #endif
 };

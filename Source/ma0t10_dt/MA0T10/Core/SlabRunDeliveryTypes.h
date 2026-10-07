@@ -16,6 +16,20 @@ struct MA0T10_DT_API FSlabRunSensorSnapshot
     UPROPERTY(BlueprintReadOnly) float MeasuredHz=0;
 };
 USTRUCT(BlueprintType)
+struct MA0T10_DT_API FSlabRunTerminalSnapshot
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly) FDateTime CapturedUtc;
+    UPROPERTY(BlueprintReadOnly) int64 PendingAcquisitions=0;
+    UPROPERTY(BlueprintReadOnly) int64 PendingOutputPreparation=0;
+    UPROPERTY(BlueprintReadOnly) int64 QueuedForSocket=0;
+    UPROPERTY(BlueprintReadOnly) int64 SocketWritesInFlight=0;
+    UPROPERTY(BlueprintReadOnly) int64 AwaitingBrokerReceipt=0;
+    UPROPERTY(BlueprintReadOnly) int64 AcceptedUnconfirmed=0;
+    UPROPERTY(BlueprintReadOnly) int64 UniqueUnfinished=0;
+    UPROPERTY(BlueprintReadOnly) int32 PendingTransportEvents=0;
+};
+USTRUCT(BlueprintType)
 struct MA0T10_DT_API FSlabRunDeliverySummary
 {
     GENERATED_BODY()
@@ -30,6 +44,8 @@ struct MA0T10_DT_API FSlabRunDeliverySummary
     UPROPERTY(BlueprintReadOnly) FDateTime StartedUtc;
     UPROPERTY(BlueprintReadOnly) FDateTime StoppedUtc;
     UPROPERTY(BlueprintReadOnly) FDateTime FinishedUtc;
+    UPROPERTY(BlueprintReadOnly) FSlabRunTerminalSnapshot TerminalSnapshot;
+    UPROPERTY(BlueprintReadOnly) FDateTime ConsumerSnapshotUtc;
     UPROPERTY(BlueprintReadOnly) int64 LastSlabFrame=-1;
     UPROPERTY(BlueprintReadOnly) double ElapsedSec=0;
     UPROPERTY(BlueprintReadOnly) int64 Acquired=0;

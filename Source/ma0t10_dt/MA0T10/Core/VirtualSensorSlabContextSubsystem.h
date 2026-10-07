@@ -63,9 +63,12 @@ private:
 	bool IsOutputSelected(EVirtualSensorStreamKind Kind) const;
 	bool CheckRun(const FString& RunId);
 	void Finish(EVirtualSlabSessionEndReason Reason);
+	void FinalizeRunResult(bool PreparationFailed=false);
+	bool bDeinitializing=false;
 	int64 CountStreamErrors() const;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabSessionFailureTest;
+	friend class FSlabTerminalSnapshotTest;
 #endif
 	UPROPERTY(Transient) FVirtualSlabSessionStatus Status;
 	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Targets;
