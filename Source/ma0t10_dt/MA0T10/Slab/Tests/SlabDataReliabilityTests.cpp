@@ -50,6 +50,11 @@ public:
             FString Reason;Test->TestTrue(TEXT("failed preparation permits reset"),Slab->ResetToInitialPlacement(Reason));
             Test->TestTrue(TEXT("next fresh request admitted"),Slab->ReceiveScenario(Data()));Slab->StopSimulation();
             Test->TestTrue(TEXT("cancel leaves pose unchanged"),Slab->GetActorTransform().Equals(Placement));Test->TestTrue(TEXT("cancel unlocks configuration"),Lidar->CanEditSensorConfiguration(Reason));
+            auto Changed=Manager->SharedTransportComponent->GetTransportProfile();Changed.BrokerUrl=TEXT("tcp://127.0.0.1:2");Manager->SharedTransportComponent->TransportProfile=Changed;
+            Test->TestFalse(TEXT("independent sender prevents shared profile replacement"),Slab->ReceiveScenario(Data()));
+            Test->TestTrue(TEXT("conflict keeps independent sender enabled"),Manager->StreamPublisherComponent->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
+            Manager->StreamPublisherComponent->StopAllStreams(FString());
+            Test->TestTrue(TEXT("idle transport may adopt the requested profile"),Slab->ReceiveScenario(Data()));Slab->StopSimulation();
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());Test->TestFalse(TEXT("required request without output rejected"),Slab->ReceiveScenario(Data()));
             Slab->Destroy();Lidar->Destroy();Manager->Destroy();return true;
         }

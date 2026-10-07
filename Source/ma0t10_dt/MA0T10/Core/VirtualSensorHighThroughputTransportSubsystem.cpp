@@ -868,12 +868,13 @@ void UVirtualSensorHighThroughputTransportSubsystem::StopHighThroughputTransport
 	}
 }
 
-bool UVirtualSensorHighThroughputTransportSubsystem::PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error)
+bool UVirtualSensorHighThroughputTransportSubsystem::PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error,bool bAllowIdleReplacement)
 {
 	Error.Reset();
+	bool Held=false;for(const auto& T:GetStreamTelemetry())Held|=T.OutstandingFrameCount>0;
 	if(Worker && Worker->IsRunning() && (ActiveProfile.BrokerUrl!=Profile.BrokerUrl || ActiveProfile.UserName!=Profile.UserName ||
 		ActiveProfile.CameraTopic!=Profile.CameraTopic || ActiveProfile.LidarTopic!=Profile.LidarTopic || ActiveProfile.PointCloudTopic!=Profile.PointCloudTopic ||
-		ActiveProfile.MaxOutstandingBytes!=Profile.MaxOutstandingBytes || ActiveProfile.MaxOutstandingBytesPerStream!=Profile.MaxOutstandingBytesPerStream || ActivePasscode!=Passcode))
+		ActiveProfile.MaxOutstandingBytes!=Profile.MaxOutstandingBytes || ActiveProfile.MaxOutstandingBytesPerStream!=Profile.MaxOutstandingBytesPerStream || ActivePasscode!=Passcode)&&(!bAllowIdleReplacement||Held))
 	{ Error=TEXT("공유 Raw TCP 연결의 설정이 다릅니다. 기존 스트림을 변경하지 않고 준비를 거절했습니다.");return false; }
 	if(!StartHighThroughputTransport(Profile,Passcode)){Error=TEXT("Raw TCP 연결 준비 요청 실패");return false;}
 	return true;

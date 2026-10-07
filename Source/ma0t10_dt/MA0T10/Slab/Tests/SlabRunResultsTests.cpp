@@ -37,6 +37,9 @@ bool FSlabRunLedgerTest::RunTest(const FString&)
     TArray<FString> Files;IFileManager::Get().FindFiles(Files,*(Dir/TEXT("slab-run-*.json")),true,false);TestEqual(TEXT("100 owned plus foreign file retained"),Files.Num(),101);
     FString After;FFileHelper::LoadFileToString(After,*Foreign);TestEqual(TEXT("foreign report bytes preserved"),After,Text);
     const auto Invalid=Results->WriteReport(TEXT("../invalid"),TEXT("{}"),Dir,100);TestFalse(TEXT("unsafe ID cannot create report"),Invalid.Success);
+    const FString Blocked=Dir/TEXT("blocked-root");FFileHelper::SaveStringToFile(TEXT("owned fixture"),*Blocked);
+    const auto Unwritable=Results->WriteReport(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),TEXT("{}"),Blocked,100);
+    TestFalse(TEXT("actual file write failure reported"),Unwritable.Success);
     return true;
 }
 #endif

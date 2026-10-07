@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`c4ffe92` 기반 Slab 초기 배치 복귀, DTCore `b2504d1`, 2026-10-07**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+현재 기능 기준: **`3c9c95c` 기반 시나리오 송신 신뢰성·센서 설정 적용 개선, DTCore `b2504d1`, 2026-10-07**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
@@ -19,6 +19,8 @@ DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `
 - 증거: `Saved/Reports/SlabResetPlacement/FINAL_STATUS.md`. PCD 시험의 실제 viewport는 1068×360이다. 이번 시험을 목표 해상도 전체 성능 검수나 기존 재생 p95 문제 해결로 확대하지 않는다. push/PR은 별도 요청 전까지 하지 않는다.
 
 ## 관리 문서 4개
+
+2026-10-07 송신 신뢰성 검증: Editor Development 빌드, 최종 D3D12 `MA0T10` **198 Success/실패0(실제188·opt-in skip10)**, 소유 WBP6개 메모리 compile/save0. 별도 TCP fixture의 인증 거절·연결 지연·단절·receipt 누락·과부하·센서 삭제 6종을 통과했다. 실제 Artemis 30초 두 실행에서 PCD 전용1,200건 및 세 출력 Camera1,800/LiDAR정보1,200/PCD1,200건의 제출·receipt·내부 수신이 일치하고 외부 PCD1,200건도 검증했다. 실제 자동화 viewport1068×360, 직접 client1286×760/100%다. 세 출력 평균59.85~59.91FPS·p9516.67~16.69ms는 작은 viewport의 집중 결과이며 목표해상도·기존 replay p95 문제 해결 인증이 아니다. 직접 필수 선택·준비 대기·실패·결과 조회·복귀 후 기록 보존을 확인했다. 상세 증거는 `Saved/Reports/ScenarioDataReliability/FINAL_STATUS.md`. Engine STOMP/WSS 필수 모드의 별도 실사용 시험과 장시간 수집·외부 업무 ACK는 남아 있다.
 
 | 문서 | 읽는 목적 |
 |---|---|
@@ -180,6 +182,17 @@ GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 
 - `GetLastScenarioAdmissionStatus()`는 자동 실행/송신 없이 실행/보관만/중복/거절과 이유·요청/적용 출력을 제공한다.
 - 목록 재실행은 원문/시나리오 ID를 유지하고 **새 RunUUID**를 만든다. 기본 관찰 전용이다. 움직임 종료와 승인된 데이터의 송신 drain(최대 10초)은 별도 상태다.
 - 준비·재생·pause·drain 항목은 삭제하지 않는다. 목록 삭제는 원본 파일/Broker/Slab Actor를 삭제하는 기능이 아니다.
+
+### 데이터 필수 실행과 실행 결과
+
+데이터 패널의 신규 시나리오 설정 또는 재생 패널에서 **`데이터 필수 실행 · 연결 준비 후 시작`**을 선택한다. 기본값 `ObservationAllowed`는 기존 관찰 fallback이고, 선택값 `RequireData`는 대상 센서/출력 검사와 실제 STOMP CONNECTED 확인 후 움직임을 시작한다. 준비 시간은 기본 10초(1~120초), 준비 중에는 현재 자세를 유지하며 `중단`으로 취소할 수 있다. 출력이 하나도 선택되지 않은 필수 실행은 거절한다.
+
+- 연결 끊김·최종 receipt 실패·과부하·센서 삭제/정체·필수 스트림 중지 때 움직임과 신규 접수를 중단하고 최대 10초 동안 승인된 데이터를 정리한다. 자동 재개하지 않으며 재실행은 새 RunUUID다.
+- 준비/실행/drain 동안 해당 센서의 규격 편집과 경량 조작 모드는 잠근다. 센서 설정 적용은 원래 실행/정지 상태를 유지하고 Scheduler로 갱신하며, 설정 적용 때문에 동기 캡처·스캔·파일 저장을 추가하지 않는다. NaN/무한대는 거절한다.
+- 결과는 `준비 실패 / 사용자 중단 / 부분 전송 / Broker 수락 완료 / 관찰 완료`로 표시한다. Broker 수락은 해당 실행의 승인 프레임 receipt 기준이며 측정률·자체 검증·외부 업무 처리는 별개다.
+- 진행 패널과 데이터의 `연결·진단 → 실행별 전송 결과`에서 최근 20개 요약을 확인한다. 초기 위치 복귀·새 실행·목록 삭제에도 이전 요약을 유지한다. 결과 폴더에는 작은 JSON만 저장하며, 기본 100개를 넘으면 이 기능의 schema/파일명에 해당하는 파일만 정리한다. 저장 실패는 전송 실패와 구분한다.
+- 파일: `Saved/Reports/ScenarioRuns/slab-run-<RunUUID>.json`, schema `ma0t10.slab-run.v1`. 원본 PCD/JPEG·인증 정보는 포함하지 않는다. 실행 중 진단 식별자는 65,536건으로 제한하며 초과를 명시적 오류로 처리한다. 장시간 수집 지원 인증은 별도다.
+- API: `FSlabExecutionOptions`, `ASlabActor::SetExecutionOptions`, `RequestScenarioReplayWithExecutionOptions`, `USlabRunResultsSubsystem::GetRecentRunResults/GetRunResult/OpenRunReport`. 기존 재생 API는 기본 관찰 정책으로 유지한다. 사용자 WBP는 데이터 패널의 `SetLiveScenarioExecutionOptions/GetScenarioRunResults/OpenScenarioRunReport`를 사용할 수 있다.
 
 ### 초기 배치로 복귀
 

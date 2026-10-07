@@ -227,8 +227,9 @@ bool UVirtualSensorSlabContextSubsystem::PrepareScenarioTransmission(const FStri
 	Status.ExecutionPolicy=ESlabExecutionPolicy::RequireData;Status.Outputs=Outputs;Status.CurrentSlab.RunId=Status.RunId;Status.CurrentSlab.ScenarioUUID=S.ToString(EGuidFormats::DigitsWithHyphensLower);
 	PreparationStarted=FPlatformTime::Seconds();UsedRunIds.Add(Status.RunId);Status.Message=TEXT("데이터 필수 · 실제 Broker 연결 준비 중");
 	auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();Results->BeginRun(Status.RunId,ScenarioUUID,Options.Policy,Outputs);Results->SetSensors(Status.RunId,Targets,Coordinator->SharedTransportComponent.Get());
+	bool IndependentSender=false;for(const auto& Stream:Coordinator->StreamPublisherComponent->GetStreamStatuses())IndependentSender|=Stream.bEnabled;
 	if(bRequireRaw&&!GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->PrepareHighThroughputTransport(
-		UVirtualSensorHighThroughputTransportSubsystem::MakeProfile(Coordinator->SharedTransportComponent->GetTransportProfile()),Coordinator->SharedTransportComponent->GetSessionPasscodeForHighThroughput(),Error))
+		UVirtualSensorHighThroughputTransportSubsystem::MakeProfile(Coordinator->SharedTransportComponent->GetTransportProfile()),Coordinator->SharedTransportComponent->GetSessionPasscodeForHighThroughput(),Error,!IndependentSender))
 	{FailPreparation(Error);return false;}
 	if(bRequireEngine&&!Coordinator->SharedTransportComponent->PrepareStompConnection(Error)){FailPreparation(Error);return false;}
 	return true;

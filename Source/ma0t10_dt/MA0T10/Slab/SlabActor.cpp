@@ -82,7 +82,7 @@ void ASlabActor::Tick(float DeltaTime)
 		if(S.RunId!=Status.RunUUID||S.State==EVirtualSlabSessionState::Incomplete)
 		{const FString Error=S.Message;PendingScenario.Reset();Status.State=ESlabSimulationState::Failed;Status.Message=Error;GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->SetLiveScenarioPlaybackActive(false,FString());SetActorTickEnabled(false);OnSlabStateChanged.Broadcast();return;}
 		if(S.State==EVirtualSlabSessionState::Ready&&PendingScenario.IsValid())
-		{const auto Data=PendingScenario;const FString Run=Status.RunUUID;PendingScenario.Reset();if(!StartScenario(Data,Run,false)){GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndSlabSensorSession(Run,true);GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->SetLiveScenarioPlaybackActive(false,FString());Status.State=ESlabSimulationState::Failed;SetActorTickEnabled(false);OnSlabStateChanged.Broadcast();}}
+		{const auto Data=PendingScenario;const FString Run=Status.RunUUID;PendingScenario.Reset();if(!StartScenario(Data,Run,false)){GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndSlabSensorSession(Run,true);GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->SetLiveScenarioPlaybackActive(false,FString());Status.State=ESlabSimulationState::Failed;SetActorTickEnabled(false);OnSlabStateChanged.Broadcast();}else RecordAdmission(ESlabScenarioAdmission::Started,Data->ScenarioUUID,Status.Message);}
 	}
 	else if(IsSimulationActive()&&S.RunId==Status.RunUUID&&!S.RequiredDataError.IsEmpty())FinishSimulation(true,S.RequiredDataError);
 }

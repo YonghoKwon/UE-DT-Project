@@ -9,7 +9,7 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
-namespace { constexpr uint8 Accepted=1,Submitted=2,Receipt=4,Failed=8,Consumed=16,Invalid=32; FCriticalSection SlabReportWriterMutex; }
+namespace { constexpr uint8 LedgerAccepted=1,LedgerSubmitted=2,LedgerReceipt=4,LedgerFailed=8,LedgerConsumed=16,LedgerInvalid=32; FCriticalSection SlabReportWriterMutex; }
 void USlabRunResultsSubsystem::Initialize(FSubsystemCollectionBase& C)
 {
     Super::Initialize(C);C.InitializeDependency<UVirtualSensorHighThroughputTransportSubsystem>();
@@ -68,14 +68,14 @@ void USlabRunResultsSubsystem::ObserveTransport(const FVirtualSensorTransportObs
     auto* R=Find(E.RunId);if(!R||R->bFinalized||E.RunId!=ActiveRun||E.SensorId.IsEmpty())return;
     const FString Key=LexToString(static_cast<int32>(E.Kind))+TEXT("|")+E.SensorId+TEXT("|")+LexToString(E.FrameId);
     if(!Requests.Contains(Key)&&Requests.Num()>=65536){R->Warning=TEXT("실행별 진단 식별자 상한 65536건 초과");R->Reason=R->Warning;R->DeliveryFailures=FMath::Max<int64>(1,R->DeliveryFailures);return;}
-    auto& S=Requests.FindOrAdd(Key);if(S.RequestId.IsEmpty())S.RequestId=E.RequestId;const bool WasPending=(S.Flags&Accepted)&&!(S.Flags&(Receipt|Failed));
-    uint8 Flag=E.Phase==EVirtualSensorTransportObservationPhase::Accepted?Accepted:E.Phase==EVirtualSensorTransportObservationPhase::Submitted?Submitted:
-        E.Phase==EVirtualSensorTransportObservationPhase::Receipt?Receipt:E.Phase==EVirtualSensorTransportObservationPhase::Consumed?Consumed:
-        E.Phase==EVirtualSensorTransportObservationPhase::ValidationFailed?Invalid:Failed;
+    auto& S=Requests.FindOrAdd(Key);if(S.RequestId.IsEmpty())S.RequestId=E.RequestId;const bool WasPending=(S.Flags&LedgerAccepted)&&!(S.Flags&(LedgerReceipt|LedgerFailed));
+    uint8 Flag=E.Phase==EVirtualSensorTransportObservationPhase::Accepted?LedgerAccepted:E.Phase==EVirtualSensorTransportObservationPhase::Submitted?LedgerSubmitted:
+        E.Phase==EVirtualSensorTransportObservationPhase::Receipt?LedgerReceipt:E.Phase==EVirtualSensorTransportObservationPhase::Consumed?LedgerConsumed:
+        E.Phase==EVirtualSensorTransportObservationPhase::ValidationFailed?LedgerInvalid:LedgerFailed;
     if(S.Flags&Flag)return;S.Flags|=Flag;
-    const bool IsPending=(S.Flags&Accepted)&&!(S.Flags&(Receipt|Failed));R->Unfinished+=int64(IsPending)-int64(WasPending);
-    if(Flag==Accepted)++R->Accepted;else if(Flag==Submitted)++R->Submitted;else if(Flag==Receipt)++R->Receipts;
-    else if(Flag==Consumed)++R->ConsumerValidated;else if(Flag==Invalid)++R->ConsumerInvalid;else {++R->DeliveryFailures;if(R->Reason.IsEmpty())R->Reason=E.Message;}
+    const bool IsPending=(S.Flags&LedgerAccepted)&&!(S.Flags&(LedgerReceipt|LedgerFailed));R->Unfinished+=int64(IsPending)-int64(WasPending);
+    if(Flag==LedgerAccepted)++R->Accepted;else if(Flag==LedgerSubmitted)++R->Submitted;else if(Flag==LedgerReceipt)++R->Receipts;
+    else if(Flag==LedgerConsumed)++R->ConsumerValidated;else if(Flag==LedgerInvalid)++R->ConsumerInvalid;else {++R->DeliveryFailures;if(R->Reason.IsEmpty())R->Reason=E.Message;}
 }
 void USlabRunResultsSubsystem::RecordOutputFailure(const FString& Run,const FString& Sensor,int32 Kind,int64 Frame,const FString& Reason)
 {FVirtualSensorTransportObservation E;E.RunId=Run;E.SensorId=Sensor;E.Kind=static_cast<EVirtualSensorStreamKind>(Kind);E.FrameId=Frame;E.Phase=EVirtualSensorTransportObservationPhase::Failed;E.Message=Reason;ObserveTransport(E);}

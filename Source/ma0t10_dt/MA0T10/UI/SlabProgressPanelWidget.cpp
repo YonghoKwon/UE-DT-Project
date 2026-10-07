@@ -60,6 +60,8 @@ void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 	if (!Slab) { Summary = TEXT("Slab Actor 연결 필요"); Detail.Empty(); SensorStatus.Empty(); Progress = 0; return; }
 	const auto S = Slab->GetSimulationStatus(); Progress = S.Progress;
 	if(S.State==ESlabSimulationState::Preparing){Summary=TEXT("데이터 필수 · 실제 Broker 연결 준비 중\n현재 프레임 — · 진행률 0%");Detail=S.Message;SensorStatus=TEXT("준비 완료 전 Slab 이동·해당 실행 송신 없음");return;}
+	if(S.State==ESlabSimulationState::Failed&&S.RunUUID.IsEmpty())
+	{Summary=TEXT("실패 · ")+S.Message+TEXT("\n현재 프레임 — · 진행률 0%");Detail.Empty();SensorStatus=TEXT("실행별 결과는 연결·진단에서 확인하세요.");return;}
 	const auto* SessionSubsystem=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
 	const auto Session=SessionSubsystem?SessionSubsystem->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
 	FString State = S.State == ESlabSimulationState::Playing ? TEXT("실행 중") : S.State == ESlabSimulationState::Paused ? TEXT("일시정지") : S.State == ESlabSimulationState::Completed ? TEXT("움직임 완료") : S.State == ESlabSimulationState::Failed ? TEXT("실패") : TEXT("대기");

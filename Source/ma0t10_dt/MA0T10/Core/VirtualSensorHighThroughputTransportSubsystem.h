@@ -155,7 +155,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	bool IsHighThroughputTransportRunning() const;
 	/** Prepare without replacing a connection owned by another stream. */
-	bool PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error);
+	bool PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error,bool bAllowIdleReplacement=false);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|VirtualSensor|Transport") bool IsTransportConnected() const { return bTransportConnected; }
 	int64 GetConnectionRevision() const { return ConnectionRevision; }
 	FString GetConnectionMessage() const { return ConnectionMessage; }

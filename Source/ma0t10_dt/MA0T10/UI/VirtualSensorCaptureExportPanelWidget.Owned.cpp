@@ -198,6 +198,11 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	 .IsChecked_Lambda([this,Index](){const auto O=GetLiveScenarioOutputs();return (Index==0?O.bPointCloud:Index==1?O.bCameraImage:O.bLidarTelemetry)?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 	 .OnCheckStateChanged_Lambda([this,Index](ECheckBoxState S){auto O=GetLiveScenarioOutputs();const bool B=S==ECheckBoxState::Checked;if(Index==0)O.bPointCloud=B;else if(Index==1)O.bCameraImage=B;else O.bLidarTelemetry=B;SetLiveScenarioOutputs(O);})[SNewSensorTool(STextBlock).Text(Text)];};
 	Auto->AddSlot().AutoHeight().Padding(0,8)[Output(0,LOCTEXT("PcdAuto","PCD 포인트 클라우드 송신"))];
+	Auto->AddSlot().AutoHeight().Padding(0,4)[SNew(SCheckBox)
+	 .IsEnabled_Lambda([this](){auto* A=ResolveScenarioSlabActor();return A&&!A->IsSimulationActive();})
+	 .IsChecked_Lambda([this](){return GetLiveScenarioExecutionOptions().Policy==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	 .OnCheckStateChanged_Lambda([this](ECheckBoxState S){auto O=GetLiveScenarioExecutionOptions();O.Policy=S==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;SetLiveScenarioExecutionOptions(O);})
+	 [SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRequireData","데이터 필수 실행 · 연결 준비 후 시작"))]];
 	Auto->AddSlot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text_Lambda([this](){const auto O=GetLiveScenarioOutputs();const int32 Count=(O.bCameraImage?1:0)+(O.bLidarTelemetry?1:0);return Count?FText::Format(LOCTEXT("ExtraEnabled","추가 송신 옵션 · {0}개 켜짐"),FText::AsNumber(Count)):LOCTEXT("Extra","추가 송신 옵션");})].BodyContent()[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().Padding(0,8)[Output(1,LOCTEXT("CameraAuto","Camera 이미지 Topic"))]+SVerticalBox::Slot().AutoHeight().Padding(0,8)[Output(2,LOCTEXT("LidarAuto","LiDAR 정보 Topic"))]]];
 	auto Manual=SNew(SVerticalBox);
 	for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
@@ -287,6 +292,13 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(OwnedConnectionText);})]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ServerSettings","서버 연결 설정"))].BodyContent()[Server]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+	  .OnAreaExpansionChanged_Lambda([this](bool B){bRunResultsExpanded=B;LastNativeStatusRefreshSeconds=-1;})
+	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRunResults","실행별 전송 결과 · 최근 20개"))]
+	  .BodyContent()[SNew(SVerticalBox)
+	   +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedOpenResult","최근 실행 결과 폴더 열기"))
+	    .IsEnabled_Lambda([this](){return !LatestRunReportId.IsEmpty();}).OnClicked_Lambda([this](){OpenScenarioRunReport(LatestRunReportId);return FReply::Handled();})]
+	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})]]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedReceiverExpanded=B;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Receiver","Broker 실제 수신 검증"))].BodyContent()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))

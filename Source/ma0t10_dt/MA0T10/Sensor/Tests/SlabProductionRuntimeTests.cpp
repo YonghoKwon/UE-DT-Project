@@ -12,6 +12,9 @@
 #include "EngineUtils.h"
 #include "Editor/EditorPerformanceSettings.h"
 #include "Components/StaticMeshComponent.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 namespace
 {
 class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
@@ -21,9 +24,11 @@ class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
     int32 Stage=0;
     FString ArchiveId,FirstRun;
     int64 FirstCount=0;
+	int64 FirstAllSubmitted=0;
 	FTransform InitialPlacement;
 	double ResetAt=0;
 	bool bResetBetweenRuns=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_RESET_RHI"))==TEXT("1");
+	bool bAllOutputs=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_OUTPUT_ALL"))==TEXT("1");
     bool OldThrottle=false,OldMonitor=false;
 public:
     explicit FSlabProductionRuntimeCheck(FAutomationTestBase* T):Test(T)
@@ -54,18 +59,26 @@ public:
         {
             if(FPlatformTime::Seconds()-Start<10)return false;
 			InitialPlacement=Slab->GetActorTransform();
-            Rig->SubmitSynthetic(true);Stage=1;return false;
+			if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REQUIRE_DATA"))==TEXT("1"))
+			{FSlabExecutionOptions Options;Options.Policy=ESlabExecutionPolicy::RequireData;Test->TestTrue(TEXT("data-required options accepted"),Slab->SetExecutionOptions(Options));}
+            Rig->SubmitSynthetic(true);
+			if(bAllOutputs)
+			{
+				for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It){FVirtualSensorEditableState State,Applied;It->ReadEditableState(State);State.CameraProfile=EVirtualCameraDeviceProfile::IntelRealSenseD455;State.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;FString Error;Test->TestTrue(TEXT("fullspec camera fixture applied"),It->ApplyProfileAndSimulationQuality(State,Applied,Error));}
+				auto Outputs=Slab->GetSensorOutputs();Outputs.bCameraImage=true;Outputs.bLidarTelemetry=true;Slab->SetSensorOutputs(Outputs);
+			}
+			Stage=1;return false;
         }
         const auto S=Slab->GetSimulationStatus();
 		if(Stage==20)
 		{
 			if(FPlatformTime::Seconds()-ResetAt<1)return false;
 			int64 Count=0;for(const auto& T:Raw->GetStreamTelemetry())Count+=T.SubmittedCount;
-			Test->TestEqual(TEXT("reset introduces zero socket submissions"),Count,FirstCount);
+			Test->TestEqual(TEXT("reset introduces zero socket submissions"),Count,FirstAllSubmitted);
 			Test->TestEqual(TEXT("reset remains idle"),S.State,ESlabSimulationState::Idle);
 			Test->TestTrue(TEXT("reset remains at level placement"),Slab->GetActorLocation().Equals(InitialPlacement.GetLocation(),.1));
-			FVirtualSlabSensorOutputSelection Outputs;
-			Test->TestTrue(TEXT("same archived scenario replays after reset"),Catalog->RequestScenarioReplayWithOutputs(ArchiveId,Outputs,{}));
+			FVirtualSlabSensorOutputSelection Outputs=Slab->GetSensorOutputs();
+			Test->TestTrue(TEXT("same archived scenario replays after reset"),Catalog->RequestScenarioReplayWithExecutionOptions(ArchiveId,Outputs,{},Slab->GetExecutionOptions()));
 			Test->TestNotEqual(TEXT("reset replay has fresh RunUUID"),Catalog->GetReplayStatus().RunUUID,FirstRun);
 			Stage=3;return false;
 		}
@@ -81,6 +94,7 @@ public:
         }
         if(S.State==ESlabSimulationState::Playing||S.State==ESlabSimulationState::Paused)return false;
         const auto SS=Session->GetSlabSensorSessionStatus();
+		if(SS.State==EVirtualSlabSessionState::Preparing||Catalog->GetReplayStatus().State==ESlabScenarioReplayState::Starting)return false;
         if(SS.State==EVirtualSlabSessionState::Draining)return false;
         Test->TestEqual(TEXT("exact last source frame"),S.FrameNo,int64(599));
         Test->TestTrue(TEXT("30 second timeline"),FMath::IsNearlyEqual(S.ElapsedSec,30.0,1.e-6));
@@ -90,7 +104,7 @@ public:
         {
             if(T.StreamKind==EVirtualSensorStreamKind::PointCloud)
             {Submit+=T.SubmittedCount;Receipt+=T.ReceiptCount;Receive+=T.ConsumerReceivedCount;}
-            else Test->TestEqual(TEXT("unselected Topic submissions zero"),T.SubmittedCount,int64(0));
+            else if(!bAllOutputs)Test->TestEqual(TEXT("unselected Topic submissions zero"),T.SubmittedCount,int64(0));
             Test->TestEqual(TEXT("consumer valid"),T.ValidationFailureCount,int64(0));
             Test->TestEqual(TEXT("queue bounded"),T.OverloadCount,int64(0));
             Test->TestEqual(TEXT("frame gap zero"),T.FrameGapCount,int64(0));
@@ -101,6 +115,7 @@ public:
         {
             Rig->SaveEvidence(false); // Persist the first run before the second replaces its status.
             FirstCount=Receive;Test->TestTrue(TEXT("first run real PCD data"),FirstCount>=570);
+			FirstAllSubmitted=0;for(const auto& T:Raw->GetStreamTelemetry())FirstAllSubmitted+=T.SubmittedCount;
 			if(bResetBetweenRuns)
 			{
 				FString Reason;const auto Shape=Slab->SlabMesh->GetRelativeScale3D();
@@ -110,14 +125,19 @@ public:
 				Test->TestTrue(TEXT("reset preserves archived data"),Catalog->GetValidatedScenario(ArchiveId).IsValid());
 				ResetAt=FPlatformTime::Seconds();Stage=20;return false;
 			}
-            FVirtualSlabSensorOutputSelection Outputs;
-            Test->TestTrue(TEXT("production adapter replay accepted"),Catalog->RequestScenarioReplayWithOutputs(ArchiveId,Outputs,{}));
+            FVirtualSlabSensorOutputSelection Outputs=Slab->GetSensorOutputs();
+            Test->TestTrue(TEXT("production adapter replay accepted"),Catalog->RequestScenarioReplayWithExecutionOptions(ArchiveId,Outputs,{},Slab->GetExecutionOptions()));
             Test->TestNotEqual(TEXT("replay gets new RunUUID"),Catalog->GetReplayStatus().RunUUID,FirstRun);
             Stage=3;return false;
         }
         Test->TestTrue(TEXT("second run real PCD data"),Receive-FirstCount>=570);
         Test->TestEqual(TEXT("replay preserves archive ID"),Slab->GetSimulationStatus().ScenarioUUID,ArchiveId);
         Test->TestEqual(TEXT("two runs all receipts"),Receipt,Submit);Test->TestEqual(TEXT("two runs all real consumers"),Receive,Submit);
+		FSlabRunDeliverySummary Summary;auto* Results=World->GetSubsystem<USlabRunResultsSubsystem>();
+		Test->TestTrue(TEXT("run delivery summary retained"),Results->GetRunResult(S.RunUUID,Summary));
+		Test->TestEqual(TEXT("run summary has all broker receipts"),Summary.Receipts,Summary.Accepted);
+		Test->TestEqual(TEXT("run summary has no delivery failures"),Summary.DeliveryFailures,int64(0));
+		Test->TestEqual(TEXT("run summary broker outcome"),Summary.Outcome,ESlabRunDeliveryOutcome::BrokerAccepted);
         // Screenshots/readback are deliberately outside both measured runs.
         Rig->SaveEvidence();
         return true;
