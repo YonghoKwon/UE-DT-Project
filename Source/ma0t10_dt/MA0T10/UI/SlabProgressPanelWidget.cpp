@@ -3,6 +3,7 @@
 #include "VirtualSensorUiStyle.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "Blueprint/WidgetTree.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -79,10 +80,12 @@ void USlabProgressPanelWidget::NativeTick(const FGeometry& G, float D)
 		Summary=(S.Message.IsEmpty()?FString(TEXT("대기")):S.Message)+TEXT("\n현재 프레임 — · 진행률 0%");
 		Detail=TEXT("보관 시나리오는 재생 목록에서 확인할 수 있습니다.");
 		SensorStatus=TEXT("활성 Slab 송신 세션 없음 · 이전 결과는 연결·진단에서 확인");
+		if(auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()){const auto Runs=Results->GetRecentRunResults();if(!Runs.IsEmpty())SensorStatus+=TEXT("\n최근 실행 · ")+USlabRunResultsSubsystem::Describe(Runs.Last());}
 		return;
 	}
 	if(!S.RunUUID.IsEmpty()&&Session.RunId==S.RunUUID) SensorStatus=FString::Printf(TEXT("센서 송신: %s · 미완료 %lld"),*Session.Message,Session.UnfinishedFrames);
 	if(IsWorkspaceOwned()&&!S.TransmissionWarning.IsEmpty())SensorStatus+=TEXT("\n주의: ")+S.TransmissionWarning;
+	if(IsWorkspaceOwned())if(auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()){FSlabRunDeliverySummary R;if(Results->GetRunResult(S.RunUUID,R))SensorStatus+=TEXT("\n")+USlabRunResultsSubsystem::Describe(R);}
 }
 TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 {

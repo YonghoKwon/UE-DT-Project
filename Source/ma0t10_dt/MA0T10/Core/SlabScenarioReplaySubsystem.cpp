@@ -1,5 +1,6 @@
 #include "SlabScenarioReplaySubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
+#include "SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "Async/Async.h"
 #include "Engine/GameInstance.h"
@@ -182,7 +183,7 @@ bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithExecutionOptions(con
 	auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 	FString Error;bWaitingForTransmission=Options.Policy==ESlabExecutionPolicy::RequireData;
 	if(bWaitingForTransmission)
-	{if(!Session->PrepareScenarioTransmission(Run,Ids,CanonicalId(UUID),Outputs,Options,Error)){bWaitingForTransmission=false;Status.Message=Error;return false;}}
+	{auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();Results->BeginRun(Run,CanonicalId(UUID),Options.Policy,Outputs);if(!Session->PrepareScenarioTransmission(Run,Ids,CanonicalId(UUID),Outputs,Options,Error)){FVirtualSlabSessionStatus Failed;Failed.RunId=Run;Failed.RequiredDataError=Error;Failed.State=EVirtualSlabSessionState::Incomplete;Results->Finalize(Failed,true);bWaitingForTransmission=false;Status.Message=Error;return false;}}
 	else if (Session->BeginScenarioSensorSession(Run,Ids,CanonicalId(UUID),Outputs).IsEmpty()) { Status.Message=Session->GetSlabSensorSessionStatus().Message; return false; }
 	Status=FSlabScenarioReplayStatus(); Status.State=ESlabScenarioReplayState::Starting; Status.ScenarioUUID=CanonicalId(UUID); Status.RunUUID=Run; Status.bSendPcd=Outputs.bPointCloud; Status.Outputs=Outputs;
 	Status.Message=TEXT("재생 준비 중"); PlaybackWorld=GetWorld(); StartRequestedSeconds=FPlatformTime::Seconds();

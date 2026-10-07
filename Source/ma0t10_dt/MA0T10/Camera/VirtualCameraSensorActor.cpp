@@ -131,9 +131,10 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	{
 		return false;
 	}
-	const bool bWasRunning=CaptureComponent->IsCaptureRunning();
+	const bool bWasRunning=bInteractiveManipulationActive?bWasRunningBeforeInteraction:CaptureComponent->IsCaptureRunning();
+	TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
 	SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
-	CaptureComponent->StopCapture();
+	if(CaptureComponent->IsCaptureRunning())CaptureComponent->StopCapture();
 	CaptureComponent->ApplyDeviceProfile(State.CameraProfile);
 	CaptureComponent->ApplySimulationQuality(State.SimulationQuality);
 	CaptureComponent->SensorId = State.SensorId;
@@ -143,6 +144,7 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	CaptureComponent->JpegQuality = State.CameraJpegQuality;
 	CaptureComponent->CaptureMode = State.CameraCaptureMode;
 	if(bWasRunning) CaptureComponent->StartCapture();
+	++ConfigurationRevision;
 	return true;
 }
 
@@ -169,7 +171,7 @@ void AVirtualCameraSensorActor::EndInteractiveManipulation()
 	CaptureComponent->CaptureResolution = SavedInteractionResolution;
 	CaptureComponent->CaptureInterval = SavedInteractionInterval;
 	CaptureComponent->CaptureMode = static_cast<EVirtualCameraCaptureMode>(SavedInteractionCaptureMode);
-	if (bWasRunningBeforeInteraction)
+	if (bWasRunningBeforeInteraction&&!bSettingsTransaction)
 	{
 		CaptureComponent->StartCapture();
 		CaptureComponent->RequestImmediateScheduledCapture();
@@ -185,11 +187,13 @@ bool AVirtualCameraSensorActor::ApplyProfileAndSimulationQuality(const FVirtualS
 		OutError = TEXT("선택한 Camera 센서를 사용할 수 없습니다.");
 		return false;
 	}
-	const bool bWasRunning = CaptureComponent->IsCaptureRunning();
-	CaptureComponent->StopCapture();
+	const bool bWasRunning = bInteractiveManipulationActive?bWasRunningBeforeInteraction:CaptureComponent->IsCaptureRunning();
+	TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
+	if(CaptureComponent->IsCaptureRunning())CaptureComponent->StopCapture();
 	CaptureComponent->ApplyDeviceProfile(RequestedState.CameraProfile);
 	CaptureComponent->ApplySimulationQuality(RequestedState.SimulationQuality);
 	if (bWasRunning) CaptureComponent->StartCapture();
+	++ConfigurationRevision;
 	return ReadEditableState(OutAppliedState);
 }
 

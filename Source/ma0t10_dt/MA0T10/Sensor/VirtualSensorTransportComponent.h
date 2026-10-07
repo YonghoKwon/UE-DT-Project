@@ -89,6 +89,9 @@ struct MA0T10_DT_API FVirtualSensorTransportResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
 	FString RequestId;
+	UPROPERTY(BlueprintReadOnly,Category="DigitalTwin|SensorTransport") FString RunId;
+	UPROPERTY(BlueprintReadOnly,Category="DigitalTwin|SensorTransport") int64 FrameId=-1;
+	UPROPERTY(BlueprintReadOnly,Category="DigitalTwin|SensorTransport") bool bReceiptCompleted=false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
 	FString SensorId;

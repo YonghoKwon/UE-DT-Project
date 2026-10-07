@@ -13,6 +13,7 @@ class MA0T10_DT_API UVirtualSensorSlabContextSubsystem : public UTickableWorldSu
 {
 	GENERATED_BODY()
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	FString BeginSlabSensorSession(const FString& RunId, const TArray<FString>& TargetSensorIds, UPARAM(DisplayName="PCD만 송신") bool bPointCloudOnly=false);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")

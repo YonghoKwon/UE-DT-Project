@@ -119,12 +119,12 @@ struct FVirtualSensorReceiveSelection
 DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorReceiveEvent,const TSharedPtr<FVirtualSensorTopicReceivedDataBase>&);
 
 /** 검수 관찰은 본문을 보유하지 않는다. worker 발생 시각과 GT 적용 시각을 구분한다. */
-enum class EVirtualSensorTransportObservationPhase : uint8 { Accepted, Submitted, Receipt, Consumed, Failed };
+enum class EVirtualSensorTransportObservationPhase : uint8 { Accepted, Submitted, Receipt, Consumed, Failed, ValidationFailed };
 struct FVirtualSensorTransportObservation
 {
 	EVirtualSensorTransportObservationPhase Phase=EVirtualSensorTransportObservationPhase::Accepted;
 	EVirtualSensorStreamKind Kind=EVirtualSensorStreamKind::LidarPayload;
-	FString SensorId,RequestId;
+	FString SensorId,RequestId,RunId,Message;
 	int64 FrameId=0;
 	FDateTime AcquisitionUtc,ObservedUtc;
 	double MonotonicSeconds=0;

@@ -375,12 +375,6 @@ void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
 bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
 {
     const TWeakObjectPtr<AVirtualSensorActorBase> RequestedActor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
-    if (bManipulationEnabled)
-    {
-        const FVirtualSensorEditableState Requested = PendingState;
-        FinishSensorManipulation(false);
-        PendingState = Requested;
-    }
     FString Error;
     if (!RequestedActor.IsValid() || RequestedActor.Get()!=GetSelectedSensorActor() || !ValidateState(PendingState, Error) || !RequestedActor->ApplyEditableState(PendingState, Error))
     {
@@ -394,8 +388,9 @@ bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
         RefreshNativeText();
         return false;
     }
+    if(bManipulationEnabled)FinishSensorManipulation(false);
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
-    RefreshSelectedSensorNow(true);
+    if(RequestedActor.Get()==GetSelectedSensorActor())RefreshSelectedSensorNow(true);else RefreshPendingState(true);
     RefreshNativeText();
     return true;
 }
@@ -817,12 +812,6 @@ bool UVirtualSensorSettingsPanelWidget::SetSelectedSimulationQuality(EVirtualSen
 
 bool UVirtualSensorSettingsPanelWidget::ApplySelectedProfileAndQualityPreset()
 {
-    if (bManipulationEnabled)
-    {
-        const FVirtualSensorEditableState Requested = PendingState;
-        FinishSensorManipulation(false);
-        PendingState = Requested;
-    }
     const EVirtualSensorKind RequestedKind = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
         ? EVirtualSensorKind::Lidar
         : EVirtualSensorKind::Camera;
@@ -837,6 +826,7 @@ bool UVirtualSensorSettingsPanelWidget::ApplySelectedProfileAndQualityPreset()
         return false;
     }
     AppliedState.PersistentActorTag = ResolvePersistentActorTag(SensorActor);
+    if(bManipulationEnabled)FinishSensorManipulation(false);
     PendingState = AppliedState;
     LastControlMessage = TEXT("장비 프로필과 시뮬레이션 품질을 PIE에 적용했습니다.");
     RefreshSelectedSensorNow(true);

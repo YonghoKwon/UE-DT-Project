@@ -6,6 +6,7 @@
 #include "SlabMetricsComponent.h"
 #include "SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "Core/DxProcessSubsystem.h"
 #include "Core/DTCoreSettings.h"
 #include "WebSocket/TransactionCodeStruct.h"
@@ -143,8 +144,9 @@ bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 		auto* Catalog=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();FString Error;
 		if(!Catalog->SetLiveScenarioPlaybackActive(true,Data->ScenarioUUID))return false;
 		auto* MutableSession=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
+		auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();Results->BeginRun(Run,Data->ScenarioUUID,ExecutionOptions.Policy,SensorOutputs);
 		if(!MutableSession->PrepareScenarioTransmission(Run,TargetSensorIds,Data->ScenarioUUID,SensorOutputs,ExecutionOptions,Error))
-		{Catalog->SetLiveScenarioPlaybackActive(false,FString());ReportFailure(Error);RecordAdmission(ESlabScenarioAdmission::Rejected,Data->ScenarioUUID,Error);return false;}
+		{FVirtualSlabSessionStatus Failed;Failed.RunId=Run;Failed.RequiredDataError=Error;Failed.State=EVirtualSlabSessionState::Incomplete;Results->Finalize(Failed,true);Catalog->SetLiveScenarioPlaybackActive(false,FString());ReportFailure(Error);RecordAdmission(ESlabScenarioAdmission::Rejected,Data->ScenarioUUID,Error);return false;}
 		PendingScenario=Data;Status=FSlabSimulationStatus();Status.State=ESlabSimulationState::Preparing;Status.FrameNo=INDEX_NONE;Status.RowIndex=INDEX_NONE;
 		Status.RunUUID=Run;Status.ScenarioUUID=Data->ScenarioUUID;Status.MtlNo=Data->Rows[0].MtlNo;Status.DurationSec=Data->DurationSec;Status.Message=TEXT("데이터 필수 · Broker 연결 준비 중");
 		SetActorTickEnabled(true);RecordAdmission(ESlabScenarioAdmission::Preparing,Data->ScenarioUUID,Status.Message);return true;
@@ -170,6 +172,7 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 	auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 	auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
 	if(!Session||!Replay) {ReportFailure(TEXT("Slab 실행 Subsystem이 준비되지 않았습니다."));return false;}
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->BeginRun(RunUUID,Data->ScenarioUUID,bReplay?Session->GetSlabSensorSessionStatus().ExecutionPolicy:ExecutionOptions.Policy,bReplay?Session->GetSlabSensorSessionStatus().Outputs:SensorOutputs);
 	const auto& First=Data->Rows[0];
 	const FVector Size(FSlabScenarioCodec::ToCm(First.Length,DimensionUnit),FSlabScenarioCodec::ToCm(First.Width,DimensionUnit),FSlabScenarioCodec::ToCm(First.Thickness,DimensionUnit));
 	if(Size.ContainsNaN()||Size.GetMin()<=0||Size.GetMax()>1000000) { ReportFailure(TEXT("변환된 Slab 치수는 0보다 크고 10km 이하여야 합니다.")); return false; }
@@ -305,6 +308,7 @@ void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 {
 	if(!IsSimulationActive()) return;
 	PendingScenario.Reset();SetActorTickEnabled(false);
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->UpdateProgress(Status.RunUUID,Status.MtlNo,Status.FrameNo,Status.ElapsedSec);
 	MotionComponent->StopPlayback();
 	if(auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
 	{

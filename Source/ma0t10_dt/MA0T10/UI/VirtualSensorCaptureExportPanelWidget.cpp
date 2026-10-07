@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 
@@ -80,6 +81,14 @@ FString PointCloudFilterPresetText(EVirtualPointCloudStreamFilterPreset Preset)
 }
 }
 
+TArray<FSlabRunDeliverySummary> UVirtualSensorCaptureExportPanelWidget::GetScenarioRunResults() const
+{const auto* R=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return R?R->GetRecentRunResults():TArray<FSlabRunDeliverySummary>();}
+bool UVirtualSensorCaptureExportPanelWidget::OpenScenarioRunReport(const FString& Run)
+{auto* R=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return R&&R->OpenRunReport(Run);}
+bool UVirtualSensorCaptureExportPanelWidget::SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options)
+{auto* A=ResolveScenarioSlabActor();return A&&A->SetExecutionOptions(Options);}
+FSlabExecutionOptions UVirtualSensorCaptureExportPanelWidget::GetLiveScenarioExecutionOptions() const
+{const auto* A=ResolveScenarioSlabActor();return A?A->GetExecutionOptions():FSlabExecutionOptions();}
 void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
     SensorManager = InSensorManager;
@@ -1060,6 +1069,13 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildConnectionLogTa
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("ConnectionTitle", "Artemis STOMP / HTTP 연결 및 상세 로그")) ]
+			+ SVerticalBox::Slot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true)
+			 .OnAreaExpansionChanged_Lambda([this](bool Open){bRunResultsExpanded=Open;RefreshNativeText();})
+			 .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunResults","실행별 전송 결과 · 최근 20개"))]
+			 .BodyContent()[SNew(SVerticalBox)
+			  +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("OpenRunResult","최근 실행 결과 폴더 열기"))
+			   .IsEnabled_Lambda([this](){return !LatestRunReportId.IsEmpty();}).OnClicked_Lambda([this](){OpenScenarioRunReport(LatestRunReportId);return FReply::Handled();})]
+			  +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})]]]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text_Lambda([this]() { return FText::FromString(bUseStompTransport ? TEXT("방식: Artemis STOMP") : TEXT("방식: HTTP POST")); }).OnClicked_Lambda([this]() { bUseStompTransport = !bUseStompTransport; return FReply::Handled(); }) ]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("ApplyConnectionV2", "설정 적용")).OnClicked_Lambda([this]() { ApplyTransportProfile(); return FReply::Handled(); }) ]
@@ -1107,6 +1123,13 @@ void UVirtualSensorCaptureExportPanelWidget::AddResult(EVirtualSensorExportKind 
 
 void UVirtualSensorCaptureExportPanelWidget::RefreshNativeText()
 {
+	if(bRunResultsExpanded)
+	{
+		RunResultsText.Empty();LatestRunReportId.Empty();const auto Runs=GetScenarioRunResults();
+		for(int32 I=Runs.Num()-1;I>=0;--I){const auto& R=Runs[I];if(LatestRunReportId.IsEmpty()&&!R.ReportPath.IsEmpty())LatestRunReportId=R.RunUUID;
+			RunResultsText+=TEXT("실행 UUID: ")+R.RunUUID+TEXT("\n시나리오 UUID: ")+R.ScenarioUUID+TEXT("\n")+USlabRunResultsSubsystem::Describe(R)+TEXT("\n\n");}
+		if(RunResultsText.IsEmpty())RunResultsText=TEXT("실행 결과가 없습니다.");
+	}
     if(IsWorkspaceOwned()&&(!bOwnedStorageExpanded||GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())) return;
     if (NativeStorageText.IsValid()) NativeStorageText->SetText(FText::FromString(GetStorageSummaryText()));
 }

@@ -3,6 +3,7 @@
 #include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
+#include "SlabRunResultsSubsystem.h"
 
 #include "Async/Async.h"
 #include "HAL/FileManager.h"
@@ -1611,6 +1612,7 @@ int64 UVirtualSensorStreamPublisherComponent::GetFailedSlabRunCount(const FStrin
 void UVirtualSensorStreamPublisherComponent::RecordSlabFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId)
 {
 	if(RunId.IsEmpty()) return;
+	if(GetWorld())GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordOutputFailure(RunId,SensorId,static_cast<int32>(Kind),FrameId,TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
 	if(!SlabRunFailures.Contains(RunId)&&SlabRunFailures.Num()>=32)
 		for(auto It=SlabRunFailures.CreateIterator();It;++It) if(It.Key()!=RunId) { It.RemoveCurrent(); break; }
 	SlabRunFailures.FindOrAdd(RunId).Add(SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId));

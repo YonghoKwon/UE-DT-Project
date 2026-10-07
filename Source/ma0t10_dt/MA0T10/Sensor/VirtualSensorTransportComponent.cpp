@@ -106,6 +106,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 	FVirtualSensorTransportResult Result;
 	Result.Protocol = TEXT("STOMP/WS");
 	Result.RequestId = FString::Printf(TEXT("%s-%lld-%s"), *Metadata.SensorId, Metadata.FrameId, *Metadata.ChecksumSha1);
+	Result.RunId=Metadata.SlabContext.RunId;Result.FrameId=Metadata.FrameId;
 	Result.SensorId = Metadata.SensorId;
 	Result.SensorType = TEXT("lidar");
 	Result.DataKind = TEXT("pointcloud-stream-binary-pcd");
@@ -142,6 +143,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStompBinaryS
 			Receipt.bSubmitted = true;
 			Receipt.bAccepted = bSuccess;
 			Receipt.bReceiptReceived = bSuccess;
+			Receipt.bReceiptCompleted=true;
 			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
 			Receipt.Message = bSuccess
 				? TEXT("Binary PCD broker receipt received; consumer processing is tracked separately.")
@@ -284,6 +286,7 @@ void UVirtualSensorTransportComponent::EnsureStompClient()
 
 void UVirtualSensorTransportComponent::HandleStompConnected(const FString& ProtocolVersion, const FString& SessionId, const FString& ServerString)
 {
+	LastResult=FVirtualSensorTransportResult();
 	++StompConnectionRevision;
 	bStompConnected.Store(true);
 	bStompConnecting.Store(false);
@@ -300,6 +303,7 @@ void UVirtualSensorTransportComponent::HandleStompConnected(const FString& Proto
 
 void UVirtualSensorTransportComponent::HandleStompFailure(const FString& Error)
 {
+	LastResult=FVirtualSensorTransportResult();
 	++StompConnectionRevision;
 	bStompConnected.Store(false);
 	bStompConnecting.Store(false);
@@ -374,6 +378,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 	Result.SensorId = SensorId;
 	Result.SensorType = SensorType;
 	Result.DataKind = DataKind;
+	Result.FrameId=FrameId;Result.RunId=AdditionalHeaders.FindRef(TEXT("x-run-uuid"));
 	Result.bManualRequest = bManualRequest;
 	Result.bReceiptRequested = bRequestReceipt;
 	Result.Destination = ResolveTopic(SensorType, DataKind);
@@ -422,6 +427,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::SendStomp(
 			Receipt.bSubmitted = true;
 			Receipt.bAccepted = bSuccess;
 			Receipt.bReceiptReceived = bSuccess;
+			Receipt.bReceiptCompleted=true;
 			Receipt.LatencyMs = static_cast<float>((FPlatformTime::Seconds() - StartedSeconds) * 1000.0);
 			Receipt.Message = bSuccess
 				? (WeakThis->TransportProfile.AckTopic.IsEmpty() ? TEXT("Broker 수락, 소비자 처리 미확인") : TEXT("Broker receipt 수락 · 소비자 ACK 대기"))

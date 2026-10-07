@@ -99,9 +99,10 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     {
         return false;
     }
-    const bool bWasRunning=ScanComponent->IsScanRunning();
+    const bool bWasRunning=bInteractiveManipulationActive?bWasRunningBeforeInteraction:ScanComponent->IsScanRunning();
+    TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
     SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
-    ScanComponent->StopScan();
+    if(ScanComponent->IsScanRunning())ScanComponent->StopScan();
     ScanComponent->ApplyDeviceProfile(State.LidarProfile);
     ScanComponent->ApplySimulationQuality(State.SimulationQuality);
     ScanComponent->SensorId = State.SensorId;
@@ -120,6 +121,7 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     ScanComponent->bExportJsonLinesOnScan = State.bExportJsonLinesOnScan;
     ScanComponent->bExportPcdOnScan = State.bExportPcdOnScan;
     if(bWasRunning) ScanComponent->StartScan();
+    ++ConfigurationRevision;
     return true;
 }
 
@@ -193,7 +195,7 @@ void AVirtualLidarSensorActor::EndInteractiveManipulation()
 	ScanComponent->VerticalChannels = SavedInteractionVerticalChannels;
 	ScanComponent->ScanInterval = SavedInteractionInterval;
 	ScanComponent->SetInteractivePreviewMode(false);
-	if (bWasRunningBeforeInteraction)
+	if (bWasRunningBeforeInteraction&&!bSettingsTransaction)
 	{
 		ScanComponent->StartScan();
 		ScanComponent->RequestImmediateScheduledScan();
@@ -209,11 +211,13 @@ bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSe
         OutError = TEXT("선택한 LiDAR 센서를 사용할 수 없습니다.");
         return false;
     }
-    const bool bWasRunning = ScanComponent->IsScanRunning();
-    ScanComponent->StopScan();
+    const bool bWasRunning = bInteractiveManipulationActive?bWasRunningBeforeInteraction:ScanComponent->IsScanRunning();
+    TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
+    if(ScanComponent->IsScanRunning())ScanComponent->StopScan();
     ScanComponent->ApplyDeviceProfile(RequestedState.LidarProfile);
     ScanComponent->ApplySimulationQuality(RequestedState.SimulationQuality);
     if (bWasRunning) ScanComponent->StartScan();
+    ++ConfigurationRevision;
     return ReadEditableState(OutAppliedState);
 }
 

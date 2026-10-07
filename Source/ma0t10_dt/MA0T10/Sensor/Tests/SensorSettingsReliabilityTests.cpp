@@ -34,6 +34,12 @@ bool FSensorSettingsReliabilityTest::RunTest(const FString&)
         TestTrue(TEXT("running edit accepted"),Actor->ApplyEditableState(State,Error));
         TestTrue(TEXT("running state retained"),Actor->IsSensorRunning());
         TestEqual(TEXT("running edit does not capture synchronously"),Actor->GetSensorRuntimeStatus().FrameId,Before);
+        TestTrue(TEXT("running interaction starts"),Actor->BeginInteractiveManipulation(FVirtualSensorInteractionRequest()));
+        const int32 Revision=Actor->GetConfigurationRevision();
+        TestTrue(TEXT("settings finish interaction transaction"),Actor->ApplyEditableState(State,Error));
+        TestFalse(TEXT("interaction ended by settings transaction"),Actor->IsInteractiveManipulationActive());
+        TestTrue(TEXT("original running state retained through interaction"),Actor->IsSensorRunning());
+        TestEqual(TEXT("one settings revision per transaction"),Actor->GetConfigurationRevision(),Revision+1);
         const auto Pose=Actor->GetActorTransform();
         for(float Bad:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()})
         {
@@ -45,6 +51,9 @@ bool FSensorSettingsReliabilityTest::RunTest(const FString&)
             TestTrue(TEXT("invalid input retains running state"),Actor->IsSensorRunning());
         }
         Actor->StopSensor();
+        TestTrue(TEXT("stopped interaction starts"),Actor->BeginInteractiveManipulation(FVirtualSensorInteractionRequest()));
+        TestTrue(TEXT("stopped interaction settings accepted"),Actor->ApplyEditableState(State,Error));
+        TestFalse(TEXT("stopped interaction stays stopped"),Actor->IsSensorRunning());
         Panel->SelectTargetKind(Actor==Lidar?EVirtualSensorTargetKind::Lidar:EVirtualSensorTargetKind::Camera);
         TestTrue(TEXT("native general settings accepted"),Panel->ApplyPendingState());
         TestFalse(TEXT("native settings do not restart stopped sensor"),Actor->IsSensorRunning());

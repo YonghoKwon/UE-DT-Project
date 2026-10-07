@@ -30,6 +30,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor")
 	virtual bool IsSensorRunning() const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") bool CanEditSensorConfiguration(FString& OutReason) const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") int32 GetConfigurationRevision() const { return ConfigurationRevision; }
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor")
 	virtual void StartSensor();
@@ -75,5 +76,7 @@ public:
 	TObjectPtr<UVirtualSensorOutputComponent> OutputComponent;
 
 protected:
+	int32 ConfigurationRevision=0;
+	bool bSettingsTransaction=false;
 	bool bInteractiveManipulationActive = false;
 };

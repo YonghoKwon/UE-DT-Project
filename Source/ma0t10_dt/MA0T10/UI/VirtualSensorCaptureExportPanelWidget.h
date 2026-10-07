@@ -4,6 +4,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunDeliveryTypes.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -39,6 +40,10 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
     GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|Outputs") FVirtualSlabSensorOutputSelection GetLiveScenarioOutputs() const;
@@ -170,6 +175,8 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	bool bRunResultsExpanded=false;
+	FString RunResultsText,LatestRunReportId;
 	TSharedRef<SWidget> BuildOwnedWidget();
 	TSharedRef<SWidget> BuildOwnedLiveTab();
 	TSharedRef<SWidget> BuildOwnedFileTab();
