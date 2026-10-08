@@ -12,6 +12,60 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementMotion.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPoseLibraryTest,"MA0T10.Placement.PoseLibraryPersistenceAndHistory",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorPoseLibraryTest::RunTest(const FString&)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* S=W->SpawnActor<AVirtualLidarSensorActor>();S->StopSensor();S->ScanComponent->SensorId=TEXT("bookmark-test");
+    auto* P=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();
+    P->StorageRootOverrideForTests=FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementWorkflow/fixtures")/FGuid::NewGuid().ToString(EGuidFormats::Digits);
+    const auto Root=P->StorageRootOverrideForTests;
+    // Wait for file workers only. Workers never require a game-thread callback.
+    auto Complete=[&](const FString& Request){if(P->PendingWrite)P->FinishWrite(P->PendingWrite->Future.Get(),false);return P->GetPoseSaveStatus(Request);};
+    const FTransform A(FRotator(-25,40,8),FVector(111,222,333));FString Reason;S->ApplyEditableTransform(A,Reason);
+    const FString RequestA=P->RequestSaveSensorPose(S,TEXT("위치 A"));TestEqual(TEXT("save request is pending until disk completion"),P->GetPoseSaveStatus(RequestA).State,EVirtualSensorPoseSaveState::Writing);
+    auto Saved=Complete(RequestA);TestEqual(TEXT("real file save succeeds"),Saved.State,EVirtualSensorPoseSaveState::Saved);const FString IdA=Saved.BookmarkId;
+    S->SetActorScale3D(FVector(2,3,4));P->BeginGesture(S);auto B=S->GetActorTransform();B.SetLocation(FVector(555,666,777));B.SetRotation(FRotator(10,-35,0).Quaternion());S->ApplyEditableTransform(B,Reason);P->CommitGesture(S);
+    const FString IdB=Complete(P->RequestSaveSensorPose(S,TEXT("위치 B"))).BookmarkId;
+    TestTrue(TEXT("gesture undo restores position"),P->UndoSensorPlacement(S,Reason)&&UVirtualSensorPlacementSubsystem::SamePose(S->GetActorTransform(),A));
+    TestTrue(TEXT("undo preserves current live scale"),S->GetActorScale3D().Equals(FVector(2,3,4)));
+    TestTrue(TEXT("redo restores position B"),P->RedoSensorPlacement(S,Reason)&&UVirtualSensorPlacementSubsystem::SamePose(S->GetActorTransform(),B));
+    TestTrue(TEXT("bookmark applies instantly"),P->ApplySensorPoseBookmark(S,IdA,Reason));
+    TestFalse(TEXT("stopped sensor remains stopped"),S->IsSensorRunning());TestEqual(TEXT("bookmark never acquires a frame"),S->GetSensorRuntimeStatus().FrameId,int64(0));
+    TestTrue(TEXT("recall preserves current scale"),S->GetActorScale3D().Equals(FVector(2,3,4)));
+    const auto Snapshot=P->GetCurrentPlacementSnapshot(S);TestEqual(TEXT("snapshot links applied bookmark"),Snapshot.BookmarkId,IdA);TestFalse(TEXT("snapshot is named placement"),Snapshot.bDirectPlacement);
+    auto* Reload=NewObject<UVirtualSensorPlacementSubsystem>(W);Reload->StorageRootOverrideForTests=Root;
+    const auto PoseBeforeLoad=S->GetActorTransform();TestEqual(TEXT("new instance loads persisted library"),Reload->GetSensorPoseBookmarks(S).Num(),2);
+    TestTrue(TEXT("loading never applies a saved pose"),S->GetActorTransform().Equals(PoseBeforeLoad));TestTrue(TEXT("new instance can apply persisted B"),Reload->ApplySensorPoseBookmark(S,IdB,Reason));
+    TestEqual(TEXT("duplicate name is explicitly rejected"),P->GetPoseSaveStatus(P->RequestSaveSensorPose(S,TEXT("위치 A"))).State,EVirtualSensorPoseSaveState::Rejected);
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(S);S->SetSharedOutputServices(nullptr,nullptr,Publisher);Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,S->GetSensorId());
+    const int32 Index=P->HistoryFor(S).Index;TestFalse(TEXT("locked undo is refused"),P->UndoSensorPlacement(S,Reason));TestEqual(TEXT("rejected undo preserves index"),P->HistoryFor(S).Index,Index);
+    TestFalse(TEXT("locked bookmark is refused"),P->ApplySensorPoseBookmark(S,IdA,Reason));Publisher->StopAllStreams(S->GetSensorId());
+    FString Original;const FString Path=P->StoragePath();FFileHelper::LoadFileToString(Original,*Path);
+    IFileManager::Get().MakeDirectory(*Root,true);const FString Blocker=Root/TEXT("not-a-directory");FFileHelper::SaveStringToFile(TEXT("owned test blocker"),*Blocker);
+    P->StorageRootOverrideForTests=Blocker;const auto Failed=Complete(P->RequestSaveSensorPose(S,TEXT("실패 시험")));
+    TestEqual(TEXT("actual bad-directory write fails"),Failed.State,EVirtualSensorPoseSaveState::Failed);P->StorageRootOverrideForTests=Root;
+    FString Preserved;FFileHelper::LoadFileToString(Preserved,*Path);TestEqual(TEXT("write failure preserves original file"),Preserved,Original);TestEqual(TEXT("failed save does not enter memory library"),P->GetSensorPoseBookmarks(S).Num(),2);
+    for(int32 I=2;I<20;++I)TestEqual(TEXT("bounded library admits up to twenty"),Complete(P->RequestSaveSensorPose(S,FString::Printf(TEXT("위치-%02d"),I))).State,EVirtualSensorPoseSaveState::Saved);
+    TestEqual(TEXT("twenty-first bookmark rejected"),P->GetPoseSaveStatus(P->RequestSaveSensorPose(S,TEXT("overflow"))).State,EVirtualSensorPoseSaveState::Rejected);
+    TestEqual(TEXT("rename writes same bookmark"),Complete(P->RenameSensorPoseBookmark(S,IdA,TEXT("이름 변경 A"))).State,EVirtualSensorPoseSaveState::Saved);
+    TestEqual(TEXT("delete writes updated file"),Complete(P->DeleteSensorPoseBookmark(S,IdB)).State,EVirtualSensorPoseSaveState::Saved);TestEqual(TEXT("delete only removes selected bookmark"),P->GetSensorPoseBookmarks(S).Num(),19);
+    auto* Duplicate=W->SpawnActor<AVirtualLidarSensorActor>();Duplicate->ScanComponent->SensorId=S->GetSensorId();
+    TestFalse(TEXT("duplicate ID cannot recall"),P->ApplySensorPoseBookmark(S,IdA,Reason));Duplicate->Destroy();
+    S->ApplyEditableTransform(A,Reason);P->Histories.Reset();
+    for(int32 I=0;I<60;++I){const auto Before=S->GetActorTransform();auto After=Before;After.AddToTranslation(FVector(1,0,0));S->ApplyEditableTransform(After,Reason);P->RecordPoseChange(S,Before,After);}
+    TestEqual(TEXT("history is bounded to fifty"),P->HistoryFor(S).Commands.Num(),50);
+    for(int32 I=0;I<50;++I)TestTrue(TEXT("bounded history undo succeeds"),P->UndoSensorPlacement(S,Reason));TestFalse(TEXT("past history boundary rejected"),P->UndoSensorPlacement(S,Reason));
+    const FString OldId=S->GetSensorId();S->ScanComponent->SensorId=TEXT("new-id");TestEqual(TEXT("renaming ID never guesses old library target"),P->GetSensorPoseBookmarks(S).Num(),0);S->ScanComponent->SensorId=OldId;
+    FFileHelper::SaveStringToFile(TEXT("{\"version\":999}"),*Path);auto* Bad=NewObject<UVirtualSensorPlacementSubsystem>(W);Bad->StorageRootOverrideForTests=Root;
+    TestEqual(TEXT("unsupported file returns no entries"),Bad->GetSensorPoseBookmarks(S).Num(),0);TestEqual(TEXT("unsupported file prevents overwrite"),Bad->GetPoseSaveStatus(Bad->RequestSaveSensorPose(S,TEXT("x"))).State,EVirtualSensorPoseSaveState::Rejected);
+    TestTrue(TEXT("canonical map strips PIE prefix"),UWorld::RemovePIEPrefix(TEXT("/Game/Maps/UEDPIE_2_Test"))==TEXT("/Game/Maps/Test"));
+    S->Destroy();return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementMotionTest,"MA0T10.Placement.ContinuousCadence",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPlacementMotionTest::RunTest(const FString&)

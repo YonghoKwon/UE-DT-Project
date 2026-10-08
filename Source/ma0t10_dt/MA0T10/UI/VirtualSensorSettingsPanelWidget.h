@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
 #include "VirtualSensorSettingsPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -49,6 +50,10 @@ public:
     void NudgeSelectedSensor(FVector TranslationDelta, FRotator RotationDelta);
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement")
     void SetPlacementInputMode(EVirtualSensorPlacementInputMode Mode);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") FString RequestSaveSelectedSensorPose(const FString& Name,const FString& ExistingBookmarkId=TEXT(""));
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") bool ApplySelectedSensorPoseBookmark(const FString& BookmarkId);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") bool UndoSelectedSensorPlacement();
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") bool RedoSelectedSensorPlacement();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetSensorManipulationEnabled(bool bEnabled);
@@ -121,6 +126,9 @@ private:
     void SyncGizmoTarget();
     AActor* GetSelectedSensorActor() const;
     void HandleGizmoTransformChanged(const FTransform& Transform);
+    void HandleGizmoGestureStarted();
+    void RefreshPoseRows();
+    TSharedRef<SWidget> BuildPoseBookmarkControls();
     void HandleGizmoTransformCommitted(const FTransform& Transform);
     void HandleManipulationExitRequested();
     void FinishSensorManipulation(bool bRestoreMonitorView);
@@ -155,6 +163,14 @@ private:
     TArray<TSharedPtr<EVirtualCameraDeviceProfile>> NativeCameraProfileOptions;
     TArray<TSharedPtr<EVirtualLidarDeviceProfile>> NativeLidarProfileOptions;
     TSharedPtr<STextBlock> NativeStatusText;
+    TSharedPtr<SEditableTextBox> PoseNameInput;
+    TArray<FVirtualSensorPoseBookmark> PoseRows;
+    FString PoseName,SelectedPoseId,PendingPoseDeleteId,LastPoseRequest;
+    TWeakObjectPtr<AVirtualSensorActorBase> PoseRowsSensor;
+    int64 PoseRowsRevision=-1;
+    double NextPoseRefresh=0;
+    bool bPoseEditable=false,bPoseUndoAvailable=false,bPoseRedoAvailable=false;
+    FString PoseLockReason;
     bool bShowAdvanced = false;
     bool bKeyboardHelpExpanded = false;
     bool bGizmoVisible = true;
