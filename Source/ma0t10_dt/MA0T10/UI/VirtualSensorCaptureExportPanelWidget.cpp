@@ -153,9 +153,11 @@ void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
 		for(const auto& S:R.Sensors)
         {
             RunResultsText+=FString::Printf(TEXT("\n%s · 설정 revision %d · 요청 %.1fHz / 기록 시점 %.1fHz"),*S.SensorId,S.SettingsRevision,S.RequestedHz,S.MeasuredHz);
+            if(S.bHasCompatibilityJsonRate)RunResultsText+=FString::Printf(TEXT(" · 호환 JSON 생성 %.1fHz (PCD 송신률 아님)"),S.CompatibilityJsonHz);
             if(!S.Placement.MapPackage.IsEmpty())RunResultsText+=FString::Printf(TEXT("\n배치: %s · %s cm · %s · %s%s"),*S.Placement.MapPackage,*S.Placement.WorldTransform.GetLocation().ToString(),*S.Placement.WorldTransform.Rotator().ToString(),S.Placement.bDirectPlacement?TEXT("직접 배치"):*S.Placement.BookmarkName,S.Placement.bChangedDuringRun?TEXT(" · 외부 배치 변경 감지"):TEXT(""));
         }
 		RunResultsText+=TEXT("\nBroker 수락은 외부 소비자의 저장·AI 처리 완료를 뜻하지 않습니다.");
+		RunResultsText+=TEXT("\n")+USlabRunResultsSubsystem::DescribeStreamDetails(R);
 		auto Time=[](const FDateTime& T){return T.GetTicks()>0?T.ToIso8601():FString(TEXT("—"));};
 		RunResultsText+=TEXT("\n준비 UTC: ")+Time(R.PreparedUtc)+TEXT("\n시작 UTC: ")+Time(R.StartedUtc)+TEXT("\n중단/종료 UTC: ")+Time(R.StoppedUtc)+TEXT(" / ")+Time(R.FinishedUtc);
 		const auto& S=R.TerminalSnapshot;
@@ -847,7 +849,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 	if (!Publisher) return TEXT("스트림 발행기가 연결되지 않았습니다.");
 	const UVirtualLidarScanComponent* SelectedLidar = SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
 	const float RequestedHz = SelectedLidar && SelectedLidar->ScanInterval > SMALL_NUMBER ? 1.0f / SelectedLidar->ScanInterval : 0.0f;
-	FString Text = FString::Printf(TEXT("LiDAR/Camera JSON은 최신 프레임 우선입니다. Point Cloud는 PCD Binary 고정, 완료 프레임 전체, 프레임마다 Broker receipt를 요청합니다.\n선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
+	FString Text = FString::Printf(TEXT("호환 JSON은 처리 중 1개+최신 대기 1개입니다. PCD/JPEG/telemetry의 실제 제출·receipt·자체수신은 각 스트림에서 확인하세요.\nPoint Cloud는 PCD Binary 고정 · 선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
 	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
 	if (Statuses.IsEmpty()) return Text + TEXT("아직 시작한 스트림이 없습니다.");
 	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())

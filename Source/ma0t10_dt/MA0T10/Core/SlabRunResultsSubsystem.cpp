@@ -63,12 +63,13 @@ void USlabRunResultsSubsystem::BeginRun(const FString& Run,const FString& Scenar
 {
     if(bEnding||Run.IsEmpty()||Find(Run))return;
     ClearPlacementBindings();ActiveRun=Run;Requests.Reset();auto& R=Results.AddDefaulted_GetRef();R.RunUUID=Run;R.ScenarioUUID=Scenario;R.Policy=Policy;R.Outputs=Outputs;R.PreparedUtc=FDateTime::UtcNow();
+    R.bHasStreamDetails=true;
     if(auto* GI=GetWorld()->GetGameInstance())if(auto* Archive=GI->GetSubsystem<USlabScenarioReplaySubsystem>())if(const auto Data=Archive->GetValidatedScenario(Scenario))R.ScenarioContentHash=Data->OriginalContentSha1;
     while(Results.Num()>20)Results.RemoveAt(0);Changed(true);
 }
 void USlabRunResultsSubsystem::SetSensors(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors,UVirtualSensorTransportComponent* Transport)
 {
-    if(const auto* R=Find(Run);!R||R->bFinalized||Run!=ActiveRun)return;
+    if(const auto* R=Find(Run);!R||R->bFinalized||Run!=ActiveRun||R->StartedUtc.GetTicks()>0)return;
     ClearPlacementBindings();
     if(auto* R=Find(Run))
     {
@@ -76,6 +77,7 @@ void USlabRunResultsSubsystem::SetSensors(const FString& Run,const TMap<FString,
         {
             FVirtualSensorEditableState State;S->ReadEditableState(State);State.ActorTransform=FTransform::Identity;
             auto& Item=R->Sensors.AddDefaulted_GetRef();Item.SensorId=Pair.Key;Item.SettingsRevision=S->GetConfigurationRevision();
+            Item.bHasAcquisitionCounts=true;
             FJsonObjectConverter::UStructToJsonObjectString(State,Item.Configuration);
             Item.RequestedHz=1.0f/FMath::Max(.001f,S->GetSensorKind()==EVirtualSensorKind::Camera?State.CameraCaptureInterval:State.LidarScanInterval);
             Item.Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->GetCurrentPlacementSnapshot(S);
@@ -100,11 +102,23 @@ void USlabRunResultsSubsystem::SetSensors(const FString& Run,const TMap<FString,
 void USlabRunResultsSubsystem::ClearPlacementBindings()
 {for(const auto& B:PlacementBindings)if(auto* Root=B.Component.Get())Root->TransformUpdated.Remove(B.Handle);PlacementBindings.Reset();}
 void USlabRunResultsSubsystem::RecordAcquisition(const FString& Run,bool Success)
-{if(auto* R=Find(Run);R&&!R->bFinalized){if(Success)++R->Acquired;else++R->AcquisitionFailures;Changed();}}
+{if(auto* R=Find(Run);R&&!R->bFinalized){if(Success){++R->Acquired;++R->UnattributedAcquired;}else{++R->AcquisitionFailures;++R->UnattributedAcquisitionFailures;}Changed();}}
+void USlabRunResultsSubsystem::RecordAcquisition(const FString& Run,const FString& Id,int64 Frame,bool Success)
+{
+    auto* R=Find(Run);if(!R||R->bFinalized||Run!=ActiveRun)return;
+    const FString Key=TEXT("acq|")+Id+TEXT("|")+LexToString(Frame);
+    if(!Requests.Contains(Key)&&Requests.Num()>=65536){R->Warning=TEXT("실행별 진단 식별자 상한 65536건 초과");return;}
+    auto& Entry=Requests.FindOrAdd(Key);if(Entry.Flags&192)return;Entry.Flags|=Success?64:128;
+    if(Success)++R->Acquired;else++R->AcquisitionFailures;
+    if(auto* Sensor=R->Sensors.FindByPredicate([&](const auto& S){return S.SensorId==Id;}))
+    {Sensor->bHasAcquisitionCounts=true;if(Success)++Sensor->Acquired;else++Sensor->AcquisitionFailures;}
+    else {if(Success)++R->UnattributedAcquired;else++R->UnattributedAcquisitionFailures;}
+    Changed();
+}
 void USlabRunResultsSubsystem::MarkStopped(const FString& Run){if(auto* R=Find(Run);R&&!R->bFinalized&&R->StoppedUtc.GetTicks()==0)R->StoppedUtc=FDateTime::UtcNow();}
 void USlabRunResultsSubsystem::SetAppliedOutputs(const FString& Run,const FVirtualSlabSensorOutputSelection& Outputs){if(auto* R=Find(Run);R&&!R->bFinalized)R->AppliedOutputs=Outputs;}
 void USlabRunResultsSubsystem::SetMeasuredRates(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors)
-{if(auto* R=Find(Run);R&&!R->bFinalized&&Run==ActiveRun)for(auto& S:R->Sensors)if(const auto* P=Sensors.Find(S.SensorId);P&&P->IsValid()){S.MeasuredHz=P->Get()->GetSensorRuntimeStatus().MeasuredAcquisitionRateHz;if(S.RequestedHz>0&&S.MeasuredHz<S.RequestedHz*.95f)R->Warning=TEXT("측정률 미달이 있습니다. 승인 프레임의 Broker 수락 결과와 구분하세요.");}}
+{if(auto* R=Find(Run);R&&!R->bFinalized&&Run==ActiveRun)for(auto& S:R->Sensors)if(const auto* P=Sensors.Find(S.SensorId);P&&P->IsValid()){S.MeasuredHz=P->Get()->GetSensorRuntimeStatus().MeasuredAcquisitionRateHz;if(P->Get()->GetSensorKind()==EVirtualSensorKind::Lidar){S.bHasCompatibilityJsonRate=true;S.CompatibilityJsonHz=P->Get()->GetSensorRuntimeStatus().MeasuredOutputRateHz;}if(S.RequestedHz>0&&S.MeasuredHz<S.RequestedHz*.95f)R->Warning=TEXT("측정률 미달이 있습니다. 승인 프레임의 Broker 수락 결과와 구분하세요.");}}
 int64 USlabRunResultsSubsystem::GetUnconfirmedCount(const FString& Run) const {const auto* R=Results.FindByPredicate([&](const auto& S){return S.RunUUID==Run;});return R?R->Unfinished:0;}
 void USlabRunResultsSubsystem::GatherUnconfirmedKeys(const FString& Run,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const
 {
@@ -118,7 +132,9 @@ void USlabRunResultsSubsystem::UpdateProgress(const FString& Run,const FString& 
 {if(auto* R=Find(Run);R&&!R->bFinalized){R->MtlNo=Mtl;R->LastSlabFrame=Frame;R->ElapsedSec=Elapsed;if(R->StartedUtc.GetTicks()==0)R->StartedUtc=FDateTime::UtcNow();Changed();}}
 void USlabRunResultsSubsystem::ObserveTransport(const FVirtualSensorTransportObservation& E)
 {
-    auto* R=Find(E.RunId);if(!R||R->bFinalized||E.RunId!=ActiveRun||E.SensorId.IsEmpty())return;
+    auto* R=Find(E.RunId);if(!R||R->bFinalized||E.RunId!=ActiveRun)return;
+    if(E.SensorId.IsEmpty()||int32(E.Kind)<0||int32(E.Kind)>2)
+    {if(E.Phase==EVirtualSensorTransportObservationPhase::Failed){if(!E.RequestId.IsEmpty()){const FString K=TEXT("unknown|")+E.RequestId;if(!Requests.Contains(K)&&Requests.Num()>=65536)return;auto& U=Requests.FindOrAdd(K);if(U.Flags&LedgerFailed)return;U.Flags|=LedgerFailed;}++R->DeliveryFailures;++R->UnattributedDeliveryFailures;Changed();}return;}
     const FString Key=LexToString(static_cast<int32>(E.Kind))+TEXT("|")+E.SensorId+TEXT("|")+LexToString(E.FrameId);
     if(!Requests.Contains(Key)&&Requests.Num()>=65536){R->Warning=TEXT("실행별 진단 식별자 상한 65536건 초과");R->Reason=R->Warning;R->DeliveryFailures=FMath::Max<int64>(1,R->DeliveryFailures);return;}
     auto& S=Requests.FindOrAdd(Key);if(S.RequestId.IsEmpty())S.RequestId=E.RequestId;const bool WasPending=(S.Flags&LedgerAccepted)&&!(S.Flags&(LedgerReceipt|LedgerFailed));
@@ -127,6 +143,17 @@ void USlabRunResultsSubsystem::ObserveTransport(const FVirtualSensorTransportObs
         E.Phase==EVirtualSensorTransportObservationPhase::ValidationFailed?LedgerInvalid:LedgerFailed;
     if(S.Flags&Flag)return;S.Flags|=Flag;
     const bool IsPending=(S.Flags&LedgerAccepted)&&!(S.Flags&(LedgerReceipt|LedgerFailed));R->Unfinished+=int64(IsPending)-int64(WasPending);
+    R->bHasStreamDetails=true;auto* Detail=R->StreamDetails.FindByPredicate([&](const auto& D){return D.SensorId==E.SensorId&&D.Kind==E.Kind;});
+    if(!Detail){Detail=&R->StreamDetails.AddDefaulted_GetRef();Detail->SensorId=E.SensorId;Detail->Kind=E.Kind;}
+    Detail->AcceptedUnconfirmed+=int64(IsPending)-int64(WasPending);
+    if(Flag==LedgerAccepted)++Detail->Accepted;else if(Flag==LedgerSubmitted)++Detail->Submitted;else if(Flag==LedgerReceipt)++Detail->Receipts;
+    else if(Flag==LedgerConsumed)++Detail->ConsumerValidated;else if(Flag==LedgerInvalid)++Detail->ConsumerInvalid;else ++Detail->Failures;
+    const double At=E.MonotonicSeconds>0?E.MonotonicSeconds:FPlatformTime::Seconds();
+    auto Rate=[&](int64 Count,double& First,double& Last,double& Hz,bool& Known)
+    {if(First<=0)First=At;Last=FMath::Max(Last,At);Known=Count>1&&Last>First;if(Known)Hz=double(Count-1)/(Last-First);};
+    if(Flag==LedgerSubmitted)Rate(Detail->Submitted,Detail->FirstSubmitted,Detail->LastSubmitted,Detail->SubmittedHz,Detail->bHasSubmittedRate);
+    if(Flag==LedgerReceipt)Rate(Detail->Receipts,Detail->FirstReceipt,Detail->LastReceipt,Detail->ReceiptHz,Detail->bHasReceiptRate);
+    if(Flag==LedgerConsumed)Rate(Detail->ConsumerValidated,Detail->FirstConsumer,Detail->LastConsumer,Detail->ConsumerValidatedHz,Detail->bHasConsumerRate);
     if(Flag==LedgerAccepted)++R->Accepted;else if(Flag==LedgerSubmitted)++R->Submitted;else if(Flag==LedgerReceipt)++R->Receipts;
     else if(Flag==LedgerConsumed)++R->ConsumerValidated;else if(Flag==LedgerInvalid)++R->ConsumerInvalid;else {++R->DeliveryFailures;if(R->Reason.IsEmpty())R->Reason=E.Message;}
     Changed();
@@ -158,6 +185,7 @@ void USlabRunResultsSubsystem::Finalize(const FVirtualSlabSessionStatus& S,bool 
     auto* R=Find(S.RunId);if(!R||R->bFinalized)return;
     R->bFinalized=true;R->FinishedUtc=FDateTime::UtcNow();R->ConsumerSnapshotUtc=R->FinishedUtc;if(R->StoppedUtc.GetTicks()==0)R->StoppedUtc=R->FinishedUtc;
     R->AcquisitionFailures=FMath::Max<int64>(R->AcquisitionFailures,S.AcquisitionFailures);R->DeliveryFailures=FMath::Max<int64>(R->DeliveryFailures,S.StreamFailures);
+    int64 Attributed=0;for(const auto& D:R->StreamDetails)Attributed+=D.Failures;R->UnattributedDeliveryFailures=FMath::Max<int64>(R->UnattributedDeliveryFailures,R->DeliveryFailures-Attributed);
     R->Unfinished=FMath::Max(R->Unfinished,S.UnfinishedFrames);
     if(!S.RequiredDataError.IsEmpty())R->Reason=S.RequiredDataError;else if(R->Reason.IsEmpty())R->Reason=S.Message;
     R->Outcome=PreparationFailed?ESlabRunDeliveryOutcome::PreparationFailed:
@@ -170,6 +198,22 @@ void USlabRunResultsSubsystem::Finalize(const FVirtualSlabSessionStatus& S,bool 
     {if(!R->Warning.IsEmpty())R->Warning+=TEXT("\n");R->Warning+=TEXT("실행 중 외부에서 센서 배치가 변경됐습니다. 시작 배치와 프레임별 측정 자세를 확인하세요.");}
     ClearPlacementBindings();
     R->SaveState=TEXT("저장 요청 접수");QueueReport(*R);Changed(true);
+}
+FString USlabRunResultsSubsystem::DescribeStreamDetails(const FSlabRunDeliverySummary& R)
+{
+    FString T=TEXT("센서별 측정 완료/실패");
+    for(const auto& S:R.Sensors)T+=S.bHasAcquisitionCounts?FString::Printf(TEXT("\n%s: %lld/%lld"),*S.SensorId,S.Acquired,S.AcquisitionFailures):TEXT("\n")+S.SensorId+TEXT(": 확인 불가");
+    T+=TEXT("\n센서·출력별 승인/제출/receipt/실패/승인후 미확인/자체검증/invalid");
+    if(!R.bHasStreamDetails)T+=TEXT("\n확인 불가 · 이전 기록에 상세 집계 없음");
+    for(const auto& D:R.StreamDetails)
+    {
+        const TCHAR* K=D.Kind==EVirtualSensorStreamKind::PointCloud?TEXT("PCD"):D.Kind==EVirtualSensorStreamKind::CameraImage?TEXT("Camera"):TEXT("LiDAR 정보");
+        T+=FString::Printf(TEXT("\n%s / %s: %lld/%lld/%lld/%lld/%lld/%lld/%lld"),*D.SensorId,K,D.Accepted,D.Submitted,D.Receipts,D.Failures,D.AcceptedUnconfirmed,D.ConsumerValidated,D.ConsumerInvalid);
+        auto Hz=[](bool Known,double H){return Known?FString::Printf(TEXT("%.2f"),H):FString(TEXT("N/A"));};
+        T+=TEXT("\n  기록 이벤트 간격 Hz · 제출/receipt/자체검증 ")+Hz(D.bHasSubmittedRate,D.SubmittedHz)+TEXT(" / ")+Hz(D.bHasReceiptRate,D.ReceiptHz)+TEXT(" / ")+Hz(D.bHasConsumerRate,D.ConsumerValidatedHz);
+    }
+    T+=FString::Printf(TEXT("\n귀속 불가 · 측정/측정실패/전송오류 %lld/%lld/%lld"),R.UnattributedAcquired,R.UnattributedAcquisitionFailures,R.UnattributedDeliveryFailures);
+    return T;
 }
 FString USlabRunResultsSubsystem::SerializeSummary(const FSlabRunDeliverySummary& S)
 {

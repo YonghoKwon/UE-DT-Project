@@ -334,7 +334,7 @@ void UVirtualSensorSlabContextSubsystem::CompleteAcquisition(const FString& Id,i
 {
 	const bool Removed=PendingKeys.Remove(Id+TEXT("|")+LexToString(FrameId))>0;
 	if (Removed && !Success) ++Status.AcquisitionFailures;
-	if(Removed)GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordAcquisition(Status.RunId,Success);
+	if(Removed)GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordAcquisition(Status.RunId,Id,FrameId,Success);
 	Status.PendingAcquisitions=PendingKeys.Num();
 }
 bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVirtualSlabFrameContext& Context) const

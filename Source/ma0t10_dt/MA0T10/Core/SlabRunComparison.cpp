@@ -1,5 +1,6 @@
 #include "SlabRunComparison.h"
 #include "Json.h"
+#include "SlabRunResultsSubsystem.h"
 
 namespace
 {
@@ -105,6 +106,7 @@ FString DescribeRunComparison(const FSlabRunComparison& C)
     auto Count=[&](const TCHAR* Label,int64 A,int64 B){T+=FString::Printf(TEXT("\n%s A/B %lld/%lld · B−A %+lld"),Label,A,B,B-A);};
     Count(TEXT("측정 완료"),C.A.Acquired,C.B.Acquired);Count(TEXT("측정 실패"),C.A.AcquisitionFailures,C.B.AcquisitionFailures);Count(TEXT("승인"),C.A.Accepted,C.B.Accepted);Count(TEXT("제출"),C.A.Submitted,C.B.Submitted);Count(TEXT("receipt"),C.A.Receipts,C.B.Receipts);Count(TEXT("전송 실패"),C.A.DeliveryFailures,C.B.DeliveryFailures);Count(TEXT("미완료"),C.A.Unfinished,C.B.Unfinished);Count(TEXT("자체 검증"),C.A.ConsumerValidated,C.B.ConsumerValidated);Count(TEXT("invalid"),C.A.ConsumerInvalid,C.B.ConsumerInvalid);
     T+=TEXT("\nBroker 수락 비율 A/B: ")+Ratio(C.A)+TEXT(" / ")+Ratio(C.B);
+    T+=TEXT("\n\nA 상세:\n")+USlabRunResultsSubsystem::DescribeStreamDetails(C.A)+TEXT("\n\nB 상세:\n")+USlabRunResultsSubsystem::DescribeStreamDetails(C.B);
     for(const auto& W:C.Warnings)T+=TEXT("\n주의: ")+W;
     T+=TEXT("\n배치 품질·가림률·점밀도·실행 평균 Hz는 이 비교에 포함되지 않습니다. Broker receipt는 소비자 업무 처리 완료가 아닙니다.");return T;
 }

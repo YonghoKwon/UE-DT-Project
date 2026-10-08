@@ -30,6 +30,7 @@ public:
     void BeginRun(const FString& Run,const FString& Scenario,ESlabExecutionPolicy Policy,const FVirtualSlabSensorOutputSelection& Outputs);
     void SetSensors(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors,UVirtualSensorTransportComponent* Transport);
     void RecordAcquisition(const FString& Run,bool Success);
+    void RecordAcquisition(const FString& Run,const FString& SensorId,int64 FrameId,bool Success);
     void MarkStopped(const FString& Run);
     void SetAppliedOutputs(const FString& Run,const FVirtualSlabSensorOutputSelection& Outputs);
     void SetMeasuredRates(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors);
@@ -49,6 +50,7 @@ public:
     UFUNCTION(BlueprintCallable,Category="Slab|Results") bool RetryRunReportSave(const FString& Run,FString& Reason);
     UFUNCTION(BlueprintPure,Category="Slab|Results") int64 GetResultsRevision() const { return ResultsRevision; }
     static FString Describe(const FSlabRunDeliverySummary& Result);
+    static FString DescribeStreamDetails(const FSlabRunDeliverySummary& Result);
     UPROPERTY(BlueprintAssignable) FSlabRunResultsChanged OnResultsChanged;
 private:
     struct FWriteResult { FString Run,Path,Error;bool Success=false; };
@@ -78,6 +80,7 @@ private:
     friend class FSlabRunHistoryTest;
     friend class FSlabRunPlacementSnapshotTest;
     friend class FSlabRunComparisonUiTest;
+    friend class FSlabPerSensorDeliveryTest;
     FString ReportDirectoryOverrideForTests;
 #endif
 };
