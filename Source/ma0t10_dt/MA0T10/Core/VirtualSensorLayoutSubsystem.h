@@ -2,6 +2,8 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "VirtualSensorLayoutTypes.h"
+#include "Async/Future.h"
 #include "VirtualSensorLayoutSubsystem.generated.h"
 class AVirtualSensorActorBase;
 class AVirtualSensorCoordinator;
@@ -39,6 +41,15 @@ public:
     UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorLayout") int64 GetRevision() const {return Revision;}
     UPROPERTY(BlueprintAssignable) FVirtualSensorLayoutChanged OnLayoutChanged;
     static FString CanonicalActorPath(const AActor* Actor);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") FString RequestSaveLayout(const FString& Name,bool bOverwrite=false);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") FString PreviewLayoutRestore(const FString& Name);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") bool ApplyLayoutRestore(const FString& RequestId,FString& Reason);
+    UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorLayout") FVirtualSensorLayoutOperationStatus GetOperationStatus(const FString& Id) const;
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") TArray<FString> GetSavedLayoutNames() const;
+    bool BuildLayoutSnapshot(FVirtualSensorLayoutDocument& Document,FString& Reason) const;
+#if WITH_DEV_AUTOMATION_TESTS
+    FString StorageRootOverrideForTests;
+#endif
 private:
     TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FString> Owned;
     int64 Revision=0;
@@ -46,4 +57,20 @@ private:
     AVirtualSensorActorBase* SpawnStopped(EVirtualSensorKind Kind,const FTransform& Pose,FString& Reason);
     bool ViewPose(FTransform& Pose,FString& Reason) const;
     void Changed();
+    struct FWriteResult {bool Success=false;FString Error;};
+    struct FPendingWrite {FString Id;TFuture<FWriteResult> Future;};
+    TUniquePtr<FPendingWrite> PendingWrite;
+    TMap<FString,FVirtualSensorLayoutOperationStatus> Operations;
+    TArray<FString> OperationOrder;
+    FVirtualSensorLayoutDocument RestoreDocument;
+    FString RestoreId;
+    int64 RestoreInventoryRevision=0;
+    TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FTransform> RestorePoses;
+    TMap<TWeakObjectPtr<AVirtualSensorActorBase>,int32> RestoreRevisions;
+    FString Directory() const;
+    FString LayoutPath(const FString& Name) const;
+    FString AddOperation(EVirtualSensorLayoutOperation State,const FString& Message,const FString& Path=FString());
+    bool ValidateDocument(const FVirtualSensorLayoutDocument& Document,TArray<AVirtualSensorActorBase*>& Matches,TArray<AVirtualSensorActorBase*>& Excess,FString& Reason) const;
+    static FWriteResult WriteDocument(const FString& Path,const FString& Json);
+    void FinishWrite(FWriteResult Result);
 };
