@@ -36,6 +36,9 @@ public:
     void RecordPoseChange(AVirtualSensorActorBase* Sensor,const FTransform& Before,const FTransform& After);
     void ForgetSensorIdentity(AVirtualSensorActorBase* Sensor);
     bool IsPreviewRefreshPending(AVirtualSensorActorBase* Sensor) const;
+    UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorPlacement") FVirtualSensorPlacementPreviewStatus GetPlacementPreviewStatus(AVirtualSensorActorBase* Sensor) const;
+    void BeginPlacementPreviewRefresh(AVirtualSensorActorBase* Sensor);
+    void CancelPlacementPreviewRefresh(AVirtualSensorActorBase* Sensor);
     static FString CanonicalMap(UWorld* World);
     static bool SamePose(const FTransform& A,const FTransform& B);
     static constexpr int32 MaxBookmarksPerSensor=20;
@@ -55,7 +58,18 @@ private:
     TArray<FString> RequestOrder;
     TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FHistory> Histories;
     TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FString> AppliedBookmarks;
-    TMap<TWeakObjectPtr<AVirtualSensorActorBase>,int64> PreviewBaselineFrames;
+    struct FPreviewRequest
+    {
+        FVirtualSensorPlacementPreviewStatus Status;
+        FString SensorId;
+        FTransform ActorPose,AcquisitionPose;
+        int32 ConfigurationRevision=0,Generation=0,Width=0,Height=0;
+        int64 BaselineFrame=-1;
+        double StartedMonotonic=0,StartedWorld=0,Timeout=1.5;
+    };
+    TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FPreviewRequest> PreviewRequests;
+    int64 NextPreviewRequest=0;
+    void ObservePreviewFrame(AVirtualSensorActorBase* Sensor,int64 Frame,const FTransform& Pose,double Started,int32 Generation,int32 Width,int32 Height);
     bool bLoaded=false,bLoadValid=true,bEnding=false,bApplyingHistory=false;
     int64 LibraryRevision=0;
     FString LibraryMessage,LoadedMap;
@@ -75,6 +89,7 @@ private:
     friend class FSensorPoseLibraryRhiTest;
     friend class FSlabRunPlacementSnapshotTest;
     friend class FSensorPlacementIdentityUiTest;
+    friend class FSensorPlacementPreviewTest;
     FString StorageRootOverrideForTests;
 #endif
 };

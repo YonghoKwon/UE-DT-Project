@@ -11,6 +11,23 @@
 #include "Modules/ModuleManager.h"
 #include <atomic>
 
+struct FVirtualCameraPreviewFence
+{
+    FVirtualCameraPreviewCompletion Completion;
+    FGPUFenceRHIRef Fence;
+    std::atomic<bool> Submitted{false};
+};
+void UVirtualCameraCaptureComponent::RequestPlacementPreviewProof()
+{PlacementPreviewFence.Reset();bPlacementPreviewProofRequested=true;}
+void UVirtualCameraCaptureComponent::CancelPlacementPreviewProof()
+{bPlacementPreviewProofRequested=false;PlacementPreviewFence.Reset();}
+bool UVirtualCameraCaptureComponent::GetPlacementPreviewCompletion(FVirtualCameraPreviewCompletion& Out) const
+{
+    const auto P=PlacementPreviewFence;
+    if(!P||!P->Submitted.load(std::memory_order_acquire)||!P->Fence.IsValid()||!P->Fence->Poll()||P->Completion.Generation!=ScheduledGeneration)return false;
+    Out=P->Completion;return true;
+}
+
 struct FVirtualCameraLocalReadbackState
 {
 	FVirtualCameraLocalSaveFrame Frame;
@@ -66,6 +83,15 @@ void UVirtualCameraCaptureComponent::UpdateSceneCaptureContents(FSceneInterface*
 	Snapshot.Height=CameraRenderTarget?CameraRenderTarget->SizeY:CaptureResolution.Y;Snapshot.HorizontalFov=FOVAngle;Snapshot.VerticalFov=DeviceSpec.VerticalFovDegrees;
 	Snapshot.Location=GetComponentLocation();Snapshot.Rotation=GetComponentRotation();Snapshot.Forward=GetForwardVector();Snapshot.Up=GetUpVector();
 	Super::UpdateSceneCaptureContents(Scene);
+	if(bPlacementPreviewProofRequested&&bFileAcquisitionPendingRender)
+	{
+		bPlacementPreviewProofRequested=false;
+		auto Proof=MakeShared<FVirtualCameraPreviewFence,ESPMode::ThreadSafe>();
+		Proof->Completion.Acquisition=Snapshot;Proof->Completion.AcquisitionPose=GetComponentTransform();
+		Proof->Completion.StartedMonotonic=ActualStart;Proof->Completion.Generation=ScheduledGeneration;PlacementPreviewFence=Proof;
+		ENQUEUE_RENDER_COMMAND(SensorPlacementPreviewFence)([Proof](FRHICommandListImmediate& Cmd)
+		{Proof->Fence=RHICreateGPUFence(TEXT("SensorPlacementPreview"));Cmd.WriteGPUFence(Proof->Fence);Proof->Submitted.store(true,std::memory_order_release);});
+	}
 #if WITH_DEV_AUTOMATION_TESTS
 	++LocalFileRenderDispatchCount;
 #endif

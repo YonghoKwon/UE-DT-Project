@@ -174,6 +174,7 @@ private:
     double NextPoseRefresh=0;
     bool bPoseEditable=false,bPoseUndoAvailable=false,bPoseRedoAvailable=false;
     FString PoseLockReason;
+    FVirtualSensorPlacementPreviewStatus PlacementPreviewStatus;
     bool bShowAdvanced = false;
     bool bKeyboardHelpExpanded = false;
     bool bGizmoVisible = true;

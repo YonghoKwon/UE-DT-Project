@@ -173,6 +173,7 @@ void UVirtualCameraCaptureComponent::StartCapture()
 
 void UVirtualCameraCaptureComponent::StopCapture()
 {
+    CancelPlacementPreviewProof();
 	CancelLocalFileFrame();
 	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
 	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false,false);

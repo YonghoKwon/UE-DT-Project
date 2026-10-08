@@ -1815,6 +1815,8 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
     Snapshot->TimeSyncState = EVirtualLidarTimeSyncState::SimulationClock;
     Snapshot->bProtocolVerifiedAgainstHardware = DeviceSpec.bProtocolVerifiedAgainstHardware;
 	Snapshot->AcquisitionTransform = AcquisitionTransform;
+    Snapshot->AcquisitionStartedMonotonic=ScheduledScanStartTime;
+    Snapshot->PipelineGeneration=ScheduledGeneration;
 	Snapshot->SlabContext=ScheduledSlabContext;
 	if (GetWorld()) if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId);
 	ScheduledSlabContext=FVirtualSlabFrameContext();

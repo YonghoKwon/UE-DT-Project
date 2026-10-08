@@ -30,6 +30,18 @@ struct MA0T10_DT_API FVirtualSensorPoseSaveStatus
     UPROPERTY(BlueprintReadOnly) FString Message;
     UPROPERTY(BlueprintReadOnly) FString Path;
 };
+UENUM(BlueprintType)
+enum class EVirtualSensorPlacementPreviewState:uint8 { Idle, Waiting, Ready, Stopped, Delayed, Cancelled };
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorPlacementPreviewStatus
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly) EVirtualSensorPlacementPreviewState State=EVirtualSensorPlacementPreviewState::Idle;
+    UPROPERTY(BlueprintReadOnly) int64 RequestId=0;
+    UPROPERTY(BlueprintReadOnly) int64 CompletedFrameId=-1;
+    UPROPERTY(BlueprintReadOnly) double ElapsedSeconds=0;
+    UPROPERTY(BlueprintReadOnly) FString Message;
+};
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorPlacementSnapshot
 {

@@ -399,6 +399,7 @@ bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
     {
         if(BeforeId!=RequestedActor->GetSensorId())Placement->ForgetSensorIdentity(RequestedActor.Get());
         else Placement->RecordPoseChange(RequestedActor.Get(),Before,RequestedActor->GetActorTransform());
+        Placement->BeginPlacementPreviewRefresh(RequestedActor.Get());
     }
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
     if(RequestedActor.Get()==GetSelectedSensorActor())RefreshSelectedSensorNow(true);else RefreshPendingState(true);
@@ -418,7 +419,8 @@ bool UVirtualSensorSettingsPanelWidget::ApplyPendingTransform()
         RefreshNativeText();
         return false;
     }
-    if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())Placement->RecordPoseChange(Sensor,Before,Sensor->GetActorTransform());
+    if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+    {Placement->RecordPoseChange(Sensor,Before,Sensor->GetActorTransform());Placement->BeginPlacementPreviewRefresh(Sensor);}
     LastControlMessage = bManipulationEnabled ? TEXT("조작 중: 경량 미리보기 · 위치 적용됨") : TEXT("위치가 PIE에 반영됨");
     RefreshNativeText();
     return true;
@@ -515,7 +517,10 @@ void UVirtualSensorSettingsPanelWidget::FinishSensorManipulation(bool bRestoreMo
     if (IsValid(GizmoActor)) GizmoActor->SetManipulationEnabled(false);
     bManipulationEnabled = false;
     if (auto* Target = ManipulationTarget.Get())
-    {Target->OnDataCollectionStarting.RemoveAll(this);Target->EndInteractiveManipulation();}
+    {
+        Target->OnDataCollectionStarting.RemoveAll(this);Target->EndInteractiveManipulation();
+        if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())Placement->BeginPlacementPreviewRefresh(Target);
+    }
     ManipulationTarget.Reset();
     if (!bRestoreMonitorView) bRestoreMonitorViewAfterManipulation = false;
     EndMonitorFollowForManipulation();
@@ -578,8 +583,9 @@ FString UVirtualSensorSettingsPanelWidget::GetControlStatusText() const
 {
     const FVector Location = PendingState.ActorTransform.GetLocation();
     const FRotator Rotation = PendingState.ActorTransform.Rotator();
-    return FString::Printf(TEXT("%s\n대상=%s  SensorId=%s\n위치(cm): X %.1f  Y %.1f  Z %.1f\n회전: P %.1f  Y %.1f  R %.1f\n품질=%s\n%s"),
+    return FString::Printf(TEXT("%s%s\n대상=%s  SensorId=%s\n위치(cm): X %.1f  Y %.1f  Z %.1f\n회전: P %.1f  Y %.1f  R %.1f\n품질=%s\n%s"),
         *LastControlMessage,
+        *(IsWorkspaceOwned()&&!PlacementPreviewStatus.Message.IsEmpty()?TEXT("\n")+PlacementPreviewStatus.Message:FString()),
         PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"),
         *PendingState.SensorId,
         Location.X, Location.Y, Location.Z,
@@ -1004,7 +1010,8 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged(const FTrans
 void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted(const FTransform& Transform)
 {
     if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
-    if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())Placement->CommitGesture(ManipulationTarget.Get());
+    if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+    {Placement->CommitGesture(ManipulationTarget.Get());Placement->BeginPlacementPreviewRefresh(ManipulationTarget.Get());}
     PendingState.ActorTransform = Transform;
 	LastControlMessage = TEXT("조작 위치가 PIE에 반영됨");
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
@@ -1025,7 +1032,7 @@ bool UVirtualSensorSettingsPanelWidget::ApplySelectedSensorPoseBookmark(const FS
     auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
     if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
     FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->ApplySensorPoseBookmark(Sensor,Id,Reason);
-    if(Ok){SelectedPoseId=Id;RefreshPendingState(false);LastControlMessage=Sensor->IsSensorRunning()?TEXT("저장 위치로 이동 · 미리보기 갱신 중"):TEXT("저장 위치로 이동 · 센서 정지 유지");}
+    if(Ok){SelectedPoseId=Id;RefreshPendingState(false);LastControlMessage=TEXT("저장 위치로 이동");}
     else LastControlMessage=Reason;RefreshNativeText();return Ok;
 }
 bool UVirtualSensorSettingsPanelWidget::UndoSelectedSensorPlacement()
@@ -1049,6 +1056,7 @@ void UVirtualSensorSettingsPanelWidget::RefreshPoseRows()
     const auto CurrentKind=Sensor?Sensor->GetSensorKind():EVirtualSensorKind::Camera;
     if(PoseRowsSensor.Get()!=Sensor||PoseRowsSensorId!=CurrentId||PoseRowsKind!=CurrentKind)
     {
+        if(PoseRowsSensor.IsValid()&&PoseRowsSensor.Get()!=Sensor)P->CancelPlacementPreviewRefresh(PoseRowsSensor.Get());
         PoseRowsSensor=Sensor;PoseRowsSensorId=CurrentId;PoseRowsKind=CurrentKind;PoseRowsRevision=-1;
         SelectedPoseId.Reset();PendingPoseDeleteId.Reset();PoseName.Reset();LastPoseRequest.Reset();
         if(PoseNameInput)PoseNameInput->SetText(FText::GetEmpty());
@@ -1056,6 +1064,9 @@ void UVirtualSensorSettingsPanelWidget::RefreshPoseRows()
     if(PoseRowsRevision!=P->GetLibraryRevision())
     {PoseRows=P->GetSensorPoseBookmarks(Sensor);PoseRowsRevision=P->GetLibraryRevision();if(!SelectedPoseId.IsEmpty()&&!PoseRows.ContainsByPredicate([this](const auto& B){return B.BookmarkId==SelectedPoseId;}))SelectedPoseId.Reset();}
     bPoseEditable=P->CanEditSensorPlacement(Sensor,PoseLockReason);bPoseUndoAvailable=P->CanUndoSensorPlacement(Sensor);bPoseRedoAvailable=P->CanRedoSensorPlacement(Sensor);
+    const auto Preview=P->GetPlacementPreviewStatus(Sensor);
+    if(Preview.State!=PlacementPreviewStatus.State||Preview.RequestId!=PlacementPreviewStatus.RequestId)
+    {PlacementPreviewStatus=Preview;RefreshNativeText();}
     if(!LastPoseRequest.IsEmpty()){const auto S=P->GetPoseSaveStatus(LastPoseRequest);LastControlMessage=S.Message;if(S.State!=EVirtualSensorPoseSaveState::Writing){if(PoseRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==S.BookmarkId;}))SelectedPoseId=S.BookmarkId;LastPoseRequest.Reset();}RefreshNativeText();}
 }
 TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildPoseBookmarkControls()

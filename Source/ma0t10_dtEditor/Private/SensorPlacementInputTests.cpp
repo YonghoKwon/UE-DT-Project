@@ -19,6 +19,9 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerTest.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 
 namespace
 {
@@ -27,6 +30,7 @@ class FPlacementInputCheck final:public IAutomationLatentCommand
     FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),StepAt=0,LastDiagnostic=0;int32 Step=0;
     TWeakObjectPtr<AVirtualSensorActorBase> Sensor;TWeakObjectPtr<APawn> Pawn;TWeakObjectPtr<AVirtualSensorTransformGizmoActor> Gizmo;
     FTransform SensorBefore,PawnBefore;TSharedPtr<SEditableTextBox> Foreign;bool PreviousLag=false;int32 UndoCount=0;
+    EMouseCaptureMode SavedCapture;EMouseLockMode SavedLock;bool SavedIgnore=false,SavedHide=false;
 public:
     explicit FPlacementInputCheck(FAutomationTestBase* T):Test(T){}
     bool Update() override
@@ -65,7 +69,7 @@ public:
             for(int32 I=0;I<8;++I)App.ProcessKeyDownEvent(FKeyEvent(EKeys::W,FModifierKeysState(),0,true,0,0));
             App.ProcessKeyUpEvent(FKeyEvent(EKeys::W,FModifierKeysState(),0,false,0,0));
             Test->TestTrue(TEXT("precision ignores auto-repeat, one ten-cm move"),FMath::Abs(FVector::Dist(SensorBefore.GetLocation(),Sensor->GetActorLocation())-10)<.01);
-            SensorBefore=Sensor->GetActorTransform();Foreign=SNew(SEditableTextBox);View->AddViewportWidgetContent(Foreign.ToSharedRef(),9000);App.SetKeyboardFocus(Foreign,EFocusCause::SetDirectly);
+            SensorBefore=Sensor->GetActorTransform();PawnBefore=Pawn->GetActorTransform();Foreign=SNew(SEditableTextBox);View->AddViewportWidgetContent(Foreign.ToSharedRef(),9000);App.SetKeyboardFocus(Foreign,EFocusCause::SetDirectly);
             Test->TestFalse(TEXT("foreign input is outside placement ownership"),Gizmo->IsInputFocusOwned());
             App.ProcessKeyDownEvent(FKeyEvent(EKeys::W,FModifierKeysState(),0,false,0,0));StepAt=FPlatformTime::Seconds();Step=2;return false;
         }
@@ -73,9 +77,11 @@ public:
         {
             if(FPlatformTime::Seconds()-StepAt<.2)return false;
             Test->TestTrue(TEXT("foreign typing never moves sensor"),Sensor->GetActorTransform().Equals(SensorBefore));
+            Test->TestTrue(TEXT("foreign typing never moves observer during sensor manipulation"),Pawn->GetActorTransform().Equals(PawnBefore));
             App.ProcessKeyUpEvent(FKeyEvent(EKeys::W,FModifierKeysState(),0,false,0,0));View->RemoveViewportWidgetContent(Foreign.ToSharedRef());Foreign.Reset();App.SetKeyboardFocus(V,EFocusCause::SetDirectly);
             const auto Point=V->GetCachedGeometry().LocalToAbsolute(V->GetCachedGeometry().GetLocalSize()*FVector2D(.4,.8));
             const auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>();PreviousLag=Arm?Arm->bEnableCameraLag:false;
+            SavedCapture=View->GetMouseCaptureMode();SavedLock=View->GetMouseLockMode();SavedIgnore=View->IgnoreInput();SavedHide=View->HideCursorDuringCapture();
             Test->TestTrue(TEXT("RMB gesture can start only in actual owned viewport"),Gizmo->BeginObserverNavigation(Point));
             // The production Enhanced Input adapter invokes these virtual Pawn methods.
             PawnBefore=Pawn->GetActorTransform();SensorBefore=Sensor->GetActorTransform();
@@ -89,12 +95,48 @@ public:
             Test->TestTrue(TEXT("owned observer mode moves pawn"),FVector::Dist(PawnBefore.GetLocation(),Pawn->GetActorLocation())>10);
             Test->TestTrue(TEXT("observer navigation leaves sensor pose unchanged"),Sensor->GetActorTransform().Equals(SensorBefore));
             Gizmo->EndObserverNavigation();Test->TestFalse(TEXT("RMB release exits navigation"),Gizmo->IsObserverNavigationActive());
+            Test->TestEqual(TEXT("RMB restores original viewport capture mode"),View->GetMouseCaptureMode(),SavedCapture);
+            Test->TestEqual(TEXT("RMB restores original viewport lock mode"),View->GetMouseLockMode(),SavedLock);
+            Test->TestEqual(TEXT("RMB restores original viewport input intent"),View->IgnoreInput(),SavedIgnore);
+            Test->TestEqual(TEXT("RMB restores original cursor capture policy"),View->HideCursorDuringCapture(),SavedHide);
             const auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>();Test->TestEqual(TEXT("navigation restores previous camera lag"),Arm?Arm->bEnableCameraLag:false,PreviousLag);
             App.SetKeyboardFocus(V,EFocusCause::SetDirectly);Settings->SetSensorManipulationEnabled(false);
             if(auto* ProjectPC=Cast<ADxPlayerControllerTest>(PC))Test->TestFalse(TEXT("exit releases controller input owner"),ProjectPC->GetPlacementInputOwner()!=nullptr);
             return true;
         }
         return false;
+    }
+};
+
+class FPlacementRestoredPreviewCheck final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),ExitAt=0;int32 Kind=0;bool Waiting=false;
+    TWeakObjectPtr<AVirtualSensorActorBase> Sensor;TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe> OriginalJpeg;
+public:
+    explicit FPlacementRestoredPreviewCheck(FAutomationTestBase* T):Test(T){}
+    bool Update() override
+    {
+        if(FPlatformTime::Seconds()-Started>20){Test->AddError(TEXT("Restored preview fixture timeout"));return true;}
+        UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!FinalAcceptanceViewportReady(W))return false;
+        auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Placement=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();if(!Manager||!Settings)return false;
+        if(!Waiting)
+        {
+            Manager->SetViewMode(Kind==0?EVirtualSensorViewMode::Camera:EVirtualSensorViewMode::Lidar);Workspace->SynchronizeOwnedSelection();
+            Settings->SetSelectedSimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Sensor=Manager->GetSelectedSensorActor();if(!Sensor.IsValid())return false;
+            if(auto* C=Cast<AVirtualCameraSensorActor>(Sensor.Get()))
+            {FVirtualSensorEditableState State;C->ReadEditableState(State);State.CameraCaptureMode=EVirtualCameraCaptureMode::PreviewOnly;FString Reason;Test->TestTrue(TEXT("camera preview-only setup succeeds"),C->ApplyEditableState(State,Reason));OriginalJpeg=C->CaptureComponent->GetLastJpegSnapshot();}
+            Sensor->StartSensor();Settings->SetSensorManipulationEnabled(true);
+            auto Pose=Sensor->GetActorTransform();Pose.AddToTranslation(FVector(30,0,0));Test->TestTrue(TEXT("actual interaction pose applies"),Sensor->UpdateInteractiveTransform(Pose));
+            Settings->SetSensorManipulationEnabled(false);ExitAt=FPlatformTime::Seconds();Waiting=true;return false;
+        }
+        const auto Status=Placement->GetPlacementPreviewStatus(Sensor.Get());
+        if(Status.State!=EVirtualSensorPlacementPreviewState::Ready)
+        {if(FPlatformTime::Seconds()-ExitAt<=1.5)return false;Test->AddError(FString::Printf(TEXT("kind=%d original-spec coherent preview did not finish within 1.5s: %s"),Kind,*Status.Message));return true;}
+        Test->AddInfo(FString::Printf(TEXT("kind=%s restored_pose_preview_ms=%.3f frame=%lld"),Kind==0?TEXT("Camera"):TEXT("LiDAR"),(FPlatformTime::Seconds()-ExitAt)*1000,Status.CompletedFrameId));
+        Test->TestTrue(TEXT("restored coherent preview within 1.5 seconds"),FPlatformTime::Seconds()-ExitAt<=1.5);
+        if(auto* C=Cast<AVirtualCameraSensorActor>(Sensor.Get()))Test->TestTrue(TEXT("preview proof does not generate JPEG"),C->CaptureComponent->GetLastJpegSnapshot()==OriginalJpeg);
+        Waiting=false;Sensor.Reset();if(++Kind>=2)return true;return false;
     }
 };
 
@@ -146,6 +188,6 @@ bool FSensorPlacementInputRhi::RunTest(const FString&)
 {
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: MA0T10_PLACEMENT_RHI=1 for actual Slate/PIE input fixture"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
-    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementInputCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FPlacementRenderLatencyCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementInputCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FPlacementRenderLatencyCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FPlacementRestoredPreviewCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 #endif

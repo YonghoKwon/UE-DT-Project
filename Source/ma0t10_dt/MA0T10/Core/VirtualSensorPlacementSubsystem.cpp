@@ -13,6 +13,7 @@
 #include "Misc/SecureHash.h"
 #include "HAL/FileManager.h"
 #include "Misc/ScopeLock.h"
+#include "Engine/World.h"
 
 namespace { FCriticalSection PoseLibraryWriter;constexpr int64 MaxLibraryBytes=1024*1024; }
 FString UVirtualSensorPlacementSubsystem::CanonicalMap(UWorld* W)
@@ -144,12 +145,34 @@ void UVirtualSensorPlacementSubsystem::Tick(float)
     if(PendingWrite&&PendingWrite->Future.IsReady())FinishWrite(PendingWrite->Future.Get(),true);
     for(auto It=Histories.CreateIterator();It;++It)if(!It.Key().IsValid())It.RemoveCurrent();
     for(auto It=AppliedBookmarks.CreateIterator();It;++It)if(!It.Key().IsValid())It.RemoveCurrent();
-    for(auto It=PreviewBaselineFrames.CreateIterator();It;++It)if(!It.Key().IsValid()||It.Key()->GetSensorRuntimeStatus().FrameId>It.Value())It.RemoveCurrent();
+    for(auto It=PreviewRequests.CreateIterator();It;++It)
+    {
+        auto* S=It.Key().Get();if(!IsValid(S)){It.RemoveCurrent();continue;}
+        auto& R=It.Value();if(R.Status.State!=EVirtualSensorPlacementPreviewState::Waiting)continue;
+        R.Status.ElapsedSeconds=FMath::Max(0.,double(GetWorld()->GetTimeSeconds())-R.StartedWorld);
+        if(S->GetSensorId()!=R.SensorId||S->GetConfigurationRevision()!=R.ConfigurationRevision||!SamePose(S->GetActorTransform(),R.ActorPose))
+        {R.Status.State=EVirtualSensorPlacementPreviewState::Cancelled;R.Status.Message=TEXT("미리보기 확인 취소 · 센서 또는 설정·자세 변경");continue;}
+        if(!S->IsSensorRunning()){R.Status.State=EVirtualSensorPlacementPreviewState::Stopped;R.Status.Message=TEXT("센서 정지 · 새 측정 없이 위치 유지");continue;}
+        if(auto* L=Cast<AVirtualLidarSensorActor>(S))
+        {
+            if(L->ScanComponent->GetFileCaptureRevision()!=R.Generation){R.Status.State=EVirtualSensorPlacementPreviewState::Cancelled;R.Status.Message=TEXT("미리보기 확인 취소 · 측정 재시작");continue;}
+            if(const auto F=L->ScanComponent->GetLastFrameSnapshot())ObservePreviewFrame(S,F->FrameId,F->AcquisitionTransform,F->AcquisitionStartedMonotonic,F->PipelineGeneration,F->HorizontalSamples,F->VerticalChannels);
+        }
+        if(auto* C=Cast<AVirtualCameraSensorActor>(S))
+        {
+            if(C->CaptureComponent->GetFileCaptureRevision()!=R.Generation){R.Status.State=EVirtualSensorPlacementPreviewState::Cancelled;R.Status.Message=TEXT("미리보기 확인 취소 · 측정 재시작");continue;}
+            FVirtualCameraPreviewCompletion F;if(C->CaptureComponent->GetPlacementPreviewCompletion(F))ObservePreviewFrame(S,F.Acquisition.FrameId,F.AcquisitionPose,F.StartedMonotonic,F.Generation,F.Acquisition.Width,F.Acquisition.Height);
+        }
+        if(R.Status.State==EVirtualSensorPlacementPreviewState::Waiting&&R.Status.ElapsedSeconds>R.Timeout)
+        {R.Status.State=EVirtualSensorPlacementPreviewState::Delayed;R.Status.Message=TEXT("새 위치 미리보기 지연 · 측정 상태를 확인하세요");if(auto* C=Cast<AVirtualCameraSensorActor>(S))C->CaptureComponent->CancelPlacementPreviewProof();}
+    }
 }
 TStatId UVirtualSensorPlacementSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorPlacementSubsystem,STATGROUP_Tickables);}
 void UVirtualSensorPlacementSubsystem::Deinitialize()
 {
-    bEnding=true;if(PendingWrite)FinishWrite(PendingWrite->Future.Get(),false);Histories.Reset();AppliedBookmarks.Reset();PreviewBaselineFrames.Reset();Super::Deinitialize();
+    bEnding=true;if(PendingWrite)FinishWrite(PendingWrite->Future.Get(),false);Histories.Reset();AppliedBookmarks.Reset();
+    for(const auto& P:PreviewRequests)if(auto* C=Cast<AVirtualCameraSensorActor>(P.Key.Get()))C->CaptureComponent->CancelPlacementPreviewProof();
+    PreviewRequests.Reset();Super::Deinitialize();
 }
 bool UVirtualSensorPlacementSubsystem::CanEditSensorPlacement(AVirtualSensorActorBase* S,FString& Reason) const
 {return CheckSensor(S,Reason)&&S->CanEditSensorPlacement(Reason);}
@@ -157,18 +180,35 @@ bool UVirtualSensorPlacementSubsystem::ApplyPose(AVirtualSensorActorBase* S,cons
 {
     if(!CanEditSensorPlacement(S,Reason)||Pose.ContainsNaN()||!Pose.GetRotation().IsNormalized())
     {if(Reason.IsEmpty())Reason=TEXT("저장 자세가 유효하지 않습니다.");return false;}
-    auto Applied=Pose;Applied.SetScale3D(S->GetActorScale3D());const auto Frame=S->GetSensorRuntimeStatus().FrameId;
+    auto Applied=Pose;Applied.SetScale3D(S->GetActorScale3D());
     if(!S->ApplyEditableTransform(Applied,Reason))return false;
-    if(S->IsSensorRunning())
-    {
-        PreviewBaselineFrames.Add(S,Frame);
-        if(auto* L=Cast<AVirtualLidarSensorActor>(S))L->ScanComponent->RequestImmediateScheduledScan();
-        if(auto* C=Cast<AVirtualCameraSensorActor>(S))C->CaptureComponent->RequestImmediateScheduledCapture();
-    }
+    BeginPlacementPreviewRefresh(S);
     return true;
 }
 bool UVirtualSensorPlacementSubsystem::IsPreviewRefreshPending(AVirtualSensorActorBase* S) const
-{if(const auto* Frame=PreviewBaselineFrames.Find(S))return IsValid(S)&&S->GetSensorRuntimeStatus().FrameId<=*Frame;return false;}
+{return GetPlacementPreviewStatus(S).State==EVirtualSensorPlacementPreviewState::Waiting;}
+FVirtualSensorPlacementPreviewStatus UVirtualSensorPlacementSubsystem::GetPlacementPreviewStatus(AVirtualSensorActorBase* S) const
+{if(IsValid(S))if(const auto* R=PreviewRequests.Find(S))return R->Status;return FVirtualSensorPlacementPreviewStatus();}
+void UVirtualSensorPlacementSubsystem::CancelPlacementPreviewRefresh(AVirtualSensorActorBase* S)
+{if(auto* C=Cast<AVirtualCameraSensorActor>(S))C->CaptureComponent->CancelPlacementPreviewProof();PreviewRequests.Remove(S);}
+void UVirtualSensorPlacementSubsystem::BeginPlacementPreviewRefresh(AVirtualSensorActorBase* S)
+{
+    FString Reason;if(!CheckSensor(S,Reason))return;CancelPlacementPreviewRefresh(S);
+    auto& R=PreviewRequests.Add(S);R.Status.RequestId=++NextPreviewRequest;R.SensorId=S->GetSensorId();R.ActorPose=S->GetActorTransform();R.ConfigurationRevision=S->GetConfigurationRevision();
+    R.StartedMonotonic=FPlatformTime::Seconds();R.StartedWorld=GetWorld()->GetTimeSeconds();R.BaselineFrame=S->GetSensorRuntimeStatus().FrameId;
+    if(!S->IsSensorRunning()){R.Status.State=EVirtualSensorPlacementPreviewState::Stopped;R.Status.Message=TEXT("센서 정지 · 새 측정 없이 위치 유지");return;}
+    R.Status.State=EVirtualSensorPlacementPreviewState::Waiting;R.Status.Message=TEXT("새 위치 미리보기 갱신 중");
+    if(auto* C=Cast<AVirtualCameraSensorActor>(S))
+    {auto* Comp=C->CaptureComponent.Get();R.AcquisitionPose=Comp->GetComponentTransform();R.Width=Comp->CaptureResolution.X;R.Height=Comp->CaptureResolution.Y;R.Generation=Comp->GetFileCaptureRevision();R.Timeout=FMath::Max(1.5,double(Comp->CaptureInterval)*3);Comp->RequestPlacementPreviewProof();Comp->RequestImmediateScheduledCapture();}
+    if(auto* L=Cast<AVirtualLidarSensorActor>(S))
+    {auto* Comp=L->ScanComponent.Get();R.AcquisitionPose=Comp->GetComponentTransform();R.Width=Comp->HorizontalSamples;R.Height=Comp->VerticalChannels;R.Generation=Comp->GetFileCaptureRevision();R.Timeout=FMath::Max(1.5,double(Comp->ScanInterval)*3);Comp->RequestImmediateScheduledScan();}
+}
+void UVirtualSensorPlacementSubsystem::ObservePreviewFrame(AVirtualSensorActorBase* S,int64 Frame,const FTransform& Pose,double Started,int32 Generation,int32 Width,int32 Height)
+{
+    auto* R=PreviewRequests.Find(S);if(!R||R->Status.State!=EVirtualSensorPlacementPreviewState::Waiting||Frame<=R->BaselineFrame||Started<R->StartedMonotonic||Generation!=R->Generation||Width!=R->Width||Height!=R->Height||!SamePose(Pose,R->AcquisitionPose))return;
+    R->Status.State=EVirtualSensorPlacementPreviewState::Ready;R->Status.CompletedFrameId=Frame;
+    R->Status.ElapsedSeconds=FMath::Max(0.,double(GetWorld()->GetTimeSeconds())-R->StartedWorld);R->Status.Message=TEXT("새 위치 미리보기 준비 완료");
+}
 bool UVirtualSensorPlacementSubsystem::ApplySensorPoseBookmark(AVirtualSensorActorBase* S,const FString& Id,FString& Reason)
 {
     if(!CheckSensor(S,Reason)||!EnsureLoaded()){if(Reason.IsEmpty())Reason=LibraryMessage;return false;}
@@ -193,7 +233,7 @@ void UVirtualSensorPlacementSubsystem::RecordCommand(AVirtualSensorActorBase* S,
 void UVirtualSensorPlacementSubsystem::RecordPoseChange(AVirtualSensorActorBase* S,const FTransform& Before,const FTransform& After)
 {if(IsValid(S)&&!HistoryFor(S).GestureBefore.IsSet())RecordCommand(S,Before,After,AppliedBookmarks.FindRef(S),FString());}
 void UVirtualSensorPlacementSubsystem::ForgetSensorIdentity(AVirtualSensorActorBase* S)
-{Histories.Remove(S);AppliedBookmarks.Remove(S);PreviewBaselineFrames.Remove(S);}
+{Histories.Remove(S);AppliedBookmarks.Remove(S);CancelPlacementPreviewRefresh(S);}
 bool UVirtualSensorPlacementSubsystem::CanUndoSensorPlacement(AVirtualSensorActorBase* S) const
 {FString R;const auto* H=Histories.Find(S);return IsValid(S)&&H&&H->SensorId==S->GetSensorId()&&H->Index>0&&CanEditSensorPlacement(S,R);}
 bool UVirtualSensorPlacementSubsystem::CanRedoSensorPlacement(AVirtualSensorActorBase* S) const

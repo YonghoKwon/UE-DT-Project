@@ -546,6 +546,8 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 /** Immutable point frame and the exact pose/settings used to acquire it. */
 struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFrame
 {
+    double AcquisitionStartedMonotonic=0;
+    int32 PipelineGeneration=0;
 	FVirtualSlabFrameContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;

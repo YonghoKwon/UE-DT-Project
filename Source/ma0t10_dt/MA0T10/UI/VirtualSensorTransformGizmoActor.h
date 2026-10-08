@@ -10,6 +10,8 @@ class UBoxComponent;
 class USceneComponent;
 class UWidget;
 class IInputProcessor;
+class UGameViewportClient;
+class SWidget;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorGizmoTransformChanged, const FTransform&);
 DECLARE_MULTICAST_DELEGATE(FOnVirtualSensorGizmoManipulationExitRequested);
@@ -172,6 +174,12 @@ private:
     bool bFallbackNavigation=false,FallbackCursor=true,FallbackClicks=true,FallbackHover=true,FallbackLag=false,FallbackRotationLag=false;
     TWeakObjectPtr<APlayerController> FallbackController;
     TWeakObjectPtr<APawn> FallbackPawn;
+    TWeakObjectPtr<UGameViewportClient> FallbackViewport;
+    TWeakPtr<SWidget> FallbackFocus;
+    uint8 FallbackCaptureMode=0,FallbackLockMode=0;
+    bool FallbackIgnoreInput=false,FallbackHideCursorDuringCapture=false;
+    TWeakObjectPtr<APlayerController> DefaultPlacementController;
+    void ReleaseDefaultPlacementInput();
     TSet<FKey> ObserverKeys;
     EVirtualSensorPlacementInputMode PlacementInputMode=EVirtualSensorPlacementInputMode::Continuous;
     float TranslationSpeed=125,RotationSpeed=62.5f;

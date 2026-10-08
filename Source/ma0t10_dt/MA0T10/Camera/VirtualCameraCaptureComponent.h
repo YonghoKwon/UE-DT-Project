@@ -16,6 +16,14 @@ class UVirtualSensorRecorderComponent;
 class UVirtualSensorSchedulerSubsystem;
 class FRHIGPUTextureReadback;
 struct FVirtualCameraLocalReadbackState;
+struct FVirtualCameraPreviewFence;
+struct FVirtualCameraPreviewCompletion
+{
+    FVirtualCameraPayloadSnapshot Acquisition;
+    FTransform AcquisitionPose;
+    double StartedMonotonic=0;
+    int32 Generation=0;
+};
 struct MA0T10_DT_API FVirtualCameraLocalSaveFrame
 {
 	FVirtualCameraPayloadSnapshot Payload;
@@ -70,6 +78,10 @@ public:
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
     void RequestImmediateScheduledCapture();
+    /** One render-completion proof for placement UI. No readback or JPEG work. */
+    void RequestPlacementPreviewProof();
+    void CancelPlacementPreviewProof();
+    bool GetPlacementPreviewCompletion(FVirtualCameraPreviewCompletion& Out) const;
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
     static int32 GetGlobalEncodeJobCountForDiagnostics();
     static int32 GetGlobalPendingWorkCountForDiagnostics();
@@ -232,6 +244,8 @@ private:
     FVirtualSensorRuntimeStatus RuntimeStatus;
 
     FString LastJsonPayload;
+    bool bPlacementPreviewProofRequested=false;
+    TSharedPtr<FVirtualCameraPreviewFence,ESPMode::ThreadSafe> PlacementPreviewFence;
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> LastJpegSnapshot;
 	FVirtualCameraJpegMetadata LastJpegMetadata;
 	TMap<int64,FVirtualSlabFrameContext> SlabCaptureContexts;

@@ -5,6 +5,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/SlateUser.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "Widgets/SWidget.h"
@@ -144,9 +145,13 @@ void AVirtualSensorTransformGizmoActor::SetCoordinateSpace(EVirtualSensorCoordin
 void AVirtualSensorTransformGizmoActor::SetManipulationEnabled(bool bEnabled)
 {
     if(!bEnabled){FinishPlacementGesture();BlockHeldPlacementKeys();EndObserverNavigation();}
+    if(!bEnabled)ReleaseDefaultPlacementInput();
     bManipulationEnabled = bEnabled;
     if(bResponsivePlacement)if(auto* PC=GetWorld()?Cast<ADxPlayerControllerTest>(GetWorld()->GetFirstPlayerController()):nullptr)
     {if(bEnabled)PC->RegisterPlacementInputOwner(this);else PC->UnregisterPlacementInputOwner(this);}
+    if(bResponsivePlacement&&bEnabled&&!DefaultPlacementController.IsValid())if(auto* PC=GetWorld()?GetWorld()->GetFirstPlayerController():nullptr)
+        if(!Cast<ADxPlayerControllerTest>(PC)&&Cast<ADefaultPawn>(PC->GetPawn()))
+        {DefaultPlacementController=PC;PC->SetIgnoreMoveInput(true);PC->SetIgnoreLookInput(true);if(auto* Move=PC->GetPawn()->GetMovementComponent())Move->StopMovementImmediately();}
     RefreshInputRouter();
     if (!bEnabled && bMouseDragging)
     {
@@ -301,6 +306,8 @@ void AVirtualSensorTransformGizmoActor::ConfigureResponsivePlacement(bool Enable
     PrimaryActorTick.TickGroup=Enabled?TG_PrePhysics:TG_PostUpdateWork;
     if(Enabled&&bManipulationEnabled)if(auto* PC=GetWorld()?Cast<ADxPlayerControllerTest>(GetWorld()->GetFirstPlayerController()):nullptr)PC->RegisterPlacementInputOwner(this);
 }
+void AVirtualSensorTransformGizmoActor::ReleaseDefaultPlacementInput()
+{if(auto* PC=DefaultPlacementController.Get()){PC->SetIgnoreMoveInput(false);PC->SetIgnoreLookInput(false);}DefaultPlacementController.Reset();}
 bool AVirtualSensorTransformGizmoActor::IsPlacementKey(const FKey& K)
 {return K==EKeys::W||K==EKeys::S||K==EKeys::A||K==EKeys::D||K==EKeys::Q||K==EKeys::E||K==EKeys::Up||K==EKeys::Down||K==EKeys::Left||K==EKeys::Right||K==EKeys::Z||K==EKeys::C;}
 bool AVirtualSensorTransformGizmoActor::HandlePlacementKeyDown(const FKeyEvent& Event)
@@ -346,6 +353,9 @@ bool AVirtualSensorTransformGizmoActor::BeginObserverNavigation(const FVector2D&
     // an owned viewport gesture and does not replace the map's GameMode/classes.
     if(!Cast<ADefaultPawn>(Pawn))return false;
     FinishPlacementGesture();BlockHeldPlacementKeys();bObserverNavigation=true;bFallbackNavigation=true;ObserverKeys.Reset();FallbackController=PC;FallbackPawn=Pawn;
+    FallbackViewport=View;FallbackFocus=App.GetKeyboardFocusedWidget();
+    FallbackCaptureMode=uint8(View->GetMouseCaptureMode());FallbackLockMode=uint8(View->GetMouseLockMode());
+    FallbackIgnoreInput=View->IgnoreInput();FallbackHideCursorDuringCapture=View->HideCursorDuringCapture();
     FallbackCursor=PC->bShowMouseCursor;FallbackClicks=PC->bEnableClickEvents;FallbackHover=PC->bEnableMouseOverEvents;
     PC->SetIgnoreMoveInput(true);PC->SetIgnoreLookInput(true);PC->bShowMouseCursor=false;PC->bEnableClickEvents=false;PC->bEnableMouseOverEvents=false;PC->SetInputMode(FInputModeGameOnly());
     if(auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>()){FallbackLag=Arm->bEnableCameraLag;FallbackRotationLag=Arm->bEnableCameraRotationLag;Arm->bEnableCameraLag=false;Arm->bEnableCameraRotationLag=false;}
@@ -356,9 +366,17 @@ void AVirtualSensorTransformGizmoActor::EndObserverNavigation()
     if(!bObserverNavigation)return;bObserverNavigation=false;
     if(bFallbackNavigation)
     {
-        if(auto* PC=FallbackController.Get()){PC->SetIgnoreMoveInput(false);PC->SetIgnoreLookInput(false);PC->bShowMouseCursor=FallbackCursor;PC->bEnableClickEvents=FallbackClicks;PC->bEnableMouseOverEvents=FallbackHover;PC->SetInputMode(FInputModeGameAndUI());}
+        if(auto* PC=FallbackController.Get()){PC->SetIgnoreMoveInput(false);PC->SetIgnoreLookInput(false);PC->bShowMouseCursor=FallbackCursor;PC->bEnableClickEvents=FallbackClicks;PC->bEnableMouseOverEvents=FallbackHover;}
+        if(auto* View=FallbackViewport.Get())
+        {
+            View->SetMouseCaptureMode(static_cast<EMouseCaptureMode>(FallbackCaptureMode));View->SetMouseLockMode(static_cast<EMouseLockMode>(FallbackLockMode));
+            View->SetIgnoreInput(FallbackIgnoreInput);View->SetHideCursorDuringCapture(FallbackHideCursorDuringCapture);
+            auto& App=FSlateApplication::Get();const auto Widget=View->GetGameViewportWidget();const auto User=App.GetUser(0);
+            if(Widget.IsValid()&&User.IsValid()&&User->GetCursorCaptor()==Widget)User->ReleaseCursorCapture();
+            if(auto Focus=FallbackFocus.Pin())if(App.FindWidgetWindow(Focus.ToSharedRef())==App.GetActiveTopLevelWindow())App.SetKeyboardFocus(Focus,EFocusCause::SetDirectly);
+        }
         if(auto* Pawn=FallbackPawn.Get())if(auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>()){Arm->bEnableCameraLag=FallbackLag;Arm->bEnableCameraRotationLag=FallbackRotationLag;}
-        FallbackController.Reset();FallbackPawn.Reset();ObserverKeys.Reset();bFallbackNavigation=false;
+        FallbackController.Reset();FallbackPawn.Reset();FallbackViewport.Reset();FallbackFocus.Reset();ObserverKeys.Reset();bFallbackNavigation=false;
     }
     if(auto* PC=GetWorld()?Cast<ADxPlayerControllerTest>(GetWorld()->GetFirstPlayerController()):nullptr)
     {if(auto* Pawn=Cast<ADxPlayerTest>(PC->GetPawn()))Pawn->SetPlacementNavigationActive(false);PC->FinishOwnedNavigationInput();}
