@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
@@ -728,7 +729,13 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleSelectedStream(EVirtualSensor
 		LastUiMessage = StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("선택된 Camera가 없습니다.") : TEXT("선택된 LiDAR가 없습니다.");
 		return;
 	}
-	ApplyStreamConfig(StreamKind, SensorId, !Publisher->IsStreamEnabled(StreamKind, SensorId));
+	const bool Starting=!Publisher->IsStreamEnabled(StreamKind,SensorId);
+	if(Starting&&StreamKind==EVirtualSensorStreamKind::PointCloud)
+	{
+		FVirtualSlabSensorOutputSelection O;const auto Check=UVirtualSensorOutputPreflight::Inspect(this,O,{SensorId});CachedPcdPreflight=Check.Summary;
+		if(!Check.BlockingReasons.IsEmpty()){LastUiMessage=FString::Join(Check.BlockingReasons,TEXT("\n"));return;}
+	}
+	ApplyStreamConfig(StreamKind, SensorId, Starting);
 }
 
 void UVirtualSensorCaptureExportPanelWidget::SetSelectedPointCloudStreamFormat(EVirtualPointCloudStreamFormat Format)
@@ -1050,6 +1057,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 	 .OnCheckStateChanged_Lambda([this,I](ECheckBoxState S){auto O=GetLiveScenarioOutputs();const bool V=S==ECheckBoxState::Checked;if(I==0)O.bPointCloud=V;else if(I==1)O.bCameraImage=V;else O.bLidarTelemetry=V;SetLiveScenarioOutputs(O);})
 	 [SNewSensorTool(STextBlock).Text(OutputLabels[I])]];
 	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("ScenarioOutputsHelp","Slab 움직임 시작~종료 구간에만 적용합니다. Camera 선택은 로컬 캡처가 아닌 Topic 이미지 송신입니다. 저장 목록 재생은 재생 패널에서 별도로 선택합니다."))];
+	ScenarioOutputs->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})];
     for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
     {
         const FText Label=Kind==EVirtualSensorStreamKind::PointCloud?LOCTEXT("PcdCard","Point Cloud · PCD Binary"):Kind==EVirtualSensorStreamKind::CameraImage?LOCTEXT("CameraCard","Camera 이미지"):LOCTEXT("LidarCard","LiDAR 측정값");

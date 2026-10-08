@@ -1,4 +1,5 @@
 #include "VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "VirtualSensorMonitorPanelWidget.h"
@@ -118,6 +119,10 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 	bOwnedSaveBusy=Actor&&FileSaveService.IsValid()&&FileSaveService->HasPendingSave(Actor);
 	if(ActiveTab==EVirtualSensorCaptureExportTab::LiveStream)
 	{
+		TArray<FString> PreflightTargets;auto PreflightOutputs=FVirtualSlabSensorOutputSelection();
+		if(bOwnedScenarioStreamView){if(const auto* Slab=ResolveScenarioSlabActor()){PreflightTargets=Slab->TargetSensorIds;PreflightOutputs=Slab->GetSensorOutputs();}}
+		else {const auto Id=GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);if(!Id.IsEmpty())PreflightTargets.Add(Id);}
+		CachedPcdPreflight=UVirtualSensorOutputPreflight::Inspect(this,PreflightOutputs,PreflightTargets).Summary;
 		if(bOwnedScenarioStreamView)
 		{
 			if(const auto* Slab=ResolveScenarioSlabActor())
@@ -128,6 +133,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 				OwnedScenarioSummary=TEXT("다음 시나리오 출력: ")+ (Names.IsEmpty()?FString(TEXT("관찰 전용")):FString::Join(Names,TEXT(" · ")))+TEXT("\n")+
 					(Ready?TEXT("설정 준비됨 · Broker 수락은 실행 후 별도 확인"):TEXT("송신 준비 안 됨: ")+Reason);
 				if(Admission.Result!=ESlabScenarioAdmission::None)OwnedScenarioSummary+=TEXT("\n최근 수신: ")+Admission.Reason;
+				OwnedScenarioSummary+=TEXT("\n")+CachedPcdPreflight;
 			}
 			else OwnedScenarioSummary=TEXT("Slab Actor 연결 필요 · 화면을 여는 것만으로 송신하지 않습니다.");
 		}

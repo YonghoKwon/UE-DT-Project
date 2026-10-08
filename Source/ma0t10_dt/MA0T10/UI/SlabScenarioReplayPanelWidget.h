@@ -30,6 +30,7 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 private:
 	UFUNCTION() void RefreshList();
@@ -37,6 +38,8 @@ private:
 	FString SelectedUUID;
 	FString PendingDeleteUUID;
 	FString ActionMessage;
+	FString CachedPreflight;
+	double NextPreflight=0;
 	TArray<FString> PreviousListIds;
 	static FString ResolveStableSelection(const TArray<FString>& PreviousIds,const TArray<FString>& CurrentIds,const FString& Selected);
 	FSlateFontInfo GetListFont(bool bSecondary=false) const;

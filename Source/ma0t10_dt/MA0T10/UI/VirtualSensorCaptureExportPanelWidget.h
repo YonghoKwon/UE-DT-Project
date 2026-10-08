@@ -42,6 +42,7 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
     GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput") FString GetPcdPreflightText() const {return CachedPcdPreflight;}
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioRunResult(const FString& RunId);
@@ -188,6 +189,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunComparisonUiTest;
 #endif
+	FString CachedPcdPreflight;
 	bool bRunResultsExpanded=false;
 	FString ComparisonRunA,ComparisonRunB,RunComparisonText;
 	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;
