@@ -22,6 +22,12 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
+#include "ma0t10_dt/MA0T10/Player/DxPlayerTest.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementMotion.h"
+#include "GameFramework/DefaultPawn.h"
+#include "GameFramework/PawnMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 
 namespace
 {
@@ -34,23 +40,25 @@ public:
     void Tick(const float,FSlateApplication&,TSharedRef<ICursor>) override
     {
         if(EscapeHeld&&(!Gizmo.IsValid()||!Gizmo->IsInputFocusOwned(true)))EscapeHeld=false;
-        if(Gizmo.IsValid()&&!Gizmo->IsInputFocusOwned())Gizmo->CancelOwnedPointerDrag();
+        if(Gizmo.IsValid()&&!Gizmo->IsInputFocusOwned())
+        {Gizmo->CancelOwnedPointerDrag();Gizmo->FinishPlacementGesture();Gizmo->BlockHeldPlacementKeys();Gizmo->EndObserverNavigation();}
     }
     bool HandleKeyDownEvent(FSlateApplication&,const FKeyEvent& Event) override
     {
+        if(Gizmo.IsValid()&&Gizmo->HandlePlacementKeyDown(Event))return true;
         if(Event.GetKey()!=EKeys::Escape)return false;
         if(EscapeHeld)return true;
         if(!Gizmo.IsValid()||!Gizmo->IsManipulationEnabled()||!Gizmo->IsInputFocusOwned(true))return false;
         EscapeHeld=true;Gizmo->RequestManipulationExit();return true;
     }
     bool HandleKeyUpEvent(FSlateApplication&,const FKeyEvent& Event) override
-    {if(Event.GetKey()!=EKeys::Escape||!EscapeHeld)return false;EscapeHeld=false;return true;}
+    {if(Gizmo.IsValid()&&Gizmo->HandlePlacementKeyUp(Event))return true;if(Event.GetKey()!=EKeys::Escape||!EscapeHeld)return false;EscapeHeld=false;return true;}
     bool HandleMouseButtonDownEvent(FSlateApplication&,const FPointerEvent& Event) override
-    {return Event.GetEffectingButton()==EKeys::LeftMouseButton&&Gizmo.IsValid()&&Gizmo->HandleOwnedPointerDown(Event.GetScreenSpacePosition());}
+    {if(Event.GetEffectingButton()==EKeys::RightMouseButton&&Gizmo.IsValid()&&Gizmo->BeginObserverNavigation(Event.GetScreenSpacePosition())&&Gizmo->IsFallbackObserverNavigation())return true;return Event.GetEffectingButton()==EKeys::LeftMouseButton&&Gizmo.IsValid()&&Gizmo->HandleOwnedPointerDown(Event.GetScreenSpacePosition());}
     bool HandleMouseMoveEvent(FSlateApplication&,const FPointerEvent& Event) override
-    {return Gizmo.IsValid()&&Gizmo->HandleOwnedPointerMove(Event.GetScreenSpacePosition());}
+    {return Gizmo.IsValid()&&(Gizmo->HandleObserverPointerDelta(Event.GetCursorDelta())||Gizmo->HandleOwnedPointerMove(Event.GetScreenSpacePosition()));}
     bool HandleMouseButtonUpEvent(FSlateApplication&,const FPointerEvent& Event) override
-    {return Event.GetEffectingButton()==EKeys::LeftMouseButton&&Gizmo.IsValid()&&Gizmo->HandleOwnedPointerUp(Event.GetScreenSpacePosition());}
+    {if(Event.GetEffectingButton()==EKeys::RightMouseButton&&Gizmo.IsValid()){const bool Fallback=Gizmo->IsFallbackObserverNavigation();Gizmo->EndObserverNavigation();if(Fallback)return true;}return Event.GetEffectingButton()==EKeys::LeftMouseButton&&Gizmo.IsValid()&&Gizmo->HandleOwnedPointerUp(Event.GetScreenSpacePosition());}
 };
 constexpr int32 RingSegments = 16;
 constexpr float BaseAxisLength = 115.0f;
@@ -117,7 +125,7 @@ void AVirtualSensorTransformGizmoActor::BindTarget(AActor* InTargetActor)
     {
         EndMouseDrag();
     }
-    TargetActor = InTargetActor;
+    FinishPlacementGesture();BlockHeldPlacementKeys();EndObserverNavigation();TargetActor = InTargetActor;
     UpdateGizmoTransformAndScale();
 }
 
@@ -135,7 +143,10 @@ void AVirtualSensorTransformGizmoActor::SetCoordinateSpace(EVirtualSensorCoordin
 
 void AVirtualSensorTransformGizmoActor::SetManipulationEnabled(bool bEnabled)
 {
+    if(!bEnabled){FinishPlacementGesture();BlockHeldPlacementKeys();EndObserverNavigation();}
     bManipulationEnabled = bEnabled;
+    if(bResponsivePlacement)if(auto* PC=GetWorld()?Cast<ADxPlayerControllerTest>(GetWorld()->GetFirstPlayerController()):nullptr)
+    {if(bEnabled)PC->RegisterPlacementInputOwner(this);else PC->UnregisterPlacementInputOwner(this);}
     RefreshInputRouter();
     if (!bEnabled && bMouseDragging)
     {
@@ -282,6 +293,100 @@ void AVirtualSensorTransformGizmoActor::SetStepSizes(float InTranslationStepCm, 
     RotationStepDegrees = FMath::Clamp(InRotationStepDegrees, 0.1f, 90.0f);
 }
 
+void AVirtualSensorTransformGizmoActor::ConfigureResponsivePlacement(bool Enabled,EVirtualSensorPlacementInputMode Mode,float MoveSpeed,float RotateSpeed)
+{
+    FinishPlacementGesture();BlockHeldPlacementKeys();bResponsivePlacement=Enabled;PlacementInputMode=Mode;
+    TranslationSpeed=FMath::IsFinite(MoveSpeed)?FMath::Clamp(MoveSpeed,1.f,100000.f):125;
+    RotationSpeed=FMath::IsFinite(RotateSpeed)?FMath::Clamp(RotateSpeed,.1f,720.f):62.5f;
+    PrimaryActorTick.TickGroup=Enabled?TG_PrePhysics:TG_PostUpdateWork;
+    if(Enabled&&bManipulationEnabled)if(auto* PC=GetWorld()?Cast<ADxPlayerControllerTest>(GetWorld()->GetFirstPlayerController()):nullptr)PC->RegisterPlacementInputOwner(this);
+}
+bool AVirtualSensorTransformGizmoActor::IsPlacementKey(const FKey& K)
+{return K==EKeys::W||K==EKeys::S||K==EKeys::A||K==EKeys::D||K==EKeys::Q||K==EKeys::E||K==EKeys::Up||K==EKeys::Down||K==EKeys::Left||K==EKeys::Right||K==EKeys::Z||K==EKeys::C;}
+bool AVirtualSensorTransformGizmoActor::HandlePlacementKeyDown(const FKeyEvent& Event)
+{
+    if(!bResponsivePlacement||!bManipulationEnabled||!IsInputFocusOwned())return false;
+    const auto Key=Event.GetKey();
+    if(Event.IsControlDown()&&(Key==EKeys::Z||Key==EKeys::Y))
+    {if(!Event.IsRepeat()){FinishPlacementGesture();BlockHeldPlacementKeys();BlockedPlacementKeys.Add(Key);if(Key==EKeys::Z)OnUndoRequested.Broadcast();else OnRedoRequested.Broadcast();}return true;}
+    if(!IsPlacementKey(Key))return false;
+    if(BlockedPlacementKeys.Contains(Key))return true;
+    if(bObserverNavigation){if(bFallbackNavigation){ObserverKeys.Add(Key);return true;}return false;}
+    if(Event.IsRepeat()||PlacementKeys.Contains(Key))return true;
+    if(!bKeyboardManipulating){bKeyboardManipulating=true;OnTransformGestureStarted.Broadcast();}
+    PlacementKeys.Add(Key);PendingInputSeconds=FPlatformTime::Seconds();PendingInputFrame=GFrameCounter;
+    if(PlacementInputMode==EVirtualSensorPlacementInputMode::Precision)ApplyResponsiveKeyboardDelta(0,true);
+    return true;
+}
+bool AVirtualSensorTransformGizmoActor::HandlePlacementKeyUp(const FKeyEvent& Event)
+{
+    const auto Key=Event.GetKey();if(BlockedPlacementKeys.Remove(Key)>0)return true;
+    if(ObserverKeys.Remove(Key)>0)return true;
+    if(PlacementKeys.Remove(Key)>0){if(PlacementKeys.IsEmpty())FinishPlacementGesture();return true;}
+    return false;
+}
+void AVirtualSensorTransformGizmoActor::BlockHeldPlacementKeys()
+{for(const auto& Key:PlacementKeys)BlockedPlacementKeys.Add(Key);PlacementKeys.Reset();PendingInputSeconds=-1;}
+void AVirtualSensorTransformGizmoActor::FinishPlacementGesture()
+{
+    if(bMouseDragging)EndMouseDrag();
+    if(bKeyboardManipulating){bKeyboardManipulating=false;if(IsValid(TargetActor))OnTransformCommitted.Broadcast(TargetActor->GetActorTransform());}
+}
+bool AVirtualSensorTransformGizmoActor::BeginObserverNavigation(const FVector2D& ScreenPosition)
+{
+    if(!bResponsivePlacement||!bManipulationEnabled||!IsInputFocusOwned()||!GetWorld()||!GetWorld()->GetGameInstance())return false;
+    auto& App=FSlateApplication::Get();const auto Path=App.LocateWindowUnderMouse(ScreenPosition,App.GetInteractiveTopLevelWindows());
+    auto* View=GetWorld()->GetGameInstance()->GetGameViewportClient();auto Widget=View?View->GetGameViewportWidget():TSharedPtr<SViewport>();
+    if(!Path.IsValid()||!Widget.IsValid()||Path.GetLastWidget()!=Widget)return false;
+    auto* PC=GetWorld()->GetFirstPlayerController();auto* Pawn=PC?PC->GetPawn():nullptr;
+    if(!Pawn)return false;
+    if(auto* ProjectPawn=Cast<ADxPlayerTest>(Pawn);ProjectPawn&&Cast<ADxPlayerControllerTest>(PC))
+    {if(ProjectPawn->GetPlayerViewType()!=EPlayerViewType::FreeView)return false;FinishPlacementGesture();BlockHeldPlacementKeys();bObserverNavigation=true;ProjectPawn->SetPlacementNavigationActive(true);return true;}
+    // Portable validation maps can use DefaultPawn. This lease exists only during
+    // an owned viewport gesture and does not replace the map's GameMode/classes.
+    if(!Cast<ADefaultPawn>(Pawn))return false;
+    FinishPlacementGesture();BlockHeldPlacementKeys();bObserverNavigation=true;bFallbackNavigation=true;ObserverKeys.Reset();FallbackController=PC;FallbackPawn=Pawn;
+    FallbackCursor=PC->bShowMouseCursor;FallbackClicks=PC->bEnableClickEvents;FallbackHover=PC->bEnableMouseOverEvents;
+    PC->SetIgnoreMoveInput(true);PC->SetIgnoreLookInput(true);PC->bShowMouseCursor=false;PC->bEnableClickEvents=false;PC->bEnableMouseOverEvents=false;PC->SetInputMode(FInputModeGameOnly());
+    if(auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>()){FallbackLag=Arm->bEnableCameraLag;FallbackRotationLag=Arm->bEnableCameraRotationLag;Arm->bEnableCameraLag=false;Arm->bEnableCameraRotationLag=false;}
+    if(auto* Move=Pawn->GetMovementComponent())Move->StopMovementImmediately();return true;
+}
+void AVirtualSensorTransformGizmoActor::EndObserverNavigation()
+{
+    if(!bObserverNavigation)return;bObserverNavigation=false;
+    if(bFallbackNavigation)
+    {
+        if(auto* PC=FallbackController.Get()){PC->SetIgnoreMoveInput(false);PC->SetIgnoreLookInput(false);PC->bShowMouseCursor=FallbackCursor;PC->bEnableClickEvents=FallbackClicks;PC->bEnableMouseOverEvents=FallbackHover;PC->SetInputMode(FInputModeGameAndUI());}
+        if(auto* Pawn=FallbackPawn.Get())if(auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>()){Arm->bEnableCameraLag=FallbackLag;Arm->bEnableCameraRotationLag=FallbackRotationLag;}
+        FallbackController.Reset();FallbackPawn.Reset();ObserverKeys.Reset();bFallbackNavigation=false;
+    }
+    if(auto* PC=GetWorld()?Cast<ADxPlayerControllerTest>(GetWorld()->GetFirstPlayerController()):nullptr)
+    {if(auto* Pawn=Cast<ADxPlayerTest>(PC->GetPawn()))Pawn->SetPlacementNavigationActive(false);PC->FinishOwnedNavigationInput();}
+}
+bool AVirtualSensorTransformGizmoActor::HandleObserverPointerDelta(const FVector2D& Delta)
+{
+    if(!bFallbackNavigation||!bObserverNavigation||!IsInputFocusOwned())return false;
+    if(auto* PC=FallbackController.Get()){auto R=PC->GetControlRotation();R.Yaw+=Delta.X*.1;R.Pitch=FMath::Clamp(R.Pitch-Delta.Y*.1,-80.,80.);PC->SetControlRotation(R);}return true;
+}
+void AVirtualSensorTransformGizmoActor::ApplyResponsiveKeyboardDelta(float Delta,bool OneStep)
+{
+    if(!IsValid(TargetActor)||PlacementKeys.IsEmpty())return;
+    auto Axis=[this](const FKey& Positive,const FKey& Negative){return float(PlacementKeys.Contains(Positive))-float(PlacementKeys.Contains(Negative));};
+    auto* PC=GetWorld()->GetFirstPlayerController();float Multiplier=1;
+    if(PC&&(PC->IsInputKeyDown(EKeys::LeftShift)||PC->IsInputKeyDown(EKeys::RightShift)))Multiplier*=5;
+    if(PC&&(PC->IsInputKeyDown(EKeys::LeftControl)||PC->IsInputKeyDown(EKeys::RightControl)))Multiplier*=.2f;
+    FVector T(Axis(EKeys::W,EKeys::S),Axis(EKeys::D,EKeys::A),Axis(EKeys::E,EKeys::Q));
+    FRotator R(Axis(EKeys::Up,EKeys::Down),Axis(EKeys::Right,EKeys::Left),Axis(EKeys::C,EKeys::Z));
+    T=OneStep?T.GetClampedToMaxSize(1)*TranslationStepCm*Multiplier:VirtualSensorPlacementMotion::Translation(T,TranslationSpeed,Delta,Multiplier);
+    R=OneStep?FRotator(R.Pitch*RotationStepDegrees*Multiplier,R.Yaw*RotationStepDegrees*Multiplier,R.Roll*RotationStepDegrees*Multiplier):VirtualSensorPlacementMotion::Rotation(R,RotationSpeed,Delta,Multiplier);
+    const auto Next=ApplyKeyboardDelta(TargetActor->GetActorTransform(),CoordinateSpace,T,R);
+    if(ApplyTargetTransform(Next))
+    {
+        if(PendingInputSeconds>=0){LastInputToTransformMs=(FPlatformTime::Seconds()-PendingInputSeconds)*1000;LastInputToTransformFrames=GFrameCounter-PendingInputFrame;++MeasuredInputEvents;PendingInputSeconds=-1;}
+        OnTransformChanged.Broadcast(Next);
+    }
+}
+
 void AVirtualSensorTransformGizmoActor::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
@@ -294,6 +399,14 @@ void AVirtualSensorTransformGizmoActor::Tick(float DeltaSeconds)
     }
 
     UpdateGizmoTransformAndScale();
+    if(bFallbackNavigation&&bObserverNavigation&&IsInputFocusOwned())if(auto* PC=FallbackController.Get())if(auto* Pawn=FallbackPawn.Get())
+    {
+        auto Axis=[this](const FKey& A,const FKey& B){return float(ObserverKeys.Contains(A))-float(ObserverKeys.Contains(B));};
+        const auto R=PC->GetControlRotation();const auto D=(FRotationMatrix(R).GetUnitAxis(EAxis::X)*Axis(EKeys::W,EKeys::S)+FRotationMatrix(R).GetUnitAxis(EAxis::Y)*Axis(EKeys::D,EKeys::A)+FVector::UpVector*Axis(EKeys::E,EKeys::Q)).GetClampedToMaxSize(1);
+        const float Speed=Pawn->GetMovementComponent()?Pawn->GetMovementComponent()->GetMaxSpeed():1200;
+        Pawn->AddActorWorldOffset(D*Speed*VirtualSensorPlacementMotion::BoundedDelta(DeltaSeconds),true);
+        auto P=Pawn->GetActorLocation();if(P.Z<0||P.Z>72625){P.Z=FMath::Clamp(P.Z,0.,72625.);Pawn->SetActorLocation(P);}
+    }
     HandleMouseInput();
     HandleKeyboardInput(DeltaSeconds);
     DrawGizmo();
@@ -442,6 +555,12 @@ void AVirtualSensorTransformGizmoActor::HandleMouseInput()
 
 void AVirtualSensorTransformGizmoActor::HandleKeyboardInput(float DeltaSeconds)
 {
+    if(bResponsivePlacement)
+    {
+        if(!bManipulationEnabled||bObserverNavigation||!IsInputFocusOwned()||GetWorld()->IsPaused())return;
+        if(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous&&!PlacementKeys.IsEmpty())ApplyResponsiveKeyboardDelta(DeltaSeconds,false);
+        return;
+    }
     APlayerController* Controller = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
     if (!Controller || !TargetActor || !bManipulationEnabled || IsEditableTextFocused())
     {
@@ -521,6 +640,7 @@ void AVirtualSensorTransformGizmoActor::BeginMouseDrag(EHandleKind HandleKind)
         if(auto* Dx=Cast<ADxPlayerControllerBase>(PC)){PreviousPossibleClick=Dx->PossibleClick;Dx->PossibleClick=false;}
     }
     DragStartTransform = TargetActor->GetActorTransform();
+    OnTransformGestureStarted.Broadcast();
     DragOrigin = DragStartTransform.GetLocation();
     DragAxis = ResolveHandleAxis(HandleKind, DragStartTransform).GetSafeNormal();
     bMouseDragging = true;

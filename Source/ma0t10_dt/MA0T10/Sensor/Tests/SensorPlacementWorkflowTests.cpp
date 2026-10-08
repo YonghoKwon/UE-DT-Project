@@ -10,6 +10,29 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementMotion.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementMotionTest,"MA0T10.Placement.ContinuousCadence",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorPlacementMotionTest::RunTest(const FString&)
+{
+    for(int32 Fps:{30,60,120})
+    {
+        FTransform Pose=FTransform::Identity;
+        for(int32 I=0;I<Fps*2;++I)Pose=AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(Pose,EVirtualSensorCoordinateSpace::World,
+            VirtualSensorPlacementMotion::Translation(FVector(1,0,0),125,1.f/Fps),VirtualSensorPlacementMotion::Rotation(FRotator(0,1,0),62.5f,1.f/Fps));
+        TestTrue(TEXT("two-second travel is frame independent"),FMath::Abs(Pose.GetLocation().X-250)<.01);
+        TestTrue(TEXT("two-second rotation is frame independent"),FMath::Abs(FMath::FindDeltaAngleDegrees(Pose.Rotator().Yaw,125))<.01);
+    }
+    TestTrue(TEXT("diagonal translation has same speed"),FMath::Abs(VirtualSensorPlacementMotion::Translation(FVector(1,1,1),125,.04f).Size()-5)<.001);
+    TestTrue(TEXT("hitch travel is bounded to 50ms"),FMath::Abs(VirtualSensorPlacementMotion::Translation(FVector(1,0,0),125,1).Size()-6.25)<.001);
+    TestTrue(TEXT("shift multiplier retained"),FMath::Abs(VirtualSensorPlacementMotion::Translation(FVector(1,0,0),125,.04f,5).Size()-25)<.001);
+    TestTrue(TEXT("control multiplier retained"),FMath::Abs(VirtualSensorPlacementMotion::Translation(FVector(1,0,0),125,.04f,.2f).Size()-1)<.001);
+    const FTransform Rotated(FRotator(0,90,0),FVector::ZeroVector);
+    const auto Local=AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(Rotated,EVirtualSensorCoordinateSpace::Local,FVector(10,0,0),FRotator::ZeroRotator);
+    TestTrue(TEXT("local forward follows sensor rotation"),Local.GetLocation().Equals(FVector(0,10,0),.001));
+    return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementGateTest,"MA0T10.Placement.CollectionPoseGate",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPlacementGateTest::RunTest(const FString&)

@@ -23,6 +23,8 @@ public:
 	void ChangePlayerViewType(class UTextBlock* ViewText = nullptr);
 	void Move(const FVector2D& MovementVector) override;
 	void MoveUpDown(const float Value) override;
+	void Look(const FVector2D& Value) override;
+	void SetPlacementNavigationActive(bool bActive);
 
 protected:
 	virtual void BeginPlay() override;
@@ -39,4 +41,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CameraPoint")
 	float TransitionSpeed = 5.0f;
+private:
+	bool bPlacementNavigation=false,SavedCameraLag=false,SavedRotationLag=false;
+	FVector2D PlacementMovement=FVector2D::ZeroVector;
+	float PlacementVertical=0;
 };

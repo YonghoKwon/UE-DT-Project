@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Input/Events.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "VirtualSensorTransformGizmoActor.generated.h"
 
@@ -51,6 +52,19 @@ public:
     void SetProjectionDebugEnabled(bool bEnabled);
 
     void SetStepSizes(float InTranslationStepCm, float InRotationStepDegrees);
+    void ConfigureResponsivePlacement(bool bEnabled,EVirtualSensorPlacementInputMode Mode,float MoveSpeedCmPerSecond=125,float RotateSpeedDegreesPerSecond=62.5f);
+    bool IsResponsivePlacement() const {return bResponsivePlacement;}
+    bool IsObserverNavigationActive() const {return bObserverNavigation;}
+    bool HandlePlacementKeyDown(const FKeyEvent& Event);
+    bool HandlePlacementKeyUp(const FKeyEvent& Event);
+    bool BeginObserverNavigation(const FVector2D& ScreenPosition);
+    void EndObserverNavigation();
+    bool IsFallbackObserverNavigation() const {return bFallbackNavigation;}
+    bool HandleObserverPointerDelta(const FVector2D& Delta);
+    void FinishPlacementGesture();
+    void BlockHeldPlacementKeys();
+    FSimpleMulticastDelegate OnTransformGestureStarted;
+    FSimpleMulticastDelegate OnUndoRequested,OnRedoRequested;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorControl")
     bool IsManipulationEnabled() const { return bManipulationEnabled; }
@@ -99,6 +113,8 @@ private:
     void HandleMouseInput();
     void HandleKeyboardInput(float DeltaSeconds);
     bool ApplyTargetTransform(const FTransform& Transform);
+    void ApplyResponsiveKeyboardDelta(float DeltaSeconds,bool bOneStep);
+    static bool IsPlacementKey(const FKey& Key);
     void BeginMouseDrag(EHandleKind HandleKind);
     void UpdateMouseDrag();
     void EndMouseDrag();
@@ -152,4 +168,18 @@ private:
     float RotationStepDegrees = 5.0f;
     float CurrentVisualScale = 1.0f;
     double NextKeyboardStepTime = 0.0;
+    bool bResponsivePlacement=false,bObserverNavigation=false;
+    bool bFallbackNavigation=false,FallbackCursor=true,FallbackClicks=true,FallbackHover=true,FallbackLag=false,FallbackRotationLag=false;
+    TWeakObjectPtr<APlayerController> FallbackController;
+    TWeakObjectPtr<APawn> FallbackPawn;
+    TSet<FKey> ObserverKeys;
+    EVirtualSensorPlacementInputMode PlacementInputMode=EVirtualSensorPlacementInputMode::Continuous;
+    float TranslationSpeed=125,RotationSpeed=62.5f;
+    TSet<FKey> PlacementKeys,BlockedPlacementKeys;
+    double PendingInputSeconds=-1;
+    uint64 PendingInputFrame=0;
+public:
+    double LastInputToTransformMs=0;
+    uint64 LastInputToTransformFrames=0;
+    int32 MeasuredInputEvents=0;
 };

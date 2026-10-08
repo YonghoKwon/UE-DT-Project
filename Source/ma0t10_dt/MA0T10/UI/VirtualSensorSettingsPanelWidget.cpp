@@ -446,14 +446,16 @@ bool UVirtualSensorSettingsPanelWidget::QueuePendingStateForSensorTestMap()
 
 void UVirtualSensorSettingsPanelWidget::NudgeSelectedSensor(FVector TranslationDelta, FRotator RotationDelta)
 {
+    SetSensorManipulationEnabled(true);
+    if(!bManipulationEnabled)return;
     PendingState.ActorTransform = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(PendingState.ActorTransform, CoordinateSpace, TranslationDelta, RotationDelta);
-	if (AVirtualSensorActorBase* SensorActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()))
-	{
-		if (!SensorActor->IsInteractiveManipulationActive()) SensorActor->BeginInteractiveManipulation(InteractionRequest);
-		SensorActor->UpdateInteractiveTransform(PendingState.ActorTransform);
-	}
-	LastControlMessage = TEXT("조작 중: 경량 미리보기");
-	RefreshNativeText();
+    ApplyPendingTransform();
+}
+
+void UVirtualSensorSettingsPanelWidget::SetPlacementInputMode(EVirtualSensorPlacementInputMode Mode)
+{
+    PlacementInputMode=Mode;
+    if(GizmoActor)GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),Mode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
 }
 
 void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabled)
@@ -466,9 +468,11 @@ void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabl
     auto* Target = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
     if (bManipulationEnabled && ManipulationTarget.Get() == Target && IsValid(Target) && Target->IsInteractiveManipulationActive()) return;
     FinishSensorManipulation(false);
-    if (!IsValid(Target) || !Target->BeginInteractiveManipulation(InteractionRequest))
+    FString PlacementReason;
+    if(IsWorkspaceOwned()){InteractionRequest.CameraPreviewInterval=1.f/15;InteractionRequest.LidarPreviewInterval=.1f;}
+    if (!IsValid(Target) || !Target->CanEditSensorPlacement(PlacementReason) || !Target->BeginInteractiveManipulation(InteractionRequest))
     {
-        LastControlMessage = TEXT("센서 조작을 시작할 수 없습니다: 유효한 센서를 선택하세요.");
+        LastControlMessage = PlacementReason.IsEmpty()?TEXT("센서 조작을 시작할 수 없습니다: 유효한 센서를 선택하세요."):PlacementReason;
         RefreshNativeText();
         return;
     }
@@ -478,6 +482,7 @@ void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabl
     SpawnGizmoIfNeeded();
     if (GizmoActor)
     {
+        GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
         GizmoActor->BindTarget(Target);
         GizmoActor->SetManipulationEnabled(true);
     }
@@ -649,8 +654,13 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Pitch", "Pitch (도)"), [this]() { return PendingState.ActorTransform.Rotator().Pitch; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Pitch = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Yaw", "Yaw (도)"), [this]() { return PendingState.ActorTransform.Rotator().Yaw; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Yaw = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Roll", "Roll (도)"), [this]() { return PendingState.ActorTransform.Rotator().Roll; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Roll = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
+                + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Visible:EVisibility::Collapsed;}).Text_Lambda([this](){return FText::FromString(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?TEXT("입력: 연속 이동"):TEXT("입력: 정밀 단위"));}).OnClicked_Lambda([this](){SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled();})]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("MoveStep", "이동 단위 (cm)"), [this]() { return TranslationStepCm; }, [this](float V) { TranslationStepCm = V; }, 1.0f, 1000.0f, false) ]
                 + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("RotateStep", "회전 단위 (도)"), [this]() { return RotationStepDegrees; }, [this](float V) { RotationStepDegrees = V; }, 0.1f, 90.0f, false) ]
+                + SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this](){return IsWorkspaceOwned()&&PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVisibility::Visible:EVisibility::Collapsed;})
+                    +SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("PlacementSpeed","이동 속도 (cm/s)"),[this](){return TranslationSpeedCmPerSecond;},[this](float V){TranslationSpeedCmPerSecond=V;SetPlacementInputMode(PlacementInputMode);},1,100000,false)]
+                    +SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("PlacementRotateSpeed","회전 속도 (도/s)"),[this](){return RotationSpeedDegreesPerSecond;},[this](float V){RotationSpeedDegreesPerSecond=V;SetPlacementInputMode(PlacementInputMode);},.1f,720,false)]
+                    +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("PlacementNavigationHelp","RMB + WASD/QE: 관찰 시점 · Shift ×5 / Ctrl ×0.2 · 입력창에서는 단축키 차단"))]]
                 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
                 + SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this]() { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z")) ]
 
@@ -935,6 +945,7 @@ void UVirtualSensorSettingsPanelWidget::SpawnGizmoIfNeeded()
     GizmoActor = GetWorld()->SpawnActor<AVirtualSensorTransformGizmoActor>();
     if (!GizmoActor) return;
     GizmoActor->SetInputOwner(this);
+    GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
     GizmoActor->OnTransformChanged.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged);
     GizmoActor->OnTransformCommitted.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted);
     GizmoActor->OnManipulationExitRequested.AddUObject(this, &UVirtualSensorSettingsPanelWidget::HandleManipulationExitRequested);

@@ -47,6 +47,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void NudgeSelectedSensor(FVector TranslationDelta, FRotator RotationDelta);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement")
+    void SetPlacementInputMode(EVirtualSensorPlacementInputMode Mode);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetSensorManipulationEnabled(bool bEnabled);
@@ -93,6 +95,8 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl", meta = (ClampMin = "0.1", ClampMax = "90.0"))
     float RotationStepDegrees = 5.0f;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|SensorControl|Placement") float TranslationSpeedCmPerSecond=125;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|SensorControl|Placement") float RotationSpeedDegreesPerSecond=62.5f;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -164,6 +168,7 @@ private:
     EVirtualSensorCoordinateSpace CoordinateSpace = EVirtualSensorCoordinateSpace::Local;
     double LastPreviewRefreshTime = -1.0;
 	FVirtualSensorInteractionRequest InteractionRequest;
+    EVirtualSensorPlacementInputMode PlacementInputMode=EVirtualSensorPlacementInputMode::Continuous;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
     TWeakObjectPtr<AVirtualSensorActorBase> ManipulationTarget;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
