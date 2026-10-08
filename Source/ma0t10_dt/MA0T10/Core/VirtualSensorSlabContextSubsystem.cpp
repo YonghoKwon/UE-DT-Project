@@ -344,6 +344,13 @@ bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVi
 	return Context.bEligible && Context.RunId==Status.RunId && Context.Generation==Generation &&
 		(Status.State==EVirtualSlabSessionState::Running || Status.State==EVirtualSlabSessionState::Paused || Status.State==EVirtualSlabSessionState::Draining);
 }
+bool UVirtualSensorSlabContextSubsystem::BeginCompatibilityDerivation(const FString& Id,int64 Frame,const FVirtualSlabFrameContext& Context)
+{
+    if(!AllowsStreamFrame(Id,EVirtualSensorStreamKind::LidarPayload,Context)||!Coordinator.IsValid()||!Coordinator->StreamPublisherComponent||!Coordinator->StreamPublisherComponent->NeedsCompatibilityLidarOutput(Id))return false;
+    CompatibilityDerivations.Add(Id+TEXT("|")+LexToString(Frame));return true;
+}
+void UVirtualSensorSlabContextSubsystem::EndCompatibilityDerivation(const FString& Run,const FString& Id,int64 Frame,bool Failed)
+{if(Run==Status.RunId&&CompatibilityDerivations.Remove(Id+TEXT("|")+LexToString(Frame))&&Failed)GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordOutputFailure(Run,Id,0,Frame,TEXT("호환 LiDAR JSON 생성 실패"));}
 bool UVirtualSensorSlabContextSubsystem::IsOutputSelected(EVirtualSensorStreamKind Kind) const
 {
 	return Kind==EVirtualSensorStreamKind::PointCloud?Status.Outputs.bPointCloud:
@@ -382,7 +389,7 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 		if(RequiredCheckAccumulator>=.1f){RequiredCheckAccumulator=0;Status.RequiredDataError=CheckRequiredDataHealth();}
 	}
 	if (Status.State!=EVirtualSlabSessionState::Draining) return;
-	int64 Waiting=PendingKeys.Num();
+	int64 Waiting=PendingKeys.Num()+CompatibilityDerivations.Num();
 	Status.StreamFailures = FMath::Max<int64>(0, CountStreamErrors() - InitialStreamErrors);
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
 	{
@@ -431,6 +438,7 @@ void UVirtualSensorSlabContextSubsystem::Finish(EVirtualSlabSessionEndReason Rea
 	}
 	FinalizeRunResult();
 	PendingKeys.Reset();Status.PendingAcquisitions=0;
+	CompatibilityDerivations.Reset();
 	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)
 		for(const auto& Pair:Targets)Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
 	for(const auto& Pair:Targets)if(StartedSensors.Contains(Pair.Key)&&Pair.Value.IsValid())Pair.Value->StopSensor();
@@ -452,6 +460,8 @@ void UVirtualSensorSlabContextSubsystem::FinalizeRunResult(bool PreparationFaile
 	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)
 		Coordinator->StreamPublisherComponent->GatherPendingSlabRunKeys(Status.RunId,Outputs,SensorFrames,&Snapshot.PendingOutputPreparation,&CompatibilityReceipts);
 	Snapshot.AwaitingBrokerReceipt+=CompatibilityReceipts;
+    Snapshot.PendingOutputPreparation+=CompatibilityDerivations.Num();
+    for(const auto& Key:CompatibilityDerivations){Outputs.Add(TEXT("0|")+Key);SensorFrames.Add(Key);}
 	Snapshot.UniqueUnfinished=Outputs.Num();for(const auto& Key:PendingKeys)if(!SensorFrames.Contains(Key))++Snapshot.UniqueUnfinished;
 	Status.UnfinishedFrames=Snapshot.UniqueUnfinished;
 	if(Status.EndReason==EVirtualSlabSessionEndReason::DrainTimeout)Status.Message=FString::Printf(TEXT("종료 제한 시간 초과: 미완료 %lld건"),Status.UnfinishedFrames);
@@ -478,5 +488,5 @@ void UVirtualSensorSlabContextSubsystem::Deinitialize()
 			for(const auto& Pair:Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
 		if(GetWorld()) if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
 	}
-	PendingKeys.Reset(); Targets.Reset(); ControlledIds.Reset(); Super::Deinitialize();
+	PendingKeys.Reset();CompatibilityDerivations.Reset(); Targets.Reset(); ControlledIds.Reset(); Super::Deinitialize();
 }

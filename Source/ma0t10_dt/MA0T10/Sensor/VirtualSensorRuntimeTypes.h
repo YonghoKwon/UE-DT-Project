@@ -399,6 +399,8 @@ struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 	FVirtualCameraJpegMetadata CameraJpegMetadata;
 	bool bSendTransport = true;
 	bool bRecord = true;
+	/** Completed legacy LiDAR JSON must not re-enter acquisition PCD/raw telemetry. */
+	bool bLidarCompatibilityDerived = false;
 
 	bool HasJsonPayload() const
 	{

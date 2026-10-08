@@ -29,6 +29,7 @@ public:
 
 	void SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent);
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
+	bool NeedsCompatibilityLidarOutput(const FString& SensorId) const;
 	void PumpPublisherOnce(double NowSeconds);
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */

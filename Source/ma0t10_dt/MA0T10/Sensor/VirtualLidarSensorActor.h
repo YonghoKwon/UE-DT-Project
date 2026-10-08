@@ -64,6 +64,7 @@ private:
 
     UFUNCTION()
     void HandleLidarFrame(const FString& JsonPayload, UTexture2D* ViewTexture);
+    void HandleDerivedLidarFrame(const FVirtualSensorFrameEnvelope& Frame);
 
     TOptional<bool> PendingExternalSendTransport;
 	int32 SavedInteractionHorizontalSamples = 0;

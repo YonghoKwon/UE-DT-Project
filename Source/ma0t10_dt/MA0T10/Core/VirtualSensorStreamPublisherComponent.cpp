@@ -698,6 +698,8 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 	{
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Key);
 		if (!Runtime || !Runtime->Config.bEnabled || !StreamMatchesFrame(Runtime->Config.StreamKind, Frame.SensorKind)) continue;
+		if(Frame.bLidarCompatibilityDerived&&(Runtime->Config.StreamKind!=EVirtualSensorStreamKind::LidarPayload||
+			(Runtime->Config.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport())))continue;
 		if (!Runtime->Config.SensorId.IsEmpty() && !Runtime->Config.SensorId.Equals(Frame.SensorId, ESearchCase::CaseSensitive)) continue;
 		if (GetWorld()) if (const auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
 			if(!Slab->AllowsStreamFrame(Frame.SensorId,Runtime->Config.StreamKind,Frame.SlabContext)) continue;
@@ -1613,6 +1615,13 @@ FVirtualSensorResourceSnapshot UVirtualSensorStreamPublisherComponent::GetResour
     S.SharedCpuBytes.Add(TEXT("unique_prepared_bodies"),SharedBytes);
     S.OwnedCpuBytes.Add(TEXT("runtime_containers"),StreamRuntimes.GetAllocatedSize()+WaitingReceipts.GetAllocatedSize()+RequestToStreamKey.GetAllocatedSize());
     return S;
+}
+bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutput(const FString& Id) const
+{
+    for(const auto& Pair:StreamRuntimes){const auto& C=Pair.Value.Config;
+        if(C.bEnabled&&C.StreamKind==EVirtualSensorStreamKind::LidarPayload&&(C.SensorId.IsEmpty()||C.SensorId==Id)&&
+            !(C.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport()))return true;}
+    return false;
 }
 
 bool UVirtualSensorStreamPublisherComponent::PrepareCollectionTargets(EVirtualSensorStreamKind Kind,const FString& Id,FString& Error)

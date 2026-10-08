@@ -532,6 +532,9 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 DroppedDerivedFrameCount = 0;
+    int32 CompatibilityPendingReplacementCount = 0;
+    int32 DiscardedDerivedGenerationCount = 0;
+    int32 FailedDerivedEncodingCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 BudgetSkippedAcquisitionFrameCount = 0;

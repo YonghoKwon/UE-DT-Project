@@ -39,7 +39,7 @@ void AVirtualLidarSensorActor::BeginPlay()
         ScanComponent->SetRecorderComponent(nullptr);
         ScanComponent->OutputMode = EVirtualLidarOutputMode::None;
         ScanComponent->OnFrameAcquired.AddDynamic(this, &AVirtualLidarSensorActor::HandleLidarFrameAcquired);
-        ScanComponent->OnScanCompleted.AddDynamic(this, &AVirtualLidarSensorActor::HandleLidarFrame);
+        ScanComponent->OnDerivedFrameCompletedNative.AddUObject(this,&AVirtualLidarSensorActor::HandleDerivedLidarFrame);
         if (AnalysisComponent) AnalysisComponent->BindScanComponent(ScanComponent);
         if (VisualizationComponent) VisualizationComponent->BindScanComponent(ScanComponent);
         if (ExportComponent) ExportComponent->BindScanComponent(ScanComponent);
@@ -258,23 +258,12 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
 
 void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTexture2D* ViewTexture)
 {
-    if (!ScanComponent) return;
-    if (!OutputComponent || JsonPayload.IsEmpty()) return;
-
-    FVirtualSensorFrameEnvelope Frame;
-    Frame.SensorId = ScanComponent->SensorId;
-    Frame.SensorKind = EVirtualSensorKind::Lidar;
-    Frame.FrameId = ScanComponent->GetRuntimeStatus().FrameId;
-    Frame.TimestampUtc = FDateTime::UtcNow();
-    Frame.SchemaVersion = TEXT("virtual-lidar.v1");
-    Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
-    Frame.LidarFrameSnapshot = ScanComponent->GetLastFrameSnapshot();
-	if (Frame.LidarFrameSnapshot.IsValid()) Frame.SlabContext=Frame.LidarFrameSnapshot->SlabContext;
-    Frame.PointSnapshot = Frame.LidarFrameSnapshot.IsValid()
-        ? Frame.LidarFrameSnapshot->Points
-        : ScanComponent->GetLastPointSnapshot();
-    Frame.bSendTransport = PendingExternalSendTransport.IsSet() ? PendingExternalSendTransport.GetValue() : true;
-    Frame.bRecord = true;
-    PendingExternalSendTransport.Reset();
-    OutputComponent->RouteFrame(Frame);
+    if(!ScanComponent)return;const auto& Frame=ScanComponent->GetLastCompletedDerivedFrame();
+    if(Frame.HasJsonPayload()&&*Frame.JsonPayload==JsonPayload)HandleDerivedLidarFrame(Frame);
+}
+void AVirtualLidarSensorActor::HandleDerivedLidarFrame(const FVirtualSensorFrameEnvelope& Captured)
+{
+    if(!OutputComponent||!Captured.HasJsonPayload())return;
+    auto Frame=Captured;Frame.bSendTransport=PendingExternalSendTransport.IsSet()?PendingExternalSendTransport.GetValue():Captured.bSendTransport;
+    PendingExternalSendTransport.Reset();OutputComponent->RouteFrame(Frame);
 }

@@ -200,6 +200,16 @@ FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
 }
 }
 
+struct FVirtualLidarDerivedOutputJob
+{
+    FLidarScheduledPayloadSnapshot Payload;
+    FVirtualSensorFrameEnvelope Frame;
+    int32 Generation=0;
+    double StartedSeconds=0;
+    bool bReserved=false;
+    std::atomic<bool> Cancelled{false};
+};
+
 FVirtualSensorResourceSnapshot UVirtualLidarScanComponent::GetResourceSnapshot() const
 {
     check(IsInGameThread());
@@ -581,6 +591,8 @@ void UVirtualLidarScanComponent::StartScan()
 }
 void UVirtualLidarScanComponent::StopScan()
 {
+    for(const auto& Job:{ActiveDerivedJob,PendingDerivedJob})if(Job){Job->Cancelled=true;ReleaseDerivedReservation(Job);++RuntimeStatus.DiscardedDerivedGenerationCount;}
+    ActiveDerivedJob.Reset();PendingDerivedJob.Reset();
 	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
     if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     UnregisterFromPerformanceSubsystem();
@@ -591,7 +603,7 @@ void UVirtualLidarScanComponent::StopScan()
     if (GpuDepthProjectionComponent.IsValid()) GpuDepthProjectionComponent->CancelAcquisition();
     bScheduledPayloadBuildInFlight = false;
     bScheduledAutoExportInFlight = false;
-    bScheduledPayloadRefreshPending = false;
+    RuntimeStatus.bDerivedWorkInFlight=false;
     RuntimeStatus.bAcquisitionInFlight = false;
     ScheduledPoints.Reset();
     ScheduledHeatmapPixels.Reset();
@@ -967,6 +979,7 @@ void UVirtualLidarScanComponent::UnregisterFromPerformanceSubsystem()
 
 void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 {
+    TryStartPendingPayloadBuild();
 #if WITH_DEV_AUTOMATION_TESTS
     if(FreezeAcquisitionForTests)return;
 #endif
@@ -1188,41 +1201,26 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 		OnScanCompleted.Broadcast(FString(), LidarViewTexture);
 		return;
 	}
-    if (bScheduledPayloadBuildInFlight)
-    {
-        ++RuntimeStatus.DroppedDerivedFrameCount;
-        bScheduledPayloadRefreshPending = true;
-        RuntimeStatus.bDerivedWorkInFlight = true;
-        UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
-        return;
-    }
     QueueScheduledPayloadBuild(FrameId, ScheduledScanStartTime);
 }
 
 void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds)
 {
-    if (GVirtualLidarJsonJobs.fetch_add(1, std::memory_order_acq_rel) >= GVirtualLidarJsonJobLimit)
-    {
-        GVirtualLidarJsonJobs.fetch_sub(1, std::memory_order_acq_rel);
-        ++RuntimeStatus.QueueOverflowCount;
-        ++RuntimeStatus.DroppedDerivedFrameCount;
-        RuntimeStatus.bDerivedWorkInFlight = false;
-        UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
-        return;
-    }
-    bScheduledPayloadBuildInFlight = true;
-    RuntimeStatus.bDerivedWorkInFlight = true;
-    const int32 Generation = ScheduledGeneration;
-    FLidarScheduledPayloadSnapshot Snapshot;
-    Snapshot.Points = GetLastPointSnapshot();
+    if(!LastFrameSnapshot.IsValid()||LastFrameSnapshot->FrameId!=CapturedFrameId)return;
+    auto Job=MakeShared<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe>();Job->Generation=ScheduledGeneration;Job->StartedSeconds=AcquisitionStartedSeconds;
+    auto& Frame=Job->Frame;Frame.SensorId=SensorId;Frame.SensorKind=EVirtualSensorKind::Lidar;Frame.FrameId=CapturedFrameId;
+    Frame.LidarFrameSnapshot=LastFrameSnapshot;Frame.PointSnapshot=LastFrameSnapshot->Points;Frame.SlabContext=LastFrameSnapshot->SlabContext;
+    Frame.TimestampUtc=LastFrameSnapshot->GetAcquisitionStartUtc();Frame.SchemaVersion=TEXT("virtual-lidar.v1");Frame.bLidarCompatibilityDerived=true;
+    auto& Snapshot=Job->Payload;Snapshot.TimestampUtc=Frame.TimestampUtc;
+    Snapshot.Points = Frame.PointSnapshot;
     Snapshot.SensorId = SensorId;
     Snapshot.Manufacturer = DeviceSpec.Manufacturer;
     Snapshot.Model = DeviceSpec.Model;
     Snapshot.PreviewBackend = GetPreviewBackendName();
     Snapshot.FrameId = CapturedFrameId;
-    Snapshot.HorizontalSamples = HorizontalSamples;
-    Snapshot.VerticalChannels = VerticalChannels;
-    Snapshot.MaxDistance = MaxDistance;
+    Snapshot.HorizontalSamples = LastFrameSnapshot->HorizontalSamples;
+    Snapshot.VerticalChannels = LastFrameSnapshot->VerticalChannels;
+    Snapshot.MaxDistance = LastFrameSnapshot->MaxDistanceCm;
     Snapshot.ServerPayloadStride = ServerPayloadStride;
     Snapshot.MaxServerPayloadPoints = MaxServerPayloadPoints;
     Snapshot.bIncludeMissPoints = bIncludeMissPointsInServerPayload;
@@ -1234,21 +1232,36 @@ void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameI
     Snapshot.bGpuActive = IsGpuPreviewBackendActive();
     Snapshot.bExperimentalGpuOptIn = bAllowExperimentalGpuPreviewBackend;
     Snapshot.bIncludeSlabAnalysis = bIncludeSlabAnalysisInPayload;
-    Snapshot.SensorTransform = ScheduledScanTransform;
+    Snapshot.SensorTransform = LastFrameSnapshot->AcquisitionTransform;
     Snapshot.SlabAnalysis = LastSlabAnalysis;
+    if(GetWorld())if(auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())Job->bReserved=Slab->BeginCompatibilityDerivation(SensorId,CapturedFrameId,Frame.SlabContext);
+    if(PendingDerivedJob){ReleaseDerivedReservation(PendingDerivedJob);++RuntimeStatus.DroppedDerivedFrameCount;++RuntimeStatus.CompatibilityPendingReplacementCount;}
+    PendingDerivedJob=Job;RuntimeStatus.bDerivedWorkInFlight=true;TryStartPendingPayloadBuild();
+}
+void UVirtualLidarScanComponent::TryStartPendingPayloadBuild()
+{
+    if(ActiveDerivedJob||!PendingDerivedJob)return;
+    if(GVirtualLidarJsonJobs.fetch_add(1,std::memory_order_acq_rel)>=GVirtualLidarJsonJobLimit){GVirtualLidarJsonJobs.fetch_sub(1,std::memory_order_acq_rel);return;}
+    auto Job=MoveTemp(PendingDerivedJob);ActiveDerivedJob=Job;bScheduledPayloadBuildInFlight=true;
     TWeakObjectPtr<UVirtualLidarScanComponent> WeakThis(this);
-
-    Async(EAsyncExecution::ThreadPool, [WeakThis, Generation, CapturedFrameId, Snapshot = MoveTemp(Snapshot), AcquisitionStartedSeconds]() mutable
+    int32 Delay=0;
+#if WITH_DEV_AUTOMATION_TESTS
+    Delay=JsonEncodeDelayMsForTests;
+#endif
+    Async(EAsyncExecution::ThreadPool, [WeakThis, Job,Delay]() mutable
     {
-        FString Payload = BuildScheduledLidarJson(Snapshot);
+        if(Delay>0)FPlatformProcess::Sleep(Delay/1000.f);
+        FString Payload;if(!Job->Cancelled.load())Payload=BuildScheduledLidarJson(Job->Payload);
         GVirtualLidarJsonJobs.fetch_sub(1, std::memory_order_acq_rel);
-        AsyncTask(ENamedThreads::GameThread, [WeakThis, Generation, CapturedFrameId, Payload = MoveTemp(Payload), AcquisitionStartedSeconds]() mutable
+        AsyncTask(ENamedThreads::GameThread, [WeakThis, Job,Payload = MoveTemp(Payload)]() mutable
         {
-            if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;
-            WeakThis->CompleteScheduledPayloadBuild(CapturedFrameId, MoveTemp(Payload), AcquisitionStartedSeconds);
+            if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Job->Generation||Job->Cancelled.load()) return;
+            WeakThis->CompleteScheduledPayloadBuild(Job,MoveTemp(Payload));
         });
     });
 }
+void UVirtualLidarScanComponent::ReleaseDerivedReservation(const TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe>& Job)
+{if(Job&&Job->bReserved){if(GetWorld())if(auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())Slab->EndCompatibilityDerivation(Job->Frame.SlabContext.RunId,Job->Frame.SensorId,Job->Frame.FrameId);Job->bReserved=false;}}
 
 TFunction<FString()> UVirtualLidarScanComponent::CreateLocalFilePayloadEncoder(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame) const
 {
@@ -1264,25 +1277,26 @@ TFunction<FString()> UVirtualLidarScanComponent::CreateLocalFilePayloadEncoder(T
 	return [Snapshot=MoveTemp(Snapshot)](){return BuildScheduledLidarJson(Snapshot);};
 }
 
-void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(int64 CapturedFrameId, FString&& JsonPayload, double AcquisitionStartedSeconds)
+void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe> Job,FString&& JsonPayload)
 {
+    if(ActiveDerivedJob!=Job)return;
+    ActiveDerivedJob.Reset();
     bScheduledPayloadBuildInFlight = false;
     RuntimeStatus.bDerivedWorkInFlight = false;
-    RuntimeStatus.LastPostProcessDurationMs = static_cast<float>((FPlatformTime::Seconds() - AcquisitionStartedSeconds) * 1000.0);
-    if (bScheduledPayloadRefreshPending && CapturedFrameId < FrameId)
-    {
-        bScheduledPayloadRefreshPending = false;
-        QueueScheduledPayloadBuild(FrameId, ScheduledScanStartTime);
-        return;
-    }
-    bScheduledPayloadRefreshPending = false;
+    RuntimeStatus.LastPostProcessDurationMs = static_cast<float>((FPlatformTime::Seconds() - Job->StartedSeconds) * 1000.0);
     if (JsonPayload.IsEmpty())
     {
         ++RuntimeStatus.DroppedDerivedFrameCount;
+        ++RuntimeStatus.FailedDerivedEncodingCount;
+        if(Job->bReserved&&GetWorld()){GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndCompatibilityDerivation(Job->Frame.SlabContext.RunId,Job->Frame.SensorId,Job->Frame.FrameId,true);Job->bReserved=false;}
+        ReleaseDerivedReservation(Job);TryStartPendingPayloadBuild();
         UpdateRuntimeStatusAfterScan(0);
         return;
     }
-    LastJsonPayload = MoveTemp(JsonPayload);
+    if(LastCompletedDerivedFrame.SensorId==Job->Frame.SensorId&&LastCompletedDerivedFrame.FrameId>=Job->Frame.FrameId&&LastCompletedDerivedFrame.HasJsonPayload())
+    {++RuntimeStatus.DiscardedDerivedGenerationCount;ReleaseDerivedReservation(Job);TryStartPendingPayloadBuild();return;}
+    Job->Frame.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(MoveTemp(JsonPayload));
+    LastJsonPayload = *Job->Frame.JsonPayload;
     DispatchPayload(LastJsonPayload);
     const double OutputNowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
     RuntimeStatus.MeasuredOutputRateHz = LastScheduledOutputTime >= 0.0
@@ -1290,12 +1304,16 @@ void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(int64 CapturedFra
         : 0.0f;
     LastScheduledOutputTime = OutputNowSeconds;
     UpdateRuntimeStatusAfterScan(LastJsonPayload.Len());
-    if (RecorderComponent) RecorderComponent->RecordJsonFrame(SensorId, TEXT("virtual_lidar"), CapturedFrameId, LastJsonPayload);
-    QueueScheduledAutoExports();
+    if (RecorderComponent) RecorderComponent->RecordJsonFrame(Job->Frame.SensorId, TEXT("virtual_lidar"), Job->Frame.FrameId, LastJsonPayload);
+    QueueScheduledAutoExports(Job->Frame.LidarFrameSnapshot);
+    CompleteDerivedFrame(Job->Frame);
     OnScanCompleted.Broadcast(LastJsonPayload, LidarViewTexture);
+    ReleaseDerivedReservation(Job);TryStartPendingPayloadBuild();RuntimeStatus.bDerivedWorkInFlight=ActiveDerivedJob.IsValid()||PendingDerivedJob.IsValid();
 }
+void UVirtualLidarScanComponent::CompleteDerivedFrame(const FVirtualSensorFrameEnvelope& Frame)
+{LastCompletedDerivedFrame=Frame;OnDerivedFrameCompletedNative.Broadcast(Frame);}
 
-void UVirtualLidarScanComponent::QueueScheduledAutoExports()
+void UVirtualLidarScanComponent::QueueScheduledAutoExports(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame)
 {
     if (!bExportCsvOnScan && !bExportJsonLinesOnScan && !bExportPcdOnScan) return;
     if (bScheduledAutoExportInFlight)
@@ -1315,7 +1333,7 @@ void UVirtualLidarScanComponent::QueueScheduledAutoExports()
     LastPointCloudExportPath = !PcdPath.IsEmpty() ? PcdPath : (!JsonlPath.IsEmpty() ? JsonlPath : CsvPath);
     const bool bHitOnly = bExportHitOnlyPointCloud;
     const int32 Generation = ScheduledGeneration;
-    TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points = GetLastPointSnapshot();
+    TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points = Frame.IsValid()?Frame->Points:GetLastPointSnapshot();
     TWeakObjectPtr<UVirtualLidarScanComponent> WeakThis(this);
     bScheduledAutoExportInFlight = true;
     RuntimeStatus.bDerivedWorkInFlight = true;
@@ -1712,6 +1730,7 @@ FVirtualLidarProfilePreset UVirtualLidarScanComponent::ResolveProfilePreset(
 void UVirtualLidarScanComponent::ScanAndSend()
 {
     ++FrameId;
+    ScheduledScanStartTime=FPlatformTime::Seconds();
     ScheduledAcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
 
     TArray<uint8> HeatmapPixels;
@@ -1731,7 +1750,8 @@ void UVirtualLidarScanComponent::ScanAndSend()
 	OnFrameAcquired.Broadcast(FrameId);
 	OnFrameAcquiredNative.Broadcast(FrameId);
 
-    const FString JsonPayload = BuildJsonPayload(LastPoints);
+    const auto Encoder=CreateLocalFilePayloadEncoder(LastFrameSnapshot);
+    const FString JsonPayload = Encoder?Encoder():BuildJsonPayload(LastPoints);
     LastJsonPayload = JsonPayload;
     DispatchPayload(JsonPayload);
     UpdateRuntimeStatusAfterScan(JsonPayload.Len());
@@ -1742,12 +1762,14 @@ void UVirtualLidarScanComponent::ScanAndSend()
     }
 
     ExportEnabledPointCloudFormats();
-    OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
+    FVirtualSensorFrameEnvelope Completed;Completed.SensorId=SensorId;Completed.SensorKind=EVirtualSensorKind::Lidar;Completed.FrameId=FrameId;Completed.TimestampUtc=LastFrameSnapshot->GetAcquisitionStartUtc();Completed.SchemaVersion=TEXT("virtual-lidar.v1");Completed.LidarFrameSnapshot=LastFrameSnapshot;Completed.PointSnapshot=LastFrameSnapshot->Points;Completed.SlabContext=LastFrameSnapshot->SlabContext;Completed.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(JsonPayload);Completed.bLidarCompatibilityDerived=true;
+    CompleteDerivedFrame(Completed);OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
 }
 
 void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport)
 {
     ++FrameId;
+    ScheduledScanStartTime=FPlatformTime::Seconds();ScheduledAcquisitionStartUnixNanoseconds=UtcNowUnixNanoseconds();
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(Points);
 	PublishLastFrameSnapshot(GetComponentTransform(), HorizontalSamples, VerticalChannels, MaxDistance);
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
@@ -1772,7 +1794,8 @@ void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLida
 	OnFrameAcquired.Broadcast(FrameId);
 	OnFrameAcquiredNative.Broadcast(FrameId);
 
-    const FString JsonPayload = BuildJsonPayload(LastPoints);
+    const auto Encoder=CreateLocalFilePayloadEncoder(LastFrameSnapshot);
+    const FString JsonPayload = Encoder?Encoder():BuildJsonPayload(LastPoints);
     LastJsonPayload = JsonPayload;
     if (bSendTransport)
     {
@@ -1785,7 +1808,8 @@ void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLida
         RecorderComponent->RecordJsonFrame(SensorId, TEXT("virtual_lidar_replay"), FrameId, JsonPayload);
     }
 
-    OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
+    FVirtualSensorFrameEnvelope Completed;Completed.SensorId=SensorId;Completed.SensorKind=EVirtualSensorKind::Lidar;Completed.FrameId=FrameId;Completed.TimestampUtc=LastFrameSnapshot->GetAcquisitionStartUtc();Completed.SchemaVersion=TEXT("virtual-lidar.v1");Completed.LidarFrameSnapshot=LastFrameSnapshot;Completed.PointSnapshot=LastFrameSnapshot->Points;Completed.SlabContext=LastFrameSnapshot->SlabContext;Completed.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(JsonPayload);Completed.bLidarCompatibilityDerived=true;Completed.bSendTransport=bSendTransport;
+    CompleteDerivedFrame(Completed);OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
 }
 
 void UVirtualLidarScanComponent::PublishLastFrameSnapshot(

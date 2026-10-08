@@ -38,6 +38,8 @@ public:
 	FVirtualSlabSessionStatus GetSlabSensorSessionStatus() const { return Status; }
 	FVirtualSlabFrameContext CaptureContext(const FString& SensorId, int64 SensorFrameId);
 	void CompleteAcquisition(const FString& SensorId, int64 SensorFrameId, bool bSuccess=true);
+	bool BeginCompatibilityDerivation(const FString& SensorId,int64 FrameId,const FVirtualSlabFrameContext& Context);
+	void EndCompatibilityDerivation(const FString& RunId,const FString& SensorId,int64 FrameId,bool bFailed=false);
 	bool ControlsSensor(const FString& SensorId) const { return ControlledIds.Contains(SensorId); }
 	bool AllowsFrame(const FString& SensorId, const FVirtualSlabFrameContext& Context) const;
 	bool AllowsStreamFrame(const FString& SensorId, EVirtualSensorStreamKind Kind, const FVirtualSlabFrameContext& Context) const;
@@ -71,11 +73,13 @@ private:
 	friend class FSlabSessionFailureTest;
 	friend class FSlabTerminalSnapshotTest;
 	friend class FSensorPlacementGateTest;
+	friend class FLidarCompatibilityDrainTest;
 #endif
 	UPROPERTY(Transient) FVirtualSlabSessionStatus Status;
 	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Targets;
 	TSet<FString> ControlledIds;
 	TSet<FString> PendingKeys;
+	TSet<FString> CompatibilityDerivations;
 	TSet<FString> StartedSensors;
 	TSet<FString> UsedRunIds;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;

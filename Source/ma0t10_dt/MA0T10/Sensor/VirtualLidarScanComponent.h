@@ -19,6 +19,8 @@ class UVirtualLidarSurfaceResponseComponent;
 class UVirtualLidarGpuDepthProjectionComponent;
 struct FVirtualLidarV2EncodeOptions;
 struct FVirtualLidarDepthAcquisitionFrame;
+struct FVirtualLidarDerivedOutputJob;
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarDerivedFrameCompletedNative,const FVirtualSensorFrameEnvelope&);
 
 UENUM(BlueprintType)
 enum class ELidarPointCloudPreviewBackend : uint8
@@ -313,6 +315,12 @@ public:
     FOnVirtualLidarFrameAcquired OnFrameAcquired;
 
     FOnVirtualLidarFrameAcquiredNative OnFrameAcquiredNative;
+    FOnVirtualLidarDerivedFrameCompletedNative OnDerivedFrameCompletedNative;
+    const FVirtualSensorFrameEnvelope& GetLastCompletedDerivedFrame() const { return LastCompletedDerivedFrame; }
+#if WITH_DEV_AUTOMATION_TESTS
+    int32 JsonEncodeDelayMsForTests=0;
+    friend class FLidarDerivedProgressTest;
+#endif
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     FString SensorId = TEXT("LIDAR-001");
@@ -593,8 +601,11 @@ private:
     void BeginScheduledScan(double NowSeconds);
     void CompleteScheduledScan(double NowSeconds);
     void QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds);
-    void CompleteScheduledPayloadBuild(int64 CapturedFrameId, FString&& JsonPayload, double AcquisitionStartedSeconds);
-    void QueueScheduledAutoExports();
+    void CompleteScheduledPayloadBuild(TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe> Job,FString&& JsonPayload);
+    void TryStartPendingPayloadBuild();
+    void CompleteDerivedFrame(const FVirtualSensorFrameEnvelope& Frame);
+    void ReleaseDerivedReservation(const TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe>& Job);
+    void QueueScheduledAutoExports(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame=nullptr);
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
     bool ExportLastPointCloudLasToPath(const FString& Path) const;
@@ -677,7 +688,8 @@ private:
     bool bDeadlineMissRecordedForActiveAcquisition = false;
     bool bScheduledPayloadBuildInFlight = false;
     bool bScheduledAutoExportInFlight = false;
-    bool bScheduledPayloadRefreshPending = false;
+    TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe> ActiveDerivedJob,PendingDerivedJob;
+    FVirtualSensorFrameEnvelope LastCompletedDerivedFrame;
     TArray<FVirtualLidarPoint> ScheduledPoints;
     TArray<uint8> ScheduledHeatmapPixels;
     TArray<float> ScheduledHorizontalAnglesDegrees;
