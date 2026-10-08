@@ -112,6 +112,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorCoordinator")
     void RegisterSensorActor(AVirtualSensorActorBase* SensorActor);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorCoordinator") void UnregisterSensorActor(AVirtualSensorActorBase* SensorActor);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorCoordinator") bool SelectSensorActor(AVirtualSensorActorBase* SensorActor);
+    FSimpleMulticastDelegate OnSensorInventoryChanged;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void RegisterCamera(UVirtualCameraCaptureComponent* CameraComp);
@@ -265,6 +268,7 @@ public:
     TObjectPtr<UVirtualSensorStreamPublisherComponent> StreamPublisherComponent;
 
 private:
+    UFUNCTION() void HandleSensorEndPlay(AActor* Actor,EEndPlayReason::Type Reason);
     void ApplyWidgetBinding();
     void RunSynchronizedCapture();
     void AssignSharedServicesIfPossible(UActorComponent* SensorComp);

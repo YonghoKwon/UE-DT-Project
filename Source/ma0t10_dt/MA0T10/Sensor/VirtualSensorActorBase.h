@@ -56,6 +56,8 @@ public:
 
 	virtual bool SubmitExternalFrame(const FVirtualSensorFrameEnvelope& Frame, bool bSendTransport);
 	virtual bool ReadEditableState(FVirtualSensorEditableState& OutState) const;
+	/** Intended acquisition configuration, without ending lightweight placement preview. */
+	virtual bool ReadCollectionState(FVirtualSensorEditableState& OutState, bool& bPreviewEnabled) const;
 	virtual bool ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const;
 	virtual bool ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError);
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")

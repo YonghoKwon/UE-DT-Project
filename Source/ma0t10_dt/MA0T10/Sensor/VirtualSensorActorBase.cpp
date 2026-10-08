@@ -91,6 +91,12 @@ bool AVirtualSensorActorBase::BeginInteractiveManipulation(const FVirtualSensorI
 	bInteractiveManipulationActive = true;
 	return true;
 }
+
+bool AVirtualSensorActorBase::ReadCollectionState(FVirtualSensorEditableState& State,bool& Preview) const
+{
+    Preview=IsSensorRunning();
+    return ReadEditableState(State);
+}
 bool AVirtualSensorActorBase::CanEditSensorConfiguration(FString& OutReason) const
 {
 	OutReason.Reset();

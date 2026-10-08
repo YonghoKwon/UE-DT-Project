@@ -501,9 +501,36 @@ void AVirtualSensorCoordinator::RefreshSelectedSensorOnce(bool bLidar)
 
 void AVirtualSensorCoordinator::RegisterSensorActor(AVirtualSensorActorBase* SensorActor)
 {
-    if (!SensorActor || SensorActors.Contains(SensorActor)) return;
+    if (!IsValid(SensorActor) || SensorActor->GetWorld()!=GetWorld() || SensorActors.Contains(SensorActor)) return;
     SensorActors.Add(SensorActor);
     SensorActor->SetSharedOutputServices(SharedTransportComponent, SharedRecorderComponent, StreamPublisherComponent);
+    if(auto* C=SensorActor->FindComponentByClass<UVirtualCameraCaptureComponent>())RegisterCamera(C);
+    if(auto* L=SensorActor->FindComponentByClass<UVirtualLidarScanComponent>())RegisterLidar(L);
+    SensorActor->OnEndPlay.AddUniqueDynamic(this,&ThisClass::HandleSensorEndPlay);
+    OnSensorInventoryChanged.Broadcast();
+}
+
+void AVirtualSensorCoordinator::HandleSensorEndPlay(AActor* Actor,EEndPlayReason::Type)
+{UnregisterSensorActor(Cast<AVirtualSensorActorBase>(Actor));}
+void AVirtualSensorCoordinator::UnregisterSensorActor(AVirtualSensorActorBase* Sensor)
+{
+    if(!Sensor)return;
+    auto* SelectedCamera=GetSelectedCamera();auto* SelectedLidar=GetSelectedLidar();
+    if(auto* L=Sensor->FindComponentByClass<UVirtualLidarScanComponent>())RestoreLidarViewState(L);
+    const int32 Removed=SensorActors.Remove(Sensor);
+    Cameras.RemoveAll([&](const auto& C){return !IsValid(C)||C->GetOwner()==Sensor;});
+    Lidars.RemoveAll([&](const auto& L){return !IsValid(L)||L->GetOwner()==Sensor;});
+    SelectedCameraIndex=Cameras.IndexOfByKey(SelectedCamera);SelectedLidarIndex=Lidars.IndexOfByKey(SelectedLidar);
+    if(SelectedCameraIndex==INDEX_NONE)SelectedCameraIndex=0;if(SelectedLidarIndex==INDEX_NONE)SelectedLidarIndex=0;
+    Sensor->OnEndPlay.RemoveDynamic(this,&ThisClass::HandleSensorEndPlay);
+    ApplyWidgetBinding();if(Removed)OnSensorInventoryChanged.Broadcast();
+}
+bool AVirtualSensorCoordinator::SelectSensorActor(AVirtualSensorActorBase* Sensor)
+{
+    if(!IsValid(Sensor)||!SensorActors.Contains(Sensor))return false;
+    if(auto* C=Sensor->FindComponentByClass<UVirtualCameraCaptureComponent>()){const int32 I=Cameras.IndexOfByKey(C);if(I==INDEX_NONE)return false;SelectCameraByIndex(I);SetViewMode(EVirtualSensorViewMode::Camera);}
+    else if(auto* L=Sensor->FindComponentByClass<UVirtualLidarScanComponent>()){const int32 I=Lidars.IndexOfByKey(L);if(I==INDEX_NONE)return false;SelectLidarByIndex(I);SetViewMode(EVirtualSensorViewMode::Lidar);}else return false;
+    return true;
 }
 
 void AVirtualSensorCoordinator::SetSelectedLidarPreviewPolicy(int32 InStride, int32 InMaxPoints, bool bInHitOnly)
@@ -574,6 +601,8 @@ AVirtualSensorActorBase* AVirtualSensorCoordinator::GetSelectedSensorActor() con
 
 AVirtualSensorActorBase* AVirtualSensorCoordinator::GetSelectedSensorActorByKind(EVirtualSensorKind SensorKind) const
 {
+    if(SensorKind==EVirtualSensorKind::Camera)if(auto* C=GetSelectedCamera())return Cast<AVirtualSensorActorBase>(C->GetOwner());
+    if(SensorKind==EVirtualSensorKind::Lidar)if(auto* L=GetSelectedLidar())return Cast<AVirtualSensorActorBase>(L->GetOwner());
     const int32 TargetIndex = SensorKind == EVirtualSensorKind::Camera ? SelectedCameraIndex : SelectedLidarIndex;
     int32 MatchingIndex = 0;
     for (AVirtualSensorActorBase* SensorActor : SensorActors)

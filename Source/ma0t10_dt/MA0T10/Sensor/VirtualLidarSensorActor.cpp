@@ -261,6 +261,14 @@ void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTex
     if(!ScanComponent)return;const auto& Frame=ScanComponent->GetLastCompletedDerivedFrame();
     if(Frame.HasJsonPayload()&&*Frame.JsonPayload==JsonPayload)HandleDerivedLidarFrame(Frame);
 }
+
+bool AVirtualLidarSensorActor::ReadCollectionState(FVirtualSensorEditableState& State,bool& Preview) const
+{
+    if(!ReadEditableState(State))return false;
+    Preview=bInteractiveManipulationActive?bWasRunningBeforeInteraction:IsSensorRunning();
+    if(bInteractiveManipulationActive){State.LidarHorizontalSamples=SavedInteractionHorizontalSamples;State.LidarVerticalChannels=SavedInteractionVerticalChannels;State.LidarScanInterval=SavedInteractionInterval;}
+    return true;
+}
 void AVirtualLidarSensorActor::HandleDerivedLidarFrame(const FVirtualSensorFrameEnvelope& Captured)
 {
     if(!OutputComponent||!Captured.HasJsonPayload())return;

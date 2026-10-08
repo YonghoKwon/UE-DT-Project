@@ -148,6 +148,14 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	return true;
 }
 
+bool AVirtualCameraSensorActor::ReadCollectionState(FVirtualSensorEditableState& State,bool& Preview) const
+{
+    if(!ReadEditableState(State))return false;
+    Preview=bInteractiveManipulationActive?bWasRunningBeforeInteraction:IsSensorRunning();
+    if(bInteractiveManipulationActive){State.CameraResolution=SavedInteractionResolution;State.CameraCaptureInterval=SavedInteractionInterval;State.CameraCaptureMode=static_cast<EVirtualCameraCaptureMode>(SavedInteractionCaptureMode);}
+    return true;
+}
+
 bool AVirtualCameraSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {
 	if (!CaptureComponent || bInteractiveManipulationActive) return CaptureComponent != nullptr;
