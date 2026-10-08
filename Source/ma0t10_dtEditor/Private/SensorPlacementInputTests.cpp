@@ -46,6 +46,9 @@ public:
         auto& App=FSlateApplication::Get();
         if(Step==0)
         {
+            // A user's open auxiliary panels must not cover the fixture's RMB
+            // viewport point. This changes only explicitly owned test panels.
+            for(auto Role:{ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})Workspace->SetPanelOpen(Role,false);
             Manager->SetViewMode(EVirtualSensorViewMode::Camera);Workspace->SynchronizeOwnedSelection();Workspace->SetPanelOpen(ESensorToolPanelRole::Settings,true);Workspace->SetPanelOpen(ESensorToolPanelRole::Monitor,false);
             Settings->SetSensorManipulationEnabled(true);Settings->SetSensorCoordinateSpace(EVirtualSensorCoordinateSpace::World);
             Sensor=Manager->GetSelectedSensorActor();Pawn=PC->GetPawn();Gizmo=Settings->GetTransformGizmoActor();

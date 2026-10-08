@@ -118,7 +118,7 @@ void USlabRunResultsSubsystem::RecordAcquisition(const FString& Run,const FStrin
 void USlabRunResultsSubsystem::MarkStopped(const FString& Run){if(auto* R=Find(Run);R&&!R->bFinalized&&R->StoppedUtc.GetTicks()==0)R->StoppedUtc=FDateTime::UtcNow();}
 void USlabRunResultsSubsystem::SetAppliedOutputs(const FString& Run,const FVirtualSlabSensorOutputSelection& Outputs){if(auto* R=Find(Run);R&&!R->bFinalized)R->AppliedOutputs=Outputs;}
 void USlabRunResultsSubsystem::SetMeasuredRates(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors)
-{if(auto* R=Find(Run);R&&!R->bFinalized&&Run==ActiveRun)for(auto& S:R->Sensors)if(const auto* P=Sensors.Find(S.SensorId);P&&P->IsValid()){S.MeasuredHz=P->Get()->GetSensorRuntimeStatus().MeasuredAcquisitionRateHz;if(P->Get()->GetSensorKind()==EVirtualSensorKind::Lidar){S.bHasCompatibilityJsonRate=true;S.CompatibilityJsonHz=P->Get()->GetSensorRuntimeStatus().MeasuredOutputRateHz;}if(S.RequestedHz>0&&S.MeasuredHz<S.RequestedHz*.95f)R->Warning=TEXT("측정률 미달이 있습니다. 승인 프레임의 Broker 수락 결과와 구분하세요.");}}
+{if(auto* R=Find(Run);R&&!R->bFinalized&&Run==ActiveRun)for(auto& S:R->Sensors)if(const auto* P=Sensors.Find(S.SensorId);P&&P->IsValid()){S.MeasuredHz=P->Get()->GetSensorRuntimeStatus().MeasuredAcquisitionRateHz;const bool Camera=P->Get()->GetSensorKind()==EVirtualSensorKind::Camera;if(!Camera){S.bHasCompatibilityJsonRate=true;S.CompatibilityJsonHz=P->Get()->GetSensorRuntimeStatus().MeasuredOutputRateHz;}const bool Selected=Camera?R->AppliedOutputs.bCameraImage:(R->AppliedOutputs.bPointCloud||R->AppliedOutputs.bLidarTelemetry);if(Selected&&S.RequestedHz>0&&S.MeasuredHz<S.RequestedHz*.95f)R->Warning=TEXT("측정률 미달이 있습니다. 승인 프레임의 Broker 수락 결과와 구분하세요.");}}
 int64 USlabRunResultsSubsystem::GetUnconfirmedCount(const FString& Run) const {const auto* R=Results.FindByPredicate([&](const auto& S){return S.RunUUID==Run;});return R?R->Unfinished:0;}
 void USlabRunResultsSubsystem::GatherUnconfirmedKeys(const FString& Run,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const
 {
@@ -185,6 +185,8 @@ void USlabRunResultsSubsystem::Finalize(const FVirtualSlabSessionStatus& S,bool 
     auto* R=Find(S.RunId);if(!R||R->bFinalized)return;
     R->bFinalized=true;R->FinishedUtc=FDateTime::UtcNow();R->ConsumerSnapshotUtc=R->FinishedUtc;if(R->StoppedUtc.GetTicks()==0)R->StoppedUtc=R->FinishedUtc;
     R->AcquisitionFailures=FMath::Max<int64>(R->AcquisitionFailures,S.AcquisitionFailures);R->DeliveryFailures=FMath::Max<int64>(R->DeliveryFailures,S.StreamFailures);
+    int64 AttributedAcquisitionFailures=0;for(const auto& Sensor:R->Sensors)AttributedAcquisitionFailures+=Sensor.AcquisitionFailures;
+    R->UnattributedAcquisitionFailures=FMath::Max<int64>(R->UnattributedAcquisitionFailures,R->AcquisitionFailures-AttributedAcquisitionFailures);
     int64 Attributed=0;for(const auto& D:R->StreamDetails)Attributed+=D.Failures;R->UnattributedDeliveryFailures=FMath::Max<int64>(R->UnattributedDeliveryFailures,R->DeliveryFailures-Attributed);
     R->Unfinished=FMath::Max(R->Unfinished,S.UnfinishedFrames);
     if(!S.RequiredDataError.IsEmpty())R->Reason=S.RequiredDataError;else if(R->Reason.IsEmpty())R->Reason=S.Message;

@@ -1140,9 +1140,13 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 	StreamRuntimes.GetKeys(Keys);
 	Keys.Sort();
 	int32 SubmittedThisFrame = 0;
-	for (int32 Attempt = 0; Attempt < Keys.Num() && SubmittedThisFrame < FMath::Max(1, MaxSubmissionsPerFrame); ++Attempt)
+    // Keep this traversal stable: advancing RoundRobinCursor after a successful
+    // submission must not change the candidates still to visit in this pass.
+    const int32 StartingCursor=RoundRobinCursor;
+    const int32 SubmissionBudget=FMath::Max(1,MaxSubmissionsPerFrame);
+	for (int32 Attempt = 0; Attempt < Keys.Num()*SubmissionBudget && SubmittedThisFrame < SubmissionBudget; ++Attempt)
 	{
-		const int32 Index = (RoundRobinCursor + Attempt) % Keys.Num();
+		const int32 Index = (StartingCursor + Attempt) % Keys.Num();
 		FStreamRuntime* Runtime = StreamRuntimes.Find(Keys[Index]);
 		if (!Runtime || !Runtime->Config.bEnabled || NowSeconds < Runtime->NextSubmitAttemptSeconds) continue;
 		const bool bHighThroughputQueued = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
@@ -1356,10 +1360,40 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry()
 	const UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
 	if (!Subsystem) return;
 	const TArray<FVirtualSensorStreamTelemetry> Telemetry = Subsystem->GetStreamTelemetry();
-	for (const FVirtualSensorStreamTelemetry& Item : Telemetry)
+	MergeHighThroughputTelemetry(Telemetry);
+}
+
+void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry(const TArray<FVirtualSensorStreamTelemetry>& Telemetry)
+{
+    TMap<FString,FVirtualSensorStreamTelemetry> ByRuntime;
+	for(const auto& Item:Telemetry)
+    {
+        FString Key=MakeStreamKey(Item.StreamKind,Item.SensorId);
+        if(!StreamRuntimes.Contains(Key))Key=MakeStreamKey(Item.StreamKind,FString());
+        const auto* Runtime=StreamRuntimes.Find(Key);
+        if(!Runtime||Runtime->Config.TransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput)continue;
+        if(!ByRuntime.Contains(Key)){ByRuntime.Add(Key,Item);continue;}
+        auto& Sum=ByRuntime.FindChecked(Key);
+        Sum.SubmittedCount+=Item.SubmittedCount;Sum.SubmittedBytes+=Item.SubmittedBytes;
+        Sum.ReceiptCount+=Item.ReceiptCount;Sum.ConsumerReceivedCount+=Item.ConsumerReceivedCount;
+        Sum.ValidationFailureCount+=Item.ValidationFailureCount;Sum.DeliveryFailureCount+=Item.DeliveryFailureCount;
+        Sum.FrameGapCount+=Item.FrameGapCount;Sum.DuplicateCount+=Item.DuplicateCount;
+        Sum.InputQueueDepth+=Item.InputQueueDepth;Sum.ReceiptQueueDepth+=Item.ReceiptQueueDepth;
+        Sum.OutstandingFrameCount+=Item.OutstandingFrameCount;Sum.OutstandingBytes+=Item.OutstandingBytes;
+        // Process-wide bytes are shared, not a per-sensor allocation to sum.
+        Sum.GlobalOutstandingBytes=FMath::Max(Sum.GlobalOutstandingBytes,Item.GlobalOutstandingBytes);
+        Sum.SubmittedHz+=Item.SubmittedHz;Sum.SubmittedMegabytesPerSecond+=Item.SubmittedMegabytesPerSecond;Sum.ConsumerHz+=Item.ConsumerHz;
+        Sum.LastSocketWriteLatencyMs=FMath::Max(Sum.LastSocketWriteLatencyMs,Item.LastSocketWriteLatencyMs);
+        Sum.LastReceiptLatencyMs=FMath::Max(Sum.LastReceiptLatencyMs,Item.LastReceiptLatencyMs);
+        Sum.LastEndToEndLatencyMs=FMath::Max(Sum.LastEndToEndLatencyMs,Item.LastEndToEndLatencyMs);
+        // Conservative worst sensor p95, not a pooled percentile.
+        Sum.EndToEndP95LatencyMs=FMath::Max(Sum.EndToEndP95LatencyMs,Item.EndToEndP95LatencyMs);
+        if(!Item.LastDeliveryFailureMessage.IsEmpty()){Sum.LastDeliveryFailureMessage=Item.LastDeliveryFailureMessage;Sum.Message=Item.Message;}
+    }
+	for (const auto& Pair : ByRuntime)
 	{
-		FStreamRuntime* Runtime = StreamRuntimes.Find(MakeStreamKey(Item.StreamKind, Item.SensorId));
-		if (!Runtime) Runtime = StreamRuntimes.Find(MakeStreamKey(Item.StreamKind, FString()));
+		const auto& Item=Pair.Value;
+		FStreamRuntime* Runtime = StreamRuntimes.Find(Pair.Key);
 		if (!Runtime || Runtime->Config.TransportBackend != EVirtualSensorStreamTransportBackend::TcpStompHighThroughput) continue;
 		Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 		Runtime->Status.SubmittedFrameCount = Item.SubmittedCount;

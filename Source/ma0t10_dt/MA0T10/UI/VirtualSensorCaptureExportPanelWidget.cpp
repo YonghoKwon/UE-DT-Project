@@ -873,12 +873,13 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 			? TEXT("Raw TCP 고성능") : TEXT("Engine STOMP 호환");
 		if(Status.ActiveTransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput)
 			Text+=FString::Printf(TEXT("\nRaw 보관: %d프레임 · %.2fMiB · 전역 %.2fMiB"),Status.RawOutstandingFrameCount,Status.RawOutstandingBytes/1048576.0,Status.RawGlobalOutstandingBytes/1048576.0);
-		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · p95 e2e %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
+		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · %s %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
 			Status.bEnabled ? TEXT("실행") : TEXT("중지"), *Kind, Status.SensorId.IsEmpty() ? TEXT("전체 센서") : *Status.SensorId,
 			*Backend, Status.InputHz, Status.SubmittedHz, Status.ReceiptReceivedCount, Status.ConsumerReceivedHz, Status.ConsumerReceivedCount,
 			Status.LastSubmittedFrameId, Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
 			Status.ConsumerFrameGapCount, Status.ConsumerValidationFailureCount, Status.ConsumerDuplicateCount,
-			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs, Status.EndToEndP95LatencyMs,
+			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs,
+            Status.SensorId.IsEmpty()&&Status.ActiveTransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput?TEXT("센서별 최대 p95 e2e"):TEXT("p95 e2e"),Status.EndToEndP95LatencyMs,
 			Status.ReplacedPendingFrameCount, Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptTimeoutCount, *Status.Message);
 		Text+=FString::Printf(TEXT("\n  Hz는 누적 평균(중지/대기 구간 포함 가능) · Raw 전송 미확인/실패 누적 %lld · 크기 거부 %lld"),Status.RawDeliveryFailureCount,Status.BodyLimitRejectedCount);
 		if(!Status.LastRawDeliveryFailureMessage.IsEmpty()) Text+=TEXT("\n  마지막 실제 전송 실패: ")+Status.LastRawDeliveryFailureMessage;

@@ -10,6 +10,10 @@ const url = args.get('--url') ?? 'ws://127.0.0.1:61616';
 const user = args.get('--user') ?? 'artemis';
 const password = args.get('--password') ?? 'artemis';
 const topics = (args.get('--topics') ?? 'topic.virtual.sensor.lidar.0,topic.virtual.sensor.camera.0,topic.virtual.sensor.export.0').split(',').filter(Boolean);
+const requiredTopics = (args.get('--required-topics') ?? topics.join(',')).split(',').filter(Boolean);
+const forbiddenTopics = new Set((args.get('--forbidden-topics') ?? '').split(',').filter(Boolean));
+if (requiredTopics.some(topic => !topics.includes(topic)) || [...forbiddenTopics].some(topic => !topics.includes(topic))) throw new Error('required/forbidden topics must be subscribed');
+let unexpectedTopicMessages = 0;
 const ackTopic = args.get('--ack-topic') ?? '';
 const timeoutSeconds = Number(args.get('--timeout') ?? '30');
 const expectedPerTopic = Number(args.get('--count') ?? '1');
@@ -210,6 +214,9 @@ function report(success, reason) {
     reason,
     brokerUrl: url,
     topics,
+    requiredTopics,
+    forbiddenTopics: [...forbiddenTopics],
+    unexpectedTopicMessages,
     expectedPerTopic,
     durationSeconds,
     warmupSeconds,
@@ -230,20 +237,21 @@ function report(success, reason) {
 }
 
 function hasAllExpected() {
-  return [...counts.values()].every(count => count >= expectedPerTopic);
+  return requiredTopics.every(topic => counts.get(topic) >= expectedPerTopic);
 }
 
 function finishDurationMeasurement(socket) {
   const pointCloudTopic = topics.find(topic => topic.includes('export')) ?? topics.at(-1);
   const pointCloudMetrics = pointCloudTopic ? topicMetrics.get(pointCloudTopic) : null;
-  const hasData = [...topicMetrics.values()].every(value => value.validCount > 0);
+  const hasData = requiredTopics.every(topic => topicMetrics.get(topic).validCount > 0);
   const contiguous = !requireContiguousPcd || !pointCloudMetrics ||
     (pointCloudMetrics.frameGaps === 0 && pointCloudMetrics.duplicates === 0 && pointCloudMetrics.invalidCount === 0);
-  const slabValid = requiredSlabRuns === 0 || (slabRuns.size === requiredSlabRuns && [...slabRuns.values()].every(run => topics.every(topic => {
+  const slabValid = requiredSlabRuns === 0 || (slabRuns.size === requiredSlabRuns && [...slabRuns.values()].every(run => requiredTopics.every(topic => {
     const m = run[topic]; return m && m.invalid === 0 && m.gaps === 0 && m.duplicates === 0 && m.count / 30 >= (topic.includes('camera') ? 29 : 19);
   })));
-  report(hasData && contiguous && slabValid,
-    !hasData ? 'duration elapsed before every topic produced a valid message'
+  report(hasData && contiguous && slabValid && unexpectedTopicMessages === 0,
+    unexpectedTopicMessages > 0 ? 'unselected output topic received messages'
+      : !hasData ? 'duration elapsed before every required topic produced a valid message'
       : !slabValid ? 'Slab session correlation/rate validation failed'
       : !contiguous ? 'binary PCD FrameId continuity validation failed'
         : `duration measurement completed (${durationSeconds}s)`);
@@ -421,6 +429,7 @@ socket.addEventListener('message', async event => {
         run[destination] = m; slabRuns.set(entry.runId, run);
       }
       const shouldMeasure = requiredSlabRuns > 0 || durationSeconds <= 0 || measurementStartedMs > 0;
+      if (forbiddenTopics.has(destination)) ++unexpectedTopicMessages;
       if (shouldMeasure) {
         if (counts.has(destination) && entry.valid) counts.set(destination, counts.get(destination) + 1);
         updateMetrics(destination, entry);

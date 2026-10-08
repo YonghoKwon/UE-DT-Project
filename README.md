@@ -1,8 +1,25 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`7c6ed29` 기반 배치 복원·북마크 식별 보완, 새 자세 미리보기 확인과 실행 결과 A/B 비교, DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+현재 기능 기준: **`71994df` 기반 LiDAR 호환 출력 진행·센서별 전달 진단 보완, DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
+
+## LiDAR 출력과 센서별 전달 결과
+
+- 호환 LiDAR JSON은 센서별 처리 중 1개·최신 대기 1개, 전역 생성 작업 4개다. 새 측정이 도착했다는 이유만으로 같은 generation의 정상 완료 결과를 버리지 않는다. 실제 대기 교체, generation 폐기, 생성 실패는 별도 집계한다. Stop·설정 재시작·삭제 후 결과는 적용하지 않는다.
+- `OnDerivedFrameCompletedNative`는 JSON과 측정 당시 FrameId·UTC·pose·설정·Slab context·point snapshot을 함께 제공한다. 기존 `OnScanCompleted` Blueprint 이벤트와 수동/외부 입력 API는 유지한다. 이벤트의 ViewTexture는 기존 현재 미리보기이며 과거 프레임 영상 snapshot을 새로 제공하는 것은 아니다.
+- 파생 JSON 완료는 호환 출력에만 전달한다. PCD와 Raw telemetry는 acquisition 경로에서 처리하고 다시 발행하지 않는다. 선택된 호환 JSON 작업만 세션의 최대 10초 drain에 포함하며 PCD 전용 실행은 불필요한 JSON 완료를 기다리지 않는다.
+- `데이터 → 연결·진단 → 실행별 결과`와 A/B에는 센서별 측정 완료/실패, SensorId+출력별 승인·제출·receipt·실패·승인 후 receipt 미확인·자체 검증을 표시한다. 재시도와 중복 callback은 기존 request ledger에서 한 번만 센다. 이전 결과에 상세 집계가 없으면 `확인 불가`다. 기존 합계와 `ma0t10.slab-run.v1`은 유지한다.
+- 측정 Hz, 호환 JSON 생성 Hz, 실제 PCD/JPEG 전달 Hz는 다르다. `MeasuredOutputRateHz`는 LiDAR 호환 파생 출력의 최근 간격 값이며 PCD 송신률이 아니다. 실행 상세의 Hz는 기록 이벤트 간격이고 실행 전체 평균이나 외부 소비자의 저장·학습 처리 완료를 뜻하지 않는다.
+- 실제 선택 출력에 필요한 센서만 측정률 미달 경고의 대상이다. PCD 전용 실행에 포함된 비선택 Camera의 정지/0Hz는 실패로 판정하지 않는다. 해당 Camera 이미지를 선택하면 0Hz 경고는 계속 유지한다.
+- wildcard 전송의 FrameId 연속성은 센서별로 관리하며 전달 카운터는 센서 합계다. 공유 전역 보관 bytes는 중복 합산하지 않고 지연 p95는 보수적인 **센서별 최대값**으로 표시한다. 송신 round-robin은 한 순회에서 동일한 시작 기준을 사용한다.
+- UE 학습 데이터 묶음 저장은 추가하지 않았다. 기존 수동 파일 내보내기·작은 실행 결과 JSON은 유지하며, 데이터 보관과 학습 처리는 외부 수신 프로그램의 역할이다.
+
+재현 명령: `Scripts/run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -SensorPairs 2 -ClientWidth 1920 -ClientHeight 1080 [-PointCloudOnly] [-SubmissionBudget 4]`. PCD 전용에서도 독립 구독자는 세 Topic을 모두 확인해 선택하지 않은 출력 0건을 검사한다. 성능 보고서는 `AcquisitionPass`, `RequestedDerivedOutputPass`, `TransportPass`를 분리하며 검사하지 않은 단계는 `NotTested`다. `run_fullspec_performance_evidence.ps1`의 기본 `AcquisitionOnly` 통과를 송수신 통과로 해석하지 않는다.
+
+기존 `MaxSubmissionsPerFrame=2`는 60FPS에서 최대 120건/s이므로 2 Camera+2 LiDAR의 전체 출력 약140건/s을 처리하지 못한다. `SubmissionBudget=4`는 **시험에서 기존 Actor 속성을 명시적으로 설정**하는 옵션이며 기본값이나 운영맵을 자동 변경하지 않는다. 수집 규격을 낮추거나 큐를 늘리는 조치가 아니다. 각 보고서의 적용 예산과 선택 출력을 확인한다. UI 대조도 준비 중 누적 카운터를 직접 비교하지 않고 측정 구간에 승인된 각 request가 실제 TC/UI 검증까지 도달했는지 확인한다.
+
+2026-10-08 검증: UE5.3 Editor Development, 최종 D3D12 MA0T10 **222 Success/실패0(실제216·opt-in skip6)**, 별도 실제30초 A/B ProductionRuntime, WBP6개 메모리 compile/자산 검사·저장0. 1+1 전체 출력은30/20Hz·평균59.98FPS·1% low57.86·p9516.67ms. 2+2 PCD 전용은각PCD 약19.9Hz, Camera/LiDAR정보 Topic0건. 2+2 전체 출력은**명시적 제출예산4건/프레임**에서각Camera29.883Hz·각LiDAR/PCD19.917Hz·평균59.76FPS·1% low51.81·p9517.04ms와 승인 request의 receipt/내부/UI/외부 누락0이다. 기본예산2건은Camera큐과부하로실패이며 지원으로표시하지않는다. 실제1920×1080 Camera기즈모·정지유지·LiDAR정밀이동·첫Esc/20Hz복귀, 실제1280×720 PCD재생·실행선택·A/B상세·resize/scroll을 직접 확인했다. 60초2+2를장기/4+4인증으로확대하지않는다. baseline의1%low정의차이와Camera지연p95 증가도 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`에 남겼다.
 
 ## PIE 센서 배치와 저장 위치
 

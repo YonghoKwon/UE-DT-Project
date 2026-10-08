@@ -8,6 +8,7 @@
 
 class UVirtualSensorTransportComponent;
 struct FVirtualSensorTransportResult;
+struct FVirtualSensorStreamTelemetry;
 
 /**
  * Bounded, latest-frame-first publisher shared by every V2 sensor.
@@ -103,6 +104,7 @@ public:
 
 private:
 	friend class FSensorPlacementGateTest;
+    friend class FWildcardSequenceTest;
 	struct FPreparedMessage
 	{
 		FVirtualSlabFrameContext SlabContext;
@@ -180,6 +182,7 @@ private:
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
 	void MergeHighThroughputTelemetry();
+    void MergeHighThroughputTelemetry(const TArray<FVirtualSensorStreamTelemetry>& Telemetry);
 	static bool StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind);
 
 	UFUNCTION()

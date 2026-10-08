@@ -1750,8 +1750,7 @@ void UVirtualLidarScanComponent::ScanAndSend()
 	OnFrameAcquired.Broadcast(FrameId);
 	OnFrameAcquiredNative.Broadcast(FrameId);
 
-    const auto Encoder=CreateLocalFilePayloadEncoder(LastFrameSnapshot);
-    const FString JsonPayload = Encoder?Encoder():BuildJsonPayload(LastPoints);
+    const FString JsonPayload = BuildJsonPayload(LastPoints);
     LastJsonPayload = JsonPayload;
     DispatchPayload(JsonPayload);
     UpdateRuntimeStatusAfterScan(JsonPayload.Len());
@@ -1794,8 +1793,7 @@ void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLida
 	OnFrameAcquired.Broadcast(FrameId);
 	OnFrameAcquiredNative.Broadcast(FrameId);
 
-    const auto Encoder=CreateLocalFilePayloadEncoder(LastFrameSnapshot);
-    const FString JsonPayload = Encoder?Encoder():BuildJsonPayload(LastPoints);
+    const FString JsonPayload = BuildJsonPayload(LastPoints);
     LastJsonPayload = JsonPayload;
     if (bSendTransport)
     {
@@ -2096,7 +2094,7 @@ FString UVirtualLidarScanComponent::BuildJsonPayload(const TArray<FVirtualLidarP
     Root->SetStringField(TEXT("manufacturer"), DeviceSpec.Manufacturer);
     Root->SetStringField(TEXT("model"), DeviceSpec.Model);
     Root->SetNumberField(TEXT("frameId"), static_cast<double>(FrameId));
-    Root->SetStringField(TEXT("timestampUtc"), FDateTime::UtcNow().ToIso8601());
+    Root->SetStringField(TEXT("timestampUtc"), (LastFrameSnapshot.IsValid()&&LastFrameSnapshot->FrameId==FrameId?LastFrameSnapshot->GetAcquisitionStartUtc():FDateTime::UtcNow()).ToIso8601());
     Root->SetNumberField(TEXT("horizontalSamples"), HorizontalSamples);
     Root->SetNumberField(TEXT("verticalChannels"), VerticalChannels);
     Root->SetNumberField(TEXT("rayCount"), HorizontalSamples * VerticalChannels);

@@ -320,6 +320,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     int32 JsonEncodeDelayMsForTests=0;
     friend class FLidarDerivedProgressTest;
+    friend class FLidarDerivedGlobalLimitTest;
 #endif
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")

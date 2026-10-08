@@ -342,6 +342,9 @@ public:
 		{
 			bPointCloudOnly=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_ONLY")).Equals(TEXT("1"));
 			SensorCount=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SENSOR_PAIRS"))==TEXT("2")?2:1;
+            const int32 RequestedBudget=FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SUBMISSION_BUDGET")));
+            if(RequestedBudget>0)Publisher->MaxSubmissionsPerFrame=FMath::Clamp(RequestedBudget,1,8);
+            UE_LOG(LogTemp,Display,TEXT("[OutputSubmissionBudget] applied=%d"),Publisher->MaxSubmissionsPerFrame);
 			bScenarioMode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SLAB_SCENARIO_SMOKE")).Equals(TEXT("1"));
 			// Exercise the production contract, not the legacy CSV envelope used by
 			// the early three-stream smoke. Applying the profile once keeps the
@@ -421,7 +424,7 @@ public:
 			MeasurementSeconds = RequestedSeconds.IsEmpty() ? 60.0 : FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
 			if(OverrideDuration>=0)MeasurementSeconds=OverrideDuration;if(OverrideWarmup>=0)WarmupSeconds=OverrideWarmup;
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
-			Measurement.Start(World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>(),StreamsStartedAtSeconds+WarmupSeconds,MeasurementSeconds);
+			Measurement.Start(World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>(),StreamsStartedAtSeconds+WarmupSeconds,MeasurementSeconds,ReceiverHost);
 			UE_LOG(LogTemp,Display,TEXT("[FinalAcceptanceViewport] x=%d y=%d"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y);
 			bStreamsStarted = true;
 			return false;
@@ -523,6 +526,7 @@ public:
 			PointCloudBeforeAssertions->ConsumerReceivedCount == PointCloudBeforeAssertions->SubmittedFrameCount;
 		bool AllDrained=bPointCloudDrained;
 		for(const auto& P:StatusByKind)AllDrained&=P.Value.SubmittedFrameCount==P.Value.ReceiptReceivedCount&&P.Value.SubmittedFrameCount==P.Value.ConsumerReceivedCount;
+        if(ReceiverHost)AllDrained&=Measurement.IsContiguousAndComplete();
 		if (!AllDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), bPointCloudOnly?1:3);
@@ -581,7 +585,7 @@ public:
 			{
 				if(R.Kind==EVirtualSensorTopicReceiveKind::PointCloud)
 				{
-					Test->TestEqual(TEXT("UI validates every submitted PCD"),R.ValidatedCount,PointCloudBeforeAssertions->SubmittedFrameCount);
+                    Test->TestEqual(TEXT("UI validates every approved measurement-window PCD"),int64(Measurement.GetUiCount(EVirtualSensorStreamKind::PointCloud)),FMath::RoundToInt(Measurement.GetRate(EVirtualSensorStreamKind::PointCloud)*MeasurementSeconds));
 					Test->TestEqual(TEXT("UI PCD validation failures"),R.ValidationFailureCount,static_cast<int64>(0));
 					Test->TestEqual(TEXT("UI diagnostic losses"),R.DiagnosticDropCount,static_cast<int64>(0));
 					UE_LOG(LogTemp,Display,TEXT("[SensorUiReceiverRhi] pcdReceived=%lld pcdValidated=%lld failures=%lld gaps=%lld"),R.ReceivedCount,R.ValidatedCount,R.ValidationFailureCount,R.FrameGapCount);

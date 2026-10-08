@@ -8,6 +8,7 @@
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 namespace
@@ -119,6 +120,65 @@ bool FWildcardSequenceTest::RunTest(const FString&)
     P->SubmitFrame(F); TestEqual(TEXT("same sensor duplicate still suppressed"),P->GetStreamStatuses()[0].InputFrameCount,int64(6));
     F.SensorId=TEXT("sequence-A");F.FrameId=5;P->SubmitFrame(F);
     TestEqual(TEXT("real sensor-local gap recorded"),P->GetStreamStatuses()[0].FrameGapCount,int64(1));
+    C.TransportBackend=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;P->ConfigureStream(C);
+    FVirtualSensorStreamTelemetry AStats,BStats;AStats.SensorId=TEXT("sequence-A");BStats.SensorId=TEXT("sequence-B");
+    AStats.SubmittedCount=11;BStats.SubmittedCount=13;AStats.ReceiptCount=11;BStats.ReceiptCount=12;
+    AStats.OutstandingBytes=4;BStats.OutstandingBytes=8;AStats.GlobalOutstandingBytes=BStats.GlobalOutstandingBytes=12;
+    AStats.SubmittedHz=20;BStats.SubmittedHz=19;AStats.EndToEndP95LatencyMs=25;BStats.EndToEndP95LatencyMs=40;
+    P->MergeHighThroughputTelemetry({AStats,BStats});S=P->GetStreamStatuses()[0];
+    TestEqual(TEXT("wildcard telemetry sums both sensor submissions"),S.SubmittedFrameCount,int64(24));
+    TestEqual(TEXT("wildcard telemetry sums receipts"),S.ReceiptReceivedCount,int64(23));
+    TestEqual(TEXT("stream bytes sum, global bytes do not double count"),S.RawOutstandingBytes,int64(12));
+    TestEqual(TEXT("shared global byte total remains unchanged"),S.RawGlobalOutstandingBytes,int64(12));
+    TestEqual(TEXT("wildcard rate is aggregate"),S.SubmittedHz,39.f);
+    TestEqual(TEXT("wildcard p95 is conservative worst sensor"),S.EndToEndP95LatencyMs,40.f);
+    P->MergeHighThroughputTelemetry({AStats,BStats});TestEqual(TEXT("telemetry refresh does not accumulate previous refresh"),P->GetStreamStatuses()[0].SubmittedFrameCount,int64(24));
     return true;
+}
+namespace
+{
+class FDerivedGlobalLimitCheck:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;TFunction<int32()> Active;TFunction<void()> Pump,Cleanup;
+    TSharedRef<int32> Completed;double Started=FPlatformTime::Seconds();bool Stopped=false;int32 Frozen=0;
+public:
+    FDerivedGlobalLimitCheck(FAutomationTestBase* T,TFunction<int32()> A,TFunction<void()> P,TFunction<void()> C,TSharedRef<int32> Count)
+        :Test(T),Active(MoveTemp(A)),Pump(MoveTemp(P)),Cleanup(MoveTemp(C)),Completed(Count){}
+    bool Update() override
+    {
+        if(!Stopped)
+        {
+            Test->TestTrue(TEXT("global JSON workers never exceed four"),Active()<=4);Pump();
+            if(FPlatformTime::Seconds()-Started<2)return false;
+            Test->TestEqual(TEXT("fifth sensor progresses after global slot released"),*Completed,5);
+            Cleanup();Frozen=*Completed;Stopped=true;Started=FPlatformTime::Seconds();return false;
+        }
+        if(FPlatformTime::Seconds()-Started<.9)return false;
+        Test->TestEqual(TEXT("deleted sensors do not apply late callbacks"),*Completed,Frozen);return true;
+    }
+};
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarDerivedGlobalLimitTest,"MA0T10.LidarOutput.GlobalJobLimit",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLidarDerivedGlobalLimitTest::RunTest(const FString&)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();TArray<TWeakObjectPtr<UVirtualLidarScanComponent>> Sensors;
+    auto Count=MakeShared<int32>(0);
+    for(int32 I=0;I<5;++I)
+    {
+        auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComponent.Get();C->StopScan();C->JsonEncodeDelayMsForTests=200;
+        C->SensorId=FString::Printf(TEXT("global-json-%d"),I);C->OnDerivedFrameCompletedNative.AddLambda([Count](const auto&){++*Count;});
+        auto F=MakeShared<FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>();F->FrameId=1;F->Points=MakeShared<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>();F->HorizontalSamples=1;F->VerticalChannels=1;
+        F->AcquisitionStartUnixNanoseconds=(FDateTime::UtcNow()-FDateTime(1970,1,1)).GetTicks()*100;
+        C->LastFrameSnapshot=F;C->FrameId=1;C->QueueScheduledPayloadBuild(1,FPlatformTime::Seconds());Sensors.Add(C);
+    }
+    auto Active=[Sensors](){int32 N=0;for(auto C:Sensors)if(C.IsValid())N+=C->ActiveDerivedJob.IsValid();return N;};
+    TestEqual(TEXT("fifth initial request remains pending"),Active(),4);
+    auto Pump=[Sensors](){for(auto C:Sensors)if(C.IsValid())C->TryStartPendingPayloadBuild();};
+    auto Cleanup=[Sensors](){for(auto C:Sensors)if(C.IsValid())
+    {
+        auto F=MakeShared<FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>(*C->LastFrameSnapshot);F->FrameId=2;
+        C->LastFrameSnapshot=F;C->FrameId=2;C->QueueScheduledPayloadBuild(2,FPlatformTime::Seconds());C->StopScan();C->GetOwner()->Destroy();
+    }};
+    ADD_LATENT_AUTOMATION_COMMAND(FDerivedGlobalLimitCheck(this,MoveTemp(Active),MoveTemp(Pump),MoveTemp(Cleanup),Count));return true;
 }
 #endif
