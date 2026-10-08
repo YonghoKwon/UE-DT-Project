@@ -147,6 +147,8 @@ private:
 		TArray<float> SerializationLatencySamples;
 		FString LastSlabSegment;
 		bool bHasInputFrameInSegment=false;
+		struct FSensorSequence { FString Segment;int64 Frame=0;bool bHave=false; };
+		TMap<FString,FSensorSequence> SensorSequences;
 		int32 ConfigRevision = 0;
 	};
 

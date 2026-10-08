@@ -341,6 +341,7 @@ public:
 		if (!bStreamsStarted)
 		{
 			bPointCloudOnly=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_ONLY")).Equals(TEXT("1"));
+			SensorCount=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SENSOR_PAIRS"))==TEXT("2")?2:1;
 			bScenarioMode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SLAB_SCENARIO_SMOKE")).Equals(TEXT("1"));
 			// Exercise the production contract, not the legacy CSV envelope used by
 			// the early three-stream smoke. Applying the profile once keeps the
@@ -378,6 +379,16 @@ public:
 			{
 				Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);
 			}
+            if(SensorCount==2)
+            {
+                auto* Extra=World->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),FTransform(Lidar->GetActorRotation(),Lidar->GetActorLocation()+FVector(0,50,0)));
+                Extra->ScanComponent->SensorId=TEXT("OUTPUT-LIDAR-002");Extra->ScanComponent->bAutoStartScan=false;Extra->ScanComponent->bAutoRegisterToManager=false;Extra->ScanComponent->bApplyDeviceProfileOnBeginPlay=false;Extra->ScanComponent->Preset=EVirtualLidarPreset::Custom;
+                Extra->FinishSpawning(Extra->GetActorTransform());Extra->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Extra->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Extra->ScanComponent->ServerPayloadStride=32;Extra->ScanComponent->MaxServerPayloadPoints=1024;
+                if(Extra->VisualizationComponent)Extra->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                Coordinator->RegisterSensorActor(Extra);Coordinator->RegisterLidar(Extra->ScanComponent);Extra->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Extra->StartSensor();
+                for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It)if(*It!=Camera)
+                {It->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);It->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;It->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Coordinator->RegisterSensorActor(*It);Coordinator->RegisterCamera(It->CaptureComponent);It->StartSensor();break;}
+            }
 			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 			{
 				FVirtualSensorStreamConfig Config;
@@ -401,6 +412,9 @@ public:
 				Camera->CaptureComponent->StartCapture();
 				Lidar->ScanComponent->StartScan();
 			}
+            CameraIds.Reset(); LidarIds.Reset();
+            for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) if (It->IsSensorRunning()) CameraIds.Add(It->GetSensorId());
+            for (TActorIterator<AVirtualLidarSensorActor> It(World); It; ++It) if (It->IsSensorRunning()) LidarIds.Add(It->GetSensorId());
 			const FString RequestedWarmup = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_WARMUP_SECONDS"));
 			const FString RequestedSeconds = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_MEASURE_SECONDS"));
 			WarmupSeconds = RequestedWarmup.IsEmpty() ? 10.0 : FMath::Clamp(FCString::Atod(*RequestedWarmup), 1.0, 3600.0);
@@ -417,7 +431,8 @@ public:
 			if (!ScenarioDriver.IsValid() && FPlatformTime::Seconds()-StreamsStartedAtSeconds>=WarmupSeconds)
 			{
 				ScenarioDriver=World->SpawnActor<AVirtualSlabSensorTestDriver>();
-				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,{Camera->GetSensorId(),Lidar->GetSensorId()},bPointCloudOnly));
+                TArray<FString> Targets=CameraIds; Targets.Append(LidarIds);
+				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,Targets,bPointCloudOnly));
 			}
 			if (ScenarioDriver.IsValid() && ScenarioDriver->HasFailed()) { Test->AddError(TEXT("Slab fixture failed; inspect session_runs.json")); return true; }
 		}
@@ -438,6 +453,29 @@ public:
 				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
+        if (!bAcquisitionWindowClosed && StreamElapsedSeconds >= WarmupSeconds)
+        {
+            const double Now=FPlatformTime::Seconds();
+            TMap<FString,FVirtualSensorRuntimeStatus> Current;
+            for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)
+                if(CameraIds.Contains(It->GetSensorId())||LidarIds.Contains(It->GetSensorId())) Current.Add(It->GetSensorId(),It->GetSensorRuntimeStatus());
+            if(AcquisitionWindowStart<=0)
+            {
+                AcquisitionWindowStart=Now;
+                for(const auto& P:Current) AcquisitionStartFrames.Add(P.Key,P.Value.FrameId);
+            }
+            if(StreamElapsedSeconds>=WarmupSeconds+MeasurementSeconds)
+            {
+                bAcquisitionWindowClosed=true;
+                for(const auto& P:Current)
+                {
+                    const double Hz=(P.Value.FrameId-AcquisitionStartFrames.FindRef(P.Key))/FMath::Max(.001,Now-AcquisitionWindowStart);
+                    const bool bCamera=CameraIds.Contains(P.Key);
+                    Test->TestTrue(TEXT("each sensor acquisition window meets requested rate"),Hz>=(bCamera?29:19));
+                    UE_LOG(LogTemp,Display,TEXT("[OutputAcquisitionWindow] sensor=%s kind=%s hz=%.3f compatibilityJsonHz=%.3f"),*P.Key,bCamera?TEXT("Camera"):TEXT("Lidar"),Hz,P.Value.MeasuredOutputRateHz);
+                }
+            }
+        }
 		if (StreamElapsedSeconds >= WarmupSeconds && !bAcquisitionStopped && StreamElapsedSeconds < WarmupSeconds+MeasurementSeconds)
 		{
 			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
@@ -490,6 +528,9 @@ public:
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), bPointCloudOnly?1:3);
 		Test->TestTrue(TEXT("full window request ledger saved"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
 		Test->TestTrue(TEXT("measurement window has complete contiguous receipt and consumer set"),Measurement.IsContiguousAndComplete());
+        Test->TestEqual(TEXT("declared active cameras"),CameraIds.Num(),SensorCount);Test->TestEqual(TEXT("declared active lidars"),LidarIds.Num(),SensorCount);
+        for(const auto& Id:LidarIds){Test->TestTrue(TEXT("each Native LiDAR PCD has >=19Hz"),Measurement.GetRate(EVirtualSensorStreamKind::PointCloud,Id)>=19);if(!bPointCloudOnly)Test->TestTrue(TEXT("each telemetry stream has >=19Hz"),Measurement.GetRate(EVirtualSensorStreamKind::LidarPayload,Id)>=19);}
+        if(!bPointCloudOnly)for(const auto& Id:CameraIds)Test->TestTrue(TEXT("each camera JPEG has >=29Hz"),Measurement.GetRate(EVirtualSensorStreamKind::CameraImage,Id)>=29);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
 			if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
@@ -593,7 +634,8 @@ public:
 			const double AverageFps = 1000.0 / FMath::Max(0.001, AverageFrameMs);
 			const double P95FrameMs = SortedFrameTimes[FMath::Clamp(FMath::CeilToInt(SortedFrameTimes.Num() * 0.95) - 1, 0, SortedFrameTimes.Num() - 1)];
 			const double P99FrameMs = SortedFrameTimes[FMath::Clamp(FMath::CeilToInt(SortedFrameTimes.Num() * 0.99) - 1, 0, SortedFrameTimes.Num() - 1)];
-			const double OnePercentLowFps = 1000.0 / FMath::Max(0.001, P99FrameMs);
+			double SlowTotal=0;const int32 SlowCount=FMath::Max(1,FMath::CeilToInt(SortedFrameTimes.Num()*.01));for(int32 I=SortedFrameTimes.Num()-SlowCount;I<SortedFrameTimes.Num();++I)SlowTotal+=SortedFrameTimes[I];
+			const double OnePercentLowFps = 1000.0 / FMath::Max(0.001, SlowTotal/SlowCount);
 			UE_LOG(LogTemp, Display, TEXT("[SensorStreamRhi] averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f samples=%d"),
 				AverageFps, OnePercentLowFps, P95FrameMs, FrameTimesMs.Num());
 			Test->TestTrue(TEXT("active three-stream average FPS remains at least 55"), AverageFps >= 55.0);
@@ -624,6 +666,10 @@ private:
 	bool bAcquisitionStopped = false;
 	bool bScenarioMode=false;
 	bool bPointCloudOnly=false;
+    int32 SensorCount=1;TArray<FString> CameraIds,LidarIds;
+    TMap<FString,int64> AcquisitionStartFrames;
+    double AcquisitionWindowStart=0;
+    bool bAcquisitionWindowClosed=false;
 	bool bCaptureViewStatesChecked = false;
 	FSceneViewStateInterface* CameraViewState = nullptr;
 	FSceneViewStateInterface* LidarViewState = nullptr;

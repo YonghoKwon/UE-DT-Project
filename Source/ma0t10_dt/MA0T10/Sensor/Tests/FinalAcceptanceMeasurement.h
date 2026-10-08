@@ -25,8 +25,8 @@ public:
         for(auto& P:Ids){P.Value.Sort();for(int32 I=1;I<P.Value.Num();++I)if(P.Value[I]!=P.Value[I-1]+1)return false;}
         return true;
     }
-    double GetRate(EVirtualSensorStreamKind Kind) const
-    {int32 Count=0;for(const auto& P:Rows)Count+=P.Value.Accepted.Kind==Kind?1:0;return Count/FMath::Max(.001,End-Begin);}
+    double GetRate(EVirtualSensorStreamKind Kind,const FString& Sensor=FString()) const
+    {int32 Count=0;for(const auto& P:Rows)Count+=P.Value.Accepted.Kind==Kind&&(Sensor.IsEmpty()||P.Value.Accepted.SensorId==Sensor)?1:0;return Count/FMath::Max(.001,End-Begin);}
     void Start(UVirtualSensorHighThroughputTransportSubsystem* In,double Start,double Duration)
     {
         Raw=In;Begin=Start;End=Start+Duration;

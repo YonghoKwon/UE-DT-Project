@@ -101,4 +101,24 @@ bool FLidarCompatibilityDrainTest::RunTest(const FString&)
     TestFalse(TEXT("PCD-only never waits on compatibility JSON"),S->BeginCompatibilityDerivation(A->GetSensorId(),2,C));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWildcardSequenceTest,"MA0T10.LidarOutput.WildcardSensorSequences",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FWildcardSequenceTest::RunTest(const FString&)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();
+    auto* A=W->SpawnActor<AVirtualLidarSensorActor>(); A->StopSensor();
+    auto* P=NewObject<UVirtualSensorStreamPublisherComponent>(A);
+    FVirtualSensorStreamConfig C; C.StreamKind=EVirtualSensorStreamKind::LidarPayload;
+    C.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility; C.bEnabled=true; P->ConfigureStream(C);
+    FVirtualSensorFrameEnvelope F; F.SensorKind=EVirtualSensorKind::Lidar;
+    F.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(TEXT("{}"));
+    for(int64 Id=1;Id<=3;++Id) for(const FString Sensor:{FString(TEXT("sequence-A")),FString(TEXT("sequence-B"))})
+    { F.SensorId=Sensor; F.FrameId=Id; P->SubmitFrame(F); }
+    auto S=P->GetStreamStatuses()[0];
+    TestEqual(TEXT("identical frame ids from different sensors both accepted"),S.InputFrameCount,int64(6));
+    TestEqual(TEXT("interleaved sensor ids create no false gaps"),S.FrameGapCount,int64(0));
+    P->SubmitFrame(F); TestEqual(TEXT("same sensor duplicate still suppressed"),P->GetStreamStatuses()[0].InputFrameCount,int64(6));
+    F.SensorId=TEXT("sequence-A");F.FrameId=5;P->SubmitFrame(F);
+    TestEqual(TEXT("real sensor-local gap recorded"),P->GetStreamStatuses()[0].FrameGapCount,int64(1));
+    return true;
+}
 #endif

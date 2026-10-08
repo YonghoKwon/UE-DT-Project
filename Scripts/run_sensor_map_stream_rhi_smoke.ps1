@@ -10,7 +10,8 @@ param(
     [switch]$SlabSessions,
     [switch]$PointCloudOnly,
     [ValidateSet(1280,1920)][int]$ClientWidth = 1280,
-    [ValidateSet(720,1080)][int]$ClientHeight = 720
+    [ValidateSet(720,1080)][int]$ClientHeight = 720,
+    [ValidateRange(1,2)][int]$SensorPairs = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,6 +45,7 @@ $Probe = Start-Process -FilePath "node" -ArgumentList $ProbeArgs -WorkingDirecto
 try {
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE = "1"
     $env:MA0T10_PCD_ONLY = if ($PointCloudOnly) { "1" } else { "0" }
+    $env:MA0T10_OUTPUT_SENSOR_PAIRS = [string]$SensorPairs
     $env:MA0T10_ACCEPTANCE_RES_X = [string]$ClientWidth
     $env:MA0T10_ACCEPTANCE_RES_Y = [string]$ClientHeight
     $env:MA0T10_ACCEPTANCE_LEDGER = $Ledger
@@ -143,8 +145,23 @@ try {
     }
     $ProbeResult|Add-Member -NotePropertyName fullWindow -NotePropertyValue $WindowStats -Force
     $ProbeResult|Add-Member -NotePropertyName actualViewport -NotePropertyValue @($WindowLedger.actual_viewport_x,$WindowLedger.actual_viewport_y) -Force
+    $PerSensor=@();foreach($Group in ($WindowLedger.frames|Group-Object kind,sensor_id)){
+        $Rows=@($Group.Group);$PerSensor+=[pscustomobject]@{Kind=[int]$Rows[0].kind;SensorId=$Rows[0].sensor_id;Count=$Rows.Count;Hz=$Rows.Count/$MeasurementSeconds}
+    }
+    foreach($Kind in $(if($PointCloudOnly){@(2)}else{@(0,1,2)})){
+        $Streams=@($PerSensor|Where-Object Kind -eq $Kind);$Min=if($Kind -eq 1){29}else{19}
+        $LedgerValid=$LedgerValid -and $Streams.Count -eq $SensorPairs -and @($Streams|Where-Object Hz -lt $Min).Count -eq 0
+    }
+    $ProbeResult|Add-Member -NotePropertyName perSensorWindow -NotePropertyValue $PerSensor -Force
+    $AcquisitionRows=@([regex]::Matches($EditorText,'\[OutputAcquisitionWindow\] sensor=(?<id>\S+) kind=(?<kind>Camera|Lidar) hz=(?<hz>[0-9.]+) compatibilityJsonHz=(?<derived>[0-9.]+)')|ForEach-Object{
+        [pscustomobject]@{SensorId=$_.Groups['id'].Value;Kind=$_.Groups['kind'].Value;Hz=[double]$_.Groups['hz'].Value;CompatibilityJsonHz=[double]$_.Groups['derived'].Value}
+    })
+    $AcquisitionValid=$AcquisitionRows.Count -eq 2*$SensorPairs -and @($AcquisitionRows|Where-Object{ $_.Hz -lt $(if($_.Kind -eq 'Camera'){29}else{19}) }).Count -eq 0
+    $ProbeResult|Add-Member -NotePropertyName acquisitionWindow -NotePropertyValue $AcquisitionRows -Force
+    $TransportValid=$LedgerValid -and $ProbeResult.success -and $ReceiverFailures -eq 0 -and $PcdInput -gt 0 -and $PcdInput -eq $PcdSerialized -and $PcdInput -eq $PcdSubmitted -and $PcdInput -eq $PcdReceipts -and $PcdInput -eq $ReceiverPointCloud -and $UiPcdValidated -eq $PcdInput
+    $ProbeResult|Add-Member -NotePropertyName acceptanceScope -NotePropertyValue 'ActualHighThroughputStreams' -Force
     $ProbeResult | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProbeReport -Encoding UTF8
-	$Passed = $LedgerValid -and $ProbeResult.success -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success -and $HighThroughputMatch.Success -and $PcdMatch.Success -and
+	$Passed = $AcquisitionValid -and $TransportValid -and $D3d12 -and $TestPassed -and $PerformanceMatch.Success -and $HighThroughputMatch.Success -and $PcdMatch.Success -and
         ($PointCloudOnly -or ($ReceiverLidar -ge 2 -and $ReceiverCamera -ge 2)) -and $ReceiverPointCloud -ge 2 -and $ReceiverFailures -eq 0 -and
         $PcdInput -gt 0 -and $PcdInput -eq $PcdSerialized -and $PcdInput -eq $PcdSubmitted -and $PcdInput -eq $PcdReceipts -and $PcdInput -eq $ReceiverPointCloud -and $UiPcdValidated -eq $PcdInput -and
 		($PointCloudOnly -or ($CameraHz -ge 29.0 -and $LidarHz -ge 19.0)) -and $PcdHz -ge 19.0 -and
@@ -156,6 +173,10 @@ try {
 # SensorRefactorTestMap continuous stream RHI smoke
 
 - Result: **$(if ($Passed) { "PASS" } else { "FAIL" })**
+- Scope: actual Raw TCP selected streams; $SensorPairs Camera + $SensorPairs Native LiDAR
+- Acquisition / compatibility JSON / transport: $(if($AcquisitionValid){'Pass'}else{'Fail'}) / NotTested / $(if($TransportValid){'Pass'}else{'Fail'})
+- Actual client: $($WindowLedger.actual_viewport_x) x $($WindowLedger.actual_viewport_y)
+- 1% low definition: reciprocal of the mean duration of the slowest 1% of measured engine frames
 - D3D12 detected: $D3d12
 - Unreal automation passed: $TestPassed
 - Warmup: $WarmupSeconds s
@@ -186,13 +207,20 @@ try {
 - Probe report: $ProbeReport
 - Editor log: $EditorLog
 "@
+    $MarkdownText += "`n## Per-sensor measurement-window rates`n`n"+($AcquisitionRows|Format-Table|Out-String)+"`n## Per-sensor selected output rates`n`n"+($PerSensor|Format-Table|Out-String)
     $MarkdownText | Set-Content -LiteralPath $Markdown -Encoding UTF8
+    $ProbeResult|Add-Member -NotePropertyName AcquisitionPass -NotePropertyValue $(if($AcquisitionValid){'Pass'}else{'Fail'}) -Force
+    $ProbeResult|Add-Member -NotePropertyName RequestedDerivedOutputPass -NotePropertyValue 'NotTested' -Force
+    $ProbeResult|Add-Member -NotePropertyName TransportPass -NotePropertyValue $(if($TransportValid){'Pass'}else{'Fail'}) -Force
+    $ProbeResult|Add-Member -NotePropertyName Valid -NotePropertyValue $Passed -Force
+    $ProbeResult|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $ProbeReport -Encoding UTF8
     if (-not $Passed) { throw "Continuous SensorRefactorTestMap stream RHI smoke failed. See $Markdown" }
     Write-Host "Continuous SensorRefactorTestMap stream RHI smoke passed."
     Write-Host $Markdown
 }
 finally {
     Remove-Item Env:MA0T10_ACCEPTANCE_RES_X,Env:MA0T10_ACCEPTANCE_RES_Y,Env:MA0T10_ACCEPTANCE_LEDGER -ErrorAction SilentlyContinue
+    Remove-Item Env:MA0T10_OUTPUT_SENSOR_PAIRS -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SLAB_SCENARIO_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_ARTEMIS_URL -ErrorAction SilentlyContinue

@@ -17,7 +17,8 @@ param(
     [string]$JsonPath = "",
     [switch]$SkipBuild,
     [switch]$SkipLaunch,
-    [switch]$Json
+    [switch]$Json,
+    [ValidateSet('AcquisitionOnly','CompatibilityJson')][string]$EvaluationScope='AcquisitionOnly'
 )
 
 $ErrorActionPreference = "Stop"
@@ -202,6 +203,9 @@ $rateMeasurementTolerance = 0.995
 $completionRatePass = $null -eq $threshold -or (($CameraCount -eq 0 -or $minimumCameraHz -ge $threshold.CameraHz * $rateMeasurementTolerance) -and ($LidarCount -eq 0 -or $minimumLidarHz -ge $threshold.LidarHz * $rateMeasurementTolerance))
 $queueHealthPass = @($sensorSummary | Where-Object { $_.FinalFailedAcquisition -gt 0 -or $_.FinalQueueOverflow -gt 0 }).Count -eq 0
 $valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $completionRatePass -and $fairnessPass -and $queueHealthPass -and $sensorRateHealthPass
+$acquisitionPass=$valid
+$derivedPass=if($EvaluationScope -eq 'CompatibilityJson'){@($sensorSummary|Where-Object Kind -eq 'Lidar'|Where-Object AverageOutputHz -le 0).Count -eq 0 -and $lidarRows.Count -eq $LidarCount}else{$null}
+if($EvaluationScope -eq 'CompatibilityJson'){$valid=$valid -and $derivedPass}
 $lidarVisiblePointLimit = switch ($LidarRenderer) {
     "Niagara" { 21600 }
     "Cpu" { 5000 }
@@ -226,13 +230,18 @@ $report = [PSCustomObject]@{
         Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
     }
     Sensors = $sensorSummary
+    AcceptanceScope=$EvaluationScope
+    AcquisitionPass=if($acquisitionPass){'Pass'}else{'Fail'}
+    RequestedDerivedOutputPass=if($null -eq $derivedPass){'NotTested'}elseif($derivedPass){'Pass'}else{'Fail'}
+    TransportPass='NotTested'
 }
 
 $report | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath $JsonPath -Encoding UTF8
 $markdown = @(
-    '# FullSpec Virtual Sensor Performance Report', '',
+    "# FullSpec Virtual Sensor Performance Report — $EvaluationScope", '',
     "Generated UTC: $($report.GeneratedUtc)", '',
     "- Scenario: Camera $CameraCount + LiDAR $LidarCount",
+    "- Acquisition / requested derived / actual transport: $($report.AcquisitionPass) / $($report.RequestedDerivedOutputPass) / $($report.TransportPass)",
     "- Map: $MapPath",
     "- LiDAR renderer: $LidarRenderer",
     "- LiDAR profile: $LidarProfile ($expectedLidarRays rays/frame)",

@@ -726,16 +726,18 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 		return;
 	}
 	const FString SegmentKey=Frame.SlabContext.RunId+TEXT("|")+LexToString(Frame.SlabContext.Segment);
-	if (Runtime.LastSlabSegment!=SegmentKey) { Runtime.LastSlabSegment=SegmentKey; Runtime.Status.LastInputFrameId=0; Runtime.bHasInputFrameInSegment=false; }
-	if (Runtime.bHasInputFrameInSegment && Runtime.Status.LastInputFrameId == Frame.FrameId)
+	auto& Sequence=Runtime.SensorSequences.FindOrAdd(Frame.SensorId);
+	if(Sequence.Segment!=SegmentKey){Sequence=FStreamRuntime::FSensorSequence();Sequence.Segment=SegmentKey;}
+	if (Sequence.bHave && Sequence.Frame == Frame.FrameId)
 	{
 		return;
 	}
 	Runtime.LastInputSlabContext=Frame.SlabContext;
-	if (Runtime.bHasInputFrameInSegment && Frame.FrameId > Runtime.Status.LastInputFrameId + 1)
+	if (Sequence.bHave && Frame.FrameId > Sequence.Frame + 1)
 	{
-		Runtime.Status.FrameGapCount += Frame.FrameId - Runtime.Status.LastInputFrameId - 1;
+		Runtime.Status.FrameGapCount += Frame.FrameId - Sequence.Frame - 1;
 	}
+	Sequence.Frame=Frame.FrameId;Sequence.bHave=true;Runtime.LastSlabSegment=SegmentKey;
 	++Runtime.Status.InputFrameCount;
 	Runtime.Status.LastInputFrameId = Frame.FrameId;
 	Runtime.bHasInputFrameInSegment=true;
