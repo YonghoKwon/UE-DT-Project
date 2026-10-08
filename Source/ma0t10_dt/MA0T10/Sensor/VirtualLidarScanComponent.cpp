@@ -200,6 +200,22 @@ FString BuildScheduledLidarJson(const FLidarScheduledPayloadSnapshot& S)
 }
 }
 
+FVirtualSensorResourceSnapshot UVirtualLidarScanComponent::GetResourceSnapshot() const
+{
+    check(IsInGameThread());
+    FVirtualSensorResourceSnapshot S; S.Owner=SensorId+TEXT("/lidar");
+    S.Counts={{TEXT("scan_in_flight"),bScheduledScanInProgress},{TEXT("payload_in_flight"),bScheduledPayloadBuildInFlight},
+        {TEXT("export_in_flight"),bScheduledAutoExportInFlight},{TEXT("global_json_jobs"),GVirtualLidarJsonJobs.load()},
+        {TEXT("surface_cache_entries"),SurfaceResponseCache.Num()},{TEXT("preview_instances"),PointCloudPreviewComponent?PointCloudPreviewComponent->GetInstanceCount():0}};
+    S.OwnedCpuBytes.Add(TEXT("scheduled_scan_arrays"),ScheduledPoints.GetAllocatedSize()+ScheduledHeatmapPixels.GetAllocatedSize());
+    S.OwnedCpuBytes.Add(TEXT("ray_lookup"),GpuDepthLocalDirections.GetAllocatedSize()+GpuDepthPixelIndices.GetAllocatedSize()+ScheduledHorizontalAnglesDegrees.GetAllocatedSize()+ScheduledVerticalAnglesDegrees.GetAllocatedSize());
+    S.OwnedCpuBytes.Add(TEXT("surface_cache_container"),SurfaceResponseCache.GetAllocatedSize());
+    S.OwnedCpuBytes.Add(TEXT("latest_json"),LastJsonPayload.GetAllocatedSize());
+    S.SharedCpuBytes.Add(TEXT("latest_points"),LastPointStorage.IsValid()?LastPointStorage->GetAllocatedSize():0);
+    // LastFrameSnapshot references LastPointStorage: do not count the same points again.
+    return S;
+}
+
 UVirtualLidarScanComponent::UVirtualLidarScanComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;

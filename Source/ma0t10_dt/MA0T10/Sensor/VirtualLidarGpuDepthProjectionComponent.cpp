@@ -41,6 +41,19 @@ UVirtualLidarGpuDepthProjectionComponent::UVirtualLidarGpuDepthProjectionCompone
 
 UVirtualLidarGpuDepthProjectionComponent::~UVirtualLidarGpuDepthProjectionComponent() = default;
 
+FVirtualSensorResourceSnapshot UVirtualLidarGpuDepthProjectionComponent::GetResourceSnapshot() const
+{
+    check(IsInGameThread());
+    FVirtualSensorResourceSnapshot S; S.Owner=GetName()+TEXT("/gpu-depth");
+    S.Counts={{TEXT("readback_allocations"),int64(ReadbackAllocationCount)},{TEXT("depth_readbacks"),Readback.IsValid()},
+        {TEXT("semantic_readbacks"),SemanticReadback.IsValid()},{TEXT("in_flight"),bAcquisitionActive},
+        {TEXT("semantic_identities"),PendingSemanticIdentities.Num()},{TEXT("completed_frame"),CompletedFrame.IsSet()}};
+    S.OwnedCpuBytes.Add(TEXT("semantic_identity_container"),PendingSemanticIdentities.GetAllocatedSize());
+    S.EstimatedGpuBytes.Add(TEXT("depth_target_unpadded"),DepthRenderTarget?int64(DepthRenderTarget->SizeX)*DepthRenderTarget->SizeY*16:0);
+    S.EstimatedGpuBytes.Add(TEXT("depth_staging_unpadded"),Readback.IsValid()?int64(ReadbackDimensions.X)*ReadbackDimensions.Y*16:0);
+    return S;
+}
+
 void UVirtualLidarGpuDepthProjectionComponent::EndPlay(const EEndPlayReason::Type Reason)
 {
     CancelAcquisition();

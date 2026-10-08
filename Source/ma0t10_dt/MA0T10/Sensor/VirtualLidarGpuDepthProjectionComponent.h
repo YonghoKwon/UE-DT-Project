@@ -5,6 +5,7 @@
 #include "RenderCommandFence.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorAcquisitionBackend.h"
 #include "VirtualLidarSemanticScene.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarGpuDepthProjectionComponent.generated.h"
 
 class FRHIGPUTextureReadback;
@@ -40,6 +41,7 @@ public:
 	virtual FString GetBackendStatusMessage() const override { return StatusMessage; }
 	/** Diagnostic count: staging objects are retained between serial acquisitions. */
 	uint64 GetReadbackAllocationCount() const { return ReadbackAllocationCount; }
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|GPU", meta = (ClampMin = "64", ClampMax = "2048"))
 	int32 MaximumCaptureHeight = 1024;

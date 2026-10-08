@@ -3,6 +3,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Async/Future.h"
 #include "SlabRunDeliveryTypes.h"
+#include "VirtualSensorResourceDiagnostics.h"
 #include "SlabRunResultsSubsystem.generated.h"
 class AVirtualSensorActorBase;
 class UVirtualSensorTransportComponent;
@@ -18,6 +19,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     struct FFrameAudit { FString Key,RequestId;uint8 Flags=0; };
     TArray<FFrameAudit> GetRunFrameAuditForTesting(const FString& Run) const;
+    FVirtualSensorResourceSnapshot GetResourceSnapshotForTesting() const;
 #endif
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;

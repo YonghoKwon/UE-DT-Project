@@ -10,6 +10,10 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "Core/DxDataSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
@@ -175,6 +179,40 @@ void ASlabScenarioValidationRig::SaveEvidence(bool bScreenshot)
     FFileHelper::SaveStringToFile(FString::Printf(TEXT("# Actual UI evidence\n\nViewport: %d x %d\n%s\n"),Size.X,Size.Y,*DisplayStatus),*(Dir/TEXT("manual.md")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     if(bScreenshot)FScreenshotRequest::RequestScreenshot(Dir/TEXT("manual.png"),true,false);
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+void ASlabScenarioValidationRig::SaveResourceEvidence(const FString& Phase,int32 Repetition,int64 AuditEntries,int64 AuditBytes) const
+{
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_DIAGNOSTICS"))!=TEXT("1"))return;
+    auto Root=MakeShared<FJsonObject>();const auto Status=SlabActor->GetSimulationStatus();
+    Root->SetStringField(TEXT("run_uuid"),Status.RunUUID);Root->SetStringField(TEXT("phase"),Phase);
+    Root->SetNumberField(TEXT("repetition"),Repetition);Root->SetNumberField(TEXT("monotonic_seconds"),FPlatformTime::Seconds());
+    Root->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());
+    Root->SetNumberField(TEXT("fixture_audit_entries"),AuditEntries);Root->SetNumberField(TEXT("fixture_audit_cpu_bytes"),AuditBytes);
+    Root->SetNumberField(TEXT("scenario_count"),GetWorld()->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->GetScenarios().Num());
+    Root->SetStringField(TEXT("byte_semantics"),TEXT("owned CPU containers; shared bytes observed per owner, not additive; GPU estimates exclude padding/driver caches"));
+    TArray<TSharedPtr<FJsonValue>> Items;
+    auto Add=[&](const FVirtualSensorResourceSnapshot& S){auto Item=MakeShared<FJsonObject>();Item->SetStringField(TEXT("owner"),S.Owner);
+        auto Map=[&](const TCHAR* Key,const TMap<FString,int64>& Values){auto Object=MakeShared<FJsonObject>();for(const auto& P:Values)Object->SetNumberField(P.Key,P.Value);Item->SetObjectField(Key,Object);};
+        Map(TEXT("counts"),S.Counts);Map(TEXT("owned_cpu_bytes"),S.OwnedCpuBytes);Map(TEXT("shared_cpu_bytes"),S.SharedCpuBytes);Map(TEXT("estimated_gpu_bytes"),S.EstimatedGpuBytes);Items.Add(MakeShared<FJsonValueObject>(Item));};
+    if(Camera)Add(Camera->CaptureComponent->GetResourceSnapshot());
+    if(Lidar){Add(Lidar->ScanComponent->GetResourceSnapshot());if(Lidar->GpuDepthProjectionComponent)Add(Lidar->GpuDepthProjectionComponent->GetResourceSnapshot());if(Lidar->VisualizationComponent)Add(Lidar->VisualizationComponent->GetResourceSnapshot());}
+    TInlineComponentArray<UVirtualSensorStreamPublisherComponent*> Publishers;Coordinator->GetComponents(Publishers);
+    for(auto* Publisher:Publishers)Add(Publisher->GetResourceSnapshot());
+    Add(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetResourceSnapshotForTesting());
+    Root->SetArrayField(TEXT("owners"),Items);
+    const auto Held=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetRunRetentionSnapshot();
+    auto Raw=MakeShared<FJsonObject>();Raw->SetNumberField(TEXT("outstanding_bytes"),Held.OutstandingBytes);Raw->SetNumberField(TEXT("pending_events"),Held.PendingEvents);
+    Raw->SetNumberField(TEXT("active_runs"),Held.ActiveRuns);Raw->SetNumberField(TEXT("retiring_runs"),Held.RetiringRuns);Raw->SetNumberField(TEXT("completed_runs"),Held.CompletedRuns);Raw->SetNumberField(TEXT("minimal_run_ids"),Held.KnownRunIds);
+    Root->SetObjectField(TEXT("raw_transport"),Raw);
+    FString Directory=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_REPORT_DIR"));
+    if(Directory.IsEmpty())Directory=FPaths::ProjectSavedDir()/TEXT("Reports/SensorResourceLifecycle/resources");
+    IFileManager::Get().MakeDirectory(*Directory,true);FString Text;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Text));
+    FFileHelper::SaveStringToFile(Text,*(Directory/FString::Printf(TEXT("%02d-%s-%s.json"),Repetition,*Status.RunUUID,*Phase)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    if((Phase==TEXT("warmup")||Phase==TEXT("sensors-stopped"))&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_MEMREPORT"))==TEXT("1"))
+        GEngine->Exec(GetWorld(),TEXT("MemReport -full"));
+}
+#endif
 void ASlabScenarioValidationRig::EndPlay(const EEndPlayReason::Type Reason)
 {
     if(Controls&&GetWorld()->GetGameViewport())GetWorld()->GetGameViewport()->RemoveViewportWidgetContent(Controls.ToSharedRef());

@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualCameraPayloadCodec.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualCameraCaptureComponent.generated.h"
 
 class UTextureRenderTarget2D;
@@ -69,6 +70,9 @@ public:
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
     void RequestImmediateScheduledCapture();
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
+    static int32 GetGlobalEncodeJobCountForDiagnostics();
+    static int32 GetGlobalPendingWorkCountForDiagnostics();
 	/** File-only request; never enables a stream, changes CaptureMode or calls the sync capture API. */
 	bool RequestLocalFileFrame(bool bNewFrame,FVirtualCameraLocalSaveCallback Callback,FString& Error);
 	void PollLocalFileFrame();
@@ -304,9 +308,11 @@ public:
 	int32 GetAcquisitionRevisionForTests() const { return ScheduledGeneration; }
 	bool ForceReadbackSaturationForTests=false;
 	float EncodeDelayForTests=0;
+    TFunction<float(int64)> EncodeDelayByFrameForTests;
 private:
 #endif
 	int32 ScheduledEncodeInFlightCount = 0;
+    uint64 ScheduledReadbackAllocationCount = 0;
     double NextScheduledCaptureTime = -1.0;
     double LastScheduledCompletionTime = -1.0;
     double LastAcquisitionCompletionTime = -1.0;

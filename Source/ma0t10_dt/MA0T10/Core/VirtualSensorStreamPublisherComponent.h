@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "VirtualSensorResourceDiagnostics.h"
 #include "VirtualSensorStreamPublisherComponent.generated.h"
 
 class UVirtualSensorTransportComponent;
@@ -29,6 +30,7 @@ public:
 	void SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent);
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
 	void PumpPublisherOnce(double NowSeconds);
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */
 	int64 GetPendingSlabRunCount(const FString& RunId) const;
 	void GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;

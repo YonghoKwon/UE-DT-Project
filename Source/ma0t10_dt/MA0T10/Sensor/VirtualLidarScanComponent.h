@@ -5,6 +5,7 @@
 #include "VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarScanComponent.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -70,6 +71,7 @@ protected:
 public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StartScan();
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StopScan();

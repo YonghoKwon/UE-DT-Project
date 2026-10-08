@@ -1590,6 +1590,25 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 	}
 }
 
+FVirtualSensorResourceSnapshot UVirtualSensorStreamPublisherComponent::GetResourceSnapshot() const
+{
+    check(IsInGameThread());
+    FVirtualSensorResourceSnapshot S; S.Owner=GetName()+TEXT("/publisher");
+    int64 Pending=0,Prepared=0,Serializing=0,SharedBytes=0;TSet<const void*> Bodies;
+    auto CountBody=[&](const FPreparedMessage& M){
+        if(M.BinaryBody.IsValid()&&!Bodies.Contains(M.BinaryBody.Get())){Bodies.Add(M.BinaryBody.Get());SharedBytes+=M.BinaryBody->GetAllocatedSize();}
+        if(M.BinaryBody64.IsValid()&&!Bodies.Contains(M.BinaryBody64.Get())){Bodies.Add(M.BinaryBody64.Get());SharedBytes+=M.BinaryBody64->GetAllocatedSize();}};
+    for(const auto& P:StreamRuntimes){const auto& R=P.Value;Pending+=R.PendingFrameQueue.Num()+R.PendingFrame.IsSet();Prepared+=R.PreparedMessageQueue.Num()+R.PreparedMessage.IsSet();Serializing+=R.bSerializationInFlight;
+        if(R.PreparedMessage.IsSet())CountBody(*R.PreparedMessage);for(const auto& M:R.PreparedMessageQueue)CountBody(M);}
+    for(const auto& P:WaitingReceipts)CountBody(P.Value.Message);
+    S.Counts={{TEXT("stream_keys"),StreamRuntimes.Num()},{TEXT("pending_frames"),Pending},{TEXT("prepared_messages"),Prepared},
+        {TEXT("serializing"),Serializing},{TEXT("waiting_receipts"),WaitingReceipts.Num()},{TEXT("failure_run_ids"),SlabRunFailures.Num()},
+        {TEXT("recent_logs"),RecentLogEntries.Num()}};
+    S.SharedCpuBytes.Add(TEXT("unique_prepared_bodies"),SharedBytes);
+    S.OwnedCpuBytes.Add(TEXT("runtime_containers"),StreamRuntimes.GetAllocatedSize()+WaitingReceipts.GetAllocatedSize()+RequestToStreamKey.GetAllocatedSize());
+    return S;
+}
+
 int64 UVirtualSensorStreamPublisherComponent::GetPendingSlabRunCount(const FString& RunId) const
 {
 	if(RunId.IsEmpty()) return 0;

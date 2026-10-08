@@ -13,11 +13,33 @@
 #include "Editor/EditorPerformanceSettings.h"
 #include "Components/StaticMeshComponent.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "FinalAcceptanceTestSession.h"
 namespace
 {
+struct FSlabWorldResourceWitness { TArray<TWeakObjectPtr<UObject>> Objects; };
+class FSlabResourceAfterEndPlayCheck : public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;TSharedRef<FSlabWorldResourceWitness> Witness;double Started=-1;
+public:
+    FSlabResourceAfterEndPlayCheck(FAutomationTestBase* In,TSharedRef<FSlabWorldResourceWitness> W):Test(In),Witness(W){}
+    bool Update() override
+    {
+        for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)return false;
+        if(Started<0)Started=FPlatformTime::Seconds();
+        if(FPlatformTime::Seconds()-Started<2||UVirtualCameraCaptureComponent::GetGlobalPendingWorkCountForDiagnostics()>0)
+        {if(FPlatformTime::Seconds()-Started>10){Test->AddError(TEXT("Camera encode jobs did not return after PIE shutdown"));return true;}return false;}
+        // Post-performance diagnostic only: never force GC between scenario runs.
+        CollectGarbage(RF_NoFlags);
+        for(const auto& Weak:Witness->Objects)Test->TestFalse(TEXT("old PIE owner not retained after cleanup/GC"),Weak.IsValid());
+        Test->AddInfo(FString::Printf(TEXT("Post-PIE weak owner checks=%d global camera jobs=0"),Witness->Objects.Num()));return true;
+    }
+};
 class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;
@@ -25,11 +47,17 @@ class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
     int32 Stage=0;
     int32 CompletedRuns=0;
     const bool bRepeated=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REPEAT_RHI"))==TEXT("1");
+    const FString RequestedRuns=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REPEAT_COUNT"));
+    const int32 TargetRuns=RequestedRuns.IsEmpty()?10:FMath::Clamp(FCString::Atoi(*RequestedRuns),2,100);
     TSet<FString> RunIds;
     int64 WorkerSerial=0,ConnectionRevision=0;
     TWeakObjectPtr<UVirtualSensorHighThroughputTransportSubsystem> ObservedRaw;
     FDelegateHandle ReceiveHandle;
     TSet<FString> ActualConsumerRequests;
+    TSet<FString> AuditedRuns;
+    bool bAuditOverflow=false;
+    double StoppedAt=0;
+    TSharedPtr<FSlabWorldResourceWitness> Witness;
     FString ArchiveId,FirstRun;
     int64 FirstCount=0;
 	int64 FirstAllSubmitted=0;
@@ -39,7 +67,7 @@ class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
 	bool bAllOutputs=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_OUTPUT_ALL"))==TEXT("1");
     bool OldThrottle=false,OldMonitor=false;
 public:
-    explicit FSlabProductionRuntimeCheck(FAutomationTestBase* T):Test(T)
+    explicit FSlabProductionRuntimeCheck(FAutomationTestBase* T,TSharedPtr<FSlabWorldResourceWitness> W=nullptr):Test(T),Witness(W)
     {
         // UE's own PIE performance tests disable these independently of t.IdleWhenNotForeground.
         // This affects this test process only; never persist the user's Editor settings.
@@ -56,7 +84,7 @@ public:
     }
     bool Update() override
     {
-        if(FPlatformTime::Seconds()-Start>(bRepeated?370:115)){Test->AddError(TEXT("Production Slab runtime timed out"));return true;}
+        if(FPlatformTime::Seconds()-Start>(bRepeated?TargetRuns*34+100:115)){Test->AddError(TEXT("Production Slab runtime timed out"));return true;}
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE){World=C.World();break;}
         if(!World||!World->GetGameInstance())return false;
         if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_EXACT_VIEWPORT"))==TEXT("1")&&!FinalAcceptanceViewportReady(World))return false;
@@ -69,7 +97,15 @@ public:
         {
             if(FPlatformTime::Seconds()-Start<10)return false;
             InitialPlacement=Slab->GetActorTransform();
-            ObservedRaw=Raw;ReceiveHandle=Raw->OnTransportObservation.AddLambda([this](const FVirtualSensorTransportObservation& Data){if(Data.Phase==EVirtualSensorTransportObservationPhase::Consumed&&!Data.RunId.IsEmpty()&&ActualConsumerRequests.Num()<100000)ActualConsumerRequests.Add(Data.RunId+TEXT("|")+Data.RequestId);});
+            if(Witness){for(UObject* Object:{static_cast<UObject*>(World),static_cast<UObject*>(World->GetGameInstance()),static_cast<UObject*>(Raw),static_cast<UObject*>(Session),static_cast<UObject*>(Catalog),static_cast<UObject*>(Slab),static_cast<UObject*>(Rig),static_cast<UObject*>(Rig->Camera.Get()),static_cast<UObject*>(Rig->Lidar.Get()),static_cast<UObject*>(Rig->Camera->CaptureComponent.Get()),static_cast<UObject*>(Rig->Lidar->ScanComponent.Get()),static_cast<UObject*>(World->GetSubsystem<USlabRunResultsSubsystem>())})Witness->Objects.Add(Object);}
+            ObservedRaw=Raw;ReceiveHandle=Raw->OnTransportObservation.AddLambda([this](const FVirtualSensorTransportObservation& Data){
+                if(Data.Phase!=EVirtualSensorTransportObservationPhase::Consumed||Data.RunId.IsEmpty()||AuditedRuns.Contains(Data.RunId))return;
+                const FString Key=Data.RunId+TEXT("|")+Data.RequestId;
+                if(!ActualConsumerRequests.Contains(Key)&&ActualConsumerRequests.Num()>=65536){if(!bAuditOverflow)Test->AddError(TEXT("Per-run consumer audit overflow; validation cannot continue silently"));bAuditOverflow=true;return;}
+                ActualConsumerRequests.Add(Key);});
+            Rig->SaveResourceEvidence(TEXT("warmup"),0);
+            if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_PREVIEW_OFF"))==TEXT("1"))
+            {Rig->Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);Rig->Lidar->ScanComponent->SetPointCloudPreviewEnabled(false);}
 			if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REQUIRE_DATA"))==TEXT("1"))
 			{FSlabExecutionOptions Options;Options.Policy=ESlabExecutionPolicy::RequireData;Test->TestTrue(TEXT("data-required options accepted"),Slab->SetExecutionOptions(Options));}
             Rig->SubmitSynthetic(true);
@@ -81,6 +117,15 @@ public:
 			Stage=1;return false;
         }
         const auto S=Slab->GetSimulationStatus();
+        if(Stage==30)
+        {
+            if(FPlatformTime::Seconds()-StoppedAt<3)return false;
+            Rig->SaveResourceEvidence(TEXT("sensors-stopped"),CompletedRuns);
+            if(Rig->Camera){const auto C=Rig->Camera->CaptureComponent->GetResourceSnapshot();
+                for(const auto* Key:{TEXT("pending_readbacks"),TEXT("pending_encodes"),TEXT("active_encodes"),TEXT("global_encode_jobs"),TEXT("completed_reorder"),TEXT("encode_order"),TEXT("acquisition_snapshots"),TEXT("slab_contexts"),TEXT("readbacks_in_flight")})
+                    Test->TestEqual(FString::Printf(TEXT("Camera stopped %s returned"),Key),C.Counts.FindRef(Key),int64(0));}
+            return true;
+        }
 		if(Stage==20)
 		{
 			if(FPlatformTime::Seconds()-ResetAt<1)return false;
@@ -130,6 +175,8 @@ public:
             Test->TestTrue(TEXT("accepted request submitted and receipted"),(A.Flags&7)==7);
             Test->TestTrue(TEXT("accepted request actually consumed"),ActualConsumerRequests.Contains(S.RunUUID+TEXT("|")+A.RequestId));
         }
+        Test->TestFalse(TEXT("consumer audit never exceeded its explicit bound"),bAuditOverflow);
+        Test->TestEqual(TEXT("actual per-run MESSAGE identities exactly match accepted identities"),ActualConsumerRequests.Num(),Audit.Num());
         if(Raw->GetRunRetentionSnapshot().RetiringRuns>0)return false;
         if(bRepeated)
         {
@@ -142,6 +189,9 @@ public:
         if(Stage==2)
         {
             Rig->SaveEvidence(false); // Persist the first run before the second replaces its status.
+            int64 AuditBytes=ActualConsumerRequests.GetAllocatedSize();for(const auto& K:ActualConsumerRequests)AuditBytes+=K.GetAllocatedSize();
+            Rig->SaveResourceEvidence(TEXT("drained"),1,ActualConsumerRequests.Num(),AuditBytes);
+            AuditedRuns.Add(S.RunUUID);ActualConsumerRequests.Empty();
             FirstCount=Receive;Test->TestTrue(TEXT("first run real PCD data"),FirstCount>=570);
             CompletedRuns=1;
 			FirstAllSubmitted=0;for(const auto& T:Raw->GetStreamTelemetry())FirstAllSubmitted+=T.SubmittedCount;
@@ -172,12 +222,16 @@ public:
         {
             Test->TestFalse(TEXT("every replay has unique run UUID"),RunIds.Contains(S.RunUUID));RunIds.Add(S.RunUUID);++CompletedRuns;
             Rig->SaveEvidence(false);
-            if(CompletedRuns<10)
+            int64 AuditBytes=ActualConsumerRequests.GetAllocatedSize();for(const auto& K:ActualConsumerRequests)AuditBytes+=K.GetAllocatedSize();
+            Rig->SaveResourceEvidence(TEXT("drained"),CompletedRuns,ActualConsumerRequests.Num(),AuditBytes);
+            AuditedRuns.Add(S.RunUUID);ActualConsumerRequests.Empty();
+            if(CompletedRuns<TargetRuns)
             {
                 FirstCount=Receive;FirstAllSubmitted=0;for(const auto& T:Raw->GetStreamTelemetry())FirstAllSubmitted+=T.SubmittedCount;
                 FString Reason;Test->TestTrue(TEXT("repeated run reset accepted"),Slab->ResetToInitialPlacement(Reason));ResetAt=FPlatformTime::Seconds();Stage=20;return false;
             }
-            Test->TestEqual(TEXT("ten distinct completed runs"),RunIds.Num(),10);return true;
+            Test->TestEqual(TEXT("requested distinct completed runs"),RunIds.Num(),TargetRuns);
+            Rig->Camera->StopSensor();Rig->Lidar->StopSensor();StoppedAt=FPlatformTime::Seconds();Stage=30;return false;
         }
         // Screenshots/readback are deliberately outside both measured runs.
         Rig->SaveEvidence();
@@ -198,8 +252,10 @@ bool FSlabProductionRuntimeTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRepeatedRuntimeTest,"MA0T10.SlabReliability.RepeatedRuntime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabRepeatedRuntimeTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REPEAT_RHI"))!=TEXT("1")){AddInfo(TEXT("Skipped opt-in same-worker thirty-second ten-run test."));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REPEAT_RHI"))!=TEXT("1")){AddInfo(TEXT("Skipped opt-in same-worker thirty-second repeated-run test."));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
-    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FSlabProductionRuntimeCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+    auto Witness=MakeShared<FSlabWorldResourceWitness>();
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FSlabProductionRuntimeCheck(this,Witness));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+    ADD_LATENT_AUTOMATION_COMMAND(FSlabResourceAfterEndPlayCheck(this,Witness));return true;
 }
 #endif
