@@ -18,6 +18,8 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
+#include "EngineUtils.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarPayloadCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
@@ -560,6 +562,8 @@ bool UVirtualSensorStreamPublisherComponent::ValidateBinaryBodySize(int64 Bytes,
 void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSensorStreamConfig& RequestedConfig)
 {
 	const FVirtualSensorStreamConfig Config = NormalizeLiveConfig(RequestedConfig);
+	FString PlacementError;if(Config.bEnabled&&!PrepareCollectionTargets(Config.StreamKind,Config.SensorId,PlacementError))
+	{AddLog(MakeStreamKey(Config.StreamKind,Config.SensorId),TEXT("start-rejected"),PlacementError);return;}
 	FStreamRuntime& Runtime = FindOrAddRuntime(Config.StreamKind, Config.SensorId.TrimStartAndEnd());
 	const bool bWasEnabled = Runtime.Config.bEnabled;
 	const bool bSerializationContractChanged = Runtime.Config.PointCloudFormat != Config.PointCloudFormat ||
@@ -603,6 +607,8 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 
 void UVirtualSensorStreamPublisherComponent::StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
 {
+	FString PlacementError;if(!PrepareCollectionTargets(StreamKind,SensorId,PlacementError))
+	{AddLog(MakeStreamKey(StreamKind,SensorId),TEXT("start-rejected"),PlacementError);return;}
 	FStreamRuntime& Runtime = FindOrAddRuntime(StreamKind, SensorId.TrimStartAndEnd());
 	Runtime.Config = NormalizeLiveConfig(Runtime.Config);
 	Runtime.Config.bEnabled = true;
@@ -1607,6 +1613,30 @@ FVirtualSensorResourceSnapshot UVirtualSensorStreamPublisherComponent::GetResour
     S.SharedCpuBytes.Add(TEXT("unique_prepared_bodies"),SharedBytes);
     S.OwnedCpuBytes.Add(TEXT("runtime_containers"),StreamRuntimes.GetAllocatedSize()+WaitingReceipts.GetAllocatedSize()+RequestToStreamKey.GetAllocatedSize());
     return S;
+}
+
+bool UVirtualSensorStreamPublisherComponent::PrepareCollectionTargets(EVirtualSensorStreamKind Kind,const FString& Id,FString& Error)
+{
+	if(GetWorld())for(TActorIterator<AVirtualSensorActorBase> It(GetWorld());It;++It)
+		if((Id.IsEmpty()||It->GetSensorId()==Id)&&StreamMatchesFrame(Kind,It->GetSensorKind())&&
+			It->OutputComponent&&It->OutputComponent->StreamPublisherComponent==this&&!It->PrepareForDataCollection(Error))return false;
+	return true;
+}
+
+bool UVirtualSensorStreamPublisherComponent::HasSensorPlacementWork(const FString& Id,EVirtualSensorKind Kind) const
+{
+	for(const auto& Pair:StreamRuntimes)
+	{
+		const auto& R=Pair.Value;if(!StreamMatchesFrame(R.Config.StreamKind,Kind))continue;
+		if(R.Config.bEnabled&&(R.Config.SensorId.IsEmpty()||R.Config.SensorId==Id))return true;
+		if(R.bSerializationInFlight&&R.SerializationSensorId==Id)return true;
+		if(R.PendingFrame.IsSet()&&R.PendingFrame.GetValue().SensorId==Id)return true;
+		if(R.PreparedMessage.IsSet()&&R.PreparedMessage.GetValue().SensorId==Id)return true;
+		for(const auto& F:R.PendingFrameQueue)if(F.SensorId==Id)return true;
+		for(const auto& F:R.PreparedMessageQueue)if(F.SensorId==Id)return true;
+	}
+	for(const auto& Pair:WaitingReceipts)if(Pair.Value.Message.SensorId==Id)return true;
+	return false;
 }
 
 int64 UVirtualSensorStreamPublisherComponent::GetPendingSlabRunCount(const FString& RunId) const

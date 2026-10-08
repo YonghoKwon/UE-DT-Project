@@ -179,6 +179,7 @@ public:
 	void FlushRunObservations(const FString& RunId);
 	void GatherPendingRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const;
 	int32 GetPendingRunFrameCount(const FString& RunId) const;
+	int32 GetOutstandingSensorFrameCount(const FString& SensorId) const;
 	int32 GetFailedRunFrameCount(const FString& RunId) const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")

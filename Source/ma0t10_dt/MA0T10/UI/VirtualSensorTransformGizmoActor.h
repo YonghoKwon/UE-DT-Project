@@ -98,6 +98,7 @@ private:
     void SetHandleCollisionEnabled(bool bEnabled);
     void HandleMouseInput();
     void HandleKeyboardInput(float DeltaSeconds);
+    bool ApplyTargetTransform(const FTransform& Transform);
     void BeginMouseDrag(EHandleKind HandleKind);
     void UpdateMouseDrag();
     void EndMouseDrag();

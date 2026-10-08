@@ -52,6 +52,7 @@ public:
 	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
 	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
 	bool CanUseHighThroughputTransport() const;
+	bool HasSensorPlacementWork(const FString& SensorId,EVirtualSensorKind Kind) const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
@@ -100,6 +101,7 @@ public:
 	TObjectPtr<UVirtualSensorTransportComponent> TransportComponent;
 
 private:
+	friend class FSensorPlacementGateTest;
 	struct FPreparedMessage
 	{
 		FVirtualSlabFrameContext SlabContext;
@@ -155,6 +157,7 @@ private:
 	};
 
 	FString MakeStreamKey(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const;
+	bool PrepareCollectionTargets(EVirtualSensorStreamKind Kind,const FString& SensorId,FString& Error);
 	FStreamRuntime& FindOrAddRuntime(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
 	void QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
 	void StartPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);

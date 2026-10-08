@@ -1055,6 +1055,13 @@ TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsy
 	}
 	return Result;
 }
+int32 UVirtualSensorHighThroughputTransportSubsystem::GetOutstandingSensorFrameCount(const FString& Id) const
+{
+	int32 Total=0;if(!Worker)return 0;
+	for(auto Kind:{EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload,EVirtualSensorStreamKind::PointCloud})
+	{int32 Count=0,Queued=0;int64 Bytes=0,Global=0;Worker->SnapshotOutstanding(Kind,Id,Count,Bytes,Global,Queued);Total+=Count;}
+	return Total;
+}
 
 void UVirtualSensorHighThroughputTransportSubsystem::CancelRun(const FString& RunId)
 {

@@ -141,6 +141,11 @@ FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& 
 		if(Outputs.bCameraImage&&!bHasCamera) { Status.Message=TEXT("Camera 출력에는 Camera 대상이 필요합니다."); return FString(); }
 	}
 	for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
+	for (const auto& Pair:NewTargets) if(auto* Sensor=Pair.Value.Get())
+	{
+		const bool Needed=Sensor->GetSensorKind()==EVirtualSensorKind::Camera?Outputs.bCameraImage:(Outputs.bPointCloud||Outputs.bLidarTelemetry);
+		if(Needed&&!Sensor->PrepareForDataCollection(Status.Message))return FString();
+	}
 	Coordinator=Manager; Targets=MoveTemp(NewTargets); PendingKeys.Reset(); StartedSensors.Reset();
 	Status=FVirtualSlabSessionStatus(); Status.RunId=Id; Status.State=EVirtualSlabSessionState::Ready;
 	Status.ExecutionPolicy=ActivatingPreparation?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;
@@ -212,7 +217,7 @@ bool UVirtualSensorSlabContextSubsystem::PrepareScenarioTransmission(const FStri
 		if(!IsValid(Sensor)||(!Ids.IsEmpty()&&!Ids.Contains(Sensor->GetSensorId())))continue;
 		const bool Needed=Sensor->GetSensorKind()==EVirtualSensorKind::Camera?Outputs.bCameraImage:(Outputs.bPointCloud||Outputs.bLidarTelemetry);
 		if(!Needed)continue;
-		if(Sensor->IsInteractiveManipulationActive()){Error=TEXT("센서 조작 모드를 종료한 뒤 데이터 필수 실행을 시작하세요.");Targets.Reset();return false;}
+		if(!Sensor->PrepareForDataCollection(Error)){Targets.Reset();return false;}
 		const FString Id=Sensor->GetSensorId();Targets.Add(Id,Sensor);PreparationIds.Add(Id);ConfigurationSnapshots.Add(Id,SensorConfiguration(Sensor));
 		for(auto Kind:{EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload,EVirtualSensorStreamKind::PointCloud})
 		{
@@ -245,6 +250,13 @@ bool UVirtualSensorSlabContextSubsystem::IsSensorConfigurationLocked(const FStri
 {
 	return Status.ExecutionPolicy==ESlabExecutionPolicy::RequireData&&Targets.Contains(Id)&&
 		(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining);
+}
+bool UVirtualSensorSlabContextSubsystem::IsSensorPlacementLocked(const FString& Id) const
+{
+	const auto* Target=Targets.Find(Id);
+	if(!Target||!Target->IsValid()||Status.bObservationOnly)return false;
+	const bool Selected=Target->Get()->GetSensorKind()==EVirtualSensorKind::Camera?Status.Outputs.bCameraImage:(Status.Outputs.bPointCloud||Status.Outputs.bLidarTelemetry);
+	return Selected&&(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining);
 }
 void UVirtualSensorSlabContextSubsystem::FailPreparation(const FString& Error)
 {Status.RequiredDataError=Error;Status.Message=Error;Status.State=EVirtualSlabSessionState::Incomplete;Status.EndReason=EVirtualSlabSessionEndReason::StreamFailure;FinalizeRunResult(true);}

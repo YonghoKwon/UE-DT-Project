@@ -200,6 +200,7 @@ bool AVirtualCameraSensorActor::ApplyProfileAndSimulationQuality(const FVirtualS
 bool AVirtualCameraSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
 	if(!CanEditSensorConfiguration(OutError))return false;
+	if((State.SensorId!=GetSensorId()||!State.ActorTransform.Equals(GetActorTransform()))&&!CanEditSensorPlacement(OutError))return false;
 	if (!CaptureComponent || State.TargetKind != EVirtualSensorTargetKind::Camera)
 	{
 		OutError = TEXT("선택한 Camera 센서를 사용할 수 없습니다.");

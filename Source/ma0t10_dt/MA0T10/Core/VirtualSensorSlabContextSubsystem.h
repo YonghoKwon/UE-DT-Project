@@ -27,6 +27,7 @@ public:
 	FString BeginUnboundObservationSession(const FString& RunId,const FString& ScenarioUUID);
 	bool PrepareScenarioTransmission(const FString& RunId,const TArray<FString>& Ids,const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs,const FSlabExecutionOptions& Options,FString& Error);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SlabSensorSession") bool IsSensorConfigurationLocked(const FString& SensorId) const;
+	bool IsSensorPlacementLocked(const FString& SensorId) const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool NotifySlabFrameApplied(const FString& RunId, const FString& MtlNo, int64 SlabFrameNo, double ElapsedSec);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
@@ -69,6 +70,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabSessionFailureTest;
 	friend class FSlabTerminalSnapshotTest;
+	friend class FSensorPlacementGateTest;
 #endif
 	UPROPERTY(Transient) FVirtualSlabSessionStatus Status;
 	TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Targets;

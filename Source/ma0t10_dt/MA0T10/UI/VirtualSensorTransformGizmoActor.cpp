@@ -21,6 +21,7 @@
 #include "Core/DxWidgetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 
 namespace
 {
@@ -497,8 +498,14 @@ void AVirtualSensorTransformGizmoActor::HandleKeyboardInput(float DeltaSeconds)
         (static_cast<float>(bYawRight) - static_cast<float>(bYawLeft)) * RotationStepDegrees * Multiplier,
         (static_cast<float>(bRollRight) - static_cast<float>(bRollLeft)) * RotationStepDegrees * Multiplier);
     const FTransform NextTransform = ApplyKeyboardDelta(TargetActor->GetActorTransform(), CoordinateSpace, Translation, Rotation);
-    TargetActor->SetActorTransform(NextTransform, false, nullptr, ETeleportType::TeleportPhysics);
-    OnTransformChanged.Broadcast(NextTransform);
+    if(ApplyTargetTransform(NextTransform))OnTransformChanged.Broadcast(NextTransform);
+}
+
+bool AVirtualSensorTransformGizmoActor::ApplyTargetTransform(const FTransform& Transform)
+{
+    if(auto* Sensor=Cast<AVirtualSensorActorBase>(TargetActor))
+    {FString Error;return Sensor->IsInteractiveManipulationActive()?Sensor->UpdateInteractiveTransform(Transform):Sensor->ApplyEditableTransform(Transform,Error);}
+    return IsValid(TargetActor)&&TargetActor->SetActorTransform(Transform,false,nullptr,ETeleportType::TeleportPhysics);
 }
 
 void AVirtualSensorTransformGizmoActor::BeginMouseDrag(EHandleKind HandleKind)
@@ -561,8 +568,7 @@ void AVirtualSensorTransformGizmoActor::UpdateMouseDrag()
         const float Angle = FMath::Atan2(FVector::DotProduct(DragAxis, FVector::CrossProduct(DragStartPlaneVector, CurrentVector)), FVector::DotProduct(DragStartPlaneVector, CurrentVector));
         NextTransform.SetRotation((FQuat(DragAxis, Angle) * DragStartTransform.GetRotation()).GetNormalized());
     }
-    TargetActor->SetActorTransform(NextTransform, false, nullptr, ETeleportType::TeleportPhysics);
-    OnTransformChanged.Broadcast(NextTransform);
+    if(ApplyTargetTransform(NextTransform))OnTransformChanged.Broadcast(NextTransform);
 }
 
 void AVirtualSensorTransformGizmoActor::EndMouseDrag()

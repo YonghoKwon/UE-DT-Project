@@ -30,6 +30,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor")
 	virtual bool IsSensorRunning() const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") bool CanEditSensorConfiguration(FString& OutReason) const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor|Placement") bool CanEditSensorPlacement(FString& OutReason) const;
+	/** Commits the operator gesture and restores acquisition settings before data admission. */
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Sensor|Placement") bool PrepareForDataCollection(FString& OutReason);
+	FSimpleMulticastDelegate OnDataCollectionStarting;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") int32 GetConfigurationRevision() const { return ConfigurationRevision; }
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor")

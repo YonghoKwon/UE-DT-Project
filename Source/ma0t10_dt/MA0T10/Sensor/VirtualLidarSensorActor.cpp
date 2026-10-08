@@ -224,6 +224,7 @@ bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSe
 bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
     if(!CanEditSensorConfiguration(OutError))return false;
+    if((State.SensorId!=GetSensorId()||!State.ActorTransform.Equals(GetActorTransform()))&&!CanEditSensorPlacement(OutError))return false;
     if (!ScanComponent || State.TargetKind != EVirtualSensorTargetKind::Lidar)
     {
         OutError = TEXT("선택한 LiDAR 센서를 사용할 수 없습니다.");

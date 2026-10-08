@@ -473,6 +473,7 @@ void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabl
         return;
     }
     ManipulationTarget = Target;
+    Target->OnDataCollectionStarting.AddUObject(this,&ThisClass::HandleManipulationExitRequested);
     bManipulationEnabled = true;
     SpawnGizmoIfNeeded();
     if (GizmoActor)
@@ -496,7 +497,8 @@ void UVirtualSensorSettingsPanelWidget::FinishSensorManipulation(bool bRestoreMo
     if (ManipulationTarget.IsValid() && ManipulationTarget.Get() != GetSelectedSensorActor()) bRestoreMonitorView = false;
     if (IsValid(GizmoActor)) GizmoActor->SetManipulationEnabled(false);
     bManipulationEnabled = false;
-    if (auto* Target = ManipulationTarget.Get()) Target->EndInteractiveManipulation();
+    if (auto* Target = ManipulationTarget.Get())
+    {Target->OnDataCollectionStarting.RemoveAll(this);Target->EndInteractiveManipulation();}
     ManipulationTarget.Reset();
     if (!bRestoreMonitorView) bRestoreMonitorViewAfterManipulation = false;
     EndMonitorFollowForManipulation();
@@ -968,10 +970,6 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformChanged(const FTrans
     if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
     PendingState.ActorTransform = Transform;
     LastControlMessage = TEXT("미리보기 갱신 중...");
-	if (AVirtualSensorActorBase* SensorActor = ManipulationTarget.Get())
-	{
-		SensorActor->UpdateInteractiveTransform(Transform);
-	}
 	LastControlMessage = TEXT("조작 중: 경량 미리보기");
     RefreshNativeText();
 }
@@ -980,10 +978,6 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoTransformCommitted(const FTra
 {
     if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
     PendingState.ActorTransform = Transform;
-	if (AVirtualSensorActorBase* SensorActor = ManipulationTarget.Get())
-	{
-		SensorActor->UpdateInteractiveTransform(Transform);
-	}
 	LastControlMessage = TEXT("조작 위치가 PIE에 반영됨");
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
     RefreshNativeText();
