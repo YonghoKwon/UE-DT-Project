@@ -14,6 +14,7 @@ bool FSlabPreviewIsolationTest::RunTest(const FString&)
  Preview->AddInstance(FTransform::Identity);
  TestEqual(TEXT("diagnostics cannot be collision targets"),Preview->GetCollisionEnabled(),ECollisionEnabled::NoCollision);
  TestFalse(TEXT("diagnostics have no overlap work"),Preview->GetGenerateOverlapEvents());TestFalse(TEXT("diagnostics do not update navigation"),Preview->CanEverAffectNavigation());TestFalse(TEXT("diagnostics create no physics state"),Preview->IsPhysicsStateCreated());
+ TestTrue(TEXT("CPU point markers are excluded from sensor SceneCapture views"),bool(Preview->bHiddenInSceneCapture));
  Sensor->Destroy();return true;
 }
 #endif

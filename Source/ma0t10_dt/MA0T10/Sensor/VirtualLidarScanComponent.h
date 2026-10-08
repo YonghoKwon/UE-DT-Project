@@ -72,6 +72,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StartScan();
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
+#if WITH_DEV_AUTOMATION_TESTS
+    bool FreezeAcquisitionForTests=false;
+#endif
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StopScan();

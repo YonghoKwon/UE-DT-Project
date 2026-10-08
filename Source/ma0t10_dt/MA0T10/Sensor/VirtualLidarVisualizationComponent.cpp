@@ -1134,6 +1134,8 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
             NiagaraPointCloudComponent->SetupAttachment(GetOwner()->GetRootComponent());
             NiagaraPointCloudComponent->SetUsingAbsoluteLocation(true);
             NiagaraPointCloudComponent->SetAsset(System);
+            NiagaraPointCloudComponent->SetHiddenInSceneCapture(true);
+            NiagaraPointCloudComponent->SetCastShadow(false);
             NiagaraPointCloudComponent->RegisterComponent();
         }
     }

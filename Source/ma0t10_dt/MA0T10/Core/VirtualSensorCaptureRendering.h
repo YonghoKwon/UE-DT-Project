@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Components/SceneCaptureComponent2D.h"
+#include "Components/LineBatchComponent.h"
+#include "Engine/World.h"
 
 namespace VirtualSensorCaptureRendering
 {
@@ -16,5 +18,9 @@ inline void Prepare(USceneCaptureComponent2D& Capture, bool bDiscardHistory = fa
 {
 	Capture.bAlwaysPersistRenderingState = true;
 	if (bDiscardHistory) Capture.bCameraCutThisFrame = true;
+    // Debug arrows/rings use the world's line batchers. Exclude them from this
+    // measurement view without changing their visibility in the player's view.
+    if(UWorld* World=Capture.GetWorld())
+    {Capture.HideComponent(World->LineBatcher);Capture.HideComponent(World->PersistentLineBatcher);Capture.HideComponent(World->ForegroundLineBatcher);}
 }
 }

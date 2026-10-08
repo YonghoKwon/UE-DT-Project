@@ -967,6 +967,9 @@ void UVirtualLidarScanComponent::UnregisterFromPerformanceSubsystem()
 
 void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if(FreezeAcquisitionForTests)return;
+#endif
     if (NextScheduledScanTime < 0.0) return;
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
@@ -2626,6 +2629,7 @@ UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPrevi
             PointCloudPreviewComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             PointCloudPreviewComponent->SetGenerateOverlapEvents(false);
             PointCloudPreviewComponent->SetCanEverAffectNavigation(false);
+            PointCloudPreviewComponent->SetHiddenInSceneCapture(true);
             PointCloudPreviewComponent->SetupAttachment(this);PointCloudPreviewComponent->NumCustomDataFloats=4;PointCloudPreviewComponent->SetCastShadow(false);PointCloudPreviewComponent->RegisterComponent();
             if(!PointCloudPreviewMesh)PointCloudPreviewMesh=Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(),nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
             if(PointCloudPreviewMesh)PointCloudPreviewComponent->SetStaticMesh(PointCloudPreviewMesh);
