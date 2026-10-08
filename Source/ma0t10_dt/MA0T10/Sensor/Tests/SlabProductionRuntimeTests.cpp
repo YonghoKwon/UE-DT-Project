@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
+#include "Misc/App.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "SlabScenarioValidationRig.h"
@@ -19,6 +20,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
 #include "FinalAcceptanceTestSession.h"
 namespace
@@ -236,7 +239,25 @@ public:
         Test->TestEqual(TEXT("run summary broker outcome"),Summary.Outcome,ESlabRunDeliveryOutcome::BrokerAccepted);
         Test->TestEqual(TEXT("completed snapshot has no unfinished work"),Summary.TerminalSnapshot.UniqueUnfinished,int64(0));
         if(bPlacementAB)
-        {const auto* Entry=Summary.Sensors.FindByPredicate([&](const auto& E){return E.SensorId==Rig->Lidar->GetSensorId();});Test->TestTrue(TEXT("B run records applied bookmark and start pose"),Entry&&Entry->Placement.BookmarkId==BookmarkB&&UVirtualSensorPlacementSubsystem::SamePose(Entry->Placement.WorldTransform,PoseB)&&!Entry->Placement.bChangedDuringRun);}
+        {
+            const auto* Entry=Summary.Sensors.FindByPredicate([&](const auto& E){return E.SensorId==Rig->Lidar->GetSensorId();});Test->TestTrue(TEXT("B run records applied bookmark and start pose"),Entry&&Entry->Placement.BookmarkId==BookmarkB&&UVirtualSensorPlacementSubsystem::SamePose(Entry->Placement.WorldTransform,PoseB)&&!Entry->Placement.bChangedDuringRun);
+            FSlabRunComparison Comparison;FString Reason;const double ComparisonStart=FPlatformTime::Seconds();
+            Test->TestTrue(TEXT("real finalized A/B runs compare"),Results->GetRunComparison(FirstRun,S.RunUUID,Comparison,Reason));
+            Test->TestTrue(TEXT("same source hash captured at both run starts"),!Comparison.A.ScenarioContentHash.IsEmpty()&&Comparison.A.ScenarioContentHash==Comparison.B.ScenarioContentHash);
+            const auto* Delta=Comparison.Sensors.FindByPredicate([&](const auto& C){return C.SensorId==Rig->Lidar->GetSensorId();});Test->TestTrue(TEXT("real A/B displacement matches planned 500cm"),Delta&&Delta->bPoseDeltaAvailable&&FMath::Abs(Delta->TranslationDeltaCm-500)<.1);
+            auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
+            Test->TestNotNull(TEXT("actual owned results UI exists"),Panel);
+            if(Panel)
+            {const auto BeforePose=Rig->Lidar->GetActorTransform();const int64 BeforeSubmit=Submit;Panel->SetActiveTab(EVirtualSensorCaptureExportTab::ConnectionLog);
+                Test->TestTrue(TEXT("actual UI accepts finalized A and B"),Panel->SelectScenarioComparisonRun(FirstRun,true,Reason)&&Panel->SelectScenarioComparisonRun(S.RunUUID,false,Reason));
+                Test->TestTrue(TEXT("actual UI shows pose difference"),Panel->GetScenarioRunComparisonText().Contains(TEXT("500.00cm")));
+                Test->TestTrue(TEXT("comparison leaves current pose unchanged"),Rig->Lidar->GetActorTransform().Equals(BeforePose));
+                int64 AfterSubmit=0;for(const auto& T:Raw->GetStreamTelemetry())if(T.StreamKind==EVirtualSensorStreamKind::PointCloud)AfterSubmit+=T.SubmittedCount;
+                Test->TestEqual(TEXT("comparison never submits sensor data"),AfterSubmit,BeforeSubmit);
+            }
+            const double BuildMs=(FPlatformTime::Seconds()-ComparisonStart)*1000;Test->AddInfo(FString::Printf(TEXT("real_ab_build_and_ui_ms=%.3f"),BuildMs));
+            FFileHelper::SaveStringToFile(DescribeRunComparison(Comparison),*(FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementComparison/actual-ab.txt")));
+        }
         if(bRepeated)
         {
             Test->TestFalse(TEXT("every replay has unique run UUID"),RunIds.Contains(S.RunUUID));RunIds.Add(S.RunUUID);++CompletedRuns;
@@ -257,6 +278,29 @@ public:
         return true;
     }
 };
+/** Post-run UI cost only; separate from the two measured transport runs. */
+class FSlabComparisonUiCostCheck:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;double At=-1;int32 Phase=0;TArray<double> Hidden,Visible;bool WasOpen=false;
+public:
+    explicit FSlabComparisonUiCostCheck(FAutomationTestBase* T):Test(T){}
+    bool Update() override
+    {
+        if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_AB_RHI"))!=TEXT("1"))return true;
+        UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();if(!World)return false;
+        auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));if(!Panel){Test->AddError(TEXT("No owned comparison panel for UI cost check"));return true;}
+        if(At<0){WasOpen=Workspace->IsPanelOpen(ESensorToolPanelRole::Data);Workspace->SetPanelOpen(ESensorToolPanelRole::Data,false);At=FPlatformTime::Seconds();return false;}
+        const double Age=FPlatformTime::Seconds()-At;
+        if(Age>=1)(Phase==0?Hidden:Visible).Add(FApp::GetDeltaTime()*1000);
+        if(Age<3)return false;
+        if(Phase++==0){Panel->SetActiveTab(EVirtualSensorCaptureExportTab::ConnectionLog);Panel->SetScenarioRunResultsExpanded(true);Workspace->SetPanelOpen(ESensorToolPanelRole::Data,true);At=FPlatformTime::Seconds();return false;}
+        auto P95=[](TArray<double> V){V.Sort();return V.IsEmpty()?0.:V[FMath::CeilToInt(V.Num()*.95)-1];};
+        const double H=P95(Hidden),V=P95(Visible);auto Root=MakeShared<FJsonObject>();Root->SetNumberField(TEXT("hidden_frame_p95_ms"),H);Root->SetNumberField(TEXT("visible_comparison_frame_p95_ms"),V);Root->SetNumberField(TEXT("hidden_samples"),Hidden.Num());Root->SetNumberField(TEXT("visible_samples"),Visible.Num());Root->SetStringField(TEXT("scope"),TEXT("post-run same scene, settled UI; not rated streaming acceptance"));
+        FString Json;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementComparison/comparison-ui-cost.json")));
+        Test->AddInfo(FString::Printf(TEXT("comparison UI post-run frame p95 hidden/visible=%.3f/%.3fms samples=%d/%d"),H,V,Hidden.Num(),Visible.Num()));
+        Test->TestTrue(TEXT("comparison UI settled-frame p95 increase <=5 percent"),H>0&&V<=H*1.05);Workspace->SetPanelOpen(ESensorToolPanelRole::Data,WasOpen);return true;
+    }
+};
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabProductionRuntimeTest,"MA0T10.SlabScenario.ProductionRuntime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabProductionRuntimeTest::RunTest(const FString&)
@@ -266,7 +310,7 @@ bool FSlabProductionRuntimeTest::RunTest(const FString&)
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_EXACT_VIEWPORT"))==TEXT("1")){ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());}
     else {ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));}
-    ADD_LATENT_AUTOMATION_COMMAND(FSlabProductionRuntimeCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+    ADD_LATENT_AUTOMATION_COMMAND(FSlabProductionRuntimeCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FSlabComparisonUiCostCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRepeatedRuntimeTest,"MA0T10.SlabReliability.RepeatedRuntime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabRepeatedRuntimeTest::RunTest(const FString&)

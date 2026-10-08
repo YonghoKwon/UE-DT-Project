@@ -69,6 +69,9 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
     TestTrue(TEXT("A/B selected explicitly"),Panel->SelectScenarioComparisonRun(TEXT("A"),true,Reason)&&Panel->SelectScenarioComparisonRun(TEXT("B"),false,Reason));
     TestTrue(TEXT("comparison text identifies runs"),Panel->GetScenarioRunComparisonText().Contains(TEXT("A: A"))&&Panel->GetScenarioRunComparisonText().Contains(TEXT("B: B")));
     auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();const auto Pose=Sensor->GetActorTransform();const auto Frame=Sensor->GetSensorRuntimeStatus().FrameId;
+    TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> CurrentSensors;CurrentSensors.Add(TEXT("lidar-1"),Sensor);
+    Results->SetMeasuredRates(TEXT("A"),CurrentSensors);Results->MarkStopped(TEXT("A"));FSlabRunDeliverySummary Frozen;Results->GetRunResult(TEXT("A"),Frozen);
+    TestTrue(TEXT("late updates cannot fill past results from current sensor"),Frozen.Sensors[0].MeasuredHz==A.Sensors[0].MeasuredHz&&Frozen.StoppedUtc==A.StoppedUtc);
     for(int32 I=0;I<4;++I){Panel->CachedRunResultsRevision=-1;Panel->RefreshRunResults();}
     TestTrue(TEXT("comparison never changes sensor pose or acquires a frame"),Sensor->GetActorTransform().Equals(Pose)&&Sensor->GetSensorRuntimeStatus().FrameId==Frame);
     Results->Results.Add(ComparisonFixture(TEXT("C")));Results->Changed();Panel->RefreshRunResults();

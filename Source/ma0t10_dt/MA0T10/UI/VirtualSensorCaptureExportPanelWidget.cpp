@@ -106,6 +106,8 @@ bool UVirtualSensorCaptureExportPanelWidget::SelectScenarioComparisonRun(const F
 }
 void UVirtualSensorCaptureExportPanelWidget::ClearScenarioRunComparison()
 {ComparisonRunA.Reset();ComparisonRunB.Reset();RunComparisonText.Reset();CachedRunResultsRevision=-1;}
+void UVirtualSensorCaptureExportPanelWidget::SetScenarioRunResultsExpanded(bool Expanded)
+{bRunResultsExpanded=Expanded;if(RunResultsArea)RunResultsArea->SetExpanded(Expanded);CachedRunResultsRevision=-1;if(Expanded)RefreshRunResults();}
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsContent()
 {
@@ -1149,7 +1151,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildConnectionLogTa
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("ConnectionTitle", "Artemis STOMP / HTTP 연결 및 상세 로그")) ]
-			+ SVerticalBox::Slot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true)
+			+ SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultsArea,SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded)
 			 .OnAreaExpansionChanged_Lambda([this](bool Open){bRunResultsExpanded=Open;RefreshNativeText();})
 			 .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunResults","실행별 전송 결과 · 최근 20개"))]
 			 .BodyContent()[BuildRunResultsContent()]]

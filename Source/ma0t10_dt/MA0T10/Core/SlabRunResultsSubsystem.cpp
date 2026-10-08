@@ -101,10 +101,10 @@ void USlabRunResultsSubsystem::ClearPlacementBindings()
 {for(const auto& B:PlacementBindings)if(auto* Root=B.Component.Get())Root->TransformUpdated.Remove(B.Handle);PlacementBindings.Reset();}
 void USlabRunResultsSubsystem::RecordAcquisition(const FString& Run,bool Success)
 {if(auto* R=Find(Run);R&&!R->bFinalized){if(Success)++R->Acquired;else++R->AcquisitionFailures;Changed();}}
-void USlabRunResultsSubsystem::MarkStopped(const FString& Run){if(auto* R=Find(Run);R&&R->StoppedUtc.GetTicks()==0)R->StoppedUtc=FDateTime::UtcNow();}
+void USlabRunResultsSubsystem::MarkStopped(const FString& Run){if(auto* R=Find(Run);R&&!R->bFinalized&&R->StoppedUtc.GetTicks()==0)R->StoppedUtc=FDateTime::UtcNow();}
 void USlabRunResultsSubsystem::SetAppliedOutputs(const FString& Run,const FVirtualSlabSensorOutputSelection& Outputs){if(auto* R=Find(Run);R&&!R->bFinalized)R->AppliedOutputs=Outputs;}
 void USlabRunResultsSubsystem::SetMeasuredRates(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors)
-{if(auto* R=Find(Run))for(auto& S:R->Sensors)if(const auto* P=Sensors.Find(S.SensorId);P&&P->IsValid()){S.MeasuredHz=P->Get()->GetSensorRuntimeStatus().MeasuredAcquisitionRateHz;if(S.RequestedHz>0&&S.MeasuredHz<S.RequestedHz*.95f)R->Warning=TEXT("측정률 미달이 있습니다. 승인 프레임의 Broker 수락 결과와 구분하세요.");}}
+{if(auto* R=Find(Run);R&&!R->bFinalized&&Run==ActiveRun)for(auto& S:R->Sensors)if(const auto* P=Sensors.Find(S.SensorId);P&&P->IsValid()){S.MeasuredHz=P->Get()->GetSensorRuntimeStatus().MeasuredAcquisitionRateHz;if(S.RequestedHz>0&&S.MeasuredHz<S.RequestedHz*.95f)R->Warning=TEXT("측정률 미달이 있습니다. 승인 프레임의 Broker 수락 결과와 구분하세요.");}}
 int64 USlabRunResultsSubsystem::GetUnconfirmedCount(const FString& Run) const {const auto* R=Results.FindByPredicate([&](const auto& S){return S.RunUUID==Run;});return R?R->Unfinished:0;}
 void USlabRunResultsSubsystem::GatherUnconfirmedKeys(const FString& Run,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const
 {

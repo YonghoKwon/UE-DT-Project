@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`e91d4cc` 기반 연속 센서 배치·센서별 위치 북마크·Undo/Redo·실행 시작 배치 기록(`015ff2a`), DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+현재 기능 기준: **`7c6ed29` 기반 배치 복원·북마크 식별 보완, 새 자세 미리보기 확인과 실행 결과 A/B 비교, DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
@@ -16,7 +16,19 @@
 - 실행 결과/JSON의 sensor `placement`에는 시작 맵·월드 자세(cm/quaternion/scale)·북마크 ID/이름/revision·고정 시각과 외부 변경 여부를 기록한다. 기존 `ma0t10.slab-run.v1`, PCD/JPEG 본문과 프레임별 측정 자세는 유지한다. 이후 이동·이름 변경으로 과거 시작 배치를 덮어쓰지 않는다.
 - 공용 API는 `UVirtualSensorPlacementSubsystem`의 저장 요청/상태 조회·목록·이동·이름 변경/삭제·Undo/Redo·현재 snapshot이다. Settings의 선택 센서 전달 API도 사용 가능하다. 동료 WBP Designer는 자동 변경하지 않는다.
 
-집중 검증: 30/60/120FPS의 2초 이동·회전 차이 1% 이내, 실제 파일 재로딩·실패 시 보존·20/50개 상한·잠금·시작 snapshot 불변을 확인했다. 실제 1280×720 및 1920×1080 Slate/PIE에서 입력→Transform은 1프레임, Camera/LiDAR 각 32개 입력→viewport GPU end-frame p95는 약 31~34ms였다(물리 입력·모니터 지연 제외). 실제 1920×1080의 같은 30초 시나리오 A/B에서 PCD 600/599개 승인·receipt·외부 ID 집합과 모든 PCD acquisition 행렬을 시작 배치와 독립 대조했다. 전체 회귀는 206개 수행 통과·6개 명시적 조건부 skip·실패 0이며, 소유 WBP 6개 메모리 컴파일도 통과했다. 직접 조작은 두 해상도에서 북마크·정밀 이동·Undo/Redo·Esc를 확인했다. 물리 RMB 연속 탐색, 전체 drag 체크리스트와 1.5초 최종 프레임 복귀 수용시험은 아직 닫지 않았다. 상세 상태는 `Saved/Reports/SensorPlacementWorkflow/FINAL_STATUS.md`를 따른다.
+이전 `7c6ed29` 검증: 30/60/120FPS의 2초 이동·회전 차이 1% 이내, 실제 파일 재로딩·실패 시 보존·20/50개 상한·잠금·시작 snapshot 불변을 확인했다. 당시 전체 회귀는 206개 수행 통과·조건부 skip 6·실패 0이었다. 두 해상도의 북마크·정밀 이동·Undo/Redo·Esc 직접 검증 범위는 `Saved/Reports/SensorPlacementWorkflow/FINAL_STATUS.md`에 보존한다. 후속 새 자세 프레임·A/B 비교의 최신 근거는 아래를 따른다.
+
+## 배치 미리보기 확인과 A/B 비교
+
+- 맵 값 복원은 적용 성공 후에만 완료로 표시하며 자세 변경을 Undo/Redo에 기록한다. 측정 설정 자체를 Undo하지 않는다. SensorId 변경 시 북마크 목록·선택·삭제 확인과 자세 이력을 이전 ID에 연결하지 않는다.
+- 북마크·Undo/Redo·숫자 위치·조작 종료 뒤에는 새 측정의 시작 시각·자세·규격·generation을 확인한다. 이전 위치에서 시작한 늦은 프레임으로 준비 완료가 되지 않는다. Camera는 기존 capture 뒤의 GPU fence를 사용하며 이 확인 때문에 JPEG나 readback을 추가하지 않는다. 정지 센서는 계속 정지한다.
+- 미리보기 대기는 `max(1.5초, 주기×3)`이며 PIE pause 시간은 제외한다. 준비 완료·정지·지연·취소를 표시한다. 지연 때문에 센서를 자동 재시작하지 않는다. `GetPlacementPreviewStatus()`로 Blueprint에서도 조회할 수 있다.
+- `데이터 → 연결·진단 → 실행별 전송 결과`에서 확정된 실행을 `A로 선택`·`B로 선택`한다. 같은 시나리오 UUID의 서로 다른 실행을 비교하며 현재 PIE의 최근 20개 결과만 사용한다. 선택이 보관 범위를 벗어나면 비교를 중지하고 이유를 표시한다.
+- 센서별 시작 위치·최단 회전각·스케일·북마크·설정과 요청/기록 시점 Hz를 비교한다. 측정·승인·제출·receipt·실패·미완료·자체 검증은 **실행 전체 카운터**다. 기록 시점 Hz는 실행 평균이 아니며 receipt 비율은 승인 0건에서 N/A다.
+- 신규 실행은 원문 UTF-8 SHA-1을 선택적 `ScenarioContentHash`로 기록한다. 설정 JSON은 필드 순서 대신 값으로 비교하고 revision만 다른 경우 설정 차이로 판정하지 않는다. 원문·출력·맵·설정·진행 구간·외부 배치 변경이 다르면 참고 비교이며 누락 정보는 확인 불가다. 전송 수로 배치 우열·가림률·점밀도를 판정하지 않는다.
+- `GetRunComparison()`은 저장된 두 요약만 읽는다. 비교·표시·해제는 측정·이동·재생·Topic 전송을 발생시키지 않는다. 확정된 결과에는 늦은 측정률·중단 알림도 적용하지 않는다. 기존 `ma0t10.slab-run.v1`과 PCD/JPEG 계약은 유지한다.
+
+현재 전체 회귀는 210개 수행 통과·조건부 skip 6·실패 0, WBP 6개 메모리 컴파일은 저장 없이 통과했다. 실제 1280×720·1920×1080 RHI에서 원규격 새 자세 프레임 준비는 Camera 약31ms·LiDAR 약67ms, 입력→viewport GPU end-frame p95는 약34~43ms였다. 정격 세 스트림은 평균59.99FPS·Camera29.983Hz·PCD20Hz, 비교 UI 표시 전후 frame p95는16.67ms였다. 직접 마우스는 커서 접근 오류0x80070005로 환경상 미완료다. 자세한 근거는 `Saved/Reports/SensorPlacementComparison/FINAL_STATUS.md`를 따른다.
 
 ## 2026-10-08 Slab 반복 실행과 결과 조회 검증
 

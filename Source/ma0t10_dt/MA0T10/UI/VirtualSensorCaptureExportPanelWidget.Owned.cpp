@@ -292,7 +292,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(OwnedConnectionText);})]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ServerSettings","서버 연결 설정"))].BodyContent()[Server]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SAssignNew(RunResultsArea,SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded)
 	  .OnAreaExpansionChanged_Lambda([this](bool B){bRunResultsExpanded=B;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRunResults","실행별 전송 결과 · 최근 20개"))]
 	  .BodyContent()[BuildRunResultsContent()]]

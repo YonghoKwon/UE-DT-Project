@@ -11,6 +11,7 @@ class AVirtualSensorCoordinator;
 class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
+class SExpandableArea;
 template<typename OptionType> class SComboBox;
 class ASlabActor;
 class AVirtualSensorActorBase;
@@ -50,6 +51,7 @@ public:
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioComparisonRun(const FString& RunId,bool bAsA,FString& Reason);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void ClearScenarioRunComparison();
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetScenarioRunComparisonText() const { return RunComparisonText; }
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void SetScenarioRunResultsExpanded(bool bExpanded);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
@@ -193,6 +195,7 @@ private:
 	TArray<TSharedPtr<FString>> RunResultOptions;
 	TMap<FString,FString> RunResultLabels;
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> RunResultCombo;
+	TSharedPtr<SExpandableArea> RunResultsArea;
 	bool bSelectedRunReportSaved=false,bCanRetrySelectedRun=false;
 	TSharedRef<SWidget> BuildRunResultsContent();
 	void RefreshRunResults();
