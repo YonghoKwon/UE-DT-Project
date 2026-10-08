@@ -3,6 +3,7 @@
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolAppearance.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
@@ -47,7 +48,7 @@ bool UVirtualSensorToolWorkspaceSubsystem::IsPanelOpen(ESensorToolPanelRole R) c
 bool UVirtualSensorToolWorkspaceSubsystem::RegisterOwnedPanel(ESensorToolPanelRole R,UVirtualSensorPanelWidgetBase* P)
 {
 	if(!P||P->GetWorld()!=GetWorld()||!Preferences)return false;
-	const bool Allowed=(R==ESensorToolPanelRole::Monitor&&P->IsA<UVirtualSensorMonitorPanelWidget>())||(R==ESensorToolPanelRole::Settings&&P->IsA<UVirtualSensorSettingsPanelWidget>())||(R==ESensorToolPanelRole::Data&&P->IsA<UVirtualSensorCaptureExportPanelWidget>())||(R==ESensorToolPanelRole::Replay&&P->IsA<USlabScenarioReplayPanelWidget>())||(R==ESensorToolPanelRole::SlabCharts&&P->IsA<USlabChartsPanelWidget>())||(R==ESensorToolPanelRole::SlabProgress&&P->IsA<USlabProgressPanelWidget>());
+	const bool Allowed=(R==ESensorToolPanelRole::Monitor&&P->IsA<UVirtualSensorMonitorPanelWidget>())||(R==ESensorToolPanelRole::Settings&&P->IsA<UVirtualSensorSettingsPanelWidget>())||(R==ESensorToolPanelRole::Data&&P->IsA<UVirtualSensorCaptureExportPanelWidget>())||(R==ESensorToolPanelRole::Replay&&P->IsA<USlabScenarioReplayPanelWidget>())||(R==ESensorToolPanelRole::SlabCharts&&P->IsA<USlabChartsPanelWidget>())||(R==ESensorToolPanelRole::SlabProgress&&P->IsA<USlabProgressPanelWidget>())||(R==ESensorToolPanelRole::Placement&&P->IsA<UVirtualSensorPlacementPanelWidget>());
 	if(!Allowed)return false;
 	if(auto* Existing=GetOwnedPanel(R))return Existing==P;
 	Panels.Add(R,P);PendingInitialLayouts.Add(R);P->SetToolWorkspace(this,R);P->ApplySensorToolFontScale(GetOwnedPanelFontScale());
@@ -93,6 +94,7 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVector2D Size=Monitor?FVector2D(FMath::Min(1100.0,V.X*.65),FMath::Min(700.0,V.Y-120)):R==ESensorToolPanelRole::Data?FVector2D(760,580):R==ESensorToolPanelRole::Settings?FVector2D(460,640):FVector2D(580,520);
 	if(R==ESensorToolPanelRole::SlabCharts)Size=FVector2D(780,820);
 	if(R==ESensorToolPanelRole::SlabProgress)Size=FVector2D(520,420);
+	if(R==ESensorToolPanelRole::Placement)Size=FVector2D(600,760);
 	Size.X=FMath::Min(Size.X,V.X-32);Size.Y=FMath::Min(Size.Y,V.Y-ToolbarReservedTop-16);
 	P->SetPanelResizable(true);P->ResizeHandleSize=32;
 	P->SetPanelResizeLimits(R==ESensorToolPanelRole::SlabCharts?FVector2D(720,720):Monitor?FVector2D(480,300):FVector2D(360,280),FVector2D::ZeroVector);
@@ -139,6 +141,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	if(auto* P=GetOwnedPanel(R))
 	{
 		if(!Open)if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(P))Settings->SetSensorManipulationEnabled(false);
+		if(!Open)if(auto* Placement=Cast<UVirtualSensorPlacementPanelWidget>(P))Placement->EndPlacement();
 		P->SetVisibility(Open?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
 		if(Open)
 		{
@@ -162,7 +165,7 @@ void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPane
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedWorkspaceLayout()
 {
 	if(!Preferences)return;Preferences->Panels.Reset();SetOwnedPanelFontScale(1);
-	for(int32 I=0;I<6;++I){auto R=static_cast<ESensorToolPanelRole>(I);ResetOwnedPanelLayout(R);SetPanelOpen(R,R==ESensorToolPanelRole::Monitor);}Save();
+	for(int32 I=0;I<7;++I){auto R=static_cast<ESensorToolPanelRole>(I);ResetOwnedPanelLayout(R);SetPanelOpen(R,R==ESensorToolPanelRole::Monitor);}Save();
 }
 void UVirtualSensorToolWorkspaceSubsystem::SetOwnedPanelFontScale(float S)
 {

@@ -1,4 +1,4 @@
-"""Compile the four project-owned panels without saving any asset or level."""
+"""Compile seven project-owned panels in memory without saving an asset or level."""
 import unreal
 
 panels = [
@@ -6,6 +6,9 @@ panels = [
     ("WBP_VirtualSensorSettingsPanel", unreal.VirtualSensorSettingsPanelWidget),
     ("WBP_VirtualSensorCaptureExportPanel", unreal.VirtualSensorCaptureExportPanelWidget),
     ("WBP_SlabScenarioReplayPanel", unreal.SlabScenarioReplayPanelWidget),
+    ("WBP_SlabChartsPanel", unreal.SlabChartsPanelWidget),
+    ("WBP_SlabProgressPanel", unreal.SlabProgressPanelWidget),
+    ("WBP_VirtualSensorPlacementPanel", unreal.VirtualSensorPlacementPanelWidget),
 ]
 for name, native in panels:
     path = "/Game/MA0T10/UI/" + name
@@ -17,4 +20,4 @@ for name, native in panels:
     if not cls or not isinstance(unreal.get_default_object(cls), native):
         raise RuntimeError("Unexpected native parent: " + path)
     unreal.log("[SensorToolWidgets] compiled " + path)
-unreal.log("[SensorToolWidgets] all four compiled; assets were not saved")
+unreal.log("[SensorToolWidgets] all seven compiled; assets were not saved")

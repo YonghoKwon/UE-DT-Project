@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 #include "Components/TextBlock.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -22,6 +23,7 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 	auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);
 	auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);
 	auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);
+	auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);
 	auto* ForeignText=NewObject<UTextBlock>(Foreign);ForeignText->SetText(FText::FromString(TEXT("동료 차트")));
 	const auto OriginalFont=ForeignText->GetFont();const auto OriginalSize=Foreign->GetEffectivePanelSize();const auto OriginalPosition=Foreign->GetCurrentPanelPosition();
 	TArray<uint8> Before,After,WorkspaceBefore;
@@ -30,12 +32,15 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 	TestFalse(TEXT("common parent alone cannot register"),W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Foreign));
 	TestTrue(TEXT("explicit monitor registration"),W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Monitor));
 	TestTrue(TEXT("explicit settings registration"),W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings));
+	TestTrue(TEXT("placement appended without renumbering existing roles"),int32(ESensorToolPanelRole::SlabProgress)==5&&int32(ESensorToolPanelRole::Placement)==6);
+	TestTrue(TEXT("explicit placement registration"),W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement));
 	TestFalse(TEXT("wrong role rejected"),W->RegisterOwnedPanel(ESensorToolPanelRole::Data,Settings));
 	Monitor->RegisterSensorTextControl(ForeignText); // must not cross UserWidget ownership
 	W->SetOwnedPanelFontScale(1.5f);
 	TestEqual(TEXT("foreign nested text font unchanged"),ForeignText->GetFont().Size,OriginalFont.Size);
 	TestEqual(TEXT("foreign base scale unchanged"),Foreign->GetSensorToolFontScale(),1.0f);
 	TestEqual(TEXT("owned scale applied"),Monitor->GetSensorToolFontScale(),1.5f);
+	TestEqual(TEXT("new owned placement receives font scale"),Placement->GetSensorToolFontScale(),1.5f);
 	W->SetPanelOpen(ESensorToolPanelRole::Settings,false);
 	TestTrue(TEXT("hide keeps same instance"),W->GetOwnedPanel(ESensorToolPanelRole::Settings)==Settings);
 	W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
@@ -46,7 +51,7 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 	TestEqual(TEXT("foreign geometry position unchanged"),Foreign->GetCurrentPanelPosition(),OriginalPosition);
 	TestEqual(TEXT("foreign text unchanged"),ForeignText->GetText().ToString(),FString(TEXT("동료 차트")));
 	const bool HasLegacy=UGameplayStatics::LoadDataFromSlot(After,UVirtualSensorUiPreferencesSaveGame::SlotName,0);TestTrue(TEXT("legacy SaveGame bytes untouched"),Before==After&&HadLegacy==HasLegacy);
-	W->UnregisterPanel(Monitor);W->UnregisterPanel(Settings);
+	W->UnregisterPanel(Monitor);W->UnregisterPanel(Settings);W->UnregisterPanel(Placement);
 	if(HadWorkspace)UGameplayStatics::SaveDataToSlot(WorkspaceBefore,UVirtualSensorToolWorkspaceSubsystem::SlotName,0);else UGameplayStatics::DeleteGameInSlot(UVirtualSensorToolWorkspaceSubsystem::SlotName,0);
 	return true;
 }

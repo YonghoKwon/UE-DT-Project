@@ -9,6 +9,7 @@ class AVirtualSensorCoordinator;
 class UVirtualSensorMonitorPanelWidget;
 class UVirtualSensorSettingsPanelWidget;
 class UVirtualSensorCaptureExportPanelWidget;
+class UVirtualSensorPlacementPanelWidget;
 class UVirtualSensorPanelHostComponent;
 
 UCLASS(BlueprintType)
@@ -63,6 +64,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
     UVirtualSensorCaptureExportPanelWidget* GetCaptureExportWidget() const { return CaptureExportWidget; }
 
+    UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorPlacement")
+    UVirtualSensorPlacementPanelWidget* GetPlacementWidget() const {return PlacementWidget;}
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
     TSubclassOf<UVirtualSensorMonitorPanelWidget> GetEffectiveMonitorWidgetClass() const;
 
@@ -78,6 +82,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     TSubclassOf<UVirtualSensorCaptureExportPanelWidget> CaptureExportWidgetClass;
+
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|SensorPlacement")
+    TSubclassOf<UVirtualSensorPlacementPanelWidget> PlacementWidgetClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     bool bUseNativeMonitorWidgetFallback = true;
@@ -143,6 +150,8 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorCaptureExportPanelWidget> CaptureExportWidget;
+
+    UPROPERTY(Transient) TObjectPtr<UVirtualSensorPlacementPanelWidget> PlacementWidget;
 
     UPROPERTY(Transient)
     FVirtualSensorMapApplySnapshot PendingMapApplySnapshot;

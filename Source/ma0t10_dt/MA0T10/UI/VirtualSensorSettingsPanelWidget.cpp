@@ -630,7 +630,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
         + SVerticalBox::Slot().AutoHeight().Padding(0,8)
         [ SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabBasic","기본 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=0;return FReply::Handled();})]
-          + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabPose","위치·회전")).OnClicked_Lambda([this](){WorkspaceSettingsTab=1;return FReply::Handled();})]
+          + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabPose","배치 작업공간")).OnClicked_Lambda([this](){if(IsWorkspaceOwned())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Placement,true);else WorkspaceSettingsTab=1;return FReply::Handled();})]
           + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabAdvanced","고급 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=2;bShowAdvanced=true;return FReply::Handled();})]
         ]
         + SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); }) ]
@@ -649,7 +649,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                     .Text_Lambda([this]() { return FText::FromString(PendingState.SensorId); })
                     .OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { PendingState.SensorId = Text.ToString().TrimStartAndEnd(); ApplyPendingState(); })
                 ]
-                + SVerticalBox::Slot().AutoHeight()[ SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==1?EVisibility::Visible:EVisibility::Collapsed;})
+                + SVerticalBox::Slot().AutoHeight()[ SNew(SVerticalBox).Visibility_Lambda([this](){return !IsWorkspaceOwned()&&WorkspaceSettingsTab==1?EVisibility::Visible:EVisibility::Collapsed;})
 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[ SNewSensorTool(STextBlock).Text(LOCTEXT("ManipulationSection", "2. 위치·회전 조작")) ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
@@ -1068,6 +1068,31 @@ void UVirtualSensorSettingsPanelWidget::RefreshPoseRows()
     if(Preview.State!=PlacementPreviewStatus.State||Preview.RequestId!=PlacementPreviewStatus.RequestId)
     {PlacementPreviewStatus=Preview;RefreshNativeText();}
     if(!LastPoseRequest.IsEmpty()){const auto S=P->GetPoseSaveStatus(LastPoseRequest);LastControlMessage=S.Message;if(S.State!=EVirtualSensorPoseSaveState::Writing){if(PoseRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==S.BookmarkId;}))SelectedPoseId=S.BookmarkId;LastPoseRequest.Reset();}RefreshNativeText();}
+}
+void UVirtualSensorSettingsPanelWidget::RefreshWorkspacePlacementControls()
+{
+    if(!IsWorkspaceOwned())return;
+    SynchronizeWorkspaceSelection();RefreshPoseRows();
+    if(bManipulationEnabled&&(!ManipulationTarget.IsValid()||!IsValid(GizmoActor)||!GizmoActor->IsManipulationEnabled()))FinishSensorManipulation(true);
+}
+TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildWorkspacePlacementControls()
+{
+    auto Box=SNew(SVerticalBox);
+    Box->AddSlot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
+        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(bManipulationEnabled?TEXT("조작 종료 · Esc"):TEXT("이동·회전 시작"));}).OnClicked_Lambda([this](){SetSensorManipulationEnabled(!bManipulationEnabled);return FReply::Handled();})]
+        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(GizmoMode==EVirtualSensorGizmoMode::Translate?TEXT("이동 모드"):TEXT("회전 모드"));}).OnClicked_Lambda([this](){SetSensorGizmoMode(GizmoMode==EVirtualSensorGizmoMode::Translate?EVirtualSensorGizmoMode::Rotate:EVirtualSensorGizmoMode::Translate);return FReply::Handled();})]
+        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?TEXT("로컬 좌표"):TEXT("월드 좌표"));}).OnClicked_Lambda([this](){SetSensorCoordinateSpace(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?EVirtualSensorCoordinateSpace::World:EVirtualSensorCoordinateSpace::Local);return FReply::Handled();})]
+        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?TEXT("연속 이동"):TEXT("정밀 단위"));}).OnClicked_Lambda([this](){SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled();})]];
+    for(int32 Axis=0;Axis<3;++Axis)
+    {
+        const FString Label=FString::Printf(TEXT("위치 %c · cm"),TEXT('X')+Axis);
+        Box->AddSlot().AutoHeight()[MakeFloatRow(FText::FromString(Label),[this,Axis](){return float(PendingState.ActorTransform.GetLocation()[Axis]);},[this,Axis](float V){auto P=PendingState.ActorTransform.GetLocation();P[Axis]=V;PendingState.ActorTransform.SetLocation(P);},-100000,100000,true,NAME_None,true)];
+    }
+    const FText Labels[]={LOCTEXT("PosePitch","Pitch · °"),LOCTEXT("PoseYaw","Yaw · °"),LOCTEXT("PoseRoll","Roll · °")};
+    for(int32 Axis=0;Axis<3;++Axis)Box->AddSlot().AutoHeight()[MakeFloatRow(Labels[Axis],[this,Axis](){const auto R=PendingState.ActorTransform.Rotator();return float(Axis==0?R.Pitch:Axis==1?R.Yaw:R.Roll);},[this,Axis](float V){auto R=PendingState.ActorTransform.Rotator();if(Axis==0)R.Pitch=V;else if(Axis==1)R.Yaw=V;else R.Roll=V;PendingState.ActorTransform.SetRotation(R.Quaternion());},-180,180,true,NAME_None,true)];
+    Box->AddSlot().AutoHeight().Padding(0,8)[BuildPoseBookmarkControls()];
+    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(GetControlStatusText());})];
+    return Box;
 }
 TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildPoseBookmarkControls()
 {

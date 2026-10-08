@@ -10,6 +10,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h"
@@ -138,6 +139,7 @@ UVirtualSensorMonitorPanelWidget* AVirtualSensorUiHostActor::CreateAndBindMonito
 
 void AVirtualSensorUiHostActor::DestroyMonitorWidget()
 {
+    if(PlacementWidget){PlacementWidget->EndPlacement();PlacementWidget->RemoveFromParent();PlacementWidget=nullptr;}
     if (PanelHostComponent)
     {
         PanelHostComponent->UnregisterAllPanels();
@@ -230,6 +232,19 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
         }
     }
 
+    if(!PlacementWidget&&SettingsWidget&&(PlacementWidgetClass||bUseNativeToolWidgetFallback))
+    {
+        UClass* Class=PlacementWidgetClass?PlacementWidgetClass.Get():UVirtualSensorPlacementPanelWidget::StaticClass();
+        PlacementWidget=CreateWidget<UVirtualSensorPlacementPanelWidget>(World,Class);
+        if(PlacementWidget)
+        {
+            World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Placement,PlacementWidget);
+            PlacementWidget->BindPlacementControls(SettingsWidget);
+            PlacementWidget->SetPanelPersistenceKey(TEXT("Placement"));PlacementWidget->SetSensorAppearanceOwner(this);
+            PlacementWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter,FVector2D(600,760));
+            if(PanelHostComponent)PanelHostComponent->RegisterPanel(PlacementWidget,25);
+        }
+    }
     if (!CaptureExportWidget && EffectiveCaptureClass)
     {
         CaptureExportWidget = CreateWidget<UVirtualSensorCaptureExportPanelWidget>(World, EffectiveCaptureClass);
