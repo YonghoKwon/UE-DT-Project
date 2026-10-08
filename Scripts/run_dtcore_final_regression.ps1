@@ -1,14 +1,14 @@
-param([switch]$SkipBuild,[switch]$EnableSlabBroker)
+param([switch]$SkipBuild,[switch]$EnableSlabBroker,[string]$ReportRoot='')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$report=Join-Path $root 'Saved/Reports/DTCoreFinalAcceptance'
+$report=if($ReportRoot){[IO.Path]::GetFullPath($ReportRoot)}else{Join-Path $root 'Saved/Reports/DTCoreFinalAcceptance'}
 $snapshot=Join-Path $report 'committed-map'
 New-Item -ItemType Directory -Force -Path $snapshot|Out-Null
 & git -C $root archive --format=zip "--output=$(Join-Path $report 'map.zip')" HEAD Content/MA0T10/Maps/SensorTestMap.umap
 if($LASTEXITCODE -ne 0){throw 'Committed map archive failed'}
 Expand-Archive -LiteralPath (Join-Path $report 'map.zip') -DestinationPath $snapshot -Force
 $mapdir=Join-Path $snapshot 'Content/MA0T10/Maps'
-$maparg='Saved/Reports/DTCoreFinalAcceptance/committed-map/Content/MA0T10/Maps'
+$maparg=$mapdir
 if(-not $SkipBuild){
     & 'C:/Program Files/Epic Games/UE_5.3/Engine/Build/BatchFiles/Build.bat' ma0t10_dtEditor Win64 Development "-Project=$(Join-Path $root 'ma0t10_dt.uproject')" -WaitMutex -NoHotReloadFromIDE
     if($LASTEXITCODE -ne 0){throw 'Build failed'}

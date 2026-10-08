@@ -308,6 +308,7 @@ public:
 	TFunction<void(const FVirtualCameraPayloadSnapshot&,const FVirtualSlabFrameContext&,TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe>)> OnScheduledFrameForTests;
 	int32 GetAcquisitionRevisionForTests() const { return ScheduledGeneration; }
 	bool ForceReadbackSaturationForTests=false;
+    bool FreezeAcquisitionForTests=false;
 	float EncodeDelayForTests=0;
     TFunction<float(int64)> EncodeDelayByFrameForTests;
 private:

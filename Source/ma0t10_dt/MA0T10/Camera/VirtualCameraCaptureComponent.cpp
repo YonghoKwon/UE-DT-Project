@@ -229,6 +229,9 @@ void UVirtualCameraCaptureComponent::UnregisterFromPerformanceSubsystem()
 
 bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, bool bAllowNewCapture)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if(FreezeAcquisitionForTests){PollScheduledGpuReadback(NowSeconds);PumpScheduledEncodeQueue();return false;}
+#endif
     PollScheduledGpuReadback(NowSeconds);
 	PumpScheduledEncodeQueue();
     if (!bAllowNewCapture) return false;

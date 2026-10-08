@@ -64,6 +64,7 @@ class FInputAcceptanceCheck:public IAutomationLatentCommand
     FAutomationTestBase* Test;double Start=FPlatformTime::Seconds(),PhaseAt=0;int32 Phase=0;
     TWeakObjectPtr<AVirtualSensorActorBase> Target;int64 FrameBefore=0;
     TWeakObjectPtr<UDxWidgetSubsystem> Widgets;TWeakObjectPtr<UDxWidget> OriginalMain,FixtureMain;
+    bool bSettingsPrepared=false;double SettingsPreparedAt=0;
 public:
     explicit FInputAcceptanceCheck(FAutomationTestBase* T):Test(T){}
     ~FInputAcceptanceCheck()
@@ -83,6 +84,14 @@ public:
             if(FPlatformTime::Seconds()-Start<3)return false;
             Workspace->SetPanelOpen(ESensorToolPanelRole::Settings,true);
             auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+            if(!bSettingsPrepared)
+            {
+                if(Settings->IsPanelCollapsed())Settings->TogglePanelCollapsed();
+                bSettingsPrepared=true;SettingsPreparedAt=FPlatformTime::Seconds();return false;
+            }
+            // Opening/expanding invalidates Slate layout. Do not rely on a user's
+            // previously expanded SaveGame or inspect stale cached geometry.
+            if(FPlatformTime::Seconds()-SettingsPreparedAt<.3)return false;
             Target=Coordinator->GetSelectedSensorActor();Settings->SetSensorManipulationEnabled(true);
             auto View=W->GetGameInstance()->GetGameViewportClient()->GetGameViewportWidget();auto& App=FSlateApplication::Get();
             auto Window=App.FindWidgetWindow(View.ToSharedRef());Window->BringToFront(true);App.SetKeyboardFocus(View,EFocusCause::SetDirectly);
