@@ -379,6 +379,8 @@ void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
 bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
 {
     const TWeakObjectPtr<AVirtualSensorActorBase> RequestedActor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+    const FTransform Before=RequestedActor.IsValid()?RequestedActor->GetActorTransform():FTransform::Identity;
+    const FString BeforeId=RequestedActor.IsValid()?RequestedActor->GetSensorId():FString();
     FString Error;
     if (!RequestedActor.IsValid() || RequestedActor.Get()!=GetSelectedSensorActor() || !ValidateState(PendingState, Error) || !RequestedActor->ApplyEditableState(PendingState, Error))
     {
@@ -393,6 +395,11 @@ bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
         return false;
     }
     if(bManipulationEnabled)FinishSensorManipulation(false);
+    if(IsWorkspaceOwned()&&RequestedActor.IsValid())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+    {
+        if(BeforeId!=RequestedActor->GetSensorId())Placement->ForgetSensorIdentity(RequestedActor.Get());
+        else Placement->RecordPoseChange(RequestedActor.Get(),Before,RequestedActor->GetActorTransform());
+    }
     LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
     if(RequestedActor.Get()==GetSelectedSensorActor())RefreshSelectedSensorNow(true);else RefreshPendingState(true);
     RefreshNativeText();
@@ -423,8 +430,7 @@ void UVirtualSensorSettingsPanelWidget::ResetPendingStateToMapValue()
     if (Initial)
     {
         PendingState = *Initial;
-        ApplyPendingState();
-        LastControlMessage = TEXT("PIE 시작 시점의 맵 값으로 되돌렸습니다.");
+        if(ApplyPendingState())LastControlMessage = TEXT("PIE 시작 시점의 맵 값으로 되돌렸습니다.");
     }
     else
     {
@@ -1039,7 +1045,14 @@ bool UVirtualSensorSettingsPanelWidget::RedoSelectedSensorPlacement()
 void UVirtualSensorSettingsPanelWidget::RefreshPoseRows()
 {
     auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());auto* P=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>():nullptr;if(!P)return;
-    if(PoseRowsSensor.Get()!=Sensor){PoseRowsSensor=Sensor;PoseRowsRevision=-1;SelectedPoseId.Reset();PendingPoseDeleteId.Reset();PoseName.Reset();if(PoseNameInput)PoseNameInput->SetText(FText::GetEmpty());}
+    const FString CurrentId=Sensor?Sensor->GetSensorId():FString();
+    const auto CurrentKind=Sensor?Sensor->GetSensorKind():EVirtualSensorKind::Camera;
+    if(PoseRowsSensor.Get()!=Sensor||PoseRowsSensorId!=CurrentId||PoseRowsKind!=CurrentKind)
+    {
+        PoseRowsSensor=Sensor;PoseRowsSensorId=CurrentId;PoseRowsKind=CurrentKind;PoseRowsRevision=-1;
+        SelectedPoseId.Reset();PendingPoseDeleteId.Reset();PoseName.Reset();LastPoseRequest.Reset();
+        if(PoseNameInput)PoseNameInput->SetText(FText::GetEmpty());
+    }
     if(PoseRowsRevision!=P->GetLibraryRevision())
     {PoseRows=P->GetSensorPoseBookmarks(Sensor);PoseRowsRevision=P->GetLibraryRevision();if(!SelectedPoseId.IsEmpty()&&!PoseRows.ContainsByPredicate([this](const auto& B){return B.BookmarkId==SelectedPoseId;}))SelectedPoseId.Reset();}
     bPoseEditable=P->CanEditSensorPlacement(Sensor,PoseLockReason);bPoseUndoAvailable=P->CanUndoSensorPlacement(Sensor);bPoseRedoAvailable=P->CanRedoSensorPlacement(Sensor);

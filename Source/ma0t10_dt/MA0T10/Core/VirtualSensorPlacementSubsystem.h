@@ -34,6 +34,7 @@ public:
     void BeginGesture(AVirtualSensorActorBase* Sensor);
     void CommitGesture(AVirtualSensorActorBase* Sensor);
     void RecordPoseChange(AVirtualSensorActorBase* Sensor,const FTransform& Before,const FTransform& After);
+    void ForgetSensorIdentity(AVirtualSensorActorBase* Sensor);
     bool IsPreviewRefreshPending(AVirtualSensorActorBase* Sensor) const;
     static FString CanonicalMap(UWorld* World);
     static bool SamePose(const FTransform& A,const FTransform& B);
@@ -73,6 +74,7 @@ private:
     friend class FSensorPoseLibraryTest;
     friend class FSensorPoseLibraryRhiTest;
     friend class FSlabRunPlacementSnapshotTest;
+    friend class FSensorPlacementIdentityUiTest;
     FString StorageRootOverrideForTests;
 #endif
 };

@@ -112,6 +112,7 @@ protected:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorV2ManipulationLifecycleTest;
+    friend class FSensorPlacementIdentityUiTest;
 #endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
 	bool bOwnedSettingHelpOpen=false;
@@ -167,6 +168,8 @@ private:
     TArray<FVirtualSensorPoseBookmark> PoseRows;
     FString PoseName,SelectedPoseId,PendingPoseDeleteId,LastPoseRequest;
     TWeakObjectPtr<AVirtualSensorActorBase> PoseRowsSensor;
+    FString PoseRowsSensorId;
+    EVirtualSensorKind PoseRowsKind=EVirtualSensorKind::Camera;
     int64 PoseRowsRevision=-1;
     double NextPoseRefresh=0;
     bool bPoseEditable=false,bPoseUndoAvailable=false,bPoseRedoAvailable=false;

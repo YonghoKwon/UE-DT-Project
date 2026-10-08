@@ -192,10 +192,12 @@ void UVirtualSensorPlacementSubsystem::RecordCommand(AVirtualSensorActorBase* S,
 }
 void UVirtualSensorPlacementSubsystem::RecordPoseChange(AVirtualSensorActorBase* S,const FTransform& Before,const FTransform& After)
 {if(IsValid(S)&&!HistoryFor(S).GestureBefore.IsSet())RecordCommand(S,Before,After,AppliedBookmarks.FindRef(S),FString());}
+void UVirtualSensorPlacementSubsystem::ForgetSensorIdentity(AVirtualSensorActorBase* S)
+{Histories.Remove(S);AppliedBookmarks.Remove(S);PreviewBaselineFrames.Remove(S);}
 bool UVirtualSensorPlacementSubsystem::CanUndoSensorPlacement(AVirtualSensorActorBase* S) const
-{FString R;const auto* H=Histories.Find(S);return H&&H->SensorId==S->GetSensorId()&&H->Index>0&&CanEditSensorPlacement(S,R);}
+{FString R;const auto* H=Histories.Find(S);return IsValid(S)&&H&&H->SensorId==S->GetSensorId()&&H->Index>0&&CanEditSensorPlacement(S,R);}
 bool UVirtualSensorPlacementSubsystem::CanRedoSensorPlacement(AVirtualSensorActorBase* S) const
-{FString R;const auto* H=Histories.Find(S);return H&&H->SensorId==S->GetSensorId()&&H->Index<H->Commands.Num()&&CanEditSensorPlacement(S,R);}
+{FString R;const auto* H=Histories.Find(S);return IsValid(S)&&H&&H->SensorId==S->GetSensorId()&&H->Index<H->Commands.Num()&&CanEditSensorPlacement(S,R);}
 bool UVirtualSensorPlacementSubsystem::UndoSensorPlacement(AVirtualSensorActorBase* S,FString& Reason)
 {
     if(!CanEditSensorPlacement(S,Reason))return false;auto& H=HistoryFor(S);if(H.Index<=0){Reason=TEXT("되돌릴 위치가 없습니다.");return false;}
