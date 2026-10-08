@@ -140,12 +140,14 @@
 - 이전 이력 — 2026-10-02: 실제1274×680 PCD-only/1+1 시험과 재생 p9525.07ms 미달을 기록했다. 이후 재생 시험의 scoped background throttle 보정으로 통과한 기록과 현재 source에서 갱신해야 할 opt-in을 README에서 구분한다. 과거 해상도·지연값을 최신 판정으로 사용하지 않는다.
 - 1+1 → 2+2 → 4+4를 동일 SHA/고정 fixture에서 검증한다. 8+8은 탐색용 best effort이며 자동 지원으로 분류하지 않는다.
 - 각 단계에서 실제 client 해상도, profile/backend/echo, preview/출력 on/off, FPS·1% low·p95/p99, 센서별 acquisition/encode/submit/receipt/내외부 receive, queue/bytes/memory를 기록한다.
-- 현재 코드의 `1% low`는 frame-time p99의 역수다. 남은 최종 검수에서는 가장 느린1% 프레임 평균을 주 판정으로 사용하고 기존 p99 역수도 함께 기록하기로 확정했다. 원시 배열·중복 방지·긴 프레임 보존 계측은 아직 보강 대상이다. engine delta·실제 wall pacing·trace의 대기를 합쳐 하나의 FPS로 표시하지 않는다.
+- Slab 검증맵의 현재 `one_percent_low`는 가장 느린1% 프레임 시간의 평균으로 계산하며 원시 `engine_frame_ms`를 보존한다. 기존 scheduler/UI의 p99 역수 기반 최근 통계와 구분한다. engine delta·실제 wall pacing·trace의 대기를 합쳐 하나의 FPS로 표시하지 않는다.
 - 완료: 60초 회귀를 통과한 구성만 10분 안정성, release 후보는 60분 soak로 확장한다. 요청값을 낮춰놓고 원래 FullSpec 통과로 발표하지 않는다. 목표 수치는 ROADMAP의 제안 gate를 승인·고정한 뒤 적용한다.
 
 ### RT-09 — Camera staging texture 재사용 및 지연 원인 분리 (구현 공백, P1)
 
 **진행률: 10%** · 구현: Camera 재사용 미착수 · 검증: 반복 생성 경로와 trace 한계 조사 완료.
+
+- 2026-10-08 자원 진단: readback 생성 횟수, 슬롯·render consume·callback·encode·완료 순서 버퍼와 알려진 CPU 용량을 분리했다. 실제 지연 시험에서 확인한 누적은 staging 누수로 단정하지 않고 완료 순서 창8개로 제한했다(`89bb327`). 픽셀/metadata987개와 포화·복귀·Stop/삭제를 검사했다. readback 재사용은 구현하지 않았으며, 정상 반복의 메모리 증가 인과는 별도 확인한다.
 
 - **남은 조건:** Camera 자원별 지연 인과를 확인하고 성능 실패의 관련 원인으로 확인될 때 재사용 구현·정합성·전후 시험을 진행한다. 현재 최종 검수 범위에서는 조건부 수정이다.
 
@@ -213,6 +215,9 @@
 
 **진행률: 70%** · 구현: 같은 worker의 실행 소유권/회수·종료 전 식별자 대조·확정 결과/저장 재시도 · 검증: 집중 자동화와 동일 연결의 30초×10회 PCD/세 출력 기능·요청 ID 대조 통과.
 
+- `be2b418`은 시험용 실제 수신 ID 집합을 실행별 대조·저장 후 회수하고, 기록 상한 초과를 명시적 실패로 처리한다. 요청 시 자원별 snapshot과 종료 후 weak owner·Camera callback/encode 회수를 검사한다. `89bb327`에서 지연된 앞 JPEG 때문에 완료물이 계속 쌓이는 경로를 실제 재현하여8개 접수 창으로 제한하고 실패한 앞 항목의 후속 결과를 해제했다. `cd28373`의 SceneCapture 격리도 실제 Camera/GPU 깊이 양·음성 대조군으로 검사했다. 전체 프로세스 메모리 누수 검수 완료로 확대하지 않는다.
+- 최신30회 근거: PCD17,989/세 출력62,979 request ID집합의 제출·receipt·내외부 수신 대조, 동일 worker/connection,20/21/25/30회 결과20개·body/events 반환 및 Stop/PIE weak owner12개를 확인했다. 이번 최소FPS59.82/59.94,low47.80/55.32,p95≤16.67ms, 변경 전후 각3회5% 이내. 실행1→30 private memory 증가15/44MiB의 전체 owner는 미확정이므로 진행률70%와 남은 인과/fault 범위를 유지한다. 증거는 `Saved/Reports/SensorResourceLifecycle/FINAL_STATUS.md`.
+
 - **남은 조건:** 전체 파이프라인 fault matrix와 thread/handle·잔존 객체·메모리 복귀, 장시간/Engine STOMP/WSS를 조사한다. 과거 private bytes 약32MB 증가를 이번 실행 상태 회수만으로 해결했다고 표시하지 않는다. 반복 후반 성능과 실제 마우스 검수는 `Saved/Reports/SlabRepeatRunStability/FINAL_STATUS.md`의 최종 판정을 따른다.
 - `b9b4369/73c71e1/a0f24ba`: 실행 상세 진단과 수신 연속성 상태를 회수하고 종료 집계20개를 유지한다. 늦은 프레임을 막는 최소 UUID/generation 기록은 별도다. PIE 즉시 종료도 정리 전 단계별 대기와 고유 미완료 수를 보존한다. 결과 목록 선택·요약 저장 재시도는 현재 PIE20개에 한정한다.
 - 실제 1920×1080에서 변경 전후 PCD/세 스트림 각3회는 FPS·p95 변화5% 이내였지만, 동일 연결10회 반복 후반에 별도의 p95/1% low 실패를 재현했다. trace에서 CPU 미리보기 ISM 갱신 비용 증가를 확인해 `21f7b32`에서 진단 인스턴스의 collision/physics/navigation을 제외했다. 점 수·측정 주기는 유지하며 전후 반복 결과를 별도로 판정한다.
@@ -240,6 +245,7 @@
 
 - **남은 조건:** 1920×1080 전체 직접 조작·DPI 대표 조합·외부 Widget 입력·전체 checklist를 완료한다.
 - 최신 직접 근거: 실제client1280×720,150% 제목/버튼 가독성, 숫자 Transform·Settings 숨김 복귀를 확인했다. 일반 PIE의 앞선 최대client는1920×998였고 Alt+Enter로 크기가 바뀌지 않았다.1920×1080 자동화 결과는 직접 마우스 검수와 구분한다.
+- 2026-10-08 직접 client1280×720: Camera gizmo 이동·숫자Yaw45→50·정지/실행 첫Esc,LiDAR 숫자Z1800→1850·4Hz→20Hz 복귀,Settings resize/drag/collapse·85/100/125/150%를 확인했다. 실제1920×1080 client는 생성했지만 bounded capture1180×771과 `GetCursorPos 0x80070005`로 전체 checklist를 완료하지 못했다. 정체/pause/복귀·준비 취소·Main 빈 영역/휠 전수는 남기며, 해당 환경 제한을 기능 실패나 자동화 대체 통과로 기록하지 않는다.
 - 이전 이력: 988×521/1174×683은 과거 수동 시험 크기다. 실제 동료 프로젝트는 미제공이다.
 - 두 목표 client 크기, 100/125/150% OS DPI 및 네 폰트 배율의 대표 조합을 검사한다. 창 경계/메뉴 overflow/입력 clipping/접기 후 hit-test/Tab focus/숨김 중 작업/재호스팅을 확인한다.
 - 완료: 실제 크기 증거, 기존 저장값 roundtrip, 미등록/중첩 Widget의 font·geometry·입력·파일 hash 불변. 확보 못한 조합은 명시적으로 미완료.
