@@ -33,6 +33,7 @@ struct MA0T10_DT_API FSlabScenarioRow
 struct MA0T10_DT_API FSlabScenarioData
 {
 	FString OriginalJson;
+	FString OriginalContentSha1;
 	FString ScenarioUUID;
 	FString SourceUUID;
 	FString Name;

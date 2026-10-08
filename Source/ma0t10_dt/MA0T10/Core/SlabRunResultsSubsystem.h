@@ -3,6 +3,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Async/Future.h"
 #include "SlabRunDeliveryTypes.h"
+#include "SlabRunComparison.h"
 #include "VirtualSensorResourceDiagnostics.h"
 #include "SlabRunResultsSubsystem.generated.h"
 class AVirtualSensorActorBase;
@@ -42,6 +43,7 @@ public:
     bool HasLedgerFailure(const FString& Run) const;
     UFUNCTION(BlueprintPure,Category="Slab|Results") TArray<FSlabRunDeliverySummary> GetRecentRunResults() const { return Results; }
     UFUNCTION(BlueprintPure,Category="Slab|Results") bool GetRunResult(const FString& Run,FSlabRunDeliverySummary& Result) const;
+    UFUNCTION(BlueprintPure,Category="Slab|Results") bool GetRunComparison(const FString& AId,const FString& BId,FSlabRunComparison& Comparison,FString& Reason) const;
     UFUNCTION(BlueprintCallable,Category="Slab|Results") bool OpenRunReport(const FString& Run) const;
     UFUNCTION(BlueprintPure,Category="Slab|Results") bool CanRetryRunReportSave(const FString& Run,FString& Reason) const;
     UFUNCTION(BlueprintCallable,Category="Slab|Results") bool RetryRunReportSave(const FString& Run,FString& Reason);
@@ -75,6 +77,7 @@ private:
     friend class FSlabRunLedgerTest;
     friend class FSlabRunHistoryTest;
     friend class FSlabRunPlacementSnapshotTest;
+    friend class FSlabRunComparisonUiTest;
     FString ReportDirectoryOverrideForTests;
 #endif
 };

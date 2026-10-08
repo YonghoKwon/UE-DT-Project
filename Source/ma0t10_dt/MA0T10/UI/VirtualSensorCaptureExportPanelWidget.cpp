@@ -95,6 +95,17 @@ bool UVirtualSensorCaptureExportPanelWidget::GetSelectedScenarioRunResult(FSlabR
 {const auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return Results&&Results->GetRunResult(SelectedScenarioRunId,Result);}
 bool UVirtualSensorCaptureExportPanelWidget::RetrySelectedScenarioRunReport(FString& Reason)
 {auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;const bool Success=Results&&Results->RetryRunReportSave(SelectedScenarioRunId,Reason);LastUiMessage=Success?TEXT("요약 JSON 저장을 다시 요청했습니다."):Reason;CachedRunResultsRevision=-1;return Success;}
+bool UVirtualSensorCaptureExportPanelWidget::SelectScenarioComparisonRun(const FString& Run,bool bAsA,FString& Reason)
+{
+    auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;FSlabRunDeliverySummary Candidate;
+    if(!Results||!Results->GetRunResult(Run,Candidate)){Reason=TEXT("실행 결과를 찾을 수 없습니다.");return false;}
+    if(!Candidate.bFinalized){Reason=TEXT("송신 정리까지 확정된 실행을 선택하세요.");return false;}
+    const FString Other=bAsA?ComparisonRunB:ComparisonRunA;
+    if(!Other.IsEmpty()){FSlabRunComparison Check;if(!Results->GetRunComparison(bAsA?Run:Other,bAsA?Other:Run,Check,Reason))return false;}
+    (bAsA?ComparisonRunA:ComparisonRunB)=Run;Reason.Reset();CachedRunResultsRevision=-1;RefreshRunResults();return true;
+}
+void UVirtualSensorCaptureExportPanelWidget::ClearScenarioRunComparison()
+{ComparisonRunA.Reset();ComparisonRunB.Reset();RunComparisonText.Reset();CachedRunResultsRevision=-1;}
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsContent()
 {
@@ -109,7 +120,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsConte
 	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SelectedRunFolder","선택 결과 폴더 열기")).IsEnabled_Lambda([this](){return bSelectedRunReportSaved;}).OnClicked_Lambda([this](){OpenScenarioRunReport(SelectedScenarioRunId);return FReply::Handled();})]
 	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
 	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(RunSelectionNotice);})]
-	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})];
+	+SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5,4))
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareA","A로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,true,Reason))RunComparisonText=Reason;return FReply::Handled();})]
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareB","B로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,false,Reason))RunComparisonText=Reason;return FReply::Handled();})]
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareClear","비교 해제")).OnClicked_Lambda([this](){ClearScenarioRunComparison();return FReply::Handled();})]]
+	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})]
+	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunComparisonText);})];
 }
 void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
 {
@@ -145,6 +161,9 @@ void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
 		bSelectedRunReportSaved=!R.ReportPath.IsEmpty()&&IFileManager::Get().FileExists(*R.ReportPath);
 	}
 	bCanRetrySelectedRun=Results->CanRetryRunReportSave(SelectedScenarioRunId,RunRetryReason);CachedRunResultsRevision=Results->GetResultsRevision();
+    if(!ComparisonRunA.IsEmpty()&&!ComparisonRunB.IsEmpty())
+    {FSlabRunComparison C;FString Reason;RunComparisonText=Results->GetRunComparison(ComparisonRunA,ComparisonRunB,C,Reason)?DescribeRunComparison(C):Reason+TEXT("\nA: ")+ComparisonRunA+TEXT("\nB: ")+ComparisonRunB;}
+    else if(!ComparisonRunA.IsEmpty()||!ComparisonRunB.IsEmpty())RunComparisonText=TEXT("A: ")+(ComparisonRunA.IsEmpty()?TEXT("미선택"):ComparisonRunA)+TEXT("\nB: ")+(ComparisonRunB.IsEmpty()?TEXT("미선택"):ComparisonRunB);
 }
 bool UVirtualSensorCaptureExportPanelWidget::SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options)
 {auto* A=ResolveScenarioSlabActor();return A&&A->SetExecutionOptions(Options);}

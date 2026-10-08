@@ -1,6 +1,8 @@
 #include "SlabRunResultsSubsystem.h"
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
 #include "VirtualSensorPlacementSubsystem.h"
+#include "SlabScenarioReplaySubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Components/SceneComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
@@ -51,10 +53,17 @@ TArray<USlabRunResultsSubsystem::FFrameAudit> USlabRunResultsSubsystem::GetRunFr
 FSlabRunDeliverySummary* USlabRunResultsSubsystem::Find(const FString& Run){return Results.FindByPredicate([&](const auto& R){return R.RunUUID==Run;});}
 bool USlabRunResultsSubsystem::GetRunResult(const FString& Run,FSlabRunDeliverySummary& Out) const
 {if(const auto* R=Results.FindByPredicate([&](const auto& Item){return Item.RunUUID==Run;})){Out=*R;return true;}return false;}
+bool USlabRunResultsSubsystem::GetRunComparison(const FString& AId,const FString& BId,FSlabRunComparison& Comparison,FString& Reason) const
+{
+    FSlabRunDeliverySummary A,B;
+    if(!GetRunResult(AId,A)||!GetRunResult(BId,B)){Comparison=FSlabRunComparison();Reason=TEXT("비교 대상 보관 종료 또는 실행을 찾을 수 없습니다.");return false;}
+    return BuildRunComparison(A,B,Comparison,Reason);
+}
 void USlabRunResultsSubsystem::BeginRun(const FString& Run,const FString& Scenario,ESlabExecutionPolicy Policy,const FVirtualSlabSensorOutputSelection& Outputs)
 {
     if(bEnding||Run.IsEmpty()||Find(Run))return;
     ClearPlacementBindings();ActiveRun=Run;Requests.Reset();auto& R=Results.AddDefaulted_GetRef();R.RunUUID=Run;R.ScenarioUUID=Scenario;R.Policy=Policy;R.Outputs=Outputs;R.PreparedUtc=FDateTime::UtcNow();
+    if(auto* GI=GetWorld()->GetGameInstance())if(auto* Archive=GI->GetSubsystem<USlabScenarioReplaySubsystem>())if(const auto Data=Archive->GetValidatedScenario(Scenario))R.ScenarioContentHash=Data->OriginalContentSha1;
     while(Results.Num()>20)Results.RemoveAt(0);Changed(true);
 }
 void USlabRunResultsSubsystem::SetSensors(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors,UVirtualSensorTransportComponent* Transport)

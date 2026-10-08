@@ -10,6 +10,74 @@
 #include "Misc/Paths.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunComparison.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
+
+namespace
+{
+FSlabRunDeliverySummary ComparisonFixture(const FString& Run)
+{
+    FSlabRunDeliverySummary R;R.RunUUID=Run;R.ScenarioUUID=TEXT("same-scenario");R.ScenarioContentHash=TEXT("sha1-immutable-source");R.bFinalized=true;R.Outcome=ESlabRunDeliveryOutcome::BrokerAccepted;R.LastSlabFrame=599;R.ElapsedSec=29.95;R.AppliedOutputs=R.Outputs;
+    auto& S=R.Sensors.AddDefaulted_GetRef();S.SensorId=TEXT("lidar-1");S.Placement.SensorKind=EVirtualSensorKind::Lidar;S.Placement.MapPackage=TEXT("/Game/Test");S.Configuration=TEXT("{\"n\":1,\"nested\":{\"enabled\":true}}");S.SettingsRevision=1;S.RequestedHz=20;S.MeasuredHz=19.9;
+    return R;
+}
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRunComparisonMathTest,"MA0T10.Placement.RunComparisonValues",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSlabRunComparisonMathTest::RunTest(const FString&)
+{
+    auto A=ComparisonFixture(TEXT("run-A")),B=ComparisonFixture(TEXT("run-B"));
+    const FString Json=FSlabScenarioCodec::MakeSyntheticJson();FSlabScenarioDataPtr SourceA,SourceB;FString SourceReason;
+    TestTrue(TEXT("six-hundred-row source parses"),FSlabScenarioCodec::Parse(Json,SourceA,SourceReason));
+    TestTrue(TEXT("same UUID changed original bytes parses"),FSlabScenarioCodec::Parse(Json+TEXT("\n"),SourceB,SourceReason));
+    if(SourceA&&SourceB)
+    {TestTrue(TEXT("source provenance distinguishes same UUID with different original bytes"),SourceA->ScenarioUUID==SourceB->ScenarioUUID&&SourceA->OriginalContentSha1!=SourceB->OriginalContentSha1);TestEqual(TEXT("hashing never rewrites source"),SourceA->OriginalJson,Json);}
+    A.Accepted=A.Submitted=A.Receipts=600;B.Accepted=B.Submitted=B.Receipts=599;
+    B.Sensors[0].Configuration=TEXT("{ \"nested\": { \"enabled\": true }, \"n\": 1.0 }");B.Sensors[0].SettingsRevision=99;
+    B.Sensors[0].Placement.WorldTransform.SetLocation(FVector(300,400,0));B.Sensors[0].Placement.WorldTransform.SetRotation(FRotator(0,90,0).Quaternion());B.Sensors[0].Placement.WorldTransform.SetScale3D(FVector(2,1,1));
+    FSlabRunComparison C;FString Reason;TestTrue(TEXT("finalized same-scenario results compare"),BuildRunComparison(A,B,C,Reason));
+    TestTrue(TEXT("JSON order/number spelling/revision alone do not change settings"),C.bRecordedConditionsMatch&&C.Sensors[0].ChangedSettings.IsEmpty());
+    TestTrue(TEXT("distance is measured in world centimeters"),FMath::Abs(C.Sensors[0].TranslationDeltaCm-500)<1.e-6);
+    TestTrue(TEXT("rotation uses shortest quaternion angle"),FMath::Abs(C.Sensors[0].RotationDeltaDegrees-90)<1.e-6);
+    TestTrue(TEXT("scale differences retained separately"),C.Sensors[0].ScaleDelta.Equals(FVector(1,0,0)));
+    const auto Text=DescribeRunComparison(C);TestTrue(TEXT("whole-run counters remain explicitly whole-run"),Text.Contains(TEXT("실행 전체 카운터"))&&Text.Contains(TEXT("600/599")));
+    TestTrue(TEXT("recorded Hz is not an average claim"),Text.Contains(TEXT("기록 시점 측정 Hz")));
+    B.Sensors[0].Placement.WorldTransform=A.Sensors[0].Placement.WorldTransform;auto Q=B.Sensors[0].Placement.WorldTransform.GetRotation();B.Sensors[0].Placement.WorldTransform.SetRotation(FQuat(-Q.X,-Q.Y,-Q.Z,-Q.W));
+    BuildRunComparison(A,B,C,Reason);TestTrue(TEXT("q and minus q are same rotation"),C.Sensors[0].RotationDeltaDegrees<.0001);
+    auto Other=A.Sensors[0];Other.SensorId=TEXT("camera-1");Other.Placement.SensorKind=EVirtualSensorKind::Camera;A.Sensors.Add(Other);B.Sensors.Insert(Other,0);
+    BuildRunComparison(A,B,C,Reason);TestTrue(TEXT("different array order matches by kind/id"),C.Sensors.Num()==2&&C.Sensors[0].bPresentA&&C.Sensors[0].bPresentB&&C.Sensors[1].bPresentA&&C.Sensors[1].bPresentB);
+    B.Sensors[1].Configuration=TEXT("{\"n\":2,\"nested\":{\"enabled\":true}}");BuildRunComparison(A,B,C,Reason);
+    TestTrue(TEXT("real setting difference marks reference comparison"),!C.bRecordedConditionsMatch&&!C.ConditionDifferences.IsEmpty());
+    B.Sensors[1].Placement.MapPackage=TEXT("/Game/Other");BuildRunComparison(A,B,C,Reason);
+    TestTrue(TEXT("different maps suppress world-pose delta"),C.Sensors.ContainsByPredicate([](const auto& S){return S.SensorId==TEXT("lidar-1")&&!S.bPoseDeltaAvailable;}));
+    B.ScenarioContentHash.Reset();B.Accepted=B.Receipts=0;B.Outcome=ESlabRunDeliveryOutcome::Partial;B.Sensors[0].Placement.bChangedDuringRun=true;BuildRunComparison(A,B,C,Reason);
+    TestTrue(TEXT("unknown source, partial and external motion remain visible"),!C.UnknownConditions.IsEmpty()&&!C.Warnings.IsEmpty()&&!C.ConditionDifferences.IsEmpty());
+    TestTrue(TEXT("zero denominator is N/A"),DescribeRunComparison(C).Contains(TEXT("N/A")));
+    B.ScenarioUUID=TEXT("other");TestFalse(TEXT("different scenario rejected"),BuildRunComparison(A,B,C,Reason));B.ScenarioUUID=A.ScenarioUUID;B.RunUUID=A.RunUUID;
+    TestFalse(TEXT("same run rejected"),BuildRunComparison(A,B,C,Reason));B.RunUUID=TEXT("run-B");B.bFinalized=false;
+    TestFalse(TEXT("draining result rejected"),BuildRunComparison(A,B,C,Reason));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRunComparisonUiTest,"MA0T10.Placement.RunComparisonSelection",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSlabRunComparisonUiTest::RunTest(const FString&)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Results=W->GetSubsystem<USlabRunResultsSubsystem>();
+    auto A=ComparisonFixture(TEXT("A")),B=ComparisonFixture(TEXT("B"));Results->Results={A,B};Results->Changed();
+    auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(W);FString Reason;
+    TestTrue(TEXT("A/B selected explicitly"),Panel->SelectScenarioComparisonRun(TEXT("A"),true,Reason)&&Panel->SelectScenarioComparisonRun(TEXT("B"),false,Reason));
+    TestTrue(TEXT("comparison text identifies runs"),Panel->GetScenarioRunComparisonText().Contains(TEXT("A: A"))&&Panel->GetScenarioRunComparisonText().Contains(TEXT("B: B")));
+    auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();const auto Pose=Sensor->GetActorTransform();const auto Frame=Sensor->GetSensorRuntimeStatus().FrameId;
+    for(int32 I=0;I<4;++I){Panel->CachedRunResultsRevision=-1;Panel->RefreshRunResults();}
+    TestTrue(TEXT("comparison never changes sensor pose or acquires a frame"),Sensor->GetActorTransform().Equals(Pose)&&Sensor->GetSensorRuntimeStatus().FrameId==Frame);
+    Results->Results.Add(ComparisonFixture(TEXT("C")));Results->Changed();Panel->RefreshRunResults();
+    TestTrue(TEXT("new result never replaces selected A/B"),Panel->ComparisonRunA==TEXT("A")&&Panel->ComparisonRunB==TEXT("B"));
+    Results->Results.RemoveAt(0);Results->Changed();Panel->RefreshRunResults();
+    TestTrue(TEXT("evicted comparison stops with explicit reason"),Panel->GetScenarioRunComparisonText().Contains(TEXT("보관 종료"))&&Panel->ComparisonRunA==TEXT("A"));
+    Panel->ClearScenarioRunComparison();TestTrue(TEXT("clear does not select another run"),Panel->ComparisonRunA.IsEmpty()&&Panel->ComparisonRunB.IsEmpty());
+    Sensor->Destroy();return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementIdentityUiTest,"MA0T10.Placement.ResetAndIdentityUi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPlacementIdentityUiTest::RunTest(const FString&)

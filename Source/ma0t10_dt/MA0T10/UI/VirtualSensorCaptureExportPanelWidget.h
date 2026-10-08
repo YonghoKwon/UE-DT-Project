@@ -47,6 +47,9 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetSelectedScenarioRunId() const { return SelectedScenarioRunId; }
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") bool GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool RetrySelectedScenarioRunReport(FString& Reason);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioComparisonRun(const FString& RunId,bool bAsA,FString& Reason);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void ClearScenarioRunComparison();
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetScenarioRunComparisonText() const { return RunComparisonText; }
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
@@ -180,7 +183,11 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FSlabRunComparisonUiTest;
+#endif
 	bool bRunResultsExpanded=false;
+	FString ComparisonRunA,ComparisonRunB,RunComparisonText;
 	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;
 	int64 CachedRunResultsRevision=-1;
 	TArray<TSharedPtr<FString>> RunResultOptions;

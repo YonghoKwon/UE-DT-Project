@@ -37,6 +37,7 @@ struct MA0T10_DT_API FSlabRunDeliverySummary
     GENERATED_BODY()
     UPROPERTY(BlueprintReadOnly) FString RunUUID;
     UPROPERTY(BlueprintReadOnly) FString ScenarioUUID;
+    UPROPERTY(BlueprintReadOnly) FString ScenarioContentHash;
     UPROPERTY(BlueprintReadOnly) FString MtlNo;
     UPROPERTY(BlueprintReadOnly) ESlabExecutionPolicy Policy=ESlabExecutionPolicy::ObservationAllowed;
     UPROPERTY(BlueprintReadOnly) FVirtualSlabSensorOutputSelection Outputs;
