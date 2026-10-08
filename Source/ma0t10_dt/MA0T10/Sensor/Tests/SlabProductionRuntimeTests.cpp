@@ -19,6 +19,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
 #include "FinalAcceptanceTestSession.h"
 namespace
 {
@@ -66,6 +67,8 @@ class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
 	bool bResetBetweenRuns=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_RESET_RHI"))==TEXT("1");
 	bool bAllOutputs=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_OUTPUT_ALL"))==TEXT("1");
     bool OldThrottle=false,OldMonitor=false;
+    const bool bPlacementAB=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_AB_RHI"))==TEXT("1");
+    int32 PoseSetup=0;FString PoseRequest,BookmarkA,BookmarkB;FTransform PoseA,PoseB;bool AppliedB=false;
 public:
     explicit FSlabProductionRuntimeCheck(FAutomationTestBase* T,TSharedPtr<FSlabWorldResourceWitness> W=nullptr):Test(T),Witness(W)
     {
@@ -96,6 +99,16 @@ public:
         if(Stage==0)
         {
             if(FPlatformTime::Seconds()-Start<10)return false;
+            if(bPlacementAB)
+            {
+                auto* P=World->GetSubsystem<UVirtualSensorPlacementSubsystem>();auto* L=Rig->Lidar.Get();FString Error;
+                if(PoseSetup==0)
+                {Test->TestTrue(TEXT("A/B fixture uses isolated pose library"),P->SetAutomationStorageRoot(FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementWorkflow/ab-bookmarks")/FGuid::NewGuid().ToString()));PoseA=L->GetActorTransform();PoseB=PoseA;PoseB.AddToTranslation(FVector(500,0,0));PoseRequest=P->RequestSaveSensorPose(L,TEXT("배치 A"));PoseSetup=1;return false;}
+                const auto Save=P->GetPoseSaveStatus(PoseRequest);if(Save.State==EVirtualSensorPoseSaveState::Writing)return false;
+                if(Save.State!=EVirtualSensorPoseSaveState::Saved){Test->AddError(Save.Message);return true;}
+                if(PoseSetup==1){BookmarkA=Save.BookmarkId;Test->TestTrue(TEXT("set B fixture pose"),L->ApplyEditableTransform(PoseB,Error));PoseRequest=P->RequestSaveSensorPose(L,TEXT("배치 B"));PoseSetup=2;return false;}
+                if(PoseSetup==2){BookmarkB=Save.BookmarkId;Test->TestTrue(TEXT("first run recalls A"),P->ApplySensorPoseBookmark(L,BookmarkA,Error));PoseSetup=3;}
+            }
             InitialPlacement=Slab->GetActorTransform();
             if(Witness){for(UObject* Object:{static_cast<UObject*>(World),static_cast<UObject*>(World->GetGameInstance()),static_cast<UObject*>(Raw),static_cast<UObject*>(Session),static_cast<UObject*>(Catalog),static_cast<UObject*>(Slab),static_cast<UObject*>(Rig),static_cast<UObject*>(Rig->Camera.Get()),static_cast<UObject*>(Rig->Lidar.Get()),static_cast<UObject*>(Rig->Camera->CaptureComponent.Get()),static_cast<UObject*>(Rig->Lidar->ScanComponent.Get()),static_cast<UObject*>(World->GetSubsystem<USlabRunResultsSubsystem>())})Witness->Objects.Add(Object);}
             ObservedRaw=Raw;ReceiveHandle=Raw->OnTransportObservation.AddLambda([this](const FVirtualSensorTransportObservation& Data){
@@ -134,6 +147,8 @@ public:
 			Test->TestEqual(TEXT("reset remains idle"),S.State,ESlabSimulationState::Idle);
 			Test->TestTrue(TEXT("reset remains at level placement"),Slab->GetActorLocation().Equals(InitialPlacement.GetLocation(),.1));
 			FVirtualSlabSensorOutputSelection Outputs=Slab->GetSensorOutputs();
+			if(bPlacementAB&&!AppliedB)
+            {FString Error;auto* P=World->GetSubsystem<UVirtualSensorPlacementSubsystem>();Test->TestTrue(TEXT("drained run allows position B recall"),P->ApplySensorPoseBookmark(Rig->Lidar,BookmarkB,Error));Test->TestTrue(TEXT("B recall matches exact pose"),UVirtualSensorPlacementSubsystem::SamePose(Rig->Lidar->GetActorTransform(),PoseB));AppliedB=true;}
 			Test->TestTrue(TEXT("same archived scenario replays after reset"),Catalog->RequestScenarioReplayWithExecutionOptions(ArchiveId,Outputs,{},Slab->GetExecutionOptions()));
 			Test->TestNotEqual(TEXT("reset replay has fresh RunUUID"),Catalog->GetReplayStatus().RunUUID,FirstRun);
 			Stage=3;return false;
@@ -188,6 +203,8 @@ public:
         }
         if(Stage==2)
         {
+            if(bPlacementAB)
+            {FSlabRunDeliverySummary R;Test->TestTrue(TEXT("A run result exists"),World->GetSubsystem<USlabRunResultsSubsystem>()->GetRunResult(S.RunUUID,R));const auto* Entry=R.Sensors.FindByPredicate([&](const auto& E){return E.SensorId==Rig->Lidar->GetSensorId();});Test->TestTrue(TEXT("A run records applied bookmark and start pose"),Entry&&Entry->Placement.BookmarkId==BookmarkA&&UVirtualSensorPlacementSubsystem::SamePose(Entry->Placement.WorldTransform,PoseA)&&!Entry->Placement.bChangedDuringRun);}
             Rig->SaveEvidence(false); // Persist the first run before the second replaces its status.
             int64 AuditBytes=ActualConsumerRequests.GetAllocatedSize();for(const auto& K:ActualConsumerRequests)AuditBytes+=K.GetAllocatedSize();
             Rig->SaveResourceEvidence(TEXT("drained"),1,ActualConsumerRequests.Num(),AuditBytes);
@@ -218,6 +235,8 @@ public:
 		Test->TestEqual(TEXT("run summary has no delivery failures"),Summary.DeliveryFailures,int64(0));
         Test->TestEqual(TEXT("run summary broker outcome"),Summary.Outcome,ESlabRunDeliveryOutcome::BrokerAccepted);
         Test->TestEqual(TEXT("completed snapshot has no unfinished work"),Summary.TerminalSnapshot.UniqueUnfinished,int64(0));
+        if(bPlacementAB)
+        {const auto* Entry=Summary.Sensors.FindByPredicate([&](const auto& E){return E.SensorId==Rig->Lidar->GetSensorId();});Test->TestTrue(TEXT("B run records applied bookmark and start pose"),Entry&&Entry->Placement.BookmarkId==BookmarkB&&UVirtualSensorPlacementSubsystem::SamePose(Entry->Placement.WorldTransform,PoseB)&&!Entry->Placement.bChangedDuringRun);}
         if(bRepeated)
         {
             Test->TestFalse(TEXT("every replay has unique run UUID"),RunIds.Contains(S.RunUUID));RunIds.Add(S.RunUUID);++CompletedRuns;

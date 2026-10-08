@@ -7,6 +7,7 @@
 #include "SlabRunResultsSubsystem.generated.h"
 class AVirtualSensorActorBase;
 class UVirtualSensorTransportComponent;
+class USceneComponent;
 struct FVirtualSensorTransportObservation;
 struct FVirtualSensorTransportResult;
 struct FVirtualSensorTopicReceivedDataBase;
@@ -58,6 +59,9 @@ private:
     FString ActiveRun;
     FDelegateHandle ObservationHandle,ReceiveHandle;
     TWeakObjectPtr<UVirtualSensorTransportComponent> BoundTransport;
+    struct FPlacementBinding {TWeakObjectPtr<USceneComponent> Component;FDelegateHandle Handle;};
+    TArray<FPlacementBinding> PlacementBindings;
+    void ClearPlacementBindings();
     bool bEnding=false;
     UFUNCTION() void HandleEngineResult(const FVirtualSensorTransportResult& Result);
     void HandleReceive(const TSharedPtr<FVirtualSensorTopicReceivedDataBase>& Result);
@@ -70,6 +74,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunLedgerTest;
     friend class FSlabRunHistoryTest;
+    friend class FSlabRunPlacementSnapshotTest;
     FString ReportDirectoryOverrideForTests;
 #endif
 };

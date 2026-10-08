@@ -39,6 +39,10 @@ public:
     static bool SamePose(const FTransform& A,const FTransform& B);
     static constexpr int32 MaxBookmarksPerSensor=20;
     static constexpr int32 MaxHistoryPerSensor=50;
+#if WITH_DEV_AUTOMATION_TESTS
+    bool SetAutomationStorageRoot(const FString& Root)
+    {if(PendingWrite)return false;StorageRootOverrideForTests=Root;bLoaded=false;bLoadValid=true;Bookmarks.Reset();Histories.Reset();AppliedBookmarks.Reset();LoadedMap.Reset();++LibraryRevision;return true;}
+#endif
 private:
     struct FCommand {FTransform Before,After;FString BeforeBookmark,AfterBookmark;};
     struct FHistory {FString SensorId;TArray<FCommand> Commands;int32 Index=0;TOptional<FTransform> GestureBefore;FString GestureBookmark;};
@@ -68,6 +72,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorPoseLibraryTest;
     friend class FSensorPoseLibraryRhiTest;
+    friend class FSlabRunPlacementSnapshotTest;
     FString StorageRootOverrideForTests;
 #endif
 };

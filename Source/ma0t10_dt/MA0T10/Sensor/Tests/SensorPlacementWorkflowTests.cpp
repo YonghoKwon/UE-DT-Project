@@ -16,6 +16,38 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "Json.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRunPlacementSnapshotTest,"MA0T10.Placement.RunPlacementSnapshot",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSlabRunPlacementSnapshotTest::RunTest(const FString&)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* S=W->SpawnActor<AVirtualLidarSensorActor>();S->ScanComponent->SensorId=TEXT("run-pose-test");S->StopSensor();
+    auto* P=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();P->StorageRootOverrideForTests=FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementWorkflow/run-fixtures")/FGuid::NewGuid().ToString();
+    const FTransform A(FRotator(-45,15,5),FVector(120,240,800),FVector(1,2,3));FString Reason;S->ApplyEditableTransform(A,Reason);
+    const FString Request=P->RequestSaveSensorPose(S,TEXT("Run A"));P->FinishWrite(P->PendingWrite->Future.Get(),false);const FString Bookmark=P->GetPoseSaveStatus(Request).BookmarkId;P->ApplySensorPoseBookmark(S,Bookmark,Reason);
+    auto* R=W->GetSubsystem<USlabRunResultsSubsystem>();R->ReportDirectoryOverrideForTests=FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementWorkflow/run-fixtures/reports");
+    const FString RunA=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),Scenario=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Sensors;Sensors.Add(S->GetSensorId(),S);
+    R->BeginRun(RunA,Scenario,ESlabExecutionPolicy::ObservationAllowed,FVirtualSlabSensorOutputSelection::ObservationOnly());R->SetSensors(RunA,Sensors,nullptr);
+    FSlabRunDeliverySummary Snapshot;R->GetRunResult(RunA,Snapshot);
+    TestTrue(TEXT("run starts with immutable actual world pose"),Snapshot.Sensors[0].Placement.WorldTransform.Equals(A));
+    TestEqual(TEXT("run remembers applied bookmark"),Snapshot.Sensors[0].Placement.BookmarkId,Bookmark);
+    TestTrue(TEXT("run map is canonical"),!Snapshot.Sensors[0].Placement.MapPackage.Contains(TEXT("UEDPIE_")));
+    S->SetActorLocation(A.GetLocation()+FVector(25,0,0));R->GetRunResult(RunA,Snapshot);
+    TestTrue(TEXT("external movement is recorded"),Snapshot.Sensors[0].Placement.bChangedDuringRun);
+    TestTrue(TEXT("external movement never overwrites start pose"),Snapshot.Sensors[0].Placement.WorldTransform.Equals(A));
+    FVirtualSlabSessionStatus Session;Session.RunId=RunA;Session.bObservationOnly=true;Session.Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();R->Finalize(Session);
+    R->GetRunResult(RunA,Snapshot);const auto Finished=Snapshot;TestTrue(TEXT("external movement warning persists at finalization"),Snapshot.Warning.Contains(TEXT("배치")));
+    const FString Json=R->SerializeSummary(Snapshot);TSharedPtr<FJsonObject> Object;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Object);
+    TestEqual(TEXT("existing run wire schema retained"),Object->GetStringField(TEXT("schema")),FString(TEXT("ma0t10.slab-run.v1")));
+    TestTrue(TEXT("run JSON contains optional placement snapshot"),Json.Contains(TEXT("placement"))&&Json.Contains(Bookmark));
+    S->SetActorLocation(FVector(999,888,777));R->SetSensors(RunA,Sensors,nullptr);R->GetRunResult(RunA,Snapshot);
+    TestTrue(TEXT("late old-run setup cannot mutate finalized placement"),Snapshot.Sensors[0].Placement.WorldTransform.Equals(Finished.Sensors[0].Placement.WorldTransform));
+    const FString RunB=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);R->BeginRun(RunB,Scenario,ESlabExecutionPolicy::ObservationAllowed,FVirtualSlabSensorOutputSelection::ObservationOnly());R->SetSensors(RunB,Sensors,nullptr);
+    R->GetRunResult(RunB,Snapshot);TestTrue(TEXT("next run captures position B independently"),Snapshot.Sensors[0].Placement.WorldTransform.GetLocation().Equals(FVector(999,888,777)));
+    TestTrue(TEXT("direct pose has no stale bookmark"),Snapshot.Sensors[0].Placement.bDirectPlacement&&Snapshot.Sensors[0].Placement.BookmarkId.IsEmpty());
+    TestEqual(TEXT("old bindings are retired when next run starts"),R->PlacementBindings.Num(),1);S->Destroy();return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPoseLibraryTest,"MA0T10.Placement.PoseLibraryPersistenceAndHistory",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPoseLibraryTest::RunTest(const FString&)

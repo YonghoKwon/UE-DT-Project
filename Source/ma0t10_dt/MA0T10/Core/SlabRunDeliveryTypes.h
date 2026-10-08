@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSlabFrameContext.h"
+#include "VirtualSensorPlacementTypes.h"
 #include "SlabRunDeliveryTypes.generated.h"
 
 UENUM(BlueprintType)
@@ -14,6 +15,7 @@ struct MA0T10_DT_API FSlabRunSensorSnapshot
     UPROPERTY(BlueprintReadOnly) int32 SettingsRevision=0;
     UPROPERTY(BlueprintReadOnly) float RequestedHz=0;
     UPROPERTY(BlueprintReadOnly) float MeasuredHz=0;
+    UPROPERTY(BlueprintReadOnly) FVirtualSensorPlacementSnapshot Placement;
 };
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FSlabRunTerminalSnapshot

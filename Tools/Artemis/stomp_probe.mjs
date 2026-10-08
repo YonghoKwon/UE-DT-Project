@@ -158,9 +158,18 @@ function validateBinaryPcd(headers, body) {
   };
   const metadataLines = headerText.split('\n').filter(line => line.startsWith('# MA0T10_META '));
   let scenarioUuid = '';
+  let embeddedPose = null;
   if (metadataLines.length || requiredSlabRuns > 0 || scenarioReplay) {
     try {
       const meta = JSON.parse(metadataLines[0]?.slice(14));
+      if (args.has('--placement-ledger')) {
+        const position = meta.sensor_position_world_m;
+        const matrix = meta.sensor_to_world_m;
+        checks.coordinatePose = Array.isArray(position) && position.length === 3 && position.every(Number.isFinite) &&
+          Array.isArray(matrix) && matrix.length === 16 && matrix.every(Number.isFinite) &&
+          position.every((value, index) => Math.abs(value - matrix[index * 4 + 3]) < 1e-6);
+        if (checks.coordinatePose) embeddedPose = { positionWorldM: position, sensorToWorldM: matrix };
+      }
       checks.embeddedMetadata = metadataLines.length === 1 && meta.schema === 'virtual-pointcloud.context.v1' &&
         meta.sensor_id === (headers['sensor-id'] ?? headers['x-sensor-id']) &&
         meta.sensor_frame_id === (headers['frame-id'] ?? headers['x-frame-id']);
@@ -179,7 +188,7 @@ function validateBinaryPcd(headers, body) {
   }
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   if (scenarioReplay && failedChecks.length === 0 && !observedScenarioUuid) observedScenarioUuid = scenarioUuid;
-  return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks };
+  return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks, embeddedPose };
 }
 
 function report(success, reason) {
@@ -386,7 +395,8 @@ socket.addEventListener('message', async event => {
       if (args.has('--metadata-ledger')) {
         if(metadataLedger.length>=300000) { report(false,'metadata ledger capacity exceeded');socket.close();return; }
         metadataLedger.push({requestId:entry.requestId,runId:entry.runId,sensorId:entry.sensorId,frameId:entry.frameId,destination,
-          acquisitionUtc:entry.acquisitionUtc,receivedUtc:entry.receivedUtc,valid:entry.valid,checksum:entry.checksum});
+          acquisitionUtc:entry.acquisitionUtc,receivedUtc:entry.receivedUtc,valid:entry.valid,checksum:entry.checksum,
+          ...(args.has('--placement-ledger') && pcdValidation?.embeddedPose ? {placement:pcdValidation.embeddedPose} : {})});
       }
       if (requiredSlabRuns > 0) {
         const correlationValid = validUuid(entry.runId) && entry.mtlNo === 'SQ83521 047' &&

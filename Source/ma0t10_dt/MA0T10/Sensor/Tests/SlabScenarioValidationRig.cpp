@@ -23,6 +23,7 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Json.h"
+#include "JsonObjectConverter.h"
 #include "UnrealClient.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBorder.h"
@@ -157,6 +158,8 @@ void ASlabScenarioValidationRig::WriteReport()
         Streams.Add(MakeShared<FJsonValueObject>(R));
     }
     Root->SetArrayField(TEXT("streams"),Streams);
+    FSlabRunDeliverySummary RunSummary;
+    if(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunResult(S.RunUUID,RunSummary))Root->SetObjectField(TEXT("run_delivery_summary"),FJsonObjectConverter::UStructToJsonObject(RunSummary));
     const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();const auto Held=Raw->GetRunRetentionSnapshot();
     auto Retention=MakeShared<FJsonObject>();Retention->SetNumberField(TEXT("worker_serial"),Raw->GetWorkerInstanceSerial());Retention->SetNumberField(TEXT("connection_revision"),Raw->GetConnectionRevision());
     Retention->SetNumberField(TEXT("active_runs"),Held.ActiveRuns);Retention->SetNumberField(TEXT("retiring_runs"),Held.RetiringRuns);Retention->SetNumberField(TEXT("completed_runs"),Held.CompletedRuns);Retention->SetNumberField(TEXT("minimal_known_ids"),Held.KnownRunIds);

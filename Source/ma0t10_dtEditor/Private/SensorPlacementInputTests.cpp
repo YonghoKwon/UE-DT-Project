@@ -8,6 +8,9 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/SViewport.h"
+#include "RHI.h"
+#include "RenderingThread.h"
+#include <atomic>
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
@@ -94,12 +97,55 @@ public:
         return false;
     }
 };
+
+struct FPlacementFrameProof {FGPUFenceRHIRef Fence;std::atomic<bool> Submitted{false};};
+/** The fence is queued at OnEndFrame after viewport render work, not at pose application. */
+class FPlacementRenderLatencyCheck final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),InputAt=0;int32 Kind=0,Completed=0;bool Waiting=false,PoseApplied=false,Queued=false;
+    TWeakObjectPtr<AVirtualSensorTransformGizmoActor> Gizmo;FDelegateHandle PoseHandle,EndHandle;
+    TSharedPtr<FPlacementFrameProof,ESPMode::ThreadSafe> Proof;TArray<double> Samples;
+public:
+    explicit FPlacementRenderLatencyCheck(FAutomationTestBase* T):Test(T){}
+    ~FPlacementRenderLatencyCheck(){if(Gizmo.IsValid())Gizmo->OnTransformChanged.Remove(PoseHandle);FCoreDelegates::OnEndFrame.Remove(EndHandle);}
+    bool Update() override
+    {
+        if(FPlatformTime::Seconds()-Started>20){Test->AddError(TEXT("Placement render latency fixture timeout"));return true;}
+        UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W)return false;
+        auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        if(!Manager||!Settings)return false;auto V=W->GetGameInstance()->GetGameViewportClient()->GetGameViewportWidget();if(!V.IsValid())return false;auto& App=FSlateApplication::Get();
+        if(!Gizmo.IsValid())
+        {
+            Manager->SetViewMode(Kind==0?EVirtualSensorViewMode::Camera:EVirtualSensorViewMode::Lidar);Workspace->SynchronizeOwnedSelection();Settings->SetSensorManipulationEnabled(true);Settings->SetPlacementInputMode(EVirtualSensorPlacementInputMode::Continuous);
+            Gizmo=Settings->GetTransformGizmoActor();if(!Gizmo.IsValid())return false;
+            PoseHandle=Gizmo->OnTransformChanged.AddLambda([this](const FTransform&){if(Waiting)PoseApplied=true;});
+            EndHandle=FCoreDelegates::OnEndFrame.AddLambda([this](){if(!Waiting||!PoseApplied||Queued)return;Queued=true;auto P=Proof;
+                ENQUEUE_RENDER_COMMAND(PlacementEndFrameProof)([P](FRHICommandListImmediate& Cmd){P->Fence=RHICreateGPUFence(TEXT("PlacementViewportEndFrame"));Cmd.WriteGPUFence(P->Fence);P->Submitted.store(true,std::memory_order_release);});});
+        }
+        if(Waiting)
+        {
+            if(!Proof->Submitted.load(std::memory_order_acquire)||!Proof->Fence.IsValid()||!Proof->Fence->Poll())return false;
+            Samples.Add((FPlatformTime::Seconds()-InputAt)*1000);App.ProcessKeyUpEvent(FKeyEvent(Completed%2?EKeys::A:EKeys::D,FModifierKeysState(),0,false,0,0));Waiting=false;++Completed;
+            if(Completed>=32)
+            {
+                auto Sorted=Samples;Sorted.Sort();const double P95=Sorted[FMath::CeilToInt(Sorted.Num()*.95)-1];
+                Test->AddInfo(FString::Printf(TEXT("kind=%s input_to_viewport_end_frame_gpu_p95_ms=%.3f samples=%d; physical input/display latency excluded"),Kind==0?TEXT("Camera"):TEXT("LiDAR"),P95,Samples.Num()));
+                Test->TestTrue(TEXT("input to changed viewport frame GPU completion p95 <=50ms"),P95<=50);
+                Gizmo->OnTransformChanged.Remove(PoseHandle);FCoreDelegates::OnEndFrame.Remove(EndHandle);Settings->SetSensorManipulationEnabled(false);Gizmo.Reset();Samples.Reset();Completed=0;
+                if(++Kind>=2)return true;
+            }
+            return false;
+        }
+        App.SetKeyboardFocus(V,EFocusCause::SetDirectly);Proof=MakeShared<FPlacementFrameProof,ESPMode::ThreadSafe>();PoseApplied=false;Queued=false;Waiting=true;InputAt=FPlatformTime::Seconds();
+        App.ProcessKeyDownEvent(FKeyEvent(Completed%2?EKeys::A:EKeys::D,FModifierKeysState(),0,false,0,0));return false;
+    }
+};
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementInputRhi,"MA0T10.Placement.InputOwnershipRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPlacementInputRhi::RunTest(const FString&)
 {
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: MA0T10_PLACEMENT_RHI=1 for actual Slate/PIE input fixture"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
-    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementInputCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementInputCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FPlacementRenderLatencyCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 #endif

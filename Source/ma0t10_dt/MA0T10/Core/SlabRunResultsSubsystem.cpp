@@ -1,5 +1,7 @@
 #include "SlabRunResultsSubsystem.h"
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
+#include "VirtualSensorPlacementSubsystem.h"
+#include "Components/SceneComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "JsonObjectConverter.h"
@@ -12,14 +14,14 @@
 namespace { constexpr uint8 LedgerAccepted=1,LedgerSubmitted=2,LedgerReceipt=4,LedgerFailed=8,LedgerConsumed=16,LedgerInvalid=32; FCriticalSection SlabReportWriterMutex; }
 void USlabRunResultsSubsystem::Initialize(FSubsystemCollectionBase& C)
 {
-    Super::Initialize(C);C.InitializeDependency<UVirtualSensorHighThroughputTransportSubsystem>();
+    Super::Initialize(C);C.InitializeDependency<UVirtualSensorHighThroughputTransportSubsystem>();C.InitializeDependency<UVirtualSensorPlacementSubsystem>();
     auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     ObservationHandle=Raw->OnTransportObservation.AddUObject(this,&ThisClass::ObserveTransport);
     ReceiveHandle=Raw->OnReceived.AddUObject(this,&ThisClass::HandleReceive);
 }
 void USlabRunResultsSubsystem::Deinitialize()
 {
-    bEnding=true;
+    bEnding=true;ClearPlacementBindings();
     if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()){Raw->OnTransportObservation.Remove(ObservationHandle);Raw->OnReceived.Remove(ReceiveHandle);}
     if(BoundTransport.IsValid())BoundTransport->OnDataSent.RemoveDynamic(this,&ThisClass::HandleEngineResult);
     // Workers perform only file I/O; they never await a GameThread callback.
@@ -52,11 +54,13 @@ bool USlabRunResultsSubsystem::GetRunResult(const FString& Run,FSlabRunDeliveryS
 void USlabRunResultsSubsystem::BeginRun(const FString& Run,const FString& Scenario,ESlabExecutionPolicy Policy,const FVirtualSlabSensorOutputSelection& Outputs)
 {
     if(bEnding||Run.IsEmpty()||Find(Run))return;
-    ActiveRun=Run;Requests.Reset();auto& R=Results.AddDefaulted_GetRef();R.RunUUID=Run;R.ScenarioUUID=Scenario;R.Policy=Policy;R.Outputs=Outputs;R.PreparedUtc=FDateTime::UtcNow();
+    ClearPlacementBindings();ActiveRun=Run;Requests.Reset();auto& R=Results.AddDefaulted_GetRef();R.RunUUID=Run;R.ScenarioUUID=Scenario;R.Policy=Policy;R.Outputs=Outputs;R.PreparedUtc=FDateTime::UtcNow();
     while(Results.Num()>20)Results.RemoveAt(0);Changed(true);
 }
 void USlabRunResultsSubsystem::SetSensors(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors,UVirtualSensorTransportComponent* Transport)
 {
+    if(const auto* R=Find(Run);!R||R->bFinalized||Run!=ActiveRun)return;
+    ClearPlacementBindings();
     if(auto* R=Find(Run))
     {
         R->Sensors.Reset();for(const auto& Pair:Sensors)if(auto* S=Pair.Value.Get())
@@ -65,11 +69,27 @@ void USlabRunResultsSubsystem::SetSensors(const FString& Run,const TMap<FString,
             auto& Item=R->Sensors.AddDefaulted_GetRef();Item.SensorId=Pair.Key;Item.SettingsRevision=S->GetConfigurationRevision();
             FJsonObjectConverter::UStructToJsonObjectString(State,Item.Configuration);
             Item.RequestedHz=1.0f/FMath::Max(.001f,S->GetSensorKind()==EVirtualSensorKind::Camera?State.CameraCaptureInterval:State.LidarScanInterval);
+            Item.Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->GetCurrentPlacementSnapshot(S);
+            if(auto* Root=S->GetRootComponent())
+            {
+                const FString Id=Pair.Key;TWeakObjectPtr<AVirtualSensorActorBase> WeakSensor(S);
+                auto Handle=Root->TransformUpdated.AddWeakLambda(this,[this,Run,Id,WeakSensor](USceneComponent*,EUpdateTransformFlags,ETeleportType)
+                {
+                    auto* Result=Find(Run);if(!Result||Result->bFinalized||Run!=ActiveRun||!WeakSensor.IsValid())return;
+                    auto* Entry=Result->Sensors.FindByPredicate([&](const auto& E){return E.SensorId==Id;});if(!Entry||Entry->Placement.bChangedDuringRun)return;
+                    const auto Current=WeakSensor->GetActorTransform();
+                    if(!UVirtualSensorPlacementSubsystem::SamePose(Entry->Placement.WorldTransform,Current)||!Entry->Placement.WorldTransform.GetScale3D().Equals(Current.GetScale3D(),.001))
+                    {Entry->Placement.bChangedDuringRun=true;Changed();}
+                });
+                PlacementBindings.Add({Root,Handle});
+            }
         }
     }
     if(BoundTransport.Get()!=Transport)
     {if(BoundTransport.IsValid())BoundTransport->OnDataSent.RemoveDynamic(this,&ThisClass::HandleEngineResult);BoundTransport=Transport;if(Transport)Transport->OnDataSent.AddUniqueDynamic(this,&ThisClass::HandleEngineResult);}
 }
+void USlabRunResultsSubsystem::ClearPlacementBindings()
+{for(const auto& B:PlacementBindings)if(auto* Root=B.Component.Get())Root->TransformUpdated.Remove(B.Handle);PlacementBindings.Reset();}
 void USlabRunResultsSubsystem::RecordAcquisition(const FString& Run,bool Success)
 {if(auto* R=Find(Run);R&&!R->bFinalized){if(Success)++R->Acquired;else++R->AcquisitionFailures;Changed();}}
 void USlabRunResultsSubsystem::MarkStopped(const FString& Run){if(auto* R=Find(Run);R&&R->StoppedUtc.GetTicks()==0)R->StoppedUtc=FDateTime::UtcNow();}
@@ -137,6 +157,9 @@ void USlabRunResultsSubsystem::Finalize(const FVirtualSlabSessionStatus& S,bool 
         R->Accepted>0&&R->Receipts==R->Accepted?ESlabRunDeliveryOutcome::BrokerAccepted:ESlabRunDeliveryOutcome::Partial;
     if(R->Outcome==ESlabRunDeliveryOutcome::ObservationCompleted&&R->Outputs.HasAnyOutput())R->Warning=TEXT("요청한 출력은 미송신이며 관찰만 완료했습니다.");
     if(R->ConsumerInvalid){if(!R->Warning.IsEmpty())R->Warning+=TEXT("\n");R->Warning+=TEXT("자체 수신 검증 실패가 있습니다. Broker 수락과 별도 결과입니다.");}
+    if(R->Sensors.ContainsByPredicate([](const auto& Entry){return Entry.Placement.bChangedDuringRun;}))
+    {if(!R->Warning.IsEmpty())R->Warning+=TEXT("\n");R->Warning+=TEXT("실행 중 외부에서 센서 배치가 변경됐습니다. 시작 배치와 프레임별 측정 자세를 확인하세요.");}
+    ClearPlacementBindings();
     R->SaveState=TEXT("저장 요청 접수");QueueReport(*R);Changed(true);
 }
 FString USlabRunResultsSubsystem::SerializeSummary(const FSlabRunDeliverySummary& S)

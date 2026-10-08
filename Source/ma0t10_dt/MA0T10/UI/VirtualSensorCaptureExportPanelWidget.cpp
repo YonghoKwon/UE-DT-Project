@@ -132,7 +132,11 @@ void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
 		auto Outputs=[](const FVirtualSlabSensorOutputSelection& O){return FString::Printf(TEXT("PCD %s / Camera %s / LiDAR %s"),O.bPointCloud?TEXT("ON"):TEXT("OFF"),O.bCameraImage?TEXT("ON"):TEXT("OFF"),O.bLidarTelemetry?TEXT("ON"):TEXT("OFF"));};
 		RunResultsText=TEXT("실행 UUID: ")+R.RunUUID+TEXT("\n시나리오 UUID: ")+R.ScenarioUUID+TEXT("\n")+USlabRunResultsSubsystem::Describe(R)+
 		 TEXT("\n요청 출력: ")+Outputs(R.Outputs)+TEXT("\n적용 출력: ")+Outputs(R.AppliedOutputs)+TEXT("\n마지막 Slab frame: ")+LexToString(R.LastSlabFrame);
-		for(const auto& S:R.Sensors)RunResultsText+=FString::Printf(TEXT("\n%s · 설정 revision %d · 요청 %.1fHz / 기록 시점 %.1fHz"),*S.SensorId,S.SettingsRevision,S.RequestedHz,S.MeasuredHz);
+		for(const auto& S:R.Sensors)
+        {
+            RunResultsText+=FString::Printf(TEXT("\n%s · 설정 revision %d · 요청 %.1fHz / 기록 시점 %.1fHz"),*S.SensorId,S.SettingsRevision,S.RequestedHz,S.MeasuredHz);
+            if(!S.Placement.MapPackage.IsEmpty())RunResultsText+=FString::Printf(TEXT("\n배치: %s · %s cm · %s · %s%s"),*S.Placement.MapPackage,*S.Placement.WorldTransform.GetLocation().ToString(),*S.Placement.WorldTransform.Rotator().ToString(),S.Placement.bDirectPlacement?TEXT("직접 배치"):*S.Placement.BookmarkName,S.Placement.bChangedDuringRun?TEXT(" · 외부 배치 변경 감지"):TEXT(""));
+        }
 		RunResultsText+=TEXT("\nBroker 수락은 외부 소비자의 저장·AI 처리 완료를 뜻하지 않습니다.");
 		auto Time=[](const FDateTime& T){return T.GetTicks()>0?T.ToIso8601():FString(TEXT("—"));};
 		RunResultsText+=TEXT("\n준비 UTC: ")+Time(R.PreparedUtc)+TEXT("\n시작 UTC: ")+Time(R.StartedUtc)+TEXT("\n중단/종료 UTC: ")+Time(R.StoppedUtc)+TEXT(" / ")+Time(R.FinishedUtc);

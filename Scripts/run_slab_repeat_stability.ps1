@@ -1,12 +1,13 @@
 param([string]$Label='after',[int]$Trials=1,[switch]$AllOutputs,[switch]$Repeated,[int]$Width=1920,[int]$Height=1080,[switch]$Trace,
  [ValidateRange(2,100)][int]$RunCount=10,[switch]$ResourceDiagnostics,[switch]$PreviewOff,[switch]$MemoryTrace,
- [ValidatePattern('^[A-Za-z0-9_-]+$')][string]$ReportGroup='SlabRepeatRunStability')
+ [ValidatePattern('^[A-Za-z0-9_-]+$')][string]$ReportGroup='SlabRepeatRunStability',[switch]$PlacementAB)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $report=Join-Path $root ('Saved/Reports/'+$ReportGroup+'/'+$Label)
 New-Item -ItemType Directory -Force $report|Out-Null
 $variables=@{MA0T10_SLAB_RHI='1';MA0T10_SLAB_REQUIRE_DATA='1';MA0T10_SLAB_RESET_RHI='1';MA0T10_SLAB_EXACT_VIEWPORT='1';MA0T10_ACCEPTANCE_RES_X="$Width";MA0T10_ACCEPTANCE_RES_Y="$Height";MA0T10_SLAB_OUTPUT_ALL=$(if($AllOutputs){'1'}else{'0'});MA0T10_SLAB_REPEAT_RHI=$(if($Repeated){'1'}else{'0'})}
 $variables.MA0T10_SLAB_REPEAT_COUNT="$RunCount"
+$variables.MA0T10_PLACEMENT_AB_RHI=if($PlacementAB){'1'}else{'0'}
 $variables.MA0T10_SENSOR_RESOURCE_DIAGNOSTICS=if($ResourceDiagnostics){'1'}else{'0'}
 $variables.MA0T10_SENSOR_RESOURCE_PREVIEW_OFF=if($PreviewOff){'1'}else{'0'}
 $variables.MA0T10_SENSOR_RESOURCE_REPORT_DIR=Join-Path $report 'resources'
@@ -21,6 +22,7 @@ try {
   $probe=$null;$editor=$null;$samples=[Collections.Generic.List[object]]::new()
   try {
    $args=@("`"$(Join-Path $root 'Tools/Artemis/stomp_probe.mjs')`"",'--url','ws://127.0.0.1:61616','--topics',$topics,'--duration',"$duration",'--timeout',"$($duration+90)",'--slab-runs',"$runs",'--require-contiguous-pcd','true','--metadata-ledger','true','--quiet','true','--output',"`"$(Join-Path $out 'external.json')`"")
+   if($PlacementAB){$args+=@('--placement-ledger','true')}
    $probe=Start-Process node -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $out 'probe.log') -RedirectStandardError (Join-Path $out 'probe.err')
    $test=if($Repeated){'MA0T10.SlabReliability.RepeatedRuntime'}else{'MA0T10.SlabScenario.ProductionRuntime'}
    $editorArgs=@("`"$(Join-Path $root 'ma0t10_dt.uproject')`"",'-d3d12','-RenderOffscreen','-unattended','-nosplash','-NoSound','-NoVSync','-ini:Engine:[/Script/LiveCoding.LiveCodingSettings]:bEnabled=False',"-ExecCmds=`"r.VSyncEditor 0,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests $test;Quit`"",'-TestExit="Automation Test Queue Empty"',"-ReportExportPath=`"$(Join-Path $out 'automation')`"","-abslog=`"$(Join-Path $out 'editor.log')`"")
