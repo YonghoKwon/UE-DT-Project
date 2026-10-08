@@ -9,6 +9,20 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorResourceSnapshotTest,"MA0T10.ResourceLifecycle.SnapshotIsReadOnly",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCameraOrderedFailureRecoveryTest,"MA0T10.ResourceLifecycle.CameraFailedHeadReleasesFollowers",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FCameraOrderedFailureRecoveryTest::RunTest(const FString&)
+{
+    auto* C=NewObject<UVirtualCameraCaptureComponent>();C->OutputMode=EVirtualCameraOutputMode::None;
+    auto QueueFollower=[&](){C->EncodeOrder={1,2};auto& Done=C->CompletedEncodes.FindOrAdd(2);Done.JpegBytes={0xff,0xd8,0xff,0xd9};Done.Width=1;Done.Height=1;
+        FVirtualCameraPayloadSnapshot Meta;Meta.FrameId=2;Meta.SensorId=TEXT("ordered-test");Meta.TimestampUtc=FDateTime::UtcNow();C->ScheduledAcquisitionSnapshots.Add(2,Meta);};
+    QueueFollower();C->CompleteSlabAcquisition(1,false);
+    TestTrue(TEXT("failed head drains already-completed follower without waiting for another encode"),C->EncodeOrder.IsEmpty()&&C->CompletedEncodes.IsEmpty());
+    TestEqual(TEXT("follower retains its own acquisition identity"),C->GetLastCompletedAcquisition().FrameId,int64(2));
+    const auto Before=C->GetLastJpegSnapshot();QueueFollower();C->StopCapture();
+    TestTrue(TEXT("Stop clears followers without publishing canceled work"),C->GetLastJpegSnapshot()==Before);
+    TestTrue(TEXT("Stop removes order and completion buffers"),C->EncodeOrder.IsEmpty()&&C->CompletedEncodes.IsEmpty());
+    return true;
+}
 bool FSensorResourceSnapshotTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();

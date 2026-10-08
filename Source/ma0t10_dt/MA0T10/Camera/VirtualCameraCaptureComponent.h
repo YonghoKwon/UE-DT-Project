@@ -236,7 +236,7 @@ private:
 	FVirtualCameraJpegMetadata LastJpegMetadata;
 	TMap<int64,FVirtualSlabFrameContext> SlabCaptureContexts;
 	FVirtualSlabFrameContext LastSlabContext;
-	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true);
+	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true, bool bFlushOnFailure=true);
 public:
     virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) override;
 	const FVirtualSlabFrameContext& GetLastSlabContext() const { return LastSlabContext; }
@@ -302,6 +302,7 @@ private:
 	FVirtualCameraPayloadSnapshot LastCompletedAcquisition;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSensorCameraCoherenceUnitTest;
+    friend class FCameraOrderedFailureRecoveryTest;
 public:
 	TFunction<void(int64)> BeforeSceneCaptureForTests;
 	TFunction<void(const FVirtualCameraPayloadSnapshot&,const FVirtualSlabFrameContext&,TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe>)> OnScheduledFrameForTests;

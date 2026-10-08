@@ -35,6 +35,9 @@ std::atomic<int64> GVirtualCameraActiveRawBytes{0};
 constexpr int32 GVirtualCameraEncodeJobLimit = 4;
 constexpr int32 GVirtualCameraEncodeJobsPerCamera = 2;
 constexpr int32 GVirtualCameraReadbackSlotsPerCamera = 3;
+// Includes readback, encoding and out-of-order completion. A delayed head may
+// occupy one encoder while the other continues; bound the whole ordered window.
+constexpr int32 GVirtualCameraOrderedOutputLimit = 8;
 bool IsWholeNumber(double Value)
 {
     return FMath::IsFinite(Value) && FMath::IsNearlyEqual(Value, FMath::RoundToDouble(Value));
@@ -172,7 +175,7 @@ void UVirtualCameraCaptureComponent::StopCapture()
 {
 	CancelLocalFileFrame();
 	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
-	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false);
+	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false,false);
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
@@ -266,11 +269,13 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
         return true;
     }
 
-	if (PendingReadbackRequests.Num() >= GVirtualCameraReadbackSlotsPerCamera)
+	if (PendingReadbackRequests.Num() >= GVirtualCameraReadbackSlotsPerCamera || EncodeOrder.Num() >= GVirtualCameraOrderedOutputLimit)
 	{
 		++RuntimeStatus.QueueOverflowCount;
 		++RuntimeStatus.DroppedDerivedFrameCount;
-		RuntimeStatus.AcquisitionBackendMessage = TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
+		RuntimeStatus.AcquisitionBackendMessage = EncodeOrder.Num() >= GVirtualCameraOrderedOutputLimit
+            ? TEXT("Camera ordered output window reached 8 frames; output failed explicitly while acquisition continued.")
+            : TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
 		CompleteSlabAcquisition(FrameId,false);
 		return true;
 	}
@@ -642,13 +647,15 @@ void UVirtualCameraCaptureComponent::SetTransportComponent(UVirtualSensorTranspo
     TransportComponent = InTransportComponent;
 }
 
-FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success)
+FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success,bool FlushOnFailure)
 {
+	const bool RemovedHead=!Success&&!EncodeOrder.IsEmpty()&&EncodeOrder[0]==Id;
 	if (!Success) EncodeOrder.Remove(Id);
 	if(!Success)ScheduledAcquisitionSnapshots.Remove(Id);
 	FVirtualSlabFrameContext Context;
 	SlabCaptureContexts.RemoveAndCopyValue(Id, Context);
 	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,Id,Success);
+	if(RemovedHead&&FlushOnFailure)FlushCompletedEncodes();
 	return Context;
 }
 

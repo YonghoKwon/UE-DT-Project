@@ -71,6 +71,8 @@ class FCameraMarkerCheck : public IAutomationLatentCommand
     double Start=FPlatformTime::Seconds(),Ready=0,StageAt=0;
     int32 Stage=0,Completed=0,Checked=0,BeforeStop=0,OverflowBefore=0;
     bool NegativeChecked=false;
+    int64 HeldEncodeFrame=-1;
+    int64 PeakReorder=0,PeakOrder=0;
     void Pump()
     {
         while(!Jobs.IsEmpty()&&State->Active.Load()<2)
@@ -150,8 +152,19 @@ public:
             Session->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),SlabFrame,SlabFrame*.05);
             C->SetWorldLocationAndRotation(FVector(FMath::Sin(Age)*3,0,100),FRotator(0,FMath::Sin(Age)*1.5,0));
             if(Age<30)return false;
-            Test->TestTrue(TEXT("30 seconds checks every completed frame"),Completed>=870);OverflowBefore=C->GetRuntimeStatus().QueueOverflowCount;
-            C->ForceReadbackSaturationForTests=true;Stage=2;StageAt=FPlatformTime::Seconds();return false;
+            Test->TestTrue(TEXT("30 seconds checks every completed frame"),Completed>=870);
+            C->EncodeDelayByFrameForTests=[this](int64 Id){if(HeldEncodeFrame<0)HeldEncodeFrame=Id;return Id==HeldEncodeFrame?2.0f:0.0f;};
+            OverflowBefore=C->GetRuntimeStatus().QueueOverflowCount;Stage=10;StageAt=FPlatformTime::Seconds();return false;
+        }
+        if(Stage==10)
+        {
+            const auto Resource=C->GetResourceSnapshot();PeakReorder=FMath::Max(PeakReorder,Resource.Counts.FindRef(TEXT("completed_reorder")));PeakOrder=FMath::Max(PeakOrder,Resource.Counts.FindRef(TEXT("encode_order")));
+            if(FPlatformTime::Seconds()-StageAt<1.5)return false;
+            Test->TestTrue(TEXT("one delayed encode cannot retain more than eight ordered outputs"),PeakOrder<=8);
+            Test->TestTrue(TEXT("reorder bodies remain bounded behind delayed head"),PeakReorder<=8);
+            Test->AddInfo(FString::Printf(TEXT("Delayed head peak order=%lld reorder=%lld allocations=%lld"),PeakOrder,PeakReorder,Resource.Counts.FindRef(TEXT("readback_allocations"))));
+            C->EncodeDelayByFrameForTests=nullptr;C->StopCapture();C->StartCapture();
+            OverflowBefore=C->GetRuntimeStatus().QueueOverflowCount;C->ForceReadbackSaturationForTests=true;Stage=2;StageAt=FPlatformTime::Seconds();return false;
         }
         if(Stage==2&&FPlatformTime::Seconds()-StageAt>.3)
         {
@@ -164,7 +177,11 @@ public:
         }
         if(Stage==4&&FPlatformTime::Seconds()-StageAt>.3)
         {
-            Test->TestEqual(TEXT("no stale output after Stop"),Completed,BeforeStop);C->StartCapture();Stage=5;StageAt=FPlatformTime::Seconds();return false;
+            Test->TestEqual(TEXT("no stale output after Stop"),Completed,BeforeStop);
+            const auto Resource=C->GetResourceSnapshot();
+            for(const auto* Key:{TEXT("pending_encodes"),TEXT("active_encodes"),TEXT("completed_reorder"),TEXT("encode_order"),TEXT("acquisition_snapshots"),TEXT("slab_contexts")})
+                Test->TestEqual(FString::Printf(TEXT("Stop returns %s"),Key),Resource.Counts.FindRef(Key),int64(0));
+            C->StartCapture();Stage=5;StageAt=FPlatformTime::Seconds();return false;
         }
         if(Stage==5&&FPlatformTime::Seconds()-StageAt>1)
         {
