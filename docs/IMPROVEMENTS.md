@@ -85,7 +85,9 @@
 
 **진행률: 70%** · 구현: 완료 · 검증: lifecycle/Slate 자동시험 및 일부 실제 조작 통과.
 
-- **남은 조건:** Camera 회전·LiDAR 숫자 변경·포커스 이탈·선택 변경·종료 등 해상도별 전체 직접 조작 목록을 완료한다. 현재 증거는 아래 최신 기록을 따른다.
+- **남은 조건:** 포커스 이탈·선택 변경·종료 등 해상도별 전체 직접 조작 목록을 완료한다. Camera 회전·LiDAR 숫자 변경의 최신 직접 증거는 아래 기록을 따른다.
+
+2026-10-08 추가 직접 검수: 실제1920×1080 client에서 Camera 기즈모 이동·회전으로 월드 Transform 변경과 플레이어 view rotation 불변, 정지 Camera 첫 Esc·Settings 숨김 종료를 확인했다. LiDAR Z1800→1850 입력 후 첫 Esc로4Hz→20Hz 복귀와 PIE 유지도 확인했다. bounded capture1180×771 때문에 하단 일부와 전체 경계 checklist는 여전히 미완료다.
 
 2026-10-03 검수: 소유 패널/PIE viewport에 한정된 Slate 입력 중재기, 첫 Esc·repeat/release, 원설정 복귀 및 Main/외부 Widget 격리 시험을 통과했다. 직접 마우스로 Camera/LiDAR 이동·LiDAR 회전·첫 Esc의 PIE 유지도 확인했다. 숫자 Transform 편집이 전체 측정 설정을 재시작하던 회귀와 빠른 pointer drag 누락을 수정했다. Camera 회전·LiDAR 숫자 변경 등 해상도별 전체 직접 조작과1920×1080 수동 gate는 아직 미완료다. Camera 숨김 복귀의 추가 증거는 아래 최신 기록을 따른다.
 
@@ -106,7 +108,9 @@
 
 **진행률: 70%** · 구현: 완료 · 검증: 정체·유예·복귀·pause·공정성 자동시험 통과.
 
-- **남은 조건:** 실제 화면에서 정체·일시정지·재개 및 정상 복귀 표시를 확인한다.
+- **남은 조건:** 두 센서·두 해상도의 전체 표시/입력 경계 확인을 완료한다. 실제1280×720 LiDAR 정체·pause·재개는 아래 최신 증거로 확인했다.
+
+2026-10-08 직접 정체 시험에서 Scheduler는0Hz였지만 소유 모니터가 마지막20Hz를 표시하는 불일치를 재현했다. `1d17016`은 소유 모니터만 현재 SensorId·종류에 맞는 Scheduler 상태를 표시한다. 실제1280×720의0Hz·정체 경고→20Hz 복귀, PIE pause의일시정지→재개 화면을 확인했다. 준비·경량 조작·정지·정상 복귀 formatter 자동시험도 통과했다. 측정 이력·주기·전송·미등록 Widget은 변경하지 않는다.
 
 **수정 전 근거:** Scheduler min/max가 양수 Hz만 포함해 완전히 멈춘 센서를 숨길 수 있었다. 마지막 acquisition-rate 값도 자동 만료되지 않았다.
 
@@ -245,7 +249,7 @@
 
 - **남은 조건:** 1920×1080 전체 직접 조작·DPI 대표 조합·외부 Widget 입력·전체 checklist를 완료한다.
 - 최신 직접 근거: 실제client1280×720,150% 제목/버튼 가독성, 숫자 Transform·Settings 숨김 복귀를 확인했다. 일반 PIE의 앞선 최대client는1920×998였고 Alt+Enter로 크기가 바뀌지 않았다.1920×1080 자동화 결과는 직접 마우스 검수와 구분한다.
-- 2026-10-08 직접 client1280×720: Camera gizmo 이동·숫자Yaw45→50·정지/실행 첫Esc,LiDAR 숫자Z1800→1850·4Hz→20Hz 복귀,Settings resize/drag/collapse·85/100/125/150%를 확인했다. 실제1920×1080 client는 생성했지만 bounded capture1180×771과 `GetCursorPos 0x80070005`로 전체 checklist를 완료하지 못했다. 정체/pause/복귀·준비 취소·Main 빈 영역/휠 전수는 남기며, 해당 환경 제한을 기능 실패나 자동화 대체 통과로 기록하지 않는다.
+- 2026-10-08 직접 client1280×720에 이어 세션 복구 후1920×1080에서 Camera gizmo 이동·회전·정지 첫Esc·Settings 숨김,LiDAR 숫자Z1800→1850·4Hz→20Hz 복귀,데이터 패널 열기·85/100/125/150%·resize/scroll/collapse를 확인했다.125/150%에서 좁은 Settings의 SensorId가 잘렸지만 resize 후 전체가 표시됐다.1280×720의 정체/pause/복귀는 수정 후 실제 확인했다. bounded capture1180×771로 전체1920 checklist·직접 준비 취소·Main/외부 Widget 입력 전수는 남긴다. 앞선0x80070005 실패는 원본 증거로 보존한다.
 - 이전 이력: 988×521/1174×683은 과거 수동 시험 크기다. 실제 동료 프로젝트는 미제공이다.
 - 두 목표 client 크기, 100/125/150% OS DPI 및 네 폰트 배율의 대표 조합을 검사한다. 창 경계/메뉴 overflow/입력 clipping/접기 후 hit-test/Tab focus/숨김 중 작업/재호스팅을 확인한다.
 - 완료: 실제 크기 증거, 기존 저장값 roundtrip, 미등록/중첩 Widget의 font·geometry·입력·파일 hash 불변. 확보 못한 조합은 명시적으로 미완료.

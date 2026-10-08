@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`d7ab7e3` 기반 센서 자원 진단·Camera 완료 대기 제한·측정용 SceneCapture 격리, DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+현재 기능 기준: **`d7ab7e3` 기반 센서 자원 진단·Camera 완료 대기 제한·측정용 SceneCapture 격리·소유 모니터 현재 정체 상태 표시(`1d17016`), DTCore `b2504d1`, 2026-10-08**. Unreal Engine 5.3 C++ 프로젝트다. Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
@@ -9,8 +9,10 @@
 이번 자원 수명 보강은 `Saved/Reports/SensorResourceLifecycle`에서 별도로 검증한다. 아래 10회 반복 결과는 이전 소스의 증거다.
 
 - 이번 최종 반복은 실제1920×1080에서 PCD 전용/세 출력 각각30초×30회다. 승인·제출·receipt·내부 실제 MESSAGE·외부 request ID집합 대조 통과: PCD17,989개, 세 출력합계62,979개. 종료 bytes/events/active/retiring0, 결과·종료진단20개, source별 worker/connection 동일. 반복 최소FPS59.82/59.94, 가장 느린1% 평균 low47.80/55.32, frame p95≤16.67ms.10초 준비+60초 변경 전후 각3회도5% 회귀 조건을 통과했다.
-- 최종 전체206개 success 상태 중 명시 opt-in skip6개를 분리해 실제200개 수행으로 기록한다. 반복시험·실제 topic.scenario Broker 수신은 별도 opt-in 실행에서 통과했다. WBP6개 메모리 컴파일과 자산 검사는 저장0이다. 입력 시험의 최초 실패는 접혀 저장된 Settings를 펼친 뒤 Slate 배치를 기다리는 fixture 보정 후 집중·전체 재시험으로 통과했으며 원본 로그를 보존한다.
-- 직접1280×720에서 Camera 이동/숫자 회전·정지/실행 첫 Esc·LiDAR 숫자 위치/첫 Esc·패널 resize/drag/collapse·네 글자 배율을 확인했다.1920×1080 client 생성은 확인했으나 창 재바인딩 후에도 커서 접근 `0x80070005`로 전체 마우스 검수는 미완료다. 정상 반복의 private memory는 실행1→30에서 약15/44MiB 증가했고, 파이프라인 반환과 별개로 전체 allocator/driver/engine 인과 분해는 남는다. **전체 최종 검수 완료로 표시하지 않는다.**
+- `1d17016` 최종 전체207개 Success 상태(그중15개 경고 포함)에서 명시 opt-in skip6개를 분리해 실제201개 수행으로 기록한다. 이전206개 결과와 원본 실패는 보존한다. 반복시험·실제 topic.scenario Broker 수신은 별도 opt-in 실행에서 통과했다. WBP6개 메모리 컴파일과 자산 검사는 저장0이다. 입력 시험의 최초 실패는 접혀 저장된 Settings를 펼친 뒤 Slate 배치를 기다리는 fixture 보정 후 집중·전체 재시험으로 통과했으며 원본 로그를 보존한다.
+- 직접1280×720의 Camera 이동/숫자 회전·정지/실행 첫 Esc·LiDAR 숫자 위치/첫 Esc·패널 조작에 이어, 세션 복구 후 실제1920×1080에서 Camera 기즈모 이동·회전·정지 첫 Esc·Settings 숨김, LiDAR 숫자Z1800→1850·4Hz→20Hz Esc 복귀, 데이터 패널 열기·네 글자 배율·resize/scroll/collapse를 추가 확인했다. 캡처1180×771에는 아래쪽 일부가 보이지 않아 전체1920 checklist·Main/외부 Widget 입력 전수·직접 준비 취소는 미완료다. 정상 반복의 private memory는 실행1→30에서 약15/44MiB 증가했고 전체 allocator/driver/engine 인과 분해는 남는다. **전체 최종 검수 완료로 표시하지 않는다.**
+- 직접 정체 시험에서 획득이 멈췄는데 모니터가 마지막20Hz를 계속 표시하는 문제를 재현했다. `1d17016`은 등록된 소유 모니터만 Scheduler의 현재 유효Hz·준비/정지/조작/정체/pause 상태를 표시한다. 실제1280×720에서0Hz·정체 경고→20Hz 복귀, 일시정지→재개를 확인했다. 저장된 측정 이력·송신 계약·주기·비대상 Widget의 표시 방식은 변경하지 않는다.
+- 이 표시 수정까지 포함한 최종 source의 실제1920×1080·10+60초 PCD/세 출력 각3회도 통과했다: 평균59.98~60FPS,1% low≥59.96,p9516.67ms,PCD외부수신≥19.912Hz, invalid/gap/duplicate0. 기존 baseline 대비FPS/low/p95의5% 회귀 없음. source별 원문과 구간별 카운터는 `Saved/Reports/SensorResourceLifecycle/final-performance-comparison.json` 및 `Saved/Reports/lifecycle_final_monitor_*`에 보존한다.
 
 - Camera의 readback·encode·완료 순서 대기 전체를 8프레임으로 제한한다. 앞 JPEG만 2초 지연한 실제 D3D12 시험에서 순서 대기46→8, 완료 JPEG44→7을 확인했다. 한도 도달은 명시적 출력 실패이며 측정을 막거나 이전 이미지로 채우지 않는다. 실패한 앞 프레임 뒤의 완료 결과는 해제하고, Stop은 취소된 결과를 발행하지 않는다.
 - 진단용 CPU/Niagara 점군과 World debug line batcher를 센서 SceneCapture에서 제외한다. 플레이어의 3D 표시는 유지한다. 실제 RHI의 표시 OFF/ON에서 Camera 픽셀 변화0, GPU 깊이 차이0을 확인했고, 격리를 해제한 대조군은 Camera2,536픽셀·중앙 깊이795.013→200cm의 변화를 검출했다. 사용자 Mesh·머티리얼은 수정하지 않는다.
