@@ -51,6 +51,20 @@
 
 namespace
 {
+const TCHAR* SensorRateStateText(EVirtualSensorRateState State)
+{
+    switch (State)
+    {
+    case EVirtualSensorRateState::Stopped: return TEXT("정지");
+    case EVirtualSensorRateState::WarmingUp: return TEXT("준비 중");
+    case EVirtualSensorRateState::Paused: return TEXT("일시정지");
+    case EVirtualSensorRateState::InteractionPreview: return TEXT("조작 미리보기");
+    case EVirtualSensorRateState::Starved: return TEXT("정체");
+    case EVirtualSensorRateState::Failed: return TEXT("측정 오류");
+    default: return TEXT("측정 중");
+    }
+}
+
 FString BuildPointCloudTimestamp()
 {
     const FDateTime NowUtc = FDateTime::UtcNow();
@@ -406,6 +420,13 @@ FString UVirtualSensorMonitorPanelWidget::GetLazExportSummaryText() const
 
 FString UVirtualSensorMonitorPanelWidget::GetTransportWarningText() const
 {
+    if (const auto* Rate = GetSelectedRateDiagnostic())
+    {
+        if (Rate->State == EVirtualSensorRateState::Starved)
+            return TEXT("상태/경고: 측정 정체 · 마지막 측정 이후 새 프레임이 없습니다.");
+        if (Rate->State == EVirtualSensorRateState::Failed)
+            return TEXT("상태/경고: 측정 오류 · 상세 진단을 확인하세요.");
+    }
     if (bShowingLidar && LidarComp)
     {
         const FString& Warning = LidarComp->GetRuntimeStatus().PerformanceWarning;
@@ -2254,13 +2275,32 @@ bool UVirtualSensorMonitorPanelWidget::ShouldUseNativeFallbackWidget() const
         !WidgetTree || !WidgetTree->RootWidget;
 }
 
+FString UVirtualSensorMonitorPanelWidget::FormatOwnedSensorRate(const TCHAR* Kind, const FString& Id,
+    const FVirtualSensorRuntimeStatus& Status, bool bRunning, const FVirtualSensorRateDiagnostic* Rate)
+{
+    const float Hz = Rate ? Rate->EffectiveHz : (bRunning ? Status.MeasuredCompletionRateHz : 0.0f);
+    const auto State = Rate ? Rate->State : (bRunning ? EVirtualSensorRateState::Running : EVirtualSensorRateState::Stopped);
+    return FString::Printf(TEXT("%s %s · 프레임 %lld · %.2f Hz · %s"), Kind, *Id, Status.FrameId, Hz, SensorRateStateText(State));
+}
+
+const FVirtualSensorRateDiagnostic* UVirtualSensorMonitorPanelWidget::GetSelectedRateDiagnostic() const
+{
+    // Only our registered panel consumes this current-state presentation contract.
+    if (!IsWorkspaceOwned() || !GetWorld()) return nullptr;
+    const auto* Scheduler = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>();
+    if (!Scheduler) return nullptr;
+    const FString Id = bShowingLidar && LidarComp ? LidarComp->SensorId : (!bShowingLidar && CameraComp ? CameraComp->SensorId : FString());
+    const FString Kind = bShowingLidar ? TEXT("LiDAR") : TEXT("Camera");
+    return Scheduler->GetTelemetry().SensorRates.FindByPredicate([&](const FVirtualSensorRateDiagnostic& Rate)
+    { return Rate.SensorId == Id && Rate.SensorKind == Kind; });
+}
+
 FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
 {
     if (bShowingLidar && LidarComp)
     {
         const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        if(IsWorkspaceOwned())return FString::Printf(TEXT("LiDAR %s · 프레임 %lld · %.2f Hz"),
-            *LidarComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz);
+        if(IsWorkspaceOwned())return FormatOwnedSensorRate(TEXT("LiDAR"),LidarComp->SensorId,Status,LidarComp->IsScanRunning(),GetSelectedRateDiagnostic());
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n광선 %d · 측정점 %d · 검출점 %d"),
             Status.FrameId,
             Status.MeasuredCompletionRateHz,
@@ -2271,8 +2311,7 @@ FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
     if (!bShowingLidar && CameraComp)
     {
         const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
-        if(IsWorkspaceOwned())return FString::Printf(TEXT("Camera %s · 프레임 %lld · %.2f Hz"),
-            *CameraComp->SensorId,Status.FrameId,Status.MeasuredCompletionRateHz);
+        if(IsWorkspaceOwned())return FormatOwnedSensorRate(TEXT("Camera"),CameraComp->SensorId,Status,CameraComp->IsCaptureRunning(),GetSelectedRateDiagnostic());
         return FString::Printf(TEXT("프레임 %lld · %.2f Hz\n해상도 %d × %d"),
             Status.FrameId, Status.MeasuredCompletionRateHz, CameraComp->CaptureResolution.X, CameraComp->CaptureResolution.Y);
     }
