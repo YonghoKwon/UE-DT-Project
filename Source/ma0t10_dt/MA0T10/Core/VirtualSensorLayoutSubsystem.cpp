@@ -97,6 +97,7 @@ AVirtualSensorActorBase* UVirtualSensorLayoutSubsystem::CreateSensorAtPose(EVirt
     const FString Guid=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
     State.SensorId=(Kind==EVirtualSensorKind::Camera?TEXT("CAMERA-"):TEXT("LIDAR-"))+Guid;
     State.ActorTransform=Pose;State.bExportCsvOnScan=false;State.bExportJsonLinesOnScan=false;State.bExportPcdOnScan=false;
+    if(Kind==EVirtualSensorKind::Lidar)State.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
     if(!S->ApplyEditableState(State,Reason)){S->Destroy();return nullptr;}
     Owned.Add(S,Guid);Coordinator()->RegisterSensorActor(S);Coordinator()->SelectSensorActor(S);if(Preview)S->StartSensor();Changed();return S;
 }

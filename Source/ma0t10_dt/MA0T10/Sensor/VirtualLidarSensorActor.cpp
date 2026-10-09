@@ -80,6 +80,7 @@ bool AVirtualLidarSensorActor::ReadEditableState(FVirtualSensorEditableState& Ou
     OutState.LidarMinVerticalAngle = ScanComponent->MinVerticalAngle;
     OutState.LidarMaxVerticalAngle = ScanComponent->MaxVerticalAngle;
     OutState.ServerPayloadStride = ScanComponent->ServerPayloadStride;
+    OutState.CompatibilityOutputPolicy=ScanComponent->CompatibilityOutputPolicy;
     OutState.MaxServerPayloadPoints = ScanComponent->MaxServerPayloadPoints;
     OutState.bIncludeMissPointsInServerPayload = ScanComponent->bIncludeMissPointsInServerPayload;
     OutState.PreviewPointStride = ScanComponent->PreviewPointStride;
@@ -99,6 +100,14 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     {
         return false;
     }
+    FVirtualSensorEditableState Current;ReadEditableState(Current);
+    Current.CompatibilityOutputPolicy=State.CompatibilityOutputPolicy;
+    Current.PersistentActorTag=State.PersistentActorTag;Current.OriginalSensorId=State.OriginalSensorId;
+    if(FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Current,&State,PPF_None))
+    {
+        if(ScanComponent->CompatibilityOutputPolicy!=State.CompatibilityOutputPolicy){ScanComponent->SetCompatibilityOutputPolicy(State.CompatibilityOutputPolicy);++ConfigurationRevision;}
+        return true;
+    }
     const bool bWasRunning=bInteractiveManipulationActive?bWasRunningBeforeInteraction:ScanComponent->IsScanRunning();
     TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
     SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
@@ -114,6 +123,7 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     ScanComponent->MinVerticalAngle = State.LidarMinVerticalAngle;
     ScanComponent->MaxVerticalAngle = State.LidarMaxVerticalAngle;
     ScanComponent->SetServerPayloadPolicy(State.ServerPayloadStride, State.MaxServerPayloadPoints, State.bIncludeMissPointsInServerPayload);
+    ScanComponent->SetCompatibilityOutputPolicy(State.CompatibilityOutputPolicy);
     ScanComponent->SetPreviewPolicy(State.PreviewPointStride, State.MaxPreviewPoints, State.bPreviewHitOnly);
     ScanComponent->bUseMultiHit = State.bUseMultiHit;
     ScanComponent->MaxHitsPerRay = State.MaxHitsPerRay;
@@ -244,6 +254,7 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
         State.LidarHorizontalFov < 1.0f || State.LidarHorizontalFov > 360.0f ||
         State.LidarMinVerticalAngle < -90.0f || State.LidarMaxVerticalAngle > 90.0f ||
         State.LidarMinVerticalAngle >= State.LidarMaxVerticalAngle ||
+        (State.CompatibilityOutputPolicy!=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways&&State.CompatibilityOutputPolicy!=EVirtualLidarCompatibilityOutputPolicy::WhenRequested) ||
         State.ServerPayloadStride < 1 || State.ServerPayloadStride > 100 ||
         State.MaxServerPayloadPoints < 0 || State.MaxServerPayloadPoints > 1000000 ||
         State.PreviewPointStride < 1 || State.PreviewPointStride > 100 ||

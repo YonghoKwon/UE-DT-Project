@@ -123,6 +123,7 @@ uint64 UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(AVirtualSensorActo
 	State.ActorTransform=FTransform::Identity;State.PersistentActorTag=NAME_None;
 	State.PreviewPointStride=2;State.MaxPreviewPoints=3000;State.bPreviewHitOnly=true;
 	State.ServerPayloadStride=1;State.MaxServerPayloadPoints=0;State.bIncludeMissPointsInServerPayload=false;
+	State.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
 	State.bExportCsvOnScan=false;State.bExportJsonLinesOnScan=false;State.bExportPcdOnScan=false;
 	State.CameraCaptureMode=EVirtualCameraCaptureMode::PreviewOnly;
 	TArray<uint8> Bytes;FMemoryWriter Writer(Bytes);FVirtualSensorEditableState::StaticStruct()->SerializeItem(Writer,&State,nullptr);

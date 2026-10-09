@@ -1654,9 +1654,25 @@ FVirtualSensorResourceSnapshot UVirtualSensorStreamPublisherComponent::GetResour
 }
 bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutput(const FString& Id) const
 {
+    // Configuration-only compatibility API. Acquisition callers use the context overload.
+    for(const auto& Pair:StreamRuntimes){const auto& C=Pair.Value.Config;
+        if(!C.bEnabled||C.StreamKind!=EVirtualSensorStreamKind::LidarPayload||(!C.SensorId.IsEmpty()&&C.SensorId!=Id))continue;
+        if(C.SensorId.IsEmpty()){const auto* Exact=StreamRuntimes.Find(MakeStreamKey(C.StreamKind,Id));if(Exact&&Exact->Config.bEnabled)continue;}
+        if(!(C.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport()))return true;
+    }
+    return false;
+}
+bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutput(const FString& Id,const FVirtualSlabFrameContext& Context) const
+{
+    const auto* Slab=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
+    if(Slab&&!Slab->AllowsFrame(Id,Context))return false;
     for(const auto& Pair:StreamRuntimes){const auto& C=Pair.Value.Config;
         if(C.bEnabled&&C.StreamKind==EVirtualSensorStreamKind::LidarPayload&&(C.SensorId.IsEmpty()||C.SensorId==Id)&&
-            !(C.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport()))return true;}
+            !(C.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport()))
+        {
+            if(C.SensorId.IsEmpty()){const auto* Exact=StreamRuntimes.Find(MakeStreamKey(C.StreamKind,Id));if(Exact&&Exact->Config.bEnabled)continue;}
+            if(!Slab||Slab->AllowsStreamFrame(Id,C.StreamKind,Context))return true;
+        }}
     return false;
 }
 

@@ -346,7 +346,7 @@ bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVi
 }
 bool UVirtualSensorSlabContextSubsystem::BeginCompatibilityDerivation(const FString& Id,int64 Frame,const FVirtualSlabFrameContext& Context)
 {
-    if(!AllowsStreamFrame(Id,EVirtualSensorStreamKind::LidarPayload,Context)||!Coordinator.IsValid()||!Coordinator->StreamPublisherComponent||!Coordinator->StreamPublisherComponent->NeedsCompatibilityLidarOutput(Id))return false;
+    if(!AllowsStreamFrame(Id,EVirtualSensorStreamKind::LidarPayload,Context)||!Coordinator.IsValid()||!Coordinator->StreamPublisherComponent||!Coordinator->StreamPublisherComponent->NeedsCompatibilityLidarOutput(Id,Context))return false;
     CompatibilityDerivations.Add(Id+TEXT("|")+LexToString(Frame));return true;
 }
 void UVirtualSensorSlabContextSubsystem::EndCompatibilityDerivation(const FString& Run,const FString& Id,int64 Frame,bool Failed)

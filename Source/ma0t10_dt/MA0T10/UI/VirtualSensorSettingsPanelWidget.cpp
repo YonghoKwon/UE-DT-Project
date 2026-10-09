@@ -793,6 +793,13 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeC
     if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
     auto Utilities=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
     Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
+      .Visibility_Lambda([this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Lidar?EVisibility::Visible:EVisibility::Collapsed;})
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy","LiDAR 호환 JSON 생성"))]
+      .BodyContent()[SNew(SCheckBox)
+        .IsChecked_Lambda([this](){return PendingState.CompatibilityOutputPolicy==EVirtualLidarCompatibilityOutputPolicy::WhenRequested?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+        .OnCheckStateChanged_Lambda([this](ECheckBoxState Value){PendingState.CompatibilityOutputPolicy=Value==ECheckBoxState::Checked?EVirtualLidarCompatibilityOutputPolicy::WhenRequested:EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;ApplyPendingState();})
+        [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("JsonDemandOnly","필요한 출력만 생성 · PCD/미리보기는 계속 동작"))]]];
+    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedIdentity","센서 식별 정보 변경"))]
       .BodyContent()[SNew(SVerticalBox)
         +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedIdentityHelp","SensorId는 전송·세션에서 센서를 구분하는 식별자입니다. 일반 측정값 조정과 별개입니다."))]
