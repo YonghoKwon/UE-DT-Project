@@ -1254,6 +1254,7 @@ bool UVirtualLidarScanComponent::RequestCompatibilityPayloadFromLatestFrame(FStr
     if(!LastFrameSnapshot.IsValid()){Reason=TEXT("완료된 측정 프레임이 없습니다.");return false;}
     if(LastFrameSnapshot->PipelineGeneration!=ScheduledGeneration){Reason=TEXT("측정 종료·설정 변경 전 프레임입니다. 미리보기의 새 프레임을 받은 뒤 요청하세요.");return false;}
     if(ActiveDerivedJob||PendingDerivedJob){Reason=TEXT("JSON 처리 중입니다. 완료 후 다시 요청하세요.");return false;}
+    if(GVirtualLidarJsonJobs.load(std::memory_order_acquire)>=GVirtualLidarJsonJobLimit){Reason=TEXT("전역 JSON 처리 슬롯이 사용 중입니다. 완료 후 다시 요청하세요.");return false;}
     RequestId=FGuid::NewGuid().ToString();QueueScheduledPayloadBuild(LastFrameSnapshot->FrameId,FPlatformTime::Seconds(),RequestId);Reason=TEXT("JSON 생성 요청 접수");return true;
 }
 void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds,const FString& RequestId)

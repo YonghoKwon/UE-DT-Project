@@ -452,17 +452,20 @@ bool UVirtualSensorCaptureExportPanelWidget::SendSelectedPayloadToServer()
 	UVirtualSensorTransportComponent* Transport = SensorManager ? SensorManager->SharedTransportComponent : nullptr;
 	FString Payload;
 	FString SensorType;
+    FString PayloadSensorId=GetSelectedSensorId();
 	int64 FrameId = 0;
 	if (MonitorWidget && MonitorWidget->IsShowingLidar())
 	{
 		if (const UVirtualLidarScanComponent* Lidar = SensorManager->GetSelectedLidar())
 		{
-			Payload = Lidar->GetLastJsonPayload(); SensorType = TEXT("lidar"); FrameId = Lidar->GetRuntimeStatus().FrameId;
+            const auto& Completed=Lidar->GetLastCompletedDerivedFrame();
+            if(Completed.HasJsonPayload())Payload=*Completed.JsonPayload;
+            SensorType=TEXT("lidar");FrameId=Completed.FrameId;PayloadSensorId=Completed.SensorId;
 		}
 	}
 	else if (const UVirtualCameraCaptureComponent* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
 	{
-		Payload = Camera->GetLastJsonPayload(); SensorType = TEXT("camera"); FrameId = Camera->GetRuntimeStatus().FrameId;
+        Payload = Camera->GetLastJsonPayload(); SensorType = TEXT("camera"); FrameId = Camera->GetLastJsonPayloadFrameId();PayloadSensorId=Camera->GetLastJsonPayloadSensorId();
 	}
 	if (Payload.IsEmpty())
 	{
@@ -470,10 +473,37 @@ bool UVirtualSensorCaptureExportPanelWidget::SendSelectedPayloadToServer()
 		RefreshNativeText();
 		return false;
 	}
-	const FVirtualSensorTransportResult Result = Transport->SendJsonRequest(GetSelectedSensorId(), SensorType, TEXT("manual-payload"), FrameId, Payload, true);
+	const FVirtualSensorTransportResult Result = Transport->SendJsonRequest(PayloadSensorId, SensorType, TEXT("manual-payload"), FrameId, Payload, true);
 	LastUiMessage = Result.Message;
 	RefreshNativeText();
-	return Result.bSubmitted;
+    return Result.bSubmitted;
+}
+
+bool UVirtualSensorCaptureExportPanelWidget::RequestSelectedPayloadSend()
+{
+    if(!(MonitorWidget&&MonitorWidget->IsShowingLidar()))return SendSelectedPayloadToServer();
+    if(!ActiveManualPayloadRequest.IsEmpty()){LastUiMessage=TEXT("수동 JSON 요청 처리 중입니다.");return false;}
+    auto* Lidar=SensorManager?SensorManager->GetSelectedLidar():nullptr;
+    if(Lidar&&Lidar->GetLastCompletedDerivedFrame().HasJsonPayload()&&Lidar->GetCompatibilityOutputStatus().bRequested)return SendSelectedPayloadToServer();
+    if(!Lidar||!ApplyTransportProfile())return false;
+    auto* Transport=SensorManager->SharedTransportComponent.Get();
+    const auto Profile=Transport->GetTransportProfile();const auto Mode=Transport->TransportMode;
+    TWeakObjectPtr<UVirtualSensorTransportComponent> WeakTransport(Transport);
+    ManualPayloadSensor=Lidar;
+    ManualPayloadHandle=Lidar->OnCompatibilityRequestCompletedNative.AddWeakLambda(this,[this,WeakTransport,Profile,Mode](const FString& Id,bool Success,const FVirtualSensorFrameEnvelope& Frame,const FString& Message)
+    {
+        if(Id!=ActiveManualPayloadRequest)return;
+        ActiveManualPayloadRequest.Reset();
+        if(ManualPayloadSensor.IsValid())ManualPayloadSensor->OnCompatibilityRequestCompletedNative.Remove(ManualPayloadHandle);ManualPayloadSensor.Reset();
+        if(!Success||!WeakTransport.IsValid()||!Frame.HasJsonPayload())LastUiMessage=Message;
+        else if(WeakTransport->TransportMode!=Mode||WeakTransport->GetTransportProfile().BrokerUrl!=Profile.BrokerUrl||WeakTransport->GetTransportProfile().HttpEndpoint!=Profile.HttpEndpoint)LastUiMessage=TEXT("연결 설정 변경으로 수동 전송을 취소했습니다.");
+        else LastUiMessage=WeakTransport->SendJsonRequest(Frame.SensorId,TEXT("lidar"),TEXT("manual-payload"),Frame.FrameId,*Frame.JsonPayload,true).Message;
+        RefreshNativeText();
+    });
+    FString Reason;
+    if(!Lidar->RequestCompatibilityPayloadFromLatestFrame(ActiveManualPayloadRequest,Reason))
+    {Lidar->OnCompatibilityRequestCompletedNative.Remove(ManualPayloadHandle);ManualPayloadSensor.Reset();LastUiMessage=Reason;RefreshNativeText();return false;}
+    LastUiMessage=Reason;RefreshNativeText();return true;
 }
 
 bool UVirtualSensorCaptureExportPanelWidget::SendLastExportToServer()

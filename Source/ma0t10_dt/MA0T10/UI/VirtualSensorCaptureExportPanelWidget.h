@@ -16,6 +16,7 @@ template<typename OptionType> class SComboBox;
 class ASlabActor;
 class AVirtualSensorActorBase;
 class UVirtualSensorFileSaveSubsystem;
+class UVirtualLidarScanComponent;
 struct FVirtualSensorTransportProfile;
 
 UENUM(BlueprintType)
@@ -112,6 +113,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendSelectedPayloadToServer();
 
+    /** Native UI: asynchronous JSON creation from an already completed immutable frame. */
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorExport|Transport")
+    bool RequestSelectedPayloadSend();
+
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendLastExportToServer();
 
@@ -186,6 +191,9 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    FString ActiveManualPayloadRequest;
+    TWeakObjectPtr<UVirtualLidarScanComponent> ManualPayloadSensor;
+    FDelegateHandle ManualPayloadHandle;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunComparisonUiTest;
 #endif

@@ -148,6 +148,8 @@ public:
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> GetLastJpegSnapshot() const { return LastJpegSnapshot; }
 	const FVirtualCameraJpegMetadata& GetLastJpegMetadata() const { return LastJpegMetadata; }
 	const FVirtualCameraPayloadSnapshot& GetLastCompletedAcquisition() const { return LastCompletedAcquisition; }
+    int64 GetLastJsonPayloadFrameId() const { return LastJsonPayloadFrameId; }
+    const FString& GetLastJsonPayloadSensorId() const { return LastJsonPayloadSensorId; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
@@ -314,6 +316,8 @@ private:
 	TMap<int64, FCompletedEncode> CompletedEncodes;
 	TMap<int64,FVirtualCameraPayloadSnapshot> ScheduledAcquisitionSnapshots;
 	FVirtualCameraPayloadSnapshot LastCompletedAcquisition;
+    int64 LastJsonPayloadFrameId=-1;
+    FString LastJsonPayloadSensorId;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSensorCameraCoherenceUnitTest;
     friend class FCameraOrderedFailureRecoveryTest;

@@ -103,6 +103,12 @@ bool FSensorPeriodicUnavailableOutputTest::RunTest(const FString&)
 	const TArray<uint8> Signature={0xff,0xd8,0xff,0xd9};
 	const FString Original=FVirtualCameraPayloadCodec::EncodeJpegBase64(Descriptor,FBase64::Encode(Signature),Signature.Num());
 	TestTrue(TEXT("valid JSON-only input accepted"),Camera->CaptureComponent->InjectExternalJsonPayload(Original,false));
+    TestEqual(TEXT("manual JSON cache preserves payload frame"),Camera->CaptureComponent->GetLastJsonPayloadFrameId(),int64(301));
+    Descriptor.FrameId=250;const FString Older=FVirtualCameraPayloadCodec::EncodeJpegBase64(Descriptor,FBase64::Encode(Signature),Signature.Num());
+    TestTrue(TEXT("older source payload accepted independently of runtime maximum"),Camera->CaptureComponent->InjectExternalJsonPayload(Older,false));
+    TestEqual(TEXT("cached payload does not borrow runtime frame id"),Camera->CaptureComponent->GetLastJsonPayloadFrameId(),int64(250));
+    TestEqual(TEXT("cached source id preserved"),Camera->CaptureComponent->GetLastJsonPayloadSensorId(),Descriptor.SensorId);
+    Camera->CaptureComponent->InjectExternalJsonPayload(Original,false);
 	TestEqual(TEXT("source frame exists even without local JPEG snapshot"),Files->GetAvailableFrameId(Camera),int64(301));
 	const FString Id=P->StartPeriodicSave(Camera,Selection);P->Tick(.016f);
 	const auto Waiting=P->GetPeriodicStatus(Id);

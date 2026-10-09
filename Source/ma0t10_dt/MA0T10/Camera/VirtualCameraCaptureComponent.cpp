@@ -608,6 +608,7 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		}
 
 		LastJsonPayload = MoveTemp(Result.JsonPayload);
+        LastJsonPayloadFrameId=CompletedFrameId;
 		FString StatusMessage = TEXT("비동기 캡처 완료");
 		if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput && !LastJsonPayload.IsEmpty())
 		{
@@ -636,7 +637,7 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		UpdateRuntimeStatus(LastJsonPayload.Len(), StatusMessage);
 		RuntimeStatus.FrameId = CompletedFrameId;
 		if(const auto* Acquired=ScheduledAcquisitionSnapshots.Find(CompletedFrameId))
-		{LastCompletedAcquisition=*Acquired;RuntimeStatus.LastUpdateUtc=Acquired->TimestampUtc;}
+		{LastCompletedAcquisition=*Acquired;RuntimeStatus.LastUpdateUtc=Acquired->TimestampUtc;LastJsonPayloadSensorId=Acquired->SensorId;}
 		ScheduledAcquisitionSnapshots.Remove(CompletedFrameId);
 		LastSlabContext=CompleteSlabAcquisition(CompletedFrameId);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -769,6 +770,7 @@ void UVirtualCameraCaptureComponent::CaptureAndSendImage()
     const FString Base64Image = FBase64::Encode(JpegBytes.GetData(), static_cast<uint32>(JpegBytes.Num()));
     const FString JsonPayload = BuildJsonPayload(Base64Image, JpegBytes.Num());
     LastJsonPayload = JsonPayload;
+    LastJsonPayloadFrameId=FrameId;LastJsonPayloadSensorId=SensorId;
 
     FString StatusMessage = TEXT("Captured");
     if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput)
@@ -804,6 +806,7 @@ bool UVirtualCameraCaptureComponent::InjectExternalJsonPayload(const FString& Js
     }
 
     LastJsonPayload = JsonPayload;
+    LastJsonPayloadFrameId=PayloadFrameId;LastJsonPayloadSensorId=PayloadSensorId.IsEmpty()?SensorId:PayloadSensorId;
     LastJpegSnapshot.Reset();
 	bHasFileAcquisition=false;
     FrameId = FMath::Max(FrameId, PayloadFrameId);

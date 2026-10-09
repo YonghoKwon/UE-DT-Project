@@ -37,7 +37,7 @@ void UVirtualSensorCaptureExportPanelWidget::InitializeOwnedEntryView(EVirtualSe
 void UVirtualSensorCaptureExportPanelWidget::NativeConstruct()
 { Super::NativeConstruct();if(IsWorkspaceOwned()){BindFileService();if(!OwnedFileRequestId.IsEmpty())HandleFileSaveUpdated(GetActiveFileSaveStatus());} }
 void UVirtualSensorCaptureExportPanelWidget::NativeDestruct()
-{ if(FileSaveService.IsValid())FileSaveService->OnRequestUpdated.RemoveDynamic(this,&ThisClass::HandleFileSaveUpdated);FileSaveService.Reset();Super::NativeDestruct(); }
+{ if(ManualPayloadSensor.IsValid())ManualPayloadSensor->OnCompatibilityRequestCompletedNative.Remove(ManualPayloadHandle);ManualPayloadSensor.Reset();ActiveManualPayloadRequest.Reset();if(FileSaveService.IsValid())FileSaveService->OnRequestUpdated.RemoveDynamic(this,&ThisClass::HandleFileSaveUpdated);FileSaveService.Reset();Super::NativeDestruct(); }
 void UVirtualSensorCaptureExportPanelWidget::BindFileService()
 {
 	if(!GetWorld()||FileSaveService.IsValid())return;
@@ -126,6 +126,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 		CachedPcdPreflight=Preflight.Summary;
 		CachedPcdPreflightSummary=FString::Printf(TEXT("PCD 사전 점검 · %.1f건/s · 보수 추정 %.1f / 예산 %.1fMiB/s\n연결 %s · 제출 예산 %d건/프레임 · 상세 점검에서 규격·불확실성 확인"),Preflight.MessagesPerSecond,Preflight.PcdMegabytesPerSecond,Preflight.PcdBudgetMegabytesPerSecond,Preflight.bTransportConnected?TEXT("완료"):TEXT("대기"),Preflight.SubmissionsPerFrame);
 		if(!Preflight.Warnings.IsEmpty())CachedPcdPreflightSummary+=TEXT("\n주의: ")+Preflight.Warnings[0];
+        if(auto* Lidar=SensorManager?SensorManager->GetSelectedLidar():nullptr){const auto Json=Lidar->GetCompatibilityOutputStatus();CachedPcdPreflightSummary+=TEXT("\n호환 JSON: ")+Json.Reason;}
 		if(bOwnedScenarioStreamView)
 		{
 			if(const auto* Slab=ResolveScenarioSlabActor())
@@ -319,7 +320,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Log","전송 기록·호환 도구"))].BodyContent()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
 	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("DiagnosticReport","진단 보고서 저장")).OnClicked_Lambda([this](){ExportTransportDiagnosticReport();return FReply::Handled();})]
-	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("LegacyPayload","현재 JSON Payload 수동 전송")).OnClicked_Lambda([this](){SendSelectedPayloadToServer();return FReply::Handled();})]]
+	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("LegacyPayload","현재 JSON Payload 수동 전송")).OnClicked_Lambda([this](){RequestSelectedPayloadSend();return FReply::Handled();})]]
 	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedTransportLog);})]]]
 	];
 }
