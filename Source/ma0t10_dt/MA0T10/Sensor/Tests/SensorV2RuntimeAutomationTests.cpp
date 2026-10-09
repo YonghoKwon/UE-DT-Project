@@ -19,6 +19,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "PcdDemandAcceptanceFixture.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -394,7 +395,13 @@ public:
                 const FTransform LidarPose=Lidar->GetActorTransform(),CameraPose=Camera->GetActorTransform();
                 for(auto* Existing:Coordinator->GetSensorActors())if(IsValid(Existing)){Existing->StopSensor();Coordinator->UnregisterSensorActor(Existing);}
                 auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Error;
-                for(int32 I=0;I<SensorCount;++I)
+                if(IsPcdDemandAcceptanceFixture())
+                {
+                    TArray<AVirtualSensorActorBase*> Devices;
+                    if(!CreatePcdDemandAcceptanceDevices(World,Coordinator,LidarPose,CameraPose,SensorCount,Devices,Error)){Test->AddError(Error);return true;}
+                    Lidar=Cast<AVirtualLidarSensorActor>(Devices[0]);Camera=Cast<AVirtualCameraSensorActor>(Devices[1]);LayoutLidar=Lidar;LayoutCamera=Camera;
+                }
+                else for(int32 I=0;I<SensorCount;++I)
                 {
                     auto LP=LidarPose,CP=CameraPose;LP.AddToTranslation(FVector(0,I*50,0));CP.AddToTranslation(FVector(0,I*50,0));
                     auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
@@ -770,7 +777,7 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), *UserName, GGameIni);
 		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), *Password, GGameIni);
 	}
-	if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
+	if (!AutomationOpenMap(IsPcdDemandAcceptanceFixture()?TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"):TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
 	{
 		AddError(TEXT("SensorRefactorTestMap could not be opened"));
 		return false;

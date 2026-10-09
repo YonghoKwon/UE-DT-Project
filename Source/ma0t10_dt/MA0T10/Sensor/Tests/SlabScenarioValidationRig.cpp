@@ -1,4 +1,5 @@
 #include "SlabScenarioValidationRig.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
@@ -98,6 +99,16 @@ void ASlabScenarioValidationRig::Tick(float Delta)
         bInitialized=true;
     }
     const auto S=SlabActor->GetSimulationStatus();
+#if WITH_DEV_AUTOMATION_TESTS
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_DEMAND_ACCEPTANCE"))==TEXT("1"))
+        for(auto* Device:Coordinator->GetSensorActors())if(auto* C=Cast<AVirtualCameraSensorActor>(Device))
+        {
+            const FString Id=C->GetSensorId();const int64 Frame=C->GetSensorRuntimeStatus().FrameId;
+            if(const int64* Previous=AcceptanceCameraFrames.Find(Id);Previous&&Frame>*Previous&&S.State==ESlabSimulationState::Playing)
+                AcceptanceAcquisitions.FindOrAdd(S.RunUUID).FindOrAdd(Id)+=Frame-*Previous;
+            AcceptanceCameraFrames.Add(Id,Frame);
+        }
+#endif
     if(S.RunUUID!=ActiveRun&&!S.RunUUID.IsEmpty()){ActiveRun=S.RunUUID;FrameTimes.Reset();bReportWritten=false;}
     if(S.State==ESlabSimulationState::Playing&&Delta>0)FrameTimes.Add(Delta*1000.0);
     if(!bReportWritten&&!ActiveRun.IsEmpty()&&(S.State==ESlabSimulationState::Completed||S.State==ESlabSimulationState::Failed))
@@ -158,6 +169,21 @@ void ASlabScenarioValidationRig::WriteReport()
         Streams.Add(MakeShared<FJsonValueObject>(R));
     }
     Root->SetArrayField(TEXT("streams"),Streams);
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_DEMAND_ACCEPTANCE"))==TEXT("1"))
+    {
+        Root->SetStringField(TEXT("fixture_scope"),TEXT("native-created-pcd-demand"));
+        Root->SetStringField(TEXT("compatibility_policy"),FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY")));
+        Root->SetStringField(TEXT("map"),GetWorld()->GetOutermost()->GetName());
+        TArray<TSharedPtr<FJsonValue>> Sensors;
+        for(auto* Device:Coordinator->GetSensorActors())if(IsValid(Device))
+        {
+            auto Entry=MakeShared<FJsonObject>();FVirtualSensorEditableState State;bool Running=false;Device->ReadCollectionState(State,Running);
+            Entry->SetStringField(TEXT("sensor_id"),Device->GetSensorId());Entry->SetStringField(TEXT("kind"),Device->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("Camera"):TEXT("Lidar"));
+            Entry->SetBoolField(TEXT("running"),Running);Entry->SetNumberField(TEXT("acquisitions"),AcceptanceAcquisitions.FindRef(S.RunUUID).FindRef(Device->GetSensorId()));
+            Entry->SetObjectField(TEXT("configuration"),FJsonObjectConverter::UStructToJsonObject(State));Sensors.Add(MakeShared<FJsonValueObject>(Entry));
+        }
+        Root->SetArrayField(TEXT("expected_sensors"),Sensors);
+    }
     FSlabRunDeliverySummary RunSummary;
     if(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunResult(S.RunUUID,RunSummary))Root->SetObjectField(TEXT("run_delivery_summary"),FJsonObjectConverter::UStructToJsonObject(RunSummary));
     const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();const auto Held=Raw->GetRunRetentionSnapshot();
@@ -184,6 +210,19 @@ void ASlabScenarioValidationRig::SaveEvidence(bool bScreenshot)
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+void ASlabScenarioValidationRig::BeginAcceptanceObservation()
+{
+    for(auto* Device:Coordinator->GetSensorActors())
+    {
+        const FString Id=Device->GetSensorId();
+        if(auto* L=Cast<AVirtualLidarSensorActor>(Device))L->ScanComponent->OnFrameAcquiredNative.AddWeakLambda(this,[this,Id](int64){ObserveAcquisition(Id);});
+    }
+}
+void ASlabScenarioValidationRig::ObserveAcquisition(const FString& Id)
+{
+    const auto Status=SlabActor->GetSimulationStatus();
+    if(Status.State==ESlabSimulationState::Playing)++AcceptanceAcquisitions.FindOrAdd(Status.RunUUID).FindOrAdd(Id);
+}
 void ASlabScenarioValidationRig::SaveResourceEvidence(const FString& Phase,int32 Repetition,int64 AuditEntries,int64 AuditBytes) const
 {
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_DIAGNOSTICS"))!=TEXT("1"))return;

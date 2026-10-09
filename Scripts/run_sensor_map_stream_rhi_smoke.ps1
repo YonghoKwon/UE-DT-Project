@@ -14,7 +14,9 @@ param(
     [ValidateRange(1,2)][int]$SensorPairs = 1,
     [ValidateRange(0,8)][int]$SubmissionBudget = 0,
     [switch]$LayoutApiFixture,
-    [switch]$VisibleViewport
+    [switch]$VisibleViewport,
+    [switch]$PcdDemandFixture,
+    [ValidateSet('legacy-full','legacy-bounded','requested')][string]$JsonPolicy='requested'
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,7 +51,9 @@ try {
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE = "1"
     $env:MA0T10_PCD_ONLY = if ($PointCloudOnly) { "1" } else { "0" }
     $env:MA0T10_OUTPUT_SENSOR_PAIRS = [string]$SensorPairs
-    $env:MA0T10_LAYOUT_API_FIXTURE = if($LayoutApiFixture){'1'}else{'0'}
+    $env:MA0T10_LAYOUT_API_FIXTURE = if($LayoutApiFixture-or$PcdDemandFixture){'1'}else{'0'}
+    $env:MA0T10_PCD_DEMAND_ACCEPTANCE = if($PcdDemandFixture){'1'}else{'0'}
+    $env:MA0T10_PCD_JSON_POLICY = $JsonPolicy
     $env:MA0T10_OUTPUT_SUBMISSION_BUDGET = [string]$SubmissionBudget
     $env:MA0T10_ACCEPTANCE_RES_X = [string]$ClientWidth
     $env:MA0T10_ACCEPTANCE_RES_Y = [string]$ClientHeight
@@ -234,6 +238,7 @@ finally {
     Remove-Item Env:MA0T10_ACCEPTANCE_RES_X,Env:MA0T10_ACCEPTANCE_RES_Y,Env:MA0T10_ACCEPTANCE_LEDGER -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_OUTPUT_SENSOR_PAIRS -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_LAYOUT_API_FIXTURE -ErrorAction SilentlyContinue
+    Remove-Item Env:MA0T10_PCD_DEMAND_ACCEPTANCE,Env:MA0T10_PCD_JSON_POLICY -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_OUTPUT_SUBMISSION_BUDGET -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SLAB_SCENARIO_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE -ErrorAction SilentlyContinue

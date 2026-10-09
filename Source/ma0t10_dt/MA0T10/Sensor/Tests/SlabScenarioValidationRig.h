@@ -25,6 +25,7 @@ public:
     UFUNCTION(BlueprintCallable) void SaveEvidence(bool bScreenshot=true);
 #if WITH_DEV_AUTOMATION_TESTS
     void SaveResourceEvidence(const FString& Phase, int32 Repetition, int64 AuditEntries=0, int64 AuditBytes=0) const;
+    void BeginAcceptanceObservation();
 #endif
 private:
     bool bInitialized=false;
@@ -36,4 +37,7 @@ private:
     FString DisplayStatus;
     void ConfigureLocalBroker();
     void WriteReport();
+    TMap<FString,TMap<FString,int64>> AcceptanceAcquisitions;
+    TMap<FString,int64> AcceptanceCameraFrames;
+    void ObserveAcquisition(const FString& SensorId);
 };

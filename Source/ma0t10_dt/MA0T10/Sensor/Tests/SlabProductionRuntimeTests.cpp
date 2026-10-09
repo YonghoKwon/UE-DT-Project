@@ -26,6 +26,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
 #include "FinalAcceptanceTestSession.h"
+#include "PcdDemandAcceptanceFixture.h"
 namespace
 {
 struct FSlabWorldResourceWitness { TArray<TWeakObjectPtr<UObject>> Objects; };
@@ -104,7 +105,17 @@ public:
         auto* Session=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
         if(Stage==0)
         {
-            if(!bLayoutFixtureReady&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LAYOUT_API_FIXTURE"))==TEXT("1"))
+            if(!bLayoutFixtureReady&&IsPcdDemandAcceptanceFixture())
+            {
+                if(FPlatformTime::Seconds()-Start<4)return false;
+                TArray<AVirtualSensorActorBase*> Devices;FString Error;
+                const int32 Pairs=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SENSOR_PAIRS"))==TEXT("1")?1:2;
+                if(!CreatePcdDemandAcceptanceDevices(World,Rig->Coordinator,Rig->Lidar->GetActorTransform(),Rig->Camera->GetActorTransform(),Pairs,Devices,Error)){Test->AddError(Error);return true;}
+                Rig->Lidar=Cast<AVirtualLidarSensorActor>(Devices[0]);Rig->Camera=Cast<AVirtualCameraSensorActor>(Devices[1]);
+                Slab->TargetSensorIds.Reset();for(auto* Device:Devices){Slab->TargetSensorIds.Add(Device->GetSensorId());if(Witness)Witness->Objects.Add(Device);}
+                Rig->BeginAcceptanceObservation();bLayoutFixtureReady=true;
+            }
+            else if(!bLayoutFixtureReady&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LAYOUT_API_FIXTURE"))==TEXT("1"))
             {
                 if(FPlatformTime::Seconds()-Start<4)return false;
                 auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Error;
