@@ -797,7 +797,16 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeC
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy","LiDAR 호환 JSON 생성"))]
       .BodyContent()[SNew(SCheckBox)
         .IsChecked_Lambda([this](){return PendingState.CompatibilityOutputPolicy==EVirtualLidarCompatibilityOutputPolicy::WhenRequested?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-        .OnCheckStateChanged_Lambda([this](ECheckBoxState Value){PendingState.CompatibilityOutputPolicy=Value==ECheckBoxState::Checked?EVirtualLidarCompatibilityOutputPolicy::WhenRequested:EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;ApplyPendingState();})
+        .OnCheckStateChanged_Lambda([this](ECheckBoxState Value){
+            auto* Actor=SensorManager?SensorManager->GetSelectedSensorActorByKind(EVirtualSensorKind::Lidar):nullptr;
+            FVirtualSensorEditableState State;FString Error;
+            if(Actor&&Actor->ReadEditableState(State)){
+                State.CompatibilityOutputPolicy=Value==ECheckBoxState::Checked?EVirtualLidarCompatibilityOutputPolicy::WhenRequested:EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
+                if(Actor->ApplyEditableState(State,Error)){PendingState.CompatibilityOutputPolicy=State.CompatibilityOutputPolicy;LastControlMessage=TEXT("JSON 생성 정책 적용 · 측정 상태 유지");}
+                else LastControlMessage=TEXT("JSON 정책 적용 실패: ")+Error;
+            }else LastControlMessage=TEXT("선택한 LiDAR를 사용할 수 없습니다.");
+            RefreshNativeText();
+        })
         [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("JsonDemandOnly","필요한 출력만 생성 · PCD/미리보기는 계속 동작"))]]];
     Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedIdentity","센서 식별 정보 변경"))]

@@ -26,6 +26,7 @@ foreach($label in $Labels){
      $pcd=@($r.accepted_requests|Where-Object {($_.key-split '\|')[0]-eq '2'-and($_.key-split '\|')[1]-eq$s.sensor_id}).Count
      $acq=if($r.duration-gt 0){[double]$s.acquisitions/$r.duration}else{0};$pcdHz=if($r.duration-gt 0){$pcd/$r.duration}else{0}
      $valid=$s.running-and(($s.kind-eq 'Camera'-and$acq-ge 29)-or($s.kind-eq 'Lidar'-and$acq-ge 19-and$pcdHz-ge 19))
+     if($s.kind-eq 'Lidar'-and$r.compatibility_policy-eq 'requested'){$valid=$valid-and$null-ne$s.compatibility_output.started-and$s.compatibility_output.started-eq 0}
      $sensorPass=$sensorPass-and$valid;$sensorRows+=[pscustomobject]@{sensorId=$s.sensor_id;kind=$s.kind;acquisitionHz=$acq;pcdHz=$pcdHz;pass=$valid}
     }
     if(@($expected|Where-Object kind -eq 'Camera').Count-ne$ExpectedSensorPairs-or@($expected|Where-Object kind -eq 'Lidar').Count-ne$ExpectedSensorPairs){$sensorPass=$false}

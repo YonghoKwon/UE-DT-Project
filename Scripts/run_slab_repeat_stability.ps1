@@ -32,6 +32,7 @@ try {
    $probe=Start-Process node -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $out 'probe.log') -RedirectStandardError (Join-Path $out 'probe.err')
    $test=if($Repeated){'MA0T10.SlabReliability.RepeatedRuntime'}else{'MA0T10.SlabScenario.ProductionRuntime'}
    $editorArgs=@("`"$(Join-Path $root 'ma0t10_dt.uproject')`"",'-d3d12','-RenderOffscreen','-unattended','-nosplash','-NoSound','-NoVSync','-ini:Engine:[/Script/LiveCoding.LiveCodingSettings]:bEnabled=False',"-ExecCmds=`"r.VSyncEditor 0,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests $test;Quit`"",'-TestExit="Automation Test Queue Empty"',"-ReportExportPath=`"$(Join-Path $out 'automation')`"","-abslog=`"$(Join-Path $out 'editor.log')`"")
+   if($PcdDemandFixture){$editorArgs=@($editorArgs|Where-Object {$_ -ne '-RenderOffscreen'})}
    if($Trace -or $MemoryTrace){$channels=if($MemoryTrace){'cpu,frame,bookmark,memory,metadata,assetmetadata'}else{'cpu,frame,gpu,bookmark,loadtime'};$editorArgs+=@("-trace=$channels","-tracefile=`"$(Join-Path $out 'runtime.utrace')`"")}
    $editor=Start-Process 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' -ArgumentList $editorArgs -WindowStyle Hidden -PassThru
    $deadline=[DateTime]::UtcNow.AddSeconds($duration+120)

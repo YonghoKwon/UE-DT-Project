@@ -181,6 +181,7 @@ void ASlabScenarioValidationRig::WriteReport()
             Entry->SetStringField(TEXT("sensor_id"),Device->GetSensorId());Entry->SetStringField(TEXT("kind"),Device->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("Camera"):TEXT("Lidar"));
             Entry->SetBoolField(TEXT("running"),Running);Entry->SetNumberField(TEXT("acquisitions"),AcceptanceAcquisitions.FindRef(S.RunUUID).FindRef(Device->GetSensorId()));
             Entry->SetObjectField(TEXT("configuration"),FJsonObjectConverter::UStructToJsonObject(State));Sensors.Add(MakeShared<FJsonValueObject>(Entry));
+            if(auto* L=Cast<AVirtualLidarSensorActor>(Device))Entry->SetObjectField(TEXT("compatibility_output"),FJsonObjectConverter::UStructToJsonObject(L->ScanComponent->GetCompatibilityOutputStatus()));
         }
         Root->SetArrayField(TEXT("expected_sensors"),Sensors);
     }

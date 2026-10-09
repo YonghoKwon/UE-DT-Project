@@ -33,7 +33,10 @@ public:
     {
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
         if(World){SawPIE=true;if(FinalAcceptanceViewportReady(World)&&!LoggedSize){
-            Test->AddInfo(FString::Printf(TEXT("Manual fixture actual client %dx%d; this is not a mouse checklist result"),World->GetGameViewport()->Viewport->GetSizeXY().X,World->GetGameViewport()->Viewport->GetSizeXY().Y));LoggedSize=true;}}
+            Test->AddInfo(FString::Printf(TEXT("Manual fixture actual client %dx%d; this is not a mouse checklist result"),World->GetGameViewport()->Viewport->GetSizeXY().X,World->GetGameViewport()->Viewport->GetSizeXY().Y));
+            if(auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef()))
+                Test->AddInfo(FString::Printf(TEXT("Manual fixture window DPI scale=%.3f screen size=%.0fx%.0f"),Window->GetDPIScaleFactor(),Window->GetSizeInScreen().X,Window->GetSizeInScreen().Y));
+            LoggedSize=true;}}
         const FString Stop=FPaths::ProjectSavedDir()/TEXT("Reports/SensorResourceLifecycle/finish-manual.flag");
         if(IFileManager::Get().FileExists(*Stop))return true;
         if(SawPIE&&!World)return true;

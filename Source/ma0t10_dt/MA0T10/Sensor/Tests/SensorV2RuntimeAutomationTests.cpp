@@ -456,6 +456,7 @@ public:
 			MeasurementSeconds = RequestedSeconds.IsEmpty() ? 60.0 : FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
 			if(OverrideDuration>=0)MeasurementSeconds=OverrideDuration;if(OverrideWarmup>=0)WarmupSeconds=OverrideWarmup;
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
+            if(!ReceiverHost)for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(World);It;++It){ReceiverHost=*It;break;}
 			Measurement.Start(World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>(),StreamsStartedAtSeconds+WarmupSeconds,MeasurementSeconds,ReceiverHost);
 			UE_LOG(LogTemp,Display,TEXT("[FinalAcceptanceViewport] x=%d y=%d"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y);
 			bStreamsStarted = true;
@@ -647,6 +648,13 @@ public:
 			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
+        if(IsPcdDemandAcceptanceFixture())for(auto* Device:Coordinator->GetSensorActors())if(auto* L=Cast<AVirtualLidarSensorActor>(Device))
+        {
+            const auto Json=L->ScanComponent->GetCompatibilityOutputStatus();
+            UE_LOG(LogTemp,Display,TEXT("[PcdJsonDemand] sensor=%s policy=%d started=%lld completed=%lld skipped=%lld queueMs=%.3f encodeMs=%.3f completionMs=%.3f"),*L->GetSensorId(),int32(L->ScanComponent->CompatibilityOutputPolicy),Json.Started,Json.Completed,Json.SkippedUnrequested,Json.QueueWaitMs,Json.EncodeMs,Json.CompletionMs);
+            if(bPointCloudOnly&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY"))==TEXT("requested"))
+                Test->TestEqual(TEXT("PCD-only requested policy starts zero compatibility jobs"),Json.Started,int64(0));
+        }
 		const FVirtualSensorStreamStatus* CameraStatus = StatusByKind.Find(EVirtualSensorStreamKind::CameraImage);
 		const FVirtualSensorStreamStatus* LidarStatus = StatusByKind.Find(EVirtualSensorStreamKind::LidarPayload);
 		UE_LOG(LogTemp, Display, TEXT("[SensorHighThroughputRhi] cameraSubmitted=%lld cameraReceipt=%lld cameraConsumer=%lld cameraHz=%.2f lidarSubmitted=%lld lidarReceipt=%lld lidarConsumer=%lld lidarHz=%.2f pcdSubmitted=%lld pcdReceipt=%lld pcdConsumer=%lld pcdHz=%.2f"),
