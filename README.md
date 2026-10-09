@@ -1,12 +1,27 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`codex/sensor-placement-workspace` (기준 `2ec67a2`), DTCore `b2504d1`**. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다. 2026-10-09 배치 작업공간과 PCD 사전 점검을 추가했다. 구현과 최종 수용 검증 상태는 구분한다.
+현재 기능 기준: **`codex/pcd-demand-placement-acceptance` (기준 `a78b443`), DTCore `b2504d1`**. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다. 2026-10-09 배치 작업공간에 PCD 중심 출력 생성 정책을 추가했다. 구현과 실제 수용 검증 상태를 구분한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
 현재 개발 초점은 **센서·카메라를 쉽게 추가·배치하고 저장 위치를 찾아 이동한 뒤, PCD를 생성·전송하는 흐름**이다. 상단 `배치 / 미리보기 / 시나리오 / PCD 전송 / 결과 / UI 표시`가 작업 진입점이며, 장비 규격은 배치 창의 `측정 설정`에서 조정한다. Camera 배치·미리보기는 개선하고 CSV/JSONL/LAZ/JPEG 등 다른 형식의 신규 개선은 보류한다. 기존 기능·API는 유지한다. 상세 착수 순서는 [개선 목록](docs/IMPROVEMENTS.md#현재-개발-초점과-착수-순서)을 따른다.
 
 ## LiDAR 출력과 센서별 전달 결과
+
+- 배치 도구로 새로 추가한 LiDAR는 `WhenRequested` 정책으로 시작한다. PCD·Raw telemetry·미리보기만 사용할 때는 큰 호환 JSON을 생성하지 않는다. 기존 클래스·레벨 장비·구형 전체 배치 파일은 `LegacyAlways`를 유지한다. 복제와 새 전체 배치 저장/복원은 원본 정책을 보존한다.
+- 정책은 `센서 설정 → 고급 설정 → LiDAR 호환 JSON 생성`에서 명시적으로 바꾼다. 정책만 변경하면 측정이나 조작 모드를 재시작하지 않는다. 기존 수집 잠금은 적용된다. JSON 생략은 실패/프레임 유실로 세지 않고 데이터 패널에 `미사용`으로 표시한다.
+- 호환 LiDAR 스트림, 실제 JSON 녹화, 기존 Blueprint JSON 완료 구독, 등록된 native 소비자와 수동 요청은 JSON을 생성한다. `GetLastJsonPayload()`를 직접 polling하는 새 소비자는 `RegisterCompatibilityJsonConsumer(Owner)`/해제를 사용하거나 `LegacyAlways`를 선택한다. preview에는 기존 acquisition 이벤트를 사용할 수 있다.
+- Native 수동 JSON 전송은 완료 snapshot의 비동기 1회 생성과 metadata를 사용하며 센서를 추가 측정하지 않는다. 작업 슬롯이 사용 중이거나 설정/종료 전의 오래된 snapshot이면 사유를 안내한다. 기존 bool 전송 API는 완료된 JSON과 그 JSON의 SensorId/FrameId를 사용하고 반환 의미를 유지한다.
+- 생성 상태 조회는 `GetCompatibilityOutputStatus()`이며 작업 수·미사용 수와 queue/encode/completion 시간을 제공한다. 이전 post-process 시간은 acquisition부터 완료까지의 값으로, 순수 JSON encode 시간과 다르다. 자동 파일 출력과 수동/외부 입력의 기존 기능은 유지한다.
+
+### 2026-10-09 PCD 중심 기본 생성 장비 검증
+
+- 실제 표시된1920×1080 PIE, 같은 Slab 검증맵·pose·UI에서 JSON stride1/max0를 고정해 정책을 교차 비교했다. 기본 제출 예산2, Camera1280×720/30Hz·Native576×56/20Hz, PCD 전체 검출점·FrameStride1을 유지했다. 2+2 새 정책은10+60초3회 모두 통과: 평균59.99~60FPS·1% low59.17~59.80·p9516.67ms. 기존 전체 JSON 정책의 low29.74~36.02는 실패로 보존한다. 새 정책1+1도60FPS·low59.87로 통과했다.
+- 새 정책의 같은 월드·연결30초×10회는11,995개 승인 request의 제출·receipt·내부/UI·외부 수신이 일치했다. 최소 Camera29.9667Hz·LiDAR/PCD19.9667Hz·FPS59.9523·low55.966, 최대frame p9516.669ms다. JSON 작업0, 복귀 추가 제출0, drain 후body/events/active0, PIE 후weak owner16개·Camera global job0을 확인했다.
+- 10+600초2+2도 통과: 평균59.99FPS·low59.58·p9516.67ms, 각PCD19.9967/19.9983Hz. 고정 승인 집합23,997건의 외부/내부/UI 누락·clock 오류0, e2e p9580/92ms(내부/외부)다. 비선택 Topic·invalid/gap/duplicate/overflow0이다. JSON 생성이 필요 없을 때만 생략하며 기존 JSON 소비 경로는 유지한다.
+- 최종 전체MA0T10은211 Success/실패0 중 실제208·조건부skip3이다. 배치 입력 RHI는 별도 통과(Camera/LiDAR input→GPU end-frame p9534.849/34.753ms, 원규격 preview31.250/62.104ms). Camera marker987개, WBP7개 메모리 compile·자산검사·기존 자산저장0을 확인했다.
+- 직접 UI는 Windows 캡처/커서 오류0x80070057/0x80070005로 현재 미완료다. 활성화에 성공했던 조사용 화면의 작업 영역은1440×900이었다. 이전 작업의 직접 조작을 이번 새 정책 UI의 통과로 바꾸지 않는다. 숨긴/offscreen 시험의 낮은 FPS도 보존하며 이 수치를 표시된 PIE 지원으로 확대하지 않는다.
+- 재현: `Scripts/run_pcd_demand_acceptance.ps1 -Phase Compare`, `-Phase Repeat`, `-Phase Endurance`. 센서별 기대 수·속도·실행 수·정합성·성능 중 필수 조건이 실패하면 실패 종료한다. 증거와 제한은 `Saved/Reports/PcdDemandPlacementAcceptance/FINAL_STATUS.md`에 있다. DTCore·운영맵·개인 UI 저장값을 보존하고 push는 수행하지 않는다.
 
 - 호환 LiDAR JSON은 센서별 처리 중 1개·최신 대기 1개, 전역 생성 작업 4개다. 새 측정이 도착했다는 이유만으로 같은 generation의 정상 완료 결과를 버리지 않는다. 실제 대기 교체, generation 폐기, 생성 실패는 별도 집계한다. Stop·설정 재시작·삭제 후 결과는 적용하지 않는다.
 - `OnDerivedFrameCompletedNative`는 JSON과 측정 당시 FrameId·UTC·pose·설정·Slab context·point snapshot을 함께 제공한다. 기존 `OnScanCompleted` Blueprint 이벤트와 수동/외부 입력 API는 유지한다. 이벤트의 ViewTexture는 기존 현재 미리보기이며 과거 프레임 영상 snapshot을 새로 제공하는 것은 아니다.
@@ -37,7 +52,7 @@
 
 공개 경계: `UVirtualSensorLayoutSubsystem`은 장비 수명·전체 배치, 기존 `UVirtualSensorPlacementSubsystem`은 북마크·자세 이력·새 위치 프레임 확인, `UVirtualSensorOutputPreflight::Inspect/Evaluate`는 읽기 전용 snapshot·순수 평가다. 이번 지원 검증의 근거는 `Saved/Reports/SensorPlacementWorkspace`에 보관하며 과거 2+2 결과를 새 기능의 최종 합격으로 대체하지 않는다.
 
-### 2026-10-09 배치 작업공간 검증
+### 2026-10-09 배치 작업공간 검증 — a78b443 이전 이력
 
 - 최신 D3D12 전체 `MA0T10`은 **209 Success/실패 0, 실제 수행 206·opt-in skip 3**이다. 실제 `topic.scenario` 발행을 준비해 DTCore 수신도 통과했다. skip 중 배치 입력 RHI는 별도 실행으로 통과했고, Geometry 성능·세 출력 반복 opt-in은 이번 PCD-only 범위에서 미수행이다. WBP **7개** 메모리 컴파일·자산 검사 통과, 기존 자산 저장 0이다.
 - 배치 API로 만든 1+1·2+2 장비의 실제1920×1080·10초 준비+60초 PCD-only 시험을 통과했다. 최종1+1은 평균60.00FPS·low59.92·p9516.67ms, 승인20Hz·외부수신19.962Hz다. 2+2는 센서별 승인20Hz·외부합산39.925Hz·Camera acquisition30Hz, 평균60.00FPS·1% low59.65·p9516.67ms다. 기본 제출 예산2건/프레임을 유지했고 비선택 Topic 제출은0이다. 이 성능 fixture는 미송신 호환JSON에 기존 stride32/max1024를 적용한다. PCD는 전체 검출점·FrameStride1을 유지하며, 이 결과를 신규 장비의 기본 호환JSON stride1/무제한 조건으로 확대하지 않는다.

@@ -1,6 +1,6 @@
 # 보완 필요 사항 — 구현 백로그
 
-현재 기준: **`codex/sensor-placement-workspace` (기준 `2ec67a2`) / DTCore `b2504d1`**. 2026-10-09 배치 수명·전체 배치 저장/복원·전용 패널·PCD 사전 점검을 구현했다. 아래 과거 검증 이력은 원래 날짜·조건을 유지하며, 이번 최종 수용 검증은 `Saved/Reports/SensorPlacementWorkspace`에서 별도로 관리한다.
+현재 기준: **`codex/pcd-demand-placement-acceptance` (기준 `a78b443`) / DTCore `b2504d1`**. 2026-10-09 새 배치 LiDAR의 명시적 JSON 수요 정책과 센서별 수용 판정을 추가했다. 과거 검증은 원래 조건을 유지하며, 이번 증거는 `Saved/Reports/PcdDemandPlacementAcceptance`에서 관리한다.
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md)
 
@@ -33,7 +33,14 @@
 
 근거: `VirtualSensorSettingsPanelWidget.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
 
-### 2026-10-09 이번 구현의 수용 상태
+### 2026-10-09 PCD 수요 정책 검증 — 현재
+
+- 새 배치 LiDAR의 WhenRequested를 추가하고 기존 레벨/BP/구형layout은LegacyAlways로 유지했다. actual compatibility routing·BP/native 소비자·recording·수동 요청이 있을 때만 JSON을 생성한다. 정책 변경은 측정/조작/파일 snapshot을 유지하며, 수동 JSON과 전달 metadata도 같은 완료 프레임을 사용한다.
+- 같은 표시형1920×1080 PIE의2+2 교차비교3회에서 새 정책 low59.17~59.80, 기존 전체JSON low29.74~36.02다. 새 정책의10회 반복11,995개request 및600초23,997개고정승인집합은내부/UI/외부대조누락0, JSON 작업0으로 통과했다. 반복최소low55.966,600초low59.58이다. PCD 점/주기/제출예산을 낮추지 않았다.
+- 센서별 속도·기대 장비 수·실행 수·성능이 누락되거나 실패하면 수용 실패를 반환하도록 시험을 보강했다. 최종 전체211 Success 중 실제208·skip3·실패0, 별도입력RHI와WBP7개/marker987개를 확인했다. 숨긴/offscreen모드와기존Legacy전체JSON의성능제한은유지한다.
+- 새 정책 UI의 직접 검수는Windows커서접근0x80070005로미완료다. 이전직접조작은과거이력으로만읽는다. 현재증거는 `Saved/Reports/PcdDemandPlacementAcceptance/FINAL_STATUS.md`다.
+
+### 2026-10-09 배치 작업공간 수용 이력 — a78b443
 
 - 전용 배치 패널·런타임 추가/복제/소유 삭제·북마크·전체 배치 명시적 복원·PCD 사전 점검을 구현했다. 자동화는 최신 전체209 Success 중 실제206·opt-in skip3·실패0, 배치 입력 RHI는 별도 통과다. WBP7개 메모리 컴파일 및 자산 검사 통과, 기존 자산 저장0이다.
 - 실제1920×1080에서 새 배치 API의1+1/2+2 PCD-only 60초를 통과했다. 2+2 기본 제출예산2, 각PCD20Hz·Camera acquisition30Hz다. 같은 연결10분은 각PCD19.993Hz·평균59.98FPS·low58.27·p9516.67ms이며두Camera모두실행한최종30초×10회에서11,938개PCD의승인/제출/receipt/내부·UI/외부 request 대조를 통과했다. 정리 후body/events/active0, 복귀 추가제출0이다. 이 조건을4+4·60분·다른공장장면으로 확대하지 않는다.
@@ -94,7 +101,7 @@
 | RT-04 | 데이터 / 유지·회귀 | P0 | **90%** | capture 직후 readback·immutable metadata | Camera 배치/미리보기 변경의 정합성 회귀; 송신 고도화 보류 | R1 |
 | RT-03 | 진단 / 구현·자동검증 완료 | P1 | **70%** | 0Hz·신선도·공정성 판정 | 실제 정체·일시정지·복귀 화면 확인 | R1 |
 | QA-01 | 품질 / 검증 공백 | P0 | **70%** | 고정 의존성·clean checkout·fixture 분리 | 실행 manifest·새 성능 계측·최종 비교 | R0 |
-| RT-05 | 성능 / 일부 조건 검증 | P1 | **40%** | 1+1/2+2 PCD 지원 조건 | 부하 환경·장면별/4+4 지원 매트릭스·60분 | R2 |
+| RT-05 | 성능 / 기본2+2 검증 | P1 | **70%** | 새 배치 PCD 기본값·센서별 수용 | 대표 장면·4+4·숨김/운영 환경·60분 | R2 |
 | RT-06 | 사용자 / 집중 구현·검증 | P1 | **40%** | 연속 배치·입력 지연 계측 | 2+2/4+4·직접 조작·지원 매트릭스 | R2 |
 | RT-08 | 성능 / 일부 구현 | P1 | **40%** | PCD 사전 예산 안내 → 작업량 기반 접수 | 다양한 echo/backend 실측 대조·동적 접수/공정 배분 | R2 |
 | RT-09 | 성능 / 현재 보류 | 보류 | **10%** | Camera staging 재사용 | Camera 배치/미리보기의 확인된 병목일 때 재검토 | R1/R2 |
@@ -183,13 +190,13 @@
 
 ### RT-05 — 다중 센서 실측 지원 범위 (검증 공백, P1)
 
-**진행률: 40%** · 구현: 측정/송신·wildcard 진단과 새 배치 API · 검증: 1+1/2+2 PCD60초, 2+2 PCD10분·30초×10회 통과. 장면별/4+4·60분 미확정.
+**진행률: 70%** · 구현: 새 배치 PCD 중심 JSON 수요 정책·센서별 수용 gate · 검증: 기본생성1+1/2+2 PCD60초교차비교, 2+2 PCD10분·30초×10회 정격/정합성/회수 통과. 대표장면·4+4·숨김/운영환경·60분은 남는다.
 
-**현재 검증 순서:** 새 배치 패널로 사용자가 실제 추가한 LiDAR 1→2대를 우선 검증한다. Camera는 배치·미리보기 부하를 포함하되 이미지 송신은 기본 꺼짐이다. PCD의 센서별 측정·승인·제출·receipt·외부 수신, 입력 반응·큐·자원 반환을 함께 확인한다. 2대 단기 통과 후 같은 연결의 반복/장기 시험을 수행하고, 4대는 해당 수요·환경이 정해진 다음 단계로 둔다. 기존 전체 출력 시험은 호환 근거로 보존한다.
+**현재 검증 순서:** 새 배치 장비의 WhenRequested와 LegacyAlways를 같은 전체 JSON 설정·표시된 PIE·맵/pose에서 비교한다. Camera는 배치·미리보기 부하를 포함하고 이미지 송신은 기본 꺼짐이다. 센서별 실제 속도·request 집합·성능·회수를 모두 판정하며, 특정 센서 누락이나 성능 미달은 합산 수가 충분해도 실패다. 4대는 수요·환경을 정한 후속이다.
 
-- **남은 조건:** 기본 호환JSON 설정을 포함한 반복1% low 미달의 인과와 동일 조건 비교, 부하 환경·대표 장면 및4+4 정격·공정성·장시간 지원 매트릭스다. 현재2+2 PCD의10분 성능/10회 수명 결과를 전체 출력·무조건적 기본 설정 인증으로 확대하지 않는다.
+- **남은 조건:** 대표 장면·4+4·숨김/운영 환경·60분 지원 매트릭스다. 기본생성WhenRequested의표시형2+2 반복low미달은이번조건에서해결됐으며LegacyAlways전체JSON과offscreen의실패를지우지않는다. 전체출력이나다른PC의무조건적지원으로확대하지않는다.
 - 2026-10-08 추가 범위: 실제1920×1080 D3D12·10초 준비+60초, Camera1280×720/30Hz·ML-X Native576×56/20Hz를 유지했다. 2+2 PCD 전용은 평균59.85FPS·1% low51.8·p9516.69ms, 각 PCD 약19.9Hz와 선택하지 않은 Topic0건이다. 2+2 전체 출력은 기존 제출 예산2건/프레임에서 Camera 큐 과부하로 실패했다. 명시적4건/프레임에서는 각 Camera29.883Hz·각 LiDAR/PCD19.917Hz, 평균59.76FPS·1% low51.81·p9517.04ms, 측정 구간 승인 request의 receipt·내부·UI·외부 누락0으로 통과했다. **기본2건 설정의2+2 전체 출력 정격 지원은 선언하지 않는다.** 운영맵·Actor 기본값을 자동 변경하지 않았다.
-- 이번 1% low는 가장 느린1% 엔진 프레임 평균의 역수다. 이전 stream smoke의 p99 역수와 직접 비교하지 않는다. 호환 JSON 출력의 최근Hz와 실제 Raw 전달률도 별도다. 최종 보고서는 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`이며60초 시험을10분/60분 인증이나4+4 지원으로 확대하지 않는다. 진행률40%는 장기 지원 매트릭스가 남아 유지한다.
+- 2026-10-08 당시1% low는 가장 느린1% 엔진 프레임 평균의 역수다. 이전p99역수와직접비교하지않는다. 당시보고서는 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`이고진행률40%였다. 현재70%의근거는이번기본생성PCD교차/반복/600초검증이며4+4/60분은남는다.
 - 이전 장기 근거: Runtime `2eb30f0`의 실제1920×1080 세 스트림10분은 Camera29.998Hz·LiDAR/PCD20Hz, 승인 요청/receipt/내부·외부 수신 대조 오류0으로 통과했다.10회 반복과 일부1280×720 직접 조작도 확인했다. 최신2+2 장기 지원을 완료한 결과는 아니다.
 
 - 이전 근거는 ML-X Native **한 대 PCD-only, 753×403, 30초×2**다. 1,199건 송수신 일치, 후반1% low45.019FPS. 이후 실제1280×720/1920×1080 및1+1 정격 시험은 README의 source별 기록을 따른다. 옛2+2/4+4 저출력률 시험을 현재 정격 지원 근거로 쓰지 않는다.

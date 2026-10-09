@@ -1,6 +1,6 @@
 # 최종 목표를 위한 로드맵
 
-기준: **`codex/sensor-placement-workspace` (기준 `2ec67a2`) / DTCore `b2504d1`, 2026-10-09 배치 작업공간 검증 반영**. 검증 수치는 해당 시험의 원래 날짜·조건을 따른다.
+기준: **`codex/pcd-demand-placement-acceptance` (기준 `a78b443`) / DTCore `b2504d1`, 2026-10-09 PCD 중심 출력 정책 반영**. 검증 수치는 해당 시험의 원래 날짜·조건을 따른다.
 이 문서는 후속 개발 순서와 승인 기준이다. 플러그인 생성이나 모든 단계의 구현을 지금 승인하는 문서는 아니다.
 
 [AGENTS](../AGENTS.md) · [현재 구현](../README.md) · [개별 보완 백로그](IMPROVEMENTS.md)
@@ -151,13 +151,13 @@ Bootstrap의 확정할 기본 동작:
 | 구성 | 화면 목표 | 정격/데이터 목표 | 현재 상태 |
 |---|---|---|---|
 | D455 1 + ML-X Native 1 | 평균≥55 FPS, 1% low≥45, frame p95≤20ms | LiDAR/PCD≥19Hz; Camera 배치·미리보기, JPEG는 선택 시 기존 계약 회귀 | 2026-10-08 실제1920×1080 전체 출력30/20Hz·평균59.98FPS·p9516.67ms 통과. 현재 초점은PCD |
-| 2 + 2 | 같은 60FPS 계열 기준 | 센서별 PCD 정격·Camera 미리보기 조건을 명시 | 새 배치 API·실제1920×1080·PCD-only10분: 각19.993Hz·평균59.98FPS·low58.27·p9516.67ms. 최종30초×10회 송수신/회수 통과, 반복low38.42~40.25로 목표실패. 기본 제출예산2, 다른 장면/60분 별도 |
+| 2 + 2 | 같은 60FPS 계열 기준 | 새 배치 WhenRequested·PCD 정격·Camera1280×720/30Hz 미리보기 | 표시형1920×1080·60초3회/10회반복/600초 통과. 반복최소low55.966,600초low59.58·각PCD≥19.9967Hz. 기본 제출예산2. 대표장면·숨김·4+4/60분 별도 |
 | 4 + 4 | 후속 목표, 착수 시 조건 확정 | PCD 정격 유지 가능 범위를 실측하고 한계를 명시 | 현재 미검증·후속 |
 | 8 + 8 이상 | 탐색 시험 후 등급 설정 | Best Effort/지원/미지원 구분 | 보장 없음 |
 
-최신 PCD 근거는 `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`다. Camera도1280×720/30Hz로측정·미리보기했지만Camera/LiDAR정보Topic은0건이다. 최초 부하 환경의약47FPS/2+2 PCD약15.7Hz 실패와 사용자GPU작업중지후통과를모두기록하며특정앱원인은미확정이다. 전체 출력의이전60초시험은 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`의명시적4건/프레임조건으로만보존한다. 선택하지않은출력의0Hz를PCD실패로판정하지않는다.
+이전 배치 작업공간 근거는 `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`다. Camera도1280×720/30Hz로측정·미리보기했지만Camera/LiDAR정보Topic은0건이었다. 당시부하환경실패와재시험을보존한다. 전체 출력의이전60초시험은 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`의명시적4건/프레임조건으로만보존한다. 선택하지않은출력의0Hz를PCD실패로판정하지않는다.
 
-연속 성능 fixture의 미송신 호환JSON은 기존stride32/max1024를 유지한다. PCD는전체검출점·FrameStride1이다. 반복fixture의신규LiDAR는기본호환JSON stride1/무제한이므로 후처리 조건이 다르며, 반복low실패의 인과 분리·동일 조건 재시험을 우선한다. 신규 장비를 추가하기만 하면 모든 기본 설정에서 정격을 보장한다고 표시하지 않는다.
+현재 근거는 `Saved/Reports/PcdDemandPlacementAcceptance/FINAL_STATUS.md`다. 같은전체JSON stride1/max0·맵/pose/UI에서정책을교차비교해WhenRequested를검증했다. PCD는전체검출점·FrameStride1이다. 기존클래스/레벨/구형layout의LegacyAlways는유지하고명시적으로전환할수있다. 숨긴/offscreen과Legacy전체JSON의성능제한은남으며,새정책직접UI검수도Windows입력접근제약으로미완료다.
 
 공통 gate:
 
