@@ -1,7 +1,8 @@
-param([string[]]$Labels=@('baseline-pcd','baseline-three','final-after-pcd','final-after-three','repeat-pcd-no-physics','repeat-three-no-physics'))
+param([string[]]$Labels=@('baseline-pcd','baseline-three','final-after-pcd','final-after-three','repeat-pcd-no-physics','repeat-three-no-physics'),
+ [ValidatePattern('^[A-Za-z0-9_-]+$')][string]$ReportGroup='SlabRepeatRunStability')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$report=Join-Path $root 'Saved/Reports/SlabRepeatRunStability'
+$report=Join-Path $root ('Saved/Reports/'+$ReportGroup)
 $all=[Collections.Generic.List[object]]::new();$trials=[Collections.Generic.List[object]]::new()
 function Median($values){$sorted=@($values|Sort-Object);if(-not $sorted.Count){return $null};if($sorted.Count%2){return $sorted[[int]($sorted.Count/2)]};return ($sorted[$sorted.Count/2-1]+$sorted[$sorted.Count/2])/2}
 foreach($label in $Labels){

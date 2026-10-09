@@ -112,7 +112,7 @@ public:
                 auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
                 auto* C=Cast<AVirtualCameraSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Camera,CP,Error,false));
                 if(!L||!C){Test->AddError(Error);return true;}
-                L->VisualizationComponent->SetWorldPointCloudEnabled(false);L->StartSensor();C->StartSensor();
+                L->VisualizationComponent->SetWorldPointCloudEnabled(false);L->StartSensor();C->StartSensor();Rig->Camera->StartSensor();
                 Slab->TargetSensorIds={Rig->Lidar->GetSensorId(),Rig->Camera->GetSensorId(),L->GetSensorId(),C->GetSensorId()};
                 if(Witness){Witness->Objects.Add(L);Witness->Objects.Add(C);}
                 bLayoutFixtureReady=true;Test->AddInfo(TEXT("Layout API added second Native LiDAR and D455 Camera; exact per-run targets frozen"));
