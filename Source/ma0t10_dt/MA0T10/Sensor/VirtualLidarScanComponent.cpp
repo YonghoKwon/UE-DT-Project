@@ -1203,7 +1203,7 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 	{
 		RuntimeStatus.LastPostProcessDurationMs = 0.0f;
 		UpdateRuntimeStatusAfterScan(0);
-		OnScanCompleted.Broadcast(FString(), LidarViewTexture);
+        if(CompatibilityOutputPolicy==EVirtualLidarCompatibilityOutputPolicy::LegacyAlways)OnScanCompleted.Broadcast(FString(), LidarViewTexture);
 		return;
 	}
     for(auto It=CompatibilityConsumers.CreateIterator();It;++It)if(!It.Value().IsValid())It.RemoveCurrent();
@@ -1244,6 +1244,7 @@ FVirtualLidarCompatibilityOutputStatus UVirtualLidarScanComponent::GetCompatibil
 {
     auto Status=CompatibilityStatus;Status.bActive=ActiveDerivedJob.IsValid();Status.bPending=PendingDerivedJob.IsValid();
     Status.bRequested=HasCompatibilityJsonDemand(LastFrameSnapshot.IsValid()?LastFrameSnapshot->SlabContext:FVirtualSlabFrameContext(),&Status.Reason);
+    if(bInteractivePreviewMode&&bSuppressInteractiveDerivedOutput){Status.bRequested=false;Status.Reason=TEXT("조작 미리보기 · JSON/수집 출력 제외");}
     if((ActiveDerivedJob&&!ActiveDerivedJob->RequestId.IsEmpty())||(PendingDerivedJob&&!PendingDerivedJob->RequestId.IsEmpty())){Status.bRequested=true;Status.Reason=TEXT("수동 JSON 1회 생성 중");}
     return Status;
 }

@@ -66,12 +66,14 @@ bool FLidarDemandPolicyTest::RunTest(const FString&)
     TestTrue(TEXT("actor applies explicit output policy"),A->ApplyEditableState(State,Reason));
     TestEqual(TEXT("policy-only apply leaves acquisition generation"),C->GetFileCaptureRevision(),Generation);
     TestEqual(TEXT("policy-only apply preserves pending file revision"),UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(A),Revision);
+    const FString InteractionConsumer=C->RegisterCompatibilityJsonConsumer(A);
     TestTrue(TEXT("interaction begins without starting stopped sensor"),A->BeginInteractiveManipulation(FVirtualSensorInteractionRequest()));
+    TestFalse(TEXT("interaction suppression overrides JSON demand"),C->GetCompatibilityOutputStatus().bRequested);
     A->ReadEditableState(State);const auto InteractiveGeneration=C->GetFileCaptureRevision();State.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
     TestTrue(TEXT("policy applies inside lightweight manipulation"),A->ApplyEditableState(State,Reason));
     TestTrue(TEXT("policy-only edit retains manipulation"),A->IsInteractiveManipulationActive());
     TestEqual(TEXT("policy-only edit does not restart lightweight acquisition"),C->GetFileCaptureRevision(),InteractiveGeneration);
-    A->EndInteractiveManipulation();C->SetCompatibilityOutputPolicy(EVirtualLidarCompatibilityOutputPolicy::WhenRequested);A->ReadEditableState(State);
+    A->EndInteractiveManipulation();C->UnregisterCompatibilityJsonConsumer(InteractionConsumer);C->SetCompatibilityOutputPolicy(EVirtualLidarCompatibilityOutputPolicy::WhenRequested);A->ReadEditableState(State);
     auto Json=FJsonObjectConverter::UStructToJsonObject(State);Json->RemoveField(TEXT("compatibilityOutputPolicy"));FVirtualSensorEditableState Old;
     TestTrue(TEXT("old additive layout state loads"),FJsonObjectConverter::JsonObjectToUStruct(Json.ToSharedRef(),&Old));
     TestEqual(TEXT("missing old policy stays legacy"),Old.CompatibilityOutputPolicy,EVirtualLidarCompatibilityOutputPolicy::LegacyAlways);
