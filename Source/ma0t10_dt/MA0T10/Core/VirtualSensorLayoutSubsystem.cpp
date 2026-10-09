@@ -25,10 +25,23 @@ AVirtualSensorCoordinator* UVirtualSensorLayoutSubsystem::Coordinator() const
     for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It){if(Found)return nullptr;Found=*It;}
     return Found;
 }
-void UVirtualSensorLayoutSubsystem::Changed(){++Revision;if(!bEnding)OnLayoutChanged.Broadcast();}
+void UVirtualSensorLayoutSubsystem::Changed()
+{
+    InventoryIds.Reset();if(!bEnding)if(auto* C=Coordinator())for(auto* S:C->GetSensorActors())if(IsValid(S))InventoryIds.Add(S,S->GetSensorId());
+    ++Revision;if(!bEnding)OnLayoutChanged.Broadcast();
+}
 void UVirtualSensorLayoutSubsystem::Deinitialize(){bEnding=true;if(PendingWrite)FinishWrite(PendingWrite->Future.Get());Owned.Reset();Super::Deinitialize();}
-void UVirtualSensorLayoutSubsystem::Tick(float)
-{if(PendingWrite&&PendingWrite->Future.IsReady())FinishWrite(PendingWrite->Future.Get());bool Removed=false;for(auto It=Owned.CreateIterator();It;++It)if(!It.Key().IsValid()||It.Key()->IsActorBeingDestroyed()){It.RemoveCurrent();Removed=true;}if(Removed)Changed();}
+void UVirtualSensorLayoutSubsystem::Tick(float Delta)
+{
+    if(PendingWrite&&PendingWrite->Future.IsReady())FinishWrite(PendingWrite->Future.Get());
+    bool Removed=false;for(auto It=Owned.CreateIterator();It;++It)if(!It.Key().IsValid()||It.Key()->IsActorBeingDestroyed()){It.RemoveCurrent();Removed=true;}
+    if(Removed)Changed();
+    InventoryPollSeconds+=Delta;if(InventoryPollSeconds<.2f)return;InventoryPollSeconds=0;
+    TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FString> Current;
+    if(auto* C=Coordinator())for(auto* S:C->GetSensorActors())if(IsValid(S))Current.Add(S,S->GetSensorId());
+    bool Different=Current.Num()!=InventoryIds.Num();for(const auto& I:Current){const auto* Old=InventoryIds.Find(I.Key);Different|=!Old||*Old!=I.Value;}
+    if(Different)Changed();
+}
 TStatId UVirtualSensorLayoutSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorLayoutSubsystem,STATGROUP_Tickables);}
 bool UVirtualSensorLayoutSubsystem::OwnsSensor(AVirtualSensorActorBase* S) const {return S&&Owned.Contains(S);}
 TArray<FVirtualSensorLayoutItem> UVirtualSensorLayoutSubsystem::GetLayoutSensors() const

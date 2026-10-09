@@ -190,6 +190,7 @@ private:
     friend class FSlabRunComparisonUiTest;
 #endif
 	FString CachedPcdPreflight;
+	FString CachedPcdPreflightSummary;
 	bool bRunResultsExpanded=false;
 	FString ComparisonRunA,ComparisonRunB,RunComparisonText;
 	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;

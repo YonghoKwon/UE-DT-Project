@@ -50,13 +50,14 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::Inspect(const
     R.bSessionBusy=Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready||Session.State==EVirtualSlabSessionState::Running||Session.State==EVirtualSlabSessionState::Paused||Session.State==EVirtualSlabSessionState::Draining;
     if(R.bSessionBusy)R.Warnings.Add(TEXT("시나리오 준비·실행·정리 중입니다. 새 실행의 시작 가능 여부를 다시 확인하세요."));
     if(Profile.BrokerUrl.TrimStartAndEnd().IsEmpty())R.BlockingReasons.Add(TEXT("Broker URL을 설정하세요."));
-    TSet<FString> Ids,FoundTargets;
+    TSet<FString> Ids,FoundTargets;bool HasCamera=false,HasLidar=false;
     for(auto* A:C->GetSensorActors())if(IsValid(A)&&!A->IsActorBeingDestroyed())
     {
         const FString Id=A->GetSensorId();if(Ids.Contains(Id))R.BlockingReasons.AddUnique(TEXT("중복 SensorId: ")+Id);Ids.Add(Id);
         const bool Target=Targets.IsEmpty()||Targets.Contains(Id);if(Target)FoundTargets.Add(Id);
         FVirtualSensorEditableState S;bool Preview=false;if(!A->ReadCollectionState(S,Preview)){R.BlockingReasons.Add(Id+TEXT(": 수집 설정을 읽을 수 없습니다."));continue;}
         const bool Camera=A->GetSensorKind()==EVirtualSensorKind::Camera;
+        if(Target){HasCamera|=Camera;HasLidar|=!Camera;}
         for(const auto Kind:{EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload,EVirtualSensorStreamKind::PointCloud})
         {
             if((Kind==EVirtualSensorStreamKind::CameraImage)!=Camera)continue;
@@ -79,6 +80,9 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::Inspect(const
         }
     }
     for(const auto& Id:Targets)if(!FoundTargets.Contains(Id))R.BlockingReasons.AddUnique(TEXT("대상 SensorId 없음: ")+Id);
+    if(Outputs.bPointCloud&&!HasLidar)R.BlockingReasons.Add(TEXT("PCD 측정 대상 LiDAR가 없습니다. 배치 패널에서 추가하거나 대상을 확인하세요."));
+    if(Outputs.bCameraImage&&!HasCamera)R.BlockingReasons.Add(TEXT("이미지 송신 대상 Camera가 없습니다."));
+    if(Outputs.bLidarTelemetry&&!HasLidar)R.BlockingReasons.Add(TEXT("정보 송신 대상 LiDAR가 없습니다."));
     if(Outputs.bPointCloud&&Profile.ExportTopic.IsEmpty())R.BlockingReasons.Add(TEXT("PCD Topic을 설정하세요."));
     return Evaluate(R,Profile.MaxMessageBytes);
 }

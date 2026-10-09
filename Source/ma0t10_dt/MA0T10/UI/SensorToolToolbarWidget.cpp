@@ -48,8 +48,12 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text_Lambda([this](){return SelectedSensorText();})]];
 	const ESensorToolPanelRole Roles[]={ESensorToolPanelRole::Placement,ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Data,ESensorToolPanelRole::Data};
 	const FText Labels[]={LOCTEXT("Placement","배치"),LOCTEXT("Preview","미리보기"),LOCTEXT("Pcd","PCD 전송"),LOCTEXT("Results","결과")};
-	for(int32 I=0;I<4;++I){const auto Role=Roles[I];Bar->AddSlot()[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).Text(Labels[I]).OnClicked_Lambda([this,Role,I](){if(auto* W=Workspace()){W->SetPanelOpen(Role,true);if(auto* D=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(Role))){D->SetActiveTab(I==3?EVirtualSensorCaptureExportTab::ConnectionLog:EVirtualSensorCaptureExportTab::LiveStream);if(I==3)D->SetScenarioRunResultsExpanded(true);}}return FReply::Handled();})];}
-	Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).OnGetMenuContent_Lambda([this](){return BuildPanelMenu(true);}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).Text(LOCTEXT("Scenario","시나리오"))]];
+	for(int32 I=0;I<4;++I)
+	{
+		const auto Role=Roles[I];const auto Label=Labels[I];
+		Bar->AddSlot()[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).OnClicked_Lambda([this,Role,I](){if(auto* W=Workspace()){W->SetPanelOpen(Role,true);if(auto* D=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(Role))){D->SetActiveTab(I==3?EVirtualSensorCaptureExportTab::ConnectionLog:EVirtualSensorCaptureExportTab::LiveStream);if(I==3)D->SetScenarioRunResultsExpanded(true);}}return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(Label)]];
+		if(I==1)Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).OnGetMenuContent_Lambda([this](){return BuildPanelMenu(true);}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).Text(LOCTEXT("Scenario","시나리오"))]];
+	}
 	Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton())
 	 .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();})
 	 .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text(LOCTEXT("Appearance","UI 표시"))]];

@@ -23,6 +23,9 @@ bool FSensorLayoutLifecycleTest::RunTest(const FString&)
     TestTrue(TEXT("begin manipulation"),B->BeginInteractiveManipulation(FVirtualSensorInteractionRequest()));B->ReadCollectionState(During,Running);
     TestTrue(TEXT("collection snapshot retains original dimensions and interval"),Before.LidarHorizontalSamples==During.LidarHorizontalSamples&&Before.LidarScanInterval==During.LidarScanInterval);
     TestTrue(TEXT("readonly snapshot leaves manipulation active"),B->IsInteractiveManipulationActive());B->EndInteractiveManipulation();
+    const auto InventoryRevision=L->GetRevision();B->ReadEditableState(During);During.SensorId=TEXT("LAYOUT-RENAMED-LIDAR");
+    TestTrue(TEXT("identity edit through existing actor API"),B->ApplyEditableState(During,E));L->Tick(.3f);
+    TestTrue(TEXT("identity change invalidates inventory cache"),L->GetRevision()>InventoryRevision&&L->GetLayoutSensors().ContainsByPredicate([](const auto& I){return I.SensorId==TEXT("LAYOUT-RENAMED-LIDAR");}));
     C->StreamPublisherComponent->StartStream(EVirtualSensorStreamKind::PointCloud,B->GetSensorId());
     TestFalse(TEXT("busy sensor deletion rejected"),L->DeleteSensor(B,E));C->StreamPublisherComponent->StopAllStreams(B->GetSensorId());
     TestFalse(TEXT("preplaced sensor deletion protected"),L->DeleteSensor(Original,E));

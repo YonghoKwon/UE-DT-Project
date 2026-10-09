@@ -54,6 +54,8 @@ private:
     TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FString> Owned;
     int64 Revision=0;
     bool bEnding=false;
+    float InventoryPollSeconds=0;
+    TMap<TWeakObjectPtr<AVirtualSensorActorBase>,FString> InventoryIds;
     AVirtualSensorActorBase* SpawnStopped(EVirtualSensorKind Kind,const FTransform& Pose,FString& Reason);
     bool ViewPose(FTransform& Pose,FString& Reason) const;
     void Changed();

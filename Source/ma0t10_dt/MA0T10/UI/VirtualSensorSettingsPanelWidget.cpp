@@ -1083,15 +1083,17 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildWorkspacePlacementCo
         +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(GizmoMode==EVirtualSensorGizmoMode::Translate?TEXT("이동 모드"):TEXT("회전 모드"));}).OnClicked_Lambda([this](){SetSensorGizmoMode(GizmoMode==EVirtualSensorGizmoMode::Translate?EVirtualSensorGizmoMode::Rotate:EVirtualSensorGizmoMode::Translate);return FReply::Handled();})]
         +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?TEXT("로컬 좌표"):TEXT("월드 좌표"));}).OnClicked_Lambda([this](){SetSensorCoordinateSpace(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?EVirtualSensorCoordinateSpace::World:EVirtualSensorCoordinateSpace::Local);return FReply::Handled();})]
         +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?TEXT("연속 이동"):TEXT("정밀 단위"));}).OnClicked_Lambda([this](){SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled();})]];
+    Box->AddSlot().AutoHeight().Padding(0,8)[BuildPoseBookmarkControls()];
+    auto Numeric=SNew(SVerticalBox);
     for(int32 Axis=0;Axis<3;++Axis)
     {
         const FString Label=FString::Printf(TEXT("위치 %c · cm"),TEXT('X')+Axis);
-        Box->AddSlot().AutoHeight()[MakeFloatRow(FText::FromString(Label),[this,Axis](){return float(PendingState.ActorTransform.GetLocation()[Axis]);},[this,Axis](float V){auto P=PendingState.ActorTransform.GetLocation();P[Axis]=V;PendingState.ActorTransform.SetLocation(P);},-100000,100000,true,NAME_None,true)];
+        Numeric->AddSlot().AutoHeight()[MakeFloatRow(FText::FromString(Label),[this,Axis](){return float(PendingState.ActorTransform.GetLocation()[Axis]);},[this,Axis](float V){auto P=PendingState.ActorTransform.GetLocation();P[Axis]=V;PendingState.ActorTransform.SetLocation(P);},-100000,100000,true,NAME_None,true)];
     }
     const FText Labels[]={LOCTEXT("PosePitch","Pitch · °"),LOCTEXT("PoseYaw","Yaw · °"),LOCTEXT("PoseRoll","Roll · °")};
-    for(int32 Axis=0;Axis<3;++Axis)Box->AddSlot().AutoHeight()[MakeFloatRow(Labels[Axis],[this,Axis](){const auto R=PendingState.ActorTransform.Rotator();return float(Axis==0?R.Pitch:Axis==1?R.Yaw:R.Roll);},[this,Axis](float V){auto R=PendingState.ActorTransform.Rotator();if(Axis==0)R.Pitch=V;else if(Axis==1)R.Yaw=V;else R.Roll=V;PendingState.ActorTransform.SetRotation(R.Quaternion());},-180,180,true,NAME_None,true)];
-    Box->AddSlot().AutoHeight().Padding(0,8)[BuildPoseBookmarkControls()];
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(GetControlStatusText());})];
+    for(int32 Axis=0;Axis<3;++Axis)Numeric->AddSlot().AutoHeight()[MakeFloatRow(Labels[Axis],[this,Axis](){const auto R=PendingState.ActorTransform.Rotator();return float(Axis==0?R.Pitch:Axis==1?R.Yaw:R.Roll);},[this,Axis](float V){auto R=PendingState.ActorTransform.Rotator();if(Axis==0)R.Pitch=V;else if(Axis==1)R.Yaw=V;else R.Roll=V;PendingState.ActorTransform.SetRotation(R.Quaternion());},-180,180,true,NAME_None,true)];
+    Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("NumericPose","위치·회전 숫자 입력"))].BodyContent()[Numeric]];
+    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(LastControlMessage+(PlacementPreviewStatus.Message.IsEmpty()?FString():TEXT("\n")+PlacementPreviewStatus.Message));})];
     return Box;
 }
 TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildPoseBookmarkControls()

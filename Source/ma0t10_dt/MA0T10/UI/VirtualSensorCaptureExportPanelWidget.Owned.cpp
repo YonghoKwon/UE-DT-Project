@@ -122,7 +122,10 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 		TArray<FString> PreflightTargets;auto PreflightOutputs=FVirtualSlabSensorOutputSelection();
 		if(bOwnedScenarioStreamView){if(const auto* Slab=ResolveScenarioSlabActor()){PreflightTargets=Slab->TargetSensorIds;PreflightOutputs=Slab->GetSensorOutputs();}}
 		else {const auto Id=GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);if(!Id.IsEmpty())PreflightTargets.Add(Id);}
-		CachedPcdPreflight=UVirtualSensorOutputPreflight::Inspect(this,PreflightOutputs,PreflightTargets).Summary;
+		const auto Preflight=UVirtualSensorOutputPreflight::Inspect(this,PreflightOutputs,PreflightTargets);
+		CachedPcdPreflight=Preflight.Summary;
+		CachedPcdPreflightSummary=FString::Printf(TEXT("PCD 사전 점검 · %.1f건/s · 보수 추정 %.1f / 예산 %.1fMiB/s\n연결 %s · 제출 예산 %d건/프레임 · 상세 점검에서 규격·불확실성 확인"),Preflight.MessagesPerSecond,Preflight.PcdMegabytesPerSecond,Preflight.PcdBudgetMegabytesPerSecond,Preflight.bTransportConnected?TEXT("완료"):TEXT("대기"),Preflight.SubmissionsPerFrame);
+		if(!Preflight.Warnings.IsEmpty())CachedPcdPreflightSummary+=TEXT("\n주의: ")+Preflight.Warnings[0];
 		if(bOwnedScenarioStreamView)
 		{
 			if(const auto* Slab=ResolveScenarioSlabActor())
@@ -133,7 +136,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 				OwnedScenarioSummary=TEXT("다음 시나리오 출력: ")+ (Names.IsEmpty()?FString(TEXT("관찰 전용")):FString::Join(Names,TEXT(" · ")))+TEXT("\n")+
 					(Ready?TEXT("설정 준비됨 · Broker 수락은 실행 후 별도 확인"):TEXT("송신 준비 안 됨: ")+Reason);
 				if(Admission.Result!=ESlabScenarioAdmission::None)OwnedScenarioSummary+=TEXT("\n최근 수신: ")+Admission.Reason;
-				OwnedScenarioSummary+=TEXT("\n")+CachedPcdPreflight;
+				OwnedScenarioSummary+=TEXT("\n")+CachedPcdPreflightSummary;
 			}
 			else OwnedScenarioSummary=TEXT("Slab Actor 연결 필요 · 화면을 여는 것만으로 송신하지 않습니다.");
 		}
@@ -211,6 +214,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	 [SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRequireData","데이터 필수 실행 · 연결 준비 후 시작"))]];
 	Auto->AddSlot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text_Lambda([this](){const auto O=GetLiveScenarioOutputs();const int32 Count=(O.bCameraImage?1:0)+(O.bLidarTelemetry?1:0);return Count?FText::Format(LOCTEXT("ExtraEnabled","추가 송신 옵션 · {0}개 켜짐"),FText::AsNumber(Count)):LOCTEXT("Extra","추가 송신 옵션");})].BodyContent()[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().Padding(0,8)[Output(1,LOCTEXT("CameraAuto","Camera 이미지 Topic"))]+SVerticalBox::Slot().AutoHeight().Padding(0,8)[Output(2,LOCTEXT("LidarAuto","LiDAR 정보 Topic"))]]];
 	auto Manual=SNew(SVerticalBox);
+	Manual->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);})];
 	for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
 	{
 		const FText Label=Kind==EVirtualSensorStreamKind::PointCloud?LOCTEXT("PcdCard","포인트 클라우드 · PCD Binary"):Kind==EVirtualSensorStreamKind::CameraImage?LOCTEXT("CameraCard","Camera 이미지"):LOCTEXT("LidarCard","LiDAR 정보");
@@ -227,6 +231,9 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[Modes]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SWidgetSwitcher).WidgetIndex_Lambda([this](){return bOwnedScenarioStreamView?1:0;})+SWidgetSwitcher::Slot()[Manual]+SWidgetSwitcher::Slot()[Auto]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("PcdPreflightDetails","PCD 사전 점검 상세"))]
+	  .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
 	  .OnAreaExpansionChanged_Lambda([this](bool Open){bWorkspaceLiveDetails=Open;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Policy","전송 필터·상세 정책"))]
