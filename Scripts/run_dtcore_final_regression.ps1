@@ -20,10 +20,18 @@ $env:MA0T10_ARTEMIS_USER='artemis';$env:MA0T10_ARTEMIS_PASSWORD='artemis'
 $env:MA0T10_RAW_PROBE='1'
 if($EnableSlabBroker){$env:MA0T10_DTCORE_SLAB_BROKER='1'}
 $faultProbe=Start-Process node -ArgumentList @("`"$(Join-Path $root 'Tools/Artemis/raw_receipt_probe.mjs')`"",'18617',"`"$(Join-Path $report 'receipt-fault.json')`"") -WindowStyle Hidden -PassThru
+$slabPublisher=$null
+if($EnableSlabBroker){
+    $logPath=Join-Path $report 'full-regression.log'
+    # This is this run's evidence log, never a project source/config or user map.
+    [IO.File]::WriteAllText($logPath,'')
+    $slabPublisher=Start-Process node -ArgumentList @("`"$(Join-Path $root 'Tools/Artemis/publish_slab_scenario.mjs')`"",'--wait-log',"`"$logPath`"",'--wait-timeout-seconds','300','--output',"`"$(Join-Path $report 'broker-scenario.json')`"") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $report 'broker-publisher.log') -RedirectStandardError (Join-Path $report 'broker-publisher.err')
+}
 try{
     & 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' (Join-Path $root 'ma0t10_dt.uproject') -d3d12 -RenderOffscreen -NoSound -NoVSync -unattended -nosplash -nop4 "-SensorSmokeMapDirectory=$maparg" '-ExecCmds=r.VSyncEditor 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10;Quit' '-TestExit=Automation Test Queue Empty' "-ReportExportPath=$(Join-Path $report 'full-regression')" "-abslog=$(Join-Path $report 'full-regression.log')"
     if($LASTEXITCODE -ne 0){throw 'Full regression failed; inspect report'}
 }finally{
+    if($slabPublisher -and -not $slabPublisher.HasExited){Stop-Process -Id $slabPublisher.Id}
     if($faultProbe -and -not $faultProbe.HasExited){Stop-Process -Id $faultProbe.Id}
     foreach($name in @('MA0T10_RAW_PROBE','MA0T10_DTCORE_SLAB_BROKER','MA0T10_CAMERA_MARKER_RHI','MA0T10_INPUT_ACCEPTANCE_RHI','MA0T10_MANIPULATION_RHI','MA0T10_WORKSPACE_RHI','MA0T10_SENSOR_FILES_RHI','MA0T10_SLAB_RUNTIME','MA0T10_SLAB_PORTABLE','MA0T10_SLAB_ANALYSIS_RHI','MA0T10_RUN_ARTEMIS_SMOKE','MA0T10_ARTEMIS_URL','MA0T10_ARTEMIS_RAW_URL','MA0T10_ARTEMIS_USER','MA0T10_ARTEMIS_PASSWORD')){Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue}
 }

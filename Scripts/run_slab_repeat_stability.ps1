@@ -1,6 +1,6 @@
 param([string]$Label='after',[int]$Trials=1,[switch]$AllOutputs,[switch]$Repeated,[int]$Width=1920,[int]$Height=1080,[switch]$Trace,
  [ValidateRange(2,100)][int]$RunCount=10,[switch]$ResourceDiagnostics,[switch]$PreviewOff,[switch]$MemoryTrace,
- [ValidatePattern('^[A-Za-z0-9_-]+$')][string]$ReportGroup='SlabRepeatRunStability',[switch]$PlacementAB)
+ [ValidatePattern('^[A-Za-z0-9_-]+$')][string]$ReportGroup='SlabRepeatRunStability',[switch]$PlacementAB,[switch]$LayoutApiFixture)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $report=Join-Path $root ('Saved/Reports/'+$ReportGroup+'/'+$Label)
@@ -8,6 +8,7 @@ New-Item -ItemType Directory -Force $report|Out-Null
 $variables=@{MA0T10_SLAB_RHI='1';MA0T10_SLAB_REQUIRE_DATA='1';MA0T10_SLAB_RESET_RHI='1';MA0T10_SLAB_EXACT_VIEWPORT='1';MA0T10_ACCEPTANCE_RES_X="$Width";MA0T10_ACCEPTANCE_RES_Y="$Height";MA0T10_SLAB_OUTPUT_ALL=$(if($AllOutputs){'1'}else{'0'});MA0T10_SLAB_REPEAT_RHI=$(if($Repeated){'1'}else{'0'})}
 $variables.MA0T10_SLAB_REPEAT_COUNT="$RunCount"
 $variables.MA0T10_PLACEMENT_AB_RHI=if($PlacementAB){'1'}else{'0'}
+$variables.MA0T10_LAYOUT_API_FIXTURE=if($LayoutApiFixture){'1'}else{'0'}
 $variables.MA0T10_SENSOR_RESOURCE_DIAGNOSTICS=if($ResourceDiagnostics){'1'}else{'0'}
 $variables.MA0T10_SENSOR_RESOURCE_PREVIEW_OFF=if($PreviewOff){'1'}else{'0'}
 $variables.MA0T10_SENSOR_RESOURCE_REPORT_DIR=Join-Path $report 'resources'

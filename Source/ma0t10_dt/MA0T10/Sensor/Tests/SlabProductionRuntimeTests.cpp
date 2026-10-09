@@ -4,6 +4,8 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "SlabScenarioValidationRig.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
@@ -72,6 +74,7 @@ class FSlabProductionRuntimeCheck : public IAutomationLatentCommand
     bool OldThrottle=false,OldMonitor=false;
     const bool bPlacementAB=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_AB_RHI"))==TEXT("1");
     int32 PoseSetup=0;FString PoseRequest,BookmarkA,BookmarkB;FTransform PoseA,PoseB;bool AppliedB=false;
+    bool bLayoutFixtureReady=false;
 public:
     explicit FSlabProductionRuntimeCheck(FAutomationTestBase* T,TSharedPtr<FSlabWorldResourceWitness> W=nullptr):Test(T),Witness(W)
     {
@@ -101,6 +104,19 @@ public:
         auto* Session=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
         if(Stage==0)
         {
+            if(!bLayoutFixtureReady&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LAYOUT_API_FIXTURE"))==TEXT("1"))
+            {
+                if(FPlatformTime::Seconds()-Start<4)return false;
+                auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Error;
+                auto LP=Rig->Lidar->GetActorTransform(),CP=Rig->Camera->GetActorTransform();LP.AddToTranslation(FVector(0,50,0));CP.AddToTranslation(FVector(0,50,0));
+                auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
+                auto* C=Cast<AVirtualCameraSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Camera,CP,Error,false));
+                if(!L||!C){Test->AddError(Error);return true;}
+                L->VisualizationComponent->SetWorldPointCloudEnabled(false);L->StartSensor();C->StartSensor();
+                Slab->TargetSensorIds={Rig->Lidar->GetSensorId(),Rig->Camera->GetSensorId(),L->GetSensorId(),C->GetSensorId()};
+                if(Witness){Witness->Objects.Add(L);Witness->Objects.Add(C);}
+                bLayoutFixtureReady=true;Test->AddInfo(TEXT("Layout API added second Native LiDAR and D455 Camera; exact per-run targets frozen"));
+            }
             if(FPlatformTime::Seconds()-Start<10)return false;
             if(bPlacementAB)
             {
@@ -271,7 +287,7 @@ public:
                 FString Reason;Test->TestTrue(TEXT("repeated run reset accepted"),Slab->ResetToInitialPlacement(Reason));ResetAt=FPlatformTime::Seconds();Stage=20;return false;
             }
             Test->TestEqual(TEXT("requested distinct completed runs"),RunIds.Num(),TargetRuns);
-            Rig->Camera->StopSensor();Rig->Lidar->StopSensor();StoppedAt=FPlatformTime::Seconds();Stage=30;return false;
+            for(auto* Sensor:Rig->Coordinator->GetSensorActors())if(IsValid(Sensor))Sensor->StopSensor();StoppedAt=FPlatformTime::Seconds();Stage=30;return false;
         }
         // Screenshots/readback are deliberately outside both measured runs.
         Rig->SaveEvidence();

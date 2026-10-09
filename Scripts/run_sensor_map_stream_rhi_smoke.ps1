@@ -12,7 +12,9 @@ param(
     [ValidateSet(1280,1920)][int]$ClientWidth = 1280,
     [ValidateSet(720,1080)][int]$ClientHeight = 720,
     [ValidateRange(1,2)][int]$SensorPairs = 1,
-    [ValidateRange(0,8)][int]$SubmissionBudget = 0
+    [ValidateRange(0,8)][int]$SubmissionBudget = 0,
+    [switch]$LayoutApiFixture,
+    [switch]$VisibleViewport
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,6 +49,7 @@ try {
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE = "1"
     $env:MA0T10_PCD_ONLY = if ($PointCloudOnly) { "1" } else { "0" }
     $env:MA0T10_OUTPUT_SENSOR_PAIRS = [string]$SensorPairs
+    $env:MA0T10_LAYOUT_API_FIXTURE = if($LayoutApiFixture){'1'}else{'0'}
     $env:MA0T10_OUTPUT_SUBMISSION_BUDGET = [string]$SubmissionBudget
     $env:MA0T10_ACCEPTANCE_RES_X = [string]$ClientWidth
     $env:MA0T10_ACCEPTANCE_RES_Y = [string]$ClientHeight
@@ -65,6 +68,7 @@ try {
         "-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke;Quit",
         "-TestExit=Automation Test Queue Empty", "-abslog=$EditorLog"
     )
+    if($VisibleViewport){$EditorArgs=@($EditorArgs|Where-Object {$_ -ne '-RenderOffscreen'})}
     if($env:MA0T10_ACCEPTANCE_TRACE_PATH){$EditorArgs+=@('-trace=cpu,frame,gpu,bookmark,loadtime',"-tracefile=$env:MA0T10_ACCEPTANCE_TRACE_PATH")}
     & $Editor @EditorArgs
     $EditorExitCode = $LASTEXITCODE
@@ -229,6 +233,7 @@ try {
 finally {
     Remove-Item Env:MA0T10_ACCEPTANCE_RES_X,Env:MA0T10_ACCEPTANCE_RES_Y,Env:MA0T10_ACCEPTANCE_LEDGER -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_OUTPUT_SENSOR_PAIRS -ErrorAction SilentlyContinue
+    Remove-Item Env:MA0T10_LAYOUT_API_FIXTURE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_OUTPUT_SUBMISSION_BUDGET -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SLAB_SCENARIO_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE -ErrorAction SilentlyContinue

@@ -34,6 +34,17 @@ fs.writeFileSync(output, body);
 if (args.get('--generate-only') === 'true') {
   console.log(JSON.stringify({ file: output, bytes: body.length, uuid: meta.UUID ?? null, frames: 600, end: 30 }));
 } else {
+  if (args.has('--wait-log')) {
+    const deadline = Date.now() + Number(args.get('--wait-timeout-seconds') ?? 300) * 1000;
+    const marker = args.get('--wait-marker') ?? 'DTCORE_SLAB_BROKER_READY topic.scenario';
+    let ready = false;
+    while (Date.now() < deadline) {
+      try { ready = fs.readFileSync(args.get('--wait-log'), 'utf8').includes(marker); } catch {}
+      if (ready) break;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    if (!ready) throw new Error('Unreal subscription readiness marker timed out; no scenario was published');
+  }
   const socket = net.createConnection({ host: args.get('--host') ?? '127.0.0.1', port: Number(args.get('--port') ?? 61616) });
   const receipt = `slab-${crypto.randomUUID()}`;
   let buffer = Buffer.alloc(0), sent = false, finished = false;

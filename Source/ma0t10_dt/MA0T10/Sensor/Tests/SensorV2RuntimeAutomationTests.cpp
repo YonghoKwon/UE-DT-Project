@@ -18,6 +18,8 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -304,6 +306,8 @@ public:
 			Test->AddError(TEXT("SensorRefactorTestMap stream services were not ready."));
 			return true;
 		}
+		if(LayoutLidar.IsValid())Lidar=LayoutLidar.Get();
+		if(LayoutCamera.IsValid())Camera=LayoutCamera.Get();
 
 		UVirtualSensorTransportComponent* Transport = Coordinator->SharedTransportComponent;
 		UVirtualSensorStreamPublisherComponent* Publisher = Coordinator->StreamPublisherComponent;
@@ -340,6 +344,8 @@ public:
 
 		if (!bStreamsStarted)
 		{
+            if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_DIAGNOSTIC_HIDE_OWNED_UI"))==TEXT("1"))
+            {auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();for(int32 I=0;I<7;++I)W->SetPanelOpen(static_cast<ESensorToolPanelRole>(I),false);Test->AddInfo(TEXT("DIAGNOSTIC ONLY: owned panels hidden, acquisition and actual UI receiver host retained; not preview acceptance"));}
 			bPointCloudOnly=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_ONLY")).Equals(TEXT("1"));
 			SensorCount=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SENSOR_PAIRS"))==TEXT("2")?2:1;
             const int32 RequestedBudget=FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SUBMISSION_BUDGET")));
@@ -382,7 +388,26 @@ public:
 			{
 				Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);
 			}
-            if(SensorCount==2)
+            const bool LayoutFixture=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LAYOUT_API_FIXTURE"))==TEXT("1");
+            if(LayoutFixture)
+            {
+                const FTransform LidarPose=Lidar->GetActorTransform(),CameraPose=Camera->GetActorTransform();
+                for(auto* Existing:Coordinator->GetSensorActors())if(IsValid(Existing)){Existing->StopSensor();Coordinator->UnregisterSensorActor(Existing);}
+                auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Error;
+                for(int32 I=0;I<SensorCount;++I)
+                {
+                    auto LP=LidarPose,CP=CameraPose;LP.AddToTranslation(FVector(0,I*50,0));CP.AddToTranslation(FVector(0,I*50,0));
+                    auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
+                    auto* A=Cast<AVirtualCameraSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Camera,CP,Error,false));
+                    if(!L||!A){Test->AddError(Error);return true;}
+                    L->ScanComponent->ServerPayloadStride=32;L->ScanComponent->MaxServerPayloadPoints=1024;
+                    if(L->VisualizationComponent)L->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                    L->StartSensor();A->StartSensor();if(I==0){Lidar=L;Camera=A;LayoutLidar=L;LayoutCamera=A;}
+                }
+                Test->TestEqual(TEXT("new layout API creates exact sensor inventory"),Coordinator->GetSensorActors().Num(),SensorCount*2);
+                UE_LOG(LogTemp,Display,TEXT("[LayoutApiFixture] native devices=%d allToolOwned=1"),SensorCount*2);
+            }
+            else if(SensorCount==2)
             {
                 auto* Extra=World->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),FTransform(Lidar->GetActorRotation(),Lidar->GetActorLocation()+FVector(0,50,0)));
                 Extra->ScanComponent->SensorId=TEXT("OUTPUT-LIDAR-002");Extra->ScanComponent->bAutoStartScan=false;Extra->ScanComponent->bAutoRegisterToManager=false;Extra->ScanComponent->bApplyDeviceProfileOnBeginPlay=false;Extra->ScanComponent->Preset=EVirtualLidarPreset::Custom;
@@ -663,6 +688,8 @@ public:
 
 private:
 	FAutomationTestBase* Test = nullptr;
+	TWeakObjectPtr<AVirtualLidarSensorActor> LayoutLidar;
+	TWeakObjectPtr<AVirtualCameraSensorActor> LayoutCamera;
 	double StartedAtSeconds = -1.0;
 	double StreamsStartedAtSeconds = -1.0;
 	bool bConnectionRequested = false;
