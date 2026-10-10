@@ -25,7 +25,7 @@ struct FVirtualSensorLayoutDocument
     UPROPERTY() TArray<FVirtualSensorLayoutEntry> Sensors;
 };
 UENUM(BlueprintType)
-enum class EVirtualSensorLayoutOperation:uint8 { Failed, Writing, Saved, ReadyToApply, Applied };
+enum class EVirtualSensorLayoutOperation:uint8 { Failed, Writing, Saved, ReadyToApply, Applied, Cancelled };
 USTRUCT(BlueprintType)
 struct FVirtualSensorLayoutOperationStatus
 {

@@ -113,6 +113,16 @@ bool FSensorPlacementIdentityUiTest::RunTest(const FString&)
     auto Complete=[&](){if(Placement->PendingWrite)Placement->FinishWrite(Placement->PendingWrite->Future.Get(),false);};
     const FString SaveA=Placement->RequestSaveSensorPose(Sensor,TEXT("A only"));Complete();const FString A=Placement->GetPoseSaveStatus(SaveA).BookmarkId;
     Settings->RefreshPoseRows();TestEqual(TEXT("A identity list visible"),Settings->PoseRows.Num(),1);
+    const FString SaveSecond=Placement->RequestSaveSensorPose(Sensor,TEXT("Second pose"));Complete();
+    const FString Second=Placement->GetPoseSaveStatus(SaveSecond).BookmarkId;
+    Settings->RefreshPoseRows();Settings->SelectPoseBookmark(A);Settings->PendingPoseDeleteId=A;
+    TestTrue(TEXT("move selects second bookmark"),Settings->ApplySelectedSensorPoseBookmark(Second));
+    TestEqual(TEXT("move synchronizes editable name"),Settings->PoseName,FString(TEXT("Second pose")));
+    TestTrue(TEXT("move clears other bookmark delete confirmation"),Settings->PendingPoseDeleteId.IsEmpty());
+    Placement->RenameSensorPoseBookmark(Sensor,Settings->SelectedPoseId,TEXT("Second renamed"));Complete();Settings->RefreshPoseRows();
+    const auto CurrentRows=Placement->GetSensorPoseBookmarks(Sensor);
+    TestTrue(TEXT("rename after moving cannot change first bookmark"),CurrentRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==A&&B.Name==TEXT("A only");}));
+    TestTrue(TEXT("rename affects moved bookmark"),CurrentRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==Second&&B.Name==TEXT("Second renamed");}));
     Settings->SelectedPoseId=A;Settings->PendingPoseDeleteId=A;
     Settings->PendingState.SensorId=TEXT("pose-ui-B");TestTrue(TEXT("same actor can change id"),Settings->ApplyPendingState());Settings->RefreshPoseRows();
     TestEqual(TEXT("old identity rows disappear without library write"),Settings->PoseRows.Num(),0);
@@ -120,7 +130,7 @@ bool FSensorPlacementIdentityUiTest::RunTest(const FString&)
     TestFalse(TEXT("old identity history is not reused"),Placement->CanUndoSensorPlacement(Sensor));
     Settings->LastPoseRequest=Settings->RequestSaveSelectedSensorPose(TEXT("B pending"));
     Settings->PendingState.SensorId=TEXT("pose-ui-A");Settings->ApplyPendingState();Settings->RefreshPoseRows();Complete();Settings->RefreshPoseRows();
-    TestEqual(TEXT("returning A reloads preserved A list"),Settings->PoseRows.Num(),1);
+    TestEqual(TEXT("returning A reloads preserved A list"),Settings->PoseRows.Num(),2);
     TestTrue(TEXT("late B save cannot select B on A"),Settings->SelectedPoseId.IsEmpty()&&Settings->LastPoseRequest.IsEmpty());
     Settings->PendingState.SensorId=TEXT("pose-ui-B");Settings->ApplyPendingState();Settings->RefreshPoseRows();
     TestEqual(TEXT("B saved file entry remains available under B"),Settings->PoseRows.Num(),1);

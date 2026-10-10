@@ -1048,7 +1048,7 @@ bool UVirtualSensorSettingsPanelWidget::ApplySelectedSensorPoseBookmark(const FS
     auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
     if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
     FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->ApplySensorPoseBookmark(Sensor,Id,Reason);
-    if(Ok){SelectedPoseId=Id;RefreshPendingState(false);LastControlMessage=TEXT("저장 위치로 이동");}
+    if(Ok){SelectPoseBookmark(Id);RefreshPendingState(false);LastControlMessage=TEXT("저장 위치로 이동");}
     else LastControlMessage=Reason;RefreshNativeText();return Ok;
 }
 bool UVirtualSensorSettingsPanelWidget::UndoSelectedSensorPlacement()
@@ -1064,6 +1064,17 @@ bool UVirtualSensorSettingsPanelWidget::RedoSelectedSensorPlacement()
     if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
     FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->RedoSensorPlacement(Sensor,Reason);
     if(Ok){RefreshPendingState(false);LastControlMessage=TEXT("센서 위치 다시 적용 완료");}else LastControlMessage=Reason;RefreshNativeText();return Ok;
+}
+void UVirtualSensorSettingsPanelWidget::SelectPoseBookmark(const FString& Id)
+{
+    auto* P=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>():nullptr;
+    auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+    if(!P||!Sensor)return;
+    const auto Rows=P->GetSensorPoseBookmarks(Sensor);
+    const auto* Row=Rows.FindByPredicate([&](const auto& B){return B.BookmarkId==Id;});
+    if(!Row)return;
+    SelectedPoseId=Row->BookmarkId;PoseName=Row->Name;PendingPoseDeleteId.Reset();
+    if(PoseNameInput)PoseNameInput->SetText(FText::FromString(PoseName));
 }
 void UVirtualSensorSettingsPanelWidget::RefreshPoseRows()
 {
@@ -1083,7 +1094,7 @@ void UVirtualSensorSettingsPanelWidget::RefreshPoseRows()
     const auto Preview=P->GetPlacementPreviewStatus(Sensor);
     if(Preview.State!=PlacementPreviewStatus.State||Preview.RequestId!=PlacementPreviewStatus.RequestId)
     {PlacementPreviewStatus=Preview;RefreshNativeText();}
-    if(!LastPoseRequest.IsEmpty()){const auto S=P->GetPoseSaveStatus(LastPoseRequest);LastControlMessage=S.Message;if(S.State!=EVirtualSensorPoseSaveState::Writing){if(PoseRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==S.BookmarkId;}))SelectedPoseId=S.BookmarkId;LastPoseRequest.Reset();}RefreshNativeText();}
+    if(!LastPoseRequest.IsEmpty()){const auto S=P->GetPoseSaveStatus(LastPoseRequest);LastControlMessage=S.Message;if(S.State!=EVirtualSensorPoseSaveState::Writing){if(PoseRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==S.BookmarkId;}))SelectPoseBookmark(S.BookmarkId);LastPoseRequest.Reset();}RefreshNativeText();}
 }
 void UVirtualSensorSettingsPanelWidget::RefreshWorkspacePlacementControls()
 {
@@ -1128,7 +1139,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildPoseBookmarkControls
         auto Row=SNew(SHorizontalBox).Visibility_Lambda([this,I](){return PoseRows.IsValidIndex(I)?EVisibility::Visible:EVisibility::Collapsed;});
         Row->AddSlot().FillWidth(1)[SNewSensorTool(SButton).Text_Lambda([this,I](){return PoseRows.IsValidIndex(I)?FText::FromString(PoseRows[I].Name):FText::GetEmpty();})
             .ToolTipText_Lambda([this,I](){return PoseRows.IsValidIndex(I)?FText::FromString(PoseRows[I].Pose.GetLocation().ToString()+TEXT(" cm · ")+PoseRows[I].Pose.Rotator().ToString()):FText::GetEmpty();})
-            .OnClicked_Lambda([this,I](){if(PoseRows.IsValidIndex(I)){SelectedPoseId=PoseRows[I].BookmarkId;PoseName=PoseRows[I].Name;if(PoseNameInput)PoseNameInput->SetText(FText::FromString(PoseName));}return FReply::Handled();})];
+            .OnClicked_Lambda([this,I](){if(PoseRows.IsValidIndex(I))SelectPoseBookmark(PoseRows[I].BookmarkId);return FReply::Handled();})];
         Row->AddSlot().AutoWidth().Padding(5,0)[SNewSensorTool(SButton).Text(LOCTEXT("ApplyPose","이동")).IsEnabled_Lambda([this](){return bPoseEditable;}).OnClicked_Lambda([this,I](){if(PoseRows.IsValidIndex(I))ApplySelectedSensorPoseBookmark(PoseRows[I].BookmarkId);return FReply::Handled();})];
         Box->AddSlot().AutoHeight().Padding(0,3)[Row];
     }

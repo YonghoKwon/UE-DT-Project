@@ -235,7 +235,7 @@ bool UVirtualSensorLayoutSubsystem::ValidateDocument(const FVirtualSensorLayoutD
 }
 FString UVirtualSensorLayoutSubsystem::PreviewLayoutRestore(const FString& Name)
 {
-    RestoreId.Reset();
+    CancelLayoutRestorePreview(RestoreId);
     if(PendingWrite||bEnding)return AddOperation(EVirtualSensorLayoutOperation::Failed,TEXT("배치 쓰기가 끝난 뒤 불러오세요."));
     FString Json,Reason;FVirtualSensorLayoutDocument D;const FString Path=LayoutPath(Name);
     if(IFileManager::Get().FileSize(*Path)>1024*1024||!FFileHelper::LoadFileToString(Json,*Path)||!FJsonObjectConverter::JsonObjectStringToUStruct(Json,&D))return AddOperation(EVirtualSensorLayoutOperation::Failed,TEXT("배치 파일을 읽을 수 없습니다. 원본 보존"),Path);
@@ -243,11 +243,20 @@ FString UVirtualSensorLayoutSubsystem::PreviewLayoutRestore(const FString& Name)
     int32 Create=0,Update=0;for(auto* S:Matches){if(S)++Update;else ++Create;}
     RestoreDocument=MoveTemp(D);RestoreInventoryRevision=Revision;RestorePoses.Reset();RestoreRevisions.Reset();
     for(auto* S:Coordinator()->GetSensorActors())if(IsValid(S)){RestorePoses.Add(S,S->GetActorTransform());RestoreRevisions.Add(S,S->GetConfigurationRevision());}
-    RestoreId=AddOperation(EVirtualSensorLayoutOperation::ReadyToApply,FString::Printf(TEXT("변경 미리보기 · 복원 %d · 추가 %d · 도구 장비 정리 %d · 기존 레벨 장비 삭제 없음"),Update,Create,Excess.Num()),Path);return RestoreId;
+    RestoreId=AddOperation(EVirtualSensorLayoutOperation::ReadyToApply,FString::Printf(TEXT("‘%s’ 변경 미리보기 · 복원 %d · 추가 %d · 도구 장비 정리 %d · 기존 레벨 장비 삭제 없음"),*RestoreDocument.Name,Update,Create,Excess.Num()),Path);return RestoreId;
+}
+bool UVirtualSensorLayoutSubsystem::CancelLayoutRestorePreview(const FString& Id)
+{
+    auto* Op=Operations.Find(Id);
+    if(!Op)return false;
+    if(Op->State==EVirtualSensorLayoutOperation::Cancelled)return true;
+    if(Id!=RestoreId||Op->State!=EVirtualSensorLayoutOperation::ReadyToApply)return false;
+    Op->State=EVirtualSensorLayoutOperation::Cancelled;Op->Message=TEXT("복원 취소 · 현재 배치 유지");
+    RestoreId.Reset();RestoreDocument=FVirtualSensorLayoutDocument();RestorePoses.Reset();RestoreRevisions.Reset();return true;
 }
 bool UVirtualSensorLayoutSubsystem::ApplyLayoutRestore(const FString& Id,FString& Reason)
 {
-    if(Id!=RestoreId||PendingWrite||bEnding||Revision!=RestoreInventoryRevision){Reason=TEXT("배치 미리보기가 오래됐습니다. 다시 확인하세요.");return false;}
+    if(Id.IsEmpty()||Id!=RestoreId||PendingWrite||bEnding||Revision!=RestoreInventoryRevision){Reason=TEXT("배치 미리보기가 오래됐습니다. 다시 확인하세요.");return false;}
     for(const auto& P:RestorePoses)if(!P.Key.IsValid()||!P.Key->GetActorTransform().Equals(P.Value,.001)||P.Key->GetConfigurationRevision()!=RestoreRevisions.FindRef(P.Key)){Reason=TEXT("장비가 변경됐습니다. 다시 미리보기를 확인하세요.");return false;}
     TArray<AVirtualSensorActorBase*> Matches,Excess;if(!ValidateDocument(RestoreDocument,Matches,Excess,Reason))return false;
     FVirtualSensorLayoutDocument Before;if(!BuildLayoutSnapshot(Before,Reason))return false;

@@ -131,6 +131,7 @@ private:
     void HandleGizmoTransformChanged(const FTransform& Transform);
     void HandleGizmoGestureStarted();
     void RefreshPoseRows();
+    void SelectPoseBookmark(const FString& BookmarkId);
     TSharedRef<SWidget> BuildPoseBookmarkControls();
     void HandleGizmoTransformCommitted(const FTransform& Transform);
     void HandleManipulationExitRequested();

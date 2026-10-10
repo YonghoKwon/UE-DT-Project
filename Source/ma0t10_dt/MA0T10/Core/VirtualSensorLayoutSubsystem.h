@@ -44,6 +44,7 @@ public:
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") FString RequestSaveLayout(const FString& Name,bool bOverwrite=false);
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") FString PreviewLayoutRestore(const FString& Name);
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") bool ApplyLayoutRestore(const FString& RequestId,FString& Reason);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") bool CancelLayoutRestorePreview(const FString& RequestId);
     UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorLayout") FVirtualSensorLayoutOperationStatus GetOperationStatus(const FString& Id) const;
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") TArray<FString> GetSavedLayoutNames() const;
     bool BuildLayoutSnapshot(FVirtualSensorLayoutDocument& Document,FString& Reason) const;

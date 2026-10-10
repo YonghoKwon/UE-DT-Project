@@ -8,6 +8,7 @@
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "JsonObjectConverter.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 
 class FLayoutPersistenceCheck : public IAutomationLatentCommand
 {
@@ -25,6 +26,16 @@ public:
         FString Error;const FString SensorId=Owned->GetSensorId();
         Level->SetActorLocation(FVector(999,999,999));L->DeleteSensor(Owned.Get(),Error);
         auto* Extra=L->CreateSensorAtPose(EVirtualSensorKind::Camera,FTransform(FVector(999,0,0)),Error,false);
+        auto* Panel=NewObject<UVirtualSensorPlacementPanelWidget>(L->GetWorld());
+        Panel->SelectLayoutForRestore(TEXT("persistence fixture"));
+        const FString Cancelled=Panel->PreviewSelectedLayoutRestore();
+        Test->TestTrue(TEXT("preview identifies layout by name"),Panel->GetPlacementStatusText().Contains(TEXT("persistence fixture")));
+        Panel->SelectLayoutForRestore(TEXT("different layout"));
+        Test->TestEqual(TEXT("changing selection cancels old ticket"),L->GetOperationStatus(Cancelled).State,EVirtualSensorLayoutOperation::Cancelled);
+        Test->TestTrue(TEXT("cancel is idempotent"),L->CancelLayoutRestorePreview(Cancelled));
+        Test->TestFalse(TEXT("cancelled ticket cannot apply through API"),L->ApplyLayoutRestore(Cancelled,Error));
+        Test->TestFalse(TEXT("changed selection cannot apply previous layout"),Panel->ApplySelectedLayoutRestore());
+        Test->TestTrue(TEXT("selection/cancel leaves pose and inventory intact"),Level->GetActorLocation().Equals(FVector(999,999,999))&&L->OwnsSensor(Extra));
         const FString Preview=L->PreviewLayoutRestore(TEXT("persistence fixture"));
         Test->TestTrue(TEXT("restore preview is readonly"),Level->GetActorLocation().Equals(FVector(999,999,999))&&IsValid(Extra));
         Test->TestTrue(TEXT("restore ticket ready"),L->GetOperationStatus(Preview).State==EVirtualSensorLayoutOperation::ReadyToApply);

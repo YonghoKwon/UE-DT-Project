@@ -16,6 +16,10 @@ public:
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorPlacement") bool AddSensor(EVirtualSensorKind Kind);
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorPlacement") bool DeleteSelectedSensor();
     UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorPlacement") FString GetPlacementStatusText() const {return Status;}
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorPlacement") void SelectLayoutForRestore(const FString& Name);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorPlacement") FString PreviewSelectedLayoutRestore();
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorPlacement") bool ApplySelectedLayoutRestore();
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorPlacement") void CancelLayoutOperation();
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
