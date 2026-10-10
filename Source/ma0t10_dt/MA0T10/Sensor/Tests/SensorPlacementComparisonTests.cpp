@@ -123,6 +123,10 @@ bool FSensorPlacementIdentityUiTest::RunTest(const FString&)
     const auto CurrentRows=Placement->GetSensorPoseBookmarks(Sensor);
     TestTrue(TEXT("rename after moving cannot change first bookmark"),CurrentRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==A&&B.Name==TEXT("A only");}));
     TestTrue(TEXT("rename affects moved bookmark"),CurrentRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==Second&&B.Name==TEXT("Second renamed");}));
+    Settings->SelectPoseBookmark(Second);Settings->RequestSaveSelectedSensorPose(TEXT("Second asynchronous"),Second);
+    Settings->SelectPoseBookmark(A);Complete();Settings->RefreshPoseRows();
+    TestEqual(TEXT("late save cannot replace a newer bookmark selection"),Settings->SelectedPoseId,A);
+    TestEqual(TEXT("late save cannot replace a newer bookmark name input"),Settings->PoseName,FString(TEXT("A only")));
     Settings->SelectedPoseId=A;Settings->PendingPoseDeleteId=A;
     Settings->PendingState.SensorId=TEXT("pose-ui-B");TestTrue(TEXT("same actor can change id"),Settings->ApplyPendingState());Settings->RefreshPoseRows();
     TestEqual(TEXT("old identity rows disappear without library write"),Settings->PoseRows.Num(),0);

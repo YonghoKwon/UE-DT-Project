@@ -170,6 +170,7 @@ private:
     TSharedPtr<SEditableTextBox> PoseNameInput;
     TArray<FVirtualSensorPoseBookmark> PoseRows;
     FString PoseName,SelectedPoseId,PendingPoseDeleteId,LastPoseRequest;
+    uint64 PoseInteractionRevision=0,PoseRequestRevision=0;
     TWeakObjectPtr<AVirtualSensorActorBase> PoseRowsSensor;
     FString PoseRowsSensorId;
     EVirtualSensorKind PoseRowsKind=EVirtualSensorKind::Camera;
