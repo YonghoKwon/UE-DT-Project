@@ -4,6 +4,7 @@
 #include "ma0t10_dt/MA0T10/UI/SensorToolAppearance.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
@@ -28,6 +29,13 @@ float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float De
 	return 16+FMath::Clamp(Height,40.0f,FMath::Max(40.0f,ViewportHeight*.4f));
 }
 void UVirtualSensorToolWorkspaceSubsystem::SetCoordinator(AVirtualSensorCoordinator* C){Coordinator=C;}
+bool UVirtualSensorToolWorkspaceSubsystem::RegisterPlacementHost(AVirtualSensorUiHostActor* Host)
+{
+	if(!IsValid(Host)||Host->GetWorld()!=GetWorld()||(PlacementHost.IsValid()&&PlacementHost.Get()!=Host))return false;
+	PlacementHost=Host;return true;
+}
+void UVirtualSensorToolWorkspaceSubsystem::UnregisterPlacementHost(AVirtualSensorUiHostActor* Host)
+{if(PlacementHost.Get()==Host)PlacementHost.Reset();}
 AVirtualSensorCoordinator* UVirtualSensorToolWorkspaceSubsystem::GetCoordinator() const{return Coordinator.Get();}
 void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& C)
 {
@@ -44,7 +52,7 @@ void UVirtualSensorToolWorkspaceSubsystem::Deinitialize()
 }
 float UVirtualSensorToolWorkspaceSubsystem::GetOwnedPanelFontScale() const { return Preferences?Preferences->FontScale:1; }
 UVirtualSensorPanelWidgetBase* UVirtualSensorToolWorkspaceSubsystem::GetOwnedPanel(ESensorToolPanelRole R) const {const auto* P=Panels.Find(R);return P?P->Get():nullptr;}
-bool UVirtualSensorToolWorkspaceSubsystem::IsPanelOpen(ESensorToolPanelRole R) const {const auto* S=Preferences?Preferences->Panels.Find(R):nullptr;return S?S->bOpen:R==ESensorToolPanelRole::Monitor;}
+bool UVirtualSensorToolWorkspaceSubsystem::IsPanelOpen(ESensorToolPanelRole R) const {const auto* S=Preferences?Preferences->Panels.Find(R):nullptr;return S?S->bOpen:(R==ESensorToolPanelRole::Monitor||R==ESensorToolPanelRole::Placement);}
 bool UVirtualSensorToolWorkspaceSubsystem::RegisterOwnedPanel(ESensorToolPanelRole R,UVirtualSensorPanelWidgetBase* P)
 {
 	if(!P||P->GetWorld()!=GetWorld()||!Preferences)return false;
@@ -127,6 +135,13 @@ void UVirtualSensorToolWorkspaceSubsystem::SavePanel(ESensorToolPanelRole R)
 void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,bool Open)
 {
 	if(!Preferences)return;
+	if(Open&&R==ESensorToolPanelRole::Placement&&!GetOwnedPanel(R))
+	{
+		if(PlacementHost.IsValid())PlacementHost->ShowPlacementPanel(PanelOpenMessage);
+		else PanelOpenMessage=TEXT("배치 창을 열 수 없습니다: 센서 UI Host를 연결하세요.");
+		return;
+	}
+	PanelOpenMessage.Reset();
 	if(Open&&R==ESensorToolPanelRole::Replay&&!GetOwnedPanel(R))
 	{
 		for(TActorIterator<ASlabScenarioReplayUiHostActor> It(GetWorld());It;++It){It->ShowReplayPanel();break;}
@@ -150,6 +165,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 			if(PendingInitialLayouts.Contains(R)||!HasSavedLayout)RestorePanel(R);
 			if(!PendingInitialLayouts.Contains(R))P->RefreshHostedPanelLayout();
 			BringOwnedPanelToFront(R);
+			if(R==ESensorToolPanelRole::Placement&&P->IsPanelCollapsed())P->TogglePanelCollapsed();
 		}
 		if(Open)if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(P))Settings->BindSensorManager(Coordinator.Get());
 	}
@@ -165,7 +181,7 @@ void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPane
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedWorkspaceLayout()
 {
 	if(!Preferences)return;Preferences->Panels.Reset();SetOwnedPanelFontScale(1);
-	for(int32 I=0;I<7;++I){auto R=static_cast<ESensorToolPanelRole>(I);ResetOwnedPanelLayout(R);SetPanelOpen(R,R==ESensorToolPanelRole::Monitor);}Save();
+	for(int32 I=0;I<7;++I){auto R=static_cast<ESensorToolPanelRole>(I);ResetOwnedPanelLayout(R);SetPanelOpen(R,R==ESensorToolPanelRole::Monitor||R==ESensorToolPanelRole::Placement);}Save();
 }
 void UVirtualSensorToolWorkspaceSubsystem::SetOwnedPanelFontScale(float S)
 {

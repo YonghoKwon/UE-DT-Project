@@ -8,6 +8,7 @@ class UVirtualSensorPanelWidgetBase;
 class UUserWidget;
 class UCanvasPanel;
 class AVirtualSensorCoordinator;
+class AVirtualSensorUiHostActor;
 
 UENUM(BlueprintType)
 enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress, Placement };
@@ -47,6 +48,9 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") bool IsPanelOpen(ESensorToolPanelRole Role) const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") UVirtualSensorPanelWidgetBase* GetOwnedPanel(ESensorToolPanelRole Role) const;
 	void SetCoordinator(AVirtualSensorCoordinator* InCoordinator);
+	bool RegisterPlacementHost(AVirtualSensorUiHostActor* Host);
+	void UnregisterPlacementHost(AVirtualSensorUiHostActor* Host);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") FString GetPanelOpenMessage() const {return PanelOpenMessage;}
 	AVirtualSensorCoordinator* GetCoordinator() const;
 	void AttachOwnedPanel(UVirtualSensorPanelWidgetBase* Panel);
 	void SavePanel(ESensorToolPanelRole Role);
@@ -62,6 +66,7 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabWorkspaceDeferredLayoutTest;
+	friend class FSensorWorkspacePlacementEntryTest;
 #endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;
 	UPROPERTY(Transient) TMap<ESensorToolPanelRole,TObjectPtr<UVirtualSensorPanelWidgetBase>> Panels;
@@ -70,6 +75,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Toolbar;
 	TWeakObjectPtr<UCanvasPanel> MainCanvas;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
+	TWeakObjectPtr<AVirtualSensorUiHostActor> PlacementHost;
+	FString PanelOpenMessage;
 	FVector2D LastCanvasSize=FVector2D::ZeroVector;
 	float PollTime=0;
 	float ToolbarReservedTop=64;

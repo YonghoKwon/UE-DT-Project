@@ -15,6 +15,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "GameFramework/PlayerController.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspaceIsolationTest,"MA0T10.SensorWorkspace.IsolationAndStorage",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
@@ -81,5 +83,37 @@ bool FSensorWorkspaceSelectionSyncTest::RunTest(const FString&)
 	TestEqual(TEXT("reopening reads selected LiDAR"),Settings->GetPendingState().SensorId,Lidar->GetSensorId());
 	W->UnregisterPanel(Settings);Settings->GetTransformGizmoActor()->Destroy();
 	Manager->Destroy();Camera->Destroy();Lidar->Destroy();return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspacePlacementEntryTest,"MA0T10.SensorWorkspace.PlacementEntry",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorWorkspacePlacementEntryTest::RunTest(const FString&)
+{
+    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+    W->Preferences->Panels.Reset();
+    TestTrue(TEXT("first use opens placement and preview"),W->IsPanelOpen(ESensorToolPanelRole::Placement)&&W->IsPanelOpen(ESensorToolPanelRole::Monitor));
+    W->Preferences->Panels.FindOrAdd(ESensorToolPanelRole::Placement).bOpen=false;
+    TestFalse(TEXT("explicit saved closed state wins"),W->IsPanelOpen(ESensorToolPanelRole::Placement));
+    W->SetPanelOpen(ESensorToolPanelRole::Placement,true);
+    TestTrue(TEXT("missing host has visible failure reason"),!W->GetPanelOpenMessage().IsEmpty());
+    TestFalse(TEXT("failed open does not save fake open state"),W->IsPanelOpen(ESensorToolPanelRole::Placement));
+    auto* Host=World->SpawnActor<AVirtualSensorUiHostActor>();Host->PanelHostComponent=nullptr;FString Reason;
+    TestFalse(TEXT("missing dependencies do not create panel"),Host->EnsurePlacementPanel(Reason));
+    TestTrue(TEXT("missing dependencies explained"),!Reason.IsEmpty());
+    auto* C=World->SpawnActor<AVirtualSensorCoordinator>();Host->SensorManager=C;
+    auto* PC=World->SpawnActor<APlayerController>();World->AddController(PC);
+    TestTrue(TEXT("late dependencies can initialize same host"),Host->EnsurePlacementPanel(Reason));
+    auto* Panel=Host->GetPlacementWidget();TestNotNull(TEXT("placement exists"),Panel);
+    if(Panel)
+    {
+        Panel->TogglePanelCollapsed();
+        TestTrue(TEXT("explicit open succeeds"),Host->ShowPlacementPanel(Reason));
+        TestFalse(TEXT("explicit open expands body"),Panel->IsPanelCollapsed());
+        Host->EnsurePlacementPanel(Reason);
+        TestTrue(TEXT("repeated ensure reuses same panel"),Panel==Host->GetPlacementWidget());
+    }
+    Host->DestroyMonitorWidget();W->UnregisterPlacementHost(Host);Host->Destroy();
+    auto* Disabled=World->SpawnActor<AVirtualSensorUiHostActor>();Disabled->PanelHostComponent=nullptr;Disabled->SensorManager=C;Disabled->bUseNativeToolWidgetFallback=false;
+    TestFalse(TEXT("disabled fallback respects host configuration"),Disabled->EnsurePlacementPanel(Reason));
+    TestTrue(TEXT("fallback failure is actionable"),Reason.Contains(TEXT("fallback")));
+    W->UnregisterPlacementHost(Disabled);Disabled->Destroy();PC->Destroy();C->Destroy();return true;
 }
 #endif

@@ -47,7 +47,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	 .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type){if(Id)SelectSensor(*Id);})
 	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text_Lambda([this](){return SelectedSensorText();})]];
 	const ESensorToolPanelRole Roles[]={ESensorToolPanelRole::Placement,ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Data,ESensorToolPanelRole::Data};
-	const FText Labels[]={LOCTEXT("Placement","배치"),LOCTEXT("Preview","미리보기"),LOCTEXT("Pcd","PCD 전송"),LOCTEXT("Results","결과")};
+	const FText Labels[]={LOCTEXT("Placement","장비 추가·위치 저장"),LOCTEXT("Preview","미리보기"),LOCTEXT("Pcd","PCD 전송"),LOCTEXT("Results","결과")};
 	for(int32 I=0;I<4;++I)
 	{
 		const auto Role=Roles[I];const auto Label=Labels[I];
@@ -57,7 +57,11 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton())
 	 .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();})
 	 .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text(LOCTEXT("Appearance","UI 표시"))]];
-	return SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(8)[Bar];
+	return SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(8)
+	[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[Bar]
+	 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).AutoWrapText(true)
+	 .Visibility_Lambda([this](){auto* W=Workspace();return W&&!W->GetPanelOpenMessage().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
+	 .Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W?W->GetPanelOpenMessage():FString());})]];
 }
 FSlateFontInfo USensorToolToolbarWidget::ToolFont(int32 Size) const
 {

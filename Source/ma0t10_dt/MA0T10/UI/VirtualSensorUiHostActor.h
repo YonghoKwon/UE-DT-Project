@@ -43,6 +43,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void CreateAndBindToolWidgets();
 
+    UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPlacement")
+    bool EnsurePlacementPanel(FString& OutReason);
+
+    UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPlacement")
+    bool ShowPlacementPanel(FString& OutReason);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void QueueSensorStateForMapApply(const FVirtualSensorEditableState& SensorState);
 
@@ -140,6 +146,12 @@ public:
 private:
     AVirtualSensorCoordinator* ResolveSensorManager();
     void ConfigurePlayerInput();
+    void SchedulePlacementRetry();
+    void RetryPlacementInitialization();
+    FTimerHandle PlacementRetryTimer;
+    int32 PlacementRetryAttempts=0;
+    bool bPlacementOpenRequested=false;
+    bool bHostEnding=false;
 
 private:
     UPROPERTY(Transient)
