@@ -94,7 +94,12 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPur
             Row.TransportBackend=UseRaw?EVirtualSensorStreamTransportBackend::TcpStompHighThroughput:EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
             R.bRequiresRaw|=UseRaw;R.bRequiresEngine|=!UseRaw;Row.bTransportConnected=UseRaw?R.bRawConnected:R.bEngineConnected;
             Row.Topic=Kind==EVirtualSensorStreamKind::PointCloud?Profile.ExportTopic:Camera?Profile.CameraTopic:Profile.LidarTopic;
-            if(Row.Topic.TrimStartAndEnd().IsEmpty())R.BlockingReasons.AddUnique(Id+TEXT(": ")+(Kind==EVirtualSensorStreamKind::PointCloud?TEXT("PCD"):Camera?TEXT("Camera"):TEXT("LiDAR 정보"))+TEXT(" Topic을 설정하세요."));
+            if(Row.Topic.TrimStartAndEnd().IsEmpty())
+            {
+                const FString Reason=Id+TEXT(": ")+(Kind==EVirtualSensorStreamKind::PointCloud?TEXT("PCD"):Camera?TEXT("Camera"):TEXT("LiDAR 정보"))+TEXT(" Topic을 설정하세요.");
+                if(Selected)R.BlockingReasons.AddUnique(Reason);
+                else R.Warnings.AddUnique(TEXT("기존 독립 출력 설정 확인: ")+Reason);
+            }
             Row.Specification=Camera?FString::Printf(TEXT("%d×%d"),S.CameraResolution.X,S.CameraResolution.Y):FString::Printf(TEXT("%d×%d"),S.LidarHorizontalSamples,S.LidarVerticalChannels);
             if(Kind==EVirtualSensorStreamKind::PointCloud)
             {

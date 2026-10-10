@@ -121,7 +121,14 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 	{
 		TArray<FString> PreflightTargets;auto PreflightOutputs=FVirtualSlabSensorOutputSelection();
 		if(bOwnedScenarioStreamView){if(const auto* Slab=ResolveScenarioSlabActor()){PreflightTargets=Slab->TargetSensorIds;PreflightOutputs=Slab->GetSensorOutputs();}}
-		else {const auto Id=GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);if(!Id.IsEmpty())PreflightTargets.Add(Id);}
+		else
+		{
+			const auto Id=GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);
+			const auto* Publisher=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;
+			if(!Id.IsEmpty())PreflightTargets.Add(Id);
+			// A running exact stream is displayed with its real backend, not a prospective restart default.
+			if(Publisher&&Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Id))PreflightOutputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
+		}
 		const auto Preflight=UVirtualSensorOutputPreflight::InspectForPurpose(this,PreflightOutputs,PreflightTargets,bOwnedScenarioStreamView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart);
 		CachedPcdPreflight=Preflight.Summary;
 		CachedPcdPreflightSummary=FString::Printf(TEXT("PCD %.1f건/s · 전체 출력 %.1f건/s · 추정 %.1f / 예산 %.1fMiB/s\n필요 연결 %s · 제출 예산 %d건/프레임 · 상세에서 대상·backend 확인"),Preflight.PcdMessagesPerSecond,Preflight.MessagesPerSecond,Preflight.PcdMegabytesPerSecond,Preflight.PcdBudgetMegabytesPerSecond,Preflight.bTransportConnected?TEXT("완료"):TEXT("대기/대상 없음"),Preflight.SubmissionsPerFrame);
