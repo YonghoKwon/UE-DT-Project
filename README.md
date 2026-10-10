@@ -1,12 +1,20 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`codex/pcd-demand-placement-acceptance` (기준 `a78b443`), DTCore `b2504d1`**. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다. 2026-10-09 배치 작업공간에 PCD 중심 출력 생성 정책을 추가했다. 구현과 실제 수용 검증 상태를 구분한다.
+현재 기능 기준: **`codex/placement-ui-preflight-closure` (기준 `48286fd`), DTCore `b2504d1`**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`**에서 진행한다. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다. 2026-10-10 배치 창 진입·선택 일관성과 PCD 사전 점검을 보완했다. 구현과 실제 수용 검증 상태를 구분한다.
 
 **아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
 
-현재 개발 초점은 **센서·카메라를 쉽게 추가·배치하고 저장 위치를 찾아 이동한 뒤, PCD를 생성·전송하는 흐름**이다. 상단 `배치 / 미리보기 / 시나리오 / PCD 전송 / 결과 / UI 표시`가 작업 진입점이며, 장비 규격은 배치 창의 `측정 설정`에서 조정한다. Camera 배치·미리보기는 개선하고 CSV/JSONL/LAZ/JPEG 등 다른 형식의 신규 개선은 보류한다. 기존 기능·API는 유지한다. 상세 착수 순서는 [개선 목록](docs/IMPROVEMENTS.md#현재-개발-초점과-착수-순서)을 따른다.
+현재 개발 초점은 **센서·카메라를 쉽게 추가·배치하고 저장 위치를 찾아 이동한 뒤, PCD를 생성·전송하는 흐름**이다. 상단 `장비 추가·위치 저장 / 미리보기 / 시나리오 / PCD 전송 / 결과 / UI 표시`가 작업 진입점이며, 장비 규격은 배치 창의 `측정 설정`에서 조정한다. Camera 배치·미리보기는 개선하고 CSV/JSONL/LAZ/JPEG 등 다른 형식의 신규 개선은 보류한다. 기존 기능·API는 유지한다. 상세 착수 순서는 [개선 목록](docs/IMPROVEMENTS.md#현재-개발-초점과-착수-순서)을 따른다.
 
 ## LiDAR 출력과 센서별 전달 결과
+
+### 2026-10-10 단일 폴더·배치 UI 검수
+
+- 최신 구현은 `ma0t10_dt`에서 직접 빌드·실행한다. 네 별도 checkout 경로와 Git worktree를 정리했고, 이전 자료와 Git 이력은 `Saved/WorkspaceConsolidation`에 보존했다. 현재 Artemis 로그도 이 프로젝트의 보고서 폴더를 사용한다.
+- 배치 창 생성/진입·취소된 복원 요청·북마크 선택/이름·늦은 저장 완료를 보완했다. PCD 점검은 exact/wildcard, 다음 시나리오와 수동/현재 출력, backend 연결과 프레임/초 예산을 구분한다.
+- Runtime `81b56ba`: UE5.3 Editor Development, 전체 MA0T10 217 Success/실패0 중 실제215·조건부skip2, WBP7개 메모리 컴파일·V2 자산 검사 통과. 사용자 맵 높이 assertion은 원본을 보존하고 커밋본 격리 fixture로 재검증했다.
+- 실제1920×1080의2+2 PCD-only 10+60초는 평균59.89FPS·1% low51.13·frame p9516.67ms, 각PCD19.95/19.9667Hz·Camera acquisition29.938/29.954Hz다. 승인2,395건의 내부/UI/외부 누락·비선택Topic·invalid/gap/duplicate/overflow0, 내부/외부e2e p9579/93ms다. 기존 기준선 대비 평균/low 저하는 약0.05/4.13%, frame p95는 같다.
+- 두 client 해상도와 네 배율의 렌더 캡처를 확인하고 배치 창 잘림을 보정했다. 실제 Slate/RHI 입력과 물리 마우스는 구분한다. 직접 마우스 검수는 재연결 후에도 Computer Use node kernel 초기화(os error3)가 실패해 미완료다. 최신 결과·스크린샷·제한은 `Saved/Reports/PlacementUiPreflightClosure/FINAL_STATUS.md`다. 이전600초/10회 PCD 증거는 보존했다.
 
 - 배치 도구로 새로 추가한 LiDAR는 `WhenRequested` 정책으로 시작한다. PCD·Raw telemetry·미리보기만 사용할 때는 큰 호환 JSON을 생성하지 않는다. 기존 클래스·레벨 장비·구형 전체 배치 파일은 `LegacyAlways`를 유지한다. 복제와 새 전체 배치 저장/복원은 원본 정책을 보존한다.
 - 정책은 `센서 설정 → 고급 설정 → LiDAR 호환 JSON 생성`에서 명시적으로 바꾼다. 정책만 변경하면 측정이나 조작 모드를 재시작하지 않는다. 기존 수집 잠금은 적용된다. JSON 생략은 실패/프레임 유실로 세지 않고 데이터 패널에 `미사용`으로 표시한다.
@@ -40,7 +48,17 @@
 
 ## PIE 센서 배치와 저장 위치
 
-**위치 저장을 찾는 경로:** 상단 **`배치` → `저장 위치 · 선택 센서`**다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다.
+**위치 저장을 찾는 경로:** 상단 **`장비 추가·위치 저장` → `저장 위치 · 선택 센서`**다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 저장된 열림 설정이 없는 첫 사용에는 배치 창과 미리보기를 함께 표시한다. 이후에는 사용자가 저장한 창 상태를 복원하며, 명시적으로 열면 배치 창의 본문을 펼쳐 앞으로 가져온다.
+
+처음 사용하는 순서는 **PIE 실행 → 관찰 시점 이동 → LiDAR/Camera 추가 → 위치·회전 조정 → 현재 위치 저장 → 전체 배치 저장**이다. 다음 PIE에서는 전체 배치를 선택해 변경 미리보기 후 적용한다. 개별 북마크는 선택 장비의 자세만 저장하므로, 추가 장비를 재생성하려면 전체 배치 저장을 사용한다. PCD 송신은 별도로 선택한다.
+
+맵에는 `VirtualSensorCoordinator`가 정확히 하나, `VirtualSensorUiHostActor`가 하나 필요하다. Host의 `bAutoCreateOnBeginPlay`, `bAutoCreateToolPanels`를 켜고 `SensorManager`를 연결한다. `SettingsWidgetClass`/`PlacementWidgetClass`를 지정하거나 `bUseNativeToolWidgetFallback`을 켠다. WBP를 사용할 때 부모는 `VirtualSensorPlacementPanelWidget`이며 native 구성을 쓰는 wrapper에는 Designer Root, 별도 컨트롤 이름 또는 `Is Variable` 설정이 필요하지 않다. Level Blueprint에서 배치 Widget을 중복 생성하지 않는다. 늦은 준비는 0.5초 간격·최대 10초 재시도하며 실패 사유를 표시한다. 생성되지 않은 창의 열림 상태를 성공으로 저장하지 않는다.
+
+DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws://localhost:31000` 접속 정책도 유지한다. 2026-10-10 확인 당시 31000 listener가 없어 일반 연결은 실패했고 프로젝트 기본 `WebSocketTopics`도 비어 있었다. Slab 수신을 사용할 때는 해당 서버를 실행하고 `Project Settings → DTCore Settings → WebSocketTopics`에 `topic.scenario`를 등록하거나 프로젝트의 기존 명시적 구독 경로를 연결해야 한다. 데이터 패널의 센서 출력 Broker와 업무 전문 수신 설정은 별개다. 별도 로컬 시험에서 Artemis `61616`의 `topic.scenario` 전문이 실제 DTCore → TC → DataSync → Slab로 전달되어 frame 5까지 진행했다. 이는 일반 실행의 31000 서버가 연결됐다는 뜻이 아니다. 서버·구독 기본값은 자동 변경하지 않았다.
+
+전체 배치 A를 미리보기한 뒤 B를 선택하면 A 요청은 취소된다. B를 다시 미리보기해야 적용할 수 있다. `CancelLayoutRestorePreview`와 배치 Widget의 선택/미리보기/적용 전달 API를 사용자 WBP에서도 사용할 수 있다. 북마크 이동은 선택 ID와 편집 이름·삭제 확인 상태를 함께 갱신한다.
+
+북마크 저장을 기다리는 동안 다른 항목을 선택하거나 이름을 편집해도 이전 저장 완료가 새 편집 대상을 덮지 않는다. 저장 자체는 고정한 대상·내용으로 마무리하며 파일 결과는 기존 상태 API에서 조회한다.
 
 새 native 패널과 `WBP_VirtualSensorPlacementPanel`은 우리 Host가 명시적으로 등록한다. 기존 Designer가 있는 사용자 WBP를 자동 변경하지 않으며 공개 저장/조회 API로 연결할 수 있다. 개별 저장 위치와 전체 배치 저장은 서로 다른 기능이다.
 
@@ -49,6 +67,8 @@
 **전체 배치:** `배치 → 전체 배치`에서 이름을 지정해 저장하고, 저장 목록을 선택해 `불러오기 변경 미리보기 → 확인 후 적용`으로 복원한다. 별도 `Saved/SensorLayouts/*.layout.v1.json`이며 실제 쓰기 완료 후 저장 성공을 표시한다. 같은 맵만 지원한다. 기존 레벨 장비는 정규화된 정확한 Actor 경로·종류, 도구 장비는 배치 GUID로 대응한다. 미포함 기존 레벨 장비는 유지하고 미포함 도구 장비만 정리한다. 실패·오래된 미리보기·busy·ID 충돌은 거절한다. 저장된 미리보기 상태는 복원하지만 송신·녹화·파일 저장은 시작하지 않는다. 새 PIE에서는 저장 구성이나 북마크를 자동 적용하지 않는다. `.umap`과 기존 북마크 파일은 재저장하지 않는다.
 
 **PCD 사전 점검:** 데이터·재생 화면에서 원래 수집 규격의 대상/주기, 보수 추정 body·MiB/s, 실제 연결 상태와 제출 예산을 확인한다. PCD-only 2 LiDAR×20Hz는 40건/s이며 미리보기 Camera는 JPEG 송신량에 포함하지 않는다. `MaxSubmissionsPerFrame × 관측 FPS`는 이론적 상한이다. FPS가 없으면 60FPS 가정으로 표시하며 실제 성능을 보증하지 않는다. echo/backend가 불확실하면 명시하고 추정 용량 경고만으로 관찰 fallback이나 데이터 필수 정책을 바꾸지 않는다. 기본 예산은 2이며 Coordinator의 StreamPublisher 설정을 명시적으로 조정하고 재검증한다. 자동으로 4나 저규격으로 바꾸지 않는다.
+
+점검은 활성 개별 설정이 wildcard를 우선하는 실제 송신 규칙을 사용한다. 수동 PCD 시작은 기존 독립 출력과 합산하고, 다음 시나리오는 제어 대상의 출력을 선택 정책으로 교체한 뒤 비대상 독립 출력만 더한다. `PCD 건/s`와 `전체 출력 건/s`, Raw/Engine 연결 상태를 구분한다. 단일 프레임이 bucket 용량보다 크면 평균 MiB/s가 낮아도 계속 대기할 수 있어 별도 경고한다. 요약에 첫 차단 사유를 우선 표시하며 호환 JSON 상태는 현재 선택 LiDAR 한 대의 상태다. 기존 `Inspect` API는 유지하고 새 `InspectForPurpose`가 호출 목적을 명시한다.
 
 공개 경계: `UVirtualSensorLayoutSubsystem`은 장비 수명·전체 배치, 기존 `UVirtualSensorPlacementSubsystem`은 북마크·자세 이력·새 위치 프레임 확인, `UVirtualSensorOutputPreflight::Inspect/Evaluate`는 읽기 전용 snapshot·순수 평가다. 이번 지원 검증의 근거는 `Saved/Reports/SensorPlacementWorkspace`에 보관하며 과거 2+2 결과를 새 기능의 최종 합격으로 대체하지 않는다.
 

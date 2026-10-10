@@ -1,6 +1,6 @@
 # 보완 필요 사항 — 구현 백로그
 
-현재 기준: **`codex/pcd-demand-placement-acceptance` (기준 `a78b443`) / DTCore `b2504d1`**. 2026-10-09 새 배치 LiDAR의 명시적 JSON 수요 정책과 센서별 수용 판정을 추가했다. 과거 검증은 원래 조건을 유지하며, 이번 증거는 `Saved/Reports/PcdDemandPlacementAcceptance`에서 관리한다.
+현재 기준: **`codex/placement-ui-preflight-closure` (기준 `48286fd`) / DTCore `b2504d1`**. 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나로 사용한다. 2026-10-10 배치 창 생성/진입·북마크/복원 선택과 PCD 사전 점검을 보완했다. 과거 검증은 원래 조건을 유지하며 최신 증거는 `Saved/Reports/PlacementUiPreflightClosure`에서 관리한다.
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md)
 
@@ -25,7 +25,7 @@
 
 ### 확인된 접근성 문제와 설계 판단
 
-- 위치 저장의 현재 진입점은 **`배치 → 저장 위치 · 선택 센서`**다. 이름 입력·현재 위치 저장·목록 이동·Undo/Redo를 먼저 배치하고 숫자 Transform은 접힌 영역에 둔다. 과거 Settings 하단 경로는 소유 native UI에서 배치 창 안내로 바꿨으며 Blueprint API는 유지한다.
+- 위치 저장의 현재 진입점은 **`장비 추가·위치 저장 → 저장 위치 · 선택 센서`**다. 이름 입력·현재 위치 저장·목록 이동·Undo/Redo를 먼저 배치하고 숫자 Transform은 접힌 영역에 둔다. 첫 사용의 기본 화면은 배치 창+미리보기이며 저장된 사용자 상태는 우선한다. 패널 생성 실패 사유를 표시하고 늦은 준비는 제한적으로 재시도한다. 과거 Settings 하단 경로는 소유 native UI에서 배치 창 안내로 바꿨으며 Blueprint API는 유지한다.
 - 이 native 북마크 영역은 우리 Workspace가 소유한 Settings에만 붙는다. 별도 Designer Root가 있는 사용자 WBP는 native 구성을 자동으로 받지 않으므로 모든 WBP에서 보인다고 가정하지 않는다.
 - Slab 검증맵 생성 코드와 최근 실제 실행 기록에는 **LiDAR 1대와 Camera 1대**가 있다. 검증 Rig는 LiDAR를 시작하고 Camera는 정지시켜 등록한다. Camera가 정지 상태로 보이는 것과 Camera Actor가 없는 것은 구분한다. 개별 수정 맵의 실제 구성은 해당 맵에서 다시 확인해야 한다.
 - **현재 PIE 배치 UI/API가 추가됐다.** 관찰 시점에 Camera/LiDAR를 생성·선택·미리보기하고, 측정 설정만 복제한다. 도구 장비만 삭제하며 수집 잠금과 wildcard 자동 편입을 차단한다. 레벨 Actor를 삭제하거나 맵을 저장하지 않는다.
@@ -33,7 +33,15 @@
 
 근거: `VirtualSensorSettingsPanelWidget.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
 
-### 2026-10-09 PCD 수요 정책 검증 — 현재
+### 2026-10-10 단일 작업 폴더·배치 접근성 보완
+
+- 기존 `ma0t10_dt`와 별도 최신 작업본의 버전 차이로 추가/저장 기능을 찾지 못한 상황을 확인했다. 현재 소스와 의존성은 `ma0t10_dt`에서 직접 빌드한다. 별도 worktree를 새로 생성하지 않는다.
+- 배치 미등록 상태의 무응답 경로에 소유 Host 생성/실패 안내를 연결했다. 선택 배치가 바뀌면 이전 복원 요청을 취소하고, 북마크 이동 후 이름 편집 대상도 동기화한다.
+- 사전 점검은 활성 exact/wildcard 우선순위, 수동 추가와 시나리오 전환, Raw/Engine 연결, GPU fallback echo 상한, 단일 프레임 bucket 예산을 구분한다. 동적 admission 구현으로 확대하지 않으며 RT-08 전체 진행률은 유지한다.
+- Runtime `81b56ba`에서 최종 전체217 Success/실패0(실제215·skip2), WBP7개와 V2 자산 검사가 통과했다. 실제1920×1080의2+2 PCD-only는 각19.95/19.9667Hz·평균59.89FPS·low51.13·p9516.67ms, 승인2,395건 내부/UI/외부누락0이다. 두 해상도·네 배율의 렌더 캡처와 Slate/RHI 입력 증거를 남겼다. 직접 조작 도구의 node kernel 초기화(os error3)는 재연결 후에도 실패했으므로 물리 마우스 수용과 첫 사용자 검수는 미완료다. UI/UX 전체 진행률을 완료로 올리지 않는다.
+- 일반 실행은 요청대로 31000 접속 정책을 유지한다. 확인 당시 listener와 기본 WebSocket Topic이 없었다. 실제 사용할 업무 서버 실행·`topic.scenario` 구독 설정은 프로젝트 배포/운영 준비 항목이며 DTCore 소스 결함으로 분류하지 않는다. 로컬 Artemis로 TC/DataSync/Slab 수신 경로는 별도 검증했다.
+
+### 2026-10-09 PCD 수요 정책 검증 — 이전 조건
 
 - 새 배치 LiDAR의 WhenRequested를 추가하고 기존 레벨/BP/구형layout은LegacyAlways로 유지했다. actual compatibility routing·BP/native 소비자·recording·수동 요청이 있을 때만 JSON을 생성한다. 정책 변경은 측정/조작/파일 snapshot을 유지하며, 수동 JSON과 전달 metadata도 같은 완료 프레임을 사용한다.
 - 같은 표시형1920×1080 PIE의2+2 교차비교3회에서 새 정책 low59.17~59.80, 기존 전체JSON low29.74~36.02다. 새 정책의10회 반복11,995개request 및600초23,997개고정승인집합은내부/UI/외부대조누락0, JSON 작업0으로 통과했다. 반복최소low55.966,600초low59.58이다. PCD 점/주기/제출예산을 낮추지 않았다.
