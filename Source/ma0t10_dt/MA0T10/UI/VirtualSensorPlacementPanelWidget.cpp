@@ -55,7 +55,7 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::RebuildWidget()
         +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("AddCamera","Camera 추가")).OnClicked_Lambda([this](){AddSensor(EVirtualSensorKind::Camera);return FReply::Handled();})]
         +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("Settings","측정 설정")).OnClicked_Lambda([this](){if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Settings,true);return FReply::Handled();})]];
     Body->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor())
-        .Text(LOCTEXT("AddHelp","현재 관찰 위치·방향에 추가합니다. 미리보기는 시작하고 PCD 송신은 별도로 선택합니다."))];
+        .Text(LOCTEXT("AddHelp","현재 관찰 위치·방향에 추가 · PCD 송신은 별도"))];
     Body->AddSlot().AutoHeight()[SAssignNew(SensorCombo,SComboBox<TSharedPtr<FOption>>).OptionsSource(&SensorOptions)
         .OnGenerateWidget_Lambda([this](TSharedPtr<FOption> O){return SNewSensorTool(STextBlock).Text(FText::FromString(O?O->Label:FString()));})
         .OnSelectionChanged_Lambda([this](TSharedPtr<FOption> O,ESelectInfo::Type){if(O&&O->Actor.IsValid())if(auto* L=Layout()){EndPlacement();L->Coordinator()->SelectSensorActor(O->Actor.Get());if(GetToolWorkspace())GetToolWorkspace()->SynchronizeOwnedSelection();}})
@@ -65,7 +65,7 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::RebuildWidget()
         +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("Duplicate","복제")).OnClicked_Lambda([this](){if(auto* L=Layout()){CancelLayoutOperation();EndPlacement();if(L->DuplicateSensor(Selected(),Status)){Status=TEXT("현재 관찰 시점에 복제 완료");if(Controls){Controls->SynchronizeWorkspaceSelection(true);Controls->SetSensorManipulationEnabled(true);}}RefreshInventory();}return FReply::Handled();})]
         +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).IsEnabled_Lambda([this](){auto* L=Layout();FString R;return L&&L->CanDeleteSensor(Selected(),R);}).ToolTipText_Lambda([this](){auto* L=Layout();FString R;if(L)L->CanDeleteSensor(Selected(),R);return FText::FromString(R);}).Text_Lambda([this](){return FText::FromString(PendingDelete.IsValid()?TEXT("삭제 확인"):TEXT("삭제"));}).OnClicked_Lambda([this](){DeleteSelectedSensor();return FReply::Handled();})]
         +SWrapBox::Slot()[SNewSensorTool(SButton).Visibility_Lambda([this](){return PendingDelete.IsValid()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("CancelDelete","취소")).OnClicked_Lambda([this](){PendingDelete.Reset();return FReply::Handled();})]];
-    Body->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){auto* S=Selected();FString R;if(S)S->CanEditSensorPlacement(R);return FText::FromString(R.IsEmpty()?TEXT("수집·송신 중에는 배치가 잠깁니다. 레벨 장비는 삭제하지 않습니다."):R);})];
+    Body->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){auto* S=Selected();FString R;if(S)S->CanEditSensorPlacement(R);return FText::FromString(R.IsEmpty()?TEXT("수집 중 배치 잠금 · 레벨 장비 삭제 불가"):R);})];
     auto Scrolled=SNew(SVerticalBox);
     if(Controls)Scrolled->AddSlot().AutoHeight()[Controls->BuildWorkspacePlacementControls()];
     Scrolled->AddSlot().AutoHeight().Padding(0,12)[SNewSensorTool(STextBlock).Text(LOCTEXT("WholeLayout","전체 장비 구성 · 저장/불러오기"))];

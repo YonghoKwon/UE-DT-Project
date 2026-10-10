@@ -102,13 +102,13 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVector2D Size=Monitor?FVector2D(FMath::Min(1100.0,V.X*.65),FMath::Min(700.0,V.Y-120)):R==ESensorToolPanelRole::Data?FVector2D(760,580):R==ESensorToolPanelRole::Settings?FVector2D(460,640):FVector2D(580,520);
 	if(R==ESensorToolPanelRole::SlabCharts)Size=FVector2D(780,820);
 	if(R==ESensorToolPanelRole::SlabProgress)Size=FVector2D(520,420);
-	if(R==ESensorToolPanelRole::Placement)Size=FVector2D(600,760);
+	if(R==ESensorToolPanelRole::Placement)Size=FVector2D(760,900);
 	Size.X=FMath::Min(Size.X,V.X-32);Size.Y=FMath::Min(Size.Y,V.Y-ToolbarReservedTop-16);
 	P->SetPanelResizable(true);P->ResizeHandleSize=32;
-	P->SetPanelResizeLimits(R==ESensorToolPanelRole::SlabCharts?FVector2D(720,720):Monitor?FVector2D(480,300):FVector2D(360,280),FVector2D::ZeroVector);
+	P->SetPanelResizeLimits(R==ESensorToolPanelRole::Placement?FVector2D(520,FMath::Max(600.0f,480*GetOwnedPanelFontScale())):R==ESensorToolPanelRole::SlabCharts?FVector2D(720,720):Monitor?FVector2D(480,300):FVector2D(360,280),FVector2D::ZeroVector);
 	FVirtualSensorPanelUiState S;S.bHasSavedSize=true;S.ExpandedSize=Size;
 	P->ApplyWorkspaceLayout(S);
-	const double Offset=static_cast<int32>(R)*24;
+	const double Offset=R==ESensorToolPanelRole::Placement?0:static_cast<int32>(R)*24;
 	P->SetWorkspacePosition(Monitor?FVector2D(V.X-Size.X-16,ToolbarReservedTop):FVector2D(16+Offset,ToolbarReservedTop+Offset));
 }
 void UVirtualSensorToolWorkspaceSubsystem::RestorePanel(ESensorToolPanelRole R)
@@ -187,6 +187,12 @@ void UVirtualSensorToolWorkspaceSubsystem::SetOwnedPanelFontScale(float S)
 {
 	if(!Preferences||!FMath::IsFinite(S))return;Preferences->FontScale=FMath::Clamp(S,.85f,1.5f);
 	for(auto& P:Panels)if(P.Value)P.Value->ApplySensorToolFontScale(Preferences->FontScale);Save();
+	if(auto* Placement=GetOwnedPanel(ESensorToolPanelRole::Placement))
+	{
+		// The owned panel base already scales minimum width for its header font.
+		Placement->SetPanelResizeLimits(FVector2D(520,FMath::Max(600.0f,480*Preferences->FontScale)),FVector2D::ZeroVector);
+		Placement->SetPanelExpandedSize(Placement->GetPanelExpandedSize(),false);Placement->RefreshHostedPanelLayout();
+	}
 	if(Toolbar)Toolbar->InvalidateLayoutAndVolatility();
 }
 void UVirtualSensorToolWorkspaceSubsystem::UnregisterPanel(UVirtualSensorPanelWidgetBase* P)
