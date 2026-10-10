@@ -35,7 +35,7 @@ bool USlabScenarioReplayPanelWidget::ReplaySelected()
 {
     if(GetReplayOutputs().HasAnyOutput())
     {
-        const auto Check=UVirtualSensorOutputPreflight::Inspect(this,GetReplayOutputs(),TargetSensorIds);CachedPreflight=Check.Summary;
+        const auto Check=UVirtualSensorOutputPreflight::InspectForPurpose(this,GetReplayOutputs(),TargetSensorIds,EVirtualSensorPreflightPurpose::ScenarioTransition);CachedPreflight=Check.Summary;
         if(ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData&&!Check.BlockingReasons.IsEmpty()){ActionMessage=FString::Join(Check.BlockingReasons,TEXT("\n"));return false;}
     }
     auto* M=Manager();return M&&M->RequestScenarioReplayWithExecutionOptions(SelectedUUID,GetReplayOutputs(),TargetSensorIds,ExecutionOptions);
@@ -43,7 +43,7 @@ bool USlabScenarioReplayPanelWidget::ReplaySelected()
 void USlabScenarioReplayPanelWidget::NativeTick(const FGeometry& G,float D)
 {
     Super::NativeTick(G,D);if(!IsWorkspaceOwned()||!IsVisible()||IsPanelCollapsed()||FPlatformTime::Seconds()<NextPreflight)return;
-    NextPreflight=FPlatformTime::Seconds()+.2;CachedPreflight=GetReplayOutputs().HasAnyOutput()?UVirtualSensorOutputPreflight::Inspect(this,GetReplayOutputs(),TargetSensorIds).Summary:TEXT("관찰 전용 · Topic 송신 없음");
+    NextPreflight=FPlatformTime::Seconds()+.2;CachedPreflight=GetReplayOutputs().HasAnyOutput()?UVirtualSensorOutputPreflight::InspectForPurpose(this,GetReplayOutputs(),TargetSensorIds,EVirtualSensorPreflightPurpose::ScenarioTransition).Summary:TEXT("관찰 전용 · Topic 송신 없음");
 }
 void USlabScenarioReplayPanelWidget::SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs)
 { bSendPcd=Outputs.bPointCloud; bSendCameraImage=Outputs.bCameraImage; bSendLidarTelemetry=Outputs.bLidarTelemetry; }

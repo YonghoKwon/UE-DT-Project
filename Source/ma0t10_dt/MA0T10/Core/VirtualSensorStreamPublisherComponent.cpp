@@ -687,6 +687,15 @@ bool UVirtualSensorStreamPublisherComponent::StreamMatchesFrame(EVirtualSensorSt
 		: SensorKind == EVirtualSensorKind::Lidar;
 }
 
+bool UVirtualSensorStreamPublisherComponent::ResolveActiveStreamForSensor(EVirtualSensorStreamKind Kind,const FString& Id,FVirtualSensorStreamConfig& Out) const
+{
+	const auto* Exact=StreamRuntimes.Find(MakeStreamKey(Kind,Id));
+	if(Exact&&Exact->Config.bEnabled){Out=Exact->Config;return true;}
+	const auto* Wildcard=StreamRuntimes.Find(MakeStreamKey(Kind,FString()));
+	if(Wildcard&&Wildcard->Config.bEnabled){Out=Wildcard->Config;return true;}
+	return false;
+}
+
 void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFrameEnvelope& Frame)
 {
 	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())

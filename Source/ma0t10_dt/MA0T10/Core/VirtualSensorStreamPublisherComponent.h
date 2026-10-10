@@ -52,6 +52,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Stream")
 	FVirtualSensorStreamConfig GetEffectiveStreamConfig(EVirtualSensorStreamKind Kind, const FString& SensorId) const;
+	/** Actual enabled route: an enabled exact stream shadows the wildcard, a disabled exact does not. */
+	bool ResolveActiveStreamForSensor(EVirtualSensorStreamKind Kind,const FString& SensorId,FVirtualSensorStreamConfig& OutConfig) const;
 	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
 	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
 	bool CanUseHighThroughputTransport() const;

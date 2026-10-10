@@ -762,7 +762,7 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleSelectedStream(EVirtualSensor
 	const bool Starting=!Publisher->IsStreamEnabled(StreamKind,SensorId);
 	if(Starting&&StreamKind==EVirtualSensorStreamKind::PointCloud)
 	{
-		FVirtualSlabSensorOutputSelection O;const auto Check=UVirtualSensorOutputPreflight::Inspect(this,O,{SensorId});CachedPcdPreflight=Check.Summary;
+		FVirtualSlabSensorOutputSelection O;const auto Check=UVirtualSensorOutputPreflight::InspectForPurpose(this,O,{SensorId},EVirtualSensorPreflightPurpose::ManualStreamStart);CachedPcdPreflight=Check.Summary;
 		if(!Check.BlockingReasons.IsEmpty()){LastUiMessage=FString::Join(Check.BlockingReasons,TEXT("\n"));return;}
 	}
 	ApplyStreamConfig(StreamKind, SensorId, Starting);

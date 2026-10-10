@@ -596,6 +596,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Recorder")
     TObjectPtr<UVirtualSensorRecorderComponent> RecorderComponent;
 
+public:
+    /** Read-only backend diagnosis; does not initialize rendering or start a scan. */
+    EVirtualLidarAcquisitionBackend GetResolvedAcquisitionBackend(FString& Reason) const {return ResolveAcquisitionBackend(Reason);}
 private:
 	void PublishLastFrameSnapshot(const FTransform& AcquisitionTransform, int32 InHorizontalSamples, int32 InVerticalChannels, float InMaxDistanceCm);
     EVirtualLidarAcquisitionBackend ResolveAcquisitionBackend(FString& OutReason) const;

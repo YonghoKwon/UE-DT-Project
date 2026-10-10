@@ -6,6 +6,8 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOutputPreflightTest,"MA0T10.SensorLayout.OutputPreflight",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorOutputPreflightTest::RunTest(const FString&)
 {
@@ -25,5 +27,51 @@ bool FSensorOutputPreflightTest::RunTest(const FString&)
     TestTrue(TEXT("stopped camera stays stopped"),!Camera->IsSensorRunning());TestEqual(TEXT("submission budget unchanged"),C->StreamPublisherComponent->MaxSubmissionsPerFrame,2);
     for(const auto& Status:C->StreamPublisherComponent->GetStreamStatuses())TestFalse(TEXT("inspection starts no Topic"),Status.bEnabled);
     A->EndInteractiveManipulation();return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOutputPreflightRoutesTest,"MA0T10.SensorLayout.PreflightEffectiveRoutes",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorOutputPreflightRoutesTest::RunTest(const FString&)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* C=W->SpawnActor<AVirtualSensorCoordinator>();auto* L=W->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Error;
+    auto* A=L->CreateSensorAtPose(EVirtualSensorKind::Lidar,FTransform::Identity,Error,false);
+    auto* Camera=L->CreateSensorAtPose(EVirtualSensorKind::Camera,FTransform::Identity,Error,false);
+    if(!A||!Camera){AddError(Error);return false;}
+    auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    auto Profile=T->GetTransportProfile();Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");T->ConfigureTransportProfile(Profile);
+    FVirtualSensorStreamConfig Config;Config.bEnabled=true;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;P->ConfigureStream(Config);
+    FVirtualSensorStreamConfig Exact=Config;Exact.SensorId=A->GetSensorId();Exact.bEnabled=false;P->ConfigureStream(Exact);
+    FVirtualSensorStreamConfig Route;
+    TestTrue(TEXT("disabled exact does not shadow active wildcard"),P->ResolveActiveStreamForSensor(Config.StreamKind,A->GetSensorId(),Route)&&Route.SensorId.IsEmpty());
+    Config.StreamKind=EVirtualSensorStreamKind::LidarPayload;Config.FrameStride=2;Config.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility;P->ConfigureStream(Config);
+    Exact=Config;Exact.SensorId=A->GetSensorId();Exact.FrameStride=4;P->ConfigureStream(Exact);
+    TestTrue(TEXT("enabled exact shadows wildcard with its stride/backend"),P->ResolveActiveStreamForSensor(Config.StreamKind,A->GetSensorId(),Route)&&Route.SensorId==A->GetSensorId()&&Route.FrameStride==4);
+    Config.StreamKind=EVirtualSensorStreamKind::CameraImage;Config.FrameStride=3;P->ConfigureStream(Config);
+    FVirtualSlabSensorOutputSelection O;
+    auto R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
+    TestEqual(TEXT("scenario replaces controlled telemetry but keeps independent camera"),R.Streams.Num(),2);
+    TestEqual(TEXT("PCD is distinguished from total output demand"),R.PcdMessagesPerSecond,20.0);
+    TestTrue(TEXT("non-target wildcard camera contributes 10Hz"),FMath::IsNearlyEqual(R.MessagesPerSecond,30.0,.001));
+    TestTrue(TEXT("mixed outputs require both backend connections"),R.bRequiresRaw&&R.bRequiresEngine&&!R.bTransportConnected);
+    R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
+    TestEqual(TEXT("PCD-only all-target scenario excludes camera and telemetry"),R.Streams.Num(),1);
+    TestTrue(TEXT("only requested raw connection is required"),R.bRequiresRaw&&!R.bRequiresEngine);
+    Exact=P->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,A->GetSensorId());Exact.bEnabled=true;Exact.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility;P->ConfigureStream(Exact);
+    R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
+    TestTrue(TEXT("explicit engine stream readiness never uses raw connection"),!R.bRequiresRaw&&R.bRequiresEngine);
+    R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ManualStreamStart,60);
+    TestEqual(TEXT("manual addition retains unrelated existing outputs exactly once"),R.Streams.Num(),3);
+    TestTrue(TEXT("manual native PCD start uses its actual default raw backend"),R.bRequiresRaw&&R.bRequiresEngine);
+    R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{},EVirtualSensorPreflightPurpose::ManualStreamStart,60);
+    TestTrue(TEXT("manual empty target is not silently all sensors"),R.BlockingReasons.ContainsByPredicate([](const auto& S){return S.Contains(TEXT("선택 센서 없음"));}));
+    auto* Scan=CastChecked<AVirtualLidarSensorActor>(A)->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bUseProfileEchoCapability=false;Scan->bUseMultiHit=true;Scan->MaxHitsPerRay=2;
+    R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
+    const auto* Pcd=R.Streams.FindByPredicate([](const auto& S){return S.Kind==EVirtualSensorStreamKind::PointCloud;});
+    TestTrue(TEXT("GPU fallback keeps CPU echo upper bound and labels uncertainty"),Pcd&&Pcd->bEstimateUncertain&&Pcd->EstimatedBytesPerFrame>=int64(576)*56*2*33);
+    Profile.ExportTopic.Reset();T->ConfigureTransportProfile(Profile);
+    R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
+    TestTrue(TEXT("missing PCD topic is a blocking reason"),R.BlockingReasons.ContainsByPredicate([](const auto& S){return S.Contains(TEXT("PCD Topic"));}));
+    FVirtualSensorOutputPreflightResult Large;Large.PcdBudgetMegabytesPerSecond=1;auto& Row=Large.Streams.AddDefaulted_GetRef();Row.SensorId=TEXT("large-slow");Row.RequestedHz=.1;Row.EstimatedBytesPerFrame=2*1024*1024;
+    R=UVirtualSensorOutputPreflight::Evaluate(Large);
+    TestTrue(TEXT("single frame bucket warning even below average bandwidth"),R.PcdMegabytesPerSecond<1&&R.Warnings.ContainsByPredicate([](const auto& S){return S.Contains(TEXT("bucket"));}));
+    P->StopAllStreams(FString());P->StopAllStreams(A->GetSensorId());return true;
 }
 #endif

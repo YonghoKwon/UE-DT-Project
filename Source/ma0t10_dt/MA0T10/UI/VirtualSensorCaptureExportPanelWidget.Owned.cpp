@@ -122,11 +122,12 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 		TArray<FString> PreflightTargets;auto PreflightOutputs=FVirtualSlabSensorOutputSelection();
 		if(bOwnedScenarioStreamView){if(const auto* Slab=ResolveScenarioSlabActor()){PreflightTargets=Slab->TargetSensorIds;PreflightOutputs=Slab->GetSensorOutputs();}}
 		else {const auto Id=GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);if(!Id.IsEmpty())PreflightTargets.Add(Id);}
-		const auto Preflight=UVirtualSensorOutputPreflight::Inspect(this,PreflightOutputs,PreflightTargets);
+		const auto Preflight=UVirtualSensorOutputPreflight::InspectForPurpose(this,PreflightOutputs,PreflightTargets,bOwnedScenarioStreamView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart);
 		CachedPcdPreflight=Preflight.Summary;
-		CachedPcdPreflightSummary=FString::Printf(TEXT("PCD 사전 점검 · %.1f건/s · 보수 추정 %.1f / 예산 %.1fMiB/s\n연결 %s · 제출 예산 %d건/프레임 · 상세 점검에서 규격·불확실성 확인"),Preflight.MessagesPerSecond,Preflight.PcdMegabytesPerSecond,Preflight.PcdBudgetMegabytesPerSecond,Preflight.bTransportConnected?TEXT("완료"):TEXT("대기"),Preflight.SubmissionsPerFrame);
-		if(!Preflight.Warnings.IsEmpty())CachedPcdPreflightSummary+=TEXT("\n주의: ")+Preflight.Warnings[0];
-        if(auto* Lidar=SensorManager?SensorManager->GetSelectedLidar():nullptr){const auto Json=Lidar->GetCompatibilityOutputStatus();CachedPcdPreflightSummary+=TEXT("\n호환 JSON: ")+Json.Reason;}
+		CachedPcdPreflightSummary=FString::Printf(TEXT("PCD %.1f건/s · 전체 출력 %.1f건/s · 추정 %.1f / 예산 %.1fMiB/s\n필요 연결 %s · 제출 예산 %d건/프레임 · 상세에서 대상·backend 확인"),Preflight.PcdMessagesPerSecond,Preflight.MessagesPerSecond,Preflight.PcdMegabytesPerSecond,Preflight.PcdBudgetMegabytesPerSecond,Preflight.bTransportConnected?TEXT("완료"):TEXT("대기/대상 없음"),Preflight.SubmissionsPerFrame);
+		if(!Preflight.BlockingReasons.IsEmpty())CachedPcdPreflightSummary=FString::Printf(TEXT("시작 차단 %d건: %s\n"),Preflight.BlockingReasons.Num(),*Preflight.BlockingReasons[0])+CachedPcdPreflightSummary;
+		else if(!Preflight.Warnings.IsEmpty())CachedPcdPreflightSummary+=TEXT("\n주의: ")+Preflight.Warnings[0];
+        if(auto* Lidar=SensorManager?SensorManager->GetSelectedLidar():nullptr){const auto Json=Lidar->GetCompatibilityOutputStatus();CachedPcdPreflightSummary+=TEXT("\n현재 선택 LiDAR ")+Lidar->SensorId+TEXT(" 호환 JSON: ")+Json.Reason;}
 		if(bOwnedScenarioStreamView)
 		{
 			if(const auto* Slab=ResolveScenarioSlabActor())
