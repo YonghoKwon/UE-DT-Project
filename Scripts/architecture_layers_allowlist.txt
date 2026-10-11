@@ -1,6 +1,6 @@
-# ARCH-03: 31 edges - 9 ControlTypes dependencies = 22.
+# ARCH-04: 22 edges - Coordinator/Slab/Player UI edges (4) = 18.
 # Relative to Source/ma0t10_dt/MA0T10. Unique source -> resolved target.
-# New and stale entries fail; Scenario dependencies remain for ARCH-06.
+# Remaining Scenario/TC dependencies are ARCH-06/05; new/stale entries fail.
 Camera/VirtualCameraCaptureComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Core/VirtualSensorAcquisitionBackend.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
@@ -12,14 +12,10 @@ Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorPcdReceiveContract.cpp -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/SlabRunResultsSubsystem.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Player/DxPlayerControllerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
-Player/DxPlayerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
 Sensor/VirtualLidarScanComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Sensor/VirtualLidarSensorTypes.h -> Scenario/VirtualSlabFrameContext.h
 Sensor/VirtualSensorActorBase.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Sensor/VirtualSensorCoordinator.cpp -> UI/VirtualSensorMonitorPanelWidget.h
 Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
 Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
 Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualPointCloudStreamReceiverTC.h
 Sensor/VirtualSensorExternalSourceHostActor.h -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
-Slab/SlabActor.cpp -> UI/SlabSimulationUiHostActor.h

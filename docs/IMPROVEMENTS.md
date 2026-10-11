@@ -76,7 +76,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ARCH-01 | 구조 / 기준선·gate 완료 | P0 | **100%** | DTCore guard·38쌍 include allowlist·D3D12 기준선 고정 | 완료; 후속 단계에서 gate 유지, opt-in skip 20개는 별도 명시 | A |
 | ARCH-02 | 구조 / 폴더 재배치 완료 | P0 | **100%** | Slab 11파일 → `Scenario/`, Workspace 2파일 → `UI/` | 완료; allowlist 38→31, 기준선 229개 이름별 결과 동일 | A |
 | ARCH-03 | 구조 / 편집 타입·기본값 분리 완료 | P0 | **100%** | 편집 타입 → L1 Sensor, 기본값 상수 → L0 Contracts | 완료; ControlTypes 의존 9쌍 해소·UHT 계약·저장 회귀 통과 | A |
-| ARCH-04 | 구조 / 호출 역전 | P0 | **0%** | Coordinator→Monitor, SlabActor→UI Host 직접 호출 제거 | L1→L3, L2→L3 0, BP API 유지 | A |
+| ARCH-04 | 구조 / 호출 역전 완료 | P0 | **100%** | Monitor·배치 입력 interface, Slab UI 약한 존재 registry | 완료; allowlist 22→18, L1/L2→L3 0, 기존 BP/GC 계약 유지 | A |
 | ARCH-05 | 구조 / 송신 검증 분리 | P1 | **0%** | Transport/ExternalSource의 WebSocket/TC include 제거 | 자체 수신 검증 결과 동일 | A |
 | ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
 | ARCH-07 | 품질 / 검증 진입점 | P1 | **0%** | `verify.ps1` quick/feature/release, opt-in 변수표, Scripts 분류 | manifest 자동 생성, skip 원인 표시 | A (QA-01 일부) |
@@ -169,7 +169,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-04 — Runtime→UI 직접 호출 역전 (P0)
 
-**진행률: 0%** · PL-01/PL-02 일부.
+**진행률: 100%** · PL-01/PL-02 일부. 2026-10-12 구현·집중/RHI 회귀·기준선 비교 완료.
 
 - **작업:**
   1. `AVirtualSensorCoordinator`의 Monitor 직접 호출(보기 전환·센서 bind·OwningPlayer 조회)을 Runtime 쪽 interface 또는 delegate로 바꾼다. Monitor가 이를 구현/구독한다.
@@ -177,6 +177,10 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
   3. `ASlabActor`가 `ASlabSimulationUiHostActor`를 순회하는 부분을 Slab 쪽 등록/조회 API로 바꾸고 UI Host가 자신을 등록한다. 판정 결과는 같아야 한다.
   4. ARCH-01에서 발견한 `Player/DxPlayerControllerTest.cpp`, `Player/DxPlayerTest.cpp` → `UI/VirtualSensorTransformGizmoActor.h`(L2→L3) 2건도 이 항목에서 다룬다. 기존 업무 Player 코드는 최소 변경(interface/delegate 경유)만 하고, 해소가 동작 변경을 요구하면 근거를 보고하고 allowlist에 남긴다.
 - **완료:** layer gate의 L1→L3·L2→L3 위반 0. Monitor follow·보기 전환·point-cloud-only·Slab UI 관련 기존 자동화 통과. Blueprint 노드 시그니처 불변(WBP 메모리 컴파일).
+- **결과:** L1 native UINTERFACE `IVirtualSensorMonitorView`와 `IVirtualSensorPlacementInputOwner`로 위임했다. `BindMonitorWidget`·Player의 기존 C++ getter/register/unregister는 UI 번역 단위로 이동했고 원문 본문은 동일하다. Caller의 interface 이름을 기존 이름으로 펼치면 Coordinator·Controller·Pawn의 순서/조건도 동일하다. `BoundMonitorWidget`의 concrete 타입·Transient UPROPERTY·GC 보유, Blueprint 핀·Category·파라미터는 그대로다. allowlist는 **22→18**, 신규·stale 0, L1→L3·L2→L3 0이다.
+- **Slab 존재 판정:** BeginPlay 등록만으로는 이전 판정을 보존할 수 없어 PostLoad·PostActorCreated·PostDuplicate에서도 약한 존재 정보를 등록한다. 조회는 현재 Slab 참조와 UE 5.3 iterator의 활성 레벨/collection 조건을 사용한다. EndPlay/Destroyed는 활성 등록을 해제하되 아직 유효한 Actor의 약한 존재 정보는 invalidation까지 유지한다(기존 코드도 Widget 활성 상태가 아니라 Actor 존재를 검사했다). 강한 Actor/World/Widget 참조나 새 비동기 작업은 없다.
+- **검증:** Editor Development·guard·layer gate·V2 `-RequireAssets`·WBP 7개 메모리 컴파일 통과. D3D12 전체는 **실행 Success 212 / 실패 0 / skip 20 / NotRun 0**(기존 209 + 신규 3)이며 기준선 229개 이름별 결과 차이 0이다. 새 `MA0T10.Architecture.MonitorRouting`, `SlabUiRegistry`, `PlacementInputView`가 호출 순서·소유자·Blueprint/GC 계약·기존 iterator oracle·등록/해제 경계를 확인한다. 보조 자동화 **21개 Success·skip 0**(집중 3, UI/입력 8, 배치 9, Slab portable 1; 전체 시험과 중복 포함)도 통과했다. `InputAcceptanceRhi`, `ManipulationRuntime`, `Placement.InputOwnershipRhi`, `SlabScenario.PortableMapAndLatePlayer`는 별도 opt-in 실행에서 실제로 수행했다. 데스크톱 직접 조작 검증은 아니다.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A04/summary.json`, `test-comparison.md`, `binding-compatibility.json`, `related-tests.json`, `supplemental-tests.json`, 빌드·WBP·보호 hash 로그. 초기 새 fixture의 추상 클래스/중복 World 초기화/미초기화 Actor 종료 시험 오류는 수정하고 실패 기록을 보존했다(기존 기대값 수정 없음). 보호 파일 298개 hash 불변·개인 SaveGame 9개 복원·자산 저장 0. 주 시험의 opt-in skip 20개는 그대로 구분하며, RiderLink stderr와 기준선에도 있는 D3D12 시작 ensure는 환경 제한으로 남긴다. DTCore·로컬 설정·운영맵·비대상 Widget·Computer Use·push/PR/merge 변경/실행은 없다.
 
 ### ARCH-05 — 송신 자체 검증의 TC 의존 분리 (P1)
 

@@ -360,20 +360,17 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-11, `58b4184` Runtime 기준 ARCH-03 gate)
+### 10.2 현재 위반 (2026-10-12, `5c8a7a3` Runtime 기준 ARCH-04 gate)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 207개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **22쌍 = allowlist 22개**다. ARCH-02의 31쌍에서 ControlTypes 관련 L1→L3 7쌍·L2→L3 2쌍을 해소했으며 신규 위반은 없다(31 − 9 = 22).
+gate는 `Tests/`를 제외한 `.h/.cpp` 213개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
-| L1→L3 | 1 | `Sensor/VirtualSensorCoordinator.cpp` → `UI/VirtualSensorMonitorPanelWidget.h` (`BindMonitorWidget` 등 직접 호출) | ARCH-04 |
 | L1→L2 | 9 | `Scenario/VirtualSensorSlabContextSubsystem.h`, `VirtualSlabFrameContext.h`, `SlabRunResultsSubsystem.h`를 Camera 1·Sensor 3·Core 5쌍이 include. `Core/VirtualSensorStreamPublisherComponent.cpp`가 2쌍이며 나머지는 각 1쌍 — 이동 전에는 같은 L1이었다 | ARCH-06 |
 | L1→L2 | 9 | `Core/VirtualSensorHighThroughputTransportSubsystem` 4·`VirtualSensorPcdReceiveContract.cpp` 1·`Sensor/VirtualSensorExternalSourceHostActor` 4개가 `WebSocket/TC` 수신 진단 헤더를 include | ARCH-05 |
-| L2→L3 | 2 | `Player/DxPlayerControllerTest.cpp`, `Player/DxPlayerTest.cpp` → `UI/VirtualSensorTransformGizmoActor.h` | ARCH-04 |
-| L2→L3 | 1 | `Slab/SlabActor.cpp` → `UI/SlabSimulationUiHostActor.h` | ARCH-04 |
-| **합계** | **22** | L1→L3 1 + L1→L2 18 + L2→L3 3 | ARCH-01의 38개 이하 유지 |
+| **합계** | **18** | 모두 L1→L2. L1→L3 0 + L2→L3 0 | ARCH-01의 38개 이하 유지 |
 
-ARCH-03에서 Runtime 사용 enum 2개·struct 3개를 L1 `Sensor/VirtualSensorEditableTypes.h`로 분리하고 기존 `UI/VirtualSensorControlTypes.h`는 UI 전용 타입과 호환 include를 유지했다. 편집 상태가 참조하는 기존 enum 5종은 L1에 그대로 둔다. L0 `Contracts/VirtualSensorDefaults.h`는 Topic 3·SaveGame 슬롯 8·저장 폴더 11개의 리터럴만 제공한다. 센서→Scenario 9쌍은 ARCH-06, TC 관련 9쌍은 ARCH-05에서 해소한다. `ma0t10_dt.Build.cs`의 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
+Coordinator는 L1 `IVirtualSensorMonitorView`, Player는 L1 `IVirtualSensorPlacementInputOwner`로 호출한다. 호환용 `BindMonitorWidget`과 기존 Player의 Gizmo getter/register 시그니처는 그대로이며 본문은 `UI/` 번역 단위에 있다. `BoundMonitorWidget`의 concrete 타입·`UPROPERTY(Transient)`·GC 보유도 유지하므로 UI 타입 forward 선언/Blueprint 핀까지 없앤 것은 아니다. `Slab/SlabUiRegistry`는 약한 Actor 존재 정보와 활성 등록을 분리해 생성·로드·복제·BeginPlay 전 및 EndPlay 후 유효 Actor의 기존 판정을 유지한다. 센서→Scenario 9쌍은 ARCH-06, TC 관련 9쌍은 ARCH-05에서 해소한다. 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
 
 실행: `Scripts/validate_architecture_layers.ps1` (`-Json`은 상세 결과). 신규 위반과 stale allowlist 모두 exit 1이며, 경로별 원본은 `Scripts/architecture_layers_allowlist.txt`다. `-SourceRoot`·`-AllowlistPath`는 `Saved` 안의 음성 대조 fixture용이며 일반 gate에서는 생략한다.
 
