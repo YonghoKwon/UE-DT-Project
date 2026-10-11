@@ -1,10 +1,9 @@
-# ARCH-01 baseline: unique source -> resolved target include edges, not line counts.
-# Relative to Source/ma0t10_dt/MA0T10. Keep sorted; remove resolved debt.
-# New violations and stale entries both fail validate_architecture_layers.ps1.
+# ARCH-02: 38 baseline edges - 16 resolved + 9 newly exposed = 31.
+# Relative to Source/ma0t10_dt/MA0T10. Unique source -> resolved target.
+# Newly exposed Scenario dependencies remain for ARCH-06; new/stale entries fail.
+Camera/VirtualCameraCaptureComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Camera/VirtualCameraSensorActor.cpp -> UI/VirtualSensorControlTypes.h
-Core/SlabRunResultsSubsystem.cpp -> UI/VirtualSensorControlTypes.h
-Core/SlabScenarioReplaySubsystem.cpp -> Slab/SlabScenarioCodec.h
-Core/SlabScenarioReplaySubsystem.h -> Slab/SlabScenarioTypes.h
+Core/VirtualSensorAcquisitionBackend.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorFileSaveTypes.h -> UI/VirtualSensorControlTypes.h
 Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
 Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
@@ -12,26 +11,20 @@ Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualPo
 Core/VirtualSensorHighThroughputTransportSubsystem.h -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
 Core/VirtualSensorLayoutSubsystem.h -> UI/VirtualSensorControlTypes.h
 Core/VirtualSensorLayoutTypes.h -> UI/VirtualSensorControlTypes.h
+Core/VirtualSensorOutputPreflight.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
+Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorPcdReceiveContract.cpp -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
 Core/VirtualSensorPeriodicFileSaveSubsystem.h -> UI/VirtualSensorControlTypes.h
-Core/VirtualSensorSlabContextSubsystem.cpp -> UI/VirtualSensorControlTypes.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SensorToolAppearance.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SensorToolToolbarWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabChartsPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabProgressPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabScenarioReplayPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabScenarioReplayUiHostActor.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabSimulationUiHostActor.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorCaptureExportPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorMonitorPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorPanelWidgetBase.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorPlacementPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorSettingsPanelWidget.h
-Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorUiHostActor.h
-Core/VirtualSensorToolWorkspaceSubsystem.h -> UI/VirtualSensorUiPreferences.h
+Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/SlabRunResultsSubsystem.h
+Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Player/DxPlayerControllerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
 Player/DxPlayerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
+Scenario/SlabRunResultsSubsystem.cpp -> UI/VirtualSensorControlTypes.h
+Scenario/VirtualSensorSlabContextSubsystem.cpp -> UI/VirtualSensorControlTypes.h
+Sensor/VirtualLidarScanComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Sensor/VirtualLidarSensorActor.cpp -> UI/VirtualSensorControlTypes.h
+Sensor/VirtualLidarSensorTypes.h -> Scenario/VirtualSlabFrameContext.h
+Sensor/VirtualSensorActorBase.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Sensor/VirtualSensorActorBase.cpp -> UI/VirtualSensorControlTypes.h
 Sensor/VirtualSensorCoordinator.cpp -> UI/VirtualSensorMonitorPanelWidget.h
 Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h

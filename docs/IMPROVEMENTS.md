@@ -74,7 +74,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ID | 분류 | 우선 | 진행률 | 핵심 | 남은 핵심 조건 | 로드맵 |
 |---|---|---:|---:|---|---|---|
 | ARCH-01 | 구조 / 기준선·gate 완료 | P0 | **100%** | DTCore guard·38쌍 include allowlist·D3D12 기준선 고정 | 완료; 후속 단계에서 gate 유지, opt-in skip 20개는 별도 명시 | A |
-| ARCH-02 | 구조 / 폴더 재배치 | P0 | **0%** | Core의 Slab 서비스 → `Scenario/`, Workspace Subsystem → `UI/` | 이동만, 동작·자산 불변 | A |
+| ARCH-02 | 구조 / 폴더 재배치 완료 | P0 | **100%** | Slab 11파일 → `Scenario/`, Workspace 2파일 → `UI/` | 완료; allowlist 38→31, 기준선 229개 이름별 결과 동일 | A |
 | ARCH-03 | 구조 / 공통 계약 | P0 | **0%** | 편집 상태 타입·기본값 상수 → `Contracts/` | L1의 UI 타입 include 0, enum/SaveGame 호환 | A |
 | ARCH-04 | 구조 / 호출 역전 | P0 | **0%** | Coordinator→Monitor, SlabActor→UI Host 직접 호출 제거 | L1→L3, L2→L3 0, BP API 유지 | A |
 | ARCH-05 | 구조 / 송신 검증 분리 | P1 | **0%** | Transport/ExternalSource의 WebSocket/TC include 제거 | 자체 수신 검증 결과 동일 | A |
@@ -142,13 +142,16 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-02 — 폴더 재배치 (P0)
 
-**진행률: 0%**
+**진행률: 100%** · 이동·include 경로 수정·기준선 회귀 완료(2026-10-11).
 
 - **작업:** 이동만 한다.
   - `Core/` → 새 `Scenario/`(L2): `SlabExecutionTypes.h`, `SlabRunComparison.*`, `SlabRunDeliveryTypes.h`, `SlabRunResultsSubsystem.*`, `SlabScenarioReplaySubsystem.*`, `VirtualSensorSlabContextSubsystem.*`, `VirtualSlabFrameContext.h`.
   - `Core/VirtualSensorToolWorkspaceSubsystem.*` → `UI/`.
   - 영향받는 include를 고치고 allowlist 경로를 갱신한다. 이동으로 드러나는 L1→L2 위반(센서가 `Scenario/` 헤더를 include)은 allowlist에 남겨 ARCH-06에서 해소한다.
 - **완료:** `Core/`에는 센서 공용 서비스만 남는다. 빌드·전체 `MA0T10` 결과가 기준선과 같다(같은 테스트 이름이 같은 결과). `.uasset` 변경 0. allowlist 총 개수는 기준선 이하.
+- **결과:** `git mv`로 13개 파일을 이동했다. 이동 파일 중 4개와 기타 57개 파일(Tests/·Editor 포함)의 include 경로 84줄만 수정했으며 클래스·함수·UPROPERTY·로직은 불변이다. rename 감지율은 98~100%다. 기존 위반 16쌍 해소 + 이동으로 드러난 L1→L2 9쌍 보존으로 allowlist는 **38→31**이다. 9쌍은 ARCH-06 대상이며 gate의 신규·stale은 0이다.
+- **검증:** UE 5.3 Editor Development 빌드, DTCore guard, layer gate, V2 `-RequireAssets`, WBP 7개 메모리 컴파일 통과. ARCH-01과 동일한 D3D12·커밋본 맵 fixture·opt-in 설정에서 전체 `MA0T10`은 **실행 Success 209 / 실패 0 / skip 20 / NotRun 0**이며, **229개 테스트 이름별 결과 차이 0**이다. 보호 파일 298개 hash 불변, 개인 SaveGame 9개 복원, `.uasset` 변경 0을 확인했다.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A02/summary.json`, `test-comparison.md`/`.json`, `final-source-change-proof.json`, `layer-gate.json`, `dtcore-guard.json`, 빌드·WBP·보호 hash 로그. 첫 빌드는 이전 동일 폴더를 가정한 include로 실패했고 명시적 경로로만 수정해 재빌드 통과했다(실패 로그 보존). ARCH-01의 opt-in skip 20개와 RiderLink stderr 제한은 그대로이며 통과로 확대하지 않는다. Computer Use·자산 저장·DTCore 변경은 수행하지 않았다.
 
 ### ARCH-03 — 공통 계약 `Contracts/` 도입 (P0)
 
