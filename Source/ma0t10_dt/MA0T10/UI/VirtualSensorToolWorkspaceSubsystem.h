@@ -67,6 +67,8 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabWorkspaceDeferredLayoutTest;
 	friend class FSensorWorkspacePlacementEntryTest;
+	friend class FSensorWorkflowToolbarTest;
+	friend class FSensorWorkflowStatusTest;
 #endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;
 	UPROPERTY(Transient) TMap<ESensorToolPanelRole,TObjectPtr<UVirtualSensorPanelWidgetBase>> Panels;
