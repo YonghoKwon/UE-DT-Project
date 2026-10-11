@@ -1,4 +1,5 @@
 #include "VirtualSensorCaptureExportPanelWidget.h"
+#include "Blueprint/WidgetTree.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
@@ -294,6 +295,19 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedFileTab()
 	];
 }
 
+void UVirtualSensorCaptureExportPanelWidget::OpenOwnedConnectionSection(bool bDiagnostics)
+{
+	if(!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget)) return;
+	SetScenarioRunResultsExpanded(false);
+	bOwnedServerExpanded=!bDiagnostics;
+	bOwnedReceiverExpanded=bDiagnostics;
+	bOwnedTransportLogExpanded=bDiagnostics;
+	if(OwnedServerArea)OwnedServerArea->SetExpanded(bOwnedServerExpanded);
+	if(OwnedReceiverArea)OwnedReceiverArea->SetExpanded(bOwnedReceiverExpanded);
+	if(OwnedTransportLogArea)OwnedTransportLogArea->SetExpanded(bOwnedTransportLogExpanded);
+	LastNativeStatusRefreshSeconds=-1;
+}
+
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnectionTab()
 {
 	auto Server=SNew(SVerticalBox);
@@ -313,18 +327,18 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("Test","설정 적용·연결 시험")).OnClicked_Lambda([this](){TestServerConnection();LastNativeStatusRefreshSeconds=-1;return FReply::Handled();})]];
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(OwnedConnectionText);})]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ServerSettings","서버 연결 설정"))].BodyContent()[Server]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SAssignNew(OwnedServerArea,SExpandableArea).InitiallyCollapsed(!bOwnedServerExpanded).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedServerExpanded=B;}).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ServerSettings","서버 연결 설정"))].BodyContent()[Server]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SAssignNew(RunResultsArea,SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded)
 	  .OnAreaExpansionChanged_Lambda([this](bool B){bRunResultsExpanded=B;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRunResults","실행별 전송 결과 · 최근 20개"))]
 	  .BodyContent()[BuildRunResultsContent()]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedReceiverExpanded=B;LastNativeStatusRefreshSeconds=-1;})
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SAssignNew(OwnedReceiverArea,SExpandableArea).InitiallyCollapsed(!bOwnedReceiverExpanded).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedReceiverExpanded=B;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Receiver","Broker 실제 수신 검증"))].BodyContent()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
 	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("ReceiverStop","수신 구독 끊기")).OnClicked_Lambda([this](){StopTopicReceivers();return FReply::Handled();})]
 	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("ReceiverReconnect","수신 다시 연결")).OnClicked_Lambda([this](){NextReceiverLookup=0;ReceiverLookupDelay=.5;ReconnectTopicReceivers();return FReply::Handled();})]]
 	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedTopicReceiverSummary);})]]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedTransportLogExpanded=B;LastNativeStatusRefreshSeconds=-1;})
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SAssignNew(OwnedTransportLogArea,SExpandableArea).InitiallyCollapsed(!bOwnedTransportLogExpanded).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedTransportLogExpanded=B;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Log","전송 기록·호환 도구"))].BodyContent()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
 	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("DiagnosticReport","진단 보고서 저장")).OnClicked_Lambda([this](){ExportTransportDiagnosticReport();return FReply::Handled();})]

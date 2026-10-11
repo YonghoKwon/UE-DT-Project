@@ -594,6 +594,13 @@ FString UVirtualSensorSettingsPanelWidget::GetControlStatusText() const
         *BuildDeviceSpecText());
 }
 
+void UVirtualSensorSettingsPanelWidget::OpenOwnedSettingsSection(bool bAdvanced)
+{
+    if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget)) return;
+    WorkspaceSettingsTab = bAdvanced ? 2 : 0;
+    if (bAdvanced) bShowAdvanced = true;
+}
+
 TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
 {
     if (WidgetTree && WidgetTree->RootWidget)

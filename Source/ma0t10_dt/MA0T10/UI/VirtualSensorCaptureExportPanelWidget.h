@@ -44,6 +44,8 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
     GENERATED_BODY()
 
 public:
+	/** Native owned presentation only. No connection or receiver operation is invoked. */
+	void OpenOwnedConnectionSection(bool bDiagnostics);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput") FString GetPcdPreflightText() const {return CachedPcdPreflight;}
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
@@ -197,6 +199,7 @@ private:
     FDelegateHandle ManualPayloadHandle;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunComparisonUiTest;
+	friend class FSensorWorkflowToolbarTest;
 #endif
 	FString CachedPcdPreflight;
 	FString CachedPcdPreflightSummary;
@@ -208,6 +211,8 @@ private:
 	TMap<FString,FString> RunResultLabels;
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> RunResultCombo;
 	TSharedPtr<SExpandableArea> RunResultsArea;
+	TSharedPtr<SExpandableArea> OwnedServerArea,OwnedReceiverArea,OwnedTransportLogArea;
+	bool bOwnedServerExpanded=false;
 	bool bSelectedRunReportSaved=false,bCanRetrySelectedRun=false;
 	TSharedRef<SWidget> BuildRunResultsContent();
 	void RefreshRunResults();

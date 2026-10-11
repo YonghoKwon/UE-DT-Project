@@ -17,6 +17,8 @@ class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPan
     GENERATED_BODY()
 
 public:
+	/** Presentation-only entry for the owned native toolbar; Designer and legacy opt out. */
+	void OpenOwnedSettingsSection(bool bAdvanced);
 	TSharedRef<SWidget> BuildWorkspacePlacementControls();
 	void RefreshWorkspacePlacementControls();
 	/** Follow the workspace selection without cycling or applying edited values. Legacy panels opt out. */
@@ -112,6 +114,7 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	friend class FSensorWorkflowToolbarTest;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorV2ManipulationLifecycleTest;
     friend class FSensorPlacementIdentityUiTest;
