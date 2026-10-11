@@ -71,7 +71,7 @@ ARCH 이후의 사용자 기능 순서(기존 계획 유지):
 
 | ID | 분류 | 우선 | 진행률 | 핵심 | 남은 핵심 조건 | 로드맵 |
 |---|---|---:|---:|---|---|---|
-| ARCH-01 | 구조 / 기준선·gate | P0 | **0%** | 레이어 검사 스크립트·DTCore guard 고정값 수정·기준선 | gate가 현재 위반을 allowlist로 고정하고 신규 위반을 차단 | A |
+| ARCH-01 | 구조 / 기준선·gate 완료 | P0 | **100%** | DTCore guard·38쌍 include allowlist·D3D12 기준선 고정 | 완료; 후속 단계에서 gate 유지, opt-in skip 20개는 별도 명시 | A |
 | ARCH-02 | 구조 / 폴더 재배치 | P0 | **0%** | Core의 Slab 서비스 → `Scenario/`, Workspace Subsystem → `UI/` | 이동만, 동작·자산 불변 | A |
 | ARCH-03 | 구조 / 공통 계약 | P0 | **0%** | 편집 상태 타입·기본값 상수 → `Contracts/` | L1의 UI 타입 include 0, enum/SaveGame 호환 | A |
 | ARCH-04 | 구조 / 호출 역전 | P0 | **0%** | Coordinator→Monitor, SlabActor→UI Host 직접 호출 제거 | L1→L3, L2→L3 0, BP API 유지 | A |
@@ -118,15 +118,18 @@ ARCH 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-01 — 기준선 고정과 레이어 gate (P0)
 
-**진행률: 0%**
+**진행률: 100%** · 구현·집중검증·기준선 기록 완료(2026-10-11).
 
-- **근거:** `Scripts/validate_dtcore_submodule_guard.ps1`의 `ExpectedCommit`이 `2eec1fee…`인데 실제 gitlink는 `b2504d1`이다. 문서가 커밋 전 실행을 요구하지만 현재 그대로 실행하면 실패한다. 레이어 경계를 검사하는 도구는 없다.
+- **변경 전 근거:** `Scripts/validate_dtcore_submodule_guard.ps1`의 `ExpectedCommit`이 `2eec1fee…`인데 실제 gitlink는 `b2504d1`이었다. 문서가 커밋 전 실행을 요구하지만 그대로 실행하면 실패했고, 레이어 경계를 검사하는 도구가 없었다.
 - **작업:**
   1. guard의 기대값을 현재 고정값 `b2504d1`(전체 SHA)로 맞추고 현재 worktree에서 통과를 확인한다. gitlink 자체는 바꾸지 않는다.
   2. `Scripts/validate_architecture_layers.ps1`을 추가한다. `Source/ma0t10_dt/MA0T10` 아래 `Tests/`를 제외한 `.h/.cpp`의 `#include`를 읽어 폴더→레이어 표(README §10.1)로 분류하고, 금지 방향을 `Scripts/architecture_layers_allowlist.txt`와 대조한다. 신규 위반 또는 **더 이상 필요 없는 allowlist 항목**이 있으면 실패 종료한다(목록이 줄 때 갱신을 강제).
   3. 초기 allowlist는 현재 위반과 정확히 같게 만든다. README §10.2 표와 개수가 맞아야 한다.
   4. 변경 전 기준선을 기록한다: Editor Development 빌드, `Scripts/validate_sensor_v2_refactor.ps1 -RequireAssets`, D3D12 전체 `MA0T10`. commit/submodule SHA, Success/실패/skip 이름을 `Saved/Reports/ArchitectureSkeleton/A01_baseline/`에 남긴다.
 - **완료:** guard·layer gate가 현재 HEAD에서 통과, 위반 1건을 임시로 추가하면 실패, allowlist 항목 1건을 지우면 실패(되돌림 확인). 기준선 보고서 존재.
+- **결과:** 기대값을 `b2504d1dfea5659f832ff0d750515edee146a28e`로 수정했고 gitlink·DTCore worktree는 불변이다. `validate_architecture_layers.ps1`은 205개 production `.h/.cpp`의 include를 검사하며 현재 위반 38쌍을 allowlist 38개와 정확히 대조한다. 신규 1건·allowlist 삭제 1건·stale 추가 1건의 exit 1과 원복 exit 0을 `Saved`의 복사 fixture에서 확인했다. production 소스 변경은 없다. README §10.2를 실제 집계(Workspace 14, ControlTypes Camera 1 포함 9, Player→Gizmo 2건 누락 등)에 맞췄다.
+- **기준선:** 프로젝트 `1119fbee4c81af3cec14d4f27024ebe952543914`, DTCore 위 고정값. UE 5.3 Editor Development 빌드·V2 `-RequireAssets`·WBP 7개 메모리 컴파일 통과. D3D12 전체 `MA0T10`은 **실행 Success 209 / 실패 0 / 명시적 skip 20 / NotRun 0**이다. UE 원본의 Success state 229개(일반 217 + 경고 포함 12) 중 skip-return-success 20개를 통과에서 제외했다. 사용자 맵 대신 `Saved`에 추출한 커밋본을 composition fixture로 사용했고, 보호 파일 298개 hash 불변·개인 SaveGame 9개 복원을 확인했다.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A01_baseline/summary.json`, `BASELINE.md`, `automation/index.json`, `layer-gate.json`, `gate-self-tests.json`, 빌드·WBP·보호 hash 로그. Success·skip 전체 이름과 사유는 보고서에 있다. opt-in Broker·fault·장기/RHI 입력 시험은 이 기준선에서 미실행이며 수용 통과로 확대하지 않는다. RiderLink `RdEditorModel` hash 불일치 stderr는 남아 있지만 최종 시험 exit 0·보고서 완료를 확인했다. 첫 수집 런처의 stderr 예외 종료 로그도 별도 보존했다. Computer Use·자산 저장·보호 경로 수정은 수행하지 않았다.
 
 ### ARCH-02 — 폴더 재배치 (P0)
 

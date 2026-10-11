@@ -359,18 +359,24 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-11, `fda25e0` 정적 조사)
+### 10.2 현재 위반 (2026-10-11, `1119fbe` Runtime 기준 ARCH-01 gate)
 
-| 방향 | 위치 | 해소 항목 |
-|---|---|---|
-| L1→L3 | `UI/VirtualSensorControlTypes.h`를 Sensor 3·Core 6개 파일이 include. 그중 `Core/VirtualSensorFileSaveTypes.h`, `PeriodicFileSaveSubsystem.h`, `LayoutSubsystem.h`, `LayoutTypes.h`는 **헤더→헤더**로 전파 | ARCH-03 |
-| L1→L3 | `Sensor/VirtualSensorCoordinator`가 `UVirtualSensorMonitorPanelWidget`을 직접 bind·호출(`BindMonitorWidget`, 보기 전환, OwningPlayer 조회) | ARCH-04 |
-| L1→L3 (폴더 오배치) | `Core/VirtualSensorToolWorkspaceSubsystem`이 UI 헤더 12개 include — 실제로는 UI 레이어 코드 | ARCH-02 |
-| L1→L2 (폴더 오배치) | `Core/`의 Slab 서비스 7종: `SlabExecutionTypes`, `SlabRunComparison`, `SlabRunDeliveryTypes`, `SlabRunResultsSubsystem`, `SlabScenarioReplaySubsystem`, `VirtualSensorSlabContextSubsystem`, `VirtualSlabFrameContext` | ARCH-02 |
-| L1→L2 | Camera/LiDAR/ActorBase가 `VirtualSensorSlabContextSubsystem`을 직접 호출, 센서 frame/request 타입이 `FVirtualSlabFrameContext`를 포함(13개 파일) | ARCH-06 |
-| L1→L2 | `Core/VirtualSensorHighThroughputTransportSubsystem`, `VirtualSensorPcdReceiveContract`, `Sensor/VirtualSensorExternalSourceHostActor`가 `WebSocket/TC` 수신 진단 클래스를 include | ARCH-05 |
-| L2→L3 | `Slab/SlabActor.cpp`가 `ASlabSimulationUiHostActor`를 순회해 UI 존재를 확인 | ARCH-04 |
-| 모듈 의존 | `ma0t10_dt.Build.cs`가 `PixelStreaming*` 3개를 Public 의존으로 선언하지만 C++ 사용 0건 | ARCH-08 |
+gate는 `Tests/`를 제외한 `.h/.cpp` 205개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **38쌍 = allowlist 38개**이며 아래 표와 정확히 대응한다.
+
+| 방향 | include 쌍 수 | 위치 | 해소 항목 |
+|---|---:|---|---|
+| L1→L3 | 9 | `UI/VirtualSensorControlTypes.h`를 Camera 1·Sensor 2·Core 6개 파일이 include. 그중 `Core/VirtualSensorFileSaveTypes.h`, `VirtualSensorPeriodicFileSaveSubsystem.h`, `VirtualSensorLayoutSubsystem.h`, `VirtualSensorLayoutTypes.h`는 **헤더→헤더**로 전파 | ARCH-03 |
+| L1→L3 | 1 | `Sensor/VirtualSensorCoordinator.cpp` → `UI/VirtualSensorMonitorPanelWidget.h` (`BindMonitorWidget` 등 직접 호출) | ARCH-04 |
+| L1→L3 (폴더 오배치) | 14 | `Core/VirtualSensorToolWorkspaceSubsystem.cpp`의 UI include 13개 + `.h`의 `VirtualSensorUiPreferences.h` 1개 — 실제로는 UI 레이어 코드 | ARCH-02 |
+| L1→L2 (폴더 오배치) | 2 | `Core/SlabScenarioReplaySubsystem.cpp` → `SlabScenarioCodec.h`, `.h` → `SlabScenarioTypes.h` | ARCH-02 |
+| L1→L2 | 9 | `Core/VirtualSensorHighThroughputTransportSubsystem` 4·`VirtualSensorPcdReceiveContract.cpp` 1·`Sensor/VirtualSensorExternalSourceHostActor` 4개가 `WebSocket/TC` 수신 진단 헤더를 include | ARCH-05 |
+| L2→L3 | 2 | `Player/DxPlayerControllerTest.cpp`, `Player/DxPlayerTest.cpp` → `UI/VirtualSensorTransformGizmoActor.h` — 이전 조사 표 누락 | ARCH-04 범위 검토 필요 |
+| L2→L3 | 1 | `Slab/SlabActor.cpp` → `UI/SlabSimulationUiHostActor.h` | ARCH-04 |
+| **합계** | **38** | L1→L3 24 + L1→L2 11 + L2→L3 3 | ARCH-01 초기 allowlist |
+
+폴더·모듈 책임 위반은 위 include 쌍과 구분한다. `Core/`의 Slab 서비스 7종(`SlabExecutionTypes`, `SlabRunComparison`, `SlabRunDeliveryTypes`, `SlabRunResultsSubsystem`, `SlabScenarioReplaySubsystem`, `VirtualSensorSlabContextSubsystem`, `VirtualSlabFrameContext`)은 ARCH-02 대상이다. Camera/LiDAR/ActorBase의 SlabContext 직접 호출과 frame/request 타입의 `FVirtualSlabFrameContext` 포함(이전 조사 13개 파일)은 현재 `Core/`가 L1이므로 그 자체로 L1→L2 gate 위반으로 세지 않는다. ARCH-02 이동 후 드러나는 의존은 ARCH-06에서 해소한다. `ma0t10_dt.Build.cs`의 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
+
+실행: `Scripts/validate_architecture_layers.ps1` (`-Json`은 상세 결과). 신규 위반과 stale allowlist 모두 exit 1이며, 경로별 원본은 `Scripts/architecture_layers_allowlist.txt`다. `-SourceRoot`·`-AllowlistPath`는 `Saved` 안의 음성 대조 fixture용이며 일반 gate에서는 생략한다.
 
 ### 10.3 구성 요소 책임 (현재)
 
