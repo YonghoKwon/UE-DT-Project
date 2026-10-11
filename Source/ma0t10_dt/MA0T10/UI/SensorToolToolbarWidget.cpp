@@ -69,6 +69,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	 .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(SensorToolUiText::Tools())]];
 	return SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(8)
 	[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[Bar]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8,0,0)[BuildStatusStrip()]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).AutoWrapText(true)
 	 .Visibility_Lambda([this](){auto* W=Workspace();return W&&!W->GetPanelOpenMessage().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
 	 .Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W?W->GetPanelOpenMessage():FString());})]];

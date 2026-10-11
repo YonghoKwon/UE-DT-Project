@@ -107,3 +107,23 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     else if(TransferFailure||!Session.RequiredDataError.IsEmpty())GlobalStatus.Warning=SensorToolUiText::TransferCheck();
 }
 
+TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
+{
+    auto Row=SNew(SHorizontalBox);
+    const ESensorToolDestination Destinations[]={ESensorToolDestination::Placement,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Scenario,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics};
+    for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
+    {
+        const auto Destination=Destinations[I];
+        auto Label=[this,I]()
+        {
+            switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return SensorToolUiText::Warning(GlobalStatus.Warning);}
+        };
+        Row->AddSlot().FillWidth(I==4?1.5f:1.f).VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
+        [SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(4,2))
+         .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
+         .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination](){OpenOwnedDestination(Destination);return FReply::Handled();})
+         [SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+          .ColorAndOpacity(I==4?FLinearColor(1,.65f,.2f):FSensorOwnedPresentationStyle::Muted())]];
+    }
+    return Row;
+}
