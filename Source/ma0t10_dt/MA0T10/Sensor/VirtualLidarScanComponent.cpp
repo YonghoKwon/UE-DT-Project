@@ -1,5 +1,5 @@
 #include "VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"

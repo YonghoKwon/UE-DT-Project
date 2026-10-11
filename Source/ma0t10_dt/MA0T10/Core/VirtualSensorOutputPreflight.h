@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorOutputPreflight.generated.h"
 UENUM(BlueprintType)

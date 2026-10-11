@@ -1,6 +1,6 @@
 #include "SlabRunResultsSubsystem.h"
-#include "VirtualSensorHighThroughputTransportSubsystem.h"
-#include "VirtualSensorPlacementSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
 #include "SlabScenarioReplaySubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Components/SceneComponent.h"

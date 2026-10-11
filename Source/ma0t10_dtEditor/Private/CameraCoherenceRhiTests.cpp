@@ -20,7 +20,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
 
 #if WITH_DEV_AUTOMATION_TESTS

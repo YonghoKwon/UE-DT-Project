@@ -4,7 +4,7 @@
 #include "Async/Future.h"
 #include "SlabRunDeliveryTypes.h"
 #include "SlabRunComparison.h"
-#include "VirtualSensorResourceDiagnostics.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "SlabRunResultsSubsystem.generated.h"
 class AVirtualSensorActorBase;
 class UVirtualSensorTransportComponent;

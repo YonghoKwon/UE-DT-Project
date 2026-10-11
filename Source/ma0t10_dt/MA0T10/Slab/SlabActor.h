@@ -1,8 +1,8 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/InteractableActor/FacilityBase.h"
-#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
 #include "SlabScenarioTypes.h"
 #include "SlabAnalysisTypes.h"
 #include "SlabActor.generated.h"

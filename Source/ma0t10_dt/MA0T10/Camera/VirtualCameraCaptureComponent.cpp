@@ -1,7 +1,7 @@
 // VirtualCameraCaptureComponent.cpp
 #include "VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "VirtualCameraPayloadCodec.h"
 
 #include "Async/Async.h"

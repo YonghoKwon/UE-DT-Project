@@ -3,7 +3,7 @@
 #include "SensorToolWidgetDecl.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "VirtualSensorUiStyle.h"
-#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Blueprint/WidgetTree.h"
 #include "Widgets/Layout/SBorder.h"

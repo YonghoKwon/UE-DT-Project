@@ -2,9 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunDeliveryTypes.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunDeliveryTypes.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;

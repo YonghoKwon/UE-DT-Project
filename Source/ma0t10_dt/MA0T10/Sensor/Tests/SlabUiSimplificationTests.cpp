@@ -9,7 +9,7 @@
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
 

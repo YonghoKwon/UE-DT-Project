@@ -2,8 +2,8 @@
 #include "VirtualPointCloudCoordinates.h"
 #include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "VirtualSensorSlabContextSubsystem.h"
-#include "SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 
 #include "Async/Async.h"
 #include "HAL/FileManager.h"

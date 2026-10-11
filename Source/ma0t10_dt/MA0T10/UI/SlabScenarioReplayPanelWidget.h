@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
 #include "SlabScenarioReplayPanelWidget.generated.h"
 class USlabScenarioReplaySubsystem;
 class SVerticalBox;

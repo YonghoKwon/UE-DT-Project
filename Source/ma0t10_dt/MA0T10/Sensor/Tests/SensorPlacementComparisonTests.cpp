@@ -10,8 +10,8 @@
 #include "Misc/Paths.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunComparison.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunComparison.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 

@@ -13,7 +13,7 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabDataSyncComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 namespace
 {

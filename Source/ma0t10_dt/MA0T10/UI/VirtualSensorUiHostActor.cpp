@@ -1,6 +1,6 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "SensorToolAppearance.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/World.h"

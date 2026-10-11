@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSlabFrameContext.h"
-#include "VirtualSensorPlacementTypes.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
 #include "SlabRunDeliveryTypes.generated.h"
 
 UENUM(BlueprintType)
