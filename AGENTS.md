@@ -1,17 +1,21 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, `dc5a537` 이후 DTCore b22 동기화 안정화와 RT-01/04 보강 (2026-10-02). 검증 범위와 제한은 README를 따른다.
+기준: UE 5.3, 브랜치 `codex/architecture-skeleton`(분기 `fda25e0`), DTCore `b2504d1`, 2026-10-11. 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다(`m7at10_dt`는 무관한 다른 프로젝트). 검증 범위와 제한은 README를 따른다.
 이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
+
+**현재 단계: A단계 아키텍처 뼈대 재정비(ARCH-01~08).** 동작·계약을 바꾸지 않는 구조 정리가 최우선이며, 이번 버전에서는 **센서 플러그인 제작을 시작하지 않는다**(§5).
 
 ## 1. 네 개의 관리 문서
 
 | 문서 | 책임 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | 권한·보호 범위·구현 경계·검증 및 완료 규칙 |
-| [README.md](README.md) | 현재 구현·설치/사용·입출력 계약·최신 검증 요약 |
-| [보완 필요 사항](docs/IMPROVEMENTS.md) | 우선순위·근거·재현·개별 완료 기준 |
-| [최종 목표 로드맵](docs/ROADMAP.md) | 단계별 의존 관계·플러그인 경계·출시 gate |
+| [AGENTS.md](AGENTS.md) | 권한·보호 범위·구현 경계·레이어 규칙·검증 및 완료 규칙·에이전트 협업 |
+| [README.md](README.md) | 현재 구현·설치/사용·입출력 계약·아키텍처 뼈대(§10)·현재 검증 요약 |
+| [보완 필요 사항](docs/IMPROVEMENTS.md) | 우선순위·근거·재현·개별 완료 기준(ARCH 포함) |
+| [최종 목표 로드맵](docs/ROADMAP.md) | 단계별 의존 관계(A → R0~R6)·플러그인 경계·출시 gate |
 
+- [검증 이력 보관](docs/VALIDATION_HISTORY.md)은 과거 날짜별 검증 기록의 원문 보관본이다. 규칙·현재 상태 문서가 아니다. 새 날짜별 상세 기록은 README/IMPROVEMENTS 본문에 쌓지 말고 이 파일에 추가하며, README §1과 IMPROVEMENTS 표에는 현재 요약만 둔다.
+- `CLAUDE.md`, `docs/IMPROVEMENTS_CLAUDE.md`는 Claude 전용 진입·제안 메모다. 관리 문서가 아니며 권한을 확대하지 않는다. 다른 에이전트는 이 두 파일을 수정하지 않는다.
 - `Agent.md`를 별도 생성하지 않는다. 기존 `docs` 문서는 경로를 보존한 고정 참고자료다. 오래된 UI/성능 설명보다 현재 코드와 README를 우선한다.
 - 보완 목록/로드맵에 있다는 이유만으로 전부 구현하지 않는다. 요청한 항목과 직접 관련된 회귀만 처리한다.
 - 설명·진단·검토는 읽기 전용, 문서 작성은 문서만, 기능 구현은 해당 기능만 변경한다.
@@ -22,6 +26,7 @@
 
 - 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
+- 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`b2504d1`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
 - DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소다. 명시적으로 승인된 동기화 안정화 작업에서는 plugin/parent를 각각 검증·커밋하고 검증한 gitlink만 고정한다. 그 외 작업은 프로젝트 측 adapter를 우선하며 공통 변경이 필수이면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
 - `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.
@@ -32,10 +37,18 @@
 
 ## 3. 구현 경계
 
+### 아키텍처 레이어 (A단계부터 적용)
+
+- 레이어 정의와 현재 위반 목록의 원본은 [README §10](README.md#10-아키텍처-뼈대)이다. `Source/ma0t10_dt/MA0T10/` 기준 **L0 `Contracts/` → L1 `Sensor/` `Camera/` `Core/` → L2 `Scenario/` `Slab/` `WebSocket/TC/`·기존 업무 폴더 → L3 `UI/`**, 의존은 위 레이어가 아래 레이어만 include하는 방향으로만 허용한다.
+- 새 코드는 처음부터 이 방향을 지킨다. 센서 Runtime(L1)에 UI 타입·Slab 타입·업무 TC를 새로 참조시키지 않는다. 필요하면 L0 계약/interface/delegate를 추가하고 위 레이어가 구현·구독한다.
+- `Scripts/validate_architecture_layers.ps1`(ARCH-01)이 생긴 뒤에는 C++ 변경 커밋마다 실행한다. allowlist는 **줄어들기만** 한다. 파일 이동으로 바뀐 경로는 같은 커밋에서 갱신할 수 있으나 항목 수를 늘리지 않는다. 예외가 꼭 필요하면 근거를 보고하고 사용자 승인을 받는다.
+- 구조 정리는 같은 모듈 안에서 한다. 새 UE 모듈·`.uplugin`·자산 mount 변경을 만들지 않는다. 이동 커밋(`git mv`+include 수정)과 로직 변경 커밋을 분리한다.
+- UCLASS/USTRUCT/UENUM 이름, enum 값 순서, UPROPERTY, Blueprint 함수 시그니처, SaveGame 슬롯/버전, wire bytes는 구조 정리 중 바꾸지 않는다. 같은 모듈 안의 파일 이동은 `/Script/ma0t10_dt` 경로를 바꾸지 않으므로 CoreRedirect를 추가하지 않는다.
+
 ### 센서·측정·비동기 수명
 
-- Runtime은 `ma0t10_dt`, Editor는 `ma0t10_dtEditor`, 조기 초기화는 `ma0t10_dtBootstrap` 모듈이다. 센서 기능은 아직 독립 플러그인이 아니다.
-- DTCore `AInteractableActor → AVirtualSensorActorBase → Camera/LiDAR Actor` 계층을 유지한다. 공용 센서 Subsystem은 `MA0T10/Core`에 둔다.
+- Runtime은 `ma0t10_dt`, Editor는 `ma0t10_dtEditor`, 조기 초기화는 `ma0t10_dtBootstrap` 모듈이다. 센서 기능은 아직 독립 플러그인이 아니며 이번 버전에서 플러그인화를 시작하지 않는다.
+- DTCore `AInteractableActor → AVirtualSensorActorBase → Camera/LiDAR Actor` 계층을 유지한다. 센서 공용 Subsystem은 `MA0T10/Core`에 둔다. Slab 업무 서비스는 `MA0T10/Scenario`(L2), UI 조립 Subsystem은 `MA0T10/UI`(L3)에 둔다.
 - UI/Source/Gizmo는 Capture/Scan 필드를 직접 변경하지 않는다. Actor의 `ReadEditableState`, `ValidateEditableState`, `ApplyEditableState` 및 interaction API를 사용한다.
 - 외부 입력은 `SubmitExternalFrame`을 사용한다. 측정·출력·진단 수신을 분리하고 진단 결과를 다시 센서/Transport에 주입하지 않는다.
 - 자동 측정은 Scheduler, 수동 동기 API는 호환 경로다. 새 native UI의 파일 저장은 FileSave/PeriodicFileSave 비동기 서비스를 사용하며 숨겨진 동기 스캔을 추가하지 않는다.
@@ -91,8 +104,46 @@
 
 ## 5. 플러그인화 후속 규칙
 
+**이번 버전에서는 이 절의 작업(센서 플러그인 생성, Bootstrap Actor, 자산 mount 이동)을 시작하지 않는다.** A단계와 남은 R4가 끝난 뒤 별도 요청으로 착수한다. 아래는 그때 적용할 규칙이다.
+
 - DTCore 필수 의존을 유지한다. Slab 업무·Topic·차트는 host에 남기고 중립적 extension API로 연결한다.
 - 플러그인이 host `ma0t10_dt`를 역참조하지 않게 먼저 경계를 정리한다. Runtime 편집 상태를 UI에 둔 채 순환 의존을 만들지 않는다.
 - 자산·맵·저장 슬롯·프로필 기본값을 설정화하고 기존 enum/API/PCD를 adapter로 보존한다.
 - 한 Actor 진입점은 GameMode/GameInstance/Main/Broker/전역 WebSocket 정책을 몰래 교체하지 않는다. 자신이 생성·시작한 자원만 정리한다.
 - 단계·완료 gate는 ROADMAP을 따른다. DTCore 업데이트는 별도 승인된 단계이며 미래 기능을 현재 구현처럼 설명하지 않는다.
+
+## 6. 에이전트 협업 (계획·검토 Claude / 구현 Codex)
+
+현재 이 저장소는 **Claude가 분석·계획·독립 검토**를, **Codex가 구현·빌드·테스트**를 맡는다. 사용자는 최종 승인자다.
+
+**역할**
+
+- Claude: 관리 문서 갱신, 단계별 작업 요청 작성, Codex 결과의 diff·gate·빌드/테스트 재확인, 수정 요청. Claude는 기본적으로 production 코드를 직접 고치지 않는다.
+- Codex: 요청받은 **한 항목(ARCH-0N 등)**만 구현한다. 범위 밖 문제를 발견하면 고치지 말고 보고한다. 관리 문서는 해당 항목의 진행률·결과·README §10.2 표 갱신 범위에서만 수정한다.
+
+**요청 단위와 진행**
+
+1. 작업 시작 시 `C:\Unreal Projects\ma0t10_dt`로 이동하고 §2 시작 점검(branch/HEAD/status)을 한다. 다른 폴더·worktree에서 작업하지 않는다.
+2. 한 요청 = 한 항목. 의미 단위로 여러 커밋을 만들 수 있다. 명시 파일만 stage하고 커밋 메시지에 항목 ID를 넣는다(예: `refactor(ARCH-02): move slab services to Scenario`).
+3. 기술적으로 막히거나 계약 변경이 필요해 보이면 그 지점에서 멈추고 근거와 선택지를 보고한다. 추정으로 계약·보호 경로를 바꾸지 않는다.
+4. push·PR·merge·worktree 생성·submodule update는 하지 않는다.
+5. 구조 정리 단계에서는 Computer Use(마우스/키보드 직접 조작)를 사용하지 않는다. Claude가 같은 PC의 화면을 조작하므로 충돌한다. 검증은 명령줄 빌드·자동화·WBP 메모리 컴파일로 한다. 화면 확인이 꼭 필요하면 필요한 이유를 보고에 적는다.
+
+**완료 보고 형식 (Codex → Claude)**
+
+```text
+항목: ARCH-0N
+커밋: <sha> <subject> (순서대로)
+변경 요약: 이동/수정 파일 수, 핵심 설계 결정
+검증: 명령 / 결과(Success·실패·skip 수와 이름) / 보고서 경로
+layer gate: 이전 allowlist 수 → 현재 수
+보호 경로: DTCore gitlink·worktree, Config/Game.ini, Samples/PixelStreaming, 운영맵, .uasset 변경 여부
+미수행·제한: (없으면 "없음")
+질문·결정 필요: (없으면 "없음")
+```
+
+**검토와 재요청**
+
+- Claude는 보고만 믿지 않고 `git diff`, layer gate, 빌드, 관련 테스트를 직접 다시 확인한다.
+- 같은 문제의 수정 재요청은 최대 3회다. 3회 후에도 해결되지 않으면 Claude가 사용자에게 상황과 선택지를 보고한다.
+- 검토 통과 후에만 다음 항목을 요청한다.

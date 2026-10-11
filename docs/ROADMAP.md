@@ -1,15 +1,11 @@
 # 최종 목표를 위한 로드맵
 
-기준: **`codex/placement-ui-preflight-closure` (기준 `48286fd`) / DTCore `b2504d1`, 2026-10-10 배치 접근성과 PCD 사전 점검 보완**. 작업·빌드·검수는 `C:\Unreal Projects\ma0t10_dt`에서 진행하고 별도 worktree를 새로 생성하지 않는다. 검증 수치는 해당 시험의 원래 날짜·조건을 따른다.
-이 문서는 후속 개발 순서와 승인 기준이다. 플러그인 생성이나 모든 단계의 구현을 지금 승인하는 문서는 아니다.
+기준: **`codex/architecture-skeleton` (분기 `fda25e0`) / DTCore `b2504d1`, 2026-10-11 아키텍처 재정비 착수**. 작업·빌드·검수는 `C:\Unreal Projects\ma0t10_dt`에서 진행하고 별도 worktree를 새로 생성하지 않는다. 검증 수치는 해당 시험의 원래 날짜·조건을 따른다.
+이 문서는 후속 개발 순서와 승인 기준이다. 플러그인 생성이나 모든 단계의 구현을 지금 승인하는 문서는 아니다. **이번 버전에서는 센서 플러그인 제작(R5)을 시작하지 않는다.**
 
-[AGENTS](../AGENTS.md) · [현재 구현](../README.md) · [개별 보완 백로그](IMPROVEMENTS.md)
+[AGENTS](../AGENTS.md) · [현재 구현](../README.md) · [개별 보완 백로그](IMPROVEMENTS.md) · [검증 이력](VALIDATION_HISTORY.md)
 
 ## 1. 최종 사용자 경험
-
-같은2026-09-29 후속으로 격리된 Windows 관리형 런처에서 실제 패키지 설치/실행·Manifest328파일 해시·런처 종료 후 UE 수명 유지·정상 종료를 확인했다. 회사 설치 경로 쓰기 권한, 실제 업데이트/복구·Linux/RHEL 인수는 별도 gate로 유지한다.
-
-2026-09-29 배포 준비 증거: 현재 UE5.3 프로젝트의 Windows Development 패키징을 완료하고 외부 런처의 격리된 ZIP/sidecar 접수·승인을 준비했다. 에디터 테스트 가드와 승인된 TestMap의 누락 위젯 참조만 보완했다. 이는 R5 플러그인화·간편 설치 또는 회사 운영 인수 완료가 아니며, 실제 런처 실행·Shipping/Linux·회사 환경 수용은 각각의 증거로 판단한다. 자세한 범위는 [README의 패키징 점검](../README.md)을 따른다.
 
 | 사용자 목표 | 최종적으로 제공할 동작 | 현재와의 차이 |
 |---|---|---|
@@ -26,11 +22,32 @@ DTCore는 필수 의존성이며 현재 `b2504d1`을 유지한다. 당면 배치
 
 ## 2. 권장 순서와 단계별 결과물
 
-현재 착수 순서: **① 센서·카메라 추가 배치와 저장 위치 전용 패널 → ② 작업 흐름 중심 UI/UX 재구성 → ③ PCD 송신 사전 점검·예산 안내 → ④ 다중 센서 PCD 장기 검증·조작 성능 → ⑤ 플러그인 분리 전 의존성 정리**.
+현재 착수 순서: **A단계(아키텍처 뼈대 재정비) → ① 센서·카메라 추가 배치와 저장 위치 전용 패널 수용 → ② 작업 흐름 중심 UI/UX 재구성 → ③ PCD 송신 사전 점검·예산 안내 → ④ 다중 센서 PCD 장기 검증·조작 성능 → ⑤ 남은 R4 의존성 정리**.
 
-R0~R6는 최종 목표의 영역·완료 gate를 나타낸다. 현재는 R2 사용성을 우선 구현하고 R0/R1/R3의 관련 회귀를 함께 수행한다. 남은 장기 검수 전체가 끝나야 배치 도구를 만들 수 있다는 순서로 해석하지 않는다. 세부 진행률과 보류 항목은 IMPROVEMENTS를 따른다.
+R0~R6는 최종 목표의 영역·완료 gate를 나타낸다. A단계는 R4의 일부를 **같은 모듈 안에서** 앞당겨 수행하는 구조 정리이며, 그 뒤 R2 사용성 작업을 재개한다. 남은 장기 검수 전체가 끝나야 다음 단계를 시작할 수 있다는 순서로 해석하지 않는다. 세부 진행률과 보류 항목은 IMPROVEMENTS를 따른다.
 
-R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래스·자산 이동은 회귀 기준이 마련된 뒤 수행한다. DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필요는 없다.
+DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필요는 없다.
+
+### A단계 — 아키텍처 뼈대 재정비 (현재 진행)
+
+**왜 지금인가:** 배치·PCD·Slab 기능이 빠르게 쌓이면서 센서 Runtime이 UI 타입과 Slab context, 업무 TC를 직접 참조하게 됐다(README §10.2). 이 상태로 다중 센서 확대나 플러그인화를 시작하면 변경마다 영향 범위를 가늠하기 어렵고, 나중의 분리 비용이 계속 커진다. 기능을 늘리기 전에 **레이어 경계를 세우고 자동 gate로 고정**한다.
+
+**범위:** 한 Runtime 모듈 `ma0t10_dt` 안에서만 정리한다. L0 `Contracts/` → L1 센서 Runtime(`Sensor/` `Camera/` `Core/`) → L2 Host·업무(`Scenario/` `Slab/` `WebSocket/TC/` 기존 업무 폴더) → L3 `UI/`의 단방향 의존을 목표로 한다. 새 모듈·`.uplugin`·자산 mount 이동은 하지 않는다.
+
+| 순서 | 항목 | 결과물 | gate |
+|---:|---|---|---|
+| 1 | ARCH-01 | 레이어 검사 스크립트·allowlist, DTCore guard 고정값 수정, 변경 전 기준선 | 현재 HEAD에서 gate 통과, 신규 위반 차단 확인 |
+| 2 | ARCH-02 | Slab 서비스 `Core/`→`Scenario/`, Workspace Subsystem `Core/`→`UI/` | 이동만, 회귀·자산 불변 |
+| 3 | ARCH-03 | `Contracts/` 편집 타입·기본값 상수 | L1의 UI 타입 의존 0, SaveGame/enum 호환 |
+| 4 | ARCH-04 | Coordinator/SlabActor의 UI 직접 호출 역전 | L1→L3·L2→L3 0, BP 시그니처 불변 |
+| 5 | ARCH-05 | 송신 자체 검증의 TC 의존 분리 | L1→`WebSocket/` 0 |
+| 6 | ARCH-06 | 중립 acquisition context + Slab provider | golden byte 동일, L1→Slab 0 |
+| 병행 | ARCH-07 | `verify.ps1`·opt-in 변수표·Scripts 분류 | manifest 자동 생성 |
+| 마지막 | ARCH-08 | 미사용 모듈 의존·테스트 hook·대형 파일 분할 | 이동만으로 구성된 diff |
+
+**A단계 완료 gate:** layer gate allowlist가 0(또는 사용자가 승인한 명시적 예외만 남음), 전체 `MA0T10`·WBP 컴파일·wire golden fixture가 기준선과 같고, 보호 경로가 불변이다. 이 gate를 통과하면 R4의 남은 일은 설정 객체(PL-02 2단계)와 ProfileId registry(PL-03)다.
+
+**하지 않는 것:** 센서 플러그인/새 UE 모듈 생성, DTCore 수정, wire/SaveGame/Blueprint 계약 변경, 성능 최적화, 새 사용자 기능.
 
 ### R0 — 재현 가능한 기준선
 
@@ -84,7 +101,7 @@ R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래�
 
 ### R4 — 프로젝트 안에서 분리 준비
 
-**이 단계는 아직 클래스/자산을 플러그인으로 이동하지 않는다.** 경계를 먼저 정리한다.
+**이 단계는 아직 클래스/자산을 플러그인으로 이동하지 않는다.** 경계를 먼저 정리한다. 아래 표의 편집 타입·Coordinator·Workspace·Slab context 항목은 A단계(ARCH-02~06)가 같은 모듈 안에서 먼저 처리한다. A단계 완료 후 남는 R4 범위는 설정 객체·soft reference, ProfileId registry, 분석 extension이다.
 
 | 현재 결합 | 프로젝트 내 선행 리팩토링 |
 |---|---|
@@ -105,6 +122,8 @@ R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래�
 **완료 gate:** PL-01/02/03. 센서 Runtime→Slab/host/UI include·타입·module dependency가 없는지 검사하고, Slab/UI adapter를 연결하면 기존 metadata/동작이 돌아온다. 아직 plugin 설치 완료라고 표시하지 않는다.
 
 ### R5 — DTCore 의존 플러그인과 한 클래스 진입점
+
+**이번 버전에서는 착수하지 않는다.** 아래는 A단계·R4 이후의 목표 구조다.
 
 권장 최종 구조(모두 **신규 제안**):
 

@@ -1,160 +1,36 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-현재 기능 기준: **`codex/placement-ui-preflight-closure` (기준 `48286fd`), DTCore `b2504d1`**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`**에서 진행한다. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신, Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다. 2026-10-10 배치 창 진입·선택 일관성과 PCD 사전 점검을 보완했다. 구현과 실제 수용 검증 상태를 구분한다.
+기준: **`codex/architecture-skeleton` (분기 `fda25e0`, Runtime `81b56ba`) / DTCore `b2504d1`, 2026-10-11**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
-**아직 독립 센서 플러그인이 아니다.** “센서 여러 대를 항상 정격 주기로, 어떤 PC에서도 무부하로 실행”하는 단계도 아니다. 현재 구현과 실측 범위, 다음에 보완할 기능을 구분한다.
+**아직 독립 센서 플러그인이 아니며, 이번 버전에서는 플러그인 제작을 시작하지 않는다.** 현재 개발은 기능 추가보다 **프로젝트 안의 아키텍처 뼈대 재정비(ARCH 단계)**가 우선이다. 동작·wire 계약·Blueprint API를 바꾸지 않고 레이어 경계·폴더 책임·검증 진입점을 정리한다. 상세 순서는 [로드맵 A단계](docs/ROADMAP.md#a단계--아키텍처-뼈대-재정비-현재-진행)와 [개선 목록 ARCH 항목](docs/IMPROVEMENTS.md#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 따른다.
 
-현재 개발 초점은 **센서·카메라를 쉽게 추가·배치하고 저장 위치를 찾아 이동한 뒤, PCD를 생성·전송하는 흐름**이다. 상단 `장비 추가·위치 저장 / 미리보기 / 시나리오 / PCD 전송 / 결과 / UI 표시`가 작업 진입점이며, 장비 규격은 배치 창의 `측정 설정`에서 조정한다. Camera 배치·미리보기는 개선하고 CSV/JSONL/LAZ/JPEG 등 다른 형식의 신규 개선은 보류한다. 기존 기능·API는 유지한다. 상세 착수 순서는 [개선 목록](docs/IMPROVEMENTS.md#현재-개발-초점과-착수-순서)을 따른다.
-
-## LiDAR 출력과 센서별 전달 결과
-
-### 2026-10-10 단일 폴더·배치 UI 검수
-
-- 최신 구현은 `ma0t10_dt`에서 직접 빌드·실행한다. 네 별도 checkout 경로와 Git worktree를 정리했고, 이전 자료와 Git 이력은 `Saved/WorkspaceConsolidation`에 보존했다. 현재 Artemis 로그도 이 프로젝트의 보고서 폴더를 사용한다.
-- 배치 창 생성/진입·취소된 복원 요청·북마크 선택/이름·늦은 저장 완료를 보완했다. PCD 점검은 exact/wildcard, 다음 시나리오와 수동/현재 출력, backend 연결과 프레임/초 예산을 구분한다.
-- Runtime `81b56ba`: UE5.3 Editor Development, 전체 MA0T10 217 Success/실패0 중 실제215·조건부skip2, WBP7개 메모리 컴파일·V2 자산 검사 통과. 사용자 맵 높이 assertion은 원본을 보존하고 커밋본 격리 fixture로 재검증했다.
-- 실제1920×1080의2+2 PCD-only 10+60초는 평균59.89FPS·1% low51.13·frame p9516.67ms, 각PCD19.95/19.9667Hz·Camera acquisition29.938/29.954Hz다. 승인2,395건의 내부/UI/외부 누락·비선택Topic·invalid/gap/duplicate/overflow0, 내부/외부e2e p9579/93ms다. 기존 기준선 대비 평균/low 저하는 약0.05/4.13%, frame p95는 같다.
-- 두 client 해상도와 네 배율의 렌더 캡처를 확인하고 배치 창 잘림을 보정했다. 실제 Slate/RHI 입력과 물리 마우스는 구분한다. 직접 마우스 검수는 재연결 후에도 Computer Use node kernel 초기화(os error3)가 실패해 미완료다. 최신 결과·스크린샷·제한은 `Saved/Reports/PlacementUiPreflightClosure/FINAL_STATUS.md`다. 이전600초/10회 PCD 증거는 보존했다.
-
-- 배치 도구로 새로 추가한 LiDAR는 `WhenRequested` 정책으로 시작한다. PCD·Raw telemetry·미리보기만 사용할 때는 큰 호환 JSON을 생성하지 않는다. 기존 클래스·레벨 장비·구형 전체 배치 파일은 `LegacyAlways`를 유지한다. 복제와 새 전체 배치 저장/복원은 원본 정책을 보존한다.
-- 정책은 `센서 설정 → 고급 설정 → LiDAR 호환 JSON 생성`에서 명시적으로 바꾼다. 정책만 변경하면 측정이나 조작 모드를 재시작하지 않는다. 기존 수집 잠금은 적용된다. JSON 생략은 실패/프레임 유실로 세지 않고 데이터 패널에 `미사용`으로 표시한다.
-- 호환 LiDAR 스트림, 실제 JSON 녹화, 기존 Blueprint JSON 완료 구독, 등록된 native 소비자와 수동 요청은 JSON을 생성한다. `GetLastJsonPayload()`를 직접 polling하는 새 소비자는 `RegisterCompatibilityJsonConsumer(Owner)`/해제를 사용하거나 `LegacyAlways`를 선택한다. preview에는 기존 acquisition 이벤트를 사용할 수 있다.
-- Native 수동 JSON 전송은 완료 snapshot의 비동기 1회 생성과 metadata를 사용하며 센서를 추가 측정하지 않는다. 작업 슬롯이 사용 중이거나 설정/종료 전의 오래된 snapshot이면 사유를 안내한다. 기존 bool 전송 API는 완료된 JSON과 그 JSON의 SensorId/FrameId를 사용하고 반환 의미를 유지한다.
-- 생성 상태 조회는 `GetCompatibilityOutputStatus()`이며 작업 수·미사용 수와 queue/encode/completion 시간을 제공한다. 이전 post-process 시간은 acquisition부터 완료까지의 값으로, 순수 JSON encode 시간과 다르다. 자동 파일 출력과 수동/외부 입력의 기존 기능은 유지한다.
-
-### 2026-10-09 PCD 중심 기본 생성 장비 검증
-
-- 실제 표시된1920×1080 PIE, 같은 Slab 검증맵·pose·UI에서 JSON stride1/max0를 고정해 정책을 교차 비교했다. 기본 제출 예산2, Camera1280×720/30Hz·Native576×56/20Hz, PCD 전체 검출점·FrameStride1을 유지했다. 2+2 새 정책은10+60초3회 모두 통과: 평균59.99~60FPS·1% low59.17~59.80·p9516.67ms. 기존 전체 JSON 정책의 low29.74~36.02는 실패로 보존한다. 새 정책1+1도60FPS·low59.87로 통과했다.
-- 새 정책의 같은 월드·연결30초×10회는11,995개 승인 request의 제출·receipt·내부/UI·외부 수신이 일치했다. 최소 Camera29.9667Hz·LiDAR/PCD19.9667Hz·FPS59.9523·low55.966, 최대frame p9516.669ms다. JSON 작업0, 복귀 추가 제출0, drain 후body/events/active0, PIE 후weak owner16개·Camera global job0을 확인했다.
-- 10+600초2+2도 통과: 평균59.99FPS·low59.58·p9516.67ms, 각PCD19.9967/19.9983Hz. 고정 승인 집합23,997건의 외부/내부/UI 누락·clock 오류0, e2e p9580/92ms(내부/외부)다. 비선택 Topic·invalid/gap/duplicate/overflow0이다. JSON 생성이 필요 없을 때만 생략하며 기존 JSON 소비 경로는 유지한다.
-- 최종 전체MA0T10은211 Success/실패0 중 실제208·조건부skip3이다. 배치 입력 RHI는 별도 통과(Camera/LiDAR input→GPU end-frame p9534.849/34.753ms, 원규격 preview31.250/62.104ms). Camera marker987개, WBP7개 메모리 compile·자산검사·기존 자산저장0을 확인했다.
-- 직접 UI는 Windows 캡처/커서 오류0x80070057/0x80070005로 현재 미완료다. 활성화에 성공했던 조사용 화면의 작업 영역은1440×900이었다. 이전 작업의 직접 조작을 이번 새 정책 UI의 통과로 바꾸지 않는다. 숨긴/offscreen 시험의 낮은 FPS도 보존하며 이 수치를 표시된 PIE 지원으로 확대하지 않는다.
-- 재현: `Scripts/run_pcd_demand_acceptance.ps1 -Phase Compare`, `-Phase Repeat`, `-Phase Endurance`. 센서별 기대 수·속도·실행 수·정합성·성능 중 필수 조건이 실패하면 실패 종료한다. 증거와 제한은 `Saved/Reports/PcdDemandPlacementAcceptance/FINAL_STATUS.md`에 있다. DTCore·운영맵·개인 UI 저장값을 보존하고 push는 수행하지 않는다.
-
-- 호환 LiDAR JSON은 센서별 처리 중 1개·최신 대기 1개, 전역 생성 작업 4개다. 새 측정이 도착했다는 이유만으로 같은 generation의 정상 완료 결과를 버리지 않는다. 실제 대기 교체, generation 폐기, 생성 실패는 별도 집계한다. Stop·설정 재시작·삭제 후 결과는 적용하지 않는다.
-- `OnDerivedFrameCompletedNative`는 JSON과 측정 당시 FrameId·UTC·pose·설정·Slab context·point snapshot을 함께 제공한다. 기존 `OnScanCompleted` Blueprint 이벤트와 수동/외부 입력 API는 유지한다. 이벤트의 ViewTexture는 기존 현재 미리보기이며 과거 프레임 영상 snapshot을 새로 제공하는 것은 아니다.
-- 파생 JSON 완료는 호환 출력에만 전달한다. PCD와 Raw telemetry는 acquisition 경로에서 처리하고 다시 발행하지 않는다. 선택된 호환 JSON 작업만 세션의 최대 10초 drain에 포함하며 PCD 전용 실행은 불필요한 JSON 완료를 기다리지 않는다.
-- `데이터 → 연결·진단 → 실행별 결과`와 A/B에는 센서별 측정 완료/실패, SensorId+출력별 승인·제출·receipt·실패·승인 후 receipt 미확인·자체 검증을 표시한다. 재시도와 중복 callback은 기존 request ledger에서 한 번만 센다. 이전 결과에 상세 집계가 없으면 `확인 불가`다. 기존 합계와 `ma0t10.slab-run.v1`은 유지한다.
-- 측정 Hz, 호환 JSON 생성 Hz, 실제 PCD/JPEG 전달 Hz는 다르다. `MeasuredOutputRateHz`는 LiDAR 호환 파생 출력의 최근 간격 값이며 PCD 송신률이 아니다. 실행 상세의 Hz는 기록 이벤트 간격이고 실행 전체 평균이나 외부 소비자의 저장·학습 처리 완료를 뜻하지 않는다.
-- 실제 선택 출력에 필요한 센서만 측정률 미달 경고의 대상이다. PCD 전용 실행에 포함된 비선택 Camera의 정지/0Hz는 실패로 판정하지 않는다. 해당 Camera 이미지를 선택하면 0Hz 경고는 계속 유지한다.
-- wildcard 전송의 FrameId 연속성은 센서별로 관리하며 전달 카운터는 센서 합계다. 공유 전역 보관 bytes는 중복 합산하지 않고 지연 p95는 보수적인 **센서별 최대값**으로 표시한다. 송신 round-robin은 한 순회에서 동일한 시작 기준을 사용한다.
-- UE 학습 데이터 묶음 저장은 추가하지 않았다. 기존 수동 파일 내보내기·작은 실행 결과 JSON은 유지하며, 데이터 보관과 학습 처리는 외부 수신 프로그램의 역할이다.
-
-재현 명령: `Scripts/run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -SensorPairs 2 -ClientWidth 1920 -ClientHeight 1080 [-PointCloudOnly] [-SubmissionBudget 4]`. PCD 전용에서도 독립 구독자는 세 Topic을 모두 확인해 선택하지 않은 출력 0건을 검사한다. 성능 보고서는 `AcquisitionPass`, `RequestedDerivedOutputPass`, `TransportPass`를 분리하며 검사하지 않은 단계는 `NotTested`다. `run_fullspec_performance_evidence.ps1`의 기본 `AcquisitionOnly` 통과를 송수신 통과로 해석하지 않는다.
-
-기존 `MaxSubmissionsPerFrame=2`는 60FPS에서 최대 120건/s이므로 2 Camera+2 LiDAR의 전체 출력 약140건/s을 처리하지 못한다. `SubmissionBudget=4`는 **시험에서 기존 Actor 속성을 명시적으로 설정**하는 옵션이며 기본값이나 운영맵을 자동 변경하지 않는다. 수집 규격을 낮추거나 큐를 늘리는 조치가 아니다. 각 보고서의 적용 예산과 선택 출력을 확인한다. UI 대조도 준비 중 누적 카운터를 직접 비교하지 않고 측정 구간에 승인된 각 request가 실제 TC/UI 검증까지 도달했는지 확인한다.
-
-2026-10-08 검증: UE5.3 Editor Development, 최종 D3D12 MA0T10 **222 Success/실패0(실제216·opt-in skip6)**, 별도 실제30초 A/B ProductionRuntime, WBP6개 메모리 compile/자산 검사·저장0. 1+1 전체 출력은30/20Hz·평균59.98FPS·1% low57.86·p9516.67ms. 2+2 PCD 전용은각PCD 약19.9Hz, Camera/LiDAR정보 Topic0건. 2+2 전체 출력은**명시적 제출예산4건/프레임**에서각Camera29.883Hz·각LiDAR/PCD19.917Hz·평균59.76FPS·1% low51.81·p9517.04ms와 승인 request의 receipt/내부/UI/외부 누락0이다. 기본예산2건은Camera큐과부하로실패이며 지원으로표시하지않는다. 실제1920×1080 Camera기즈모·정지유지·LiDAR정밀이동·첫Esc/20Hz복귀, 실제1280×720 PCD재생·실행선택·A/B상세·resize/scroll을 직접 확인했다. 60초2+2를장기/4+4인증으로확대하지않는다. baseline의1%low정의차이와Camera지연p95 증가도 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`에 남겼다.
-
-## PIE 센서 배치와 저장 위치
-
-**위치 저장을 찾는 경로:** 상단 **`장비 추가·위치 저장` → `저장 위치 · 선택 센서`**다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 저장된 열림 설정이 없는 첫 사용에는 배치 창과 미리보기를 함께 표시한다. 이후에는 사용자가 저장한 창 상태를 복원하며, 명시적으로 열면 배치 창의 본문을 펼쳐 앞으로 가져온다.
-
-처음 사용하는 순서는 **PIE 실행 → 관찰 시점 이동 → LiDAR/Camera 추가 → 위치·회전 조정 → 현재 위치 저장 → 전체 배치 저장**이다. 다음 PIE에서는 전체 배치를 선택해 변경 미리보기 후 적용한다. 개별 북마크는 선택 장비의 자세만 저장하므로, 추가 장비를 재생성하려면 전체 배치 저장을 사용한다. PCD 송신은 별도로 선택한다.
-
-맵에는 `VirtualSensorCoordinator`가 정확히 하나, `VirtualSensorUiHostActor`가 하나 필요하다. Host의 `bAutoCreateOnBeginPlay`, `bAutoCreateToolPanels`를 켜고 `SensorManager`를 연결한다. `SettingsWidgetClass`/`PlacementWidgetClass`를 지정하거나 `bUseNativeToolWidgetFallback`을 켠다. WBP를 사용할 때 부모는 `VirtualSensorPlacementPanelWidget`이며 native 구성을 쓰는 wrapper에는 Designer Root, 별도 컨트롤 이름 또는 `Is Variable` 설정이 필요하지 않다. Level Blueprint에서 배치 Widget을 중복 생성하지 않는다. 늦은 준비는 0.5초 간격·최대 10초 재시도하며 실패 사유를 표시한다. 생성되지 않은 창의 열림 상태를 성공으로 저장하지 않는다.
-
-DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws://localhost:31000` 접속 정책도 유지한다. 2026-10-10 확인 당시 31000 listener가 없어 일반 연결은 실패했고 프로젝트 기본 `WebSocketTopics`도 비어 있었다. Slab 수신을 사용할 때는 해당 서버를 실행하고 `Project Settings → DTCore Settings → WebSocketTopics`에 `topic.scenario`를 등록하거나 프로젝트의 기존 명시적 구독 경로를 연결해야 한다. 데이터 패널의 센서 출력 Broker와 업무 전문 수신 설정은 별개다. 별도 로컬 시험에서 Artemis `61616`의 `topic.scenario` 전문이 실제 DTCore → TC → DataSync → Slab로 전달되어 frame 5까지 진행했다. 이는 일반 실행의 31000 서버가 연결됐다는 뜻이 아니다. 서버·구독 기본값은 자동 변경하지 않았다.
-
-전체 배치 A를 미리보기한 뒤 B를 선택하면 A 요청은 취소된다. B를 다시 미리보기해야 적용할 수 있다. `CancelLayoutRestorePreview`와 배치 Widget의 선택/미리보기/적용 전달 API를 사용자 WBP에서도 사용할 수 있다. 북마크 이동은 선택 ID와 편집 이름·삭제 확인 상태를 함께 갱신한다.
-
-북마크 저장을 기다리는 동안 다른 항목을 선택하거나 이름을 편집해도 이전 저장 완료가 새 편집 대상을 덮지 않는다. 저장 자체는 고정한 대상·내용으로 마무리하며 파일 결과는 기존 상태 API에서 조회한다.
-
-새 native 패널과 `WBP_VirtualSensorPlacementPanel`은 우리 Host가 명시적으로 등록한다. 기존 Designer가 있는 사용자 WBP를 자동 변경하지 않으며 공개 저장/조회 API로 연결할 수 있다. 개별 저장 위치와 전체 배치 저장은 서로 다른 기능이다.
-
-`LiDAR 추가`와 `Camera 추가`는 현재 관찰 시점의 위치·방향에 Native ML-X/D455 장비를 만들고 선택·미리보기를 시작한다. 조작 중에는 기존 경량 미리보기를 사용하며 Esc로 원규격에 복귀한다. 복제는 측정 설정만 복사하고 새 ID를 부여한다. Topic 송신·녹화·외부 Source·실행 UUID는 복사하지 않는다. 삭제는 이 도구가 만든 장비만 가능하다. 수집 잠금이나 동종 wildcard 송신이 있으면 이유를 안내하고 거절한다. 레벨에 있는 기존 장비를 자동으로 삭제하지 않는다.
-
-**전체 배치:** `배치 → 전체 배치`에서 이름을 지정해 저장하고, 저장 목록을 선택해 `불러오기 변경 미리보기 → 확인 후 적용`으로 복원한다. 별도 `Saved/SensorLayouts/*.layout.v1.json`이며 실제 쓰기 완료 후 저장 성공을 표시한다. 같은 맵만 지원한다. 기존 레벨 장비는 정규화된 정확한 Actor 경로·종류, 도구 장비는 배치 GUID로 대응한다. 미포함 기존 레벨 장비는 유지하고 미포함 도구 장비만 정리한다. 실패·오래된 미리보기·busy·ID 충돌은 거절한다. 저장된 미리보기 상태는 복원하지만 송신·녹화·파일 저장은 시작하지 않는다. 새 PIE에서는 저장 구성이나 북마크를 자동 적용하지 않는다. `.umap`과 기존 북마크 파일은 재저장하지 않는다.
-
-**PCD 사전 점검:** 데이터·재생 화면에서 원래 수집 규격의 대상/주기, 보수 추정 body·MiB/s, 실제 연결 상태와 제출 예산을 확인한다. PCD-only 2 LiDAR×20Hz는 40건/s이며 미리보기 Camera는 JPEG 송신량에 포함하지 않는다. `MaxSubmissionsPerFrame × 관측 FPS`는 이론적 상한이다. FPS가 없으면 60FPS 가정으로 표시하며 실제 성능을 보증하지 않는다. echo/backend가 불확실하면 명시하고 추정 용량 경고만으로 관찰 fallback이나 데이터 필수 정책을 바꾸지 않는다. 기본 예산은 2이며 Coordinator의 StreamPublisher 설정을 명시적으로 조정하고 재검증한다. 자동으로 4나 저규격으로 바꾸지 않는다.
-
-점검은 활성 개별 설정이 wildcard를 우선하는 실제 송신 규칙을 사용한다. 수동 PCD 시작은 기존 독립 출력과 합산하고, 다음 시나리오는 제어 대상의 출력을 선택 정책으로 교체한 뒤 비대상 독립 출력만 더한다. `PCD 건/s`와 `전체 출력 건/s`, Raw/Engine 연결 상태를 구분한다. 단일 프레임이 bucket 용량보다 크면 평균 MiB/s가 낮아도 계속 대기할 수 있어 별도 경고한다. 요약에 첫 차단 사유를 우선 표시하며 호환 JSON 상태는 현재 선택 LiDAR 한 대의 상태다. 기존 `Inspect` API는 유지하고 새 `InspectForPurpose`가 호출 목적을 명시한다.
-
-공개 경계: `UVirtualSensorLayoutSubsystem`은 장비 수명·전체 배치, 기존 `UVirtualSensorPlacementSubsystem`은 북마크·자세 이력·새 위치 프레임 확인, `UVirtualSensorOutputPreflight::Inspect/Evaluate`는 읽기 전용 snapshot·순수 평가다. 이번 지원 검증의 근거는 `Saved/Reports/SensorPlacementWorkspace`에 보관하며 과거 2+2 결과를 새 기능의 최종 합격으로 대체하지 않는다.
-
-### 2026-10-09 배치 작업공간 검증 — a78b443 이전 이력
-
-- 최신 D3D12 전체 `MA0T10`은 **209 Success/실패 0, 실제 수행 206·opt-in skip 3**이다. 실제 `topic.scenario` 발행을 준비해 DTCore 수신도 통과했다. skip 중 배치 입력 RHI는 별도 실행으로 통과했고, Geometry 성능·세 출력 반복 opt-in은 이번 PCD-only 범위에서 미수행이다. WBP **7개** 메모리 컴파일·자산 검사 통과, 기존 자산 저장 0이다.
-- 배치 API로 만든 1+1·2+2 장비의 실제1920×1080·10초 준비+60초 PCD-only 시험을 통과했다. 최종1+1은 평균60.00FPS·low59.92·p9516.67ms, 승인20Hz·외부수신19.962Hz다. 2+2는 센서별 승인20Hz·외부합산39.925Hz·Camera acquisition30Hz, 평균60.00FPS·1% low59.65·p9516.67ms다. 기본 제출 예산2건/프레임을 유지했고 비선택 Topic 제출은0이다. 이 성능 fixture는 미송신 호환JSON에 기존 stride32/max1024를 적용한다. PCD는 전체 검출점·FrameStride1을 유지하며, 이 결과를 신규 장비의 기본 호환JSON stride1/무제한 조건으로 확대하지 않는다.
-- 같은 월드·연결의 **2+2 PCD 10분**은 각 PCD19.993Hz·평균59.98FPS·1% low58.27·p9516.67ms다. 두Camera를모두실행한 최종 **30초 시나리오10회**의 서로 다른 RunUUID에서 총11,938개 PCD request를 제출·receipt·내부/UI·독립 외부 수신과 대조했다. invalid/gap/duplicate/overflow0, 초기 위치 복귀의 추가 제출0, 정리 후 outstanding bytes/pending events/active runs0이다. Slab 행 수와 센서 프레임 수를 같다고 강제하지 않는다.
-- **반복 성능은 미완료:** 최종10회는 송수신·수명 시험의 통과이며, 회차별1% low38.42~40.25FPS는45FPS 목표에 미달한다(평균59.26~59.35, p9516.69~16.77ms). 첫Camera가정지했던초기시험11,982건·low36.84~43.96도이력으로보존한다. 반복 fixture의 신규LiDAR는 기본 호환JSON stride1/무제한이며 연속 성능 fixture와 후처리 조건이 다르다. 이 차이와 Slab/preview 비용은 원인 후보이고 인과 분해·동일조건 재시험이 남는다. 실행 종료 후에 생성하는 검증 파일만을 원인으로 단정하지 않는다.
-- 직접1280×720에서 장비 추가·즉시 preview·북마크 저장/이동·숫자 입력·Undo/Redo·첫Esc 원규격 복귀·전체 배치 저장을 확인했다. PIE 재시작 후1920×1080에서 전체 배치 변경 미리보기/적용·고유ID/북마크 복원·PCD/결과 진입·150% 배율·접기/drag/resize를 확인했다. 85/125%와 모든 패널의 전체 직접 체크리스트, UI 직접 삭제/복제·전체 DPI는 별도다. 마지막 간결한 PCD 요약의 추가 화면 확인은 Windows 캡처 오류0x80070057로 미완료다.
-- 부하가 있던 최초 시험은 기존·신규 장비 모두 약47FPS, 2+2 PCD 약15.7Hz로 실패했다. 사용자가 다른 GPU 작업을 멈춘 후 위 시험은 통과했지만 특정 앱을 원인으로 확정하거나 모든 환경에서 무부하를 보장하지 않는다. 원본 실패와 조용한 환경 재시험을 모두 보존한다.
-- 재현: `Scripts/run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -PointCloudOnly -LayoutApiFixture -SensorPairs 2 -ClientWidth 1920 -ClientHeight 1080 -MeasurementSeconds 600`, `Scripts/run_slab_repeat_stability.ps1 -Repeated -LayoutApiFixture -RunCount 10 -ResourceDiagnostics -ReportGroup SensorPlacementWorkspace`. 상세 범위는 `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`다. DTCore·운영맵·Game.ini·PixelStreaming과 개인 UI 저장값은 보존한다. 4+4·60분 soak·Engine STOMP/WSS 운영 인증·Editor 영구 설치는 포함하지 않는다.
-
-- `배치 → 이동·회전 시작`: 기본 연속 이동 125cm/s·회전 62.5°/s. WASD/QE·방향키·Z/C, Shift×5·Ctrl×0.2와 Local/World를 사용한다. 정밀 단위는 키 1회당 10cm·5°이며 자동 반복을 무시한다. 기존 Settings Blueprint의 속도·단위 API는 유지한다.
-- 소유 viewport에서 RMB를 누르면 관찰자 탐색으로 전환하고 센서는 움직이지 않는다. 프로젝트 Pawn/Controller는 초당 속도를 사용하며, 기본 DefaultPawn 맵도 해당 gesture에만 적용되는 경로로 지원한다. 입력창·외부 Widget·다른 창은 센서 이동 단축키 대상이 아니다.
-- 조작 중 실행 센서의 미리보기는 Camera 640×360/15Hz·LiDAR 120×24/10Hz이며 저장·Topic 출력에서 제외한다. 정지 센서는 자동 시작하지 않는다. Esc·선택 변경·숨김·종료는 현재 자세를 유지하며 원규격·원실행 상태를 복원한다.
-- `현재 위치 저장`: 센서별 이름 있는 위치·회전 20개를 `Saved/SensorPlacements/*.poses.v1.json`에 보관한다. 파일 쓰기 완료 후 저장 완료를 표시한다. 새 PIE는 원래 맵 배치에서 시작하고 `이동` 버튼으로 직접 적용한다. 목록 선택만으로 위치가 바뀌지 않으며 현재 스케일·프로필·해상도·주기·출력을 유지한다.
-- 위치의 키는 PIE 접두사를 제거한 맵 경로·센서 종류·SensorId다. 다른 맵·중복/변경된 ID·누락 센서는 추측해 연결하지 않는다. 이름 변경·명시적 덮어쓰기·삭제 확인/취소를 제공한다. 기존 UI 저장값과 맵 저장 예약은 별도로 유지한다.
-- 센서별 현재 PIE의 50개 자세 이력을 `되돌리기/다시 적용` 또는 Ctrl+Z/Ctrl+Y로 조작한다. drag 1회·연속 키 gesture·숫자 입력·북마크 이동은 각각 1개 이력이다. 입력창은 기존 텍스트 Undo를 사용한다.
-- 해당 센서의 시나리오 준비/실행/pause/drain·수동 스트림(wildcard 포함)·녹화·주기/미완료 파일 저장은 위치와 SensorId 변경을 잠근다. 비대상 센서는 계속 조작할 수 있다. 조작 중 수집 시작은 gesture 확정·원규격 복원 후 접수한다. 조회와 현재 위치 저장은 가능하다.
-- 실행 결과/JSON의 sensor `placement`에는 시작 맵·월드 자세(cm/quaternion/scale)·북마크 ID/이름/revision·고정 시각과 외부 변경 여부를 기록한다. 기존 `ma0t10.slab-run.v1`, PCD/JPEG 본문과 프레임별 측정 자세는 유지한다. 이후 이동·이름 변경으로 과거 시작 배치를 덮어쓰지 않는다.
-- 공용 API는 `UVirtualSensorPlacementSubsystem`의 저장 요청/상태 조회·목록·이동·이름 변경/삭제·Undo/Redo·현재 snapshot이다. Settings의 선택 센서 전달 API도 사용 가능하다. 동료 WBP Designer는 자동 변경하지 않는다.
-
-이전 `7c6ed29` 검증: 30/60/120FPS의 2초 이동·회전 차이 1% 이내, 실제 파일 재로딩·실패 시 보존·20/50개 상한·잠금·시작 snapshot 불변을 확인했다. 당시 전체 회귀는 206개 수행 통과·조건부 skip 6·실패 0이었다. 두 해상도의 북마크·정밀 이동·Undo/Redo·Esc 직접 검증 범위는 `Saved/Reports/SensorPlacementWorkflow/FINAL_STATUS.md`에 보존한다. 후속 새 자세 프레임·A/B 비교의 최신 근거는 아래를 따른다.
-
-## 배치 미리보기 확인과 A/B 비교
-
-- 맵 값 복원은 적용 성공 후에만 완료로 표시하며 자세 변경을 Undo/Redo에 기록한다. 측정 설정 자체를 Undo하지 않는다. SensorId 변경 시 북마크 목록·선택·삭제 확인과 자세 이력을 이전 ID에 연결하지 않는다.
-- 북마크·Undo/Redo·숫자 위치·조작 종료 뒤에는 새 측정의 시작 시각·자세·규격·generation을 확인한다. 이전 위치에서 시작한 늦은 프레임으로 준비 완료가 되지 않는다. Camera는 기존 capture 뒤의 GPU fence를 사용하며 이 확인 때문에 JPEG나 readback을 추가하지 않는다. 정지 센서는 계속 정지한다.
-- 미리보기 대기는 `max(1.5초, 주기×3)`이며 PIE pause 시간은 제외한다. 준비 완료·정지·지연·취소를 표시한다. 지연 때문에 센서를 자동 재시작하지 않는다. `GetPlacementPreviewStatus()`로 Blueprint에서도 조회할 수 있다.
-- `데이터 → 연결·진단 → 실행별 전송 결과`에서 확정된 실행을 `A로 선택`·`B로 선택`한다. 같은 시나리오 UUID의 서로 다른 실행을 비교하며 현재 PIE의 최근 20개 결과만 사용한다. 선택이 보관 범위를 벗어나면 비교를 중지하고 이유를 표시한다.
-- 센서별 시작 위치·최단 회전각·스케일·북마크·설정과 요청/기록 시점 Hz를 비교한다. 기존 **실행 전체 카운터**와 새 **센서·출력별 상세**를 구분해 표시한다. 상세가 없는 과거 기록은 확인 불가다. 기록 시점 Hz는 실행 평균이 아니며 receipt 비율은 승인 0건에서 N/A다.
-- 신규 실행은 원문 UTF-8 SHA-1을 선택적 `ScenarioContentHash`로 기록한다. 설정 JSON은 필드 순서 대신 값으로 비교하고 revision만 다른 경우 설정 차이로 판정하지 않는다. 원문·출력·맵·설정·진행 구간·외부 배치 변경이 다르면 참고 비교이며 누락 정보는 확인 불가다. 전송 수로 배치 우열·가림률·점밀도를 판정하지 않는다.
-- `GetRunComparison()`은 저장된 두 요약만 읽는다. 비교·표시·해제는 측정·이동·재생·Topic 전송을 발생시키지 않는다. 확정된 결과에는 늦은 측정률·중단 알림도 적용하지 않는다. 기존 `ma0t10.slab-run.v1`과 PCD/JPEG 계약은 유지한다.
-
-이전 배치 비교 검증은 210개 수행 통과·조건부 skip 6·실패 0, WBP 6개 메모리 컴파일은 저장 없이 통과했다. 실제 1280×720·1920×1080 RHI에서 원규격 새 자세 프레임 준비는 Camera 약31ms·LiDAR 약67ms, 입력→viewport GPU end-frame p95는 약34~43ms였다. 정격 세 스트림은 평균59.99FPS·Camera29.983Hz·PCD20Hz, 비교 UI 표시 전후 frame p95는16.67ms였다. 당시 직접 마우스는0x80070005로 미완료였고 이후 SensorOutputReliability에서 추가 직접 검수를 수행했다. 원래 근거는 `Saved/Reports/SensorPlacementComparison/FINAL_STATUS.md`, 최신 범위는 이 문서 상단과 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`를 따른다.
-
-## 2026-10-08 Slab 반복 실행과 결과 조회 검증
-
-이번 자원 수명 보강은 `Saved/Reports/SensorResourceLifecycle`에서 별도로 검증한다. 아래 10회 반복 결과는 이전 소스의 증거다.
-
-- 이번 최종 반복은 실제1920×1080에서 PCD 전용/세 출력 각각30초×30회다. 승인·제출·receipt·내부 실제 MESSAGE·외부 request ID집합 대조 통과: PCD17,989개, 세 출력합계62,979개. 종료 bytes/events/active/retiring0, 결과·종료진단20개, source별 worker/connection 동일. 반복 최소FPS59.82/59.94, 가장 느린1% 평균 low47.80/55.32, frame p95≤16.67ms.10초 준비+60초 변경 전후 각3회도5% 회귀 조건을 통과했다.
-- `1d17016` 최종 전체207개 Success 상태(그중15개 경고 포함)에서 명시 opt-in skip6개를 분리해 실제201개 수행으로 기록한다. 이전206개 결과와 원본 실패는 보존한다. 반복시험·실제 topic.scenario Broker 수신은 별도 opt-in 실행에서 통과했다. WBP6개 메모리 컴파일과 자산 검사는 저장0이다. 입력 시험의 최초 실패는 접혀 저장된 Settings를 펼친 뒤 Slate 배치를 기다리는 fixture 보정 후 집중·전체 재시험으로 통과했으며 원본 로그를 보존한다.
-- 직접1280×720의 Camera 이동/숫자 회전·정지/실행 첫 Esc·LiDAR 숫자 위치/첫 Esc·패널 조작에 이어, 세션 복구 후 실제1920×1080에서 Camera 기즈모 이동·회전·정지 첫 Esc·Settings 숨김, LiDAR 숫자Z1800→1850·4Hz→20Hz Esc 복귀, 데이터 패널 열기·네 글자 배율·resize/scroll/collapse를 추가 확인했다. 캡처1180×771에는 아래쪽 일부가 보이지 않아 전체1920 checklist·Main/외부 Widget 입력 전수·직접 준비 취소는 미완료다. 정상 반복의 private memory는 실행1→30에서 약15/44MiB 증가했고 전체 allocator/driver/engine 인과 분해는 남는다. **전체 최종 검수 완료로 표시하지 않는다.**
-- 직접 정체 시험에서 획득이 멈췄는데 모니터가 마지막20Hz를 계속 표시하는 문제를 재현했다. `1d17016`은 등록된 소유 모니터만 Scheduler의 현재 유효Hz·준비/정지/조작/정체/pause 상태를 표시한다. 실제1280×720에서0Hz·정체 경고→20Hz 복귀, 일시정지→재개를 확인했다. 저장된 측정 이력·송신 계약·주기·비대상 Widget의 표시 방식은 변경하지 않는다.
-- 이 표시 수정까지 포함한 최종 source의 실제1920×1080·10+60초 PCD/세 출력 각3회도 통과했다: 평균59.98~60FPS,1% low≥59.96,p9516.67ms,PCD외부수신≥19.912Hz, invalid/gap/duplicate0. 기존 baseline 대비FPS/low/p95의5% 회귀 없음. source별 원문과 구간별 카운터는 `Saved/Reports/SensorResourceLifecycle/final-performance-comparison.json` 및 `Saved/Reports/lifecycle_final_monitor_*`에 보존한다.
-
-- Camera의 readback·encode·완료 순서 대기 전체를 8프레임으로 제한한다. 앞 JPEG만 2초 지연한 실제 D3D12 시험에서 순서 대기46→8, 완료 JPEG44→7을 확인했다. 한도 도달은 명시적 출력 실패이며 측정을 막거나 이전 이미지로 채우지 않는다. 실패한 앞 프레임 뒤의 완료 결과는 해제하고, Stop은 취소된 결과를 발행하지 않는다.
-- 진단용 CPU/Niagara 점군과 World debug line batcher를 센서 SceneCapture에서 제외한다. 플레이어의 3D 표시는 유지한다. 실제 RHI의 표시 OFF/ON에서 Camera 픽셀 변화0, GPU 깊이 차이0을 확인했고, 격리를 해제한 대조군은 Camera2,536픽셀·중앙 깊이795.013→200cm의 변화를 검출했다. 사용자 Mesh·머티리얼은 수정하지 않는다.
-- 자원 snapshot은 요청 시에만 생성하며 CPU 소유/공유 용량과 GPU 추정을 구분한다. 상세 파일은 `Scripts/run_slab_repeat_stability.ps1 -Repeated -RunCount 30 -ResourceDiagnostics -ReportGroup SensorResourceLifecycle [-AllOutputs]`로 수집하고 `Scripts/analyze_sensor_resource_lifecycle.ps1`로 상한을 대조한다. 공유 bytes를 서로 다른 소유자 사이에서 합산하지 않는다. Camera readback 재사용 최적화는 원인 확인 조건부로 유지한다.
-
-- 같은 월드·Raw worker·연결로 30초×10회 PCD 전용과 세 출력 실행을 검사했다. PCD 전용6,000건, 세 출력 Camera8,999/LiDAR정보6,000/PCD6,000건의 승인 request ID·제출·receipt·실제 내부 검증·독립 외부 수신을 대조했다. invalid/gap/duplicate/overflow0, 복귀 추가 제출0, 종료 outstanding bytes/sequence0이다.
-- 실제1920×1080에서 최종 반복은 PCD59.90~60.00FPS·1% low≥52.91, 세 출력59.91~59.99FPS·1% low≥54.27, p95≤16.672ms. 같은 조건 변경 전후 각3회의 중앙값 FPS는 PCD59.96→59.99, 세 출력59.89→59.96이며 p95 증가5% 이내다. 장비는 현재 RTX4070Ti/UE5.3 한 대 구성이다.
-- 최초 반복 후반 p95약25ms와 ISM update 최대15.9ms를 trace로 재현했다. 진단 미리보기 인스턴스의 충돌/물리/navigation을 제외한 뒤 같은 후반30초 갱신 inclusive2.122초→0.044초, 최대0.291ms를 확인했다. 점 수·센서 측정 규격은 동일하다. 과거 다른 SHA/조건의24.9ms 기록과 모든 PC 지원은 별도다.
-- 최종 D3D12 `MA0T10`203개 목록 중 최초202 Success/1 Fail(외부 publisher 준비 누락), 실제 `topic.scenario` 발행을 준비한 해당 시험 재검증 통과. 명시 opt-in skip5개는 제외해 실제198개 수행으로 구분한다. TCP 장애6종 각2회, 집중 종료/저장/preview isolation 및 WBP6개 메모리 컴파일/저장0을 확인했다.
-- 직접 client1174×683에서 결과 선택·숨김 보존·저장 실패→mouse retry→실제 저장 완료·초기 복귀 결과 보존·9.37초 중단/187 receipt·UUID 복사를 확인했다. 목표1280×720·1920×1080 전체 직접 조작 및 직접 준비 취소는 미완료다. 자동화 exact1920과 구분한다.
-- 세부 증거·원본 실패·제한: `Saved/Reports/SlabRepeatRunStability/FINAL_STATUS.md`. 재현: `Scripts/run_slab_repeat_stability.ps1 -Repeated [-AllOutputs]`, `Scripts/analyze_slab_repeat_stability.ps1`. DTCore/운영맵/개인 UI 저장값은 보존했다.
-
-## 2026-10-06 main 기반 최소 DTCore 적용
-
-DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `b2504d1`을 사용한다. 기존 센서·Slab 기능을 유지하는 별도 연동 브랜치에서 검증했다. `OnConnected`는 성공/실패를 포함한 구독 완료 callback 집계이며 모든 구독 성공을 보증하지 않는다. custom 수신 binding을 보존하고, 공통 5초 timeout·all-ready 상태기계·World cleanup의 GI 전역 큐 폐기는 포함하지 않는다. 이전 안정화 기록의 해당 API 설명은 현재 계약으로 사용하지 않는다.
-
-로그 쓰기·parse 종료 안전성, Registry EndPlay/stream-out 정리와 Widget 제거 후 Blueprint hook을 검증했다. SingleRelease와 FPS 숨김은 프로젝트 Controller가 선택하며, 미등록 Widget 정책은 유지한다. 공통 변경 이유와 소비자 이관은 [최소 수정 계약](Plugins/DTCore/docs/MINIMAL_MAIN_MIGRATION.md)을 참조한다. 검증 결과는 `Saved/Reports/DTCoreMinimalAcceptance/FINAL_STATUS.md`에 있다. 최종 `443b48a` 전체 RHI 자동화184 Success(실제179·opt-in skip5), 신규 실패0이며 독립 host/프로젝트 Editor·Shipping과 Development 패키징을 통과했다. 직접1286×760 PIE에서 조작·숫자 입력창 첫 Esc·폰트·패널·Slab 실행/재생을 확인했다. PCD 전용과 세 stream의 별도1920×1080·10+60초 시험은20/30Hz·평균60FPS·p9516.67ms, 승인 request 집합의 내부/외부 누락0이다. **재생 성능20ms 조건은 기존24.908ms/최소수정24.925ms로 두 버전 모두 실패**하므로 성능을 포함한 최종 검수 완료로 표시하지 않는다. Geometry 성능·10회 stream 반복의 최종 버전 시험은 미수행이다. 이후 발견한 소유 숫자 편집창 Esc는 프로젝트에서 수정했고 전송 계약은 동일하다.
-
-## 2026-10-07 Slab 초기 배치 복귀 검증
-
-- 진행 패널에서 종료·정리 후 초기 위치/회전으로 복귀한다. 형상·보관 목록은 유지하고 진행·차트·3D 분석을 대기로 초기화한다. 사용법은 아래 Slab 절을 따른다.
-- UE 5.3 Editor Development 빌드, 전체 `MA0T10` 194건 Success/실패 0(실제 185·조건부 skip 9), 별도 Slab 12건 Success(실제 11·PCD opt-in skip 1), 소유 WBP 6개 메모리 컴파일(저장 0)을 확인했다. 전체 시험의 skip은 실제 통과로 합산하지 않는다.
-- 실제 Artemis의 `30초 PCD → drain → 복귀 → 같은 시나리오 30초 재실행`은 각 600건, 총 1,200건 제출/receipt/내부·외부 수신이 일치했고 invalid/gap/duplicate/overflow 0이다. 복귀 후 대기 1초의 추가 제출은 0건이다. 센서와 Slab 프레임 개수가 항상 같다는 보장은 아니다.
-- Computer Use로 실제 client **1286×760, 글자 100%**에서 실행/pause 비활성 사유, 완료·중단 후 복귀, 동일 목록 재생, 숨긴 차트 재표시와 3D 라벨 제거를 확인했다. 임시 GUI 관찰 스크립트의 미노출 Python API 오류는 보정 후 재실행했으며 production 결함으로 집계하지 않는다. DTCore·운영맵은 수정하지 않았고 개인 UI 저장값은 복원했다.
-- 증거: `Saved/Reports/SlabResetPlacement/FINAL_STATUS.md`. PCD 시험의 실제 viewport는 1068×360이다. 이번 시험을 목표 해상도 전체 성능 검수나 기존 재생 p95 문제 해결로 확대하지 않는다. push/PR은 별도 요청 전까지 하지 않는다.
-
-## 관리 문서 4개
-
-2026-10-07 송신 신뢰성 검증: Editor Development 빌드, 최종 D3D12 `MA0T10` **198 Success/실패0(실제188·opt-in skip10)**, 소유 WBP6개 메모리 compile/save0. 별도 TCP fixture의 인증 거절·연결 지연·단절·receipt 누락·과부하·센서 삭제 6종을 통과했다. 실제 Artemis 30초 두 실행에서 PCD 전용1,200건 및 세 출력 Camera1,800/LiDAR정보1,200/PCD1,200건의 제출·receipt·내부 수신이 일치하고 외부 PCD1,200건도 검증했다. 실제 자동화 viewport1068×360, 직접 client1286×760/100%다. 세 출력 평균59.85~59.91FPS·p9516.67~16.69ms는 작은 viewport의 집중 결과이며 목표해상도·기존 replay p95 문제 해결 인증이 아니다. 직접 필수 선택·준비 대기·실패·결과 조회·복귀 후 기록 보존을 확인했다. 상세 증거는 `Saved/Reports/ScenarioDataReliability/FINAL_STATUS.md`. Engine STOMP/WSS 필수 모드의 별도 실사용 시험과 장시간 수집·외부 업무 ACK는 남아 있다.
+## 관리 문서
 
 | 문서 | 읽는 목적 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | 개발·수정 시 반드시 지킬 경계와 완료 기준 |
-| [README.md](README.md) | 현재 기능, 실행·연동 방법, 계약과 제한 |
-| [보완 필요 사항](docs/IMPROVEMENTS.md) | 우선 구현할 문제, 근거, 테스트와 완료 조건 |
-| [최종 목표 로드맵](docs/ROADMAP.md) | 다중 센서 → 신뢰성 → 설정화 → 플러그인 → 간편 설치 순서 |
+| [AGENTS.md](AGENTS.md) | **작업 전 필수.** 권한·보호 범위·레이어 규칙·검증/완료 규칙·에이전트 협업 방식 |
+| [README.md](README.md) | 현재 기능, 실행·연동 방법, 입출력 계약, 아키텍처 뼈대, 현재 검증 요약 |
+| [보완 필요 사항](docs/IMPROVEMENTS.md) | 항목 ID별 우선순위·근거·완료 조건 |
+| [최종 목표 로드맵](docs/ROADMAP.md) | 단계 순서(A → R0~R6)와 단계별 gate |
+| [검증 이력 보관](docs/VALIDATION_HISTORY.md) | 과거 날짜별 검증 기록 원문(규칙 문서 아님) |
 
-기존 문서는 경로를 보존한 **고정 참고자료**다. 아래 “참고자료”에서 찾을 수 있다. 새 기능/동작 변경은 위 네 문서에 반영하며 과거 기록을 현재 보장으로 읽지 않는다.
+그 밖의 `docs/` 문서는 경로를 보존한 **고정 참고자료**다(맨 아래 목록). 오래된 UI/성능 설명보다 현재 코드와 이 README를 우선한다. 과거 기록을 현재 보장으로 읽지 않는다.
 
-## 1. 현재 가능한 것과 아닌 것
+## 1. 현재 상태 한눈에 보기
+
+| 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
+|---|---|---|
+| 아키텍처 | 단일 Runtime 모듈 안에 센서·Slab·UI가 섞여 있고 역방향 의존이 있다(§9 표) | 레이어 gate·폴더 재배치·역의존 제거 (ARCH-01~07) |
+| 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화 통과 | 물리 마우스·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 40%) |
+| PCD 송신 | 실제1920×1080 2+2 PCD-only 10분·10회 반복 통과, 사전 점검 구현 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
+| Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
+| 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
+| 자동화 | Runtime `81b56ba`: D3D12 전체 `MA0T10` 217 Success/실패0(실제215·조건부 skip2), WBP7개 메모리 컴파일 | 실행 manifest·표준 검증 진입점 (QA-01 70%, ARCH-07) |
+| 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
+
+최신 근거 보고서: `Saved/Reports/PlacementUiPreflightClosure/FINAL_STATUS.md`(커밋하지 않음). 과거 수치는 [검증 이력](docs/VALIDATION_HISTORY.md).
+
+## 2. 현재 가능한 것과 아닌 것
 
 | 영역 | 현재 구현 | 아직 보장하지 않는 것 |
 |---|---|---|
@@ -167,17 +43,7 @@ DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `
 
 수정 후보와 검증 공백은 [IMPROVEMENTS](docs/IMPROVEMENTS.md)에 있다. 이미 있는 Scheduler·snapshot·비동기 전송을 다시 만드는 대신 경계 조건과 확장성을 보강한다.
 
-## 2. 빌드와 안전한 시작
-
-### 2026-09-29 런처 연계 패키징 점검
-
-- 현재 체크아웃(기준148cc336, DTCore a1b333e)의 Windows Development Build/Cook/Stage/Archive를 실제 완료했다. 최종 성공은 맵 제외 없이 수행했다.
-- 게임 빌드를 막던 에디터 전용 테스트11파일의 가드를 보완했다(`760082c`). D3D12 에디터 관련29테스트 실패0/미실행0:12건 정상,17건 격리된 SaveGame 파일 부재 경고 동반. 센서 계산/전송 로직은 변경하지 않았다.
-- DT_DxLevel이 참조하는 TestMap의 누락된 구형 모니터 클래스를 사용자 승인 후 현재 WBP_VirtualSensorMonitorPanel로 연결했다. 원본은 Saved/LauncherPackagingBackup에 보존했고 재실행 시 파일 불변을 확인했다. SensorTestMap과 Config/Game.ini의 원래 바이트는 보존했다.
-- 패키지328파일/878,409,923바이트. ZIP+외부 release.json을 격리된 런처 배포 서버에 접수·승인하고 사용자 확인 후 실제 GUI로 설치·실행했다. Manifest328파일 해시, SensorTestMap/D3D12 창, 런처 종료/재실행 중 동일 UE bootstrap/자식 생존, 정상 종료 후 Quiescent를 확인했다. 실제 버전 업데이트/복구·Linux/회사 인수까지 완료한 것은 아니다.
-- `Scripts/inspect_launcher_package_map.py`는 기본 맵의 출력 설정을 읽기만 한다. 현재 저장된 기본 맵의 센서 출력은 LogOnly이며, 런처 시험은 별도 UserDir와 DTCore 로컬 시험 주소를 사용한다.
-- DTCore의 EnhancedInput 플러그인 의존 선언 경고는 남아 있다. DTCore 및 gitlink를 임의 수정하지 않았으며 Shipping/Linux·회사 서버·실장비 검증을 완료로 표시하지 않는다.
-- 실제 실행에서 DTCore의 CustomLogs가 설치 폴더에 생성됐다. `-UserDir`만으로 모든 로그가 분리되는 것은 아니며 Program Files·서비스 계정의 로그 쓰기 경로는 후속 점검한다. 이번 시험은 시험 폴더 안에서만 이루어졌다.
+## 3. 빌드와 안전한 시작
 
 에셋 복구 재현: Editor 종료 후 `UnrealEditor-Cmd.exe <uproject> -run=RepairTestMapMonitorReference`로 점검하고, 대상 확인 후에만 `-Apply`를 추가한다. 전체 맵 재생성 스크립트는 실행하지 않는다.
 
@@ -204,7 +70,9 @@ Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 
 맵 생성 스크립트는 신규 fixture가 필요할 때만 대상·기존 자산을 확인하고 실행한다. `SlabScenarioValidationRig`는 센서 ID·프로필·로컬 Broker 등을 바꾸는 **테스트 도구**이므로 운영맵에 옮기지 않는다.
 
-## 3. 다른 맵에서 현재 기능 연결
+DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `b2504d1`을 사용한다. 기존 센서·Slab 기능을 유지하는 별도 연동 브랜치에서 검증했다. `OnConnected`는 성공/실패를 포함한 구독 완료 callback 집계이며 모든 구독 성공을 보증하지 않는다. custom 수신 binding을 보존하고, 공통 5초 timeout·all-ready 상태기계·World cleanup의 GI 전역 큐 폐기는 포함하지 않는다. 이전 안정화 기록의 해당 API 설명은 현재 계약으로 사용하지 않는다.
+
+## 4. 다른 맵에서 현재 기능 연결
 
 ### 센서만 사용
 
@@ -233,7 +101,7 @@ Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 - 진단 폰트는 offline atlas라 실행 PC에 글꼴 설치가 필요 없다. 제작용 재생성 스크립트는 Malgun Gothic을 사용한다.
 - 공용 설정 객체와 단일 Bootstrap 진입점은 아직 구현되지 않았다. 자세한 분리 계획은 [ROADMAP](docs/ROADMAP.md)을 따른다.
 
-## 4. UI와 조작
+## 5. UI와 조작
 
 상단은 **선택 센서 / 센서 도구 / Slab 도구 / UI 표시**다. Host가 명시적으로 등록한 인스턴스만 관리하며 다른 Widget의 스타일·입력·저장값을 건드리지 않는다.
 
@@ -275,7 +143,7 @@ Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 
 GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 지원한다. 깊이 일치·설정 revision을 검사한다. 투명/마스크/WPO/미지원 geometry는 추정하지 않는다. “GPU는 무조건 태그 정보를 가질 수 없다”는 오래된 설명은 현재와 다르며, 필터 사용 전 해당 프레임의 semantic 지원 상태를 확인한다.
 
-## 5. Slab 데이터·자동 실행·재실행
+## 6. Slab 데이터·자동 실행·재실행
 
 - 입력 Topic: **`topic.scenario`**, MESSAGE_ID: **`IFactory-agent`**. DTCore `WebSocketTopics`에 구독되어야 한다. 다른 업무 Topic을 삭제하지 않는다.
 - TC는 백그라운드 parse 후 게임 스레드에서 `ReceiverId`로 DataSync를 찾는다. 기본 ID는 `SlabScenario.Main`이며 Actor와 handler가 같아야 한다.
@@ -340,7 +208,7 @@ node Tools/Artemis/publish_slab_scenario.mjs --topic topic.scenario
 node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json" --topic topic.scenario
 ```
 
-## 6. 측정 프로필과 출력 계약
+## 7. 측정 프로필과 출력 계약
 
 ### 프로젝트 프리셋
 
@@ -406,84 +274,126 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 - 요청 대상·출력·revision을 고정하고 실제 파일 생성 후 완료 이벤트를 보낸다. LAZ는 외부 compressor가 필요하며 프로세스 timeout/cancel 보완이 남아 있다.
 - 외부 Source(CSV/JSONL replay, Camera buffered JSON, LiDAR HTTP/UDP)는 센서 입력이다. 서버 수신 진단은 출력 검사다. ROS2/Livox/RealSense SDK 클래스는 현재 stub/확장 지점이며 실제 SDK 지원 완료가 아니다.
 
-## 7. 구조와 현재 재사용 경계
+## 8. 센서 배치와 저장 위치
 
-| 기존 구성 | 책임 |
+**위치 저장을 찾는 경로:** 상단 **`장비 추가·위치 저장` → `저장 위치 · 선택 센서`**다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 저장된 열림 설정이 없는 첫 사용에는 배치 창과 미리보기를 함께 표시한다. 이후에는 사용자가 저장한 창 상태를 복원하며, 명시적으로 열면 배치 창의 본문을 펼쳐 앞으로 가져온다.
+
+처음 사용하는 순서는 **PIE 실행 → 관찰 시점 이동 → LiDAR/Camera 추가 → 위치·회전 조정 → 현재 위치 저장 → 전체 배치 저장**이다. 다음 PIE에서는 전체 배치를 선택해 변경 미리보기 후 적용한다. 개별 북마크는 선택 장비의 자세만 저장하므로, 추가 장비를 재생성하려면 전체 배치 저장을 사용한다. PCD 송신은 별도로 선택한다.
+
+맵에는 `VirtualSensorCoordinator`가 정확히 하나, `VirtualSensorUiHostActor`가 하나 필요하다. Host의 `bAutoCreateOnBeginPlay`, `bAutoCreateToolPanels`를 켜고 `SensorManager`를 연결한다. `SettingsWidgetClass`/`PlacementWidgetClass`를 지정하거나 `bUseNativeToolWidgetFallback`을 켠다. WBP를 사용할 때 부모는 `VirtualSensorPlacementPanelWidget`이며 native 구성을 쓰는 wrapper에는 Designer Root, 별도 컨트롤 이름 또는 `Is Variable` 설정이 필요하지 않다. Level Blueprint에서 배치 Widget을 중복 생성하지 않는다. 늦은 준비는 0.5초 간격·최대 10초 재시도하며 실패 사유를 표시한다. 생성되지 않은 창의 열림 상태를 성공으로 저장하지 않는다.
+
+DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws://localhost:31000` 접속 정책도 유지한다. 2026-10-10 확인 당시 31000 listener가 없어 일반 연결은 실패했고 프로젝트 기본 `WebSocketTopics`도 비어 있었다. Slab 수신을 사용할 때는 해당 서버를 실행하고 `Project Settings → DTCore Settings → WebSocketTopics`에 `topic.scenario`를 등록하거나 프로젝트의 기존 명시적 구독 경로를 연결해야 한다. 데이터 패널의 센서 출력 Broker와 업무 전문 수신 설정은 별개다. 별도 로컬 시험에서 Artemis `61616`의 `topic.scenario` 전문이 실제 DTCore → TC → DataSync → Slab로 전달되어 frame 5까지 진행했다. 이는 일반 실행의 31000 서버가 연결됐다는 뜻이 아니다. 서버·구독 기본값은 자동 변경하지 않았다.
+
+전체 배치 A를 미리보기한 뒤 B를 선택하면 A 요청은 취소된다. B를 다시 미리보기해야 적용할 수 있다. `CancelLayoutRestorePreview`와 배치 Widget의 선택/미리보기/적용 전달 API를 사용자 WBP에서도 사용할 수 있다. 북마크 이동은 선택 ID와 편집 이름·삭제 확인 상태를 함께 갱신한다.
+
+북마크 저장을 기다리는 동안 다른 항목을 선택하거나 이름을 편집해도 이전 저장 완료가 새 편집 대상을 덮지 않는다. 저장 자체는 고정한 대상·내용으로 마무리하며 파일 결과는 기존 상태 API에서 조회한다.
+
+새 native 패널과 `WBP_VirtualSensorPlacementPanel`은 우리 Host가 명시적으로 등록한다. 기존 Designer가 있는 사용자 WBP를 자동 변경하지 않으며 공개 저장/조회 API로 연결할 수 있다. 개별 저장 위치와 전체 배치 저장은 서로 다른 기능이다.
+
+`LiDAR 추가`와 `Camera 추가`는 현재 관찰 시점의 위치·방향에 Native ML-X/D455 장비를 만들고 선택·미리보기를 시작한다. 조작 중에는 기존 경량 미리보기를 사용하며 Esc로 원규격에 복귀한다. 복제는 측정 설정만 복사하고 새 ID를 부여한다. Topic 송신·녹화·외부 Source·실행 UUID는 복사하지 않는다. 삭제는 이 도구가 만든 장비만 가능하다. 수집 잠금이나 동종 wildcard 송신이 있으면 이유를 안내하고 거절한다. 레벨에 있는 기존 장비를 자동으로 삭제하지 않는다.
+
+**전체 배치:** `배치 → 전체 배치`에서 이름을 지정해 저장하고, 저장 목록을 선택해 `불러오기 변경 미리보기 → 확인 후 적용`으로 복원한다. 별도 `Saved/SensorLayouts/*.layout.v1.json`이며 실제 쓰기 완료 후 저장 성공을 표시한다. 같은 맵만 지원한다. 기존 레벨 장비는 정규화된 정확한 Actor 경로·종류, 도구 장비는 배치 GUID로 대응한다. 미포함 기존 레벨 장비는 유지하고 미포함 도구 장비만 정리한다. 실패·오래된 미리보기·busy·ID 충돌은 거절한다. 저장된 미리보기 상태는 복원하지만 송신·녹화·파일 저장은 시작하지 않는다. 새 PIE에서는 저장 구성이나 북마크를 자동 적용하지 않는다. `.umap`과 기존 북마크 파일은 재저장하지 않는다.
+
+**PCD 사전 점검:** 데이터·재생 화면에서 원래 수집 규격의 대상/주기, 보수 추정 body·MiB/s, 실제 연결 상태와 제출 예산을 확인한다. PCD-only 2 LiDAR×20Hz는 40건/s이며 미리보기 Camera는 JPEG 송신량에 포함하지 않는다. `MaxSubmissionsPerFrame × 관측 FPS`는 이론적 상한이다. FPS가 없으면 60FPS 가정으로 표시하며 실제 성능을 보증하지 않는다. echo/backend가 불확실하면 명시하고 추정 용량 경고만으로 관찰 fallback이나 데이터 필수 정책을 바꾸지 않는다. 기본 예산은 2이며 Coordinator의 StreamPublisher 설정을 명시적으로 조정하고 재검증한다. 자동으로 4나 저규격으로 바꾸지 않는다.
+
+점검은 활성 개별 설정이 wildcard를 우선하는 실제 송신 규칙을 사용한다. 수동 PCD 시작은 기존 독립 출력과 합산하고, 다음 시나리오는 제어 대상의 출력을 선택 정책으로 교체한 뒤 비대상 독립 출력만 더한다. `PCD 건/s`와 `전체 출력 건/s`, Raw/Engine 연결 상태를 구분한다. 단일 프레임이 bucket 용량보다 크면 평균 MiB/s가 낮아도 계속 대기할 수 있어 별도 경고한다. 요약에 첫 차단 사유를 우선 표시하며 호환 JSON 상태는 현재 선택 LiDAR 한 대의 상태다. 기존 `Inspect` API는 유지하고 새 `InspectForPurpose`가 호출 목적을 명시한다.
+
+공개 경계: `UVirtualSensorLayoutSubsystem`은 장비 수명·전체 배치, 기존 `UVirtualSensorPlacementSubsystem`은 북마크·자세 이력·새 위치 프레임 확인, `UVirtualSensorOutputPreflight::Inspect/Evaluate`는 읽기 전용 snapshot·순수 평가다. 이번 지원 검증의 근거는 `Saved/Reports/SensorPlacementWorkspace`에 보관하며 과거 2+2 결과를 새 기능의 최종 합격으로 대체하지 않는다.
+
+- `배치 → 이동·회전 시작`: 기본 연속 이동 125cm/s·회전 62.5°/s. WASD/QE·방향키·Z/C, Shift×5·Ctrl×0.2와 Local/World를 사용한다. 정밀 단위는 키 1회당 10cm·5°이며 자동 반복을 무시한다. 기존 Settings Blueprint의 속도·단위 API는 유지한다.
+- 소유 viewport에서 RMB를 누르면 관찰자 탐색으로 전환하고 센서는 움직이지 않는다. 프로젝트 Pawn/Controller는 초당 속도를 사용하며, 기본 DefaultPawn 맵도 해당 gesture에만 적용되는 경로로 지원한다. 입력창·외부 Widget·다른 창은 센서 이동 단축키 대상이 아니다.
+- 조작 중 실행 센서의 미리보기는 Camera 640×360/15Hz·LiDAR 120×24/10Hz이며 저장·Topic 출력에서 제외한다. 정지 센서는 자동 시작하지 않는다. Esc·선택 변경·숨김·종료는 현재 자세를 유지하며 원규격·원실행 상태를 복원한다.
+- `현재 위치 저장`: 센서별 이름 있는 위치·회전 20개를 `Saved/SensorPlacements/*.poses.v1.json`에 보관한다. 파일 쓰기 완료 후 저장 완료를 표시한다. 새 PIE는 원래 맵 배치에서 시작하고 `이동` 버튼으로 직접 적용한다. 목록 선택만으로 위치가 바뀌지 않으며 현재 스케일·프로필·해상도·주기·출력을 유지한다.
+- 위치의 키는 PIE 접두사를 제거한 맵 경로·센서 종류·SensorId다. 다른 맵·중복/변경된 ID·누락 센서는 추측해 연결하지 않는다. 이름 변경·명시적 덮어쓰기·삭제 확인/취소를 제공한다. 기존 UI 저장값과 맵 저장 예약은 별도로 유지한다.
+- 센서별 현재 PIE의 50개 자세 이력을 `되돌리기/다시 적용` 또는 Ctrl+Z/Ctrl+Y로 조작한다. drag 1회·연속 키 gesture·숫자 입력·북마크 이동은 각각 1개 이력이다. 입력창은 기존 텍스트 Undo를 사용한다.
+- 해당 센서의 시나리오 준비/실행/pause/drain·수동 스트림(wildcard 포함)·녹화·주기/미완료 파일 저장은 위치와 SensorId 변경을 잠근다. 비대상 센서는 계속 조작할 수 있다. 조작 중 수집 시작은 gesture 확정·원규격 복원 후 접수한다. 조회와 현재 위치 저장은 가능하다.
+- 실행 결과/JSON의 sensor `placement`에는 시작 맵·월드 자세(cm/quaternion/scale)·북마크 ID/이름/revision·고정 시각과 외부 변경 여부를 기록한다. 기존 `ma0t10.slab-run.v1`, PCD/JPEG 본문과 프레임별 측정 자세는 유지한다. 이후 이동·이름 변경으로 과거 시작 배치를 덮어쓰지 않는다.
+- 공용 API는 `UVirtualSensorPlacementSubsystem`의 저장 요청/상태 조회·목록·이동·이름 변경/삭제·Undo/Redo·현재 snapshot이다. Settings의 선택 센서 전달 API도 사용 가능하다. 동료 WBP Designer는 자동 변경하지 않는다.
+
+### 배치 미리보기 확인과 A/B 비교
+
+- 맵 값 복원은 적용 성공 후에만 완료로 표시하며 자세 변경을 Undo/Redo에 기록한다. 측정 설정 자체를 Undo하지 않는다. SensorId 변경 시 북마크 목록·선택·삭제 확인과 자세 이력을 이전 ID에 연결하지 않는다.
+- 북마크·Undo/Redo·숫자 위치·조작 종료 뒤에는 새 측정의 시작 시각·자세·규격·generation을 확인한다. 이전 위치에서 시작한 늦은 프레임으로 준비 완료가 되지 않는다. Camera는 기존 capture 뒤의 GPU fence를 사용하며 이 확인 때문에 JPEG나 readback을 추가하지 않는다. 정지 센서는 계속 정지한다.
+- 미리보기 대기는 `max(1.5초, 주기×3)`이며 PIE pause 시간은 제외한다. 준비 완료·정지·지연·취소를 표시한다. 지연 때문에 센서를 자동 재시작하지 않는다. `GetPlacementPreviewStatus()`로 Blueprint에서도 조회할 수 있다.
+- `데이터 → 연결·진단 → 실행별 전송 결과`에서 확정된 실행을 `A로 선택`·`B로 선택`한다. 같은 시나리오 UUID의 서로 다른 실행을 비교하며 현재 PIE의 최근 20개 결과만 사용한다. 선택이 보관 범위를 벗어나면 비교를 중지하고 이유를 표시한다.
+- 센서별 시작 위치·최단 회전각·스케일·북마크·설정과 요청/기록 시점 Hz를 비교한다. 기존 **실행 전체 카운터**와 새 **센서·출력별 상세**를 구분해 표시한다. 상세가 없는 과거 기록은 확인 불가다. 기록 시점 Hz는 실행 평균이 아니며 receipt 비율은 승인 0건에서 N/A다.
+- 신규 실행은 원문 UTF-8 SHA-1을 선택적 `ScenarioContentHash`로 기록한다. 설정 JSON은 필드 순서 대신 값으로 비교하고 revision만 다른 경우 설정 차이로 판정하지 않는다. 원문·출력·맵·설정·진행 구간·외부 배치 변경이 다르면 참고 비교이며 누락 정보는 확인 불가다. 전송 수로 배치 우열·가림률·점밀도를 판정하지 않는다.
+- `GetRunComparison()`은 저장된 두 요약만 읽는다. 비교·표시·해제는 측정·이동·재생·Topic 전송을 발생시키지 않는다. 확정된 결과에는 늦은 측정률·중단 알림도 적용하지 않는다. 기존 `ma0t10.slab-run.v1`과 PCD/JPEG 계약은 유지한다.
+
+## 9. LiDAR 출력 정책과 센서별 전달 결과
+
+- 배치 도구로 새로 추가한 LiDAR는 `WhenRequested` 정책으로 시작한다. PCD·Raw telemetry·미리보기만 사용할 때는 큰 호환 JSON을 생성하지 않는다. 기존 클래스·레벨 장비·구형 전체 배치 파일은 `LegacyAlways`를 유지한다. 복제와 새 전체 배치 저장/복원은 원본 정책을 보존한다.
+- 정책은 `센서 설정 → 고급 설정 → LiDAR 호환 JSON 생성`에서 명시적으로 바꾼다. 정책만 변경하면 측정이나 조작 모드를 재시작하지 않는다. 기존 수집 잠금은 적용된다. JSON 생략은 실패/프레임 유실로 세지 않고 데이터 패널에 `미사용`으로 표시한다.
+- 호환 LiDAR 스트림, 실제 JSON 녹화, 기존 Blueprint JSON 완료 구독, 등록된 native 소비자와 수동 요청은 JSON을 생성한다. `GetLastJsonPayload()`를 직접 polling하는 새 소비자는 `RegisterCompatibilityJsonConsumer(Owner)`/해제를 사용하거나 `LegacyAlways`를 선택한다. preview에는 기존 acquisition 이벤트를 사용할 수 있다.
+- Native 수동 JSON 전송은 완료 snapshot의 비동기 1회 생성과 metadata를 사용하며 센서를 추가 측정하지 않는다. 작업 슬롯이 사용 중이거나 설정/종료 전의 오래된 snapshot이면 사유를 안내한다. 기존 bool 전송 API는 완료된 JSON과 그 JSON의 SensorId/FrameId를 사용하고 반환 의미를 유지한다.
+- 생성 상태 조회는 `GetCompatibilityOutputStatus()`이며 작업 수·미사용 수와 queue/encode/completion 시간을 제공한다. 이전 post-process 시간은 acquisition부터 완료까지의 값으로, 순수 JSON encode 시간과 다르다. 자동 파일 출력과 수동/외부 입력의 기존 기능은 유지한다.
+
+- 호환 LiDAR JSON은 센서별 처리 중 1개·최신 대기 1개, 전역 생성 작업 4개다. 새 측정이 도착했다는 이유만으로 같은 generation의 정상 완료 결과를 버리지 않는다. 실제 대기 교체, generation 폐기, 생성 실패는 별도 집계한다. Stop·설정 재시작·삭제 후 결과는 적용하지 않는다.
+- `OnDerivedFrameCompletedNative`는 JSON과 측정 당시 FrameId·UTC·pose·설정·Slab context·point snapshot을 함께 제공한다. 기존 `OnScanCompleted` Blueprint 이벤트와 수동/외부 입력 API는 유지한다. 이벤트의 ViewTexture는 기존 현재 미리보기이며 과거 프레임 영상 snapshot을 새로 제공하는 것은 아니다.
+- 파생 JSON 완료는 호환 출력에만 전달한다. PCD와 Raw telemetry는 acquisition 경로에서 처리하고 다시 발행하지 않는다. 선택된 호환 JSON 작업만 세션의 최대 10초 drain에 포함하며 PCD 전용 실행은 불필요한 JSON 완료를 기다리지 않는다.
+- `데이터 → 연결·진단 → 실행별 결과`와 A/B에는 센서별 측정 완료/실패, SensorId+출력별 승인·제출·receipt·실패·승인 후 receipt 미확인·자체 검증을 표시한다. 재시도와 중복 callback은 기존 request ledger에서 한 번만 센다. 이전 결과에 상세 집계가 없으면 `확인 불가`다. 기존 합계와 `ma0t10.slab-run.v1`은 유지한다.
+- 측정 Hz, 호환 JSON 생성 Hz, 실제 PCD/JPEG 전달 Hz는 다르다. `MeasuredOutputRateHz`는 LiDAR 호환 파생 출력의 최근 간격 값이며 PCD 송신률이 아니다. 실행 상세의 Hz는 기록 이벤트 간격이고 실행 전체 평균이나 외부 소비자의 저장·학습 처리 완료를 뜻하지 않는다.
+- 실제 선택 출력에 필요한 센서만 측정률 미달 경고의 대상이다. PCD 전용 실행에 포함된 비선택 Camera의 정지/0Hz는 실패로 판정하지 않는다. 해당 Camera 이미지를 선택하면 0Hz 경고는 계속 유지한다.
+- wildcard 전송의 FrameId 연속성은 센서별로 관리하며 전달 카운터는 센서 합계다. 공유 전역 보관 bytes는 중복 합산하지 않고 지연 p95는 보수적인 **센서별 최대값**으로 표시한다. 송신 round-robin은 한 순회에서 동일한 시작 기준을 사용한다.
+- UE 학습 데이터 묶음 저장은 추가하지 않았다. 기존 수동 파일 내보내기·작은 실행 결과 JSON은 유지하며, 데이터 보관과 학습 처리는 외부 수신 프로그램의 역할이다.
+
+재현 명령: `Scripts/run_sensor_map_stream_rhi_smoke.ps1 -SkipBuild -SensorPairs 2 -ClientWidth 1920 -ClientHeight 1080 [-PointCloudOnly] [-SubmissionBudget 4]`. PCD 전용에서도 독립 구독자는 세 Topic을 모두 확인해 선택하지 않은 출력 0건을 검사한다. 성능 보고서는 `AcquisitionPass`, `RequestedDerivedOutputPass`, `TransportPass`를 분리하며 검사하지 않은 단계는 `NotTested`다. `run_fullspec_performance_evidence.ps1`의 기본 `AcquisitionOnly` 통과를 송수신 통과로 해석하지 않는다.
+
+기존 `MaxSubmissionsPerFrame=2`는 60FPS에서 최대 120건/s이므로 2 Camera+2 LiDAR의 전체 출력 약140건/s을 처리하지 못한다. `SubmissionBudget=4`는 **시험에서 기존 Actor 속성을 명시적으로 설정**하는 옵션이며 기본값이나 운영맵을 자동 변경하지 않는다. 수집 규격을 낮추거나 큐를 늘리는 조치가 아니다. 각 보고서의 적용 예산과 선택 출력을 확인한다. UI 대조도 준비 중 누적 카운터를 직접 비교하지 않고 측정 구간에 승인된 각 request가 실제 TC/UI 검증까지 도달했는지 확인한다.
+
+## 10. 아키텍처 뼈대
+
+### 10.1 목표 레이어
+
+한 Runtime 모듈(`ma0t10_dt`) 안에서 폴더를 레이어로 사용한다. **의존은 위에서 아래로만** 허용한다. 플러그인 분리(R5)는 이 경계가 gate로 고정된 뒤의 별도 단계이며 이번 버전에서 시작하지 않는다.
+
+| 레이어 | 폴더 (`Source/ma0t10_dt/MA0T10/`) | 책임 | include 가능 |
+|---|---|---|---|
+| L3 UI | `UI/` (Workspace Subsystem 포함 예정) | 소유 패널·Host·Gizmo·창 배치·UI 저장값 | L0~L2, DTCore |
+| L2 Host·업무 | `Slab/`, `Scenario/`(예정), `WebSocket/TC/`, 기존 `Crane/` `Manager/` `Player/` `Api/` `InteractableActor/` `UI/Main/` | Slab 시나리오·실행 결과·재생, 업무 전문 TC, 센서 context adapter | L0~L1, DTCore |
+| L1 센서 Runtime | `Sensor/`, `Camera/`, `Core/`(센서 공용 서비스만) | 측정·스케줄·코덱·출력·송신·파일 저장·배치/레이아웃 서비스 | L0, DTCore |
+| L0 공통 계약 | `Contracts/`(예정) | 편집 상태 타입, 중립 acquisition context, Topic/슬롯/경로 기본값 상수 | 엔진·DTCore 타입만 |
+| 외부 | `Plugins/DTCore` (submodule) | 공통 API/WebSocket/Data/UI 기반 | 수정 금지 |
+
+- 테스트(`*/Tests/`)와 Editor 모듈(`ma0t10_dtEditor`)은 레이어 검사에서 제외하지만 production 코드가 테스트를 include하면 안 된다.
+- 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
+- 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
+
+### 10.2 현재 위반 (2026-10-11, `fda25e0` 정적 조사)
+
+| 방향 | 위치 | 해소 항목 |
+|---|---|---|
+| L1→L3 | `UI/VirtualSensorControlTypes.h`를 Sensor 3·Core 6개 파일이 include. 그중 `Core/VirtualSensorFileSaveTypes.h`, `PeriodicFileSaveSubsystem.h`, `LayoutSubsystem.h`, `LayoutTypes.h`는 **헤더→헤더**로 전파 | ARCH-03 |
+| L1→L3 | `Sensor/VirtualSensorCoordinator`가 `UVirtualSensorMonitorPanelWidget`을 직접 bind·호출(`BindMonitorWidget`, 보기 전환, OwningPlayer 조회) | ARCH-04 |
+| L1→L3 (폴더 오배치) | `Core/VirtualSensorToolWorkspaceSubsystem`이 UI 헤더 12개 include — 실제로는 UI 레이어 코드 | ARCH-02 |
+| L1→L2 (폴더 오배치) | `Core/`의 Slab 서비스 7종: `SlabExecutionTypes`, `SlabRunComparison`, `SlabRunDeliveryTypes`, `SlabRunResultsSubsystem`, `SlabScenarioReplaySubsystem`, `VirtualSensorSlabContextSubsystem`, `VirtualSlabFrameContext` | ARCH-02 |
+| L1→L2 | Camera/LiDAR/ActorBase가 `VirtualSensorSlabContextSubsystem`을 직접 호출, 센서 frame/request 타입이 `FVirtualSlabFrameContext`를 포함(13개 파일) | ARCH-06 |
+| L1→L2 | `Core/VirtualSensorHighThroughputTransportSubsystem`, `VirtualSensorPcdReceiveContract`, `Sensor/VirtualSensorExternalSourceHostActor`가 `WebSocket/TC` 수신 진단 클래스를 include | ARCH-05 |
+| L2→L3 | `Slab/SlabActor.cpp`가 `ASlabSimulationUiHostActor`를 순회해 UI 존재를 확인 | ARCH-04 |
+| 모듈 의존 | `ma0t10_dt.Build.cs`가 `PixelStreaming*` 3개를 Public 의존으로 선언하지만 C++ 사용 0건 | ARCH-08 |
+
+### 10.3 구성 요소 책임 (현재)
+
+| 구성 | 책임 |
 |---|---|
-| VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API |
+| VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API(`SubmitExternalFrame`) |
 | Capture / Scan / Analysis / Visualization / Export | 측정과 파생 처리 분담 |
 | VirtualSensorSchedulerSubsystem | 자동 작업 분배; 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
 | IVirtualSensorAcquisitionBackend | 기존 GPU LiDAR 경계; 아직 Camera/SDK 전체의 범용 확장 계약은 아님 |
-| Output / StreamPublisher / Transport / Recorder | 프레임 라우팅·직렬화·송수신·기록 |
+| Output / StreamPublisher / Transport / Recorder / HighThroughputTransport | 프레임 라우팅·직렬화·송수신·기록, Raw TCP STOMP worker |
 | FileSave / PeriodicFileSave | Widget 수명과 독립적인 bounded 파일 작업 |
-| SlabContext / Replay / SlabActor | 업무 세션·보관·이동; 미래 플러그인에서는 host 경계로 분리 필요 |
-| ToolWorkspace / PanelHost | 명시적 소유 UI·Main/Viewport 재호스팅 |
+| Placement / Layout / OutputPreflight | 북마크·자세 이력, 장비 수명·전체 배치, 읽기 전용 PCD 사전 점검 |
+| SlabContext / Replay / RunResults / SlabActor | 업무 세션·보관·이동·실행 결과 (L2) |
+| ToolWorkspace / PanelHost / UiHost | 명시적 소유 UI·Main/Viewport 재호스팅 (L3) |
 
-`UVirtualSensorIntegrationSettings`/`UVirtualSensorDtCoreBridgeSubsystem`는 현재 소스에 없다. 예전 제안이 구현 완료된 것으로 오인하지 않는다. 분산된 기본값과 Slab 직접 참조를 먼저 정리해야 한다.
+`UVirtualSensorIntegrationSettings`/`UVirtualSensorDtCoreBridgeSubsystem`/Bootstrap Actor는 **소스에 없다**(과거 제안). 구현된 것으로 오인하지 않는다.
 
-## 8. 최신 검증과 제한
+## 11. 검증
 
-### 이전 최종 검수 이력 — 2026-10-03
-
-아래는 당시 production source `2eb30f0`, DTCore `067195b`의 이력이다. 최신 기준은 문서 상단의 `2ec67a2`/`b2504d1`을 따른다. 당시 검수에서는 DTCore 공통 소스·wire schema·센서 규격을 바꾸지 않고 숫자 Transform 편집의 경량 조작 유지, 실제 Slate 포인터 경로, 큰 글자에서 소유 패널 최소 폭을 보완했다.
-
-현재 시험의 `1% low` 표기는 `1000 / frame-time p99` 계산값이다. 최악1% 프레임의 평균을 사용하는 다른 벤치마크 정의와 같다고 해석하지 않는다. engine FApp delta와 실제 callback wall pacing도 별도로 기록한다.
-
-- LiDAR envelope UTC가 측정 완료 시점이던 결함을 `c1b86eb`에서 실제 측정 시작 시점으로 수정했다. 이전 12회 비교와 장시간 시험의 PCD 지연 27~36ms는 completion-to-consumer 기록이며 acquisition-to-consumer 통과 근거가 아니다. 전달 건수·checksum·FrameId 증거와 시각 기준을 분리한다. 독립 baseline에도 같은 시각 변환만 적용해 비교를 정규화했다.
-- 정규화 후 기준선에서 간헐적인 성능 실패가 발생했다(1280×720 세 스트림: 평균 56.90FPS/1% low 33.70FPS/p95 28.61ms, 1920×1080 PCD: 평균 59.08FPS/1% low 34.40FPS). 동일 조건의 추적 재시험 3회는 통과했지만 원인은 아직 확정되지 않았다. 실패를 정상 재시험으로 지우지 않으며, 최종 12회 비교·전후 5% gate는 미완료다. 사용자 요청에 따라 다른 앱·서비스를 중지하지 않고 현재 환경에서 분석 중이다.
-- `117e6e3`의 1920×1080 세 스트림 집중 시험은 평균 59.79FPS/1% low 59.57FPS/p95 16.67ms, 전체 구간 acquisition-to-consumer p95 Camera 49ms·PCD 66ms·LiDAR telemetry 72ms였다. 제출·receipt·내부 검증·외부 MESSAGE 집합을 대조했다. 한 번의 집중 시험이며 전체 비교 또는 다른 맵/다중 센서 지원 인증이 아니다.
-- 현재 환경의 10분 trace에서 렌더 작업 대기와 D3D12 텍스처 생성 지연을 관측했다. 매 LiDAR 프레임의 staging readback 생성을 `0c502af`에서 재사용으로 변경했고, 동일 크기·해상도 변경·진행 중 취소/재시작의 실제 깊이와 generation 시험을 포함한 관련 6개 테스트를 통과했다. 수정 후 1920×1080 세 스트림60초는 평균59.75FPS/1% low55.28FPS/p9516.7ms, PCD19.963Hz·gap/invalid/duplicate0으로 통과했다. 외부 CPU 부하도 함께 관측됐고 개별 RHI 자원 이름은 trace에 없어, 간헐적 지연의 전체 인과 또는 완전 해결을 단정하지 않는다.
-- `e6afe4f`는 재사용 버퍼의 이전 GPU fence를 새 완료로 읽지 않도록 nonblocking render 제출 fence를 추가했다. `2eb30f0`는 기즈모 클릭 위치가 viewport인데 전역의 이전 UI hover 때문에 거부되던 회귀를 수정했다. 실제 클릭 위치의 소유 viewport hit path를 사용하고 실제 패널 위 클릭은 거부한다. 의도적으로 이전 패널 hover를 남긴 Slate 회귀를 통과했으며 DTCore의 공통 hover API는 변경하지 않았다.
-- Camera는 실제 장면의 64bit acquisition token+CRC16 격자를 완료 JPEG마다 독립 해독해 990개 프레임을 검사했다. 이전 JPEG/새 metadata 음성 대조군, readback 포화·설정 변경·Stop/재시작·삭제를 포함한다. 관측한 JPEG만 폴링하던 이전 시험과 구분한다.
-- 재생은 관찰 1회와 30초 PCD 2회, 1,200건 제출/receipt/소비자 검증 일치·context 오류 0·평균 59.93FPS·p95 16.67ms다. 시험 프로세스의 Editor background throttle을 명시적으로 해제하고 복원했으며 사용자 설정은 저장하지 않았다. 이전 25.07ms 결과를 숨기거나 production 최적화 효과로 표시하지 않는다.
-- 현재 `2eb30f0`의 전체 `MA0T10` 보고서는190건 Success/실패0이다. 그중185건을 실제 수행했고 geometry 성능·replay runtime·continuous stream·repeat·production Slab의5건은 opt-in skip이다. continuous/repeat는 아래 현재 source의 집중 시험으로 갱신하고, 다른3건의 이전 source 증거는 최신 통과로 합산하지 않는다. 앞선 입력 hover 회귀1건의 실패 원본도 보존했다. 커밋된 운영맵은 Saved에 격리해 기존 assertion을 그대로 검사하고 사용자 맵은 보존한다.
-- Slate 입력 시험은 첫 Esc/키 반복 후 PIE 유지, 원설정 복구, Data 패널 geometry, Main 재호스팅과 미등록 Widget font 불변을 확인했다. 이 결과를 직접 마우스 검증으로 대신 표시하지 않는다.
-- 현재 source의 실제1920×1080 10분 실행은 PCD/telemetry 각12,000건(20Hz), Camera17,999건(29.998Hz)의 승인 요청/제출/receipt/내부·외부 검증 집합 일치와 missing/invalid/gap/duplicate0을 확인했다. 평균59.99FPS·1% low59.96FPS·frame p9516.67ms, 외부 acquisition-to-consumer p95 PCD73ms·Camera47ms였다. callback wall p9522.75ms는 별도로 기록한다. 첫1분 이후 private bytes8.03~8.13GB에는 전체 측정 ledger 보관 비용도 포함되며, 장기 무누수 인증은 아니다. 호환 JSON 파생 출력 생략·acquisition deadline miss는 승인된 PCD 전달 누락과 별도로 기록한다.
-- 현재 source의 45초 실행+정리10회를 통과했다. 모든 회차의 승인 요청/제출/receipt/내부·외부 검증 집합과 missing/invalid/gap/duplicate0, outstanding frame/bytes0 반환을 확인했다. Camera29.956~30Hz·PCD19.956~20Hz, 외부 p95 Camera48~49ms·PCD71~73ms였다. 정리503~507ms, 정리 후 private bytes8.12~8.15GB로 약32MB 증가했으며 이 결과를 장기 무누수 또는 완전한 메모리 plateau로 표현하지 않는다. 중단된 초기 fixture·외부 probe timeout은 별도 보존했다.
-- 운영 Slab adapter의 신규 실행+같은 시나리오 재생 2회 및 LiDAR geometry 표시/PCD 전송 시험도 실제 Artemis·외부 구독자로 통과했다. 출력 선택과 서로 다른 RunUUID·원본 scenario UUID·Slab frame의 계약을 유지한다. 전체 시험의 조건부 항목은 이러한 집중 실행 증거와 이름별로 연결하며 skip 자체를 통과로 세지 않는다.
-- 현재 source의 프로젝트·독립 최소 host Editor Development/Shipping 빌드, Windows Development Build/Cook/Stage/Archive, 16개 Blueprint 메모리 컴파일(저장0), V2 자산 검사를 통과했다. 독립 host는 별도 복사한 검증된 DTCore source/DLL을 사용하며 다른 실제 소비 프로젝트의 검증을 대신하지 않는다.
-- 직접 마우스로 Camera/LiDAR 이동, LiDAR 회전, 첫 Esc의 PIE 유지, 네 글자 배율과 패널 resize/접기를 확인했다. 현재 source에서는 Camera Z170→180 입력 후5Hz 경량 조작 유지, Settings 숨김 후 기존640×360/10Hz 미리보기 복귀, 실제 client1280×720의150% 제목/버튼 가독성을 추가 확인했다. 일반 PIE 전체화면 단축키는 크기를 바꾸지 않았고 앞선 최대 client는1920×998였으므로1920×1080 직접 조작은 환경상 미완료다. 자동화의 정확한1920×1080 측정과 혼동하지 않는다. 남은 직접 조작·최종3개 opt-in 회귀·12회 비교 gate 때문에 **최종 검수 완료가 아니다**. 증거는 `Saved/Reports/DTCoreFinalAcceptance`에 둔다. 개인 UI9개와 테스트 fullscreen 설정은 복원했다.
-
-### DTCore 동기화·센서 출력 안정화 — 2026-10-02
-
-아래는 이전 안정화 단계의 기록이다. 최종 검수의 신규 증거와 제한은 위 항목을 우선한다.
-
-- 동기화본의 `GetType(): int32`, Widget byte API를 유지한다. 구형 Widget 식별자 0~6은 Hidden 호환 항목으로 보존한다. 현재 Crane 생산/소비 코드를 함께 이관했다.
-- HTTP UTF-8 Body와 URL 우선순위, 수동 Disconnect 의도·generation·구독 receipt 5초 timeout, parse/log worker 종료와 registry GC 보유를 검증한다. 전송 연결 이벤트와 전체 구독 준비 이벤트를 구분한다.
-- 공통 클릭 기본값은 DoublePress, 현재 프로젝트 Controller는 SingleRelease를 명시한다. 소유 패널은 약한 입력 차단자로 등록하며 이 등록은 다른 Widget의 style/close/z-order 소유권을 이전하지 않는다. Blueprint close dispatch는 한 번만 실행한다.
-- 로그 `LogDirectory`가 비어 있으면 기존 경로를 보존한다. 상대 경로는 Project Saved 기준이다. `FlushLogs()` 결과를 확인한다. `bPresistent`의 모드 유지 정책은 아직 연결되지 않았다.
-- RT-01 fake Broker 실제 SEND/receipt 누락 시험과 RT-04 D3D12 JPEG 색상 marker·pose/UTC/포화 시험을 통과했다. marker 검사는 폴링으로 관측한 완료 JPEG에 대한 검사이며 모든 프레임을 독립 검증했다고 확대하지 않는다.
-- 10초 warmup+60초 실제 Artemis 외부 구독: PCD 전용 19.93Hz, 세 스트림 Camera 29.95Hz·LiDAR 19.98Hz·PCD 19.96Hz, invalid/gap/duplicate 0. 엔진 frame 평균 60FPS·1% low 59.98 이상·p95 16.67ms. 세 스트림 callback wall p95는 21.97ms로 별도다.
-- RT-01/04 전후 기준선은 공통 DTCore 안정화 이후 `8c04c5d`다. 동기화본 자체가 컴파일되지 않았으므로 동기화 전후 전체 성능 비교로 표시하지 않는다. 실제 PIE viewport는 1274×680이며 요청 1920×1080 성능 인증이 아니다.
-- 세부 결과·미수행·보호 파일 hash는 `Saved/Reports/DTCoreSync`에 남긴다. 다른 실제 소비 프로젝트, Linux, 회사 PC, 60분 soak 및 센서 플러그인화는 검증/완료 범위가 아니다.
-- 10분 세 스트림 연속 시험: Camera29.99Hz·LiDAR/PCD20.00Hz, PCD 입력/제출/receipt/내부검증12,197건 일치, 외부 측정구간11,999건·invalid/gap/duplicate0. 외부 구독자의 측정구간은 내부 전체 실행구간과 다르므로 두 raw count를 직접 같다고 주장하지 않는다. 평균59.99FPS·1% low59.97·p9516.67ms. 메모리58표본의 private bytes는7.56~7.60GB; 60분 leak 인증은 아니다.
-- 최종 전체 MA0T10 D3D12:186개 중 실제통과174/조건부skip11/실패1. 실패는 보호된 운영맵의 기존 LiDAR 높이 fixture다. SlabBroker와 RawReceiptProbe·ContinuousThreeStreamSmoke 등 일부 skip은 별도 opt-in 집중 실행에서 통과했으나 전체 green으로 표시하지 않는다. 마지막 구조체 default 보강 후 공통10개·소유Blueprint16개 메모리 컴파일을 다시 통과했다(저장0).
-- 현재 프로젝트/격리 호스트 Editor Development·Shipping 컴파일, 현재 프로젝트 Windows Development Build/Cook/Stage/Archive 통과. 중간 DLL 잠금 및 중단된 재생 시험 로그와 단독 재실행 성공 로그를 함께 보존한다. 반사 구조체의 미초기화7필드도 기본값을 명시했고 저장된 자산은 재저장하지 않았다.
-- 재생 실통합은 관찰1회+PCD30초2회, 제출/receipt/내부검증1,200건·invalid context0·외부검증 통과. 평균 engine55.52FPS/p9525.07ms로 **20ms 목표 미달**이며 고정3stream 시험과 별도 조건이다.
-- Computer Use 직접 확인: Camera/LiDAR 선택, 조작 시작·경량 preview, Settings drag/resize/hide 후 LiDAR4Hz 복귀. 실제 viewport1606×728. 물리 기즈모 이동·PIE 유지 Esc, Data 메뉴/연결 제어, Main 빈 영역, 전체 목표해상도 검증은 미완료다. 캡처0x80070057·활성화 오류 후 추가 입력을 중단했다. 자동화 UI 통과를 해당 마우스 검증의 대체로 표기하지 않는다.
-- 마지막 HTTP/default 보강 포함 재측정(`dtcore_final_*`): PCD-only19.92Hz; 세 스트림 Camera29.96Hz·LiDAR/PCD19.98Hz, 엔진평균59.99FPS·1%low59.99·p9516.67ms, callback wall p9522.04ms. PCD 직렬화p953.39ms(기준선3.44ms), 끝queue0/0/0·invalid/gap/overflow0. 전송 end-to-end p95의 전후5% 비교 전체값은 별도 계측 공백으로 남긴다.
-
-### 센서 안정성 수정 — 2026-09-22 / 59d1027
-
-- UE 5.3 Editor Development 빌드 통과.
-- RT-02 수정 전 회귀에서 원래 Camera가 640px·0.2초에 남는 선택/종료 문제 재현. 수정 후 lifecycle·monitor follow·D3D12 PIE runtime **3/3 통과**.
-- RT-03 성능 자동화 **5/5**, 실제 성능 판정 스크립트의 정상/0Hz/센서 누락 검사 **3/3 통과**.
-- 전체 `MA0T10` NullRHI: **172개 중 실제 통과 156 / 실패 1 / 조건부 skip 15**. 실패는 기존 사용자 변경 `SensorTestMap`의 LiDAR 높이 fixture다. 그중 조작 runtime skip은 별도 D3D12 실행에서 통과했다. 신규 실패는 없으며 전체 green으로 표시하지 않는다.
-- Computer Use는 `0x80070057` 화면 캡처 및 `0x80070005` 커서 접근 오류로 실제 마우스·Esc 검증을 수행하지 못했다. RHI 실행 인자는 1280×720이지만 실제 client viewport 크기는 미계측이다.
-- 장시간 Artemis·다중 센서 성능, WBP 전수 재컴파일, pinned clean checkout은 이번에 재실행하지 않았다. 기존 개인 UI 저장값은 백업에서 복원했다.
-- 증거: `Saved/Reports/SensorStability/report.ko.md`, `reproduction.log`, `rt03-focused`, `full-regression`, `final-rhi`. Saved는 커밋하지 않는다.
-
-### 이전 표시·송신 검증 — f7bdd3b
-
-아래는 기존 실행 증거이며 이번 안정성 수정의 신규 성능 측정 결과가 아니다.
-
-- Development 빌드, 6개 WBP 메모리 컴파일, V2 자산 검사 통과.
-- 전체 168개 기록: 실제 통과 157 / 실패 2 / 조건부 skip 9. helper pool의 과거 37개 기대값을 42로 갱신하고 최종 집중 3/3 통과. 남은 운영맵 높이 fixture는 사용자 맵을 수정하지 않았다.
-- 실제 RHI 표시 OFF/ON: Camera 변경 0픽셀, GPU depth/semantic 변경 0점. 양성 대조군 Camera는 2,533픽셀 변화.
-- ML-X Native 한 대 PCD-only, warmup 10초 후 30초×2, **실제 viewport 753×403**: 제출/receipt/내부/외부 수신 599+600=1,199개 일치, invalid/gap/duplicate/overflow 0, 활성 구간 약20Hz.
-- 평균 FPS 59.999/59.799, 1% low 59.940/45.019, frame p95 16.667ms. 후반 1% low 저하를 무시하지 않는다. 다중 센서나 3-stream/1920×1080 보증으로 확대하지 않는다.
-- Computer Use 실제 viewport: 내장 988×521, 별도 창 1174×683. 목표 1280×720/1920×1080 전수 검증, 회사 프로젝트, pinned clean checkout, 장시간 soak는 미완료다.
-- 증거: `Saved/Reports/SlabVisibility/report.ko.md`, `all.log`, `final_focused.log`, `pcd_external.json`, `pcd_rhi.log`, 실제 밝은 화면 PNG. Saved는 git에 포함되지 않는다.
+- 문서만 바꾸면 링크·경로·코드 일치와 `git diff --check`만 확인한다.
+- C++ 변경은 Editor/Live Coding 종료 후 빌드하고 관련 그룹 → 전체 `MA0T10` 순서로 실행한다. ARCH 단계에서는 매 단계 **레이어 gate**와 **보호 경로 불변**도 확인한다.
+- 표준 진입점 `Scripts/verify.ps1 -Level quick|feature|release`와 `Scripts/validate_architecture_layers.ps1`은 ARCH-01/07에서 추가된다. 추가 전에는 아래 명령을 사용한다.
+- opt-in 시험은 `MA0T10_*` 환경변수로 켠다. skip을 pass로 세지 않는다. 변수 목록은 ARCH-07에서 문서화한다.
 
 검증 명령/그룹은 사용 목적에 맞게 선택한다. 기본 quick check가 운영맵 생성이나 전체 성능 테스트를 뜻하지 않는다.
 
@@ -493,6 +403,8 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 ```
 
 실제 RHI/Artemis 그룹은 해당 환경변수·Broker·외부 구독자가 필요하다. skip을 pass로 세지 않는다. `run_sensor_map_stream_rhi_smoke.ps1`, `run_fullspec_performance_evidence.ps1`, `run_lidar_geometry_stream_test.ps1`의 인자를 먼저 확인한다.
+
+과거 날짜별 검증 수치·조건은 [검증 이력 보관](docs/VALIDATION_HISTORY.md)에 원문 그대로 있다.
 
 ## 고정 참고자료
 

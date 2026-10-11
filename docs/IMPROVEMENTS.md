@@ -1,14 +1,20 @@
 # 보완 필요 사항 — 구현 백로그
 
-현재 기준: **`codex/placement-ui-preflight-closure` (기준 `48286fd`) / DTCore `b2504d1`**. 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나로 사용한다. 2026-10-10 배치 창 생성/진입·북마크/복원 선택과 PCD 사전 점검을 보완했다. 과거 검증은 원래 조건을 유지하며 최신 증거는 `Saved/Reports/PlacementUiPreflightClosure`에서 관리한다.
+현재 기준: **`codex/architecture-skeleton` (분기 `fda25e0`, Runtime `81b56ba`) / DTCore `b2504d1`, 2026-10-11**. 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다. 과거 날짜별 검증 기록은 [검증 이력 보관](VALIDATION_HISTORY.md)으로 원문 그대로 옮겼다. 각 항목의 진행률·완료 조건은 그대로 유지한다.
 
-[작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md)
+[작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
 ## 현재 개발 초점과 착수 순서
 
-현재 목적은 **여러 센서·카메라를 쉽게 배치해 관측 위치를 비교하고, Slab 시나리오에서 생성한 PCD를 외부 수신 프로그램에 안정적으로 전달하는 것**이다. Camera 배치·방향·미리보기는 계속 개선한다. 송신 고도화와 성능 판정의 주 대상은 Binary PCD다.
+**현재 최우선은 ARCH 단계(아키텍처 뼈대 재정비)다.** 지금까지 기능을 빠르게 쌓으면서 센서 Runtime·Slab 업무·UI가 한 모듈 안에서 서로를 직접 참조하게 됐다. 다음 기능(다중 센서 확대, 배치 UX 수용, 플러그인화)을 안전하게 진행하려면 먼저 **동작을 바꾸지 않고** 레이어 경계를 세우고 gate로 고정해야 한다. 아래 [0절 ARCH 항목](#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 순서대로 진행한다.
 
-**① 센서·카메라 추가 배치와 저장 위치 전용 패널 → ② 작업 흐름 중심 UI/UX 재구성 → ③ PCD 송신 사전 점검·예산 안내 → ④ 다중 센서 PCD 장기 검증·조작 성능 → ⑤ 플러그인 분리 전 의존성 정리**
+- ARCH 진행 중에는 새 사용자 기능을 추가하지 않는다. 기존 항목(UX-01, RT-05 등)의 진행률은 유지하고, ARCH 변경이 일으킨 회귀만 고친다.
+- **센서 플러그인 제작(PL-04/R5)은 이번 버전에서 시작하지 않는다.** ARCH는 같은 모듈 안의 정리이며 `.uplugin`·새 모듈·자산 mount 이동을 만들지 않는다.
+- DTCore 소스·gitlink는 건드리지 않는다. 공통 수정이 필요해 보이면 프로젝트 쪽 adapter로 우회하고 근거를 남긴다.
+
+ARCH 이후의 사용자 기능 순서(기존 계획 유지):
+
+**① 센서·카메라 추가 배치와 저장 위치 전용 패널 → ② 작업 흐름 중심 UI/UX 재구성 → ③ PCD 송신 사전 점검·예산 안내 → ④ 다중 센서 PCD 장기 검증·조작 성능 → ⑤ 플러그인 분리 전 의존성 정리(ARCH가 일부 선행)**
 
 | 순서 | 사용자가 할 수 있게 될 일 | 연결 항목 | 첫 완료 기준 |
 |---:|---|---|---|
@@ -33,46 +39,7 @@
 
 근거: `VirtualSensorSettingsPanelWidget.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
 
-### 2026-10-10 단일 작업 폴더·배치 접근성 보완
-
-- 기존 `ma0t10_dt`와 별도 최신 작업본의 버전 차이로 추가/저장 기능을 찾지 못한 상황을 확인했다. 현재 소스와 의존성은 `ma0t10_dt`에서 직접 빌드한다. 별도 worktree를 새로 생성하지 않는다.
-- 배치 미등록 상태의 무응답 경로에 소유 Host 생성/실패 안내를 연결했다. 선택 배치가 바뀌면 이전 복원 요청을 취소하고, 북마크 이동 후 이름 편집 대상도 동기화한다.
-- 사전 점검은 활성 exact/wildcard 우선순위, 수동 추가와 시나리오 전환, Raw/Engine 연결, GPU fallback echo 상한, 단일 프레임 bucket 예산을 구분한다. 동적 admission 구현으로 확대하지 않으며 RT-08 전체 진행률은 유지한다.
-- Runtime `81b56ba`에서 최종 전체217 Success/실패0(실제215·skip2), WBP7개와 V2 자산 검사가 통과했다. 실제1920×1080의2+2 PCD-only는 각19.95/19.9667Hz·평균59.89FPS·low51.13·p9516.67ms, 승인2,395건 내부/UI/외부누락0이다. 두 해상도·네 배율의 렌더 캡처와 Slate/RHI 입력 증거를 남겼다. 직접 조작 도구의 node kernel 초기화(os error3)는 재연결 후에도 실패했으므로 물리 마우스 수용과 첫 사용자 검수는 미완료다. UI/UX 전체 진행률을 완료로 올리지 않는다.
-- 일반 실행은 요청대로 31000 접속 정책을 유지한다. 확인 당시 listener와 기본 WebSocket Topic이 없었다. 실제 사용할 업무 서버 실행·`topic.scenario` 구독 설정은 프로젝트 배포/운영 준비 항목이며 DTCore 소스 결함으로 분류하지 않는다. 로컬 Artemis로 TC/DataSync/Slab 수신 경로는 별도 검증했다.
-
-### 2026-10-09 PCD 수요 정책 검증 — 이전 조건
-
-- 새 배치 LiDAR의 WhenRequested를 추가하고 기존 레벨/BP/구형layout은LegacyAlways로 유지했다. actual compatibility routing·BP/native 소비자·recording·수동 요청이 있을 때만 JSON을 생성한다. 정책 변경은 측정/조작/파일 snapshot을 유지하며, 수동 JSON과 전달 metadata도 같은 완료 프레임을 사용한다.
-- 같은 표시형1920×1080 PIE의2+2 교차비교3회에서 새 정책 low59.17~59.80, 기존 전체JSON low29.74~36.02다. 새 정책의10회 반복11,995개request 및600초23,997개고정승인집합은내부/UI/외부대조누락0, JSON 작업0으로 통과했다. 반복최소low55.966,600초low59.58이다. PCD 점/주기/제출예산을 낮추지 않았다.
-- 센서별 속도·기대 장비 수·실행 수·성능이 누락되거나 실패하면 수용 실패를 반환하도록 시험을 보강했다. 최종 전체211 Success 중 실제208·skip3·실패0, 별도입력RHI와WBP7개/marker987개를 확인했다. 숨긴/offscreen모드와기존Legacy전체JSON의성능제한은유지한다.
-- 새 정책 UI의 직접 검수는Windows커서접근0x80070005로미완료다. 이전직접조작은과거이력으로만읽는다. 현재증거는 `Saved/Reports/PcdDemandPlacementAcceptance/FINAL_STATUS.md`다.
-
-### 2026-10-09 배치 작업공간 수용 이력 — a78b443
-
-- 전용 배치 패널·런타임 추가/복제/소유 삭제·북마크·전체 배치 명시적 복원·PCD 사전 점검을 구현했다. 자동화는 최신 전체209 Success 중 실제206·opt-in skip3·실패0, 배치 입력 RHI는 별도 통과다. WBP7개 메모리 컴파일 및 자산 검사 통과, 기존 자산 저장0이다.
-- 실제1920×1080에서 새 배치 API의1+1/2+2 PCD-only 60초를 통과했다. 2+2 기본 제출예산2, 각PCD20Hz·Camera acquisition30Hz다. 같은 연결10분은 각PCD19.993Hz·평균59.98FPS·low58.27·p9516.67ms이며두Camera모두실행한최종30초×10회에서11,938개PCD의승인/제출/receipt/내부·UI/외부 request 대조를 통과했다. 정리 후body/events/active0, 복귀 추가제출0이다. 이 조건을4+4·60분·다른공장장면으로 확대하지 않는다.
-- **반복 성능은 실패/후속:** 최종10회 반복의1% low38.42~40.25FPS는45FPS 목표에 미달한다. 초기첫Camera정지시험11,982건·low36.84~43.96은이력이다. 연속 성능 fixture의 미송신 호환JSON은stride32/max1024, 반복 신규LiDAR는기본stride1/무제한이므로 동일한 후처리 조건이 아니다. PCD 검출점은 줄이지 않았다. 후보 비용을 분리해 동일 조건으로 재시험해야 하며, 자동화 Success를 전체 성능 통과로 해석하지 않는다.
-- 직접1280×720의추가·북마크·Undo/Redo·전체배치저장과 재시작후1920×1080의복원·ID/북마크연결·PCD/결과진입·150%창조작을 확인했다. 전체배율/DPI·첫사용자발견성·UI직접복제/삭제는 남는다. 마지막간결한PCD요약 재확인은Windows캡처0x80070057로미완료다. 자동화를 직접 마우스 검증으로 집계하지 않는다.
-- 최초 부하환경에서기존/신규모두약47FPS·2+2 PCD약15.7Hz로실패한원문과사용자GPU작업중지후통과를보존한다. 특정앱원인이나무조건적무지연을주장하지 않는다. 세부증거·환경제한은 `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`를 따른다.
-
 ## 읽는 방법
-
-**출력 신뢰성 보완 — 2026-10-08:** 느린 LiDAR JSON이 새 측정마다 폐기되던 경로를 수정해 정상 완료를 전달하고 측정 당시 metadata를 보존한다. 50ms 입력에 200/700ms 생성 지연, 전역 4개 작업 상한과 다섯 번째 센서의 진행, Stop/삭제 후 callback 폐기를 집중 검증했다. PCD·Raw telemetry 중복 발행을 막고 선택된 호환 JSON만 drain에 포함한다. 실행 상세와 A/B에 센서·출력별 전달 수를 추가했으며 wildcard의 센서 간 FrameId 간섭·카운터 덮어쓰기·round-robin 순회 오류를 보완했다. `MeasuredOutputRateHz=0`만으로 PCD 실패를 판단하지 않는다. 전송 계약·센서 규격·DTCore·외부 Widget은 그대로이며 UE 학습 데이터 묶음 저장은 추가하지 않았다. 실제 다중 센서 수용 범위와 남은 검증은 RT-05 및 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`를 따른다.
-
-최종 검증: D3D12 전체222 Success/실패0 중6개 opt-in skip(실제216), 별도30초 A/B 실제송수신, WBP6개 메모리컴파일·저장0. 직접1920×1080 Camera기즈모·첫Esc/정지유지와LiDAR정밀이동·10→20Hz복귀, 직접1280×720 PCD재실행·센서별600건A/B·패널resize/scroll을확인했다. PCD전용에서비선택Camera0Hz를측정률실패로오판하던경고를수정했다. 입력fixture는개인의열린Data패널에의존하지않게우리보조패널만숨긴다. 광범위한배치/모든폰트/RMB직접체크리스트와장기지원은별도다. RT-05·RT-06·UI-01 전체완료로확대하지않는다.
-
-**배치·실행 결과 비교 — 2026-10-08:** 맵 값 복원의 실패 안내·Undo, SensorId 변경의 북마크 캐시 및 이전 저장 결과 적용을 보완했다. 새 위치 미리보기는 측정 시작 시각·자세·규격·generation과 실제 완료를 확인하며 Camera 확인에는 JPEG/readback을 추가하지 않는다. 실제 1920×1080 RHI에서 원규격 새 자세 프레임 복귀는 Camera 약31ms·LiDAR 약67ms, 입력→viewport GPU 완료 p95는 약34ms였다. 현재 PIE의 확정 결과 A/B에 배치·설정·기록 시점 Hz와 실행 전체 전송 카운터를 표시한다. 원문 hash·조건 차이·확인 불가를 구분하고 배치 품질 점수로 확대하지 않는다. 실제 30초 A/B의 PCD600/599개 및 모든 acquisition 행렬을 독립 대조했고 비교 UI 표시 전후 frame p95는16.67ms로 같았다. 최종 근거와 직접 조작 범위는 `Saved/Reports/SensorPlacementComparison/FINAL_STATUS.md`를 따른다. UX-01·RT-06의 생성/복제/삭제·다중 구성 완료율은 이번 기능으로 올리지 않는다.
-
-**Slab 초기 배치 복귀 — 2026-10-07: 구현·관련 검증 완료.** 종료·송신 정리 후 진행 패널의 `초기 위치로 복귀` 또는 Actor API로 PIE 시작 당시의 월드 위치·회전에 즉시 복귀한다. 현재 형상/재질/스케일과 보관 목록은 유지하고 진행률·현재 프레임·세 차트·이전 3D 분석 라벨을 초기화한다. 실행·pause·파싱·재생/센서 준비·drain 중 거절, 실패/중단 후 복귀, cm/mm/m와 회전된 Track, 반복 호출·지연 적용 차단을 검사했다. 실제 Artemis 두 실행의 PCD 1,200건 제출/receipt/내부·외부 수신 일치와 복귀 추가 제출 0을 확인했다. 전체 D3D12 자동화 194 Success(실제 185·skip 9), Slab 집중 12 Success(실제 11·skip 1), WBP 6개 메모리 컴파일과 직접 1286×760/100% 조작을 수행했다. 숨김 중 차트 초기화와 동일 시나리오 새 RunUUID 재생도 직접 확인했다. DTCore·운영맵·기존 UI 저장값은 보존했다. `Saved/Reports/SlabResetPlacement/FINAL_STATUS.md`를 따른다. 이는 개별 복귀 기능의 완료이며 RT-05/QA-01 또는 기존 재생 p95 목표를 완료로 올리지 않는다.
-
-**최소 DTCore 적용 검증 — 2026-10-06:** 별도 체크아웃에서 main 기반 최소 수정본을 연동했다. 1차 D3D12 전체161개 Success에는 조건부skip5개가 포함되며 실제156개다. 추가 공통 수명 검증은 13개 Success(실제 수행 12개·Slab Broker opt-in skip 1개), 실제 topic.scenario 수신은 별도 전체 시험에서 통과했다. PCD 전용 및 세 스트림의 1920×1080·10초 준비+60초 시험에서 승인 집합의 내부/외부 누락 0, invalid/gap/duplicate 0을 확인했다. PCD 20Hz, Camera 30Hz, 평균 60FPS·프레임 p95 16.67ms. 단순 누적 카운터가 아니라 고정 측정 request 집합을 대조했다. 최종 소스 전체 자동화는184개 Success(실제179·조건부skip5), 신규 실패0이다. 직접1286×760에서 네 글자 배율·패널·Slab 실행/재생·입력창 Esc 복구를 확인하고 최종 Shipping/Development 패키징을 통과했다. 재생 데이터1200건은 일치하지만 p95는기존24.908ms/최소수정24.925ms로 두 버전 모두20ms 목표가 실패다. Geometry 성능·10회 stream 반복은 미수행으로 유지한다. 기능 회귀와 성능을 포함한 최종 검수 완료를 구분한다. `Saved/Reports/DTCoreMinimalAcceptance/FINAL_STATUS.md`를 따른다. 상세 원인은 이 문서의 부록으로 추가하지 않는다.
-
-**이전 이력 — 2026-09-29 런처 실행:** 격리된 관리형 런처 GUI에서328파일 설치/해시·UE 창·런처 종료 후 동일 UE 프로세스 유지·정상 종료를 확인했다. DTCore CustomLogs가 설치 경로에 쓰이는 점을 발견했으므로 회사 Program Files 권한/로그 위치는 미검증으로 남긴다. 실제 버전 변경/복구·Linux·운영망 검증은 이 결과로 완료되지 않는다.
-
-**이전 이력 — 2026-09-29 패키징:** Runtime의 에디터 전용 테스트11파일을 WITH_EDITOR로 제한하고, 승인된 TestMap의 누락 모니터 참조를 복구했다. 당시 Windows Development 전체 Build/Cook/Stage/Archive와 관련 D3D12 자동화29건을 확인했다. 이후 현재 기준에서는 EnhancedInput 의존 선언, 프로젝트·격리 host의 Editor/Shipping 빌드와 Development 패키징을 검증했다. Linux·회사 운영망 및 실제 소비 프로젝트의 검증은 별도다.
-
-**이전 검수 이력 — 2026-10-03:** `Saved/Reports/DTCoreFinalAcceptance/FINAL_STATUS.md`와 README의 최신 검수 요약을 우선한다. 현재 전체 자동화는190건 Success/실패0이며 실제 수행185건과 opt-in skip5건을 구분한다. 현재 source의10분 연속·10회 반복 송수신은 통과했지만 최종 성능 비교·일부 opt-in·전체 직접 조작 검수는 남아 있다.
 
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.
 - **검증 공백:** 구현이 있으나 해당 조건의 근거가 부족하다. 먼저 재현/계측하고 실패가 확인되면 고친다.
@@ -95,15 +62,23 @@
 | 100% | 해당 항목의 명시적 완료조건·검증·문서 정리까지 완료 |
 
 - 신규 기능의0%는 현재 센서·카메라 기능 자체가 없다는 뜻이 아니다. 기존 기반 기능을 신규 목표의 구현 진척으로 합산하지 않는다.
-- 크기가 다른23개 항목의 단순 평균으로 프로젝트 전체 진행률을 만들지 않는다. 새 UI/UX 재구성 항목 UI-03은 이번 일부 구현·검증에 맞춰40%다. 보류는 완료가 아니며 요약표와 상세 진행률은 일치해야 한다.
+- 크기가 다른 항목(ARCH 8개 포함 31개)의 단순 평균으로 프로젝트 전체 진행률을 만들지 않는다. 새 UI/UX 재구성 항목 UI-03은 이번 일부 구현·검증에 맞춰40%다. 보류는 완료가 아니며 요약표와 상세 진행률은 일치해야 한다.
 - RT-01·RT-04의 일반적인 장기·복합 장애 시험은 LIFE-01·RT-05와 연결한다. 해당 항목의 최종 증거 대조와 완료 범위가 닫히면100%로 갱신하며, 전체 R1 완료로 확대하지 않는다.
 
 ## 항목별 중요도와 진행률
 
-실제 착수 순서는 문서 상단의①~⑤를 따른다. 아래 P0/P1/P2는 문제의 중요도이며, 보류·유지 항목이 현재 배치/UI 작업을 모두 앞선다는 뜻은 아니다.
+실제 착수 순서는 ARCH-01~08 다음 문서 상단의①~⑤를 따른다. 아래 P0/P1/P2는 문제의 중요도이며, 보류·유지 항목이 현재 작업을 모두 앞선다는 뜻은 아니다.
 
 | ID | 분류 | 우선 | 진행률 | 핵심 | 남은 핵심 조건 | 로드맵 |
 |---|---|---:|---:|---|---|---|
+| ARCH-01 | 구조 / 기준선·gate | P0 | **0%** | 레이어 검사 스크립트·DTCore guard 고정값 수정·기준선 | gate가 현재 위반을 allowlist로 고정하고 신규 위반을 차단 | A |
+| ARCH-02 | 구조 / 폴더 재배치 | P0 | **0%** | Core의 Slab 서비스 → `Scenario/`, Workspace Subsystem → `UI/` | 이동만, 동작·자산 불변 | A |
+| ARCH-03 | 구조 / 공통 계약 | P0 | **0%** | 편집 상태 타입·기본값 상수 → `Contracts/` | L1의 UI 타입 include 0, enum/SaveGame 호환 | A |
+| ARCH-04 | 구조 / 호출 역전 | P0 | **0%** | Coordinator→Monitor, SlabActor→UI Host 직접 호출 제거 | L1→L3, L2→L3 0, BP API 유지 | A |
+| ARCH-05 | 구조 / 송신 검증 분리 | P1 | **0%** | Transport/ExternalSource의 WebSocket/TC include 제거 | 자체 수신 검증 결과 동일 | A |
+| ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
+| ARCH-07 | 품질 / 검증 진입점 | P1 | **0%** | `verify.ps1` quick/feature/release, opt-in 변수표, Scripts 분류 | manifest 자동 생성, skip 원인 표시 | A (QA-01 일부) |
+| ARCH-08 | 구조 / 정리 | P2 | **0%** | 미사용 PixelStreaming 의존·테스트 hook 노출·초대형 파일 분할 | 이동만으로 이루어진 diff, 빌드·회귀 동일 | A |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
 | RT-04 | 데이터 / 유지·회귀 | P0 | **90%** | capture 직후 readback·immutable metadata | Camera 배치/미리보기 변경의 정합성 회귀; 송신 고도화 보류 | R1 |
@@ -127,6 +102,101 @@
 | PL-04 | 설치 / 신규 기능 | P1 | **0%** | Bootstrap·배포 | 센서 플러그인·단일 진입점·소비 프로젝트 검증 | R5 |
 | SEC-01 | 운영 / 검증 공백·신규 기능 | P2 | **10%** | 보안·연결 운영 | 배포별 인증·권한·TLS·설정 검증 | R3/R6 |
 | HW-01 | 충실도 / 검증 공백 | P2 | **0%** | 실장비 충실도 | SDK·실측 데이터·캘리브레이션 비교 | R6 |
+
+## 0. ARCH — 아키텍처 뼈대 재정비 (현재 최우선)
+
+목표 레이어와 현재 위반 목록은 [README §10](../README.md#10-아키텍처-뼈대)이 원본이다. 이 절은 단계별 작업 범위와 완료 조건이다.
+
+**공통 규칙 (모든 ARCH 항목)**
+
+- **동작 불변이 원칙이다.** wire bytes(PCD/JPEG/JSON/telemetry), Blueprint 노출 함수·핀, UCLASS/USTRUCT/UENUM 이름과 enum 값 순서, UPROPERTY, SaveGame 슬롯·버전, Topic 기본값을 바꾸지 않는다. 바꿔야 할 이유가 생기면 멈추고 보고한다.
+- 같은 모듈 안 파일 이동은 `git mv`로 하고 include 경로만 고친다. 이동 커밋과 로직 변경 커밋을 섞지 않는다.
+- `.umap`/`.uasset`을 저장·재생성하지 않는다. WBP는 메모리 컴파일만 한다. DTCore·`Config/Game.ini`·`Samples/PixelStreaming`·운영맵·개인 SaveGame은 보존한다.
+- 레이어 gate의 allowlist는 **줄어들기만** 한다. 파일 이동으로 경로가 바뀐 항목은 같은 커밋에서 경로만 갱신할 수 있지만 개수가 늘면 안 된다.
+- 각 항목 완료 = 빌드 + 레이어 gate + 관련 자동화(최소: 기준선에서 통과하던 그룹 전체) + WBP 메모리 컴파일 + 보호 경로 불변 + README §10.2 표 갱신 + 보고서(`Saved/Reports/ArchitectureSkeleton/<ID>/`).
+- 새 플러그인·새 UE 모듈·`.uplugin`을 만들지 않는다(이번 버전 범위 밖).
+
+### ARCH-01 — 기준선 고정과 레이어 gate (P0)
+
+**진행률: 0%**
+
+- **근거:** `Scripts/validate_dtcore_submodule_guard.ps1`의 `ExpectedCommit`이 `2eec1fee…`인데 실제 gitlink는 `b2504d1`이다. 문서가 커밋 전 실행을 요구하지만 현재 그대로 실행하면 실패한다. 레이어 경계를 검사하는 도구는 없다.
+- **작업:**
+  1. guard의 기대값을 현재 고정값 `b2504d1`(전체 SHA)로 맞추고 현재 worktree에서 통과를 확인한다. gitlink 자체는 바꾸지 않는다.
+  2. `Scripts/validate_architecture_layers.ps1`을 추가한다. `Source/ma0t10_dt/MA0T10` 아래 `Tests/`를 제외한 `.h/.cpp`의 `#include`를 읽어 폴더→레이어 표(README §10.1)로 분류하고, 금지 방향을 `Scripts/architecture_layers_allowlist.txt`와 대조한다. 신규 위반 또는 **더 이상 필요 없는 allowlist 항목**이 있으면 실패 종료한다(목록이 줄 때 갱신을 강제).
+  3. 초기 allowlist는 현재 위반과 정확히 같게 만든다. README §10.2 표와 개수가 맞아야 한다.
+  4. 변경 전 기준선을 기록한다: Editor Development 빌드, `Scripts/validate_sensor_v2_refactor.ps1 -RequireAssets`, D3D12 전체 `MA0T10`. commit/submodule SHA, Success/실패/skip 이름을 `Saved/Reports/ArchitectureSkeleton/A01_baseline/`에 남긴다.
+- **완료:** guard·layer gate가 현재 HEAD에서 통과, 위반 1건을 임시로 추가하면 실패, allowlist 항목 1건을 지우면 실패(되돌림 확인). 기준선 보고서 존재.
+
+### ARCH-02 — 폴더 재배치 (P0)
+
+**진행률: 0%**
+
+- **작업:** 이동만 한다.
+  - `Core/` → 새 `Scenario/`(L2): `SlabExecutionTypes.h`, `SlabRunComparison.*`, `SlabRunDeliveryTypes.h`, `SlabRunResultsSubsystem.*`, `SlabScenarioReplaySubsystem.*`, `VirtualSensorSlabContextSubsystem.*`, `VirtualSlabFrameContext.h`.
+  - `Core/VirtualSensorToolWorkspaceSubsystem.*` → `UI/`.
+  - 영향받는 include를 고치고 allowlist 경로를 갱신한다. 이동으로 드러나는 L1→L2 위반(센서가 `Scenario/` 헤더를 include)은 allowlist에 남겨 ARCH-06에서 해소한다.
+- **완료:** `Core/`에는 센서 공용 서비스만 남는다. 빌드·전체 `MA0T10` 결과가 기준선과 같다(같은 테스트 이름이 같은 결과). `.uasset` 변경 0. allowlist 총 개수는 기준선 이하.
+
+### ARCH-03 — 공통 계약 `Contracts/` 도입 (P0)
+
+**진행률: 0%** · PL-02 1단계를 포함한다.
+
+- **작업:**
+  1. `UI/VirtualSensorControlTypes.h`에서 Runtime이 쓰는 타입(`EVirtualSensorTargetKind`, `EVirtualSensorGizmoMode`, `EVirtualSensorCoordinateSpace`, `EVirtualSensorPlacementInputMode`, `EVirtualSensorExportKind`, `FVirtualSensorCaptureSelection`, `FVirtualSensorEditableState`, `FVirtualSensorMapApplySnapshot`, `FVirtualSensorExportResult` 등 — 실제 사용처로 확정)을 `Contracts/VirtualSensorEditableTypes.h`로 옮긴다. UI 전용 타입(`EVirtualSensorPanelPlacement` 등)은 남긴다. 기존 헤더는 새 헤더를 include하는 호환 shim으로 유지한다.
+  2. Runtime 파일의 include를 새 헤더로 바꾼다.
+  3. 별도 커밋으로 `Contracts/VirtualSensorDefaults.h`에 흩어진 Topic 기본값·SaveGame 슬롯 이름·`Saved/` 하위 폴더 이름 리터럴을 **같은 값**의 상수로 모은다. 값 변경·설정 객체 도입은 하지 않는다.
+- **완료:** `Sensor/` `Camera/` `Core/`의 `UI/` include가 ToolWorkspace 이동분을 제외하고 0. enum 값·순서·USTRUCT 필드 동일(UHT 생성 헤더 비교 또는 테스트), SaveGame v6 roundtrip·레이아웃/북마크 파일 테스트 통과, WBP 메모리 컴파일 통과.
+
+### ARCH-04 — Runtime→UI 직접 호출 역전 (P0)
+
+**진행률: 0%** · PL-01/PL-02 일부.
+
+- **작업:**
+  1. `AVirtualSensorCoordinator`의 Monitor 직접 호출(보기 전환·센서 bind·OwningPlayer 조회)을 Runtime 쪽 interface 또는 delegate로 바꾼다. Monitor가 이를 구현/구독한다.
+  2. Blueprint 호환을 위해 `BindMonitorWidget(UVirtualSensorMonitorPanelWidget*)`의 선언·시그니처는 유지한다. 본문은 UI 레이어 번역 단위(예: `UI/VirtualSensorCoordinatorMonitorBinding.cpp`)에 둬서 `Sensor/`가 UI 헤더를 include하지 않게 한다.
+  3. `ASlabActor`가 `ASlabSimulationUiHostActor`를 순회하는 부분을 Slab 쪽 등록/조회 API로 바꾸고 UI Host가 자신을 등록한다. 판정 결과는 같아야 한다.
+- **완료:** layer gate의 L1→L3·L2→L3 위반 0. Monitor follow·보기 전환·point-cloud-only·Slab UI 관련 기존 자동화 통과. Blueprint 노드 시그니처 불변(WBP 메모리 컴파일).
+
+### ARCH-05 — 송신 자체 검증의 TC 의존 분리 (P1)
+
+**진행률: 0%**
+
+- **근거:** `Core/VirtualSensorHighThroughputTransportSubsystem`·`VirtualSensorPcdReceiveContract`, `Sensor/VirtualSensorExternalSourceHostActor`가 `WebSocket/TC`의 수신 진단 클래스를 include한다.
+- **작업:** 순수 타입(`VirtualSensorStreamReceiverTypes.h`)은 `Contracts/`로 옮기고, Transport의 자체 수신 검증은 중립 interface/registry로 호출한다. TC 쪽(L2)이 구현을 등록한다. ExternalSourceHostActor는 센서 입력 hosting과 진단 receiver hosting을 구분해 진단 부분을 L2 adapter로 옮긴다. 구체 설계는 조사 후 보고하고 진행한다.
+- **완료:** L1의 `WebSocket/` include 0. Raw receipt·자체 수신 검증·StreamReceiver 관련 자동화 결과 기준선과 동일. 진단 결과를 센서/Transport로 재주입하지 않는 기존 규칙 유지.
+
+### ARCH-06 — Slab context 중립화 (P1)
+
+**진행률: 0%** · PL-01의 핵심 부분. 가장 위험한 단계이므로 마지막 구조 변경으로 둔다.
+
+- **근거:** 센서 frame/request 타입이 `FVirtualSlabFrameContext`를 포함하고(13개 파일), Camera/LiDAR/ActorBase가 `VirtualSensorSlabContextSubsystem`을 직접 호출한다.
+- **작업:**
+  1. 먼저 **golden fixture**를 만든다: 같은 입력 snapshot에서 생성한 PCD 헤더·`# MA0T10_META`·호환 JSON·telemetry를 바이트로 저장하는 자동화 테스트. 변경 전 통과를 확인한다.
+  2. `Contracts/`에 중립 acquisition context(scenario/run/material/frame 식별자와 elapsed 등 문자열·숫자 필드)와 provider interface를 둔다. 게임 스레드에서 snapshot을 만들고 worker는 immutable 값만 읽는다.
+  3. `Scenario/`의 SlabContext가 provider를 구현·등록한다. 센서 쪽은 provider만 안다.
+  4. 기존 `FVirtualSlabFrameContext`를 쓰는 Blueprint/공개 API가 있으면 adapter로 유지한다.
+- **완료:** L1의 Slab/Scenario 참조 0, golden fixture 바이트 동일, Slab-PCD 연계·replay·per-sensor delivery 자동화 통과. 실제 Artemis 시험은 선택(수행 여부를 보고).
+
+### ARCH-07 — 표준 검증 진입점 (P1)
+
+**진행률: 0%** · QA-01·Claude 제안 C-01/C-02/C-12를 포함한다.
+
+- **작업:**
+  1. `Scripts/verify.ps1 -Level quick|feature|release`: 새 검증 로직을 만들지 않고 기존 스크립트만 호출한다. quick=`git diff --check`·DTCore guard·layer gate·보호 경로 불변·계약/fixture 정적 검사, feature=quick+Editor 빌드+지정 테스트 그룹, release=feature+전체 D3D12 `MA0T10`+WBP 컴파일. 결과를 `Saved/Reports/verify/<UTC>/manifest.json`에 commit/submodule SHA·수행/skip/실패 이름과 함께 남긴다.
+  2. opt-in 테스트의 `MA0T10_*` 환경변수 표(변수 → 켜지는 테스트 → 필요한 환경)를 README §11에 둔다. 비밀값은 이름만 적는다. skip 로그에 원인 변수를 일관된 접두사로 남긴다.
+  3. `Scripts/README.md`에 모든 스크립트를 `현재 사용 / 이력 보존 / 폐기 후보`로 분류한다. 삭제는 하지 않는다.
+- **완료:** `verify.ps1 -Level quick`이 1분 안팎으로 끝나고 manifest를 남긴다. 소스의 변수 집합과 문서 표가 일치한다.
+
+### ARCH-08 — 정리 (P2)
+
+**진행률: 0%**
+
+- `ma0t10_dt.Build.cs`의 `PixelStreaming`, `PixelStreamingInput`, `PixelStreamingBlueprint` 의존 제거(C++ 사용 0건). `.uproject`의 플러그인 활성화와 `Samples/PixelStreaming`은 건드리지 않는다. Editor 빌드와 Game target(`ma0t10_dt Win64 Development`) 빌드로 확인한다.
+- `ForTests` 계열 테스트 hook 멤버를 `WITH_DEV_AUTOMATION_TESTS`로 제한한다(Shipping 노출 제거).
+- 초대형 파일(`UI/VirtualSensorMonitorPanelWidget.cpp`, `Sensor/VirtualLidarScanComponent.cpp`, `Core/VirtualSensorStreamPublisherComponent.cpp`)을 **같은 클래스의 여러 `.cpp`로 이동만** 해서 나눈다. 순수 인코딩 함수는 별도 파일로 옮긴다.
+- 빈 `Source/m7at10_dt/` 폴더 삭제는 재귀 삭제이므로 사용자 확인 후에만 한다.
+- **완료:** 빌드·전체 회귀 동일, 분할 diff가 이동만으로 구성됨을 리뷰에서 확인.
 
 ## 1. 성능·측정·전송
 
@@ -365,7 +435,7 @@
 
 ### PL-01 — host 의존성 역전 (신규 기능, P1)
 
-**진행률: 0%** · 구현: 중립 경계 전환 미착수 · 검증: 무Slab/adapter fixture 게이트 없음.
+**진행률: 0%** · 구현: 중립 경계 전환 미착수 · 검증: 무Slab/adapter fixture 게이트 없음. 프로젝트 안 선행 부분은 ARCH-04·05·06이 담당한다. ARCH 완료 후 남은 범위만 이 항목으로 진행한다.
 
 - **남은 조건:** 중립 provider/observer·출력 정책·UI extension으로 Slab/host 직접 의존을 분리한다.
 
@@ -375,7 +445,7 @@
 
 ### PL-02 — 기본값·설정 namespace (신규 기능, P1)
 
-**진행률: 0%** · 구현: 제안 중앙 설정/bridge 미착수 · 검증: 전용 이식 게이트 없음.
+**진행률: 0%** · 구현: 제안 중앙 설정/bridge 미착수 · 검증: 전용 이식 게이트 없음. 상수 모음(1단계)과 편집 타입 이동은 ARCH-03이 담당한다.
 
 - **남은 조건:** 기본값·자산·Topic·저장 namespace와 Runtime/UI 경계를 중앙화하고 기존 값을 보존한다.
 
@@ -439,6 +509,7 @@
 
 ## 다음 착수 순서
 
+0. **ARCH-01 → 02 → 03 → 04 → 05 → 06, 병행 가능한 ARCH-07, 마지막 ARCH-08.** 각 단계는 독립 커밋 묶음이며 이전 단계의 gate가 통과해야 다음으로 간다. 아래 1~5는 ARCH 완료 후 재개한다.
 1. **UX-01:** 구현된 배치 패널의 첫 사용자 수용·UI 직접 복제/삭제·남은 배율/입력 경계를 닫는다. Editor 영구 설치는 별도 요구로 확정한다.
 2. **UI-03:** 기존 작업 흐름을 유지하며 해상도/DPI·모든 소유 패널의 주요 동작과 설명을 검증한다. 마지막 PCD 요약 화면 확인도 포함한다.
 3. **RT-08 + RT-01/03 + DATA-01:** 구현된 PCD 사전 점검을 다양한 echo/backend 실측과 대조한다. 동적 작업량 admission·공정 배분은 확인된 병목을 기준으로 별도 설계한다.
