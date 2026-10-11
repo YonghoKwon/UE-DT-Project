@@ -75,7 +75,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 |---|---|---:|---:|---|---|---|
 | ARCH-01 | 구조 / 기준선·gate 완료 | P0 | **100%** | DTCore guard·38쌍 include allowlist·D3D12 기준선 고정 | 완료; 후속 단계에서 gate 유지, opt-in skip 20개는 별도 명시 | A |
 | ARCH-02 | 구조 / 폴더 재배치 완료 | P0 | **100%** | Slab 11파일 → `Scenario/`, Workspace 2파일 → `UI/` | 완료; allowlist 38→31, 기준선 229개 이름별 결과 동일 | A |
-| ARCH-03 | 구조 / 공통 계약 | P0 | **0%** | 편집 상태 타입·기본값 상수 → `Contracts/` | L1의 UI 타입 include 0, enum/SaveGame 호환 | A |
+| ARCH-03 | 구조 / 편집 타입·기본값 분리 완료 | P0 | **100%** | 편집 타입 → L1 Sensor, 기본값 상수 → L0 Contracts | 완료; ControlTypes 의존 9쌍 해소·UHT 계약·저장 회귀 통과 | A |
 | ARCH-04 | 구조 / 호출 역전 | P0 | **0%** | Coordinator→Monitor, SlabActor→UI Host 직접 호출 제거 | L1→L3, L2→L3 0, BP API 유지 | A |
 | ARCH-05 | 구조 / 송신 검증 분리 | P1 | **0%** | Transport/ExternalSource의 WebSocket/TC include 제거 | 자체 수신 검증 결과 동일 | A |
 | ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
@@ -155,13 +155,17 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-03 — 공통 계약 `Contracts/` 도입 (P0)
 
-**진행률: 0%** · PL-02 1단계를 포함한다.
+**진행률: 100%** · PL-02 1단계를 포함한다. 2026-10-11 구현·UHT 계약 비교·기준선 회귀 완료.
 
 - **작업:**
-  1. `UI/VirtualSensorControlTypes.h`에서 Runtime이 쓰는 타입(`EVirtualSensorTargetKind`, `EVirtualSensorGizmoMode`, `EVirtualSensorCoordinateSpace`, `EVirtualSensorPlacementInputMode`, `EVirtualSensorExportKind`, `FVirtualSensorCaptureSelection`, `FVirtualSensorEditableState`, `FVirtualSensorMapApplySnapshot`, `FVirtualSensorExportResult` 등 — 실제 사용처로 확정)을 `Contracts/VirtualSensorEditableTypes.h`로 옮긴다. UI 전용 타입(`EVirtualSensorPanelPlacement` 등)은 남긴다. 기존 헤더는 새 헤더를 include하는 호환 shim으로 유지한다.
+  1. `UI/VirtualSensorControlTypes.h`에서 Runtime 사용이 확인된 `EVirtualSensorTargetKind`, `EVirtualSensorExportKind`, `FVirtualSensorCaptureSelection`, `FVirtualSensorEditableState`, `FVirtualSensorExportResult`를 `Sensor/VirtualSensorEditableTypes.h`(L1)로 옮긴다. UI 전용 PanelPlacement·GizmoMode·CoordinateSpace·PlacementInputMode·SettingHelpDescriptor, UI/Editor의 MapApplySnapshot과 export delegate는 남긴다. 기존 헤더는 새 헤더를 include하는 호환 shim으로 유지한다.
   2. Runtime 파일의 include를 새 헤더로 바꾼다.
   3. 별도 커밋으로 `Contracts/VirtualSensorDefaults.h`에 흩어진 Topic 기본값·SaveGame 슬롯 이름·`Saved/` 하위 폴더 이름 리터럴을 **같은 값**의 상수로 모은다. 값 변경·설정 객체 도입은 하지 않는다.
-- **완료:** `Sensor/` `Camera/` `Core/`의 `UI/` include가 ToolWorkspace 이동분을 제외하고 0. enum 값·순서·USTRUCT 필드 동일(UHT 생성 헤더 비교 또는 테스트), SaveGame v6 roundtrip·레이아웃/북마크 파일 테스트 통과, WBP 메모리 컴파일 통과.
+- **결정 이유:** 편집 상태가 기존 L1 enum 5종에 의존하므로 편집 타입도 L1에 둔다. 해당 enum은 이동하지 않는다. L0는 L1 타입에 의존하지 않는 계약·리터럴만 소유하며 ARCH-06의 중립 context는 계속 `Contracts/` 대상이다.
+- **완료:** L1/L2의 `UI/VirtualSensorControlTypes.h` 직접 include 0(Coordinator→Monitor는 ARCH-04 대상). enum 값·순서·UMETA·USTRUCT 필드·UPROPERTY·기본값 동일, SaveGame v6·Workspace v1 roundtrip·레이아웃/북마크 파일 시험과 WBP 메모리 컴파일 통과.
+- **결과:** enum 2·struct 3개 선언을 그대로 이동하고 소비 파일 9개의 include를 바꿨다. allowlist **31→22**, 신규·stale 0이다. `VirtualSensorDefaults.h`의 **22개 리터럴(Topic 3·슬롯 8·폴더 11)**을 production 20개 파일에서 사용하며, 상수를 원래 리터럴로 펼치면 이전 코드와 정확히 같다. 기존 `MA0T10.SensorWorkspace.IsolationAndStorage`에 22개 값 대조와 Workspace v1 메모리 roundtrip을 보강했다. 테스트의 기존 리터럴은 유지했다.
+- **검증:** UE 5.3 Editor Development·guard·layer gate·V2 `-RequireAssets`·WBP 7개 메모리 컴파일 통과. 이동/유지된 11개 타입의 원문 선언·기본값과 UHT `.generated.h`/`.gen.cpp` 계약 비교 통과. `ModuleRelativePath`·FID/행 번호·UHT 참조 hash 주석만 위치/생성 식별 정보로 분리했으며 원본도 보존했다. D3D12 전체 `MA0T10`은 **실행 Success 209 / 실패 0 / skip 20 / NotRun 0**, ARCH-01의 229개 테스트 이름별 결과 차이 0이다. `UiPreferencesSerialization`(v6), `IsolationAndStorage`(Workspace v1), `SensorLayout.Persistence`, `Placement.PoseLibraryPersistenceAndHistory` 모두 실행·통과했다.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A03/summary.json`, `test-comparison.md`, `reflection-comparison.json`, `DEFAULTS.md`, `defaults-replacements.json`, 빌드·WBP·보호 hash 로그. 개인 SaveGame 9개 복원, 보호 파일 hash 확인, 자산 저장 0. 최초 L0 의존성 중단은 승인된 L1 목적지로 해소했다. 기준선 opt-in skip 20개와 RiderLink stderr 제한은 유지하며 수용 통과로 확대하지 않는다. DTCore·사용자 맵·로컬 설정·비대상 Widget 변경과 Computer Use는 없다.
 
 ### ARCH-04 — Runtime→UI 직접 호출 역전 (P0)
 

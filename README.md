@@ -352,30 +352,28 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 |---|---|---|---|
 | L3 UI | `UI/` (Workspace Subsystem 포함 예정) | 소유 패널·Host·Gizmo·창 배치·UI 저장값 | L0~L2, DTCore |
 | L2 Host·업무 | `Slab/`, `Scenario/`(예정), `WebSocket/TC/`, 기존 `Crane/` `Manager/` `Player/` `Api/` `InteractableActor/` `UI/Main/` | Slab 시나리오·실행 결과·재생, 업무 전문 TC, 센서 context adapter | L0~L1, DTCore |
-| L1 센서 Runtime | `Sensor/`, `Camera/`, `Core/`(센서 공용 서비스만) | 측정·스케줄·코덱·출력·송신·파일 저장·배치/레이아웃 서비스 | L0, DTCore |
-| L0 공통 계약 | `Contracts/`(예정) | 편집 상태 타입, 중립 acquisition context, Topic/슬롯/경로 기본값 상수 | 엔진·DTCore 타입만 |
+| L1 센서 Runtime | `Sensor/`, `Camera/`, `Core/`(센서 공용 서비스만) | 센서 편집 상태 타입(`Sensor/VirtualSensorEditableTypes.h`), 측정·스케줄·코덱·출력·송신·파일 저장·배치/레이아웃 서비스 | L0~L1, DTCore |
+| L0 공통 계약 | `Contracts/` | Topic/슬롯/경로 리터럴 상수, L1 타입에 의존하지 않는 중립 acquisition context(ARCH-06 예정) | 엔진·DTCore 중립 타입만 |
 | 외부 | `Plugins/DTCore` (submodule) | 공통 API/WebSocket/Data/UI 기반 | 수정 금지 |
 
 - 테스트(`*/Tests/`)와 Editor 모듈(`ma0t10_dtEditor`)은 레이어 검사에서 제외하지만 production 코드가 테스트를 include하면 안 된다.
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-11, `e8cd7a5` Runtime 기준 ARCH-02 gate)
+### 10.2 현재 위반 (2026-10-11, `58b4184` Runtime 기준 ARCH-03 gate)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 205개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **31쌍 = allowlist 31개**다. ARCH-02에서 기존 38쌍 중 16쌍이 해소되고, 폴더 이동으로 L1→L2 9쌍이 새로 드러났다(38 − 16 + 9 = 31).
+gate는 `Tests/`를 제외한 `.h/.cpp` 207개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **22쌍 = allowlist 22개**다. ARCH-02의 31쌍에서 ControlTypes 관련 L1→L3 7쌍·L2→L3 2쌍을 해소했으며 신규 위반은 없다(31 − 9 = 22).
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
-| L1→L3 | 7 | `UI/VirtualSensorControlTypes.h`를 Camera 1·Sensor 2·Core 4개 파일이 include. `Core/VirtualSensorFileSaveTypes.h`, `VirtualSensorPeriodicFileSaveSubsystem.h`, `VirtualSensorLayoutSubsystem.h`, `VirtualSensorLayoutTypes.h`는 **헤더→헤더**로 전파 | ARCH-03 |
 | L1→L3 | 1 | `Sensor/VirtualSensorCoordinator.cpp` → `UI/VirtualSensorMonitorPanelWidget.h` (`BindMonitorWidget` 등 직접 호출) | ARCH-04 |
 | L1→L2 | 9 | `Scenario/VirtualSensorSlabContextSubsystem.h`, `VirtualSlabFrameContext.h`, `SlabRunResultsSubsystem.h`를 Camera 1·Sensor 3·Core 5쌍이 include. `Core/VirtualSensorStreamPublisherComponent.cpp`가 2쌍이며 나머지는 각 1쌍 — 이동 전에는 같은 L1이었다 | ARCH-06 |
 | L1→L2 | 9 | `Core/VirtualSensorHighThroughputTransportSubsystem` 4·`VirtualSensorPcdReceiveContract.cpp` 1·`Sensor/VirtualSensorExternalSourceHostActor` 4개가 `WebSocket/TC` 수신 진단 헤더를 include | ARCH-05 |
-| L2→L3 | 2 | `Scenario/SlabRunResultsSubsystem.cpp`, `Scenario/VirtualSensorSlabContextSubsystem.cpp` → `UI/VirtualSensorControlTypes.h` | ARCH-03 |
 | L2→L3 | 2 | `Player/DxPlayerControllerTest.cpp`, `Player/DxPlayerTest.cpp` → `UI/VirtualSensorTransformGizmoActor.h` | ARCH-04 |
 | L2→L3 | 1 | `Slab/SlabActor.cpp` → `UI/SlabSimulationUiHostActor.h` | ARCH-04 |
-| **합계** | **31** | L1→L3 8 + L1→L2 18 + L2→L3 5 | ARCH-01의 38개 이하 유지 |
+| **합계** | **22** | L1→L3 1 + L1→L2 18 + L2→L3 3 | ARCH-01의 38개 이하 유지 |
 
-ARCH-02에서 Slab 서비스 7종의 11개 파일을 `Core/` → `Scenario/`로, `VirtualSensorToolWorkspaceSubsystem` 2개 파일을 `Core/` → `UI/`로 이동했다. Workspace의 UI include 14쌍과 Replay의 Slab include 2쌍은 같은 레이어가 되어 해소됐다. 새로 드러난 센서→Scenario 9쌍은 로직을 바꾸지 않고 allowlist에 보존해 ARCH-06에서 해소한다. `ma0t10_dt.Build.cs`의 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
+ARCH-03에서 Runtime 사용 enum 2개·struct 3개를 L1 `Sensor/VirtualSensorEditableTypes.h`로 분리하고 기존 `UI/VirtualSensorControlTypes.h`는 UI 전용 타입과 호환 include를 유지했다. 편집 상태가 참조하는 기존 enum 5종은 L1에 그대로 둔다. L0 `Contracts/VirtualSensorDefaults.h`는 Topic 3·SaveGame 슬롯 8·저장 폴더 11개의 리터럴만 제공한다. 센서→Scenario 9쌍은 ARCH-06, TC 관련 9쌍은 ARCH-05에서 해소한다. `ma0t10_dt.Build.cs`의 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
 
 실행: `Scripts/validate_architecture_layers.ps1` (`-Json`은 상세 결과). 신규 위반과 stale allowlist 모두 exit 1이며, 경로별 원본은 `Scripts/architecture_layers_allowlist.txt`다. `-SourceRoot`·`-AllowlistPath`는 `Saved` 안의 음성 대조 fixture용이며 일반 gate에서는 생략한다.
 

@@ -1,31 +1,22 @@
-# ARCH-02: 38 baseline edges - 16 resolved + 9 newly exposed = 31.
+# ARCH-03: 31 edges - 9 ControlTypes dependencies = 22.
 # Relative to Source/ma0t10_dt/MA0T10. Unique source -> resolved target.
-# Newly exposed Scenario dependencies remain for ARCH-06; new/stale entries fail.
+# New and stale entries fail; Scenario dependencies remain for ARCH-06.
 Camera/VirtualCameraCaptureComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Camera/VirtualCameraSensorActor.cpp -> UI/VirtualSensorControlTypes.h
 Core/VirtualSensorAcquisitionBackend.h -> Scenario/VirtualSlabFrameContext.h
-Core/VirtualSensorFileSaveTypes.h -> UI/VirtualSensorControlTypes.h
 Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
 Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
 Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualPointCloudStreamReceiverTC.h
 Core/VirtualSensorHighThroughputTransportSubsystem.h -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
-Core/VirtualSensorLayoutSubsystem.h -> UI/VirtualSensorControlTypes.h
-Core/VirtualSensorLayoutTypes.h -> UI/VirtualSensorControlTypes.h
 Core/VirtualSensorOutputPreflight.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorPcdReceiveContract.cpp -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
-Core/VirtualSensorPeriodicFileSaveSubsystem.h -> UI/VirtualSensorControlTypes.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/SlabRunResultsSubsystem.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Player/DxPlayerControllerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
 Player/DxPlayerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
-Scenario/SlabRunResultsSubsystem.cpp -> UI/VirtualSensorControlTypes.h
-Scenario/VirtualSensorSlabContextSubsystem.cpp -> UI/VirtualSensorControlTypes.h
 Sensor/VirtualLidarScanComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Sensor/VirtualLidarSensorActor.cpp -> UI/VirtualSensorControlTypes.h
 Sensor/VirtualLidarSensorTypes.h -> Scenario/VirtualSlabFrameContext.h
 Sensor/VirtualSensorActorBase.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Sensor/VirtualSensorActorBase.cpp -> UI/VirtualSensorControlTypes.h
 Sensor/VirtualSensorCoordinator.cpp -> UI/VirtualSensorMonitorPanelWidget.h
 Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
 Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
