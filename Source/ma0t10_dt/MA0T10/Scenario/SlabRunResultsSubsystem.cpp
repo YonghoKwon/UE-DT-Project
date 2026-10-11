@@ -5,7 +5,7 @@
 #include "Engine/GameInstance.h"
 #include "Components/SceneComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "JsonObjectConverter.h"
 #include "Async/Async.h"
 #include "Json.h"
