@@ -5,7 +5,7 @@
 #include "UI/DxWidget.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPlacementInputOwner.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementMotion.h"
 
 
@@ -27,8 +27,8 @@ void ADxPlayerTest::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
     if(bPlacementNavigation&&Controller&&PlayerViewType==EPlayerViewType::FreeView)
     {
-        auto* PC=Cast<ADxPlayerControllerTest>(Controller);auto* G=PC?PC->GetPlacementInputOwner():nullptr;
-        if(!G||!G->IsObserverNavigationActive()||!G->IsInputFocusOwned()){PlacementMovement=FVector2D::ZeroVector;PlacementVertical=0;return;}
+        auto* PC=Cast<ADxPlayerControllerTest>(Controller);auto* G=PC?PC->GetPlacementInputView():nullptr;
+        if(!G||!G->IsPlacementObserverNavigationActive()||!G->HasPlacementInputFocus()){PlacementMovement=FVector2D::ZeroVector;PlacementVertical=0;return;}
         const FRotator R=Controller->GetControlRotation();
         const FVector Direction=(FRotationMatrix(R).GetUnitAxis(EAxis::X)*PlacementMovement.Y+FRotationMatrix(R).GetUnitAxis(EAxis::Y)*PlacementMovement.X+FVector::UpVector*PlacementVertical).GetClampedToMaxSize(1);
         AddActorWorldOffset(Direction*ControlSpeed*60*VirtualSensorPlacementMotion::BoundedDelta(DeltaTime),true);
@@ -46,8 +46,8 @@ void ADxPlayerTest::SetPlacementNavigationActive(bool Active)
 
 void ADxPlayerTest::Look(const FVector2D& Value)
 {
-    if(auto* PC=Cast<ADxPlayerControllerTest>(Controller))if(auto* G=PC->GetPlacementInputOwner())
-    {if(bPlacementNavigation&&G->IsInputFocusOwned()&&PlayerViewType==EPlayerViewType::FreeView)Super::Look(Value);return;}
+    if(auto* PC=Cast<ADxPlayerControllerTest>(Controller))if(auto* G=PC->GetPlacementInputView())
+    {if(bPlacementNavigation&&G->HasPlacementInputFocus()&&PlayerViewType==EPlayerViewType::FreeView)Super::Look(Value);return;}
     Super::Look(Value);
 }
 
@@ -58,8 +58,8 @@ void ADxPlayerTest::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 void ADxPlayerTest::Move(const FVector2D& MovementVector)
 {
-    if(auto* PC=Cast<ADxPlayerControllerTest>(Controller))if(auto* G=PC->GetPlacementInputOwner())
-    {if(bPlacementNavigation&&G->IsInputFocusOwned())PlacementMovement=MovementVector;return;}
+    if(auto* PC=Cast<ADxPlayerControllerTest>(Controller))if(auto* G=PC->GetPlacementInputView())
+    {if(bPlacementNavigation&&G->HasPlacementInputFocus())PlacementMovement=MovementVector;return;}
 	// TopView일 때는 이동 막기
 	if (PlayerViewType == EPlayerViewType::TopView)
 	{
@@ -72,8 +72,8 @@ void ADxPlayerTest::Move(const FVector2D& MovementVector)
 
 void ADxPlayerTest::MoveUpDown(const float Value)
 {
-    if(auto* PC=Cast<ADxPlayerControllerTest>(Controller))if(auto* G=PC->GetPlacementInputOwner())
-    {if(bPlacementNavigation&&G->IsInputFocusOwned())PlacementVertical=Value;return;}
+    if(auto* PC=Cast<ADxPlayerControllerTest>(Controller))if(auto* G=PC->GetPlacementInputView())
+    {if(bPlacementNavigation&&G->HasPlacementInputFocus())PlacementVertical=Value;return;}
 	// TopView일 때는 이동 막기
 	if (PlayerViewType == EPlayerViewType::TopView)
 	{

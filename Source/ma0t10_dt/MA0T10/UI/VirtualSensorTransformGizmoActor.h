@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Input/Events.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPlacementInputOwner.h"
 #include "VirtualSensorTransformGizmoActor.generated.h"
 
 class UBoxComponent;
@@ -17,11 +18,15 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorGizmoTransformChanged, const
 DECLARE_MULTICAST_DELEGATE(FOnVirtualSensorGizmoManipulationExitRequested);
 
 UCLASS(BlueprintType)
-class MA0T10_DT_API AVirtualSensorTransformGizmoActor : public AActor
+class MA0T10_DT_API AVirtualSensorTransformGizmoActor : public AActor, public IVirtualSensorPlacementInputOwner
 {
     GENERATED_BODY()
 
 public:
+    virtual bool IsPlacementObserverNavigationActive() const override { return IsObserverNavigationActive(); }
+    virtual bool HasPlacementInputFocus() const override { return IsInputFocusOwned(); }
+    virtual void EndPlacementObserverNavigation() override { EndObserverNavigation(); }
+
     AVirtualSensorTransformGizmoActor();
 
     virtual void Tick(float DeltaSeconds) override;

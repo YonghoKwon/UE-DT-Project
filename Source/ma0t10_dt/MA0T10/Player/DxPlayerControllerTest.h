@@ -6,6 +6,7 @@
 #include "Player/DxPlayerControllerBase.h"
 #include "DxPlayerControllerTest.generated.h"
 class AVirtualSensorTransformGizmoActor;
+class IVirtualSensorPlacementInputOwner;
 
 /**
  * 
@@ -21,10 +22,12 @@ public:
 	void RegisterPlacementInputOwner(AVirtualSensorTransformGizmoActor* Gizmo);
 	void UnregisterPlacementInputOwner(AVirtualSensorTransformGizmoActor* Gizmo);
 	AVirtualSensorTransformGizmoActor* GetPlacementInputOwner() const;
+	IVirtualSensorPlacementInputOwner* GetPlacementInputView() const;
 	void FinishOwnedNavigationInput();
 protected:
 	virtual void SetupInputComponent() override;
 private:
+	IVirtualSensorPlacementInputOwner* GetRegisteredPlacementInputView() const;
 	void PlacementMove(const FInputActionValue& Value);
 	void PlacementLook(const FInputActionValue& Value);
 	void PlacementMoveUpDown(const FInputActionValue& Value);
