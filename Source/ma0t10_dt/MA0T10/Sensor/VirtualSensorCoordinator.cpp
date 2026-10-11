@@ -12,7 +12,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "VirtualSensorMonitorView.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 
 namespace
@@ -244,12 +244,6 @@ void AVirtualSensorCoordinator::RegisterRealSensorSource(URealSensorSourceCompon
     }
 }
 
-void AVirtualSensorCoordinator::BindMonitorWidget(UVirtualSensorMonitorPanelWidget* MonitorWidget)
-{
-    BoundMonitorWidget = MonitorWidget;
-    ApplyWidgetBinding();
-}
-
 void AVirtualSensorCoordinator::SelectCameraByIndex(int32 Index)
 {
     if (Cameras.IsValidIndex(Index))
@@ -327,8 +321,8 @@ void AVirtualSensorCoordinator::SetViewMode(EVirtualSensorViewMode NewMode)
     CurrentViewMode = NewMode;
     if (BoundMonitorWidget)
     {
-        if (CurrentViewMode == EVirtualSensorViewMode::Camera) BoundMonitorWidget->ShowCameraView();
-        if (CurrentViewMode == EVirtualSensorViewMode::Lidar) BoundMonitorWidget->ShowLidarView();
+        if (CurrentViewMode == EVirtualSensorViewMode::Camera) GetMonitorView()->ShowMonitorCamera();
+        if (CurrentViewMode == EVirtualSensorViewMode::Lidar) GetMonitorView()->ShowMonitorLidar();
     }
     OnViewModeChanged.Broadcast(CurrentViewMode);
 }
@@ -360,7 +354,7 @@ void AVirtualSensorCoordinator::SetPointCloudOnlyMode(bool bEnabled)
 
         if (bPointCloudOnlyAutoSelectLidarView && BoundMonitorWidget)
         {
-            BoundMonitorWidget->ShowLidarView();
+            GetMonitorView()->ShowMonitorLidar();
         }
     }
     else
@@ -374,8 +368,8 @@ void AVirtualSensorCoordinator::SetPointCloudOnlyMode(bool bEnabled)
         CurrentViewMode = PreviousViewModeBeforePointCloudOnly;
         if (BoundMonitorWidget)
         {
-            if (CurrentViewMode == EVirtualSensorViewMode::Camera) BoundMonitorWidget->ShowCameraView();
-            if (CurrentViewMode == EVirtualSensorViewMode::Lidar) BoundMonitorWidget->ShowLidarView();
+            if (CurrentViewMode == EVirtualSensorViewMode::Camera) GetMonitorView()->ShowMonitorCamera();
+            if (CurrentViewMode == EVirtualSensorViewMode::Lidar) GetMonitorView()->ShowMonitorLidar();
         }
     }
 
@@ -743,12 +737,12 @@ FVirtualSensorHealthSummary AVirtualSensorCoordinator::GetHealthSummary() const
 void AVirtualSensorCoordinator::ApplyWidgetBinding()
 {
     if (!BoundMonitorWidget) return;
-    BoundMonitorWidget->BindVirtualCamera(GetSelectedCamera());
-    BoundMonitorWidget->BindVirtualLidar(GetSelectedLidar());
-    BoundMonitorWidget->BindRealSensorSource(GetSelectedRealSensorSource());
+    GetMonitorView()->BindMonitorCamera(GetSelectedCamera());
+    GetMonitorView()->BindMonitorLidar(GetSelectedLidar());
+    GetMonitorView()->BindMonitorExternalSource(GetSelectedRealSensorSource());
     if (CurrentViewMode == EVirtualSensorViewMode::PointCloudOnly)
     {
-        BoundMonitorWidget->ShowLidarView();
+        GetMonitorView()->ShowMonitorLidar();
     }
     else
     {
@@ -802,7 +796,7 @@ void AVirtualSensorCoordinator::ApplyPointCloudOnlyVisibility()
         return;
     }
 
-    APlayerController* Controller = BoundMonitorWidget ? BoundMonitorWidget->GetOwningPlayer() : nullptr;
+    APlayerController* Controller = BoundMonitorWidget ? GetMonitorView()->GetMonitorViewController() : nullptr;
     if (!Controller) Controller = World->GetFirstPlayerController();
     if (!Controller || Controller->GetWorld() != World) return;
     PointCloudOnlyViewController = Controller;

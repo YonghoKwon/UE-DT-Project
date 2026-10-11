@@ -4,6 +4,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorMonitorView.h"
 #include "Styling/SlateBrush.h"
 #include "VirtualSensorMonitorPanelWidget.generated.h"
 
@@ -91,11 +92,18 @@ struct MA0T10_DT_API FVirtualSensorMonitorDisplayData
 };
 
 UCLASS()
-class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPanelWidgetBase
+class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPanelWidgetBase, public IVirtualSensorMonitorView
 {
     GENERATED_BODY()
 
 public:
+    virtual void BindMonitorCamera(UVirtualCameraCaptureComponent* Camera) override { BindVirtualCamera(Camera); }
+    virtual void BindMonitorLidar(UVirtualLidarScanComponent* Lidar) override { BindVirtualLidar(Lidar); }
+    virtual void BindMonitorExternalSource(URealSensorSourceComponent* Source) override { BindRealSensorSource(Source); }
+    virtual void ShowMonitorCamera() override { ShowCameraView(); }
+    virtual void ShowMonitorLidar() override { ShowLidarView(); }
+    virtual APlayerController* GetMonitorViewController() const override { return GetOwningPlayer(); }
+
     UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorMonitor|Presentation")
     void SetMonitorPresentation(EVirtualSensorMonitorPresentation Presentation);
     UFUNCTION(BlueprintPure, Category="DigitalTwin|SensorMonitor|Presentation")

@@ -16,6 +16,7 @@ class UVirtualSensorMonitorPanelWidget;
 class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorStreamPublisherComponent;
+class IVirtualSensorMonitorView;
 
 UENUM(BlueprintType)
 enum class EVirtualSensorViewMode : uint8
@@ -277,6 +278,8 @@ private:
     bool ShouldKeepActorVisibleInPointCloudOnly(const AActor* Actor) const;
 
 private:
+    IVirtualSensorMonitorView* GetMonitorView() const;
+
     UPROPERTY(Transient)
     TArray<TObjectPtr<UVirtualCameraCaptureComponent>> Cameras;
 
