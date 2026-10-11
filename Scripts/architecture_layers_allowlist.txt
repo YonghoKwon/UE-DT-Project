@@ -1,0 +1,41 @@
+# ARCH-01 baseline: unique source -> resolved target include edges, not line counts.
+# Relative to Source/ma0t10_dt/MA0T10. Keep sorted; remove resolved debt.
+# New violations and stale entries both fail validate_architecture_layers.ps1.
+Camera/VirtualCameraSensorActor.cpp -> UI/VirtualSensorControlTypes.h
+Core/SlabRunResultsSubsystem.cpp -> UI/VirtualSensorControlTypes.h
+Core/SlabScenarioReplaySubsystem.cpp -> Slab/SlabScenarioCodec.h
+Core/SlabScenarioReplaySubsystem.h -> Slab/SlabScenarioTypes.h
+Core/VirtualSensorFileSaveTypes.h -> UI/VirtualSensorControlTypes.h
+Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
+Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
+Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualPointCloudStreamReceiverTC.h
+Core/VirtualSensorHighThroughputTransportSubsystem.h -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
+Core/VirtualSensorLayoutSubsystem.h -> UI/VirtualSensorControlTypes.h
+Core/VirtualSensorLayoutTypes.h -> UI/VirtualSensorControlTypes.h
+Core/VirtualSensorPcdReceiveContract.cpp -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
+Core/VirtualSensorPeriodicFileSaveSubsystem.h -> UI/VirtualSensorControlTypes.h
+Core/VirtualSensorSlabContextSubsystem.cpp -> UI/VirtualSensorControlTypes.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SensorToolAppearance.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SensorToolToolbarWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabChartsPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabProgressPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabScenarioReplayPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabScenarioReplayUiHostActor.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/SlabSimulationUiHostActor.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorCaptureExportPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorMonitorPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorPanelWidgetBase.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorPlacementPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorSettingsPanelWidget.h
+Core/VirtualSensorToolWorkspaceSubsystem.cpp -> UI/VirtualSensorUiHostActor.h
+Core/VirtualSensorToolWorkspaceSubsystem.h -> UI/VirtualSensorUiPreferences.h
+Player/DxPlayerControllerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
+Player/DxPlayerTest.cpp -> UI/VirtualSensorTransformGizmoActor.h
+Sensor/VirtualLidarSensorActor.cpp -> UI/VirtualSensorControlTypes.h
+Sensor/VirtualSensorActorBase.cpp -> UI/VirtualSensorControlTypes.h
+Sensor/VirtualSensorCoordinator.cpp -> UI/VirtualSensorMonitorPanelWidget.h
+Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
+Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
+Sensor/VirtualSensorExternalSourceHostActor.cpp -> WebSocket/TC/VirtualPointCloudStreamReceiverTC.h
+Sensor/VirtualSensorExternalSourceHostActor.h -> WebSocket/TC/VirtualSensorStreamReceiverTypes.h
+Slab/SlabActor.cpp -> UI/SlabSimulationUiHostActor.h
