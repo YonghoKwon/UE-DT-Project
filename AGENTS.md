@@ -46,6 +46,19 @@
 - 구조 정리는 같은 모듈 안에서 한다. 새 UE 모듈·`.uplugin`·자산 mount 변경을 만들지 않는다. 이동 커밋(`git mv`+include 수정)과 로직 변경 커밋을 분리한다.
 - UCLASS/USTRUCT/UENUM 이름, enum 값 순서, UPROPERTY, Blueprint 함수 시그니처, SaveGame 슬롯/버전, wire bytes는 구조 정리 중 바꾸지 않는다. 같은 모듈 안의 파일 이동은 `/Script/ma0t10_dt` 경로를 바꾸지 않으므로 CoreRedirect를 추가하지 않는다.
 
+### DTCore 기반 구현 (2026-10-12 사용자 강조)
+
+- 기능은 **DTCore가 제공하는 기반 위에** 만든다. 새 패널/화면은 `UDxWidget` 계열과 `UDxWidgetSubsystem`(열기·닫기·BringToFront·입력 차단 등록)을 사용하고, 3D 객체는 `AInteractableActor`/`AFacilityBase`, 데이터 반영은 `UDataSyncCompBase`, 상태 표시는 `UStatusVisualizerCompBase`, 업무 전문은 `UDxWebSocketSubsystem`+TC, API는 `UDxApiSubsystem`, 조회·검색은 `UDxDataSubsystem`/`UDxObjectSubsystem`/`UDxSearchSubsystem`을 먼저 검토한다. 같은 역할의 병렬 메커니즘(별도 위젯 관리자·별도 구독 루프 등)을 새로 만들지 않는다.
+- DTCore로 해결되지 않으면 프로젝트 쪽 adapter로 감싸고 근거를 보고한다. DTCore 소스·gitlink 수정은 여전히 금지이며, 공통 변경이 꼭 필요하면 재현 근거와 최소 변경안을 별도로 제안한다(§2).
+- 기존 프로젝트 고유 구조(Workspace 소유 패널, Raw TCP STOMP worker 등)가 DTCore와 겹치는 지점은 이유를 문서화된 범위 안에서 유지하고, 새 기능에서 확장하지 않는다.
+
+### 성능을 기능과 함께 설계 (2026-10-12 사용자 강조)
+
+- 최적화는 나중 작업이 아니다. 기능을 구현할 때마다 비용을 함께 설계하고 측정한다.
+- UI 문자열·목록 갱신은 5Hz 이하, 숨김·접힌 영역은 갱신·문자열 조립을 멈춘다. 매 Tick의 Actor 순회·할당·`FString::Printf` 누적을 피하고 변경 감지(revision) 기반으로 다시 그린다.
+- 화면 기능이 측정·송신 경로에 추가 캡처·readback·동기 스캔·게임 스레드 직렬화를 만들지 않는다. 머티리얼·외형 변경은 변경 시 1회 적용한다.
+- UI·조작 항목은 같은 조건(1920×1080, 1 Camera+1 LiDAR 측정 중, 10초 준비+30초)의 평균 FPS·frame p95·game thread 시간을 변경 전/후로 보고한다. 2% 넘게 나빠지면 원인을 고친 뒤 완료한다.
+
 ### 센서·측정·비동기 수명
 
 - Runtime은 `ma0t10_dt`, Editor는 `ma0t10_dtEditor`, 조기 초기화는 `ma0t10_dtBootstrap` 모듈이다. 센서 기능은 아직 독립 플러그인이 아니며 이번 버전에서 플러그인화를 시작하지 않는다.
@@ -128,7 +141,7 @@
 2. 한 요청 = 한 항목. 의미 단위로 여러 커밋을 만들 수 있다. 명시 파일만 stage하고 커밋 메시지에 항목 ID를 넣는다(예: `refactor(ARCH-02): move slab services to Scenario`).
 3. 기술적으로 막히거나 계약 변경이 필요해 보이면 그 지점에서 멈추고 근거와 선택지를 보고한다. 추정으로 계약·보호 경로를 바꾸지 않는다.
 4. push·PR·merge·worktree 생성·submodule update는 하지 않는다.
-5. 구조 정리 단계에서는 Computer Use(마우스/키보드 직접 조작)를 사용하지 않는다. Claude가 같은 PC의 화면을 조작하므로 충돌한다. 검증은 명령줄 빌드·자동화·WBP 메모리 컴파일로 한다. 화면 확인이 꼭 필요하면 필요한 이유를 보고에 적는다.
+5. **Computer Use(마우스·키보드) 기능 점검은 Codex가 한다(2026-10-12 사용자 요청).** UI·조작에 영향을 주는 항목은 자동화와 별도로 PIE에서 주요 동작을 직접 눌러 확인하고, 단계별 스크린샷·체크리스트(누른 것 / 기대 / 실제)를 `Saved/Reports/<그룹>/<ID>/manual/`에 남긴다. 화면 충돌을 막기 위해 **Codex 작업 중에는 Claude와 사용자가 화면을 조작하지 않는다.** Claude는 요청 전송 때만 Codex 앱을 잠깐 조작하고, 완료 감지는 화면이 아닌 로그로 한다. Codex는 점검을 끝내면 자신이 띄운 Editor/PIE를 정상 종료하고, 사용자 창 배치·개인 UI 저장값은 백업 후 복원한다. 구조 전용 항목(ARCH)은 기존대로 명령줄 검증으로 충분하다.
 
 **완료 보고 형식 (Codex → Claude)**
 
