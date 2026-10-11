@@ -15,7 +15,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
+#include "SlabUiRegistry.h"
 #include "EngineUtils.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -428,7 +428,7 @@ FSlabSetupValidation ASlabActor::ValidateSlabSetup() const
 		if(Settings->WebSocketTopics.IsEmpty()) Result.Warnings.Add(TEXT("DTCore WebSocket Topic이 비어 있습니다."));
 	}
 	if(!bRoute) Result.Warnings.Add(TEXT("DTCore IFactory-agent 수신 경로를 확인하세요. 직접 JSON 주입·보관 재생은 별도 경로입니다."));
-	bool bUi=false; for(TActorIterator<ASlabSimulationUiHostActor> It(GetWorld());It;++It) if(It->SlabActor==this||(!It->SlabActor&&SlabCount==1)) bUi=true;
+	const bool bUi=SlabUiRegistry::HasHostFor(this,SlabCount);
 	if(!bUi) Result.Warnings.Add(TEXT("연결된 Slab UI Host가 없습니다. 도구 막대에서 열거나 SlabActor를 명시적으로 연결하세요."));
 	Result.bCanSimulate=Result.Errors.IsEmpty();
 	TArray<AVirtualSensorCoordinator*> Coordinators; for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It) Coordinators.Add(*It);
