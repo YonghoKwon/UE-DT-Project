@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "GameFramework/SaveGame.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
@@ -94,9 +95,9 @@ public:
     uint8 SelectedPointCloudExportKind = 1;
 
 	UPROPERTY(SaveGame) FString StompBrokerUrl = TEXT("ws://127.0.0.1:61616");
-	UPROPERTY(SaveGame) FString StompCameraTopic = TEXT("topic.virtual.sensor.camera.0");
-	UPROPERTY(SaveGame) FString StompLidarTopic = TEXT("topic.virtual.sensor.lidar.0");
-	UPROPERTY(SaveGame) FString StompExportTopic = TEXT("topic.virtual.sensor.export.0");
+	UPROPERTY(SaveGame) FString StompCameraTopic = VirtualSensorDefaults::CameraTopic;
+	UPROPERTY(SaveGame) FString StompLidarTopic = VirtualSensorDefaults::LidarTopic;
+	UPROPERTY(SaveGame) FString StompExportTopic = VirtualSensorDefaults::PointCloudTopic;
 	UPROPERTY(SaveGame) FString StompUserName = TEXT("artemis");
 	UPROPERTY(SaveGame) FString StompAckTopic;
 	UPROPERTY(SaveGame) int32 OutboundMaxMessageBytes = 8388608;

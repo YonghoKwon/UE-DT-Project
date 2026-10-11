@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
@@ -345,7 +346,7 @@ void UVirtualSensorCaptureExportPanelWidget::SaveCapturePreferences() const
 
 bool UVirtualSensorCaptureExportPanelWidget::OpenCaptureRootFolder()
 {
-    const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures")));
+    const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory));
     IFileManager::Get().MakeDirectory(*Directory, true);
     FPlatformProcess::ExploreFolder(*Directory);
     return true;

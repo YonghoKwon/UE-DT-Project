@@ -1,5 +1,6 @@
 // VirtualCameraCaptureComponent.cpp
 #include "VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "VirtualCameraPayloadCodec.h"
@@ -1103,7 +1104,7 @@ void UVirtualCameraCaptureComponent::PostJson(const FString& JsonPayload) const
 
 void UVirtualCameraCaptureComponent::SaveJpegToDisk(const TArray64<uint8>& JpegBytes) const
 {
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId);
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId);
     IFileManager::Get().MakeDirectory(*Directory, true);
 
     const FString Timestamp = FString::Printf(TEXT("%s_%lld"), *FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S")), FDateTime::UtcNow().GetTicks());

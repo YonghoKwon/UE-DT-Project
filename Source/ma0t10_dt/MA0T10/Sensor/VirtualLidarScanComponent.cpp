@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 #include "Async/Async.h"
@@ -1396,7 +1397,7 @@ void UVirtualLidarScanComponent::QueueScheduledAutoExports(TSharedPtr<const FVir
         return;
     }
 
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud"));
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::PointCloudSubdirectory);
     IFileManager::Get().MakeDirectory(*Directory, true);
     const FDateTime Now = FDateTime::UtcNow();
     const FString Stamp = FString::Printf(TEXT("%s_%03d_%lld"), *Now.ToString(TEXT("%Y%m%d_%H%M%S")), Now.GetMillisecond(), Now.GetTicks());
@@ -2404,7 +2405,7 @@ void UVirtualLidarScanComponent::SaveJsonToDisk(const FString& JsonPayload) cons
 
 FString UVirtualLidarScanComponent::BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const
 {
-    const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud")); IFileManager::Get().MakeDirectory(*Dir, true); const FString Prefix = FileNamePrefix.IsEmpty() ? SensorId : FileNamePrefix; const FDateTime N = FDateTime::UtcNow(); const FString Ts = FString::Printf(TEXT("%s_%03d_%lld"), *N.ToString(TEXT("%Y%m%d_%H%M%S")), N.GetMillisecond(), N.GetTicks()); LastPointCloudExportPath = FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Ts, *Extension)); return LastPointCloudExportPath;
+    const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::PointCloudSubdirectory); IFileManager::Get().MakeDirectory(*Dir, true); const FString Prefix = FileNamePrefix.IsEmpty() ? SensorId : FileNamePrefix; const FDateTime N = FDateTime::UtcNow(); const FString Ts = FString::Printf(TEXT("%s_%03d_%lld"), *N.ToString(TEXT("%Y%m%d_%H%M%S")), N.GetMillisecond(), N.GetTicks()); LastPointCloudExportPath = FPaths::Combine(Dir, FString::Printf(TEXT("%s_%s.%s"), *Prefix, *Ts, *Extension)); return LastPointCloudExportPath;
 }
 void UVirtualLidarScanComponent::RebuildLastPointStatistics()
 {

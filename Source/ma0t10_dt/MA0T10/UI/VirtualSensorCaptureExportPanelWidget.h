@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
@@ -277,9 +278,9 @@ private:
     TSharedPtr<STextBlock> NativeStorageText;
     FString LastUiMessage;
 	FString DraftBrokerUrl = TEXT("ws://127.0.0.1:61616");
-	FString DraftCameraTopic = TEXT("topic.virtual.sensor.camera.0");
-	FString DraftLidarTopic = TEXT("topic.virtual.sensor.lidar.0");
-	FString DraftExportTopic = TEXT("topic.virtual.sensor.export.0");
+	FString DraftCameraTopic = VirtualSensorDefaults::CameraTopic;
+	FString DraftLidarTopic = VirtualSensorDefaults::LidarTopic;
+	FString DraftExportTopic = VirtualSensorDefaults::PointCloudTopic;
 	FString DraftUserName = TEXT("artemis");
 	FString DraftAckTopic;
 	int32 DraftMaxMessageBytes = 8388608;

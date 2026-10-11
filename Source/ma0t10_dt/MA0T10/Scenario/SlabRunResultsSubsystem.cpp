@@ -1,4 +1,5 @@
 #include "SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
 #include "SlabScenarioReplaySubsystem.h"
@@ -228,7 +229,7 @@ void USlabRunResultsSubsystem::QueueReport(const FSlabRunDeliverySummary& S)
 {
     if(Writes.Num()>=2){Tick(0);if(Writes.Num()>=2){if(auto* R=Find(S.RunUUID))R->SaveState=TEXT("요약 저장 대기 상한 초과");Changed();return;}}
     const auto Run=S.RunUUID,Json=SerializeSummary(S);
-    FString Dir=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("Reports/ScenarioRuns"));
+    FString Dir=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/VirtualSensorDefaults::ScenarioRunReportsDirectory);
 #if WITH_DEV_AUTOMATION_TESTS
     if(!ReportDirectoryOverrideForTests.IsEmpty())Dir=ReportDirectoryOverrideForTests;
 #endif

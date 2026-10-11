@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualPointCloudCoordinates.h"
 #include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
@@ -384,7 +385,7 @@ bool SerializePointCloud(
 			OutError = TEXT("LAZ 인수에는 {input}, {output}이 모두 필요합니다.");
 			return false;
 		}
-		const FString TempDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorStreamTemp"));
+		const FString TempDir = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::StreamTempDirectory);
 		IFileManager::Get().MakeDirectory(*TempDir, true);
 		const FString Stem = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 		const FString InputPath = FPaths::Combine(TempDir, Stem + TEXT(".las"));
@@ -1585,7 +1586,7 @@ TArray<FVirtualSensorStreamStatus> UVirtualSensorStreamPublisherComponent::GetSt
 
 bool UVirtualSensorStreamPublisherComponent::ExportDiagnosticReport(FString& OutJsonPath, FString& OutMarkdownPath) const
 {
-	const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Reports"));
+	const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::ReportsDirectory);
 	IFileManager::Get().MakeDirectory(*Directory, true);
 	const FString Timestamp = FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S"));
 	OutJsonPath = FPaths::Combine(Directory, FString::Printf(TEXT("sensor_stream_%s.json"), *Timestamp));

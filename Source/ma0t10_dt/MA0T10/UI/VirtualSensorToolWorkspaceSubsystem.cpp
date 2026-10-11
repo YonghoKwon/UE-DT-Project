@@ -1,4 +1,5 @@
 #include "VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolAppearance.h"
@@ -22,7 +23,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
-const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=TEXT("MA0T10_SensorToolWorkspace_v1");
+const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=VirtualSensorDefaults::WorkspaceSlot;
 float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight)
 {
 	const float Height=FMath::IsFinite(DesiredHeight)?DesiredHeight:48;

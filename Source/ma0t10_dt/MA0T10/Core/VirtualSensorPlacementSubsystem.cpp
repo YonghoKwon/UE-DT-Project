@@ -1,4 +1,5 @@
 #include "VirtualSensorPlacementSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -22,7 +23,7 @@ bool UVirtualSensorPlacementSubsystem::SamePose(const FTransform& A,const FTrans
 {return A.GetLocation().Equals(B.GetLocation(),.1)&&A.GetRotation().AngularDistance(B.GetRotation())<=FMath::DegreesToRadians(.01);}
 FString UVirtualSensorPlacementSubsystem::StoragePath() const
 {
-    FString Root=FPaths::ProjectSavedDir()/TEXT("SensorPlacements");
+    FString Root=FPaths::ProjectSavedDir()/VirtualSensorDefaults::PlacementDirectory;
 #if WITH_DEV_AUTOMATION_TESTS
     if(!StorageRootOverrideForTests.IsEmpty())Root=StorageRootOverrideForTests;
 #endif

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Core/DxWebSocketSubsystem.h"
 #include "GameFramework/Actor.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualSensorStreamReceiverTypes.h"
@@ -83,13 +84,13 @@ public:
 	bool bAutoStartTopicReceivers = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|ExternalSource|TopicReceiver")
-	FString LidarReceiveTopic = TEXT("topic.virtual.sensor.lidar.0");
+	FString LidarReceiveTopic = VirtualSensorDefaults::LidarTopic;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|ExternalSource|TopicReceiver")
-	FString CameraReceiveTopic = TEXT("topic.virtual.sensor.camera.0");
+	FString CameraReceiveTopic = VirtualSensorDefaults::CameraTopic;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|ExternalSource|TopicReceiver")
-	FString PointCloudReceiveTopic = TEXT("topic.virtual.sensor.export.0");
+	FString PointCloudReceiveTopic = VirtualSensorDefaults::PointCloudTopic;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|ExternalSource|TopicReceiver", meta = (ClampMin = "0.0", ClampMax = "10.0"))
 	float InitialSubscribeDelaySeconds = 2.0f;

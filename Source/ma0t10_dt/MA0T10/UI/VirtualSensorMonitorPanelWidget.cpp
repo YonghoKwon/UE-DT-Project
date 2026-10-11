@@ -1,4 +1,5 @@
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
 
 #include "Async/Async.h"
@@ -74,7 +75,7 @@ FString BuildPointCloudTimestamp()
 FString BuildPointCloudExportDirectory(const UVirtualLidarScanComponent* LidarComp)
 {
     const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("PointCloud"));
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::PointCloudSubdirectory);
     IFileManager::Get().MakeDirectory(*Directory, true);
     return Directory;
 }
@@ -99,7 +100,7 @@ FString TransportModeToText(EVirtualSensorTransportMode Mode)
 FString BuildServerPayloadExportDirectory(const UVirtualLidarScanComponent* LidarComp)
 {
     const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("ServerPayload"));
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);
     IFileManager::Get().MakeDirectory(*Directory, true);
     return Directory;
 }
@@ -107,7 +108,7 @@ FString BuildServerPayloadExportDirectory(const UVirtualLidarScanComponent* Lida
 FString BuildCameraPayloadExportDirectory(const UVirtualCameraCaptureComponent* CameraComp)
 {
     const FString SensorId = CameraComp ? CameraComp->SensorId : TEXT("CAMERA");
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), SensorId, TEXT("ServerPayload"));
+    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);
     IFileManager::Get().MakeDirectory(*Directory, true);
     return Directory;
 }
@@ -3164,7 +3165,7 @@ FString UVirtualSensorMonitorPanelWidget::EnsureLocalCaptureSessionDirectory()
         return LocalCaptureSessionDirectory;
     }
 
-    LocalCaptureSessionDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"), LocalCaptureFolderName, BuildPointCloudTimestamp());
+    LocalCaptureSessionDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, LocalCaptureFolderName, BuildPointCloudTimestamp());
     IFileManager::Get().MakeDirectory(*LocalCaptureSessionDirectory, true);
     return LocalCaptureSessionDirectory;
 }

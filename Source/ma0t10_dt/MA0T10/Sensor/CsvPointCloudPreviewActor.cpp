@@ -1,4 +1,5 @@
 #include "CsvPointCloudPreviewActor.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
@@ -621,7 +622,7 @@ bool ACsvPointCloudPreviewActor::OpenCsvFileDialog(FString& OutFilePath) const
     TArray<FString> OutFiles;
     const FString DefaultPath = !CsvFilePath.IsEmpty()
         ? FPaths::GetPath(ResolveCsvFilePath())
-        : FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SensorCaptures"));
+        : FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory);
 
     const bool bOpened = DesktopPlatform->OpenFileDialog(
         ParentWindowHandle,

@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "SensorWorkspaceForeignFixture.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
@@ -21,6 +22,58 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspaceIsolationTest,"MA0T10.SensorWorkspace.IsolationAndStorage",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 {
+    // ARCH-03: exact legacy literals stay independent of the implementation constants.
+    struct FDefaultCase { const TCHAR* Name; const TCHAR* Actual; const TCHAR* Expected; };
+    const FDefaultCase Defaults[] = {
+        { TEXT("CameraTopic"), VirtualSensorDefaults::CameraTopic, TEXT("topic.virtual.sensor.camera.0") },
+        { TEXT("LidarTopic"), VirtualSensorDefaults::LidarTopic, TEXT("topic.virtual.sensor.lidar.0") },
+        { TEXT("PointCloudTopic"), VirtualSensorDefaults::PointCloudTopic, TEXT("topic.virtual.sensor.export.0") },
+        { TEXT("UiSlotV1"), VirtualSensorDefaults::UiSlotV1, TEXT("MA0T10_VirtualSensorUI_v1") },
+        { TEXT("UiSlotV2"), VirtualSensorDefaults::UiSlotV2, TEXT("MA0T10_VirtualSensorUI_v2") },
+        { TEXT("UiSlotV3"), VirtualSensorDefaults::UiSlotV3, TEXT("MA0T10_VirtualSensorUI_v3") },
+        { TEXT("UiSlotV4"), VirtualSensorDefaults::UiSlotV4, TEXT("MA0T10_VirtualSensorUI_v4") },
+        { TEXT("UiSlotV5"), VirtualSensorDefaults::UiSlotV5, TEXT("MA0T10_VirtualSensorUI_v5") },
+        { TEXT("UiSlotV6"), VirtualSensorDefaults::UiSlotV6, TEXT("MA0T10_VirtualSensorUI_v6") },
+        { TEXT("WorkspaceSlot"), VirtualSensorDefaults::WorkspaceSlot, TEXT("MA0T10_SensorToolWorkspace_v1") },
+        { TEXT("AppearanceSlot"), VirtualSensorDefaults::AppearanceSlot, TEXT("MA0T10_SensorToolAppearance_v1") },
+        { TEXT("CaptureDirectory"), VirtualSensorDefaults::CaptureDirectory, TEXT("SensorCaptures") },
+        { TEXT("RecordingDirectory"), VirtualSensorDefaults::RecordingDirectory, TEXT("SensorRecordings") },
+        { TEXT("PlacementDirectory"), VirtualSensorDefaults::PlacementDirectory, TEXT("SensorPlacements") },
+        { TEXT("LayoutDirectory"), VirtualSensorDefaults::LayoutDirectory, TEXT("SensorLayouts") },
+        { TEXT("StreamTempDirectory"), VirtualSensorDefaults::StreamTempDirectory, TEXT("SensorStreamTemp") },
+        { TEXT("ReportsDirectory"), VirtualSensorDefaults::ReportsDirectory, TEXT("Reports") },
+        { TEXT("ScenarioRunReportsDirectory"), VirtualSensorDefaults::ScenarioRunReportsDirectory, TEXT("Reports/ScenarioRuns") },
+        { TEXT("TimedCaptureDirectory"), VirtualSensorDefaults::TimedCaptureDirectory, TEXT("SensorCaptures/LocalTimedCapture") },
+        { TEXT("TimedCaptureAutomationDirectory"), VirtualSensorDefaults::TimedCaptureAutomationDirectory, TEXT("SensorCaptures/LocalTimedCapture/Automation") },
+        { TEXT("PointCloudSubdirectory"), VirtualSensorDefaults::PointCloudSubdirectory, TEXT("PointCloud") },
+        { TEXT("ServerPayloadSubdirectory"), VirtualSensorDefaults::ServerPayloadSubdirectory, TEXT("ServerPayload") },
+    };
+    for (const FDefaultCase& Item : Defaults)
+        TestEqual(FString::Printf(TEXT("literal default %s"), Item.Name), FString(Item.Actual), FString(Item.Expected));
+
+    USensorToolWorkspaceSaveGame* Saved = NewObject<USensorToolWorkspaceSaveGame>();
+    TestEqual(TEXT("workspace schema stays v1"), Saved->Version, 1);
+    Saved->FontScale = 1.25f;
+    FSensorToolWorkspacePanelState& PanelState = Saved->Panels.Add(ESensorToolPanelRole::Settings);
+    PanelState.bOpen = true;
+    PanelState.Layout.NormalizedPosition = FVector2D(0.2f, 0.3f);
+    PanelState.Layout.bHasSavedPosition = true;
+    PanelState.Layout.ExpandedSize = FVector2D(520.0f, 600.0f);
+    PanelState.Layout.bHasSavedSize = true;
+    TArray<uint8> WorkspaceBytes;
+    TestTrue(TEXT("workspace v1 serializes to memory"), UGameplayStatics::SaveGameToMemory(Saved, WorkspaceBytes));
+    USensorToolWorkspaceSaveGame* Reloaded = Cast<USensorToolWorkspaceSaveGame>(UGameplayStatics::LoadGameFromMemory(WorkspaceBytes));
+    TestNotNull(TEXT("workspace v1 deserializes from memory"), Reloaded);
+    if (!Reloaded) return false;
+    TestEqual(TEXT("workspace version survives roundtrip"), Reloaded->Version, 1);
+    TestEqual(TEXT("workspace scale survives roundtrip"), Reloaded->FontScale, 1.25f);
+    const FSensorToolWorkspacePanelState* ReloadedPanel = Reloaded->Panels.Find(ESensorToolPanelRole::Settings);
+    TestNotNull(TEXT("workspace panel survives roundtrip"), ReloadedPanel);
+    if (!ReloadedPanel) return false;
+    TestTrue(TEXT("workspace open state survives roundtrip"), ReloadedPanel->bOpen);
+    TestTrue(TEXT("workspace saved flags survive roundtrip"), ReloadedPanel->Layout.bHasSavedPosition && ReloadedPanel->Layout.bHasSavedSize);
+    TestEqual(TEXT("workspace position survives roundtrip"), ReloadedPanel->Layout.NormalizedPosition, FVector2D(0.2f, 0.3f));
+    TestEqual(TEXT("workspace size survives roundtrip"), ReloadedPanel->Layout.ExpandedSize, FVector2D(520.0f, 600.0f));
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
 	auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);
 	auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);
