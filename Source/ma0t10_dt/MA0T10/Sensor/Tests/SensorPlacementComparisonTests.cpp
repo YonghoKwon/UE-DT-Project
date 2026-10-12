@@ -68,6 +68,11 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
     auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(W);FString Reason;
     TestTrue(TEXT("A/B selected explicitly"),Panel->SelectScenarioComparisonRun(TEXT("A"),true,Reason)&&Panel->SelectScenarioComparisonRun(TEXT("B"),false,Reason));
     TestTrue(TEXT("comparison text identifies runs"),Panel->GetScenarioRunComparisonText().Contains(TEXT("A: A"))&&Panel->GetScenarioRunComparisonText().Contains(TEXT("B: B")));
+    auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel);
+    Panel->OpenOwnedTab(ESensorOwnedDataTab::Results);Panel->RefreshRunResults();
+    TestTrue(TEXT("UXR03 result tab preserves A/B selection"),Panel->OwnedRunComparisonText.Contains(TEXT("A: A"))&&Panel->OwnedRunComparisonText.Contains(TEXT("B: B")));
+    for(const TCHAR* Word:{TEXT("receipt"),TEXT("revision"),TEXT("snapshot"),TEXT("Topic"),TEXT("Raw TCP")})
+        TestFalse(TEXT("UXR03 result display excludes diagnostic vocabulary"),Panel->OwnedRunResultsText.Contains(Word)||Panel->OwnedRunComparisonText.Contains(Word));
     auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();const auto Pose=Sensor->GetActorTransform();const auto Frame=Sensor->GetSensorRuntimeStatus().FrameId;
     TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> CurrentSensors;CurrentSensors.Add(TEXT("lidar-1"),Sensor);
     Results->SetMeasuredRates(TEXT("A"),CurrentSensors);Results->MarkStopped(TEXT("A"));FSlabRunDeliverySummary Frozen;Results->GetRunResult(TEXT("A"),Frozen);
@@ -79,7 +84,7 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
     Results->Results.RemoveAt(0);Results->Changed();Panel->RefreshRunResults();
     TestTrue(TEXT("evicted comparison stops with explicit reason"),Panel->GetScenarioRunComparisonText().Contains(TEXT("보관 종료"))&&Panel->ComparisonRunA==TEXT("A"));
     Panel->ClearScenarioRunComparison();TestTrue(TEXT("clear does not select another run"),Panel->ComparisonRunA.IsEmpty()&&Panel->ComparisonRunB.IsEmpty());
-    Sensor->Destroy();return true;
+    Workspace->UnregisterPanel(Panel);Sensor->Destroy();return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementIdentityUiTest,"MA0T10.Placement.ResetAndIdentityUi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

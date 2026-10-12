@@ -57,4 +57,7 @@ public:
     UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput",meta=(WorldContext="Context"))
     static FVirtualSensorOutputPreflightResult InspectForPurpose(const UObject* Context,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& TargetSensorIds,EVirtualSensorPreflightPurpose Purpose,double ObservedFps=0);
     static FVirtualSensorOutputPreflightResult Evaluate(FVirtualSensorOutputPreflightResult Snapshot,int64 MaxMessageBytes=8388608);
+    /** Same inspection/decision, without formatting hidden detail text. Not a new output policy. */
+    static FVirtualSensorOutputPreflightResult InspectForPresentation(const UObject* Context,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& TargetSensorIds,EVirtualSensorPreflightPurpose Purpose,bool bBuildDetails,double ObservedFps=0);
+    static FString FormatDetails(const FVirtualSensorOutputPreflightResult& Snapshot);
 };

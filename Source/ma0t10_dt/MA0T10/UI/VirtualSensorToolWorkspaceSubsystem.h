@@ -49,6 +49,8 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") float GetOwnedPanelFontScale() const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") bool IsPanelOpen(ESensorToolPanelRole Role) const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") UVirtualSensorPanelWidgetBase* GetOwnedPanel(ESensorToolPanelRole Role) const;
+	/** Prepare the existing replay owner without opening its window or changing output options. */
+	bool EnsureOwnedReplayPanel();
 	void SetCoordinator(AVirtualSensorCoordinator* InCoordinator);
 	bool RegisterPlacementHost(AVirtualSensorUiHostActor* Host);
 	void UnregisterPlacementHost(AVirtualSensorUiHostActor* Host);

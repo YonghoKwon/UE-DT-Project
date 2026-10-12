@@ -106,8 +106,8 @@ bool USensorToolToolbarWidget::IsOwnedDestinationVisible(ESensorToolDestination 
 	if(D==ESensorToolDestination::Preview)return W->IsPanelOpen(ESensorToolPanelRole::Monitor);
 	const auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
 	if(!Data||!W->IsPanelOpen(ESensorToolPanelRole::Data))return false;
-	return D==ESensorToolDestination::PcdTransfer?Data->GetActiveTab()==EVirtualSensorCaptureExportTab::LiveStream:
-		D==ESensorToolDestination::Results&&Data->GetActiveTab()==EVirtualSensorCaptureExportTab::ConnectionLog&&Data->AreScenarioRunResultsExpanded();
+	return D==ESensorToolDestination::PcdTransfer?Data->GetOwnedTab()==ESensorOwnedDataTab::Transfer:
+		D==ESensorToolDestination::Results&&Data->GetOwnedTab()==ESensorOwnedDataTab::Results;
 }
 bool USensorToolToolbarWidget::ToggleOwnedDestination(ESensorToolDestination D)
 {
@@ -138,11 +138,10 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 	if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Panel))S->OpenOwnedSettingsSection(Destination==ESensorToolDestination::Compatibility);
 	if(auto* D=Cast<UVirtualSensorCaptureExportPanelWidget>(Panel))
 	{
-		D->SetActiveTab(Destination==ESensorToolDestination::PcdTransfer?EVirtualSensorCaptureExportTab::LiveStream:
-			Destination==ESensorToolDestination::FileSave?EVirtualSensorCaptureExportTab::Capture:EVirtualSensorCaptureExportTab::ConnectionLog);
-		if(Destination==ESensorToolDestination::Results)D->SetScenarioRunResultsExpanded(true);
-		if(Destination==ESensorToolDestination::ServerSettings||Destination==ESensorToolDestination::Diagnostics)
-			D->OpenOwnedConnectionSection(Destination==ESensorToolDestination::Diagnostics);
+		D->OpenOwnedTab(Destination==ESensorToolDestination::PcdTransfer?ESensorOwnedDataTab::Transfer:
+			Destination==ESensorToolDestination::Results?ESensorOwnedDataTab::Results:
+			Destination==ESensorToolDestination::FileSave?ESensorOwnedDataTab::FileSave:
+			Destination==ESensorToolDestination::ServerSettings?ESensorOwnedDataTab::ServerConnection:ESensorOwnedDataTab::Diagnostics);
 	}
 	return true;
 }

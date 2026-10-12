@@ -25,6 +25,8 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") FSlabExecutionOptions ExecutionOptions;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FVirtualSlabSensorOutputSelection GetReplayOutputs() const;
+	FText GetOwnedReplayOutputSummary() const;
+	bool OpenOwnedReplayOutputSettings();
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") TArray<FString> TargetSensorIds;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -39,6 +41,9 @@ private:
 	FString PendingDeleteUUID;
 	FString ActionMessage;
 	FString CachedPreflight;
+	FText CachedOwnedOutputSummary;
+	int32 CachedOwnedOutputState=-1;
+	TSharedRef<SWidget> BuildOutputControls();
 	double NextPreflight=0;
 	TArray<FString> PreviousListIds;
 	static FString ResolveStableSelection(const TArray<FString>& PreviousIds,const TArray<FString>& CurrentIds,const FString& Selected);

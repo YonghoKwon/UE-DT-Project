@@ -64,7 +64,7 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     Toolbar->OpenOwnedDestination(ESensorToolDestination::ServerSettings);
     TestTrue(TEXT("server expands settings not results"),Data->bOwnedServerExpanded&&!Data->bRunResultsExpanded&&!Data->bOwnedReceiverExpanded);
     Toolbar->OpenOwnedDestination(ESensorToolDestination::Diagnostics);
-    TestTrue(TEXT("diagnostics expands receiver and log"),Data->bOwnedReceiverExpanded&&Data->bOwnedTransportLogExpanded&&!Data->bOwnedServerExpanded);
+    TestTrue(TEXT("diagnostics routes to its independent tab"),Data->GetOwnedTab()==ESensorOwnedDataTab::Diagnostics&&!Data->bOwnedServerExpanded);
     Toolbar->OpenOwnedDestination(ESensorToolDestination::Compatibility);
     TestEqual(TEXT("compatibility opens existing advanced settings"),Settings->WorkspaceSettingsTab,2);
     Toolbar->OpenOwnedDestination(ESensorToolDestination::SensorSettings);

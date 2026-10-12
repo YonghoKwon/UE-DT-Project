@@ -152,6 +152,14 @@ void UVirtualSensorToolWorkspaceSubsystem::SavePanel(ESensorToolPanelRole R)
 	if(bApplying||!Preferences||PendingInitialLayouts.Contains(R)||!IsOwnedPanelLayoutReady(R))return;auto* P=GetOwnedPanel(R);if(!P)return;
 	const bool Open=IsPanelOpen(R);auto& S=Preferences->Panels.FindOrAdd(R);S.bOpen=Open;S.Layout=P->CaptureWorkspaceLayout();Save();
 }
+bool UVirtualSensorToolWorkspaceSubsystem::EnsureOwnedReplayPanel()
+{
+	if(GetOwnedPanel(ESensorToolPanelRole::Replay))return true;
+	if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
+	for(TActorIterator<ASlabScenarioReplayUiHostActor> It(GetWorld());It;++It){It->ShowReplayPanel();break;}
+	if(!GetOwnedPanel(ESensorToolPanelRole::Replay))GetWorld()->SpawnActor<ASlabScenarioReplayUiHostActor>();
+	return GetOwnedPanel(ESensorToolPanelRole::Replay)!=nullptr;
+}
 void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,bool Open)
 {
 	if(!Preferences)return;
@@ -164,8 +172,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	PanelOpenMessage.Reset();
 	if(Open&&R==ESensorToolPanelRole::Replay&&!GetOwnedPanel(R))
 	{
-		for(TActorIterator<ASlabScenarioReplayUiHostActor> It(GetWorld());It;++It){It->ShowReplayPanel();break;}
-		if(!GetOwnedPanel(R))GetWorld()->SpawnActor<ASlabScenarioReplayUiHostActor>();
+		EnsureOwnedReplayPanel();
 	}
 	if(Open&&(R==ESensorToolPanelRole::SlabCharts||R==ESensorToolPanelRole::SlabProgress)&&!GetOwnedPanel(R))
 	{

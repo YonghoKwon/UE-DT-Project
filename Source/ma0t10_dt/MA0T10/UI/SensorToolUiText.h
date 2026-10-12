@@ -12,10 +12,48 @@ namespace SensorToolUiText
     inline FText Preview() { return LOCTEXT("Preview", "미리보기"); }
     inline FText Scenario() { return LOCTEXT("Scenario", "시나리오"); }
     inline FText PcdTransfer() { return LOCTEXT("PcdTransfer", "PCD 전송"); }
+    inline FText TransferTab() { return LOCTEXT("TransferTab", "전송"); }
+    inline FText Data() { return LOCTEXT("Data", "데이터"); }
+    inline FText ServerTab() { return LOCTEXT("ServerTab", "서버 연결"); }
+    inline FText NewScenario() { return LOCTEXT("NewScenario", "신규 시나리오"); }
+    inline FText ArchiveReplay() { return LOCTEXT("ArchiveReplay", "보관 목록 재생"); }
+    inline FText PcdOutput() { return LOCTEXT("PcdOutput", "PCD"); }
+    inline FText ExtraOutputs() { return LOCTEXT("ExtraOutputs", "추가 출력"); }
+    inline FText CameraOutput() { return LOCTEXT("CameraOutput", "Camera 이미지"); }
+    inline FText LidarOutput() { return LOCTEXT("LidarOutput", "LiDAR 정보"); }
+    inline FText RequireConnection() { return LOCTEXT("RequireConnection", "연결 확인 후 시작"); }
+    inline FText ObservationOnly() { return LOCTEXT("ObservationOnly", "관찰 전용"); }
+    inline FText ChangeInTransfer() { return LOCTEXT("ChangeInTransfer", "PCD 전송에서 변경"); }
+    inline FText DirectTransfer() { return LOCTEXT("DirectTransfer", "시나리오 없이 직접 전송"); }
+    inline FText PreflightDetails() { return LOCTEXT("PreflightDetails", "사전 점검 상세"); }
+    inline FText Advanced() { return LOCTEXT("Advanced", "고급"); }
+    inline FText Ready() { return LOCTEXT("Ready", "준비됨"); }
+    inline FString OutputSummary(bool Pcd,bool Camera,bool Lidar)
+    {
+        TArray<FString> Names;
+        if(Pcd)Names.Add(PcdOutput().ToString());
+        if(Camera)Names.Add(CameraOutput().ToString());
+        if(Lidar)Names.Add(LidarOutput().ToString());
+        return Names.IsEmpty()?ObservationOnly().ToString():FString::Join(Names,TEXT(" · "));
+    }
+    inline FString UserReason(FString Reason)
+    {
+        const TCHAR* From[]={TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Broker"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95"),TEXT("Coordinator"),TEXT("SensorId"),TEXT("snapshot"),TEXT("generation"),TEXT("backend"),TEXT("socket"),TEXT("FIFO")};
+        const TCHAR* To[]={TEXT("데이터"),TEXT("출력 주소"),TEXT("서버 수락"),TEXT("서버"),TEXT("전송 연결"),TEXT("일치 상태"),TEXT("설정 버전"),TEXT("지연"),TEXT("장비 연결"),TEXT("장비 ID"),TEXT("기록"),TEXT("실행 세대"),TEXT("측정 방식"),TEXT("연결"),TEXT("순서대로 전송")};
+        for(int32 I=0;I<UE_ARRAY_COUNT(From);++I)Reason.ReplaceInline(From[I],To[I],ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("\n"),TEXT(" · "));
+        Reason.ReplaceInline(TEXT("Slab Actor"),TEXT("시나리오 연결"));
+        Reason.ReplaceInline(TEXT("Point Cloud"),TEXT("PCD"));
+        Reason.ReplaceInline(TEXT("deadline"),TEXT("처리 시간 한도"),ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("wildcard"),TEXT("전체 장비"),ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("e2e"),TEXT("전체 경로"),ESearchCase::IgnoreCase);
+        return Reason;
+    }
     inline FText Results() { return LOCTEXT("Results", "결과"); }
     inline FText Tools() { return LOCTEXT("Tools", "도구"); }
     inline FText SensorSettings() { return LOCTEXT("SensorSettings", "센서 상세 설정"); }
     inline FText FileSave() { return LOCTEXT("FileSave", "파일 저장"); }
+    inline FText FileSaveWaiting() { return LOCTEXT("FileSaveWaiting", "파일을 저장하면 처리 결과가 표시됩니다."); }
     inline FText ServerSettings() { return LOCTEXT("ServerSettings", "서버 연결 설정"); }
     inline FText Diagnostics() { return LOCTEXT("Diagnostics", "진단"); }
     inline FText Compatibility() { return LOCTEXT("Compatibility", "고급·호환"); }
