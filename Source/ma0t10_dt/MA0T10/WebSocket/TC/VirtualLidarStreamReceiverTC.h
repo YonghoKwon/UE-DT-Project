@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "WebSocket/TransactionCodeMessage.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualSensorStreamReceiverTypes.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverTypes.h"
 #include "VirtualLidarStreamReceiverTC.generated.h"
 
 struct FVirtualLidarStreamReceiverData : FVirtualSensorTopicReceivedDataBase

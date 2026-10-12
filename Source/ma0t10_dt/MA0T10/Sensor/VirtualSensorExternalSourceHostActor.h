@@ -4,7 +4,7 @@
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Core/DxWebSocketSubsystem.h"
 #include "GameFramework/Actor.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualSensorStreamReceiverTypes.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverTypes.h"
 #include "VirtualSensorExternalSourceHostActor.generated.h"
 
 class USceneComponent;
