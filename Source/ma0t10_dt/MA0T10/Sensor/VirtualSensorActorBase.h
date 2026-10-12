@@ -11,6 +11,9 @@ class UVirtualSensorOutputComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorTransportComponent;
 class UVirtualSensorStreamPublisherComponent;
+class AVirtualSensorActorBase;
+class UStaticMeshComponent;
+DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorActivated,AVirtualSensorActorBase*);
 struct FVirtualSensorEditableState;
 
 UCLASS(Abstract, BlueprintType)
@@ -20,6 +23,10 @@ class MA0T10_DT_API AVirtualSensorActorBase : public AInteractableActor
 
 public:
 	AVirtualSensorActorBase();
+	virtual void Click() override;
+	FVirtualSensorActivated OnSensorActivated;
+	/** Explicit workspace opt-in; query-only placement marker never participates in sensor traces/captures. */
+	void SetPlacementPickingEnabled(bool Enabled);
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor")
 	virtual FString GetSensorId() const;
@@ -82,6 +89,7 @@ public:
 	TObjectPtr<UVirtualSensorOutputComponent> OutputComponent;
 
 protected:
+	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> PlacementPickMarker;
 	int32 ConfigurationRevision=0;
 	bool bSettingsTransaction=false;
 	bool bInteractiveManipulationActive = false;

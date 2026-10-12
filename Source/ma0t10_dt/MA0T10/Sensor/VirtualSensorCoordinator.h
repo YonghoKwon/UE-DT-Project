@@ -270,6 +270,7 @@ public:
 
 private:
     UFUNCTION() void HandleSensorEndPlay(AActor* Actor,EEndPlayReason::Type Reason);
+    void HandleSensorActivated(AVirtualSensorActorBase* Actor) { SelectSensorActor(Actor); }
     void ApplyWidgetBinding();
     void RunSynchronizedCapture();
     void AssignSharedServicesIfPossible(UActorComponent* SensorComp);

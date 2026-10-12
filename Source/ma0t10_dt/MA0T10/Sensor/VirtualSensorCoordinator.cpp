@@ -156,6 +156,7 @@ void AVirtualSensorCoordinator::BeginPlay()
 void AVirtualSensorCoordinator::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     RestorePointCloudOnlyVisibility();
+    for(AVirtualSensorActorBase* A:SensorActors)if(IsValid(A))A->OnSensorActivated.RemoveAll(this);
     for (UVirtualLidarScanComponent* LidarComp : Lidars)
     {
         RestoreLidarViewState(LidarComp);
@@ -170,6 +171,7 @@ void AVirtualSensorCoordinator::EndPlay(const EEndPlayReason::Type EndPlayReason
 
 void AVirtualSensorCoordinator::DiscoverSensorsInLevel()
 {
+    for(AVirtualSensorActorBase* A:SensorActors)if(IsValid(A))A->OnSensorActivated.RemoveAll(this);
     Cameras.Reset();
     Lidars.Reset();
     RealSensorSources.Reset();
@@ -497,6 +499,8 @@ void AVirtualSensorCoordinator::RegisterSensorActor(AVirtualSensorActorBase* Sen
 {
     if (!IsValid(SensorActor) || SensorActor->GetWorld()!=GetWorld() || SensorActors.Contains(SensorActor)) return;
     SensorActors.Add(SensorActor);
+    SensorActor->OnSensorActivated.RemoveAll(this);
+    SensorActor->OnSensorActivated.AddUObject(this,&ThisClass::HandleSensorActivated);
     SensorActor->SetSharedOutputServices(SharedTransportComponent, SharedRecorderComponent, StreamPublisherComponent);
     if(auto* C=SensorActor->FindComponentByClass<UVirtualCameraCaptureComponent>())RegisterCamera(C);
     if(auto* L=SensorActor->FindComponentByClass<UVirtualLidarScanComponent>())RegisterLidar(L);
@@ -517,6 +521,7 @@ void AVirtualSensorCoordinator::UnregisterSensorActor(AVirtualSensorActorBase* S
     SelectedCameraIndex=Cameras.IndexOfByKey(SelectedCamera);SelectedLidarIndex=Lidars.IndexOfByKey(SelectedLidar);
     if(SelectedCameraIndex==INDEX_NONE)SelectedCameraIndex=0;if(SelectedLidarIndex==INDEX_NONE)SelectedLidarIndex=0;
     Sensor->OnEndPlay.RemoveDynamic(this,&ThisClass::HandleSensorEndPlay);
+    Sensor->OnSensorActivated.RemoveAll(this);
     ApplyWidgetBinding();if(Removed)OnSensorInventoryChanged.Broadcast();
 }
 bool AVirtualSensorCoordinator::SelectSensorActor(AVirtualSensorActorBase* Sensor)

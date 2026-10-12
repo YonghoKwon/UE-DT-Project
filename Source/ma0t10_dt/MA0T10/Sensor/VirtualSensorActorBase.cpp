@@ -8,6 +8,8 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 
 AVirtualSensorActorBase::AVirtualSensorActorBase()
 {
@@ -83,6 +85,29 @@ bool AVirtualSensorActorBase::ApplyProfileAndSimulationQuality(const FVirtualSen
 {
 	OutError = TEXT("이 센서 Actor는 장비 프로필/품질 프리셋 적용을 지원하지 않습니다.");
 	return false;
+}
+
+void AVirtualSensorActorBase::Click()
+{
+	Super::Click(); // DTCore activation policy/input priority remains the authority.
+	OnSensorActivated.Broadcast(this);
+}
+void AVirtualSensorActorBase::SetPlacementPickingEnabled(bool Enabled)
+{
+	if(!Enabled){if(PlacementPickMarker){PlacementPickMarker->DestroyComponent();PlacementPickMarker=nullptr;}return;}
+	if(PlacementPickMarker||!GetRootComponent()||IsActorBeingDestroyed())return;
+	PlacementPickMarker=NewObject<UStaticMeshComponent>(this,TEXT("SensorPlacementPickMarker"),RF_Transient);
+	PlacementPickMarker->SetupAttachment(GetRootComponent());
+	PlacementPickMarker->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+	PlacementPickMarker->SetRelativeScale3D(FVector(.3));
+	PlacementPickMarker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	PlacementPickMarker->SetCollisionObjectType(ECC_WorldDynamic);
+	PlacementPickMarker->SetCollisionResponseToAllChannels(ECR_Ignore); // DTCore object queries still pick; channel-based sensors never hit it.
+	PlacementPickMarker->SetGenerateOverlapEvents(false);PlacementPickMarker->SetCastShadow(false);
+	PlacementPickMarker->SetHiddenInSceneCapture(true);PlacementPickMarker->SetAffectDynamicIndirectLighting(false);
+	PlacementPickMarker->SetAffectDistanceFieldLighting(false);PlacementPickMarker->SetAffectIndirectLightingWhileHidden(false);
+	PlacementPickMarker->SetVisibleInRayTracing(false);PlacementPickMarker->bVisibleInReflectionCaptures=false;PlacementPickMarker->bVisibleInRealTimeSkyCaptures=false;
+	PlacementPickMarker->RegisterComponent();
 }
 
 bool AVirtualSensorActorBase::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
