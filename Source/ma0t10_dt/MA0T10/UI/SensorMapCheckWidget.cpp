@@ -33,10 +33,10 @@ void USensorMapCheckWidget::RefreshChecks()
     int32 RigCount=0;AVirtualSensorToolRig* Rig=nullptr;
     for(TActorIterator<AVirtualSensorToolRig> It(World);It;++It)if(!It->IsActorBeingDestroyed()){Rig=*It;++RigCount;}
     Add(TEXT("센서 도구 설치"),RigCount==1&&Rig->IsSetupReady(),RigCount==1?Rig->SetupMessage:FString::Printf(TEXT("Rig %d개"),RigCount),TEXT("VirtualSensorToolRig를 맵에 하나만 배치하세요."));
-    int32 Coordinators=0,Hosts=0;AVirtualSensorCoordinator* Coordinator=nullptr;
+    int32 Coordinators=0,MapUiHostCount=0;AVirtualSensorCoordinator* Coordinator=nullptr;
     for(TActorIterator<AVirtualSensorCoordinator> It(World);It;++It)if(!It->IsActorBeingDestroyed()){Coordinator=*It;++Coordinators;}
-    for(TActorIterator<AVirtualSensorUiHostActor> It(World);It;++It)if(!It->IsActorBeingDestroyed())++Hosts;
-    Add(TEXT("장비와 화면 구성"),Coordinators==1&&Hosts==1,FString::Printf(TEXT("Coordinator %d개 · 센서 UI %d개"),Coordinators,Hosts),TEXT("중복 구성을 제거하고 Rig의 연결 대상을 확인하세요."));
+    for(TActorIterator<AVirtualSensorUiHostActor> It(World);It;++It)if(!It->IsActorBeingDestroyed())++MapUiHostCount;
+    Add(TEXT("장비와 화면 구성"),Coordinators==1&&MapUiHostCount==1,FString::Printf(TEXT("Coordinator %d개 · 센서 UI %d개"),Coordinators,MapUiHostCount),TEXT("중복 구성을 제거하고 Rig의 연결 대상을 확인하세요."));
     TArray<ASlabActor*> Slabs;TSet<FString> Receivers;bool Routing=true,Tracks=true;
     for(TActorIterator<ASlabActor> It(World);It;++It)if(!It->IsActorBeingDestroyed())
     {Slabs.Add(*It);Tracks&=IsValid(It->TrackReference)&&It->TrackReference->GetWorld()==World;Routing&=!It->ReceiverId.IsEmpty()&&!Receivers.Contains(It->ReceiverId);Receivers.Add(It->ReceiverId);}

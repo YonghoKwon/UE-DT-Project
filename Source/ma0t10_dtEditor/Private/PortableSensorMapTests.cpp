@@ -27,7 +27,7 @@
 
 namespace
 {
-const FString ReportRoot=FPaths::ProjectSavedDir()/TEXT("Reports/MAP/MAP-01");
+const FString Map01ReportRoot=FPaths::ProjectSavedDir()/TEXT("Reports/MAP/MAP-01");
 UWorld* PieWorld(){for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)return C.World();return nullptr;}
 class FPortableFlow : public IAutomationLatentCommand
 {
@@ -48,7 +48,7 @@ public:
         {
             Test->TestEqual(TEXT("only composition actors created"),Rig->GetOwnedActorCount(),HasSlab?4:2);
             Test->TestEqual(TEXT("Slab presence preserved"),IsValid(Rig->TargetSlab),HasSlab);
-            Library->SetAutomationStorageRoot(ReportRoot/TEXT("poses")/FGuid::NewGuid().ToString());
+            Library->SetAutomationStorageRoot(Map01ReportRoot/TEXT("poses")/FGuid::NewGuid().ToString());
             Test->TestTrue(TEXT("add LiDAR through existing placement panel"),P->AddSensor(EVirtualSensorKind::Lidar));P->EndPlacement();
             Test->TestTrue(TEXT("add Camera through existing placement panel"),P->AddSensor(EVirtualSensorKind::Camera));P->EndPlacement();
             Test->TestEqual(TEXT("both equipment registered"),C->GetSensorActors().Num(),2);
@@ -118,7 +118,7 @@ public:
         if(FPlatformTime::Seconds()<ReadyAt)return false;
         if(!Requested)
         {
-            const auto V=World->GetGameViewport()->Viewport->GetSizeXY();Path=ReportRoot/FString::Printf(TEXT("%s-%dx%d-%d-%s.png"),*MapName,V.X,V.Y,Phase<2?100:150,Phase%2?TEXT("map-check"):TEXT("default"));
+            const auto V=World->GetGameViewport()->Viewport->GetSizeXY();Path=Map01ReportRoot/FString::Printf(TEXT("%s-%dx%d-%d-%s.png"),*MapName,V.X,V.Y,Phase<2?100:150,Phase%2?TEXT("map-check"):TEXT("default"));
             Previous=IFileManager::Get().GetTimeStamp(*Path);FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;
             Test->AddInfo(FString::Printf(TEXT("Actual client %dx%d; font %d; automated capture %s"),V.X,V.Y,Phase<2?100:150,*Path));return false;
         }
