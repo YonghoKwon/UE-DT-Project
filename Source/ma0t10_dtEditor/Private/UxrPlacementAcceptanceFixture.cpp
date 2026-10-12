@@ -30,6 +30,10 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "GameFramework/GameModeBase.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#endif
 #include "UxrScenarioUiFixture.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
@@ -241,16 +245,18 @@ bool FUxrPlacementRenderTest::RunTest(const FString&)
 
 class FUxrPlacementManualWait : public IAutomationLatentCommand
 {
-    FString ManualRoot() const {const FString R=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));return (R.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02"):R)/TEXT("manual");}
+    FString ExplicitRoot;
+    double Timeout=1200;
+    FString ManualRoot() const {if(!ExplicitRoot.IsEmpty())return ExplicitRoot;const FString R=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));return (R.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02"):R)/TEXT("manual");}
     FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Next=0;bool Ready=false,FontProbed=false;
     TUniquePtr<TGuardValue<bool>> DebugGuard;
     TWeakObjectPtr<AWorldSettings> EditorSettings;
     TSubclassOf<AGameModeBase> OriginalMode;
 public:
-    explicit FUxrPlacementManualWait(FAutomationTestBase* T):Test(T)
+    explicit FUxrPlacementManualWait(FAutomationTestBase* T,double Seconds=1200,bool ProjectInput=true,FString Root=FString()):ExplicitRoot(MoveTemp(Root)),Timeout(Seconds),Test(T)
     {
         // Existing project input assets, transient test configuration only. Never save/reconfigure a map.
-        if(auto* World=GEditor->GetEditorWorldContext().World())
+        if(ProjectInput)if(auto* World=GEditor->GetEditorWorldContext().World())
         {EditorSettings=World->GetWorldSettings();OriginalMode=EditorSettings->DefaultGameMode;EditorSettings->DefaultGameMode=LoadClass<AGameModeBase>(nullptr,TEXT("/Game/MA0T10/Core/BP_DxGameMode.BP_DxGameMode_C"));}
     }
     ~FUxrPlacementManualWait(){if(EditorSettings.IsValid())EditorSettings->DefaultGameMode=OriginalMode;}
@@ -265,6 +271,11 @@ public:
             if(FPlatformTime::Seconds()>=Next)
             {
                 Next=FPlatformTime::Seconds()+.5;auto Json=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Rows;
+                const auto Client=World->GetGameViewport()->Viewport->GetSizeXY();Json->SetNumberField(TEXT("client_width"),Client.X);Json->SetNumberField(TEXT("client_height"),Client.Y);Json->SetNumberField(TEXT("umg_dpi"),UWidgetLayoutLibrary::GetViewportScale(World));
+                if(auto Window=World->GetGameViewport()->GetWindow())Json->SetNumberField(TEXT("window_dpi"),Window->GetDPIScaleFactor());
+#if PLATFORM_WINDOWS
+                DWORD ForegroundPid=0;::GetWindowThreadProcessId(::GetForegroundWindow(),&ForegroundPid);Json->SetStringField(TEXT("foreground_process"),FPaths::GetCleanFilename(FPlatformProcess::GetApplicationName(ForegroundPid)));Json->SetNumberField(TEXT("foreground_pid"),ForegroundPid);
+#endif
                 if(!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT")).IsEmpty())for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
                 if(auto* PC=World->GetFirstPlayerController()){Json->SetStringField(TEXT("controller"),PC->GetClass()->GetPathName());Json->SetStringField(TEXT("pawn"),GetNameSafe(PC->GetPawn()));if(auto* Dx=Cast<ADxPlayerControllerBase>(PC))Json->SetStringField(TEXT("click_policy"),Dx->ClickActivationPolicy==EDxClickActivationPolicy::SingleRelease?TEXT("SingleRelease"):TEXT("DoublePress"));}
                 if(auto* C=W->GetCoordinator())for(auto* A:C->GetSensorActors())if(A){auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("id"),A->GetSensorId());Row->SetStringField(TEXT("pose"),A->GetActorTransform().ToString());Row->SetBoolField(TEXT("selected"),C->GetSelectedSensorActor()==A);Row->SetBoolField(TEXT("measuring"),A->IsSensorRunning());Row->SetBoolField(TEXT("manipulating"),A->IsInteractiveManipulationActive());Rows.Add(MakeShared<FJsonValueObject>(Row));}
@@ -278,7 +289,7 @@ public:
             }
         }
         if(IFileManager::Get().FileExists(*(ManualRoot()/TEXT("finish.flag"))))return true;
-        if(FPlatformTime::Seconds()-Created>1200){Test->AddError(TEXT("Manual verification expired"));return true;}return false;
+        if(FPlatformTime::Seconds()-Created>Timeout){Test->AddError(TEXT("Manual verification expired"));return true;}return false;
     }
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrPlacementManualTest,"UXR02.Manual",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -287,5 +298,16 @@ bool FUxrPlacementManualTest::RunTest(const FString&)
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR02_MANUAL"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR02_MANUAL unset or !=1; SKIP explicit Computer Use only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrPlacementManualWait(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrFinalManualTest,"UXR07.Manual",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FUxrFinalManualTest::RunTest(const FString&)
+{
+    if(!FParse::Param(FCommandLine::Get(),TEXT("Uxr07Manual"))){AddInfo(TEXT("SKIP explicit long manual acceptance only"));return true;}
+    FString Map=TEXT("SlabScenarioValidationMap"),Root;FParse::Value(FCommandLine::Get(),TEXT("Uxr07ManualMap="),Map);FParse::Value(FCommandLine::Get(),TEXT("Uxr07ManualRoot="),Root);
+    if(Map!=TEXT("SlabScenarioValidationMap")&&Map!=TEXT("PortableSetupMap")&&Map!=TEXT("PortableNoSlabMap")){AddError(TEXT("Only committed acceptance maps are allowed"));return false;}
+    if(Root.IsEmpty()){AddError(TEXT("An isolated manual report root is required"));return false;}
+    IFileManager::Get().MakeDirectory(*Root,true);
+    if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/")+Map,true))return false;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrPlacementManualWait(this,7200,Map==TEXT("SlabScenarioValidationMap"),Root));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 #endif
