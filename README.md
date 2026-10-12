@@ -21,12 +21,12 @@
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
 | 아키텍처 | 단일 Runtime 모듈 안에 센서·Slab·UI가 섞여 있고 역방향 의존이 있다(§10.2 표). ARCH-01 레이어 gate 도입 | 폴더 재배치·역의존 제거 (ARCH-02~08) |
-| 화면 구성(UX) | 흐름 바·배치 정리, 데이터 5탭·신규/재생 출력 편집 단일화 구현(UXR-01~04), Slab 그리드 정보 카드·표면 프리셋(UXR-08), 센서 설정 3단(UXR-05) | UXR-02 최종 삭제 1건·UXR-03 직접 조작은 보류(열린 전송 화면 성능 검증 완료), UXR-04/05/08 직접 조작 보류, UXR-06~07 미착수; 산화 스케일은 현재 재질 미지원 |
+| 화면 구성(UX) | 흐름 바·배치·데이터5탭/출력 편집 단일화(UXR-01~04), Slab 그리드 정보·표면(UXR-08), 센서 설정3단(UXR-05), 미리보기1줄·빈 상태/진단 분리(UXR-06) | UXR-02 최종 삭제1건·UXR-03~06/08 직접 조작 보류, UXR-07 미착수; 산화 스케일은 현재 재질 미지원 |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화 통과 | 물리 마우스·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 40%) |
 | PCD 송신 | 실제1920×1080 2+2 PCD-only 10분·10회 반복 통과, 사전 점검 구현 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
-| 자동화 | Runtime `7a63971`: D3D12 전체 `MA0T10` 실제227 Success/조건부 skip20/실패0, UXR-03 기준선241개 이름별 상태 유지+신규6개, WBP7개 메모리 컴파일, UXR-08 자동 렌더24장 | UXR-03 직접 조작 보류(전송 화면 성능 보완 검증 완료), 표준 검증 진입점 (QA-01, ARCH-07) |
+| 자동화 | Runtime `e55fd9a`: D3D12 전체 `MA0T10` 실제229 Success/조건부 skip20/실패0, c428ab6 기준선247개 이름별 유지+UXR05/06 신규2개, WBP7 메모리 컴파일·렌더/성능2%gate | 직접 마우스/DPI/독립 검토 보류, 표준 검증 진입점 (QA-01, ARCH-07); 원본은 Saved/Reports/UXR/UXR-06 |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
 UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
@@ -121,7 +121,7 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 
 | 패널 / WBP | 현재 역할 |
 |---|---|
-| 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상 + SensorId/프레임/Hz/경고. 투영·색상·듀얼 카메라·범례·진단은 **보기 설정** |
+| 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상/점군 + 장비·상태·측정Hz·실제 경고1줄. 중지/장비 없음 안내. 투영·색상·듀얼·범례·개발자 정보는 **보기 설정** |
 | 센서 설정 / `WBP_VirtualSensorSettingsPanel` | **기본 / 고급 / 고급·호환**. 기본=프로필·품질·측정 주기·LiDAR 최대 거리, 고급=해상도/FOV/채널·미리보기 점, 고급·호환=출력 호환·외부 입력·식별·로그·원본 맵 반영 |
 | 데이터 / `WBP_VirtualSensorCaptureExportPanel` | **전송 / 결과 / 파일 저장 / 서버 연결 / 진단**. 새 소유 인스턴스는 전송 탭 |
 | 재생 / `WBP_SlabScenarioReplayPanel` | 전체 UUID/내부 보관 ID, 선택 항목 재실행·복사·삭제, 이번 재생 출력 요약 + `PCD 전송에서 변경` |
@@ -134,6 +134,7 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 - 글자 배율은 85/100/125/150%. 작은 창은 스크롤하거나 확대한다. 외부 UserWidget 내부를 재귀 변경하지 않는다.
 - **센서 상세 설정**은 기본·고급·고급·호환 3단이다. 한 문장 도움말과 성능 영향(낮음/보통/높음), `ⓘ` 상세를 제공한다. `도구 → 고급·호환`은 해당 화면으로 바로 들어간다. 배치 controls는 배치 창에 있으며 기존 BP API는 유지한다. 수집 잠금과 설정 검증·적용, 기존 저장값은 그대로다. UXR-05 CLI 검증/렌더/성능 근거는 `Saved/Reports/UXR/UXR-05/`; 직접 마우스는 보류다.
 - 듀얼 카메라는 기존 RenderTarget을 공유한다. 보조 카메라는 보기 전용이며 추가 capture/readback을 만들지 않는다.
+- **미리보기**는 중지 장비에 `측정 중지 상태입니다 · 측정 시작`, 장비가 없으면 `장비 추가`를 제공한다. 시작은 기존 배치의 잠금·조작 종료 경로, 추가는 기존 배치 창 열기다. 정상 메시지/경고 없음에 경고색을 쓰지 않는다. 숨김/접힘과 닫힌 개발자 정보·범례는 문자열 조립을 멈춘다. 소유 native 보기는 기존 프레임만 표시하며 숨은 동기 측정을 부르지 않는다. 기존 명시 BP 호환 캡처/저장·Designer 경로는 유지한다. UXR-06의 자동 Slate/RHI 검사·렌더20장·성능·전체 이름별 비교는 `Saved/Reports/UXR/UXR-06/`; 마우스는 보류다.
 - UXR-01 자동 렌더 검수: 실제 client 1280×720·1920×1080, 글자 100%·150%, window DPI 1.0. 캡처/이름별 회귀 비교는 `Saved/Reports/UXR/UXR-01/`에 있다. 레거시 툴바·사용자 Designer 경로는 유지하며 직접 마우스 검토는 별도다.
 - Esc 종료 요청·종료 버튼·선택 변경·패널 숨김/파괴는 조작을 시작한 Actor의 설정과 이전 실행 상태를 복원한다. 드래그 완료만으로 조작 모드를 끝내지는 않는다. 2026-10-12 Computer Use에서 정밀 이동 후 **첫 Esc는 조작만 종료하고 PIE를 유지**함을 확인했다. 기록은 `Saved/Reports/UXR/UXR-02/manual/`에 있다.
 - **3D 클릭 선택에는 DTCore 기반 입력 구성이 필요하다.** 기존 `BP_DxGameMode`는 `BP_DxPlayerControllerTest`(native 부모 `DxPlayerControllerTest`, SingleRelease)와 `BP_DxPlayerTest`를 사용한다. 기본 `Engine.PlayerController + DefaultPawn`에는 DTCore 클릭 경로가 없으므로 UI 목록 선택을 사용한다. 프로젝트는 Controller/GameMode를 임의로 교체하지 않는다. 검수는 기존 BP 구성을 테스트 PIE에만 임시 적용했으며 맵을 저장하지 않았다.
@@ -263,6 +264,7 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json"
 - `SensorRates`와 `StarvedSensorIds`를 공개한다. 기존 공정성 수치를 읽는 Blueprint/C++는 `bCameraFairnessEvaluable`/`bLidarFairnessEvaluable`도 확인해야 한다. 판정 불가 수치 0은 정상 공정성을 뜻하지 않는다. 조작용 임시 주기는 정격 공정성 통과로 처리하지 않는다.
 - Camera acquisition 신선도는 SceneCapture 제출 정의다. 스트리밍 readback은 해당 capture 직후의 복사와 고정 snapshot을 사용한다. slot 부족/합쳐진 capture는 명시적 파생 실패로 기록하며 나중의 픽셀을 옛 FrameId에 붙이지 않는다. acquisition·JPEG 완료·receipt·소비자 검증 Hz는 서로 구분한다.
 - 성능 보고서는 워밍업 이후의 0Hz 표본 및 요청 센서 누락을 평균으로 숨기지 않고 실패로 판정한다.
+- 소유 미리보기의 한 줄 Hz는 기존 신선도 판정을 그대로 사용하며 프레임·Payload·공정성·렌더러 세부 정보는 열린 **개발자 정보**에서 확인한다. 숨김은 센서 측정·송신·저장을 멈추지 않는다.
 
 ### Topic/Body
 
@@ -399,9 +401,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-12, `7a63971` Runtime 기준, ARCH-04 gate 유지)
+### 10.2 현재 위반 (2026-10-12, `e55fd9a` Runtime 기준, ARCH-04 gate 유지)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 221개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 보완·UXR-04·UXR-08 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 221개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 보완·UXR-04·UXR-05·UXR-06·UXR-08 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
