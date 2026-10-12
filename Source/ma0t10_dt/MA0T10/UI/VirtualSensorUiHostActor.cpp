@@ -248,7 +248,7 @@ void AVirtualSensorUiHostActor::CreateAndBindToolWidgets()
         }
     }
 
-    if(!PlacementWidget&&SettingsWidget&&(PlacementWidgetClass||bUseNativeToolWidgetFallback))
+    if(!PlacementWidget&&(PlacementWidgetClass||bUseNativeToolWidgetFallback))
     {
         UClass* Class=PlacementWidgetClass?PlacementWidgetClass.Get():UVirtualSensorPlacementPanelWidget::StaticClass();
         PlacementWidget=CreateWidget<UVirtualSensorPlacementPanelWidget>(World,Class);
