@@ -31,6 +31,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "GameFramework/GameModeBase.h"
 #include "UxrScenarioUiFixture.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 
 /** Identical test-only instrument on both production revisions. No transmission or local frame saving. */
@@ -50,6 +51,12 @@ public:
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();if(!C)return false;
         if(!Started)
         {
+            if(FParse::Param(FCommandLine::Get(),TEXT("Map01PerfRig")))
+            {
+                auto* Rig=World->SpawnActor<AVirtualSensorToolRig>();
+                if(!Rig||!Rig->EnsureSetup()){Test->AddError(TEXT("MAP-01 performance Rig setup failed"));return true;}
+                Test->AddInfo(TEXT("MAP-01: memory-only Rig reuses map owners; same visible UI and sensor configuration"));
+            }
             int32 Cameras=0,Lidars=0;
             for(auto* A:C->GetSensorActors())if(A){Sensors.Add(A);Cameras+=A->GetSensorKind()==EVirtualSensorKind::Camera;Lidars+=A->GetSensorKind()==EVirtualSensorKind::Lidar;}
             if(Cameras!=1||Lidars!=1){Test->AddError(TEXT("UXR comparison requires exactly one Camera and one LiDAR"));return true;}
