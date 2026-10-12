@@ -26,6 +26,23 @@ namespace SensorToolUiText
     inline FText ChangeInTransfer() { return LOCTEXT("ChangeInTransfer", "PCD 전송에서 변경"); }
     inline FText DirectTransfer() { return LOCTEXT("DirectTransfer", "시나리오 없이 직접 전송"); }
     inline FText PreflightDetails() { return LOCTEXT("PreflightDetails", "사전 점검 상세"); }
+    inline FText PreflightTarget() { return LOCTEXT("PreflightTarget", "점검 대상:"); }
+    inline FText DirectTarget() { return LOCTEXT("DirectTarget", "직접 전송"); }
+    inline FText PcdServerRequired() { return LOCTEXT("PcdServerRequired", "PCD 전송에는 서버 연결 설정이 필요합니다"); }
+    inline FString UserReason(FString Reason);
+    inline FString PreflightReason(const FString& Reason)
+    {
+        if(Reason.Contains(TEXT("STOMP")))return PcdServerRequired().ToString();
+        if(Reason.Contains(TEXT("Broker URL"))||Reason.Contains(TEXT("Topic")))return LOCTEXT("OutputAddressRequired", "서버 연결과 출력 주소를 설정하세요").ToString();
+        if(Reason.Contains(TEXT("Coordinator")))return LOCTEXT("EquipmentConnectionRequired", "장비와 전송 연결을 확인하세요").ToString();
+        if(Reason.Contains(TEXT("중복 SensorId")))return LOCTEXT("DuplicateEquipmentId", "장비 ID가 겹칩니다 · 배치에서 확인하세요").ToString();
+        if(Reason.Contains(TEXT("선택 센서 없음"))||Reason.Contains(TEXT("대상 SensorId 없음")))return LOCTEXT("SelectOutputEquipment", "전송할 장비를 배치나 상단 목록에서 선택하세요").ToString();
+        if(Reason.Contains(TEXT("LiDAR가 없")))return LOCTEXT("LidarOutputRequired", "전송할 LiDAR가 없습니다 · 배치에서 추가하거나 대상을 확인하세요").ToString();
+        if(Reason.Contains(TEXT("Camera가 없")))return LOCTEXT("CameraOutputRequired", "전송할 Camera가 없습니다 · 배치에서 추가하거나 대상을 확인하세요").ToString();
+        if(Reason.Contains(TEXT("측정 주기")))return LOCTEXT("MeasurementPeriodRequired", "장비의 측정 주기를 확인하세요").ToString();
+        if(Reason.Contains(TEXT("수집 설정")))return LOCTEXT("EquipmentSettingsRequired", "장비 설정을 읽을 수 없습니다 · 센서 상세 설정에서 확인하세요").ToString();
+        return UserReason(Reason);
+    }
     inline FText Advanced() { return LOCTEXT("Advanced", "고급"); }
     inline FText Ready() { return LOCTEXT("Ready", "준비됨"); }
     inline FString OutputSummary(bool Pcd,bool Camera,bool Lidar)

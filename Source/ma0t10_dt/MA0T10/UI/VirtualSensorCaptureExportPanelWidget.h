@@ -228,6 +228,7 @@ private:
 	TSharedPtr<SCheckBox> OwnedLivePcdControl;
 	void FocusOwnedOutputSettings(bool bReplay);
 	bool bOwnedPreflightExpanded=false,bOwnedRunDiagnosticsExpanded=false;
+	bool bOwnedDirectExpanded=false;
 	bool bOwnedReplayPreflight=false;
 	bool bOwnedReplayOwnerRequested=false;
 	int32 OwnedPreflightFix=0; // 0=server, 1=placement, 2=settings, 3=scenario

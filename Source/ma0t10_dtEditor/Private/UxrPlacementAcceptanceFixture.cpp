@@ -11,6 +11,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "EngineUtils.h"
 #include "RenderTimer.h"
+#include "Misc/App.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
@@ -29,7 +31,7 @@
 class FUxrPlacementPerformance : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Started=0,Last=0;
-    TArray<double> Frames,GameThreads;
+    TArray<double> Frames,GameThreads,EngineFrames;
     TArray<TWeakObjectPtr<AVirtualSensorActorBase>> Sensors;
 public:
     explicit FUxrPlacementPerformance(FAutomationTestBase* T):Test(T){}
@@ -53,23 +55,35 @@ public:
                 FString Error;if(!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Test->AddError(Error);return true;}A->StartSensor();
             }
             W->ResetOwnedWorkspaceLayout();W->SetOwnedPanelFontScale(1);
+            if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW"))==TEXT("transfer"))
+            {
+                for(const auto Role:{ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})W->SetPanelOpen(Role,false);
+                W->SetPanelOpen(ESensorToolPanelRole::Data,true);
+                auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+                if(!Data){Test->AddError(TEXT("Transfer performance requires the owned data panel"));return true;}
+                Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);
+            }
             Test->AddInfo(TEXT("Actual client 1920x1080; 1 Camera + 1 LiDAR; full profiles; preview/placement open; 10s warmup + 30s wall-clock sampling"));
             Started=Now;Last=Now;return false;
         }
         const double Elapsed=Now-Started;
-        if(Elapsed>=10&&Elapsed<40){Frames.Add((Now-Last)*1000);GameThreads.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));}
+        if(Elapsed>=10&&Elapsed<40){Frames.Add((Now-Last)*1000);EngineFrames.Add(FApp::GetDeltaTime()*1000);GameThreads.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));}
         Last=Now;if(Elapsed<40)return false;
         for(const auto& A:Sensors)Test->TestTrue(TEXT("both devices remain measuring"),A.IsValid()&&A->IsSensorRunning()&&A->GetSensorRuntimeStatus().FrameId>0);
         if(Frames.IsEmpty()){Test->AddError(TEXT("No performance samples"));return true;}
         double Total=0,GtTotal=0;for(double V:Frames)Total+=V;for(double V:GameThreads)GtTotal+=V;
-        Frames.Sort();GameThreads.Sort();auto Json=MakeShared<FJsonObject>();
+        Frames.Sort();EngineFrames.Sort();GameThreads.Sort();auto Json=MakeShared<FJsonObject>();
         Json->SetNumberField(TEXT("average_fps"),Frames.Num()*1000.0/Total);Json->SetNumberField(TEXT("frame_p95_ms"),Frames[FMath::Clamp(FMath::CeilToInt(Frames.Num()*.95)-1,0,Frames.Num()-1)]);
         Json->SetNumberField(TEXT("game_thread_mean_ms"),GtTotal/GameThreads.Num());Json->SetNumberField(TEXT("game_thread_p95_ms"),GameThreads[FMath::Clamp(FMath::CeilToInt(GameThreads.Num()*.95)-1,0,GameThreads.Num()-1)]);
         Json->SetNumberField(TEXT("samples"),Frames.Num());Json->SetStringField(TEXT("timing"),TEXT("automation callback wall pacing; engine GGameThreadTime cycles separately"));
+        Json->SetNumberField(TEXT("engine_frame_p95_ms"),EngineFrames[FMath::Clamp(FMath::CeilToInt(EngineFrames.Num()*.95)-1,0,EngineFrames.Num()-1)]);
+        Json->SetStringField(TEXT("engine_frame_timing"),TEXT("FApp::GetDeltaTime; includes engine pacing"));
+        Json->SetStringField(TEXT("view"),FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW")));
         Json->SetStringField(TEXT("actual_client"),TEXT("1920x1080"));Json->SetNumberField(TEXT("warmup_seconds"),10);Json->SetNumberField(TEXT("measurement_seconds"),30);
         FString Output;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Output));
         const FString Name=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_NAME"));
-        const FString Path=FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02/performance")/(Name+TEXT(".json"));
+        const FString ReportRoot=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));
+        const FString Path=(ReportRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02/performance"):ReportRoot/TEXT("performance"))/(Name+TEXT(".json"));
         Test->TestTrue(TEXT("performance evidence written"),FFileHelper::SaveStringToFile(Output,*Path));Test->AddInfo(Output);return true;
     }
 };

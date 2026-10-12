@@ -163,7 +163,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
         CachedOwnedMessageSource=LastUiMessage;CachedOwnedMessageTab=OwnedTab;
         OwnedUiMessage=OwnedTab==ESensorOwnedDataTab::Transfer||OwnedTab==ESensorOwnedDataTab::Results?SensorToolUiText::UserReason(LastUiMessage):LastUiMessage;
     }
-    if(OwnedTab==ESensorOwnedDataTab::Transfer||OwnedTab==ESensorOwnedDataTab::FileSave)
+    if((OwnedTab==ESensorOwnedDataTab::Transfer&&bOwnedDirectExpanded)||OwnedTab==ESensorOwnedDataTab::FileSave)
     {
         auto* Actor=ResolveOwnedSelectedActor();
         OwnedSelectionText=Actor?FString::Printf(TEXT("%s · %s"),Actor->GetSensorKind()==EVirtualSensorKind::Lidar?TEXT("LiDAR"):TEXT("Camera"),*Actor->GetSensorId()):TEXT("장비를 선택하세요");
@@ -222,20 +222,23 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
         else if(!Check.BlockingReasons.IsEmpty())
         {
             const auto& Reason=Check.BlockingReasons[0];
-            CachedPcdPreflightSummary=SensorToolUiText::UserReason(Reason);
+            CachedPcdPreflightSummary=SensorToolUiText::PreflightReason(Reason);
             OwnedPreflightFix=Reason.Contains(TEXT("없"))||Reason.Contains(TEXT("중복"))?1:Reason.Contains(TEXT("주기"))||Reason.Contains(TEXT("수집 설정"))?2:0;
         }
         else if(Check.bSessionBusy&&bOwnedScenarioStreamView){CachedPcdPreflightSummary=TEXT("현재 실행을 마친 뒤 시작하세요");OwnedPreflightFix=3;}
         else if(!Check.bTransportConnected&&Outputs.HasAnyOutput())CachedPcdPreflightSummary=TEXT("서버 연결을 확인하세요");
         else {CachedPcdPreflightSummary=SensorToolUiText::Ready().ToString();OwnedPreflightFix=-1;}
-        WorkspaceStreamCards.Reset();
-        for(const auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
-            WorkspaceStreamCards.Add(Kind,TEXT("대상: ")+GetSelectedSensorIdForStream(Kind)+TEXT(" · 중지"));
-        if(SensorManager&&SensorManager->StreamPublisherComponent)for(const auto& State:SensorManager->StreamPublisherComponent->GetStreamStatuses())
+        if(bOwnedDirectExpanded)
         {
-            if(!State.SensorId.IsEmpty()&&State.SensorId!=GetSelectedSensorIdForStream(State.StreamKind))continue;
-            const int64 Errors=State.OverloadCount+State.EncodeFailureCount+State.BodyLimitRejectedCount+State.DeliveryFailureCount+State.RawDeliveryFailureCount+State.ConsumerValidationFailureCount;
-            WorkspaceStreamCards.Add(State.StreamKind,FString::Printf(TEXT("대상: %s · %s · 전송 %.1f건/s%s"),*GetSelectedSensorIdForStream(State.StreamKind),State.bEnabled?TEXT("전송 중"):TEXT("중지"),State.SubmittedHz,Errors?TEXT(" · 오류: 진단에서 확인하세요"):TEXT("")));
+            WorkspaceStreamCards.Reset();
+            for(const auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
+                WorkspaceStreamCards.Add(Kind,TEXT("대상: ")+GetSelectedSensorIdForStream(Kind)+TEXT(" · 중지"));
+            if(SensorManager&&SensorManager->StreamPublisherComponent)for(const auto& State:SensorManager->StreamPublisherComponent->GetStreamStatuses())
+            {
+                if(!State.SensorId.IsEmpty()&&State.SensorId!=GetSelectedSensorIdForStream(State.StreamKind))continue;
+                const int64 Errors=State.OverloadCount+State.EncodeFailureCount+State.BodyLimitRejectedCount+State.DeliveryFailureCount+State.RawDeliveryFailureCount+State.ConsumerValidationFailureCount;
+                WorkspaceStreamCards.Add(State.StreamKind,FString::Printf(TEXT("대상: %s · %s · 전송 %.1f건/s%s"),*GetSelectedSensorIdForStream(State.StreamKind),State.bEnabled?TEXT("전송 중"):TEXT("중지"),State.SubmittedHz,Errors?TEXT(" · 오류: 진단에서 확인하세요"):TEXT("")));
+            }
         }
         if(bWorkspaceLiveDetails)CachedLiveStreamSummary=GetLiveStreamSummaryText();
     }
@@ -321,7 +324,6 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
         return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8)[Content];
     };
     auto Direct=SNew(SVerticalBox);
-    Direct->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Text(SensorToolUiText::DirectTransfer())];
     Direct->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(OwnedSelectionText);})];
     for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
     {
@@ -335,13 +337,20 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
             +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this,Kind](){const auto* Card=WorkspaceStreamCards.Find(Kind);return FText::FromString(Card?*Card:FString());})]];
     }
     auto Checks=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8));
-    for(int32 I=0;I<3;++I)Checks->AddSlot()[SNewSensorTool(SButton).Text(I==0?SensorToolUiText::NewScenario():I==1?SensorToolUiText::ArchiveReplay():LOCTEXT("DirectCheck","직접 전송"))
+    for(int32 I=0;I<3;++I)Checks->AddSlot()[SNewSensorTool(SButton).Text(I==0?SensorToolUiText::NewScenario():I==1?SensorToolUiText::ArchiveReplay():SensorToolUiText::DirectTarget())
+        .ButtonColorAndOpacity_Lambda([this,I](){return (I==2?!bOwnedScenarioStreamView:bOwnedScenarioStreamView&&bOwnedReplayPreflight==(I==1))?FLinearColor(.35f,.70f,.85f,1):FLinearColor::White;})
         .ForegroundColor_Lambda([this,I](){return (I==2?!bOwnedScenarioStreamView:bOwnedScenarioStreamView&&bOwnedReplayPreflight==(I==1))?GetToolAccentColor():GetToolTextColor();})
         .OnClicked_Lambda([this,I](){bOwnedScenarioStreamView=I!=2;bOwnedReplayPreflight=I==1;LastNativeStatusRefreshSeconds=-1;return FReply::Handled();})];
     return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+            .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedDirectExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
+            .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DirectTransfer())]
+            .BodyContent()[Direct]]
         +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[Column(false)]+SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[Column(true)]]
         +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text(LOCTEXT("NextExecution","다음 실행부터 적용합니다 · 화면을 여는 것만으로 전송하지 않습니다"))]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Checks]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox)
+            +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightTarget())]
+            +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Checks]]
         +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)
             +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(STextBlock).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);}).Text_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);})]
             +SHorizontalBox::Slot().AutoWidth().Padding(8,0,0,0)[SNewSensorTool(SButton).Visibility_Lambda([this](){return OwnedPreflightFix<0?EVisibility::Collapsed:EVisibility::Visible;})
@@ -351,7 +360,6 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
             .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedPreflightExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
             .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightDetails())]
             .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})]]
-        +SVerticalBox::Slot().AutoHeight()[Direct]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
 	  .OnAreaExpansionChanged_Lambda([this](bool Open){bWorkspaceLiveDetails=Open;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::Advanced())]

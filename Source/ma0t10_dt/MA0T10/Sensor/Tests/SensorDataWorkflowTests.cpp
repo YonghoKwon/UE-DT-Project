@@ -24,7 +24,7 @@ int32 CheckCount(const TSharedRef<SWidget>& Widget)
 void VisibleTexts(const TSharedRef<SWidget>& Widget,TArray<FString>& Out)
 {
     if(!Widget->GetVisibility().IsVisible())return;
-    if(Widget->GetType()==TEXT("STextBlock"))Out.Add(StaticCastSharedRef<STextBlock>(Widget)->GetText().ToString());
+    if(Widget->GetWidgetClass().GetWidgetType()==TEXT("STextBlock"))Out.Add(StaticCastSharedRef<STextBlock>(Widget)->GetText().ToString());
     auto* Children=Widget->GetChildren();
     for(int32 I=0;I<Children->Num();++I)VisibleTexts(Children->GetChildAt(I),Out);
 }
@@ -66,7 +66,9 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
         TestTrue(TEXT("saved legacy enum remains bounded"),uint8(Data->GetActiveTab())<=3);
     }
     Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);Data->CachedPcdPreflight=TEXT("detail sentinel");
-    Data->CachedTransportLog=TEXT("log sentinel");Data->TickOwnedUi(1);
+    Data->CachedTransportLog=TEXT("log sentinel");Data->OwnedSelectionText=TEXT("direct selection sentinel");Data->WorkspaceStreamCards.Add(EVirtualSensorStreamKind::PointCloud,TEXT("direct card sentinel"));Data->TickOwnedUi(1);
+    TestEqual(TEXT("collapsed direct transfer does not format selection"),Data->OwnedSelectionText,FString(TEXT("direct selection sentinel")));
+    TestEqual(TEXT("collapsed direct transfer does not format stream cards"),Data->WorkspaceStreamCards.FindRef(EVirtualSensorStreamKind::PointCloud),FString(TEXT("direct card sentinel")));
     TestEqual(TEXT("collapsed preflight detail not reformatted"),Data->CachedPcdPreflight,FString(TEXT("detail sentinel")));
     TestTrue(TEXT("explicit Blueprint preflight getter retains detail access"),Data->GetPcdPreflightText().Contains(TEXT("PCD")));
     TestEqual(TEXT("inactive diagnostic tab not reformatted"),Data->CachedTransportLog,FString(TEXT("log sentinel")));
@@ -78,9 +80,14 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
     TestEqual(TEXT("file events do not format a hidden file tab"),Data->OwnedFileStatusText,FString(TEXT("file sentinel")));
     TestEqual(TEXT("file events do not bypass UI rate limit"),Data->LastNativeStatusRefreshSeconds,1.0);
     Data->SetVisibility(ESlateVisibility::Visible);Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);Data->TickOwnedUi(3);
-    DataSlate->Invalidate(EInvalidateWidgetReason::Prepass);DataSlate->SlatePrepass(1);
-    TArray<FString> Texts;VisibleTexts(DataSlate,Texts);
-    for(const auto& Text:Texts)for(const TCHAR* Word:{TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95")})TestFalse(TEXT("default transfer has no developer vocabulary"),Text.Contains(Word,ESearchCase::IgnoreCase));
+    // A standalone widget has no Slate window to evaluate the switcher attributes.
+    // Inspect the actual transfer subtree; the opt-in PIE render covers visibility.
+    const auto TransferSlate=Data->BuildOwnedLiveTab();TransferSlate->SlatePrepass(1);
+    TArray<FString> Texts;VisibleTexts(TransferSlate,Texts);
+    TestFalse(TEXT("transfer vocabulary scan is nonempty"),Texts.IsEmpty());
+    TestTrue(TEXT("preflight choices identify what is selected"),Texts.Contains(SensorToolUiText::PreflightTarget().ToString()));
+    TestTrue(TEXT("direct transfer remains discoverable while collapsed"),Texts.Contains(SensorToolUiText::DirectTransfer().ToString()));
+    for(const auto& Text:Texts)for(const TCHAR* Word:{TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95"),TEXT("STOMP")})TestFalse(TEXT("default transfer has no developer vocabulary"),Text.Contains(Word,ESearchCase::IgnoreCase));
     auto* Legacy=NewObject<USlabScenarioReplayPanelWidget>(World);Legacy->Initialize();TestEqual(TEXT("native legacy replay retains all output controls"),CheckCount(Legacy->TakeWidget()),4);
     TestNotNull(TEXT("existing replay setter remains reflected"),Replay->FindFunction(TEXT("SetReplayOutputs")));
     for(const TCHAR* Api:{TEXT("SelectScenarioComparisonRun"),TEXT("GetScenarioRunComparisonText"),TEXT("RetrySelectedScenarioRunReport")})TestNotNull(TEXT("result APIs remain reflected"),Data->FindFunction(FName(Api)));
@@ -90,6 +97,7 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorDataPreflightFormattingTest,"MA0T10.UXR03.PreflightDetailBudget",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorDataPreflightFormattingTest::RunTest(const FString&)
 {
+    TestEqual(TEXT("technical transport blocker has an actionable user sentence"),SensorToolUiText::PreflightReason(TEXT("실시간 Topic 송신에는 STOMP 전송 모드가 필요합니다.")),SensorToolUiText::PcdServerRequired().ToString());
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();FVirtualSlabSensorOutputSelection Outputs;
     const auto Full=UVirtualSensorOutputPreflight::InspectForPurpose(World,Outputs,{},EVirtualSensorPreflightPurpose::ScenarioTransition);
     const auto Compact=UVirtualSensorOutputPreflight::InspectForPresentation(World,Outputs,{},EVirtualSensorPreflightPurpose::ScenarioTransition,false);

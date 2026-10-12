@@ -43,7 +43,8 @@ public:
         if(!Requested)
         {
             const TCHAR* Names[]={TEXT("transfer"),TEXT("results"),TEXT("files"),TEXT("server"),TEXT("diagnostics")};
-            Path=FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-03")/FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"),Size.X,Size.Y,FMath::RoundToInt(Scale*100),Names[Phase%5]);
+            const FString ReportRoot=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));
+            Path=(ReportRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-03"):ReportRoot)/FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"),Size.X,Size.Y,FMath::RoundToInt(Scale*100),Names[Phase%5]);
             OldTime=IFileManager::Get().GetTimeStamp(*Path);
             FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;
             auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef());
