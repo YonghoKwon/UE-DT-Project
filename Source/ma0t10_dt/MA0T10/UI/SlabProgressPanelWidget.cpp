@@ -199,6 +199,8 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 			InformationGrid->AddSlot(0,GridRow).VAlign(VAlign_Top).Padding(0,2,12,2)[SNewSensorTool(STextBlock).Text(Row.Label).ColorAndOpacity(GetToolMutedColor())];
 			InformationGrid->AddSlot(1,GridRow++).Padding(0,2)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,I](){return OwnedInformationValues[I];})];
 		}
+		Controls->AddSlot()[SNewSensorTool(SButton).Visibility_Lambda([this](){return GetToolWorkspace()&&GetToolWorkspace()->IsSidebarMode()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("OpenArchive","보관 목록"))
+		 .OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace()){W->EnsureOwnedReplayPanel();W->SetPanelOpen(ESensorToolPanelRole::Replay,true);}return FReply::Handled();})];
 		Controls->AddSlot()[SNewSensorTool(SButton).Text(SensorToolUiText::ScenarioCharts())
 		 .IsEnabled_Lambda([this](){auto* W=GetToolWorkspace();return W&&W->GetOwnedPanel(ESensorToolPanelRole::SlabCharts);})
 		 .ButtonColorAndOpacity_Lambda([this](){auto* W=GetToolWorkspace();return W&&W->IsPanelOpen(ESensorToolPanelRole::SlabCharts)?FLinearColor(.35f,.70f,.85f,1):FLinearColor::White;})

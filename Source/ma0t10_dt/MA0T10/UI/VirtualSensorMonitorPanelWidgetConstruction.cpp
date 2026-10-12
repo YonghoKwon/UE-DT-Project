@@ -1,4 +1,5 @@
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
@@ -472,7 +473,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
      +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(SensorToolUiText::Preview())]
      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity_Lambda([this](){return bOwnedHasWarning?FVirtualSensorUiStyle::Warning:GetToolTextColor();}).Text(OwnedMonitorStatus)]
-       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedView","보기 설정"))]]]
+       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedViewIcon","..."))]]]
      +SVerticalBox::Slot().FillHeight(1).Padding(0,8,0,2)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(FLinearColor(.01,.015,.025,1)).Padding(2).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        [SNew(SVerticalBox)
         +SVerticalBox::Slot().FillHeight(.7f)[SNew(SOverlay)
@@ -485,7 +486,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
         +SVerticalBox::Slot().FillHeight(.3f).Padding(0,2)[SAssignNew(NativeSecondaryViewImage,SImage).Visibility_Lambda([this](){return !bOwnedPreviewEmpty&&bShowingLidar&&GetLidarProjectionMode()==ELidarMonitorProjectionMode::Split?EVisibility::Visible:EVisibility::Collapsed;}).Image(&NativeSecondaryViewBrush)]
         +SVerticalBox::Slot().FillHeight(.3f).Padding(0,2)[SAssignNew(NativeSecondaryCameraImage,SImage).Visibility_Lambda([this](){return bOwnedHasEquipment&&!bShowingLidar&&bDualCameraModeEnabled&&SecondaryCameraComp?EVisibility::Visible:EVisibility::Collapsed;}).Image(&NativeSecondaryCameraBrush)]
        ]]
-     +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedGrip","◢")).ToolTipText(LOCTEXT("OwnedGripTip","모서리를 드래그해 미리보기 크기를 조절합니다."))]
+     +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Collapsed:EVisibility::Visible;}).Text(LOCTEXT("OwnedGrip","◢")).ToolTipText(LOCTEXT("OwnedGripTip","모서리를 드래그해 미리보기 크기를 조절합니다."))]
     ];
 }
 TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedAdvancedViewMenu()

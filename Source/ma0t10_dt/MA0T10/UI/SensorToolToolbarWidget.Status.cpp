@@ -28,6 +28,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     if(!W||!W->OwnsToolbar(this)||Now<NextStatusRefresh)return;
     NextStatusRefresh=Now+.2;
     GlobalStatus=FSensorToolGlobalStatus();
+    SlabCardTitle=FText::FromString(TEXT("Slab · 대기"));SlabCardAngle=SlabCardOffset=SlabCardMargin=FText::FromString(TEXT("—"));SlabCardProgress=0;
     OwnedSensorLabels.Reset();
     EquipmentLabels.Reset();
     auto* C=W->GetCoordinator();
@@ -87,6 +88,15 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     if(StatusSlab.IsValid())
     {
         const auto Simulation=StatusSlab->GetSimulationStatus();
+        SlabCardProgress=Simulation.Progress;
+        if(W->IsSidebarMode()&&Simulation.RowCount>0&&!Simulation.ScenarioUUID.IsEmpty())
+        {
+            SlabCardTitle=FText::FromString(FString::Printf(TEXT("Slab %s · %.0f%%"),*Simulation.MtlNo,Simulation.Progress*100));
+            const auto Metrics=StatusSlab->GetCurrentMetrics();
+            SlabCardAngle=FText::FromString(FString::Printf(TEXT("%.2f°"),Metrics.LeftAngle));
+            SlabCardOffset=FText::FromString(FString::Printf(TEXT("%.1f cm"),Metrics.CenterOffsetCm));
+            SlabCardMargin=Metrics.bMarginsValid?FText::FromString(FString::Printf(TEXT("%.1f / %.1f cm"),Metrics.MarginLeftCm,Metrics.MarginRightCm)):FText::FromString(TEXT("—"));
+        }
         if(Simulation.State==ESlabSimulationState::Playing)GlobalStatus.Scenario=SensorToolUiText::ScenarioRunning(Simulation.Progress);
         else if(Simulation.State==ESlabSimulationState::Paused)GlobalStatus.Scenario=SensorToolUiText::ScenarioPaused();
         else if(Simulation.State==ESlabSimulationState::Preparing)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
@@ -107,8 +117,9 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
 {
     auto Row=SNew(SHorizontalBox);
     static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
-        .SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Color(30,48,62),12.f,FSensorOwnedPresentationStyle::Color(71,112,137),1.f))
-        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Color(37,77,91),12.f,FSensorOwnedPresentationStyle::Accent(),1.f));
+        .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent,6.f))
+        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),6.f));
+    static const FButtonStyle WarningChip=FButtonStyle(Chip).SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::WarningSurface(),6.f));
     const ESensorToolDestination Destinations[]={ESensorToolDestination::Placement,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Scenario,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics};
     for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
     {
@@ -118,11 +129,11 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
             switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return SensorToolUiText::Warning(GlobalStatus.Warning);}
         };
         Row->AddSlot().FillWidth(I==4?1.5f:1.f).VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
-        [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
+        [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
          .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
-         .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination](){OpenOwnedDestination(Destination);return FReply::Handled();})
-         [SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-          .ColorAndOpacity(I==4?FLinearColor(1,.65f,.2f):FSensorOwnedPresentationStyle::Muted())]];
+         .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4&&!GlobalStatus.bServerConnected?ESensorToolDestination::ServerSettings:Destination);return FReply::Handled();})
+         [SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+          .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]];
     }
     return Row;
 }
