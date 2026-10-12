@@ -107,6 +107,8 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 소유 상단 작업 흐름 바는 **장비 ▾ / 배치 / 미리보기 / 시나리오 / PCD 전송 / 결과 / 도구 ▾**다. 장비 선택에는 종류·SensorId·측정/정지/정체/오류 상태가 표시되고 배치 창과 같은 선택을 공유한다. 기존 `장비 추가·위치 저장` 진입점은 **배치**로 짧게 표시한다. Host가 명시적으로 등록한 인스턴스만 관리하며 다른 Widget의 스타일·입력·저장값을 건드리지 않는다.
 
 - **시나리오**는 진행과 보관 목록을 함께 연다. 차트는 `도구 → 시나리오 차트`에서 연다(UXR-04 정리 전 기존 접근 유지).
+- 상단 작업 버튼은 **토글**이다. 열린 같은 화면을 다시 누르면 숨기고, 닫힌 화면은 열어 앞으로 가져온다. PCD 전송/결과처럼 같은 패널의 다른 화면은 먼저 전환하고, 그 화면을 다시 누를 때 숨긴다. 열린 화면은 강조한다. 숨김은 측정·송신·저장·재생을 멈추지 않는다(배치/설정의 조작 모드만 종료).
+- 장비 선택기는 `Camera SensorId ● 상태` 형식과 LiDAR/Camera 묶음을 사용한다. 선택만으로 패널을 열거나 측정을 시작하지 않는다. 긴 ID는 말줄임+전체 ID 툴팁, 하단 `+ 장비 추가 (배치)`는 배치 창 진입이다. 전역 상태 줄은 hover 가능한 칩이며 긴 경고도 전체 문장 툴팁을 제공한다.
 - **PCD 전송**은 데이터의 실시간 전송 화면, **결과**는 연결·진단의 실행별 결과 영역을 펼친다. 독립 결과 탭은 UXR-03 후속 범위다.
 - **도구**에는 센서 상세 설정, 파일 저장, 서버 연결 설정, 진단, 고급·호환, 시나리오 차트, UI 표시가 있다. 서버 연결은 기존 서버 설정 영역, 진단은 수신 검증·전송 기록 영역, 고급·호환은 기존 Settings 고급 영역을 연다. 기능과 기본값은 바꾸지 않는다.
 - 바 아래 **전역 상태 줄**은 장비 수/측정 수·PCD 전송·시나리오·서버와 첫 차단 사유를 최대 5Hz로 표시한다. 각 항목을 누르면 관련 화면을 연다. 상태 조회나 화면 열기는 측정·송신·파일 저장을 시작하지 않는다. 여기서 서버는 PCD 출력 연결 상태이며 외부 소비자 처리 완료를 뜻하지 않는다.
@@ -126,7 +128,8 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 - 글자 배율은 85/100/125/150%. 작은 창은 스크롤하거나 확대한다. 외부 UserWidget 내부를 재귀 변경하지 않는다.
 - 듀얼 카메라는 기존 RenderTarget을 공유한다. 보조 카메라는 보기 전용이며 추가 capture/readback을 만들지 않는다.
 - UXR-01 자동 렌더 검수: 실제 client 1280×720·1920×1080, 글자 100%·150%, window DPI 1.0. 캡처/이름별 회귀 비교는 `Saved/Reports/UXR/UXR-01/`에 있다. 레거시 툴바·사용자 Designer 경로는 유지하며 직접 마우스 검토는 별도다.
-- Esc 종료 요청·종료 버튼·선택 변경·패널 숨김/파괴는 조작을 시작한 Actor의 설정과 이전 실행 상태를 복원한다. 드래그 완료만으로 조작 모드를 끝내지는 않는다. D3D12 자동 회귀는 통과했다. 2026-10-02 직접 Esc 입력은 Editor의 기본 Stop PIE 동작으로 재생 창을 종료했다. PIE 유지 상태에서 조작만 종료하는 물리 키 검증은 별도로 남는다.
+- Esc 종료 요청·종료 버튼·선택 변경·패널 숨김/파괴는 조작을 시작한 Actor의 설정과 이전 실행 상태를 복원한다. 드래그 완료만으로 조작 모드를 끝내지는 않는다. 2026-10-12 Computer Use에서 정밀 이동 후 **첫 Esc는 조작만 종료하고 PIE를 유지**함을 확인했다. 기록은 `Saved/Reports/UXR/UXR-02/manual/`에 있다.
+- **3D 클릭 선택에는 DTCore 기반 입력 구성이 필요하다.** 기존 `BP_DxGameMode`는 `BP_DxPlayerControllerTest`(native 부모 `DxPlayerControllerTest`, SingleRelease)와 `BP_DxPlayerTest`를 사용한다. 기본 `Engine.PlayerController + DefaultPawn`에는 DTCore 클릭 경로가 없으므로 UI 목록 선택을 사용한다. 프로젝트는 Controller/GameMode를 임의로 교체하지 않는다. 검수는 기존 BP 구성을 테스트 PIE에만 임시 적용했으며 맵을 저장하지 않았다.
 
 | 저장 파일(`Saved/SaveGames`) | 내용 |
 |---|---|
@@ -284,11 +287,16 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 ## 8. 센서 배치와 저장 위치
 
-**위치 저장을 찾는 경로:** 상단 **`장비 추가·위치 저장` → `저장 위치 · 선택 센서`**다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 저장된 열림 설정이 없는 첫 사용에는 배치 창과 미리보기를 함께 표시한다. 이후에는 사용자가 저장한 창 상태를 복원하며, 명시적으로 열면 배치 창의 본문을 펼쳐 앞으로 가져온다.
+**위치 저장을 찾는 경로:** 상단 **`배치 → 3. 저장 위치`**다. 배치 창은 `1. 장비 / 2. 선택 장비 / 3. 저장 위치 / 4. 전체 배치`를 직접 소유하며 Settings 창을 열 필요가 없다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 본문 전체를 스크롤하며 하단 결과 문구는 고정한다.
+
+- 장비 행은 종류·SensorId·레벨/추가·색 상태 점과 선택 강조를 표시한다. `측정 시작/중지`는 실제 측정을 제어하고, `이동·회전 시작/종료`는 경량 조작 모드를 제어한다. 모드·좌표·입력은 현재 선택이 보이는 세그먼트형 토글이다.
+- 전체 배치는 **이름 입력 → 저장 / 목록 선택 → 변경 미리보기 → 적용 또는 취소** 순서다. `선택 배치 덮어쓰기`는 목록 선택 후에만 보인다. 개별 위치와 전체 배치는 기존 파일 형식을 유지한다.
+- 소유 Settings의 기존 북마크·조작 Blueprint API는 배치 창과 같은 `SensorPlacementInteraction` adapter 및 기존 PlacementSubsystem을 사용한다. `BindPlacementControls`도 호환용으로 유지하지만 배치 UI 구성/작동에 Settings를 요구하지 않는다.
+- DTCore 객체 선택용 표식은 소유 Host 등록 장비에만 붙는 transient 구성이다. 센서 trace 채널은 무시하고 Camera/GPU LiDAR·의미 분류·그림자/반사에서는 제외한다. 창 전면 처리는 DTCore API를 순간 등록 adapter로 사용하며 일반 닫기/모드 전환 소유권을 넘기지 않는다.
 
 처음 사용하는 순서는 **PIE 실행 → 관찰 시점 이동 → LiDAR/Camera 추가 → 위치·회전 조정 → 현재 위치 저장 → 전체 배치 저장**이다. 다음 PIE에서는 전체 배치를 선택해 변경 미리보기 후 적용한다. 개별 북마크는 선택 장비의 자세만 저장하므로, 추가 장비를 재생성하려면 전체 배치 저장을 사용한다. PCD 송신은 별도로 선택한다.
 
-맵에는 `VirtualSensorCoordinator`가 정확히 하나, `VirtualSensorUiHostActor`가 하나 필요하다. Host의 `bAutoCreateOnBeginPlay`, `bAutoCreateToolPanels`를 켜고 `SensorManager`를 연결한다. `SettingsWidgetClass`/`PlacementWidgetClass`를 지정하거나 `bUseNativeToolWidgetFallback`을 켠다. WBP를 사용할 때 부모는 `VirtualSensorPlacementPanelWidget`이며 native 구성을 쓰는 wrapper에는 Designer Root, 별도 컨트롤 이름 또는 `Is Variable` 설정이 필요하지 않다. Level Blueprint에서 배치 Widget을 중복 생성하지 않는다. 늦은 준비는 0.5초 간격·최대 10초 재시도하며 실패 사유를 표시한다. 생성되지 않은 창의 열림 상태를 성공으로 저장하지 않는다.
+맵에는 `VirtualSensorCoordinator`가 정확히 하나, `VirtualSensorUiHostActor`가 하나 필요하다. Host의 `bAutoCreateOnBeginPlay`, `bAutoCreateToolPanels`를 켜고 `SensorManager`를 연결한다. `PlacementWidgetClass`를 지정하거나 `bUseNativeToolWidgetFallback`을 켠다. Settings는 선택적 상세 설정 화면이다. WBP를 사용할 때 부모는 `VirtualSensorPlacementPanelWidget`이며 native 구성을 쓰는 wrapper에는 Designer Root, 별도 컨트롤 이름 또는 `Is Variable` 설정이 필요하지 않다. Level Blueprint에서 배치 Widget을 중복 생성하지 않는다. 늦은 준비는 0.5초 간격·최대 10초 재시도하며 실패 사유를 표시한다. 생성되지 않은 창의 열림 상태를 성공으로 저장하지 않는다.
 
 DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws://localhost:31000` 접속 정책도 유지한다. 2026-10-10 확인 당시 31000 listener가 없어 일반 연결은 실패했고 프로젝트 기본 `WebSocketTopics`도 비어 있었다. Slab 수신을 사용할 때는 해당 서버를 실행하고 `Project Settings → DTCore Settings → WebSocketTopics`에 `topic.scenario`를 등록하거나 프로젝트의 기존 명시적 구독 경로를 연결해야 한다. 데이터 패널의 센서 출력 Broker와 업무 전문 수신 설정은 별개다. 별도 로컬 시험에서 Artemis `61616`의 `topic.scenario` 전문이 실제 DTCore → TC → DataSync → Slab로 전달되어 frame 5까지 진행했다. 이는 일반 실행의 31000 서버가 연결됐다는 뜻이 아니다. 서버·구독 기본값은 자동 변경하지 않았다.
 
