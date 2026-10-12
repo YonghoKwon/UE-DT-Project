@@ -1,7 +1,7 @@
-"""UXR-08: create exactly one new oxide-scale material, once.
+"""UXR-09: reproducibly rebuild only the explicitly approved oxide-scale material.
 
 UE 5.3: UnrealEditor-Cmd <project> -run=pythonscript -script=<this file>
-No existing asset or map is saved. An existing target is a hard failure.
+Only M_SlabSurfaceOxideScale is saved. No new asset or map is created.
 One non-tiling, single-level computational Gradient Noise supplies all variation.
 The mesh-local pattern follows moving Slabs; no textures, time, WPO or bump pass.
 """
@@ -12,14 +12,14 @@ ROOT = '/Game/MA0T10/Slab/Materials'
 NAME = 'M_SlabSurfaceOxideScale'
 PATH = ROOT + '/' + NAME
 disk = Path(unreal.Paths.project_content_dir()) / 'MA0T10/Slab/Materials' / (NAME + '.uasset')
-if disk.exists() or unreal.EditorAssetLibrary.does_asset_exist(PATH):
-    raise RuntimeError('UXR08_OXIDE_REFUSE_OVERWRITE: ' + PATH)
+if not disk.exists() or not unreal.EditorAssetLibrary.does_asset_exist(PATH):
+    raise RuntimeError('UXR09_OXIDE_EXPECT_EXISTING_APPROVED_ASSET: ' + PATH)
 
 M = unreal.MaterialEditingLibrary
-asset = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
-    NAME, ROOT, unreal.Material, unreal.MaterialFactoryNew())
+asset = unreal.load_asset(PATH)
 if not asset:
-    raise RuntimeError('Material creation failed: ' + PATH)
+    raise RuntimeError('Material load failed: ' + PATH)
+M.delete_all_material_expressions(asset)
 
 
 def node(kind, x, y):
@@ -67,7 +67,7 @@ local.set_editor_property('transform_type', unreal.MaterialPositionTransformSour
 link(position, local, '')
 noise = node(unreal.MaterialExpressionNoise, -1400, 0)
 noise.set_editor_property('noise_function', unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_ALU)
-noise.set_editor_property('scale', .17)
+noise.set_editor_property('scale', .095)
 noise.set_editor_property('levels', 1)
 noise.set_editor_property('quality', 1)
 noise.set_editor_property('tiling', False)
@@ -77,25 +77,25 @@ noise.set_editor_property('output_max', 1.)
 link(local, noise, 'Position')
 
 # Reuse the same noise for grey-brown/blue-grey mottling and sharp peeled patches.
-oxide_color = lerp(color('ColdColor', (.025, .021, .018, 1), -1300, -400),
-                   color('ScaleBlueColor', (.055, .072, .095, 1), -1300, -250), noise, -950, -350)
+oxide_color = lerp(color('ColdColor', (.006, .009, .014, 1), -1300, -400),
+                   color('ScaleBlueColor', (.018, .026, .038, 1), -1300, -250), noise, -950, -350)
 subtract = node(unreal.MaterialExpressionSubtract, -1200, 200)
-subtract.set_editor_property('const_b', .62)
+subtract.set_editor_property('const_b', .69)
 link(noise, subtract, 'A')
 contrast = node(unreal.MaterialExpressionMultiply, -1000, 200)
-contrast.set_editor_property('const_b', 9.)
+contrast.set_editor_property('const_b', 22.)
 link(subtract, contrast, 'A')
 peeled = node(unreal.MaterialExpressionSaturate, -800, 200)
 link(contrast, peeled, '')
 coated = node(unreal.MaterialExpressionOneMinus, -600, 200)
 link(peeled, coated, '')
 coverage = multiply(coated, scalar('Oxidation', .95, -800, 450), -400, 200)
-cold = lerp(color('ExposedSteelColor', (.38, .43, .48, 1), -800, -550), oxide_color, coverage, -200, -350)
+cold = lerp(color('ExposedSteelColor', (.22, .27, .32, 1), -800, -550), oxide_color, coverage, -200, -350)
 hotness = scalar('Hotness', 0., -200, -700)
 base = lerp(cold, color('HotColor', (1., .18, .018, 1), -200, -850), hotness, 100, -350)
 emissive = multiply(multiply(base, hotness, 350, -200), scalar('EmissiveStrength', 0., 100, 0), 550, -100)
-rough = lerp(scalar('ExposedRoughness', .28, -100, 450), scalar('Roughness', .9, -100, 600), coverage, 300, 400)
-metal = lerp(scalar('ExposedMetallic', .8, -100, 800), scalar('Metallic', .08, -100, 950), coverage, 300, 750)
+rough = lerp(scalar('ExposedRoughness', .78, -100, 450), scalar('Roughness', .96, -100, 600), coverage, 300, 400)
+metal = lerp(scalar('ExposedMetallic', .05, -100, 800), scalar('Metallic', 0., -100, 950), coverage, 300, 750)
 for expression, prop in [(base, unreal.MaterialProperty.MP_BASE_COLOR),
                          (rough, unreal.MaterialProperty.MP_ROUGHNESS),
                          (metal, unreal.MaterialProperty.MP_METALLIC),
@@ -109,4 +109,4 @@ if M.get_used_textures(asset):
     raise RuntimeError('Unexpected texture dependency; refusing to save')
 if not unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False):
     raise RuntimeError('New material save failed: ' + PATH)
-unreal.log('UXR08_OXIDE_CREATED: ' + PATH + ' (only this package saved)')
+unreal.log('UXR09_OXIDE_UPDATED: ' + PATH + ' (only this approved package saved)')

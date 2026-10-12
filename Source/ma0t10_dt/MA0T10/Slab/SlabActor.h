@@ -128,6 +128,9 @@ private:
 	bool bRegistered=false;
 	ESlabSurfacePreset SurfacePreset=ESlabSurfacePreset::Default;
 	bool bSurfaceLidarLinked=false,bSurfaceBaselineCaptured=false;
+	bool bHasBaselineColdColor=false,bHasBaselineMetallic=false;
+	FLinearColor BaselineColdColor;
+	float BaselineSurfaceMetallic=0;
 	bool BaselineHot=false;
 	float BaselineOxidation=0,BaselineRoughness=0,BaselineEmissive=0;
 	TWeakObjectPtr<UVirtualLidarSurfaceResponseComponent> BaselineSurfaceResponse;

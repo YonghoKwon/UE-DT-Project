@@ -401,6 +401,16 @@ void ASlabActor::UpdateAppearance()
 		SurfaceInstance->SetScalarParameterValue(TEXT("Roughness"),FMath::IsFinite(Roughness)?FMath::Clamp(Roughness,0.0f,1.0f):0.65f);
 		SurfaceInstance->SetScalarParameterValue(TEXT("EmissiveStrength"),FMath::IsFinite(EmissiveStrength)?FMath::Clamp(EmissiveStrength,0.0f,20.0f):3.0f);
 		SurfaceInstance->SetVectorParameterValue(TEXT("Color"),bHotAppearance?FLinearColor(1,0.08,0.01):FLinearColor(0.12,0.14,0.16));
+		if(SurfacePreset!=ESlabSurfacePreset::OxidationScale&&Material)
+		{
+			FLinearColor BaseColor;float BaseMetallic=0;
+			if(bHasBaselineColdColor)BaseColor=BaselineColdColor;
+			if(bHasBaselineColdColor||Material->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),BaseColor))
+				SurfaceInstance->SetVectorParameterValue(TEXT("ColdColor"),SurfacePreset==ESlabSurfacePreset::CooledSteel?FLinearColor(.18,.23,.29):SurfacePreset==ESlabSurfacePreset::AnalysisMatte?FLinearColor(.045,.055,.065):BaseColor);
+			if(bHasBaselineMetallic)BaseMetallic=BaselineSurfaceMetallic;
+			if(bHasBaselineMetallic||Material->GetScalarParameterValue(FMaterialParameterInfo(TEXT("Metallic")),BaseMetallic))
+				SurfaceInstance->SetScalarParameterValue(TEXT("Metallic"),SurfacePreset==ESlabSurfacePreset::CooledSteel?.65f:SurfacePreset==ESlabSurfacePreset::AnalysisMatte?.02f:BaseMetallic);
+		}
 	}
 }
 FSlabSetupValidation ASlabActor::ValidateSlabSetup() const

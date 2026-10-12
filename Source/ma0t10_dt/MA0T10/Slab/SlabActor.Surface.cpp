@@ -3,6 +3,7 @@
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -47,6 +48,7 @@ bool ASlabActor::ApplySurfacePreset(ESlabSurfacePreset P,bool Link,FString& Reas
     if(!bSurfaceBaselineCaptured)
     {
         bSurfaceBaselineCaptured=true;BaselineHot=bHotAppearance;BaselineOxidation=Oxidation;BaselineRoughness=Roughness;BaselineEmissive=EmissiveStrength;
+        if(SurfaceInstance){bHasBaselineColdColor=SurfaceInstance->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),BaselineColdColor);bHasBaselineMetallic=SurfaceInstance->GetScalarParameterValue(FMaterialParameterInfo(TEXT("Metallic")),BaselineSurfaceMetallic);}
     }
     if(Link&&!bSurfaceLidarLinked)
     {
@@ -57,13 +59,13 @@ bool ASlabActor::ApplySurfacePreset(ESlabSurfacePreset P,bool Link,FString& Reas
     switch(P)
     {
     case ESlabSurfacePreset::HotRed:Hot=true;Rough=.55f;Emissive=4;Reflect=.08f;break;
-    case ESlabSurfacePreset::OxidationScale:Hot=false;Ox=.95f;Rough=.90f;Emissive=0;Reflect=.12f;break;
-    case ESlabSurfacePreset::CooledSteel:Hot=false;Rough=.35f;Emissive=0;Reflect=.45f;break;
+    case ESlabSurfacePreset::OxidationScale:Hot=false;Ox=1.f;Rough=.96f;Emissive=0;Reflect=.12f;break;
+    case ESlabSurfacePreset::CooledSteel:Hot=false;Rough=.28f;Emissive=0;Reflect=.45f;break;
     case ESlabSurfacePreset::AnalysisMatte:Hot=false;Rough=.98f;Emissive=0;Reflect=.18f;break;
     default:break;
     }
     const bool AppearanceChanged=bHotAppearance!=Hot||Oxidation!=Ox||Roughness!=Rough||EmissiveStrength!=Emissive||
-        (P==ESlabSurfacePreset::OxidationScale)!=(SurfacePreset==ESlabSurfacePreset::OxidationScale);
+        P!=SurfacePreset;
     SurfacePreset=P; // Select the parent before the one-shot appearance update.
     bHotAppearance=Hot;Oxidation=Ox;Roughness=Rough;EmissiveStrength=Emissive;
     if(AppearanceChanged)UpdateAppearance(); // Reuse owned MIDs; one application per explicit change.

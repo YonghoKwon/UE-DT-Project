@@ -33,7 +33,7 @@ bool FSlabOxideScaleTest::RunTest(const FString&)
         OxideMid=Mid;
         TestEqual(TEXT("effective path reports displayed oxide"),Slab->GetEffectiveSurfaceMaterialPath(),OxidePath);
         TestEqual(TEXT("configured SurfaceMaterial never changes"),Slab->SurfaceMaterial.ToSoftObjectPath(),Property);
-        TestEqual(TEXT("oxide coverage parameter applied"),Mid->K2_GetScalarParameterValue(TEXT("Oxidation")),.95f);
+        TestEqual(TEXT("UXR09 opaque oxide coverage parameter applied"),Mid->K2_GetScalarParameterValue(TEXT("Oxidation")),1.f);
         TestNull(TEXT("visual-only oxide creates no optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>());
         TestTrue(TEXT("same selection is accepted"),Slab->ApplySurfacePreset(ESlabSurfacePreset::OxidationScale,false,Reason));
         TestTrue(TEXT("same selection retains MID"),Slab->SlabMesh->GetMaterial(0)==Mid);
