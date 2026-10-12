@@ -1,0 +1,84 @@
+{
+	"schemaVersion": "virtual-lidar.v1",
+	"sensorType": "virtual_lidar",
+	"sensorId": "sensor-fixed-007",
+	"manufacturer": "Generic",
+	"model": "Generic",
+	"frameId": 9007199254740992,
+	"timestampUtc": "2026-10-12T01:02:03.456Z",
+	"horizontalSamples": 2,
+	"verticalChannels": 1,
+	"rayCount": 2,
+	"totalPointCount": 2,
+	"hitPointCount": 2,
+	"maxDistance": 10000,
+	"semanticClassification": true,
+	"serverPayloadStride": 1,
+	"maxServerPayloadPoints": 0,
+	"includeMissPointsInServerPayload": false,
+	"previewPointStride": 2,
+	"maxPreviewPoints": 5000,
+	"previewBackend": "CpuInstancedMesh",
+	"gpuPreviewBackendRequested": false,
+	"gpuPreviewBackendActive": false,
+	"payloadPolicy":
+	{
+		"stride": 1,
+		"maxPoints": 0,
+		"includeMissPoints": false,
+		"pointSelection": "hit_only"
+	},
+	"previewPolicy":
+	{
+		"stride": 2,
+		"maxPoints": 5000,
+		"hitOnly": true,
+		"backend": "CpuInstancedMesh",
+		"gpuRequested": false,
+		"gpuActive": false,
+		"experimentalGpuOptIn": false,
+		"activePath": "cpu_instanced_mesh_fallback"
+	},
+	"sensorTransform":
+	{
+		"location": [ 123, -456, 789 ],
+		"rotation": [ 0, 0, -0 ],
+		"forward": [ 1, 0, 0 ],
+		"up": [ 0, 0, 1 ]
+	},
+	"payloadPointCount": 2,
+	"points": [
+		{
+			"pointIndex": 0,
+			"row": 0,
+			"col": 0,
+			"returnIndex": 0,
+			"gridCoordValid": false,
+			"gridCoordSource": "derived_from_point_index",
+			"hit": true,
+			"distance": 375,
+			"hitActor": "None",
+			"hitActorClass": "None",
+			"semanticLabel": "None",
+			"hitActorTags": [],
+			"worldLocation": [ 0, 0, 0 ],
+			"localDirection": [ 1, 0, 0 ]
+		},
+		{
+			"pointIndex": 1,
+			"row": 0,
+			"col": 1,
+			"returnIndex": 0,
+			"gridCoordValid": false,
+			"gridCoordSource": "derived_from_point_index",
+			"hit": true,
+			"distance": 375,
+			"hitActor": "None",
+			"hitActorClass": "None",
+			"semanticLabel": "None",
+			"hitActorTags": [],
+			"worldLocation": [ 0, 0, 0 ],
+			"localDirection": [ 1, 0, 0 ]
+		}
+	]
+}

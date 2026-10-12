@@ -1,0 +1,23 @@
+{
+	"schema": "virtual-lidar.telemetry.v1",
+	"sensorId": "sensor-fixed-007",
+	"frameId": 9007199254740992,
+	"timestampUtc": "2026-10-12T01:02:03.456Z",
+	"profile": "fixed-profile",
+	"acquisitionBackend": 1,
+	"horizontalSamples": 2,
+	"verticalChannels": 1,
+	"requestedRayCount": 2,
+	"validPointCount": 2,
+	"invalidPointCount": 0,
+	"firstEchoCount": 1,
+	"secondEchoCount": 1,
+	"minRangeMeters": 1.25,
+	"maxRangeMeters": 3.75,
+	"meanRangeMeters": 2.5,
+	"minIntensity": 12,
+	"maxIntensity": 34,
+	"meanIntensity": 23,
+	"acquisitionStartUnixNanoseconds": 1.791766923456e+18,
+	"acquisitionEndUnixNanoseconds": 1.7917669234561234e+18
+}

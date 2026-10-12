@@ -115,6 +115,9 @@ public:
 	TObjectPtr<UVirtualSensorTransportComponent> TransportComponent;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FArchitectureWireGoldenTest;
+#endif
 	friend class FSensorPlacementGateTest;
     friend class FWildcardSequenceTest;
 	struct FPreparedMessage
