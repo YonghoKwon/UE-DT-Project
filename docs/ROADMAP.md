@@ -146,6 +146,10 @@ DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필
 
 **완료 gate:** PL-01/02/03. 센서 Runtime→Slab/host/UI include·타입·module dependency가 없는지 검사하고, Slab/UI adapter를 연결하면 기존 metadata/동작이 돌아온다. 아직 plugin 설치 완료라고 표시하지 않는다.
 
+### 개편 마무리와 후속 순서 (2026-10-13)
+
+개편(ARCH+UXR+MAP)은 UXR-07 사용자 체험·확인으로 닫는다. 그 뒤 권장 순서: **PERF-01 절대 성능 재확인·UXR-08 산화 외형 확인 → UI-02 3D 진단 라벨 정리 → OPS-01 에이전트 환경(새 Codex 대화, 점검 전용 계정/VM) · QA-02 verify 자동 실행·성능 측정 표준화 → 아래 DTCore 수정 단계 → 센서/카메라 플러그인화(R5)**. FONT-01(한글 UI 글꼴)은 선택. 상세 근거·완료 조건은 IMPROVEMENTS "개편 후속 개선" 절.
+
 ### 개편 이후 예정 단계 (2026-10-12 사용자 예고)
 
 1. **DTCore 수정 단계:** IMPROVEMENTS의 "DTCore 변경 후보" 목록을 근거로 DTCore 쪽 변경을 별도 승인·별도 저장소 커밋으로 진행하고, 프로젝트는 검증된 gitlink만 갱신한다. 우회 코드는 그 뒤 정리한다.
