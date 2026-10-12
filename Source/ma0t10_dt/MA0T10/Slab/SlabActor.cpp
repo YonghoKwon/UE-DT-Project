@@ -374,7 +374,7 @@ UMaterialInterface* ASlabActor::GetExplicitSlotSurfaceMaterial() const
 FString ASlabActor::GetEffectiveSurfaceMaterialPath() const
 {
 	if(UMaterialInterface* Slot=GetExplicitSlotSurfaceMaterial()) return Slot->GetPathName();
-	return ResolveSurfaceMaterialPath(SurfaceMaterial.ToSoftObjectPath()).ToString();
+	return GetPresetSurfaceMaterialPath(SurfacePreset).ToString();
 }
 void ASlabActor::UpdateDimensions()
 { if(SlabMesh) SlabMesh->SetRelativeScale3D(GetSizeCm().ComponentMax(FVector(0.01))/100); }
@@ -384,10 +384,16 @@ void ASlabActor::UpdateAppearance()
 	// A slot-level user assignment remains untouched, including its material-instance parameters.
 	// A non-default Actor SurfaceMaterial is an explicit higher-priority override.
 	if(GetExplicitSlotSurfaceMaterial()) return;
-	UMaterialInterface* Material=Cast<UMaterialInterface>(ResolveSurfaceMaterialPath(SurfaceMaterial.ToSoftObjectPath()).TryLoad());
+	UMaterialInterface* Material=Cast<UMaterialInterface>(GetPresetSurfaceMaterialPath(SurfacePreset).TryLoad());
 	if(!Material) Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	if(!SurfaceInstance||SurfaceInstance->Parent!=Material)
-		SurfaceInstance=Material?UMaterialInstanceDynamic::Create(Material,this,MakeUniqueObjectName(this,UMaterialInstanceDynamic::StaticClass(),TEXT("SlabOwnedSurface"))):nullptr;
+	if(SurfaceInstance)
+	{
+		if(SurfaceInstance!=OxideSurfaceInstance) NonOxideSurfaceInstance=SurfaceInstance;
+	}
+	TObjectPtr<UMaterialInstanceDynamic>& Cached=SurfacePreset==ESlabSurfacePreset::OxidationScale?OxideSurfaceInstance:NonOxideSurfaceInstance;
+	if(!Cached||Cached->Parent!=Material)
+		Cached=Material?UMaterialInstanceDynamic::Create(Material,this,MakeUniqueObjectName(this,UMaterialInstanceDynamic::StaticClass(),TEXT("SlabOwnedSurface"))):nullptr;
+	SurfaceInstance=Cached;
 	if(SurfaceInstance&&SlabMesh->GetMaterial(0)!=SurfaceInstance) SlabMesh->SetMaterial(0,SurfaceInstance);
 	if(SurfaceInstance)
 	{

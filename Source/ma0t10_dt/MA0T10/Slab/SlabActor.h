@@ -111,6 +111,9 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabVisualizationComponent> VisualizationComponent;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabMetricsComponent> MetricsComponent;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> SurfaceInstance;
+	// Retain both owned MIDs across explicit preset switches, including user MID overrides.
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> NonOxideSurfaceInstance;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> OxideSurfaceInstance;
 	UPROPERTY(Transient) FSlabSimulationStatus Status;
 	UPROPERTY(Transient) FSlabScenarioAdmissionStatus LastAdmission;
 	FSlabScenarioDataPtr Scenario;
@@ -139,6 +142,7 @@ private:
 	bool StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,bool bReplay);
 	void FinishSimulation(bool bAborted,const FString& Error=FString());
 	void UpdateAppearance();
+	FSoftObjectPath GetPresetSurfaceMaterialPath(ESlabSurfacePreset Preset) const;
 	UMaterialInterface* GetExplicitSlotSurfaceMaterial() const;
 	void UpdateDimensions();
 	FTransform GetTrackTransform() const;
