@@ -394,28 +394,29 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 | L3 UI | `UI/` (Workspace Subsystem 포함 예정) | 소유 패널·Host·Gizmo·창 배치·UI 저장값 | L0~L2, DTCore |
 | L2 Host·업무 | `Slab/`, `Scenario/`(예정), `WebSocket/TC/`, 기존 `Crane/` `Manager/` `Player/` `Api/` `InteractableActor/` `UI/Main/` | Slab 시나리오·실행 결과·재생, 업무 전문 TC, 센서 context adapter | L0~L1, DTCore |
 | L1 센서 Runtime | `Sensor/`, `Camera/`, `Core/`(센서 공용 서비스만) | 센서 편집 상태 타입(`Sensor/VirtualSensorEditableTypes.h`), 측정·스케줄·코덱·출력·송신·파일 저장·배치/레이아웃 서비스 | L0~L1, DTCore |
-| L0 공통 계약 | `Contracts/` | Topic/슬롯/경로 리터럴 상수, L1 타입에 의존하지 않는 중립 acquisition context(ARCH-06 예정) | 엔진·DTCore 중립 타입만 |
+| L0 공통 계약 | `Contracts/` | Topic/슬롯/경로 리터럴 상수, L1 타입에 의존하지 않는 중립 acquisition context·provider와 기존 reflected 값 타입의 호환 adapter | 엔진·DTCore 중립 타입만 |
 | 외부 | `Plugins/DTCore` (submodule) | 공통 API/WebSocket/Data/UI 기반 | 수정 금지 |
 
 - 테스트(`*/Tests/`)와 Editor 모듈(`ma0t10_dtEditor`)은 레이어 검사에서 제외하지만 production 코드가 테스트를 include하면 안 된다.
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-12, Runtime `a36179c`, ARCH-05/07/08 완료)
+### 10.2 현재 위반 (2026-10-12, Runtime `90a0758`, ARCH-06 완료)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 235개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **9쌍 = allowlist 9개**다. ARCH-05에서 수신 진단 TC 의존 9쌍을 해소했고 ARCH-07/08은 개수를 유지했다. 신규·stale 및 L1→L3·L2→L3 include 위반은 0이다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 240개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
-| L1→L2 | 9 | `Scenario/VirtualSensorSlabContextSubsystem.h`, `VirtualSlabFrameContext.h`, `SlabRunResultsSubsystem.h`를 Camera 1·Sensor 3·Core 5쌍이 include. 분할 후 `Core/VirtualSensorStreamPublisherComponentSession.cpp`가 2쌍, `Sensor/VirtualLidarScanComponentAcquisition.cpp`가 1쌍이며 나머지는 기존 경로의 각 1쌍 | ARCH-06 |
+| L1→L2 | 0 | 위반 없음. acquisition 값·provider·기존 reflected 값 호환 타입은 L0 `Contracts/`, Slab 세션·결과 adapter는 L2 `Scenario/` | ARCH-06 완료(9→0) |
 | L1→L2 | 0 | 수신 타입·codec registry는 L0 `Contracts/`, codec 등록·ExternalSource 진단 hosting 본문은 L2 `WebSocket/TC/` | ARCH-05 완료 |
-| **합계** | **9** | 모두 L1→L2 Scenario 의존. L1→L3 0 + L2→L3 0 | ARCH-01의 38개 이하 유지 |
+| L1→L3·L2→L3 | 0 | 위반 없음 | ARCH-04 완료 |
+| **합계** | **0** | **위반 없음** | allowlist 비움 |
 
-Coordinator는 L1 `IVirtualSensorMonitorView`, Player는 L1 `IVirtualSensorPlacementInputOwner`로 호출한다. 호환용 `BindMonitorWidget`과 기존 Player의 Gizmo getter/register 시그니처는 그대로이며 본문은 `UI/` 번역 단위에 있다. `BoundMonitorWidget`의 concrete 타입·`UPROPERTY(Transient)`·GC 보유도 유지하므로 UI 타입 forward 선언/Blueprint 핀까지 없앤 것은 아니다. `Slab/SlabUiRegistry`는 약한 Actor 존재 정보와 활성 등록을 분리해 생성·로드·복제·BeginPlay 전 및 EndPlay 후 유효 Actor의 기존 판정을 유지한다. 센서→Scenario 9쌍은 ARCH-06에서 해소한다. Transport는 module startup에서 L2가 등록한 stateless codec의 thread-safe snapshot으로 기존 파서를 worker에서 호출한다. ExternalSource Actor 클래스·BP 계약은 유지하고 진단 hosting 본문만 L2로 이동했다. ARCH-08에서 미사용 Public `PixelStreaming*` 의존 3개를 제거했고 `.uproject` 활성화는 유지했다.
+Coordinator는 L1 `IVirtualSensorMonitorView`, Player는 L1 `IVirtualSensorPlacementInputOwner`로 호출한다. 호환용 `BindMonitorWidget`과 기존 Player의 Gizmo getter/register 시그니처는 그대로이며 본문은 `UI/` 번역 단위에 있다. `BoundMonitorWidget`의 concrete 타입·`UPROPERTY(Transient)`·GC 보유도 유지하므로 UI 타입 forward 선언/Blueprint 핀까지 없앤 것은 아니다. `Slab/SlabUiRegistry`는 약한 Actor 존재 정보와 활성 등록을 분리해 생성·로드·복제·BeginPlay 전 및 EndPlay 후 유효 Actor의 기존 판정을 유지한다. ARCH-06의 센서 frame/request·worker는 문자열·숫자만 있는 `FVirtualSensorAcquisitionContext`를 전달한다. 월드별 provider는 게임 스레드에서만 조회하며 SlabContext가 약한 소유권으로 등록·해제한다. 기존 `FVirtualSlabFrameContext`·출력 선택의 이름/UPROPERTY와 공개 Blueprint/C++ API는 L0 호환 값/변환으로 유지하고, 세션 상태·Slab 실행 정책은 L2에 남긴다. 송신 시점에는 기존 generation/run 승인만 검사하며 acquisition context를 최신 Slab 상태로 덮어쓰지 않는다. Transport는 module startup에서 L2가 등록한 stateless codec의 thread-safe snapshot으로 기존 파서를 worker에서 호출한다. ExternalSource Actor 클래스·BP 계약은 유지하고 진단 hosting 본문만 L2로 이동했다. ARCH-08에서 미사용 Public `PixelStreaming*` 의존 3개를 제거했고 `.uproject` 활성화는 유지했다.
 
 ARCH-08의 Monitor/Scan/Publisher는 같은 클래스의 12개 `.cpp`(249~887줄)로 나뉘며 순수 LiDAR JSON helper는 acquisition 번역 단위가 한 번만 include하는 `.inl`에 있다. 함수·helper 331개 원문·mutable helper 단일 인스턴스를 보존했다. 모든 Runtime `ForTests/ForTesting` hook은 `WITH_DEV_AUTOMATION_TESTS`로 제한된다. production 직렬화는 `SerializePointCloudFrame`으로 부르고 Development의 `SerializePointCloudForTesting` 호환 이름은 유지한다(비반영 native 함수).
 
-현재 검증: Editor·Game Development·Shipping, V2·guard·layer gate·WBP7 통과. D3D12 전체 **229 Success/skip20/실패0**, 기준선249개 이름별 결과 차이0. 실제1920×1080·1 Camera+1 LiDAR·10초 준비+30초의 offscreen 비교에서 callback FPS47.20→47.63, engine frame p9529.686→29.612ms, game thread 평균6.250→6.121ms로2%gate 통과. 직접 마우스 수용과 구분한다. 근거는 `Saved/Reports/ArchitectureSkeleton/A05/`, `A07/`, `A08/RESULT.md`, `A08/performance-comparison.json`이며 표준 진입점은 §11이다.
+현재 검증(Runtime `90a0758`): Editor·Game Development, `verify.ps1 -Level release` 12단계, layer **0/0**, WBP7 메모리 컴파일 통과. 변경 전 golden 커밋 `ba635b8`의 PCD 전체·호환 LiDAR JSON·telemetry·Camera/PCD STOMP 헤더 **14개 바이트 동일**. D3D12 전체 **233 Success / skip20 / 실패·NotRun0**이며 기존 249개 이름별 결과 차이0 + 신규 context/golden 4개 통과다. 실제 client 1920×1080·1 Camera+1 LiDAR·10초 준비+30초·D3D12 RenderOffscreen 비교에서 callback FPS 47.06→47.42, engine frame p95 29.690→29.607ms, game thread 평균 6.276→6.013ms, 2%gate 통과. 실제 Artemis 및 직접 마우스 점검은 수행하지 않았다. 개인 SaveGame 9개 복원·보호 경로 hash 불변, 독립 검토는 별도다. 근거: `Saved/Reports/ArchitectureSkeleton/A06/RESULT.md`, `summary.json`, `release-manifest.json`, `test-comparison.md`, `performance-comparison.json`. ARCH-05 enum→수신 kind의 명시적 switch 보완도 `90a0758`에 포함한다.
 
 실행: `Scripts/validate_architecture_layers.ps1` (`-Json`은 상세 결과). 신규 위반과 stale allowlist 모두 exit 1이며, 경로별 원본은 `Scripts/architecture_layers_allowlist.txt`다. `-SourceRoot`·`-AllowlistPath`는 `Saved` 안의 음성 대조 fixture용이며 일반 gate에서는 생략한다.
 

@@ -78,7 +78,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ARCH-03 | 구조 / 편집 타입·기본값 분리 완료 | P0 | **100%** | 편집 타입 → L1 Sensor, 기본값 상수 → L0 Contracts | 완료; ControlTypes 의존 9쌍 해소·UHT 계약·저장 회귀 통과 | A |
 | ARCH-04 | 구조 / 호출 역전 완료 | P0 | **100%** | Monitor·배치 입력 interface, Slab UI 약한 존재 registry | 완료; allowlist 22→18, L1/L2→L3 0, 기존 BP/GC 계약 유지 | A |
 | ARCH-05 | 구조 / 송신 검증 분리 완료 | P1 | **100%** | Transport/ExternalSource의 WebSocket/TC include 9쌍 제거 | 완료; 전체 249개 이름별 결과 동일·보호 경로 불변 | A |
-| ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
+| ARCH-06 | 구조 / Slab context 중립화 완료 | P1 | **100%** | L0 값 context·provider, L2 Slab adapter·공개 reflected 호환 유지 | 구현·검증 완료; golden14 동일·layer9→0·기존249개 결과 동일, 독립 검토 대기 | A (PL-01 일부) |
 | ARCH-07 | 품질 / 검증 진입점 완료 | P1 | **100%** | `verify.ps1` quick/feature/release, 환경변수 67개·Scripts 110파일 분류 | 완료; manifest·skip 원인 집계·전체 기준선 유지 | A (QA-01 일부) |
 | ARCH-08 | 구조 / 정리 완료 | P2 | **100%** | PixelStreaming 의존 3개 제거·test hook guard·대형 3파일 분할 | 완료; 331개 본문 불변·빌드/249개 회귀 동일·성능2%gate | A |
 | UXR-01 | UI/UX / 작업 흐름 바 | P0 | **100%** | 소유 흐름 바·5Hz 상태 줄·도구 메뉴·용어 상수, 자동화·4조합 렌더 통과 | Claude 직접 조작 검토는 별도; 세부 화면 재정비는 UXR-02~07 | U |
@@ -194,9 +194,11 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **검증:** Editor Development·V2 `-RequireAssets`·guard·layer gate·WBP 7개 메모리 컴파일 통과. 집중 **35 Success/skip 3**, D3D12 전체 **229 Success/skip 20/실패 0/NotRun 0**, `82dd293` 직전 기준선 249개 이름별 결과 차이 0. 기준선 실행 SHA `e55fd9a`와 `82dd293`의 Source diff 0을 확인했다. 이동 본문 hash 동일, 보호 파일 476개 불변·개인 SaveGame 9개 복원·자산 저장 0.
 - **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A05/summary.json`, `test-comparison.md`, `move-proof.json`, `RESULT.md`, `focused-resume/index.json`, `automation/index.json`, 빌드·WBP·guard·layer 로그. 중단된 전체 로그는 별도 보존하고 재실행했다. Broker/opt-in 20 skip과 RiderLink stderr 제한은 실제 통과로 세지 않는다. ARCH-06·Computer Use·DTCore 변경은 수행하지 않았다.
 
+- **ARCH-05 보완:** `90a0758`에서 stream enum→diagnostic receive enum의 ordinal cast 2개를 명시적 switch로 교체했다. 수신/고성능 집중 6 Success/skip1, 최종 전체 D3D12·Editor/Game 빌드 통과. wire·enum 값 순서·DTCore 변경 없음. 증거는 `Saved/Reports/ArchitectureSkeleton/A06/arch05-focused/`, `RESULT.md`.
+
 ### ARCH-06 — Slab context 중립화 (P1)
 
-**진행률: 0%** · PL-01의 핵심 부분. 가장 위험한 단계이므로 마지막 구조 변경으로 둔다.
+**진행률: 100%** · 2026-10-12 구현·검증 완료, Claude 독립 검토 대기. PL-01의 중립 context 경계까지이며 플러그인 생성은 수행하지 않았다.
 
 - **근거:** 센서 frame/request 타입이 `FVirtualSlabFrameContext`를 포함하고(13개 파일), Camera/LiDAR/ActorBase가 `VirtualSensorSlabContextSubsystem`을 직접 호출한다.
 - **작업:**
@@ -205,6 +207,10 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
   3. `Scenario/`의 SlabContext가 provider를 구현·등록한다. 센서 쪽은 provider만 안다.
   4. 기존 `FVirtualSlabFrameContext`를 쓰는 Blueprint/공개 API가 있으면 adapter로 유지한다.
 - **완료:** L1의 Slab/Scenario 참조 0, golden fixture 바이트 동일, Slab-PCD 연계·replay·per-sensor delivery 자동화 통과. 실제 Artemis 시험은 선택(수행 여부를 보고).
+
+- **결과:** `Contracts/`의 중립 native context·게임 스레드 provider와 weak 월드 registry를 추가했다. SlabContext는 기존 capture/승인/잠금/파생 예약/결과 집계 경로를 adapter로 제공한다. native frame/request와 Camera 대기/Publisher 메시지는 값 snapshot을 사용하며 worker는 UObject/provider를 조회하지 않는다. 기존 `FVirtualSlabFrameContext`·출력 선택의 reflected 속성 12개를 L0 호환 헤더에 원문 분리하고 `/Script/ma0t10_dt`·기존 include 경로·공개 API를 유지했다. 확인한 Blueprint 함수 시그니처 100개는 불변이다. allowlist **9→0**, 신규·stale0.
+- **검증:** 변경 전 production 코드의 golden `ba635b8`를 먼저 커밋했다. 고정 sensor/FrameId/UTC/pose와 context 포함·미포함에서 PCD 헤더·MA0T10_META·33-byte 본문, 호환 LiDAR JSON, telemetry, Camera/PCD STOMP 헤더 14개가 변경 후에도 byte 동일이다. 집중 **51 Success/skip9**, 최종 Runtime `90a0758`의 Editor·Game Development·표준 release 12단계·WBP7 통과. 전체 D3D12 **233 Success/skip20/실패·NotRun0**, 기존249개 이름별 상태 차이0 + 신규4개 통과. 성능(1920×1080,1+1,10+30초): callback FPS 47.06→47.42, engine frame p95 29.690→29.607ms, game thread 평균 6.276→6.013ms, 2%gate 통과.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A06/RESULT.md`, `summary.json`, `release-manifest.json`, `test-comparison.md`, `reflected-compat-proof.json`, `blueprint-signature-proof.json`, `performance-comparison.json`. 개인 SaveGame9개 복원·보호 경로 불변. 20개 opt-in skip, 실제 Artemis·Computer Use 미수행은 통과로 세지 않는다. 성능은 실제 D3D12의 offscreen fixture이며 직접 마우스 수용과 구분한다. 전체 개편 진행률은 Claude 검토 통과 전까지 기존84%를 유지한다.
 
 ### ARCH-07 — 표준 검증 진입점 (P1)
 
@@ -451,6 +457,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 |---|---|---|---|---|
 | DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |
 | DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
+| DTC-ARCH06 | 센서 acquisition snapshot용 host provider 계약이 확인되지 않음 | L0 값 context·weak 월드 registry에 L2 SlabContext를 등록; 기존 세션/결과 집계를 adapter로 호출 | 다른 소비 프로젝트에도 필요할 때 중립 값/provider 공용화를 검토; Slab 정책은 host에 유지 | DTCore `b2504d1`의 `AcquisitionContext/FrameContext/SensorContext` 검색 0건; `Contracts/VirtualSensorAcquisitionContext.*`, `Scenario/VirtualSensorSlabAcquisitionProvider.cpp`; DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
 
 ## 1. 성능·측정·전송
