@@ -67,7 +67,7 @@ void UVirtualCameraCaptureComponent::RecordLocalFileAcquisition(double)
 	PendingFileAcquisition.Manufacturer=DeviceSpec.Manufacturer;PendingFileAcquisition.Model=DeviceSpec.Model;
 	const TCHAR* Quality=SimulationQuality==EVirtualSensorSimulationQuality::Debug?TEXT("Debug"):SimulationQuality==EVirtualSensorSimulationQuality::Balanced?TEXT("Balanced"):SimulationQuality==EVirtualSensorSimulationQuality::FullSpec?TEXT("FullSpec"):TEXT("RealTimePreview");
 	PendingFileAcquisition.SimulationQuality=Quality;bFileAcquisitionPendingRender=true;
-	if(const auto* Context=SlabCaptureContexts.Find(FrameId))PendingFileSlabContext=*Context;else PendingFileSlabContext=FVirtualSlabFrameContext();
+	if(const auto* Context=SlabCaptureContexts.Find(FrameId))PendingFileSlabContext=*Context;else PendingFileSlabContext=FVirtualSensorAcquisitionContext();
 }
 void UVirtualCameraCaptureComponent::UpdateSceneCaptureContents(FSceneInterface* Scene)
 {

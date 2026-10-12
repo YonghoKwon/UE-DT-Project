@@ -2,7 +2,7 @@
 #include "VirtualSensorLayoutSubsystem.h"
 #include "VirtualSensorSchedulerSubsystem.h"
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 #include "VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -75,9 +75,8 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPre
     R.bRawConnected=Raw&&Raw->IsTransportConnected();R.bEngineConnected=T->IsStompConnected();
     if(Purpose==EVirtualSensorPreflightPurpose::ManualStreamStart&&Targets.IsEmpty())
         R.BlockingReasons.Add(TEXT("선택 센서 없음: 배치 창이나 상단 목록에서 송신할 LiDAR를 선택하세요."));
-    const auto* SlabContext=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
-    const auto Session=SlabContext?SlabContext->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
-    R.bSessionBusy=Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready||Session.State==EVirtualSlabSessionState::Running||Session.State==EVirtualSlabSessionState::Paused||Session.State==EVirtualSlabSessionState::Draining;
+    const auto* SlabContext=FVirtualSensorAcquisitionContextProviders::Get(World);
+    R.bSessionBusy=SlabContext&&SlabContext->IsAcquisitionSessionBusy();
     if(R.bSessionBusy)R.Warnings.Add(TEXT("시나리오 준비·실행·정리 중입니다. 새 실행의 시작 가능 여부를 다시 확인하세요."));
     TSet<FString> Ids,FoundTargets;bool HasCamera=false,HasLidar=false;
     for(auto* A:C->GetSensorActors())if(IsValid(A)&&!A->IsActorBeingDestroyed())

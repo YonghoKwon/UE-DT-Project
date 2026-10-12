@@ -2,7 +2,7 @@
 #include "VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 #include "VirtualCameraPayloadCodec.h"
 
 #include "Async/Async.h"
@@ -246,9 +246,9 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
     do { NextScheduledCaptureTime += SafeInterval; } while (NextScheduledCaptureTime <= NowSeconds);
 
     const double CaptureStart = FPlatformTime::Seconds();
-	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
 	{
-		const auto Context=Slab->CaptureContext(SensorId,FrameId+1);
+		const auto Context=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
 		if (Context.bEligible) SlabCaptureContexts.Add(FrameId+1,Context);
 	}
     EnsureRenderTarget();
@@ -653,14 +653,14 @@ void UVirtualCameraCaptureComponent::SetTransportComponent(UVirtualSensorTranspo
     TransportComponent = InTransportComponent;
 }
 
-FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success,bool FlushOnFailure)
+FVirtualSensorAcquisitionContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success,bool FlushOnFailure)
 {
 	const bool RemovedHead=!Success&&!EncodeOrder.IsEmpty()&&EncodeOrder[0]==Id;
 	if (!Success) EncodeOrder.Remove(Id);
 	if(!Success)ScheduledAcquisitionSnapshots.Remove(Id);
-	FVirtualSlabFrameContext Context;
+	FVirtualSensorAcquisitionContext Context;
 	SlabCaptureContexts.RemoveAndCopyValue(Id, Context);
-	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,Id,Success);
+	if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Slab->CompleteAcquisition(SensorId,Id,Success);
 	if(RemovedHead&&FlushOnFailure)FlushCompletedEncodes();
 	return Context;
 }

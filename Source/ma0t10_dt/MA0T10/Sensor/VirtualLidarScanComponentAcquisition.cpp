@@ -1,6 +1,6 @@
 #include "VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -110,7 +110,7 @@ void UVirtualLidarScanComponent::StopScan()
 {
     for(const auto& Job:{ActiveDerivedJob,PendingDerivedJob})if(Job){Job->Cancelled=true;ReleaseDerivedReservation(Job);++RuntimeStatus.DiscardedDerivedGenerationCount;if(!Job->RequestId.IsEmpty())OnCompatibilityRequestCompletedNative.Broadcast(Job->RequestId,false,Job->Frame,TEXT("측정 종료로 JSON 요청이 취소됐습니다."));}
     ActiveDerivedJob.Reset();PendingDerivedJob.Reset();
-	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
+	if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
     if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     UnregisterFromPerformanceSubsystem();
     NextScheduledScanTime = -1.0;
@@ -130,7 +130,7 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
 {
     if (!GpuDepthProjectionComponent.IsValid()) return false;
     FVirtualLidarDepthAcquisitionRequest Request;
-	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Request.SlabContext=Slab->CaptureContext(SensorId,FrameId+1);
+	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Request.SlabContext=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
 	ScheduledSlabContext=Request.SlabContext;
     Request.AcquisitionTransform = GetComponentTransform();
     Request.FrameId = FrameId + 1;
@@ -172,7 +172,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
     }
     if (Result == EVirtualSensorBackendPollResult::Failed)
     {
-		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
+		if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
         ++RuntimeStatus.FailedAcquisitionFrameCount;
         bGpuDepthScanInProgress = false;
         RuntimeStatus.bAcquisitionInFlight = false;
@@ -197,7 +197,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 
 void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
-	if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) ScheduledSlabContext=Slab->CaptureContext(SensorId,FrameId+1);
+	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) ScheduledSlabContext=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
     ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     ScheduledScanWidth = FMath::Max(1, HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, VerticalChannels);
@@ -221,7 +221,7 @@ void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 FVirtualLidarCompatibilityOutputStatus UVirtualLidarScanComponent::GetCompatibilityOutputStatus() const
 {
     auto Status=CompatibilityStatus;Status.bActive=ActiveDerivedJob.IsValid();Status.bPending=PendingDerivedJob.IsValid();
-    Status.bRequested=HasCompatibilityJsonDemand(LastFrameSnapshot.IsValid()?LastFrameSnapshot->SlabContext:FVirtualSlabFrameContext(),&Status.Reason);
+    Status.bRequested=HasCompatibilityJsonDemand(LastFrameSnapshot.IsValid()?LastFrameSnapshot->SlabContext:FVirtualSensorAcquisitionContext(),&Status.Reason);
     if(bInteractivePreviewMode&&bSuppressInteractiveDerivedOutput){Status.bRequested=false;Status.Reason=TEXT("조작 미리보기 · JSON/수집 출력 제외");}
     if((ActiveDerivedJob&&!ActiveDerivedJob->RequestId.IsEmpty())||(PendingDerivedJob&&!PendingDerivedJob->RequestId.IsEmpty())){Status.bRequested=true;Status.Reason=TEXT("수동 JSON 1회 생성 중");}
     return Status;
@@ -269,7 +269,7 @@ void UVirtualLidarScanComponent::QueueScheduledPayloadBuild(int64 CapturedFrameI
     Snapshot.bIncludeSlabAnalysis = bIncludeSlabAnalysisInPayload;
     Snapshot.SensorTransform = LastFrameSnapshot->AcquisitionTransform;
     Snapshot.SlabAnalysis = LastSlabAnalysis;
-    if(GetWorld())if(auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())Job->bReserved=Slab->BeginCompatibilityDerivation(SensorId,CapturedFrameId,Frame.SlabContext);
+    if(GetWorld())if(auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))Job->bReserved=Slab->BeginContextDerivation(SensorId,CapturedFrameId,Frame.SlabContext);
     if(PendingDerivedJob){ReleaseDerivedReservation(PendingDerivedJob);++RuntimeStatus.DroppedDerivedFrameCount;++RuntimeStatus.CompatibilityPendingReplacementCount;}
     PendingDerivedJob=Job;RuntimeStatus.bDerivedWorkInFlight=true;TryStartPendingPayloadBuild();
 }
@@ -301,7 +301,7 @@ void UVirtualLidarScanComponent::TryStartPendingPayloadBuild()
     });
 }
 void UVirtualLidarScanComponent::ReleaseDerivedReservation(const TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe>& Job)
-{if(Job&&Job->bReserved){if(GetWorld())if(auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())Slab->EndCompatibilityDerivation(Job->Frame.SlabContext.RunId,Job->Frame.SensorId,Job->Frame.FrameId);Job->bReserved=false;}}
+{if(Job&&Job->bReserved){if(GetWorld())if(auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))Slab->EndCompatibilityDerivation(Job->Frame.SlabContext.RunId,Job->Frame.SensorId,Job->Frame.FrameId);Job->bReserved=false;}}
 
 TFunction<FString()> UVirtualLidarScanComponent::CreateLocalFilePayloadEncoder(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame) const
 {
@@ -331,7 +331,12 @@ void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(TSharedPtr<FVirtu
     {
         ++RuntimeStatus.DroppedDerivedFrameCount;
         ++RuntimeStatus.FailedDerivedEncodingCount;
-        if(Job->bReserved&&GetWorld()){GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndCompatibilityDerivation(Job->Frame.SlabContext.RunId,Job->Frame.SensorId,Job->Frame.FrameId,true);Job->bReserved=false;}
+        if(Job->bReserved&&GetWorld())
+        {
+            if(auto* Provider=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
+                Provider->EndCompatibilityDerivation(Job->Frame.SlabContext.RunId,Job->Frame.SensorId,Job->Frame.FrameId,true);
+            Job->bReserved=false;
+        }
         ReleaseDerivedReservation(Job);TryStartPendingPayloadBuild();
         UpdateRuntimeStatusAfterScan(0);
         if(!Job->RequestId.IsEmpty())OnCompatibilityRequestCompletedNative.Broadcast(Job->RequestId,false,Job->Frame,TEXT("JSON 생성 실패"));
@@ -476,8 +481,8 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
     Snapshot->AcquisitionStartedMonotonic=ScheduledScanStartTime;
     Snapshot->PipelineGeneration=ScheduledGeneration;
 	Snapshot->SlabContext=ScheduledSlabContext;
-	if (GetWorld()) if (auto* Slab = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,FrameId);
-	ScheduledSlabContext=FVirtualSlabFrameContext();
+	if (GetWorld()) if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Slab->CompleteAcquisition(SensorId,FrameId);
+	ScheduledSlabContext=FVirtualSensorAcquisitionContext();
 	Snapshot->FrameId = FrameId;
 	Snapshot->HorizontalSamples = FMath::Max(1, InHorizontalSamples);
 	Snapshot->VerticalChannels = FMath::Max(1, InVerticalChannels);

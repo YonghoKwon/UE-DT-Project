@@ -1,12 +1,2 @@
-# ARCH-05: 18 - 9 receiver TC dependencies = 9 Scenario edges (ARCH-06).
+# ARCH-06: no architecture include violations. New/stale entries fail.
 # Relative to Source/ma0t10_dt/MA0T10. Unique source -> resolved target.
-# Remaining Scenario/TC dependencies are ARCH-06/05; new/stale entries fail.
-Camera/VirtualCameraCaptureComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Core/VirtualSensorAcquisitionBackend.h -> Scenario/VirtualSlabFrameContext.h
-Core/VirtualSensorOutputPreflight.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
-Core/VirtualSensorStreamPublisherComponentSession.cpp -> Scenario/SlabRunResultsSubsystem.h
-Core/VirtualSensorStreamPublisherComponentSession.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Sensor/VirtualLidarScanComponentAcquisition.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Sensor/VirtualLidarSensorTypes.h -> Scenario/VirtualSlabFrameContext.h
-Sensor/VirtualSensorActorBase.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h

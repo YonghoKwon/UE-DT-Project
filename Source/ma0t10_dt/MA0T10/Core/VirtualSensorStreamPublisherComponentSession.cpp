@@ -3,8 +3,7 @@
 #include "VirtualPointCloudCoordinates.h"
 #include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 
 #include "Async/Async.h"
 #include "HAL/FileManager.h"
@@ -28,8 +27,8 @@
 
 void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFrameEnvelope& Frame)
 {
-	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
-		if (!Slab->AllowsFrame(Frame.SensorId,Frame.SlabContext)) return;
+	if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
+		if (!Slab->AllowsAcquisitionFrame(Frame.SensorId,Frame.SlabContext)) return;
 	if (bEndingPlay || Frame.SensorId.IsEmpty()) return;
 	TArray<FString> Keys;
 	StreamRuntimes.GetKeys(Keys);
@@ -40,8 +39,8 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 		if(Frame.bLidarCompatibilityDerived&&(Runtime->Config.StreamKind!=EVirtualSensorStreamKind::LidarPayload||
 			(Runtime->Config.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport())))continue;
 		if (!Runtime->Config.SensorId.IsEmpty() && !Runtime->Config.SensorId.Equals(Frame.SensorId, ESearchCase::CaseSensitive)) continue;
-		if (GetWorld()) if (const auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
-			if(!Slab->AllowsStreamFrame(Frame.SensorId,Runtime->Config.StreamKind,Frame.SlabContext)) continue;
+		if (GetWorld()) if (const auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
+			if(!Slab->AllowsOutputFrame(Frame.SensorId,VirtualSensorAcquisitionOutput(Runtime->Config.StreamKind),Frame.SlabContext)) continue;
 		if (Runtime->Config.SensorId.IsEmpty())
 		{
 			const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(Runtime->Config.StreamKind, Frame.SensorId));
@@ -90,9 +89,9 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			RefreshQueueTelemetry(*Runtime);
 			continue;
 		}
-		if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+		if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
 		{
-			if (!Slab->AllowsStreamFrame(Message.SensorId,Message.StreamKind,Message.SlabContext))
+			if (!Slab->AllowsOutputFrame(Message.SensorId,VirtualSensorAcquisitionOutput(Message.StreamKind),Message.SlabContext))
 			{
 				++Runtime->Status.StaleResultDiscardCount;
 				if (bNoLoss) Runtime->PreparedMessageQueue.RemoveAt(0,1,false); else Runtime->PreparedMessage.Reset();
@@ -217,8 +216,8 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 				const FStreamRuntime* Global = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, FString()));
 				const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, SensorActor->GetSensorId()));
 				const FStreamRuntime* Active = Exact && Exact->Config.bEnabled ? Exact : (Global && Global->Config.bEnabled ? Global : nullptr);
-				if(GetWorld()) if(const auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
-					if(!Slab->AllowsStreamDemand(SensorActor->GetSensorId(),EVirtualSensorStreamKind::CameraImage)) Active=nullptr;
+				if(GetWorld()) if(const auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
+					if(!Slab->AllowsOutputDemand(SensorActor->GetSensorId(),VirtualSensorAcquisitionOutput(EVirtualSensorStreamKind::CameraImage))) Active=nullptr;
 				Camera->SetRuntimeStreamOutputDemand(
 					Active != nullptr,
 					Active && Active->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput && CanUseHighThroughputTransport());
@@ -228,21 +227,25 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 }
 bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutput(const FString& Id,const FVirtualSlabFrameContext& Context) const
 {
-    const auto* Slab=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;
-    if(Slab&&!Slab->AllowsFrame(Id,Context))return false;
+    return NeedsCompatibilityLidarOutputForContext(Id,static_cast<FVirtualSensorAcquisitionContext>(Context));
+}
+bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutputForContext(const FString& Id,const FVirtualSensorAcquisitionContext& Context) const
+{
+    const auto* Slab=GetWorld()?FVirtualSensorAcquisitionContextProviders::Get(GetWorld()):nullptr;
+    if(Slab&&!Slab->AllowsAcquisitionFrame(Id,Context))return false;
     for(const auto& Pair:StreamRuntimes){const auto& C=Pair.Value.Config;
         if(C.bEnabled&&C.StreamKind==EVirtualSensorStreamKind::LidarPayload&&(C.SensorId.IsEmpty()||C.SensorId==Id)&&
             !(C.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&CanUseHighThroughputTransport()))
         {
             if(C.SensorId.IsEmpty()){const auto* Exact=StreamRuntimes.Find(MakeStreamKey(C.StreamKind,Id));if(Exact&&Exact->Config.bEnabled)continue;}
-            if(!Slab||Slab->AllowsStreamFrame(Id,C.StreamKind,Context))return true;
+            if(!Slab||Slab->AllowsOutputFrame(Id,VirtualSensorAcquisitionOutput(C.StreamKind),Context))return true;
         }}
     return false;
 }
 void UVirtualSensorStreamPublisherComponent::RecordSlabFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId)
 {
 	if(RunId.IsEmpty()) return;
-	if(GetWorld())GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordOutputFailure(RunId,SensorId,static_cast<int32>(Kind),FrameId,TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
+	if(auto* Provider=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))Provider->RecordAcquisitionOutputFailure(RunId,SensorId,VirtualSensorAcquisitionOutput(Kind),FrameId,TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
 	if(!SlabRunFailures.Contains(RunId)&&SlabRunFailures.Num()>=32)
 		for(auto It=SlabRunFailures.CreateIterator();It;++It) if(It.Key()!=RunId) { It.RemoveCurrent(); break; }
 	SlabRunFailures.FindOrAdd(RunId).Add(SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId));

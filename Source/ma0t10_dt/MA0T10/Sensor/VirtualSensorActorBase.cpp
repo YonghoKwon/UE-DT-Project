@@ -2,7 +2,7 @@
 
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
@@ -130,7 +130,7 @@ bool AVirtualSensorActorBase::ReadCollectionState(FVirtualSensorEditableState& S
 bool AVirtualSensorActorBase::CanEditSensorConfiguration(FString& OutReason) const
 {
 	OutReason.Reset();
-	if(GetWorld())if(const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	if(GetWorld())if(const auto* Session=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
 		if(Session->IsSensorConfigurationLocked(GetSensorId())){OutReason=TEXT("데이터 필수 실행의 준비·실행·송신 정리가 끝난 뒤 센서 규격을 편집할 수 있습니다.");return false;}
 	return true;
 }
@@ -162,7 +162,7 @@ bool AVirtualSensorActorBase::CanEditSensorPlacement(FString& Reason) const
 	const FString Id=GetSensorId();
 	if (GetWorld())
 	{
-		if (const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();Session&&Session->IsSensorPlacementLocked(Id))
+		if (const auto* Session=FVirtualSensorAcquisitionContextProviders::Get(GetWorld());Session&&Session->IsSensorPlacementLocked(Id))
 		{ Reason=TEXT("시나리오 수집·송신 정리가 끝난 뒤 위치를 변경할 수 있습니다."); return false; }
 		if (const auto* Files=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>();Files&&Files->HasPendingSave(const_cast<AVirtualSensorActorBase*>(this)))
 		{ Reason=TEXT("파일 저장을 마무리한 뒤 위치를 변경할 수 있습니다."); return false; }

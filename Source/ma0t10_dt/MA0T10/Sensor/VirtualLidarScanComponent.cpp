@@ -206,7 +206,7 @@ FString UVirtualLidarScanComponent::RegisterCompatibilityJsonConsumer(UObject* O
 }
 void UVirtualLidarScanComponent::UnregisterCompatibilityJsonConsumer(const FString& Token)
 {CompatibilityConsumers.Remove(Token);}
-bool UVirtualLidarScanComponent::HasCompatibilityJsonDemand(const FVirtualSlabFrameContext& Context,FString* Reason) const
+bool UVirtualLidarScanComponent::HasCompatibilityJsonDemand(const FVirtualSensorAcquisitionContext& Context,FString* Reason) const
 {
     auto Yes=[Reason](const TCHAR* Text){if(Reason)*Reason=Text;return true;};
     if(CompatibilityOutputPolicy==EVirtualLidarCompatibilityOutputPolicy::LegacyAlways)return Yes(TEXT("기존 호환 JSON 항상 생성"));
@@ -218,7 +218,7 @@ bool UVirtualLidarScanComponent::HasCompatibilityJsonDemand(const FVirtualSlabFr
     {
         if(Output->RecorderComponent&&Output->RecorderComponent->IsRecording())return Yes(TEXT("공유 JSON 녹화 중"));
         if(Output->OnFrameRouted.IsBound())return Yes(TEXT("Blueprint 출력 완료 구독"));
-        if(Output->StreamPublisherComponent&&Output->StreamPublisherComponent->NeedsCompatibilityLidarOutput(SensorId,Context))return Yes(TEXT("호환 LiDAR 스트림"));
+        if(Output->StreamPublisherComponent&&Output->StreamPublisherComponent->NeedsCompatibilityLidarOutputForContext(SensorId,Context))return Yes(TEXT("호환 LiDAR 스트림"));
         if(!Output->StreamPublisherComponent&&Output->TransportComponent&&Output->TransportComponent->TransportMode!=EVirtualSensorTransportMode::None)return Yes(TEXT("기존 Actor JSON 전송"));
     }
     if(Reason)*Reason=TEXT("미사용 · PCD/미리보기는 정상 동작");return false;
