@@ -710,8 +710,16 @@ private:
 		LexTryParseString(FrameId,*IdText);
 		const auto Codec = VirtualSensorStreamReceiverRegistry::Get();
 		check(Codec.IsValid()); // Registered before worlds/workers by this project's module.
-		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data = Codec->CreateResult(static_cast<EVirtualSensorTopicReceiveKind>(Kind));
-		Data->Kind=static_cast<EVirtualSensorTopicReceiveKind>(Kind);
+        EVirtualSensorTopicReceiveKind ReceiveKind;
+        switch (Kind)
+        {
+        case EVirtualSensorStreamKind::LidarPayload: ReceiveKind = EVirtualSensorTopicReceiveKind::Lidar; break;
+        case EVirtualSensorStreamKind::CameraImage: ReceiveKind = EVirtualSensorTopicReceiveKind::Camera; break;
+        case EVirtualSensorStreamKind::PointCloud: ReceiveKind = EVirtualSensorTopicReceiveKind::PointCloud; break;
+        default: return;
+        }
+		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data = Codec->CreateResult(ReceiveKind);
+		Data->Kind=ReceiveKind;
 		Data->SensorId=SensorId; Data->FrameId=FrameId; Data->SchemaVersion=Schema;
 		Data->bFiltered=!ReceiveSelection.Accepts(static_cast<int32>(Kind),SensorId);
 		const double ParseStarted=FPlatformTime::Seconds();
