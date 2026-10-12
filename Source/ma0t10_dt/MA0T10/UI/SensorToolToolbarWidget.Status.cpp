@@ -113,8 +113,8 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
 {
     auto Row=SNew(SHorizontalBox);
     static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
-        .SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Section(),12.f))
-        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Color(37,77,91),12.f));
+        .SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Color(30,48,62),12.f,FSensorOwnedPresentationStyle::Color(71,112,137),1.f))
+        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Color(37,77,91),12.f,FSensorOwnedPresentationStyle::Accent(),1.f));
     const ESensorToolDestination Destinations[]={ESensorToolDestination::Placement,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Scenario,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics};
     for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
     {
