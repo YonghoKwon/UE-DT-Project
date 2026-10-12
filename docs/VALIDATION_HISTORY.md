@@ -222,3 +222,14 @@ DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `
 같은2026-09-29 후속으로 격리된 Windows 관리형 런처에서 실제 패키지 설치/실행·Manifest328파일 해시·런처 종료 후 UE 수명 유지·정상 종료를 확인했다. 회사 설치 경로 쓰기 권한, 실제 업데이트/복구·Linux/RHEL 인수는 별도 gate로 유지한다.
 
 2026-09-29 배포 준비 증거: 현재 UE5.3 프로젝트의 Windows Development 패키징을 완료하고 외부 런처의 격리된 ZIP/sidecar 접수·승인을 준비했다. 에디터 테스트 가드와 승인된 TestMap의 누락 위젯 참조만 보완했다. 이는 R5 플러그인화·간편 설치 또는 회사 운영 인수 완료가 아니며, 실제 런처 실행·Shipping/Linux·회사 환경 수용은 각각의 증거로 판단한다. 자세한 범위는 [README의 패키징 점검](../README.md)을 따른다.
+
+
+## 2026-10-12 — UXR-03 전송 탭 보완 CLI 검증
+
+- 소스 커밋 `22d54b9`: 6파일 수정, 이동 0. 쉬운 사전 점검 문장/툴팁, `점검 대상:` 세그먼트, 직접 전송 접힘 헤더와 숨김 표시 비용 차단. 기존 Blueprint API·enum·정책·wire 계약 불변.
+- Editor Development, layer 18/18(신규/stale 0), DTCore guard, V2 `-RequireAssets`, WBP 7개 메모리 컴파일 통과. 집중 13 Success/실패·skip 0. 테스트 이름은 `Saved/Reports/UXR/UXR-03/supplement/focused-classified.json`.
+- 기존 테스트 기대값 변경 없음. `SensorDataWorkflowTests.cpp`에 기본 문구/접힌 문자열 비용 검증 추가. 초기 텍스트 탐색 실패는 `SNewSensorTool` 선언 이름과 독립 switcher 평가 문제로, 실제 `STextBlock` 클래스 타입과 전송 subtree를 검사하도록 수정했다. SCheckBox는 원래 선언 타입 검사 유지. 초기 실패 3회는 원본 로그에 보관했다.
+- 최종 5탭×1280/1920×100/150% 자동 렌더 20장. 요청된 전송 4장은 직접 열어 확인했다. 실제 client 1280×720/1920×1080, window DPI 1.0; PNG에는 6px 테두리 포함. 150%의 아래 점검/상세는 스크롤 접근이며 마우스 접근 검수는 미수행.
+- 성능: D3D12, SlabScenarioValidationMap, 실제 1920×1080, 글자 100%, 전송 탭 열림/다른 창 숨김, FullSpec D455 Camera 1+MLX80 Native GPU LiDAR 1 측정, Slab 대기, 송신·파일 저장 없음, 10초+30초. FPS 59.9968→59.9960(-0.0013%), engine frame p95 16.6669→16.6669ms(0%), callback wall p95 20.9410→20.9862ms(+0.2158%), game thread 평균 5.6673→5.7254ms(+1.0237%). 2% gate 통과. engine delta는 FApp::GetDeltaTime(엔진 pacing 포함), callback 지연과 구분. 가상 WinDisc이며 물리 디스플레이/절대 지연 목표 인증 아님.
+- 기준선 production은 `3abccdf`, 동일 Editor 계측기만 먼저 빌드했다. 최종 검증은 그 HEAD+변경 소스로 수행 후 `22d54b9` 커밋; 소스/binary hash는 `validation-manifest.json`과 `baseline-manifest.json`. 전체 MA0T10 이름별 비교는 요청의 마지막 통합 단계에서 수행 예정이며 이 보완의 집중 결과로 대체하지 않는다.
+- 보호 파일 475/475 불변, 개인 SaveGame 9/9 복원. DTCore `b2504d1` gitlink/worktree 불변. Editor/PIE 정상 종료. 마우스 체크리스트: `Saved/Reports/UXR/UXR-03/supplement/manual/CHECKLIST.md`.
