@@ -26,6 +26,7 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "GameFramework/GameModeBase.h"
+#include "UxrScenarioUiFixture.h"
 
 /** Identical test-only instrument on both production revisions. No transmission or local frame saving. */
 class FUxrPlacementPerformance : public IAutomationLatentCommand
@@ -55,6 +56,14 @@ public:
                 FString Error;if(!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Test->AddError(Error);return true;}A->StartSensor();
             }
             W->ResetOwnedWorkspaceLayout();W->SetOwnedPanelFontScale(1);
+            if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW"))==TEXT("scenario"))
+            {
+                W->EnsureOwnedReplayPanel();
+                for(const auto Role:{ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::SlabCharts})W->SetPanelOpen(Role,false);
+                W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);W->SetPanelOpen(ESensorToolPanelRole::Replay,true);
+                ASlabActor* Slab=nullptr;for(TActorIterator<ASlabActor> It(World);It;++It){Slab=*It;break;}
+                if(!StartUxrScenarioUiFixture(Slab)){Test->AddError(TEXT("Scenario UI performance input rejected"));return true;}
+            }
             if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW"))==TEXT("transfer"))
             {
                 for(const auto Role:{ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})W->SetPanelOpen(Role,false);

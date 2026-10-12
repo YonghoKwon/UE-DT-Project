@@ -122,6 +122,8 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVector2D Size=Monitor?FVector2D(FMath::Min(1100.0,V.X*.65),FMath::Min(700.0,V.Y-120)):R==ESensorToolPanelRole::Data?FVector2D(760,580):R==ESensorToolPanelRole::Settings?FVector2D(460,640):FVector2D(580,520);
 	if(R==ESensorToolPanelRole::SlabCharts)Size=FVector2D(780,820);
 	if(R==ESensorToolPanelRole::SlabProgress)Size=FVector2D(520,420);
+	const bool ScenarioPanel=R==ESensorToolPanelRole::SlabProgress||R==ESensorToolPanelRole::Replay;
+	if(ScenarioPanel)Size=FVector2D(FMath::Max(360.0,(V.X-48)*.5),V.Y-ToolbarReservedTop-16);
 	if(R==ESensorToolPanelRole::Placement)Size=FVector2D(760,900);
 	Size.X=FMath::Min(Size.X,V.X-32);Size.Y=FMath::Min(Size.Y,V.Y-ToolbarReservedTop-16);
 	P->SetPanelResizable(true);P->ResizeHandleSize=32;
@@ -129,7 +131,7 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVirtualSensorPanelUiState S;S.bHasSavedSize=true;S.ExpandedSize=Size;
 	P->ApplyWorkspaceLayout(S);
 	const double Offset=R==ESensorToolPanelRole::Placement?0:static_cast<int32>(R)*24;
-	P->SetWorkspacePosition(Monitor?FVector2D(V.X-Size.X-16,ToolbarReservedTop):FVector2D(16+Offset,ToolbarReservedTop+Offset));
+	P->SetWorkspacePosition(ScenarioPanel?FVector2D(R==ESensorToolPanelRole::SlabProgress?16:32+Size.X,ToolbarReservedTop):Monitor?FVector2D(V.X-Size.X-16,ToolbarReservedTop):FVector2D(16+Offset,ToolbarReservedTop+Offset));
 }
 void UVirtualSensorToolWorkspaceSubsystem::RestorePanel(ESensorToolPanelRole R)
 {

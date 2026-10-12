@@ -11,6 +11,10 @@ namespace SensorToolUiText
     inline FText Placement() { return LOCTEXT("Placement", "배치"); }
     inline FText Preview() { return LOCTEXT("Preview", "미리보기"); }
     inline FText Scenario() { return LOCTEXT("Scenario", "시나리오"); }
+    inline FText ScenarioProgress() { return LOCTEXT("ScenarioProgress", "시나리오 · 진행"); }
+    inline FText ArchiveList() { return LOCTEXT("ArchiveList", "보관 목록"); }
+    inline FText DisplaySettings() { return LOCTEXT("DisplaySettings", "표시 설정"); }
+    inline FText ObservationFallback() { return LOCTEXT("ObservationFallback", "연결 실패 시 관찰 전용"); }
     inline FText PcdTransfer() { return LOCTEXT("PcdTransfer", "PCD 전송"); }
     inline FText TransferTab() { return LOCTEXT("TransferTab", "전송"); }
     inline FText Data() { return LOCTEXT("Data", "데이터"); }
@@ -55,8 +59,8 @@ namespace SensorToolUiText
     }
     inline FString UserReason(FString Reason)
     {
-        const TCHAR* From[]={TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Broker"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95"),TEXT("Coordinator"),TEXT("SensorId"),TEXT("snapshot"),TEXT("generation"),TEXT("backend"),TEXT("socket"),TEXT("FIFO")};
-        const TCHAR* To[]={TEXT("데이터"),TEXT("출력 주소"),TEXT("서버 수락"),TEXT("서버"),TEXT("전송 연결"),TEXT("일치 상태"),TEXT("설정 버전"),TEXT("지연"),TEXT("장비 연결"),TEXT("장비 ID"),TEXT("기록"),TEXT("실행 세대"),TEXT("측정 방식"),TEXT("연결"),TEXT("순서대로 전송")};
+        const TCHAR* From[]={TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Broker"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95"),TEXT("Coordinator"),TEXT("SensorId"),TEXT("snapshot"),TEXT("generation"),TEXT("backend"),TEXT("socket"),TEXT("FIFO"),TEXT("STOMP")};
+        const TCHAR* To[]={TEXT("데이터"),TEXT("출력 주소"),TEXT("서버 수락"),TEXT("서버"),TEXT("전송 연결"),TEXT("일치 상태"),TEXT("설정 버전"),TEXT("지연"),TEXT("장비 연결"),TEXT("장비 ID"),TEXT("기록"),TEXT("실행 세대"),TEXT("측정 방식"),TEXT("연결"),TEXT("순서대로 전송"),TEXT("서버 연결")};
         for(int32 I=0;I<UE_ARRAY_COUNT(From);++I)Reason.ReplaceInline(From[I],To[I],ESearchCase::IgnoreCase);
         Reason.ReplaceInline(TEXT("\n"),TEXT(" · "));
         Reason.ReplaceInline(TEXT("Slab Actor"),TEXT("시나리오 연결"));

@@ -42,6 +42,10 @@ private:
 	FString ActionMessage;
 	FString CachedPreflight;
 	FText CachedOwnedOutputSummary;
+	FString OwnedRegistrationText,OwnedActionText,OwnedReplayStatusText,OwnedSelectedDetail;
+	FText OwnedRegistrationLabel,OwnedActionLabel,OwnedReplayStatusLabel,OwnedSelectedDetailLabel;
+	bool bOwnedDetailExpanded=false,bOwnedListDirty=true;
+	double NextOwnedListRefresh=0;
 	int32 CachedOwnedOutputState=-1;
 	TSharedRef<SWidget> BuildOutputControls();
 	double NextPreflight=0;
