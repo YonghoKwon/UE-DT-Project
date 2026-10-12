@@ -74,6 +74,13 @@ public:
                 if(!Data){Test->AddError(TEXT("Transfer performance requires the owned data panel"));return true;}
                 Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);
             }
+            if(PerfView==TEXT("settings"))
+            {
+                for(const auto Role:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})W->SetPanelOpen(Role,false);
+                W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
+            }
+            const auto Actual=World->GetGameViewport()->Viewport->GetSizeXY();
+            if(Actual!=FIntPoint(1920,1080)){Test->AddError(TEXT("Performance comparison requires actual client 1920x1080"));return true;}
             Test->AddInfo(TEXT("Actual client 1920x1080; 1 Camera + 1 LiDAR; full profiles; preview/placement open; 10s warmup + 30s wall-clock sampling"));
             Started=Now;Last=Now;return false;
         }

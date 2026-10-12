@@ -124,6 +124,19 @@ private:
     friend class FSensorPlacementIdentityUiTest;
 #endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
+	TSharedRef<SWidget> BuildOwnedSettingsWidget();
+	void RefreshOwnedSettingsText();
+	void OpenOwnedSettingHelp(FName Key);
+	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText;
+	FText OwnedStatusText;
+	FText OwnedDebugLogText,OwnedIdentityText;
+	bool bOwnedCanEdit=false;
+	double NextOwnedSettingsRefresh=0;
+	TSharedPtr<class SScrollBox> OwnedSettingsScroll;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSensorSettingsPresentationTest;
+	friend class FUxrSettingsRender;
+#endif
 	bool bOwnedSettingHelpOpen=false;
 	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;
