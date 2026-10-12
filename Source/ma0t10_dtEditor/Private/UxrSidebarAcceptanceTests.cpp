@@ -19,6 +19,7 @@
 #include "EngineUtils.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/UI/SensorOwnedPresentationStyle.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarOwnershipTest,"MA0T10.UXR09.SidebarOwnershipAndFloatingCompatibility",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSidebarOwnershipTest::RunTest(const FString&)
@@ -55,6 +56,27 @@ bool FSidebarFontTokensTest::RunTest(const FString&)
     W->UnregisterPanel(P);return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarSupplementDesignTest,"MA0T10.UXR09.SupplementDesignContract",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSidebarSupplementDesignTest::RunTest(const FString&)
+{
+    const float Contrast=(FSensorOwnedPresentationStyle::Text().GetLuminance()+.05f)/(FSensorOwnedPresentationStyle::Selection().GetLuminance()+.05f);
+    TestTrue(TEXT("selected equipment card text contrast is at least 4.5:1"),Contrast>=4.5f);
+    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+    auto* P=NewObject<UVirtualSensorPlacementPanelWidget>(World);P->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);
+    TArray<FString> Texts;int32 InvalidationRoots=0;
+    TFunction<void(const TSharedRef<SWidget>&)> Visit=[&](const TSharedRef<SWidget>& Item)
+    {
+        InvalidationRoots+=Item->GetType()==TEXT("SInvalidationPanel");
+        if(Item->GetType()==TEXT("STextBlock"))Texts.Add(StaticCastSharedRef<STextBlock>(Item)->GetText().ToString());
+        auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Visit(Children->GetChildAt(I));
+    };
+    Visit(P->TakeWidget());
+    TestEqual(TEXT("unverified paint caches are not installed"),InvalidationRoots,0);
+    for(const FString& Label:{FString(TEXT("+ LiDAR")),FString(TEXT("+ Camera")),FString(TEXT("+ 현재 위치 저장")),FString(TEXT("전체 배치 저장")),FString(TEXT("불러오기"))})TestTrue(*FString::Printf(TEXT("default surface exposes %s"),*Label),Texts.Contains(Label));
+    for(const auto* Explanation:{TEXT("현재 관찰 위치에 추가 · PCD 전송은 별도"),TEXT("레벨 장비는 삭제할 수 없습니다."),TEXT("선택은 위치를 바꾸지 않습니다 · 이동 버튼으로 적용하세요.")})TestFalse(TEXT("persistent explanations are absent"),Texts.Contains(Explanation));
+    W->UnregisterPanel(P);return true;
+}
+
 class FUxrSidebarRender : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),ReadyAt=0;int32 Phase=0;bool Requested=false;FString Path;FDateTime Previous;
@@ -72,6 +94,7 @@ public:
         if(!ReadyAt)
         {
             if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
+            if(Phase==0)W->ResetOwnedWorkspaceLayout(); // Default presentation, not the reviewer's explicitly saved closed card.
             FSlateApplication::Get().DismissAllMenus();W->SetSidebarMode(View!=7);W->SetOwnedPanelFontScale(Scale);
             for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
             if(Phase==0)for(TActorIterator<ASlabActor> It(World);It;++It){Test->TestTrue(TEXT("memory-only observation scenario supplies card values"),StartUxrScenarioUiFixture(*It));break;}
@@ -85,10 +108,10 @@ public:
         if(FPlatformTime::Seconds()<ReadyAt)return false;
         if(!Requested)
         {
-            const auto V=World->GetGameViewport()->Viewport->GetSizeXY();const FString Root=FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-09");
+            const auto V=World->GetGameViewport()->Viewport->GetSizeXY();const FString RequestedRoot=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));const FString Root=RequestedRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-09"):RequestedRoot;
             Path=Root/FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View]);Previous=IFileManager::Get().GetTimeStamp(*Path);
             FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;
-            Test->AddInfo(FString::Printf(TEXT("actual client %dx%d font %d view %s; automated render only"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View]));return false;
+            Test->AddInfo(FString::Printf(TEXT("actual client %dx%d font %d view %s; model font=%s slab=%s scenario=%s sidebar=%d; automated render only"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View],*Bar->OwnedFontScaleText.ToString(),*Bar->SlabCardTitle.ToString(),*Bar->GlobalStatus.Scenario.ToString(),W->IsSidebarMode()));return false;
         }
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
         Requested=false;ReadyAt=0;return ++Phase==24;

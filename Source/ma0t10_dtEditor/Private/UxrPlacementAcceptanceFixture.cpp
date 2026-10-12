@@ -15,6 +15,7 @@
 #include "EngineGlobals.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -35,7 +36,7 @@
 /** Identical test-only instrument on both production revisions. No transmission or local frame saving. */
 class FUxrPlacementPerformance : public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Started=0,Last=0;
+    FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Started=0,Last=0;bool bTraceMeasurement=false;
     TArray<double> Frames,GameThreads,EngineFrames,GpuFrames;
     TArray<TWeakObjectPtr<AVirtualSensorActorBase>> Sensors;
 public:
@@ -99,8 +100,9 @@ public:
             Started=Now;Last=Now;return false;
         }
         const double Elapsed=Now-Started;
-        if(Elapsed>=10&&Elapsed<40){Frames.Add((Now-Last)*1000);EngineFrames.Add(FApp::GetDeltaTime()*1000);GameThreads.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));GpuFrames.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));}
+        if(Elapsed>=10&&Elapsed<40){if(!bTraceMeasurement){TRACE_BEGIN_REGION(TEXT("UXR09Measurement"));bTraceMeasurement=true;}Frames.Add((Now-Last)*1000);EngineFrames.Add(FApp::GetDeltaTime()*1000);GameThreads.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));GpuFrames.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));}
         Last=Now;if(Elapsed<40)return false;
+        if(bTraceMeasurement){TRACE_END_REGION(TEXT("UXR09Measurement"));bTraceMeasurement=false;}
         for(const auto& A:Sensors)Test->TestTrue(TEXT("both devices remain measuring"),A.IsValid()&&A->IsSensorRunning()&&A->GetSensorRuntimeStatus().FrameId>0);
         if(Frames.IsEmpty()){Test->AddError(TEXT("No performance samples"));return true;}
         double Total=0,GtTotal=0;for(double V:Frames)Total+=V;for(double V:GameThreads)GtTotal+=V;
