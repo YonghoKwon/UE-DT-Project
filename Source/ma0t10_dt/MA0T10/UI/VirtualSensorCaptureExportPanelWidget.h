@@ -73,6 +73,7 @@ public:
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
+	ASlabActor* GetExplicitScenarioSlabActor() const { return ScenarioSlabActor; }
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|Outputs") FVirtualSlabSensorOutputSelection GetLiveScenarioOutputs() const;
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
