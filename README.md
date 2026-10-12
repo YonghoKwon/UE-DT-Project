@@ -21,13 +21,15 @@
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
 | 아키텍처 | 단일 Runtime 모듈 안에 센서·Slab·UI가 섞여 있고 역방향 의존이 있다(§10.2 표). ARCH-01 레이어 gate 도입 | 폴더 재배치·역의존 제거 (ARCH-02~08) |
-| 화면 구성(UX) | 흐름 바·배치 정리, 데이터 5탭·신규/재생 출력 편집 단일화 구현(UXR-01~04) | UXR-02 최종 삭제 1건·UXR-03 직접 조작은 보류(열린 전송 화면 성능 검증 완료), UXR-04 직접 조작 보류, UXR-05~08 미착수 |
+| 화면 구성(UX) | 흐름 바·배치 정리, 데이터 5탭·신규/재생 출력 편집 단일화 구현(UXR-01~04), Slab 정보 카드·표면 프리셋(UXR-08) | UXR-02 최종 삭제 1건·UXR-03 직접 조작은 보류(열린 전송 화면 성능 검증 완료), UXR-04/08 직접 조작 보류, UXR-05~07 미착수; 산화 스케일은 현재 재질 미지원 |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화 통과 | 물리 마우스·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 40%) |
 | PCD 송신 | 실제1920×1080 2+2 PCD-only 10분·10회 반복 통과, 사전 점검 구현 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
-| 자동화 | Runtime `2c453d2`: D3D12 전체 `MA0T10` 실제221 Success/조건부 skip20/실패0, WBP7개 메모리 컴파일, UXR-03 자동 렌더20장 | UXR-03 직접 조작 보류(전송 화면 성능 보완 검증 완료), 표준 검증 진입점 (QA-01, ARCH-07) |
+| 자동화 | Runtime `7a63971`: D3D12 전체 `MA0T10` 실제227 Success/조건부 skip20/실패0, UXR-03 기준선241개 이름별 상태 유지+신규6개, WBP7개 메모리 컴파일, UXR-08 자동 렌더24장 | UXR-03 직접 조작 보류(전송 화면 성능 보완 검증 완료), 표준 검증 진입점 (QA-01, ARCH-07) |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
+
+UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
 
 UXR-04 근거 보고서: `Saved/Reports/UXR/UXR-04/RESULT.md`(집중 28 Success, 렌더 8장, 성능 2% gate 통과; 직접 조작 보류).
 
@@ -187,6 +189,19 @@ GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 
 - `GetLastScenarioAdmissionStatus()`는 자동 실행/송신 없이 실행/보관만/중복/거절과 이유·요청/적용 출력을 제공한다.
 - 목록 재실행은 원문/시나리오 ID를 유지하고 **새 RunUUID**를 만든다. 기본 관찰 전용이다. 움직임 종료와 승인된 데이터의 송신 drain(최대 10초)은 별도 상태다.
 - 준비·재생·pause·drain 항목은 삭제하지 않는다. 목록 삭제는 원본 파일/Broker/Slab Actor를 삭제하는 기능이 아니다.
+
+### Slab 정보 카드와 표면 표현
+
+소유 시나리오 진행 창의 **Slab 정보**는 소재번호·치수 L×W×T/단위·중량·행/시간/진행률·입력 위치/행 속도·좌우 기울기·행 기준 중심 이탈/여유·원본 사행 여부를 표시한다. 아래에는 현재 Track 위치(cm)와 실제 재생 속도를 따로 표시한다. 원본 Y 입력은 기존처럼 이동에 사용하지 않으며, 중량 단위는 입력에서 지정하지 않아 **원본 단위**다. 없는 원본 Y/사행은0/아니요로 추정하지 않고 `—`다. 기본 판정 색·임계값·AI 판정은 추가하지 않았다. 카드 갱신은 최대5Hz이며 숨김/접기에는 문자열 조립을 멈춘다.
+
+DTCore 입력이 구성된3D 화면에서 Slab를 클릭하면 기존 진행 인스턴스를 선택 Slab에 바인딩하고 카드 맨 위로 연다. 새 패널/위젯 관리자나 입력 루프는 없다. 기존 Host/UDxWidget/전면·입력 차단 경로를 유지한다. 기본 Engine.PlayerController에는 이 클릭 경로가 없으며 설정·맵·Controller를 자동 교체하지 않는다. 개인 저장 배치와 사용자 Designer Root는 보존한다. 기존 `WBP_SlabProgressPanel` 부모(`SlabProgressPanelWidget`)와 `ASlabSimulationUiHostActor.SlabActor` 연결을 유지하며 native 카드용 새 BindWidget·자산·Level Blueprint 배선은 없다. 사용자 Designer에는 자동으로 카드를 삽입하지 않는다.
+
+**표시 설정**의 표면 선택은 `기본(현재 값)`/`고온 적열`/`산화 스케일`/`냉각 강판`/`분석용 무광`이다. 현재 `M_SlabSurfacePlain`은 **산화 스케일 미지원**(Oxidation 파라미터 없음)이며 선택하지 못한다. 다른 네 선택은 기존 MID 파라미터만 바꾸고 기본은 첫 선택 전 값을 복원한다. 사용자 슬롯 재질은 기존 우선순위를 유지하며 자동 교체하지 않는다. 새 머티리얼/기존 자산/운영맵 저장은 없다.
+
+- `LiDAR 반사율도 함께 적용`은 기본끔이다. 켰을 때만940nm 반사율을 적용하고 기존 gain·검출 확률·양면·포화 설정은 유지한다. 꺼서 opt-in 직전 값을 복원하고 자신이 생성한 응답 컴포넌트만 정리한다. 프리셋 적용과CPU응답 캐시 무효화는 변경 시1회이며 센서 시작/중지/추가 스캔을 하지 않는다.
+- GPU는 기존 형상 분류 보기나 물체 필터의ID/depth buffer가 요청되는 지원 불투명 geometry에서만 연동한다. 해당 버퍼가 없으면 요청을 거절하고 안내한다. 보기/필터/geometry가 이후 바뀌면 지원 범위를 다시 확인한다. 추가 캡처/readback이나 자동 설정 변경은 없다. 광학 값은 예시 프리셋이며 실소재/실장비 보정 인증이 아니다.
+- 실행 결과`ma0t10.slab-run.v1`에는 사용한 경우에만 optional `surfaceAppearance`를 추가한다. 초기/마지막 프리셋·연동·외형/광학 값, 사용한 프리셋 목록(최대5종), 변경 수를 기록하고 기존 필드·의미·PCD bytes/Blueprint API/저장 슬롯은 유지한다. 이 필드는 광학 설정의 provenance이며 실측 intensity 평균·외부 소비자 처리 완료를 뜻하지 않는다. 실제 intensity 변화는RHI회귀에서 대조했다.
+- 검증: 결정적BaseColor SceneCapture 픽셀·실제CPU/GPU intensity·고정 envelope identity의PCD bytes가 기본/link-off 전후 정확히 같았고, 외형만 바꿔도LiDAR/PCD는 유지됐다. link-on에서CPU61945.47→24778.19, GPU62546.36→25018.54로 변했고JSON에0.08반사율/연동이 기록됐다. production FinalColor/JPEG의 bitwise 동일성이나 실장비 물리성을 이 시험으로 보장하지 않는다. 마우스 검수는 보류다.
 
 ### 데이터 필수 실행과 실행 결과
 
@@ -381,9 +396,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-12, `9477732` Runtime 기준, ARCH-04 gate 유지)
+### 10.2 현재 위반 (2026-10-12, `7a63971` Runtime 기준, ARCH-04 gate 유지)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 217개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 보완·UXR-04 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 221개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 보완·UXR-04·UXR-08 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|

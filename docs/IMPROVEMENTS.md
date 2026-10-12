@@ -88,7 +88,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-05 | UI/UX / 센서 상세 설정 | P1 | **0%** | 기본/고급/고급·호환 3단, 레거시 기능 이동 | 기본 화면에 레거시 항목 0 | U |
 | UXR-06 | UI/UX / 미리보기 | P1 | **0%** | 상태 1줄·보기 설정 접기·상세 진단 분리 | 기본 화면의 수치 줄 ≤3 | U |
 | UXR-07 | UI/UX / 문구·수용 | P0 | **0%** | 문구 전수 점검, 렌더 캡처·직접 조작·첫 사용자 시나리오 | 사용자 확인 | U |
-| UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **0%** | Slab 정보 카드, 3D 클릭 선택, 표면 표현 프리셋과 LiDAR 반사율 연동 | 기본 외형·센서 결과 불변, 프리셋은 명시 선택 | U |
+| UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·기존 MID 4종·명시적 광학 연동·optional 결과, 집중33/전체227 Success·24장·2% gate | 직접 조작/독립 검토 보류; 산화 스케일은 Plain재질 미지원, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
 | RT-04 | 데이터 / 유지·회귀 | P0 | **90%** | capture 직후 readback·immutable metadata | Camera 배치/미리보기 변경의 정합성 회귀; 송신 고도화 보류 | R1 |
@@ -354,7 +354,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 **현재 결과:** 기존 진행·보관 목록을 한 진입/숨김 흐름으로 유지하고 새 기본 배치를 나란히 놓았다. 개인 저장 배치와 Designer·레거시는 유지한다. 진행 창에 기존 차트의 토글을 추가했고 3D 표시·단위·현재 외형은 하나의 `표시 설정` 접힘이다. 출력 편집은 0개이며 재생 창은 실제 출력 요약+전송 화면 이동만 제공한다. 버튼 상태·텍스트는 5Hz 캐시를 사용하고 클릭 시 기존 API가 다시 보호 조건을 검사한다. 숨김·접힘 상세/목록의 표시용 조립은 멈춘다. 새 위젯 관리자·측정·구독 경로는 없다.
 
-**검증 요약:** 소스 `9477732`, Editor Development/layer 18→18(신규/stale 0)/guard/V2 `-RequireAssets`/WBP 7개 메모리 컴파일 통과. 집중 28 Success/실패·skip 0, 시나리오+표시 설정 8장 자동 렌더, 시나리오 진행 중 1 Camera+1 LiDAR의 1920×1080·10초+30초 전후 성능 2% gate 통과. 초기 game thread +2.09%는 매 프레임 상태/문구 조회를 5Hz 캐시로 바꾼 뒤 +0.74%로 보완했다. 직접 조작은 보류하며 상세·체크리스트는 `Saved/Reports/UXR/UXR-04/`에 있다. 전체 MA0T10 비교는 마지막 통합 단계에서 수행한다.
+**검증 요약:** 소스 `9477732`, Editor Development/layer 18→18(신규/stale 0)/guard/V2 `-RequireAssets`/WBP 7개 메모리 컴파일 통과. 집중 28 Success/실패·skip 0, 시나리오+표시 설정 8장 자동 렌더, 시나리오 진행 중 1 Camera+1 LiDAR의 1920×1080·10초+30초 전후 성능 2% gate 통과. 초기 game thread +2.09%는 매 프레임 상태/문구 조회를 5Hz 캐시로 바꾼 뒤 +0.74%로 보완했다. 직접 조작은 보류하며 상세·체크리스트는 `Saved/Reports/UXR/UXR-04/`에 있다. 최종 UXR-08 통합에서 전체 MA0T10 227 실제 Success/조건부 skip 20/실패 0, UXR-03 기준선 241개 이름별 상태를 유지했다.
 
 ### UXR-05 — 센서 상세 설정 (P1)
 
@@ -391,7 +391,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### UXR-08 — Slab 정보와 표면 표현 (P1, 2026-10-12 사용자 요청)
 
-**진행률: 0%**
+**진행률: 90% — 구현·CLI 검증 완료, 직접 수용·독립 검토 보류**
 
 - **근거:** 시나리오 행에는 `MtlNo`·`Length/Width/Thickness`·`Weight`·`CenterX/CenterY`·`LeftAngle/RightAngle`·`ElapsedSec`·`bMeandering`(사행)이 있지만 화면은 진행 패널의 긴 문장과 차트에 흩어져 있고 중량·사행은 보이지 않는다. `ASlabActor`에는 `SurfaceMaterial`·`bHotAppearance`·`Oxidation`·`Roughness`·`EmissiveStrength`가 있으나 화면에는 `고온 외형` 토글 하나만 있다. LiDAR 반사율은 `UVirtualLidarSurfaceResponseComponent::Reflectivity940Nm`로 따로 설정되어 외형과 연결되지 않는다.
 - **Slab 정보 카드** (시나리오 화면 상단 + 3D에서 Slab 클릭 시): 소재번호, 치수 L×W×T(단위 표시), 중량, 진행(행 n/N·경과/전체 시간·진행률), 현재 위치(Track 기준)·속도, 좌/우 기울기, 중심 이탈, 좌/우 여유, 사행 여부. 값이 없거나 계산 불가면 `—`. 정상/주의 판정 색은 **사용자가 임계값을 설정했을 때만** 표시한다(기본은 판정 없음, AI 판정처럼 보이지 않게).
@@ -399,6 +399,10 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **센서 결과 연동은 명시 선택이다.** 표면 프리셋은 Camera 영상과(연동을 켜면) LiDAR intensity를 바꾼다. `LiDAR 반사율도 함께 적용` 옵션을 켰을 때만 프리셋별 `Reflectivity940Nm` 등 SurfaceResponse 값을 적용하고, 실행 결과 JSON에 사용한 프리셋을 **선택적(optional) 필드**로 기록한다(기존 `ma0t10.slab-run.v1` 필드·의미 불변, 새 필드는 추가만). 기본값은 지금 외형·반사율 그대로다.
 - **성능:** 프리셋 적용은 머티리얼 파라미터 변경 1회이며 매 프레임 갱신하지 않는다. 정보 카드는 5Hz 이하, 숨김 시 문자열 조립 중단.
 - **완료:** 기본 상태에서 Camera 픽셀·LiDAR intensity·PCD bytes가 변경 전과 같음(회귀), 프리셋+연동 시 의도한 값 변화가 실행 결과에 기록됨, 정보 카드 값이 시나리오 원본과 일치, 렌더 캡처와 Codex 마우스 점검 통과.
+
+**현재 결과:** 원본 행 카드와 현재 Track 위치/실제 속도를 구분하고 누락 Y/사행은`—`, 중량은원본단위로 표시한다. 기본 판정색/임계값은없다. DTCore`Click()`을 유지한 기존 약한 Host registry adapter로 기존 진행 인스턴스만 선택·전면 처리한다. MID는변경시1회, 광학연동은명시opt-in이며CPU캐시를1회무효화/GPU기존ID-depth스냅샷에중립광학값을함께복사한다. 추가capture/readback/동기scan/설정자동변경은없다. GPU버퍼미요청은거절한다. 현재Plain재질은Oxidation이없어산화스케일을구현/적용하지않는다(기존legacy재질로바꾸지않음). 새자산·맵저장없음, 기존API/정책/저장값/PCD불변. 사용한경우에만결과JSON의optional surfaceAppearance를추가한다.
+
+**검증 요약:** 소스`7a63971`, Editor Development/layer18→18(신규/stale0)/guard/V2 `-RequireAssets`/WBP7메모리컴파일 통과. 집중33 Success/실패·skip0, 전체D3D12는227 실제Success/20조건부skip/실패0이며UXR-03기준선241개이름별상태유지+신규6개. 원본값/누락/숨김/Click수명/명시연동/복원/추가버퍼거절/실제CPU·GPU intensity·PCD·결정적BaseColor픽셀회귀 통과. production FinalColor/JPEG bitwise동일성은미검증이며기존Camera코드는불변이다. 1280/1920×100/150% 정보/표시/지원4외형24장, 동일1Camera+1LiDAR·시나리오진행·1920×1080·10초+30초성능2%gate통과. 마우스는보류. `Saved/Reports/UXR/UXR-08/RESULT.md`, `PRESET_SUPPORT.md`, `manual/CHECKLIST.md`가근거다. 세부초기실패/보완은검증이력에만보관한다.
 
 ### 개편 프로그램 진행률 (ARCH + UXR)
 
@@ -424,6 +428,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
 
 ## 1. 성능·측정·전송
