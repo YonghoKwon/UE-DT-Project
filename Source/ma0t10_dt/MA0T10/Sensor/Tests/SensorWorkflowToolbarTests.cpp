@@ -53,6 +53,9 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     TestTrue(TEXT("scenario opens progress and archive"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Scenario)&&W->IsPanelOpen(ESensorToolPanelRole::SlabProgress)&&W->IsPanelOpen(ESensorToolPanelRole::Replay));
     TestTrue(TEXT("pcd route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::PcdTransfer));
     TestEqual(TEXT("pcd opens live screen"),Data->GetActiveTab(),EVirtualSensorCaptureExportTab::LiveStream);
+    TestTrue(TEXT("same visible screen toggles hidden"),Toolbar->ToggleOwnedDestination(ESensorToolDestination::PcdTransfer)&&!W->IsPanelOpen(ESensorToolPanelRole::Data));
+    TestTrue(TEXT("hidden screen toggles visible"),Toolbar->ToggleOwnedDestination(ESensorToolDestination::PcdTransfer)&&W->IsPanelOpen(ESensorToolPanelRole::Data));
+    TestTrue(TEXT("other tab switches without hiding"),Toolbar->ToggleOwnedDestination(ESensorToolDestination::Results)&&W->IsPanelOpen(ESensorToolPanelRole::Data)&&Data->GetActiveTab()==EVirtualSensorCaptureExportTab::ConnectionLog);
     TestTrue(TEXT("results route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Results));
     TestEqual(TEXT("results opens connection screen"),Data->GetActiveTab(),EVirtualSensorCaptureExportTab::ConnectionLog);
     TestTrue(TEXT("results expands current run results"),Data->bRunResultsExpanded);
@@ -73,6 +76,9 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     Toolbar->SelectSensor(L->GetSensorId());
     TestEqual(TEXT("owned selector synchronizes settings"),Settings->GetPendingState().SensorId,L->GetSensorId());
     TestTrue(TEXT("equipment label includes kind id and state"),Toolbar->SelectedSensorText().ToString().Contains(TEXT("LiDAR"))&&Toolbar->SelectedSensorText().ToString().Contains(TEXT("정지")));
+    TestFalse(TEXT("equipment label has no redundant prefix"),Toolbar->SelectedSensorText().ToString().StartsWith(TEXT("장비")));
+    TArray<FString> EquipmentTexts;FindTexts(Toolbar->BuildEquipmentMenu(),EquipmentTexts);
+    TestTrue(TEXT("selector preserves kind groups and placement entry"),EquipmentTexts.Contains(TEXT("LiDAR"))&&EquipmentTexts.Contains(TEXT("Camera"))&&EquipmentTexts.Contains(SensorToolUiText::AddEquipment().ToString()));
     W->Toolbar=nullptr;
     for(const auto Role:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::SlabCharts})W->UnregisterPanel(W->GetOwnedPanel(Role));
     C->Destroy();L->Destroy();Camera->Destroy();return true;
