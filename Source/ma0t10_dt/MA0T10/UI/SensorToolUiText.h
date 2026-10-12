@@ -67,6 +67,11 @@ namespace SensorToolUiText
     inline FString UserReason(FString Reason)
     {
         // Presentation only: original API results, logs, wire values and saved settings stay intact.
+        Reason.ReplaceInline(TEXT("Server payload is uncapped (MaxServerPayloadPoints=0)"),TEXT("추가 출력 데이터의 점 수 제한이 없습니다"),ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("Preview is uncapped (MaxPreviewPoints=0)"),TEXT("미리보기 점 수 제한이 없습니다"),ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("LiDAR trace"),TEXT("LiDAR 측정"),ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("STOMP 서버"),TEXT("서버"),ESearchCase::IgnoreCase);
+        Reason.ReplaceInline(TEXT("연결·진단에서"),TEXT("서버 연결 설정에서"));
         const TCHAR* OldLabels[]={TEXT("센서 Actor"),TEXT("Capture/Export"),TEXT("캡처/내보내기"),TEXT("미리보기 시작"),TEXT("미리보기 중지"),TEXT("내보내기"),TEXT("송신"),TEXT("PIE"),TEXT("V2")};
         const TCHAR* CurrentLabels[]={TEXT("장비"),TEXT("데이터"),TEXT("데이터"),TEXT("측정 시작"),TEXT("측정 중지"),TEXT("파일 저장"),TEXT("전송"),TEXT("실행"),TEXT("장비")};
         for(int32 I=0;I<UE_ARRAY_COUNT(OldLabels);++I)Reason.ReplaceInline(OldLabels[I],CurrentLabels[I],ESearchCase::IgnoreCase);

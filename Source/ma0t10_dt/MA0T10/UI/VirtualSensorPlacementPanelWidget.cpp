@@ -88,8 +88,8 @@ void UVirtualSensorPlacementPanelWidget::RefreshPoses()
         const FString BookmarkId=Bookmark.BookmarkId,Name=Bookmark.Name;
         PoseList->AddSlot().AutoHeight().Padding(0,3)[SNew(SHorizontalBox)
          +SHorizontalBox::Slot().FillWidth(1)[SNew(SButton).ButtonStyle(&GetToolButtonStyle()).OnClicked_Lambda([this,BookmarkId,Name](){SelectedPoseId=BookmarkId;PoseName=Name;PoseDeleteId.Reset();++PoseSelectionRevision;return FReply::Handled();})
-          [SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(16,GetSensorToolFontScale());}).ColorAndOpacity_Lambda([this,BookmarkId](){return SelectedPoseId==BookmarkId?GetToolAccentColor():GetToolTextColor();}).Text(FText::FromString(Name))]]
-         +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SButton).ButtonStyle(&GetToolButtonStyle()).IsEnabled_Lambda([this](){return bCanMove;}).OnClicked_Lambda([this,BookmarkId](){MoveToBookmark(BookmarkId);return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(16,GetSensorToolFontScale());}).ColorAndOpacity(GetToolTextColor()).Text(LOCTEXT("MovePose","이동"))]]];
+          [SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(IsWorkspaceOwned()?13:16,IsWorkspaceOwned()?GetSensorToolVisualScale():GetSensorToolFontScale());}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText(FText::FromString(Name)).ColorAndOpacity_Lambda([this,BookmarkId](){return SelectedPoseId==BookmarkId?GetToolAccentColor():GetToolTextColor();}).Text(FText::FromString(Name))]]
+         +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SButton).ButtonStyle(&GetToolButtonStyle()).IsEnabled_Lambda([this](){return bCanMove;}).OnClicked_Lambda([this,BookmarkId](){MoveToBookmark(BookmarkId);return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(IsWorkspaceOwned()?13:16,IsWorkspaceOwned()?GetSensorToolVisualScale():GetSensorToolFontScale());}).ColorAndOpacity(GetToolTextColor()).Text(LOCTEXT("MovePose","이동"))]]];
     }
 }
 void UVirtualSensorPlacementPanelWidget::NativeTick(const FGeometry& G,float D)
@@ -139,11 +139,12 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildEquipmentSection()
 }
 TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildSelectedSection()
 {
-    auto Box=SNew(SVerticalBox);Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this](){return SelectedText();})];
+    auto Box=SNew(SVerticalBox);Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([this](){return SelectedText();}).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this](){return SelectedText();})];
     Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SHorizontalBox)
      +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::PrimaryButton()).IsEnabled_Lambda([this](){return bCanMove;}).ToolTipText_Lambda([this](){return CachedLockText;}).Text_Lambda([this](){return CachedManipulationCaption;}).OnClicked_Lambda([this](){if(auto* I=Interaction())SetSelectedManipulating(!I->IsManipulating());return FReply::Handled();})]
      +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return bCanMove;}).ToolTipText_Lambda([this](){return CachedLockText;}).Text_Lambda([this](){return CachedMeasureCaption;}).OnClicked_Lambda([this](){SetSelectedMeasuring(!bSelectedMeasuring);return FReply::Handled();})]];
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Visibility_Lambda([this](){return CachedPreviewText.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;}).Text_Lambda([this](){return CachedPreviewText;})];
+    // Keep the controls stationary when the asynchronous preview status first arrives.
+    Box->AddSlot().AutoHeight()[SNew(SBox).HeightOverride_Lambda([this](){return 22.f*GetSensorToolVisualScale();})[SNewSensorTool(STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolMutedColor()).ToolTipText_Lambda([this](){return CachedPreviewText;}).Text_Lambda([this](){return CachedPreviewText;})]];
     auto Segments=[this](const TArray<FText>& Names,TFunction<int32()> Value,TFunction<void(int32)> Set)->TSharedRef<SWidget>
     {auto Row=SNew(SHorizontalBox);for(int32 Index=0;Index<Names.Num();++Index)Row->AddSlot().FillWidth(1)[SNew(SCheckBox).Style(&FSensorOwnedPresentationStyle::Segment()).IsChecked_Lambda([Value,Index](){return Value()==Index?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([Set,Index](ECheckBoxState State){if(State==ECheckBoxState::Checked)Set(Index);})[SNewSensorTool(STextBlock).Justification(ETextJustify::Center).Text(Names[Index])]];return Row;};
     Box->AddSlot().AutoHeight().Padding(0,5)[SNew(SHorizontalBox)

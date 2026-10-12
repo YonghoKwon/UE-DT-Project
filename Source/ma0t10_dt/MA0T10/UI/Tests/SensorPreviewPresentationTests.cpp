@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
@@ -13,6 +14,8 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPreviewPresentationTest,"MA0T10.UXR06.PreviewVocabularyEmptyActionsAndHiddenDiagnostics",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPreviewPresentationTest::RunTest(const FString&)
 {
+    TestEqual(TEXT("uncapped warning uses equipment terms without exposing property names"),SensorToolUiText::UserReason(TEXT("Server payload is uncapped (MaxServerPayloadPoints=0)")),FString(TEXT("추가 출력 데이터의 점 수 제한이 없습니다")));
+    TestEqual(TEXT("server setup guidance has no duplicated server noun"),SensorToolUiText::UserReason(TEXT("STOMP 서버 설정을 연결·진단에서 확인하세요")),FString(TEXT("서버 설정을 서버 연결 설정에서 확인하세요")));
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Camera->StopSensor();Lidar->StopSensor();C->DiscoverSensorsInLevel();
     auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement);
