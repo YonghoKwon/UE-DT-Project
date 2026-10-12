@@ -8,6 +8,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "AssetCompilingManager.h"
+#include "ShaderCompiler.h"
 #include "RenderingThread.h"
 #include "RHIGlobals.h"
 #include "NiagaraComponent.h"
@@ -38,6 +39,8 @@ class FPlacementMarkerIsolation : public IAutomationLatentCommand
     bool Requested=false;
     double Started=FPlatformTime::Seconds();
     int64 LastFrame=-1;
+    int32 CameraWarmup=0;
+    TArray<FColor> WarmupPixels;
 public:
     explicit FPlacementMarkerIsolation(FAutomationTestBase* T):Test(T){}
     ~FPlacementMarkerIsolation(){if(Lidar)Lidar->StopSensor();if(Capture&&Scene)Scene->RemoveComponent(Capture);Scene.Reset();}
@@ -63,15 +66,28 @@ public:
             Capture=NewObject<USceneCaptureComponent2D>();Capture->bCaptureEveryFrame=false;Capture->bCaptureOnMovement=false;Capture->CaptureSource=ESceneCaptureSource::SCS_SceneColorHDR;
             Capture->ShowFlags.SetEyeAdaptation(false);Capture->ShowFlags.SetPostProcessing(false);Capture->ShowFlags.SetAntiAliasing(false);Capture->ShowFlags.SetTemporalAA(false);
             Capture->TextureTarget=NewObject<UTextureRenderTarget2D>(Capture);Capture->TextureTarget->InitCustomFormat(128,128,PF_B8G8R8A8,false);Capture->TextureTarget->UpdateResourceImmediate();
-            Scene->AddComponent(Capture,FTransform::Identity);FAssetCompilingManager::Get().FinishAllCompilation();return false;
+            Scene->AddComponent(Capture,FTransform::Identity);FAssetCompilingManager::Get().FinishAllCompilation();
+            if(GShaderCompilingManager)GShaderCompilingManager->FinishAllCompilation();
+            return false;
         }
         auto* W=Scene->GetWorld();auto* S=Lidar->ScanComponent.Get();
+        if(CameraWarmup<3)
+        {
+            W->SendAllEndOfFrameUpdates();Capture->CaptureScene();FlushRenderingCommands();TArray<FColor> Pixels;
+            Capture->TextureTarget->GameThread_GetRenderTargetResource()->ReadPixels(Pixels);
+            CameraWarmup=Pixels==WarmupPixels?CameraWarmup+1:0;WarmupPixels=MoveTemp(Pixels);return false;
+        }
         if(!Requested)
         {
             PickTarget->SetPlacementPickingEnabled(Phase%2==1);
             W->SendAllEndOfFrameUpdates();Capture->CaptureScene();FlushRenderingCommands();TArray<FColor> Pixels;Capture->TextureTarget->GameThread_GetRenderTargetResource()->ReadPixels(Pixels);
             if(Phase==0){PixelsOff=Pixels;Test->TestEqual(TEXT("Camera has real pixels"),Pixels.Num(),128*128);Test->TestTrue(TEXT("Camera renders wall"),Pixels.ContainsByPredicate([](const FColor& P){return P.B>20;}));}
-            else Test->TestTrue(TEXT("marker ON/OFF leaves Camera SceneCapture pixels identical"),Pixels==PixelsOff);
+            else
+            {
+                int32 Changed=0;for(int32 I=0;I<FMath::Min(Pixels.Num(),PixelsOff.Num());++I)Changed+=Pixels[I]!=PixelsOff[I];
+                Test->AddInfo(FString::Printf(TEXT("Camera phase %d: changed pixels %d; first OFF=%s current=%s"),Phase,Changed,*PixelsOff[0].ToString(),*Pixels[0].ToString()));
+                Test->TestTrue(TEXT("marker ON/OFF leaves Camera SceneCapture pixels identical"),Pixels==PixelsOff);
+            }
             S->AcquisitionBackend=Phase<2?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
             S->StartScan();S->RequestImmediateScheduledScan();S->PrepareScheduledScan(0);Requested=true;
         }
