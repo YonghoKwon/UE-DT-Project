@@ -29,6 +29,7 @@ public:
 	bool ToggleOwnedDestination(ESensorToolDestination Destination);
 	bool IsOwnedDestinationVisible(ESensorToolDestination Destination) const;
 	const FSensorToolGlobalStatus& GetGlobalStatus() const { return GlobalStatus; }
+	float GetFloatingToolbarHeight() const;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
@@ -38,6 +39,7 @@ private:
 	friend class FSensorWorkspaceSelectionSyncTest;
 	friend class FSensorWorkflowToolbarTest;
 	friend class FSensorWorkflowStatusTest;
+	friend class FUxrSidebarRender;
 #endif
 	UVirtualSensorToolWorkspaceSubsystem* Workspace() const;
 	TArray<TSharedPtr<FString>> SensorOptions;
@@ -45,7 +47,7 @@ private:
 	void RefreshSensors();
 	void SelectSensor(const FString& Id);
 	FText SelectedSensorText() const;
-	FSlateFontInfo ToolFont(int32 Size=16) const;
+	FSlateFontInfo ToolFont(int32 Size=13) const;
 	TMap<FString,FText> OwnedSensorLabels;
 	struct FEquipmentLabel { FText Name,State; FLinearColor Color=FLinearColor::Gray; };
 	TMap<FString,FEquipmentLabel> EquipmentLabels;
@@ -60,4 +62,10 @@ private:
 	TSharedRef<SWidget> BuildStatusStrip();
 	TSharedRef<SWidget> BuildAppearanceMenu();
 	TSharedRef<SWidget> BuildLegacyToolbar();
+	TSharedRef<SWidget> BuildSidebarShell();
+	bool IsSidebarRouteSelected(ESensorToolDestination Destination) const;
+	TSharedRef<SWidget> BuildOwnedFloatingToolbar();
+	TSharedPtr<SWidget> FloatingToolbar;
+	FText SlabCardTitle,SlabCardAngle,SlabCardOffset,SlabCardMargin;
+	float SlabCardProgress=0;
 };

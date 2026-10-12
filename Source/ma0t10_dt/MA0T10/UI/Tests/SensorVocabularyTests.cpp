@@ -86,7 +86,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     const auto ProgressSlate=Progress->TakeWidget();const auto ReplaySlate=Replay->TakeWidget();const auto ChartsSlate=Charts->TakeWidget();
     auto* Toolbar=NewObject<USensorToolToolbarWidget>(World);W->Toolbar=Toolbar;Toolbar->Initialize();const auto ToolbarSlate=Toolbar->TakeWidget();Toolbar->RefreshOwnedStatus(FPlatformTime::Seconds()+1);Inspect(TEXT("toolbar"),ToolbarSlate);Inspect(TEXT("status-strip"),Toolbar->BuildStatusStrip());Inspect(TEXT("equipment-menu"),Toolbar->BuildEquipmentMenu());Inspect(TEXT("tools-menu"),Toolbar->BuildToolsMenu());Inspect(TEXT("appearance-menu"),Toolbar->BuildAppearanceMenu());
     TArray<FString> BarLabels;CollectText(ToolbarSlate,BarLabels);
-    for(const FText& Label:{SensorToolUiText::Placement(),SensorToolUiText::Preview(),SensorToolUiText::Scenario(),SensorToolUiText::PcdTransfer(),SensorToolUiText::Results(),SensorToolUiText::Tools()})TestTrue(TEXT("actual owned toolbar, not the legacy fallback, is inspected"),BarLabels.Contains(Label.ToString()));
+    for(const FText& Label:{SensorToolUiText::Placement(),SensorToolUiText::Preview(),SensorToolUiText::Scenario(),FText::FromString(TEXT("PCD")),SensorToolUiText::Results()})TestTrue(TEXT("actual owned sidebar rail, not the legacy fallback, is inspected"),BarLabels.Contains(Label.ToString()));
     for(auto* Actor:TArray<AVirtualSensorActorBase*>{Camera,Lidar})
     {
         const FString Kind=Actor==Camera?TEXT("camera"):TEXT("lidar");C->SelectSensorActor(Actor);

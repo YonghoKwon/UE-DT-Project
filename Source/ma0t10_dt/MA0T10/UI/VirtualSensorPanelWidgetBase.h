@@ -17,6 +17,11 @@ class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDxWidget
     GENERATED_BODY()
 
 public:
+    /** Presentation only: never persists dock rectangles into the legacy floating layout. */
+    bool SupportsOwnedDocking() const;
+    bool IsWorkspaceDocked() const { return bWorkspaceDocked; }
+    void ApplyWorkspaceDockRect(FVector2D Position,FVector2D Size);
+    void LeaveWorkspaceDock();
 	void SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role);
 	UVirtualSensorToolWorkspaceSubsystem* GetToolWorkspace() const { return ToolWorkspace.Get(); }
 	ESensorToolPanelRole GetToolRole() const { return ToolRole; }
@@ -51,6 +56,7 @@ public:
 	void SetSensorAppearanceOwner(class AVirtualSensorUiHostActor* Host);
 	void ApplySensorToolFontScale(float Scale);
 	float GetSensorToolFontScale() const { return SensorToolFontScale; }
+	float GetSensorToolVisualScale() const;
 	void RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args);
 	void RegisterSensorNativeFont(TSharedRef<SButton> Widget, const SButton::FArguments& Args);
 	void RegisterSensorNativeFont(TSharedRef<SEditableTextBox> Widget, const SEditableTextBox::FArguments& Args);
@@ -140,6 +146,9 @@ public:
     float ResizeHandleSize = 18.0f;
 
 private:
+    bool bWorkspaceDocked=false;
+    bool bPendingOwnedFontRefresh=false;
+    bool bFloatingDraggable=true,bFloatingResizable=false,bFloatingClamp=true;
 	TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> ToolWorkspace;
 	ESensorToolPanelRole ToolRole=ESensorToolPanelRole::Monitor;
 	bool bSensorPanelConstructed = false;

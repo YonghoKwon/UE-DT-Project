@@ -65,10 +65,23 @@ public:
 	/** Startup layout must use the actually arranged owned Canvas, never a provisional viewport. */
 	bool IsOwnedPanelLayoutReady(ESensorToolPanelRole Role) const;
 	bool OwnsToolbar(const UUserWidget* Widget) const { return Toolbar==Widget; }
+	UUserWidget* GetOwnedNavigation() const { return Toolbar; }
 	float GetToolbarReservedTop() const { return ToolbarReservedTop; }
 	static float CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight);
 	static const FString SlotName;
+	bool IsSidebarMode() const { return bSidebarMode; }
+	void SetSidebarMode(bool bEnabled);
+	void CollapseSidebar();
+	ESensorToolPanelRole GetSidebarRole() const { return SidebarRole; }
+	bool IsSidebarExpanded() const { return bSidebarExpanded; }
+	float GetSidebarWidth() const;
+	float GetOwnedPixelScale() const;
+	void RefreshDockedLayout();
 private:
+	float MeasureOwnedPixelScale() const;
+	bool bSidebarMode=true,bSidebarExpanded=true;
+	ESensorToolPanelRole SidebarRole=ESensorToolPanelRole::Placement;
+	TSet<ESensorToolPanelRole> SidebarOpen={ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement};
 	void RefreshOwnedPickMarkers();
 	TArray<TWeakObjectPtr<AVirtualSensorActorBase>> OwnedPickTargets;
 #if WITH_DEV_AUTOMATION_TESTS
@@ -77,6 +90,7 @@ private:
 	friend class FSensorWorkflowToolbarTest;
 	friend class FSensorVocabularyTest;
 	friend class FSensorWorkflowStatusTest;
+	friend class FSidebarOwnershipTest;
 #endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;
 	UPROPERTY(Transient) TMap<ESensorToolPanelRole,TObjectPtr<UVirtualSensorPanelWidgetBase>> Panels;
@@ -90,6 +104,7 @@ private:
 	FString PanelOpenMessage;
 	FVector2D LastCanvasSize=FVector2D::ZeroVector;
 	float PollTime=0;
+	float LastOwnedPixelScale=0;
 	float ToolbarReservedTop=64;
 	int32 Front=10;
 	bool bApplying=false;

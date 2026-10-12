@@ -46,11 +46,11 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     auto* Toolbar=NewObject<USensorToolToolbarWidget>(World);W->Toolbar=Toolbar;
     Settings->BindSensorManager(C);Data->BindSensorManager(C);Data->Initialize();const auto DataSlate=Data->TakeWidget();Toolbar->Initialize();
     const auto ToolbarSlate=Toolbar->TakeWidget();TArray<FString> BarTexts;FindTexts(ToolbarSlate,BarTexts);
-    for(const FText& Text:{SensorToolUiText::Placement(),SensorToolUiText::Preview(),SensorToolUiText::Scenario(),SensorToolUiText::PcdTransfer(),SensorToolUiText::Results(),SensorToolUiText::Tools()})
+    for(const FText& Text:{SensorToolUiText::Placement(),SensorToolUiText::Preview(),SensorToolUiText::Scenario(),FText::FromString(TEXT("PCD")),SensorToolUiText::Results()})
         TestEqual(TEXT("each workflow entry appears once"),BarTexts.FilterByPredicate([&](const auto& S){return S==Text.ToString();}).Num(),1);
     TestTrue(TEXT("placement route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Placement)&&W->IsPanelOpen(ESensorToolPanelRole::Placement));
     TestTrue(TEXT("preview route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Preview)&&W->IsPanelOpen(ESensorToolPanelRole::Monitor));
-    TestTrue(TEXT("scenario opens progress and archive"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Scenario)&&W->IsPanelOpen(ESensorToolPanelRole::SlabProgress)&&W->IsPanelOpen(ESensorToolPanelRole::Replay));
+    TestTrue(TEXT("sidebar scenario opens one progress body; archive remains reachable"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Scenario)&&W->IsPanelOpen(ESensorToolPanelRole::SlabProgress)&&!W->IsPanelOpen(ESensorToolPanelRole::Replay));
     TestTrue(TEXT("pcd route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::PcdTransfer));
     TestEqual(TEXT("pcd opens live screen"),Data->GetActiveTab(),EVirtualSensorCaptureExportTab::LiveStream);
     TestTrue(TEXT("same visible screen toggles hidden"),Toolbar->ToggleOwnedDestination(ESensorToolDestination::PcdTransfer)&&!W->IsPanelOpen(ESensorToolPanelRole::Data));

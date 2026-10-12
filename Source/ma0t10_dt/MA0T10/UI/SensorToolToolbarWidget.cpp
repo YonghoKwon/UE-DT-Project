@@ -14,6 +14,7 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SButton.h"
@@ -47,6 +48,14 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 {
 	auto* W=Workspace();
 	if(!W||!W->OwnsToolbar(this)) return BuildLegacyToolbar();
+	FloatingToolbar=BuildOwnedFloatingToolbar();
+	return SNew(SWidgetSwitcher).Visibility(EVisibility::SelfHitTestInvisible).WidgetIndex_Lambda([this](){auto* W=Workspace();return W&&W->IsSidebarMode()?0:1;})
+	 +SWidgetSwitcher::Slot()[BuildSidebarShell()]
+	 +SWidgetSwitcher::Slot()[SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)+SVerticalBox::Slot().AutoHeight().Padding(16,8)[FloatingToolbar.ToSharedRef()]+SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]];
+}
+float USensorToolToolbarWidget::GetFloatingToolbarHeight() const {return FloatingToolbar.IsValid()?FloatingToolbar->GetDesiredSize().Y:48;}
+TSharedRef<SWidget> USensorToolToolbarWidget::BuildOwnedFloatingToolbar()
+{
 	RefreshSensors();
 	RefreshOwnedStatus(FPlatformTime::Seconds());
 	auto Bar=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8));
@@ -72,7 +81,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 }
 FSlateFontInfo USensorToolToolbarWidget::ToolFont(int32 Size) const
 {
-	const auto* W=Workspace();return FSensorToolWorkspaceStyle::Font(Size,W&&W->OwnsToolbar(this)?W->GetOwnedPanelFontScale():1.0f);
+	const auto* W=Workspace();return FSensorToolWorkspaceStyle::Font(Size,W&&W->OwnsToolbar(this)?W->GetOwnedPanelFontScale()*W->GetOwnedPixelScale()*.75f:1.0f);
 }
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildEquipmentLabel(TWeakObjectPtr<AVirtualSensorActorBase> Actor)
 {
@@ -101,7 +110,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildEquipmentMenu()
 bool USensorToolToolbarWidget::IsOwnedDestinationVisible(ESensorToolDestination D) const
 {
 	const auto* W=Workspace();if(!W||!W->OwnsToolbar(this))return false;
-	if(D==ESensorToolDestination::Scenario)return W->IsPanelOpen(ESensorToolPanelRole::SlabProgress)||W->IsPanelOpen(ESensorToolPanelRole::Replay);
+	if(D==ESensorToolDestination::Scenario)return W->IsPanelOpen(ESensorToolPanelRole::SlabProgress)||W->IsPanelOpen(ESensorToolPanelRole::Replay)||(W->IsSidebarMode()&&W->IsPanelOpen(ESensorToolPanelRole::SlabCharts));
 	if(D==ESensorToolDestination::Placement)return W->IsPanelOpen(ESensorToolPanelRole::Placement);
 	if(D==ESensorToolDestination::Preview)return W->IsPanelOpen(ESensorToolPanelRole::Monitor);
 	const auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
@@ -113,7 +122,7 @@ bool USensorToolToolbarWidget::ToggleOwnedDestination(ESensorToolDestination D)
 {
 	if(!IsOwnedDestinationVisible(D))return OpenOwnedDestination(D);
 	auto* W=Workspace();if(!W)return false;
-	if(D==ESensorToolDestination::Scenario){W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,false);W->SetPanelOpen(ESensorToolPanelRole::Replay,false);}
+	if(D==ESensorToolDestination::Scenario){W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,false);W->SetPanelOpen(ESensorToolPanelRole::Replay,false);if(W->IsSidebarMode())W->SetPanelOpen(ESensorToolPanelRole::SlabCharts,false);}
 	else W->SetPanelOpen(D==ESensorToolDestination::Placement?ESensorToolPanelRole::Placement:D==ESensorToolDestination::Preview?ESensorToolPanelRole::Monitor:ESensorToolPanelRole::Data,false);
 	return true;
 }
@@ -123,6 +132,7 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 	if(Destination==ESensorToolDestination::Scenario)
 	{
 		W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
+		if(W->IsSidebarMode())return W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)!=nullptr;
 		W->SetPanelOpen(ESensorToolPanelRole::Replay,true);
 		for(const auto Role:{ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::Replay})
 			if(auto* Panel=W->GetOwnedPanel(Role))if(Panel->IsPanelCollapsed())Panel->TogglePanelCollapsed();
@@ -168,6 +178,9 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildToolsMenu()
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildAppearanceMenu()
 {
 	auto Menu=SNew(SVerticalBox);
+	Menu->AddSlot().AutoHeight().Padding(0,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
+	 .OnClicked_Lambda([this](){if(auto* W=Workspace())W->SetSidebarMode(!W->IsSidebarMode());FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
+	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont(13);}).Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W&&W->IsSidebarMode()?TEXT("창 자유 배치 (이전 방식)"):TEXT("작업 사이드바로 복귀"));})]];
 	for(float Scale:{.85f,1.0f,1.25f,1.5f})
 		Menu->AddSlot().AutoHeight().Padding(0,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
 		 .OnClicked_Lambda([this,Scale](){if(auto* W=Workspace())W->SetOwnedPanelFontScale(Scale);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
