@@ -20,6 +20,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/UI/SensorOwnedPresentationStyle.h"
+#include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarOwnershipTest,"MA0T10.UXR09.SidebarOwnershipAndFloatingCompatibility",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSidebarOwnershipTest::RunTest(const FString&)
@@ -70,7 +71,12 @@ bool FSidebarSupplementDesignTest::RunTest(const FString&)
         if(Item->GetType()==TEXT("STextBlock"))Texts.Add(StaticCastSharedRef<STextBlock>(Item)->GetText().ToString());
         auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Visit(Children->GetChildAt(I));
     };
-    Visit(P->TakeWidget());
+    const auto PlacementSlate=P->TakeWidget();Visit(PlacementSlate);
+    TArray<FString> Visible;SensorPresentationTests::VisibleText(PlacementSlate,Visible);
+    TestFalse(TEXT("empty equipment hides the selected-equipment card"),Visible.Contains(TEXT("선택 장비")));
+    TestFalse(TEXT("empty equipment hides numeric manipulation controls"),Visible.Contains(TEXT("입력 방식·숫자 입력")));
+    TestTrue(TEXT("empty equipment keeps LiDAR add accessible"),Visible.Contains(TEXT("+ LiDAR")));
+    TestTrue(TEXT("empty equipment keeps Camera add accessible"),Visible.Contains(TEXT("+ Camera")));
     TestEqual(TEXT("unverified paint caches are not installed"),InvalidationRoots,0);
     for(const FString& Label:{FString(TEXT("+ LiDAR")),FString(TEXT("+ Camera")),FString(TEXT("+ 현재 위치 저장")),FString(TEXT("전체 배치 저장")),FString(TEXT("불러오기"))})TestTrue(*FString::Printf(TEXT("default surface exposes %s"),*Label),Texts.Contains(Label));
     for(const auto* Explanation:{TEXT("현재 관찰 위치에 추가 · PCD 전송은 별도"),TEXT("레벨 장비는 삭제할 수 없습니다."),TEXT("선택은 위치를 바꾸지 않습니다 · 이동 버튼으로 적용하세요.")})TestFalse(TEXT("persistent explanations are absent"),Texts.Contains(Explanation));

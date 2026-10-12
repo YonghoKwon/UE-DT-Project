@@ -422,7 +422,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshOwnedMonitorText()
     bOwnedHasEquipment=IsValid(Actor);bOwnedPreviewEmpty=!bOwnedHasEquipment||!Actor->IsSensorRunning();
     const FString Warning=BuildOwnedMeasurementWarning();bOwnedHasWarning=!Warning.IsEmpty();
     FString Status=bOwnedHasEquipment?BuildCompactStatusText():TEXT("장비 없음 · 배치에서 장비를 추가하세요");
-    if(bOwnedHasWarning)Status+=TEXT(" · ⚠ ")+Warning;
+    SetText(OwnedMonitorWarning,bOwnedHasWarning?TEXT("⚠ ")+Warning:FString());
     SetText(OwnedMonitorStatus,Status);if(NativeStatusTextBlock){NativeStatusTextBlock->SetText(OwnedMonitorStatus);NativeStatusTextBlock->SetToolTipText(OwnedMonitorStatus);}
     auto* Workspace=GetToolWorkspace();auto* Placement=Workspace?Cast<UVirtualSensorPlacementPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Placement)):nullptr;
     FString Reason;bOwnedCanStart=bOwnedHasEquipment&&Placement&&SensorManager&&SensorManager->GetSensorActors().Contains(Actor)&&Actor->CanEditSensorPlacement(Reason);
@@ -472,9 +472,10 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
     [SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[SNew(SBox).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Collapsed:EVisibility::Visible;})[BuildToolPanelHeader(SensorToolUiText::Preview())]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
-       +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity_Lambda([this](){return bOwnedHasWarning?FVirtualSensorUiStyle::Warning:GetToolTextColor();}).Text(OwnedMonitorStatus)]
+       +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolTextColor()).Text(OwnedMonitorStatus)]
        +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedViewIcon","..."))]]
        +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Visible:EVisibility::Collapsed;}).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(LOCTEXT("ClosePreviewCard","×")).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor,false);return FReply::Handled();})]]
+     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return bOwnedHasWarning?GetPanelBodyVisibility():EVisibility::Collapsed;}).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Warning()).Text_Lambda([this](){return OwnedMonitorWarning;}).ToolTipText_Lambda([this](){return OwnedMonitorWarning;})]
      +SVerticalBox::Slot().FillHeight(1).Padding(0,8,0,2)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(FLinearColor(.01,.015,.025,1)).Padding(2).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        [SNew(SVerticalBox)
         +SVerticalBox::Slot().FillHeight(.7f)[SNew(SOverlay)

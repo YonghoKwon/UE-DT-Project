@@ -617,7 +617,7 @@ private:
     TArray<TSharedPtr<EVirtualSensorMonitorPresentation>> NativePresentationOptions;
     bool bOwnedAdvancedMenuOpen = false;
 	bool bOwnedPreviewEmpty=true,bOwnedHasEquipment=false,bOwnedCanStart=false,bOwnedHasWarning=false,bOwnedLegendExpanded=false;
-	FText OwnedMonitorStatus,OwnedEmptyText,OwnedEmptyActionText,OwnedEmptyActionTip,OwnedLegendText,OwnedRendererText;
+	FText OwnedMonitorStatus,OwnedMonitorWarning,OwnedEmptyText,OwnedEmptyActionText,OwnedEmptyActionTip,OwnedLegendText,OwnedRendererText;
 	FText OwnedProjectionText,OwnedColorText,OwnedSecondaryCameraText;
 	FText OwnedHeightMinText,OwnedHeightMaxText,OwnedSliceWidthText,OwnedPointSizeText;
 	TWeakObjectPtr<AVirtualSensorActorBase> OwnedPreviewTarget;

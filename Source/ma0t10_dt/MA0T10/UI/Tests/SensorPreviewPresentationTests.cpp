@@ -22,6 +22,8 @@ bool FSensorPreviewPresentationTest::RunTest(const FString&)
         const int64 Before=Actor->GetSensorRuntimeStatus().FrameId;
         C->SelectSensorActor(Actor);if(Actor==Camera){Monitor->BindVirtualCamera(Camera->CaptureComponent);Monitor->ShowCameraView();}else{Monitor->BindVirtualLidar(Lidar->ScanComponent);Monitor->ShowLidarView();}
         Monitor->RefreshOwnedMonitorText();
+        TestFalse(TEXT("preview title never embeds the warning marker"),Monitor->OwnedMonitorStatus.ToString().Contains(TEXT("⚠")));
+        TestTrue(TEXT("stopped preview clears the separate warning text"),Monitor->OwnedMonitorWarning.IsEmpty());
         TestTrue(TEXT("stopped device has explicit empty-state guidance"),Monitor->bOwnedPreviewEmpty&&Monitor->OwnedEmptyText.ToString().Contains(TEXT("측정 중지 상태"))&&Monitor->OwnedEmptyActionText.ToString()==TEXT("측정 시작"));
         TestFalse(TEXT("no measurement warning uses normal color"),Monitor->bOwnedHasWarning);TestFalse(TEXT("there is no yellow none warning row"),Monitor->NativeWarningTextBlock.IsValid());
         TArray<FString> Text;SensorPresentationTests::VisibleText(Slate,Text);const FString All=FString::Join(Text,TEXT("\n"));
@@ -33,7 +35,9 @@ bool FSensorPreviewPresentationTest::RunTest(const FString&)
             Monitor->SetLidarProjectionMode(ELidarMonitorProjectionMode::WorldTopDown);Monitor->SetLidarColorMode(ELidarColorMode::RelativeHeight);
             TestEqual(TEXT("owned view changes never invoke the legacy synchronous scan"),Actor->GetSensorRuntimeStatus().FrameId,Before);
         }
-        TestTrue(TEXT("empty action uses placement measurement start"),Monitor->StartOwnedMonitoredEquipment());TestTrue(TEXT("target actually enters measuring state"),Actor->IsSensorRunning());Actor->StopSensor();
+        TestTrue(TEXT("empty action uses placement measurement start"),Monitor->StartOwnedMonitoredEquipment());TestTrue(TEXT("target actually enters measuring state"),Actor->IsSensorRunning());Monitor->RefreshOwnedMonitorText();
+        const FString Warning=Monitor->BuildOwnedMeasurementWarning();TestEqual(TEXT("warning is preserved separately with full text"),Monitor->OwnedMonitorWarning.ToString(),Warning.IsEmpty()?FString():TEXT("⚠ ")+Warning);
+        TestFalse(TEXT("measuring title excludes the warning marker"),Monitor->OwnedMonitorStatus.ToString().Contains(TEXT("⚠")));Actor->StopSensor();
     }
     Lidar->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;Lidar->ScanComponent->HorizontalSamples=8;Lidar->ScanComponent->VerticalChannels=4;
     const int64 CompatibilityBefore=Lidar->GetSensorRuntimeStatus().FrameId;Monitor->RefreshLidarPreviewWithoutTransport(true);
