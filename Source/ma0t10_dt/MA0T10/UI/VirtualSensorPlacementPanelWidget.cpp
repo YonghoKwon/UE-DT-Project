@@ -2,6 +2,7 @@
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolWorkspaceStyle.h"
 #include "SensorToolUiText.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
@@ -111,14 +112,15 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildEquipmentSection()
       +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).IsEnabled_Lambda([this](){return bCanDelete;}).Text_Lambda([this](){return FText::FromString(PendingDelete.IsValid()?TEXT("삭제 확인"):TEXT("삭제"));}).OnClicked_Lambda([this](){DeleteSelectedSensor();return FReply::Handled();})]
       +SWrapBox::Slot()[SNewSensorTool(SButton).Visibility_Lambda([this](){return PendingDelete.IsValid()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("CancelDelete","취소")).OnClicked_Lambda([this](){CancelSelectedSensorDeletion();return FReply::Handled();})]];
     Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this](){return CachedDeleteText;})];
-    Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SBox).HeightOverride_Lambda([this](){return FMath::Clamp(SensorOptions.Num()*36.f*GetSensorToolFontScale(),40.f,216.f);})
+    Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SBox).HeightOverride_Lambda([this](){return FMath::Clamp(SensorOptions.Num()*48.f*GetSensorToolVisualScale(),48.f,216.f*GetSensorToolVisualScale());})
      [SAssignNew(SensorList,SListView<TSharedPtr<FOption>>).ListItemsSource(&SensorOptions).SelectionMode(ESelectionMode::Single)
       .OnSelectionChanged_Lambda([this](TSharedPtr<FOption> O,ESelectInfo::Type Info){if(Info!=ESelectInfo::Direct&&O&&O->Actor.IsValid())SelectEquipment(O->Actor.Get());})
       .OnGenerateRow_Lambda([this](TSharedPtr<FOption> O,const TSharedRef<STableViewBase>& Owner){return SNew(STableRow<TSharedPtr<FOption>>,Owner).Padding(6)
-       [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(16,GetSensorToolFontScale());}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([O](){return O->NameText;}).ColorAndOpacity_Lambda([this,O](){return O->Actor.Get()==Selected()?GetToolAccentColor():GetToolTextColor();}).Text_Lambda([O](){return O->NameText;})]
-        +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(14,GetSensorToolFontScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->OriginText;})]
-        +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(16,GetSensorToolFontScale());}).ColorAndOpacity_Lambda([O](){return O->StateColor;}).Text(FText::FromString(TEXT("●")))]
-        +SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(16,GetSensorToolFontScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->StateText;})]];})]];
+       [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[SNew(SVerticalBox)
+         +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(13,GetSensorToolVisualScale());}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([O](){return O->NameText;}).ColorAndOpacity_Lambda([this,O](){return O->Actor.Get()==Selected()?GetToolAccentColor():GetToolTextColor();}).Text_Lambda([O](){return O->NameText;})]
+         +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(11,GetSensorToolVisualScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->OriginText;})]]
+        +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(13,GetSensorToolVisualScale());}).ColorAndOpacity_Lambda([O](){return O->StateColor;}).Text(FText::FromString(TEXT("●")))]
+        +SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(12,GetSensorToolVisualScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->StateText;})]];})]];
     return Box;
 }
 TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildSelectedSection()
@@ -126,11 +128,11 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildSelectedSection()
     auto Box=SNew(SVerticalBox);Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this](){return SelectedText();})];
     Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
      +SWrapBox::Slot()[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return bCanMove;}).Text_Lambda([this](){return CachedMeasureCaption;}).OnClicked_Lambda([this](){SetSelectedMeasuring(!bSelectedMeasuring);return FReply::Handled();})]
-     +SWrapBox::Slot()[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return bCanMove;}).Text_Lambda([this](){auto* I=Interaction();return FText::FromString(I&&I->IsManipulating()?TEXT("조작 종료 · Esc"):TEXT("이동·회전 시작"));}).OnClicked_Lambda([this](){if(auto* I=Interaction())SetSelectedManipulating(!I->IsManipulating());return FReply::Handled();})]];
+     +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::PrimaryButton()).IsEnabled_Lambda([this](){return bCanMove;}).Text_Lambda([this](){auto* I=Interaction();return FText::FromString(I&&I->IsManipulating()?TEXT("조작 종료 · Esc"):TEXT("이동·회전 시작"));}).OnClicked_Lambda([this](){if(auto* I=Interaction())SetSelectedManipulating(!I->IsManipulating());return FReply::Handled();})]];
     Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return CachedLockText;})];
     Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Visibility_Lambda([this](){return CachedPreviewText.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;}).Text_Lambda([this](){return CachedPreviewText;})];
     auto Segments=[this,Box](const FText& Label,const TArray<FText>& Names,TFunction<int32()> Value,TFunction<void(int32)> Set)
-    {auto Row=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,4));Row->AddSlot()[SNewSensorTool(STextBlock).Text(Label)];for(int32 Index=0;Index<Names.Num();++Index)Row->AddSlot()[SNew(SCheckBox).Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox")).IsChecked_Lambda([Value,Index](){return Value()==Index?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([Set,Index](ECheckBoxState State){if(State==ECheckBoxState::Checked)Set(Index);})[SNewSensorTool(STextBlock).Text(Names[Index])]];Box->AddSlot().AutoHeight().Padding(0,5)[Row];};
+    {auto Row=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(4,4));Row->AddSlot()[SNewSensorTool(STextBlock).Text(Label)];for(int32 Index=0;Index<Names.Num();++Index)Row->AddSlot()[SNew(SCheckBox).Style(&FSensorOwnedPresentationStyle::Segment()).IsChecked_Lambda([Value,Index](){return Value()==Index?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([Set,Index](ECheckBoxState State){if(State==ECheckBoxState::Checked)Set(Index);})[SNewSensorTool(STextBlock).Text(Names[Index])]];Box->AddSlot().AutoHeight().Padding(0,5)[Row];};
     Segments(LOCTEXT("Mode","모드"),{LOCTEXT("Move","이동"),LOCTEXT("Rotate","회전")},[this](){return Interaction()?int32(Interaction()->GetMode()):0;},[this](int32 V){if(Interaction())Interaction()->SetMode(EVirtualSensorGizmoMode(V));});
     Segments(LOCTEXT("Space","좌표"),{LOCTEXT("Local","로컬"),LOCTEXT("World","월드")},[this](){return Interaction()?int32(Interaction()->GetSpace()):0;},[this](int32 V){if(Interaction())Interaction()->SetSpace(EVirtualSensorCoordinateSpace(V));});
     Segments(LOCTEXT("Input","입력"),{LOCTEXT("Continuous","연속 이동"),LOCTEXT("Precision","정밀 단위")},[this](){return Interaction()?int32(Interaction()->GetInputMode()):0;},[this](int32 V){if(Interaction())Interaction()->SetInputMode(EVirtualSensorPlacementInputMode(V));});
@@ -176,10 +178,10 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::RebuildWidget()
 {
     if(WidgetTree&&WidgetTree->RootWidget)return Super::RebuildWidget();RefreshInventory();RefreshLayouts();CachedStatusText=FText::FromString(Status);
     auto Sections=SNew(SVerticalBox);
-    auto AddSection=[this,Sections](FText Title,TSharedRef<SWidget> Content){Sections->AddSlot().AutoHeight().Padding(0,0,0,12)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8)[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(Title)]+SVerticalBox::Slot().AutoHeight()[Content]]];};
-    AddSection(LOCTEXT("Equipment","1. 장비"),BuildEquipmentSection());AddSection(LOCTEXT("Selected","2. 선택 장비"),BuildSelectedSection());AddSection(LOCTEXT("SavedPose","3. 저장 위치"),BuildPoseSection());AddSection(LOCTEXT("WholeLayout","4. 전체 배치"),BuildLayoutSection());
+    auto AddSection=[this,Sections](FText Title,TSharedRef<SWidget> Content){Sections->AddSlot().AutoHeight().Padding(8,0,8,16)[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(Title)]+SVerticalBox::Slot().AutoHeight()[Content]];};
+    AddSection(LOCTEXT("EquipmentClean","장비"),BuildEquipmentSection());AddSection(LOCTEXT("SelectedClean","선택 장비"),BuildSelectedSection());AddSection(LOCTEXT("SavedPoseClean","저장 위치"),BuildPoseSection());AddSection(LOCTEXT("WholeLayoutClean","전체 배치"),BuildLayoutSection());
     return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).Padding(8)[SNew(SVerticalBox)
-     +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("Title","센서·카메라 배치"))]
+     +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("SidebarTitle","배치"))]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("TransferSeparate","현재 관찰 위치에 추가 · PCD 전송은 별도"))]
      +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[Sections]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SBox).MaxDesiredHeight_Lambda([this](){return 72*GetSensorToolFontScale();}).Clipping(EWidgetClipping::ClipToBounds)
