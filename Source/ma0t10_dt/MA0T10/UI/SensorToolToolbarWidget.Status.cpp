@@ -91,8 +91,10 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         // Only an unambiguous actor is a valid fallback when no owned panel is bound.
         ASlabActor* Only=nullptr;int32 Count=0;
         for(TActorIterator<ASlabActor> It(GetWorld());It;++It){Only=*It;++Count;}
+        CachedSlabCount=Count;
         if(Count==1)StatusSlab=Only;
     }
+    if(!StatusSlab.IsValid())SlabCardTitle=FText::FromString(CachedSlabCount==0?TEXT("Slab이 없습니다 · 배치 방법"):TEXT("Slab이 여러 개입니다 · 대상 선택"));
     if(StatusSlab.IsValid())
     {
         const auto Simulation=StatusSlab->GetSimulationStatus();

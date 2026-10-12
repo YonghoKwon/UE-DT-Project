@@ -39,6 +39,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()
         [SNew(STextBlock).Font_Lambda([this](){return ToolFont(20);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text(FText::FromString(TEXT("...")))]];
     auto Summary=SNew(SVerticalBox);
     Summary->AddSlot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(13);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text_Lambda([this](){return SlabCardTitle;})];
+    Summary->AddSlot().AutoHeight().Padding(0,6)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton()).Visibility_Lambda([this](){return StatusSlab.IsValid()?EVisibility::Collapsed:EVisibility::Visible;}).OnClicked_Lambda([this](){OpenOwnedDestination(ESensorToolDestination::MapCheck);return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).Text(FText::FromString(TEXT("배치 방법 · 맵 점검")))]];
     Summary->AddSlot().AutoHeight().Padding(0,8)[SNew(SProgressBar).Percent_Lambda([this](){return SlabCardProgress;}).FillColorAndOpacity(FSensorOwnedPresentationStyle::Primary())];
     const FText Keys[]={FText::FromString(TEXT("기울기")),FText::FromString(TEXT("중심 이탈")),FText::FromString(TEXT("좌/우 여유"))};
     for(int32 I=0;I<3;++I)Summary->AddSlot().AutoHeight().Padding(0,2)[SNew(SHorizontalBox)
