@@ -49,7 +49,7 @@
 ### DTCore 기반 구현 (2026-10-12 사용자 강조)
 
 - 기능은 **DTCore가 제공하는 기반 위에** 만든다. 새 패널/화면은 `UDxWidget` 계열과 `UDxWidgetSubsystem`(열기·닫기·BringToFront·입력 차단 등록)을 사용하고, 3D 객체는 `AInteractableActor`/`AFacilityBase`, 데이터 반영은 `UDataSyncCompBase`, 상태 표시는 `UStatusVisualizerCompBase`, 업무 전문은 `UDxWebSocketSubsystem`+TC, API는 `UDxApiSubsystem`, 조회·검색은 `UDxDataSubsystem`/`UDxObjectSubsystem`/`UDxSearchSubsystem`을 먼저 검토한다. 같은 역할의 병렬 메커니즘(별도 위젯 관리자·별도 구독 루프 등)을 새로 만들지 않는다.
-- DTCore로 해결되지 않으면 프로젝트 쪽 adapter로 감싸고 근거를 보고한다. DTCore 소스·gitlink 수정은 여전히 금지이며, 공통 변경이 꼭 필요하면 재현 근거와 최소 변경안을 별도로 제안한다(§2).
+- DTCore로 해결되지 않으면 프로젝트 쪽 adapter로 감싸고 근거를 보고하며, IMPROVEMENTS의 **"DTCore 변경 후보"** 표에 한 줄로 기록한다(후속 DTCore 수정 단계의 입력, ROADMAP "개편 이후 예정 단계"). DTCore 소스·gitlink 수정은 여전히 금지이며, 공통 변경이 꼭 필요하면 재현 근거와 최소 변경안을 별도로 제안한다(§2).
 - 기존 프로젝트 고유 구조(Workspace 소유 패널, Raw TCP STOMP worker 등)가 DTCore와 겹치는 지점은 이유를 문서화된 범위 안에서 유지하고, 새 기능에서 확장하지 않는다.
 
 ### 성능을 기능과 함께 설계 (2026-10-12 사용자 강조)
