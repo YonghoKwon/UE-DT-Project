@@ -8,7 +8,9 @@ class UVirtualSensorPanelWidgetBase;
 class UUserWidget;
 class UCanvasPanel;
 class AVirtualSensorCoordinator;
+class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
+class USensorPlacementInteraction;
 
 UENUM(BlueprintType)
 enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress, Placement };
@@ -52,6 +54,7 @@ public:
 	void UnregisterPlacementHost(AVirtualSensorUiHostActor* Host);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") FString GetPanelOpenMessage() const {return PanelOpenMessage;}
 	AVirtualSensorCoordinator* GetCoordinator() const;
+	USensorPlacementInteraction* GetPlacementInteraction();
 	void AttachOwnedPanel(UVirtualSensorPanelWidgetBase* Panel);
 	void SavePanel(ESensorToolPanelRole Role);
 	void RestorePanel(ESensorToolPanelRole Role);
@@ -64,6 +67,8 @@ public:
 	static float CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight);
 	static const FString SlotName;
 private:
+	void RefreshOwnedPickMarkers();
+	TArray<TWeakObjectPtr<AVirtualSensorActorBase>> OwnedPickTargets;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabWorkspaceDeferredLayoutTest;
 	friend class FSensorWorkspacePlacementEntryTest;
@@ -75,6 +80,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Root;
 	UPROPERTY(Transient) TObjectPtr<UCanvasPanel> Canvas;
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Toolbar;
+	UPROPERTY(Transient) TObjectPtr<USensorPlacementInteraction> PlacementInteraction;
 	TWeakObjectPtr<UCanvasPanel> MainCanvas;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
 	TWeakObjectPtr<AVirtualSensorUiHostActor> PlacementHost;

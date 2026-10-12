@@ -10,6 +10,7 @@ class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
 class AVirtualSensorTransformGizmoActor;
 class STextBlock;
+class USensorPlacementInteraction;
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPanelWidgetBase
@@ -114,6 +115,9 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	USensorPlacementInteraction* OwnedInteraction() const;
+	void SynchronizeInteractionState();
+	TWeakObjectPtr<USensorPlacementInteraction> SharedInteraction;
 	friend class FSensorWorkflowToolbarTest;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorV2ManipulationLifecycleTest;

@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
+#include "SensorPlacementInteraction.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -124,6 +125,7 @@ void UVirtualSensorSettingsPanelWidget::NativeConstruct()
 
 void UVirtualSensorSettingsPanelWidget::NativeDestruct()
 {
+    if(auto* I=SharedInteraction.IsValid()?SharedInteraction.Get():OwnedInteraction()){I->Finish(false);I->OnChanged.RemoveAll(this);GizmoActor=nullptr;SharedInteraction.Reset();Super::NativeDestruct();return;}
     FinishSensorManipulation(false);
     if (GizmoActor)
     {
@@ -140,6 +142,13 @@ void UVirtualSensorSettingsPanelWidget::NativeDestruct()
 void UVirtualSensorSettingsPanelWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
+    if(OwnedInteraction())
+    {
+        SynchronizeWorkspaceSelection();SynchronizeInteractionState();
+        if(IsValid(GizmoActor))GizmoActor->SetStepSizes(TranslationStepCm,RotationStepDegrees);
+        if(IsVisible()&&!IsPanelCollapsed()&&FPlatformTime::Seconds()>=NextPoseRefresh){NextPoseRefresh=FPlatformTime::Seconds()+.2;RefreshPoseRows();}
+        return;
+    }
     if (IsWorkspaceOwned())
     {
         SynchronizeWorkspaceSelection();
@@ -182,10 +191,22 @@ FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
     return TEXT("Generic LiDAR");
 }
 
+USensorPlacementInteraction* UVirtualSensorSettingsPanelWidget::OwnedInteraction() const
+{return IsWorkspaceOwned()?GetToolWorkspace()->GetPlacementInteraction():nullptr;}
+void UVirtualSensorSettingsPanelWidget::SynchronizeInteractionState()
+{
+    auto* I=OwnedInteraction();if(!I)return;
+    bManipulationEnabled=I->IsManipulating();ManipulationTarget=I->GetManipulationTarget();GizmoActor=I->GetExistingGizmo();
+    GizmoMode=I->GetMode();CoordinateSpace=I->GetSpace();PlacementInputMode=I->GetInputMode();
+    if(auto* A=I->Selected())if(A==GetSelectedSensorActor())PendingState.ActorTransform=A->GetActorTransform();
+}
+
 void UVirtualSensorSettingsPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
     if (SensorManager != InSensorManager) FinishSensorManipulation(false);
     SensorManager = InSensorManager;
+    if(IsWorkspaceOwned()&&SensorManager&&GetToolWorkspace()->GetCoordinator()!=SensorManager)GetToolWorkspace()->SetCoordinator(SensorManager);
+    if(auto* I=OwnedInteraction()){SharedInteraction=I;I->OnChanged.RemoveAll(this);I->OnChanged.AddUObject(this,&ThisClass::SynchronizeInteractionState);}
     if (IsWorkspaceOwned() && SensorManager) SynchronizeWorkspaceSelection(true);
     else RefreshPendingState(true);
     SpawnGizmoIfNeeded();
@@ -469,11 +490,14 @@ void UVirtualSensorSettingsPanelWidget::NudgeSelectedSensor(FVector TranslationD
 void UVirtualSensorSettingsPanelWidget::SetPlacementInputMode(EVirtualSensorPlacementInputMode Mode)
 {
     PlacementInputMode=Mode;
+    if(auto* I=OwnedInteraction()){I->SetInputMode(Mode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);return;}
     if(GizmoActor)GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),Mode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
 }
 
 void UVirtualSensorSettingsPanelWidget::SetSensorManipulationEnabled(bool bEnabled)
 {
+    if(auto* I=OwnedInteraction())
+    {if(bEnabled&&!SensorManager){LastControlMessage=TEXT("조작할 장비를 선택하세요.");return;}I->SetInputMode(PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);if(auto* G=I->GetExistingGizmo())G->SetStepSizes(TranslationStepCm,RotationStepDegrees);I->SetManipulation(bEnabled,this,LastControlMessage);SynchronizeInteractionState();RefreshNativeText();return;}
     if (!bEnabled)
     {
         FinishSensorManipulation(true);
@@ -512,6 +536,7 @@ void UVirtualSensorSettingsPanelWidget::HandleManipulationExitRequested()
 
 void UVirtualSensorSettingsPanelWidget::FinishSensorManipulation(bool bRestoreMonitorView)
 {
+    if(auto* I=OwnedInteraction()){I->Finish(bRestoreMonitorView);SynchronizeInteractionState();return;}
     const bool bWasManipulating = bManipulationEnabled || ManipulationTarget.IsValid();
     if (ManipulationTarget.IsValid() && ManipulationTarget.Get() != GetSelectedSensorActor()) bRestoreMonitorView = false;
     if (IsValid(GizmoActor)) GizmoActor->SetManipulationEnabled(false);
@@ -561,12 +586,14 @@ void UVirtualSensorSettingsPanelWidget::EndMonitorFollowForManipulation()
 void UVirtualSensorSettingsPanelWidget::SetSensorGizmoMode(EVirtualSensorGizmoMode InMode)
 {
     GizmoMode = InMode;
+    if(auto* I=OwnedInteraction()){I->SetMode(InMode);return;}
     if (GizmoActor) GizmoActor->SetGizmoMode(InMode);
 }
 
 void UVirtualSensorSettingsPanelWidget::SetSensorCoordinateSpace(EVirtualSensorCoordinateSpace InSpace)
 {
     CoordinateSpace = InSpace;
+    if(auto* I=OwnedInteraction()){I->SetSpace(InSpace);return;}
     if (GizmoActor) GizmoActor->SetCoordinateSpace(InSpace);
 }
 
@@ -983,6 +1010,7 @@ void UVirtualSensorSettingsPanelWidget::RefreshNativeText()
 
 void UVirtualSensorSettingsPanelWidget::SpawnGizmoIfNeeded()
 {
+    if(auto* I=OwnedInteraction()){const bool NewGizmo=!IsValid(I->GetExistingGizmo());GizmoActor=I->GetGizmo(this);I->SetInputMode(PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);if(NewGizmo)I->SetLegacyOptions(TranslationStepCm,RotationStepDegrees,bGizmoVisible,bProjectionDebugEnabled);return;}
     if (IsValid(GizmoActor) || !GetWorld()) return;
     GizmoActor = GetWorld()->SpawnActor<AVirtualSensorTransformGizmoActor>();
     if (!GizmoActor) return;
@@ -1004,6 +1032,7 @@ void UVirtualSensorSettingsPanelWidget::SpawnGizmoIfNeeded()
 
 void UVirtualSensorSettingsPanelWidget::SyncGizmoTarget()
 {
+    if(auto* I=OwnedInteraction()){I->SynchronizeSelection();GizmoActor=I->GetGizmo(this);LastSyncedSensorActor=I->Selected();return;}
     if (!GizmoActor) return;
     AActor* SelectedActor = GetSelectedSensorActor();
     if (bManipulationEnabled && ManipulationTarget.Get() != SelectedActor) FinishSensorManipulation(false);
@@ -1046,12 +1075,14 @@ void UVirtualSensorSettingsPanelWidget::HandleGizmoGestureStarted()
 
 FString UVirtualSensorSettingsPanelWidget::RequestSaveSelectedSensorPose(const FString& Name,const FString& Existing)
 {
+    if(auto* I=OwnedInteraction()){LastPoseRequest=I->SavePose(Name,Existing);PoseRequestRevision=PoseInteractionRevision;return LastPoseRequest;}
     auto* P=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>():nullptr;
     if(!P)return FString();LastPoseRequest=P->RequestSaveSensorPose(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()),Name,Existing);PoseRequestRevision=PoseInteractionRevision;
     LastControlMessage=P->GetPoseSaveStatus(LastPoseRequest).Message;RefreshNativeText();return LastPoseRequest;
 }
 bool UVirtualSensorSettingsPanelWidget::ApplySelectedSensorPoseBookmark(const FString& Id)
 {
+    if(auto* I=OwnedInteraction()){const bool Ok=I->ApplyBookmark(Id,LastControlMessage);if(Ok){SelectPoseBookmark(Id);RefreshPendingState(false);}return Ok;}
     auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
     if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
     FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->ApplySensorPoseBookmark(Sensor,Id,Reason);
@@ -1060,6 +1091,7 @@ bool UVirtualSensorSettingsPanelWidget::ApplySelectedSensorPoseBookmark(const FS
 }
 bool UVirtualSensorSettingsPanelWidget::UndoSelectedSensorPlacement()
 {
+    if(auto* I=OwnedInteraction()){const bool Ok=I->Undo(LastControlMessage);if(Ok)RefreshPendingState(false);return Ok;}
     auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
     if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
     FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->UndoSensorPlacement(Sensor,Reason);
@@ -1067,6 +1099,7 @@ bool UVirtualSensorSettingsPanelWidget::UndoSelectedSensorPlacement()
 }
 bool UVirtualSensorSettingsPanelWidget::RedoSelectedSensorPlacement()
 {
+    if(auto* I=OwnedInteraction()){const bool Ok=I->Redo(LastControlMessage);if(Ok)RefreshPendingState(false);return Ok;}
     auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
     if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
     FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->RedoSensorPlacement(Sensor,Reason);

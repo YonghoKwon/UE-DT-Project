@@ -1,4 +1,5 @@
 #include "VirtualSensorToolWorkspaceSubsystem.h"
+#include "SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
@@ -22,6 +23,7 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 
 const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=VirtualSensorDefaults::WorkspaceSlot;
 float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight)
@@ -29,7 +31,22 @@ float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float De
 	const float Height=FMath::IsFinite(DesiredHeight)?DesiredHeight:48;
 	return 16+FMath::Clamp(Height,40.0f,FMath::Max(40.0f,ViewportHeight*.4f));
 }
-void UVirtualSensorToolWorkspaceSubsystem::SetCoordinator(AVirtualSensorCoordinator* C){Coordinator=C;}
+void UVirtualSensorToolWorkspaceSubsystem::SetCoordinator(AVirtualSensorCoordinator* C)
+{
+	if(Coordinator.Get()==C)return;
+	if(auto* Old=Coordinator.Get()){Old->OnSensorInventoryChanged.RemoveAll(this);for(auto* A:Old->GetSensorActors())if(IsValid(A))A->SetPlacementPickingEnabled(false);}
+	Coordinator=C;
+	if(C)C->OnSensorInventoryChanged.AddUObject(this,&ThisClass::RefreshOwnedPickMarkers);
+	RefreshOwnedPickMarkers();
+	if(PlacementInteraction)PlacementInteraction->BindCoordinator(C);
+}
+void UVirtualSensorToolWorkspaceSubsystem::RefreshOwnedPickMarkers()
+{
+	TArray<TWeakObjectPtr<AVirtualSensorActorBase>> Current;
+	if(auto* C=Coordinator.Get())for(auto* A:C->GetSensorActors())if(IsValid(A)){Current.Add(A);A->SetPlacementPickingEnabled(true);}
+	for(const auto& Old:OwnedPickTargets)if(Old.IsValid()&&!Current.Contains(Old))Old->SetPlacementPickingEnabled(false);
+	OwnedPickTargets=MoveTemp(Current);
+}
 bool UVirtualSensorToolWorkspaceSubsystem::RegisterPlacementHost(AVirtualSensorUiHostActor* Host)
 {
 	if(!IsValid(Host)||Host->GetWorld()!=GetWorld()||(PlacementHost.IsValid()&&PlacementHost.Get()!=Host))return false;
@@ -48,6 +65,8 @@ void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& 
 }
 void UVirtualSensorToolWorkspaceSubsystem::Deinitialize()
 {
+	if(PlacementInteraction){PlacementInteraction->Shutdown();PlacementInteraction=nullptr;}
+	SetCoordinator(nullptr);
 	for(auto& P:Panels)if(P.Value)P.Value->SetToolWorkspace(nullptr,P.Key);
 	if(Root)Root->RemoveFromParent();Panels.Reset();PendingInitialLayouts.Reset();Root=nullptr;Canvas=nullptr;Toolbar=nullptr;Super::Deinitialize();
 }
@@ -173,7 +192,19 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	Save();
 }
 void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPanelRole R)
-{ if(auto* P=GetOwnedPanel(R))if(auto* S=Cast<UCanvasPanelSlot>(P->Slot))S->SetZOrder(++Front); }
+{
+	auto* P=GetOwnedPanel(R);if(!P)return;auto* Slot=Cast<UCanvasPanelSlot>(P->Slot);if(!Slot)return;
+	auto* GI=GetWorld()->GetGameInstance();auto* Dx=GI?GI->GetSubsystem<UDxWidgetSubsystem>():nullptr;
+	if(!Dx){Slot->SetZOrder(++Front);return;}
+	// Scoped registration uses DTCore ordering without transferring general close/mode ownership.
+	const auto Existing=Dx->GetOpenWidgets();TArray<UDxWidget*> Temporary;
+	for(const auto& Entry:Panels)if(Entry.Value&&!Existing.Contains(Entry.Value.Get())){Dx->RegisterWidget(Entry.Value);Temporary.Add(Entry.Value);}
+	Dx->BringToFront(P);
+	for(auto* Added:Temporary)Dx->UnregisterWidget(Added);
+	// This canvas is nested under Main/Viewport; its toolbar has a reserved local Z domain.
+	if(Slot->GetZOrder()>=10000)Slot->SetZOrder(++Front);
+	else Front=FMath::Max(Front,Slot->GetZOrder());
+}
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPanelRole R)
 {
 	if(!Preferences)return;const bool Open=IsPanelOpen(R);Preferences->Panels.Remove(R);
@@ -230,6 +261,12 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 }
 void UVirtualSensorToolWorkspaceSubsystem::SynchronizeOwnedSelection()
 {
+	if(PlacementInteraction)PlacementInteraction->SynchronizeSelection();
 	if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(GetOwnedPanel(ESensorToolPanelRole::Settings))) Settings->SynchronizeWorkspaceSelection();
+}
+USensorPlacementInteraction* UVirtualSensorToolWorkspaceSubsystem::GetPlacementInteraction()
+{
+	if(!PlacementInteraction){PlacementInteraction=NewObject<USensorPlacementInteraction>(this);PlacementInteraction->BindCoordinator(GetCoordinator());}
+	return PlacementInteraction;
 }
 TStatId UVirtualSensorToolWorkspaceSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorToolWorkspaceSubsystem,STATGROUP_Tickables);}
