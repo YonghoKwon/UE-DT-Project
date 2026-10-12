@@ -9,7 +9,7 @@ class ASlabActor;
 /** Native presentation routes only; not a serialized panel role or Blueprint enum. */
 enum class ESensorToolDestination : uint8
 {
-	Placement, Preview, Scenario, PcdTransfer, Results, SensorSettings, FileSave, ServerSettings, Diagnostics, Compatibility, ScenarioCharts
+	Placement, Preview, Scenario, PcdTransfer, Results, SensorSettings, FileSave, ServerSettings, Diagnostics, Compatibility, ScenarioCharts, MapCheck
 };
 struct FSensorToolGlobalStatus
 {
@@ -59,6 +59,7 @@ private:
 	double NextStatusRefresh=-1;
 	TWeakObjectPtr<ASlabActor> StatusSlab;
 	double NextSlabLookup=0;
+	int32 CachedSlabCount=0;
 	void RefreshOwnedStatus(double Now);
 	TSharedRef<SWidget> BuildToolsMenu();
 	TSharedRef<SWidget> BuildStatusStrip();

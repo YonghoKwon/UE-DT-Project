@@ -1,5 +1,7 @@
 #include "VirtualSensorToolWorkspaceSubsystem.h"
 #include "SensorPlacementInteraction.h"
+#include "VirtualSensorToolRig.h"
+#include "SensorMapCheckWidget.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
@@ -70,6 +72,7 @@ void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& 
 }
 void UVirtualSensorToolWorkspaceSubsystem::Deinitialize()
 {
+	if(MapCheckWidget){if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->CloseWidget(MapCheckWidget);MapCheckWidget=nullptr;}
 	if(PlacementInteraction){PlacementInteraction->Shutdown();PlacementInteraction=nullptr;}
 	SetCoordinator(nullptr);
 	for(auto& P:Panels)if(P.Value)P.Value->SetToolWorkspace(nullptr,P.Key);
@@ -164,6 +167,7 @@ bool UVirtualSensorToolWorkspaceSubsystem::EnsureOwnedReplayPanel()
 {
 	if(GetOwnedPanel(ESensorToolPanelRole::Replay))return true;
 	if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
+	for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();return GetOwnedPanel(ESensorToolPanelRole::Replay)!=nullptr;}
 	for(TActorIterator<ASlabScenarioReplayUiHostActor> It(GetWorld());It;++It){It->ShowReplayPanel();break;}
 	if(!GetOwnedPanel(ESensorToolPanelRole::Replay))GetWorld()->SpawnActor<ASlabScenarioReplayUiHostActor>();
 	return GetOwnedPanel(ESensorToolPanelRole::Replay)!=nullptr;
@@ -184,6 +188,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	}
 	if(Open&&(R==ESensorToolPanelRole::SlabCharts||R==ESensorToolPanelRole::SlabProgress)&&!GetOwnedPanel(R))
 	{
+		for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();if(!GetOwnedPanel(R)){PanelOpenMessage=It->GetSlabSetupMessage();return;}break;}
 		for(TActorIterator<ASlabSimulationUiHostActor> It(GetWorld());It;++It){It->ShowSimulationPanels();break;}
 		if(!GetOwnedPanel(R))GetWorld()->SpawnActor<ASlabSimulationUiHostActor>();
 	}
@@ -219,6 +224,22 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 		if(Open)if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(P))Settings->BindSensorManager(Coordinator.Get());
 	}
 	Save();
+}
+
+bool UVirtualSensorToolWorkspaceSubsystem::OpenMapCheck()
+{
+	if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
+	auto* GI=GetWorld()->GetGameInstance();auto* Dx=GI?GI->GetSubsystem<UDxWidgetSubsystem>():nullptr;if(!Dx)return false;
+	if(!MapCheckWidget||!MapCheckWidget->IsInViewport())
+	{
+		MapCheckWidget=CreateWidget<USensorMapCheckWidget>(GetWorld(),USensorMapCheckWidget::StaticClass());if(!MapCheckWidget)return false;
+		MapCheckWidget->AddToViewport(200);
+		const FVector2D V=UWidgetLayoutLibrary::GetViewportSize(GetWorld());const float Dpi=UWidgetLayoutLibrary::GetViewportScale(GetWorld());
+		const FVector2D Logical=V/FMath::Max(.01f,Dpi);const FVector2D Size(FMath::Min(820.,Logical.X-32),FMath::Min(850.,Logical.Y-32));
+		MapCheckWidget->SetDesiredSizeInViewport(Size);MapCheckWidget->SetPositionInViewport((Logical-Size)*.5,false);
+		Dx->RegisterWidget(MapCheckWidget);Dx->RegisterExternalInputBlocker(MapCheckWidget);
+	}
+	Dx->BringToFront(MapCheckWidget);return true;
 }
 void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPanelRole R)
 {

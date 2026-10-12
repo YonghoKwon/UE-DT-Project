@@ -2,6 +2,9 @@
 #include "SensorToolWorkspaceStyle.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "SensorToolUiText.h"
+#include "VirtualSensorToolRig.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
+#include "EngineUtils.h"
 #include "VirtualSensorSettingsPanelWidget.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
@@ -129,8 +132,10 @@ bool USensorToolToolbarWidget::ToggleOwnedDestination(ESensorToolDestination D)
 bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Destination)
 {
 	auto* W=Workspace();if(!W||!W->OwnsToolbar(this))return false;
+	if(Destination==ESensorToolDestination::MapCheck)return W->OpenMapCheck();
 	if(Destination==ESensorToolDestination::Scenario)
 	{
+		for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();if(!IsValid(It->TargetSlab))return W->OpenMapCheck();break;}
 		W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
 		if(W->IsSidebarMode())return W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)!=nullptr;
 		W->SetPanelOpen(ESensorToolPanelRole::Replay,true);
@@ -160,8 +165,8 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildToolsMenu()
 {
 	auto Menu=SNew(SVerticalBox);
 	// Preserve chart access until the scenario screen is reorganized in UXR-04.
-	const ESensorToolDestination Destinations[]={ESensorToolDestination::SensorSettings,ESensorToolDestination::FileSave,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics,ESensorToolDestination::Compatibility,ESensorToolDestination::ScenarioCharts};
-	const FText Names[]={SensorToolUiText::SensorSettings(),SensorToolUiText::FileSave(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts()};
+	const ESensorToolDestination Destinations[]={ESensorToolDestination::MapCheck,ESensorToolDestination::SensorSettings,ESensorToolDestination::FileSave,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics,ESensorToolDestination::Compatibility,ESensorToolDestination::ScenarioCharts};
+	const FText Names[]={FText::FromString(TEXT("맵 점검")),SensorToolUiText::SensorSettings(),SensorToolUiText::FileSave(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts()};
 	for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
 	{
 		const auto Destination=Destinations[I];
