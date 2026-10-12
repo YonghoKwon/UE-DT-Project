@@ -9,7 +9,7 @@ enum class EVirtualSensorStreamKind : uint8;
 
 /** Adapter for the colleague-owned scenario player. No Topic subscription or scene mutation. */
 UCLASS()
-class MA0T10_DT_API UVirtualSensorSlabContextSubsystem : public UTickableWorldSubsystem
+class MA0T10_DT_API UVirtualSensorSlabContextSubsystem : public UTickableWorldSubsystem, public IVirtualSensorAcquisitionContextProvider
 {
 	GENERATED_BODY()
 public:
@@ -26,8 +26,8 @@ public:
 	/** Motion-only fallback: never discovers, starts or stops sensors/streams. */
 	FString BeginUnboundObservationSession(const FString& RunId,const FString& ScenarioUUID);
 	bool PrepareScenarioTransmission(const FString& RunId,const TArray<FString>& Ids,const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs,const FSlabExecutionOptions& Options,FString& Error);
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|SlabSensorSession") bool IsSensorConfigurationLocked(const FString& SensorId) const;
-	bool IsSensorPlacementLocked(const FString& SensorId) const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SlabSensorSession") bool IsSensorConfigurationLocked(const FString& SensorId) const override;
+	bool IsSensorPlacementLocked(const FString& SensorId) const override;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
 	bool NotifySlabFrameApplied(const FString& RunId, const FString& MtlNo, int64 SlabFrameNo, double ElapsedSec);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SlabSensorSession")
@@ -37,14 +37,21 @@ public:
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|SlabSensorSession")
 	FVirtualSlabSessionStatus GetSlabSensorSessionStatus() const { return Status; }
 	FVirtualSlabFrameContext CaptureContext(const FString& SensorId, int64 SensorFrameId);
-	void CompleteAcquisition(const FString& SensorId, int64 SensorFrameId, bool bSuccess=true);
+	void CompleteAcquisition(const FString& SensorId, int64 SensorFrameId, bool bSuccess=true) override;
 	bool BeginCompatibilityDerivation(const FString& SensorId,int64 FrameId,const FVirtualSlabFrameContext& Context);
-	void EndCompatibilityDerivation(const FString& RunId,const FString& SensorId,int64 FrameId,bool bFailed=false);
+	void EndCompatibilityDerivation(const FString& RunId,const FString& SensorId,int64 FrameId,bool bFailed=false) override;
 	bool ControlsSensor(const FString& SensorId) const { return ControlledIds.Contains(SensorId); }
 	bool AllowsFrame(const FString& SensorId, const FVirtualSlabFrameContext& Context) const;
 	bool AllowsStreamFrame(const FString& SensorId, EVirtualSensorStreamKind Kind, const FVirtualSlabFrameContext& Context) const;
 	bool AllowsStreamDemand(const FString& SensorId, EVirtualSensorStreamKind Kind) const;
 	bool HasSelectedOutputForSensor(const FString& SensorId) const;
+	FVirtualSensorAcquisitionContext CaptureAcquisitionContext(const FString& SensorId, int64 FrameId) override;
+	bool BeginContextDerivation(const FString& SensorId, int64 FrameId, const FVirtualSensorAcquisitionContext& Context) override;
+	bool AllowsAcquisitionFrame(const FString& SensorId, const FVirtualSensorAcquisitionContext& Context) const override;
+	bool AllowsOutputFrame(const FString& SensorId, EVirtualSensorAcquisitionOutput Output, const FVirtualSensorAcquisitionContext& Context) const override;
+	bool AllowsOutputDemand(const FString& SensorId, EVirtualSensorAcquisitionOutput Output) const override;
+	bool IsAcquisitionSessionBusy() const override;
+	void RecordAcquisitionOutputFailure(const FString& RunId, const FString& SensorId, EVirtualSensorAcquisitionOutput Output, int64 FrameId, const FString& Reason) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	virtual void Deinitialize() override;

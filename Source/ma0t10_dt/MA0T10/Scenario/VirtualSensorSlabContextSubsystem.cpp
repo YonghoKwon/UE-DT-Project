@@ -25,7 +25,12 @@ FString SlabOutputStateMessage(const FVirtualSlabSensorOutputSelection& Outputs,
 }
 
 void UVirtualSensorSlabContextSubsystem::Initialize(FSubsystemCollectionBase& Collection)
-{Super::Initialize(Collection);Collection.InitializeDependency<USlabRunResultsSubsystem>();}
+{
+    Super::Initialize(Collection);
+    Collection.InitializeDependency<USlabRunResultsSubsystem>();
+    const bool bRegistered = FVirtualSensorAcquisitionContextProviders::Register(GetWorld(), this, this);
+    checkf(bRegistered, TEXT("A world must have exactly one acquisition context provider."));
+}
 bool UVirtualSensorSlabContextSubsystem::CheckRun(const FString& Id)
 {
 	if (!IsInGameThread() || Id.IsEmpty() || Id != Status.RunId) { Status.Message=TEXT("실행 UUID가 일치하지 않습니다."); return false; }
@@ -476,5 +481,6 @@ void UVirtualSensorSlabContextSubsystem::Deinitialize()
 			for(const auto& Pair:Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
 		if(GetWorld()) if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
 	}
+    FVirtualSensorAcquisitionContextProviders::Unregister(GetWorld(), this);
 	PendingKeys.Reset();CompatibilityDerivations.Reset(); Targets.Reset(); ControlledIds.Reset(); Super::Deinitialize();
 }
