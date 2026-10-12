@@ -97,13 +97,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     if(GlobalStatus.EquipmentCount==0)GlobalStatus.Warning=SensorToolUiText::EquipmentRequired();
     else if(!Preflight.BlockingReasons.IsEmpty())
     {
-        FString Reason=Preflight.BlockingReasons[0];
-        Reason.ReplaceInline(TEXT("센서 Coordinator"),TEXT("장비 관리"));
-        Reason.ReplaceInline(TEXT("SensorId"),TEXT("장비 ID"));
-        Reason.ReplaceInline(TEXT("Broker URL"),TEXT("서버 주소"));
-        Reason.ReplaceInline(TEXT("실시간 Topic 송신에는 STOMP 전송 모드"),TEXT("실시간 전송에는 서버 연결 방식"));
-        Reason.ReplaceInline(TEXT("Topic"),TEXT("전송 경로"));
-        GlobalStatus.Warning=FText::FromString(Reason);
+        GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
     }
     else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionRequired();
     else if(TransferFailure||!Session.RequiredDataError.IsEmpty())GlobalStatus.Warning=SensorToolUiText::TransferCheck();

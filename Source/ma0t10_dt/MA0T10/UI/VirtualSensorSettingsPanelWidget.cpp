@@ -823,7 +823,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                         SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
                         + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]() { StartAllRealSensorSources(); return FReply::Handled(); }) ]
                         + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]() { StopAllRealSensorSources(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 캡처/내보내기 패널에서 실행합니다.")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
+                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 PCD 전송 화면에서 실행합니다.")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
                         + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(HostActor && HostActor->IsScreenDebugLogVisible() ? TEXT("화면 디버그 로그 숨기기") : TEXT("화면 디버그 로그 표시")); }).OnClicked_Lambda([this]() { if (HostActor) HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible()); return FReply::Handled(); }) ]
                     ]
                 ]
@@ -1382,7 +1382,7 @@ void UVirtualSensorSettingsPanelWidget::PushSelectedRealSensorSource()
 {
     const bool bSucceeded = SensorManager && SensorManager->PushSelectedRealSensorSourceOnce(false);
     LastControlMessage = bSucceeded
-        ? TEXT("선택한 외부 Source 프레임을 센서에 1회 주입했습니다. 외부 전송은 캡처/내보내기 패널에서 선택하세요.")
+        ? TEXT("선택한 외부 Source 프레임을 센서에 1회 주입했습니다. 외부 전송은 PCD 전송 화면에서 선택하세요.")
         : TEXT("선택한 외부 Source 프레임 주입에 실패했습니다. Source 선택과 입력 데이터를 확인하세요.");
     RefreshNativeText();
 }

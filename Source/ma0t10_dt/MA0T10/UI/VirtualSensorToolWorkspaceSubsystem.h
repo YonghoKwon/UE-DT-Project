@@ -75,6 +75,7 @@ private:
 	friend class FSlabWorkspaceDeferredLayoutTest;
 	friend class FSensorWorkspacePlacementEntryTest;
 	friend class FSensorWorkflowToolbarTest;
+	friend class FSensorVocabularyTest;
 	friend class FSensorWorkflowStatusTest;
 #endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;

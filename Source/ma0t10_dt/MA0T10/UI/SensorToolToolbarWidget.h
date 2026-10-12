@@ -34,6 +34,7 @@ protected:
 	virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
 private:
 #if WITH_DEV_AUTOMATION_TESTS
+	friend class FSensorVocabularyTest;
 	friend class FSensorWorkspaceSelectionSyncTest;
 	friend class FSensorWorkflowToolbarTest;
 	friend class FSensorWorkflowStatusTest;

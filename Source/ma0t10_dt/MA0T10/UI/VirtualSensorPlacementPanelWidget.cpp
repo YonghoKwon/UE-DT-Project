@@ -1,6 +1,7 @@
 #include "VirtualSensorPlacementPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolWorkspaceStyle.h"
+#include "SensorToolUiText.h"
 #include "SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
@@ -67,7 +68,9 @@ void UVirtualSensorPlacementPanelWidget::RefreshInventory()
     const FText NewSelected=FText::FromString(A?FString(A->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("Camera "):TEXT("LiDAR "))+A->GetSensorId():TEXT("장비 없음 · 위에서 추가하세요"));
     const bool Running=A&&A->IsSensorRunning();
     if(!NewSelected.EqualTo(CachedSelectedText)||Running!=bSelectedMeasuring){CachedSelectedText=NewSelected;bSelectedMeasuring=Running;CachedMeasureCaption=Running?LOCTEXT("StopMeasurement","측정 중지"):LOCTEXT("StartMeasurement","측정 시작");InvalidateLayoutAndVolatility();}
-    CachedLockText=FText::FromString(PlacementLock);CachedDeleteText=FText::FromString(SensorOptions.IsEmpty()?TEXT("장비가 없습니다 · LiDAR 또는 Camera를 추가하세요."):A&&!L->OwnsSensor(A)?TEXT("레벨 장비는 삭제할 수 없습니다."):DeleteReason);
+    if(CachedLockSource!=PlacementLock){CachedLockSource=PlacementLock;CachedLockText=FText::FromString(SensorToolUiText::UserReason(PlacementLock));}
+    const FString DeleteSource=SensorOptions.IsEmpty()?TEXT("장비가 없습니다 · LiDAR 또는 Camera를 추가하세요."):A&&!L->OwnsSensor(A)?TEXT("레벨 장비는 삭제할 수 없습니다."):DeleteReason;
+    if(CachedDeleteSource!=DeleteSource){CachedDeleteSource=DeleteSource;CachedDeleteText=FText::FromString(SensorToolUiText::UserReason(DeleteSource));}
 }
 void UVirtualSensorPlacementPanelWidget::RefreshLayouts(){LayoutOptions.Reset();if(auto* L=Layout())for(const auto& N:L->GetSavedLayoutNames())LayoutOptions.Add(MakeShared<FString>(N));if(LayoutCombo)LayoutCombo->RefreshOptions();}
 void UVirtualSensorPlacementPanelWidget::RefreshPoses()
@@ -91,11 +94,11 @@ void UVirtualSensorPlacementPanelWidget::NativeTick(const FGeometry& G,float D)
     Super::NativeTick(G,D);if(!IsVisible()||IsPanelCollapsed()||FPlatformTime::Seconds()<NextRefresh)return;NextRefresh=FPlatformTime::Seconds()+.2;
     RefreshInventory();RefreshPoses();if(auto* I=Interaction()){I->SynchronizeSelection();const bool Manipulating=I->IsManipulating();if(bPreviousManipulating&&!Manipulating&&Status.Contains(TEXT("Esc")))Status=TEXT("조작 종료 · 원래 측정 설정으로 복원했습니다.");bPreviousManipulating=Manipulating;}
     const auto Preview=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->GetPlacementPreviewStatus(Selected());
-    if(Preview.RequestId!=LastPreview.RequestId||Preview.State!=LastPreview.State||Preview.CompletedFrameId!=LastPreview.CompletedFrameId){LastPreview=Preview;CachedPreviewText=FText::FromString(Preview.Message);}
+    if(Preview.RequestId!=LastPreview.RequestId||Preview.State!=LastPreview.State||Preview.CompletedFrameId!=LastPreview.CompletedFrameId){LastPreview=Preview;CachedPreviewText=FText::FromString(SensorToolUiText::UserReason(Preview.Message));}
     if(auto* L=Layout())if(!OperationId.IsEmpty()){const auto S=L->GetOperationStatus(OperationId);Status=S.Message;if(S.State!=EVirtualSensorLayoutOperation::Writing&&S.State!=EVirtualSensorLayoutOperation::ReadyToApply){if(S.State==EVirtualSensorLayoutOperation::Saved)RefreshLayouts();OperationId.Reset();}}
     if(!PoseRequest.IsEmpty()){auto* P=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>();const auto S=P->GetPoseSaveStatus(PoseRequest);if(PoseRequestRevision==PoseSelectionRevision){Status=S.Message;if(S.State==EVirtualSensorPoseSaveState::Saved){SelectedPoseId=S.BookmarkId;PoseRevision=-1;RefreshPoses();}}if(S.State!=EVirtualSensorPoseSaveState::Writing)PoseRequest.Reset();}
     if(PendingDelete.IsValid()&&PendingDelete.Get()!=Selected())PendingDelete.Reset();
-    if(PreviousStatus!=Status){PreviousStatus=Status;CachedStatusText=FText::FromString(Status);}
+    if(PreviousStatus!=Status){PreviousStatus=Status;CachedStatusText=FText::FromString(SensorToolUiText::UserReason(Status));}
 }
 TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildEquipmentSection()
 {

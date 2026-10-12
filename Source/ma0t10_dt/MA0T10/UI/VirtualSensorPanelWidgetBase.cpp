@@ -12,6 +12,7 @@
 #include "Components/TextBlock.h"
 #include "Components/EditableTextBox.h"
 #include "SensorToolWorkspaceStyle.h"
+#include "SensorToolUiText.h"
 #include "SensorToolWidgetDecl.h"
 #include "VirtualSensorUiStyle.h"
 #include "SensorOwnedPresentationStyle.h"
@@ -596,7 +597,7 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FT
 		[SNew(SHorizontalBox)
 		 +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Bold",FMath::RoundToInt(18*GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(Title).ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절")))]
 		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text_Lambda([this](){return FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기"));}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("숨김"))).ToolTipText(FText::FromString(TEXT("패널만 숨깁니다. 측정·송신·재생은 계속됩니다."))).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
+		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("숨김"))).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
 		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
 		  .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
 		  .OnGetMenuContent_Lambda([this](){return SNew(SButton).ButtonStyle(&GetToolButtonStyle())

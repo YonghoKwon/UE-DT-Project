@@ -67,7 +67,7 @@ try {
         if ($staged.Count -or $committed.Count) { throw "Protected paths staged/committed: $(@($staged + $committed) -join ', ')" }
         Write-Output 'Existing unstaged user changes are preserved; protected index/commit paths are absent.'
     }
-    foreach ($script in @('validate_payload_contract', 'validate_payload_fixtures', 'validate_opt_in_inventory')) {
+    foreach ($script in @('validate_payload_contract', 'validate_payload_fixtures', 'validate_opt_in_inventory', 'validate_sensor_ui_vocabulary')) {
         Invoke-Step $script { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/$script.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw "$script failed" } }
     }
     if ($Level -ne 'quick') {
@@ -100,6 +100,13 @@ try {
                 $widgetArgs = @("`"$root/ma0t10_dt.uproject`"", '-run=pythonscript', "`"-script=$PSScriptRoot/validate_sensor_tool_widgets.py`"", '-NullRHI', '-unattended', '-nosplash', '-nop4', "`"-abslog=$report/widgets.log`"")
                 $process = Start-Process "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" -ArgumentList $widgetArgs -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "$report/widgets-console.log" -RedirectStandardError "$report/widgets-stderr.log"
                 if ($process.ExitCode -ne 0 -or -not (Select-String -LiteralPath "$report/widgets.log" -SimpleMatch 'all seven compiled; assets were not saved' -Quiet)) { throw 'WBP memory compilation failed or did not finish' }
+            }
+            Invoke-Step 'ui-vocabulary-rendered' {
+                $inventory = Join-Path $root 'Saved/Reports/UXR/UXR-07/visible-text.json'
+                if (-not (Test-Path -LiteralPath $inventory) -or (Get-Item -LiteralPath $inventory).LastWriteTimeUtc -lt $started) { throw 'Current release did not produce the owned UI text inventory' }
+                & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_sensor_ui_vocabulary.ps1" -RenderedTextReport $inventory -RequireRenderedText -Json
+                if ($LASTEXITCODE -ne 0) { throw 'Owned UI vocabulary failed' }
+                Copy-Item -LiteralPath $inventory -Destination (Join-Path $report 'ui-visible-text.json')
             }
         }
     }

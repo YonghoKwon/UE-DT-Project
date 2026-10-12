@@ -47,6 +47,7 @@ private:
     int64 PoseRevision=-1;
     uint64 PoseSelectionRevision=0,PoseRequestRevision=0;
     FString PlacementLock,DeleteReason,EquipmentCountText;
+    FString CachedLockSource,CachedDeleteSource;
     FText CachedSelectedText,CachedCountText,CachedLockText,CachedDeleteText,CachedStatusText;
     FText CachedPreviewText;
     FVirtualSensorPlacementPreviewStatus LastPreview;

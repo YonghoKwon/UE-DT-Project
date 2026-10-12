@@ -41,6 +41,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabProgressOutcomeTest;
 	friend class FSlabScenarioScreenTest;
+	friend class FSensorVocabularyTest;
 	friend class FUxrScenarioRender;
 	friend class FSlabInformationCardTest;
 #endif

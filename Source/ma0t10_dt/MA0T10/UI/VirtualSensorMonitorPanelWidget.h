@@ -630,6 +630,7 @@ private:
 	friend class FSlabMinimalUiTest;
 	friend class FSensorMonitorRateStateTest;
 	friend class FSensorPreviewPresentationTest;
+	friend class FSensorVocabularyTest;
 	friend class FUxrPreviewRender;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;

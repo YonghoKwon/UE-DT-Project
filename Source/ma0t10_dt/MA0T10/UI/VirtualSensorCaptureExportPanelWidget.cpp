@@ -130,7 +130,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsConte
 	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
 	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CopyRunUUID","실행 UUID 복사")).IsEnabled_Lambda([this](){return !SelectedScenarioRunId.IsEmpty();}).OnClicked_Lambda([this](){FPlatformApplicationMisc::ClipboardCopy(*SelectedScenarioRunId);return FReply::Handled();})]
 	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SelectedRunFolder","선택 결과 폴더 열기")).IsEnabled_Lambda([this](){return bSelectedRunReportSaved;}).OnClicked_Lambda([this](){OpenScenarioRunReport(SelectedScenarioRunId);return FReply::Handled();})]
-	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(IsWorkspaceOwned()?SensorToolUiText::UserReason(RunRetryReason):RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
 	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(RunSelectionNotice);})]
 	+SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5,4))
 		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareA","A로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,true,Reason)){RunComparisonText=Reason;OwnedRunComparisonText=SensorToolUiText::UserReason(Reason);}return FReply::Handled();})]
@@ -157,7 +157,7 @@ FString OwnedRunSummary(const FSlabRunDeliverySummary& Run)
 }
 FString OwnedComparison(const FSlabRunComparison& Comparison)
 {
-    FString Text=Comparison.Status+TEXT("\nA: ")+Comparison.A.RunUUID+TEXT("\nB: ")+Comparison.B.RunUUID;
+    FString Text=SensorToolUiText::UserReason(Comparison.Status)+TEXT("\nA: ")+Comparison.A.RunUUID+TEXT("\nB: ")+Comparison.B.RunUUID;
     Text+=TEXT("\nA 결과: ")+OwnedOutcome(Comparison.A.Outcome)+TEXT(" · B 결과: ")+OwnedOutcome(Comparison.B.Outcome);
     Text+=FString::Printf(TEXT("\n실행 시간 A/B %.2f/%.2f초"),Comparison.A.ElapsedSec,Comparison.B.ElapsedSec);
     for(const auto& D:Comparison.ConditionDifferences)Text+=TEXT("\n조건 차이: ")+SensorToolUiText::UserReason(D);

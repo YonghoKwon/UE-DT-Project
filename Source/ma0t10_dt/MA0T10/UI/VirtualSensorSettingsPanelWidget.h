@@ -135,6 +135,7 @@ private:
 	TSharedPtr<class SScrollBox> OwnedSettingsScroll;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSensorSettingsPresentationTest;
+	friend class FSensorVocabularyTest;
 	friend class FUxrSettingsRender;
 #endif
 	bool bOwnedSettingHelpOpen=false;

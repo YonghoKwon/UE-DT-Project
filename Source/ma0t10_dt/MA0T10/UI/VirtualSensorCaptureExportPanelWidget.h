@@ -214,6 +214,7 @@ private:
     friend class FSlabRunComparisonUiTest;
 	friend class FSensorWorkflowToolbarTest;
 	friend class FSensorDataWorkflowTest;
+	friend class FSensorVocabularyTest;
 #endif
 	FString CachedPcdPreflight;
 	FString CachedPcdPreflightSummary;

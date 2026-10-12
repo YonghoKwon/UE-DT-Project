@@ -66,6 +66,10 @@ namespace SensorToolUiText
     }
     inline FString UserReason(FString Reason)
     {
+        // Presentation only: original API results, logs, wire values and saved settings stay intact.
+        const TCHAR* OldLabels[]={TEXT("센서 Actor"),TEXT("Capture/Export"),TEXT("캡처/내보내기"),TEXT("미리보기 시작"),TEXT("미리보기 중지"),TEXT("내보내기"),TEXT("송신"),TEXT("PIE"),TEXT("V2")};
+        const TCHAR* CurrentLabels[]={TEXT("장비"),TEXT("데이터"),TEXT("데이터"),TEXT("측정 시작"),TEXT("측정 중지"),TEXT("파일 저장"),TEXT("전송"),TEXT("실행"),TEXT("장비")};
+        for(int32 I=0;I<UE_ARRAY_COUNT(OldLabels);++I)Reason.ReplaceInline(OldLabels[I],CurrentLabels[I],ESearchCase::IgnoreCase);
         const TCHAR* From[]={TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Broker"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95"),TEXT("Coordinator"),TEXT("SensorId"),TEXT("snapshot"),TEXT("generation"),TEXT("backend"),TEXT("socket"),TEXT("FIFO"),TEXT("STOMP")};
         const TCHAR* To[]={TEXT("데이터"),TEXT("출력 주소"),TEXT("서버 수락"),TEXT("서버"),TEXT("전송 연결"),TEXT("일치 상태"),TEXT("설정 버전"),TEXT("지연"),TEXT("장비 연결"),TEXT("장비 ID"),TEXT("기록"),TEXT("실행 세대"),TEXT("측정 방식"),TEXT("연결"),TEXT("순서대로 전송"),TEXT("서버 연결")};
         for(int32 I=0;I<UE_ARRAY_COUNT(From);++I)Reason.ReplaceInline(From[I],To[I],ESearchCase::IgnoreCase);
@@ -88,6 +92,15 @@ namespace SensorToolUiText
     inline FText ScenarioCharts() { return LOCTEXT("ScenarioCharts", "시나리오 차트"); }
     inline FText Appearance() { return LOCTEXT("Appearance", "UI 표시"); }
     inline FText Measuring() { return LOCTEXT("Measuring", "측정 중"); }
+    inline FText StartMeasurement() { return LOCTEXT("StartMeasurement", "측정 시작"); }
+    inline FText StopMeasurement() { return LOCTEXT("StopMeasurement", "측정 중지"); }
+    inline FText HidePanelHint() { return LOCTEXT("HidePanelHint", "패널만 숨깁니다. 측정·전송·재생은 계속됩니다."); }
+    inline FText RealtimeConnection() { return LOCTEXT("RealtimeConnection", "방식: 실시간 전송"); }
+    inline FText ServerAddress() { return LOCTEXT("ServerAddress", "서버 주소"); }
+    inline FText PcdAddress() { return LOCTEXT("PcdAddress", "PCD 출력 주소"); }
+    inline FText CameraAddress() { return LOCTEXT("CameraAddress", "Camera 이미지 출력 주소"); }
+    inline FText LidarAddress() { return LOCTEXT("LidarAddress", "LiDAR 정보 출력 주소"); }
+    inline FText ConsumerAckAddress() { return LOCTEXT("ConsumerAckAddress", "외부 프로그램 처리 확인 주소 · 선택 사항"); }
     inline FText Stopped() { return LOCTEXT("Stopped", "정지"); }
     inline FText Starved() { return LOCTEXT("Starved", "정체"); }
     inline FText Error() { return LOCTEXT("Error", "오류"); }

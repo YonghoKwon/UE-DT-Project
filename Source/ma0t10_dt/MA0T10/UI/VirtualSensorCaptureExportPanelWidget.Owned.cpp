@@ -161,7 +161,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
     if(LastUiMessage!=CachedOwnedMessageSource||OwnedTab!=CachedOwnedMessageTab)
     {
         CachedOwnedMessageSource=LastUiMessage;CachedOwnedMessageTab=OwnedTab;
-        OwnedUiMessage=OwnedTab==ESensorOwnedDataTab::Transfer||OwnedTab==ESensorOwnedDataTab::Results?SensorToolUiText::UserReason(LastUiMessage):LastUiMessage;
+        OwnedUiMessage=OwnedTab==ESensorOwnedDataTab::Diagnostics?LastUiMessage:SensorToolUiText::UserReason(LastUiMessage);
     }
     if((OwnedTab==ESensorOwnedDataTab::Transfer&&bOwnedDirectExpanded)||OwnedTab==ESensorOwnedDataTab::FileSave)
     {
@@ -175,7 +175,8 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
             if(FileStatus.Message!=CachedOwnedFileMessage||FileStatus.FrameId!=CachedOwnedFileFrame||FileStatus.SensorId!=CachedOwnedFileSensor)
             {
                 CachedOwnedFileMessage=FileStatus.Message;CachedOwnedFileFrame=FileStatus.FrameId;CachedOwnedFileSensor=FileStatus.SensorId;
-                OwnedFileStatusText=FileStatus.FrameId>=0?FString::Printf(TEXT("%s · %s · frame %lld"),*FileStatus.Message,*FileStatus.SensorId,FileStatus.FrameId):FileStatus.Message;
+                const FString Message=SensorToolUiText::UserReason(FileStatus.Message);
+                OwnedFileStatusText=FileStatus.FrameId>=0?FString::Printf(TEXT("%s · %s · 프레임 %lld"),*Message,*FileStatus.SensorId,FileStatus.FrameId):Message;
             }
             }
             bOwnedCanSaveCurrent=Actor&&UVirtualSensorFileSaveSubsystem::CanSaveCurrent(Actor,ResolveOwnedFileSelection());
@@ -184,7 +185,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
             {
                 const auto State=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>()->GetPeriodicStatus(OwnedPeriodicSessionId);
                 bOwnedPeriodicActive=State.bActive;
-                OwnedPeriodicStatusText=FString::Printf(TEXT("%s · %s · %.2f초\n완료 %lld · 주기 생략 %lld · 실패 %lld · %s"),State.bActive?TEXT("주기 저장 중"):TEXT("주기 저장 중지"),*State.SensorId,State.IntervalSeconds,State.CompletedCount,State.SkippedCount,State.FailedCount,*State.LastMessage);
+                OwnedPeriodicStatusText=FString::Printf(TEXT("%s · %s · %.2f초\n완료 %lld · 주기 생략 %lld · 실패 %lld · %s"),State.bActive?TEXT("주기 저장 중"):TEXT("주기 저장 중지"),*State.SensorId,State.IntervalSeconds,State.CompletedCount,State.SkippedCount,State.FailedCount,*SensorToolUiText::UserReason(State.LastMessage));
             }
         }
     }
@@ -394,7 +395,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedFileTab()
 	Output(false,&FVirtualSensorCaptureSelection::bPointCloud,LOCTEXT("PointCloud","포인트 클라우드"));Output(false,&FVirtualSensorCaptureSelection::bLidarPayload,LOCTEXT("LidarJson","LiDAR JSON"));
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[Modes]
-	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this](){return OwnedFileAction==0?LOCTEXT("NewHelp","선택 센서의 새 프레임을 비동기로 기다립니다. 요청 후 센서를 바꿔도 저장 대상은 유지됩니다."):OwnedFileAction==1?LOCTEXT("CurrentHelp","마지막으로 완료된 프레임을 저장합니다. 추가 측정을 하지 않습니다."):LOCTEXT("PeriodicHelp","시작할 때의 센서·출력·간격으로 최신 완료 프레임을 저장합니다. Topic 송신 간격과는 별개입니다.");})]
+	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this](){return OwnedFileAction==0?LOCTEXT("NewHelp","선택 장비의 새 프레임을 비동기로 기다립니다. 요청 후 장비를 바꿔도 저장 대상은 유지됩니다."):OwnedFileAction==1?LOCTEXT("CurrentHelp","마지막으로 완료된 프레임을 저장합니다. 추가 측정을 하지 않습니다."):LOCTEXT("PeriodicHelp","시작할 때의 장비·출력·간격으로 최신 완료 프레임을 저장합니다. 서버 전송 간격과는 별개입니다.");})]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Options]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).Visibility_Lambda([this,IsCamera](){return !IsCamera()&&CaptureSelection.bPointCloud?EVisibility::Visible:EVisibility::Collapsed;}).OptionsSource(&NativeExportKindOptions)
 	  .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> K){return SNewSensorTool(STextBlock).Text(FText::FromString(K?ExportKindText(*K):FString()));})
@@ -427,15 +428,15 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedResultsTab
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnectionTab()
 {
 	auto Server=SNew(SVerticalBox);
-	Server->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).Text_Lambda([this](){return bUseStompTransport?LOCTEXT("Stomp","방식: Artemis STOMP"):LOCTEXT("Http","방식: HTTP POST");}).OnClicked_Lambda([this](){bUseStompTransport=!bUseStompTransport;return FReply::Handled();})];
+	Server->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).Text_Lambda([this](){return bUseStompTransport?SensorToolUiText::RealtimeConnection():LOCTEXT("Http","방식: HTTP POST");}).OnClicked_Lambda([this](){bUseStompTransport=!bUseStompTransport;return FReply::Handled();})];
 	auto Field=[this,Server](FText Label,FString* Value,bool Secret,bool StompOnly,bool HttpOnly)
 	{Server->AddSlot().AutoHeight().Padding(0,4)[SNew(SVerticalBox).Visibility_Lambda([this,StompOnly,HttpOnly](){return (StompOnly&&!bUseStompTransport)||(HttpOnly&&bUseStompTransport)?EVisibility::Collapsed:EVisibility::Visible;})
 	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(Label)]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(SEditableTextBox).IsPassword(Secret).Text_Lambda([Value](){return FText::FromString(*Value);}).OnTextCommitted_Lambda([Value](const FText& T,ETextCommit::Type){*Value=T.ToString();})]];};
-	Field(LOCTEXT("Broker","Broker URL"),&DraftBrokerUrl,false,true,false);Field(LOCTEXT("Endpoint","HTTP endpoint"),&DraftHttpEndpoint,false,false,true);
-	Field(LOCTEXT("PointTopic","PCD Topic"),&DraftExportTopic,false,true,false);Field(LOCTEXT("CameraTopic","Camera Topic"),&DraftCameraTopic,false,true,false);Field(LOCTEXT("LidarTopic","LiDAR Topic"),&DraftLidarTopic,false,true,false);
+	Field(SensorToolUiText::ServerAddress(),&DraftBrokerUrl,false,true,false);Field(LOCTEXT("Endpoint","HTTP 서버 주소"),&DraftHttpEndpoint,false,false,true);
+	Field(SensorToolUiText::PcdAddress(),&DraftExportTopic,false,true,false);Field(SensorToolUiText::CameraAddress(),&DraftCameraTopic,false,true,false);Field(SensorToolUiText::LidarAddress(),&DraftLidarTopic,false,true,false);
 	Field(LOCTEXT("User","사용자명"),&DraftUserName,false,true,false);Field(LOCTEXT("Password","비밀번호 · 세션에서만 유지"),&SessionPasscode,true,true,false);Field(LOCTEXT("Bearer","Bearer token · 세션에서만 유지"),&SessionBearerToken,true,false,true);
-	Field(LOCTEXT("Ack","소비자 ACK Topic · 선택 사항"),&DraftAckTopic,false,true,false);
+	Field(SensorToolUiText::ConsumerAckAddress(),&DraftAckTopic,false,true,false);
 	Server->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Text(LOCTEXT("MaxBytes","최대 메시지 크기 (bytes)"))];
 	Server->AddSlot().AutoHeight()[SNewSensorTool(SEditableTextBox).Text_Lambda([this](){return FText::AsNumber(DraftMaxMessageBytes);}).OnTextCommitted_Lambda([this](const FText& T,ETextCommit::Type){DraftMaxMessageBytes=FMath::Max(1024,FCString::Atoi(*T.ToString()));})];
 	Server->AddSlot().AutoHeight().Padding(0,8)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
