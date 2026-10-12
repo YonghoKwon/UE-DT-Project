@@ -11,6 +11,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Notifications/SProgressBar.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -48,7 +49,21 @@ bool USlabProgressPanelWidget::ToggleOwnedCharts()
 }
 void USlabProgressPanelWidget::RefreshOwnedStatus()
 {
-	const FString Information=SlabInformationCard::Build(Slab);if(Information!=CachedInformationText){CachedInformationText=Information;OwnedInformationLabel=FText::FromString(Information);}
+	const auto Rows=SlabInformationCard::BuildRows(Slab,bOwnedDetailsExpanded);
+	OwnedInformationValues.SetNum(12);
+	TArray<FString> Lines,SourceLines;
+	for(int32 I=0;I<Rows.Num();++I)
+	{
+		const auto& Row=Rows[I];
+		if(Row.bSourceDetail)SourceLines.Add(Row.Label.ToString()+TEXT(": ")+Row.Value);
+		else
+		{
+			Lines.Add(Row.Value);
+			if(OwnedInformationValues[I].ToString()!=Row.Value)OwnedInformationValues[I]=FText::FromString(Row.Value);
+		}
+	}
+	CachedInformationText=FString::Join(Lines,TEXT("\n"));
+	if(bOwnedDetailsExpanded)OwnedSourceInformationLabel=FText::FromString(FString::Join(SourceLines,TEXT("\n")));
 	if(!Slab){Summary=TEXT("시나리오 연결이 필요합니다");SensorStatus.Empty();Progress=0;bOwnedCanPause=bOwnedCanStop=bOwnedCanReset=false;OwnedSummaryLabel=FText::FromString(Summary);OwnedStatusLabel=FText::GetEmpty();return;}
 	const auto S=Slab->GetSimulationStatus();Progress=S.Progress;
 	bOwnedCanPause=S.State==ESlabSimulationState::Playing||S.State==ESlabSimulationState::Paused;
@@ -169,6 +184,21 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 	}
 	if (IsWorkspaceOwned())
 	{
+		const auto InformationRows=SlabInformationCard::BuildRows(nullptr,false);
+		OwnedInformationValues.SetNum(InformationRows.Num());
+		auto InformationGrid=SNew(SGridPanel).FillColumn(1,1.f);
+		FText PreviousSection;int32 GridRow=0;
+		for(int32 I=0;I<InformationRows.Num();++I)
+		{
+			const auto& Row=InformationRows[I];
+			if(!Row.Section.EqualTo(PreviousSection))
+			{
+				InformationGrid->AddSlot(0,GridRow++).ColumnSpan(2).Padding(0,8,0,4)[SNewSensorTool(STextBlock).Text(Row.Section).ColorAndOpacity(GetToolAccentColor())];
+				PreviousSection=Row.Section;
+			}
+			InformationGrid->AddSlot(0,GridRow).VAlign(VAlign_Top).Padding(0,2,12,2)[SNewSensorTool(STextBlock).Text(Row.Label).ColorAndOpacity(GetToolMutedColor())];
+			InformationGrid->AddSlot(1,GridRow++).Padding(0,2)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,I](){return OwnedInformationValues[I];})];
+		}
 		Controls->AddSlot()[SNewSensorTool(SButton).Text(SensorToolUiText::ScenarioCharts())
 		 .IsEnabled_Lambda([this](){auto* W=GetToolWorkspace();return W&&W->GetOwnedPanel(ESensorToolPanelRole::SlabCharts);})
 		 .ButtonColorAndOpacity_Lambda([this](){auto* W=GetToolWorkspace();return W&&W->IsPanelOpen(ESensorToolPanelRole::SlabCharts)?FLinearColor(.35f,.70f,.85f,1):FLinearColor::White;})
@@ -213,8 +243,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		     + SScrollBox::Slot()[SNew(SVerticalBox)
 		       + SVerticalBox::Slot().AutoHeight().Padding(0,4,0,10)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8)[SNew(SVerticalBox)
 		         +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::SlabInformation())]
-		         +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this](){return OwnedInformationLabel;})
-		          .ToolTipText(LOCTEXT("SourceCardTip","위치·치수·기울기·사행은 원본 행 값입니다. Y 입력은 현재 이동에 적용되지 않습니다. 중심 이탈·여유는 해당 원본 행의 Track 기하 계산이며 임계값 판정이 아닙니다. 중량 단위는 입력에서 지정하지 않아 원본 단위로 표시합니다."))]]]
+		         +SVerticalBox::Slot().AutoHeight().Padding(0,4)[InformationGrid]]]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 10)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this]() { return OwnedSummaryLabel; })]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 12)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this]() { return OwnedStatusLabel; })]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[SAssignNew(OwnedDisplayArea,SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DisplaySettings())].BodyContent()[SNew(SVerticalBox)
@@ -223,6 +252,8 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		         .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedDetailsExpanded=Open;RefreshAccumulator=1;})
 		         .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details", "진단·맵 연결 점검"))].BodyContent()
 		         [SNew(SVerticalBox)
+		          + SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedSourceInformationLabel;})
+		           .ToolTipText(LOCTEXT("SourceCardTip","원본 행 위치·속도는 입력 데이터 값이며 현재 표시 값과 다를 수 있습니다. Y 입력은 현재 이동에 적용되지 않습니다. 중심 이탈·여유는 해당 원본 행의 Track 기하 계산이며 임계값 판정이 아닙니다. 중량은 원본 단위입니다."))]
 		          + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this]() { return OwnedDetailLabel; })]
 		          + SVerticalBox::Slot().AutoHeight().Padding(0, 8)[SNewSensorTool(SButton).Text(LOCTEXT("Validate", "연결 상태 점검"))
 		            .OnClicked_Lambda([this]() { SetupStatus.Empty(); if (Slab) { const auto V = Slab->ValidateSlabSetup(); SetupStatus = V.bCanSimulate ? TEXT("시뮬레이션 연결 정상") : TEXT("시뮬레이션 연결 확인 필요"); for (const auto& E : V.Errors) SetupStatus += TEXT("\n오류: ") + E; for (const auto& W : V.Warnings) SetupStatus += TEXT("\n안내: ") + W; } else SetupStatus = TEXT("Slab Actor 연결 필요"); return FReply::Handled(); })]

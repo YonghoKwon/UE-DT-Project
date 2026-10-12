@@ -120,7 +120,7 @@ public:
         ++Phase;Requested=false;
         if(Phase<4)return false;
         // Positive control: a visible, blocking sphere on the same ray must be detected.
-        TArray<UStaticMeshComponent*> Meshes;PickTarget->GetComponents(Meshes);for(auto* M:Meshes)if(M->GetFName()==TEXT("SensorPlacementPickMarker")){M->SetHiddenInSceneCapture(false);M->SetCollisionResponseToChannel(ECC_Visibility,ECR_Block);}
+        TArray<UStaticMeshComponent*> Meshes;PickTarget->GetComponents(Meshes);for(auto* M:Meshes)if(M->GetFName()==TEXT("SensorPlacementPickMarker")){M->SetRenderInMainPass(true);M->SetRenderInDepthPass(true);M->SetHiddenInSceneCapture(false);M->SetCollisionResponseToChannel(ECC_Visibility,ECR_Block);}
         W->SendAllEndOfFrameUpdates();Capture->CaptureScene();FlushRenderingCommands();TArray<FColor> Pixels;Capture->TextureTarget->GameThread_GetRenderTargetResource()->ReadPixels(Pixels);
         Test->TestTrue(TEXT("negative control detects visible marker in camera"),Pixels!=PixelsOff);
         FHitResult Hit;W->LineTraceSingleByChannel(Hit,FVector::ZeroVector,FVector(800,0,0),ECC_Visibility);Test->TestTrue(TEXT("negative control detects blocking marker in CPU trace"),Hit.GetActor()==PickTarget);

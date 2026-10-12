@@ -15,9 +15,6 @@ namespace SensorToolUiText
     inline FText ArchiveList() { return LOCTEXT("ArchiveList", "보관 목록"); }
     inline FText DisplaySettings() { return LOCTEXT("DisplaySettings", "표시 설정"); }
     inline FText SlabInformation() { return LOCTEXT("SlabInformation", "Slab 정보"); }
-    inline FText SlabInformationEmpty() { return LOCTEXT("SlabInformationEmpty", "소재번호: —\n치수 L×W×T: — · 중량: —\n진행: —\n입력 위치 (Track): — · 속도: —\n좌/우 기울기: —\n중심 이탈 (행 기준): — · 좌/우 여유: —\n사행 여부: —"); }
-    inline constexpr TCHAR SlabInformationFormat[]=TEXT("소재번호: %s\n치수 L×W×T: %s × %s × %s %s · 중량: %s (원본 단위)\n진행: 행 %d/%d · %.2f / %.2f초 · %.1f%%\n입력 위치 (Track): X %s · Y %s %s · 속도: %s\n좌/우 기울기: %s° / %s°\n중심 이탈 (행 기준): %s cm · 좌/우 여유: %s\n사행 여부: %s");
-    inline constexpr TCHAR SlabCurrentPositionFormat[]=TEXT("\n현재 위치 (Track): X %s · Y %s · Z %s cm · 현재 속도: %s");
     inline FText SurfaceSupportReason(const FString& Reason) { return Reason.Contains(TEXT("Oxidation"))?LOCTEXT("UnsupportedOxidationSurface","현재 재질은 산화 스케일 표현을 지원하지 않습니다"):FText::FromString(Reason); }
     inline FText SurfacePreset(int32 P)
     {

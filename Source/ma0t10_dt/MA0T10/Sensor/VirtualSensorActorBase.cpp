@@ -94,12 +94,16 @@ void AVirtualSensorActorBase::Click()
 }
 void AVirtualSensorActorBase::SetPlacementPickingEnabled(bool Enabled)
 {
-	if(!Enabled){if(PlacementPickMarker){PlacementPickMarker->DestroyComponent();PlacementPickMarker=nullptr;}return;}
+	if(!Enabled){if(PlacementPickMarker){PlacementPickMarker->DestroyComponent();PlacementPickMarker=nullptr;RefreshCachedMeshes();}return;}
 	if(PlacementPickMarker||!GetRootComponent()||IsActorBeingDestroyed())return;
 	PlacementPickMarker=NewObject<UStaticMeshComponent>(this,TEXT("SensorPlacementPickMarker"),RF_Transient);
 	PlacementPickMarker->SetupAttachment(GetRootComponent());
 	PlacementPickMarker->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere")));
 	PlacementPickMarker->SetRelativeScale3D(FVector(.3));
+	// Preserve object-query size. DTCore custom-depth hover highlight remains
+	// available without an ordinary white sphere in the player's scene.
+	PlacementPickMarker->SetRenderInMainPass(false);
+	PlacementPickMarker->SetRenderInDepthPass(false);
 	PlacementPickMarker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	PlacementPickMarker->SetCollisionObjectType(ECC_WorldDynamic);
 	PlacementPickMarker->SetCollisionResponseToAllChannels(ECR_Ignore); // DTCore object queries still pick; channel-based sensors never hit it.
@@ -108,6 +112,7 @@ void AVirtualSensorActorBase::SetPlacementPickingEnabled(bool Enabled)
 	PlacementPickMarker->SetAffectDistanceFieldLighting(false);PlacementPickMarker->SetAffectIndirectLightingWhileHidden(false);
 	PlacementPickMarker->SetVisibleInRayTracing(false);PlacementPickMarker->bVisibleInReflectionCaptures=false;PlacementPickMarker->bVisibleInRealTimeSkyCaptures=false;
 	PlacementPickMarker->RegisterComponent();
+	RefreshCachedMeshes();
 }
 
 bool AVirtualSensorActorBase::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)

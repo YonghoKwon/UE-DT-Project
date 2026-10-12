@@ -22,7 +22,13 @@ bool FSlabInformationCardTest::RunTest(const FString&)
     Slab->DimensionUnit=ESlabInputUnit::Millimeters;Slab->PositionUnit=ESlabInputUnit::Centimeters;
     const auto& R=Data->Rows[400];Slab->InitialDimensions=FVector(R.Length,R.Width,R.Thickness);
     const FString Card=SlabInformationCard::Build(Slab);
-    for(const FString& Value:{R.MtlNo,FString::Printf(TEXT("%.3f"),R.Length),FString::Printf(TEXT("%.3f"),R.Weight),FString::Printf(TEXT("X %.3f · Y %.3f"),R.CenterX,R.CenterY),FString::Printf(TEXT("%.3f° / %.3f°"),R.LeftAngle,R.RightAngle),FString(TEXT("행 401/600")),FString(TEXT("예 (원본 값)"))})TestTrue(TEXT("card agrees with immutable source row"),Card.Contains(Value));
+    for(const FString& Value:{R.MtlNo,FString::Printf(TEXT("%.2f° / %.2f°"),R.LeftAngle,R.RightAngle),FString(TEXT("행 401/600")),FString(TEXT("예 (원본 값)")),FString(TEXT("66.7 %")),FString(TEXT("0.0 cm/s (일시정지)"))})TestTrue(TEXT("card agrees with immutable source row and display precision"),Card.Contains(Value));
+    const auto Basic=SlabInformationCard::BuildRows(Slab,false);
+    TestEqual(TEXT("dimensions use grouping and omit empty fractional digits"),Basic[1].Value,FString(TEXT("10,830 × 1,100 × 250 mm")));
+    TestEqual(TEXT("weight retains source unit with grouping"),Basic[2].Value,FString(TEXT("23,290 (원본 단위)")));
+    TestEqual(TEXT("basic card contains twelve label/value rows"),Basic.Num(),12);
+    TestFalse(TEXT("source position/speed stay out of basic card"),Basic.ContainsByPredicate([](const auto& Row){return Row.bSourceDetail||Row.Label.ToString().Contains(TEXT("원본 행 위치"))||Row.Label.ToString().Contains(TEXT("원본 행 속도"));}));
+    TestTrue(TEXT("source position and speed are explicitly labeled in details"),Card.Contains(TEXT("원본 행 위치:"))&&Card.Contains(TEXT("원본 행 속도:")));
     auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=NewObject<USlabProgressPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,P);P->BindSlabActor(Slab);P->SetVisibility(ESlateVisibility::Hidden);P->CachedInformationText=TEXT("hidden card sentinel");P->NativeTick(FGeometry(),.3);
     TestEqual(TEXT("hidden information card is not formatted"),P->CachedInformationText,FString(TEXT("hidden card sentinel")));
     TSharedPtr<FJsonObject> Json;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Data->OriginalJson),Json);

@@ -24,6 +24,16 @@ bool FUxrSensorActivationTest::RunTest(const FString&)
     TArray<UStaticMeshComponent*> Meshes;Lidar->GetComponents(Meshes);UStaticMeshComponent* Marker=nullptr;
     for(auto* M:Meshes)if(M->GetFName()==TEXT("SensorPlacementPickMarker"))Marker=M;
     TestNotNull(TEXT("owned equipment has a selection marker"),Marker);
+    if(Marker)
+    {
+        TestFalse(TEXT("pick sphere has no ordinary player surface"),Marker->bRenderInMainPass);
+        TestFalse(TEXT("pick sphere does not occlude player depth"),Marker->bRenderInDepthPass);
+        TestTrue(TEXT("visual refinement preserves original pick radius"),Marker->GetRelativeScale3D().Equals(FVector(.3)));
+        Lidar->OnCursorHover(Marker);
+        TestTrue(TEXT("existing DTCore hover highlights marker in custom depth"),Marker->bRenderCustomDepth);
+        Lidar->OnCursorUnhover();
+        TestFalse(TEXT("existing DTCore unhover clears marker highlight"),Marker->bRenderCustomDepth);
+    }
     if(Marker){TestTrue(TEXT("marker excluded from all scene captures and GPU semantic proxies"),Marker->bHiddenInSceneCapture);for(int32 Channel=0;Channel<32;++Channel)TestEqual(TEXT("marker never blocks measurement channels"),Marker->GetCollisionResponseToChannel(ECollisionChannel(Channel)),ECR_Ignore);}
     Lidar->SetActorLocation(FVector(2000,0,0));TArray<FHitResult> Hits;FCollisionObjectQueryParams Objects;Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
     World->LineTraceMultiByObjectType(Hits,FVector(1900,0,0),FVector(2100,0,0),Objects);

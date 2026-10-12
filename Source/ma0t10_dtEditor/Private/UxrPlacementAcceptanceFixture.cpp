@@ -56,11 +56,13 @@ public:
                 FString Error;if(!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Test->AddError(Error);return true;}A->StartSensor();
             }
             W->ResetOwnedWorkspaceLayout();W->SetOwnedPanelFontScale(1);
-            if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW"))==TEXT("scenario"))
+            const FString PerfView=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW"));
+            if(PerfView==TEXT("scenario")||PerfView==TEXT("scenario-monitor"))
             {
                 W->EnsureOwnedReplayPanel();
                 for(const auto Role:{ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::SlabCharts})W->SetPanelOpen(Role,false);
                 W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);W->SetPanelOpen(ESensorToolPanelRole::Replay,true);
+                W->SetPanelOpen(ESensorToolPanelRole::Monitor,PerfView==TEXT("scenario-monitor"));
                 ASlabActor* Slab=nullptr;for(TActorIterator<ASlabActor> It(World);It;++It){Slab=*It;break;}
                 if(!StartUxrScenarioUiFixture(Slab)){Test->AddError(TEXT("Scenario UI performance input rejected"));return true;}
             }

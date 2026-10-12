@@ -33,7 +33,8 @@ private:
 	bool bOwnedCanPause=false,bOwnedCanStop=false,bOwnedCanReset=false;
 	FText OwnedPauseLabel,OwnedResetTooltip,OwnedSummaryLabel,OwnedStatusLabel,OwnedDetailLabel;
 	FString CachedInformationText,SurfaceActionMessage;
-	FText OwnedInformationLabel;
+	TArray<FText> OwnedInformationValues;
+	FText OwnedSourceInformationLabel;
 	TArray<FString> SurfacePresetReasons;
 	void RefreshSurfaceSupport();
 	static FText ResolveOwnedMovementState(const FSlabSimulationStatus& Simulation,const FVirtualSlabSessionStatus& Session);
