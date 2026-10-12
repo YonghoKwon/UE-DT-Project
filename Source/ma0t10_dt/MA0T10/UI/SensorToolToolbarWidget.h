@@ -26,6 +26,8 @@ class MA0T10_DT_API USensorToolToolbarWidget : public UUserWidget
 public:
 	/** Owned native navigation; does not start measurement, transmission or file work. */
 	bool OpenOwnedDestination(ESensorToolDestination Destination);
+	bool ToggleOwnedDestination(ESensorToolDestination Destination);
+	bool IsOwnedDestinationVisible(ESensorToolDestination Destination) const;
 	const FSensorToolGlobalStatus& GetGlobalStatus() const { return GlobalStatus; }
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -44,6 +46,10 @@ private:
 	FText SelectedSensorText() const;
 	FSlateFontInfo ToolFont(int32 Size=16) const;
 	TMap<FString,FText> OwnedSensorLabels;
+	struct FEquipmentLabel { FText Name,State; FLinearColor Color=FLinearColor::Gray; };
+	TMap<FString,FEquipmentLabel> EquipmentLabels;
+	TSharedRef<SWidget> BuildEquipmentMenu();
+	TSharedRef<SWidget> BuildEquipmentLabel(TWeakObjectPtr<AVirtualSensorActorBase> Actor);
 	FSensorToolGlobalStatus GlobalStatus;
 	double NextStatusRefresh=-1;
 	TWeakObjectPtr<ASlabActor> StatusSlab;

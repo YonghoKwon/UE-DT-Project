@@ -13,6 +13,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SButton.h"
@@ -36,7 +37,7 @@ FText USensorToolToolbarWidget::SelectedSensorText() const
 	if(W&&W->OwnsToolbar(this))
 	{
 		if(C)if(auto* A=C->GetSelectedSensorActor())if(const auto* Label=OwnedSensorLabels.Find(A->GetSensorId()))
-			return FText::Format(NSLOCTEXT("SensorToolUiText","SelectedEquipment","장비 · {0}"),*Label);
+			return *Label;
 		return SensorToolUiText::NoEquipment();
 	}
 	if(C)if(auto* A=C->GetSelectedSensorActor())Id=(A->GetSensorKind()==EVirtualSensorKind::Lidar?TEXT("LiDAR · "):TEXT("Camera · "))+A->GetSensorId();
@@ -50,19 +51,14 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	RefreshOwnedStatus(FPlatformTime::Seconds());
 	auto Bar=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8));
 	Bar->AddSlot()
-	[SAssignNew(SensorCombo,SComboBox<TSharedPtr<FString>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox())
-	 .OptionsSource(&SensorOptions).ForegroundColor(FSensorOwnedPresentationStyle::Text())
-	 .OnComboBoxOpening_Lambda([this](){RefreshSensors();if(SensorCombo)SensorCombo->RefreshOptions();})
-	 .OnGenerateWidget_Lambda([this](TSharedPtr<FString> Id){const auto* Label=Id?OwnedSensorLabels.Find(*Id):nullptr;return SNew(STextBlock).Font(ToolFont()).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(Label?*Label:FText::FromString(Id?*Id:FString()));})
-	 .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type){if(Id)SelectSensor(*Id);})
-	 [SNew(SBox).MaxDesiredWidth_Lambda([this](){return 560.f*(ToolFont().Size/16.f);})
-	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([this](){return SelectedSensorText();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text_Lambda([this](){return SelectedSensorText();})]]];
+	[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).OnGetMenuContent_Lambda([this](){return BuildEquipmentMenu();})
+	 .ButtonContent()[BuildEquipmentLabel(nullptr)]];
 	const ESensorToolDestination Destinations[]={ESensorToolDestination::Placement,ESensorToolDestination::Preview,ESensorToolDestination::Scenario,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Results};
 	const FText Labels[]={SensorToolUiText::Placement(),SensorToolUiText::Preview(),SensorToolUiText::Scenario(),SensorToolUiText::PcdTransfer(),SensorToolUiText::Results()};
 	for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
 	{
 		const auto Destination=Destinations[I];
-		Bar->AddSlot()[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).OnClicked_Lambda([this,Destination](){OpenOwnedDestination(Destination);return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(Labels[I])]];
+		Bar->AddSlot()[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).OnClicked_Lambda([this,Destination](){ToggleOwnedDestination(Destination);return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity_Lambda([this,Destination](){return IsOwnedDestinationVisible(Destination)?FSensorOwnedPresentationStyle::Accent():FSensorOwnedPresentationStyle::Text();}).Text(Labels[I])]];
 	}
 	Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton())
 	 .OnGetMenuContent_Lambda([this](){return BuildToolsMenu();})
@@ -77,6 +73,49 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 FSlateFontInfo USensorToolToolbarWidget::ToolFont(int32 Size) const
 {
 	const auto* W=Workspace();return FSensorToolWorkspaceStyle::Font(Size,W&&W->OwnsToolbar(this)?W->GetOwnedPanelFontScale():1.0f);
+}
+TSharedRef<SWidget> USensorToolToolbarWidget::BuildEquipmentLabel(TWeakObjectPtr<AVirtualSensorActorBase> Actor)
+{
+	auto Resolve=[this,Actor]()->const FEquipmentLabel*
+	{auto* A=Actor.Get();if(!A)if(auto* W=Workspace())if(auto* C=W->GetCoordinator())A=C->GetSelectedSensorActor();return A?EquipmentLabels.Find(A->GetSensorId()):nullptr;};
+	return SNew(SHorizontalBox)
+	 +SHorizontalBox::Slot().AutoWidth()[SNew(SBox).MaxDesiredWidth_Lambda([this](){return 300.f*ToolFont().Size/16.f;})[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([Resolve](){const auto* L=Resolve();return L?L->Name:SensorToolUiText::NoEquipment();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text_Lambda([Resolve](){const auto* L=Resolve();return L?L->Name:SensorToolUiText::NoEquipment();})]]
+	 +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).Text(FText::FromString(TEXT("●"))).ColorAndOpacity_Lambda([Resolve](){const auto* L=Resolve();return L?L->Color:FLinearColor::Gray;})]
+	 +SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text_Lambda([Resolve](){const auto* L=Resolve();return L?L->State:FText::GetEmpty();})];
+}
+TSharedRef<SWidget> USensorToolToolbarWidget::BuildEquipmentMenu()
+{
+	auto Menu=SNew(SVerticalBox);auto* W=Workspace();auto* C=W?W->GetCoordinator():nullptr;
+	for(const auto Kind:{EVirtualSensorKind::Lidar,EVirtualSensorKind::Camera})
+	{
+		Menu->AddSlot().AutoHeight().Padding(4,8)[SNew(STextBlock).Font(ToolFont(14)).ColorAndOpacity(FSensorOwnedPresentationStyle::Accent()).Text(FText::FromString(Kind==EVirtualSensorKind::Lidar?TEXT("LiDAR"):TEXT("Camera")))];
+		if(C)for(auto* A:C->GetSensorActors())if(IsValid(A)&&A->GetSensorKind()==Kind)
+		{
+			TWeakObjectPtr<AVirtualSensorActorBase> Actor=A;
+			Menu->AddSlot().AutoHeight().Padding(0,3)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).OnClicked_Lambda([this,Actor](){if(Actor.IsValid())SelectSensor(Actor->GetSensorId());FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})[BuildEquipmentLabel(Actor)]];
+		}
+	}
+	Menu->AddSlot().AutoHeight().Padding(0,8,0,0)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).OnClicked_Lambda([this](){OpenOwnedDestination(ESensorToolDestination::Placement);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})[SNew(STextBlock).Font(ToolFont()).Text(SensorToolUiText::AddEquipment())]];
+	return SNew(SBox).MaxDesiredHeight(480)[SNew(SScrollBox)+SScrollBox::Slot()[Menu]];
+}
+bool USensorToolToolbarWidget::IsOwnedDestinationVisible(ESensorToolDestination D) const
+{
+	const auto* W=Workspace();if(!W||!W->OwnsToolbar(this))return false;
+	if(D==ESensorToolDestination::Scenario)return W->IsPanelOpen(ESensorToolPanelRole::SlabProgress)||W->IsPanelOpen(ESensorToolPanelRole::Replay);
+	if(D==ESensorToolDestination::Placement)return W->IsPanelOpen(ESensorToolPanelRole::Placement);
+	if(D==ESensorToolDestination::Preview)return W->IsPanelOpen(ESensorToolPanelRole::Monitor);
+	const auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+	if(!Data||!W->IsPanelOpen(ESensorToolPanelRole::Data))return false;
+	return D==ESensorToolDestination::PcdTransfer?Data->GetActiveTab()==EVirtualSensorCaptureExportTab::LiveStream:
+		D==ESensorToolDestination::Results&&Data->GetActiveTab()==EVirtualSensorCaptureExportTab::ConnectionLog&&Data->AreScenarioRunResultsExpanded();
+}
+bool USensorToolToolbarWidget::ToggleOwnedDestination(ESensorToolDestination D)
+{
+	if(!IsOwnedDestinationVisible(D))return OpenOwnedDestination(D);
+	auto* W=Workspace();if(!W)return false;
+	if(D==ESensorToolDestination::Scenario){W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,false);W->SetPanelOpen(ESensorToolPanelRole::Replay,false);}
+	else W->SetPanelOpen(D==ESensorToolDestination::Placement?ESensorToolPanelRole::Placement:D==ESensorToolDestination::Preview?ESensorToolPanelRole::Monitor:ESensorToolPanelRole::Data,false);
+	return true;
 }
 bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Destination)
 {

@@ -7,6 +7,7 @@ namespace SensorToolUiText
 #define LOCTEXT_NAMESPACE "SensorToolUiText"
     inline FText Equipment() { return LOCTEXT("Equipment", "장비"); }
     inline FText NoEquipment() { return LOCTEXT("NoEquipment", "장비 없음"); }
+    inline FText AddEquipment() { return LOCTEXT("AddEquipment", "+ 장비 추가 (배치)"); }
     inline FText Placement() { return LOCTEXT("Placement", "배치"); }
     inline FText Preview() { return LOCTEXT("Preview", "미리보기"); }
     inline FText Scenario() { return LOCTEXT("Scenario", "시나리오"); }

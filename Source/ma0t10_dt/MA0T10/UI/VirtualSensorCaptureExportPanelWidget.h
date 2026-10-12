@@ -46,6 +46,7 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
 public:
 	/** Native owned presentation only. No connection or receiver operation is invoked. */
 	void OpenOwnedConnectionSection(bool bDiagnostics);
+	bool AreScenarioRunResultsExpanded() const { return bRunResultsExpanded; }
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput") FString GetPcdPreflightText() const {return CachedPcdPreflight;}
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);

@@ -29,6 +29,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     NextStatusRefresh=Now+.2;
     GlobalStatus=FSensorToolGlobalStatus();
     OwnedSensorLabels.Reset();
+    EquipmentLabels.Reset();
     auto* C=W->GetCoordinator();
     const auto* Scheduler=GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>();
     const auto* Rates=Scheduler?&Scheduler->GetTelemetry().SensorRates:nullptr;
@@ -38,16 +39,17 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         const bool Running=A->IsSensorRunning();
         GlobalStatus.MeasuringCount+=Running?1:0;
         FText State=Running?SensorToolUiText::Measuring():SensorToolUiText::Stopped();
-        FString Dot=Running?TEXT("●"):TEXT("○");
+        FLinearColor Color=Running?FLinearColor(.15f,.85f,.4f):FSensorOwnedPresentationStyle::Muted();
         const bool Lidar=A->GetSensorKind()==EVirtualSensorKind::Lidar;
         if(Rates)if(const auto* Rate=Rates->FindByPredicate([&](const auto& R){return R.SensorId==A->GetSensorId()&&R.SensorKind==(Lidar?TEXT("LiDAR"):TEXT("Camera"));}))
         {
-            if(Rate->State==EVirtualSensorRateState::Starved){State=SensorToolUiText::Starved();Dot=TEXT("●");}
-            else if(Rate->State==EVirtualSensorRateState::Failed){State=SensorToolUiText::Error();Dot=TEXT("●");}
+            if(Running&&Rate->State==EVirtualSensorRateState::Starved){State=SensorToolUiText::Starved();Color=FLinearColor(1,.6f,.1f);}
+            else if(Rate->State==EVirtualSensorRateState::Failed){State=SensorToolUiText::Error();Color=FLinearColor(1,.15f,.2f);}
             else if(Rate->State==EVirtualSensorRateState::Paused)State=SensorToolUiText::Paused();
         }
-        OwnedSensorLabels.Add(A->GetSensorId(),FText::Format(NSLOCTEXT("SensorToolUiText","EquipmentLabel","{0} · {1} {2} {3}"),
-            FText::FromString(Lidar?TEXT("LiDAR"):TEXT("Camera")),FText::FromString(A->GetSensorId()),FText::FromString(Dot),State));
+        FEquipmentLabel Label;Label.Name=FText::FromString(FString(Lidar?TEXT("LiDAR "):TEXT("Camera "))+A->GetSensorId());Label.State=State;Label.Color=Color;
+        EquipmentLabels.Add(A->GetSensorId(),Label);
+        OwnedSensorLabels.Add(A->GetSensorId(),FText::Format(NSLOCTEXT("SensorToolUiText","CompactEquipmentLabel","{0} ● {1}"),Label.Name,State));
     }
     const auto* SessionService=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
     const auto Session=SessionService?SessionService->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
@@ -110,6 +112,9 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
 {
     auto Row=SNew(SHorizontalBox);
+    static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
+        .SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Section(),12.f))
+        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Color(37,77,91),12.f));
     const ESensorToolDestination Destinations[]={ESensorToolDestination::Placement,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Scenario,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics};
     for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
     {
@@ -119,7 +124,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
             switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return SensorToolUiText::Warning(GlobalStatus.Warning);}
         };
         Row->AddSlot().FillWidth(I==4?1.5f:1.f).VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
-        [SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(4,2))
+        [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
          .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination](){OpenOwnedDestination(Destination);return FReply::Handled();})
          [SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
