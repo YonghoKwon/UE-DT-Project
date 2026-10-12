@@ -39,6 +39,14 @@ public:
 	void GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;
 	int64 GetFailedSlabRunCount(const FString& RunId) const;
 	void RefreshSessionOutputDemand() { UpdateCameraStreamDemand(); }
+	static bool SerializePointCloudFrame(
+		const FVirtualSensorFrameEnvelope& Frame,
+		const FVirtualSensorStreamConfig& Config,
+		FString& OutExtension,
+		TArray<uint8>& OutBytes,
+		int32& OutPointCount,
+		FString& OutError);
+#if WITH_DEV_AUTOMATION_TESTS
 	static bool SerializePointCloudForTesting(
 		const FVirtualSensorFrameEnvelope& Frame,
 		const FVirtualSensorStreamConfig& Config,
@@ -46,6 +54,7 @@ public:
 		TArray<uint8>& OutBytes,
 		int32& OutPointCount,
 		FString& OutError);
+#endif
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);

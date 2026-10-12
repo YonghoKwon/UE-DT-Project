@@ -3196,7 +3196,7 @@ bool UVirtualSensorMonitorPanelWidget::SaveLidarPointCloudToDisk(const FString& 
 		FString Error;
 		TArray<uint8> Bytes;
 		int32 PointCount = 0;
-		const bool bSerialized = UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Extension, Bytes, PointCount, Error);
+		const bool bSerialized = UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(Frame, Config, Extension, Bytes, PointCount, Error);
 		const FString Path = bSerialized ? FPaths::Combine(LidarDirectory, FString::Printf(TEXT("%s_%s.%s"), *FramePrefix, *SensorId, *Extension)) : FString();
 		const bool bSaved = bSerialized && FFileHelper::SaveArrayToFile(Bytes, *Path);
 		AsyncTask(ENamedThreads::GameThread, [WeakThis, Path, Error = MoveTemp(Error), bSaved, PointCount]()

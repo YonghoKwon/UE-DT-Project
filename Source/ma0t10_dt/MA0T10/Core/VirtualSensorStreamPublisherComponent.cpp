@@ -463,6 +463,18 @@ UVirtualSensorStreamPublisherComponent::UVirtualSensorStreamPublisherComponent()
 	PrimaryComponentTick.TickInterval = 0.0f;
 }
 
+bool UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(
+	const FVirtualSensorFrameEnvelope& Frame,
+	const FVirtualSensorStreamConfig& Config,
+	FString& OutExtension,
+	TArray<uint8>& OutBytes,
+	int32& OutPointCount,
+	FString& OutError)
+{
+	return SerializePointCloud(Frame, Config, OutExtension, OutBytes, OutPointCount, OutError);
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
 bool UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(
 	const FVirtualSensorFrameEnvelope& Frame,
 	const FVirtualSensorStreamConfig& Config,
@@ -473,6 +485,7 @@ bool UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(
 {
 	return SerializePointCloud(Frame, Config, OutExtension, OutBytes, OutPointCount, OutError);
 }
+#endif
 
 void UVirtualSensorStreamPublisherComponent::BeginPlay()
 {
