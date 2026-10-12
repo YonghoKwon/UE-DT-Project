@@ -24,18 +24,6 @@ FString SlabOutputStateMessage(const FVirtualSlabSensorOutputSelection& Outputs,
 }
 }
 
-TMap<FString,FString> FVirtualSlabFrameContext::ToHeaders() const
-{
-	TMap<FString,FString> Result;
-	if (!bEligible) return Result;
-	Result.Add(TEXT("x-run-uuid"), RunId);
-	if (!ScenarioUUID.IsEmpty()) Result.Add(TEXT("x-scenario-uuid"),ScenarioUUID);
-	Result.Add(TEXT("x-mtl-no"), MtlNo);
-	Result.Add(TEXT("x-slab-frame-no"), LexToString(SlabFrameNo));
-	Result.Add(TEXT("x-slab-elapsed-sec"), FString::Printf(TEXT("%.6f"), ElapsedSec));
-	Result.Add(TEXT("x-session-segment"), LexToString(Segment));
-	return Result;
-}
 void UVirtualSensorSlabContextSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {Super::Initialize(Collection);Collection.InitializeDependency<USlabRunResultsSubsystem>();}
 bool UVirtualSensorSlabContextSubsystem::CheckRun(const FString& Id)
