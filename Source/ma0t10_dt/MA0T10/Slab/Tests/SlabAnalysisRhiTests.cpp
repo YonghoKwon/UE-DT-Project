@@ -207,7 +207,7 @@ private:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabAnalysisRhiTest,"MA0T10.SlabAnalysis.CameraGpuIsolationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabAnalysisRhiTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_ANALYSIS_RHI"))!=TEXT("1")) {AddInfo(TEXT("SKIP: set MA0T10_SLAB_ANALYSIS_RHI=1 to validate actual Camera/GPU pixels."));return true;}
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_ANALYSIS_RHI"))!=TEXT("1")) {AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SLAB_ANALYSIS_RHI unset or !=1; SKIP: set MA0T10_SLAB_ANALYSIS_RHI=1 to validate actual Camera/GPU pixels."));return true;}
 	if(GUsingNullRHI||!FApp::CanEverRender()) {AddError(TEXT("Requested Slab analysis RHI validation requires real rendering."));return false;}
 	ADD_LATENT_AUTOMATION_COMMAND(FSlabAnalysisRhiCommand(this));return true;
 }

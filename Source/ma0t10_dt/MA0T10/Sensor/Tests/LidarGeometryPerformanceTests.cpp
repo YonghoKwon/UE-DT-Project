@@ -91,7 +91,7 @@ private:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGeometryStreamTest,"MA0T10.LidarGeometry.StreamPerformance",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FGeometryStreamTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_GEOMETRY_PERF"))!=TEXT("1")){AddWarning(TEXT("SKIP: set MA0T10_GEOMETRY_PERF=1 with local Artemis"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_GEOMETRY_PERF"))!=TEXT("1")){AddWarning(TEXT("[OPT-IN SKIP] MA0T10_GEOMETRY_PERF unset or !=1; SKIP: set MA0T10_GEOMETRY_PERF=1 with local Artemis"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/LidarSemanticValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));ADD_LATENT_AUTOMATION_COMMAND(FGeometryStreamCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

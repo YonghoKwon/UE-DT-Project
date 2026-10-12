@@ -133,7 +133,7 @@ bool FVirtualSensorRawTcpArtemisLoopbackTest::RunTest(const FString& Parameters)
 {
 	if (!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_ARTEMIS_SMOKE")).Equals(TEXT("1")))
 	{
-		AddInfo(TEXT("Raw TCP Artemis loopback skipped. Set MA0T10_RUN_ARTEMIS_SMOKE=1 to enable it."));
+		AddInfo(TEXT("[OPT-IN SKIP] MA0T10_RUN_ARTEMIS_SMOKE unset or !=1; Raw TCP Artemis loopback skipped. Set MA0T10_RUN_ARTEMIS_SMOKE=1 to enable it."));
 		return true;
 	}
 	TSharedPtr<FVirtualSensorRawTcpLoopbackState> State = MakeShared<FVirtualSensorRawTcpLoopbackState>();

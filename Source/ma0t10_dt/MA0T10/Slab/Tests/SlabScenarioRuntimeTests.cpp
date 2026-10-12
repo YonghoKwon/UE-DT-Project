@@ -97,7 +97,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabProductionLifecycleTest,"MA0T10.SlabScenario.ProductionLifecycle",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabProductionLifecycleTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_RUNTIME"))!=TEXT("1")) { AddInfo(TEXT("Skipped actual PIE lifecycle; set MA0T10_SLAB_RUNTIME=1 after validation map and TC registration are generated.")); return true; }
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_RUNTIME"))!=TEXT("1")) { AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SLAB_RUNTIME unset or !=1; Skipped actual PIE lifecycle; set MA0T10_SLAB_RUNTIME=1 after validation map and TC registration are generated.")); return true; }
 	if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true)) return false;
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false)); ADD_LATENT_AUTOMATION_COMMAND(FSlabProductionLifecycleCommand(this)); ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand()); return true;
 }

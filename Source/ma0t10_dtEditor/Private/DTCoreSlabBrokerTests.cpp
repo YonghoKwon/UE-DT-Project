@@ -62,7 +62,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDTCoreSlabBrokerTest,"MA0T10.DTCoreIntegration
 bool FDTCoreSlabBrokerTest::RunTest(const FString&)
 {
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_DTCORE_SLAB_BROKER"))!=TEXT("1"))
-    {AddInfo(TEXT("SKIP: opt-in real local Broker requires MA0T10_DTCORE_SLAB_BROKER=1 and external synthetic publisher."));return true;}
+    {AddInfo(TEXT("[OPT-IN SKIP] MA0T10_DTCORE_SLAB_BROKER unset or !=1; SKIP: opt-in real local Broker requires MA0T10_DTCORE_SLAB_BROKER=1 and external synthetic publisher."));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     auto Command=MakeShared<FDTCoreSlabBrokerCheck>(this);
     ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));

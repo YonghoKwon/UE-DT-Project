@@ -139,7 +139,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabReplayRuntimeTest,"MA0T10.ScenarioReplay.Runtime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabReplayRuntimeTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPLAY_RHI"))!=TEXT("1")){AddInfo(TEXT("Requires run_slab_scenario_replay_smoke.ps1; actual RHI test skipped."));return true;}
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPLAY_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_REPLAY_RHI unset or !=1; Requires run_slab_scenario_replay_smoke.ps1; actual RHI test skipped."));return true;}
 	for(const auto& Pair:TArray<TPair<FString,FString>>{{TEXT("WebSocketUrl"),TEXT("MA0T10_ARTEMIS_URL")},{TEXT("WebSocketLogin"),TEXT("MA0T10_ARTEMIS_USER")},{TEXT("WebSocketPasscode"),TEXT("MA0T10_ARTEMIS_PASSWORD")}})
 		GConfig->SetString(TEXT("DTCoreRuntimeOverride"),*Pair.Key,*FPlatformMisc::GetEnvironmentVariable(*Pair.Value),GGameIni);
 	if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;

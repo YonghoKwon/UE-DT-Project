@@ -200,7 +200,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCameraCoherenceRhiTest,"MA0T10.SensorFiles.CameraMarkerRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FCameraCoherenceRhiTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_CAMERA_MARKER_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: camera marker requires D3D12 and explicit enable"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_CAMERA_MARKER_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_CAMERA_MARKER_RHI unset or !=1; SKIP: camera marker requires D3D12 and explicit enable"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FCameraMarkerCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

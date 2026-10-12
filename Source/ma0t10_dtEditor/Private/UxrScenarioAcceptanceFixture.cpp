@@ -71,14 +71,14 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrScenarioRenderTest,"UXR04.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrScenarioRenderTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR04_RENDER"))!=TEXT("1")){AddInfo(TEXT("SKIP explicit UXR04 capture only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR04_RENDER"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR04_RENDER unset or !=1; SKIP explicit UXR04 capture only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrScenarioRender(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrSurfaceRenderTest,"UXR08.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrSurfaceRenderTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR08_RENDER"))!=TEXT("1")){AddInfo(TEXT("SKIP explicit UXR08 capture only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR08_RENDER"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR08_RENDER unset or !=1; SKIP explicit UXR08 capture only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrScenarioRender(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

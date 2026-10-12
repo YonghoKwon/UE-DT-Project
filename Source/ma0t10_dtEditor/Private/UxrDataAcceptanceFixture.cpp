@@ -58,7 +58,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrDataRenderTest,"UXR03.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrDataRenderTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR03_RENDER"))!=TEXT("1")){AddInfo(TEXT("SKIP: explicit UXR03 capture only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR03_RENDER"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR03_RENDER unset or !=1; SKIP: explicit UXR03 capture only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrDataRender(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

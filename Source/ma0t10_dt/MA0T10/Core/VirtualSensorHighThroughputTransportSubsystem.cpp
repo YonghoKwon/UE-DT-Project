@@ -1266,7 +1266,7 @@ bool FSensorRawRunRetentionTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawReceiptProbeTest,"MA0T10.SensorStream.RawReceiptProbe",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorRawReceiptProbeTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RAW_PROBE"))!=TEXT("1")) { AddInfo(TEXT("SKIP: local receipt fault probe is not enabled"));return true; }
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RAW_PROBE"))!=TEXT("1")) { AddInfo(TEXT("[OPT-IN SKIP] MA0T10_RAW_PROBE unset or !=1; SKIP: local receipt fault probe is not enabled"));return true; }
 	FVirtualSensorHighThroughputProfile Profile;Profile.BrokerUrl=TEXT("tcp://127.0.0.1:18617");
 	FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};Worker.Start();
 	FVirtualSensorBinaryFrame Frame;Frame.StreamKind=EVirtualSensorStreamKind::PointCloud;Frame.SensorId=TEXT("receipt-probe");

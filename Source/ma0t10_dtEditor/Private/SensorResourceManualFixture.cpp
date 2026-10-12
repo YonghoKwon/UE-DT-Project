@@ -50,7 +50,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorResourceManualFixture,"SensorResource.ManualFixture",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorResourceManualFixture::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RESOURCE_MANUAL_FIXTURE"))!=TEXT("1")){AddInfo(TEXT("SKIP: explicit interactive fixture only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RESOURCE_MANUAL_FIXTURE"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_RESOURCE_MANUAL_FIXTURE unset or !=1; SKIP: explicit interactive fixture only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FWaitForResourceManualFixture(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
@@ -98,14 +98,14 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlacementUiPresentationRhi,"PlacementUi.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FPlacementUiPresentationRhi::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_PRESENTATION_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: explicit rendered presentation evidence only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_PRESENTATION_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_PLACEMENT_PRESENTATION_RHI unset or !=1; SKIP: explicit rendered presentation evidence only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementPresentationCapture(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkflowPresentationRhi,"UXR01.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorWorkflowPresentationRhi::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR01_PRESENTATION_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: explicit UXR-01 rendered presentation evidence only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR01_PRESENTATION_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR01_PRESENTATION_RHI unset or !=1; SKIP: explicit UXR-01 rendered presentation evidence only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementPresentationCapture(this,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

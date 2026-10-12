@@ -113,7 +113,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrPlacementPerformanceTest,"UXR02.Performance",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrPlacementPerformanceTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF"))!=TEXT("1")){AddInfo(TEXT("SKIP explicit UXR performance comparison only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR_PERF unset or !=1; SKIP explicit UXR performance comparison only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrPlacementPerformance(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
@@ -213,7 +213,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrPlacementRenderTest,"UXR02.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrPlacementRenderTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR02_RENDER"))!=TEXT("1")){AddInfo(TEXT("SKIP explicit UXR-02 render only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR02_RENDER"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR02_RENDER unset or !=1; SKIP explicit UXR-02 render only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrPlacementRender(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
@@ -256,7 +256,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrPlacementManualTest,"UXR02.Manual",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrPlacementManualTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR02_MANUAL"))!=TEXT("1")){AddInfo(TEXT("SKIP explicit Computer Use only"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR02_MANUAL"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_UXR02_MANUAL unset or !=1; SKIP explicit Computer Use only"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrPlacementManualWait(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
