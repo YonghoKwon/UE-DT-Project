@@ -7,6 +7,6 @@ Core/VirtualSensorOutputPreflight.cpp -> Scenario/VirtualSensorSlabContextSubsys
 Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/SlabRunResultsSubsystem.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
-Sensor/VirtualLidarScanComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
+Sensor/VirtualLidarScanComponentAcquisition.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Sensor/VirtualLidarSensorTypes.h -> Scenario/VirtualSlabFrameContext.h
 Sensor/VirtualSensorActorBase.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
