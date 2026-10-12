@@ -12,6 +12,9 @@
 #include "EngineUtils.h"
 #include "RenderTimer.h"
 #include "Misc/App.h"
+#include "EngineGlobals.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -32,7 +35,7 @@
 class FUxrPlacementPerformance : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Started=0,Last=0;
-    TArray<double> Frames,GameThreads,EngineFrames;
+    TArray<double> Frames,GameThreads,EngineFrames,GpuFrames;
     TArray<TWeakObjectPtr<AVirtualSensorActorBase>> Sensors;
 public:
     explicit FUxrPlacementPerformance(FAutomationTestBase* T):Test(T){}
@@ -65,6 +68,11 @@ public:
                 W->SetPanelOpen(ESensorToolPanelRole::Monitor,PerfView==TEXT("scenario-monitor"));
                 ASlabActor* Slab=nullptr;for(TActorIterator<ASlabActor> It(World);It;++It){Slab=*It;break;}
                 if(!StartUxrScenarioUiFixture(Slab)){Test->AddError(TEXT("Scenario UI performance input rejected"));return true;}
+                FString Surface;
+                if(FParse::Value(FCommandLine::Get(),TEXT("UxrPerfSurface="),Surface)&&Surface==TEXT("oxide"))
+                {
+                    FString Reason;if(!Slab->ApplySurfacePreset(ESlabSurfacePreset::OxidationScale,false,Reason)){Test->AddError(Reason);return true;}
+                }
             }
             if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW"))==TEXT("transfer"))
             {
@@ -90,7 +98,7 @@ public:
             Started=Now;Last=Now;return false;
         }
         const double Elapsed=Now-Started;
-        if(Elapsed>=10&&Elapsed<40){Frames.Add((Now-Last)*1000);EngineFrames.Add(FApp::GetDeltaTime()*1000);GameThreads.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));}
+        if(Elapsed>=10&&Elapsed<40){Frames.Add((Now-Last)*1000);EngineFrames.Add(FApp::GetDeltaTime()*1000);GameThreads.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));GpuFrames.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));}
         Last=Now;if(Elapsed<40)return false;
         for(const auto& A:Sensors)Test->TestTrue(TEXT("both devices remain measuring"),A.IsValid()&&A->IsSensorRunning()&&A->GetSensorRuntimeStatus().FrameId>0);
         if(Frames.IsEmpty()){Test->AddError(TEXT("No performance samples"));return true;}
@@ -99,6 +107,9 @@ public:
         Json->SetNumberField(TEXT("average_fps"),Frames.Num()*1000.0/Total);Json->SetNumberField(TEXT("frame_p95_ms"),Frames[FMath::Clamp(FMath::CeilToInt(Frames.Num()*.95)-1,0,Frames.Num()-1)]);
         Json->SetNumberField(TEXT("game_thread_mean_ms"),GtTotal/GameThreads.Num());Json->SetNumberField(TEXT("game_thread_p95_ms"),GameThreads[FMath::Clamp(FMath::CeilToInt(GameThreads.Num()*.95)-1,0,GameThreads.Num()-1)]);
         Json->SetNumberField(TEXT("samples"),Frames.Num());Json->SetStringField(TEXT("timing"),TEXT("automation callback wall pacing; engine GGameThreadTime cycles separately"));
+        double GpuTotal=0;for(double V:GpuFrames)GpuTotal+=V;
+        Json->SetNumberField(TEXT("gpu_frame_mean_ms"),GpuTotal/GpuFrames.Num());
+        FString Surface;FParse::Value(FCommandLine::Get(),TEXT("UxrPerfSurface="),Surface);Json->SetStringField(TEXT("surface_preset"),Surface==TEXT("oxide")?TEXT("oxidation-scale"):TEXT("default"));
         Json->SetNumberField(TEXT("engine_frame_p95_ms"),EngineFrames[FMath::Clamp(FMath::CeilToInt(EngineFrames.Num()*.95)-1,0,EngineFrames.Num()-1)]);
         Json->SetStringField(TEXT("engine_frame_timing"),TEXT("FApp::GetDeltaTime; includes engine pacing"));
         Json->SetStringField(TEXT("view"),FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_PERF_VIEW")));

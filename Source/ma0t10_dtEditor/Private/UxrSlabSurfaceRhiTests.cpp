@@ -42,8 +42,8 @@ public:
         if(GShaderCompilingManager&&GShaderCompilingManager->IsCompiling())return false;
         if(!ReadyAt)
         {
-            FString Reason;const auto P=Phase<2?ESlabSurfacePreset::Default:ESlabSurfacePreset::HotRed;
-            if(Phase>0)Test->TestTrue(TEXT("explicit surface transition accepted"),Slab->ApplySurfacePreset(P,Phase==3,Reason));
+            FString Reason;const auto P=Phase<2||Phase==6?ESlabSurfacePreset::Default:Phase<4?ESlabSurfacePreset::HotRed:ESlabSurfacePreset::OxidationScale;
+            if(Phase>0)Test->TestTrue(TEXT("explicit surface transition accepted"),Slab->ApplySurfacePreset(P,Phase==3||Phase==5,Reason));
             auto* Scan=Sensor->ScanComponent.Get();Scan->StopScan();Scan->AcquisitionBackend=Backend==0?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
             ReadyAt=Now+.8;return false;
         }
@@ -55,8 +55,9 @@ public:
             if(!Capture->TextureTarget->GameThread_GetRenderTargetResource()->ReadPixels(Pixels,Flags)){Test->AddError(TEXT("Camera readback failed"));return Finish();}
             SavePixels(Pixels);
             if(Phase==0){Pixels0=Pixels;int32 Lit=0;for(const auto& P:Pixels)Lit+=P.R>5||P.G>5||P.B>5;Test->TestTrue(TEXT("Camera renders a physical surface"),Lit>1000);}
-            else if(Phase==1)Test->TestTrue(TEXT("default/link-off Camera pixels exactly unchanged"),Pixels==Pixels0);
+            else if(Phase==1||Phase==6)Test->TestTrue(TEXT("default/link-off and restored Camera pixels exactly unchanged"),Pixels==Pixels0);
             else if(Phase==2)Test->TestTrue(TEXT("hot appearance is a visible positive control"),Pixels!=Pixels0);
+            else if(Phase==4)Test->TestTrue(TEXT("oxide appearance visibly changes the surface"),Pixels!=Pixels0);
             Captured=true;
         }
         auto* Scan=Sensor->ScanComponent.Get();
@@ -74,7 +75,7 @@ public:
         FVirtualSensorStreamConfig Config;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Config.PcdDataMode=EVirtualPcdDataMode::Binary;FString Ext,Error;int32 Count=0;TArray<uint8> Bytes;
         Test->TestTrue(TEXT("actual points serialize as existing binary PCD"),UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Envelope,Config,Ext,Bytes,Count,Error));
         if(Phase==0){Points0=*Frame->Points;Pcd0=Bytes;}
-        else if(Phase<3)
+        else if(Phase==1||Phase==2||Phase==4||Phase==6)
         {
             bool Equal=Points0.Num()==Frame->Points->Num();if(Equal)for(int32 I=0;I<Points0.Num();++I)Equal&=Points0[I].RawIntensity==(*Frame->Points)[I].RawIntensity&&Points0[I].NormalizedIntensity==(*Frame->Points)[I].NormalizedIntensity;
             Test->TestTrue(TEXT("link-off intensity exactly unchanged"),Equal);Test->TestTrue(TEXT("link-off PCD bytes exactly unchanged with fixed envelope identity"),Bytes==Pcd0);
@@ -86,15 +87,19 @@ public:
             auto* Results=World->GetSubsystem<USlabRunResultsSubsystem>();FSlabRunDeliverySummary Summary;Results->GetRunResult(Run,Summary);
             TSharedPtr<FJsonObject> Json;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Results->SerializeSummary(Summary)),Json);
             auto Latest=Json->GetObjectField(TEXT("surfaceAppearance"))->GetObjectField(TEXT("latest"));
-            Test->TestTrue(TEXT("result records the optical setting that changed intensity"),Latest->GetBoolField(TEXT("lidarLinked"))&&FMath::IsNearlyEqual(Latest->GetNumberField(TEXT("reflectivity940Nm")),.08,1.e-6));
+            Test->TestTrue(TEXT("result records the optical setting that changed intensity"),Latest->GetBoolField(TEXT("lidarLinked"))&&FMath::IsNearlyEqual(Latest->GetNumberField(TEXT("reflectivity940Nm")),Phase==3?.08:.12,1.e-6));
+            Test->TestEqual(TEXT("result records actual linked preset"),Latest->GetStringField(TEXT("preset")),ASlabActor::SurfacePresetId(Phase==3?ESlabSurfacePreset::HotRed:ESlabSurfacePreset::OxidationScale));
             Report->SetObjectField(TEXT("runResult"),Json);
+        }
+        if(Phase==6)
+        {
             if(Backend==1)return Finish();
             Backend=1;Phase=-1;FString Reason;Slab->ApplySurfacePreset(ESlabSurfacePreset::Default,false,Reason);
         }
         ++Phase;ReadyAt=0;Requested=Captured=false;return false;
     }
 private:
-    FString Directory() const{return FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-08/sensor-regression");}
+    FString Directory() const{const FString Root=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));return (Root.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-08"):Root)/TEXT("sensor-regression");}
     bool Create()
     {
         World=FAutomationEditorCommonUtils::CreateNewMap();
