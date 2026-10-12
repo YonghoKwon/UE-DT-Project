@@ -77,7 +77,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ARCH-02 | 구조 / 폴더 재배치 완료 | P0 | **100%** | Slab 11파일 → `Scenario/`, Workspace 2파일 → `UI/` | 완료; allowlist 38→31, 기준선 229개 이름별 결과 동일 | A |
 | ARCH-03 | 구조 / 편집 타입·기본값 분리 완료 | P0 | **100%** | 편집 타입 → L1 Sensor, 기본값 상수 → L0 Contracts | 완료; ControlTypes 의존 9쌍 해소·UHT 계약·저장 회귀 통과 | A |
 | ARCH-04 | 구조 / 호출 역전 완료 | P0 | **100%** | Monitor·배치 입력 interface, Slab UI 약한 존재 registry | 완료; allowlist 22→18, L1/L2→L3 0, 기존 BP/GC 계약 유지 | A |
-| ARCH-05 | 구조 / 송신 검증 분리 | P1 | **0%** | Transport/ExternalSource의 WebSocket/TC include 제거 | 자체 수신 검증 결과 동일 | A |
+| ARCH-05 | 구조 / 송신 검증 분리 완료 | P1 | **100%** | Transport/ExternalSource의 WebSocket/TC include 9쌍 제거 | 완료; 전체 249개 이름별 결과 동일·보호 경로 불변 | A |
 | ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
 | ARCH-07 | 품질 / 검증 진입점 | P1 | **0%** | `verify.ps1` quick/feature/release, opt-in 변수표, Scripts 분류 | manifest 자동 생성, skip 원인 표시 | A (QA-01 일부) |
 | ARCH-08 | 구조 / 정리 | P2 | **0%** | 미사용 PixelStreaming 의존·테스트 hook 노출·초대형 파일 분할 | 이동만으로 이루어진 diff, 빌드·회귀 동일 | A |
@@ -185,11 +185,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-05 — 송신 자체 검증의 TC 의존 분리 (P1)
 
-**진행률: 0%**
+**진행률: 100%** · 2026-10-12 구현·집중/전체 회귀·문서 완료, Claude 독립 검토 대기.
 
 - **근거:** `Core/VirtualSensorHighThroughputTransportSubsystem`·`VirtualSensorPcdReceiveContract`, `Sensor/VirtualSensorExternalSourceHostActor`가 `WebSocket/TC`의 수신 진단 클래스를 include한다.
 - **작업:** 순수 타입(`VirtualSensorStreamReceiverTypes.h`)은 `Contracts/`로 옮기고, Transport의 자체 수신 검증은 중립 interface/registry로 호출한다. TC 쪽(L2)이 구현을 등록한다. ExternalSourceHostActor는 센서 입력 hosting과 진단 receiver hosting을 구분해 진단 부분을 L2 adapter로 옮긴다. 구체 설계는 조사 후 보고하고 진행한다.
 - **완료:** L1의 `WebSocket/` include 0. Raw receipt·자체 수신 검증·StreamReceiver 관련 자동화 결과 기준선과 동일. 진단 결과를 센서/Transport로 재주입하지 않는 기존 규칙 유지.
+- **결과:** 중립 수신 타입은 L0 `Contracts/`로 원문 이동했다. 기존 ExternalSource Actor 클래스·UPROPERTY·BP API를 유지하고 진단 hosting 함수 본문만 L2 adapter 번역 단위로 이동했다. Transport는 module startup에서 등록한 stateless TC codec을 thread-safe shared snapshot으로 호출하며 기존 PCD 파서·결과 타입·worker 실행을 유지한다. 별도 구독 루프·연결·진단 재주입은 추가하지 않았다. allowlist **18→9**, 신규·stale 0, 남은 9쌍은 ARCH-06 대상이다.
+- **검증:** Editor Development·V2 `-RequireAssets`·guard·layer gate·WBP 7개 메모리 컴파일 통과. 집중 **35 Success/skip 3**, D3D12 전체 **229 Success/skip 20/실패 0/NotRun 0**, `82dd293` 직전 기준선 249개 이름별 결과 차이 0. 기준선 실행 SHA `e55fd9a`와 `82dd293`의 Source diff 0을 확인했다. 이동 본문 hash 동일, 보호 파일 476개 불변·개인 SaveGame 9개 복원·자산 저장 0.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A05/summary.json`, `test-comparison.md`, `move-proof.json`, `RESULT.md`, `focused-resume/index.json`, `automation/index.json`, 빌드·WBP·guard·layer 로그. 중단된 전체 로그는 별도 보존하고 재실행했다. Broker/opt-in 20 skip과 RiderLink stderr 제한은 실제 통과로 세지 않는다. ARCH-06·Computer Use·DTCore 변경은 수행하지 않았다.
 
 ### ARCH-06 — Slab context 중립화 (P1)
 
@@ -439,6 +442,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
 | DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |
+| DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
 
 ## 1. 성능·측정·전송

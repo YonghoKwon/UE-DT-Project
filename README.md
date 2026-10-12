@@ -401,17 +401,17 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-12, `e55fd9a` Runtime 기준, ARCH-04 gate 유지)
+### 10.2 현재 위반 (2026-10-12, ARCH-05 완료)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 221개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 보완·UXR-04·UXR-05·UXR-06·UXR-08 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 226개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **9쌍 = allowlist 9개**다. ARCH-05에서 수신 진단 TC 의존 9쌍을 해소했다. 신규·stale 및 L1→L3·L2→L3 include 위반은 0이다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
 | L1→L2 | 9 | `Scenario/VirtualSensorSlabContextSubsystem.h`, `VirtualSlabFrameContext.h`, `SlabRunResultsSubsystem.h`를 Camera 1·Sensor 3·Core 5쌍이 include. `Core/VirtualSensorStreamPublisherComponent.cpp`가 2쌍이며 나머지는 각 1쌍 — 이동 전에는 같은 L1이었다 | ARCH-06 |
-| L1→L2 | 9 | `Core/VirtualSensorHighThroughputTransportSubsystem` 4·`VirtualSensorPcdReceiveContract.cpp` 1·`Sensor/VirtualSensorExternalSourceHostActor` 4개가 `WebSocket/TC` 수신 진단 헤더를 include | ARCH-05 |
-| **합계** | **18** | 모두 L1→L2. L1→L3 0 + L2→L3 0 | ARCH-01의 38개 이하 유지 |
+| L1→L2 | 0 | 수신 타입·codec registry는 L0 `Contracts/`, codec 등록·ExternalSource 진단 hosting 본문은 L2 `WebSocket/TC/` | ARCH-05 완료 |
+| **합계** | **9** | 모두 L1→L2 Scenario 의존. L1→L3 0 + L2→L3 0 | ARCH-01의 38개 이하 유지 |
 
-Coordinator는 L1 `IVirtualSensorMonitorView`, Player는 L1 `IVirtualSensorPlacementInputOwner`로 호출한다. 호환용 `BindMonitorWidget`과 기존 Player의 Gizmo getter/register 시그니처는 그대로이며 본문은 `UI/` 번역 단위에 있다. `BoundMonitorWidget`의 concrete 타입·`UPROPERTY(Transient)`·GC 보유도 유지하므로 UI 타입 forward 선언/Blueprint 핀까지 없앤 것은 아니다. `Slab/SlabUiRegistry`는 약한 Actor 존재 정보와 활성 등록을 분리해 생성·로드·복제·BeginPlay 전 및 EndPlay 후 유효 Actor의 기존 판정을 유지한다. 센서→Scenario 9쌍은 ARCH-06, TC 관련 9쌍은 ARCH-05에서 해소한다. 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
+Coordinator는 L1 `IVirtualSensorMonitorView`, Player는 L1 `IVirtualSensorPlacementInputOwner`로 호출한다. 호환용 `BindMonitorWidget`과 기존 Player의 Gizmo getter/register 시그니처는 그대로이며 본문은 `UI/` 번역 단위에 있다. `BoundMonitorWidget`의 concrete 타입·`UPROPERTY(Transient)`·GC 보유도 유지하므로 UI 타입 forward 선언/Blueprint 핀까지 없앤 것은 아니다. `Slab/SlabUiRegistry`는 약한 Actor 존재 정보와 활성 등록을 분리해 생성·로드·복제·BeginPlay 전 및 EndPlay 후 유효 Actor의 기존 판정을 유지한다. 센서→Scenario 9쌍은 ARCH-06에서 해소한다. Transport는 module startup에서 L2가 등록한 stateless codec의 thread-safe snapshot으로 기존 파서를 worker에서 호출한다. ExternalSource Actor 클래스·BP 계약은 유지하고 진단 hosting 본문만 L2로 이동했다. 미사용 Public `PixelStreaming*` 의존 3개는 include gate 외 ARCH-08 항목이다.
 
 실행: `Scripts/validate_architecture_layers.ps1` (`-Json`은 상세 결과). 신규 위반과 stale allowlist 모두 exit 1이며, 경로별 원본은 `Scripts/architecture_layers_allowlist.txt`다. `-SourceRoot`·`-AllowlistPath`는 `Saved` 안의 음성 대조 fixture용이며 일반 gate에서는 생략한다.
 
