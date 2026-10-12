@@ -179,6 +179,9 @@ public:
         auto* InnerCanvas=Workspace->GetOwnedPanel(ESensorToolPanelRole::Monitor)->GetParent();
         auto* RootWidget=InnerCanvas?InnerCanvas->GetTypedOuter<UUserWidget>():nullptr;
         Test->TestTrue(TEXT("workspace rehosts to actual DTCore Main AddWidgetPanel"),RootWidget&&RootWidget->GetParent()==Widgets->GetAddWidgetPanel());
+        // The earlier phases exercise docked input. This existing minimum-width
+        // assertion belongs to the preserved floating resize contract, not a dock rectangle.
+        const bool WasSidebar=Workspace->IsSidebarMode();Workspace->SetSidebarMode(false);
         const float OldScale=Workspace->GetOwnedPanelFontScale();Workspace->SetOwnedPanelFontScale(1.5f);
         if(auto* Settings=Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings))
         {
@@ -189,6 +192,7 @@ public:
         TArray<UWidget*> Children;FixtureMain->WidgetTree->GetAllWidgets(Children);
         for(auto* Child:Children)if(auto* Text=Cast<UTextBlock>(Child))Test->TestEqual(TEXT("foreign Main control font stays unchanged"),Text->GetFont().Size,23.0f);
         Workspace->SetOwnedPanelFontScale(OldScale);
+        Workspace->SetSidebarMode(WasSidebar);
         return true;
     }
 };

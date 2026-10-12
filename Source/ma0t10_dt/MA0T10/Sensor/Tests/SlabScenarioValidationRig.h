@@ -26,6 +26,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     void SaveResourceEvidence(const FString& Phase, int32 Repetition, int64 AuditEntries=0, int64 AuditBytes=0) const;
     void BeginAcceptanceObservation();
+    void SetValidationControlsVisibleForTests(bool bVisible);
 #endif
 private:
     bool bInitialized=false;

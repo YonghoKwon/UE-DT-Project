@@ -30,6 +30,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "GameFramework/GameModeBase.h"
 #include "UxrScenarioUiFixture.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 
 /** Identical test-only instrument on both production revisions. No transmission or local frame saving. */
 class FUxrPlacementPerformance : public IAutomationLatentCommand
@@ -231,7 +232,8 @@ bool FUxrPlacementRenderTest::RunTest(const FString&)
 
 class FUxrPlacementManualWait : public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Next=0;bool Ready=false;
+    FString ManualRoot() const {const FString R=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));return (R.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02"):R)/TEXT("manual");}
+    FAutomationTestBase* Test;double Created=FPlatformTime::Seconds(),Next=0;bool Ready=false,FontProbed=false;
     TUniquePtr<TGuardValue<bool>> DebugGuard;
     TWeakObjectPtr<AWorldSettings> EditorSettings;
     TSubclassOf<AGameModeBase> OriginalMode;
@@ -250,17 +252,23 @@ public:
         {
             if(EditorSettings.IsValid()){EditorSettings->DefaultGameMode=OriginalMode;EditorSettings.Reset();}
             auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-            if(!Ready){DebugGuard=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);const FString Root=FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02/manual/fixtures");World->GetSubsystem<UVirtualSensorPlacementSubsystem>()->SetAutomationStorageRoot(Root/TEXT("poses"));World->GetSubsystem<UVirtualSensorLayoutSubsystem>()->StorageRootOverrideForTests=Root/TEXT("layouts");W->ResetOwnedWorkspaceLayout();W->SetOwnedPanelFontScale(1);Ready=true;Test->AddInfo(FString::Printf(TEXT("Manual PIE actual client %dx%d; actions must be performed through Computer Use; isolated pose/layout files"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y));}
+            if(!Ready){DebugGuard=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);const FString Root=ManualRoot()/TEXT("fixtures");World->GetSubsystem<UVirtualSensorPlacementSubsystem>()->SetAutomationStorageRoot(Root/TEXT("poses"));World->GetSubsystem<UVirtualSensorLayoutSubsystem>()->StorageRootOverrideForTests=Root/TEXT("layouts");W->ResetOwnedWorkspaceLayout();W->SetOwnedPanelFontScale(1);Ready=true;Test->AddInfo(FString::Printf(TEXT("Manual PIE actual client %dx%d; actions must be performed through Computer Use; isolated pose/layout files"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y));}
             if(FPlatformTime::Seconds()>=Next)
             {
                 Next=FPlatformTime::Seconds()+.5;auto Json=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Rows;
+                if(!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT")).IsEmpty())for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
                 if(auto* PC=World->GetFirstPlayerController()){Json->SetStringField(TEXT("controller"),PC->GetClass()->GetPathName());Json->SetStringField(TEXT("pawn"),GetNameSafe(PC->GetPawn()));if(auto* Dx=Cast<ADxPlayerControllerBase>(PC))Json->SetStringField(TEXT("click_policy"),Dx->ClickActivationPolicy==EDxClickActivationPolicy::SingleRelease?TEXT("SingleRelease"):TEXT("DoublePress"));}
                 if(auto* C=W->GetCoordinator())for(auto* A:C->GetSensorActors())if(A){auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("id"),A->GetSensorId());Row->SetStringField(TEXT("pose"),A->GetActorTransform().ToString());Row->SetBoolField(TEXT("selected"),C->GetSelectedSensorActor()==A);Row->SetBoolField(TEXT("measuring"),A->IsSensorRunning());Row->SetBoolField(TEXT("manipulating"),A->IsInteractiveManipulationActive());Rows.Add(MakeShared<FJsonValueObject>(Row));}
                 Json->SetArrayField(TEXT("devices"),Rows);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))Json->SetStringField(TEXT("placement_message"),P->GetPlacementStatusText());
-                FString Output;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Output));FFileHelper::SaveStringToFile(Output,*(FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02/manual/current-state.json")));
+                if(!FontProbed&&FPlatformTime::Seconds()-Created>5)if(auto* P=W->GetOwnedPanel(ESensorToolPanelRole::Placement))if(auto Root=P->GetCachedWidget())
+                {
+                    FontProbed=true;auto Probe=MakeShared<FJsonObject>();Probe->SetNumberField(TEXT("pixelScale"),W->GetOwnedPixelScale());Probe->SetNumberField(TEXT("storedScale"),P->GetSensorToolFontScale());Probe->SetNumberField(TEXT("visualScale"),P->GetSensorToolVisualScale());Probe->SetBoolField(TEXT("nativeOwned"),P->SupportsOwnedDocking());TArray<TSharedPtr<FJsonValue>> Fonts;
+                    TFunction<void(const TSharedRef<SWidget>&)> Visit=[&](const TSharedRef<SWidget>& Item){if(Item->GetType()==TEXT("STextBlock")&&Fonts.Num()<12){auto T=StaticCastSharedRef<STextBlock>(Item);auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("text"),T->GetText().ToString());Row->SetNumberField(TEXT("points"),T->GetFont().Size);Fonts.Add(MakeShared<FJsonValueObject>(Row));}auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Visit(Children->GetChildAt(I));};Visit(Root.ToSharedRef());Probe->SetArrayField(TEXT("fonts"),Fonts);FString Out;FJsonSerializer::Serialize(Probe,TJsonWriterFactory<>::Create(&Out));FFileHelper::SaveStringToFile(Out,*(ManualRoot()/TEXT("font-probe.json")));
+                }
+                FString Output;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Output));FFileHelper::SaveStringToFile(Output,*(ManualRoot()/TEXT("current-state.json")));
             }
         }
-        if(IFileManager::Get().FileExists(*(FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-02/manual/finish.flag"))))return true;
+        if(IFileManager::Get().FileExists(*(ManualRoot()/TEXT("finish.flag"))))return true;
         if(FPlatformTime::Seconds()-Created>1200){Test->AddError(TEXT("Manual verification expired"));return true;}return false;
     }
 };
