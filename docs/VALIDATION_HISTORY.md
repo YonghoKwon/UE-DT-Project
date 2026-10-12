@@ -6,6 +6,21 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-12 UXR-02 CLI 마무리와 UXR-03
+
+- 시작: `codex/architecture-skeleton`, HEAD `e9bb72f`, DTCore `b2504d1`. `C:\Unreal Projects\ma0t10_dt`에서만 작업했다. 모니터 부재/WinDisc 1612×816 환경이며 요청에 따라 Computer Use는 수행하지 않았다.
+- UXR-02: 기존 상태 칩 변경과 신규 `MA0T10.UXR02.PlacementMarkerIsolationRhi`를 재빌드하고 D3D12 UXR 7개 Success/실패·skip 0을 확인했다. 코드 `bd857a3`, 문서 `75a9f41`. 최종 삭제는 보류(환경: 모니터 없음) — 확인/취소 직접 검수 + 실제 삭제 자동화 검증 완료, 사용자 복귀 후 재검수.
+- 통합 중 마커 Camera 픽셀 비교가 실패했다. 셰이더 완료·초기 픽셀 안정 대기를 추가한 `e5e9041` 이후 픽셀 완전 일치가 통과했다. 비교 허용치를 완화하지 않았으며 실제 PCD/CPU/GPU/semantic/ISM/Niagara와 가시/충돌 음성 대조를 유지했다. 이 보완은 테스트 fixture만 변경한다.
+- UXR-03 코드 `2c453d2`: 소유 데이터 5탭·출력 편집 단일화·재생 요약·사전 점검/해결 링크·결과/진단 분리 구현(수정 15/추가 2, 이동 0). 검증 시작 HEAD `e5e9041`+작업 소스 17개의 hash가 커밋 소스와 일치함을 확인했다. 모든 실행이 커밋 이후 시작됐다고 주장하지 않는다. 기존 Workspace/UDxWidget/DTCore 전면·입력 차단 경로를 유지한다. 같은 옵션을 새 Subsystem/SaveGame에 복제하지 않고 기존 Slab Actor·재생 패널 상태로 위임한다. 사전 점검의 판단과 상세 형식을 공유하며 접힌 UI는 상세 요약을 만들지 않는다. 명시적 Blueprint 상세 조회는 유지한다. 파일 완료는 표시 polling의 5Hz 제한을 우회하지 않는다.
+- Editor Development·layer gate 18/18(신규·stale 0)·DTCore guard·V2 `-RequireAssets`·WBP 7개 메모리 컴파일 통과. 최초 V2 실행은 CLI PATH에 `rg`가 없어 실패했고 설치된 VS Code ripgrep 경로를 프로세스 PATH에 추가한 후 통과했다. 검증 스크립트/시스템 PATH는 변경하지 않았다.
+- 집중 자동화 16 Success/실패·skip 0. D3D12 전체 `MA0T10`은 **221 실제 실행 Success / 20 조건부 skip / 실패 0**. 기준선 `Saved/Reports/UXR/UXR-02/automation/index.json`의 238개 이름별 상태가 유지됐다. 추가는 `UXR02.PlacementMarkerIsolationRhi`, `UXR03.SingleOutputEditorAndDefaults`, `UXR03.PreflightDetailBudget` 3개다. skip 목록은 같은 조건부 opt-in 환경을 사용했다.
+- 기존 기대값/검사 갱신: `SensorOwnedUiLayoutTests`(파일 탭 표시 index 1→2, legacy enum ordinal 불변), `SensorWorkflowToolbarTests`(진단 독립 탭), `SensorPlacementComparisonTests`(기본 결과 A/B·금지 용어 검사 추가), `SlabRunHistoryTests`(새 결과 필드에서 UUID/출력 검사, 진단에 snapshot/receipt 유지 검사 추가). 최초 전체 실행의 이력 테스트 1건 실패는 옛 필드 위치 기대였으며 실제 저장 실패/재시도·중복 거절·파일 생성 검증은 그대로 유지했다.
+- 자동 렌더: 5탭×2해상도×2글자 배율의 20장. 실제 client 1280×720/1920×1080, window DPI 1.0, 글자 100/150%. Slate 창 테두리를 포함한 PNG는 1286×726/1926×1086이다. 본문은 스크롤이며 마우스로 하단 버튼 접근/resize를 확인한 것은 아니다. 최초 전송 진입의 재생 열 활성화는 실제 PIE fixture에서 검사했다. 기본 결과 렌더는 빈 목록이고 A/B·저장 재시도는 별도 자동화 fixture에서 검증했다.
+- 성능: 실제 D3D12/1920×1080 client, 검증맵 `SlabScenarioValidationMap`, 1 Camera(D455)+1 LiDAR(MLX80/GPU), FullSpec, 미리보기/배치 기본 UI, 전송·파일 저장 없음, 10초 준비+30초 표본. 기존 계측기 `UXR02.Performance`의 전후 JSON은 `Saved/Reports/UXR/UXR-03/performance/`에 보관한다. `average_fps`/`frame_p95_ms`는 자동화 callback wall pacing이고 game thread는 `GGameThreadTime` cycles다. engine frame p95나 열린 데이터 탭의 전후 수치로 해석하지 않는다.
+- 공통 UI 성능 전후: FPS **60.001→60.001**, callback p95 **21.163→20.967ms(-0.926%)**, engine game thread 평균 **6.091→5.634ms(-7.504%)**, 각 1800 표본. 2% 범위 안이며 절대 p95 20ms 목표 통과를 뜻하지 않는다. 열린 데이터 탭의 전후 비교와 물리 화면 수용은 계속 보류다.
+- 보류: UXR-03 직접 조작 전체와 데이터 탭을 열어 둔 동일 조건 전후 성능, 물리 화면/DPI 수용. 가상 화면 자동 렌더/공통 성능 측정을 직접 검수로 세지 않았다. 체크리스트는 `Saved/Reports/UXR/UXR-03/manual/CHECKLIST.md`에 있다. UXR-02는 최종 삭제 클릭 1건만 보류다.
+- 원본: `Saved/Reports/UXR/UXR-02/cli-closure/`, `Saved/Reports/UXR/UXR-03/RESULT.md`, `validation-manifest.json`, `test-comparison.json`, `skipped-tests.json`, 빌드/자동화/렌더 로그. 보호 파일 **474/474 hash 불변**, 개인 SaveGame/UI 슬롯 **9/9 복원**, 추가 SaveGame 0, Editor/PIE 정상 종료를 확인했다. Broker 재설정·서비스 재시작·DTCore 변경·운영맵/자산 저장·push/PR/merge는 수행하지 않았다.
+
 ## README에서 옮긴 이력
 
 ### 2026-10-10 단일 폴더·배치 UI 검수 (README 원문)
