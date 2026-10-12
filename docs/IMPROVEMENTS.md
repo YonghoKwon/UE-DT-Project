@@ -89,7 +89,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-06 | UI/UX / 미리보기 | P1 | **90%** | 상태1줄·실제 경고색·중지/장비 없음 안내·닫힌 진단 중단, 집중29/최종8+1 Success·20장·성능2%gate | 전체229 Success/skip20/실패0, c428ab6 이름별 유지+신규2; 직접 조작·독립 검토 보류 | U |
 | UXR-07 | UI/UX / 문구·수용 | P0 | **50%** | 자동 준비 완료: 문구 검사·정리·렌더·통합 런북. 수동·첫 사용자 확인 대기 | 사용자 확인 | U |
 | UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·MID 5종(승인된 산화 전용 재질)·명시적 광학 연동·optional 결과 | 직접 조작/독립 검토 보류; 산화 전환/복원·CPU/GPU/PCD 회귀 통과, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
-| UXR-09 | UI/UX / 시각 리프레시 | P0 | **0%** | A안 작업 사이드바·디자인 토큰·하단 상태바·산화 스케일 외형 개선 | 시안과 같은 구조, 한 번에 작업 1개, 회귀·성능·마우스 점검 | U |
+| UXR-09 | UI/UX / 시각 리프레시 | P0 | **70%** | A안 사이드바·토큰·카드·자유 배치 호환·산화 외형 구현, 회귀/렌더/주요 마우스 통과 | **성능 2% gate 실패**: 동일 조건 p95·game-thread 증가 원인 추적 및 독립 시각 검토 | U |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **0%** | 센서 도구 Rig 하나로 설치·Slab 없는 맵 안내·맵 점검 화면·맵 하드코딩 제거 | 새 테스트맵·Slab 없는 맵 전체 흐름 통과 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
@@ -440,7 +440,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### UXR-09 — 시각 디자인 리프레시: A안 작업 사이드바 (P0, 2026-10-12 사용자 선택)
 
-**진행률: 0%** · 시안: https://claude.ai/artifact/SHhmPcxxrBuSCLkE4xoZ3s (Main.dc.html = A안)
+**진행률: 70%** · 구현·기능 검증 완료, **성능 수용 미달로 전체 완료 아님**(2026-10-12). 시안: https://claude.ai/artifact/SHhmPcxxrBuSCLkE4xoZ3s (Main.dc.html = A안)
 
 - **배경:** UXR-01~08로 기능 위치·문구는 정리됐지만 사용자는 "아직 세련되지 않고 복잡하다"고 판단했다. 여러 떠 있는 창이 겹치고, 텍스트 버튼·테두리 상자가 많고, 위계가 약하다.
 - **레이아웃(A안):** 왼쪽 고정 사이드바(약 372px) = 아이콘 레일(배치·미리보기·시나리오·PCD·결과, 아래 도구) + 선택한 작업 **하나만** 보이는 본문. 3D 화면은 넓게 둔다. 미리보기는 오른쪽 아래 작은 카드(×로 닫기, ⋯ 보기 설정), Slab 요약은 오른쪽 위 카드(진행률 막대 + 기울기·중심 이탈·여유 3줄), 전역 상태는 **하단 한 줄 상태바**(경고만 노란 칩). 기존 상단 흐름 바·상태 줄은 이 구조로 대체한다.
@@ -450,6 +450,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **글꼴:** 이번에는 기존 글꼴 유지(새 폰트 자산 없음). Noto Sans KR 적용은 별도 승인 시.
 - **산화 스케일 외형 개선(UXR-08 후속):** 현재 `M_SlabSurfaceOxideScale`은 밝은 회색 바탕에 흰 윤곽 얼룩이라 물결/반사처럼 보인다(`Saved/Reports/UXR/UXR-08/oxide/`). 짙은 회흑~청흑색 바탕, 불규칙하게 벗겨진 밝은 강판 패치, 윤곽 하이라이트 없음, 거친 비금속으로 다듬는다. 기본·냉각 강판·분석용 무광도 서로 구분되게 조정한다. 기존 자산 수정은 이 머티리얼에 한해 승인된 범위다.
 - **완료:** 1280×720·1920×1080 × 100/125/150% 렌더가 시안과 같은 구조, 한 번에 작업 패널 1개만 열림, 금지 용어 검사·전체 회귀·WBP·성능 2% gate 통과, Codex 마우스 점검.
+
+**현재 구현/검증:** 기존 7개 패널 인스턴스를 재사용하는 고정 작업 영역·레일, 우하단 미리보기·우상단 Slab 요약·하단 상태바를 구현했다. 사용자 Designer/레거시 툴바·role 순서·Blueprint 시그니처·저장 schema는 유지한다. 자유 배치의 위치/크기/접힘/열림 상태는 dock 사각형으로 덮어쓰지 않으며, 표시 모드·사이드바 활성 작업은 현재 PIE의 임시 상태다. 새 PIE는 기존 저장 상태를 존중하는 사이드바로 시작한다. 레거시 native 글꼴의 즉시 적용과 명시 저장된 닫힘 우선순위 회귀도 수정했다. 픽셀 배율은 소유 UI에서만 5Hz로 계산하며 엔진 DPI/글꼴 자산은 바꾸지 않았다.
+
+Editor·Game Development, layer **0→0**, DTCore guard, V2 assets, WBP 7개 메모리 컴파일, 금지 용어 검사 통과. 최종 Source와 통과한 release manifest의 파일 hash가 일치한다. 전체 D3D12의 고유 이름 기준 **238 Success / 20 기존 조건부 skip / 실패·NotRun 0**이며, 이전 전체 기준선 `7a99a45`의 이름별 결과를 보존하고 추가 항목을 별도 기록한다(변경 전 성능 기준선은 `20848ea`). 1280/1920 × 100/125/150% × 작업/도구/접힘/자유 배치 8종의 렌더 48장을 남겼다. 마우스로 추가→선택→10cm 이동·5° 회전→첫 Esc→위치 저장, 카드 닫기/재표시, 레일/보관 목록/결과 전환, 자유 배치 복귀, 연결 경고 이동·125/150%를 확인했다. 38개 체크 기록에는 초기 fixture 오버레이 차단과 글꼴 문제 재현도 포함하며 최종 확인과 구분한다. 테스트맵의 하단 검증 오버레이만 fixture에서 숨겼다. `Saved/Reports/UXR/UXR-09/`의 보고서·이름별 비교·manual·`design-comparison.png` 참조.
+
+**남은 핵심 조건 — 성능:** 동일 1920×1080·1 Camera+1 LiDAR 측정·10초+30초에서 FPS **59.987→59.996**, callback frame p95 **21.056→21.498ms(+2.099%)**, game-thread 평균 **5.594→6.398ms(+14.388%)**로 **2% gate 실패**다. engine frame p95는 16.667ms로 같지만 이를 callback p95나 UI 비용 통과로 대체하지 않는다. 개인 저장값 복원 후 재측정과 5Hz 픽셀 배율 캐시 보완으로도 기준선을 만족하지 못했다. 효과가 확인되지 않은 fullscreen chrome Tick 변경은 최종 Source에서 제외했다. 원인을 UI/렌더 대기/환경 부하 중 하나로 단정하지 않으며 다음 검수에서 재현 가능한 기준선·Insights 추적이 필요하다. 센서 규격·주기·출력·측정 검증을 낮추거나 DTCore를 수정하지 않았다. 이 항목은 전체 완료나 성능 개선 완료로 집계하지 않는다.
+
+**산화 스케일 후속:** 승인된 `M_SlabSurfaceOxideScale` 한 자산과 재현 스크립트만 갱신했다. 청흑색 base, 밝은 벗겨진 강판 패치, 거친 저금속 표면으로 조정했으며 별도 윤곽/normal/WPO 효과는 없다. 냉각 강판·분석용 무광의 파라미터는 구분하되 기본과 기존 MID override 복원은 유지한다. 기본 Camera/intensity/PCD·명시 광학 연동 회귀와 5종 비교/근접/base-color 캡처 통과, shader 비용은 기존 산화 버전과 동일한 pixel 379 / vertex 131 / samples 3 / 외부 텍스처 0이다. 실제 맵의 노출/조명에 따른 최종 외형의 독립 시각 검토는 남으며 조명·전역 노출은 바꾸지 않았다.
 
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
@@ -502,6 +510,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
 | DTC-ARCH06 | 센서 acquisition snapshot용 host provider 계약이 확인되지 않음 | L0 값 context·weak 월드 registry에 L2 SlabContext를 등록; 기존 세션/결과 집계를 adapter로 호출 | 다른 소비 프로젝트에도 필요할 때 중립 값/provider 공용화를 검토; Slab 정책은 host에 유지 | DTCore `b2504d1`의 `AcquisitionContext/FrameContext/SensorContext` 검색 0건; `Contracts/VirtualSensorAcquisitionContext.*`, `Scenario/VirtualSensorSlabAcquisitionProvider.cpp`; DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
+| DTC-UXR09 | `DxWidgetThemeData`는 색상 토큰을 제공하지만 native Slate의 간격·모서리·글자 역할·버튼 단계·dock 표시 계약은 없음 | 기존 `UDxWidget` 패널과 Workspace의 Main/Viewport·입력 차단·전면 표시 경로를 유지하고 명시 소유 native UI의 시각 토큰·표시 사각형만 프로젝트 adapter로 적용 | 공통 필요가 확인되면 색상 외 타이포그래피/간격 토큰과 기존 인스턴스 dock 표시 확장점을 검토. 프로젝트 레일·업무 화면 구성은 host에 유지 | `UI/DxWidgetThemeData.h`, `UI/SensorOwnedPresentationStyle.h`, `VirtualSensorToolWorkspaceSubsystem.Docking.cpp`; DTCore·공용 테마 자산 불변 |
 
 ## 1. 성능·측정·전송
 
