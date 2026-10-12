@@ -17,6 +17,8 @@ class MA0T10_DT_API UVirtualLidarSurfaceResponseComponent : public UActorCompone
 
 public:
 	UVirtualLidarSurfaceResponseComponent();
+	/** Native opt-in for the existing GPU semantic proxy snapshot; false preserves prior GPU output. */
+	bool bUseGpuReflectivityOverride=false;
 
 	/** Diffuse reflectivity at the ML-X wavelength. 0.2 means 20 percent. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Optical", meta = (ClampMin = "0.001", ClampMax = "1.0"))

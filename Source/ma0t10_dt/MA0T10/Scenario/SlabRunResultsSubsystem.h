@@ -38,6 +38,7 @@ public:
     void GatherUnconfirmedKeys(const FString& Run,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const;
     void RecordTerminalSnapshot(const FString& Run,const FSlabRunTerminalSnapshot& Snapshot);
     void UpdateProgress(const FString& Run,const FString& Mtl,int64 Frame,double Elapsed);
+    void RecordSurfaceAppearance(const FString& Run,const FSlabSurfaceAppearanceRecord& Appearance);
     void RecordOutputFailure(const FString& Run,const FString& Sensor,int32 Kind,int64 Frame,const FString& Reason);
     void ObserveTransport(const FVirtualSensorTransportObservation& Event);
     void Finalize(const FVirtualSlabSessionStatus& Session,bool PreparationFailed=false);
@@ -81,6 +82,9 @@ private:
     friend class FSlabRunPlacementSnapshotTest;
     friend class FSlabRunComparisonUiTest;
     friend class FSlabPerSensorDeliveryTest;
+    friend class FSlabSurfacePresetTest;
+    friend class FSlabSurfaceRhiTest;
+    friend class FSlabSurfaceRhiCommand;
     FString ReportDirectoryOverrideForTests;
 #endif
 };

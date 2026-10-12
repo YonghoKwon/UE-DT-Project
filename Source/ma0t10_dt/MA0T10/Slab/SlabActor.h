@@ -15,6 +15,8 @@ class UStaticMeshComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class ASlabTrackReferenceActor;
+class UVirtualLidarSurfaceResponseComponent;
+enum class ESlabSurfacePreset : uint8 { Default, HotRed, OxidationScale, CooledSteel, AnalysisMatte };
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSlabStateChanged);
 
 UENUM(BlueprintType)
@@ -38,6 +40,12 @@ class MA0T10_DT_API ASlabActor : public AFacilityBase,public ISlabScenarioPlayba
 	GENERATED_BODY()
 public:
 	ASlabActor();
+	virtual void Click() override;
+	bool CanApplySurfacePreset(ESlabSurfacePreset Preset,FString& Reason) const;
+	bool ApplySurfacePreset(ESlabSurfacePreset Preset,bool bLinkLidar,FString& Reason);
+	ESlabSurfacePreset GetSurfacePreset() const { return SurfacePreset; }
+	bool IsSurfaceLidarLinked() const { return bSurfaceLidarLinked; }
+	static FString SurfacePresetId(ESlabSurfacePreset Preset);
 	virtual void Tick(float DeltaTime) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual bool StartScenarioPlayback_Implementation(const FString& Json,const FString& ScenarioUUID,const FString& RunUUID) override;
@@ -71,6 +79,7 @@ public:
 	UFUNCTION(BlueprintCallable,Category="Slab|Outputs") bool SetExecutionOptions(FSlabExecutionOptions Options);
 	FSlabScenarioDataPtr GetScenario() const { return Scenario; }
 	FSlabMetrics CalculateMetricsForRow(const FSlabScenarioRow& Row) const;
+	FVector GetTrackLocalPositionCm() const;
 	uint32 GetMetricsConfigurationHash() const;
 	bool ReceiveScenario(FSlabScenarioDataPtr Data);
 	void AdvanceSimulation(double DeltaSeconds);
@@ -114,6 +123,19 @@ private:
 	bool bParsing=false;
 	bool bEnding=false;
 	bool bRegistered=false;
+	ESlabSurfacePreset SurfacePreset=ESlabSurfacePreset::Default;
+	bool bSurfaceLidarLinked=false,bSurfaceBaselineCaptured=false;
+	bool BaselineHot=false;
+	float BaselineOxidation=0,BaselineRoughness=0,BaselineEmissive=0;
+	TWeakObjectPtr<UVirtualLidarSurfaceResponseComponent> BaselineSurfaceResponse;
+	float BaselineReflectivity=0;
+	bool BaselineGpuOpticalOverride=false;
+	UPROPERTY(Transient) TObjectPtr<UVirtualLidarSurfaceResponseComponent> OwnedPresetSurfaceResponse;
+	void RecordSurfaceUsage(const FString& Run);
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+	friend class FSlabInformationCardTest;
+	friend class FSlabSurfaceRhiCommand;
+#endif
 	bool StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,bool bReplay);
 	void FinishSimulation(bool bAborted,const FString& Error=FString());
 	void UpdateAppearance();

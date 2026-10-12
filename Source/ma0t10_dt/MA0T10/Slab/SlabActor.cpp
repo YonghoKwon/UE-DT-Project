@@ -145,6 +145,7 @@ bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 		if(!Catalog->SetLiveScenarioPlaybackActive(true,Data->ScenarioUUID))return false;
 		auto* MutableSession=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 		auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();Results->BeginRun(Run,Data->ScenarioUUID,ExecutionOptions.Policy,SensorOutputs);
+		RecordSurfaceUsage(Run);
 		if(!MutableSession->PrepareScenarioTransmission(Run,TargetSensorIds,Data->ScenarioUUID,SensorOutputs,ExecutionOptions,Error))
 		{FVirtualSlabSessionStatus Failed;Failed.RunId=Run;Failed.RequiredDataError=Error;Failed.State=EVirtualSlabSessionState::Incomplete;Results->Finalize(Failed,true);Catalog->SetLiveScenarioPlaybackActive(false,FString());ReportFailure(Error);RecordAdmission(ESlabScenarioAdmission::Rejected,Data->ScenarioUUID,Error);return false;}
 		PendingScenario=Data;Status=FSlabSimulationStatus();Status.State=ESlabSimulationState::Preparing;Status.FrameNo=INDEX_NONE;Status.RowIndex=INDEX_NONE;
@@ -173,6 +174,7 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 	auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
 	if(!Session||!Replay) {ReportFailure(TEXT("Slab 실행 Subsystem이 준비되지 않았습니다."));return false;}
 	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->BeginRun(RunUUID,Data->ScenarioUUID,bReplay?Session->GetSlabSensorSessionStatus().ExecutionPolicy:ExecutionOptions.Policy,bReplay?Session->GetSlabSensorSessionStatus().Outputs:SensorOutputs);
+	RecordSurfaceUsage(RunUUID);
 	const auto& First=Data->Rows[0];
 	const FVector Size(FSlabScenarioCodec::ToCm(First.Length,DimensionUnit),FSlabScenarioCodec::ToCm(First.Width,DimensionUnit),FSlabScenarioCodec::ToCm(First.Thickness,DimensionUnit));
 	if(Size.ContainsNaN()||Size.GetMin()<=0||Size.GetMax()>1000000) { ReportFailure(TEXT("변환된 Slab 치수는 0보다 크고 10km 이하여야 합니다.")); return false; }
@@ -224,6 +226,11 @@ FSlabMetrics ASlabActor::CalculateMetricsForRow(const FSlabScenarioRow& Row) con
 		TrackReference?TrackReference->RightRailYcm:0,TrackReference&&TrackReference->HasValidRails());
 }
 FSlabMetrics ASlabActor::GetCurrentMetrics() const { return MetricsComponent->GetMetrics(); }
+FVector ASlabActor::GetTrackLocalPositionCm() const
+{
+	const auto Track=IsSimulationActive()&&MotionComponent->IsPlaybackRunning()?MotionComponent->GetPlaybackTrack():GetTrackTransform();
+	return Track.InverseTransformPositionNoScale(GetActorLocation());
+}
 uint32 ASlabActor::GetMetricsConfigurationHash() const
 {
 	uint32 Hash=HashCombine(GetTypeHash(static_cast<uint8>(DimensionUnit)),GetTypeHash(static_cast<uint8>(PositionUnit)));
@@ -308,6 +315,7 @@ void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 {
 	if(!IsSimulationActive()) return;
 	PendingScenario.Reset();SetActorTickEnabled(false);
+	RecordSurfaceUsage(Status.RunUUID);
 	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->UpdateProgress(Status.RunUUID,Status.MtlNo,Status.FrameNo,Status.ElapsedSec);
 	MotionComponent->StopPlayback();
 	if(auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
@@ -331,7 +339,7 @@ bool ASlabActor::SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs)
 { SensorOutputs=Outputs; OnSlabStateChanged.Broadcast(); return true; }
 bool ASlabActor::SetExecutionOptions(FSlabExecutionOptions Options)
 {if(!FMath::IsFinite(Options.PreparationTimeoutSeconds)||Options.PreparationTimeoutSeconds<1||Options.PreparationTimeoutSeconds>120||IsSimulationActive())return false;ExecutionOptions=Options;OnSlabStateChanged.Broadcast();return true;}
-void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance(); OnSlabStateChanged.Broadcast(); }
+void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance();RecordSurfaceUsage(Status.RunUUID); OnSlabStateChanged.Broadcast(); }
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
 bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }
 void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)

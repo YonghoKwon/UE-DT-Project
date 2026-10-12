@@ -26,6 +26,8 @@ struct FVirtualLidarGpuSemanticIdentity
 	FName ActorName;
 	FName ActorClass;
 	TArray<FName> ActorTags;
+	bool bHasOpticalOverride=false;
+	float Reflectivity940Nm=.2f,IntensityGain=1;
 };
 struct MA0T10_DT_API FVirtualLidarDepthAcquisitionFrame
 {

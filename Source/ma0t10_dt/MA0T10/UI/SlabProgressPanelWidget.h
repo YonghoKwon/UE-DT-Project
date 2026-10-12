@@ -6,6 +6,7 @@ class ASlabActor;
 struct FSlabSimulationStatus;
 struct FVirtualSlabSessionStatus;
 class SExpandableArea;
+class SScrollBox;
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API USlabProgressPanelWidget : public UVirtualSensorPanelWidgetBase
@@ -27,13 +28,19 @@ private:
 	FString Summary, Detail, SensorStatus, SetupStatus;
 	bool bOwnedDetailsExpanded=false;
 	TSharedPtr<SExpandableArea> OwnedDisplayArea;
+	TSharedPtr<SScrollBox> OwnedScenarioScroll;
 	void RefreshOwnedStatus();
 	bool bOwnedCanPause=false,bOwnedCanStop=false,bOwnedCanReset=false;
 	FText OwnedPauseLabel,OwnedResetTooltip,OwnedSummaryLabel,OwnedStatusLabel,OwnedDetailLabel;
+	FString CachedInformationText,SurfaceActionMessage;
+	FText OwnedInformationLabel;
+	TArray<FString> SurfacePresetReasons;
+	void RefreshSurfaceSupport();
 	static FText ResolveOwnedMovementState(const FSlabSimulationStatus& Simulation,const FVirtualSlabSessionStatus& Session);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabProgressOutcomeTest;
 	friend class FSlabScenarioScreenTest;
 	friend class FUxrScenarioRender;
+	friend class FSlabInformationCardTest;
 #endif
 };

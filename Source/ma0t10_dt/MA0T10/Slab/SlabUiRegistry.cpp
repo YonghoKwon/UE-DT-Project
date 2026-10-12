@@ -10,6 +10,7 @@ struct FHostBinding
     TWeakObjectPtr<AActor> Owner;
     TFunction<ASlabActor*()> ResolveTarget;
     bool bActive=false;
+    TFunction<bool(ASlabActor*)> Activate;
 };
 TArray<FHostBinding> Hosts;
 void PruneHosts()
@@ -46,6 +47,17 @@ void SlabUiRegistry::UnregisterHost(AActor* Owner)
     check(IsInGameThread());
     PruneHosts();
     for (FHostBinding& Binding : Hosts) if (Binding.Owner.Get()==Owner) Binding.bActive=false;
+}
+void SlabUiRegistry::RegisterActivation(AActor* Owner,TFunction<bool(ASlabActor*)> Callback)
+{check(IsInGameThread());PruneHosts();for(auto& B:Hosts)if(B.Owner.Get()==Owner){B.Activate=MoveTemp(Callback);return;}}
+bool SlabUiRegistry::Activate(ASlabActor* Slab)
+{
+    check(IsInGameThread());if(!IsValid(Slab)||Slab->IsActorBeingDestroyed())return false;PruneHosts();
+    // An explicit 3D selection may retarget the existing owned information panel.
+    for(bool Exact:{true,false})for(auto& B:Hosts)
+        if(B.bActive&&B.Activate&&B.Owner->GetWorld()==Slab->GetWorld()&&IsActiveHostLevel(B.Owner.Get())&&((B.ResolveTarget()==Slab)==Exact))
+            if(B.Activate(Slab))return true;
+    return false;
 }
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 bool SlabUiRegistry::IsHostActiveForTesting(const AActor* Owner)

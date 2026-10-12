@@ -131,6 +131,21 @@ void USlabRunResultsSubsystem::RecordTerminalSnapshot(const FString& Run,const F
 {if(auto* R=Find(Run);R&&!R->bFinalized){R->TerminalSnapshot=Snapshot;R->Unfinished=Snapshot.UniqueUnfinished;Changed();}}
 void USlabRunResultsSubsystem::UpdateProgress(const FString& Run,const FString& Mtl,int64 Frame,double Elapsed)
 {if(auto* R=Find(Run);R&&!R->bFinalized){R->MtlNo=Mtl;R->LastSlabFrame=Frame;R->ElapsedSec=Elapsed;if(R->StartedUtc.GetTicks()==0)R->StartedUtc=FDateTime::UtcNow();Changed();}}
+void USlabRunResultsSubsystem::RecordSurfaceAppearance(const FString& Run,const FSlabSurfaceAppearanceRecord& A)
+{
+    auto* R=Find(Run);if(!R||R->bFinalized||Run!=ActiveRun)return;
+    if(!TArray<FString>{TEXT("default"),TEXT("hot-red"),TEXT("oxidation-scale"),TEXT("cooled-steel"),TEXT("analysis-matte")}.Contains(A.Preset))return;
+    auto& U=R->SurfaceAppearance;
+    if(!U.bPresent&&A.Preset==TEXT("default")&&!A.bLidarLinked)return;
+    if(U.bPresent)
+    {
+        const auto& B=U.Latest;
+        if(B.Preset==A.Preset&&B.bLidarLinked==A.bLidarLinked&&B.bHot==A.bHot&&B.Oxidation==A.Oxidation&&B.Roughness==A.Roughness&&B.EmissiveStrength==A.EmissiveStrength&&B.bHasOpticalResponse==A.bHasOpticalResponse&&B.Reflectivity940Nm==A.Reflectivity940Nm&&B.IntensityGain==A.IntensityGain)return;
+    }
+    if(!U.bPresent){U.bPresent=true;U.Initial=A;}
+    else ++U.ChangeCount;
+    U.Latest=A;U.UsedPresets.AddUnique(A.Preset);Changed();
+}
 void USlabRunResultsSubsystem::ObserveTransport(const FVirtualSensorTransportObservation& E)
 {
     auto* R=Find(E.RunId);if(!R||R->bFinalized||E.RunId!=ActiveRun)return;
@@ -223,6 +238,20 @@ FString USlabRunResultsSubsystem::SerializeSummary(const FSlabRunDeliverySummary
     TSharedPtr<FJsonObject> Root=FJsonObjectConverter::UStructToJsonObject(S);
     Root->SetStringField(TEXT("schema"),TEXT("ma0t10.slab-run.v1"));Root->SetStringField(TEXT("completionBoundary"),TEXT("broker-receipt; consumer processing not verified"));
     Root->SetStringField(TEXT("saveState"),TEXT("저장 완료"));
+    if(S.SurfaceAppearance.bPresent)
+    {
+        const auto Record=[](const FSlabSurfaceAppearanceRecord& A)
+        {
+            auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("preset"),A.Preset);O->SetBoolField(TEXT("lidarLinked"),A.bLidarLinked);
+            O->SetBoolField(TEXT("hotAppearance"),A.bHot);O->SetNumberField(TEXT("oxidation"),A.Oxidation);O->SetNumberField(TEXT("roughness"),A.Roughness);O->SetNumberField(TEXT("emissiveStrength"),A.EmissiveStrength);
+            if(A.bHasOpticalResponse){O->SetNumberField(TEXT("reflectivity940Nm"),A.Reflectivity940Nm);O->SetNumberField(TEXT("intensityGain"),A.IntensityGain);}
+            if(A.SlabFrame>=0){O->SetNumberField(TEXT("slabFrame"),A.SlabFrame);O->SetNumberField(TEXT("elapsedSec"),A.ElapsedSec);}
+            return O;
+        };
+        auto O=MakeShared<FJsonObject>();O->SetObjectField(TEXT("initial"),Record(S.SurfaceAppearance.Initial));O->SetObjectField(TEXT("latest"),Record(S.SurfaceAppearance.Latest));
+        O->SetNumberField(TEXT("changeCount"),S.SurfaceAppearance.ChangeCount);TArray<TSharedPtr<FJsonValue>> Names;for(const auto& N:S.SurfaceAppearance.UsedPresets)Names.Add(MakeShared<FJsonValueString>(N));O->SetArrayField(TEXT("usedPresets"),Names);
+        Root->SetObjectField(TEXT("surfaceAppearance"),O);
+    }
     FString Text;FJsonSerializer::Serialize(Root.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));return Text;
 }
 void USlabRunResultsSubsystem::QueueReport(const FSlabRunDeliverySummary& S)

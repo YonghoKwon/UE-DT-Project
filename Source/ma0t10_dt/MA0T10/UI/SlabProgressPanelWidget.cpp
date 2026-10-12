@@ -2,6 +2,7 @@
 #include "SensorToolWidgetDecl.h"
 #include "VirtualSensorUiStyle.h"
 #include "SensorToolUiText.h"
+#include "SlabInformationCard.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
@@ -21,7 +22,11 @@ namespace
 	FText SlabUnitText(ESlabInputUnit U) { return FText::FromString(U == ESlabInputUnit::Millimeters ? TEXT("mm") : U == ESlabInputUnit::Meters ? TEXT("m") : TEXT("cm")); }
 	ESlabInputUnit NextUnit(ESlabInputUnit U) { return U == ESlabInputUnit::Centimeters ? ESlabInputUnit::Millimeters : U == ESlabInputUnit::Millimeters ? ESlabInputUnit::Meters : ESlabInputUnit::Centimeters; }
 }
-void USlabProgressPanelWidget::BindSlabActor(ASlabActor* InSlab) { Slab = IsValid(InSlab) && InSlab->GetWorld() == GetWorld() ? InSlab : nullptr; RefreshAccumulator = 1; }
+void USlabProgressPanelWidget::BindSlabActor(ASlabActor* InSlab) { Slab = IsValid(InSlab) && InSlab->GetWorld() == GetWorld() ? InSlab : nullptr; RefreshAccumulator = 1;RefreshSurfaceSupport();if(OwnedScenarioScroll)OwnedScenarioScroll->ScrollToStart(); }
+void USlabProgressPanelWidget::RefreshSurfaceSupport()
+{
+	SurfacePresetReasons.SetNum(5);for(int32 I=0;I<5;++I){SurfacePresetReasons[I].Empty();if(Slab)Slab->CanApplySurfacePreset(static_cast<ESlabSurfacePreset>(I),SurfacePresetReasons[I]);else SurfacePresetReasons[I]=TEXT("Slab를 먼저 선택하세요");}
+}
 bool USlabProgressPanelWidget::CanResetSlabToInitialPlacement(FString& OutReason) const
 {
 	if(!IsValid(Slab)||Slab->GetWorld()!=GetWorld()){OutReason=TEXT("Slab Actor 연결 필요");return false;}
@@ -43,6 +48,7 @@ bool USlabProgressPanelWidget::ToggleOwnedCharts()
 }
 void USlabProgressPanelWidget::RefreshOwnedStatus()
 {
+	const FString Information=SlabInformationCard::Build(Slab);if(Information!=CachedInformationText){CachedInformationText=Information;OwnedInformationLabel=FText::FromString(Information);}
 	if(!Slab){Summary=TEXT("시나리오 연결이 필요합니다");SensorStatus.Empty();Progress=0;bOwnedCanPause=bOwnedCanStop=bOwnedCanReset=false;OwnedSummaryLabel=FText::FromString(Summary);OwnedStatusLabel=FText::GetEmpty();return;}
 	const auto S=Slab->GetSimulationStatus();Progress=S.Progress;
 	bOwnedCanPause=S.State==ESlabSimulationState::Playing||S.State==ESlabSimulationState::Paused;
@@ -53,7 +59,7 @@ void USlabProgressPanelWidget::RefreshOwnedStatus()
 	const auto* Service=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 	const auto Session=Service?Service->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
 	const FString State=ResolveOwnedMovementState(S,Session).ToString();
-	Summary=S.RowCount>0?FString::Printf(TEXT("%s · %s\n행 %d/%d · %.2f / %.2f초 (%.1f%%)"),*State,*S.MtlNo,S.RowIndex+1,S.RowCount,S.ElapsedSec,S.DurationSec,S.Progress*100):State;
+	Summary=State;
 	if(S.State==ESlabSimulationState::Idle&&!S.Message.IsEmpty())Summary=SensorToolUiText::UserReason(S.Message);
 	SensorStatus=S.State==ESlabSimulationState::Preparing?TEXT("연결 확인 후 시작합니다 · 준비 중에는 이동하지 않습니다"):TEXT("보관 목록에서 선택해 재생하세요 · 이전 실행은 결과에서 확인하세요");
 	if(!S.TransmissionWarning.IsEmpty())SensorStatus=SensorToolUiText::UserReason(S.TransmissionWarning);
@@ -141,6 +147,26 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 	 .IsEnabled_Lambda([this]() { if (!Slab) return false; auto S = Slab->GetSimulationStatus().State; return S != ESlabSimulationState::Playing && S != ESlabSimulationState::Paused; })
 	 .OnClicked_Lambda([this, Dimensions]() { if (Slab) { if (Dimensions) Slab->SetDimensionUnit(NextUnit(Slab->GetDimensionUnit())); else Slab->SetPositionUnit(NextUnit(Slab->GetPositionUnit())); } return FReply::Handled(); })];
 	Config->AddSlot()[SNew(SCheckBox).IsEnabled_Lambda([this]() { return Slab != nullptr; }).IsChecked_Lambda([this]() { return Slab && Slab->GetHotAppearance() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState S) { if (Slab) Slab->SetHotAppearance(S == ECheckBoxState::Checked); })[SNewSensorTool(STextBlock).Text(LOCTEXT("Hot", "고온 Slab 외형 (해제: 냉각 철강)"))]];
+	if(IsWorkspaceOwned())
+	{
+		// Replace only the owned native hot checkbox. Designer and legacy paths retain it.
+		Config=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,6));
+		for(bool Dimensions:{true,false})Config->AddSlot()[SNewSensorTool(SButton)
+		 .Text_Lambda([this,Dimensions](){return FText::FromString((Dimensions?FString(TEXT("치수 단위: ")):FString(TEXT("위치 단위: ")))+(Slab?SlabUnitText(Dimensions?Slab->GetDimensionUnit():Slab->GetPositionUnit()).ToString():TEXT("—")));})
+		 .IsEnabled_Lambda([this](){return Slab&&!Slab->IsSimulationActive();})
+		 .OnClicked_Lambda([this,Dimensions](){if(Slab){if(Dimensions)Slab->SetDimensionUnit(NextUnit(Slab->GetDimensionUnit()));else Slab->SetPositionUnit(NextUnit(Slab->GetPositionUnit()));}return FReply::Handled();})];
+		RefreshSurfaceSupport();
+		for(int32 I=0;I<5;++I)Config->AddSlot()[SNewSensorTool(SButton).Text(SensorToolUiText::SurfacePreset(I))
+		 .IsEnabled_Lambda([this,I](){return Slab&&SurfacePresetReasons.IsValidIndex(I)&&SurfacePresetReasons[I].IsEmpty();})
+		 .ToolTipText_Lambda([this,I](){return SensorToolUiText::SurfaceSupportReason(SurfacePresetReasons.IsValidIndex(I)?SurfacePresetReasons[I]:FString());})
+		 .ButtonColorAndOpacity_Lambda([this,I](){return Slab&&int32(Slab->GetSurfacePreset())==I?FLinearColor(.35f,.70f,.85f,1):FLinearColor::White;})
+		 .OnClicked_Lambda([this,I](){if(Slab)Slab->ApplySurfacePreset(static_cast<ESlabSurfacePreset>(I),Slab->IsSurfaceLidarLinked(),SurfaceActionMessage);RefreshAccumulator=1;return FReply::Handled();})];
+		Config->AddSlot()[SNew(SCheckBox).IsEnabled_Lambda([this](){return Slab!=nullptr;})
+		 .IsChecked_Lambda([this](){return Slab&&Slab->IsSurfaceLidarLinked()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+		 .OnCheckStateChanged_Lambda([this](ECheckBoxState State){if(Slab)Slab->ApplySurfacePreset(Slab->GetSurfacePreset(),State==ECheckBoxState::Checked,SurfaceActionMessage);RefreshAccumulator=1;})
+		 [SNewSensorTool(STextBlock).Text(SensorToolUiText::LinkSlabReflectivity())]];
+		Config->AddSlot()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(SurfaceActionMessage);})];
+	}
 	if (IsWorkspaceOwned())
 	{
 		Controls->AddSlot()[SNewSensorTool(SButton).Text(SensorToolUiText::ScenarioCharts())
@@ -183,8 +209,12 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		   // Controls are before all variable-length content: status wrapping cannot move them.
 		   + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 8)[Controls]
 		   + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)[SNew(SProgressBar).Percent_Lambda([this]() { return TOptional<float>(Progress); }).FillColorAndOpacity(GetToolAccentColor())]
-		   + SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)
+		   + SVerticalBox::Slot().FillHeight(1)[SAssignNew(OwnedScenarioScroll,SScrollBox)
 		     + SScrollBox::Slot()[SNew(SVerticalBox)
+		       + SVerticalBox::Slot().AutoHeight().Padding(0,4,0,10)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8)[SNew(SVerticalBox)
+		         +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::SlabInformation())]
+		         +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this](){return OwnedInformationLabel;})
+		          .ToolTipText(LOCTEXT("SourceCardTip","위치·치수·기울기·사행은 원본 행 값입니다. Y 입력은 현재 이동에 적용되지 않습니다. 중심 이탈·여유는 해당 원본 행의 Track 기하 계산이며 임계값 판정이 아닙니다. 중량 단위는 입력에서 지정하지 않아 원본 단위로 표시합니다."))]]]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 10)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this]() { return OwnedSummaryLabel; })]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 12)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this]() { return OwnedStatusLabel; })]
 		       + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 8)[SAssignNew(OwnedDisplayArea,SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DisplaySettings())].BodyContent()[SNew(SVerticalBox)

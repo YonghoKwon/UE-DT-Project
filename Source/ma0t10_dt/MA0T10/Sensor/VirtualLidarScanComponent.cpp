@@ -677,6 +677,18 @@ EVirtualLidarAcquisitionBackend UVirtualLidarScanComponent::ResolveAcquisitionBa
     return EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
 }
 
+bool UVirtualLidarScanComponent::IsSemanticCaptureRequested() const
+{
+    if(bEnableSemanticClassification&&ViewMode==EVirtualLidarViewMode::ActorClassColor)return true;
+    if(!GetWorld())return false;
+    for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)
+    {
+        const auto* Publisher=It->StreamPublisherComponent.Get();if(!Publisher||!Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,SensorId))continue;
+        const auto Filter=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,SensorId).PointCloudFilter;
+        if(Filter.IncludeActorTags.Num()||Filter.ExcludeActorTags.Num()||Filter.IncludeSemanticLabels.Num()||Filter.ExcludeSemanticLabels.Num())return true;
+    }
+    return false;
+}
 bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
 {
     if (!GpuDepthProjectionComponent.IsValid()) return false;
@@ -693,14 +705,7 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
     Request.MaxDistanceCm = MaxDistance;
     Request.AcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
     BuildBeamAngleTables(Request.HorizontalSamples, Request.VerticalChannels, Request.HorizontalAngles, Request.VerticalAngles);
-    Request.bRequestSemantics = bEnableSemanticClassification && ViewMode == EVirtualLidarViewMode::ActorClassColor;
-    for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It && !Request.bRequestSemantics; ++It)
-    {
-        const auto* Publisher = It->StreamPublisherComponent.Get();
-        if (!Publisher || !Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud, SensorId)) continue;
-        const auto Filter = Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud, SensorId).PointCloudFilter;
-        Request.bRequestSemantics = Filter.IncludeActorTags.Num() || Filter.ExcludeActorTags.Num() || Filter.IncludeSemanticLabels.Num() || Filter.ExcludeSemanticLabels.Num();
-    }
+    Request.bRequestSemantics=IsSemanticCaptureRequested();
 
     if (!GpuDepthProjectionComponent->BeginAcquisition(Request))
     {
@@ -867,6 +872,14 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
                                 Point.HitActorName = Identity->ActorName;
                                 Point.HitActorClassName = Identity->ActorClass;
                                 Point.HitActorTags = Identity->ActorTags;
+                                if(Identity->bHasOpticalOverride)
+                                {
+                                    // Values were copied with the existing ID/depth acquisition, never read from the live Actor at completion.
+                                    Point.SurfaceReflectivity=Identity->Reflectivity940Nm;
+                                    Point.NormalizedIntensity=FMath::Clamp(Identity->Reflectivity940Nm*Attenuation*5.f*Identity->IntensityGain,0.f,1.f);
+                                    Point.RawIntensity=FMath::RoundToInt(Point.NormalizedIntensity*65535.f);
+                                    Point.Validity=Point.NormalizedIntensity>=1.f?EVirtualLidarPointValidity::Saturated:EVirtualLidarPointValidity::Valid;
+                                }
                                 ++SemanticIdCounts.FindOrAdd(FMath::RoundToInt(IdDepth.R));
                             }
                         }

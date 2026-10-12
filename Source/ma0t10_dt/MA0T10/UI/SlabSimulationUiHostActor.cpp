@@ -15,6 +15,14 @@ void ASlabSimulationUiHostActor::RegisterSlabUiHost(bool bActive)
 {
 	const TWeakObjectPtr<ASlabSimulationUiHostActor> WeakThis(this);
 	SlabUiRegistry::RegisterHost(this,[WeakThis]() -> ASlabActor* { return WeakThis.IsValid()?WeakThis->SlabActor.Get():nullptr; },bActive);
+	SlabUiRegistry::RegisterActivation(this,[WeakThis](ASlabActor* Selected)
+	{
+		if(!WeakThis.IsValid()||!IsValid(Selected))return false;auto* Host=WeakThis.Get();auto* W=Host->GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+		if(!W||!Host->ProgressWidget||W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)!=Host->ProgressWidget)return false;
+		Host->BindSlabActor(Selected);W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
+		if(Host->ProgressWidget->IsPanelCollapsed())Host->ProgressWidget->TogglePanelCollapsed();
+		W->BringOwnedPanelToFront(ESensorToolPanelRole::SlabProgress);return true;
+	});
 }
 void ASlabSimulationUiHostActor::PostLoad() { Super::PostLoad(); RegisterSlabUiHost(); }
 void ASlabSimulationUiHostActor::PostDuplicate(EDuplicateMode::Type DuplicateMode) { Super::PostDuplicate(DuplicateMode); RegisterSlabUiHost(); }

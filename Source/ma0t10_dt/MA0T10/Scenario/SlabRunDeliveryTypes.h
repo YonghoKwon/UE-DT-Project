@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
+#include "SlabSurfaceAppearanceRecord.h"
 #include "SlabRunDeliveryTypes.generated.h"
 
 UENUM(BlueprintType)
@@ -97,4 +98,5 @@ struct MA0T10_DT_API FSlabRunDeliverySummary
     UPROPERTY(BlueprintReadOnly) FString ReportPath;
     UPROPERTY(BlueprintReadOnly) FString SaveState;
     UPROPERTY(BlueprintReadOnly) bool bFinalized=false;
+    FSlabSurfaceRunUsage SurfaceAppearance;
 };

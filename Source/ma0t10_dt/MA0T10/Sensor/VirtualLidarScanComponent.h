@@ -338,6 +338,8 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
     EVirtualLidarAcquisitionBackend GetActiveAcquisitionBackend() const { return ActiveAcquisitionBackend; }
+    /** Existing semantic capture demand only. This query never starts/enables a capture. */
+    bool IsSemanticCaptureRequested() const;
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
