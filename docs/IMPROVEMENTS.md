@@ -80,7 +80,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ARCH-05 | 구조 / 송신 검증 분리 완료 | P1 | **100%** | Transport/ExternalSource의 WebSocket/TC include 9쌍 제거 | 완료; 전체 249개 이름별 결과 동일·보호 경로 불변 | A |
 | ARCH-06 | 구조 / Slab context 중립화 완료 | P1 | **100%** | L0 값 context·provider, L2 Slab adapter·공개 reflected 호환 유지 | 구현·검증 완료; golden14 동일·layer9→0·기존249개 결과 동일, 독립 검토 대기 | A (PL-01 일부) |
 | ARCH-07 | 품질 / 검증 진입점 완료 | P1 | **100%** | `verify.ps1` quick/feature/release, 환경변수 67개·Scripts 110파일 분류 | 완료; manifest·skip 원인 집계·전체 기준선 유지 | A (QA-01 일부) |
-| ARCH-08 | 구조 / 정리 완료 | P2 | **100%** | PixelStreaming 의존 3개 제거·test hook guard·대형 3파일 분할 | 완료; 331개 본문 불변·빌드/249개 회귀 동일·성능2%gate | A |
+| ARCH-08 | 구조 / 정리 완료 | P2 | **100%** | test hook guard·대형 3파일 분할 (PixelStreaming 의존 제거는 사용자 결정으로 되돌림 `7316787`) | 완료; 331개 본문 불변·빌드/249개 회귀 동일·성능2%gate | A |
 | UXR-01 | UI/UX / 작업 흐름 바 | P0 | **100%** | 소유 흐름 바·5Hz 상태 줄·도구 메뉴·용어 상수, 자동화·4조합 렌더 통과 | Claude 직접 조작 검토는 별도; 세부 화면 재정비는 UXR-02~07 | U |
 | UXR-02 | UI/UX / 배치 | P0 | **100%** | 완료(마우스 최종 삭제 1건 보류), 상태 칩·클릭 마커 격리 재검증 | 모니터 복귀 후 최종 삭제 직접 재검수; Saved/Reports/UXR/UXR-02 | U |
 | UXR-03 | UI/UX / PCD 전송·결과 | P0 | **90%** | 소유 데이터 5탭·신규/재생 2열·재생 요약·결과/진단 분리, 자동화·20장 렌더 완료 | 보완: 쉬운 점검 문장·대상 세그먼트·직접 전송 헤더, 집중 13 Success/4조합 전송 렌더/전송 탭 성능 통과; 직접 조작 보류(모니터 없음) | U |
@@ -234,6 +234,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - 초대형 파일(`UI/VirtualSensorMonitorPanelWidget.cpp`, `Sensor/VirtualLidarScanComponent.cpp`, `Core/VirtualSensorStreamPublisherComponent.cpp`)을 **같은 클래스의 여러 `.cpp`로 이동만** 해서 나눈다. 순수 인코딩 함수는 별도 파일로 옮긴다.
 - 빈 `Source/m7at10_dt/` 폴더 삭제는 재귀 삭제이므로 사용자 확인 후에만 한다.
 - **완료:** 빌드·전체 회귀 동일, 분할 diff가 이동만으로 구성됨을 리뷰에서 확인.
+- **2026-10-12 사용자 결정: PixelStreaming은 필요한 기능이다.** 아래 결과의 PixelStreaming 모듈 의존 제거(`65dbcc4`)는 `7316787`로 되돌렸고 Editor·Game Development 빌드를 확인했다. PixelStreaming 모듈 의존·`.uproject` 플러그인·`Samples/PixelStreaming`은 제거 대상이 아니다.
 - **결과:** C++ 사용·Blueprint 자산 내 PixelStreaming 문자열 0건을 재확인하고 Public 의존 3개만 제거했다. `.uproject` 활성화·Samples는 불변이며 프로젝트 Blueprint17개와 WBP7개 메모리 컴파일 통과. Runtime hook18선언/참조 줄의 guard를 확인했다. 이미 제한된 hook은 유지하고 유일한 비제한 직렬화 함수의 production 진입점을 `SerializePointCloudFrame`으로 분리해 테스트 이름을 guard했다. UPROPERTY/UFUNCTION hook은 없다. Shipping object에는 테스트 직렬화 이름이 없고 production 이름은 남는다.
 - **분할:** Monitor5·Scan4·Publisher3 `.cpp`와 순수 LiDAR JSON helper `.inl` 1개로 나눴다. `.cpp`당 **249~887줄**, 함수·helper **331개**의 원문 hash/문자열 대조 통과. `.inl`은 acquisition 단위 내부의 동일 anonymous namespace에서 한 번만 include해 private 타입과 linkage를 유지하고 mutable helper를 복제하지 않는다. 파일 이동에 따른 기존 Scenario include 3쌍의 allowlist 경로만 해당 이동 커밋에서 바꿨다. 함수·wire bytes·BP·저장 계약 변경은 없다. `Source/m7at10_dt/`는 내부 디렉터리를 포함해 그대로 보존했다.
 - **검증:** Runtime `a36179c`, DTCore `b2504d1`. Editor·Game Win64 Development·Game Shipping 빌드, V2·guard·layer gate·WBP7·verify quick 통과. hook 집중 **34 Success/skip5**, 분할 집중 **41 Success/skip3**, D3D12 전체 **229 Success/skip20/실패0/NotRun0**, 기준선249개 이름별 결과 차이0. allowlist **9→9**, 신규·stale0. 보호476파일 불변·개인 SaveGame9개 복원·자산 저장0.
@@ -447,7 +448,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | ARCH-08 정리 | 5 | UXR-08 Slab 정보·표면 | 8 |
 | **ARCH 합계** | **37** | **UXR 합계** | **51** |
 
-총 88. 진행률 = 검토 통과 항목 가중치 합 ÷ 88. 2026-10-12 기준 통과: ARCH-01~04, UXR-01, UXR-02(마우스 최종 삭제 1건 보류), UXR-03(직접 조작 보류), UXR-04, UXR-08(산화 스케일 프리셋 미지원·직접 조작 보류), UXR-05, UXR-06(직접 조작 보류), ARCH-05, ARCH-07, ARCH-08 → 74/88 = **84%**. 남은 UXR-07은 사용자 마우스 점검·확인이 필요하다. 보류된 마우스 점검은 사용자 복귀 후 일괄 수행하며, 그 결과로 통과가 뒤집히면 이 값을 다시 낮춘다. UXR-02는 CLI 마무리 완료(최종 삭제 마우스 1건 보류)이며 독립 검토 반영 전에는 이 합계에 더하지 않는다.
+총 88. 진행률 = 검토 통과 항목 가중치 합 ÷ 88. 2026-10-12 기준 통과: ARCH-01~04, UXR-01, UXR-02(마우스 최종 삭제 1건 보류), UXR-03(직접 조작 보류), UXR-04, UXR-08(산화 스케일 프리셋 미지원·직접 조작 보류), UXR-05, UXR-06(직접 조작 보류), ARCH-05, ARCH-06, ARCH-07, ARCH-08 → 82/88 = **93%**. 남은 것은 UXR-07(보류된 마우스 점검 일괄 수행 + 사용자 확인)뿐이다. 남은 UXR-07은 사용자 마우스 점검·확인이 필요하다. 보류된 마우스 점검은 사용자 복귀 후 일괄 수행하며, 그 결과로 통과가 뒤집히면 이 값을 다시 낮춘다. UXR-02는 CLI 마무리 완료(최종 삭제 마우스 1건 보류)이며 독립 검토 반영 전에는 이 합계에 더하지 않는다.
 
 ### DTCore 변경 후보 (후속 DTCore 수정 단계 입력)
 
