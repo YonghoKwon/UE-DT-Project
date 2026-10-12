@@ -27,7 +27,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()
     for(int32 I=0;I<UE_ARRAY_COUNT(Routes);++I)
     {
         const auto Route=Routes[I];
-        Rail->AddSlot().AutoHeight().Padding(8,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::RailButton()).ContentPadding(FMargin(2,8)).ToolTipText(Labels[I])
+        Rail->AddSlot().AutoHeight().Padding(2,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::RailButton()).ContentPadding(FMargin(1,8)).ToolTipText(Labels[I])
             .ButtonColorAndOpacity_Lambda([this,Route](){return IsSidebarRouteSelected(Route)?FSensorOwnedPresentationStyle::Selection():FSensorOwnedPresentationStyle::Panel();})
             .OnClicked_Lambda([this,Route](){ToggleOwnedDestination(Route);return FReply::Handled();})
             [SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNew(SBox).WidthOverride_Lambda([this](){return ToolFont(18).Size;}).HeightOverride_Lambda([this](){return ToolFont(18).Size;})[SNew(SSensorToolIcon).Kind(I).Color_Lambda([this,Route](){return IsSidebarRouteSelected(Route)?FSensorOwnedPresentationStyle::Accent():FSensorOwnedPresentationStyle::Muted();})]]

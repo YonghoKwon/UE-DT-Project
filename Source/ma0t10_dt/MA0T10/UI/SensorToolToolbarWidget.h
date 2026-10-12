@@ -54,6 +54,8 @@ private:
 	TSharedRef<SWidget> BuildEquipmentMenu();
 	TSharedRef<SWidget> BuildEquipmentLabel(TWeakObjectPtr<AVirtualSensorActorBase> Actor);
 	FSensorToolGlobalStatus GlobalStatus;
+	FText OwnedFontScaleText;
+	float DisplayedFontScale=-1.f;
 	double NextStatusRefresh=-1;
 	TWeakObjectPtr<ASlabActor> StatusSlab;
 	double NextSlabLookup=0;

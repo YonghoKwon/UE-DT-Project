@@ -269,6 +269,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedWidget()
     auto Tabs=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8));
     const FText Names[]={SensorToolUiText::TransferTab(),SensorToolUiText::Results(),SensorToolUiText::FileSave(),SensorToolUiText::ServerTab(),SensorToolUiText::Diagnostics()};
     for(int32 I=0;I<5;++I)Tabs->AddSlot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle())
+        .Visibility_Lambda([this,I](){return I<2||int32(OwnedTab)==I?EVisibility::Visible:EVisibility::Collapsed;})
         .OnClicked_Lambda([this,I](){OpenOwnedTab(static_cast<ESensorOwnedDataTab>(I));return FReply::Handled();})
         [SNewSensorTool(STextBlock).ColorAndOpacity_Lambda([this,I](){return int32(OwnedTab)==I?GetToolAccentColor():GetToolTextColor();}).Text(Names[I])]];
     return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(16)
@@ -298,7 +299,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 {
     auto Column=[this](bool Replay)->TSharedRef<SWidget>
     {
-        auto Content=SNew(SVerticalBox);
+        auto Content=SNew(SVerticalBox);auto Extra=SNew(SVerticalBox);
         Content->AddSlot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(Replay?SensorToolUiText::ArchiveReplay():SensorToolUiText::NewScenario())];
         for(int32 Index=0;Index<3;++Index)
         {
@@ -314,15 +315,16 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
                     bOwnedScenarioStreamView=true;bOwnedReplayPreflight=Replay;LastNativeStatusRefreshSeconds=-1;
                 })[SNewSensorTool(STextBlock).Text(Index==0?SensorToolUiText::PcdOutput():Index==1?SensorToolUiText::CameraOutput():SensorToolUiText::LidarOutput())];
             if(Index==0){if(Replay)OwnedReplayPcdControl=Control;else OwnedLivePcdControl=Control;}
-            if(Index==1)Content->AddSlot().AutoHeight().Padding(0,8,0,0)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(SensorToolUiText::ExtraOutputs())];
-            Content->AddSlot().AutoHeight().Padding(0,4)[Control];
+            if(Index==0)Content->AddSlot().AutoHeight().Padding(0,4)[Control];
+            else Extra->AddSlot().AutoHeight().Padding(0,4)[Control];
         }
+        Content->AddSlot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(SensorToolUiText::ExtraOutputs())].BodyContent()[Extra]];
         Content->AddSlot().AutoHeight().Padding(0,8)[SNew(SCheckBox)
             .IsEnabled_Lambda([this,Replay](){auto* A=ResolveScenarioSlabActor();return Replay?ResolveOwnedReplayPanel()!=nullptr:A&&!A->IsSimulationActive();})
             .IsChecked_Lambda([this,Replay](){auto* P=ResolveOwnedReplayPanel();return (Replay?(P?P->ExecutionOptions.Policy:ESlabExecutionPolicy::ObservationAllowed):GetLiveScenarioExecutionOptions().Policy)==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
             .OnCheckStateChanged_Lambda([this,Replay](ECheckBoxState State){auto* P=ResolveOwnedReplayPanel();auto Options=Replay?(P?P->ExecutionOptions:FSlabExecutionOptions()):GetLiveScenarioExecutionOptions();Options.Policy=State==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;if(Replay)SetOwnedReplayExecutionOptions(Options);else SetLiveScenarioExecutionOptions(Options);bOwnedScenarioStreamView=true;bOwnedReplayPreflight=Replay;LastNativeStatusRefreshSeconds=-1;})
             [SNewSensorTool(STextBlock).AutoWrapText(true).Text(SensorToolUiText::RequireConnection())]];
-        return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8)[Content];
+        return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8).ToolTipText(LOCTEXT("NextExecution","다음 실행부터 적용합니다 · 화면을 여는 것만으로 전송하지 않습니다"))[Content];
     };
     auto Direct=SNew(SVerticalBox);
     Direct->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(OwnedSelectionText);})];
@@ -348,7 +350,6 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
             .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DirectTransfer())]
             .BodyContent()[Direct]]
         +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[Column(false)]+SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[Column(true)]]
-        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text(LOCTEXT("NextExecution","다음 실행부터 적용합니다 · 화면을 여는 것만으로 전송하지 않습니다"))]
         +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightTarget())]
             +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Checks]]

@@ -15,6 +15,8 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Layout/SBox.h"
 
 void USensorToolToolbarWidget::NativeTick(const FGeometry& Geometry,float DeltaTime)
 {
@@ -27,6 +29,12 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     auto* W=Workspace();
     if(!W||!W->OwnsToolbar(this)||Now<NextStatusRefresh)return;
     NextStatusRefresh=Now+.2;
+    const float FontScale=W->GetOwnedPanelFontScale();
+    if(!FMath::IsNearlyEqual(DisplayedFontScale,FontScale))
+    {
+        DisplayedFontScale=FontScale;
+        OwnedFontScaleText=FText::Format(NSLOCTEXT("SensorToolUiText","BottomFontScale","글자 {0}%"),FText::AsNumber(FMath::RoundToInt(FontScale*100)));
+    }
     GlobalStatus=FSensorToolGlobalStatus();
     SlabCardTitle=FText::FromString(TEXT("Slab · 대기"));SlabCardAngle=SlabCardOffset=SlabCardMargin=FText::FromString(TEXT("—"));SlabCardProgress=0;
     OwnedSensorLabels.Reset();
@@ -128,12 +136,16 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
         {
             switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return SensorToolUiText::Warning(GlobalStatus.Warning);}
         };
-        Row->AddSlot().FillWidth(I==4?1.5f:1.f).VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
+        Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
         [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
-         .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
+         .Visibility_Lambda([this,I](){return (I==4&&GlobalStatus.Warning.IsEmpty())||(I==3&&!GlobalStatus.bServerConnected)?EVisibility::Collapsed:EVisibility::Visible;})
          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4&&!GlobalStatus.bServerConnected?ESensorToolDestination::ServerSettings:Destination);return FReply::Handled();})
-         [SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-          .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]];
+         [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+          .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
     }
+    Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
+    Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)
+      .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
+      .Text_Lambda([this](){return OwnedFontScaleText;})]];
     return Row;
 }

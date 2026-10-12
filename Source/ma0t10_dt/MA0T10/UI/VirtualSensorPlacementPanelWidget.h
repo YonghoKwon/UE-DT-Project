@@ -53,7 +53,7 @@ private:
     FVirtualSensorPlacementPreviewStatus LastPreview;
     bool bPreviousManipulating=false;
     bool bSelectedMeasuring=false;
-    FText CachedMeasureCaption;
+    FText CachedMeasureCaption,CachedManipulationCaption;
     FString PreviousStatus;
     mutable TWeakObjectPtr<class AVirtualSensorCoordinator> CachedCoordinator;
     mutable double NextCoordinatorLookup=0;
@@ -73,5 +73,6 @@ private:
     TSharedRef<SWidget> BuildEquipmentSection();
     TSharedRef<SWidget> BuildSelectedSection();
     TSharedRef<SWidget> BuildPoseSection();
+    TSharedRef<SWidget> BuildLayoutSaveMenu();
     TSharedRef<SWidget> BuildLayoutSection();
 };
