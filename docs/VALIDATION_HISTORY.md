@@ -6,6 +6,13 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-13 MAP-01 맵 독립성 조사
+
+- 시작: `codex/architecture-skeleton`, `b16f35c425c440e32e728e1b20258ba8b079b0d2`, origin UE-DT-Project, DTCore `b2504d1`. 기존 SensorTestMap 수정 및 보호된 미추적 파일을 보존한다.
+- Source/Config/Scripts 전수 조사 212개 위치와 영향·조치: `Saved/Reports/MAP/MAP-01/hardcoding.md`. Runtime 측정은 맵 경로를 요구하지 않는다. 기본/cook 맵·공통 자산·목적별 테스트 Rig/태그는 근거 있는 예외로 유지한다. 첫 Coordinator/외부 Source 탐색은 기존 호환 경로이며 새 Rig는 단일 구성 확인과 명시 연결로 제한한다.
+- SensorTestMap 저장 예약은 고정 경로·영구 태그·EndPIE 자동 저장 전제이므로 다른 맵에서는 UI와 직접 API 모두 거절한다. 신규 맵의 Slab·TrackReference·배경은 사용자 소유다. DTCore 소스/gitlink, 개인 설정, 운영맵 및 PixelStreaming 변경은 범위 밖이다.
+- 직접 마우스 확인은 요청된 CLI 예외에 따라 UXR-07로 이관한다. 자동화·렌더·성능·완료 결과는 후속 MAP-01 검증 기록으로 남긴다.
+
 ## 2026-10-12 UXR-08 산화 스케일 보완 — 승인된 새 자산 1개
 
 - 기준 branch `codex/architecture-skeleton`, HEAD `767d52fcc7711380446e459c17e648bf0d89a63b`, DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`. 이 HEAD와 요청 범위의 변경으로 빌드·성능·cook을 검증했고, 최종 소스/테스트 커밋 `bbecc00`에서 관련 회귀를 다시 확인했다. 최종 소스/자산 SHA256·커밋 목록·명령은 `Saved/Reports/UXR/UXR-08/oxide/validation-manifest.json`, 상세 결과는 같은 폴더의 `RESULT.md`에 있다.
