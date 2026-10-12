@@ -5,8 +5,8 @@ Camera/VirtualCameraCaptureComponent.cpp -> Scenario/VirtualSensorSlabContextSub
 Core/VirtualSensorAcquisitionBackend.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorOutputPreflight.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
-Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/SlabRunResultsSubsystem.h
-Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
+Core/VirtualSensorStreamPublisherComponentSession.cpp -> Scenario/SlabRunResultsSubsystem.h
+Core/VirtualSensorStreamPublisherComponentSession.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Sensor/VirtualLidarScanComponentAcquisition.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Sensor/VirtualLidarSensorTypes.h -> Scenario/VirtualSlabFrameContext.h
 Sensor/VirtualSensorActorBase.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
