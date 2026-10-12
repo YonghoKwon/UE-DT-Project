@@ -12,6 +12,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPanelClampTest, "MA0T10.SensorControl.PanelClamp", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMapApplyQueueTest, "MA0T10.SensorControl.MapApplyQueue", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -36,18 +37,24 @@ bool FVirtualSensorPanelClampTest::RunTest(const FString& Parameters)
 
 bool FVirtualSensorMapApplyQueueTest::RunTest(const FString& Parameters)
 {
-    AVirtualSensorUiHostActor* Host = NewObject<AVirtualSensorUiHostActor>();
+    // Memory-only synthetic canonical map. Never loads/saves the protected operating map.
+    const FString Prefix=TEXT("MAP01Fixture_")+FGuid::NewGuid().ToString(EGuidFormats::Digits)+TEXT("_");
+    UPackage* Package=CreatePackage(*(TEXT("/Game/MA0T10/Maps/")+Prefix+TEXT("SensorTestMap")));
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,Package);
+    World->StreamingLevelsPrefix=Prefix;
+    AVirtualSensorUiHostActor* Host = World->SpawnActor<AVirtualSensorUiHostActor>();
     TestNotNull(TEXT("host"), Host);
     FVirtualSensorEditableState State;
     State.PersistentActorTag = TEXT("SensorTestPersistent_PrimaryCamera");
     State.SensorId = TEXT("CAM-A");
     Host->QueueSensorStateForMapApply(State);
-    TestTrue(TEXT("queue becomes pending"), Host->HasPendingMapApplySnapshot());
+    if(!TestTrue(TEXT("queue becomes pending in canonical SensorTestMap"), Host->HasPendingMapApplySnapshot())){World->DestroyWorld(false);return false;}
     TestEqual(TEXT("one state queued"), Host->GetPendingMapApplySnapshot().SensorStates.Num(), 1);
     State.SensorId = TEXT("CAM-B");
     Host->QueueSensorStateForMapApply(State);
     TestEqual(TEXT("same persistent tag replaces instead of duplicating"), Host->GetPendingMapApplySnapshot().SensorStates.Num(), 1);
     TestEqual(TEXT("replacement value is retained"), Host->GetPendingMapApplySnapshot().SensorStates[0].SensorId, FString(TEXT("CAM-B")));
+    World->DestroyWorld(false);
     return true;
 }
 

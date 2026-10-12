@@ -379,6 +379,7 @@ void AVirtualSensorUiHostActor::SetSensorToolFontScale(float Scale)
 
 void AVirtualSensorUiHostActor::QueueSensorStateForMapApply(const FVirtualSensorEditableState& SensorState)
 {
+    if(!CanQueueMapApply()){LastStatusMessage=TEXT("이 맵에서는 맵 저장 예약을 사용할 수 없습니다 · 저장 위치 또는 전체 배치를 사용하세요.");return;}
     PendingMapApplySnapshot.SourceMapPackage = TEXT("/Game/MA0T10/Maps/SensorTestMap");
     for (FVirtualSensorEditableState& Existing : PendingMapApplySnapshot.SensorStates)
     {
@@ -391,6 +392,14 @@ void AVirtualSensorUiHostActor::QueueSensorStateForMapApply(const FVirtualSensor
     }
     PendingMapApplySnapshot.SensorStates.Add(SensorState);
     LastStatusMessage = FString::Printf(TEXT("Queued map state for %s. Stop PIE to save."), *SensorState.SensorId);
+}
+
+bool AVirtualSensorUiHostActor::CanQueueMapApply() const
+{
+    if(!GetWorld())return false;
+    FString Package=GetWorld()->GetOutermost()->GetName();
+    if(!GetWorld()->StreamingLevelsPrefix.IsEmpty())Package=Package.Replace(*GetWorld()->StreamingLevelsPrefix,TEXT(""));
+    return Package==TEXT("/Game/MA0T10/Maps/SensorTestMap");
 }
 
 void AVirtualSensorUiHostActor::ConfigurePlayerInput()

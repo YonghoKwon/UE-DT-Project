@@ -494,6 +494,10 @@ void UVirtualSensorSettingsPanelWidget::ResetPendingStateToMapValue()
 
 bool UVirtualSensorSettingsPanelWidget::QueuePendingStateForSensorTestMap()
 {
+    if(HostActor&&!HostActor->CanQueueMapApply())
+    {
+        LastControlMessage=TEXT("이 맵에서는 맵 저장 예약을 사용할 수 없습니다 · 저장 위치 또는 전체 배치를 사용하세요.");RefreshNativeText();return false;
+    }
     if (!ApplyPendingState() || !HostActor)
     {
         if (!HostActor)
@@ -847,7 +851,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 [
                     SNew(SHorizontalBox).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
                     + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ResetValues", "PIE 시작값으로 되돌리기")).OnClicked_Lambda([this]() { ResetPendingStateToMapValue(); return FReply::Handled(); }) ]
-                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ApplyMap", "SensorTestMap에 저장 예약")).OnClicked_Lambda([this]() { QueuePendingStateForSensorTestMap(); return FReply::Handled(); }) ]
+                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ApplyMap", "SensorTestMap에 저장 예약")).IsEnabled_Lambda([this](){return HostActor&&HostActor->CanQueueMapApply();}).ToolTipText(LOCTEXT("PortableLegacyMapReason","다른 맵에서는 사용할 수 없습니다. 저장 위치 또는 전체 배치를 사용하세요.")).OnClicked_Lambda([this]() { QueuePendingStateForSensorTestMap(); return FReply::Handled(); }) ]
                 ]
                 + SVerticalBox::Slot().AutoHeight()[ SAssignSensorTool(NativeStatusText, STextBlock).ColorAndOpacity_Lambda([this]() { return LastControlMessage.Contains(TEXT("실패")) ? FVirtualSensorUiStyle::Error : (LastControlMessage.Contains(TEXT("대기")) || LastControlMessage.Contains(TEXT("갱신")) ? FVirtualSensorUiStyle::Warning : FVirtualSensorUiStyle::Success); }).AutoWrapText(true).Text(FText::FromString(GetControlStatusText())) ]
             ]
@@ -1028,7 +1032,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeC
         +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedMapHelp","PIE 시작값 복원은 현재 실행 값만 되돌립니다. 맵 저장 예약은 PIE 종료 시 SensorTestMap 원본에 반영하는 별도 동작입니다."))]
         +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,5))
           +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedRestore","PIE 시작값 복원")).OnClicked_Lambda([this](){ResetPendingStateToMapValue();return FReply::Handled();})]
-          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedMapQueue","SensorTestMap 저장 예약")).IsEnabled_Lambda([this](){return HostActor!=nullptr;}).OnClicked_Lambda([this](){QueuePendingStateForSensorTestMap();return FReply::Handled();})]]
+          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedMapQueue","SensorTestMap 저장 예약")).IsEnabled_Lambda([this](){return HostActor&&HostActor->CanQueueMapApply();}).ToolTipText(LOCTEXT("PortableMapQueueReason","다른 맵에서는 사용할 수 없습니다. 저장 위치 또는 전체 배치를 사용하세요.")).OnClicked_Lambda([this](){QueuePendingStateForSensorTestMap();return FReply::Handled();})]]
       ]];
     return Utilities;
 }
