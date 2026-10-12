@@ -6,6 +6,19 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-12 UXR-07 CLI 준비 — 화면 조작과 사용자 수용은 대기
+
+- 기준 HEAD `7a99a45175295fe5e1ad7f3986eb413a15867083`, branch `codex/architecture-skeleton`, DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`. 검증은 이 HEAD와 UXR-07 변경으로 수행했고 소스 커밋 `8ab6a3a`와 동일한 최종 Source SHA256은 `Saved/Reports/UXR/UXR-07/verified-source-hashes.json`에 보관한다. 커밋 이후 전체 release를 검증했다고 소급 설명하지 않는다.
+- `Scripts/verify.ps1 -Level release -Tests MA0T10.UXR -BaseCommit 7a99a45`: `Saved/Reports/verify/20261012T094125797Z/manifest.json` Valid. Editor Development, diff/guard/layer/payload/fixture/opt-in/문구 상수 gate, D3D12 UXR 집중18 Success, 전체 MA0T10 **234 실제 Success/20 조건부 skip/실패0**, WBP7 메모리 컴파일(자산 저장 없음), 같은 실행에서 새로 만든 Slate 문구 inventory gate 통과. 집중18은 전체234에 포함되며 별도 합산하지 않는다.
+- 이름별 기준선은 마지막 이전 release `20261012T085458983Z`, source HEAD `90a07588a1feefba9434eb18a0ecf78349b41c0e`다. **253개 기존 이름 상태 변화0·누락0 + 신규 `MA0T10.UXR07.OwnedScreenVocabulary` Success**. 날짜가 다른 기준선을 현재 HEAD 시험처럼 설명하지 않는다. skip 이름·원인은 `Saved/Reports/UXR/UXR-07/skipped-tests.json`, 비교 원본은 `test-comparison.json`/`test-comparison-summary.json`이다.
+- 문구: 표시 상수87개, 기본29영역/허용6영역의 실제 native Slate 라벨·힌트·툴팁. 발견18건은 반복된 공통 숨김 툴팁11영역, 결과 재시도1영역, 서버 라벨6개다. 원본 `found-violations.json`과 최종 `vocabulary-final.json`/`visible-text.json` 참조. 별도로 파일 저장 주기 설명과 옛 캡처/내보내기 화면 이름을 정리하고, 동적 이유의 모든 정책 금지어/대문자 형태 및 실제 데이터 패널 메시지 전달을 검사했다. 편집 값·임의 ID/주소/경로·Designer/레거시·미실행 오류 조합은 이 fixture의 검사 대상 밖이다.
+- 초기 검사에서 UMG wrapper의 마지막 참조를 버려 NativeDestruct가 소유 등록을 해제하고 레거시 텍스트를 읽는 문제가 있었다. wrapper를 유지하고 실제 소유 툴바·작업 버튼의 positive check를 추가한 뒤 전체 release를 다시 통과했다. 기대값을 완화하지 않았고 기존 테스트 기대값 수정0이다. PowerShell native warning을 오류로 처리한 첫 release의 CRLF 경고 실패도 원본 manifest로 보존했다. 스크립트 negative control은 기본 STOMP 주입 exit1/진단 허용 주입 exit0이다.
+- 자동 렌더: UXR02/03/04/05/06/08 PresentationRhi를 두 해상도에서 실행, **12 Success/실패·skip0, 최종94 PNG**. 실제 client1280×720/1920×1080, 글자100/150%, windowDPI1.0. PNG는 창 경계6px을 포함한다. 기존 UXR02 fixture의 고정 출력 경로에서 새 배치6장을 UXR07 폴더에 복사했으며, UXR04/08의 같은 표면 fixture는 같은 이름을 최종 캡처로 갱신한다. `captures.json`은 이름·크기·SHA256을 기록한다. 주요 서버 화면4조합·배치·설정·결과 이미지를 검토했으며 하단 스크롤/툴팁/물리 DPI의 직접 조작 통과로 세지 않는다. 테스트맵 하단의 별도 진단 fixture 문구와 편집 주소 값은 소유 기본 라벨 검사 범위 밖이다.
+- 성능: 같은 커밋된 SlabScenarioValidationMap/D3D12/실제1920×1080/font100/전송 탭 열림, 1D455 Camera+1MLX80 Native GPU LiDAR FullSpec 측정, 시나리오·출력·파일 저장 없음,10초 준비+30초. FPS **47.472844→47.738787(+0.560%)**, engine frame p95 **29.619098→29.568899ms(-0.169%)**, callback wall p95 **33.362299→33.675797ms(+0.940%)**, game thread 평균 **6.356517→6.222725ms(-2.105%)**, 2% gate PASS. 0Hz 장비를 제외하지 않으며 로그에 두 장비의 실제 측정이 있다. 가상 디스플레이의 engine pacing/callback wall을 구분하고 절대 p95 20ms/60FPS 목표나 외부 수신을 인증하지 않는다. `performance/comparison.json` 참조.
+- 보호:476개 중475개 SHA256 유지. `CLAUDE.md`는 별도로 09:29:05 UTC에 수정되었고 이 작업은 그 파일을 수정·복원·stage하지 않았다(원본/최종 해시 별도 기록). DTCore gitlink/worktree clean, Config/Game.ini, Samples/PixelStreaming, PixelStreaming 모듈 의존/활성, 시작 때 변경돼 있던 운영 SensorTestMap, 전체 Content 자산 불변. 개인 SaveGame9/9 복원. 새 자산/맵 저장, push/PR/merge/worktree/submodule update/서비스 재시작/Broker 설정 변경 없음. 실행한 Editor/PIE 프로세스 정상 종료.
+- PixelStreaming 플러그인 활성/Build.cs 의존 유지 및 렌더 로그의 설정 초기화, 해당 로그의 PixelStreaming 오류0을 확인했다. 시그널링/원격 스트리밍은 수행하지 않았고 실제 마우스 PIE 초기화 확인은 런북에 남겼다.
+- 수동 런북: `Saved/Reports/UXR/UXR-07/MANUAL_RUNBOOK.md`,55단계/100~130분. UXR-02~08 main/supplement CHECKLIST와 무안내 첫 사용자 흐름, 두 해상도×글자100/125/150%, 시험 장비 삭제·Slab 클릭·명시 광학 연동·수명·개인 값 복원을 합쳤다. 준비용 Python은 문법과 기존 PIE/API 경로를 확인했지만 화면 세션에서는 아직 실행하지 않았다. 서버/실패/빈 장비/재호스팅 fixture가 없는 항목은 환경 보류로 표시하며 사용자 확인까지 UXR-07을 완료 처리하지 않는다.
+
 ## 2026-10-12 UXR-02 CLI 마무리와 UXR-03
 
 - 시작: `codex/architecture-skeleton`, HEAD `e9bb72f`, DTCore `b2504d1`. `C:\Unreal Projects\ma0t10_dt`에서만 작업했다. 모니터 부재/WinDisc 1612×816 환경이며 요청에 따라 Computer Use는 수행하지 않았다.
