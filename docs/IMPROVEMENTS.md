@@ -80,7 +80,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ARCH-05 | 구조 / 송신 검증 분리 완료 | P1 | **100%** | Transport/ExternalSource의 WebSocket/TC include 9쌍 제거 | 완료; 전체 249개 이름별 결과 동일·보호 경로 불변 | A |
 | ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
 | ARCH-07 | 품질 / 검증 진입점 완료 | P1 | **100%** | `verify.ps1` quick/feature/release, 환경변수 67개·Scripts 110파일 분류 | 완료; manifest·skip 원인 집계·전체 기준선 유지 | A (QA-01 일부) |
-| ARCH-08 | 구조 / 정리 | P2 | **0%** | 미사용 PixelStreaming 의존·테스트 hook 노출·초대형 파일 분할 | 이동만으로 이루어진 diff, 빌드·회귀 동일 | A |
+| ARCH-08 | 구조 / 정리 완료 | P2 | **100%** | PixelStreaming 의존 3개 제거·test hook guard·대형 3파일 분할 | 완료; 331개 본문 불변·빌드/249개 회귀 동일·성능2%gate | A |
 | UXR-01 | UI/UX / 작업 흐름 바 | P0 | **100%** | 소유 흐름 바·5Hz 상태 줄·도구 메뉴·용어 상수, 자동화·4조합 렌더 통과 | Claude 직접 조작 검토는 별도; 세부 화면 재정비는 UXR-02~07 | U |
 | UXR-02 | UI/UX / 배치 | P0 | **100%** | 완료(마우스 최종 삭제 1건 보류), 상태 칩·클릭 마커 격리 재검증 | 모니터 복귀 후 최종 삭제 직접 재검수; Saved/Reports/UXR/UXR-02 | U |
 | UXR-03 | UI/UX / PCD 전송·결과 | P0 | **90%** | 소유 데이터 5탭·신규/재생 2열·재생 요약·결과/진단 분리, 자동화·20장 렌더 완료 | 보완: 쉬운 점검 문장·대상 세그먼트·직접 전송 헤더, 집중 13 Success/4조합 전송 렌더/전송 탭 성능 통과; 직접 조작 보류(모니터 없음) | U |
@@ -221,13 +221,18 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-08 — 정리 (P2)
 
-**진행률: 0%**
+**진행률: 100%** · 2026-10-12 구현·빌드·집중/전체 회귀·성능·문서 완료, Claude 독립 검토 대기.
 
 - `ma0t10_dt.Build.cs`의 `PixelStreaming`, `PixelStreamingInput`, `PixelStreamingBlueprint` 의존 제거(C++ 사용 0건). `.uproject`의 플러그인 활성화와 `Samples/PixelStreaming`은 건드리지 않는다. Editor 빌드와 Game target(`ma0t10_dt Win64 Development`) 빌드로 확인한다.
 - `ForTests` 계열 테스트 hook 멤버를 `WITH_DEV_AUTOMATION_TESTS`로 제한한다(Shipping 노출 제거).
 - 초대형 파일(`UI/VirtualSensorMonitorPanelWidget.cpp`, `Sensor/VirtualLidarScanComponent.cpp`, `Core/VirtualSensorStreamPublisherComponent.cpp`)을 **같은 클래스의 여러 `.cpp`로 이동만** 해서 나눈다. 순수 인코딩 함수는 별도 파일로 옮긴다.
 - 빈 `Source/m7at10_dt/` 폴더 삭제는 재귀 삭제이므로 사용자 확인 후에만 한다.
 - **완료:** 빌드·전체 회귀 동일, 분할 diff가 이동만으로 구성됨을 리뷰에서 확인.
+- **결과:** C++ 사용·Blueprint 자산 내 PixelStreaming 문자열 0건을 재확인하고 Public 의존 3개만 제거했다. `.uproject` 활성화·Samples는 불변이며 프로젝트 Blueprint17개와 WBP7개 메모리 컴파일 통과. Runtime hook18선언/참조 줄의 guard를 확인했다. 이미 제한된 hook은 유지하고 유일한 비제한 직렬화 함수의 production 진입점을 `SerializePointCloudFrame`으로 분리해 테스트 이름을 guard했다. UPROPERTY/UFUNCTION hook은 없다. Shipping object에는 테스트 직렬화 이름이 없고 production 이름은 남는다.
+- **분할:** Monitor5·Scan4·Publisher3 `.cpp`와 순수 LiDAR JSON helper `.inl` 1개로 나눴다. `.cpp`당 **249~887줄**, 함수·helper **331개**의 원문 hash/문자열 대조 통과. `.inl`은 acquisition 단위 내부의 동일 anonymous namespace에서 한 번만 include해 private 타입과 linkage를 유지하고 mutable helper를 복제하지 않는다. 파일 이동에 따른 기존 Scenario include 3쌍의 allowlist 경로만 해당 이동 커밋에서 바꿨다. 함수·wire bytes·BP·저장 계약 변경은 없다. `Source/m7at10_dt/`는 내부 디렉터리를 포함해 그대로 보존했다.
+- **검증:** Runtime `a36179c`, DTCore `b2504d1`. Editor·Game Win64 Development·Game Shipping 빌드, V2·guard·layer gate·WBP7·verify quick 통과. hook 집중 **34 Success/skip5**, 분할 집중 **41 Success/skip3**, D3D12 전체 **229 Success/skip20/실패0/NotRun0**, 기준선249개 이름별 결과 차이0. allowlist **9→9**, 신규·stale0. 보호476파일 불변·개인 SaveGame9개 복원·자산 저장0.
+- **성능·제한:** 실제 D3D12 RenderOffscreen·client1920×1080·1 Camera+1 GPU LiDAR·10초 준비+30초·preview·폰트1·송신/로컬 프레임 저장 없음에서 callback FPS **47.20→47.63**, engine frame p95 **29.686→29.612ms**, game thread 평균 **6.250→6.121ms**로2%gate 통과. callback frame p95는33.635→33.298ms이며 engine 시간과 별도다. CLI 요청에 따라 Computer Use는 미수행이고 offscreen 성능을 직접 마우스 수용으로 확대하지 않는다. 기존 opt-in20개는 skip으로 유지한다.
+- **증거:** `Saved/Reports/ArchitectureSkeleton/A08/RESULT.md`, `summary.json`, `split-function-proof.json`, `move-proof-final.json`, `hook-guard-proof.json`, `test-comparison.md`, `performance-comparison.json`, target별 빌드·WBP·보호 hash 로그. 최초 상대 보고서 경로 문제는 ARCH-07 runner 수정 후 재실행했다. allowlist partial-index patch의 CRLF 실패는 본인이 만든 두 로컬 커밋만 재구성해 수정했으며 최종 tree/index/worktree 불변 증거를 `commit-scope-repair.json`에 남겼다. ARCH-06·DTCore·보호 파일·push/PR/merge·worktree·submodule update는 없다.
 
 ## 0-U. UXR — 사용자 흐름 중심 UI 재정비 (ARCH-04 직후)
 
