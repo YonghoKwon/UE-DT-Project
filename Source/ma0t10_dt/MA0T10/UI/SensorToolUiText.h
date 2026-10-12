@@ -41,6 +41,11 @@ namespace SensorToolUiText
     inline FText DirectTarget() { return LOCTEXT("DirectTarget", "직접 전송"); }
     inline FText PcdServerRequired() { return LOCTEXT("PcdServerRequired", "PCD 전송에는 서버 연결 설정이 필요합니다"); }
     inline FString UserReason(FString Reason);
+    inline FString CompactEquipmentTitle(const FString& Status)
+    {
+        const int32 StateStart=Status.Find(TEXT(" · "));
+        return StateStart>28?Status.Left(27)+TEXT("…")+Status.Mid(StateStart):Status;
+    }
     inline FString PreflightReason(const FString& Reason)
     {
         if(Reason.Contains(TEXT("STOMP")))return PcdServerRequired().ToString();

@@ -423,7 +423,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshOwnedMonitorText()
     const FString Warning=BuildOwnedMeasurementWarning();bOwnedHasWarning=!Warning.IsEmpty();
     FString Status=bOwnedHasEquipment?BuildCompactStatusText():TEXT("장비 없음 · 배치에서 장비를 추가하세요");
     SetText(OwnedMonitorWarning,bOwnedHasWarning?TEXT("⚠ ")+Warning:FString());
-    SetText(OwnedMonitorStatus,Status);if(NativeStatusTextBlock){NativeStatusTextBlock->SetText(OwnedMonitorStatus);NativeStatusTextBlock->SetToolTipText(OwnedMonitorStatus);}
+    SetText(OwnedMonitorStatus,Status);if(NativeStatusTextBlock){NativeStatusTextBlock->SetText(FText::FromString(SensorToolUiText::CompactEquipmentTitle(Status)));NativeStatusTextBlock->SetToolTipText(OwnedMonitorStatus);}
     auto* Workspace=GetToolWorkspace();auto* Placement=Workspace?Cast<UVirtualSensorPlacementPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Placement)):nullptr;
     FString Reason;bOwnedCanStart=bOwnedHasEquipment&&Placement&&SensorManager&&SensorManager->GetSensorActors().Contains(Actor)&&Actor->CanEditSensorPlacement(Reason);
     SetText(OwnedEmptyText,bOwnedHasEquipment?TEXT("측정 중지 상태입니다"):TEXT("장비가 없습니다 · 배치에서 장비를 추가하세요"));

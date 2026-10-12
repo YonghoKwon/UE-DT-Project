@@ -92,6 +92,7 @@ public:
     AActor* GetBoundTargetActor() const { return TargetActor; }
 
     static FVector ResolveAxisVector(const FTransform& TargetTransform, EVirtualSensorCoordinateSpace Space, EAxis::Type Axis);
+    static float CalculateVisualScale(float DistanceCm);
     static FTransform ApplyKeyboardDelta(const FTransform& TargetTransform, EVirtualSensorCoordinateSpace Space, const FVector& TranslationAxes, const FRotator& RotationDegrees);
     static constexpr int32 ProjectionDebugRayBudget = 64;
 

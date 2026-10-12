@@ -16,6 +16,9 @@ bool FSensorPreviewPresentationTest::RunTest(const FString&)
 {
     TestEqual(TEXT("uncapped warning uses equipment terms without exposing property names"),SensorToolUiText::UserReason(TEXT("Server payload is uncapped (MaxServerPayloadPoints=0)")),FString(TEXT("추가 출력 데이터의 점 수 제한이 없습니다")));
     TestEqual(TEXT("server setup guidance has no duplicated server noun"),SensorToolUiText::UserReason(TEXT("STOMP 서버 설정을 연결·진단에서 확인하세요")),FString(TEXT("서버 설정을 서버 연결 설정에서 확인하세요")));
+    const FString LongTitle=TEXT("Camera CAMERA-a9307fe5-4162-06c0-85b2-dca6d7cd3e4b · 측정 중 · 30.00 Hz");
+    TestTrue(TEXT("long equipment titles retain state and rate"),SensorToolUiText::CompactEquipmentTitle(LongTitle).EndsWith(TEXT(" · 측정 중 · 30.00 Hz")));
+    TestTrue(TEXT("long equipment titles shorten only identity"),SensorToolUiText::CompactEquipmentTitle(LongTitle).Len()<LongTitle.Len());
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Camera->StopSensor();Lidar->StopSensor();C->DiscoverSensorsInLevel();
     auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement);
