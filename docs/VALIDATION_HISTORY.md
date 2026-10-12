@@ -233,3 +233,14 @@ DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `
 - 성능: D3D12, SlabScenarioValidationMap, 실제 1920×1080, 글자 100%, 전송 탭 열림/다른 창 숨김, FullSpec D455 Camera 1+MLX80 Native GPU LiDAR 1 측정, Slab 대기, 송신·파일 저장 없음, 10초+30초. FPS 59.9968→59.9960(-0.0013%), engine frame p95 16.6669→16.6669ms(0%), callback wall p95 20.9410→20.9862ms(+0.2158%), game thread 평균 5.6673→5.7254ms(+1.0237%). 2% gate 통과. engine delta는 FApp::GetDeltaTime(엔진 pacing 포함), callback 지연과 구분. 가상 WinDisc이며 물리 디스플레이/절대 지연 목표 인증 아님.
 - 기준선 production은 `3abccdf`, 동일 Editor 계측기만 먼저 빌드했다. 최종 검증은 그 HEAD+변경 소스로 수행 후 `22d54b9` 커밋; 소스/binary hash는 `validation-manifest.json`과 `baseline-manifest.json`. 전체 MA0T10 이름별 비교는 요청의 마지막 통합 단계에서 수행 예정이며 이 보완의 집중 결과로 대체하지 않는다.
 - 보호 파일 475/475 불변, 개인 SaveGame 9/9 복원. DTCore `b2504d1` gitlink/worktree 불변. Editor/PIE 정상 종료. 마우스 체크리스트: `Saved/Reports/UXR/UXR-03/supplement/manual/CHECKLIST.md`.
+
+
+## 2026-10-12 — UXR-04 시나리오 화면 CLI 검증
+
+- 소스 `9477732`: 수정 7파일+추가 3파일, 이동 0. 기존 Progress/Replay 인스턴스와 DTCore 전면/입력 등록을 유지한 나란히 기본 배치, 진행 창 차트 토글, 통합 표시 설정 접힘. 사용자 저장 배치는 우선한다. 소유 native 재생 출력 편집 0개, 기본 정책·기존 API/enum/저장값·wire 계약 불변.
+- Editor Development, layer 18/18(신규/stale 0), guard, V2 `-RequireAssets`, WBP 7개 메모리 컴파일 통과. 집중 28 Success/실패·skip 0, 기존 기대값 변경 없음. 신규 `MA0T10.UXR04.ScenarioScreenAndChartToggle`: 차트 토글/실행 불변/접힘 상세 비용/숨김 표시 정지/기본 재생 출력 보존.
+- 최종 자동 렌더 8장: 시나리오 진행+보관 목록 및 표시 설정, 실제 client 1280×720/1920×1080×글자 100/150%, window DPI 1.0. 클릭 검수가 아니며 1280×720 150%에는 기존 커서 위치에 따른 일시적인 제목 툴팁이 함께 잡힌다. 주요 버튼·표시/하단 영역은 캡처에서 접근 위치가 보인다. 개인 저장 배치의 직접 복원/마우스 resize/scroll 검수는 보류.
+- 성능 fixture: D3D12 SlabScenarioValidationMap, 실제1920×1080, 글자100%, 진행+목록 열림/다른 창 숨김, FullSpec D455 Camera1+MLX80 Native GPU LiDAR1 측정, 기존 synthetic600행을 시간값만3배로 늘린90초 관찰 실행, 10초+30초. 원본 fixture 이름의30s는 유지했으며 명시 duration과 행 elapsed는90초 기준이다.
+- 처음 game thread 평균 5.9173→6.0410ms(+2.09%)로 gate 실패. 버튼 상태·텍스트 FText의 표시용 조회를5Hz 캐시로 바꿨고 최종 FPS59.9994→59.8091(-0.3172%), engine frame p95 16.6669→16.6669ms(0%), callback wall p95 20.8877→21.0707ms(+0.8761%), game thread 평균5.9173→5.9611ms(+0.7400%)로2% gate 통과. 0Hz 센서를 평균에서 제외하지 않으며 센서30/20Hz 로그를 별도로 남겼다. callback pacing과engine delta(FApp::GetDeltaTime, pacing포함)는 구분한다. 가상WinDisc이며 물리 디스플레이/절대 지연 인증은 아니다.
+- 기준선 production은 `22d54b9`/HEAD`1670b4b`, Editor 계측기만 먼저 빌드(`build-instrument.log`,4actions). 최종 검증은 HEAD+변경으로 수행 후 `9477732` 커밋했다. 소스 hash·캡처/이름별 결과는 `Saved/Reports/UXR/UXR-04/validation-manifest.json`, `captures.json`, `focused-classified.json`. 전체MA0T10는 마지막 통합 단계에서 비교 예정.
+- 보호475/475·SaveGame9/9 복원, DTCore `b2504d1` gitlink/worktree 불변, 운영맵·자산·Config/Game.ini·PixelStreaming·Claude전용문서 불변. Editor/PIE정상종료. 직접 체크리스트 `Saved/Reports/UXR/UXR-04/manual/CHECKLIST.md`. 초기 캐시 편집용 inline Python의 quoting 실패1회는 실제 변경 없이 발생했고 UTF-8 파일 스크립트로 수정 후 최종빌드 통과.

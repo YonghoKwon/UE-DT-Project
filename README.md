@@ -21,7 +21,7 @@
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
 | 아키텍처 | 단일 Runtime 모듈 안에 센서·Slab·UI가 섞여 있고 역방향 의존이 있다(§10.2 표). ARCH-01 레이어 gate 도입 | 폴더 재배치·역의존 제거 (ARCH-02~08) |
-| 화면 구성(UX) | 흐름 바·배치 정리, 데이터 5탭·신규/재생 출력 편집 단일화 구현(UXR-01~03) | UXR-02 최종 삭제 1건·UXR-03 직접 조작은 보류(열린 전송 화면 성능 검증 완료), UXR-04~08 미착수 |
+| 화면 구성(UX) | 흐름 바·배치 정리, 데이터 5탭·신규/재생 출력 편집 단일화 구현(UXR-01~04) | UXR-02 최종 삭제 1건·UXR-03 직접 조작은 보류(열린 전송 화면 성능 검증 완료), UXR-04 직접 조작 보류, UXR-05~08 미착수 |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화 통과 | 물리 마우스·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 40%) |
 | PCD 송신 | 실제1920×1080 2+2 PCD-only 10분·10회 반복 통과, 사전 점검 구현 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
@@ -29,7 +29,9 @@
 | 자동화 | Runtime `2c453d2`: D3D12 전체 `MA0T10` 실제221 Success/조건부 skip20/실패0, WBP7개 메모리 컴파일, UXR-03 자동 렌더20장 | UXR-03 직접 조작 보류(전송 화면 성능 보완 검증 완료), 표준 검증 진입점 (QA-01, ARCH-07) |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
-최신 UI 근거 보고서: `Saved/Reports/UXR/UXR-03/supplement/RESULT.md`(UXR-03 보완), 기존 5탭/전체 회귀는 `Saved/Reports/UXR/UXR-03/RESULT.md`(커밋하지 않음). 과거 수치는 [검증 이력](docs/VALIDATION_HISTORY.md).
+UXR-04 근거 보고서: `Saved/Reports/UXR/UXR-04/RESULT.md`(집중 28 Success, 렌더 8장, 성능 2% gate 통과; 직접 조작 보류).
+
+최신 데이터 UI 근거 보고서: `Saved/Reports/UXR/UXR-03/supplement/RESULT.md`(UXR-03 보완), 기존 5탭/전체 회귀는 `Saved/Reports/UXR/UXR-03/RESULT.md`(커밋하지 않음). 과거 수치는 [검증 이력](docs/VALIDATION_HISTORY.md).
 
 ## 2. 현재 가능한 것과 아닌 것
 
@@ -106,7 +108,7 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 
 소유 상단 작업 흐름 바는 **장비 ▾ / 배치 / 미리보기 / 시나리오 / PCD 전송 / 결과 / 도구 ▾**다. 장비 선택에는 종류·SensorId·측정/정지/정체/오류 상태가 표시되고 배치 창과 같은 선택을 공유한다. 기존 `장비 추가·위치 저장` 진입점은 **배치**로 짧게 표시한다. Host가 명시적으로 등록한 인스턴스만 관리하며 다른 Widget의 스타일·입력·저장값을 건드리지 않는다.
 
-- **시나리오**는 진행과 보관 목록을 함께 연다. 차트는 `도구 → 시나리오 차트`에서 연다(UXR-04 정리 전 기존 접근 유지).
+- **시나리오**는 기존 진행과 보관 목록 인스턴스를 함께 연다. 새 기본 배치는 나란히 놓이며, 저장된 개인 배치가 우선한다. 진행 창의 `시나리오 차트` 버튼은 기존 차트를 열고 다시 누르면 숨긴다. `도구 → 시나리오 차트` 접근도 유지한다. 3D 표시·단위·현재 외형은 진행 창의 **표시 설정** 접힘에 모았다. 출력 정책은 이 화면에서 편집하지 않는다.
 - 상단 작업 버튼은 **토글**이다. 열린 같은 화면을 다시 누르면 숨기고, 닫힌 화면은 열어 앞으로 가져온다. PCD 전송/결과처럼 같은 패널의 다른 화면은 먼저 전환하고, 그 화면을 다시 누를 때 숨긴다. 열린 화면은 강조한다. 숨김은 측정·송신·저장·재생을 멈추지 않는다(배치/설정의 조작 모드만 종료).
 - 장비 선택기는 `Camera SensorId ● 상태` 형식과 LiDAR/Camera 묶음을 사용한다. 선택만으로 패널을 열거나 측정을 시작하지 않는다. 긴 ID는 말줄임+전체 ID 툴팁, 하단 `+ 장비 추가 (배치)`는 배치 창 진입이다. 전역 상태 줄은 hover 가능한 칩이며 긴 경고도 전체 문장 툴팁을 제공한다.
 - UXR-02 배치 정리는 완료했으며 마우스 최종 삭제 1건은 보류다(환경: 모니터 없음). 확인/취소 직접 검수와 실제 삭제 자동화는 완료했고 사용자 복귀 후 재검수한다. CLI 재검증은 `Saved/Reports/UXR/UXR-02/cli-closure/`에 있다.
@@ -121,7 +123,7 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 | 데이터 / `WBP_VirtualSensorCaptureExportPanel` | **전송 / 결과 / 파일 저장 / 서버 연결 / 진단**. 새 소유 인스턴스는 전송 탭 |
 | 재생 / `WBP_SlabScenarioReplayPanel` | 전체 UUID/내부 보관 ID, 선택 항목 재실행·복사·삭제, 이번 재생 출력 요약 + `PCD 전송에서 변경` |
 | 차트 / `WBP_SlabChartsPanel` | 기울기·중심 이탈·Margin 3개를 진행 시점까지만 표시 |
-| 진행 / `WBP_SlabProgressPanel` | 상태·진행률·pause/resume/중단, 세부 3D 표시와 단위/외형 |
+| 진행 / `WBP_SlabProgressPanel` | 상태·진행률·일시정지/재개/중단/초기 위치 복귀, 차트 토글, **표시 설정**(3D·단위·외형) |
 | 배치 / `WBP_VirtualSensorPlacementPanel` | 장비 추가·선택·조작, 저장 위치·전체 배치 저장/불러오기 |
 
 - 제목 drag, 우하단 resize, 실제 영역 접기, 숨김/다시 열기를 지원한다. 숨김은 측정·파일 저장·송신·재생 중지가 아니다.
@@ -213,7 +215,7 @@ GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 
 - 복귀 자체는 새 RunUUID, 센서 세션, 캡처/스캔이나 자동 송신을 만들지 않는다. 이전 receipt·실패 기록은 연결·진단에 남는다. 이후 신규 UUID는 정상 자동 실행하며 기존 목록의 같은 시나리오도 재실행할 수 있다.
 - C++/Blueprint: `ASlabActor::CanResetToInitialPlacement(OutReason)` / `ResetToInitialPlacement(OutError)`. 사용자 WBP는 `USlabProgressPanelWidget::CanResetSlabToInitialPlacement` / `ResetSlabToInitialPlacement`에 버튼을 연결한다. Designer와 기존 binding은 자동 변경하지 않는다.
 
-진행 패널의 3D 분석은 선 기본 4px(2~12), 글자 28px(18~56), 어두운 배경판, signed Margin과 `[침범]`을 제공한다. 음수 Margin은 기하학적 침범이며 안전 기준/AI 판정이 아니다. 보조 표시는 센서 측정에서 제외한다.
+진행 패널의 **표시 설정**을 펼치면 3D 분석·단위·현재 외형을 바꿀 수 있다. 실행 중 단위 변경 제한과 표시 선택은 기존대로 유지한다. 이 영역을 접거나 창을 숨겨도 시나리오가 중지되지는 않는다. 진행 패널의 3D 분석은 선 기본 4px(2~12), 글자 28px(18~56), 어두운 배경판, signed Margin과 `[침범]`을 제공한다. 음수 Margin은 기하학적 침범이며 안전 기준/AI 판정이 아니다. 보조 표시는 센서 측정에서 제외한다.
 
 테스트 발행(로컬 Broker가 이미 정상 실행되고 입력 Topic을 구독한 경우):
 
@@ -379,9 +381,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-12, `2c453d2` Runtime 기준, ARCH-04 gate 유지)
+### 10.2 현재 위반 (2026-10-12, `9477732` Runtime 기준, ARCH-04 gate 유지)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 217개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 217개에서 **고유 source → resolved target include 쌍**을 센다. 같은 쌍의 반복 include와 줄 수는 중복 집계하지 않는다. 현재 **18쌍 = allowlist 18개**다. ARCH-04에서 Coordinator→Monitor 1쌍·Slab→UI Host 1쌍·Player→Gizmo 2쌍을 해소했고 UXR-03 보완·UXR-04 신규 위반은 없다. L1→L3·L2→L3 include 위반은 0이다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
