@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **`codex/architecture-skeleton` (분기 `fda25e0`, Runtime `2c453d2`) / DTCore `b2504d1`, 2026-10-12**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+기준: **`codex/architecture-skeleton` (분기 `fda25e0`, Runtime `efcd353`) / DTCore `b2504d1`, 2026-10-13**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니며, 이번 버전에서는 플러그인 제작을 시작하지 않는다.** 현재 개발은 기능 추가보다 **프로젝트 안의 아키텍처 뼈대 재정비(ARCH 단계)**가 우선이다. 동작·wire 계약·Blueprint API를 바꾸지 않고 레이어 경계·폴더 책임·검증 진입점을 정리한다. 상세 순서는 [로드맵 A단계](docs/ROADMAP.md#a단계--아키텍처-뼈대-재정비-현재-진행)와 [개선 목록 ARCH 항목](docs/IMPROVEMENTS.md#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 따른다.
 
@@ -22,6 +22,7 @@
 |---|---|---|
 | 아키텍처 | 단일 Runtime 모듈 안에 센서·Slab·UI가 섞여 있고 역방향 의존이 있다(§10.2 표). ARCH-01 레이어 gate 도입 | 폴더 재배치·역의존 제거 (ARCH-02~08) |
 | 화면 구성(UX) | 흐름 바·배치·데이터5탭/출력 편집 단일화(UXR-01~04), Slab 그리드 정보·표면5종(UXR-08), 센서 설정3단(UXR-05), 미리보기1줄·빈 상태/진단 분리(UXR-06) | UXR-02 최종 삭제1건·UXR-03~06/08 직접 조작 보류, UXR-07 수용 대기; 산화 스케일은 승인된 전용 재질 지원 |
+| 새 맵 적용 (MAP-01) | Rig 하나·Slab 없음 안내·DTCore 맵 점검·새 맵 2개, Editor/Game·release 14단계·242 Success/skip20·16장·성능2% gate 통과 | 직접 마우스·DPI 수용은 UXR-07로 이관, DTCore 업무 연결 조회 API 제한; 독립 검토 전 90% |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화 통과 | 물리 마우스·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 40%) |
 | PCD 송신 | 실제1920×1080 2+2 PCD-only 10분·10회 반복 통과, 사전 점검 구현 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
@@ -71,6 +72,8 @@ Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 |---|---|
 | `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap` | 센서/카메라 V2 UI·조작·출력 확인 |
 | `/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap` | synthetic Slab, 차트·진행·PCD 연계 검증 |
+| `/Game/MA0T10/Maps/Tests/PortableSetupMap` | Rig + 바닥 + TrackReference/Slab/조명만 있는 새 맵 적용 fixture |
+| `/Game/MA0T10/Maps/Tests/PortableNoSlabMap` | Rig + 바닥만 있는 센서 전용 fixture |
 | `/Game/MA0T10/Maps/Tests/LidarSemanticValidationMap` | 같은 재질·태그 없는 판/물체의 형상 구분 |
 | `/Game/MA0T10/Maps/Tests/SensorScaleStressMap` | 10,000 정적/1,000 이동 proxy 스트레스 fixture; 성능 보증 아님 |
 | `/Game/MA0T10/Maps/SensorTestMap` | 기존 운영 테스트맵; 로컬 사용자 변경 보호 |
@@ -79,7 +82,24 @@ Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 
 DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 안전성만 적용한 `b2504d1`을 사용한다. 기존 센서·Slab 기능을 유지하는 별도 연동 브랜치에서 검증했다. `OnConnected`는 성공/실패를 포함한 구독 완료 callback 집계이며 모든 구독 성공을 보증하지 않는다. custom 수신 binding을 보존하고, 공통 5초 timeout·all-ready 상태기계·World cleanup의 GI 전역 큐 폐기는 포함하지 않는다. 이전 안정화 기록의 해당 API 설명은 현재 계약으로 사용하지 않는다.
 
-## 4. 다른 맵에서 현재 기능 연결
+<a id="4-다른-맵에서-현재-기능-연결"></a>
+
+## 4. 새 맵에 적용하기
+
+같은 프로젝트 안의 새 맵에는 **`VirtualSensorToolRig` 하나**를 배치한다. 별도 플러그인·새 모듈·WBP·Level Blueprint 배선은 필요하지 않다. Rig는 L3 조립 Actor이며 측정·통신·환경 배치를 소유하지 않는다.
+
+- [ ] 프로젝트 공통 설정 확인: 이 프로젝트는 DTCore 활성화, `BP_DxGameInstance`, 기본 `DTCore.DxGameMode`, 공통 센서/Slab 자산과 TC DataTable을 이미 사용한다. 새 맵의 World Settings가 이를 override하는지 확인한다. Rig가 GameMode/GameInstance/Main/Player를 교체하지 않는다. PixelStreaming 의존·플러그인도 유지한다.
+- [ ] 맵에 `VirtualSensorToolRig`를 **하나만** 넣는다. 기존 Coordinator·센서 UI Host·Slab UI Host·Replay UI Host가 각각 하나 있으면 같은 인스턴스를 재사용하며, 빠진 도구 구성만 실행 중 생성한다. 중복 도구 구성은 거절한다. 기존 Host의 fallback/자동 생성 선택은 덮어쓰지 않는다. 새 Host는 기존 자동 생성·native fallback 기본값을 사용한다.
+- [ ] Slab을 쓸 때만 `SlabTrackReferenceActor`와 `SlabActor`를 직접 배치하고 Slab의 `TrackReference`를 연결한다. 치수/위치 단위·레일·`ReceiverId`·출력 대상도 확인한다. 여러 Slab은 Rig의 `TargetSlab`을 명시하고 `ReceiverId`를 각각 다르게 지정한다. 배경·조명·관찰 위치는 해당 맵에서 별도로 세팅한다.
+- [ ] PIE 실행 후 `배치`에서 Camera/LiDAR를 추가하고 선택·이동·현재 위치 저장을 사용한다. Rig가 장비나 Slab을 미리 생성하거나 서버/전송을 자동 시작하지 않는다. Slab 없는 맵은 센서 기능을 그대로 쓰며 시나리오와 Slab 카드에서 `Slab이 없습니다 · 배치 방법`을 안내한다. 실행 중 나중에 배치한 유일 Slab도 1초 간격으로 연결한다.
+- [ ] **도구 → 맵 점검**에서 ✓/⚠와 한 줄 해결 방법을 확인한다. Rig/Coordinator/화면, Slab 대상·TrackReference·ReceiverId, `IFactory-agent` TC, DTCore `WebSocketTopics`의 `topic.scenario`, 업무/출력 서버, DTCore GameMode, `DT_DxLevel` 등록을 읽기 전용으로 검사한다. 열려 있을 때만 최대 1Hz로 검사하며 맵·설정·구독을 자동 수정하지 않는다.
+- [ ] Slab 전문을 받을 경우 기존 업무 서버와 `topic.scenario` 구독을 직접 확인한다. 센서 출력 서버는 별도 `도구 → 서버 연결 설정`에서 연결한다. DTCore `b2504d1`에는 현재 업무 서버 연결 상태의 공개 조회 API가 없어 이 항목은 **확인 불가 경고**와 로그 확인 방법을 표시한다. `OnConnected` 이력만으로 현재 연결 성공을 추정하지 않는다.
+- [ ] 패키징/레벨 전환에 사용할 맵은 DTCore Settings의 `LevelDataTable`(`DT_DxLevel`)에 `IsUse` 행으로 등록하고 cook 대상도 확인한다. Rig를 놓는 것만으로 DataTable이나 패키징 설정에 등록되지 않는다. 새 fixture 생성도 이 표를 자동 저장하지 않는다.
+- [ ] 새 맵의 저장은 Editor에서 명시적으로 한다. 실행 중의 **맵 저장 예약은 SensorTestMap 전용**으로 유지하며 다른 맵에서는 버튼을 비활성화하고 직접 API도 거절한다. 실행 중 배치는 기존 `저장 위치`/`전체 배치` 기능으로 저장한다. Rig는 맵을 저장하지 않으며 EndPlay에서 자신이 만든 도구 구성만 정리하고 재사용한 연결을 복원한다.
+
+재현 스크립트는 `Scripts/setup_portable_sensor_maps.py`다. 승인된 위 두 fixture 중 하나라도 이미 존재하면 쓰기 전에 중단한다. 생성 외의 일반 빌드/테스트에는 실행하지 않는다. 자동 PIE·렌더 증거는 `Saved/Reports/MAP/MAP-01/`, 직접 마우스 확인은 UXR-07의 `MANUAL_RUNBOOK.md`와 MAP-01 `manual/CHECKLIST.md`에서 별도로 수행한다.
+
+### 기존 수동 연결 (호환)
 
 ### 센서만 사용
 
@@ -97,7 +117,7 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 - 재생 목록은 `ASlabScenarioReplayUiHostActor` 또는 도구 막대의 재생 메뉴로 연다. 운영 Slab가 replay adapter를 등록한다.
 - 센서 없는 관찰 실행도 가능하다. 송신을 선택할 때만 센서/Coordinator/STOMP 구성이 필요하다.
 
-현재 맵 저장 예약은 **SensorTestMap 전용 경로가 남아 있다**. 다른 맵의 영구 저장까지 일반화됐다고 생각하지 말고, 대상 검증/비활성화 또는 별도 승인된 이식 작업이 필요하다.
+맵 저장 예약은 **SensorTestMap 전용**이며 다른 맵에서는 비활성화된다. 신규 맵의 영구 저장 정책은 자동으로 일반화하지 않았다.
 
 ### 이식 시 누락하기 쉬운 항목
 
@@ -409,9 +429,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-12, Runtime `90a0758`, ARCH-06 완료)
+### 10.2 현재 위반 (2026-10-13, MAP-01 적용)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 240개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 247개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|

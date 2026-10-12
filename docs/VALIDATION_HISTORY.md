@@ -6,6 +6,17 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-13 MAP-01 CLI 구현·검증 — 직접 마우스는 UXR-07 이관
+
+- 최종 소스 `efcd35340dc57bbbf26574da8c71379ed5dd0f0c`, DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`, UE5.3 Win64 Development. 문서 완료 커밋은 소스를 바꾸지 않는다. 변경 25파일(소스18·스크립트/정책2·승인 새 맵2·관리 문서3), 이동0. 조사 문서/Rig/맵 점검/Slab 없음/저장 예약/맵/테스트/문서로 분리했고 커밋 후 unity의 두 식별자 충돌은 별도 수정했다.
+- `Scripts/verify.ps1 -Level release -BaseCommit b16f35c`: 14단계 Success. manifest `Saved/Reports/verify/20261012T151852991Z/manifest.json`, Valid=true. D3D12 고유 **242 Success / 기존 opt-in skip20 / 실패·NotRun0**. 별도 feature 중복까지 포함하면266건(246 Success/20skip)이다. UXR-09의 보관된 최종 보고서에서 기존259개 이름별 결과 차이0 + 신규3개: `MA0T10.MAP01.PortableSetupFlow`, `PortableNoSlabFlow`, `OwnershipDuplicateLateSlab`. 오래된 검증을 현재 통과로 계산하지 않았다. 현재 소스 전 파일 hash는 최종 manifest와 일치한다.
+- 집중5 Success: 위3개 + `MA0T10.SensorControl.MapApplyQueue` + `MA0T10.UXR07.OwnedScreenVocabulary`. 새 맵의 추가·선택·조작·비동기 위치 파일 저장/복원·PCD 점검/결과 접근·시나리오 주입/진행·card 연결·EndPlay 생성 helper 0잔존/기존 Actor 보존, 중복 Rig 거절·기존 구성 재사용·복수 Slab/ReceiverId/Track 경고·늦은 Slab·명시 PCD 대상/3D 선택 보존을 확인했다. MapApplyQueue는 보호 맵을 로드/저장하지 않는 메모리 canonical fixture로 바꿨으며 기존 교체/중복 방지 검증을 유지했다.
+- Editor 및 Game Development 통과. 마지막 커밋 상태에서 Game unity build도 재확인했다. layer 위반/allowlist/신규/stale **0/0/0/0**, Runtime production247파일. WBP7 읽기/메모리 컴파일·금지어 검사 통과. 새 화면은 `UDxWidgetSubsystem`을 이용하고 Workspace role/저장 schema는 바꾸지 않았다. 정확한 설정 식별자 때문에 `map-check`만 진단 allowlist로 추가하고 실제 Slate 문구를 기록했다.
+- D3D12 RenderOffscreen 자동 렌더: 두 맵×실제 client1280×720/1920×1080×글자100/150%×기본/맵 점검 =16 PNG. `Saved/Reports/MAP/MAP-01/Portable*map-check.png`; PNG에는 각 변3px Slate 창 테두리가 포함된다. 맵 점검은 ✓/⚠ 혼합, 150%는 세로 스크롤로 전체 항목에 접근한다. 실제 마우스·OS DPI 수용은 수행하지 않았다.
+- 성능: 같은 SlabScenarioValidationMap·D3D12·실제1920×1080·Camera D4551+LiDAR MLX80_NATIVE1 FullSpec 측정·같은 backend/출력/UI·10초준비+30초. baseline `b16f35c` → Rig로 기존 구성 재사용한 `efcd353`. callback FPS60.0034→59.9998(**−0.006%**), callback frame p9520.9281→20.7630ms(**−0.789%**), engine frame p9516.6669→16.6669ms(0%), game thread평균5.9012→5.2673ms(**−10.741%**). 2%gate 통과이며 frame cap/pacing을 측정 처리량과 혼동하지 않는다. `performance-comparison.json`.
+- 보호297/297 hash 불변: 운영 SensorTestMap 사용자 수정·Game.ini·Samples/PixelStreaming·Build.cs/uproject. DTCore guard의 고정 gitlink/worktree/index 불변. 승인된 새 .umap2개 외 자산 생성/저장0, 플러그인/모듈0, Claude 파일·push/PR/merge/worktree/submodule update 없음. 모든 자신이 띄운 Editor/PIE 정상 종료, 시작 시 백업한 개인 SaveGame9/9 byte 복원. 증거 `protected-before.json`, `save-restoration.json`, `summary.json`.
+- 제한: DTCore 현재 업무 서버 연결/구독 readiness의 공개 조회 API 부재는 확인 불가 경고와 변경 후보로 기록했다. 새 맵의 DT_DxLevel/cook 등록과 실제 외부 업무 수신은 자동 변경/검증하지 않는다. D3D12 RenderOffscreen 시작 전(frame0)에 `WindowsD3D12Viewport.cpp:473 SwapChain4.GetReference()` handled ensure가 실행마다1건 있다. 실제 RHI 테스트와 렌더는 통과했지만 engine 로그가 무오류였다는 뜻은 아니다. 마우스10단계 체크리스트와 UXR-07 런북을 추가했고 MAP-01은90%, 개편 합계는 독립 검토 전87%를 유지한다. 초기 빌드 오류 및 Git EOL 경고로 중단된 진입점은 해결 후 현재 검증을 다시 수행했다. 맵 생성 재실행의 예상 거절(exit−1)을 확인했고 새 맵2개 hash는 그대로다(NullRHI는 이 저장 거절 검사에만 사용).
+
 ## 2026-10-13 MAP-01 맵 독립성 조사
 
 - 시작: `codex/architecture-skeleton`, `b16f35c425c440e32e728e1b20258ba8b079b0d2`, origin UE-DT-Project, DTCore `b2504d1`. 기존 SensorTestMap 수정 및 보호된 미추적 파일을 보존한다.

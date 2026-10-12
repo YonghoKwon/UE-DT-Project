@@ -90,7 +90,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-07 | UI/UX / 문구·수용 | P0 | **50%** | 자동 준비 완료: 문구 검사·정리·렌더·통합 런북. 수동·첫 사용자 확인 대기 | 사용자 확인 | U |
 | UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·MID 5종(승인된 산화 전용 재질)·명시적 광학 연동·optional 결과 | 직접 조작/독립 검토 보류; 산화 전환/복원·CPU/GPU/PCD 회귀 통과, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
 | UXR-09 | UI/UX / 시각 리프레시 | P0 | **90%** | 카드·더보기·고정 저장 바·간결한 상태바 보완, 최종 상대 성능 2% gate·239 Success·48장 렌더 통과 | 변경 화면 직접 조작 보류: 창 활성화 2회 실패. 절대 성능 목표 및 이전 14.4% 증가 전체 원인은 별도 제한 | U |
-| MAP-01 | 이식 / 새 맵 적용 | P0 | **0%** | 센서 도구 Rig 하나로 설치·Slab 없는 맵 안내·맵 점검 화면·맵 하드코딩 제거 | 새 테스트맵·Slab 없는 맵 전체 흐름 통과 | U |
+| MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
 | RT-04 | 데이터 / 유지·회귀 | P0 | **90%** | capture 직후 readback·immutable metadata | Camera 배치/미리보기 변경의 정합성 회귀; 송신 고도화 보류 | R1 |
@@ -465,7 +465,15 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
-**진행률: 0%**
+**진행률: 90%** · CLI 구현/검증 완료, 직접 마우스는 요청된 예외에 따라 UXR-07에서 수행하며 독립 검토 대기다.
+
+**현재 결과:** L3 `AVirtualSensorToolRig` 하나가 유일한 기존 Coordinator/센서 Host/Slab Host/Replay Host를 재사용하거나 빠진 구성만 transient로 생성한다. Slab·배경·장비·Player/공유 설정은 생성·교체하지 않는다. 중복 Rig/구성은 거절하고 복수 Slab은 `TargetSlab`을 요구한다. Slab 없음·늦은 배치·기존 3D 대상 선택·PCD 설정 연결을 다룬다. EndPlay는 생성한 helper만 정리하며 재사용한 연결을 복원한다.
+
+**맵 점검:** `USensorMapCheckWidget : UDxWidget`를 기존 `UDxWidgetSubsystem`에 등록·닫기·전면·입력 차단 등록한다. 기존 Workspace에 새 저장 role이나 병렬 위젯 관리자를 만들지 않는다. 11개 읽기 전용 항목, 표시 중 최대 1Hz, 변경 없는 문구의 FText 재사용, 닫힌 화면 갱신 중단이다. `ReceiverId`, `IFactory-agent`, `WebSocketTopics/topic.scenario`, `DT_DxLevel`은 설정을 찾기 위한 정확한 이름이므로 금지어 검사의 **map-check 진단 allowlist**로 기록하고 실제 Slate 문구를 전수 수집한다. 기본 시나리오/Slab 없음 안내는 금지어 없이 유지한다.
+
+**저장/맵:** 다른 맵은 원본 맵 예약 저장을 버튼과 직접 API 양쪽에서 거절한다. SensorTestMap 고정 경로·태그·기존 EndPIE 저장 계약은 유지한다. `setup_portable_sensor_maps.py`로 승인된 `PortableSetupMap`/`PortableNoSlabMap`만 생성했으며 재실행은 기존 대상 덮어쓰기 전에 중단한다. 하드코딩 조사 212개 위치에서 기본/cook 맵·공통 자산·테스트 fixture·호환 API는 근거 있는 예외로 유지한다. 범위 밖 외부 입력의 첫 장비 fallback은 변경하지 않았다.
+
+**검증/제한:** 최종 소스 `efcd353`, Editor/Game Development·`verify.ps1 -Level release -BaseCommit b16f35c` 14단계 통과. 고유 242 Success/skip20/실패·NotRun0, 기존 259개 이름별 결과 유지+신규 MAP-01 3개. 두 맵×두 해상도×100/150% 기본/점검 렌더 16장, Rig 포함 성능 FPS −0.006%/callback p95 −0.789%/engine p95 0%/game thread −10.741%로 2%gate 통과. layer0/0·WBP7·map-check 진단 allowlist 통과, 보호297/297·개인 SaveGame9/9 복원. 상세는 `Saved/Reports/MAP/MAP-01/RESULT.md`와 `summary.json`, 날짜별 원문은 VALIDATION_HISTORY를 따른다. DTCore `b2504d1`에는 현재 업무 서버 상태 조회 API가 없어 해당 행은 확인 불가 경고이며 출력 서버의 실제 연결 조회와 구분한다. 직접 마우스 체크리스트와 UXR-07 런북에 10단계를 추가했다. MAP-01 독립 검토 전에는 개편 프로그램 **87%**를 올리지 않는다.
 
 - **요구:** 실제 적용은 신규 맵에 이 도구들을 넣고, Slab·배경은 그 맵에서 따로 다시 세팅한다. 그런 맵에서도 잘 동작해야 한다.
 - **현재 걸림돌(조사 대상):** Coordinator·UiHost·Slab UI Host 등을 수동 배치해야 함, 맵 저장 예약이 `SensorTestMap` 전용 경로, 자산·맵 경로 하드코딩 가능성, Slab TrackReference/ReceiverId·TC DataTable·DTCore `WebSocketTopics` 설정 누락 시 조용히 실패할 수 있음.
@@ -511,6 +519,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
 | DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |
+| DTC-MAP01 | 업무 WebSocket의 현재 연결/구독 성공 상태를 읽는 공개 조회 API 없음 | 맵 점검은 확인 불가 경고와 로그 확인 방법을 표시하며 OnConnected 이력을 현재 상태로 추정하지 않음. 설정의 TC/Topic은 읽기 전용 조회 | 연결/재연결/구독 readiness의 읽기 전용 snapshot API 검토 | `Core/DxWebSocketSubsystem.h`의 private 상태·protected StompClient, 공개 OnConnected만 존재; DTCore 소스/gitlink 불변 |
 | DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
 | DTC-ARCH06 | 센서 acquisition snapshot용 host provider 계약이 확인되지 않음 | L0 값 context·weak 월드 registry에 L2 SlabContext를 등록; 기존 세션/결과 집계를 adapter로 호출 | 다른 소비 프로젝트에도 필요할 때 중립 값/provider 공용화를 검토; Slab 정책은 host에 유지 | DTCore `b2504d1`의 `AcquisitionContext/FrameContext/SensorContext` 검색 0건; `Contracts/VirtualSensorAcquisitionContext.*`, `Scenario/VirtualSensorSlabAcquisitionProvider.cpp`; DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
