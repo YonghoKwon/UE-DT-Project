@@ -9,6 +9,7 @@
 #include "VirtualSensorMonitorPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
+class AVirtualSensorActorBase;
 class FRHIGPUTextureReadback;
 class SImage;
 class STextBlock;
@@ -402,7 +403,7 @@ private:
     void StartAsyncCameraJpegWrite(TArray<FColor>&& RawPixels, int32 Width, int32 Height, const FString& Path);
     void RefreshLocalCaptureCameraPendingState();
     bool SaveLidarPointCloudToDisk(const FString& FramePrefix);
-    bool RefreshLidarPreviewWithoutTransport();
+    bool RefreshLidarPreviewWithoutTransport(bool bExplicitCompatibilityCapture=false);
     FString EnsureLocalCaptureSessionDirectory();
     UVirtualLidarScanComponent* GetTargetLidarForPreview() const;
 
@@ -615,9 +616,21 @@ private:
     TArray<TSharedPtr<ELidarColorMode>> NativeLidarColorOptions;
     TArray<TSharedPtr<EVirtualSensorMonitorPresentation>> NativePresentationOptions;
     bool bOwnedAdvancedMenuOpen = false;
+	bool bOwnedPreviewEmpty=true,bOwnedHasEquipment=false,bOwnedCanStart=false,bOwnedHasWarning=false,bOwnedLegendExpanded=false;
+	FText OwnedMonitorStatus,OwnedEmptyText,OwnedEmptyActionText,OwnedEmptyActionTip,OwnedLegendText,OwnedRendererText;
+	FText OwnedProjectionText,OwnedColorText,OwnedSecondaryCameraText;
+	FText OwnedHeightMinText,OwnedHeightMaxText,OwnedSliceWidthText,OwnedPointSizeText;
+	TWeakObjectPtr<AVirtualSensorActorBase> OwnedPreviewTarget;
+	AVirtualSensorActorBase* GetOwnedMonitoredActor() const;
+	void RefreshOwnedMonitorText();
+	FString BuildOwnedMeasurementWarning() const;
+	bool StartOwnedMonitoredEquipment();
+	bool OpenOwnedEquipmentPlacement();
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabMinimalUiTest;
 	friend class FSensorMonitorRateStateTest;
+	friend class FSensorPreviewPresentationTest;
+	friend class FUxrPreviewRender;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;
     TSharedPtr<STextBlock> NativeTitleTextBlock;

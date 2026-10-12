@@ -79,6 +79,11 @@ public:
                 for(const auto Role:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})W->SetPanelOpen(Role,false);
                 W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
             }
+            if(PerfView==TEXT("preview"))
+            {
+                for(const auto Role:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})W->SetPanelOpen(Role,false);
+                C->SetViewMode(EVirtualSensorViewMode::Camera);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);
+            }
             const auto Actual=World->GetGameViewport()->Viewport->GetSizeXY();
             if(Actual!=FIntPoint(1920,1080)){Test->AddError(TEXT("Performance comparison requires actual client 1920x1080"));return true;}
             Test->AddInfo(TEXT("Actual client 1920x1080; 1 Camera + 1 LiDAR; full profiles; preview/placement open; 10s warmup + 30s wall-clock sampling"));
