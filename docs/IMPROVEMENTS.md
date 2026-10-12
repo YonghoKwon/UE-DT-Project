@@ -88,7 +88,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-05 | UI/UX / 센서 상세 설정 | P1 | **90%** | owned 3단·ⓘ 도움말·5Hz 캐시, 집중52/최종17 Success·24장·성능2%gate | 기본/고급 레거시0·금지어16 검사 통과, 직접 조작·독립 검토 보류 | U |
 | UXR-06 | UI/UX / 미리보기 | P1 | **90%** | 상태1줄·실제 경고색·중지/장비 없음 안내·닫힌 진단 중단, 집중29/최종8+1 Success·20장·성능2%gate | 전체229 Success/skip20/실패0, c428ab6 이름별 유지+신규2; 직접 조작·독립 검토 보류 | U |
 | UXR-07 | UI/UX / 문구·수용 | P0 | **50%** | 자동 준비 완료: 문구 검사·정리·렌더·통합 런북. 수동·첫 사용자 확인 대기 | 사용자 확인 | U |
-| UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·기존 MID 4종·명시적 광학 연동·optional 결과, 집중33/전체227 Success·24장·2% gate | 직접 조작/독립 검토 보류; 산화 스케일은 Plain재질 미지원, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
+| UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·MID 5종(승인된 산화 전용 재질)·명시적 광학 연동·optional 결과 | 직접 조작/독립 검토 보류; 산화 전환/복원·CPU/GPU/PCD 회귀 통과, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
 | RT-04 | 데이터 / 유지·회귀 | P0 | **90%** | capture 직후 readback·immutable metadata | Camera 배치/미리보기 변경의 정합성 회귀; 송신 고도화 보류 | R1 |
@@ -232,11 +232,11 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - `ma0t10_dt.Build.cs`의 `PixelStreaming`, `PixelStreamingInput`, `PixelStreamingBlueprint` 의존 제거(C++ 사용 0건). `.uproject`의 플러그인 활성화와 `Samples/PixelStreaming`은 건드리지 않는다. Editor 빌드와 Game target(`ma0t10_dt Win64 Development`) 빌드로 확인한다.
 - `ForTests` 계열 테스트 hook 멤버를 `WITH_DEV_AUTOMATION_TESTS`로 제한한다(Shipping 노출 제거).
 - 초대형 파일(`UI/VirtualSensorMonitorPanelWidget.cpp`, `Sensor/VirtualLidarScanComponent.cpp`, `Core/VirtualSensorStreamPublisherComponent.cpp`)을 **같은 클래스의 여러 `.cpp`로 이동만** 해서 나눈다. 순수 인코딩 함수는 별도 파일로 옮긴다.
-- 빈 `Source/m7at10_dt/` 폴더 삭제는 재귀 삭제이므로 사용자 확인 후에만 한다.
+- 빈 `Source/m7at10_dt/` 폴더는 **2026-10-12 사용자 승인으로 삭제 완료**했다(Claude 수행, 파일 0·git 추적 0).
 - **완료:** 빌드·전체 회귀 동일, 분할 diff가 이동만으로 구성됨을 리뷰에서 확인.
 - **2026-10-12 사용자 결정: PixelStreaming은 필요한 기능이다.** 아래 결과의 PixelStreaming 모듈 의존 제거(`65dbcc4`)는 `7316787`로 되돌렸고 Editor·Game Development 빌드를 확인했다. PixelStreaming 모듈 의존·`.uproject` 플러그인·`Samples/PixelStreaming`은 제거 대상이 아니다.
 - **결과:** C++ 사용·Blueprint 자산 내 PixelStreaming 문자열 0건을 재확인하고 Public 의존 3개만 제거했다. `.uproject` 활성화·Samples는 불변이며 프로젝트 Blueprint17개와 WBP7개 메모리 컴파일 통과. Runtime hook18선언/참조 줄의 guard를 확인했다. 이미 제한된 hook은 유지하고 유일한 비제한 직렬화 함수의 production 진입점을 `SerializePointCloudFrame`으로 분리해 테스트 이름을 guard했다. UPROPERTY/UFUNCTION hook은 없다. Shipping object에는 테스트 직렬화 이름이 없고 production 이름은 남는다.
-- **분할:** Monitor5·Scan4·Publisher3 `.cpp`와 순수 LiDAR JSON helper `.inl` 1개로 나눴다. `.cpp`당 **249~887줄**, 함수·helper **331개**의 원문 hash/문자열 대조 통과. `.inl`은 acquisition 단위 내부의 동일 anonymous namespace에서 한 번만 include해 private 타입과 linkage를 유지하고 mutable helper를 복제하지 않는다. 파일 이동에 따른 기존 Scenario include 3쌍의 allowlist 경로만 해당 이동 커밋에서 바꿨다. 함수·wire bytes·BP·저장 계약 변경은 없다. `Source/m7at10_dt/`는 내부 디렉터리를 포함해 그대로 보존했다.
+- **분할:** Monitor5·Scan4·Publisher3 `.cpp`와 순수 LiDAR JSON helper `.inl` 1개로 나눴다. `.cpp`당 **249~887줄**, 함수·helper **331개**의 원문 hash/문자열 대조 통과. `.inl`은 acquisition 단위 내부의 동일 anonymous namespace에서 한 번만 include해 private 타입과 linkage를 유지하고 mutable helper를 복제하지 않는다. 파일 이동에 따른 기존 Scenario include 3쌍의 allowlist 경로만 해당 이동 커밋에서 바꿨다. 함수·wire bytes·BP·저장 계약 변경은 없다. 빈 `Source/m7at10_dt/`는 2026-10-12 사용자 승인으로 삭제 완료했다.
 - **검증:** Runtime `a36179c`, DTCore `b2504d1`. Editor·Game Win64 Development·Game Shipping 빌드, V2·guard·layer gate·WBP7·verify quick 통과. hook 집중 **34 Success/skip5**, 분할 집중 **41 Success/skip3**, D3D12 전체 **229 Success/skip20/실패0/NotRun0**, 기준선249개 이름별 결과 차이0. allowlist **9→9**, 신규·stale0. 보호476파일 불변·개인 SaveGame9개 복원·자산 저장0.
 - **성능·제한:** 실제 D3D12 RenderOffscreen·client1920×1080·1 Camera+1 GPU LiDAR·10초 준비+30초·preview·폰트1·송신/로컬 프레임 저장 없음에서 callback FPS **47.20→47.63**, engine frame p95 **29.686→29.612ms**, game thread 평균 **6.250→6.121ms**로2%gate 통과. callback frame p95는33.635→33.298ms이며 engine 시간과 별도다. CLI 요청에 따라 Computer Use는 미수행이고 offscreen 성능을 직접 마우스 수용으로 확대하지 않는다. 기존 opt-in20개는 skip으로 유지한다.
 - **증거:** `Saved/Reports/ArchitectureSkeleton/A08/RESULT.md`, `summary.json`, `split-function-proof.json`, `move-proof-final.json`, `hook-guard-proof.json`, `test-comparison.md`, `performance-comparison.json`, target별 빌드·WBP·보호 hash 로그. 최초 상대 보고서 경로 문제는 ARCH-07 runner 수정 후 재실행했다. allowlist partial-index patch의 CRLF 실패는 본인이 만든 두 로컬 커밋만 재구성해 수정했으며 최종 tree/index/worktree 불변 증거를 `commit-scope-repair.json`에 남겼다. ARCH-06·DTCore·보호 파일·push/PR/merge·worktree·submodule update는 없다.
@@ -432,9 +432,9 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **성능:** 프리셋 적용은 머티리얼 파라미터 변경 1회이며 매 프레임 갱신하지 않는다. 정보 카드는 5Hz 이하, 숨김 시 문자열 조립 중단.
 - **완료:** 기본 상태에서 Camera 픽셀·LiDAR intensity·PCD bytes가 변경 전과 같음(회귀), 프리셋+연동 시 의도한 값 변화가 실행 결과에 기록됨, 정보 카드 값이 시나리오 원본과 일치, 렌더 캡처와 Codex 마우스 점검 통과.
 
-**현재 결과:** 원본 행 카드와 현재 Track 위치/실제 속도를 구분하고 누락 Y/사행은`—`, 중량은원본단위로 표시한다. 기본 판정색/임계값은없다. DTCore`Click()`을 유지한 기존 약한 Host registry adapter로 기존 진행 인스턴스만 선택·전면 처리한다. MID는변경시1회, 광학연동은명시opt-in이며CPU캐시를1회무효화/GPU기존ID-depth스냅샷에중립광학값을함께복사한다. 추가capture/readback/동기scan/설정자동변경은없다. GPU버퍼미요청은거절한다. 현재Plain재질은Oxidation이없어산화스케일을구현/적용하지않는다(기존legacy재질로바꾸지않음). 새자산·맵저장없음, 기존API/정책/저장값/PCD불변. 사용한경우에만결과JSON의optional surfaceAppearance를추가한다.
+**현재 결과:** 원본 행 카드와 현재 Track 위치/실제 속도를 구분하고 누락 Y/사행은`—`, 중량은원본단위로 표시한다. 기본 판정색/임계값은없다. DTCore`Click()`을 유지한 기존 약한 Host registry adapter로 기존 진행 인스턴스만 선택·전면 처리한다. MID는변경시1회, 광학연동은명시opt-in이며CPU캐시를1회무효화/GPU기존ID-depth스냅샷에중립광학값을함께복사한다. 추가capture/readback/동기scan/설정자동변경은없다. GPU버퍼미요청은거절한다. 2026-10-12 승인된 새 `M_SlabSurfaceOxideScale`로 산화 스케일을 지원한다. 나머지 프리셋/해제는 원래 SurfaceMaterial·MID와 외형 값으로 복원하며 기본값을 바꾸지 않는다. 기존 자산·맵 재저장 없음, 기존API/정책/저장값/PCD불변. 사용한경우에만결과JSON의optional surfaceAppearance를추가한다.
 
-**검증 요약:** 소스`7a63971`, Editor Development/layer18→18(신규/stale0)/guard/V2 `-RequireAssets`/WBP7메모리컴파일 통과. 집중33 Success/실패·skip0, 전체D3D12는227 실제Success/20조건부skip/실패0이며UXR-03기준선241개이름별상태유지+신규6개. 원본값/누락/숨김/Click수명/명시연동/복원/추가버퍼거절/실제CPU·GPU intensity·PCD·결정적BaseColor픽셀회귀 통과. production FinalColor/JPEG bitwise동일성은미검증이며기존Camera코드는불변이다. 1280/1920×100/150% 정보/표시/지원4외형24장, 동일1Camera+1LiDAR·시나리오진행·1920×1080·10초+30초성능2%gate통과. 마우스는보류. `Saved/Reports/UXR/UXR-08/RESULT.md`, `PRESET_SUPPORT.md`, `manual/CHECKLIST.md`가근거다. 세부초기실패/보완은검증이력에만보관한다.
+**현재 검증 요약:** 산화 보완은 Editor·Game Development, `verify.ps1 -Level quick`, layer0→0(신규/stale0), guard/V2 `-RequireAssets`/WBP7 메모리 컴파일 통과. 관련 D3D12는 **40 실제 Success/6 조건부 skip/실패0**. 산화 외형만 적용하면 CPU/GPU intensity·PCD가 유지되고, opt-in `0.12` 적용 및 기본 복원에서 결정적 BaseColor 픽셀·intensity·고정 envelope PCD bytes 회귀가 통과했다. 5종 동시 렌더·근접2장·contact sheet를 저장했다. shader pixel instructions253→379, vertex131/texture samples3/samplers3은 동일(외부 텍스처0). 동일 1920×1080·1Camera+1GPU LiDAR·10초+30초에서 기본 전후 및 최종 바이너리 기본↔산화의 FPS/frame p95/game thread 2% gate 통과. `DirectoriesToAlwaysCook`에 따른 최소 Windows cook에서 새 자산 포함 확인(전체 package는 미수행). 현재 근거는 `Saved/Reports/UXR/UXR-08/oxide/RESULT.md`. 이전 전체227 Success/skip20은 이전 검증 결과이며 이번 전체 회귀로 소급하지 않는다. production FinalColor/JPEG bitwise·실측 보정·직접 마우스는 미검증이다. 상세 날짜별 이력은 `VALIDATION_HISTORY.md`에 보관한다.
 
 ### 개편 프로그램 진행률 (ARCH + UXR)
 
@@ -454,7 +454,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | ARCH-08 정리 | 5 | UXR-08 Slab 정보·표면 | 8 |
 | **ARCH 합계** | **37** | **UXR 합계** | **51** |
 
-총 88. 진행률 = 검토 통과 항목 가중치 합 ÷ 88. 2026-10-12 기준 통과: ARCH-01~04, UXR-01, UXR-02(마우스 최종 삭제 1건 보류), UXR-03(직접 조작 보류), UXR-04, UXR-08(산화 스케일 프리셋 미지원·직접 조작 보류), UXR-05, UXR-06(직접 조작 보류), ARCH-05, ARCH-06, ARCH-07, ARCH-08 → 82/88 = **93%**. 남은 것은 UXR-07(보류된 마우스 점검 일괄 수행 + 사용자 확인)뿐이다. 남은 UXR-07은 사용자 마우스 점검·확인이 필요하다. 보류된 마우스 점검은 사용자 복귀 후 일괄 수행하며, 그 결과로 통과가 뒤집히면 이 값을 다시 낮춘다. UXR-02는 CLI 마무리 완료(최종 삭제 마우스 1건 보류)이며 독립 검토 반영 전에는 이 합계에 더하지 않는다.
+총 88. 진행률 = 검토 통과 항목 가중치 합 ÷ 88. 2026-10-12 기준 통과: ARCH-01~04, UXR-01, UXR-02(마우스 최종 삭제 1건 보류), UXR-03(직접 조작 보류), UXR-04, UXR-08(산화 스케일 지원·직접 조작 보류), UXR-05, UXR-06(직접 조작 보류), ARCH-05, ARCH-06, ARCH-07, ARCH-08 → 82/88 = **93%**. 남은 것은 UXR-07(보류된 마우스 점검 일괄 수행 + 사용자 확인)뿐이다. 남은 UXR-07은 사용자 마우스 점검·확인이 필요하다. 보류된 마우스 점검은 사용자 복귀 후 일괄 수행하며, 그 결과로 통과가 뒤집히면 이 값을 다시 낮춘다. UXR-02는 CLI 마무리 완료(최종 삭제 마우스 1건 보류)이며 독립 검토 반영 전에는 이 합계에 더하지 않는다.
 
 ### DTCore 변경 후보 (후속 DTCore 수정 단계 입력)
 

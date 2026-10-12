@@ -21,7 +21,7 @@
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
 | 아키텍처 | 단일 Runtime 모듈 안에 센서·Slab·UI가 섞여 있고 역방향 의존이 있다(§10.2 표). ARCH-01 레이어 gate 도입 | 폴더 재배치·역의존 제거 (ARCH-02~08) |
-| 화면 구성(UX) | 흐름 바·배치·데이터5탭/출력 편집 단일화(UXR-01~04), Slab 그리드 정보·표면(UXR-08), 센서 설정3단(UXR-05), 미리보기1줄·빈 상태/진단 분리(UXR-06) | UXR-02 최종 삭제1건·UXR-03~06/08 직접 조작 보류, UXR-07 미착수; 산화 스케일은 현재 재질 미지원 |
+| 화면 구성(UX) | 흐름 바·배치·데이터5탭/출력 편집 단일화(UXR-01~04), Slab 그리드 정보·표면5종(UXR-08), 센서 설정3단(UXR-05), 미리보기1줄·빈 상태/진단 분리(UXR-06) | UXR-02 최종 삭제1건·UXR-03~06/08 직접 조작 보류, UXR-07 수용 대기; 산화 스케일은 승인된 전용 재질 지원 |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화 통과 | 물리 마우스·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 40%) |
 | PCD 송신 | 실제1920×1080 2+2 PCD-only 10분·10회 반복 통과, 사전 점검 구현 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
@@ -30,6 +30,8 @@
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
 UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
+
+산화 스케일 보완: `Saved/Reports/UXR/UXR-08/oxide/RESULT.md`(새 자산 1개, 집중40 Success/skip6/실패0, Editor·Game Development/quick/WBP7/최소 Windows cook 통과, 5종 동시 비교·근접2장·성능2% gate; 직접 조작 미수행).
 
 UXR-04 근거 보고서: `Saved/Reports/UXR/UXR-04/RESULT.md`(집중 28 Success, 렌더 8장, 성능 2% gate 통과; 직접 조작 보류).
 
@@ -201,10 +203,13 @@ GPU 의미 분류는 별도 proxy 장면으로 불투명 StaticMesh/ISM/HISM을 
 
 DTCore 입력이 구성된3D 화면에서 Slab를 클릭하면 기존 진행 인스턴스를 선택 Slab에 바인딩하고 카드 맨 위로 연다. 새 패널/위젯 관리자나 입력 루프는 없다. 기존 Host/UDxWidget/전면·입력 차단 경로를 유지한다. 기본 Engine.PlayerController에는 이 클릭 경로가 없으며 설정·맵·Controller를 자동 교체하지 않는다. 개인 저장 배치와 사용자 Designer Root는 보존한다. 기존 `WBP_SlabProgressPanel` 부모(`SlabProgressPanelWidget`)와 `ASlabSimulationUiHostActor.SlabActor` 연결을 유지하며 native 카드용 새 BindWidget·자산·Level Blueprint 배선은 없다. 사용자 Designer에는 자동으로 카드를 삽입하지 않는다.
 
-**표시 설정**의 표면 선택은 `기본(현재 값)`/`고온 적열`/`산화 스케일`/`냉각 강판`/`분석용 무광`이다. 현재 `M_SlabSurfacePlain`은 **산화 스케일 미지원**(Oxidation 파라미터 없음)이며 선택하지 못한다. 다른 네 선택은 기존 MID 파라미터만 바꾸고 기본은 첫 선택 전 값을 복원한다. 사용자 슬롯 재질은 기존 우선순위를 유지하며 자동 교체하지 않는다. 새 머티리얼/기존 자산/운영맵 저장은 없다.
+**표시 설정**의 표면 선택은 `기본(현재 값)`/`고온 적열`/`산화 스케일`/`냉각 강판`/`분석용 무광`이다. 산화 스케일만 승인된 새 `/Game/MA0T10/Slab/Materials/M_SlabSurfaceOxideScale`을 MID 부모로 사용한다. 단일 레벨 계산 Gradient Noise로 짙은 회갈색·청회색 얼룩과 밝은 강판의 벗겨짐을 표현하며 외부 텍스처는 없다. `Hotness/Oxidation/Roughness/EmissiveStrength` 계약을 유지한다. 다른 네 선택은 원래 `SurfaceMaterial`의 MID를 사용하고 기본은 첫 선택 전 외형 값과 같은 MID 인스턴스를 복원한다. 두 MID는 선택 변경 때만 생성/재사용하며 `SurfaceMaterial` 저장값을 바꾸지 않는다. 사용자 슬롯 재질은 기존 우선순위를 유지한다. 기존 자산·운영맵은 재저장하지 않았다.
+
+재현 생성 스크립트는 `Scripts/setup_slab_oxide_scale_material.py`다. 대상 자산이 이미 있으면 생성/저장 전에 오류로 중단한다. native soft path의 cook 누락을 막기 위해 `Config/DefaultGame.ini`의 `DirectoriesToAlwaysCook`에 `/Game/MA0T10/Slab/Materials`를 포함한다. 개인 `Config/Game.ini`는 수정하지 않는다. 동시 비교·근접 캡처·검증 보고서는 `Saved/Reports/UXR/UXR-08/oxide/`에 있다.
 
 - `LiDAR 반사율도 함께 적용`은 기본끔이다. 켰을 때만940nm 반사율을 적용하고 기존 gain·검출 확률·양면·포화 설정은 유지한다. 꺼서 opt-in 직전 값을 복원하고 자신이 생성한 응답 컴포넌트만 정리한다. 프리셋 적용과CPU응답 캐시 무효화는 변경 시1회이며 센서 시작/중지/추가 스캔을 하지 않는다.
 - GPU는 기존 형상 분류 보기나 물체 필터의ID/depth buffer가 요청되는 지원 불투명 geometry에서만 연동한다. 해당 버퍼가 없으면 요청을 거절하고 안내한다. 보기/필터/geometry가 이후 바뀌면 지원 범위를 다시 확인한다. 추가 캡처/readback이나 자동 설정 변경은 없다. 광학 값은 예시 프리셋이며 실소재/실장비 보정 인증이 아니다.
+- 산화 스케일의 opt-in 940nm 반사율은 기존 가정값 `0.12`다(냉각 강판 `0.45`보다 낮음). 어두운 산화막을 표현하기 위한 시뮬레이션 선택값이며 940nm 실측 보정이나 특정 강종/온도/산화 두께의 검증값은 아니다. 실제 RHI 회귀에서 산화 외형만 적용하면 intensity/PCD가 유지되고, 연동 시 CPU 61945.47→37167.23 / GPU 62546.36→37527.77로 감소했다. 해제 후 원래 Camera BaseColor 픽셀·intensity·PCD bytes가 정확히 복원됐다.
 - 실행 결과`ma0t10.slab-run.v1`에는 사용한 경우에만 optional `surfaceAppearance`를 추가한다. 초기/마지막 프리셋·연동·외형/광학 값, 사용한 프리셋 목록(최대5종), 변경 수를 기록하고 기존 필드·의미·PCD bytes/Blueprint API/저장 슬롯은 유지한다. 이 필드는 광학 설정의 provenance이며 실측 intensity 평균·외부 소비자 처리 완료를 뜻하지 않는다. 실제 intensity 변화는RHI회귀에서 대조했다.
 - 검증: 결정적BaseColor SceneCapture 픽셀·실제CPU/GPU intensity·고정 envelope identity의PCD bytes가 기본/link-off 전후 정확히 같았고, 외형만 바꿔도LiDAR/PCD는 유지됐다. link-on에서CPU61945.47→24778.19, GPU62546.36→25018.54로 변했고JSON에0.08반사율/연동이 기록됐다. production FinalColor/JPEG의 bitwise 동일성이나 실장비 물리성을 이 시험으로 보장하지 않는다. 마우스 검수는 보류다.
 
