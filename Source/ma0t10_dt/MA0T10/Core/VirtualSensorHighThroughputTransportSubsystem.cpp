@@ -2,9 +2,7 @@
 
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStompProtocol.h"
 #include "VirtualSensorWireHeaders.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualCameraStreamReceiverTC.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualLidarStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverRegistry.h"
 #include "Containers/Queue.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
@@ -710,10 +708,9 @@ private:
 		int64 FrameId=-1; FString IdText=HeaderValue(Frame.Headers,TEXT("frame-id"));
 		if(IdText.IsEmpty()) IdText=HeaderValue(Frame.Headers,TEXT("x-frame-id"));
 		LexTryParseString(FrameId,*IdText);
-		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data;
-		if(Kind==EVirtualSensorStreamKind::PointCloud) Data=MakeShared<FVirtualPointCloudStreamReceiverData>();
-		else if(Kind==EVirtualSensorStreamKind::CameraImage) Data=MakeShared<FVirtualCameraStreamReceiverData>();
-		else Data=MakeShared<FVirtualLidarStreamReceiverData>();
+		const auto Codec = VirtualSensorStreamReceiverRegistry::Get();
+		check(Codec.IsValid()); // Registered before worlds/workers by this project's module.
+		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data = Codec->CreateResult(static_cast<EVirtualSensorTopicReceiveKind>(Kind));
 		Data->Kind=static_cast<EVirtualSensorTopicReceiveKind>(Kind);
 		Data->SensorId=SensorId; Data->FrameId=FrameId; Data->SchemaVersion=Schema;
 		Data->bFiltered=!ReceiveSelection.Accepts(static_cast<int32>(Kind),SensorId);
@@ -726,7 +723,7 @@ private:
 		{
 			TMap<FName,FString> Headers;
 			for(const auto& P:Frame.Headers) Headers.Add(FName(*P.Key),P.Value);
-			Data=StaticCastSharedPtr<FVirtualSensorTopicReceivedDataBase>(UVirtualPointCloudStreamReceiverTC::ParseBinaryPcdToStruct(Frame.Body,Headers));
+			Data=Codec->ParseBinaryPcd(Frame.Body,Headers);
 			SensorId=Data->SensorId; FrameId=Data->FrameId;
 		}
 		else if(!Data->bFiltered)

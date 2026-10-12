@@ -1,11 +1,8 @@
-# ARCH-05 move: neutral receiver types in L0; receiver hosting bodies in L2. 12 edges remain.
+# ARCH-05: 18 - 9 receiver TC dependencies = 9 Scenario edges (ARCH-06).
 # Relative to Source/ma0t10_dt/MA0T10. Unique source -> resolved target.
 # Remaining Scenario/TC dependencies are ARCH-06/05; new/stale entries fail.
 Camera/VirtualCameraCaptureComponent.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Core/VirtualSensorAcquisitionBackend.h -> Scenario/VirtualSlabFrameContext.h
-Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualCameraStreamReceiverTC.h
-Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualLidarStreamReceiverTC.h
-Core/VirtualSensorHighThroughputTransportSubsystem.cpp -> WebSocket/TC/VirtualPointCloudStreamReceiverTC.h
 Core/VirtualSensorOutputPreflight.cpp -> Scenario/VirtualSensorSlabContextSubsystem.h
 Core/VirtualSensorOutputPreflight.h -> Scenario/VirtualSlabFrameContext.h
 Core/VirtualSensorStreamPublisherComponent.cpp -> Scenario/SlabRunResultsSubsystem.h

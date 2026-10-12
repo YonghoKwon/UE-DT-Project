@@ -2,8 +2,24 @@
 
 #include "ma0t10_dt.h"
 #include "Modules/ModuleManager.h"
+#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualSensorStreamReceiverRegistration.h"
 
-IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, ma0t10_dt, "ma0t10_dt");
+class FMa0t10DtGameModule final : public FDefaultGameModuleImpl
+{
+public:
+	virtual void StartupModule() override
+	{
+		FDefaultGameModuleImpl::StartupModule();
+		RegisterVirtualSensorStreamReceiverCodec();
+	}
+	virtual void ShutdownModule() override
+	{
+		UnregisterVirtualSensorStreamReceiverCodec();
+		FDefaultGameModuleImpl::ShutdownModule();
+	}
+};
+
+IMPLEMENT_PRIMARY_GAME_MODULE(FMa0t10DtGameModule, ma0t10_dt, "ma0t10_dt");
 
 // 로그 카테고리 정의
 DEFINE_LOG_CATEGORY(LogMA0T10);
