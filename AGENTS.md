@@ -26,7 +26,7 @@
 
 - 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
-- **PixelStreaming은 필요한 기능이다(사용자 결정 2026-10-12).** ma0t10_dt.Build.cs의 PixelStreaming 모듈 의존, .uproject 플러그인 활성화, Samples/PixelStreaming을 C++ 사용처가 없다는 이유로 제거·비활성화하지 않는다.
+- **PixelStreaming은 필요한 기능이다(사용자 결정 2026-10-12).** `ma0t10_dt.Build.cs`의 PixelStreaming 모듈 의존, `.uproject` 플러그인 활성화, `Samples/PixelStreaming`을 C++ 사용처가 없다는 이유로 제거·비활성화하지 않는다.
 - 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`b2504d1`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
 - DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소다. 명시적으로 승인된 동기화 안정화 작업에서는 plugin/parent를 각각 검증·커밋하고 검증한 gitlink만 고정한다. 그 외 작업은 프로젝트 측 adapter를 우선하며 공통 변경이 필수이면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
