@@ -1,4 +1,5 @@
 #include "VirtualSensorPlacementPanelWidget.h"
+#include "Widgets/SInvalidationPanel.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolWorkspaceStyle.h"
 #include "SensorToolUiText.h"
@@ -180,11 +181,14 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::RebuildWidget()
     auto Sections=SNew(SVerticalBox);
     auto AddSection=[this,Sections](FText Title,TSharedRef<SWidget> Content){Sections->AddSlot().AutoHeight().Padding(8,0,8,16)[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(Title)]+SVerticalBox::Slot().AutoHeight()[Content]];};
     AddSection(LOCTEXT("EquipmentClean","장비"),BuildEquipmentSection());AddSection(LOCTEXT("SelectedClean","선택 장비"),BuildSelectedSection());AddSection(LOCTEXT("SavedPoseClean","저장 위치"),BuildPoseSection());AddSection(LOCTEXT("WholeLayoutClean","전체 배치"),BuildLayoutSection());
-    return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).Padding(8)[SNew(SVerticalBox)
+    const TSharedRef<SWidget> Content=SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).Padding(8)[SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("SidebarTitle","배치"))]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("TransferSeparate","현재 관찰 위치에 추가 · PCD 전송은 별도"))]
      +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[Sections]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SBox).MaxDesiredHeight_Lambda([this](){return 72*GetSensorToolFontScale();}).Clipping(EWidgetClipping::ClipToBounds)
       [SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).ToolTipText_Lambda([this](){return CachedStatusText;}).Text_Lambda([this](){return CachedStatusText;})]]];
+    // Native owned controls invalidate through their Slate attributes; inactive panels are Collapsed.
+    // Do not cache foreign Designer trees or the sensor render-target preview.
+    return IsWorkspaceOwned()?StaticCastSharedRef<SWidget>(SNew(SInvalidationPanel)[Content]):Content;
 }
 #undef LOCTEXT_NAMESPACE

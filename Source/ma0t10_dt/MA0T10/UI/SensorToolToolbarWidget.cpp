@@ -1,4 +1,5 @@
 #include "SensorToolToolbarWidget.h"
+#include "Widgets/SInvalidationPanel.h"
 #include "SensorToolWorkspaceStyle.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "SensorToolUiText.h"
@@ -50,7 +51,8 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	if(!W||!W->OwnsToolbar(this)) return BuildLegacyToolbar();
 	FloatingToolbar=BuildOwnedFloatingToolbar();
 	return SNew(SWidgetSwitcher).Visibility(EVisibility::SelfHitTestInvisible).WidgetIndex_Lambda([this](){auto* W=Workspace();return W&&W->IsSidebarMode()?0:1;})
-	 +SWidgetSwitcher::Slot()[BuildSidebarShell()]
+	 // Cache only owned chrome. The legacy/Designer route and live sensor images stay outside.
+	 +SWidgetSwitcher::Slot()[SNew(SInvalidationPanel)[BuildSidebarShell()]]
 	 +SWidgetSwitcher::Slot()[SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)+SVerticalBox::Slot().AutoHeight().Padding(16,8)[FloatingToolbar.ToSharedRef()]+SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]];
 }
 float USensorToolToolbarWidget::GetFloatingToolbarHeight() const {return FloatingToolbar.IsValid()?FloatingToolbar->GetDesiredSize().Y:48;}
