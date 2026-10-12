@@ -449,6 +449,97 @@ Coordinator는 L1 `IVirtualSensorMonitorView`, Player는 L1 `IVirtualSensorPlace
 
 과거 날짜별 검증 수치·조건은 [검증 이력 보관](docs/VALIDATION_HISTORY.md)에 원문 그대로 있다.
 
+
+### 11.1 표준 진입점
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level quick
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level feature -Tests MA0T10.SensorReceiver
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level release
+```
+
+`quick`은 기존 diff/guard/layer/payload 검사를 호출하고 보호 경로의 index·commit 변경 및 아래 변수표 일치를 확인한다. `feature`는 Editor Development 빌드와 지정 그룹, `release`는 전체 D3D12 `MA0T10`과 WBP 7개 메모리 컴파일을 더한다. 기존 `run_smoke_tests.ps1`의 기본 NullRHI 동작은 유지하며 verify에서는 D3D12 보고서 모드를 명시한다. 테스트 이름을 `-Tests`에 전달한다(여러 그룹은 PowerShell 스크립트 호출에서 배열로 지정).
+
+`Saved/Reports/verify/<UTC>/manifest.json`은 commit/submodule SHA·worktree·Source hash·단계/테스트별 상태·skip 이름/원인 변수·소요 시간·엔진/RHI 환경을 남긴다. 비밀 환경변수 값은 수집하지 않는다. Success 안의 skip을 별도 집계하며 opt-in은 자동으로 켜지 않는다. 개인 SaveGame은 실행 전 백업하고 종료 후 복원한다. 맵 fixture는 현재 HEAD의 커밋본을 Saved에 추출하며 사용자 맵을 저장하지 않는다.
+
+보호 commit 비교의 기본은 `HEAD^..HEAD`다. 여러 커밋을 검토할 때 `-BaseCommit <검토 시작 SHA>`로 범위를 명시한다. 기존 unstaged 사용자 변경은 실패 사유로 삼지 않고 실행 전후 hash를 대조한다. feature/release 전에는 Editor·Live Coding을 정상 종료한다. quick에는 git·PowerShell이, feature/release에는 UE 5.3 빌드 도구와 실제 D3D12가 필요하다.
+
+### 11.2 MA0T10 환경변수 inventory
+
+`Source/`의 literal `GetEnvironmentVariable(TEXT("MA0T10_*"))` 전체를 포함한다. 활성화 flag 외 경로·시간·정책 selector도 포함하며 저장값/기본 정책을 바꾸는 권한은 아니다. flag의 미설정 또는 1 이외 값은 opt-in 비활성으로 처리한다. `[OPT-IN SKIP] <변수> unset or !=1` 로그는 미실행이며 실제 RHI 부족은 별도 skip이다. `validate_opt_in_inventory.ps1`이 소스와 표의 이름 집합을 자동 대조한다.
+
+<!-- MA0T10_ENV_TABLE_BEGIN -->
+| 변수 | 활성화/설정 대상 시험·fixture | 값 의미·필요한 환경 |
+|---|---|---|
+| `MA0T10_ACCEPTANCE_LEDGER` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke / RepeatThreeStreamAcceptance | 수용 ledger 출력 경로; 쓰기 가능한 Saved 하위 경로 |
+| `MA0T10_ACCEPTANCE_RES_X` | FinalAcceptanceTestSession 사용 RHI/PIE 시험 | client viewport 폭 정수; 실제 RHI/PIE |
+| `MA0T10_ACCEPTANCE_RES_Y` | FinalAcceptanceTestSession 사용 RHI/PIE 시험 | client viewport 높이 정수; 실제 RHI/PIE |
+| `MA0T10_ARTEMIS_PASSWORD` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 인증 비밀번호; 비밀값은 기록하지 않음 |
+| `MA0T10_ARTEMIS_RAW_URL` | MA0T10.SensorStream.HighThroughput.RawTcpArtemisLoopback | 기존 Raw TCP STOMP URL; Raw Broker |
+| `MA0T10_ARTEMIS_URL` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 기존 STOMP/WS URL; 시험에 맞는 Broker·외부 구독자 |
+| `MA0T10_ARTEMIS_USER` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 인증 사용자 이름; 비밀값은 기록하지 않음 |
+| `MA0T10_CAMERA_MARKER_RHI` | MA0T10.SensorFiles.CameraMarkerRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_DIAGNOSTIC_HIDE_OWNED_UI` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 1; 진단 fixture 소유 UI 숨김 |
+| `MA0T10_DTCORE_SLAB_BROKER` | MA0T10.DTCoreIntegration.SlabBroker | 1; 실제 Broker + 외부 synthetic scenario publisher |
+| `MA0T10_GEOMETRY_BASELINE` | MA0T10.LidarGeometry.StreamPerformance | 비교할 이전 geometry 성능 JSON 경로 |
+| `MA0T10_GEOMETRY_PERF` | MA0T10.LidarGeometry.StreamPerformance | 1; 실제 RHI + local Artemis + geometry fixture |
+| `MA0T10_INPUT_ACCEPTANCE_RHI` | MA0T10.SensorV2.UI.InputAcceptanceRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_LAYOUT_API_FIXTURE` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke / SlabScenario.ProductionRuntime / SlabReliability.RepeatedRuntime | 1; 기존 layout API fixture 설정 |
+| `MA0T10_LIDAR_SEMANTIC_BENCHMARK` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 1; 실제 RHI semantic benchmark fixture |
+| `MA0T10_MANIPULATION_RHI` | MA0T10.SensorV2.UI.ManipulationRuntime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_OUTPUT_SENSOR_PAIRS` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke / SlabScenario.ProductionRuntime / SlabReliability.RepeatedRuntime | 1 또는 2; Camera+LiDAR 쌍 수 선택·실제 RHI fixture |
+| `MA0T10_OUTPUT_SUBMISSION_BUDGET` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 프레임당 submit 예산 정수; 운영 기본값은 변경하지 않음 |
+| `MA0T10_PCD_DEMAND_ACCEPTANCE` | ContinuousThreeStreamSmoke / SlabScenario.ProductionRuntime / SlabScenarioValidationRig | 1; 기존 PCD demand fixture·실제 RHI |
+| `MA0T10_PCD_JSON_POLICY` | PCD demand / stream / Slab fixture의 기존 JSON 정책 선택 | 기존 policy selector; 관련 runner의 인자/소스 참조 |
+| `MA0T10_PCD_ONLY` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 1; stream fixture PCD-only 선택 |
+| `MA0T10_PLACEMENT_AB_RHI` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_PLACEMENT_PRESENTATION_RHI` | PlacementUi.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_PLACEMENT_RHI` | MA0T10.Placement.InputOwnershipRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_RAW_PROBE` | MA0T10.SensorStream.RawReceiptProbe | 1; Tools/Artemis/raw_receipt_probe.mjs의 local fault endpoint |
+| `MA0T10_REPEAT_STREAMS_RHI` | MA0T10.SensorV2.Runtime.RepeatThreeStreamAcceptance | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_REPLAY_REPORT` | MA0T10.ScenarioReplay.Runtime | replay 보고서 경로; 쓰기 가능한 Saved 하위 경로 |
+| `MA0T10_REPLAY_RHI` | MA0T10.ScenarioReplay.Runtime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_RESOURCE_MANUAL_FIXTURE` | SensorResource.ManualFixture | 1; 사용자 승인된 직접 조작 세션·화면 필요 |
+| `MA0T10_RUN_ARTEMIS_SMOKE` | MA0T10.SensorStream.ArtemisIntegration<br>MA0T10.SensorStream.HighThroughput.RawTcpArtemisLoopback | 1; 실행 중 Broker + 인증 + 외부 구독자 |
+| `MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 1; 실제 RHI + 커밋본 맵 + Broker + 외부 검증 |
+| `MA0T10_RUN_SLAB_SCENARIO_SMOKE` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 1; 실제 RHI + Slab scenario fixture + Broker |
+| `MA0T10_SCENARIO_FAULT_CYCLES` | MA0T10.SlabReliability.TcpFaultRuntime | 반복 횟수 정수; local TCP fault fixture |
+| `MA0T10_SCENARIO_FAULT_MODE` | MA0T10.SlabReliability.TcpFaultRuntime | 기존 fault 모드 문자열; local TCP fault fixture |
+| `MA0T10_SENSOR_FILES_RHI` | MA0T10.SensorFiles.RealRhiWorkflow | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_SENSOR_RESOURCE_DIAGNOSTICS` | 기존 Slab/수용 fixture (관련 runner 참조) | 1; 기존 fixture 진단 수집 |
+| `MA0T10_SENSOR_RESOURCE_MEMREPORT` | 기존 Slab/수용 fixture (관련 runner 참조) | 1; 기존 fixture 메모리 보고 수집 |
+| `MA0T10_SENSOR_RESOURCE_PREVIEW_OFF` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; resource fixture 미리보기 숨김 |
+| `MA0T10_SENSOR_RESOURCE_REPORT_DIR` | 기존 Slab/수용 fixture (관련 runner 참조) | resource 보고서 폴더; 쓰기 가능한 Saved 하위 경로 |
+| `MA0T10_SLAB_ANALYSIS_OFF` | 기존 Slab/수용 fixture (관련 runner 참조) | 1; Slab fixture 분석 표시 숨김 |
+| `MA0T10_SLAB_ANALYSIS_RHI` | MA0T10.SlabAnalysis.CameraGpuIsolationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_SLAB_EXACT_VIEWPORT` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; 설정한 acceptance 해상도를 엄격히 사용 |
+| `MA0T10_SLAB_LOCAL_BROKER` | 기존 Slab/수용 fixture (관련 runner 참조) | 1; Slab fixture의 기존 local Broker 선택 |
+| `MA0T10_SLAB_OUTPUT_ALL` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; Slab fixture 추가 출력 선택 |
+| `MA0T10_SLAB_PORTABLE` | MA0T10.SlabScenario.PortableMapAndLatePlayer | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_SLAB_REPEAT_COUNT` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 실행 반복 횟수 정수; Slab fixture |
+| `MA0T10_SLAB_REPEAT_RHI` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_SLAB_REQUIRE_DATA` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; Slab fixture 데이터 필수 출력 선택 |
+| `MA0T10_SLAB_RESET_RHI` | MA0T10.SlabReliability.RepeatedRuntime<br>MA0T10.SlabScenario.ProductionRuntime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_SLAB_RHI` | MA0T10.SlabScenario.ProductionRuntime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_SLAB_RUNTIME` | MA0T10.SlabScenario.ProductionLifecycle | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_STREAM_MEASURE_SECONDS` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 측정 시간(초); 실제 RHI stream fixture |
+| `MA0T10_STREAM_WARMUP_SECONDS` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 준비 시간(초); 실제 RHI stream fixture |
+| `MA0T10_UXR01_PRESENTATION_RHI` | UXR01.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR02_MANUAL` | UXR02.Manual | 1; Computer Use 직접 조작 세션·화면 필요 |
+| `MA0T10_UXR02_RENDER` | UXR02.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR03_RENDER` | UXR03.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR04_RENDER` | UXR04.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR05_RENDER` | UXR05.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR06_RENDER` | UXR06.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR08_RENDER` | UXR04.PresentationRhi<br>UXR08.PresentationRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR_PERF` | UXR02.Performance | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_UXR_PERF_NAME` | UXR02.Performance | 성능 비교 run 이름 |
+| `MA0T10_UXR_PERF_VIEW` | UXR02.Performance | preview/transfer/settings/scenario/scenario-monitor; 미설정은 기본 배치 화면 |
+| `MA0T10_UXR_REPORT_ROOT` | UXR02.Performance / UXR02~06/08 렌더 fixture | UXR 증거 출력 폴더; 쓰기 가능한 Saved 하위 경로 |
+| `MA0T10_WORKSPACE_RHI` | MA0T10.SensorWorkspace.Runtime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
+| `MA0T10_WORKSPACE_SCREENSHOT` | MA0T10.SensorWorkspace.Runtime | screenshot 파일 경로; 실제 RHI + 쓰기 권한 |
+<!-- MA0T10_ENV_TABLE_END -->
+
 ## 고정 참고자료
 
 아래 문서는 이전 상세 명세/작업 기록이며 현재 UI·지원 성능의 기준 문서는 아니다. 경로를 참조하는 스크립트를 위해 보존한다.

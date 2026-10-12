@@ -79,7 +79,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | ARCH-04 | 구조 / 호출 역전 완료 | P0 | **100%** | Monitor·배치 입력 interface, Slab UI 약한 존재 registry | 완료; allowlist 22→18, L1/L2→L3 0, 기존 BP/GC 계약 유지 | A |
 | ARCH-05 | 구조 / 송신 검증 분리 완료 | P1 | **100%** | Transport/ExternalSource의 WebSocket/TC include 9쌍 제거 | 완료; 전체 249개 이름별 결과 동일·보호 경로 불변 | A |
 | ARCH-06 | 구조 / Slab context 중립화 | P1 | **0%** | 센서 frame의 `FVirtualSlabFrameContext` → 중립 context+provider | PCD/JSON metadata byte 동일, L1→Slab 0 | A (PL-01 일부) |
-| ARCH-07 | 품질 / 검증 진입점 | P1 | **0%** | `verify.ps1` quick/feature/release, opt-in 변수표, Scripts 분류 | manifest 자동 생성, skip 원인 표시 | A (QA-01 일부) |
+| ARCH-07 | 품질 / 검증 진입점 완료 | P1 | **100%** | `verify.ps1` quick/feature/release, 환경변수 67개·Scripts 110파일 분류 | 완료; manifest·skip 원인 집계·전체 기준선 유지 | A (QA-01 일부) |
 | ARCH-08 | 구조 / 정리 | P2 | **0%** | 미사용 PixelStreaming 의존·테스트 hook 노출·초대형 파일 분할 | 이동만으로 이루어진 diff, 빌드·회귀 동일 | A |
 | UXR-01 | UI/UX / 작업 흐름 바 | P0 | **100%** | 소유 흐름 바·5Hz 상태 줄·도구 메뉴·용어 상수, 자동화·4조합 렌더 통과 | Claude 직접 조작 검토는 별도; 세부 화면 재정비는 UXR-02~07 | U |
 | UXR-02 | UI/UX / 배치 | P0 | **100%** | 완료(마우스 최종 삭제 1건 보류), 상태 칩·클릭 마커 격리 재검증 | 모니터 복귀 후 최종 삭제 직접 재검수; Saved/Reports/UXR/UXR-02 | U |
@@ -208,13 +208,16 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 ### ARCH-07 — 표준 검증 진입점 (P1)
 
-**진행률: 0%** · QA-01·Claude 제안 C-01/C-02/C-12를 포함한다.
+**진행률: 100%** · QA-01·Claude 제안 C-01/C-02/C-12를 포함한다. 2026-10-12 구현·검증 완료, Claude 독립 검토 대기.
 
 - **작업:**
   1. `Scripts/verify.ps1 -Level quick|feature|release`: 새 검증 로직을 만들지 않고 기존 스크립트만 호출한다. quick=`git diff --check`·DTCore guard·layer gate·보호 경로 불변·계약/fixture 정적 검사, feature=quick+Editor 빌드+지정 테스트 그룹, release=feature+전체 D3D12 `MA0T10`+WBP 컴파일. 결과를 `Saved/Reports/verify/<UTC>/manifest.json`에 commit/submodule SHA·수행/skip/실패 이름과 함께 남긴다.
   2. opt-in 테스트의 `MA0T10_*` 환경변수 표(변수 → 켜지는 테스트 → 필요한 환경)를 README §11에 둔다. 비밀값은 이름만 적는다. skip 로그에 원인 변수를 일관된 접두사로 남긴다.
   3. `Scripts/README.md`에 모든 스크립트를 `현재 사용 / 이력 보존 / 폐기 후보`로 분류한다. 삭제는 하지 않는다.
 - **완료:** `verify.ps1 -Level quick`이 1분 안팎으로 끝나고 manifest를 남긴다. 소스의 변수 집합과 문서 표가 일치한다.
+- **결과:** 기존 guard/layer/payload 및 smoke runner를 조합하는 `verify.ps1`을 추가했다. 기존 smoke runner의 기본 NullRHI 사용은 유지하고 D3D12·보고서·커밋본 맵 경로를 opt-in 인자로 제공한다. manifest는 SHA·Source hash·단계/이름별 Success/Failed/Skip·사유 변수·환경·시간을 기록하며 환경변수 비밀값은 읽어 기록하지 않는다. README §11의 변수 **67개**를 소스와 자동 대조하고 Scripts **110파일**을 분류했다. 기존 조건/반환값을 유지한 채 24소스 파일의 opt-in skip 문구 31개에 원인 접두사를 추가했다.
+- **검증:** quick **6.94초**, feature **4 Success/skip 1**(SensorReceiver+RawReceiptProbe), release 전체 D3D12 **229 Success/skip 20/실패 0/NotRun 0**와 WBP7 통과. ARCH-05 기준선 249개 이름별 결과 차이 0, allowlist **9→9**. 잘못된 BaseCommit 음성 시험은 exit 1·실패 manifest 생성으로 확인했다. 보호 파일 476개 불변·개인 SaveGame 9개 복원. skip 접두사를 제거하면 변경 전 소스와 동일하다.
+- **증거·제한:** `Saved/Reports/ArchitectureSkeleton/A07/summary.json`, `RESULT.md`, `skip-only-proof.json`, `test-comparison.json`; 실제 manifest 경로는 summary에 있다. 초기 wrapper 함수명 충돌은 수정 후 재실행했고 실패 기록을 보존했다. opt-in 20개는 자동 활성화하지 않았으며 실제 수용 통과로 세지 않는다. Computer Use·DTCore·자산 저장은 없다.
 
 ### ARCH-08 — 정리 (P2)
 
