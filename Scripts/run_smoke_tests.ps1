@@ -48,6 +48,7 @@ if (-not (Test-Path -LiteralPath $BuildBat)) {
 if (-not (Test-Path -LiteralPath $EditorCmd)) {
     throw "UnrealEditor-Cmd.exe not found: $EditorCmd"
 }
+if ($ReportRoot) { $ReportRoot = [IO.Path]::GetFullPath($ReportRoot) }
 
 if (-not $SkipBuild) {
     $OpenEditors = Get-Process UnrealEditor -ErrorAction SilentlyContinue
