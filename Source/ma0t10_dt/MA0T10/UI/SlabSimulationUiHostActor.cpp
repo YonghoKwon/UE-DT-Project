@@ -3,6 +3,7 @@
 #include "SlabProgressPanelWidget.h"
 #include "VirtualSensorPanelHostComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabUiRegistry.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
@@ -10,7 +11,24 @@
 
 ASlabSimulationUiHostActor::ASlabSimulationUiHostActor()
 { PrimaryActorTick.bCanEverTick = false; PanelHost = CreateDefaultSubobject<UVirtualSensorPanelHostComponent>(TEXT("SlabPanelHost")); }
-void ASlabSimulationUiHostActor::BeginPlay() { Super::BeginPlay(); bEnding=false; InitializationAttempts=0; ShowSimulationPanels(); }
+void ASlabSimulationUiHostActor::RegisterSlabUiHost(bool bActive)
+{
+	const TWeakObjectPtr<ASlabSimulationUiHostActor> WeakThis(this);
+	SlabUiRegistry::RegisterHost(this,[WeakThis]() -> ASlabActor* { return WeakThis.IsValid()?WeakThis->SlabActor.Get():nullptr; },bActive);
+	SlabUiRegistry::RegisterActivation(this,[WeakThis](ASlabActor* Selected)
+	{
+		if(!WeakThis.IsValid()||!IsValid(Selected))return false;auto* Host=WeakThis.Get();auto* W=Host->GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+		if(!W||!Host->ProgressWidget||W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)!=Host->ProgressWidget)return false;
+		Host->BindSlabActor(Selected);W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
+		if(Host->ProgressWidget->IsPanelCollapsed())Host->ProgressWidget->TogglePanelCollapsed();
+		W->BringOwnedPanelToFront(ESensorToolPanelRole::SlabProgress);return true;
+	});
+}
+void ASlabSimulationUiHostActor::PostLoad() { Super::PostLoad(); RegisterSlabUiHost(); }
+void ASlabSimulationUiHostActor::PostDuplicate(EDuplicateMode::Type DuplicateMode) { Super::PostDuplicate(DuplicateMode); RegisterSlabUiHost(); }
+void ASlabSimulationUiHostActor::PostActorCreated() { Super::PostActorCreated(); RegisterSlabUiHost(); }
+void ASlabSimulationUiHostActor::Destroyed() { SlabUiRegistry::UnregisterHost(this); Super::Destroyed(); }
+void ASlabSimulationUiHostActor::BeginPlay() { Super::BeginPlay(); RegisterSlabUiHost(true); bEnding=false; InitializationAttempts=0; ShowSimulationPanels(); }
 void ASlabSimulationUiHostActor::BindSlabActor(ASlabActor* InSlab)
 {
 	SlabActor = IsValid(InSlab)&&InSlab->GetWorld()==GetWorld()?InSlab:nullptr;
@@ -68,6 +86,7 @@ void ASlabSimulationUiHostActor::ShowSimulationPanels()
 }
 void ASlabSimulationUiHostActor::EndPlay(const EEndPlayReason::Type Reason)
 {
+	SlabUiRegistry::UnregisterHost(this);
 	bEnding=true; if(GetWorld()) GetWorldTimerManager().ClearTimer(InitializationRetry);
 	PanelHost->UnregisterAllPanels();
 	if (ChartsWidget) ChartsWidget->RemoveFromParent(); if (ProgressWidget) ProgressWidget->RemoveFromParent();

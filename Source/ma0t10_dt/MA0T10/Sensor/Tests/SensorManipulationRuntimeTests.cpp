@@ -3,7 +3,7 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Engine/Engine.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -115,7 +115,7 @@ bool FSensorManipulationRuntimeTest::RunTest(const FString&)
 {
     if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_MANIPULATION_RHI")) != TEXT("1"))
     {
-        AddInfo(TEXT("SKIP: actual RHI manipulation test requires MA0T10_MANIPULATION_RHI=1"));
+        AddInfo(TEXT("[OPT-IN SKIP] MA0T10_MANIPULATION_RHI unset or !=1; SKIP: actual RHI manipulation test requires MA0T10_MANIPULATION_RHI=1"));
         return true;
     }
     if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true)) return false;

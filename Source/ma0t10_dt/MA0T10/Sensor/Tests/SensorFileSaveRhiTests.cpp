@@ -17,7 +17,7 @@
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
@@ -262,7 +262,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorFileSaveRhiTest,"MA0T10.SensorFiles.RealRhiWorkflow",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorFileSaveRhiTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_FILES_RHI"))!=TEXT("1")){AddInfo(TEXT("Skipped actual RHI file workflow; set MA0T10_SENSOR_FILES_RHI=1."));return true;}
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_FILES_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SENSOR_FILES_RHI unset or !=1; Skipped actual RHI file workflow; set MA0T10_SENSOR_FILES_RHI=1."));return true;}
 	if(!GDynamicRHI||FString(GDynamicRHI->GetName()).Contains(TEXT("Null"),ESearchCase::IgnoreCase)){AddError(TEXT("This test requires a real RHI; NullRHI is not file/image evidence."));return false;}
 	if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));ADD_LATENT_AUTOMATION_COMMAND(FSensorFileSaveRhiCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;

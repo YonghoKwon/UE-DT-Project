@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "VirtualSensorLayoutTypes.h"
 #include "Async/Future.h"
 #include "VirtualSensorLayoutSubsystem.generated.h"

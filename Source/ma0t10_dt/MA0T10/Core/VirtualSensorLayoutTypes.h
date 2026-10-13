@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "VirtualSensorLayoutTypes.generated.h"
 USTRUCT(BlueprintType)
 struct FVirtualSensorLayoutEntry

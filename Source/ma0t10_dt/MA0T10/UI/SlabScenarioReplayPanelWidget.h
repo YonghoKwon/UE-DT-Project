@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
 #include "SlabScenarioReplayPanelWidget.generated.h"
 class USlabScenarioReplaySubsystem;
 class SVerticalBox;
@@ -25,6 +25,8 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") FSlabExecutionOptions ExecutionOptions;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") FVirtualSlabSensorOutputSelection GetReplayOutputs() const;
+	FText GetOwnedReplayOutputSummary() const;
+	bool OpenOwnedReplayOutputSettings();
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|ScenarioReplay") TArray<FString> TargetSensorIds;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -39,6 +41,13 @@ private:
 	FString PendingDeleteUUID;
 	FString ActionMessage;
 	FString CachedPreflight;
+	FText CachedOwnedOutputSummary;
+	FString OwnedRegistrationText,OwnedActionText,OwnedReplayStatusText,OwnedSelectedDetail;
+	FText OwnedRegistrationLabel,OwnedActionLabel,OwnedReplayStatusLabel,OwnedSelectedDetailLabel;
+	bool bOwnedDetailExpanded=false,bOwnedListDirty=true;
+	double NextOwnedListRefresh=0;
+	int32 CachedOwnedOutputState=-1;
+	TSharedRef<SWidget> BuildOutputControls();
 	double NextPreflight=0;
 	TArray<FString> PreviousListIds;
 	static FString ResolveStableSelection(const TArray<FString>& PreviousIds,const TArray<FString>& CurrentIds,const FString& Selected);

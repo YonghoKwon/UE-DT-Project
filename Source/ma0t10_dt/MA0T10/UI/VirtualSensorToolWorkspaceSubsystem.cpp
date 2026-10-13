@@ -1,4 +1,8 @@
 #include "VirtualSensorToolWorkspaceSubsystem.h"
+#include "SensorPlacementInteraction.h"
+#include "VirtualSensorToolRig.h"
+#include "SensorMapCheckWidget.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolAppearance.h"
@@ -21,14 +25,31 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "SensorOwnedPresentationStyle.h"
 
-const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=TEXT("MA0T10_SensorToolWorkspace_v1");
+const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=VirtualSensorDefaults::WorkspaceSlot;
 float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight)
 {
 	const float Height=FMath::IsFinite(DesiredHeight)?DesiredHeight:48;
 	return 16+FMath::Clamp(Height,40.0f,FMath::Max(40.0f,ViewportHeight*.4f));
 }
-void UVirtualSensorToolWorkspaceSubsystem::SetCoordinator(AVirtualSensorCoordinator* C){Coordinator=C;}
+void UVirtualSensorToolWorkspaceSubsystem::SetCoordinator(AVirtualSensorCoordinator* C)
+{
+	if(Coordinator.Get()==C)return;
+	if(auto* Old=Coordinator.Get()){Old->OnSensorInventoryChanged.RemoveAll(this);for(auto* A:Old->GetSensorActors())if(IsValid(A))A->SetPlacementPickingEnabled(false);}
+	Coordinator=C;
+	if(C)C->OnSensorInventoryChanged.AddUObject(this,&ThisClass::RefreshOwnedPickMarkers);
+	RefreshOwnedPickMarkers();
+	if(PlacementInteraction)PlacementInteraction->BindCoordinator(C);
+}
+void UVirtualSensorToolWorkspaceSubsystem::RefreshOwnedPickMarkers()
+{
+	TArray<TWeakObjectPtr<AVirtualSensorActorBase>> Current;
+	if(auto* C=Coordinator.Get())for(auto* A:C->GetSensorActors())if(IsValid(A)){Current.Add(A);A->SetPlacementPickingEnabled(true);}
+	for(const auto& Old:OwnedPickTargets)if(Old.IsValid()&&!Current.Contains(Old))Old->SetPlacementPickingEnabled(false);
+	OwnedPickTargets=MoveTemp(Current);
+}
 bool UVirtualSensorToolWorkspaceSubsystem::RegisterPlacementHost(AVirtualSensorUiHostActor* Host)
 {
 	if(!IsValid(Host)||Host->GetWorld()!=GetWorld()||(PlacementHost.IsValid()&&PlacementHost.Get()!=Host))return false;
@@ -44,15 +65,22 @@ void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& 
 	if(!Preferences||Preferences->Version!=1) {Preferences=NewObject<USensorToolWorkspaceSaveGame>(this);Preferences->FontScale=USensorToolAppearance::LoadScale();}
 	if(!FMath::IsFinite(Preferences->FontScale))Preferences->FontScale=1;
 	Preferences->FontScale=FMath::Clamp(Preferences->FontScale,.85f,1.5f);
+	SidebarOpen.Reset();const auto* Monitor=Preferences->Panels.Find(ESensorToolPanelRole::Monitor);if(!Monitor||Monitor->bOpen)SidebarOpen.Add(ESensorToolPanelRole::Monitor);
+	bSidebarExpanded=false;
+	for(const auto R:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::Replay,ESensorToolPanelRole::Data,ESensorToolPanelRole::Settings,ESensorToolPanelRole::SlabCharts})
+	{const auto* S=Preferences->Panels.Find(R);if(S?S->bOpen:R==ESensorToolPanelRole::Placement){SidebarRole=R;SidebarOpen.Add(R);bSidebarExpanded=true;break;}}
 }
 void UVirtualSensorToolWorkspaceSubsystem::Deinitialize()
 {
+	if(MapCheckWidget){if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->CloseWidget(MapCheckWidget);MapCheckWidget=nullptr;}
+	if(PlacementInteraction){PlacementInteraction->Shutdown();PlacementInteraction=nullptr;}
+	SetCoordinator(nullptr);
 	for(auto& P:Panels)if(P.Value)P.Value->SetToolWorkspace(nullptr,P.Key);
 	if(Root)Root->RemoveFromParent();Panels.Reset();PendingInitialLayouts.Reset();Root=nullptr;Canvas=nullptr;Toolbar=nullptr;Super::Deinitialize();
 }
 float UVirtualSensorToolWorkspaceSubsystem::GetOwnedPanelFontScale() const { return Preferences?Preferences->FontScale:1; }
 UVirtualSensorPanelWidgetBase* UVirtualSensorToolWorkspaceSubsystem::GetOwnedPanel(ESensorToolPanelRole R) const {const auto* P=Panels.Find(R);return P?P->Get():nullptr;}
-bool UVirtualSensorToolWorkspaceSubsystem::IsPanelOpen(ESensorToolPanelRole R) const {const auto* S=Preferences?Preferences->Panels.Find(R):nullptr;return S?S->bOpen:(R==ESensorToolPanelRole::Monitor||R==ESensorToolPanelRole::Placement);}
+bool UVirtualSensorToolWorkspaceSubsystem::IsPanelOpen(ESensorToolPanelRole R) const {const auto* P=GetOwnedPanel(R);const auto* S=Preferences?Preferences->Panels.Find(R):nullptr;if(bSidebarMode&&P&&P->SupportsOwnedDocking())return SidebarOpen.Contains(R);return S?S->bOpen:(R==ESensorToolPanelRole::Monitor||R==ESensorToolPanelRole::Placement);}
 bool UVirtualSensorToolWorkspaceSubsystem::RegisterOwnedPanel(ESensorToolPanelRole R,UVirtualSensorPanelWidgetBase* P)
 {
 	if(!P||P->GetWorld()!=GetWorld()||!Preferences)return false;
@@ -71,7 +99,7 @@ void UVirtualSensorToolWorkspaceSubsystem::EnsureRoot()
 	Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	Toolbar=CreateWidget<UUserWidget>(GetWorld(),USensorToolToolbarWidget::StaticClass());
 	if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->RegisterExternalInputBlocker(Toolbar);
-	auto* S=Canvas->AddChildToCanvas(Toolbar);S->SetPosition(FVector2D(16,8));S->SetSize(FVector2D(1000,48));S->SetZOrder(10000);
+	auto* S=Canvas->AddChildToCanvas(Toolbar);S->SetAnchors(FAnchors(0,0,1,1));S->SetOffsets(FMargin(0));S->SetZOrder(10000);Toolbar->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	RefreshHosting();
 }
 void UVirtualSensorToolWorkspaceSubsystem::RefreshHosting()
@@ -102,6 +130,8 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVector2D Size=Monitor?FVector2D(FMath::Min(1100.0,V.X*.65),FMath::Min(700.0,V.Y-120)):R==ESensorToolPanelRole::Data?FVector2D(760,580):R==ESensorToolPanelRole::Settings?FVector2D(460,640):FVector2D(580,520);
 	if(R==ESensorToolPanelRole::SlabCharts)Size=FVector2D(780,820);
 	if(R==ESensorToolPanelRole::SlabProgress)Size=FVector2D(520,420);
+	const bool ScenarioPanel=R==ESensorToolPanelRole::SlabProgress||R==ESensorToolPanelRole::Replay;
+	if(ScenarioPanel)Size=FVector2D(FMath::Max(360.0,(V.X-48)*.5),V.Y-ToolbarReservedTop-16);
 	if(R==ESensorToolPanelRole::Placement)Size=FVector2D(760,900);
 	Size.X=FMath::Min(Size.X,V.X-32);Size.Y=FMath::Min(Size.Y,V.Y-ToolbarReservedTop-16);
 	P->SetPanelResizable(true);P->ResizeHandleSize=32;
@@ -109,12 +139,13 @@ void UVirtualSensorToolWorkspaceSubsystem::ApplyDefault(ESensorToolPanelRole R)
 	FVirtualSensorPanelUiState S;S.bHasSavedSize=true;S.ExpandedSize=Size;
 	P->ApplyWorkspaceLayout(S);
 	const double Offset=R==ESensorToolPanelRole::Placement?0:static_cast<int32>(R)*24;
-	P->SetWorkspacePosition(Monitor?FVector2D(V.X-Size.X-16,ToolbarReservedTop):FVector2D(16+Offset,ToolbarReservedTop+Offset));
+	P->SetWorkspacePosition(ScenarioPanel?FVector2D(R==ESensorToolPanelRole::SlabProgress?16:32+Size.X,ToolbarReservedTop):Monitor?FVector2D(V.X-Size.X-16,ToolbarReservedTop):FVector2D(16+Offset,ToolbarReservedTop+Offset));
 }
 void UVirtualSensorToolWorkspaceSubsystem::RestorePanel(ESensorToolPanelRole R)
 {
 	auto* P=GetOwnedPanel(R);if(!P||!Preferences)return;
 	if(!IsOwnedPanelLayoutReady(R)){PendingInitialLayouts.Add(R);return;}
+	if(bSidebarMode&&P->SupportsOwnedDocking()){PendingInitialLayouts.Remove(R);RefreshDockedLayout();return;}
 	TGuardValue<bool> Guard(bApplying,true);
 	ApplyDefault(R);
 	if(const auto* S=Preferences->Panels.Find(R))if(S->Layout.bHasSavedPosition||S->Layout.bHasSavedSize)P->ApplyWorkspaceLayout(S->Layout);
@@ -129,8 +160,17 @@ bool UVirtualSensorToolWorkspaceSubsystem::IsOwnedPanelLayoutReady(ESensorToolPa
 void UVirtualSensorToolWorkspaceSubsystem::Save(){if(!bApplying&&Preferences&&GetWorld()->IsGameWorld())UGameplayStatics::SaveGameToSlot(Preferences,SlotName,0);}
 void UVirtualSensorToolWorkspaceSubsystem::SavePanel(ESensorToolPanelRole R)
 {
-	if(bApplying||!Preferences||PendingInitialLayouts.Contains(R)||!IsOwnedPanelLayoutReady(R))return;auto* P=GetOwnedPanel(R);if(!P)return;
+	if(bApplying||!Preferences||PendingInitialLayouts.Contains(R)||!IsOwnedPanelLayoutReady(R))return;auto* P=GetOwnedPanel(R);if(!P||P->IsWorkspaceDocked())return;
 	const bool Open=IsPanelOpen(R);auto& S=Preferences->Panels.FindOrAdd(R);S.bOpen=Open;S.Layout=P->CaptureWorkspaceLayout();Save();
+}
+bool UVirtualSensorToolWorkspaceSubsystem::EnsureOwnedReplayPanel()
+{
+	if(GetOwnedPanel(ESensorToolPanelRole::Replay))return true;
+	if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
+	for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();return GetOwnedPanel(ESensorToolPanelRole::Replay)!=nullptr;}
+	for(TActorIterator<ASlabScenarioReplayUiHostActor> It(GetWorld());It;++It){It->ShowReplayPanel();break;}
+	if(!GetOwnedPanel(ESensorToolPanelRole::Replay))GetWorld()->SpawnActor<ASlabScenarioReplayUiHostActor>();
+	return GetOwnedPanel(ESensorToolPanelRole::Replay)!=nullptr;
 }
 void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,bool Open)
 {
@@ -144,13 +184,27 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	PanelOpenMessage.Reset();
 	if(Open&&R==ESensorToolPanelRole::Replay&&!GetOwnedPanel(R))
 	{
-		for(TActorIterator<ASlabScenarioReplayUiHostActor> It(GetWorld());It;++It){It->ShowReplayPanel();break;}
-		if(!GetOwnedPanel(R))GetWorld()->SpawnActor<ASlabScenarioReplayUiHostActor>();
+		EnsureOwnedReplayPanel();
 	}
 	if(Open&&(R==ESensorToolPanelRole::SlabCharts||R==ESensorToolPanelRole::SlabProgress)&&!GetOwnedPanel(R))
 	{
+		for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();if(!GetOwnedPanel(R)){PanelOpenMessage=It->GetSlabSetupMessage();return;}break;}
 		for(TActorIterator<ASlabSimulationUiHostActor> It(GetWorld());It;++It){It->ShowSimulationPanels();break;}
 		if(!GetOwnedPanel(R))GetWorld()->SpawnActor<ASlabSimulationUiHostActor>();
+	}
+	if(bSidebarMode)if(auto* Native=GetOwnedPanel(R))if(Native->SupportsOwnedDocking())
+	{
+		if(Open&&R!=ESensorToolPanelRole::Monitor)
+		{
+			const auto Previous=SidebarRole;
+			if(bSidebarExpanded&&Previous!=R)SetPanelOpen(Previous,false);
+			SidebarRole=R;bSidebarExpanded=true;
+		}
+		if(Open)SidebarOpen.Add(R);else{SidebarOpen.Remove(R);if(R==SidebarRole)bSidebarExpanded=false;}
+		if(!Open){if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->SetSensorManipulationEnabled(false);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(Native))P->EndPlacement();}
+		Native->SetVisibility(Open?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
+		if(Open){if(Native->IsPanelCollapsed())Native->TogglePanelCollapsed();BringOwnedPanelToFront(R);if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->BindSensorManager(Coordinator.Get());}
+		RefreshDockedLayout();return;
 	}
 	auto& State=Preferences->Panels.FindOrAdd(R);State.bOpen=Open;
 	if(auto* P=GetOwnedPanel(R))
@@ -171,8 +225,36 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	}
 	Save();
 }
+
+bool UVirtualSensorToolWorkspaceSubsystem::OpenMapCheck()
+{
+	if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
+	auto* GI=GetWorld()->GetGameInstance();auto* Dx=GI?GI->GetSubsystem<UDxWidgetSubsystem>():nullptr;if(!Dx)return false;
+	if(!MapCheckWidget||!MapCheckWidget->IsInViewport())
+	{
+		MapCheckWidget=CreateWidget<USensorMapCheckWidget>(GetWorld(),USensorMapCheckWidget::StaticClass());if(!MapCheckWidget)return false;
+		MapCheckWidget->AddToViewport(200);
+		const FVector2D V=UWidgetLayoutLibrary::GetViewportSize(GetWorld());const float Dpi=UWidgetLayoutLibrary::GetViewportScale(GetWorld());
+		const FVector2D Logical=V/FMath::Max(.01f,Dpi);const FVector2D Size(FMath::Min(820.,Logical.X-32),FMath::Min(850.,Logical.Y-32));
+		MapCheckWidget->SetDesiredSizeInViewport(Size);MapCheckWidget->SetPositionInViewport((Logical-Size)*.5,false);
+		Dx->RegisterWidget(MapCheckWidget);Dx->RegisterExternalInputBlocker(MapCheckWidget);
+	}
+	Dx->BringToFront(MapCheckWidget);return true;
+}
 void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPanelRole R)
-{ if(auto* P=GetOwnedPanel(R))if(auto* S=Cast<UCanvasPanelSlot>(P->Slot))S->SetZOrder(++Front); }
+{
+	auto* P=GetOwnedPanel(R);if(!P)return;auto* Slot=Cast<UCanvasPanelSlot>(P->Slot);if(!Slot)return;
+	auto* GI=GetWorld()->GetGameInstance();auto* Dx=GI?GI->GetSubsystem<UDxWidgetSubsystem>():nullptr;
+	if(!Dx){Slot->SetZOrder(++Front);return;}
+	// Scoped registration uses DTCore ordering without transferring general close/mode ownership.
+	const auto Existing=Dx->GetOpenWidgets();TArray<UDxWidget*> Temporary;
+	for(const auto& Entry:Panels)if(Entry.Value&&!Existing.Contains(Entry.Value.Get())){Dx->RegisterWidget(Entry.Value);Temporary.Add(Entry.Value);}
+	Dx->BringToFront(P);
+	for(auto* Added:Temporary)Dx->UnregisterWidget(Added);
+	// This canvas is nested under Main/Viewport; its toolbar has a reserved local Z domain.
+	if(Slot->GetZOrder()>=10000)Slot->SetZOrder(++Front);
+	else Front=FMath::Max(Front,Slot->GetZOrder());
+}
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPanelRole R)
 {
 	if(!Preferences)return;const bool Open=IsPanelOpen(R);Preferences->Panels.Remove(R);
@@ -210,15 +292,16 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 	PollTime+=D;if(PollTime<.2f||Panels.IsEmpty())return;PollTime=0;EnsureRoot();RefreshHosting();
 	SynchronizeOwnedSelection();
 	if(!Canvas)return;const FVector2D Size=Canvas->GetCachedGeometry().GetLocalSize();
+	const float Pixels=MeasureOwnedPixelScale();if(!FMath::IsNearlyEqual(Pixels,LastOwnedPixelScale,.001f)){LastOwnedPixelScale=Pixels;for(auto& P:Panels)if(P.Value)P.Value->ApplySensorToolFontScale(GetOwnedPanelFontScale());}
+	if(bSidebarMode){ToolbarReservedTop=0;LastCanvasSize=Size;RefreshDockedLayout();return;}
 	if(Size.X>=320&&Size.Y>=200)
 	{
 		const bool SizeChanged=!Size.Equals(LastCanvasSize,1);
-		const float DesiredTop=CalculateToolbarReservedTop(Toolbar->GetDesiredSize().Y,Size.Y);
+		const auto* Navigation=Cast<USensorToolToolbarWidget>(Toolbar);const float DesiredTop=CalculateToolbarReservedTop(Navigation?Navigation->GetFloatingToolbarHeight():48,Size.Y);
 		const bool ToolbarChanged=!FMath::IsNearlyEqual(ToolbarReservedTop,DesiredTop,1.0f);
 		if(SizeChanged||ToolbarChanged)
 		{
 			LastCanvasSize=Size;ToolbarReservedTop=DesiredTop;
-			if(auto* S=Cast<UCanvasPanelSlot>(Toolbar->Slot))S->SetSize(FVector2D(Size.X-32,ToolbarReservedTop-16));
 		}
 		for(const auto& P:Panels)
 		{
@@ -229,6 +312,12 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 }
 void UVirtualSensorToolWorkspaceSubsystem::SynchronizeOwnedSelection()
 {
+	if(PlacementInteraction)PlacementInteraction->SynchronizeSelection();
 	if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(GetOwnedPanel(ESensorToolPanelRole::Settings))) Settings->SynchronizeWorkspaceSelection();
+}
+USensorPlacementInteraction* UVirtualSensorToolWorkspaceSubsystem::GetPlacementInteraction()
+{
+	if(!PlacementInteraction){PlacementInteraction=NewObject<USensorPlacementInteraction>(this);PlacementInteraction->BindCoordinator(GetCoordinator());}
+	return PlacementInteraction;
 }
 TStatId UVirtualSensorToolWorkspaceSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorToolWorkspaceSubsystem,STATGROUP_Tickables);}

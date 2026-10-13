@@ -19,8 +19,8 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
@@ -160,7 +160,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabPortableIntegrationTest,"MA0T10.SlabScenar
 bool FSlabPortableIntegrationTest::RunTest(const FString&)
 {
 	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_PORTABLE"))!=TEXT("1"))
-	{ AddInfo(TEXT("Skipped disposable-map PIE integration; set MA0T10_SLAB_PORTABLE=1. No production map or rig is used.")); return true; }
+	{ AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SLAB_PORTABLE unset or !=1; Skipped disposable-map PIE integration; set MA0T10_SLAB_PORTABLE=1. No production map or rig is used.")); return true; }
 	if(GEditor&&GEditor->PlayWorld) { AddError(TEXT("End the existing PIE session before the isolated portable-map test.")); return false; }
 	auto Shared=MakeShared<FSlabPortableState>(this);
 	if(!Shared->bCapturedSlot) { AddError(TEXT("Could not back up the user's workspace slot; test was not started.")); return false; }

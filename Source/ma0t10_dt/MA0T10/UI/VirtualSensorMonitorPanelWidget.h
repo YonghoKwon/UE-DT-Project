@@ -4,10 +4,12 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorMonitorView.h"
 #include "Styling/SlateBrush.h"
 #include "VirtualSensorMonitorPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
+class AVirtualSensorActorBase;
 class FRHIGPUTextureReadback;
 class SImage;
 class STextBlock;
@@ -91,11 +93,18 @@ struct MA0T10_DT_API FVirtualSensorMonitorDisplayData
 };
 
 UCLASS()
-class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPanelWidgetBase
+class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPanelWidgetBase, public IVirtualSensorMonitorView
 {
     GENERATED_BODY()
 
 public:
+    virtual void BindMonitorCamera(UVirtualCameraCaptureComponent* Camera) override { BindVirtualCamera(Camera); }
+    virtual void BindMonitorLidar(UVirtualLidarScanComponent* Lidar) override { BindVirtualLidar(Lidar); }
+    virtual void BindMonitorExternalSource(URealSensorSourceComponent* Source) override { BindRealSensorSource(Source); }
+    virtual void ShowMonitorCamera() override { ShowCameraView(); }
+    virtual void ShowMonitorLidar() override { ShowLidarView(); }
+    virtual APlayerController* GetMonitorViewController() const override { return GetOwningPlayer(); }
+
     UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorMonitor|Presentation")
     void SetMonitorPresentation(EVirtualSensorMonitorPresentation Presentation);
     UFUNCTION(BlueprintPure, Category="DigitalTwin|SensorMonitor|Presentation")
@@ -394,7 +403,7 @@ private:
     void StartAsyncCameraJpegWrite(TArray<FColor>&& RawPixels, int32 Width, int32 Height, const FString& Path);
     void RefreshLocalCaptureCameraPendingState();
     bool SaveLidarPointCloudToDisk(const FString& FramePrefix);
-    bool RefreshLidarPreviewWithoutTransport();
+    bool RefreshLidarPreviewWithoutTransport(bool bExplicitCompatibilityCapture=false);
     FString EnsureLocalCaptureSessionDirectory();
     UVirtualLidarScanComponent* GetTargetLidarForPreview() const;
 
@@ -607,9 +616,22 @@ private:
     TArray<TSharedPtr<ELidarColorMode>> NativeLidarColorOptions;
     TArray<TSharedPtr<EVirtualSensorMonitorPresentation>> NativePresentationOptions;
     bool bOwnedAdvancedMenuOpen = false;
+	bool bOwnedPreviewEmpty=true,bOwnedHasEquipment=false,bOwnedCanStart=false,bOwnedHasWarning=false,bOwnedLegendExpanded=false;
+	FText OwnedMonitorStatus,OwnedMonitorWarning,OwnedEmptyText,OwnedEmptyActionText,OwnedEmptyActionTip,OwnedLegendText,OwnedRendererText;
+	FText OwnedProjectionText,OwnedColorText,OwnedSecondaryCameraText;
+	FText OwnedHeightMinText,OwnedHeightMaxText,OwnedSliceWidthText,OwnedPointSizeText;
+	TWeakObjectPtr<AVirtualSensorActorBase> OwnedPreviewTarget;
+	AVirtualSensorActorBase* GetOwnedMonitoredActor() const;
+	void RefreshOwnedMonitorText();
+	FString BuildOwnedMeasurementWarning() const;
+	bool StartOwnedMonitoredEquipment();
+	bool OpenOwnedEquipmentPlacement();
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabMinimalUiTest;
 	friend class FSensorMonitorRateStateTest;
+	friend class FSensorPreviewPresentationTest;
+	friend class FSensorVocabularyTest;
+	friend class FUxrPreviewRender;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;
     TSharedPtr<STextBlock> NativeTitleTextBlock;

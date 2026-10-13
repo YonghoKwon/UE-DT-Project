@@ -6,7 +6,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
@@ -16,7 +16,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "Json.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRunPlacementSnapshotTest,"MA0T10.Placement.RunPlacementSnapshot",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

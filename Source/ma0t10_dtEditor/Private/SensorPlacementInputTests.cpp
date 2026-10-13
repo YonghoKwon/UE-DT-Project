@@ -12,7 +12,7 @@
 #include "RenderingThread.h"
 #include <atomic>
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
@@ -189,7 +189,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementInputRhi,"MA0T10.Placement.InputOwnershipRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPlacementInputRhi::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: MA0T10_PLACEMENT_RHI=1 for actual Slate/PIE input fixture"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_PLACEMENT_RHI unset or !=1; SKIP: MA0T10_PLACEMENT_RHI=1 for actual Slate/PIE input fixture"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPlacementInputCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FPlacementRenderLatencyCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FPlacementRestoredPreviewCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

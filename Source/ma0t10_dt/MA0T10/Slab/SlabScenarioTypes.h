@@ -27,6 +27,7 @@ struct MA0T10_DT_API FSlabScenarioRow
 	UPROPERTY(BlueprintReadOnly) double MovePosition=0;
 	UPROPERTY(BlueprintReadOnly) double ElapsedSec=0;
 	UPROPERTY(BlueprintReadOnly) bool bMeandering=false;
+	bool bHasCenterY=false,bHasMeandering=false; // Optional source presence, no reflected/wire field changes.
 };
 
 /** Immutable after parsing; shared by playback, replay archive and charts. */

@@ -14,7 +14,7 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 namespace
 {

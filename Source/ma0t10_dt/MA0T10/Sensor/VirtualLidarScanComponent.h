@@ -338,6 +338,8 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|Performance")
     EVirtualLidarAcquisitionBackend GetActiveAcquisitionBackend() const { return ActiveAcquisitionBackend; }
+    /** Existing semantic capture demand only. This query never starts/enables a capture. */
+    bool IsSemanticCaptureRequested() const;
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|VirtualLidar")
     FOnVirtualLidarScanCompleted OnScanCompleted;
@@ -638,7 +640,7 @@ private:
     void BeginScheduledScan(double NowSeconds);
     void CompleteScheduledScan(double NowSeconds);
     void QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds,const FString& RequestId=FString());
-    bool HasCompatibilityJsonDemand(const FVirtualSlabFrameContext& Context,FString* Reason=nullptr) const;
+    bool HasCompatibilityJsonDemand(const FVirtualSensorAcquisitionContext& Context,FString* Reason=nullptr) const;
     void CompleteScheduledPayloadBuild(TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe> Job,FString&& JsonPayload);
     void TryStartPendingPayloadBuild();
     void CompleteDerivedFrame(const FVirtualSensorFrameEnvelope& Frame);
@@ -706,7 +708,7 @@ private:
 
     double NextScheduledScanTime = -1.0;
     double ScheduledScanStartTime = -1.0;
-	FVirtualSlabFrameContext ScheduledSlabContext;
+	FVirtualSensorAcquisitionContext ScheduledSlabContext;
     double LastScheduledCompletionTime = -1.0;
     double LastScheduledOutputTime = -1.0;
     FTransform ScheduledScanTransform = FTransform::Identity;

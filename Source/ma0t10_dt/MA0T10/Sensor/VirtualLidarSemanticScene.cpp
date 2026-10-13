@@ -1,4 +1,5 @@
 #include "VirtualLidarSemanticScene.h"
+#include "VirtualLidarSurfaceResponseComponent.h"
 #include "VirtualLidarScanComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -119,6 +120,10 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
         Identity.ActorName = Source->GetOwner()->GetFName();
         Identity.ActorClass = Source->GetOwner()->GetClass()->GetFName();
         Identity.ActorTags = Source->GetOwner()->Tags;
+        if(const auto* Response=Source->GetOwner()->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>();Response&&Response->bUseGpuReflectivityOverride)
+        {
+            Identity.bHasOpticalOverride=true;Identity.Reflectivity940Nm=FMath::Clamp(Response->Reflectivity940Nm,.001f,1.f);Identity.IntensityGain=FMath::Max(0.f,Response->IntensityGain);
+        }
         Identities.Add(Entry.Id, MoveTemp(Identity));
     }
     auto* Target = GetTarget();

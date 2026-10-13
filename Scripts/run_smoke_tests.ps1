@@ -10,7 +10,10 @@
         "MA0T10.SensorMonitor"
     ),
     [switch]$SkipBuild,
-    [switch]$AllowOpenEditor
+    [switch]$AllowOpenEditor,
+    [ValidateSet('NullRHI', 'D3D12')][string]$Rhi = 'NullRHI',
+    [string]$ReportRoot = '',
+    [string]$SensorSmokeMapDirectory = ''
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +48,7 @@ if (-not (Test-Path -LiteralPath $BuildBat)) {
 if (-not (Test-Path -LiteralPath $EditorCmd)) {
     throw "UnrealEditor-Cmd.exe not found: $EditorCmd"
 }
+if ($ReportRoot) { $ReportRoot = [IO.Path]::GetFullPath($ReportRoot) }
 
 if (-not $SkipBuild) {
     $OpenEditors = Get-Process UnrealEditor -ErrorAction SilentlyContinue
@@ -60,18 +64,29 @@ if (-not $SkipBuild) {
 }
 
 foreach ($TestGroup in $TestGroups) {
+    $automationArgs = @(
+        $ProjectPath,
+        $(if ($Rhi -eq 'D3D12') { '-d3d12' } else { '-NullRHI' }),
+        '-Unattended', '-NoSplash', '-NoSound', '-nop4',
+        "-ExecCmds=Automation RunTests $TestGroup; Quit",
+        '-TestExit=Automation Test Queue Empty'
+    )
+    if ($SensorSmokeMapDirectory) { $automationArgs += "-SensorSmokeMapDirectory=$SensorSmokeMapDirectory" }
+    if ($ReportRoot) {
+        $runDirectory = Join-Path $ReportRoot ($TestGroup -replace '[^a-zA-Z0-9_.-]', '_')
+        New-Item -ItemType Directory -Force -Path $runDirectory | Out-Null
+        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-abslog=$runDirectory/automation.log")
+        $quotedArgs = @($automationArgs | ForEach-Object { '"' + $_ + '"' })
+        $process = Start-Process $EditorCmd -ArgumentList $quotedArgs -WindowStyle Hidden -Wait -PassThru `
+            -RedirectStandardOutput (Join-Path $runDirectory 'console.log') -RedirectStandardError (Join-Path $runDirectory 'stderr.log')
+        if ($process.ExitCode -ne 0) { throw "Automation $TestGroup failed with exit code $($process.ExitCode): $runDirectory" }
+        if (-not (Test-Path -LiteralPath (Join-Path $runDirectory 'index.json'))) { throw "Automation report missing: $runDirectory" }
+        continue
+    }
     Invoke-CheckedCommand `
         -Label "Automation $TestGroup" `
         -FilePath $EditorCmd `
-        -Arguments @(
-            $ProjectPath,
-            "-NullRHI",
-            "-Unattended",
-            "-NoSplash",
-            "-NoSound",
-            "-ExecCmds=Automation RunTests $TestGroup; Quit",
-            "-TestExit=Automation Test Queue Empty"
-        )
+        -Arguments $automationArgs
 }
 
 Write-Host ""

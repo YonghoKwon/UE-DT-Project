@@ -8,7 +8,7 @@
 #include "Widgets/SViewport.h"
 #include "InputCoreTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
@@ -179,6 +179,9 @@ public:
         auto* InnerCanvas=Workspace->GetOwnedPanel(ESensorToolPanelRole::Monitor)->GetParent();
         auto* RootWidget=InnerCanvas?InnerCanvas->GetTypedOuter<UUserWidget>():nullptr;
         Test->TestTrue(TEXT("workspace rehosts to actual DTCore Main AddWidgetPanel"),RootWidget&&RootWidget->GetParent()==Widgets->GetAddWidgetPanel());
+        // The earlier phases exercise docked input. This existing minimum-width
+        // assertion belongs to the preserved floating resize contract, not a dock rectangle.
+        const bool WasSidebar=Workspace->IsSidebarMode();Workspace->SetSidebarMode(false);
         const float OldScale=Workspace->GetOwnedPanelFontScale();Workspace->SetOwnedPanelFontScale(1.5f);
         if(auto* Settings=Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings))
         {
@@ -189,6 +192,7 @@ public:
         TArray<UWidget*> Children;FixtureMain->WidgetTree->GetAllWidgets(Children);
         for(auto* Child:Children)if(auto* Text=Cast<UTextBlock>(Child))Test->TestEqual(TEXT("foreign Main control font stays unchanged"),Text->GetFont().Size,23.0f);
         Workspace->SetOwnedPanelFontScale(OldScale);
+        Workspace->SetSidebarMode(WasSidebar);
         return true;
     }
 };
@@ -196,7 +200,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorInputAcceptanceTest,"MA0T10.SensorV2.UI.InputAcceptanceRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorInputAcceptanceTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_INPUT_ACCEPTANCE_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: set MA0T10_INPUT_ACCEPTANCE_RHI=1 for actual Slate/PIE input"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_INPUT_ACCEPTANCE_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_INPUT_ACCEPTANCE_RHI unset or !=1; SKIP: set MA0T10_INPUT_ACCEPTANCE_RHI=1 for actual Slate/PIE input"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FInputAcceptanceCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

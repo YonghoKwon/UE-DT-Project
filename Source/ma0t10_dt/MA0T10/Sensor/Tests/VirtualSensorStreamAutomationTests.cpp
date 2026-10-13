@@ -537,7 +537,7 @@ bool FVirtualSensorArtemisIntegrationSmokeTest::RunTest(const FString& Parameter
 {
 	if (!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_ARTEMIS_SMOKE")).Equals(TEXT("1")))
 	{
-		AddInfo(TEXT("Artemis integration smoke skipped. Set MA0T10_RUN_ARTEMIS_SMOKE=1 to enable it."));
+		AddInfo(TEXT("[OPT-IN SKIP] MA0T10_RUN_ARTEMIS_SMOKE unset or !=1; Artemis integration smoke skipped. Set MA0T10_RUN_ARTEMIS_SMOKE=1 to enable it."));
 		return true;
 	}
 	TSharedPtr<FVirtualSensorArtemisSmokeState> State = MakeShared<FVirtualSensorArtemisSmokeState>();

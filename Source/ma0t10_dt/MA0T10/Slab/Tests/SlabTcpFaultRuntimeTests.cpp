@@ -12,8 +12,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 namespace
 {
 class FSlabTcpFaultCheck : public IAutomationLatentCommand
@@ -68,7 +68,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabTcpFaultTest,"MA0T10.SlabReliability.TcpFaultRuntime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabTcpFaultTest::RunTest(const FString&)
 {
-    const FString Mode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SCENARIO_FAULT_MODE"));if(Mode.IsEmpty()){AddInfo(TEXT("Skipped TCP fault fixture; requires isolated scenario_fault_server.mjs."));return true;}
+    const FString Mode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SCENARIO_FAULT_MODE"));if(Mode.IsEmpty()){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SCENARIO_FAULT_MODE unset; Skipped TCP fault fixture; requires isolated scenario_fault_server.mjs."));return true;}
     FAutomationEditorCommonUtils::CreateNewMap();ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));ADD_LATENT_AUTOMATION_COMMAND(FSlabTcpFaultCheck(this,Mode));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 #endif

@@ -1,0 +1,788 @@
+#include "VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
+
+#include "Async/Async.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
+#include "EngineUtils.h"
+#include "GameFramework/Actor.h"
+#include "HAL/PlatformProcess.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Json.h"
+#include "Materials/MaterialInterface.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/BufferArchive.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarPayloadCodec.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Misc/Crc.h"
+#include <atomic>
+
+
+
+UVirtualLidarScanComponent::UVirtualLidarScanComponent()
+{
+    PrimaryComponentTick.bCanEverTick = false;
+    ResetDefaultSemanticClassRules();
+}
+
+FString UVirtualLidarScanComponent::BuildLastPhysicalJsonPayload(
+    int32 PointStride,
+    int32 MaxPoints,
+    bool bIncludeInvalidPoints,
+    bool bIncludeDigitalTwinExtensions) const
+{
+    if (!LastFrameSnapshot.IsValid())
+    {
+        return FString();
+    }
+    FVirtualLidarPayloadDescriptor Descriptor;
+    Descriptor.SensorId = SensorId;
+    Descriptor.Manufacturer = DeviceSpec.Manufacturer;
+    Descriptor.Model = DeviceSpec.Model;
+    Descriptor.HorizontalFovDegrees = HorizontalFov;
+    Descriptor.VerticalFovDegrees = MaxVerticalAngle - MinVerticalAngle;
+    Descriptor.MaxRangeMeters = MaxDistance * 0.01f;
+
+    FVirtualLidarV2EncodeOptions Options;
+    Options.PointStride = FMath::Max(1, PointStride);
+    Options.MaxPoints = FMath::Max(0, MaxPoints);
+    Options.bIncludeInvalidPoints = bIncludeInvalidPoints;
+    Options.bIncludeDigitalTwinExtensions = bIncludeDigitalTwinExtensions;
+    return FVirtualLidarPayloadCodec::EncodeV2Json(*LastFrameSnapshot, Descriptor, Options);
+}
+
+bool UVirtualLidarScanComponent::BuildLastPhysicalCompactBinary(
+    const FVirtualLidarV2EncodeOptions& Options,
+    TArray64<uint8>& OutBytes,
+    int32& OutEncodedPointCount) const
+{
+    return LastFrameSnapshot.IsValid()
+        && FVirtualLidarPayloadCodec::EncodeCompactBinary(*LastFrameSnapshot, Options, OutBytes, OutEncodedPointCount);
+}
+
+void UVirtualLidarScanComponent::InvalidateSurfaceResponseCache()
+{
+    SurfaceResponseCache.Reset();
+}
+
+int64 UVirtualLidarScanComponent::CalculatePointTimeOffsetNanoseconds(int32 RayIndex, int32 RayCount) const
+{
+    if (!bUseRollingPointTimestamps || RayCount <= 1)
+    {
+        return 0;
+    }
+    const double NormalizedIndex = static_cast<double>(FMath::Clamp(RayIndex, 0, RayCount - 1))
+        / static_cast<double>(RayCount - 1);
+    return static_cast<int64>(NormalizedIndex * static_cast<double>(ScanInterval) * 1000000000.0);
+}
+
+void UVirtualLidarScanComponent::InitializePhysicalPoint(
+    FVirtualLidarPoint& Point,
+    int32 Row,
+    int32 Col,
+    int32 RayIndex,
+    int32 RayCount,
+    const FVector& LocalDirection) const
+{
+    Point.LocalDirection = LocalDirection;
+    Point.Row = Row;
+    Point.Col = Col;
+    Point.Ring = Row;
+    Point.HorizontalIndex = Col;
+    Point.ReturnIndex = 0;
+    Point.EchoIndex = 0;
+    Point.EchoCount = 0;
+    Point.EchoType = EVirtualLidarEchoType::None;
+    Point.PointTimeOffsetNanoseconds = CalculatePointTimeOffsetNanoseconds(RayIndex, RayCount);
+    Point.Validity = EVirtualLidarPointValidity::NoReturn;
+    Point.RangeMillimeters = 0;
+    Point.RawIntensity = 0;
+    Point.NormalizedIntensity = 0.0f;
+    Point.Confidence = 0.0f;
+    Point.SurfaceReflectivity = 0.0f;
+    Point.IncidenceCosine = 0.0f;
+    Point.AmbientLux = AmbientLightLux;
+    Point.bHasGridCoord = true;
+}
+
+UVirtualLidarScanComponent::FSurfaceResponseCacheEntry UVirtualLidarScanComponent::ResolveSurfaceResponse(
+    const UPrimitiveComponent* Primitive) const
+{
+    FSurfaceResponseCacheEntry Default;
+    Default.Reflectivity = FMath::Clamp(DefaultSurfaceReflectivity, 0.001f, 1.0f);
+    if (!Primitive)
+    {
+        return Default;
+    }
+
+    TWeakObjectPtr<UPrimitiveComponent> Key(const_cast<UPrimitiveComponent*>(Primitive));
+    if (const FSurfaceResponseCacheEntry* Existing = SurfaceResponseCache.Find(Key))
+    {
+        return *Existing;
+    }
+
+    FSurfaceResponseCacheEntry Resolved = Default;
+    if (const AActor* OwnerActor = Primitive->GetOwner())
+    {
+        if (const UVirtualLidarSurfaceResponseComponent* Response = OwnerActor->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>())
+        {
+            Resolved.Reflectivity = FMath::Clamp(Response->Reflectivity940Nm, 0.001f, 1.0f);
+            Resolved.IntensityGain = FMath::Max(0.0f, Response->IntensityGain);
+            Resolved.DetectionProbabilityScale = FMath::Max(0.0f, Response->DetectionProbabilityScale);
+            Resolved.bTwoSided = Response->bTwoSided;
+            Resolved.bAllowSaturation = Response->bAllowSaturation;
+        }
+    }
+    SurfaceResponseCache.Add(Key, Resolved);
+    return Resolved;
+}
+
+bool UVirtualLidarScanComponent::ApplyPhysicalHitModel(
+    FVirtualLidarPoint& Point,
+    const FHitResult& Hit,
+    const FVector& WorldDirection,
+    const FTransform& AcquisitionTransform,
+    int32 RayIndex,
+    int32 ReturnIndex) const
+{
+    const FSurfaceResponseCacheEntry Surface = ResolveSurfaceResponse(Hit.GetComponent());
+    const FVector SafeDirection = WorldDirection.GetSafeNormal();
+    const float SignedIncidence = FVector::DotProduct(-SafeDirection, Hit.ImpactNormal.GetSafeNormal());
+    const float IncidenceCosine = Surface.bTwoSided ? FMath::Abs(SignedIncidence) : FMath::Max(0.0f, SignedIncidence);
+    const float RangeRatio = FMath::Clamp(Hit.Distance / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f);
+    const float ReflectivityRatio = Surface.Reflectivity / 0.2f;
+    const float RangeFactor = 1.0f - 0.05f * FMath::Square(RangeRatio);
+    const float AmbientFactor = 1.0f - 0.05f * FMath::Clamp(AmbientLightLux / 100000.0f, 0.0f, 4.0f);
+    const float DetectionProbability = FMath::Clamp(
+        RangeFactor
+        * AmbientFactor
+        * FMath::Sqrt(FMath::Max(0.01f, ReflectivityRatio))
+        * FMath::Pow(FMath::Max(0.01f, IncidenceCosine), 0.30f)
+        * Surface.DetectionProbabilityScale,
+        0.0f,
+        0.9995f);
+
+    const float Attenuation = 1.0f / (1.0f + FMath::Square(Hit.Distance * 0.01f / 45.0f));
+    const float Intensity = FMath::Max(0.0f,
+        Surface.Reflectivity
+        * FMath::Sqrt(FMath::Max(0.0f, IncidenceCosine))
+        * Attenuation
+        * FMath::Max(0.0f, AmbientFactor)
+        * Surface.IntensityGain
+        * 5.0f);
+    const bool bSaturated = Surface.bAllowSaturation && Intensity >= 1.0f;
+
+    Point.SurfaceReflectivity = Surface.Reflectivity;
+    Point.IncidenceCosine = IncidenceCosine;
+    Point.AmbientLux = AmbientLightLux;
+    Point.NormalizedIntensity = FMath::Clamp(Intensity, 0.0f, 1.0f);
+    Point.RawIntensity = FMath::Clamp(FMath::RoundToInt(Point.NormalizedIntensity * 65535.0f), 0, 65535);
+
+    if (FidelityMode != EVirtualSensorFidelityMode::IdealTruth
+        && DeterministicUnitRandom(RayIndex, ReturnIndex, 0x4d4c5833u) > DetectionProbability)
+    {
+        Point.bHit = false;
+        Point.Validity = EVirtualLidarPointValidity::BelowSignalThreshold;
+        Point.RangeMillimeters = 0;
+        Point.SensorLocalPositionMeters = FVector::ZeroVector;
+        Point.Confidence = DetectionProbability;
+        Point.RawIntensity = 0;
+        Point.NormalizedIntensity = 0.0f;
+        return false;
+    }
+
+    float ErrorMillimeters = 0.0f;
+    if (FidelityMode != EVirtualSensorFidelityMode::IdealTruth && bEnableRangeNoise)
+    {
+        const float DistanceDependentStdDev = RangeNoiseStandardDeviationMillimeters
+            * (0.5f + 0.5f * RangeRatio)
+            * FMath::Clamp(FMath::Sqrt(0.2f / Surface.Reflectivity), 0.5f, 2.0f);
+        ErrorMillimeters = FMath::Clamp(
+            DeterministicGaussian(RayIndex, ReturnIndex) * DistanceDependentStdDev,
+            -MaximumRangeErrorMillimeters,
+            MaximumRangeErrorMillimeters);
+    }
+
+    const float MeasuredDistanceCm = FMath::Clamp(Hit.Distance + ErrorMillimeters * 0.1f, 0.0f, MaxDistance);
+    const FVector MeasuredWorldLocation = AcquisitionTransform.GetLocation() + SafeDirection * MeasuredDistanceCm;
+    const FVector SensorLocalCentimeters = AcquisitionTransform.InverseTransformPosition(MeasuredWorldLocation);
+
+    Point.bHit = true;
+    Point.Distance = MeasuredDistanceCm;
+    Point.WorldLocation = MeasuredWorldLocation;
+    Point.RangeMillimeters = FMath::Max(0, FMath::RoundToInt(MeasuredDistanceCm * 10.0f));
+    Point.SensorLocalPositionMeters = FVector(
+        SensorLocalCentimeters.X * 0.01,
+        -SensorLocalCentimeters.Y * 0.01,
+        SensorLocalCentimeters.Z * 0.01);
+    Point.Validity = bSaturated ? EVirtualLidarPointValidity::Saturated : EVirtualLidarPointValidity::Valid;
+    Point.Confidence = DetectionProbability;
+    Point.ReturnIndex = ReturnIndex;
+    Point.EchoIndex = ReturnIndex;
+    return true;
+}
+
+void UVirtualLidarScanComponent::RebuildPhysicalFrameStatistics(FVirtualLidarFrameSnapshot& Snapshot) const
+{
+    if (!Snapshot.Points.IsValid())
+    {
+        return;
+    }
+	double RangeSumMeters = 0.0;
+	double IntensitySum = 0.0;
+	Snapshot.MinRangeMeters = TNumericLimits<float>::Max();
+	Snapshot.MinIntensity = TNumericLimits<float>::Max();
+    for (const FVirtualLidarPoint& Point : *Snapshot.Points)
+    {
+        if (Point.bHit)
+        {
+            ++Snapshot.ValidPointCount;
+            if (Point.EchoIndex == 0) ++Snapshot.FirstEchoCount;
+            else if (Point.EchoIndex == 1) ++Snapshot.SecondEchoCount;
+			const float RangeMeters = Point.RangeMillimeters > 0
+				? Point.RangeMillimeters / 1000.0f
+				: Point.Distance / 100.0f;
+			Snapshot.MinRangeMeters = FMath::Min(Snapshot.MinRangeMeters, RangeMeters);
+			Snapshot.MaxRangeMeters = FMath::Max(Snapshot.MaxRangeMeters, RangeMeters);
+			Snapshot.MinIntensity = FMath::Min(Snapshot.MinIntensity, Point.NormalizedIntensity);
+			Snapshot.MaxIntensity = FMath::Max(Snapshot.MaxIntensity, Point.NormalizedIntensity);
+			RangeSumMeters += RangeMeters;
+			IntensitySum += Point.NormalizedIntensity;
+        }
+        else
+        {
+            ++Snapshot.InvalidPointCount;
+        }
+    }
+	if (Snapshot.ValidPointCount > 0)
+	{
+		Snapshot.MeanRangeMeters = static_cast<float>(RangeSumMeters / Snapshot.ValidPointCount);
+		Snapshot.MeanIntensity = static_cast<float>(IntensitySum / Snapshot.ValidPointCount);
+	}
+	else
+	{
+		Snapshot.MinRangeMeters = 0.0f;
+		Snapshot.MinIntensity = 0.0f;
+	}
+}
+
+void UVirtualLidarScanComponent::StartScan()
+{
+    if (!GetWorld() || ScanInterval <= 0.0f) return;
+    GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
+    NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
+    bDeadlineMissRecordedForActiveAcquisition = false;
+    if (!bRegisteredWithPerformanceSubsystem)
+    {
+        RuntimeStatus.LastAcquisitionProgressWorldSeconds = -1.0;
+        RuntimeStatus.MeasuredAcquisitionRateHz = 0.0f;
+        LastScheduledCompletionTime = -1.0;
+    }
+    RegisterWithPerformanceSubsystem();
+}
+
+void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
+{
+	if (NextScheduledScanTime >= 0.0 && GetWorld())
+	{
+		NextScheduledScanTime = GetWorld()->GetTimeSeconds();
+	}
+}
+
+void UVirtualLidarScanComponent::BindGpuDepthProjectionComponent(
+    UVirtualLidarGpuDepthProjectionComponent* InComponent)
+{
+    GpuDepthProjectionComponent = InComponent;
+}
+
+void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame)
+{
+	RuntimeStatus.AcquisitionBackendMessage = Frame.SemanticStatus;
+	ScheduledSlabContext=Frame.Request.SlabContext;
+    ScheduledScanWidth = FMath::Max(1, Frame.Request.HorizontalSamples);
+    ScheduledScanHeight = FMath::Max(1, Frame.Request.VerticalChannels);
+    ScheduledScanTransform = Frame.Request.AcquisitionTransform;
+    ScheduledAcquisitionStartUnixNanoseconds = Frame.Request.AcquisitionStartUnixNanoseconds;
+    ScheduledPoints.Reset();
+    ScheduledPoints.Reserve(ScheduledScanWidth * ScheduledScanHeight);
+    bScheduledGenerateHeatmap = true;
+    if (const UWorld* World = GetWorld())
+    {
+        if (const UVirtualSensorSchedulerSubsystem* Subsystem = World->GetSubsystem<UVirtualSensorSchedulerSubsystem>())
+        {
+            bScheduledGenerateHeatmap = Subsystem->ShouldRefreshLidarPreview(this);
+        }
+    }
+    if (bScheduledGenerateHeatmap)
+    {
+        ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);
+    }
+    else
+    {
+        ScheduledHeatmapPixels.Reset();
+    }
+    ScheduledHitPointCount = 0;
+    ScheduledSemanticCounts.Reset();
+
+    EnsureGpuDepthBeamLookup(Frame);
+    const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
+    TMap<int32, int32> SemanticIdCounts;
+
+    for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
+    {
+        for (int32 Column = 0; Column < ScheduledScanWidth; ++Column)
+        {
+            const int32 RayIndex = Ring * ScheduledScanWidth + Column;
+            const int32 DepthIndex = GpuDepthPixelIndices[RayIndex];
+            const float ForwardDepthCm = Frame.ForwardDepthCentimeters.IsValidIndex(DepthIndex)
+                ? Frame.ForwardDepthCentimeters[DepthIndex]
+                : 0.0f;
+            const FVector& LocalDirection = GpuDepthLocalDirections[RayIndex];
+            const FVector WorldDirection = ScheduledScanTransform.TransformVectorNoScale(LocalDirection).GetSafeNormal();
+            const float DirectionForward = FMath::Max(0.001f, LocalDirection.X);
+            const float RadialDistanceCm = ForwardDepthCm / DirectionForward;
+
+            FVirtualLidarPoint& Point = ScheduledPoints.AddDefaulted_GetRef();
+            InitializePhysicalPoint(Point, Ring, Column, RayIndex, TotalRays, LocalDirection);
+            Point.Distance = MaxDistance;
+            Point.WorldLocation = ScheduledScanTransform.GetLocation() + WorldDirection * MaxDistance;
+
+            const bool bDepthValid = FMath::IsFinite(RadialDistanceCm)
+                && ForwardDepthCm > FMath::Max(0.1f, DeviceSpec.MinRangeCm)
+                && RadialDistanceCm <= MaxDistance;
+            if (bDepthValid)
+            {
+                const float RangeRatio = FMath::Clamp(RadialDistanceCm / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f);
+                const float AmbientFactor = 1.0f - 0.05f * FMath::Clamp(AmbientLightLux / 100000.0f, 0.0f, 4.0f);
+                const float DetectionProbability = FMath::Clamp(
+                    (1.0f - 0.05f * FMath::Square(RangeRatio)) * AmbientFactor,
+                    0.0f,
+                    0.9995f);
+                const bool bDetected = FidelityMode == EVirtualSensorFidelityMode::IdealTruth
+                    || DeterministicUnitRandom(RayIndex, 0, 0x47505531u) <= DetectionProbability;
+                if (bDetected)
+                {
+                    float ErrorMillimeters = 0.0f;
+                    if (FidelityMode != EVirtualSensorFidelityMode::IdealTruth && bEnableRangeNoise)
+                    {
+                        ErrorMillimeters = FMath::Clamp(
+                            DeterministicGaussian(RayIndex, 0)
+                            * RangeNoiseStandardDeviationMillimeters
+                            * (0.5f + 0.5f * RangeRatio),
+                            -MaximumRangeErrorMillimeters,
+                            MaximumRangeErrorMillimeters);
+                    }
+                    const float MeasuredDistanceCm = FMath::Clamp(
+                        RadialDistanceCm + ErrorMillimeters * 0.1f,
+                        0.0f,
+                        MaxDistance);
+                    const FVector LocalCentimeters = LocalDirection * MeasuredDistanceCm;
+                    Point.bHit = true;
+                    Point.Distance = MeasuredDistanceCm;
+                    Point.WorldLocation = ScheduledScanTransform.TransformPosition(LocalCentimeters);
+                    Point.SensorLocalPositionMeters = FVector(
+                        LocalCentimeters.X * 0.01,
+                        -LocalCentimeters.Y * 0.01,
+                        LocalCentimeters.Z * 0.01);
+                    Point.RangeMillimeters = FMath::RoundToInt(MeasuredDistanceCm * 10.0f);
+                    Point.SurfaceReflectivity = DefaultSurfaceReflectivity;
+                    Point.IncidenceCosine = 1.0f;
+                    Point.Confidence = DetectionProbability;
+                    const float Attenuation = 1.0f / (1.0f + FMath::Square(MeasuredDistanceCm * 0.01f / 45.0f));
+                    Point.NormalizedIntensity = FMath::Clamp(DefaultSurfaceReflectivity * Attenuation * 5.0f, 0.0f, 1.0f);
+                    Point.RawIntensity = FMath::RoundToInt(Point.NormalizedIntensity * 65535.0f);
+                    Point.Validity = Point.NormalizedIntensity >= 1.0f
+                        ? EVirtualLidarPointValidity::Saturated
+                        : EVirtualLidarPointValidity::Valid;
+                    Point.EchoCount = 1;
+                    Point.EchoType = EVirtualLidarEchoType::Single;
+                    if (Frame.SemanticIdDepth.IsValidIndex(DepthIndex))
+                    {
+                        const FLinearColor IdDepth = Frame.SemanticIdDepth[DepthIndex];
+                        // ID and depth come from one proxy capture. An unsupported occluder
+                        // must never inherit the identity of a different surface behind it.
+                        if (FMath::IsFinite(IdDepth.R) && FMath::IsFinite(IdDepth.A) && FMath::Abs(IdDepth.A - ForwardDepthCm) <= 1.0f)
+                        {
+                            if (const auto* Identity = Frame.SemanticIdentities.Find(FMath::RoundToInt(IdDepth.R)))
+                            {
+                                Point.SemanticLabel = Identity->Label;
+                                Point.HitActorName = Identity->ActorName;
+                                Point.HitActorClassName = Identity->ActorClass;
+                                Point.HitActorTags = Identity->ActorTags;
+                                if(Identity->bHasOpticalOverride)
+                                {
+                                    // Values were copied with the existing ID/depth acquisition, never read from the live Actor at completion.
+                                    Point.SurfaceReflectivity=Identity->Reflectivity940Nm;
+                                    Point.NormalizedIntensity=FMath::Clamp(Identity->Reflectivity940Nm*Attenuation*5.f*Identity->IntensityGain,0.f,1.f);
+                                    Point.RawIntensity=FMath::RoundToInt(Point.NormalizedIntensity*65535.f);
+                                    Point.Validity=Point.NormalizedIntensity>=1.f?EVirtualLidarPointValidity::Saturated:EVirtualLidarPointValidity::Valid;
+                                }
+                                ++SemanticIdCounts.FindOrAdd(FMath::RoundToInt(IdDepth.R));
+                            }
+                        }
+                    }
+                    ++ScheduledHitPointCount;
+                }
+                else
+                {
+                    Point.Validity = EVirtualLidarPointValidity::BelowSignalThreshold;
+                    Point.Confidence = DetectionProbability;
+                }
+            }
+            if (bScheduledGenerateHeatmap)
+            {
+                WriteHeatmapPixel(
+                    ScheduledHeatmapPixels,
+                    GetHeatmapPixelIndex(Column, Ring, ScheduledScanWidth, ScheduledScanHeight),
+                    Point);
+            }
+        }
+    }
+    // Convert names once per surface, not once per 32,256-point scan element.
+    for (const auto& Count : SemanticIdCounts)
+        if (const auto* Identity = Frame.SemanticIdentities.Find(Count.Key))
+            ScheduledSemanticCounts.FindOrAdd(Identity->Label.ToString()) += Count.Value;
+}
+
+void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
+{
+    const uint32 CalibrationHash = HashCombine(
+        FCrc::MemCrc32(Frame.Request.HorizontalAngles.GetData(), Frame.Request.HorizontalAngles.Num() * sizeof(float)),
+        FCrc::MemCrc32(Frame.Request.VerticalAngles.GetData(), Frame.Request.VerticalAngles.Num() * sizeof(float)));
+    const bool bLookupMatches =
+        GpuDepthLookupCalibrationHash == CalibrationHash
+        && GpuDepthLookupHorizontalSamples == ScheduledScanWidth
+        && GpuDepthLookupVerticalChannels == ScheduledScanHeight
+        && GpuDepthLookupCaptureWidth == Frame.CaptureWidth
+        && GpuDepthLookupCaptureHeight == Frame.CaptureHeight
+        && FMath::IsNearlyEqual(GpuDepthLookupHorizontalFov, Frame.Request.HorizontalFovDegrees)
+        && FMath::IsNearlyEqual(GpuDepthLookupMinVerticalAngle, Frame.Request.MinVerticalAngleDegrees)
+        && FMath::IsNearlyEqual(GpuDepthLookupMaxVerticalAngle, Frame.Request.MaxVerticalAngleDegrees)
+        && GpuDepthLookupHorizontalCalibrationCount == HorizontalCalibrationAnglesDegrees.Num()
+        && GpuDepthLookupVerticalCalibrationCount == VerticalCalibrationAnglesDegrees.Num()
+        && GpuDepthLocalDirections.Num() == ScheduledScanWidth * ScheduledScanHeight
+        && GpuDepthPixelIndices.Num() == ScheduledScanWidth * ScheduledScanHeight;
+    if (bLookupMatches)
+    {
+        return;
+    }
+
+    TArray<float> HorizontalAngles;
+    TArray<float> VerticalAngles;
+    BuildBeamAngleTables(ScheduledScanWidth, ScheduledScanHeight, HorizontalAngles, VerticalAngles);
+    if (Frame.Request.HorizontalAngles.Num() == ScheduledScanWidth) HorizontalAngles = Frame.Request.HorizontalAngles;
+    if (Frame.Request.VerticalAngles.Num() == ScheduledScanHeight) VerticalAngles = Frame.Request.VerticalAngles;
+    const float HalfHorizontalTangent = FMath::Tan(FMath::DegreesToRadians(Frame.Request.HorizontalFovDegrees * 0.5f));
+    const float CaptureAspect = static_cast<float>(FMath::Max(1, Frame.CaptureWidth))
+        / static_cast<float>(FMath::Max(1, Frame.CaptureHeight));
+    const float HalfVerticalTangent = HalfHorizontalTangent / FMath::Max(0.001f, CaptureAspect);
+    const int32 RayCount = ScheduledScanWidth * ScheduledScanHeight;
+    GpuDepthLocalDirections.SetNumUninitialized(RayCount);
+    GpuDepthPixelIndices.SetNumUninitialized(RayCount);
+
+    for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
+    {
+        const float PitchDegrees = VerticalAngles[Ring];
+        const float NormalizedVertical = FMath::Tan(FMath::DegreesToRadians(PitchDegrees))
+            / FMath::Max(0.001f, HalfVerticalTangent);
+        const int32 PixelY = FMath::Clamp(
+            FMath::RoundToInt((0.5f - 0.5f * NormalizedVertical) * static_cast<float>(FMath::Max(0, Frame.CaptureHeight - 1))),
+            0,
+            FMath::Max(0, Frame.CaptureHeight - 1));
+        for (int32 Column = 0; Column < ScheduledScanWidth; ++Column)
+        {
+            const int32 RayIndex = Ring * ScheduledScanWidth + Column;
+            const float YawDegrees = HorizontalAngles[Column];
+            const float NormalizedHorizontal = FMath::Tan(FMath::DegreesToRadians(YawDegrees))
+                / FMath::Max(0.001f, HalfHorizontalTangent);
+            const int32 PixelX = FMath::Clamp(
+                FMath::RoundToInt((0.5f + 0.5f * NormalizedHorizontal) * static_cast<float>(FMath::Max(0, Frame.CaptureWidth - 1))),
+                0,
+                FMath::Max(0, Frame.CaptureWidth - 1));
+            GpuDepthLocalDirections[RayIndex] = FRotator(PitchDegrees, YawDegrees, 0.0f).Vector();
+            GpuDepthPixelIndices[RayIndex] = PixelY * Frame.CaptureWidth + PixelX;
+        }
+    }
+
+    GpuDepthLookupHorizontalSamples = ScheduledScanWidth;
+    GpuDepthLookupCalibrationHash = CalibrationHash;
+    GpuDepthLookupVerticalChannels = ScheduledScanHeight;
+    GpuDepthLookupCaptureWidth = Frame.CaptureWidth;
+    GpuDepthLookupCaptureHeight = Frame.CaptureHeight;
+    GpuDepthLookupHorizontalFov = Frame.Request.HorizontalFovDegrees;
+    GpuDepthLookupMinVerticalAngle = Frame.Request.MinVerticalAngleDegrees;
+    GpuDepthLookupMaxVerticalAngle = Frame.Request.MaxVerticalAngleDegrees;
+    GpuDepthLookupHorizontalCalibrationCount = HorizontalCalibrationAnglesDegrees.Num();
+    GpuDepthLookupVerticalCalibrationCount = VerticalCalibrationAnglesDegrees.Num();
+}
+
+void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
+{
+    TryStartPendingPayloadBuild();
+#if WITH_DEV_AUTOMATION_TESTS
+    if(FreezeAcquisitionForTests)return;
+#endif
+    if (NextScheduledScanTime < 0.0) return;
+    const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
+    RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
+    RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
+        ? TEXT("auto")
+        : (AcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection
+            ? TEXT("gpu_depth_projection")
+            : (AcquisitionBackend == EVirtualLidarAcquisitionBackend::HardwareRayTracing
+                ? TEXT("hardware_ray_tracing")
+                : TEXT("accurate_cpu_trace")));
+    const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
+    if (bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
+    {
+        // Do not move the deadline beyond the active acquisition here. The
+        // scheduler polls completion later in the same Tick; advancing the
+        // deadline first introduced an artificial idle period of one complete
+        // ML-X scan interval. Record the miss once and let the post-poll
+        // PrepareScheduledScan call admit the next coherent capture.
+        if (!bDeadlineMissRecordedForActiveAcquisition)
+        {
+            ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
+            ++RuntimeStatus.DeadlineMissCount;
+            bDeadlineMissRecordedForActiveAcquisition = true;
+        }
+    }
+    if (!bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
+    {
+        do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
+        bDeadlineMissRecordedForActiveAcquisition = false;
+        ActiveAcquisitionBackend = ResolveAcquisitionBackend(AcquisitionBackendFallbackReason);
+        if (ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection)
+        {
+            if (!BeginGpuDepthScan(NowSeconds))
+            {
+                ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+                RuntimeStatus.ActiveAcquisitionBackend = TEXT("accurate_cpu_trace");
+                RuntimeStatus.AcquisitionBackendMessage = AcquisitionBackendFallbackReason;
+                BeginScheduledScan(NowSeconds);
+            }
+        }
+        else
+        {
+            RuntimeStatus.ActiveAcquisitionBackend = TEXT("accurate_cpu_trace");
+            RuntimeStatus.AcquisitionBackendMessage = AcquisitionBackendFallbackReason;
+            BeginScheduledScan(NowSeconds);
+        }
+    }
+}
+
+int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
+{
+    if (bGpuDepthScanInProgress)
+    {
+        return ProcessGpuDepthScan();
+    }
+    if (!bScheduledScanInProgress || MaxRays <= 0 || !GetWorld()) return 0;
+    UWorld* World = GetWorld();
+    const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
+    const int32 EndRay = FMath::Min(TotalRays, ScheduledNextRayIndex + FMath::Clamp(MaxRays, 128, 1024));
+    const FVector Origin = ScheduledScanTransform.GetLocation();
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarScheduledSensor), false, GetOwner());
+    const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
+    const bool bEffectiveMultiHit = bUseMultiHit || bProfileMultiEcho;
+    const int32 EffectiveMaxHits = bProfileMultiEcho
+        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 2)
+        : FMath::Max(1, MaxHitsPerRay);
+
+    for (int32 RayIndex = ScheduledNextRayIndex; RayIndex < EndRay; ++RayIndex)
+    {
+        const int32 V = RayIndex / ScheduledScanWidth;
+        const int32 X = RayIndex % ScheduledScanWidth;
+        const float Pitch = ScheduledVerticalAnglesDegrees[V];
+        const float Yaw = ScheduledHorizontalAnglesDegrees[X];
+        const FVector Direction = ScheduledScanTransform.TransformVectorNoScale(FRotator(Pitch, Yaw, 0.0f).Vector()).GetSafeNormal();
+        const FVector End = Origin + Direction * MaxDistance;
+        FVirtualLidarPoint FirstPoint;
+        InitializePhysicalPoint(
+            FirstPoint,
+            V,
+            X,
+            RayIndex,
+            TotalRays,
+            ScheduledScanTransform.InverseTransformVectorNoScale(Direction).GetSafeNormal());
+        FirstPoint.Distance = MaxDistance;
+        FirstPoint.WorldLocation = End;
+
+        if (bEffectiveMultiHit)
+        {
+            TArray<FHitResult> Hits;
+            World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
+            int32 Added = 0;
+            const int32 EchoStartIndex = ScheduledPoints.Num();
+            for (const FHitResult& Hit : Hits)
+            {
+                if (ShouldIgnoreHitActor(Hit.GetActor())) continue;
+                FVirtualLidarPoint Point = FirstPoint;
+                if (!ApplyPhysicalHitModel(Point, Hit, Direction, ScheduledScanTransform, RayIndex, Added)) continue;
+                PopulatePointSemanticMetadata(Point, Hit);
+                ScheduledPoints.Add(Point);
+                ++ScheduledHitPointCount;
+                ScheduledSemanticCounts.FindOrAdd(Point.SemanticLabel.IsNone() ? TEXT("Unclassified") : Point.SemanticLabel.ToString())++;
+                if (!FirstPoint.bHit) FirstPoint = Point;
+                if (++Added >= EffectiveMaxHits) break;
+            }
+            if (Added == 0)
+            {
+                ScheduledPoints.Add(FirstPoint);
+            }
+            else
+            {
+                FinalizeEchoMetadata(ScheduledPoints, EchoStartIndex, Added);
+                FirstPoint = ScheduledPoints[EchoStartIndex];
+            }
+        }
+        else
+        {
+            FHitResult Hit;
+            bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+            if (bHit && ShouldIgnoreHitActor(Hit.GetActor())) bHit = false;
+            if (bHit)
+            {
+                bHit = ApplyPhysicalHitModel(FirstPoint, Hit, Direction, ScheduledScanTransform, RayIndex, 0);
+            }
+            if (bHit)
+            {
+                PopulatePointSemanticMetadata(FirstPoint, Hit);
+                FirstPoint.EchoCount = 1;
+                FirstPoint.EchoType = EVirtualLidarEchoType::Single;
+            }
+            ScheduledPoints.Add(FirstPoint);
+            if (bHit)
+            {
+                ++ScheduledHitPointCount;
+                ScheduledSemanticCounts.FindOrAdd(FirstPoint.SemanticLabel.IsNone() ? TEXT("Unclassified") : FirstPoint.SemanticLabel.ToString())++;
+            }
+        }
+        WriteHeatmapPixel(ScheduledHeatmapPixels, GetHeatmapPixelIndex(X, V, ScheduledScanWidth, ScheduledScanHeight), FirstPoint);
+        if (bDrawDebugRays) DrawDebugLine(World, Origin, FirstPoint.WorldLocation, FirstPoint.bHit ? ResolveSemanticColor(FirstPoint).ToFColor(true) : FColor::Silver, false, ScanInterval, 0, 0.5f);
+    }
+
+    const int32 Processed = EndRay - ScheduledNextRayIndex;
+    ScheduledNextRayIndex = EndRay;
+    if (ScheduledNextRayIndex >= TotalRays) CompleteScheduledScan(GetWorld()->GetTimeSeconds());
+    return Processed;
+}
+
+void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels)
+{
+    OutPoints.Reset();
+    const int32 W = FMath::Max(1, HorizontalSamples);
+    const int32 H = FMath::Max(1, VerticalChannels);
+    const int32 TotalRays = W * H;
+    const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
+    const bool bEffectiveMultiHit = bUseMultiHit || bProfileMultiEcho;
+    const int32 EffectiveMaxHits = bProfileMultiEcho
+        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 2)
+        : FMath::Max(1, MaxHitsPerRay);
+    OutPoints.Reserve(TotalRays * (bEffectiveMultiHit ? EffectiveMaxHits : 1));
+    OutHeatmapPixels.SetNumZeroed(TotalRays * 4);
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+    const FTransform AcquisitionTransform = GetComponentTransform();
+    const FVector Origin = AcquisitionTransform.GetLocation();
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarSensor), false, GetOwner());
+    TArray<float> HorizontalAngles;
+    TArray<float> VerticalAngles;
+    BuildBeamAngleTables(W, H, HorizontalAngles, VerticalAngles);
+
+    for (int32 V = 0; V < H; ++V)
+    {
+        const float Pitch = VerticalAngles[V];
+        for (int32 X = 0; X < W; ++X)
+        {
+            const int32 RayIndex = V * W + X;
+            const float Yaw = HorizontalAngles[X];
+            const FVector Direction = AcquisitionTransform.TransformVectorNoScale(FRotator(Pitch, Yaw, 0.0f).Vector()).GetSafeNormal();
+            const FVector End = Origin + Direction * MaxDistance;
+            FVirtualLidarPoint FirstPoint;
+            InitializePhysicalPoint(
+                FirstPoint,
+                V,
+                X,
+                RayIndex,
+                TotalRays,
+                AcquisitionTransform.InverseTransformVectorNoScale(Direction).GetSafeNormal());
+            FirstPoint.Distance = MaxDistance;
+            FirstPoint.WorldLocation = End;
+
+            if (bEffectiveMultiHit)
+            {
+                TArray<FHitResult> Hits;
+                World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
+                int32 Added = 0;
+                const int32 EchoStartIndex = OutPoints.Num();
+                for (const FHitResult& Hit : Hits)
+                {
+                    if (ShouldIgnoreHitActor(Hit.GetActor())) continue;
+                    FVirtualLidarPoint Point = FirstPoint;
+                    if (!ApplyPhysicalHitModel(Point, Hit, Direction, AcquisitionTransform, RayIndex, Added)) continue;
+                    PopulatePointSemanticMetadata(Point, Hit);
+                    OutPoints.Add(Point);
+                    if (!FirstPoint.bHit) FirstPoint = Point;
+                    if (++Added >= EffectiveMaxHits) break;
+                }
+                if (Added == 0)
+                {
+                    OutPoints.Add(FirstPoint);
+                }
+                else
+                {
+                    FinalizeEchoMetadata(OutPoints, EchoStartIndex, Added);
+                    FirstPoint = OutPoints[EchoStartIndex];
+                }
+            }
+            else
+            {
+                FHitResult Hit;
+                bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+                if (bHit && ShouldIgnoreHitActor(Hit.GetActor())) bHit = false;
+                if (bHit)
+                {
+                    bHit = ApplyPhysicalHitModel(FirstPoint, Hit, Direction, AcquisitionTransform, RayIndex, 0);
+                }
+                if (bHit)
+                {
+                    PopulatePointSemanticMetadata(FirstPoint, Hit);
+                    FirstPoint.EchoCount = 1;
+                    FirstPoint.EchoType = EVirtualLidarEchoType::Single;
+                }
+                OutPoints.Add(FirstPoint);
+            }
+            WriteHeatmapPixel(OutHeatmapPixels, GetHeatmapPixelIndex(X, V, W, H), FirstPoint);
+            if (bDrawDebugRays) DrawDebugLine(World, Origin, FirstPoint.WorldLocation, FirstPoint.bHit ? ResolveSemanticColor(FirstPoint).ToFColor(true) : FColor::Silver, false, ScanInterval, 0, 0.5f);
+        }
+    }
+}
+
+void UVirtualLidarScanComponent::WriteHeatmapPixel(TArray<uint8>& Pixels, int32 PixelIndex, const FVirtualLidarPoint& Point) const
+{
+    if (!Pixels.IsValidIndex(PixelIndex + 3)) return;
+    const float N = FMath::Clamp(Point.Distance / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f); const uint8 I = Point.bHit ? (uint8)((1.0f - N) * 255.0f) : 0; FColor C;
+    if (ViewMode == EVirtualLidarViewMode::HitMask) C = Point.bHit ? FColor::White : FColor::Black;
+    else if (ViewMode == EVirtualLidarViewMode::DepthGradient) C = Point.bHit ? FColor(255, I, (uint8)(N * 255.0f), 255) : FColor::Black;
+    else if (ViewMode == EVirtualLidarViewMode::ActorClassColor) C = Point.bHit ? ResolveSemanticColor(Point).ToFColor(true) : FColor(3, 8, 10, 255);
+    else C = FColor(I, I, I, 255);
+    Pixels[PixelIndex + 0] = C.B; Pixels[PixelIndex + 1] = C.G; Pixels[PixelIndex + 2] = C.R; Pixels[PixelIndex + 3] = 255;
+}
+int32 UVirtualLidarScanComponent::GetHeatmapPixelIndex(int32 H, int32 V, int32 W, int32 Ht) const { const int32 DH = bFlipLidarViewHorizontal ? W - 1 - H : H; const int32 DV = bFlipLidarViewVertical ? Ht - 1 - V : V; return (DV * W + DH) * 4; }

@@ -176,7 +176,7 @@ void USlabChartsPanelWidget::UpdateProgressiveState()
 		C->SetProgressiveReveal(IsWorkspaceOwned());
 		C->SetRevealedTime(State.RunUUID.IsEmpty()?-1:State.ElapsedSec);
 		C->SetPlaybackCursor(State.ElapsedSec,State.FrameNo);
-		C->SetChartFontScale(GetSensorToolFontScale());
+		C->SetChartFontScale(IsWorkspaceOwned()?GetSensorToolVisualScale():GetSensorToolFontScale());
 		if(IsWorkspaceOwned())C->SetChartPalette(GetToolSectionColor(),GetToolMutedColor(),GetToolMutedColor()*.24f);
 	}
 }

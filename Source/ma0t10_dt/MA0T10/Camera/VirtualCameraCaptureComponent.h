@@ -27,7 +27,7 @@ struct FVirtualCameraPreviewCompletion
 struct MA0T10_DT_API FVirtualCameraLocalSaveFrame
 {
 	FVirtualCameraPayloadSnapshot Payload;
-	FVirtualSlabFrameContext SlabContext;
+	FVirtualSensorAcquisitionContext SlabContext;
 	TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe> Jpeg;
 	double AcquisitionSeconds=0;
 };
@@ -250,9 +250,9 @@ private:
     TSharedPtr<FVirtualCameraPreviewFence,ESPMode::ThreadSafe> PlacementPreviewFence;
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> LastJpegSnapshot;
 	FVirtualCameraJpegMetadata LastJpegMetadata;
-	TMap<int64,FVirtualSlabFrameContext> SlabCaptureContexts;
+	TMap<int64,FVirtualSensorAcquisitionContext> SlabCaptureContexts;
 	FVirtualSlabFrameContext LastSlabContext;
-	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true, bool bFlushOnFailure=true);
+	FVirtualSensorAcquisitionContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true, bool bFlushOnFailure=true);
 public:
     virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) override;
 	const FVirtualSlabFrameContext& GetLastSlabContext() const { return LastSlabContext; }
@@ -264,8 +264,8 @@ private:
     TSharedPtr<FVirtualCameraLocalReadbackState,ESPMode::ThreadSafe> LocalFileReadback;
     FVirtualCameraPayloadSnapshot LastFileAcquisition;
     FVirtualCameraPayloadSnapshot PendingFileAcquisition;
-    FVirtualSlabFrameContext PendingFileSlabContext;
-    FVirtualSlabFrameContext LastFileSlabContext;
+    FVirtualSensorAcquisitionContext PendingFileSlabContext;
+    FVirtualSensorAcquisitionContext LastFileSlabContext;
     double LastFileAcquisitionSeconds=0;
     bool bHasFileAcquisition=false;
     bool bFileAcquisitionPendingRender=false;

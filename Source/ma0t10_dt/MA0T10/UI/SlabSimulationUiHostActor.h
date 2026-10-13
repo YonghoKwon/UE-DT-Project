@@ -24,9 +24,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Slab|UI") void BindSlabActor(ASlabActor* InSlab);
 	UFUNCTION(BlueprintPure, Category="Slab|UI") FString GetInitializationMessage() const { return InitializationMessage; }
 protected:
+	virtual void PostLoad() override;
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
+	virtual void PostActorCreated() override;
+	virtual void Destroyed() override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
+	void RegisterSlabUiHost(bool bActive=false);
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabUiHostRetryTest;
 #endif

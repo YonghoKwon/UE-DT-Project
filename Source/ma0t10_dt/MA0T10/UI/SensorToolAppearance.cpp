@@ -1,6 +1,7 @@
 #include "SensorToolAppearance.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Kismet/GameplayStatics.h"
-namespace { const FString AppearanceSlot = TEXT("MA0T10_SensorToolAppearance_v1"); }
+namespace { const FString AppearanceSlot = VirtualSensorDefaults::AppearanceSlot; }
 float USensorToolAppearance::LoadScale()
 {
 	if (auto* Saved = Cast<USensorToolAppearance>(UGameplayStatics::LoadGameFromSlot(AppearanceSlot, 0)))

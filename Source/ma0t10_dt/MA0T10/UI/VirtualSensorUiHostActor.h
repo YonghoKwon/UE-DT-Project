@@ -78,6 +78,7 @@ public:
 
     const FVirtualSensorMapApplySnapshot& GetPendingMapApplySnapshot() const { return PendingMapApplySnapshot; }
     bool HasPendingMapApplySnapshot() const { return PendingMapApplySnapshot.SensorStates.Num() > 0; }
+    bool CanQueueMapApply() const;
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")

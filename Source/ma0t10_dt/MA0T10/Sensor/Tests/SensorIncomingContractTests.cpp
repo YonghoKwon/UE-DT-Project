@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverRegistry.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorIncomingProductionContractTest,"MA0T10.SensorReceiver.ProductionPcdHeaders",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
@@ -40,6 +41,14 @@ bool FSensorIncomingProductionContractTest::RunTest(const FString& Parameters)
 	auto* Receiver=NewObject<UVirtualPointCloudStreamReceiverTC>();
 	const auto Raw=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,RawHeaders));
 	const auto Engine=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Receiver->ParseBinaryPcdToStruct(Body,FVirtualSensorWireHeaders::EnginePcd(Meta,TEXT("engine-test"))));
+	const auto Codec=VirtualSensorStreamReceiverRegistry::Get();
+	if (!TestTrue(TEXT("TC codec registered before world/worker use"),Codec.IsValid())) return false;
+	const auto Routed=StaticCastSharedPtr<FVirtualPointCloudStreamReceiverData>(Codec->ParseBinaryPcd(Body,RawHeaders));
+	TestTrue(TEXT("registry preserves full production PCD validation"),Routed->bValid);
+	TestEqual(TEXT("registry preserves source UTC"),Routed->SourceTimestampUtc,Raw->SourceTimestampUtc);
+	TestEqual(TEXT("registry preserves frame identity"),Routed->FrameId,Raw->FrameId);
+	TestEqual(TEXT("registry preserves derived result point count"),Routed->PointCount,Raw->PointCount);
+	TestEqual(TEXT("registry preserves immutable material context"),Routed->MtlNo,Raw->MtlNo);
 	TestTrue(TEXT("Raw production sender is accepted by UI receiver"),Raw->bValid);
 	TestTrue(TEXT("same body already passes Engine sender headers"),Engine->bValid);
 	TestEqual(TEXT("material number preserved"),Raw->MtlNo,Meta.SlabContext.MtlNo);
