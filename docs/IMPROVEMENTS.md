@@ -541,6 +541,9 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 - UXR-09에서 `M_SlabSurfaceOxideScale` 외형을 다듬었다는 보고만 있고 Claude·사용자의 화면 확인 전이다. 5종 비교 이미지를 다시 만들어 확인하고, 밀 스케일처럼 보이지 않으면 파라미터만 조정한다(새 자산 금지, 기본 프리셋 센서 결과 불변).
 
+**현재 CLI 결과(2026-10-13, `28461bc`):** 기존 oxide 재질만 재생성하여 작은 3-octave ALU 조각·가는 균열·grain/미세 normal·소량 갈색을 적용했다. 색상은 display-referred 값을 linear로 변환했으며 노출 강판은 흰색 대신 금속 회색이다. 중앙 BaseColor ROI의 조각 19.04%/흰색 0%, shader pixel 379→527(+148)/vertex 131 불변/외부 texture 0. 냉각 강판·무광 값도 구분하되 기본 MID/광학 복원 유지. Editor Development·실제 D3D12 UXR08 7 Success/실패·skip0·quick8·layer0 통과, 기본 Camera/CPU·GPU intensity/PCD bytes 불변 회귀 포함. 5종·근접2·전후 비교는 `Saved/Reports/UXR/UXR-08/oxide-realism/`에 있다. Claude·사용자 외형 수용은 아직 미완료이며 최종 통합 release/성능은 아래 UI-02에서 환경 보류다.
+
+
 #### OPS-01 — 에이전트 작업 환경 (P1)
 
 - **Codex 대화 분리:** 앱 대화(thread `019f6014-…`)의 기록이 1.1GB를 넘었다. 느려지고 요약 과정에서 맥락을 잃을 수 있으므로, 다음 단계(PERF-01 이후)는 **새 Codex 대화**에서 시작한다. 첫 요청에 AGENTS.md·README §10·IMPROVEMENTS 요약표를 읽게 하고 이전 thread ID를 남긴다.
@@ -801,11 +804,15 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 - 두 목표 client 크기, 100/125/150% OS DPI 및 네 폰트 배율의 대표 조합을 검사한다. 창 경계/메뉴 overflow/입력 clipping/접기 후 hit-test/Tab focus/숨김 중 작업/재호스팅을 확인한다.
 - 완료: 실제 크기 증거, 기존 저장값 roundtrip, 미등록/중첩 Widget의 font·geometry·입력·파일 hash 불변. 확보 못한 조합은 명시적으로 미완료.
 
-### UI-02 — 3D 라벨 배치 (신규 기능, P2)
+### UI-02 — 3D 라벨 배치 (신규 기능, P1)
 
-**진행률: 0%** · 구현: 신규 자동 배치 정책 미착수 · 검증: 전용 수용시험 없음. **2026-10-13 P1로 상향:** UXR 렌더에서 "Center aligned", "Yaw", "L/R cm", "frame" 3D 라벨이 크게 떠 3D 화면을 가린다. 기본 표시는 핵심 1~2개로 줄이고 상세는 Slab 카드·표시 설정으로 옮기며, 거리 기반 크기·페이드와 사이드바/카드 영역 회피를 적용한다. 측정 제외 규칙은 유지한다.
+**진행률: 80% — 구현·집중 자동/렌더 검사 완료, 통합 검증·수용 미완료** · 2026-10-13 P1. `142a6ff`에서 기본 소재번호·진행/기울기 2개, 카드·표시 설정의 세션 전용 "3D 상세 라벨", 거리 크기/대비 페이드·시야 밖 숨김, 우선순위/leader line·실제 소유 UI 영역 회피를 구현했다. 기존 표시 선택·저장 schema·숫자/단위·L/R Track 의미·측정 제외 유지. 기존 DTCore StatusVisualizer 기반 L2 utility에 L3가 실제 viewport-pixel UI 사각형을 전달하며 역방향 include 없음. 연속 표시 5Hz, 숨긴 상세 문자열 조립 중단·값 hash 재사용이다.
 
-- **남은 조건:** 겹침 제어·우선순위·leader line·거리 표시 정책을 구현하고 여러 시점에서 검증한다. 기존 문자 크기/대비 개선은 기반 기능이다.
+**검증:** Editor Development, layer/allowlist0→0, guard, quick8, UI02·SlabAnalysis·UXR08 집중 **18 Success/실패·skip0**(실제 Camera/GPU 측정 격리 포함). 1280×720·1920×1080/font100의 근접/원거리/상세/직교 roll/고온 before·after 각12장, after 실제 투영 라벨의 viewport/UI/라벨끼리 겹침 검사 통과. 근거 `Saved/Reports/UXR/UI-02/RESULT.md`·`summary.json`·`after/`·`focused/`.
+
+**남은 검증:** 마지막 release 호출은 시작8 gate 뒤 별도 QA checkout의 Editor PID87208(`UXR07.Manual`) 때문에 종료 조건에서 중단했다. full D3D12/이름별 비교/WBP release와 표시형1+1/10초+30초 ABAB×3 성능은 미수행이다. 사용자 요청대로 중단했으며 다른 세션을 종료하지 않았다. 결과 정리 중 상세 침범 문자열의 UTF8 오류를 발견해 소스 문구와 렌더 의미 검사를 정정했으나, 이 마지막 2파일은 미커밋·빌드/렌더 대기다. 기존 `142a6ff` 렌더를 정정 검증으로 세지 않는다. QA 종료 뒤 이 정정 검증→release→성능을 이어간다. Computer Use는 이번 요청에서 제외하여 `manual/CHECKLIST.md` 전 행 보류, font125/150·OS DPI·직접 수용도 미완료다.
+
+- **남은 조건:** QA Editor 정상 종료 후 마지막 문구 정정 빌드/렌더, 통합 release·이름별 비교, 표시형 ABAB×3의 2% 성능 gate와 후속 직접 수용을 완료한다.
 
 - 현재 큰 문자 배경판이나 도구 창이 다른 라벨을 가릴 수 있다. 선/글자 크기, 대비, 한글 표시 자체는 구현·수동 확인했다.
 - 시야 밖/뒤쪽 점을 숨기거나 안전 위치로 안내하고, 라벨별 priority·최대 겹침·leader line/거리 fading을 추가할 수 있다. 숫자/단위/좌우 의미는 유지한다.
