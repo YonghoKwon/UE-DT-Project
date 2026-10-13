@@ -185,7 +185,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildToolsMenu()
 	{
 		const auto Destination=Destinations[I];
 		Menu->AddSlot().AutoHeight().Padding(0,4)
-		[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
+		[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
 		 .OnClicked_Lambda([this,Destination](){OpenOwnedDestination(Destination);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
 		 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();})
 		  .ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(Names[I])]];

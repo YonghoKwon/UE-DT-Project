@@ -116,6 +116,37 @@ public:
         if(FPlatformTime::Seconds()<ReadyAt)return false;
         if(!Requested)
         {
+            if(FParse::Param(FCommandLine::Get(),TEXT("Uxr12Validate")))
+            {
+                // Arranged geometry catches the rail clipping and mixed input
+                // heights that a text inventory or token-value test cannot.
+                TFunction<void(const TSharedRef<SWidget>&)> CheckRail=[&](const TSharedRef<SWidget>& Item)
+                {
+                    if(!Item->GetVisibility().IsVisible())return;
+                    if(Item->GetType()==TEXT("STextBlock"))
+                    {
+                        const auto Text=StaticCastSharedRef<STextBlock>(Item);
+                        if(TArray<FString>{TEXT("배치"),TEXT("보기"),TEXT("시나리오"),TEXT("전송"),TEXT("결과")}.Contains(Text->GetText().ToString()))
+                            Test->TestTrue(TEXT("rail label fits its arranged width"),Text->GetDesiredSize().X<=Text->GetCachedGeometry().GetLocalSize().X+1.f);
+                    }
+                    auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)CheckRail(Children->GetChildAt(I));
+                };
+                CheckRail(Bar->TakeWidget());
+                if(View==8)
+                {
+                    TArray<float> Heights;
+                    TFunction<void(const TSharedRef<SWidget>&)> CheckInputs=[&](const TSharedRef<SWidget>& Item)
+                    {
+                        if(!Item->GetVisibility().IsVisible())return;
+                        if(Item->GetTypeAsString().StartsWith(TEXT("SComboBox<"))||Item->GetTypeAsString().StartsWith(TEXT("SSpinBox<")))Heights.Add(Item->GetCachedGeometry().GetLocalSize().Y);
+                        auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)CheckInputs(Children->GetChildAt(I));
+                    };
+                    CheckInputs(W->GetOwnedPanel(ESensorToolPanelRole::Settings)->TakeWidget());
+                    Test->TestTrue(TEXT("settings fixture arranges combo and numeric inputs"),Heights.Num()>=3);
+                    if(!Heights.IsEmpty())for(float Height:Heights)Test->TestTrue(TEXT("owned form inputs use the same arranged height"),FMath::IsNearlyEqual(Height,Heights[0],1.f));
+                    for(float Height:Heights)Test->AddInfo(FString::Printf(TEXT("UXR12 input logical height %.2f font %.2f"),Height,Scale));
+                }
+            }
             const auto V=World->GetGameViewport()->Viewport->GetSizeXY();const FString RequestedRoot=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));const FString Root=RequestedRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-09"):RequestedRoot;
             Path=Root/FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View]);Previous=IFileManager::Get().GetTimeStamp(*Path);
             FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;

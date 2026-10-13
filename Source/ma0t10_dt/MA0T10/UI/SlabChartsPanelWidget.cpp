@@ -1,5 +1,6 @@
 #include "SlabChartsPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Blueprint/WidgetTree.h"
 #include "Widgets/Layout/SBorder.h"
@@ -217,9 +218,9 @@ TSharedRef<SWidget> USlabChartsPanelWidget::BuildChartControls(int32 I,bool Conf
 {
 	auto Controls=SNew(SHorizontalBox);
 	Controls->AddSlot().FillWidth(1)
-	[SNew(SComboBox<TSharedPtr<ESlabChartMetric>>).OptionsSource(&MetricOptions).ComboBoxStyle(&MetricComboStyle).ForegroundColor(GetToolTextColor()).ContentPadding(FMargin(4,2))
+	[SNew(SComboBox<TSharedPtr<ESlabChartMetric>>).OptionsSource(&MetricOptions).ComboBoxStyle(IsWorkspaceOwned()?&FSensorOwnedPresentationStyle::ComboBox():&MetricComboStyle).ForegroundColor(GetToolTextColor()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
 	 .OnGenerateWidget_Lambda([this,ConfigurationMenu](TSharedPtr<ESlabChartMetric> M)->TSharedRef<SWidget>{
-		 if(ConfigurationMenu)return SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(M?MetricLabel(*M):FText::GetEmpty());
+		 if(ConfigurationMenu)return SNew(STextBlock).Font_Lambda([this](){return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::BodySize,GetSensorToolVisualScale()):FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(M?MetricLabel(*M):FText::GetEmpty());
 		 return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(M?MetricLabel(*M):FText::GetEmpty());})
 	 .OnSelectionChanged_Lambda([this,I](TSharedPtr<ESlabChartMetric> M,ESelectInfo::Type){if(M)SetChartSlotMetric(I,*M);})
 	 [SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this,I](){return FText::FromString(FString::Printf(TEXT("%d. %s · %s"),I+1,*MetricLabel(SelectedMetrics[I]).ToString(),MetricUnit(SelectedMetrics[I])));} )]];
@@ -281,7 +282,7 @@ TSharedRef<SWidget> USlabChartsPanelWidget::RebuildWidget()
 		for(int32 I=0;I<3;++I)Rows->AddSlot().AutoHeight().Padding(0,4)[BuildChartControls(I,true)];
 		Configuration=SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ChartConfiguration","차트 구성"))].BodyContent()[Rows];
 	}
-	return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
+	return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(IsWorkspaceOwned()?FSensorOwnedPresentationStyle::PanelPadding:12)
 	[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("Title","Slab 실시간 차트"))]
 	 +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})

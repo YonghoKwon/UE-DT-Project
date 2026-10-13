@@ -18,7 +18,8 @@ public:
         else if(Kind==1){Line({{3,5},{21,5},{21,19},{3,19},{3,5}});Line({{9,9},{15,9},{15,15},{9,15},{9,9}});}
         else if(Kind==2)Line({{7,4},{20,12},{7,20},{7,4}});
         else if(Kind==3){Line({{3,12},{21,12}});Line({{14,5},{21,12},{14,19}});}
-        else {Line({{5,20},{5,10}});Line({{12,20},{12,4}});Line({{19,20},{19,13}});}
+        else if(Kind==4){Line({{5,20},{5,10}});Line({{12,20},{12,4}});Line({{19,20},{19,13}});}
+        else {for(float X:{6.f,12.f,18.f})Line({{X,11},{X,13}});}
         return Layer;
     }
 private:int32 Kind=0;TAttribute<FLinearColor> Color;

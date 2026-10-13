@@ -1,5 +1,6 @@
 #include "VirtualSensorMonitorPanelWidget.h"
 #include "SensorOwnedPresentationStyle.h"
+#include "SensorToolIcon.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
@@ -473,7 +474,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
      +SVerticalBox::Slot().AutoHeight()[SNew(SBox).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Collapsed:EVisibility::Visible;})[BuildToolPanelHeader(SensorToolUiText::Preview())]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolTextColor()).Text(OwnedMonitorStatus)]
-       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedViewIcon","⋯"))]]
+       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(0)).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNew(SBox).WidthOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();}).HeightOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();})[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]]
        +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Visible:EVisibility::Collapsed;}).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(LOCTEXT("ClosePreviewCard","×")).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor,false);return FReply::Handled();})]]
      +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left)[SNew(SBorder).Visibility_Lambda([this](){return bOwnedHasWarning?GetPanelBodyVisibility():EVisibility::Collapsed;})
        .BorderImage(FSensorOwnedPresentationStyle::ChipBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::WarningSurface()).Padding(FMargin(FSensorOwnedPresentationStyle::Gap,4))

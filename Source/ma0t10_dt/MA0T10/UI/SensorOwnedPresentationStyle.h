@@ -18,7 +18,7 @@ struct FSensorOwnedPresentationStyle
     static FLinearColor Header(){return Panel();}
     static FLinearColor Section(){return Color(26,30,35);}
     static FLinearColor Border(){return Color(38,43,50);}
-    static FLinearColor Selection(){return Color(26,39,54);} // Accent at 15% over Panel, sRGB.
+    static FLinearColor Selection(){return Color(38,48,61);} // Accent at 15% over Panel, sRGB.
     static FLinearColor Text(){return Color(230,233,237);}
     static FLinearColor Muted(){return Color(140,150,161);}
     static FLinearColor Accent(){return Color(141,187,255);}
@@ -78,20 +78,23 @@ struct FSensorOwnedPresentationStyle
         return S;
     }
     static const FButtonStyle& HeaderButton()
-    {static const FButtonStyle S=FButtonStyle(QuietButton()).SetNormalPadding(FMargin(6)).SetPressedPadding(FMargin(6));return S;}
+    {static const FButtonStyle S=FButtonStyle(QuietButton()).SetNormalPadding(FMargin(4)).SetPressedPadding(FMargin(4));return S;}
     static const FComboButtonStyle& ComboButton()
     {
         static const FComboButtonStyle S=FComboButtonStyle(FCoreStyle::Get().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
-            .SetButtonStyle(FButtonStyle(Button()).SetNormal(FSlateRoundedBoxBrush(Color(18,21,26),8.f,Border(),1.f)))
+            .SetButtonStyle(FButtonStyle(Button()).SetNormal(FSlateRoundedBoxBrush(Color(18,21,26),8.f,Border(),1.f)).SetNormalPadding(FMargin(0)).SetPressedPadding(FMargin(0)))
+            .SetContentPadding(FMargin(Gap,6))
             .SetMenuBorderBrush(FSlateRoundedBoxBrush(Panel(),6.0f)).SetMenuBorderPadding(FMargin(Gap));
         return S;
     }
     static const FComboBoxStyle& ComboBox()
-    {static const FComboBoxStyle S=FComboBoxStyle(FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox")).SetComboButtonStyle(ComboButton());return S;}
+    {static const FComboBoxStyle S=FComboBoxStyle(FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox")).SetComboButtonStyle(ComboButton()).SetContentPadding(FMargin(Gap,6));return S;}
     static const FSpinBoxStyle& SpinBox()
     {static const FSpinBoxStyle S=FSpinBoxStyle(FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox"))
         .SetBackgroundBrush(FSlateRoundedBoxBrush(Color(18,21,26),8.f,Border(),1.f))
+        .SetActiveBackgroundBrush(FSlateRoundedBoxBrush(Selection(),8.f,Primary(),1.f))
         .SetHoveredBackgroundBrush(FSlateRoundedBoxBrush(Section(),8.f,Accent(),1.f))
         .SetActiveFillBrush(FSlateRoundedBoxBrush(Selection(),8.f)).SetInactiveFillBrush(FSlateRoundedBoxBrush(Color(18,21,26),8.f))
+        .SetHoveredFillBrush(FSlateRoundedBoxBrush(Section(),8.f))
         .SetForegroundColor(Text()).SetTextPadding(FMargin(Gap,6));return S;}
 };

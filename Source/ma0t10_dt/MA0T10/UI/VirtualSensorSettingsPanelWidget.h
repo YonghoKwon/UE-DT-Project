@@ -134,6 +134,7 @@ private:
 #endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
 	TSharedRef<SWidget> BuildOwnedSettingsWidget();
+	TSharedRef<SWidget> BuildOwnedSettingDetail(FName Key);
 	void RefreshOwnedSettingsText();
 	void OpenOwnedSettingHelp(FName Key);
 	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText;

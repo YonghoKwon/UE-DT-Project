@@ -16,6 +16,7 @@
 #include "SensorToolWidgetDecl.h"
 #include "VirtualSensorUiStyle.h"
 #include "SensorOwnedPresentationStyle.h"
+#include "SensorToolIcon.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/Application/SlateApplication.h"
@@ -61,7 +62,7 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolFormRow(const FText&
         [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Label)]
             +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Detail]]
         +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
-        [SNew(SBox).MinDesiredHeight_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale();})[Control]];
+        [SNew(SBox).HeightOverride_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale()/.75f;})[Control]];
 }
 void UVirtualSensorPanelWidgetBase::PruneFontRegistrations()
 {
@@ -688,7 +689,7 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FT
           .ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
          +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
          [SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;})
-          .ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false)
+          .ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(0)).HasDownArrow(false)
           .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
           .OnGetMenuContent_Lambda([this]()
           {
@@ -706,7 +707,7 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FT
                 .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);return FReply::Handled();})];
               return Menu;
           })
-          .ButtonContent()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(FText::FromString(TEXT("⋯")))]]
+          .ButtonContent()[SNew(SBox).WidthOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();}).HeightOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();})[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]]
          +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
          [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×")))
           .ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]];

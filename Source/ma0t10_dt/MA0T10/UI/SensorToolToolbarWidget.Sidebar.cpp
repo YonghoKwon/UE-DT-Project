@@ -25,7 +25,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()
 {
     auto Rail=SNew(SVerticalBox);
     const ESensorToolDestination Routes[]={ESensorToolDestination::Placement,ESensorToolDestination::Preview,ESensorToolDestination::Scenario,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Results};
-    const FText Labels[]={SensorToolUiText::Placement(),FText::FromString(TEXT("보기")),SensorToolUiText::Scenario(),FText::FromString(TEXT("전송")),SensorToolUiText::Results()};
+    const FText Labels[]={SensorToolUiText::Placement(),SensorToolUiText::RailPreview(),SensorToolUiText::Scenario(),SensorToolUiText::RailTransfer(),SensorToolUiText::Results()};
     for(int32 I=0;I<UE_ARRAY_COUNT(Routes);++I)
     {
         const auto Route=Routes[I];
@@ -41,7 +41,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()
     Rail->AddSlot().FillHeight(1)[SNullWidget::NullWidget];
     Rail->AddSlot().AutoHeight().Padding(8)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton()).HasDownArrow(false)
         .ToolTipText(SensorToolUiText::Tools()).OnGetMenuContent_Lambda([this](){return BuildToolsMenu();}).ButtonContent()
-        [SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::BodySize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text(FText::FromString(TEXT("⋯")))]];
+        [SNew(SBox).WidthOverride_Lambda([this](){return 18.f*ToolFont().Size/13.f;}).HeightOverride_Lambda([this](){return 18.f*ToolFont().Size/13.f;})[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]];
     auto Summary=SNew(SVerticalBox);
     Summary->AddSlot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::BodySize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text_Lambda([this](){return SlabCardTitle;})];
     Summary->AddSlot().AutoHeight().Padding(0,6)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton()).Visibility_Lambda([this](){return StatusSlab.IsValid()?EVisibility::Collapsed:EVisibility::Visible;}).OnClicked_Lambda([this](){OpenOwnedDestination(ESensorToolDestination::MapCheck);return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text(FText::FromString(TEXT("배치 방법 · 맵 점검")))]];

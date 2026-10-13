@@ -9,6 +9,8 @@ namespace SensorToolUiText
     inline FText NoEquipment() { return LOCTEXT("NoEquipment", "장비 없음"); }
     inline FText AddEquipment() { return LOCTEXT("AddEquipment", "+ 장비 추가 (배치)"); }
     inline FText Placement() { return LOCTEXT("Placement", "배치"); }
+    inline FText RailPreview() { return LOCTEXT("RailPreview", "보기"); }
+    inline FText RailTransfer() { return LOCTEXT("RailTransfer", "전송"); }
     inline FText BackPlacement() { return LOCTEXT("BackPlacement", "← 배치"); }
     inline FText BackProgress() { return LOCTEXT("BackProgress", "← 시나리오 진행"); }
     inline FText BackSettings() { return LOCTEXT("BackSettings", "← 센서 상세 설정"); }
@@ -51,7 +53,7 @@ namespace SensorToolUiText
     inline FText ChangeInTransfer() { return LOCTEXT("ChangeInTransfer", "PCD 전송에서 변경"); }
     inline FText DirectTransfer() { return LOCTEXT("DirectTransfer", "시나리오 없이 직접 전송"); }
     inline FText PreflightDetails() { return LOCTEXT("PreflightDetails", "사전 점검 상세"); }
-    inline FText PreflightTarget() { return LOCTEXT("PreflightTarget", "점검 대상:"); }
+    inline FText PreflightTarget() { return LOCTEXT("PreflightTarget", "점검 대상"); }
     inline FText DirectTarget() { return LOCTEXT("DirectTarget", "직접 전송"); }
     inline FText PcdServerRequired() { return LOCTEXT("PcdServerRequired", "PCD 전송에는 서버 연결 설정이 필요합니다"); }
     inline FString UserReason(FString Reason);
