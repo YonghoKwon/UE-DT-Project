@@ -2,9 +2,7 @@
 
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStompProtocol.h"
 #include "VirtualSensorWireHeaders.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualCameraStreamReceiverTC.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualLidarStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverRegistry.h"
 #include "Containers/Queue.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
@@ -710,11 +708,18 @@ private:
 		int64 FrameId=-1; FString IdText=HeaderValue(Frame.Headers,TEXT("frame-id"));
 		if(IdText.IsEmpty()) IdText=HeaderValue(Frame.Headers,TEXT("x-frame-id"));
 		LexTryParseString(FrameId,*IdText);
-		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data;
-		if(Kind==EVirtualSensorStreamKind::PointCloud) Data=MakeShared<FVirtualPointCloudStreamReceiverData>();
-		else if(Kind==EVirtualSensorStreamKind::CameraImage) Data=MakeShared<FVirtualCameraStreamReceiverData>();
-		else Data=MakeShared<FVirtualLidarStreamReceiverData>();
-		Data->Kind=static_cast<EVirtualSensorTopicReceiveKind>(Kind);
+		const auto Codec = VirtualSensorStreamReceiverRegistry::Get();
+		check(Codec.IsValid()); // Registered before worlds/workers by this project's module.
+        EVirtualSensorTopicReceiveKind ReceiveKind;
+        switch (Kind)
+        {
+        case EVirtualSensorStreamKind::LidarPayload: ReceiveKind = EVirtualSensorTopicReceiveKind::Lidar; break;
+        case EVirtualSensorStreamKind::CameraImage: ReceiveKind = EVirtualSensorTopicReceiveKind::Camera; break;
+        case EVirtualSensorStreamKind::PointCloud: ReceiveKind = EVirtualSensorTopicReceiveKind::PointCloud; break;
+        default: return;
+        }
+		TSharedPtr<FVirtualSensorTopicReceivedDataBase> Data = Codec->CreateResult(ReceiveKind);
+		Data->Kind=ReceiveKind;
 		Data->SensorId=SensorId; Data->FrameId=FrameId; Data->SchemaVersion=Schema;
 		Data->bFiltered=!ReceiveSelection.Accepts(static_cast<int32>(Kind),SensorId);
 		const double ParseStarted=FPlatformTime::Seconds();
@@ -726,7 +731,7 @@ private:
 		{
 			TMap<FName,FString> Headers;
 			for(const auto& P:Frame.Headers) Headers.Add(FName(*P.Key),P.Value);
-			Data=StaticCastSharedPtr<FVirtualSensorTopicReceivedDataBase>(UVirtualPointCloudStreamReceiverTC::ParseBinaryPcdToStruct(Frame.Body,Headers));
+			Data=Codec->ParseBinaryPcd(Frame.Body,Headers);
 			SensorId=Data->SensorId; FrameId=Data->FrameId;
 		}
 		else if(!Data->bFiltered)
@@ -1269,7 +1274,7 @@ bool FSensorRawRunRetentionTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawReceiptProbeTest,"MA0T10.SensorStream.RawReceiptProbe",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorRawReceiptProbeTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RAW_PROBE"))!=TEXT("1")) { AddInfo(TEXT("SKIP: local receipt fault probe is not enabled"));return true; }
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RAW_PROBE"))!=TEXT("1")) { AddInfo(TEXT("[OPT-IN SKIP] MA0T10_RAW_PROBE unset or !=1; SKIP: local receipt fault probe is not enabled"));return true; }
 	FVirtualSensorHighThroughputProfile Profile;Profile.BrokerUrl=TEXT("tcp://127.0.0.1:18617");
 	FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};Worker.Start();
 	FVirtualSensorBinaryFrame Frame;Frame.StreamKind=EVirtualSensorStreamKind::PointCloud;Frame.SensorId=TEXT("receipt-probe");

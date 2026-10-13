@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -22,10 +22,13 @@ bool FSlabRunHistoryTest::RunTest(const FString&)
  for(auto& Write:Results->Writes)Write.Wait();Results->Tick(0);
  FSlabRunDeliverySummary Before;Results->GetRunResult(Run,Before);TestNotEqual(TEXT("real save failure visible"),Before.SaveState,FString(TEXT("저장 완료")));
  auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(W);W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel);
- Panel->bRunResultsExpanded=true;auto Content=Panel->BuildRunResultsContent();Panel->RefreshRunResults();
+ Panel->OpenOwnedTab(ESensorOwnedDataTab::Results);auto Content=Panel->BuildRunResultsContent();Panel->RefreshRunResults();
  TestTrue(TEXT("select stored in-memory result"),Panel->SelectScenarioRunResult(Run));Panel->RefreshRunResults();
- TestTrue(TEXT("UUID details shown"),Panel->RunResultsText.Contains(Run)&&Panel->RunResultsText.Contains(Scenario));
- TestTrue(TEXT("snapshot output distinction shown"),Panel->RunResultsText.Contains(TEXT("적용 출력")));
+ TestTrue(TEXT("UUID details shown"),Panel->OwnedRunResultsText.Contains(Run)&&Panel->OwnedRunResultsText.Contains(Scenario));
+ TestTrue(TEXT("snapshot output distinction shown"),Panel->OwnedRunResultsText.Contains(TEXT("적용 출력")));
+ Panel->OpenOwnedTab(ESensorOwnedDataTab::Diagnostics);Panel->bOwnedRunDiagnosticsExpanded=true;Panel->RefreshRunResults();
+ TestTrue(TEXT("terminal snapshot and receipt detail retained in diagnostics"),Panel->RunResultsText.Contains(TEXT("snapshot"))&&Panel->RunResultsText.Contains(TEXT("receipt")));
+ Panel->OpenOwnedTab(ESensorOwnedDataTab::Results);Panel->RefreshRunResults();
  TestFalse(TEXT("foreign UUID selection rejected"),Panel->SelectScenarioRunResult(FGuid::NewGuid().ToString()));
  FString Reason;TestTrue(TEXT("finalized failed report eligible"),Results->CanRetryRunReportSave(Run,Reason));
  Results->ReportDirectoryOverrideForTests=Dir/TEXT("retry");

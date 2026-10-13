@@ -1,4 +1,5 @@
 #include "VirtualSensorFileSaveSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarExportComponent.h"
@@ -69,7 +70,7 @@ struct FFileWriteInput
 TArray<FVirtualSensorExportResult> WriteFiles(const FFileWriteInput& Input,FString& Error)
 {
 	TArray<FVirtualSensorExportResult> Results;
-	const FString Root=Input.CaptureDirectory.IsEmpty()?FullPath(FPaths::ProjectSavedDir()/TEXT("SensorCaptures")/SafeId(Input.SensorId)):Input.CaptureDirectory;
+	const FString Root=Input.CaptureDirectory.IsEmpty()?FullPath(FPaths::ProjectSavedDir()/VirtualSensorDefaults::CaptureDirectory/SafeId(Input.SensorId)):Input.CaptureDirectory;
 	const bool Timed=!Input.CaptureDirectory.IsEmpty();
 	const FString Prefix=FString::Printf(TEXT("%s_%s_%s"),*SafeId(Input.SensorId),*FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S")),*Input.RequestId);
 	auto Save=[&](const uint8* Data,int64 Num,const FString& Extension,const FString& Subdir,EVirtualSensorExportKind Kind)->bool
@@ -87,7 +88,7 @@ TArray<FVirtualSensorExportResult> WriteFiles(const FFileWriteInput& Input,FStri
 	{
 		const auto& Camera=Input.Camera;
 		if(Input.CameraJson&&Input.Selection.bCameraPayload&&!Input.Selection.bCameraImage)
-			SaveText(*Input.CameraJson,TEXT("json"),Timed?TEXT("Camera"):TEXT("ServerPayload"),EVirtualSensorExportKind::ServerPayload);
+			SaveText(*Input.CameraJson,TEXT("json"),Timed?TEXT("Camera"):VirtualSensorDefaults::ServerPayloadSubdirectory,EVirtualSensorExportKind::ServerPayload);
 		else if(!Camera||!Camera->Jpeg||Camera->Jpeg->IsEmpty())Error=TEXT("고정된 Camera JPEG 프레임이 없습니다.");
 		else
 		{
@@ -95,18 +96,18 @@ TArray<FVirtualSensorExportResult> WriteFiles(const FFileWriteInput& Input,FStri
 			if(Error.IsEmpty()&&Input.Selection.bCameraPayload)
 			{
 				const FString Json=FVirtualCameraPayloadCodec::EncodeJpegBase64(Camera->Payload,FBase64::Encode(Camera->Jpeg->GetData(),Camera->Jpeg->Num()),Camera->Jpeg->Num());
-				SaveText(Json,TEXT("json"),Timed?TEXT("Camera"):TEXT("ServerPayload"),EVirtualSensorExportKind::ServerPayload);
+				SaveText(Json,TEXT("json"),Timed?TEXT("Camera"):VirtualSensorDefaults::ServerPayloadSubdirectory,EVirtualSensorExportKind::ServerPayload);
 			}
 		}
 	}
 	else
 	{
-		if(Input.Selection.bLidarPayload) SaveText(Input.JsonEncoder?Input.JsonEncoder():FString(),TEXT("json"),Timed?TEXT("Lidar"):TEXT("ServerPayload"),EVirtualSensorExportKind::ServerPayload);
+		if(Input.Selection.bLidarPayload) SaveText(Input.JsonEncoder?Input.JsonEncoder():FString(),TEXT("json"),Timed?TEXT("Lidar"):VirtualSensorDefaults::ServerPayloadSubdirectory,EVirtualSensorExportKind::ServerPayload);
 		if(Error.IsEmpty()&&Input.Selection.bPointCloud)
 		{
 			FString Extension;TArray<uint8> Bytes;int32 Count=0;
 			if(UVirtualLidarExportComponent::SerializeImmutableFrame(Input.Lidar,Input.ExportConfig,Extension,Bytes,Count,Error))
-				Save(Bytes.GetData(),Bytes.Num(),Extension,Timed?TEXT("Lidar"):TEXT("PointCloud"),Input.Selection.PointCloudFormat);
+				Save(Bytes.GetData(),Bytes.Num(),Extension,Timed?TEXT("Lidar"):VirtualSensorDefaults::PointCloudSubdirectory,Input.Selection.PointCloudFormat);
 		}
 	}
 	if(Input.Cancellation->Cancelled&&Error.IsEmpty())Error=TEXT("저장 요청이 취소되었습니다.");
@@ -184,7 +185,7 @@ FString UVirtualSensorFileSaveSubsystem::RequestSaveInternal(EVirtualSensorFileS
 	if(!Camera&&Selection.bPointCloud&&!PointFormat(Selection.PointCloudFormat,R->ExportConfig.PointCloudFormat))return Reject(TEXT("지원하는 Point Cloud 저장 형식을 선택하세요."));
 	if(!SessionDirectory.IsEmpty())
 	{
-		const FString Allowed=FullPath(FPaths::ProjectSavedDir()/TEXT("SensorCaptures/LocalTimedCapture"))+TEXT("/");R->CaptureDirectory=FullPath(SessionDirectory);
+		const FString Allowed=FullPath(FPaths::ProjectSavedDir()/VirtualSensorDefaults::TimedCaptureDirectory)+TEXT("/");R->CaptureDirectory=FullPath(SessionDirectory);
 		if(!R->CaptureDirectory.StartsWith(Allowed,ESearchCase::IgnoreCase))return Reject(TEXT("주기 캡처 경로는 LocalTimedCapture 하위여야 합니다."));
 	}
 	if(Mode==EVirtualSensorFileSaveMode::NewFrame&&!Sensor->IsSensorRunning())return Reject(TEXT("센서 측정을 시작한 뒤 새 프레임 저장을 요청하세요."));
@@ -351,7 +352,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorFileSaveWorkerTest,"MA0T10.SensorFiles.I
 bool FSensorFileSaveWorkerTest::RunTest(const FString&)
 {
 	FFileWriteInput Input;Input.RequestId=FGuid::NewGuid().ToString(EGuidFormats::Digits);Input.SensorId=TEXT("Automation-Snapshot");Input.Cancellation=MakeShared<FSensorFileCancellation,ESPMode::ThreadSafe>();
-	Input.CaptureDirectory=FullPath(FPaths::ProjectSavedDir()/TEXT("SensorCaptures/LocalTimedCapture/Automation")/Input.RequestId);
+	Input.CaptureDirectory=FullPath(FPaths::ProjectSavedDir()/VirtualSensorDefaults::TimedCaptureAutomationDirectory/Input.RequestId);
 	Input.Selection.bLidarPayload=false;Input.Selection.bPointCloud=true;Input.Selection.PointCloudFormat=EVirtualSensorExportKind::PointCloudPcd;Input.ExportConfig.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Input.ExportConfig.PcdDataMode=EVirtualPcdDataMode::Binary;
 	auto Points=MakeShared<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>();FVirtualLidarPoint P;P.bHit=true;P.WorldLocation=FVector(100,20,30);P.SensorLocalPositionMeters=FVector(1,-.2,.3);P.Distance=106;P.RawIntensity=100;Points->Add(P);
 	auto Frame=MakeShared<FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>();Frame->Points=Points;Frame->FrameId=17;Frame->HorizontalSamples=1;Frame->VerticalChannels=1;
@@ -391,7 +392,7 @@ bool FSensorExternalCameraFileTest::RunTest(const FString&)
 	if(External)
 	{
 		TestEqual(TEXT("source acquisition UTC not replaced by local receive time"),External->TimestampUtc,Descriptor.TimestampUtc);
-		FFileWriteInput Input;Input.RequestId=FGuid::NewGuid().ToString(EGuidFormats::Digits);Input.SensorId=Camera->GetSensorId();Input.Kind=EVirtualSensorKind::Camera;Input.Selection=Selection;Input.CameraJson=External->JsonPayload;Input.Cancellation=MakeShared<FSensorFileCancellation,ESPMode::ThreadSafe>();Input.CaptureDirectory=FullPath(FPaths::ProjectSavedDir()/TEXT("SensorCaptures/LocalTimedCapture/Automation")/Input.RequestId);
+		FFileWriteInput Input;Input.RequestId=FGuid::NewGuid().ToString(EGuidFormats::Digits);Input.SensorId=Camera->GetSensorId();Input.Kind=EVirtualSensorKind::Camera;Input.Selection=Selection;Input.CameraJson=External->JsonPayload;Input.Cancellation=MakeShared<FSensorFileCancellation,ESPMode::ThreadSafe>();Input.CaptureDirectory=FullPath(FPaths::ProjectSavedDir()/VirtualSensorDefaults::TimedCaptureAutomationDirectory/Input.RequestId);
 		auto Work=Async(EAsyncExecution::ThreadPool,[Input](){FString Error;return WriteFiles(Input,Error);});const auto Files=Work.Get();TestEqual(TEXT("external JSON writes one file"),Files.Num(),1);
 		if(Files.Num()==1) {FString Saved;FFileHelper::LoadFileToString(Saved,*Files[0].AbsolutePath);TestEqual(TEXT("external JSON source is saved without regeneration"),Saved,Original);IFileManager::Get().Delete(*Files[0].AbsolutePath,false,true);}
 	}

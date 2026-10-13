@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 
 struct MA0T10_DT_API FVirtualLidarDepthAcquisitionRequest
@@ -9,7 +9,7 @@ struct MA0T10_DT_API FVirtualLidarDepthAcquisitionRequest
 	bool bRequestSemantics = false;
 	TArray<float> HorizontalAngles;
 	TArray<float> VerticalAngles;
-	FVirtualSlabFrameContext SlabContext;
+	FVirtualSensorAcquisitionContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
 	int32 HorizontalSamples = 1;
@@ -26,6 +26,8 @@ struct FVirtualLidarGpuSemanticIdentity
 	FName ActorName;
 	FName ActorClass;
 	TArray<FName> ActorTags;
+	bool bHasOpticalOverride=false;
+	float Reflectivity940Nm=.2f,IntensityGain=1;
 };
 struct MA0T10_DT_API FVirtualLidarDepthAcquisitionFrame
 {

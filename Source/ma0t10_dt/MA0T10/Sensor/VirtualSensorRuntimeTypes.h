@@ -19,6 +19,19 @@ enum class EVirtualSensorStreamKind : uint8
 	PointCloud UMETA(DisplayName = "Point Cloud")
 };
 
+/** Explicit mapping to the neutral provider contract. */
+inline EVirtualSensorAcquisitionOutput VirtualSensorAcquisitionOutput(EVirtualSensorStreamKind Kind)
+{
+    switch (Kind)
+    {
+    case EVirtualSensorStreamKind::LidarPayload: return EVirtualSensorAcquisitionOutput::LidarTelemetry;
+    case EVirtualSensorStreamKind::CameraImage: return EVirtualSensorAcquisitionOutput::CameraImage;
+    case EVirtualSensorStreamKind::PointCloud: return EVirtualSensorAcquisitionOutput::PointCloud;
+    }
+    checkNoEntry();
+    return EVirtualSensorAcquisitionOutput::LidarTelemetry;
+}
+
 UENUM(BlueprintType)
 enum class EVirtualSensorStreamTransportBackend : uint8
 {
@@ -385,7 +398,7 @@ struct MA0T10_DT_API FVirtualSensorInteractionRequest
  */
 struct MA0T10_DT_API FVirtualSensorFrameEnvelope
 {
-	FVirtualSlabFrameContext SlabContext;
+	FVirtualSensorAcquisitionContext SlabContext;
 	FString SensorId;
 	EVirtualSensorKind SensorKind = EVirtualSensorKind::Camera;
 	int64 FrameId = 0;

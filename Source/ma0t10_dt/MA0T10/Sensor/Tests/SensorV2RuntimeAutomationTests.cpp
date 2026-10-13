@@ -20,7 +20,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
 #include "PcdDemandAcceptanceFixture.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -770,7 +770,7 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 {
 	if (!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
 	{
-		AddInfo(TEXT("Continuous SensorRefactorTestMap stream smoke skipped. Use Scripts/run_sensor_map_stream_rhi_smoke.ps1."));
+		AddInfo(TEXT("[OPT-IN SKIP] MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE unset or !=1; Continuous SensorRefactorTestMap stream smoke skipped. Use Scripts/run_sensor_map_stream_rhi_smoke.ps1."));
 		return true;
 	}
 	// The integration runner provides credentials through process environment
@@ -798,7 +798,7 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 
 bool FSensorV2RepeatStreamTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPEAT_STREAMS_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: ten-cycle acceptance requires MA0T10_REPEAT_STREAMS_RHI=1"));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPEAT_STREAMS_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_REPEAT_STREAMS_RHI unset or !=1; SKIP: ten-cycle acceptance requires MA0T10_REPEAT_STREAMS_RHI=1"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FRepeatStreamsAcceptance(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

@@ -1,14 +1,15 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 
-const FString UVirtualSensorUiPreferencesSaveGame::SlotName = TEXT("MA0T10_VirtualSensorUI_v6");
-const FString UVirtualSensorUiPreferencesSaveGame::Version5SlotName = TEXT("MA0T10_VirtualSensorUI_v5");
-const FString UVirtualSensorUiPreferencesSaveGame::Version4SlotName = TEXT("MA0T10_VirtualSensorUI_v4");
-const FString UVirtualSensorUiPreferencesSaveGame::Version3SlotName = TEXT("MA0T10_VirtualSensorUI_v3");
-const FString UVirtualSensorUiPreferencesSaveGame::Version2SlotName = TEXT("MA0T10_VirtualSensorUI_v2");
-const FString UVirtualSensorUiPreferencesSaveGame::LegacySlotName = TEXT("MA0T10_VirtualSensorUI_v1");
+const FString UVirtualSensorUiPreferencesSaveGame::SlotName = VirtualSensorDefaults::UiSlotV6;
+const FString UVirtualSensorUiPreferencesSaveGame::Version5SlotName = VirtualSensorDefaults::UiSlotV5;
+const FString UVirtualSensorUiPreferencesSaveGame::Version4SlotName = VirtualSensorDefaults::UiSlotV4;
+const FString UVirtualSensorUiPreferencesSaveGame::Version3SlotName = VirtualSensorDefaults::UiSlotV3;
+const FString UVirtualSensorUiPreferencesSaveGame::Version2SlotName = VirtualSensorDefaults::UiSlotV2;
+const FString UVirtualSensorUiPreferencesSaveGame::LegacySlotName = VirtualSensorDefaults::UiSlotV1;
 
 UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOrCreate()
 {

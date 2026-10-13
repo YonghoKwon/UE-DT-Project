@@ -1,4 +1,5 @@
 #include "VirtualSensorLayoutSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualSensorPlacementSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -137,7 +138,7 @@ FString UVirtualSensorLayoutSubsystem::CanonicalActorPath(const AActor* A)
 
 FString UVirtualSensorLayoutSubsystem::Directory() const
 {
-    FString Root=FPaths::ProjectSavedDir()/TEXT("SensorLayouts");
+    FString Root=FPaths::ProjectSavedDir()/VirtualSensorDefaults::LayoutDirectory;
 #if WITH_DEV_AUTOMATION_TESTS
     if(!StorageRootOverrideForTests.IsEmpty())Root=StorageRootOverrideForTests;
 #endif

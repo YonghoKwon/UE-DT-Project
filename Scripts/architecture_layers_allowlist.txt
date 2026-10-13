@@ -1,0 +1,2 @@
+# ARCH-06: no architecture include violations. New/stale entries fail.
+# Relative to Source/ma0t10_dt/MA0T10. Unique source -> resolved target.

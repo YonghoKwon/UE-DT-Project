@@ -6,7 +6,7 @@
 #include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Components/TextBlock.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabChartDecimationTest, "MA0T10.Slab.Chart.NativeDecimation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

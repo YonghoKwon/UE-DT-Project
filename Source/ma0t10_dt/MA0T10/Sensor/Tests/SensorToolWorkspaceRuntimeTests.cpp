@@ -7,7 +7,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
@@ -71,7 +71,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspaceRuntimeTest,"MA0T10.SensorWorkspace.Runtime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorWorkspaceRuntimeTest::RunTest(const FString&)
 {
-	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_WORKSPACE_RHI"))!=TEXT("1")){AddInfo(TEXT("Workspace actual RHI test skipped; set MA0T10_WORKSPACE_RHI=1."));return true;}
+	if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_WORKSPACE_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_WORKSPACE_RHI unset or !=1; Workspace actual RHI test skipped; set MA0T10_WORKSPACE_RHI=1."));return true;}
 	if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));ADD_LATENT_AUTOMATION_COMMAND(FWorkspaceRuntimeCheck(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }

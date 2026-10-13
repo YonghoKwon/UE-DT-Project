@@ -12,6 +12,7 @@
 #include "Components/TextBlock.h"
 #include "Components/EditableTextBox.h"
 #include "SensorToolWorkspaceStyle.h"
+#include "SensorToolUiText.h"
 #include "SensorToolWidgetDecl.h"
 #include "VirtualSensorUiStyle.h"
 #include "SensorOwnedPresentationStyle.h"
@@ -19,6 +20,24 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SBoxPanel.h"
+#include "Blueprint/WidgetTree.h"
+
+bool UVirtualSensorPanelWidgetBase::SupportsOwnedDocking() const
+{return IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget);}
+float UVirtualSensorPanelWidgetBase::GetSensorToolVisualScale() const
+{return SensorToolFontScale*(SupportsOwnedDocking()&&ToolWorkspace.IsValid()?ToolWorkspace->GetOwnedPixelScale()*.75f:1.f);} // Slate point sizes -> design pixels; stored scale/API is unchanged.
+void UVirtualSensorPanelWidgetBase::ApplyWorkspaceDockRect(FVector2D Position,FVector2D Size)
+{
+    if(!SupportsOwnedDocking())return;
+    if(!bWorkspaceDocked){bFloatingDraggable=bPanelDraggable;bFloatingResizable=bPanelResizable;bFloatingClamp=bClampPanelToViewport;}
+    bWorkspaceDocked=true;bPanelDraggable=false;bPanelResizable=false;bClampPanelToViewport=false;
+    bInitialLayoutPending=false;bPanelLayoutConfigured=true;DesiredPanelSize=Size;CurrentViewportPosition=Position;
+    if(auto* S=Cast<UCanvasPanelSlot>(Slot)){if(S->GetAutoSize())S->SetAutoSize(false);if(!S->GetPosition().Equals(Position,.1))S->SetPosition(Position);const auto Effective=GetEffectivePanelSize();if(!S->GetSize().Equals(Effective,.1))S->SetSize(Effective);}
+}
+void UVirtualSensorPanelWidgetBase::LeaveWorkspaceDock()
+{
+    if(!bWorkspaceDocked)return;bWorkspaceDocked=false;bPanelDraggable=bFloatingDraggable;bPanelResizable=bFloatingResizable;bClampPanelToViewport=bFloatingClamp;
+}
 
 const FSlateBrush* UVirtualSensorPanelWidgetBase::GetToolPanelBrush() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::PanelBrush():FCoreStyle::Get().GetBrush("WhiteBrush");}
 const FSlateBrush* UVirtualSensorPanelWidgetBase::GetToolSectionBrush() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::SectionBrush():FCoreStyle::Get().GetBrush("WhiteBrush");}
@@ -63,6 +82,9 @@ void UVirtualSensorPanelWidgetBase::NativeConstruct()
 {
 	Super::NativeConstruct();
 	bSensorPanelConstructed = true;
+	// Initial Slate construction / synchronization may replace the constructor-time
+	// font attributes. Reapply only our explicit native controls after it finishes.
+	if(SupportsOwnedDocking())bPendingOwnedFontRefresh=true;
 	if (SensorAppearanceOwner.IsValid()) OnSensorUiFontScaleChanged(SensorToolFontScale);
 }
 
@@ -90,7 +112,7 @@ void UVirtualSensorPanelWidgetBase::ApplySensorToolFontScale(float Scale)
 	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
 	if(IsWorkspaceOwned()){DragHandleHeight=FMath::Max(38.0f,26.0f*SensorToolFontScale+20.0f);SetPanelExpandedSize(DesiredPanelSize,false);}
 	PruneFontRegistrations();
-	for (auto& Setter : SensorFontSetters) Setter(SensorToolFontScale);
+	for (auto& Setter : SensorFontSetters) Setter(GetSensorToolVisualScale());
 	InvalidateLayoutAndVolatility();
 	if (bSensorPanelConstructed && !FMath::IsNearlyEqual(PreviousScale, SensorToolFontScale))
 		OnSensorUiFontScaleChanged(SensorToolFontScale);
@@ -100,9 +122,16 @@ void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<STextBlo
 	FSlateFontInfo Base = Widget->GetFont();
 	// Respect the local control's wrapping contract. Forcing every caption to wrap
 	// makes short buttons/checkboxes split into syllables at larger font scales.
-	if(IsWorkspaceOwned()){const auto Color=Widget->GetColorAndOpacity().GetSpecifiedColor();const int32 RoleSize=(Color.Equals(FVirtualSensorUiStyle::SecondaryText)||Color.Equals(GetToolMutedColor()))?14:16;Base.Size=FMath::Max(RoleSize,Base.Size);}
-	AddFontRegistration([Weak=TWeakPtr<STextBlock>(Widget), Base](float Scale) { if (auto W = Weak.Pin()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); W->SetFont(Font); } },[Weak=TWeakPtr<STextBlock>(Widget)](){return Weak.IsValid();});
-	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(SensorToolFontScale);
+    const auto Color=Widget->GetColorAndOpacity().GetSpecifiedColor();const bool Secondary=Color.Equals(FVirtualSensorUiStyle::SecondaryText)||Color.Equals(GetToolMutedColor());
+	AddFontRegistration([Weak=TWeakPtr<STextBlock>(Widget), Owner=TWeakObjectPtr<UVirtualSensorPanelWidgetBase>(this),Base,Secondary](float Scale)
+    {
+        if(auto W=Weak.Pin())
+        {
+            if(!Owner.IsValid()||!Owner->SupportsOwnedDocking()){auto Font=Base;Font.Size=FMath::Max(8,FMath::RoundToInt(Base.Size*Scale));W->SetFont(Font);return;}
+            W->SetFont(TAttribute<FSlateFontInfo>::CreateLambda([Owner,Base,Secondary,Scale](){auto Font=Base;const bool Owned=Owner.IsValid()&&Owner->SupportsOwnedDocking();const int32 Size=Owned?(Secondary?FSensorOwnedPresentationStyle::LabelSize:FSensorOwnedPresentationStyle::BodySize):Base.Size;Font.Size=FMath::Max(8,FMath::RoundToInt(Size*(Owned?Owner->GetSensorToolVisualScale():Scale)));return Font;}));
+        }
+    },[Weak=TWeakPtr<STextBlock>(Widget)](){return Weak.IsValid();});
+	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(GetSensorToolVisualScale());
 }
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SButton> Widget, const SButton::FArguments& Args)
 {
@@ -118,10 +147,16 @@ void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SButton>
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SEditableTextBox> Widget, const SEditableTextBox::FArguments& Args)
 {
 	FSlateFontInfo Base = Args._Font.Get(Args._Style->TextStyle.Font);
-	if(IsWorkspaceOwned())Base.Size=FMath::Max(16,Base.Size);
 	if(IsWorkspaceOwned())Widget->SetStyle(&GetToolInputStyle());
-	AddFontRegistration([Weak=TWeakPtr<SEditableTextBox>(Widget), Base](float Scale) { if (auto W = Weak.Pin()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); W->SetFont(Font); } },[Weak=TWeakPtr<SEditableTextBox>(Widget)](){return Weak.IsValid();});
-	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(SensorToolFontScale);
+	AddFontRegistration([Weak=TWeakPtr<SEditableTextBox>(Widget), Owner=TWeakObjectPtr<UVirtualSensorPanelWidgetBase>(this), Base](float Scale)
+    {
+        if(auto W=Weak.Pin())
+        {
+            if(!Owner.IsValid()||!Owner->SupportsOwnedDocking()){auto Font=Base;Font.Size=FMath::Max(8,FMath::RoundToInt(Base.Size*Scale));W->SetFont(Font);return;}
+            W->SetFont(TAttribute<FSlateFontInfo>::CreateLambda([Owner,Base,Scale](){auto Font=Base;const bool Owned=Owner.IsValid()&&Owner->SupportsOwnedDocking();const int32 Size=Owned?FSensorOwnedPresentationStyle::BodySize:Base.Size;Font.Size=FMath::Max(8,FMath::RoundToInt(Size*(Owned?Owner->GetSensorToolVisualScale():Scale)));return Font;}));
+        }
+    },[Weak=TWeakPtr<SEditableTextBox>(Widget)](){return Weak.IsValid();});
+	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(GetSensorToolVisualScale());
 }
 void UVirtualSensorPanelWidgetBase::RegisterSensorTextControl(UTextBlock* Text)
 {
@@ -202,6 +237,8 @@ void UVirtualSensorPanelWidgetBase::RefreshHostedPanelLayout()
 void UVirtualSensorPanelWidgetBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
+    if(bPendingOwnedFontRefresh&&SupportsOwnedDocking()&&MyGeometry.GetLocalSize().X>0)
+    {bPendingOwnedFontRefresh=false;ApplySensorToolFontScale(SensorToolFontScale);}
     if (bInitialLayoutPending)
     {
         const FVector2D ViewportSize = ResolveLogicalViewportSize();
@@ -487,6 +524,7 @@ FVector2D UVirtualSensorPanelWidgetBase::ResolveMaximumPanelSize() const
 
 FVector2D UVirtualSensorPanelWidgetBase::GetResolvedPanelMinimum() const
 {
+    if(bWorkspaceDocked)return FVector2D(160,80);
     if(!IsWorkspaceOwned())return MinimumPanelSize;
     const FVector2D Maximum=ResolveMaximumPanelSize();
     const float HeaderWidthScale=FMath::Max(1.0f,SensorToolFontScale);
@@ -559,7 +597,7 @@ void UVirtualSensorPanelWidgetBase::ApplyPanelSize()
 }
 
 void UVirtualSensorPanelWidgetBase::SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role)
-{ToolWorkspace=Owner;ToolRole=Role;}
+{ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();}
 FVirtualSensorPanelUiState UVirtualSensorPanelWidgetBase::CaptureWorkspaceLayout() const
 {
 	FVirtualSensorPanelUiState S;S.bHasSavedPosition=true;S.bHasSavedSize=true;S.bCollapsed=bPanelCollapsed;S.ExpandedSize=DesiredPanelSize;
@@ -594,15 +632,15 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FT
 	{
 		return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolHeaderColor()).Padding(0)
 		[SNew(SHorizontalBox)
-		 +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Bold",FMath::RoundToInt(18*GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(Title).ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절")))]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text_Lambda([this](){return FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기"));}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("숨김"))).ToolTipText(FText::FromString(TEXT("패널만 숨깁니다. 측정·송신·재생은 계속됩니다."))).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
+		 +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Bold",FMath::RoundToInt(FSensorOwnedPresentationStyle::TitleSize*GetSensorToolVisualScale()));}).ColorAndOpacity(GetToolTextColor()).Text(Title).ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
+		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("–"))).ToolTipText(FText::FromString(TEXT("접기 / 펼치기"))).OnClicked_Lambda([this](){if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid())ToolWorkspace->CollapseSidebar();else TogglePanelCollapsed();return FReply::Handled();})]
+		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×"))).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
+		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;}).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false)
 		  .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
 		  .OnGetMenuContent_Lambda([this](){return SNew(SButton).ButtonStyle(&GetToolButtonStyle())
 		   .OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
 		   [SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))];})
-		  .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolMutedColor()).Text(NSLOCTEXT("SensorToolPanel","More","더보기"))]]
+		  .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolMutedColor()).Text(NSLOCTEXT("SensorToolPanel","MoreIconAscii","..."))]]
 		];
 	}
 	return SNew(SHorizontalBox)

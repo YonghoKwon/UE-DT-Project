@@ -8,7 +8,7 @@
 #include "VirtualLidarVisualizationComponent.h"
 #include "VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 
 AVirtualLidarSensorActor::AVirtualLidarSensorActor()
 {

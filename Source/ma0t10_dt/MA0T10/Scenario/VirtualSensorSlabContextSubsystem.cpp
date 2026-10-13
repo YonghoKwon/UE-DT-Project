@@ -1,10 +1,10 @@
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "EngineUtils.h"
-#include "VirtualSensorStreamPublisherComponent.h"
-#include "VirtualSensorHighThroughputTransportSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "SlabRunResultsSubsystem.h"
 #include "JsonObjectConverter.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
@@ -24,20 +24,13 @@ FString SlabOutputStateMessage(const FVirtualSlabSensorOutputSelection& Outputs,
 }
 }
 
-TMap<FString,FString> FVirtualSlabFrameContext::ToHeaders() const
-{
-	TMap<FString,FString> Result;
-	if (!bEligible) return Result;
-	Result.Add(TEXT("x-run-uuid"), RunId);
-	if (!ScenarioUUID.IsEmpty()) Result.Add(TEXT("x-scenario-uuid"),ScenarioUUID);
-	Result.Add(TEXT("x-mtl-no"), MtlNo);
-	Result.Add(TEXT("x-slab-frame-no"), LexToString(SlabFrameNo));
-	Result.Add(TEXT("x-slab-elapsed-sec"), FString::Printf(TEXT("%.6f"), ElapsedSec));
-	Result.Add(TEXT("x-session-segment"), LexToString(Segment));
-	return Result;
-}
 void UVirtualSensorSlabContextSubsystem::Initialize(FSubsystemCollectionBase& Collection)
-{Super::Initialize(Collection);Collection.InitializeDependency<USlabRunResultsSubsystem>();}
+{
+    Super::Initialize(Collection);
+    Collection.InitializeDependency<USlabRunResultsSubsystem>();
+    const bool bRegistered = FVirtualSensorAcquisitionContextProviders::Register(GetWorld(), this, this);
+    checkf(bRegistered, TEXT("A world must have exactly one acquisition context provider."));
+}
 bool UVirtualSensorSlabContextSubsystem::CheckRun(const FString& Id)
 {
 	if (!IsInGameThread() || Id.IsEmpty() || Id != Status.RunId) { Status.Message=TEXT("실행 UUID가 일치하지 않습니다."); return false; }
@@ -488,5 +481,6 @@ void UVirtualSensorSlabContextSubsystem::Deinitialize()
 			for(const auto& Pair:Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
 		if(GetWorld()) if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
 	}
+    FVirtualSensorAcquisitionContextProviders::Unregister(GetWorld(), this);
 	PendingKeys.Reset();CompatibilityDerivations.Reset(); Targets.Reset(); ControlledIds.Reset(); Super::Deinitialize();
 }

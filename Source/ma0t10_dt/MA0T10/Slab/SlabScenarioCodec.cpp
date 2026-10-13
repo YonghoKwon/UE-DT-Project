@@ -78,9 +78,11 @@ bool FSlabScenarioCodec::Parse(const FString& Json,FSlabScenarioDataPtr& Out,FSt
 			!Number(O,TEXT("slab_len"),R.Length,Error)||!Number(O,TEXT("slab_wt"),R.Weight,Error)||
 			!Number(O,TEXT("left_skew_angle"),R.LeftAngle,Error)||!Number(O,TEXT("right_skew_angle"),R.RightAngle,Error)||
 			!Number(O,TEXT("center_x"),R.CenterX,Error)||!Number(O,TEXT("elapsed_sec"),R.ElapsedSec,Error)) return false;
-		if(O->HasField(TEXT("center_y"))&&!Number(O,TEXT("center_y"),R.CenterY,Error)) return false;
+		R.bHasCenterY=O->HasField(TEXT("center_y"));
+		if(R.bHasCenterY&&!Number(O,TEXT("center_y"),R.CenterY,Error)) return false;
 		if(O->HasField(TEXT("mov_pos"))&&!Number(O,TEXT("mov_pos"),R.MovePosition,Error)) return false;
-		if(O->HasField(TEXT("is_meandering"))&&!O->TryGetBoolField(TEXT("is_meandering"),R.bMeandering)) { Error=TEXT("is_meandering은 bool이어야 합니다."); return false; }
+		R.bHasMeandering=O->HasField(TEXT("is_meandering"));
+		if(R.bHasMeandering&&!O->TryGetBoolField(TEXT("is_meandering"),R.bMeandering)) { Error=TEXT("is_meandering은 bool이어야 합니다."); return false; }
 		if(R.Thickness<=0||R.Width<=0||R.Length<=0||R.Weight<0||R.ElapsedSec<0||R.ElapsedSec>86400||FMath::Abs(R.LeftAngle)>180||FMath::Abs(R.RightAngle)>180)
 		{ Error=TEXT("치수·무게·시각·각도의 허용 범위를 확인하세요."); return false; }
 		if(!Data->Rows.IsEmpty())

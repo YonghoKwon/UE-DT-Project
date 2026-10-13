@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Components/ActorComponent.h"
 #include "VirtualSensorTransportComponent.generated.h"
 
@@ -25,13 +26,13 @@ struct MA0T10_DT_API FVirtualSensorTransportProfile
 	FString BrokerUrl = TEXT("ws://127.0.0.1:61616");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
-	FString CameraTopic = TEXT("topic.virtual.sensor.camera.0");
+	FString CameraTopic = VirtualSensorDefaults::CameraTopic;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
-	FString LidarTopic = TEXT("topic.virtual.sensor.lidar.0");
+	FString LidarTopic = VirtualSensorDefaults::LidarTopic;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
-	FString ExportTopic = TEXT("topic.virtual.sensor.export.0");
+	FString ExportTopic = VirtualSensorDefaults::PointCloudTopic;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
 	FString AckTopic;
@@ -185,7 +186,7 @@ public:
     FString HttpEndpoint;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
-    FString SaveSubDirectory = TEXT("SensorCaptures");
+    FString SaveSubDirectory = VirtualSensorDefaults::CaptureDirectory;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorTransport")
     int32 HttpTimeoutSeconds = 30;

@@ -16,6 +16,7 @@ class UVirtualSensorMonitorPanelWidget;
 class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorStreamPublisherComponent;
+class IVirtualSensorMonitorView;
 
 UENUM(BlueprintType)
 enum class EVirtualSensorViewMode : uint8
@@ -269,6 +270,7 @@ public:
 
 private:
     UFUNCTION() void HandleSensorEndPlay(AActor* Actor,EEndPlayReason::Type Reason);
+    void HandleSensorActivated(AVirtualSensorActorBase* Actor) { SelectSensorActor(Actor); }
     void ApplyWidgetBinding();
     void RunSynchronizedCapture();
     void AssignSharedServicesIfPossible(UActorComponent* SensorComp);
@@ -277,6 +279,8 @@ private:
     bool ShouldKeepActorVisibleInPointCloudOnly(const AActor* Actor) const;
 
 private:
+    IVirtualSensorMonitorView* GetMonitorView() const;
+
     UPROPERTY(Transient)
     TArray<TObjectPtr<UVirtualCameraCaptureComponent>> Cameras;
 

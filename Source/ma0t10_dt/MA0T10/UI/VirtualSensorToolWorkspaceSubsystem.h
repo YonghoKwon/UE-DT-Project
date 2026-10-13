@@ -8,7 +8,10 @@ class UVirtualSensorPanelWidgetBase;
 class UUserWidget;
 class UCanvasPanel;
 class AVirtualSensorCoordinator;
+class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
+class USensorPlacementInteraction;
+class USensorMapCheckWidget;
 
 UENUM(BlueprintType)
 enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress, Placement };
@@ -47,11 +50,16 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") float GetOwnedPanelFontScale() const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") bool IsPanelOpen(ESensorToolPanelRole Role) const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") UVirtualSensorPanelWidgetBase* GetOwnedPanel(ESensorToolPanelRole Role) const;
+	/** Prepare the existing replay owner without opening its window or changing output options. */
+	bool EnsureOwnedReplayPanel();
+	bool OpenMapCheck();
+	USensorMapCheckWidget* GetMapCheckWidget() const { return MapCheckWidget; }
 	void SetCoordinator(AVirtualSensorCoordinator* InCoordinator);
 	bool RegisterPlacementHost(AVirtualSensorUiHostActor* Host);
 	void UnregisterPlacementHost(AVirtualSensorUiHostActor* Host);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") FString GetPanelOpenMessage() const {return PanelOpenMessage;}
 	AVirtualSensorCoordinator* GetCoordinator() const;
+	USensorPlacementInteraction* GetPlacementInteraction();
 	void AttachOwnedPanel(UVirtualSensorPanelWidgetBase* Panel);
 	void SavePanel(ESensorToolPanelRole Role);
 	void RestorePanel(ESensorToolPanelRole Role);
@@ -60,25 +68,47 @@ public:
 	/** Startup layout must use the actually arranged owned Canvas, never a provisional viewport. */
 	bool IsOwnedPanelLayoutReady(ESensorToolPanelRole Role) const;
 	bool OwnsToolbar(const UUserWidget* Widget) const { return Toolbar==Widget; }
+	UUserWidget* GetOwnedNavigation() const { return Toolbar; }
 	float GetToolbarReservedTop() const { return ToolbarReservedTop; }
 	static float CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight);
 	static const FString SlotName;
+	bool IsSidebarMode() const { return bSidebarMode; }
+	void SetSidebarMode(bool bEnabled);
+	void CollapseSidebar();
+	ESensorToolPanelRole GetSidebarRole() const { return SidebarRole; }
+	bool IsSidebarExpanded() const { return bSidebarExpanded; }
+	float GetSidebarWidth() const;
+	float GetOwnedPixelScale() const;
+	void RefreshDockedLayout();
 private:
+	float MeasureOwnedPixelScale() const;
+	bool bSidebarMode=true,bSidebarExpanded=true;
+	ESensorToolPanelRole SidebarRole=ESensorToolPanelRole::Placement;
+	TSet<ESensorToolPanelRole> SidebarOpen={ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement};
+	void RefreshOwnedPickMarkers();
+	TArray<TWeakObjectPtr<AVirtualSensorActorBase>> OwnedPickTargets;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabWorkspaceDeferredLayoutTest;
 	friend class FSensorWorkspacePlacementEntryTest;
+	friend class FSensorWorkflowToolbarTest;
+	friend class FSensorVocabularyTest;
+	friend class FSensorWorkflowStatusTest;
+	friend class FSidebarOwnershipTest;
 #endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;
 	UPROPERTY(Transient) TMap<ESensorToolPanelRole,TObjectPtr<UVirtualSensorPanelWidgetBase>> Panels;
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Root;
 	UPROPERTY(Transient) TObjectPtr<UCanvasPanel> Canvas;
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Toolbar;
+	UPROPERTY(Transient) TObjectPtr<USensorMapCheckWidget> MapCheckWidget;
+	UPROPERTY(Transient) TObjectPtr<USensorPlacementInteraction> PlacementInteraction;
 	TWeakObjectPtr<UCanvasPanel> MainCanvas;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
 	TWeakObjectPtr<AVirtualSensorUiHostActor> PlacementHost;
 	FString PanelOpenMessage;
 	FVector2D LastCanvasSize=FVector2D::ZeroVector;
 	float PollTime=0;
+	float LastOwnedPixelScale=0;
 	float ToolbarReservedTop=64;
 	int32 Front=10;
 	bool bApplying=false;

@@ -1,0 +1,17 @@
+SEND
+destination-type:MULTICAST
+content-type:application/vnd.pcd
+persistent:true
+schema:virtual-pointcloud.pcd.v1
+x-sensor-id:sensor-fixed-007
+x-sensor-type:lidar
+x-data-kind:pointcloud-stream
+x-frame-id:9007199254740993
+x-request-id:fixed-request
+x-utc:1791766923456
+x-point-count:2
+x-source-point-count:2
+x-filter-revision:17
+x-acquisition-profile:fixed-profile
+x-checksum-sha1:37f12f03c3b5c3ae0e728831c249947e1f836902
+

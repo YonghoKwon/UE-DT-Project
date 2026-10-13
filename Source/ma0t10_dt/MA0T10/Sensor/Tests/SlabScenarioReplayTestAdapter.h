@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
 #include "SlabScenarioReplayTestAdapter.generated.h"
 /** Test-only adapter. Production projects supply their own playback implementation. */
 UCLASS(NotPlaceable,Transient)

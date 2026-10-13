@@ -491,12 +491,19 @@ void AVirtualSensorTransformGizmoActor::UpdateGizmoTransformAndScale()
             Distance = FVector::Distance(ViewLocation, TargetTransform.GetLocation());
         }
     }
-    const float NewScale = FMath::Clamp(Distance / 900.0f, 0.55f, 2.5f);
-    if (!FMath::IsNearlyEqual(NewScale, CurrentVisualScale, 0.02f))
+    const float NewScale = CalculateVisualScale(Distance);
+    if (!FMath::IsNearlyEqual(NewScale, CurrentVisualScale, FMath::Max(0.0001f, NewScale * 0.02f)))
     {
         CurrentVisualScale = NewScale;
         UpdateCollisionHandles(CurrentVisualScale);
     }
+}
+
+float AVirtualSensorTransformGizmoActor::CalculateVisualScale(float DistanceCm)
+{
+    // Runtime equipment is placed at the observer. A 0.55 floor enlarged nearby
+    // handles across the viewport; retain distance scaling below the old floor.
+    return FMath::Clamp(DistanceCm / 900.0f, 0.005f, 2.5f);
 }
 
 void AVirtualSensorTransformGizmoActor::UpdateCollisionHandles(float Scale)

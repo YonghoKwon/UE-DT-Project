@@ -32,6 +32,7 @@ public:
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
 	bool NeedsCompatibilityLidarOutput(const FString& SensorId) const;
     bool NeedsCompatibilityLidarOutput(const FString& SensorId,const FVirtualSlabFrameContext& Context) const;
+    bool NeedsCompatibilityLidarOutputForContext(const FString& SensorId,const FVirtualSensorAcquisitionContext& Context) const;
 	void PumpPublisherOnce(double NowSeconds);
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */
@@ -39,6 +40,14 @@ public:
 	void GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;
 	int64 GetFailedSlabRunCount(const FString& RunId) const;
 	void RefreshSessionOutputDemand() { UpdateCameraStreamDemand(); }
+	static bool SerializePointCloudFrame(
+		const FVirtualSensorFrameEnvelope& Frame,
+		const FVirtualSensorStreamConfig& Config,
+		FString& OutExtension,
+		TArray<uint8>& OutBytes,
+		int32& OutPointCount,
+		FString& OutError);
+#if WITH_DEV_AUTOMATION_TESTS
 	static bool SerializePointCloudForTesting(
 		const FVirtualSensorFrameEnvelope& Frame,
 		const FVirtualSensorStreamConfig& Config,
@@ -46,6 +55,7 @@ public:
 		TArray<uint8>& OutBytes,
 		int32& OutPointCount,
 		FString& OutError);
+#endif
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void ConfigureStream(const FVirtualSensorStreamConfig& Config);
@@ -106,11 +116,14 @@ public:
 	TObjectPtr<UVirtualSensorTransportComponent> TransportComponent;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FArchitectureWireGoldenTest;
+#endif
 	friend class FSensorPlacementGateTest;
     friend class FWildcardSequenceTest;
 	struct FPreparedMessage
 	{
-		FVirtualSlabFrameContext SlabContext;
+		FVirtualSensorAcquisitionContext SlabContext;
 		FString SensorId;
 		EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 		int64 FrameId = 0;
@@ -144,7 +157,7 @@ private:
 		double LastLazSubmitSeconds = -DBL_MAX;
 		double NextSubmitAttemptSeconds = 0.0;
 		bool bSerializationInFlight = false;
-		FVirtualSlabFrameContext LastInputSlabContext;
+		FVirtualSensorAcquisitionContext LastInputSlabContext;
 		FString SerializationRunId;
 		FString SerializationSensorId;
 		int64 SerializationFrameId=0;

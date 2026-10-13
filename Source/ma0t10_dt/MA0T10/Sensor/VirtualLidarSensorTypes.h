@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSlabContextCompatibility.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "VirtualLidarSensorTypes.generated.h"
 
@@ -551,7 +551,7 @@ struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFr
 {
     double AcquisitionStartedMonotonic=0;
     int32 PipelineGeneration=0;
-	FVirtualSlabFrameContext SlabContext;
+	FVirtualSensorAcquisitionContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
 	int32 HorizontalSamples = 1;

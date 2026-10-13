@@ -1,6 +1,6 @@
 #include "SlabScenarioReplayTestAdapter.h"
 #include "VirtualSlabSensorTestDriver.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayUiHostActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"

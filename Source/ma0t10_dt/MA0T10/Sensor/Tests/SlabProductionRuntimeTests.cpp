@@ -7,8 +7,8 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Engine.h"
@@ -21,9 +21,9 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
 #include "FinalAcceptanceTestSession.h"
 #include "PcdDemandAcceptanceFixture.h"
@@ -333,7 +333,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabProductionRuntimeTest,"MA0T10.SlabScenario
 bool FSlabProductionRuntimeTest::RunTest(const FString&)
 {
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_RHI"))!=TEXT("1"))
-    {AddInfo(TEXT("Skipped opt-in actual RHI/Artemis test; set MA0T10_SLAB_RHI=1 with local broker."));return true;}
+    {AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SLAB_RHI unset or !=1; Skipped opt-in actual RHI/Artemis test; set MA0T10_SLAB_RHI=1 with local broker."));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_EXACT_VIEWPORT"))==TEXT("1")){ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());}
     else {ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));}
@@ -342,7 +342,7 @@ bool FSlabProductionRuntimeTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRepeatedRuntimeTest,"MA0T10.SlabReliability.RepeatedRuntime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabRepeatedRuntimeTest::RunTest(const FString&)
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REPEAT_RHI"))!=TEXT("1")){AddInfo(TEXT("Skipped opt-in same-worker thirty-second repeated-run test."));return true;}
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REPEAT_RHI"))!=TEXT("1")){AddInfo(TEXT("[OPT-IN SKIP] MA0T10_SLAB_REPEAT_RHI unset or !=1; Skipped opt-in same-worker thirty-second repeated-run test."));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     auto Witness=MakeShared<FSlabWorldResourceWitness>();
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FSlabProductionRuntimeCheck(this,Witness));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

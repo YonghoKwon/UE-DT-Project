@@ -6,7 +6,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 
 AVirtualCameraSensorActor::AVirtualCameraSensorActor()
 {

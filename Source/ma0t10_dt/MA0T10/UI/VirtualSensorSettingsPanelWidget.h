@@ -10,6 +10,7 @@ class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
 class AVirtualSensorTransformGizmoActor;
 class STextBlock;
+class USensorPlacementInteraction;
 
 UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPanelWidgetBase
@@ -17,6 +18,8 @@ class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPan
     GENERATED_BODY()
 
 public:
+	/** Presentation-only entry for the owned native toolbar; Designer and legacy opt out. */
+	void OpenOwnedSettingsSection(bool bAdvanced);
 	TSharedRef<SWidget> BuildWorkspacePlacementControls();
 	void RefreshWorkspacePlacementControls();
 	/** Follow the workspace selection without cycling or applying edited values. Legacy panels opt out. */
@@ -112,11 +115,29 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	USensorPlacementInteraction* OwnedInteraction() const;
+	void SynchronizeInteractionState();
+	TWeakObjectPtr<USensorPlacementInteraction> SharedInteraction;
+	friend class FSensorWorkflowToolbarTest;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorV2ManipulationLifecycleTest;
     friend class FSensorPlacementIdentityUiTest;
 #endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
+	TSharedRef<SWidget> BuildOwnedSettingsWidget();
+	void RefreshOwnedSettingsText();
+	void OpenOwnedSettingHelp(FName Key);
+	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText;
+	FText OwnedStatusText;
+	FText OwnedDebugLogText,OwnedIdentityText;
+	bool bOwnedCanEdit=false;
+	double NextOwnedSettingsRefresh=0;
+	TSharedPtr<class SScrollBox> OwnedSettingsScroll;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSensorSettingsPresentationTest;
+	friend class FSensorVocabularyTest;
+	friend class FUxrSettingsRender;
+#endif
 	bool bOwnedSettingHelpOpen=false;
 	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;

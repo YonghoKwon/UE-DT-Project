@@ -1,9 +1,11 @@
 #include "SlabScenarioReplayPanelWidget.h"
+#include "VirtualSensorCaptureExportPanelWidget.h"
+#include "SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "VirtualSensorUiStyle.h"
-#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Blueprint/WidgetTree.h"
 #include "Widgets/Layout/SBorder.h"
@@ -40,10 +42,44 @@ bool USlabScenarioReplayPanelWidget::ReplaySelected()
     }
     auto* M=Manager();return M&&M->RequestScenarioReplayWithExecutionOptions(SelectedUUID,GetReplayOutputs(),TargetSensorIds,ExecutionOptions);
 }
+FText USlabScenarioReplayPanelWidget::GetOwnedReplayOutputSummary() const
+{
+    if(!GetReplayOutputs().HasAnyOutput()&&ExecutionOptions.Policy==ESlabExecutionPolicy::ObservationAllowed)
+        return FText::Format(NSLOCTEXT("SensorToolUiText","ReplayObservationSummary","이번 재생 출력: {0}"),SensorToolUiText::ObservationOnly());
+    return FText::Format(NSLOCTEXT("SensorToolUiText","ReplayOutputSummary","이번 재생 출력: {0} · {1}"),
+        FText::FromString(SensorToolUiText::OutputSummary(bSendPcd,bSendCameraImage,bSendLidarTelemetry)),
+        ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData?SensorToolUiText::RequireConnection():SensorToolUiText::ObservationFallback());
+}
+bool USlabScenarioReplayPanelWidget::OpenOwnedReplayOutputSettings()
+{
+    auto* W=GetToolWorkspace();auto* Data=W?Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data)):nullptr;
+    if(!Data)return false;
+    W->SetPanelOpen(ESensorToolPanelRole::Data,true);W->BringOwnedPanelToFront(ESensorToolPanelRole::Data);
+    Data->OpenOwnedReplayOutputSettings();return true;
+}
 void USlabScenarioReplayPanelWidget::NativeTick(const FGeometry& G,float D)
 {
-    Super::NativeTick(G,D);if(!IsWorkspaceOwned()||!IsVisible()||IsPanelCollapsed()||FPlatformTime::Seconds()<NextPreflight)return;
-    NextPreflight=FPlatformTime::Seconds()+.2;CachedPreflight=GetReplayOutputs().HasAnyOutput()?UVirtualSensorOutputPreflight::InspectForPurpose(this,GetReplayOutputs(),TargetSensorIds,EVirtualSensorPreflightPurpose::ScenarioTransition).Summary:TEXT("관찰 전용 · Topic 송신 없음");
+    Super::NativeTick(G,D);
+    if(!IsWorkspaceOwned()||!IsVisible()||IsPanelCollapsed()||FPlatformTime::Seconds()<NextPreflight)return;
+    NextPreflight=FPlatformTime::Seconds()+.2;
+    const int32 State=(bSendPcd?1:0)|(bSendCameraImage?2:0)|(bSendLidarTelemetry?4:0)|(ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData?8:0);
+    if(State!=CachedOwnedOutputState){CachedOwnedOutputState=State;CachedOwnedOutputSummary=GetOwnedReplayOutputSummary();}
+    if(UsesSimplifiedNativeLayout())if(auto* M=Manager())
+    {
+        OwnedRegistrationText=SensorToolUiText::UserReason(M->GetRegistrationMessage());
+        OwnedActionText=SensorToolUiText::UserReason(ActionMessage);
+        const auto Status=M->GetReplayStatus();
+        OwnedReplayStatusText=Status.Message.IsEmpty()?(M->CanReplay()?TEXT("보관 목록에서 선택해 재생하세요"):TEXT("현재 실행이 끝난 뒤 재생할 수 있습니다")):SensorToolUiText::UserReason(Status.Message);
+        OwnedRegistrationLabel=FText::FromString(OwnedRegistrationText);OwnedActionLabel=FText::FromString(OwnedActionText);OwnedReplayStatusLabel=FText::FromString(OwnedReplayStatusText);
+        if(bOwnedDetailExpanded)
+        {
+            OwnedSelectedDetail=TEXT("항목을 선택하세요");
+            for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)
+                OwnedSelectedDetail=FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec);
+            OwnedSelectedDetailLabel=FText::FromString(OwnedSelectedDetail);
+        }
+        if(bOwnedListDirty)RefreshList();
+    }
 }
 void USlabScenarioReplayPanelWidget::SetReplayOutputs(const FVirtualSlabSensorOutputSelection& Outputs)
 { bSendPcd=Outputs.bPointCloud; bSendCameraImage=Outputs.bCameraImage; bSendLidarTelemetry=Outputs.bLidarTelemetry; }
@@ -75,8 +111,8 @@ bool USlabScenarioReplayPanelWidget::ConfirmScenarioDeletion()
 void USlabScenarioReplayPanelWidget::CancelScenarioDeletion() { PendingDeleteUUID.Reset(); ActionMessage=TEXT("삭제를 취소했습니다."); }
 FSlateFontInfo USlabScenarioReplayPanelWidget::GetListFont(bool Secondary) const
 {
-	const int32 Base=IsWorkspaceOwned()?(Secondary?14:16):10;
-	return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(Base,IsWorkspaceOwned()?GetSensorToolFontScale():1.0f));
+	const int32 Base=IsWorkspaceOwned()?(Secondary?12:13):10;
+	return FCoreStyle::GetDefaultFontStyle("Regular",FMath::Max(8,FMath::RoundToInt(Base*(IsWorkspaceOwned()?GetSensorToolVisualScale():1.0f))));
 }
 bool USlabScenarioReplayPanelWidget::IsDeletionAllowed(const FString& UUID) const
 { FString Reason; auto* M=Manager(); return M&&M->CanDeleteScenario(UUID,Reason); }
@@ -112,6 +148,12 @@ void USlabScenarioReplayPanelWidget::RefreshList()
 	SelectedUUID=ResolveStableSelection(PreviousListIds,CurrentIds,SelectedUUID);
 	if(!Entries.ContainsByPredicate([&](const auto& E){return E.UUID==PendingDeleteUUID;})) PendingDeleteUUID.Reset();
 	PreviousListIds=MoveTemp(CurrentIds);
+	if(UsesSimplifiedNativeLayout())
+	{
+		const double Now=FPlatformTime::Seconds();
+		if(!IsVisible()||IsPanelCollapsed()||Now<NextOwnedListRefresh){bOwnedListDirty=true;return;}
+		NextOwnedListRefresh=Now+.2;bOwnedListDirty=false;
+	}
 	if(!List.IsValid()) return; List->ClearChildren();
 	if(Entries.IsEmpty()) List->AddSlot().AutoHeight().Padding(4)[SNew(STextBlock).Font_Lambda([this](){return GetListFont();}).ColorAndOpacity_Lambda([this](){return GetToolMutedColor();}).AutoWrapText(true).Text(LOCTEXT("Empty","보관된 시나리오가 없습니다. 시나리오 전문을 수신하면 목록에 표시됩니다."))];
 	for(const auto& E:Entries)
@@ -153,25 +195,37 @@ TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
     if(WidgetTree&&WidgetTree->RootWidget)return Super::RebuildWidget();
     auto Result=SNew(SBorder).BorderImage_Lambda([this](){return GetToolPanelBrush();}).BorderBackgroundColor_Lambda([this](){return GetToolPanelColor();}).ForegroundColor_Lambda([this](){return GetToolTextColor();}).Padding(12)
     [SNew(SVerticalBox)
-     +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("ReplayTitle","시나리오"))]
-     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity_Lambda([this](){return GetToolAccentColor();}).Text_Lambda([this](){auto* M=Manager();return FText::FromString(M?M->GetRegistrationMessage():TEXT("연결 대기"));})]
-     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return ActionMessage.IsEmpty()?EVisibility::Collapsed:GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(ActionMessage);})]
+     +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(IsWorkspaceOwned()?SensorToolUiText::ArchiveList():LOCTEXT("ReplayTitle","시나리오"))]
+     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return GetToolWorkspace()&&GetToolWorkspace()->IsSidebarMode()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("ReturnProgress","시나리오 진행 →")).OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace())W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);return FReply::Handled();})]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity_Lambda([this](){return GetToolAccentColor();}).Text_Lambda([this](){if(UsesSimplifiedNativeLayout())return OwnedRegistrationLabel;auto* M=Manager();return FText::FromString(M?M->GetRegistrationMessage():TEXT("연결 대기"));})]
+     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return ActionMessage.IsEmpty()?EVisibility::Collapsed:GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){return UsesSimplifiedNativeLayout()?OwnedActionLabel:FText::FromString(ActionMessage);})]
      +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[SAssignNew(List,SVerticalBox)]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)
      [SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+      .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedDetailExpanded=Open;NextPreflight=0;})
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details","선택 항목 상세"))]
-      .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
+      .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){if(UsesSimplifiedNativeLayout())return OwnedSelectedDetailLabel;auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
+     +SVerticalBox::Slot().AutoHeight()[BuildOutputControls()]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
+     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){if(UsesSimplifiedNativeLayout())return OwnedReplayStatusLabel;auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?(M->CanReplay()?TEXT("재생 준비됨 · 보관 시나리오를 선택하세요."):TEXT("현재 실행 종료와 재생 adapter 연결을 확인하세요.")):S.Message);})]
+    ]; RefreshList();return Result;
+}
+TSharedRef<SWidget> USlabScenarioReplayPanelWidget::BuildOutputControls()
+{
+    if(IsWorkspaceOwned())
+    {
+        CachedOwnedOutputSummary=GetOwnedReplayOutputSummary();CachedOwnedOutputState=-1;
+        return SNew(SVerticalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+            +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return CachedOwnedOutputSummary;})]
+            +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton).Text(SensorToolUiText::ChangeInTransfer()).OnClicked_Lambda([this](){OpenOwnedReplayOutputSettings();return FReply::Handled();})];
+    }
+    return SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).IsChecked_Lambda([this](){return bSendPcd?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){bSendPcd=S==ECheckBoxState::Checked;})[SNewSensorTool(STextBlock).Text(LOCTEXT("Send","재생 중 PCD 송신")).ToolTipText(LOCTEXT("SendTip","다음 재생부터 적용됩니다. 기본은 관찰 전용입니다."))]]
      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
       .IsChecked_Lambda([this](){return ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
       .OnCheckStateChanged_Lambda([this](ECheckBoxState S){ExecutionOptions.Policy=S==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;})
       [SNewSensorTool(STextBlock).Text(LOCTEXT("RequireData","데이터 필수 실행 · 연결 준비 후 시작"))]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,UsesSimplifiedNativeLayout()?4.0f:0.0f)[BuildAdditionalOutputOptions(UsesSimplifiedNativeLayout())]
-     +SVerticalBox::Slot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return IsWorkspaceOwned()?GetPanelBodyVisibility():EVisibility::Collapsed;})
-      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Preflight","PCD 사전 점검"))]
-      .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(CachedPreflight);})]]
-     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
-     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?(M->CanReplay()?TEXT("재생 준비됨 · 보관 시나리오를 선택하세요."):TEXT("현재 실행 종료와 재생 adapter 연결을 확인하세요.")):S.Message);})]
-    ]; RefreshList();return Result;
+;
 }
 #undef LOCTEXT_NAMESPACE

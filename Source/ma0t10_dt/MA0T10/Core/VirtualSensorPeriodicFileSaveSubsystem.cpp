@@ -1,4 +1,5 @@
 #include "VirtualSensorPeriodicFileSaveSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "Engine/World.h"
@@ -69,7 +70,7 @@ FString UVirtualSensorPeriodicFileSaveSubsystem::StartPeriodicSave(AVirtualSenso
 	Session->Sensor=Sensor;Session->Revision=UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(Sensor);Session->Origin=FPlatformTime::Seconds();
 	const FDateTime Now=FDateTime::UtcNow();
 	const FString Folder=FString::Printf(TEXT("%s_%03d_%s"),*Now.ToString(TEXT("%Y%m%dT%H%M%SZ")),Now.GetMillisecond(),*S.SessionId.Left(8));
-	S.Folder=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("SensorCaptures/LocalTimedCapture")/Folder);
+	S.Folder=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/VirtualSensorDefaults::TimedCaptureDirectory/Folder);
 	S.bActive=true;S.LastMessage=TEXT("주기 저장 시작 · 완료된 최신 프레임만 저장합니다. 센서 측정을 추가하지 않습니다.");
 	Publish(Session);TrimHistory();return S.SessionId;
 }

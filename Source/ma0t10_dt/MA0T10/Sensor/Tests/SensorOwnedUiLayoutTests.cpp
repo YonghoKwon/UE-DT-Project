@@ -2,7 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "SensorWorkspaceForeignFixture.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
@@ -14,8 +14,8 @@ bool FSensorOwnedUiLayoutTest::RunTest(const FString&)
 	TestEqual(TEXT("one toolbar row reserves measured height plus margins"),UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(48,720),64.0f);
 	TestEqual(TEXT("wrapped toolbar reserves two rows"),UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(96,720),112.0f);
 	TestTrue(TEXT("tiny view keeps room for panel bodies"),UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(500,300)<150);
-	TestEqual(TEXT("capture enum maps to file tab"),UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Capture),1);
-	TestEqual(TEXT("export enum maps to same file tab"),UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Export),1);
+	TestEqual(TEXT("capture enum maps to file tab"),UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Capture),2);
+	TestEqual(TEXT("export enum maps to same file tab"),UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Export),2);
 	TestEqual(TEXT("connection ordinal stays compatible"),static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog),uint8(3));
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
 	auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);auto* ForeignToolbar=NewObject<USensorToolToolbarWidget>(World);
