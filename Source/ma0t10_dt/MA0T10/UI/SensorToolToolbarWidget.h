@@ -28,6 +28,7 @@ public:
 	bool OpenOwnedDestination(ESensorToolDestination Destination);
 	bool ToggleOwnedDestination(ESensorToolDestination Destination);
 	bool IsOwnedDestinationVisible(ESensorToolDestination Destination) const;
+	bool ShowOwnedToolsMenu();
 	const FSensorToolGlobalStatus& GetGlobalStatus() const { return GlobalStatus; }
 	float GetFloatingToolbarHeight() const;
 	TSharedPtr<SWidget> GetSlabSummaryCard() const { return SlabSummaryCard; }

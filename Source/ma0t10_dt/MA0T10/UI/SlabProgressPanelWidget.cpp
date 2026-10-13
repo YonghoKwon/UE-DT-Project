@@ -239,7 +239,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 			  .OnValueChanged_Lambda([this,Text](float V){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();if(Text)S.TextHeightPixels=V;else S.LineWidthPixels=V;Slab->SetAnalysisDisplaySettings(S);}})]];
 		}
 		Display->AddSlot()[SNewSensorTool(SButton).Text(LOCTEXT("ReadableReset","가독성 초기화")).OnClicked_Lambda([this](){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();S.LineWidthPixels=4;S.TextHeightPixels=28;Slab->SetAnalysisDisplaySettings(S);}return FReply::Handled();})];
-		return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
+		return BuildToolPanelFrame(SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
 		[SNew(SVerticalBox)
 		 + SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(SensorToolUiText::ScenarioProgress())]
 		 + SVerticalBox::Slot().FillHeight(1)[SNew(SVerticalBox).Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
@@ -268,7 +268,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		         ]]
 		     ]]
 		 ]
-		];
+		]);
 	}
 	return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
 	[SNew(SVerticalBox)

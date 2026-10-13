@@ -27,6 +27,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "SensorOwnedPresentationStyle.h"
+#include "SensorToolUiText.h"
 
 const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=VirtualSensorDefaults::WorkspaceSlot;
 float UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(float DesiredHeight,float ViewportHeight)
@@ -66,6 +67,11 @@ void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& 
 	if(!FMath::IsFinite(Preferences->FontScale))Preferences->FontScale=1;
 	Preferences->FontScale=FMath::Clamp(Preferences->FontScale,.85f,1.5f);
 	SidebarOpen.Reset();const auto* Monitor=Preferences->Panels.Find(ESensorToolPanelRole::Monitor);if(!Monitor||Monitor->bOpen)SidebarOpen.Add(ESensorToolPanelRole::Monitor);
+	for(const auto Role:{ESensorToolPanelRole::Settings,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts})
+	{
+		FPanelBackTarget Target;Target.Role=Role==ESensorToolPanelRole::Settings?ESensorToolPanelRole::Placement:ESensorToolPanelRole::SlabProgress;
+		Target.Label=Role==ESensorToolPanelRole::Settings?SensorToolUiText::BackPlacement():SensorToolUiText::BackProgress();PanelBackTargets.Add(Role,Target);
+	}
 	bSidebarExpanded=false;
 	for(const auto R:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::Replay,ESensorToolPanelRole::Data,ESensorToolPanelRole::Settings,ESensorToolPanelRole::SlabCharts})
 	{const auto* S=Preferences->Panels.Find(R);if(S?S->bOpen:R==ESensorToolPanelRole::Placement){SidebarRole=R;SidebarOpen.Add(R);bSidebarExpanded=true;break;}}
@@ -197,13 +203,28 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 		if(Open&&R!=ESensorToolPanelRole::Monitor)
 		{
 			const auto Previous=SidebarRole;
+			if(!bNavigatingBack&&bSidebarExpanded&&Previous!=R)
+			{
+				if(R==ESensorToolPanelRole::Settings||R==ESensorToolPanelRole::Data||R==ESensorToolPanelRole::Replay||R==ESensorToolPanelRole::SlabCharts)
+				{
+					FPanelBackTarget Target;Target.Role=Previous;
+					if(const auto* Parent=PanelBackTargets.Find(Previous))if(Parent->Depth<7){Target.ParentBack=MakeShared<FPanelBackTarget>(*Parent);Target.Depth=Parent->Depth+1;}
+					const FText Parent=Previous==ESensorToolPanelRole::Placement?SensorToolUiText::Placement():
+						Previous==ESensorToolPanelRole::Settings?SensorToolUiText::SensorSettings():
+						Previous==ESensorToolPanelRole::Replay?SensorToolUiText::ArchiveList():
+						Previous==ESensorToolPanelRole::SlabCharts?SensorToolUiText::ScenarioCharts():
+						Previous==ESensorToolPanelRole::Data?SensorToolUiText::Data():SensorToolUiText::ScenarioProgress();
+					Target.Label=FText::Format(NSLOCTEXT("SensorNavigation","BackParent","← {0}"),Parent);PanelBackTargets.Add(R,Target);
+				}
+				if(auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(Native))Data->ClearOwnedTabHistory();
+			}
 			if(bSidebarExpanded&&Previous!=R)SetPanelOpen(Previous,false);
 			SidebarRole=R;bSidebarExpanded=true;
 		}
 		if(Open)SidebarOpen.Add(R);else{SidebarOpen.Remove(R);if(R==SidebarRole)bSidebarExpanded=false;}
 		if(!Open){if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->SetSensorManipulationEnabled(false);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(Native))P->EndPlacement();}
 		Native->SetVisibility(Open?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
-		if(Open){if(Native->IsPanelCollapsed())Native->TogglePanelCollapsed();BringOwnedPanelToFront(R);if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->BindSensorManager(Coordinator.Get());}
+		if(Open){if(Native->IsPanelCollapsed())Native->TogglePanelCollapsed();BringOwnedPanelToFront(R);if(!bNavigatingBack)if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->BindSensorManager(Coordinator.Get());}
 		RefreshDockedLayout();return;
 	}
 	auto& State=Preferences->Panels.FindOrAdd(R);State.bOpen=Open;
@@ -262,7 +283,7 @@ void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPane
 }
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedWorkspaceLayout()
 {
-	if(!Preferences)return;Preferences->Panels.Reset();SetOwnedPanelFontScale(1);
+	if(!Preferences)return;bSidebarWide=false;Preferences->Panels.Reset();SetOwnedPanelFontScale(1);
 	for(int32 I=0;I<7;++I){auto R=static_cast<ESensorToolPanelRole>(I);ResetOwnedPanelLayout(R);SetPanelOpen(R,R==ESensorToolPanelRole::Monitor||R==ESensorToolPanelRole::Placement);}Save();
 }
 void UVirtualSensorToolWorkspaceSubsystem::SetOwnedPanelFontScale(float S)

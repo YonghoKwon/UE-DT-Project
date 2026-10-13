@@ -137,6 +137,7 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 	{
 		for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();if(!IsValid(It->TargetSlab))return W->OpenMapCheck();break;}
 		W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
+		W->ClearPanelBackTarget(ESensorToolPanelRole::SlabProgress);
 		if(W->IsSidebarMode())return W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)!=nullptr;
 		W->SetPanelOpen(ESensorToolPanelRole::Replay,true);
 		for(const auto Role:{ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::Replay})
@@ -157,8 +158,21 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 			Destination==ESensorToolDestination::Results?ESensorOwnedDataTab::Results:
 			Destination==ESensorToolDestination::FileSave?ESensorOwnedDataTab::FileSave:
 			Destination==ESensorToolDestination::ServerSettings?ESensorOwnedDataTab::ServerConnection:ESensorOwnedDataTab::Diagnostics);
+		D->ClearOwnedTabHistory();
 	}
+	if(Destination==ESensorToolDestination::Placement||Destination==ESensorToolDestination::Preview||Destination==ESensorToolDestination::PcdTransfer||Destination==ESensorToolDestination::Results)W->ClearPanelBackTarget(Role);
+	else W->SetPanelBackToTools(Role);
 	return true;
+}
+
+bool USensorToolToolbarWidget::ShowOwnedToolsMenu()
+{
+	const auto* W=Workspace();const auto Slate=GetCachedWidget();
+	if(!W||!W->OwnsToolbar(this)||!W->IsSidebarMode()||!Slate)return false;
+	FSlateApplication::Get().DismissAllMenus();
+	const auto& G=GetCachedGeometry();
+	const FVector2D Position=G.LocalToAbsolute(FVector2D(FSensorOwnedPresentationStyle::RailWidth*W->GetOwnedPanelFontScale()*W->GetOwnedPixelScale(),FMath::Max(0.,G.GetLocalSize().Y-440.)));
+	return FSlateApplication::Get().PushMenu(Slate.ToSharedRef(),FWidgetPath(),BuildToolsMenu(),Position,FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu)).IsValid();
 }
 
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildToolsMenu()

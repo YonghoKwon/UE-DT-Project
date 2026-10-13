@@ -46,6 +46,11 @@ void UVirtualSensorCaptureExportPanelWidget::InitializeOwnedEntryView(EVirtualSe
 void UVirtualSensorCaptureExportPanelWidget::OpenOwnedTab(ESensorOwnedDataTab Tab)
 {
     if(!IsWorkspaceOwned()) return;
+    if(SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&!bReturningOwnedTab&&OwnedTab!=Tab)
+    {
+        if(OwnedTabHistory.Num()==5)OwnedTabHistory.RemoveAt(0);
+        OwnedTabHistory.Add(OwnedTab);
+    }
     // Persist only the original enum values. Results/diagnostics have no new saved policy.
     SetActiveTab(Tab==ESensorOwnedDataTab::Transfer?EVirtualSensorCaptureExportTab::LiveStream:
         Tab==ESensorOwnedDataTab::FileSave?EVirtualSensorCaptureExportTab::Capture:EVirtualSensorCaptureExportTab::ConnectionLog);
@@ -57,6 +62,28 @@ void UVirtualSensorCaptureExportPanelWidget::OpenOwnedTab(ESensorOwnedDataTab Ta
     if(WidgetTree&&WidgetTree->RootWidget)SetScenarioRunResultsExpanded(Tab==ESensorOwnedDataTab::Results);
     LastNativeStatusRefreshSeconds=-1;
     CachedRunResultsRevision=-1;
+}
+FText UVirtualSensorCaptureExportPanelWidget::GetPanelBackLabel() const
+{
+    if(!SupportsOwnedDocking()||!GetToolWorkspace()->IsSidebarMode()||OwnedTabHistory.IsEmpty())return Super::GetPanelBackLabel();
+    switch(OwnedTabHistory.Last())
+    {
+    case ESensorOwnedDataTab::Transfer:return SensorToolUiText::BackTransfer();
+    case ESensorOwnedDataTab::Results:return SensorToolUiText::BackResults();
+    case ESensorOwnedDataTab::FileSave:return SensorToolUiText::BackFile();
+    case ESensorOwnedDataTab::ServerConnection:return SensorToolUiText::BackServer();
+    default:return SensorToolUiText::BackDiagnostics();
+    }
+}
+bool UVirtualSensorCaptureExportPanelWidget::CanNavigatePanelBack() const
+{return SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&!OwnedTabHistory.IsEmpty()?true:Super::CanNavigatePanelBack();}
+bool UVirtualSensorCaptureExportPanelWidget::NavigatePanelBack()
+{
+    if(SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&!OwnedTabHistory.IsEmpty())
+    {
+        const auto Tab=OwnedTabHistory.Pop();TGuardValue<bool> Guard(bReturningOwnedTab,true);OpenOwnedTab(Tab);return true;
+    }
+    return Super::NavigatePanelBack();
 }
 USlabScenarioReplayPanelWidget* UVirtualSensorCaptureExportPanelWidget::ResolveOwnedReplayPanel() const
 {

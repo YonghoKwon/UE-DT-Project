@@ -31,6 +31,10 @@ public:
 	FVector2D GetPanelLayoutViewport() const { return ResolveLogicalViewportSize(); }
 	void SetWorkspacePosition(FVector2D Position) { if(IsWorkspaceOwned())SetPanelPositionInternal(Position); }
 	TSharedRef<SWidget> BuildToolPanelHeader(const FText& Title);
+	TSharedRef<SWidget> BuildToolPanelFrame(TSharedRef<SWidget> Content);
+	virtual FText GetPanelBackLabel() const;
+	virtual bool CanNavigatePanelBack() const;
+	virtual bool NavigatePanelBack();
 	FVector2D GetResolvedPanelMinimum() const;
 	const FSlateBrush* GetToolPanelBrush() const;
 	const FSlateBrush* GetToolSectionBrush() const;

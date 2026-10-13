@@ -9,7 +9,7 @@ struct FSensorOwnedPresentationStyle
 {
     static FLinearColor Color(uint8 R,uint8 G,uint8 B,uint8 A=255){return FLinearColor::FromSRGBColor(FColor(R,G,B,A));}
     // UXR-09 A: all values are sRGB design tokens, scoped to explicitly owned native UI.
-    static constexpr float RailWidth=64, SidebarWidth=372, StatusHeight=36, Gap=8;
+    static constexpr float RailWidth=64, SidebarWidth=372, WideSidebarWidth=560, StatusHeight=36, Gap=8;
     static constexpr int32 TitleSize=16, LabelSize=12, BodySize=13;
     static FLinearColor Panel(){return Color(20,23,27);}
     static FLinearColor Header(){return Panel();}

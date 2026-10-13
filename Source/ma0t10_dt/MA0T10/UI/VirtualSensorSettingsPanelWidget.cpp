@@ -658,10 +658,29 @@ FString UVirtualSensorSettingsPanelWidget::GetControlStatusText() const
 void UVirtualSensorSettingsPanelWidget::OpenOwnedSettingsSection(bool bAdvanced)
 {
     if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget)) return;
-    WorkspaceSettingsTab = bAdvanced ? 2 : 0;
+    SelectOwnedSettingsTab(bAdvanced?2:0);
     if (bAdvanced) bShowAdvanced = true;
+}
+
+void UVirtualSensorSettingsPanelWidget::SelectOwnedSettingsTab(int32 Tab)
+{
+    if(!SupportsOwnedDocking())return;
+    WorkspaceSettingsTab=FMath::Clamp(Tab,0,2);
     bOwnedSettingHelpOpen=false;NextOwnedSettingsRefresh=0;
     if(OwnedSettingsScroll)OwnedSettingsScroll->ScrollToStart();
+}
+FText UVirtualSensorSettingsPanelWidget::GetPanelBackLabel() const
+{
+    if(SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&WorkspaceSettingsTab!=0)
+        return SensorToolUiText::BackSettings();
+    return Super::GetPanelBackLabel();
+}
+bool UVirtualSensorSettingsPanelWidget::CanNavigatePanelBack() const
+{return SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&WorkspaceSettingsTab!=0?true:Super::CanNavigatePanelBack();}
+bool UVirtualSensorSettingsPanelWidget::NavigatePanelBack()
+{
+    if(SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&WorkspaceSettingsTab!=0){SelectOwnedSettingsTab(0);return true;}
+    return Super::NavigatePanelBack();
 }
 
 TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
@@ -966,7 +985,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     auto Tabs=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,4));
     const FText TabLabels[]={LOCTEXT("OwnedBasic","기본"),SensorToolUiText::Advanced(),SensorToolUiText::Compatibility()};
     for(int32 I=0;I<3;++I)Tabs->AddSlot()[SNewSensorTool(SButton).Text(TabLabels[I]).ButtonColorAndOpacity_Lambda([this,I](){return WorkspaceSettingsTab==I?FLinearColor(.35f,.70f,.85f,1):FLinearColor::White;})
-        .OnClicked_Lambda([this,I](){WorkspaceSettingsTab=I;bOwnedSettingHelpOpen=false;NextOwnedSettingsRefresh=0;if(OwnedSettingsScroll)OwnedSettingsScroll->ScrollToStart();return FReply::Handled();})];
+        .OnClicked_Lambda([this,I](){SelectOwnedSettingsTab(I);return FReply::Handled();})];
     return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(10)
       [SNew(SVerticalBox)
         +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("OwnedSettingsTitle","센서 설정"))]
