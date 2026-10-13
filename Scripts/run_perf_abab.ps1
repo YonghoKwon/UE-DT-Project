@@ -4,7 +4,7 @@ param(
     [ValidatePattern('^[12](,[12])?$')][string]$Pairs = '1',
     [ValidateSet('Visible', 'Offscreen', 'Both')][string]$Display = 'Visible',
     [ValidateRange(1, 10)][int]$Blocks = 3,
-    [ValidateRange(10, 600)][int]$MeasurementSeconds = 60,
+    [ValidateRange(30, 60)][int]$MeasurementSeconds = 60,  # PERF01 instrument clamps to 30..60
     [double]$ThresholdPercent = 2.0,
     [string]$EngineRoot = 'C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot = '',
@@ -120,6 +120,11 @@ try {
         Expand-Archive -LiteralPath $pluginZip -DestinationPath (Join-Path $target 'Plugins/DTCore')
         Copy-Item -LiteralPath $instrumentSource -Destination (Join-Path $target $instrument) -Force
         $manifest[$label + 'MapSha256'] = Get-Sha256 (Join-Path $target $map)
+    }
+    # Same fixture workload on both sides, or the gate compares different scenes.
+    if ($manifest.AMapSha256 -ne $manifest.BMapSha256) { throw "SlabScenarioValidationMap differs between baseline and candidate (A=$($manifest.AMapSha256) B=$($manifest.BMapSha256)); measurement refused" }
+    foreach ($label in 'A', 'B') {
+        $target = Join-Path $owned $label
         $log = Join-Path $ReportRoot "$label-editor-build.log"
         & $build ma0t10_dtEditor Win64 Development "-Project=$target/ma0t10_dt.uproject" -WaitMutex -NoHotReloadFromIDE *> $log
         if ($LASTEXITCODE -ne 0) { throw "Editor build $label failed: $log" }
