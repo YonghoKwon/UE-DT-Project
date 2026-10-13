@@ -997,8 +997,12 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     Compatibility->AddSlot().AutoHeight()[BuildOwnedAdministrativeControls()];
     auto Tabs=SNew(SHorizontalBox);
     const FText TabLabels[]={LOCTEXT("OwnedBasic","기본"),SensorToolUiText::Advanced(),SensorToolUiText::Compatibility()};
-    for(int32 I=0;I<3;++I)Tabs->AddSlot().FillWidth(1).Padding(0,0,FSensorOwnedPresentationStyle::Gap,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton()).Text(TabLabels[I]).ButtonColorAndOpacity_Lambda([this,I](){return WorkspaceSettingsTab==I?FLinearColor(.35f,.70f,.85f,1):FLinearColor::White;})
-        .OnClicked_Lambda([this,I](){SelectOwnedSettingsTab(I);return FReply::Handled();})];
+    // UXR-12 review: a transparent button tint showed no selected tab. Use the same
+    // segmented style as the other owned one-of-N choices.
+    for(int32 I=0;I<3;++I)Tabs->AddSlot().FillWidth(1).Padding(0,0,I<2?FSensorOwnedPresentationStyle::Gap*.5f:0.f,0)[SNew(SCheckBox).Style(&FSensorOwnedPresentationStyle::Segment())
+        .IsChecked_Lambda([this,I](){return WorkspaceSettingsTab==I?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+        .OnCheckStateChanged_Lambda([this,I](ECheckBoxState){SelectOwnedSettingsTab(I);})
+        [SNew(SBox).HAlign(HAlign_Center)[SNewSensorTool(STextBlock).Text(TabLabels[I]).ColorAndOpacity_Lambda([this,I](){return WorkspaceSettingsTab==I?GetToolTextColor():GetToolMutedColor();})]]];
     return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(FSensorOwnedPresentationStyle::PanelPadding)
       [SNew(SVerticalBox)
         +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("OwnedSettingsTitle","센서 설정"))]

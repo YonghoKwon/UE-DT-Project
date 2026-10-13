@@ -349,11 +349,15 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
             else Extra->AddSlot().AutoHeight().Padding(0,4)[Control];
         }
         Content->AddSlot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(SensorToolUiText::ExtraOutputs())].BodyContent()[Extra]];
-        Content->AddSlot().AutoHeight().Padding(0,FSensorOwnedPresentationStyle::Gap)[BuildToolFormRow(SensorToolUiText::RequireConnection(),SNew(SCheckBox).Style(&FSensorOwnedPresentationStyle::Switch()).ToolTipText(SensorToolUiText::RequireConnection())
+        Content->AddSlot().AutoHeight().Padding(0,FSensorOwnedPresentationStyle::Gap)[SNew(SCheckBox).Style(&FSensorOwnedPresentationStyle::Switch()).ToolTipText(SensorToolUiText::RequireConnection())
             .IsEnabled_Lambda([this,Replay](){auto* A=ResolveScenarioSlabActor();return Replay?ResolveOwnedReplayPanel()!=nullptr:A&&!A->IsSimulationActive();})
             .IsChecked_Lambda([this,Replay](){auto* P=ResolveOwnedReplayPanel();return (Replay?(P?P->ExecutionOptions.Policy:ESlabExecutionPolicy::ObservationAllowed):GetLiveScenarioExecutionOptions().Policy)==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
             .OnCheckStateChanged_Lambda([this,Replay](ECheckBoxState State){auto* P=ResolveOwnedReplayPanel();auto Options=Replay?(P?P->ExecutionOptions:FSlabExecutionOptions()):GetLiveScenarioExecutionOptions();Options.Policy=State==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;if(Replay)SetOwnedReplayExecutionOptions(Options);else SetLiveScenarioExecutionOptions(Options);bOwnedScenarioStreamView=true;bOwnedReplayPreflight=Replay;LastNativeStatusRefreshSeconds=-1;})
-            [SNewSensorTool(STextBlock).Text_Lambda([this,Replay](){auto* P=ResolveOwnedReplayPanel();return (Replay?(P?P->ExecutionOptions.Policy:ESlabExecutionPolicy::ObservationAllowed):GetLiveScenarioExecutionOptions().Policy)==ESlabExecutionPolicy::RequireData?LOCTEXT("OutputOn","켬"):LOCTEXT("OutputOff","끔");})])];
+            // UXR-12 review: same one-line switch row as the outputs above (label | state),
+            // not a label plus an empty-looking full-height control.
+            [SNew(SHorizontalBox)
+             +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(SensorToolUiText::RequireConnection())]
+             +SHorizontalBox::Slot().AutoWidth().Padding(FSensorOwnedPresentationStyle::Gap,0).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this,Replay](){auto* P=ResolveOwnedReplayPanel();return (Replay?(P?P->ExecutionOptions.Policy:ESlabExecutionPolicy::ObservationAllowed):GetLiveScenarioExecutionOptions().Policy)==ESlabExecutionPolicy::RequireData?LOCTEXT("OutputOn","켬"):LOCTEXT("OutputOff","끔");})]]];
         return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(FSensorOwnedPresentationStyle::Gap).ToolTipText(LOCTEXT("NextExecution","다음 실행부터 적용합니다 · 화면을 여는 것만으로 전송하지 않습니다"))[Content];
     };
     auto Direct=SNew(SVerticalBox);
