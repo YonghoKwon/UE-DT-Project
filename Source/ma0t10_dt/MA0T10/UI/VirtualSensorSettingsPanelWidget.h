@@ -119,8 +119,10 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    void ApplyOwnedProfileSelection(EVirtualCameraDeviceProfile CameraProfile, EVirtualLidarDeviceProfile LidarProfile);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FUXR10NavigationTest;
+    friend class FUXR11ProfileNoticeTest;
 #endif
 	USensorPlacementInteraction* OwnedInteraction() const;
 	void SynchronizeInteractionState();

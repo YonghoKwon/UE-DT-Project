@@ -927,11 +927,11 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedProfileLabel","장비 프로필"))]
       +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).Visibility_Lambda(CameraVisible).OptionsSource(&NativeCameraProfileOptions)
         .OnGenerateWidget_Lambda([this](auto Item){return SNewSensorTool(STextBlock).Text(FText::FromString(Item?CameraProfileText(*Item):FString()));})
-        .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item){PendingState.CameraProfile=*Item;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;ApplySelectedProfileAndQualityPreset();}})
+        .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item)ApplyOwnedProfileSelection(*Item,PendingState.LidarProfile);})
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedProfileText;})]]
       +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>).Visibility_Lambda(LidarVisible).OptionsSource(&NativeLidarProfileOptions)
         .OnGenerateWidget_Lambda([this](auto Item){return SNewSensorTool(STextBlock).Text(FText::FromString(Item?LidarProfileText(*Item):FString()));})
-        .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item){PendingState.LidarProfile=*Item;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;ApplySelectedProfileAndQualityPreset();}})
+        .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item)ApplyOwnedProfileSelection(PendingState.CameraProfile,*Item);})
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedProfileText;})]]
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedProfileShort","장비 규격과 측정값을 한 번에 적용합니다 · 성능 영향: 높음"))]
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedProfileInfo","ⓘ 장비 규격 상세")).OnClicked_Lambda([this](){OpenOwnedSettingHelp(TEXT("DeviceProfile"));return FReply::Handled();})]];
@@ -1071,6 +1071,22 @@ bool UVirtualSensorSettingsPanelWidget::SetSelectedSimulationQuality(EVirtualSen
 {
     PendingState.SimulationQuality = NewQuality;
     return ApplySelectedProfileAndQualityPreset();
+}
+
+void UVirtualSensorSettingsPanelWidget::ApplyOwnedProfileSelection(EVirtualCameraDeviceProfile CameraProfile, EVirtualLidarDeviceProfile LidarProfile)
+{
+    const auto Previous=PendingState;
+    PendingState.CameraProfile=CameraProfile;
+    PendingState.LidarProfile=LidarProfile;
+    PendingState.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
+    if(!ApplySelectedProfileAndQualityPreset())return;
+    const bool Camera=PendingState.TargetKind==EVirtualSensorTargetKind::Camera;
+    LastControlMessage=FString::Printf(TEXT("프로필 기본값 적용: 품질 %s, 주기 %.4g초 (이전 사용자 값: 품질 %s, 주기 %.4g초)"),
+        *SensorToolUiText::UserReason(QualityText(PendingState.SimulationQuality)),Camera?PendingState.CameraCaptureInterval:PendingState.LidarScanInterval,
+        *SensorToolUiText::UserReason(QualityText(Previous.SimulationQuality)),Camera?Previous.CameraCaptureInterval:Previous.LidarScanInterval);
+    // Retain the result until the next settings/selection action. No timer/Tick,
+    // profile contract change, or extra measurement request is introduced.
+    RefreshNativeText();
 }
 
 bool UVirtualSensorSettingsPanelWidget::ApplySelectedProfileAndQualityPreset()

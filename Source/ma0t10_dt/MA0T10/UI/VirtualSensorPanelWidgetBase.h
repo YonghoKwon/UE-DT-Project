@@ -30,6 +30,7 @@ public:
 	void ApplyWorkspaceLayout(const FVirtualSensorPanelUiState& State);
 	FVector2D GetPanelLayoutViewport() const { return ResolveLogicalViewportSize(); }
 	void SetWorkspacePosition(FVector2D Position) { if(IsWorkspaceOwned())SetPanelPositionInternal(Position); }
+	void CancelPanelPointerGesture();
 	TSharedRef<SWidget> BuildToolPanelHeader(const FText& Title);
 	TSharedRef<SWidget> BuildToolPanelFrame(TSharedRef<SWidget> Content);
 	virtual FText GetPanelBackLabel() const;
@@ -174,6 +175,10 @@ private:
     void ApplyPanelSize();
     FVector2D ResolveMaximumPanelSize() const;
     bool IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const;
+    bool FinishPanelPointerGesture();
+    FReply CapturePanelPointer(const FPointerEvent& Event);
+    bool bOwnedPointerFocus=false,bPreviousFocusable=false;
+    int32 PanelPointerUser=0;
 
     EVirtualSensorPanelPlacement DefaultPlacement = EVirtualSensorPanelPlacement::RightCenter;
     FVector2D RequestedPanelSize = FVector2D(820.0f, 430.0f);

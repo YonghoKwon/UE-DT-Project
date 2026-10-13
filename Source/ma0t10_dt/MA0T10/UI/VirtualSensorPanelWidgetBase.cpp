@@ -31,6 +31,7 @@ float UVirtualSensorPanelWidgetBase::GetSensorToolVisualScale() const
 void UVirtualSensorPanelWidgetBase::ApplyWorkspaceDockRect(FVector2D Position,FVector2D Size)
 {
     if(!SupportsOwnedDocking())return;
+	if(!bWorkspaceDocked)CancelPanelPointerGesture();
     if(!bWorkspaceDocked){bFloatingDraggable=bPanelDraggable;bFloatingResizable=bPanelResizable;bFloatingClamp=bClampPanelToViewport;}
     bWorkspaceDocked=true;bPanelDraggable=false;bPanelResizable=false;bClampPanelToViewport=false;
     bInitialLayoutPending=false;bPanelLayoutConfigured=true;DesiredPanelSize=Size;CurrentViewportPosition=Position;
@@ -92,6 +93,7 @@ void UVirtualSensorPanelWidgetBase::NativeConstruct()
 
 void UVirtualSensorPanelWidgetBase::NativeDestruct()
 {
+	CancelPanelPointerGesture();
 	if(ToolWorkspace.IsValid())ToolWorkspace->UnregisterPanel(this);
 	bSensorPanelConstructed = false;
 	Super::NativeDestruct();
@@ -375,41 +377,44 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& I
         IsInResizeHandle(InGeometry, InMouseEvent.GetScreenSpacePosition()))
     {
         bResizingPanel = true;
-        const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
-        return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+        bDraggingPanel = false;
+        return CapturePanelPointer(InMouseEvent);
     }
     if (bPanelDraggable && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && LocalPosition.Y <= DragHandleHeight)
     {
         bDraggingPanel = true;
-        const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
-        return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+        bResizingPanel = false;
+        return CapturePanelPointer(InMouseEvent);
     }
     return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    if (bResizingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && FinishPanelPointerGesture())
     {
-        bResizingPanel = false;
-        SavePanelUiState();
-        return FReply::Handled().ReleaseMouseCapture();
-    }
-    if (bDraggingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
-    {
-        bDraggingPanel = false;
-        SavePanelUiState();
         return FReply::Handled().ReleaseMouseCapture();
     }
     return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
+}
+
+FReply UVirtualSensorPanelWidgetBase::CapturePanelPointer(const FPointerEvent& Event)
+{
+    PanelPointerUser=Event.GetUserIndex();
+    const auto Widget=GetCachedWidget();if(!Widget.IsValid())return FReply::Handled();
+    auto Reply=FReply::Handled().CaptureMouse(Widget.ToSharedRef());
+    // Without an explicit focus recipient Slate falls back to SViewport after
+    // the title bubbles. Permanent game capture then overwrites panel capture.
+    if(SupportsOwnedDocking())Reply.SetUserFocus(Widget.ToSharedRef(),EFocusCause::Mouse);
+    return Reply;
 }
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     if (bResizingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
-        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition())-
-            InGeometry.AbsoluteToLocal(InMouseEvent.GetLastScreenSpacePosition());
+        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition()+InMouseEvent.GetCursorDelta())-
+            InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
         SetPanelExpandedSize(CalculateResizedPanelSize(
             DesiredPanelSize,
             LocalDelta,
@@ -420,8 +425,9 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeome
     }
     if (bDraggingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
-        const float DpiScale = UWidgetLayoutLibrary::GetViewportScale(this);
-        SetPanelPositionInternal(CalculateDraggedPanelPosition(CurrentViewportPosition, InMouseEvent.GetCursorDelta(), DpiScale));
+        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition()+InMouseEvent.GetCursorDelta())-
+            InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+        SetPanelPositionInternal(CalculateDraggedPanelPosition(CurrentViewportPosition, LocalDelta, 1.0f));
         return FReply::Handled();
     }
     return Super::NativeOnMouseMove(InGeometry, InMouseEvent);
@@ -429,14 +435,31 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeome
 
 void UVirtualSensorPanelWidgetBase::NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 {
-    const bool bWasDragging = bDraggingPanel || bResizingPanel;
+    FinishPanelPointerGesture();
+    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
+}
+
+bool UVirtualSensorPanelWidgetBase::FinishPanelPointerGesture()
+{
+    const bool bWasDragging=bDraggingPanel||bResizingPanel;
     bDraggingPanel = false;
     bResizingPanel = false;
     if (bWasDragging)
     {
         SavePanelUiState();
     }
-    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
+    return bWasDragging;
+}
+
+void UVirtualSensorPanelWidgetBase::CancelPanelPointerGesture()
+{
+    if(!FinishPanelPointerGesture()||!FSlateApplication::IsInitialized())return;
+    const auto Widget=GetCachedWidget();auto& App=FSlateApplication::Get();
+    if(Widget.IsValid()&&Widget->HasMouseCaptureByUser(PanelPointerUser))
+    {
+        FWidgetPath Path;App.GeneratePathToWidgetUnchecked(Widget.ToSharedRef(),Path);
+        App.ProcessReply(Path,FReply::Handled().ReleaseMouseCapture(),nullptr,nullptr,PanelPointerUser);
+    }
 }
 
 EVisibility UVirtualSensorPanelWidgetBase::GetPanelBodyVisibility() const
@@ -600,7 +623,12 @@ void UVirtualSensorPanelWidgetBase::ApplyPanelSize()
 }
 
 void UVirtualSensorPanelWidgetBase::SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role)
-{ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();}
+{
+    if(ToolWorkspace.Get()!=Owner)CancelPanelPointerGesture();
+    if(bOwnedPointerFocus){SetIsFocusable(bPreviousFocusable);bOwnedPointerFocus=false;}
+    ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();
+    if(SupportsOwnedDocking()){bPreviousFocusable=IsFocusable();SetIsFocusable(true);bOwnedPointerFocus=true;}
+}
 FVirtualSensorPanelUiState UVirtualSensorPanelWidgetBase::CaptureWorkspaceLayout() const
 {
 	FVirtualSensorPanelUiState S;S.bHasSavedPosition=true;S.bHasSavedSize=true;S.bCollapsed=bPanelCollapsed;S.ExpandedSize=DesiredPanelSize;
@@ -621,7 +649,7 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeom
 		if(bPanelResizable&&!bPanelCollapsed&&E.GetEffectingButton()==EKeys::LeftMouseButton&&IsInResizeHandle(G,E.GetScreenSpacePosition()))
 		{
 			bResizingPanel=true;bDraggingPanel=false;
-			if(const auto W=GetCachedWidget())return FReply::Handled().CaptureMouse(W.ToSharedRef());
+			return CapturePanelPointer(E);
 		}
 		// DTCore's unrelated OpenWidgets list does not contain these owned panels.
 		// Its BringToFront would immediately overwrite our local z-order with 1.

@@ -91,6 +91,9 @@ public:
 	/** Actual arranged owned UI rectangles in viewport pixels, for L2 presentation. */
 	TArray<FBox2D> GetOwnedDiagnosticExclusionRects() const;
 private:
+	void RegisterOwnedPointerRouting();
+	void UnregisterOwnedPointerRouting();
+	TSharedPtr<class IInputProcessor> OwnedPointerRouter;
 	float MeasureOwnedPixelScale() const;
 	bool bSidebarMode=true,bSidebarExpanded=true;
 	bool bSidebarWide=false,bNavigatingBack=false;

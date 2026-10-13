@@ -78,6 +78,7 @@ void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& 
 }
 void UVirtualSensorToolWorkspaceSubsystem::Deinitialize()
 {
+	UnregisterOwnedPointerRouting();
 	if(MapCheckWidget){if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->CloseWidget(MapCheckWidget);MapCheckWidget=nullptr;}
 	if(PlacementInteraction){PlacementInteraction->Shutdown();PlacementInteraction=nullptr;}
 	SetCoordinator(nullptr);
@@ -103,6 +104,7 @@ void UVirtualSensorToolWorkspaceSubsystem::EnsureRoot()
 	Root=CreateWidget<UUserWidget>(GetWorld(),USensorToolWorkspaceRootWidget::StaticClass());
 	Canvas=Root->WidgetTree->ConstructWidget<UCanvasPanel>();Root->WidgetTree->RootWidget=Canvas;
 	Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	RegisterOwnedPointerRouting();
 	Toolbar=CreateWidget<UUserWidget>(GetWorld(),USensorToolToolbarWidget::StaticClass());
 	if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->RegisterExternalInputBlocker(Toolbar);
 	auto* S=Canvas->AddChildToCanvas(Toolbar);S->SetAnchors(FAnchors(0,0,1,1));S->SetOffsets(FMargin(0));S->SetZOrder(10000);Toolbar->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -222,7 +224,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 			SidebarRole=R;bSidebarExpanded=true;
 		}
 		if(Open)SidebarOpen.Add(R);else{SidebarOpen.Remove(R);if(R==SidebarRole)bSidebarExpanded=false;}
-		if(!Open){if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->SetSensorManipulationEnabled(false);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(Native))P->EndPlacement();}
+		if(!Open){Native->CancelPanelPointerGesture();if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->SetSensorManipulationEnabled(false);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(Native))P->EndPlacement();}
 		Native->SetVisibility(Open?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
 		if(Open){if(Native->IsPanelCollapsed())Native->TogglePanelCollapsed();BringOwnedPanelToFront(R);if(!bNavigatingBack)if(auto* S=Cast<UVirtualSensorSettingsPanelWidget>(Native))S->BindSensorManager(Coordinator.Get());}
 		RefreshDockedLayout();return;
@@ -230,6 +232,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,b
 	auto& State=Preferences->Panels.FindOrAdd(R);State.bOpen=Open;
 	if(auto* P=GetOwnedPanel(R))
 	{
+		if(!Open)P->CancelPanelPointerGesture();
 		if(!Open)if(auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(P))Settings->SetSensorManipulationEnabled(false);
 		if(!Open)if(auto* Placement=Cast<UVirtualSensorPlacementPanelWidget>(P))Placement->EndPlacement();
 		P->SetVisibility(Open?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
