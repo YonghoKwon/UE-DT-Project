@@ -6,6 +6,14 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-13 PERF-01 사전 확인 — Broker 연결 불가로 측정 전 중단
+
+- 기준 `codex/post-program-followups`, HEAD `807f512749deb735a7814199022dd60804cb1b82`, 비교 대상 `fda25e05bd0a1435d80b4eff0a9a121d73f08b9a`, 두 gitlink 모두 DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`. 시작 상태의 운영맵 변경과 미추적 Game.ini/PixelStreaming/Claude 전용 문서를 보존했다.
+- 환경: NVIDIA RTX 4070 Ti, driver `32.0.16.1088`, desktop 3840×2160. 시작 Editor/Live Coding 프로세스 없음. 로컬 `127.0.0.1:61616` listener 없음, TCP 연결 2초 timeout. 기존 `run_sensor_map_stream_rhi_smoke.ps1`의 실제 receipt·내부/외부 수신 경로를 사용할 수 없어 사용자 요청의 중단 규칙을 적용했다. Broker 서비스 시작/재시작·설정 변경은 하지 않았다.
+- 현재 HEAD의 UE 5.3 Editor Development exit0(Target up to date), Game Development exit0(10 actions). `Scripts/verify.ps1 -Level quick -BaseCommit 807f512`: 8단계 Success/실패0, layer 위반0/allowlist0/신규0/stale0. C++ 자동화는 실행하지 않았으며 gate 8개를 자동화 Success 8개로 세지 않는다. manifest `Saved/Reports/verify/20261013T081047440Z/manifest.json`.
+- 성능은 전부 미수행: baseline 임시 checkout/빌드, 표시형1920×1080 1+1·2+2 PCD-only,10초+60초,ABAB×3,오프스크린 비교,이분 탐색,Insights. 회귀 유무·47 FPS 원인·표시형2+2≥55 FPS는 미판정이며 PERF-01 진행률0% 유지. UXR-08 비교/근접 이미지와 UI-02 전후 이미지도 미생성, 해당 후속 두 단계 미착수.
+- 원본·재개 조건·QA-02 권장 측정 절차: `Saved/Reports/PERF/PERF-01/RESULT.md`, `preflight.json`, build 로그, quick manifest, 보존 검증. 운영맵을 열거나 저장하지 않았고 Editor/PIE 실행·자산 저장·Computer Use·새 checkout/worktree·push/PR/merge는 하지 않았다. 개인 SaveGame9개는 변경하지 않았다.
+
 ## 2026-10-13 MAP-01 CLI 구현·검증 — 직접 마우스는 UXR-07 이관
 
 - 최종 소스 `efcd35340dc57bbbf26574da8c71379ed5dd0f0c`, DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`, UE5.3 Win64 Development. 문서 완료 커밋은 소스를 바꾸지 않는다. 변경 25파일(소스18·스크립트/정책2·승인 새 맵2·관리 문서3), 이동0. 조사 문서/Rig/맵 점검/Slab 없음/저장 예약/맵/테스트/문서로 분리했고 커밋 후 unity의 두 식별자 충돌은 별도 수정했다.
