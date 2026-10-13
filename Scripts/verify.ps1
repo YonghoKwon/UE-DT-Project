@@ -1,8 +1,10 @@
 param(
-    [ValidateSet('quick', 'feature', 'release')][string]$Level = 'quick',
+    [ValidateSet('quick', 'feature', 'release', 'perf')][string]$Level = 'quick',
     [string[]]$Tests = @('MA0T10.SensorReceiver'),
     [string]$EngineRoot = 'C:/Program Files/Epic Games/UE_5.3',
-    [string]$BaseCommit = 'HEAD^'
+    [string]$BaseCommit = 'HEAD^',
+    [ValidatePattern('^[12](,[12])?$')][string]$PerfPairs = '1',
+    [ValidateSet('Visible', 'Offscreen', 'Both')][string]$PerfDisplay = 'Visible'
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -70,7 +72,13 @@ try {
     foreach ($script in @('validate_payload_contract', 'validate_payload_fixtures', 'validate_opt_in_inventory', 'validate_sensor_ui_vocabulary')) {
         Invoke-Step $script { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/$script.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw "$script failed" } }
     }
-    if ($Level -ne 'quick') {
+    if ($Level -eq 'perf') {
+        Invoke-Step 'perf-abab' {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/run_perf_abab.ps1" -Baseline $BaseCommit -Candidate HEAD -Pairs $PerfPairs -Display $PerfDisplay -EngineRoot $EngineRoot -ReportRoot "$report/perf"
+            if ($LASTEXITCODE -ne 0) { throw 'Perf ABAB gate failed' }
+        }
+    }
+    if ($Level -in @('feature', 'release')) {
         if (Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue) { throw 'Close Editor and Live Coding before feature/release' }
         if (Test-Path -LiteralPath $saveRoot) {
             $originalSaves = @(Get-ChildItem -LiteralPath $saveRoot -Recurse -File)
@@ -131,7 +139,7 @@ finally {
         SchemaVersion = 1; Level = $Level; StartedUtc = $started.ToString('o'); Seconds = ([DateTime]::UtcNow - $started).TotalSeconds
         Commit = $head; Branch = ((Get-GitLines -Arguments @('branch', '--show-current')) -join ''); SubmoduleCommit = $submodule; ProtectedCommitBase = $BaseCommit
         Worktree = @(Get-GitLines -Arguments @('status', '--porcelain=v1')); SourceHashes = $sourceFingerprint; TestsRequested = $Tests
-        Environment = @{ PowerShell = $PSVersionTable.PSVersion.ToString(); OS = [Environment]::OSVersion.ToString(); EngineRoot = $EngineRoot; Engine = (Get-Content "$EngineRoot/Engine/Build/Build.version" -Raw | ConvertFrom-Json); Rhi = $(if ($Level -eq 'quick') { 'None' } else { 'D3D12' }); RenderOffscreen = ($Level -ne 'quick'); OptIn = @($envNames | ForEach-Object { @{ Name = $_; Set = (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($_))) } }) }
+        Environment = @{ PowerShell = $PSVersionTable.PSVersion.ToString(); OS = [Environment]::OSVersion.ToString(); EngineRoot = $EngineRoot; Engine = (Get-Content "$EngineRoot/Engine/Build/Build.version" -Raw | ConvertFrom-Json); Rhi = $(if ($Level -eq 'quick') { 'None' } else { 'D3D12' }); RenderOffscreen = $(if ($Level -eq 'perf') { $PerfDisplay } else { $Level -ne 'quick' }); OptIn = @($envNames | ForEach-Object { @{ Name = $_; Set = (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($_))) } }) }
         Steps = @($steps.ToArray()); Tests = @($testResults.ToArray()); ExecutedSuccessNames = @($testResults | Where-Object State -eq Success | ForEach-Object Name); FailedNames = @($testResults | Where-Object { $_.State -notin @('Success','Skip') } | ForEach-Object Name); SkipNames = @($testResults | Where-Object State -eq Skip | ForEach-Object Name)
         ProtectedHashCount = $before.Count; PersonalSavesRestored = $originalSaves.Count; Failure = $failure; Valid = (-not $failure)
     }

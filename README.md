@@ -494,7 +494,10 @@ ARCH-08의 Monitor/Scan/Publisher는 같은 클래스의 12개 `.cpp`(249~887줄
 powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level quick
 powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level feature -Tests MA0T10.SensorReceiver
 powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level release
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level perf -BaseCommit <기준 커밋> -PerfPairs 1,2 -PerfDisplay Both
 ```
+
+`perf`(QA-02)는 quick 뒤에 `Scripts/run_perf_abab.ps1`로 기준/현재 revision을 별도 archive checkout에 빌드하고, PERF-01 계측(`MA0T10.PERF01.AcquisitionAndPreview`, SlabScenarioValidationMap, 1920×1080 D3D12, 10초 준비+60초)을 **ABAB×3** 실행해 revision별 중앙값으로 FPS 감소·engine p95 증가·game thread 증가를 각각 2% 기준으로 판정한다. 결과는 `Saved/Reports/verify/<시각>/perf/manifest.json`(revision·DTCore·계측기·맵 hash, GPU/driver, 표시 방식, 판정). 모든 Editor·PIE·마우스 점검·빌드가 끝난 뒤에만 실행한다. 기존 결과 재판정: `run_perf_abab.ps1 -SummarizeOnly <runs 폴더>`. 자동 실행 설치(승인 후): `Scripts/install_verify_automation.ps1 -PreCommitHook`(커밋 전 quick) / `-NightlyFeature`(야간 feature).
 
 `quick`은 기존 diff/guard/layer/payload 검사를 호출하고 보호 경로의 index·commit 변경 및 아래 변수표 일치를 확인한다. `feature`는 Editor Development 빌드와 지정 그룹, `release`는 전체 D3D12 `MA0T10`과 WBP 7개 메모리 컴파일을 더한다. 기존 `run_smoke_tests.ps1`의 기본 NullRHI 동작은 유지하며 verify에서는 D3D12 보고서 모드를 명시한다. 테스트 이름을 `-Tests`에 전달한다(여러 그룹은 PowerShell 스크립트 호출에서 배열로 지정).
 
