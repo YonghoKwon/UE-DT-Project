@@ -32,6 +32,8 @@ public:
 	const FSensorToolGlobalStatus& GetGlobalStatus() const { return GlobalStatus; }
 	float GetFloatingToolbarHeight() const;
 	TSharedPtr<SWidget> GetSlabSummaryCard() const { return SlabSummaryCard; }
+	/** UXR-13: an owned 이동·회전 is active, so the 3D key guide is shown. */
+	bool IsOwnedManipulationActive() const;
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
@@ -54,6 +56,7 @@ private:
 	struct FEquipmentLabel { FText Name,State; FLinearColor Color=FLinearColor::Gray; };
 	TMap<FString,FEquipmentLabel> EquipmentLabels;
 	TSharedRef<SWidget> BuildEquipmentMenu();
+	TSharedRef<SWidget> BuildManipulationGuide();
 	TSharedRef<SWidget> BuildEquipmentLabel(TWeakObjectPtr<AVirtualSensorActorBase> Actor);
 	FSensorToolGlobalStatus GlobalStatus;
 	FText OwnedFontScaleText;

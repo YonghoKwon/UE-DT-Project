@@ -82,7 +82,15 @@ public:
             Test->TestTrue(TEXT("foreign typing never moves sensor"),Sensor->GetActorTransform().Equals(SensorBefore));
             Test->TestTrue(TEXT("foreign typing never moves observer during sensor manipulation"),Pawn->GetActorTransform().Equals(PawnBefore));
             App.ProcessKeyUpEvent(FKeyEvent(EKeys::W,FModifierKeysState(),0,false,0,0));View->RemoveViewportWidgetContent(Foreign.ToSharedRef());Foreign.Reset();App.SetKeyboardFocus(V,EFocusCause::SetDirectly);
-            const auto Point=V->GetCachedGeometry().LocalToAbsolute(V->GetCachedGeometry().GetLocalSize()*FVector2D(.4,.8));
+            // Personal layouts (e.g. 150% text widens the sidebar) may cover a fixed point.
+            // Pick the first sample whose hit path really ends at the game viewport.
+            FVector2D Point=V->GetCachedGeometry().LocalToAbsolute(V->GetCachedGeometry().GetLocalSize()*FVector2D(.4,.8));
+            for(const FVector2D Fraction:{FVector2D(.4,.8),FVector2D(.6,.6),FVector2D(.7,.4),FVector2D(.55,.3),FVector2D(.8,.6),FVector2D(.5,.5)})
+            {
+                const auto Candidate=V->GetCachedGeometry().LocalToAbsolute(V->GetCachedGeometry().GetLocalSize()*Fraction);
+                const auto Hit=App.LocateWindowUnderMouse(Candidate,App.GetInteractiveTopLevelWindows());
+                if(Hit.IsValid()&&Hit.GetLastWidget()==V){Point=Candidate;break;}
+            }
             const auto* Arm=Pawn->FindComponentByClass<USpringArmComponent>();PreviousLag=Arm?Arm->bEnableCameraLag:false;
             SavedCapture=View->GetMouseCaptureMode();SavedLock=View->GetMouseLockMode();SavedIgnore=View->IgnoreInput();SavedHide=View->HideCursorDuringCapture();
             Test->TestTrue(TEXT("RMB gesture can start only in actual owned viewport"),Gizmo->BeginObserverNavigation(Point));

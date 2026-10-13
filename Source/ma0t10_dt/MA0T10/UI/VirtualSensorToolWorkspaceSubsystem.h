@@ -60,6 +60,7 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") FString GetPanelOpenMessage() const {return PanelOpenMessage;}
 	AVirtualSensorCoordinator* GetCoordinator() const;
 	USensorPlacementInteraction* GetPlacementInteraction();
+	bool HasPlacementInteraction() const { return PlacementInteraction!=nullptr; }
 	void AttachOwnedPanel(UVirtualSensorPanelWidgetBase* Panel);
 	void SavePanel(ESensorToolPanelRole Role);
 	void RestorePanel(ESensorToolPanelRole Role);

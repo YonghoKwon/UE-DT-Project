@@ -92,6 +92,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-09 | UI/UX / 시각 리프레시 | P0 | **90%** | 카드·더보기·고정 저장 바·간결한 상태바 보완, 최종 상대 성능 2% gate·239 Success·48장 렌더 통과 | 변경 화면 직접 조작 보류: 창 활성화 2회 실패. 절대 성능 목표 및 이전 14.4% 증가 전체 원인은 별도 제한 | U |
 | UXR-10 | UI/UX / 사용자 피드백 | P1 | **70%** | 시나리오 resize·기존 Workspace v1 크기 복원, 사이드바 폭 전환, 하위 화면 공통 뒤로 가기 구현·집중 자동검증 | 앱 Codex 직접 마우스·통합 release·Editor 종료 후 QA-02 성능 gate 보류 | U (별도 후속) |
 | UXR-11 | UI/UX / 실제 마우스 결함 | P0 | **80%** | 검수본 직접 마우스 FAIL 2건(자유 배치 제목 드래그·모서리 resize) 원인=PIE viewport 캡처 선점, 소유 패널 hit 시에만 해제·포커스·제스처 정리, 프로필 재적용 안내 | 수정본(40aa640) 직접 마우스 재검수·통합 release·성능 gate | U (별도 후속) |
+| UXR-13 | UI/UX / 장비 이동 조작 | P0 | **85%** | 사용자 직접 확인(2026-10-14): 이동·회전 시작 후 조작법을 몰라 움직이지 못함, 정지 장비 미리보기가 검게 멈춤. 3D 화면 키 안내·키보드 포커스·보던 화면 유지·정지 장비 안내 | 사용자 직접 확인 | U (별도 후속) |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
@@ -503,6 +504,15 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 - **경계:** A안 구조·기능·DTCore·Designer WBP·미등록 Widget·Blueprint API·enum 순서·저장 schema·출력 기본값 불변. 새 자산/글꼴/Tick/timer/invalidation root/센서 캡처·readback·worker 경로 없음. 기존 숨김/접힘 갱신 중단과 5Hz 제한을 유지한다. DTCore 변경 후보를 새로 추가할 필요는 없으며 기존 UXR-09 adapter 범위다.
 - **검증·완료 gate:** Editor Development, UXR/UI02/SensorMonitor/SensorWorkspace/SensorUi/SensorControl/Slab.UI 집중 회귀 **58 Success / skip3 / 실패·NotRun0**, WBP7 메모리 컴파일·quick8·layer/allowlist **0/0**·기본 화면 용어 검사(103 상수와 실제 Slate inventory) 통과. 1920×1080·1280×720 ×100/125/150% ×9화면 전후54장씩, 레일 할당 폭과 폼 높이32/40/48 검사 통과. 레일 문구 기대값2개와 세그먼트 수 검사1개만 의미를 보존해 갱신했다. 보호 파일484·개인 SaveGame9 불변이다.
 - **근거·남은 조건:** Runtime `399ea46`, `Saved/Reports/UXR/UXR-12/RESULT.md`, `summary.json`, `before/`, `after-spacing/`, `comparison/`, `manual/CHECKLIST.md`. 실패했던 폼 높이 검사·이전 문구 기대값·줄바꿈 경고 기록은 보존한다. QA 마우스 검수와 충돌하는 `UXR11.NativeCursorCaptureRhi`는 미수행이며 다른 SHA의 결과로 대체하지 않는다. 직접 마우스는 앱 Codex, release와 `verify.ps1 -Level perf -BaseCommit fe20bcb`(상대2%)는 모든 화면 작업 종료 후 Claude가 수행한다. 이 CLI에서는 release·성능 측정을 하지 않았다.
+
+### UXR-13 — 장비 이동 조작을 지금 보는 화면에서 (P0, 2026-10-14 사용자 직접 확인)
+
+- **출처:** PR #31 머지 후 사용자 직접 확인: "위치 이동 누르면 센서·카메라 쪽으로 가고 거기서 움직일 수 없다", "검은 화면에서 변하지 않는다", "기존 보는 창에서 이동이 되면 좋겠다".
+- **원인:** ① 키 조작(W/A/S/D·Q/E·방향키·Z/C·오른쪽 버튼 시점·Esc)은 배치 창의 작은 회색 한 줄에만 있어 알 수 없었다. ② 이동·회전 시작 시 미리보기가 조작 장비의 시점으로 바뀌는데, 정지 장비는 기존 계약("조작 중에도 새 측정을 시작하지 않음", `SensorSettingsReliabilityTests`)대로 촬영하지 않아 미리보기가 검게 남았다. ③ 시작 직후 키보드 포커스가 버튼에 남아 첫 키 입력이 3D 화면으로 가지 않을 수 있었다.
+- **수정:** 조작 중에만 3D 화면 아래쪽에 키 안내 카드(hit-test 없음, Tick 없음)를 표시하고, 정지 장비이면 "미리보기는 바뀌지 않으니 3D 화면에서 장비를 보며 옮기라"는 안내를 함께 보인다. 소유 조작 시작 시 미리보기 시점을 바꾸지 않고(보던 화면 유지) 키보드 포커스를 3D 화면으로 보낸다. 정지 장비 무측정 계약은 유지한다.
+- **검사 공백 보완:** 입력 opt-in 테스트(`Placement.InputOwnershipRhi`)가 개인 저장값(글자 150%로 넓어진 사이드바)이 덮는 고정 좌표를 써서 사용자 PC에서만 실패했다. 실제 3D 화면 hit 지점을 찾도록 고쳤다. 신규 `MA0T10.UXR13.KeepViewAndKeyGuideRhi`(보던 화면 유지·포커스·안내 표시/해제·렌더).
+- **검증:** opt-in 입력 테스트 포함 SensorV2·UXR·UI02·Workspace·Monitor·Ui·Control·Placement·Settings **102 Success/실패0**, quick 8/8. 렌더 `Saved/Reports/UXR/UXR-13/`.
+- **현재 상태: 85%.** 남은 것: 사용자 직접 확인.
 
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
