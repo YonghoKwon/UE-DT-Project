@@ -4,6 +4,7 @@
 #include "ActorComponent/StatusVisualizerCompBase.h"
 #include "VirtualLidarSensorTypes.h"
 #include "VirtualLidarGeometry.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarVisualizationComponent.generated.h"
 
 class UTexture2D;
@@ -19,6 +20,7 @@ class MA0T10_DT_API UVirtualLidarVisualizationComponent : public UStatusVisualiz
 public:
     UVirtualLidarVisualizationComponent();
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 
     void BindScanComponent(UVirtualLidarScanComponent* InScanComponent);
     void RefreshLatestFrame();

@@ -78,7 +78,11 @@ float UVirtualSensorSchedulerSubsystem::ResolveAdaptiveCameraAdmissionHz(float C
 
 void UVirtualSensorSchedulerSubsystem::RegisterCamera(UVirtualCameraCaptureComponent* Camera)
 {
-    if (Camera && !Cameras.Contains(Camera)) Cameras.Add(Camera);
+    if (Camera && !Cameras.Contains(Camera))
+    {
+        Cameras.Add(Camera);
+        RegistrationTimes.Add(Camera, GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
+    }
 }
 
 void UVirtualSensorSchedulerSubsystem::RegisterTask(UActorComponent* TaskComponent)
@@ -107,6 +111,7 @@ void UVirtualSensorSchedulerSubsystem::UnregisterTask(UActorComponent* TaskCompo
 
 void UVirtualSensorSchedulerSubsystem::UnregisterCamera(UVirtualCameraCaptureComponent* Camera)
 {
+    RegistrationTimes.Remove(Camera);
     if (PreferredCamera.Get() == Camera) PreferredCamera.Reset();
     Cameras.RemoveAll([Camera](const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Item) { return !Item.IsValid() || Item.Get() == Camera; });
     NextCameraIndex = Cameras.Num() > 0 ? NextCameraIndex % Cameras.Num() : 0;
@@ -117,12 +122,14 @@ void UVirtualSensorSchedulerSubsystem::RegisterLidar(UVirtualLidarScanComponent*
     if (Lidar && !Lidars.Contains(Lidar))
     {
         Lidars.Add(Lidar);
+        RegistrationTimes.Add(Lidar, GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
         AdaptiveLidarChunkSizes.FindOrAdd(Lidar, 256);
     }
 }
 
 void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponent* Lidar)
 {
+    RegistrationTimes.Remove(Lidar);
     if (PreferredLidar.Get() == Lidar) PreferredLidar.Reset();
     Lidars.RemoveAll([Lidar](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid() || Item.Get() == Lidar; });
     AdaptiveLidarChunkSizes.Remove(Lidar);
@@ -160,6 +167,8 @@ bool UVirtualSensorSchedulerSubsystem::ConsumeLidarPreviewRefresh(
 
 void UVirtualSensorSchedulerSubsystem::CompactRegistrations()
 {
+    for (auto It = RegistrationTimes.CreateIterator(); It; ++It)
+        if (!It.Key().IsValid()) It.RemoveCurrent();
     Cameras.RemoveAll([](const TWeakObjectPtr<UVirtualCameraCaptureComponent>& Item) { return !Item.IsValid(); });
     Lidars.RemoveAll([](const TWeakObjectPtr<UVirtualLidarScanComponent>& Item) { return !Item.IsValid(); });
     for (auto It = AdaptiveLidarChunkSizes.CreateIterator(); It; ++It)
@@ -176,6 +185,12 @@ void UVirtualSensorSchedulerSubsystem::CompactRegistrations()
 
 void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
 {
+    if (GetWorld() && GetWorld()->IsPaused())
+    {
+        CompactRegistrations();
+        RefreshTelemetry(0.0f);
+        return; // Diagnostics may tick while paused, acquisition must not.
+    }
     ConfigureCommandLineBenchmarkIfRequested();
     CompactRegistrations();
     if (DeltaTime > SMALL_NUMBER && DeltaTime < 1.0f)
@@ -300,6 +315,11 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     {
         TelemetryLogAccumulator = FMath::Fmod(TelemetryLogAccumulator, 1.0f);
         RefreshFrameStatistics();
+        const auto EffectiveHz = [this](const FString& Kind, const FString& Id)
+        {
+            const auto* Rate = Telemetry.SensorRates.FindByPredicate([&](const FVirtualSensorRateDiagnostic& R) { return R.SensorKind == Kind && R.SensorId == Id; });
+            return Rate ? Rate->EffectiveHz : 0.0f;
+        };
         UE_LOG(LogTemp, Display,
             TEXT("[VirtualSensorPerf] targetFps=%d camera=%d lidar=%d averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f schedulerMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d bestEffort=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d minCameraHz=%.2f minLidarHz=%.2f"),
             Telemetry.TargetFps,
@@ -330,7 +350,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
                 Camera->CaptureResolution.X,
                 Camera->CaptureResolution.Y,
                 Status.RequestedAcquisitionRateHz,
-                Status.MeasuredAcquisitionRateHz,
+                EffectiveHz(TEXT("Camera"), Camera->SensorId),
                 Status.MeasuredOutputRateHz,
                 Status.LastAcquisitionDurationMs,
                 Status.LastPostProcessDurationMs,
@@ -355,7 +375,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
                 Lidar->VerticalChannels,
                 Lidar->HorizontalSamples * Lidar->VerticalChannels,
                 Status.RequestedAcquisitionRateHz,
-                Status.MeasuredAcquisitionRateHz,
+                EffectiveHz(TEXT("LiDAR"), Lidar->SensorId),
                 Status.MeasuredOutputRateHz,
                 Status.LastAcquisitionDurationMs,
                 Status.LastPostProcessDurationMs,
@@ -557,6 +577,60 @@ void UVirtualSensorSchedulerSubsystem::RefreshFrameStatistics()
     Telemetry.OnePercentLowFps = Sorted[OnePercentLowIndex] > SMALL_NUMBER ? 1000.0f / Sorted[OnePercentLowIndex] : 0.0f;
 }
 
+FVirtualSensorRateDiagnostic UVirtualSensorSchedulerSubsystem::EvaluateRate(double Now, double RegisteredAt,
+    double LastProgress, float MeasuredHz, float Period, bool bRunning, bool bPaused, bool bInteractive, int32 FailureCount)
+{
+    FVirtualSensorRateDiagnostic Result;
+    Result.bInteractionPreview = bInteractive;
+    if (!bRunning) return Result;
+    if (bPaused) { Result.State = EVirtualSensorRateState::Paused; return Result; }
+    const double Grace = FMath::Max(1.0, 3.0 * FMath::Max(0.001, static_cast<double>(Period)));
+    if (LastProgress >= RegisteredAt && LastProgress <= Now)
+        Result.LastProgressAgeSeconds = Now - LastProgress;
+    if (Now - RegisteredAt < Grace)
+    {
+        Result.State = EVirtualSensorRateState::WarmingUp;
+        return Result;
+    }
+    Result.bEvaluable = true;
+    if (Result.LastProgressAgeSeconds < 0.0 || Result.LastProgressAgeSeconds > Grace ||
+        !FMath::IsFinite(MeasuredHz) || MeasuredHz <= SMALL_NUMBER)
+    {
+        Result.State = FailureCount > 0 ? EVirtualSensorRateState::Failed : EVirtualSensorRateState::Starved;
+        return Result;
+    }
+    Result.EffectiveHz = MeasuredHz;
+    Result.State = bInteractive ? EVirtualSensorRateState::InteractionPreview : EVirtualSensorRateState::Running;
+    return Result;
+}
+
+void UVirtualSensorSchedulerSubsystem::AggregateRateDiagnostics(FVirtualSensorPerformanceTelemetry& Result)
+{
+    Result.StarvedSensorIds.Reset();
+    auto Aggregate = [&](const TCHAR* Kind, float& MinHz, float& Fairness, bool& bFairnessEvaluable)
+    {
+        float Min = TNumericLimits<float>::Max(), Max = 0.0f;
+        int32 Count = 0;
+        bool bAllReady = true;
+        for (const auto& Rate : Result.SensorRates)
+        {
+            if (Rate.SensorKind != Kind || Rate.State == EVirtualSensorRateState::Stopped) continue;
+            ++Count;
+            bAllReady &= Rate.bEvaluable && !Rate.bInteractionPreview;
+            if (!Rate.bEvaluable) continue;
+            Min = FMath::Min(Min, Rate.EffectiveHz);
+            Max = FMath::Max(Max, Rate.EffectiveHz);
+            if (Rate.State == EVirtualSensorRateState::Starved || Rate.State == EVirtualSensorRateState::Failed)
+                Result.StarvedSensorIds.AddUnique(Rate.SensorId);
+        }
+        MinHz = Min < TNumericLimits<float>::Max() ? Min : 0.0f;
+        bFairnessEvaluable = Count > 0 && bAllReady && MinHz > SMALL_NUMBER;
+        Fairness = bFairnessEvaluable ? Max / MinHz : 0.0f; // Finite sentinel; consumers must read the validity flag.
+    };
+    Aggregate(TEXT("Camera"), Result.MinimumCameraCompletionHz, Result.CameraCompletionFairnessRatio, Result.bCameraFairnessEvaluable);
+    Aggregate(TEXT("LiDAR"), Result.MinimumLidarCompletionHz, Result.LidarCompletionFairnessRatio, Result.bLidarFairnessEvaluable);
+}
+
 void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
 {
     Telemetry.ActiveCameraCount = Cameras.Num();
@@ -573,10 +647,19 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
     Telemetry.BudgetSkippedAcquisitionFrameCount = 0;
     Telemetry.FailedAcquisitionFrameCount = 0;
     Telemetry.QueueOverflowCount = 0;
-    float CameraMinHz = TNumericLimits<float>::Max();
-    float CameraMaxHz = 0.0f;
-    float LidarMinHz = TNumericLimits<float>::Max();
-    float LidarMaxHz = 0.0f;
+    Telemetry.SensorRates.Reset();
+    const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+    const bool bPaused = GetWorld() && GetWorld()->IsPaused();
+    const auto AddRate = [&](UActorComponent* Component, const FVirtualSensorRuntimeStatus& Status, const FString& Id,
+        const TCHAR* Kind, float Period, bool bRunning)
+    {
+        const auto* Owner = Cast<AVirtualSensorActorBase>(Component->GetOwner());
+        auto Rate = EvaluateRate(Now, RegistrationTimes.FindRef(Component), Status.LastAcquisitionProgressWorldSeconds,
+            Status.MeasuredAcquisitionRateHz, Period, bRunning, bPaused, Owner && Owner->IsInteractiveManipulationActive(), Status.FailedAcquisitionFrameCount);
+        Rate.SensorId = Id;
+        Rate.SensorKind = Kind;
+        Telemetry.SensorRates.Add(MoveTemp(Rate));
+    };
 
     auto Accumulate = [this](const FVirtualSensorRuntimeStatus& Status)
     {
@@ -593,42 +676,27 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
         if (!Camera.IsValid()) continue;
         const FVirtualSensorRuntimeStatus& Status = Camera->GetRuntimeStatus();
         Accumulate(Status);
-        const float AcquisitionHz = Status.MeasuredAcquisitionRateHz > SMALL_NUMBER
-            ? Status.MeasuredAcquisitionRateHz
-            : Status.MeasuredCompletionRateHz;
-        if (AcquisitionHz > SMALL_NUMBER)
-        {
-            CameraMinHz = FMath::Min(CameraMinHz, AcquisitionHz);
-            CameraMaxHz = FMath::Max(CameraMaxHz, AcquisitionHz);
-        }
+        AddRate(Camera.Get(), Status, Camera->SensorId, TEXT("Camera"), Camera->CaptureInterval, Camera->IsCaptureRunning());
     }
     for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
     {
         if (!Lidar.IsValid()) continue;
         const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
         Accumulate(Status);
-        const float AcquisitionHz = Status.MeasuredAcquisitionRateHz > SMALL_NUMBER
-            ? Status.MeasuredAcquisitionRateHz
-            : Status.MeasuredCompletionRateHz;
-        if (AcquisitionHz > SMALL_NUMBER)
-        {
-            LidarMinHz = FMath::Min(LidarMinHz, AcquisitionHz);
-            LidarMaxHz = FMath::Max(LidarMaxHz, AcquisitionHz);
-        }
+        AddRate(Lidar.Get(), Status, Lidar->SensorId, TEXT("LiDAR"), Lidar->ScanInterval, Lidar->IsScanRunning());
     }
-    Telemetry.CameraCompletionFairnessRatio = CameraMinHz < TNumericLimits<float>::Max() && CameraMinHz > SMALL_NUMBER ? CameraMaxHz / CameraMinHz : 1.0f;
-    Telemetry.LidarCompletionFairnessRatio = LidarMinHz < TNumericLimits<float>::Max() && LidarMinHz > SMALL_NUMBER ? LidarMaxHz / LidarMinHz : 1.0f;
-    Telemetry.MinimumCameraCompletionHz = CameraMinHz < TNumericLimits<float>::Max() ? CameraMinHz : 0.0f;
-    Telemetry.MinimumLidarCompletionHz = LidarMinHz < TNumericLimits<float>::Max() ? LidarMinHz : 0.0f;
+    AggregateRateDiagnostics(Telemetry);
 
     Telemetry.StatusMessage = Telemetry.bBestEffort
         ? TEXT("지원 기준(카메라/LiDAR 각각 4대)을 초과해 30 FPS 최선 실행 중")
         : FString::Printf(TEXT("자동 %d FPS 단계"), Telemetry.TargetFps);
+    if (!Telemetry.StarvedSensorIds.IsEmpty())
+        Telemetry.StatusMessage += TEXT(" · 주기 유지 실패/정체: ") + FString::Join(Telemetry.StarvedSensorIds, TEXT(", "));
 }
 
 FString UVirtualSensorSchedulerSubsystem::GetTelemetrySummaryText() const
 {
-    return FString::Printf(
+    FString Result = FString::Printf(
         TEXT("%s | 카메라=%d LiDAR=%d | 평균=%.1f FPS 1%% low=%.1f FPS p95=%.1fms | 스케줄러=%.2fms/적응 예산 %.1fms(최대 %.1fms) | 완료 하한 Camera/LiDAR=%.1f/%.1fHz | 측정 대기=%d 후처리 대기=%d | 예산 생략=%d 실패=%d 큐 초과=%d 파생 생략=%d"),
         *Telemetry.StatusMessage,
         Telemetry.ActiveCameraCount,
@@ -647,4 +715,22 @@ FString UVirtualSensorSchedulerSubsystem::GetTelemetrySummaryText() const
         Telemetry.FailedAcquisitionFrameCount,
         Telemetry.QueueOverflowCount,
         Telemetry.DroppedDerivedFrameCount);
+    for (const auto& Rate : Telemetry.SensorRates)
+    {
+        const TCHAR* State = TEXT("정지");
+        switch (Rate.State)
+        {
+        case EVirtualSensorRateState::WarmingUp: State = TEXT("시작 유예"); break;
+        case EVirtualSensorRateState::Running: State = TEXT("측정 중"); break;
+        case EVirtualSensorRateState::Paused: State = TEXT("일시정지"); break;
+        case EVirtualSensorRateState::InteractionPreview: State = TEXT("조작용 경량 미리보기"); break;
+        case EVirtualSensorRateState::Starved: State = TEXT("측정 정체"); break;
+        case EVirtualSensorRateState::Failed: State = TEXT("측정 정체(처리 실패 이력 있음)"); break;
+        default: break;
+        }
+        Result += FString::Printf(TEXT("\n%s: %s · %.1fHz · 마지막 진행 %.2f초 전%s"), *Rate.SensorId, State,
+            Rate.EffectiveHz, Rate.LastProgressAgeSeconds, Rate.bInteractionPreview ? TEXT(" · 조작 모드") : TEXT(""));
+    }
+    if (GetWorld() && GetWorld()->IsPaused()) Result += TEXT("\nPIE 일시정지 · 공정성 판정 보류");
+    return Result;
 }

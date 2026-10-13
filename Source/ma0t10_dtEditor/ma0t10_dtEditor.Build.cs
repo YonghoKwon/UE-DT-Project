@@ -5,6 +5,13 @@ public class ma0t10_dtEditor : ModuleRules
     public ma0t10_dtEditor(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        PrivateDependencyModuleNames.Add("UMG");
+        PrivateDependencyModuleNames.Add("HTTP");
+        PrivateDependencyModuleNames.Add("InputCore");
+        PrivateDependencyModuleNames.Add("Json");
+        PrivateDependencyModuleNames.Add("Stomp");
+        PrivateDependencyModuleNames.AddRange(new[] { "RHI", "RenderCore" });
+        PrivateDependencyModuleNames.AddRange(new[] { "BlueprintGraph", "UMGEditor", "KismetCompiler" });
 
         PublicDependencyModuleNames.AddRange(new string[]
         {

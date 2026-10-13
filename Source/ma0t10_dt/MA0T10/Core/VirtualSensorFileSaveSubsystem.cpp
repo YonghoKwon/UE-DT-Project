@@ -123,6 +123,7 @@ uint64 UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(AVirtualSensorActo
 	State.ActorTransform=FTransform::Identity;State.PersistentActorTag=NAME_None;
 	State.PreviewPointStride=2;State.MaxPreviewPoints=3000;State.bPreviewHitOnly=true;
 	State.ServerPayloadStride=1;State.MaxServerPayloadPoints=0;State.bIncludeMissPointsInServerPayload=false;
+	State.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
 	State.bExportCsvOnScan=false;State.bExportJsonLinesOnScan=false;State.bExportPcdOnScan=false;
 	State.CameraCaptureMode=EVirtualCameraCaptureMode::PreviewOnly;
 	TArray<uint8> Bytes;FMemoryWriter Writer(Bytes);FVirtualSensorEditableState::StaticStruct()->SerializeItem(Writer,&State,nullptr);
@@ -173,6 +174,7 @@ FString UVirtualSensorFileSaveSubsystem::RequestSaveInternal(EVirtualSensorFileS
 	const FString Id=R->Status.RequestId;Requests.Add(Id,R);Order.Insert(Id,0);TrimHistory();
 	auto Reject=[&](const FString& Why){SetState(R,EVirtualSensorFileSaveState::Failed,Why);return Id;};
 	if(bShuttingDown||!IsValid(Sensor)||Sensor->GetWorld()!=GetWorld()||Sensor->IsActorBeingDestroyed())return Reject(TEXT("같은 실행 월드의 유효한 센서를 선택하세요."));
+	FString PlacementError;if(!Sensor->PrepareForDataCollection(PlacementError))return Reject(PlacementError);
 	R->Status.SensorId=Sensor->GetSensorId();R->Status.SensorKind=Sensor->GetSensorKind();R->Revision=GetSensorSaveRevision(Sensor);R->BaselineFrame=GetAvailableFrameId(Sensor);
 	if(Duplicate)return Reject(TEXT("이 센서의 파일 저장 요청이 이미 진행 중입니다."));
 	int32 Pending=0;for(const auto& P:Requests)Pending+=!P.Value->Status.IsTerminal();if(Pending>=8)return Reject(TEXT("진행 중인 저장 요청이 많습니다. 완료 후 다시 요청하세요."));

@@ -65,6 +65,7 @@ FString UVirtualSensorPeriodicFileSaveSubsystem::StartPeriodicSave(AVirtualSenso
 		++Active;if(P.Value->Sensor.Get()==Sensor)return Reject(TEXT("이 센서의 주기 저장 또는 마지막 파일 저장이 이미 진행 중입니다."));
 	}
 	if(Active>=MaxConcurrentSessions)return Reject(TEXT("동시 주기 저장 세션 한도(16개)에 도달했습니다."));
+	if(!Sensor->PrepareForDataCollection(Error))return Reject(Error);
 	Session->Sensor=Sensor;Session->Revision=UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(Sensor);Session->Origin=FPlatformTime::Seconds();
 	const FDateTime Now=FDateTime::UtcNow();
 	const FString Folder=FString::Printf(TEXT("%s_%03d_%s"),*Now.ToString(TEXT("%Y%m%dT%H%M%SZ")),Now.GetMillisecond(),*S.SessionId.Left(8));
@@ -79,6 +80,11 @@ bool UVirtualSensorPeriodicFileSaveSubsystem::StopPeriodicSave(const FString& Id
 	S.bActive=false;S.bWaitingForLatestFrame=false;S.WaitReason=EVirtualSensorPeriodicSaveWaitReason::None;
 	S.LastMessage=S.bPending?TEXT("주기 저장 중지 · 이미 접수한 파일을 마무리합니다."):TEXT("주기 저장 중지 완료");
 	Publish(*Found);return true;
+}
+bool UVirtualSensorPeriodicFileSaveSubsystem::HasSensorWork(const AVirtualSensorActorBase* Sensor) const
+{
+	for(const auto& Pair:Sessions)if(Pair.Value->Sensor.Get()==Sensor&&(Pair.Value->Status.bActive||Pair.Value->Status.bPending))return true;
+	return false;
 }
 FVirtualSensorPeriodicFileSaveStatus UVirtualSensorPeriodicFileSaveSubsystem::GetPeriodicStatus(const FString& Id) const
 {

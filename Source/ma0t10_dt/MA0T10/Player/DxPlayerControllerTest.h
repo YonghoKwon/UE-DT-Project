@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Player/DxPlayerControllerBase.h"
 #include "DxPlayerControllerTest.generated.h"
+class AVirtualSensorTransformGizmoActor;
 
 /**
  * 
@@ -13,4 +14,24 @@ UCLASS()
 class MA0T10_DT_API ADxPlayerControllerTest : public ADxPlayerControllerBase
 {
 	GENERATED_BODY()
+public:
+	ADxPlayerControllerTest();
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	void RegisterPlacementInputOwner(AVirtualSensorTransformGizmoActor* Gizmo);
+	void UnregisterPlacementInputOwner(AVirtualSensorTransformGizmoActor* Gizmo);
+	AVirtualSensorTransformGizmoActor* GetPlacementInputOwner() const;
+	void FinishOwnedNavigationInput();
+protected:
+	virtual void SetupInputComponent() override;
+private:
+	void PlacementMove(const FInputActionValue& Value);
+	void PlacementLook(const FInputActionValue& Value);
+	void PlacementMoveUpDown(const FInputActionValue& Value);
+	void PlacementRightMouse(const FInputActionValue& Value);
+	TWeakObjectPtr<AVirtualSensorTransformGizmoActor> PlacementOwner;
+	bool bOwnedRightInput=false;
+	bool SavedCursor=true,SavedClickEvents=true,SavedMouseOverEvents=true;
+	void ApplyProjectViewportPolicy();
+	FDelegateHandle WorldBeginPlayHandle;
 };

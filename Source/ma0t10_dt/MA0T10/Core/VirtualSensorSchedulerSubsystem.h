@@ -9,6 +9,25 @@ class UVirtualLidarScanComponent;
 class AActor;
 class UActorComponent;
 
+UENUM(BlueprintType)
+enum class EVirtualSensorRateState : uint8
+{
+    Stopped, WarmingUp, Running, Paused, InteractionPreview, Starved, Failed
+};
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualSensorRateDiagnostic
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") FString SensorId;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") FString SensorKind;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") EVirtualSensorRateState State = EVirtualSensorRateState::Stopped;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") float EffectiveHz = 0.0f;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") double LastProgressAgeSeconds = -1.0;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") bool bEvaluable = false;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") bool bInteractionPreview = false;
+};
+
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorPerformanceTelemetry
 {
@@ -42,10 +61,10 @@ struct MA0T10_DT_API FVirtualSensorPerformanceTelemetry
     float P95FrameTimeMs = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
-    float CameraCompletionFairnessRatio = 1.0f;
+    float CameraCompletionFairnessRatio = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
-    float LidarCompletionFairnessRatio = 1.0f;
+    float LidarCompletionFairnessRatio = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
     int32 PendingAcquisitionCount = 0;
@@ -74,6 +93,12 @@ struct MA0T10_DT_API FVirtualSensorPerformanceTelemetry
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
     float MinimumLidarCompletionHz = 0.0f;
 
+    /** False for no sensors, warmup, pause, interaction preview, or any zero-rate sensor. */
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") bool bCameraFairnessEvaluable = false;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") bool bLidarFairnessEvaluable = false;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") TArray<FString> StarvedSensorIds;
+    UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|SensorPerformance") TArray<FVirtualSensorRateDiagnostic> SensorRates;
+
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
     bool bBestEffort = false;
 
@@ -88,6 +113,7 @@ class MA0T10_DT_API UVirtualSensorSchedulerSubsystem : public UTickableWorldSubs
 
 public:
     virtual void Tick(float DeltaTime) override;
+    virtual bool IsTickableWhenPaused() const override { return true; }
     virtual TStatId GetStatId() const override;
     virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 
@@ -115,6 +141,9 @@ public:
     static float ResolveNominalCameraRatePerSensor(int32 TargetFps, int32 CameraCount);
     static int32 ResolveCameraCapturesPerFrame(int32 TargetFps, int32 CameraCount);
     static float ResolveAdaptiveCameraAdmissionHz(float CurrentHz, float ObservedFrameMs, int32 TargetFps, float MinimumAdmissionHz = -1.0f);
+    static FVirtualSensorRateDiagnostic EvaluateRate(double Now, double RegisteredAt, double LastProgress,
+        float MeasuredHz, float Period, bool bRunning, bool bPaused, bool bInteractive, int32 FailureCount);
+    static void AggregateRateDiagnostics(FVirtualSensorPerformanceTelemetry& Result);
 
 private:
     void CompactRegistrations();
@@ -124,6 +153,7 @@ private:
 
     TArray<TWeakObjectPtr<UVirtualCameraCaptureComponent>> Cameras;
     TArray<TWeakObjectPtr<UVirtualLidarScanComponent>> Lidars;
+    TMap<TWeakObjectPtr<UActorComponent>, double> RegistrationTimes;
     TWeakObjectPtr<UVirtualCameraCaptureComponent> PreferredCamera;
     TWeakObjectPtr<UVirtualLidarScanComponent> PreferredLidar;
     int32 NextCameraIndex = 0;

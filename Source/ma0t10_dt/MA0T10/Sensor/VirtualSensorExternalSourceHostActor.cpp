@@ -790,6 +790,7 @@ void AVirtualSensorExternalSourceHostActor::CompleteTopicParse(
 		else ++Runtime->Status.ValidationFailureCount;
 		if (Data->bDeepValidated && Data->bValid) ++Runtime->Status.DeepValidationCount;
 		if (UTransactionCodeMessage* Handler = FindHandler(Kind)) Handler->ProcessStructData(ParsedData);
+        OnUiReceiveCompletedNative.Broadcast(*Data);
 		AddReceiveLog(*Runtime, *Data, ParseLatencyMs);
 	}
 	TryStartQueuedParses();

@@ -2,9 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
 #include "VirtualSensorSettingsPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
+class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
 class AVirtualSensorTransformGizmoActor;
 class STextBlock;
@@ -15,6 +17,8 @@ class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPan
     GENERATED_BODY()
 
 public:
+	TSharedRef<SWidget> BuildWorkspacePlacementControls();
+	void RefreshWorkspacePlacementControls();
 	/** Follow the workspace selection without cycling or applying edited values. Legacy panels opt out. */
 	bool SynchronizeWorkspaceSelection(bool bForceRefresh=false);
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
@@ -46,6 +50,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void NudgeSelectedSensor(FVector TranslationDelta, FRotator RotationDelta);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement")
+    void SetPlacementInputMode(EVirtualSensorPlacementInputMode Mode);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") FString RequestSaveSelectedSensorPose(const FString& Name,const FString& ExistingBookmarkId=TEXT(""));
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") bool ApplySelectedSensorPoseBookmark(const FString& BookmarkId);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") bool UndoSelectedSensorPlacement();
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorControl|Placement") bool RedoSelectedSensorPlacement();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorControl")
     void SetSensorManipulationEnabled(bool bEnabled);
@@ -92,6 +102,8 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl", meta = (ClampMin = "0.1", ClampMax = "90.0"))
     float RotationStepDegrees = 5.0f;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|SensorControl|Placement") float TranslationSpeedCmPerSecond=125;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|SensorControl|Placement") float RotationSpeedDegreesPerSecond=62.5f;
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -100,11 +112,16 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FSensorV2ManipulationLifecycleTest;
+    friend class FSensorPlacementIdentityUiTest;
+#endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
 	bool bOwnedSettingHelpOpen=false;
 	int32 WorkspaceSettingsTab=0;
     bool ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const;
     bool ApplyStateToRuntime(const FVirtualSensorEditableState& State, FString& OutError);
+	bool ApplyPendingTransform();
     bool ValidateState(const FVirtualSensorEditableState& State, FString& OutError) const;
     void RefreshPendingState(bool bCaptureInitialValue);
     void RefreshNativeText();
@@ -112,7 +129,13 @@ private:
     void SyncGizmoTarget();
     AActor* GetSelectedSensorActor() const;
     void HandleGizmoTransformChanged(const FTransform& Transform);
+    void HandleGizmoGestureStarted();
+    void RefreshPoseRows();
+    void SelectPoseBookmark(const FString& BookmarkId);
+    TSharedRef<SWidget> BuildPoseBookmarkControls();
     void HandleGizmoTransformCommitted(const FTransform& Transform);
+    void HandleManipulationExitRequested();
+    void FinishSensorManipulation(bool bRestoreMonitorView);
     void RefreshSelectedSensorNow(bool bForce);
     void BeginMonitorFollowForManipulation();
     void EndMonitorFollowForManipulation();
@@ -124,7 +147,7 @@ private:
     FString BuildDeviceSpecText() const;
     FName ResolvePersistentActorTag(const AActor* Actor) const;
     const FVirtualSensorSettingHelpDescriptor* FindSettingHelp(FName SettingKey) const;
-    TSharedRef<SWidget> MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit = true, FName HelpKey = NAME_None);
+    TSharedRef<SWidget> MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit = true, FName HelpKey = NAME_None, bool bTransformOnly = false);
     TSharedRef<SWidget> MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max, FName HelpKey = NAME_None);
 
     UPROPERTY(Transient)
@@ -144,6 +167,18 @@ private:
     TArray<TSharedPtr<EVirtualCameraDeviceProfile>> NativeCameraProfileOptions;
     TArray<TSharedPtr<EVirtualLidarDeviceProfile>> NativeLidarProfileOptions;
     TSharedPtr<STextBlock> NativeStatusText;
+    TSharedPtr<SEditableTextBox> PoseNameInput;
+    TArray<FVirtualSensorPoseBookmark> PoseRows;
+    FString PoseName,SelectedPoseId,PendingPoseDeleteId,LastPoseRequest;
+    uint64 PoseInteractionRevision=0,PoseRequestRevision=0;
+    TWeakObjectPtr<AVirtualSensorActorBase> PoseRowsSensor;
+    FString PoseRowsSensorId;
+    EVirtualSensorKind PoseRowsKind=EVirtualSensorKind::Camera;
+    int64 PoseRowsRevision=-1;
+    double NextPoseRefresh=0;
+    bool bPoseEditable=false,bPoseUndoAvailable=false,bPoseRedoAvailable=false;
+    FString PoseLockReason;
+    FVirtualSensorPlacementPreviewStatus PlacementPreviewStatus;
     bool bShowAdvanced = false;
     bool bKeyboardHelpExpanded = false;
     bool bGizmoVisible = true;
@@ -157,7 +192,9 @@ private:
     EVirtualSensorCoordinateSpace CoordinateSpace = EVirtualSensorCoordinateSpace::Local;
     double LastPreviewRefreshTime = -1.0;
 	FVirtualSensorInteractionRequest InteractionRequest;
+    EVirtualSensorPlacementInputMode PlacementInputMode=EVirtualSensorPlacementInputMode::Continuous;
     TWeakObjectPtr<AActor> LastSyncedSensorActor;
+    TWeakObjectPtr<AVirtualSensorActorBase> ManipulationTarget;
     FString LastControlMessage = TEXT("센서를 선택하고 PIE 실행 값을 조정하세요.");
     FName SelectedSettingHelpKey = NAME_None;
 };

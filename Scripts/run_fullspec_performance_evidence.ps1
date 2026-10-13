@@ -17,7 +17,8 @@ param(
     [string]$JsonPath = "",
     [switch]$SkipBuild,
     [switch]$SkipLaunch,
-    [switch]$Json
+    [switch]$Json,
+    [ValidateSet('AcquisitionOnly','CompatibilityJson')][string]$EvaluationScope='AcquisitionOnly'
 )
 
 $ErrorActionPreference = "Stop"
@@ -192,13 +193,19 @@ $cameraRows = @($sensorSummary | Where-Object Kind -eq 'Camera')
 $lidarRows = @($sensorSummary | Where-Object Kind -eq 'Lidar')
 $minimumCameraHz = if ($cameraRows.Count -gt 0) { ($cameraRows | Measure-Object AverageAcquisitionHz -Minimum).Minimum } else { 0.0 }
 $minimumLidarHz = if ($lidarRows.Count -gt 0) { ($lidarRows | Measure-Object AverageAcquisitionHz -Minimum).Minimum } else { 0.0 }
+# The acquisitionHz log field is freshness-adjusted by the scheduler. A zero
+# sample after warmup must not disappear into a healthy whole-window average.
+$sensorRateHealthPass = $cameraRows.Count -eq $CameraCount -and $lidarRows.Count -eq $LidarCount -and @($sensor | Where-Object { $_.AcquisitionRateHz -le 0.0 }).Count -eq 0
 # A finite sample window can exclude one completion at either boundary. Keep a
 # narrow 0.5% measurement tolerance so 4.98 Hz represents a 5 Hz schedule while
 # genuine starvation (for example 4.8 Hz) still fails.
 $rateMeasurementTolerance = 0.995
 $completionRatePass = $null -eq $threshold -or (($CameraCount -eq 0 -or $minimumCameraHz -ge $threshold.CameraHz * $rateMeasurementTolerance) -and ($LidarCount -eq 0 -or $minimumLidarHz -ge $threshold.LidarHz * $rateMeasurementTolerance))
 $queueHealthPass = @($sensorSummary | Where-Object { $_.FinalFailedAcquisition -gt 0 -or $_.FinalQueueOverflow -gt 0 }).Count -eq 0
-$valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $completionRatePass -and $fairnessPass -and $queueHealthPass
+$valid = $enoughSamples -and $cameraShapeValid -and $lidarShapeValid -and $maxPendingPerSensor -le 1 -and $thresholdPass -and $completionRatePass -and $fairnessPass -and $queueHealthPass -and $sensorRateHealthPass
+$acquisitionPass=$valid
+$derivedPass=if($EvaluationScope -eq 'CompatibilityJson'){@($sensorSummary|Where-Object Kind -eq 'Lidar'|Where-Object AverageOutputHz -le 0).Count -eq 0 -and $lidarRows.Count -eq $LidarCount}else{$null}
+if($EvaluationScope -eq 'CompatibilityJson'){$valid=$valid -and $derivedPass}
 $lidarVisiblePointLimit = switch ($LidarRenderer) {
     "Niagara" { 21600 }
     "Cpu" { 5000 }
@@ -218,17 +225,23 @@ $report = [PSCustomObject]@{
         CameraFairnessRatio = [Math]::Round($cameraFairnessRatio, 3); LidarFairnessRatio = [Math]::Round($lidarFairnessRatio, 3)
         MinimumCameraCompletionHz = [Math]::Round($minimumCameraHz, 3); MinimumLidarCompletionHz = [Math]::Round($minimumLidarHz, 3)
         FairnessPass = $fairnessPass; CompletionRatePass = $completionRatePass; QueueHealthPass = $queueHealthPass
+        SensorRateHealthPass = $sensorRateHealthPass
         CompletionRateMeasurementTolerance = $rateMeasurementTolerance
         Threshold = $threshold; ThresholdPass = $thresholdPass; Valid = $valid
     }
     Sensors = $sensorSummary
+    AcceptanceScope=$EvaluationScope
+    AcquisitionPass=if($acquisitionPass){'Pass'}else{'Fail'}
+    RequestedDerivedOutputPass=if($null -eq $derivedPass){'NotTested'}elseif($derivedPass){'Pass'}else{'Fail'}
+    TransportPass='NotTested'
 }
 
 $report | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath $JsonPath -Encoding UTF8
 $markdown = @(
-    '# FullSpec Virtual Sensor Performance Report', '',
+    "# FullSpec Virtual Sensor Performance Report — $EvaluationScope", '',
     "Generated UTC: $($report.GeneratedUtc)", '',
     "- Scenario: Camera $CameraCount + LiDAR $LidarCount",
+    "- Acquisition / requested derived / actual transport: $($report.AcquisitionPass) / $($report.RequestedDerivedOutputPass) / $($report.TransportPass)",
     "- Map: $MapPath",
     "- LiDAR renderer: $LidarRenderer",
     "- LiDAR profile: $LidarProfile ($expectedLidarRays rays/frame)",
@@ -249,6 +262,7 @@ $markdown = @(
     "- Completion-rate measurement tolerance: $([Math]::Round((1.0 - $rateMeasurementTolerance) * 100.0, 2))%",
     "- Queue/failure health pass: $queueHealthPass",
     "- Fairness ratio <= 1.2: $fairnessPass",
+    "- All configured sensors present, no zero-rate sample after warmup: $sensorRateHealthPass",
     "- Threshold pass: $thresholdPass",
     "- Valid: $valid", '',
     '## Per-sensor completion telemetry', '',

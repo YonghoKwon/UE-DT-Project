@@ -39,7 +39,7 @@ void AVirtualLidarSensorActor::BeginPlay()
         ScanComponent->SetRecorderComponent(nullptr);
         ScanComponent->OutputMode = EVirtualLidarOutputMode::None;
         ScanComponent->OnFrameAcquired.AddDynamic(this, &AVirtualLidarSensorActor::HandleLidarFrameAcquired);
-        ScanComponent->OnScanCompleted.AddDynamic(this, &AVirtualLidarSensorActor::HandleLidarFrame);
+        ScanComponent->OnDerivedFrameCompletedNative.AddUObject(this,&AVirtualLidarSensorActor::HandleDerivedLidarFrame);
         if (AnalysisComponent) AnalysisComponent->BindScanComponent(ScanComponent);
         if (VisualizationComponent) VisualizationComponent->BindScanComponent(ScanComponent);
         if (ExportComponent) ExportComponent->BindScanComponent(ScanComponent);
@@ -80,6 +80,7 @@ bool AVirtualLidarSensorActor::ReadEditableState(FVirtualSensorEditableState& Ou
     OutState.LidarMinVerticalAngle = ScanComponent->MinVerticalAngle;
     OutState.LidarMaxVerticalAngle = ScanComponent->MaxVerticalAngle;
     OutState.ServerPayloadStride = ScanComponent->ServerPayloadStride;
+    OutState.CompatibilityOutputPolicy=ScanComponent->CompatibilityOutputPolicy;
     OutState.MaxServerPayloadPoints = ScanComponent->MaxServerPayloadPoints;
     OutState.bIncludeMissPointsInServerPayload = ScanComponent->bIncludeMissPointsInServerPayload;
     OutState.PreviewPointStride = ScanComponent->PreviewPointStride;
@@ -99,8 +100,18 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     {
         return false;
     }
+    FVirtualSensorEditableState Current;ReadEditableState(Current);
+    Current.CompatibilityOutputPolicy=State.CompatibilityOutputPolicy;
+    Current.PersistentActorTag=State.PersistentActorTag;Current.OriginalSensorId=State.OriginalSensorId;
+    if(FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Current,&State,PPF_None))
+    {
+        if(ScanComponent->CompatibilityOutputPolicy!=State.CompatibilityOutputPolicy){ScanComponent->SetCompatibilityOutputPolicy(State.CompatibilityOutputPolicy);++ConfigurationRevision;}
+        return true;
+    }
+    const bool bWasRunning=bInteractiveManipulationActive?bWasRunningBeforeInteraction:ScanComponent->IsScanRunning();
+    TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
     SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
-    ScanComponent->StopScan();
+    if(ScanComponent->IsScanRunning())ScanComponent->StopScan();
     ScanComponent->ApplyDeviceProfile(State.LidarProfile);
     ScanComponent->ApplySimulationQuality(State.SimulationQuality);
     ScanComponent->SensorId = State.SensorId;
@@ -112,13 +123,15 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     ScanComponent->MinVerticalAngle = State.LidarMinVerticalAngle;
     ScanComponent->MaxVerticalAngle = State.LidarMaxVerticalAngle;
     ScanComponent->SetServerPayloadPolicy(State.ServerPayloadStride, State.MaxServerPayloadPoints, State.bIncludeMissPointsInServerPayload);
+    ScanComponent->SetCompatibilityOutputPolicy(State.CompatibilityOutputPolicy);
     ScanComponent->SetPreviewPolicy(State.PreviewPointStride, State.MaxPreviewPoints, State.bPreviewHitOnly);
     ScanComponent->bUseMultiHit = State.bUseMultiHit;
     ScanComponent->MaxHitsPerRay = State.MaxHitsPerRay;
     ScanComponent->bExportCsvOnScan = State.bExportCsvOnScan;
     ScanComponent->bExportJsonLinesOnScan = State.bExportJsonLinesOnScan;
     ScanComponent->bExportPcdOnScan = State.bExportPcdOnScan;
-    ScanComponent->StartScan();
+    if(bWasRunning) ScanComponent->StartScan();
+    ++ConfigurationRevision;
     return true;
 }
 
@@ -139,7 +152,8 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         AcquiredFrame.SensorKind = EVirtualSensorKind::Lidar;
         AcquiredFrame.FrameId = Snapshot->FrameId;
 		AcquiredFrame.SlabContext = Snapshot->SlabContext;
-        AcquiredFrame.TimestampUtc = FDateTime::UtcNow();
+        AcquiredFrame.TimestampUtc = Snapshot->GetAcquisitionStartUtc();
+        if(AcquiredFrame.TimestampUtc.GetTicks()<=0)AcquiredFrame.TimestampUtc=FDateTime::UtcNow();
         AcquiredFrame.SchemaVersion = TEXT("virtual-lidar.v2");
         AcquiredFrame.PointSnapshot = Snapshot->Points;
         AcquiredFrame.LidarFrameSnapshot = Snapshot;
@@ -169,7 +183,7 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
 bool AVirtualLidarSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {
 	if (!ScanComponent || bInteractiveManipulationActive) return ScanComponent != nullptr;
-	Super::BeginInteractiveManipulation(Request);
+    if(!Super::BeginInteractiveManipulation(Request))return false;
 	bWasRunningBeforeInteraction = ScanComponent->IsScanRunning();
 	SavedInteractionHorizontalSamples = ScanComponent->HorizontalSamples;
 	SavedInteractionVerticalChannels = ScanComponent->VerticalChannels;
@@ -191,7 +205,7 @@ void AVirtualLidarSensorActor::EndInteractiveManipulation()
 	ScanComponent->VerticalChannels = SavedInteractionVerticalChannels;
 	ScanComponent->ScanInterval = SavedInteractionInterval;
 	ScanComponent->SetInteractivePreviewMode(false);
-	if (bWasRunningBeforeInteraction)
+	if (bWasRunningBeforeInteraction&&!bSettingsTransaction)
 	{
 		ScanComponent->StartScan();
 		ScanComponent->RequestImmediateScheduledScan();
@@ -201,21 +215,26 @@ void AVirtualLidarSensorActor::EndInteractiveManipulation()
 
 bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError)
 {
+    if(!CanEditSensorConfiguration(OutError))return false;
     if (!ScanComponent || RequestedState.TargetKind != EVirtualSensorTargetKind::Lidar)
     {
         OutError = TEXT("선택한 LiDAR 센서를 사용할 수 없습니다.");
         return false;
     }
-    const bool bWasRunning = ScanComponent->IsScanRunning();
-    ScanComponent->StopScan();
+    const bool bWasRunning = bInteractiveManipulationActive?bWasRunningBeforeInteraction:ScanComponent->IsScanRunning();
+    TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
+    if(ScanComponent->IsScanRunning())ScanComponent->StopScan();
     ScanComponent->ApplyDeviceProfile(RequestedState.LidarProfile);
     ScanComponent->ApplySimulationQuality(RequestedState.SimulationQuality);
     if (bWasRunning) ScanComponent->StartScan();
+    ++ConfigurationRevision;
     return ReadEditableState(OutAppliedState);
 }
 
 bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
+    if(!CanEditSensorConfiguration(OutError))return false;
+    if((State.SensorId!=GetSensorId()||!State.ActorTransform.Equals(GetActorTransform()))&&!CanEditSensorPlacement(OutError))return false;
     if (!ScanComponent || State.TargetKind != EVirtualSensorTargetKind::Lidar)
     {
         OutError = TEXT("선택한 LiDAR 센서를 사용할 수 없습니다.");
@@ -226,13 +245,16 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
         OutError = TEXT("SensorId 또는 Transform 값이 올바르지 않습니다.");
         return false;
     }
-    if (State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f ||
+    if (!FMath::IsFinite(State.LidarScanInterval) || !FMath::IsFinite(State.LidarMaxDistance) ||
+        !FMath::IsFinite(State.LidarHorizontalFov) || !FMath::IsFinite(State.LidarMinVerticalAngle) || !FMath::IsFinite(State.LidarMaxVerticalAngle) ||
+        State.LidarScanInterval < 0.033f || State.LidarScanInterval > 60.0f ||
         State.LidarMaxDistance < 10.0f || State.LidarMaxDistance > 20000.0f ||
         State.LidarHorizontalSamples < 1 || State.LidarHorizontalSamples > 1440 ||
         State.LidarVerticalChannels < 1 || State.LidarVerticalChannels > 256 ||
         State.LidarHorizontalFov < 1.0f || State.LidarHorizontalFov > 360.0f ||
         State.LidarMinVerticalAngle < -90.0f || State.LidarMaxVerticalAngle > 90.0f ||
         State.LidarMinVerticalAngle >= State.LidarMaxVerticalAngle ||
+        (State.CompatibilityOutputPolicy!=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways&&State.CompatibilityOutputPolicy!=EVirtualLidarCompatibilityOutputPolicy::WhenRequested) ||
         State.ServerPayloadStride < 1 || State.ServerPayloadStride > 100 ||
         State.MaxServerPayloadPoints < 0 || State.MaxServerPayloadPoints > 1000000 ||
         State.PreviewPointStride < 1 || State.PreviewPointStride > 100 ||
@@ -247,23 +269,20 @@ bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditabl
 
 void AVirtualLidarSensorActor::HandleLidarFrame(const FString& JsonPayload, UTexture2D* ViewTexture)
 {
-    if (!ScanComponent) return;
-    if (!OutputComponent || JsonPayload.IsEmpty()) return;
+    if(!ScanComponent)return;const auto& Frame=ScanComponent->GetLastCompletedDerivedFrame();
+    if(Frame.HasJsonPayload()&&*Frame.JsonPayload==JsonPayload)HandleDerivedLidarFrame(Frame);
+}
 
-    FVirtualSensorFrameEnvelope Frame;
-    Frame.SensorId = ScanComponent->SensorId;
-    Frame.SensorKind = EVirtualSensorKind::Lidar;
-    Frame.FrameId = ScanComponent->GetRuntimeStatus().FrameId;
-    Frame.TimestampUtc = FDateTime::UtcNow();
-    Frame.SchemaVersion = TEXT("virtual-lidar.v1");
-    Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
-    Frame.LidarFrameSnapshot = ScanComponent->GetLastFrameSnapshot();
-	if (Frame.LidarFrameSnapshot.IsValid()) Frame.SlabContext=Frame.LidarFrameSnapshot->SlabContext;
-    Frame.PointSnapshot = Frame.LidarFrameSnapshot.IsValid()
-        ? Frame.LidarFrameSnapshot->Points
-        : ScanComponent->GetLastPointSnapshot();
-    Frame.bSendTransport = PendingExternalSendTransport.IsSet() ? PendingExternalSendTransport.GetValue() : true;
-    Frame.bRecord = true;
-    PendingExternalSendTransport.Reset();
-    OutputComponent->RouteFrame(Frame);
+bool AVirtualLidarSensorActor::ReadCollectionState(FVirtualSensorEditableState& State,bool& Preview) const
+{
+    if(!ReadEditableState(State))return false;
+    Preview=bInteractiveManipulationActive?bWasRunningBeforeInteraction:IsSensorRunning();
+    if(bInteractiveManipulationActive){State.LidarHorizontalSamples=SavedInteractionHorizontalSamples;State.LidarVerticalChannels=SavedInteractionVerticalChannels;State.LidarScanInterval=SavedInteractionInterval;}
+    return true;
+}
+void AVirtualLidarSensorActor::HandleDerivedLidarFrame(const FVirtualSensorFrameEnvelope& Captured)
+{
+    if(!OutputComponent||!Captured.HasJsonPayload())return;
+    auto Frame=Captured;Frame.bSendTransport=PendingExternalSendTransport.IsSet()?PendingExternalSendTransport.GetValue():Captured.bSendTransport;
+    PendingExternalSendTransport.Reset();OutputComponent->RouteFrame(Frame);
 }

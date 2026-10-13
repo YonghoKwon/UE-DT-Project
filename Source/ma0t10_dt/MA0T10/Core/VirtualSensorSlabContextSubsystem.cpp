@@ -2,6 +2,9 @@
 #include "EngineUtils.h"
 #include "VirtualSensorStreamPublisherComponent.h"
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
+#include "SlabRunResultsSubsystem.h"
+#include "JsonObjectConverter.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
@@ -33,6 +36,8 @@ TMap<FString,FString> FVirtualSlabFrameContext::ToHeaders() const
 	Result.Add(TEXT("x-session-segment"), LexToString(Segment));
 	return Result;
 }
+void UVirtualSensorSlabContextSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{Super::Initialize(Collection);Collection.InitializeDependency<USlabRunResultsSubsystem>();}
 bool UVirtualSensorSlabContextSubsystem::CheckRun(const FString& Id)
 {
 	if (!IsInGameThread() || Id.IsEmpty() || Id != Status.RunId) { Status.Message=TEXT("실행 UUID가 일치하지 않습니다."); return false; }
@@ -81,7 +86,7 @@ bool UVirtualSensorSlabContextSubsystem::ValidateScenarioOutputs(const TArray<FS
 FString UVirtualSensorSlabContextSubsystem::BeginUnboundObservationSession(const FString& Run,const FString& ScenarioUUID)
 {
 	if(!IsInGameThread()||!GetWorld())return FString();
-	if(Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining)
+	if(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining)
 	{Status.Message=TEXT("진행 중인 세션이 있습니다.");return FString();}
 	FGuid RunGuid,ScenarioGuid;
 	if(!FGuid::Parse(Run,RunGuid)||!RunGuid.IsValid()||!FGuid::Parse(ScenarioUUID,ScenarioGuid)||!ScenarioGuid.IsValid())
@@ -95,6 +100,7 @@ FString UVirtualSensorSlabContextSubsystem::BeginUnboundObservationSession(const
 	Status.Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Status.bObservationOnly=true;
 	Status.CurrentSlab.RunId=Id;Status.CurrentSlab.ScenarioUUID=ScenarioGuid.ToString(EGuidFormats::DigitsWithHyphensLower);
 	Status.CurrentSlab.Generation=++Generation;Status.Message=TEXT("관찰 실행 · 첫 Slab 프레임 대기 중");UsedRunIds.Add(Id);
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->BeginRun(Id,Status.CurrentSlab.ScenarioUUID,ESlabExecutionPolicy::ObservationAllowed,Status.Outputs);
 	return Id;
 }
 FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& RequestedId,const TArray<FString>& Ids,const FVirtualSlabSensorOutputSelection& Outputs,const FString& ScenarioUUID,bool bRequireEachRequestedKind)
@@ -106,7 +112,9 @@ FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& 
 	if (RequestedId.IsEmpty()) Guid=FGuid::NewGuid();
 	else if (!FGuid::Parse(RequestedId,Guid) || !Guid.IsValid()) { Status.Message=TEXT("유효한 UUID가 필요합니다."); return FString(); }
 	const FString Id=Guid.ToString(EGuidFormats::DigitsWithHyphensLower);
-	if (UsedRunIds.Contains(Id)) { Status.Message=TEXT("재실행에는 새로운 UUID를 사용하세요."); return FString(); }
+	const bool ActivatingPreparation=Status.State==EVirtualSlabSessionState::Preparing&&Status.RunId==Id;
+	if(Status.State==EVirtualSlabSessionState::Preparing&&!ActivatingPreparation)return FString();
+	if (UsedRunIds.Contains(Id)&&!ActivatingPreparation) { Status.Message=TEXT("재실행에는 새로운 UUID를 사용하세요."); return FString(); }
 	TArray<AVirtualSensorCoordinator*> Managers;
 	for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It; ++It) Managers.Add(*It);
 	const bool bObservationOnly=!Outputs.HasAnyOutput();
@@ -133,8 +141,14 @@ FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& 
 		if(Outputs.bCameraImage&&!bHasCamera) { Status.Message=TEXT("Camera 출력에는 Camera 대상이 필요합니다."); return FString(); }
 	}
 	for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
+	for (const auto& Pair:NewTargets) if(auto* Sensor=Pair.Value.Get())
+	{
+		const bool Needed=Sensor->GetSensorKind()==EVirtualSensorKind::Camera?Outputs.bCameraImage:(Outputs.bPointCloud||Outputs.bLidarTelemetry);
+		if(Needed&&!Sensor->PrepareForDataCollection(Status.Message))return FString();
+	}
 	Coordinator=Manager; Targets=MoveTemp(NewTargets); PendingKeys.Reset(); StartedSensors.Reset();
 	Status=FVirtualSlabSessionStatus(); Status.RunId=Id; Status.State=EVirtualSlabSessionState::Ready;
+	Status.ExecutionPolicy=ActivatingPreparation?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;
 	Status.Outputs=Outputs;
 	InitialStreamErrors=CountStreamErrors();
 	Status.bPointCloudOnly=bPointCloudOnly;
@@ -142,6 +156,8 @@ FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& 
 	Status.CurrentSlab.ScenarioUUID=ScenarioUUID;
 	Status.CurrentSlab.RunId=Id; Status.CurrentSlab.Generation=++Generation;
 	Status.Message=TEXT("첫 Slab 프레임 적용 대기 중"); UsedRunIds.Add(Id);
+	auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();Results->BeginRun(Id,ScenarioUUID,Status.ExecutionPolicy,Outputs);Results->SetSensors(Id,Targets,Manager?Manager->SharedTransportComponent.Get():nullptr);
+	GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->RegisterManagedRun(Id);
 	for (const auto& Pair : Targets) ControlledIds.Add(Pair.Key);
 	for (const auto& Pair : Targets)
 	{
@@ -161,7 +177,114 @@ FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& 
 		}
 		if (HasSelectedOutputForSensor(Pair.Key) && !Actor->IsSensorRunning()) { StartedSensors.Add(Pair.Key); Actor->StartSensor(); }
 	}
+	if(ActivatingPreparation)
+	{
+		RunningStartedWorld=GetWorld()->GetTimeSeconds();
+		if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())RawConnectionRevision=Raw->GetConnectionRevision();
+		EngineConnectionRevision=Manager->SharedTransportComponent->GetStompConnectionRevision();
+	}
 	return Id;
+}
+
+FString UVirtualSensorSlabContextSubsystem::SensorConfiguration(const AVirtualSensorActorBase* Sensor)
+{
+	FVirtualSensorEditableState State;FString Text;
+	if(Sensor&&Sensor->ReadEditableState(State))
+	{ State.ActorTransform=FTransform::Identity;FJsonObjectConverter::UStructToJsonObjectString(State,Text); }
+	return Text;
+}
+uint32 UVirtualSensorSlabContextSubsystem::CurrentTransportHash() const
+{
+	if(!Coordinator.IsValid()||!Coordinator->SharedTransportComponent)return 0;
+	const auto* T=Coordinator->SharedTransportComponent.Get();const auto& P=T->GetTransportProfile();
+	return GetTypeHash(P.BrokerUrl+P.UserName+P.CameraTopic+P.LidarTopic+P.ExportTopic+LexToString(P.MaxMessageBytes)+LexToString(P.TimeoutSeconds)+T->GetSessionPasscodeForHighThroughput());
+}
+bool UVirtualSensorSlabContextSubsystem::PrepareScenarioTransmission(const FString& Run,const TArray<FString>& Ids,const FString& ScenarioUUID,const FVirtualSlabSensorOutputSelection& Outputs,const FSlabExecutionOptions& Options,FString& Error)
+{
+	Error.Reset();
+	if(!ValidateScenarioOutputs(Ids,Outputs,Error)||!Outputs.HasAnyOutput())
+	{if(Error.IsEmpty())Error=TEXT("데이터 필수 실행에는 출력이 하나 이상 필요합니다.");return false;}
+	if(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining)
+	{Error=TEXT("진행 중인 실행이 있습니다.");return false;}
+	FGuid R,S;if(!FGuid::Parse(Run,R)||!R.IsValid()||!FGuid::Parse(ScenarioUUID,S)||!S.IsValid()||UsedRunIds.Contains(R.ToString(EGuidFormats::DigitsWithHyphensLower)))
+	{Error=TEXT("새 실행 UUID와 유효한 시나리오 UUID가 필요합니다.");return false;}
+	if(!FMath::IsFinite(Options.PreparationTimeoutSeconds)||Options.PreparationTimeoutSeconds<1||Options.PreparationTimeoutSeconds>120)
+	{Error=TEXT("준비 시간은 1~120초여야 합니다.");return false;}
+	for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)Coordinator=*It;
+	Targets.Reset();ConfigurationSnapshots.Reset();PreparationIds.Reset();bRequireRaw=false;bRequireEngine=false;
+	for(auto* Sensor:Coordinator->GetSensorActors())
+	{
+		if(!IsValid(Sensor)||(!Ids.IsEmpty()&&!Ids.Contains(Sensor->GetSensorId())))continue;
+		const bool Needed=Sensor->GetSensorKind()==EVirtualSensorKind::Camera?Outputs.bCameraImage:(Outputs.bPointCloud||Outputs.bLidarTelemetry);
+		if(!Needed)continue;
+		if(!Sensor->PrepareForDataCollection(Error)){Targets.Reset();return false;}
+		const FString Id=Sensor->GetSensorId();Targets.Add(Id,Sensor);PreparationIds.Add(Id);ConfigurationSnapshots.Add(Id,SensorConfiguration(Sensor));
+		for(auto Kind:{EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload,EVirtualSensorStreamKind::PointCloud})
+		{
+			const bool Selected=Kind==EVirtualSensorStreamKind::CameraImage?Outputs.bCameraImage:Kind==EVirtualSensorStreamKind::PointCloud?Outputs.bPointCloud:Outputs.bLidarTelemetry;
+			if(!Selected||((Kind==EVirtualSensorStreamKind::CameraImage)!=(Sensor->GetSensorKind()==EVirtualSensorKind::Camera)))continue;
+			const auto Config=Coordinator->StreamPublisherComponent->GetEffectiveStreamConfig(Kind,Id);
+			const bool Raw=Config.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(Coordinator->SharedTransportComponent->GetTransportProfile().BrokerUrl);
+			bRequireRaw|=Raw;bRequireEngine|=!Raw;
+		}
+	}
+	ExecutionOptions=Options;TransportConfigurationHash=CurrentTransportHash();
+	Status=FVirtualSlabSessionStatus();Status.RunId=R.ToString(EGuidFormats::DigitsWithHyphensLower);Status.State=EVirtualSlabSessionState::Preparing;
+	Status.ExecutionPolicy=ESlabExecutionPolicy::RequireData;Status.Outputs=Outputs;Status.CurrentSlab.RunId=Status.RunId;Status.CurrentSlab.ScenarioUUID=S.ToString(EGuidFormats::DigitsWithHyphensLower);
+	PreparationStarted=FPlatformTime::Seconds();UsedRunIds.Add(Status.RunId);Status.Message=TEXT("데이터 필수 · 실제 Broker 연결 준비 중");
+	auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();Results->BeginRun(Status.RunId,ScenarioUUID,Options.Policy,Outputs);Results->SetSensors(Status.RunId,Targets,Coordinator->SharedTransportComponent.Get());
+	GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->RegisterManagedRun(Status.RunId);
+	bool IndependentSender=false;for(const auto& Stream:Coordinator->StreamPublisherComponent->GetStreamStatuses())IndependentSender|=Stream.bEnabled;
+	if(bRequireRaw&&!GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->PrepareHighThroughputTransport(
+		UVirtualSensorHighThroughputTransportSubsystem::MakeProfile(Coordinator->SharedTransportComponent->GetTransportProfile()),Coordinator->SharedTransportComponent->GetSessionPasscodeForHighThroughput(),Error,!IndependentSender))
+	{FailPreparation(Error);return false;}
+	if(bRequireEngine&&!Coordinator->SharedTransportComponent->PrepareStompConnection(Error)){FailPreparation(Error);return false;}
+	return true;
+}
+bool UVirtualSensorSlabContextSubsystem::IsTransmissionReady() const
+{
+	const auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
+	return (!bRequireRaw||(Raw&&Raw->IsTransportConnected()))&&(!bRequireEngine||(Coordinator.IsValid()&&Coordinator->SharedTransportComponent&&Coordinator->SharedTransportComponent->IsStompConnected()));
+}
+bool UVirtualSensorSlabContextSubsystem::IsSensorConfigurationLocked(const FString& Id) const
+{
+	return Status.ExecutionPolicy==ESlabExecutionPolicy::RequireData&&Targets.Contains(Id)&&
+		(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining);
+}
+bool UVirtualSensorSlabContextSubsystem::IsSensorPlacementLocked(const FString& Id) const
+{
+	const auto* Target=Targets.Find(Id);
+	if(!Target||!Target->IsValid()||Status.bObservationOnly)return false;
+	const bool Selected=Target->Get()->GetSensorKind()==EVirtualSensorKind::Camera?Status.Outputs.bCameraImage:(Status.Outputs.bPointCloud||Status.Outputs.bLidarTelemetry);
+	return Selected&&(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining);
+}
+void UVirtualSensorSlabContextSubsystem::FailPreparation(const FString& Error)
+{Status.RequiredDataError=Error;Status.Message=Error;Status.State=EVirtualSlabSessionState::Incomplete;Status.EndReason=EVirtualSlabSessionEndReason::StreamFailure;FinalizeRunResult(true);}
+FString UVirtualSensorSlabContextSubsystem::CheckRequiredDataHealth() const
+{
+	if(!Coordinator.IsValid()||TransportConfigurationHash!=CurrentTransportHash())return TEXT("실행 중 송신 설정이 변경되거나 Coordinator가 삭제되었습니다.");
+	if(!IsTransmissionReady())return TEXT("데이터 필수 실행 중 Broker 연결이 끊겼습니다.");
+	const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	if((bRequireRaw&&Raw->GetConnectionRevision()!=RawConnectionRevision)||(bRequireEngine&&Coordinator->SharedTransportComponent->GetStompConnectionRevision()!=EngineConnectionRevision))return TEXT("실행 중 송신 연결이 재생성되었습니다.");
+	if(Status.AcquisitionFailures>0||CountStreamErrors()>InitialStreamErrors||(bRequireRaw&&Raw->GetFailedRunFrameCount(Status.RunId)>0)||GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->HasLedgerFailure(Status.RunId))return TEXT("측정·출력·receipt 실패 또는 전송 과부하가 발생했습니다.");
+	for(const auto& Pair:Targets)
+	{
+		const auto* Sensor=Pair.Value.Get();
+		if(Coordinator->StreamPublisherComponent)
+			for(auto Kind:{EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload,EVirtualSensorStreamKind::PointCloud})
+				if(IsOutputSelected(Kind)&&Sensor&&((Kind==EVirtualSensorStreamKind::CameraImage)==(Sensor->GetSensorKind()==EVirtualSensorKind::Camera)))
+				{const auto C=Coordinator->StreamPublisherComponent->GetEffectiveStreamConfig(Kind,Pair.Key);if(!Coordinator->StreamPublisherComponent->IsStreamEnabled(Kind,Pair.Key)||C.FrameStride!=1||C.ReceiptSampleInterval!=1)return TEXT("필수 출력 스트림이 중지되거나 전송 정책이 변경되었습니다.");}
+		if(!Sensor||Sensor->GetSensorId()!=Pair.Key||SensorConfiguration(Sensor)!=ConfigurationSnapshots.FindRef(Pair.Key))return TEXT("대상 센서가 삭제되거나 고정한 측정 설정이 변경되었습니다.");
+		if(!Sensor->IsSensorRunning())return TEXT("필수 대상 센서의 측정이 중지되었습니다.");
+		if(Status.State==EVirtualSlabSessionState::Running)
+		{
+			FVirtualSensorEditableState State;Sensor->ReadEditableState(State);
+			const double Grace=FMath::Max(1.0,3.0*(Sensor->GetSensorKind()==EVirtualSensorKind::Camera?State.CameraCaptureInterval:State.LidarScanInterval));
+			const double Last=Sensor->GetSensorRuntimeStatus().LastAcquisitionProgressWorldSeconds;
+			if(GetWorld()->GetTimeSeconds()-(Last>=0?Last:RunningStartedWorld)>Grace)return TEXT("필수 대상 센서의 측정 진행이 정체되었습니다.");
+		}
+	}
+	return FString();
 }
 bool UVirtualSensorSlabContextSubsystem::NotifySlabFrameApplied(const FString& Id,const FString& Mtl,int64 Frame,double Seconds)
 {
@@ -175,6 +298,8 @@ bool UVirtualSensorSlabContextSubsystem::NotifySlabFrameApplied(const FString& I
 	Status.CurrentSlab.MtlNo=Mtl; Status.CurrentSlab.SlabFrameNo=Frame; Status.CurrentSlab.ElapsedSec=Seconds;
 	Status.CurrentSlab.bEligible=true; Status.State=EVirtualSlabSessionState::Running;
 	Status.Message=SlabOutputStateMessage(Status.Outputs,false);
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->UpdateProgress(Id,Mtl,Frame,Seconds);
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->SetAppliedOutputs(Id,Status.Outputs);
 	return true;
 }
 bool UVirtualSensorSlabContextSubsystem::SetSlabSensorSessionPaused(const FString& Id,bool Paused)
@@ -189,6 +314,8 @@ bool UVirtualSensorSlabContextSubsystem::SetSlabSensorSessionPaused(const FStrin
 bool UVirtualSensorSlabContextSubsystem::EndSlabSensorSession(const FString& Id,bool Aborted)
 {
 	if (!CheckRun(Id)) return false;
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->MarkStopped(Id);
+	if(Status.State==EVirtualSlabSessionState::Preparing){Status.bAborted=Aborted;Status.State=EVirtualSlabSessionState::Completed;Status.EndReason=EVirtualSlabSessionEndReason::Aborted;Status.Message=TEXT("실행 준비가 취소되었습니다.");FinalizeRunResult();return true;}
 	if (Status.State==EVirtualSlabSessionState::Draining || Status.State==EVirtualSlabSessionState::Completed) return true;
 	if (Status.State!=EVirtualSlabSessionState::Running && Status.State!=EVirtualSlabSessionState::Paused && Status.State!=EVirtualSlabSessionState::Ready) return false;
 	Status.bAborted=Aborted; Status.State=EVirtualSlabSessionState::Draining; DrainStarted=FPlatformTime::Seconds();
@@ -207,6 +334,7 @@ void UVirtualSensorSlabContextSubsystem::CompleteAcquisition(const FString& Id,i
 {
 	const bool Removed=PendingKeys.Remove(Id+TEXT("|")+LexToString(FrameId))>0;
 	if (Removed && !Success) ++Status.AcquisitionFailures;
+	if(Removed)GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordAcquisition(Status.RunId,Id,FrameId,Success);
 	Status.PendingAcquisitions=PendingKeys.Num();
 }
 bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVirtualSlabFrameContext& Context) const
@@ -216,6 +344,13 @@ bool UVirtualSensorSlabContextSubsystem::AllowsFrame(const FString& Id,const FVi
 	return Context.bEligible && Context.RunId==Status.RunId && Context.Generation==Generation &&
 		(Status.State==EVirtualSlabSessionState::Running || Status.State==EVirtualSlabSessionState::Paused || Status.State==EVirtualSlabSessionState::Draining);
 }
+bool UVirtualSensorSlabContextSubsystem::BeginCompatibilityDerivation(const FString& Id,int64 Frame,const FVirtualSlabFrameContext& Context)
+{
+    if(!AllowsStreamFrame(Id,EVirtualSensorStreamKind::LidarPayload,Context)||!Coordinator.IsValid()||!Coordinator->StreamPublisherComponent||!Coordinator->StreamPublisherComponent->NeedsCompatibilityLidarOutput(Id,Context))return false;
+    CompatibilityDerivations.Add(Id+TEXT("|")+LexToString(Frame));return true;
+}
+void UVirtualSensorSlabContextSubsystem::EndCompatibilityDerivation(const FString& Run,const FString& Id,int64 Frame,bool Failed)
+{if(Run==Status.RunId&&CompatibilityDerivations.Remove(Id+TEXT("|")+LexToString(Frame))&&Failed)GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->RecordOutputFailure(Run,Id,0,Frame,TEXT("호환 LiDAR JSON 생성 실패"));}
 bool UVirtualSensorSlabContextSubsystem::IsOutputSelected(EVirtualSensorStreamKind Kind) const
 {
 	return Kind==EVirtualSensorStreamKind::PointCloud?Status.Outputs.bPointCloud:
@@ -239,8 +374,22 @@ bool UVirtualSensorSlabContextSubsystem::AllowsStreamDemand(const FString& Id,EV
 }
 void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 {
+	if(Status.State==EVirtualSlabSessionState::Preparing)
+	{
+		if(!Coordinator.IsValid()||TransportConfigurationHash!=CurrentTransportHash()){FailPreparation(TEXT("준비 중 송신 설정이 변경되었습니다."));return;}
+		for(const auto& Pair:Targets)if(!Pair.Value.IsValid()||SensorConfiguration(Pair.Value.Get())!=ConfigurationSnapshots.FindRef(Pair.Key)){FailPreparation(TEXT("준비 중 대상 센서 설정이 변경되었습니다."));return;}
+		if(IsTransmissionReady())
+		{const auto Run=Status.RunId,Scenario=Status.CurrentSlab.ScenarioUUID;const auto Outputs=Status.Outputs;if(BeginSessionInternal(Run,PreparationIds,Outputs,Scenario).IsEmpty())FailPreparation(TEXT("준비한 센서 세션을 활성화하지 못했습니다."));}
+		else if(FPlatformTime::Seconds()-PreparationStarted>ExecutionOptions.PreparationTimeoutSeconds)FailPreparation(TEXT("실제 Broker 연결 준비 제한 시간이 지났습니다."));
+		return;
+	}
+	if(Status.ExecutionPolicy==ESlabExecutionPolicy::RequireData&&(Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Ready))
+	{
+		RequiredCheckAccumulator+=DeltaTime;
+		if(RequiredCheckAccumulator>=.1f){RequiredCheckAccumulator=0;Status.RequiredDataError=CheckRequiredDataHealth();}
+	}
 	if (Status.State!=EVirtualSlabSessionState::Draining) return;
-	int64 Waiting=PendingKeys.Num();
+	int64 Waiting=PendingKeys.Num()+CompatibilityDerivations.Num();
 	Status.StreamFailures = FMath::Max<int64>(0, CountStreamErrors() - InitialStreamErrors);
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
 	{
@@ -252,9 +401,10 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 		Status.StreamFailures += Raw->GetFailedRunFrameCount(Status.RunId);
 	}
 	Status.UnfinishedFrames=Waiting;
+	Waiting+=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetUnconfirmedCount(Status.RunId);
 	if (Waiting == 0)
 	{
-		const auto Reason = Status.AcquisitionFailures > 0 ? EVirtualSlabSessionEndReason::AcquisitionFailure
+		const auto Reason = !Status.RequiredDataError.IsEmpty()?EVirtualSlabSessionEndReason::StreamFailure:Status.AcquisitionFailures > 0 ? EVirtualSlabSessionEndReason::AcquisitionFailure
 			: Status.StreamFailures > 0 ? EVirtualSlabSessionEndReason::StreamFailure
 			: Status.bAborted ? EVirtualSlabSessionEndReason::Aborted : EVirtualSlabSessionEndReason::Completed;
 		Finish(Reason);
@@ -263,16 +413,11 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 }
 void UVirtualSensorSlabContextSubsystem::Finish(EVirtualSlabSessionEndReason Reason)
 {
+	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->SetMeasuredRates(Status.RunId,Targets);
 	const bool bFailed = Reason == EVirtualSlabSessionEndReason::AcquisitionFailure ||
 		Reason == EVirtualSlabSessionEndReason::StreamFailure || Reason == EVirtualSlabSessionEndReason::DrainTimeout;
-	PendingKeys.Reset(); Status.PendingAcquisitions=0;
-	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
-		for (const auto& Pair : Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
-	for (const auto& Pair : Targets) if (StartedSensors.Contains(Pair.Key) && Pair.Value.IsValid()) Pair.Value->StopSensor();
-	if (bFailed) if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
-	Status.EndReason = Reason;
-	Status.State = bFailed ? EVirtualSlabSessionState::Incomplete : EVirtualSlabSessionState::Completed;
-	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent) Coordinator->StreamPublisherComponent->RefreshSessionOutputDemand();
+	// Freeze the terminal stages before StopAllStreams/cancel release their work.
+	Status.EndReason=Reason;Status.State=bFailed?EVirtualSlabSessionState::Incomplete:EVirtualSlabSessionState::Completed;
 	switch (Reason)
 	{
 	case EVirtualSlabSessionEndReason::AcquisitionFailure:
@@ -291,6 +436,37 @@ void UVirtualSensorSlabContextSubsystem::Finish(EVirtualSlabSessionEndReason Rea
 		Status.Message = TEXT("Slab 센서 세션 완료");
 		break;
 	}
+	FinalizeRunResult();
+	PendingKeys.Reset();Status.PendingAcquisitions=0;
+	CompatibilityDerivations.Reset();
+	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)
+		for(const auto& Pair:Targets)Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
+	for(const auto& Pair:Targets)if(StartedSensors.Contains(Pair.Key)&&Pair.Value.IsValid())Pair.Value->StopSensor();
+	if(bFailed)GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->CancelRun(Status.RunId);
+	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)Coordinator->StreamPublisherComponent->RefreshSessionOutputDemand();
+}
+void UVirtualSensorSlabContextSubsystem::FinalizeRunResult(bool PreparationFailed)
+{
+	auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	auto* Results=GetWorld()->GetSubsystem<USlabRunResultsSubsystem>();
+	Raw->FlushRunObservations(Status.RunId);
+	FSlabRunTerminalSnapshot Snapshot;Snapshot.CapturedUtc=FDateTime::UtcNow();Snapshot.PendingAcquisitions=PendingKeys.Num();
+	TSet<FString> Outputs,SensorFrames;
+	Results->GatherUnconfirmedKeys(Status.RunId,Outputs,SensorFrames);Snapshot.AcceptedUnconfirmed=Outputs.Num();
+	const auto RawStages=Raw->GetRunRetentionSnapshot(Status.RunId);
+	Snapshot.QueuedForSocket=RawStages.QueuedFrames;Snapshot.SocketWritesInFlight=RawStages.SocketWritingFrames;Snapshot.AwaitingBrokerReceipt=RawStages.ReceiptWaitingFrames;Snapshot.PendingTransportEvents=RawStages.PendingEvents;
+	Raw->GatherPendingRunKeys(Status.RunId,Outputs,SensorFrames);
+	int64 CompatibilityReceipts=0;
+	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)
+		Coordinator->StreamPublisherComponent->GatherPendingSlabRunKeys(Status.RunId,Outputs,SensorFrames,&Snapshot.PendingOutputPreparation,&CompatibilityReceipts);
+	Snapshot.AwaitingBrokerReceipt+=CompatibilityReceipts;
+    Snapshot.PendingOutputPreparation+=CompatibilityDerivations.Num();
+    for(const auto& Key:CompatibilityDerivations){Outputs.Add(TEXT("0|")+Key);SensorFrames.Add(Key);}
+	Snapshot.UniqueUnfinished=Outputs.Num();for(const auto& Key:PendingKeys)if(!SensorFrames.Contains(Key))++Snapshot.UniqueUnfinished;
+	Status.UnfinishedFrames=Snapshot.UniqueUnfinished;
+	if(Status.EndReason==EVirtualSlabSessionEndReason::DrainTimeout)Status.Message=FString::Printf(TEXT("종료 제한 시간 초과: 미완료 %lld건"),Status.UnfinishedFrames);
+	Status.StreamFailures=FMath::Max(Status.StreamFailures,CountStreamErrors()+int64(Raw->GetFailedRunFrameCount(Status.RunId)));
+	Results->RecordTerminalSnapshot(Status.RunId,Snapshot);Results->Finalize(Status,PreparationFailed);Raw->RetireManagedRun(Status.RunId);
 }
 TStatId UVirtualSensorSlabContextSubsystem::GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(UVirtualSensorSlabContextSubsystem,STATGROUP_Tickables); }
 int64 UVirtualSensorSlabContextSubsystem::CountStreamErrors() const
@@ -303,11 +479,14 @@ int64 UVirtualSensorSlabContextSubsystem::CountStreamErrors() const
 }
 void UVirtualSensorSlabContextSubsystem::Deinitialize()
 {
+	if(bDeinitializing)return;bDeinitializing=true;
 	if(!Status.RunId.IsEmpty())
 	{
+		if(Status.State==EVirtualSlabSessionState::Preparing||Status.State==EVirtualSlabSessionState::Ready||Status.State==EVirtualSlabSessionState::Running||Status.State==EVirtualSlabSessionState::Paused||Status.State==EVirtualSlabSessionState::Draining)
+		{Status.RequiredDataError=TEXT("실행 월드 종료");Status.State=EVirtualSlabSessionState::Incomplete;FinalizeRunResult();}
 		if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)
 			for(const auto& Pair:Targets) Coordinator->StreamPublisherComponent->StopAllStreams(Pair.Key);
 		if(GetWorld()) if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) Raw->CancelRun(Status.RunId);
 	}
-	PendingKeys.Reset(); Targets.Reset(); ControlledIds.Reset(); Super::Deinitialize();
+	PendingKeys.Reset();CompatibilityDerivations.Reset(); Targets.Reset(); ControlledIds.Reset(); Super::Deinitialize();
 }

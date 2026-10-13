@@ -4,15 +4,19 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSlabFrameContext.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunDeliveryTypes.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
 class AVirtualSensorExternalSourceHostActor;
 class UVirtualSensorMonitorPanelWidget;
 class STextBlock;
+class SExpandableArea;
+template<typename OptionType> class SComboBox;
 class ASlabActor;
 class AVirtualSensorActorBase;
 class UVirtualSensorFileSaveSubsystem;
+class UVirtualLidarScanComponent;
 struct FVirtualSensorTransportProfile;
 
 UENUM(BlueprintType)
@@ -39,6 +43,19 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
     GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput") FString GetPcdPreflightText() const {return CachedPcdPreflight;}
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioRunResult(const FString& RunId);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetSelectedScenarioRunId() const { return SelectedScenarioRunId; }
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") bool GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const;
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool RetrySelectedScenarioRunReport(FString& Reason);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioComparisonRun(const FString& RunId,bool bAsA,FString& Reason);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void ClearScenarioRunComparison();
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetScenarioRunComparisonText() const { return RunComparisonText; }
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void SetScenarioRunResultsExpanded(bool bExpanded);
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|Outputs") FVirtualSlabSensorOutputSelection GetLiveScenarioOutputs() const;
@@ -95,6 +112,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendSelectedPayloadToServer();
+
+    /** Native UI: asynchronous JSON creation from an already completed immutable frame. */
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorExport|Transport")
+    bool RequestSelectedPayloadSend();
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendLastExportToServer();
@@ -170,6 +191,25 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    FString ActiveManualPayloadRequest;
+    TWeakObjectPtr<UVirtualLidarScanComponent> ManualPayloadSensor;
+    FDelegateHandle ManualPayloadHandle;
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FSlabRunComparisonUiTest;
+#endif
+	FString CachedPcdPreflight;
+	FString CachedPcdPreflightSummary;
+	bool bRunResultsExpanded=false;
+	FString ComparisonRunA,ComparisonRunB,RunComparisonText;
+	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;
+	int64 CachedRunResultsRevision=-1;
+	TArray<TSharedPtr<FString>> RunResultOptions;
+	TMap<FString,FString> RunResultLabels;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> RunResultCombo;
+	TSharedPtr<SExpandableArea> RunResultsArea;
+	bool bSelectedRunReportSaved=false,bCanRetrySelectedRun=false;
+	TSharedRef<SWidget> BuildRunResultsContent();
+	void RefreshRunResults();
 	TSharedRef<SWidget> BuildOwnedWidget();
 	TSharedRef<SWidget> BuildOwnedLiveTab();
 	TSharedRef<SWidget> BuildOwnedFileTab();
@@ -193,6 +233,7 @@ private:
 	FString OwnedScenarioSummary;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabMinimalUiTest;
+	friend class FSlabRunHistoryTest;
 #endif
 	bool bOwnedStorageExpanded=false,bOwnedReceiverExpanded=false,bOwnedTransportLogExpanded=false;
 	bool bOwnedCanSaveCurrent=false,bOwnedSaveBusy=false,bOwnedPeriodicActive=false;

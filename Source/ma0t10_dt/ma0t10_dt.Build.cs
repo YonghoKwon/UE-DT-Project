@@ -29,7 +29,7 @@ public class ma0t10_dt : ModuleRules
             "RenderCore",
             "RHI",
             "ImageWrapper",
-            "Json",
+			"Json", "JsonUtilities",
             "ProceduralMeshComponent",
             "Sockets",
             "Networking",

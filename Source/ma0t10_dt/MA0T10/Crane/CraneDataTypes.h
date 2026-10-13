@@ -25,6 +25,13 @@ struct FCranePositionData
 	float ControlRopeHeight = 0.f;
 };
 
+// 기존 CraneState(1)의 업무 의미를 프로젝트에서 명시적으로 유지한다.
+enum class EMa0t10DataType : int32
+{
+	None = 0,
+	CraneState = 1
+};
+
 struct FCraneStateData : public FDxDataBase
 {
 	UPROPERTY(BlueprintReadWrite)
@@ -36,8 +43,8 @@ struct FCraneStateData : public FDxDataBase
 	UPROPERTY(BlueprintReadWrite)
 	FString OperationStatus;
 
-	virtual EDxDataType GetType() const override
+	virtual int32 GetType() const override
 	{
-		return EDxDataType::CraneState;
+		return static_cast<int32>(EMa0t10DataType::CraneState);
 	}
 };

@@ -21,6 +21,7 @@ class URealSensorSourceComponent;
 class UVirtualCameraCaptureComponent;
 class UVirtualLidarScanComponent;
 class UVirtualLidarVisualizationComponent;
+struct FVirtualSensorRateDiagnostic;
 
 UENUM(BlueprintType)
 enum class EVirtualSensorMonitorPresentation : uint8
@@ -366,6 +367,9 @@ private:
     void SaveMonitorUiPreferences() const;
     void SetLidarOverlayOptions(bool bAdaptiveDepth, bool bGrid, bool bDepthEdges);
     FString BuildCompactStatusText() const;
+    const FVirtualSensorRateDiagnostic* GetSelectedRateDiagnostic() const;
+    static FString FormatOwnedSensorRate(const TCHAR* Kind, const FString& Id, const FVirtualSensorRuntimeStatus& Status,
+        bool bRunning, const FVirtualSensorRateDiagnostic* Rate);
     FString BuildSemanticLegendText() const;
     FLinearColor GetLidarLegendSwatchColor(int32 SwatchIndex) const;
     FString BuildTitleText() const;
@@ -605,6 +609,7 @@ private:
     bool bOwnedAdvancedMenuOpen = false;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabMinimalUiTest;
+	friend class FSensorMonitorRateStateTest;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;
     TSharedPtr<STextBlock> NativeTitleTextBlock;

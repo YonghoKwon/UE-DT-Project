@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualCameraPayloadCodec.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualCameraCaptureComponent.generated.h"
 
 class UTextureRenderTarget2D;
@@ -15,6 +16,14 @@ class UVirtualSensorRecorderComponent;
 class UVirtualSensorSchedulerSubsystem;
 class FRHIGPUTextureReadback;
 struct FVirtualCameraLocalReadbackState;
+struct FVirtualCameraPreviewFence;
+struct FVirtualCameraPreviewCompletion
+{
+    FVirtualCameraPayloadSnapshot Acquisition;
+    FTransform AcquisitionPose;
+    double StartedMonotonic=0;
+    int32 Generation=0;
+};
 struct MA0T10_DT_API FVirtualCameraLocalSaveFrame
 {
 	FVirtualCameraPayloadSnapshot Payload;
@@ -69,6 +78,13 @@ public:
     // bounded asynchronous path; the public one-shot API above remains synchronous.
     bool TickScheduledCapture(double NowSeconds, bool bAllowNewCapture = true);
     void RequestImmediateScheduledCapture();
+    /** One render-completion proof for placement UI. No readback or JPEG work. */
+    void RequestPlacementPreviewProof();
+    void CancelPlacementPreviewProof();
+    bool GetPlacementPreviewCompletion(FVirtualCameraPreviewCompletion& Out) const;
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
+    static int32 GetGlobalEncodeJobCountForDiagnostics();
+    static int32 GetGlobalPendingWorkCountForDiagnostics();
 	/** File-only request; never enables a stream, changes CaptureMode or calls the sync capture API. */
 	bool RequestLocalFileFrame(bool bNewFrame,FVirtualCameraLocalSaveCallback Callback,FString& Error);
 	void PollLocalFileFrame();
@@ -131,6 +147,9 @@ public:
 
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> GetLastJpegSnapshot() const { return LastJpegSnapshot; }
 	const FVirtualCameraJpegMetadata& GetLastJpegMetadata() const { return LastJpegMetadata; }
+	const FVirtualCameraPayloadSnapshot& GetLastCompletedAcquisition() const { return LastCompletedAcquisition; }
+    int64 GetLastJsonPayloadFrameId() const { return LastJsonPayloadFrameId; }
+    const FString& GetLastJsonPayloadSensorId() const { return LastJsonPayloadSensorId; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualCamera|DeviceProfile")
     const FVirtualSensorDeviceSpec& GetDeviceSpec() const { return DeviceSpec; }
@@ -227,11 +246,13 @@ private:
     FVirtualSensorRuntimeStatus RuntimeStatus;
 
     FString LastJsonPayload;
+    bool bPlacementPreviewProofRequested=false;
+    TSharedPtr<FVirtualCameraPreviewFence,ESPMode::ThreadSafe> PlacementPreviewFence;
     TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> LastJpegSnapshot;
 	FVirtualCameraJpegMetadata LastJpegMetadata;
 	TMap<int64,FVirtualSlabFrameContext> SlabCaptureContexts;
 	FVirtualSlabFrameContext LastSlabContext;
-	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true);
+	FVirtualSlabFrameContext CompleteSlabAcquisition(int64 Id, bool bSuccess=true, bool bFlushOnFailure=true);
 public:
     virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) override;
 	const FVirtualSlabFrameContext& GetLastSlabContext() const { return LastSlabContext; }
@@ -293,7 +314,25 @@ private:
 	TArray<FPendingEncodeInput> PendingEncodeInputs;
 	TArray<int64> EncodeOrder;
 	TMap<int64, FCompletedEncode> CompletedEncodes;
+	TMap<int64,FVirtualCameraPayloadSnapshot> ScheduledAcquisitionSnapshots;
+	FVirtualCameraPayloadSnapshot LastCompletedAcquisition;
+    int64 LastJsonPayloadFrameId=-1;
+    FString LastJsonPayloadSensorId;
+#if WITH_DEV_AUTOMATION_TESTS
+	friend class FSensorCameraCoherenceUnitTest;
+    friend class FCameraOrderedFailureRecoveryTest;
+public:
+	TFunction<void(int64)> BeforeSceneCaptureForTests;
+	TFunction<void(const FVirtualCameraPayloadSnapshot&,const FVirtualSlabFrameContext&,TSharedPtr<const TArray64<uint8>,ESPMode::ThreadSafe>)> OnScheduledFrameForTests;
+	int32 GetAcquisitionRevisionForTests() const { return ScheduledGeneration; }
+	bool ForceReadbackSaturationForTests=false;
+    bool FreezeAcquisitionForTests=false;
+	float EncodeDelayForTests=0;
+    TFunction<float(int64)> EncodeDelayByFrameForTests;
+private:
+#endif
 	int32 ScheduledEncodeInFlightCount = 0;
+    uint64 ScheduledReadbackAllocationCount = 0;
     double NextScheduledCaptureTime = -1.0;
     double LastScheduledCompletionTime = -1.0;
     double LastAcquisitionCompletionTime = -1.0;

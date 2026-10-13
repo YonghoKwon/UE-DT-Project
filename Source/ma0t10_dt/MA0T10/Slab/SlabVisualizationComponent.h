@@ -13,6 +13,7 @@ class MA0T10_DT_API USlabVisualizationComponent : public UStatusVisualizerCompBa
 public:
 	USlabVisualizationComponent();
 	void UpdateGeometry(const FVector& SizeCm);
+	void ClearAnalysis();
 	void ConfigureDisplay(const FSlabAnalysisDisplaySettings& Settings);
 	void UpdateAnalysis(const FSlabScenarioRow& Row,const FSlabMetrics& Metrics,const FSlabSimulationStatus& Status,const FVector& SizeCm,const FTransform& Track,double LeftRailYcm,double RightRailYcm,bool bRailsValid,double ReferenceLengthCm=0);
 	virtual void TickComponent(float DeltaTime,ELevelTick TickType,FActorComponentTickFunction* TickFunction) override;

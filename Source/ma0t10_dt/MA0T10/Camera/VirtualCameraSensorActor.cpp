@@ -131,8 +131,10 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	{
 		return false;
 	}
+	const bool bWasRunning=bInteractiveManipulationActive?bWasRunningBeforeInteraction:CaptureComponent->IsCaptureRunning();
+	TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
 	SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
-	CaptureComponent->StopCapture();
+	if(CaptureComponent->IsCaptureRunning())CaptureComponent->StopCapture();
 	CaptureComponent->ApplyDeviceProfile(State.CameraProfile);
 	CaptureComponent->ApplySimulationQuality(State.SimulationQuality);
 	CaptureComponent->SensorId = State.SensorId;
@@ -141,14 +143,23 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	CaptureComponent->FOVAngle = State.CameraFov;
 	CaptureComponent->JpegQuality = State.CameraJpegQuality;
 	CaptureComponent->CaptureMode = State.CameraCaptureMode;
-	CaptureComponent->StartCapture();
+	if(bWasRunning) CaptureComponent->StartCapture();
+	++ConfigurationRevision;
 	return true;
+}
+
+bool AVirtualCameraSensorActor::ReadCollectionState(FVirtualSensorEditableState& State,bool& Preview) const
+{
+    if(!ReadEditableState(State))return false;
+    Preview=bInteractiveManipulationActive?bWasRunningBeforeInteraction:IsSensorRunning();
+    if(bInteractiveManipulationActive){State.CameraResolution=SavedInteractionResolution;State.CameraCaptureInterval=SavedInteractionInterval;State.CameraCaptureMode=static_cast<EVirtualCameraCaptureMode>(SavedInteractionCaptureMode);}
+    return true;
 }
 
 bool AVirtualCameraSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {
 	if (!CaptureComponent || bInteractiveManipulationActive) return CaptureComponent != nullptr;
-	Super::BeginInteractiveManipulation(Request);
+	if(!Super::BeginInteractiveManipulation(Request))return false;
 	bWasRunningBeforeInteraction = CaptureComponent->IsCaptureRunning();
 	SavedInteractionResolution = CaptureComponent->CaptureResolution;
 	SavedInteractionInterval = CaptureComponent->CaptureInterval;
@@ -168,7 +179,7 @@ void AVirtualCameraSensorActor::EndInteractiveManipulation()
 	CaptureComponent->CaptureResolution = SavedInteractionResolution;
 	CaptureComponent->CaptureInterval = SavedInteractionInterval;
 	CaptureComponent->CaptureMode = static_cast<EVirtualCameraCaptureMode>(SavedInteractionCaptureMode);
-	if (bWasRunningBeforeInteraction)
+	if (bWasRunningBeforeInteraction&&!bSettingsTransaction)
 	{
 		CaptureComponent->StartCapture();
 		CaptureComponent->RequestImmediateScheduledCapture();
@@ -178,21 +189,26 @@ void AVirtualCameraSensorActor::EndInteractiveManipulation()
 
 bool AVirtualCameraSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError)
 {
+	if(!CanEditSensorConfiguration(OutError))return false;
 	if (!CaptureComponent || RequestedState.TargetKind != EVirtualSensorTargetKind::Camera)
 	{
 		OutError = TEXT("선택한 Camera 센서를 사용할 수 없습니다.");
 		return false;
 	}
-	const bool bWasRunning = CaptureComponent->IsCaptureRunning();
-	CaptureComponent->StopCapture();
+	const bool bWasRunning = bInteractiveManipulationActive?bWasRunningBeforeInteraction:CaptureComponent->IsCaptureRunning();
+	TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
+	if(CaptureComponent->IsCaptureRunning())CaptureComponent->StopCapture();
 	CaptureComponent->ApplyDeviceProfile(RequestedState.CameraProfile);
 	CaptureComponent->ApplySimulationQuality(RequestedState.SimulationQuality);
 	if (bWasRunning) CaptureComponent->StartCapture();
+	++ConfigurationRevision;
 	return ReadEditableState(OutAppliedState);
 }
 
 bool AVirtualCameraSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
+	if(!CanEditSensorConfiguration(OutError))return false;
+	if((State.SensorId!=GetSensorId()||!State.ActorTransform.Equals(GetActorTransform()))&&!CanEditSensorPlacement(OutError))return false;
 	if (!CaptureComponent || State.TargetKind != EVirtualSensorTargetKind::Camera)
 	{
 		OutError = TEXT("선택한 Camera 센서를 사용할 수 없습니다.");
@@ -203,7 +219,8 @@ bool AVirtualCameraSensorActor::ValidateEditableState(const FVirtualSensorEditab
 		OutError = TEXT("SensorId 또는 Transform 값이 올바르지 않습니다.");
 		return false;
 	}
-	if (State.CameraResolution.X < 160 || State.CameraResolution.X > 4096 ||
+	if (!FMath::IsFinite(State.CameraCaptureInterval) || !FMath::IsFinite(State.CameraFov) ||
+		State.CameraResolution.X < 160 || State.CameraResolution.X > 4096 ||
 		State.CameraResolution.Y < 90 || State.CameraResolution.Y > 2160 ||
 		State.CameraCaptureInterval < 0.033f || State.CameraCaptureInterval > 60.0f ||
 		State.CameraFov < 5.0f || State.CameraFov > 170.0f ||
@@ -228,7 +245,7 @@ void AVirtualCameraSensorActor::HandleCameraFrame(const FString& JsonPayload, UT
 	Frame.SensorKind = EVirtualSensorKind::Camera;
 	Frame.FrameId = Status.FrameId;
 	Frame.SlabContext=CaptureComponent->GetLastSlabContext();
-	Frame.TimestampUtc = FDateTime::UtcNow();
+	Frame.TimestampUtc = CaptureComponent->GetRuntimeStatus().LastUpdateUtc;
 	Frame.SchemaVersion = TEXT("virtual-camera.v1");
 	if (!JsonPayload.IsEmpty()) Frame.JsonPayload = MakeShared<const FString, ESPMode::ThreadSafe>(JsonPayload);
 	Frame.bSendTransport = PendingExternalSendTransport.IsSet()

@@ -3,10 +3,12 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "VirtualSensorResourceDiagnostics.h"
 #include "VirtualSensorStreamPublisherComponent.generated.h"
 
 class UVirtualSensorTransportComponent;
 struct FVirtualSensorTransportResult;
+struct FVirtualSensorStreamTelemetry;
 
 /**
  * Bounded, latest-frame-first publisher shared by every V2 sensor.
@@ -28,9 +30,13 @@ public:
 
 	void SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent);
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
+	bool NeedsCompatibilityLidarOutput(const FString& SensorId) const;
+    bool NeedsCompatibilityLidarOutput(const FString& SensorId,const FVirtualSlabFrameContext& Context) const;
 	void PumpPublisherOnce(double NowSeconds);
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */
 	int64 GetPendingSlabRunCount(const FString& RunId) const;
+	void GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;
 	int64 GetFailedSlabRunCount(const FString& RunId) const;
 	void RefreshSessionOutputDemand() { UpdateCameraStreamDemand(); }
 	static bool SerializePointCloudForTesting(
@@ -46,9 +52,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Stream")
 	FVirtualSensorStreamConfig GetEffectiveStreamConfig(EVirtualSensorStreamKind Kind, const FString& SensorId) const;
+	/** Actual enabled route: an enabled exact stream shadows the wildcard, a disabled exact does not. */
+	bool ResolveActiveStreamForSensor(EVirtualSensorStreamKind Kind,const FString& SensorId,FVirtualSensorStreamConfig& OutConfig) const;
 	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
 	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
 	bool CanUseHighThroughputTransport() const;
+	bool HasSensorPlacementWork(const FString& SensorId,EVirtualSensorKind Kind) const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
 	void StartStream(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
@@ -97,6 +106,8 @@ public:
 	TObjectPtr<UVirtualSensorTransportComponent> TransportComponent;
 
 private:
+	friend class FSensorPlacementGateTest;
+    friend class FWildcardSequenceTest;
 	struct FPreparedMessage
 	{
 		FVirtualSlabFrameContext SlabContext;
@@ -135,11 +146,14 @@ private:
 		bool bSerializationInFlight = false;
 		FVirtualSlabFrameContext LastInputSlabContext;
 		FString SerializationRunId;
+		FString SerializationSensorId;
 		int64 SerializationFrameId=0;
 		int64 SerializationCompletedCount = 0;
 		TArray<float> SerializationLatencySamples;
 		FString LastSlabSegment;
 		bool bHasInputFrameInSegment=false;
+		struct FSensorSequence { FString Segment;int64 Frame=0;bool bHave=false; };
+		TMap<FString,FSensorSequence> SensorSequences;
 		int32 ConfigRevision = 0;
 	};
 
@@ -151,6 +165,7 @@ private:
 	};
 
 	FString MakeStreamKey(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const;
+	bool PrepareCollectionTargets(EVirtualSensorStreamKind Kind,const FString& SensorId,FString& Error);
 	FStreamRuntime& FindOrAddRuntime(EVirtualSensorStreamKind StreamKind, const FString& SensorId);
 	void QueueFrameForRuntime(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
 	void StartPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
@@ -170,6 +185,7 @@ private:
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
 	void MergeHighThroughputTelemetry();
+    void MergeHighThroughputTelemetry(const TArray<FVirtualSensorStreamTelemetry>& Telemetry);
 	static bool StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind);
 
 	UFUNCTION()

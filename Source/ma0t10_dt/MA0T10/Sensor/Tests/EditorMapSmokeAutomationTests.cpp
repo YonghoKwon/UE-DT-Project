@@ -49,7 +49,7 @@ UWorld* LoadSmokeMap(FAutomationTestBase& Test, const TCHAR* MapObjectPath)
     if (ResolvedObjectPath == TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap") &&
         FParse::Value(FCommandLine::Get(), TEXT("SensorSmokeMapDirectory="), SnapshotDirectory))
     {
-        SnapshotDirectory = FPaths::ConvertRelativePathToFull(SnapshotDirectory);
+        SnapshotDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), SnapshotDirectory);
         const FString ReportsDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Reports"));
         if (!FPaths::IsUnderDirectory(SnapshotDirectory, ReportsDirectory) ||
             !IFileManager::Get().FileExists(*(SnapshotDirectory / TEXT("SensorTestMap.umap"))))

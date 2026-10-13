@@ -1,4 +1,5 @@
 #include "VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "VirtualSensorMonitorPanelWidget.h"
@@ -36,7 +37,7 @@ void UVirtualSensorCaptureExportPanelWidget::InitializeOwnedEntryView(EVirtualSe
 void UVirtualSensorCaptureExportPanelWidget::NativeConstruct()
 { Super::NativeConstruct();if(IsWorkspaceOwned()){BindFileService();if(!OwnedFileRequestId.IsEmpty())HandleFileSaveUpdated(GetActiveFileSaveStatus());} }
 void UVirtualSensorCaptureExportPanelWidget::NativeDestruct()
-{ if(FileSaveService.IsValid())FileSaveService->OnRequestUpdated.RemoveDynamic(this,&ThisClass::HandleFileSaveUpdated);FileSaveService.Reset();Super::NativeDestruct(); }
+{ if(ManualPayloadSensor.IsValid())ManualPayloadSensor->OnCompatibilityRequestCompletedNative.Remove(ManualPayloadHandle);ManualPayloadSensor.Reset();ActiveManualPayloadRequest.Reset();if(FileSaveService.IsValid())FileSaveService->OnRequestUpdated.RemoveDynamic(this,&ThisClass::HandleFileSaveUpdated);FileSaveService.Reset();Super::NativeDestruct(); }
 void UVirtualSensorCaptureExportPanelWidget::BindFileService()
 {
 	if(!GetWorld()||FileSaveService.IsValid())return;
@@ -118,6 +119,22 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 	bOwnedSaveBusy=Actor&&FileSaveService.IsValid()&&FileSaveService->HasPendingSave(Actor);
 	if(ActiveTab==EVirtualSensorCaptureExportTab::LiveStream)
 	{
+		TArray<FString> PreflightTargets;auto PreflightOutputs=FVirtualSlabSensorOutputSelection();
+		if(bOwnedScenarioStreamView){if(const auto* Slab=ResolveScenarioSlabActor()){PreflightTargets=Slab->TargetSensorIds;PreflightOutputs=Slab->GetSensorOutputs();}}
+		else
+		{
+			const auto Id=GetSelectedSensorIdForStream(EVirtualSensorStreamKind::PointCloud);
+			const auto* Publisher=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;
+			if(!Id.IsEmpty())PreflightTargets.Add(Id);
+			// A running exact stream is displayed with its real backend, not a prospective restart default.
+			if(Publisher&&Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Id))PreflightOutputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
+		}
+		const auto Preflight=UVirtualSensorOutputPreflight::InspectForPurpose(this,PreflightOutputs,PreflightTargets,bOwnedScenarioStreamView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart);
+		CachedPcdPreflight=Preflight.Summary;
+		CachedPcdPreflightSummary=FString::Printf(TEXT("PCD %.1f건/s · 전체 출력 %.1f건/s · 추정 %.1f / 예산 %.1fMiB/s\n필요 연결 %s · 제출 예산 %d건/프레임 · 상세에서 대상·backend 확인"),Preflight.PcdMessagesPerSecond,Preflight.MessagesPerSecond,Preflight.PcdMegabytesPerSecond,Preflight.PcdBudgetMegabytesPerSecond,Preflight.bTransportConnected?TEXT("완료"):TEXT("대기/대상 없음"),Preflight.SubmissionsPerFrame);
+		if(!Preflight.BlockingReasons.IsEmpty())CachedPcdPreflightSummary=FString::Printf(TEXT("시작 차단 %d건: %s\n"),Preflight.BlockingReasons.Num(),*Preflight.BlockingReasons[0])+CachedPcdPreflightSummary;
+		else if(!Preflight.Warnings.IsEmpty())CachedPcdPreflightSummary+=TEXT("\n주의: ")+Preflight.Warnings[0];
+        if(auto* Lidar=SensorManager?SensorManager->GetSelectedLidar():nullptr){const auto Json=Lidar->GetCompatibilityOutputStatus();CachedPcdPreflightSummary+=TEXT("\n현재 선택 LiDAR ")+Lidar->SensorId+TEXT(" 호환 JSON: ")+Json.Reason;}
 		if(bOwnedScenarioStreamView)
 		{
 			if(const auto* Slab=ResolveScenarioSlabActor())
@@ -128,6 +145,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
 				OwnedScenarioSummary=TEXT("다음 시나리오 출력: ")+ (Names.IsEmpty()?FString(TEXT("관찰 전용")):FString::Join(Names,TEXT(" · ")))+TEXT("\n")+
 					(Ready?TEXT("설정 준비됨 · Broker 수락은 실행 후 별도 확인"):TEXT("송신 준비 안 됨: ")+Reason);
 				if(Admission.Result!=ESlabScenarioAdmission::None)OwnedScenarioSummary+=TEXT("\n최근 수신: ")+Admission.Reason;
+				OwnedScenarioSummary+=TEXT("\n")+CachedPcdPreflightSummary;
 			}
 			else OwnedScenarioSummary=TEXT("Slab Actor 연결 필요 · 화면을 여는 것만으로 송신하지 않습니다.");
 		}
@@ -198,8 +216,14 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	 .IsChecked_Lambda([this,Index](){const auto O=GetLiveScenarioOutputs();return (Index==0?O.bPointCloud:Index==1?O.bCameraImage:O.bLidarTelemetry)?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 	 .OnCheckStateChanged_Lambda([this,Index](ECheckBoxState S){auto O=GetLiveScenarioOutputs();const bool B=S==ECheckBoxState::Checked;if(Index==0)O.bPointCloud=B;else if(Index==1)O.bCameraImage=B;else O.bLidarTelemetry=B;SetLiveScenarioOutputs(O);})[SNewSensorTool(STextBlock).Text(Text)];};
 	Auto->AddSlot().AutoHeight().Padding(0,8)[Output(0,LOCTEXT("PcdAuto","PCD 포인트 클라우드 송신"))];
+	Auto->AddSlot().AutoHeight().Padding(0,4)[SNew(SCheckBox)
+	 .IsEnabled_Lambda([this](){auto* A=ResolveScenarioSlabActor();return A&&!A->IsSimulationActive();})
+	 .IsChecked_Lambda([this](){return GetLiveScenarioExecutionOptions().Policy==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	 .OnCheckStateChanged_Lambda([this](ECheckBoxState S){auto O=GetLiveScenarioExecutionOptions();O.Policy=S==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;SetLiveScenarioExecutionOptions(O);})
+	 [SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRequireData","데이터 필수 실행 · 연결 준비 후 시작"))]];
 	Auto->AddSlot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text_Lambda([this](){const auto O=GetLiveScenarioOutputs();const int32 Count=(O.bCameraImage?1:0)+(O.bLidarTelemetry?1:0);return Count?FText::Format(LOCTEXT("ExtraEnabled","추가 송신 옵션 · {0}개 켜짐"),FText::AsNumber(Count)):LOCTEXT("Extra","추가 송신 옵션");})].BodyContent()[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight().Padding(0,8)[Output(1,LOCTEXT("CameraAuto","Camera 이미지 Topic"))]+SVerticalBox::Slot().AutoHeight().Padding(0,8)[Output(2,LOCTEXT("LidarAuto","LiDAR 정보 Topic"))]]];
 	auto Manual=SNew(SVerticalBox);
+	Manual->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);})];
 	for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
 	{
 		const FText Label=Kind==EVirtualSensorStreamKind::PointCloud?LOCTEXT("PcdCard","포인트 클라우드 · PCD Binary"):Kind==EVirtualSensorStreamKind::CameraImage?LOCTEXT("CameraCard","Camera 이미지"):LOCTEXT("LidarCard","LiDAR 정보");
@@ -216,6 +240,9 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[Modes]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SWidgetSwitcher).WidgetIndex_Lambda([this](){return bOwnedScenarioStreamView?1:0;})+SWidgetSwitcher::Slot()[Manual]+SWidgetSwitcher::Slot()[Auto]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("PcdPreflightDetails","PCD 사전 점검 상세"))]
+	  .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
 	  .OnAreaExpansionChanged_Lambda([this](bool Open){bWorkspaceLiveDetails=Open;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Policy","전송 필터·상세 정책"))]
@@ -287,6 +314,10 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(OwnedConnectionText);})]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("ServerSettings","서버 연결 설정"))].BodyContent()[Server]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SAssignNew(RunResultsArea,SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded)
+	  .OnAreaExpansionChanged_Lambda([this](bool B){bRunResultsExpanded=B;LastNativeStatusRefreshSeconds=-1;})
+	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedRunResults","실행별 전송 결과 · 최근 20개"))]
+	  .BodyContent()[BuildRunResultsContent()]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).OnAreaExpansionChanged_Lambda([this](bool B){bOwnedReceiverExpanded=B;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Receiver","Broker 실제 수신 검증"))].BodyContent()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
@@ -297,7 +328,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Log","전송 기록·호환 도구"))].BodyContent()[SNew(SVerticalBox)
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
 	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("DiagnosticReport","진단 보고서 저장")).OnClicked_Lambda([this](){ExportTransportDiagnosticReport();return FReply::Handled();})]
-	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("LegacyPayload","현재 JSON Payload 수동 전송")).OnClicked_Lambda([this](){SendSelectedPayloadToServer();return FReply::Handled();})]]
+	    +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("LegacyPayload","현재 JSON Payload 수동 전송")).OnClicked_Lambda([this](){RequestSelectedPayloadSend();return FReply::Handled();})]]
 	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedTransportLog);})]]]
 	];
 }

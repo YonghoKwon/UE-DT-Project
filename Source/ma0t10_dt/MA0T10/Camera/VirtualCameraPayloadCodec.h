@@ -10,6 +10,7 @@ struct MA0T10_DT_API FVirtualCameraPayloadSnapshot
     FString Model;
     FString SimulationQuality;
     int64 FrameId = 0;
+    int32 AcquisitionRevision = 0; // Native acquisition bookkeeping; wire schema is unchanged.
     FDateTime TimestampUtc;
     int32 Width = 0;
     int32 Height = 0;

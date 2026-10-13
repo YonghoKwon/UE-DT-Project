@@ -52,6 +52,7 @@ public:
     virtual FVirtualSensorRuntimeStatus GetSensorRuntimeStatus() const override;
     virtual bool SubmitExternalFrame(const FVirtualSensorFrameEnvelope& Frame, bool bSendTransport) override;
     virtual bool ReadEditableState(FVirtualSensorEditableState& OutState) const override;
+    virtual bool ReadCollectionState(FVirtualSensorEditableState& OutState,bool& bPreviewEnabled) const override;
     virtual bool ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const override;
     virtual bool ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError) override;
     virtual bool ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError) override;
@@ -64,6 +65,7 @@ private:
 
     UFUNCTION()
     void HandleLidarFrame(const FString& JsonPayload, UTexture2D* ViewTexture);
+    void HandleDerivedLidarFrame(const FVirtualSensorFrameEnvelope& Frame);
 
     TOptional<bool> PendingExternalSendTransport;
 	int32 SavedInteractionHorizontalSamples = 0;

@@ -3,6 +3,9 @@
 #include "Json.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "EngineUtils.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 
 UVirtualSensorRecorderComponent::UVirtualSensorRecorderComponent()
 {
@@ -11,6 +14,9 @@ UVirtualSensorRecorderComponent::UVirtualSensorRecorderComponent()
 
 void UVirtualSensorRecorderComponent::StartRecording()
 {
+    if(GetWorld())for(TActorIterator<AVirtualSensorActorBase> It(GetWorld());It;++It)
+        if(It->OutputComponent&&It->OutputComponent->RecorderComponent==this)
+        {FString Error;if(!It->PrepareForDataCollection(Error))return;}
     bRecording = true;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "SlabExecutionTypes.h"
 #include "VirtualSlabFrameContext.generated.h"
 
 /** Per-run automatic Topic output policy. Local capture/recording is independent. */
@@ -31,7 +32,7 @@ struct MA0T10_DT_API FVirtualSlabFrameContext
 };
 
 UENUM(BlueprintType)
-enum class EVirtualSlabSessionState : uint8 { Idle, Ready, Running, Paused, Draining, Completed, Incomplete };
+enum class EVirtualSlabSessionState : uint8 { Idle, Ready, Running, Paused, Draining, Completed, Incomplete, Preparing };
 
 UENUM(BlueprintType)
 enum class EVirtualSlabSessionEndReason : uint8
@@ -44,6 +45,8 @@ struct MA0T10_DT_API FVirtualSlabSessionStatus
 {
 	GENERATED_BODY()
 	UPROPERTY(BlueprintReadOnly) FVirtualSlabSensorOutputSelection Outputs;
+	UPROPERTY(BlueprintReadOnly) ESlabExecutionPolicy ExecutionPolicy=ESlabExecutionPolicy::ObservationAllowed;
+	UPROPERTY(BlueprintReadOnly) FString RequiredDataError;
 	UPROPERTY(BlueprintReadOnly) bool bObservationOnly=false;
 	UPROPERTY(BlueprintReadOnly) FString RunId;
 	UPROPERTY(BlueprintReadOnly) EVirtualSlabSessionState State = EVirtualSlabSessionState::Idle;

@@ -7,7 +7,7 @@ UENUM(BlueprintType)
 enum class ESlabInputUnit : uint8 { Centimeters, Millimeters, Meters };
 
 UENUM(BlueprintType)
-enum class ESlabSimulationState : uint8 { Idle, Playing, Paused, Completed, Failed };
+enum class ESlabSimulationState : uint8 { Idle, Playing, Paused, Completed, Failed, Preparing };
 
 /** Source values are retained verbatim in their declared input units. */
 USTRUCT(BlueprintType)
@@ -33,6 +33,7 @@ struct MA0T10_DT_API FSlabScenarioRow
 struct MA0T10_DT_API FSlabScenarioData
 {
 	FString OriginalJson;
+	FString OriginalContentSha1;
 	FString ScenarioUUID;
 	FString SourceUUID;
 	FString Name;

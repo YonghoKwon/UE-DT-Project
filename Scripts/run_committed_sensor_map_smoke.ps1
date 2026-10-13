@@ -15,11 +15,12 @@ $Archive = Join-Path $RunRoot 'map.zip'
 if ($LASTEXITCODE -ne 0) { throw 'Could not archive committed SensorTestMap' }
 Expand-Archive -LiteralPath $Archive -DestinationPath $RunRoot
 $MapDirectory = Join-Path $RunRoot 'Content/MA0T10/Maps'
+$MapArgument = 'Saved/Reports/' + (Split-Path $RunRoot -Leaf) + '/Content/MA0T10/Maps'
 $Log = Join-Path $RunRoot 'smoke.log'
 Write-Host "Testing commit $Hash; working SensorTestMap is not modified."
 & 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' `
     (Join-Path $Root 'ma0t10_dt.uproject') -NullRHI -unattended -nosplash `
-    "-SensorSmokeMapDirectory=$MapDirectory" `
+    "-SensorSmokeMapDirectory=$MapArgument" `
     "-ExecCmds=Automation RunTests $TestGroup; Quit" `
     '-TestExit=Automation Test Queue Empty' "-abslog=$Log"
 if ($LASTEXITCODE -ne 0) { throw "Committed-map smoke failed; see $Log" }

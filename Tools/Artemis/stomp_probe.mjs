@@ -10,6 +10,10 @@ const url = args.get('--url') ?? 'ws://127.0.0.1:61616';
 const user = args.get('--user') ?? 'artemis';
 const password = args.get('--password') ?? 'artemis';
 const topics = (args.get('--topics') ?? 'topic.virtual.sensor.lidar.0,topic.virtual.sensor.camera.0,topic.virtual.sensor.export.0').split(',').filter(Boolean);
+const requiredTopics = (args.get('--required-topics') ?? topics.join(',')).split(',').filter(Boolean);
+const forbiddenTopics = new Set((args.get('--forbidden-topics') ?? '').split(',').filter(Boolean));
+if (requiredTopics.some(topic => !topics.includes(topic)) || [...forbiddenTopics].some(topic => !topics.includes(topic))) throw new Error('required/forbidden topics must be subscribed');
+let unexpectedTopicMessages = 0;
 const ackTopic = args.get('--ack-topic') ?? '';
 const timeoutSeconds = Number(args.get('--timeout') ?? '30');
 const expectedPerTopic = Number(args.get('--count') ?? '1');
@@ -28,6 +32,7 @@ const selfTest = (args.get('--self-test') ?? 'false').toLowerCase() === 'true';
 const selfTestPoints = Math.max(1, Number(args.get('--self-test-points') ?? '1'));
 const output = args.get('--output') ?? path.resolve('Saved', 'Reports', `artemis_probe_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.json`);
 const messages = [];
+const metadataLedger = [];
 const counts = new Map(topics.map(topic => [topic, 0]));
 const topicMetrics = new Map(topics.map(topic => [topic, {
   validCount: 0,
@@ -157,9 +162,18 @@ function validateBinaryPcd(headers, body) {
   };
   const metadataLines = headerText.split('\n').filter(line => line.startsWith('# MA0T10_META '));
   let scenarioUuid = '';
+  let embeddedPose = null;
   if (metadataLines.length || requiredSlabRuns > 0 || scenarioReplay) {
     try {
       const meta = JSON.parse(metadataLines[0]?.slice(14));
+      if (args.has('--placement-ledger')) {
+        const position = meta.sensor_position_world_m;
+        const matrix = meta.sensor_to_world_m;
+        checks.coordinatePose = Array.isArray(position) && position.length === 3 && position.every(Number.isFinite) &&
+          Array.isArray(matrix) && matrix.length === 16 && matrix.every(Number.isFinite) &&
+          position.every((value, index) => Math.abs(value - matrix[index * 4 + 3]) < 1e-6);
+        if (checks.coordinatePose) embeddedPose = { positionWorldM: position, sensorToWorldM: matrix };
+      }
       checks.embeddedMetadata = metadataLines.length === 1 && meta.schema === 'virtual-pointcloud.context.v1' &&
         meta.sensor_id === (headers['sensor-id'] ?? headers['x-sensor-id']) &&
         meta.sensor_frame_id === (headers['frame-id'] ?? headers['x-frame-id']);
@@ -178,7 +192,7 @@ function validateBinaryPcd(headers, body) {
   }
   const failedChecks = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   if (scenarioReplay && failedChecks.length === 0 && !observedScenarioUuid) observedScenarioUuid = scenarioUuid;
-  return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks };
+  return { valid: failedChecks.length === 0, pointCount, checksum, payloadOffset, failedChecks, embeddedPose };
 }
 
 function report(success, reason) {
@@ -200,6 +214,9 @@ function report(success, reason) {
     reason,
     brokerUrl: url,
     topics,
+    requiredTopics,
+    forbiddenTopics: [...forbiddenTopics],
+    unexpectedTopicMessages,
     expectedPerTopic,
     durationSeconds,
     warmupSeconds,
@@ -211,6 +228,7 @@ function report(success, reason) {
     metrics,
     slabRuns: Object.fromEntries(slabRuns),
     messages,
+    metadataLedger: args.has('--metadata-ledger') ? metadataLedger : undefined,
   };
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, JSON.stringify(result, null, 2), 'utf8');
@@ -219,20 +237,21 @@ function report(success, reason) {
 }
 
 function hasAllExpected() {
-  return [...counts.values()].every(count => count >= expectedPerTopic);
+  return requiredTopics.every(topic => counts.get(topic) >= expectedPerTopic);
 }
 
 function finishDurationMeasurement(socket) {
   const pointCloudTopic = topics.find(topic => topic.includes('export')) ?? topics.at(-1);
   const pointCloudMetrics = pointCloudTopic ? topicMetrics.get(pointCloudTopic) : null;
-  const hasData = [...topicMetrics.values()].every(value => value.validCount > 0);
+  const hasData = requiredTopics.every(topic => topicMetrics.get(topic).validCount > 0);
   const contiguous = !requireContiguousPcd || !pointCloudMetrics ||
     (pointCloudMetrics.frameGaps === 0 && pointCloudMetrics.duplicates === 0 && pointCloudMetrics.invalidCount === 0);
-  const slabValid = requiredSlabRuns === 0 || (slabRuns.size === requiredSlabRuns && [...slabRuns.values()].every(run => topics.every(topic => {
+  const slabValid = requiredSlabRuns === 0 || (slabRuns.size === requiredSlabRuns && [...slabRuns.values()].every(run => requiredTopics.every(topic => {
     const m = run[topic]; return m && m.invalid === 0 && m.gaps === 0 && m.duplicates === 0 && m.count / 30 >= (topic.includes('camera') ? 29 : 19);
   })));
-  report(hasData && contiguous && slabValid,
-    !hasData ? 'duration elapsed before every topic produced a valid message'
+  report(hasData && contiguous && slabValid && unexpectedTopicMessages === 0,
+    unexpectedTopicMessages > 0 ? 'unselected output topic received messages'
+      : !hasData ? 'duration elapsed before every required topic produced a valid message'
       : !slabValid ? 'Slab session correlation/rate validation failed'
       : !contiguous ? 'binary PCD FrameId continuity validation failed'
         : `duration measurement completed (${durationSeconds}s)`);
@@ -361,6 +380,7 @@ socket.addEventListener('message', async event => {
       }
       const entry = {
         receivedUtc: new Date().toISOString(),
+        acquisitionUtc: parsed.headers['timestamp-utc'] ?? parsed.headers['x-utc'] ?? '',
         destination,
         requestId: parsed.headers['x-request-id'] ?? parsed.headers['request-id'] ?? '',
         sensorId: parsed.headers['x-sensor-id'] ?? parsed.headers['sensor-id'] ?? '',
@@ -380,6 +400,12 @@ socket.addEventListener('message', async event => {
 		checksum: pcdValidation?.checksum ?? actualChecksum,
 		validationErrors: pcdValidation?.failedChecks ?? [],
       };
+      if (args.has('--metadata-ledger')) {
+        if(metadataLedger.length>=300000) { report(false,'metadata ledger capacity exceeded');socket.close();return; }
+        metadataLedger.push({requestId:entry.requestId,runId:entry.runId,sensorId:entry.sensorId,frameId:entry.frameId,destination,
+          acquisitionUtc:entry.acquisitionUtc,receivedUtc:entry.receivedUtc,valid:entry.valid,checksum:entry.checksum,
+          ...(args.has('--placement-ledger') && pcdValidation?.embeddedPose ? {placement:pcdValidation.embeddedPose} : {})});
+      }
       if (requiredSlabRuns > 0) {
         const correlationValid = validUuid(entry.runId) && entry.mtlNo === 'SQ83521 047' &&
           Number.isInteger(entry.slabFrameNo) && entry.slabFrameNo >= 0 && entry.slabFrameNo < 600 && Math.abs(entry.slabElapsedSec - entry.slabFrameNo * 0.05) < 0.00001;
@@ -403,6 +429,7 @@ socket.addEventListener('message', async event => {
         run[destination] = m; slabRuns.set(entry.runId, run);
       }
       const shouldMeasure = requiredSlabRuns > 0 || durationSeconds <= 0 || measurementStartedMs > 0;
+      if (forbiddenTopics.has(destination)) ++unexpectedTopicMessages;
       if (shouldMeasure) {
         if (counts.has(destination) && entry.valid) counts.set(destination, counts.get(destination) + 1);
         updateMetrics(destination, entry);

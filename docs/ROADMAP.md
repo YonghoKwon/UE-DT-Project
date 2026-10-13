@@ -1,35 +1,43 @@
 # 최종 목표를 위한 로드맵
 
-기준: **f7bdd3b / PR #26 병합 0db2f63, 2026-09-22**.
+기준: **`codex/placement-ui-preflight-closure` (기준 `48286fd`) / DTCore `b2504d1`, 2026-10-10 배치 접근성과 PCD 사전 점검 보완**. 작업·빌드·검수는 `C:\Unreal Projects\ma0t10_dt`에서 진행하고 별도 worktree를 새로 생성하지 않는다. 검증 수치는 해당 시험의 원래 날짜·조건을 따른다.
 이 문서는 후속 개발 순서와 승인 기준이다. 플러그인 생성이나 모든 단계의 구현을 지금 승인하는 문서는 아니다.
 
 [AGENTS](../AGENTS.md) · [현재 구현](../README.md) · [개별 보완 백로그](IMPROVEMENTS.md)
 
 ## 1. 최종 사용자 경험
 
+같은2026-09-29 후속으로 격리된 Windows 관리형 런처에서 실제 패키지 설치/실행·Manifest328파일 해시·런처 종료 후 UE 수명 유지·정상 종료를 확인했다. 회사 설치 경로 쓰기 권한, 실제 업데이트/복구·Linux/RHEL 인수는 별도 gate로 유지한다.
+
+2026-09-29 배포 준비 증거: 현재 UE5.3 프로젝트의 Windows Development 패키징을 완료하고 외부 런처의 격리된 ZIP/sidecar 접수·승인을 준비했다. 에디터 테스트 가드와 승인된 TestMap의 누락 위젯 참조만 보완했다. 이는 R5 플러그인화·간편 설치 또는 회사 운영 인수 완료가 아니며, 실제 런처 실행·Shipping/Linux·회사 환경 수용은 각각의 증거로 판단한다. 자세한 범위는 [README의 패키징 점검](../README.md)을 따른다.
+
 | 사용자 목표 | 최종적으로 제공할 동작 | 현재와의 차이 |
 |---|---|---|
-| 여러 Camera/LiDAR를 자유롭게 배치 | 목록에서 생성·복제·선택, 부드러운 gizmo/키보드 조작, 배치 preset과 명시적 저장 | 현재 Actor 배치·단일 선택 조작 기반; 통합 설치 workflow와 다중 부하 검증 필요 |
-| 시나리오에 맞춰 측정·전송 | 준비 상태 확인 후 실행, 독립 센서 주기로 측정, 올바른 소재/프레임 context, 종료 drain과 완전/부분 결과 | 현재 Slab/PCD 동작과 관찰 fallback 존재; 정격 다중 수집·소비자 완료 보장은 추가 단계 |
+| 여러 Camera/LiDAR를 자유롭게 배치 | `센서 배치` 패널에서 추가·복제·선택·이동, 저장 위치와 전체 배치 복원 | PIE 핵심 workflow·저장/복원은 구현·검증. 전체 직접/DPI·첫 사용자 수용·Editor 영구 설치는 별도 |
+| 시나리오에 맞춰 PCD 생성·전송 | 준비 상태 확인, 독립 측정 주기, 소재/프레임 context, 종료 drain과 실행 결과 | 2+2 PCD10분/10회 조건 통과. 다른 장면·운영 환경·4+4/60분 인증은 남음 |
 | 장비별 플러그인 관리 | DTCore + 센서 플러그인, 데이터 기반 ProfileId registry, backend/SDK 확장 경계 | 현재 프로젝트 모듈·enum/resolver·Slab 직접 의존 |
 | 다른 프로젝트에 쉽게 설치 | 플러그인 활성화 후 Bootstrap Actor 하나와 setup asset으로 preview/UI 확인 | 현재 여러 Host·Coordinator·자산·TC 설정을 수동 이식 |
 
 “느려짐 없이”는 무제한 센서·어떤 PC에서도 60FPS를 의미하지 않는다. **고정 장비/장면/출력 조합의 지원 매트릭스**를 만들고, 한계 초과를 미리 알리며 요청 규격을 몰래 낮추지 않는 것을 제품 기준으로 삼는다.
 
-DTCore는 필수 의존성으로 사용하지만 **이번 로드맵의 선행 단계에서는 소스/gitlink를 변경하지 않는다.** 공통 플러그인 개발이 완료되면 별도 compatibility gate로 업데이트한다. AI 모델 학습/실장비 SDK 전체 구현은 센서 플랫폼 완성의 자동 포함 범위가 아니다.
+DTCore는 필수 의존성이며 현재 `b2504d1`을 유지한다. 당면 배치·UI·PCD 개선은 프로젝트 코드에서 진행하고, 공통 수정이 불가피한 재현 사례만 별도 최소 변경안으로 다룬다. AI 모델 학습/실장비 SDK 전체 구현은 센서 플랫폼 완성의 자동 포함 범위가 아니다.
+
+송신 고도화의 주 대상은 **Binary PCD**다. Camera는 추가 배치·방향·미리보기와 관련 정합성을 계속 다룬다. CSV/JSONL/LAZ/JPEG 및 호환 JSON의 신규 기능·최적화는 현재 보류하고 기존 계약의 회귀만 유지한다. 장비 위치/전체 배치 저장은 데이터 파일 형식 개선과 별개의 사용자 기능이다. UE 학습 데이터 묶음 저장은 현재 범위에 없다.
 
 ## 2. 권장 순서와 단계별 결과물
 
-권장 순서: **R0 기준선 → R1 정확성/한계 → R2 다중 배치/성능 → R3 데이터 수집 신뢰성 → R4 의존성/설정 정리 → R5 플러그인/간편 설치 → R6 장비/운영 확장**.
+현재 착수 순서: **① 센서·카메라 추가 배치와 저장 위치 전용 패널 → ② 작업 흐름 중심 UI/UX 재구성 → ③ PCD 송신 사전 점검·예산 안내 → ④ 다중 센서 PCD 장기 검증·조작 성능 → ⑤ 플러그인 분리 전 의존성 정리**.
+
+R0~R6는 최종 목표의 영역·완료 gate를 나타낸다. 현재는 R2 사용성을 우선 구현하고 R0/R1/R3의 관련 회귀를 함께 수행한다. 남은 장기 검수 전체가 끝나야 배치 도구를 만들 수 있다는 순서로 해석하지 않는다. 세부 진행률과 보류 항목은 IMPROVEMENTS를 따른다.
 
 R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래스·자산 이동은 회귀 기준이 마련된 뒤 수행한다. DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필요는 없다.
 
 ### R0 — 재현 가능한 기준선
 
-**현재:** 핵심 문서 4개 체계는 이번 문서 작업 결과다. clean checkout·고정 의존성 재검증은 아직 남아 있다.
+**현재:** 핵심 문서 4개와 자동화/실측 근거가 있다. Runtime `81b56ba`의 최종 전체 MA0T10은217 Success 중실제215·opt-in skip2다. `ma0t10_dt` 단일 작업 폴더에서 빌드·검수하고 이전 worktree의 자료/이력을 보존·정리했다. clean 설정·운영 환경과 직접 마우스 검수의 재현성은 계속 보완한다.
 
 - 코드/DTCore SHA, Engine/toolchain/GPU/driver, actual viewport/DPI, profile/backend/output/UI 상태를 manifest로 기록한다.
-- 현재 DTCore pin `2eec1fe`와 로컬 `a1b333e`의 Source는 같고 문서만 다르다. API 결함으로 단정하지 말고 깨끗한 checkout에서 확인한다.
+- DTCore `b2504d1`을 고정하고 격리 host/프로젝트 검증 이력을 유지한다. 공통 의존성 업데이트가 필요하면 별도 변경과 검증으로 분리한다. 타 실제 프로젝트 검증은 별도다.
 - 운영맵 사용자 변경을 검증 fixture에서 분리한다. map regeneration을 quick-start 필수 단계에서 제거하고 임시/커밋된 test scene을 사용한다.
 - 최신 단일 ML-X PCD 기준선을 재현하고 각 test의 실제 수행/skip과 원본 보고서를 연결한다.
 
@@ -37,35 +45,42 @@ R4의 인터페이스 설계는 R2/R3와 병행할 수 있으나 실제 클래�
 
 ### R1 — 확장 전에 데이터·수명 정확성 확보
 
-1. Esc 종료를 단일 interaction 종료 경로로 통합한다. Drag commit과 mode exit를 구분한다.
-2. Raw worker의 receipt 대기 frame/byte 한도와 producer backpressure를 연결한다. 0Hz/starvation을 진단에서 숨기지 않는다.
-3. Camera 픽셀 marker로 capture/readback/encode metadata의 동일성을 검증한다. 불일치가 재현될 때만 acquisition-buffer 구조를 고친다.
-4. Stop/삭제/설정 변경/PIE 종료/재연결의 generation·cancel·drain 경계를 점검한다.
+진행: RT-02(`d2024bf`)·RT-03(`59d1027`)와 RT-01(`a120ba6`)·RT-04(`017d20f`) 구현·집중 검증. 공통 DTCore 종료·로그·registry·구독·Widget 계약도 보강했다. LIFE-01 전체 fault 조합과 전체 R1 gate는 아직 미완료이며 수동 검증 범위는 최신 README/보고서를 따른다.
 
-**완료 gate:** RT-01/02/03/04, LIFE-01의 선택된 회귀가 통과하고 같은 frame에 다른 픽셀이 붙거나 다른 owner 자원을 정리하지 않음. 정상 1+1 출력 성능을 유지한다. 이 단계 전에 새 센서 수를 크게 늘리지 않는다.
+1. 구현된 Esc 단일 종료 경로와 원설정/실행 상태 복원을 새 배치 패널에서도 사용한다. Drag commit과 mode exit를 구분한다.
+2. 구현된 Raw frame/byte 상한과 0Hz/정체 진단을 새로 추가한 센서에도 적용한다. 사용자에게 잠금·정지·준비 이유를 표시한다.
+3. 기존 Camera 픽셀·metadata 정합성 검증을 배치/미리보기 변경의 회귀로 유지한다. JPEG 전송 고도화를 당면 목표에 추가하지 않는다.
+4. 추가/복제/삭제·Stop·설정 변경·PIE 종료에서 관련 generation·cancel·drain과 소유권을 검사한다.
+
+**완료 gate:** RT-01/02/03/04, LIFE-01의 관련 회귀가 통과하고 같은 frame에 다른 픽셀이 붙거나 다른 owner 자원을 정리하지 않음. 정상1+1과 검증된 PCD 조건을 유지한다. 센서 수 확대는1→2대부터 단계적으로 검증한다.
 
 ### R2 — 다중 센서 배치와 성능 제품화
 
-- 편집용 설치 workflow: 생성/복제/삭제, 고유 SensorId, 검색/선택, transform/snap, 배치 setup asset, Editor Undo/Redo를 추가한다. PIE 임시 배치와 원본 맵 저장을 구분한다.
+1. **배치 진입점과 전용 패널:** 구현된 `장비 추가·위치 저장` 진입점과 `센서·카메라 배치` 패널의 첫 사용자/직접 조작 수용을 닫는다. 장비 목록·추가/복제/삭제·Transform·기즈모·저장 위치·Undo/Redo와 전체 배치 복원을 연결했고, 첫 사용은 배치+미리보기다. 프로필/품질은 Settings, PCD는 Data로 연결하며 사용자 창 저장값은 보존한다.
+2. **PIE/runtime 추가 배치:** LiDAR/Camera 추가 시 고유 ID·프로필·생성 위치 확인→Actor 생성→Coordinator/출력 서비스 등록→목록/미리보기 동기화 순서를 지킨다. 추가만으로 Topic을 송신하지 않는다. 도구가 생성한 장비의 삭제와 기존 레벨 Actor의 보호를 구분하며, 수집 중 대상/설정을 임의 변경하지 않는다.
+3. **명확한 저장 기능:** 선택 센서 pose 북마크와 전체 장비 구성을 구분한다. 기존20개 북마크·50개 PIE 이력을 재사용하고, 전체 배치에는 stable ID/종류/프로필/pose를 포함해 명시적 불러오기로 복원한다. 새 PIE에 자동 적용하거나 `.umap`을 자동 저장하지 않는다. Editor 영구 배치·Editor Undo는 별도 후속이다.
+4. **소유 UI/UX 정리:** 배치 → 미리보기 → 시나리오 → PCD → 결과의 직접 진입점, 일관된 대상/상태/주요 조작, 읽기 쉬운 다크 스타일을 제공한다. 새 패널은 명시적 소유 등록과 저장 호환을 갖추고, 기존6개·미등록/동료 Widget은 보존한다.
+5. **PCD 사전 점검과 검증:** 선택 출력만으로 예상 제출량/대역폭을 계산하고 부족한 설정을 안내한다. Camera 미리보기는 별도 렌더 부하로 기록한다. 사용자가 실제 추가한1→2 LiDAR의 단기·반복·장기 시험 후 다음 규모를 판단한다.
+
 - 기존 경량 조작 API를 유지하며 조작 중 입력→Transform→화면 지연을 계측한다. 선택 센서의 preview 우선순위가 타 센서의 acquisition을 독점하지 않게 한다.
-- 센서 개수만이 아니라 pixels/s·rays/s·echo·CPU/GPU·semantic·encode·네트워크/파일 비용으로 capacity를 계산한다. 현재 프레임 풀/슬롯/worker를 먼저 계측하고 불필요한 재할당·복사를 제거한다.
+- 사전 점검 이후의 전체 작업량 기반 배분은 확인된 병목에 따라 설계한다. 센서 개수뿐 아니라 pixels/s·rays/s·echo·CPU/GPU·semantic·PCD 직렬화·네트워크 비용을 사용한다. Camera staging 재사용과 다른 포맷 최적화는 현재 보류다.
 - 설정할 규격, admission된 규격, 실제 acquisition/output률을 별도로 보여준다. 지원 불가 조합은 사전 경고하고 명시적인 profile/preview 선택으로 해결한다.
-- 1+1, 2+2, 4+4 매트릭스를 작성하고 8+8은 탐색값으로만 공개한다. 스트레스 fixture를 실 공장 장면 대표로 자동 간주하지 않는다.
+- 우선 Camera 미리보기를 포함한1+1/2+2 PCD 조건의 지원표를 작성한다. 4+4는 후속,8+8은 탐색값이다. 스트레스 fixture를 실 공장 장면 대표로 자동 간주하지 않는다.
 - UI의 실제 해상도/DPI·저장 복원·입력 소유권을 점검하고 3D 라벨 겹침은 측정 파이프라인과 독립적으로 개선한다.
 
-**완료 gate:** RT-05/06/08, UX-01, UI-01. 지원 조합에서 입력 반응·측정 완료율·송수신·자원 상한이 동시에 만족한다. 모든 지원 수치에 실제 조건/보고서를 붙인다.
+**완료 gate:** RT-05/06/08, UX-01, UI-01/03. 사용자가 도움 없이 추가→선택→배치→저장/불러오기→PCD 실행→결과 확인을 수행하고, 지원 조합에서 입력 반응·측정 완료율·송수신·자원 상한이 함께 만족한다. 모든 지원 수치에 실제 조건/보고서를 붙인다.
 
 ### R3 — 시나리오 기반 신뢰할 수 있는 수집
 
-- host 실행 정책을 **관찰 가능**과 **데이터 필수**로 분리한다. 현재 기본 관찰 fallback을 유지하고 데이터 필수 모드는 opt-in으로 추가한다.
+- host의 **관찰 가능/데이터 필수** 정책은 이미 구현됐다. 기본 관찰 fallback과 opt-in 데이터 필수 실행을 유지하고 PCD 운영/장기 검증을 보완한다.
 - preflight는 설정/자산/필요 센서 확인, 연결 준비는 실제 transport 상태 확인, 실행은 acquisition, drain은 승인된 데이터 완료로 구분한다.
 - 중립적인 run manifest에 scenario/run ID, target sensors, profile/calibration/backend, 요청/완료/누락/전달 수, 출력 경로·checksum·종료 이유를 기록한다.
 - 원본 Slab frame과 센서 frame을 일대일 강제하지 않는다. acquisition 시작 context가 직렬화/전송/저장까지 보존되는 것을 검증한다.
 - 소비자 업무 완료가 필요한 배포에만 application ACK·멱등성·누락 대조를 추가한다. Broker receipt로 학습 데이터셋 저장 완료를 선언하지 않는다.
 - 네트워크 장애 중 영구 보존은 선택 기능이다. 추가할 경우 bounded 디스크 spool·회수·용량 경고·재전송 규칙을 별도 계약으로 정하며 무제한 backlog를 만들지 않는다.
-- LAZ 프로세스 timeout/cancel과 파일 작업의 종료 안전성을 보완한다.
+- LAZ 등 PCD 외 형식의 timeout/cancel 고도화는 보류한다. PCD 공통 경로·기존 기능에 영향을 주는 회귀는 관련 변경에서 확인한다.
 
-**완료 gate:** DATA-01/RT-07/LIFE-01/IO-01. 오류를 의도적으로 넣어 완전/부분/실패 결과를 판정하고, 선택하지 않은 출력과 비대상 스트림을 침범하지 않는다. PCD/JPEG 기존 소비자 호환 시험 필수.
+**현재 PCD gate:** DATA-01/LIFE-01의 관련 장애·완전/부분/실패 판정, 선택하지 않은 출력과 비대상 스트림 보호, PCD 기존 소비자 호환. RT-07 업무 ACK와 IO-01 다른 포맷 개선은 별도 후속이며 현재 PCD 단계의 필수 착수 조건으로 묶지 않는다. 공통 코드 변경 시 기존 JPEG/JSON의 관련 회귀는 유지한다.
 
 ### R4 — 프로젝트 안에서 분리 준비
 
@@ -135,10 +150,14 @@ Bootstrap의 확정할 기본 동작:
 
 | 구성 | 화면 목표 | 정격/데이터 목표 | 현재 상태 |
 |---|---|---|---|
-| D455 1 + ML-X Native 1 | 평균≥55 FPS, 1% low≥45, frame p95≤20ms | Camera acquisition/JPEG≥29Hz, LiDAR/PCD≥19Hz(선택 출력) | 최신 PCD-only 단일 LiDAR 근거만 있음; 현재 SHA 전체 3-stream 재검증 필요 |
-| 2 + 2 | 같은 60FPS 계열 기준 | 센서별 같은 요청 규격; 편차/정체 없음 | 미검증 |
-| 4 + 4 | 평균≥28 FPS, 1% low≥24, frame p95≤36ms | 정격 유지 목표. 불가능하면 지원 한계를 명시, 몰래 15Hz로 바꾸지 않음 | 미검증 |
+| D455 1 + ML-X Native 1 | 평균≥55 FPS, 1% low≥45, frame p95≤20ms | LiDAR/PCD≥19Hz; Camera 배치·미리보기, JPEG는 선택 시 기존 계약 회귀 | 2026-10-08 실제1920×1080 전체 출력30/20Hz·평균59.98FPS·p9516.67ms 통과. 현재 초점은PCD |
+| 2 + 2 | 같은 60FPS 계열 기준 | 새 배치 WhenRequested·PCD 정격·Camera1280×720/30Hz 미리보기 | 표시형1920×1080·60초3회/10회반복/600초 통과. 반복최소low55.966,600초low59.58·각PCD≥19.9967Hz. 기본 제출예산2. 대표장면·숨김·4+4/60분 별도 |
+| 4 + 4 | 후속 목표, 착수 시 조건 확정 | PCD 정격 유지 가능 범위를 실측하고 한계를 명시 | 현재 미검증·후속 |
 | 8 + 8 이상 | 탐색 시험 후 등급 설정 | Best Effort/지원/미지원 구분 | 보장 없음 |
+
+이전 배치 작업공간 근거는 `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`다. Camera도1280×720/30Hz로측정·미리보기했지만Camera/LiDAR정보Topic은0건이었다. 당시부하환경실패와재시험을보존한다. 전체 출력의이전60초시험은 `Saved/Reports/SensorOutputReliability/FINAL_STATUS.md`의명시적4건/프레임조건으로만보존한다. 선택하지않은출력의0Hz를PCD실패로판정하지않는다.
+
+현재 근거는 `Saved/Reports/PcdDemandPlacementAcceptance/FINAL_STATUS.md`다. 같은전체JSON stride1/max0·맵/pose/UI에서정책을교차비교해WhenRequested를검증했다. PCD는전체검출점·FrameStride1이다. 기존클래스/레벨/구형layout의LegacyAlways는유지하고명시적으로전환할수있다. 숨긴/offscreen과Legacy전체JSON의성능제한은남으며,새정책직접UI검수도Windows입력접근제약으로미완료다.
 
 공통 gate:
 
@@ -151,13 +170,13 @@ Bootstrap의 확정할 기본 동작:
 
 ### 네트워크는 물리적 한계가 있다
 
-현재 33-byte PCD의 Native 32,256점은 header 제외 약1.064MB/frame, 20Hz에서 약21.29MB/s다. 4대면 약85.16MB/s이며 JPEG·telemetry·프로토콜 overhead가 추가된다. 모든 ray가 2 Echo이면 4대 약170.31MB/s로 **1Gbps의 이론적 125MB/s도 초과**한다.
+현재 33-byte PCD의 Native 32,256점은 header 제외 약1.064MB/frame, 20Hz에서 약21.29MB/s다. 4대면 약85.16MB/s에 PCD/STOMP overhead가 추가된다. JPEG·telemetry의 추가 대역폭은 해당 출력을 명시적으로 선택했을 때만 계산한다. 모든 ray가2 Echo이면4대 약170.31MB/s로 **1Gbps의 이론적125MB/s도 초과**한다.
 
 따라서 센서 수 증가에는 측정/직렬화 최적화만이 아니라 NIC/Broker 디스크/소비자 처리량 검증이 필요하다. 가능한 해결은 더 빠른 망, 승인된 ROI/출력 선택, 별도 수집 노드 등이며 PCD 포맷/정격을 몰래 바꾸는 것이 아니다. 현재 코드의 bandwidth budget이 backend별 어느 경로에 적용되는지도 RT-01/08에서 확인한다.
 
 ## 4. 단계 운영과 출시 원칙
 
-- 첫 구현 묶음은 **QA-01 + RT-02**, 다음은 **RT-01/03**, 별도 **RT-04**를 권장한다. 작은 정확성 결함을 둔 채 plugin 폴더부터 옮기지 않는다.
+- 첫 구현 묶음인 **UX-01 배치 패널·전체 배치·PCD 사전 점검**은 구현됐다. 다음은 첫 사용자/남은 직접 입력·DPI 수용, 대표 장면·부하 환경의 PCD 검증, 동적 예산과 의존성 정리 순이다. RT-01/02/03/04·LIFE-01·QA-01의 관련 회귀를 각 묶음에서 수행한다.
 - 각 PR은 기능/계약/자산 이동 중 하나를 중심으로 만든다. 관련 빌드/테스트 후 커밋하고, 전체 회귀·실 RHI/네트워크 검증은 통합 gate에서 수행한다.
 - schema/enum/SaveGame migration은 old fixture를 유지한다. wire contract를 바꾸는 기능은 별도 opt-in/version으로 제공한다.
 - 성능 미달은 기능적 데이터 오류와 구분한다. 요청 규격을 충족하지 못하면 지원 표를 낮추거나 후속 최적화를 하고 달성했다고 표시하지 않는다.
@@ -170,12 +189,12 @@ Bootstrap의 확정할 기본 동작:
 |---|---|
 | 목표 PC/GPU/driver 및 실제 센서 수 | 지원 매트릭스·GPU 메모리/trace/encode budget |
 | 장면 대표성·동적 물체·geometry 종류 | GPU depth/semantic/CPU의 측정 차이와 proxy 비용 |
-| 필수 output·소비자 ACK 필요성 | 수집 완료의 의미·네트워크/디스크 budget |
-| 배치 작업이 Editor인지 packaged runtime인지 | Undo/영구 저장/권한/Editor module 경계 |
+| 필수 output·소비자 ACK 필요성 | 현재 주 출력은PCD,Camera이미지/다른포맷개선은보류. 업무ACK는추가요구시범위확정 |
+| 배치 실행·저장 범위 | 현재 PIE/runtime 추가·조작·저장위치 우선. 전체배치 명시적복원과 Editor영구맵저장은단계를구분 |
 | 대상 consumer 프로젝트·DTCore 승인 revision | 충돌 없는 drop-in 검증과 재현 가능한 릴리스 |
 | 장비 SDK/calibration/golden data | 제조사 동일성의 검증 근거 |
 
-모든 입력을 처음부터 받을 필요는 없다. 현재 저장소에서 해결 가능한 R0/R1부터 진행하고, 높은 영향의 미정 사항은 해당 단계 직전에 확정한다.
+현재 저장소에서 해결 가능한 배치/UI 작업을 진행하면서 필요한 입력을 단계별로 확정한다. 전체 장비 배치 저장 방식·대규모 지원 조건 등 영향이 큰 선택은 해당 구현 직전에 구체화한다.
 
 ## 5. 최종 완료의 정의
 

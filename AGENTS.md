@@ -1,6 +1,6 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, 기능 커밋 `f7bdd3b` / PR #26 병합 `0db2f63` (2026-09-22).
+기준: UE 5.3, `dc5a537` 이후 DTCore b22 동기화 안정화와 RT-01/04 보강 (2026-10-02). 검증 범위와 제한은 README를 따른다.
 이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
 
 ## 1. 네 개의 관리 문서
@@ -22,7 +22,7 @@
 
 - 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
-- DTCore는 별도 개발 중이다. 프로젝트 측 adapter로 해결하고, 공통 플러그인 수정이 필수라면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
+- DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소다. 명시적으로 승인된 동기화 안정화 작업에서는 plugin/parent를 각각 검증·커밋하고 검증한 gitlink만 고정한다. 그 외 작업은 프로젝트 측 adapter를 우선하며 공통 변경이 필수이면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
 - `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.
 - destructive reset/checkout, 재귀 삭제, 서비스 재시작, Broker 설정 변경을 통상 구현 단계로 추정하지 않는다. 필요하면 구체적으로 확인한다.
@@ -41,7 +41,7 @@
 - 자동 측정은 Scheduler, 수동 동기 API는 호환 경로다. 새 native UI의 파일 저장은 FileSave/PeriodicFileSave 비동기 서비스를 사용하며 숨겨진 동기 스캔을 추가하지 않는다.
 - acquisition Transform·FrameId·UTC·revision·context는 immutable snapshot으로 끝까지 전달한다. 송신 당시 최신 Transform/Slab 상태로 덮어쓰지 않는다.
 - 비동기 결과는 weak ownership과 generation/revision을 검사한다. PIE 종료·삭제·설정 변경 뒤 결과를 적용하지 않는다. worker/socket/readback/file writer 종료도 검증한다.
-- 조작 임시 품질과 원설정 복원을 유지한다. Esc·선택 변경·패널 숨김·종료를 함께 검증한다. 현재 Esc 경계 문제는 IMPROVEMENTS의 RT-02를 참조한다.
+- 조작 임시 품질과 원설정 복원을 유지한다. Esc·선택 변경·패널 숨김·종료는 Settings의 단일 종료 경로와 시작 시 고정한 Actor를 사용한다. 첫 Esc의 PIE 유지 처리는 프로젝트 전용 입력 중재기의 소유 패널/viewport 범위에 한정한다. 실제 Slate 이벤트 회귀와 직접 마우스 검증을 구분하고 미완료 여부는 IMPROVEMENTS를 참조한다.
 
 ### 송신·PCD·세션
 
@@ -51,7 +51,7 @@
 - Binary PCD XYZ는 센서 로컬 meter, X 전방/Y 좌측/Z 위쪽이다. 33-byte little-endian 명시적 레코드이며 구조체 padding을 사용하지 않는다. 월드 복원은 snapshot의 `sensor_to_world_m`를 따른다.
 - 센서 FrameId, Slab frame_no, 시나리오 UUID, 실행 UUID를 구분한다. `MA0T10_META`와 기존 STOMP 연계 헤더 의미를 보존한다.
 - acquisition 생략, 파생 프레임 교체, 송신 오류, Broker receipt, 소비자 수신/업무 ACK를 따로 집계한다. receipt는 소비자 처리 완료가 아니다.
-- ConnectedNoLoss는 정상 연결 중 FIFO 정책이다. 무한 큐나 조용한 교체로 부하를 숨기지 않는다. Raw receipt 대기 상한 연결은 RT-01 보완 대상이다.
+- ConnectedNoLoss는 정상 연결 중 FIFO 정책이다. 무한 큐나 조용한 교체로 부하를 숨기지 않는다. Raw worker가 접수부터 receipt/종료까지 프레임·바이트 reservation을 소유하고 재시도에서 중복 집계하지 않는다. 기본 전역 128MiB/스트림 64MiB 상한과 Camera 8/기타 20프레임 한도를 유지한다.
 - 비밀번호·토큰·원본 대용량 body를 로그/SaveGame에 남기지 않는다. 미지원 TLS/영구 보존/업무 ACK를 지원 완료로 표시하지 않는다.
 
 ### Slab
@@ -75,6 +75,9 @@
 - `.umap`/`.uasset`은 Unreal API로 작업한다. 생성 스크립트는 필요할 때만 대상/관리 범위를 확인해 실행한다. 일반 빌드·검증을 위해 운영맵을 매번 재생성하지 않는다.
 
 ## 4. 검증과 완료 보고
+
+- Runtime 모듈의 에디터 전용 자동화는 `WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR`로 보호한다. EditorContext 플래그만으로 게임 빌드에서 에디터 헤더가 제외되지는 않는다.
+- 패키징은 직접 선택한 맵뿐 아니라 DataTable의 간접 맵 참조도 쿠킹한다. 승인된 참조 복구는 대상 패키지만 백업/저장하고 사용자 변경 맵을 재생성하지 않는다. `RepairTestMapMonitorReference`는 기본 dry-run, `-Apply`에서 TestMap만 저장한다.
 
 1. 문서 변경은 링크·경로·코드/증거 일치와 `git diff --check`를 검사한다. 문서만 바꿨다는 이유로 전체 빌드를 반복하지 않는다.
 2. C++ 변경은 Editor/Live Coding 정상 종료 후 UE 5.3 Development를 빌드한다. 관련 자동화를 먼저, 전체 회귀는 통합 시 수행한다.

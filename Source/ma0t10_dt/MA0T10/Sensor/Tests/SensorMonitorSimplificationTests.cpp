@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
@@ -7,6 +7,30 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorMonitorRateStateTest,"MA0T10.ResourceLifecycle.MonitorCurrentRateState",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorMonitorRateStateTest::RunTest(const FString&)
+{
+    using M=UVirtualSensorMonitorPanelWidget;
+    FVirtualSensorRuntimeStatus History;History.FrameId=717;History.MeasuredCompletionRateHz=20;
+    auto Rate=UVirtualSensorSchedulerSubsystem::EvaluateRate(3,0,1,20,.05f,true,false,false,0);
+    auto Text=M::FormatOwnedSensorRate(TEXT("LiDAR"),TEXT("rate-test"),History,true,&Rate);
+    TestTrue(TEXT("stale positive historical rate is shown as zero and explicitly stalled"),Text.Contains(TEXT("0.00 Hz"))&&Text.Contains(TEXT("정체")));
+    Rate=UVirtualSensorSchedulerSubsystem::EvaluateRate(3,0,2.95,20,.05f,true,false,false,0);
+    Text=M::FormatOwnedSensorRate(TEXT("LiDAR"),TEXT("rate-test"),History,true,&Rate);
+    TestTrue(TEXT("recovery shows current twenty Hz"),Text.Contains(TEXT("20.00 Hz"))&&Text.Contains(TEXT("측정 중")));
+    Rate=UVirtualSensorSchedulerSubsystem::EvaluateRate(3,0,1,20,.05f,true,true,false,0);
+    TestTrue(TEXT("pause is not labelled stalled"),M::FormatOwnedSensorRate(TEXT("Camera"),TEXT("rate-test"),History,true,&Rate).Contains(TEXT("일시정지")));
+    Rate=UVirtualSensorSchedulerSubsystem::EvaluateRate(.5,0,-1,20,.05f,true,false,false,0);
+    TestTrue(TEXT("warmup is distinct"),M::FormatOwnedSensorRate(TEXT("Camera"),TEXT("rate-test"),History,true,&Rate).Contains(TEXT("준비 중")));
+    Rate=UVirtualSensorSchedulerSubsystem::EvaluateRate(5,0,4.8,4,.25f,true,false,true,0);
+    TestTrue(TEXT("interaction preview is distinct"),M::FormatOwnedSensorRate(TEXT("LiDAR"),TEXT("rate-test"),History,true,&Rate).Contains(TEXT("조작 미리보기")));
+    Text=M::FormatOwnedSensorRate(TEXT("Camera"),TEXT("rate-test"),History,false,nullptr);
+    TestTrue(TEXT("unregistered stopped sensor never retains twenty Hz"),Text.Contains(TEXT("0.00 Hz"))&&Text.Contains(TEXT("정지")));
+    TestEqual(TEXT("presentation never mutates stored completion history"),History.MeasuredCompletionRateHz,20.f);
+    return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorMonitorOptionApplicabilityTest,"MA0T10.SensorWorkspace.MonitorOptionApplicability",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorMonitorOptionApplicabilityTest::RunTest(const FString&)

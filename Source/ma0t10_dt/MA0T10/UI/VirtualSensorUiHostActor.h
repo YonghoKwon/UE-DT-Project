@@ -9,6 +9,7 @@ class AVirtualSensorCoordinator;
 class UVirtualSensorMonitorPanelWidget;
 class UVirtualSensorSettingsPanelWidget;
 class UVirtualSensorCaptureExportPanelWidget;
+class UVirtualSensorPlacementPanelWidget;
 class UVirtualSensorPanelHostComponent;
 
 UCLASS(BlueprintType)
@@ -42,6 +43,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void CreateAndBindToolWidgets();
 
+    UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPlacement")
+    bool EnsurePlacementPanel(FString& OutReason);
+
+    UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPlacement")
+    bool ShowPlacementPanel(FString& OutReason);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void QueueSensorStateForMapApply(const FVirtualSensorEditableState& SensorState);
 
@@ -63,6 +70,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
     UVirtualSensorCaptureExportPanelWidget* GetCaptureExportWidget() const { return CaptureExportWidget; }
 
+    UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorPlacement")
+    UVirtualSensorPlacementPanelWidget* GetPlacementWidget() const {return PlacementWidget;}
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorMonitor")
     TSubclassOf<UVirtualSensorMonitorPanelWidget> GetEffectiveMonitorWidgetClass() const;
 
@@ -78,6 +88,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     TSubclassOf<UVirtualSensorCaptureExportPanelWidget> CaptureExportWidgetClass;
+
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="DigitalTwin|SensorPlacement")
+    TSubclassOf<UVirtualSensorPlacementPanelWidget> PlacementWidgetClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorMonitor")
     bool bUseNativeMonitorWidgetFallback = true;
@@ -133,6 +146,12 @@ public:
 private:
     AVirtualSensorCoordinator* ResolveSensorManager();
     void ConfigurePlayerInput();
+    void SchedulePlacementRetry();
+    void RetryPlacementInitialization();
+    FTimerHandle PlacementRetryTimer;
+    int32 PlacementRetryAttempts=0;
+    bool bPlacementOpenRequested=false;
+    bool bHostEnding=false;
 
 private:
     UPROPERTY(Transient)
@@ -143,6 +162,8 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorCaptureExportPanelWidget> CaptureExportWidget;
+
+    UPROPERTY(Transient) TObjectPtr<UVirtualSensorPlacementPanelWidget> PlacementWidget;
 
     UPROPERTY(Transient)
     FVirtualSensorMapApplySnapshot PendingMapApplySnapshot;

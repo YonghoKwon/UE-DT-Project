@@ -1,6 +1,8 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 
@@ -80,6 +82,98 @@ FString PointCloudFilterPresetText(EVirtualPointCloudStreamFilterPreset Preset)
 }
 }
 
+TArray<FSlabRunDeliverySummary> UVirtualSensorCaptureExportPanelWidget::GetScenarioRunResults() const
+{const auto* R=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return R?R->GetRecentRunResults():TArray<FSlabRunDeliverySummary>();}
+bool UVirtualSensorCaptureExportPanelWidget::OpenScenarioRunReport(const FString& Run)
+{auto* R=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return R&&R->OpenRunReport(Run);}
+bool UVirtualSensorCaptureExportPanelWidget::SelectScenarioRunResult(const FString& Run)
+{
+	FSlabRunDeliverySummary R;const auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;
+	if(!Results||!Results->GetRunResult(Run,R))return false;
+	SelectedScenarioRunId=Run;RunSelectionNotice.Reset();CachedRunResultsRevision=-1;return true;
+}
+bool UVirtualSensorCaptureExportPanelWidget::GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const
+{const auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;return Results&&Results->GetRunResult(SelectedScenarioRunId,Result);}
+bool UVirtualSensorCaptureExportPanelWidget::RetrySelectedScenarioRunReport(FString& Reason)
+{auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;const bool Success=Results&&Results->RetryRunReportSave(SelectedScenarioRunId,Reason);LastUiMessage=Success?TEXT("요약 JSON 저장을 다시 요청했습니다."):Reason;CachedRunResultsRevision=-1;return Success;}
+bool UVirtualSensorCaptureExportPanelWidget::SelectScenarioComparisonRun(const FString& Run,bool bAsA,FString& Reason)
+{
+    auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;FSlabRunDeliverySummary Candidate;
+    if(!Results||!Results->GetRunResult(Run,Candidate)){Reason=TEXT("실행 결과를 찾을 수 없습니다.");return false;}
+    if(!Candidate.bFinalized){Reason=TEXT("송신 정리까지 확정된 실행을 선택하세요.");return false;}
+    const FString Other=bAsA?ComparisonRunB:ComparisonRunA;
+    if(!Other.IsEmpty()){FSlabRunComparison Check;if(!Results->GetRunComparison(bAsA?Run:Other,bAsA?Other:Run,Check,Reason))return false;}
+    (bAsA?ComparisonRunA:ComparisonRunB)=Run;Reason.Reset();CachedRunResultsRevision=-1;RefreshRunResults();return true;
+}
+void UVirtualSensorCaptureExportPanelWidget::ClearScenarioRunComparison()
+{ComparisonRunA.Reset();ComparisonRunB.Reset();RunComparisonText.Reset();CachedRunResultsRevision=-1;}
+void UVirtualSensorCaptureExportPanelWidget::SetScenarioRunResultsExpanded(bool Expanded)
+{bRunResultsExpanded=Expanded;if(RunResultsArea)RunResultsArea->SetExpanded(Expanded);CachedRunResultsRevision=-1;if(Expanded)RefreshRunResults();}
+
+TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsContent()
+{
+	CachedRunResultsRevision=-1;
+	return SNew(SVerticalBox)
+	+SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultCombo,SComboBox<TSharedPtr<FString>>).OptionsSource(&RunResultOptions)
+	 .OnGenerateWidget_Lambda([this](TSharedPtr<FString> Id){return SNewSensorTool(STextBlock).Text(FText::FromString(Id?RunResultLabels.FindRef(*Id):FString()));})
+	 .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type Info){if(Id&&Info!=ESelectInfo::Direct)SelectScenarioRunResult(*Id);})
+	 [SNewSensorTool(STextBlock).Text_Lambda([this](){return FText::FromString(SelectedScenarioRunId.IsEmpty()?TEXT("실행 결과가 없습니다"):RunResultLabels.FindRef(SelectedScenarioRunId));})]]
+	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CopyRunUUID","실행 UUID 복사")).IsEnabled_Lambda([this](){return !SelectedScenarioRunId.IsEmpty();}).OnClicked_Lambda([this](){FPlatformApplicationMisc::ClipboardCopy(*SelectedScenarioRunId);return FReply::Handled();})]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SelectedRunFolder","선택 결과 폴더 열기")).IsEnabled_Lambda([this](){return bSelectedRunReportSaved;}).OnClicked_Lambda([this](){OpenScenarioRunReport(SelectedScenarioRunId);return FReply::Handled();})]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
+	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(RunSelectionNotice);})]
+	+SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5,4))
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareA","A로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,true,Reason))RunComparisonText=Reason;return FReply::Handled();})]
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareB","B로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,false,Reason))RunComparisonText=Reason;return FReply::Handled();})]
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareClear","비교 해제")).OnClicked_Lambda([this](){ClearScenarioRunComparison();return FReply::Handled();})]]
+	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunResultsText);})]
+	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(RunComparisonText);})];
+}
+void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
+{
+	auto* Results=GetWorld()?GetWorld()->GetSubsystem<USlabRunResultsSubsystem>():nullptr;
+	if(!Results||Results->GetResultsRevision()==CachedRunResultsRevision)return;
+	const auto Runs=Results->GetRecentRunResults();bool ShapeChanged=Runs.Num()!=RunResultOptions.Num();
+	if(!ShapeChanged)for(int32 I=0;I<Runs.Num();++I)if(*RunResultOptions[I]!=Runs[Runs.Num()-1-I].RunUUID){ShapeChanged=true;break;}
+	RunResultLabels.Reset();
+	for(int32 I=Runs.Num()-1;I>=0;--I){const auto& R=Runs[I];FString Head=USlabRunResultsSubsystem::Describe(R);int32 Newline;if(Head.FindChar(TEXT('\n'),Newline))Head=Head.Left(Newline);RunResultLabels.Add(R.RunUUID,R.PreparedUtc.ToString(TEXT("%H:%M:%S"))+TEXT(" · ")+Head+TEXT(" · ")+R.RunUUID.Left(8));}
+	if(!SelectedScenarioRunId.IsEmpty()&&!RunResultLabels.Contains(SelectedScenarioRunId)){RunSelectionNotice=TEXT("선택한 실행은 최근 20개 보관 범위에서 제외되었습니다. 최신 결과를 선택했습니다.");SelectedScenarioRunId.Reset();}
+	if(SelectedScenarioRunId.IsEmpty()&&!Runs.IsEmpty())SelectedScenarioRunId=Runs.Last().RunUUID;
+	if(ShapeChanged)
+	{
+		RunResultOptions.Reset();for(int32 I=Runs.Num()-1;I>=0;--I)RunResultOptions.Add(MakeShared<FString>(Runs[I].RunUUID));
+		if(RunResultCombo){RunResultCombo->RefreshOptions();for(const auto& Id:RunResultOptions)if(*Id==SelectedScenarioRunId){RunResultCombo->SetSelectedItem(Id);break;}}
+	}
+	FSlabRunDeliverySummary R;RunResultsText=TEXT("현재 PIE의 실행 결과가 없습니다.");bSelectedRunReportSaved=false;
+	if(Results->GetRunResult(SelectedScenarioRunId,R))
+	{
+		auto Outputs=[](const FVirtualSlabSensorOutputSelection& O){return FString::Printf(TEXT("PCD %s / Camera %s / LiDAR %s"),O.bPointCloud?TEXT("ON"):TEXT("OFF"),O.bCameraImage?TEXT("ON"):TEXT("OFF"),O.bLidarTelemetry?TEXT("ON"):TEXT("OFF"));};
+		RunResultsText=TEXT("실행 UUID: ")+R.RunUUID+TEXT("\n시나리오 UUID: ")+R.ScenarioUUID+TEXT("\n")+USlabRunResultsSubsystem::Describe(R)+
+		 TEXT("\n요청 출력: ")+Outputs(R.Outputs)+TEXT("\n적용 출력: ")+Outputs(R.AppliedOutputs)+TEXT("\n마지막 Slab frame: ")+LexToString(R.LastSlabFrame);
+		for(const auto& S:R.Sensors)
+        {
+            RunResultsText+=FString::Printf(TEXT("\n%s · 설정 revision %d · 요청 %.1fHz / 기록 시점 %.1fHz"),*S.SensorId,S.SettingsRevision,S.RequestedHz,S.MeasuredHz);
+            if(S.bHasCompatibilityJsonRate)RunResultsText+=FString::Printf(TEXT(" · 호환 JSON 생성 %.1fHz (PCD 송신률 아님)"),S.CompatibilityJsonHz);
+            if(!S.Placement.MapPackage.IsEmpty())RunResultsText+=FString::Printf(TEXT("\n배치: %s · %s cm · %s · %s%s"),*S.Placement.MapPackage,*S.Placement.WorldTransform.GetLocation().ToString(),*S.Placement.WorldTransform.Rotator().ToString(),S.Placement.bDirectPlacement?TEXT("직접 배치"):*S.Placement.BookmarkName,S.Placement.bChangedDuringRun?TEXT(" · 외부 배치 변경 감지"):TEXT(""));
+        }
+		RunResultsText+=TEXT("\nBroker 수락은 외부 소비자의 저장·AI 처리 완료를 뜻하지 않습니다.");
+		RunResultsText+=TEXT("\n")+USlabRunResultsSubsystem::DescribeStreamDetails(R);
+		auto Time=[](const FDateTime& T){return T.GetTicks()>0?T.ToIso8601():FString(TEXT("—"));};
+		RunResultsText+=TEXT("\n준비 UTC: ")+Time(R.PreparedUtc)+TEXT("\n시작 UTC: ")+Time(R.StartedUtc)+TEXT("\n중단/종료 UTC: ")+Time(R.StoppedUtc)+TEXT(" / ")+Time(R.FinishedUtc);
+		const auto& S=R.TerminalSnapshot;
+		RunResultsText+=FString::Printf(TEXT("\n종료 snapshot UTC: %s\n측정/출력 준비/socket 대기/기록 중/receipt 대기: %lld/%lld/%lld/%lld/%lld\n자체 검증 집계 UTC: %s"),*Time(S.CapturedUtc),S.PendingAcquisitions,S.PendingOutputPreparation,S.QueuedForSocket,S.SocketWritesInFlight,S.AwaitingBrokerReceipt,*Time(R.ConsumerSnapshotUtc));
+		bSelectedRunReportSaved=!R.ReportPath.IsEmpty()&&IFileManager::Get().FileExists(*R.ReportPath);
+	}
+	bCanRetrySelectedRun=Results->CanRetryRunReportSave(SelectedScenarioRunId,RunRetryReason);CachedRunResultsRevision=Results->GetResultsRevision();
+    if(!ComparisonRunA.IsEmpty()&&!ComparisonRunB.IsEmpty())
+    {FSlabRunComparison C;FString Reason;RunComparisonText=Results->GetRunComparison(ComparisonRunA,ComparisonRunB,C,Reason)?DescribeRunComparison(C):Reason+TEXT("\nA: ")+ComparisonRunA+TEXT("\nB: ")+ComparisonRunB;}
+    else if(!ComparisonRunA.IsEmpty()||!ComparisonRunB.IsEmpty())RunComparisonText=TEXT("A: ")+(ComparisonRunA.IsEmpty()?TEXT("미선택"):ComparisonRunA)+TEXT("\nB: ")+(ComparisonRunB.IsEmpty()?TEXT("미선택"):ComparisonRunB);
+}
+bool UVirtualSensorCaptureExportPanelWidget::SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options)
+{auto* A=ResolveScenarioSlabActor();return A&&A->SetExecutionOptions(Options);}
+FSlabExecutionOptions UVirtualSensorCaptureExportPanelWidget::GetLiveScenarioExecutionOptions() const
+{const auto* A=ResolveScenarioSlabActor();return A?A->GetExecutionOptions():FSlabExecutionOptions();}
 void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
     SensorManager = InSensorManager;
@@ -358,17 +452,20 @@ bool UVirtualSensorCaptureExportPanelWidget::SendSelectedPayloadToServer()
 	UVirtualSensorTransportComponent* Transport = SensorManager ? SensorManager->SharedTransportComponent : nullptr;
 	FString Payload;
 	FString SensorType;
+    FString PayloadSensorId=GetSelectedSensorId();
 	int64 FrameId = 0;
 	if (MonitorWidget && MonitorWidget->IsShowingLidar())
 	{
 		if (const UVirtualLidarScanComponent* Lidar = SensorManager->GetSelectedLidar())
 		{
-			Payload = Lidar->GetLastJsonPayload(); SensorType = TEXT("lidar"); FrameId = Lidar->GetRuntimeStatus().FrameId;
+            const auto& Completed=Lidar->GetLastCompletedDerivedFrame();
+            if(Completed.HasJsonPayload())Payload=*Completed.JsonPayload;
+            SensorType=TEXT("lidar");FrameId=Completed.FrameId;PayloadSensorId=Completed.SensorId;
 		}
 	}
 	else if (const UVirtualCameraCaptureComponent* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
 	{
-		Payload = Camera->GetLastJsonPayload(); SensorType = TEXT("camera"); FrameId = Camera->GetRuntimeStatus().FrameId;
+        Payload = Camera->GetLastJsonPayload(); SensorType = TEXT("camera"); FrameId = Camera->GetLastJsonPayloadFrameId();PayloadSensorId=Camera->GetLastJsonPayloadSensorId();
 	}
 	if (Payload.IsEmpty())
 	{
@@ -376,10 +473,37 @@ bool UVirtualSensorCaptureExportPanelWidget::SendSelectedPayloadToServer()
 		RefreshNativeText();
 		return false;
 	}
-	const FVirtualSensorTransportResult Result = Transport->SendJsonRequest(GetSelectedSensorId(), SensorType, TEXT("manual-payload"), FrameId, Payload, true);
+	const FVirtualSensorTransportResult Result = Transport->SendJsonRequest(PayloadSensorId, SensorType, TEXT("manual-payload"), FrameId, Payload, true);
 	LastUiMessage = Result.Message;
 	RefreshNativeText();
-	return Result.bSubmitted;
+    return Result.bSubmitted;
+}
+
+bool UVirtualSensorCaptureExportPanelWidget::RequestSelectedPayloadSend()
+{
+    if(!(MonitorWidget&&MonitorWidget->IsShowingLidar()))return SendSelectedPayloadToServer();
+    if(!ActiveManualPayloadRequest.IsEmpty()){LastUiMessage=TEXT("수동 JSON 요청 처리 중입니다.");return false;}
+    auto* Lidar=SensorManager?SensorManager->GetSelectedLidar():nullptr;
+    if(Lidar&&Lidar->GetLastCompletedDerivedFrame().HasJsonPayload()&&Lidar->GetCompatibilityOutputStatus().bRequested)return SendSelectedPayloadToServer();
+    if(!Lidar||!ApplyTransportProfile())return false;
+    auto* Transport=SensorManager->SharedTransportComponent.Get();
+    const auto Profile=Transport->GetTransportProfile();const auto Mode=Transport->TransportMode;
+    TWeakObjectPtr<UVirtualSensorTransportComponent> WeakTransport(Transport);
+    ManualPayloadSensor=Lidar;
+    ManualPayloadHandle=Lidar->OnCompatibilityRequestCompletedNative.AddWeakLambda(this,[this,WeakTransport,Profile,Mode](const FString& Id,bool Success,const FVirtualSensorFrameEnvelope& Frame,const FString& Message)
+    {
+        if(Id!=ActiveManualPayloadRequest)return;
+        ActiveManualPayloadRequest.Reset();
+        if(ManualPayloadSensor.IsValid())ManualPayloadSensor->OnCompatibilityRequestCompletedNative.Remove(ManualPayloadHandle);ManualPayloadSensor.Reset();
+        if(!Success||!WeakTransport.IsValid()||!Frame.HasJsonPayload())LastUiMessage=Message;
+        else if(WeakTransport->TransportMode!=Mode||WeakTransport->GetTransportProfile().BrokerUrl!=Profile.BrokerUrl||WeakTransport->GetTransportProfile().HttpEndpoint!=Profile.HttpEndpoint)LastUiMessage=TEXT("연결 설정 변경으로 수동 전송을 취소했습니다.");
+        else LastUiMessage=WeakTransport->SendJsonRequest(Frame.SensorId,TEXT("lidar"),TEXT("manual-payload"),Frame.FrameId,*Frame.JsonPayload,true).Message;
+        RefreshNativeText();
+    });
+    FString Reason;
+    if(!Lidar->RequestCompatibilityPayloadFromLatestFrame(ActiveManualPayloadRequest,Reason))
+    {Lidar->OnCompatibilityRequestCompletedNative.Remove(ManualPayloadHandle);ManualPayloadSensor.Reset();LastUiMessage=Reason;RefreshNativeText();return false;}
+    LastUiMessage=Reason;RefreshNativeText();return true;
 }
 
 bool UVirtualSensorCaptureExportPanelWidget::SendLastExportToServer()
@@ -635,7 +759,13 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleSelectedStream(EVirtualSensor
 		LastUiMessage = StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("선택된 Camera가 없습니다.") : TEXT("선택된 LiDAR가 없습니다.");
 		return;
 	}
-	ApplyStreamConfig(StreamKind, SensorId, !Publisher->IsStreamEnabled(StreamKind, SensorId));
+	const bool Starting=!Publisher->IsStreamEnabled(StreamKind,SensorId);
+	if(Starting&&StreamKind==EVirtualSensorStreamKind::PointCloud)
+	{
+		FVirtualSlabSensorOutputSelection O;const auto Check=UVirtualSensorOutputPreflight::InspectForPurpose(this,O,{SensorId},EVirtualSensorPreflightPurpose::ManualStreamStart);CachedPcdPreflight=Check.Summary;
+		if(!Check.BlockingReasons.IsEmpty()){LastUiMessage=FString::Join(Check.BlockingReasons,TEXT("\n"));return;}
+	}
+	ApplyStreamConfig(StreamKind, SensorId, Starting);
 }
 
 void UVirtualSensorCaptureExportPanelWidget::SetSelectedPointCloudStreamFormat(EVirtualPointCloudStreamFormat Format)
@@ -756,7 +886,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 	if (!Publisher) return TEXT("스트림 발행기가 연결되지 않았습니다.");
 	const UVirtualLidarScanComponent* SelectedLidar = SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
 	const float RequestedHz = SelectedLidar && SelectedLidar->ScanInterval > SMALL_NUMBER ? 1.0f / SelectedLidar->ScanInterval : 0.0f;
-	FString Text = FString::Printf(TEXT("LiDAR/Camera JSON은 최신 프레임 우선입니다. Point Cloud는 PCD Binary 고정, 완료 프레임 전체, 프레임마다 Broker receipt를 요청합니다.\n선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
+	FString Text = FString::Printf(TEXT("호환 JSON은 처리 중 1개+최신 대기 1개입니다. PCD/JPEG/telemetry의 실제 제출·receipt·자체수신은 각 스트림에서 확인하세요.\nPoint Cloud는 PCD Binary 고정 · 선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
 	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
 	if (Statuses.IsEmpty()) return Text + TEXT("아직 시작한 스트림이 없습니다.");
 	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
@@ -778,12 +908,15 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 			: Status.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR Payload");
 		const FString Backend = Status.ActiveTransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput
 			? TEXT("Raw TCP 고성능") : TEXT("Engine STOMP 호환");
-		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · p95 e2e %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
+		if(Status.ActiveTransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput)
+			Text+=FString::Printf(TEXT("\nRaw 보관: %d프레임 · %.2fMiB · 전역 %.2fMiB"),Status.RawOutstandingFrameCount,Status.RawOutstandingBytes/1048576.0,Status.RawGlobalOutstandingBytes/1048576.0);
+		Text += FString::Printf(TEXT("\n[%s] %s / %s · %s · 입력 %.1fHz · 제출 %.1fHz · receipt %lld · 자체수신 %.1fHz(%lld) · frame %lld\n  queue=%d/%d/%d · gap=%lld · invalid=%lld · duplicate=%lld · socket/receipt/e2e=%.2f/%.2f/%.2fms · %s %.2fms\n  교체 %lld · 구설정폐기 %lld · 대역폭대기 %lld · timeout %lld\n  %s"),
 			Status.bEnabled ? TEXT("실행") : TEXT("중지"), *Kind, Status.SensorId.IsEmpty() ? TEXT("전체 센서") : *Status.SensorId,
 			*Backend, Status.InputHz, Status.SubmittedHz, Status.ReceiptReceivedCount, Status.ConsumerReceivedHz, Status.ConsumerReceivedCount,
 			Status.LastSubmittedFrameId, Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
 			Status.ConsumerFrameGapCount, Status.ConsumerValidationFailureCount, Status.ConsumerDuplicateCount,
-			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs, Status.EndToEndP95LatencyMs,
+			Status.LastSocketWriteLatencyMs, Status.LastReceiptLatencyMs, Status.LastConsumerLatencyMs,
+            Status.SensorId.IsEmpty()&&Status.ActiveTransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput?TEXT("센서별 최대 p95 e2e"):TEXT("p95 e2e"),Status.EndToEndP95LatencyMs,
 			Status.ReplacedPendingFrameCount, Status.StaleResultDiscardCount, Status.BandwidthDeferredFrameCount, Status.ReceiptTimeoutCount, *Status.Message);
 		Text+=FString::Printf(TEXT("\n  Hz는 누적 평균(중지/대기 구간 포함 가능) · Raw 전송 미확인/실패 누적 %lld · 크기 거부 %lld"),Status.RawDeliveryFailureCount,Status.BodyLimitRejectedCount);
 		if(!Status.LastRawDeliveryFailureMessage.IsEmpty()) Text+=TEXT("\n  마지막 실제 전송 실패: ")+Status.LastRawDeliveryFailureMessage;
@@ -941,6 +1074,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 	// This policy configures the next Slab session. It never toggles manual live streams here.
 	auto ScenarioOutputs=SNew(SVerticalBox);
 	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("ScenarioOutputTitle","신규 Slab 시나리오 자동 송신 · 다음 실행부터 적용")).ColorAndOpacity(GetToolAccentColor())];
+	ScenarioOutputs->AddSlot().AutoHeight()[SNew(SCheckBox)
+	 .IsEnabled_Lambda([this](){auto* A=ResolveScenarioSlabActor();return A&&!A->IsSimulationActive();})
+	 .IsChecked_Lambda([this](){auto* A=ResolveScenarioSlabActor();return A&&A->GetExecutionOptions().Policy==ESlabExecutionPolicy::RequireData?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	 .OnCheckStateChanged_Lambda([this](ECheckBoxState S){if(auto* A=ResolveScenarioSlabActor()){auto O=A->GetExecutionOptions();O.Policy=S==ECheckBoxState::Checked?ESlabExecutionPolicy::RequireData:ESlabExecutionPolicy::ObservationAllowed;A->SetExecutionOptions(O);}})
+	 [SNewSensorTool(STextBlock).Text(LOCTEXT("ScenarioRequireData","데이터 필수 실행 · 연결 준비 후 시작"))]];
+	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){const auto* S=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>():nullptr;return FText::FromString(S?S->GetSlabSensorSessionStatus().Message:TEXT("실행 대기"));})];
 	const FText OutputLabels[]={LOCTEXT("ScenarioPcd","PCD 포인트 클라우드 (기본)"),LOCTEXT("ScenarioCamera","Camera 이미지 Topic (선택)"),LOCTEXT("ScenarioLidar","LiDAR 정보 Topic (선택)")};
 	for(int32 I=0;I<3;++I)ScenarioOutputs->AddSlot().AutoHeight().Padding(0,3)
 	[SNew(SCheckBox).IsEnabled_Lambda([this](){return ResolveScenarioSlabActor()!=nullptr;})
@@ -948,6 +1087,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 	 .OnCheckStateChanged_Lambda([this,I](ECheckBoxState S){auto O=GetLiveScenarioOutputs();const bool V=S==ECheckBoxState::Checked;if(I==0)O.bPointCloud=V;else if(I==1)O.bCameraImage=V;else O.bLidarTelemetry=V;SetLiveScenarioOutputs(O);})
 	 [SNewSensorTool(STextBlock).Text(OutputLabels[I])]];
 	ScenarioOutputs->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("ScenarioOutputsHelp","Slab 움직임 시작~종료 구간에만 적용합니다. Camera 선택은 로컬 캡처가 아닌 Topic 이미지 송신입니다. 저장 목록 재생은 재생 패널에서 별도로 선택합니다."))];
+	ScenarioOutputs->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})];
     for(auto Kind:{EVirtualSensorStreamKind::PointCloud,EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload})
     {
         const FText Label=Kind==EVirtualSensorStreamKind::PointCloud?LOCTEXT("PcdCard","Point Cloud · PCD Binary"):Kind==EVirtualSensorStreamKind::CameraImage?LOCTEXT("CameraCard","Camera 이미지"):LOCTEXT("LidarCard","LiDAR 측정값");
@@ -1052,6 +1192,10 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildConnectionLogTa
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("ConnectionTitle", "Artemis STOMP / HTTP 연결 및 상세 로그")) ]
+			+ SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultsArea,SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded)
+			 .OnAreaExpansionChanged_Lambda([this](bool Open){bRunResultsExpanded=Open;RefreshNativeText();})
+			 .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunResults","실행별 전송 결과 · 최근 20개"))]
+			 .BodyContent()[BuildRunResultsContent()]]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)[ SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text_Lambda([this]() { return FText::FromString(bUseStompTransport ? TEXT("방식: Artemis STOMP") : TEXT("방식: HTTP POST")); }).OnClicked_Lambda([this]() { bUseStompTransport = !bUseStompTransport; return FReply::Handled(); }) ]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("ApplyConnectionV2", "설정 적용")).OnClicked_Lambda([this]() { ApplyTransportProfile(); return FReply::Handled(); }) ]
@@ -1099,6 +1243,8 @@ void UVirtualSensorCaptureExportPanelWidget::AddResult(EVirtualSensorExportKind 
 
 void UVirtualSensorCaptureExportPanelWidget::RefreshNativeText()
 {
+    if(GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())return;
+	if(bRunResultsExpanded&&ActiveTab==EVirtualSensorCaptureExportTab::ConnectionLog)RefreshRunResults();
     if(IsWorkspaceOwned()&&(!bOwnedStorageExpanded||GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())) return;
     if (NativeStorageText.IsValid()) NativeStorageText->SetText(FText::FromString(GetStorageSummaryText()));
 }

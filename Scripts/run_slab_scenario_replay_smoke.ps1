@@ -1,4 +1,4 @@
-param([string]$BrokerUrl='ws://127.0.0.1:61616',[string]$UserName='artemis',[string]$Password='artemis')
+param([string]$BrokerUrl='ws://127.0.0.1:61616',[string]$UserName='artemis',[string]$Password='artemis',[int]$ClientWidth=1920,[int]$ClientHeight=1080,[switch]$CaptureTrace)
 $ErrorActionPreference='Stop'
 $Root=Split-Path -Parent $PSScriptRoot
 $Reports=Join-Path $Root 'Saved/Reports'
@@ -9,7 +9,10 @@ $Probe=Start-Process node -ArgumentList $ProbeArgs -WorkingDirectory $Root -Wind
 try {
     $env:MA0T10_REPLAY_RHI='1'; $env:MA0T10_ARTEMIS_URL=$BrokerUrl; $env:MA0T10_ARTEMIS_USER=$UserName; $env:MA0T10_ARTEMIS_PASSWORD=$Password
     $env:MA0T10_REPLAY_REPORT=Join-Path $Reports 'slab_replay_runtime.json'
-    & 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' (Join-Path $Root 'ma0t10_dt.uproject') -unattended -nosplash -windowed -RenderOffscreen -NoSound -ResX=1920 -ResY=1080 '-ExecCmds=Automation RunTests MA0T10.ScenarioReplay.Runtime;Quit' '-TestExit=Automation Test Queue Empty' "-abslog=$Log"
+    $env:MA0T10_ACCEPTANCE_RES_X=[string]$ClientWidth;$env:MA0T10_ACCEPTANCE_RES_Y=[string]$ClientHeight
+    $TracePath=Join-Path $Reports ('DTCoreFinalAcceptance/replay_'+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')+'.utrace')
+    $TraceArgs=if($CaptureTrace){@('-trace=cpu,frame,bookmark,loadtime,gpu',"-tracefile=$TracePath")}else{@()}
+    & 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' (Join-Path $Root 'ma0t10_dt.uproject') -d3d12 -unattended -nosplash -windowed -RenderOffscreen -NoSound -NoVSync "-ResX=$ClientWidth" "-ResY=$ClientHeight" '-ExecCmds=Slate.bAllowThrottling 0,t.IdleWhenNotForeground 0,Automation RunTests MA0T10.ScenarioReplay.Runtime;Quit' '-TestExit=Automation Test Queue Empty' "-abslog=$Log" @TraceArgs
     $EditorExit=$LASTEXITCODE
     if($EditorExit -ne 0){throw "Replay RHI failed: $Log"}
     if(-not $Probe.WaitForExit(60000)){throw 'External probe did not complete'}
@@ -17,7 +20,9 @@ try {
     if(-not $Result.success){throw "External validation failed: $ProbeJson"}
     if(-not (Select-String -Path $Log -Pattern 'Result=\{Success\}.*Name=\{Runtime\}' -Quiet)){throw 'No runtime success result'}
     Write-Host "Scenario replay RHI and external PCD validation passed: $Reports"
+    if($CaptureTrace){Write-Host "Trace: $TracePath"}
 } finally {
     if(-not $Probe.HasExited){$Probe.Kill()}
     Remove-Item Env:MA0T10_REPLAY_RHI,Env:MA0T10_REPLAY_REPORT,Env:MA0T10_ARTEMIS_URL,Env:MA0T10_ARTEMIS_USER,Env:MA0T10_ARTEMIS_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:MA0T10_ACCEPTANCE_RES_X,Env:MA0T10_ACCEPTANCE_RES_Y -ErrorAction SilentlyContinue
 }

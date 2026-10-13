@@ -30,9 +30,14 @@
 namespace
 {
 std::atomic<int32> GVirtualCameraEncodeJobs{0};
+std::atomic<int32> GVirtualCameraRenderConsumes{0}, GVirtualCameraPendingCallbacks{0};
+std::atomic<int64> GVirtualCameraActiveRawBytes{0};
 constexpr int32 GVirtualCameraEncodeJobLimit = 4;
 constexpr int32 GVirtualCameraEncodeJobsPerCamera = 2;
 constexpr int32 GVirtualCameraReadbackSlotsPerCamera = 3;
+// Includes readback, encoding and out-of-order completion. A delayed head may
+// occupy one encoder while the other continues; bound the whole ordered window.
+constexpr int32 GVirtualCameraOrderedOutputLimit = 8;
 bool IsWholeNumber(double Value)
 {
     return FMath::IsFinite(Value) && FMath::IsNearlyEqual(Value, FMath::RoundToDouble(Value));
@@ -138,6 +143,7 @@ void UVirtualCameraCaptureComponent::EndPlay(const EEndPlayReason::Type EndPlayR
     ++ScheduledGeneration;
     ReleaseScheduledReadbackOnRenderThread();
 	PendingReadbackRequests.Reset();
+	ScheduledAcquisitionSnapshots.Reset();
 	PendingEncodeInputs.Reset();
 	EncodeOrder.Reset();
 	CompletedEncodes.Reset();
@@ -156,14 +162,21 @@ void UVirtualCameraCaptureComponent::StartCapture()
 
     GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
     NextScheduledCaptureTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, CaptureInterval);
+    if (!bRegisteredWithPerformanceSubsystem)
+    {
+        RuntimeStatus.LastAcquisitionProgressWorldSeconds = -1.0;
+        RuntimeStatus.MeasuredAcquisitionRateHz = 0.0f;
+        LastAcquisitionCompletionTime = -1.0;
+    }
     RegisterWithPerformanceSubsystem();
 }
 
 void UVirtualCameraCaptureComponent::StopCapture()
 {
+    CancelPlacementPreviewProof();
 	CancelLocalFileFrame();
 	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
-	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false);
+	for (int64 Id : PendingSlabIds) CompleteSlabAcquisition(Id,false,false);
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(CaptureTimerHandle);
@@ -172,6 +185,7 @@ void UVirtualCameraCaptureComponent::StopCapture()
     NextScheduledCaptureTime = -1.0;
     ReleaseScheduledReadbackOnRenderThread();
 	PendingReadbackRequests.Reset();
+	ScheduledAcquisitionSnapshots.Reset();
 	PendingEncodeInputs.Reset();
 	EncodeOrder.Reset();
 	CompletedEncodes.Reset();
@@ -216,8 +230,10 @@ void UVirtualCameraCaptureComponent::UnregisterFromPerformanceSubsystem()
 
 bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, bool bAllowNewCapture)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if(FreezeAcquisitionForTests){PollScheduledGpuReadback(NowSeconds);PumpScheduledEncodeQueue();return false;}
+#endif
     PollScheduledGpuReadback(NowSeconds);
-	QueuePendingGpuReadbacks();
 	PumpScheduledEncodeQueue();
     if (!bAllowNewCapture) return false;
     if (NextScheduledCaptureTime < 0.0 || NowSeconds + KINDA_SMALL_NUMBER < NextScheduledCaptureTime) return false;
@@ -244,6 +260,7 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
         ? static_cast<float>(1.0 / FMath::Max(0.001, NowSeconds - LastAcquisitionCompletionTime))
         : 0.0f;
     LastAcquisitionCompletionTime = NowSeconds;
+    RuntimeStatus.LastAcquisitionProgressWorldSeconds = NowSeconds;
 
     if (!ShouldGeneratePayload())
     {
@@ -256,11 +273,13 @@ bool UVirtualCameraCaptureComponent::TickScheduledCapture(double NowSeconds, boo
         return true;
     }
 
-	if (PendingReadbackRequests.Num() >= GVirtualCameraReadbackSlotsPerCamera)
+	if (PendingReadbackRequests.Num() >= GVirtualCameraReadbackSlotsPerCamera || EncodeOrder.Num() >= GVirtualCameraOrderedOutputLimit)
 	{
 		++RuntimeStatus.QueueOverflowCount;
 		++RuntimeStatus.DroppedDerivedFrameCount;
-		RuntimeStatus.AcquisitionBackendMessage = TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
+		RuntimeStatus.AcquisitionBackendMessage = EncodeOrder.Num() >= GVirtualCameraOrderedOutputLimit
+            ? TEXT("Camera ordered output window reached 8 frames; output failed explicitly while acquisition continued.")
+            : TEXT("Camera readback FIFO is overloaded; acquisition continued without blocking.");
 		CompleteSlabAcquisition(FrameId,false);
 		return true;
 	}
@@ -279,13 +298,22 @@ void UVirtualCameraCaptureComponent::QueuePendingGpuReadbacks()
 	while (!PendingReadbackRequests.IsEmpty())
 	{
 		const FPendingReadbackRequest Request = PendingReadbackRequests[0];
-		if (!QueueScheduledGpuReadback(Request.FrameId, Request.CaptureStartedSeconds)) break;
+		// Only the capture just dispatched can be copied from the shared target.
+		if(Request.FrameId!=LastFileAcquisition.FrameId || !QueueScheduledGpuReadback(Request.FrameId,Request.CaptureStartedSeconds))
+		{
+			CompleteSlabAcquisition(Request.FrameId,false);
+			++RuntimeStatus.DroppedDerivedFrameCount;++RuntimeStatus.QueueOverflowCount;
+			RuntimeStatus.AcquisitionBackendMessage=TEXT("Camera acquisition has no matching readback slot; output failed explicitly.");
+		}
 		PendingReadbackRequests.RemoveAt(0, 1, false);
 	}
 }
 
 bool UVirtualCameraCaptureComponent::QueueScheduledGpuReadback(int64 CapturedFrameId, double CaptureStartedSeconds)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+	if(ForceReadbackSaturationForTests)return false;
+#endif
 	if (!CameraRenderTarget) return false;
 	int32 SlotIndex = INDEX_NONE;
 	for (int32 Index = 0; Index < ScheduledReadbackSlots.Num(); ++Index)
@@ -314,6 +342,8 @@ bool UVirtualCameraCaptureComponent::QueueScheduledGpuReadback(int64 CapturedFra
 	Slot.CaptureStartedSeconds = CaptureStartedSeconds;
 	Slot.Generation = ScheduledGeneration;
 	Slot.Readback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualCameraScheduledReadback"));
+    ++ScheduledReadbackAllocationCount;
+    TRACE_BOOKMARK(TEXT("CameraReadbackAllocated sensor=%s count=%llu frame=%lld"),*SensorId,ScheduledReadbackAllocationCount,CapturedFrameId);
 	const TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = Slot.Readback;
 	ENQUEUE_RENDER_COMMAND(VirtualCameraScheduledReadback)([Readback, Texture](FRHICommandListImmediate& RHICmdList)
 	{
@@ -340,6 +370,7 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 		TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = MoveTemp(Slot.Readback);
 		TWeakObjectPtr<UVirtualCameraCaptureComponent> WeakThis(this);
 
+		++GVirtualCameraRenderConsumes;
 		ENQUEUE_RENDER_COMMAND(VirtualCameraConsumeScheduledReadback)(
 			[Readback = MoveTemp(Readback), WeakThis, SlotIndex, Width, Height, CapturedFrameId, CaptureStartedSeconds, Generation](FRHICommandListImmediate& RHICmdList) mutable
 			{
@@ -359,9 +390,11 @@ void UVirtualCameraCaptureComponent::PollScheduledGpuReadback(double NowSeconds)
 				}
 				if (LockedData) Readback->Unlock();
 
+                --GVirtualCameraRenderConsumes; ++GVirtualCameraPendingCallbacks;
 				AsyncTask(ENamedThreads::GameThread,
 					[WeakThis, SlotIndex, Width, Height, CapturedFrameId, CaptureStartedSeconds, Generation, bCopySucceeded, RawPixels = MoveTemp(RawPixels)]() mutable
 					{
+                        --GVirtualCameraPendingCallbacks;
 						if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;
 						if (WeakThis->ScheduledReadbackSlots.IsValidIndex(SlotIndex))
 						{
@@ -411,6 +444,45 @@ void UVirtualCameraCaptureComponent::ReleaseScheduledReadbackOnRenderThread()
 	}
 }
 
+FVirtualSensorResourceSnapshot UVirtualCameraCaptureComponent::GetResourceSnapshot() const
+{
+    check(IsInGameThread());
+    FVirtualSensorResourceSnapshot S; S.Owner = SensorId + TEXT("/camera");
+    S.Counts = {{TEXT("readback_allocations"), int64(ScheduledReadbackAllocationCount)},
+        {TEXT("readback_slots"), ScheduledReadbackSlots.Num()}, {TEXT("pending_readbacks"), PendingReadbackRequests.Num()},
+        {TEXT("pending_encodes"), PendingEncodeInputs.Num()}, {TEXT("active_encodes"), ScheduledEncodeInFlightCount},
+        {TEXT("global_encode_jobs"), GVirtualCameraEncodeJobs.load(std::memory_order_acquire)},
+        {TEXT("global_render_consumes"), GVirtualCameraRenderConsumes.load()}, {TEXT("global_pending_callbacks"), GVirtualCameraPendingCallbacks.load()},
+        {TEXT("completed_reorder"), CompletedEncodes.Num()}, {TEXT("encode_order"), EncodeOrder.Num()},
+        {TEXT("acquisition_snapshots"), ScheduledAcquisitionSnapshots.Num()}, {TEXT("slab_contexts"), SlabCaptureContexts.Num()}};
+    int64 Readbacks=0, InFlight=0, Consuming=0, EstimatedStaging=0, RawBytes=0, CompletedBytes=0;
+    for(const auto& Slot:ScheduledReadbackSlots)
+    { Readbacks += Slot.Readback.IsValid(); InFlight += Slot.bInFlight; Consuming += Slot.bConsumeQueued;
+      if(Slot.bInFlight || Slot.Readback.IsValid()) EstimatedStaging += int64(Slot.Width)*Slot.Height*sizeof(FColor); }
+    for(const auto& Input:PendingEncodeInputs) RawBytes += Input.RawPixels.GetAllocatedSize();
+    for(const auto& Pair:CompletedEncodes) CompletedBytes += Pair.Value.JpegBytes.GetAllocatedSize()+Pair.Value.JsonPayload.GetAllocatedSize();
+    S.Counts.Add(TEXT("readbacks_owned_by_slots"),Readbacks); S.Counts.Add(TEXT("readbacks_in_flight"),InFlight);
+    S.Counts.Add(TEXT("readbacks_consuming"),Consuming);
+    S.OwnedCpuBytes.Add(TEXT("pending_raw_pixels"),RawBytes); S.OwnedCpuBytes.Add(TEXT("completed_encoded_outputs"),CompletedBytes);
+    S.OwnedCpuBytes.Add(TEXT("metadata_containers"),ScheduledAcquisitionSnapshots.GetAllocatedSize()+EncodeOrder.GetAllocatedSize()+SlabCaptureContexts.GetAllocatedSize());
+    S.OwnedCpuBytes.Add(TEXT("latest_json"),LastJsonPayload.GetAllocatedSize());
+    S.SharedCpuBytes.Add(TEXT("latest_jpeg"),LastJpegSnapshot.IsValid()?LastJpegSnapshot->GetAllocatedSize():0);
+    S.SharedCpuBytes.Add(TEXT("global_active_encode_pixels_observed"),GVirtualCameraActiveRawBytes.load());
+    S.EstimatedGpuBytes.Add(TEXT("scheduled_staging_unpadded"),EstimatedStaging);
+    S.EstimatedGpuBytes.Add(TEXT("render_target_unpadded"),CameraRenderTarget?int64(CameraRenderTarget->SizeX)*CameraRenderTarget->SizeY*sizeof(FColor):0);
+    return S;
+}
+
+int32 UVirtualCameraCaptureComponent::GetGlobalEncodeJobCountForDiagnostics()
+{
+    return GVirtualCameraEncodeJobs.load(std::memory_order_acquire);
+}
+
+int32 UVirtualCameraCaptureComponent::GetGlobalPendingWorkCountForDiagnostics()
+{
+    return GVirtualCameraRenderConsumes.load()+GVirtualCameraPendingCallbacks.load()+GVirtualCameraEncodeJobs.load();
+}
+
 void UVirtualCameraCaptureComponent::PumpScheduledEncodeQueue()
 {
 	while (ScheduledEncodeInFlightCount < GVirtualCameraEncodeJobsPerCamera && !PendingEncodeInputs.IsEmpty())
@@ -441,26 +513,22 @@ bool UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPi
     RuntimeStatus.bDerivedWorkInFlight = true;
     const int32 Generation = ScheduledGeneration;
     const int32 Quality = FMath::Clamp(JpegQuality, 1, 100);
-    FVirtualCameraPayloadSnapshot Snapshot;
-    Snapshot.SensorId = SensorId;
-    Snapshot.Manufacturer = DeviceSpec.Manufacturer;
-    Snapshot.Model = DeviceSpec.Model;
-    Snapshot.SimulationQuality = ToPayloadSimulationQuality(SimulationQuality);
-    Snapshot.FrameId = CapturedFrameId;
-    Snapshot.Width = Width;
-    Snapshot.Height = Height;
-    Snapshot.HorizontalFov = DeviceSpec.HorizontalFovDegrees;
-    Snapshot.VerticalFov = DeviceSpec.VerticalFovDegrees;
-    Snapshot.Location = GetComponentLocation();
-    Snapshot.Rotation = GetComponentRotation();
-    Snapshot.Forward = GetForwardVector();
-    Snapshot.Up = GetUpVector();
+    const FVirtualCameraPayloadSnapshot* Acquired=ScheduledAcquisitionSnapshots.Find(CapturedFrameId);
+    if(!Acquired){--ScheduledEncodeInFlightCount;GVirtualCameraEncodeJobs.fetch_sub(1);CompleteSlabAcquisition(CapturedFrameId,false);return true;}
+    FVirtualCameraPayloadSnapshot Snapshot=*Acquired;
+#if WITH_DEV_AUTOMATION_TESTS
+    const float TestDelay=EncodeDelayByFrameForTests?EncodeDelayByFrameForTests(CapturedFrameId):EncodeDelayForTests*(CapturedFrameId%2?1.0f:0.0f);
+#else
+    const float TestDelay=0;
+#endif
     IImageWrapperModule* ImageWrapperModule = &FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     TWeakObjectPtr<UVirtualCameraCaptureComponent> WeakThis(this);
 
 	const bool bBuildCompatibilityJson = ShouldBuildCompatibilityJson();
-    Async(EAsyncExecution::ThreadPool, [WeakThis, Generation, ImageWrapperModule, Snapshot = MoveTemp(Snapshot), RawPixels = MoveTemp(RawPixels), Quality, CaptureStartedSeconds, bBuildCompatibilityJson]() mutable
+    const int64 RawAllocation=RawPixels.GetAllocatedSize();GVirtualCameraActiveRawBytes.fetch_add(RawAllocation);
+    Async(EAsyncExecution::ThreadPool, [WeakThis, Generation, ImageWrapperModule, Snapshot = MoveTemp(Snapshot), RawPixels = MoveTemp(RawPixels), Quality, CaptureStartedSeconds, bBuildCompatibilityJson, TestDelay, RawAllocation]() mutable
     {
+        if(TestDelay>0)FPlatformProcess::Sleep(TestDelay);
         TArray64<uint8> JpegBytes;
         FString JsonPayload;
 		FString Checksum;
@@ -483,9 +551,12 @@ bool UVirtualCameraCaptureComponent::StartScheduledEncode(TArray<FColor>&& RawPi
                 }
             }
         }
+        RawPixels.Empty();GVirtualCameraActiveRawBytes.fetch_sub(RawAllocation);
         GVirtualCameraEncodeJobs.fetch_sub(1, std::memory_order_acq_rel);
+		++GVirtualCameraPendingCallbacks;
 		AsyncTask(ENamedThreads::GameThread, [WeakThis, Generation, CapturedFrameId = Snapshot.FrameId, Width = Snapshot.Width, Height = Snapshot.Height, Quality, Checksum = MoveTemp(Checksum), JpegBytes = MoveTemp(JpegBytes), JsonPayload = MoveTemp(JsonPayload), CaptureStartedSeconds]() mutable
         {
+            --GVirtualCameraPendingCallbacks;
             if (!WeakThis.IsValid() || WeakThis->ScheduledGeneration != Generation) return;
 			WeakThis->CompleteScheduledEncode(CapturedFrameId, Width, Height, Quality, MoveTemp(Checksum), MoveTemp(JpegBytes), MoveTemp(JsonPayload), CaptureStartedSeconds);
         });
@@ -537,6 +608,7 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		}
 
 		LastJsonPayload = MoveTemp(Result.JsonPayload);
+        LastJsonPayloadFrameId=CompletedFrameId;
 		FString StatusMessage = TEXT("비동기 캡처 완료");
 		if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput && !LastJsonPayload.IsEmpty())
 		{
@@ -564,7 +636,13 @@ void UVirtualCameraCaptureComponent::FlushCompletedEncodes()
 		LastJpegSnapshot = MakeShared<const TArray64<uint8>, ESPMode::ThreadSafe>(MoveTemp(Result.JpegBytes));
 		UpdateRuntimeStatus(LastJsonPayload.Len(), StatusMessage);
 		RuntimeStatus.FrameId = CompletedFrameId;
+		if(const auto* Acquired=ScheduledAcquisitionSnapshots.Find(CompletedFrameId))
+		{LastCompletedAcquisition=*Acquired;RuntimeStatus.LastUpdateUtc=Acquired->TimestampUtc;LastJsonPayloadSensorId=Acquired->SensorId;}
+		ScheduledAcquisitionSnapshots.Remove(CompletedFrameId);
 		LastSlabContext=CompleteSlabAcquisition(CompletedFrameId);
+#if WITH_DEV_AUTOMATION_TESTS
+		if(OnScheduledFrameForTests)OnScheduledFrameForTests(LastCompletedAcquisition,LastSlabContext,LastJpegSnapshot);
+#endif
 		OnFrameCaptured.Broadcast(LastJsonPayload, CameraRenderTarget);
 	}
 }
@@ -574,12 +652,15 @@ void UVirtualCameraCaptureComponent::SetTransportComponent(UVirtualSensorTranspo
     TransportComponent = InTransportComponent;
 }
 
-FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success)
+FVirtualSlabFrameContext UVirtualCameraCaptureComponent::CompleteSlabAcquisition(int64 Id,bool Success,bool FlushOnFailure)
 {
+	const bool RemovedHead=!Success&&!EncodeOrder.IsEmpty()&&EncodeOrder[0]==Id;
 	if (!Success) EncodeOrder.Remove(Id);
+	if(!Success)ScheduledAcquisitionSnapshots.Remove(Id);
 	FVirtualSlabFrameContext Context;
 	SlabCaptureContexts.RemoveAndCopyValue(Id, Context);
 	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()) Slab->CompleteAcquisition(SensorId,Id,Success);
+	if(RemovedHead&&FlushOnFailure)FlushCompletedEncodes();
 	return Context;
 }
 
@@ -689,6 +770,7 @@ void UVirtualCameraCaptureComponent::CaptureAndSendImage()
     const FString Base64Image = FBase64::Encode(JpegBytes.GetData(), static_cast<uint32>(JpegBytes.Num()));
     const FString JsonPayload = BuildJsonPayload(Base64Image, JpegBytes.Num());
     LastJsonPayload = JsonPayload;
+    LastJsonPayloadFrameId=FrameId;LastJsonPayloadSensorId=SensorId;
 
     FString StatusMessage = TEXT("Captured");
     if (CaptureMode == EVirtualCameraCaptureMode::PayloadAndOutput)
@@ -724,6 +806,7 @@ bool UVirtualCameraCaptureComponent::InjectExternalJsonPayload(const FString& Js
     }
 
     LastJsonPayload = JsonPayload;
+    LastJsonPayloadFrameId=PayloadFrameId;LastJsonPayloadSensorId=PayloadSensorId.IsEmpty()?SensorId:PayloadSensorId;
     LastJpegSnapshot.Reset();
 	bHasFileAcquisition=false;
     FrameId = FMath::Max(FrameId, PayloadFrameId);

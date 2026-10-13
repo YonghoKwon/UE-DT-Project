@@ -27,6 +27,7 @@ bool FSlabScenarioCodec::Parse(const FString& Json,FSlabScenarioDataPtr& Out,FSt
 	{ Error=TEXT("MESSAGE_ID는 IFactory-agent여야 합니다."); return false; }
 	auto Data=MakeShared<FSlabScenarioData,ESPMode::ThreadSafe>();
 	Data->OriginalJson=Json;
+	uint8 ContentDigest[FSHA1::DigestSize];FSHA1::HashBuffer(Utf8.Get(),Utf8.Length(),ContentDigest);Data->OriginalContentSha1=BytesToHex(ContentDigest,FSHA1::DigestSize).ToLower();
 	if(!Root->TryGetStringField(TEXT("CREATE_TIMESTAMP"),Data->CreateTimestamp)||Data->CreateTimestamp.IsEmpty())
 	{ Error=TEXT("CREATE_TIMESTAMP 문자열이 필요합니다."); return false; }
 	const TSharedPtr<FJsonObject>* Meta=nullptr;
@@ -48,9 +49,8 @@ bool FSlabScenarioCodec::Parse(const FString& Json,FSlabScenarioDataPtr& Out,FSt
 	if(Data->SourceUUID.IsEmpty())
 	{
 		if(!bAllowMissingUuid) { Error=TEXT("_meta.UUID가 필요합니다."); return false; }
-		uint8 Hash[FSHA1::DigestSize]; FSHA1::HashBuffer(Utf8.Get(),Utf8.Length(),Hash);
 		FGuid GeneratedId;
-		FGuid::ParseExact(BytesToHex(Hash,16),EGuidFormats::Digits,GeneratedId);
+		FGuid::ParseExact(BytesToHex(ContentDigest,16),EGuidFormats::Digits,GeneratedId);
 		Data->ScenarioUUID=GeneratedId.ToString(EGuidFormats::DigitsWithHyphensLower);
 		Data->bGeneratedArchiveId=true;
 	}

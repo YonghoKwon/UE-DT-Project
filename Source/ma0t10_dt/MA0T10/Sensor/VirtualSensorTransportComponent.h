@@ -89,6 +89,9 @@ struct MA0T10_DT_API FVirtualSensorTransportResult
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
 	FString RequestId;
+	UPROPERTY(BlueprintReadOnly,Category="DigitalTwin|SensorTransport") FString RunId;
+	UPROPERTY(BlueprintReadOnly,Category="DigitalTwin|SensorTransport") int64 FrameId=-1;
+	UPROPERTY(BlueprintReadOnly,Category="DigitalTwin|SensorTransport") bool bReceiptCompleted=false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorTransport")
 	FString SensorId;
@@ -225,6 +228,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	bool IsStompConnected() const;
+	bool PrepareStompConnection(FString& Error);
+	int64 GetStompConnectionRevision() const { return StompConnectionRevision.Load(); }
 
 	/** Drops the current socket and starts a clean reconnect. Used after repeated sampled receipt timeouts. */
 	void RequestStompReconnect();
@@ -250,6 +255,7 @@ private:
 	TSharedPtr<class IStompClient> StompClient;
 	TAtomic<bool> bStompConnected { false };
 	TAtomic<bool> bStompConnecting { false };
+	TAtomic<int64> StompConnectionRevision { 0 };
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;

@@ -5,6 +5,7 @@
 #include "VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarScanComponent.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -18,6 +19,29 @@ class UVirtualLidarSurfaceResponseComponent;
 class UVirtualLidarGpuDepthProjectionComponent;
 struct FVirtualLidarV2EncodeOptions;
 struct FVirtualLidarDepthAcquisitionFrame;
+struct FVirtualLidarDerivedOutputJob;
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarDerivedFrameCompletedNative,const FVirtualSensorFrameEnvelope&);
+DECLARE_MULTICAST_DELEGATE_FourParams(FOnVirtualLidarCompatibilityRequestCompletedNative,const FString&,bool,const FVirtualSensorFrameEnvelope&,const FString&);
+
+UENUM(BlueprintType)
+enum class EVirtualLidarCompatibilityOutputPolicy:uint8 { LegacyAlways=0, WhenRequested=1 };
+
+USTRUCT(BlueprintType)
+struct MA0T10_DT_API FVirtualLidarCompatibilityOutputStatus
+{
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly) bool bRequested=false;
+    UPROPERTY(BlueprintReadOnly) bool bActive=false;
+    UPROPERTY(BlueprintReadOnly) bool bPending=false;
+    UPROPERTY(BlueprintReadOnly) FString Reason;
+    UPROPERTY(BlueprintReadOnly) int64 Started=0;
+    UPROPERTY(BlueprintReadOnly) int64 Completed=0;
+    UPROPERTY(BlueprintReadOnly) int64 SkippedUnrequested=0;
+    UPROPERTY(BlueprintReadOnly) int64 CancelledPending=0;
+    UPROPERTY(BlueprintReadOnly) double QueueWaitMs=0;
+    UPROPERTY(BlueprintReadOnly) double EncodeMs=0;
+    UPROPERTY(BlueprintReadOnly) double CompletionMs=0;
+};
 
 UENUM(BlueprintType)
 enum class ELidarPointCloudPreviewBackend : uint8
@@ -70,6 +94,21 @@ protected:
 public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StartScan();
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
+    UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="DigitalTwin|VirtualLidar|Output")
+    EVirtualLidarCompatibilityOutputPolicy CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
+    void SetCompatibilityOutputPolicy(EVirtualLidarCompatibilityOutputPolicy Policy);
+    UFUNCTION(BlueprintPure,Category="DigitalTwin|VirtualLidar|Output")
+    FVirtualLidarCompatibilityOutputStatus GetCompatibilityOutputStatus() const;
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|VirtualLidar|Output")
+    FString RegisterCompatibilityJsonConsumer(UObject* Owner);
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|VirtualLidar|Output")
+    void UnregisterCompatibilityJsonConsumer(const FString& Token);
+    bool RequestCompatibilityPayloadFromLatestFrame(FString& RequestId,FString& Reason);
+    FOnVirtualLidarCompatibilityRequestCompletedNative OnCompatibilityRequestCompletedNative;
+#if WITH_DEV_AUTOMATION_TESTS
+    bool FreezeAcquisitionForTests=false;
+#endif
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StopScan();
@@ -308,6 +347,14 @@ public:
     FOnVirtualLidarFrameAcquired OnFrameAcquired;
 
     FOnVirtualLidarFrameAcquiredNative OnFrameAcquiredNative;
+    FOnVirtualLidarDerivedFrameCompletedNative OnDerivedFrameCompletedNative;
+    const FVirtualSensorFrameEnvelope& GetLastCompletedDerivedFrame() const { return LastCompletedDerivedFrame; }
+#if WITH_DEV_AUTOMATION_TESTS
+    int32 JsonEncodeDelayMsForTests=0;
+    friend class FLidarDerivedProgressTest;
+    friend class FLidarDemandPolicyTest;
+    friend class FLidarDerivedGlobalLimitTest;
+#endif
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar")
     FString SensorId = TEXT("LIDAR-001");
@@ -549,6 +596,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Recorder")
     TObjectPtr<UVirtualSensorRecorderComponent> RecorderComponent;
 
+public:
+    /** Read-only backend diagnosis; does not initialize rendering or start a scan. */
+    EVirtualLidarAcquisitionBackend GetResolvedAcquisitionBackend(FString& Reason) const {return ResolveAcquisitionBackend(Reason);}
 private:
 	void PublishLastFrameSnapshot(const FTransform& AcquisitionTransform, int32 InHorizontalSamples, int32 InVerticalChannels, float InMaxDistanceCm);
     EVirtualLidarAcquisitionBackend ResolveAcquisitionBackend(FString& OutReason) const;
@@ -587,9 +637,13 @@ private:
     void UnregisterFromPerformanceSubsystem();
     void BeginScheduledScan(double NowSeconds);
     void CompleteScheduledScan(double NowSeconds);
-    void QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds);
-    void CompleteScheduledPayloadBuild(int64 CapturedFrameId, FString&& JsonPayload, double AcquisitionStartedSeconds);
-    void QueueScheduledAutoExports();
+    void QueueScheduledPayloadBuild(int64 CapturedFrameId, double AcquisitionStartedSeconds,const FString& RequestId=FString());
+    bool HasCompatibilityJsonDemand(const FVirtualSlabFrameContext& Context,FString* Reason=nullptr) const;
+    void CompleteScheduledPayloadBuild(TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe> Job,FString&& JsonPayload);
+    void TryStartPendingPayloadBuild();
+    void CompleteDerivedFrame(const FVirtualSensorFrameEnvelope& Frame);
+    void ReleaseDerivedReservation(const TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe>& Job);
+    void QueueScheduledAutoExports(TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame=nullptr);
     int32 GetHeatmapPixelIndex(int32 H, int32 V, int32 Width, int32 Height) const;
     FString BuildExportPath(const FString& Extension, const FString& FileNamePrefix) const;
     bool ExportLastPointCloudLasToPath(const FString& Path) const;
@@ -671,8 +725,11 @@ private:
     bool bGpuDepthScanInProgress = false;
     bool bDeadlineMissRecordedForActiveAcquisition = false;
     bool bScheduledPayloadBuildInFlight = false;
+    FVirtualLidarCompatibilityOutputStatus CompatibilityStatus;
+    TMap<FString,TWeakObjectPtr<UObject>> CompatibilityConsumers;
     bool bScheduledAutoExportInFlight = false;
-    bool bScheduledPayloadRefreshPending = false;
+    TSharedPtr<FVirtualLidarDerivedOutputJob,ESPMode::ThreadSafe> ActiveDerivedJob,PendingDerivedJob;
+    FVirtualSensorFrameEnvelope LastCompletedDerivedFrame;
     TArray<FVirtualLidarPoint> ScheduledPoints;
     TArray<uint8> ScheduledHeatmapPixels;
     TArray<float> ScheduledHorizontalAnglesDegrees;

@@ -88,7 +88,7 @@ void UVirtualSensorPanelWidgetBase::ApplySensorToolFontScale(float Scale)
 	if ((!SensorAppearanceOwner.IsValid()&&!ToolWorkspace.IsValid()) || !FMath::IsFinite(Scale)) return;
 	const float PreviousScale = SensorToolFontScale;
 	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
-	if(IsWorkspaceOwned()){DragHandleHeight=FMath::Max(38.0f,26.0f*SensorToolFontScale+20.0f);ApplyPanelSize();}
+	if(IsWorkspaceOwned()){DragHandleHeight=FMath::Max(38.0f,26.0f*SensorToolFontScale+20.0f);SetPanelExpandedSize(DesiredPanelSize,false);}
 	PruneFontRegistrations();
 	for (auto& Setter : SensorFontSetters) Setter(SensorToolFontScale);
 	InvalidateLayoutAndVolatility();
@@ -489,7 +489,8 @@ FVector2D UVirtualSensorPanelWidgetBase::GetResolvedPanelMinimum() const
 {
     if(!IsWorkspaceOwned())return MinimumPanelSize;
     const FVector2D Maximum=ResolveMaximumPanelSize();
-    return FVector2D(FMath::Min(MinimumPanelSize.X,Maximum.X),FMath::Min(MinimumPanelSize.Y,Maximum.Y));
+    const float HeaderWidthScale=FMath::Max(1.0f,SensorToolFontScale);
+    return FVector2D(FMath::Min(MinimumPanelSize.X*HeaderWidthScale,Maximum.X),FMath::Min(MinimumPanelSize.Y,Maximum.Y));
 }
 
 bool UVirtualSensorPanelWidgetBase::IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const

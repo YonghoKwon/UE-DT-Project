@@ -464,6 +464,17 @@ TArray<FColor> UVirtualLidarVisualizationComponent::BuildProjectionPixelsForTest
 }
 #endif
 
+FVirtualSensorResourceSnapshot UVirtualLidarVisualizationComponent::GetResourceSnapshot() const
+{
+    check(IsInGameThread());FVirtualSensorResourceSnapshot S;S.Owner=GetName()+TEXT("/visualization");
+    S.Counts={{TEXT("texture_creations"),TextureResourceCreateCount},{TEXT("projection_job"),bProjectionBuildInFlight},
+        {TEXT("niagara_components"),NiagaraPointCloudComponent?1:0},{TEXT("niagara_points"),NiagaraPositions.Num()},
+        {TEXT("visible_points"),VisiblePointCount}};
+    S.OwnedCpuBytes.Add(TEXT("niagara_upload_arrays"),NiagaraPositions.GetAllocatedSize()+NiagaraColors.GetAllocatedSize());
+    int64 TextureBytes=0;for(const auto* Texture:{RangeTexture.Get(),TopDownTexture.Get(),ElevationTexture.Get()})if(Texture)TextureBytes+=int64(Texture->GetSizeX())*Texture->GetSizeY()*4;
+    S.EstimatedGpuBytes.Add(TEXT("projection_textures_unpadded"),TextureBytes);return S;
+}
+
 UVirtualLidarVisualizationComponent::UVirtualLidarVisualizationComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -1123,6 +1134,8 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
             NiagaraPointCloudComponent->SetupAttachment(GetOwner()->GetRootComponent());
             NiagaraPointCloudComponent->SetUsingAbsoluteLocation(true);
             NiagaraPointCloudComponent->SetAsset(System);
+            NiagaraPointCloudComponent->SetHiddenInSceneCapture(true);
+            NiagaraPointCloudComponent->SetCastShadow(false);
             NiagaraPointCloudComponent->RegisterComponent();
         }
     }

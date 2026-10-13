@@ -13,6 +13,8 @@ class MA0T10_DT_API USlabProgressPanelWidget : public UVirtualSensorPanelWidgetB
 public:
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|UI") void BindSlabActor(ASlabActor* InSlab);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|UI") ASlabActor* GetBoundSlabActor() const { return Slab.Get(); }
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|UI") bool CanResetSlabToInitialPlacement(FString& OutReason) const;
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|UI") bool ResetSlabToInitialPlacement(FString& OutError);
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& G, float D) override;

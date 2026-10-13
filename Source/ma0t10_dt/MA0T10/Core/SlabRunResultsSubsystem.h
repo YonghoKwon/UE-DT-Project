@@ -1,0 +1,86 @@
+#pragma once
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "Async/Future.h"
+#include "SlabRunDeliveryTypes.h"
+#include "SlabRunComparison.h"
+#include "VirtualSensorResourceDiagnostics.h"
+#include "SlabRunResultsSubsystem.generated.h"
+class AVirtualSensorActorBase;
+class UVirtualSensorTransportComponent;
+class USceneComponent;
+struct FVirtualSensorTransportObservation;
+struct FVirtualSensorTransportResult;
+struct FVirtualSensorTopicReceivedDataBase;
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSlabRunResultsChanged);
+UCLASS()
+class MA0T10_DT_API USlabRunResultsSubsystem : public UTickableWorldSubsystem
+{
+    GENERATED_BODY()
+public:
+#if WITH_DEV_AUTOMATION_TESTS
+    struct FFrameAudit { FString Key,RequestId;uint8 Flags=0; };
+    TArray<FFrameAudit> GetRunFrameAuditForTesting(const FString& Run) const;
+    FVirtualSensorResourceSnapshot GetResourceSnapshotForTesting() const;
+#endif
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
+    virtual void Tick(float Delta) override;
+    virtual TStatId GetStatId() const override;
+    void BeginRun(const FString& Run,const FString& Scenario,ESlabExecutionPolicy Policy,const FVirtualSlabSensorOutputSelection& Outputs);
+    void SetSensors(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors,UVirtualSensorTransportComponent* Transport);
+    void RecordAcquisition(const FString& Run,bool Success);
+    void RecordAcquisition(const FString& Run,const FString& SensorId,int64 FrameId,bool Success);
+    void MarkStopped(const FString& Run);
+    void SetAppliedOutputs(const FString& Run,const FVirtualSlabSensorOutputSelection& Outputs);
+    void SetMeasuredRates(const FString& Run,const TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>>& Sensors);
+    int64 GetUnconfirmedCount(const FString& Run) const;
+    void GatherUnconfirmedKeys(const FString& Run,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const;
+    void RecordTerminalSnapshot(const FString& Run,const FSlabRunTerminalSnapshot& Snapshot);
+    void UpdateProgress(const FString& Run,const FString& Mtl,int64 Frame,double Elapsed);
+    void RecordOutputFailure(const FString& Run,const FString& Sensor,int32 Kind,int64 Frame,const FString& Reason);
+    void ObserveTransport(const FVirtualSensorTransportObservation& Event);
+    void Finalize(const FVirtualSlabSessionStatus& Session,bool PreparationFailed=false);
+    bool HasLedgerFailure(const FString& Run) const;
+    UFUNCTION(BlueprintPure,Category="Slab|Results") TArray<FSlabRunDeliverySummary> GetRecentRunResults() const { return Results; }
+    UFUNCTION(BlueprintPure,Category="Slab|Results") bool GetRunResult(const FString& Run,FSlabRunDeliverySummary& Result) const;
+    UFUNCTION(BlueprintPure,Category="Slab|Results") bool GetRunComparison(const FString& AId,const FString& BId,FSlabRunComparison& Comparison,FString& Reason) const;
+    UFUNCTION(BlueprintCallable,Category="Slab|Results") bool OpenRunReport(const FString& Run) const;
+    UFUNCTION(BlueprintPure,Category="Slab|Results") bool CanRetryRunReportSave(const FString& Run,FString& Reason) const;
+    UFUNCTION(BlueprintCallable,Category="Slab|Results") bool RetryRunReportSave(const FString& Run,FString& Reason);
+    UFUNCTION(BlueprintPure,Category="Slab|Results") int64 GetResultsRevision() const { return ResultsRevision; }
+    static FString Describe(const FSlabRunDeliverySummary& Result);
+    static FString DescribeStreamDetails(const FSlabRunDeliverySummary& Result);
+    UPROPERTY(BlueprintAssignable) FSlabRunResultsChanged OnResultsChanged;
+private:
+    struct FWriteResult { FString Run,Path,Error;bool Success=false; };
+    struct FRequestState { uint8 Flags=0;FString RequestId; };
+    TMap<FString,FRequestState> Requests;
+    TArray<FSlabRunDeliverySummary> Results;
+    TArray<TFuture<FWriteResult>> Writes;
+    TSet<FString> WritingRuns;
+    int64 ResultsRevision=0;
+    FString ActiveRun;
+    FDelegateHandle ObservationHandle,ReceiveHandle;
+    TWeakObjectPtr<UVirtualSensorTransportComponent> BoundTransport;
+    struct FPlacementBinding {TWeakObjectPtr<USceneComponent> Component;FDelegateHandle Handle;};
+    TArray<FPlacementBinding> PlacementBindings;
+    void ClearPlacementBindings();
+    bool bEnding=false;
+    UFUNCTION() void HandleEngineResult(const FVirtualSensorTransportResult& Result);
+    void HandleReceive(const TSharedPtr<FVirtualSensorTopicReceivedDataBase>& Result);
+    FSlabRunDeliverySummary* Find(const FString& Run);
+    void QueueReport(const FSlabRunDeliverySummary& Summary);
+    void Changed(bool Broadcast=false);
+    void ApplyWriteResult(const FWriteResult& Result);
+    static FWriteResult WriteReport(FString Run,FString Json,FString Directory,int32 MaxFiles);
+    static FString SerializeSummary(const FSlabRunDeliverySummary& Summary);
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FSlabRunLedgerTest;
+    friend class FSlabRunHistoryTest;
+    friend class FSlabRunPlacementSnapshotTest;
+    friend class FSlabRunComparisonUiTest;
+    friend class FSlabPerSensorDeliveryTest;
+    FString ReportDirectoryOverrideForTests;
+#endif
+};

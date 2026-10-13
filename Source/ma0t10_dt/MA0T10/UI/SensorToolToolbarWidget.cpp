@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "Widgets/Layout/SBorder.h"
@@ -24,8 +25,7 @@ void USensorToolToolbarWidget::RefreshSensors()
 void USensorToolToolbarWidget::SelectSensor(const FString& Id)
 {
 	auto* W=Workspace();auto* C=W?W->GetCoordinator():nullptr;if(!C)return;
-	int32 Camera=0,Lidar=0;
-	for(auto* A:C->GetSensorActors())if(A){const bool IsCamera=A->GetSensorKind()==EVirtualSensorKind::Camera;if(A->GetSensorId()==Id){if(IsCamera){C->SelectCameraByIndex(Camera);C->SetViewMode(EVirtualSensorViewMode::Camera);}else{C->SelectLidarByIndex(Lidar);C->SetViewMode(EVirtualSensorViewMode::Lidar);}W->SynchronizeOwnedSelection();return;}if(IsCamera)++Camera;else++Lidar;}
+	for(auto* A:C->GetSensorActors())if(A&&A->GetSensorId()==Id){C->SelectSensorActor(A);W->SynchronizeOwnedSelection();return;}
 }
 FText USensorToolToolbarWidget::SelectedSensorText() const
 {
@@ -46,14 +46,22 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	 .OnGenerateWidget_Lambda([this](TSharedPtr<FString> Id){return SNew(STextBlock).Font(ToolFont()).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(FText::FromString(Id?*Id:FString()));})
 	 .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type){if(Id)SelectSensor(*Id);})
 	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text_Lambda([this](){return SelectedSensorText();})]];
-	for(bool Slab:{false,true})
-		Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton())
-		 .OnGetMenuContent_Lambda([this,Slab](){return BuildPanelMenu(Slab);})
-		 .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(Slab?LOCTEXT("SlabTools","Slab 도구"):LOCTEXT("SensorTools","센서 도구"))]];
+	const ESensorToolPanelRole Roles[]={ESensorToolPanelRole::Placement,ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Data,ESensorToolPanelRole::Data};
+	const FText Labels[]={LOCTEXT("Placement","장비 추가·위치 저장"),LOCTEXT("Preview","미리보기"),LOCTEXT("Pcd","PCD 전송"),LOCTEXT("Results","결과")};
+	for(int32 I=0;I<4;++I)
+	{
+		const auto Role=Roles[I];const auto Label=Labels[I];
+		Bar->AddSlot()[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button()).OnClicked_Lambda([this,Role,I](){if(auto* W=Workspace()){W->SetPanelOpen(Role,true);if(auto* D=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(Role))){D->SetActiveTab(I==3?EVirtualSensorCaptureExportTab::ConnectionLog:EVirtualSensorCaptureExportTab::LiveStream);if(I==3)D->SetScenarioRunResultsExpanded(true);}}return FReply::Handled();})[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text()).Text(Label)]];
+		if(I==1)Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).OnGetMenuContent_Lambda([this](){return BuildPanelMenu(true);}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).Text(LOCTEXT("Scenario","시나리오"))]];
+	}
 	Bar->AddSlot()[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton())
 	 .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();})
 	 .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text(LOCTEXT("Appearance","UI 표시"))]];
-	return SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(8)[Bar];
+	return SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(8)
+	[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[Bar]
+	 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).AutoWrapText(true)
+	 .Visibility_Lambda([this](){auto* W=Workspace();return W&&!W->GetPanelOpenMessage().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
+	 .Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W?W->GetPanelOpenMessage():FString());})]];
 }
 FSlateFontInfo USensorToolToolbarWidget::ToolFont(int32 Size) const
 {

@@ -502,6 +502,10 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     float MeasuredAcquisitionRateHz = 0.0f;
 
+    /** World-time freshness of the acquisition-rate sample, not JPEG/transport completion. */
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    double LastAcquisitionProgressWorldSeconds = -1.0;
+
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     float MeasuredOutputRateHz = 0.0f;
 
@@ -528,6 +532,9 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 DroppedDerivedFrameCount = 0;
+    int32 CompatibilityPendingReplacementCount = 0;
+    int32 DiscardedDerivedGenerationCount = 0;
+    int32 FailedDerivedEncodingCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 BudgetSkippedAcquisitionFrameCount = 0;
@@ -542,6 +549,8 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
 /** Immutable point frame and the exact pose/settings used to acquire it. */
 struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFrame
 {
+    double AcquisitionStartedMonotonic=0;
+    int32 PipelineGeneration=0;
 	FVirtualSlabFrameContext SlabContext;
 	FTransform AcquisitionTransform = FTransform::Identity;
 	int64 FrameId = 0;
@@ -551,6 +560,8 @@ struct MA0T10_DT_API FVirtualLidarFrameSnapshot : public FVirtualPhysicalLidarFr
 	uint32 SettingsRevision = 0;
 
 	bool IsValid() const { return Points.IsValid(); }
+	FDateTime GetAcquisitionStartUtc() const
+	{ return AcquisitionStartUnixNanoseconds>0 ? FDateTime(1970,1,1)+FTimespan(AcquisitionStartUnixNanoseconds/100) : FDateTime(); }
 };
 
 UENUM(BlueprintType)

@@ -35,6 +35,13 @@ enum class EVirtualSensorCoordinateSpace : uint8
 };
 
 UENUM(BlueprintType)
+enum class EVirtualSensorPlacementInputMode : uint8
+{
+    Continuous UMETA(DisplayName="연속 이동"),
+    Precision UMETA(DisplayName="정밀 단위")
+};
+
+UENUM(BlueprintType)
 enum class EVirtualSensorExportKind : uint8
 {
     ServerPayload,
@@ -168,6 +175,9 @@ struct MA0T10_DT_API FVirtualSensorEditableState
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
     int32 ServerPayloadStride = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
+    EVirtualLidarCompatibilityOutputPolicy CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
     int32 MaxServerPayloadPoints = 0;

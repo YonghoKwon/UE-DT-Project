@@ -29,6 +29,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Sensor")
 	virtual bool IsSensorRunning() const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") bool CanEditSensorConfiguration(FString& OutReason) const;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor|Placement") bool CanEditSensorPlacement(FString& OutReason) const;
+	/** Commits the operator gesture and restores acquisition settings before data admission. */
+	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Sensor|Placement") bool PrepareForDataCollection(FString& OutReason);
+	FSimpleMulticastDelegate OnDataCollectionStarting;
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|Sensor") int32 GetConfigurationRevision() const { return ConfigurationRevision; }
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor")
 	virtual void StartSensor();
@@ -50,8 +56,12 @@ public:
 
 	virtual bool SubmitExternalFrame(const FVirtualSensorFrameEnvelope& Frame, bool bSendTransport);
 	virtual bool ReadEditableState(FVirtualSensorEditableState& OutState) const;
+	/** Intended acquisition configuration, without ending lightweight placement preview. */
+	virtual bool ReadCollectionState(FVirtualSensorEditableState& OutState, bool& bPreviewEnabled) const;
 	virtual bool ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const;
 	virtual bool ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")
+	virtual bool ApplyEditableTransform(const FTransform& Transform, FString& OutError);
 	virtual bool ApplyProfileAndSimulationQuality(const FVirtualSensorEditableState& RequestedState, FVirtualSensorEditableState& OutAppliedState, FString& OutError);
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor|Interaction")
@@ -72,5 +82,7 @@ public:
 	TObjectPtr<UVirtualSensorOutputComponent> OutputComponent;
 
 protected:
+	int32 ConfigurationRevision=0;
+	bool bSettingsTransaction=false;
 	bool bInteractiveManipulationActive = false;
 };

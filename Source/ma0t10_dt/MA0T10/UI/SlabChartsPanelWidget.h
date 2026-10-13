@@ -58,6 +58,8 @@ private:
 	bool UsesSimplifiedNativeLayout() const;
 	bool AreSeriesSelectorsVisible(int32 SlotIndex) const;
 	void ApplyChartSeriesVisibility(int32 SlotIndex);
+	void ClearIdlePresentation();
+	bool bIdlePresentation=false;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabUiSimplificationTest;
 #endif

@@ -32,6 +32,10 @@ struct MA0T10_DT_API FVirtualSensorHighThroughputProfile
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Transport", meta = (ClampMin = "100", ClampMax = "60000"))
 	int32 HeartbeatIntervalMs = 5000;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Transport", meta=(ClampMin="1"))
+	int64 MaxOutstandingBytes = 128LL * 1024 * 1024;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Transport", meta=(ClampMin="1"))
+	int64 MaxOutstandingBytesPerStream = 64LL * 1024 * 1024;
 };
 
 USTRUCT(BlueprintType)
@@ -57,6 +61,9 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") FString LastDeliveryFailureMessage;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 InputQueueDepth = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 ReceiptQueueDepth = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Transport") int32 OutstandingFrameCount = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Transport") int64 OutstandingBytes = 0;
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Transport") int64 GlobalOutstandingBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int64 LastFrameId = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") int32 LastFrameBytes = 0;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Transport") float SubmittedHz = 0.0f;
@@ -75,6 +82,8 @@ struct MA0T10_DT_API FVirtualSensorStreamTelemetry
 /** Shared immutable frame handed directly to the socket worker. */
 struct MA0T10_DT_API FVirtualSensorBinaryFrame
 {
+	// Process-local ownership token; never serialized into STOMP or PCD.
+	uint64 ManagedRunGeneration = 0;
 	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 	FString SensorId;
 	int64 FrameId = 0;
@@ -93,6 +102,14 @@ struct MA0T10_DT_API FVirtualSensorBinaryFrame
 
 class FVirtualSensorHighThroughputTransportWorker;
 
+struct FVirtualSensorRunRetentionSnapshot
+{
+	int32 ActiveRuns=0,RetiringRuns=0,CompletedRuns=0,KnownRunIds=0;
+	int32 SequenceEntries=0,InvalidFrameEntries=0,PendingEvents=0;
+	int32 QueuedFrames=0,SocketWritingFrames=0,ReceiptWaitingFrames=0;
+	int64 OutstandingBytes=0,LateRunEvents=0;
+};
+
 struct FVirtualSensorReceiveSelection
 {
 	bool bEnabled=true, bAllTopics=true;
@@ -110,6 +127,21 @@ struct FVirtualSensorReceiveSelection
 	bool Accepts(int32 Kind,const FString& Id) const { return WantsKind(Kind)&&(bAllTopics||Id.IsEmpty()||StreamKeys.Contains(LexToString(Kind)+TEXT("|")+Id)); }
 };
 DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorReceiveEvent,const TSharedPtr<FVirtualSensorTopicReceivedDataBase>&);
+
+/** 검수 관찰은 본문을 보유하지 않는다. worker 발생 시각과 GT 적용 시각을 구분한다. */
+enum class EVirtualSensorTransportObservationPhase : uint8 { Accepted, Submitted, Receipt, Consumed, Failed, ValidationFailed };
+struct FVirtualSensorTransportObservation
+{
+	EVirtualSensorTransportObservationPhase Phase=EVirtualSensorTransportObservationPhase::Accepted;
+	EVirtualSensorStreamKind Kind=EVirtualSensorStreamKind::LidarPayload;
+	FString SensorId,RequestId,RunId,Message;
+	int64 FrameId=0;
+	FDateTime AcquisitionUtc,ObservedUtc;
+	double MonotonicSeconds=0;
+	float LatencyMs=0;
+	bool bClockValid=true;
+};
+DECLARE_MULTICAST_DELEGATE_OneParam(FVirtualSensorTransportObservationEvent,const FVirtualSensorTransportObservation&);
 
 /** World facade for a binary-safe Raw TCP STOMP worker. */
 UCLASS()
@@ -132,22 +164,42 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	bool IsHighThroughputTransportRunning() const;
+	/** Prepare without replacing a connection owned by another stream. */
+	bool PrepareHighThroughputTransport(const FVirtualSensorHighThroughputProfile& Profile,const FString& Passcode,FString& Error,bool bAllowIdleReplacement=false);
+	UFUNCTION(BlueprintPure,Category="DigitalTwin|VirtualSensor|Transport") bool IsTransportConnected() const { return bTransportConnected; }
+	int64 GetConnectionRevision() const { return ConnectionRevision; }
+	int64 GetWorkerInstanceSerial() const { return WorkerInstanceSerial; }
+	FString GetConnectionMessage() const { return ConnectionMessage; }
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
+	bool RegisterManagedRun(const FString& RunId);
+	void RetireManagedRun(const FString& RunId);
+	FVirtualSensorRunRetentionSnapshot GetRunRetentionSnapshot(const FString& RunId=FString()) const;
+	void FlushRunObservations(const FString& RunId);
+	void GatherPendingRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const;
 	int32 GetPendingRunFrameCount(const FString& RunId) const;
+	int32 GetOutstandingSensorFrameCount(const FString& SensorId) const;
 	int32 GetFailedRunFrameCount(const FString& RunId) const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection);
 	FVirtualSensorReceiveEvent OnReceived;
+	FVirtualSensorTransportObservationEvent OnTransportObservation;
 	int64 GetDroppedReceiveEvents() const;
 
 	static bool CanUseRawTcp(const FString& BrokerUrl, FString* OutReason = nullptr);
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);
 
 private:
+	TMap<FString,uint64> KnownManagedRuns;
+	TMap<FString,uint64> ActiveManagedRuns;
+	uint64 NextManagedRunGeneration=0;
+	int64 WorkerInstanceSerial=0;
+	bool bTransportConnected=false;
+	int64 ConnectionRevision=0;
+	FString ConnectionMessage;
 	void DrainWorkerEvents();
 	FVirtualSensorHighThroughputTransportWorker* Worker = nullptr;
 	TMap<FString, FVirtualSensorStreamTelemetry> TelemetryByKey;

@@ -1,10 +1,11 @@
-#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "SensorWorkspaceForeignFixture.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 #include "Components/TextBlock.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -14,6 +15,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "GameFramework/PlayerController.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspaceIsolationTest,"MA0T10.SensorWorkspace.IsolationAndStorage",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
@@ -22,6 +25,7 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 	auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);
 	auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);
 	auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);
+	auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);
 	auto* ForeignText=NewObject<UTextBlock>(Foreign);ForeignText->SetText(FText::FromString(TEXT("동료 차트")));
 	const auto OriginalFont=ForeignText->GetFont();const auto OriginalSize=Foreign->GetEffectivePanelSize();const auto OriginalPosition=Foreign->GetCurrentPanelPosition();
 	TArray<uint8> Before,After,WorkspaceBefore;
@@ -30,12 +34,15 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 	TestFalse(TEXT("common parent alone cannot register"),W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Foreign));
 	TestTrue(TEXT("explicit monitor registration"),W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Monitor));
 	TestTrue(TEXT("explicit settings registration"),W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings));
+	TestTrue(TEXT("placement appended without renumbering existing roles"),int32(ESensorToolPanelRole::SlabProgress)==5&&int32(ESensorToolPanelRole::Placement)==6);
+	TestTrue(TEXT("explicit placement registration"),W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement));
 	TestFalse(TEXT("wrong role rejected"),W->RegisterOwnedPanel(ESensorToolPanelRole::Data,Settings));
 	Monitor->RegisterSensorTextControl(ForeignText); // must not cross UserWidget ownership
 	W->SetOwnedPanelFontScale(1.5f);
 	TestEqual(TEXT("foreign nested text font unchanged"),ForeignText->GetFont().Size,OriginalFont.Size);
 	TestEqual(TEXT("foreign base scale unchanged"),Foreign->GetSensorToolFontScale(),1.0f);
 	TestEqual(TEXT("owned scale applied"),Monitor->GetSensorToolFontScale(),1.5f);
+	TestEqual(TEXT("new owned placement receives font scale"),Placement->GetSensorToolFontScale(),1.5f);
 	W->SetPanelOpen(ESensorToolPanelRole::Settings,false);
 	TestTrue(TEXT("hide keeps same instance"),W->GetOwnedPanel(ESensorToolPanelRole::Settings)==Settings);
 	W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
@@ -46,7 +53,7 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
 	TestEqual(TEXT("foreign geometry position unchanged"),Foreign->GetCurrentPanelPosition(),OriginalPosition);
 	TestEqual(TEXT("foreign text unchanged"),ForeignText->GetText().ToString(),FString(TEXT("동료 차트")));
 	const bool HasLegacy=UGameplayStatics::LoadDataFromSlot(After,UVirtualSensorUiPreferencesSaveGame::SlotName,0);TestTrue(TEXT("legacy SaveGame bytes untouched"),Before==After&&HadLegacy==HasLegacy);
-	W->UnregisterPanel(Monitor);W->UnregisterPanel(Settings);
+	W->UnregisterPanel(Monitor);W->UnregisterPanel(Settings);W->UnregisterPanel(Placement);
 	if(HadWorkspace)UGameplayStatics::SaveDataToSlot(WorkspaceBefore,UVirtualSensorToolWorkspaceSubsystem::SlotName,0);else UGameplayStatics::DeleteGameInSlot(UVirtualSensorToolWorkspaceSubsystem::SlotName,0);
 	return true;
 }
@@ -76,5 +83,37 @@ bool FSensorWorkspaceSelectionSyncTest::RunTest(const FString&)
 	TestEqual(TEXT("reopening reads selected LiDAR"),Settings->GetPendingState().SensorId,Lidar->GetSensorId());
 	W->UnregisterPanel(Settings);Settings->GetTransformGizmoActor()->Destroy();
 	Manager->Destroy();Camera->Destroy();Lidar->Destroy();return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspacePlacementEntryTest,"MA0T10.SensorWorkspace.PlacementEntry",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorWorkspacePlacementEntryTest::RunTest(const FString&)
+{
+    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+    W->Preferences->Panels.Reset();
+    TestTrue(TEXT("first use opens placement and preview"),W->IsPanelOpen(ESensorToolPanelRole::Placement)&&W->IsPanelOpen(ESensorToolPanelRole::Monitor));
+    W->Preferences->Panels.FindOrAdd(ESensorToolPanelRole::Placement).bOpen=false;
+    TestFalse(TEXT("explicit saved closed state wins"),W->IsPanelOpen(ESensorToolPanelRole::Placement));
+    W->SetPanelOpen(ESensorToolPanelRole::Placement,true);
+    TestTrue(TEXT("missing host has visible failure reason"),!W->GetPanelOpenMessage().IsEmpty());
+    TestFalse(TEXT("failed open does not save fake open state"),W->IsPanelOpen(ESensorToolPanelRole::Placement));
+    auto* Host=World->SpawnActor<AVirtualSensorUiHostActor>();Host->PanelHostComponent=nullptr;FString Reason;
+    TestFalse(TEXT("missing dependencies do not create panel"),Host->EnsurePlacementPanel(Reason));
+    TestTrue(TEXT("missing dependencies explained"),!Reason.IsEmpty());
+    auto* C=World->SpawnActor<AVirtualSensorCoordinator>();Host->SensorManager=C;
+    auto* PC=World->SpawnActor<APlayerController>();World->AddController(PC);
+    TestTrue(TEXT("late dependencies can initialize same host"),Host->EnsurePlacementPanel(Reason));
+    auto* Panel=Host->GetPlacementWidget();TestNotNull(TEXT("placement exists"),Panel);
+    if(Panel)
+    {
+        Panel->TogglePanelCollapsed();
+        TestTrue(TEXT("explicit open succeeds"),Host->ShowPlacementPanel(Reason));
+        TestFalse(TEXT("explicit open expands body"),Panel->IsPanelCollapsed());
+        Host->EnsurePlacementPanel(Reason);
+        TestTrue(TEXT("repeated ensure reuses same panel"),Panel==Host->GetPlacementWidget());
+    }
+    Host->DestroyMonitorWidget();W->UnregisterPlacementHost(Host);Host->Destroy();
+    auto* Disabled=World->SpawnActor<AVirtualSensorUiHostActor>();Disabled->PanelHostComponent=nullptr;Disabled->SensorManager=C;Disabled->bUseNativeToolWidgetFallback=false;
+    TestFalse(TEXT("disabled fallback respects host configuration"),Disabled->EnsurePlacementPanel(Reason));
+    TestTrue(TEXT("fallback failure is actionable"),Reason.Contains(TEXT("fallback")));
+    W->UnregisterPlacementHost(Disabled);Disabled->Destroy();PC->Destroy();C->Destroy();return true;
 }
 #endif

@@ -18,6 +18,9 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "PcdDemandAcceptanceFixture.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -29,6 +32,10 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "VirtualSlabSensorTestDriver.h"
+#include "FinalAcceptanceTestSession.h"
+#include "FinalAcceptanceMeasurement.h"
+#include "HAL/PlatformMemory.h"
+#include "Editor/EditorPerformanceSettings.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeFeatureSmokeTest,
@@ -39,6 +46,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSensorV2RuntimeContinuousStreamTest,
 	"MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorV2RepeatStreamTest,"MA0T10.SensorV2.Runtime.RepeatThreeStreamAcceptance",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 
 namespace
 {
@@ -270,10 +278,13 @@ namespace
 class FSensorV2RuntimeContinuousStreamCommand final : public IAutomationLatentCommand
 {
 public:
-	explicit FSensorV2RuntimeContinuousStreamCommand(FAutomationTestBase* InTest)
-		: Test(InTest)
+	explicit FSensorV2RuntimeContinuousStreamCommand(FAutomationTestBase* InTest,double DurationOverride=-1,double WarmupOverride=-1)
+		: Test(InTest),OverrideDuration(DurationOverride),OverrideWarmup(WarmupOverride)
 	{
+		auto* S=GetMutableDefault<UEditorPerformanceSettings>();OldThrottle=S->bThrottleCPUWhenNotForeground;OldMonitor=S->bMonitorEditorPerformance;
+		S->bThrottleCPUWhenNotForeground=false;S->bMonitorEditorPerformance=false;
 	}
+	~FSensorV2RuntimeContinuousStreamCommand(){auto* S=GetMutableDefault<UEditorPerformanceSettings>();S->bThrottleCPUWhenNotForeground=OldThrottle;S->bMonitorEditorPerformance=OldMonitor;}
 
 	virtual bool Update() override
 	{
@@ -296,9 +307,16 @@ public:
 			Test->AddError(TEXT("SensorRefactorTestMap stream services were not ready."));
 			return true;
 		}
+		if(LayoutLidar.IsValid())Lidar=LayoutLidar.Get();
+		if(LayoutCamera.IsValid())Camera=LayoutCamera.Get();
 
 		UVirtualSensorTransportComponent* Transport = Coordinator->SharedTransportComponent;
 		UVirtualSensorStreamPublisherComponent* Publisher = Coordinator->StreamPublisherComponent;
+		if(!FinalAcceptanceViewportReady(World))
+		{
+			if(FPlatformTime::Seconds()-StartedAtSeconds>10){Test->AddError(TEXT("Actual PIE client pixel size does not match acceptance request."));return true;}
+			return false;
+		}
 		// The map also starts DTCore WebSocket clients during PIE bootstrap. Match
 		// the real UI workflow by allowing those handshakes to settle before the
 		// user-facing sensor transport opens its independent STOMP connection.
@@ -327,7 +345,13 @@ public:
 
 		if (!bStreamsStarted)
 		{
+            if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_DIAGNOSTIC_HIDE_OWNED_UI"))==TEXT("1"))
+            {auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();for(int32 I=0;I<7;++I)W->SetPanelOpen(static_cast<ESensorToolPanelRole>(I),false);Test->AddInfo(TEXT("DIAGNOSTIC ONLY: owned panels hidden, acquisition and actual UI receiver host retained; not preview acceptance"));}
 			bPointCloudOnly=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_ONLY")).Equals(TEXT("1"));
+			SensorCount=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SENSOR_PAIRS"))==TEXT("2")?2:1;
+            const int32 RequestedBudget=FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_OUTPUT_SUBMISSION_BUDGET")));
+            if(RequestedBudget>0)Publisher->MaxSubmissionsPerFrame=FMath::Clamp(RequestedBudget,1,8);
+            UE_LOG(LogTemp,Display,TEXT("[OutputSubmissionBudget] applied=%d"),Publisher->MaxSubmissionsPerFrame);
 			bScenarioMode=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SLAB_SCENARIO_SMOKE")).Equals(TEXT("1"));
 			// Exercise the production contract, not the legacy CSV envelope used by
 			// the early three-stream smoke. Applying the profile once keeps the
@@ -365,6 +389,41 @@ public:
 			{
 				Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);
 			}
+            const bool LayoutFixture=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LAYOUT_API_FIXTURE"))==TEXT("1");
+            if(LayoutFixture)
+            {
+                const FTransform LidarPose=Lidar->GetActorTransform(),CameraPose=Camera->GetActorTransform();
+                for(auto* Existing:Coordinator->GetSensorActors())if(IsValid(Existing)){Existing->StopSensor();Coordinator->UnregisterSensorActor(Existing);}
+                auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Error;
+                if(IsPcdDemandAcceptanceFixture())
+                {
+                    TArray<AVirtualSensorActorBase*> Devices;
+                    if(!CreatePcdDemandAcceptanceDevices(World,Coordinator,LidarPose,CameraPose,SensorCount,Devices,Error)){Test->AddError(Error);return true;}
+                    Lidar=Cast<AVirtualLidarSensorActor>(Devices[0]);Camera=Cast<AVirtualCameraSensorActor>(Devices[1]);LayoutLidar=Lidar;LayoutCamera=Camera;
+                }
+                else for(int32 I=0;I<SensorCount;++I)
+                {
+                    auto LP=LidarPose,CP=CameraPose;LP.AddToTranslation(FVector(0,I*50,0));CP.AddToTranslation(FVector(0,I*50,0));
+                    auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
+                    auto* A=Cast<AVirtualCameraSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Camera,CP,Error,false));
+                    if(!L||!A){Test->AddError(Error);return true;}
+                    L->ScanComponent->ServerPayloadStride=32;L->ScanComponent->MaxServerPayloadPoints=1024;
+                    if(L->VisualizationComponent)L->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                    L->StartSensor();A->StartSensor();if(I==0){Lidar=L;Camera=A;LayoutLidar=L;LayoutCamera=A;}
+                }
+                Test->TestEqual(TEXT("new layout API creates exact sensor inventory"),Coordinator->GetSensorActors().Num(),SensorCount*2);
+                UE_LOG(LogTemp,Display,TEXT("[LayoutApiFixture] native devices=%d allToolOwned=1"),SensorCount*2);
+            }
+            else if(SensorCount==2)
+            {
+                auto* Extra=World->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),FTransform(Lidar->GetActorRotation(),Lidar->GetActorLocation()+FVector(0,50,0)));
+                Extra->ScanComponent->SensorId=TEXT("OUTPUT-LIDAR-002");Extra->ScanComponent->bAutoStartScan=false;Extra->ScanComponent->bAutoRegisterToManager=false;Extra->ScanComponent->bApplyDeviceProfileOnBeginPlay=false;Extra->ScanComponent->Preset=EVirtualLidarPreset::Custom;
+                Extra->FinishSpawning(Extra->GetActorTransform());Extra->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Extra->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Extra->ScanComponent->ServerPayloadStride=32;Extra->ScanComponent->MaxServerPayloadPoints=1024;
+                if(Extra->VisualizationComponent)Extra->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                Coordinator->RegisterSensorActor(Extra);Coordinator->RegisterLidar(Extra->ScanComponent);Extra->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Extra->StartSensor();
+                for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It)if(*It!=Camera)
+                {It->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);It->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;It->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Coordinator->RegisterSensorActor(*It);Coordinator->RegisterCamera(It->CaptureComponent);It->StartSensor();break;}
+            }
 			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 			{
 				FVirtualSensorStreamConfig Config;
@@ -382,11 +441,24 @@ public:
 				Config.MaxReceiptRetries = 3;
 				Publisher->ConfigureStream(Config);
 			}
+			if (OverrideDuration >= 0)
+			{
+				// 반복 시험은 앞 회차에서 중지한 센서를 실제 API로 다시 시작한다.
+				Camera->CaptureComponent->StartCapture();
+				Lidar->ScanComponent->StartScan();
+			}
+            CameraIds.Reset(); LidarIds.Reset();
+            for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) if (It->IsSensorRunning()) CameraIds.Add(It->GetSensorId());
+            for (TActorIterator<AVirtualLidarSensorActor> It(World); It; ++It) if (It->IsSensorRunning()) LidarIds.Add(It->GetSensorId());
 			const FString RequestedWarmup = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_WARMUP_SECONDS"));
 			const FString RequestedSeconds = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STREAM_MEASURE_SECONDS"));
 			WarmupSeconds = RequestedWarmup.IsEmpty() ? 10.0 : FMath::Clamp(FCString::Atod(*RequestedWarmup), 1.0, 3600.0);
 			MeasurementSeconds = RequestedSeconds.IsEmpty() ? 60.0 : FMath::Clamp(FCString::Atod(*RequestedSeconds), 5.0, 3600.0);
+			if(OverrideDuration>=0)MeasurementSeconds=OverrideDuration;if(OverrideWarmup>=0)WarmupSeconds=OverrideWarmup;
 			StreamsStartedAtSeconds = FPlatformTime::Seconds();
+            if(!ReceiverHost)for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(World);It;++It){ReceiverHost=*It;break;}
+			Measurement.Start(World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>(),StreamsStartedAtSeconds+WarmupSeconds,MeasurementSeconds,ReceiverHost);
+			UE_LOG(LogTemp,Display,TEXT("[FinalAcceptanceViewport] x=%d y=%d"),FinalAcceptanceViewportSize().X,FinalAcceptanceViewportSize().Y);
 			bStreamsStarted = true;
 			return false;
 		}
@@ -395,7 +467,8 @@ public:
 			if (!ScenarioDriver.IsValid() && FPlatformTime::Seconds()-StreamsStartedAtSeconds>=WarmupSeconds)
 			{
 				ScenarioDriver=World->SpawnActor<AVirtualSlabSensorTestDriver>();
-				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,{Camera->GetSensorId(),Lidar->GetSensorId()},bPointCloudOnly));
+                TArray<FString> Targets=CameraIds; Targets.Append(LidarIds);
+				Test->TestTrue(TEXT("bulk fixture begins"), ScenarioDriver->StartTest(2,Targets,bPointCloudOnly));
 			}
 			if (ScenarioDriver.IsValid() && ScenarioDriver->HasFailed()) { Test->AddError(TEXT("Slab fixture failed; inspect session_runs.json")); return true; }
 		}
@@ -416,7 +489,30 @@ public:
 				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
-		if (StreamElapsedSeconds >= WarmupSeconds)
+        if (!bAcquisitionWindowClosed && StreamElapsedSeconds >= WarmupSeconds)
+        {
+            const double Now=FPlatformTime::Seconds();
+            TMap<FString,FVirtualSensorRuntimeStatus> Current;
+            for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)
+                if(CameraIds.Contains(It->GetSensorId())||LidarIds.Contains(It->GetSensorId())) Current.Add(It->GetSensorId(),It->GetSensorRuntimeStatus());
+            if(AcquisitionWindowStart<=0)
+            {
+                AcquisitionWindowStart=Now;
+                for(const auto& P:Current) AcquisitionStartFrames.Add(P.Key,P.Value.FrameId);
+            }
+            if(StreamElapsedSeconds>=WarmupSeconds+MeasurementSeconds)
+            {
+                bAcquisitionWindowClosed=true;
+                for(const auto& P:Current)
+                {
+                    const double Hz=(P.Value.FrameId-AcquisitionStartFrames.FindRef(P.Key))/FMath::Max(.001,Now-AcquisitionWindowStart);
+                    const bool bCamera=CameraIds.Contains(P.Key);
+                    Test->TestTrue(TEXT("each sensor acquisition window meets requested rate"),Hz>=(bCamera?29:19));
+                    UE_LOG(LogTemp,Display,TEXT("[OutputAcquisitionWindow] sensor=%s kind=%s hz=%.3f compatibilityJsonHz=%.3f"),*P.Key,bCamera?TEXT("Camera"):TEXT("Lidar"),Hz,P.Value.MeasuredOutputRateHz);
+                }
+            }
+        }
+		if (StreamElapsedSeconds >= WarmupSeconds && !bAcquisitionStopped && StreamElapsedSeconds < WarmupSeconds+MeasurementSeconds)
 		{
 			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
 			if (!bCaptureViewStatesChecked)
@@ -461,9 +557,17 @@ public:
 			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->SubmittedFrameCount &&
 			PointCloudBeforeAssertions->InputFrameCount == PointCloudBeforeAssertions->ReceiptReceivedCount &&
 			PointCloudBeforeAssertions->ConsumerReceivedCount == PointCloudBeforeAssertions->SubmittedFrameCount;
-		if (!bPointCloudDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
+		bool AllDrained=bPointCloudDrained;
+		for(const auto& P:StatusByKind)AllDrained&=P.Value.SubmittedFrameCount==P.Value.ReceiptReceivedCount&&P.Value.SubmittedFrameCount==P.Value.ConsumerReceivedCount;
+        if(ReceiverHost)AllDrained&=Measurement.IsContiguousAndComplete();
+		if (!AllDrained && FPlatformTime::Seconds() - DrainStartedAtSeconds < 35.0) return false;
 
 		Test->TestEqual(TEXT("three global stream runtimes are active"), StatusByKind.Num(), bPointCloudOnly?1:3);
+		Test->TestTrue(TEXT("full window request ledger saved"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
+		Test->TestTrue(TEXT("measurement window has complete contiguous receipt and consumer set"),Measurement.IsContiguousAndComplete());
+        Test->TestEqual(TEXT("declared active cameras"),CameraIds.Num(),SensorCount);Test->TestEqual(TEXT("declared active lidars"),LidarIds.Num(),SensorCount);
+        for(const auto& Id:LidarIds){Test->TestTrue(TEXT("each Native LiDAR PCD has >=19Hz"),Measurement.GetRate(EVirtualSensorStreamKind::PointCloud,Id)>=19);if(!bPointCloudOnly)Test->TestTrue(TEXT("each telemetry stream has >=19Hz"),Measurement.GetRate(EVirtualSensorStreamKind::LidarPayload,Id)>=19);}
+        if(!bPointCloudOnly)for(const auto& Id:CameraIds)Test->TestTrue(TEXT("each camera JPEG has >=29Hz"),Measurement.GetRate(EVirtualSensorStreamKind::CameraImage,Id)>=29);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
 			if(bPointCloudOnly && Kind!=EVirtualSensorStreamKind::PointCloud) continue;
@@ -475,21 +579,21 @@ public:
 			Test->TestEqual(TEXT("every high-throughput submission receives a receipt"), Status->ReceiptReceivedCount, Status->SubmittedFrameCount);
 			Test->TestEqual(TEXT("self receiver validates every submitted frame"), Status->ConsumerReceivedCount, Status->SubmittedFrameCount);
 			Test->TestEqual(TEXT("self receiver reports no invalid frames"), Status->ConsumerValidationFailureCount, static_cast<int64>(0));
-			Test->TestEqual(TEXT("self receiver reports no FrameId gaps"), Status->ConsumerFrameGapCount, static_cast<int64>(0));
+			UE_LOG(LogTemp,Display,TEXT("[AcceptanceLifetimeGap] kind=%d gaps=%lld (includes warmup)"),int32(Kind),Status->ConsumerFrameGapCount);
 			Test->TestEqual(TEXT("self receiver reports no duplicates"), Status->ConsumerDuplicateCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream encoding stays healthy"), Status->EncodeFailureCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream receipt stays healthy"), Status->ReceiptTimeoutCount, static_cast<int64>(0));
 			Test->TestEqual(TEXT("stream queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
 			if (Kind == EVirtualSensorStreamKind::CameraImage)
 			{
-				Test->TestTrue(TEXT("D455 JPEG submission sustains at least 29 Hz"), Status->SubmittedHz >= 29.0f);
-				Test->TestTrue(TEXT("D455 JPEG consumer sustains at least 29 Hz"), Status->ConsumerReceivedHz >= 29.0f);
+				Test->TestTrue(TEXT("D455 JPEG measurement submission sustains at least 29 Hz"), Measurement.GetRate(Kind) >= 29.0);
+				Test->TestTrue(TEXT("D455 JPEG measurement consumer set complete"), Measurement.IsContiguousAndComplete());
 				Test->TestTrue(TEXT("D455 JPEG end-to-end p95 remains below 250 ms"), Status->EndToEndP95LatencyMs <= 250.0f);
 			}
 			else
 			{
-				Test->TestTrue(TEXT("ML-X stream submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
-				Test->TestTrue(TEXT("ML-X stream consumer sustains at least 19 Hz"), Status->ConsumerReceivedHz >= 19.0f);
+				Test->TestTrue(TEXT("ML-X measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("ML-X measurement consumer set complete"), Measurement.IsContiguousAndComplete());
 			}
 			if (Kind == EVirtualSensorStreamKind::PointCloud)
 			{
@@ -499,8 +603,8 @@ public:
 				Test->TestEqual(TEXT("every binary PCD submission receives a receipt"), Status->ReceiptReceivedCount, Status->InputFrameCount);
 				Test->TestEqual(TEXT("binary PCD never replaces a pending frame"), Status->ReplacedPendingFrameCount, static_cast<int64>(0));
 				Test->TestEqual(TEXT("binary PCD queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
-				Test->TestTrue(TEXT("binary PCD serialization sustains at least 19 Hz"), Status->SerializationHz >= 19.0f);
-				Test->TestTrue(TEXT("binary PCD submission sustains at least 19 Hz"), Status->SubmittedHz >= 19.0f);
+				Test->TestTrue(TEXT("binary PCD completed serialization sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("binary PCD measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
 				Test->TestTrue(TEXT("binary PCD serialization p95 remains below 20 ms"), Status->SerializationP95LatencyMs <= 20.0f);
 				Test->TestTrue(TEXT("binary PCD queues remain bounded"),
 					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);
@@ -514,7 +618,7 @@ public:
 			{
 				if(R.Kind==EVirtualSensorTopicReceiveKind::PointCloud)
 				{
-					Test->TestEqual(TEXT("UI validates every submitted PCD"),R.ValidatedCount,PointCloudBeforeAssertions->SubmittedFrameCount);
+                    Test->TestEqual(TEXT("UI validates every approved measurement-window PCD"),int64(Measurement.GetUiCount(EVirtualSensorStreamKind::PointCloud)),FMath::RoundToInt(Measurement.GetRate(EVirtualSensorStreamKind::PointCloud)*MeasurementSeconds));
 					Test->TestEqual(TEXT("UI PCD validation failures"),R.ValidationFailureCount,static_cast<int64>(0));
 					Test->TestEqual(TEXT("UI diagnostic losses"),R.DiagnosticDropCount,static_cast<int64>(0));
 					UE_LOG(LogTemp,Display,TEXT("[SensorUiReceiverRhi] pcdReceived=%lld pcdValidated=%lld failures=%lld gaps=%lld"),R.ReceivedCount,R.ValidatedCount,R.ValidationFailureCount,R.FrameGapCount);
@@ -544,6 +648,13 @@ public:
 			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
 			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
+        if(IsPcdDemandAcceptanceFixture())for(auto* Device:Coordinator->GetSensorActors())if(auto* L=Cast<AVirtualLidarSensorActor>(Device))
+        {
+            const auto Json=L->ScanComponent->GetCompatibilityOutputStatus();
+            UE_LOG(LogTemp,Display,TEXT("[PcdJsonDemand] sensor=%s policy=%d started=%lld completed=%lld skipped=%lld queueMs=%.3f encodeMs=%.3f completionMs=%.3f"),*L->GetSensorId(),int32(L->ScanComponent->CompatibilityOutputPolicy),Json.Started,Json.Completed,Json.SkippedUnrequested,Json.QueueWaitMs,Json.EncodeMs,Json.CompletionMs);
+            if(bPointCloudOnly&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY"))==TEXT("requested"))
+                Test->TestEqual(TEXT("PCD-only requested policy starts zero compatibility jobs"),Json.Started,int64(0));
+        }
 		const FVirtualSensorStreamStatus* CameraStatus = StatusByKind.Find(EVirtualSensorStreamKind::CameraImage);
 		const FVirtualSensorStreamStatus* LidarStatus = StatusByKind.Find(EVirtualSensorStreamKind::LidarPayload);
 		UE_LOG(LogTemp, Display, TEXT("[SensorHighThroughputRhi] cameraSubmitted=%lld cameraReceipt=%lld cameraConsumer=%lld cameraHz=%.2f lidarSubmitted=%lld lidarReceipt=%lld lidarConsumer=%lld lidarHz=%.2f pcdSubmitted=%lld pcdReceipt=%lld pcdConsumer=%lld pcdHz=%.2f"),
@@ -567,7 +678,8 @@ public:
 			const double AverageFps = 1000.0 / FMath::Max(0.001, AverageFrameMs);
 			const double P95FrameMs = SortedFrameTimes[FMath::Clamp(FMath::CeilToInt(SortedFrameTimes.Num() * 0.95) - 1, 0, SortedFrameTimes.Num() - 1)];
 			const double P99FrameMs = SortedFrameTimes[FMath::Clamp(FMath::CeilToInt(SortedFrameTimes.Num() * 0.99) - 1, 0, SortedFrameTimes.Num() - 1)];
-			const double OnePercentLowFps = 1000.0 / FMath::Max(0.001, P99FrameMs);
+			double SlowTotal=0;const int32 SlowCount=FMath::Max(1,FMath::CeilToInt(SortedFrameTimes.Num()*.01));for(int32 I=SortedFrameTimes.Num()-SlowCount;I<SortedFrameTimes.Num();++I)SlowTotal+=SortedFrameTimes[I];
+			const double OnePercentLowFps = 1000.0 / FMath::Max(0.001, SlowTotal/SlowCount);
 			UE_LOG(LogTemp, Display, TEXT("[SensorStreamRhi] averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f samples=%d"),
 				AverageFps, OnePercentLowFps, P95FrameMs, FrameTimesMs.Num());
 			Test->TestTrue(TEXT("active three-stream average FPS remains at least 55"), AverageFps >= 55.0);
@@ -591,6 +703,8 @@ public:
 
 private:
 	FAutomationTestBase* Test = nullptr;
+	TWeakObjectPtr<AVirtualLidarSensorActor> LayoutLidar;
+	TWeakObjectPtr<AVirtualCameraSensorActor> LayoutCamera;
 	double StartedAtSeconds = -1.0;
 	double StreamsStartedAtSeconds = -1.0;
 	bool bConnectionRequested = false;
@@ -598,6 +712,10 @@ private:
 	bool bAcquisitionStopped = false;
 	bool bScenarioMode=false;
 	bool bPointCloudOnly=false;
+    int32 SensorCount=1;TArray<FString> CameraIds,LidarIds;
+    TMap<FString,int64> AcquisitionStartFrames;
+    double AcquisitionWindowStart=0;
+    bool bAcquisitionWindowClosed=false;
 	bool bCaptureViewStatesChecked = false;
 	FSceneViewStateInterface* CameraViewState = nullptr;
 	FSceneViewStateInterface* LidarViewState = nullptr;
@@ -608,6 +726,43 @@ private:
 	double WarmupSeconds = 10.0;
 	TArray<double> FrameTimesMs;
 	TArray<double> WallPacingTimesMs;
+	FFinalAcceptanceMeasurement Measurement;
+	bool OldThrottle=false,OldMonitor=false;
+	double OverrideDuration=-1,OverrideWarmup=-1;
+};
+class FRepeatStreamsAcceptance final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;int32 Round=0;double CleanupAt=-1;
+    TSharedPtr<FSensorV2RuntimeContinuousStreamCommand> Current;
+    FString OriginalLedger;
+public:
+    explicit FRepeatStreamsAcceptance(FAutomationTestBase* In):Test(In),OriginalLedger(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER"))){}
+    ~FRepeatStreamsAcceptance(){FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_LEDGER"),*OriginalLedger);}
+    bool Update() override
+    {
+        auto* W=FindPieWorld();if(!W)return false;
+        if(!Current.IsValid()&&CleanupAt<0)
+        {
+            const FString Ledger=FPaths::ProjectSavedDir()/TEXT("Reports/DTCoreFinalAcceptance")/FString::Printf(TEXT("cycle-%02d.ledger.json"),Round+1);
+            FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_LEDGER"),*Ledger);
+            Current=MakeShared<FSensorV2RuntimeContinuousStreamCommand>(Test,45,Round==0?10:0);
+        }
+        if(Current.IsValid())
+        {
+            if(!Current->Update())return false;
+            Current.Reset();
+            for(TActorIterator<AVirtualSensorCoordinator> It(W);It;++It){It->StopAllSensors();It->StreamPublisherComponent->StopAllStreams(FString());}
+            W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->StopHighThroughputTransport();
+            for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(W);It;++It)It->StopTopicReceivers();
+            CleanupAt=FPlatformTime::Seconds();
+        }
+        if(FPlatformTime::Seconds()-CleanupAt<.5)return false;
+        for(const auto& S:W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetStreamTelemetry())
+        {Test->TestEqual(TEXT("cycle cleanup releases outstanding bytes"),S.OutstandingBytes,int64(0));Test->TestEqual(TEXT("cycle cleanup releases outstanding frames"),S.OutstandingFrameCount,0);}
+        const auto Mem=FPlatformMemory::GetStats();
+        UE_LOG(LogTemp,Display,TEXT("[AcceptanceCycle] cycle=%d private=%llu physical=%llu cleanupMs=%.2f"),Round+1,Mem.UsedVirtual,Mem.UsedPhysical,(FPlatformTime::Seconds()-CleanupAt)*1000);
+        CleanupAt=-1;return ++Round>=10||Test->HasAnyErrors();
+    }
 };
 }
 
@@ -630,15 +785,22 @@ bool FSensorV2RuntimeContinuousStreamTest::RunTest(const FString& Parameters)
 		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketLogin"), *UserName, GGameIni);
 		GConfig->SetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), *Password, GGameIni);
 	}
-	if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
+	if (!AutomationOpenMap(IsPcdDemandAcceptanceFixture()?TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"):TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"), true))
 	{
 		AddError(TEXT("SensorRefactorTestMap could not be opened"));
 		return false;
 	}
-	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
+	ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());
 	ADD_LATENT_AUTOMATION_COMMAND(FSensorV2RuntimeContinuousStreamCommand(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
+}
+
+bool FSensorV2RepeatStreamTest::RunTest(const FString&)
+{
+    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_REPEAT_STREAMS_RHI"))!=TEXT("1")){AddInfo(TEXT("SKIP: ten-cycle acceptance requires MA0T10_REPEAT_STREAMS_RHI=1"));return true;}
+    if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap"),true))return false;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FRepeatStreamsAcceptance(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 
 #endif

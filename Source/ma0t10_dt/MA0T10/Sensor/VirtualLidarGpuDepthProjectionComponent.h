@@ -2,8 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "RenderCommandFence.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorAcquisitionBackend.h"
 #include "VirtualLidarSemanticScene.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarGpuDepthProjectionComponent.generated.h"
 
 class FRHIGPUTextureReadback;
@@ -37,6 +39,9 @@ public:
 	virtual EVirtualSensorBackendPollResult PollAcquisition(FVirtualLidarDepthAcquisitionFrame& OutFrame) override;
 	virtual void CancelAcquisition() override;
 	virtual FString GetBackendStatusMessage() const override { return StatusMessage; }
+	/** Diagnostic count: staging objects are retained between serial acquisitions. */
+	uint64 GetReadbackAllocationCount() const { return ReadbackAllocationCount; }
+    FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|GPU", meta = (ClampMin = "64", ClampMax = "2048"))
 	int32 MaximumCaptureHeight = 1024;
@@ -54,6 +59,10 @@ private:
 
 	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback;
 	TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> SemanticReadback;
+	FIntPoint ReadbackDimensions = FIntPoint::ZeroValue;
+	uint64 ReadbackAllocationCount = 0;
+	bool bPendingSemanticReadback = false;
+	FRenderCommandFence ReadbackSubmissionFence;
 	TUniquePtr<FVirtualLidarSemanticScene> SemanticScene;
 	TMap<int32, FVirtualLidarGpuSemanticIdentity> PendingSemanticIdentities;
 	FString PendingSemanticStatus;

@@ -18,7 +18,7 @@ class ASlabTrackReferenceActor;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSlabStateChanged);
 
 UENUM(BlueprintType)
-enum class ESlabScenarioAdmission : uint8 { None, Started, StartedWithoutTransmission, StoredOnlyBusy, Duplicate, Rejected };
+enum class ESlabScenarioAdmission : uint8 { None, Started, StartedWithoutTransmission, StoredOnlyBusy, Duplicate, Rejected, Preparing };
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FSlabScenarioAdmissionStatus
 {
@@ -38,6 +38,7 @@ class MA0T10_DT_API ASlabActor : public AFacilityBase,public ISlabScenarioPlayba
 	GENERATED_BODY()
 public:
 	ASlabActor();
+	virtual void Tick(float DeltaTime) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual bool StartScenarioPlayback_Implementation(const FString& Json,const FString& ScenarioUUID,const FString& RunUUID) override;
 	virtual void StopScenarioPlayback_Implementation(const FString& RunUUID) override;
@@ -45,6 +46,8 @@ public:
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool StartSyntheticScenario();
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool SetSimulationPaused(bool bPaused);
 	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") void StopSimulation();
+	UFUNCTION(BlueprintPure,Category="Slab|Simulation") bool CanResetToInitialPlacement(FString& OutReason) const;
+	UFUNCTION(BlueprintCallable,Category="Slab|Simulation") bool ResetToInitialPlacement(FString& OutError);
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabSimulationStatus GetSimulationStatus() const { return Status; }
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabScenarioAdmissionStatus GetLastScenarioAdmissionStatus() const { return LastAdmission; }
 	UFUNCTION(BlueprintPure,Category="Slab|Simulation") FSlabMetrics GetCurrentMetrics() const;
@@ -64,6 +67,8 @@ public:
 	static FSoftObjectPath ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured);
 	UFUNCTION(BlueprintPure,Category="Slab|Outputs") FVirtualSlabSensorOutputSelection GetSensorOutputs() const { return SensorOutputs; }
 	UFUNCTION(BlueprintCallable,Category="Slab|Outputs") bool SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs);
+	UFUNCTION(BlueprintPure,Category="Slab|Outputs") FSlabExecutionOptions GetExecutionOptions() const { return ExecutionOptions; }
+	UFUNCTION(BlueprintCallable,Category="Slab|Outputs") bool SetExecutionOptions(FSlabExecutionOptions Options);
 	FSlabScenarioDataPtr GetScenario() const { return Scenario; }
 	FSlabMetrics CalculateMetricsForRow(const FSlabScenarioRow& Row) const;
 	uint32 GetMetricsConfigurationHash() const;
@@ -80,6 +85,7 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Configuration") FVector InitialDimensions=FVector(10830,1100,250);
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Configuration") TArray<FString> TargetSensorIds;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Outputs") FVirtualSlabSensorOutputSelection SensorOutputs;
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Outputs") FSlabExecutionOptions ExecutionOptions;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance") TSoftObjectPtr<UMaterialInterface> SurfaceMaterial;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Appearance") bool bHotAppearance=false;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Analysis") FSlabAnalysisDisplaySettings AnalysisDisplaySettings;
@@ -99,7 +105,10 @@ private:
 	UPROPERTY(Transient) FSlabSimulationStatus Status;
 	UPROPERTY(Transient) FSlabScenarioAdmissionStatus LastAdmission;
 	FSlabScenarioDataPtr Scenario;
+	FSlabScenarioDataPtr PendingScenario;
 	FTransform InitialTrackTransform;
+	FTransform InitialPlacementTransform;
+	bool bInitialPlacementCaptured=false;
 	int32 LastNotifiedIndex=INDEX_NONE;
 	uint64 ParseGeneration=0;
 	bool bParsing=false;

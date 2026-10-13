@@ -19,6 +19,7 @@ class UVirtualCameraStreamReceiverTC;
 class UVirtualPointCloudStreamReceiverTC;
 class UVirtualSensorStreamPublisherComponent;
 class AVirtualSensorCoordinator;
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorUiReceiveCompletedNative,const FVirtualSensorTopicReceivedDataBase&);
 
 /** Test-map host that exposes every implemented external source without auto-starting network listeners. */
 UCLASS(BlueprintType)
@@ -27,6 +28,8 @@ class MA0T10_DT_API AVirtualSensorExternalSourceHostActor : public AActor
 	GENERATED_BODY()
 
 public:
+    /** Small actual TC/UI completion observation; never copies the binary body. */
+    FOnVirtualSensorUiReceiveCompletedNative OnUiReceiveCompletedNative;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|ExternalSource|TopicReceiver")
 	void SetTopicReceiverScope(EVirtualSensorTopicReceiverScope Scope);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|ExternalSource|TopicReceiver")

@@ -59,6 +59,7 @@ public:
 	/** Pure monotonic cadence helper. Returns due slots, advances to the first future deadline. */
 	static int64 AdvanceDeadline(double OriginSeconds,double IntervalSeconds,double NowSeconds,int64& NextDeadlineIndex);
 	static bool IsNewFrame(int64 AvailableFrameId,int64 LastRequestedFrameId);
+	bool HasSensorWork(const AVirtualSensorActorBase* Sensor) const;
 	static bool ValidateSelection(EVirtualSensorKind Kind,const FVirtualSensorCaptureSelection& Selection,FString& OutError);
 	static constexpr int32 MaxConcurrentSessions=16;
 	static constexpr int32 MaxRetainedSessions=32;
