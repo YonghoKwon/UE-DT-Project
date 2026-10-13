@@ -493,6 +493,17 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 - **검증(40aa640):** 신규 `MA0T10.UXR11.NativeCursorCaptureRhi`(viewport 캡처를 실제로 심은 뒤 native cursor down/move/up을 7개 패널·글자 100/150%로 수행, PIE 카메라·폰·선택 불변, 캡처 해제, 기존 v1 저장 복원)와 `ProfileReapplyNotice` 2/2, UXR10 2/2, `MA0T10.UXR`+`UI02`+`SensorMonitor`+`Workspace` **37 Success/실패0**(D3D12 표시 창), quick 8/8, layer 0. Codex CLI가 구현 도중 서버 오류로 중단되어 Claude가 미커밋 변경을 검토·완성·검증했다.
 - **현재 상태: 80%.** 남은 것: 검수본(40aa640) 직접 마우스 재검수(앱 Codex 진행 중), 통합 release, `verify -Level perf`.
 
+### UXR-12 — 시각 다듬기: 더 심플하고 세련되게 (P1, 2026-10-14 사용자 요청)
+
+**진행률: 70%** · 표현 구현·집중 회귀 완료. 변경 화면 직접 마우스·통합 release·상대 성능은 별도 인계이며 전체 수용 완료로 표시하지 않는다. 개편 프로그램 가중치에는 합산하지 않는 후속 항목이다.
+
+- **출처·문제:** 사용자 “전체적인 UI 디자인 지금 좋은데, 좀 더 심플하지만 세련되고 보기 좋게”. Claude의 UXR-10 렌더 검토에서 레일 라벨 잘림, 머리의 접기/닫기/폭/더보기와 별도 뒤로 줄, 중복 부제, 기본 Slate 콤보와 숫자 입력의 스타일/높이 차이, 반복 도움말, 비활성 Undo/Redo, 빽빽한 PCD 체크박스/점검 대상, 미리보기 경고 잘림과 작은 Slab 진행 막대를 확인했다.
+- **토큰·머리:** 제목16 Bold / 본문13 / 보조11, Text·Muted 두 회색, 간격8·섹션16·패널 여백16·폼 컨트롤32(글자 배율 반영). 레일72와 `배치/보기/시나리오/전송/결과`, 선 아이콘, Accent15% 면·왼쪽3px 막대. 머리는 `[←] 제목 [더보기] [×]` 한 줄이다. 뒤로 부모는 툴팁으로 유지하고 접기·폭·초기화는 더보기로 이동했다. 기존 폰트의 `⋯` 누락 글리프는 직접 그린 세 점으로 처리한다. 제목 드래그 hit 범위와 UXR-10 복귀·UXR-11 입력 라우팅은 유지한다.
+- **폼·행동·카드:** 센서 설정은 라벨 위/입력 아래, 소유 ComboBox/Input/SpinBox 스타일, 섹션 한 줄 도움말·작은 성능 배지/정보 버튼이다. 품질은 `전체 사양(고부하)`로 표시하고 레거시 문구/enum은 유지한다. 배치의 중복 `장비` 부제 제거·위치 저장 링크 왼쪽 정렬·기록 있는 Undo/Redo만 노출. 저장·불러오기와 상태를 저장 위치 바로 아래로 모아 큰 중간 빈칸을 없애고 같은 본문 스크롤로 접근한다. PCD 신규/재생은 켬/끔 pill 토글, `연결 확인 후 시작` 정책 이름 유지, 점검 대상 콜론 제거와 신규/재생/직접 한 줄 세그먼트다. 미리보기 경고는 한 줄 칩과 원문 툴팁, Slab 진행은 전체 폭4px·퍼센트와 오른쪽 값 정렬이다. 주요 행동만 Primary, 보조는 테두리, 도구/링크는 텍스트 버튼이며 결과의 사용 불가 행동은 숨긴다.
+- **경계:** A안 구조·기능·DTCore·Designer WBP·미등록 Widget·Blueprint API·enum 순서·저장 schema·출력 기본값 불변. 새 자산/글꼴/Tick/timer/invalidation root/센서 캡처·readback·worker 경로 없음. 기존 숨김/접힘 갱신 중단과 5Hz 제한을 유지한다. DTCore 변경 후보를 새로 추가할 필요는 없으며 기존 UXR-09 adapter 범위다.
+- **검증·완료 gate:** Editor Development, UXR/UI02/SensorMonitor/SensorWorkspace/SensorUi/SensorControl/Slab.UI 집중 회귀 **58 Success / skip3 / 실패·NotRun0**, WBP7 메모리 컴파일·quick8·layer/allowlist **0/0**·기본 화면 용어 검사(103 상수와 실제 Slate inventory) 통과. 1920×1080·1280×720 ×100/125/150% ×9화면 전후54장씩, 레일 할당 폭과 폼 높이32/40/48 검사 통과. 레일 문구 기대값2개와 세그먼트 수 검사1개만 의미를 보존해 갱신했다. 보호 파일484·개인 SaveGame9 불변이다.
+- **근거·남은 조건:** Runtime `399ea46`, `Saved/Reports/UXR/UXR-12/RESULT.md`, `summary.json`, `before/`, `after-spacing/`, `comparison/`, `manual/CHECKLIST.md`. 실패했던 폼 높이 검사·이전 문구 기대값·줄바꿈 경고 기록은 보존한다. QA 마우스 검수와 충돌하는 `UXR11.NativeCursorCaptureRhi`는 미수행이며 다른 SHA의 결과로 대체하지 않는다. 직접 마우스는 앱 Codex, release와 `verify.ps1 -Level perf -BaseCommit fe20bcb`(상대2%)는 모든 화면 작업 종료 후 Claude가 수행한다. 이 CLI에서는 release·성능 측정을 하지 않았다.
+
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
 **진행률: 90%** · CLI 구현/검증 완료, 직접 마우스는 요청된 예외에 따라 UXR-07에서 수행하며 독립 검토 대기다.

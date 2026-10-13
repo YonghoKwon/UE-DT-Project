@@ -434,13 +434,15 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-14, UI-02·UXR-10·UXR-11 적용)
+### 10.2 현재 위반 (2026-10-14, UI-02·UXR-10·UXR-11·UXR-12 적용)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 249개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 250개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다.
 
 UXR-10의 resize·하위 화면 복귀는 L3의 기존 `UDxWidget` 패널/Workspace 안에서 처리한다. Runtime 파일 수와 위반·allowlist **0/0**을 유지하고 새 모듈·플러그인·자산·저장 schema를 추가하지 않는다. 집중 D3D12 2 Success, 관련 회귀 49 Success/3 조건부 skip, WBP7 메모리 컴파일·quick8 통과이며 직접 마우스·release·성능은 요청에 따라 보류다. 근거는 `Saved/Reports/UXR/UXR-10/RESULT.md`다.
 
 UXR-11의 실제 마우스 라우팅은 L3 `UI/VirtualSensorToolWorkspaceSubsystem.Input.cpp`(Slate 입력 pre-processor)와 기존 패널 base 안에서 처리한다. 위반·allowlist **0/0** 유지.
+
+UXR-12의 표현 토큰·레일·머리·폼·카드는 기존 L3 소유 native UI 안에서만 바꾼다. 새 모듈·자산·DTCore 변경·저장 schema·Tick/invalidation root 없이 위반·allowlist **0/0** 유지. Runtime `399ea46`의 집중 회귀58 Success/skip3·WBP7·quick8·두 해상도/세 글자 배율 전후 렌더를 확인했다. 직접 마우스·통합 release·상대 성능은 인계 상태이며 `docs/IMPROVEMENTS.md` UXR-12와 `Saved/Reports/UXR/UXR-12/RESULT.md`를 따른다.
 
 | 방향 | include 쌍 수 | 위치 | 해소 항목 |
 |---|---:|---|---|
