@@ -52,6 +52,17 @@ FLinearColor UVirtualSensorPanelWidgetBase::GetToolMutedColor() const {return Is
 FLinearColor UVirtualSensorPanelWidgetBase::GetToolAccentColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Accent():FVirtualSensorUiStyle::Accent;}
 const FButtonStyle& UVirtualSensorPanelWidgetBase::GetToolButtonStyle(bool Danger) const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Button(Danger):FVirtualSensorUiStyle::ButtonStyle();}
 const FEditableTextBoxStyle& UVirtualSensorPanelWidgetBase::GetToolInputStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Input():FVirtualSensorUiStyle::EditableTextBoxStyle();}
+const FComboBoxStyle& UVirtualSensorPanelWidgetBase::GetToolComboBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::ComboBox():FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox");}
+const FSpinBoxStyle& UVirtualSensorPanelWidgetBase::GetToolSpinBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::SpinBox():FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");}
+TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolFormRow(const FText& Label,TSharedRef<SWidget> Control,TSharedRef<SWidget> Detail)
+{
+    return SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
+        [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Label)]
+            +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Detail]]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
+        [SNew(SBox).MinDesiredHeight_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale();})[Control]];
+}
 void UVirtualSensorPanelWidgetBase::PruneFontRegistrations()
 {
     for(int32 I=SensorFontLifetimes.Num()-1;I>=0;--I)if(!SensorFontLifetimes[I]()){SensorFontLifetimes.RemoveAt(I);SensorFontSetters.RemoveAt(I);}
@@ -660,33 +671,46 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeom
 TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FText& Title)
 {
 	if(IsWorkspaceOwned())
-	{
-		return SNew(SVerticalBox)
-		+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
-		 .Visibility_Lambda([this](){return SupportsOwnedDocking()&&!GetPanelBackLabel().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
-		 .IsEnabled_Lambda([this](){return CanNavigatePanelBack();})
-		 .Text_Lambda([this](){return GetPanelBackLabel();})
-		 .ToolTipText(SensorToolUiText::BackHint())
-		 .OnClicked_Lambda([this](){NavigatePanelBack();return FReply::Handled();})]
-		+SVerticalBox::Slot().AutoHeight()[
-		SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolHeaderColor()).Padding(0)
-		[SNew(SHorizontalBox)
-		 +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Bold",FMath::RoundToInt(FSensorOwnedPresentationStyle::TitleSize*GetSensorToolVisualScale()));}).ColorAndOpacity(GetToolTextColor()).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text(Title).ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("–"))).ToolTipText(FText::FromString(TEXT("접기 / 펼치기"))).OnClicked_Lambda([this](){if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid())ToolWorkspace->CollapseSidebar();else TogglePanelCollapsed();return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×"))).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
-		  .Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor?EVisibility::Visible:EVisibility::Collapsed;})
-		  .Text_Lambda([this](){return ToolWorkspace.IsValid()&&ToolWorkspace->IsSidebarWide()?SensorToolUiText::DefaultWidth():SensorToolUiText::WideWidth();})
-		  .ToolTipText(SensorToolUiText::WidthHint())
-		  .OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ToggleSidebarWidth();return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;}).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false)
-		  .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
-		  .OnGetMenuContent_Lambda([this](){return SNew(SButton).ButtonStyle(&GetToolButtonStyle())
-		   .OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
-		   [SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))];})
-		  .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolMutedColor()).Text(NSLOCTEXT("SensorToolPanel","MoreIconAscii","..."))]]
-		]];
-	}
+    {
+        // Keep the title filling the remaining width: floating title drag uses
+        // the same panel hit region as UXR-11, while actions stay compact.
+        return SNew(SBox).MinDesiredHeight_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale();})
+        [SNew(SHorizontalBox)
+         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,FSensorOwnedPresentationStyle::Gap,0)
+         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
+          .Visibility_Lambda([this](){return SupportsOwnedDocking()&&!GetPanelBackLabel().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
+          .IsEnabled_Lambda([this](){return CanNavigatePanelBack();}).Text(FText::FromString(TEXT("←")))
+          .ToolTipText_Lambda([this](){return GetPanelBackLabel();})
+          .OnClicked_Lambda([this](){NavigatePanelBack();return FReply::Handled();})]
+         +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)
+         [SNew(STextBlock).Font_Lambda([this](){return FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::TitleSize,GetSensorToolVisualScale(),true);})
+          .ColorAndOpacity(GetToolTextColor()).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text(Title)
+          .ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
+         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+         [SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;})
+          .ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false)
+          .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
+          .OnGetMenuContent_Lambda([this]()
+          {
+              auto Menu=SNew(SVerticalBox);
+              Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
+                .Text(FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기")))
+                .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid())ToolWorkspace->CollapseSidebar();else TogglePanelCollapsed();return FReply::Handled();})];
+              if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor)
+                  Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
+                    .Text(ToolWorkspace.IsValid()&&ToolWorkspace->IsSidebarWide()?SensorToolUiText::DefaultWidth():SensorToolUiText::WideWidth())
+                    .ToolTipText(SensorToolUiText::WidthHint())
+                    .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(ToolWorkspace.IsValid())ToolWorkspace->ToggleSidebarWidth();return FReply::Handled();})];
+              Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
+                .Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))
+                .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);return FReply::Handled();})];
+              return Menu;
+          })
+          .ButtonContent()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(FText::FromString(TEXT("⋯")))]]
+         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×")))
+          .ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]];
+    }
 	return SNew(SHorizontalBox)
 	+SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).ColorAndOpacity(FSensorToolWorkspaceStyle::Text()).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(18,GetSensorToolFontScale());}).Text(Title).ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단에서 크기 조절")))]
 	+SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text_Lambda([this](){return FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기"));}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]

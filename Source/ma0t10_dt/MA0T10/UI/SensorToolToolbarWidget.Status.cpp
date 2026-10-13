@@ -147,12 +147,12 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
         [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
          .Visibility_Lambda([this,I](){return (I==4&&GlobalStatus.Warning.IsEmpty())||(I==3&&!GlobalStatus.bServerConnected)?EVisibility::Collapsed:EVisibility::Visible;})
          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4&&!GlobalStatus.bServerConnected?ESensorToolDestination::ServerSettings:Destination);return FReply::Handled();})
-         [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+         [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
     }
     Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
     Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)
-      .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
+      .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
       .Text_Lambda([this](){return OwnedFontScaleText;})]];
     return Row;
 }

@@ -95,8 +95,9 @@ public:
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());if(!Bar)return false;
-        const int32 View=Phase%8;const float Scale=Phase<8?1:Phase<16?1.25f:1.5f;
-        const TCHAR* Names[]={TEXT("placement"),TEXT("preview"),TEXT("scenario"),TEXT("pcd"),TEXT("results"),TEXT("tools"),TEXT("collapsed-warning"),TEXT("floating")};
+        const int32 ViewCount=FParse::Param(FCommandLine::Get(),TEXT("Uxr12Capture"))?9:8;
+        const int32 View=Phase%ViewCount;const float Scale=Phase<ViewCount?1:Phase<2*ViewCount?1.25f:1.5f;
+        const TCHAR* Names[]={TEXT("placement"),TEXT("preview"),TEXT("scenario"),TEXT("pcd"),TEXT("results"),TEXT("tools"),TEXT("collapsed-warning"),TEXT("floating"),TEXT("settings")};
         if(!ReadyAt)
         {
             if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
@@ -109,6 +110,7 @@ public:
             if(View==5){W->CollapseSidebar();FSlateApplication::Get().PushMenu(Bar->TakeWidget(),FWidgetPath(),Bar->BuildToolsMenu(),FVector2D(100,100),FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));}
             if(View==6)W->CollapseSidebar();
             if(View==7){W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);}
+            if(View==8){Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings))->SelectOwnedSettingsTab(0);}
             ReadyAt=FPlatformTime::Seconds()+1;return false;
         }
         if(FPlatformTime::Seconds()<ReadyAt)return false;
@@ -120,7 +122,7 @@ public:
             Test->AddInfo(FString::Printf(TEXT("actual client %dx%d font %d view %s; model font=%s slab=%s scenario=%s sidebar=%d; automated render only"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View],*Bar->OwnedFontScaleText.ToString(),*Bar->SlabCardTitle.ToString(),*Bar->GlobalStatus.Scenario.ToString(),W->IsSidebarMode()));return false;
         }
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
-        Requested=false;ReadyAt=0;return ++Phase==24;
+        Requested=false;ReadyAt=0;return ++Phase==3*ViewCount;
     }
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarRenderTest,"UXR09.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

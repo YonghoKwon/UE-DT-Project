@@ -234,7 +234,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
 						]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
 						[
-							SAssignNew(NativePrimaryCameraCombo, SComboBox<TSharedPtr<FString>>)
+							SAssignNew(NativePrimaryCameraCombo, SComboBox<TSharedPtr<FString>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
 							.Visibility(EVisibility::Collapsed)
 							.OptionsSource(&NativeCameraOptions)
 							.OnGenerateWidget_Lambda([this](TSharedPtr<FString> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
@@ -243,7 +243,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
 						]
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f)
 						[
-							SAssignNew(NativeSecondaryCameraCombo, SComboBox<TSharedPtr<FString>>)
+							SAssignNew(NativeSecondaryCameraCombo, SComboBox<TSharedPtr<FString>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
 							.Visibility_Lambda([this]() { return !bShowingLidar && bDualCameraModeEnabled ? EVisibility::Visible : EVisibility::Collapsed; })
 							.OptionsSource(&NativeCameraOptions)
 							.OnGenerateWidget_Lambda([this](TSharedPtr<FString> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(Item.IsValid() ? *Item : TEXT("없음"))); })
@@ -259,7 +259,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
-                            SNew(SComboBox<TSharedPtr<ELidarMonitorProjectionMode>>)
+                            SNew(SComboBox<TSharedPtr<ELidarMonitorProjectionMode>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
                             .OptionsSource(&NativeLidarProjectionOptions)
                             .InitiallySelectedItem(InitialProjection)
@@ -280,7 +280,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
                         ]
                         + SVerticalBox::Slot().AutoHeight()
                         [
-                            SNew(SComboBox<TSharedPtr<ELidarColorMode>>)
+                            SNew(SComboBox<TSharedPtr<ELidarColorMode>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
                             .Visibility_Lambda([this]() { return bShowingLidar ? EVisibility::Visible : EVisibility::Collapsed; })
                             .OptionsSource(&NativeLidarColorOptions).InitiallySelectedItem(InitialColor)
                             .OnGenerateWidget_Lambda([this](TSharedPtr<ELidarColorMode> Item)
@@ -455,27 +455,30 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
     NativePresentationOptions={MakeShared<EVirtualSensorMonitorPresentation>(EVirtualSensorMonitorPresentation::TwoDimensional),MakeShared<EVirtualSensorMonitorPresentation>(EVirtualSensorMonitorPresentation::WorldOverlay),MakeShared<EVirtualSensorMonitorPresentation>(EVirtualSensorMonitorPresentation::PointCloudOnly)};
     auto PresentationText=[](EVirtualSensorMonitorPresentation P){return P==EVirtualSensorMonitorPresentation::PointCloudOnly?LOCTEXT("OnlyPoints","포인트 전용"):P==EVirtualSensorMonitorPresentation::WorldOverlay?LOCTEXT("OverlayPoints","2D + 월드 포인트"):LOCTEXT("Only2D","2D");};
     auto Quick=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,5)).Visibility_Lambda([this](){return bShowingLidar?GetPanelBodyVisibility():EVisibility::Collapsed;});
-    Quick->AddSlot()[SNew(SComboBox<TSharedPtr<ELidarMonitorProjectionMode>>).OptionsSource(&NativeLidarProjectionOptions).InitiallySelectedItem(Projection)
+    Quick->AddSlot()[SNew(SComboBox<TSharedPtr<ELidarMonitorProjectionMode>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&NativeLidarProjectionOptions).InitiallySelectedItem(Projection)
       .OnGenerateWidget_Lambda([this](TSharedPtr<ELidarMonitorProjectionMode> P){return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(P?LidarProjectionDisplayText(*P):TEXT("없음")));})
       .OnSelectionChanged_Lambda([this](TSharedPtr<ELidarMonitorProjectionMode> P,ESelectInfo::Type){if(P)SetLidarProjectionMode(*P);})
       [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedProjectionText;})]];
-    Quick->AddSlot()[SNew(SComboBox<TSharedPtr<ELidarColorMode>>).OptionsSource(&NativeLidarColorOptions).InitiallySelectedItem(Color)
+    Quick->AddSlot()[SNew(SComboBox<TSharedPtr<ELidarColorMode>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&NativeLidarColorOptions).InitiallySelectedItem(Color)
       .OnGenerateWidget_Lambda([this](TSharedPtr<ELidarColorMode> C){return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(C?LidarColorDisplayText(*C):TEXT("없음")));})
       .OnSelectionChanged_Lambda([this](TSharedPtr<ELidarColorMode> C,ESelectInfo::Type){if(C)SetLidarColorMode(*C);})
       [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedColorText;})]];
-    Quick->AddSlot()[SNew(SComboBox<TSharedPtr<EVirtualSensorMonitorPresentation>>).OptionsSource(&NativePresentationOptions)
+    Quick->AddSlot()[SNew(SComboBox<TSharedPtr<EVirtualSensorMonitorPresentation>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&NativePresentationOptions)
       .OnGenerateWidget_Lambda([this,PresentationText](TSharedPtr<EVirtualSensorMonitorPresentation> P){return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(P?PresentationText(*P):FText());})
       .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorMonitorPresentation> P,ESelectInfo::Type){if(P)SetMonitorPresentation(*P);})
       [SNewSensorTool(STextBlock).Text_Lambda([this,PresentationText](){return PresentationText(GetMonitorPresentation());})]];
     OwnedQuickViewControls=Quick;
-    return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(10)
+    return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(FSensorOwnedPresentationStyle::PanelPadding)
     [SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[SNew(SBox).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Collapsed:EVisibility::Visible;})[BuildToolPanelHeader(SensorToolUiText::Preview())]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolTextColor()).Text(OwnedMonitorStatus)]
-       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedViewIcon","..."))]]
+       +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("AdvancedViewIcon","⋯"))]]
        +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Visible:EVisibility::Collapsed;}).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(LOCTEXT("ClosePreviewCard","×")).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor,false);return FReply::Handled();})]]
-     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return bOwnedHasWarning?GetPanelBodyVisibility():EVisibility::Collapsed;}).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Warning()).Text_Lambda([this](){return OwnedMonitorWarning;}).ToolTipText_Lambda([this](){return OwnedMonitorWarning;})]
+     +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left)[SNew(SBorder).Visibility_Lambda([this](){return bOwnedHasWarning?GetPanelBodyVisibility():EVisibility::Collapsed;})
+       .BorderImage(FSensorOwnedPresentationStyle::ChipBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::WarningSurface()).Padding(FMargin(FSensorOwnedPresentationStyle::Gap,4))
+       .ToolTipText_Lambda([this](){return OwnedMonitorWarning;})
+       [SNewSensorTool(STextBlock).ColorAndOpacity(FSensorOwnedPresentationStyle::Warning()).Text(LOCTEXT("PreviewWarningChip","⚠ 미리보기 주의"))]]
      +SVerticalBox::Slot().FillHeight(1).Padding(0,8,0,2)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(FLinearColor(.01,.015,.025,1)).Padding(2).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        [SNew(SVerticalBox)
         +SVerticalBox::Slot().FillHeight(.7f)[SNew(SOverlay)
@@ -505,7 +508,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedAdvancedViewMenu
     Content->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("ViewHelp","표시만 변경합니다. 측정값·PCD 출력은 바꾸지 않습니다.")).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor())];
     Content->AddSlot().AutoHeight().Padding(0,8)[SNew(SVerticalBox).Visibility_Lambda([this](){return bShowingLidar?EVisibility::Collapsed:EVisibility::Visible;})
       +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).IsChecked_Lambda([this](){return bDualCameraModeEnabled?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this](ECheckBoxState S){SetDualCameraModeEnabled(S==ECheckBoxState::Checked);})[SNewSensorTool(STextBlock).Text(LOCTEXT("DualOwned","카메라 2대 동시 보기"))]]
-      +SVerticalBox::Slot().AutoHeight()[SAssignNew(NativeSecondaryCameraCombo,SComboBox<TSharedPtr<FString>>).OptionsSource(&NativeCameraOptions).Visibility_Lambda([this](){return bDualCameraModeEnabled?EVisibility::Visible:EVisibility::Collapsed;})
+      +SVerticalBox::Slot().AutoHeight()[SAssignNew(NativeSecondaryCameraCombo,SComboBox<TSharedPtr<FString>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&NativeCameraOptions).Visibility_Lambda([this](){return bDualCameraModeEnabled?EVisibility::Visible:EVisibility::Collapsed;})
         .OnGenerateWidget_Lambda([this](TSharedPtr<FString> I){return SNewSensorTool(STextBlock).Text(FText::FromString(I?*I:TEXT("없음")));})
         .OnSelectionChanged_Lambda([this](TSharedPtr<FString> I,ESelectInfo::Type){if(I)SelectSecondaryCameraBySensorId(*I);})
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedSecondaryCameraText;})]]];

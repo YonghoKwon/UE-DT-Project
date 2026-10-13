@@ -47,6 +47,9 @@ public:
 	FLinearColor GetToolAccentColor() const;
 	const FButtonStyle& GetToolButtonStyle(bool bDanger=false) const;
 	const FEditableTextBoxStyle& GetToolInputStyle() const;
+	const FComboBoxStyle& GetToolComboBoxStyle() const;
+	const FSpinBoxStyle& GetToolSpinBoxStyle() const;
+	TSharedRef<SWidget> BuildToolFormRow(const FText& Label,TSharedRef<SWidget> Control,TSharedRef<SWidget> Detail=SNullWidget::NullWidget);
 	int32 GetRegisteredFontControlCount() const { return SensorFontSetters.Num(); }
 	// PR17 compatibility names. They no longer change any global UI state.
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|SensorPanel|Accessibility")

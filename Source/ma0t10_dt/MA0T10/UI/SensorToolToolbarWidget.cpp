@@ -78,7 +78,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildOwnedFloatingToolbar()
 	return SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(8)
 	[SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[Bar]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8,0,0)[BuildStatusStrip()]
-	 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(14);}).AutoWrapText(true)
+	 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::BodySize);}).AutoWrapText(true)
 	 .Visibility_Lambda([this](){auto* W=Workspace();return W&&!W->GetPanelOpenMessage().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
 	 .Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W?W->GetPanelOpenMessage():FString());})]];
 }
@@ -100,7 +100,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildEquipmentMenu()
 	auto Menu=SNew(SVerticalBox);auto* W=Workspace();auto* C=W?W->GetCoordinator():nullptr;
 	for(const auto Kind:{EVirtualSensorKind::Lidar,EVirtualSensorKind::Camera})
 	{
-		Menu->AddSlot().AutoHeight().Padding(4,8)[SNew(STextBlock).Font(ToolFont(14)).ColorAndOpacity(FSensorOwnedPresentationStyle::Accent()).Text(FText::FromString(Kind==EVirtualSensorKind::Lidar?TEXT("LiDAR"):TEXT("Camera")))];
+		Menu->AddSlot().AutoHeight().Padding(4,8)[SNew(STextBlock).Font(ToolFont(FSensorOwnedPresentationStyle::BodySize)).ColorAndOpacity(FSensorOwnedPresentationStyle::Accent()).Text(FText::FromString(Kind==EVirtualSensorKind::Lidar?TEXT("LiDAR"):TEXT("Camera")))];
 		if(C)for(auto* A:C->GetSensorActors())if(IsValid(A)&&A->GetSensorKind()==Kind)
 		{
 			TWeakObjectPtr<AVirtualSensorActorBase> Actor=A;
@@ -199,7 +199,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildAppearanceMenu()
 	auto Menu=SNew(SVerticalBox);
 	Menu->AddSlot().AutoHeight().Padding(0,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
 	 .OnClicked_Lambda([this](){if(auto* W=Workspace())W->SetSidebarMode(!W->IsSidebarMode());FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
-	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont(13);}).Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W&&W->IsSidebarMode()?TEXT("창 자유 배치 (이전 방식)"):TEXT("작업 사이드바로 복귀"));})]];
+	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::BodySize);}).Text_Lambda([this](){auto* W=Workspace();return FText::FromString(W&&W->IsSidebarMode()?TEXT("창 자유 배치 (이전 방식)"):TEXT("작업 사이드바로 복귀"));})]];
 	for(float Scale:{.85f,1.0f,1.25f,1.5f})
 		Menu->AddSlot().AutoHeight().Padding(0,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
 		 .OnClicked_Lambda([this,Scale](){if(auto* W=Workspace())W->SetOwnedPanelFontScale(Scale);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})

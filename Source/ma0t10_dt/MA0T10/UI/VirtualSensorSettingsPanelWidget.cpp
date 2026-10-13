@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "SensorPlacementInteraction.h"
 #include "SensorToolUiText.h"
 
@@ -778,7 +779,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
 + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[ SNewSensorTool(STextBlock).Text(LOCTEXT("BasicSection", "기본 센서 설정 (입력 확정 즉시 반영)")) ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
-                    SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>)
+                    SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
                     .OptionsSource(&NativeQualityOptions)
                     .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item) { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? QualityText(*Item) : TEXT("없음"))); })
                     .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item, ESelectInfo::Type) { if (Item.IsValid()) { SelectSettingHelp(TEXT("SimulationQuality")); SetSelectedSimulationQuality(*Item); } })
@@ -786,7 +787,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
-                    SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>)
+                    SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
                     .Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
                     .OptionsSource(&NativeCameraProfileOptions)
                     .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualCameraDeviceProfile> Item) { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? CameraProfileText(*Item) : TEXT("없음"))); })
@@ -795,7 +796,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
                 ]
                 + SVerticalBox::Slot().AutoHeight()
                 [
-                    SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>)
+                    SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
                     .Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
                     .OptionsSource(&NativeLidarProfileOptions)
                     .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualLidarDeviceProfile> Item) { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? LidarProfileText(*Item) : TEXT("없음"))); })
@@ -925,11 +926,11 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     const auto Explain=[this](FName Key){return SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(FText::Format(LOCTEXT("OwnedShortHelp","{0} · 성능 영향: {1}"),OwnedSettingExplanation(Key),OwnedSettingImpact(Key)));};
     Basic->AddSlot().AutoHeight().Padding(0,4)[SNew(SVerticalBox)
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedProfileLabel","장비 프로필"))]
-      +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).Visibility_Lambda(CameraVisible).OptionsSource(&NativeCameraProfileOptions)
+      +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).Visibility_Lambda(CameraVisible).OptionsSource(&NativeCameraProfileOptions)
         .OnGenerateWidget_Lambda([this](auto Item){return SNewSensorTool(STextBlock).Text(FText::FromString(Item?CameraProfileText(*Item):FString()));})
         .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item)ApplyOwnedProfileSelection(*Item,PendingState.LidarProfile);})
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedProfileText;})]]
-      +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>).Visibility_Lambda(LidarVisible).OptionsSource(&NativeLidarProfileOptions)
+      +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).Visibility_Lambda(LidarVisible).OptionsSource(&NativeLidarProfileOptions)
         .OnGenerateWidget_Lambda([this](auto Item){return SNewSensorTool(STextBlock).Text(FText::FromString(Item?LidarProfileText(*Item):FString()));})
         .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item)ApplyOwnedProfileSelection(PendingState.CameraProfile,*Item);})
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedProfileText;})]]
@@ -937,7 +938,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedProfileInfo","ⓘ 장비 규격 상세")).OnClicked_Lambda([this](){OpenOwnedSettingHelp(TEXT("DeviceProfile"));return FReply::Handled();})]];
     Basic->AddSlot().AutoHeight().Padding(0,6)[SNew(SVerticalBox)
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedQualityLabel","시뮬레이션 품질"))]
-      +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>).OptionsSource(&NativeQualityOptions)
+      +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&NativeQualityOptions)
         .OnGenerateWidget_Lambda([this](auto Item){return SNewSensorTool(STextBlock).Text(FText::FromString(Item?QualityText(*Item):FString()));})
         .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(Item){SelectSettingHelp(TEXT("SimulationQuality"));SetSelectedSimulationQuality(*Item);}})
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedQualityText;})]]
