@@ -3,6 +3,7 @@
 #include "SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "VirtualSensorUiStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
@@ -111,7 +112,7 @@ bool USlabScenarioReplayPanelWidget::ConfirmScenarioDeletion()
 void USlabScenarioReplayPanelWidget::CancelScenarioDeletion() { PendingDeleteUUID.Reset(); ActionMessage=TEXT("삭제를 취소했습니다."); }
 FSlateFontInfo USlabScenarioReplayPanelWidget::GetListFont(bool Secondary) const
 {
-	const int32 Base=IsWorkspaceOwned()?(Secondary?12:13):10;
+	const int32 Base=IsWorkspaceOwned()?(Secondary?FSensorOwnedPresentationStyle::LabelSize:FSensorOwnedPresentationStyle::BodySize):10;
 	return FCoreStyle::GetDefaultFontStyle("Regular",FMath::Max(8,FMath::RoundToInt(Base*(IsWorkspaceOwned()?GetSensorToolVisualScale():1.0f))));
 }
 bool USlabScenarioReplayPanelWidget::IsDeletionAllowed(const FString& UUID) const
@@ -193,10 +194,9 @@ void USlabScenarioReplayPanelWidget::RefreshList()
 TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
 {
     if(WidgetTree&&WidgetTree->RootWidget)return Super::RebuildWidget();
-    auto Result=SNew(SBorder).BorderImage_Lambda([this](){return GetToolPanelBrush();}).BorderBackgroundColor_Lambda([this](){return GetToolPanelColor();}).ForegroundColor_Lambda([this](){return GetToolTextColor();}).Padding(12)
+    auto Result=SNew(SBorder).BorderImage_Lambda([this](){return GetToolPanelBrush();}).BorderBackgroundColor_Lambda([this](){return GetToolPanelColor();}).ForegroundColor_Lambda([this](){return GetToolTextColor();}).Padding(IsWorkspaceOwned()?FSensorOwnedPresentationStyle::PanelPadding:12)
     [SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(IsWorkspaceOwned()?SensorToolUiText::ArchiveList():LOCTEXT("ReplayTitle","시나리오"))]
-     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return GetToolWorkspace()&&GetToolWorkspace()->IsSidebarMode()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("ReturnProgress","시나리오 진행 →")).OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace())W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);return FReply::Handled();})]
      +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).ColorAndOpacity_Lambda([this](){return GetToolAccentColor();}).Text_Lambda([this](){if(UsesSimplifiedNativeLayout())return OwnedRegistrationLabel;auto* M=Manager();return FText::FromString(M?M->GetRegistrationMessage():TEXT("연결 대기"));})]
      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return ActionMessage.IsEmpty()?EVisibility::Collapsed:GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){return UsesSimplifiedNativeLayout()?OwnedActionLabel:FText::FromString(ActionMessage);})]
      +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[SAssignNew(List,SVerticalBox)]]
@@ -206,7 +206,7 @@ TSharedRef<SWidget> USlabScenarioReplayPanelWidget::RebuildWidget()
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Details","선택 항목 상세"))]
       .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){if(UsesSimplifiedNativeLayout())return OwnedSelectedDetailLabel;auto* M=Manager();if(M)for(const auto& E:M->GetScenarios())if(E.UUID==SelectedUUID)return FText::FromString(FString::Printf(TEXT("%s: %s\n수신: %s\n마지막 데이터: %.2f초"),E.bGeneratedArchiveId?TEXT("내부 보관 ID (원본 UUID 없음)"):TEXT("원본 UUID"),*E.UUID,*E.ReceivedUtc.ToIso8601(),E.LastElapsedSec));return LOCTEXT("Select","항목을 선택하세요.");})]]
      +SVerticalBox::Slot().AutoHeight()[BuildOutputControls()]
-     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
+     +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).Text(LOCTEXT("Play","처음부터 재생")).ButtonStyle(IsWorkspaceOwned()?&FSensorOwnedPresentationStyle::PrimaryButton():&GetToolButtonStyle()).IsEnabled_Lambda([this](){auto* M=Manager();return M&&M->CanReplay()&&!SelectedUUID.IsEmpty();}).OnClicked_Lambda([this](){ReplaySelected();return FReply::Handled();})]
      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).AutoWrapText(true).Text_Lambda([this](){if(UsesSimplifiedNativeLayout())return OwnedReplayStatusLabel;auto* M=Manager();if(!M)return LOCTEXT("Missing","관리자 없음");const auto S=M->GetReplayStatus();return FText::FromString(S.Message.IsEmpty()?(M->CanReplay()?TEXT("재생 준비됨 · 보관 시나리오를 선택하세요."):TEXT("현재 실행 종료와 재생 adapter 연결을 확인하세요.")):S.Message);})]
     ]; RefreshList();return Result;
 }

@@ -342,6 +342,8 @@ bool ASlabActor::SetExecutionOptions(FSlabExecutionOptions Options)
 void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance();RecordSurfaceUsage(Status.RunUUID); OnSlabStateChanged.Broadcast(); }
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
 bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }
+void ASlabActor::SetDetailedDiagnosticLabels(bool bVisible) { if(VisualizationComponent)VisualizationComponent->SetDetailedLabels(bVisible); }
+bool ASlabActor::GetDetailedDiagnosticLabels() const { return VisualizationComponent&&VisualizationComponent->GetDetailedLabels(); }
 void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)
 { AnalysisDisplaySettings=Settings;AnalysisDisplaySettings.Sanitize();VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings);OnSlabStateChanged.Broadcast(); }
 FSoftObjectPath ASlabActor::ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured)
@@ -406,10 +408,10 @@ void ASlabActor::UpdateAppearance()
 			FLinearColor BaseColor;float BaseMetallic=0;
 			if(bHasBaselineColdColor)BaseColor=BaselineColdColor;
 			if(bHasBaselineColdColor||Material->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),BaseColor))
-				SurfaceInstance->SetVectorParameterValue(TEXT("ColdColor"),SurfacePreset==ESlabSurfacePreset::CooledSteel?FLinearColor(.18,.23,.29):SurfacePreset==ESlabSurfacePreset::AnalysisMatte?FLinearColor(.045,.055,.065):BaseColor);
+				SurfaceInstance->SetVectorParameterValue(TEXT("ColdColor"),SurfacePreset==ESlabSurfacePreset::CooledSteel?FLinearColor(.28,.30,.32):SurfacePreset==ESlabSurfacePreset::AnalysisMatte?FLinearColor(.028,.031,.035):BaseColor);
 			if(bHasBaselineMetallic)BaseMetallic=BaselineSurfaceMetallic;
 			if(bHasBaselineMetallic||Material->GetScalarParameterValue(FMaterialParameterInfo(TEXT("Metallic")),BaseMetallic))
-				SurfaceInstance->SetScalarParameterValue(TEXT("Metallic"),SurfacePreset==ESlabSurfacePreset::CooledSteel?.65f:SurfacePreset==ESlabSurfacePreset::AnalysisMatte?.02f:BaseMetallic);
+				SurfaceInstance->SetScalarParameterValue(TEXT("Metallic"),SurfacePreset==ESlabSurfacePreset::CooledSteel?.8f:SurfacePreset==ESlabSurfacePreset::AnalysisMatte?.02f:BaseMetallic);
 		}
 	}
 }

@@ -28,8 +28,10 @@ public:
 	bool OpenOwnedDestination(ESensorToolDestination Destination);
 	bool ToggleOwnedDestination(ESensorToolDestination Destination);
 	bool IsOwnedDestinationVisible(ESensorToolDestination Destination) const;
+	bool ShowOwnedToolsMenu();
 	const FSensorToolGlobalStatus& GetGlobalStatus() const { return GlobalStatus; }
 	float GetFloatingToolbarHeight() const;
+	TSharedPtr<SWidget> GetSlabSummaryCard() const { return SlabSummaryCard; }
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
@@ -58,6 +60,7 @@ private:
 	float DisplayedFontScale=-1.f;
 	double NextStatusRefresh=-1;
 	TWeakObjectPtr<ASlabActor> StatusSlab;
+	TWeakObjectPtr<ASlabActor> LabelExclusionSlab;
 	double NextSlabLookup=0;
 	int32 CachedSlabCount=0;
 	void RefreshOwnedStatus(double Now);
@@ -69,6 +72,7 @@ private:
 	bool IsSidebarRouteSelected(ESensorToolDestination Destination) const;
 	TSharedRef<SWidget> BuildOwnedFloatingToolbar();
 	TSharedPtr<SWidget> FloatingToolbar;
+	TSharedPtr<SWidget> SlabSummaryCard;
 	FText SlabCardTitle,SlabCardAngle,SlabCardOffset,SlabCardMargin;
 	float SlabCardProgress=0;
 };

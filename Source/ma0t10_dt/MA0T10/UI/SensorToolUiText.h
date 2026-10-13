@@ -9,6 +9,22 @@ namespace SensorToolUiText
     inline FText NoEquipment() { return LOCTEXT("NoEquipment", "장비 없음"); }
     inline FText AddEquipment() { return LOCTEXT("AddEquipment", "+ 장비 추가 (배치)"); }
     inline FText Placement() { return LOCTEXT("Placement", "배치"); }
+    inline FText RailPreview() { return LOCTEXT("RailPreview", "보기"); }
+    inline FText RailTransfer() { return LOCTEXT("RailTransfer", "전송"); }
+    inline FText BackPlacement() { return LOCTEXT("BackPlacement", "← 배치"); }
+    inline FText BackProgress() { return LOCTEXT("BackProgress", "← 시나리오 진행"); }
+    inline FText BackSettings() { return LOCTEXT("BackSettings", "← 센서 상세 설정"); }
+    inline FText BackTools() { return LOCTEXT("BackTools", "← 도구"); }
+    inline FText BackTransfer() { return LOCTEXT("BackTransfer", "← PCD 전송"); }
+    inline FText BackResults() { return LOCTEXT("BackResults", "← 결과"); }
+    inline FText BackFile() { return LOCTEXT("BackFile", "← 파일 저장"); }
+    inline FText BackServer() { return LOCTEXT("BackServer", "← 서버 연결 설정"); }
+    inline FText BackDiagnostics() { return LOCTEXT("BackDiagnostics", "← 진단"); }
+    inline FText BackHint() { return LOCTEXT("BackHint", "상위 화면으로 돌아갑니다. 조작 중에는 조작을 종료한 뒤 돌아가세요."); }
+    inline FText DefaultWidth() { return LOCTEXT("DefaultWidth", "기본 폭"); }
+    inline FText WideWidth() { return LOCTEXT("WideWidth", "넓게"); }
+    inline FText WidthHint() { return LOCTEXT("WidthHint", "사이드바 폭을 기본 / 넓게 전환합니다."); }
+    inline FText ResizeHint() { return LOCTEXT("ResizeHint", "모서리를 드래그해 창 크기를 조절합니다."); }
     inline FText Preview() { return LOCTEXT("Preview", "미리보기"); }
     inline FText Scenario() { return LOCTEXT("Scenario", "시나리오"); }
     inline FText ScenarioProgress() { return LOCTEXT("ScenarioProgress", "시나리오 · 진행"); }
@@ -37,7 +53,7 @@ namespace SensorToolUiText
     inline FText ChangeInTransfer() { return LOCTEXT("ChangeInTransfer", "PCD 전송에서 변경"); }
     inline FText DirectTransfer() { return LOCTEXT("DirectTransfer", "시나리오 없이 직접 전송"); }
     inline FText PreflightDetails() { return LOCTEXT("PreflightDetails", "사전 점검 상세"); }
-    inline FText PreflightTarget() { return LOCTEXT("PreflightTarget", "점검 대상:"); }
+    inline FText PreflightTarget() { return LOCTEXT("PreflightTarget", "점검 대상"); }
     inline FText DirectTarget() { return LOCTEXT("DirectTarget", "직접 전송"); }
     inline FText PcdServerRequired() { return LOCTEXT("PcdServerRequired", "PCD 전송에는 서버 연결 설정이 필요합니다"); }
     inline FString UserReason(FString Reason);

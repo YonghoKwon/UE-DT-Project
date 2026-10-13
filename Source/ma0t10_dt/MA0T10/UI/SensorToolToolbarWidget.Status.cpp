@@ -11,6 +11,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
 #include "EngineUtils.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -111,6 +112,10 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         else if(Simulation.State==ESlabSimulationState::Paused)GlobalStatus.Scenario=SensorToolUiText::ScenarioPaused();
         else if(Simulation.State==ESlabSimulationState::Preparing)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
     }
+    if(LabelExclusionSlab!=StatusSlab&&LabelExclusionSlab.IsValid())
+        if(auto* V=LabelExclusionSlab->FindComponentByClass<USlabVisualizationComponent>())V->SetLabelExclusionRects(nullptr,{});
+    LabelExclusionSlab=StatusSlab;
+    if(StatusSlab.IsValid())if(auto* V=StatusSlab->FindComponentByClass<USlabVisualizationComponent>())V->SetLabelExclusionRects(this,W->GetOwnedDiagnosticExclusionRects());
     if(Session.State==EVirtualSlabSessionState::Draining)GlobalStatus.Scenario=SensorToolUiText::ScenarioDraining();
     else if(Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
     // A single actionable summary; technical details stay in the destination panel.
@@ -142,12 +147,12 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
         [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
          .Visibility_Lambda([this,I](){return (I==4&&GlobalStatus.Warning.IsEmpty())||(I==3&&!GlobalStatus.bServerConnected)?EVisibility::Collapsed:EVisibility::Visible;})
          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4&&!GlobalStatus.bServerConnected?ESensorToolDestination::ServerSettings:Destination);return FReply::Handled();})
-         [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+         [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
     }
     Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
     Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)
-      .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(12);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
+      .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
       .Text_Lambda([this](){return OwnedFontScaleText;})]];
     return Row;
 }

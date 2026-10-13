@@ -95,8 +95,9 @@ public:
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());if(!Bar)return false;
-        const int32 View=Phase%8;const float Scale=Phase<8?1:Phase<16?1.25f:1.5f;
-        const TCHAR* Names[]={TEXT("placement"),TEXT("preview"),TEXT("scenario"),TEXT("pcd"),TEXT("results"),TEXT("tools"),TEXT("collapsed-warning"),TEXT("floating")};
+        const int32 ViewCount=FParse::Param(FCommandLine::Get(),TEXT("Uxr12Capture"))?9:8;
+        const int32 View=Phase%ViewCount;const float Scale=Phase<ViewCount?1:Phase<2*ViewCount?1.25f:1.5f;
+        const TCHAR* Names[]={TEXT("placement"),TEXT("preview"),TEXT("scenario"),TEXT("pcd"),TEXT("results"),TEXT("tools"),TEXT("collapsed-warning"),TEXT("floating"),TEXT("settings")};
         if(!ReadyAt)
         {
             if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
@@ -109,18 +110,50 @@ public:
             if(View==5){W->CollapseSidebar();FSlateApplication::Get().PushMenu(Bar->TakeWidget(),FWidgetPath(),Bar->BuildToolsMenu(),FVector2D(100,100),FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));}
             if(View==6)W->CollapseSidebar();
             if(View==7){W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);}
+            if(View==8){Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings))->SelectOwnedSettingsTab(0);}
             ReadyAt=FPlatformTime::Seconds()+1;return false;
         }
         if(FPlatformTime::Seconds()<ReadyAt)return false;
         if(!Requested)
         {
+            if(FParse::Param(FCommandLine::Get(),TEXT("Uxr12Validate")))
+            {
+                // Arranged geometry catches the rail clipping and mixed input
+                // heights that a text inventory or token-value test cannot.
+                TFunction<void(const TSharedRef<SWidget>&)> CheckRail=[&](const TSharedRef<SWidget>& Item)
+                {
+                    if(!Item->GetVisibility().IsVisible())return;
+                    if(Item->GetType()==TEXT("STextBlock"))
+                    {
+                        const auto Text=StaticCastSharedRef<STextBlock>(Item);
+                        if(TArray<FString>{TEXT("배치"),TEXT("보기"),TEXT("시나리오"),TEXT("전송"),TEXT("결과")}.Contains(Text->GetText().ToString()))
+                            Test->TestTrue(TEXT("rail label fits its arranged width"),Text->GetDesiredSize().X<=Text->GetCachedGeometry().GetLocalSize().X+1.f);
+                    }
+                    auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)CheckRail(Children->GetChildAt(I));
+                };
+                CheckRail(Bar->TakeWidget());
+                if(View==8)
+                {
+                    TArray<float> Heights;
+                    TFunction<void(const TSharedRef<SWidget>&)> CheckInputs=[&](const TSharedRef<SWidget>& Item)
+                    {
+                        if(!Item->GetVisibility().IsVisible())return;
+                        if(Item->GetTypeAsString().StartsWith(TEXT("SComboBox<"))||Item->GetTypeAsString().StartsWith(TEXT("SSpinBox<")))Heights.Add(Item->GetCachedGeometry().GetLocalSize().Y);
+                        auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)CheckInputs(Children->GetChildAt(I));
+                    };
+                    CheckInputs(W->GetOwnedPanel(ESensorToolPanelRole::Settings)->TakeWidget());
+                    Test->TestTrue(TEXT("settings fixture arranges combo and numeric inputs"),Heights.Num()>=3);
+                    if(!Heights.IsEmpty())for(float Height:Heights)Test->TestTrue(TEXT("owned form inputs use the same arranged height"),FMath::IsNearlyEqual(Height,Heights[0],1.f));
+                    for(float Height:Heights)Test->AddInfo(FString::Printf(TEXT("UXR12 input logical height %.2f font %.2f"),Height,Scale));
+                }
+            }
             const auto V=World->GetGameViewport()->Viewport->GetSizeXY();const FString RequestedRoot=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));const FString Root=RequestedRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-09"):RequestedRoot;
             Path=Root/FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View]);Previous=IFileManager::Get().GetTimeStamp(*Path);
             FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;
             Test->AddInfo(FString::Printf(TEXT("actual client %dx%d font %d view %s; model font=%s slab=%s scenario=%s sidebar=%d; automated render only"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View],*Bar->OwnedFontScaleText.ToString(),*Bar->SlabCardTitle.ToString(),*Bar->GlobalStatus.Scenario.ToString(),W->IsSidebarMode()));return false;
         }
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
-        Requested=false;ReadyAt=0;return ++Phase==24;
+        Requested=false;ReadyAt=0;return ++Phase==3*ViewCount;
     }
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarRenderTest,"UXR09.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

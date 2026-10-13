@@ -51,6 +51,7 @@ ARCH-07 기준 전체 Scripts 파일 분류. 삭제·서비스 재시작·Broker
 | [export_websocket_transaction_registration_report.ps1](export_websocket_transaction_registration_report.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [inspect_binary_pcd.py](inspect_binary_pcd.py) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [inspect_launcher_package_map.py](inspect_launcher_package_map.py) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
+| [install_verify_automation.ps1](install_verify_automation.ps1) | 현재 사용 | QA-02 opt-in 설치(pre-commit quick hook / 야간 feature 예약). 설치는 사용자 승인 후 |
 | [invoke_local_decision_precommit_gate.ps1](invoke_local_decision_precommit_gate.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [invoke_unused_content_archive.ps1](invoke_unused_content_archive.ps1) | 폐기 후보 | 이전 archive workflow; 현재 승인 범위에 포함되지 않음, 삭제 금지 |
 | [prepare_monitor_wbp_editor_review.ps1](prepare_monitor_wbp_editor_review.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
@@ -70,6 +71,7 @@ ARCH-07 기준 전체 Scripts 파일 분류. 삭제·서비스 재시작·Broker
 | [run_fullspec_performance_evidence.ps1](run_fullspec_performance_evidence.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [run_lidar_geometry_stream_test.ps1](run_lidar_geometry_stream_test.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [run_pcd_demand_acceptance.ps1](run_pcd_demand_acceptance.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
+| [run_perf_abab.ps1](run_perf_abab.ps1) | 현재 사용 | QA-02 표준 성능 gate(`verify -Level perf`): 두 revision archive·ABAB×N·중앙값 2% 판정, `-SummarizeOnly` 재판정 |
 | [run_point_cloud_rhi_smoke.ps1](run_point_cloud_rhi_smoke.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [run_scenario_data_reliability_faults.ps1](run_scenario_data_reliability_faults.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [run_sensor_map_stream_rhi_smoke.ps1](run_sensor_map_stream_rhi_smoke.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |

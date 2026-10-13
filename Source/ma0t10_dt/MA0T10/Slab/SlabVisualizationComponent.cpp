@@ -1,4 +1,5 @@
 #include "SlabVisualizationComponent.h"
+#include "SlabLabelLayout.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
@@ -73,7 +74,7 @@ void USlabVisualizationComponent::UpdateAnalysis(const FSlabScenarioRow&,const F
 	FixedReferenceLength=ReferenceLengthCm>0&&FMath::IsFinite(ReferenceLengthCm)?ReferenceLengthCm:Size.X*1.2;
 	if(MaterialId!=Status.MtlNo) MaterialId=Status.MtlNo;
 	FrameNo=Status.FrameNo; Elapsed=Status.ElapsedSec; Duration=Status.DurationSec; Progress=Status.Progress; bHasAnalysis=true;
-	EnsureHelpers();DrawAnalysis();SetComponentTickEnabled(bHelpersVisible&&Display.HasAny());
+	EnsureHelpers();SetComponentTickEnabled(bHelpersVisible&&Display.HasAny());
 }
 void USlabVisualizationComponent::SetLine(int32 I,const FVector& A,const FVector& B,float Thickness,FLinearColor Color,bool Visible)
 {
@@ -128,82 +129,105 @@ void USlabVisualizationComponent::DrawAnalysis()
 		SetLine(29+Side*2,Finish-Tick,Finish+Tick,Stroke,Gap<0?Red:Green,Display.bMargins&&bRails);
 	}
 }
+void USlabVisualizationComponent::SetDetailedLabels(bool bVisible)
+{
+    if(bEnding||bDetailedLabels==bVisible)return;
+    bDetailedLabels=bVisible;UpdateLabels();
+}
+void USlabVisualizationComponent::SetLabelExclusionRects(const UObject* Owner,const TArray<FBox2D>& Rects)
+{
+    if(bEnding)return;
+    ExclusionOwner=Owner;LabelExclusions=Rects;
+}
 void USlabVisualizationComponent::UpdateLabels()
 {
-	if(Labels.Num()!=MaxTextHelpers||!GetOwner()) return;
-	if(!bHelpersVisible||!bHasAnalysis) { for(UTextRenderComponent* T:Labels) T->SetVisibility(false);for(UStaticMeshComponent* B:LabelBackgrounds)B->SetVisibility(false);return; }
-	const FTransform Pose=GetOwner()->GetActorTransform(); const double Z=Size.Z/2+FMath::Max(15.0,Size.Y*.2);
-	const FString ShortId=MaterialId.Len()>24?MaterialId.Left(21)+TEXT("..."):MaterialId;
-	const FString Texts[5]={FString::Printf(TEXT("Yaw %+.2f deg"),LastMetrics.LeftAngle),bRails?FString::Printf(TEXT("L %+.1f cm%s"),LastMetrics.MarginLeftCm,LastMetrics.MarginLeftCm<0?TEXT(" [침범]"):TEXT("")):TEXT("L N/A"),bRails?FString::Printf(TEXT("R %+.1f cm%s"),LastMetrics.MarginRightCm,LastMetrics.MarginRightCm<0?TEXT(" [침범]"):TEXT("")):TEXT("R N/A"),FString::Printf(TEXT("%s | frame %lld\n%.1f / %.1f s  %.1f%%"),*ShortId,FrameNo,Elapsed,Duration,Progress*100),FMath::IsNearlyZero(LastMetrics.CenterOffsetCm,.01)?TEXT("Center aligned"):FString::Printf(TEXT("Center %+.1f cm"),LastMetrics.CenterOffsetCm)};
-	const FVector Positions[5]={FVector(Size.Y*.65,0,Z),FVector(0,-Size.Y*.8,Z),FVector(0,Size.Y*.8,Z),FVector(-Size.X*.35,0,Z+20),FVector(Size.X*.3,0,Z)};
-	const bool Visible[5]={Display.bYaw,Display.bMargins,Display.bMargins,Display.bStatus,Display.bCenterline};
-	APlayerController* PC=GetWorld()?GetWorld()->GetFirstPlayerController():nullptr;
-	FVector WorldPositions[5]; for(int32 I=0;I<5;++I) WorldPositions[I]=Pose.TransformPositionNoScale(Positions[I]);
-	float TextSize=FMath::Clamp(static_cast<float>(Size.Y*.18),25.0f,45.0f);
-	if(PC&&PC->PlayerCameraManager)
-	{
-		const auto& View=PC->PlayerCameraManager->GetCameraCacheView(); const FRotationMatrix ViewRotation(View.Rotation);
-		const FVector Right=ViewRotation.GetUnitAxis(EAxis::Y),Up=ViewRotation.GetUnitAxis(EAxis::Z),Forward=ViewRotation.GetUnitAxis(EAxis::X);
-		const FVector Centre=Pose.TransformPositionNoScale(FVector(0,0,Size.Z/2+3));
-		const double Depth=FMath::Max(10.0,FVector::DotProduct(Centre-View.Location,Forward));
-		int32 Width=0,Height=0; PC->GetViewportSize(Width,Height); if(Width<=0||Height<=0){Width=1280;Height=720;}
-		double Aspect=double(Width)/Height;
-		if(View.bConstrainAspectRatio&&View.AspectRatio>0) {Aspect=View.AspectRatio; Height=FMath::Min(Height,FMath::RoundToInt(Width/Aspect));}
-		const bool bOrtho=View.ProjectionMode==ECameraProjectionMode::Orthographic;
-		TextSize=CalculateScreenWorldSize(Depth,View.FOV,Height,Aspect,Display.TextHeightPixels,bOrtho,View.OrthoWidth);
-		const FVector AxisX=Pose.GetUnitAxis(EAxis::X),AxisY=Pose.GetUnitAxis(EAxis::Y),AxisZ=Pose.GetUnitAxis(EAxis::Z);
-		auto Extent=[&](const FVector& Axis){return .5*(FMath::Abs(FVector::DotProduct(AxisX,Axis))*Size.X+FMath::Abs(FVector::DotProduct(AxisY,Axis))*Size.Y+FMath::Abs(FVector::DotProduct(AxisZ,Axis))*Size.Z);};
-		const double X=Extent(Right),Y=Extent(Up),Side=FVector::DotProduct(TrackTransform.GetUnitAxis(EAxis::Y),Right)<0?-1.0:1.0;
-		// Screen-separated anchors, still at the physical Slab's view depth. L/R refer to Track sides.
-		FVector2D Offsets[5]={FVector2D(0,Y+TextSize*1.2),FVector2D(-Side*(X+TextSize*4.0),0),FVector2D(Side*(X+TextSize*4.0),0),FVector2D(0,-Y-TextSize*2.2),FVector2D(0,Y+TextSize*2.7)};
-		const double HalfViewX=bOrtho?View.OrthoWidth/2:Depth*FMath::Tan(FMath::DegreesToRadians(FMath::Clamp(double(View.FOV),5.0,170.0))*.5);
-		const double HalfViewY=HalfViewX/Aspect;
-		for(int32 I=0;I<5;++I)
-		{
-			const double TextHalfWidth=TextSize*(I==3?8.0:4.0);
-			Offsets[I].X=FMath::Clamp(Offsets[I].X,-FMath::Max(0.0,HalfViewX-TextHalfWidth),FMath::Max(0.0,HalfViewX-TextHalfWidth));
-			Offsets[I].Y=FMath::Clamp(Offsets[I].Y,-FMath::Max(0.0,HalfViewY-TextSize*1.5),FMath::Max(0.0,HalfViewY-TextSize*1.5));
-			WorldPositions[I]=Centre+Right*Offsets[I].X+Up*Offsets[I].Y;
-		}
-		// Presentation labels sit on a nearer view plane, not on the Slab/floor. Preserve the
-		// screen anchor and glyph pixels by scaling all camera-relative coordinates equally.
-		const double NearDepth=FMath::Max(50.0,double(bOrtho?View.OrthoNearClipPlane:View.GetFinalPerspectiveNearClipPlane())+20.0);
-		const double MaximumPull=FMath::Max(0.0,Depth-NearDepth);
-		double Pull=FMath::Min(MaximumPull,Extent(Forward)+TextSize*3.0);
-		const FVector TrackUp=TrackTransform.GetUnitAxis(EAxis::Z);
-		const double SafeHeight=TextSize*1.1+5.0,CameraHeight=FVector::DotProduct(View.Location-TrackTransform.GetLocation(),TrackUp);
-		for(int32 I=0;I<5;++I) if(Visible[I])
-		{
-			const double HeightAboveFloor=FVector::DotProduct(WorldPositions[I]-TrackTransform.GetLocation(),TrackUp);
-			if(HeightAboveFloor>=SafeHeight) continue;
-			if(bOrtho)
-			{
-				const double RisePerCm=-FVector::DotProduct(Forward,TrackUp);
-				if(RisePerCm>0.01) Pull=FMath::Max(Pull,(SafeHeight-HeightAboveFloor)/RisePerCm);
-			}
-			else if(CameraHeight>SafeHeight)
-			{
-				const double RequiredScale=(CameraHeight-SafeHeight)/(CameraHeight-HeightAboveFloor);
-				Pull=FMath::Max(Pull,Depth*(1.0-FMath::Clamp(RequiredScale,0.0,1.0)));
-			}
-		}
-		Pull=FMath::Clamp(Pull,0.0,MaximumPull); float LabelScale=1;
-		for(FVector& Position:WorldPositions) Position=PullLabelTowardCamera(Position,View.Location,Forward,Depth,Pull,bOrtho,LabelScale);
-		TextSize*=LabelScale;
-	}
-	for(int32 I=0;I<MaxTextHelpers;++I)
-	{
-		auto* T=Labels[I].Get();T->SetVisibility(Visible[I]);if(LabelBackgrounds.IsValidIndex(I))LabelBackgrounds[I]->SetVisibility(Visible[I]);if(!Visible[I])continue;
-		if(T->Text.ToString()!=Texts[I])T->SetText(FText::FromString(Texts[I]));T->SetWorldSize(TextSize);T->SetWorldLocation(WorldPositions[I]);
-		if(PC&&PC->PlayerCameraManager) T->SetWorldRotation((PC->PlayerCameraManager->GetCameraLocation()-T->GetComponentLocation()).Rotation());
-		T->SetTextRenderColor((I==1&&LastMetrics.MarginLeftCm<0)||(I==2&&LastMetrics.MarginRightCm<0)?FColor::Red:FColor::White);
-		if(LabelBackgrounds.IsValidIndex(I))
-		{
-			const FVector Bounds=T->GetTextLocalSize();
-			LabelBackgrounds[I]->SetWorldTransform(FTransform(T->GetComponentQuat(),T->GetComponentLocation()-T->GetForwardVector()*FMath::Max(.5f,TextSize*.08f),FVector(.002,FMath::Max(TextSize*2.f,float(Bounds.Y))+TextSize*.6f,FMath::Max(TextSize,float(Bounds.Z))+TextSize*.35f)/FVector(1,100,100)));
-		}
-	}
+    if(Labels.Num()!=MaxTextHelpers||!GetOwner())return;
+    auto Hide=[&](){for(int32 I=0;I<5;++I){Labels[I]->SetVisibility(false);LabelBackgrounds[I]->SetVisibility(false);Helpers[32+I]->SetVisibility(false);}};
+    if(!bHelpersVisible||!bHasAnalysis){Hide();return;}
+    auto* PC=GetWorld()?GetWorld()->GetFirstPlayerController():nullptr;
+    if(!PC||!PC->PlayerCameraManager){Hide();return;}
+    const auto& View=PC->PlayerCameraManager->GetCameraCacheView();
+    const FRotationMatrix Rotation(View.Rotation);const FVector Forward=Rotation.GetUnitAxis(EAxis::X),Up=Rotation.GetUnitAxis(EAxis::Z),Right=Rotation.GetUnitAxis(EAxis::Y);
+    const FTransform Pose=GetOwner()->GetActorTransform();const FVector Center=Pose.TransformPositionNoScale(FVector(0,0,Size.Z/2+3));
+    const double Depth=FVector::DotProduct(Center-View.Location,Forward);
+    const bool Ortho=View.ProjectionMode==ECameraProjectionMode::Orthographic;
+    const float Fade=SlabLabelLayout::DistanceFade(Ortho?View.OrthoWidth:Depth);
+    int32 Width=0,Height=0;PC->GetViewportSize(Width,Height);
+    FVector2D CenterPixel;
+    if(Width<=0||Height<=0||Depth<=10||Fade<.05f||!PC->ProjectWorldLocationToScreen(Center,CenterPixel)||
+        CenterPixel.X<0||CenterPixel.Y<0||CenterPixel.X>Width||CenterPixel.Y>Height){Hide();return;}
+    if(!ExclusionOwner.IsValid())LabelExclusions.Reset();
+    double Aspect=double(Width)/Height;int32 ViewHeight=Height;
+    if(View.bConstrainAspectRatio&&View.AspectRatio>0){Aspect=View.AspectRatio;ViewHeight=FMath::Min(Height,FMath::RoundToInt(Width/Aspect));}
+    const float Pixels=FMath::Clamp(Display.TextHeightPixels*.68f,14.f,28.f)*(.75f+.25f*Fade);
+    const float WorldSize=CalculateScreenWorldSize(Depth,View.FOV,ViewHeight,Aspect,Pixels,Ortho,View.OrthoWidth);
+    FBox2D SlabRect(ForceInit);
+    double ExtentForward=0;
+    for(int32 X=-1;X<=1;X+=2)for(int32 Y=-1;Y<=1;Y+=2)for(int32 Z=-1;Z<=1;Z+=2)
+    {
+        const FVector Point=Pose.TransformPositionNoScale(FVector(X*Size.X/2,Y*Size.Y/2,Z*Size.Z/2));FVector2D Screen;
+        if(PC->ProjectWorldLocationToScreen(Point,Screen))SlabRect+=Screen;
+        ExtentForward=FMath::Max(ExtentForward,FMath::Abs(FVector::DotProduct(Point-Center,Forward)));
+    }
+    if(!SlabRect.bIsValid){Hide();return;}
+    const float Side=FVector::DotProduct(TrackTransform.GetUnitAxis(EAxis::Y),Right)<0?-1.f:1.f;
+    const FVector2D Anchors[5]={{CenterPixel.X,SlabRect.Min.Y-Pixels-8},
+        {Side>0?SlabRect.Min.X-Pixels*3:SlabRect.Max.X+Pixels*3,CenterPixel.Y},
+        {Side>0?SlabRect.Max.X+Pixels*3:SlabRect.Min.X-Pixels*3,CenterPixel.Y},
+        {CenterPixel.X,SlabRect.Max.Y+Pixels+10},{CenterPixel.X,SlabRect.Min.Y-Pixels*3-16}};
+    const bool Enabled[5]={Display.bYaw,bDetailedLabels&&Display.bMargins,bDetailedLabels&&Display.bMargins,Display.bStatus,bDetailedLabels&&Display.bCenterline};
+    FSlabLabelCandidate Candidates[5];
+    for(int32 I=0;I<5;++I)
+    {
+        if(!Enabled[I])continue; // Hidden detail strings are not formatted.
+        uint32 Key=I==0?GetTypeHash(FMath::RoundToInt(LastMetrics.LeftAngle*100)):
+            I==1?HashCombine(GetTypeHash(FMath::RoundToInt(LastMetrics.MarginLeftCm*10)),GetTypeHash(bRails)):
+            I==2?HashCombine(GetTypeHash(FMath::RoundToInt(LastMetrics.MarginRightCm*10)),GetTypeHash(bRails)):
+            I==4?GetTypeHash(FMath::RoundToInt(LastMetrics.CenterOffsetCm*10)):
+            HashCombine(GetTypeHash(MaterialId),GetTypeHash(FMath::RoundToInt(Progress*100)));
+        if(I==3&&bDetailedLabels)Key=HashCombine(Key,HashCombine(GetTypeHash(FrameNo),HashCombine(GetTypeHash(FMath::RoundToInt(Elapsed*10)),GetTypeHash(FMath::RoundToInt(Duration*10)))));
+        Key=HashCombine(Key,GetTypeHash(bDetailedLabels));
+        if(CachedLabelTexts[I].IsEmpty()||LabelTextKeys[I]!=Key)
+        {
+            LabelTextKeys[I]=Key;const FString ShortId=MaterialId.Len()>24?MaterialId.Left(21)+TEXT("..."):MaterialId;
+            if(I==0)CachedLabelTexts[I]=FString::Printf(TEXT("Yaw %+.2f deg"),LastMetrics.LeftAngle);
+            else if(I==1||I==2){const double Gap=I==1?LastMetrics.MarginLeftCm:LastMetrics.MarginRightCm;CachedLabelTexts[I]=bRails?FString::Printf(TEXT("%s %+.1f cm%s"),I==1?TEXT("L"):TEXT("R"),Gap,Gap<0?TEXT(" [침범]"):TEXT("")):FString(I==1?TEXT("L N/A"):TEXT("R N/A"));}
+            else if(I==4)CachedLabelTexts[I]=FMath::IsNearlyZero(LastMetrics.CenterOffsetCm,.01)?TEXT("Center aligned"):FString::Printf(TEXT("Center %+.1f cm"),LastMetrics.CenterOffsetCm);
+            else CachedLabelTexts[I]=bDetailedLabels?FString::Printf(TEXT("%s | frame %lld\n%.1f / %.1f s  %.0f%%"),*ShortId,FrameNo,Elapsed,Duration,Progress*100):FString::Printf(TEXT("%s | %.0f%%"),*ShortId,Progress*100);
+            Labels[I]->SetText(FText::FromString(CachedLabelTexts[I]));
+        }
+        Labels[I]->SetWorldSize(WorldSize);const FVector Bounds=Labels[I]->GetTextLocalSize();
+        Candidates[I].Anchor=Anchors[I];Candidates[I].bEnabled=true;
+        Candidates[I].HalfSize=FVector2D(FMath::Max(2.f*Pixels,float(Bounds.Y/WorldSize*Pixels))*.5f+6,FMath::Max(Pixels,float(Bounds.Z/WorldSize*Pixels))*.5f+4);
+    }
+    // Material/progress and tilt precede detailed gap/center labels; an intrusion gap
+    // precedes the other side. L/R always describe Track sides, independent of roll.
+    const int32 Priority[5]={3,0,LastMetrics.MarginRightCm<0&&LastMetrics.MarginLeftCm>=0?2:1,LastMetrics.MarginRightCm<0&&LastMetrics.MarginLeftCm>=0?1:2,4};
+    FSlabLabelPlacement Placement[5];SlabLabelLayout::Place(Candidates,Priority,FBox2D(FVector2D(12,12),FVector2D(Width-12,Height-12)),LabelExclusions,Placement);
+    const double Near=FMath::Max(50.,double(Ortho?View.OrthoNearClipPlane:View.GetFinalPerspectiveNearClipPlane())+20.);
+    const double PlaneDepth=FMath::Max(Near,Depth-ExtentForward-WorldSize*3);
+    const float TextSize=CalculateScreenWorldSize(PlaneDepth,View.FOV,ViewHeight,Aspect,Pixels,Ortho,View.OrthoWidth);
+    auto WorldForPixel=[&](const FVector2D& P)
+    {
+        FVector Origin,Ray;PC->DeprojectScreenPositionToWorld(P.X,P.Y,Origin,Ray);
+        return Origin+Ray*((PlaneDepth-FVector::DotProduct(Origin-View.Location,Forward))/FMath::Max(.001,FVector::DotProduct(Ray,Forward)));
+    };
+    const FQuat Facing=FRotationMatrix::MakeFromXZ(-Forward,Up).ToQuat();
+    for(int32 I=0;I<5;++I)
+    {
+        const bool Visible=Placement[I].bVisible;auto* T=Labels[I].Get();auto* B=LabelBackgrounds[I].Get();
+        T->SetVisibility(Visible);B->SetVisibility(Visible);Helpers[32+I]->SetVisibility(false);if(!Visible)continue;
+        const FVector Location=WorldForPixel(Placement[I].Rect.GetCenter());T->SetWorldSize(TextSize);T->SetWorldLocation(Location);T->SetWorldRotation(Facing);
+        const bool Intrusion=(I==1&&LastMetrics.MarginLeftCm<0)||(I==2&&LastMetrics.MarginRightCm<0);
+        const FLinearColor Color=Intrusion?FLinearColor(1,.08,.04):FLinearColor::White;
+        T->SetTextRenderColor((Color*(.35f+.65f*Fade)).ToFColor(true));
+        const FVector Bounds=T->GetTextLocalSize();
+        B->SetWorldTransform(FTransform(Facing,Location+Forward*FMath::Max(.5f,TextSize*.08f),FVector(.002,(FMath::Max(TextSize*2.f,float(Bounds.Y))+TextSize*.6f)/100,(FMath::Max(TextSize,float(Bounds.Z))+TextSize*.35f)/100)));
+        if(FVector2D::Distance(Candidates[I].Anchor,Placement[I].Rect.GetCenter())>Pixels)
+            SetLine(32+I,WorldForPixel(Candidates[I].Anchor),Location,CalculateScreenWorldSize(PlaneDepth,View.FOV,ViewHeight,Aspect,.8f,Ortho,View.OrthoWidth),FLinearColor(.12,.16,.20)*Fade,true);
+    }
 }
+
 float USlabVisualizationComponent::CalculateScreenWorldSize(double Depth,double Fov,int32 Height,double Aspect,float Pixels,bool Ortho,double OrthoWidth)
 {
 	if(!FMath::IsFinite(Depth)||!FMath::IsFinite(Fov)||!FMath::IsFinite(Aspect)||!FMath::IsFinite(Pixels)||Height<=0||Aspect<=0)return 4;

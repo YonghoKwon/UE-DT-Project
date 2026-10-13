@@ -20,6 +20,10 @@ class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPan
 public:
 	/** Presentation-only entry for the owned native toolbar; Designer and legacy opt out. */
 	void OpenOwnedSettingsSection(bool bAdvanced);
+	void SelectOwnedSettingsTab(int32 Tab);
+	virtual FText GetPanelBackLabel() const override;
+	virtual bool CanNavigatePanelBack() const override;
+	virtual bool NavigatePanelBack() override;
 	TSharedRef<SWidget> BuildWorkspacePlacementControls();
 	void RefreshWorkspacePlacementControls();
 	/** Follow the workspace selection without cycling or applying edited values. Legacy panels opt out. */
@@ -115,6 +119,11 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    void ApplyOwnedProfileSelection(EVirtualCameraDeviceProfile CameraProfile, EVirtualLidarDeviceProfile LidarProfile);
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FUXR10NavigationTest;
+    friend class FUXR11ProfileNoticeTest;
+#endif
 	USensorPlacementInteraction* OwnedInteraction() const;
 	void SynchronizeInteractionState();
 	TWeakObjectPtr<USensorPlacementInteraction> SharedInteraction;
@@ -125,6 +134,7 @@ private:
 #endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
 	TSharedRef<SWidget> BuildOwnedSettingsWidget();
+	TSharedRef<SWidget> BuildOwnedSettingDetail(FName Key);
 	void RefreshOwnedSettingsText();
 	void OpenOwnedSettingHelp(FName Key);
 	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText;

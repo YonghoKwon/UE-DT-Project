@@ -18,7 +18,7 @@ public:
 	void UpdateAnalysis(const FSlabScenarioRow& Row,const FSlabMetrics& Metrics,const FSlabSimulationStatus& Status,const FVector& SizeCm,const FTransform& Track,double LeftRailYcm,double RightRailYcm,bool bRailsValid,double ReferenceLengthCm=0);
 	virtual void TickComponent(float DeltaTime,ELevelTick TickType,FActorComponentTickFunction* TickFunction) override;
 	int32 GetOwnedHelperCount() const { return Helpers.Num()+Labels.Num()+LabelBackgrounds.Num(); }
-	static constexpr int32 MaxLineHelpers=32;
+	static constexpr int32 MaxLineHelpers=37; // 32 diagnostic strokes + 5 reusable label leaders.
 	static constexpr int32 MaxTextHelpers=5;
 	static constexpr int32 MaxLabelBackgrounds=5;
 	/** Approximate 18-pixel glyph height, bounded for very near/far observation views. */
@@ -27,6 +27,10 @@ public:
 	static FVector PullLabelTowardCamera(const FVector& Position,const FVector& CameraPosition,const FVector& CameraForward,double ViewDepthCm,double PullCm,bool bOrthographic,float& OutTextScale);
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetHelpersVisible(bool bVisible);
 	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetHelpersVisible() const { return bHelpersVisible; }
+	void SetDetailedLabels(bool bVisible);
+	bool GetDetailedLabels() const { return bDetailedLabels; }
+	/** Viewport-pixel rectangles supplied by the owning upper-layer presentation. */
+	void SetLabelExclusionRects(const UObject* Owner,const TArray<FBox2D>& Rects);
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
 	void EnsureHelpers();
@@ -52,4 +56,9 @@ private:
 	bool bHasAnalysis=false;
 	bool bEnding=false;
 	bool bHelpersVisible=true;
+	bool bDetailedLabels=false;
+	TWeakObjectPtr<const UObject> ExclusionOwner;
+	TArray<FBox2D> LabelExclusions;
+	uint32 LabelTextKeys[5]={};
+	FString CachedLabelTexts[5];
 };

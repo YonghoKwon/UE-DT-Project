@@ -78,11 +78,34 @@ public:
 	ESensorToolPanelRole GetSidebarRole() const { return SidebarRole; }
 	bool IsSidebarExpanded() const { return bSidebarExpanded; }
 	float GetSidebarWidth() const;
+	bool IsSidebarWide() const { return bSidebarWide; }
+	void ToggleSidebarWidth();
+	/** Transient screen navigation only; never serialized in Workspace v1. */
+	void ClearPanelBackTarget(ESensorToolPanelRole Role);
+	void SetPanelBackToTools(ESensorToolPanelRole Role);
+	FText GetPanelBackLabel(ESensorToolPanelRole Role) const;
+	bool CanNavigatePanelBack(ESensorToolPanelRole Role) const;
+	bool NavigatePanelBack(ESensorToolPanelRole Role);
 	float GetOwnedPixelScale() const;
 	void RefreshDockedLayout();
+	/** Actual arranged owned UI rectangles in viewport pixels, for L2 presentation. */
+	TArray<FBox2D> GetOwnedDiagnosticExclusionRects() const;
 private:
+	void RegisterOwnedPointerRouting();
+	void UnregisterOwnedPointerRouting();
+	TSharedPtr<class IInputProcessor> OwnedPointerRouter;
 	float MeasureOwnedPixelScale() const;
 	bool bSidebarMode=true,bSidebarExpanded=true;
+	bool bSidebarWide=false,bNavigatingBack=false;
+	struct FPanelBackTarget
+	{
+		ESensorToolPanelRole Role=ESensorToolPanelRole::Placement;
+		bool bTools=false;
+		FText Label;
+		TSharedPtr<FPanelBackTarget> ParentBack;
+		int32 Depth=0;
+	};
+	TMap<ESensorToolPanelRole,FPanelBackTarget> PanelBackTargets;
 	ESensorToolPanelRole SidebarRole=ESensorToolPanelRole::Placement;
 	TSet<ESensorToolPanelRole> SidebarOpen={ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement};
 	void RefreshOwnedPickMarkers();
@@ -94,6 +117,7 @@ private:
 	friend class FSensorVocabularyTest;
 	friend class FSensorWorkflowStatusTest;
 	friend class FSidebarOwnershipTest;
+	friend class FUXR10NavigationTest;
 #endif
 	UPROPERTY(Transient) TObjectPtr<USensorToolWorkspaceSaveGame> Preferences;
 	UPROPERTY(Transient) TMap<ESensorToolPanelRole,TObjectPtr<UVirtualSensorPanelWidgetBase>> Panels;

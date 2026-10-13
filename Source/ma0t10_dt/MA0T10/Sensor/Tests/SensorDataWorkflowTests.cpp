@@ -44,7 +44,7 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
     TestEqual(TEXT("new policy unchanged"),Data->GetLiveScenarioExecutionOptions().Policy,ESlabExecutionPolicy::ObservationAllowed);
     TestEqual(TEXT("replay policy unchanged"),Replay->ExecutionOptions.Policy,ESlabExecutionPolicy::ObservationAllowed);
     TestEqual(TEXT("owned replay has zero output editing checkboxes"),CheckCount(ReplaySlate),0);
-    TestEqual(TEXT("two columns each contain PCD, two additional outputs and policy"),CheckCount(Data->BuildOwnedLiveTab()),8);
+    TestEqual(TEXT("two columns retain eight output/policy toggles plus three exclusive preflight target segments"),CheckCount(Data->BuildOwnedLiveTab()),11);
     if(TestTrue(TEXT("real replay PCD control constructed"),Data->OwnedReplayPcdControl.IsValid()))
     {
         Data->OwnedReplayPcdControl->ToggleCheckedState();

@@ -3,6 +3,7 @@
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "SensorToolWidgetDecl.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
@@ -123,19 +124,19 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsConte
 {
 	CachedRunResultsRevision=-1;
 	return SNew(SVerticalBox)
-	+SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultCombo,SComboBox<TSharedPtr<FString>>).OptionsSource(&RunResultOptions)
+	+SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultCombo,SComboBox<TSharedPtr<FString>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&RunResultOptions)
 	 .OnGenerateWidget_Lambda([this](TSharedPtr<FString> Id){return SNewSensorTool(STextBlock).Text(FText::FromString(Id?RunResultLabels.FindRef(*Id):FString()));})
 	 .OnSelectionChanged_Lambda([this](TSharedPtr<FString> Id,ESelectInfo::Type Info){if(Id&&Info!=ESelectInfo::Direct)SelectScenarioRunResult(*Id);})
 	 [SNewSensorTool(STextBlock).Text_Lambda([this](){return FText::FromString(SelectedScenarioRunId.IsEmpty()?TEXT("실행 결과가 없습니다"):RunResultLabels.FindRef(SelectedScenarioRunId));})]]
 	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
-	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CopyRunUUID","실행 UUID 복사")).IsEnabled_Lambda([this](){return !SelectedScenarioRunId.IsEmpty();}).OnClicked_Lambda([this](){FPlatformApplicationMisc::ClipboardCopy(*SelectedScenarioRunId);return FReply::Handled();})]
-	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SelectedRunFolder","선택 결과 폴더 열기")).IsEnabled_Lambda([this](){return bSelectedRunReportSaved;}).OnClicked_Lambda([this](){OpenScenarioRunReport(SelectedScenarioRunId);return FReply::Handled();})]
-	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(IsWorkspaceOwned()?SensorToolUiText::UserReason(RunRetryReason):RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CopyRunUUID","실행 UUID 복사")).ButtonStyle(IsWorkspaceOwned()?&FSensorOwnedPresentationStyle::QuietButton():&GetToolButtonStyle()).Visibility_Lambda([this](){return !IsWorkspaceOwned()||(!SelectedScenarioRunId.IsEmpty())?EVisibility::Visible:EVisibility::Collapsed;}).IsEnabled_Lambda([this](){return !SelectedScenarioRunId.IsEmpty();}).OnClicked_Lambda([this](){FPlatformApplicationMisc::ClipboardCopy(*SelectedScenarioRunId);return FReply::Handled();})]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SelectedRunFolder","선택 결과 폴더 열기")).ButtonStyle(IsWorkspaceOwned()?&FSensorOwnedPresentationStyle::QuietButton():&GetToolButtonStyle()).Visibility_Lambda([this](){return !IsWorkspaceOwned()||(bSelectedRunReportSaved)?EVisibility::Visible:EVisibility::Collapsed;}).IsEnabled_Lambda([this](){return bSelectedRunReportSaved;}).OnClicked_Lambda([this](){OpenScenarioRunReport(SelectedScenarioRunId);return FReply::Handled();})]
+	 +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RetryRunSave","요약 저장 재시도")).Visibility_Lambda([this](){return !IsWorkspaceOwned()||(bCanRetrySelectedRun)?EVisibility::Visible:EVisibility::Collapsed;}).IsEnabled_Lambda([this](){return bCanRetrySelectedRun;}).ToolTipText_Lambda([this](){return FText::FromString(IsWorkspaceOwned()?SensorToolUiText::UserReason(RunRetryReason):RunRetryReason);}).OnClicked_Lambda([this](){FString Reason;RetrySelectedScenarioRunReport(Reason);return FReply::Handled();})]]
 	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(RunSelectionNotice);})]
-	+SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5,4))
-		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareA","A로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,true,Reason)){RunComparisonText=Reason;OwnedRunComparisonText=SensorToolUiText::UserReason(Reason);}return FReply::Handled();})]
-		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareB","B로 선택")).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,false,Reason)){RunComparisonText=Reason;OwnedRunComparisonText=SensorToolUiText::UserReason(Reason);}return FReply::Handled();})]
-		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareClear","비교 해제")).OnClicked_Lambda([this](){ClearScenarioRunComparison();return FReply::Handled();})]]
+	+SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(IsWorkspaceOwned()?FVector2D(FSensorOwnedPresentationStyle::Gap):FVector2D(5,4))
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareA","A로 선택")).Visibility_Lambda([this](){return !IsWorkspaceOwned()||(!SelectedScenarioRunId.IsEmpty())?EVisibility::Visible:EVisibility::Collapsed;}).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,true,Reason)){RunComparisonText=Reason;OwnedRunComparisonText=SensorToolUiText::UserReason(Reason);}return FReply::Handled();})]
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareB","B로 선택")).Visibility_Lambda([this](){return !IsWorkspaceOwned()||(!SelectedScenarioRunId.IsEmpty())?EVisibility::Visible:EVisibility::Collapsed;}).OnClicked_Lambda([this](){FString Reason;if(!SelectScenarioComparisonRun(SelectedScenarioRunId,false,Reason)){RunComparisonText=Reason;OwnedRunComparisonText=SensorToolUiText::UserReason(Reason);}return FReply::Handled();})]
+		+SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("CompareClear","비교 해제")).ButtonStyle(IsWorkspaceOwned()?&FSensorOwnedPresentationStyle::QuietButton():&GetToolButtonStyle()).Visibility_Lambda([this](){return !IsWorkspaceOwned()||(!ComparisonRunA.IsEmpty()||!ComparisonRunB.IsEmpty())?EVisibility::Visible:EVisibility::Collapsed;}).OnClicked_Lambda([this](){ClearScenarioRunComparison();return FReply::Handled();})]]
 	+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(IsWorkspaceOwned()?OwnedRunResultsText:RunResultsText);})]
 	+SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(IsWorkspaceOwned()?OwnedRunComparisonText:RunComparisonText);})];
 }
@@ -1164,7 +1165,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
        +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("PcdPolicy","PCD: 완료 프레임 모두 · 매 프레임 receipt · 연결 중 FIFO"))]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 3)
 			[
-				SNew(SComboBox<TSharedPtr<EVirtualPointCloudStreamFilterPreset>>)
+				SNew(SComboBox<TSharedPtr<EVirtualPointCloudStreamFilterPreset>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
 				.OptionsSource(&NativeStreamFilterOptions)
 				.OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualPointCloudStreamFilterPreset> Item)
 				{
@@ -1215,7 +1216,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildCaptureTab()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
 		[
-			SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>)
+			SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
 			.OptionsSource(&NativeExportKindOptions)
 			.OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(Item.IsValid() ? ExportKindText(*Item) : TEXT("CSV"))); })
 			.OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item, ESelectInfo::Type) { if (Item.IsValid()) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.PointCloudFormat = *Item; SetCaptureSelection(Next); } })
@@ -1233,7 +1234,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildExportTab(TShar
 			+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("ExportTitleV2", "파일 내보내기 및 최근 파일 전송")) ]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6)[ SNew(SWrapBox).UseAllottedSize(true)
 				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("ExportPayloadV2", "Server Payload JSON 저장")).OnClicked_Lambda([this]() { ExportServerPayload(); return FReply::Handled(); }) ]
-				+ SWrapBox::Slot()[ SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).OptionsSource(&NativeExportKindOptions).InitiallySelectedItem(InitiallySelected).OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(Item.IsValid() ? ExportKindText(*Item) : TEXT("CSV"))); }).OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item, ESelectInfo::Type) { if (Item.IsValid()) SetSelectedPointCloudExportKind(*Item); })[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("형식: %s"), *ExportKindText(SelectedPointCloudKind))); }) ] ]
+				+ SWrapBox::Slot()[ SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2)).OptionsSource(&NativeExportKindOptions).InitiallySelectedItem(InitiallySelected).OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(Item.IsValid() ? ExportKindText(*Item) : TEXT("CSV"))); }).OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item, ESelectInfo::Type) { if (Item.IsValid()) SetSelectedPointCloudExportKind(*Item); })[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("형식: %s"), *ExportKindText(SelectedPointCloudKind))); }) ] ]
 				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("ExportPointV2", "Point Cloud 저장")).OnClicked_Lambda([this]() { ExportSelectedPointCloud(SelectedPointCloudKind); return FReply::Handled(); }) ]
 				+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("SendRecentV2", "최근 파일 수동 전송")).OnClicked_Lambda([this]() { SendLastExportToServer(); return FReply::Handled(); }) ]
 			]

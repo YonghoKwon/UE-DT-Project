@@ -278,6 +278,16 @@ public:
 #endif
                 if(!FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT")).IsEmpty())for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
                 if(auto* PC=World->GetFirstPlayerController()){Json->SetStringField(TEXT("controller"),PC->GetClass()->GetPathName());Json->SetStringField(TEXT("pawn"),GetNameSafe(PC->GetPawn()));if(auto* Dx=Cast<ADxPlayerControllerBase>(PC))Json->SetStringField(TEXT("click_policy"),Dx->ClickActivationPolicy==EDxClickActivationPolicy::SingleRelease?TEXT("SingleRelease"):TEXT("DoublePress"));}
+                TArray<TSharedPtr<FJsonValue>> PanelRows;
+                for(int32 I=0;I<7;++I)if(auto* Panel=W->GetOwnedPanel(static_cast<ESensorToolPanelRole>(I)))
+                {
+                    auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("role"),I);Row->SetBoolField(TEXT("open"),W->IsPanelOpen(static_cast<ESensorToolPanelRole>(I)));
+                    Row->SetStringField(TEXT("position"),Panel->GetCurrentPanelPosition().ToString());Row->SetStringField(TEXT("size"),Panel->GetPanelExpandedSize().ToString());
+                    Row->SetBoolField(TEXT("draggable"),Panel->bPanelDraggable);Row->SetBoolField(TEXT("resizable"),Panel->bPanelResizable);
+                    Row->SetBoolField(TEXT("capture"),Panel->GetCachedWidget().IsValid()&&Panel->GetCachedWidget()->HasMouseCapture());PanelRows.Add(MakeShared<FJsonValueObject>(Row));
+                }
+                Json->SetArrayField(TEXT("panels"),PanelRows);Json->SetBoolField(TEXT("any_capture"),FSlateApplication::Get().HasAnyMouseCaptor());
+                if(auto* PC=World->GetFirstPlayerController()){Json->SetStringField(TEXT("view_rotation"),PC->GetControlRotation().ToString());if(PC->GetPawn())Json->SetStringField(TEXT("pawn_transform"),PC->GetPawn()->GetActorTransform().ToString());}
                 if(auto* C=W->GetCoordinator())for(auto* A:C->GetSensorActors())if(A){auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("id"),A->GetSensorId());Row->SetStringField(TEXT("pose"),A->GetActorTransform().ToString());Row->SetBoolField(TEXT("selected"),C->GetSelectedSensorActor()==A);Row->SetBoolField(TEXT("measuring"),A->IsSensorRunning());Row->SetBoolField(TEXT("manipulating"),A->IsInteractiveManipulationActive());Rows.Add(MakeShared<FJsonValueObject>(Row));}
                 Json->SetArrayField(TEXT("devices"),Rows);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))Json->SetStringField(TEXT("placement_message"),P->GetPlacementStatusText());
                 if(!FontProbed&&FPlatformTime::Seconds()-Created>5)if(auto* P=W->GetOwnedPanel(ESensorToolPanelRole::Placement))if(auto Root=P->GetCachedWidget())

@@ -46,7 +46,7 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     auto* Toolbar=NewObject<USensorToolToolbarWidget>(World);W->Toolbar=Toolbar;
     Settings->BindSensorManager(C);Data->BindSensorManager(C);Data->Initialize();const auto DataSlate=Data->TakeWidget();Toolbar->Initialize();
     const auto ToolbarSlate=Toolbar->TakeWidget();TArray<FString> BarTexts;FindTexts(ToolbarSlate,BarTexts);
-    for(const FText& Text:{SensorToolUiText::Placement(),SensorToolUiText::Preview(),SensorToolUiText::Scenario(),FText::FromString(TEXT("PCD")),SensorToolUiText::Results()})
+    for(const FText& Text:{SensorToolUiText::Placement(),SensorToolUiText::RailPreview(),SensorToolUiText::Scenario(),SensorToolUiText::RailTransfer(),SensorToolUiText::Results()})
         TestEqual(TEXT("each workflow entry appears once"),BarTexts.FilterByPredicate([&](const auto& S){return S==Text.ToString();}).Num(),1);
     TestTrue(TEXT("placement route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Placement)&&W->IsPanelOpen(ESensorToolPanelRole::Placement));
     TestTrue(TEXT("preview route"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Preview)&&W->IsPanelOpen(ESensorToolPanelRole::Monitor));

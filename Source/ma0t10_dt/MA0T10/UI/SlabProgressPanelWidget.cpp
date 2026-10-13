@@ -1,5 +1,6 @@
 #include "SlabProgressPanelWidget.h"
 #include "SensorToolWidgetDecl.h"
+#include "SensorOwnedPresentationStyle.h"
 #include "VirtualSensorUiStyle.h"
 #include "SensorToolUiText.h"
 #include "SlabInformationCard.h"
@@ -149,7 +150,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 {
 	if (WidgetTree && WidgetTree->RootWidget) return Super::RebuildWidget();
 	auto Controls = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8, 6));
-	Controls->AddSlot()[SNewSensorTool(SButton).Text_Lambda([this]() { if(IsWorkspaceOwned())return OwnedPauseLabel;return Slab && Slab->GetSimulationStatus().State == ESlabSimulationState::Paused ? LOCTEXT("Resume", "재개") : LOCTEXT("Pause", "일시정지"); }).IsEnabled_Lambda([this]() { if(IsWorkspaceOwned())return bOwnedCanPause;if (!Slab) return false; auto S = Slab->GetSimulationStatus().State; return S == ESlabSimulationState::Playing || S == ESlabSimulationState::Paused; }).OnClicked_Lambda([this]() { if (Slab) Slab->SetSimulationPaused(Slab->GetSimulationStatus().State != ESlabSimulationState::Paused); return FReply::Handled(); })];
+	Controls->AddSlot()[SNewSensorTool(SButton).ButtonStyle(IsWorkspaceOwned()?&FSensorOwnedPresentationStyle::PrimaryButton():&GetToolButtonStyle()).Text_Lambda([this]() { if(IsWorkspaceOwned())return OwnedPauseLabel;return Slab && Slab->GetSimulationStatus().State == ESlabSimulationState::Paused ? LOCTEXT("Resume", "재개") : LOCTEXT("Pause", "일시정지"); }).IsEnabled_Lambda([this]() { if(IsWorkspaceOwned())return bOwnedCanPause;if (!Slab) return false; auto S = Slab->GetSimulationStatus().State; return S == ESlabSimulationState::Playing || S == ESlabSimulationState::Paused; }).OnClicked_Lambda([this]() { if (Slab) Slab->SetSimulationPaused(Slab->GetSimulationStatus().State != ESlabSimulationState::Paused); return FReply::Handled(); })];
 	Controls->AddSlot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).Text(LOCTEXT("Stop", "중단")).IsEnabled_Lambda([this]() { return IsWorkspaceOwned()?bOwnedCanStop:Slab&&Slab->IsSimulationActive(); }).OnClicked_Lambda([this]() { if (Slab) Slab->StopSimulation(); return FReply::Handled(); })];
 	Controls->AddSlot()[SNewSensorTool(SButton).Text(LOCTEXT("ResetPlacement","초기 위치로 복귀"))
 	 .IsEnabled_Lambda([this](){if(IsWorkspaceOwned())return bOwnedCanReset;FString Reason;return CanResetSlabToInitialPlacement(Reason);})
@@ -197,7 +198,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 				PreviousSection=Row.Section;
 			}
 			InformationGrid->AddSlot(0,GridRow).VAlign(VAlign_Top).Padding(0,2,12,2)[SNewSensorTool(STextBlock).Text(Row.Label).ColorAndOpacity(GetToolMutedColor())];
-			InformationGrid->AddSlot(1,GridRow++).Padding(0,2)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,I](){return OwnedInformationValues[I];})];
+            InformationGrid->AddSlot(1,GridRow++).Padding(0,2)[SNewSensorTool(STextBlock).AutoWrapText(true).Justification(ETextJustify::Right).Text_Lambda([this,I](){return OwnedInformationValues[I];})];
 		}
 		Controls->AddSlot()[SNewSensorTool(SButton).Visibility_Lambda([this](){return GetToolWorkspace()&&GetToolWorkspace()->IsSidebarMode()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("OpenArchive","보관 목록"))
 		 .OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace()){W->EnsureOwnedReplayPanel();W->SetPanelOpen(ESensorToolPanelRole::Replay,true);}return FReply::Handled();})];
@@ -225,22 +226,27 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		Toggle(LOCTEXT("Yaw", "기울기"), &FSlabAnalysisDisplaySettings::bYaw);
 		Toggle(LOCTEXT("Margins", "좌우 간격"), &FSlabAnalysisDisplaySettings::bMargins);
 		Toggle(LOCTEXT("Status", "3D 상태"), &FSlabAnalysisDisplaySettings::bStatus);
+		Display->AddSlot()[SNew(SCheckBox).IsEnabled_Lambda([this](){return IsValid(Slab);})
+		 .IsChecked_Lambda([this](){return IsValid(Slab)&&Slab->GetDetailedDiagnosticLabels()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+		 .OnCheckStateChanged_Lambda([this](ECheckBoxState State){if(IsValid(Slab))Slab->SetDetailedDiagnosticLabels(State==ECheckBoxState::Checked);})
+		 .ToolTipText(LOCTEXT("DetailLabelsTip","좌/우 여유·중심 이탈·원본 행을 3D에 표시합니다. 카드의 상세 선택과 함께 바뀌며 이번 세션에만 적용됩니다."))
+		 [SNewSensorTool(STextBlock).Text(LOCTEXT("DetailLabels","3D 상세 라벨"))]];
 		for(bool Text:{false,true})
 		{
 			Display->AddSlot()[SNew(SHorizontalBox)
 			 +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Text?LOCTEXT("TextSize","문자 크기 (px)"):LOCTEXT("LineSize","선 굵기 (px)"))]
-			 +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SSpinBox<float>).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",FMath::RoundToInt(16*GetSensorToolFontScale()));}).MinValue(Text?18.f:2.f).MaxValue(Text?56.f:12.f).Delta(1.f).MinDesiredWidth(80)
+			 +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SSpinBox<float>).Style(&GetToolSpinBoxStyle()).Font_Lambda([this](){return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::BodySize,GetSensorToolVisualScale()):FCoreStyle::GetDefaultFontStyle("Regular",FMath::RoundToInt(16*GetSensorToolFontScale()));}).MinValue(Text?18.f:2.f).MaxValue(Text?56.f:12.f).Delta(1.f).MinDesiredWidth(80)
 			  .IsEnabled_Lambda([this](){return IsValid(Slab);}).Value_Lambda([this,Text](){const auto S=Slab?Slab->GetAnalysisDisplaySettings():FSlabAnalysisDisplaySettings();return Text?S.TextHeightPixels:S.LineWidthPixels;})
 			  .OnValueChanged_Lambda([this,Text](float V){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();if(Text)S.TextHeightPixels=V;else S.LineWidthPixels=V;Slab->SetAnalysisDisplaySettings(S);}})]];
 		}
 		Display->AddSlot()[SNewSensorTool(SButton).Text(LOCTEXT("ReadableReset","가독성 초기화")).OnClicked_Lambda([this](){if(Slab){auto S=Slab->GetAnalysisDisplaySettings();S.LineWidthPixels=4;S.TextHeightPixels=28;Slab->SetAnalysisDisplaySettings(S);}return FReply::Handled();})];
-		return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
+		return BuildToolPanelFrame(SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(FSensorOwnedPresentationStyle::PanelPadding)
 		[SNew(SVerticalBox)
 		 + SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(SensorToolUiText::ScenarioProgress())]
 		 + SVerticalBox::Slot().FillHeight(1)[SNew(SVerticalBox).Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
 		   // Controls are before all variable-length content: status wrapping cannot move them.
 		   + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 8)[Controls]
-		   + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)[SNew(SProgressBar).Percent_Lambda([this]() { return TOptional<float>(Progress); }).FillColorAndOpacity(GetToolAccentColor())]
+		   + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 10)[SNew(SBox).HeightOverride(FSensorOwnedPresentationStyle::ProgressHeight)[SNew(SProgressBar).Style(&FSensorOwnedPresentationStyle::Progress()).BorderPadding(FVector2D::ZeroVector).Percent_Lambda([this]() { return TOptional<float>(Progress); }).FillColorAndOpacity(GetToolAccentColor())]]
 		   + SVerticalBox::Slot().FillHeight(1)[SAssignNew(OwnedScenarioScroll,SScrollBox)
 		     + SScrollBox::Slot()[SNew(SVerticalBox)
 		       + SVerticalBox::Slot().AutoHeight().Padding(0,4,0,10)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8)[SNew(SVerticalBox)
@@ -263,7 +269,7 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		         ]]
 		     ]]
 		 ]
-		];
+		]);
 	}
 	return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(12)
 	[SNew(SVerticalBox)

@@ -51,6 +51,10 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
 
 public:
 	void OpenOwnedTab(ESensorOwnedDataTab Tab);
+	void ClearOwnedTabHistory() { OwnedTabHistory.Reset(); }
+	virtual FText GetPanelBackLabel() const override;
+	virtual bool CanNavigatePanelBack() const override;
+	virtual bool NavigatePanelBack() override;
 	ESensorOwnedDataTab GetOwnedTab() const { return OwnedTab; }
 	USlabScenarioReplayPanelWidget* ResolveOwnedReplayPanel() const;
 	void OpenOwnedReplayOutputSettings();
@@ -226,6 +230,8 @@ private:
 	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;
 	FString OwnedRunResultsText,OwnedRunComparisonText;
 	ESensorOwnedDataTab OwnedTab=ESensorOwnedDataTab::Transfer;
+	TArray<ESensorOwnedDataTab> OwnedTabHistory;
+	bool bReturningOwnedTab=false;
 	TSharedPtr<SCheckBox> OwnedReplayPcdControl;
 	TSharedPtr<SCheckBox> OwnedLivePcdControl;
 	void FocusOwnedOutputSettings(bool bReplay);

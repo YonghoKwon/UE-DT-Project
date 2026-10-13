@@ -7,6 +7,40 @@
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
+#include "Widgets/SViewport.h"
+#include "SensorToolUiText.h"
+#include "SensorPlacementInteraction.h"
+
+TArray<FBox2D> UVirtualSensorToolWorkspaceSubsystem::GetOwnedDiagnosticExclusionRects() const
+{
+    TArray<FBox2D> Rects;Rects.Reserve(10);
+    const auto* View=GetWorld()?GetWorld()->GetGameViewport():nullptr;
+    if(!View||!View->Viewport||!Canvas||!View->GetGameViewportWidget().IsValid())return Rects;
+    const auto& Geometry=View->GetGameViewportWidget()->GetCachedGeometry();
+    const FVector2D Local=Geometry.GetLocalSize();if(Local.GetMin()<=0)return Rects;
+    const FIntPoint Pixels=View->Viewport->GetSizeXY();const FVector2D Scale(Pixels.X/Local.X,Pixels.Y/Local.Y);
+    auto Add=[&](const FGeometry& G)
+    {
+        if(G.GetLocalSize().GetMin()<=0)return;
+        const FVector2D A=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D::ZeroVector))*Scale;
+        const FVector2D B=Geometry.AbsoluteToLocal(G.LocalToAbsolute(G.GetLocalSize()))*Scale;
+        Rects.Add(FBox2D(A-FVector2D(6,6),B+FVector2D(6,6)));
+    };
+    if(bSidebarMode)
+    {
+        const auto& G=Canvas->GetCachedGeometry();const FVector2D V=G.GetLocalSize();
+        const double Width=bSidebarExpanded?FMath::Min(double(GetSidebarWidth()),V.X*.48):FSensorOwnedPresentationStyle::RailWidth*GetOwnedPanelFontScale()*GetOwnedPixelScale();
+        const FVector2D A=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D::ZeroVector))*Scale;
+        const FVector2D B=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D(Width,V.Y)))*Scale;
+        Rects.Add(FBox2D(A-FVector2D(6,6),B+FVector2D(6,6)));
+        const double Bottom=FSensorOwnedPresentationStyle::StatusHeight*GetOwnedPanelFontScale()*GetOwnedPixelScale();
+        const FVector2D C=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D(0,V.Y-Bottom)))*Scale;
+        Rects.Add(FBox2D(C,FVector2D(Pixels.X,Pixels.Y)));
+        if(const auto* Bar=Cast<USensorToolToolbarWidget>(Toolbar))if(auto Card=Bar->GetSlabSummaryCard())Add(Card->GetCachedGeometry());
+    }
+    for(const auto& Pair:Panels)if(Pair.Value&&IsPanelOpen(Pair.Key))Add(Pair.Value->GetCachedGeometry());
+    return Rects;
+}
 
 float UVirtualSensorToolWorkspaceSubsystem::GetOwnedPixelScale() const
 {return LastOwnedPixelScale>0?LastOwnedPixelScale:1.f;}
@@ -17,7 +51,49 @@ float UVirtualSensorToolWorkspaceSubsystem::MeasureOwnedPixelScale() const
     return FMath::Clamp(float(Canvas->GetCachedGeometry().GetLocalSize().X/View->Viewport->GetSizeXY().X),.5f,3.f);
 }
 float UVirtualSensorToolWorkspaceSubsystem::GetSidebarWidth() const
-{return FSensorOwnedPresentationStyle::SidebarWidth*GetOwnedPanelFontScale()*GetOwnedPixelScale();}
+{return (bSidebarWide?FSensorOwnedPresentationStyle::WideSidebarWidth:FSensorOwnedPresentationStyle::SidebarWidth)*GetOwnedPanelFontScale()*GetOwnedPixelScale();}
+void UVirtualSensorToolWorkspaceSubsystem::ToggleSidebarWidth()
+{
+    if(!bSidebarMode)return;
+    bSidebarWide=!bSidebarWide;RefreshDockedLayout();
+    if(Toolbar)Toolbar->InvalidateLayoutAndVolatility();
+}
+void UVirtualSensorToolWorkspaceSubsystem::ClearPanelBackTarget(ESensorToolPanelRole Role)
+{PanelBackTargets.Remove(Role);}
+void UVirtualSensorToolWorkspaceSubsystem::SetPanelBackToTools(ESensorToolPanelRole Role)
+{
+    FPanelBackTarget Target;Target.bTools=true;
+    Target.Label=SensorToolUiText::BackTools();PanelBackTargets.Add(Role,Target);
+}
+FText UVirtualSensorToolWorkspaceSubsystem::GetPanelBackLabel(ESensorToolPanelRole Role) const
+{
+    const auto* Panel=GetOwnedPanel(Role);
+    if(!bSidebarMode||!Panel||!Panel->SupportsOwnedDocking())return FText::GetEmpty();
+    const auto* Target=PanelBackTargets.Find(Role);return Target?Target->Label:FText::GetEmpty();
+}
+bool UVirtualSensorToolWorkspaceSubsystem::CanNavigatePanelBack(ESensorToolPanelRole Role) const
+{
+    // Hiding a settings/placement owner ends manipulation by contract. Do not let
+    // a presentation-only Back action silently end an active interaction.
+    return !GetPanelBackLabel(Role).IsEmpty()&&(!PlacementInteraction||!PlacementInteraction->IsManipulating());
+}
+bool UVirtualSensorToolWorkspaceSubsystem::NavigatePanelBack(ESensorToolPanelRole Role)
+{
+    if(!CanNavigatePanelBack(Role))return false;
+    const auto Target=PanelBackTargets.FindChecked(Role);
+    TGuardValue<bool> Guard(bNavigatingBack,true);
+    if(Target.bTools)
+    {
+        if(auto* Bar=Cast<USensorToolToolbarWidget>(Toolbar))if(Bar->ShowOwnedToolsMenu()){SetPanelOpen(Role,false);PanelBackTargets.Remove(Role);return true;}
+        return false;
+    }
+    if(!GetOwnedPanel(Target.Role))return false;
+    SetPanelOpen(Target.Role,true);
+    if(!IsPanelOpen(Target.Role))return false;
+    PanelBackTargets.Remove(Role);
+    if(Target.ParentBack)PanelBackTargets.Add(Target.Role,*Target.ParentBack);else PanelBackTargets.Remove(Target.Role);
+    return true;
+}
 void UVirtualSensorToolWorkspaceSubsystem::CollapseSidebar()
 {if(bSidebarMode&&bSidebarExpanded)SetPanelOpen(SidebarRole,false);}
 void UVirtualSensorToolWorkspaceSubsystem::SetSidebarMode(bool Enabled)

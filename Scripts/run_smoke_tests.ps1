@@ -66,6 +66,7 @@ if (-not $SkipBuild) {
 foreach ($TestGroup in $TestGroups) {
     $automationArgs = @(
         $ProjectPath,
+        '/Engine/Maps/Entry',
         $(if ($Rhi -eq 'D3D12') { '-d3d12' } else { '-NullRHI' }),
         '-Unattended', '-NoSplash', '-NoSound', '-nop4',
         "-ExecCmds=Automation RunTests $TestGroup; Quit",

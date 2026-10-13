@@ -16,10 +16,13 @@
 #include "SensorToolWidgetDecl.h"
 #include "VirtualSensorUiStyle.h"
 #include "SensorOwnedPresentationStyle.h"
+#include "SensorToolIcon.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Layout/SBox.h"
 #include "Blueprint/WidgetTree.h"
 
 bool UVirtualSensorPanelWidgetBase::SupportsOwnedDocking() const
@@ -29,6 +32,7 @@ float UVirtualSensorPanelWidgetBase::GetSensorToolVisualScale() const
 void UVirtualSensorPanelWidgetBase::ApplyWorkspaceDockRect(FVector2D Position,FVector2D Size)
 {
     if(!SupportsOwnedDocking())return;
+	if(!bWorkspaceDocked)CancelPanelPointerGesture();
     if(!bWorkspaceDocked){bFloatingDraggable=bPanelDraggable;bFloatingResizable=bPanelResizable;bFloatingClamp=bClampPanelToViewport;}
     bWorkspaceDocked=true;bPanelDraggable=false;bPanelResizable=false;bClampPanelToViewport=false;
     bInitialLayoutPending=false;bPanelLayoutConfigured=true;DesiredPanelSize=Size;CurrentViewportPosition=Position;
@@ -49,6 +53,17 @@ FLinearColor UVirtualSensorPanelWidgetBase::GetToolMutedColor() const {return Is
 FLinearColor UVirtualSensorPanelWidgetBase::GetToolAccentColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Accent():FVirtualSensorUiStyle::Accent;}
 const FButtonStyle& UVirtualSensorPanelWidgetBase::GetToolButtonStyle(bool Danger) const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Button(Danger):FVirtualSensorUiStyle::ButtonStyle();}
 const FEditableTextBoxStyle& UVirtualSensorPanelWidgetBase::GetToolInputStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Input():FVirtualSensorUiStyle::EditableTextBoxStyle();}
+const FComboBoxStyle& UVirtualSensorPanelWidgetBase::GetToolComboBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::ComboBox():FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox");}
+const FSpinBoxStyle& UVirtualSensorPanelWidgetBase::GetToolSpinBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::SpinBox():FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");}
+TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolFormRow(const FText& Label,TSharedRef<SWidget> Control,TSharedRef<SWidget> Detail)
+{
+    return SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
+        [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Label)]
+            +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Detail]]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
+        [SNew(SBox).HeightOverride_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale()/.75f;})[Control]];
+}
 void UVirtualSensorPanelWidgetBase::PruneFontRegistrations()
 {
     for(int32 I=SensorFontLifetimes.Num()-1;I>=0;--I)if(!SensorFontLifetimes[I]()){SensorFontLifetimes.RemoveAt(I);SensorFontSetters.RemoveAt(I);}
@@ -90,6 +105,7 @@ void UVirtualSensorPanelWidgetBase::NativeConstruct()
 
 void UVirtualSensorPanelWidgetBase::NativeDestruct()
 {
+	CancelPanelPointerGesture();
 	if(ToolWorkspace.IsValid())ToolWorkspace->UnregisterPanel(this);
 	bSensorPanelConstructed = false;
 	Super::NativeDestruct();
@@ -373,52 +389,57 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& I
         IsInResizeHandle(InGeometry, InMouseEvent.GetScreenSpacePosition()))
     {
         bResizingPanel = true;
-        const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
-        return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+        bDraggingPanel = false;
+        return CapturePanelPointer(InMouseEvent);
     }
     if (bPanelDraggable && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && LocalPosition.Y <= DragHandleHeight)
     {
         bDraggingPanel = true;
-        const TSharedPtr<SWidget> CachedWidget = GetCachedWidget();
-        return CachedWidget.IsValid() ? FReply::Handled().CaptureMouse(CachedWidget.ToSharedRef()) : FReply::Handled();
+        bResizingPanel = false;
+        return CapturePanelPointer(InMouseEvent);
     }
     return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    if (bResizingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && FinishPanelPointerGesture())
     {
-        bResizingPanel = false;
-        SavePanelUiState();
-        return FReply::Handled().ReleaseMouseCapture();
-    }
-    if (bDraggingPanel && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
-    {
-        bDraggingPanel = false;
-        SavePanelUiState();
         return FReply::Handled().ReleaseMouseCapture();
     }
     return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
+}
+
+FReply UVirtualSensorPanelWidgetBase::CapturePanelPointer(const FPointerEvent& Event)
+{
+    PanelPointerUser=Event.GetUserIndex();
+    const auto Widget=GetCachedWidget();if(!Widget.IsValid())return FReply::Handled();
+    auto Reply=FReply::Handled().CaptureMouse(Widget.ToSharedRef());
+    // Without an explicit focus recipient Slate falls back to SViewport after
+    // the title bubbles. Permanent game capture then overwrites panel capture.
+    if(SupportsOwnedDocking())Reply.SetUserFocus(Widget.ToSharedRef(),EFocusCause::Mouse);
+    return Reply;
 }
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     if (bResizingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
-        const float DpiScale = UWidgetLayoutLibrary::GetViewportScale(this);
+        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition()+InMouseEvent.GetCursorDelta())-
+            InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
         SetPanelExpandedSize(CalculateResizedPanelSize(
             DesiredPanelSize,
-            InMouseEvent.GetCursorDelta(),
-            DpiScale,
-            MinimumPanelSize,
+            LocalDelta,
+            1.0f,
+            GetResolvedPanelMinimum(),
             ResolveMaximumPanelSize()), false);
         return FReply::Handled();
     }
     if (bDraggingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
-        const float DpiScale = UWidgetLayoutLibrary::GetViewportScale(this);
-        SetPanelPositionInternal(CalculateDraggedPanelPosition(CurrentViewportPosition, InMouseEvent.GetCursorDelta(), DpiScale));
+        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition()+InMouseEvent.GetCursorDelta())-
+            InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+        SetPanelPositionInternal(CalculateDraggedPanelPosition(CurrentViewportPosition, LocalDelta, 1.0f));
         return FReply::Handled();
     }
     return Super::NativeOnMouseMove(InGeometry, InMouseEvent);
@@ -426,14 +447,31 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeome
 
 void UVirtualSensorPanelWidgetBase::NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 {
-    const bool bWasDragging = bDraggingPanel || bResizingPanel;
+    FinishPanelPointerGesture();
+    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
+}
+
+bool UVirtualSensorPanelWidgetBase::FinishPanelPointerGesture()
+{
+    const bool bWasDragging=bDraggingPanel||bResizingPanel;
     bDraggingPanel = false;
     bResizingPanel = false;
     if (bWasDragging)
     {
         SavePanelUiState();
     }
-    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
+    return bWasDragging;
+}
+
+void UVirtualSensorPanelWidgetBase::CancelPanelPointerGesture()
+{
+    if(!FinishPanelPointerGesture()||!FSlateApplication::IsInitialized())return;
+    const auto Widget=GetCachedWidget();auto& App=FSlateApplication::Get();
+    if(Widget.IsValid()&&Widget->HasMouseCaptureByUser(PanelPointerUser))
+    {
+        FWidgetPath Path;App.GeneratePathToWidgetUnchecked(Widget.ToSharedRef(),Path);
+        App.ProcessReply(Path,FReply::Handled().ReleaseMouseCapture(),nullptr,nullptr,PanelPointerUser);
+    }
 }
 
 EVisibility UVirtualSensorPanelWidgetBase::GetPanelBodyVisibility() const
@@ -597,7 +635,12 @@ void UVirtualSensorPanelWidgetBase::ApplyPanelSize()
 }
 
 void UVirtualSensorPanelWidgetBase::SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role)
-{ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();}
+{
+    if(ToolWorkspace.Get()!=Owner)CancelPanelPointerGesture();
+    if(bOwnedPointerFocus){SetIsFocusable(bPreviousFocusable);bOwnedPointerFocus=false;}
+    ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();
+    if(SupportsOwnedDocking()){bPreviousFocusable=IsFocusable();SetIsFocusable(true);bOwnedPointerFocus=true;}
+}
 FVirtualSensorPanelUiState UVirtualSensorPanelWidgetBase::CaptureWorkspaceLayout() const
 {
 	FVirtualSensorPanelUiState S;S.bHasSavedPosition=true;S.bHasSavedSize=true;S.bCollapsed=bPanelCollapsed;S.ExpandedSize=DesiredPanelSize;
@@ -618,7 +661,7 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeom
 		if(bPanelResizable&&!bPanelCollapsed&&E.GetEffectingButton()==EKeys::LeftMouseButton&&IsInResizeHandle(G,E.GetScreenSpacePosition()))
 		{
 			bResizingPanel=true;bDraggingPanel=false;
-			if(const auto W=GetCachedWidget())return FReply::Handled().CaptureMouse(W.ToSharedRef());
+			return CapturePanelPointer(E);
 		}
 		// DTCore's unrelated OpenWidgets list does not contain these owned panels.
 		// Its BringToFront would immediately overwrite our local z-order with 1.
@@ -629,23 +672,68 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeom
 TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelHeader(const FText& Title)
 {
 	if(IsWorkspaceOwned())
-	{
-		return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolHeaderColor()).Padding(0)
-		[SNew(SHorizontalBox)
-		 +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Bold",FMath::RoundToInt(FSensorOwnedPresentationStyle::TitleSize*GetSensorToolVisualScale()));}).ColorAndOpacity(GetToolTextColor()).Text(Title).ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("–"))).ToolTipText(FText::FromString(TEXT("접기 / 펼치기"))).OnClicked_Lambda([this](){if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid())ToolWorkspace->CollapseSidebar();else TogglePanelCollapsed();return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×"))).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
-		 +SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;}).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).HasDownArrow(false)
-		  .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
-		  .OnGetMenuContent_Lambda([this](){return SNew(SButton).ButtonStyle(&GetToolButtonStyle())
-		   .OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
-		   [SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolTextColor()).Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))];})
-		  .ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return FCoreStyle::GetDefaultFontStyle("Regular",CalculateScaledFontSize(16,GetSensorToolFontScale()));}).ColorAndOpacity(GetToolMutedColor()).Text(NSLOCTEXT("SensorToolPanel","MoreIconAscii","..."))]]
-		];
-	}
+    {
+        // Keep the title filling the remaining width: floating title drag uses
+        // the same panel hit region as UXR-11, while actions stay compact.
+        return SNew(SBox).MinDesiredHeight_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale();})
+        [SNew(SHorizontalBox)
+         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,FSensorOwnedPresentationStyle::Gap,0)
+         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
+          .Visibility_Lambda([this](){return SupportsOwnedDocking()&&!GetPanelBackLabel().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
+          .IsEnabled_Lambda([this](){return CanNavigatePanelBack();}).Text(FText::FromString(TEXT("←")))
+          .ToolTipText_Lambda([this](){return GetPanelBackLabel();})
+          .OnClicked_Lambda([this](){NavigatePanelBack();return FReply::Handled();})]
+         +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)
+         [SNew(STextBlock).Font_Lambda([this](){return FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::TitleSize,GetSensorToolVisualScale(),true);})
+          .ColorAndOpacity(GetToolTextColor()).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text(Title)
+          .ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
+         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+         [SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;})
+          .ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(0)).HasDownArrow(false)
+          .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
+          .OnGetMenuContent_Lambda([this]()
+          {
+              auto Menu=SNew(SVerticalBox);
+              Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
+                .Text(FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기")))
+                .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid())ToolWorkspace->CollapseSidebar();else TogglePanelCollapsed();return FReply::Handled();})];
+              if(bWorkspaceDocked&&ToolRole!=ESensorToolPanelRole::Monitor)
+                  Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
+                    .Text(ToolWorkspace.IsValid()&&ToolWorkspace->IsSidebarWide()?SensorToolUiText::DefaultWidth():SensorToolUiText::WideWidth())
+                    .ToolTipText(SensorToolUiText::WidthHint())
+                    .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(ToolWorkspace.IsValid())ToolWorkspace->ToggleSidebarWidth();return FReply::Handled();})];
+              Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
+                .Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))
+                .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);return FReply::Handled();})];
+              return Menu;
+          })
+          .ButtonContent()[SNew(SBox).WidthOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();}).HeightOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();})[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]]
+         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×")))
+          .ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]];
+    }
 	return SNew(SHorizontalBox)
 	+SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).ColorAndOpacity(FSensorToolWorkspaceStyle::Text()).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(18,GetSensorToolFontScale());}).Text(Title).ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단에서 크기 조절")))]
 	+SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text_Lambda([this](){return FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기"));}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]
 	+SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text(FText::FromString(TEXT("숨김"))).IsEnabled_Lambda([this](){return IsWorkspaceOwned();}).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
 	+SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text(FText::FromString(TEXT("초기화"))).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);else{ResetPanelSize();ResetPanelPosition();}return FReply::Handled();})];
+}
+
+FText UVirtualSensorPanelWidgetBase::GetPanelBackLabel() const
+{return ToolWorkspace.IsValid()?ToolWorkspace->GetPanelBackLabel(ToolRole):FText::GetEmpty();}
+bool UVirtualSensorPanelWidgetBase::CanNavigatePanelBack() const
+{return ToolWorkspace.IsValid()&&ToolWorkspace->CanNavigatePanelBack(ToolRole);}
+bool UVirtualSensorPanelWidgetBase::NavigatePanelBack()
+{return ToolWorkspace.IsValid()&&ToolWorkspace->NavigatePanelBack(ToolRole);}
+
+TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelFrame(TSharedRef<SWidget> Content)
+{
+    return SNew(SOverlay)
+        +SOverlay::Slot()[Content]
+        +SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom)
+        [SNew(SBox).WidthOverride(ResizeHandleSize).HeightOverride(ResizeHandleSize)
+         .Visibility_Lambda([this](){return SupportsOwnedDocking()&&!bWorkspaceDocked&&bPanelResizable&&!bPanelCollapsed?EVisibility::Visible:EVisibility::Collapsed;})
+         [SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).Padding(4)
+          .Cursor(EMouseCursor::ResizeSouthEast).ToolTipText(SensorToolUiText::ResizeHint())
+          [SNewSensorTool(STextBlock).Text(NSLOCTEXT("SensorNavigation","ResizeMark","↘")).ColorAndOpacity(GetToolMutedColor())]]];
 }

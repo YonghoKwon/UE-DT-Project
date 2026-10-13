@@ -90,6 +90,8 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-07 | UI/UX / 문구·수용 | P0 | **70%** | 자동 회귀·주요 직접 점검·7패널 Slate 드래그·ABABAB 상대 성능 통과. 전체 수용은 미완료 | 자유 배치 직접 FAIL 재확인·화면 활성화·남은 조합·사용자 확인 | U |
 | UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·MID 5종(승인된 산화 전용 재질)·명시적 광학 연동·optional 결과 | 직접 조작/독립 검토 보류; 산화 전환/복원·CPU/GPU/PCD 회귀 통과, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
 | UXR-09 | UI/UX / 시각 리프레시 | P0 | **90%** | 카드·더보기·고정 저장 바·간결한 상태바 보완, 최종 상대 성능 2% gate·239 Success·48장 렌더 통과 | 변경 화면 직접 조작 보류: 창 활성화 2회 실패. 절대 성능 목표 및 이전 14.4% 증가 전체 원인은 별도 제한 | U |
+| UXR-10 | UI/UX / 사용자 피드백 | P1 | **70%** | 시나리오 resize·기존 Workspace v1 크기 복원, 사이드바 폭 전환, 하위 화면 공통 뒤로 가기 구현·집중 자동검증 | 앱 Codex 직접 마우스·통합 release·Editor 종료 후 QA-02 성능 gate 보류 | U (별도 후속) |
+| UXR-11 | UI/UX / 실제 마우스 결함 | P0 | **80%** | 검수본 직접 마우스 FAIL 2건(자유 배치 제목 드래그·모서리 resize) 원인=PIE viewport 캡처 선점, 소유 패널 hit 시에만 해제·포커스·제스처 정리, 프로필 재적용 안내 | 수정본(40aa640) 직접 마우스 재검수·통합 release·성능 gate | U (별도 후속) |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
@@ -106,10 +108,10 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | LIFE-01 | 안정성 / 구현·집중검증 | P1 | **70%** | 실행별 회수·종료 snapshot·결과 보존 | 전체 fault matrix·자원 인과·장시간 범위 | R1/R3 |
 | UI-01 | UI / 검증 공백 | P1 | **40%** | 해상도·DPI·소유권 | 1920×1080 직접 조작·DPI·외부 Widget 입력 | R2/R5 |
 | UI-03 | UI/UX / 핵심 구현 | P1 | **70%** | 사이드바·배치부터 PCD 결과까지 주요 직접 workflow 확인 | 자유 배치 입력·상대 성능·전체 조합과 첫 사용자 수용 | R2 |
-| UI-02 | UI / 신규 기능 | P1 | **0%** | 3D 진단 라벨 정리(2026-10-13 P2→P1) | 기본 표시 최소화·거리 크기/페이드·겹침 회피·사이드바/카드 영역 회피 | R2 |
-| PERF-01 | 성능 / 검증 공백 | P0 | **0%** | 개편 전(fda25e0) 대비 절대 성능 재확인 | 표시형 1920×1080 1+1·2+2 ABAB 교차 비교, 누적 회귀 원인 | 후속 |
-| OPS-01 | 운영 / 에이전트 환경 | P1 | **0%** | 새 Codex 대화·입력기 포커스·모델 용량 오류 대응 | 전용 계정/VM 또는 점검 시간대 운영 | 후속 |
-| QA-02 | 품질 / 자동 검증 | P1 | **0%** | verify 자동 실행·성능 gate 교차 측정 표준화 | 예약/hook 실행, perf 단계 고정 | 후속 |
+| UI-02 | UI / 신규 기능 | P1 | **85%** | 3D 진단 라벨 정리 구현(142a6ff, 한글 수정 763ba4d) | 기본 표시 최소화·거리 크기/페이드·겹침 회피·사이드바/카드 영역 회피 | R2 |
+| PERF-01 | 성능 / 검증 공백 | P0 | **90%** | Broker 없는 범위 회귀 없음(221cd2d), 실제 PCD 송신 비교만 보류 | Broker 준비 후 표시형 1920×1080 1+1·2+2 ABAB 교차 비교, 누적 회귀 원인 | 후속 |
+| OPS-01 | 운영 / 에이전트 환경 | P1 | **50%** | 새 Codex 대화·입력기 포커스·모델 용량 오류 대응 | 전용 계정/VM 또는 점검 시간대 운영 | 후속 |
+| QA-02 | 품질 / 자동 검증 | P1 | **70%** | verify 자동 실행·성능 gate 교차 측정 표준화 | 예약/hook 실행, perf 단계 고정 | 후속 |
 | FONT-01 | UI / 선택 | P2 | **0%** | 한글 UI 글꼴 에셋 | 사용자 승인 후 소유 패널만 적용 | 후속 |
 | IO-01 | 파일 / 현재 보류 | 보류 | **10%** | LAZ 외부 프로세스 제한 | PCD 외 형식의 개선 재개 요청 시 착수 | 후속 |
 | PL-01 | 구조 / 신규 기능 | P1 | **0%** | host 의존성 역전 | 중립 인터페이스·Slab 의존 분리 | R4 |
@@ -476,6 +478,32 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 
 **산화 스케일 후속:** 승인된 `M_SlabSurfaceOxideScale` 한 자산과 재현 스크립트만 갱신했다. 청흑색 base, 밝은 벗겨진 강판 패치, 거친 저금속 표면으로 조정했으며 별도 윤곽/normal/WPO 효과는 없다. 냉각 강판·분석용 무광의 파라미터는 구분하되 기본과 기존 MID override 복원은 유지한다. 기본 Camera/intensity/PCD·명시 광학 연동 회귀와 5종 비교/근접/base-color 캡처 통과, shader 비용은 기존 산화 버전과 동일한 pixel 379 / vertex 131 / samples 3 / 외부 텍스처 0이다. 실제 맵의 노출/조명에 따른 최종 외형의 독립 시각 검토는 남으며 조명·전역 노출은 바꾸지 않았다.
 
+### UXR-10 — 시나리오 크기 조절과 하위 화면 뒤로 가기 (P1, 2026-10-13 사용자 피드백)
+
+- **출처:** 사용자 요청 “시나리오 위젯 크기 조절”, “왼쪽 사이드바 세부 위젯에서 이전 화면으로 돌아가기”. Claude의 UXR-10 CLI 요청으로 범위를 고정했으며 개편 프로그램 가중치(106)에 합산하지 않는 후속 항목이다.
+- **구현:** 자유 배치 진행 창의 우하단 `↘` 드래그와 실제 geometry 좌표계·글자 배율 최소 크기를 사용한다. 기본 최소 360×280 logical px, 150% 최소폭 540, 최대는 설정 상한과 viewport/상단 작업 바의 가용 범위다. 크기는 기존 Workspace v1 `Layout.ExpandedSize`에 저장하며 슬롯·버전·UPROPERTY·Blueprint API를 바꾸지 않는다. 사이드바는 기존 공통 머리에서 기본 372 / 넓게 560 design px를 전환하고 화면 폭 48% 이내로 제한한다. 폭 선택은 세션 전용이다.
+- **뒤로 경로:** 배치→장비 상세 설정→배치, 설정 고급/고급·호환→기본, 진행→보관 목록/차트→진행, 데이터 탭→직전 탭, 도구에서 연 화면→도구 메뉴. 등록된 기존 인스턴스를 재사용하며 화면 간 부모 경로 최대 8단·데이터 탭 경로 최대 5개만 보관한다. 레일 직접 진입은 하위 경로를 초기화하며 같은 레일 재클릭의 숨김 토글을 유지한다. 화면 복귀는 센서 재바인딩/설정 적용/측정·전송·파일 작업 시작·중지를 하지 않는다. 기존 숨김 계약으로 조작을 종료하지 않도록 화면 간 뒤로는 조작 중 비활성화하고, 설정 내부 탭 복귀는 조작·미적용 입력값을 유지한다. Backspace/마우스 뒤로 버튼은 새로 연결하지 않았다.
+- **비용·기반:** 새 Tick·timer·invalidation root·센서 순회·캡처/readback 경로 없음. 크기/폭/경로 변경 이벤트에서만 배치를 갱신하며 기존 5Hz 갱신을 유지한다. 기존 `UDxWidget`/Workspace의 `UDxWidgetSubsystem` 입력 차단·전면 처리를 사용한다. Designer WBP와 미등록 Widget은 새 머리/resize 적용에서 제외한다. DTCore 소스/gitlink 불변이며 공통 후보는 아래 DTC-UXR10이다.
+- **현재 상태: 70%.** Editor Development·집중 D3D12 **2 Success/실패·skip0**, 기존 UXR/UI 관련 회귀 **49 Success/3 조건부 skip/실패·NotRun0**, WBP7 메모리 컴파일·quick8·용어 검사·layer0 통과다. 1920×1080/window DPI1.0의 기준/변경 각24장(글자100/125/150%)과 변경 경로9장을 보관했다. 직접 마우스·통합 release·성능 gate는 요청에 따라 보류다. 자동 RHI 렌더/Slate 이벤트는 직접 마우스 수용을 대신하지 않는다. 최종 명령·성공/실패/skip 이름·전후 렌더·개인 SaveGame 복원 근거는 `Saved/Reports/UXR/UXR-10/RESULT.md`와 `manual/CHECKLIST.md`를 따른다. 이번 CLI 세션의 상세 기록은 [검증 이력](VALIDATION_HISTORY.md)에 보관한다.
+
+### UXR-11 — 실제 마우스 드래그·resize 결함 (P0, 2026-10-14 검수 마우스 점검)
+
+- **출처:** 검수 복사본(`ma0t10_dt_qa`, 221cd2d) 직접 마우스 점검에서 자유 배치 창 제목 드래그와 시나리오 자유 창 우하단 resize가 무반응(확정 FAIL 2). 기존 Slate 자동 테스트는 위젯에 이벤트를 직접 주입해 통과했다. 같은 점검에서 첫 Esc·숫자 입력·출력 왕복·포인트 전용·듀얼·삭제 취소는 PASS, 프로필 선택 시 값이 기본 규격으로 재적용되는 것은 의도된 계약이나 안내가 없어 '초기화'처럼 보이는 UX 지점(P2)으로 기록됐다.
+- **원인·수정:** PIE 창 활성화/배경 클릭 뒤 game viewport(`SViewport`)가 이미 마우스 캡처를 쥐고 있어 패널 press가 viewport로 갔다. L3 Workspace에 입력 pre-processor를 등록해, press가 **열린 소유 패널의 실제 hit path**일 때만 viewport 캡처·lock을 해제하고 Slate가 원래 이벤트를 정상 라우팅하게 했다. viewport 캡처 정책·input mode·DTCore 입력 차단은 바꾸지 않는다. 패널은 명시적 user focus와 함께 캡처하고, delta를 local 좌표로 계산하며, 숨김·도킹·재바인딩·파괴 시 제스처를 끝내고 캡처를 해제한다. 프로필 선택은 기존 재적용 계약을 유지하고 "프로필 기본값 적용: 품질 …, 주기 … (이전 사용자 값 …)"을 다음 조작까지 표시한다(Tick·timer 없음).
+- **검증(40aa640):** 신규 `MA0T10.UXR11.NativeCursorCaptureRhi`(viewport 캡처를 실제로 심은 뒤 native cursor down/move/up을 7개 패널·글자 100/150%로 수행, PIE 카메라·폰·선택 불변, 캡처 해제, 기존 v1 저장 복원)와 `ProfileReapplyNotice` 2/2, UXR10 2/2, `MA0T10.UXR`+`UI02`+`SensorMonitor`+`Workspace` **37 Success/실패0**(D3D12 표시 창), quick 8/8, layer 0. Codex CLI가 구현 도중 서버 오류로 중단되어 Claude가 미커밋 변경을 검토·완성·검증했다.
+- **현재 상태: 80%.** 남은 것: 검수본(40aa640) 직접 마우스 재검수(앱 Codex 진행 중), 통합 release, `verify -Level perf`.
+
+### UXR-12 — 시각 다듬기: 더 심플하고 세련되게 (P1, 2026-10-14 사용자 요청)
+
+**진행률: 70%** · 표현 구현·집중 회귀 완료. 변경 화면 직접 마우스·통합 release·상대 성능은 별도 인계이며 전체 수용 완료로 표시하지 않는다. 개편 프로그램 가중치에는 합산하지 않는 후속 항목이다.
+
+- **출처·문제:** 사용자 “전체적인 UI 디자인 지금 좋은데, 좀 더 심플하지만 세련되고 보기 좋게”. Claude의 UXR-10 렌더 검토에서 레일 라벨 잘림, 머리의 접기/닫기/폭/더보기와 별도 뒤로 줄, 중복 부제, 기본 Slate 콤보와 숫자 입력의 스타일/높이 차이, 반복 도움말, 비활성 Undo/Redo, 빽빽한 PCD 체크박스/점검 대상, 미리보기 경고 잘림과 작은 Slab 진행 막대를 확인했다.
+- **토큰·머리:** 제목16 Bold / 본문13 / 보조11, Text·Muted 두 회색, 간격8·섹션16·패널 여백16·폼 컨트롤32(글자 배율 반영). 레일72와 `배치/보기/시나리오/전송/결과`, 선 아이콘, Accent15% 면·왼쪽3px 막대. 머리는 `[←] 제목 [더보기] [×]` 한 줄이다. 뒤로 부모는 툴팁으로 유지하고 접기·폭·초기화는 더보기로 이동했다. 기존 폰트의 `⋯` 누락 글리프는 직접 그린 세 점으로 처리한다. 제목 드래그 hit 범위와 UXR-10 복귀·UXR-11 입력 라우팅은 유지한다.
+- **폼·행동·카드:** 센서 설정은 라벨 위/입력 아래, 소유 ComboBox/Input/SpinBox 스타일, 섹션 한 줄 도움말·작은 성능 배지/정보 버튼이다. 품질은 `전체 사양(고부하)`로 표시하고 레거시 문구/enum은 유지한다. 배치의 중복 `장비` 부제 제거·위치 저장 링크 왼쪽 정렬·기록 있는 Undo/Redo만 노출. 저장·불러오기와 상태를 저장 위치 바로 아래로 모아 큰 중간 빈칸을 없애고 같은 본문 스크롤로 접근한다. PCD 신규/재생은 켬/끔 pill 토글, `연결 확인 후 시작` 정책 이름 유지, 점검 대상 콜론 제거와 신규/재생/직접 한 줄 세그먼트다. 미리보기 경고는 한 줄 칩과 원문 툴팁, Slab 진행은 전체 폭4px·퍼센트와 오른쪽 값 정렬이다. 주요 행동만 Primary, 보조는 테두리, 도구/링크는 텍스트 버튼이며 결과의 사용 불가 행동은 숨긴다.
+- **경계:** A안 구조·기능·DTCore·Designer WBP·미등록 Widget·Blueprint API·enum 순서·저장 schema·출력 기본값 불변. 새 자산/글꼴/Tick/timer/invalidation root/센서 캡처·readback·worker 경로 없음. 기존 숨김/접힘 갱신 중단과 5Hz 제한을 유지한다. DTCore 변경 후보를 새로 추가할 필요는 없으며 기존 UXR-09 adapter 범위다.
+- **검증·완료 gate:** Editor Development, UXR/UI02/SensorMonitor/SensorWorkspace/SensorUi/SensorControl/Slab.UI 집중 회귀 **58 Success / skip3 / 실패·NotRun0**, WBP7 메모리 컴파일·quick8·layer/allowlist **0/0**·기본 화면 용어 검사(103 상수와 실제 Slate inventory) 통과. 1920×1080·1280×720 ×100/125/150% ×9화면 전후54장씩, 레일 할당 폭과 폼 높이32/40/48 검사 통과. 레일 문구 기대값2개와 세그먼트 수 검사1개만 의미를 보존해 갱신했다. 보호 파일484·개인 SaveGame9 불변이다.
+- **근거·남은 조건:** Runtime `399ea46`, `Saved/Reports/UXR/UXR-12/RESULT.md`, `summary.json`, `before/`, `after-spacing/`, `comparison/`, `manual/CHECKLIST.md`. 실패했던 폼 높이 검사·이전 문구 기대값·줄바꿈 경고 기록은 보존한다. QA 마우스 검수와 충돌하는 `UXR11.NativeCursorCaptureRhi`는 미수행이며 다른 SHA의 결과로 대체하지 않는다. 직접 마우스는 앱 Codex, release와 `verify.ps1 -Level perf -BaseCommit fe20bcb`(상대2%)는 모든 화면 작업 종료 후 Claude가 수행한다. 이 CLI에서는 release·성능 측정을 하지 않았다.
+
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
 **진행률: 90%** · CLI 구현/검증 완료, 직접 마우스는 요청된 예외에 따라 UXR-07에서 수행하며 독립 검토 대기다.
@@ -535,14 +563,20 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 - **작업:** 개편 시작 `fda25e0`과 현재 HEAD를 **같은 방식**(실제 표시 PIE 1920×1080, 1+1과 2+2, 10초 준비+60초, ABAB 교차 3회)으로 비교한다. 같은 조건에서 오프스크린 측정과 표시 측정의 차이도 기록한다. 누적 회귀가 확인되면 커밋 구간을 이분 탐색하고 Unreal Insights로 원인을 찾아 고친다. 마우스 점검·다른 Editor 세션이 도는 동안에는 측정하지 않는다.
 - **완료:** 개편 전 대비 FPS·frame p95·game thread가 각각 2% 이내, 또는 원인과 선택지 보고. 표시형 2+2 PCD-only 평균 ≥55 FPS(ROADMAP 제안 gate) 유지 여부를 기록한다.
 
+**현재 결과(2026-10-13): 진행률 90% — Broker 없이 승인된 범위 완료, 실제 PCD 송신 환경 보류.** `fda25e0` vs `2a5f89b`(production은 `807f512`와 동일), DTCore `b2504d1`, 같은 맵 바이트·계측기·1920×1080/D3D12·10초+60초로 표시/오프스크린 1+1·2+2 각 ABAB×3(48회)를 수행했다. 모든 FPS·engine p95는 기준 안이었고 초기 GT +2.16/+15.93/+2.77% 초과는 원본에 남겼다. 두 중간 지점 `a36179c`/`a96f638`와 Insights를 조사하고 초과 세 조건을 ABAB×3 재측정(36회)한 결과 GT +1.63/+1.52/+1.42%로 모두 2% 안이어서 특정 커밋의 회귀로 확정하지 않았다. production 수정 없음. Editor·Game Development, quick8, 전체 D3D12 **242 Success / skip22 / 실패·NotRun0**, 기존263개 이름/상태 동일+신규 PERF opt-in1, WBP7 메모리 컴파일 통과; layer/allowlist0→0. 1+1은 Camera encode 포함 미송신, 2+2는 acquisition+미리보기만이며 과거 2+2 PCD-only 송신 포함 기록과 다르다. 표시/오프스크린 모두 약60 FPS여서 오프스크린만으로 과거47 FPS를 재현하지 않았으나 장면·화면·동작 조건도 달라 원인을 단정하지 않는다. **실제 2+2 PCD 송신은 Broker 환경 보류**이며 Broker 시작·설정 변경은 하지 않았다. 원본·실행 조건·Broker 준비 뒤 명령·QA-02 절차는 `Saved/Reports/PERF/PERF-01/RESULT.md`, 상세 이력은 `VALIDATION_HISTORY.md`에 있다.
+
 #### UXR-08 후속 — 산화 스케일 외형 확인 (P1)
 
 - UXR-09에서 `M_SlabSurfaceOxideScale` 외형을 다듬었다는 보고만 있고 Claude·사용자의 화면 확인 전이다. 5종 비교 이미지를 다시 만들어 확인하고, 밀 스케일처럼 보이지 않으면 파라미터만 조정한다(새 자산 금지, 기본 프리셋 센서 결과 불변).
+
+**현재 CLI 결과(2026-10-13, `28461bc`):** 기존 oxide 재질만 재생성하여 작은 3-octave ALU 조각·가는 균열·grain/미세 normal·소량 갈색을 적용했다. 색상은 display-referred 값을 linear로 변환했으며 노출 강판은 흰색 대신 금속 회색이다. 중앙 BaseColor ROI의 조각 19.04%/흰색 0%, shader pixel 379→527(+148)/vertex 131 불변/외부 texture 0. 냉각 강판·무광 값도 구분하되 기본 MID/광학 복원 유지. Editor Development·실제 D3D12 UXR08 7 Success/실패·skip0·quick8·layer0 통과, 기본 Camera/CPU·GPU intensity/PCD bytes 불변 회귀 포함. 5종·근접2·전후 비교는 `Saved/Reports/UXR/UXR-08/oxide-realism/`에 있다. **Claude 판단(2026-10-13, 사용자 기준 "정말 사실적이지 않으면 현재 열연 표면으로 충분"):** 흰 얼룩 문제는 해소됐으나 조각이 고르게 퍼져 사진급 밀 스케일은 아니다. 이 버전은 선택 프리셋으로 유지하고 추가 반복은 하지 않는다. 기본 표면은 기존 열연 표현을 쓴다. 최종 통합 release/성능은 아래 UI-02와 함께 남는다.
+
 
 #### OPS-01 — 에이전트 작업 환경 (P1)
 
 - **Codex 대화 분리:** 앱 대화(thread `019f6014-…`)의 기록이 1.1GB를 넘었다. 느려지고 요약 과정에서 맥락을 잃을 수 있으므로, 다음 단계(PERF-01 이후)는 **새 Codex 대화**에서 시작한다. 첫 요청에 AGENTS.md·README §10·IMPROVEMENTS 요약표를 읽게 하고 이전 thread ID를 남긴다.
 - **입력기 포커스 고착:** 사용자가 한글을 입력하면 `TextInputHost`가 전경을 잡고, 실제 클릭 전까지 Computer Use(Claude·Codex 모두)가 막힌다(UXR-02·03·07에서 반복). 마우스 점검은 사용자가 PC를 쓰지 않는 시간에 몰아서 하고, 근본 해결은 **에이전트 점검 전용 Windows 계정 또는 VM**이다.
+- **현재 결과(2026-10-13): 진행률 50%.** 후속 작업은 새 Codex CLI 대화에서 진행 중이고, 개발 폴더와 검수 전용 복사본(`ma0t10_dt_qa`)을 나눠 개발·마우스 점검을 병행한다(AGENTS §6). 입력기 포커스 고착은 여전히 재발(사용자 실제 클릭으로 해소)하며 전용 계정/VM은 미착수다.
 - **모델 용량 오류:** `server_overloaded`가 반복된다. 앱은 자동 재시도 후에도 완료 판정 전 90초 대기, CLI는 10분 간격 재시도 규칙을 유지한다(AGENTS §6).
 
 #### QA-02 — 자동 검증 실행과 성능 측정 표준화 (P1)
@@ -550,6 +584,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 - `Scripts/verify.ps1 -Level quick`이 자동으로 실행되는 곳이 없다. 커밋 전 hook(설치는 사용자 승인 후) 또는 예약 실행으로 돌리고, feature/release는 야간 예약으로 돌린다.
 - 성능 gate를 **ABAB 교차 측정 중앙값**으로 표준화해 `verify.ps1`의 별도 단계(예: `-Level perf`)로 고정한다. 오프스크린/표시 방식, 해상도, 장비 수를 manifest에 기록한다.
 - **완료:** quick이 자동 실행되어 결과 manifest가 남고, 성능 단계가 같은 입력에서 재현 가능한 판정을 낸다.
+- **현재 결과(2026-10-13, Claude 작업): 진행률 70%.** `Scripts/run_perf_abab.ps1` + `verify.ps1 -Level perf` 추가: 두 revision을 별도 archive checkout(`Saved/PerfAbab-<시각>-owned`, 소유 표시 확인 후 정리)에 빌드하고 같은 PERF-01 계측기를 넣어 ABAB×N 실행, revision별 중앙값으로 FPS·engine p95·game thread를 각각 2% 판정, manifest에 revision/DTCore/계측기·맵 hash/GPU·driver/표시 방식을 기록한다. `-SummarizeOnly`로 PERF-01 원본 48회를 재판정해 보고서의 초기 값(GT +15.93/+2.16/+2.77/−4.56%)을 그대로 재현했다. `Scripts/install_verify_automation.ps1`(opt-in: pre-commit quick hook / 야간 feature 예약)은 작업 복사본에서 설치→실행→제거를 확인했다. quick 8단계 통과. **남은 것:** Editor가 모두 닫힌 시점에 `-Level perf` 실제 1회 실행, 사용자 승인 후 hook·야간 예약 설치.
 
 #### FONT-01 — 한글 UI 글꼴 (P2, 선택)
 
@@ -566,6 +601,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
 | DTC-ARCH06 | 센서 acquisition snapshot용 host provider 계약이 확인되지 않음 | L0 값 context·weak 월드 registry에 L2 SlabContext를 등록; 기존 세션/결과 집계를 adapter로 호출 | 다른 소비 프로젝트에도 필요할 때 중립 값/provider 공용화를 검토; Slab 정책은 host에 유지 | DTCore `b2504d1`의 `AcquisitionContext/FrameContext/SensorContext` 검색 0건; `Contracts/VirtualSensorAcquisitionContext.*`, `Scenario/VirtualSensorSlabAcquisitionProvider.cpp`; DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
+| DTC-UXR10 | 기존 동일 인스턴스의 하위 화면 복귀·native resize/layout 저장 계약 없음 | 기존 소유 Workspace/UDxWidget base에 세션 부모 경로·공통 머리와 모서리 표시만 추가, 기존 v1 크기 저장·DTCore 입력 차단·전면 처리 재사용 | 여러 소비 프로젝트에 필요할 때 동일 인스턴스 subtarget 복귀와 선택적 resize adapter 확장점 검토 | `UI/DxWidget.h`의 WidgetFlag 기반 OpenChildWidget/CloseChildWidget, `Core/DxWidgetSubsystem.h`, UXR-10 집중 회귀; DTCore 소스/gitlink 불변 |
 | DTC-UXR09 | `DxWidgetThemeData`는 색상 토큰을 제공하지만 native Slate의 간격·모서리·글자 역할·버튼 단계·dock 표시 계약은 없음 | 기존 `UDxWidget` 패널과 Workspace의 Main/Viewport·입력 차단·전면 표시 경로를 유지하고 명시 소유 native UI의 시각 토큰·표시 사각형만 프로젝트 adapter로 적용 | 공통 필요가 확인되면 색상 외 타이포그래피/간격 토큰과 기존 인스턴스 dock 표시 확장점을 검토. 프로젝트 레일·업무 화면 구성은 host에 유지 | `UI/DxWidgetThemeData.h`, `UI/SensorOwnedPresentationStyle.h`, `VirtualSensorToolWorkspaceSubsystem.Docking.cpp`; DTCore·공용 테마 자산 불변 |
 
 ## 1. 성능·측정·전송
@@ -799,11 +835,15 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 - 두 목표 client 크기, 100/125/150% OS DPI 및 네 폰트 배율의 대표 조합을 검사한다. 창 경계/메뉴 overflow/입력 clipping/접기 후 hit-test/Tab focus/숨김 중 작업/재호스팅을 확인한다.
 - 완료: 실제 크기 증거, 기존 저장값 roundtrip, 미등록/중첩 Widget의 font·geometry·입력·파일 hash 불변. 확보 못한 조합은 명시적으로 미완료.
 
-### UI-02 — 3D 라벨 배치 (신규 기능, P2)
+### UI-02 — 3D 라벨 배치 (신규 기능, P1)
 
-**진행률: 0%** · 구현: 신규 자동 배치 정책 미착수 · 검증: 전용 수용시험 없음. **2026-10-13 P1로 상향:** UXR 렌더에서 "Center aligned", "Yaw", "L/R cm", "frame" 3D 라벨이 크게 떠 3D 화면을 가린다. 기본 표시는 핵심 1~2개로 줄이고 상세는 Slab 카드·표시 설정으로 옮기며, 거리 기반 크기·페이드와 사이드바/카드 영역 회피를 적용한다. 측정 제외 규칙은 유지한다.
+**진행률: 80% — 구현·집중 자동/렌더 검사 완료, 통합 검증·수용 미완료** · 2026-10-13 P1. `142a6ff`에서 기본 소재번호·진행/기울기 2개, 카드·표시 설정의 세션 전용 "3D 상세 라벨", 거리 크기/대비 페이드·시야 밖 숨김, 우선순위/leader line·실제 소유 UI 영역 회피를 구현했다. 기존 표시 선택·저장 schema·숫자/단위·L/R Track 의미·측정 제외 유지. 기존 DTCore StatusVisualizer 기반 L2 utility에 L3가 실제 viewport-pixel UI 사각형을 전달하며 역방향 include 없음. 연속 표시 5Hz, 숨긴 상세 문자열 조립 중단·값 hash 재사용이다.
 
-- **남은 조건:** 겹침 제어·우선순위·leader line·거리 표시 정책을 구현하고 여러 시점에서 검증한다. 기존 문자 크기/대비 개선은 기반 기능이다.
+**검증:** Editor Development, layer/allowlist0→0, guard, quick8, UI02·SlabAnalysis·UXR08 집중 **18 Success/실패·skip0**(실제 Camera/GPU 측정 격리 포함). 1280×720·1920×1080/font100의 근접/원거리/상세/직교 roll/고온 before·after 각12장, after 실제 투영 라벨의 viewport/UI/라벨끼리 겹침 검사 통과. 근거 `Saved/Reports/UXR/UI-02/RESULT.md`·`summary.json`·`after/`·`focused/`.
+
+**남은 검증:** 마지막 release 호출은 시작8 gate 뒤 별도 QA checkout의 Editor PID87208(`UXR07.Manual`) 때문에 종료 조건에서 중단했다. full D3D12/이름별 비교/WBP release와 표시형1+1/10초+30초 ABAB×3 성능은 미수행이다. 사용자 요청대로 중단했으며 다른 세션을 종료하지 않았다. 결과 정리 중 상세 침범 문자열의 UTF8 오류를 발견해 소스 문구와 렌더 의미 검사를 정정했으나, 이 마지막 2파일은 미커밋·빌드/렌더 대기다. 기존 `142a6ff` 렌더를 정정 검증으로 세지 않는다. QA 종료 뒤 이 정정 검증→release→성능을 이어간다. Computer Use는 이번 요청에서 제외하여 `manual/CHECKLIST.md` 전 행 보류, font125/150·OS DPI·직접 수용도 미완료다.
+
+- **남은 조건:** QA Editor 정상 종료 후 마지막 문구 정정 빌드/렌더, 통합 release·이름별 비교, 표시형 ABAB×3의 2% 성능 gate와 후속 직접 수용을 완료한다.
 
 - 현재 큰 문자 배경판이나 도구 창이 다른 라벨을 가릴 수 있다. 선/글자 크기, 대비, 한글 표시 자체는 구현·수동 확인했다.
 - 시야 밖/뒤쪽 점을 숨기거나 안전 위치로 안내하고, 라벨별 priority·최대 겹침·leader line/거리 fading을 추가할 수 있다. 숫자/단위/좌우 의미는 유지한다.
