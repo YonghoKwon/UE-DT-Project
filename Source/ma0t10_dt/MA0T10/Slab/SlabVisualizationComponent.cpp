@@ -159,7 +159,9 @@ void USlabVisualizationComponent::UpdateLabels()
     if(!ExclusionOwner.IsValid())LabelExclusions.Reset();
     double Aspect=double(Width)/Height;int32 ViewHeight=Height;
     if(View.bConstrainAspectRatio&&View.AspectRatio>0){Aspect=View.AspectRatio;ViewHeight=FMath::Min(Height,FMath::RoundToInt(Width/Aspect));}
-    const float Pixels=FMath::Clamp(Display.TextHeightPixels*.68f,14.f,28.f)*(.75f+.25f*Fade);
+    // UXR-14 (user 2026-10-14): the 글자 크기 setting must reach the screen; the UI-02 28px cap
+    // made values above ~41 have no effect. Keep the UI-02 ratio, cap at the new 120 setting.
+    const float Pixels=FMath::Clamp(Display.TextHeightPixels*.68f,14.f,120.f*.68f)*(.75f+.25f*Fade);
     const float WorldSize=CalculateScreenWorldSize(Depth,View.FOV,ViewHeight,Aspect,Pixels,Ortho,View.OrthoWidth);
     FBox2D SlabRect(ForceInit);
     double ExtentForward=0;

@@ -3,6 +3,10 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SViewport.h"
 
 UWorld* USensorPlacementInteraction::GetWorld() const {return GetOuter()?GetOuter()->GetWorld():nullptr;}
 void USensorPlacementInteraction::BindCoordinator(AVirtualSensorCoordinator* In)
@@ -38,8 +42,12 @@ bool USensorPlacementInteraction::SetManipulation(bool Enabled,UWidget* Owner,FS
     A->OnEndPlay.AddUniqueDynamic(this,&ThisClass::TargetEndPlay);
     auto* G=GetGizmo(Owner);if(!G){Finish(false);Reason=TEXT("조작 표시를 만들지 못했습니다. 다시 시도하세요.");return false;}
     G->SetInputOwner(Owner);G->BindTarget(A);G->SetManipulationEnabled(true);
-    if(Coordinator.IsValid())
-    {PreviousView=uint8(Coordinator->GetViewMode());FollowView=uint8(A->GetSensorKind()==EVirtualSensorKind::Lidar?EVirtualSensorViewMode::Lidar:EVirtualSensorViewMode::Camera);RestoreMonitor=true;Coordinator->SetViewMode(EVirtualSensorViewMode(FollowView));}
+    // UXR-13 (user request 2026-10-14): keep the view the user is looking at. The
+    // preview card no longer jumps to the manipulated device's own view, and keyboard
+    // focus goes to the 3D view so W/A/S/D move the device without an extra click.
+    RestoreMonitor=false;
+    if(FSlateApplication::IsInitialized())if(auto* World=GetWorld())if(auto* View=World->GetGameViewport())if(const auto Widget=View->GetGameViewportWidget())
+        FSlateApplication::Get().SetKeyboardFocus(Widget,EFocusCause::SetDirectly);
     Reason=TEXT("조작 중 · Esc로 현재 위치를 확정하세요.");OnChanged.Broadcast();return true;
 }
 void USensorPlacementInteraction::Finish(bool RestoreView)

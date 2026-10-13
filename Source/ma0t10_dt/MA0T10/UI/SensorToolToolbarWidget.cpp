@@ -18,6 +18,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SButton.h"
@@ -52,9 +53,12 @@ TSharedRef<SWidget> USensorToolToolbarWidget::RebuildWidget()
 	auto* W=Workspace();
 	if(!W||!W->OwnsToolbar(this)) return BuildLegacyToolbar();
 	FloatingToolbar=BuildOwnedFloatingToolbar();
-	return SNew(SWidgetSwitcher).Visibility(EVisibility::SelfHitTestInvisible).WidgetIndex_Lambda([this](){auto* W=Workspace();return W&&W->IsSidebarMode()?0:1;})
+	return SNew(SOverlay).Visibility(EVisibility::SelfHitTestInvisible)
+	+SOverlay::Slot()[SNew(SWidgetSwitcher).Visibility(EVisibility::SelfHitTestInvisible).WidgetIndex_Lambda([this](){auto* W=Workspace();return W&&W->IsSidebarMode()?0:1;})
 	 +SWidgetSwitcher::Slot()[BuildSidebarShell()]
-	 +SWidgetSwitcher::Slot()[SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)+SVerticalBox::Slot().AutoHeight().Padding(16,8)[FloatingToolbar.ToSharedRef()]+SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]];
+	 +SWidgetSwitcher::Slot()[SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)+SVerticalBox::Slot().AutoHeight().Padding(16,8)[FloatingToolbar.ToSharedRef()]+SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]]]
+	// UXR-13: key guide over the current 3D view while a device is being moved.
+	+SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(FMargin(16,0,16,FSensorOwnedPresentationStyle::StatusHeight+24))[SNew(SBox).MaxDesiredWidth(900)[BuildManipulationGuide()]];
 }
 float USensorToolToolbarWidget::GetFloatingToolbarHeight() const {return FloatingToolbar.IsValid()?FloatingToolbar->GetDesiredSize().Y:48;}
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildOwnedFloatingToolbar()

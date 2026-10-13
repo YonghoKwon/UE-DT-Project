@@ -134,6 +134,7 @@ protected:
     virtual FReply NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual FReply NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent) override;
+    virtual FCursorReply NativeOnCursorQuery(const FGeometry& InGeometry, const FPointerEvent& InCursorEvent) override;
 
     EVisibility GetPanelBodyVisibility() const;
 
@@ -178,6 +179,14 @@ private:
     void ApplyPanelSize();
     FVector2D ResolveMaximumPanelSize() const;
     bool IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const;
+    // UXR-14: resize from any edge or corner (bit flags Left=1 Right=2 Top=4 Bottom=8).
+    uint8 HitResizeEdges(const FGeometry& Geometry, const FVector2D& ScreenPosition) const;
+    bool CanResizeEdges() const;
+    bool BeginEdgeResize(const FGeometry& Geometry, const FPointerEvent& Event);
+    void UpdateEdgeResize(const FPointerEvent& Event);
+    uint8 ResizeEdges=0;
+    FVector2D ResizeStartScreen=FVector2D::ZeroVector,ResizeStartPosition=FVector2D::ZeroVector,ResizeStartSize=FVector2D::ZeroVector;
+    float ResizeStartScale=1.f;
     bool FinishPanelPointerGesture();
     FReply CapturePanelPointer(const FPointerEvent& Event);
     bool bOwnedPointerFocus=false,bPreviousFocusable=false;

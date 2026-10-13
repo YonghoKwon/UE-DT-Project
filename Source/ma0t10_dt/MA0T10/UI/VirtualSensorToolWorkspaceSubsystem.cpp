@@ -281,6 +281,7 @@ void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPan
 }
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPanelRole R)
 {
+	if(R==ESensorToolPanelRole::Monitor){bDockedCardCustom=false;RefreshDockedLayout();}
 	if(!Preferences)return;const bool Open=IsPanelOpen(R);Preferences->Panels.Remove(R);
 	Preferences->Panels.FindOrAdd(R).bOpen=Open;RestorePanel(R);SavePanel(R);
 }
