@@ -203,13 +203,14 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::RebuildWidget()
     auto Sections=SNew(SVerticalBox);
     auto AddSection=[this,Sections](FText Title,TSharedRef<SWidget> Content,bool NeedsSelection=false){Sections->AddSlot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::SectionGap)[SNew(SVerticalBox).Visibility_Lambda([this,NeedsSelection](){return NeedsSelection&&!Selected()?EVisibility::Collapsed:EVisibility::Visible;})+SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).Visibility(Title.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible).ColorAndOpacity(GetToolMutedColor()).Text(Title)]+SVerticalBox::Slot().AutoHeight()[Content]];};
     AddSection(FText::GetEmpty(),BuildEquipmentSection());AddSection(LOCTEXT("SelectedClean","선택 장비"),BuildSelectedSection(),true);AddSection(LOCTEXT("SavedPoseClean","저장 위치"),BuildPoseSection(),true);
+    Sections->AddSlot().AutoHeight().Padding(0,FSensorOwnedPresentationStyle::Gap)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+       +SHorizontalBox::Slot().FillWidth(1)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).HasDownArrow(false).OnGetMenuContent_Lambda([this](){return BuildLayoutSaveMenu();}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("SaveLayout","전체 배치 저장"))]]
+       +SHorizontalBox::Slot().FillWidth(1).Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).HasDownArrow(false).OnGetMenuContent_Lambda([this](){RefreshLayouts();return BuildLayoutSection();}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("LoadLayout","불러오기"))]]];
+    Sections->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolAccentColor()).ToolTipText_Lambda([this](){return CachedStatusText;}).Text_Lambda([this](){return CachedStatusText;})];
     const TSharedRef<SWidget> Content=SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).Padding(FSensorOwnedPresentationStyle::PanelPadding)[SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("SidebarTitle","배치"))]
-     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[Sections]]
-     +SVerticalBox::Slot().AutoHeight().Padding(0,FSensorOwnedPresentationStyle::Gap)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
-       +SHorizontalBox::Slot().FillWidth(1)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).HasDownArrow(false).OnGetMenuContent_Lambda([this](){return BuildLayoutSaveMenu();}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("SaveLayout","전체 배치 저장"))]]
-       +SHorizontalBox::Slot().FillWidth(1).Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).HasDownArrow(false).OnGetMenuContent_Lambda([this](){RefreshLayouts();return BuildLayoutSection();}).ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("LoadLayout","불러오기"))]]]
-     +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolAccentColor()).ToolTipText_Lambda([this](){return CachedStatusText;}).Text_Lambda([this](){return CachedStatusText;})]];
+     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})+SScrollBox::Slot()[Sections]] ];
+
     return Content;
 }
 #undef LOCTEXT_NAMESPACE
