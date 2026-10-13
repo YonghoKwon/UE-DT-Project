@@ -191,7 +191,7 @@ void USlabVisualizationComponent::UpdateLabels()
         {
             LabelTextKeys[I]=Key;const FString ShortId=MaterialId.Len()>24?MaterialId.Left(21)+TEXT("..."):MaterialId;
             if(I==0)CachedLabelTexts[I]=FString::Printf(TEXT("Yaw %+.2f deg"),LastMetrics.LeftAngle);
-            else if(I==1||I==2){const double Gap=I==1?LastMetrics.MarginLeftCm:LastMetrics.MarginRightCm;CachedLabelTexts[I]=bRails?FString::Printf(TEXT("%s %+.1f cm%s"),I==1?TEXT("L"):TEXT("R"),Gap,Gap<0?TEXT(" [移⑤쾾]"):TEXT("")):FString(I==1?TEXT("L N/A"):TEXT("R N/A"));}
+            else if(I==1||I==2){const double Gap=I==1?LastMetrics.MarginLeftCm:LastMetrics.MarginRightCm;CachedLabelTexts[I]=bRails?FString::Printf(TEXT("%s %+.1f cm%s"),I==1?TEXT("L"):TEXT("R"),Gap,Gap<0?TEXT(" [침범]"):TEXT("")):FString(I==1?TEXT("L N/A"):TEXT("R N/A"));}
             else if(I==4)CachedLabelTexts[I]=FMath::IsNearlyZero(LastMetrics.CenterOffsetCm,.01)?TEXT("Center aligned"):FString::Printf(TEXT("Center %+.1f cm"),LastMetrics.CenterOffsetCm);
             else CachedLabelTexts[I]=bDetailedLabels?FString::Printf(TEXT("%s | frame %lld\n%.1f / %.1f s  %.0f%%"),*ShortId,FrameNo,Elapsed,Duration,Progress*100):FString::Printf(TEXT("%s | %.0f%%"),*ShortId,Progress*100);
             Labels[I]->SetText(FText::FromString(CachedLabelTexts[I]));

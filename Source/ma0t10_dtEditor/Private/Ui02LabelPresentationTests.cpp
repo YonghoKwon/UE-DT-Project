@@ -97,6 +97,7 @@ public:
         for(auto* T:Texts)if(T->IsVisible())
         {
             auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("name"),T->GetName());R->SetStringField(TEXT("text"),T->Text.ToString());
+            if(T->GetName()==TEXT("SlabDiagnosticText1"))Test->TestTrue(TEXT("intrusion suffix preserves Korean meaning"),T->Text.ToString().EndsWith(TEXT("[침범]")));
             FVector2D P;PC->ProjectWorldLocationToScreen(T->GetComponentLocation(),P);
             R->SetNumberField(TEXT("x"),P.X);R->SetNumberField(TEXT("y"),P.Y);R->SetNumberField(TEXT("world_size"),T->WorldSize);
             TArray<UStaticMeshComponent*> Backgrounds;Slab->GetComponents(Backgrounds);
