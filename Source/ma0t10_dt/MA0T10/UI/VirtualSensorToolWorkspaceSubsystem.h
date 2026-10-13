@@ -89,6 +89,11 @@ public:
 	bool NavigatePanelBack(ESensorToolPanelRole Role);
 	float GetOwnedPixelScale() const;
 	void RefreshDockedLayout();
+	/** UXR-14: user-resized preview card rect while docked (session only; ⋯ 초기화 clears it). */
+	void SetDockedCardRect(FVector2D Position,FVector2D Size);
+	FVector2D GetDockedCardMinimum() const;
+	FBox2D GetDockedCardBounds() const;
+	bool HasCustomDockedCard() const { return bDockedCardCustom; }
 	/** Actual arranged owned UI rectangles in viewport pixels, for L2 presentation. */
 	TArray<FBox2D> GetOwnedDiagnosticExclusionRects() const;
 private:
@@ -98,6 +103,8 @@ private:
 	float MeasureOwnedPixelScale() const;
 	bool bSidebarMode=true,bSidebarExpanded=true;
 	bool bSidebarWide=false,bNavigatingBack=false;
+	bool bDockedCardCustom=false;FVector2D DockedCardPosition=FVector2D::ZeroVector,DockedCardSize=FVector2D::ZeroVector;
+	void ClampDockedCard(FVector2D& Position,FVector2D& Size) const;
 	struct FPanelBackTarget
 	{
 		ESensorToolPanelRole Role=ESensorToolPanelRole::Placement;

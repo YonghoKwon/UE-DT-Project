@@ -385,11 +385,8 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& I
 	if (ToolWorkspace.IsValid())ToolWorkspace->BringOwnedPanelToFront(ToolRole);
 	else if (PanelHostComponent) PanelHostComponent->BringPanelToFront(this);
     const FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
-    if (bPanelResizable && !bPanelCollapsed && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton &&
-        IsInResizeHandle(InGeometry, InMouseEvent.GetScreenSpacePosition()))
+    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && BeginEdgeResize(InGeometry, InMouseEvent))
     {
-        bResizingPanel = true;
-        bDraggingPanel = false;
         return CapturePanelPointer(InMouseEvent);
     }
     if (bPanelDraggable && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && LocalPosition.Y <= DragHandleHeight)
@@ -425,14 +422,7 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnMouseMove(const FGeometry& InGeome
 {
     if (bResizingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
-        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition()+InMouseEvent.GetCursorDelta())-
-            InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
-        SetPanelExpandedSize(CalculateResizedPanelSize(
-            DesiredPanelSize,
-            LocalDelta,
-            1.0f,
-            GetResolvedPanelMinimum(),
-            ResolveMaximumPanelSize()), false);
+        UpdateEdgeResize(InMouseEvent);
         return FReply::Handled();
     }
     if (bDraggingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
@@ -456,7 +446,8 @@ bool UVirtualSensorPanelWidgetBase::FinishPanelPointerGesture()
     const bool bWasDragging=bDraggingPanel||bResizingPanel;
     bDraggingPanel = false;
     bResizingPanel = false;
-    if (bWasDragging)
+    ResizeEdges=0;
+    if (bWasDragging && !bWorkspaceDocked)
     {
         SavePanelUiState();
     }
@@ -569,6 +560,79 @@ FVector2D UVirtualSensorPanelWidgetBase::GetResolvedPanelMinimum() const
     return FVector2D(FMath::Min(MinimumPanelSize.X*HeaderWidthScale,Maximum.X),FMath::Min(MinimumPanelSize.Y,Maximum.Y));
 }
 
+bool UVirtualSensorPanelWidgetBase::CanResizeEdges() const
+{
+    if(bPanelCollapsed)return false;
+    // The docked preview card is the only docked panel users resize (UXR-14).
+    if(bWorkspaceDocked)return SupportsOwnedDocking()&&ToolRole==ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid();
+    return bPanelResizable;
+}
+
+uint8 UVirtualSensorPanelWidgetBase::HitResizeEdges(const FGeometry& Geometry, const FVector2D& ScreenPosition) const
+{
+    if(!CanResizeEdges())return 0;
+    const FVector2D L=Geometry.AbsoluteToLocal(ScreenPosition),S=Geometry.GetLocalSize();
+    if(L.X<0||L.Y<0||L.X>S.X||L.Y>S.Y)return 0;
+    constexpr float Edge=7.f,Corner=16.f;
+    uint8 Mask=0;
+    if(L.X<=Edge)Mask|=1;if(L.X>=S.X-Edge)Mask|=2;if(L.Y<=Edge)Mask|=4;if(L.Y>=S.Y-Edge)Mask|=8;
+    // Corners get a larger grab area than straight edges.
+    const bool NearL=L.X<=Corner,NearR=L.X>=S.X-Corner,NearT=L.Y<=Corner,NearB=L.Y>=S.Y-Corner;
+    if((NearL||NearR)&&(NearT||NearB)){Mask=(NearL?1:2)|(NearT?4:8);}
+    // Keep the original bottom-right handle area for floating panels.
+    if(!bWorkspaceDocked&&IsInResizeHandle(Geometry,ScreenPosition))Mask=2|8;
+    return Mask;
+}
+
+bool UVirtualSensorPanelWidgetBase::BeginEdgeResize(const FGeometry& Geometry, const FPointerEvent& Event)
+{
+    const uint8 Mask=HitResizeEdges(Geometry,Event.GetScreenSpacePosition());
+    if(!Mask)return false;
+    ResizeEdges=Mask;bResizingPanel=true;bDraggingPanel=false;
+    ResizeStartScreen=Event.GetScreenSpacePosition();ResizeStartScale=FMath::Max(.01f,Geometry.Scale);
+    ResizeStartPosition=CurrentViewportPosition;ResizeStartSize=GetEffectivePanelSize();
+    return true;
+}
+
+void UVirtualSensorPanelWidgetBase::UpdateEdgeResize(const FPointerEvent& Event)
+{
+    if(!ResizeEdges){ResizeEdges=2|8;ResizeStartScreen=Event.GetScreenSpacePosition();ResizeStartScale=1.f;ResizeStartPosition=CurrentViewportPosition;ResizeStartSize=GetEffectivePanelSize();}
+    const FVector2D D=(Event.GetScreenSpacePosition()-ResizeStartScreen)/ResizeStartScale;
+    FVector2D Size=ResizeStartSize;
+    if(ResizeEdges&2)Size.X+=D.X;if(ResizeEdges&1)Size.X-=D.X;
+    if(ResizeEdges&8)Size.Y+=D.Y;if(ResizeEdges&4)Size.Y-=D.Y;
+    const FVector2D Min=bWorkspaceDocked&&ToolWorkspace.IsValid()?ToolWorkspace->GetDockedCardMinimum():GetResolvedPanelMinimum();
+    const FVector2D Max=bWorkspaceDocked?FVector2D(100000,100000):ResolveMaximumPanelSize();
+    Size.X=FMath::Clamp(Size.X,Min.X,FMath::Max(Min.X,Max.X));Size.Y=FMath::Clamp(Size.Y,Min.Y,FMath::Max(Min.Y,Max.Y));
+    if(bWorkspaceDocked&&ToolWorkspace.IsValid())
+    {
+        // Only the dragged edge stops at the boundary; the card itself never slides.
+        const FBox2D B=ToolWorkspace->GetDockedCardBounds();const FVector2D Far=ResizeStartPosition+ResizeStartSize;
+        if(ResizeEdges&2)Size.X=FMath::Min(Size.X,FMath::Max(Min.X,B.Max.X-ResizeStartPosition.X));
+        if(ResizeEdges&1)Size.X=FMath::Min(Size.X,FMath::Max(Min.X,Far.X-B.Min.X));
+        if(ResizeEdges&8)Size.Y=FMath::Min(Size.Y,FMath::Max(Min.Y,B.Max.Y-ResizeStartPosition.Y));
+        if(ResizeEdges&4)Size.Y=FMath::Min(Size.Y,FMath::Max(Min.Y,Far.Y-B.Min.Y));
+    }
+    // Left/top edges move the panel so the opposite edge stays where it was.
+    FVector2D Position=ResizeStartPosition;
+    if(ResizeEdges&1)Position.X+=ResizeStartSize.X-Size.X;
+    if(ResizeEdges&4)Position.Y+=ResizeStartSize.Y-Size.Y;
+    if(bWorkspaceDocked){if(ToolWorkspace.IsValid())ToolWorkspace->SetDockedCardRect(Position,Size);return;}
+    SetPanelExpandedSize(Size,false);SetPanelPositionInternal(Position);
+}
+
+FCursorReply UVirtualSensorPanelWidgetBase::NativeOnCursorQuery(const FGeometry& InGeometry, const FPointerEvent& InCursorEvent)
+{
+    const uint8 Mask=bResizingPanel?ResizeEdges:HitResizeEdges(InGeometry,InCursorEvent.GetScreenSpacePosition());
+    if(Mask)
+    {
+        const bool H=(Mask&3)!=0,V=(Mask&12)!=0;
+        if(H&&V)return FCursorReply::Cursor(((Mask&1)!=0)==((Mask&4)!=0)?EMouseCursor::ResizeSouthEast:EMouseCursor::ResizeSouthWest);
+        return FCursorReply::Cursor(H?EMouseCursor::ResizeLeftRight:EMouseCursor::ResizeUpDown);
+    }
+    return Super::NativeOnCursorQuery(InGeometry,InCursorEvent);
+}
+
 bool UVirtualSensorPanelWidgetBase::IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const
 {
     const FVector2D LocalPosition = Geometry.AbsoluteToLocal(ScreenPosition);
@@ -658,11 +722,9 @@ FReply UVirtualSensorPanelWidgetBase::NativeOnPreviewMouseButtonDown(const FGeom
 	if(ToolWorkspace.IsValid())
 	{
 		ToolWorkspace->BringOwnedPanelToFront(ToolRole);
-		if(bPanelResizable&&!bPanelCollapsed&&E.GetEffectingButton()==EKeys::LeftMouseButton&&IsInResizeHandle(G,E.GetScreenSpacePosition()))
-		{
-			bResizingPanel=true;bDraggingPanel=false;
+		// Edges/corners win over child buttons, so resize can start anywhere on the border.
+		if(E.GetEffectingButton()==EKeys::LeftMouseButton&&BeginEdgeResize(G,E))
 			return CapturePanelPointer(E);
-		}
 		// DTCore's unrelated OpenWidgets list does not contain these owned panels.
 		// Its BringToFront would immediately overwrite our local z-order with 1.
 		return FReply::Unhandled();

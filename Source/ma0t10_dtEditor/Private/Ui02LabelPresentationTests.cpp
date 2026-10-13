@@ -36,6 +36,8 @@ class FUi02LabelRenderCommand : public IAutomationLatentCommand
     FString Path;
     FDateTime Previous;
     TUniquePtr<TGuardValue<bool>> Debug;
+    float BaseLabelSize=0;
+    float MaxLabelSize() const {float M=0;TArray<UTextRenderComponent*> T;if(Slab.IsValid())Slab->GetComponents(T);for(auto* C:T)if(C->IsVisible()&&!C->Text.IsEmpty())M=FMath::Max(M,C->WorldSize);return M;}
 public:
     explicit FUi02LabelRenderCommand(FAutomationTestBase* T):Test(T){}
     bool Update() override
@@ -72,6 +74,8 @@ public:
             Camera->SetActorRotation(Rotation);auto* C=Camera->GetCameraComponent();C->ProjectionMode=Ortho?ECameraProjectionMode::Orthographic:ECameraProjectionMode::Perspective;
             C->FieldOfView=75;C->OrthoWidth=2400;C->bConstrainAspectRatio=false;
             Slab->SetHotAppearance(Phase==5);Slab->SetDiagnosticHelpersVisible(true);
+            // UXR-14: 글자 크기 112 must render clearly larger than the default 28.
+            {auto S=Slab->GetAnalysisDisplaySettings();S.TextHeightPixels=Phase==6?112.f:28.f;Slab->SetAnalysisDisplaySettings(S);}
             if(auto* Fn=Slab->FindFunction(TEXT("SetDetailedDiagnosticLabels"))){bool Detailed=Phase==2||Phase==3;Slab->ProcessEvent(Fn,&Detailed);}
             ReadyAt=FPlatformTime::Seconds()+1.2;return false;
         }
@@ -81,12 +85,19 @@ public:
             const auto V=World->GetGameViewport()->Viewport->GetSizeXY();FString Root;FParse::Value(FCommandLine::Get(),TEXT("Ui02Output="),Root);
             if(Root.IsEmpty())Root=FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UI-02");
             IFileManager::Get().MakeDirectory(*Root,true);
-            const TCHAR* Names[]={TEXT("near-basic"),TEXT("far-basic"),TEXT("near-detail"),TEXT("far-detail"),TEXT("orthographic-roll"),TEXT("hot-slab")};
+            const TCHAR* Names[]={TEXT("near-basic"),TEXT("far-basic"),TEXT("near-detail"),TEXT("far-detail"),TEXT("orthographic-roll"),TEXT("hot-slab"),TEXT("near-text-112")};
             Path=Root/FString::Printf(TEXT("rendered-%dx%d-%s.png"),V.X,V.Y,Names[Phase]);Previous=IFileManager::Get().GetTimeStamp(*Path);
             WriteLayout(World,PC,V,Path+TEXT(".json"));FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;return false;
         }
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
-        Requested=false;ReadyAt=0;return ++Phase==6;
+        if(Phase==0)BaseLabelSize=MaxLabelSize();
+        if(Phase==6)
+        {
+            const float Large=MaxLabelSize();Test->AddInfo(FString::Printf(TEXT("UXR14 label world size text28=%.2f text112=%.2f"),BaseLabelSize,Large));
+            Test->TestTrue(TEXT("글자 크기 112 renders clearly larger than 28"),BaseLabelSize>0&&Large>BaseLabelSize*2.f);
+            auto S=Slab->GetAnalysisDisplaySettings();S.TextHeightPixels=28;Slab->SetAnalysisDisplaySettings(S);
+        }
+        Requested=false;ReadyAt=0;return ++Phase==7;
     }
     void WriteLayout(UWorld* World,APlayerController* PC,FIntPoint V,const FString& Target)
     {

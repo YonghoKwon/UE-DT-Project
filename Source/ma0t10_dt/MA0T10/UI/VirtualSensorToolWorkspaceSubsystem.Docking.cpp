@@ -105,6 +105,28 @@ void UVirtualSensorToolWorkspaceSubsystem::SetSidebarMode(bool Enabled)
     for(auto& Pair:Panels)if(Pair.Value){Pair.Value->SetVisibility(IsPanelOpen(Pair.Key)?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);RestorePanel(Pair.Key);}
     RefreshDockedLayout();
 }
+FVector2D UVirtualSensorToolWorkspaceSubsystem::GetDockedCardMinimum() const
+{const float Scale=GetOwnedPanelFontScale()*GetOwnedPixelScale();return FVector2D(260.f,180.f)*FMath::Max(.5f,Scale);}
+FBox2D UVirtualSensorToolWorkspaceSubsystem::GetDockedCardBounds() const
+{
+    if(!Canvas)return FBox2D(FVector2D::ZeroVector,FVector2D(100000,100000));const FVector2D V=Canvas->GetCachedGeometry().GetLocalSize();
+    const float Scale=GetOwnedPanelFontScale()*GetOwnedPixelScale(),Bottom=FSensorOwnedPresentationStyle::StatusHeight*Scale;
+    // Right of the sidebar, above the status bar and inside the 3D view.
+    return FBox2D(FVector2D(FMath::Min(GetSidebarWidth(),float(V.X*.48))+8.f,8.f),FVector2D(float(V.X)-8.f,float(V.Y)-Bottom-8.f));
+}
+void UVirtualSensorToolWorkspaceSubsystem::ClampDockedCard(FVector2D& Position,FVector2D& Size) const
+{
+    if(!Canvas)return;const FBox2D B=GetDockedCardBounds();
+    const float Left=B.Min.X,Top=B.Min.Y,Right=B.Max.X,Lower=B.Max.Y;
+    const FVector2D Min=GetDockedCardMinimum();
+    Size.X=FMath::Clamp(Size.X,FMath::Min(Min.X,Right-Left),FMath::Max(1.f,Right-Left));Size.Y=FMath::Clamp(Size.Y,FMath::Min(Min.Y,Lower-Top),FMath::Max(1.f,Lower-Top));
+    Position.X=FMath::Clamp(Position.X,Left,FMath::Max(Left,Right-Size.X));Position.Y=FMath::Clamp(Position.Y,Top,FMath::Max(Top,Lower-Size.Y));
+}
+void UVirtualSensorToolWorkspaceSubsystem::SetDockedCardRect(FVector2D Position,FVector2D Size)
+{
+    ClampDockedCard(Position,Size);bDockedCardCustom=true;DockedCardPosition=Position;DockedCardSize=Size;
+    if(auto* P=GetOwnedPanel(ESensorToolPanelRole::Monitor))P->ApplyWorkspaceDockRect(Position,Size);
+}
 void UVirtualSensorToolWorkspaceSubsystem::RefreshDockedLayout()
 {
     if(!bSidebarMode||!Canvas)return;
@@ -117,7 +139,9 @@ void UVirtualSensorToolWorkspaceSubsystem::RefreshDockedLayout()
         {
             const float CardWidth=FMath::Min(400.f*Scale,float(V.X-Width-32));
             const float CardHeight=FMath::Min(288.f*Scale,float(V.Y*.43));
-            P->ApplyWorkspaceDockRect(FVector2D(V.X-CardWidth-16,V.Y-Bottom-CardHeight-16),FVector2D(CardWidth,CardHeight));
+            FVector2D Position(V.X-CardWidth-16,V.Y-Bottom-CardHeight-16),Size(CardWidth,CardHeight);
+            if(bDockedCardCustom){Position=DockedCardPosition;Size=DockedCardSize;ClampDockedCard(Position,Size);}
+            P->ApplyWorkspaceDockRect(Position,Size);
         }
         else P->ApplyWorkspaceDockRect(FVector2D(Rail,0),FVector2D(Width-Rail,V.Y-Bottom));
         PendingInitialLayouts.Remove(Pair.Key);
