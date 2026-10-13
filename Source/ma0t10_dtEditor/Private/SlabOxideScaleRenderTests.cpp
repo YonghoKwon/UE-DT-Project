@@ -18,6 +18,8 @@
 #include "Json.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "HAL/FileManager.h"
 
 /** Unsaved in-memory comparison scene. Captures never enter a production sensor path. */
@@ -26,7 +28,13 @@ class FSlabOxideRenderCommand : public IAutomationLatentCommand
     FAutomationTestBase* Test;UWorld* World=nullptr;TArray<AActor*> Owned;
     TArray<ASlabActor*> Slabs;USceneCaptureComponent2D* Capture=nullptr;
     double Started=FPlatformTime::Seconds(),ReadyAt=0;int32 Phase=0;
-    FString Directory() const{return FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-08/oxide");}
+    FString Directory() const
+    {
+        FString Override;
+        if(FParse::Value(FCommandLine::Get(),TEXT("SlabOxideRenderOutput="),Override))
+            return FPaths::ConvertRelativePathToFull(Override);
+        return FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-08/oxide");
+    }
 public:
     explicit FSlabOxideRenderCommand(FAutomationTestBase* In):Test(In){}
     ~FSlabOxideRenderCommand(){Cleanup();}

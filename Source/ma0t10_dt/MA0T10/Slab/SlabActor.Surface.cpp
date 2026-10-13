@@ -59,8 +59,8 @@ bool ASlabActor::ApplySurfacePreset(ESlabSurfacePreset P,bool Link,FString& Reas
     switch(P)
     {
     case ESlabSurfacePreset::HotRed:Hot=true;Rough=.55f;Emissive=4;Reflect=.08f;break;
-    case ESlabSurfacePreset::OxidationScale:Hot=false;Ox=1.f;Rough=.96f;Emissive=0;Reflect=.12f;break;
-    case ESlabSurfacePreset::CooledSteel:Hot=false;Rough=.28f;Emissive=0;Reflect=.45f;break;
+    case ESlabSurfacePreset::OxidationScale:Hot=false;Ox=1.f;Rough=.72f;Emissive=0;Reflect=.12f;break;
+    case ESlabSurfacePreset::CooledSteel:Hot=false;Rough=.22f;Emissive=0;Reflect=.45f;break;
     case ESlabSurfacePreset::AnalysisMatte:Hot=false;Rough=.98f;Emissive=0;Reflect=.18f;break;
     default:break;
     }

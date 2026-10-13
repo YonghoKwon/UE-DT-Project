@@ -406,10 +406,10 @@ void ASlabActor::UpdateAppearance()
 			FLinearColor BaseColor;float BaseMetallic=0;
 			if(bHasBaselineColdColor)BaseColor=BaselineColdColor;
 			if(bHasBaselineColdColor||Material->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),BaseColor))
-				SurfaceInstance->SetVectorParameterValue(TEXT("ColdColor"),SurfacePreset==ESlabSurfacePreset::CooledSteel?FLinearColor(.18,.23,.29):SurfacePreset==ESlabSurfacePreset::AnalysisMatte?FLinearColor(.045,.055,.065):BaseColor);
+				SurfaceInstance->SetVectorParameterValue(TEXT("ColdColor"),SurfacePreset==ESlabSurfacePreset::CooledSteel?FLinearColor(.28,.30,.32):SurfacePreset==ESlabSurfacePreset::AnalysisMatte?FLinearColor(.028,.031,.035):BaseColor);
 			if(bHasBaselineMetallic)BaseMetallic=BaselineSurfaceMetallic;
 			if(bHasBaselineMetallic||Material->GetScalarParameterValue(FMaterialParameterInfo(TEXT("Metallic")),BaseMetallic))
-				SurfaceInstance->SetScalarParameterValue(TEXT("Metallic"),SurfacePreset==ESlabSurfacePreset::CooledSteel?.65f:SurfacePreset==ESlabSurfacePreset::AnalysisMatte?.02f:BaseMetallic);
+				SurfaceInstance->SetScalarParameterValue(TEXT("Metallic"),SurfacePreset==ESlabSurfacePreset::CooledSteel?.8f:SurfacePreset==ESlabSurfacePreset::AnalysisMatte?.02f:BaseMetallic);
 		}
 	}
 }
