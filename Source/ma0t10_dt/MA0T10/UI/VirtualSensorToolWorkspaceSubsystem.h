@@ -80,6 +80,8 @@ public:
 	float GetSidebarWidth() const;
 	float GetOwnedPixelScale() const;
 	void RefreshDockedLayout();
+	/** Actual arranged owned UI rectangles in viewport pixels, for L2 presentation. */
+	TArray<FBox2D> GetOwnedDiagnosticExclusionRects() const;
 private:
 	float MeasureOwnedPixelScale() const;
 	bool bSidebarMode=true,bSidebarExpanded=true;

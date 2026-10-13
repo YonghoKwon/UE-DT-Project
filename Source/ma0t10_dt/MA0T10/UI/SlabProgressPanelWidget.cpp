@@ -225,6 +225,11 @@ TSharedRef<SWidget> USlabProgressPanelWidget::RebuildWidget()
 		Toggle(LOCTEXT("Yaw", "기울기"), &FSlabAnalysisDisplaySettings::bYaw);
 		Toggle(LOCTEXT("Margins", "좌우 간격"), &FSlabAnalysisDisplaySettings::bMargins);
 		Toggle(LOCTEXT("Status", "3D 상태"), &FSlabAnalysisDisplaySettings::bStatus);
+		Display->AddSlot()[SNew(SCheckBox).IsEnabled_Lambda([this](){return IsValid(Slab);})
+		 .IsChecked_Lambda([this](){return IsValid(Slab)&&Slab->GetDetailedDiagnosticLabels()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+		 .OnCheckStateChanged_Lambda([this](ECheckBoxState State){if(IsValid(Slab))Slab->SetDetailedDiagnosticLabels(State==ECheckBoxState::Checked);})
+		 .ToolTipText(LOCTEXT("DetailLabelsTip","좌/우 여유·중심 이탈·원본 행을 3D에 표시합니다. 카드의 상세 선택과 함께 바뀌며 이번 세션에만 적용됩니다."))
+		 [SNewSensorTool(STextBlock).Text(LOCTEXT("DetailLabels","3D 상세 라벨"))]];
 		for(bool Text:{false,true})
 		{
 			Display->AddSlot()[SNew(SHorizontalBox)

@@ -7,6 +7,38 @@
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
+#include "Widgets/SViewport.h"
+
+TArray<FBox2D> UVirtualSensorToolWorkspaceSubsystem::GetOwnedDiagnosticExclusionRects() const
+{
+    TArray<FBox2D> Rects;Rects.Reserve(10);
+    const auto* View=GetWorld()?GetWorld()->GetGameViewport():nullptr;
+    if(!View||!View->Viewport||!Canvas||!View->GetGameViewportWidget().IsValid())return Rects;
+    const auto& Geometry=View->GetGameViewportWidget()->GetCachedGeometry();
+    const FVector2D Local=Geometry.GetLocalSize();if(Local.GetMin()<=0)return Rects;
+    const FIntPoint Pixels=View->Viewport->GetSizeXY();const FVector2D Scale(Pixels.X/Local.X,Pixels.Y/Local.Y);
+    auto Add=[&](const FGeometry& G)
+    {
+        if(G.GetLocalSize().GetMin()<=0)return;
+        const FVector2D A=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D::ZeroVector))*Scale;
+        const FVector2D B=Geometry.AbsoluteToLocal(G.LocalToAbsolute(G.GetLocalSize()))*Scale;
+        Rects.Add(FBox2D(A-FVector2D(6,6),B+FVector2D(6,6)));
+    };
+    if(bSidebarMode)
+    {
+        const auto& G=Canvas->GetCachedGeometry();const FVector2D V=G.GetLocalSize();
+        const double Width=bSidebarExpanded?FMath::Min(double(GetSidebarWidth()),V.X*.48):FSensorOwnedPresentationStyle::RailWidth*GetOwnedPanelFontScale()*GetOwnedPixelScale();
+        const FVector2D A=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D::ZeroVector))*Scale;
+        const FVector2D B=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D(Width,V.Y)))*Scale;
+        Rects.Add(FBox2D(A-FVector2D(6,6),B+FVector2D(6,6)));
+        const double Bottom=FSensorOwnedPresentationStyle::StatusHeight*GetOwnedPanelFontScale()*GetOwnedPixelScale();
+        const FVector2D C=Geometry.AbsoluteToLocal(G.LocalToAbsolute(FVector2D(0,V.Y-Bottom)))*Scale;
+        Rects.Add(FBox2D(C,FVector2D(Pixels.X,Pixels.Y)));
+        if(const auto* Bar=Cast<USensorToolToolbarWidget>(Toolbar))if(auto Card=Bar->GetSlabSummaryCard())Add(Card->GetCachedGeometry());
+    }
+    for(const auto& Pair:Panels)if(Pair.Value&&IsPanelOpen(Pair.Key))Add(Pair.Value->GetCachedGeometry());
+    return Rects;
+}
 
 float UVirtualSensorToolWorkspaceSubsystem::GetOwnedPixelScale() const
 {return LastOwnedPixelScale>0?LastOwnedPixelScale:1.f;}

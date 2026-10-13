@@ -11,6 +11,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
 #include "EngineUtils.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -111,6 +112,10 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         else if(Simulation.State==ESlabSimulationState::Paused)GlobalStatus.Scenario=SensorToolUiText::ScenarioPaused();
         else if(Simulation.State==ESlabSimulationState::Preparing)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
     }
+    if(LabelExclusionSlab!=StatusSlab&&LabelExclusionSlab.IsValid())
+        if(auto* V=LabelExclusionSlab->FindComponentByClass<USlabVisualizationComponent>())V->SetLabelExclusionRects(nullptr,{});
+    LabelExclusionSlab=StatusSlab;
+    if(StatusSlab.IsValid())if(auto* V=StatusSlab->FindComponentByClass<USlabVisualizationComponent>())V->SetLabelExclusionRects(this,W->GetOwnedDiagnosticExclusionRects());
     if(Session.State==EVirtualSlabSessionState::Draining)GlobalStatus.Scenario=SensorToolUiText::ScenarioDraining();
     else if(Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
     // A single actionable summary; technical details stay in the destination panel.

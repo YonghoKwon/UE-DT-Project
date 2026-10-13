@@ -97,7 +97,7 @@ try {
                 if ($LASTEXITCODE -ne 0) { throw 'Full D3D12 tests failed' }
             }
             Invoke-Step 'wbp-memory-compile' {
-                $widgetArgs = @("`"$root/ma0t10_dt.uproject`"", '-run=pythonscript', "`"-script=$PSScriptRoot/validate_sensor_tool_widgets.py`"", '-NullRHI', '-unattended', '-nosplash', '-nop4', "`"-abslog=$report/widgets.log`"")
+                $widgetArgs = @("`"$root/ma0t10_dt.uproject`"", '/Engine/Maps/Entry', '-run=pythonscript', "`"-script=$PSScriptRoot/validate_sensor_tool_widgets.py`"", '-NullRHI', '-unattended', '-nosplash', '-nop4', "`"-abslog=$report/widgets.log`"")
                 $process = Start-Process "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" -ArgumentList $widgetArgs -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "$report/widgets-console.log" -RedirectStandardError "$report/widgets-stderr.log"
                 if ($process.ExitCode -ne 0 -or -not (Select-String -LiteralPath "$report/widgets.log" -SimpleMatch 'all seven compiled; assets were not saved' -Quiet)) { throw 'WBP memory compilation failed or did not finish' }
             }

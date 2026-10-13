@@ -29,6 +29,8 @@
 #include "ProfilingDebugging/MiscTrace.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GenericPlatform/GenericWindow.h"
+#include "UxrScenarioUiFixture.h"
+#include "EngineUtils.h"
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
 #endif
@@ -111,6 +113,13 @@ public:
             for(const auto Role:{ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})Workspace->SetPanelOpen(Role,false);
             Workspace->SetPanelOpen(ESensorToolPanelRole::Placement,true);Workspace->SetPanelOpen(ESensorToolPanelRole::Monitor,true);
             Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);
+            if(FParse::Param(FCommandLine::Get(),TEXT("Ui02Performance")))
+            {
+                for(TActorIterator<ASlabActor> It(World);It;++It)
+                {
+                    Test->TestTrue(TEXT("UI02 performance observation-only scenario starts"),StartUxrScenarioUiFixture(*It));break;
+                }
+            }
             RateSums.Init(0,Sensors.Num());StartFrames.Init(0,Sensors.Num());
             Started=Last=Now;return false;
         }
@@ -156,6 +165,7 @@ public:
         Json->SetBoolField(TEXT("native_visible_client_verified"),bVisibleVerified);
         Json->SetNumberField(TEXT("native_client_x_including_slate_border"),NativeClientX);Json->SetNumberField(TEXT("native_client_y_including_slate_border"),NativeClientY);Json->SetNumberField(TEXT("dpi_scale"),DpiScale);
         Json->SetStringField(TEXT("actual_client"),TEXT("1920x1080"));
+        Json->SetBoolField(TEXT("ui02_observation_scenario"),FParse::Param(FCommandLine::Get(),TEXT("Ui02Performance")));
         Json->SetStringField(TEXT("output_condition"),Pairs==2?TEXT("acquisition+preview only; camera PreviewOnly; no streams/recording/transport"):TEXT("camera Payload (encode), lidar RequestedOnly; no streams/recording/transport"));
         TArray<TSharedPtr<FJsonValue>> Rows;
         for(int32 I=0;I<Sensors.Num();++I)

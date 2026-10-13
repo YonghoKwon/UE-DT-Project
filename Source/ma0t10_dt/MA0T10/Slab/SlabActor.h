@@ -68,6 +68,9 @@ public:
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetHotAppearance(bool bHot);
 	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetDiagnosticHelpersVisible(bool bVisible);
 	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetDiagnosticHelpersVisible() const;
+	/** Session-only presentation selection; does not change persisted display/optical values. */
+	UFUNCTION(BlueprintCallable,Category="Slab|Appearance") void SetDetailedDiagnosticLabels(bool bVisible);
+	UFUNCTION(BlueprintPure,Category="Slab|Appearance") bool GetDetailedDiagnosticLabels() const;
 	UFUNCTION(BlueprintPure,Category="Slab|Analysis") FSlabAnalysisDisplaySettings GetAnalysisDisplaySettings() const { return AnalysisDisplaySettings; }
 	UFUNCTION(BlueprintCallable,Category="Slab|Analysis") void SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings);
 	UFUNCTION(BlueprintPure,Category="Slab|Appearance") FString GetEffectiveSurfaceMaterialPath() const;

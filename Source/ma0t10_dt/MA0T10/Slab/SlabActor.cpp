@@ -342,6 +342,8 @@ bool ASlabActor::SetExecutionOptions(FSlabExecutionOptions Options)
 void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance();RecordSurfaceUsage(Status.RunUUID); OnSlabStateChanged.Broadcast(); }
 void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
 bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }
+void ASlabActor::SetDetailedDiagnosticLabels(bool bVisible) { if(VisualizationComponent)VisualizationComponent->SetDetailedLabels(bVisible); }
+bool ASlabActor::GetDetailedDiagnosticLabels() const { return VisualizationComponent&&VisualizationComponent->GetDetailedLabels(); }
 void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)
 { AnalysisDisplaySettings=Settings;AnalysisDisplaySettings.Sanitize();VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings);OnSlabStateChanged.Broadcast(); }
 FSoftObjectPath ASlabActor::ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured)
