@@ -6,6 +6,16 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-13 UXR-10 CLI 구현·검증 — 마우스·release·성능 보류
+
+- 기준 `codex/post-program-followups`, 시작 `b4c562d4ecc1192658d8609561c1442930b6c742`, 구현 `70ecc57d10db352ff6981fc3efbec4addae85a67`, DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`. 소스/테스트 16파일 수정·추가(이동0), 관리 문서는 별도 커밋이다. 기존 운영맵 변경과 미추적 개인 설정/PixelStreaming/Claude 문서를 보존했다.
+- UE5.3 Editor Win64 Development 성공(`build-final.log`), 실제 D3D12 신규 `MA0T10.UXR10.BackPathsPreserveState`, `ResizePersistenceAndRenderRhi` **2 Success/실패·skip0**. 실제 Slate pointer routing의 최소540×280(글자150%)/설정 최대900×800·viewport 내부·release capture 해제·Workspace v1 저장/복원·접기/모드 전환 복원, 부모 경로·도구 복귀·레일 토글·조작 중 차단·미적용 설정/센서 pose/revision/측정 상태 불변을 확인했다. synthetic Slate 이벤트이며 직접 마우스 수용이 아니다.
+- 기존 UXR01~09/SensorUi/SensorWorkspace/SensorControl/Slab.UI/UI02 관련 그룹 최종 **49 Success/3 skip/실패·NotRun0**(엔진 Success52 중 skip3 별도). skip은 `MA0T10.SensorWorkspace.Runtime`, `MA0T10.UI02.LabelPresentationRhi`, `MA0T10.UXR07.FloatingTitleDragRhi`의 기존 opt-in 조건이다. 첫 관련 회귀는46 Success/2 skip/실패1(북마크 저장 `UXR02.SettingsFreeWorkflow`)이었다. 단독 재실행과 최종 순차 실행은 통과했고 초기 실패를 삭제하지 않았다. 최초 렌더 실행의 인자 인용 오류와 최초 구현 빌드의 누락 include 오류도 보존했다. D3D12 RenderOffscreen 시작 시 UE5.3 `SwapChain4` handled ensure가 출력됐지만 테스트/렌더는 완료했으며 이를 무오류 엔진 시작으로 보고하지 않는다.
+- Entry 시작, 자동화는 `-RenderOffscreen`·`Start-Process -WindowStyle Hidden`. `/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap`은 읽기/PIE만 사용했다. 실제 client1920×1080/window DPI1.0, 기준/변경 각24장(글자100/125/150%)과 변경 하위 경로9장. raw PNG는 Slate border를 포함한1926×1086, `before-after-1920x1080.png`는 viewport1920×1080 crop 두 장을 나란히 둔 비교이며 원본을 보존한다.
+- WBP7 메모리 컴파일 통과/저장0. `verify.ps1 -Level quick -BaseCommit b4c562d` 8단계 Success(`20261013T144325482Z/manifest.json`), layer 위반/allowlist/신규/stale **0/0/0/0**, production 파일249개 유지. `validate_sensor_ui_vocabulary`는 새101개 상수와 이번 실행의 visible-text inventory 모두 통과했다. 함수/Blueprint enum·UPROPERTY·저장 슬롯/버전·wire 계약 변경 없음. Tick/timer/invalidation root·추가 측정/캡처/readback 경로 추가0, 새 처리는 이벤트 기반이다.
+- 보호 hash816개 중815개 동일. 나머지1개는 빌드가 갱신한 Git-ignored DTCore UHT `Timestamp`이며 소스·자산 변경이 아니다. DTCore tracked worktree/staged clean/gitlink 고정, 전체 Content·Config/Game.ini·Samples/PixelStreaming·PixelStreaming Build.cs/uproject 불변. `.umap`/`.uasset`/신규 Content 변경0, 개인 SaveGame9개 원본 hash 복원. 검수 복사본/Claude 복사본 변경·push/PR/merge 없음. CLI가 띄운 Editor/PIE는 종료했고 외부 QA UXR07.Manual 프로세스는 건드리지 않았다.
+- 직접 마우스·전체 release·성능 측정은 사용자 요청으로 미수행이다. 체크리스트 `Saved/Reports/UXR/UXR-10/manual/CHECKLIST.md`. 모든 Editor 종료 후 Claude가 `Scripts/verify.ps1 -Level perf -BaseCommit b4c562d`로 QA-02 ABAB gate를 실행한다. 핵심 구현/CLI 검증 완료와 전체 수용을 구분하여 UXR-10 진행률70%를 유지한다. 상세 `Saved/Reports/UXR/UXR-10/RESULT.md`, `summary.json`, `protected-and-save-restoration.json`, `focused-final/`, `regression-final/`, `before/`, `after/`.
+
 ## 2026-10-13 PERF-01 사전 확인 — Broker 연결 불가로 측정 전 중단
 
 - 기준 `codex/post-program-followups`, HEAD `807f512749deb735a7814199022dd60804cb1b82`, 비교 대상 `fda25e05bd0a1435d80b4eff0a9a121d73f08b9a`, 두 gitlink 모두 DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`. 시작 상태의 운영맵 변경과 미추적 Game.ini/PixelStreaming/Claude 전용 문서를 보존했다.

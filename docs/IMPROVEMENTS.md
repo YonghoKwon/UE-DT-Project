@@ -90,6 +90,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-07 | UI/UX / 문구·수용 | P0 | **70%** | 자동 회귀·주요 직접 점검·7패널 Slate 드래그·ABABAB 상대 성능 통과. 전체 수용은 미완료 | 자유 배치 직접 FAIL 재확인·화면 활성화·남은 조합·사용자 확인 | U |
 | UXR-08 | UI/UX·Slab / 정보·표면 | P1 | **90%** | 원본/현재 정보 카드·DTCore Click adapter·MID 5종(승인된 산화 전용 재질)·명시적 광학 연동·optional 결과 | 직접 조작/독립 검토 보류; 산화 전환/복원·CPU/GPU/PCD 회귀 통과, GPU기존분류버퍼 조건·BaseColor회귀 범위 | U |
 | UXR-09 | UI/UX / 시각 리프레시 | P0 | **90%** | 카드·더보기·고정 저장 바·간결한 상태바 보완, 최종 상대 성능 2% gate·239 Success·48장 렌더 통과 | 변경 화면 직접 조작 보류: 창 활성화 2회 실패. 절대 성능 목표 및 이전 14.4% 증가 전체 원인은 별도 제한 | U |
+| UXR-10 | UI/UX / 사용자 피드백 | P1 | **70%** | 시나리오 resize·기존 Workspace v1 크기 복원, 사이드바 폭 전환, 하위 화면 공통 뒤로 가기 구현·집중 자동검증 | 앱 Codex 직접 마우스·통합 release·Editor 종료 후 QA-02 성능 gate 보류 | U (별도 후속) |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
@@ -476,6 +477,14 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 
 **산화 스케일 후속:** 승인된 `M_SlabSurfaceOxideScale` 한 자산과 재현 스크립트만 갱신했다. 청흑색 base, 밝은 벗겨진 강판 패치, 거친 저금속 표면으로 조정했으며 별도 윤곽/normal/WPO 효과는 없다. 냉각 강판·분석용 무광의 파라미터는 구분하되 기본과 기존 MID override 복원은 유지한다. 기본 Camera/intensity/PCD·명시 광학 연동 회귀와 5종 비교/근접/base-color 캡처 통과, shader 비용은 기존 산화 버전과 동일한 pixel 379 / vertex 131 / samples 3 / 외부 텍스처 0이다. 실제 맵의 노출/조명에 따른 최종 외형의 독립 시각 검토는 남으며 조명·전역 노출은 바꾸지 않았다.
 
+### UXR-10 — 시나리오 크기 조절과 하위 화면 뒤로 가기 (P1, 2026-10-13 사용자 피드백)
+
+- **출처:** 사용자 요청 “시나리오 위젯 크기 조절”, “왼쪽 사이드바 세부 위젯에서 이전 화면으로 돌아가기”. Claude의 UXR-10 CLI 요청으로 범위를 고정했으며 개편 프로그램 가중치(106)에 합산하지 않는 후속 항목이다.
+- **구현:** 자유 배치 진행 창의 우하단 `↘` 드래그와 실제 geometry 좌표계·글자 배율 최소 크기를 사용한다. 기본 최소 360×280 logical px, 150% 최소폭 540, 최대는 설정 상한과 viewport/상단 작업 바의 가용 범위다. 크기는 기존 Workspace v1 `Layout.ExpandedSize`에 저장하며 슬롯·버전·UPROPERTY·Blueprint API를 바꾸지 않는다. 사이드바는 기존 공통 머리에서 기본 372 / 넓게 560 design px를 전환하고 화면 폭 48% 이내로 제한한다. 폭 선택은 세션 전용이다.
+- **뒤로 경로:** 배치→장비 상세 설정→배치, 설정 고급/고급·호환→기본, 진행→보관 목록/차트→진행, 데이터 탭→직전 탭, 도구에서 연 화면→도구 메뉴. 등록된 기존 인스턴스를 재사용하며 화면 간 부모 경로 최대 8단·데이터 탭 경로 최대 5개만 보관한다. 레일 직접 진입은 하위 경로를 초기화하며 같은 레일 재클릭의 숨김 토글을 유지한다. 화면 복귀는 센서 재바인딩/설정 적용/측정·전송·파일 작업 시작·중지를 하지 않는다. 기존 숨김 계약으로 조작을 종료하지 않도록 화면 간 뒤로는 조작 중 비활성화하고, 설정 내부 탭 복귀는 조작·미적용 입력값을 유지한다. Backspace/마우스 뒤로 버튼은 새로 연결하지 않았다.
+- **비용·기반:** 새 Tick·timer·invalidation root·센서 순회·캡처/readback 경로 없음. 크기/폭/경로 변경 이벤트에서만 배치를 갱신하며 기존 5Hz 갱신을 유지한다. 기존 `UDxWidget`/Workspace의 `UDxWidgetSubsystem` 입력 차단·전면 처리를 사용한다. Designer WBP와 미등록 Widget은 새 머리/resize 적용에서 제외한다. DTCore 소스/gitlink 불변이며 공통 후보는 아래 DTC-UXR10이다.
+- **현재 상태: 70%.** Editor Development·집중 D3D12 **2 Success/실패·skip0**, 기존 UXR/UI 관련 회귀 **49 Success/3 조건부 skip/실패·NotRun0**, WBP7 메모리 컴파일·quick8·용어 검사·layer0 통과다. 1920×1080/window DPI1.0의 기준/변경 각24장(글자100/125/150%)과 변경 경로9장을 보관했다. 직접 마우스·통합 release·성능 gate는 요청에 따라 보류다. 자동 RHI 렌더/Slate 이벤트는 직접 마우스 수용을 대신하지 않는다. 최종 명령·성공/실패/skip 이름·전후 렌더·개인 SaveGame 복원 근거는 `Saved/Reports/UXR/UXR-10/RESULT.md`와 `manual/CHECKLIST.md`를 따른다. 이번 CLI 세션의 상세 기록은 [검증 이력](VALIDATION_HISTORY.md)에 보관한다.
+
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
 **진행률: 90%** · CLI 구현/검증 완료, 직접 마우스는 요청된 예외에 따라 UXR-07에서 수행하며 독립 검토 대기다.
@@ -573,6 +582,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 | DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
 | DTC-ARCH06 | 센서 acquisition snapshot용 host provider 계약이 확인되지 않음 | L0 값 context·weak 월드 registry에 L2 SlabContext를 등록; 기존 세션/결과 집계를 adapter로 호출 | 다른 소비 프로젝트에도 필요할 때 중립 값/provider 공용화를 검토; Slab 정책은 host에 유지 | DTCore `b2504d1`의 `AcquisitionContext/FrameContext/SensorContext` 검색 0건; `Contracts/VirtualSensorAcquisitionContext.*`, `Scenario/VirtualSensorSlabAcquisitionProvider.cpp`; DTCore 소스/gitlink 불변 |
 | DTC-UXR03 | 기존 위젯 안의 탭/편집 위치로 이동하는 중립 navigation 계약 없음 | 기존 Workspace가 등록된 Data/Replay를 연결하고 native 탭·포커스 adapter로 이동. 기존 `UDxWidget`·입력 차단·DTCore 전면 처리 유지 | 공통 navigation 대상에 선택적 subtarget을 전달하는 확장점 검토 | `Core/DxWidgetSubsystem.h`의 Actor/Widget 열기 API와 `OpenOwnedTab`/`FocusOwnedOutputSettings`; DTCore 소스·gitlink 불변 |
+| DTC-UXR10 | 기존 동일 인스턴스의 하위 화면 복귀·native resize/layout 저장 계약 없음 | 기존 소유 Workspace/UDxWidget base에 세션 부모 경로·공통 머리와 모서리 표시만 추가, 기존 v1 크기 저장·DTCore 입력 차단·전면 처리 재사용 | 여러 소비 프로젝트에 필요할 때 동일 인스턴스 subtarget 복귀와 선택적 resize adapter 확장점 검토 | `UI/DxWidget.h`의 WidgetFlag 기반 OpenChildWidget/CloseChildWidget, `Core/DxWidgetSubsystem.h`, UXR-10 집중 회귀; DTCore 소스/gitlink 불변 |
 | DTC-UXR09 | `DxWidgetThemeData`는 색상 토큰을 제공하지만 native Slate의 간격·모서리·글자 역할·버튼 단계·dock 표시 계약은 없음 | 기존 `UDxWidget` 패널과 Workspace의 Main/Viewport·입력 차단·전면 표시 경로를 유지하고 명시 소유 native UI의 시각 토큰·표시 사각형만 프로젝트 adapter로 적용 | 공통 필요가 확인되면 색상 외 타이포그래피/간격 토큰과 기존 인스턴스 dock 표시 확장점을 검토. 프로젝트 레일·업무 화면 구성은 host에 유지 | `UI/DxWidgetThemeData.h`, `UI/SensorOwnedPresentationStyle.h`, `VirtualSensorToolWorkspaceSubsystem.Docking.cpp`; DTCore·공용 테마 자산 불변 |
 
 ## 1. 성능·측정·전송
