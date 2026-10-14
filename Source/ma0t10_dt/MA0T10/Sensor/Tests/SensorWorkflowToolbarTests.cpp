@@ -87,6 +87,10 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkflowStatusTest,"MA0T10.UXR01.ReadOnlyStatus",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorWorkflowStatusTest::RunTest(const FString&)
 {
+    TestEqual(TEXT("missing settings immediately requires connection setup"),SensorToolUiText::ConnectionWarning(false,0).ToString(),SensorToolUiText::ConnectionRequired().ToString());
+    TestFalse(TEXT("short disconnect displays reconnection"),SensorToolUiText::ConnectionWarning(true,4.9).ToString()==SensorToolUiText::ConnectionRequired().ToString());
+    TestEqual(TEXT("persistent disconnect requires connection check"),SensorToolUiText::ConnectionWarning(true,5).ToString(),SensorToolUiText::ConnectionRequired().ToString());
+    TestFalse(TEXT("send delay never claims missing settings"),SensorToolUiText::SendDelayed().ToString().Contains(TEXT("연결 설정 필요")));
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();W->SetCoordinator(C);auto* L=World->SpawnActor<AVirtualLidarSensorActor>();
     C->RegisterSensorActor(L);auto* Toolbar=NewObject<USensorToolToolbarWidget>(World);W->Toolbar=Toolbar;

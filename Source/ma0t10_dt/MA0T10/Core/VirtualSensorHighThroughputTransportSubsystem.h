@@ -171,6 +171,7 @@ public:
 	int64 GetConnectionRevision() const { return ConnectionRevision; }
 	int64 GetWorkerInstanceSerial() const { return WorkerInstanceSerial; }
 	FString GetConnectionMessage() const { return ConnectionMessage; }
+	bool IsSendDelayed() const { return bSendDelayed; }
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
@@ -199,6 +200,7 @@ private:
 	uint64 NextManagedRunGeneration=0;
 	int64 WorkerInstanceSerial=0;
 	bool bTransportConnected=false;
+	bool bSendDelayed=false;
 	int64 ConnectionRevision=0;
 	FString ConnectionMessage;
 	void DrainWorkerEvents();

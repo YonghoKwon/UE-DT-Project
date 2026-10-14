@@ -540,8 +540,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 `Source/`의 literal `GetEnvironmentVariable(TEXT("MA0T10_*"))` 전체를 포함한다. 활성화 flag 외 경로·시간·정책 selector도 포함하며 저장값/기본 정책을 바꾸는 권한은 아니다. flag의 미설정 또는 1 이외 값은 opt-in 비활성으로 처리한다. `[OPT-IN SKIP] <변수> unset or !=1` 로그는 미실행이며 실제 RHI 부족은 별도 skip이다. `validate_opt_in_inventory.ps1`이 소스와 표의 이름 집합을 자동 대조한다.
 
 <!-- MA0T10_ENV_TABLE_BEGIN -->
+
 | 변수 | 활성화/설정 대상 시험·fixture | 값 의미·필요한 환경 |
 |---|---|---|
+| `MA0T10_PCD20HZ_CASE` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | healthy/slow/heartbeat/silent/error/reset/observe; Tools/StompFaultServer 로컬 TCP fault 서버 |
+| `MA0T10_PCD20HZ_SECONDS` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 8~600초; 합성 socket 부하 시간 |
+| `MA0T10_PCD20HZ_INTERVAL` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 0.05~0.2초; 합성 프레임 간격 |
+| `MA0T10_PCD20HZ_LIDARS` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 1~2; 합성 스트림 수, 실제 acquisition 검증과 구분 |
+| `MA0T10_PCD20HZ_NATIVE_INTERVAL` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | PCD-20HZ 전용 0.05~0.2초; Actor 편집 API로 시험 주기 적용, 상태바·Raw·Engine 시간축 기록 |
 | `MA0T10_ACCEPTANCE_LEDGER` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke / RepeatThreeStreamAcceptance | 수용 ledger 출력 경로; 쓰기 가능한 Saved 하위 경로 |
 | `MA0T10_ACCEPTANCE_RES_X` | FinalAcceptanceTestSession 사용 RHI/PIE 시험 | client viewport 폭 정수; 실제 RHI/PIE |
 | `MA0T10_ACCEPTANCE_RES_Y` | FinalAcceptanceTestSession 사용 RHI/PIE 시험 | client viewport 높이 정수; 실제 RHI/PIE |

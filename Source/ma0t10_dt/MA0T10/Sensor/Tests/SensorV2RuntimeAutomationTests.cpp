@@ -20,7 +20,9 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
 #include "PcdDemandAcceptanceFixture.h"
+#include "SlabScenarioValidationRig.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -424,6 +426,15 @@ public:
                 for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It)if(*It!=Camera)
                 {It->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);It->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;It->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Coordinator->RegisterSensorActor(*It);Coordinator->RegisterCamera(It->CaptureComponent);It->StartSensor();break;}
             }
+            const FString Pcd20Interval=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_NATIVE_INTERVAL"));
+            bPcd20Probe=!Pcd20Interval.IsEmpty();
+            if(bPcd20Probe)
+            {
+                for(TActorIterator<ASlabScenarioValidationRig> Rig(World);Rig;++Rig)Rig->SetValidationControlsVisibleForTests(false);
+                RequestedLidarInterval=FMath::Clamp(FCString::Atod(*Pcd20Interval),.05,.2);
+                for(auto* Actor:Coordinator->GetSensorActors())if(IsValid(Actor)&&Actor->GetSensorKind()==EVirtualSensorKind::Lidar)
+                {FVirtualSensorEditableState State;FString Error;Actor->ReadEditableState(State);State.LidarScanInterval=RequestedLidarInterval;Test->TestTrue(TEXT("PCD20HZ test interval applied through actor API"),Actor->ApplyEditableState(State,Error));}
+            }
 			for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 			{
 				FVirtualSensorStreamConfig Config;
@@ -489,6 +500,18 @@ public:
 				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
+        if(bPcd20Probe && StreamElapsedSeconds>=NextPcd20Sample)
+        {
+            NextPcd20Sample=StreamElapsedSeconds+1;
+            auto* Raw=World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+            auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+            auto* Toolbar=Workspace?Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation()):nullptr;
+            const bool UiConnected=Toolbar&&Toolbar->GetGlobalStatus().bServerConnected;
+            const FString Warning=Toolbar?Toolbar->GetGlobalStatus().Warning.ToString():TEXT("no-toolbar");
+            UE_LOG(LogTemp,Display,TEXT("[PCD20HZNativeState] elapsed=%.3f raw=%d engine=%d bServerConnected=%d warning=%s reason=%s"),StreamElapsedSeconds,Raw&&Raw->IsTransportConnected(),Transport->IsStompConnected(),UiConnected,*Warning,Raw?*Raw->GetConnectionMessage():TEXT("no-worker"));
+            if(Raw)for(const auto& T:Raw->GetStreamTelemetry())if(T.StreamKind==EVirtualSensorStreamKind::PointCloud)
+                UE_LOG(LogTemp,Display,TEXT("[PCD20HZNativeStream] elapsed=%.3f sensor=%s submitted=%lld receipt=%lld consumed=%lld bytes=%lld frameBytes=%d overload=%lld failed=%lld invalid=%lld queued=%d pendingReceipt=%d outstandingBytes=%lld"),StreamElapsedSeconds,*T.SensorId,T.SubmittedCount,T.ReceiptCount,T.ConsumerReceivedCount,T.SubmittedBytes,T.LastFrameBytes,T.OverloadCount,T.DeliveryFailureCount,T.ValidationFailureCount,T.InputQueueDepth,T.ReceiptQueueDepth,T.OutstandingBytes);
+        }
         if (!bAcquisitionWindowClosed && StreamElapsedSeconds >= WarmupSeconds)
         {
             const double Now=FPlatformTime::Seconds();
@@ -507,7 +530,7 @@ public:
                 {
                     const double Hz=(P.Value.FrameId-AcquisitionStartFrames.FindRef(P.Key))/FMath::Max(.001,Now-AcquisitionWindowStart);
                     const bool bCamera=CameraIds.Contains(P.Key);
-                    Test->TestTrue(TEXT("each sensor acquisition window meets requested rate"),Hz>=(bCamera?29:19));
+                    Test->TestTrue(TEXT("each sensor acquisition window meets requested rate"),Hz>=(bCamera?29:.95/RequestedLidarInterval));
                     UE_LOG(LogTemp,Display,TEXT("[OutputAcquisitionWindow] sensor=%s kind=%s hz=%.3f compatibilityJsonHz=%.3f"),*P.Key,bCamera?TEXT("Camera"):TEXT("Lidar"),Hz,P.Value.MeasuredOutputRateHz);
                 }
             }
@@ -566,7 +589,7 @@ public:
 		Test->TestTrue(TEXT("full window request ledger saved"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
 		Test->TestTrue(TEXT("measurement window has complete contiguous receipt and consumer set"),Measurement.IsContiguousAndComplete());
         Test->TestEqual(TEXT("declared active cameras"),CameraIds.Num(),SensorCount);Test->TestEqual(TEXT("declared active lidars"),LidarIds.Num(),SensorCount);
-        for(const auto& Id:LidarIds){Test->TestTrue(TEXT("each Native LiDAR PCD has >=19Hz"),Measurement.GetRate(EVirtualSensorStreamKind::PointCloud,Id)>=19);if(!bPointCloudOnly)Test->TestTrue(TEXT("each telemetry stream has >=19Hz"),Measurement.GetRate(EVirtualSensorStreamKind::LidarPayload,Id)>=19);}
+        for(const auto& Id:LidarIds){Test->TestTrue(TEXT("each Native LiDAR PCD meets requested Hz"),Measurement.GetRate(EVirtualSensorStreamKind::PointCloud,Id)>=.95/RequestedLidarInterval);if(!bPointCloudOnly)Test->TestTrue(TEXT("each telemetry stream meets requested Hz"),Measurement.GetRate(EVirtualSensorStreamKind::LidarPayload,Id)>=.95/RequestedLidarInterval);}
         if(!bPointCloudOnly)for(const auto& Id:CameraIds)Test->TestTrue(TEXT("each camera JPEG has >=29Hz"),Measurement.GetRate(EVirtualSensorStreamKind::CameraImage,Id)>=29);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
 		{
@@ -592,7 +615,7 @@ public:
 			}
 			else
 			{
-				Test->TestTrue(TEXT("ML-X measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("ML-X measurement submission meets requested Hz"), Measurement.GetRate(Kind) >= .95/RequestedLidarInterval);
 				Test->TestTrue(TEXT("ML-X measurement consumer set complete"), Measurement.IsContiguousAndComplete());
 			}
 			if (Kind == EVirtualSensorStreamKind::PointCloud)
@@ -603,8 +626,8 @@ public:
 				Test->TestEqual(TEXT("every binary PCD submission receives a receipt"), Status->ReceiptReceivedCount, Status->InputFrameCount);
 				Test->TestEqual(TEXT("binary PCD never replaces a pending frame"), Status->ReplacedPendingFrameCount, static_cast<int64>(0));
 				Test->TestEqual(TEXT("binary PCD queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
-				Test->TestTrue(TEXT("binary PCD completed serialization sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
-				Test->TestTrue(TEXT("binary PCD measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("binary PCD completed serialization meets requested Hz"), Measurement.GetRate(Kind) >= .95/RequestedLidarInterval);
+				Test->TestTrue(TEXT("binary PCD measurement submission meets requested Hz"), Measurement.GetRate(Kind) >= .95/RequestedLidarInterval);
 				Test->TestTrue(TEXT("binary PCD serialization p95 remains below 20 ms"), Status->SerializationP95LatencyMs <= 20.0f);
 				Test->TestTrue(TEXT("binary PCD queues remain bounded"),
 					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);
@@ -722,6 +745,8 @@ private:
 	TWeakObjectPtr<AVirtualSlabSensorTestDriver> ScenarioDriver;
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
+    bool bPcd20Probe=false;
+    double RequestedLidarInterval=.05,NextPcd20Sample=0;
 	double MeasurementSeconds = 60.0;
 	double WarmupSeconds = 10.0;
 	TArray<double> FrameTimesMs;
