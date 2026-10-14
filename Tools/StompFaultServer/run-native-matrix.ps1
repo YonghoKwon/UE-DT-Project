@@ -7,10 +7,16 @@ function Invoke-NativeCase([string]$Broker,[double]$Interval,[int]$Lidars,[strin
     if($SkipCompleted -and (Test-Path $index) -and (Test-Path $manifest)){
         $result=Get-Content $index -Raw -Encoding UTF8 | ConvertFrom-Json
         $previous=Get-Content $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
-        $same=($result.tests[0].state -eq 'Success' -and $previous.Seconds -eq 300 -and $previous.Interval -eq $Interval -and $previous.Lidars -eq $Lidars -and $previous.DTCore -eq (& git -C "$root/Plugins/DTCore" rev-parse HEAD))
-        foreach($hash in $previous.SourceHashes.PSObject.Properties){
-            if($hash.Name -like '*\Tests\*'){continue} # Assertion-only harness changes do not invalidate already accepted runtime evidence.
-            if((Get-FileHash -LiteralPath (Join-Path $root $hash.Name)).Hash -ne $hash.Value){$same=$false;break}
+        $same=($result.tests[0].state -eq 'Success' -and $previous.Seconds -eq 300 -and $previous.Interval -eq $Interval -and $previous.Lidars -eq $Lidars -and
+            $previous.Commit -eq (& git -C $root rev-parse HEAD) -and $previous.DTCore -eq (& git -C "$root/Plugins/DTCore" rev-parse HEAD) -and
+            $previous.DllHash -eq (Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash)
+        if($same){
+            # Compare the complete current runtime Source set both ways, so added or deleted
+            # files also invalidate the result. Assertion-only harness changes (Tests) do not.
+            $recorded=@{};foreach($hash in $previous.SourceHashes.PSObject.Properties){if($hash.Name -notlike '*\Tests\*'){$recorded[$hash.Name]=$hash.Value}}
+            $current=@{};Get-ChildItem "$root/Source" -Recurse -File | ForEach-Object {$name=$_.FullName.Substring($root.Length+1);if($name -notlike '*\Tests\*'){$current[$name]=(Get-FileHash -LiteralPath $_.FullName).Hash}}
+            if($recorded.Count -ne $current.Count){$same=$false}
+            else{foreach($name in $current.Keys){if($recorded[$name] -ne $current[$name]){$same=$false;break}}}
         }
         if($same){Write-Output "Retaining accepted case $Broker/$Interval/$Lidars with identical runtime source hashes";return}
     }

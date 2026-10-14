@@ -698,9 +698,15 @@ private:
 		// Process a final ERROR before observing a subsequent FIN/reset.
 		if(OutFrames.IsEmpty()&&Socket->Wait(ESocketWaitConditions::WaitForRead,FTimespan::Zero()))
 		{
+			// FSocketBSD::Recv already reports a 0-byte stream read (orderly FIN) as
+			// failure; success with Read==0 is reported only for would-block. Check the
+			// error code too, so a socket layer that returns success on EOF still closes.
 			uint8 Probe=0;int32 Read=0;
-			if(!Socket->Recv(&Probe,1,Read,ESocketReceiveFlags::Peek))
-			{OutError=FString::Printf(TEXT("Raw TCP STOMP peer closed or receive failed; socket=%s."),ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError());return false;}
+			ISocketSubsystem* Sockets=ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+			const bool bReceived=Socket->Recv(&Probe,1,Read,ESocketReceiveFlags::Peek);
+			const ESocketErrors Error=bReceived&&Read>0?SE_NO_ERROR:Sockets->GetLastErrorCode();
+			if(!bReceived||(Read<=0&&Error!=SE_EWOULDBLOCK))
+			{OutError=FString::Printf(TEXT("Raw TCP STOMP peer closed or receive failed; read=%d socket=%s."),Read,Sockets->GetSocketError(Error));return false;}
 		}
 		return true;
 	}
