@@ -1,4 +1,4 @@
-# PCD-20HZ STOMP fault server (Node 22)
+# PCD-20HZ / PCD-RESUME STOMP fault server (Node 22)
 
 Run `node Tools/StompFaultServer/server.mjs`. The TCP listener binds only to
 127.0.0.1:61618; it does not authenticate or modify an installed broker.
@@ -38,6 +38,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-f
 Each case owns its local server and enables `MA0T10_PCD20HZ_CASE` only in the
 test process. Healthy throughput, bounded skips under an eight-second pause,
 heartbeat, server silence, ERROR and reset/reconnect are tested separately.
+PCD-RESUME adds an eighth case, `overload-resume`: a 20-second read pause with
+45 seconds of synthetic 576x56 PCD input drives the actual publisher, async PCD
+codec and shared worker. It requires an explicit overload suspension, automatic
+recovery after drain, a receipt for a new frame beyond the suspension boundary,
+no connection replacement and zero outstanding bytes after shutdown. Separate
+`PointCloudAutoResume` automation covers cooldown, capped exponential backoff,
+receipt-progress reset, user stop/reconfiguration, disconnected recovery,
+option-off behavior, stale serialization, accounting, routing and UI wording.
 NullRHI is used only for these socket tests. DLL hashes and the automation result
 are saved with the server JSONL; Editor/build overlap invalidates a run.
 
@@ -47,6 +55,19 @@ For actual ML-X(80) acquisition, PCD encoding, receipts and loopback validation:
 powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-native.ps1 -Broker Fake -Interval .05 -Lidars 1 -Seconds 300
 powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-native.ps1 -Broker Artemis -Interval .05 -Lidars 1 -Seconds 300
 ```
+
+For rendered recovery acceptance and direct UI checks, use Fake with
+`-RecoveryFault` and `-ServerOptions @('--pause-after-ms=30000','--pause-ms=20000')`
+(invoke from PowerShell so the array is preserved). This mode expects explicit
+overload loss and ledger gaps, verifies recovery, receipts and valid loopback
+PCD, and records client viewport, effective UI DPI, font scale and status text.
+Normal native throughput mode continues to require complete contiguous output.
+Fault mode reports socket submission attempts, applied receipts, validated
+consumer frames and dropped diagnostic receive events separately: the existing
+five-second Raw receipt retry and bounded diagnostic receive queue can make
+these totals differ during a long pause. Recovery acceptance requires a new
+post-suspension receipt and valid consumer frame, explicit loss and drained
+reservations; it does not claim every diagnostic event was retained.
 
 The native test uses D3D12, the committed SensorTestMap snapshot and 1920x1080
 PIE, with ten seconds of warmup. Test cameras remain in preview mode; only LiDAR
