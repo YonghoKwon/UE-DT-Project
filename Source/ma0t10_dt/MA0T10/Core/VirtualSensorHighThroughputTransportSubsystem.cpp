@@ -686,8 +686,16 @@ private:
 			LastSocketReadSeconds = FPlatformTime::Seconds();
 			if (!Parser.Append(Chunk.GetData(), Read, OutFrames, OutError)) return false;
 		}
-		// Process a final ERROR before reporting the subsequent FIN/reset.
-		if(OutFrames.IsEmpty()&&Socket->GetConnectionState()!=SCS_Connected){OutError=FString::Printf(TEXT("Raw TCP STOMP peer closed the connection; socket=%s."),ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError());return false;}
+		// GetConnectionState is a readiness heuristic in UE's BSD socket layer:
+		// a full send buffer plus no readable data can return NotConnected.
+		// Peek only when readable, and distinguish real EOF/error from would-block.
+		// Process a final ERROR before observing a subsequent FIN/reset.
+		if(OutFrames.IsEmpty()&&Socket->Wait(ESocketWaitConditions::WaitForRead,FTimespan::Zero()))
+		{
+			uint8 Probe=0;int32 Read=0;
+			if(!Socket->Recv(&Probe,1,Read,ESocketReceiveFlags::Peek))
+			{OutError=FString::Printf(TEXT("Raw TCP STOMP peer closed or receive failed; socket=%s."),ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError());return false;}
+		}
 		return true;
 	}
 

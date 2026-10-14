@@ -20,6 +20,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
 #include "PcdDemandAcceptanceFixture.h"
+#include "SlabScenarioValidationRig.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
@@ -429,6 +430,7 @@ public:
             bPcd20Probe=!Pcd20Interval.IsEmpty();
             if(bPcd20Probe)
             {
+                for(TActorIterator<ASlabScenarioValidationRig> Rig(World);Rig;++Rig)Rig->SetValidationControlsVisibleForTests(false);
                 RequestedLidarInterval=FMath::Clamp(FCString::Atod(*Pcd20Interval),.05,.2);
                 for(auto* Actor:Coordinator->GetSensorActors())if(IsValid(Actor)&&Actor->GetSensorKind()==EVirtualSensorKind::Lidar)
                 {FVirtualSensorEditableState State;FString Error;Actor->ReadEditableState(State);State.LidarScanInterval=RequestedLidarInterval;Test->TestTrue(TEXT("PCD20HZ test interval applied through actor API"),Actor->ApplyEditableState(State,Error));}
