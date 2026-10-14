@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('healthy','slow','heartbeat','silent','error','reset','observe')][string]$Case='healthy',
+    [ValidateSet('healthy','slow','heartbeat','silent','error','reset','observe','overload-resume')][string]$Case='healthy',
     [int]$Seconds=15,[double]$Interval=.05,[ValidateRange(1,2)][int]$Lidars=1,
     [string[]]$ServerOptions=@(),[string]$ReportDirectory='',
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3'
@@ -22,7 +22,8 @@ try {
     while(!($server.HasExited) -and [DateTime]::UtcNow -lt $deadline){if(Select-String -LiteralPath "$ReportDirectory/server.jsonl" -Pattern 'listening' -SimpleMatch -Quiet){break};Start-Sleep -Milliseconds 100}
     if($server.HasExited -or !(Select-String -LiteralPath "$ReportDirectory/server.jsonl" -Pattern 'listening' -SimpleMatch -Quiet)){throw 'Fault server did not listen'}
     $env:MA0T10_PCD20HZ_CASE=$Case;$env:MA0T10_PCD20HZ_SECONDS="$Seconds";$env:MA0T10_PCD20HZ_INTERVAL=$Interval.ToString([Globalization.CultureInfo]::InvariantCulture);$env:MA0T10_PCD20HZ_LIDARS="$Lidars";$env:MA0T10_ARTEMIS_RAW_URL='tcp://127.0.0.1:61618'
-    $arguments=@('"'+(Join-Path $root 'ma0t10_dt.uproject')+'"','/Engine/Maps/Entry','-NullRHI','-unattended','-nosplash','-nop4','-nosound','-ExecCmds="Automation RunTests MA0T10.SensorStream.Pcd20Hz.SocketFaults"','-TestExit="Automation Test Queue Empty"','-ReportExportPath="'+$ReportDirectory+'/automation"','-abslog="'+$ReportDirectory+'/worker.log"')
+    $test=if($Case -eq 'overload-resume'){'MA0T10.SensorStream.PointCloudAutoResume.SocketRecovery'}else{'MA0T10.SensorStream.Pcd20Hz.SocketFaults'}
+    $arguments=@('"'+(Join-Path $root 'ma0t10_dt.uproject')+'"','/Engine/Maps/Entry','-NullRHI','-unattended','-nosplash','-nop4','-nosound',('-ExecCmds="Automation RunTests '+$test+'"'),'-TestExit="Automation Test Queue Empty"','-ReportExportPath="'+$ReportDirectory+'/automation"','-abslog="'+$ReportDirectory+'/worker.log"')
     $editor=Start-Process "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/console.log" -RedirectStandardError "$ReportDirectory/stderr.log"
     if(!$editor.WaitForExit(($Seconds+90)*1000)){throw 'Socket test exceeded deadline'}
     if((Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash -ne $dllHash){throw 'DLL changed during test; result invalid'}

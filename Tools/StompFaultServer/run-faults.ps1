@@ -9,6 +9,7 @@ $cases=@(
     @{Name='heartbeat';Seconds=8;Options=@()},
     @{Name='silent';Seconds=8;Options=@('--silent-after-ms=500')},
     @{Name='error';Seconds=10;Options=@('--error-after-ms=1500')},
-    @{Name='reset';Seconds=10;Options=@('--close-after-ms=1500')}
+    @{Name='reset';Seconds=10;Options=@('--close-after-ms=1500')},
+    @{Name='overload-resume';Seconds=45;Options=@('--heartbeat-ms=5000','--require-heartbeat-ms=5000','--pause-after-ms=1000','--pause-ms=20000')}
 )
 foreach($case in $cases){$folder=if($case.Folder){$case.Folder}else{$case.Name};& "$PSScriptRoot/run-worker.ps1" -Case $case.Name -Seconds $case.Seconds -ServerOptions $case.Options -ReportDirectory (Join-Path $ReportDirectory $folder)}

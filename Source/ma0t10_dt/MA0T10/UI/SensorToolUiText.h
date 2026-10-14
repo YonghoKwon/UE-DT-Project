@@ -133,6 +133,9 @@ namespace SensorToolUiText
     inline FText Paused() { return LOCTEXT("Paused", "일시정지"); }
     inline FText EquipmentCount(int32 Total, int32 Running) { return FText::Format(LOCTEXT("EquipmentCount", "장비 {0}대(측정 {1})"), Total, Running); }
     inline FText PcdState(bool Sending) { return Sending ? LOCTEXT("PcdSending", "PCD 전송 중") : LOCTEXT("PcdStopped", "PCD 전송 중지"); }
+    inline FText PcdOverloadSuspended() { return LOCTEXT("PcdOverloadSuspended", "PCD 과부하 · 잠시 후 자동 재개"); }
+    inline FText PcdResumeDetails(float Seconds, int64 Count)
+    { return FText::Format(LOCTEXT("PcdResumeDetails", "자동 재개까지 최소 {0}초 · 연결과 대기 전송 정리 후 재개 · 재개 {1}회"), FMath::CeilToInt(Seconds), FText::AsNumber(Count)); }
     inline FText ServerState(bool Connected) { return Connected ? LOCTEXT("ServerConnected", "서버 연결됨") : LOCTEXT("ServerDisconnected", "서버 연결 안 됨"); }
     inline FText ScenarioWaiting() { return LOCTEXT("ScenarioWaiting", "시나리오 대기"); }
     inline FText ScenarioPreparing() { return LOCTEXT("ScenarioPreparing", "시나리오 준비 중"); }

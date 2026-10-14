@@ -264,8 +264,9 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
             if(SensorManager&&SensorManager->StreamPublisherComponent)for(const auto& State:SensorManager->StreamPublisherComponent->GetStreamStatuses())
             {
                 if(!State.SensorId.IsEmpty()&&State.SensorId!=GetSelectedSensorIdForStream(State.StreamKind))continue;
-                const int64 Errors=State.OverloadCount+State.EncodeFailureCount+State.BodyLimitRejectedCount+State.DeliveryFailureCount+State.RawDeliveryFailureCount+State.ConsumerValidationFailureCount;
-                WorkspaceStreamCards.Add(State.StreamKind,FString::Printf(TEXT("대상: %s · %s · 전송 %.1f건/s%s"),*GetSelectedSensorIdForStream(State.StreamKind),State.bEnabled?TEXT("전송 중"):TEXT("중지"),State.SubmittedHz,Errors?TEXT(" · 오류: 진단에서 확인하세요"):TEXT("")));
+                const int64 Errors=(State.bOverloaded?1:0)+State.EncodeFailureCount+State.BodyLimitRejectedCount+State.DeliveryFailureCount+State.RawDeliveryFailureCount+State.ConsumerValidationFailureCount;
+                const FString StateText=State.bOverloadSuspended?SensorToolUiText::PcdOverloadSuspended().ToString():State.bEnabled?TEXT("전송 중"):TEXT("중지");
+                WorkspaceStreamCards.Add(State.StreamKind,FString::Printf(TEXT("대상: %s · %s · 전송 %.1f건/s%s"),*GetSelectedSensorIdForStream(State.StreamKind),*StateText,State.SubmittedHz,Errors?TEXT(" · 오류: 진단에서 확인하세요"):TEXT("")));
             }
         }
         if(bWorkspaceLiveDetails)CachedLiveStreamSummary=GetLiveStreamSummaryText();
@@ -369,7 +370,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
                 +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(STextBlock).Text(Kind==EVirtualSensorStreamKind::PointCloud?SensorToolUiText::PcdOutput():Kind==EVirtualSensorStreamKind::CameraImage?SensorToolUiText::CameraOutput():SensorToolUiText::LidarOutput())]
                 +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton)
                     .IsEnabled_Lambda([this,Kind](){return !GetSelectedSensorIdForStream(Kind).IsEmpty()&&!IsSelectedStreamScenarioControlled(Kind);})
-                    .Text_Lambda([this,Kind](){if(IsSelectedStreamScenarioControlled(Kind))return LOCTEXT("ScenarioControl","시나리오 연동 중");auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;return P&&P->IsStreamEnabled(Kind,GetSelectedSensorIdForStream(Kind))?LOCTEXT("Stop","중지"):LOCTEXT("Start","시작");})
+                    .Text_Lambda([this,Kind](){if(IsSelectedStreamScenarioControlled(Kind))return LOCTEXT("ScenarioControl","시나리오 연동 중");auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;return P&&P->IsStreamActiveOrAwaitingResume(Kind,GetSelectedSensorIdForStream(Kind))?LOCTEXT("Stop","중지"):LOCTEXT("Start","시작");})
                     .OnClicked_Lambda([this,Kind](){bOwnedScenarioStreamView=false;ToggleOwnedStream(Kind);return FReply::Handled();})]]
             +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this,Kind](){const auto* Card=WorkspaceStreamCards.Find(Kind);return FText::FromString(Card?*Card:FString());})]];
     }

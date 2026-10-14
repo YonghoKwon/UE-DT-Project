@@ -44,7 +44,7 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 		if (Runtime->Config.SensorId.IsEmpty())
 		{
 			const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(Runtime->Config.StreamKind, Frame.SensorId));
-			if (Exact && Exact->Config.bEnabled) continue;
+			if (Exact && (Exact->Config.bEnabled || Exact->Status.bOverloadSuspended)) continue;
 		}
 		QueueFrameForRuntime(Key, *Runtime, Frame);
 	}

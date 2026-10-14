@@ -64,13 +64,14 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     }
     const auto* SessionService=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
     const auto Session=SessionService?SessionService->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
-    bool TransferFailure=false;
+    bool TransferFailure=false, PcdOverloadSuspended=false;
     if(C&&C->StreamPublisherComponent)for(const auto& Stream:C->StreamPublisherComponent->GetStreamStatuses())
     {
         if(Stream.StreamKind!=EVirtualSensorStreamKind::PointCloud)continue;
         const auto Config=C->StreamPublisherComponent->GetEffectiveStreamConfig(Stream.StreamKind,Stream.SensorId);
         if(Config.PointCloudFormat!=EVirtualPointCloudStreamFormat::PCD)continue;
         TransferFailure|=Stream.bOverloaded; // Historical failure counters are not a current blocker.
+        PcdOverloadSuspended|=Stream.bOverloadSuspended;
     }
     if(C&&C->StreamPublisherComponent)for(auto* A:C->GetSensorActors())if(IsValid(A)&&A->GetSensorKind()==EVirtualSensorKind::Lidar)
     {
@@ -88,7 +89,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     const bool SendDelayed=TransferFailure||(Raw&&Raw->IsSendDelayed());
     GlobalStatus.Equipment=SensorToolUiText::EquipmentCount(GlobalStatus.EquipmentCount,GlobalStatus.MeasuringCount);
-    GlobalStatus.Pcd=SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
+    GlobalStatus.Pcd=PcdOverloadSuspended?SensorToolUiText::PcdOverloadSuspended():SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
     GlobalStatus.Server=SensorToolUiText::ServerState(GlobalStatus.bServerConnected);
     GlobalStatus.Scenario=SensorToolUiText::ScenarioWaiting();
     if(auto* Progress=Cast<USlabProgressPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)))StatusSlab=Progress->GetBoundSlabActor();
@@ -131,6 +132,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
     }
     else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince);
+    else if(PcdOverloadSuspended)GlobalStatus.Warning=SensorToolUiText::PcdOverloadSuspended();
     else if(SendDelayed)GlobalStatus.Warning=SensorToolUiText::SendDelayed();
     else if(!Session.RequiredDataError.IsEmpty())GlobalStatus.Warning=SensorToolUiText::TransferCheck();
 }

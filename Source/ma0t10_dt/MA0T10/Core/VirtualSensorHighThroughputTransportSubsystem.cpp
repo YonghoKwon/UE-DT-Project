@@ -270,6 +270,16 @@ public:
 		const FString Key=TelemetryKey(Kind,Sensor);
 		for(const auto& Pair:OutstandingFrames) if(Pair.Value.Key==Key) { ++FramesOut; BytesOut+=Pair.Value.Bytes; QueuedOut+=Pair.Value.bQueued?1:0; }
 	}
+	bool IsPointCloudResumeCapacityAvailable(const FString& SensorId) const
+	{
+		FScopeLock Lock(&OutstandingMutex);
+		if (HeldBytes > FMath::Max<int64>(1, Profile.MaxOutstandingBytes) / 2) return false;
+		const FString Key = TelemetryKey(EVirtualSensorStreamKind::PointCloud, SensorId);
+		const FString Prefix = LexToString(static_cast<int32>(EVirtualSensorStreamKind::PointCloud)) + TEXT("|");
+		for (const auto& Pair : OutstandingFrames)
+			if (SensorId.IsEmpty() ? Pair.Value.Key.StartsWith(Prefix) : Pair.Value.Key == Key) return false;
+		return true;
+	}
 	void CancelRun(const FString& RunId)
 	{
 		{FScopeLock Lock(&RunPendingMutex);if(!KnownRunGenerations.Contains(RunId))KnownRunGenerations.Add(RunId,0);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);}
@@ -1087,6 +1097,12 @@ bool UVirtualSensorHighThroughputTransportSubsystem::IsHighThroughputTransportRu
 	return Worker != nullptr && Worker->IsRunning();
 }
 
+bool UVirtualSensorHighThroughputTransportSubsystem::CanResumePointCloudStream(const FString& SensorId) const
+{
+	return IsHighThroughputTransportRunning() && bTransportConnected && !bSendDelayed &&
+		Worker->IsPointCloudResumeCapacityAvailable(SensorId);
+}
+
 bool UVirtualSensorHighThroughputTransportSubsystem::EnqueueBinaryFrame(
 	const FVirtualSensorBinaryFrame& Frame,
 	FString& OutError)
@@ -1412,15 +1428,20 @@ bool FSensorRawOutstandingLimitTest::RunTest(const FString&)
 	Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
 	TestEqual(TEXT("twenty bodies counted once across queue and receipt phases"),Bytes,int64(60));
 	TestEqual(TEXT("receipt-only waiting has no queued frames"),Queued,0);
+	TestFalse(TEXT("resume awaits receipt-only reservations too"),Worker.IsPointCloudResumeCapacityAvailable(Frame.SensorId));
+	TestFalse(TEXT("wildcard resume awaits every PCD sensor"),Worker.IsPointCloudResumeCapacityAvailable(FString()));
+	TestTrue(TEXT("unrelated drained sensor can resume under global half budget"),Worker.IsPointCloudResumeCapacityAvailable(TEXT("other")));
 	FVirtualSensorStompFrame Receipt;Receipt.Command=TEXT("RECEIPT");Receipt.Headers.Add(TEXT("receipt-id"),TEXT("0"));Worker.HandleFrame(Receipt);
 	TestTrue(TEXT("receipt releases admission immediately"),Worker.Enqueue(Frame,Error));
 	Worker.StopWorker();Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
 	TestEqual(TEXT("stop retires queued and unconfirmed bodies"),Global,int64(0));
 	TestEqual(TEXT("stop balances run pending"),Worker.GetRunPending(TEXT("cap-run")),0);
+	TestTrue(TEXT("released reservations restore resume capacity"),Worker.IsPointCloudResumeCapacityAvailable(Frame.SensorId));
 	Profile.MaxOutstandingBytes=4;Profile.MaxOutstandingBytesPerStream=4;
 	FVirtualSensorHighThroughputTransportWorker Small{Profile,FString()};
 	Frame.RequestId=TEXT("a");TestTrue(TEXT("first body fits byte budget"),Small.Enqueue(Frame,Error));
 	Frame.SensorId=TEXT("other");Frame.RequestId=TEXT("b");TestFalse(TEXT("global byte budget spans different sensors"),Small.Enqueue(Frame,Error));
+	TestFalse(TEXT("drained sensor cannot resume over global half budget"),Small.IsPointCloudResumeCapacityAvailable(Frame.SensorId));
 	Small.StopWorker();
 	return true;
 }

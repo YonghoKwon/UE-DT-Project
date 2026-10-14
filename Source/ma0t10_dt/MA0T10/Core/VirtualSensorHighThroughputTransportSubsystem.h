@@ -172,6 +172,8 @@ public:
 	int64 GetWorkerInstanceSerial() const { return WorkerInstanceSerial; }
 	FString GetConnectionMessage() const { return ConnectionMessage; }
 	bool IsSendDelayed() const { return bSendDelayed; }
+	/** All accepted PCD reservations for this sensor (empty = every PCD sensor) must drain. */
+	bool CanResumePointCloudStream(const FString& SensorId) const;
 
 	bool EnqueueBinaryFrame(const FVirtualSensorBinaryFrame& Frame, FString& OutError);
 	void CancelRun(const FString& RunId);
