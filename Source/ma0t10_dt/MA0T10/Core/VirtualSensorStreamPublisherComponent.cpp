@@ -43,6 +43,7 @@ void UVirtualSensorStreamPublisherComponent::BeginPlay()
 void UVirtualSensorStreamPublisherComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	bEndingPlay = true;
+	bHasPointCloudRecoveryWork = false;
 	if (TransportComponent) TransportComponent->OnDataSent.RemoveDynamic(this, &UVirtualSensorStreamPublisherComponent::OnTransportResult);
 	WaitingReceipts.Reset();
 	RequestToStreamKey.Reset();
@@ -331,6 +332,7 @@ void UVirtualSensorStreamPublisherComponent::StopForPointCloudOverload(
 		Runtime.Config.StreamKind == EVirtualSensorStreamKind::PointCloud;
 	if (Runtime.Status.bOverloadSuspended)
 	{
+		bHasPointCloudRecoveryWork = true;
 		const double Maximum = FMath::Clamp<double>(PointCloudOverloadMaxResumeDelaySeconds, 0.1, 30.0);
 		const double Initial = FMath::Clamp<double>(PointCloudOverloadResumeDelaySeconds, 0.1, Maximum);
 		Runtime.OverloadBackoffSeconds = Runtime.OverloadBackoffSeconds > 0.0
@@ -418,16 +420,21 @@ bool UVirtualSensorStreamPublisherComponent::UpdatePointCloudOverloadRecovery(co
 
 void UVirtualSensorStreamPublisherComponent::PumpPointCloudOverloadRecovery(double Now)
 {
-	bool Resumed = false;
+	bool Resumed = false, RecoveryNeeded = false;
 	for (auto& Pair : StreamRuntimes)
 	{
 		auto& Runtime = Pair.Value;
 		if (Runtime.Config.StreamKind != EVirtualSensorStreamKind::PointCloud) continue;
 		if (Runtime.Status.bOverloadSuspended)
 		{
-			if (bAutoResumePointCloudAfterOverload && Now < Runtime.NextOverloadRecoveryCheckSeconds) continue;
+			if (bAutoResumePointCloudAfterOverload && Now < Runtime.NextOverloadRecoveryCheckSeconds)
+			{
+				RecoveryNeeded = true;
+				continue;
+			}
 			Runtime.NextOverloadRecoveryCheckSeconds = Now + 0.2;
 			Resumed |= UpdatePointCloudOverloadRecovery(Pair.Key, Runtime, Now, CanResumePointCloudStream(Pair.Key, Runtime));
+			RecoveryNeeded |= Runtime.Status.bOverloadSuspended || (Runtime.Config.bEnabled && Runtime.OverloadBackoffSeconds > 0.0);
 			continue;
 		}
 		if (!Runtime.Config.bEnabled || Runtime.OverloadBackoffSeconds <= 0.0) continue;
@@ -435,7 +442,9 @@ void UVirtualSensorStreamPublisherComponent::PumpPointCloudOverloadRecovery(doub
 		const bool Connected = Runtime.Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput && CanUseHighThroughputTransport()
 			? Raw && Raw->IsTransportConnected() && !Raw->IsSendDelayed() : TransportComponent && TransportComponent->IsStompConnected();
 		UpdatePointCloudDeliveryProgress(Runtime, Now, Connected);
+		RecoveryNeeded |= Runtime.OverloadBackoffSeconds > 0.0;
 	}
+	bHasPointCloudRecoveryWork = RecoveryNeeded;
 	if (Resumed) OnStreamConfigurationChanged.Broadcast();
 }
 
@@ -561,7 +570,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPublisherOnce(double Now)
 	PumpPreparedMessages(Now);
 	CheckReceiptTimeouts(Now);
 	MergeHighThroughputTelemetry();
-	if (!bEndingPlay) PumpPointCloudOverloadRecovery(Now);
+	if (!bEndingPlay && bHasPointCloudRecoveryWork) PumpPointCloudOverloadRecovery(Now);
 }
 
 bool UVirtualSensorStreamPublisherComponent::CanUseHighThroughputTransport() const

@@ -19,6 +19,7 @@ struct FPointCloudOverloadTestAccess
     { return P->UpdatePointCloudOverloadRecovery(Key(P), Runtime(P), Now, Ready); }
     static void Progress(UVirtualSensorStreamPublisherComponent* P, double Now, bool Connected)
     { P->UpdatePointCloudDeliveryProgress(Runtime(P), Now, Connected); }
+    static bool HasRecoveryWork(UVirtualSensorStreamPublisherComponent* P) { return P->bHasPointCloudRecoveryWork; }
     static void CompleteOld(UVirtualSensorStreamPublisherComponent* P, int32 Revision)
     {
         UVirtualSensorStreamPublisherComponent::FPreparedMessage M;
@@ -51,6 +52,7 @@ bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
     C.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
     P->ConfigureStream(C);
     auto& R = A::Runtime(P);
+    TestFalse(TEXT("normal streams do not schedule recovery polling"), A::HasRecoveryWork(P));
     if (Case == TEXT("Disabled")) P->bAutoResumePointCloudAfterOverload = false;
     if (Case == TEXT("GenerationAndAccounting"))
     {
@@ -66,6 +68,7 @@ bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
     if (Case == TEXT("Cooldown"))
     {
         TestTrue(TEXT("auto resume defaults on"), R.Status.bOverloadSuspended);
+        TestTrue(TEXT("only overload schedules recovery polling"), A::HasRecoveryWork(P));
         TestEqual(TEXT("first cooldown is two seconds"), R.Status.OverloadResumeDelaySeconds, 2.0f);
         TestTrue(TEXT("stop remains available while suspended"), P->IsStreamActiveOrAwaitingResume(C.StreamKind, C.SensorId));
         TestFalse(TEXT("before cooldown remains stopped"), A::Recover(P, Due - .01, true));
@@ -99,6 +102,8 @@ bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
         P->StopStream(C.StreamKind, C.SensorId);
         TestFalse(TEXT("user stop cancels reservation"), A::Recover(P, Due + 60, true));
         TestFalse(TEXT("user stop stays disabled"), R.Config.bEnabled);
+        P->PumpPublisherOnce(Due + 60);
+        TestFalse(TEXT("last user stop retires idle recovery polling"), A::HasRecoveryWork(P));
         P->StartStream(C.StreamKind, C.SensorId); A::Suspend(P); P->StopAllStreams(FString());
         TestFalse(TEXT("global stop also cancels"), A::Recover(P, R.OverloadResumeAtSeconds + 60, true));
         P->StartStream(C.StreamKind, C.SensorId); A::Suspend(P); C.bEnabled = false; P->ConfigureStream(C);

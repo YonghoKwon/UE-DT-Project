@@ -243,5 +243,6 @@ private:
 	double PointCloudTokenBucketBytes = 0.0;
 	double LastTokenUpdateSeconds = 0.0;
 	bool bEndingPlay = false;
+	bool bHasPointCloudRecoveryWork = false;
 	TOptional<bool> LastRawTransportAvailable;
 };
