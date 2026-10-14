@@ -132,7 +132,9 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 		Runtime.Config.FrameStride != Config.FrameStride ||
 		Runtime.Config.LazCompressorPath != Config.LazCompressorPath ||
 		Runtime.Config.LazCompressorArguments != Config.LazCompressorArguments;
-	if (bSerializationContractChanged)
+	// ConfigureStream(false) is also the native UI's user-stop path. Retire
+	// retained work and invalidate its async result just like StopStream.
+	if (bSerializationContractChanged || !Config.bEnabled)
 	{
 		RecordDiscardedSlabFrames(Runtime);
 		++Runtime.ConfigRevision;

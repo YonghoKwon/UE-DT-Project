@@ -9,6 +9,7 @@
 struct FPointCloudOverloadTestAccess
 {
     using FRuntime = UVirtualSensorStreamPublisherComponent::FStreamRuntime;
+    using FMessage = UVirtualSensorStreamPublisherComponent::FPreparedMessage;
     static FRuntime& Runtime(UVirtualSensorStreamPublisherComponent* P)
     { return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud, TEXT("PCD-RESUME")); }
     static FString Key(UVirtualSensorStreamPublisherComponent* P)
@@ -111,6 +112,14 @@ bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
         P->StartStream(C.StreamKind, C.SensorId); A::Suspend(P); C.bEnabled = true; P->ConfigureStream(C);
         TestFalse(TEXT("explicit enabled reconfiguration also removes reservation"), R.Status.bOverloadSuspended);
         TestFalse(TEXT("reconfigured stream does not retain overload blocker"), R.Status.bOverloaded);
+        FVirtualSensorFrameEnvelope Pending; Pending.SensorId = C.SensorId; Pending.FrameId = 21;
+        Pending.SlabContext.RunId = TEXT("configuration-disable"); R.PendingFrameQueue.Add(Pending);
+        A::FMessage Prepared; Prepared.SensorId = C.SensorId; Prepared.FrameId = 22;
+        Prepared.SlabContext.RunId = Pending.SlabContext.RunId; Prepared.Json = TEXT("prepared");
+        R.PreparedMessageQueue.Add(Prepared);
+        C.bEnabled = false; P->ConfigureStream(C);
+        TestTrue(TEXT("UI configuration disable releases pending and prepared queues"), R.PendingFrameQueue.IsEmpty() && R.PreparedMessageQueue.IsEmpty());
+        TestEqual(TEXT("configuration disable records retained slab output failures"), P->GetFailedSlabRunCount(Pending.SlabContext.RunId), int64(2));
     }
     else if (Case == TEXT("Reconnect"))
     {
