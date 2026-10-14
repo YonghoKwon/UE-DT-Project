@@ -11,9 +11,12 @@ export function frame(command, headers = {}, body = Buffer.alloc(0)) {
 
 export function startServer(options = {}) {
   const o = { host: '127.0.0.1', port: 61618, heartbeatMs: 1000, requireHeartbeatMs: 1000,
-    pauseAfterMs: 0, pauseMs: 0, readBytesPerSecond: 0, receiptDelayMs: 0,
+    pauseAfterMs: 0, pauseMs: 0, readBytesPerSecond: 0, maxReadMbps: 0, rttMs: 0, receiptDelayMs: 0,
     errorAfterMs: 0, closeAfterMs: 0, silentAfterMs: 0, maxBodyBytes: 64 * 1024 * 1024,
     echo: false, enforceHeartbeat: true, log: value => process.stdout.write(JSON.stringify(value) + '\n'), ...options };
+  // MB/s is decimal megabytes (not megabits). Bound the burst to 20ms;
+  // per-chunk sleeps otherwise turn Windows timer granularity into link speed.
+  const readRate = o.maxReadMbps ? o.maxReadMbps * 1e6 : o.readBytesPerSecond;
   const sockets = new Set();
   let connectionId = 0;
   const server = net.createServer(socket => {
@@ -26,12 +29,14 @@ export function startServer(options = {}) {
     let connected = false, header = Buffer.alloc(0), current = null;
     let lastRx = performance.now(), lastTx = performance.now(), txInterval = 0, rxInterval = 0;
     let sends = 0, bytes = 0, receipts = 0, rxHeartbeats = 0, txHeartbeats = 0, reason = 'peer-close';
+    let readPaused = false, wireBytes = 0, tokens = 0, tokenTime = performance.now();
+    let sampledBytes = 0, sampleTime = started;
     const log = (event, data = {}) => o.log({ utc: new Date().toISOString(), connection: id,
       elapsedMs: Math.round(performance.now() - started), event, ...data });
     const later = (callback, ms) => { const timer = setTimeout(() => { timers.delete(timer); if (!socket.destroyed) callback(); }, ms); timers.add(timer); };
     const write = data => { if (socket.destroyed) return; lastTx = performance.now(); socket.write(data); };
     const fail = code => { reason = code; log('error-injected', { code }); write(frame('ERROR', { message: code, 'content-length': Buffer.byteLength(code) }, Buffer.from(code))); socket.end(); };
-    const receipt = value => { if (!value) return; later(() => { ++receipts; write(frame('RECEIPT', { 'receipt-id': value })); }, o.receiptDelayMs); };
+    const receipt = value => { if (!value) return; later(() => { ++receipts; write(frame('RECEIPT', { 'receipt-id': value })); }, o.receiptDelayMs + o.rttMs); };
     const complete = f => {
       if (f.command === 'CONNECT' || f.command === 'STOMP') {
         if (connected) return fail('duplicate-connect');
@@ -41,8 +46,8 @@ export function startServer(options = {}) {
         txInterval = o.heartbeatMs && cy ? Math.max(o.heartbeatMs, cy) : 0;
         rxInterval = o.requireHeartbeatMs && cx ? Math.max(o.requireHeartbeatMs, cx) : 0;
         write(frame('CONNECTED', { version: '1.2', 'heart-beat': `${o.heartbeatMs},${o.requireHeartbeatMs}` }));
-        log('connected', { txIntervalMs: txInterval, rxIntervalMs: rxInterval });
-        if (o.pauseMs) later(() => { log('read-paused'); socket.pause(); later(() => { log('read-resumed'); socket.resume(); }, o.pauseMs); }, o.pauseAfterMs);
+        log('connected', { txIntervalMs: txInterval, rxIntervalMs: rxInterval, readBytesPerSecond: readRate, rttMs: o.rttMs });
+        if (o.pauseMs) later(() => { readPaused = true; log('read-paused'); socket.pause(); later(() => { readPaused = false; tokenTime = performance.now(); tokens = 0; log('read-resumed'); if (!readRate) socket.resume(); }, o.pauseMs); }, o.pauseAfterMs);
         if (o.errorAfterMs) later(() => fail('injected-broker-error'), o.errorAfterMs);
         if (o.closeAfterMs) later(() => { reason = 'injected-reset'; log(reason); socket.resetAndDestroy(); }, o.closeAfterMs);
         return;
@@ -104,25 +109,48 @@ export function startServer(options = {}) {
         current = null; complete(f);
       }
     };
-    socket.on('data', chunk => {
+    const receive = chunk => {
+      wireBytes += chunk.length;
       lastRx = performance.now();
       parse(chunk);
-      if (o.readBytesPerSecond && connected && !socket.destroyed) {
-        socket.pause(); later(() => socket.resume(), Math.ceil(chunk.length / o.readBytesPerSecond * 1000));
-      }
-    });
+    };
+    let readTick;
+    if (readRate) {
+      // Read only the earned bytes, so chunk sizes and coalescing cannot change
+      // the cap. readable-mode keeps Node's buffering bounded under TCP load.
+      const drain = () => {
+        const now = performance.now();
+        tokens = Math.min(readRate * .02, tokens + (now - tokenTime) / 1000 * readRate);
+        tokenTime = now;
+        if (readPaused || socket.destroyed) return;
+        while (tokens >= 1 && socket.readableLength) {
+          const chunk = socket.read(Math.min(Math.floor(tokens), socket.readableLength));
+          if (!chunk) break;
+          tokens -= chunk.length; receive(chunk);
+          if (readPaused || socket.destroyed) break;
+        }
+      };
+      readTick = setInterval(drain, 5);
+      socket.on('readable', drain);
+    } else socket.on('data', receive);
     const tick = setInterval(() => {
       const now = performance.now();
       if (!connected) return;
       if (txInterval && now - lastTx >= txInterval && (!o.silentAfterMs || now-started < o.silentAfterMs)) { ++txHeartbeats; write(Buffer.from('\n')); }
       // A deliberately paused reader cannot use its own missing reads as evidence of peer death.
-      if (o.enforceHeartbeat && rxInterval && !socket.isPaused() && now-lastRx > rxInterval*3) {
+      if (o.enforceHeartbeat && rxInterval && !readPaused && now-lastRx > rxInterval*3) {
         reason = 'client-heartbeat-timeout'; log(reason, { silenceMs: Math.round(now-lastRx) }); socket.end();
       }
     }, 20);
-    const summary = setInterval(() => log('sample', { sends, bytes, receipts, rxHeartbeats, txHeartbeats, partialBodyBytes: current ? current.length - (current.remaining ?? 0) : 0 }), 1000);
+    const summary = setInterval(() => {
+      const now = performance.now();
+      log('sample', { sends, bytes, receipts, rxHeartbeats, txHeartbeats, wireBytes,
+        readMBps: (wireBytes - sampledBytes) / (now - sampleTime) / 1000,
+        bufferedReadBytes: socket.readableLength, partialBodyBytes: current ? current.length - (current.remaining ?? 0) : 0 });
+      sampledBytes = wireBytes; sampleTime = now;
+    }, 1000);
     socket.on('error', error => { reason = error.code || 'socket-error'; log('socket-error', { code: reason }); });
-    socket.on('close', () => { sockets.delete(socket); clearInterval(tick); clearInterval(summary); for (const timer of timers) clearTimeout(timer); log('closed', { reason, sends, bytes, receipts, rxHeartbeats, txHeartbeats }); });
+    socket.on('close', () => { sockets.delete(socket); clearInterval(readTick); clearInterval(tick); clearInterval(summary); for (const timer of timers) clearTimeout(timer); log('closed', { reason, sends, bytes, receipts, rxHeartbeats, txHeartbeats, wireBytes }); });
     log('accepted');
   });
   server.on('listening', () => o.log({ utc: new Date().toISOString(), event: 'listening', ...server.address() }));
@@ -132,13 +160,14 @@ export function startServer(options = {}) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const options = {};
-  const names = { port:'port', 'heartbeat-ms':'heartbeatMs', 'require-heartbeat-ms':'requireHeartbeatMs', 'pause-after-ms':'pauseAfterMs', 'pause-ms':'pauseMs', 'read-bytes-per-second':'readBytesPerSecond', 'receipt-delay-ms':'receiptDelayMs', 'error-after-ms':'errorAfterMs', 'close-after-ms':'closeAfterMs', 'silent-after-ms':'silentAfterMs', 'max-body-bytes':'maxBodyBytes' };
+  const names = { port:'port', 'heartbeat-ms':'heartbeatMs', 'require-heartbeat-ms':'requireHeartbeatMs', 'pause-after-ms':'pauseAfterMs', 'pause-ms':'pauseMs', 'read-bytes-per-second':'readBytesPerSecond', 'max-read-mbps':'maxReadMbps', 'rtt-ms':'rttMs', 'receipt-delay-ms':'receiptDelayMs', 'error-after-ms':'errorAfterMs', 'close-after-ms':'closeAfterMs', 'silent-after-ms':'silentAfterMs', 'max-body-bytes':'maxBodyBytes' };
   for (const arg of process.argv.slice(2)) {
     if (arg === '--echo') options.echo = true;
     else if (arg === '--no-enforce-heartbeat') options.enforceHeartbeat = false;
     else {
-      const match = /^--([^=]+)=(\d+)$/.exec(arg);
+      const match = /^--([^=]+)=(\d+(?:\.\d+)?)$/.exec(arg);
       if (!match || !names[match[1]]) throw new Error('Unknown option; see README.md');
+      if (match[1] !== 'max-read-mbps' && !Number.isSafeInteger(Number(match[2]))) throw new Error('Integer option required');
       options[names[match[1]]] = Number(match[2]);
     }
   }

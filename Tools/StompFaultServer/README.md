@@ -15,6 +15,8 @@ Options use `--name=integer` (milliseconds unless specified):
 | require-heartbeat-ms | 1000 | Server requested client heartbeat; 0 disables |
 | pause-after-ms / pause-ms | 0 / 0 | Pause TCP reads once after CONNECTED |
 | read-bytes-per-second | 0 | Throttle TCP reads; 0 unlimited |
+| max-read-mbps | 0 | Decimal **MB/s**, accepts decimals (18.5 = 148 Mbit/s); overrides read-bytes-per-second |
+| rtt-ms | 0 | Additional receipt round-trip latency; does not serialize the receipt window |
 | receipt-delay-ms | 0 | Delay receipts without stopping reads |
 | error-after-ms | 0 | Send fixed, non-secret ERROR and close |
 | close-after-ms | 0 | Force TCP reset |
@@ -25,6 +27,14 @@ Options use `--name=integer` (milliseconds unless specified):
 validation (retains one bounded body); ordinary receipt-only mode discards body
 chunks as they arrive. `--no-enforce-heartbeat` disables client silence checks.
 Injected faults recur on each connection, allowing reconnect testing.
+
+PCD-OPT production-link reproduction: `--max-read-mbps=18.5 --rtt-ms=10`.
+Reads use elapsed-time byte credit with a 20ms maximum burst and readable events,
+so TCP chunk sizes and Windows timer resolution do not define throughput.
+Read pauses remain independent of the rate timer. Each JSONL sample includes
+wire bytes, measured decimal `readMBps` and bounded socket read-buffer size.
+The RTT option delays receipts in both directions' aggregate; it does not model
+packet-level latency, loss, Artemis persistence or a shared multi-connection cap.
 
 The harness models TCP backpressure and protocol faults, not Artemis paging,
 durability or business acknowledgements. A receipt is broker acceptance only.
