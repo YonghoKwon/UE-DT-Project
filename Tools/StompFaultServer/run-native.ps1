@@ -1,6 +1,6 @@
 param([ValidateSet('Fake','Artemis')][string]$Broker='Artemis',[double]$Interval=.05,
     [ValidateRange(1,2)][int]$Lidars=1,[int]$Seconds=300,[string]$ReportDirectory='',
-    [string[]]$ServerOptions=@(),[switch]$RecoveryFault,
+    [string[]]$ServerOptions=@(),[switch]$RecoveryFault,[switch]$OptProbe,[switch]$SwitchIntervals,
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -13,7 +13,10 @@ $server=$null;$editor=$null
 try {
     if($RecoveryFault -and $Broker -ne 'Fake'){throw 'RecoveryFault requires the local fake server'}
     if($RecoveryFault -and $Lidars -ne 1){throw 'RecoveryFault uses one explicitly configured PCD sensor for direct UI acceptance'}
-    if($RecoveryFault){$env:MA0T10_PCD20HZ_CASE='overload-resume-native'}else{Remove-Item Env:MA0T10_PCD20HZ_CASE -ErrorAction SilentlyContinue}
+    if($RecoveryFault -and $OptProbe){throw 'RecoveryFault and OptProbe have separate acceptance criteria'}
+    if($SwitchIntervals -and !$OptProbe){throw 'SwitchIntervals requires OptProbe'}
+    if($OptProbe){$env:MA0T10_PCD20HZ_CASE=if($SwitchIntervals){'pcd-opt-switch'}else{'pcd-opt'}}
+    elseif($RecoveryFault){$env:MA0T10_PCD20HZ_CASE='overload-resume-native'}else{Remove-Item Env:MA0T10_PCD20HZ_CASE -ErrorAction SilentlyContinue}
     if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/Live Coding before native acceptance'}
     if(Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object {$_.CommandLine -like '*UnrealBuildTool*'}){throw 'Wait for UnrealBuildTool to finish before acceptance'}
     $dllHash=(Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash

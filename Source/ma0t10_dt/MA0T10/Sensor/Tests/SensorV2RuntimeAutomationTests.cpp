@@ -35,6 +35,8 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "VirtualSlabSensorTestDriver.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "FinalAcceptanceTestSession.h"
 #include "FinalAcceptanceMeasurement.h"
 #include "HAL/PlatformMemory.h"
@@ -430,6 +432,8 @@ public:
             const FString Pcd20Interval=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_NATIVE_INTERVAL"));
             bPcd20Probe=!Pcd20Interval.IsEmpty();
             bOverloadResumeFault=bPcd20Probe&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE"))==TEXT("overload-resume-native");
+            bPcdOpt=bPcd20Probe&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE")).StartsWith(TEXT("pcd-opt"));
+            bPcdOptSwitch=bPcdOpt&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE")).Contains(TEXT("switch"));
             if(bPcd20Probe)
             {
                 for(TActorIterator<ASlabScenarioValidationRig> Rig(World);Rig;++Rig)Rig->SetValidationControlsVisibleForTests(false);
@@ -491,7 +495,7 @@ public:
 		for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
 		{
 			if(bPointCloudOnly && Status.StreamKind!=EVirtualSensorStreamKind::PointCloud) continue;
-			if (bOverloadResumeFault || (!bScenarioMode && Status.SensorId.IsEmpty()) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
+            if (bOverloadResumeFault || (bPcdOptSwitch ? !Status.SensorId.IsEmpty() : (!bScenarioMode && Status.SensorId.IsEmpty())) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
 		}
 		bool bAllReady = StatusByKind.Num() == (bPointCloudOnly?1:3);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
@@ -503,6 +507,44 @@ public:
 				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
+        if(bPcdOptSwitch&&!bAcquisitionStopped&&StreamElapsedSeconds>=WarmupSeconds)
+        {
+            if(!OptSlab.IsValid())
+            {
+                for(TActorIterator<ASlabActor> It(World);It;++It){OptSlab=*It;break;}
+                if(!OptSlab.IsValid())OptSlab=World->SpawnActor<ASlabActor>();
+                FSlabExecutionOptions Options;Options.Policy=ESlabExecutionPolicy::ObservationAllowed;
+                OptSlab->SetExecutionOptions(Options);OptSlab->TargetSensorIds={Lidar->GetSensorId()};
+                FVirtualSlabSensorOutputSelection Outputs;Outputs.bPointCloud=true;Outputs.bCameraImage=false;Outputs.bLidarTelemetry=false;
+                OptSlab->SetSensorOutputs(Outputs);
+                // Use the production async JSON/DataSync/motion path. Stretch only
+                // this transient fixture to cover the complete 90s network run.
+                TSharedPtr<FJsonObject> Json;
+                FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower))),Json);
+                for(const auto& Row:Json->GetArrayField(TEXT("DATA_MAP")))Row->AsObject()->SetNumberField(TEXT("elapsed_sec"),Row->AsObject()->GetNumberField(TEXT("elapsed_sec"))*6);
+                const auto Meta=Json->GetObjectField(TEXT("_meta"));Meta->SetNumberField(TEXT("duration_sec"),180);Meta->SetNumberField(TEXT("sample_period_sec"),.3);
+                FString Text;FJsonSerializer::Serialize(Json.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));
+                Test->TestTrue(TEXT("PCD-OPT actual scenario JSON admitted"),OptSlab->SubmitScenarioJson(Text));
+            }
+            if(OptSlab->GetSimulationStatus().State==ESlabSimulationState::Playing&&OptSwitchCount<8&&StreamElapsedSeconds>=WarmupSeconds+2+OptSwitchCount*2)
+            {
+                FVirtualSensorEditableState State;FString Error;Lidar->ReadEditableState(State);
+                State.LidarScanInterval=(OptSwitchCount%2)==0?.1:.05;
+                const double ApplyStart=FPlatformTime::Seconds();
+                Test->TestTrue(TEXT("PCD-OPT repeated interval change through actor API"),Lidar->ApplyEditableState(State,Error));
+                ++OptSwitchCount;
+                UE_LOG(LogTemp,Display,TEXT("[PCD-OPT-SWITCH] elapsed=%.3f count=%d interval=%.3f applyMs=%.3f actorRevision=%d"),StreamElapsedSeconds,OptSwitchCount,State.LidarScanInterval,(FPlatformTime::Seconds()-ApplyStart)*1000,Lidar->GetConfigurationRevision());
+            }
+            const double SlabTime=OptSlab->GetSimulationStatus().ElapsedSec;
+            if(SlabTime>OptLastSlabTime+1e-5){OptLastSlabProgress=FPlatformTime::Seconds();OptLastSlabTime=SlabTime;}
+            else if(OptLastSlabProgress>0&&FPlatformTime::Seconds()-OptLastSlabProgress>.25)
+            {++OptMotionStalls;OptLastSlabProgress=FPlatformTime::Seconds();}
+        }
+        if(bPcdOpt&&LastFrameSampleSeconds>0&&!bAcquisitionStopped&&StreamElapsedSeconds>=WarmupSeconds+1)
+        {
+            const double Gap=FPlatformTime::Seconds()-LastFrameSampleSeconds;OptMaxWallGap=FMath::Max(OptMaxWallGap,Gap);
+            if(Gap>.1)UE_LOG(LogTemp,Display,TEXT("[PCD-OPT-HITCH] elapsed=%.3f wallMs=%.3f engineMs=%.3f"),StreamElapsedSeconds,Gap*1000,FApp::GetDeltaTime()*1000);
+        }
         if(bOverloadResumeFault)if(const auto* Pcd=StatusByKind.Find(EVirtualSensorStreamKind::PointCloud))
         {
             if(Pcd->bOverloadSuspended){SawOverloadSuspended=true;SuspensionFrame=Pcd->LastInputFrameId;}
@@ -531,6 +573,8 @@ public:
             UE_LOG(LogTemp,Display,TEXT("[PCD20HZNativeState] elapsed=%.3f raw=%d engine=%d bServerConnected=%d warning=%s reason=%s"),StreamElapsedSeconds,Raw&&Raw->IsTransportConnected(),Transport->IsStompConnected(),UiConnected,*Warning,Raw?*Raw->GetConnectionMessage():TEXT("no-worker"));
             if(Raw)for(const auto& T:Raw->GetStreamTelemetry())if(T.StreamKind==EVirtualSensorStreamKind::PointCloud)
                 UE_LOG(LogTemp,Display,TEXT("[PCD20HZNativeStream] elapsed=%.3f sensor=%s submitted=%lld receipt=%lld consumed=%lld bytes=%lld frameBytes=%d overload=%lld failed=%lld invalid=%lld queued=%d pendingReceipt=%d outstandingBytes=%lld"),StreamElapsedSeconds,*T.SensorId,T.SubmittedCount,T.ReceiptCount,T.ConsumerReceivedCount,T.SubmittedBytes,T.LastFrameBytes,T.OverloadCount,T.DeliveryFailureCount,T.ValidationFailureCount,T.InputQueueDepth,T.ReceiptQueueDepth,T.OutstandingBytes);
+            if(bPcdOpt)for(const auto& S:Publisher->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::PointCloud&&(S.bEnabled||S.bOverloadSuspended))
+                UE_LOG(LogTemp,Display,TEXT("[PCD-OPT-SAMPLE] elapsed=%.3f input=%lld serialized=%lld submitted=%lld receipt=%lld discarded=%lld overload=%lld resumes=%lld revision=%d stale=%lld serialMs=%.3f inputQ=%d preparedQ=%d rawFrames=%d rawBytes=%lld receiptMs=%.3f slabTime=%.3f motionStalls=%d maxWallMs=%.3f"),StreamElapsedSeconds,S.InputFrameCount,S.SerializedFrameCount,S.SubmittedFrameCount,S.ReceiptReceivedCount,S.OverloadDiscardedFrameCount,S.OverloadCount,S.ResumeCount,S.ConfigRevision,S.StaleResultDiscardCount,S.LastSerializationLatencyMs,S.InputQueueDepth,S.PreparedQueueDepth,S.RawOutstandingFrameCount,S.RawOutstandingBytes,S.LastReceiptLatencyMs,OptLastSlabTime,OptMotionStalls,OptMaxWallGap*1000);
         }
         if (!bAcquisitionWindowClosed && StreamElapsedSeconds >= WarmupSeconds)
         {
@@ -550,7 +594,7 @@ public:
                 {
                     const double Hz=(P.Value.FrameId-AcquisitionStartFrames.FindRef(P.Key))/FMath::Max(.001,Now-AcquisitionWindowStart);
                     const bool bCamera=CameraIds.Contains(P.Key);
-                    Test->TestTrue(TEXT("each sensor acquisition window meets requested rate"),Hz>=(bCamera?29:.95/RequestedLidarInterval));
+                    Test->TestTrue(TEXT("each sensor acquisition window meets requested rate"),Hz>=(bCamera?29:bPcdOptSwitch?9:.95/RequestedLidarInterval));
                     UE_LOG(LogTemp,Display,TEXT("[OutputAcquisitionWindow] sensor=%s kind=%s hz=%.3f compatibilityJsonHz=%.3f"),*P.Key,bCamera?TEXT("Camera"):TEXT("Lidar"),Hz,P.Value.MeasuredOutputRateHz);
                 }
             }
@@ -593,6 +637,24 @@ public:
 			return false;
 		}
 
+        if(bPcdOpt)
+        {
+            bool Drained=true;
+            for(const auto& S:Publisher->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::PointCloud)
+                Drained&=!S.bProcessing&&S.InputQueueDepth==0&&S.PreparedQueueDepth==0&&S.ReceiptQueueDepth==0;
+            if(!Drained&&FPlatformTime::Seconds()-DrainStartedAtSeconds<35)return false;
+            Test->TestTrue(TEXT("PCD-OPT retained work drains"),Drained);
+            Test->TestTrue(TEXT("PCD-OPT accepted frame set reaches receipt and valid consumer"),Measurement.IsAcceptedSetComplete());
+            Test->TestTrue(TEXT("PCD-OPT ledger saved including explicit gaps"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
+            if(bPcdOptSwitch)
+            {
+                Test->TestEqual(TEXT("PCD-OPT all eight changes executed"),OptSwitchCount,8);
+                Test->TestEqual(TEXT("PCD-OPT actual scenario motion has no periodic stall"),OptMotionStalls,0);
+                if(OptSlab.IsValid())OptSlab->StopSimulation();
+            }
+            UE_LOG(LogTemp,Display,TEXT("[PCD-OPT-RESULT] switches=%d motionStalls=%d maxWallMs=%.3f"),OptSwitchCount,OptMotionStalls,OptMaxWallGap*1000);
+            Publisher->StopAllStreams(FString());return true;
+        }
         if(bOverloadResumeFault)
         {
             const auto* Pcd=StatusByKind.Find(EVirtualSensorStreamKind::PointCloud);
@@ -791,6 +853,10 @@ private:
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
     bool bPcd20Probe=false;
+    bool bPcdOpt=false,bPcdOptSwitch=false;
+    TWeakObjectPtr<ASlabActor> OptSlab;
+    int32 OptSwitchCount=0,OptMotionStalls=0;
+    double OptMaxWallGap=0,OptLastSlabTime=0,OptLastSlabProgress=0;
     bool bOverloadResumeFault=false,SawOverloadSuspended=false,SawOverloadResumed=false,SawPostResumeReceipt=false,SawPostResumeConsumer=false;
     int64 SuspensionFrame=0,ResumeReceipts=0,ResumeConsumers=0;
     double RequestedLidarInterval=.05,NextPcd20Sample=0;

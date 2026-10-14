@@ -85,3 +85,16 @@ PCD is transmitted. Intervals .1/.2 and two LiDARs are also supported. An alread
 running approved Artemis instance is required; its settings are never changed.
 Credentials are read from existing local configuration or smoke-runner defaults,
 passed in child environment variables and restored afterward, never printed.
+
+PCD-OPT diagnosis uses `run-native.ps1 -OptProbe` with the same broker, interval
+and duration parameters. This probe records publisher preparation queues,
+reservation frames/bytes, receipt and serialization latency, revisions, discarded
+work and wall pacing. It requires the **accepted set** to reach receipt and valid
+loopback consumption, but permits acquisition gaps caused by the existing explicit
+overload policy. Ordinary native acceptance still requires contiguous full output.
+Add `-SwitchIntervals` for an actual production Slab JSON/DataSync/motion run
+(180-second transient fixture, ObservationAllowed with PCD output) and eight
+0.1/0.05 changes through the actor API. This is diagnostic reproduction, not a
+claim that the reported production three-second freeze has been fixed.
+`python Tools/StompFaultServer/summarize-opt.py <run-directory> ...` writes each
+run's `timeseries.csv` and `summary.json` without loading credentials or bodies.
