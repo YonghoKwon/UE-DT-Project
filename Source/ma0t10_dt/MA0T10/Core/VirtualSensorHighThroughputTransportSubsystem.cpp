@@ -611,6 +611,7 @@ private:
 		return true;
 	}
 
+	static constexpr double MaxFrameWriteStallSeconds=60.0;
 	bool SendAll(const uint8* Data, int64 NumBytes, double TimeoutSeconds,bool bFrameWrite=false,const TCHAR* Stage=TEXT("control"))
 	{
 		if (!Socket || !Data || NumBytes < 0) {LastWriteError=TEXT("Socket write unavailable.");return false;}
@@ -633,6 +634,11 @@ private:
 				{LastWriteError=TEXT("STOMP receive heartbeat timeout during SEND.");return false;}
 				ProcessRunCancellations();CollectRetiredRuns();
 			}
+			// Backpressure keeps the connection, but not forever: a broker that keeps the
+			// socket open without reading (and without negotiated heartbeats) would block
+			// this worker indefinitely. After a generous cap, reconnect with a clear reason.
+			if(bFrameWrite&&Now-Started>=MaxFrameWriteStallSeconds)
+			{LastWriteError=FString::Printf(TEXT("Socket write stalled %.0fs: stage=%s bytes=%lld/%lld; reconnecting."),Now-Started,Stage,Offset,NumBytes);return false;}
 			if(bFrameWrite&&Now>=Deadline&&!bWriteDelayed)
 			{bWriteDelayed=true;FWorkerEvent E;E.Type=EWorkerEventType::SendDelayed;E.Message=FString::Printf(TEXT("송신 지연: stage=%s bytes=%lld/%lld elapsed=%.3fs; bounded frames skipped, connection retained."),Stage,Offset,NumBytes,Now-Started);QueueEvent(MoveTemp(E));}
 			// During connection setup there is no in-progress sensor STOMP frame.
