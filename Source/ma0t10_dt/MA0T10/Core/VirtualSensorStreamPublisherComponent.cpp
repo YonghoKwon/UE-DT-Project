@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualPointCloudCoordinates.h"
 #include "VirtualSensorWireHeaders.h"
@@ -558,6 +559,7 @@ void UVirtualSensorStreamPublisherComponent::TickComponent(float DeltaTime, ELev
 
 void UVirtualSensorStreamPublisherComponent::PumpPublisherOnce(double Now)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::Publisher);
 	const bool bRawAvailable = CanUseHighThroughputTransport();
 	if (!LastRawTransportAvailable.IsSet() || LastRawTransportAvailable.GetValue() != bRawAvailable)
 	{

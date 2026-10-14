@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStompProtocol.h"
 #include "VirtualSensorWireHeaders.h"
@@ -13,6 +14,8 @@
 #include "Serialization/JsonSerializer.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #endif
@@ -155,6 +158,7 @@ public:
 
 	void StopWorker()
 	{
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::StopWorker);
 		bStopRequested.Store(true);
 		if (Thread)
 		{
@@ -223,7 +227,7 @@ public:
 		const int32 Limit = Frame.StreamKind == EVirtualSensorStreamKind::CameraImage ? 8 : 20;
 		FVirtualSensorBinaryFrame Normalized=Frame;
 		{
-			FScopeLock Lock(&RunPendingMutex);
+			FVirtualSensorTransportLock Lock(&RunPendingMutex,false);
 			const FString Run=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
 			if(const auto* Token=KnownRunGenerations.Find(Run))
 			{
@@ -235,7 +239,7 @@ public:
 		if (Normalized.RequestId.IsEmpty()) Normalized.RequestId=FString::Printf(TEXT("%d-%s-%lld-%s"),Index,*Frame.SensorId,Frame.FrameId,*HeaderValue(Frame.Headers,TEXT("checksum")));
 		bool Accepted=false;
 		{
-			FScopeLock Lock(&OutstandingMutex);
+			FVirtualSensorTransportLock Lock(&OutstandingMutex,true);
 			const FString Key=TelemetryKey(Frame.StreamKind,Frame.SensorId);
 			if (!bStopRequested.Load() && QueueCounts[Index].Load()<Limit && OutstandingCounts.FindRef(Key)<Limit &&
 				Frame.NumBytes()<=Profile.MaxOutstandingBytes && HeldBytes<=Profile.MaxOutstandingBytes-Frame.NumBytes() &&
@@ -266,13 +270,13 @@ public:
 	}
 	void SnapshotOutstanding(EVirtualSensorStreamKind Kind,const FString& Sensor,int32& FramesOut,int64& BytesOut,int64& GlobalOut,int32& QueuedOut) const
 	{
-		FScopeLock Lock(&OutstandingMutex); FramesOut=0; BytesOut=0; QueuedOut=0; GlobalOut=HeldBytes;
+		FVirtualSensorTransportLock Lock(&OutstandingMutex,true); FramesOut=0; BytesOut=0; QueuedOut=0; GlobalOut=HeldBytes;
 		const FString Key=TelemetryKey(Kind,Sensor);
 		for(const auto& Pair:OutstandingFrames) if(Pair.Value.Key==Key) { ++FramesOut; BytesOut+=Pair.Value.Bytes; QueuedOut+=Pair.Value.bQueued?1:0; }
 	}
 	bool IsPointCloudResumeCapacityAvailable(const FString& SensorId) const
 	{
-		FScopeLock Lock(&OutstandingMutex);
+		FVirtualSensorTransportLock Lock(&OutstandingMutex,true);
 		if (HeldBytes > FMath::Max<int64>(1, Profile.MaxOutstandingBytes) / 2) return false;
 		const FString Key = TelemetryKey(EVirtualSensorStreamKind::PointCloud, SensorId);
 		const FString Prefix = LexToString(static_cast<int32>(EVirtualSensorStreamKind::PointCloud)) + TEXT("|");
@@ -282,41 +286,41 @@ public:
 	}
 	void CancelRun(const FString& RunId)
 	{
-		{FScopeLock Lock(&RunPendingMutex);if(!KnownRunGenerations.Contains(RunId))KnownRunGenerations.Add(RunId,0);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);}
+		{FVirtualSensorTransportLock Lock(&RunPendingMutex,false);if(!KnownRunGenerations.Contains(RunId))KnownRunGenerations.Add(RunId,0);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);}
 		RunCancellations.Enqueue(RunId);
 	}
 	void RegisterRun(const FString& RunId,uint64 Token,bool Active)
 	{
-		FScopeLock Lock(&RunPendingMutex);KnownRunGenerations.Add(RunId,Token);
+		FVirtualSensorTransportLock Lock(&RunPendingMutex,false);KnownRunGenerations.Add(RunId,Token);
 		if(Active)ActiveRunGenerations.Add(RunId,Token);
 	}
 	void RetireRun(const FString& RunId)
 	{
-		FScopeLock Lock(&RunPendingMutex);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);
+		FVirtualSensorTransportLock Lock(&RunPendingMutex,false);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);
 	}
 	FVirtualSensorRunRetentionSnapshot SnapshotRetention(const FString& RunId) const
 	{
 		FVirtualSensorRunRetentionSnapshot S;
-		{FScopeLock Lock(&RunPendingMutex);S.ActiveRuns=ActiveRunGenerations.Num();S.RetiringRuns=RetiringRuns.Num();S.CompletedRuns=CompletedRunOrder.Num();S.KnownRunIds=KnownRunGenerations.Num();S.SequenceEntries=ConsumerSequenceIds.Num();S.LateRunEvents=LateRunEvents;
+		{FVirtualSensorTransportLock Lock(&RunPendingMutex,false);S.ActiveRuns=ActiveRunGenerations.Num();S.RetiringRuns=RetiringRuns.Num();S.CompletedRuns=CompletedRunOrder.Num();S.KnownRunIds=KnownRunGenerations.Num();S.SequenceEntries=ConsumerSequenceIds.Num();S.LateRunEvents=LateRunEvents;
 		 for(const auto& P:RunInvalidFrames)S.InvalidFrameEntries+=P.Value.Num();
 		 if(RunId.IsEmpty()){for(const auto& P:RunEventCounts)S.PendingEvents+=P.Value;}else S.PendingEvents=RunEventCounts.FindRef(RunId);}
-		{FScopeLock Lock(&OutstandingMutex);for(const auto& P:OutstandingFrames)if(RunId.IsEmpty()||P.Value.RunId==RunId)
+		{FVirtualSensorTransportLock Lock(&OutstandingMutex,true);for(const auto& P:OutstandingFrames)if(RunId.IsEmpty()||P.Value.RunId==RunId)
 		 {S.OutstandingBytes+=P.Value.Bytes;if(P.Value.bQueued)++S.QueuedFrames;else if(P.Value.bSubmitted)++S.ReceiptWaitingFrames;else ++S.SocketWritingFrames;}}
 		return S;
 	}
 	void GatherPendingKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames) const
 	{
-		FScopeLock Lock(&OutstandingMutex);
+		FVirtualSensorTransportLock Lock(&OutstandingMutex,true);
 		for(const auto& P:OutstandingFrames)if(P.Value.RunId==RunId)
 		{Outputs.Add(P.Value.Key+TEXT("|")+LexToString(P.Value.FrameId));int32 Separator;if(P.Value.Key.FindChar(TEXT('|'),Separator))SensorFrames.Add(P.Value.Key.Mid(Separator+1)+TEXT("|")+LexToString(P.Value.FrameId));}
 	}
-	int32 GetRunPending(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunPendingCounts.FindRef(RunId); }
-	int32 GetRunFailures(const FString& RunId) const { FScopeLock Lock(&RunPendingMutex); return RunFailureCounts.FindRef(RunId); }
+	int32 GetRunPending(const FString& RunId) const { FVirtualSensorTransportLock Lock(&RunPendingMutex,false); return RunPendingCounts.FindRef(RunId); }
+	int32 GetRunFailures(const FString& RunId) const { FVirtualSensorTransportLock Lock(&RunPendingMutex,false); return RunFailureCounts.FindRef(RunId); }
 	void AdjustRunPending(const FVirtualSensorBinaryFrame& Frame,int32 Delta,bool bFailed = false)
 	{
 		const FString RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));
 		if (RunId.IsEmpty()) return;
-		FScopeLock Lock(&RunPendingMutex);
+		FVirtualSensorTransportLock Lock(&RunPendingMutex,false);
 		if (bFailed) ++RunFailureCounts.FindOrAdd(RunId);
 		int32& Count=RunPendingCounts.FindOrAdd(RunId); Count=FMath::Max(0,Count+Delta);
 		if (Count==0) RunPendingCounts.Remove(RunId);
@@ -326,11 +330,13 @@ public:
 	{
 		if(!Events.Dequeue(OutEvent)) return false;
 		if(OutEvent.ReceivedData) --PendingReceiveEvents;
-		if(!OutEvent.RunId.IsEmpty()) {FScopeLock Lock(&RunPendingMutex);auto* Count=RunEventCounts.Find(OutEvent.RunId);if(Count&&--*Count<=0)RunEventCounts.Remove(OutEvent.RunId);}
+		if(!OutEvent.RunId.IsEmpty()) {FVirtualSensorTransportLock Lock(&RunPendingMutex,false);auto* Count=RunEventCounts.Find(OutEvent.RunId);if(Count&&--*Count<=0)RunEventCounts.Remove(OutEvent.RunId);}
 		return true;
 	}
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& S) { ReceiverChanges.Enqueue(S); }
 	int64 GetDroppedReceiveEvents() const { return DroppedReceiveEvents.Load(); }
+	int64 GetSocketWouldBlockCount() const { return SocketWouldBlockCount.Load(); }
+	int32 GetActualSocketSendBufferBytes() const { return ActualSendBufferBytes.Load(); }
 
 	bool IsRunning() const { return Thread != nullptr && !bStopRequested.Load(); }
 
@@ -348,13 +354,13 @@ private:
 	int64 HeldBytes=0;
 	void QueueEvent(FWorkerEvent&& Event)
 	{
-		if(!Event.RunId.IsEmpty()){FScopeLock Lock(&RunPendingMutex);++RunEventCounts.FindOrAdd(Event.RunId);}
+		if(!Event.RunId.IsEmpty()){FVirtualSensorTransportLock Lock(&RunPendingMutex,false);++RunEventCounts.FindOrAdd(Event.RunId);}
 		Events.Enqueue(MoveTemp(Event));
 	}
 	bool IsClosedManagedFrame(const FVirtualSensorBinaryFrame& Frame) const
 	{
 		if(!Frame.ManagedRunGeneration)return false;
-		FScopeLock Lock(&RunPendingMutex);
+		FVirtualSensorTransportLock Lock(&RunPendingMutex,false);
 		return ActiveRunGenerations.FindRef(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))!=Frame.ManagedRunGeneration;
 	}
 	void ProcessRunCancellations()
@@ -376,7 +382,7 @@ private:
 	}
 	void CollectRetiredRuns()
 	{
-		FScopeLock Lock(&RunPendingMutex);
+		FVirtualSensorTransportLock Lock(&RunPendingMutex,false);
 		for(auto It=RetiringRuns.CreateIterator();It;++It)
 		{
 			const auto& Run=*It;
@@ -389,7 +395,7 @@ private:
 	}
 	void ReleaseOutstanding(const FVirtualSensorBinaryFrame& Frame)
 	{
-		FScopeLock Lock(&OutstandingMutex); FOutstanding Removed;
+		FVirtualSensorTransportLock Lock(&OutstandingMutex,true); FOutstanding Removed;
 		if(OutstandingFrames.RemoveAndCopyValue(Frame.RequestId,Removed))
 		{ HeldBytes-=Removed.Bytes; HeldBytesPerStream.FindOrAdd(Removed.Key)-=Removed.Bytes; int32& Count=OutstandingCounts.FindOrAdd(Removed.Key); if(--Count<=0){OutstandingCounts.Remove(Removed.Key);HeldBytesPerStream.Remove(Removed.Key);} }
 	}
@@ -441,7 +447,10 @@ private:
 			return false;
 		}
 		Socket->SetNoDelay(true);
-		Socket->SetSendBufferSize(16 * 1024 * 1024, SendBufferBytes);
+		int32 RequestedSendBufferBytes=16*1024*1024;
+		FParse::Value(FCommandLine::Get(),TEXT("SensorTransportSendBufferBytes="),RequestedSendBufferBytes);
+		Socket->SetSendBufferSize(FMath::Clamp(RequestedSendBufferBytes,64*1024,16*1024*1024),SendBufferBytes);
+		ActualSendBufferBytes.Store(SendBufferBytes);
 		Socket->SetReceiveBufferSize(16 * 1024 * 1024, ReceiveBufferBytes);
 		Socket->SetNonBlocking(true);
 		if (!Socket->Connect(*Address))
@@ -565,7 +574,7 @@ private:
 			const int32 Index = static_cast<int32>(Frame.StreamKind);
 			--QueueCounts[Index];
 			if (IsClosedManagedFrame(Frame)||CancelledRuns.Contains(HeaderValue(Frame.Headers,TEXT("x-run-uuid")))) { ReleaseOutstanding(Frame); AdjustRunPending(Frame,-1); continue; }
-			{ FScopeLock Lock(&OutstandingMutex); if(auto* Held=OutstandingFrames.Find(Frame.RequestId)) Held->bQueued=false; }
+			{ FVirtualSensorTransportLock Lock(&OutstandingMutex,true); if(auto* Held=OutstandingFrames.Find(Frame.RequestId)) Held->bQueued=false; }
 			if (!SendFrame(Frame, 0))
 			{
 				FailFrame(Frame, LastWriteError);
@@ -603,7 +612,7 @@ private:
 		Pending.SubmittedSeconds = LastSocketWriteSeconds;
 		Pending.RetryAttempt = RetryAttempt;
 		PendingReceipts.Add(RequestId, MoveTemp(Pending));
-		{FScopeLock Lock(&OutstandingMutex);if(auto* Held=OutstandingFrames.Find(Frame.RequestId))Held->bSubmitted=true;}
+		{FVirtualSensorTransportLock Lock(&OutstandingMutex,true);if(auto* Held=OutstandingFrames.Find(Frame.RequestId))Held->bSubmitted=true;}
 
 		FWorkerEvent Event;
 		Event.Type = EWorkerEventType::Submitted;
@@ -624,6 +633,7 @@ private:
 	static constexpr double MaxFrameWriteStallSeconds=60.0;
 	bool SendAll(const uint8* Data, int64 NumBytes, double TimeoutSeconds,bool bFrameWrite=false,const TCHAR* Stage=TEXT("control"))
 	{
+		FVirtualSensorHitchDiagnostics::SocketWrite();
 		if (!Socket || !Data || NumBytes < 0) {LastWriteError=TEXT("Socket write unavailable.");return false;}
 		int64 Offset = 0;
 		const double Started=FPlatformTime::Seconds(),Deadline=Started+TimeoutSeconds;
@@ -663,6 +673,7 @@ private:
 				continue;
 			}
 			const ESocketErrors Error = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode();
+			if(Error==SE_EWOULDBLOCK)++SocketWouldBlockCount;
 			if (Error != SE_EWOULDBLOCK && Error != SE_NO_ERROR) {LastWriteError=FString::Printf(TEXT("Socket write failed: stage=%s socket=%s (%d) bytes=%lld/%lld elapsed=%.3fs"),Stage,ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError(Error),int32(Error),Offset,NumBytes,FPlatformTime::Seconds()-Started);return false;}
 			FPlatformProcess::SleepNoStats(0.0005f);
 		}
@@ -851,7 +862,7 @@ private:
 		const FString SequenceKey=SensorId+TEXT("|")+LexToString(static_cast<int32>(Kind))+TEXT("|")+Data->RunId+TEXT("|")+
 			HeaderValue(Frame.Headers,TEXT("x-session-segment"))+TEXT("|")+LexToString(ReceiveSelection.Generation);
 		{
-			FScopeLock Lock(&RunPendingMutex);
+			FVirtualSensorTransportLock Lock(&RunPendingMutex,false);
 			const bool Closed=KnownRunGenerations.Contains(Data->RunId)&&!ActiveRunGenerations.Contains(Data->RunId);
 			if(Closed)++LateRunEvents;
 			else if(Data->bValid)
@@ -866,7 +877,7 @@ private:
 		Data->FrameGapDelta=Event.GapDelta; Data->bDuplicate=Event.DuplicateDelta>0;
 		if(!Data->bFiltered&&!Data->bValid&&!Data->RunId.IsEmpty())
 		{
-			FScopeLock Lock(&RunPendingMutex);
+			FVirtualSensorTransportLock Lock(&RunPendingMutex,false);
 			const FString Key=SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId);
 			if(ActiveRunGenerations.Contains(Data->RunId))
 			{TSet<FString>& Invalid=RunInvalidFrames.FindOrAdd(Data->RunId);if(!Invalid.Contains(Key)){Invalid.Add(Key);++RunFailureCounts.FindOrAdd(Data->RunId);}}
@@ -990,6 +1001,8 @@ private:
 	bool bConnected = false;
 	int32 ReconnectAttempt = 0;
 	int32 SendBufferBytes = 0;
+	TAtomic<int32> ActualSendBufferBytes{0};
+	TAtomic<int64> SocketWouldBlockCount{0};
 	int32 ReceiveBufferBytes = 0;
 	double NextConnectSeconds = 0.0;
 	double LastSocketWriteSeconds = 0.0,LastSocketReadSeconds=0.0;
@@ -1091,6 +1104,8 @@ void UVirtualSensorHighThroughputTransportSubsystem::ConfigureReceiver(const FVi
 	if(Worker) Worker->ConfigureReceiver(Selection);
 }
 int64 UVirtualSensorHighThroughputTransportSubsystem::GetDroppedReceiveEvents() const { return Worker?Worker->GetDroppedReceiveEvents():0; }
+int64 UVirtualSensorHighThroughputTransportSubsystem::GetSocketWouldBlockCount() const { return Worker?Worker->GetSocketWouldBlockCount():0; }
+int32 UVirtualSensorHighThroughputTransportSubsystem::GetActualSocketSendBufferBytes() const { return Worker?Worker->GetActualSocketSendBufferBytes():0; }
 
 bool UVirtualSensorHighThroughputTransportSubsystem::IsHighThroughputTransportRunning() const
 {
@@ -1139,6 +1154,7 @@ bool UVirtualSensorHighThroughputTransportSubsystem::EnqueueBinaryFrame(
 
 TArray<FVirtualSensorStreamTelemetry> UVirtualSensorHighThroughputTransportSubsystem::GetStreamTelemetry() const
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::Telemetry);
 	TArray<FVirtualSensorStreamTelemetry> Result;
 	TelemetryByKey.GenerateValueArray(Result);
 	for(auto& Item:Result)
@@ -1163,6 +1179,7 @@ int32 UVirtualSensorHighThroughputTransportSubsystem::GetOutstandingSensorFrameC
 
 void UVirtualSensorHighThroughputTransportSubsystem::CancelRun(const FString& RunId)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::CancelRun);
 	if(RunId.IsEmpty())return;
 	ActiveManagedRuns.Remove(RunId);
 	if(!RunId.IsEmpty()&&!KnownManagedRuns.Contains(RunId))KnownManagedRuns.Add(RunId,++NextManagedRunGeneration);
@@ -1229,6 +1246,7 @@ FVirtualSensorHighThroughputProfile UVirtualSensorHighThroughputTransportSubsyst
 
 void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::TransportEvents);
 	if (!Worker) return;
 	FWorkerEvent Event;
 	int32 Drained = 0;

@@ -11,12 +11,13 @@ export function frame(command, headers = {}, body = Buffer.alloc(0)) {
 
 export function startServer(options = {}) {
   const o = { host: '127.0.0.1', port: 61618, heartbeatMs: 1000, requireHeartbeatMs: 1000,
-    pauseAfterMs: 0, pauseMs: 0, readBytesPerSecond: 0, maxReadMbps: 0, rttMs: 0, receiptDelayMs: 0,
+    pauseAfterMs: 0, pauseMs: 0, pauseEveryMs: 0, readBytesPerSecond: 0, maxReadMbps: 0, rttMs: 0, receiptDelayMs: 0,
     errorAfterMs: 0, closeAfterMs: 0, silentAfterMs: 0, maxBodyBytes: 64 * 1024 * 1024,
     echo: false, enforceHeartbeat: true, log: value => process.stdout.write(JSON.stringify(value) + '\n'), ...options };
   // MB/s is decimal megabytes (not megabits). Bound the burst to 20ms;
   // per-chunk sleeps otherwise turn Windows timer granularity into link speed.
   const readRate = o.maxReadMbps ? o.maxReadMbps * 1e6 : o.readBytesPerSecond;
+  if(o.pauseEveryMs && o.pauseEveryMs<=o.pauseMs) throw new Error('pause-every-ms must exceed pause-ms');
   const sockets = new Set();
   let connectionId = 0;
   const server = net.createServer(socket => {
@@ -47,7 +48,17 @@ export function startServer(options = {}) {
         rxInterval = o.requireHeartbeatMs && cx ? Math.max(o.requireHeartbeatMs, cx) : 0;
         write(frame('CONNECTED', { version: '1.2', 'heart-beat': `${o.heartbeatMs},${o.requireHeartbeatMs}` }));
         log('connected', { txIntervalMs: txInterval, rxIntervalMs: rxInterval, readBytesPerSecond: readRate, rttMs: o.rttMs });
-        if (o.pauseMs) later(() => { readPaused = true; log('read-paused'); socket.pause(); later(() => { readPaused = false; tokenTime = performance.now(); tokens = 0; log('read-resumed'); if (!readRate) socket.resume(); }, o.pauseMs); }, o.pauseAfterMs);
+        if (o.pauseMs) {
+          const pause = () => {
+            readPaused = true; log('read-paused'); socket.pause();
+            later(() => {
+              readPaused = false; tokenTime = performance.now(); tokens = 0;
+              log('read-resumed'); if (!readRate) socket.resume();
+              if(o.pauseEveryMs) later(pause,o.pauseEveryMs-o.pauseMs);
+            },o.pauseMs);
+          };
+          later(pause,o.pauseAfterMs);
+        }
         if (o.errorAfterMs) later(() => fail('injected-broker-error'), o.errorAfterMs);
         if (o.closeAfterMs) later(() => { reason = 'injected-reset'; log(reason); socket.resetAndDestroy(); }, o.closeAfterMs);
         return;
@@ -160,7 +171,7 @@ export function startServer(options = {}) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const options = {};
-  const names = { port:'port', 'heartbeat-ms':'heartbeatMs', 'require-heartbeat-ms':'requireHeartbeatMs', 'pause-after-ms':'pauseAfterMs', 'pause-ms':'pauseMs', 'read-bytes-per-second':'readBytesPerSecond', 'max-read-mbps':'maxReadMbps', 'rtt-ms':'rttMs', 'receipt-delay-ms':'receiptDelayMs', 'error-after-ms':'errorAfterMs', 'close-after-ms':'closeAfterMs', 'silent-after-ms':'silentAfterMs', 'max-body-bytes':'maxBodyBytes' };
+  const names = { port:'port', 'heartbeat-ms':'heartbeatMs', 'require-heartbeat-ms':'requireHeartbeatMs', 'pause-after-ms':'pauseAfterMs', 'pause-ms':'pauseMs', 'pause-every-ms':'pauseEveryMs', 'read-bytes-per-second':'readBytesPerSecond', 'max-read-mbps':'maxReadMbps', 'rtt-ms':'rttMs', 'receipt-delay-ms':'receiptDelayMs', 'error-after-ms':'errorAfterMs', 'close-after-ms':'closeAfterMs', 'silent-after-ms':'silentAfterMs', 'max-body-bytes':'maxBodyBytes' };
   for (const arg of process.argv.slice(2)) {
     if (arg === '--echo') options.echo = true;
     else if (arg === '--no-enforce-heartbeat') options.enforceHeartbeat = false;

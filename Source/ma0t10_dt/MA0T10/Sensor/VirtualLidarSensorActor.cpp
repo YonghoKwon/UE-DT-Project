@@ -1,4 +1,5 @@
 #include "VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 
 #include "Components/ArrowComponent.h"
 #include "VirtualLidarScanComponent.h"
@@ -96,6 +97,7 @@ bool AVirtualLidarSensorActor::ReadEditableState(FVirtualSensorEditableState& Ou
 
 bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorApply);
     if (!ValidateEditableState(State, OutError))
     {
         return false;

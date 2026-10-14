@@ -192,6 +192,9 @@ public:
 	FVirtualSensorReceiveEvent OnReceived;
 	FVirtualSensorTransportObservationEvent OnTransportObservation;
 	int64 GetDroppedReceiveEvents() const;
+	/** Opt-in pressure probe: actual would-block responses, not inferred backlog. */
+	int64 GetSocketWouldBlockCount() const;
+	int32 GetActualSocketSendBufferBytes() const;
 
 	static bool CanUseRawTcp(const FString& BrokerUrl, FString* OutReason = nullptr);
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);

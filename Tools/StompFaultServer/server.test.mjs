@@ -116,3 +116,10 @@ test('18.5MB/s cap reaches configured production speed on large binary frames', 
   const rate=50e6/((performance.now()-started)/1000)/1e6;
   assert.ok(rate>17.5 && rate<18.8, `measured MB/s=${rate}`);
 });
+test('recurrent read pauses repeat on one live connection',async t=>{
+  const c=await client(t,{pauseMs:60,pauseEveryMs:120,heartbeatMs:0,requireHeartbeatMs:0});
+  c.socket.write(frame('CONNECT'));
+  await c.until(()=>c.events.filter(e=>e.event==='read-resumed').length>=3,1200);
+  assert.equal(c.events.filter(e=>e.event==='connected').length,1);
+  assert.ok(c.events.filter(e=>e.event==='read-paused').length>=3);
+});

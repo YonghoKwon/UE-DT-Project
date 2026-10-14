@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Async/Async.h"
@@ -69,6 +70,7 @@ void UVirtualLidarScanComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 
 void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorComplete);
     bScheduledScanInProgress = false;
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
