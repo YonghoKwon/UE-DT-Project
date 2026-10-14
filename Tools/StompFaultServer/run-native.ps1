@@ -23,7 +23,10 @@ try {
         $server=Start-Process (Get-Command node).Source -ArgumentList @('"'+(Join-Path $PSScriptRoot 'server.mjs')+'"','--echo') -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/server.jsonl" -RedirectStandardError "$ReportDirectory/server-stderr.log"
         Start-Sleep -Seconds 1
         if($server.HasExited){throw 'Fault server failed'}
-        $env:MA0T10_ARTEMIS_URL='tcp://127.0.0.1:61618';$env:MA0T10_ARTEMIS_USER='local-fault';$env:MA0T10_ARTEMIS_PASSWORD=''
+        # The map's independent DTCore STOMP bootstrap also reads these values.
+        # Keep its auth input complete even though this local TCP harness does
+        # not authenticate. Generate the disposable value in memory only.
+        $env:MA0T10_ARTEMIS_URL='ws://127.0.0.1:61618';$env:MA0T10_ARTEMIS_USER='local-fault';$env:MA0T10_ARTEMIS_PASSWORD=[Guid]::NewGuid().ToString('N')
     }
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE='1';$env:MA0T10_PCD_ONLY='1';$env:MA0T10_OUTPUT_SENSOR_PAIRS="$Lidars"
     $env:MA0T10_LAYOUT_API_FIXTURE='1';$env:MA0T10_PCD_DEMAND_ACCEPTANCE='1';$env:MA0T10_PCD_JSON_POLICY='requested'
