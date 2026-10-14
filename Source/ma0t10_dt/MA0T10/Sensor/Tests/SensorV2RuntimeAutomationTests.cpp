@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -428,6 +429,7 @@ public:
             }
             const FString Pcd20Interval=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_NATIVE_INTERVAL"));
             bPcd20Probe=!Pcd20Interval.IsEmpty();
+            bOverloadResumeFault=bPcd20Probe&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE"))==TEXT("overload-resume-native");
             if(bPcd20Probe)
             {
                 for(TActorIterator<ASlabScenarioValidationRig> Rig(World);Rig;++Rig)Rig->SetValidationControlsVisibleForTests(false);
@@ -439,6 +441,7 @@ public:
 			{
 				FVirtualSensorStreamConfig Config;
 				Config.StreamKind = Kind;
+				if(bOverloadResumeFault&&Kind==EVirtualSensorStreamKind::PointCloud)Config.SensorId=Lidar->GetSensorId();
 				Config.bEnabled = !bScenarioMode && (!bPointCloudOnly || Kind==EVirtualSensorStreamKind::PointCloud);
 				Config.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 				Config.FrameStride = 1;
@@ -488,7 +491,7 @@ public:
 		for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses())
 		{
 			if(bPointCloudOnly && Status.StreamKind!=EVirtualSensorStreamKind::PointCloud) continue;
-			if ((!bScenarioMode && Status.SensorId.IsEmpty()) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
+			if (bOverloadResumeFault || (!bScenarioMode && Status.SensorId.IsEmpty()) || (bScenarioMode && !Status.SensorId.IsEmpty())) StatusByKind.Add(Status.StreamKind, Status);
 		}
 		bool bAllReady = StatusByKind.Num() == (bPointCloudOnly?1:3);
 		for (EVirtualSensorStreamKind Kind : {EVirtualSensorStreamKind::LidarPayload, EVirtualSensorStreamKind::CameraImage, EVirtualSensorStreamKind::PointCloud})
@@ -500,6 +503,16 @@ public:
 				Status->ConsumerValidationFailureCount == 0;
 		}
 		const double StreamElapsedSeconds = FPlatformTime::Seconds() - StreamsStartedAtSeconds;
+        if(bOverloadResumeFault)if(const auto* Pcd=StatusByKind.Find(EVirtualSensorStreamKind::PointCloud))
+        {
+            if(Pcd->bOverloadSuspended){SawOverloadSuspended=true;SuspensionFrame=Pcd->LastInputFrameId;}
+            if(SawOverloadSuspended&&Pcd->ResumeCount>0&&Pcd->bEnabled)
+            {
+                if(!SawOverloadResumed){SawOverloadResumed=true;ResumeReceipts=Pcd->ReceiptReceivedCount;ResumeConsumers=Pcd->ConsumerReceivedCount;}
+                SawPostResumeReceipt|=Pcd->ReceiptReceivedCount>ResumeReceipts&&Pcd->LastSubmittedFrameId>SuspensionFrame;
+                SawPostResumeConsumer|=Pcd->ConsumerReceivedCount>ResumeConsumers&&Pcd->LastSubmittedFrameId>SuspensionFrame;
+            }
+        }
         if(bPcd20Probe && StreamElapsedSeconds>=NextPcd20Sample)
         {
             NextPcd20Sample=StreamElapsedSeconds+1;
@@ -508,6 +521,13 @@ public:
             auto* Toolbar=Workspace?Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation()):nullptr;
             const bool UiConnected=Toolbar&&Toolbar->GetGlobalStatus().bServerConnected;
             const FString Warning=Toolbar?Toolbar->GetGlobalStatus().Warning.ToString():TEXT("no-toolbar");
+            if(bOverloadResumeFault)
+            {
+                const FIntPoint Viewport=FinalAcceptanceViewportSize();
+                UE_LOG(LogTemp,Display,TEXT("[PCD-RESUME-UI] viewport=%dx%d dpi=%.3f fontScale=%.3f pcd=%s warning=%s"),Viewport.X,Viewport.Y,
+                    UWidgetLayoutLibrary::GetViewportScale(World),Workspace?Workspace->GetOwnedPanelFontScale():0,
+                    Toolbar?*Toolbar->GetGlobalStatus().Pcd.ToString():TEXT("no-toolbar"),*Warning);
+            }
             UE_LOG(LogTemp,Display,TEXT("[PCD20HZNativeState] elapsed=%.3f raw=%d engine=%d bServerConnected=%d warning=%s reason=%s"),StreamElapsedSeconds,Raw&&Raw->IsTransportConnected(),Transport->IsStompConnected(),UiConnected,*Warning,Raw?*Raw->GetConnectionMessage():TEXT("no-worker"));
             if(Raw)for(const auto& T:Raw->GetStreamTelemetry())if(T.StreamKind==EVirtualSensorStreamKind::PointCloud)
                 UE_LOG(LogTemp,Display,TEXT("[PCD20HZNativeStream] elapsed=%.3f sensor=%s submitted=%lld receipt=%lld consumed=%lld bytes=%lld frameBytes=%d overload=%lld failed=%lld invalid=%lld queued=%d pendingReceipt=%d outstandingBytes=%lld"),StreamElapsedSeconds,*T.SensorId,T.SubmittedCount,T.ReceiptCount,T.ConsumerReceivedCount,T.SubmittedBytes,T.LastFrameBytes,T.OverloadCount,T.DeliveryFailureCount,T.ValidationFailureCount,T.InputQueueDepth,T.ReceiptQueueDepth,T.OutstandingBytes);
@@ -572,6 +592,31 @@ public:
 			DrainStartedAtSeconds = FPlatformTime::Seconds();
 			return false;
 		}
+
+        if(bOverloadResumeFault)
+        {
+            const auto* Pcd=StatusByKind.Find(EVirtualSensorStreamKind::PointCloud);
+            const bool Drained=Pcd&&!Pcd->bProcessing&&Pcd->InputQueueDepth==0&&Pcd->PreparedQueueDepth==0&&Pcd->ReceiptQueueDepth==0;
+            if(!Drained&&FPlatformTime::Seconds()-DrainStartedAtSeconds<35)return false;
+            Test->TestTrue(TEXT("native fault suspended PCD publisher"),SawOverloadSuspended);
+            Test->TestTrue(TEXT("native fault resumed PCD publisher"),SawOverloadResumed);
+            Test->TestTrue(TEXT("native post-resume PCD reached receipt"),SawPostResumeReceipt);
+            Test->TestTrue(TEXT("native post-resume PCD reached validated consumer"),SawPostResumeConsumer);
+            Test->TestTrue(TEXT("native fault drains bounded retained work"),Drained);
+            if(Pcd)
+            {
+                Test->TestTrue(TEXT("fault loss remains explicitly counted"),Pcd->OverloadDiscardedFrameCount>0);
+                Test->TestEqual(TEXT("native binary PCD never silently replaces frames"),Pcd->ReplacedPendingFrameCount,int64(0));
+                Test->TestEqual(TEXT("native encoded PCD stays valid"),Pcd->ConsumerValidationFailureCount,int64(0));
+                const auto* Raw=World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+                Test->AddInfo(FString::Printf(TEXT("Fault totals: socket submission attempts=%lld, applied receipts=%lld, applied consumer frames=%lld, dropped diagnostic receive events=%lld. Retry attempts and bounded diagnostic receive events are separate from unique delivery."),
+                    Pcd->SubmittedFrameCount,Pcd->ReceiptReceivedCount,Pcd->ConsumerReceivedCount,Raw?Raw->GetDroppedReceiveEvents():0));
+            }
+            Test->TestTrue(TEXT("native fault ledger saved with intentional gaps"),Measurement.Save(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_LEDGER")),FinalAcceptanceViewportSize()));
+            Test->AddInfo(TEXT("PCD-RESUME fault fixture: explicit overload loss and frame gaps are expected; normal throughput acceptance remains a separate mode."));
+            Publisher->StopAllStreams(FString());
+            return true;
+        }
 		const FVirtualSensorStreamStatus* PointCloudBeforeAssertions = StatusByKind.Find(EVirtualSensorStreamKind::PointCloud);
 		const bool bPointCloudDrained = PointCloudBeforeAssertions && !PointCloudBeforeAssertions->bProcessing &&
 			PointCloudBeforeAssertions->InputQueueDepth == 0 && PointCloudBeforeAssertions->PreparedQueueDepth == 0 &&
@@ -746,6 +791,8 @@ private:
 	double DrainStartedAtSeconds = -1.0;
 	double LastFrameSampleSeconds = -1.0;
     bool bPcd20Probe=false;
+    bool bOverloadResumeFault=false,SawOverloadSuspended=false,SawOverloadResumed=false,SawPostResumeReceipt=false,SawPostResumeConsumer=false;
+    int64 SuspensionFrame=0,ResumeReceipts=0,ResumeConsumers=0;
     double RequestedLidarInterval=.05,NextPcd20Sample=0;
 	double MeasurementSeconds = 60.0;
 	double WarmupSeconds = 10.0;
