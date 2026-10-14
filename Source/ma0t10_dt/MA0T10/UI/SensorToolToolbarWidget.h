@@ -62,6 +62,7 @@ private:
 	FText OwnedFontScaleText;
 	float DisplayedFontScale=-1.f;
 	double NextStatusRefresh=-1;
+	double ServerDisconnectedSince=-1;
 	TWeakObjectPtr<ASlabActor> StatusSlab;
 	TWeakObjectPtr<ASlabActor> LabelExclusionSlab;
 	double NextSlabLookup=0;

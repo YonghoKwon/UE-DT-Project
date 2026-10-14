@@ -28,3 +28,29 @@ Injected faults recur on each connection, allowing reconnect testing.
 
 The harness models TCP backpressure and protocol faults, not Artemis paging,
 durability or business acknowledgements. A receipt is broker acceptance only.
+
+After an Editor Development build, run the opt-in worker regressions:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-faults.ps1
+```
+
+Each case owns its local server and enables `MA0T10_PCD20HZ_CASE` only in the
+test process. Healthy throughput, bounded skips under an eight-second pause,
+heartbeat, server silence, ERROR and reset/reconnect are tested separately.
+NullRHI is used only for these socket tests. DLL hashes and the automation result
+are saved with the server JSONL; Editor/build overlap invalidates a run.
+
+For actual ML-X(80) acquisition, PCD encoding, receipts and loopback validation:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-native.ps1 -Broker Fake -Interval .05 -Lidars 1 -Seconds 300
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-native.ps1 -Broker Artemis -Interval .05 -Lidars 1 -Seconds 300
+```
+
+The native test uses D3D12, the committed SensorTestMap snapshot and 1920x1080
+PIE, with ten seconds of warmup. Test cameras remain in preview mode; only LiDAR
+PCD is transmitted. Intervals .1/.2 and two LiDARs are also supported. An already
+running approved Artemis instance is required; its settings are never changed.
+Credentials are read from existing local configuration or smoke-runner defaults,
+passed in child environment variables and restored afterward, never printed.

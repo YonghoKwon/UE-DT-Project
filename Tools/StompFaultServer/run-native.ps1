@@ -10,6 +10,10 @@ foreach($name in $names){$saved[$name]=[Environment]::GetEnvironmentVariable($na
 $server=$null;$editor=$null
 try {
     if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/Live Coding before native acceptance'}
+    if(Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object {$_.CommandLine -like '*UnrealBuildTool*'}){throw 'Wait for UnrealBuildTool to finish before acceptance'}
+    $dllHash=(Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash
+    $sourceHashes=@{};Get-ChildItem "$root/Source" -Recurse -File | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName).Hash}
+    @{Commit=(& git -C $root rev-parse HEAD);DTCore=(& git -C "$root/Plugins/DTCore" rev-parse HEAD);DllHash=$dllHash;SourceHashes=$sourceHashes;Worktree=@(& git -C $root status --porcelain);Broker=$Broker;Seconds=$Seconds;Interval=$Interval;Lidars=$Lidars;StartedUtc=[DateTime]::UtcNow.ToString('o');Rhi='D3D12';Viewport='1920x1080';WarmupSeconds=10} | ConvertTo-Json -Depth 4 | Set-Content "$ReportDirectory/manifest.json" -Encoding UTF8
     if($Broker -eq 'Artemis'){
         if(!(Get-NetTCPConnection -LocalPort 61616 -State Listen -ErrorAction SilentlyContinue)){throw 'Installed Artemis is not listening; start the approved instance without configuration edits'}
         . "$PSScriptRoot/artemis-session.ps1";$session=Get-Pcd20ArtemisSession $root
@@ -32,6 +36,7 @@ try {
     $arguments=@('"'+(Join-Path $root 'ma0t10_dt.uproject')+'"','-d3d12','-unattended','-nosplash','-nop4','-nosound','-windowed','-ResX=1920','-ResY=1080','-NoVSync','-ExecCmds="Automation RunTests MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke"','-TestExit="Automation Test Queue Empty"','-ReportExportPath="'+$ReportDirectory+'/automation"','-abslog="'+$ReportDirectory+'/native.log"','-SensorSmokeMapDirectory="'+$ReportDirectory+'/fixture/Content/MA0T10/Maps"')
     $editor=Start-Process "$EngineRoot/Engine/Binaries/Win64/UnrealEditor.exe" -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/console.log" -RedirectStandardError "$ReportDirectory/stderr.log"
     if(!$editor.WaitForExit(($Seconds+180)*1000)){throw 'Native test exceeded deadline'}
+    if((Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash -ne $dllHash){throw 'DLL changed during test; result invalid'}
     $index=Get-Content "$ReportDirectory/automation/index.json" -Raw -Encoding UTF8 | ConvertFrom-Json
     if(@($index.tests).Count -ne 1 -or $index.tests[0].state -ne 'Success'){throw 'Native acceptance failed; inspect native.log and automation/index.json'}
     Write-Output "Native $Broker interval=$Interval lidars=$Lidars seconds=$Seconds Success: $ReportDirectory"

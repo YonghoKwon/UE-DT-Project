@@ -24,17 +24,18 @@ bool FSensorPcd20HzSocketTest::RunTest(const FString&)
     TArray64<uint8> Bytes; Bytes.SetNumZeroed(576*56*33);
     const auto Body=MakeShared<const TArray64<uint8>,ESPMode::ThreadSafe>(MoveTemp(Bytes));
     const double Started=FPlatformTime::Seconds(); double Next=Started,Sample=Started;
-    bool Connected=false; int32 Connections=0,Disconnects=0; int64 Attempted=0,Rejected=0,FrameId=0;
+    bool Connected=false,SawDelay=false; int32 Connections=0,Disconnects=0; int64 Attempted=0,Rejected=0,FrameId=0;
     while(FPlatformTime::Seconds()-Started<Duration)
     {
         const double Now=FPlatformTime::Seconds(); Raw->Tick(.001f);
+        SawDelay|=Raw->IsSendDelayed();
         const bool Current=Raw->IsTransportConnected();
         if(Current!=Connected)
         {
             Connected=Current; if(Current)++Connections;else ++Disconnects;
             UE_LOG(LogTemp,Display,TEXT("[PCD20HZConnection] elapsed=%.3f connected=%d reason=%s"),Now-Started,Current,*Raw->GetConnectionMessage());
         }
-        if(Mode!=TEXT("heartbeat") && Now>=Next)
+        if(Mode!=TEXT("heartbeat") && Mode!=TEXT("silent") && Now>=Next)
         {
             Next=Now+Interval; ++FrameId;
             for(int32 I=0;I<Count;++I)
@@ -57,7 +58,14 @@ bool FSensorPcd20HzSocketTest::RunTest(const FString&)
     }
     TestTrue(TEXT("at least one STOMP connection"),Connections>0);
     if(Mode==TEXT("healthy")||Mode==TEXT("slow")||Mode==TEXT("heartbeat"))TestEqual(TEXT("healthy/backpressured transport does not disconnect"),Disconnects,0);
-    if(Mode==TEXT("error")||Mode==TEXT("reset")) {TestTrue(TEXT("fault reported"),Disconnects>0);TestTrue(TEXT("transport reconnects"),Connections>1);}
+    if(Mode==TEXT("healthy"))
+    {
+        int64 Receipts=0;for(const auto& T:Raw->GetStreamTelemetry())Receipts+=T.ReceiptCount;
+        TestEqual(TEXT("healthy socket load skips no frame"),Rejected,int64(0));
+        TestTrue(TEXT("healthy socket load actually delivered at least 90 percent of offered frames"),Receipts>=Attempted*.9);
+    }
+    if(Mode==TEXT("slow")){TestTrue(TEXT("backpressure skips new frames at existing caps"),Rejected>0);TestTrue(TEXT("write delay is reported without disconnect"),SawDelay);}
+    if(Mode==TEXT("error")||Mode==TEXT("reset")||Mode==TEXT("silent")) {TestTrue(TEXT("fault reported"),Disconnects>0);TestTrue(TEXT("transport reconnects"),Connections>1);}
     Raw->StopHighThroughputTransport();Raw->Tick(.001f);
     TestEqual(TEXT("stop releases all outstanding reservations"),Raw->GetRunRetentionSnapshot().OutstandingBytes,int64(0));
     Raw->RemoveFromRoot(); return true;

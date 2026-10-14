@@ -543,7 +543,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 
 | 변수 | 활성화/설정 대상 시험·fixture | 값 의미·필요한 환경 |
 |---|---|---|
-| `MA0T10_PCD20HZ_CASE` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | healthy/slow/heartbeat/error/reset/observe; Tools/StompFaultServer 로컬 TCP fault 서버 |
+| `MA0T10_PCD20HZ_CASE` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | healthy/slow/heartbeat/silent/error/reset/observe; Tools/StompFaultServer 로컬 TCP fault 서버 |
 | `MA0T10_PCD20HZ_SECONDS` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 8~600초; 합성 socket 부하 시간 |
 | `MA0T10_PCD20HZ_INTERVAL` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 0.05~0.2초; 합성 프레임 간격 |
 | `MA0T10_PCD20HZ_LIDARS` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 1~2; 합성 스트림 수, 실제 acquisition 검증과 구분 |

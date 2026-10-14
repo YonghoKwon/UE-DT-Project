@@ -95,7 +95,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-13 | UI/UX / 장비 이동 조작 | P0 | **85%** | 사용자 직접 확인(2026-10-14): 이동·회전 시작 후 조작법을 몰라 움직이지 못함, 정지 장비 미리보기가 검게 멈춤. 3D 화면 키 안내·키보드 포커스·보던 화면 유지·정지 장비 안내 | 사용자 직접 확인 | U (별도 후속) |
 | UXR-14 | UI/UX / 창 크기·3D 글자 | P1 | **85%** | 사용자 요청(2026-10-14): 오른쪽 아래 미리보기 카드를 모든 변·모서리에서 크기 조절, Slab 3D 글자 크기 56 초과 | 사용자 직접 확인 | U (별도 후속) |
 | PKG-01 | 배포 / 서버 연결 | P0 | **80%** | Shipping 패키지에서만 "연결 설정 필요": Shipping SaveGame이 사용자 폴더라 UI 저장 서버 설정이 넘어가지 않음 + 프로젝트 빈 `Config/Game.ini`가 pak에 들어가 패키지 옆 파일을 가림 → 프로젝트 `Config/SensorTransport.ini`를 에디터가 읽고 패키징 시 패키지 옆에 일반 파일로 복사(첫 실행 템플릿 생성은 보조), Game.ini·SensorTransport.ini pak 제외. Shipping 패키지에서 적용 로그 확인 | 사용자 실제 브로커 연결 확인 | 배포 |
-| PCD-20HZ | 송신 / 연결 경고 | P0 | **10%** | 사용자 2026-10-14: ML-X(80) 원본 사양 0.05초 PCD 송신 중 "연결 설정 필요". 기준 `1756f61` 조사·보호 해시 기록; Docker Desktop 시작 오류로 Broker 재현 보류, 원인 미확정·코드 수정 없음 | Broker 준비 후 0.05/0.1/0.2초 각 5분 재현·원인 확정·수정·회귀/성능·직접 UI 확인 | 후속 |
+| PCD-20HZ | 송신 / 연결 경고 | P0 | **60%** | Docker 없이 Node STOMP fault 서버·설치된 Artemis 사용. TCP 수신 8초 정지 시 고정 write 한도로 실제 단절 재현; 부분 SEND·reservation 유지와 수신 처리로 수정, 지연/재연결 표시 및 비밀 제거 오류 진단 추가. 정상 Artemis 수정 전 20Hz 1대 5분 통과 | 수정 후 주기별 두 서버 실측·2대·성능·직접 UI, 사용자 발생 환경의 종료 사유 대조 | 후속 |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
@@ -580,8 +580,8 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 - **출처:** 사용자 2026-10-14. 아이요봇 ML-X(80) 원본 사양, 측정 주기 0.05초, 고속 TCP PCD 전송 중 연결 뒤 하단에 "연결 설정 필요 · 서버 연결 설정을 확인하세요"가 나타남. Editor/패키지 발생 범위는 아직 확인하지 못했다.
 - **완료 조건:** 로컬 Broker에서 0.05/0.1/0.2초 각 최소 5분, LiDAR 1대(가능하면 2대)의 연결·heartbeat·STOMP 오류·프레임 bytes/Hz·예산/드롭/큐·Broker 로그를 시간축으로 대조한다. 실제 단절과 표시 오류를 구분한 뒤 원인에 맞춰 수정하고 PCD wire bytes를 유지한다. SensorTransport/SensorStream/SlabReliability·golden fixture·quick·layer0, 송신 경로 변경 시 상대 성능2%, 직접 UI 확인을 별도로 기록한다.
-- **현재 결과(2026-10-14): 진행률 10%, 재현 환경 보류.** `fix/pcd-20hz-connection`, 기준 `1756f61`, DTCore `b2504d1`. Docker Desktop이 꺼져 있어 승인된 시험용으로 실행했으나 `initializing Inference manager`의 `dockerInference` 리스너 오류로 시작에 실패했다. Docker backend 원본 로그 727·771~772줄과 오류 화면을 `Saved/Reports/PCD-20HZ/`에 보존했다. 요청의 "막히면 그 지점에서 멈추고 보고"에 따라 Broker 설정·Docker 복구·송신/UI 코드 변경은 수행하지 않았다. **PCD 문제의 원인은 미확정**이다. quick8 Success·layer 위반/allowlist0; 빌드·자동화 그룹·Broker 실측·성능·PCD UI 직접 점검은 미수행이다. 시험용 Docker는 Quit로 종료했고 보호 경로·개인 SaveGame 해시는 유지했다.
-- **다음 조건:** Docker Desktop 시작 오류를 별도 해결하거나 사용 가능한 시험 Broker를 지정한 뒤 같은 브랜치에서 재현을 재개한다. 구체적인 증거·미수행 비교표·정리 결과: `Saved/Reports/PCD-20HZ/RESULT.md`(커밋하지 않음).
+- **현재 결과(2026-10-14): 진행률 60%, 수신 정체 경로 재현·수정.** `fix/pcd-20hz-connection`, 기준 `54cd68a`, DTCore `b2504d1`. Node 22 가짜 STOMP 서버에서 1.06MB × 20Hz 송신 도중 TCP reads를 8초 멈추면 기존 worker가 2회 단절했다. 부분 STOMP SEND를 버리지 않고 기존 frame/byte reservation을 유지하면서 incoming receipt/ERROR/heartbeat를 처리하도록 수정했다. 큐 상한의 신규 프레임 생략은 유지하며 지연을 별도로 표시한다. 송수신 heartbeat 시계를 분리·협상하고, ERROR 사유와 socket/write 진단은 제한된 비밀 제거 텍스트로 남긴다. 설정이 있으면서 5초 미만 단절이면 재연결 안내, 연결된 과부하는 전송 지연 안내다. 서버 자체 7시험, Editor Development, SensorTransport/SensorStream/SlabReliability·상태 판정 **31 Success / skip6 / 실패0**, quick8·golden fixture·layer 위반/allowlist0 통과. 정상 로컬 Artemis의 수정 전 Native 20Hz 1대는 5분 **6000프레임 모두 submit/receipt/consumer 완료**, Raw·상태바 연결 유지(Engine 비연결)였으므로 **사용자 환경의 동일 원인으로 단정하지 않는다**.
+- **다음 조건:** 수정 후 0.05/0.1/0.2초 각 5분의 실제 D3D12 acquisition·PCD·상태바, 2대 20Hz, 상대 성능 및 직접 UI 점검을 완료한다. 원본과 이전 Docker 보류 이력은 `Saved/Reports/PCD-20HZ/RESULT.md` 및 `resume/`(커밋하지 않음)에 남긴다. Docker·Artemis 설정 변경은 하지 않는다.
 
 #### PERF-01 — 절대 성능 기준선 재확인 (P0)
 

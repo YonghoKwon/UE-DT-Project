@@ -9,6 +9,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
@@ -81,6 +82,11 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     GlobalStatus.bPcdSending|=Session.State==EVirtualSlabSessionState::Draining&&Session.Outputs.bPointCloud&&Session.UnfinishedFrames>0;
     const auto Preflight=UVirtualSensorOutputPreflight::InspectForPurpose(this,FVirtualSlabSensorOutputSelection(),{},EVirtualSensorPreflightPurpose::ScenarioTransition);
     GlobalStatus.bServerConnected=Preflight.bTransportConnected;
+    const bool HasServerSettings=C&&C->SharedTransportComponent&&!C->SharedTransportComponent->GetTransportProfile().BrokerUrl.TrimStartAndEnd().IsEmpty();
+    if(GlobalStatus.bServerConnected||!HasServerSettings)ServerDisconnectedSince=-1;
+    else if(ServerDisconnectedSince<0)ServerDisconnectedSince=Now;
+    const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+    const bool SendDelayed=TransferFailure||(Raw&&Raw->IsSendDelayed());
     GlobalStatus.Equipment=SensorToolUiText::EquipmentCount(GlobalStatus.EquipmentCount,GlobalStatus.MeasuringCount);
     GlobalStatus.Pcd=SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
     GlobalStatus.Server=SensorToolUiText::ServerState(GlobalStatus.bServerConnected);
@@ -124,8 +130,9 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     {
         GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
     }
-    else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionRequired();
-    else if(TransferFailure||!Session.RequiredDataError.IsEmpty())GlobalStatus.Warning=SensorToolUiText::TransferCheck();
+    else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince);
+    else if(SendDelayed)GlobalStatus.Warning=SensorToolUiText::SendDelayed();
+    else if(!Session.RequiredDataError.IsEmpty())GlobalStatus.Warning=SensorToolUiText::TransferCheck();
 }
 
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()

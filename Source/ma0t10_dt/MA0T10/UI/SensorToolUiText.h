@@ -140,6 +140,9 @@ namespace SensorToolUiText
     inline FText ScenarioDraining() { return LOCTEXT("ScenarioDraining", "시나리오 정리 중"); }
     inline FText ScenarioRunning(float Progress) { return FText::Format(LOCTEXT("ScenarioRunning", "시나리오 실행 {0}%"), FMath::RoundToInt(Progress * 100)); }
     inline FText ConnectionRequired() { return LOCTEXT("ConnectionRequired", "연결 설정 필요 · 서버 연결 설정을 확인하세요"); }
+    inline FText ConnectionWarning(bool HasSettings,double DisconnectedSeconds)
+    { return HasSettings&&DisconnectedSeconds<5 ? LOCTEXT("ServerReconnecting", "서버 재연결 중 · 잠시 기다려 주세요") : ConnectionRequired(); }
+    inline FText SendDelayed() { return LOCTEXT("SendDelayed", "전송 지연 · 전송량과 서버 수신 상태를 확인하세요"); }
     inline FText EquipmentRequired() { return LOCTEXT("EquipmentRequired", "장비 없음 · 배치에서 장비를 추가하세요"); }
     inline FText EquipmentCheck() { return LOCTEXT("EquipmentCheck", "장비 설정 확인 필요 · PCD 전송에서 확인하세요"); }
     inline FText TransferCheck() { return LOCTEXT("TransferCheck", "전송 상태 확인 필요 · 진단에서 확인하세요"); }

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('healthy','slow','heartbeat','error','reset','observe')][string]$Case='healthy',
+    [ValidateSet('healthy','slow','heartbeat','silent','error','reset','observe')][string]$Case='healthy',
     [int]$Seconds=15,[double]$Interval=.05,[ValidateRange(1,2)][int]$Lidars=1,
     [string[]]$ServerOptions=@(),[string]$ReportDirectory='',
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3'
@@ -12,6 +12,10 @@ $saved=@{}; foreach($name in @('MA0T10_PCD20HZ_CASE','MA0T10_PCD20HZ_SECONDS','M
 $server=$null;$editor=$null
 try {
     if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/Live Coding before socket fault acceptance'}
+    if(Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object {$_.CommandLine -like '*UnrealBuildTool*'}){throw 'Wait for UnrealBuildTool to finish before acceptance'}
+    $dllHash=(Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash
+    $sourceHashes=@{};Get-ChildItem "$root/Source" -Recurse -File | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName).Hash}
+    @{Commit=(& git -C $root rev-parse HEAD);DTCore=(& git -C "$root/Plugins/DTCore" rev-parse HEAD);DllHash=$dllHash;SourceHashes=$sourceHashes;Worktree=@(& git -C $root status --porcelain);Case=$Case;Seconds=$Seconds;Interval=$Interval;Lidars=$Lidars;StartedUtc=[DateTime]::UtcNow.ToString('o');Rhi='NullRHI (socket only)'} | ConvertTo-Json -Depth 4 | Set-Content "$ReportDirectory/manifest.json" -Encoding UTF8
     if(Get-NetTCPConnection -LocalPort 61618 -State Listen -ErrorAction SilentlyContinue){throw 'Local fault port 61618 is already owned; no existing process will be replaced'}
     $server=Start-Process (Get-Command node).Source -ArgumentList (@('"'+(Join-Path $PSScriptRoot 'server.mjs')+'"','--heartbeat-ms=100','--require-heartbeat-ms=100')+$ServerOptions) -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/server.jsonl" -RedirectStandardError "$ReportDirectory/server-stderr.log"
     $deadline=[DateTime]::UtcNow.AddSeconds(5)
@@ -21,6 +25,7 @@ try {
     $arguments=@('"'+(Join-Path $root 'ma0t10_dt.uproject')+'"','/Engine/Maps/Entry','-NullRHI','-unattended','-nosplash','-nop4','-nosound','-ExecCmds="Automation RunTests MA0T10.SensorStream.Pcd20Hz.SocketFaults"','-TestExit="Automation Test Queue Empty"','-ReportExportPath="'+$ReportDirectory+'/automation"','-abslog="'+$ReportDirectory+'/worker.log"')
     $editor=Start-Process "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/console.log" -RedirectStandardError "$ReportDirectory/stderr.log"
     if(!$editor.WaitForExit(($Seconds+90)*1000)){throw 'Socket test exceeded deadline'}
+    if((Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash -ne $dllHash){throw 'DLL changed during test; result invalid'}
     $index=Get-Content "$ReportDirectory/automation/index.json" -Raw -Encoding UTF8 | ConvertFrom-Json
     $tests=@($index.tests)
     if($tests.Count -ne 1 -or $tests[0].state -ne 'Success'){throw 'Socket fault regression failed; inspect automation/index.json and worker.log'}
