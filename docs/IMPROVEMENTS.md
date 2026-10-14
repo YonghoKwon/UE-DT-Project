@@ -95,6 +95,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-13 | UI/UX / 장비 이동 조작 | P0 | **85%** | 사용자 직접 확인(2026-10-14): 이동·회전 시작 후 조작법을 몰라 움직이지 못함, 정지 장비 미리보기가 검게 멈춤. 3D 화면 키 안내·키보드 포커스·보던 화면 유지·정지 장비 안내 | 사용자 직접 확인 | U (별도 후속) |
 | UXR-14 | UI/UX / 창 크기·3D 글자 | P1 | **85%** | 사용자 요청(2026-10-14): 오른쪽 아래 미리보기 카드를 모든 변·모서리에서 크기 조절, Slab 3D 글자 크기 56 초과 | 사용자 직접 확인 | U (별도 후속) |
 | PKG-01 | 배포 / 서버 연결 | P0 | **80%** | Shipping 패키지에서만 "연결 설정 필요": Shipping SaveGame이 사용자 폴더라 UI 저장 서버 설정이 넘어가지 않음 + 프로젝트 빈 `Config/Game.ini`가 pak에 들어가 패키지 옆 파일을 가림 → 프로젝트 `Config/SensorTransport.ini`를 에디터가 읽고 패키징 시 패키지 옆에 일반 파일로 복사(첫 실행 템플릿 생성은 보조), Game.ini·SensorTransport.ini pak 제외. Shipping 패키지에서 적용 로그 확인 | 사용자 실제 브로커 연결 확인 | 배포 |
+| PCD-20HZ | 송신 / 연결 경고 | P0 | **90%** | 원인: 고속 TCP SEND 본문 5초 쓰기 한도 초과 시 연결 해제(브로커 순간 정체 → "연결 설정 필요"). 정체 중 연결 유지·receipt/ERROR 처리·60초 최종 상한·협상 heartbeat·EOF 정확 판정·단절 사유 기록·지연/재연결 문구. 가짜 서버·설치 Artemis 1대 20/10/5Hz·2대 20Hz 5분 모두 경고 0, 성능 2% 이내 | 사용자 환경 실측 확인, PCD 과부하 시 스트림 정지(NoLoss) 자동 재개 정책 결정 | 후속 |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |
 | RT-01 | 성능·전송 / 구현·집중검증 완료 | P0 | **90%** | frame/byte reservation·과부하 진단 | 상한·재시도·종료 증거의 최종 연결 및 완료 범위 정리 | R1 |
@@ -574,6 +575,19 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 ### 개편 후속 개선 (2026-10-13 Claude 검토, 사용자 요청으로 문서화)
 
 개편 프로그램(ARCH+UXR+MAP)은 **UXR-07 사용자 체험·확인**이 끝나면 닫는다. 아래 항목은 진행률 표(106)에 넣지 않는 별도 후속 항목이며, 권장 순서는 **UXR-07 사용자 체험 → PERF-01·UXR-08 외형 확인 → UI-02 → OPS-01·QA-02 → DTCore 수정 단계 → 센서/카메라 플러그인화(R5)**다. FONT-01은 선택이다.
+
+#### PCD-20HZ — 원본 사양 20Hz PCD 송신 중 연결 경고 (P0)
+
+- **출처:** 사용자 2026-10-14. 아이요봇 ML-X(80) 원본 사양, 측정 주기 0.05초, 고속 TCP PCD 전송 중 연결 뒤 하단에 "연결 설정 필요 · 서버 연결 설정을 확인하세요"가 나타남. Editor/패키지 발생 범위는 아직 확인하지 못했다.
+- **완료 조건:** 로컬 Broker에서 0.05/0.1/0.2초 각 최소 5분, LiDAR 1대(가능하면 2대)의 연결·heartbeat·STOMP 오류·프레임 bytes/Hz·예산/드롭/큐·Broker 로그를 시간축으로 대조한다. 실제 단절과 표시 오류를 구분한 뒤 원인에 맞춰 수정하고 PCD wire bytes를 유지한다. SensorTransport/SensorStream/SlabReliability·golden fixture·quick·layer0, 송신 경로 변경 시 상대 성능2%, 직접 UI 확인을 별도로 기록한다.
+- **현재 결과(2026-10-14): 진행률 60%, 수신 정체 경로 재현·수정.** `fix/pcd-20hz-connection`, 기준 `54cd68a`, DTCore `b2504d1`. Node 22 가짜 STOMP 서버에서 1.06MB × 20Hz 송신 도중 TCP reads를 8초 멈추면 기존 worker가 2회 단절했다. 부분 STOMP SEND를 버리지 않고 기존 frame/byte reservation을 유지하면서 incoming receipt/ERROR/heartbeat를 처리하도록 수정했다. 큐 상한의 신규 프레임 생략은 유지하며 지연을 별도로 표시한다. 송수신 heartbeat 시계를 분리·협상하고, ERROR 사유와 socket/write 진단은 제한된 비밀 제거 텍스트로 남긴다. 설정이 있으면서 5초 미만 단절이면 재연결 안내, 연결된 과부하는 전송 지연 안내다. 서버 자체 7시험, Editor Development, SensorTransport/SensorStream/SlabReliability·상태 판정 **31 Success / skip6 / 실패0**, quick8·golden fixture·layer 위반/allowlist0 통과. 정상 로컬 Artemis의 수정 전 Native 20Hz 1대는 5분 **6000프레임 모두 submit/receipt/consumer 완료**, Raw·상태바 연결 유지(Engine 비연결)였으므로 **사용자 환경의 동일 원인으로 단정하지 않는다**.
+- **현재 결과(2026-10-14): 90%.** 최종 HEAD 기준 가짜 STOMP 서버·설치된 Artemis 2.44(설정 변경 없음)에서 1대 20/10/5Hz와 2대 20Hz 각 5분: 6,000/3,000/1,500/11,994 전부 제출·receipt·수신, 단절·경고 0(2대 20Hz 42.35MB/s). 가짜 서버 8초 정지는 수정 전 단절 2회 → 수정 후 0회 "전송 지연" 후 회복, 20초 정지도 연결 유지. 실제 worker 장애 7종·관련 회귀·quick·layer0, perf(54cd68a 대비) FPS·p95 동일·GT +0.29%. Claude 검토로 프레임 쓰기 60초 최종 상한 추가. 남은 것: 사용자 환경 확인. 과부하 자동 재개는 사용자 2026-10-14 결정에 따라 아래 PCD-RESUME에서 구현·검증했다. 근거 `Saved/Reports/PCD-20HZ/RESULT.md`.
+
+#### PCD-RESUME — PCD 과부하 중단 후 자동 재개 (P0)
+
+- **출처:** 사용자 2026-10-14, "PCD 자동 재개는 켜는 쪽으로". PCD-20HZ의 영구 과부하 중지 정책 후속이며 다른 스트림의 자동 재개·Broker 설정 변경은 범위 밖이다.
+- **완료 조건:** 과부하 전용 예약과 사용자 중지/재설정 취소, 기본 2초·지수 백오프·최대 30초·정상 receipt 30초 후 초기화, 실제 연결 및 예약 배수 확인, 옵션 off 기존 동작, NoLoss 실패·폐기 기록·시퀀스/PCD golden bytes 유지. 상태바와 진단 문구를 연결 경고와 구분하고 SensorTransport/SensorStream/SlabReliability·golden·장애 전체·quick·layer0·`a26c2d5` 대비 perf ABAB·직접 UI를 따로 보고한다.
+- **현재 결과(2026-10-15): 진행률 100%, 요청 범위 구현·검증 완료.** `feat/pcd-auto-resume`, Runtime `849e4e4`→`00b4ec7`, 기준 `a26c2d5`, DTCore `b2504d1`. component 공개 설정 기본 on, 일시 중단/revision/예약 취소, 실제 worker의 해당 PCD 예약 0 + 전역 bytes 절반 이하 + 연결·지연 해소 gate를 구현했다. 과부하 폐기/Slab failure를 기록하고 새 프레임부터 재개한다. 관련 D3D12 회귀 38 Success/skip7/실패0, 상태 전이 7 Success, 실제 worker 장애 8종·최신 복구 재시험·Node 서버 7/7 통과. 직접 PIE(1920×1080, DPI1.0, 글자150%)에서 과부하→정상 표시·진단 재개1회/폐기41프레임·PCD 중지 후 유지 확인. Editor/Game Development·WBP7 메모리 컴파일·quick8·golden14 bytes·layer0 통과. 첫 perf ABAB의 GT +3.27% 실패를 보존하고, 복구가 없으면 순회를 생략하도록 보완했다. UI 끄기 `ConfigureStream(false)`의 unsent 큐 정리도 보완·직접 재검증했다. 최종 `00b4ec7`의 같은 ABAB×3은 FPS +0.0025%, engine p95 동일, GT +0.45%로 2% gate 통과다. 근거 `Saved/Reports/PCD-RESUME/RESULT.md`.
 
 #### PERF-01 — 절대 성능 기준선 재확인 (P0)
 

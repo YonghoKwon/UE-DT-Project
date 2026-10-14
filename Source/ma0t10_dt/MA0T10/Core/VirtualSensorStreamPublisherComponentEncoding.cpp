@@ -503,6 +503,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 		return;
 	}
 	Runtime.LastInputSlabContext=Frame.SlabContext;
+	Runtime.LastInputSensorId=Frame.SensorId;
 	if (Sequence.bHave && Frame.FrameId > Sequence.Frame + 1)
 	{
 		Runtime.Status.FrameGapCount += Frame.FrameId - Sequence.Frame - 1;

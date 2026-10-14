@@ -23,6 +23,8 @@ enum class EWorkerEventType : uint8
 {
 	Connected,
 	Disconnected,
+	SendDelayed,
+	SendRecovered,
 	Submitted,
 	Receipt,
 	Consumed,
@@ -199,7 +201,9 @@ public:
 			}
 
 			PumpReceive();
+			if (!bConnected) continue;
 			PumpSend();
+			if (!bConnected) continue;
 			CheckReceiptTimeouts();
 			SendHeartbeatIfDue();
 			FPlatformProcess::SleepNoStats(0.001f);
@@ -266,6 +270,16 @@ public:
 		const FString Key=TelemetryKey(Kind,Sensor);
 		for(const auto& Pair:OutstandingFrames) if(Pair.Value.Key==Key) { ++FramesOut; BytesOut+=Pair.Value.Bytes; QueuedOut+=Pair.Value.bQueued?1:0; }
 	}
+	bool IsPointCloudResumeCapacityAvailable(const FString& SensorId) const
+	{
+		FScopeLock Lock(&OutstandingMutex);
+		if (HeldBytes > FMath::Max<int64>(1, Profile.MaxOutstandingBytes) / 2) return false;
+		const FString Key = TelemetryKey(EVirtualSensorStreamKind::PointCloud, SensorId);
+		const FString Prefix = LexToString(static_cast<int32>(EVirtualSensorStreamKind::PointCloud)) + TEXT("|");
+		for (const auto& Pair : OutstandingFrames)
+			if (SensorId.IsEmpty() ? Pair.Value.Key.StartsWith(Prefix) : Pair.Value.Key == Key) return false;
+		return true;
+	}
 	void CancelRun(const FString& RunId)
 	{
 		{FScopeLock Lock(&RunPendingMutex);if(!KnownRunGenerations.Contains(RunId))KnownRunGenerations.Add(RunId,0);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);}
@@ -325,6 +339,7 @@ private:
 	friend class FSensorRawOutstandingLimitTest;
 	friend class FSensorRawReceiptProbeTest;
 	friend class FSensorRawRunRetentionTest;
+	friend class FSensorRawErrorDiagnosticTest;
 	struct FOutstanding { FString Key; int64 Bytes=0; bool bQueued=true; bool bSubmitted=false; FString RunId; int64 FrameId=0; };
 	mutable FCriticalSection OutstandingMutex;
 	TMap<FString,FOutstanding> OutstandingFrames;
@@ -431,7 +446,7 @@ private:
 		Socket->SetNonBlocking(true);
 		if (!Socket->Connect(*Address))
 		{
-			PushConnectionEvent(false, FString::Printf(TEXT("Raw TCP connect failed: %s:%d"), *Host, Port));
+			PushConnectionEvent(false, FString::Printf(TEXT("Raw TCP connect failed: %s:%d; socket=%s"), *Host, Port, SocketSubsystem->GetSocketError()));
 			CloseSocket();
 			return false;
 		}
@@ -484,14 +499,20 @@ private:
 				{
 					bConnected = true;
 					ReconnectAttempt = 0;
-					LastSocketActivitySeconds = FPlatformTime::Seconds();
+					LastSocketWriteSeconds = LastSocketReadSeconds = FPlatformTime::Seconds();
+					TArray<FString> Heartbeats; HeaderValue(Frame.Headers,TEXT("heart-beat")).ParseIntoArray(Heartbeats,TEXT(","));
+					int32 ServerSend=0,ServerReceive=0;
+					if(Heartbeats.Num()==2){LexTryParseString(ServerSend,*Heartbeats[0]);LexTryParseString(ServerReceive,*Heartbeats[1]);}
+					HeartbeatSendSeconds=ServerReceive>0?FMath::Max(ServerReceive,Profile.HeartbeatIntervalMs)/1000.0:0;
+					HeartbeatReceiveSeconds=ServerSend>0?FMath::Max(ServerSend,Profile.HeartbeatIntervalMs)/1000.0:0;
 					SubscribeAll();
-					PushConnectionEvent(true, TEXT("Raw TCP STOMP connected; binary loopback subscriptions active."));
+					if(!bConnected)return false;
+					PushConnectionEvent(true,FString::Printf(TEXT("Raw TCP STOMP connected; heartbeat send=%.3fs receive=%.3fs."),HeartbeatSendSeconds,HeartbeatReceiveSeconds));
 					return true;
 				}
 				if (Frame.Command == TEXT("ERROR"))
 				{
-					PushConnectionEvent(false, TEXT("Broker rejected STOMP CONNECT."));
+					PushConnectionEvent(false, BrokerError(Frame));
 					CloseSocket();
 					return false;
 				}
@@ -547,8 +568,8 @@ private:
 			{ FScopeLock Lock(&OutstandingMutex); if(auto* Held=OutstandingFrames.Find(Frame.RequestId)) Held->bQueued=false; }
 			if (!SendFrame(Frame, 0))
 			{
-				FailFrame(Frame, TEXT("Socket write failed; frame has no remaining delivery path."));
-				HandleDisconnect(TEXT("Socket write failed; acquisition remains active and stream will reconnect."));
+				FailFrame(Frame, LastWriteError);
+				if(bConnected)HandleDisconnect(LastWriteError);
 				return;
 			}
 			++SentThisPass;
@@ -570,16 +591,16 @@ private:
 		AppendUtf8(HeaderBytes, Header);
 		const uint8 Terminator = 0;
 		const double Started = FPlatformTime::Seconds();
-		if (!SendAll(HeaderBytes.GetData(), HeaderBytes.Num(), 2.0) ||
-			!SendAll(Frame.GetData(), Frame.NumBytes(), 5.0) ||
-			!SendAll(&Terminator, 1, 2.0))
+		if (!SendAll(HeaderBytes.GetData(), HeaderBytes.Num(), 2.0,true,TEXT("SEND header")) ||
+			!SendAll(Frame.GetData(), Frame.NumBytes(), 5.0,true,TEXT("SEND body")) ||
+			!SendAll(&Terminator, 1, 2.0,true,TEXT("SEND terminator")))
 		{
 			return false;
 		}
-		LastSocketActivitySeconds = FPlatformTime::Seconds();
+		LastSocketWriteSeconds = FPlatformTime::Seconds();
 		FPendingReceipt Pending;
 		Pending.Frame = Frame;
-		Pending.SubmittedSeconds = LastSocketActivitySeconds;
+		Pending.SubmittedSeconds = LastSocketWriteSeconds;
 		Pending.RetryAttempt = RetryAttempt;
 		PendingReceipts.Add(RequestId, MoveTemp(Pending));
 		{FScopeLock Lock(&OutstandingMutex);if(auto* Held=OutstandingFrames.Find(Frame.RequestId))Held->bSubmitted=true;}
@@ -591,22 +612,45 @@ private:
 		Event.FrameId = Frame.FrameId;
 		Event.Bytes = static_cast<int32>(FMath::Min<int64>(MAX_int32, Frame.NumBytes()));
 		Event.RequestId=RequestId;Event.RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));Event.AcquisitionUtc=Frame.TimestampUtc;
-		Event.ObservedUtc=FDateTime::UtcNow();Event.ObservedSeconds=LastSocketActivitySeconds;
+		Event.ObservedUtc=FDateTime::UtcNow();Event.ObservedSeconds=LastSocketWriteSeconds;
 		Event.QueueDepth = QueueCounts[static_cast<int32>(Frame.StreamKind)].Load();
 		Event.ReceiptDepth = CountPendingReceipts(Frame.StreamKind);
-		Event.LatencyMs = static_cast<float>((LastSocketActivitySeconds - Started) * 1000.0);
+		Event.LatencyMs = static_cast<float>((LastSocketWriteSeconds - Started) * 1000.0);
 		Event.Message = TEXT("Raw TCP STOMP frame submitted; waiting for broker receipt.");
 		QueueEvent(MoveTemp(Event));
 		return true;
 	}
 
-	bool SendAll(const uint8* Data, int64 NumBytes, double TimeoutSeconds)
+	static constexpr double MaxFrameWriteStallSeconds=60.0;
+	bool SendAll(const uint8* Data, int64 NumBytes, double TimeoutSeconds,bool bFrameWrite=false,const TCHAR* Stage=TEXT("control"))
 	{
-		if (!Socket || !Data || NumBytes < 0) return false;
+		if (!Socket || !Data || NumBytes < 0) {LastWriteError=TEXT("Socket write unavailable.");return false;}
 		int64 Offset = 0;
-		const double Deadline = FPlatformTime::Seconds() + TimeoutSeconds;
-		while (Offset < NumBytes && !bStopRequested.Load() && FPlatformTime::Seconds() < Deadline)
+		const double Started=FPlatformTime::Seconds(),Deadline=Started+TimeoutSeconds;
+		double NextReceive=Started;
+		while (Offset < NumBytes && !bStopRequested.Load())
 		{
+			const double Now=FPlatformTime::Seconds();
+			if(!bFrameWrite&&Now>=Deadline){LastWriteError=FString::Printf(TEXT("Socket write timeout: stage=%s bytes=%lld/%lld elapsed=%.3fs"),Stage,Offset,NumBytes,Now-Started);return false;}
+			// A partial STOMP frame cannot be skipped or followed by a heartbeat.
+			// Keep its bounded reservation and drain incoming receipts/ERROR while
+			// TCP applies backpressure. New acquisitions are rejected at the existing
+			// frame/byte caps; congestion alone must not tear down this connection.
+			if(bFrameWrite&&Now>=NextReceive)
+			{
+				NextReceive=Now+.005;PumpReceive();
+				if(!bConnected||!Socket)return false;
+				if(HeartbeatReceiveSeconds>0&&Now-LastSocketReadSeconds>HeartbeatReceiveSeconds*3)
+				{LastWriteError=TEXT("STOMP receive heartbeat timeout during SEND.");return false;}
+				ProcessRunCancellations();CollectRetiredRuns();
+			}
+			// Backpressure keeps the connection, but not forever: a broker that keeps the
+			// socket open without reading (and without negotiated heartbeats) would block
+			// this worker indefinitely. After a generous cap, reconnect with a clear reason.
+			if(bFrameWrite&&Now-Started>=MaxFrameWriteStallSeconds)
+			{LastWriteError=FString::Printf(TEXT("Socket write stalled %.0fs: stage=%s bytes=%lld/%lld; reconnecting."),Now-Started,Stage,Offset,NumBytes);return false;}
+			if(bFrameWrite&&Now>=Deadline&&!bWriteDelayed)
+			{bWriteDelayed=true;FWorkerEvent E;E.Type=EWorkerEventType::SendDelayed;E.Message=FString::Printf(TEXT("송신 지연: stage=%s bytes=%lld/%lld elapsed=%.3fs; bounded frames skipped, connection retained."),Stage,Offset,NumBytes,Now-Started);QueueEvent(MoveTemp(E));}
 			// During connection setup there is no in-progress sensor STOMP frame.
 			// Cancel queued run bodies promptly, without disrupting an active SEND.
 			if(!bConnected)ProcessRunCancellations();
@@ -615,12 +659,15 @@ private:
 			if (Socket->Send(Data + Offset, Chunk, Sent) && Sent > 0)
 			{
 				Offset += Sent;
+				LastSocketWriteSeconds=FPlatformTime::Seconds();
 				continue;
 			}
 			const ESocketErrors Error = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode();
-			if (Error != SE_EWOULDBLOCK && Error != SE_NO_ERROR) return false;
+			if (Error != SE_EWOULDBLOCK && Error != SE_NO_ERROR) {LastWriteError=FString::Printf(TEXT("Socket write failed: stage=%s socket=%s (%d) bytes=%lld/%lld elapsed=%.3fs"),Stage,ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError(Error),int32(Error),Offset,NumBytes,FPlatformTime::Seconds()-Started);return false;}
 			FPlatformProcess::SleepNoStats(0.0005f);
 		}
+		if(Offset==NumBytes&&bWriteDelayed){bWriteDelayed=false;FWorkerEvent E;E.Type=EWorkerEventType::SendRecovered;E.Message=TEXT("송신 지연 해소: 진행 중 STOMP 프레임 완료.");QueueEvent(MoveTemp(E));}
+		if(Offset!=NumBytes)LastWriteError=TEXT("Socket write cancelled by transport shutdown.");
 		return Offset == NumBytes;
 	}
 
@@ -633,7 +680,7 @@ private:
 			HandleDisconnect(Error);
 			return;
 		}
-		for (const FVirtualSensorStompFrame& Frame : FramesReceived) HandleFrame(Frame);
+		for (const FVirtualSensorStompFrame& Frame : FramesReceived){HandleFrame(Frame);if(!bConnected)break;}
 	}
 
 	bool ReceiveFrames(TArray<FVirtualSensorStompFrame>& OutFrames, FString& OutError)
@@ -649,13 +696,47 @@ private:
 			{
 				const ESocketErrors Error = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode();
 				if (Error == SE_EWOULDBLOCK || Error == SE_NO_ERROR) return true;
-				OutError = TEXT("Raw TCP STOMP receive failed.");
+				OutError = FString::Printf(TEXT("Raw TCP STOMP receive failed: socket=%s (%d)."),ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError(Error),int32(Error));
 				return false;
 			}
-			LastSocketActivitySeconds = FPlatformTime::Seconds();
+			LastSocketReadSeconds = FPlatformTime::Seconds();
 			if (!Parser.Append(Chunk.GetData(), Read, OutFrames, OutError)) return false;
 		}
+		// GetConnectionState is a readiness heuristic in UE's BSD socket layer:
+		// a full send buffer plus no readable data can return NotConnected.
+		// Peek only when readable, and distinguish real EOF/error from would-block.
+		// Process a final ERROR before observing a subsequent FIN/reset.
+		if(OutFrames.IsEmpty()&&Socket->Wait(ESocketWaitConditions::WaitForRead,FTimespan::Zero()))
+		{
+			// FSocketBSD::Recv already reports a 0-byte stream read (orderly FIN) as
+			// failure; success with Read==0 is reported only for would-block. Check the
+			// error code too, so a socket layer that returns success on EOF still closes.
+			uint8 Probe=0;int32 Read=0;
+			ISocketSubsystem* Sockets=ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+			const bool bReceived=Socket->Recv(&Probe,1,Read,ESocketReceiveFlags::Peek);
+			const ESocketErrors Error=bReceived&&Read>0?SE_NO_ERROR:Sockets->GetLastErrorCode();
+			if(!bReceived||(Read<=0&&Error!=SE_EWOULDBLOCK))
+			{OutError=FString::Printf(TEXT("Raw TCP STOMP peer closed or receive failed; read=%d socket=%s."),Read,Sockets->GetSocketError(Error));return false;}
+		}
 		return true;
+	}
+
+	FString BrokerError(const FVirtualSensorStompFrame& Frame) const
+	{
+		// ERROR can echo authentication headers. Limit text and redact full lines
+		// containing secret field names as well as the exact session credential.
+		const int32 Size=FMath::Min(Frame.Body.Num(),1024);
+		FString Text=HeaderValue(Frame.Headers,TEXT("message"))+TEXT("\n");
+		if(Size){FUTF8ToTCHAR Body(reinterpret_cast<const ANSICHAR*>(Frame.Body.GetData()),Size);Text+=FString(Body.Length(),Body.Get());}
+		TArray<FString> Lines;Text.ParseIntoArrayLines(Lines);FString Safe;
+		for(FString Line:Lines)
+		{
+			if(Line.Contains(TEXT("passcode"))||Line.Contains(TEXT("password"))||Line.Contains(TEXT("authorization"))||Line.Contains(TEXT("token"))||Line.Contains(TEXT("login:")))Line=TEXT("[redacted credential line]");
+			if(!Passcode.IsEmpty())Line=Line.Replace(*Passcode,TEXT("[redacted]"));
+			for(TCHAR& Character:Line)if(Character<32)Character=TEXT(' ');
+			Safe+=Line+TEXT(" ");
+		}
+		return TEXT("Broker STOMP ERROR: ")+Safe.Left(1024);
 	}
 
 	void HandleFrame(const FVirtualSensorStompFrame& Frame)
@@ -690,7 +771,7 @@ private:
 		}
 		if (Frame.Command == TEXT("ERROR"))
 		{
-			HandleDisconnect(TEXT("Artemis returned a STOMP ERROR frame."));
+			HandleDisconnect(BrokerError(Frame));
 		}
 	}
 
@@ -822,8 +903,8 @@ private:
 			QueueEvent(MoveTemp(RetryEvent));
 			if (!SendFrame(Pending.Frame, Pending.RetryAttempt + 1))
 			{
-				FailFrame(Pending.Frame, TEXT("Receipt retry socket write failed."));
-				HandleDisconnect(TEXT("Receipt retry socket write failed."));
+				FailFrame(Pending.Frame,LastWriteError);
+				if(bConnected)HandleDisconnect(LastWriteError);
 				return;
 			}
 		}
@@ -832,14 +913,16 @@ private:
 	void SendHeartbeatIfDue()
 	{
 		const double Now = FPlatformTime::Seconds();
-		if (Now - LastSocketActivitySeconds < Profile.HeartbeatIntervalMs / 1000.0) return;
+		if(HeartbeatReceiveSeconds>0&&Now-LastSocketReadSeconds>HeartbeatReceiveSeconds*3){HandleDisconnect(TEXT("STOMP receive heartbeat timeout."));return;}
+		if(HeartbeatSendSeconds<=0||Now-LastSocketWriteSeconds<HeartbeatSendSeconds)return;
 		const uint8 Heartbeat = '\n';
-		if (!SendAll(&Heartbeat, 1, 1.0)) HandleDisconnect(TEXT("STOMP heartbeat failed."));
-		else LastSocketActivitySeconds = Now;
+		if (!SendAll(&Heartbeat, 1, 1.0)) HandleDisconnect(LastWriteError);
+		else LastSocketWriteSeconds = Now;
 	}
 
 	void HandleDisconnect(const FString& Reason)
 	{
+		LastWriteError=Reason;
 		PushConnectionEvent(false, Reason);
 		CloseSocket();
 		NextConnectSeconds = FPlatformTime::Seconds() + 1.0;
@@ -856,6 +939,7 @@ private:
 	void CloseSocket()
 	{
 		bConnected = false;
+		if(bWriteDelayed){bWriteDelayed=false;FWorkerEvent E;E.Type=EWorkerEventType::SendRecovered;QueueEvent(MoveTemp(E));}
 		SubscribedKinds.Reset();
 		for (const auto& Pair : PendingReceipts)
 			FailFrame(Pair.Value.Frame, TEXT("Connection closed before broker receipt; delivery outcome is unconfirmed."));
@@ -908,7 +992,10 @@ private:
 	int32 SendBufferBytes = 0;
 	int32 ReceiveBufferBytes = 0;
 	double NextConnectSeconds = 0.0;
-	double LastSocketActivitySeconds = 0.0;
+	double LastSocketWriteSeconds = 0.0,LastSocketReadSeconds=0.0;
+	double HeartbeatSendSeconds=0.0,HeartbeatReceiveSeconds=0.0;
+	bool bWriteDelayed=false;
+	FString LastWriteError;
 	FVirtualSensorStompParser Parser;
 	TQueue<FVirtualSensorBinaryFrame, EQueueMode::Mpsc> Frames;
 	TArray<FVirtualSensorBinaryFrame> DeferredFrames;
@@ -977,7 +1064,7 @@ bool UVirtualSensorHighThroughputTransportSubsystem::StartHighThroughputTranspor
 
 void UVirtualSensorHighThroughputTransportSubsystem::StopHighThroughputTransport()
 {
-	bTransportConnected=false;++ConnectionRevision;
+	bTransportConnected=false;bSendDelayed=false;++ConnectionRevision;
 	if (Worker)
 	{
 		Worker->StopWorker();
@@ -1008,6 +1095,12 @@ int64 UVirtualSensorHighThroughputTransportSubsystem::GetDroppedReceiveEvents() 
 bool UVirtualSensorHighThroughputTransportSubsystem::IsHighThroughputTransportRunning() const
 {
 	return Worker != nullptr && Worker->IsRunning();
+}
+
+bool UVirtualSensorHighThroughputTransportSubsystem::CanResumePointCloudStream(const FString& SensorId) const
+{
+	return IsHighThroughputTransportRunning() && bTransportConnected && !bSendDelayed &&
+		Worker->IsPointCloudResumeCapacityAvailable(SensorId);
 }
 
 bool UVirtualSensorHighThroughputTransportSubsystem::EnqueueBinaryFrame(
@@ -1160,6 +1253,7 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 		}
 		if (Event.Type == EWorkerEventType::Connected || Event.Type == EWorkerEventType::Disconnected)
 		{
+			UE_LOG(LogTemp,Display,TEXT("[SensorRawConnection] connected=%d reason=%s"),Event.Type==EWorkerEventType::Connected,*Event.Message);
 			bTransportConnected=Event.Type==EWorkerEventType::Connected;++ConnectionRevision;ConnectionMessage=Event.Message;
 			for (TPair<FString, FVirtualSensorStreamTelemetry>& Pair : TelemetryByKey)
 			{
@@ -1168,6 +1262,8 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 			}
 			continue;
 		}
+		if(Event.Type==EWorkerEventType::SendDelayed||Event.Type==EWorkerEventType::SendRecovered)
+		{bSendDelayed=Event.Type==EWorkerEventType::SendDelayed;UE_LOG(LogTemp,Display,TEXT("[SensorRawBackpressure] delayed=%d reason=%s"),bSendDelayed,*Event.Message);continue;}
 		FVirtualSensorStreamTelemetry& Telemetry = TelemetryByKey.FindOrAdd(TelemetryKey(Event.StreamKind, Event.SensorId));
 		Telemetry.StreamKind = Event.StreamKind;
 		Telemetry.SensorId = Event.SensorId;
@@ -1240,6 +1336,21 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+#if WITH_EDITOR
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawErrorDiagnosticTest,"MA0T10.SensorStream.Pcd20Hz.ErrorDiagnostic",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorRawErrorDiagnosticTest::RunTest(const FString&)
+{
+    const FString Marker=TEXT("fixture-private-marker");FVirtualSensorHighThroughputProfile Profile;
+    FVirtualSensorHighThroughputTransportWorker Worker{Profile,Marker};
+    FVirtualSensorStompFrame Frame;Frame.Command=TEXT("ERROR");Frame.Headers.Add(TEXT("message"),TEXT("address-full"));
+    TArray<uint8> Body;AppendUtf8(Body,TEXT("broker flow control\npasscode: ")+Marker+TEXT("\nbody echoes ")+Marker);Frame.Body=MoveTemp(Body);
+    const FString Safe=Worker.BrokerError(Frame);
+    TestTrue(TEXT("broker reason retained"),Safe.Contains(TEXT("address-full"))&&Safe.Contains(TEXT("broker flow control")));
+    TestFalse(TEXT("session credential never retained"),Safe.Contains(Marker));
+    TestTrue(TEXT("ERROR diagnostic bounded"),Safe.Len()<=1050);return true;
+}
+#endif
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawRunRetentionTest,"MA0T10.SlabReliability.RawRunRetention",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorRawRunRetentionTest::RunTest(const FString&)
 {
@@ -1317,15 +1428,20 @@ bool FSensorRawOutstandingLimitTest::RunTest(const FString&)
 	Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
 	TestEqual(TEXT("twenty bodies counted once across queue and receipt phases"),Bytes,int64(60));
 	TestEqual(TEXT("receipt-only waiting has no queued frames"),Queued,0);
+	TestFalse(TEXT("resume awaits receipt-only reservations too"),Worker.IsPointCloudResumeCapacityAvailable(Frame.SensorId));
+	TestFalse(TEXT("wildcard resume awaits every PCD sensor"),Worker.IsPointCloudResumeCapacityAvailable(FString()));
+	TestTrue(TEXT("unrelated drained sensor can resume under global half budget"),Worker.IsPointCloudResumeCapacityAvailable(TEXT("other")));
 	FVirtualSensorStompFrame Receipt;Receipt.Command=TEXT("RECEIPT");Receipt.Headers.Add(TEXT("receipt-id"),TEXT("0"));Worker.HandleFrame(Receipt);
 	TestTrue(TEXT("receipt releases admission immediately"),Worker.Enqueue(Frame,Error));
 	Worker.StopWorker();Worker.SnapshotOutstanding(Frame.StreamKind,Frame.SensorId,Count,Bytes,Global,Queued);
 	TestEqual(TEXT("stop retires queued and unconfirmed bodies"),Global,int64(0));
 	TestEqual(TEXT("stop balances run pending"),Worker.GetRunPending(TEXT("cap-run")),0);
+	TestTrue(TEXT("released reservations restore resume capacity"),Worker.IsPointCloudResumeCapacityAvailable(Frame.SensorId));
 	Profile.MaxOutstandingBytes=4;Profile.MaxOutstandingBytesPerStream=4;
 	FVirtualSensorHighThroughputTransportWorker Small{Profile,FString()};
 	Frame.RequestId=TEXT("a");TestTrue(TEXT("first body fits byte budget"),Small.Enqueue(Frame,Error));
 	Frame.SensorId=TEXT("other");Frame.RequestId=TEXT("b");TestFalse(TEXT("global byte budget spans different sensors"),Small.Enqueue(Frame,Error));
+	TestFalse(TEXT("drained sensor cannot resume over global half budget"),Small.IsPointCloudResumeCapacityAvailable(Frame.SensorId));
 	Small.StopWorker();
 	return true;
 }

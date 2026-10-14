@@ -828,7 +828,7 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleSelectedStream(EVirtualSensor
 		LastUiMessage = StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("선택된 Camera가 없습니다.") : TEXT("선택된 LiDAR가 없습니다.");
 		return;
 	}
-	const bool Starting=!Publisher->IsStreamEnabled(StreamKind,SensorId);
+	const bool Starting=!Publisher->IsStreamActiveOrAwaitingResume(StreamKind,SensorId);
 	if(Starting&&StreamKind==EVirtualSensorStreamKind::PointCloud)
 	{
 		FVirtualSlabSensorOutputSelection O;const auto Check=UVirtualSensorOutputPreflight::InspectForPurpose(this,O,{SensorId},EVirtualSensorPreflightPurpose::ManualStreamStart);CachedPcdPreflight=Check.Summary;
@@ -937,7 +937,7 @@ void UVirtualSensorCaptureExportPanelWidget::ToggleAllStreams()
 		return;
 	}
 	bool bAnyEnabled = false;
-	for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses()) bAnyEnabled |= Status.bEnabled;
+	for (const FVirtualSensorStreamStatus& Status : Publisher->GetStreamStatuses()) bAnyEnabled |= Status.bEnabled || Status.bOverloadSuspended;
 	if (bAnyEnabled)
 	{
 		Publisher->StopAllStreams(FString());
@@ -967,6 +967,10 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 	{
 		if (Status.StreamKind == EVirtualSensorStreamKind::PointCloud)
 		{
+			if (Status.bOverloadSuspended)
+				Text += TEXT("\n") + SensorToolUiText::PcdOverloadSuspended().ToString() + TEXT(" · ") +
+					SensorToolUiText::PcdResumeDetails(FMath::Max(0.0, (Status.EarliestOverloadResumeUtc - FDateTime::UtcNow()).GetTotalSeconds()), Status.ResumeCount).ToString();
+			Text += FString::Printf(TEXT("\n자동 재개 %lld회 · 과부하 폐기 %lld프레임"), Status.ResumeCount, Status.OverloadDiscardedFrameCount);
 			Text += FString::Printf(TEXT("\n[PCD Binary 무손실] 직렬화 %.1fHz(%lld개) · 최근/p95 %.2f/%.2fms · 전송 %.2fMiB/s · 점 %d/%d · %d bytes/frame · queue 입력/준비/receipt=%d/%d/%d · gap=%lld retry=%lld overload=%lld"),
 				Status.SerializationHz, Status.SerializedFrameCount, Status.LastSerializationLatencyMs, Status.SerializationP95LatencyMs, Status.SubmittedMegabytesPerSecond,
 				Status.LastPointCount, Status.LastSourcePointCount, Status.LastFrameBytes,
@@ -1167,7 +1171,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
           +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNewSensorTool(STextBlock).Text_Lambda([this,Kind](){return FText::FromString(TEXT("대상: ")+GetSelectedSensorIdForStream(Kind));})]
 		  +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,Kind](){const auto* Text=WorkspaceStreamCards.Find(Kind);return FText::FromString(Text?*Text:TEXT("수신 대기 · 시작 후 상태를 확인할 수 있습니다."));})]
           +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle())
-           .Text_Lambda([this,Kind](){auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;return FText::FromString(P&&P->IsStreamEnabled(Kind,GetSelectedSensorIdForStream(Kind))?TEXT("스트림 중지"):TEXT("스트림 시작"));})
+           .Text_Lambda([this,Kind](){auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;return FText::FromString(P&&P->IsStreamActiveOrAwaitingResume(Kind,GetSelectedSensorIdForStream(Kind))?TEXT("스트림 중지"):TEXT("스트림 시작"));})
            .OnClicked_Lambda([this,Kind](){ToggleSelectedStream(Kind);return FReply::Handled();})]
          ]];
     }

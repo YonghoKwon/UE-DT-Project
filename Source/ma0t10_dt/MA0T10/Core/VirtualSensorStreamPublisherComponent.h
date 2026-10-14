@@ -83,6 +83,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Stream")
 	bool IsStreamEnabled(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const;
+	/** User stop controls include a stream waiting for automatic recovery. */
+	bool IsStreamActiveOrAwaitingResume(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Stream")
 	TArray<FVirtualSensorStreamStatus> GetStreamStatuses() const;
@@ -102,6 +104,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "1024.0"))
 	float PointCloudBandwidthLimitMegabytesPerSecond = 64.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	bool bAutoResumePointCloudAfterOverload = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "0.1", ClampMax = "30.0"))
+	float PointCloudOverloadResumeDelaySeconds = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "0.1", ClampMax = "30.0"))
+	float PointCloudOverloadMaxResumeDelaySeconds = 30.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0"))
+	float PointCloudOverloadBackoffResetSeconds = 30.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "30.0"))
 	float ReceiptTimeoutSeconds = 5.0f;
 
@@ -118,6 +132,7 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FArchitectureWireGoldenTest;
+    friend struct FPointCloudOverloadTestAccess;
 #endif
 	friend class FSensorPlacementGateTest;
     friend class FWildcardSequenceTest;
@@ -156,8 +171,15 @@ private:
 		double FirstSubmitSeconds = 0.0;
 		double LastLazSubmitSeconds = -DBL_MAX;
 		double NextSubmitAttemptSeconds = 0.0;
+		double OverloadResumeAtSeconds = 0.0;
+		double NextOverloadRecoveryCheckSeconds = 0.0;
+		double OverloadBackoffSeconds = 0.0;
+		double HealthyDeliverySinceSeconds = -1.0;
+		double LastDeliveryProgressSeconds = 0.0;
+		int64 LastObservedReceiptCount = 0;
 		bool bSerializationInFlight = false;
 		FVirtualSensorAcquisitionContext LastInputSlabContext;
+		FString LastInputSensorId;
 		FString SerializationRunId;
 		FString SerializationSensorId;
 		int64 SerializationFrameId=0;
@@ -184,7 +206,12 @@ private:
 	void StartPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime, const FVirtualSensorFrameEnvelope& Frame);
 	void CompletePointCloudSerialization(const FString& StreamKey, FPreparedMessage&& Message, const FString& Error, int32 CapturedConfigRevision);
 	void TryStartNextPointCloudSerialization(const FString& StreamKey, FStreamRuntime& Runtime);
-	void StopForPointCloudOverload(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason);
+	void StopForPointCloudOverload(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, const FPreparedMessage* RejectedMessage = nullptr);
+	void CancelPointCloudOverloadResume(FStreamRuntime& Runtime);
+	void PumpPointCloudOverloadRecovery(double NowSeconds);
+	bool CanResumePointCloudStream(const FString& StreamKey, const FStreamRuntime& Runtime) const;
+	bool UpdatePointCloudOverloadRecovery(const FString& StreamKey, FStreamRuntime& Runtime, double NowSeconds, bool bPathReady);
+	void UpdatePointCloudDeliveryProgress(FStreamRuntime& Runtime, double NowSeconds, bool bConnected);
 	void StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId);
 	void RefreshQueueTelemetry(FStreamRuntime& Runtime);
 	bool RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error);
@@ -216,5 +243,6 @@ private:
 	double PointCloudTokenBucketBytes = 0.0;
 	double LastTokenUpdateSeconds = 0.0;
 	bool bEndingPlay = false;
+	bool bHasPointCloudRecoveryWork = false;
 	TOptional<bool> LastRawTransportAvailable;
 };
