@@ -40,6 +40,10 @@ public class ma0t10_dt : ModuleRules
 
         PrivateDependencyModuleNames.AddRange(new string[] { });
 
+        // PKG-01: ship the deployment transport settings as a loose file next to every
+        // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.
+        RuntimeDependencies.Add("$(ProjectDir)/Config/SensorTransport.ini", StagedFileType.NonUFS);
+
         if (Target.bBuildEditor)
         {
             PrivateDependencyModuleNames.AddRange(new string[]

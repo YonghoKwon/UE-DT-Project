@@ -131,19 +131,19 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 
 ### 패키지 배포: 서버 연결 설정 (PKG-01)
 
-Shipping과 Development 패키지는 SaveGame 위치가 다르다. Development는 패키지 안 `Saved`, Shipping은 `%LOCALAPPDATA%\ma0t10_dt\Saved`를 쓴다. 그래서 앱의 "서버 연결" 탭에서 저장한 값이 Shipping으로 넘어가지 않았다. 배포할 때는 **패키지 옆 `ma0t10_dt\Config\SensorTransport.ini`**를 고친다. 이 파일은 시작할 때 자동으로 적용되고, 패키지를 **처음 실행하면 빈 템플릿이 자동으로 생긴다.**
+Shipping과 Development 패키지는 SaveGame 위치가 다르다. Development는 패키지 안 `Saved`, Shipping은 `%LOCALAPPDATA%\ma0t10_dt\Saved`를 쓴다. 그래서 앱의 "서버 연결" 탭에서 저장한 값이 Shipping으로 넘어가지 않았다. 이제 전송 설정은 **프로젝트의 `Config/SensorTransport.ini`** 하나로 관리한다. 에디터가 이 파일을 읽고, **패키징하면 pak 밖의 일반 파일로 `<패키지>\ma0t10_dt\Config\SensorTransport.ini`에 자동 복사**된다(Build.cs `RuntimeDependencies` NonUFS, Development·Shipping 동일). 프로젝트 파일을 채워 두면 패키징 결과가 바로 그 값으로 동작하고, 대상 PC별로 다르게 하려면 패키지 옆 파일만 고친다. 패키징 때 UE가 ini 주석 줄은 지우지만 값은 그대로 남긴다(`tcp://…` 확인).
 
 ```ini
-; <패키지 폴더>\ma0t10_dt\Config\SensorTransport.ini
+; 프로젝트 Config/SensorTransport.ini (패키징 시 <패키지>\ma0t10_dt\Config\ 로 복사)
 [MA0T10.SensorTransport]
-TransportMode=StompWebSocket      ; StompWebSocket | HttpPost | LogOnly | SaveToFile | None
+TransportMode=StompWebSocket      ; 필수: 비우면 맵 기본값(LogOnly)이라 송신하지 않는다
 BrokerUrl=tcp://127.0.0.1:61616   ; PCD 고속 TCP. ws://host:port 도 가능. 따옴표는 있어도 되고 없어도 된다
 ExportTopic=                      ; PCD Topic (비우면 기존 값 유지)
 LidarTopic=
 CameraTopic=
 AckTopic=
 UserName=
-Passcode=                         ; 평문 저장. 배포 PC 접근 권한을 관리할 것
+Passcode=                         ; 평문. 실제 값은 커밋하지 말고 대상 PC의 패키지 옆 파일에 넣는다
 HttpEndpoint=
 ```
 
