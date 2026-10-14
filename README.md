@@ -129,6 +129,30 @@ DTCore 계약 메모: DTCore는 main `b22af0b`에서 필요한 오류·종료 �
 - 진단 폰트는 offline atlas라 실행 PC에 글꼴 설치가 필요 없다. 제작용 재생성 스크립트는 Malgun Gothic을 사용한다.
 - 공용 설정 객체와 단일 Bootstrap 진입점은 아직 구현되지 않았다. 자세한 분리 계획은 [ROADMAP](docs/ROADMAP.md)을 따른다.
 
+### 패키지 배포: 서버 연결 설정 (PKG-01)
+
+Shipping과 Development 패키지는 SaveGame 위치가 다르다. Development는 패키지 안 `Saved`, Shipping은 `%LOCALAPPDATA%\ma0t10_dt\Saved`를 쓴다. 그래서 앱의 "서버 연결" 탭에서 저장한 값이 Shipping으로 넘어가지 않았다. 이제 전송 설정은 **프로젝트의 `Config/SensorTransport.ini`** 하나로 관리한다. 에디터가 이 파일을 읽고, **패키징하면 pak 밖의 일반 파일로 `<패키지>\ma0t10_dt\Config\SensorTransport.ini`에 자동 복사**된다(Build.cs `RuntimeDependencies` NonUFS, Development·Shipping 동일). 프로젝트 파일을 채워 두면 패키징 결과가 바로 그 값으로 동작하고, 대상 PC별로 다르게 하려면 패키지 옆 파일만 고친다. 패키징 때 UE가 ini 주석 줄은 지우지만 값은 그대로 남긴다(`tcp://…` 확인).
+
+```ini
+; 프로젝트 Config/SensorTransport.ini (패키징 시 <패키지>\ma0t10_dt\Config\ 로 복사)
+[MA0T10.SensorTransport]
+TransportMode=StompWebSocket      ; 필수: 비우면 맵 기본값(LogOnly)이라 송신하지 않는다
+BrokerUrl=tcp://127.0.0.1:61616   ; PCD 고속 TCP. ws://host:port 도 가능. 따옴표는 있어도 되고 없어도 된다
+ExportTopic=                      ; PCD Topic (비우면 기존 값 유지)
+LidarTopic=
+CameraTopic=
+AckTopic=
+UserName=
+Passcode=                         ; 평문. 실제 값은 커밋하지 말고 대상 PC의 패키지 옆 파일에 넣는다
+HttpEndpoint=
+```
+
+- **비어 있는 키는 기존 값**(맵·앱 저장값)을 그대로 쓴다. `//`가 들어간 값도 잘리지 않는다(직접 파싱).
+- 찾는 순서: `SensorTransport.ini` → 같은 섹션의 `Game.ini`(호환) → `DefaultGame.ini`(이때는 URL을 따옴표로 감싼다). 각 파일은 DTCore와 같은 폴더 순서(`ProjectDir/Config` → `LaunchDir/Config` → …)로 찾고, 값이 있는 첫 파일만 쓴다.
+- **`Config/Game.ini`·`SensorTransport.ini`는 pak에 넣지 않는다**(`DefaultGame.ini [Staging] +DisallowedConfigFiles`). 이전에는 프로젝트의 빈 `Game.ini`가 pak에 들어가 패키지 옆 파일을 가렸다. 그래서 DTCore `[DTCoreRuntimeOverride]`(WebSocketUrl·Login·Passcode)도 이제 패키지 옆 `Game.ini`로 바꿀 수 있다. 비어 있으면 `ws://localhost:31000`을 쓴다.
+- 적용되면 Shipping에서도 DTCore 로그(`<실행 폴더>\Logs\CustomLogs\DxLog_날짜.log`)에 `[SensorTransport] applied N deployment keys from … (broker=…, passcode=set/unchanged)`가 남는다. 비밀번호 값은 기록하지 않는다. 실행 폴더는 exe를 실행한 현재 폴더다.
+- 이 설정이 적용 중이면 앱의 서버 연결 탭은 파일 값을 보여 주고, 전송 시작 때 옛 저장값이나 빈 비밀번호로 덮어쓰지 않는다. 화면에서 바꾼 값은 그 세션에만 적용된다.
+
 ## 5. UI와 조작
 
 소유 UI의 기본 화면은 **왼쪽 작업 사이드바**다. 아이콘 레일에서 **배치 / 미리보기 / 시나리오 / PCD / 결과**를 선택하고, 하단 **도구 → UI 표시**에서 글자 배율과 **창 자유 배치 (이전 방식)**를 선택한다. 왼쪽 본문은 한 번에 작업 하나만 표시하며 같은 작업 버튼을 다시 누르면 접힌다. 미리보기는 오른쪽 아래, Slab 요약은 오른쪽 위 카드이고 전역 상태는 하단 한 줄이다. 기존 7개 패널 인스턴스·Blueprint API·장비 선택과 작업 상태를 재사용한다. Host가 명시적으로 등록한 native UI만 관리하며 사용자 Designer·레거시 툴바·외부 Widget은 변경하지 않는다.

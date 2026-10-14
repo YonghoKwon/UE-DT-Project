@@ -252,6 +252,14 @@ void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoo
 		DraftAckTopic = Profile.AckTopic;
 		DraftMaxMessageBytes = Profile.MaxMessageBytes;
 		DraftHttpEndpoint = Profile.HttpEndpoint;
+		// Deployment Game.ini values are the session truth: keep the panel's later
+		// ApplyTransportProfile() calls (e.g. on transfer start) from wiping them.
+		if (SensorManager->SharedTransportComponent->HasRuntimeConfigOverrides())
+		{
+			const UVirtualSensorTransportComponent* Transport = SensorManager->SharedTransportComponent;
+			bUseStompTransport = Transport->TransportMode != EVirtualSensorTransportMode::HttpPost;
+			if (SessionPasscode.IsEmpty()) SessionPasscode = Transport->GetSessionPasscodeForHighThroughput();
+		}
 	}
     RefreshNativeText();
 }
@@ -654,6 +662,10 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 	{
 		const EVirtualSensorExportKind SavedKind = static_cast<EVirtualSensorExportKind>(Preferences->SelectedPointCloudExportKind);
 		if (SavedKind >= EVirtualSensorExportKind::PointCloudCsv && SavedKind <= EVirtualSensorExportKind::PointCloudLaz) SelectedPointCloudKind = SavedKind;
+		// Saved UI values only when no deployment Game.ini is in effect.
+		const bool bRuntimeConfig = SensorManager && SensorManager->SharedTransportComponent && SensorManager->SharedTransportComponent->HasRuntimeConfigOverrides();
+		if (!bRuntimeConfig)
+		{
 		DraftBrokerUrl = Preferences->StompBrokerUrl;
 		DraftCameraTopic = Preferences->StompCameraTopic;
 		DraftLidarTopic = Preferences->StompLidarTopic;
@@ -662,6 +674,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::RebuildWidget()
 		DraftAckTopic = Preferences->StompAckTopic;
 		DraftMaxMessageBytes = FMath::Max(1024, Preferences->OutboundMaxMessageBytes);
 		DraftHttpEndpoint = Preferences->OutboundHttpEndpoint;
+		}
 		ActiveTab = static_cast<EVirtualSensorCaptureExportTab>(FMath::Clamp<int32>(Preferences->CaptureExportActiveTab, 0, 3));
 		StreamFrameStride = FMath::Max(1, Preferences->SensorStreamFrameStride);
 		StreamReceiptInterval = FMath::Max(1, Preferences->SensorStreamReceiptInterval);
