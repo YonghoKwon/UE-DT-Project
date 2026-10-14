@@ -169,6 +169,18 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorTransport")
 	void SetSessionCredentials(const FString& InPasscode, const FString& InBearerToken);
+	/**
+	 * Deployment config (2026-10-14): reads [MA0T10.SensorTransport] from the same
+	 * packaged-side Config/Game.ini files DTCore reads (then GGameIni) and applies every
+	 * non-empty key over the map/SaveGame values. Called from BeginPlay so Shipping and
+	 * Development packages behave the same. Returns true when at least one key applied.
+	 */
+	bool ApplyRuntimeConfigFile();
+	bool ApplyRuntimeConfigFrom(const TArray<FString>& CandidateFiles, bool bUseGameIniFallback);
+	bool HasRuntimeConfigOverrides() const { return bRuntimeConfigApplied; }
+	const FString& GetRuntimeConfigSource() const { return RuntimeConfigSource; }
+	static TArray<FString> GetRuntimeConfigCandidateFiles();
+	static const TCHAR* RuntimeConfigSection;
 
 	static bool BuildStompConnectHeaders(const FString& User, const FString& Passcode,
 		const FString& UpgradeToken, TMap<FName, FString>& OutHeaders, FString& OutError);
@@ -236,6 +248,7 @@ public:
 	void RequestStompReconnect();
 
 protected:
+	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
@@ -260,5 +273,7 @@ private:
 	FString AckSubscriptionId;
 	FString SessionPasscode;
 	FString SessionBearerToken;
+	bool bRuntimeConfigApplied=false;
+	FString RuntimeConfigSource;
 	double LastStompSubmitSeconds = 0.0;
 };
