@@ -589,6 +589,12 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 - **완료 조건:** 과부하 전용 예약과 사용자 중지/재설정 취소, 기본 2초·지수 백오프·최대 30초·정상 receipt 30초 후 초기화, 실제 연결 및 예약 배수 확인, 옵션 off 기존 동작, NoLoss 실패·폐기 기록·시퀀스/PCD golden bytes 유지. 상태바와 진단 문구를 연결 경고와 구분하고 SensorTransport/SensorStream/SlabReliability·golden·장애 전체·quick·layer0·`a26c2d5` 대비 perf ABAB·직접 UI를 따로 보고한다.
 - **현재 결과(2026-10-15): 진행률 100%, 요청 범위 구현·검증 완료.** `feat/pcd-auto-resume`, Runtime `849e4e4`→`00b4ec7`, 기준 `a26c2d5`, DTCore `b2504d1`. component 공개 설정 기본 on, 일시 중단/revision/예약 취소, 실제 worker의 해당 PCD 예약 0 + 전역 bytes 절반 이하 + 연결·지연 해소 gate를 구현했다. 과부하 폐기/Slab failure를 기록하고 새 프레임부터 재개한다. 관련 D3D12 회귀 38 Success/skip7/실패0, 상태 전이 7 Success, 실제 worker 장애 8종·최신 복구 재시험·Node 서버 7/7 통과. 직접 PIE(1920×1080, DPI1.0, 글자150%)에서 과부하→정상 표시·진단 재개1회/폐기41프레임·PCD 중지 후 유지 확인. Editor/Game Development·WBP7 메모리 컴파일·quick8·golden14 bytes·layer0 통과. 첫 perf ABAB의 GT +3.27% 실패를 보존하고, 복구가 없으면 순회를 생략하도록 보완했다. UI 끄기 `ConfigureStream(false)`의 unsent 큐 정리도 보완·직접 재검증했다. 최종 `00b4ec7`의 같은 ABAB×3은 FPS +0.0025%, engine p95 동일, GT +0.45%로 2% gate 통과다. 근거 `Saved/Reports/PCD-RESUME/RESULT.md`.
 
+#### PCD-OPT — 운영 20Hz PCD 송신 최적화·시나리오 주기 변경 멈춤 (P0)
+
+- **출처:** 사용자 2026-10-15. 운영 서버, ML-X(80) 원본 1대, .05초만 30초 중 3~4초 과부하·자동 재개. 시나리오 PCD 송신 중 .1↔.05 반복 변경 뒤 약3초 간격의 짧은 멈춤을 별도 보고했다.
+- **완료 조건:** 18~19MB/s·RTT5~20ms 재현, 별도 주기 멈춤의 근본 원인 확정·수정, default-on/off 자동 송신율 조절과 명시 생략 집계·문구·Slab 실패 계약 보존, wire 불변 처리량 계측·Artemis 전후 비교, 관련 회귀·golden·장애 전체·quick·layer0·291b4f9 대비 perf. 크기 축소안은 분석만 한다.
+- **현재 결과(2026-10-15): 진행률25%, 재현 도구·조사 단계, 운영 수정 보류.** `perf/pcd-transport-opt`, 시작291b4f9 / DTCore b2504d1. 결정적 바이트 예산 cap·RTT·실제18.5MB/s 자체 시험을 추가했다. 제한 링크 .05초는90초 중 과부하4회/단절0, .06/.1은60초 동안 과부하·단절0. Raw 예약은64MiB보다 **20프레임 약21.2MB 한도**에 먼저 도달했다. 실제 Slab JSON/DataSync/Motion + 주기 API8회 변경은 제한 링크·Artemis 모두 Slab 정지0/100ms 초과 wall gap0; 제한 링크의 직접 UI2회 변경도 진행은 유지했다. PCD receipt3.44초 공백과 사용자가 보고한 주기적 멈춤을 같은 원인으로 확정하지 않았다. "막히면 그 지점에서 멈춤" 요청에 따라 운영 재현 로그·실제 시나리오/실행 조건 확인 전 추정 수정하지 않는다. **자동 송신율 조절·3초 멈춤 수정·처리량 개선은 미구현**, 변경 후/perf gate 미수행. Node10·native8·관련38 Success/skip7·Editor Development·quick/layer0 증거와 크기 축소 산술 제안은 `Saved/Reports/PCD-OPT/RESULT.md`에 보존한다. 앞선 PCD-RESUME 완료 상태와 이번 PCD-OPT 미완료를 구분한다.
+
 #### PERF-01 — 절대 성능 기준선 재확인 (P0)
 
 - **근거:** UXR-09·MAP-01·UXR-07의 성능 판정은 모두 "같은 측정 방식의 변경 전/후 ±2%" 상대 비교였고 통과했다(UXR-07 교차 측정: FPS −0.19%, p95 +0.15%, game thread −0.90%). 그러나 그 측정의 절대값은 1 Camera+1 LiDAR에서 **평균 약 47 FPS**(오프스크린 D3D12)이고, 2026-10-10 기록은 **실제 표시 1920×1080 2+2 PCD-only 평균 59.89 FPS**였다. 측정 방식 차이인지 개편 중 누적 회귀인지 확인되지 않았다.
