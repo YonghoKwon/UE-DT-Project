@@ -613,7 +613,7 @@ public:
 			}
 			else
 			{
-				Test->TestTrue(TEXT("ML-X measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("ML-X measurement submission meets requested Hz"), Measurement.GetRate(Kind) >= .95/RequestedLidarInterval);
 				Test->TestTrue(TEXT("ML-X measurement consumer set complete"), Measurement.IsContiguousAndComplete());
 			}
 			if (Kind == EVirtualSensorStreamKind::PointCloud)
@@ -624,8 +624,8 @@ public:
 				Test->TestEqual(TEXT("every binary PCD submission receives a receipt"), Status->ReceiptReceivedCount, Status->InputFrameCount);
 				Test->TestEqual(TEXT("binary PCD never replaces a pending frame"), Status->ReplacedPendingFrameCount, static_cast<int64>(0));
 				Test->TestEqual(TEXT("binary PCD queue does not overload"), Status->OverloadCount, static_cast<int64>(0));
-				Test->TestTrue(TEXT("binary PCD completed serialization sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
-				Test->TestTrue(TEXT("binary PCD measurement submission sustains at least 19 Hz"), Measurement.GetRate(Kind) >= 19.0);
+				Test->TestTrue(TEXT("binary PCD completed serialization meets requested Hz"), Measurement.GetRate(Kind) >= .95/RequestedLidarInterval);
+				Test->TestTrue(TEXT("binary PCD measurement submission meets requested Hz"), Measurement.GetRate(Kind) >= .95/RequestedLidarInterval);
 				Test->TestTrue(TEXT("binary PCD serialization p95 remains below 20 ms"), Status->SerializationP95LatencyMs <= 20.0f);
 				Test->TestTrue(TEXT("binary PCD queues remain bounded"),
 					Status->InputQueueDepth <= 20 && Status->PreparedQueueDepth <= 20 && Status->ReceiptQueueDepth <= 20);

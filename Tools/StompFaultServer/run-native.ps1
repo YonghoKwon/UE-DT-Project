@@ -1,5 +1,6 @@
 param([ValidateSet('Fake','Artemis')][string]$Broker='Artemis',[double]$Interval=.05,
     [ValidateRange(1,2)][int]$Lidars=1,[int]$Seconds=300,[string]$ReportDirectory='',
+    [string[]]$ServerOptions=@(),
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -20,7 +21,7 @@ try {
         $env:MA0T10_ARTEMIS_URL='ws://127.0.0.1:61616';$env:MA0T10_ARTEMIS_USER=$session.UserName;$env:MA0T10_ARTEMIS_PASSWORD=$session.Passcode
     }else{
         if(Get-NetTCPConnection -LocalPort 61618 -State Listen -ErrorAction SilentlyContinue){throw 'Fault port already in use'}
-        $server=Start-Process (Get-Command node).Source -ArgumentList @('"'+(Join-Path $PSScriptRoot 'server.mjs')+'"','--echo') -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/server.jsonl" -RedirectStandardError "$ReportDirectory/server-stderr.log"
+        $server=Start-Process (Get-Command node).Source -ArgumentList (@('"'+(Join-Path $PSScriptRoot 'server.mjs')+'"','--echo')+$ServerOptions) -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/server.jsonl" -RedirectStandardError "$ReportDirectory/server-stderr.log"
         Start-Sleep -Seconds 1
         if($server.HasExited){throw 'Fault server failed'}
         # The map's independent DTCore STOMP bootstrap also reads these values.
