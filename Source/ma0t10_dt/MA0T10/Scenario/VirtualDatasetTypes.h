@@ -12,6 +12,9 @@ struct MA0T10_DT_API FVirtualDatasetSettings
 {
     bool Enabled=false,CameraTruth=false,LidarFidelity=false;
     FString Name=TEXT("dataset");
+    // Explicit offline post-processing only. Never saved in SensorUI/Workspace or transport config.
+    FString ExportFormat=TEXT("none");
+    bool ExportUprightEnvelope=false;
     int32 Seed=1337,Scenes=100,SettleFrames=3;
     FVirtualDatasetRange Yaw{false,-10,10},Pitch{false,-3,3},Roll{false,-3,3};
     FVirtualDatasetRange X{false,-20,20},Y{false,-20,20},Z{false,-5,5}; // cm

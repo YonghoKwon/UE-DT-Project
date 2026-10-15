@@ -71,6 +71,7 @@ FVirtualDatasetSettings DatasetSettings(const FJsonObject& C)
 {
     FVirtualDatasetSettings S;S.Enabled=true;S.Name=Str(C,TEXT("name"));S.Scenes=int32(Num(C,TEXT("scenes"),1));S.Seed=int32(Num(C,TEXT("seed"),1337));S.SettleFrames=int32(Num(C,TEXT("settle_frames"),3));S.CameraTruth=Flag(C,TEXT("camera_truth"));S.LidarFidelity=Flag(C,TEXT("lidar_fidelity"));
     const TSharedPtr<FJsonObject>* R=nullptr;
+    C.TryGetStringField(TEXT("export_format"),S.ExportFormat);C.TryGetBoolField(TEXT("export_upright_envelope"),S.ExportUprightEnvelope);
     if(C.TryGetObjectField(TEXT("ranges"),R))
     {
         const TMap<FString,FVirtualDatasetRange*> Fields={{TEXT("yaw"),&S.Yaw},{TEXT("pitch"),&S.Pitch},{TEXT("roll"),&S.Roll},{TEXT("x"),&S.X},{TEXT("y"),&S.Y},{TEXT("z"),&S.Z},{TEXT("size"),&S.Size},{TEXT("surface"),&S.Surface},{TEXT("roughness"),&S.Roughness},{TEXT("oxidation"),&S.Oxidation},{TEXT("light_intensity"),&S.LightIntensity},{TEXT("light_pitch"),&S.LightPitch},{TEXT("light_yaw"),&S.LightYaw},{TEXT("sensor_position"),&S.SensorPosition},{TEXT("sensor_angle"),&S.SensorAngle}};
@@ -345,7 +346,7 @@ bool UAutomationControlSubsystem::Poll(float)
         else if(S.Operation==TEXT("dataset.start"))
         {
             auto* D=W->GetSubsystem<UVirtualDatasetSubsystem>();
-            if(!D->IsActive()){S.Detail->SetStringField(TEXT("directory"),D->Directory());S.Detail->SetNumberField(TEXT("completed_scenes"),D->CompletedScenes());const bool Ok=D->CompletedScenes()==D->RequestedScenes();S.OwnedDataset=false;CompleteOperation(Ok,Ok?FString():D->Message);}
+            if(!D->IsActive()){S.Detail->SetStringField(TEXT("directory"),D->Directory());S.Detail->SetStringField(TEXT("export_directory"),D->ExportDirectory());S.Detail->SetNumberField(TEXT("completed_scenes"),D->CompletedScenes());const bool Ok=D->HasSucceeded();S.OwnedDataset=false;CompleteOperation(Ok,Ok?FString():D->Message);}
         }
         else if(S.Operation==TEXT("capture"))
         {

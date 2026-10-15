@@ -5,7 +5,10 @@ $policy=Get-Content -Raw -Encoding UTF8 "$PSScriptRoot/fixtures/sensor_ui_vocabu
 $violations=[Collections.Generic.List[object]]::new()
 $count=0
 function Inspect-Text([string]$Area,[string]$Text){
- foreach($word in $policy.forbidden){if($Text.IndexOf($word,[StringComparison]::OrdinalIgnoreCase) -ge 0){$violations.Add([pscustomobject]@{Area=$Area;Word=$word;Text=$Text})}}
+ foreach($word in $policy.forbidden){
+  $literalException=@($policy.literalWordExceptions|Where-Object{$_.area -ceq $Area -and $_.word -ceq $word -and $Text -cin $_.texts}).Count -gt 0
+  if(!$literalException -and $Text.IndexOf($word,[StringComparison]::OrdinalIgnoreCase) -ge 0){$violations.Add([pscustomobject]@{Area=$Area;Word=$word;Text=$Text})}
+ }
 }
 # Only displayed LOCTEXT values are labels; UserReason's internal match tokens are not UI text.
 $source=Get-Content -Raw -Encoding UTF8 "$root/Source/ma0t10_dt/MA0T10/UI/SensorToolUiText.h"

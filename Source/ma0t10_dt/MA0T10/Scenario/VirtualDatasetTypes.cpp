@@ -5,6 +5,9 @@ bool FVirtualDatasetSettings::Validate(FString& Error) const
 {
     Error.Empty();
     if(!Enabled){Error=TEXT("데이터셋 생성을 먼저 켜세요 · 기본 꺼짐");return false;}
+    if(ExportFormat!=TEXT("none")&&ExportFormat!=TEXT("coco")&&ExportFormat!=TEXT("kitti")&&ExportFormat!=TEXT("coco,kitti"))
+    {Error=TEXT("내보내기 형식을 확인하세요");return false;}
+    if(ExportFormat!=TEXT("none")&&!CameraTruth){Error=TEXT("표준 형식 내보내기에는 카메라 정답 포함을 켜세요");return false;}
     if(Scenes<1||Scenes>10000||SettleFrames<1||SettleFrames>600||Name.IsEmpty()||Name.Len()>64||Name.Contains(TEXT("..")))
     {Error=TEXT("이름·장면 수(1–10000)·대기 프레임(1–600)을 확인하세요");return false;}
     for(const TCHAR C:Name)if(!FChar::IsAlnum(C)&&C!=TEXT('_')&&C!=TEXT('-')){Error=TEXT("이름은 문자·숫자·_·-만 사용하세요");return false;}

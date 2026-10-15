@@ -63,6 +63,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
 - **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
 
+## EXPORT-01 — 데이터셋 표준 형식 내보내기 1단계 (로드맵 #12)
+
+- **출처:** 사용자 2026-10-15. `feat/dataset-export`, 기준 `3f57d3a`, DTCore `b2504d1`. 기본 PCD·wire를 유지하고 사용자가 선택한 파일만 생성한다.
+- **구현:** Python COCO compressed RLE·KITTI XYZI/calib/label_2·선택 SemanticKITTI 점 라벨과 재로딩/투영 검사. canonical class0..6, selected Slab mesh OBB의 additive schema_minor1. 기존 L3 데이터셋 패널/job은 기본 none이며 완료 후 별도 Python 변환, 중단/종료는 cooperative cancel이다. 소스 데이터·기존 필드·저장 슬롯·운영맵을 바꾸지 않는다.
+- **계약·한계:** [형식별 매핑·가정·실행법](../Tools/DatasetTools/README.md). COCO는 기존 minor0 지원, KITTI는 3D OBB 없는 과거 데이터 명시 거부. custom class이며 yaw-only 근사는 별도 opt-in, 원본 OBB·근사 부피 비율 기록. selected Slab 외에는 3D 라벨을 만들지 않는다. stereo/IMU·정규 SemanticKITTI 클래스/odometry·모델 학습은 범위 밖이다.
+- **완료 조건:** 실제 Slab PCA가 유효한 GPU20장면 → COCO/KITTI 재로딩·점 수/투영 IoU·원본 불변, Python 좌표/calib/bbox/RLE/class/빈 장면/손상 입력, Editor/Game·관련 자동화·release 전체·golden·WBP7·quick/layer0·표시형1+1 기준3f57d3a 대비2% perf, 직접 UI 선택/기본 없음, 보호·개인설정 복원 및 시험 데이터 용량 정리.
+- **진행률: 90% — 구현·자동 검증 완료, 직접 UI 환경 보류.** Runtime `eeff0c1`, GPU20/20 Slab PCA 유효·407519점, COCO80마스크 원본 픽셀 일치, KITTI 투영 bbox IoU 평균0.9580/최소0.9196. Python19·Editor/Game·release14단계(전체285 Success/skip32/실패0)·실제 golden·WBP7·quick/layer0 통과. 표시형1+1/10+30초 ABAB×3: FPS +0.01082%·engine p95 동일·GT +1.88175%,2% gate 통과. 원본 hash 불변·실제 child 취소 시 출력/임시폴더0, 보호547 hash 불변·개인268파일 복원. 시험 데이터249239856→9912698bytes,3장면 subset과 대응 표준 형식만 보관. 직접 Computer Use는 Windows Security 창 때문에 입력0·보류이며 팝업을 조작하지 않았다. 초기 어휘/줄바꿈 실패·offscreen startup SwapChain4 handled ensure·KITTI38.66° 근사 부피3.14–4.72배 제한 및 수행/skip 이름은 `Saved/Reports/EXPORT-01/RESULT.md`를 따른다.
+
 ## AUTO-01 — 화면 없는 배치 실행과 로컬 제어 API 1단계 (로드맵 #7)
 
 - **출처:** 사용자 2026-10-15. `feat/auto-control`, 기준 `d45f27e`, DTCore `b2504d1` 고정. CLI/job 또는 사용자가 켠 loopback API에서만 동작하며 기본 PCD·wire·SaveGame·출력 정책을 유지한다.
@@ -78,7 +86,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **집중 검증:** D455 FullSpec1280×720 + ML-X Native576×56 GPU100장면 반복, pause/resume, 실제 Actor truth 일치, 같은 seed의 정답 재현, 정확히 장면당 LiDAR1회, GT-off 파일/내부 readback0, 캡처/저장 중 취소·상한·원상 복원 및 Python PCD 파싱/채점. 수행별 SHA·성능/용량·메모리 cache/retained 구분은 RESULT에 기록한다.
 - **통합 결과:** Runtime `d6c41f2`, Editor/Game Development·release14단계·고유 전체278 Success/skip30/실패·NotRun0·실제 WireGolden·quick8/layer0·WBP7 memory compile 통과. 표시형1920×1080/1+1/10+30초 ABAB×3(12샘플 모두유효)의 기본 꺼짐 FPS +0.00061%·engine p95 동일·game thread −0.0761%로2% gate 통과. Native100장면2,013,729점·라벨 일치, yaw 평균0.1155°/p950.3048°/최대0.5638°, 약0.44초/장면·1.544MiB/장면. LLM 거리장42.06–42.09MiB·UObject/mesh 유지·staging GT3/LiDAR2로 고정. 초기61ms callback wall peak를 포함해 성능 한계를 기록했다. 직접 Computer Use는0x80070057로 초기+재시도2회 실패하여 입력0·보안 팝업 미조작이며, 자동 진행 화면을 직접 수용으로 세지 않는다. 보호553파일hash 불변·개인240파일 복원, 시험 데이터는샘플8장면/7.99MB만 남겼다. 상세 원본은 RESULT.
 - **계약·한계:** README 스키마를 따른다. 선택 센서/시나리오를 중지한 뒤 명시적으로 시작하며 같은 안정화 장면의 두 요청을 같은 engine frame에 시작한다. UTC/FrameId와 RGB bit 동일성을 seed로 고정하지 않는다. Camera GT의 geometry 제한·Actor 단위 ID, 균일 크기 배율, 같은 PIE 안의 resume를 유지한다. 켜짐 비용과 초기 자원 준비 peak는 숨기지 않는다.
-- **2단계 제안:** KITTI/COCO 변환, ROS bag, 7번 실행 자동화와 연계한 대량 headless/디스크 resume. DTCore·플러그인·새 자산·운영맵 저장은 변경하지 않는다.
+- **후속:** KITTI/COCO 변환은 별도 승인 EXPORT-01을 따른다. ROS bag, 대량 headless/디스크 resume는 계속 제안이다. DTCore·플러그인·새 자산·운영맵 저장은 변경하지 않는다.
 
 ## LIDAR-FID-01 — LiDAR 사실성 1단계
 
@@ -702,6 +710,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-EXPORT01 | 선택적 오프라인 변환 프로세스·완료/취소 계약이 없음 | 기존 L2 Dataset이 파일 확정·원상 복원 후 외부 Python을 실행하고 worker에서 대기·cooperative cancel. 기존 UDxWidget 패널 재사용 | 여러 소비 프로젝트에 실제 필요할 때 opt-in 외부 작업 수명 helper 공용화 검토; dataset schema/변환기는 host 도구 유지 | b2504d1 Source에서 CreateProc/Python/ExternalProcess/DatasetExport 검색0; VirtualDatasetSubsystem::StartExport, DTCore 소스/gitlink 불변 |
 | DTC-AUTO01 | DTCore API/WebSocket은 외부 HTTP/STOMP 클라이언트이며 loopback 수신 계약이 없음 | 프로젝트 L2 UE Sockets adapter·게임 스레드 명령 처리·기존 서비스 재사용 | 공통 필요 시 opt-in listener의 수명·인증·GT admission 검토; 업무 command는 host 유지 | b2504d1 Core/DxApiSubsystem.h·DxWebSocketSubsystem.h; DTCore 소스/gitlink 불변 |
 | DTC-LIDAR-FID01 | `UMechDriverCompBase`에 획득 시점의 kinematic linear/angular velocity 조회 계약 없음. SetActorTransform 기반 Slab은 일반 GetVelocity만으로 시간차를 복원할 수 없음 | 기존 MechDriver 상속을 유지하고 L0 motion provider를 SlabMotion에서 구현, L1이 immutable sample로 사용 | 여러 소비 프로젝트에 필요할 때 world rigid velocity/pivot의 읽기 전용 중립 interface 검토. Slab 보간·업무 정책은 host 유지 | DTCore b2504d1 `ActorComponent/MechDriverCompBase.h`는 constructor/BeginPlay만 제공; `Contracts/VirtualSensorMotionProvider.h`, `SlabMotionComponent::CaptureSensorMotion`; DTCore 소스/gitlink 불변 |
 | DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |

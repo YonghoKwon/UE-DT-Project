@@ -25,6 +25,8 @@ public:
     int32 CompletedScenes() const;
     int32 RequestedScenes() const;
     FString Directory() const;
+    FString ExportDirectory() const;
+    bool HasSucceeded() const;
     FString Message;
     int64 Revision=0;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
@@ -44,5 +46,6 @@ private:
     void Restore();
     bool ApplyScene(FString& Error);
     void WriteScene();
+    void StartExport();
     bool TargetsCurrent() const;
 };
