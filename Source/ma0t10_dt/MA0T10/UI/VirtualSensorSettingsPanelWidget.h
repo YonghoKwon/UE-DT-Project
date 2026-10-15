@@ -147,6 +147,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSensorSettingsPresentationTest;
 	friend class FUxr15Audit;
+    friend class FUxr16Audit;
 	friend class FSensorVocabularyTest;
 	friend class FUxrSettingsRender;
 #endif

@@ -120,7 +120,9 @@ public:
         if(Phase==4||Phase==7)
         {
             App.ProcessMouseButtonUpEvent(ResizePointer(Press+Delta,Press+Delta,false,EKeys::LeftMouseButton));Test->TestFalse(TEXT("release clears resize capture"),App.HasAnyMouseCaptor());
-            const auto Size=Panel->GetPanelExpandedSize();if(Phase==4)Test->TestTrue(TEXT("drag clamps to font-scaled minimum"),Size.Equals(Panel->GetResolvedPanelMinimum(),1));else Test->TestTrue(TEXT("drag clamps to configured maximum"),Size.Equals(FVector2D(900,800),1));
+            const auto Size=Panel->GetPanelExpandedSize();
+            Test->AddInfo(FString::Printf(TEXT("resize released phase=%d size=%s reservedTop=%.2f viewport=%s"),Phase,*Size.ToString(),W->GetToolbarReservedTop(),*Panel->GetPanelLayoutViewport().ToString()));
+            if(Phase==4)Test->TestTrue(TEXT("drag clamps to font-scaled minimum"),Size.Equals(Panel->GetResolvedPanelMinimum(),1));else Test->TestTrue(TEXT("drag clamps to configured maximum"),Size.Equals(FVector2D(900,800),1));
             const auto Pos=Panel->GetCurrentPanelPosition(),V=Panel->GetPanelLayoutViewport();Test->TestTrue(TEXT("resized window remains fully inside owned viewport"),Pos.X>=0&&Pos.Y>=W->GetToolbarReservedTop()&&Pos.X+Size.X<=V.X+1&&Pos.Y+Size.Y<=V.Y+1);
             if(Phase==7)
             {
