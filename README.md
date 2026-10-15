@@ -29,7 +29,7 @@
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·float Depth·기본 semantic 규칙 공유·Actor ID·2D bbox·보정 snapshot·비동기 검증 저장 구현. RHI/무손실 round-trip·1920×1080 자동 4모드·기본 꺼짐 perf 통과(FPS −0.0011%, p95 동일, GT +0.7332%) | 직접 마우스는 Windows 보안 팝업 미조작으로 보류. 서버 송신/ROS2/3D bbox는 2단계 제안. 상세 `Saved/Reports/CAM-GT-01/RESULT.md` |
 | LiDAR 사실성 (LIDAR-FID-01) | Runtime `eea0268`, 모두 기본 꺼짐. Editor/Game·release 전체272 Success/skip29/실패0·golden14·WBP7·quick8·layer0 통과. 기본 꺼짐 ABAB×3: FPS +0.0043%, p95 동일, GT −0.1497%로2% gate 통과 | 직접 마우스는 Computer Use 캡처0x80070057로 보류. 켜짐 비용: GT +2.658ms(+50.20%), p95 +0.510ms(+3.06%), LiDAR600프레임/30초 유지. 발사 순서·재질 계수는 가정. `Saved/Reports/LIDAR-FID-01/RESULT.md` |
-| 데이터셋 생성 (DATASET-01) | **구현 초안·기술 차단, 완료 아님.** 기본 꺼짐·seed/장면 랜덤화·비동기 단일 장면 저장·소유 데이터 화면·Python 채점 도구 초안 | GPU backend 보존 후 반복 생성에서 D3D12 RHI thread 충돌 2회(표면 랜덤화 off 포함). 앞선 CPU 초안 100장면 결과를 GPU/최종 구현 통과로 세지 않는다. release/perf/직접 UI 및 최종 스키마 수용 미수행. `Saved/Reports/DATASET-01/RESULT.md` |
+| 데이터셋 생성 (DATASET-01) | **90% — 구현·자동 검증 완료, 직접 마우스 환경 보류.** GPU100장면×3·정답 재현/취소·full release278 Success/skip30/실패0·Game/WBP7/quick/layer0 통과. 기본 꺼짐 ABAB×3: FPS +0.00061%, p95 동일, GT −0.0761%로2% gate 통과 | Computer Use 캡처0x80070057로 직접 입력0·보안 팝업 미조작. 실제1920×1080/DPI1/폰트100% 자동 진행 화면·Native100장면 yaw 평균0.1155°/p950.3048°/최대0.5638°. 초기 cold61ms wall peak와 geometry/동일 PIE resume 제한을 RESULT에 기록. `Saved/Reports/DATASET-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
 | 자동화 | Runtime `967d517`: Editor/Game Development, release 14단계·D3D12 고유242 Success/조건부 skip20/실패0, 기존262개 이름/상태 동일·WBP7 메모리 컴파일. 추가 Slate/RHI 입력2개 실제 Success | 자동 통과와 직접 수용은 다름. 자유 배치 입력·상대 성능·미수행 수용은 UXR-07 보고서 참조 |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
@@ -540,21 +540,26 @@ ARCH-08의 Monitor/Scan/Publisher는 같은 클래스의 12개 `.cpp`(249~887줄
 
 `UVirtualSensorIntegrationSettings`/`UVirtualSensorDtCoreBridgeSubsystem`/Bootstrap Actor는 **소스에 없다**(과거 제안). 구현된 것으로 오인하지 않는다.
 
-### DATASET-01 로컬 데이터셋 스키마 초안 — 기술 차단, 사용 수용 전
+### DATASET-01 로컬 학습 데이터셋 — 명시적 opt-in
 
-출처: 사용자 2026-10-15. 현재 런타임/UI는 **미커밋 초안**이며 GPU 반복 생성 충돌을 해결한 뒤 검증해야 한다. 데이터 화면의 `파일 저장 → 데이터셋 생성 · 기본 꺼짐`에 session-only 설정을 둔다. 이름·장면 수·seed·안정화 프레임, 명시적으로 고른 Slab/LiDAR/Camera/Movable DirectionalLight와 랜덤화별 켜기/끄기·최솟값/최댓값을 입력하고 시작한다. 기존 소유 데이터 패널 안의 지연 생성 영역이며 별도 Widget manager·새 자산·저장 슬롯은 없다. 진행 문자열은 열려 있을 때만 최대5Hz로 갱신한다. 시작/일시 중지/재개/중단/결과 폴더 경로를 제공하는 초안이며 직접 조작·가독성 수용은 미수행이다.
+출처: 사용자 2026-10-15. 기본 출력은 PCD 송신이다. `데이터 → 파일 저장 → 데이터셋 생성 · 기본 꺼짐`을 펼쳐 사용자가 직접 켜고 조건을 정한 뒤 시작한다. 이름·장면 수(1–10000)·seed·안정화 프레임, Slab/LiDAR/Camera와 선택한 Movable DirectionalLight, 항목별 켜기/끄기·범위를 지정한다. 시작/일시 중지/재개/중단/결과 폴더와 선택 규격 기반 비압축 환산 용량을 표시한다. PNG/EXR의 실제 압축량은 장면에 따라 다르다. 선택 센서 측정·송신·저장과 Slab 시나리오는 먼저 중지한다. 기존 작업을 자동 중지하거나 운영맵을 저장하지 않는다.
 
-- 경로: `Saved/Datasets/<이름>_<UTC시각>_<충돌방지ID>/scene_00000/`. 이름은 문자·숫자·`_`·`-`만 허용한다. 루트는 프로젝트 Saved 내부에 고정한다.
-- `dataset.json`: `schema_version="ma0t10.dataset.v1"`, `seed`, `requested_scenes`, `completed_scenes`, `settle_frames`, `camera_truth`, `lidar_fidelity`, 범위 표(`range_order`와 숫자 키별 enabled/min/max), 프로젝트 commit SHA, map, class 표, instance ID→Actor 이름/class 표, 좌표와 인코딩 설명. 마지막으로 확정한 장면 수만 기록한다. 초안 시험에서 SHA는 당시 HEAD이며 미커밋 소스가 있었으므로 이 SHA의 커밋된 기능 검증으로 해석하지 않는다.
-- `lidar.pcd`: 기존 immutable PCD serializer 재사용. PCD0.7 binary 헤더와 기존 **33-byte little-endian** 레코드, 센서 로컬 RH meter(X전방/Y좌측/Z위쪽), `MA0T10_META`의 acquisition transform을 유지한다. 기본 송신 serializer·wire 레이아웃에 점별 라벨 필드를 추가하지 않는다.
-- `lidar_labels.bin`: PCD에 저장한 검출점 순서 그대로 **5-byte little-endian** 레코드(`uint8 semantic_id`, `uint32 instance_id`), padding/파일 헤더 없음. 파일 크기/5가 PCD `POINTS`와 같아야 한다. 표준 PCD의 기존 레이아웃을 보존하고 별도 라벨만 읽을 수 있도록 분리했다. class0=미지원/미분류, 1=Other, 2=Slab, 3=Roller, 4=Conveyor, 5=Floor, 6=Sensor. instance0=대응 없음. 초기 Actor 이름을 정렬해 session ID를 정하고 카메라 ID도 이 표에 대응시키는 초안이다.
-- `rgb.png`: 선택 Camera RGB target의8-bit 무손실 PNG. Camera GT 포함 선택 시 `depth.exr`(float32 광학축 Z meter,0 invalid), `seg.png`(uint8 class ID), `instance.png`(ID=`R+256G+65536B`)를 추가한다. CAM-GT-01의 불투명 static geometry/Actor 단위 ID 및 깊이 일치 조건을 따른다. GT off에서 GT 파일을 제외하는 초안이나 **내부 GT readback 비용 분리도 아직 미완료**다.
-- `label.json`: `schema_version="ma0t10.dataset.scene.v1"`, scene_index/seed, 실제 적용된 Slab pose(`xyz_m`, quaternion xyzw, pitch/yaw/roll degrees)·크기 meter·preset/roughness/oxidation/hot/emissive, 센서 pose·LiDAR 샘플 수/FOV/수직각/range/주기·Camera K/해상도, 조명 pose/lux, 랜덤 값의 JSON 문자열(`random_values_json`), 독립 acquisition frame ID/UTC, 기존 PCA yaw 분석의 valid/angle/점 수, 메모리/최대 pump 관찰값을 담는 초안이다. pose는 UE world(X전방/Y우측/Z위쪽), 카메라 optical은(x우측/y아래/z전방)이다. 카메라와 CPU chunk LiDAR는 같은 안정화 장면을 사용하지만 하드웨어 동시 timestamp를 보장하지 않는다.
-- 순서/상한: 장면 적용 → 지정 engine frame 대기 → 비동기 획득 → worker encode/write → label 완료 marker → manifest 교체 → 다음 장면. 한 session의 장면/저장 작업은1개, Camera≤1920×1080·LiDAR≤25만 반환점·입력 메모리 추정≤256MiB다. 완료 장면 경계의 일시 중지/재개는 현재 PIE 내에서만 유지한다. 프로세스 재시작 후 디스크 resume는 구현하지 않았다.
+| 파일 | 스키마·단위·인코딩 |
+|---|---|
+| `Saved/Datasets/<이름>_<UTC시각>_<충돌방지ID>/dataset.json` | `ma0t10.dataset.v1`: seed, requested/completed_scenes, settle_frames, camera_truth/lidar_fidelity, enabled/min/max 범위 표와 range_order, 프로젝트 commit SHA, map, class/instance 표. 마지막 확정 장면 수만 원자 교체한다. |
+| `scene_XXXXX/lidar.pcd` | 기존 immutable PCD0.7 binary writer·33-byte little-endian 레코드. 센서 로컬 RH meter(X전방/Y좌측/Z위쪽), 기존 MA0T10_META acquisition transform. 송신 wire에 라벨 필드를 추가하지 않는다. |
+| `lidar_labels.bin` | PCD 검출점 순서의5-byte little-endian `uint8 semantic_id, uint32 instance_id`, padding/헤더 없음. 파일 크기/5 = PCD POINTS. 표준 PCD 레이아웃을 유지하며 라벨만 분리해 읽기 위한 선택이다. |
+| `rgb.png` | 선택 Camera RGB target의8-bit 무손실 PNG. |
+| `depth.exr`, `seg.png`, `instance.png` | Camera GT 포함 선택 시에만 생성. float32 광학축 Z meter(0 invalid), uint8 class ID, ID=`R+256G+65536B`. GT off에서는 이 세 파일과 내부 depth/semantic readback을 생략한다. |
+| `label.json` | `ma0t10.dataset.scene.v1`: scene_index/seed, 실제 Slab pose·크기·표면, immutable sensor pose, Camera K/해상도, LiDAR 샘플 수/FOV/수직각/range/주기·profile/calibration/backend, 선택 조명 pose/lux, random_values 객체, request_engine_frame, 독립 acquisition frame ID/UTC, PCA yaw valid/angle/점 수 및 관찰용 memory/pump 값. 장면 완료 marker로 마지막에 쓴다. |
 
-랜덤 채널은 seed+장면 번호로 독립 계산해 다른 옵션을 켜도 기존 채널을 이동시키지 않는다. 기본 범위는 Slab yaw±10°/pitch·roll±3°, 위치 X/Y±20cm·Z±5cm, 크기0.9–1.1배, 표면0–4, roughness0.2–0.9/oxidation0–1, 조명1000–10000lux·pitch−70~−20°·yaw±180°, 센서 각 축 위치±1cm·각도±0.2°다. **현재 증명은 순수 랜덤 값 재현성뿐**이며 교차 실행의 실제 라벨·픽셀 동일성은 미검증이다. UTC/frame/performance 관찰값은 seed로 고정되는 값이 아니다.
+pose는 UE world meter(X전방/Y우측/Z위쪽), quaternion xyzw와 pitch/yaw/roll degree다. Camera optical은 x우측/y아래/z전방이며 이상적 pinhole·zero distortion과 CAM-GT-01의 opaque static geometry 제한을 따른다. class0=미지원/미분류, 1=Other, 2=Slab, 3=Roller, 4=Conveyor, 5=Floor, 6=Sensor. instance0=대응 없음. 시작 시 Actor 이름을 정렬한 session ID를 PCD 점과 Camera mask에 함께 대응시킨다. ISM/HISM은 Actor 단위이며 전역 영구 ID가 아니다. 개별 LiDAR의 사용자 semantic override가 canonical 표에 없는 경우 class0로 남는다.
 
-채점: `python Tools/DatasetTools/score_dataset.py <데이터셋 폴더> --output <보고서.json>`. 기존 분석의 world-XY 주축 yaw만 비교하며180° 주기 절대 오차의 평균·p95(선형 보간)·최대를 계산한다. 분석 invalid 장면은 별도 목록/개수로 남긴다. `python -m unittest discover -s Tools/DatasetTools -v`로 경계각·p95·잘못된 PCD/라벨·invalid 집계를 검사한다. KITTI/COCO·ROS bag·대량 headless 변환/실행은2단계 제안이다. 현재 실패·실행 조건은 `Saved/Reports/DATASET-01/RESULT.md`를 따른다.
+랜덤 기본 범위(각 항목 별도 off): yaw±10°/pitch·roll±3°, Slab world X/Y±20cm·Z±5cm, 크기0.9–1.1배, 표면0–4, roughness0.2–0.9/oxidation0–1, 조명1000–10000lux·pitch−70~−20°·yaw±180°, 센서 각 축 위치±1cm·각도±0.2°. 크기는 현재 mesh bounds의 균일 배율이다. 표면0은 세션 시작 시 실제 표면 값을 기준으로 하며 pause/resume 뒤에도 같은 결과다. seed+장면 번호의 독립 채널을 사용해 다른 옵션을 켜도 기존 채널을 이동시키지 않는다. 재현성은 같은 초기 장면·설정의 정답/랜덤 값에 적용하며 UTC·frame ID·성능 관찰값이나 임의 동적 배경/RGB byte 동일성을 뜻하지 않는다.
+
+순서: 장면 적용 → 지정 engine frame 안정화 → 같은 게임 프레임의 두 센서 요청 → immutable 획득 → worker encode/write → 완료 marker/manifest → 다음 장면. CPU LiDAR chunk는 여러 engine frame에 걸쳐도 장면을 고정하고 acquisition snapshot을 보존한다. 하드웨어 동시 timestamp를 주장하지 않는다. 장면/저장 작업1개, Camera≤1920×1080·LiDAR≤25만 잠재 반환점·입력 추정≤256MiB로 admission을 제한한다. 같은 크기의 readback은 재사용한다. pause는 완료 장면 경계에서 원상 복원하고 같은 PIE에서 재개한다. 프로세스 재시작 후 디스크 resume는2단계다. 종료·중단은 새 작업을 멈추고 부분 파일을 제거하며 다른 작업이 바꾼 상태를 덮지 않는다. 화면 숨김/장비 선택은 진행 중인 생성을 중단하지 않는다.
+
+채점: `python Tools/DatasetTools/score_dataset.py <데이터셋 폴더> --output <보고서.json>`. 기존 world-XY PCA 주축 yaw를180° 주기로 비교하고 평균·p95(선형 보간)·최대를 계산한다. invalid 분석은 별도 집계한다. `python -m unittest discover -s Tools/DatasetTools -v`로 도구를 검사한다. 실제 검증 조건·성능·메모리·수용 제한은 `Saved/Reports/DATASET-01/RESULT.md`에 기록한다. KITTI/COCO·ROS bag·대량 headless는2단계 제안이며 구현하지 않았다.
 
 ## 11. 검증
 

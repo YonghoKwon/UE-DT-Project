@@ -49,13 +49,20 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **완료 조건:** 동일 소스/DTCore에서 intrinsics/known-plane depth/분류 일치/instance/bbox/default-off 및 수명 회귀, 저장 파일 무손실 decode, 관련 실제 RHI 회귀·golden·quick·layer0·WBP 메모리 컴파일, 1920×1080 직접 RGB/Depth/Seg/Instance와 저장 확인, `verify.ps1 -Level perf -BaseCommit 827bae6` 기본 꺼짐 2% gate 및 opt-in GPU/GT/readback 비용 보고. 원본은 `Saved/Reports/CAM-GT-01/RESULT.md`.
 - **제한/후속:** 기본 원근 카메라·불투명 static geometry 분류, 개별 LiDAR override 자동 공유 없음, ID는 카메라 실행 범위, ISM은 Actor 단위다. 2단계는 새 topic/schemaVersion 서버 송신·ROS2 Image/CameraInfo·3D bbox를 별도 요청으로 설계한다. 이번 작업은 DTCore/센서 플러그인/운영맵/신규 자산을 변경하지 않는다.
 
+## GPU-CRASH-01 — 일반 GPU/Camera GT 동시 캡처 안정화 (11번)
+
+- **출처:** 사용자 2026-10-15 DATASET-01 재개 승인. 데이터셋이 없는 분리 시험에서 LiDAR·Camera GT 단독과 일반 설정 변경은 각각100회 통과했으나 동시 캡처가 충돌했다.
+- **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
+- **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
+
 ## DATASET-01 — 학습용 데이터셋 자동 생성 1단계
 
-- **출처:** 사용자 2026-10-15. `feat/dataset-gen`, 기준 `f499d57`, DTCore `b2504d1` 고정. Slab·표면·조명·설치 오차 랜덤화, 장면별 PCD/RGB/선택 Camera GT·정답, 기존 각도 분석 채점 및 소유 데이터 화면을 요청했다. 기본 PCD 송신·wire를 유지하며 모든 데이터셋 동작은 기본 꺼짐이다.
-- **진행률: 50% — 초안, 기술 차단으로 중단.** Editor Development 빌드·seed/range 집중 검사·Python 4개 단위 테스트의 근거가 있다. 초기 CPU 초안은 100장면·291681점·일시 중지/재개·파일 정합성 검사를 수행했다. yaw 오차 평균0.4171°/p95 1.2230°/최대2.2329°는 그 초안의 단일 fixture 결과다. 범용 센서 설정 API가 backend를 재선택해 CPU가 된 사실을 확인했으며, backend 보존 transaction을 추가한 뒤 GPU 반복 생성에서 D3D12 RHI thread 충돌이 2회 발생했다(표면 랜덤화 off에서도 재현). 원인은 미확정이다. 이 결과를 GPU 또는 최종 구현의 통과로 세지 않는다.
-- **차단:** GPU 반복 one-shot과 Camera GT 병행 시의 RHI/resource 수명을 진단해야 한다. CPU로 강제 전환하거나 표면/GT 기능을 제외해 완료 처리하지 않는다. 런타임/UI 초안은 미커밋 상태이며 실행 수용 대상이 아니다. release 전체·Game build·WBP·기본 꺼짐 perf 2%·100장면 최종 채점·교차 실행 라벨 재현성·직접 UI는 미수행이다. 상세 실패 로그·초안 스키마·한계는 `Saved/Reports/DATASET-01/RESULT.md`를 따른다.
-- **완료 조건:** 요청된 랜덤화·capture/label 정합·bounded queue·취소/재개·실제 50–100장면 hitch/메모리/용량, 표준 PCD 파싱·채점100장면, release/golden/quick/layer0/WBP, 기본 꺼짐 `verify.ps1 -Level perf -BaseCommit f499d57`, 1920×1080 직접 화면을 구분하여 보고한다. 스키마는 아래 README 초안이며 최종 검증 후 확정한다.
-- **2단계 제안:** KITTI/COCO 변환, ROS bag, 7번 실행 자동화와 연결한 대량 headless 실행. 이번 변경에서 구현하지 않는다. 센서 플러그인·DTCore·운영맵·신규 자산 변경은 승인하지 않는다.
+- **출처:** 사용자 2026-10-15. `feat/dataset-gen`, 기준 `f499d57`, DTCore `b2504d1` 고정. 이 기능의 화면 opt-in 범위에서만 IO-01 보류를 해제하며 기본 PCD 송신·wire·정책은 유지한다.
+- **진행률: 90% — 구현·자동 검증 완료, 직접 조작 환경 보류.** 독립 seed/장면 랜덤화, 실제 Actor/immutable acquisition 라벨, 기존 PCD+CAM-GT 재사용, 단일 장면 비동기 writer와 native owned 데이터 영역을 구현했다. 기존 GPU 동시 캡처 버그는 GPU-CRASH-01로 분리 수정했다. CPU 강제 전환은 사용하지 않는다.
+- **집중 검증:** D455 FullSpec1280×720 + ML-X Native576×56 GPU100장면 반복, pause/resume, 실제 Actor truth 일치, 같은 seed의 정답 재현, 정확히 장면당 LiDAR1회, GT-off 파일/내부 readback0, 캡처/저장 중 취소·상한·원상 복원 및 Python PCD 파싱/채점. 수행별 SHA·성능/용량·메모리 cache/retained 구분은 RESULT에 기록한다.
+- **통합 결과:** Runtime `d6c41f2`, Editor/Game Development·release14단계·고유 전체278 Success/skip30/실패·NotRun0·실제 WireGolden·quick8/layer0·WBP7 memory compile 통과. 표시형1920×1080/1+1/10+30초 ABAB×3(12샘플 모두유효)의 기본 꺼짐 FPS +0.00061%·engine p95 동일·game thread −0.0761%로2% gate 통과. Native100장면2,013,729점·라벨 일치, yaw 평균0.1155°/p950.3048°/최대0.5638°, 약0.44초/장면·1.544MiB/장면. LLM 거리장42.06–42.09MiB·UObject/mesh 유지·staging GT3/LiDAR2로 고정. 초기61ms callback wall peak를 포함해 성능 한계를 기록했다. 직접 Computer Use는0x80070057로 초기+재시도2회 실패하여 입력0·보안 팝업 미조작이며, 자동 진행 화면을 직접 수용으로 세지 않는다. 보호553파일hash 불변·개인240파일 복원, 시험 데이터는샘플8장면/7.99MB만 남겼다. 상세 원본은 RESULT.
+- **계약·한계:** README 스키마를 따른다. 선택 센서/시나리오를 중지한 뒤 명시적으로 시작하며 같은 안정화 장면의 두 요청을 같은 engine frame에 시작한다. UTC/FrameId와 RGB bit 동일성을 seed로 고정하지 않는다. Camera GT의 geometry 제한·Actor 단위 ID, 균일 크기 배율, 같은 PIE 안의 resume를 유지한다. 켜짐 비용과 초기 자원 준비 peak는 숨기지 않는다.
+- **2단계 제안:** KITTI/COCO 변환, ROS bag, 7번 실행 자동화와 연계한 대량 headless/디스크 resume. DTCore·플러그인·새 자산·운영맵 저장은 변경하지 않는다.
 
 ## LIDAR-FID-01 — LiDAR 사실성 1단계
 
