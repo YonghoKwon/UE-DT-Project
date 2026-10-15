@@ -1,3 +1,4 @@
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "VirtualCameraCaptureComponent.h"
 #include "Async/Async.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -121,7 +122,7 @@ void UVirtualCameraCaptureComponent::QueueLocalFileReadback()
 	State->Frame.SlabContext=LastFileSlabContext;
 	State->Readback=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("SensorLocalFileReadback"));
 	const auto Copy=State->Readback;
-	ENQUEUE_RENDER_COMMAND(SensorLocalFileCopy)([Copy,Texture](FRHICommandListImmediate& R){Copy->EnqueueCopy(R,Texture);});
+	ENQUEUE_RENDER_COMMAND(SensorLocalFileCopy)([Copy,Texture](FRHICommandListImmediate& R){VirtualSensorTextureReadback::Enqueue(R,*Copy,Texture);});
 }
 void UVirtualCameraCaptureComponent::PollLocalFileFrame()
 {

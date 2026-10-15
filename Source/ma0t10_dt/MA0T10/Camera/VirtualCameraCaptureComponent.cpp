@@ -1,3 +1,4 @@
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 // VirtualCameraCaptureComponent.cpp
 #include "VirtualCameraCaptureComponent.h"
 #include "VirtualCameraGroundTruth.h"
@@ -351,7 +352,7 @@ bool UVirtualCameraCaptureComponent::QueueScheduledGpuReadback(int64 CapturedFra
 	const TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> Readback = Slot.Readback;
 	ENQUEUE_RENDER_COMMAND(VirtualCameraScheduledReadback)([Readback, Texture](FRHICommandListImmediate& RHICmdList)
 	{
-		if (Readback.IsValid() && Texture.IsValid()) Readback->EnqueueCopy(RHICmdList, Texture);
+		if (Readback.IsValid() && Texture.IsValid()) VirtualSensorTextureReadback::Enqueue(RHICmdList,*Readback,Texture);
 	});
 	Slot.bInFlight = true;
 	RuntimeStatus.bAcquisitionInFlight = true;

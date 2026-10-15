@@ -1,3 +1,4 @@
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "VirtualCameraGroundTruth.h"
 #include "VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
@@ -157,7 +158,7 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
         const auto D=DepthResource->GetRenderTargetTexture(), S=SemanticResource->GetRenderTargetTexture();
         if(D.IsValid()&&S.IsValid())
         {
-            State->Depth->EnqueueCopy(Cmd,D);State->Semantic->EnqueueCopy(Cmd,S);
+            VirtualSensorTextureReadback::Enqueue(Cmd,*State->Depth,D);VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,S);
             State->CopiesQueued.store(true,std::memory_order_release);
         }
     });

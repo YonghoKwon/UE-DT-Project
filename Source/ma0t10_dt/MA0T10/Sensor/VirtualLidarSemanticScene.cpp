@@ -123,6 +123,13 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
             }
             if (bInstancesChanged) Proxy->MarkRenderStateDirty();
         }
+        // UE 5.3 caches mesh draw bindings in these isolated preview scenes.
+        // With two semantic scenes captured concurrently the cached bindings can
+        // retain a frame-scoped uniform buffer (RHI validation reports a previous
+        // frame / null contents, then D3D12 dereferences it). Rebuild only our
+        // proxy render state before capture; source components and global cached
+        // draw-command settings remain untouched. UObject/MID/geometry are reused.
+        Entry.Mesh->MarkRenderStateDirty();
         FVirtualLidarGpuSemanticIdentity Identity;
         Identity.Label = Resolve(Source);
         if (bCaptureFidelity)
