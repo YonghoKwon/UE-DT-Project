@@ -99,6 +99,12 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
             Entry.Mesh->SetMobility(EComponentMobility::Movable);
             Entry.Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             Entry.Mesh->SetCastShadow(false);
+            // Identity proxies never contribute to lighting or ray tracing.
+            // Otherwise render-state refresh also churns private-scene distance
+            // field buffers despite the unlit capture (visible in LLM DistanceFields).
+            Entry.Mesh->bAffectDistanceFieldLighting=false;
+            Entry.Mesh->bAffectDynamicIndirectLighting=false;
+            Entry.Mesh->SetVisibleInRayTracing(false);
             Entry.Mesh->SetStaticMesh(Source->GetStaticMesh());
             auto* MID = UMaterialInstanceDynamic::Create(Material, Entry.Mesh);
             MID->SetVectorParameterValue(TEXT("SemanticId"), FLinearColor(float(Entry.Id), 0, 0, 1));
