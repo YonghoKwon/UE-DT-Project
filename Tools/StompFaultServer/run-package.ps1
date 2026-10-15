@@ -2,7 +2,7 @@ param([ValidateSet('Development','Shipping')][string]$Configuration='Development
     [ValidateSet('Fake','Artemis')][string]$Broker='Fake',[switch]$EditorPie,[switch]$LegacyPolling,[switch]$WorktreeMap,
     [ValidateSet('Pressure','Limited','Healthy')][string]$Case='Pressure',
     [int]$Seconds=90,[double]$Interval=.05,[switch]$SwitchIntervals,[switch]$RequireData,[switch]$Preview,[switch]$LegacyAdmission,[switch]$RequireNoHitch,[switch]$AcceptRateControl,[switch]$KeepDevices,[switch]$LegacyJson,
-    [int]$SendBufferBytes=65536,[int]$CpuMask=0,[string]$ReportDirectory='',[string[]]$ServerOptions=@())
+    [int]$SendBufferBytes=65536,[int]$CpuMask=0,[int]$ViewportX=1920,[int]$ViewportY=1080,[string]$ReportDirectory='',[string[]]$ServerOptions=@())
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if(!$ReportDirectory){$ReportDirectory=Join-Path $root ('Saved/Reports/PCD-OPT/phase2/'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')+'-'+$Configuration+'-'+$Case)}
@@ -15,7 +15,7 @@ if($EditorPie){$package=$root;$exe='C:/Program Files/Epic Games/UE_5.3/Engine/Bi
 if(!(Test-Path -LiteralPath $exe)){throw "Instrumented package is not staged: $Configuration"}
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue | Where-Object {!$_.HasExited}){throw 'Close Editor before packaged hitch measurement'}
 if($Broker -eq 'Fake' -and (Get-NetTCPConnection -LocalPort 61618 -State Listen -ErrorAction SilentlyContinue)){throw 'Local fault port already owned'}
-$saved=@{};foreach($v in @('MA0T10_ARTEMIS_URL','MA0T10_ARTEMIS_USER','MA0T10_ARTEMIS_PASSWORD','MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE')){$saved[$v]=[Environment]::GetEnvironmentVariable($v)}
+$saved=@{};foreach($v in @('MA0T10_ARTEMIS_URL','MA0T10_ARTEMIS_USER','MA0T10_ARTEMIS_PASSWORD','MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE','MA0T10_ACCEPTANCE_RES_X','MA0T10_ACCEPTANCE_RES_Y')){$saved[$v]=[Environment]::GetEnvironmentVariable($v)}
 $server=$null;$game=$null
 try {
     if(!$ServerOptions.Count){$ServerOptions=switch($Case){
@@ -34,7 +34,8 @@ try {
         $env:MA0T10_ARTEMIS_URL='ws://127.0.0.1:61618';$env:MA0T10_ARTEMIS_USER='local-probe';$env:MA0T10_ARTEMIS_PASSWORD=[Guid]::NewGuid().ToString('N')
     }
     $env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE='1'
-    $probeArguments=@('/Game/MA0T10/Maps/SensorTestMap','-d3d12','-windowed','-ResX=1920','-ResY=1080','-ForceRes','-NoVSync','-nosound','-unattended','-nosplash','-log',
+    $env:MA0T10_ACCEPTANCE_RES_X="$ViewportX";$env:MA0T10_ACCEPTANCE_RES_Y="$ViewportY"
+    $probeArguments=@('/Game/MA0T10/Maps/SensorTestMap','-d3d12','-windowed',"-ResX=$ViewportX","-ResY=$ViewportY",'-ForceRes','-NoVSync','-nosound','-unattended','-nosplash','-log',
         ('-PcdOptReport="'+$ReportDirectory+'"'),"-PcdOptSeconds=$Seconds",('-PcdOptInterval='+$Interval.ToString([Globalization.CultureInfo]::InvariantCulture)),"-SensorTransportSendBufferBytes=$SendBufferBytes",
         ('-UserDir="'+$ReportDirectory+'/user/"'),('-abslog="'+$ReportDirectory+'/game.log"'))
     if($SwitchIntervals){$probeArguments+='-PcdOptSwitch'};if($RequireData){$probeArguments+='-PcdOptRequired'}
@@ -73,6 +74,7 @@ try {
     if(!(Test-Path "$ReportDirectory/result.json")){throw 'No packaged probe result; inspect game.log'}
     $result=Get-Content "$ReportDirectory/result.json" -Raw -Encoding utf8 | ConvertFrom-Json
     if(!$result.valid){throw "Packaged fixture failed: $($result.reason)"}
+    if($EditorPie -and ($result.actualViewportX -ne $ViewportX -or $result.actualViewportY -ne $ViewportY)){throw 'Actual PIE viewport differs from requested size'}
     if($RequireNoHitch -and $result.hitchesOver150ms -ne 0){throw 'Game-thread hitch acceptance failed; inspect hitches.csv'}
     if($AcceptRateControl -and ($result.overloads -ne 0 -or $result.suspensions -ne 0 -or $result.maxReceiptGapSeconds -gt 1)){throw 'Adaptive admission acceptance failed: overload/suspension or receipt gap >1s'}
     if($AcceptRateControl -and $Interval -ge .06 -and $result.rateControlSkipped -ne 0){throw 'Spare capacity must not omit any frame'}

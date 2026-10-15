@@ -135,6 +135,14 @@ the eight raw-worker/recovery cases. Adaptive PCD omissions are recorded as
 explicit output failures for Slab reliability; accepted FIFO frames and all
 wire bytes remain unchanged.
 
+The Editor harness passes `MA0T10_ACCEPTANCE_RES_X/Y` to the PIE session and
+checks the actual viewport in `result.json`; the default is 1920x1080.
+`-ViewportX/-ViewportY` select another controlled size. Reports also record the
+owned UI font scale. Earlier PCD-OPT probe runs that only passed `-ResX/-ResY`
+used the PIE helper's 1280x720 default; those results remain useful for their
+same-size comparisons, and are labelled separately from the corrected 1080p
+acceptance runs.
+
 For field timing without changing actors, streams or scenario state, start
 Editor with `-PcdOptReport="<absolute report directory>" -PcdOptObserveExisting
 -PcdOptSeconds=300`, then start PIE normally. This opt-in mode records timing

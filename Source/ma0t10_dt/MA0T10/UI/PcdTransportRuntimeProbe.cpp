@@ -1,6 +1,9 @@
 #include "PcdTransportRuntimeProbe.h"
 #include "Tickable.h"
 #include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
+#include "VirtualSensorToolWorkspaceSubsystem.h"
 #include "EngineUtils.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
@@ -58,6 +61,12 @@ class FPcdRuntimeProbe final:public FTickableGameObject
         Json->SetNumberField(TEXT("switchesApplied"),Switches);Json->SetNumberField(TEXT("switchesRejected"),RejectedChanges);Json->SetNumberField(TEXT("suspensions"),Suspensions);Json->SetBoolField(TEXT("requiredData"),Required);
         Json->SetNumberField(TEXT("maxReceiptGapSeconds"),MaxReceiptGap);Json->SetNumberField(TEXT("durationSeconds"),Seconds);
         Json->SetNumberField(TEXT("rateControlSkipped"),RateSkips);Json->SetNumberField(TEXT("overloads"),Overloads);
+        if(World.IsValid())
+        {
+            if(const auto* View=World->GetGameViewport();View&&View->Viewport)
+            {const auto Size=View->Viewport->GetSizeXY();Json->SetNumberField(TEXT("actualViewportX"),Size.X);Json->SetNumberField(TEXT("actualViewportY"),Size.Y);}
+            if(const auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>())Json->SetNumberField(TEXT("ownedUiFontScale"),Workspace->GetOwnedPanelFontScale());
+        }
         Json->SetNumberField(TEXT("receiptHz"),FMath::Max<int64>(0,Receipts-ReceiptStart)/Seconds);Json->SetNumberField(TEXT("MBps"),FMath::Max<int64>(0,Bytes-ByteStart)/Seconds/1e6);
         Json->SetBoolField(TEXT("worldPointPreview"),Preview);
         Json->SetBoolField(TEXT("originalMapDevices"),KeepDevices);Json->SetBoolField(TEXT("legacyCompatibilityJson"),LegacyJson);
