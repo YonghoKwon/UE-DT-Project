@@ -593,7 +593,9 @@ pose는 UE world meter(X전방/Y우측/Z위쪽), quaternion xyzw와 pitch/yaw/ro
 
 ### AUTO-01 배치 실행과 로컬 제어 API — 기본 꺼짐
 
-사용자 재개 결정에 따라 **Python 실행기가 공식 종료 상태를 판정**한다. UE5.3 Windows의 graceful exit는 비0 코드를 보장하지 않는다. UE의 `RequestExitWithStatus(false, code)`와 teardown/config flush는 유지하며 Force/TerminateProcess는 쓰지 않는다. 이전 실패·수정 및 최종 검증 근거는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다.
+사용자 재개 결정에 따라 **Python 실행기가 공식 종료 상태를 판정**한다. UE5.3 Windows의 graceful exit는 비0 코드를 보장하지 않는다. UE의 `RequestExitWithStatus(false, code)`와 teardown/config flush는 유지하며 새 작업 실행 경로에서 Force/TerminateProcess는 쓰지 않는다. 이전 실패·수정 및 최종 검증 근거는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다.
+
+검증 Runtime `f6af018`: Editor/Game Development·Development 패키지의 GPU20장면+PCD30초(598submit/receipt)·Python12개·실행기/API/인증·release14단계(전체284실행/skip31/실패0)·실제 WireGolden·WBP7·어휘·layer0·기본 꺼짐 ABAB12샘플2% gate 통과. FPS−0.0252%·engine p95동일·GT+0.5897%. **설정의 API 토글/주소/배치 상태 직접 마우스 점검은 Windows Security 허용창으로 보류**이며 팝업 입력은0이다. 자동 검사로 직접 수용을 대체하지 않는다. 기존 UE 표준 자동화/perf의 Force 종료는 새 작업 실행기의 정상 teardown 증거와 별도로 RESULT에 기록했다. D3D12 offscreen의 초기 handled ensure22로그 줄, 기존 맵 PCA20장면 invalid 등 실제 제한은 RESULT를 따른다.
 
 사용자 2026-10-15 승인 범위다. 기존 모듈 L2 `Scenario/Automation`이 Coordinator·Actor 편집 API·Replay·Dataset·비동기 FileSave·PCD Publisher를 호출한다. DTCore `UDxApiSubsystem`은 HTTP 클라이언트, `UDxWebSocketSubsystem`은 STOMP 클라이언트라 수신 서버로 재사용할 수 없다. UE Sockets worker는 UObject를 읽지 않으며 명령은 게임 스레드에서 직렬 처리한다. DTCore·기본 PCD·wire·SaveGame·맵은 유지한다.
 
@@ -637,7 +639,7 @@ job은 UTF-8 JSON·최대256KiB·1~1000단계다. 상대 경로는 **job 폴더 
 
 API는 `-MA0T10Control` 또는 소유 **센서 설정 → 호환 → 외부 제어 API** 체크로 켠다. 기본 `http://127.0.0.1:8099`, 끄면 listener를 닫는다. 세션 토글·주소/실패·배치 진행은 기존 소유 설정 화면에서 최대5Hz로 갱신한다. 숨김/접힘 때 문자열 갱신을 멈추며 토글은 SaveGame에 저장하지 않는다. API를 꺼도 이미 접수한 작업은 계속 진행한다.
 
-선택적 `-MA0T10ControlConfig=C:/private/control.json`의 허용 키는 `port`(1024~65535 정수), `token`뿐이다. 예: `{"port":8099,"token":"<local secret>"}`. 토큰은 `MA0T10_AUTOMATION_TOKEN`으로도 지정하며 파일 token 키가 우선한다(ASCII33~126·최대256자). 토큰을 명령줄 값/로그/상태 응답/SaveGame에 넣지 않는다. 둘 다 비어 있으면 같은 PC의 프로세스가 인증 없이 접근한다. 외부 bind 주소 옵션·TLS·다중 사용자 권한 분리는 없다.
+선택적 `-MA0T10ControlConfig=C:/private/control.json`의 허용 키는 `port`(1024~65535 정수), `token`뿐이다. 예: `{"port":8099,"token":"<local-secret>"}`. 토큰은 `MA0T10_AUTOMATION_TOKEN`으로도 지정하며 파일 token 키가 우선한다(ASCII33~126·최대256자). 토큰을 명령줄 값/로그/상태 응답/SaveGame에 넣지 않는다. 둘 다 비어 있으면 같은 PC의 프로세스가 인증 없이 접근한다. 외부 bind 주소 옵션·TLS·다중 사용자 권한 분리는 없다.
 
 HTTP/1.1·JSON만 지원한다. Host는 정확한 `127.0.0.1:<port>`이며 Origin·chunked·pipelining·중복 헤더를 거부한다. 본문256KiB·헤더8KiB·수신2초·OS backlog16, 소켓1건씩 처리한다. Bearer 인증은 조회/변경 모두 적용한다.200은 즉시 완료,202는 접수,400은 형식,401은 인증,404는 경로,409는 충돌/대상/적용 실패,413/431은 크기,405는 메서드 오류다. 자동 재전송·영구 이력·CORS는 없다.
 
@@ -657,6 +659,8 @@ HTTP/1.1·JSON만 지원한다. Host는 정확한 `127.0.0.1:<port>`이며 Origi
 
 긴 작업은1개만 접수한다. 동일 operation_id의 terminal을 기다려야 한다. 배치 중 API 변경은409, 조회는 가능하다. 취소는 terminal 실패이며 하위 서비스의 drain 상태는 계속 조회한다. dataset ranges는 DATASET-01 단위/상한의 `yaw,pitch,roll,x,y,z,size,surface,roughness,oxidation,light_intensity,light_pitch,light_yaw,sensor_position,sensor_angle`에 `[min,max]`를 지정한다. 생략한 항목은 랜덤화하지 않는다.
 
+같은 파일을 다시 재생하면 동일한 immutable 보관본에서 새 RunUUID를 만든다. 같은 UUID의 내용이 다르면 덮어쓰지 않고 실패한다. API PCD 중 UI가 해당 스트림/센서 설정을 바꾸면 변경을 감지해 API 동작을 실패 종료하며 사용자 새 값을 과거 값으로 복원하지 않는다.
+
 ```powershell
 python Tools/AutomationClient/client.py status
 python Tools/AutomationClient/client.py sensors
@@ -669,7 +673,7 @@ python Tools/AutomationClient/client.py score C:/jobs/result.json --output C:/jo
 python -m unittest discover -s Tools/AutomationClient -v
 ```
 
-Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
+Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시·redirect를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
 
 ## 11. 검증
 
