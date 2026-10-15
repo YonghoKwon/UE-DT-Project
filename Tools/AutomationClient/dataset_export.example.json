@@ -1,0 +1,20 @@
+{
+  "schema": "ma0t10.job.v1",
+  "result_path": "dataset-export-result.json",
+  "timeout_sec": 600,
+  "steps": [
+    {
+      "op": "dataset.start",
+      "name": "training",
+      "slab": "SlabActor_0",
+      "lidar_id": "SLAB-LIDAR-001",
+      "camera_id": "VCAM-001",
+      "scenes": 20,
+      "seed": 22016,
+      "camera_truth": true,
+      "export_format": "coco,kitti",
+      "export_upright_envelope": true,
+      "timeout_sec": 540
+    }
+  ]
+}

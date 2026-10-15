@@ -48,7 +48,10 @@ bool ValidateCommand(const FJsonObject& C,FString& Error)
     {Allowed+=TEXT("|json_path|uuid|send_pcd|sensor_id");Valid&=String(C,TEXT("json_path"))&&String(C,TEXT("uuid"))&&Boolean(C,TEXT("send_pcd"))&&String(C,TEXT("sensor_id"));Valid&=C.HasField(TEXT("json_path"))!=C.HasField(TEXT("uuid"));bool Send=false;C.TryGetBoolField(TEXT("send_pcd"),Send);Valid&=!Send||String(C,TEXT("sensor_id"),true);}
     else if(Op==TEXT("dataset.start"))
     {
-        Allowed+=TEXT("|name|scenes|seed|settle_frames|camera_truth|lidar_fidelity|slab|lidar_id|camera_id|light|ranges");
+        Allowed+=TEXT("|name|scenes|seed|settle_frames|camera_truth|lidar_fidelity|slab|lidar_id|camera_id|light|ranges|export_format|export_upright_envelope");
+        Valid&=String(C,TEXT("export_format"))&&Boolean(C,TEXT("export_upright_envelope"));
+        FString Export;C.TryGetStringField(TEXT("export_format"),Export);
+        Valid&=!C.HasField(TEXT("export_format"))||Export==TEXT("none")||Export==TEXT("coco")||Export==TEXT("kitti")||Export==TEXT("coco,kitti");
         Valid&=String(C,TEXT("slab"),true)&&String(C,TEXT("lidar_id"),true)&&String(C,TEXT("camera_id"),true)&&String(C,TEXT("light"))&&String(C,TEXT("name"),true);
         FString Name;C.TryGetStringField(TEXT("name"),Name);for(TCHAR Ch:Name)Valid&=FChar::IsAlnum(Ch)||Ch==TEXT('_')||Ch==TEXT('-');Valid&=Name.Len()<=64;
         Valid&=C.HasField(TEXT("scenes"))&&Number(C,TEXT("scenes"),1,10000,true)&&Number(C,TEXT("seed"),MIN_int32,MAX_int32,true)&&Number(C,TEXT("settle_frames"),1,600,true)&&Boolean(C,TEXT("camera_truth"))&&Boolean(C,TEXT("lidar_fidelity"));

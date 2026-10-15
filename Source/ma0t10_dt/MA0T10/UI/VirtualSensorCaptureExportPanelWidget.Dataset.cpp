@@ -59,6 +59,13 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetCon
     Check(TEXT("데이터셋 생성 사용"),&DatasetDraft.Enabled);
     Check(TEXT("카메라 정답 포함"),&DatasetDraft.CameraTruth);
     Check(TEXT("LiDAR 사실성 포함"),&DatasetDraft.LidarFidelity);
+    auto ExportCaption=[this]()
+    {const FString Choice=DatasetDraft.ExportFormat==TEXT("none")?TEXT("없음"):DatasetDraft.ExportFormat==TEXT("coco")?TEXT("COCO"):DatasetDraft.ExportFormat==TEXT("kitti")?TEXT("KITTI 3D"):TEXT("COCO + KITTI 3D");return FText::FromString(TEXT("생성 후 내보내기 형식: ")+Choice);};
+    Column->AddSlot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton)
+        .IsEnabled_Lambda([Service](){auto* S=Service();return !S||!S->IsActive();})
+        .Text_Lambda(ExportCaption).ToolTipText(FText::FromString(TEXT("누를 때마다 없음 / COCO / KITTI 3D / 둘 다로 바뀝니다. 카메라 정답과 별도 Python 환경이 필요합니다. 원본은 유지합니다.")))
+        .OnClicked_Lambda([this](){const TArray<FString> Choices={TEXT("none"),TEXT("coco"),TEXT("kitti"),TEXT("coco,kitti")};DatasetDraft.ExportFormat=Choices[(Choices.IndexOfByKey(DatasetDraft.ExportFormat)+1)%Choices.Num()];RefreshDatasetPresentation();return FReply::Handled();})];
+    Check(TEXT("KITTI 기울어진 박스의 수직 포위 근사 허용"),&DatasetDraft.ExportUprightEnvelope);
     auto Field=[this,Column,Text,Service](const FString& Label,const FString& Value,TFunction<void(const FString&)> Apply)
     {Column->AddSlot().AutoHeight().Padding(0,4)[SNew(SHorizontalBox)
         +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[Text(Label)]

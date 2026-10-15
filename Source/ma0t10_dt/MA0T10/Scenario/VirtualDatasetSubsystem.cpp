@@ -31,7 +31,7 @@
 namespace
 {
 struct FDatasetWriteResult { FString Error,Commit;int64 Bytes=0;double Seconds=0; };
-enum class EDatasetPhase { Settle,Capture,Write,Paused,Draining,Done };
+enum class EDatasetPhase { Settle,Capture,Write,Paused,Draining,Export,Done };
 TArray<TSharedPtr<FJsonValue>> N(std::initializer_list<double> Values)
 {TArray<TSharedPtr<FJsonValue>> A;for(double V:Values)A.Add(MakeShared<FJsonValueNumber>(V));return A;}
 TSharedRef<FJsonObject> Pose(const FTransform& T)
@@ -61,7 +61,8 @@ struct FVirtualDatasetSession
     bool HotBefore=false;
     ESlabSurfacePreset SurfaceBefore=ESlabSurfacePreset::Default;
     bool LinkBefore=false,PauseRequested=false,Restored=false;
-    FString Root,Commit;
+    FString Root,Commit,ExportPython,ExportScript;
+    bool ExportSucceeded=false;
     int32 Completed=0,Frames=0,NoiseSeedBefore=0;
     int32 LidarRevision=0,CameraRevision=0;
     uint64 LastFrame=0,CaptureRequestFrame=0;
@@ -86,6 +87,8 @@ bool UVirtualDatasetSubsystem::IsPaused() const{return Session&&Session->Phase==
 int32 UVirtualDatasetSubsystem::CompletedScenes() const{return Session?Session->Completed:0;}
 int32 UVirtualDatasetSubsystem::RequestedScenes() const{return Session?Session->Settings.Scenes:0;}
 FString UVirtualDatasetSubsystem::Directory() const{return Session?Session->Root:FString();}
+FString UVirtualDatasetSubsystem::ExportDirectory() const{return Session&&Session->Settings.ExportFormat!=TEXT("none")?Session->Root+TEXT("_export"):FString();}
+bool UVirtualDatasetSubsystem::HasSucceeded() const{return Session&&Session->Phase==EDatasetPhase::Done&&!Session->Cancelled->load()&&Session->Completed==Session->Settings.Scenes&&(Session->Settings.ExportFormat==TEXT("none")||Session->ExportSucceeded);}
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 bool UVirtualDatasetSubsystem::HasTruthResourcesForTests() const{return Truth&&Truth->HasTruthResourcesForTests();}
 bool UVirtualDatasetSubsystem::IsCapturingForTests() const{return Session&&Session->Phase==EDatasetPhase::Capture;}
@@ -97,6 +100,14 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
 {
     if(IsActive()){Error=TEXT("진행 중인 데이터셋을 먼저 마치세요");return false;}
     if(!Settings.Validate(Error))return false;
+    FString ExportPython,ExportScript;
+    if(Settings.ExportFormat!=TEXT("none"))
+    {
+        ExportPython=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_DATASET_PYTHON"));
+        ExportScript=FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()/TEXT("Tools/DatasetTools/export_dataset.py"));
+        if(FPaths::IsRelative(ExportPython)||!FPaths::FileExists(ExportPython)||!FPaths::FileExists(ExportScript))
+        {Error=TEXT("내보내기 Python 환경이 필요합니다 · Tools/DatasetTools/README.md의 설치 및 MA0T10_DATASET_PYTHON 경로를 확인하세요");return false;}
+    }
     if(!IsValid(Slab)||!Slab->SlabMesh||!IsValid(Lidar)||!Lidar->ScanComponent||!IsValid(Camera)||!Camera->CaptureComponent||Slab->GetWorld()!=GetWorld()||Lidar->GetWorld()!=GetWorld()||Camera->GetWorld()!=GetWorld())
     {Error=TEXT("같은 월드의 Slab·LiDAR·Camera를 명시적으로 선택하세요");return false;}
     if(Slab->IsSimulationActive()||Lidar->IsSensorRunning()||Camera->IsSensorRunning()||!Lidar->CanEditSensorConfiguration(Error)||!Camera->CanEditSensorConfiguration(Error)||!Lidar->CanEditSensorPlacement(Error)||!Camera->CanEditSensorPlacement(Error))
@@ -112,6 +123,7 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
     if(Pixels<=0||Pixels>1920ll*1080||Points<=0||Points>250000||Pixels*64+Points*512>256ll*1024*1024)
     {Error=TEXT("1장면 메모리 한도: Camera 1920×1080 이하·LiDAR 25만 반환점 이하·256MiB 추정 이하");return false;}
     auto S=MakeShared<FVirtualDatasetSession,ESPMode::ThreadSafe>();S->Settings=Settings;S->Slab=Slab;S->Lidar=Lidar;S->Camera=Camera;S->Light=UsesLight?Light:nullptr;
+    S->ExportPython=ExportPython;S->ExportScript=ExportScript;
     if(!Lidar->ReadEditableState(S->LidarBefore)||!Camera->ReadEditableState(S->CameraBefore)){Error=TEXT("센서 설정을 읽을 수 없습니다");return false;}
     S->SlabBefore=Slab->GetActorTransform();S->MeshScaleBefore=Slab->SlabMesh->GetRelativeScale3D();S->SizeBefore=S->MeshScaleBefore*(Slab->SlabMesh->GetStaticMesh()?Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.:FVector::ZeroVector);
     S->SurfaceBefore=Slab->GetSurfacePreset();S->LinkBefore=Slab->IsSurfaceLidarLinked();S->RoughBefore=Slab->Roughness;S->OxBefore=Slab->Oxidation;S->HotBefore=Slab->bHotAppearance;S->EmissiveBefore=Slab->EmissiveStrength;
@@ -122,6 +134,8 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
     Actors.Sort([](const AActor& A,const AActor& B){return A.GetName()<B.GetName();});
     uint32 Id=1;for(const auto* A:Actors){S->ActorNames.Add(A->GetFName(),Id);S->ActorPaths.Add(A->GetPathName(),Id++);}
     S->Conditions->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.v1"));S->Conditions->SetNumberField(TEXT("seed"),Settings.Seed);S->Conditions->SetNumberField(TEXT("requested_scenes"),Settings.Scenes);
+    S->Conditions->SetNumberField(TEXT("schema_minor"),1);
+    S->Conditions->SetStringField(TEXT("export_format"),Settings.ExportFormat);S->Conditions->SetBoolField(TEXT("export_upright_envelope"),Settings.ExportUprightEnvelope);
     S->Conditions->SetNumberField(TEXT("settle_frames"),Settings.SettleFrames);S->Conditions->SetBoolField(TEXT("camera_truth"),Settings.CameraTruth);S->Conditions->SetBoolField(TEXT("lidar_fidelity"),Settings.LidarFidelity);
     int32 Index=0;for(const auto* R:{&Settings.Yaw,&Settings.Pitch,&Settings.Roll,&Settings.X,&Settings.Y,&Settings.Z,&Settings.Size,&Settings.Surface,&Settings.Roughness,&Settings.Oxidation,&Settings.LightIntensity,&Settings.LightPitch,&Settings.LightYaw,&Settings.SensorPosition,&Settings.SensorAngle})
     {auto O=MakeShared<FJsonObject>();O->SetBoolField(TEXT("enabled"),R->Enabled);O->SetNumberField(TEXT("min"),R->Min);O->SetNumberField(TEXT("max"),R->Max);S->Conditions->SetObjectField(LexToString(Index++),O);}
@@ -172,6 +186,17 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
         S->LightApplied=Light->GetActorTransform();S->LightAppliedIntensity=Light->GetLightComponent()->Intensity;
     }
     S->Label=MakeShared<FJsonObject>();S->Label->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.scene.v1"));S->Label->SetNumberField(TEXT("scene_index"),S->Completed);S->Label->SetNumberField(TEXT("seed"),S->Settings.Seed);
+    S->Label->SetNumberField(TEXT("schema_minor"),1);
+    // Selected Slab's actual mesh OBB, including pivot/relative transform and full rotation.
+    // No hidden-world scan, diagnostic helper bounds or PCA estimate is used as truth.
+    const auto MeshTransform=Slab->SlabMesh->GetComponentTransform();const auto MeshBounds=Slab->SlabMesh->GetStaticMesh()->GetBounds();
+    const FVector Center=MeshTransform.TransformPosition(MeshBounds.Origin)*.01;
+    const FVector BoxSize=MeshTransform.GetScale3D().GetAbs()*MeshBounds.BoxExtent*2.*.01;const auto BoxRotation=MeshTransform.GetRotation();
+    auto Box=MakeShared<FJsonObject>();Box->SetNumberField(TEXT("instance_id"),S->ActorNames.FindRef(Slab->GetFName()));Box->SetNumberField(TEXT("semantic_id"),2);
+    Box->SetStringField(TEXT("coordinates"),TEXT("UE world meters; local XYZ dimensions; quaternion_xyzw"));
+    Box->SetArrayField(TEXT("center_m"),N({Center.X,Center.Y,Center.Z}));Box->SetArrayField(TEXT("size_m"),N({BoxSize.X,BoxSize.Y,BoxSize.Z}));
+    Box->SetArrayField(TEXT("quaternion_xyzw"),N({BoxRotation.X,BoxRotation.Y,BoxRotation.Z,BoxRotation.W}));Box->SetNumberField(TEXT("yaw_deg"),BoxRotation.Rotator().Yaw);
+    S->Label->SetArrayField(TEXT("boxes_3d"),{MakeShared<FJsonValueObject>(Box)});
     S->Label->SetObjectField(TEXT("slab_pose"),Pose(Slab->GetActorTransform()));const FVector Size=Slab->SlabMesh->GetComponentScale()*(Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.)*.01;
     S->Label->SetArrayField(TEXT("slab_size_m"),N({Size.X,Size.Y,Size.Z}));S->Label->SetStringField(TEXT("surface_preset"),ASlabActor::SurfacePresetId(Slab->GetSurfacePreset()));
     S->Label->SetNumberField(TEXT("roughness"),Slab->Roughness);S->Label->SetNumberField(TEXT("oxidation"),Slab->Oxidation);TSharedPtr<FJsonObject> Random;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V.ToJson()),Random);S->Label->SetObjectField(TEXT("random_values"),Random);
@@ -190,6 +215,13 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
 void UVirtualDatasetSubsystem::Pump()
 {
     auto S=Session;if(!S)return;const double Begin=FPlatformTime::Seconds();
+    if(S->Phase==EDatasetPhase::Export)
+    {
+        if(!S->Write.IsReady())return;
+        const auto Result=S->Write.Get();S->Write=TFuture<FDatasetWriteResult>();S->ExportSucceeded=Result.Error.IsEmpty()&&!S->Cancelled->load();
+        Message=S->ExportSucceeded?TEXT("데이터셋·표준 형식 내보내기 완료 · ")+ExportDirectory():TEXT("원본 데이터셋 보존 · ")+Result.Error;
+        S->Phase=EDatasetPhase::Done;GetWorld()->GetTimerManager().ClearTimer(Timer);++Revision;return;
+    }
     if(S->Phase==EDatasetPhase::Write||S->Phase==EDatasetPhase::Draining)
     {
         if(!S->Write.IsValid()||!S->Write.IsReady())return;
@@ -198,7 +230,8 @@ void UVirtualDatasetSubsystem::Pump()
         if(!Result.Error.IsEmpty()){Message=Result.Error;Stop();return;}
         ++S->Completed;S->TotalBytes+=Result.Bytes;S->LidarFrame.Reset();Truth->LastFrame.Reset();++Revision;
         Message=FString::Printf(TEXT("%d / %d 장면 · %.2f초/장면 · %.2f MiB/장면 · %s"),S->Completed,S->Settings.Scenes,Result.Seconds,Result.Bytes/1048576.,*S->Root);
-        if(S->Completed>=S->Settings.Scenes){Restore();S->Phase=EDatasetPhase::Done;GetWorld()->GetTimerManager().ClearTimer(Timer);return;}
+        if(S->Completed>=S->Settings.Scenes)
+        {Restore();if(S->Settings.ExportFormat!=TEXT("none")){StartExport();return;}S->Phase=EDatasetPhase::Done;GetWorld()->GetTimerManager().ClearTimer(Timer);return;}
         if(S->PauseRequested){Restore();S->Phase=EDatasetPhase::Paused;GetWorld()->GetTimerManager().ClearTimer(Timer);return;}
         if(!TargetsCurrent()){Message=TEXT("대상 설정 변경으로 데이터셋을 중단합니다");Stop();return;}
         FString Error;if(!ApplyScene(Error)){Message=Error;Stop();}return;
@@ -225,6 +258,29 @@ void UVirtualDatasetSubsystem::Pump()
         if(S->LidarFrame&&Truth->LastFrame&&!Truth->IsBusy())WriteScene();
     }
     S->MaxPumpMs=FMath::Max(S->MaxPumpMs,(FPlatformTime::Seconds()-Begin)*1000.);
+}
+
+void UVirtualDatasetSubsystem::StartExport()
+{
+    auto S=Session;S->Phase=EDatasetPhase::Export;Message=TEXT("원본 생성 완료 · 표준 형식 내보내기 중");++Revision;
+    const FString Root=S->Root,Out=ExportDirectory(),Python=S->ExportPython,Script=S->ExportScript,Format=S->Settings.ExportFormat;
+    const bool Envelope=S->Settings.ExportUprightEnvelope;const auto Cancelled=S->Cancelled;
+    // The child owns conversion/validation. This worker only waits and forwards cancellation;
+    // UObject/scene/transport work never moves into it and the game thread never waits on Python.
+    S->Write=Async(EAsyncExecution::ThreadPool,[Root,Out,Python,Script,Format,Envelope,Cancelled]()
+    {
+        FDatasetWriteResult Result;const FString CancelFile=Out+TEXT(".cancel");
+        const FString Args=TEXT("\"")+Script+TEXT("\" \"")+Root+TEXT("\" \"")+Out+TEXT("\" --formats ")+Format+TEXT(" --cancel-file \"")+CancelFile+TEXT("\"")+(Envelope?TEXT(" --upright-envelope"):TEXT(""));
+        if(Cancelled->load()){Result.Error=TEXT("내보내기 중단");return Result;}
+        auto Process=FPlatformProcess::CreateProc(*Python,*Args,false,true,true,nullptr,0,nullptr,nullptr);
+        if(!Process.IsValid()){Result.Error=TEXT("내보내기 Python 시작 실패 · 설치 경로를 확인하세요");return Result;}
+        while(FPlatformProcess::IsProcRunning(Process))
+        {if(Cancelled->load())FFileHelper::SaveStringToFile(TEXT("cancel"),*CancelFile);FPlatformProcess::SleepNoStats(.05f);}
+        int32 Exit=-1;FPlatformProcess::GetProcReturnCode(Process,&Exit);FPlatformProcess::CloseProc(Process);IFileManager::Get().Delete(*CancelFile,false,true);
+        if(Cancelled->load())Result.Error=TEXT("내보내기 중단");
+        else if(Exit!=0||!FPaths::FileExists(Out/TEXT("export-report.json")))Result.Error=TEXT("내보내기 실패 · Python 의존성·3D 박스 기울기 정책 확인 후 CLI로 재시도하세요");
+        return Result;
+    });
 }
 bool UVirtualDatasetSubsystem::TargetsCurrent() const
 {
@@ -328,6 +384,6 @@ void UVirtualDatasetSubsystem::Pause(){if(IsActive()){Session->PauseRequested=tr
 bool UVirtualDatasetSubsystem::Resume(FString& Error)
 {if(!IsPaused()){Error=TEXT("일시 중지 상태에서 재개하세요");return false;}Session->PauseRequested=false;if(!ApplyScene(Error))return false;GetWorld()->GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.01f,true);++Revision;return true;}
 void UVirtualDatasetSubsystem::Stop()
-{if(!Session||Session->Phase==EDatasetPhase::Done||Session->Phase==EDatasetPhase::Draining)return;Session->Cancelled->store(true);Restore();Session->Phase=Session->Write.IsValid()?EDatasetPhase::Draining:EDatasetPhase::Done;if(Session->Phase==EDatasetPhase::Done&&GetWorld())GetWorld()->GetTimerManager().ClearTimer(Timer);++Revision;}
+{if(!Session||Session->Phase==EDatasetPhase::Done||Session->Phase==EDatasetPhase::Draining)return;Session->Cancelled->store(true);Restore();if(Session->Phase!=EDatasetPhase::Export)Session->Phase=Session->Write.IsValid()?EDatasetPhase::Draining:EDatasetPhase::Done;if(Session->Phase==EDatasetPhase::Done&&GetWorld())GetWorld()->GetTimerManager().ClearTimer(Timer);++Revision;}
 void UVirtualDatasetSubsystem::Deinitialize()
 {Stop();if(GetWorld())GetWorld()->GetTimerManager().ClearTimer(Timer);if(Truth){Truth->DestroyComponent();Truth=nullptr;}Session.Reset();Super::Deinitialize();}

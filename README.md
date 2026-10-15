@@ -793,6 +793,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 | `MA0T10_WORKSPACE_RHI` | MA0T10.SensorWorkspace.Runtime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
 | `MA0T10_WORKSPACE_SCREENSHOT` | MA0T10.SensorWorkspace.Runtime | screenshot 파일 경로; 실제 RHI + 쓰기 권한 |
 | `MA0T10_DATASET_SCENES` | MA0T10.Dataset.RealRhiGeneration | 명시한 10–100장면 실제 RHI 생성; Saved/Datasets에 시험 파일을 만드는 opt-in |
+| `MA0T10_DATASET_PYTHON` | EXPORT-01 선택적 오프라인 변환 | requirements를 설치한 python.exe의 절대 경로. export_format 기본 none에서는 읽거나 실행하지 않는다. |
 <!-- MA0T10_ENV_TABLE_END -->
 
 ## 고정 참고자료
