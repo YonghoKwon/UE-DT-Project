@@ -33,10 +33,10 @@ UTextureRenderTarget2D* FVirtualLidarSemanticScene::GetTarget() const { return C
 bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const FVirtualLidarDepthAcquisitionRequest& Request, int32 Width, int32 Height)
 {
     return Capture(Scan.GetWorld(), Scan.GetOwner(), Request.AcquisitionTransform, Request.HorizontalFovDegrees, Width, Height,
-        [&Scan](const UPrimitiveComponent* Component){ return Scan.ResolveSemanticLabelForComponent(Component); }, false);
+        [&Scan](const UPrimitiveComponent* Component){ return Scan.ResolveSemanticLabelForComponent(Component); }, false, {}, Request.bRequestFidelity);
 }
 
-bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter)
+bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter, bool bCaptureFidelity)
 {
     auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"));
     if (!Material) { Status = TEXT("GPU 분류 재질 누락: 미분류 (센서 측정 유지)"); return false; }
@@ -125,6 +125,11 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
         }
         FVirtualLidarGpuSemanticIdentity Identity;
         Identity.Label = Resolve(Source);
+        if (bCaptureFidelity)
+        {
+            Identity.Surface = VirtualLidarFidelity::ResolveSurface(Source);
+            Identity.Motion = VirtualLidarFidelity::CaptureMotion(Source->GetOwner());
+        }
         Identity.ActorName = Source->GetOwner()->GetFName();
         Identity.ActorClass = Source->GetOwner()->GetClass()->GetFName();
         Identity.ActorTags = Source->GetOwner()->Tags;

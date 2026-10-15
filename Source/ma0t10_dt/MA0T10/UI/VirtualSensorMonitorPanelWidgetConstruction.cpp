@@ -73,6 +73,8 @@ FString LidarProjectionDisplayText(ELidarMonitorProjectionMode Mode)
 
 FString LidarColorDisplayText(ELidarColorMode Mode)
 {
+    if (Mode == ELidarColorMode::ReflectionIntensity) return TEXT("반사 강도");
+    if (Mode == ELidarColorMode::MeasurementTime) return TEXT("측정 시각");
     if (Mode == ELidarColorMode::DistanceViridis) return TEXT("거리 Viridis (색각 친화)");
     if (Mode == ELidarColorMode::RelativeHeight) return TEXT("높이 색상 (기준 선택)");
     if (Mode == ELidarColorMode::SemanticLabel) return TEXT("태그 기반 의미 분류");
@@ -139,6 +141,8 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::RebuildWidget()
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::HitMask));
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::DistanceGray));
     NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::GeometrySeparation));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::ReflectionIntensity));
+    NativeLidarColorOptions.Add(MakeShared<ELidarColorMode>(ELidarColorMode::MeasurementTime));
 
     TSharedPtr<ELidarMonitorProjectionMode> InitialProjection = NativeLidarProjectionOptions[0];
     TSharedPtr<ELidarColorMode> InitialColor = NativeLidarColorOptions[0];

@@ -103,6 +103,7 @@ struct FLidarProjectionBuildInput
     TMap<FName, FColor> SemanticColors;
     FColor DefaultSemanticColor = FColor(140, 140, 140);
     float MaxDistanceCm = 10000.0f;
+    float ScanPeriodSeconds = .05f;
     int32 HorizontalSamples = 1;
     int32 VerticalChannels = 1;
     bool bFlipHorizontal = false;
@@ -143,6 +144,8 @@ FColor ResolveProjectionColor(
 	if (!Point.bHit) return Input.Settings.ColorMode == ELidarColorMode::HitMask ? FColor::Black : FColor(45, 60, 78, 72);
     switch (Input.Settings.ColorMode)
     {
+    case ELidarColorMode::ReflectionIntensity: return Viridis(Point.NormalizedIntensity);
+    case ELidarColorMode::MeasurementTime: return Turbo(FMath::Clamp(float(Point.PointTimeOffsetNanoseconds*1.e-9 / FMath::Max(.001f, Input.ScanPeriodSeconds)),0.f,1.f));
     case ELidarColorMode::DistanceViridis: return Viridis(NormalizedDistance);
     case ELidarColorMode::RelativeHeight: return Viridis(NormalizedHeight);
     case ELidarColorMode::GeometrySeparation:
@@ -713,6 +716,8 @@ FColor UVirtualLidarVisualizationComponent::ResolveDisplayColor(
     if (!Point.bHit) return ColorMode == ELidarColorMode::HitMask ? FColor::Black : FColor(4, 8, 16, 255);
     switch (ColorMode)
     {
+    case ELidarColorMode::ReflectionIntensity: return Viridis(Point.NormalizedIntensity);
+    case ELidarColorMode::MeasurementTime: return Turbo(FMath::Clamp(float(Point.PointTimeOffsetNanoseconds*1.e-9 / FMath::Max(.001f, InScanComponent ? InScanComponent->ScanInterval : .05f)),0.f,1.f));
     case ELidarColorMode::DistanceViridis: return Viridis(NormalizedDistance);
     case ELidarColorMode::RelativeHeight: return Viridis(NormalizedHeight);
     case ELidarColorMode::SemanticLabel:
@@ -834,6 +839,7 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
     Input.Settings = Settings;
 	Input.SensorTransform = Frame->AcquisitionTransform;
 	Input.MaxDistanceCm = Frame->MaxDistanceCm;
+    Input.ScanPeriodSeconds = ScanComponent->ScanInterval;
 	Input.HorizontalSamples = Frame->HorizontalSamples;
 	Input.VerticalChannels = Frame->VerticalChannels;
     Input.bFlipHorizontal = ScanComponent->bFlipLidarViewHorizontal;
@@ -1294,6 +1300,8 @@ FString UVirtualLidarVisualizationComponent::GetLegendText() const
     case ELidarColorMode::ReturnIndex: return TEXT("Return index: 0, 1, 2… · MultiHit에서 구분");
     case ELidarColorMode::HitMask: return TEXT("검출=흰색 · 미검출=검정");
     case ELidarColorMode::DistanceGray: return TEXT("가까움=밝음 · 멂=어두움");
+    case ELidarColorMode::ReflectionIntensity: return TEXT("반사 강도: 0 → 1 · 재질 반사 옵션은 기본 꺼짐");
+    case ELidarColorMode::MeasurementTime: return TEXT("측정 시각: 파랑=스캔 시작 · 빨강=주기 끝 · 시간차 끄면 모두 0");
     default: return FString();
     }
 }

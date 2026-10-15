@@ -971,6 +971,27 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     auto LidarBasic=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarInterval","측정 주기 (s)"),[this](){return PendingState.LidarScanInterval;},[this](float V){PendingState.LidarScanInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("LidarInterval"))];
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarRange","최대 거리 (cm)"),[this](){return PendingState.LidarMaxDistance;},[this](float V){PendingState.LidarMaxDistance=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},10,20000,true,TEXT("LidarRange"))];
+    auto Fidelity=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
+    Fidelity->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarFidelityGroup","사실성"))];
+    const auto FidelityToggle=[this,Fidelity](const FText& Label,bool FVirtualSensorEditableState::*Field,const FText& Help)
+    {
+        Fidelity->AddSlot().AutoHeight().Padding(0,3)[SNew(SHorizontalBox)
+            +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox)
+                .IsChecked_Lambda([this,Field](){return PendingState.*Field?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+                .OnCheckStateChanged_Lambda([this,Field](ECheckBoxState Value){
+                    PendingState.*Field=Value==ECheckBoxState::Checked;
+                    if(Field==&FVirtualSensorEditableState::bLidarMotionDistortion&&PendingState.*Field)PendingState.bLidarPointTime=true;
+                    if(Field==&FVirtualSensorEditableState::bLidarPointTime&&!(PendingState.*Field))PendingState.bLidarMotionDistortion=false;
+                    ApplyPendingState();})[SNewSensorTool(STextBlock).Text(Label)]]
+            +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarFidelityInfo","ⓘ")).ToolTipText(Help)]];
+    };
+    FidelityToggle(LOCTEXT("LidarPointTime","점별 시간차"),&FVirtualSensorEditableState::bLidarPointTime,
+        LOCTEXT("LidarPointTimeInfo","기본 꺼짐 · 스캔 주기 안에서 점별 측정 시각을 기록합니다. ML-X는 비회전 행 순차 가정이며 제조사 발사 순서를 검증한 값이 아닙니다."));
+    FidelityToggle(LOCTEXT("LidarMotion","움직임 왜곡"),&FVirtualSensorEditableState::bLidarMotionDistortion,
+        LOCTEXT("LidarMotionInfo","기본 꺼짐 · 시간차를 함께 켭니다. 획득 시점 속도와 표면 평면으로 센서·물체 움직임을 근사합니다. 형상 경계·가려짐·가속은 재현하지 못합니다. 센서 속도 추정은 두 번째 스캔부터 적용됩니다."));
+    FidelityToggle(LOCTEXT("LidarMaterial","재질 반사"),&FVirtualSensorEditableState::bLidarMaterialResponse,
+        LOCTEXT("LidarMaterialInfo","기본 꺼짐 · 반사율·입사각·거리에 따라 강도·미검출·거리 노이즈가 달라집니다. 반사율 표는 가정값이며 SurfaceResponse가 우선합니다. GPU는 기존 의미 분류 캡처 비용이 추가되고 경계 법선은 근사합니다."));
+    LidarBasic->AddSlot().AutoHeight()[Fidelity];
     Basic->AddSlot().AutoHeight()[LidarBasic];
     auto CameraAdvanced=SNew(SVerticalBox).Visibility_Lambda(CameraVisible);
     CameraAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedCameraWidth","가로 해상도 (px)"),[this](){return PendingState.CameraResolution.X;},[this](int32 V){PendingState.CameraResolution.X=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},160,4096,TEXT("CameraWidth"))];

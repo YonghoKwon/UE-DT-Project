@@ -86,9 +86,9 @@ int64 UVirtualLidarScanComponent::CalculatePointTimeOffsetNanoseconds(int32 RayI
     {
         return 0;
     }
-    const double NormalizedIndex = static_cast<double>(FMath::Clamp(RayIndex, 0, RayCount - 1))
-        / static_cast<double>(RayCount - 1);
-    return static_cast<int64>(NormalizedIndex * static_cast<double>(ScanInterval) * 1000000000.0);
+    const int32 Width = FMath::Max(1, HorizontalSamples);
+    const int32 Height = FMath::Max(1, RayCount / Width);
+    return VirtualLidarFidelity::PointOffset(DeviceProfile, RayIndex, Width, Height, ScanInterval);
 }
 
 void UVirtualLidarScanComponent::InitializePhysicalPoint(
@@ -137,6 +137,15 @@ UVirtualLidarScanComponent::FSurfaceResponseCacheEntry UVirtualLidarScanComponen
     }
 
     FSurfaceResponseCacheEntry Resolved = Default;
+    if (bEnableMaterialResponse)
+    {
+        const auto Surface = VirtualLidarFidelity::ResolveSurface(Primitive);
+        Resolved.Reflectivity = Surface.Reflectivity;
+        Resolved.IntensityGain = Surface.IntensityGain;
+        Resolved.DetectionProbabilityScale = Surface.DetectionProbabilityScale;
+        Resolved.bTwoSided = Surface.bTwoSided;
+        Resolved.bAllowSaturation = Surface.bAllowSaturation;
+    }
     if (const AActor* OwnerActor = Primitive->GetOwner())
     {
         if (const UVirtualLidarSurfaceResponseComponent* Response = OwnerActor->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>())
@@ -163,12 +172,18 @@ bool UVirtualLidarScanComponent::ApplyPhysicalHitModel(
     const FSurfaceResponseCacheEntry Surface = ResolveSurfaceResponse(Hit.GetComponent());
     const FVector SafeDirection = WorldDirection.GetSafeNormal();
     const float SignedIncidence = FVector::DotProduct(-SafeDirection, Hit.ImpactNormal.GetSafeNormal());
-    const float IncidenceCosine = Surface.bTwoSided ? FMath::Abs(SignedIncidence) : FMath::Max(0.0f, SignedIncidence);
-    const float RangeRatio = FMath::Clamp(Hit.Distance / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f);
+    float ModelRange = Hit.Distance;
+    float ModelIncidence = SignedIncidence;
+    if (bEnableMotionDistortion && bUseRollingPointTimestamps
+        && !ResolveRollingHit(Hit, SafeDirection, AcquisitionTransform, Point.PointTimeOffsetNanoseconds * 1.e-9, ModelRange, ModelIncidence))
+        return false;
+    if (bEnableMotionDistortion && bUseRollingPointTimestamps && (ModelRange > MaxDistance || ModelRange < DeviceSpec.MinRangeCm)) return false;
+    const float IncidenceCosine = Surface.bTwoSided ? FMath::Abs(ModelIncidence) : FMath::Max(0.0f, ModelIncidence);
+    const float RangeRatio = FMath::Clamp(ModelRange / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f);
     const float ReflectivityRatio = Surface.Reflectivity / 0.2f;
     const float RangeFactor = 1.0f - 0.05f * FMath::Square(RangeRatio);
     const float AmbientFactor = 1.0f - 0.05f * FMath::Clamp(AmbientLightLux / 100000.0f, 0.0f, 4.0f);
-    const float DetectionProbability = FMath::Clamp(
+    float DetectionProbability = FMath::Clamp(
         RangeFactor
         * AmbientFactor
         * FMath::Sqrt(FMath::Max(0.01f, ReflectivityRatio))
@@ -177,14 +192,22 @@ bool UVirtualLidarScanComponent::ApplyPhysicalHitModel(
         0.0f,
         0.9995f);
 
-    const float Attenuation = 1.0f / (1.0f + FMath::Square(Hit.Distance * 0.01f / 45.0f));
-    const float Intensity = FMath::Max(0.0f,
+    const float Attenuation = 1.0f / (1.0f + FMath::Square(ModelRange * 0.01f / 45.0f));
+    float Intensity = FMath::Max(0.0f,
         Surface.Reflectivity
         * FMath::Sqrt(FMath::Max(0.0f, IncidenceCosine))
         * Attenuation
         * FMath::Max(0.0f, AmbientFactor)
         * Surface.IntensityGain
         * 5.0f);
+    VirtualLidarFidelity::FSurface Optical;
+    Optical.Reflectivity=Surface.Reflectivity; Optical.IntensityGain=Surface.IntensityGain;
+    Optical.DetectionProbabilityScale=Surface.DetectionProbabilityScale;
+    if (bEnableMaterialResponse)
+    {
+        Intensity=VirtualLidarFidelity::Intensity(Optical,ModelRange,IncidenceCosine,AmbientLightLux);
+        DetectionProbability=VirtualLidarFidelity::DetectionProbability(Intensity,Optical);
+    }
     const bool bSaturated = Surface.bAllowSaturation && Intensity >= 1.0f;
 
     Point.SurfaceReflectivity = Surface.Reflectivity;
@@ -193,7 +216,7 @@ bool UVirtualLidarScanComponent::ApplyPhysicalHitModel(
     Point.NormalizedIntensity = FMath::Clamp(Intensity, 0.0f, 1.0f);
     Point.RawIntensity = FMath::Clamp(FMath::RoundToInt(Point.NormalizedIntensity * 65535.0f), 0, 65535);
 
-    if (FidelityMode != EVirtualSensorFidelityMode::IdealTruth
+    if ((bEnableMaterialResponse || FidelityMode != EVirtualSensorFidelityMode::IdealTruth)
         && DeterministicUnitRandom(RayIndex, ReturnIndex, 0x4d4c5833u) > DetectionProbability)
     {
         Point.bHit = false;
@@ -207,18 +230,20 @@ bool UVirtualLidarScanComponent::ApplyPhysicalHitModel(
     }
 
     float ErrorMillimeters = 0.0f;
-    if (FidelityMode != EVirtualSensorFidelityMode::IdealTruth && bEnableRangeNoise)
+    if ((bEnableMaterialResponse || FidelityMode != EVirtualSensorFidelityMode::IdealTruth) && bEnableRangeNoise)
     {
-        const float DistanceDependentStdDev = RangeNoiseStandardDeviationMillimeters
+        float DistanceDependentStdDev = RangeNoiseStandardDeviationMillimeters
             * (0.5f + 0.5f * RangeRatio)
             * FMath::Clamp(FMath::Sqrt(0.2f / Surface.Reflectivity), 0.5f, 2.0f);
+        if (bEnableMaterialResponse) DistanceDependentStdDev = RangeNoiseStandardDeviationMillimeters
+            * VirtualLidarFidelity::NoiseScale(RangeRatio,Surface.Reflectivity,IncidenceCosine);
         ErrorMillimeters = FMath::Clamp(
             DeterministicGaussian(RayIndex, ReturnIndex) * DistanceDependentStdDev,
             -MaximumRangeErrorMillimeters,
             MaximumRangeErrorMillimeters);
     }
 
-    const float MeasuredDistanceCm = FMath::Clamp(Hit.Distance + ErrorMillimeters * 0.1f, 0.0f, MaxDistance);
+    const float MeasuredDistanceCm = FMath::Clamp(ModelRange + ErrorMillimeters * 0.1f, 0.0f, MaxDistance);
     const FVector MeasuredWorldLocation = AcquisitionTransform.GetLocation() + SafeDirection * MeasuredDistanceCm;
     const FVector SensorLocalCentimeters = AcquisitionTransform.InverseTransformPosition(MeasuredWorldLocation);
 
@@ -342,6 +367,11 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
     EnsureGpuDepthBeamLookup(Frame);
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
     TMap<int32, int32> SemanticIdCounts;
+    if (bEnableMaterialResponse || (bEnableMotionDistortion && bUseRollingPointTimestamps))
+    {
+        FidelityDepthTangents.X = FMath::Tan(FMath::DegreesToRadians(Frame.Request.HorizontalFovDegrees * .5));
+        FidelityDepthTangents.Y = FidelityDepthTangents.X * double(Frame.CaptureHeight) / FMath::Max(1,Frame.CaptureWidth);
+    }
 
     for (int32 Ring = 0; Ring < ScheduledScanHeight; ++Ring)
     {
@@ -365,7 +395,16 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
             const bool bDepthValid = FMath::IsFinite(RadialDistanceCm)
                 && ForwardDepthCm > FMath::Max(0.1f, DeviceSpec.MinRangeCm)
                 && RadialDistanceCm <= MaxDistance;
-            if (bDepthValid)
+            if (bDepthValid && (bEnableMaterialResponse || (bEnableMotionDistortion && bUseRollingPointTimestamps)))
+            {
+                ApplyGpuFidelityPoint(Point, Frame, DepthIndex, RayIndex, RadialDistanceCm);
+                if (Point.bHit)
+                {
+                    ++ScheduledHitPointCount;
+                    if (!Point.SemanticLabel.IsNone()) ++SemanticIdCounts.FindOrAdd(FMath::RoundToInt(Frame.SemanticIdDepth[DepthIndex].R));
+                }
+            }
+            else if (bDepthValid)
             {
                 const float RangeRatio = FMath::Clamp(RadialDistanceCm / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f);
                 const float AmbientFactor = 1.0f - 0.05f * FMath::Clamp(AmbientLightLux / 100000.0f, 0.0f, 4.0f);
@@ -700,6 +739,7 @@ void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoin
     UWorld* World = GetWorld();
     if (!World) return;
     const FTransform AcquisitionTransform = GetComponentTransform();
+    BeginFidelityAcquisition(true);
     const FVector Origin = AcquisitionTransform.GetLocation();
     FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarSensor), false, GetOwner());
     TArray<float> HorizontalAngles;

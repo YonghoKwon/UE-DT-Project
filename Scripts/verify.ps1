@@ -4,7 +4,8 @@ param(
     [string]$EngineRoot = 'C:/Program Files/Epic Games/UE_5.3',
     [string]$BaseCommit = 'HEAD^',
     [ValidatePattern('^[12](,[12])?$')][string]$PerfPairs = '1',
-    [ValidateSet('Visible', 'Offscreen', 'Both')][string]$PerfDisplay = 'Visible'
+    [ValidateSet('Visible', 'Offscreen', 'Both')][string]$PerfDisplay = 'Visible',
+    [ValidateRange(30, 60)][int]$PerfMeasurementSeconds = 60
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -74,7 +75,7 @@ try {
     }
     if ($Level -eq 'perf') {
         Invoke-Step 'perf-abab' {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/run_perf_abab.ps1" -Baseline $BaseCommit -Candidate HEAD -Pairs $PerfPairs -Display $PerfDisplay -EngineRoot $EngineRoot -ReportRoot "$report/perf"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/run_perf_abab.ps1" -Baseline $BaseCommit -Candidate HEAD -Pairs $PerfPairs -Display $PerfDisplay -MeasurementSeconds $PerfMeasurementSeconds -EngineRoot $EngineRoot -ReportRoot "$report/perf"
             if ($LASTEXITCODE -ne 0) { throw 'Perf ABAB gate failed' }
         }
     }

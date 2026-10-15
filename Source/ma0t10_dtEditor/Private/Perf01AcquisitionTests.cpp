@@ -56,6 +56,7 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
     float DpiScale=0;
     bool bVisibleVerified=false;
     bool bCameraTruthPerformance=false;
+    bool bLidarFidelityPerformance=false;
 public:
     explicit FPerf01AcquisitionCommand(FAutomationTestBase* In):Test(In)
     {
@@ -63,6 +64,7 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Seconds="),Duration);
         Pairs=FMath::Clamp(Pairs,1,2);Duration=FMath::Clamp(Duration,30,60);
         bCameraTruthPerformance=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
+        bLidarFidelityPerformance=FParse::Param(FCommandLine::Get(),TEXT("LidarFidelityPerformance"));
     }
     bool Update() override
     {
@@ -114,6 +116,17 @@ public:
                     L->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
                     L->ScanComponent->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
                     L->ScanComponent->bEnableRangeNoise=false;++Lidars;
+                    if(bLidarFidelityPerformance)
+                    {
+                        // Reflection keeps this identical instrument compilable on the baseline.
+                        for(const FName Name:{FName(TEXT("bUseRollingPointTimestamps")),FName(TEXT("bEnableMotionDistortion")),FName(TEXT("bEnableMaterialResponse"))})
+                        {
+                            auto* Property=FindFProperty<FBoolProperty>(L->ScanComponent->GetClass(),Name);
+                            if(!Property){Test->AddError(TEXT("LIDAR-FID performance option missing on this revision"));return true;}
+                            Property->SetPropertyValue_InContainer(L->ScanComponent,true);
+                        }
+                        L->ScanComponent->bEnableRangeNoise=true;
+                    }
                 }
                 else ++Cameras;
                 Coordinator->StreamPublisherComponent->StopAllStreams(A->GetSensorId());
@@ -176,6 +189,7 @@ public:
         Json->SetNumberField(TEXT("game_thread_mean_ms"),Mean(Game));Json->SetNumberField(TEXT("gpu_mean_ms"),Mean(Gpu));
         Json->SetBoolField(TEXT("camera_ground_truth_enabled"),FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")));
         Json->SetNumberField(TEXT("samples"),Wall.Num());Json->SetNumberField(TEXT("pairs"),Pairs);
+        Json->SetBoolField(TEXT("lidar_fidelity_enabled"),bLidarFidelityPerformance);
         Json->SetNumberField(TEXT("warmup_seconds"),10);Json->SetNumberField(TEXT("measurement_seconds"),Duration);
         Json->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
         Json->SetBoolField(TEXT("native_visible_client_verified"),bVisibleVerified);

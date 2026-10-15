@@ -2,17 +2,19 @@
 #include "CoreMinimal.h"
 #include "ActorComponent/MechDriverCompBase.h"
 #include "SlabScenarioTypes.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorMotionProvider.h"
 #include "SlabMotionComponent.generated.h"
 
 DECLARE_DELEGATE_FourParams(FSlabPoseAppliedCallback,const FSlabScenarioRow&,int32,double,bool);
 
 /** Owns the playback clock, immutable inputs and physical pose application. */
 UCLASS(ClassGroup=(Slab),meta=(BlueprintSpawnableComponent))
-class MA0T10_DT_API USlabMotionComponent : public UMechDriverCompBase
+class MA0T10_DT_API USlabMotionComponent : public UMechDriverCompBase, public IVirtualSensorMotionProvider
 {
 	GENERATED_BODY()
 public:
 	USlabMotionComponent();
+	virtual FVirtualSensorMotionSample CaptureSensorMotion() const override;
 	virtual void TickComponent(float DeltaTime,ELevelTick TickType,FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	bool StartPlayback(FSlabScenarioDataPtr Data,const FTransform& Track,const FVector& SizeCm,ESlabInputUnit PositionUnit);

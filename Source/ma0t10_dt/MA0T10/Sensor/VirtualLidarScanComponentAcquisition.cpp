@@ -108,6 +108,9 @@ FVirtualSensorResourceSnapshot UVirtualLidarScanComponent::GetResourceSnapshot()
 }
 void UVirtualLidarScanComponent::StopScan()
 {
+    PreviousFidelityWorldTime = -1;
+    AcquisitionTargetMotion.Reset();
+    AcquisitionSensorMotion = FVirtualSensorMotionSample();
     for(const auto& Job:{ActiveDerivedJob,PendingDerivedJob})if(Job){Job->Cancelled=true;ReleaseDerivedReservation(Job);++RuntimeStatus.DiscardedDerivedGenerationCount;if(!Job->RequestId.IsEmpty())OnCompatibilityRequestCompletedNative.Broadcast(Job->RequestId,false,Job->Frame,TEXT("측정 종료로 JSON 요청이 취소됐습니다."));}
     ActiveDerivedJob.Reset();PendingDerivedJob.Reset();
 	if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
@@ -142,7 +145,9 @@ bool UVirtualLidarScanComponent::BeginGpuDepthScan(double NowSeconds)
     Request.MaxDistanceCm = MaxDistance;
     Request.AcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
     BuildBeamAngleTables(Request.HorizontalSamples, Request.VerticalChannels, Request.HorizontalAngles, Request.VerticalAngles);
-    Request.bRequestSemantics=IsSemanticCaptureRequested();
+    Request.bRequestSemantics=IsSemanticCaptureRequested() || bEnableMaterialResponse || (bEnableMotionDistortion && bUseRollingPointTimestamps);
+    Request.bRequestFidelity=bEnableMaterialResponse || (bEnableMotionDistortion && bUseRollingPointTimestamps);
+    BeginFidelityAcquisition(false);
 
     if (!GpuDepthProjectionComponent->BeginAcquisition(Request))
     {
@@ -203,6 +208,7 @@ void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
     ScheduledScanHeight = FMath::Max(1, VerticalChannels);
     ScheduledNextRayIndex = 0;
     ScheduledScanTransform = GetComponentTransform();
+    BeginFidelityAcquisition(true);
     ScheduledScanStartTime = FPlatformTime::Seconds();
     ScheduledAcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
     ScheduledPoints.Reset();

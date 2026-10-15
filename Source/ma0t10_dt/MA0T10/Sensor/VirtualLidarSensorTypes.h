@@ -49,7 +49,9 @@ enum class ELidarColorMode : uint8
     ReturnIndex UMETA(DisplayName = "Return Index"),
     HitMask UMETA(DisplayName = "검출 마스크"),
     DistanceGray UMETA(DisplayName = "거리 회색조"),
-    GeometrySeparation UMETA(DisplayName = "자동 형상 구분 — 태그 불필요")
+    GeometrySeparation UMETA(DisplayName = "자동 형상 구분 — 태그 불필요"),
+    ReflectionIntensity UMETA(DisplayName = "반사 강도"),
+    MeasurementTime UMETA(DisplayName = "측정 시각")
 };
 
 /** Zero preserves old saves: world Z for WorldTopDown, sensor Z otherwise. */

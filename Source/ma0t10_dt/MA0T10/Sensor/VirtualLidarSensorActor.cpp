@@ -88,6 +88,9 @@ bool AVirtualLidarSensorActor::ReadEditableState(FVirtualSensorEditableState& Ou
     OutState.MaxPreviewPoints = ScanComponent->MaxPreviewPoints;
     OutState.bPreviewHitOnly = ScanComponent->bPointCloudPreviewHitOnly;
     OutState.bUseMultiHit = ScanComponent->bUseMultiHit;
+    OutState.bLidarPointTime = ScanComponent->bUseRollingPointTimestamps;
+    OutState.bLidarMotionDistortion = ScanComponent->bEnableMotionDistortion;
+    OutState.bLidarMaterialResponse = ScanComponent->bEnableMaterialResponse;
     OutState.MaxHitsPerRay = ScanComponent->MaxHitsPerRay;
     OutState.bExportCsvOnScan = ScanComponent->bExportCsvOnScan;
     OutState.bExportJsonLinesOnScan = ScanComponent->bExportJsonLinesOnScan;
@@ -135,6 +138,10 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     ScanComponent->SetCompatibilityOutputPolicy(State.CompatibilityOutputPolicy);
     ScanComponent->SetPreviewPolicy(State.PreviewPointStride, State.MaxPreviewPoints, State.bPreviewHitOnly);
     ScanComponent->bUseMultiHit = State.bUseMultiHit;
+    ScanComponent->bUseRollingPointTimestamps = State.bLidarPointTime;
+    ScanComponent->bEnableMotionDistortion = State.bLidarMotionDistortion;
+    ScanComponent->bEnableMaterialResponse = State.bLidarMaterialResponse;
+    ScanComponent->InvalidateSurfaceResponseCache();
     ScanComponent->MaxHitsPerRay = State.MaxHitsPerRay;
     ScanComponent->bExportCsvOnScan = State.bExportCsvOnScan;
     ScanComponent->bExportJsonLinesOnScan = State.bExportJsonLinesOnScan;
@@ -243,6 +250,8 @@ bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSe
 
 bool AVirtualLidarSensorActor::ValidateEditableState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
+    if (State.bLidarMotionDistortion && !State.bLidarPointTime)
+    { OutError=TEXT("움직임 왜곡에는 점별 시간차가 필요합니다."); return false; }
     if(!CanEditSensorConfiguration(OutError))return false;
     if((State.SensorId!=GetSensorId()||!State.ActorTransform.Equals(GetActorTransform()))&&!CanEditSensorPlacement(OutError))return false;
     if (!ScanComponent || State.TargetKind != EVirtualSensorTargetKind::Lidar)

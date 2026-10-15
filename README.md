@@ -28,6 +28,7 @@
 | 절대 성능 (PERF-01) | 미송신 표시/오프스크린 1+1·2+2 ABAB×3 및 초기 GT 초과 조건 재측정 완료. FPS·engine p95 회귀 없음; 재측정 GT +1.63/+1.52/+1.42%로 기준 안. Editor/Game·quick8·D3D12 242 Success/skip22·WBP7 통과 | 초기 GT 초과 원본·이분 탐색·Insights 근거 보존. 실제 2+2 PCD 송신은 Broker 환경 보류; 기존 송신 포함 기록과 조건 다름. `Saved/Reports/PERF/PERF-01/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·float Depth·기본 semantic 규칙 공유·Actor ID·2D bbox·보정 snapshot·비동기 검증 저장 구현. RHI/무손실 round-trip·1920×1080 자동 4모드·기본 꺼짐 perf 통과(FPS −0.0011%, p95 동일, GT +0.7332%) | 직접 마우스는 Windows 보안 팝업 미조작으로 보류. 서버 송신/ROS2/3D bbox는 2단계 제안. 상세 `Saved/Reports/CAM-GT-01/RESULT.md` |
+| LiDAR 사실성 (LIDAR-FID-01) | Runtime `eea0268`, 모두 기본 꺼짐. Editor/Game·release 전체272 Success/skip29/실패0·golden14·WBP7·quick8·layer0 통과. 기본 꺼짐 ABAB×3: FPS +0.0043%, p95 동일, GT −0.1497%로2% gate 통과 | 직접 마우스는 Computer Use 캡처0x80070057로 보류. 켜짐 비용: GT +2.658ms(+50.20%), p95 +0.510ms(+3.06%), LiDAR600프레임/30초 유지. 발사 순서·재질 계수는 가정. `Saved/Reports/LIDAR-FID-01/RESULT.md` |
 | 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
 | 자동화 | Runtime `967d517`: Editor/Game Development, release 14단계·D3D12 고유242 Success/조건부 skip20/실패0, 기존262개 이름/상태 동일·WBP7 메모리 컴파일. 추가 Slate/RHI 입력2개 실제 Success | 자동 통과와 직접 수용은 다름. 자유 배치 입력·상대 성능·미수행 수용은 UXR-07 보고서 참조 |
@@ -314,6 +315,18 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json"
 
 프로필 값과 **실제 완료율**은 다르다. ML-X Native는 제조사 원시 패킷/실장비 보정 완료가 아니며 D455 SceneCapture는 실장비 depth stream이 아니다. CPU/GPU의 geometry·Echo 지원 차이, 캘리브레이션 근거와 fidelity 상태를 함께 확인한다. enum에 HardwareRayTracing/SDK 이름이 있다고 실장비 backend가 완성된 것은 아니다.
 
+### LiDAR 사실성 옵션 (LIDAR-FID-01)
+
+사용자 요청(2026-10-15)에 따라 `도구 → 센서 상세 설정 → 기본 → 사실성`에 **점별 시간차·움직임 왜곡·재질 반사**와 ⓘ 설명을 추가했다. 모두 기본 꺼짐이다. 움직임 왜곡을 켜면 시간차도 켜고, 시간차를 끄면 왜곡도 끈다. 수집 잠금과 기존 Actor 설정 transaction을 따른다. 미리보기 색 목록의 **반사 강도·측정 시각**은 기존 5Hz 이하 cache를 사용한다.
+
+- 시간차는 기존 PCD `time_offset_ns`(33-byte little-endian 레코드)에 기록한다. ML-X 비회전 행 순차는 **가정**이며 실제 제조사 firing 순서가 아니다. 주기 안의 `[0,T)` 범위이고 기본 출력은 계속 0이다. Generic 회전형은 column→ring 순서, Livox는 기존 raster 근사로 실제 non-repeating pattern을 재현하지 않는다.
+- 움직임은 acquisition 시점의 linear/angular velocity·표면 평면으로 예측한다. Slab은 기존 보간의 속도를 중립 provider로 제공하고 정지/일시정지는 0이다. 센서 자체 속도는 제공된 속도 또는 두 번째 acquisition부터 pose 차분으로 추정한다. 점군은 deskew하지 않으며 추가 광선 추적을 하지 않는다. 가속·형상 경계·가려짐 변화·변형은 지원하지 않는다.
+- 재질은 기존 SurfaceResponse가 우선이며, 없으면 공통 semantic의 Slab .20/Roller .35/Conveyor .12/Floor .25, Oxidized tag .08을 사용한다. **모두 프로젝트 가정값**이다. 거리·입사각·반사율에 따른 강도/확률적 미검출/거리 노이즈에 기존 seed와 ±30mm cap을 재사용한다. GPU는 기존 ID/depth snapshot과 이웃 depth 법선을 이용하므로 추가 proxy capture/readback 비용이 있고 경계 법선은 근사한다. 물리 multi-echo/제조사 raw intensity 동등성은 주장하지 않는다.
+
+구현·정확도·기본 꺼짐 성능·수용 상태와 2단계 제안은 `Saved/Reports/LIDAR-FID-01/RESULT.md`, 추적 항목은 [IMPROVEMENTS](docs/IMPROVEMENTS.md#lidar-fid-01--lidar-사실성-1단계)를 따른다. 새 자산·플러그인·DTCore 변경은 없다.
+
+검증(기준 `e0a6901` → Runtime `eea0268`): CPU 평판 최대오차0.00005126cm, 실제 GPU0.00917cm. 전체 D3D12 **272 Success/skip29/실패·NotRun0**, WBP7 메모리 컴파일·golden14파일 바이트·layer0 통과. 1920×1080/DPI1/폰트100% 자동 강도·시각2장은 직접 수용과 구분한다. 기본 꺼짐은 표시형1+1·10초 준비+30초·ABAB12회 중앙값의2% gate 통과. 같은 구현본의 이동 Slab opt-in ABAB4회에서 FPS59.9989→59.7187, p95 16.6669→17.1774ms, GT5.2945→7.9523ms였으며 각30초에Camera900/LiDAR600프레임·획득 실패/큐초과0을 유지했다. 송신 없는 측정+미리보기 조건이며 외부 수신률 보장은 아니다.
+
 ### 측정률·정체 진단
 
 - 시작/재등록 후 `max(1초, 실제 적용 주기의 3배)`는 시작 유예다. 이후 진행이 이 시간보다 오래 없으면 과거 양수 Hz가 남아 있어도 유효 측정률은 0Hz다.
@@ -482,11 +495,13 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01 적용)
+### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
 ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 261개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 265개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+
+LIDAR-FID-01은 L0 `VirtualSensorMotionProvider`를 L2 SlabMotion이 구현하고 L1 센서가 snapshot으로 읽는다. L1 `VirtualLidarFidelity`의 순수 모델을 CPU/GPU가 공유하고 기존 L3 소유 설정/미리보기가 옵션을 표시한다. 신규 역방향 의존 없이 위반·allowlist **0/0**, DTCore·모듈·자산·PCD 레코드 불변이다.
 
 PCD-RESUME의 과부하 예약·재개·배수 확인은 기존 L1 StreamPublisher/HighThroughputTransport에 두고, L3 상태바·진단은 L1의 추가 실행 상태를 읽는다. 새 모듈·플러그인·자산·DTCore 변경 없이 위반·allowlist **0/0**을 유지한다. 기존 Blueprint 시그니처와 SaveGame 버전, PCD/wire golden 14파일 바이트는 유지하며 검증 범위는 `Saved/Reports/PCD-RESUME/RESULT.md`를 따른다.
 
