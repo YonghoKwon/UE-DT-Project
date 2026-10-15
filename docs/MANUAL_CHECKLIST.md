@@ -66,6 +66,23 @@ UXR-15에서 발견한 **M08 Camera 정답 미적용은 CAM-GT-FIX로 해결했�
 | [PCD-RESUME RESULT](../Saved/Reports/PCD-RESUME/RESULT.md), [PCD-OPT RESULT](../Saved/Reports/PCD-OPT/RESULT.md), [직접 원본](../Saved/Reports/PCD-OPT/manual/CHECKLIST.md) | M13~15. PCD-OPT의 선행 직접 주기 변경 기록과 이후 보안 팝업 보류를 구분하고 새 SHA에서 재검수 |
 | [CAM-GT-01 직접](../Saved/Reports/CAM-GT-01/manual/CHECKLIST.md), [LIDAR-FID-01 직접](../Saved/Reports/LIDAR-FID-01/manual/CHECKLIST.md), [DATASET-01 직접](../Saved/Reports/DATASET-01/manual/CHECKLIST.md) | M07~09, M18 |
 
+## 서버 PC에서 패키지로 확인할 항목 — PKG-02
+
+출처: 사용자 2026-10-15, v1.0 체크포인트. 운영 기준은 **Shipping**이다. 개발 PC의 패키지 검증은 서버 PC 수용과 구분하며, 구성별 실행 결과는 `Saved/Reports/PKG-02/RESULT.md`에 기록한다. 아래 표는 서버 PC에서 새로 수행할 항목이며 통과 기록이 아니다.
+
+| 항목 | 확인·기록할 것 | 서버 PC 결과 |
+|---|---|---|
+| 설치·시작 | 패키지 구성/소스 SHA/DTCore/맵, 실제 client 크기·DPI·글자 배율. 시작·맵 로드·소유 UI·정상 종료, crash/ensure 유무. PixelStreaming 유지 | 미수행 |
+| 연결 설정 | `<패키지>/ma0t10_dt/Config/SensorTransport.ini`가 pak 밖에 있는지 확인. TransportMode와 서버 주소를 입력하고 재시작. CustomLogs의 적용 경로·키 수·`passcode=set`만 기록하며 비밀번호/토큰은 캡처·로그에 남기지 않음 | 미수행 |
+| PCD 2분 | 설치된 Artemis 61616, ML-X80 원본·0.05초, 10초 준비 후 120초. 측정/submit/receipt Hz·최대 gap·조절 생략·과부하/중단/재개·큐/bytes를 구분. 정상 연결 유지와 사용자 중지 확인. receipt는 소비자 처리 완료가 아님 | 미수행 |
+| Camera 정답 | 기본 꺼짐→켜기→RGB/깊이/의미 분류/객체 구분 전환→정답 1회 저장. EXR/PNG/JSON 생성 위치·내용·시각 대응 확인, 끄면 RGB 복귀 | 미수행 |
+| LiDAR 사실성 | 점별 시간차·움직임 왜곡·재질 반사 켜기와 시간차/왜곡 연동. 끈 뒤 원설정·기존 출력 복귀. 제조사 보정 모델로 판정하지 않음 | 미수행 |
+| 데이터셋 3장면 | 기존 Slab·LiDAR·Camera를 선택하고 센서/시나리오 중지. 명시적으로 생성 사용·정답/사실성 포함을 켜고 3장면 생성. manifest 완료3/3·장면 파일/라벨·실제 저장 경로 확인 후 모두 끄기. Slab 없는 맵은 보류 사유를 기록하고 운영맵을 고치지 않음 | 미수행 |
+| hitch | PCD 시험의 150ms 초과 frame 수·최대 wall frame·계측 구간을 기록. 시작/종료·수동 조작 구간과 분리. 원격 PixelStreaming 입력/영상 수용은 별도 수행 | 미수행 |
+| 저장 위치·정리 | Shipping `%LOCALAPPDATA%/ma0t10_dt/Saved`, Development `<패키지>/ma0t10_dt/Saved`, 공통 `<실행 폴더>/Logs/CustomLogs`. 시작 전 목록/hash와 비교해 기존 파일 보존·개인 SaveGame/설정 복원. 시험 파일·패키지 정리 용량과 세션 소유 Artemis 정상 종료를 기록. 배포용 ini는 빈 템플릿으로 원복 | 미수행 |
+
+Windows 보안/권한 팝업은 조작하지 않고 해당 행을 보류한다. 기존 서버 설정·다른 업무 구독·보호 맵은 변경하지 않는다. 서버 PC 수행 시 누른 것/기대/실제와 캡처를 별도 남긴다.
+
 ## 별도 환경이 필요한 보류 항목
 
 위 57분 UI 점검만으로 다음을 닫지 않는다. 준비된 환경이 없으면 보류를 유지하고 다음 세션 담당/조건을 적는다.
