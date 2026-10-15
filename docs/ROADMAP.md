@@ -124,6 +124,14 @@ DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필
 
 **현재 PCD gate:** DATA-01/LIFE-01의 관련 장애·완전/부분/실패 판정, 선택하지 않은 출력과 비대상 스트림 보호, PCD 기존 소비자 호환. RT-07 업무 ACK와 IO-01 다른 포맷 개선은 별도 후속이며 현재 PCD 단계의 필수 착수 조건으로 묶지 않는다. 공통 코드 변경 시 기존 JPEG/JSON의 관련 회귀는 유지한다.
 
+### CAM-GT-01 — 카메라 정답 데이터의 첫 검증 경로
+
+사용자 2026-10-15 요청으로 기존 카메라 RGB 옆에 기본 꺼짐인 Depth·Semantic·Actor ID·2D bbox와 보정 snapshot을 추가한다. 1단계는 소유 미리보기의 확인과 `Saved/CameraGroundTruth` 1회 검증 파일만 다루며, 기존 wire·서버·저장 schema와 파일 형식 개선 보류 정책을 유지한다. LiDAR의 공통 기본 label/팔레트와 기존 ID 재질을 재사용하고 새 자산·UE 모듈·플러그인을 만들지 않는다. 진행·정확도·성능·직접 수용은 IMPROVEMENTS의 CAM-GT-01과 해당 RESULT를 따른다.
+
+현재 구현·검증(2026-10-15): Depth/semantic/Actor ID/visible 2D bbox/보정 및 최소 저장과 자동 4모드 렌더를 완료했다. 기본 꺼짐 ABAB×3은 FPS −0.0011%·p95 동일·GT +0.7332%로2% gate를 통과했다. 직접 마우스는 Windows 보안 팝업 미조작으로 보류하고 자동 검증과 구분한다. PCD-OPT의 기존 UXR03 기대값 누락은 별도 승인으로 단독 수정·재검증했다.
+
+후속 **2단계 제안(미승인/미구현)**: 기존 JPEG와 분리한 새 topic/schemaVersion의 정답 frame·calibration 연계, ROS2 `Image`/`CameraInfo` adapter, optical 좌표계의 3D bbox/pose. KITTI/COCO 등 데이터셋·대량 생성은 별도 범위이며 이번 최소 저장에서 확대하지 않는다.
+
 ### R4 — 프로젝트 안에서 분리 준비
 
 **이 단계는 아직 클래스/자산을 플러그인으로 이동하지 않는다.** 경계를 먼저 정리한다. 아래 표의 편집 타입·Coordinator·Workspace·Slab context 항목은 A단계(ARCH-02~06)가 같은 모듈 안에서 먼저 처리한다. A단계 완료 후 남는 R4 범위는 설정 객체·soft reference, ProfileId registry, 분석 extension이다.
