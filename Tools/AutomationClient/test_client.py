@@ -45,6 +45,22 @@ class ClientTests(unittest.TestCase):
         with patch.object(c, "status", return_value={"operation_id": "other"}):
             with self.assertRaises(ControlError): c.wait("id")
 
+    def test_redirects_never_forward_local_authorization(self):
+        paths = []
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                paths.append(self.path)
+                self.send_response(302)
+                self.send_header("Location", "/v1/other-endpoint")
+                self.end_headers()
+            def log_message(self, *_): pass
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        try:
+            with self.assertRaises(ControlError): Client(server.server_port, token="test-only").status()
+            self.assertEqual(paths, ["/v1/status"])
+        finally: server.shutdown(); server.server_close(); thread.join()
+
     def test_job_and_result(self):
         job = make_job("scenario.json", "Slab", "lidar", "camera")
         self.assertEqual(job["steps"][5]["scenes"], 20)

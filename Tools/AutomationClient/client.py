@@ -9,11 +9,16 @@ import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, build_opener, ProxyHandler
+from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 
 
 class ControlError(RuntimeError):
     pass
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # never forward local authorization to a different endpoint/process
 
 
 class Client:
@@ -25,7 +30,7 @@ class Client:
         if len(self._token) > 256 or any(c in self._token for c in "\r\n"):
             raise ValueError("invalid authentication configuration")
         self.timeout = timeout
-        self._http = build_opener(ProxyHandler({}))  # never send local credentials to a proxy
+        self._http = build_opener(ProxyHandler({}), _NoRedirect())
 
     def request(self, path: str, body: dict | None = None) -> dict:
         if not path.startswith("/v1/") or "?" in path or "#" in path or "\r" in path or "\n" in path:
