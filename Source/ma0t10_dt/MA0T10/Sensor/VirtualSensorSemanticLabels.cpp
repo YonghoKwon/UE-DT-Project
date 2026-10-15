@@ -45,5 +45,5 @@ uint8 ClassId(FName Name)
     return 1;
 }
 FName Label(uint8 Id) { return Id==0?FName(TEXT("Background")):Id>=2&&Id<Defaults().Num()+2?Defaults()[Id-2].Label:FName(TEXT("Other")); }
-FColor Color(uint8 Id) { return Id==0?FColor::Black:Id>=2&&Id<Defaults().Num()+2?Defaults()[Id-2].DisplayColor.ToFColor(true):FColor(195,195,195); }
+FColor Color(uint8 Id) { return Id==0?FColor::Black:Id>=2&&Id<Defaults().Num()+2?Defaults()[Id-2].DisplayColor.ToFColor(true):FLinearColor(.55f,.55f,.55f,1.f).ToFColor(true); }
 }
