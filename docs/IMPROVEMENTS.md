@@ -41,6 +41,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 근거: `VirtualSensorSettingsPanelWidget.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
 
+### PKG-02 — v1.0 Shipping/Development 패키지 검증 (P0)
+
+- **출처:** 사용자 2026-10-15, 로드맵 체크포인트1(v1.0). 운영 기준은 Shipping. `chore/pkg-02-v1-check`, 시작 `8e2919c`, 검증 패키지 소스 `cf441f0`, DTCore `b2504d1` 고정.
+- **진행률: 80% — Shipping 직접 기능 확인·두 구성 자동 PCD 완료, Development 직접 기능은 환경 보류.** 두 구성 BuildCookRun 성공. Shipping의 Camera 정답 모드/4파일·사실성3옵션 on/off·실제 데이터셋3/3(각7파일)을 확인했다. 두 구성 ML-X80 원본0.05초/준비10초+120초는 receipt19.99Hz, 조절 생략/과부하/중단/150ms 초과 hitch0. 직접 점검은1920×1080·96DPI·글자100% 대표 조합이다.
+- **수정:** native literal load의 공용 센서 ID 재질을 기존 자산 그대로 AlwaysCook에 포함했다. 데이터셋 manifest의 배포 PC Git 의존은 빌드 SHA 포함으로 제거하고 기존 `project_commit`·wire/기본값을 유지했다. 실제 cooker 자산 누락·패키지 데이터셋 산출물 검증 스크립트2개를 추가했다. Editor Development·관련 실제 D3D12 자동화2 Success/skip1·quick8·layer/allowlist0 통과. 과거 실패와 검증 source hash/provenance는 보고서에서 구분한다.
+- **보류/제한:** Development에 Windows Security 방화벽 권한 창이 나타나 사용자 금지 지침에 따라 입력0·GT/사실성/데이터셋 직접 점검 보류. 최종 자동 PCD는 보안 창이 표시된 조건이다. 제한 링크 조절/과부하 UI·서버 PC·원격 PixelStreaming·소비자 업무 ACK는 별도이며 v1.0 전체 gate 완료로 표시하지 않는다.
+- **정리/근거:** 개인44파일 hash 복원, 보호300파일 중 승인된 Build.cs 변경 외 예상 밖0, 빈 SensorTransport.ini 유지, 시험 package/산출물 약2.98GB 삭제, 세션 소유 Artemis 정상 종료·설정12파일 불변. 상세·초기 실패·빌드 경고·Shipping 실제 리디렉션 저장 경로는 `Saved/Reports/PKG-02/RESULT.md`, 서버 PC 후속은 [MANUAL_CHECKLIST](MANUAL_CHECKLIST.md#서버-pc에서-패키지로-확인할-항목--pkg-02).
+
 ### CAM-GT-01 — 카메라 정답 데이터 1단계 (P1)
 
 - **출처:** 사용자 2026-10-15. `feat/camera-gt`, 기준 master `827bae6`(PCD-OPT 포함), DTCore `b2504d1` 고정. 이번 요청은 카메라 정답 데이터의 최소 검증 저장만 승인하며 다른 파일 형식 개선·학습 데이터셋 대량 생성 보류를 해제하지 않는다.
@@ -135,6 +143,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | UXR-13 | UI/UX / 장비 이동 조작 | P0 | **85%** | 사용자 직접 확인(2026-10-14): 이동·회전 시작 후 조작법을 몰라 움직이지 못함, 정지 장비 미리보기가 검게 멈춤. 3D 화면 키 안내·키보드 포커스·보던 화면 유지·정지 장비 안내 | 사용자 직접 확인 | U (별도 후속) |
 | UXR-14 | UI/UX / 창 크기·3D 글자 | P1 | **85%** | 사용자 요청(2026-10-14): 오른쪽 아래 미리보기 카드를 모든 변·모서리에서 크기 조절, Slab 3D 글자 크기 56 초과 | 사용자 직접 확인 | U (별도 후속) |
 | PKG-01 | 배포 / 서버 연결 | P0 | **80%** | Shipping 패키지에서만 "연결 설정 필요": Shipping SaveGame이 사용자 폴더라 UI 저장 서버 설정이 넘어가지 않음 + 프로젝트 빈 `Config/Game.ini`가 pak에 들어가 패키지 옆 파일을 가림 → 프로젝트 `Config/SensorTransport.ini`를 에디터가 읽고 패키징 시 패키지 옆에 일반 파일로 복사(첫 실행 템플릿 생성은 보조), Game.ini·SensorTransport.ini pak 제외. Shipping 패키지에서 적용 로그 확인 | 사용자 실제 브로커 연결 확인 | 배포 |
+| PKG-02 | v1.0 패키지 검증 | P0 | **80%** | cf441f0 Shipping/Development BuildCookRun·두 구성 PCD20Hz 2분/hitch0, Shipping GT/사실성/데이터셋3장면 확인. 재질 cook·배포 Git 의존 수정 | Development 직접 기능: Windows Security 창으로 보류, 서버 PC 후속 | 배포 |
 | PCD-20HZ | 송신 / 연결 경고 | P0 | **90%** | 원인: 고속 TCP SEND 본문 5초 쓰기 한도 초과 시 연결 해제(브로커 순간 정체 → "연결 설정 필요"). 정체 중 연결 유지·receipt/ERROR 처리·60초 최종 상한·협상 heartbeat·EOF 정확 판정·단절 사유 기록·지연/재연결 문구. 가짜 서버·설치 Artemis 1대 20/10/5Hz·2대 20Hz 5분 모두 경고 0, 성능 2% 이내 | 사용자 환경 실측 확인, PCD 과부하 시 스트림 정지(NoLoss) 자동 재개 정책 결정 | 후속 |
 | MAP-01 | 이식 / 새 맵 적용 | P0 | **90%** | L3 Rig 재사용/소유 정리·Slab 없음 안내·DTCore 맵 점검·새 fixture 2개·CLI 검증 | 직접 마우스는 요청에 따라 UXR-07로 이관; DTCore 연결 조회 API 제한·독립 검토 대기 | U |
 | RT-02 | 조작 / 구현·자동검증 완료 | P0 | **70%** | 종료 상태 통일·원설정 복귀 | 해상도별 전체 직접 조작 체크리스트 | R1 |

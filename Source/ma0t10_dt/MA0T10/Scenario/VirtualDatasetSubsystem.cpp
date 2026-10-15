@@ -292,10 +292,19 @@ void UVirtualDatasetSubsystem::WriteScene()
         TSharedPtr<FJsonObject> Manifest;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Conditions),Manifest);
         Manifest->SetNumberField(TEXT("completed_scenes"),Scene+1);Manifest->SetStringField(TEXT("coordinates"),TEXT("PCD: RH sensor-local X forward,Y left,Z up meters; pose: UE world X forward,Y right,Z up meters; depth: optical Z meters; instance: R+256G+65536B"));
         Manifest->SetStringField(TEXT("lidar_labels"),TEXT("5 byte little-endian records in PCD point order: uint8 semantic_id,uint32 instance_id; 0 unknown; no padding"));
-        FString Sha,GitError;int32 Exit=0;const FString Args=TEXT("-C \"")+FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())+TEXT("\" rev-parse HEAD");
-        if(Commit.IsEmpty())FPlatformProcess::ExecProcess(TEXT("git.exe"),*Args,&Exit,&Sha,&GitError);else Sha=Commit;Result.Commit=Sha.TrimStartAndEnd();Manifest->SetStringField(TEXT("project_commit"),Result.Commit);
+        FString Sha=Commit.IsEmpty()?TEXT(MA0T10_PROJECT_COMMIT):Commit;
+        int32 Exit=0;
+#if WITH_EDITOR
+        // Editor-only fallback for source builds made without Git at build time.
+        if(Sha.IsEmpty())
+        {
+            FString GitError;const FString Args=TEXT("-C \"")+FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())+TEXT("\" rev-parse HEAD");
+            if(!FPlatformProcess::ExecProcess(TEXT("git.exe"),*Args,&Exit,&Sha,&GitError))Exit=-1;
+        }
+#endif
+        Result.Commit=Sha.TrimStartAndEnd();Manifest->SetStringField(TEXT("project_commit"),Result.Commit);
         const FString Temp=Root/TEXT("dataset.json.pending"),Final=Root/TEXT("dataset.json");
-        if(Exit!=0||Cancelled->load()||!FFileHelper::SaveStringToFile(Json(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!IFileManager::Get().Move(*Final,*Temp,true,true,false,true))
+        if(Exit!=0||Result.Commit.IsEmpty()||Cancelled->load()||!FFileHelper::SaveStringToFile(Json(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!IFileManager::Get().Move(*Final,*Temp,true,true,false,true))
         {
             Result.Error=TEXT("dataset.json 확정 실패 또는 생성 취소");IFileManager::Get().Delete(*Temp,false,true);
             for(const auto& F:Files)IFileManager::Get().Delete(*(Directory/F.Name),false,true);
