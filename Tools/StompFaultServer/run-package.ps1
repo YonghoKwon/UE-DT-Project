@@ -6,13 +6,14 @@ param([ValidateSet('Development','Shipping')][string]$Configuration='Development
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if(!$ReportDirectory){$ReportDirectory=Join-Path $root ('Saved/Reports/PCD-OPT/phase2/'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')+'-'+$Configuration+'-'+$Case)}
+if(Test-Path -LiteralPath (Join-Path $ReportDirectory 'result.json')){throw 'Choose a fresh report directory; existing probe results are preserved'}
 New-Item -ItemType Directory -Force -Path $ReportDirectory | Out-Null
 $package=Join-Path $root "Saved/Reports/PCD-OPT/phase2/package-$Configuration/Windows"
 $name=if($Configuration -eq 'Shipping'){'ma0t10_dt-Win64-Shipping.exe'}else{'ma0t10_dt.exe'}
 $exe=Join-Path $package "ma0t10_dt/Binaries/Win64/$name"
 if($EditorPie){$package=$root;$exe='C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor.exe'}
 if(!(Test-Path -LiteralPath $exe)){throw "Instrumented package is not staged: $Configuration"}
-if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor before packaged hitch measurement'}
+if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue | Where-Object {!$_.HasExited}){throw 'Close Editor before packaged hitch measurement'}
 if($Broker -eq 'Fake' -and (Get-NetTCPConnection -LocalPort 61618 -State Listen -ErrorAction SilentlyContinue)){throw 'Local fault port already owned'}
 $saved=@{};foreach($v in @('MA0T10_ARTEMIS_URL','MA0T10_ARTEMIS_USER','MA0T10_ARTEMIS_PASSWORD','MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE')){$saved[$v]=[Environment]::GetEnvironmentVariable($v)}
 $server=$null;$game=$null
@@ -51,6 +52,7 @@ try {
     }
     $fingerprint=@{};Get-ChildItem (Join-Path $root 'Source') -Recurse -File | ForEach-Object {$fingerprint[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName).Hash}
     if($EditorPie){$fingerprint['Binaries/Win64/UnrealEditor-ma0t10_dt.dll']=(Get-FileHash -LiteralPath "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash}
+    $fingerprint['Tools/StompFaultServer/run-package.ps1']=(Get-FileHash -LiteralPath $PSCommandPath).Hash
     @{Commit=(git -C $root rev-parse HEAD);DTCore=(git -C "$root/Plugins/DTCore" rev-parse HEAD);Configuration=$Configuration;EditorPie=[bool]$EditorPie;LegacyPolling=[bool]$LegacyPolling;Broker=$Broker;Case=$Case;Seconds=$Seconds;Interval=$Interval;Switch=[bool]$SwitchIntervals;Required=[bool]$RequireData;SendBufferRequested=$SendBufferBytes;CpuMask=$CpuMask;ExeHash=(Get-FileHash -LiteralPath $exe).Hash;CurrentSourceHashes=$fingerprint;ServerOptions=$ServerOptions} | ConvertTo-Json -Depth 4 | Set-Content "$ReportDirectory/manifest.json" -Encoding utf8
     $game=Start-Process $exe -ArgumentList $probeArguments -WorkingDirectory $package -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportDirectory/console.log" -RedirectStandardError "$ReportDirectory/stderr.log"
     if($CpuMask){$game.ProcessorAffinity=[IntPtr]$CpuMask}
@@ -58,8 +60,13 @@ try {
     while(!$game.WaitForExit(1000)){
         # Unreal can restore process affinity during startup. Enforce and record
         # the requested mask throughout the run, rather than trusting launch.
-        $game.Refresh();if($CpuMask){$game.ProcessorAffinity=[IntPtr]$CpuMask;$game.Refresh()}
-        $cpuSamples.Add([PSCustomObject]@{Elapsed=$watch.Elapsed.TotalSeconds;CpuSeconds=$game.TotalProcessorTime.TotalSeconds;WorkingSetBytes=$game.WorkingSet64;Affinity=$game.ProcessorAffinity.ToInt64()})
+        try {
+            $game.Refresh();if($game.HasExited){break}
+            $affinityBefore=$game.ProcessorAffinity
+            if($CpuMask){$game.ProcessorAffinity=[IntPtr]$CpuMask;$game.Refresh()}
+            $affinityValue=$game.ProcessorAffinity;if($game.HasExited){break}
+            $cpuSamples.Add([PSCustomObject]@{Elapsed=$watch.Elapsed.TotalSeconds;CpuSeconds=$game.TotalProcessorTime.TotalSeconds;WorkingSetBytes=$game.WorkingSet64;Affinity=if($affinityValue){$affinityValue.ToInt64()}else{0};ObservedAffinity=if($affinityBefore){$affinityBefore.ToInt64()}else{0}})
+        }catch{if($game.HasExited){break};throw}
         if($watch.Elapsed.TotalSeconds -gt $Seconds+240){throw 'Probe exceeded deadline; inspect owned process before rebuilding'}
     }
     $cpuSamples | Export-Csv -LiteralPath "$ReportDirectory/process.csv" -NoTypeInformation
@@ -73,5 +80,7 @@ try {
 }finally{
     if($game -and !$game.HasExited){$null=$game.CloseMainWindow();if(!$game.WaitForExit(10000)){Write-Warning 'Owned game did not exit; no force termination performed'}}
     if($server -and !$server.HasExited){Stop-Process -Id $server.Id;$server.WaitForExit()}
+    if($game -and $game.HasExited){$game.Dispose()}
+    if($server -and $server.HasExited){$server.Dispose()}
     foreach($v in $saved.Keys){[Environment]::SetEnvironmentVariable($v,$saved[$v])}
 }

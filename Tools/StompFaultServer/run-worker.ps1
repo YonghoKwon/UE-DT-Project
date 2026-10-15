@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Force -Path $ReportDirectory | Out-Null
 $saved=@{}; foreach($name in @('MA0T10_PCD20HZ_CASE','MA0T10_PCD20HZ_SECONDS','MA0T10_PCD20HZ_INTERVAL','MA0T10_PCD20HZ_LIDARS','MA0T10_ARTEMIS_RAW_URL')){$saved[$name]=[Environment]::GetEnvironmentVariable($name)}
 $server=$null;$editor=$null
 try {
-    if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/Live Coding before socket fault acceptance'}
+    if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue | Where-Object {!$_.HasExited}){throw 'Close Editor/Live Coding before socket fault acceptance'}
     if(Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object {$_.CommandLine -like '*UnrealBuildTool*'}){throw 'Wait for UnrealBuildTool to finish before acceptance'}
     $dllHash=(Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash
     $sourceHashes=@{};Get-ChildItem "$root/Source" -Recurse -File | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName).Hash}
@@ -34,5 +34,7 @@ try {
 } finally {
     if($editor -and !$editor.HasExited){$null=$editor.CloseMainWindow();if(!$editor.WaitForExit(5000)){throw 'Owned test Editor did not exit normally; do not rebuild until it is closed'}}
     if($server -and !$server.HasExited){Stop-Process -Id $server.Id; $server.WaitForExit()}
+    if($editor -and $editor.HasExited){$editor.Dispose()}
+    if($server -and $server.HasExited){$server.Dispose()}
     foreach($name in $saved.Keys){[Environment]::SetEnvironmentVariable($name,$saved[$name])}
 }

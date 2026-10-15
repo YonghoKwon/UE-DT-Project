@@ -17,7 +17,7 @@ try {
     if($SwitchIntervals -and !$OptProbe){throw 'SwitchIntervals requires OptProbe'}
     if($OptProbe){$env:MA0T10_PCD20HZ_CASE=if($SwitchIntervals){'pcd-opt-switch'}else{'pcd-opt'}}
     elseif($RecoveryFault){$env:MA0T10_PCD20HZ_CASE='overload-resume-native'}else{Remove-Item Env:MA0T10_PCD20HZ_CASE -ErrorAction SilentlyContinue}
-    if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/Live Coding before native acceptance'}
+    if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue | Where-Object {!$_.HasExited}){throw 'Close Editor/Live Coding before native acceptance'}
     if(Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object {$_.CommandLine -like '*UnrealBuildTool*'}){throw 'Wait for UnrealBuildTool to finish before acceptance'}
     $dllHash=(Get-FileHash "$root/Binaries/Win64/UnrealEditor-ma0t10_dt.dll").Hash
     $sourceHashes=@{};Get-ChildItem "$root/Source" -Recurse -File | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName).Hash}
@@ -54,6 +54,8 @@ try {
 } finally {
     if($editor -and !$editor.HasExited){$null=$editor.CloseMainWindow();if(!$editor.WaitForExit(10000)){Write-Warning 'Owned Editor did not exit normally; do not rebuild until closed'}}
     if($server -and !$server.HasExited){Stop-Process -Id $server.Id;$server.WaitForExit()}
+    if($editor -and $editor.HasExited){$editor.Dispose()}
+    if($server -and $server.HasExited){$server.Dispose()}
     foreach($name in $saved.Keys){[Environment]::SetEnvironmentVariable($name,$saved[$name])}
     $session=$null
 }
