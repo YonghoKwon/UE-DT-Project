@@ -91,7 +91,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     const bool SendDelayed=TransferFailure||(Raw&&Raw->IsSendDelayed());
     GlobalStatus.Equipment=SensorToolUiText::EquipmentCount(GlobalStatus.EquipmentCount,GlobalStatus.MeasuringCount);
-    GlobalStatus.Pcd=PcdOverloadSuspended?SensorToolUiText::PcdOverloadSuspended():PcdRateControlled?SensorToolUiText::PcdRateControlled(PcdControlledHz):SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
+    GlobalStatus.Pcd=PcdOverloadSuspended?SensorToolUiText::PcdResumeWaiting():SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
     GlobalStatus.Server=SensorToolUiText::ServerState(GlobalStatus.bServerConnected);
     GlobalStatus.Scenario=SensorToolUiText::ScenarioWaiting();
     if(auto* Progress=Cast<USlabProgressPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)))StatusSlab=Progress->GetBoundSlabActor();
@@ -129,15 +129,12 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     else if(Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
     // A single actionable summary; technical details stay in the destination panel.
     if(GlobalStatus.EquipmentCount==0)GlobalStatus.Warning=SensorToolUiText::EquipmentRequired();
+    else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince);
     else if(!Preflight.BlockingReasons.IsEmpty())
     {
         GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
     }
-    else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince);
-    else if(PcdOverloadSuspended)GlobalStatus.Warning=SensorToolUiText::PcdOverloadSuspended();
-    else if(SendDelayed)GlobalStatus.Warning=SensorToolUiText::SendDelayed();
-    else if(PcdRateControlled)GlobalStatus.Warning=SensorToolUiText::PcdRateControlled(PcdControlledHz);
-    else if(!Session.RequiredDataError.IsEmpty())GlobalStatus.Warning=SensorToolUiText::TransferCheck();
+    else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
 }
 
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()

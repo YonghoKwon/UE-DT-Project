@@ -961,28 +961,29 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     auto CameraBasic=SNew(SVerticalBox).Visibility_Lambda(CameraVisible);
     CameraBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedCameraInterval","측정 주기 (s)"),[this](){return PendingState.CameraCaptureInterval;},[this](float V){PendingState.CameraCaptureInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("CameraInterval"))];
     CameraBasic->AddSlot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox)
-      +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).IsEnabled_Lambda([this](){return bOwnedCanEdit;})
+      +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([this](){return bOwnedCanEdit;})
         .IsChecked_Lambda([this](){return PendingState.bCameraGroundTruth?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
         .OnCheckStateChanged_Lambda([this](ECheckBoxState V){PendingState.bCameraGroundTruth=V==ECheckBoxState::Checked;})
-        [SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthEnabled","정답 데이터 사용"))]]
+        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PendingState.bCameraGroundTruth?LOCTEXT("CameraTruthOn","정답 데이터 선택 · 켜짐"):LOCTEXT("CameraTruthOff","정답 데이터 선택 · 꺼짐");})]]
       +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthHelp","ⓘ"))
-        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 적용 후 미리보기에서 깊이·의미 분류·객체 구분을 확인합니다. GPU 캡처와 읽기 비용이 추가됩니다. 1회 캡처는 검증 파일을 Saved/CameraGroundTruth에 저장합니다. 서버 전송은 추가하지 않습니다."))]];
+        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 체크는 선택값입니다. 실제 적용 상태는 미리보기의 보기 설정에서 확인하세요. 적용 후 깊이·의미 분류·객체 구분을 표시하며 GPU 캡처와 읽기 비용이 추가됩니다. 1회 저장은 Saved/CameraGroundTruth에 기록합니다. 서버 전송은 추가하지 않습니다."))]];
     Basic->AddSlot().AutoHeight()[CameraBasic];
     auto LidarBasic=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarInterval","측정 주기 (s)"),[this](){return PendingState.LidarScanInterval;},[this](float V){PendingState.LidarScanInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("LidarInterval"))];
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarRange","최대 거리 (cm)"),[this](){return PendingState.LidarMaxDistance;},[this](float V){PendingState.LidarMaxDistance=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},10,20000,true,TEXT("LidarRange"))];
     auto Fidelity=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
-    Fidelity->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarFidelityGroup","사실성"))];
+    Fidelity->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarFidelityGroup","LiDAR 사실성"))];
     const auto FidelityToggle=[this,Fidelity](const FText& Label,bool FVirtualSensorEditableState::*Field,const FText& Help)
     {
         Fidelity->AddSlot().AutoHeight().Padding(0,3)[SNew(SHorizontalBox)
-            +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox)
+            +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false)
                 .IsChecked_Lambda([this,Field](){return PendingState.*Field?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
                 .OnCheckStateChanged_Lambda([this,Field](ECheckBoxState Value){
                     PendingState.*Field=Value==ECheckBoxState::Checked;
                     if(Field==&FVirtualSensorEditableState::bLidarMotionDistortion&&PendingState.*Field)PendingState.bLidarPointTime=true;
                     if(Field==&FVirtualSensorEditableState::bLidarPointTime&&!(PendingState.*Field))PendingState.bLidarMotionDistortion=false;
-                    ApplyPendingState();})[SNewSensorTool(STextBlock).Text(Label)]]
+                    ApplyPendingState();})[SNewSensorTool(STextBlock).AutoWrapText(true)
+                        .Text_Lambda([this,Field,On=SensorToolUiText::OptionState(Label,true),Off=SensorToolUiText::OptionState(Label,false)](){return PendingState.*Field?On:Off;})]]
             +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarFidelityInfo","ⓘ")).ToolTipText(Help)]];
     };
     FidelityToggle(LOCTEXT("LidarPointTime","점별 시간차"),&FVirtualSensorEditableState::bLidarPointTime,

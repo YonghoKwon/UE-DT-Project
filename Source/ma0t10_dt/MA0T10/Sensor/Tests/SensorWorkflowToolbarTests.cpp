@@ -71,7 +71,7 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     TestEqual(TEXT("detail settings opens basic screen"),Settings->WorkspaceSettingsTab,0);
     TestTrue(TEXT("chart stays reachable before UXR-04"),Toolbar->OpenOwnedDestination(ESensorToolDestination::ScenarioCharts)&&W->IsPanelOpen(ESensorToolPanelRole::SlabCharts));
     TArray<FString> MenuTexts;FindTexts(Toolbar->BuildToolsMenu(),MenuTexts);
-    for(const FText& Text:{SensorToolUiText::SensorSettings(),SensorToolUiText::FileSave(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts(),SensorToolUiText::Appearance()})
+    for(const FText& Text:{SensorToolUiText::SensorSettings(),SensorToolUiText::FileSaveAndDataset(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts(),SensorToolUiText::Appearance()})
         TestTrue(TEXT("tool menu contains named destination"),MenuTexts.Contains(Text.ToString()));
     Toolbar->SelectSensor(L->GetSensorId());
     TestEqual(TEXT("owned selector synchronizes settings"),Settings->GetPendingState().SensorId,L->GetSensorId());

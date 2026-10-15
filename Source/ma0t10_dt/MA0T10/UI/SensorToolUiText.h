@@ -111,6 +111,11 @@ namespace SensorToolUiText
     inline FText Tools() { return LOCTEXT("Tools", "도구"); }
     inline FText SensorSettings() { return LOCTEXT("SensorSettings", "센서 상세 설정"); }
     inline FText FileSave() { return LOCTEXT("FileSave", "파일 저장"); }
+    inline FText FileSaveAndDataset() { return LOCTEXT("FileSaveAndDataset", "파일 저장 · 데이터셋"); }
+    inline FText OptionState(const FText& Label,bool Enabled)
+    { return FText::Format(Enabled?LOCTEXT("OptionOn","{0} · 켜짐"):LOCTEXT("OptionOff","{0} · 꺼짐"),Label); }
+    inline FText Dataset() { return LOCTEXT("Dataset","데이터셋 생성"); }
+    inline FText DatasetRanges() { return LOCTEXT("DatasetRanges","랜덤화 조건 · 켜기 / 최솟값 / 최댓값"); }
     inline FText FileSaveWaiting() { return LOCTEXT("FileSaveWaiting", "파일을 저장하면 처리 결과가 표시됩니다."); }
     inline FText ServerSettings() { return LOCTEXT("ServerSettings", "서버 연결 설정"); }
     inline FText Diagnostics() { return LOCTEXT("Diagnostics", "진단"); }
@@ -134,6 +139,7 @@ namespace SensorToolUiText
     inline FText EquipmentCount(int32 Total, int32 Running) { return FText::Format(LOCTEXT("EquipmentCount", "장비 {0}대(측정 {1})"), Total, Running); }
     inline FText PcdState(bool Sending) { return Sending ? LOCTEXT("PcdSending", "PCD 전송 중") : LOCTEXT("PcdStopped", "PCD 전송 중지"); }
     inline FText PcdOverloadSuspended() { return LOCTEXT("PcdOverloadSuspended", "PCD 과부하 · 잠시 후 자동 재개"); }
+    inline FText PcdResumeWaiting() { return LOCTEXT("PcdResumeWaiting","PCD 재개 대기"); }
     inline FText PcdRateControlled(float Hz)
     {
         FNumberFormattingOptions Format;Format.MinimumFractionalDigits=Format.MaximumFractionalDigits=1;
@@ -154,6 +160,13 @@ namespace SensorToolUiText
     inline FText EquipmentRequired() { return LOCTEXT("EquipmentRequired", "장비 없음 · 배치에서 장비를 추가하세요"); }
     inline FText EquipmentCheck() { return LOCTEXT("EquipmentCheck", "장비 설정 확인 필요 · PCD 전송에서 확인하세요"); }
     inline FText TransferCheck() { return LOCTEXT("TransferCheck", "전송 상태 확인 필요 · 진단에서 확인하세요"); }
+    inline FText PcdWarning(bool Suspended,bool RateControlled,float Hz,bool Delayed,bool RequiredError)
+    {
+        if(Suspended)return PcdOverloadSuspended();
+        if(RateControlled)return PcdRateControlled(Hz);
+        if(Delayed)return SendDelayed();
+        return RequiredError?TransferCheck():FText::GetEmpty();
+    }
     inline FText Warning(const FText& Reason) { return FText::Format(LOCTEXT("Warning", "⚠ {0}"), Reason); }
     inline FText FontPercent(float Scale) { return FText::Format(LOCTEXT("FontPercent", "글자 {0}%"), FMath::RoundToInt(Scale * 100)); }
     inline FText ResetUi() { return LOCTEXT("ResetUi", "센서 도구 UI 초기화"); }

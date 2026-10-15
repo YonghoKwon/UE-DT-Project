@@ -16,6 +16,8 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "HAL/FileManager.h"
 #include "EngineUtils.h"
 #include "Json.h"
@@ -96,6 +98,13 @@ public:
             Test->AddInfo(FString::Printf(TEXT("UXR15 automated render %s; direct mouse not tested"),*Path));return false;
         }
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
+        // A visible, stationary session for Computer Use; only its explicit finish flag
+        // or timeout ends PIE. Automatic preparation is never direct mouse acceptance.
+        if(FParse::Param(FCommandLine::Get(),TEXT("Uxr15Manual")))
+        {
+            const FString Root=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));
+            return FPaths::FileExists(Root/TEXT("finish.flag"))||FPlatformTime::Seconds()-Started>180;
+        }
         Requested=false;ReadyAt=0;Monitor->bOwnedAdvancedMenuOpen=false;return ++Phase==2*Count;
     }
 };
