@@ -10,6 +10,7 @@ class UTexture2D;
 class USceneCaptureComponent2D;
 class UTextureRenderTarget2D;
 class FVirtualLidarSemanticScene;
+class FRHIGPUTextureReadback;
 struct FVirtualCameraTruthWork;
 
 struct MA0T10_DT_API FVirtualCameraIntrinsics
@@ -31,6 +32,7 @@ struct MA0T10_DT_API FVirtualCameraTruthFrame
     TArray<float> DepthMeters; // optical-axis Z, 0 invalid; never display-normalized
     TArray<uint8> Classes;
     TArray<uint32> Instances; // session-stable Actor ID, 0 invalid
+    TArray<FColor> DatasetRgb; // only explicit DATASET-01 requests; original RGB target bytes
     TMap<uint32,FString> ActorPaths;
     TArray<FVirtualCameraTruthBox> Boxes; // visible mask bounds, inclusive pixel indices
     double SubmitMs=0, ReadbackLatencyMs=0, DecodeMs=0;
@@ -46,7 +48,7 @@ class MA0T10_DT_API UVirtualCameraGroundTruth : public UActorComponent
 public:
     UVirtualCameraGroundTruth();
     virtual ~UVirtualCameraGroundTruth() override;
-    bool Capture(UVirtualCameraCaptureComponent& Source, const FVirtualCameraPayloadSnapshot& Snapshot, bool bSave);
+    bool Capture(UVirtualCameraCaptureComponent& Source, const FVirtualCameraPayloadSnapshot& Snapshot, bool bSave, bool bDataset=false, bool bIncludeTruth=true);
     void Cancel();
     void Poll();
     UTexture2D* Preview(uint8 Mode) const;
@@ -55,8 +57,13 @@ public:
     FString LastSavedDirectory;
     bool IsBusy() const { return Work.IsValid(); }
     bool IsSaving() const;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    bool HasTruthResourcesForTests() const { return DepthCapture!=nullptr||SemanticScene.IsValid(); }
+    int32 GetReadbackAllocationsForTests() const { return ReadbackAllocations; }
+#endif
 protected:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+    virtual void OnUnregister() override;
 private:
     UPROPERTY(Transient) TObjectPtr<USceneCaptureComponent2D> DepthCapture;
     UPROPERTY(Transient) TObjectPtr<UTextureRenderTarget2D> DepthTarget;
@@ -67,4 +74,8 @@ private:
     uint32 NextActorId=1;
     FTimerHandle PollTimer;
     void Complete(const TSharedPtr<FVirtualCameraTruthWork,ESPMode::ThreadSafe>& Completed);
+    TSharedPtr<FRHIGPUTextureReadback,ESPMode::ThreadSafe> CachedDepth,CachedSemantic,CachedRgb;
+    FIntPoint CachedSize=FIntPoint::ZeroValue;
+    int32 ReadbackAllocations=0;
+    void ReleaseReadbackCache();
 };

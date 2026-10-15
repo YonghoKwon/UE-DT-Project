@@ -185,6 +185,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
     if(GetVisibility()==ESlateVisibility::Collapsed||GetVisibility()==ESlateVisibility::Hidden||IsPanelCollapsed())return;
     if(LastNativeStatusRefreshSeconds>=0&&Now-LastNativeStatusRefreshSeconds<.2)return;
     LastNativeStatusRefreshSeconds=Now;
+    if(OwnedTab==ESensorOwnedDataTab::FileSave&&bDatasetExpanded)RefreshDatasetPresentation();
     if(LastUiMessage!=CachedOwnedMessageSource||OwnedTab!=CachedOwnedMessageTab)
     {
         CachedOwnedMessageSource=LastUiMessage;CachedOwnedMessageTab=OwnedTab;
@@ -439,6 +440,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedFileTab()
 	Output(false,&FVirtualSensorCaptureSelection::bPointCloud,LOCTEXT("PointCloud","포인트 클라우드"));Output(false,&FVirtualSensorCaptureSelection::bLidarPayload,LOCTEXT("LidarJson","LiDAR JSON"));
 	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[Modes]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[BuildOwnedDatasetSection()]
 	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this](){return OwnedFileAction==0?LOCTEXT("NewHelp","선택 장비의 새 프레임을 비동기로 기다립니다. 요청 후 장비를 바꿔도 저장 대상은 유지됩니다."):OwnedFileAction==1?LOCTEXT("CurrentHelp","마지막으로 완료된 프레임을 저장합니다. 추가 측정을 하지 않습니다."):LOCTEXT("PeriodicHelp","시작할 때의 장비·출력·간격으로 최신 완료 프레임을 저장합니다. 서버 전송 간격과는 별개입니다.");})]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Options]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).Visibility_Lambda([this,IsCamera](){return !IsCamera()&&CaptureSelection.bPointCloud?EVisibility::Visible:EVisibility::Collapsed;}).OptionsSource(&NativeExportKindOptions)

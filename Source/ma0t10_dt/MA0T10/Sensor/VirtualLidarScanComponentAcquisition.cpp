@@ -107,7 +107,21 @@ FVirtualSensorResourceSnapshot UVirtualLidarScanComponent::GetResourceSnapshot()
     return S;
 }
 void UVirtualLidarScanComponent::StopScan()
+{StopScanInternal(false);}
+void UVirtualLidarScanComponent::StopDatasetScan()
+{StopScanInternal(!bGpuDepthScanInProgress&&!bScheduledScanInProgress);}
+void UVirtualLidarScanComponent::RequestDatasetScanOnce()
 {
+    if(!GetWorld()||IsScanRunning())return;
+    StartScan();RequestImmediateScheduledScan();PrepareScheduledScan(GetWorld()->GetTimeSeconds());
+    // Keep scheduler polling this acquisition, but never start a second frame
+    // before the dataset orchestrator consumes the first completed snapshot.
+    NextScheduledScanTime=TNumericLimits<double>::Max();
+}
+void UVirtualLidarScanComponent::StopScanInternal(bool KeepReadbacks)
+{
+    DatasetNoiseSequence.Reset();
+    bDatasetSemanticDemand=false;
     PreviousFidelityWorldTime = -1;
     AcquisitionTargetMotion.Reset();
     AcquisitionSensorMotion = FVirtualSensorMotionSample();
@@ -120,7 +134,7 @@ void UVirtualLidarScanComponent::StopScan()
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
     bDeadlineMissRecordedForActiveAcquisition = false;
-    if (GpuDepthProjectionComponent.IsValid()) GpuDepthProjectionComponent->CancelAcquisition();
+    if(GpuDepthProjectionComponent.IsValid()){if(KeepReadbacks)GpuDepthProjectionComponent->CancelDatasetAcquisition();else GpuDepthProjectionComponent->CancelAcquisition();}
     bScheduledPayloadBuildInFlight = false;
     bScheduledAutoExportInFlight = false;
     RuntimeStatus.bDerivedWorkInFlight=false;

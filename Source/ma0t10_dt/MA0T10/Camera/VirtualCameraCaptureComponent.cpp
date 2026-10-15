@@ -1139,6 +1139,16 @@ void UVirtualCameraCaptureComponent::SetGroundTruthEnabled(bool Enabled)
     bGroundTruthEnabled=Enabled;
     if(!Enabled){if(GroundTruth)GroundTruth->Cancel();bGroundTruthSaveRequested=false;GroundTruthPreviewDemandUntil=0;}
 }
+bool UVirtualCameraCaptureComponent::CaptureDatasetFrame(UVirtualCameraGroundTruth& Destination,bool IncludeTruth)
+{
+    if(IsCaptureRunning()||!GetWorld()||(IncludeTruth&&!bGroundTruthEnabled)||Destination.IsBusy())return false;
+    EnsureRenderTarget();
+    FVirtualCameraPayloadSnapshot S;S.SensorId=SensorId;S.FrameId=++FrameId;S.AcquisitionRevision=GetFileCaptureRevision();
+    S.TimestampUtc=FDateTime::UtcNow();S.Width=CaptureResolution.X;S.Height=CaptureResolution.Y;S.HorizontalFov=FOVAngle;
+    S.Location=GetComponentLocation();S.Rotation=GetComponentRotation();S.Forward=GetForwardVector();S.Up=GetUpVector();
+    VirtualSensorCaptureRendering::Prepare(*this,true);CaptureScene();
+    return Destination.Capture(*this,S,false,true,IncludeTruth);
+}
 bool UVirtualCameraCaptureComponent::RequestGroundTruthSave()
 {
     if(!bGroundTruthEnabled||!IsCaptureRunning()||bGroundTruthSaveRequested||(GroundTruth&&GroundTruth->IsBusy()))return false;

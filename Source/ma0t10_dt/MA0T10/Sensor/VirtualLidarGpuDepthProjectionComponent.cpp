@@ -326,9 +326,13 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 }
 
 void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisition()
+{CancelAcquisitionInternal(false);}
+void UVirtualLidarGpuDepthProjectionComponent::CancelDatasetAcquisition()
+{CancelAcquisitionInternal(!bAcquisitionActive&&!bReadbackCopyInFlight);}
+void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisitionInternal(bool KeepReadbacks)
 {
 	++AcquisitionGeneration;
-	ReleaseReadbackOnRenderThread();
+	if(!KeepReadbacks)ReleaseReadbackOnRenderThread();
 	CompletedFrame.Reset();
 	bAcquisitionActive = false;
 	bReadbackQueued = false;

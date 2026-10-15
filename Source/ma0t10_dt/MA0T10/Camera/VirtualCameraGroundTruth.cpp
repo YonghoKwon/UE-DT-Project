@@ -79,40 +79,48 @@ struct FVirtualCameraTruthWork
 {
     ~FVirtualCameraTruthWork(){--ActiveTruthWork;}
     std::atomic<bool> Cancelled{false}, CopiesQueued{false};
-    TSharedPtr<FRHIGPUTextureReadback,ESPMode::ThreadSafe> Depth,Semantic;
+    TSharedPtr<FRHIGPUTextureReadback,ESPMode::ThreadSafe> Depth,Semantic,Rgb;
     TSharedPtr<FVirtualCameraTruthFrame,ESPMode::ThreadSafe> Frame=MakeShared<FVirtualCameraTruthFrame,ESPMode::ThreadSafe>();
     TMap<int32,TPair<uint8,uint32>> Identities;
     TArray<FColor> Displays[3];
     TWeakObjectPtr<UVirtualCameraCaptureComponent> Source;
     int32 Revision=0;
     double Started=0;
-    bool Mapping=false, Save=false;
+    bool Mapping=false, Save=false,Dataset=false,IncludeTruth=true;
     FString Directory,Error;
 };
 
 UVirtualCameraGroundTruth::UVirtualCameraGroundTruth(){PrimaryComponentTick.bCanEverTick=false;}
 UVirtualCameraGroundTruth::~UVirtualCameraGroundTruth()=default;
 bool UVirtualCameraGroundTruth::IsSaving() const { return Work&&Work->Save; }
-void UVirtualCameraGroundTruth::EndPlay(const EEndPlayReason::Type Reason){Cancel();Super::EndPlay(Reason);}
+void UVirtualCameraGroundTruth::ReleaseReadbackCache()
+{
+    auto D=MoveTemp(CachedDepth),S=MoveTemp(CachedSemantic),R=MoveTemp(CachedRgb);CachedSize=FIntPoint::ZeroValue;
+    ENQUEUE_RENDER_COMMAND(ReleaseCameraTruthCache)([D=MoveTemp(D),S=MoveTemp(S),R=MoveTemp(R)](FRHICommandListImmediate&)mutable{D.Reset();S.Reset();R.Reset();});
+}
+void UVirtualCameraGroundTruth::EndPlay(const EEndPlayReason::Type Reason){Cancel();ReleaseReadbackCache();Super::EndPlay(Reason);}
+void UVirtualCameraGroundTruth::OnUnregister(){Cancel();ReleaseReadbackCache();if(DepthCapture)DepthCapture->DestroyComponent();DepthCapture=nullptr;DepthTarget=nullptr;SemanticScene.Reset();Super::OnUnregister();}
 void UVirtualCameraGroundTruth::Cancel()
 {
     if(GetWorld())GetWorld()->GetTimerManager().ClearTimer(PollTimer);
     if(Work)
     {
         Work->Cancelled=true;auto Old=MoveTemp(Work);
-        ENQUEUE_RENDER_COMMAND(CameraTruthRelease)([Old](FRHICommandListImmediate&)mutable{Old->Depth.Reset();Old->Semantic.Reset();});
+        ENQUEUE_RENDER_COMMAND(CameraTruthRelease)([Old](FRHICommandListImmediate&)mutable{Old->Depth.Reset();Old->Semantic.Reset();Old->Rgb.Reset();});
     }
     LastFrame.Reset();PreviewTextures.Reset();Status=TEXT("정답 데이터 대기");
 }
-bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,const FVirtualCameraPayloadSnapshot& Snapshot,bool Save)
+bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,const FVirtualCameraPayloadSnapshot& Snapshot,bool Save,bool Dataset,bool IncludeTruth)
 {
     if(Work){Status=TEXT("정답 데이터 처리 중 · 새 요청 생략");return false;}
-    if(!GetWorld()||!Source.bGroundTruthEnabled||Snapshot.Width<=0||Snapshot.Height<=0||int64(Snapshot.Width)*Snapshot.Height>4096ll*2160||Source.ProjectionType!=ECameraProjectionMode::Perspective||Source.bUseCustomProjectionMatrix)
+    if(!GetWorld()||(IncludeTruth&&!Source.bGroundTruthEnabled)||(!IncludeTruth&&!Dataset)||Snapshot.Width<=0||Snapshot.Height<=0||int64(Snapshot.Width)*Snapshot.Height>4096ll*2160||Source.ProjectionType!=ECameraProjectionMode::Perspective||Source.bUseCustomProjectionMatrix)
     {Status=TEXT("정답 데이터: 기본 원근 카메라만 지원합니다");return false;}
     if(ActiveTruthWork.fetch_add(1)>=2){--ActiveTruthWork;Status=TEXT("정답 데이터: 전역 처리 한도 2개");return false;}
     auto State=MakeShared<FVirtualCameraTruthWork,ESPMode::ThreadSafe>();
-    State->Source=&Source;State->Revision=Source.GetFileCaptureRevision();State->Started=FPlatformTime::Seconds();State->Save=Save;
+    State->Source=&Source;State->Revision=Source.GetFileCaptureRevision();State->Started=FPlatformTime::Seconds();State->Save=Save;State->Dataset=Dataset;State->IncludeTruth=IncludeTruth;
     State->Frame->Acquisition=Snapshot;State->Frame->Intrinsics=FVirtualCameraIntrinsics::Make(Snapshot.Width,Snapshot.Height,Snapshot.HorizontalFov);
+    if(IncludeTruth)
+    {
     if(!DepthCapture)
     {
         DepthCapture=NewObject<USceneCaptureComponent2D>(this);
@@ -146,19 +154,28 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
     }
     VirtualSensorCaptureRendering::Prepare(*DepthCapture,true);
     DepthCapture->CaptureScene();
-    auto* DepthResource=DepthTarget->GameThread_GetRenderTargetResource();
-    auto* SemanticResource=SemanticScene->GetTarget()->GameThread_GetRenderTargetResource();
-    State->Depth=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("CameraTruthDepth"));
-    State->Semantic=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("CameraTruthIds"));
-    ENQUEUE_RENDER_COMMAND(CameraTruthCopy)([State,DepthResource,SemanticResource](FRHICommandListImmediate& Cmd)
+    }
+    auto* DepthResource=IncludeTruth?DepthTarget->GameThread_GetRenderTargetResource():nullptr;
+    auto* SemanticResource=IncludeTruth?SemanticScene->GetTarget()->GameThread_GetRenderTargetResource():nullptr;
+    if(CachedSize!=FIntPoint(Snapshot.Width,Snapshot.Height)){ReleaseReadbackCache();CachedSize=FIntPoint(Snapshot.Width,Snapshot.Height);}
+    if(IncludeTruth)
+    {
+        if(!CachedDepth){CachedDepth=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("CameraTruthDepth"));++ReadbackAllocations;}
+        if(!CachedSemantic){CachedSemantic=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("CameraTruthIds"));++ReadbackAllocations;}
+        State->Depth=CachedDepth;State->Semantic=CachedSemantic;
+    }
+    auto* RgbResource=Dataset&&Source.GetCameraRenderTarget()?Source.GetCameraRenderTarget()->GameThread_GetRenderTargetResource():nullptr;
+    if(Dataset){if(!CachedRgb){CachedRgb=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("DatasetRgb"));++ReadbackAllocations;}State->Rgb=CachedRgb;}
+    ENQUEUE_RENDER_COMMAND(CameraTruthCopy)([State,DepthResource,SemanticResource,RgbResource](FRHICommandListImmediate& Cmd)
     {
         if(State->Cancelled)return;
         // InitResource/UpdateResource and both captures precede this command. Fetching
         // texture refs on the game thread can observe an uninitialized first target.
-        const auto D=DepthResource->GetRenderTargetTexture(), S=SemanticResource->GetRenderTargetTexture();
-        if(D.IsValid()&&S.IsValid())
+        const auto D=DepthResource?DepthResource->GetRenderTargetTexture():FTextureRHIRef(), S=SemanticResource?SemanticResource->GetRenderTargetTexture():FTextureRHIRef();
+        if(!State->IncludeTruth||(D.IsValid()&&S.IsValid()))
         {
-            VirtualSensorTextureReadback::Enqueue(Cmd,*State->Depth,D);VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,S);
+            if(State->IncludeTruth){VirtualSensorTextureReadback::Enqueue(Cmd,*State->Depth,D);VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,S);}
+            if(State->Rgb){if(!RgbResource||!RgbResource->GetRenderTargetTexture().IsValid())return;VirtualSensorTextureReadback::Enqueue(Cmd,*State->Rgb,RgbResource->GetRenderTargetTexture());}
             State->CopiesQueued.store(true,std::memory_order_release);
         }
     });
@@ -171,8 +188,8 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
 void UVirtualCameraGroundTruth::Poll()
 {
     auto State=Work;if(!State||State->Cancelled||State->Mapping)return;
-    if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||!State->Source->bGroundTruthEnabled){Cancel();return;}
-    if(!State->CopiesQueued.load(std::memory_order_acquire)||!State->Depth->IsReady()||!State->Semantic->IsReady())
+    if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
+    if(!State->CopiesQueued.load(std::memory_order_acquire)||(State->Depth&&!State->Depth->IsReady())||(State->Semantic&&!State->Semantic->IsReady())||(State->Rgb&&!State->Rgb->IsReady()))
     {if(FPlatformTime::Seconds()-State->Started>10){Cancel();Status=TEXT("정답 데이터 GPU 대기 시간 초과");}return;}
     State->Mapping=true;GetWorld()->GetTimerManager().ClearTimer(PollTimer);
     auto* Module=&FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
@@ -180,24 +197,33 @@ void UVirtualCameraGroundTruth::Poll()
     ENQUEUE_RENDER_COMMAND(CameraTruthMap)([State,Weak,Module](FRHICommandListImmediate&)mutable
     {
         TArray<FLinearColor> IdPixels;int32 DP=0,SP=0;
-        const float* D=static_cast<const float*>(State->Depth->Lock(DP));
-        const FLinearColor* S=static_cast<const FLinearColor*>(State->Semantic->Lock(SP));
+        const float* D=State->Depth?static_cast<const float*>(State->Depth->Lock(DP)):nullptr;
+        const FLinearColor* S=State->Semantic?static_cast<const FLinearColor*>(State->Semantic->Lock(SP)):nullptr;
         const int32 W=State->Frame->Intrinsics.Width,H=State->Frame->Intrinsics.Height;
+        if(State->Rgb)
+        {
+            int32 RP=0;const auto* R=static_cast<const FColor*>(State->Rgb->Lock(RP));
+            if(R&&RP>=W&&!State->Cancelled){State->Frame->DatasetRgb.SetNumUninitialized(W*H);for(int32 Y=0;Y<H;++Y)FMemory::Memcpy(State->Frame->DatasetRgb.GetData()+Y*W,R+Y*RP,W*sizeof(FColor));}
+            else State->Error=TEXT("데이터셋 RGB 읽기 실패");
+            if(R)State->Rgb->Unlock();State->Rgb.Reset();
+        }
         if(D&&S&&DP>=W&&SP>=W&&!State->Cancelled)
         {
             State->Frame->DepthMeters.SetNumUninitialized(W*H);IdPixels.SetNumUninitialized(W*H);
             for(int32 Y=0;Y<H;++Y){FMemory::Memcpy(State->Frame->DepthMeters.GetData()+Y*W,D+Y*DP,W*sizeof(float));FMemory::Memcpy(IdPixels.GetData()+Y*W,S+Y*SP,W*sizeof(FLinearColor));}
         }
-        else State->Error=TEXT("정답 데이터 GPU 읽기 실패");
+        else if(State->IncludeTruth)State->Error=TEXT("정답 데이터 GPU 읽기 실패");
         if(D)State->Depth->Unlock();if(S)State->Semantic->Unlock();State->Depth.Reset();State->Semantic.Reset();
         State->Frame->ReadbackLatencyMs=(FPlatformTime::Seconds()-State->Started)*1000;
         Async(EAsyncExecution::ThreadPool,[State,Weak,Module,IdPixels=MoveTemp(IdPixels),W,H]()mutable
         {
             const double Start=FPlatformTime::Seconds();auto& F=*State->Frame;
-            if(!State->Cancelled&&IdPixels.Num()==W*H)
+            if(!State->Cancelled&&(!State->IncludeTruth||IdPixels.Num()==W*H))
             {
+                if(State->IncludeTruth)
+                {
                 F.Classes.SetNumZeroed(W*H);F.Instances.SetNumZeroed(W*H);
-                for(auto& Display:State->Displays)Display.SetNumZeroed(W*H);
+                if(!State->Dataset)for(auto& Display:State->Displays)Display.SetNumZeroed(W*H);
                 for(int32 I=0;I<W*H;++I)
                 {
                     float& Z=F.DepthMeters[I];Z*=0.01f;
@@ -207,11 +233,15 @@ void UVirtualCameraGroundTruth::Poll()
                     if(Identity&&FMath::Abs(P.A*.01f-Z)<=FMath::Max(.01f,Z*.001f))
                     {F.Classes[I]=Identity->Key;F.Instances[I]=Identity->Value;}
                     else ++F.UnclassifiedPixels;
+                    if(!State->Dataset)
+                    {
                     const float T=FMath::Clamp(Z/PreviewMaxMeters,0.f,1.f);
                     State->Displays[0][I]=FLinearColor::LerpUsingHSV(FLinearColor::Blue,FLinearColor::Red,T).ToFColor(true);
                     State->Displays[1][I]=VirtualSensorSemanticLabels::Color(F.Classes[I]);State->Displays[2][I]=InstanceColor(F.Instances[I]);
+                    }
                 }
                 F.Boxes=FVirtualCameraTruthFrame::FindBoxes(F.Classes,F.Instances,W,H);
+                }
                 F.DecodeMs=(FPlatformTime::Seconds()-Start)*1000;
                 if(State->Save&&!State->Cancelled)
                 {
@@ -260,15 +290,20 @@ void UVirtualCameraGroundTruth::Poll()
 void UVirtualCameraGroundTruth::Complete(const TSharedPtr<FVirtualCameraTruthWork,ESPMode::ThreadSafe>& State)
 {
     if(Work!=State||State->Cancelled)return;
-    if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||!State->Source->bGroundTruthEnabled){Cancel();return;}
+    if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
     Work.Reset();
     if(!State->Error.IsEmpty()){Status=State->Error;return;}
-    LastFrame=State->Frame;PreviewTextures.SetNum(3);
+    LastFrame=State->Frame;
+    if(State->Dataset){Status=TEXT("데이터셋 카메라 준비 완료");return;}
+    PreviewTextures.SetNum(3);
     const int32 W=LastFrame->Intrinsics.Width,H=LastFrame->Intrinsics.Height;
     for(int32 I=0;I<3;++I)
     {
-        auto* Texture=UTexture2D::CreateTransient(W,H,PF_B8G8R8A8);Texture->SRGB=true;Texture->Filter=TF_Nearest;
-        void* Data=Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+        auto* Texture=PreviewTextures[I].Get();
+        if(!Texture||Texture->GetSizeX()!=W||Texture->GetSizeY()!=H)Texture=UTexture2D::CreateTransient(W,H,PF_B8G8R8A8);
+        Texture->SRGB=true;Texture->Filter=TF_Nearest;
+        auto& Bulk=Texture->GetPlatformData()->Mips[0].BulkData;Bulk.Lock(LOCK_READ_WRITE);
+        void* Data=Bulk.Realloc(int64(W)*H*sizeof(FColor));
         FMemory::Memcpy(Data,State->Displays[I].GetData(),int64(W)*H*sizeof(FColor));Texture->GetPlatformData()->Mips[0].BulkData.Unlock();Texture->UpdateResource();PreviewTextures[I]=Texture;
     }
     if(State->Save)LastSavedDirectory=State->Directory;

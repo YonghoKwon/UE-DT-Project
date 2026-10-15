@@ -25,6 +25,8 @@ def read_pcd(path: pathlib.Path) -> int:
             line = stream.readline(1024 * 1024)
             if not line or not line.endswith(b"\n"):
                 raise ValueError(f"{path}: truncated PCD header")
+            if line.lstrip().startswith(b"#"):
+                continue  # MA0T10_META may contain UTF-8 sensor names.
             text = line.decode("ascii").strip()
             if text.startswith("#") or not text:
                 continue
