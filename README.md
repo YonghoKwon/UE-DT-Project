@@ -30,6 +30,7 @@
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·Depth/semantic/Actor ID/bbox·snapshot·비동기 저장 유지. UXR-15 CAM-GT-FIX로 체크 즉시 실제 적용·끄기 후 RGB 복귀, UI→4모드/4파일·프로필/배치 디스크 복원 회귀 추가 | 1920×1080·DPI1·글자100%의 직접 on/off·4모드·저장 재검수 완료. 다른 직접 조합/반복 수용은 통합 점검표, 서버 송신/ROS2/3D bbox는 2단계 제안. 원본 `Saved/Reports/CAM-GT-01/RESULT.md` |
 | LiDAR 사실성 (LIDAR-FID-01) | 모두 기본 꺼짐. UXR-15에서 실제 체크3개→Scan 상태·프로필/배치 복원·CPU trace/PCD 출력·UI dataset RHI 반영 회귀 확인 | 1920×1080·DPI1·글자100% 직접3개 on/off 완료. 다른 직접 조합/이동 Slab은 통합 점검표. 기존 켜짐 비용 GT +2.658ms(+50.20%)·p95 +0.510ms(+3.06%)와 가정 모델 한계는 `Saved/Reports/LIDAR-FID-01/RESULT.md` 유지 |
 | 데이터셋 생성 (DATASET-01) | 구현·자동 검증 완료. UXR-15에서 UI 시작→정답/사실성 on/off 산출물·범위15개 sampled 값 회귀와 실제3장면 직접 생성 완료·각7파일 확인 | 기본 꺼짐·세션 draft/명시 시작 유지. 직접 범위15개·포함3개 on/off 완료, 취소/재개·전체 직접 조합·장시간은 통합 점검표. 초기 cold61ms peak·geometry/동일 PIE resume 제한·기존100장면 검증은 `Saved/Reports/DATASET-01/RESULT.md` 유지 |
+| 표준 데이터셋 내보내기 (EXPORT-01) | Runtime eeff0c1: GPU20장면·COCO80마스크·KITTI407519점 재로딩/투영, Python19·release285 Success/skip32·2% perf 통과 | 기본 없음. 직접 UI는 Windows Security 창으로 입력0·보류. KITTI 기울기 근사·custom class 제한은 [사용법](Tools/DatasetTools/README.md), 상세는 `Saved/Reports/EXPORT-01/RESULT.md` |
 | 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
 | 자동화 | UXR-15 소스 `fcd7eaa`: Editor/Game Development·release14단계, D3D12 고유280 Success/조건부 skip31/실패0·WBP7 메모리 컴파일·quick8/8·어휘114/위반0. 신규 UI→runtime/출력/복원 회귀3개 포함 | 기본 꺼짐 b00a91f 대비 표시형1+1 ABAB×3: FPS 저하 -0.0162%·p95 +0.0000%·GT -1.9570%, 2% gate 통과. 자동 통과와 전체 직접/외부 수용은 구분. `Saved/Reports/UXR/UXR-15/RESULT.md` |
@@ -518,9 +519,11 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+EXPORT-01은 L2 Dataset의 추가 OBB 라벨·선택적 외부 Python 프로세스와 기존 L3 소유 데이터 패널의 세션 선택만 추가한다. Python은 완료된 파일만 읽고 UE 객체·측정·송신 경로를 참조하지 않는다. L2→L3 include·새 모듈·자산·DTCore 변경 없이 위반/allowlist **0/0**이다.
+
 ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 271개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 277개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 
 LIDAR-FID-01은 L0 `VirtualSensorMotionProvider`를 L2 SlabMotion이 구현하고 L1 센서가 snapshot으로 읽는다. L1 `VirtualLidarFidelity`의 순수 모델을 CPU/GPU가 공유하고 기존 L3 소유 설정/미리보기가 옵션을 표시한다. 신규 역방향 의존 없이 위반·allowlist **0/0**, DTCore·모듈·자산·PCD 레코드 불변이다.
 
@@ -576,12 +579,12 @@ AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력�
 
 | 파일 | 스키마·단위·인코딩 |
 |---|---|
-| `Saved/Datasets/<이름>_<UTC시각>_<충돌방지ID>/dataset.json` | `ma0t10.dataset.v1`: seed, requested/completed_scenes, settle_frames, camera_truth/lidar_fidelity, enabled/min/max 범위 표와 range_order, 프로젝트 commit SHA, map, class/instance 표. 마지막 확정 장면 수만 원자 교체한다. |
+| `Saved/Datasets/<이름>_<UTC시각>_<충돌방지ID>/dataset.json` | `ma0t10.dataset.v1`: seed, requested/completed_scenes, settle_frames, camera_truth/lidar_fidelity, enabled/min/max 범위 표와 range_order, 프로젝트 commit SHA, map, class/instance 표. 마지막 확정 장면 수만 원자 교체한다. EXPORT-01은 additive `schema_minor=1`, 기본 none인 `export_format`, `export_upright_envelope`를 추가한다. |
 | `scene_XXXXX/lidar.pcd` | 기존 immutable PCD0.7 binary writer·33-byte little-endian 레코드. 센서 로컬 RH meter(X전방/Y좌측/Z위쪽), 기존 MA0T10_META acquisition transform. 송신 wire에 라벨 필드를 추가하지 않는다. |
 | `lidar_labels.bin` | PCD 검출점 순서의5-byte little-endian `uint8 semantic_id, uint32 instance_id`, padding/헤더 없음. 파일 크기/5 = PCD POINTS. 표준 PCD 레이아웃을 유지하며 라벨만 분리해 읽기 위한 선택이다. |
 | `rgb.png` | 선택 Camera RGB target의8-bit 무손실 PNG. |
 | `depth.exr`, `seg.png`, `instance.png` | Camera GT 포함 선택 시에만 생성. float32 광학축 Z meter(0 invalid), uint8 class ID, ID=`R+256G+65536B`. GT off에서는 이 세 파일과 내부 depth/semantic readback을 생략한다. |
-| `label.json` | `ma0t10.dataset.scene.v1`: scene_index/seed, 실제 Slab pose·크기·표면, immutable sensor pose, Camera K/해상도, LiDAR 샘플 수/FOV/수직각/range/주기·profile/calibration/backend, 선택 조명 pose/lux, random_values 객체, request_engine_frame, 독립 acquisition frame ID/UTC, PCA yaw valid/angle/점 수 및 관찰용 memory/pump 값. 장면 완료 marker로 마지막에 쓴다. |
+| `label.json` | `ma0t10.dataset.scene.v1`: scene_index/seed, 실제 Slab pose·크기·표면, immutable sensor pose, Camera K/해상도, LiDAR 샘플 수/FOV/수직각/range/주기·profile/calibration/backend, 선택 조명 pose/lux, random_values 객체, request_engine_frame, 독립 acquisition frame ID/UTC, PCA yaw valid/angle/점 수 및 관찰용 memory/pump 값. 장면 완료 marker로 마지막에 쓴다. EXPORT-01의 additive `schema_minor=1`은 실제 선택 Slab mesh OBB `boxes_3d`(instance/class, center/size meter, quaternion/yaw, 좌표계)를 추가하며 기존 필드는 유지한다. |
 
 pose는 UE world meter(X전방/Y우측/Z위쪽), quaternion xyzw와 pitch/yaw/roll degree다. Camera optical은 x우측/y아래/z전방이며 이상적 pinhole·zero distortion과 CAM-GT-01의 opaque static geometry 제한을 따른다. class0=미지원/미분류, 1=Other, 2=Slab, 3=Roller, 4=Conveyor, 5=Floor, 6=Sensor. instance0=대응 없음. 시작 시 Actor 이름을 정렬한 session ID를 PCD 점과 Camera mask에 함께 대응시킨다. ISM/HISM은 Actor 단위이며 전역 영구 ID가 아니다. 개별 LiDAR의 사용자 semantic override가 canonical 표에 없는 경우 class0로 남는다.
 
@@ -589,7 +592,15 @@ pose는 UE world meter(X전방/Y우측/Z위쪽), quaternion xyzw와 pitch/yaw/ro
 
 순서: 장면 적용 → 지정 engine frame 안정화 → 같은 게임 프레임의 두 센서 요청 → immutable 획득 → worker encode/write → 완료 marker/manifest → 다음 장면. CPU LiDAR chunk는 여러 engine frame에 걸쳐도 장면을 고정하고 acquisition snapshot을 보존한다. 하드웨어 동시 timestamp를 주장하지 않는다. 장면/저장 작업1개, Camera≤1920×1080·LiDAR≤25만 잠재 반환점·입력 추정≤256MiB로 admission을 제한한다. 같은 크기의 readback은 재사용한다. pause는 완료 장면 경계에서 원상 복원하고 같은 PIE에서 재개한다. 프로세스 재시작 후 디스크 resume는2단계다. 종료·중단은 새 작업을 멈추고 부분 파일을 제거하며 다른 작업이 바꾼 상태를 덮지 않는다. 화면 숨김/장비 선택은 진행 중인 생성을 중단하지 않는다.
 
-채점: `python Tools/DatasetTools/score_dataset.py <데이터셋 폴더> --output <보고서.json>`. 기존 world-XY PCA 주축 yaw를180° 주기로 비교하고 평균·p95(선형 보간)·최대를 계산한다. invalid 분석은 별도 집계한다. `python -m unittest discover -s Tools/DatasetTools -v`로 도구를 검사한다. 실제 검증 조건·성능·메모리·수용 제한은 `Saved/Reports/DATASET-01/RESULT.md`에 기록한다. KITTI/COCO·ROS bag은2단계 제안이며, 배치/headless 실행은 AUTO-01 범위를 따른다.
+채점: `python Tools/DatasetTools/score_dataset.py <데이터셋 폴더> --output <보고서.json>`. 기존 world-XY PCA 주축 yaw를180° 주기로 비교하고 평균·p95(선형 보간)·최대를 계산한다. invalid 분석은 별도 집계한다. `python -m unittest discover -s Tools/DatasetTools -v`로 도구를 검사한다(내보내기 테스트는 아래 requirements 설치 필요). 기존 생성 검증 조건·성능·메모리·수용 제한은 `Saved/Reports/DATASET-01/RESULT.md`에 기록한다. 배치/headless 실행은 AUTO-01 범위를 따른다. ROS bag/디스크 resume는 후속 제안이다.
+
+### EXPORT-01 표준 형식 내보내기 — 로드맵 #12
+
+출처: 사용자 2026-10-15. [설치·CLI·형식별 매핑·가정](Tools/DatasetTools/README.md), 고정 [requirements](Tools/DatasetTools/requirements.txt)를 따른다. `python export_coco.py <dataset> <out>` / `python export_kitti.py <dataset> <out>`는 새 출력 폴더에 생성하며 원본은 바꾸지 않는다. COCO는 공식 pycocotools의 lossless RLE·visible bbox·공통 semantic category다. KITTI는 실제 K/획득 pose로 P2/Tr_velo_to_cam을 계산하고 같은 점을 XYZI float32로 쓴다. 선택 Slab의 실제 mesh OBB만 label_2에 쓸 수 있다. 커스텀 클래스이므로 학습 도구의 class 설정이 필요하다.
+
+기존 scene minor 0은 COCO에서 지원하고 KITTI에서는 mesh pivot/3D truth 부족을 명시적으로 거부한다. minor 1은 기존 `schema_version`을 유지하고 별도 `schema_minor=1`·`boxes_3d`를 추가한다. KITTI yaw-only로 표현되지 않는 pitch/roll은 기본 거부하며 `--upright-envelope`를 직접 선택하면 camera-upright 포위 박스와 원본 OBB/기울기·부피 비율을 기록한다. 선택적 `--semantic-kitti`는 custom semantic IDs 0..6의 uint32 점 라벨 저장 형식이며 정규 도로 클래스/odometry 데이터셋을 의미하지 않는다.
+
+UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우에만 원본 생성·상태 복원이 끝난 뒤 설정된 Python에서 변환하고 sibling `<dataset>_export/`에 저장한다. `MA0T10_DATASET_PYTHON`은 requirements 환경의 절대 python.exe 경로이며 Editor 시작 전에 설정한다. 설치를 UI에서 실행하지 않는다. [AutomationClient 예제](Tools/AutomationClient/dataset_export.example.json)의 `dataset.start.export_format`도 기본 none이며 변환 실패는 job 실패로 보고한다. 정합 수치와 실제20장면·UI·전체 회귀·성능 수용 상태는 `Saved/Reports/EXPORT-01/RESULT.md`를 따른다.
 
 ### AUTO-01 배치 실행과 로컬 제어 API — 기본 꺼짐
 
