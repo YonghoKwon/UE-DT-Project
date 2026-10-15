@@ -1060,12 +1060,14 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeC
     if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
     auto Utilities=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
     Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SVerticalBox)
-      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox)
+      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("AutomationGroup","자동화 · API / 일괄 실행"))]
+      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false)
         .IsChecked_Lambda([this](){auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
         .OnCheckStateChanged_Lambda([this](ECheckBoxState V){if(auto* C=GetWorld()->GetSubsystem<UAutomationControlSubsystem>()){C->SetApiEnabled(V==ECheckBoxState::Checked);OwnedAutomationText=FText::FromString(C->GetPresentationStatus());}})
-        [SNewSensorTool(STextBlock).Text(LOCTEXT("AutomationEnable","외부 제어 API"))]]
+        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,On=SensorToolUiText::OptionState(LOCTEXT("AutomationEnable","외부 제어 API"),true),Off=SensorToolUiText::OptionState(LOCTEXT("AutomationEnable","외부 제어 API"),false)](){auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?On:Off;})]]
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedAutomationText;})
-        .ToolTipText(LOCTEXT("AutomationHelp","기본 꺼짐 · 이 PC의 127.0.0.1에서만 받습니다. 켜면 외부 프로그램이 센서와 생성 작업을 제어할 수 있습니다. 인증은 설정 파일 또는 환경변수로 지정합니다. 배치와 API를 꺼도 기존 PCD 출력 정책은 유지됩니다."))]];
+        .ToolTipText(LOCTEXT("AutomationHelp","기본 꺼짐 · 이 PC의 127.0.0.1에서만 받습니다. 켜면 외부 프로그램이 센서와 생성 작업을 제어할 수 있습니다. 인증은 설정 파일 또는 환경변수로 지정합니다. API를 꺼도 이미 접수한 작업은 계속되며 기존 PCD 출력 정책은 유지됩니다."))]
+      +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("AutomationNext","기본 꺼짐 · 켜짐은 요청 대기 상태입니다. 접수한 API 작업·일괄 실행은 하단에도 표시됩니다. API를 꺼도 이미 접수한 작업은 계속됩니다."))]];
     Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
       .Visibility_Lambda([this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Lidar?EVisibility::Visible:EVisibility::Collapsed;})
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy","LiDAR 호환 JSON 생성"))]

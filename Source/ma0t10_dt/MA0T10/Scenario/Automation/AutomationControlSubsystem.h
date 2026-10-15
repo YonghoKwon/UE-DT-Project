@@ -18,6 +18,8 @@ public:
     bool SetApiEnabled(bool Enabled);
     bool IsApiEnabled() const;
     FString GetPresentationStatus() const;
+    /** Compact read-only UI summary; enabled listener is not an active control lease. */
+    FString GetActivityPresentation() const;
     TSharedRef<FJsonObject> GetStatus() const;
     /** Game-thread only. Also used by the job runner and integration tests. */
     TSharedRef<FJsonObject> Dispatch(const FString& Method,const FString& Path,const TSharedPtr<FJsonObject>& Body,int32& Code);

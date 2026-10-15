@@ -177,6 +177,7 @@ Recorder/비동기CSV, 별도 topic/schema의 StreamPublisher, 선택적 데이�
 | UXR-11 | UI/UX / 실제 마우스 결함 | P0 | **80%** | 검수본 직접 마우스 FAIL 2건(자유 배치 제목 드래그·모서리 resize) 원인=PIE viewport 캡처 선점, 소유 패널 hit 시에만 해제·포커스·제스처 정리, 프로필 재적용 안내 | 수정본(40aa640) 직접 마우스 재검수·통합 release·성능 gate | U (별도 후속) |
 | UXR-13 | UI/UX / 장비 이동 조작 | P0 | **85%** | 사용자 직접 확인(2026-10-14): 이동·회전 시작 후 조작법을 몰라 움직이지 못함, 정지 장비 미리보기가 검게 멈춤. 3D 화면 키 안내·키보드 포커스·보던 화면 유지·정지 장비 안내 | 사용자 직접 확인 | U (별도 후속) |
 | UXR-14 | UI/UX / 창 크기·3D 글자 | P1 | **85%** | 사용자 요청(2026-10-14): 오른쪽 아래 미리보기 카드를 모든 변·모서리에서 크기 조절, Slab 3D 글자 크기 56 초과 | 사용자 직접 확인 | U (별도 후속) |
+| UXR-16 | UI/UX / v1.1 통합 점검 | P1 | **70%** | API·일괄·정답/데이터셋/변환·IMU 통합 회귀, 전후108장씩·저위험 표시 정리·release290/skip34/실패0·오프스크린2% 통과 | Windows 잠금으로 직접0·표시형 성능 보류.24행/70분·큰 설정 구조 제안·독립 검토 | U / 로드맵 #10 |
 | PKG-01 | 배포 / 서버 연결 | P0 | **80%** | Shipping 패키지에서만 "연결 설정 필요": Shipping SaveGame이 사용자 폴더라 UI 저장 서버 설정이 넘어가지 않음 + 프로젝트 빈 `Config/Game.ini`가 pak에 들어가 패키지 옆 파일을 가림 → 프로젝트 `Config/SensorTransport.ini`를 에디터가 읽고 패키징 시 패키지 옆에 일반 파일로 복사(첫 실행 템플릿 생성은 보조), Game.ini·SensorTransport.ini pak 제외. Shipping 패키지에서 적용 로그 확인 | 사용자 실제 브로커 연결 확인 | 배포 |
 | PKG-02 | v1.0 패키지 검증 | P0 | **80%** | cf441f0 Shipping/Development BuildCookRun·두 구성 PCD20Hz 2분/hitch0, Shipping GT/사실성/데이터셋3장면 확인. 재질 cook·배포 Git 의존 수정 | Development 직접 기능: Windows Security 창으로 보류, 서버 PC 후속 | 배포 |
 | PCD-20HZ | 송신 / 연결 경고 | P0 | **90%** | 원인: 고속 TCP SEND 본문 5초 쓰기 한도 초과 시 연결 해제(브로커 순간 정체 → "연결 설정 필요"). 정체 중 연결 유지·receipt/ERROR 처리·60초 최종 상한·협상 heartbeat·EOF 정확 판정·단절 사유 기록·지연/재연결 문구. 가짜 서버·설치 Artemis 1대 20/10/5Hz·2대 20Hz 5분 모두 경고 0, 성능 2% 이내 | 사용자 환경 실측 확인, PCD 과부하 시 스트림 정지(NoLoss) 자동 재개 정책 결정 | 후속 |
@@ -617,6 +618,15 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 - **통합 직접 점검:** [MANUAL_CHECKLIST](MANUAL_CHECKLIST.md)에 PCD-OPT·CAM-GT-01·LIDAR-FID-01·DATASET-01·UXR의 중복 보류를20행/57분 순서·통과 기준·원본 매핑으로 묶었다. 전체57분 실행,125/150%·좁은 창 직접 전수, 자유 배치 과거 직접 드래그 FAIL, 제한 링크/소비자/원격·사용자 무안내 수용은 이번 옵션 재검수로 닫지 않는다.
 - **최종 gate:** Editor/Game Development, release14단계·D3D12 고유280 Success/skip31/실패0(신규3개 포함), WBP7 메모리 컴파일·실제 Slate 어휘114/기본30영역/허용7영역·위반0, layer 위반/allowlist0/0. 기본 꺼짐 표시형1+1·1920×1080·10초 준비+30초·ABAB×3, `verify.ps1 -Level perf -BaseCommit b00a91f -PerfMeasurementSeconds 30`: FPS 저하 -0.0162%·p95 +0.0000%·GT -1.9570%, 2% gate 통과. quick8/8·문서 링크/시간/diff check도 통과했다. 기능 기본값·wire·저장 형식·Blueprint API·DTCore·자산 변경은 없다. Camera 미적용 수정만 승인된 동작 예외다.
 - **현재 상태: 90%.** 요청 구현·자동 검증·대표 조합 직접 옵션 확인 완료, Claude 독립 검토와 전체 사용자 수용 대기. 큰 구조 변경(데이터셋 전용 화면/상태 상세/라이트)은 제안으로만 남긴다.
+
+### UXR-16 — v1.1 체크포인트 UX/UI 2차 점검·통합 검증 (P1, 로드맵 #10)
+
+- **출처/범위:** 사용자 2026-10-15 "UX/UI 지속 개선". `feat/uxr-16`, 통합 기준 `5dd9327`, UI `b6f2dc8`, DTCore `b2504d1` 고정. AUTO-01·EXPORT-01·ROS2-02·IMU-01이 합쳐진 상태를 먼저 검증했다.
+- **통합:** 실제 API 캡처 중 IMU 설정, batch 점유 중 변경409/조회200·IMU revision 독립, 실제 Slate 정답+IMU+COCO 선택→생성·변환/파일·복원 회귀를 추가했다. 새 제품 결함은 재현되지 않아 INTEG-01 동작 수정 없음. 초기 release의 UXR10 resize1 FAIL을 보존하며 단독/집중/최종 전체에서 재통과했지만 원인 수정 완료로 표시하지 않는다.
+- **점검·정리:** 소유7패널의 기존20+새7화면, client1920×1080/1280×720·글자100/150%·window DPI1.0 전후108장씩. 자동화 그룹·API/일괄/IMU 활동과 기존 첫 경고 공존, 요청 대기/접수 작업 구분·한국어 문구·IMU 숫자 배율·기록/전송 현재 상태·변환 선행 안내/줄바꿈을 정리했다. 기본값·wire·저장 형식·BP·DTCore·자산 불변. 기본/고급/자동화 큰 재배치는 캡처 기반 목업 제안만 남겼다.
+- **현재 검증:** Editor/Game Development·release14단계, 고유290 Success/skip34/실패·NotRun0, 집중9·Python69 Success, golden14 byte 동일·WBP7 메모리 compile/저장0·실제 Slate114상수/기본34/허용7영역·위반0·layer/allowlist0/0·quick8/8. 실제 D3D12 오프스크린1+1·10+30초·ABAB×3: FPS 저하 +0.0022%·engine p95 +0.0000%·GT -0.6700%,2% gate 통과. 선행a55872d의GT+2.141% 실패는 보존하고 비활성 활동 위젯 제거·IMU 문구5Hz 캐시 뒤 재검증했다. 이는 표시형 결과가 아니며 잠금 확인 이력과 절대값/센서별0Hz 포함 결과는 RESULT를 따른다.
+- **직접/남은 gate:** 첫 sky 캡처가 Windows 잠금 화면이어서 즉시 중단, 마우스·키보드0·보안 팝업 조작0. CAM-GT/DATASET/AUTO API/IMU/EXPORT/동시 상태6행은 환경 보류다. [통합 점검표](MANUAL_CHECKLIST.md)를24행/70분으로 확장했다. 잠금 해제 후 대표 직접 재시도와 표시형2% 성능, 사용자 무안내 수용·과거 자유 배치 FAIL·서버/ROS2/원격 수용은 남는다. 이전 직접 PASS/FAIL·보안 팝업 기록을 덮어쓰지 않는다.
+- **진행률:70%.** 핵심 구현·집중/전체 자동 회귀·문서 정리 완료, 주요 직접/표시형 수용·독립 검토 대기. 보호 소스/자산558·개인286파일(SaveGame9) hash 일치·추가0, DTCore gitlink/worktree clean. ignored UHT Timestamp2 재생성은 별도 기록. 전체 이름/skip·초기 실패·캡처·목업·제한: `Saved/Reports/UXR/UXR-16/RESULT.md`.
 
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 

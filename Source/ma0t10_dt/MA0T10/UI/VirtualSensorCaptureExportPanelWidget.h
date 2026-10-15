@@ -264,6 +264,8 @@ private:
     friend class FDatasetManualAcceptanceCommand;
     friend class FExport01RhiCommand;
     friend class FUxr15Audit;
+    friend class FUxr16Audit;
+    friend class FUxr16Integration;
     friend class FUxr15OptionBindingsTest;
     friend class FUxr15ToggleRhiCommand;
 #endif

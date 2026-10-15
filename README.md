@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **`feat/virtual-imu` (기준 `f5a55d2`, Runtime `a5de63c`, ROS adapter `21dfef6`) / DTCore `b2504d1`, 2026-10-16**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신,명시적 IMU 부착과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+기준: **`feat/uxr-16` (통합 기준 `5dd9327`, UI `b6f2dc8`) / DTCore `b2504d1`, 2026-10-16**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신,명시적 IMU 부착과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니며, 이번 버전에서는 플러그인 제작을 시작하지 않는다.** 현재 개발은 기능 추가보다 **프로젝트 안의 아키텍처 뼈대 재정비(ARCH 단계)**가 우선이다. 동작·wire 계약·Blueprint API를 바꾸지 않고 레이어 경계·폴더 책임·검증 진입점을 정리한다. 상세 순서는 [로드맵 A단계](docs/ROADMAP.md#a단계--아키텍처-뼈대-재정비-현재-진행)와 [개선 목록 ARCH 항목](docs/IMPROVEMENTS.md#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 따른다.
 
@@ -18,13 +18,15 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+UXR-16 v1.1 통합 점검(`b6f2dc8`, 기준 `5dd9327`): API/일괄·IMU 활동은 기존 경고와 함께 표시하고 문구·꺼짐·숫자 글자 배율·변환 선행 안내를 정리했다. Editor/Game Development·release14단계(고유290 Success/조건부skip34/실패0)·WBP7·어휘114/기본34영역/허용7영역·위반0·layer0/0·전후108장씩·통합/관련 집중9개가 통과했다. 오프스크린1+1 ABAB12회2% gate는 FPS 저하 +0.0022%·engine p95 +0.0000%·GT -0.6700%. **Windows 잠금으로 직접 재시도는 입력0·보류이며 표시형 성능은 미수행**이다. 수용 진행률70%, 상세/초기 resize 실패·skip 이름·보호/개인 복원은 `Saved/Reports/UXR/UXR-16/RESULT.md`, 후속은 [통합24행/70분 점검표](docs/MANUAL_CHECKLIST.md)다. 아래 이전 항목의 직접/성능 결과를 이번 SHA의 수용으로 합치지 않는다.
+
 IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63c`, 기준 `f5a55d2`. 선택 장비에 세션 전용 IMU를 명시적으로 부착한다. 집중 D3D12 6 Success, 직접 부착·400Hz·노이즈·기록·CSV·전송 선택 점검, 실제 Artemis 445메시지/1484표본(gap/invalid/duplicate 0), Python 38 Success를 확인했다. release14단계(고유289 Success/조건부skip34/실패0)와 기본 꺼짐 ABAB12회2% gate가 통과했다(FPS 저하 −0.008%,p95 0%,GT −0.487%).2개400Hz 켜짐 비용은GT+0.223ms(+3.41%)·p95동일이며,전체 제한은 `Saved/Reports/IMU-01/RESULT.md`를 따른다. 아래 이전 항목의 검증 SHA·수치를 IMU 검증 결과로 읽지 않는다.
 
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
 | 가상 IMU (IMU-01) | 세션 전용 명시 부착·100~400Hz 비력/각속도/정답 자세·가정 노이즈·5Hz 그래프·독립 출력/CSV/선택 라벨/API/ROS adapter. 집중6·직접 주요흐름·Artemis1484표본·Python38·release14단계 통과 | 기본 꺼짐 ABAB12회2% 통과(FPS −0.008%·p95 0%·GT −0.487%);2개400Hz 켜짐GT+0.223ms(+3.41%)·p95동일. 상세 `Saved/Reports/IMU-01/RESULT.md`. WSL 실측은 요청대로 단위 테스트로 대체;실제 deskew·실장비 교정·장시간·독립검토는 별도 |
 | 아키텍처 | ARCH-01~08 완료: L0 Contracts → L1 센서 → L2 Scenario/Slab/TC → L3 UI 단방향, layer gate 위반·allowlist **0** | DTCore 변경 후보 정리 후 DTCore 수정 단계, 이후 플러그인화(R5) |
-| 화면 구성(UX) | UXR-15: 최근 옵션 문구·현재 꺼짐·데이터셋 입력 배치·상태 우선순위 정리, 동일4조합 전후80장씩. 최근 체크27개 직접 on/off·정답4모드/저장·실제3장면 생성 확인 | [통합57분 직접 점검표](docs/MANUAL_CHECKLIST.md)의 전체 수행·사용자 무안내 수용·자유 배치 과거 드래그 FAIL·서버/원격 환경은 별도. 상세 `Saved/Reports/UXR/UXR-15/RESULT.md` |
+| 화면 구성(UX) | UXR-16: 자동화 그룹·API/일괄·IMU 활동/경고 공존, IMU 숫자 배율·현재 꺼짐·데이터셋 변환 선행 안내. 동일4조합 전후108장씩, 캡처 기반 큰 설정 구조 목업은 제안 | Windows 잠금으로 직접 재시도 입력0·환경 보류. [24행/70분 점검표](docs/MANUAL_CHECKLIST.md), 표시형 성능·첫 사용자·기존 자유 배치 FAIL·외부 수용은 남음. `Saved/Reports/UXR/UXR-16/RESULT.md` |
 | 새 맵 적용 (MAP-01) | Rig 하나·Slab 없음 안내·DTCore 맵 점검·새 맵 2개, Editor/Game·release 14단계·242 Success/skip20·16장·성능2% gate 통과 | 직접 마우스·DPI 수용은 UXR-07로 이관, DTCore 업무 연결 조회 API 제한; 독립 검토 전 90% |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화와 주요 직접 저장/복원 확인 | 자유 배치 입력·전체 직접 조합·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 70%) |
 | PCD 송신 | PCD-OPT 기본 자동 전송률 조절·생략 집계·소켓 대기 구현. 실제1080p 제한 링크20Hz 5분 과부하0·gap95ms, 시나리오 변경12회도 과부하0/hitch0. Artemis20Hz 생략0 | 구현·CLI gate 완료. 291b4f9 대비 perf: FPS −0.01%·p95 동일·GT +1.77% 통과. 운영 PIE 멈춤 원인 미확정; 직접 UI는 Windows 보안 팝업으로 보류. 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
@@ -33,10 +35,10 @@ IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·Depth/semantic/Actor ID/bbox·snapshot·비동기 저장 유지. UXR-15 CAM-GT-FIX로 체크 즉시 실제 적용·끄기 후 RGB 복귀, UI→4모드/4파일·프로필/배치 디스크 복원 회귀 추가 | 1920×1080·DPI1·글자100%의 직접 on/off·4모드·저장 재검수 완료. 다른 직접 조합/반복 수용은 통합 점검표, 서버 송신/ROS2/3D bbox는 2단계 제안. 원본 `Saved/Reports/CAM-GT-01/RESULT.md` |
 | LiDAR 사실성 (LIDAR-FID-01) | 모두 기본 꺼짐. UXR-15에서 실제 체크3개→Scan 상태·프로필/배치 복원·CPU trace/PCD 출력·UI dataset RHI 반영 회귀 확인 | 1920×1080·DPI1·글자100% 직접3개 on/off 완료. 다른 직접 조합/이동 Slab은 통합 점검표. 기존 켜짐 비용 GT +2.658ms(+50.20%)·p95 +0.510ms(+3.06%)와 가정 모델 한계는 `Saved/Reports/LIDAR-FID-01/RESULT.md` 유지 |
 | 데이터셋 생성 (DATASET-01) | 구현·자동 검증 완료. UXR-15에서 UI 시작→정답/사실성 on/off 산출물·범위15개 sampled 값 회귀와 실제3장면 직접 생성 완료·각7파일 확인 | 기본 꺼짐·세션 draft/명시 시작 유지. 직접 범위15개·포함3개 on/off 완료, 취소/재개·전체 직접 조합·장시간은 통합 점검표. 초기 cold61ms peak·geometry/동일 PIE resume 제한·기존100장면 검증은 `Saved/Reports/DATASET-01/RESULT.md` 유지 |
-| 표준 데이터셋 내보내기 (EXPORT-01) | Runtime eeff0c1: GPU20장면·COCO80마스크·KITTI407519점 재로딩/투영, Python19·release285 Success/skip32·2% perf 통과 | 기본 없음. 직접 UI는 Windows Security 창으로 입력0·보류. KITTI 기울기 근사·custom class 제한은 [사용법](Tools/DatasetTools/README.md), 상세는 `Saved/Reports/EXPORT-01/RESULT.md` |
+| 표준 데이터셋 내보내기 (EXPORT-01) | Runtime eeff0c1: GPU20장면·COCO80마스크·KITTI407519점 재로딩/투영, Python19·release285 Success/skip32·2% perf 통과 | 기본 없음. UXR-16 직접 재시도도 Windows 잠금으로 입력0·보류(이전 Windows Security 이력 보존). KITTI 기울기 근사·custom class 제한은 [사용법](Tools/DatasetTools/README.md), 상세는 `Saved/Reports/EXPORT-01/RESULT.md` |
 | 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
-| 자동화 | UXR-15 소스 `fcd7eaa`: Editor/Game Development·release14단계, D3D12 고유280 Success/조건부 skip31/실패0·WBP7 메모리 컴파일·quick8/8·어휘114/위반0. 신규 UI→runtime/출력/복원 회귀3개 포함 | 기본 꺼짐 b00a91f 대비 표시형1+1 ABAB×3: FPS 저하 -0.0162%·p95 +0.0000%·GT -1.9570%, 2% gate 통과. 자동 통과와 전체 직접/외부 수용은 구분. `Saved/Reports/UXR/UXR-15/RESULT.md` |
+| 자동화 | UXR-16 `b6f2dc8`: Editor/Game Development·release14단계, D3D12 고유290 Success/skip34/실패0·WBP7·어휘114/기본34/허용7·위반0·layer0/0. API/batch/IMU·UI 정답+IMU+COCO 통합 회귀 포함, Python69 Success | 기본 꺼짐 `5dd9327` 대비 오프스크린1+1 ABAB×3: FPS 저하 +0.0022%·engine p95 +0.0000%·GT -0.6700%,2% 통과. 표시형 성능·직접/외부 수용은 보류. `Saved/Reports/UXR/UXR-16/RESULT.md` |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
 UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
@@ -178,9 +180,9 @@ HttpEndpoint=
 - UXR-02 배치 정리는 구현됐으며 이번 직접 점검에서 시험 장비/북마크 삭제 의도와 취소를 확인했다. 최종 삭제 클릭은 action-time 확인 답변이 없어 보류했다. 정상 PIE 종료로 장비가 사라진 것을 UI 최종 삭제 통과로 세지 않는다. 과거 CLI 근거는 `Saved/Reports/UXR/UXR-02/cli-closure/`에 보존한다.
 - **PCD 전송**은 데이터의 `전송`, **결과**는 독립 `결과` 탭을 연다. 다른 탭이 열려 있으면 전환하고 같은 작업 버튼을 다시 누르면 숨긴다.
 - **도구**에는 센서 상세 설정, 파일 저장 · 데이터셋, 서버 연결 설정, 진단, 고급·호환, 시나리오 차트, UI 표시가 있다. 파일 저장/서버 연결/진단은 데이터의 각 독립 탭, 고급·호환은 기존 Settings 고급 영역을 연다. 기능과 기본값은 바꾸지 않는다.
-- **하단 상태바**는 장비 수/측정 수·PCD 전송·시나리오·서버와 첫 차단 사유를 최대 5Hz로 표시한다. 경고만 노란 칩이며 각 항목을 누르면 관련 화면으로 이동한다. 연결 경고는 서버 연결 설정을 연다. 상태 조회나 화면 열기는 측정·전송·파일 저장을 시작하지 않는다. 서버 연결은 외부 소비자의 처리 완료를 뜻하지 않는다.
+- **하단 상태바**는 장비 수/측정 수·PCD 전송·시나리오·서버와 첫 차단 사유를 최대 5Hz로 표시한다. UXR-16은 API/일괄 실행과 IMU 기록·전송을 별도 활동 칩으로 함께 표시한다. 켜진 API의 요청 대기와 실제 접수 작업을 구분하고 활동으로 기존 경고를 가리지 않는다. 경고만 노란 칩이며 각 항목을 누르면 관련 화면으로 이동한다. 연결 경고는 서버 연결 설정을 연다. 상태 조회나 화면 열기는 측정·전송·파일 저장을 시작하지 않는다. 서버 연결은 외부 소비자의 처리 완료를 뜻하지 않는다.
 
-UXR-15는 최근 추가 옵션의 상태와 저장 작업을 정리했다. **도구 → 파일 저장 · 데이터셋**에서 일반 프레임 저장과 접힌 데이터셋 생성을 찾는다. 데이터셋 대상 버튼은 누를 때마다 다음 대상을 고르며, 랜덤화는 항목명 아래의 **왼쪽 최솟값 / 오른쪽 최댓값**을 입력한다. Camera 정답과 LiDAR 사실성은 현재 켜짐/꺼짐을 표시한다. 정답 미리보기는 **보기 설정 → RGB / 깊이 / 의미 분류 / 객체 구분**, 로컬 파일은 **정답 데이터 1회 저장**이다. 직접 조작 보류를 묶은 [통합 점검표](docs/MANUAL_CHECKLIST.md)는 준비된 환경에서 약57분 순서와 조건부 보류를 제공한다.
+UXR-15는 최근 추가 옵션의 상태와 저장 작업을 정리했다. **도구 → 파일 저장 · 데이터셋**에서 일반 프레임 저장과 접힌 데이터셋 생성을 찾는다. 데이터셋 대상 버튼은 누를 때마다 다음 대상을 고르며, 랜덤화는 항목명 아래의 **왼쪽 최솟값 / 오른쪽 최댓값**을 입력한다. Camera 정답과 LiDAR 사실성은 현재 켜짐/꺼짐을 표시한다. 정답 미리보기는 **보기 설정 → RGB / 깊이 / 의미 분류 / 객체 구분**, 로컬 파일은 **정답 데이터 1회 저장**이다. 직접 조작 보류를 묶은 [통합 점검표](docs/MANUAL_CHECKLIST.md)는 준비된 환경에서 약70분 순서와 조건부 보류를 제공한다.
 
 **CAM-GT-FIX:** 정답 체크가 편집값만 바꾸던 결함은 승인된 범위 추가로 수정했다. 체크 즉시 다른 설정과 같은 Actor 검증·적용 경로로 실제 Camera에 반영하며, 기존 전체 배치 v1 저장·복원과 프로필 재적용에도 일치한다. 정답 모드를 보다가 끄면 기존 RGB 영상으로 돌아간다. 새 저장 슬롯·기본값·출력 계약은 없다. 최근 체크27개는 UI 콜백→실제 상태→출력·기존 저장/복원 정책을 자동 검증하고 직접 on/off를 확인했다. 실제 정답4모드·4파일 저장, 정답/사실성을 포함한 데이터셋3장면 완료 근거는 `Saved/Reports/UXR/UXR-15/TOGGLE_AUDIT.md`와 `manual-fixed/`, `manual-closure/`, `manual-inventory/`에 있다. 전체57분 사용자 수용과 원격/서버 환경 점검은 별도다.
 
@@ -198,17 +200,27 @@ UXR-15는 최근 추가 옵션의 상태와 저장 작업을 정리했다. **도
 | 7 | 실행의 필수 출력 오류: 전송 상태 확인 필요 · 진단에서 확인하세요 | 경고 칩 → 진단 |
 | — | 위 조건이 없으면 경고 칩 숨김. 과거 누적 실패 수만으로 현재 경고를 만들지 않음 | 결과·진단에서 과거 집계 확인 |
 
+UXR-16의 활동 표시는 위 경고 순서와 독립이다. 경고 칩은 기존 첫 경고를 유지하며, 아래 활동 칩은 경고색을 쓰지 않는다.
+
+| 활동 표시 순서/조건 | 하단 문구·동시 규칙 | 확인 경로 |
+|---|---|---|
+| 1 · 일괄 실행 활성 | `일괄 실행 중 · n/N · 작업`. 같은 제어기의 API 작업/대기보다 우선 | 활동 칩 → 기존 고급·호환의 자동화 그룹 |
+| 2 · 일괄 없이 접수 작업 진행 | `API 작업 중 · 프레임 저장/데이터셋 생성/시나리오 실행/PCD 전송/장비 설정`. API를 꺼도 이미 접수한 작업은 계속 표시 | 같은 자동화 그룹의 주소·진행 상태 |
+| 3 · API 켜짐, 접수 작업 없음 | `API 켜짐 · 요청 대기`. 제어 중이나 외부 제어 lease를 뜻하지 않음 | API 토글/주소. 꺼짐·유휴이면 활동 칩 숨김, 설정에는 꺼짐 표시 |
+| 독립 · IMU 기록 또는 전송 활성 | `IMU 기록 n · 전송 m`. 전체 등록 장비의 현재 IMU 수이며 측정률/수신 완료가 아님. 위 활동·PCD·시나리오·첫 경고와 함께 유지 | IMU 칩 → 배치 → 기존 IMU 영역 |
+| 출처/실제 수신 | UE에는 ROS2 출처/lease가 없어 `ROS2 제어 중`을 추정하지 않음. IMU 전송 선택을 Broker/소비자 수신 완료로 표시하지 않음 | ROS2 피드백·진단/실수신은 별도 확인 |
+
 구현 원본은 `SensorToolToolbarWidget.Status.cpp::RefreshOwnedStatus`와 `SensorToolUiText::PcdWarning`이다. 이는 **표시 우선순위**이며 재연결·자동 조절·과부하 중단/재개 정책을 변경하지 않는다. 서버 연결/수락을 소비자 처리 완료로 표시하지 않는다. 모든 상태 칩은 최대5Hz 갱신·긴 문장 전체 툴팁을 유지한다. 경고 칩은 미연결이면 서버 설정, 그 외에는 진단을 연다.
 
 | 패널 / WBP | 현재 역할 |
 |---|---|
 | 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상/점군 + 장비·상태·측정Hz·실제 경고1줄. 중지/장비 없음 안내. 투영·색상·듀얼·범례·개발자 정보는 **보기 설정** |
-| 센서 설정 / `WBP_VirtualSensorSettingsPanel` | **기본 / 고급 / 고급·호환**. 기본=프로필·품질·측정 주기·LiDAR 최대 거리, 고급=해상도/FOV/채널·미리보기 점, 고급·호환=출력 호환·외부 입력·식별·로그·원본 맵 반영 |
+| 센서 설정 / `WBP_VirtualSensorSettingsPanel` | **기본 / 고급 / 고급·호환**. 기본=프로필·품질·측정 주기·LiDAR 최대 거리, 고급=해상도/FOV/채널·미리보기 점, 고급·호환=자동화(API·일괄 상태)·출력 호환·외부 입력·식별·로그·원본 맵 반영 |
 | 데이터 / `WBP_VirtualSensorCaptureExportPanel` | **전송 / 결과 / 파일 저장 / 서버 연결 / 진단**. 새 소유 인스턴스는 전송 탭 |
 | 재생 / `WBP_SlabScenarioReplayPanel` | 전체 UUID/내부 보관 ID, 선택 항목 재실행·복사·삭제, 이번 재생 출력 요약 + `PCD 전송에서 변경` |
 | 차트 / `WBP_SlabChartsPanel` | 기울기·중심 이탈·Margin 3개를 진행 시점까지만 표시 |
 | 진행 / `WBP_SlabProgressPanel` | 상태·진행률·일시정지/재개/중단/초기 위치 복귀, 차트 토글, **표시 설정**(3D·단위·외형) |
-| 배치 / `WBP_VirtualSensorPlacementPanel` | 장비 추가·선택·조작, 저장 위치·전체 배치 저장/불러오기 |
+| 배치 / `WBP_VirtualSensorPlacementPanel` | 장비 추가·선택·조작, 저장 위치·전체 배치 저장/불러오기·세션 IMU 부착/설정/기록 |
 
 - 기본 사이드바는 고정 배치다. **도구 → UI 표시 → 창 자유 배치 (이전 방식)**에서는 제목 drag·우하단 resize·접기·숨김을 계속 사용할 수 있다. 두 모드는 같은 인스턴스를 사용하며 전환이 측정·파일 저장·전송·재생을 중단하지 않는다. 사이드바 사각형은 Workspace v1의 기존 자유 배치 저장값을 덮어쓰지 않는다. 표시 모드 선택은 현재 PIE에만 적용되고 새 PIE는 사이드바로 시작한다.
 - `더보기 → 이 창 위치·크기 초기화`는 해당 패널만, `도구 → UI 표시 → 센서 도구 UI 초기화`는 소유 패널 배치·열림·폰트만 초기화한다.
@@ -543,7 +555,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+### 10.2 현재 위반 (2026-10-16, UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+UXR-16은 기존 L3 소유 UI의 문구·글자/줄바꿈·활동 표시와 L2 Automation의 읽기 전용 표시 accessor만 정리한다.5Hz 기존 상태 갱신/센서 순회를 재사용하며 새 모듈·Tick/timer·측정·직렬화·DTCore·자산 변경 없이 레이어 위반/allowlist **0→0**이다. 큰 설정 구조 재배치는 캡처 기반 제안으로 남긴다.
 
 IMU-01은 L1 `Sensor/VirtualImuTypes`·`VirtualImuComponent`와 기존 Recorder/StreamPublisher/FileSave를 확장한다. L0 motion provider를 읽고, L2 Dataset/AUTO-01과 L3 기존 DTCore 기반 배치 패널이 값을 소비한다. 레이어 위반·allowlist **0→0**, 새 모듈·자산·DTCore 변경 없음. IMU 스트림은 기존 acquisition envelope와 별도 접수되어 Camera/LiDAR·Slab PCD 기본 정책에 편입되지 않는다.
 

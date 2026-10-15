@@ -36,9 +36,13 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
     virtual void NativeDestruct() override;
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FSensorVocabularyTest;
+#endif
     TSharedRef<SWidget> BuildImuSection();
     void RefreshImu();
     bool ImuExpanded=false;
+    bool bImuRecordingForDisplay=false,bImuPublishingForDisplay=false;
     FText ImuValues;
     FString ImuCsvRequest;
     TSharedPtr<class SImuPlot> ImuPlot;
