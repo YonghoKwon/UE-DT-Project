@@ -41,6 +41,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 
 근거: `VirtualSensorSettingsPanelWidget.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
 
+### CAM-GT-01 — 카메라 정답 데이터 1단계 (P1)
+
+- **출처:** 사용자 2026-10-15. `feat/camera-gt`, 기준 master `827bae6`(PCD-OPT 포함), DTCore `b2504d1` 고정. 이번 요청은 카메라 정답 데이터의 최소 검증 저장만 승인하며 다른 파일 형식 개선·학습 데이터셋 대량 생성 보류를 해제하지 않는다.
+- **구현:** 기본 꺼짐인 per-camera 옵션, SceneDepth float32 광학축 Z(m), LiDAR와 공통 기본 semantic 규칙/ID/팔레트, 격리 proxy의 Actor ID, visible-mask 2D bbox, acquisition 시각/frame/revision 및 intrinsics/extrinsics. 기존 재질 재사용으로 새 자산·모듈 없이 구현했다. 소유 미리보기 모드·범례·거리 범위와 상세 설정 설명을 연결하고 5Hz 이하 수요/단일 작업/전역 2개 제한을 둔다. FileSave admission·immutable 비동기 검증 bundle 저장을 사용한다.
+- **진행률: 90% — 구현·자동 검증 완료, 직접 조작 보류.** `fc214a7`→`5ee818b`→`a473ffa`→`040abbf`→`00e1584`, 기준 `827bae6`, DTCore 고정. 9.9m 앞면 최대 오차0.00007381m, 기본 LiDAR 규칙 일치·동일 클래스 두 Actor ID/box·이동/stop-start ID 유지·disable 취소·EXR float32/PNG mask 무손실 round-trip 통과. 1920×1080/DPI1/글자100% Slab 자동 4모드 렌더·저장 확인. Editor/Game Development·WBP7 메모리 컴파일·golden·quick8·layer 위반/allowlist0 통과. 전체 D3D12는266 Success/skip28/기존 UXR03 실패1/NotRun0였으며, 재개 시 승인된 PCD-OPT 토글 기대값11→12·설명만 수정하여 단독1 Success로 해소했다. 이후 CameraGT+UXR06은3 Success/skip2/실패0. 기본 꺼짐 첫 ABAB의 GT +2.50% 실패를 보존하고 사용하지 않는 RGB GT 갱신과 계측기의 Tick별 옵션 파싱을 줄였다. 최종 ABAB×3(12회)은 FPS −0.0011%·p95 동일·GT +0.7332%로2% gate 통과. 이 변경들의 초기 차이 기여도는 단정하지 않는다. **직접 마우스는 Windows 보안 팝업으로 중단·미조작**했으며 자동 렌더를 직접 수용으로 세지 않는다. 정답 미리보기 opt-in(1280×720·<=5Hz 수요)의 같은 소스 ABAB 비용은 GT 평균 +0.4635ms(+9.14%), GPU frame 평균 +0.3537ms(+5.83%), FPS −0.0094%, p95 동일이며30/20Hz 측정·실패/큐초과0을 유지했다. 마지막 두 GT 프레임의 readback wall latency35.51/36.66ms·decode37.40/76.77ms는 평균/p95가 아닌 관찰값이다. 개인 SaveGame9개 복원·보호308파일 hash 불변. 상세·초기 실패 원본·2단계 제안은 RESULT를 따른다.
+- **완료 조건:** 동일 소스/DTCore에서 intrinsics/known-plane depth/분류 일치/instance/bbox/default-off 및 수명 회귀, 저장 파일 무손실 decode, 관련 실제 RHI 회귀·golden·quick·layer0·WBP 메모리 컴파일, 1920×1080 직접 RGB/Depth/Seg/Instance와 저장 확인, `verify.ps1 -Level perf -BaseCommit 827bae6` 기본 꺼짐 2% gate 및 opt-in GPU/GT/readback 비용 보고. 원본은 `Saved/Reports/CAM-GT-01/RESULT.md`.
+- **제한/후속:** 기본 원근 카메라·불투명 static geometry 분류, 개별 LiDAR override 자동 공유 없음, ID는 카메라 실행 범위, ISM은 Actor 단위다. 2단계는 새 topic/schemaVersion 서버 송신·ROS2 Image/CameraInfo·3D bbox를 별도 요청으로 설계한다. 이번 작업은 DTCore/센서 플러그인/운영맵/신규 자산을 변경하지 않는다.
+
 ## 읽는 방법
 
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.

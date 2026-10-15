@@ -15,6 +15,7 @@ class UVirtualSensorTransportComponent;
 class UVirtualSensorRecorderComponent;
 class UVirtualSensorSchedulerSubsystem;
 class FRHIGPUTextureReadback;
+class UVirtualCameraGroundTruth;
 struct FVirtualCameraLocalReadbackState;
 struct FVirtualCameraPreviewFence;
 struct FVirtualCameraPreviewCompletion
@@ -59,6 +60,15 @@ class MA0T10_DT_API UVirtualCameraCaptureComponent : public USceneCaptureCompone
 
 public:
     UVirtualCameraCaptureComponent();
+
+    /** Opt-in only. No additional render/readback allocations while disabled. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="DigitalTwin|VirtualCamera|GroundTruth")
+    bool bGroundTruthEnabled=false;
+    void SetGroundTruthEnabled(bool bEnabled);
+    bool RequestGroundTruthSave();
+    bool IsGroundTruthSavePending() const;
+    void SetGroundTruthPreviewDemand(bool bEnabled);
+    UVirtualCameraGroundTruth* GetGroundTruth() const { return GroundTruth; }
 
 protected:
     virtual void BeginPlay() override;
@@ -215,6 +225,10 @@ public:
     TObjectPtr<UVirtualSensorRecorderComponent> RecorderComponent;
 
 private:
+    UPROPERTY(Transient) TObjectPtr<UVirtualCameraGroundTruth> GroundTruth;
+    bool bGroundTruthSaveRequested=false;
+    double GroundTruthPreviewDemandUntil=0, NextGroundTruthPreview=0;
+    void CaptureGroundTruth(const FVirtualCameraPayloadSnapshot& Snapshot);
     void EnsureRenderTarget();
     bool ReadRenderTargetAsJpeg(TArray64<uint8>& OutJpegBytes) const;
     FString BuildJsonPayload(const FString& Base64Image, int64 ByteSize) const;

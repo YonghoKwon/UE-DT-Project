@@ -17,6 +17,12 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#if __has_include("ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h")
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h"
+#define CAM_GT_PERF_AVAILABLE 1
+#else
+#define CAM_GT_PERF_AVAILABLE 0
+#endif
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
@@ -49,12 +55,14 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
     int32 NativeClientX=0,NativeClientY=0;
     float DpiScale=0;
     bool bVisibleVerified=false;
+    bool bCameraTruthPerformance=false;
 public:
     explicit FPerf01AcquisitionCommand(FAutomationTestBase* In):Test(In)
     {
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Pairs="),Pairs);
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Seconds="),Duration);
         Pairs=FMath::Clamp(Pairs,1,2);Duration=FMath::Clamp(Duration,30,60);
+        bCameraTruthPerformance=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
     }
     bool Update() override
     {
@@ -93,6 +101,9 @@ public:
                 S.LidarProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
                 FString Error;if(!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Test->AddError(Error);return true;}
                 S=Applied;S.SensorId=FString::Printf(TEXT("PERF01-%s-%d"),A->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("CAM"):TEXT("LIDAR"),I);
+#if CAM_GT_PERF_AVAILABLE
+                S.bCameraGroundTruth=bCameraTruthPerformance;
+#endif
                 S.CameraCaptureMode=Pairs==2?EVirtualCameraCaptureMode::PreviewOnly:EVirtualCameraCaptureMode::Payload;
                 S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
                 S.bExportCsvOnScan=S.bExportJsonLinesOnScan=S.bExportPcdOnScan=false;
@@ -123,6 +134,10 @@ public:
             RateSums.Init(0,Sensors.Num());StartFrames.Init(0,Sensors.Num());
             Started=Last=Now;return false;
         }
+#if CAM_GT_PERF_AVAILABLE
+        if(bCameraTruthPerformance)
+            for(const auto& Weak:Sensors)if(auto* C=Cast<AVirtualCameraSensorActor>(Weak.Get()))C->SetGroundTruthPreviewDemand(true);
+#endif
         const double Elapsed=Now-Started;
         if(Elapsed>=10&&Elapsed<10+Duration)
         {
@@ -159,6 +174,7 @@ public:
         Json->SetNumberField(TEXT("engine_average_fps"),Mean(Engine)>0?1000/Mean(Engine):0);
         Json->SetNumberField(TEXT("callback_p95_ms"),P95(Wall));Json->SetNumberField(TEXT("engine_frame_p95_ms"),P95(Engine));
         Json->SetNumberField(TEXT("game_thread_mean_ms"),Mean(Game));Json->SetNumberField(TEXT("gpu_mean_ms"),Mean(Gpu));
+        Json->SetBoolField(TEXT("camera_ground_truth_enabled"),FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")));
         Json->SetNumberField(TEXT("samples"),Wall.Num());Json->SetNumberField(TEXT("pairs"),Pairs);
         Json->SetNumberField(TEXT("warmup_seconds"),10);Json->SetNumberField(TEXT("measurement_seconds"),Duration);
         Json->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
@@ -180,6 +196,14 @@ public:
             Row->SetNumberField(TEXT("budget_skipped"),S.BudgetSkippedAcquisitionFrameCount);
             Test->TestTrue(TEXT("each device still acquiring including zero-rate devices"),A->IsSensorRunning()&&RateSums[I]>0);
             Test->TestEqual(TEXT("acquisition failures"),S.FailedAcquisitionFrameCount,0);Test->TestEqual(TEXT("queue overflow"),S.QueueOverflowCount,0);
+#if CAM_GT_PERF_AVAILABLE
+            if(auto* C=Cast<AVirtualCameraSensorActor>(A);C&&C->CaptureComponent->GetGroundTruth())
+            {
+                const auto F=C->CaptureComponent->GetGroundTruth()->LastFrame;
+                if(F){Row->SetNumberField(TEXT("truth_frame_id"),F->Acquisition.FrameId);Row->SetNumberField(TEXT("truth_submit_ms"),F->SubmitMs);Row->SetNumberField(TEXT("truth_readback_latency_ms"),F->ReadbackLatencyMs);Row->SetNumberField(TEXT("truth_decode_ms"),F->DecodeMs);}
+                if(FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")))Test->TestTrue(TEXT("enabled truth frame completed"),F.IsValid());
+            }
+#endif
             Rows.Add(MakeShared<FJsonValueObject>(Row));A->StopSensor();
         }
         Json->SetArrayField(TEXT("sensors"),Rows);Json->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());

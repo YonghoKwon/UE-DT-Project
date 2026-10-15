@@ -27,6 +27,7 @@
 | PCD 송신 | PCD-OPT 기본 자동 전송률 조절·생략 집계·소켓 대기 구현. 실제1080p 제한 링크20Hz 5분 과부하0·gap95ms, 시나리오 변경12회도 과부하0/hitch0. Artemis20Hz 생략0 | 구현·CLI gate 완료. 291b4f9 대비 perf: FPS −0.01%·p95 동일·GT +1.77% 통과. 운영 PIE 멈춤 원인 미확정; 직접 UI는 Windows 보안 팝업으로 보류. 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | 절대 성능 (PERF-01) | 미송신 표시/오프스크린 1+1·2+2 ABAB×3 및 초기 GT 초과 조건 재측정 완료. FPS·engine p95 회귀 없음; 재측정 GT +1.63/+1.52/+1.42%로 기준 안. Editor/Game·quick8·D3D12 242 Success/skip22·WBP7 통과 | 초기 GT 초과 원본·이분 탐색·Insights 근거 보존. 실제 2+2 PCD 송신은 Broker 환경 보류; 기존 송신 포함 기록과 조건 다름. `Saved/Reports/PERF/PERF-01/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
+| 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·float Depth·기본 semantic 규칙 공유·Actor ID·2D bbox·보정 snapshot·비동기 검증 저장 구현. RHI/무손실 round-trip·1920×1080 자동 4모드·기본 꺼짐 perf 통과(FPS −0.0011%, p95 동일, GT +0.7332%) | 직접 마우스는 Windows 보안 팝업 미조작으로 보류. 서버 송신/ROS2/3D bbox는 2단계 제안. 상세 `Saved/Reports/CAM-GT-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
 | 자동화 | Runtime `967d517`: Editor/Game Development, release 14단계·D3D12 고유242 Success/조건부 skip20/실패0, 기존262개 이름/상태 동일·WBP7 메모리 컴파일. 추가 Slate/RHI 입력2개 실제 Success | 자동 통과와 직접 수용은 다름. 자유 배치 입력·상대 성능·미수행 수용은 UXR-07 보고서 참조 |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
@@ -373,6 +374,20 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 - 요청 대상·출력·revision을 고정하고 실제 파일 생성 후 완료 이벤트를 보낸다. LAZ는 외부 compressor가 필요하며 프로세스 timeout/cancel 보완이 남아 있다.
 - 외부 Source(CSV/JSONL replay, Camera buffered JSON, LiDAR HTTP/UDP)는 센서 입력이다. 서버 수신 진단은 출력 검사다. ROS2/Livox/RealSense SDK 클래스는 현재 stub/확장 지점이며 실제 SDK 지원 완료가 아니다.
 
+### 카메라 정답 데이터 (CAM-GT-01)
+
+출처: 사용자 2026-10-15. **기본 꺼짐**인 카메라별 선택 기능이다. `도구 → 센서 상세 설정 → 기본 → 정답 데이터 사용`을 체크하고 적용한 뒤, 측정 중인 카메라의 `미리보기 → 보기 설정`에서 RGB / 깊이(Depth) / 의미 분류(Segmentation) / 객체 구분(Instance)을 선택한다. 화면이 요청하는 정답 데이터는 최대 5Hz이며 숨김/접힘 후 표시 수요가 만료된다. RGB 선택만으로 정답 캡처를 계속하지 않는다. 기존 JPEG·JSON·PCD 송신 bytes와 topic/schema는 유지한다.
+
+- **정답 데이터 1회 캡처:** FileSave 서비스의 admission을 거쳐 다음 카메라 acquisition에서 비동기 처리한다. 측정을 몰래 시작하지 않으며 busy/미지원/실패를 표시한다. `Saved/CameraGroundTruth/<고유 ID>/`에 `depth.exr`(float32 미터), `segmentation.png`(uint8 클래스 ID), `instance.png`(무손실 24-bit Actor ID), `camera_info.json`을 저장한다. JSON은 모든 이미지 저장 뒤의 완료 표식이다. 데이터셋·주기/대량 생성·서버 송신은 추가하지 않았다.
+- **Depth:** SceneDepth의 광학축 Z를 cm→m로 변환한다. 광선 방향의 유클리드 거리와 구별하며 변환식을 JSON에 기록한다. 0은 배경/무효, 최대 10,000m다. 화면 컬러맵의 0–50m 범위는 저장 float 값을 자르지 않는다.
+- **보정:** 이상적인 pinhole, 왜곡 0. `fx=fy=width/(2 tan(HFOV/2))`, 정수 픽셀 중심 기준 `cx=(width-1)/2`, `cy=(height-1)/2`. 실제 해상도·FOV·UTC·frame id·revision과 UE 월드 pose(m), optical→UE world 4×4 행렬을 같은 acquisition snapshot으로 고정한다. UE 카메라 `(X 전방,Y 우측,Z 위)` → 광학 `(x 우측,y 아래,z 전방)`은 `(Y,-Z,X)`다. 실장비 D455 depth/보정 완료를 뜻하지 않는다.
+- **분류:** `Sensor/VirtualSensorSemanticLabels.*`가 LiDAR와 카메라의 기본 규칙·팔레트 원본이다. ID 0=배경/무효/미지원, 1=Other, 2=Slab, 3=Roller, 4=Conveyor, 5=Floor, 6=Sensor. Actor Tag뿐 아니라 기존 이름·클래스·컴포넌트 규칙 우선순위를 보존한다. 기존 개별 LiDAR 사용자 규칙은 유지되며 카메라로 자동 복제하지 않는다.
+- **지원 경계:** 기존 LiDAR ID 재질을 격리 proxy 장면에서 재사용한다. 불투명 StaticMesh/ISM/HISM 중 WPO 없는 geometry만 분류하고 실제 depth와 일치할 때만 ID를 채운다. masked/translucent/skeletal/procedural geometry는 추정하지 않고 미분류 수를 표시한다. Actor별 ID는 해당 실행·카메라에서 안정적이며 같은 Actor의 ISM 인스턴스는 같은 ID다. bbox는 보이는 마스크의 instance/class별 inclusive 픽셀 경계이며 3D/가려진 전체 물체 박스가 아니다. 기본 원근 투영만 지원한다.
+
+1+1 표시형1920×1080에서 기본 꺼짐 성능 gate는 FPS −0.0011%·p95 동일·GT +0.7332%로 통과했다. 같은 소스에서 정답 미리보기 수요를 켠 비용은 GT 평균 +0.4635ms, GPU frame 평균 +0.3537ms였다(1280×720·최대5Hz, JPEG encode 포함·미송신). 정확도는 알려진9.9m 앞면 최대 오차0.00007381m, EXR/PNG 무손실 round-trip 통과다. 직접 마우스는 보안 팝업 미조작으로 보류했다.
+
+현재 검증 수치·직접 화면·성능 gate와 제한은 `Saved/Reports/CAM-GT-01/RESULT.md`, 진행 상태는 [CAM-GT-01](docs/IMPROVEMENTS.md#cam-gt-01--카메라-정답-데이터-1단계-p1)을 따른다.
+
 ## 8. 센서 배치와 저장 위치
 
 **위치 저장을 찾는 경로:** 상단 **`배치 → 3. 저장 위치`**다. 배치 창은 `1. 장비 / 2. 선택 장비 / 3. 저장 위치 / 4. 전체 배치`를 직접 소유하며 Settings 창을 열 필요가 없다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 본문 전체를 스크롤하며 하단 결과 문구는 고정한다.
@@ -464,9 +479,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT 적용)
+### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01 적용)
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 252개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 261개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 
 PCD-RESUME의 과부하 예약·재개·배수 확인은 기존 L1 StreamPublisher/HighThroughputTransport에 두고, L3 상태바·진단은 L1의 추가 실행 상태를 읽는다. 새 모듈·플러그인·자산·DTCore 변경 없이 위반·allowlist **0/0**을 유지한다. 기존 Blueprint 시그니처와 SaveGame 버전, PCD/wire golden 14파일 바이트는 유지하며 검증 범위는 `Saved/Reports/PCD-RESUME/RESULT.md`를 따른다.
 

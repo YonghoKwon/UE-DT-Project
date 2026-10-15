@@ -1,4 +1,5 @@
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
@@ -513,6 +514,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
     else
     {
         Resource = CameraComp ? CameraComp->GetCameraRenderTarget() : nullptr;
+        if(CameraTruthDisplayMode&&CameraComp)Resource=CameraComp->bGroundTruthEnabled&&CameraComp->GetGroundTruth()?CameraComp->GetGroundTruth()->Preview(CameraTruthDisplayMode):nullptr;
 		const int64 CurrentFrameId = CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE;
 		bPrimaryFrameChanged = CurrentFrameId != LastPrimaryCameraDisplayFrameId;
 		LastPrimaryCameraDisplayFrameId = CurrentFrameId;
@@ -520,6 +522,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
 
     if (!Resource)
     {
+        if(CameraTruthDisplayMode&&NativeViewImage){NativeViewBrush.SetResourceObject(nullptr);NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);}
         return;
     }
 

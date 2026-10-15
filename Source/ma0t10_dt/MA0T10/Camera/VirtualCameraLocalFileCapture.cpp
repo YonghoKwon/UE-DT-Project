@@ -83,6 +83,7 @@ void UVirtualCameraCaptureComponent::UpdateSceneCaptureContents(FSceneInterface*
 	Snapshot.Height=CameraRenderTarget?CameraRenderTarget->SizeY:CaptureResolution.Y;Snapshot.HorizontalFov=FOVAngle;Snapshot.VerticalFov=DeviceSpec.VerticalFovDegrees;
 	Snapshot.Location=GetComponentLocation();Snapshot.Rotation=GetComponentRotation();Snapshot.Forward=GetForwardVector();Snapshot.Up=GetUpVector();
 	Super::UpdateSceneCaptureContents(Scene);
+	if(bGroundTruthEnabled&&bFileAcquisitionPendingRender)CaptureGroundTruth(Snapshot);
 	if(bPlacementPreviewProofRequested&&bFileAcquisitionPendingRender)
 	{
 		bPlacementPreviewProofRequested=false;

@@ -93,6 +93,9 @@ struct MA0T10_DT_API FVirtualSensorEditableState
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Camera")
     EVirtualCameraCaptureMode CameraCaptureMode = EVirtualCameraCaptureMode::PayloadAndOutput;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Camera")
+    bool bCameraGroundTruth=false;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
     EVirtualLidarDeviceProfile LidarProfile = EVirtualLidarDeviceProfile::LivoxMid360S;
 
