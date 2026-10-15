@@ -145,6 +145,7 @@ private:
 	TSharedPtr<class SScrollBox> OwnedSettingsScroll;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSensorSettingsPresentationTest;
+	friend class FUxr15Audit;
 	friend class FSensorVocabularyTest;
 	friend class FUxrSettingsRender;
 #endif

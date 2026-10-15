@@ -184,7 +184,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildToolsMenu()
 	auto Menu=SNew(SVerticalBox);
 	// Preserve chart access until the scenario screen is reorganized in UXR-04.
 	const ESensorToolDestination Destinations[]={ESensorToolDestination::MapCheck,ESensorToolDestination::SensorSettings,ESensorToolDestination::FileSave,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics,ESensorToolDestination::Compatibility,ESensorToolDestination::ScenarioCharts};
-	const FText Names[]={FText::FromString(TEXT("맵 점검")),SensorToolUiText::SensorSettings(),SensorToolUiText::FileSave(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts()};
+	const FText Names[]={FText::FromString(TEXT("맵 점검")),SensorToolUiText::SensorSettings(),SensorToolUiText::FileSaveAndDataset(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts()};
 	for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
 	{
 		const auto Destination=Destinations[I];

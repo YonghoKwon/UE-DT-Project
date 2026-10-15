@@ -139,6 +139,7 @@ private:
     friend class FArchitectureWireGoldenTest;
     friend struct FPointCloudOverloadTestAccess;
     friend struct FPcdRateControlTestAccess;
+    friend class FUxr15OptionBindingsTest;
 #endif
 	friend class FSensorPlacementGateTest;
     friend class FWildcardSequenceTest;

@@ -514,7 +514,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
     else
     {
         Resource = CameraComp ? CameraComp->GetCameraRenderTarget() : nullptr;
-        if(CameraTruthDisplayMode&&CameraComp)Resource=CameraComp->bGroundTruthEnabled&&CameraComp->GetGroundTruth()?CameraComp->GetGroundTruth()->Preview(CameraTruthDisplayMode):nullptr;
+        if(CameraTruthDisplayMode&&CameraComp&&CameraComp->bGroundTruthEnabled)Resource=CameraComp->GetGroundTruth()?CameraComp->GetGroundTruth()->Preview(CameraTruthDisplayMode):nullptr;
 		const int64 CurrentFrameId = CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE;
 		bPrimaryFrameChanged = CurrentFrameId != LastPrimaryCameraDisplayFrameId;
 		LastPrimaryCameraDisplayFrameId = CurrentFrameId;

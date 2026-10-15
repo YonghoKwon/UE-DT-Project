@@ -111,6 +111,12 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     const auto Advanced=Data->BuildOwnedLiveTab();ExpandArea(Advanced,SensorToolUiText::Advanced().ToString());Data->TickOwnedUi(5);Inspect(TEXT("transfer-advanced"),Advanced);
     Data->OpenOwnedTab(ESensorOwnedDataTab::Results);Data->TickOwnedUi(6);Inspect(TEXT("results-empty"),Data->BuildOwnedResultsTab());
     Data->OpenOwnedTab(ESensorOwnedDataTab::FileSave);Data->TickOwnedUi(7);Inspect(TEXT("file-save"),Data->BuildOwnedFileTab());
+    // The lazily built DATASET-01 controls were absent from the previous inventory.
+    Inspect(TEXT("dataset-controls"),Data->BuildOwnedDatasetControls());
+    TestEqual(TEXT("overload wins over simultaneous rate control and delay"),SensorToolUiText::PcdWarning(true,true,12,true,true).ToString(),SensorToolUiText::PcdOverloadSuspended().ToString());
+    TestEqual(TEXT("rate control explains intentional omissions before generic delay"),SensorToolUiText::PcdWarning(false,true,12,true,true).ToString(),SensorToolUiText::PcdRateControlled(12).ToString());
+    TestEqual(TEXT("delay precedes required-output summary"),SensorToolUiText::PcdWarning(false,false,0,true,true).ToString(),SensorToolUiText::SendDelayed().ToString());
+    TestTrue(TEXT("no current warning yields no warning chip"),SensorToolUiText::PcdWarning(false,false,0,false,false).IsEmpty());
     Data->OpenOwnedTab(ESensorOwnedDataTab::ServerConnection);Data->TickOwnedUi(8);Inspect(TEXT("server-connection"),Data->BuildOwnedConnectionTab());
     Data->OpenOwnedTab(ESensorOwnedDataTab::Diagnostics);Data->TickOwnedUi(9);Inspect(TEXT("data-diagnostics"),Data->BuildOwnedDiagnosticsTab());
     Data->LastUiMessage=TEXT("송신 실패 · Topic receipt FIFO STOMP · Capture/Export 내보내기");Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);Data->TickOwnedUi(10);InspectText(TEXT("dynamic-user-message"),{Data->OwnedUiMessage});

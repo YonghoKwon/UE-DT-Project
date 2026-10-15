@@ -117,6 +117,7 @@ public:
     bool FreezeAcquisitionForTests=false;
     friend class FLidarFidelityAcquisitionTest;
     friend class FLidarFidelityGpuConversionTest;
+    friend class FUxr15OptionBindingsTest;
 #endif
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")

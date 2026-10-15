@@ -563,6 +563,17 @@ Editor·Game Development, `verify.ps1 -Level release -BaseCommit 20848ea`, layer
 - **Slab 3D 글자:** 표시 설정 글자 크기 상한 56 → **120**. UI-02가 실제 3D 라벨을 28px로 한 번 더 제한해 41 이상은 화면에 반영되지 않았다. 비율(×0.68)은 유지하고 상한만 설정값에 맞췄다. 글자가 커져 소유 UI·다른 라벨과 겹치면 UI-02 우선순위대로 낮은 순위 라벨이 숨는다.
 - **검증:** 신규 `MA0T10.UXR14.CardEdgeResizeAndSlabTextRhi`(OS 커서 경로로 왼쪽·위·왼위 모서리·오른아래 모서리·한계 밖 끌기·최소 크기·초기화), `UI02.LabelPresentationRhi`에 글자 112 단계 추가(3D 라벨 world size 28→29.1, 112→83.3). 입력 opt-in 포함 SensorV2·UXR·UI02·Workspace·Monitor·Ui·Control·Placement·Settings·Slab **140 Success/실패0**, quick 8/8. 렌더 `Saved/Reports/UXR/UXR-14/`.
 
+### UXR-15 — 기능 추가 후 UX/UI 전체 점검·정리 (P1, 로드맵 #10 1차)
+
+- **출처:** 사용자 2026-10-15: "기능들 개선하면서 UX/UI 개선이 꼭 있어야 한다." 최근 PCD 과부하·자동 재개·전송률 조절, Camera 정답 미리보기, LiDAR 사실성, 데이터셋 생성의 사용 흐름을 함께 점검한다.
+- **범위·점검:** `feat/uxr-15`, 기준 `b00a91f`, DTCore `b2504d1`. 생산 UI 수정 전에 소유7패널(배치 포함)의20화면을 actual client1920×1080/1280×720·기본/최소 사이드바·글자100/150%·window DPI1.0에서80장 캡처했다. 고정 다크이며 라이트는 해당 없음. 심각도·문구/상태/찾기/잘림/꺼짐/첫 사용 근거와 같은 조합 최종80장은 `Saved/Reports/UXR/UXR-15/RESULT.md`에 있다.
+- **정리:** `파일 저장 · 데이터셋` 진입명, 일반 저장 뒤 접힌 데이터셋 그룹, 현재 켜짐/꺼짐·다음 행동 안내, 한국어 회전/시드/조명 문구, 대상명 줄바꿈·전체 툴팁, 항목명 아래 최솟값/최댓값 두 칸, 줄바꿈 동작 버튼. 상태바는 연결 설정 필요→재연결→연결된 사전 점검 차단→과부하/재개 대기→전송률 조절→지연→필수 출력 오류의 첫 경고만 표시한다. PCD 칩의 중복 문장을 줄이고 실제 우선순위를 README 표로 정리했다. 갱신5Hz·숨긴 상세 중단·기존 DTCore 소유/적용 경로를 유지한다.
+- **승인된 CAM-GT-FIX:** 사용자가 전달한 Claude 범위 추가 승인으로 Camera 정답 체크의 누락된 `ApplyPendingState`를 수정했다. 다른 설정과 같은 Actor 검증·적용 transaction으로 즉시 runtime에 반영한다. 정답을 끄면 기존 RGB로 복귀한다. 최근 체크27개(UI→runtime→출력→기존 저장/복원 정책)를 전수 검사했고 다른 미적용 결함은 없었다. 기존 layout v1·프로필/SaveGame v6·데이터셋 세션 draft·Publisher 인스턴스 설정을 구분하며 새 영구 저장 정책을 만들지 않았다. 신규 자동 회귀3개와 상세 `TOGGLE_AUDIT.md`를 추가했다.
+- **직접 확인:** 주요8개+범위15개+파일 출력4개의 on/off, 실제 정답4모드·4파일 저장, 정답/사실성 포함 데이터셋3장면 완료·끄기 후 RGB 복귀를 확인했다. client1920×1080·DPI1.0·글자100%의 대표 조합이다. 초기 Camera FAIL과 timeout 종료 이력은 보존하고 수정 후 재검수로 구분했다. 보안 팝업/캡처0x80070057은 관찰되지 않았다.
+- **통합 직접 점검:** [MANUAL_CHECKLIST](MANUAL_CHECKLIST.md)에 PCD-OPT·CAM-GT-01·LIDAR-FID-01·DATASET-01·UXR의 중복 보류를20행/57분 순서·통과 기준·원본 매핑으로 묶었다. 전체57분 실행,125/150%·좁은 창 직접 전수, 자유 배치 과거 직접 드래그 FAIL, 제한 링크/소비자/원격·사용자 무안내 수용은 이번 옵션 재검수로 닫지 않는다.
+- **최종 gate:** Editor/Game Development, release14단계·D3D12 고유280 Success/skip31/실패0(신규3개 포함), WBP7 메모리 컴파일·실제 Slate 어휘114/기본30영역/허용7영역·위반0, layer 위반/allowlist0/0. 기본 꺼짐 표시형1+1·1920×1080·10초 준비+30초·ABAB×3, `verify.ps1 -Level perf -BaseCommit b00a91f -PerfMeasurementSeconds 30`: FPS 저하 -0.0162%·p95 +0.0000%·GT -1.9570%, 2% gate 통과. quick8/8·문서 링크/시간/diff check도 통과했다. 기능 기본값·wire·저장 형식·Blueprint API·DTCore·자산 변경은 없다. Camera 미적용 수정만 승인된 동작 예외다.
+- **현재 상태: 90%.** 요청 구현·자동 검증·대표 조합 직접 옵션 확인 완료, Claude 독립 검토와 전체 사용자 수용 대기. 큰 구조 변경(데이터셋 전용 화면/상태 상세/라이트)은 제안으로만 남긴다.
+
 ### MAP-01 — 새 맵에 넣어도 바로 동작 (P0, 2026-10-12 사용자 요구)
 
 **진행률: 90%** · CLI 구현/검증 완료, 직접 마우스는 요청된 예외에 따라 UXR-07에서 수행하며 독립 검토 대기다.

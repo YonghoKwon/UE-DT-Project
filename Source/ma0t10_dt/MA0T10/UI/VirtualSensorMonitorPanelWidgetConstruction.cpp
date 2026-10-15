@@ -574,7 +574,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshCameraTruth()
     if(auto* Actor=Cast<AVirtualCameraSensorActor>(CameraComp->GetOwner()))Actor->SetGroundTruthPreviewDemand(CameraTruthDisplayMode!=0);
     if(!bOwnedAdvancedMenuOpen&&IsWorkspaceOwned())return;
     FString Text;
-    if(!CameraComp->bGroundTruthEnabled)Text=TEXT("정답 데이터 꺼짐 · 센서 상세 설정에서 켜고 적용하세요");
+    if(!CameraComp->bGroundTruthEnabled)Text=TEXT("정답 데이터 꺼짐 · 센서 상세 설정에서 켜세요");
     else if(const auto* Truth=CameraComp->GetGroundTruth())Text=Truth->Status;
     else Text=TEXT("정답 데이터 준비 · 표시 모드를 선택하세요");
     if(CameraTruthStatus.ToString()!=Text)CameraTruthStatus=FText::FromString(Text);
@@ -583,7 +583,7 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildCameraTruthControls()
 {
     RefreshCameraTruth();
     auto Buttons=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(4,4));
-    const FText Names[]={LOCTEXT("TruthRGB","RGB"),LOCTEXT("TruthDepth","깊이 (Depth)"),LOCTEXT("TruthSemantic","의미 분류 (Segmentation)"),LOCTEXT("TruthInstance","객체 구분 (Instance)")};
+    const FText Names[]={LOCTEXT("TruthRGB","RGB"),LOCTEXT("TruthDepth","깊이"),LOCTEXT("TruthSemantic","의미 분류"),LOCTEXT("TruthInstance","객체 구분")};
     for(uint8 Mode=0;Mode<4;++Mode)Buttons->AddSlot()[SNewSensorTool(SButton).Text(Names[Mode])
       .OnClicked_Lambda([this,Mode](){CameraTruthDisplayMode=Mode;RefreshCameraTruth();RefreshImageBrush();return FReply::Handled();})];
     return SNew(SVerticalBox).Visibility_Lambda([this](){return bShowingLidar?EVisibility::Collapsed:EVisibility::Visible;})
@@ -591,9 +591,9 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildCameraTruthControls()
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text_Lambda([this](){return CameraTruthStatus;}).AutoWrapText(true)]
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor())
         .Text(LOCTEXT("TruthLegend","깊이: 광학축 Z · 파랑 0 → 빨강 50 m · 검정=유효값 없음\n분류: Slab 주황 · Roller 청록 · Conveyor 초록 · Floor 파랑 · Sensor 보라 · Other 회색\n객체: Actor별 색상 · 검정=배경/미지원 · ID는 같은 실행 안에서 유지"))]
-      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNewSensorTool(SButton).Text(LOCTEXT("TruthSaveOnce","정답 데이터 1회 캡처"))
+      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNewSensorTool(SButton).Text(LOCTEXT("TruthSaveOnce","정답 데이터 1회 저장"))
         .IsEnabled_Lambda([this](){return CameraComp&&CameraComp->bGroundTruthEnabled&&CameraComp->IsCaptureRunning();})
-        .OnClicked_Lambda([this](){auto* Actor=CameraComp?Cast<AVirtualCameraSensorActor>(CameraComp->GetOwner()):nullptr;const bool Ok=Actor&&Actor->RequestGroundTruthSave();CameraTruthStatus=Ok?LOCTEXT("TruthRequested","정답 데이터 캡처 요청됨"):LOCTEXT("TruthBusy","정답 데이터 요청 불가 · 측정/조작/처리 중 상태를 확인하세요");return FReply::Handled();})];
+        .OnClicked_Lambda([this](){auto* Actor=CameraComp?Cast<AVirtualCameraSensorActor>(CameraComp->GetOwner()):nullptr;const bool Ok=Actor&&Actor->RequestGroundTruthSave();CameraTruthStatus=Ok?LOCTEXT("TruthRequested","정답 데이터 저장 요청됨"):LOCTEXT("TruthBusy","정답 데이터 요청 불가 · 측정/조작/처리 중 상태를 확인하세요");return FReply::Handled();})];
 }
 
 FString UVirtualSensorMonitorPanelWidget::BuildStatusText() const
