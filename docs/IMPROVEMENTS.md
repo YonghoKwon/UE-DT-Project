@@ -105,6 +105,15 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **완료 조건:** 두 환경 golden 점 수/좌표/레이아웃·손상/미지원 schema 폐기·유효 JPEG와 ROS 메시지 검증, 동일 SHA/프로필의 실제 Artemis 5분 Hz/bw·UTC 지연·누락/queue 대조, Foxglove 3D와 UE 축 직접 비교, quick·layer0, 개인 SaveGame/보호 경로 복원, 생성 배포판 unregister·설치 캐시 제거·기존 WSL 목록/기본값 보존. 관련 실행법은 [Tools/Ros2Bridge](../Tools/Ros2Bridge/README.md).
 - **2단계 제안:** UE UI의 ROS2 상태·버튼, binary Camera calibration/pose와 CAM-GT depth/segmentation의 새 topic/schema 연계. 이번 외부 adapter가 이 후속 계약 변경을 승인하지 않는다.
 
+### ROS2-02 — ROS2 양방향 제어와 acquisition 시간 기준 (P1, 로드맵 #13)
+
+- **출처/범위:** 사용자 2026-10-15. `feat/ros2-control`, 기준 `55b4dce`, DTCore `b2504d1` 고정. 기존 AUTO-01 loopback API를 외부 ROS 노드에서 호출하며 UE C++·API/wire·맵·자산·기본 정책을 바꾸지 않는다. 외부 제어와 `/clock`은 명시적 opt-in이다.
+- **구현:** `std_srvs/SetBool` PCD 시작/중지, `Trigger` 캡처/상태, schema가 있는 `std_msgs/String` 명령으로 센서 일부 설정/측정·시나리오·데이터셋 생성/중지를 연결한다. 별도 제어 프로세스와 최대2Hz result/status 피드백을 사용한다(result는 명령별 즉시 발행). WSL NAT→Windows의 실제 WSL vEthernet 주소에만 bind한 임시 사용자 중계가 토큰을 필수 검사하고 기존127.0.0.1 API의 Host/auth 계약을 보존한다. API 응답 대기가 점군 변환을 막지 않는다.
+- **시간:** 선택 `/clock`은 유효 acquisition UTC의 단조 최대값이다. PointCloud2/Image/TF stamp를 수신 시각으로 바꾸지 않는다. 역순 측정은 원본 stamp로 유지하고 clock 역행만 막는다. 소비자 `use_sim_time` 사용·초기0·측정 없을 때 정지·단일 clock 발행자·steady timer 규칙을 문서화했다. UE elapsed-time/pause/step/reset이나 OS 시계 조정을 지원한다고 표시하지 않는다.
+- **진행률: 100% (이 항목의 외부 제어 범위).** Windows34 Success, WSL32 Success/skip2(Pillow 없음), ROS 메시지/서비스5 Success, 실제 제어13항목·중계 인증3항목 통과. 최종 API input357/submit356/receipt356, 브리지357, ROS PointCloud2342(약19.14Hz)이며342개 수신 point stamp가 clock357개 집합에 모두 포함됐다. clock 역행0·queue0이다. 외부 수신 차이15와 API snapshot/브리지 차이1을 무손실로 표시하지 않는다. 최종 Windows–WSL 오차는 시작−623.877ms/종료−73.732ms로 변했고 OS clock은 조정하지 않았다. quick8·layer0, 보호1025 hash 불변·개인44파일 복원·전용 WSL unregister/기존3개·기본Ubuntu 보존 완료. 선택 사항인 UE 출처 UI는 아래 사유로 추가하지 않았다.
+- **검증:** Windows/WSL Python, 실제 ROS 서비스/메시지 직렬화, WSL `ros2 service call`/`ros2 topic pub`→UE Game D3D12에서 PCD 시작→수신→중지, 비동기 캡처,3장면 데이터셋, 시나리오 시작/중지·진행 피드백과 stamp 정합을 검사한다. 실측 수·초기 실패·Windows–WSL 오차·수신 누락·동일 소스/DLL 근거·quick/layer·전용 WSL unregister/목록 대조·보호/개인 설정 복원 결과는 `Saved/Reports/ROS2-02/RESULT.md`를 따른다. UE 코드 변경이 없어 release/WBP/golden/perf 전체는 이 항목에서 반복하지 않는다.
+- **UI/제한:** 기존 API 상태에 출처/제어 lease가 없어 UE에 "ROS2에서 제어 중"을 추정 표시하지 않는다. ROS 피드백 `source=ros2_bridge`는 발행 경로만 뜻한다. 센서 변환/직접 Foxglove 3D 등 ROS2-01의 남은 수용은 이 항목의 제어 실측으로 통과 처리하지 않는다. receipt·DDS 수신·소비자 업무 완료는 별개다. 명령·스키마·네트워크/종료 절차는 [Ros2Bridge README](../Tools/Ros2Bridge/README.md)를 따른다.
+
 ## 읽는 방법
 
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.
