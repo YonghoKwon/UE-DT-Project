@@ -963,10 +963,10 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     CameraBasic->AddSlot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox)
       +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([this](){return bOwnedCanEdit;})
         .IsChecked_Lambda([this](){return PendingState.bCameraGroundTruth?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){PendingState.bCameraGroundTruth=V==ECheckBoxState::Checked;})
-        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PendingState.bCameraGroundTruth?LOCTEXT("CameraTruthOn","정답 데이터 선택 · 켜짐"):LOCTEXT("CameraTruthOff","정답 데이터 선택 · 꺼짐");})]]
+        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){PendingState.bCameraGroundTruth=V==ECheckBoxState::Checked;ApplyPendingState();})
+        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PendingState.bCameraGroundTruth?LOCTEXT("CameraTruthOn","정답 데이터 · 켜짐"):LOCTEXT("CameraTruthOff","정답 데이터 · 꺼짐");})]]
       +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthHelp","ⓘ"))
-        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 체크는 선택값입니다. 실제 적용 상태는 미리보기의 보기 설정에서 확인하세요. 적용 후 깊이·의미 분류·객체 구분을 표시하며 GPU 캡처와 읽기 비용이 추가됩니다. 1회 저장은 Saved/CameraGroundTruth에 기록합니다. 서버 전송은 추가하지 않습니다."))]];
+        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 선택하면 즉시 적용합니다. 미리보기의 보기 설정에서 깊이·의미 분류·객체 구분을 확인하세요. GPU 캡처와 읽기 비용이 추가됩니다. 1회 저장은 Saved/CameraGroundTruth에 기록합니다. 서버 전송은 추가하지 않습니다."))]];
     Basic->AddSlot().AutoHeight()[CameraBasic];
     auto LidarBasic=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarInterval","측정 주기 (s)"),[this](){return PendingState.LidarScanInterval;},[this](float V){PendingState.LidarScanInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("LidarInterval"))];

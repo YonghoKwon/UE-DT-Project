@@ -10,6 +10,9 @@
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -57,7 +60,8 @@ public:
     explicit FUxr15Audit(FAutomationTestBase* In):Test(In){}
     bool Update() override
     {
-        if(FPlatformTime::Seconds()-Started>240){Test->AddError(TEXT("UXR15 audit timeout"));return true;}
+        const bool Manual=FParse::Param(FCommandLine::Get(),TEXT("Uxr15Manual"));
+        if(FPlatformTime::Seconds()-Started>(Manual?2160:240)){Test->AddError(TEXT("UXR15 audit timeout"));return true;}
         UWorld* World=nullptr;for(const auto& Context:GEngine->GetWorldContexts())if(Context.WorldType==EWorldType::PIE)World=Context.World();
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();
@@ -70,7 +74,19 @@ public:
         if(!ReadyAt)
         {
             if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
-            if(Phase==0){W->ResetOwnedWorkspaceLayout();for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);}
+            if(Phase==0)
+            {
+                W->ResetOwnedWorkspaceLayout();for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
+                if(Manual)
+                {
+                    // Explicit transient targets for direct UI checks. No existing Actor is moved.
+                    auto* Slab=World->SpawnActor<ASlabActor>();Slab->Tags.Add(TEXT("SensorTestManaged"));Slab->SetActorLocation(FVector(1500,2500,200));Slab->ApplyDatasetGeometry(FVector(800,200,50));Slab->SetDiagnosticHelpersVisible(false);
+                    const FVector Origin=Slab->GetActorLocation()+FVector(-1000,-1000,800);const FTransform Pose((Slab->GetActorLocation()-Origin).Rotation(),Origin);
+                    auto* CameraActor=World->SpawnActor<AVirtualCameraSensorActor>();CameraActor->Tags.Add(TEXT("SensorTestManaged"));CameraActor->StopSensor();CameraActor->SetActorTransform(Pose);CameraActor->CaptureComponent->SensorId=TEXT("UXR15-MANUAL-CAMERA");CameraActor->CaptureComponent->CaptureResolution=FIntPoint(640,360);CameraActor->CaptureComponent->CaptureInterval=.1f;CameraActor->CaptureComponent->SimulationQuality=EVirtualSensorSimulationQuality::Custom;CameraActor->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(CameraActor);
+                    auto* LidarActor=World->SpawnActor<AVirtualLidarSensorActor>();LidarActor->Tags.Add(TEXT("SensorTestManaged"));LidarActor->StopSensor();LidarActor->SetActorTransform(Pose);LidarActor->ScanComponent->SensorId=TEXT("UXR15-MANUAL-LIDAR");LidarActor->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);LidarActor->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);LidarActor->ScanComponent->OutputMode=EVirtualLidarOutputMode::None;C->RegisterSensorActor(LidarActor);
+                    Data->DatasetDraft.Name=TEXT("UXR15_manual");Data->DatasetDraft.Scenes=3;Data->DatasetDraft.SettleFrames=3;Data->DatasetSlab=Slab;Data->DatasetCamera=CameraActor;Data->DatasetLidar=LidarActor;
+                }
+            }
             FSlateApplication::Get().DismissAllMenus();W->SetSidebarMode(true);W->SetOwnedPanelFontScale(Scale);
             const bool Camera=View==15||View==16||View==18;
             for(auto* A:C->GetSensorActors())if(A&&A->GetSensorKind()==(Camera?EVirtualSensorKind::Camera:EVirtualSensorKind::Lidar)){C->SelectSensorActor(A);C->SetViewMode(Camera?EVirtualSensorViewMode::Camera:EVirtualSensorViewMode::Lidar);W->SynchronizeOwnedSelection();break;}
@@ -83,6 +99,7 @@ public:
             if(View>=13&&View<=16){Settings->SelectOwnedSettingsTab(View==16?1:0);if(Settings->OwnedSettingsScroll){if(View==14)Settings->OwnedSettingsScroll->ScrollToEnd();else Settings->OwnedSettingsScroll->ScrollToStart();}}
             if(View==17)Bar->ShowOwnedToolsMenu();
             if(View>=18){Monitor->bOwnedAdvancedMenuOpen=true;FSlateApplication::Get().PushMenu(Monitor->TakeWidget(),FWidgetPath(),Monitor->BuildOwnedAdvancedViewMenu(),FVector2D(550,100),FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));}
+            if(Manual&&FParse::Param(FCommandLine::Get(),TEXT("Uxr15DatasetManual"))){Data->OpenOwnedTab(ESensorOwnedDataTab::FileSave);W->SetPanelOpen(ESensorToolPanelRole::Data,true);if(auto Area=Data->DatasetArea.Pin())Area->SetExpanded(true);if(FParse::Param(FCommandLine::Get(),TEXT("Uxr15RangesManual"))){Expand(Data->TakeWidget(),TEXT("랜덤화 조건 · 켜기 / 최솟값 / 최댓값"));Scroll(Data->TakeWidget(),true);}}
             ReadyAt=FPlatformTime::Seconds()+1.2;return false;
         }
         if(FPlatformTime::Seconds()<ReadyAt)return false;
@@ -100,10 +117,10 @@ public:
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
         // A visible, stationary session for Computer Use; only its explicit finish flag
         // or timeout ends PIE. Automatic preparation is never direct mouse acceptance.
-        if(FParse::Param(FCommandLine::Get(),TEXT("Uxr15Manual")))
+        if(Manual)
         {
             const FString Root=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));
-            return FPaths::FileExists(Root/TEXT("finish.flag"))||FPlatformTime::Seconds()-Started>180;
+            return FPaths::FileExists(Root/TEXT("finish.flag"))||FPlatformTime::Seconds()-Started>2100;
         }
         Requested=false;ReadyAt=0;Monitor->bOwnedAdvancedMenuOpen=false;return ++Phase==2*Count;
     }

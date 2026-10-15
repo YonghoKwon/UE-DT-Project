@@ -574,7 +574,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshCameraTruth()
     if(auto* Actor=Cast<AVirtualCameraSensorActor>(CameraComp->GetOwner()))Actor->SetGroundTruthPreviewDemand(CameraTruthDisplayMode!=0);
     if(!bOwnedAdvancedMenuOpen&&IsWorkspaceOwned())return;
     FString Text;
-    if(!CameraComp->bGroundTruthEnabled)Text=TEXT("정답 데이터 꺼짐 · 센서 상세 설정에서 켜고 적용하세요");
+    if(!CameraComp->bGroundTruthEnabled)Text=TEXT("정답 데이터 꺼짐 · 센서 상세 설정에서 켜세요");
     else if(const auto* Truth=CameraComp->GetGroundTruth())Text=Truth->Status;
     else Text=TEXT("정답 데이터 준비 · 표시 모드를 선택하세요");
     if(CameraTruthStatus.ToString()!=Text)CameraTruthStatus=FText::FromString(Text);

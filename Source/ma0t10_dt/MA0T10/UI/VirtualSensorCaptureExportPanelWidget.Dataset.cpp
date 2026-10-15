@@ -107,7 +107,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetCon
     Range(TEXT("조명 강도 (lux)"),&DatasetDraft.LightIntensity);Range(TEXT("조명 상하 각도 (°)"),&DatasetDraft.LightPitch);Range(TEXT("조명 수평 회전 (°)"),&DatasetDraft.LightYaw);
     Range(TEXT("센서 설치 위치 오차 · 각 축 (cm)"),&DatasetDraft.SensorPosition);Range(TEXT("센서 설치 각도 오차 · 각 축 (°)"),&DatasetDraft.SensorAngle);
     Column->AddSlot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(SensorToolUiText::DatasetRanges())].BodyContent()[Random]];
-    Column->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(DatasetEstimate);})];
+    Column->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping).Text_Lambda([this](){return FText::FromString(DatasetEstimate);})];
     auto Buttons=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8));
     auto Button=[this,Buttons](const FString& Name,TFunction<void()> Action)
     {Buttons->AddSlot()[SNewSensorTool(SButton).Text(FText::FromString(Name)).OnClicked_Lambda([Action](){Action();return FReply::Handled();})];};
@@ -117,5 +117,5 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetCon
     Button(TEXT("중단"),[Service](){if(auto* S=Service())S->Stop();});
     Column->InsertSlot(1).AutoHeight()[Buttons];
     Column->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).Text(FText::FromString(TEXT("결과 폴더 열기"))).OnClicked_Lambda([Service](){if(auto* S=Service();S&&!S->Directory().IsEmpty())FPlatformProcess::ExploreFolder(*S->Directory());return FReply::Handled();})];
-    Column->InsertSlot(2).AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(DatasetStatus);})];return Column;
+    Column->InsertSlot(2).AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping).ToolTipText_Lambda([this](){return FText::FromString(DatasetStatus);}).Text_Lambda([this](){return FText::FromString(DatasetStatus);})];return Column;
 }

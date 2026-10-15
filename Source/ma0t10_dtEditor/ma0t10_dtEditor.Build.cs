@@ -9,6 +9,7 @@ public class ma0t10_dtEditor : ModuleRules
         PrivateDependencyModuleNames.Add("HTTP");
         PrivateDependencyModuleNames.Add("InputCore");
         PrivateDependencyModuleNames.Add("Json");
+        PrivateDependencyModuleNames.Add("JsonUtilities");
         PrivateDependencyModuleNames.Add("Stomp");
         PrivateDependencyModuleNames.AddRange(new[] { "RHI", "RenderCore" });
         PrivateDependencyModuleNames.AddRange(new[] { "BlueprintGraph", "UMGEditor", "KismetCompiler" });
