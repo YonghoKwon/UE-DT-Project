@@ -71,6 +71,10 @@ private:
 	void RefreshOwnedStatus(double Now);
 	TSharedRef<SWidget> BuildToolsMenu();
 	TSharedRef<SWidget> BuildStatusStrip();
+    TSharedRef<SWidget> BuildActivityChips();
+    void RefreshActivityChips();
+    TArray<TWeakPtr<class SBox>> ActivityHosts;
+    uint8 DisplayedActivityMask=255;
 	TSharedRef<SWidget> BuildAppearanceMenu();
 	TSharedRef<SWidget> BuildLegacyToolbar();
 	TSharedRef<SWidget> BuildSidebarShell();

@@ -42,6 +42,7 @@ private:
     TSharedRef<SWidget> BuildImuSection();
     void RefreshImu();
     bool ImuExpanded=false;
+    bool bImuRecordingForDisplay=false,bImuPublishingForDisplay=false;
     FText ImuValues;
     FString ImuCsvRequest;
     TSharedPtr<class SImuPlot> ImuPlot;

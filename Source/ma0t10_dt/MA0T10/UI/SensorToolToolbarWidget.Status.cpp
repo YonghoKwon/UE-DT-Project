@@ -66,7 +66,8 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         EquipmentLabels.Add(A->GetSensorId(),Label);
         OwnedSensorLabels.Add(A->GetSensorId(),FText::Format(NSLOCTEXT("SensorToolUiText","CompactEquipmentLabel","{0} ● {1}"),Label.Name,State));
     }
-    if(const auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())GlobalStatus.Automation=FText::FromString(Control->GetActivityPresentation());
+    if(const auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())
+    {const FString Activity=Control->GetActivityPresentation();if(!Activity.IsEmpty())GlobalStatus.Automation=FText::FromString(Activity);}
     if(ImuRecording||ImuPublishing)GlobalStatus.Imu=FText::Format(NSLOCTEXT("SensorToolUiText","ImuActivity","IMU 기록 {0} · 전송 {1}"),ImuRecording,ImuPublishing);
     const auto* SessionService=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
     const auto Session=SessionService?SessionService->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
@@ -141,6 +142,34 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
     }
     else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
+    RefreshActivityChips();
+}
+
+void USensorToolToolbarWidget::RefreshActivityChips()
+{
+    const uint8 Mask=(GlobalStatus.Automation.IsEmpty()?0:1)|(GlobalStatus.Imu.IsEmpty()?0:2);
+    if(DisplayedActivityMask==Mask)return;DisplayedActivityMask=Mask;
+    ActivityHosts.RemoveAll([](const auto& Host){return !Host.IsValid();});
+    for(const auto& Weak:ActivityHosts)if(const auto Host=Weak.Pin())
+    {if(Mask)Host->SetContent(BuildActivityChips());else Host->SetContent(SNullWidget::NullWidget);}
+}
+
+TSharedRef<SWidget> USensorToolToolbarWidget::BuildActivityChips()
+{
+    auto Row=SNew(SHorizontalBox);
+    static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
+        .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent,6.f))
+        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),6.f));
+    for(int32 I=0;I<2;++I)
+    {
+        auto Label=[this,I](){return I==0?GlobalStatus.Automation:GlobalStatus.Imu;};
+        if(Label().IsEmpty())continue;
+        Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(4,0)
+        [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
+          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,I](){OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:ESensorToolDestination::Placement);return FReply::Handled();})
+          [SNew(SBox).MaxDesiredWidth(220)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())]]];
+    }
+    return Row;
 }
 
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
@@ -165,17 +194,11 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
          [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
     }
-    // Activity never replaces the first warning. Existing service state is sampled at 5Hz,
-    // using the same sensor traversal; these chips do not own or start any work.
-    for(int32 I=0;I<2;++I)
-    {
-        auto Label=[this,I](){return I==0?GlobalStatus.Automation:GlobalStatus.Imu;};
-        Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(4,0)
-        [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
-          .Visibility_Lambda([Label](){return Label().IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
-          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,I](){OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:ESensorToolDestination::Placement);return FReply::Handled();})
-          [SNew(SBox).MaxDesiredWidth(220)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())]]];
-    }
+    // Off means no activity buttons/font/text attributes in the Slate tree. Rebuild only
+    // when the two activity-presence bits change, within the existing 5Hz refresh.
+    auto ActivityHost=SNew(SBox);ActivityHosts.Add(TWeakPtr<SBox>(ActivityHost));
+    Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[ActivityHost];
+    DisplayedActivityMask=255;RefreshActivityChips();
     Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
     Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)
       .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
