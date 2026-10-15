@@ -131,6 +131,16 @@ class WireTests(unittest.TestCase):
         for actual, expected in zip(xyz, [9,2.6,0]):
             self.assertAlmostEqual(actual, expected, places=5)
 
+    def test_architecture_legacy_golden_rounded_json_uses_exact_header(self):
+        for prefix in ('with-context','without-context'):
+            body = (GOLDEN/(prefix+'.lidar.json')).read_bytes()
+            h = {k:v for k,v in self.h.items() if k in ('sensor-id','frame-id','timestamp-utc')}
+            cloud = wire.lidar_json(body,h)
+            self.assertEqual(cloud.frame,9007199254740993)
+            self.assertEqual(cloud.count,2)
+        with self.assertRaises(wire.WireError):
+            wire.json_identity({'frame-id':'43'}, {'sensorId':'sensor','frameId':42,'timestampUtc':'2026-10-15T00:00:00Z'})
+
     def test_legacy_miss_is_not_a_hit(self):
         obj = json.loads((ROOT/'Samples/payload_fixtures/virtual_lidar_v1_sample.json').read_bytes())
         obj['points'][0]['hit'] = False

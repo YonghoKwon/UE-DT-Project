@@ -102,6 +102,19 @@ def identity(headers, meta=None):
     return sid, frame, stamp(utc)
 
 
+def json_identity(headers, obj):
+    meta = {'sensor_id':obj.get('sensorId'), 'sensor_frame_id':obj.get('frameId'), 'timestamp_utc':obj.get('timestampUtc')}
+    frame = meta['sensor_frame_id']
+    # Existing UE JSON encoders use double. ARCH-06 golden intentionally has
+    # JSON 9007199254740992 alongside the exact STOMP string 9007199254740993.
+    # Accept only that representable-double agreement; use the exact wire header.
+    if 'frame-id' in headers and isinstance(frame,(int,float)) and not isinstance(frame,bool) and abs(frame) >= 2**53:
+        exact = integer(headers['frame-id'])
+        if float(exact) == float(frame):
+            meta['sensor_frame_id'] = headers['frame-id']
+    return identity(headers, meta)
+
+
 def quaternion(matrix):
     """Unit quaternion xyzw from a proper orthonormal 3x3 row-major rotation."""
     m = matrix
@@ -224,7 +237,7 @@ def lidar_json(body, headers):
     obj = json_payload(body)
     if obj.get('schemaVersion') != 'virtual-lidar.v1' or obj.get('sensorType') != 'virtual_lidar':
         raise WireError('unknown_schema')
-    sid, frame, utc = identity(headers, {'sensor_id': obj.get('sensorId'), 'sensor_frame_id': obj.get('frameId'), 'timestamp_utc': obj.get('timestampUtc')})
+    sid, frame, utc = json_identity(headers, obj)
     points = obj.get('points')
     if not isinstance(points, list) or integer(obj.get('payloadPointCount')) != len(points):
         raise WireError('lidar_count')
@@ -251,7 +264,7 @@ def camera(body, headers):
         obj = json_payload(body)
         if obj.get('schemaVersion') != 'virtual-camera.v1' or obj.get('sensorType') != 'virtual_camera' or obj.get('encoding') != 'jpeg/base64':
             raise WireError('unknown_schema')
-        sid, frame, utc = identity(headers, {'sensor_id': obj.get('sensorId'), 'sensor_frame_id': obj.get('frameId'), 'timestamp_utc': obj.get('timestampUtc')})
+        sid, frame, utc = json_identity(headers, obj)
         width, height = integer(obj.get('width'), 1, 8192), integer(obj.get('height'), 1, 8192)
         image = base64.b64decode(obj['image'], validate=True)
         if len(image) != integer(obj.get('byteSize')):
