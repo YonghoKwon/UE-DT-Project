@@ -591,9 +591,9 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 #### PCD-OPT — 운영 20Hz PCD 송신 최적화·시나리오 주기 변경 멈춤 (P0)
 
-- **출처:** 사용자 2026-10-15. 운영 서버, ML-X(80) 원본 1대, .05초만 30초 중 3~4초 과부하·자동 재개. 시나리오 PCD 송신 중 .1↔.05 반복 변경 뒤 약3초 간격의 짧은 멈춤을 별도 보고했다.
-- **완료 조건:** 18~19MB/s·RTT5~20ms 재현, 별도 주기 멈춤의 근본 원인 확정·수정, default-on/off 자동 송신율 조절과 명시 생략 집계·문구·Slab 실패 계약 보존, wire 불변 처리량 계측·Artemis 전후 비교, 관련 회귀·golden·장애 전체·quick·layer0·291b4f9 대비 perf. 크기 축소안은 분석만 한다.
-- **현재 결과(2026-10-15): 진행률25%, 재현 도구·조사 단계, 운영 수정 보류.** `perf/pcd-transport-opt`, 시작291b4f9 / DTCore b2504d1. 결정적 바이트 예산 cap·RTT·실제18.5MB/s 자체 시험을 추가했다. 제한 링크 .05초는90초 중 과부하4회/단절0, .06/.1은60초 동안 과부하·단절0. Raw 예약은64MiB보다 **20프레임 약21.2MB 한도**에 먼저 도달했다. 실제 Slab JSON/DataSync/Motion + 주기 API8회 변경은 제한 링크·Artemis 모두 Slab 정지0/100ms 초과 wall gap0; 제한 링크의 직접 UI2회 변경도 진행은 유지했다. PCD receipt3.44초 공백과 사용자가 보고한 주기적 멈춤을 같은 원인으로 확정하지 않았다. "막히면 그 지점에서 멈춤" 요청에 따라 운영 재현 로그·실제 시나리오/실행 조건 확인 전 추정 수정하지 않는다. **자동 송신율 조절·3초 멈춤 수정·처리량 개선은 미구현**, 변경 후/perf gate 미수행. Node10·native8·관련38 Success/skip7·Editor Development·quick/layer0 증거와 크기 축소 산술 제안은 `Saved/Reports/PCD-OPT/RESULT.md`에 보존한다. 앞선 PCD-RESUME 완료 상태와 이번 PCD-OPT 미완료를 구분한다.
+- **출처:** 사용자 2026-10-15. 운영 서버 PC의 **Unreal Editor PIE**에서 ML-X(80) 원본 1대 .05초만 과부하·자동 재개가 발생했고, 시나리오 중 .1↔.05 반복 변경 후에는 Slab과 화면 전체가 멈췄다. 서버 사양/로그/시나리오는 제공 불가이며, 사용자는 근거 있는 추정 수정을 승인했다. 패키지였다는 앞선 가정은 철회했다.
+- **완료 조건:** 18.5MB/s·RTT10ms .05초 5분 과부하0·receipt 공백1초 이하, .06/.1 및 Artemis 20Hz 생략0, 시나리오 주기 변경12회와 소켓 포화·affinity 2~4 논리 CPU PIE에서 150ms 초과 hitch0. default-on/off 조절·명시 생략 집계·Slab 실패 계약·wire/golden 불변, 관련 회귀·장애 전체·quick·layer0·291b4f9 대비 perf를 확인한다. 실제 운영 멈춤 원인 미확정은 열린 항목으로 보고하고 구현을 막지 않는다. 크기 축소는 분석만 한다.
+- **현재 결과(2026-10-15): 구현100%·요청 CLI gate100%, 직접 UI 보류.** `7275b3d`에 AIMD admission·명시 생략/Slab 실패·UI 옵션·소켓/이벤트 대기·로그 제한, `2d18939`에 .05→.06 즉시 여유 회복, `2b1388a`에 실제 viewport 검증을 구현했다. 실제1080p .05초5분 과부하/hitch0·gap95ms·17.35Hz/18.40MB/s/생략818, 4논리 CPU·시나리오 변경12회5분도0·gap218ms·16.96Hz/17.98MB/s/생략802. .06/.1과 Artemis20Hz는 생략0. 1080p·포화·변경12회2/4논리 CPU hitch0(max124.70/93.88ms). 기존 폴링의326ms(GC313ms) hitch는 재시험에서 재현되지 않아 운영 원인으로 단정하지 않는다. 관련45 Success/skip8·Node11·장애9·Editor/Game Development/Shipping·quick8·layer0 통과.291b4f9 대비 ABAB12회 중앙값 FPS −0.01%·p95 동일·GT +1.77%로 perf 통과. 개인SaveGame9복원·추가0·소유Editor/Broker 종료. 직접 UI는 Windows 보안 권한 팝업 때문에 입력0/보류이며 자동 API 변경과 구분한다. 상세 동일1280 전후표·1080p 수용표·제한·크기 축소 분석은 `Saved/Reports/PCD-OPT/RESULT.md`.
 
 #### PERF-01 — 절대 성능 기준선 재확인 (P0)
 
