@@ -7,6 +7,7 @@ from pathlib import Path
 import struct
 import unittest
 from unittest.mock import patch
+import io
 
 import wire
 
@@ -172,6 +173,19 @@ class WireTests(unittest.TestCase):
         for bad in [data[:-1], data[:6], data+b'bad']:
             with self.assertRaises(wire.WireError):
                 wire.jpeg_dimensions(bad)
+
+    def test_valid_jpeg_rgb_decode_if_available(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow decoder is not installed')
+        buf = io.BytesIO()
+        Image.new('RGB',(4,2),(120,80,40)).save(buf,format='JPEG')
+        data = buf.getvalue()
+        self.assertEqual(wire.jpeg_dimensions(data),(4,2))
+        c = wire.camera(data, {'schema':'virtual-camera.jpeg.v1','sensor-id':'cam', 'frame-id':'1',
+                              'timestamp-utc':'2026-10-15T00:00:00Z','width':'4','height':'2'})
+        self.assertEqual(len(wire.decode_rgb(c)),24)
 
     def test_timestamp_nanoseconds_and_large_frame_identity(self):
         self.assertEqual(wire.stamp('2026-10-12T01:02:03.123456789Z')[1], 123456789)
