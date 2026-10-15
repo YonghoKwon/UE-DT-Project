@@ -49,8 +49,9 @@ def main():
     action = {'run': 'up', 'stop': 'down'}.get(args.action, args.action)
     if action == 'status':
         print(wsl('-l', '-v'))
-        print('owned=' + str(bool(state and DISTRO in current)))
-        if state and DISTRO in current:
+        owned = bool(state and not state.get('removed') and DISTRO in current)
+        print('owned=' + str(owned))
+        if owned:
             print(wsl('-d', DISTRO, '-u', 'root', '--', 'bash', linux_path(HERE / 'run.sh'), 'status', linux_path(report)))
         return
     if action == 'install':
@@ -88,6 +89,11 @@ def main():
         return
     if not state or state['root'] != str(ROOT) or state['distribution'] != DISTRO:
         raise RuntimeError('No matching ownership record; refusing action')
+    if state.get('removed'):
+        if action == 'remove' and DISTRO not in current:
+            print('Already removed; existing distributions left unchanged.')
+            return
+        raise RuntimeError('This ownership record is retired; use the current installation report directory')
     if action == 'remove':
         if DISTRO in current:
             if not state['imported']:
