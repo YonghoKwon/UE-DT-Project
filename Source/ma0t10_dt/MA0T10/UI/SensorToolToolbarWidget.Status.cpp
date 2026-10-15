@@ -5,6 +5,8 @@
 #include "SlabProgressPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
+#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
@@ -44,8 +46,10 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     auto* C=W->GetCoordinator();
     const auto* Scheduler=GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>();
     const auto* Rates=Scheduler?&Scheduler->GetTelemetry().SensorRates:nullptr;
+    int32 ImuRecording=0,ImuPublishing=0;
     if(C)for(auto* A:C->GetSensorActors())if(IsValid(A)&&!A->IsActorBeingDestroyed())
     {
+        if(const auto* Imu=A->FindComponentByClass<UVirtualImuComponent>()){ImuRecording+=Imu->IsRecording()?1:0;ImuPublishing+=Imu->IsPublishing()?1:0;}
         ++GlobalStatus.EquipmentCount;
         const bool Running=A->IsSensorRunning();
         GlobalStatus.MeasuringCount+=Running?1:0;
@@ -62,6 +66,8 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         EquipmentLabels.Add(A->GetSensorId(),Label);
         OwnedSensorLabels.Add(A->GetSensorId(),FText::Format(NSLOCTEXT("SensorToolUiText","CompactEquipmentLabel","{0} ● {1}"),Label.Name,State));
     }
+    if(const auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())GlobalStatus.Automation=FText::FromString(Control->GetActivityPresentation());
+    if(ImuRecording||ImuPublishing)GlobalStatus.Imu=FText::Format(NSLOCTEXT("SensorToolUiText","ImuActivity","IMU 기록 {0} · 전송 {1}"),ImuRecording,ImuPublishing);
     const auto* SessionService=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
     const auto Session=SessionService?SessionService->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
     bool TransferFailure=false, PcdOverloadSuspended=false, PcdRateControlled=false;float PcdControlledHz=0;
@@ -158,6 +164,17 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4&&!GlobalStatus.bServerConnected?ESensorToolDestination::ServerSettings:Destination);return FReply::Handled();})
          [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
+    }
+    // Activity never replaces the first warning. Existing service state is sampled at 5Hz,
+    // using the same sensor traversal; these chips do not own or start any work.
+    for(int32 I=0;I<2;++I)
+    {
+        auto Label=[this,I](){return I==0?GlobalStatus.Automation:GlobalStatus.Imu;};
+        Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(4,0)
+        [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
+          .Visibility_Lambda([Label](){return Label().IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
+          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,I](){OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:ESensorToolDestination::Placement);return FReply::Handled();})
+          [SNew(SBox).MaxDesiredWidth(220)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())]]];
     }
     Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
     Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)

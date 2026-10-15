@@ -110,6 +110,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     Monitor->bOwnedAdvancedMenuOpen=true;Monitor->bMonitorDetailsExpanded=false;Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-view-settings"),Monitor->BuildOwnedAdvancedViewMenu());
     Monitor->bMonitorDetailsExpanded=true;Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-developer-info"),Monitor->BuildOwnedAdvancedViewMenu());
     Progress->RefreshOwnedStatus();Inspect(TEXT("scenario-progress"),ProgressSlate);Inspect(TEXT("scenario-archive"),ReplaySlate);Inspect(TEXT("scenario-charts"),ChartsSlate);
+    const auto ImuControls=StaticCastSharedRef<SExpandableArea>(Placement->BuildImuSection());ImuControls->SetExpanded(true);Inspect(TEXT("imu-controls"),ImuControls);
     Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);Data->bOwnedScenarioStreamView=true;
     Data->bOwnedReplayPreflight=false;Data->TickOwnedUi(1);Inspect(TEXT("transfer-new"),Data->BuildOwnedLiveTab());
     Data->bOwnedReplayPreflight=true;Data->TickOwnedUi(2);Inspect(TEXT("transfer-replay"),Data->BuildOwnedLiveTab());

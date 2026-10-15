@@ -149,7 +149,22 @@ bool UAutomationControlSubsystem::SetApiEnabled(bool Enabled)
 FString UAutomationControlSubsystem::GetPresentationStatus() const
 {
     if(!State)return TEXT("외부 제어 API · 꺼짐");
-    return State->ApiMessage+(State->JobActive?FString::Printf(TEXT("\n배치 실행 중 · %d/%d · %s"),State->Step+1,State->Job.Steps.Num(),*State->Operation):FString());
+    return State->ApiMessage+((State->JobActive||!State->Terminal)?TEXT("\n")+GetActivityPresentation():FString());
+}
+FString UAutomationControlSubsystem::GetActivityPresentation() const
+{
+    if(!State||(!State->JobActive&&State->Terminal&&!IsApiEnabled()))return FString();const auto& S=*State;
+    // Only the operation actually admitted here is shown. No ROS2 source/lease is inferred.
+    FString Action=TEXT("준비");
+    if(S.Operation==TEXT("wait"))Action=TEXT("대기");
+    else if(S.Operation==TEXT("capture"))Action=TEXT("프레임 저장");
+    else if(S.Operation.StartsWith(TEXT("dataset.")))Action=TEXT("데이터셋 생성");
+    else if(S.Operation.StartsWith(TEXT("scenario.")))Action=TEXT("시나리오 실행");
+    else if(S.Operation.StartsWith(TEXT("pcd.")))Action=TEXT("PCD 전송");
+    else if(S.Operation.StartsWith(TEXT("sensor.")))Action=TEXT("장비 설정");
+    if(S.JobActive)return FString::Printf(TEXT("일괄 실행 중 · %d/%d · %s"),S.Step+1,S.Job.Steps.Num(),*Action);
+    if(!S.Terminal)return TEXT("API 작업 중 · ")+Action;
+    return IsApiEnabled()?TEXT("API 켜짐 · 요청 대기"):FString();
 }
 TSharedRef<FJsonObject> UAutomationControlSubsystem::GetStatus() const
 {

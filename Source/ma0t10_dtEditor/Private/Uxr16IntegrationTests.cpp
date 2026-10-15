@@ -13,6 +13,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "Uxr15ToggleTestHelpers.h"
 #include "EngineUtils.h"
 #include "Misc/FileHelper.h"
@@ -66,6 +67,12 @@ public:
             auto Config=Imu->GetConfig();Config.RateHz=400;FString Error;
             Test->TestTrue(TEXT("independent IMU edit during API/batch work"),Imu->Configure(Config,Error));
             Test->TestEqual(TEXT("IMU generation does not change parent sensor revision"),Lidar->GetConfigurationRevision(),SensorRevision);
+            Imu->SetRecording(true);
+            auto* Bar=Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation());Bar->RefreshOwnedStatus(Now+1);
+            Test->TestTrue(TEXT("batch has a separate activity chip"),Bar->GetGlobalStatus().Automation.ToString().Contains(TEXT("일괄 실행 중")));
+            Test->TestFalse(TEXT("activity preserves the existing actionable warning"),Bar->GetGlobalStatus().Warning.IsEmpty());
+            Test->TestTrue(TEXT("IMU recording is visible beside the warning"),Bar->GetGlobalStatus().Imu.ToString().Contains(TEXT("기록 1")));
+            Test->TestFalse(TEXT("no ROS2 source lease is inferred"),Control->GetActivityPresentation().Contains(TEXT("ROS2")));
             Next=Now+1.5;Phase=1;return false;
         }
         if(Phase==1)
@@ -80,6 +87,7 @@ public:
             auto Body=MakeShared<FJsonObject>();Body->SetStringField(TEXT("sensor_id"),Camera->GetSensorId());
             Control->Dispatch(TEXT("POST"),TEXT("/v1/capture"),Body,Code);
             Test->TestEqual(TEXT("API asynchronous capture admitted"),Code,202);
+            Test->TestTrue(TEXT("active API operation differs from an enabled idle listener"),Control->GetActivityPresentation().StartsWith(TEXT("API 작업 중")));
             auto Config=Imu->GetConfig();Config.Seed=22016;FString Error;
             Test->TestTrue(TEXT("IMU can be configured while API capture is active"),Imu->Configure(Config,Error));
             Phase=2;return false;

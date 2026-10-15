@@ -13,7 +13,7 @@ enum class ESensorToolDestination : uint8
 };
 struct FSensorToolGlobalStatus
 {
-	FText Equipment, Pcd, Scenario, Server, Warning;
+	FText Equipment, Pcd, Scenario, Server, Warning, Automation, Imu;
 	int32 EquipmentCount=0, MeasuringCount=0;
 	bool bPcdSending=false, bServerConnected=false;
 };
@@ -44,6 +44,7 @@ private:
 	friend class FSensorWorkflowToolbarTest;
 	friend class FSensorWorkflowStatusTest;
 	friend class FUxrSidebarRender;
+    friend class FUxr16Integration;
 #endif
 	UVirtualSensorToolWorkspaceSubsystem* Workspace() const;
 	TArray<TSharedPtr<FString>> SensorOptions;

@@ -60,13 +60,16 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetCon
     Check(TEXT("카메라 정답 포함"),&DatasetDraft.CameraTruth);
     Check(TEXT("LiDAR 사실성 포함"),&DatasetDraft.LidarFidelity);
     Check(TEXT("IMU 값 포함"),&DatasetDraft.IncludeImu);
+    Column->AddSlot().AutoHeight().Padding(0,4)[Text(TEXT("IMU 값은 선택한 Camera·LiDAR에 이미 부착된 IMU만 포함합니다. 먼저 배치 → IMU에서 부착하세요."))];
     // Slate may query attributes each frame. Construct the four texts once, as with Check's On/Off captions.
     auto ExportCaption=[this,None=FText::FromString(TEXT("생성 후 내보내기 형식: 없음")),Coco=FText::FromString(TEXT("생성 후 내보내기 형식: COCO")),Kitti=FText::FromString(TEXT("생성 후 내보내기 형식: KITTI 3D")),Both=FText::FromString(TEXT("생성 후 내보내기 형식: COCO + KITTI 3D"))]()
     {return DatasetDraft.ExportFormat==TEXT("none")?None:DatasetDraft.ExportFormat==TEXT("coco")?Coco:DatasetDraft.ExportFormat==TEXT("kitti")?Kitti:Both;};
     Column->AddSlot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton)
         .IsEnabled_Lambda([Service](){auto* S=Service();return !S||!S->IsActive();})
-        .Text_Lambda(ExportCaption).ToolTipText(FText::FromString(TEXT("누를 때마다 없음 / COCO / KITTI 3D / 둘 다로 바뀝니다. 카메라 정답과 별도 Python 환경이 필요합니다. 원본은 유지합니다.")))
-        .OnClicked_Lambda([this](){const TArray<FString> Choices={TEXT("none"),TEXT("coco"),TEXT("kitti"),TEXT("coco,kitti")};DatasetDraft.ExportFormat=Choices[(Choices.IndexOfByKey(DatasetDraft.ExportFormat)+1)%Choices.Num()];RefreshDatasetPresentation();return FReply::Handled();})];
+        .ToolTipText(FText::FromString(TEXT("누를 때마다 없음 / COCO / KITTI 3D / 둘 다로 바뀝니다. 카메라 정답과 별도 Python 환경이 필요합니다. 원본은 유지합니다.")))
+        .OnClicked_Lambda([this](){const TArray<FString> Choices={TEXT("none"),TEXT("coco"),TEXT("kitti"),TEXT("coco,kitti")};DatasetDraft.ExportFormat=Choices[(Choices.IndexOfByKey(DatasetDraft.ExportFormat)+1)%Choices.Num()];RefreshDatasetPresentation();return FReply::Handled();})
+        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda(ExportCaption)]];
+    Column->AddSlot().AutoHeight().Padding(0,4)[Text(TEXT("기본 없음 · 형식을 선택하면 카메라 정답 포함과 별도 Python 환경이 필요합니다. 원본 생성·복원 뒤 변환하며 원본은 유지합니다."))];
     Check(TEXT("KITTI 기울어진 박스의 수직 포위 근사 허용"),&DatasetDraft.ExportUprightEnvelope);
     auto Field=[this,Column,Text,Service](const FString& Label,const FString& Value,TFunction<void(const FString&)> Apply)
     {Column->AddSlot().AutoHeight().Padding(0,4)[SNew(SHorizontalBox)
