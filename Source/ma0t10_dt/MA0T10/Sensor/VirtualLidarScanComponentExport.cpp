@@ -43,6 +43,13 @@ FString JoinNames(const TArray<FName>& Names) { FString R; for (int32 I = 0; I <
 }
 
 
+#if WITH_EDITOR
+void UVirtualLidarScanComponent::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+    FVirtualSensorHitchScope Scope(EVirtualSensorHitchSection::EditorProperty);
+    Super::PostEditChangeProperty(Event);
+}
+#endif
 void UVirtualLidarScanComponent::BeginPlay()
 {
     Super::BeginPlay();

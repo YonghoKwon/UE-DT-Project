@@ -432,6 +432,7 @@ public:
             const FString Pcd20Interval=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_NATIVE_INTERVAL"));
             bPcd20Probe=!Pcd20Interval.IsEmpty();
             bOverloadResumeFault=bPcd20Probe&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE"))==TEXT("overload-resume-native");
+            if(bOverloadResumeFault)Publisher->bAutoAdjustPointCloudSendRate=false;
             bPcdOpt=bPcd20Probe&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE")).StartsWith(TEXT("pcd-opt"));
             bPcdOptSwitch=bPcdOpt&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_CASE")).Contains(TEXT("switch"));
             if(bPcd20Probe)

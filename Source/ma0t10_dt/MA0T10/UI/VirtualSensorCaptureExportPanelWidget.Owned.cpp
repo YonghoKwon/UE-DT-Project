@@ -404,7 +404,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	  .OnAreaExpansionChanged_Lambda([this](bool Open){bWorkspaceLiveDetails=Open;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::Advanced())]
 	  .BodyContent()[SNew(SVerticalBox)
-	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return IsOwnedCompatibilityTransport()?LOCTEXT("CompatPolicy","호환 전송: 간격·receipt 표본 옵션 적용"):LOCTEXT("RawPolicy","Raw TCP: 센서 완료 프레임 모두 · 매 프레임 receipt · 연결 중 FIFO");})]
+	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return IsOwnedCompatibilityTransport()?LOCTEXT("CompatPolicy","호환 전송: 간격·receipt 표본 옵션 적용"):LOCTEXT("RawPolicy","Raw TCP: 승인 프레임 FIFO · 매 프레임 receipt");})]
+	   +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox)
+	    .IsChecked_Lambda([this](){auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;return P&&P->bAutoAdjustPointCloudSendRate?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	    .OnCheckStateChanged_Lambda([this](ECheckBoxState Value){if(auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr)P->bAutoAdjustPointCloudSendRate=Value==ECheckBoxState::Checked;})
+	    .ToolTipText(LOCTEXT("RateControlHelp","측정 주기는 유지하고 서버 처리량에 맞춰 송신 프레임을 균등하게 생략합니다. 생략은 진단에 기록하며 데이터 필수 실행에서는 전송 실패로 판정합니다."))
+	    [SNewSensorTool(STextBlock).Text(LOCTEXT("RateControlOption","PCD 전송률 자동 조절"))]]
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualPointCloudStreamFilterPreset>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).OptionsSource(&NativeStreamFilterOptions)
 	    .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualPointCloudStreamFilterPreset> P){const TCHAR* N=P&&*P==EVirtualPointCloudStreamFilterPreset::TargetActorTag?TEXT("대상 물체만"):P&&*P==EVirtualPointCloudStreamFilterPreset::TagOrSemantic?TEXT("Tag·Semantic 조건"):P&&*P==EVirtualPointCloudStreamFilterPreset::SensorLocalRoi?TEXT("센서 로컬 ROI"):TEXT("전체 검출점");return SNewSensorTool(STextBlock).Text(FText::FromString(N));})
 	    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualPointCloudStreamFilterPreset> P,ESelectInfo::Type){if(P)SetPointCloudStreamFilterPreset(*P);})

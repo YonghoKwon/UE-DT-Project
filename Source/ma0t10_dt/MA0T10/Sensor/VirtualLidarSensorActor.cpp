@@ -95,6 +95,13 @@ bool AVirtualLidarSensorActor::ReadEditableState(FVirtualSensorEditableState& Ou
     return true;
 }
 
+#if WITH_EDITOR
+void AVirtualLidarSensorActor::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+    FVirtualSensorHitchScope Scope(EVirtualSensorHitchSection::EditorProperty);
+    Super::PostEditChangeProperty(Event);
+}
+#endif
 bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError)
 {
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorApply);
@@ -153,6 +160,7 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         AcquiredFrame.SensorId = ScanComponent->SensorId;
         AcquiredFrame.SensorKind = EVirtualSensorKind::Lidar;
         AcquiredFrame.FrameId = Snapshot->FrameId;
+		AcquiredFrame.RequestedAcquisitionIntervalSeconds = ScanComponent->ScanInterval;
 		AcquiredFrame.SlabContext = Snapshot->SlabContext;
         AcquiredFrame.TimestampUtc = Snapshot->GetAcquisitionStartUtc();
         if(AcquiredFrame.TimestampUtc.GetTicks()<=0)AcquiredFrame.TimestampUtc=FDateTime::UtcNow();

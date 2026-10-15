@@ -7,13 +7,13 @@ enum class EVirtualSensorHitchSection : uint8
 {
     Publisher, TransportEvents, Enqueue, Telemetry, ResumeCapacity, CancelRun,
     StopWorker, SensorApply, SensorSchedule, SensorComplete, SlabMotion, SlabTick,
-    OutstandingWait, RunPendingWait, Count
+    OutstandingWait, RunPendingWait, EditorProperty, SettingsUi, UiSave, GarbageCollection, Count
 };
 struct MA0T10_DT_API FVirtualSensorHitchSnapshot
 {
     int64 Frames=0,Hitches=0,SocketIoInsideMutex=0;
     double MaxFrameMs=0,MaxOutstandingHoldMs=0,MaxRunPendingHoldMs=0;
-    FString HitchCsv;
+    FString HitchCsv,SectionCsv;
 };
 class MA0T10_DT_API FVirtualSensorHitchDiagnostics
 {

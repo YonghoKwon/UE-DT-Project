@@ -98,3 +98,46 @@ Add `-SwitchIntervals` for an actual production Slab JSON/DataSync/motion run
 claim that the reported production three-second freeze has been fixed.
 `python Tools/StompFaultServer/summarize-opt.py <run-directory> ...` writes each
 run's `timeseries.csv` and `summary.json` without loading credentials or bodies.
+
+PCD-OPT saturation and adaptive admission use `run-package.ps1`. Despite the
+historical name, `-EditorPie` selects actual Editor PIE; omitting it selects an
+already staged Development or Shipping package. Examples after an Editor build:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-package.ps1 -EditorPie -Case Limited -Seconds 300 -SendBufferBytes 16777216 -KeepDevices -AcceptRateControl -RequireNoHitch
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/StompFaultServer/run-package.ps1 -EditorPie -Case Pressure -Seconds 120 -CpuMask 3 -SwitchIntervals -Preview -KeepDevices -RequireNoHitch
+```
+
+`Limited` reads at 18.5 decimal MB/s and delays receipts by 10ms. `Pressure`
+stops reading for six seconds every ten seconds (`--pause-every-ms=10000`),
+with a 64KiB sender buffer by default. A six-second read pause necessarily
+prevents a one-second receipt-gap guarantee; this case checks frame hitches,
+bounded reservations and recovery. `-CpuMask 3` restricts the owned Editor to
+two **logical processors**; `15` selects four. No system affinity is changed.
+`-SwitchIntervals` submits an actual transient Slab scenario and attempts twelve
+0.1/0.05 changes. `-RequireData` preserves its existing setting lock and failure
+policy. `-WorktreeMap` reads a copy of the user's current map; otherwise the
+291b4f9 map is extracted. Neither path saves the original map.
+
+The fixture explicitly selects ML-X(80) FullSpec 576x56, GPU depth acquisition,
+and PCD output. `-LegacyJson` additionally enables the old compatibility output.
+`-LegacyAdmission` disables adaptive admission for comparison.
+`-LegacyPolling` restores the previous worker waits **only** when a PCD-OPT
+report is requested, to permit a controlled CPU comparison in the same binary.
+It is a diagnostic switch, not a suggested production setting.
+
+Reports contain source/binary fingerprints, one-second queues/reservations and
+latencies, process CPU samples, receipt gaps, omission/overload counts, and
+frames over 150ms with sensor/transport/Slab/Editor/GC section times. New runs
+also write `sections.csv` (call counts and maximum section duration).
+`run-faults.ps1` includes a ninth `bandwidth-admission` PIE case in addition to
+the eight raw-worker/recovery cases. Adaptive PCD omissions are recorded as
+explicit output failures for Slab reliability; accepted FIFO frames and all
+wire bytes remain unchanged.
+
+For field timing without changing actors, streams or scenario state, start
+Editor with `-PcdOptReport="<absolute report directory>" -PcdOptObserveExisting
+-PcdOptSeconds=300`, then start PIE normally. This opt-in mode records timing
+after ten seconds and leaves Editor running. It never writes packet bodies or
+credentials. It does not reproduce or prove the cause of an unavailable field
+freeze by itself.

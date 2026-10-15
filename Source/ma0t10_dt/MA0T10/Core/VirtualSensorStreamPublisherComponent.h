@@ -9,6 +9,7 @@
 class UVirtualSensorTransportComponent;
 struct FVirtualSensorTransportResult;
 struct FVirtualSensorStreamTelemetry;
+struct FVirtualSensorHighThroughputProfile;
 
 /**
  * Bounded, latest-frame-first publisher shared by every V2 sensor.
@@ -107,6 +108,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	bool bAutoResumePointCloudAfterOverload = true;
 
+	/** Pace new PCD admission before serialization; omissions remain explicit failures for a Slab run. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
+	bool bAutoAdjustPointCloudSendRate = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "0.1", ClampMax = "30.0"))
 	float PointCloudOverloadResumeDelaySeconds = 2.0f;
 
@@ -133,6 +138,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FArchitectureWireGoldenTest;
     friend struct FPointCloudOverloadTestAccess;
+    friend struct FPcdRateControlTestAccess;
 #endif
 	friend class FSensorPlacementGateTest;
     friend class FWildcardSequenceTest;
@@ -177,6 +183,11 @@ private:
 		double HealthyDeliverySinceSeconds = -1.0;
 		double LastDeliveryProgressSeconds = 0.0;
 		int64 LastObservedReceiptCount = 0;
+		double AdmissionRatio = 1, LastAdmissionUpdate = 0, PreviousPressure = 0;
+		double LastRateLogSeconds = 0;
+		int64 LastRateLogSkipped = 0;
+		double NextPcdConsoleLogSeconds=0;
+		int64 PendingPcdConsoleLogs=0;
 		bool bSerializationInFlight = false;
 		FVirtualSensorAcquisitionContext LastInputSlabContext;
 		FString LastInputSensorId;
@@ -187,7 +198,7 @@ private:
 		TArray<float> SerializationLatencySamples;
 		FString LastSlabSegment;
 		bool bHasInputFrameInSegment=false;
-		struct FSensorSequence { FString Segment;int64 Frame=0;bool bHave=false; };
+		struct FSensorSequence { FString Segment;int64 Frame=0;bool bHave=false;double LastInputSeconds=0,InputPeriod=0,AdmissionCredit=0; };
 		TMap<FString,FSensorSequence> SensorSequences;
 		int32 ConfigRevision = 0;
 	};
@@ -214,13 +225,16 @@ private:
 	void UpdatePointCloudDeliveryProgress(FStreamRuntime& Runtime, double NowSeconds, bool bConnected);
 	void StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId);
 	void RefreshQueueTelemetry(FStreamRuntime& Runtime);
+	void UpdatePointCloudRateControl(FStreamRuntime& Runtime,double Now,const FVirtualSensorHighThroughputProfile& Profile);
+	bool OmitPointCloudForRateControl(const FString& Key,FStreamRuntime& Runtime,const FVirtualSensorFrameEnvelope& Frame,double Now);
+	void LogPointCloudTransition(const FString& Key,FStreamRuntime& Runtime,const FString& Message,double Now);
 	bool RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error);
 	void PumpPreparedMessages(double NowSeconds);
 	void CheckReceiptTimeouts(double NowSeconds);
 	void AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result = nullptr, int64 FrameId = 0);
 	void HandleTransportResult(const FVirtualSensorTransportResult& Result);
 	void UpdateCameraStreamDemand();
-	void RecordSlabFailure(const FString& RunId, const FString& SensorId, EVirtualSensorStreamKind Kind, int64 FrameId);
+	void RecordSlabFailure(const FString& RunId, const FString& SensorId, EVirtualSensorStreamKind Kind, int64 FrameId,const FString& Reason=TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
 	void RecordDiscardedSlabFrames(const FStreamRuntime& Runtime);
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);

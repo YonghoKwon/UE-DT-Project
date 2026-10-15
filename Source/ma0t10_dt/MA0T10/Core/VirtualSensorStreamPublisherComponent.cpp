@@ -367,12 +367,14 @@ void UVirtualSensorStreamPublisherComponent::StopForPointCloudOverload(
 		const FString Detail = FString::Printf(TEXT("Automatic PCD resume eligible at %s (%.1fs cooldown), resume count=%lld; connection and drain required."),
 			*Runtime.Status.EarliestOverloadResumeUtc.ToIso8601(), Runtime.OverloadBackoffSeconds, Runtime.Status.ResumeCount);
 		AddLog(StreamKey, TEXT("overload-resume-scheduled"), Detail);
-		UE_LOG(LogTemp, Display, TEXT("[PCD-RESUME] %s %s"), *StreamKey, *Detail);
+		LogPointCloudTransition(StreamKey,Runtime,Detail,FPlatformTime::Seconds());
 	}
 }
 
 void UVirtualSensorStreamPublisherComponent::CancelPointCloudOverloadResume(FStreamRuntime& Runtime)
 {
+	Runtime.AdmissionRatio=1;Runtime.LastAdmissionUpdate=0;Runtime.PreviousPressure=0;
+	Runtime.Status.bRateControlActive=false;Runtime.Status.RateControlHz=0;
 	Runtime.Status.bOverloadSuspended = false;
 	Runtime.Status.OverloadResumeDelaySeconds = 0.0f;
 	Runtime.Status.EarliestOverloadResumeUtc = FDateTime();
@@ -417,7 +419,7 @@ bool UVirtualSensorStreamPublisherComponent::UpdatePointCloudOverloadRecovery(co
 	++Runtime.Status.ResumeCount;
 	Runtime.Status.Message = TEXT("PCD automatically resumed; waiting for a new frame.");
 	AddLog(StreamKey, TEXT("overload-resumed"), Runtime.Status.Message);
-	UE_LOG(LogTemp, Display, TEXT("[PCD-RESUME] %s resumed count=%lld"), *StreamKey, Runtime.Status.ResumeCount);
+	LogPointCloudTransition(StreamKey,Runtime,FString::Printf(TEXT("resumed count=%lld"),Runtime.Status.ResumeCount),Now);
 	return true;
 }
 
@@ -659,7 +661,13 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry(const 
 	for(const auto& Item:Telemetry)
     {
         FString Key=MakeStreamKey(Item.StreamKind,Item.SensorId);
-        if(!StreamRuntimes.Contains(Key))Key=MakeStreamKey(Item.StreamKind,FString());
+        const auto* Exact=StreamRuntimes.Find(Key);
+        if(!Exact||(!Exact->Config.bEnabled&&!Exact->Status.bOverloadSuspended))
+        {
+            const FString WildcardKey=MakeStreamKey(Item.StreamKind,FString());
+            const auto* Wildcard=StreamRuntimes.Find(WildcardKey);
+            if(!Exact||(Wildcard&&Wildcard->Config.bEnabled))Key=WildcardKey;
+        }
         const auto* Runtime=StreamRuntimes.Find(Key);
         if(!Runtime||Runtime->Config.TransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput)continue;
         if(!ByRuntime.Contains(Key)){ByRuntime.Add(Key,Item);continue;}
@@ -708,6 +716,9 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry(const 
 		Runtime->Status.LastConsumerLatencyMs = Item.LastEndToEndLatencyMs;
 		Runtime->Status.EndToEndP95LatencyMs = Item.EndToEndP95LatencyMs;
 		if (!Runtime->Status.bOverloaded) Runtime->Status.Message = Item.Message;
+		const auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
+		static const FVirtualSensorHighThroughputProfile DefaultProfile;
+		UpdatePointCloudRateControl(*Runtime,FPlatformTime::Seconds(),Raw?Raw->GetActiveProfile():DefaultProfile);
 	}
 }
 
@@ -882,6 +893,10 @@ bool UVirtualSensorStreamPublisherComponent::ExportDiagnosticReport(FString& Out
 		Object->SetBoolField(TEXT("overloadSuspended"), Status.bOverloadSuspended);
 		Object->SetNumberField(TEXT("resumeCount"), static_cast<double>(Status.ResumeCount));
 		Object->SetNumberField(TEXT("overloadDiscardedFrames"), static_cast<double>(Status.OverloadDiscardedFrameCount));
+		Object->SetNumberField(TEXT("rateControlSkippedFrames"),static_cast<double>(Status.RateControlSkippedFrameCount));
+		Object->SetBoolField(TEXT("rateControlActive"),Status.bRateControlActive);
+		Object->SetNumberField(TEXT("rateControlHz"),Status.RateControlHz);
+		Object->SetNumberField(TEXT("consoleLogsSuppressed"),static_cast<double>(Status.SuppressedConsoleLogCount));
 		Object->SetNumberField(TEXT("overloadResumeDelaySeconds"), Status.OverloadResumeDelaySeconds);
 		Object->SetStringField(TEXT("earliestOverloadResumeUtc"), Status.bOverloadSuspended ? Status.EarliestOverloadResumeUtc.ToIso8601() : FString());
 		Object->SetNumberField(TEXT("inputFrames"), static_cast<double>(Status.InputFrameCount));

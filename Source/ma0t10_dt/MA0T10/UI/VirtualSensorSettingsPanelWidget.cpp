@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "SensorPlacementInteraction.h"
@@ -433,6 +434,7 @@ void UVirtualSensorSettingsPanelWidget::SelectNextTarget()
 
 bool UVirtualSensorSettingsPanelWidget::ApplyPendingState()
 {
+    FVirtualSensorHitchScope Scope(EVirtualSensorHitchSection::SettingsUi);
     const TWeakObjectPtr<AVirtualSensorActorBase> RequestedActor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
     const FTransform Before=RequestedActor.IsValid()?RequestedActor->GetActorTransform():FTransform::Identity;
     const FString BeforeId=RequestedActor.IsValid()?RequestedActor->GetSensorId():FString();

@@ -7,6 +7,7 @@
 #include "Containers/Queue.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
+#include "HAL/Event.h"
 #include "IPAddress.h"
 #include "Dom/JsonObject.h"
 #include "Misc/SecureHash.h"
@@ -141,11 +142,14 @@ public:
 		, Passcode(InPasscode.IsEmpty() ? InProfile.UserName : MoveTemp(InPasscode))
 	{
 		for (TAtomic<int32>& Count : QueueCounts) Count.Store(0);
+		FString ProbeReport;
+		bLegacyPollingProbe=FParse::Param(FCommandLine::Get(),TEXT("PcdOptLegacyPolling"))&&FParse::Value(FCommandLine::Get(),TEXT("PcdOptReport="),ProbeReport);
 	}
 
 	~FVirtualSensorHighThroughputTransportWorker() override
 	{
 		StopWorker();
+		FPlatformProcess::ReturnSynchEventToPool(WakeEvent);
 	}
 
 	bool Start()
@@ -160,6 +164,7 @@ public:
 	{
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::StopWorker);
 		bStopRequested.Store(true);
+		WakeEvent->Trigger();
 		if (Thread)
 		{
 			Thread->WaitForCompletion();
@@ -178,6 +183,7 @@ public:
 	void Stop() override
 	{
 		bStopRequested.Store(true);
+		WakeEvent->Trigger();
 	}
 
 	uint32 Run() override
@@ -200,7 +206,7 @@ public:
 						NextConnectSeconds = Now + FMath::Min(10.0, FMath::Pow(2.0, FMath::Min(4, ReconnectAttempt++)));
 					}
 				}
-				FPlatformProcess::SleepNoStats(0.01f);
+				if(bLegacyPollingProbe)FPlatformProcess::SleepNoStats(.01f);else WakeEvent->Wait(10);
 				continue;
 			}
 
@@ -210,7 +216,7 @@ public:
 			if (!bConnected) continue;
 			CheckReceiptTimeouts();
 			SendHeartbeatIfDue();
-			FPlatformProcess::SleepNoStats(0.001f);
+			if(bLegacyPollingProbe)FPlatformProcess::SleepNoStats(.001f);else WakeEvent->Wait(1);
 		}
 		CloseSocket();
 		return 0;
@@ -266,6 +272,7 @@ public:
 		}
 		AdjustRunPending(Frame,1);
 		Frames.Enqueue(MoveTemp(Normalized));
+		WakeEvent->Trigger();
 		return true;
 	}
 	void SnapshotOutstanding(EVirtualSensorStreamKind Kind,const FString& Sensor,int32& FramesOut,int64& BytesOut,int64& GlobalOut,int32& QueuedOut) const
@@ -288,6 +295,7 @@ public:
 	{
 		{FVirtualSensorTransportLock Lock(&RunPendingMutex,false);if(!KnownRunGenerations.Contains(RunId))KnownRunGenerations.Add(RunId,0);ActiveRunGenerations.Remove(RunId);RetiringRuns.Add(RunId);}
 		RunCancellations.Enqueue(RunId);
+		WakeEvent->Trigger();
 	}
 	void RegisterRun(const FString& RunId,uint64 Token,bool Active)
 	{
@@ -333,7 +341,7 @@ public:
 		if(!OutEvent.RunId.IsEmpty()) {FVirtualSensorTransportLock Lock(&RunPendingMutex,false);auto* Count=RunEventCounts.Find(OutEvent.RunId);if(Count&&--*Count<=0)RunEventCounts.Remove(OutEvent.RunId);}
 		return true;
 	}
-	void ConfigureReceiver(const FVirtualSensorReceiveSelection& S) { ReceiverChanges.Enqueue(S); }
+	void ConfigureReceiver(const FVirtualSensorReceiveSelection& S) { ReceiverChanges.Enqueue(S);WakeEvent->Trigger(); }
 	int64 GetDroppedReceiveEvents() const { return DroppedReceiveEvents.Load(); }
 	int64 GetSocketWouldBlockCount() const { return SocketWouldBlockCount.Load(); }
 	int32 GetActualSocketSendBufferBytes() const { return ActualSendBufferBytes.Load(); }
@@ -526,7 +534,7 @@ private:
 					return false;
 				}
 			}
-			FPlatformProcess::SleepNoStats(0.005f);
+			if(bLegacyPollingProbe)FPlatformProcess::SleepNoStats(.005f);else Socket->Wait(ESocketWaitConditions::WaitForRead,FTimespan::FromMilliseconds(5));
 		}
 		PushConnectionEvent(false, TEXT("Timed out waiting for STOMP CONNECTED."));
 		CloseSocket();
@@ -675,7 +683,10 @@ private:
 			const ESocketErrors Error = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode();
 			if(Error==SE_EWOULDBLOCK)++SocketWouldBlockCount;
 			if (Error != SE_EWOULDBLOCK && Error != SE_NO_ERROR) {LastWriteError=FString::Printf(TEXT("Socket write failed: stage=%s socket=%s (%d) bytes=%lld/%lld elapsed=%.3fs"),Stage,ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetSocketError(Error),int32(Error),Offset,NumBytes,FPlatformTime::Seconds()-Started);return false;}
-			FPlatformProcess::SleepNoStats(0.0005f);
+			// Windows truncates 0.5ms SleepNoStats to SwitchToThread: a full
+			// socket previously spun millions of times per pause. Wait for real
+			// writability while bounding receive/cancellation service to 5ms.
+			if(bLegacyPollingProbe)FPlatformProcess::SleepNoStats(.0005f);else Socket->Wait(ESocketWaitConditions::WaitForWrite,FTimespan::FromMilliseconds(5));
 		}
 		if(Offset==NumBytes&&bWriteDelayed){bWriteDelayed=false;FWorkerEvent E;E.Type=EWorkerEventType::SendRecovered;E.Message=TEXT("송신 지연 해소: 진행 중 STOMP 프레임 완료.");QueueEvent(MoveTemp(E));}
 		if(Offset!=NumBytes)LastWriteError=TEXT("Socket write cancelled by transport shutdown.");
@@ -996,6 +1007,8 @@ private:
 	TMap<FString,TSet<FString>> RunInvalidFrames;
 	FString Passcode;
 	FRunnableThread* Thread = nullptr;
+	bool bLegacyPollingProbe=false;
+	FEvent* WakeEvent=FPlatformProcess::GetSynchEventFromPool(false);
 	FSocket* Socket = nullptr;
 	TAtomic<bool> bStopRequested { false };
 	bool bConnected = false;
@@ -1244,6 +1257,15 @@ FVirtualSensorHighThroughputProfile UVirtualSensorHighThroughputTransportSubsyst
 	return Result;
 }
 
+void UVirtualSensorHighThroughputTransportSubsystem::LogDiagnostic(int32 Kind,const FString& Message)
+{
+    const double Now=FPlatformTime::Seconds();
+    if(Now<NextDiagnosticLogSeconds[Kind]){++PendingDiagnosticLogs[Kind];++SuppressedConsoleLogs;return;}
+    NextDiagnosticLogSeconds[Kind]=Now+1;
+    UE_LOG(LogTemp,Display,TEXT("%s (console suppressed=%lld; event counters retained)"),*Message,PendingDiagnosticLogs[Kind]);
+    PendingDiagnosticLogs[Kind]=0;
+}
+
 void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 {
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::TransportEvents);
@@ -1271,7 +1293,7 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 		}
 		if (Event.Type == EWorkerEventType::Connected || Event.Type == EWorkerEventType::Disconnected)
 		{
-			UE_LOG(LogTemp,Display,TEXT("[SensorRawConnection] connected=%d reason=%s"),Event.Type==EWorkerEventType::Connected,*Event.Message);
+			LogDiagnostic(Event.Type==EWorkerEventType::Connected?0:1,FString::Printf(TEXT("[SensorRawConnection] connected=%d reason=%s"),Event.Type==EWorkerEventType::Connected,*Event.Message));
 			bTransportConnected=Event.Type==EWorkerEventType::Connected;++ConnectionRevision;ConnectionMessage=Event.Message;
 			for (TPair<FString, FVirtualSensorStreamTelemetry>& Pair : TelemetryByKey)
 			{
@@ -1281,7 +1303,7 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 			continue;
 		}
 		if(Event.Type==EWorkerEventType::SendDelayed||Event.Type==EWorkerEventType::SendRecovered)
-		{bSendDelayed=Event.Type==EWorkerEventType::SendDelayed;UE_LOG(LogTemp,Display,TEXT("[SensorRawBackpressure] delayed=%d reason=%s"),bSendDelayed,*Event.Message);continue;}
+		{bSendDelayed=Event.Type==EWorkerEventType::SendDelayed;LogDiagnostic(bSendDelayed?2:3,FString::Printf(TEXT("[SensorRawBackpressure] delayed=%d reason=%s"),bSendDelayed,*Event.Message));continue;}
 		FVirtualSensorStreamTelemetry& Telemetry = TelemetryByKey.FindOrAdd(TelemetryKey(Event.StreamKind, Event.SensorId));
 		Telemetry.StreamKind = Event.StreamKind;
 		Telemetry.SensorId = Event.SensorId;
