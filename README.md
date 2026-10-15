@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **`codex/architecture-skeleton` (분기 `fda25e0`, Runtime `967d517`) / DTCore `b2504d1`, 2026-10-13**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+기준: **`feat/uxr-15` (기준 `b00a91f`, 검증 소스 `fcd7eaa`) / DTCore `b2504d1`, 2026-10-15**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니며, 이번 버전에서는 플러그인 제작을 시작하지 않는다.** 현재 개발은 기능 추가보다 **프로젝트 안의 아키텍처 뼈대 재정비(ARCH 단계)**가 우선이다. 동작·wire 계약·Blueprint API를 바꾸지 않고 레이어 경계·폴더 책임·검증 진입점을 정리한다. 상세 순서는 [로드맵 A단계](docs/ROADMAP.md#a단계--아키텍처-뼈대-재정비-현재-진행)와 [개선 목록 ARCH 항목](docs/IMPROVEMENTS.md#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 따른다.
 
@@ -21,18 +21,18 @@
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
 | 아키텍처 | ARCH-01~08 완료: L0 Contracts → L1 센서 → L2 Scenario/Slab/TC → L3 UI 단방향, layer gate 위반·allowlist **0** | DTCore 변경 후보 정리 후 DTCore 수정 단계, 이후 플러그인화(R5) |
-| 화면 구성(UX) | 작업 사이드바·카드·데이터5탭, 배치/저장·재생·A/B·파일 저장의 주요 직접 경로 확인. UXR-07에서 긴 경고/ID·빈 장비·근거리 기즈모 가독성 보완 | 사용자 15분 체험·확인(USER_TRIAL), 자유 배치 제목 드래그 직접 확인, 서버 필요 보류 27건. 상대 성능은 교차 측정으로 통과, 절대 성능 재확인은 PERF-01 |
+| 화면 구성(UX) | UXR-15: 최근 옵션 문구·현재 꺼짐·데이터셋 입력 배치·상태 우선순위 정리, 동일4조합 전후80장씩. 최근 체크27개 직접 on/off·정답4모드/저장·실제3장면 생성 확인 | [통합57분 직접 점검표](docs/MANUAL_CHECKLIST.md)의 전체 수행·사용자 무안내 수용·자유 배치 과거 드래그 FAIL·서버/원격 환경은 별도. 상세 `Saved/Reports/UXR/UXR-15/RESULT.md` |
 | 새 맵 적용 (MAP-01) | Rig 하나·Slab 없음 안내·DTCore 맵 점검·새 맵 2개, Editor/Game·release 14단계·242 Success/skip20·16장·성능2% gate 통과 | 직접 마우스·DPI 수용은 UXR-07로 이관, DTCore 업무 연결 조회 API 제한; 독립 검토 전 90% |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화와 주요 직접 저장/복원 확인 | 자유 배치 입력·전체 직접 조합·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 70%) |
 | PCD 송신 | PCD-OPT 기본 자동 전송률 조절·생략 집계·소켓 대기 구현. 실제1080p 제한 링크20Hz 5분 과부하0·gap95ms, 시나리오 변경12회도 과부하0/hitch0. Artemis20Hz 생략0 | 구현·CLI gate 완료. 291b4f9 대비 perf: FPS −0.01%·p95 동일·GT +1.77% 통과. 운영 PIE 멈춤 원인 미확정; 직접 UI는 Windows 보안 팝업으로 보류. 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | 절대 성능 (PERF-01) | 미송신 표시/오프스크린 1+1·2+2 ABAB×3 및 초기 GT 초과 조건 재측정 완료. FPS·engine p95 회귀 없음; 재측정 GT +1.63/+1.52/+1.42%로 기준 안. Editor/Game·quick8·D3D12 242 Success/skip22·WBP7 통과 | 초기 GT 초과 원본·이분 탐색·Insights 근거 보존. 실제 2+2 PCD 송신은 Broker 환경 보류; 기존 송신 포함 기록과 조건 다름. `Saved/Reports/PERF/PERF-01/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
-| 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·float Depth·기본 semantic 규칙 공유·Actor ID·2D bbox·보정 snapshot·비동기 검증 저장 구현. RHI/무손실 round-trip·1920×1080 자동 4모드·기본 꺼짐 perf 통과(FPS −0.0011%, p95 동일, GT +0.7332%) | 직접 마우스는 Windows 보안 팝업 미조작으로 보류. 서버 송신/ROS2/3D bbox는 2단계 제안. 상세 `Saved/Reports/CAM-GT-01/RESULT.md` |
-| LiDAR 사실성 (LIDAR-FID-01) | Runtime `eea0268`, 모두 기본 꺼짐. Editor/Game·release 전체272 Success/skip29/실패0·golden14·WBP7·quick8·layer0 통과. 기본 꺼짐 ABAB×3: FPS +0.0043%, p95 동일, GT −0.1497%로2% gate 통과 | 직접 마우스는 Computer Use 캡처0x80070057로 보류. 켜짐 비용: GT +2.658ms(+50.20%), p95 +0.510ms(+3.06%), LiDAR600프레임/30초 유지. 발사 순서·재질 계수는 가정. `Saved/Reports/LIDAR-FID-01/RESULT.md` |
-| 데이터셋 생성 (DATASET-01) | **90% — 구현·자동 검증 완료, 직접 마우스 환경 보류.** GPU100장면×3·정답 재현/취소·full release278 Success/skip30/실패0·Game/WBP7/quick/layer0 통과. 기본 꺼짐 ABAB×3: FPS +0.00061%, p95 동일, GT −0.0761%로2% gate 통과 | Computer Use 캡처0x80070057로 직접 입력0·보안 팝업 미조작. 실제1920×1080/DPI1/폰트100% 자동 진행 화면·Native100장면 yaw 평균0.1155°/p950.3048°/최대0.5638°. 초기 cold61ms wall peak와 geometry/동일 PIE resume 제한을 RESULT에 기록. `Saved/Reports/DATASET-01/RESULT.md` |
+| 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·Depth/semantic/Actor ID/bbox·snapshot·비동기 저장 유지. UXR-15 CAM-GT-FIX로 체크 즉시 실제 적용·끄기 후 RGB 복귀, UI→4모드/4파일·프로필/배치 디스크 복원 회귀 추가 | 1920×1080·DPI1·글자100%의 직접 on/off·4모드·저장 재검수 완료. 다른 직접 조합/반복 수용은 통합 점검표, 서버 송신/ROS2/3D bbox는 2단계 제안. 원본 `Saved/Reports/CAM-GT-01/RESULT.md` |
+| LiDAR 사실성 (LIDAR-FID-01) | 모두 기본 꺼짐. UXR-15에서 실제 체크3개→Scan 상태·프로필/배치 복원·CPU trace/PCD 출력·UI dataset RHI 반영 회귀 확인 | 1920×1080·DPI1·글자100% 직접3개 on/off 완료. 다른 직접 조합/이동 Slab은 통합 점검표. 기존 켜짐 비용 GT +2.658ms(+50.20%)·p95 +0.510ms(+3.06%)와 가정 모델 한계는 `Saved/Reports/LIDAR-FID-01/RESULT.md` 유지 |
+| 데이터셋 생성 (DATASET-01) | 구현·자동 검증 완료. UXR-15에서 UI 시작→정답/사실성 on/off 산출물·범위15개 sampled 값 회귀와 실제3장면 직접 생성 완료·각7파일 확인 | 기본 꺼짐·세션 draft/명시 시작 유지. 직접 범위15개·포함3개 on/off 완료, 취소/재개·전체 직접 조합·장시간은 통합 점검표. 초기 cold61ms peak·geometry/동일 PIE resume 제한·기존100장면 검증은 `Saved/Reports/DATASET-01/RESULT.md` 유지 |
 | 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
-| 자동화 | Runtime `967d517`: Editor/Game Development, release 14단계·D3D12 고유242 Success/조건부 skip20/실패0, 기존262개 이름/상태 동일·WBP7 메모리 컴파일. 추가 Slate/RHI 입력2개 실제 Success | 자동 통과와 직접 수용은 다름. 자유 배치 입력·상대 성능·미수행 수용은 UXR-07 보고서 참조 |
+| 자동화 | UXR-15 소스 `fcd7eaa`: Editor/Game Development·release14단계, D3D12 고유280 Success/조건부 skip31/실패0·WBP7 메모리 컴파일·quick8/8·어휘114/위반0. 신규 UI→runtime/출력/복원 회귀3개 포함 | 기본 꺼짐 b00a91f 대비 표시형1+1 ABAB×3: FPS 저하 -0.0162%·p95 +0.0000%·GT -1.9570%, 2% gate 통과. 자동 통과와 전체 직접/외부 수용은 구분. `Saved/Reports/UXR/UXR-15/RESULT.md` |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
 UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
@@ -173,8 +173,28 @@ HttpEndpoint=
 - 사이드바의 **배치 → 장비 목록**과 자유 배치의 **장비 선택기**는 같은 Coordinator 선택을 공유한다. 자유 배치 선택기는 `Camera SensorId ● 상태` 형식과 종류별 묶음을 사용한다. 선택만으로 패널을 열거나 측정을 시작하지 않는다. 긴 ID는 말줄임+전체 ID 툴팁이다. 하단 상태바의 긴 경고도 전체 문장 툴팁을 제공한다.
 - UXR-02 배치 정리는 구현됐으며 이번 직접 점검에서 시험 장비/북마크 삭제 의도와 취소를 확인했다. 최종 삭제 클릭은 action-time 확인 답변이 없어 보류했다. 정상 PIE 종료로 장비가 사라진 것을 UI 최종 삭제 통과로 세지 않는다. 과거 CLI 근거는 `Saved/Reports/UXR/UXR-02/cli-closure/`에 보존한다.
 - **PCD 전송**은 데이터의 `전송`, **결과**는 독립 `결과` 탭을 연다. 다른 탭이 열려 있으면 전환하고 같은 작업 버튼을 다시 누르면 숨긴다.
-- **도구**에는 센서 상세 설정, 파일 저장, 서버 연결 설정, 진단, 고급·호환, 시나리오 차트, UI 표시가 있다. 파일 저장/서버 연결/진단은 데이터의 각 독립 탭, 고급·호환은 기존 Settings 고급 영역을 연다. 기능과 기본값은 바꾸지 않는다.
+- **도구**에는 센서 상세 설정, 파일 저장 · 데이터셋, 서버 연결 설정, 진단, 고급·호환, 시나리오 차트, UI 표시가 있다. 파일 저장/서버 연결/진단은 데이터의 각 독립 탭, 고급·호환은 기존 Settings 고급 영역을 연다. 기능과 기본값은 바꾸지 않는다.
 - **하단 상태바**는 장비 수/측정 수·PCD 전송·시나리오·서버와 첫 차단 사유를 최대 5Hz로 표시한다. 경고만 노란 칩이며 각 항목을 누르면 관련 화면으로 이동한다. 연결 경고는 서버 연결 설정을 연다. 상태 조회나 화면 열기는 측정·전송·파일 저장을 시작하지 않는다. 서버 연결은 외부 소비자의 처리 완료를 뜻하지 않는다.
+
+UXR-15는 최근 추가 옵션의 상태와 저장 작업을 정리했다. **도구 → 파일 저장 · 데이터셋**에서 일반 프레임 저장과 접힌 데이터셋 생성을 찾는다. 데이터셋 대상 버튼은 누를 때마다 다음 대상을 고르며, 랜덤화는 항목명 아래의 **왼쪽 최솟값 / 오른쪽 최댓값**을 입력한다. Camera 정답과 LiDAR 사실성은 현재 켜짐/꺼짐을 표시한다. 정답 미리보기는 **보기 설정 → RGB / 깊이 / 의미 분류 / 객체 구분**, 로컬 파일은 **정답 데이터 1회 저장**이다. 직접 조작 보류를 묶은 [통합 점검표](docs/MANUAL_CHECKLIST.md)는 준비된 환경에서 약57분 순서와 조건부 보류를 제공한다.
+
+**CAM-GT-FIX:** 정답 체크가 편집값만 바꾸던 결함은 승인된 범위 추가로 수정했다. 체크 즉시 다른 설정과 같은 Actor 검증·적용 경로로 실제 Camera에 반영하며, 기존 전체 배치 v1 저장·복원과 프로필 재적용에도 일치한다. 정답 모드를 보다가 끄면 기존 RGB 영상으로 돌아간다. 새 저장 슬롯·기본값·출력 계약은 없다. 최근 체크27개는 UI 콜백→실제 상태→출력·기존 저장/복원 정책을 자동 검증하고 직접 on/off를 확인했다. 실제 정답4모드·4파일 저장, 정답/사실성을 포함한 데이터셋3장면 완료 근거는 `Saved/Reports/UXR/UXR-15/TOGGLE_AUDIT.md`와 `manual-fixed/`, `manual-closure/`, `manual-inventory/`에 있다. 전체57분 사용자 수용과 원격/서버 환경 점검은 별도다.
+
+하단 경고는 아래 순서의 **첫 한 가지**만 표시한다. 장비 수·PCD 상태·시나리오·서버 칩은 각 상태를 별도로 유지하고, PCD 칩은 전송 중/중지/재개 대기만 짧게 표시한다. 전송률 조절 문장을 두 칩에 반복하지 않는다. 숨김이 작업 중지를 뜻하지 않는 것처럼, 경고가 다른 경고에 가려져도 진단의 개별 집계는 유지된다.
+
+| 우선순위 | 표시 조건·문구 | 확인 경로 |
+|---:|---|---|
+| 0 | 장비0: 장비 없음 · 배치에서 장비를 추가하세요 | 장비 칩 → 배치 |
+| 1 | 미연결이며 주소 없음 또는 단절5초 이상: 연결 설정 필요 · 서버 연결 설정을 확인하세요 | 경고 칩 → 서버 연결 설정 |
+| 2 | 주소가 있고 단절5초 미만: 서버 재연결 중 · 잠시 기다려 주세요 | 경고 칩 → 서버 연결 설정 |
+| 3 | 연결된 상태의 사전 점검 차단: 첫 차단 사유를 사용자 문구로 표시 | PCD 칩 → 전송의 사전 점검·해결 버튼 |
+| 4 | PCD 과부하 일시 중단: PCD 과부하 · 잠시 후 자동 재개 | PCD 칩 → 전송, 경고 칩 → 진단. 쿨다운·연결·예약 배수 조건 충족 후 재개 |
+| 5 | PCD 전송률 조절 중 · 서버 처리량에 맞춤 (n Hz) | PCD 전송 → 고급 → PCD 전송률 자동 조절. n은 조절 중 스트림의 합산 Hz |
+| 6 | 현재 과부하/Raw 전송 대기: 전송 지연 · 전송량과 서버 수신 상태를 확인하세요 | 경고 칩 → 진단 |
+| 7 | 실행의 필수 출력 오류: 전송 상태 확인 필요 · 진단에서 확인하세요 | 경고 칩 → 진단 |
+| — | 위 조건이 없으면 경고 칩 숨김. 과거 누적 실패 수만으로 현재 경고를 만들지 않음 | 결과·진단에서 과거 집계 확인 |
+
+구현 원본은 `SensorToolToolbarWidget.Status.cpp::RefreshOwnedStatus`와 `SensorToolUiText::PcdWarning`이다. 이는 **표시 우선순위**이며 재연결·자동 조절·과부하 중단/재개 정책을 변경하지 않는다. 서버 연결/수락을 소비자 처리 완료로 표시하지 않는다. 모든 상태 칩은 최대5Hz 갱신·긴 문장 전체 툴팁을 유지한다. 경고 칩은 미연결이면 서버 설정, 그 외에는 진단을 연다.
 
 | 패널 / WBP | 현재 역할 |
 |---|---|
@@ -500,9 +520,11 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 265개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 271개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 
 LIDAR-FID-01은 L0 `VirtualSensorMotionProvider`를 L2 SlabMotion이 구현하고 L1 센서가 snapshot으로 읽는다. L1 `VirtualLidarFidelity`의 순수 모델을 CPU/GPU가 공유하고 기존 L3 소유 설정/미리보기가 옵션을 표시한다. 신규 역방향 의존 없이 위반·allowlist **0/0**, DTCore·모듈·자산·PCD 레코드 불변이다.
+
+UXR-15는 기존 L3 소유 화면의 문구·그룹·표시 우선순위만 정리하며, 승인된 Camera 정답 미적용 수정도 기존 Actor의 검증·적용 경로를 호출한다. 신규 회귀는 Editor 모듈에 두고 테스트 전용 접근만 추가했다. Editor의 JsonUtilities 의존 외 새 모듈·플러그인·위젯 관리자·런타임 역방향 include는 없으며 위반·allowlist **0/0**을 유지한다.
 
 PCD-RESUME의 과부하 예약·재개·배수 확인은 기존 L1 StreamPublisher/HighThroughputTransport에 두고, L3 상태바·진단은 L1의 추가 실행 상태를 읽는다. 새 모듈·플러그인·자산·DTCore 변경 없이 위반·allowlist **0/0**을 유지한다. 기존 Blueprint 시그니처와 SaveGame 버전, PCD/wire golden 14파일 바이트는 유지하며 검증 범위는 `Saved/Reports/PCD-RESUME/RESULT.md`를 따른다.
 
