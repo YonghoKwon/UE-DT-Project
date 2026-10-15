@@ -26,29 +26,40 @@ DEFAULT_TOPICS = ('topic.virtual.sensor.export.0', 'topic.virtual.sensor.lidar.0
 
 
 class Inbox(stomp.ConnectionListener):
-    def __init__(self, node):
+    def __init__(self, node, connection):
         self.node = node
+        self.connection = connection
+
+    def acknowledge(self, headers):
+        try:
+            self.connection.ack(id=headers['ack'])
+            self.node.counts['stomp_acked'] += 1
+        except Exception:
+            self.node.counts['ack_error'] += 1
 
     def on_message(self, frame):
         n = self.node
         body = frame.body
         if not isinstance(body, bytes) or len(body) > wire.MAX_BODY:
             n.counts['body_rejected'] += 1
+            self.acknowledge(frame.headers)
             return
         # Reserve bytes before enqueuing. Drop newest explicitly at the bounded limit.
         with n.inbox_lock:
             if n.inbox_bytes + len(body) > n.args.queue_bytes:
                 n.counts['queue_overflow'] += 1
+                self.acknowledge(frame.headers)
                 return
             n.inbox_bytes += len(body)
         try:
-            n.inbox.put_nowait((dict(frame.headers), body, time.time_ns()))
+            n.inbox.put_nowait((dict(frame.headers), body, time.time_ns(), self))
             n.counts['stomp_received'] += 1
             n.counts['stomp_bytes'] += len(body)
         except queue.Full:
             with n.inbox_lock:
                 n.inbox_bytes -= len(body)
             n.counts['queue_overflow'] += 1
+            self.acknowledge(frame.headers)
 
     def on_error(self, _frame):
         self.node.counts['broker_error'] += 1  # never print ERROR body/headers
@@ -89,12 +100,12 @@ class Bridge(Node):
                                             int(os.environ.get('MA0T10_STOMP_PORT') or '61616'))],
                                            auto_decode=False, heartbeats=(1000, 1000),
                                            reconnect_attempts_max=1, timeout=5)
-                conn.set_listener('bridge', Inbox(self))
+                conn.set_listener('bridge', Inbox(self, conn))
                 self.connection = conn
                 conn.connect(os.environ['MA0T10_STOMP_USER'], os.environ['MA0T10_STOMP_PASSWORD'], wait=True)
                 for i, topic in enumerate(self.args.topic or DEFAULT_TOPICS):
-                    conn.subscribe(destination=topic, id=f'ros2-{i}', ack='auto',
-                                   headers={'subscription-type': 'MULTICAST', 'activemq.prefetchSize': '1'})
+                    conn.subscribe(destination=topic, id=f'ros2-{i}', ack='client-individual',
+                                   headers={'subscription-type': 'MULTICAST', 'consumer-window-size': '8388608'})
                 self.counts['connections'] += 1
                 while not self.stopping.wait(.25) and conn.is_connected():
                     pass
@@ -129,8 +140,9 @@ class Bridge(Node):
         t = TransformStamped()
         self.header(t, utc, parent)
         t.child_frame_id = child
-        t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = pose[0]
-        t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w = pose[1]
+        # rosidl requires actual Python float, even when JSON numbers were integral.
+        t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = map(float, pose[0])
+        t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w = map(float, pose[1])
         return t
 
     def optical_frame(self, utc, body_frame):
@@ -158,16 +170,18 @@ class Bridge(Node):
 
     def publish_camera(self, body, headers):
         c = wire.camera(body, headers)
+        if wire.jpeg_dimensions(c['jpeg']) != (c['width'],c['height']):
+            raise wire.WireError('camera_dimensions')
         frame = f'ma0t10/{wire.sensor_key(c["sensor_id"])}'
-        optical = self.optical_frame(c['stamp'], frame)
-        if c['pose']:
-            self.tf.sendTransform(self.transform(c['stamp'], 'ma0t10_world', frame, c['pose']))
         # Decode before publishing: malformed JPEG is discarded as one complete frame.
         try:
             rgb = wire.decode_rgb(c)
         except ImportError:
             rgb = None
             self.counts['image_decoder_unavailable'] += 1
+        optical = self.optical_frame(c['stamp'], frame)
+        if c['pose']:
+            self.tf.sendTransform(self.transform(c['stamp'], 'ma0t10_world', frame, c['pose']))
         compressed = CompressedImage(format='jpeg', data=c['jpeg'])
         self.header(compressed, c['stamp'], optical)
         self.publisher(c['sensor_id'], 'image/compressed', CompressedImage).publish(compressed)
@@ -193,7 +207,7 @@ class Bridge(Node):
         # Limit each executor turn; STOMP thread never blocks on DDS or conversion.
         for _ in range(4):
             try:
-                headers, body, received = self.inbox.get_nowait()
+                headers, body, received, owner = self.inbox.get_nowait()
             except queue.Empty:
                 return
             try:
@@ -223,12 +237,20 @@ class Bridge(Node):
                         raise wire.WireError('unknown_schema')
                 self.record(result, received)
                 self.counts['published_frames'] += 1
+            except wire.WireError as exc:
+                self.counts['invalid_or_unknown_schema'] += 1
+                reason = str(exc)
+                if reason in ('unknown_schema', 'unknown_context_schema', 'schema_mismatch'):
+                    self.counts['unknown_schema'] += 1
+                else:
+                    self.counts['invalid_payload'] += 1
             except Exception:
                 # Do not render exceptions from libraries: even malicious input stays private.
                 self.counts['invalid_or_unknown_schema'] += 1
             finally:
                 with self.inbox_lock:
                     self.inbox_bytes -= len(body)
+                owner.acknowledge(headers)
 
     def record(self, result, received):
         sid, frame, utc, kind, size = result
@@ -268,7 +290,8 @@ class Bridge(Node):
             tmp = path.with_suffix('.tmp')
             tmp.write_text(json.dumps(report, indent=2), encoding='utf8')
             tmp.replace(path)
-        self.get_logger().info('counts=' + json.dumps(dict(self.counts), sort_keys=True))
+        if rclpy.ok():
+            self.get_logger().info('counts=' + json.dumps(dict(self.counts), sort_keys=True))
 
     def close(self):
         self.stopping.set()

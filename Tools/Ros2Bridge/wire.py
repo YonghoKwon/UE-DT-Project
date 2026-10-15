@@ -9,6 +9,11 @@ import math
 import re
 import struct
 
+try:
+    import numpy as np  # Installed by ROS base; optional for standalone Windows wire tests.
+except ImportError:
+    np = None
+
 MAX_BODY = 64 * 1024 * 1024
 PCD_SCHEMA = 'virtual-pointcloud.pcd.v1'
 PCD_LAYOUT = {
@@ -77,8 +82,9 @@ def checked_body(body, headers):
         raise WireError('body_size')
     if 'content-length' in headers and integer(headers['content-length']) != len(body):
         raise WireError('content_length')
+    digest = hashlib.sha1(body).hexdigest() if any(name in headers for name in ('checksum','x-checksum-sha1')) else None
     for name in ('checksum', 'x-checksum-sha1'):
-        if name in headers and headers[name].lower() != hashlib.sha1(body).hexdigest():
+        if name in headers and headers[name].lower() != digest:
             raise WireError('checksum')
 
 
@@ -191,9 +197,16 @@ def pcd(body, headers):
         raise WireError('pcd_bytes')
     if 'point-count' in headers and integer(headers['point-count']) != count:
         raise WireError('pcd_point_count')
-    for row in RECORD.iter_unpack(data):
-        if not all(math.isfinite(x) for x in (*row[:3], row[-1])):
-            raise WireError('pcd_nonfinite')
+    if np is not None:
+        # Strided views retain the 33-byte unaligned record without per-point Python allocation.
+        for offset in (0, 4, 8, 29):
+            values = np.ndarray((count,), dtype='<f4', buffer=data, offset=offset if count else 0, strides=(33,))
+            if not np.isfinite(values).all():
+                raise WireError('pcd_nonfinite')
+    else:
+        for row in RECORD.iter_unpack(data):
+            if not all(math.isfinite(x) for x in (*row[:3], row[-1])):
+                raise WireError('pcd_nonfinite')
     return Cloud(sid, frame, utc, data, count, PCD_FIELDS, 33, pcd_pose(meta))
 
 
@@ -278,3 +291,50 @@ def decode_rgb(camera_frame):
         if image.format != 'JPEG' or image.size != (camera_frame['width'], camera_frame['height']):
             raise WireError('camera_dimensions')
         return image.convert('RGB').tobytes()
+
+
+def jpeg_dimensions(data):
+    """Bounded JPEG marker validation without a decoder; not a codec correctness proof."""
+    if not data.startswith(b'\xff\xd8') or not data.endswith(b'\xff\xd9'):
+        raise WireError('camera_jpeg_markers')
+    i, dimensions, scan = 2, None, False
+    while i < len(data):
+        if data[i] != 255:
+            raise WireError('camera_jpeg_segment')
+        while i < len(data) and data[i] == 255:
+            i += 1
+        if i >= len(data):
+            raise WireError('camera_jpeg_segment')
+        marker = data[i]
+        i += 1
+        if marker == 0xd9:
+            if not scan or dimensions is None or i != len(data):
+                raise WireError('camera_jpeg_incomplete')
+            return dimensions
+        if marker in (0x00,0xd8) or 0xd0 <= marker <= 0xd7:
+            raise WireError('camera_jpeg_segment')
+        if i+2 > len(data):
+            raise WireError('camera_jpeg_segment')
+        size = int.from_bytes(data[i:i+2], 'big')
+        if size < 2 or i+size > len(data):
+            raise WireError('camera_jpeg_segment')
+        if marker in (0xc0,0xc1,0xc2):
+            if size < 8 or dimensions is not None or data[i+2] != 8:
+                raise WireError('camera_jpeg_sof')
+            h, w = struct.unpack_from('>HH',data,i+3)
+            if not 0 < w <= 8192 or not 0 < h <= 8192 or w*h > 16*1024*1024:
+                raise WireError('camera_dimensions')
+            dimensions = w,h
+        i += size
+        if marker == 0xda:
+            scan = True
+            # Find the next unstuffed, non-restart marker (supports progressive scans).
+            while True:
+                i = data.find(b'\xff',i)
+                if i < 0 or i+1 >= len(data):
+                    raise WireError('camera_jpeg_entropy')
+                if data[i+1] == 0 or 0xd0 <= data[i+1] <= 0xd7:
+                    i += 2
+                    continue
+                break
+    raise WireError('camera_jpeg_incomplete')

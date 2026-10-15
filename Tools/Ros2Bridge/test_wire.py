@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 import struct
 import unittest
+from unittest.mock import patch
 
 import wire
 
@@ -37,6 +38,12 @@ class WireTests(unittest.TestCase):
             self.assertEqual(struct.unpack_from('<fff', cloud.data), (1.25, -2.5, .75))
             self.assertEqual(struct.unpack_from('<H', cloud.data, 12)[0], 12345)
             self.assertEqual(dict((n, o) for n, o, _ in cloud.fields)['confidence'], 29)
+
+    def test_stdlib_fallback_same_as_numpy(self):
+        normal = wire.pcd(self.body, self.h)
+        with patch.object(wire, 'np', None):
+            fallback = wire.pcd(self.body, self.h)
+        self.assertEqual(normal, fallback)
 
     def test_int64_offset_preserved_without_float_rounding(self):
         cloud = wire.pcd(self.body, self.h)
@@ -153,6 +160,18 @@ class WireTests(unittest.TestCase):
         c = wire.camera((ROOT/'Samples/payload_fixtures/virtual_camera_v1_sample.json').read_bytes(), {})
         with self.assertRaises(Exception):
             wire.decode_rgb(c)
+
+    def test_marker_validation_rejects_contract_fake_jpeg(self):
+        body = (ROOT/'Samples/payload_fixtures/virtual_camera_v1_sample.json').read_bytes()
+        with self.assertRaises(wire.WireError):
+            wire.jpeg_dimensions(wire.camera(body,{})['jpeg'])
+
+    def test_jpeg_marker_dimensions_and_truncation(self):
+        data = b'\xff\xd8\xff\xc0\x00\x0b\x08\x00\x02\x00\x04\x01\x01\x11\x00\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\x12\xff\x00\x34\xff\xd9'
+        self.assertEqual(wire.jpeg_dimensions(data),(4,2))
+        for bad in [data[:-1], data[:6], data+b'bad']:
+            with self.assertRaises(wire.WireError):
+                wire.jpeg_dimensions(bad)
 
     def test_timestamp_nanoseconds_and_large_frame_identity(self):
         self.assertEqual(wire.stamp('2026-10-12T01:02:03.123456789Z')[1], 123456789)

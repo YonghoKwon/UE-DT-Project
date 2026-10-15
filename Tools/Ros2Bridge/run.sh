@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+ulimit -c 0  # Process-local: credential-bearing Python processes must never dump memory.
 action=$1
 report=$2
 here=$(cd -- "$(dirname -- "$0")" && pwd)
