@@ -58,6 +58,13 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     TArray<FString> Forbidden,Allowed,Required;
     Policy->TryGetStringArrayField(TEXT("forbidden"),Forbidden);Policy->TryGetStringArrayField(TEXT("allowedAreas"),Allowed);Policy->TryGetStringArrayField(TEXT("requiredAreas"),Required);
     TestTrue(TEXT("policy is not empty"),Forbidden.Num()>=20&&Required.Num()>=20);
+    auto LiteralException=[&](const FString& Name,const FString& Word,const FString& Value)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Exceptions=nullptr;if(!Policy->TryGetArrayField(TEXT("literalWordExceptions"),Exceptions))return false;
+        for(const auto& Entry:*Exceptions){const auto E=Entry->AsObject();TArray<FString> Texts;E->TryGetStringArrayField(TEXT("texts"),Texts);if(E->GetStringField(TEXT("area"))==Name&&E->GetStringField(TEXT("word"))==Word&&Texts.Contains(Value))return true;}return false;
+    };
+    TestFalse(TEXT("export literal exception cannot escape dataset area"),LiteralException(TEXT("toolbar"),TEXT("내보내기"),TEXT("생성 후 내보내기 형식: 없음")));
+    TestFalse(TEXT("export exception is not a word-wide waiver"),LiteralException(TEXT("dataset-controls"),TEXT("내보내기"),TEXT("임의 내보내기")));
     TArray<TSharedPtr<FJsonValue>> Areas;TSet<FString> Seen;
     auto InspectText=[&](const FString& Name,const TArray<FString>& Text)
     {
@@ -67,7 +74,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
         for(const auto& Value:Text)
         {
             Values.Add(MakeShared<FJsonValueString>(Value));
-            if(!Allowed.Contains(Name))for(const auto& Word:Forbidden)if(Value.Contains(Word,ESearchCase::IgnoreCase))AddError(FString::Printf(TEXT("%s: forbidden '%s' in '%s'"),*Name,*Word,*Value));
+            if(!Allowed.Contains(Name))for(const auto& Word:Forbidden)if(Value.Contains(Word,ESearchCase::IgnoreCase)&&!LiteralException(Name,Word,Value))AddError(FString::Printf(TEXT("%s: forbidden '%s' in '%s'"),*Name,*Word,*Value));
         }
         Area->SetArrayField(TEXT("texts"),Values);Areas.Add(MakeShared<FJsonValueObject>(Area));
     };
@@ -113,6 +120,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     Data->OpenOwnedTab(ESensorOwnedDataTab::FileSave);Data->TickOwnedUi(7);Inspect(TEXT("file-save"),Data->BuildOwnedFileTab());
     // The lazily built DATASET-01 controls were absent from the previous inventory.
     Inspect(TEXT("dataset-controls"),Data->BuildOwnedDatasetControls());
+    for(const FString Format:{TEXT("coco"),TEXT("kitti"),TEXT("coco,kitti")}){Data->DatasetDraft.ExportFormat=Format;Inspect(TEXT("dataset-controls"),Data->BuildOwnedDatasetControls());}Data->DatasetDraft.ExportFormat=TEXT("none");
     TestEqual(TEXT("overload wins over simultaneous rate control and delay"),SensorToolUiText::PcdWarning(true,true,12,true,true).ToString(),SensorToolUiText::PcdOverloadSuspended().ToString());
     TestEqual(TEXT("rate control explains intentional omissions before generic delay"),SensorToolUiText::PcdWarning(false,true,12,true,true).ToString(),SensorToolUiText::PcdRateControlled(12).ToString());
     TestEqual(TEXT("delay precedes required-output summary"),SensorToolUiText::PcdWarning(false,false,0,true,true).ToString(),SensorToolUiText::SendDelayed().ToString());
