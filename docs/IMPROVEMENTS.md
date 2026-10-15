@@ -49,6 +49,15 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **완료 조건:** 동일 소스/DTCore에서 intrinsics/known-plane depth/분류 일치/instance/bbox/default-off 및 수명 회귀, 저장 파일 무손실 decode, 관련 실제 RHI 회귀·golden·quick·layer0·WBP 메모리 컴파일, 1920×1080 직접 RGB/Depth/Seg/Instance와 저장 확인, `verify.ps1 -Level perf -BaseCommit 827bae6` 기본 꺼짐 2% gate 및 opt-in GPU/GT/readback 비용 보고. 원본은 `Saved/Reports/CAM-GT-01/RESULT.md`.
 - **제한/후속:** 기본 원근 카메라·불투명 static geometry 분류, 개별 LiDAR override 자동 공유 없음, ID는 카메라 실행 범위, ISM은 Actor 단위다. 2단계는 새 topic/schemaVersion 서버 송신·ROS2 Image/CameraInfo·3D bbox를 별도 요청으로 설계한다. 이번 작업은 DTCore/센서 플러그인/운영맵/신규 자산을 변경하지 않는다.
 
+## LIDAR-FID-01 — LiDAR 사실성 1단계
+
+- **출처:** 사용자 2026-10-15. Isaac Sim과 비슷한 역할의 센서 시뮬레이션을 위한 시간차·움직임 왜곡·재질 반사 1단계. `feat/lidar-fidelity`, 기준 `e0a6901`.
+- **감사:** 기존 점별 시간 필드/PCD wire·seed·CPU SurfaceResponse/거리 노이즈·CPU multi-echo·ML-X Native 프로필을 재사용한다. 빈 곳은 장비 순서 가정·움직임 모델·GPU 재질/입사각·센서 상세 옵션과 강도/시각 색이다. 감사표 원본은 `Saved/Reports/LIDAR-FID-01/RESULT.md` 첫 절.
+- **구현:** 세 옵션 모두 기본 꺼짐. `[0,T)` 시간차, acquisition snapshot의 rigid tangent-plane motion, 중립 L0 provider를 구현한 Slab 속도, CPU/GPU 공통 반사 모델·deterministic dropout/노이즈, 기존 소유 설정의 사실성/ⓘ 및 5Hz 이하 preview 색 모드. PCD 33-byte와 CAM-GT semantic label/ID, 기존 enum 값·저장값 유지. 발사 순서/semantic 반사율은 가정이며 실장비 보정이 아니다.
+- **진행률: 90% — 구현·자동 검증·성능 완료, 직접 조작 환경 보류.** Runtime `eea0268`, 집중5 Success/수동 세션skip1. CPU 실제 추적 `v×Δt` 최대 오차0.00005126cm, 실제 D3D12 GPU0.00917cm. seed 결정성·정지0·센서 이동·옵션 원복PCD byte 동일·비영 time_offset_ns wire 전달·강도/미검출 순서 통과. Editor/Game Development·표준 release14단계/고유전체272 Success·skip29·실패/NotRun0·golden14·WBP7·quick8·layer0 통과. 기준e0a6901 대비 기본 꺼짐 표시형1+1·10+30초·ABAB×3의 FPS +0.0043%, p95 동일, GT −0.1497%로2% gate 통과. 같은 소스의 이동 Slab off/on ABAB에서 GT +2.6578ms(+50.20%)·GPU +0.2011ms(+3.05%)·p95 +0.5105ms(+3.06%)·FPS −0.4670%이며 각30초Camera900/LiDAR600프레임·획득 실패/큐초과0을 유지했다. 전송 없는 측정/미리보기 조건이다. 1920×1080/DPI1/폰트100% 자동2장은 직접 마우스 수용과 구분한다. 직접 캡처는0x80070057로 초기+재시도2회 모두 실패, 입력0·보안 팝업 조작0, 자체Editor 정상 종료. 개인설정243파일(SaveGame9) 복원·보호557파일hash 불변/추가0. 원본/skip이름/한계는 RESULT를 따른다.
+- **완료 조건:** Editor/Game Development, 관련 자동화 및 **release 전체 회귀**, wire golden·quick·layer0·WBP 메모리 컴파일, 1920×1080 직접 이동 Slab/강도 색, Editor 종료 후 `verify.ps1 -Level perf -BaseCommit e0a6901` 2% gate·ML-X Native20Hz opt-in 비용. 보호 경로/개인 UI 저장값 복원. 보고서의 실패·skip·미수행은 통과로 합치지 않는다.
+- **2단계 제안/미구현:** 빔 발산·혼합 픽셀/가려짐, 물리 multi-echo 연계, 제조사 firing/재질 calibration, ROS2 비영 time_offset/deskew 소비자 검증. 기존 GPU 첫 표면 한계를 유지하며 DTCore·새 자산·플러그인·ROS2 배포는 변경하지 않는다.
+
 ## 읽는 방법
 
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.
@@ -642,6 +651,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-LIDAR-FID01 | `UMechDriverCompBase`에 획득 시점의 kinematic linear/angular velocity 조회 계약 없음. SetActorTransform 기반 Slab은 일반 GetVelocity만으로 시간차를 복원할 수 없음 | 기존 MechDriver 상속을 유지하고 L0 motion provider를 SlabMotion에서 구현, L1이 immutable sample로 사용 | 여러 소비 프로젝트에 필요할 때 world rigid velocity/pivot의 읽기 전용 중립 interface 검토. Slab 보간·업무 정책은 host 유지 | DTCore b2504d1 `ActorComponent/MechDriverCompBase.h`는 constructor/BeginPlay만 제공; `Contracts/VirtualSensorMotionProvider.h`, `SlabMotionComponent::CaptureSensorMotion`; DTCore 소스/gitlink 불변 |
 | DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |
 | DTC-MAP01 | 업무 WebSocket의 현재 연결/구독 성공 상태를 읽는 공개 조회 API 없음 | 맵 점검은 확인 불가 경고와 로그 확인 방법을 표시하며 OnConnected 이력을 현재 상태로 추정하지 않음. 설정의 TC/Topic은 읽기 전용 조회 | 연결/재연결/구독 readiness의 읽기 전용 snapshot API 검토 | `Core/DxWebSocketSubsystem.h`의 private 상태·protected StompClient, 공개 OnConnected만 존재; DTCore 소스/gitlink 불변 |
 | DTC-ARCH05 | TC 구현을 참조하지 않고 binary 수신 결과를 worker에서 검증하는 중립 codec 등록 계약 없음 | 프로젝트 L0 codec registry에 L2 TC 파서를 등록; 기존 DTCore 업무 분배·공유 구독과 Raw binary worker 유지 | DTCore 공용화가 필요할 때 stateless binary codec 등록 계약 검토 | `Contracts/VirtualSensorStreamReceiverRegistry.*`, `WebSocket/TC/VirtualSensorStreamReceiverRegistration.*`; 기존 PCD 파서 사용, DTCore 소스/gitlink 불변 |
