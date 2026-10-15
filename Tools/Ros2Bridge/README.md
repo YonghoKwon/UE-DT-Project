@@ -1,4 +1,4 @@
-# Artemis → ROS2 bridge (ROS2-01)
+# Artemis ↔ ROS2 bridge (ROS2-01 / ROS2-02)
 
 외부 Python 노드가 기존 STOMP wire를 읽는다. UE C++·DTCore·맵·저장값·Broker 설정은 바꾸지 않는다. Docker를 사용하지 않는다. 현재 단계는 PCD/LiDAR/JPEG adapter이며 CAM-GT depth/segmentation 서버 송신은 포함하지 않는다.
 
@@ -9,6 +9,12 @@ flowchart LR
   B --> PC[PointCloud2 / Image / CameraInfo / TF]
   PC --> F[foxglove_bridge :8765]
   F --> V[Windows Foxglove / ws://localhost:8765]
+  R[WSL ROS2 services / JSON request topic] --> C[별도 control_node.py]
+  C -->|Bearer · loopback Host 유지| P[Windows WSL vEthernet :18099 · 임시 인증 중계]
+  P --> L[기존 AUTO-01 · 127.0.0.1:8099]
+  L -->|기존 public API| UE
+  C --> S[ROS2 result / status]
+  B -->|명시적 옵션 · acquisition UTC| K[/clock]
 ```
 
 ## 설치·실행·종료·삭제
@@ -51,7 +57,75 @@ ROS DDS는 WSL 내부 `ROS_DOMAIN_ID=71`, `ROS_LOCALHOST_ONLY=1`로 제한한다
 4. 축 표시를 켠다. UE X전방은 ROS +X, UE Y우측은 ROS −Y, Z위쪽은 +Z다. 점군의 **센서 로컬** Y는 이미 좌측이므로 다시 반전하지 않는다. 센서가 움직이면 acquisition timestamp의 TF를 사용한다.
 5. 끝나면 PIE·이 작업이 켠 Artemis를 정상 종료하고 `down`, `remove`를 실행한다. 개인 SaveGame을 시험했다면 사전 백업을 복원한다.
 
-UE의 ROS2 연결 상태 표시·전용 버튼은 **2단계 제안**이며 현재 UE 화면에 추가하지 않았다. 직접 마우스·UE/Foxglove 비교 수용과 CLI 수신은 별개다.
+UE의 ROS2 연결 상태 표시·전용 버튼은 현재 UE 화면에 추가하지 않았다. AUTO-01 상태에는 호출 출처/제어 lease 필드가 없어 API 활성화만으로 "ROS2에서 제어 중"이라고 표시할 수 없다. ROS2-02 피드백의 `source=ros2_bridge`는 **피드백 발행 경로**이며 배타적 제어권을 뜻하지 않는다. 직접 마우스·UE/Foxglove 비교 수용과 CLI 수신은 별개다.
+
+## ROS2-02 양방향 제어 — 기본 꺼짐
+
+출처: 사용자 2026-10-15, 로드맵 #13. UE에 새 서버를 만들지 않고 기존 [AUTO-01 계약](../../README.md)의 로컬 HTTP API만 호출한다. 별도 `control_node.py` 프로세스가 HTTP를 처리하므로 API timeout이 PointCloud2 변환 executor를 막지 않는다. API 수신 서버는 계속 **127.0.0.1**이다. ROS DDS 범위는 기존 domain71/localhost이며 이 전용 테스트 환경의 로컬 ROS 참가자를 신뢰한다.
+
+전용 배포판을 새 보고서 경로로 설치한다. 두 방향 모두 끄면 ROS2-01과 같은 단방향 동작이다. `-PublishClock`은 제어와 독립적인 opt-in이다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/Ros2Bridge/setup-wsl.ps1 install -ReportRoot Saved/Reports/ROS2-02/wsl
+# 같은 비어 있지 않은 MA0T10_AUTOMATION_TOKEN을 UE와 중계/WSL 자식에게만 상속한다.
+# 값은 인자·화면·로그에 쓰지 않는다. UE는 -MA0T10Control로 명시적으로 API를 켠다.
+# ControlConfig의 token 키가 있으면 환경변수보다 우선하므로 실제 API 토큰과 일치시킨다.
+$ros2If = Get-NetIPAddress -AddressFamily IPv4 | Where-Object InterfaceAlias -Like 'vEthernet (WSL*'
+# 한 개의 실제 WSL IPv4 항목을 확인한 뒤, 별도 터미널에서 테스트 동안만 실행한다.
+python Tools/Ros2Bridge/control_relay.py --bind $ros2If.IPAddress --wsl-subnet "$($ros2If.IPAddress)/$($ros2If.PrefixLength)" --port 18099 --api-port 8099
+# 위 중계가 실행 중인 상태에서:
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/Ros2Bridge/setup-wsl.ps1 up -ReportRoot Saved/Reports/ROS2-02/wsl -EnableControl -PublishClock -Lidar SLAB-LIDAR-001 -CaptureSensor VCAM-001
+```
+
+`control_relay.py`는 Windows의 실제 WSL vEthernet 주소/prefix를 조회·대조하고 해당 주소만 bind한다. LAN/0.0.0.0/loopback bind는 거절한다. WSL subnet만 받고, 모든 요청에 토큰을 검사한 뒤 127.0.0.1로 전달한다. 중계와 제어 노드는 빈 토큰을 거절한다. Host는 `127.0.0.1:<api-port>`로 보존한다. Origin/중복·불필요한 헤더/파이프라이닝/비허용 경로는 거절한다. 중계는 8연결, 헤더8KiB·본문256KiB·요청수신 총2초로 제한하며 body/header/예외 내용을 로그에 쓰지 않는다. 프록시·redirect·자동 재시도는 없다. `--stop-file <자신이 소유한 marker>` 또는 Ctrl+C로 종료하고 listener 해제를 확인한다. 보안/방화벽 팝업이 나오면 입력하지 않고 중단한다. netsh·방화벽 규칙·`.wslconfig`를 바꾸지 않는다.
+
+아래 명령은 Windows에서 **이름을 지정한** WSL에 실행한다. `<ROS>`는 `wsl -d ma0t10-ros2 -u root -- bash '/mnt/c/Unreal Projects/ma0t10_dt/Tools/Ros2Bridge/ros-cli.sh'`이다. 경로가 다른 checkout에서는 실제 WSL 경로를 사용한다.
+
+| ROS 이름 (`/ma0t10/control/` 접두사) | 타입 | AUTO-01 매핑 / 의미 |
+|---|---|---|
+| `pcd` service | `std_srvs/srv/SetBool` | true: `POST /v1/pcd/start`, `-Lidar` 대상. false: `/v1/pcd/stop`, 소유 스트림만 정지 |
+| `capture` service | `std_srvs/srv/Trigger` | `POST /v1/capture`, `-CaptureSensor` 대상. 먼저 측정을 시작해야 함 |
+| `get_status` service | `std_srvs/srv/Trigger` | `GET /v1/status` |
+| `request` topic | `std_msgs/msg/String`, reliable/volatile/depth8 | 아래 JSON 명령 |
+| `result` topic | `std_msgs/msg/String`, reliable/volatile/depth16 | `ma0t10.ros2.result.v1`: request_id·op·ok·api 또는 고정 error 코드 |
+| `status` topic | `std_msgs/msg/String`, reliable/transient-local/depth1 | 최대2Hz `ma0t10.ros2.status.v1`: ok·api 또는 고정 error 코드, 진행/terminal/dataset 상태 |
+
+```bash
+# 위 <ROS> 접두사 뒤에 붙일 인자 예:
+service call /ma0t10/control/pcd std_srvs/srv/SetBool '{data: true}'
+service call /ma0t10/control/pcd std_srvs/srv/SetBool '{data: false}'
+service call /ma0t10/control/capture std_srvs/srv/Trigger '{}'
+service call /ma0t10/control/get_status std_srvs/srv/Trigger '{}'
+topic pub --once /ma0t10/control/request std_msgs/msg/String '{data: "{\"schema\":\"ma0t10.ros2.control.v1\",\"request_id\":\"start-camera-1\",\"op\":\"sensor.start\",\"params\":{\"sensor_id\":\"VCAM-001\"}}"}'
+topic echo /ma0t10/control/status --qos-durability transient_local
+```
+
+JSON 최상위 키는 정확히 `schema`, `request_id`, `op`, `params`다. schema=`ma0t10.ros2.control.v1`, request_id는 `[A-Za-z0-9_.-]{1,64}`, params는 객체다. 중복 키·NaN/무한값·256KiB 초과·추가 키를 거절한다. JSON에 토큰을 넣지 않는다.
+
+| `op` | `params` (AUTO-01와 같은 이름/단위/범위) |
+|---|---|
+| `status`, `sensors` | `{}`; GET `/v1/status`, `/v1/sensors` |
+| `sensor.start`, `sensor.stop`, `capture`, `pcd.start` | `sensor_id` |
+| `sensor.set` | `sensor_id` + `interval_sec` 또는 `profile`/`quality`. enum·admission은 UE가 검증 |
+| `pcd.stop`, `scenario.stop`, `dataset.stop` | `{}` |
+| `scenario.start` | `json_path`(**Windows 절대 경로**) 또는 `uuid` 중1개. 선택 `send_pcd`, `sensor_id` |
+| `dataset.start` | `name`, `scenes`, `slab`, `lidar_id`, `camera_id`. 선택 `seed`, `settle_frames`, `camera_truth`, `lidar_fidelity`, `light`, `ranges` |
+
+예: `{"schema":"ma0t10.ros2.control.v1","request_id":"dataset-3","op":"dataset.start","params":{"name":"ROS202","scenes":3,"slab":"SlabActor_0","lidar_id":"SLAB-LIDAR-001","camera_id":"VCAM-001"}}`.
+
+서비스 `success=true`/topic result `ok=true`는 HTTP 접수 성공이다. 비동기 작업의 실제 성공은 **같은 `api.operation_id`**의 `terminal=true && success=true`를 status에서 확인한다. 취소의 terminal 실패는 정상적인 취소 표현이다. dataset 상태는 status의 `dataset_active`, `dataset_completed`, `dataset_requested`에도 있다. 기존 API의 긴 작업1개 제한/409/소유 작업만 정리하는 규칙을 그대로 따른다. 브리지 종료는 UE의 진행 중 작업을 임의 취소하지 않는다. 명시적으로 stop하고 terminal/drain을 확인한다.
+
+같은 프로세스의 최근256개 request_id는 재실행하지 않고 이전 접수 결과를 돌려준다. 같은 ID의 다른 명령은 `request_id_conflict`다. 재시작/캐시 퇴거 이후의 영구 중복 방지는 제공하지 않는다. HTTP timeout/disconnect의 `*_outcome_unknown`은 UE가 이미 실행했을 수 있다는 뜻이다. 새 ID로 즉시 재시도하지 말고 status를 확인한다. 서비스 호출은 매번 새 ID를 쓰므로 이 topic 중복 보호를 대신하지 않는다.
+
+## ROS2-02 시간 규칙
+
+기본은 `/clock` 없음·consumer `use_sim_time=false`다. `up -PublishClock` 또는 직접 노드의 `--publish-clock`을 명시하면 **유효 프레임의 기존 acquisition UTC 최대값**을 `rosgraph_msgs/msg/Clock`으로 발행한다(reliable/volatile/depth10). 단일 브리지에서만 켜고 다른 `/clock` 발행자와 동시에 사용하지 않는다. 소비자는 `ros2 param set /<consumer> use_sim_time true` 또는 시작 시 `--ros-args -p use_sim_time:=true`로 선택한다. 첫 프레임 전 ROS time은0이며 측정이 없으면 clock도 멈춘다. 브리지의 queue/metrics/API polling timer는 steady clock이므로 `/clock` 초기0이나 정지에 묶이지 않는다.
+
+PointCloud2/Image/CameraInfo/TF의 header.stamp는 계속 **원본 측정 UTC**다. Windows/WSL의 현재 시각·중계 지연·clock high-water로 덮어쓰지 않는다. 여러 센서/비동기 결과가 역순이면 오래된 stamp의 프레임은 그대로 발행하고 clock만 뒤로 가지 않는다(`clock_reordered` 집계). 따라서 clock은 모든 프레임 stamp 이상이며, 단일 순차 PCD에서는 같은 stamp 집합을 갖는다. 이는 acquisition 기반 ROS 시각이며 UE world elapsed-time·0초 epoch·외부 pause/step/reset 제어를 추가한 계약이 아니다. 브리지 재시작의 단조성은 세션 범위이며 Windows UTC가 역행하면 이전 최대값을 넘는 새 측정까지 clock은 유지된다.
+
+`python Tools/Ros2Bridge/measure_clock.py --output Saved/Reports/ROS2-02/clock-offset.json`은 Windows precise UTC와 전용 WSL UTC를 pipe 왕복 midpoint로 비교한다. 최소RTT/2와 원시 sample을 함께 기록하고 시계를 조정하지 않는다. ROS `use_sim_time`은 소비자의 기준을 맞추며 OS 시계 오차를 고치지는 않는다. UTC 수신지연에는 이 오차와 drift가 들어간다. [ROS2 시간 설계](https://design.ros2.org/articles/clock_and_time.html)를 따른다.
+
+검증 뒤 `down -ReportRoot Saved/Reports/ROS2-02/wsl` → 중계 종료 → `remove -ReportRoot Saved/Reports/ROS2-02/wsl`로 **소유 배포판만 unregister**하고 시작/종료 목록을 비교한다. 실측/실패 원본/skip/보호·복원 증거는 `Saved/Reports/ROS2-02/RESULT.md`를 따른다. `control_acceptance.py`는 지정 fixture 센서·Slab을 실제로 제어하므로 개인 운영 세션에 실행하지 않는다.
 
 ## 토픽·frame·시간·QoS
 
@@ -71,7 +145,7 @@ UE의 ROS2 연결 상태 표시·전용 버튼은 **2단계 제안**이며 현�
 
 `header.stamp`는 ISO UTC payload 측정 시각을 nanosecond 단위로 변환한다. 수신/송신 현재 시각으로 덮지 않는다. `sensor_frame_id`는 정수 원형을 내부 통계에 유지하고, ROS Header에 sequence 필드가 없어 frame_id 문자열에 섞지 않는다. Slab frame_no/RunUUID와 혼동하지 않는다. 기존 legacy JSON/telemetry의 큰 frameId는 double 반올림 가능성이 있으므로 STOMP 문자열 `frame-id`를 기준으로 사용한다. JSON identity 검사는 2^53 이상에서 double 값이 일치하는 알려진 반올림만 허용하며 일반 불일치는 거절한다. 헤더 없는 JSON에서 사라진 정밀도를 복원할 수는 없다.
 
-**`/clock`은 발행하지 않고 `use_sim_time=false`를 유지한다.** 현재 wire는 acquisition UTC이며 전역 UE simulation time·pause/reset 계약을 제공하지 않는다. 임의 simulation clock을 만들 수 없다. 여러 PC의 latency는 시계 동기화 오차를 포함하며 음수 latency도 숨기지 않는다.
+기본은 **`/clock` 없음·`use_sim_time=false`**다. ROS2-02의 명시적 acquisition UTC clock 옵션은 위 시간 규칙을 따른다. 전역 UE simulation time·pause/reset 계약을 추정하지 않는다. 여러 PC의 latency는 시계 오차를 포함하며 음수 latency도 숨기지 않는다.
 
 기본 QoS는 best effort·volatile·keep last 5다. 직접 노드의 `--reliable --qos-depth N`으로 바꿀 수 있다(1~100). TF는 tf2 기본 QoS를 사용한다. STOMP는 비영구 multicast 구독·`client-individual`·8MiB byte window를 사용하고 변환/명시적 거절 후 ACK한다. 이 ACK는 브리지 처리/폐기 확인이며 ROS subscriber 수신·외부 업무 완료 증명이 아니다. Artemis의 `activemq.prefetchSize`도 메시지 수가 아니라 **바이트**로 해석되므로 사용하지 않는다.
 

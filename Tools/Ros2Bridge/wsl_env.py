@@ -38,6 +38,12 @@ def main():
     parser.add_argument('action', choices=['install', 'up', 'down', 'status', 'remove', 'run', 'stop'])
     parser.add_argument('--report', type=Path, required=True)
     parser.add_argument('--with-image-decoder', action='store_true')
+    parser.add_argument('--enable-control', action='store_true')
+    parser.add_argument('--publish-clock', action='store_true')
+    parser.add_argument('--lidar', default='SLAB-LIDAR-001')
+    parser.add_argument('--capture-sensor', default='VCAM-001')
+    parser.add_argument('--relay-port', type=int, default=18099)
+    parser.add_argument('--api-port', type=int, default=8099)
     args = parser.parse_args()
     report = args.report.resolve()
     if not report.is_relative_to(ROOT / 'Saved' / 'Reports'):
@@ -115,9 +121,11 @@ def main():
         raise RuntimeError('Owned distribution is not installed')
     # WSLENV is process-local; values are inherited without command line, files, or logs.
     env = os.environ.copy()
-    passthrough = ['MA0T10_STOMP_USER', 'MA0T10_STOMP_PASSWORD', 'MA0T10_STOMP_HOST', 'MA0T10_STOMP_PORT']
+    passthrough = ['MA0T10_STOMP_USER', 'MA0T10_STOMP_PASSWORD', 'MA0T10_STOMP_HOST', 'MA0T10_STOMP_PORT', 'MA0T10_AUTOMATION_TOKEN']
     env['WSLENV'] = ':'.join(filter(None, [env.get('WSLENV', ''), *passthrough]))
-    print(wsl('-d', DISTRO, '-u', 'root', '--', 'bash', linux_path(HERE / 'run.sh'), action, linux_path(report), env=env))
+    print(wsl('-d', DISTRO, '-u', 'root', '--', 'bash', linux_path(HERE / 'run.sh'), action, linux_path(report),
+              'yes' if args.enable_control else 'no', 'yes' if args.publish_clock else 'no',
+              args.lidar, args.capture_sensor, str(args.relay_port), str(args.api_port), env=env))
 
 
 if __name__ == '__main__':
