@@ -20,7 +20,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/Ros2Bridge/setup-wsl.p
 powershell -NoProfile -ExecutionPolicy Bypass -File Tools/Ros2Bridge/setup-wsl.ps1 status
 ```
 
-공식 Ubuntu `.wsl` 이미지를 `Saved/Reports/ROS2-01/wsl`에 내려받아 고정 SHA256을 검사하고 `wsl --import ... --version 2`로 설치한다. OOBE·사용자/비밀번호 생성 없이 root를 사용한다. 원본 이미지는 성공/실패 시 모두 삭제한다. 공식 ROS apt-source와 버전을 고정한 `ros-jazzy-ros-base`, `ros-jazzy-foxglove-bridge`, Python venv 안 STOMP 및 그 의존성만 설치한다. 별도 ROS desktop/Docker/실장비 SDK는 설치하지 않는다. 설치 도구와 종속 apt 패키지의 정확한 버전은 `apt-installed-lock.txt`, 직접 설치 버전은 `environment-lock.json`에 기록한다. 오래된 apt 버전이 사라졌으면 설치는 실패하며 최신 버전으로 조용히 대체하지 않는다.
+공식 Ubuntu `.wsl` 이미지를 `Saved/Reports/ROS2-01/wsl`에 내려받아 고정 SHA256을 검사하고 `wsl --import ... --version 2`로 설치한다. OOBE·사용자/비밀번호 생성 없이 root를 사용한다. 원본 이미지는 성공/실패 시 모두 삭제한다. 공식 ROS apt-source와 버전을 고정한 `ros-jazzy-ros-base`, `ros-jazzy-foxglove-bridge`, Python venv 안 STOMP 및 그 의존성만 설치한다. 별도 ROS desktop/Docker/실장비 SDK는 설치하지 않는다. 설치 시 추가/갱신된 Ubuntu·ROS 의존성 349개는 `apt-packages.lock`으로 고정하고, rootfs에 원래 있던 패키지는 rootfs SHA256으로 고정한다. 설치된 전체 버전은 보고서의 `apt-installed-lock.txt`, 직접 설치 버전은 `environment-lock.json`에도 기록한다. 오래된 apt 버전이 사라졌으면 설치는 실패하며 최신 버전으로 조용히 대체하지 않는다.
 
 `sensor_msgs/Image(rgb8)` 디코딩은 **Pillow 선택 의존성**이다. 추가 설치를 허용한 경우에만 `install -WithImageDecoder`를 사용한다. 기본 설치는 JPEG `CompressedImage`와 `CameraInfo`를 발행하며 `image_decoder_unavailable`을 센다. `Image` 수용은 디코더 설치·유효 JPEG 검증까지 별도 확인해야 한다. 기존 JPEG golden/JSON fixture는 의도적으로 짧은 가짜 JPEG이므로 이미지 디코딩 통과 근거가 아니다.
 
@@ -69,7 +69,7 @@ UE의 ROS2 연결 상태 표시·전용 버튼은 **2단계 제안**이며 현�
 | PCD pose / JSON Camera pose | `/tf` | `ma0t10_world → ma0t10/<key>`; 각 acquisition 시각의 동적 TF |
 | Camera optical basis | `/tf_static` | body→optical: z전방/x우측/y아래. 알려진 고정 축 관계만 발행 |
 
-`header.stamp`는 ISO UTC payload 측정 시각을 nanosecond 단위로 변환한다. 수신/송신 현재 시각으로 덮지 않는다. `sensor_frame_id`는 정수 원형을 내부 통계에 유지하고, ROS Header에 sequence 필드가 없어 frame_id 문자열에 섞지 않는다. Slab frame_no/RunUUID와 혼동하지 않는다. 기존 telemetry JSON의 큰 frameId는 double 반올림 가능성이 있으므로 STOMP 문자열 `frame-id`를 기준으로 사용한다.
+`header.stamp`는 ISO UTC payload 측정 시각을 nanosecond 단위로 변환한다. 수신/송신 현재 시각으로 덮지 않는다. `sensor_frame_id`는 정수 원형을 내부 통계에 유지하고, ROS Header에 sequence 필드가 없어 frame_id 문자열에 섞지 않는다. Slab frame_no/RunUUID와 혼동하지 않는다. 기존 legacy JSON/telemetry의 큰 frameId는 double 반올림 가능성이 있으므로 STOMP 문자열 `frame-id`를 기준으로 사용한다. JSON identity 검사는 2^53 이상에서 double 값이 일치하는 알려진 반올림만 허용하며 일반 불일치는 거절한다. 헤더 없는 JSON에서 사라진 정밀도를 복원할 수는 없다.
 
 **`/clock`은 발행하지 않고 `use_sim_time=false`를 유지한다.** 현재 wire는 acquisition UTC이며 전역 UE simulation time·pause/reset 계약을 제공하지 않는다. 임의 simulation clock을 만들 수 없다. 여러 PC의 latency는 시계 동기화 오차를 포함하며 음수 latency도 숨기지 않는다.
 
@@ -108,5 +108,9 @@ wsl -d ma0t10-ros2 -u root -- bash '/mnt/c/Unreal Projects/ma0t10_dt/Tools/Ros2B
 브리지 상한은 body 64MiB·PCD header 64KiB, queue 32건/64MiB, publisher 512개, stream별 latency 최근 6000건이다. queue 초과는 새 수신을 명시 폐기하고 센다. schema·크기·checksum·점 수·유한 좌표·metadata identity·pose convention을 검사해 미지원 schema와 손상 데이터를 발행하지 않는다. ROS 기본 의존성 NumPy가 있으면 33바이트 strided view로 좌표를 검사하고, 없으면 Windows에서도 실행 가능한 표준 Python 검사를 쓴다. 로그에는 집계 카운트만 남기고 자격 증명·header/body·예외 본문을 쓰지 않는다. 인증은 환경변수만 사용하고 core dump는 프로세스 단위로 끈다. live multicast 재연결이므로 끊김 중 영구 replay나 무손실을 보장하지 않는다.
 
 현재 실측·실패 원본·직접 검수 가능 여부·WSL 삭제·다운로드량은 `Saved/Reports/ROS2-01/RESULT.md`에 기록한다. 구현, synthetic golden, 실제 UE PIE, 직접 3D 표시 수용을 구분한다.
+
+2026-10-15 검증 상태는 **80%**다. Windows25·WSL23 Success/skip2(Pillow 없음), ROS 직렬화3·실제 Artemis adapter4가 통과했다. UE의 준비10초+측정300초 송신 회귀는20/10Hz 모두 Success지만 외부 수신 총계는 각각 UE6200→브리지6200→독립ROS6119, UE3099→브리지3098→독립ROS3083이다. 브리지 폐기/queue 초과0이며10Hz 미수신1의 위치는 미확정이다. best-effort/발견을 포함한 구독 측 차이를 숨기거나 전 구간 무손실로 표시하지 않는다. `ros2 topic hz/bw`와 독립 probe는 서로 다른 subscriber다. 직접3D/축 비교·실제 WSL Image 디코더 수용은 보류다. 테스트 WSL은 두 설치 모두 삭제했고 기존3개/기본Ubuntu(v1) 및 보호 파일을 보존했다.
+
+Windows localhost의 `check_foxglove.py`는 설치된 SDK bridge의 `foxglove.sdk.v1` 프로토콜로 HTTP 101·PointCloud2 채널 광고를 확인한다. 브라우저 3D 표시 검사는 별도다. `summarize.py Saved/Reports/ROS2-01/<run>`은 `<run>-bridge.json`, `<run>-ros.json`, native ledger와 CLI 로그를 대조한다. source 전체 수에는 준비 10초가 포함되고 ledger는 측정 300초만 포함하므로 분모를 섞지 않는다.
 
 참고: [ROS Jazzy 공식 apt 절차](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html), [REP-103](https://www.ros.org/reps/rep-0103.html), [Artemis STOMP flow control](https://artemis.apache.org/components/artemis/documentation/latest/stomp.html), [WSL commands](https://learn.microsoft.com/en-us/windows/wsl/basic-commands).

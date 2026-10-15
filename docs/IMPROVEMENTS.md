@@ -49,6 +49,15 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **완료 조건:** 동일 소스/DTCore에서 intrinsics/known-plane depth/분류 일치/instance/bbox/default-off 및 수명 회귀, 저장 파일 무손실 decode, 관련 실제 RHI 회귀·golden·quick·layer0·WBP 메모리 컴파일, 1920×1080 직접 RGB/Depth/Seg/Instance와 저장 확인, `verify.ps1 -Level perf -BaseCommit 827bae6` 기본 꺼짐 2% gate 및 opt-in GPU/GT/readback 비용 보고. 원본은 `Saved/Reports/CAM-GT-01/RESULT.md`.
 - **제한/후속:** 기본 원근 카메라·불투명 static geometry 분류, 개별 LiDAR override 자동 공유 없음, ID는 카메라 실행 범위, ISM은 Actor 단위다. 2단계는 새 topic/schemaVersion 서버 송신·ROS2 Image/CameraInfo·3D bbox를 별도 요청으로 설계한다. 이번 작업은 DTCore/센서 플러그인/운영맵/신규 자산을 변경하지 않는다.
 
+### ROS2-01 — Artemis → ROS2 외부 변환 브리지 (P1)
+
+- **출처/범위:** 사용자 2026-10-15. `feat/ros2-bridge`, 기준 `67033d4`(CAM-GT 브랜치, PR #37 미머지), DTCore `b2504d1` 고정. UE C++·기존 wire·맵·자산·Broker 설정을 바꾸지 않는 1단계다. Docker는 사용하지 않는다.
+- **구현:** 전용 Ubuntu 24.04 WSL2 설치/실행/정상 종료/완전 삭제, 고정 버전 Jazzy ROS base·Foxglove·STOMP 의존성, PCD PointCloud2·legacy LiDAR world 변환·telemetry 전달·JPEG CompressedImage·가능 범위 CameraInfo·acquisition TF. Image rgb8은 Pillow 선택 의존성 경로가 있으며 추가 설치 결정/실제 WSL 검증은 별도다. PCD 로컬 m/오른손 축을 유지하고 TF만 UE 월드 Y를 변환한다. `/clock`은 simulation-time 계약이 없어 발행하지 않는다.
+- **진행률: 80% — 구현·CLI 검증 완료 범위와 미수신/직접 수용을 구분.** Windows25 Success, WSL23 Success/skip2(Pillow 없음), ROS 직렬화3 Success, 실제 Artemis 경유 PCD/legacy LiDAR/telemetry/유효 JPEG4 Success. 최종 고정 설치 스크립트의 빈 WSL 재설치도 통과했다. `9f62a08`의 D3D12 PIE ML-X(80) 576×56·1920×1080·준비10초+측정300초에서 UE 송신 회귀2개 Success. 전체 준비 포함 수는 20Hz UE/브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083이다. 브리지 손상·queue 초과0이며 10Hz의1프레임 미수신과 best-effort ROS 추가누락81/15(발견 포함)은 해소 완료로 표시하지 않는다. 이후 legacy JSON double 반올림을 정확한 STOMP 문자열 FrameId로 복원하는 호환 처리를 추가했으며 최종 Windows/WSL/Artemis 검증을 통과했다. PCD 함수/노드는 실측과 동일함을 AST/diff로 확인했다. 상세 수치·초기 실패 원본·범위는 `Saved/Reports/ROS2-01/RESULT.md`를 따른다.
+- **보류/정리:** 화면 캡처 오류 `IGraphicsCaptureItemInterop.CreateForMonitor 0x80070057`와 창/브라우저 inventory 없음으로 직접 UE/Foxglove 조작·3D/축 비교는 수행하지 못했다. Image 디코더 추가 설치는 허용 목록 확인 질문에 응답이 없어 실행하지 않았다. 생성 WSL은 두 설치 모두 unregister, 설치 캐시0·기존3개/기본Ubuntu(v1) 복원, 소유 Artemis 정상 종료, 개인43파일(SaveGame9) 복원·보호860 hash 불변. 환경 다운로드 payload 추정 총량은 약1.091GB이며 HTTP/TLS 등 총 네트워크 bytes는 미계측이다. 자동 수신·프로토콜 검사를 직접 수용으로 세지 않는다.
+- **완료 조건:** 두 환경 golden 점 수/좌표/레이아웃·손상/미지원 schema 폐기·유효 JPEG와 ROS 메시지 검증, 동일 SHA/프로필의 실제 Artemis 5분 Hz/bw·UTC 지연·누락/queue 대조, Foxglove 3D와 UE 축 직접 비교, quick·layer0, 개인 SaveGame/보호 경로 복원, 생성 배포판 unregister·설치 캐시 제거·기존 WSL 목록/기본값 보존. 관련 실행법은 [Tools/Ros2Bridge](../Tools/Ros2Bridge/README.md).
+- **2단계 제안:** UE UI의 ROS2 상태·버튼, binary Camera calibration/pose와 CAM-GT depth/segmentation의 새 topic/schema 연계. 이번 외부 adapter가 이 후속 계약 변경을 승인하지 않는다.
+
 ## 읽는 방법
 
 - **정적 위험:** 실제 소스의 연결/조건을 확인했다. 이 문서만으로 런타임 재현 완료를 뜻하지 않는다.
