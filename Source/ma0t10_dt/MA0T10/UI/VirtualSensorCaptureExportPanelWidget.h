@@ -262,6 +262,7 @@ private:
 	FVirtualDatasetSettings DatasetDraft;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     friend class FDatasetManualAcceptanceCommand;
+    friend class FUxr15Audit;
 #endif
 	TWeakObjectPtr<AActor> DatasetSlab,DatasetLidar,DatasetCamera,DatasetLight;
 	bool bDatasetExpanded=false;

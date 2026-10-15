@@ -637,6 +637,7 @@ private:
 	friend class FSensorVocabularyTest;
 	friend class FUxrPreviewRender;
     friend class FCameraTruthPresentationSession;
+    friend class FUxr15Audit;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;
     TSharedPtr<STextBlock> NativeTitleTextBlock;
