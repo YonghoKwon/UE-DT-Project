@@ -34,6 +34,8 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
 
+#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
+
 #define LOCTEXT_NAMESPACE "VirtualSensorSettingsPanelWidget"
 
 namespace
@@ -887,6 +889,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
 void UVirtualSensorSettingsPanelWidget::RefreshOwnedSettingsText()
 {
     if(!IsWorkspaceOwned()||(WidgetTree&&WidgetTree->RootWidget)||!IsVisible()||IsPanelCollapsed())return;
+    if(WorkspaceSettingsTab==2&&GetWorld())if(auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())OwnedAutomationText=FText::FromString(Control->GetPresentationStatus());
     auto* Actor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());FString LockReason;
     bOwnedCanEdit=Actor&&Actor->CanEditSensorConfiguration(LockReason);
     OwnedSelectionText=FText::FromString(Actor?(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?TEXT("Camera · "):TEXT("LiDAR · "))+PendingState.SensorId:TEXT("장비 없음 · 배치에서 장비를 선택하세요"));
@@ -1056,6 +1059,13 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeC
 {
     if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
     auto Utilities=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
+    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SVerticalBox)
+      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox)
+        .IsChecked_Lambda([this](){auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){if(auto* C=GetWorld()->GetSubsystem<UAutomationControlSubsystem>()){C->SetApiEnabled(V==ECheckBoxState::Checked);OwnedAutomationText=FText::FromString(C->GetPresentationStatus());}})
+        [SNewSensorTool(STextBlock).Text(LOCTEXT("AutomationEnable","외부 제어 API"))]]
+      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedAutomationText;})
+        .ToolTipText(LOCTEXT("AutomationHelp","기본 꺼짐 · 이 PC의 127.0.0.1에서만 받습니다. 켜면 외부 프로그램이 센서와 생성 작업을 제어할 수 있습니다. 인증은 설정 파일 또는 환경변수로 지정합니다. 배치와 API를 꺼도 기존 PCD 출력 정책은 유지됩니다."))]];
     Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
       .Visibility_Lambda([this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Lidar?EVisibility::Visible:EVisibility::Collapsed;})
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy","LiDAR 호환 JSON 생성"))]

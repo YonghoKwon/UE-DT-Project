@@ -389,3 +389,21 @@ Runtime e55fd9a(검증은 9146d6d+동등 worktree), DTCore b2504d1. 소스 수�
 - 표시형1920×1080,1 D455+1 Native ML-X,10+30초,ABAB×3=12유효샘플. FPS59.998212→59.998579(+0.000611%), engine p9516.666900→16.666900ms, game-thread5.836946→5.832506ms(−0.076083%);2% gate통과. perf manifest Saved/Reports/verify/20261015T100925865Z/manifest.json.
 - 실제1920×1080/DPI1/폰트100% 자동진행화면 확인. 직접Computer Use는0x80070057로초기+재시도2회실패,입력0·보안팝업미조작. 초기cold wall61ms peak와 geometry/PIE내resume 제한을보고했다.
 - LLM before/after로distance-field 증가를제거(42.06–42.09MiB유지),readback GT3/LiDAR2·GC후UObject40465유지. 보호553파일hash불변·개인240파일복원,시험2.956GB→7.995MB/8샘플장면. 상세 Saved/Reports/DATASET-01/RESULT.md, Saved/Reports/GPU-CRASH-01/RESULT.md.
+
+
+## 2026-10-15 SCN-RELEASE-01 - release terminal sensor ownership
+
+General UI reproduction on existing SlabScenarioValidationMap at1920x1080/96DPI/font150%: observation completion and cancellation both left independent PCD sending at0/s while acquisition stayed~20Hz. After finalizing terminal snapshots and cleaning only owned work, release Targets/ControlledIds/preparation bindings; retain Status/CurrentSlab and reject late eligible run frames. Required-data configuration locks remain active through preparation/drain.
+
+New ordinary-UI-path regression failed before the fix and passes after it. Focused D3D12 groups SlabReliability/ScenarioReplay/Automation:12 executed Success,3 explicit opt-in skips,0 failed. Editor Development build, layer0/allowlist0 and DTCore guard passed. Direct Computer Use after the fix confirmed positive independent PCD after completion (20/s) and cancellation (positive,15.7/s in captured sample), followed by normal Alt-F4 teardown. Raw receipt/end-to-end batch acceptance is recorded separately under AUTO-01. No map/asset/DTCore/config change. Detailed evidence: Saved/Reports/SCN-RELEASE-01, including before/after manual checklists and screenshots.
+
+
+## 2026-10-16 AUTO-01 - automated acceptance and remaining direct UI
+
+Final runtime f6af018 over baseline d45f27e, DTCore b2504d1. Official Python/PowerShell runners combine fresh result schema/step accounting with child status; native Windows graceful exit alone is not authoritative. No forced termination in the new operational job/API/runners. The existing standard UE automation/perf TestExit path uses Force=1 (success0, intentional pre-fix failure255); audit retained, not counted as normal teardown proof. Editor/Game Development and Development BuildCookRun succeeded; package job completed scenario + GPU20 scenes + PCD30s with598submit/receipt, no delivery error/overload. Source/dataset/result SHA agrees. Standard source SensorTransport template remains empty; packaged copy has the same9 empty keys without comments.
+
+Full release manifest Saved/Reports/verify/20261015T153623842Z/manifest.json:14steps,284 unique executed Success,31 explicit skips,0failed/NotRun; actual WireGolden, WBP7 memory compile and rendered vocabulary passed. Python12; native job/API/auth/default-off/timeout and external UI ownership cases passed. SDK status/settings/new Camera capture rerun on final revision. Root SCN fix is separately committed9fa04be; six CPU/socket fault modes passed.
+
+Default-off standard perf against d45f27e: Saved/Reports/verify/20261015T154236642Z, ABABx3,12valid samples, visible verified1920x1080/DPI1,1Camera+1LiDAR,10+30seconds, same map/dependency/instrument, no stream/record/transport. Median callback FPS59.994752->59.979625(-0.025214%), engine p9516.666900ms unchanged, GT6.012903->6.048363ms(+0.589723%),2%PASS.
+
+Direct API checkbox/address/batch-status acceptance remains environment pending: first visible screenshot showed Windows Security public/private network permission for UnrealGame. No dialog input/bypass; bounded session exited normally. User handoff requested, not assumed. Standalone D3D12/offscreen has a startup handled SwapChain ensure22Error lines; generated20-scene existing-map PCA is invalid in all scenes, so no accuracy/training acceptance. Broker receipts are not consumer/business ACK. Protected557files unchanged,44personal files restored, own Broker stopped/config12unchanged, ports closed, private files removed. Details/artifacts/failure histories: Saved/Reports/AUTO-01/RESULT.md.

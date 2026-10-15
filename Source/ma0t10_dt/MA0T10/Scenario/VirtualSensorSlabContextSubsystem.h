@@ -73,6 +73,8 @@ private:
 	bool IsOutputSelected(EVirtualSensorStreamKind Kind) const;
 	bool CheckRun(const FString& RunId);
 	void Finish(EVirtualSlabSessionEndReason Reason);
+	/** Release live ownership only after terminal snapshots and owned-work cleanup. */
+	void ReleaseTerminalOwnership();
 	void FinalizeRunResult(bool PreparationFailed=false);
 	bool bDeinitializing=false;
 	int64 CountStreamErrors() const;
