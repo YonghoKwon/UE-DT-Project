@@ -211,6 +211,7 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::TestConnection()
 
 FString UVirtualSensorTransportComponent::ResolveTopic(const FString& SensorType, const FString& DataKind) const
 {
+    if(SensorType==TEXT("imu")&&DataKind==TEXT("imu-stream"))return TEXT("topic.virtual.sensor.imu.0");
 	if (DataKind.Contains(TEXT("export"), ESearchCase::IgnoreCase) || DataKind.Contains(TEXT("pointcloud"), ESearchCase::IgnoreCase)) return TransportProfile.ExportTopic;
 	if (SensorType.Contains(TEXT("lidar"), ESearchCase::IgnoreCase)) return TransportProfile.LidarTopic;
 	return TransportProfile.CameraTopic;

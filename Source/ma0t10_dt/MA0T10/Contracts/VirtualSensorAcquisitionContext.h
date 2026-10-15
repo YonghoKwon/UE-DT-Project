@@ -20,7 +20,7 @@ struct MA0T10_DT_API FVirtualSensorAcquisitionContext
 };
 
 /** Host output identifiers, independent of the L1 stream enum's numeric order. */
-enum class EVirtualSensorAcquisitionOutput : uint8 { LidarTelemetry, CameraImage, PointCloud };
+enum class EVirtualSensorAcquisitionOutput : uint8 { LidarTelemetry, CameraImage, PointCloud, Imu };
 
 /** Game-thread host adapter only. Workers must never resolve or invoke it. */
 class MA0T10_DT_API IVirtualSensorAcquisitionContextProvider

@@ -27,6 +27,7 @@ void UVirtualSensorRecorderComponent::StopRecording()
 
 void UVirtualSensorRecorderComponent::ClearRecording()
 {
+    ImuSamples.Reset();ImuOverflow.Reset();
     RecordedFrames.Reset();
     ReplayFrameIndex = 0;
 }
@@ -173,3 +174,12 @@ FString UVirtualSensorRecorderComponent::BuildSessionPath(const FString& FileNam
     const FString Timestamp = FString::Printf(TEXT("%s_%lld"), *FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S")), FDateTime::UtcNow().GetTicks());
     return FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s.json"), *Prefix, *Timestamp));
 }
+
+void UVirtualSensorRecorderComponent::RecordImuSamples(const FString& Id,const TArray<FVirtualImuSample>& Samples)
+{
+    if(!ImuSamples.Contains(Id)&&ImuSamples.Num()>=16)return;
+    auto& Buffer=ImuSamples.FindOrAdd(Id);const int32 Keep=FMath::Min(Samples.Num(),24000-Buffer.Num());
+    Buffer.Append(Samples.GetData(),Keep);ImuOverflow.FindOrAdd(Id)+=Samples.Num()-Keep;
+}
+TArray<FVirtualImuSample> UVirtualSensorRecorderComponent::GetImuSamples(const FString& Id) const
+{const auto* P=ImuSamples.Find(Id);return P?*P:TArray<FVirtualImuSample>();}

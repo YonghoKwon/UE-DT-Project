@@ -1,4 +1,5 @@
 #include "AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "AutomationProtocol.h"
 #include "AutomationLoopbackServer.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
@@ -57,6 +58,7 @@ TSharedRef<FJsonObject> Answer(bool Ok,const FString& Error=FString())
 TSharedRef<FJsonObject> SensorJson(AVirtualSensorActorBase* A)
 {
     auto R=MakeShared<FJsonObject>();FVirtualSensorEditableState S;A->ReadEditableState(S);
+    if(const auto* Imu=A->FindComponentByClass<UVirtualImuComponent>())R->SetObjectField(TEXT("imu"),Imu->StatusJson());
     R->SetStringField(TEXT("sensor_id"),A->GetSensorId());R->SetStringField(TEXT("actor"),A->GetName());
     R->SetStringField(TEXT("kind"),A->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("camera"):TEXT("lidar"));
     R->SetBoolField(TEXT("running"),A->IsSensorRunning());R->SetNumberField(TEXT("revision"),A->GetConfigurationRevision());

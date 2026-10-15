@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **`feat/uxr-15` (기준 `b00a91f`, 검증 소스 `fcd7eaa`) / DTCore `b2504d1`, 2026-10-15**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+기준: **`feat/virtual-imu` (기준 `f5a55d2`, Runtime `a5de63c`, ROS adapter `21dfef6`) / DTCore `b2504d1`, 2026-10-16**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신,명시적 IMU 부착과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
 **아직 독립 센서 플러그인이 아니며, 이번 버전에서는 플러그인 제작을 시작하지 않는다.** 현재 개발은 기능 추가보다 **프로젝트 안의 아키텍처 뼈대 재정비(ARCH 단계)**가 우선이다. 동작·wire 계약·Blueprint API를 바꾸지 않고 레이어 경계·폴더 책임·검증 진입점을 정리한다. 상세 순서는 [로드맵 A단계](docs/ROADMAP.md#a단계--아키텍처-뼈대-재정비-현재-진행)와 [개선 목록 ARCH 항목](docs/IMPROVEMENTS.md#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 따른다.
 
@@ -18,8 +18,11 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63c`, 기준 `f5a55d2`. 선택 장비에 세션 전용 IMU를 명시적으로 부착한다. 집중 D3D12 6 Success, 직접 부착·400Hz·노이즈·기록·CSV·전송 선택 점검, 실제 Artemis 445메시지/1484표본(gap/invalid/duplicate 0), Python 38 Success를 확인했다. release14단계(고유289 Success/조건부skip34/실패0)와 기본 꺼짐 ABAB12회2% gate가 통과했다(FPS 저하 −0.008%,p95 0%,GT −0.487%).2개400Hz 켜짐 비용은GT+0.223ms(+3.41%)·p95동일이며,전체 제한은 `Saved/Reports/IMU-01/RESULT.md`를 따른다. 아래 이전 항목의 검증 SHA·수치를 IMU 검증 결과로 읽지 않는다.
+
 | 영역 | 현재 상태 | 남은 핵심 조건 (ID) |
 |---|---|---|
+| 가상 IMU (IMU-01) | 세션 전용 명시 부착·100~400Hz 비력/각속도/정답 자세·가정 노이즈·5Hz 그래프·독립 출력/CSV/선택 라벨/API/ROS adapter. 집중6·직접 주요흐름·Artemis1484표본·Python38·release14단계 통과 | 기본 꺼짐 ABAB12회2% 통과(FPS −0.008%·p95 0%·GT −0.487%);2개400Hz 켜짐GT+0.223ms(+3.41%)·p95동일. 상세 `Saved/Reports/IMU-01/RESULT.md`. WSL 실측은 요청대로 단위 테스트로 대체;실제 deskew·실장비 교정·장시간·독립검토는 별도 |
 | 아키텍처 | ARCH-01~08 완료: L0 Contracts → L1 센서 → L2 Scenario/Slab/TC → L3 UI 단방향, layer gate 위반·allowlist **0** | DTCore 변경 후보 정리 후 DTCore 수정 단계, 이후 플러그인화(R5) |
 | 화면 구성(UX) | UXR-15: 최근 옵션 문구·현재 꺼짐·데이터셋 입력 배치·상태 우선순위 정리, 동일4조합 전후80장씩. 최근 체크27개 직접 on/off·정답4모드/저장·실제3장면 생성 확인 | [통합57분 직접 점검표](docs/MANUAL_CHECKLIST.md)의 전체 수행·사용자 무안내 수용·자유 배치 과거 드래그 FAIL·서버/원격 환경은 별도. 상세 `Saved/Reports/UXR/UXR-15/RESULT.md` |
 | 새 맵 적용 (MAP-01) | Rig 하나·Slab 없음 안내·DTCore 맵 점검·새 맵 2개, Editor/Game·release 14단계·242 Success/skip20·16장·성능2% gate 통과 | 직접 마우스·DPI 수용은 UXR-07로 이관, DTCore 업무 연결 조회 API 제한; 독립 검토 전 90% |
@@ -426,6 +429,29 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 현재 검증 수치·직접 화면·성능 gate와 제한은 `Saved/Reports/CAM-GT-01/RESULT.md`, 진행 상태는 [CAM-GT-01](docs/IMPROVEMENTS.md#cam-gt-01--카메라-정답-데이터-1단계-p1)을 따른다.
 
+### IMU-01 — 선택 장비에 IMU 부착 (기본 없음)
+
+**배치 → 장비 선택 → IMU · 부착·설정·미리보기 → 선택 장비에 IMU 부착**을 누른다. Camera/LiDAR의 기존 Actor 루트에 `UVirtualImuComponent`를 붙이며 새 Actor·자산·맵·플러그인을 만들지 않는다. 주파수(100~400Hz, 기본200), 산업용 MEMS 가정 노이즈/이상적 측정, seed를 설정한다. 실시간 비력·각속도·자세와 XYZ 그래프는 영역을 펼쳤을 때만 최대5Hz로 갱신한다. 접기·패널 숨김은 IMU 측정이나 기록을 중지하지 않는다.
+
+부착·설정은 **이번 PIE 세션에만** 적용되며 기존 장비 프로필/전체 배치 SaveGame에 저장되지 않는다. 새 장비를 추가하거나 배치를 복원해도 IMU는 자동 생성되지 않는다. 다른 움직이는 Actor/장면 컴포넌트에는 Blueprint에서 `VirtualImuComponent`를 명시적으로 추가·부착하거나 C++의 `UVirtualImuComponent::Attach(Actor)`를 사용한다. 기존 `VirtualSensorMotionProvider`가 부착 체인에 있으면 센서 원점의 rigid velocity(레버암 포함)를 사용하며, 없으면 세 프레임의 위치와 쿼터니언에서 운동을 재구성한다. 일반 Actor의 출력에는 기존 Recorder/Publisher 참조를 명시적으로 공급한다. 새 DTCore 관리자나 구독 루프는 없다.
+
+좌표는 **센서 로컬 FLU: X 전방/Y 좌측/Z 위쪽**, 월드 기준은 UE 월드 Y를 반전한 오른손 좌표다(지리 ENU를 의미하지 않는다). 비력은 `R⁻¹(a−g)` **m/s²**, 각속도는 오른손 **rad/s**, 자세는 센서→월드 **xyzw 쿼터니언**이다. 정지·수평·무잡음은 `(0,0,+9.81)`, 자유낙하는0이다. 자세는 시뮬레이터 정답이며 IMU 적분·AHRS 추정값이 아니다. UE→FLU에서 벡터는 `(x,-y,z)`, 각속도는 `(-x,y,-z)`, 쿼터니언은 `(-x,y,-z,w)`로 변환한다.
+
+표본 격자는 게임 시간의 고정 스텝이다. 게임 프레임 사이의 위치를 2차 보간/속도 provider로 재구성하고 자세는 최단 호 SLERP를 사용한다. 첫 구간은 준비 구간이며, 250ms 초과 관측 공백·시간 역행·한 프레임100m 초과 이동은 재준비하고 누락/불연속을 센다. 게임 관측 주파수를 넘는 진동이나 서브프레임 물리를 새로 시뮬레이션하지 않는다. `simulationSeconds`가 고정 주기 검증 기준이고 `timestampUtc`는 관측 프레임의 실제 UTC 사이 보간(100ns 저장 해상도)이다. pause/시간 배율에서 UTC와 게임 시간을 혼동하지 않는다. 기존 LiDAR acquisition UTC+`time_offset_ns`와 IMU pose를 연결할 데이터만 제공하며 실제 deskew는2단계 제안이다.
+
+출력은 각각 따로 켠다.
+
+| 선택 | 결과 |
+|---|---|
+| IMU 기록 | 기존 Recorder 안의 별도 표본 버퍼. 센서당24000표본, 최대16개 IMU. 가득 차면 새 표본을 받지 않고 초과 수 표시. 기존 JSON 녹화 시작을 자동 호출하지 않음 |
+| 기록한 IMU CSV 저장 | 기존 FileSave의 비동기·취소·weak ownership·설정 revision 검사 사용. `Saved/SensorCaptures/<장비ID>.imu/IMU/`. configuration_revision, sequence, simulation_seconds, UTC ticks(서기1년 기준100ns), 비력/각속도/자세/위치/분산 열. 설정 변경은 새 revision이며 버퍼에 이전 표본도 유지 |
+| IMU 전송 | 기존 StreamPublisher의 bounded latest-batch/Engine STOMP JSON 경로. 별도 `topic.virtual.sensor.imu.0`, `schemaVersion=virtual-imu.v1`, `<장비ID>.imu`. 한 게임 프레임의 고정 스텝 표본을 묶음 전송하며 교체/오류/receipt는 기존 진단에 표시. 기존 PCD·JPEG·telemetry wire/golden 불변 |
+| 데이터셋 → IMU 값 포함 | 기본false. 선택 Camera/LiDAR에 부착된 IMU의 최신 값/독립 시각을 `label.json.imu[]`에 추가. 없으면 빈 배열. 장면 저장 접수 시점의 최신 표본이며 동시 하드웨어 획득을 뜻하지 않음 |
+| AUTO-01 `GET /v1/sensors` | 부착된 장비에만 `imu` 객체: 주파수, 기록/전송, 표본/누락/불연속 및 최신 값. API 기본 꺼짐·인증·listener 계약 유지 |
+| ROS2 bridge `--imu` | 추가 topic 구독을 명시적으로 켜고 `/ma0t10/<sensor_key>/imu`의 `sensor_msgs/Imu`와 독립 IMU TF 발행. [IMU 브리지 설명](Tools/Ros2Bridge/README.md#imu-01). 이번 단계의 WSL 실측은 Windows 단위 테스트로 대체 |
+
+새 JSON의 `samples[]`는 sequence·configurationRevision·simulationSeconds·timestampUtc·specificForceMps2[3]·angularVelocityRadps[3]·orientationXyzw[4]·positionWorldFluM[3]·accelVariance·gyroVariance를 담는다. 분산은 백색 잡음과 누적 bias random walk의 대각 근사이며 고정 scale/정렬 오차의 추정 불확도는 포함하지 않는다. ROS 자세 covariance의0배열은 미지정이다. noise=false/Ideal은 모든 오차를 우회한다. 실제1Hz·20cm 이동의 무잡음 위치fallback 가속도는RMSE0.337m/s²·절대오차p950.670m/s²였다(시작0.3초전환제외). 고정표본률과물리정확도를구분한다. 가정값·근거·허용 오차와 실측 그래프는 `Saved/Reports/IMU-01/RESULT.md`에 있다.
+
 ## 8. 센서 배치와 저장 위치
 
 **위치 저장을 찾는 경로:** 상단 **`배치 → 3. 저장 위치`**다. 배치 창은 `1. 장비 / 2. 선택 장비 / 3. 저장 위치 / 4. 전체 배치`를 직접 소유하며 Settings 창을 열 필요가 없다. 위치 이름을 입력하고 `현재 위치 저장`을 누른다. 목록의 `이동`으로 적용하며 단순 선택은 자세를 변경하지 않는다. 숫자 입력은 별도의 접힌 `위치·회전 숫자 입력`에 둔다. Settings의 `배치 작업공간` 버튼도 같은 창을 연다. 본문 전체를 스크롤하며 하단 결과 문구는 고정한다.
@@ -519,11 +545,13 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+IMU-01은 L1 `Sensor/VirtualImuTypes`·`VirtualImuComponent`와 기존 Recorder/StreamPublisher/FileSave를 확장한다. L0 motion provider를 읽고, L2 Dataset/AUTO-01과 L3 기존 DTCore 기반 배치 패널이 값을 소비한다. 레이어 위반·allowlist **0→0**, 새 모듈·자산·DTCore 변경 없음. IMU 스트림은 기존 acquisition envelope와 별도 접수되어 Camera/LiDAR·Slab PCD 기본 정책에 편입되지 않는다.
+
 EXPORT-01은 L2 Dataset의 추가 OBB 라벨·선택적 외부 Python 프로세스와 기존 L3 소유 데이터 패널의 세션 선택만 추가한다. Python은 완료된 파일만 읽고 UE 객체·측정·송신 경로를 참조하지 않는다. L2→L3 include·새 모듈·자산·DTCore 변경 없이 위반/allowlist **0/0**이다.
 
 ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 277개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 282개(IMU-01 포함)에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 
 LIDAR-FID-01은 L0 `VirtualSensorMotionProvider`를 L2 SlabMotion이 구현하고 L1 센서가 snapshot으로 읽는다. L1 `VirtualLidarFidelity`의 순수 모델을 CPU/GPU가 공유하고 기존 L3 소유 설정/미리보기가 옵션을 표시한다. 신규 역방향 의존 없이 위반·allowlist **0/0**, DTCore·모듈·자산·PCD 레코드 불변이다.
 
@@ -805,6 +833,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 | `MA0T10_WORKSPACE_SCREENSHOT` | MA0T10.SensorWorkspace.Runtime | screenshot 파일 경로; 실제 RHI + 쓰기 권한 |
 | `MA0T10_DATASET_SCENES` | MA0T10.Dataset.RealRhiGeneration | 명시한 10–100장면 실제 RHI 생성; Saved/Datasets에 시험 파일을 만드는 opt-in |
 | `MA0T10_DATASET_PYTHON` | EXPORT-01 선택적 오프라인 변환 | requirements를 설치한 python.exe의 절대 경로. export_format 기본 none에서는 읽거나 실행하지 않는다. |
+| `MA0T10_STOMP_USER` | IMU-01 Editor acceptance fixture only | Existing broker session username, read only with explicit `-ImuAutomated -ImuBroker`; never logged/saved; does not enable production output |
+| `MA0T10_STOMP_PASSWORD` | IMU-01 Editor acceptance fixture only | Existing broker session passcode, inherited process environment only with explicit `-ImuAutomated -ImuBroker`; never logged/saved; no broker configuration change |
 <!-- MA0T10_ENV_TABLE_END -->
 
 ## 고정 참고자료

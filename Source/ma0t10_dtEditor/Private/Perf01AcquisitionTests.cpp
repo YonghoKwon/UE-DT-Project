@@ -24,6 +24,12 @@
 #define CAM_GT_PERF_AVAILABLE 0
 #endif
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#if __has_include("ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h")
+#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
+#define IMU_PERF_AVAILABLE 1
+#else
+#define IMU_PERF_AVAILABLE 0
+#endif
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -145,6 +151,10 @@ public:
                 }
             }
             RateSums.Init(0,Sensors.Num());StartFrames.Init(0,Sensors.Num());
+            #if IMU_PERF_AVAILABLE
+            if(FParse::Param(FCommandLine::Get(),TEXT("ImuPerformance")))
+                for(const auto& Weak:Sensors)if(auto* A=Weak.Get()){auto* Imu=UVirtualImuComponent::Attach(A);FVirtualImuConfig C;C.RateHz=400;FString Error;Test->TestTrue(TEXT("IMU perf configure"),Imu&&Imu->Configure(C,Error));}
+#endif
             Started=Last=Now;return false;
         }
 #if CAM_GT_PERF_AVAILABLE
@@ -188,6 +198,7 @@ public:
         Json->SetNumberField(TEXT("callback_p95_ms"),P95(Wall));Json->SetNumberField(TEXT("engine_frame_p95_ms"),P95(Engine));
         Json->SetNumberField(TEXT("game_thread_mean_ms"),Mean(Game));Json->SetNumberField(TEXT("gpu_mean_ms"),Mean(Gpu));
         Json->SetBoolField(TEXT("camera_ground_truth_enabled"),FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")));
+        Json->SetBoolField(TEXT("imu_enabled"),FParse::Param(FCommandLine::Get(),TEXT("ImuPerformance")));
         Json->SetNumberField(TEXT("samples"),Wall.Num());Json->SetNumberField(TEXT("pairs"),Pairs);
         Json->SetBoolField(TEXT("lidar_fidelity_enabled"),bLidarFidelityPerformance);
         Json->SetNumberField(TEXT("warmup_seconds"),10);Json->SetNumberField(TEXT("measurement_seconds"),Duration);

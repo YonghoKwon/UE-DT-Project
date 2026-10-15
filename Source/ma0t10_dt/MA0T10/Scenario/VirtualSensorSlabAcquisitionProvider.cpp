@@ -11,6 +11,7 @@ EVirtualSensorStreamKind StreamKind(EVirtualSensorAcquisitionOutput Output)
     case EVirtualSensorAcquisitionOutput::LidarTelemetry: return EVirtualSensorStreamKind::LidarPayload;
     case EVirtualSensorAcquisitionOutput::CameraImage: return EVirtualSensorStreamKind::CameraImage;
     case EVirtualSensorAcquisitionOutput::PointCloud: return EVirtualSensorStreamKind::PointCloud;
+    case EVirtualSensorAcquisitionOutput::Imu: return EVirtualSensorStreamKind::Imu;
     }
     checkNoEntry();
     return EVirtualSensorStreamKind::LidarPayload;

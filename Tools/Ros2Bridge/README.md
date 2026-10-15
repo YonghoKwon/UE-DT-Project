@@ -1,5 +1,11 @@
 # Artemis ↔ ROS2 bridge (ROS2-01 / ROS2-02)
 
+<a id="imu-01"></a>
+
+IMU-01(사용자2026-10-16): 기존 환경에서 `bridge_node.py --imu`를 명시한 때만 `topic.virtual.sensor.imu.0`를 추가 구독한다. `virtual-imu.v1`의 각 고정 스텝 표본을 `sensor_msgs/Imu`로 `/ma0t10/<sensor_key>/imu`에 발행한다. FLU 비력 m/s²,오른손 각속도 rad/s,simulator-truth xyzw 자세를 그대로 옮기며 gravity를 다시 제거하거나 축을 재반전하지 않는다. 표본 UTC를 stamp에 쓰고 별도 IMU frame/TF를 발행한다. accel/gyro 대각 covariance는 송신 분산이며 고정 scale/정렬 오차 추정은 포함하지 않는다. 자세 covariance0은 미지정이다. position은 TF에만 쓰며 Imu 메시지에 없는 속도/위치를 만들어 넣지 않는다.
+
+추가 decoder는100~400Hz·1~101표본·연속 sequence/시뮬레이션 주기·유한 값·정규화 quaternion·UTC 순서·header sensor identity를 검사한다. `--imu`가 없으면 발행하지 않으며 수신 묶음의 `x-frame-id`로 메시지 gap을 집계해 서브프레임 표본 ID를 누락 묶음으로 잘못 세지 않는다. 게임 시간 격자와 프레임 UTC 사이 보간의 차이 및 대역폭 한계는 [UE IMU 설명](../../README.md#imu-01--선택-장비에-imu-부착-기본-없음)을 따른다. `python -m unittest discover -s Tools/Ros2Bridge -p 'test_*.py'`의38개 테스트에는 production `publish_imu` 메서드를 ROS message/publisher 대역으로 실행하는 검사도 포함한다. **이번 요청은 WSL 실측을 단위 테스트로 대체**했으므로 실제 ROS 직렬화·DDS·WSL 실행 통과를 주장하지 않는다. 기존 WSL을 설치·재설치하지 않는다.
+
 외부 Python 노드가 기존 STOMP wire를 읽는다. UE C++·DTCore·맵·저장값·Broker 설정은 바꾸지 않는다. Docker를 사용하지 않는다. 현재 단계는 PCD/LiDAR/JPEG adapter이며 CAM-GT depth/segmentation 서버 송신은 포함하지 않는다.
 
 ```mermaid

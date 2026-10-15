@@ -59,6 +59,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetCon
     Check(TEXT("데이터셋 생성 사용"),&DatasetDraft.Enabled);
     Check(TEXT("카메라 정답 포함"),&DatasetDraft.CameraTruth);
     Check(TEXT("LiDAR 사실성 포함"),&DatasetDraft.LidarFidelity);
+    Check(TEXT("IMU 값 포함"),&DatasetDraft.IncludeImu);
     // Slate may query attributes each frame. Construct the four texts once, as with Check's On/Off captions.
     auto ExportCaption=[this,None=FText::FromString(TEXT("생성 후 내보내기 형식: 없음")),Coco=FText::FromString(TEXT("생성 후 내보내기 형식: COCO")),Kitti=FText::FromString(TEXT("생성 후 내보내기 형식: KITTI 3D")),Both=FText::FromString(TEXT("생성 후 내보내기 형식: COCO + KITTI 3D"))]()
     {return DatasetDraft.ExportFormat==TEXT("none")?None:DatasetDraft.ExportFormat==TEXT("coco")?Coco:DatasetDraft.ExportFormat==TEXT("kitti")?Kitti:Both;};

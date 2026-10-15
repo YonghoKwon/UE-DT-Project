@@ -89,7 +89,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			RefreshQueueTelemetry(*Runtime);
 			continue;
 		}
-		if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
+		if (GetWorld()&&Message.StreamKind!=EVirtualSensorStreamKind::Imu) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
 		{
 			if (!Slab->AllowsOutputFrame(Message.SensorId,VirtualSensorAcquisitionOutput(Message.StreamKind),Message.SlabContext))
 			{
@@ -113,9 +113,9 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			continue;
 		}
 		const bool bReceipt = Message.bBinaryPcd || ((Runtime->Status.SubmittedFrameCount + 1) % Runtime->Config.ReceiptSampleInterval) == 0;
-		const FString SensorType = Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar");
+		const FString SensorType = Message.StreamKind==EVirtualSensorStreamKind::Imu?TEXT("imu"):Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera") : TEXT("lidar");
 		const FString DataKind = Message.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("pointcloud-stream")
-			: Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
+			: Message.StreamKind==EVirtualSensorStreamKind::Imu?TEXT("imu-stream"):Message.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("camera-stream") : TEXT("lidar-stream");
 		const bool bUseHighThroughput = Runtime->Config.TransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput &&
 			CanUseHighThroughputTransport() &&
 			(Message.bBinaryPcd || Message.bHighThroughputBinary);

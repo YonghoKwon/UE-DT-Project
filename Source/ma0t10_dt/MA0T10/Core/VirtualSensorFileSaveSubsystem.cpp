@@ -1,4 +1,5 @@
 #include "VirtualSensorFileSaveSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -18,6 +19,10 @@
 struct FSensorFileCancellation { std::atomic<bool> Cancelled{false}; };
 struct FVirtualSensorFileSaveRequest
 {
+    TWeakObjectPtr<UVirtualImuComponent> ImuSource;
+    TSharedPtr<const TArray<FVirtualImuSample>,ESPMode::ThreadSafe> Imu;
+    int32 ImuGeneration=0;
+    bool ImuRequest=false;
 	FVirtualSensorFileSaveStatus Status;
 	TWeakObjectPtr<AVirtualSensorActorBase> Actor;
 	uint64 Revision=0;
@@ -57,6 +62,7 @@ void RemoveFiles(TArray<FVirtualSensorExportResult> Results)
 }
 struct FFileWriteInput
 {
+    TSharedPtr<const TArray<FVirtualImuSample>,ESPMode::ThreadSafe> Imu;
 	FString RequestId,SensorId,CaptureDirectory;
 	FVirtualSensorCaptureSelection Selection;
 	EVirtualSensorKind Kind=EVirtualSensorKind::Lidar;
@@ -84,7 +90,17 @@ TArray<FVirtualSensorExportResult> WriteFiles(const FFileWriteInput& Input,FStri
 	};
 	auto SaveText=[&](const FString& Text,const FString& Extension,const FString& Subdir,EVirtualSensorExportKind Kind)->bool
 	{FTCHARToUTF8 Utf8(*Text);return Save(reinterpret_cast<const uint8*>(Utf8.Get()),Utf8.Length(),Extension,Subdir,Kind);};
-	if(Input.Kind==EVirtualSensorKind::Camera)
+	if(Input.Imu)
+    {
+        FString Csv=TEXT("configuration_revision,sequence,simulation_seconds,utc_ticks,ax_mps2,ay_mps2,az_mps2,wx_radps,wy_radps,wz_radps,qx,qy,qz,qw,x_world_flu_m,y_world_flu_m,z_world_flu_m,accel_variance,gyro_variance\n");
+        for(const auto& S:*Input.Imu)
+        {
+            if(Input.Cancellation->Cancelled)break;
+            Csv+=FString::Printf(TEXT("%d,%lld,%.9f,%lld,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.12g,%.12g,%.12g,%.12g,%.9g,%.9g,%.9g,%.9g,%.9g\n"),S.ConfigurationRevision,S.Sequence,S.SimulationSeconds,S.TimestampUtc.GetTicks(),S.SpecificForce.X,S.SpecificForce.Y,S.SpecificForce.Z,S.AngularVelocity.X,S.AngularVelocity.Y,S.AngularVelocity.Z,S.Orientation.X,S.Orientation.Y,S.Orientation.Z,S.Orientation.W,S.PositionMeters.X,S.PositionMeters.Y,S.PositionMeters.Z,S.AccelVariance,S.GyroVariance);
+        }
+        SaveText(Csv,TEXT("csv"),TEXT("IMU"),EVirtualSensorExportKind::ImuCsv);
+    }
+    else if(Input.Kind==EVirtualSensorKind::Camera)
 	{
 		const auto& Camera=Input.Camera;
 		if(Input.CameraJson&&Input.Selection.bCameraPayload&&!Input.Selection.bCameraImage)
@@ -217,6 +233,8 @@ FString UVirtualSensorFileSaveSubsystem::RequestSaveInternal(EVirtualSensorFileS
 }
 bool UVirtualSensorFileSaveSubsystem::IsRequestCurrent(const TSharedPtr<FVirtualSensorFileSaveRequest,ESPMode::ThreadSafe>& R,FString& Why) const
 {
+    if(R->ImuRequest)
+    {const bool Current=!bShuttingDown&&R->ImuSource.IsValid()&&R->ImuSource->IsRegistered()&&R->ImuSource->Generation==R->ImuGeneration&&R->ImuSource->GetWorld()==GetWorld();if(!Current)Why=TEXT("IMU removed, reconfigured or world ended");return Current;}
 	if(bShuttingDown||!R->Actor.IsValid()||R->Actor->IsActorBeingDestroyed()||R->Actor->GetWorld()!=GetWorld()) {Why=TEXT("센서 삭제 또는 실행 종료로 저장을 취소했습니다.");return false;}
 	if(const auto* Camera=Cast<AVirtualCameraSensorActor>(R->Actor.Get())) if(!IsValid(Camera->CaptureComponent)||!Camera->CaptureComponent->IsRegistered()) {Why=TEXT("Camera 캡처 컴포넌트가 종료되었습니다.");return false;}
 	if(const auto* Lidar=Cast<AVirtualLidarSensorActor>(R->Actor.Get())) if(!IsValid(Lidar->ScanComponent)||!Lidar->ScanComponent->IsRegistered()) {Why=TEXT("LiDAR 측정 컴포넌트가 종료되었습니다.");return false;}
@@ -229,7 +247,7 @@ void UVirtualSensorFileSaveSubsystem::SetState(const TSharedPtr<FVirtualSensorFi
 	if(R->Status.IsTerminal())
 	{
 		R->Status.CompletedUtc=FDateTime::UtcNow();if(State!=EVirtualSensorFileSaveState::Succeeded)R->Cancellation->Cancelled=true;
-		R->Camera.Reset();R->CameraJson.Reset();R->Lidar=FVirtualSensorFrameEnvelope();R->LidarJsonEncoder=nullptr;R->ReadyToWrite=false;
+		R->Imu.Reset();R->Camera.Reset();R->CameraJson.Reset();R->Lidar=FVirtualSensorFrameEnvelope();R->LidarJsonEncoder=nullptr;R->ReadyToWrite=false;
 	}
 	PendingNotifications.Add(R->Status);
 	if(bPublishingNotifications)return;
@@ -264,7 +282,7 @@ void UVirtualSensorFileSaveSubsystem::QueueWrite(const TSharedPtr<FVirtualSensor
 {
 	if(R->Writing||!R->ReadyToWrite||R->Status.IsTerminal()||ActiveWrites>=2)return;
 	R->Writing=true;++ActiveWrites;
-	FFileWriteInput Input;Input.RequestId=R->Status.RequestId;Input.SensorId=R->Status.SensorId;Input.Kind=R->Status.SensorKind;Input.Selection=R->Status.Selection;Input.CaptureDirectory=R->CaptureDirectory;Input.Lidar=R->Lidar;Input.ExportConfig=R->ExportConfig;Input.JsonEncoder=R->LidarJsonEncoder;Input.Camera=R->Camera;Input.CameraJson=R->CameraJson;Input.Cancellation=R->Cancellation;
+	FFileWriteInput Input;Input.RequestId=R->Status.RequestId;Input.SensorId=R->Status.SensorId;Input.Kind=R->Status.SensorKind;Input.Selection=R->Status.Selection;Input.CaptureDirectory=R->CaptureDirectory;Input.Lidar=R->Lidar;Input.ExportConfig=R->ExportConfig;Input.JsonEncoder=R->LidarJsonEncoder;Input.Imu=R->Imu;Input.Camera=R->Camera;Input.CameraJson=R->CameraJson;Input.Cancellation=R->Cancellation;
 	TWeakObjectPtr<UVirtualSensorFileSaveSubsystem> Weak(this);
 	Async(EAsyncExecution::ThreadPool,[Weak,Input=MoveTemp(Input)]() mutable
 	{
@@ -449,4 +467,16 @@ bool UVirtualSensorFileSaveSubsystem::WriteVerificationBundle(const FString& All
     if(Cancelled())Ok=false;
     if(!Ok){for(const auto& Path:Created)IFileManager::Get().Delete(*Path,false,true);IFileManager::Get().DeleteDirectory(*Target,false,false);}
     return Ok;
+}
+
+FString UVirtualSensorFileSaveSubsystem::RequestImuCsv(UVirtualImuComponent* Source,const FString& SensorId,const TArray<FVirtualImuSample>& Samples)
+{
+    auto R=MakeShared<FVirtualSensorFileSaveRequest,ESPMode::ThreadSafe>();R->Status.RequestId=FGuid::NewGuid().ToString(EGuidFormats::Digits);R->Status.SensorId=SensorId;R->Status.RequestedUtc=FDateTime::UtcNow();
+    const FString Id=R->Status.RequestId;Requests.Add(Id,R);Order.Insert(Id,0);TrimHistory();
+    int32 Pending=0;bool Duplicate=false;for(const auto& P:Requests)if(P.Key!=Id&&!P.Value->Status.IsTerminal()){++Pending;Duplicate|=P.Value->ImuSource==Source;}
+    if(bShuttingDown||!IsValid(Source)||Source->GetWorld()!=GetWorld()||Samples.IsEmpty()||Samples.Num()>24000||Pending>=8||Duplicate)
+    {SetState(R,EVirtualSensorFileSaveState::Failed,TEXT("IMU samples missing or save busy"));return Id;}
+    R->ImuRequest=true;R->ImuSource=Source;R->ImuGeneration=Source->Generation;R->Imu=MakeShared<const TArray<FVirtualImuSample>,ESPMode::ThreadSafe>(Samples);
+    R->Status.FrameId=Samples.Last().Sequence;R->Status.AcquisitionUtc=Samples.Last().TimestampUtc;R->ReadyToWrite=true;
+    SetState(R,EVirtualSensorFileSaveState::Saving,TEXT("IMU CSV saving"));QueueWrite(R);return Id;
 }

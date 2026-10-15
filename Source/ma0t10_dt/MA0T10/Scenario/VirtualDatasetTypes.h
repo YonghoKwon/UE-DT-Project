@@ -10,7 +10,7 @@ struct MA0T10_DT_API FVirtualDatasetRange
 };
 struct MA0T10_DT_API FVirtualDatasetSettings
 {
-    bool Enabled=false,CameraTruth=false,LidarFidelity=false;
+    bool Enabled=false,CameraTruth=false,LidarFidelity=false,IncludeImu=false;
     FString Name=TEXT("dataset");
     // Explicit offline post-processing only. Never saved in SensorUI/Workspace or transport config.
     FString ExportFormat=TEXT("none");

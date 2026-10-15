@@ -261,6 +261,7 @@ bool UVirtualSensorStreamPublisherComponent::IsStreamActiveOrAwaitingResume(EVir
 
 bool UVirtualSensorStreamPublisherComponent::StreamMatchesFrame(EVirtualSensorStreamKind StreamKind, EVirtualSensorKind SensorKind)
 {
+	if(StreamKind==EVirtualSensorStreamKind::Imu)return false;
 	return StreamKind == EVirtualSensorStreamKind::CameraImage
 		? SensorKind == EVirtualSensorKind::Camera
 		: SensorKind == EVirtualSensorKind::Lidar;
@@ -1021,4 +1022,15 @@ void UVirtualSensorStreamPublisherComponent::RecordDiscardedSlabFrames(const FSt
 	for(const auto& F:R.PendingFrameQueue) Record(F);
 	for(const auto& M:R.PreparedMessageQueue) Record(M);
 	for(const auto& Pair:WaitingReceipts) if(Pair.Value.StreamKey==MakeStreamKey(R.Config.StreamKind,R.Config.SensorId)) Record(Pair.Value.Message);
+}
+
+void UVirtualSensorStreamPublisherComponent::SubmitImuBatch(const FString& Id,int64 Batch,FDateTime Utc,const FString& Json)
+{
+    if(bEndingPlay)return;
+    for(const FString& Key:{MakeStreamKey(EVirtualSensorStreamKind::Imu,Id),MakeStreamKey(EVirtualSensorStreamKind::Imu,FString())})
+    {
+        auto* R=StreamRuntimes.Find(Key);if(!R||!R->Config.bEnabled)continue;
+        FVirtualSensorFrameEnvelope F;F.SensorId=Id;F.FrameId=Batch;F.TimestampUtc=Utc;F.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(Json);
+        QueueFrameForRuntime(Key,*R,F);break;
+    }
 }

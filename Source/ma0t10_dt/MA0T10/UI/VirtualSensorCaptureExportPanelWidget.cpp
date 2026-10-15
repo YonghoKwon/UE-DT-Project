@@ -978,7 +978,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 				Status.InputQueueDepth, Status.PreparedQueueDepth, Status.ReceiptQueueDepth,
 				Status.FrameGapCount, Status.RetryCount, Status.OverloadCount);
 		}
-		const FString Kind = Status.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("Camera")
+		const FString Kind = Status.StreamKind==EVirtualSensorStreamKind::Imu?TEXT("IMU"):Status.StreamKind == EVirtualSensorStreamKind::CameraImage ? TEXT("Camera")
 			: Status.StreamKind == EVirtualSensorStreamKind::PointCloud ? TEXT("Point Cloud") : TEXT("LiDAR Payload");
 		const FString Backend = Status.ActiveTransportBackend == EVirtualSensorStreamTransportBackend::TcpStompHighThroughput
 			? TEXT("Raw TCP 고성능") : TEXT("Engine STOMP 호환");

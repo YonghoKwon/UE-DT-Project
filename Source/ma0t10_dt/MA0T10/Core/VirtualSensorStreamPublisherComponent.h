@@ -31,6 +31,7 @@ public:
 
 	void SetTransportComponent(UVirtualSensorTransportComponent* InTransportComponent);
 	void SubmitFrame(const FVirtualSensorFrameEnvelope& Frame);
+    void SubmitImuBatch(const FString& Id,int64 Batch,FDateTime Utc,const FString& Json);
 	bool NeedsCompatibilityLidarOutput(const FString& SensorId) const;
     bool NeedsCompatibilityLidarOutput(const FString& SensorId,const FVirtualSlabFrameContext& Context) const;
     bool NeedsCompatibilityLidarOutputForContext(const FString& SensorId,const FVirtualSensorAcquisitionContext& Context) const;

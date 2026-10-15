@@ -15,7 +15,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.clock import Clock, ClockType
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
-from sensor_msgs.msg import PointCloud2, PointField, Image, CompressedImage, CameraInfo
+from sensor_msgs.msg import PointCloud2, PointField, Image, CompressedImage, CameraInfo, Imu
 from geometry_msgs.msg import TransformStamped
 from std_msgs.msg import String
 from rosgraph_msgs.msg import Clock as ClockMessage
@@ -23,6 +23,7 @@ from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 import stomp
 
 import wire
+import imu
 from control import AcquisitionClock
 
 DEFAULT_TOPICS = ('topic.virtual.sensor.export.0', 'topic.virtual.sensor.lidar.0', 'topic.virtual.sensor.camera.0')
@@ -109,7 +110,8 @@ class Bridge(Node):
                 conn.set_listener('bridge', Inbox(self, conn))
                 self.connection = conn
                 conn.connect(os.environ['MA0T10_STOMP_USER'], os.environ['MA0T10_STOMP_PASSWORD'], wait=True)
-                for i, topic in enumerate(self.args.topic or DEFAULT_TOPICS):
+                topics = tuple(self.args.topic or DEFAULT_TOPICS) + (('topic.virtual.sensor.imu.0',) if getattr(self.args, 'imu', False) else ())
+                for i, topic in enumerate(topics):
                     conn.subscribe(destination=topic, id=f'ros2-{i}', ack='client-individual',
                                    headers={'subscription-type': 'MULTICAST', 'consumer-window-size': '8388608'})
                 self.counts['connections'] += 1
@@ -174,6 +176,19 @@ class Bridge(Node):
         self.publisher(cloud.sensor_id, 'points_legacy' if cloud.world else 'points', PointCloud2).publish(msg)
         return cloud.sensor_id, cloud.frame, cloud.stamp, 'legacy' if cloud.world else 'pcd', len(cloud.data)
 
+    def publish_imu(self, body, headers):
+        if not getattr(self.args, 'imu', False):
+            raise wire.WireError('imu_disabled')
+        sid, samples = imu.decode(body, headers)
+        batch_frame = wire.integer(headers.get('x-frame-id'), 1, 2**53-1)
+        frame = f'ma0t10/{wire.sensor_key(sid)}'
+        for sample in samples:
+            self.publisher(sid, 'imu', Imu).publish(imu.assign(Imu(), sample, frame))
+            self.tf.sendTransform(self.transform(wire.stamp(sample['timestampUtc']), 'ma0t10_world', frame,
+                                                (sample['positionWorldFluM'], sample['orientationXyzw'])))
+            self.counts['imu_samples'] += 1
+        return sid, batch_frame, wire.stamp(samples[-1]['timestampUtc']), 'imu', len(body)
+
     def publish_camera(self, body, headers):
         c = wire.camera(body, headers)
         if wire.jpeg_dimensions(c['jpeg']) != (c['width'],c['height']):
@@ -228,7 +243,9 @@ class Bridge(Node):
                     json_schema = obj.get('schemaVersion', obj.get('schema'))
                     if schema and schema != json_schema:
                         raise wire.WireError('schema_mismatch')
-                    if json_schema == 'virtual-lidar.v1':
+                    if json_schema == 'virtual-imu.v1':
+                        result = self.publish_imu(body, headers)
+                    elif json_schema == 'virtual-lidar.v1':
                         result = self.publish_cloud(wire.lidar_json(body, headers))
                     elif json_schema == 'virtual-camera.v1':
                         result = self.publish_camera(body, headers)
@@ -322,6 +339,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--topic', action='append')
     parser.add_argument('--metrics')
+    parser.add_argument('--imu', action='store_true', help='Opt-in virtual-imu.v1 to sensor_msgs/Imu')
     parser.add_argument('--reliable', action='store_true')
     parser.add_argument('--publish-clock', action='store_true', help='Opt-in acquisition UTC high-water /clock; frame stamps stay unchanged')
     parser.add_argument('--qos-depth', type=int, default=5)

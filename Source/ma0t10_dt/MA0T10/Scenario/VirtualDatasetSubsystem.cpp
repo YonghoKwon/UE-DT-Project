@@ -1,4 +1,5 @@
 #include "VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
@@ -307,6 +308,13 @@ void UVirtualDatasetSubsystem::WriteScene()
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     if(OnSceneSnapshotForTests)OnSceneSnapshotForTests(*S->Label);
 #endif
+    if(S->Settings.IncludeImu)
+    {
+        TArray<TSharedPtr<FJsonValue>> Values;
+        for(AActor* A:{static_cast<AActor*>(S->Lidar.Get()),static_cast<AActor*>(S->Camera.Get())})
+            if(A)if(const auto* C=A->FindComponentByClass<UVirtualImuComponent>())if(C->HasSample())Values.Add(MakeShared<FJsonValueObject>(C->StatusJson()));
+        S->Label->SetArrayField(TEXT("imu"),Values);S->Label->SetStringField(TEXT("imu_pairing"),TEXT("latest fixed-step sample at scene write admission; independent timestamps; not simultaneous capture"));
+    }
     const FString Label=Json(S->Label);const FString Conditions=Json(S->Conditions);const auto LidarFrame=S->LidarFrame;const auto Paths=S->ActorPaths;const auto Names=S->ActorNames;
     const FString Root=S->Root,SensorId=S->LidarBefore.SensorId,Commit=S->Commit;const int32 Scene=S->Completed;const bool IncludeTruth=S->Settings.CameraTruth;const auto Cancelled=S->Cancelled;const double Started=S->CaptureStarted;
     float Delay=0;
