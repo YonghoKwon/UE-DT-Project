@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Components/ActorComponent.h"
+#include "VirtualImuTypes.h"
 #include "VirtualSensorRecorderComponent.generated.h"
 
 USTRUCT(BlueprintType)
@@ -35,6 +36,10 @@ class MA0T10_DT_API UVirtualSensorRecorderComponent : public UActorComponent
 
 public:
     UVirtualSensorRecorderComponent();
+    void RecordImuSamples(const FString& Id,const TArray<FVirtualImuSample>& Samples);
+    TArray<FVirtualImuSample> GetImuSamples(const FString& Id) const;
+    int64 GetImuOverflowCount(const FString& Id) const {return ImuOverflow.FindRef(Id);}
+
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorRecorder")
     void StartRecording();
@@ -79,6 +84,8 @@ public:
     FString SaveSubDirectory = VirtualSensorDefaults::RecordingDirectory;
 
 private:
+    TMap<FString,TArray<FVirtualImuSample>> ImuSamples;
+    TMap<FString,int64> ImuOverflow;
     void ReplayNextFrame();
     FString BuildSessionPath(const FString& FileNamePrefix) const;
 

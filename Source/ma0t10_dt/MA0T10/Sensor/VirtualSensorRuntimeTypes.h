@@ -16,7 +16,8 @@ enum class EVirtualSensorStreamKind : uint8
 {
 	LidarPayload UMETA(DisplayName = "LiDAR Payload"),
 	CameraImage UMETA(DisplayName = "Camera Image"),
-	PointCloud UMETA(DisplayName = "Point Cloud")
+	PointCloud UMETA(DisplayName = "Point Cloud"),
+	Imu UMETA(DisplayName = "IMU")
 };
 
 /** Explicit mapping to the neutral provider contract. */
@@ -27,6 +28,7 @@ inline EVirtualSensorAcquisitionOutput VirtualSensorAcquisitionOutput(EVirtualSe
     case EVirtualSensorStreamKind::LidarPayload: return EVirtualSensorAcquisitionOutput::LidarTelemetry;
     case EVirtualSensorStreamKind::CameraImage: return EVirtualSensorAcquisitionOutput::CameraImage;
     case EVirtualSensorStreamKind::PointCloud: return EVirtualSensorAcquisitionOutput::PointCloud;
+    case EVirtualSensorStreamKind::Imu: return EVirtualSensorAcquisitionOutput::Imu;
     }
     checkNoEntry();
     return EVirtualSensorAcquisitionOutput::LidarTelemetry;

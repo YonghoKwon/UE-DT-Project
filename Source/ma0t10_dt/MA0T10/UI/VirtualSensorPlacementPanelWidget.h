@@ -14,6 +14,7 @@ class MA0T10_DT_API UVirtualSensorPlacementPanelWidget : public UVirtualSensorPa
 {
     GENERATED_BODY()
 public:
+    bool AttachSelectedImu();
     bool SelectEquipment(AVirtualSensorActorBase* Actor);
     bool SetSelectedMeasuring(bool Measuring);
     bool SetSelectedManipulating(bool Enabled);
@@ -35,6 +36,12 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
     virtual void NativeDestruct() override;
 private:
+    TSharedRef<SWidget> BuildImuSection();
+    void RefreshImu();
+    bool ImuExpanded=false;
+    FText ImuValues;
+    FString ImuCsvRequest;
+    TSharedPtr<class SImuPlot> ImuPlot;
     UPROPERTY(Transient) TObjectPtr<UVirtualSensorSettingsPanelWidget> Controls;
     struct FOption {TWeakObjectPtr<AVirtualSensorActorBase> Actor;FString Label;FText NameText,OriginText,StateText;FLinearColor StateColor=FLinearColor::Gray;};
     TArray<TSharedPtr<FOption>> SensorOptions;

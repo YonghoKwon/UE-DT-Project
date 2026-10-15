@@ -4,6 +4,8 @@
 #include "VirtualSensorFileSaveTypes.h"
 #include "VirtualSensorFileSaveSubsystem.generated.h"
 class AVirtualSensorActorBase;
+class UVirtualImuComponent;
+struct FVirtualImuSample;
 struct FVirtualCameraLocalSaveFrame;
 struct FVirtualSensorFileSaveRequest;
 class AVirtualCameraSensorActor;
@@ -19,6 +21,7 @@ class MA0T10_DT_API UVirtualSensorFileSaveSubsystem : public UTickableWorldSubsy
 {
 	GENERATED_BODY()
 public:
+    FString RequestImuCsv(UVirtualImuComponent* Source,const FString& Id,const TArray<FVirtualImuSample>& Samples);
     /** CAM-GT-01 adapter: capture is asynchronous and uses the existing file-save admission. */
     bool RequestCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor);
     /** Worker-only, immutable verification bundle. Last file is the completion marker. */

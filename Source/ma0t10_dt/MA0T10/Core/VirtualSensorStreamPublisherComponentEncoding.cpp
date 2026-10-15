@@ -637,6 +637,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	Message.StreamKind = Runtime.Config.StreamKind;
 	Message.FrameId = Frame.FrameId;
 		Message.Json = *Frame.JsonPayload;
+    Message.TimestampUtc = Frame.TimestampUtc;
 	Message.BinaryHeaders=Frame.SlabContext.ToHeaders();
 		Message.ByteCount = FTCHARToUTF8(*Message.Json).Length();
 		Message.ConfigRevision = Runtime.ConfigRevision;
