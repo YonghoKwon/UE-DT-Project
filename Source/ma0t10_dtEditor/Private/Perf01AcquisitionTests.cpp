@@ -20,6 +20,8 @@
 #if __has_include("ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h")
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h"
 #define CAM_GT_PERF_AVAILABLE 1
+#else
+#define CAM_GT_PERF_AVAILABLE 0
 #endif
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "Misc/App.h"
