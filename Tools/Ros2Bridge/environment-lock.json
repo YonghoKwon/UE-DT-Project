@@ -1,0 +1,15 @@
+{
+  "distribution": "ma0t10-ros2",
+  "rootfs_url": "https://releases.ubuntu.com/24.04.5/ubuntu-24.04.5-wsl-amd64.wsl",
+  "rootfs_sha256": "bb415d824822c4b878125729af451a5d18fb13d1cf5cbed9a7393ad64ac6039e",
+  "ros_apt_source_version": "1.3.0",
+  "stomp_py": "8.2.0",
+  "docopt": "0.6.2",
+  "websocket_client": "1.8.0",
+  "wheel": "0.45.1",
+  "apt": {
+    "ros-jazzy-ros-base": "0.11.0-1noble.20261006.035407",
+    "ros-jazzy-foxglove-bridge": "3.6.0-1noble.20260930.003057",
+    "python3-pil": "10.2.0-1ubuntu1.3"
+  }
+}
