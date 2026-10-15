@@ -59,8 +59,9 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetCon
     Check(TEXT("데이터셋 생성 사용"),&DatasetDraft.Enabled);
     Check(TEXT("카메라 정답 포함"),&DatasetDraft.CameraTruth);
     Check(TEXT("LiDAR 사실성 포함"),&DatasetDraft.LidarFidelity);
-    auto ExportCaption=[this]()
-    {const FString Choice=DatasetDraft.ExportFormat==TEXT("none")?TEXT("없음"):DatasetDraft.ExportFormat==TEXT("coco")?TEXT("COCO"):DatasetDraft.ExportFormat==TEXT("kitti")?TEXT("KITTI 3D"):TEXT("COCO + KITTI 3D");return FText::FromString(TEXT("생성 후 내보내기 형식: ")+Choice);};
+    // Slate may query attributes each frame. Construct the four texts once, as with Check's On/Off captions.
+    auto ExportCaption=[this,None=FText::FromString(TEXT("생성 후 내보내기 형식: 없음")),Coco=FText::FromString(TEXT("생성 후 내보내기 형식: COCO")),Kitti=FText::FromString(TEXT("생성 후 내보내기 형식: KITTI 3D")),Both=FText::FromString(TEXT("생성 후 내보내기 형식: COCO + KITTI 3D"))]()
+    {return DatasetDraft.ExportFormat==TEXT("none")?None:DatasetDraft.ExportFormat==TEXT("coco")?Coco:DatasetDraft.ExportFormat==TEXT("kitti")?Kitti:Both;};
     Column->AddSlot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton)
         .IsEnabled_Lambda([Service](){auto* S=Service();return !S||!S->IsActive();})
         .Text_Lambda(ExportCaption).ToolTipText(FText::FromString(TEXT("누를 때마다 없음 / COCO / KITTI 3D / 둘 다로 바뀝니다. 카메라 정답과 별도 Python 환경이 필요합니다. 원본은 유지합니다.")))
