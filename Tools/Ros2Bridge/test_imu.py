@@ -51,6 +51,7 @@ class ImuTests(unittest.TestCase):
 
     def test_checksum_and_unknown_schema_rejected(self):
         with self.assertRaises(wire.WireError):imu.decode(json.dumps(batch()).encode(), {'checksum': 'bad'})
+        with self.assertRaises(wire.WireError):imu.decode(json.dumps(batch()).encode(), {'x-sensor-id': 'another.imu'})
         b=batch();b['schemaVersion']='virtual-imu.v2'
         with self.assertRaises(wire.WireError):self.decode(b)
 
@@ -63,12 +64,16 @@ class ImuTests(unittest.TestCase):
         env={'wire':wire,'imu':imu,'Imu':message}
         exec(compile(ast.Module(body=[method],type_ignores=[]),'<Bridge.publish_imu>','exec'),env)
         sent=[];transforms=[]
-        fake=NS(publisher=lambda *args:NS(publish=sent.append),tf=NS(sendTransform=transforms.append),
+        fake=NS(args=NS(imu=False),publisher=lambda *args:NS(publish=sent.append),tf=NS(sendTransform=transforms.append),
                 transform=lambda *args:args,counts=Counter())
-        result=env['publish_imu'](fake,json.dumps(batch()).encode(),{})
+        with self.assertRaises(wire.WireError):env['publish_imu'](fake,json.dumps(batch()).encode(),{})
+        self.assertEqual(sent,[])
+        fake.args.imu=True
+        result=env['publish_imu'](fake,json.dumps(batch()).encode(),{'x-frame-id':'42'})
         self.assertEqual(len(sent),3);self.assertEqual(len(transforms),3)
         self.assertEqual(fake.counts['imu_samples'],3)
         self.assertEqual(result[3],'imu')
+        self.assertEqual(result[1],42)  # Batch metrics must not count subframe sample IDs as missing batches.
 
 
 if __name__ == '__main__':unittest.main()

@@ -177,14 +177,17 @@ class Bridge(Node):
         return cloud.sensor_id, cloud.frame, cloud.stamp, 'legacy' if cloud.world else 'pcd', len(cloud.data)
 
     def publish_imu(self, body, headers):
+        if not getattr(self.args, 'imu', False):
+            raise wire.WireError('imu_disabled')
         sid, samples = imu.decode(body, headers)
+        batch_frame = wire.integer(headers.get('x-frame-id'), 1, 2**53-1)
         frame = f'ma0t10/{wire.sensor_key(sid)}'
         for sample in samples:
             self.publisher(sid, 'imu', Imu).publish(imu.assign(Imu(), sample, frame))
             self.tf.sendTransform(self.transform(wire.stamp(sample['timestampUtc']), 'ma0t10_world', frame,
                                                 (sample['positionWorldFluM'], sample['orientationXyzw'])))
             self.counts['imu_samples'] += 1
-        return sid, samples[-1]['sequence'], wire.stamp(samples[-1]['timestampUtc']), 'imu', len(body)
+        return sid, batch_frame, wire.stamp(samples[-1]['timestampUtc']), 'imu', len(body)
 
     def publish_camera(self, body, headers):
         c = wire.camera(body, headers)

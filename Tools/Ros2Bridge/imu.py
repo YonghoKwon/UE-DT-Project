@@ -10,6 +10,8 @@ def decode(body, headers):
         raise wire.WireError('imu_schema')
     sid = obj.get('sensorId')
     wire.sensor_key(sid)
+    if ('x-sensor-id' in headers and headers['x-sensor-id'] != sid) or ('x-sensor-type' in headers and headers['x-sensor-type'] != 'imu'):
+        raise wire.WireError('imu_identity')
     rate = obj.get('rateHz')
     if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not math.isfinite(rate) or not 100 <= rate <= 400:
         raise wire.WireError('imu_rate')
