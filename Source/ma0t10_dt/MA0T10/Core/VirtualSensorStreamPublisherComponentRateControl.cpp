@@ -38,7 +38,9 @@ bool UVirtualSensorStreamPublisherComponent::OmitPointCloudForRateControl(const 
     if(Frame.RequestedAcquisitionIntervalSeconds>0)
     {
         const double Period=Frame.RequestedAcquisitionIntervalSeconds;
-        if(Sequence.InputPeriod>0&&Period>Sequence.InputPeriod*1.25)
+        // This is an explicit configuration hint, not callback pacing. Even a
+        // 0.05 -> 0.06 change should immediately reclaim the available margin.
+        if(Sequence.InputPeriod>0&&Period>Sequence.InputPeriod+1e-6)
             R.AdmissionRatio=FMath::Min(1.0,R.AdmissionRatio*Period/Sequence.InputPeriod);
         Sequence.InputPeriod=Period;
     }

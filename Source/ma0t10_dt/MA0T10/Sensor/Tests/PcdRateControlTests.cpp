@@ -66,7 +66,15 @@ bool FPcdRateControlTest::RunTest(const FString& Case)
             TestEqual(TEXT("accepted FIFO not silently replaced"),R.Status.ReplacedPendingFrameCount,int64(0));
             TestTrue(TEXT("omission does not suspend stream"),R.Config.bEnabled&&!R.Status.bOverloadSuspended);
             if(Case==TEXT("SlowerInterval"))
-            {for(int32 I=11;I<=16;++I)Submit(I,.1);TestEqual(TEXT("0.1 immediately uses spare capacity with no lingering deadline"),R.Status.RateControlSkippedFrameCount,int64(5));TestEqual(TEXT("slower setting returns admission ratio"),R.AdmissionRatio,1.0);}
+            {
+                for(int32 I=11;I<=16;++I)Submit(I,.1);
+                TestEqual(TEXT("0.1 immediately uses spare capacity with no lingering deadline"),R.Status.RateControlSkippedFrameCount,int64(5));
+                TestEqual(TEXT("slower setting returns admission ratio"),R.AdmissionRatio,1.0);
+                Submit(17,.05);R.AdmissionRatio=.85;
+                for(int32 I=18;I<=23;++I)Submit(I,.06);
+                TestEqual(TEXT("0.06 also restores full admission immediately after congested 0.05"),R.Status.RateControlSkippedFrameCount,int64(5));
+                TestEqual(TEXT("trusted small interval increase is not treated as callback jitter"),R.AdmissionRatio,1.0);
+            }
         }
     }
     TestTrue(TEXT("rate caption states throughput matching"),SensorToolUiText::PcdRateControlled(17.5f).ToString().Contains(TEXT("서버 처리량에 맞춤")));
