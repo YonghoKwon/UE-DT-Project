@@ -63,6 +63,16 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
 - **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
 
+## IMU-01 — 가상 IMU 센서 1단계 (로드맵 #14)
+
+**구현·요청 검증 완료,독립 검토 전.** 출처: **사용자 2026-10-16**. 기준 `feat/virtual-imu` / `f5a55d2`, Runtime `a5de63c`. 기존 장비에 명시적으로 부착하는 L1 컴포넌트,100~400Hz 고정 게임 시간 재구성,FLU 비력/각속도/정답 자세,seed 기반 백색 잡음·bias random walk·scale·정렬 오차를 구현했다. 기존 DTCore 기반 배치 패널의 접힌 IMU 영역과 5Hz 그래프를 사용한다. 부착/설정은 세션 전용이며 기존 배치 저장값을 확장하거나 삭제하지 않는다.
+
+Recorder/비동기CSV, 별도 topic/schema의 StreamPublisher, 선택적 데이터셋 `imu` 라벨, AUTO-01 조회, 외부 `sensor_msgs/Imu` adapter는 각각 opt-in이다. 기존 PCD 기본·wire/golden·DTCore·자산·운영맵은 유지한다. 실제 보정/deskew,레이더,센서 플러그인화,WSL 설치/재설치는 범위 밖이다. [현재 사용법과 시간/좌표 계약](../README.md#imu-01--선택-장비에-imu-부착-기본-없음)을 따른다.
+
+집중 D3D12 6 Success(운동/시계/통계/seed/꺼짐/상한,PIE CSV·설정 변경 취소·AUTO-01,실제 데이터셋 라벨), Python38 Success, 직접1920×1080/DPI1/글자100% 부착·400Hz·노이즈·기록·CSV·전송 선택·접기 확인. 실제 Artemis445메시지/1484표본,invalid/gap/duplicate0,receipt 확인 후 소유 Broker 정상 종료. WSL 실측은 요청대로 단위 테스트로 대체했고 ROS 직렬화/DDS 실측 통과로 표시하지 않는다. release14단계·고유289 Success/skip34/실패0·WBP7·어휘·golden과 기본 꺼짐 ABAB12회2% gate 통과(FPS 저하 −0.008%,p95 0%,GT −0.487%).동일소스off/on/off/on4회에서IMU2개각400Hz·노이즈on(그래프접힘/출력off)의GT중앙값+0.223ms(+3.41%),p95동일. 최종 수치는 `Saved/Reports/IMU-01/RESULT.md`에 기록한다.
+
+한계: 게임 관측 대역폭 이상 진동은 복원하지 않으며 첫 구간/긴 hitch/순간이동은 준비·누락 처리한다. 실제1Hz·20cm 이동의무잡음fallback가속도RMSE0.337m/s²·p950.670m/s²(초기0.3초제외)는게임프레임근사한계로기록했다. MEMS는 공개 수치에 근거한 일반 가정이며 실장비 보정·온도·포화·진동 rectification·AHRS는 미구현이다.2단계는 점별 시각과 IMU pose의 보간/레버암·clock 검증 후 실제 deskew를 별도 요청한다. 관리 문서의 완료 판정은 release/성능 결과와 제한을 함께 따른다.
+
 ## EXPORT-01 — 데이터셋 표준 형식 내보내기 1단계 (로드맵 #12)
 
 - **출처:** 사용자 2026-10-15. `feat/dataset-export`, 기준 `3f57d3a`, DTCore `b2504d1`. 기본 PCD·wire를 유지하고 사용자가 선택한 파일만 생성한다.
