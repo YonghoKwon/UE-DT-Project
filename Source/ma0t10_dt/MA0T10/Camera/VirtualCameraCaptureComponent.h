@@ -69,6 +69,8 @@ public:
     bool IsGroundTruthSavePending() const;
     void SetGroundTruthPreviewDemand(bool bEnabled);
     UVirtualCameraGroundTruth* GetGroundTruth() const { return GroundTruth; }
+    /** Explicit dataset session, stopped camera only. Asynchronous RGB + CAM-GT readback. */
+    bool CaptureDatasetFrame(UVirtualCameraGroundTruth& Destination,bool IncludeTruth=true);
 
 protected:
     virtual void BeginPlay() override;

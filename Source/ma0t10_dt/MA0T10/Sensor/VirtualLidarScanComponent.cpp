@@ -77,7 +77,7 @@ void UVirtualLidarScanComponent::BuildBeamAngleTables(
 float UVirtualLidarScanComponent::DeterministicUnitRandom(int32 RayIndex, int32 ReturnIndex, uint32 Salt) const
 {
     uint32 Value = HashCombineFast(
-        HashCombineFast(GetTypeHash(DeterministicNoiseSeed), GetTypeHash(FrameId + 1)),
+        (DatasetNoiseSequence ? HashCombineFast(GetTypeHash(DatasetNoiseSequence->Key),GetTypeHash(DatasetNoiseSequence->Value)) : HashCombineFast(GetTypeHash(DeterministicNoiseSeed),GetTypeHash(FrameId+1))),
         HashCombineFast(GetTypeHash(RayIndex), HashCombineFast(GetTypeHash(ReturnIndex), Salt)));
     Value ^= Value << 13;
     Value ^= Value >> 17;
@@ -168,6 +168,7 @@ EVirtualLidarAcquisitionBackend UVirtualLidarScanComponent::ResolveAcquisitionBa
 
 bool UVirtualLidarScanComponent::IsSemanticCaptureRequested() const
 {
+    if(bDatasetSemanticDemand)return true;
     if(bEnableSemanticClassification&&ViewMode==EVirtualLidarViewMode::ActorClassColor)return true;
     if(!GetWorld())return false;
     for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)

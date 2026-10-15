@@ -38,6 +38,7 @@ public:
 	virtual bool BeginAcquisition(const FVirtualLidarDepthAcquisitionRequest& Request) override;
 	virtual EVirtualSensorBackendPollResult PollAcquisition(FVirtualLidarDepthAcquisitionFrame& OutFrame) override;
 	virtual void CancelAcquisition() override;
+    void CancelDatasetAcquisition();
 	virtual FString GetBackendStatusMessage() const override { return StatusMessage; }
 	/** Diagnostic count: staging objects are retained between serial acquisitions. */
 	uint64 GetReadbackAllocationCount() const { return ReadbackAllocationCount; }
@@ -50,6 +51,7 @@ public:
 	bool bUsePerformanceOptimizedShowFlags = true;
 
 private:
+    void CancelAcquisitionInternal(bool KeepReadbacks);
 	bool EnsureRenderTarget(const FVirtualLidarDepthAcquisitionRequest& Request);
 	void QueueReadback();
 	void ReleaseReadbackOnRenderThread();

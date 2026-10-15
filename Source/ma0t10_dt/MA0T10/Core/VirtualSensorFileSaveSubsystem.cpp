@@ -426,7 +426,15 @@ bool UVirtualSensorFileSaveSubsystem::RequestCameraGroundTruthSave(AVirtualCamer
 }
 bool UVirtualSensorFileSaveSubsystem::WriteCameraGroundTruthBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
 {
-    const FString Root=FullPath(FPaths::ProjectSavedDir()/TEXT("CameraGroundTruth"))+TEXT("/");
+    return WriteVerificationBundle(FPaths::ProjectSavedDir()/TEXT("CameraGroundTruth"),Directory,Files,Cancelled);
+}
+bool UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
+{
+    return WriteVerificationBundle(FPaths::ProjectSavedDir()/TEXT("Datasets"),Directory,Files,Cancelled,true);
+}
+bool UVirtualSensorFileSaveSubsystem::WriteVerificationBundle(const FString& AllowedRoot,const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled,bool AllowEmpty)
+{
+    const FString Root=FullPath(AllowedRoot)+TEXT("/");
     const FString Target=FullPath(Directory);
     if(!Target.StartsWith(Root,ESearchCase::IgnoreCase)||Files.IsEmpty()||IFileManager::Get().DirectoryExists(*Target)||Cancelled())return false;
     if(!IFileManager::Get().MakeDirectory(*Target,true))return false;
@@ -434,11 +442,11 @@ bool UVirtualSensorFileSaveSubsystem::WriteCameraGroundTruthBundle(const FString
     bool Ok=true;
     for(const auto& File:Files)
     {
-        if(Cancelled()||File.Name!=FPaths::GetCleanFilename(File.Name)||File.Bytes.IsEmpty()){Ok=false;break;}
+        if(Cancelled()||File.Name!=FPaths::GetCleanFilename(File.Name)||(!AllowEmpty&&File.Bytes.IsEmpty())){Ok=false;break;}
         const FString Path=Target/File.Name;Created.Add(Path);Created.Add(Path+TEXT(".partial"));
         if(!FFileHelper::SaveArrayToFile(File.Bytes,*(Path+TEXT(".partial")))||Cancelled()||!IFileManager::Get().Move(*Path,*(Path+TEXT(".partial")),false,true)){Ok=false;break;}
     }
     if(Cancelled())Ok=false;
-    if(!Ok)for(const auto& Path:Created)IFileManager::Get().Delete(*Path,false,true);
+    if(!Ok){for(const auto& Path:Created)IFileManager::Get().Delete(*Path,false,true);IFileManager::Get().DeleteDirectory(*Target,false,false);}
     return Ok;
 }

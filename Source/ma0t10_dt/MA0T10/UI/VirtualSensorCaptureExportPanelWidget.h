@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunDeliveryTypes.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetTypes.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -255,6 +256,17 @@ private:
 	TSharedRef<SWidget> BuildOwnedFileTab();
 	TSharedRef<SWidget> BuildOwnedConnectionTab();
 	TSharedRef<SWidget> BuildOwnedDiagnosticsTab();
+	TSharedRef<SWidget> BuildOwnedDatasetSection();
+	TSharedRef<SWidget> BuildOwnedDatasetControls();
+	void RefreshDatasetPresentation();
+	FVirtualDatasetSettings DatasetDraft;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    friend class FDatasetManualAcceptanceCommand;
+#endif
+	TWeakObjectPtr<AActor> DatasetSlab,DatasetLidar,DatasetCamera,DatasetLight;
+	bool bDatasetExpanded=false;
+    TWeakPtr<SExpandableArea> DatasetArea;
+	FString DatasetStatus,DatasetEstimate;
 	TSharedRef<SWidget> BuildOwnedResultsTab();
 	void BindFileService();
 	void TickOwnedUi(double Now);

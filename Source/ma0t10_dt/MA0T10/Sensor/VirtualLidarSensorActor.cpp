@@ -196,6 +196,18 @@ void AVirtualLidarSensorActor::HandleLidarFrameAcquired(int64 FrameId)
         }
     }
 }
+bool AVirtualLidarSensorActor::ApplyDatasetState(const FVirtualSensorEditableState& State,FString& Error)
+{
+    if(IsSensorRunning()||!ValidateEditableState(State,Error)||!CanEditSensorPlacement(Error))return false;
+    FVirtualSensorEditableState Allowed;ReadEditableState(Allowed);
+    Allowed.ActorTransform=State.ActorTransform;Allowed.bLidarPointTime=State.bLidarPointTime;Allowed.bLidarMotionDistortion=State.bLidarMotionDistortion;Allowed.bLidarMaterialResponse=State.bLidarMaterialResponse;
+    Allowed.CompatibilityOutputPolicy=State.CompatibilityOutputPolicy;Allowed.bExportCsvOnScan=State.bExportCsvOnScan;Allowed.bExportJsonLinesOnScan=State.bExportJsonLinesOnScan;Allowed.bExportPcdOnScan=State.bExportPcdOnScan;
+    if(!FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Allowed,&State,PPF_None)){Error=TEXT("데이터셋 중 센서 규격이 변경되었습니다");return false;}
+    SetActorTransform(State.ActorTransform,false,nullptr,ETeleportType::TeleportPhysics);
+    ScanComponent->bUseRollingPointTimestamps=State.bLidarPointTime;ScanComponent->bEnableMotionDistortion=State.bLidarMotionDistortion;ScanComponent->bEnableMaterialResponse=State.bLidarMaterialResponse;
+    ScanComponent->SetCompatibilityOutputPolicy(State.CompatibilityOutputPolicy);ScanComponent->bExportCsvOnScan=State.bExportCsvOnScan;ScanComponent->bExportJsonLinesOnScan=State.bExportJsonLinesOnScan;ScanComponent->bExportPcdOnScan=State.bExportPcdOnScan;
+    ++ConfigurationRevision;return true;
+}
 
 bool AVirtualLidarSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {

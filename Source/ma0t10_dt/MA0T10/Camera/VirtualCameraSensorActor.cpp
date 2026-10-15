@@ -158,6 +158,13 @@ bool AVirtualCameraSensorActor::ReadCollectionState(FVirtualSensorEditableState&
     if(bInteractiveManipulationActive){State.CameraResolution=SavedInteractionResolution;State.CameraCaptureInterval=SavedInteractionInterval;State.CameraCaptureMode=static_cast<EVirtualCameraCaptureMode>(SavedInteractionCaptureMode);}
     return true;
 }
+bool AVirtualCameraSensorActor::ApplyDatasetState(const FVirtualSensorEditableState& State,FString& Error)
+{
+    if(IsSensorRunning()||!ValidateEditableState(State,Error)||!CanEditSensorPlacement(Error))return false;
+    FVirtualSensorEditableState Allowed;ReadEditableState(Allowed);Allowed.ActorTransform=State.ActorTransform;Allowed.bCameraGroundTruth=State.bCameraGroundTruth;
+    if(!FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Allowed,&State,PPF_None)){Error=TEXT("데이터셋 중 카메라 규격이 변경되었습니다");return false;}
+    SetActorTransform(State.ActorTransform,false,nullptr,ETeleportType::TeleportPhysics);CaptureComponent->SetGroundTruthEnabled(State.bCameraGroundTruth);++ConfigurationRevision;return true;
+}
 
 bool AVirtualCameraSensorActor::BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request)
 {

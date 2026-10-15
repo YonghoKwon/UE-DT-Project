@@ -215,6 +215,13 @@ FVector ASlabActor::GetSizeCm() const
 	const FVector Raw=Scenario.IsValid()&&!Scenario->Rows.IsEmpty()?FVector(Scenario->Rows[0].Length,Scenario->Rows[0].Width,Scenario->Rows[0].Thickness):InitialDimensions;
 	return FVector(FSlabScenarioCodec::ToCm(Raw.X,DimensionUnit),FSlabScenarioCodec::ToCm(Raw.Y,DimensionUnit),FSlabScenarioCodec::ToCm(Raw.Z,DimensionUnit));
 }
+bool ASlabActor::ApplyDatasetGeometry(const FVector& SizeCm)
+{
+    if(bEnding||bParsing||IsSimulationActive()||!SlabMesh||SizeCm.ContainsNaN()||SizeCm.GetMin()<=0||SizeCm.GetMax()>1000000)return false;
+    const FVector MeshSize=SlabMesh->GetStaticMesh()?SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.:FVector::ZeroVector;
+    if(MeshSize.GetMin()<=UE_SMALL_NUMBER)return false;
+    SlabMesh->SetRelativeScale3D(SizeCm/MeshSize);return true;
+}
 FTransform ASlabActor::MakePose(const FSlabScenarioRow& Row) const
 {
 	const bool bPlayback=IsSimulationActive()&&MotionComponent->IsPlaybackRunning();

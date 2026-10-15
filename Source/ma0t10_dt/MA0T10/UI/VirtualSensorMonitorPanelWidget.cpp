@@ -1,3 +1,4 @@
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
@@ -626,7 +627,7 @@ bool UVirtualSensorMonitorPanelWidget::QueueCameraGpuReadbackToDisk(const FStrin
     {
         if (Readback.IsValid() && Texture.IsValid())
         {
-            Readback->EnqueueCopy(RHICmdList, Texture);
+            VirtualSensorTextureReadback::Enqueue(RHICmdList,*Readback,Texture);
         }
     });
 

@@ -27,8 +27,8 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 | 5 | 다른 프로젝트로 옮길 수 있도록 센서와 Slab·프로젝트 설정의 결합 축소 | PL-01/02/03 → PL-04 | 중립 adapter와 설정 경계를 먼저 검증한 뒤 플러그인·간편 설치로 진행 |
 
 - RT-01/02/03/04, DATA-01, LIFE-01, QA-01의 관련 회귀는 각 변경과 함께 수행한다. 기존 장기 검수 전체 종료를 배치 UX 개선 착수의 일괄 선행 조건으로 삼지 않는다.
-- **현재 보류:** CSV/JSONL/LAZ 등 다른 파일 형식의 신규 개선, JPEG·호환 JSON 송신의 추가 최적화, Camera staging 재사용 최적화. 기존 API·기능·계약은 유지하며 공통 경로 변경으로 발생한 회귀만 확인한다. IO-01·RT-09는 이력과 진행률을 보존하고 보류 상태로 관리한다.
-- 소비자 업무 ACK(RT-07), 운영 보안 확장(SEC-01), 실장비 보정(HW-01), 4+4 이상 확대는 실제 필요 조건에 따라 후속으로 착수한다. UE 로컬 학습 데이터 묶음 저장은 현재 범위에 없다.
+- **현재 보류:** CSV/JSONL/LAZ 등 다른 파일 형식의 일반 개선, JPEG·호환 JSON 송신의 추가 최적화, Camera staging 재사용 최적화. **사용자 2026-10-15 결정으로 DATASET-01의 명시적 opt-in 로컬 학습 데이터셋 범위만 보류를 해제한다.** 기본 출력은 PCD 송신이며 화면에서 데이터셋 생성과 조건을 직접 켠 경우만 새 파일을 만든다. 기존 API·기능·계약은 유지한다. IO-01·RT-09의 일반 보류·이력·진행률은 보존한다.
+- 소비자 업무 ACK(RT-07), 운영 보안 확장(SEC-01), 실장비 보정(HW-01), 4+4 이상 확대는 실제 필요 조건에 따라 후속으로 착수한다. UE 로컬 학습 데이터 묶음 저장은 DATASET-01의 별도 승인 범위다.
 - DTCore `b2504d1`을 유지하고 프로젝트 Actor·Subsystem·소유 UI에서 우선 해결한다. 공통 변경이 필요한 재현 사례는 별도 근거와 최소 변경안으로 다룬다.
 
 ### 확인된 접근성 문제와 설계 판단
@@ -48,6 +48,21 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **진행률: 90% — 구현·자동 검증 완료, 직접 조작 보류.** `fc214a7`→`5ee818b`→`a473ffa`→`040abbf`→`00e1584`, 기준 `827bae6`, DTCore 고정. 9.9m 앞면 최대 오차0.00007381m, 기본 LiDAR 규칙 일치·동일 클래스 두 Actor ID/box·이동/stop-start ID 유지·disable 취소·EXR float32/PNG mask 무손실 round-trip 통과. 1920×1080/DPI1/글자100% Slab 자동 4모드 렌더·저장 확인. Editor/Game Development·WBP7 메모리 컴파일·golden·quick8·layer 위반/allowlist0 통과. 전체 D3D12는266 Success/skip28/기존 UXR03 실패1/NotRun0였으며, 재개 시 승인된 PCD-OPT 토글 기대값11→12·설명만 수정하여 단독1 Success로 해소했다. 이후 CameraGT+UXR06은3 Success/skip2/실패0. 기본 꺼짐 첫 ABAB의 GT +2.50% 실패를 보존하고 사용하지 않는 RGB GT 갱신과 계측기의 Tick별 옵션 파싱을 줄였다. 최종 ABAB×3(12회)은 FPS −0.0011%·p95 동일·GT +0.7332%로2% gate 통과. 이 변경들의 초기 차이 기여도는 단정하지 않는다. **직접 마우스는 Windows 보안 팝업으로 중단·미조작**했으며 자동 렌더를 직접 수용으로 세지 않는다. 정답 미리보기 opt-in(1280×720·<=5Hz 수요)의 같은 소스 ABAB 비용은 GT 평균 +0.4635ms(+9.14%), GPU frame 평균 +0.3537ms(+5.83%), FPS −0.0094%, p95 동일이며30/20Hz 측정·실패/큐초과0을 유지했다. 마지막 두 GT 프레임의 readback wall latency35.51/36.66ms·decode37.40/76.77ms는 평균/p95가 아닌 관찰값이다. 개인 SaveGame9개 복원·보호308파일 hash 불변. 상세·초기 실패 원본·2단계 제안은 RESULT를 따른다.
 - **완료 조건:** 동일 소스/DTCore에서 intrinsics/known-plane depth/분류 일치/instance/bbox/default-off 및 수명 회귀, 저장 파일 무손실 decode, 관련 실제 RHI 회귀·golden·quick·layer0·WBP 메모리 컴파일, 1920×1080 직접 RGB/Depth/Seg/Instance와 저장 확인, `verify.ps1 -Level perf -BaseCommit 827bae6` 기본 꺼짐 2% gate 및 opt-in GPU/GT/readback 비용 보고. 원본은 `Saved/Reports/CAM-GT-01/RESULT.md`.
 - **제한/후속:** 기본 원근 카메라·불투명 static geometry 분류, 개별 LiDAR override 자동 공유 없음, ID는 카메라 실행 범위, ISM은 Actor 단위다. 2단계는 새 topic/schemaVersion 서버 송신·ROS2 Image/CameraInfo·3D bbox를 별도 요청으로 설계한다. 이번 작업은 DTCore/센서 플러그인/운영맵/신규 자산을 변경하지 않는다.
+
+## GPU-CRASH-01 — 일반 GPU/Camera GT 동시 캡처 안정화 (11번)
+
+- **출처:** 사용자 2026-10-15 DATASET-01 재개 승인. 데이터셋이 없는 분리 시험에서 LiDAR·Camera GT 단독과 일반 설정 변경은 각각100회 통과했으나 동시 캡처가 충돌했다.
+- **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
+- **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
+
+## DATASET-01 — 학습용 데이터셋 자동 생성 1단계
+
+- **출처:** 사용자 2026-10-15. `feat/dataset-gen`, 기준 `f499d57`, DTCore `b2504d1` 고정. 이 기능의 화면 opt-in 범위에서만 IO-01 보류를 해제하며 기본 PCD 송신·wire·정책은 유지한다.
+- **진행률: 90% — 구현·자동 검증 완료, 직접 조작 환경 보류.** 독립 seed/장면 랜덤화, 실제 Actor/immutable acquisition 라벨, 기존 PCD+CAM-GT 재사용, 단일 장면 비동기 writer와 native owned 데이터 영역을 구현했다. 기존 GPU 동시 캡처 버그는 GPU-CRASH-01로 분리 수정했다. CPU 강제 전환은 사용하지 않는다.
+- **집중 검증:** D455 FullSpec1280×720 + ML-X Native576×56 GPU100장면 반복, pause/resume, 실제 Actor truth 일치, 같은 seed의 정답 재현, 정확히 장면당 LiDAR1회, GT-off 파일/내부 readback0, 캡처/저장 중 취소·상한·원상 복원 및 Python PCD 파싱/채점. 수행별 SHA·성능/용량·메모리 cache/retained 구분은 RESULT에 기록한다.
+- **통합 결과:** Runtime `d6c41f2`, Editor/Game Development·release14단계·고유 전체278 Success/skip30/실패·NotRun0·실제 WireGolden·quick8/layer0·WBP7 memory compile 통과. 표시형1920×1080/1+1/10+30초 ABAB×3(12샘플 모두유효)의 기본 꺼짐 FPS +0.00061%·engine p95 동일·game thread −0.0761%로2% gate 통과. Native100장면2,013,729점·라벨 일치, yaw 평균0.1155°/p950.3048°/최대0.5638°, 약0.44초/장면·1.544MiB/장면. LLM 거리장42.06–42.09MiB·UObject/mesh 유지·staging GT3/LiDAR2로 고정. 초기61ms callback wall peak를 포함해 성능 한계를 기록했다. 직접 Computer Use는0x80070057로 초기+재시도2회 실패하여 입력0·보안 팝업 미조작이며, 자동 진행 화면을 직접 수용으로 세지 않는다. 보호553파일hash 불변·개인240파일 복원, 시험 데이터는샘플8장면/7.99MB만 남겼다. 상세 원본은 RESULT.
+- **계약·한계:** README 스키마를 따른다. 선택 센서/시나리오를 중지한 뒤 명시적으로 시작하며 같은 안정화 장면의 두 요청을 같은 engine frame에 시작한다. UTC/FrameId와 RGB bit 동일성을 seed로 고정하지 않는다. Camera GT의 geometry 제한·Actor 단위 ID, 균일 크기 배율, 같은 PIE 안의 resume를 유지한다. 켜짐 비용과 초기 자원 준비 peak는 숨기지 않는다.
+- **2단계 제안:** KITTI/COCO 변환, ROS bag, 7번 실행 자동화와 연계한 대량 headless/디스크 resume. DTCore·플러그인·새 자산·운영맵 저장은 변경하지 않는다.
 
 ## LIDAR-FID-01 — LiDAR 사실성 1단계
 
@@ -864,7 +879,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 **진행률: 10%** · 구현: timeout/cancel 보강 미착수 · 검증: 외부 실행 공백 조사 완료.
 
-**현재 보류:** PCD 중심 정책에 따라 LAZ 및 다른 확장자 개선을 현재 착수 목록에서 제외한다. 아래 제한과 이력은 보존하며 기존 LAZ가 개선 완료된 것으로 표시하지 않는다.
+**현재 보류:** PCD 중심 정책에 따라 일반 LAZ 및 다른 확장자 개선을 현재 착수 목록에서 제외한다. 사용자 2026-10-15의 DATASET-01 opt-in 데이터셋 예외만 별도로 허용한다. 아래 제한과 이력은 보존하며 기존 LAZ가 개선 완료된 것으로 표시하지 않는다.
 
 - **남은 조건:** timeout·cancel·hang 회수·부분 파일 정리와 fake compressor 시험을 구현한다.
 

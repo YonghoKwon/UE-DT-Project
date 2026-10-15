@@ -40,6 +40,9 @@ class MA0T10_DT_API ASlabActor : public AFacilityBase,public ISlabScenarioPlayba
 	GENERATED_BODY()
 public:
 	ASlabActor();
+	/** Explicit, transient dataset geometry; refuses scenario playback/parsing. */
+	bool ApplyDatasetGeometry(const FVector& SizeCm);
+	void RefreshDatasetAppearance() { UpdateAppearance(); }
 	virtual void Click() override;
 	bool CanApplySurfacePreset(ESlabSurfacePreset Preset,FString& Reason) const;
 	bool ApplySurfacePreset(ESlabSurfacePreset Preset,bool bLinkLidar,FString& Reason);

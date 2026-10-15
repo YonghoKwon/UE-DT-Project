@@ -1,3 +1,4 @@
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "VirtualLidarGpuDepthProjectionComponent.h"
 #include "VirtualLidarSemanticScene.h"
 #include "VirtualLidarScanComponent.h"
@@ -206,9 +207,9 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 		{
 			if (CapturedReadback.IsValid() && Texture.IsValid())
 			{
-				CapturedReadback->EnqueueCopy(RHICmdList, Texture);
+				VirtualSensorTextureReadback::Enqueue(RHICmdList,*CapturedReadback,Texture);
 			}
-			if (CapturedSemanticReadback.IsValid() && SemanticTexture.IsValid()) CapturedSemanticReadback->EnqueueCopy(RHICmdList, SemanticTexture);
+			if (CapturedSemanticReadback.IsValid() && SemanticTexture.IsValid()) VirtualSensorTextureReadback::Enqueue(RHICmdList,*CapturedSemanticReadback,SemanticTexture);
 		});
 	// A retained readback still has the previous GPU fence signalled until the
 	// render thread executes EnqueueCopy. Do not poll that old fence meanwhile.
@@ -325,9 +326,13 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 }
 
 void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisition()
+{CancelAcquisitionInternal(false);}
+void UVirtualLidarGpuDepthProjectionComponent::CancelDatasetAcquisition()
+{CancelAcquisitionInternal(!bAcquisitionActive&&!bReadbackCopyInFlight);}
+void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisitionInternal(bool KeepReadbacks)
 {
 	++AcquisitionGeneration;
-	ReleaseReadbackOnRenderThread();
+	if(!KeepReadbacks)ReleaseReadbackOnRenderThread();
 	CompletedFrame.Reset();
 	bAcquisitionActive = false;
 	bReadbackQueued = false;

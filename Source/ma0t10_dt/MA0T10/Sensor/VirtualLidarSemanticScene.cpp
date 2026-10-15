@@ -99,6 +99,12 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
             Entry.Mesh->SetMobility(EComponentMobility::Movable);
             Entry.Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             Entry.Mesh->SetCastShadow(false);
+            // Identity proxies never contribute to lighting or ray tracing.
+            // Otherwise render-state refresh also churns private-scene distance
+            // field buffers despite the unlit capture (visible in LLM DistanceFields).
+            Entry.Mesh->bAffectDistanceFieldLighting=false;
+            Entry.Mesh->bAffectDynamicIndirectLighting=false;
+            Entry.Mesh->SetVisibleInRayTracing(false);
             Entry.Mesh->SetStaticMesh(Source->GetStaticMesh());
             auto* MID = UMaterialInstanceDynamic::Create(Material, Entry.Mesh);
             MID->SetVectorParameterValue(TEXT("SemanticId"), FLinearColor(float(Entry.Id), 0, 0, 1));
@@ -123,6 +129,13 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
             }
             if (bInstancesChanged) Proxy->MarkRenderStateDirty();
         }
+        // UE 5.3 caches mesh draw bindings in these isolated preview scenes.
+        // With two semantic scenes captured concurrently the cached bindings can
+        // retain a frame-scoped uniform buffer (RHI validation reports a previous
+        // frame / null contents, then D3D12 dereferences it). Rebuild only our
+        // proxy render state before capture; source components and global cached
+        // draw-command settings remain untouched. UObject/MID/geometry are reused.
+        Entry.Mesh->MarkRenderStateDirty();
         FVirtualLidarGpuSemanticIdentity Identity;
         Identity.Label = Resolve(Source);
         if (bCaptureFidelity)

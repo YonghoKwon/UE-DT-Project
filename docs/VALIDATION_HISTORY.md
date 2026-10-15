@@ -379,3 +379,13 @@ Runtime e55fd9a(검증은 9146d6d+동등 worktree), DTCore b2504d1. 소스 수�
 - release **호출1회/전체 D3D12 실행0**: `verify.ps1 -Level release -BaseCommit 221cd2d`, manifest `Saved/Reports/verify/20261013T135533554Z/manifest.json`, 시작8 gateSuccess 후 다른 ma0t10_dt_qa의 UnrealEditor-Cmd PID87208/Uxr07Manual 검사 때문에 `Close Editor and Live Coding before feature/release`로 중단. build/feature/full/WBP/rendered vocabulary release 단계 미실행. 이름별 전체 결과 비교·표시형1920×1080/1+1/10초+30초 ABAB×3 성능은 미수행. 사용자 "막히면 멈추고 보고" 적용, 외부 프로세스는 유지.
 - 초기 test-only private Status/GetSize 접근 build 실패는 reflected fixture+component bounds로 수정했다. 첫 focused quick은 Git LF→CRLF stderr warning을 PowerShell이 오류로 처리해 실패, 계측기 EOL 정리 뒤quick8Success. 결과 정리 중 Python 기본 cp949가 상세 `[침범]`을 깨뜨린 것을 발견하여 UTF8 source literal로 복구하고 렌더 의미 assert를 추가했다. **이 마지막 2파일은 미커밋/Editor 빌드·실행 대기**이며 기존142a6ff 결과로 덮지 않는다. 재개 시 이 정정 검증을 먼저 수행한다.
 - 보호299개 중 우리 쓰기/stage 없이 외부에서 바뀐 CLAUDE.md1개 외298 hash불변. DTCore gitlink/worktree clean, Game.ini/PixelStreaming/Build.cs·uproject/운영맵 기존 상태 보존. Content 변경은 승인oxide1개뿐. 개인 SaveGame9개 원본 hash 복원, 우리Editor/PIE종료. 외부 QA와 병행됐던 functional 검증을 성능 증거로 사용하지 않는다. font125/150/OS DPI·직접 마우스 수용은 보류, manual/CHECKLIST.md 전 행미수행. 상세 `Saved/Reports/UXR/UI-02/RESULT.md`·summary·blocking-process·before-after PNG·focused/·guard/layer JSON. alpha blend 변경 없는 text 대비 fade/거리 숨김, active/bound Slab에 UI 제외 적용이라는 범위를 명시했다.
+
+
+## 2026-10-15 — DATASET-01 / GPU-CRASH-01
+
+- 기준 f499d57, Runtime d6c41f2, DTCore b2504d1. 일반 GPU+Camera GT 동시 캡처의 stale cached shader binding/CopySrc 전환을337dd10으로 수정하고, e26a60e에서 identity proxy의 불필요한 거리장 참여를 제거했다.
+- 일반4경로각100회·동시100회RHI validation 오류0·FullSpec GPU100장면×3·정답/seed/GT-off/취소/상한/복원·Python4단위검사 통과.100장면2013729점, yaw 평균0.115528°/p950.304792°/최대0.563760°.
+- Editor/Game Development·release14단계·고유전체278 Success/30명시적skip/실패·NotRun0·실제WireGolden·WBP7 memory compile(저장0)·quick8·layer0. release manifest Saved/Reports/verify/20261015T100220551Z/manifest.json.
+- 표시형1920×1080,1 D455+1 Native ML-X,10+30초,ABAB×3=12유효샘플. FPS59.998212→59.998579(+0.000611%), engine p9516.666900→16.666900ms, game-thread5.836946→5.832506ms(−0.076083%);2% gate통과. perf manifest Saved/Reports/verify/20261015T100925865Z/manifest.json.
+- 실제1920×1080/DPI1/폰트100% 자동진행화면 확인. 직접Computer Use는0x80070057로초기+재시도2회실패,입력0·보안팝업미조작. 초기cold wall61ms peak와 geometry/PIE내resume 제한을보고했다.
+- LLM before/after로distance-field 증가를제거(42.06–42.09MiB유지),readback GT3/LiDAR2·GC후UObject40465유지. 보호553파일hash불변·개인240파일복원,시험2.956GB→7.995MB/8샘플장면. 상세 Saved/Reports/DATASET-01/RESULT.md, Saved/Reports/GPU-CRASH-01/RESULT.md.
