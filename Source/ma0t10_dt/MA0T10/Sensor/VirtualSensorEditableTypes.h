@@ -145,6 +145,13 @@ struct MA0T10_DT_API FVirtualSensorEditableState
     bool bUseMultiHit = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
+    bool bLidarPointTime = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
+    bool bLidarMotionDistortion = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
+    bool bLidarMaterialResponse = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")
     int32 MaxHitsPerRay = 3;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorControl|Lidar")

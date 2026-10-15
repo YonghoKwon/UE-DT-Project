@@ -6,6 +6,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
+#include "VirtualLidarFidelity.h"
 #include "VirtualLidarScanComponent.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -111,6 +112,8 @@ public:
     FOnVirtualLidarCompatibilityRequestCompletedNative OnCompatibilityRequestCompletedNative;
 #if WITH_DEV_AUTOMATION_TESTS
     bool FreezeAcquisitionForTests=false;
+    friend class FLidarFidelityAcquisitionTest;
+    friend class FLidarFidelityGpuConversionTest;
 #endif
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
@@ -411,11 +414,19 @@ public:
 
     /**
      * Public-spec-derived scans use zero point offsets by default because the
-     * real ML-X firing order is not public. Enable only when a calibration
-     * capture establishes a rolling acquisition order.
+     * real ML-X firing order is not public. The opt-in uses an assumed raster
+     * order; it does not claim a hardware-calibrated firing schedule.
      */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
     bool bUseRollingPointTimestamps = false;
+
+    /** Opt-in tangent-plane approximation; requires rolling timestamps. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    bool bEnableMotionDistortion = false;
+
+    /** Opt-in semantic/optical response shared by CPU and GPU. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
+    bool bEnableMaterialResponse = false;
 
     /** Optional exact per-column/per-channel calibration tables. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|Fidelity")
@@ -610,6 +621,15 @@ private:
     bool BeginGpuDepthScan(double NowSeconds);
     int32 ProcessGpuDepthScan();
     void ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame);
+    void BeginFidelityAcquisition(bool bCpu);
+    void ApplyGpuFidelityPoint(FVirtualLidarPoint& Point, const FVirtualLidarDepthAcquisitionFrame& Frame, int32 DepthIndex, int32 RayIndex, float RangeCm);
+    bool ResolveRollingHit(const FHitResult& Hit, const FVector& Direction, const FTransform& Pose, double Seconds, float& Range, float& Incidence) const;
+    struct FMotionSnapshot { FVirtualSensorMotionSample Motion; FTransform Pose; };
+    TMap<TWeakObjectPtr<AActor>, FMotionSnapshot> AcquisitionTargetMotion;
+    FVirtualSensorMotionSample AcquisitionSensorMotion;
+    FVector2D FidelityDepthTangents = FVector2D::ZeroVector;
+    FTransform PreviousFidelityPose = FTransform::Identity;
+    double PreviousFidelityWorldTime = -1;
     void EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame);
     void BuildBeamAngleTables(int32 InHorizontalSamples, int32 InVerticalChannels, TArray<float>& OutHorizontalAngles, TArray<float>& OutVerticalAngles) const;
     void InitializePhysicalPoint(FVirtualLidarPoint& Point, int32 Row, int32 Col, int32 RayIndex, int32 RayCount, const FVector& LocalDirection) const;

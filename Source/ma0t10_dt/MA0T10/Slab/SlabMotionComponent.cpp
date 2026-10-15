@@ -57,3 +57,22 @@ void USlabMotionComponent::StopPlayback()
 {
 	SetComponentTickEnabled(false); bRunning=false; bPaused=false; ++PlaybackGeneration; Scenario.Reset();
 }
+
+FVirtualSensorMotionSample USlabMotionComponent::CaptureSensorMotion() const
+{
+    FVirtualSensorMotionSample Motion;
+    if (GetOwner()) Motion.PivotWorldCm = GetOwner()->GetActorLocation();
+    if (!bRunning || bPaused || !Scenario.IsValid()) return Motion;
+    // Segment derivative follows the same interpolation as the pose owner.
+    FSlabScenarioRow Row; int32 Index = 0;
+    if (!FSlabScenarioCodec::Sample(*Scenario, Elapsed, Row, Index)) return Motion;
+    const int32 Next = FMath::Min(Index + 1, Scenario->Rows.Num() - 1);
+    const auto& A = Scenario->Rows[Index]; const auto& B = Scenario->Rows[Next];
+    const double Dt = B.ElapsedSec - A.ElapsedSec;
+    if (Dt <= UE_SMALL_NUMBER) return Motion;
+    Motion.LinearVelocityCmPerSecond = PlaybackTrack.TransformVectorNoScale(FVector(
+        FSlabScenarioCodec::ToCm(B.CenterX - A.CenterX, PlaybackPositionUnit) / Dt, 0, 0));
+    Motion.AngularVelocityRadiansPerSecond = PlaybackTrack.TransformVectorNoScale(FVector(0, 0,
+        FMath::DegreesToRadians(FMath::FindDeltaAngleDegrees(A.LeftAngle, B.LeftAngle)) / Dt));
+    return Motion;
+}
