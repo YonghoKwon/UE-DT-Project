@@ -252,7 +252,13 @@ void UVirtualSensorMonitorPanelWidget::NativeTick(const FGeometry& MyGeometry, f
     if(!IsWorkspaceOwned()) PumpPendingCaptureWork();
     RefreshImageBrush();
     StatusRefreshAccumulator += InDeltaTime;
-    if (StatusRefreshAccumulator >= 0.2) { StatusRefreshAccumulator=0; RefreshCameraTruth(); RefreshStatusText(); }
+    if (StatusRefreshAccumulator >= 0.2)
+    {
+        StatusRefreshAccumulator=0;
+        // The default owned RGB view has no GT display or open GT controls to refresh.
+        if(CameraTruthDisplayMode!=0||bOwnedAdvancedMenuOpen||!IsWorkspaceOwned())RefreshCameraTruth();
+        RefreshStatusText();
+    }
 }
 
 void UVirtualSensorMonitorPanelWidget::BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp)

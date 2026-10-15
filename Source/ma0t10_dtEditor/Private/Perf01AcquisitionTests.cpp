@@ -55,12 +55,14 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
     int32 NativeClientX=0,NativeClientY=0;
     float DpiScale=0;
     bool bVisibleVerified=false;
+    bool bCameraTruthPerformance=false;
 public:
     explicit FPerf01AcquisitionCommand(FAutomationTestBase* In):Test(In)
     {
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Pairs="),Pairs);
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Seconds="),Duration);
         Pairs=FMath::Clamp(Pairs,1,2);Duration=FMath::Clamp(Duration,30,60);
+        bCameraTruthPerformance=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
     }
     bool Update() override
     {
@@ -100,7 +102,7 @@ public:
                 FString Error;if(!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Test->AddError(Error);return true;}
                 S=Applied;S.SensorId=FString::Printf(TEXT("PERF01-%s-%d"),A->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("CAM"):TEXT("LIDAR"),I);
 #if CAM_GT_PERF_AVAILABLE
-                S.bCameraGroundTruth=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
+                S.bCameraGroundTruth=bCameraTruthPerformance;
 #endif
                 S.CameraCaptureMode=Pairs==2?EVirtualCameraCaptureMode::PreviewOnly:EVirtualCameraCaptureMode::Payload;
                 S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
@@ -133,7 +135,7 @@ public:
             Started=Last=Now;return false;
         }
 #if CAM_GT_PERF_AVAILABLE
-        if(FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")))
+        if(bCameraTruthPerformance)
             for(const auto& Weak:Sensors)if(auto* C=Cast<AVirtualCameraSensorActor>(Weak.Get()))C->SetGroundTruthPreviewDemand(true);
 #endif
         const double Elapsed=Now-Started;
