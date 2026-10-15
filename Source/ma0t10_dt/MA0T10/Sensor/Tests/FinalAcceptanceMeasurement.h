@@ -16,13 +16,22 @@ class FFinalAcceptanceMeasurement
     static FString Key(const FVirtualSensorTransportObservation& O){return FString::Printf(TEXT("%d|%s|%lld"),int32(O.Kind),*O.SensorId,O.FrameId);}
 public:
     ~FFinalAcceptanceMeasurement(){if(Raw.IsValid())Raw->OnTransportObservation.Remove(Handle);if(UiHost.IsValid())UiHost->OnUiReceiveCompletedNative.Remove(UiHandle);}
-    bool IsContiguousAndComplete() const
+    bool IsAcceptedSetComplete() const
     {
         if(LedgerOverflow)return false;
-        TMap<FString,TArray<int64>> Ids;
         for(const auto& P:Rows)
         {
             const auto& R=P.Value;if(R.Submit<=0||R.Receipt<=0||R.Consumed<=0||!R.ClockValid||(RequireUi&&!R.UiValidated))return false;
+        }
+        return !Rows.IsEmpty();
+    }
+    bool IsContiguousAndComplete() const
+    {
+        if(!IsAcceptedSetComplete())return false;
+        TMap<FString,TArray<int64>> Ids;
+        for(const auto& P:Rows)
+        {
+            const auto& R=P.Value;
             Ids.FindOrAdd(FString::Printf(TEXT("%d|%s"),int32(R.Accepted.Kind),*R.Accepted.SensorId)).Add(R.Accepted.FrameId);
         }
         if(Rows.IsEmpty())return false;

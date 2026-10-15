@@ -192,6 +192,11 @@ public:
 	FVirtualSensorReceiveEvent OnReceived;
 	FVirtualSensorTransportObservationEvent OnTransportObservation;
 	int64 GetDroppedReceiveEvents() const;
+	/** Opt-in pressure probe: actual would-block responses, not inferred backlog. */
+	int64 GetSocketWouldBlockCount() const;
+	int32 GetActualSocketSendBufferBytes() const;
+	const FVirtualSensorHighThroughputProfile& GetActiveProfile() const {return ActiveProfile;}
+	int64 GetSuppressedConsoleLogCount() const {return SuppressedConsoleLogs;}
 
 	static bool CanUseRawTcp(const FString& BrokerUrl, FString* OutReason = nullptr);
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);
@@ -209,6 +214,9 @@ private:
 	FVirtualSensorHighThroughputTransportWorker* Worker = nullptr;
 	TMap<FString, FVirtualSensorStreamTelemetry> TelemetryByKey;
 	FVirtualSensorHighThroughputProfile ActiveProfile;
+	void LogDiagnostic(int32 Kind,const FString& Message);
+	double NextDiagnosticLogSeconds[4]={};
+	int64 PendingDiagnosticLogs[4]={},SuppressedConsoleLogs=0;
 	FString ActivePasscode;
 	FVirtualSensorReceiveSelection ReceiverSelection;
 };

@@ -6,6 +6,20 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-15 PCD-OPT — 전송률 자동 조절·혼잡 대기·PIE hitch 조사
+
+- 사용자2026-10-15: 적용 대상은 운영 서버 PC의 Editor PIE이며 화면 전체/Slab 멈춤이다. 로그/시나리오/사양 제공 없이 근거 있는 추정 수정을 승인했다. 폴더 `C:\Unreal Projects\ma0t10_dt`, 기존 `perf/pcd-transport-opt`, 기준291b4f9 / DTCore b2504d1. 새 branch/worktree·push/PR/merge 없음.
+- `7275b3d`: 기본 on/off PCD admission 조절, 균등 생략 카운터·진단·집계 로그·상태바, Slab 기존 출력 실패 경로, 소켓/이벤트 대기와 반복 로그 제한. `2d18939`: .05→.06처럼 작은 설정 변경도 여유를 즉시 회복하는 회귀. `8b8114a`는 사전 hitch/소켓 계측, `2b9de02`는 실제 affinity 유지·종료 경합 보완, `2b1388a`는 실제 viewport/글자 배율 기록 및 크기 assertion이다. 기존 wire/golden·Blueprint 시그니처·SaveGame 버전·Raw20프레임/64MiB/128MiB 상한은 유지했다.
+- 1280×720·글자100%의 동일 계측 binary에서 기존 대기/admission 복원과 조절을 비교했다. 제한18.5MB/s·receipt RTT10ms .05초5분: 기존 중단8/8.997Hz·9.485MB/s → 조절 중단0/17.303Hz·18.345MB/s/최대 receipt 공백96ms. .06/.1은 양쪽 모두 생략0/16.667Hz·17.664MB/s,10Hz·10.598MB/s. Artemis .05초5분 양쪽20Hz·21.196MB/s/생략0, .06/.1도 생략0. 이 비교는 순수291b4f9 binary나1080p 증거와 다르다.
+- 새 PIE helper가 해상도 환경변수 없이1280×720을 사용한 것을 직접 창 관찰로 확인해 실행기를 수정했다. **실제1920×1080 재확인:** .05초5분 중단/과부하/hitch0,17.353Hz·18.398MB/s,최대 receipt 공백95ms,생략 누계818. 4논리 CPU·시나리오 변경12회5분도 중단/과부하/hitch0,16.957Hz·17.985MB/s,공백218ms,생략802. 실제 viewport와 글자100%를 result.json에서 확인했다.
+- 64KiB 실제 송신 소켓·6초/10초 read blackout·시나리오 변경12회·미리보기의1080p 시험: 2논리 CPU hitch0/max124.70ms·과부하0, 4논리 CPU+호환 JSON hitch0/max93.88ms·과부하0. 블랙아웃의6초 receipt 공백은1초 링크 기준과 구분한다. 저코어 acquisition은 낮아져20Hz 처리량 증거로 세지 않는다. 기존1280 폴링2CPU에서326ms(GC313ms) hitch1회, 재시험0회였으므로 운영3초 주기 원인으로 확정하지 않았다. would-block은 같은1280/2CPU 비교에서562만→10,198회; 전체 CPU는1.757→1.767개 상당으로 비슷했고 wall frame5064→5418이었다.
+- mutex 내부 socket I/O0, GT mutex 대기 sub-ms, 주기 변경 중 StopWorker/CancelRun0을 기록했다. Native API 경로의 EditorProperty/SettingsUi/UiSave0을 실제 Editor Details/직접 UI 검증으로 확대하지 않는다. 데이터 필수는 잠금4회 거부·실패 후8회 적용/hitch0이며 생략을 성공 처리하지 않았다. 관찰 실행은 매초 Slab 시간 진행을 확인했다.
+- 관련 D3D12 회귀45 Success / opt-in skip8 / 실패0(`Saved/Reports/verify/20261015T013234510Z/manifest.json`), 새 조절6·재개7·SlabReliability·WireGolden 포함. Node11, `run-faults.ps1` 기존8+bandwidth9개 Success. Native ledger Artemis1200/제한 링크1044 accepted 모두 receipt·소비자 수신. socket-only NullRHI와 실제 RHI를 구분했다. 최종 Editor/Game Development/Shipping 빌드와 quick8(`20261015T020411650Z`) 통과.
+- **직접 UI 보류:** computer-use로 PIE를 관찰했으나 Windows 보안 UnrealGame 네트워크 권한 팝업 때문에 입력0. 보안 권한 UI 조작을 금지한 스킬 규칙에 따라 사용자 수동 처리/보류를 요청했다. `Saved/Reports/PCD-OPT/manual/phase2/CHECKLIST.md`, blocked-security-0.png. 자동 API12회는 마우스 통과가 아니다.
+- `verify.ps1 -Level perf -BaseCommit 291b4f9` Success(`Saved/Reports/verify/20261015T020419113Z/{manifest.json,perf/manifest.json}`): candidate2b1388a /1Camera+1LiDAR/실제표시1920×1080 D3D12/10초+60초/ABAB×3/12회유효. 중앙값 FPS59.9905→59.9847(−0.0096%),engine p95 16.6669→16.6669ms(0%),GT6.2053→6.3153ms(+1.7716%); 각2% gate 통과. 테스트 종료 후 archive 소유 폴더 정리, Editor0. 문서 커밋은 같은 runtime code의 결과다.
+- Artemis는 세션 소유 시작 후 정상stop·AMQ221002·Java 종료·61616 해제를 확인했다. 기존 batch NO_ARTEMIS_OOME_DUMP stderr는 cmd 경유 정상stop으로 처리했고 인스턴스 파일을 편집하지 않았다. 설정 modification time 변화0. 자격 증명/body 기록 없음. 보호300중299 hash불변, Claude 전용 메모1 외부 변경은 보존했다. DTCore/gitlink clean, Config/Game.ini·PixelStreaming·운영맵·빈 값 SensorTransport.ini(550bytes) 보존, 개인SaveGame9/9복원·추가0, Editor UI설정 복원·61616/61618 listener0(`phase2/final-audit.json`).
+- 크기 축소는 제안만: miss point 이미 제외, XYZ16bit1cm는18.2%/약.867MB 산술. 메모리 합성자료 zlib1/6은57.4%·14.48ms /49.8%·21.34ms, 압축 불가능 대조군100.03%·19~20ms였다. 실제 장면·서버 CPU·소비자 비용은 미측정이며 wire에는 구현하지 않았다. 상세 `Saved/Reports/PCD-OPT/RESULT.md`.
+
 ## 2026-10-14 UXR-12 CLI 시각 다듬기 — 직접 마우스·release·성능 인계
 
 - 기준 폴더 `C:\Unreal Projects\ma0t10_dt`, 브랜치 `codex/post-program-followups`, 시작 `fe20bcbd7c3668f721a285309d51361e2bb1c6f8`, Runtime `399ea46`, DTCore `b2504d1dfea5659f832ff0d750515edee146a28e`. `7b83864`(토큰·레일·머리) → `9c07108`(폼·카드·버튼·관련 기대값) → `399ea46`(배치 저장 동작 묶음). 소스/테스트21개 파일 수정, 이동/새 source/새 자산0. 별도 문서 커밋으로 관리 결과를 기록한다.

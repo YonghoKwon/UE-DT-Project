@@ -80,3 +80,46 @@ test('subscription echo preserves embedded NUL body', async t => {
   await c.until(() => c.wire().includes(Buffer.from('MESSAGE')) && c.wire().includes(Buffer.from('receipt-id:r')));
   assert.ok(c.wire().includes(body));
 });
+test('paced reads cap sustained bytes independently of TCP chunks and record throughput', async t => {
+  const rate = 1e6;
+  const c = await client(t,{maxReadMbps:1, rttMs:20, heartbeatMs:0, requireHeartbeatMs:0});
+  c.socket.write(frame('CONNECT'));
+  await c.until(() => c.wire().includes(Buffer.from('CONNECTED')));
+  const started = performance.now();
+  c.socket.write(frame('SEND',{'content-length':2e6,receipt:'paced'},Buffer.alloc(2e6)));
+  await c.until(() => c.wire().includes(Buffer.from('receipt-id:paced')),5000);
+  const elapsed = (performance.now()-started)/1000;
+  assert.ok(elapsed >= 1.95 && elapsed < 3.5, `2MB at 1MB/s plus RTT: ${elapsed}s`);
+  const samples = c.events.filter(e => e.event==='sample');
+  assert.ok(samples.length >= 2);
+  assert.ok(samples.every(e => e.readMBps <= rate/1e6*1.03));
+  assert.ok(samples.some(e => e.readMBps > .8));
+});
+test('paced read pause cannot be resumed by a rate timer; RTT is additive', async t => {
+  const c = await client(t,{maxReadMbps:2,pauseMs:200,rttMs:80,receiptDelayMs:20});
+  c.socket.write(frame('CONNECT'));
+  await c.until(() => c.events.some(e => e.event==='read-paused'));
+  const started = performance.now();
+  c.socket.write(frame('SEND',{'content-length':1000,receipt:'after-pause'},Buffer.alloc(1000)));
+  await new Promise(resolve => setTimeout(resolve,100));
+  assert.ok(!c.wire().includes(Buffer.from('after-pause')));
+  await c.until(() => c.wire().includes(Buffer.from('receipt-id:after-pause')));
+  assert.ok(performance.now()-started >= 270);
+});
+test('18.5MB/s cap reaches configured production speed on large binary frames', async t => {
+  const c = await client(t,{maxReadMbps:18.5,heartbeatMs:0,requireHeartbeatMs:0});
+  c.socket.write(frame('CONNECT'));
+  await c.until(() => c.wire().includes(Buffer.from('CONNECTED')));
+  const started=performance.now();
+  c.socket.write(frame('SEND',{'content-length':50e6,receipt:'large'},Buffer.alloc(50e6)));
+  await c.until(() => c.wire().includes(Buffer.from('receipt-id:large')),6000);
+  const rate=50e6/((performance.now()-started)/1000)/1e6;
+  assert.ok(rate>17.5 && rate<18.8, `measured MB/s=${rate}`);
+});
+test('recurrent read pauses repeat on one live connection',async t=>{
+  const c=await client(t,{pauseMs:60,pauseEveryMs:120,heartbeatMs:0,requireHeartbeatMs:0});
+  c.socket.write(frame('CONNECT'));
+  await c.until(()=>c.events.filter(e=>e.event==='read-resumed').length>=3,1200);
+  assert.equal(c.events.filter(e=>e.event==='connected').length,1);
+  assert.ok(c.events.filter(e=>e.event==='read-paused').length>=3);
+});

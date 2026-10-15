@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Kismet/GameplayStatics.h"
@@ -99,6 +100,7 @@ UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOr
 
 bool UVirtualSensorUiPreferencesSaveGame::Save(UVirtualSensorUiPreferencesSaveGame* Preferences)
 {
+    FVirtualSensorHitchScope Scope(EVirtualSensorHitchSection::UiSave);
     return Preferences && UGameplayStatics::SaveGameToSlot(Preferences, SlotName, UserIndex);
 }
 

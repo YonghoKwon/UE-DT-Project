@@ -24,7 +24,7 @@
 | 화면 구성(UX) | 작업 사이드바·카드·데이터5탭, 배치/저장·재생·A/B·파일 저장의 주요 직접 경로 확인. UXR-07에서 긴 경고/ID·빈 장비·근거리 기즈모 가독성 보완 | 사용자 15분 체험·확인(USER_TRIAL), 자유 배치 제목 드래그 직접 확인, 서버 필요 보류 27건. 상대 성능은 교차 측정으로 통과, 절대 성능 재확인은 PERF-01 |
 | 새 맵 적용 (MAP-01) | Rig 하나·Slab 없음 안내·DTCore 맵 점검·새 맵 2개, Editor/Game·release 14단계·242 Success/skip20·16장·성능2% gate 통과 | 직접 마우스·DPI 수용은 UXR-07로 이관, DTCore 업무 연결 조회 API 제한; 독립 검토 전 90% |
 | 센서 배치·위치 저장 | PIE 추가/복제/소유 삭제·북마크·Undo/Redo·전체 배치 저장/복원 구현, 자동화와 주요 직접 저장/복원 확인 | 자유 배치 입력·전체 직접 조합·첫 사용자 수용·DPI 전수 (UX-01 70%, UI-03 70%) |
-| PCD 송신 | 기존 2+2 PCD-only 검증·사전 점검 및 PCD-RESUME 기본 자동 재개 구현. 관련 회귀38·실제 worker 장애8·직접 PIE·최종 상대 성능2% gate 통과 | 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
+| PCD 송신 | PCD-OPT 기본 자동 전송률 조절·생략 집계·소켓 대기 구현. 실제1080p 제한 링크20Hz 5분 과부하0·gap95ms, 시나리오 변경12회도 과부하0/hitch0. Artemis20Hz 생략0 | 구현·CLI gate 완료. 291b4f9 대비 perf: FPS −0.01%·p95 동일·GT +1.77% 통과. 운영 PIE 멈춤 원인 미확정; 직접 UI는 Windows 보안 팝업으로 보류. 대표 장면·4+4·60분·부하 환경 (RT-05 70%, RT-08 40%) |
 | 절대 성능 (PERF-01) | 미송신 표시/오프스크린 1+1·2+2 ABAB×3 및 초기 GT 초과 조건 재측정 완료. FPS·engine p95 회귀 없음; 재측정 GT +1.63/+1.52/+1.42%로 기준 안. Editor/Game·quick8·D3D12 242 Success/skip22·WBP7 통과 | 초기 GT 초과 원본·이분 탐색·Insights 근거 보존. 실제 2+2 PCD 송신은 Broker 환경 보류; 기존 송신 포함 기록과 조건 다름. `Saved/Reports/PERF/PERF-01/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
@@ -336,6 +336,8 @@ Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한�
 
 **receipt는 Broker 수락이다.** 내부/외부 소비자 수신 검증, 최종 업무 처리 ACK, 로컬 파일 완료는 각각 별개다. 정상 연결 중 FIFO여도 네트워크 단절 중 프레임을 디스크에 영구 보존하는 기능은 아니다. Raw worker reservation은 입력부터 receipt/최종 실패까지 유지된다. 기본 전역 128MiB·스트림 64MiB 및 Camera 8/기타 20프레임을 넘으면 명시적 과부하로 거부한다. 재시도는 같은 body를 중복 집계하지 않는다.
 
+**PCD 전송률 자동 조절(PCD-OPT, 사용자 승인 2026-10-15):** Raw TCP PCD는 기본으로 예약 프레임/bytes와 준비 큐를 감시하며, 25% 이상 누적될 때 직렬화 전 신규 프레임을 균등하게 생략해 배수 처리량에 맞춘다. 여유가 생기면 원래 전송률로 복귀하며 측정 주기는 유지한다. `bAutoAdjustPointCloudSendRate` 기본값은 `true`; 데이터 패널의 **고급 → PCD 전송률 자동 조절**에서 끌 수 있다. 상태바는 **"PCD 전송률 조절 중 · 서버 처리량에 맞춤 (n Hz)"**, 진단/로그는 별도 생략 수를 표시한다. 이미 접수한 프레임의 FIFO와 예약 상한은 유지하며, 과부하 중단·자동 재개는 최후 안전장치다. 생략은 기존 Slab 출력 실패로 기록하므로 **데이터 필수 실행은 실패 판정을 유지**한다. receipt를 업무 성공으로 바꾸거나 생략을 성공 처리하지 않는다. wire/SaveGame 버전은 유지한다.
+
 **PCD 과부하 자동 재개(PCD-RESUME, 사용자 결정 2026-10-14):** PCD 발행 큐 과부하는 사용자 중지와 구분해 일시 중단한다. `UVirtualSensorStreamPublisherComponent::bAutoResumePointCloudAfterOverload`는 기본 `true`이며, 초기 쿨다운 `PointCloudOverloadResumeDelaySeconds=2`초, 연속 과부하는 2→4→8→16→30초로 늘어난다(`PointCloudOverloadMaxResumeDelaySeconds=30`, 실제 상한 30초). 쿨다운 뒤 이전 직렬화와 해당 PCD의 worker 예약(소켓 쓰기·receipt 포함)이 모두 비고, 전역 예약 bytes가 한도의 절반 이하이며, 연결·전송 지연이 회복되어야 재개한다. 전체 센서 PCD 설정은 모든 PCD 예약이 비어야 한다. 끊김 중에는 보류하고 연결 회복 뒤 다시 확인한다. WSS는 기존 Engine STOMP 연결과 해당 receipt 배수 조건을 사용한다.
 
 재개는 새 acquisition 프레임부터이며 frame id·시퀀스·PCD bytes를 초기화하거나 폐기한 프레임을 재전송하지 않는다. 중단 때 폐기한 프레임은 Slab failure와 과부하 폐기 수에 남긴다. 실제 receipt가 30초간 계속 진행되면 백오프를 초기화한다(`PointCloudOverloadBackoffResetSeconds=30`); 연결된 채 대기한 시간만으로 초기화하지 않는다. 사용자 중지·송신 끄기·스트림 재설정·종료는 재개 예약을 취소한다. 옵션을 끄면 재시작 전까지 중지하는 기존 정책이다. 상태바는 **"PCD 과부하 · 잠시 후 자동 재개"**, 진단은 최소 대기시간·재개 횟수·폐기 수를 표시하며 실제 연결 경고와 구분한다. 설정은 component UPROPERTY, 재개 상태는 실행 중 임시값이며 기존 Blueprint 함수·세션 SaveGame 버전은 유지한다.
@@ -462,11 +464,13 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME 적용)
+### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT 적용)
 
 gate는 `Tests/`를 제외한 `.h/.cpp` 252개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다.
 
 PCD-RESUME의 과부하 예약·재개·배수 확인은 기존 L1 StreamPublisher/HighThroughputTransport에 두고, L3 상태바·진단은 L1의 추가 실행 상태를 읽는다. 새 모듈·플러그인·자산·DTCore 변경 없이 위반·allowlist **0/0**을 유지한다. 기존 Blueprint 시그니처와 SaveGame 버전, PCD/wire golden 14파일 바이트는 유지하며 검증 범위는 `Saved/Reports/PCD-RESUME/RESULT.md`를 따른다.
+
+PCD-OPT의 전송률 조절·소켓 대기·hitch 구간 계측도 기존 L1 Core에 두며, L3 UI가 조절 상태를 표시한다. opt-in 재현 조립은 L3의 시험용 probe이고 기본 실행에서는 생성하지 않는다. DTCore·새 모듈·플러그인·자산 추가 없이 layer allowlist **0**을 유지한다. 운영 PIE 화면 멈춤의 원인 확정 여부와 제한 링크/저코어 비교 증거는 `Saved/Reports/PCD-OPT/RESULT.md`를 따른다.
 
 UXR-10의 resize·하위 화면 복귀는 L3의 기존 `UDxWidget` 패널/Workspace 안에서 처리한다. Runtime 파일 수와 위반·allowlist **0/0**을 유지하고 새 모듈·플러그인·자산·저장 schema를 추가하지 않는다. 집중 D3D12 2 Success, 관련 회귀 49 Success/3 조건부 skip, WBP7 메모리 컴파일·quick8 통과이며 직접 마우스·release·성능은 요청에 따라 보류다. 근거는 `Saved/Reports/UXR/UXR-10/RESULT.md`다.
 

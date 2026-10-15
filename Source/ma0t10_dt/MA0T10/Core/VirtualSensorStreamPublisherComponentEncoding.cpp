@@ -529,6 +529,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 				return;
 			}
 		}
+		if (OmitPointCloudForRateControl(StreamKey,Runtime,Frame,Now)) return;
 		const bool bNoLoss = Runtime.Config.DeliveryMode == EVirtualPointCloudDeliveryMode::ConnectedNoLoss;
 		if (!Runtime.bSerializationInFlight)
 		{

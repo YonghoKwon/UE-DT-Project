@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -185,6 +186,7 @@ void UVirtualSensorSchedulerSubsystem::CompactRegistrations()
 
 void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorSchedule);
     if (GetWorld() && GetWorld()->IsPaused())
     {
         CompactRegistrations();

@@ -20,6 +20,8 @@ bool FPointCloudOverloadSocketTest::RunTest(const FString&)
     auto* Lidar = World->SpawnActor<AVirtualLidarSensorActor>();
     Coordinator->RegisterSensorActor(Lidar);
     auto* P = Coordinator->StreamPublisherComponent.Get();
+	// Deliberately exercise the final overload/resume safety net.
+	P->bAutoAdjustPointCloudSendRate=false;
     auto* T = Coordinator->SharedTransportComponent.Get();
     auto* Raw = World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     FVirtualSensorTransportProfile Profile;

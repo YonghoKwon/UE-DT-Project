@@ -13,3 +13,6 @@ $cases=@(
     @{Name='overload-resume';Seconds=45;Options=@('--heartbeat-ms=5000','--require-heartbeat-ms=5000','--pause-after-ms=1000','--pause-ms=20000')}
 )
 foreach($case in $cases){$folder=if($case.Folder){$case.Folder}else{$case.Name};& "$PSScriptRoot/run-worker.ps1" -Case $case.Name -Seconds $case.Seconds -ServerOptions $case.Options -ReportDirectory (Join-Path $ReportDirectory $folder)}
+# Exercise publisher admission over an actual socket, in addition to the raw
+# worker faults above. The separate PCD-OPT acceptance run lasts five minutes.
+& "$PSScriptRoot/run-package.ps1" -EditorPie -Case Limited -Seconds 60 -SendBufferBytes 16777216 -KeepDevices -AcceptRateControl -RequireNoHitch -ReportDirectory (Join-Path $ReportDirectory 'bandwidth-admission')

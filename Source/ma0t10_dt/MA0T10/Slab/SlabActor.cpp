@@ -1,4 +1,5 @@
 #include "SlabActor.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
 #include "SlabDataSyncComponent.h"
 #include "SlabMotionComponent.h"
@@ -75,6 +76,7 @@ void ASlabActor::EndPlay(const EEndPlayReason::Type Reason)
 bool ASlabActor::IsSimulationActive() const { return Status.State==ESlabSimulationState::Playing||Status.State==ESlabSimulationState::Paused||Status.State==ESlabSimulationState::Preparing; }
 void ASlabActor::Tick(float DeltaTime)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SlabTick);
 	Super::Tick(DeltaTime);if(bEnding||!GetWorld())return;
 	const auto* Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();const auto S=Session->GetSlabSensorSessionStatus();
 	if(Status.State==ESlabSimulationState::Preparing)

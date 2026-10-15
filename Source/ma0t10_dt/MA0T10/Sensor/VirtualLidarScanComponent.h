@@ -85,6 +85,9 @@ class MA0T10_DT_API UVirtualLidarScanComponent : public USceneComponent, public 
     GENERATED_BODY()
 
 public:
+#if WITH_EDITOR
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
     UVirtualLidarScanComponent();
 
 protected:

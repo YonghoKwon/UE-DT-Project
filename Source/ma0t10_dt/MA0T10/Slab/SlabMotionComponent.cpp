@@ -1,4 +1,5 @@
 #include "SlabMotionComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
 #include "GameFramework/Actor.h"
 USlabMotionComponent::USlabMotionComponent()
@@ -41,6 +42,7 @@ bool USlabMotionComponent::ApplyCurrentPose()
 }
 void USlabMotionComponent::AdvancePlayback(double DeltaSeconds)
 {
+    FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SlabMotion);
 	if(!bRunning||bPaused||!Scenario.IsValid()||!FMath::IsFinite(DeltaSeconds)||DeltaSeconds<0) return;
 	const uint64 Generation=PlaybackGeneration;
 	Elapsed=FMath::Min(Elapsed+DeltaSeconds,Scenario->DurationSec);

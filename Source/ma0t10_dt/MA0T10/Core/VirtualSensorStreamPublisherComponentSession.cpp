@@ -242,10 +242,10 @@ bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutputForCon
         }}
     return false;
 }
-void UVirtualSensorStreamPublisherComponent::RecordSlabFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId)
+void UVirtualSensorStreamPublisherComponent::RecordSlabFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId,const FString& Reason)
 {
 	if(RunId.IsEmpty()) return;
-	if(auto* Provider=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))Provider->RecordAcquisitionOutputFailure(RunId,SensorId,VirtualSensorAcquisitionOutput(Kind),FrameId,TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
+	if(auto* Provider=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))Provider->RecordAcquisitionOutputFailure(RunId,SensorId,VirtualSensorAcquisitionOutput(Kind),FrameId,Reason);
 	if(!SlabRunFailures.Contains(RunId)&&SlabRunFailures.Num()>=32)
 		for(auto It=SlabRunFailures.CreateIterator();It;++It) if(It.Key()!=RunId) { It.RemoveCurrent(); break; }
 	SlabRunFailures.FindOrAdd(RunId).Add(SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId));

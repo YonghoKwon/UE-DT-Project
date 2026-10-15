@@ -19,6 +19,9 @@ class MA0T10_DT_API AVirtualLidarSensorActor : public AVirtualSensorActorBase
 
 public:
     AVirtualLidarSensorActor();
+#if WITH_EDITOR
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DigitalTwin|VirtualLidar")
     TObjectPtr<UVirtualLidarScanComponent> ScanComponent;
