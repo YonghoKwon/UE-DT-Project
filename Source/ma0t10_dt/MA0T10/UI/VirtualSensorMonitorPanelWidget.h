@@ -622,6 +622,10 @@ private:
 	FText OwnedHeightMinText,OwnedHeightMaxText,OwnedSliceWidthText,OwnedPointSizeText;
 	TWeakObjectPtr<AVirtualSensorActorBase> OwnedPreviewTarget;
 	AVirtualSensorActorBase* GetOwnedMonitoredActor() const;
+    uint8 CameraTruthDisplayMode=0;
+    FText CameraTruthStatus;
+    TSharedRef<SWidget> BuildCameraTruthControls();
+    void RefreshCameraTruth();
 	void RefreshOwnedMonitorText();
 	FString BuildOwnedMeasurementWarning() const;
 	bool StartOwnedMonitoredEquipment();

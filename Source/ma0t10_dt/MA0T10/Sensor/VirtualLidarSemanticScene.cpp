@@ -32,9 +32,14 @@ UTextureRenderTarget2D* FVirtualLidarSemanticScene::GetTarget() const { return C
 
 bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const FVirtualLidarDepthAcquisitionRequest& Request, int32 Width, int32 Height)
 {
+    return Capture(Scan.GetWorld(), Scan.GetOwner(), Request.AcquisitionTransform, Request.HorizontalFovDegrees, Width, Height,
+        [&Scan](const UPrimitiveComponent* Component){ return Scan.ResolveSemanticLabelForComponent(Component); }, false);
+}
+
+bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter)
+{
     auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"));
     if (!Material) { Status = TEXT("GPU 분류 재질 누락: 미분류 (센서 측정 유지)"); return false; }
-    UWorld* World = Scan.GetWorld();
     if (!World) return false;
     if (!bShaderWarmupRequested)
     {
@@ -53,13 +58,15 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
         NextDiscoveryTime = Now + 0.5;
         for (TActorIterator<AActor> It(World); It; ++It)
         {
-            if (*It == Scan.GetOwner()) continue;
+            if (*It == IgnoreOwner) continue;
             TInlineComponentArray<UStaticMeshComponent*> Components(*It);
             for (auto* Source : Components)
                 if (Source && !Source->bHiddenInSceneCapture && Source->GetStaticMesh() && !Proxies.Contains(Source)) Proxies.Add(Source, FProxy());
         }
     }
     Identities.Reset();
+    ActorPaths.Reset();
+    Actors.Reset();
     int32 Unsupported = 0;
     for (auto It = Proxies.CreateIterator(); It; ++It)
     {
@@ -73,6 +80,7 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
             It.RemoveCurrent(); continue;
         }
         bool bSupported = Source->GetStaticMesh() && Source->IsVisible() && !Source->bHiddenInGame && !Source->GetOwner()->IsHidden();
+        if(VisibilityFilter&&!VisibilityFilter(Source))bSupported=false;
         for (auto* M : Source->GetMaterials())
         {
             const auto* Resource = M ? M->GetMaterialResource(World->GetFeatureLevel()) : nullptr;
@@ -116,7 +124,7 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
             if (bInstancesChanged) Proxy->MarkRenderStateDirty();
         }
         FVirtualLidarGpuSemanticIdentity Identity;
-        Identity.Label = Scan.ResolveSemanticLabelForComponent(Source);
+        Identity.Label = Resolve(Source);
         Identity.ActorName = Source->GetOwner()->GetFName();
         Identity.ActorClass = Source->GetOwner()->GetClass()->GetFName();
         Identity.ActorTags = Source->GetOwner()->Tags;
@@ -124,6 +132,7 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
         {
             Identity.bHasOpticalOverride=true;Identity.Reflectivity940Nm=FMath::Clamp(Response->Reflectivity940Nm,.001f,1.f);Identity.IntensityGain=FMath::Max(0.f,Response->IntensityGain);
         }
+        if(bRecordActorPaths){ActorPaths.Add(Entry.Id, Source->GetOwner()->GetPathName());Actors.Add(Entry.Id,Source->GetOwner());}
         Identities.Add(Entry.Id, MoveTemp(Identity));
     }
     auto* Target = GetTarget();
@@ -133,8 +142,8 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
         Target->InitAutoFormat(Width, Height);
         Target->UpdateResourceImmediate(true);
     }
-    CaptureComponent->SetWorldTransform(Request.AcquisitionTransform);
-    CaptureComponent->FOVAngle = Request.HorizontalFovDegrees;
+    CaptureComponent->SetWorldTransform(Pose);
+    CaptureComponent->FOVAngle = HorizontalFov;
     VirtualSensorCaptureRendering::Prepare(*CaptureComponent, true);
     Scene.GetWorld()->SendAllEndOfFrameUpdates();
     CaptureComponent->CaptureScene();

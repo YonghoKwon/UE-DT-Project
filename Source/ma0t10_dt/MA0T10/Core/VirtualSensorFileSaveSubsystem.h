@@ -6,6 +6,12 @@
 class AVirtualSensorActorBase;
 struct FVirtualCameraLocalSaveFrame;
 struct FVirtualSensorFileSaveRequest;
+class AVirtualCameraSensorActor;
+struct FVirtualSensorVerificationFile
+{
+    FString Name;
+    TArray64<uint8> Bytes;
+};
 
 /** World-owned file requests. No widget lifetime, sensor selection or transport ownership. */
 UCLASS()
@@ -13,6 +19,10 @@ class MA0T10_DT_API UVirtualSensorFileSaveSubsystem : public UTickableWorldSubsy
 {
 	GENERATED_BODY()
 public:
+    /** CAM-GT-01 adapter: capture is asynchronous and uses the existing file-save admission. */
+    bool RequestCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor);
+    /** Worker-only, immutable verification bundle. Last file is the completion marker. */
+    static bool WriteCameraGroundTruthBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
 	/** Always returns a request ID, including explicit rejected/Failed requests. Query status immediately. */
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorFiles") FString RequestSave(EVirtualSensorFileSaveMode Mode,AVirtualSensorActorBase* Sensor,const FVirtualSensorCaptureSelection& Selection);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorFiles") FVirtualSensorFileSaveStatus GetRequestStatus(const FString& RequestId) const;

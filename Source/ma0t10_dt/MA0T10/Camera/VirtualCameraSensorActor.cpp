@@ -5,6 +5,7 @@
 #include "Components/DrawFrustumComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "VirtualCameraCaptureComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 
@@ -122,6 +123,7 @@ bool AVirtualCameraSensorActor::ReadEditableState(FVirtualSensorEditableState& O
 	OutState.CameraFov = CaptureComponent->FOVAngle;
 	OutState.CameraJpegQuality = CaptureComponent->JpegQuality;
 	OutState.CameraCaptureMode = CaptureComponent->CaptureMode;
+	OutState.bCameraGroundTruth = CaptureComponent->bGroundTruthEnabled;
 	return true;
 }
 
@@ -143,6 +145,7 @@ bool AVirtualCameraSensorActor::ApplyEditableState(const FVirtualSensorEditableS
 	CaptureComponent->FOVAngle = State.CameraFov;
 	CaptureComponent->JpegQuality = State.CameraJpegQuality;
 	CaptureComponent->CaptureMode = State.CameraCaptureMode;
+	CaptureComponent->SetGroundTruthEnabled(State.bCameraGroundTruth);
 	if(bWasRunning) CaptureComponent->StartCapture();
 	++ConfigurationRevision;
 	return true;
@@ -262,4 +265,14 @@ void AVirtualCameraSensorActor::HandleCameraFrame(const FString& JsonPayload, UT
 void AVirtualCameraSensorActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+}
+
+bool AVirtualCameraSensorActor::RequestGroundTruthSave()
+{
+    auto* Files=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>():nullptr;
+    return !bInteractiveManipulationActive&&Files&&Files->RequestCameraGroundTruthSave(this);
+}
+void AVirtualCameraSensorActor::SetGroundTruthPreviewDemand(bool Enabled)
+{
+    if(CaptureComponent)CaptureComponent->SetGroundTruthPreviewDemand(Enabled&&!bInteractiveManipulationActive);
 }

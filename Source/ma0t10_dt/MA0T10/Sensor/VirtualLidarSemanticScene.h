@@ -14,7 +14,10 @@ class FVirtualLidarSemanticScene
 public:
     FVirtualLidarSemanticScene();
     bool Capture(UVirtualLidarScanComponent& Scan, const FVirtualLidarDepthAcquisitionRequest& Request, int32 Width, int32 Height);
+    bool Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths=true, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter={});
     UTextureRenderTarget2D* GetTarget() const;
+    TMap<int32, FString> ActorPaths;
+    TMap<int32, TWeakObjectPtr<AActor>> Actors;
     TMap<int32, FVirtualLidarGpuSemanticIdentity> Identities;
     FString Status;
 private:

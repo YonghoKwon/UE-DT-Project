@@ -47,6 +47,9 @@ public:
 	virtual bool BeginInteractiveManipulation(const FVirtualSensorInteractionRequest& Request) override;
 	virtual void EndInteractiveManipulation() override;
 
+    bool RequestGroundTruthSave();
+    void SetGroundTruthPreviewDemand(bool bEnabled);
+
 private:
 	UFUNCTION()
 	void HandleCameraFrame(const FString& JsonPayload, UTextureRenderTarget2D* RenderTarget);

@@ -154,6 +154,7 @@ bool UVirtualSensorFileSaveSubsystem::CanSaveCurrent(AVirtualSensorActorBase* Se
 bool UVirtualSensorFileSaveSubsystem::HasPendingSave(AVirtualSensorActorBase* Sensor) const
 {
 	if(!IsValid(Sensor))return false;
+    if(auto* C=Cast<AVirtualCameraSensorActor>(Sensor);C&&C->CaptureComponent&&C->CaptureComponent->IsGroundTruthSavePending())return true;
 	for(const auto& P:Requests)if(!P.Value->Status.IsTerminal()&&(P.Value->Actor==Sensor||P.Value->Status.SensorId==Sensor->GetSensorId()))return true;
 	return false;
 }
@@ -418,3 +419,26 @@ bool FSensorFileSaveReentrantCancelTest::RunTest(const FString&)
 	Actor->StopSensor();Actor->Destroy();return true;
 }
 #endif
+
+bool UVirtualSensorFileSaveSubsystem::RequestCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor)
+{
+    return CanAcceptSave(Sensor)&&Sensor->CaptureComponent&&Sensor->CaptureComponent->RequestGroundTruthSave();
+}
+bool UVirtualSensorFileSaveSubsystem::WriteCameraGroundTruthBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
+{
+    const FString Root=FullPath(FPaths::ProjectSavedDir()/TEXT("CameraGroundTruth"))+TEXT("/");
+    const FString Target=FullPath(Directory);
+    if(!Target.StartsWith(Root,ESearchCase::IgnoreCase)||Files.IsEmpty()||IFileManager::Get().DirectoryExists(*Target)||Cancelled())return false;
+    if(!IFileManager::Get().MakeDirectory(*Target,true))return false;
+    TArray<FString> Created;
+    bool Ok=true;
+    for(const auto& File:Files)
+    {
+        if(Cancelled()||File.Name!=FPaths::GetCleanFilename(File.Name)||File.Bytes.IsEmpty()){Ok=false;break;}
+        const FString Path=Target/File.Name;Created.Add(Path);Created.Add(Path+TEXT(".partial"));
+        if(!FFileHelper::SaveArrayToFile(File.Bytes,*(Path+TEXT(".partial")))||Cancelled()||!IFileManager::Get().Move(*Path,*(Path+TEXT(".partial")),false,true)){Ok=false;break;}
+    }
+    if(Cancelled())Ok=false;
+    if(!Ok)for(const auto& Path:Created)IFileManager::Get().Delete(*Path,false,true);
+    return Ok;
+}

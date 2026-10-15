@@ -960,6 +960,13 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedQualityText;})],BuildOwnedSettingDetail(TEXT("SimulationQuality")))];
     auto CameraBasic=SNew(SVerticalBox).Visibility_Lambda(CameraVisible);
     CameraBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedCameraInterval","측정 주기 (s)"),[this](){return PendingState.CameraCaptureInterval;},[this](float V){PendingState.CameraCaptureInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("CameraInterval"))];
+    CameraBasic->AddSlot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox)
+      +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).IsEnabled_Lambda([this](){return bOwnedCanEdit;})
+        .IsChecked_Lambda([this](){return PendingState.bCameraGroundTruth?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){PendingState.bCameraGroundTruth=V==ECheckBoxState::Checked;})
+        [SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthEnabled","정답 데이터 사용"))]]
+      +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthHelp","ⓘ"))
+        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 적용 후 미리보기에서 깊이·의미 분류·객체 구분을 확인합니다. GPU 캡처와 읽기 비용이 추가됩니다. 1회 캡처는 검증 파일을 Saved/CameraGroundTruth에 저장합니다. 서버 전송은 추가하지 않습니다."))]];
     Basic->AddSlot().AutoHeight()[CameraBasic];
     auto LidarBasic=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarInterval","측정 주기 (s)"),[this](){return PendingState.LidarScanInterval;},[this](float V){PendingState.LidarScanInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("LidarInterval"))];

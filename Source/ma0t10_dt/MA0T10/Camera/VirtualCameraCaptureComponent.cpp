@@ -1,5 +1,6 @@
 // VirtualCameraCaptureComponent.cpp
 #include "VirtualCameraCaptureComponent.h"
+#include "VirtualCameraGroundTruth.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
@@ -174,6 +175,8 @@ void UVirtualCameraCaptureComponent::StartCapture()
 
 void UVirtualCameraCaptureComponent::StopCapture()
 {
+    if(GroundTruth)GroundTruth->Cancel();
+    bGroundTruthSaveRequested=false;GroundTruthPreviewDemandUntil=0;
     CancelPlacementPreviewProof();
 	CancelLocalFileFrame();
 	TArray<int64> PendingSlabIds; SlabCaptureContexts.GetKeys(PendingSlabIds);
@@ -1128,4 +1131,33 @@ void UVirtualCameraCaptureComponent::TryAutoRegisterToManager()
         It->RegisterCamera(this);
         break;
     }
+}
+
+void UVirtualCameraCaptureComponent::SetGroundTruthEnabled(bool Enabled)
+{
+    bGroundTruthEnabled=Enabled;
+    if(!Enabled){if(GroundTruth)GroundTruth->Cancel();bGroundTruthSaveRequested=false;GroundTruthPreviewDemandUntil=0;}
+}
+bool UVirtualCameraCaptureComponent::RequestGroundTruthSave()
+{
+    if(!bGroundTruthEnabled||!IsCaptureRunning()||bGroundTruthSaveRequested||(GroundTruth&&GroundTruth->IsBusy()))return false;
+    bGroundTruthSaveRequested=true;RequestImmediateScheduledCapture();return true;
+}
+void UVirtualCameraCaptureComponent::SetGroundTruthPreviewDemand(bool Enabled)
+{
+    GroundTruthPreviewDemandUntil=Enabled?FPlatformTime::Seconds()+.35:0;
+}
+void UVirtualCameraCaptureComponent::CaptureGroundTruth(const FVirtualCameraPayloadSnapshot& Snapshot)
+{
+    const double Now=FPlatformTime::Seconds();
+    if(!bGroundTruthEnabled||(!bGroundTruthSaveRequested&&(Now>=GroundTruthPreviewDemandUntil||Now<NextGroundTruthPreview)))return;
+    if(!GroundTruth){GroundTruth=NewObject<UVirtualCameraGroundTruth>(GetOwner());GroundTruth->RegisterComponentWithWorld(GetWorld());}
+    if(GroundTruth->IsBusy())return;
+    const bool Save=bGroundTruthSaveRequested;bGroundTruthSaveRequested=false;
+    GroundTruth->Capture(*this,Snapshot,Save);NextGroundTruthPreview=Now+.2;
+}
+
+bool UVirtualCameraCaptureComponent::IsGroundTruthSavePending() const
+{
+    return bGroundTruthSaveRequested||(GroundTruth&&GroundTruth->IsSaving());
 }

@@ -252,7 +252,7 @@ void UVirtualSensorMonitorPanelWidget::NativeTick(const FGeometry& MyGeometry, f
     if(!IsWorkspaceOwned()) PumpPendingCaptureWork();
     RefreshImageBrush();
     StatusRefreshAccumulator += InDeltaTime;
-    if (StatusRefreshAccumulator >= 0.2) { StatusRefreshAccumulator=0; RefreshStatusText(); }
+    if (StatusRefreshAccumulator >= 0.2) { StatusRefreshAccumulator=0; RefreshCameraTruth(); RefreshStatusText(); }
 }
 
 void UVirtualSensorMonitorPanelWidget::BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp)
