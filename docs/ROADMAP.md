@@ -148,6 +148,12 @@ DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필
 
 현재80%: Windows/WSL golden·ROS 직렬화·Artemis4종 adapter·두 주기 PIE5분 송신 회귀와 빈 WSL 설치/삭제를 검증했다. 10Hz 브리지 미수신1, ROS best-effort 추가 누락81/15, Image 디코더 결정과 직접 Foxglove 3D/축 수용은 남아 있다. 원본/정확한 범위는 IMPROVEMENTS ROS2-01 및 `Saved/Reports/ROS2-01/RESULT.md`를 따른다. UE의 ROS2 상태 UI와 CAM-GT 새 wire 송신은 후속 2단계 제안이다. 이 경로는 R5 센서 플러그인 생성을 시작하지 않는다.
 
+### ROS2-02 — ROS2 양방향 제어와 시간 기준 (사용자 2026-10-15 승인, #13)
+
+ROS2-01 외부 수신 경로와 AUTO-01 기존 loopback API 위에 제어 adapter를 추가한다. 별도 ROS 프로세스의 표준 service/JSON topic은 PCD·시나리오 시작/중지,3장면 등 데이터셋 생성/상태,1회 캡처와 일부 센서 설정을 기존 API로 실행한다. Windows 중계는 테스트 동안만 실제 WSL vEthernet 주소에 bind하고 토큰을 필수 검사한다. UE에 새 외부 listener를 노출하지 않는다.
+
+명시적 `/clock` 옵션은 **기존 측정 UTC**의 단조 최대값이며 frame stamp·wire를 바꾸지 않는다. `use_sim_time`은 ROS 소비자의 시간 기준 선택이고 OS 시간 조정이나 UE pause/step/reset 구현을 뜻하지 않는다. Windows–WSL UTC 오차는 별도 정밀 probe로 측정·보고한다. 실제 서비스/topic→UE·PointCloud2/stamp·캡처·3장면·시나리오·인증·quick/layer와 테스트 전용 WSL 완전 삭제 결과는 IMPROVEMENTS ROS2-02와 `Saved/Reports/ROS2-02/RESULT.md`를 따른다. ROS2-01 미수신/직접3D/Image 수용 상태와 구분한다. 호출 출처를 추적하지 않는 기존 UE 상태 화면은 유지하고 ROS 피드백에 adapter 출처를 제공한다. DTCore·센서 플러그인화·API 기본 꺼짐 정책은 유지한다.
+
 ### R4 — 프로젝트 안에서 분리 준비
 
 **이 단계는 아직 클래스/자산을 플러그인으로 이동하지 않는다.** 경계를 먼저 정리한다. 아래 표의 편집 타입·Coordinator·Workspace·Slab context 항목은 A단계(ARCH-02~06)가 같은 모듈 안에서 먼저 처리한다. A단계 완료 후 남는 R4 범위는 설정 객체·soft reference, ProfileId registry, 분석 extension이다.

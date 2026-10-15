@@ -13,14 +13,17 @@ import time
 
 import rclpy
 from rclpy.node import Node
+from rclpy.clock import Clock, ClockType
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import PointCloud2, PointField, Image, CompressedImage, CameraInfo
 from geometry_msgs.msg import TransformStamped
 from std_msgs.msg import String
+from rosgraph_msgs.msg import Clock as ClockMessage
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 import stomp
 
 import wire
+from control import AcquisitionClock
 
 DEFAULT_TOPICS = ('topic.virtual.sensor.export.0', 'topic.virtual.sensor.lidar.0', 'topic.virtual.sensor.camera.0')
 
@@ -79,6 +82,8 @@ class Bridge(Node):
         self.inbox_lock = threading.Lock()
         self.inbox_bytes = 0
         self.counts = Counter()
+        self.acquisition_clock = AcquisitionClock()
+        self.clock_publisher = self.create_publisher(ClockMessage, '/clock', 10) if getattr(args, 'publish_clock', False) else None
         self.streams = {}
         self.publishers_by_key = {}
         self.static_sent = set()
@@ -90,8 +95,9 @@ class Bridge(Node):
         self.stopping = threading.Event()
         self.connector = threading.Thread(target=self.connect_loop, daemon=True)
         self.connector.start()
-        self.create_timer(.001, self.drain)
-        self.create_timer(5, self.metrics)
+        self.steady = Clock(clock_type=ClockType.STEADY_TIME)
+        self.create_timer(.001, self.drain, clock=self.steady)
+        self.create_timer(5, self.metrics, clock=self.steady)
 
     def connect_loop(self):
         while not self.stopping.is_set():
@@ -254,6 +260,14 @@ class Bridge(Node):
 
     def record(self, result, received):
         sid, frame, utc, kind, size = result
+        if self.clock_publisher:
+            next_stamp = self.acquisition_clock.observe(utc)
+            if next_stamp is not None:
+                clock = ClockMessage()
+                clock.clock.sec, clock.clock.nanosec = next_stamp
+                self.clock_publisher.publish(clock)
+                self.counts['clock_published'] += 1
+            self.counts['clock_reordered'] = self.acquisition_clock.reordered
         key = wire.sensor_key(sid) + '/' + kind
         if key not in self.streams:
             self.streams[key] = {'sensor_id': sid, 'frames': 0, 'bytes': 0, 'source_frame_gaps': 0,
@@ -309,6 +323,7 @@ def main():
     parser.add_argument('--topic', action='append')
     parser.add_argument('--metrics')
     parser.add_argument('--reliable', action='store_true')
+    parser.add_argument('--publish-clock', action='store_true', help='Opt-in acquisition UTC high-water /clock; frame stamps stay unchanged')
     parser.add_argument('--qos-depth', type=int, default=5)
     parser.add_argument('--queue-bytes', type=int, default=64*1024*1024)
     args = parser.parse_args()
