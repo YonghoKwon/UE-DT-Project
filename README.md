@@ -28,6 +28,7 @@
 | 절대 성능 (PERF-01) | 미송신 표시/오프스크린 1+1·2+2 ABAB×3 및 초기 GT 초과 조건 재측정 완료. FPS·engine p95 회귀 없음; 재측정 GT +1.63/+1.52/+1.42%로 기준 안. Editor/Game·quick8·D3D12 242 Success/skip22·WBP7 통과 | 초기 GT 초과 원본·이분 탐색·Insights 근거 보존. 실제 2+2 PCD 송신은 Broker 환경 보류; 기존 송신 포함 기록과 조건 다름. `Saved/Reports/PERF/PERF-01/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·float Depth·기본 semantic 규칙 공유·Actor ID·2D bbox·보정 snapshot·비동기 검증 저장 구현. RHI/무손실 round-trip·1920×1080 자동 4모드·기본 꺼짐 perf 통과(FPS −0.0011%, p95 동일, GT +0.7332%) | 직접 마우스는 Windows 보안 팝업 미조작으로 보류. 서버 송신/ROS2/3D bbox는 2단계 제안. 상세 `Saved/Reports/CAM-GT-01/RESULT.md` |
+| 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
 | 자동화 | Runtime `967d517`: Editor/Game Development, release 14단계·D3D12 고유242 Success/조건부 skip20/실패0, 기존262개 이름/상태 동일·WBP7 메모리 컴파일. 추가 Slate/RHI 입력2개 실제 Success | 자동 통과와 직접 수용은 다름. 자유 배치 입력·상대 성능·미수행 수용은 UXR-07 보고서 참조 |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
@@ -345,6 +346,8 @@ Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한�
 
 ### PCD 소비자가 알아야 할 최소 계약
 
+**ROS2로 보기(ROS2-01, 사용자 2026-10-15):** [외부 브리지 안내](Tools/Ros2Bridge/README.md)에 WSL2 설치·기존 PCD 송신·Foxglove 연결·정상 종료/삭제 절차가 있다. UE C++·wire·Broker 설정을 바꾸지 않는다. PCD 로컬 XYZ는 이미 ROS와 같은 m·오른손 축이므로 그대로 사용하고 acquisition TF의 UE 월드 Y만 변환한다. binary JPEG에는 pose/FOV가 없어 CameraInfo는 미보정이며, CAM-GT 정답 데이터의 새 서버 송신과 구분한다. UE UI의 ROS2 상태 표시는 2단계 제안이다.
+
 ```text
 FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence
 SIZE 4 4 4 2 2 2 1 1 8 1 4
@@ -479,7 +482,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01 적용)
+### 10.2 현재 위반 (2026-10-15, UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01 적용)
+
+ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
 gate는 `Tests/`를 제외한 `.h/.cpp` 261개에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 

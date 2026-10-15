@@ -132,6 +132,12 @@ DTCore 작업 완료를 기다리느라 프로젝트 측 안정화를 멈출 필
 
 후속 **2단계 제안(미승인/미구현)**: 기존 JPEG와 분리한 새 topic/schemaVersion의 정답 frame·calibration 연계, ROS2 `Image`/`CameraInfo` adapter, optical 좌표계의 3D bbox/pose. KITTI/COCO 등 데이터셋·대량 생성은 별도 범위이며 이번 최소 저장에서 확대하지 않는다.
 
+### ROS2-01 — 외부 ROS2 소비 경로 (사용자 2026-10-15 승인)
+
+기존 Artemis PCD/LiDAR/JPEG wire를 외부 rclpy 노드에서 ROS2로 변환한다. `Tools/Ros2Bridge`는 전용 Ubuntu 24.04 WSL2의 Jazzy·Foxglove 테스트 환경을 생성하고 검증 뒤 unregister로 삭제한다. 기존 WSL 배포판·기본값·Broker/방화벽 설정·UE 코드·플러그인 경계는 유지한다. PCD PointCloud2와 acquisition TF가 우선이며, Camera는 기존 payload에 실제로 있는 metadata만 사용한다. `/clock`·미전달 calibration/pose를 추정하지 않는다.
+
+현재80%: Windows/WSL golden·ROS 직렬화·Artemis4종 adapter·두 주기 PIE5분 송신 회귀와 빈 WSL 설치/삭제를 검증했다. 10Hz 브리지 미수신1, ROS best-effort 추가 누락81/15, Image 디코더 결정과 직접 Foxglove 3D/축 수용은 남아 있다. 원본/정확한 범위는 IMPROVEMENTS ROS2-01 및 `Saved/Reports/ROS2-01/RESULT.md`를 따른다. UE의 ROS2 상태 UI와 CAM-GT 새 wire 송신은 후속 2단계 제안이다. 이 경로는 R5 센서 플러그인 생성을 시작하지 않는다.
+
 ### R4 — 프로젝트 안에서 분리 준비
 
 **이 단계는 아직 클래스/자산을 플러그인으로 이동하지 않는다.** 경계를 먼저 정리한다. 아래 표의 편집 타입·Coordinator·Workspace·Slab context 항목은 A단계(ARCH-02~06)가 같은 모듈 안에서 먼저 처리한다. A단계 완료 후 남는 R4 범위는 설정 객체·soft reference, ProfileId registry, 분석 extension이다.
