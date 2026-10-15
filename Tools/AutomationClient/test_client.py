@@ -17,6 +17,8 @@ class ClientTests(unittest.TestCase):
         for port in (0, 65536, "8099", True):
             with self.assertRaises(ValueError): Client(port)
         with self.assertRaises(ValueError): Client(token="bad\r\nheader")
+        for value in (7, [], "not ascii \u2603", "has space"):
+            with self.assertRaises(ValueError): Client(token=value)
         with self.assertRaises(ValueError): Client().request("http://example.com/")
         with self.assertRaises(ValueError): Client().request("/v1/sensor", {"x": float("nan")})
 

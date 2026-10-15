@@ -27,7 +27,7 @@ class Client:
             raise ValueError("port must be an integer in 1024..65535")
         self.base = f"http://127.0.0.1:{port}"
         self._token = os.environ.get("MA0T10_AUTOMATION_TOKEN", "") if token is None else token
-        if len(self._token) > 256 or any(c in self._token for c in "\r\n"):
+        if not isinstance(self._token, str) or len(self._token) > 256 or any(not 33 <= ord(c) <= 126 for c in self._token):
             raise ValueError("invalid authentication configuration")
         self.timeout = timeout
         self._http = build_opener(ProxyHandler({}), _NoRedirect())

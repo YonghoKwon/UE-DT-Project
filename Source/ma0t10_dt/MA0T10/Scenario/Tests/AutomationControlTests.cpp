@@ -8,6 +8,8 @@
 #include "IPAddress.h"
 #include "Async/Async.h"
 #include "HAL/PlatformProcess.h"
+#include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
 using namespace MA0T10Automation;
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationProtocolTest,"MA0T10.Automation.Protocol",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -20,7 +22,17 @@ bool FAutomationProtocolTest::RunTest(const FString&)
     const TArray<FString> Invalid={TEXT("{}"),TEXT("[]"),TEXT("{\"op\":\"wait\",\"seconds\":-1}"),TEXT("{\"op\":\"wait\",\"seconds\":\"10\"}"),TEXT("{\"op\":\"pcd.run\",\"sensor_id\":\"x\",\"seconds\":0}"),TEXT("{\"op\":\"sensor.set\",\"sensor_id\":\"x\",\"interval_sec\":0}"),TEXT("{\"op\":\"sensor.set\",\"sensor_id\":\"x\",\"interval_sec\":0.1,\"quality\":\"FullSpec\"}"),TEXT("{\"op\":\"scenario.start\",\"uuid\":\"x\",\"json_path\":\"x\"}"),TEXT("{\"op\":\"scenario.start\",\"uuid\":\"x\",\"send_pcd\":true}"),TEXT("{\"op\":\"wait\",\"seconds\":1,\"bind\":\"0.0.0.0\"}"),TEXT("{\"op\":\"dataset.start\",\"name\":\"../escape\",\"scenes\":20,\"slab\":\"a\",\"lidar_id\":\"b\",\"camera_id\":\"c\"}")};
     for(const auto& Text:Invalid){TSharedPtr<FJsonObject> O;const bool Valid=ParseObject(Text,O)&&ValidateCommand(*O,Error);TestFalse(TEXT("invalid input rejected"),Valid);}
     TestFalse(TEXT("oversize rejected before parsing"),ParseJob(FString::ChrN(MaxDocumentBytes+1,TEXT(' ')),Base,Job,Error));
-    TestFalse(TEXT("job must be bounded"),ParseJob(TEXT("{\"schema\":\"ma0t10.job.v1\",\"result_path\":\"r.json\",\"steps\":[{\"op\":\"pcd.start\",\"sensor_id\":\"x\"}]}"),Base,Job,Error));return true;
+    TestFalse(TEXT("job must be bounded"),ParseJob(TEXT("{\"schema\":\"ma0t10.job.v1\",\"result_path\":\"r.json\",\"steps\":[{\"op\":\"pcd.start\",\"sensor_id\":\"x\"}]}"),Base,Job,Error));
+    TSharedPtr<FJsonObject> Compound;
+    ParseObject(TEXT("{\"op\":\"wait\",\"seconds\":1,\"op|timeout_sec\":2}"),Compound);
+    TestFalse(TEXT("compound names cannot bypass exact field admission"),ValidateCommand(*Compound,Error));
+    ParseObject(TEXT("{\"op\":\"dataset.start\",\"name\":\"x\",\"scenes\":1,\"slab\":\"s\",\"lidar_id\":\"l\",\"camera_id\":\"c\",\"ranges\":{\"yaw|pitch\":[-1,1]}}"),Compound);
+    TestFalse(TEXT("compound range names are rejected"),ValidateCommand(*Compound,Error));
+    IFileManager::Get().MakeDirectory(*Base,true);const FString Temp=FPaths::CreateTempFilename(*Base,TEXT("protocol-limit-"),TEXT(".txt"));
+    TestTrue(TEXT("bounded reader fixture saved"),FFileHelper::SaveStringToFile(TEXT("abcdefghijklmnop"),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));FString Read;
+    TestTrue(TEXT("exact byte admission reads full document"),ReadDocument(Temp,Read,16));TestEqual(TEXT("bounded content retained"),Read.Len(),16);
+    TestFalse(TEXT("over-limit document is not read"),ReadDocument(Temp,Read,15));IFileManager::Get().Delete(*Temp);
+    return true;
 }
 
 // Real loopback socket framing/auth/close tests, independent of any Broker or render fixture.

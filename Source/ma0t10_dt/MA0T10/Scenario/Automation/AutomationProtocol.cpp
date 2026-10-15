@@ -4,6 +4,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Serialization/Archive.h"
 
 namespace MA0T10Automation
 {
@@ -12,9 +13,17 @@ FString Json(const TSharedRef<FJsonObject>& O)
 bool ParseObject(const FString& Text,TSharedPtr<FJsonObject>& O)
 {return Text.Len()<=MaxDocumentBytes&&FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),O)&&O.IsValid();}
 bool ReadDocument(const FString& Path,FString& Text,int64 Limit)
-{const int64 Size=IFileManager::Get().FileSize(*Path);return Size>0&&Size<=Limit&&FFileHelper::LoadFileToString(Text,*Path);}
+{
+    TUniquePtr<FArchive> File(IFileManager::Get().CreateFileReader(*Path,FILEREAD_Silent));
+    if(!File)return false;const int64 Size=File->TotalSize();
+    if(Size<=0||Size>Limit||Size>MAX_int32-2)return false;
+    TArray<uint8> Bytes;Bytes.SetNumUninitialized(int32(Size)+2);Bytes[int32(Size)]=Bytes[int32(Size)+1]=0;
+    File->Serialize(Bytes.GetData(),Size);if(File->IsError())return false;
+    // Read the admitted snapshot only, even if another process grows the file.
+    FFileHelper::BufferToString(Text,Bytes.GetData(),int32(Size));return true;
+}
 static bool Fields(const FJsonObject& O,const FString& Allowed)
-{for(const auto& F:O.Values)if(!(TEXT("|")+Allowed+TEXT("|")).Contains(TEXT("|")+F.Key+TEXT("|")))return false;return true;}
+{TArray<FString> Keys;Allowed.ParseIntoArray(Keys,TEXT("|"));for(const auto& F:O.Values)if(!Keys.Contains(F.Key))return false;return true;}
 static bool String(const FJsonObject& O,const TCHAR* Key,bool Required=false)
 {FString V;return !O.HasField(Key)?!Required:O.TryGetField(Key)->Type==EJson::String&&O.TryGetStringField(Key,V)&&!V.IsEmpty()&&V.Len()<=1024;}
 static bool Number(const FJsonObject& O,const TCHAR* Key,double Min,double Max,bool Integer=false)
@@ -46,9 +55,9 @@ bool ValidateCommand(const FJsonObject& C,FString& Error)
         if(C.HasField(TEXT("ranges")))
         {
             const TSharedPtr<FJsonObject>* Ranges=nullptr;Valid&=C.TryGetObjectField(TEXT("ranges"),Ranges);
+            if(Ranges&&!Fields(**Ranges,TEXT("yaw|pitch|roll|x|y|z|size|surface|roughness|oxidation|light_intensity|light_pitch|light_yaw|sensor_position|sensor_angle")))return false;
             if(Ranges)for(const auto& R:(*Ranges)->Values)
             {
-                Valid&=(TEXT("|yaw|pitch|roll|x|y|z|size|surface|roughness|oxidation|light_intensity|light_pitch|light_yaw|sensor_position|sensor_angle|")+FString()).Contains(TEXT("|")+R.Key+TEXT("|"));
                 const auto* A=R.Value->Type==EJson::Array?&R.Value->AsArray():nullptr;Valid&=A&&A->Num()==2;
                 if(A&&A->Num()==2)
                 {
