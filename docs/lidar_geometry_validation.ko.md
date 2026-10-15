@@ -39,7 +39,7 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 - `MA0T10.LidarGeometry.GeometryOnly`: 태그 없는 XYZ, 기울어진 판, 수직 벽/점 부족, 모호한 평면, 히스테리시스/잔상 방지.
 - `MA0T10.LidarGeometry.ActualMapPixels`: 실제 PIE에서 CPU/GPU 측정, 같은 재질/빈 태그 확인, 내부 구분 정확도, 업로드된 GPU 텍스처의 파랑/주황 픽셀과 이동 검증. 범례 픽셀을 세지 않는다.
-- `Scripts/run_lidar_geometry_stream_test.ps1`: 로컬 Artemis 개발 인스턴스(61616, 개발용 기본 계정)를 사용한 10초 준비 + 60초 PCD 시험과 독립 외부 구독. Broker 설정은 변경하지 않는다.
+- `Scripts/run_lidar_geometry_stream_test.ps1`: 로컬 Artemis 개발 인스턴스(61616, 계정은 `MA0T10_ARTEMIS_USER`/`MA0T10_ARTEMIS_PASSWORD` 환경변수)를 사용한 10초 준비 + 60초 PCD 시험과 독립 외부 구독. Broker 설정은 변경하지 않는다.
 - 증거는 `Saved/Reports/geometry_*`에 기록하고 커밋하지 않는다. 실제 수행하지 않은 GPU/성능 시험의 skip은 통과 증거로 간주하지 않는다.
 
 이번 검증 과정에서 발견한 CPU 광선 회전도 수정했다. Euler 각도를 더하는 대신 센서 로컬 광선을 Transform으로 회전시켜 수직 설치에서 스캔 범위가 좁아지는 문제를 방지한다. 수동/자동 CPU 경로에 동일하게 적용한다.

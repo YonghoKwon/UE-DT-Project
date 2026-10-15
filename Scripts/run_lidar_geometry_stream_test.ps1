@@ -1,5 +1,7 @@
 param([switch]$SkipBuild)
 $ErrorActionPreference='Stop'
+. "$PSScriptRoot/artemis_credentials.ps1"
+$null=Resolve-Ma0t10ArtemisCredential
 $root=Split-Path -Parent $PSScriptRoot
 $project=Join-Path $root 'ma0t10_dt.uproject'
 $reports=Join-Path $root 'Saved/Reports'
@@ -9,7 +11,7 @@ if(-not $SkipBuild){
     if($LASTEXITCODE -ne 0){throw 'Build failed'}
 }
 if(-not(Get-NetTCPConnection -State Listen -LocalPort 61616 -ErrorAction SilentlyContinue)){throw 'Start local Artemis on 61616 first; this script does not change broker configuration.'}
-$probeArgs='"'+(Join-Path $root 'Tools/Artemis/stomp_probe.mjs')+'" --url ws://127.0.0.1:61616 --user artemis --password artemis --topics topic.virtual.sensor.export.0 --warmup 10 --duration 60 --timeout 130 --require-contiguous-pcd true --save-first-pcd "'+(Join-Path $reports 'geometry_external.pcd')+'" --output "'+(Join-Path $reports 'geometry_external.json')+'"'
+$probeArgs='"'+(Join-Path $root 'Tools/Artemis/stomp_probe.mjs')+'" --url ws://127.0.0.1:61616 --topics topic.virtual.sensor.export.0 --warmup 10 --duration 60 --timeout 130 --require-contiguous-pcd true --save-first-pcd "'+(Join-Path $reports 'geometry_external.pcd')+'" --output "'+(Join-Path $reports 'geometry_external.json')+'"'
 $probe=Start-Process node -ArgumentList $probeArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $reports 'geometry_probe.log') -RedirectStandardError (Join-Path $reports 'geometry_probe.err')
 $previous=$env:MA0T10_GEOMETRY_PERF
 try{

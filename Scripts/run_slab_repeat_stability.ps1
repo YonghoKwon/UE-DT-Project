@@ -3,6 +3,8 @@ param([string]$Label='after',[int]$Trials=1,[switch]$AllOutputs,[switch]$Repeate
  [ValidatePattern('^[A-Za-z0-9_-]+$')][string]$ReportGroup='SlabRepeatRunStability',[switch]$PlacementAB,[switch]$LayoutApiFixture,
  [switch]$PcdDemandFixture,[ValidateRange(1,2)][int]$SensorPairs=2,[ValidateSet('legacy-full','legacy-bounded','requested')][string]$JsonPolicy='requested')
 $ErrorActionPreference='Stop'
+. "$PSScriptRoot/artemis_credentials.ps1"
+$null=Resolve-Ma0t10ArtemisCredential
 $root=Split-Path -Parent $PSScriptRoot
 $report=Join-Path $root ('Saved/Reports/'+$ReportGroup+'/'+$Label)
 New-Item -ItemType Directory -Force $report|Out-Null

@@ -7,8 +7,13 @@ import crypto from 'node:crypto';
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i], process.argv[i + 1]);
 const url = args.get('--url') ?? 'ws://127.0.0.1:61616';
-const user = args.get('--user') ?? 'artemis';
-const password = args.get('--password') ?? 'artemis';
+// Prefer the environment so the secret never appears on a process command line.
+const user = args.get('--user') ?? process.env.MA0T10_ARTEMIS_USER;
+const password = args.get('--password') ?? process.env.MA0T10_ARTEMIS_PASSWORD;
+if (!user || !password) {
+  console.error('Artemis credentials are not set: define MA0T10_ARTEMIS_USER and MA0T10_ARTEMIS_PASSWORD (see Tools/Artemis/README.md).');
+  process.exit(2);
+}
 const topics = (args.get('--topics') ?? 'topic.virtual.sensor.lidar.0,topic.virtual.sensor.camera.0,topic.virtual.sensor.export.0').split(',').filter(Boolean);
 const requiredTopics = (args.get('--required-topics') ?? topics.join(',')).split(',').filter(Boolean);
 const forbiddenTopics = new Set((args.get('--forbidden-topics') ?? '').split(',').filter(Boolean));

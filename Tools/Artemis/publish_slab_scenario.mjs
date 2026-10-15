@@ -34,6 +34,12 @@ fs.writeFileSync(output, body);
 if (args.get('--generate-only') === 'true') {
   console.log(JSON.stringify({ file: output, bytes: body.length, uuid: meta.UUID ?? null, frames: 600, end: 30 }));
 } else {
+  const login = process.env.MA0T10_ARTEMIS_USER ?? process.env.ARTEMIS_USER;
+  const passcode = process.env.MA0T10_ARTEMIS_PASSWORD ?? process.env.ARTEMIS_PASSWORD;
+  if (!login || !passcode) {
+    console.error('Artemis credentials are not set: define MA0T10_ARTEMIS_USER and MA0T10_ARTEMIS_PASSWORD (see Tools/Artemis/README.md).');
+    process.exit(2);
+  }
   if (args.has('--wait-log')) {
     const deadline = Date.now() + Number(args.get('--wait-timeout-seconds') ?? 300) * 1000;
     const marker = args.get('--wait-marker') ?? 'DTCORE_SLAB_BROKER_READY topic.scenario';
@@ -62,7 +68,7 @@ if (args.get('--generate-only') === 'true') {
     socket.write(header); if (bytes.length) socket.write(bytes); socket.write(Buffer.from([0]));
   }
   socket.on('connect', () => send('STOMP', { 'accept-version': '1.2', host: 'localhost',
-    login: process.env.ARTEMIS_USER ?? 'artemis', passcode: process.env.ARTEMIS_PASSWORD ?? 'artemis', 'heart-beat': '0,0' }));
+    login, passcode, 'heart-beat': '0,0' }));
   socket.on('error', finish);
   socket.on('data', bytes => {
     buffer = Buffer.concat([buffer, bytes]);
