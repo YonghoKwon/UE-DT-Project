@@ -23,6 +23,7 @@
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/IToolTip.h"
+#include "Styling/CoreStyle.h"
 
 namespace
 {
@@ -47,6 +48,21 @@ void ExpandArea(const TSharedRef<SWidget>& Widget,const FString& Header)
         if(Text.Contains(Header))Area->SetExpanded(true);
     }
     auto* Children=Widget->GetChildren();for(int32 I=0;I<Children->Num();++I)ExpandArea(Children->GetChildAt(I),Header);
+}
+TArray<FSlateFontInfo> ImuNumericFonts(const TSharedRef<SWidget>& Root)
+{
+    TArray<FSlateFontInfo> Fonts;
+    TFunction<void(const TSharedRef<SWidget>&)> Visit=[&](const TSharedRef<SWidget>& Item)
+    {
+        FSlateAttributeMetaData::UpdateExceptVisibilityAttributes(Item.Get(),FSlateAttributeMetaData::EInvalidationPermission::AllowInvalidation);
+        if(Item->GetType()==TEXT("STextBlock"))
+        {
+            const auto Text=StaticCastSharedRef<STextBlock>(Item);const FString Value=Text->GetText().ToString().Replace(TEXT(","),TEXT(""));
+            if(Value.IsNumeric()&&(FCString::Atod(*Value)==200||FCString::Atod(*Value)==1337))Fonts.Add(Text->GetFont());
+        }
+        auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Visit(Children->GetChildAt(I));
+    };
+    Visit(Root);return Fonts;
 }
 }
 
@@ -111,6 +127,20 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     Monitor->bMonitorDetailsExpanded=true;Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-developer-info"),Monitor->BuildOwnedAdvancedViewMenu());
     Progress->RefreshOwnedStatus();Inspect(TEXT("scenario-progress"),ProgressSlate);Inspect(TEXT("scenario-archive"),ReplaySlate);Inspect(TEXT("scenario-charts"),ChartsSlate);
     const auto ImuControls=StaticCastSharedRef<SExpandableArea>(Placement->BuildImuSection());ImuControls->SetExpanded(true);Inspect(TEXT("imu-controls"),ImuControls);
+    const float OriginalScale=Placement->GetSensorToolFontScale();
+    Placement->ApplySensorToolFontScale(1);const auto OwnedBefore=ImuNumericFonts(ImuControls);
+    Placement->ApplySensorToolFontScale(1.5f);const auto OwnedAfter=ImuNumericFonts(ImuControls);
+    TestEqual(TEXT("both owned IMU numeric controls inspected"),OwnedBefore.Num(),2);TestEqual(TEXT("both scaled IMU numeric controls inspected"),OwnedAfter.Num(),2);
+    if(OwnedBefore.Num()==2&&OwnedAfter.Num()==2)for(int32 I=0;I<2;++I)TestTrue(TEXT("owned IMU numeric font responds to 150 percent"),OwnedAfter[I].Size>OwnedBefore[I].Size);
+    Placement->ApplySensorToolFontScale(OriginalScale);
+    auto* ForeignPlacement=NewObject<UVirtualSensorPlacementPanelWidget>(World);ForeignPlacement->Initialize();
+    const auto ForeignImu=StaticCastSharedRef<SExpandableArea>(ForeignPlacement->BuildImuSection());ForeignImu->SetExpanded(true);
+    ForeignPlacement->ApplySensorToolFontScale(1.5f);const auto ForeignFonts=ImuNumericFonts(ForeignImu);
+    TestEqual(TEXT("both foreign IMU numeric controls inspected"),ForeignFonts.Num(),2);
+    for(const auto& Font:ForeignFonts)TestTrue(TEXT("unregistered IMU keeps original engine font"),Font==FCoreStyle::Get().GetFontStyle(TEXT("NormalFont")));
+    TArray<FString> ForeignText;CollectText(ForeignImu,ForeignText);
+    TestTrue(TEXT("unregistered IMU keeps original seed caption"),ForeignText.Contains(TEXT("노이즈 seed")));
+    TestTrue(TEXT("unregistered IMU keeps original output caption"),ForeignText.Contains(TEXT("IMU 전송 · 별도 topic")));
     Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);Data->bOwnedScenarioStreamView=true;
     Data->bOwnedReplayPreflight=false;Data->TickOwnedUi(1);Inspect(TEXT("transfer-new"),Data->BuildOwnedLiveTab());
     Data->bOwnedReplayPreflight=true;Data->TickOwnedUi(2);Inspect(TEXT("transfer-replay"),Data->BuildOwnedLiveTab());

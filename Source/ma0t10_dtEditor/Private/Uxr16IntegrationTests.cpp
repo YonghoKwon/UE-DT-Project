@@ -53,7 +53,7 @@ public:
             for(auto* A:C->GetSensorActors()){A->StopSensor();if(auto* L=Cast<AVirtualLidarSensorActor>(A))Lidar=L;if(auto* Cam=Cast<AVirtualCameraSensorActor>(A))Camera=Cam;}
             for(TActorIterator<ASlabActor> It(W);It;++It){It->StopSimulation();Slab=*It;break;}
             if(!Lidar||!Camera||!Slab){Test->AddError(TEXT("Combined fixture targets missing"));return true;}
-            Before=Slab->GetActorTransform();Imu=UVirtualImuComponent::Attach(Lidar);SensorRevision=Lidar->GetConfigurationRevision();
+            Before=Slab->GetActorTransform();Imu=UVirtualImuComponent::Attach(Camera);SensorRevision=Camera->GetConfigurationRevision();
             Control=W->GetSubsystem<UAutomationControlSubsystem>();Dataset=W->GetSubsystem<UVirtualDatasetSubsystem>();
             Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
             IFileManager::Get().MakeDirectory(*Root(),true);
@@ -66,7 +66,7 @@ public:
             Control->Dispatch(TEXT("GET"),TEXT("/v1/status"),nullptr,Code);Test->TestEqual(TEXT("status remains available during batch"),Code,200);
             auto Config=Imu->GetConfig();Config.RateHz=400;FString Error;
             Test->TestTrue(TEXT("independent IMU edit during API/batch work"),Imu->Configure(Config,Error));
-            Test->TestEqual(TEXT("IMU generation does not change parent sensor revision"),Lidar->GetConfigurationRevision(),SensorRevision);
+            Test->TestEqual(TEXT("IMU generation does not change parent sensor revision"),Camera->GetConfigurationRevision(),SensorRevision);
             Imu->SetRecording(true);
             auto* Bar=Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation());Bar->RefreshOwnedStatus(Now+1);
             Test->TestTrue(TEXT("batch has a separate activity chip"),Bar->GetGlobalStatus().Automation.ToString().Contains(TEXT("일괄 실행 중")));
@@ -81,7 +81,7 @@ public:
             Test->TestTrue(TEXT("batch completes with independent IMU change"),Status->GetBoolField(TEXT("success")));
             Test->TestEqual(TEXT("IMU edit survives batch teardown"),Imu->GetConfig().RateHz,400.);
             int32 Code=0;const auto Sensors=Control->Dispatch(TEXT("GET"),TEXT("/v1/sensors"),nullptr,Code);
-            bool Found=false;for(const auto& V:Sensors->GetArrayField(TEXT("sensors")))if(V->AsObject()->GetStringField(TEXT("sensor_id"))==Lidar->GetSensorId())Found=V->AsObject()->HasField(TEXT("imu"));
+            bool Found=false;for(const auto& V:Sensors->GetArrayField(TEXT("sensors")))if(V->AsObject()->GetStringField(TEXT("sensor_id"))==Camera->GetSensorId())Found=V->AsObject()->HasField(TEXT("imu"));
             Test->TestTrue(TEXT("combined API reports attached IMU"),Found);
             Camera->StartSensor();
             auto Body=MakeShared<FJsonObject>();Body->SetStringField(TEXT("sensor_id"),Camera->GetSensorId());
