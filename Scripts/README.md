@@ -10,6 +10,7 @@ ARCH-07 기준 전체 Scripts 파일 분류. 삭제·서비스 재시작·Broker
 | [README_rename_ma0t10_remaining_sources.md](README_rename_ma0t10_remaining_sources.md) | 이력 보존 | 기존 타입/맵 이관 재현용; 일반 검증에서 실행하지 않음 |
 | [analyze_sensor_resource_lifecycle.ps1](analyze_sensor_resource_lifecycle.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [analyze_slab_repeat_stability.ps1](analyze_slab_repeat_stability.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
+| [artemis_credentials.ps1](artemis_credentials.ps1) | 현재 사용 | Broker 시험 스크립트가 dot-source하는 `MA0T10_ARTEMIS_USER`/`MA0T10_ARTEMIS_PASSWORD` 해석·복원 helper; 직접 실행하지 않음 |
 | [architecture_layers_allowlist.txt](architecture_layers_allowlist.txt) | 현재 사용 | layer gate의 고정 예외 데이터 |
 | [check_project_readiness.ps1](check_project_readiness.ps1) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |
 | [create_lidar_geometry_validation_map.py](create_lidar_geometry_validation_map.py) | 현재 사용 | 명시적인 관련 fixture/검수/보고 작업에 사용; 매 verify 실행 대상은 아님 |

@@ -83,7 +83,7 @@ The native test uses D3D12, the committed SensorTestMap snapshot and 1920x1080
 PIE, with ten seconds of warmup. Test cameras remain in preview mode; only LiDAR
 PCD is transmitted. Intervals .1/.2 and two LiDARs are also supported. An already
 running approved Artemis instance is required; its settings are never changed.
-Credentials are read from existing local configuration or smoke-runner defaults,
+Credentials are read from `MA0T10_ARTEMIS_USER`/`MA0T10_ARTEMIS_PASSWORD` or existing local configuration,
 passed in child environment variables and restored afterward, never printed.
 
 PCD-OPT diagnosis uses `run-native.ps1 -OptProbe` with the same broker, interval

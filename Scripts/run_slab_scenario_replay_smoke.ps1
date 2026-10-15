@@ -1,13 +1,17 @@
-param([string]$BrokerUrl='ws://127.0.0.1:61616',[string]$UserName='artemis',[string]$Password='artemis',[int]$ClientWidth=1920,[int]$ClientHeight=1080,[switch]$CaptureTrace)
+param([string]$BrokerUrl='ws://127.0.0.1:61616',[string]$UserName='',[string]$Password='',[int]$ClientWidth=1920,[int]$ClientHeight=1080,[switch]$CaptureTrace)
 $ErrorActionPreference='Stop'
+# Empty UserName/Password means MA0T10_ARTEMIS_USER / MA0T10_ARTEMIS_PASSWORD from the environment.
+. "$PSScriptRoot/artemis_credentials.ps1"
+$Credential=Resolve-Ma0t10ArtemisCredential $UserName $Password
+$Password=$null
 $Root=Split-Path -Parent $PSScriptRoot
 $Reports=Join-Path $Root 'Saved/Reports'
 $ProbeJson=Join-Path $Reports 'slab_replay_external.json'
 $Log=Join-Path $Reports 'slab_replay_runtime.log'
-$ProbeArgs=@("`"$(Join-Path $Root 'Tools/Artemis/stomp_probe.mjs')`"",'--url',"`"$BrokerUrl`"",'--user',"`"$UserName`"",'--password',"`"$Password`"",'--topics','topic.virtual.sensor.export.0','--duration','63','--slab-runs','2','--timeout','190','--require-contiguous-pcd','true','--scenario-replay','true','--save-first-pcd',"`"$(Join-Path $Reports 'slab_replay_received.pcd')`"",'--output',"`"$ProbeJson`"")
+$ProbeArgs=@("`"$(Join-Path $Root 'Tools/Artemis/stomp_probe.mjs')`"",'--url',"`"$BrokerUrl`"",'--topics','topic.virtual.sensor.export.0','--duration','63','--slab-runs','2','--timeout','190','--require-contiguous-pcd','true','--scenario-replay','true','--save-first-pcd',"`"$(Join-Path $Reports 'slab_replay_received.pcd')`"",'--output',"`"$ProbeJson`"")
 $Probe=Start-Process node -ArgumentList $ProbeArgs -WorkingDirectory $Root -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $Reports 'slab_replay_probe.stdout.log') -RedirectStandardError (Join-Path $Reports 'slab_replay_probe.stderr.log')
 try {
-    $env:MA0T10_REPLAY_RHI='1'; $env:MA0T10_ARTEMIS_URL=$BrokerUrl; $env:MA0T10_ARTEMIS_USER=$UserName; $env:MA0T10_ARTEMIS_PASSWORD=$Password
+    $env:MA0T10_REPLAY_RHI='1'; $env:MA0T10_ARTEMIS_URL=$BrokerUrl
     $env:MA0T10_REPLAY_REPORT=Join-Path $Reports 'slab_replay_runtime.json'
     $env:MA0T10_ACCEPTANCE_RES_X=[string]$ClientWidth;$env:MA0T10_ACCEPTANCE_RES_Y=[string]$ClientHeight
     $TracePath=Join-Path $Reports ('DTCoreFinalAcceptance/replay_'+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')+'.utrace')
@@ -23,6 +27,7 @@ try {
     if($CaptureTrace){Write-Host "Trace: $TracePath"}
 } finally {
     if(-not $Probe.HasExited){$Probe.Kill()}
-    Remove-Item Env:MA0T10_REPLAY_RHI,Env:MA0T10_REPLAY_REPORT,Env:MA0T10_ARTEMIS_URL,Env:MA0T10_ARTEMIS_USER,Env:MA0T10_ARTEMIS_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:MA0T10_REPLAY_RHI,Env:MA0T10_REPLAY_REPORT,Env:MA0T10_ARTEMIS_URL -ErrorAction SilentlyContinue
+    Restore-Ma0t10ArtemisCredential $Credential
     Remove-Item Env:MA0T10_ACCEPTANCE_RES_X,Env:MA0T10_ACCEPTANCE_RES_Y -ErrorAction SilentlyContinue
 }

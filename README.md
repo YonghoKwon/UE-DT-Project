@@ -316,7 +316,7 @@ DTCore 입력이 구성된3D 화면에서 Slab를 클릭하면 기존 진행 인
 
 진행 패널의 **표시 설정**을 펼치면 3D 분석·단위·현재 외형을 바꿀 수 있다. 실행 중 단위 변경 제한과 표시 선택은 기존대로 유지한다. 이 영역을 접거나 창을 숨겨도 시나리오가 중지되지는 않는다. 진행 패널의 3D 분석은 선 기본 4px(2~12), 글자 28px(18~56), 어두운 배경판, signed Margin과 `[침범]`을 제공한다. 음수 Margin은 기하학적 침범이며 안전 기준/AI 판정이 아니다. 보조 표시는 센서 측정에서 제외한다.
 
-테스트 발행(로컬 Broker가 이미 정상 실행되고 입력 Topic을 구독한 경우):
+테스트 발행(로컬 Broker가 이미 정상 실행되고 입력 Topic을 구독한 경우, 계정은 `MA0T10_ARTEMIS_USER`/`MA0T10_ARTEMIS_PASSWORD` 환경변수로 설정):
 
 ```powershell
 node Tools/Artemis/publish_slab_scenario.mjs --topic topic.scenario
@@ -640,10 +640,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 | `MA0T10_ACCEPTANCE_LEDGER` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke / RepeatThreeStreamAcceptance | 수용 ledger 출력 경로; 쓰기 가능한 Saved 하위 경로 |
 | `MA0T10_ACCEPTANCE_RES_X` | FinalAcceptanceTestSession 사용 RHI/PIE 시험 | client viewport 폭 정수; 실제 RHI/PIE |
 | `MA0T10_ACCEPTANCE_RES_Y` | FinalAcceptanceTestSession 사용 RHI/PIE 시험 | client viewport 높이 정수; 실제 RHI/PIE |
-| `MA0T10_ARTEMIS_PASSWORD` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 인증 비밀번호; 비밀값은 기록하지 않음 |
+| `MA0T10_ARTEMIS_PASSWORD` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 인증 비밀번호; Broker 시험 스크립트·Node probe 필수(없으면 중단), 비밀값은 기록·커밋하지 않음 |
 | `MA0T10_ARTEMIS_RAW_URL` | MA0T10.SensorStream.HighThroughput.RawTcpArtemisLoopback | 기존 Raw TCP STOMP URL; Raw Broker |
 | `MA0T10_ARTEMIS_URL` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 기존 STOMP/WS URL; 시험에 맞는 Broker·외부 구독자 |
-| `MA0T10_ARTEMIS_USER` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 인증 사용자 이름; 비밀값은 기록하지 않음 |
+| `MA0T10_ARTEMIS_USER` | SensorStream / SensorV2 / SlabScenarioReplay 및 ExternalSource receiver | 인증 사용자 이름; Broker 시험 스크립트·Node probe 필수(없으면 중단), 비밀값은 기록하지 않음 |
 | `MA0T10_CAMERA_MARKER_RHI` | MA0T10.SensorFiles.CameraMarkerRhi | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
 | `MA0T10_DIAGNOSTIC_HIDE_OWNED_UI` | MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke | 1; 진단 fixture 소유 UI 숨김 |
 | `MA0T10_DTCORE_SLAB_BROKER` | MA0T10.DTCoreIntegration.SlabBroker | 1; 실제 Broker + 외부 synthetic scenario publisher |

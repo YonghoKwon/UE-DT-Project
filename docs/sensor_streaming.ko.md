@@ -134,6 +134,13 @@ Capture/Export 패널의 `서버/로그` 탭에서 다음 항목을 확인할 �
 
 ## 로컬 Artemis 검증
 
+Broker 계정은 스크립트에 들어 있지 않습니다. 실행 전에 현재 PowerShell 세션에 `MA0T10_ARTEMIS_USER`/`MA0T10_ARTEMIS_PASSWORD`를 설정합니다. 둘 중 하나가 없으면 스크립트·Node 구독자는 빠진 변수 이름을 알리고 중단하며, 값은 출력하거나 명령 인자로 넘기지 않습니다([Tools/Artemis/README.md](../Tools/Artemis/README.md#test-credentials)).
+
+```powershell
+$env:MA0T10_ARTEMIS_USER = '<user>'
+$env:MA0T10_ARTEMIS_PASSWORD = '<password>'
+```
+
 로컬 Artemis가 실행 중일 때 다음 명령은 Node 구독자를 먼저 연결한 뒤 Unreal 자동화 테스트가 세 Topic을 실제 발행하도록 합니다.
 
 ```powershell

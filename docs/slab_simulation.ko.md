@@ -266,7 +266,7 @@ Slab 차트 패널은 기울기(left/right), 실제 중심 이탈, 좌우 Margin
 # 파일만 생성 (네트워크 전송 없음)
 node Tools/Artemis/publish_slab_scenario.mjs --generate-only true
 
-# DTCore가 구독 중인 로컬 Artemis Topic으로 전송
+# DTCore가 구독 중인 로컬 Artemis Topic으로 전송 (먼저 MA0T10_ARTEMIS_USER / MA0T10_ARTEMIS_PASSWORD 설정)
 node Tools/Artemis/publish_slab_scenario.mjs --topic topic.scenario
 
 # 다른 입력 Topic 또는 UUID가 없는 입력 시험

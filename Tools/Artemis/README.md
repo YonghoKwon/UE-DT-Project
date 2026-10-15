@@ -20,6 +20,25 @@
 docker compose -f Tools/Artemis/docker-compose.yml up -d --wait
 ```
 
+## Test credentials
+
+All Artemis test scripts (`Scripts/run_*` that talk to the broker,
+`stomp_probe.mjs`, `publish_slab_scenario.mjs`) read the broker account from
+`MA0T10_ARTEMIS_USER` / `MA0T10_ARTEMIS_PASSWORD` and stop with an error naming
+the missing variable when either is unset. Scripts pass them to Unreal and Node
+only through the child-process environment, never on the command line, and do
+not print them. Set them before running a script:
+
+```powershell
+# Once per PowerShell session; values come from the broker you run and are never committed.
+$env:MA0T10_ARTEMIS_USER = '<user>'
+$env:MA0T10_ARTEMIS_PASSWORD = '<password>'
+```
+
+For the Docker broker below, use the account defined by `ARTEMIS_USER` /
+`ARTEMIS_PASSWORD` in `docker-compose.yml`; for an installed broker, use that
+instance's existing account. The scripts never change the broker configuration.
+
 ## Unreal three-stream smoke test
 
 With the broker running, execute the following from the project root. It starts
@@ -59,7 +78,7 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\run_sensor_map_stream_rhi_smo
 
 - STOMP WebSocket: `ws://127.0.0.1:61616`
 - 관리 콘솔: `http://127.0.0.1:8161`
-- 개발 계정: `artemis` / `artemis`
+- 개발 계정: `docker-compose.yml`의 `ARTEMIS_USER`/`ARTEMIS_PASSWORD`. 스크립트에는 `MA0T10_ARTEMIS_USER`/`MA0T10_ARTEMIS_PASSWORD` 환경변수로 전달합니다(위 Test credentials).
 - Camera, LiDAR, export 주소는 각각 multicast Topic으로 생성됩니다.
 - Broker 인스턴스 전체가 `artemis-instance` 볼륨에 저장되므로 재시작 후에도 주소와 메시지 저장소를 유지합니다.
 

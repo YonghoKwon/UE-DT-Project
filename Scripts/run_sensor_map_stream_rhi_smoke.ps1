@@ -1,7 +1,8 @@
 param(
     [string]$BrokerUrl = "ws://127.0.0.1:61616",
-    [string]$UserName = "artemis",
-    [string]$Password = "artemis",
+    # Empty means MA0T10_ARTEMIS_USER / MA0T10_ARTEMIS_PASSWORD from the environment.
+    [string]$UserName = "",
+    [string]$Password = "",
     [ValidateRange(5, 3600)][int]$WarmupSeconds = 10,
     [ValidateRange(10, 3600)][int]$MeasurementSeconds = 60,
     [int]$TimeoutSeconds = 100,
@@ -20,6 +21,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. "$PSScriptRoot/artemis_credentials.ps1"
+$Credential = Resolve-Ma0t10ArtemisCredential $UserName $Password
+$Password = $null
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $Build = "C:\Program Files\Epic Games\UE_5.3\Engine\Build\BatchFiles\Build.bat"
 $Editor = "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
@@ -41,8 +45,8 @@ if (-not $SkipBuild) {
 $ProbeScript = Join-Path $ProjectRoot "Tools\Artemis\stomp_probe.mjs"
 $MinimumTimeout = $WarmupSeconds + $MeasurementSeconds + 90
 if ($TimeoutSeconds -lt $MinimumTimeout) { $TimeoutSeconds = $MinimumTimeout }
-$ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup $WarmupSeconds --duration $MeasurementSeconds --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`""
-if ($SlabSessions) { $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --user `"$UserName`" --password `"$Password`" --warmup 0 --duration 63 --slab-runs 2 --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`"" }
+$ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --warmup $WarmupSeconds --duration $MeasurementSeconds --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`""
+if ($SlabSessions) { $ProbeArgs = "`"$ProbeScript`" --url `"$BrokerUrl`" --warmup 0 --duration 63 --slab-runs 2 --require-contiguous-pcd true --timeout $TimeoutSeconds --output `"$ProbeReport`"" }
 if ($PointCloudOnly) { $ProbeArgs += ' --required-topics topic.virtual.sensor.export.0 --forbidden-topics topic.virtual.sensor.camera.0,topic.virtual.sensor.lidar.0'; $ProbeArgs += " --save-first-pcd `"$(Join-Path $ReportDir "$ReportLabel.pcd")`"" }
 $ProbeArgs += ' --metadata-ledger true --quiet true'
 $Probe = Start-Process -FilePath "node" -ArgumentList $ProbeArgs -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $ProbeStdOut -RedirectStandardError $ProbeStdErr
@@ -60,8 +64,6 @@ try {
     $env:MA0T10_ACCEPTANCE_LEDGER = $Ledger
     $env:MA0T10_RUN_SLAB_SCENARIO_SMOKE = if ($SlabSessions) { '1' } else { '0' }
     $env:MA0T10_ARTEMIS_URL = $BrokerUrl
-    $env:MA0T10_ARTEMIS_USER = $UserName
-    $env:MA0T10_ARTEMIS_PASSWORD = $Password
     # Keep PIE alive long enough for broker connection/setup plus the probe's
     # independent warmup and measurement windows.
 	$env:MA0T10_STREAM_WARMUP_SECONDS = [string]$WarmupSeconds
@@ -243,8 +245,7 @@ finally {
     Remove-Item Env:MA0T10_RUN_SLAB_SCENARIO_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE -ErrorAction SilentlyContinue
     Remove-Item Env:MA0T10_ARTEMIS_URL -ErrorAction SilentlyContinue
-    Remove-Item Env:MA0T10_ARTEMIS_USER -ErrorAction SilentlyContinue
-    Remove-Item Env:MA0T10_ARTEMIS_PASSWORD -ErrorAction SilentlyContinue
+    Restore-Ma0t10ArtemisCredential $Credential
     Remove-Item Env:MA0T10_STREAM_MEASURE_SECONDS -ErrorAction SilentlyContinue
 	Remove-Item Env:MA0T10_STREAM_WARMUP_SECONDS -ErrorAction SilentlyContinue
     if (-not $Probe.HasExited) { $Probe.Kill() }
