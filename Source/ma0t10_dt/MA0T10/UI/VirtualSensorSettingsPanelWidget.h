@@ -140,6 +140,7 @@ private:
 	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText;
 	FText OwnedStatusText;
 	FText OwnedDebugLogText,OwnedIdentityText;
+    FText OwnedAutomationText;
 	bool bOwnedCanEdit=false;
 	double NextOwnedSettingsRefresh=0;
 	TSharedPtr<class SScrollBox> OwnedSettingsScroll;

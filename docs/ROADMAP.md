@@ -22,6 +22,8 @@ DTCore는 필수 의존성이며 현재 `b2504d1`을 유지한다. 당면 배치
 
 ## 2. 권장 순서와 단계별 결과물
 
+**AUTO-01 (사용자 2026-10-15, 로드맵 #7, 기준 d45f27e): 1단계 구현·집중 검증 완료, 통합 검증 중.** 공식 Python/PowerShell 실행기가 결과+child 상태로 종료 코드를 보장하고 UE는 정상 종료한다. 일반 UI의 terminal 제어 잔류 버그는 SCN-RELEASE-01(`9fa04be`)로 분리 수정했다. offscreen 결합 job은 시나리오→데이터셋20→PCD30초·599submit/receipt로 성공했고 로컬 API·토큰·실행기/취소도 검사했다. [명세](../README.md#auto-01-배치-실행과-로컬-제어-api--기본-꺼짐), [현재 gate](IMPROVEMENTS.md#auto-01--화면-없는-배치-실행과-로컬-제어-api-1단계-로드맵-7), `Saved/Reports/AUTO-01/RESULT.md`를 따른다. 기본 PCD·wire·저장값·맵·DTCore를 유지하며 디스크 resume/외부 노출/포맷 변환·플러그인화는 시작하지 않는다.
+
 **DATASET-01 (사용자 2026-10-15, 기준 f499d57): 90% — 구현·자동 검증 완료, 직접 마우스 환경 보류.** CAM-GT/LIDAR-FID 위에서 domain randomization·장면 라벨·채점·owned data UI를 제공한다. 재개 승인에 따라 일반 동시 캡처의 cached shader binding 수명/texture 전환 버그를 **11번 GPU-CRASH-01**로 분리 수정(`337dd10`)했고, 데이터셋 GPU→CPU 강제 전환 없이 일반4경로100회와 FullSpec100장면×3·정답 재현/취소·release278 Success/skip30·Game/WBP7/quick/layer0·기본 꺼짐ABAB×3의2% gate를 통과했다. 직접 Computer Use는캡처0x80070057로 미조작 보류이며 자동1920×1080 진행 화면과 구분한다. [상태와 gate](IMPROVEMENTS.md#dataset-01--학습용-데이터셋-자동-생성-1단계), `Saved/Reports/DATASET-01/RESULT.md`를 따른다. 기본 PCD 정책과 명시적 opt-in을 유지한다. 2단계 KITTI/COCO·ROS bag·7번 연계 대량 headless는 제안이다. DTCore 수정·플러그인화와 분리한다.
 
 2026-10-15 사용자 승인 범위 **LIDAR-FID-01**은 현재 프로젝트 모듈 안의 센서 사실성 1단계다. 기존 시간 필드·SurfaceResponse·장비 프로필을 감사하고, 기본 꺼짐인 시간차·rigid motion 평면 근사·재질/입사각 반사와 소유 UI를 보완한다. 기준은 `e0a6901`, Runtime `eea0268`이며 전체 회귀·기본 꺼짐 2% 성능·opt-in 비용·직접 화면 수용 결과는 [IMPROVEMENTS](IMPROVEMENTS.md#lidar-fid-01--lidar-사실성-1단계)와 `Saved/Reports/LIDAR-FID-01/RESULT.md`를 따른다. 발사 순서/반사율 계수의 가정을 실장비 보정으로 표시하지 않는다. **2단계** 빔 발산·혼합 픽셀·물리 multi-echo·ROS2 시간차 활용은 제안이며 구현 승인이 아니다. 플러그인화·DTCore 수정 단계와 분리한다.

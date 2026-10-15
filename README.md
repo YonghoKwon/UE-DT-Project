@@ -553,6 +553,8 @@ ARCH-08의 Monitor/Scan/Publisher는 같은 클래스의 12개 `.cpp`(249~887줄
 
 ### 10.3 구성 요소 책임 (현재)
 
+AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력과 같은 L2 재생/데이터셋 서비스를 호출하며, L3 소유 설정 화면만 이 adapter를 참조한다. 새 모듈·플러그인·위젯 관리자를 만들지 않고 layer/allowlist0/0을 유지한다. SCN-RELEASE-01(`9fa04be`)은 terminal snapshot 확정과 기존 소유 작업 정리 뒤 live 센서 제어만 해제한다. 이전 run의 늦은 프레임은 계속 거부하고 데이터 필수 잠금·terminal 결과 계약은 보존한다.
+
 | 구성 | 책임 |
 |---|---|
 | VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API(`SubmitExternalFrame`) |
@@ -564,6 +566,7 @@ ARCH-08의 Monitor/Scan/Publisher는 같은 클래스의 12개 `.cpp`(249~887줄
 | Placement / Layout / OutputPreflight | 북마크·자세 이력, 장비 수명·전체 배치, 읽기 전용 PCD 사전 점검 |
 | SlabContext / Replay / RunResults / SlabActor | 업무 세션·보관·이동·실행 결과 (L2) |
 | ToolWorkspace / PanelHost / UiHost | 명시적 소유 UI·Main/Viewport 재호스팅 (L3) |
+| AutomationControl / LoopbackServer / Protocol | 명시적 job·loopback API(L2), 기존 서비스 호출·게임 스레드 직렬화·결과 기록 |
 
 `UVirtualSensorIntegrationSettings`/`UVirtualSensorDtCoreBridgeSubsystem`/Bootstrap Actor는 **소스에 없다**(과거 제안). 구현된 것으로 오인하지 않는다.
 
@@ -586,7 +589,87 @@ pose는 UE world meter(X전방/Y우측/Z위쪽), quaternion xyzw와 pitch/yaw/ro
 
 순서: 장면 적용 → 지정 engine frame 안정화 → 같은 게임 프레임의 두 센서 요청 → immutable 획득 → worker encode/write → 완료 marker/manifest → 다음 장면. CPU LiDAR chunk는 여러 engine frame에 걸쳐도 장면을 고정하고 acquisition snapshot을 보존한다. 하드웨어 동시 timestamp를 주장하지 않는다. 장면/저장 작업1개, Camera≤1920×1080·LiDAR≤25만 잠재 반환점·입력 추정≤256MiB로 admission을 제한한다. 같은 크기의 readback은 재사용한다. pause는 완료 장면 경계에서 원상 복원하고 같은 PIE에서 재개한다. 프로세스 재시작 후 디스크 resume는2단계다. 종료·중단은 새 작업을 멈추고 부분 파일을 제거하며 다른 작업이 바꾼 상태를 덮지 않는다. 화면 숨김/장비 선택은 진행 중인 생성을 중단하지 않는다.
 
-채점: `python Tools/DatasetTools/score_dataset.py <데이터셋 폴더> --output <보고서.json>`. 기존 world-XY PCA 주축 yaw를180° 주기로 비교하고 평균·p95(선형 보간)·최대를 계산한다. invalid 분석은 별도 집계한다. `python -m unittest discover -s Tools/DatasetTools -v`로 도구를 검사한다. 실제 검증 조건·성능·메모리·수용 제한은 `Saved/Reports/DATASET-01/RESULT.md`에 기록한다. KITTI/COCO·ROS bag·대량 headless는2단계 제안이며 구현하지 않았다.
+채점: `python Tools/DatasetTools/score_dataset.py <데이터셋 폴더> --output <보고서.json>`. 기존 world-XY PCA 주축 yaw를180° 주기로 비교하고 평균·p95(선형 보간)·최대를 계산한다. invalid 분석은 별도 집계한다. `python -m unittest discover -s Tools/DatasetTools -v`로 도구를 검사한다. 실제 검증 조건·성능·메모리·수용 제한은 `Saved/Reports/DATASET-01/RESULT.md`에 기록한다. KITTI/COCO·ROS bag은2단계 제안이며, 배치/headless 실행은 AUTO-01 범위를 따른다.
+
+### AUTO-01 배치 실행과 로컬 제어 API — 기본 꺼짐
+
+사용자 재개 결정에 따라 **Python 실행기가 공식 종료 상태를 판정**한다. UE5.3 Windows의 graceful exit는 비0 코드를 보장하지 않는다. UE의 `RequestExitWithStatus(false, code)`와 teardown/config flush는 유지하며 Force/TerminateProcess는 쓰지 않는다. 이전 실패·수정 및 최종 검증 근거는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다.
+
+사용자 2026-10-15 승인 범위다. 기존 모듈 L2 `Scenario/Automation`이 Coordinator·Actor 편집 API·Replay·Dataset·비동기 FileSave·PCD Publisher를 호출한다. DTCore `UDxApiSubsystem`은 HTTP 클라이언트, `UDxWebSocketSubsystem`은 STOMP 클라이언트라 수신 서버로 재사용할 수 없다. UE Sockets worker는 UObject를 읽지 않으며 명령은 게임 스레드에서 직렬 처리한다. DTCore·기본 PCD·wire·SaveGame·맵은 유지한다.
+
+미사용 시 listener·ticker·프레임 계측·파일 생성이 없다. CLI는 standalone Game world에만 적용한다. 기존 Coordinator **정확히1개**, 중복 없는 SensorId, 시나리오 playback adapter가 필요하다. 장비·Slab·조명·맵을 자동 배치하지 않는다.
+
+```powershell
+python Tools/AutomationClient/run_job.py `
+  --executable 'C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' `
+  --project 'C:/Unreal Projects/ma0t10_dt/ma0t10_dt.uproject' `
+  --map /Game/MA0T10/Maps/Tests/SlabScenarioValidationMap --job C:/jobs/job.json `
+  --timeout 600 -- -game -d3d12 -RenderOffscreen -unattended -nosplash -NoLoadingScreen
+```
+
+Development 패키지는 `--executable <package>/ma0t10_dt.exe`로 지정하고 `--project`를 생략한다. PowerShell의 `Tools/AutomationClient/run_job.ps1 -Executable ... -Job ... -Project ... -Map ...`도 같은 Python 실행기를 호출하고 같은 종료 코드를 반환한다. 두 실행기 모두 UE의 정상 teardown을 유지한다.
+
+실행기는 결과 경로를 lock으로 보호하고 기존 결과는 `.previous-<실행ID>`로 보존하여 오래된 성공을 재사용하지 않는다. child exit0 **및** 새 `ma0t10.job.result.v1`의 `ok=true`, 전체 단계의 성공/순서 일치가 필요하다. 결과 없음/실패/스키마 오류/child 실패는 exit1, 입력·경로 충돌은2, timeout은124, 사용자 중단은130이다. 별도 `<job>.runner.json`에 child 종료 상태·판정·경과 시간·로그 위치·완료된 엔진 로그의 Error/Fatal 줄 수(부팅 포함)를 기록하며 인증 값/argv/환경변수를 출력하지 않는다. handled ensure의 로그 줄 수를 고유 오류 수나 job 실패 여부와 혼동하지 않는다.
+
+timeout/중단은 실행별 `-MA0T10JobCancelFile=<경로>` marker로 게임 스레드에 정상 취소를 요청하고 기본30초 기다린다. UE가 완전히 응답하지 않으면 강제 종료하지 않고 실행기만 비0으로 돌아오며 `child_running`, PID, marker와 lock 경로를 보고한다. 해당 child가 끝나기 전에는 lock을 자동 해제하지 않는다. 직접 `-MA0T10Job=...` 실행도 가능하지만 Windows UE exit 코드만으로 성공을 판정하면 안 된다.
+
+job은 UTF-8 JSON·최대256KiB·1~1000단계다. 상대 경로는 **job 폴더 기준**이다. 문서 전체의 필드/타입/범위를 먼저 검사하고 대상/충돌은 단계 직전 검사한다. 실패 시 후속 단계는 실행하지 않는다. 각 비동기 작업의 완료를 기다린다. 기본 단계 timeout300초·전체3600초, 명시적 timeout은1~86400초다.
+
+```json
+{
+  "schema": "ma0t10.job.v1", "result_path": "result.json", "timeout_sec": 600,
+  "steps": [
+    {"op": "sensor.stop", "sensor_id": "VCAM-001"},
+    {"op": "sensor.stop", "sensor_id": "SLAB-LIDAR-001"},
+    {"op": "sensor.set", "sensor_id": "VCAM-001", "profile": "IntelRealSenseD455", "quality": "FullSpec"},
+    {"op": "scenario.start", "json_path": "scenario.json", "timeout_sec": 180},
+    {"op": "dataset.start", "name": "AUTO01", "scenes": 20, "seed": 22015,
+     "slab": "SlabActor_0", "lidar_id": "SLAB-LIDAR-001", "camera_id": "VCAM-001",
+     "camera_truth": true, "lidar_fidelity": true, "ranges": {"yaw": [-10, 10]}},
+    {"op": "pcd.run", "sensor_id": "SLAB-LIDAR-001", "seconds": 30, "timeout_sec": 90}
+  ]
+}
+```
+
+`wait`는 `seconds`(.01~86400), `pcd.run`은 `seconds`(.1~86400)와 충분한 timeout을 지정한다. 다른 op는 아래 API 경로의 마지막 이름에 대응한다(`sensor.set`, `scenario.start` 등). 무한 `pcd.start`는 job에서 거부한다. PCD는 기존 배포 설정/인증을 사용하며 기존 활성 exact/wildcard 스트림이 있으면 거부한다. 자신이 시작한 스트림/측정만 종료하고 원래 스트림 설정을 복원한다. receipt0 또는 전달 오류는 실패다. receipt는 소비자 업무 ACK가 아니다. job은 전체 설정 rollback이나 디스크 resume transaction이 아니다.
+
+`result_path`에 `ma0t10.job.result.v1`을 임시 파일→교체 방식으로 기록한다. 공식 실행기는 새 결과와 child 종료 상태를 함께 검사한다. 유효한 결과 경로를 얻기 전 읽기/파싱 실패는 `Saved/Automation/job-result.json`에 남기며, 기대한 결과가 없어도 실행기는 실패로 판정한다. 결과에는 단계별 성공/오류·시간·산출물·PCD input/submit/receipt/error/overload 수·소스 SHA·맵·RHI/offscreen 여부가 있다. 입력과 제출은 별개이며 지정한 중지 경계의 프레임은 미제출일 수 있다. receipt>0을 획득 손실0으로 표현하지 않는다. hitch는 활성 제어 구간의 world tick 간 wall150ms 초과 수/최대/평균이며 GPU frame/부팅 시간과 다르다. `log_error_count`는 계측 이후 Error 로그 줄 수이므로 부팅 로그도 별도 보관한다.
+
+API는 `-MA0T10Control` 또는 소유 **센서 설정 → 호환 → 외부 제어 API** 체크로 켠다. 기본 `http://127.0.0.1:8099`, 끄면 listener를 닫는다. 세션 토글·주소/실패·배치 진행은 기존 소유 설정 화면에서 최대5Hz로 갱신한다. 숨김/접힘 때 문자열 갱신을 멈추며 토글은 SaveGame에 저장하지 않는다. API를 꺼도 이미 접수한 작업은 계속 진행한다.
+
+선택적 `-MA0T10ControlConfig=C:/private/control.json`의 허용 키는 `port`(1024~65535 정수), `token`뿐이다. 예: `{"port":8099,"token":"<local secret>"}`. 토큰은 `MA0T10_AUTOMATION_TOKEN`으로도 지정하며 파일 token 키가 우선한다(ASCII33~126·최대256자). 토큰을 명령줄 값/로그/상태 응답/SaveGame에 넣지 않는다. 둘 다 비어 있으면 같은 PC의 프로세스가 인증 없이 접근한다. 외부 bind 주소 옵션·TLS·다중 사용자 권한 분리는 없다.
+
+HTTP/1.1·JSON만 지원한다. Host는 정확한 `127.0.0.1:<port>`이며 Origin·chunked·pipelining·중복 헤더를 거부한다. 본문256KiB·헤더8KiB·수신2초·OS backlog16, 소켓1건씩 처리한다. Bearer 인증은 조회/변경 모두 적용한다.200은 즉시 완료,202는 접수,400은 형식,401은 인증,404는 경로,409는 충돌/대상/적용 실패,413/431은 크기,405는 메서드 오류다. 자동 재전송·영구 이력·CORS는 없다.
+
+| 메서드·경로 | 본문/동작 |
+|---|---|
+| GET `/v1/status` | operation_id/phase/terminal/success/error/detail, 배치·데이터셋 진행/폴더·재생 상태·Slab/조명 Actor 이름 |
+| GET `/v1/sensors` | SensorId·Actor·종류·측정 여부·revision·주기·프로필·품질·마지막 FrameId |
+| POST `/v1/sensor` | `sensor_id`와 `interval_sec`(.033~60), 또는 `profile`/`quality`의 기존 enum 이름. 프리셋과 주기 override는 별도 요청. 식별자/자세/임의 UPROPERTY 쓰기는 없음 |
+| POST `/v1/sensor/start`, `/v1/sensor/stop` | `sensor_id`; 기존 Actor 측정 시작/중지 |
+| POST `/v1/capture` | `sensor_id`; **측정 중인** 센서의 새 프레임1개를 FileSave로 비동기 저장. Camera JPEG 또는 LiDAR binary PCD; 완료 detail에 경로/FrameId |
+| POST `/v1/scenario/start` | `json_path` 또는 보관된 `uuid` 중1개. 선택 `send_pcd`(기본false)와 대상 `sensor_id`. 파일8MiB, worker 파싱 후 기존 archive/replay admission |
+| POST `/v1/scenario/stop` | `{}`; 이 제어기가 시작한 재생만 취소 |
+| POST `/v1/dataset/start` | 예제의 이름/대상/장면 수(1~10000). 선택 seed, settle_frames(1~600), camera_truth/lidar_fidelity(기본false), light Actor 이름, ranges. 대상 센서/시나리오가 정지해 있어야 함 |
+| POST `/v1/dataset/stop` | `{}`; 소유 생성 취소. 기존 Dataset 서비스가 writer drain/복원을 소유 |
+| POST `/v1/pcd/start`, `/v1/pcd/stop` | 시작 `sensor_id`, 중지 `{}`. 소유 스트림만 종료/정리; batch는 `pcd.run` |
+| POST `/v1/shutdown` | `{}`; idle standalone game 정상 종료. PIE·배치·진행 중 operation은409 |
+
+긴 작업은1개만 접수한다. 동일 operation_id의 terminal을 기다려야 한다. 배치 중 API 변경은409, 조회는 가능하다. 취소는 terminal 실패이며 하위 서비스의 drain 상태는 계속 조회한다. dataset ranges는 DATASET-01 단위/상한의 `yaw,pitch,roll,x,y,z,size,surface,roughness,oxidation,light_intensity,light_pitch,light_yaw,sensor_position,sensor_angle`에 `[min,max]`를 지정한다. 생략한 항목은 랜덤화하지 않는다.
+
+```powershell
+python Tools/AutomationClient/client.py status
+python Tools/AutomationClient/client.py sensors
+python Tools/AutomationClient/client.py call /v1/sensor request.json
+python Tools/AutomationClient/client.py capture VCAM-001  # 먼저 sensor/start 호출
+python Tools/AutomationClient/client.py make-job C:/jobs/job.json --scenario C:/jobs/scenario.json --slab SlabActor_0 --lidar SLAB-LIDAR-001 --camera VCAM-001
+# job으로 시뮬레이터 실행 후 생성→채점:
+python Tools/AutomationClient/client.py check C:/jobs/result.json
+python Tools/AutomationClient/client.py score C:/jobs/result.json --output C:/jobs/score.json
+python -m unittest discover -s Tools/AutomationClient -v
+```
+
+Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
 
 ## 11. 검증
 
@@ -632,6 +715,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 
 | 변수 | 활성화/설정 대상 시험·fixture | 값 의미·필요한 환경 |
 |---|---|---|
+| `MA0T10_AUTOMATION_TOKEN` | AUTO-01 local control API | Optional Bearer token (ASCII 33..126, max 256 chars); does not enable API; never logged or saved |
 | `MA0T10_PCD20HZ_CASE` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | healthy/slow/heartbeat/silent/error/reset/observe; Tools/StompFaultServer 로컬 TCP fault 서버 |
 | `MA0T10_PCD20HZ_SECONDS` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 8~600초; 합성 socket 부하 시간 |
 | `MA0T10_PCD20HZ_INTERVAL` | MA0T10.SensorStream.Pcd20Hz.SocketFaults | 0.05~0.2초; 합성 프레임 간격 |

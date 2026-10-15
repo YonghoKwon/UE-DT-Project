@@ -63,6 +63,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
 - **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
 
+## AUTO-01 — 화면 없는 배치 실행과 로컬 제어 API 1단계 (로드맵 #7)
+
+- **출처:** 사용자 2026-10-15. `feat/auto-control`, 기준 `d45f27e`, DTCore `b2504d1` 고정. CLI/job 또는 사용자가 켠 loopback API에서만 동작하며 기본 PCD·wire·SaveGame·출력 정책을 유지한다.
+- **구현:** L2 adapter의 version1 job 검증·순차 실행·JSON 결과/종료 코드, UE socket worker의127.0.0.1 고정·선택적 토큰·게임 스레드 직렬 처리. 기존 Actor/Replay/Dataset/FileSave/Publisher API, Python API/job/생성→채점 예제와 단위/실소켓 회귀, 소유 설정 화면의 세션 토글·주소·배치 상태를 추가했다.
+- **현재 상태: 구현·집중 검증 완료, 통합 검증 중.** 재개 결정으로 Python/PowerShell 실행기가 새 결과 JSON+child 상태를 검사하고 실패/누락/스키마/timeout을 비0으로 판정한다. UE 정상 teardown·config flush와 `RequestExitWithStatus(false, code)`를 유지하며 Force는 쓰지 않는다. Editor/Game Development, Python11개, API23+추가4개, 초기화/인증6조합, job실행7조합을 확인했다. 실제 offscreen 결합 job은 시나리오→데이터셋20→PCD30초·599submit/599receipt·전달 오류/과부하0으로 성공했다(입력600과 중지 경계 미제출1은 구분). 전체 release/WBP/perf·패키지·API 직접 UI의 최종 결과는 `Saved/Reports/AUTO-01/RESULT.md`에 갱신한다.
+- **SCN-RELEASE-01 별도 커밋 `9fa04be`:** 일반 UI 관찰 완료/취소 후 독립 PCD0/s를 직접 재현했다. terminal snapshot/소유 작업 정리 후 live 제어를 해제하며 데이터 필수 잠금·완료 결과·늦은 프레임 거부를 유지한다. 새 회귀의 수정 전 실패→수정 후 통과, 집중12실행/skip3, TCP 장애6종, 직접 UI의 양수 송신을 확인했다. `Saved/Reports/SCN-RELEASE-01/RESULT.md`와 검증 이력을 따른다.
+- **경계:** DTCore는 HTTP/STOMP 클라이언트여서 listener가 없어 프로젝트 adapter를 사용한다(DTC-AUTO01). DTCore·새 모듈/플러그인/자산·외부 bind·방화벽 변경은 없다. 디스크 resume/checkpoint·외부 노출/TLS·ROS bag·KITTI/COCO는 후속 제안이다.
+
 ## DATASET-01 — 학습용 데이터셋 자동 생성 1단계
 
 - **출처:** 사용자 2026-10-15. `feat/dataset-gen`, 기준 `f499d57`, DTCore `b2504d1` 고정. 이 기능의 화면 opt-in 범위에서만 IO-01 보류를 해제하며 기본 PCD 송신·wire·정책은 유지한다.
@@ -694,6 +702,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-AUTO01 | DTCore API/WebSocket은 외부 HTTP/STOMP 클라이언트이며 loopback 수신 계약이 없음 | 프로젝트 L2 UE Sockets adapter·게임 스레드 명령 처리·기존 서비스 재사용 | 공통 필요 시 opt-in listener의 수명·인증·GT admission 검토; 업무 command는 host 유지 | b2504d1 Core/DxApiSubsystem.h·DxWebSocketSubsystem.h; DTCore 소스/gitlink 불변 |
 | DTC-LIDAR-FID01 | `UMechDriverCompBase`에 획득 시점의 kinematic linear/angular velocity 조회 계약 없음. SetActorTransform 기반 Slab은 일반 GetVelocity만으로 시간차를 복원할 수 없음 | 기존 MechDriver 상속을 유지하고 L0 motion provider를 SlabMotion에서 구현, L1이 immutable sample로 사용 | 여러 소비 프로젝트에 필요할 때 world rigid velocity/pivot의 읽기 전용 중립 interface 검토. Slab 보간·업무 정책은 host 유지 | DTCore b2504d1 `ActorComponent/MechDriverCompBase.h`는 constructor/BeginPlay만 제공; `Contracts/VirtualSensorMotionProvider.h`, `SlabMotionComponent::CaptureSensorMotion`; DTCore 소스/gitlink 불변 |
 | DTC-UXR08 | Actor Click에 기존 소유 정보 패널/선택 대상으로 이동하는 중립 활성화 확장점 없음 | 기존 SlabUiRegistry에 weak 활성화 callback을 추가해 현재 Host/UDxWidget 진행 인스턴스만 재바인딩·전면 처리 | WidgetFlag와 분리된 선택/기존 인스턴스 navigation delegate 검토 | AInteractableActor::Click의WidgetFlag 기반OpenWidget, 프로젝트SlabActor::Click/SlabUiRegistry::Activate; DTCore 소스/gitlink 불변 |
 | DTC-MAP01 | 업무 WebSocket의 현재 연결/구독 성공 상태를 읽는 공개 조회 API 없음 | 맵 점검은 확인 불가 경고와 로그 확인 방법을 표시하며 OnConnected 이력을 현재 상태로 추정하지 않음. 설정의 TC/Topic은 읽기 전용 조회 | 연결/재연결/구독 readiness의 읽기 전용 snapshot API 검토 | `Core/DxWebSocketSubsystem.h`의 private 상태·protected StompClient, 공개 OnConnected만 존재; DTCore 소스/gitlink 불변 |
