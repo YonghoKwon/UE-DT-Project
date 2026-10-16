@@ -40,7 +40,7 @@ IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63
 | 표준 데이터셋 내보내기 (EXPORT-01) | Runtime eeff0c1: GPU20장면·COCO80마스크·KITTI407519점 재로딩/투영, Python19·release285 Success/skip32·2% perf 통과 | 기본 없음. UXR-16 직접 재시도도 Windows 잠금으로 입력0·보류(이전 Windows Security 이력 보존). KITTI 기울기 근사·custom class 제한은 [사용법](Tools/DatasetTools/README.md), 상세는 `Saved/Reports/EXPORT-01/RESULT.md` |
 | 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
-| 자동화 | UXR-16 `b6f2dc8`: Editor/Game Development·release14단계, D3D12 고유290 Success/skip34/실패0·WBP7·어휘114/기본34/허용7·위반0·layer0/0. API/batch/IMU·UI 정답+IMU+COCO 통합 회귀 포함, Python69 Success | 기본 꺼짐 `5dd9327` 대비 오프스크린1+1 ABAB×3: FPS 저하 +0.0022%·engine p95 +0.0000%·GT -0.6700%,2% 통과. 표시형 성능·직접/외부 수용은 보류. `Saved/Reports/UXR/UXR-16/RESULT.md` |
+| 자동화 | UXR-17 `d519ac0`: Editor/Game Development·release14단계, D3D12 고유291 Success/skip37/실패0·WBP7·어휘114/기본34/허용7·위반0·layer0/0. 준비/시간 초과/모드/긴 이름·20회 전환 회귀 포함 | `e93d44f` 대비1+1·1920×1080·10+30초·Visible 설정 ABAB×3: FPS 저하 -0.0053%·engine p95 +0.0000%·GT -1.1632%,2% 통과. 직접 UI는 캡처0x80070057·입력0·5행 보류. 수치·직접 제한은 `Saved/Reports/UXR/UXR-17/RESULT.md` |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
 UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
@@ -50,6 +50,8 @@ UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 
 UXR-04 근거 보고서: `Saved/Reports/UXR/UXR-04/RESULT.md`(집중 28 Success, 렌더 8장, 성능 2% gate 통과; 직접 조작 보류).
 
 최신 데이터 UI 근거 보고서: `Saved/Reports/UXR/UXR-03/supplement/RESULT.md`(UXR-03 보완), 기존 5탭/전체 회귀는 `Saved/Reports/UXR/UXR-03/RESULT.md`(커밋하지 않음). 과거 수치는 [검증 이력](docs/VALIDATION_HISTORY.md).
+
+UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중…**, 5초 뒤 센서 상태 확인 안내를 표시하고 유효 영상에서 즉시 해제한다. 카드에 **일반/깊이/종류/개체**와 깊이0–50m 색 막대·공통 분류 색·개체별 색 안내를 표시한다. 이름만 말줄임하고 상태·Hz를 우선 보존하며 전체 이름은 툴팁으로 확인한다. LiDAR 점군만 보기도 배지로 구분한다. 기존 보기 설정 메뉴와 측정/출력/저장 계약은 같다. 검증·직접 환경 제한은 `Saved/Reports/UXR/UXR-17/RESULT.md`를 따른다.
 
 ## 2. 현재 가능한 것과 아닌 것
 
@@ -557,7 +559,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-16, UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+### 10.2 현재 위반 (2026-10-16, UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+UXR-17은 기존 L3 소유 미리보기의 프레임 대기 안내·모드 범례·헤더 배치만 바꾼다. 기존 acquisition/정답 texture 캐시와5Hz 상태 갱신을 읽으며 숨김/접힘 갱신을 멈춘다. 새 capture/readback·타이머·저장값·wire·모듈·자산·DTCore 변경 없이 레이어 위반/allowlist **0→0**이다.
 
 TESTSET-01은 L2 `Scenario/AgentTestSetSubsystem`에서 수신 분기·큐·DATASET-01 프레임 계획을 조립하고 L1 FileSave의 별도 TestSets 허용 루트를 재사용한다. L3의 소유 `UDxWidget`은 기존 Workspace/DTCore 등록·닫기·전면·입력 차단을 사용한다. 기존 패널 enum/저장값·DTCore·자산·모듈 변경 없이 레이어 위반/allowlist **0→0**이다.
 
@@ -569,7 +573,7 @@ EXPORT-01은 L2 Dataset의 추가 OBB 라벨·선택적 외부 Python 프로세�
 
 ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 282개(IMU-01 포함)에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 286개(TESTSET-01 포함)에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 
 LIDAR-FID-01은 L0 `VirtualSensorMotionProvider`를 L2 SlabMotion이 구현하고 L1 센서가 snapshot으로 읽는다. L1 `VirtualLidarFidelity`의 순수 모델을 CPU/GPU가 공유하고 기존 L3 소유 설정/미리보기가 옵션을 표시한다. 신규 역방향 의존 없이 위반·allowlist **0/0**, DTCore·모듈·자산·PCD 레코드 불변이다.
 

@@ -119,3 +119,15 @@ Windows 보안/권한 팝업은 조작하지 않고 해당 행을 보류한다. 
 | T03 | 목표 완료 전 선택 비활성, 완료 후 활성. 3개 선택→실제 Slab 움직임·전송 꺼짐, 중지/다른 선택. 데이터셋/PCD 불변 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
 | T04 | 초기화 첫 클릭 안내·8초 후 취소/두 번째 확인. 파일 보존·목록 초기화. 닫기/재열기 작업 유지 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
 | T05 | LiDAR 기본·선택 카메라 정답/IMU/EXPORT 파일 대조, 1920×1080/좁은 창·125/150% 접근성. 미수행 조합 별도 보류 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
+
+## UXR-17 미리보기 추가 직접 점검
+
+출처: 사용자 2026-10-16, 로드맵 #18. 기존24행/70분의 판정을 바꾸지 않는 별도5행이다. client1920×1080·window DPI·글자100/150%·기본400×288/현재 최소 카드의 조건을 기록한다. `Saved/Reports/UXR/UXR-17/manual/CHECKLIST.md`에 누른 것/기대/실제/스크린샷을 남긴다. 개인 SaveGame·프로젝트 Saved/Config와 `%LOCALAPPDATA%/UnrealEngine/5.3/Saved/Config/WindowsEditor`를 실행 전 백업하고 Editor 종료 후 복원한다. 잠금·보안 팝업·캡처 오류에서는 입력하지 않고 해당 행만 보류한다.
+
+| ID | 직접 누를 것 / 기대 | 결과 |
+|---|---|---|
+| P01 | 정지 Camera 선택→측정 시작, 새 Camera 전환. 첫 영상 전 준비 문구/진행 표시, 유효 영상에서 해제. 프레임 없음이 재현되면5초 뒤 센서 확인 안내 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/UXR/UXR-17/manual/CHECKLIST.md) |
+| P02 | 이미 측정 중인 두 Camera를 여러 번 전환. 이름과 자기 영상이 함께 바뀌며 불필요한 검은 화면/대기가 없음 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/UXR/UXR-17/manual/CHECKLIST.md) |
+| P03 | 보기 설정에서 RGB/깊이/의미 분류/객체 구분. 카드 일반/깊이/종류/개체·0–50m·공통 클래스 색·개체별 색 확인, RGB 복귀 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/UXR/UXR-17/manual/CHECKLIST.md) |
+| P04 | 긴 센서 이름·글자150%·최소 카드. 이름만 말줄임, 전체 이름 툴팁, 상태/Hz/닫기/보기 설정 접근 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/UXR/UXR-17/manual/CHECKLIST.md) |
+| P05 | LiDAR 일반/점군만 보기 전환. 배지 구분, 숨김/재열기 후 같은 측정·출력 유지 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/UXR/UXR-17/manual/CHECKLIST.md) |
