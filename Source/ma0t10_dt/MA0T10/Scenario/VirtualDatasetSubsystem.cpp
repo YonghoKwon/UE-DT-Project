@@ -444,7 +444,7 @@ void UVirtualDatasetSubsystem::WriteScene()
 #endif
         Result.Commit=Sha.TrimStartAndEnd();Manifest->SetStringField(TEXT("project_commit"),Result.Commit);
         const FString Temp=Root/TEXT("dataset.json.pending"),Final=Root/TEXT("dataset.json");
-        if(Exit!=0||Result.Commit.IsEmpty()||Cancelled->load()||!FFileHelper::SaveStringToFile(DatasetJson(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!IFileManager::Get().Move(*Final,*Temp,true,true,false,true))
+        if(Exit!=0||Result.Commit.IsEmpty()||Cancelled->load()||!FFileHelper::SaveStringToFile(DatasetJson(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!(TestSet?UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(Final,Temp):IFileManager::Get().Move(*Final,*Temp,true,true,false,true)))
         {
             Result.Error=TEXT("dataset.json 확정 실패 또는 생성 취소");IFileManager::Get().Delete(*Temp,false,true);
             for(const auto& F:Files)IFileManager::Get().Delete(*(Directory/F.Name),false,true);

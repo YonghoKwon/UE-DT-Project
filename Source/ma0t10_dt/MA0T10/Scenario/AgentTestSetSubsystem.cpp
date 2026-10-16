@@ -2,6 +2,7 @@
 #include "VirtualDatasetSubsystem.h"
 #include "SlabScenarioReplaySubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
@@ -44,7 +45,7 @@ bool SaveTestSetJson(const FString& Path,const FString& Text)
     IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);
     const FString Temp=Path+TEXT(".pending");
     if(!FFileHelper::SaveStringToFile(Text,*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))return false;
-    return IFileManager::Get().Move(*Path,*Temp,true,true,false,true);
+    return UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(Path,Temp);
 }
 const TCHAR* TestSetStateName(EAgentTestSetItemState S)
 {switch(S){case EAgentTestSetItemState::Generating:return TEXT("generating");case EAgentTestSetItemState::Completed:return TEXT("completed");case EAgentTestSetItemState::Failed:return TEXT("failed");default:return TEXT("waiting");}}
@@ -73,7 +74,7 @@ struct FAgentTestSetState
     int32 Active=INDEX_NONE,Preparing=INDEX_NONE,Preview=INDEX_NONE;
     int64 Revision=1,ManifestRevision=0,PendingManifestRevision=0,InputBytes=0;
     int32 SavedCompleted=0,PendingManifestCompleted=0;
-    bool Paused=false,Yielded=false,Reset=false,ManifestFailed=false;
+    bool Paused=false,Yielded=false,Reset=false,ManifestFailed=false,ResetManifestQueued=false;
     double Started=0,ActiveStarted=0;
     TFuture<FAgentTestSetPrepared> Prepare;
     TOptional<FAgentTestSetPrepared> Prepared;
@@ -228,9 +229,13 @@ void UAgentTestSetSubsystem::Pump()
     if(S.Reset)
     {
         if(S.Active!=INDEX_NONE||S.Prepare.IsValid()||S.Verify.IsValid()||!S.Spools.IsEmpty()||S.Manifest.IsValid())return;
-        // Persist the abandoned set once, then detach. Reset never deletes existing datasets.
-        const auto Snapshot=StatusJson();const FString Path=S.Root/TEXT("testset.json");
-        S.Cancelled->store(true);Async(EAsyncExecution::ThreadPool,[Snapshot,Path](){SaveTestSetJson(Path,EncodeTestSetJson(Snapshot));});
+        // Persist the abandoned set and wait for the last write before detaching it.
+        if(!S.ResetManifestQueued)
+        {
+            const auto Snapshot=StatusJson();const FString Path=S.Root/TEXT("testset.json");S.ResetManifestQueued=true;
+            S.Manifest=Async(EAsyncExecution::ThreadPool,[Snapshot,Path](){return SaveTestSetJson(Path,EncodeTestSetJson(Snapshot));});return;
+        }
+        S.Cancelled->store(true);
         State.Reset();GetWorld()->GetTimerManager().ClearTimer(Timer);return;
     }
     for(int32 I=0;I<S.Items.Num()&&S.Spools.Num()<2;++I)
