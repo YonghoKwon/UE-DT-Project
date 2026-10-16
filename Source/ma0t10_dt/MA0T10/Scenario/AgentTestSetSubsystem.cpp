@@ -97,7 +97,10 @@ FAgentTestSetSettings FAgentTestSetSettings::Load()
 void UAgentTestSetSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {Super::Initialize(Collection);Config=FAgentTestSetSettings::Load();}
 bool UAgentTestSetSubsystem::Matches(const FSlabScenarioData& Data,const FString& Trigger)
-{if(Data.Rows.IsEmpty()||Trigger.TrimStartAndEnd().IsEmpty())return false;for(const auto& R:Data.Rows)if(R.MtlNo.TrimStartAndEnd()!=Trigger.TrimStartAndEnd())return false;return true;}
+{
+    // The codec already enforces one material per immutable scenario. Admission stays O(1).
+    const FString Key=Trigger.TrimStartAndEnd();return !Data.Rows.IsEmpty()&&!Key.IsEmpty()&&Data.Rows[0].MtlNo.TrimStartAndEnd()==Key;
+}
 bool UAgentTestSetSubsystem::IsTrigger(const FSlabScenarioData& Data) const {return Config.Enabled&&Matches(Data,Config.Trigger);}
 bool UAgentTestSetSubsystem::Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,FString& Error)
 {
@@ -276,7 +279,7 @@ void UAgentTestSetSubsystem::Pump()
             {
                 FAgentTestSetPrepared Out;Out.Configuration=Hash;FString Json;
                 if(!FFileHelper::LoadFileToString(Json,*Path)||!FSlabScenarioCodec::Parse(Json,Out.Data,Out.Error,false))return Out;
-                Out.Plan=MakeShared<FVirtualDatasetFramePlan,ESPMode::ThreadSafe>();auto& Plan=*Out.Plan;Plan.Root=Item.Directory/(TEXT("run_")+Item.RunId);Plan.ScenarioId=Item.ScenarioId;Plan.RunId=Item.RunId;Plan.CaptureCamera=ConfigCopy.CaptureCamera;Plan.Pipeline=ConfigCopy.Pipeline;
+                Out.Plan=MakeShared<FVirtualDatasetFramePlan,ESPMode::ThreadSafe>();auto& Plan=*Out.Plan;Plan.Root=Item.Directory/(TEXT("run_")+Item.RunId);Plan.ScenarioId=Item.ScenarioId;Plan.RunId=Item.RunId;Plan.CaptureCamera=ConfigCopy.CaptureCamera;Plan.Pipeline=ConfigCopy.Pipeline;Plan.SlabConfiguration=Hash;
                 // Match live playback's first-row dimension policy, with identical BuildPose and units.
                 const auto& First=Out.Data->Rows[0];const FVector Size(FSlabScenarioCodec::ToCm(First.Length,Dimension),FSlabScenarioCodec::ToCm(First.Width,Dimension),FSlabScenarioCodec::ToCm(First.Thickness,Dimension));
                 if(Size.ContainsNaN()||Size.GetMin()<=0||Size.GetMax()>1000000){Out.Error=TEXT("Slab 치수가 지원 범위를 벗어났습니다");Out.Plan.Reset();return Out;}

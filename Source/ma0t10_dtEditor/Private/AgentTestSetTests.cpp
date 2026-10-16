@@ -18,6 +18,7 @@
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
 #include "EngineUtils.h"
+#include "Components/StaticMeshComponent.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
@@ -69,9 +70,9 @@ public:
             FAgentTestSetSettings Config;Config.Target=Large?100:3;Config.LidarId=TEXT("TESTSET-LIDAR");Config.Pipeline=Pipeline;Test->TestTrue(TEXT("fixture config before admission"),Service->ConfigureForTests(Config));
             Test->TestFalse(TEXT("default state has no set or output"),Service->HasItems());Test->TestFalse(TEXT("preview requires target completion"),Service->SelectPreview(0,Error));
             Source=MakeAgentTestSetFixture(Large?3:20,TEXT(" 9999 "));Test->TestTrue(TEXT("trigger whitespace normalized"),Service->IsTrigger(*Source));
-            Test->TestTrue(TEXT("submit through production async parser"),Slab->SubmitScenarioJson(Source->OriginalJson));Injected=1;Phase=Large?2:0;MeasureStart=Now;MemoryStart=FPlatformMemory::GetStats().UsedPhysical;return false;
+            Test->TestTrue(TEXT("submit through production async parser"),Slab->SubmitScenarioJson(Source->OriginalJson));Injected=1;Phase=Large?2:0;MeasureStart=LastWall=Now;MemoryStart=FPlatformMemory::GetStats().UsedPhysical;return false;
         }
-        if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;const double Ms=World->GetDeltaSeconds()*1000.;Frames.Add(Ms);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));PeakMemory=FMath::Max(PeakMemory,FPlatformMemory::GetStats().UsedPhysical);}
+        if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;const double Ms=World->GetDeltaSeconds()*1000.;Frames.Add(Ms);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000.);LastWall=Now;PeakMemory=FMath::Max(PeakMemory,FPlatformMemory::GetStats().UsedPhysical);}
         if(Phase==0)
         {
             if(Service->Items().IsEmpty()||Service->Items()[0].State!=EAgentTestSetItemState::Failed)return false;
@@ -116,7 +117,9 @@ public:
                 {Test->TestTrue(TEXT("completed selection requests existing replay"),Service->SelectPreview(PreviewCount,Error));PreviewRequested=true;return false;}
                 if(PreviewRequested&&Catalog->GetReplayStatus().State==ESlabScenarioReplayState::Playing)
                 {
+                    if(Slab->GetSimulationStatus().RowIndex<1)return false;
                     const auto Status=Catalog->GetReplayStatus();Test->TestFalse(TEXT("selected playback is observation only"),Status.Outputs.HasAnyOutput());PreviewRuns.Add(Status.RunUUID);
+                    Test->TestTrue(TEXT("selected simulation actually advances source rows and pose"),Slab->GetActorLocation().X>1500.&&Slab->GetSimulationStatus().FrameNo>100);
                     FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01")/FString::Printf(TEXT("automated-preview-%d.png"),PreviewCount+1),true,false);
                     ++PreviewCount;PreviewRequested=false;Service->StopPreview();return false;
                 }
@@ -130,7 +133,31 @@ public:
             Test->TestTrue(TEXT("confirmed reset accepted"),Service->ResetConfirmed(Error));Phase=4;return false;
         }
         if(Phase==4)
-        {if(Service->HasItems())return false;Test->TestFalse(TEXT("reset releases active work"),Dataset->IsActive());Test->TestTrue(TEXT("reset preserves artifacts on disk"),FPaths::FileExists(Root/TEXT("testset.json")));return Finish();}
+        {
+            if(Service->HasItems())return false;Test->TestFalse(TEXT("reset releases active work"),Dataset->IsActive());Test->TestTrue(TEXT("reset preserves artifacts on disk"),FPaths::FileExists(Root/TEXT("testset.json")));
+            if(Large)return Finish();Test->TestTrue(TEXT("new generation after reset"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(20,TEXT("9999"))->OriginalJson));Phase=5;return false;
+        }
+        if(Phase==5)
+        {
+            if(!Dataset->IsCapturingForTests())return false;
+            Slab->Roughness=.31415f;Slab->RefreshDatasetAppearance();UserSize=FVector(900,210,60);Test->TestTrue(TEXT("fixture edits geometry through public API"),Slab->ApplyDatasetGeometry(UserSize));
+            UserPose=Slab->GetActorTransform();UserPose.AddToTranslation(FVector(0,0,10));Slab->SetActorTransform(UserPose);Phase=6;return false;
+        }
+        if(Phase==6)
+        {
+            if(Dataset->IsActive()||Service->Items().IsEmpty()||Service->Items()[0].State!=EAgentTestSetItemState::Failed)return false;
+            CheckUserEdits();Test->TestTrue(TEXT("retry after concurrent edit"),Service->Retry(0,Error));Phase=7;return false;
+        }
+        if(Phase==7)
+        {if(Service->Items()[0].State!=EAgentTestSetItemState::Completed)return false;CheckUserEdits();Test->TestTrue(TEXT("queue next background scenario"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(20,TEXT("9999"))->OriginalJson));Phase=8;return false;}
+        if(Phase==8)
+        {
+            if(!Dataset->IsCapturingForTests())return false;
+            Test->TestTrue(TEXT("ordinary catalog replay preempts background capture"),Catalog->RequestScenarioReplay(Catalog->GetScenarios()[0].UUID,false,{}));
+            Test->TestTrue(TEXT("ordinary replay yields before starting the Slab"),Slab->IsSimulationActive()&&Dataset->IsPaused());Phase=9;return false;
+        }
+        if(Phase==9)
+        {if(Service->Items().Num()<2||Service->Items()[1].State!=EAgentTestSetItemState::Completed)return false;Test->TestTrue(TEXT("ordinary replay and resumed capture retain user appearance"),FMath::IsNearlyEqual(Slab->Roughness,.31415f));return Finish();}
         return false;
     }
 private:
@@ -156,16 +183,19 @@ private:
     {
         auto O=Service->StatusJson();O->SetNumberField(TEXT("wall_seconds"),Now-MeasureStart);O->SetNumberField(TEXT("seconds_per_scenario"),(Now-MeasureStart)/Service->Completed());O->SetNumberField(TEXT("resident_start_bytes"),double(MemoryStart));O->SetNumberField(TEXT("resident_peak_bytes"),double(PeakMemory));
         O->SetStringField(TEXT("measured_start_utc"),(FDateTime::UtcNow()-FTimespan::FromSeconds(Now-MeasureStart)).ToIso8601());O->SetStringField(TEXT("measured_end_utc"),FDateTime::UtcNow().ToIso8601());
-        Frames.Sort();Game.Sort();int32 Hitches=0;double Sum=0,GT=0;for(double V:Frames){Sum+=V;Hitches+=V>150;}for(double V:Game)GT+=V;
+        Frames.Sort();Game.Sort();Wall.Sort();int32 Hitches=0,WallHitches=0;double Sum=0,GT=0;for(double V:Frames){Sum+=V;Hitches+=V>150;}for(double V:Game)GT+=V;for(double V:Wall)WallHitches+=V>150;
         if(!Frames.IsEmpty()){O->SetNumberField(TEXT("engine_mean_ms"),Sum/Frames.Num());O->SetNumberField(TEXT("engine_p95_ms"),Frames[FMath::FloorToInt((Frames.Num()-1)*.95)]);O->SetNumberField(TEXT("engine_max_ms"),Frames.Last());O->SetNumberField(TEXT("game_thread_mean_ms"),GT/Game.Num());O->SetNumberField(TEXT("hitches_over_150ms"),Hitches);}
+        if(!Wall.IsEmpty()){O->SetNumberField(TEXT("callback_wall_max_ms"),Wall.Last());O->SetNumberField(TEXT("callback_wall_p95_ms"),Wall[FMath::FloorToInt((Wall.Num()-1)*.95)]);O->SetNumberField(TEXT("callback_wall_hitches_over_150ms"),WallHitches);O->SetNumberField(TEXT("game_thread_max_ms"),Game.Last());}
         O->SetStringField(TEXT("profile"),TEXT("IYOBOT_MLX80_NATIVE FullSpec override 512x32 GPU depth; noise off; one dedicated LiDAR; UI open; D3D12 offscreen"));
         FString Text;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01")/(Large?(Pipeline?TEXT("throughput-pipeline.json"):TEXT("throughput-sequential.json")):TEXT("lifecycle.json"))));
-        if(Large)Test->TestEqual(TEXT("generation stays below 150ms engine hitch budget"),Hitches,0);
+        if(Large){Test->TestEqual(TEXT("generation stays below 150ms engine hitch budget"),Hitches,0);Test->TestEqual(TEXT("callback wall pacing stays below 150ms"),WallHitches,0);Test->TestTrue(TEXT("game thread stays below 150ms"),!Game.IsEmpty()&&Game.Last()<=150);}
         Test->AddInfo(FString::Printf(TEXT("TESTSET-01 %d scenarios %.3f seconds, engine max %.3f ms"),Service->Completed(),Now-MeasureStart,Frames.IsEmpty()?0:Frames.Last()));
     }
+    void CheckUserEdits()
+    {Test->TestTrue(TEXT("background capture preserves user pose/geometry/appearance edits"),Slab->GetActorTransform().Equals(UserPose)&&Slab->SlabMesh->GetRelativeScale3D().Equals(UserSize/100.)&&FMath::IsNearlyEqual(Slab->Roughness,.31415f));}
     bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
     FAutomationTestBase* Test;bool Large,Pipeline,Manual,PreviewRequested=false,CompletedScreen=false;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualDatasetSubsystem* Dataset=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
-    FSlabScenarioDataPtr Source;FString Error,Root;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game;TSet<FString> PreviewRuns;
+    FSlabScenarioDataPtr Source;FString Error,Root;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0,LastWall=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game,Wall;TSet<FString> PreviewRuns;FVector UserSize;FTransform UserPose;
 };
 bool RunAgentTestSetCase(FAutomationTestBase* Test,bool Large,bool Pipeline)
 {

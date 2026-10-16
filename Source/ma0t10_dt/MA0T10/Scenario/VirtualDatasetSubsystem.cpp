@@ -58,7 +58,7 @@ struct FVirtualDatasetSession
     TWeakObjectPtr<ADirectionalLight> Light;
     FVirtualSensorEditableState LidarBefore,CameraBefore;
     FTransform SlabBefore,LightBefore,SlabApplied,LidarApplied,CameraApplied;
-    FVector MeshScaleBefore,SizeBefore;
+    FVector MeshScaleBefore,SizeBefore,MeshScaleApplied;
     FTransform LightApplied;float LightAppliedIntensity=0;
     float RoughBefore=0,OxBefore=0,EmissiveBefore=0,LightBeforeIntensity=0;
     bool HotBefore=false;
@@ -167,6 +167,7 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
     if(Slab->IsSimulationActive()){Error=TEXT("시나리오가 시작되어 데이터셋을 중단합니다");return false;}
     S->Sample=FVirtualDatasetSample::Make(S->Settings,S->Plan?S->NextScene:S->Completed);const auto& V=S->Sample;S->Restored=false;
     if(!Slab->ApplyDatasetGeometry((S->Plan?S->Plan->Frames[S->NextScene].SizeCm:S->SizeBefore*V.Size))){Error=TEXT("현재 Slab 치수를 변경할 수 없습니다");return false;}
+    S->MeshScaleApplied=Slab->SlabMesh->GetRelativeScale3D();
     if(S->Settings.Surface.Enabled&&!Slab->ApplySurfacePreset(ESlabSurfacePreset(V.Surface),false,Error))return false;
     if(S->Settings.Surface.Enabled&&V.Surface==0)
     {Slab->bHotAppearance=S->HotBefore;Slab->EmissiveStrength=S->EmissiveBefore;Slab->Roughness=S->RoughBefore;Slab->Oxidation=S->OxBefore;Slab->RefreshDatasetAppearance();}
@@ -359,6 +360,7 @@ bool UVirtualDatasetSubsystem::TargetsCurrent() const
     return S&&S->Slab.IsValid()&&S->Lidar.IsValid()&&(!S->Plan||!S->Plan->CaptureCamera||S->Camera.IsValid())&&!S->Slab->IsSimulationActive()&&
         S->Slab->GetActorTransform().Equals(S->SlabApplied)&&S->Lidar->GetActorTransform().Equals(S->LidarApplied)&&(!S->Camera.IsValid()||S->Camera->GetActorTransform().Equals(S->CameraApplied))&&
         S->Lidar->GetConfigurationRevision()==S->LidarRevision&&(!S->Camera.IsValid()||(S->Camera->GetConfigurationRevision()==S->CameraRevision&&!S->Camera->IsSensorRunning()))&&
+        (!S->Plan||(S->Slab->GetMetricsConfigurationHash()==S->Plan->SlabConfiguration&&S->Slab->SlabMesh->GetRelativeScale3D().Equals(S->MeshScaleApplied)&&S->Slab->GetSurfacePreset()==S->SurfaceBefore&&S->Slab->IsSurfaceLidarLinked()==S->LinkBefore&&S->Slab->Roughness==S->RoughBefore&&S->Slab->Oxidation==S->OxBefore&&S->Slab->bHotAppearance==S->HotBefore&&S->Slab->EmissiveStrength==S->EmissiveBefore))&&
         ((S->Phase==EDatasetPhase::Capture&&!S->LidarFrame)?S->Lidar->IsSensorRunning():!S->Lidar->IsSensorRunning())&&
         (!S->Light.IsValid()||(S->Light->GetActorTransform().Equals(S->LightApplied)&&FMath::IsNearlyEqual(S->Light->GetLightComponent()->Intensity,S->LightAppliedIntensity)));
 }
@@ -458,7 +460,14 @@ void UVirtualDatasetSubsystem::Restore()
     if(Truth)Truth->Cancel();
     if(S->Lidar.IsValid()){if(S->Phase==EDatasetPhase::Capture&&!S->LidarFrame)S->Lidar->ScanComponent->StopScan();S->Lidar->ScanComponent->DatasetNoiseSequence.Reset();if(S->Lidar->GetConfigurationRevision()==S->LidarRevision&&S->Lidar->GetActorTransform().Equals(S->LidarApplied))S->Lidar->ApplyDatasetState(S->LidarBefore,Error);}
     if(S->Camera.IsValid()&&S->Camera->GetConfigurationRevision()==S->CameraRevision&&(!S->Camera.IsValid()||S->Camera->GetActorTransform().Equals(S->CameraApplied)))S->Camera->ApplyDatasetState(S->CameraBefore,Error);
-    if(S->Slab.IsValid()&&!S->Slab->IsSimulationActive()&&S->Slab->GetActorTransform().Equals(S->SlabApplied))
+    if(S->Plan&&S->Slab.IsValid()&&!S->Slab->IsSimulationActive())
+    {
+        auto* Slab=S->Slab.Get();
+        if(Slab->SlabMesh->GetRelativeScale3D().Equals(S->MeshScaleApplied))Slab->ApplyDatasetGeometry(S->SizeBefore);
+        if(Slab->GetActorTransform().Equals(S->SlabApplied))Slab->SetActorTransform(S->SlabBefore,false,nullptr,ETeleportType::TeleportPhysics);
+        // Planned generation never edits the Slab appearance; preserve concurrent user edits.
+    }
+    else if(S->Slab.IsValid()&&!S->Slab->IsSimulationActive()&&S->Slab->GetActorTransform().Equals(S->SlabApplied))
     {auto* Slab=S->Slab.Get();Slab->ApplySurfacePreset(S->SurfaceBefore,S->LinkBefore,Error);Slab->Roughness=S->RoughBefore;Slab->Oxidation=S->OxBefore;Slab->bHotAppearance=S->HotBefore;Slab->EmissiveStrength=S->EmissiveBefore;Slab->RefreshDatasetAppearance();Slab->ApplyDatasetGeometry(S->SizeBefore);Slab->SetActorTransform(S->SlabBefore,false,nullptr,ETeleportType::TeleportPhysics);}
     if(S->Light.IsValid()&&S->Light->GetActorTransform().Equals(S->LightApplied)&&FMath::IsNearlyEqual(S->Light->GetLightComponent()->Intensity,S->LightAppliedIntensity)){S->Light->SetActorTransform(S->LightBefore);S->Light->GetLightComponent()->SetIntensity(S->LightBeforeIntensity);}
 }
@@ -469,6 +478,7 @@ bool UVirtualDatasetSubsystem::Resume(FString& Error)
     auto S=Session;
     if(S->Plan)
     {
+        if(!S->Slab.IsValid()||S->Slab->GetMetricsConfigurationHash()!=S->Plan->SlabConfiguration){Error=TEXT("기준 배치·단위가 변경되었습니다 · 시나리오를 재시도하세요");return false;}
         if(!S->Slab.IsValid()||!S->Lidar.IsValid()||S->Slab->IsSimulationActive()||S->Lidar->IsSensorRunning()||!S->Lidar->CanEditSensorConfiguration(Error))return false;
         // A normal scenario may have changed the Slab while yielded. Rebase restoration ownership.
         S->SlabBefore=S->Slab->GetActorTransform();S->SizeBefore=S->Slab->SlabMesh->GetRelativeScale3D()*S->Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.;

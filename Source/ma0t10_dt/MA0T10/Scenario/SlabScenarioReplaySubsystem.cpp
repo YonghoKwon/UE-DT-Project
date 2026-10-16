@@ -1,4 +1,5 @@
 #include "SlabScenarioReplaySubsystem.h"
+#include "AgentTestSetSubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
@@ -187,6 +188,7 @@ bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithOutputs(const FStrin
 bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithExecutionOptions(const FString& UUID,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Ids,const FSlabExecutionOptions& Options)
 {
 	if (!IsInGameThread()) return false;
+	if(!ObservationPreview&&GetWorld())if(auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())TestSet->YieldToOrdinaryScenario();
 	if (!CanReplay()) { Status.Message=TEXT("현재 실행 종료와 adapter 연결을 확인하십시오."); return false; }
 	FString Json; if(!GetScenarioJson(UUID,Json)) { Status.Message=TEXT("저장된 시나리오가 없습니다."); return false; }
 	const FString Run=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);

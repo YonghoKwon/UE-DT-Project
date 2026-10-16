@@ -15,6 +15,7 @@ struct FVirtualDatasetFramePlan
     FString Root,ScenarioId,RunId;
     TArray<FVirtualDatasetPlannedFrame> Frames;
     bool CaptureCamera=false,Pipeline=true;
+    uint32 SlabConfiguration=0;
 };
 
 /** Session-only settings. Never read from SaveGame or started by opening a panel. */
