@@ -1,4 +1,9 @@
 #include "VirtualSensorFileSaveSubsystem.h"
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#else
+#include <cstdio>
+#endif
 #include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -449,6 +454,28 @@ bool UVirtualSensorFileSaveSubsystem::WriteCameraGroundTruthBundle(const FString
 bool UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
 {
     return WriteVerificationBundle(FPaths::ProjectSavedDir()/TEXT("Datasets"),Directory,Files,Cancelled,true);
+}
+bool UVirtualSensorFileSaveSubsystem::WriteTestSetSceneBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
+{
+    return WriteVerificationBundle(FPaths::ProjectSavedDir()/TEXT("TestSets"),Directory,Files,Cancelled,true);
+}
+bool UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(const FString& Destination,const FString& Pending)
+{
+    const FString Root=FullPath(FPaths::ProjectSavedDir()/TEXT("TestSets"))+TEXT("/");
+    const FString Target=FullPath(Destination),Temp=FullPath(Pending);
+    if(!Target.StartsWith(Root,ESearchCase::IgnoreCase)||Temp!=Target+TEXT(".pending"))return false;
+    // IFileManager::Move deletes the destination before moving. Keep the old manifest
+    // readable until this same-volume rename commits, including during reset.
+    for(int32 Attempt=0;Attempt<20;++Attempt)
+    {
+#if PLATFORM_WINDOWS
+        if(::MoveFileExW(*Temp,*Target,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))return true;
+#else
+        if(std::rename(TCHAR_TO_UTF8(*Temp),TCHAR_TO_UTF8(*Target))==0)return true;
+#endif
+        FPlatformProcess::SleepNoStats(.005f);
+    }
+    return false;
 }
 bool UVirtualSensorFileSaveSubsystem::WriteVerificationBundle(const FString& AllowedRoot,const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled,bool AllowEmpty)
 {

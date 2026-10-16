@@ -107,3 +107,15 @@ Windows 보안/권한 팝업은 조작하지 않고 해당 행을 보류한다. 
 | 전체 조합·실측/장시간·사용자 수용 | 전수 입력 조합, 물리 display/지연, 센서 실측·외부 ROS2, 장시간 생성/다중 센서, 무안내 첫 사용자 판단은 각 원본 gate를 유지 |
 
 최종 집계는 `PASS __ / FAIL __ / 보류 __`와 행 ID·증거를 함께 남긴다. 부분 수행은 실제 셀에 세부 동작별 판정을 적고 행 전체를 PASS로 세지 않는다. 성능은 모든 Editor/마우스 점검을 마친 뒤 `Scripts/verify.ps1 -Level perf -BaseCommit 5dd9327`로 별도 수행한다.
+
+## TESTSET-01 추가 직접 점검 — 사용자 2026-10-16, 임시 기능
+
+기존24행의 통과 기록에 합산하지 않는다. `Saved/Reports/TESTSET-01/manual/CHECKLIST.md`에 누른 것/기대/실제/스크린샷·client/DPI/글자 배율을 기록한다. 잠금·보안 팝업은 입력하지 않고 보류한다. 엔진 공용 `%LOCALAPPDATA%/UnrealEngine/5.3/Saved/Config/WindowsEditor`도 실행 전 백업하고 종료 후 복원한다.
+
+| ID | 직접 누를 것 / 기대 | 결과 |
+|---|---|---|
+| T01 | 소재9999 입력 뒤 진행 화면 자동 표시. 기본100 목표·행별 상태/프레임/시간. 숨김 후 활동 칩으로 재열기 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
+| T02 | 일시 중지/재개. 일반 시나리오2건 우선 재생 후 생성 재개. 실패를 고친 뒤 재시도 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
+| T03 | 목표 완료 전 선택 비활성, 완료 후 활성. 3개 선택→실제 Slab 움직임·전송 꺼짐, 중지/다른 선택. 데이터셋/PCD 불변 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
+| T04 | 초기화 첫 클릭 안내·8초 후 취소/두 번째 확인. 파일 보존·목록 초기화. 닫기/재열기 작업 유지 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
+| T05 | LiDAR 기본·선택 카메라 정답/IMU/EXPORT 파일 대조, 1920×1080/좁은 창·125/150% 접근성. 미수행 조합 별도 보류 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |

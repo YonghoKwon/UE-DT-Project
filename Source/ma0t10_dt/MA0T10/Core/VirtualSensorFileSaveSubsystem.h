@@ -27,6 +27,9 @@ public:
     /** Worker-only, immutable verification bundle. Last file is the completion marker. */
     static bool WriteCameraGroundTruthBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
     static bool WriteDatasetSceneBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
+    static bool WriteTestSetSceneBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
+    /** Same-directory atomic replace, restricted to Saved/TestSets. Worker thread only. */
+    static bool CommitTestSetManifest(const FString& Destination,const FString& Pending);
 	/** Always returns a request ID, including explicit rejected/Failed requests. Query status immediately. */
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorFiles") FString RequestSave(EVirtualSensorFileSaveMode Mode,AVirtualSensorActorBase* Sensor,const FVirtualSensorCaptureSelection& Selection);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorFiles") FVirtualSensorFileSaveStatus GetRequestStatus(const FString& RequestId) const;

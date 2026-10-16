@@ -1,6 +1,23 @@
 #pragma once
 #include "CoreMinimal.h"
 
+/** Prepared on a worker from immutable scenario rows. No UObject access on workers. */
+struct FVirtualDatasetPlannedFrame
+{
+    FTransform SlabPose;
+    FVector SizeCm=FVector::OneVector;
+    int64 FrameNo=0;
+    double ElapsedSec=0;
+    FString MtlNo;
+};
+struct FVirtualDatasetFramePlan
+{
+    FString Root,ScenarioId,RunId;
+    TArray<FVirtualDatasetPlannedFrame> Frames;
+    bool CaptureCamera=false,Pipeline=true;
+    uint32 SlabConfiguration=0;
+};
+
 /** Session-only settings. Never read from SaveGame or started by opening a panel. */
 struct MA0T10_DT_API FVirtualDatasetRange
 {

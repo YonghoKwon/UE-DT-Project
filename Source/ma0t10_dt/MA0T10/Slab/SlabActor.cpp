@@ -1,4 +1,5 @@
 #include "SlabActor.h"
+#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
 #include "SlabDataSyncComponent.h"
@@ -128,6 +129,11 @@ void ASlabActor::RecordAdmission(ESlabScenarioAdmission Result,const FString& Sc
 bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 {
 	check(IsInGameThread()); if(!Data.IsValid()||bEnding||!GetGameInstance()) {RecordAdmission(ESlabScenarioAdmission::Rejected,FString(),TEXT("유효한 시나리오와 실행 중인 GameInstance가 필요합니다."));return false;}
+	if(auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())
+	{
+		if(TestSet->IsTrigger(*Data)){FString Error;const bool Accepted=TestSet->Enqueue(Data,this,Error);if(!Accepted)UE_LOG(LogTemp,Warning,TEXT("[TESTSET-01] %s"),*Error);return Accepted;}
+		TestSet->YieldToOrdinaryScenario();
+	}
 	auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
 	const bool Duplicate=Replay&&Replay->GetValidatedScenario(Data->ScenarioUUID).IsValid();
 	if(Replay&&!Replay->RegisterValidatedScenario(Data))

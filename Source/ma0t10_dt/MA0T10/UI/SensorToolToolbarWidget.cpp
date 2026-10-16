@@ -136,6 +136,7 @@ bool USensorToolToolbarWidget::ToggleOwnedDestination(ESensorToolDestination D)
 bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Destination)
 {
 	auto* W=Workspace();if(!W||!W->OwnsToolbar(this))return false;
+	if(Destination==ESensorToolDestination::TestSet)return W->OpenTestSet();
 	if(Destination==ESensorToolDestination::MapCheck)return W->OpenMapCheck();
 	if(Destination==ESensorToolDestination::Scenario)
 	{
@@ -183,8 +184,8 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildToolsMenu()
 {
 	auto Menu=SNew(SVerticalBox);
 	// Preserve chart access until the scenario screen is reorganized in UXR-04.
-	const ESensorToolDestination Destinations[]={ESensorToolDestination::MapCheck,ESensorToolDestination::SensorSettings,ESensorToolDestination::FileSave,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics,ESensorToolDestination::Compatibility,ESensorToolDestination::ScenarioCharts};
-	const FText Names[]={FText::FromString(TEXT("맵 점검")),SensorToolUiText::SensorSettings(),SensorToolUiText::FileSaveAndDataset(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts()};
+	const ESensorToolDestination Destinations[]={ESensorToolDestination::TestSet,ESensorToolDestination::MapCheck,ESensorToolDestination::SensorSettings,ESensorToolDestination::FileSave,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics,ESensorToolDestination::Compatibility,ESensorToolDestination::ScenarioCharts};
+	const FText Names[]={FText::FromString(TEXT("AI 시나리오 테스트셋")),FText::FromString(TEXT("맵 점검")),SensorToolUiText::SensorSettings(),SensorToolUiText::FileSaveAndDataset(),SensorToolUiText::ServerSettings(),SensorToolUiText::Diagnostics(),SensorToolUiText::Compatibility(),SensorToolUiText::ScenarioCharts()};
 	for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
 	{
 		const auto Destination=Destinations[I];

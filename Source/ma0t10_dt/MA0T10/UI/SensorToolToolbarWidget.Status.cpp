@@ -1,4 +1,5 @@
 #include "SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "SensorToolUiText.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "VirtualSensorToolWorkspaceSubsystem.h"
@@ -142,12 +143,14 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
     }
     else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
+    if(const auto* T=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(T->HasItems())
+        GlobalStatus.TestSet=FText::FromString(FString::Printf(TEXT("???? %s %d/%d"),T->IsComplete()?TEXT("??"):T->IsPaused()?TEXT("??"):TEXT("?? ?"),T->Completed(),T->Settings().Target));
     RefreshActivityChips();
 }
 
 void USensorToolToolbarWidget::RefreshActivityChips()
 {
-    const uint8 Mask=(GlobalStatus.Automation.IsEmpty()?0:1)|(GlobalStatus.Imu.IsEmpty()?0:2);
+    const uint8 Mask=(GlobalStatus.Automation.IsEmpty()?0:1)|(GlobalStatus.Imu.IsEmpty()?0:2)|(GlobalStatus.TestSet.IsEmpty()?0:4);
     if(DisplayedActivityMask==Mask)return;DisplayedActivityMask=Mask;
     ActivityHosts.RemoveAll([](const auto& Host){return !Host.IsValid();});
     for(const auto& Weak:ActivityHosts)if(const auto Host=Weak.Pin())
@@ -160,13 +163,13 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildActivityChips()
     static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
         .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent,6.f))
         .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),6.f));
-    for(int32 I=0;I<2;++I)
+    for(int32 I=0;I<3;++I)
     {
-        auto Label=[this,I](){return I==0?GlobalStatus.Automation:GlobalStatus.Imu;};
+        auto Label=[this,I](){return I==0?GlobalStatus.Automation:I==1?GlobalStatus.Imu:GlobalStatus.TestSet;};
         if(Label().IsEmpty())continue;
         Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(4,0)
         [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
-          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,I](){OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:ESensorToolDestination::Placement);return FReply::Handled();})
+          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,I](){OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:I==1?ESensorToolDestination::Placement:ESensorToolDestination::TestSet);return FReply::Handled();})
           [SNew(SBox).MaxDesiredWidth(220)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())]]];
     }
     return Row;

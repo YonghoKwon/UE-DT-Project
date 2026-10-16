@@ -88,6 +88,8 @@ public:
 	FVector GetTrackLocalPositionCm() const;
 	uint32 GetMetricsConfigurationHash() const;
 	bool ReceiveScenario(FSlabScenarioDataPtr Data);
+	FTransform GetDatasetTrackTransform() const { return GetTrackTransform(); }
+	bool HasPendingScenarioInput() const { return bParsing; }
 	void AdvanceSimulation(double DeltaSeconds);
 	/** Motion component callback: pose already applied; update metadata/metrics and session lifecycle. */
 	void OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 RowIndex,double Time,bool bEnd);

@@ -9,11 +9,11 @@ class ASlabActor;
 /** Native presentation routes only; not a serialized panel role or Blueprint enum. */
 enum class ESensorToolDestination : uint8
 {
-	Placement, Preview, Scenario, PcdTransfer, Results, SensorSettings, FileSave, ServerSettings, Diagnostics, Compatibility, ScenarioCharts, MapCheck
+	Placement, Preview, Scenario, PcdTransfer, Results, SensorSettings, FileSave, ServerSettings, Diagnostics, Compatibility, ScenarioCharts, MapCheck, TestSet
 };
 struct FSensorToolGlobalStatus
 {
-	FText Equipment, Pcd, Scenario, Server, Warning, Automation, Imu;
+	FText Equipment, Pcd, Scenario, Server, Warning, Automation, Imu, TestSet;
 	int32 EquipmentCount=0, MeasuringCount=0;
 	bool bPcdSending=false, bServerConnected=false;
 };

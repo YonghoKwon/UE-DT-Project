@@ -1,4 +1,5 @@
 #include "AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "AutomationProtocol.h"
 #include "AutomationLoopbackServer.h"
@@ -183,6 +184,7 @@ TSharedRef<FJsonObject> UAutomationControlSubsystem::GetStatus() const
 TSharedRef<FJsonObject> UAutomationControlSubsystem::Dispatch(const FString& Method,const FString& Path,const TSharedPtr<FJsonObject>& Body,int32& Code)
 {
     check(IsInGameThread());if(!State)State=MakeShared<FAutomationControlState>();Code=200;
+    if(Method==TEXT("GET")&&Path==TEXT("/v1/testset"))return GetWorld()->GetSubsystem<UAgentTestSetSubsystem>()->StatusJson();
     if(Method==TEXT("GET")&&Path==TEXT("/v1/status"))return GetStatus();
     if(Method==TEXT("GET")&&Path==TEXT("/v1/sensors"))
     {

@@ -2,6 +2,8 @@
 #include "SensorPlacementInteraction.h"
 #include "VirtualSensorToolRig.h"
 #include "SensorMapCheckWidget.h"
+#include "AgentTestSetWidget.h"
+#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
@@ -79,6 +81,7 @@ void UVirtualSensorToolWorkspaceSubsystem::Initialize(FSubsystemCollectionBase& 
 void UVirtualSensorToolWorkspaceSubsystem::Deinitialize()
 {
 	UnregisterOwnedPointerRouting();
+	if(TestSetWidget){if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->CloseWidget(TestSetWidget);TestSetWidget=nullptr;}
 	if(MapCheckWidget){if(auto* GI=GetWorld()->GetGameInstance())if(auto* Dx=GI->GetSubsystem<UDxWidgetSubsystem>())Dx->CloseWidget(MapCheckWidget);MapCheckWidget=nullptr;}
 	if(PlacementInteraction){PlacementInteraction->Shutdown();PlacementInteraction=nullptr;}
 	SetCoordinator(nullptr);
@@ -265,6 +268,22 @@ bool UVirtualSensorToolWorkspaceSubsystem::OpenMapCheck()
 	}
 	Dx->BringToFront(MapCheckWidget);return true;
 }
+bool UVirtualSensorToolWorkspaceSubsystem::OpenTestSet()
+{
+    if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
+    auto* GI=GetWorld()->GetGameInstance();auto* Dx=GI?GI->GetSubsystem<UDxWidgetSubsystem>():nullptr;if(!Dx)return false;
+    if(!TestSetWidget)TestSetWidget=CreateWidget<UAgentTestSetWidget>(GetWorld(),UAgentTestSetWidget::StaticClass());
+    if(!TestSetWidget)return false;
+    if(!TestSetWidget->IsInViewport())
+    {
+        TestSetWidget->AddToViewport(220);
+        const auto Logical=UWidgetLayoutLibrary::GetViewportSize(GetWorld())/FMath::Max(.01f,UWidgetLayoutLibrary::GetViewportScale(GetWorld()));
+        const FVector2D Size(FMath::Min(920.,Logical.X-32),FMath::Min(720.,Logical.Y-32));
+        TestSetWidget->SetDesiredSizeInViewport(Size);TestSetWidget->SetPositionInViewport((Logical-Size)*.5,false);
+        Dx->RegisterWidget(TestSetWidget);Dx->RegisterExternalInputBlocker(TestSetWidget);
+    }
+    Dx->BringToFront(TestSetWidget);return true;
+}
 void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPanelRole R)
 {
 	auto* P=GetOwnedPanel(R);if(!P)return;auto* Slot=Cast<UCanvasPanelSlot>(P->Slot);if(!Slot)return;
@@ -316,6 +335,7 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 		Monitor->PumpPendingCaptureWork();
 	PollTime+=D;if(PollTime<.2f||Panels.IsEmpty())return;PollTime=0;EnsureRoot();RefreshHosting();
 	SynchronizeOwnedSelection();
+	if(const auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(TestSet->HasItems()&&LastOpenedTestSet!=TestSet->Directory()){if(OpenTestSet())LastOpenedTestSet=TestSet->Directory();}
 	if(!Canvas)return;const FVector2D Size=Canvas->GetCachedGeometry().GetLocalSize();
 	const float Pixels=MeasureOwnedPixelScale();if(!FMath::IsNearlyEqual(Pixels,LastOwnedPixelScale,.001f)){LastOwnedPixelScale=Pixels;for(auto& P:Panels)if(P.Value)P.Value->ApplySensorToolFontScale(GetOwnedPanelFontScale());}
 	if(bSidebarMode){ToolbarReservedTop=0;LastCanvasSize=Size;RefreshDockedLayout();return;}

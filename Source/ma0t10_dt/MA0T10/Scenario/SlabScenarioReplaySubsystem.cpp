@@ -1,4 +1,5 @@
 #include "SlabScenarioReplaySubsystem.h"
+#include "AgentTestSetSubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
@@ -34,7 +35,7 @@ void USlabScenarioReplaySubsystem::Deinitialize()
 	AbortReplay(TEXT("프로그램 종료")); bInitialized=false; ++Generation;
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 	FWorldDelegates::OnWorldCleanup.Remove(CleanupHandle);
-	PendingJson.Reset(); Entries.Reset(); PlaybackAdapter.Reset(); PlaybackWorld.Reset(); bParsing=false; bLivePlaybackActive=false; LiveScenarioUUID.Reset();
+	PendingJson.Reset(); Entries.Reset(); ObservationPreview.Reset(); PlaybackAdapter.Reset(); PlaybackWorld.Reset(); bParsing=false; bLivePlaybackActive=false; LiveScenarioUUID.Reset();
 	ActiveRegistrationSerial=0; DeletedRegistrationCutoffs.Reset();
 	Super::Deinitialize();
 }
@@ -109,9 +110,19 @@ bool USlabScenarioReplaySubsystem::RegisterValidatedScenarioAtSerial(FSlabScenar
 TArray<FSlabScenarioSummary> USlabScenarioReplaySubsystem::GetScenarios() const
 { TArray<FSlabScenarioSummary> Result; for(const auto& E:Entries) Result.Add(E.Summary); return Result; }
 bool USlabScenarioReplaySubsystem::GetScenarioJson(const FString& UUID,FString& Json) const
-{ const auto Data=GetValidatedScenario(UUID); if(!Data.IsValid()) return false; Json=Data->OriginalJson; return true; }
+{ const auto Data=ObservationPreview&&ObservationPreview->ScenarioUUID==CanonicalId(UUID)?ObservationPreview:GetValidatedScenario(UUID); if(!Data.IsValid()) return false; Json=Data->OriginalJson; return true; }
 FSlabScenarioDataPtr USlabScenarioReplaySubsystem::GetValidatedScenario(const FString& UUID) const
-{ const FString Key=CanonicalId(UUID); for(const auto& E:Entries) if(E.Summary.UUID==Key) return E.Data; return nullptr; }
+{ const FString Key=CanonicalId(UUID); if(ObservationPreview&&ObservationPreview->ScenarioUUID==Key&&IsReplayBusy())return ObservationPreview;for(const auto& E:Entries) if(E.Summary.UUID==Key) return E.Data; return nullptr; }
+bool USlabScenarioReplaySubsystem::RequestObservationPreview(FSlabScenarioDataPtr Data)
+{
+	if(!Data||!CanReplay())return false;
+	ObservationPreview=Data;
+	// GetScenarioJson also serves the pre-Starting lookup in the existing replay path.
+	const bool Accepted=RequestScenarioReplayWithOutputs(Data->ScenarioUUID,FVirtualSlabSensorOutputSelection::ObservationOnly(),{});
+	if(!Accepted)ObservationPreview.Reset();return Accepted;
+}
+void USlabScenarioReplaySubsystem::StopObservationPreview(const FString& Run)
+{if(ObservationPreview&&Status.RunUUID==Run&&IsReplayBusy())AbortReplay(TEXT("테스트셋 보기 중지"));}
 bool USlabScenarioReplaySubsystem::IsScenarioProtected(const FString& UUID,FString* OutReason) const
 {
 	auto Protect=[OutReason](const TCHAR* Reason){ if(OutReason) *OutReason=Reason; return true; };
@@ -177,6 +188,7 @@ bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithOutputs(const FStrin
 bool USlabScenarioReplaySubsystem::RequestScenarioReplayWithExecutionOptions(const FString& UUID,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Ids,const FSlabExecutionOptions& Options)
 {
 	if (!IsInGameThread()) return false;
+	if(!ObservationPreview&&GetWorld())if(auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())TestSet->YieldToOrdinaryScenario();
 	if (!CanReplay()) { Status.Message=TEXT("현재 실행 종료와 adapter 연결을 확인하십시오."); return false; }
 	FString Json; if(!GetScenarioJson(UUID,Json)) { Status.Message=TEXT("저장된 시나리오가 없습니다."); return false; }
 	const FString Run=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
@@ -216,6 +228,7 @@ void USlabScenarioReplaySubsystem::AbortReplay(const FString& Reason)
 	if (PlaybackWorld.IsValid()) PlaybackWorld->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->EndSlabSensorSession(Run,true);
 	Status.State=ESlabScenarioReplayState::Failed; Status.Message=Reason;
 	if(PlaybackAdapter.IsValid()) ISlabScenarioPlaybackAdapter::Execute_StopScenarioPlayback(PlaybackAdapter.Get(),Run);
+	ObservationPreview.Reset();
 }
 bool USlabScenarioReplaySubsystem::Poll(float Delta)
 {
@@ -234,6 +247,7 @@ bool USlabScenarioReplaySubsystem::Poll(float Delta)
 		if(S.State==EVirtualSlabSessionState::Completed||S.State==EVirtualSlabSessionState::Incomplete)
 		{ Status.State=S.State==EVirtualSlabSessionState::Completed?ESlabScenarioReplayState::Completed:ESlabScenarioReplayState::Failed; Status.Message=S.Message; }
 	}
+	if(!IsReplayBusy())ObservationPreview.Reset();
 	return true;
 }
 void USlabScenarioReplaySubsystem::OnWorldCleanup(UWorld* World,bool,bool)
