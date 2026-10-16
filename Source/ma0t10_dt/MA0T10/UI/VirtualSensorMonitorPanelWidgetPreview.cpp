@@ -520,6 +520,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
 		LastPrimaryCameraDisplayFrameId = CurrentFrameId;
     }
 
+    if(IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget))RefreshOwnedPreviewReadiness(Resource);
     if (!Resource)
     {
         if(CameraTruthDisplayMode&&NativeViewImage){NativeViewBrush.SetResourceObject(nullptr);NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);}
@@ -562,6 +563,25 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
 			NativeSecondaryCameraImage->Invalidate(EInvalidateWidgetReason::Paint);
 		}
 	}
+}
+
+void UVirtualSensorMonitorPanelWidget::RefreshOwnedPreviewReadiness(UObject* Resource)
+{
+    // A render target can exist before any image was rendered. Read the existing
+    // acquisition cache; never capture/read back pixels to decide whether to wait.
+    const uint8 Mode=CameraComp&&CameraComp->bGroundTruthEnabled?CameraTruthDisplayMode:0;
+    const bool Running=!bShowingLidar&&CameraComp&&CameraComp->IsCaptureRunning();
+    const bool Ready=Resource&&(bShowingLidar||Mode!=0||(CameraComp&&CameraComp->GetAvailableLocalFrameId()>=0));
+    if(OwnedWaitingCamera!=CameraComp||OwnedWaitingMode!=Mode||!Running)
+    {
+        OwnedWaitingCamera=CameraComp;OwnedWaitingMode=Mode;OwnedPreviewWaitStarted=0;bOwnedPreviewTimedOut=false;
+    }
+    const bool Waiting=Running&&!Ready;
+    if(Waiting&&!bOwnedPreviewWaiting)OwnedPreviewWaitStarted=0;
+    if(Waiting&&OwnedPreviewWaitStarted==0)OwnedPreviewWaitStarted=FPlatformTime::Seconds();
+    bOwnedPreviewWaiting=Waiting;
+    if(!Waiting)bOwnedPreviewTimedOut=false;
+    // Timeout text/progress is refreshed by the existing <=5Hz status cache.
 }
 
 FLinearColor UVirtualSensorMonitorPanelWidget::GetLidarLegendSwatchColor(int32 SwatchIndex) const

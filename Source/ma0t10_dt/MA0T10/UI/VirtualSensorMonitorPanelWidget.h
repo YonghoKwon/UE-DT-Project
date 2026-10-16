@@ -618,6 +618,15 @@ private:
     bool bOwnedAdvancedMenuOpen = false;
 	bool bOwnedPreviewEmpty=true,bOwnedHasEquipment=false,bOwnedCanStart=false,bOwnedHasWarning=false,bOwnedLegendExpanded=false;
 	FText OwnedMonitorStatus,OwnedMonitorWarning,OwnedEmptyText,OwnedEmptyActionText,OwnedEmptyActionTip,OwnedLegendText,OwnedRendererText;
+	FText OwnedSensorName,OwnedRateText,OwnedModeText;
+	FText OwnedPreparingText,OwnedTimeoutText,OwnedProgressText;
+	bool bOwnedPreviewWaiting=false,bOwnedPreviewTimedOut=false;
+	uint8 OwnedCameraMode=0;
+	TWeakObjectPtr<UVirtualCameraCaptureComponent> OwnedWaitingCamera;
+	uint8 OwnedWaitingMode=0;
+	double OwnedPreviewWaitStarted=0;
+	void RefreshOwnedPreviewReadiness(UObject* Resource);
+	TSharedRef<SWidget> BuildOwnedPreviewLegend();
 	FText OwnedProjectionText,OwnedColorText,OwnedSecondaryCameraText;
 	FText OwnedHeightMinText,OwnedHeightMaxText,OwnedSliceWidthText,OwnedPointSizeText;
 	TWeakObjectPtr<AVirtualSensorActorBase> OwnedPreviewTarget;
@@ -639,6 +648,7 @@ private:
     friend class FCameraTruthPresentationSession;
     friend class FUxr15Audit;
     friend class FUxr16Audit;
+    friend class FUxr17PreviewSession;
     friend class FUxr15ToggleRhiCommand;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;

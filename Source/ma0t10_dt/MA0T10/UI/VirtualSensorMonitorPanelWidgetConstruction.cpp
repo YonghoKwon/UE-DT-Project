@@ -1,6 +1,7 @@
 #include "VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSemanticLabels.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "SensorToolIcon.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
@@ -431,7 +432,22 @@ void UVirtualSensorMonitorPanelWidget::RefreshOwnedMonitorText()
     const FString Warning=BuildOwnedMeasurementWarning();bOwnedHasWarning=!Warning.IsEmpty();
     FString Status=bOwnedHasEquipment?BuildCompactStatusText():TEXT("장비 없음 · 배치에서 장비를 추가하세요");
     SetText(OwnedMonitorWarning,bOwnedHasWarning?TEXT("⚠ ")+Warning:FString());
-    SetText(OwnedMonitorStatus,Status);if(NativeStatusTextBlock){NativeStatusTextBlock->SetText(FText::FromString(SensorToolUiText::CompactEquipmentTitle(Status)));NativeStatusTextBlock->SetToolTipText(OwnedMonitorStatus);}
+    SetText(OwnedMonitorStatus,Status);
+    const FString Id=bOwnedHasEquipment?Actor->GetSensorId():TEXT("장비 없음");
+    SetText(OwnedSensorName,Id);
+    const FString Prefix=FString(bShowingLidar?TEXT("LiDAR "):TEXT("Camera "))+Id+TEXT(" · ");
+    SetText(OwnedRateText,Status.StartsWith(Prefix)?Status.Mid(Prefix.Len()):FString());
+    if(NativeStatusTextBlock){NativeStatusTextBlock->SetText(OwnedSensorName);NativeStatusTextBlock->SetToolTipText(OwnedMonitorStatus);}
+    OwnedCameraMode=!bShowingLidar&&CameraComp&&CameraComp->bGroundTruthEnabled?CameraTruthDisplayMode:0;
+    const TCHAR* Modes[]={TEXT("일반"),TEXT("깊이"),TEXT("종류"),TEXT("개체")};
+    SetText(OwnedModeText,bShowingLidar?(GetMonitorPresentation()==EVirtualSensorMonitorPresentation::PointCloudOnly?TEXT("LiDAR · 점군만 보기"):TEXT("LiDAR · 일반 보기")):Modes[FMath::Min<int32>(OwnedCameraMode,3)]);
+    if(bOwnedPreviewWaiting)
+    {
+        const double Elapsed=FPlatformTime::Seconds()-OwnedPreviewWaitStarted;
+        bOwnedPreviewTimedOut=Elapsed>=5;
+        static const FText Progress[]={LOCTEXT("WaitDots1","● ○ ○"),LOCTEXT("WaitDots2","○ ● ○"),LOCTEXT("WaitDots3","○ ○ ●")};
+        OwnedProgressText=Progress[int32(Elapsed*5)%3];
+    }
     auto* Workspace=GetToolWorkspace();auto* Placement=Workspace?Cast<UVirtualSensorPlacementPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Placement)):nullptr;
     FString Reason;bOwnedCanStart=bOwnedHasEquipment&&Placement&&SensorManager&&SensorManager->GetSensorActors().Contains(Actor)&&Actor->CanEditSensorPlacement(Reason);
     SetText(OwnedEmptyText,bOwnedHasEquipment?TEXT("측정 중지 상태입니다"):TEXT("장비가 없습니다 · 배치에서 장비를 추가하세요"));
@@ -459,6 +475,8 @@ void UVirtualSensorMonitorPanelWidget::RefreshOwnedMonitorText()
 
 TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TSharedPtr<ELidarMonitorProjectionMode> Projection,TSharedPtr<ELidarColorMode> Color)
 {
+    OwnedPreparingText=LOCTEXT("PreviewPreparing","영상 준비 중…");
+    OwnedTimeoutText=LOCTEXT("PreviewTimedOut","영상이 들어오지 않습니다 · 센서 상태를 확인하세요");
     RefreshOwnedMonitorText();
     NativePresentationOptions={MakeShared<EVirtualSensorMonitorPresentation>(EVirtualSensorMonitorPresentation::TwoDimensional),MakeShared<EVirtualSensorMonitorPresentation>(EVirtualSensorMonitorPresentation::WorldOverlay),MakeShared<EVirtualSensorMonitorPresentation>(EVirtualSensorMonitorPresentation::PointCloudOnly)};
     auto PresentationText=[](EVirtualSensorMonitorPresentation P){return P==EVirtualSensorMonitorPresentation::PointCloudOnly?LOCTEXT("OnlyPoints","포인트 전용"):P==EVirtualSensorMonitorPresentation::WorldOverlay?LOCTEXT("OverlayPoints","2D + 월드 포인트"):LOCTEXT("Only2D","2D");};
@@ -480,9 +498,11 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
     [SNew(SVerticalBox)
      +SVerticalBox::Slot().AutoHeight()[SNew(SBox).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Collapsed:EVisibility::Visible;})[BuildToolPanelHeader(SensorToolUiText::Preview())]]
      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
-       +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolTextColor()).Text(OwnedMonitorStatus)]
+       +SHorizontalBox::Slot().FillWidth(1)[SAssignSensorTool(NativeStatusTextBlock,STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(GetToolTextColor()).Text(OwnedSensorName)]
+       +SHorizontalBox::Slot().AutoWidth().Padding(6,0)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this](){return OwnedRateText;}).ToolTipText_Lambda([this](){return OwnedMonitorStatus;})]
        +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(0)).HasDownArrow(false).ToolTipText(LOCTEXT("AdvancedViewTip","보기 설정")).OnGetMenuContent_UObject(this,&ThisClass::BuildOwnedAdvancedViewMenu).OnMenuOpenChanged_Lambda([this](bool Open){bOwnedAdvancedMenuOpen=Open;}).ButtonContent()[SNew(SBox).WidthOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();}).HeightOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();})[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]]
        +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Visible:EVisibility::Collapsed;}).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(LOCTEXT("ClosePreviewCard","×")).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor,false);return FReply::Handled();})]]
+     +SVerticalBox::Slot().AutoHeight()[BuildOwnedPreviewLegend()]
      +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left)[SNew(SBorder).Visibility_Lambda([this](){return bOwnedHasWarning?GetPanelBodyVisibility():EVisibility::Collapsed;})
        .BorderImage(FSensorOwnedPresentationStyle::ChipBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::WarningSurface()).Padding(FMargin(FSensorOwnedPresentationStyle::Gap,4))
        .ToolTipText_Lambda([this](){return OwnedMonitorWarning;})
@@ -490,7 +510,10 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
      +SVerticalBox::Slot().FillHeight(1).Padding(0,8,0,2)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(FLinearColor(.01,.015,.025,1)).Padding(2).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
        [SNew(SVerticalBox)
         +SVerticalBox::Slot().FillHeight(.7f)[SNew(SOverlay)
-          +SOverlay::Slot()[SAssignNew(NativeViewImage,SImage).Visibility_Lambda([this](){return bOwnedPreviewEmpty?EVisibility::Collapsed:EVisibility::Visible;}).Image(&NativeViewBrush)]
+          +SOverlay::Slot()[SAssignNew(NativeViewImage,SImage).Visibility_Lambda([this](){return bOwnedPreviewEmpty||bOwnedPreviewWaiting?EVisibility::Collapsed:EVisibility::Visible;}).Image(&NativeViewBrush)]
+          +SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[SNew(SBox).WidthOverride_Lambda([this](){return FMath::Max(80.f,float(GetEffectivePanelSize().X)-40.f);}).Visibility_Lambda([this](){return !bOwnedPreviewEmpty&&bOwnedPreviewWaiting?EVisibility::HitTestInvisible:EVisibility::Collapsed;})[SNew(SVerticalBox)
+            +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Justification(ETextJustify::Center).Text_Lambda([this](){return bOwnedPreviewTimedOut?OwnedTimeoutText:OwnedPreparingText;})]
+            +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0,6)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Visibility_Lambda([this](){return bOwnedPreviewTimedOut?EVisibility::Collapsed:EVisibility::Visible;}).Text_Lambda([this](){return OwnedProgressText;})]]]
           +SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[SNew(SBox).WidthOverride_Lambda([this](){return FMath::Clamp(float(GetEffectivePanelSize().X)-60.f,100.f,600.f);}).Visibility_Lambda([this](){return bOwnedPreviewEmpty?EVisibility::Visible:EVisibility::Collapsed;})[SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(8)[SNewSensorTool(STextBlock).AutoWrapText(true).Justification(ETextJustify::Center).Text_Lambda([this](){return OwnedEmptyText;})]
             +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return !bOwnedHasEquipment||bOwnedCanStart;}).Text_Lambda([this](){return OwnedEmptyActionText;}).ToolTipText_Lambda([this](){return OwnedEmptyActionTip;})
@@ -501,6 +524,29 @@ TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedMonitorWidget(TS
        ]]
      +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return IsWorkspaceDocked()?EVisibility::Collapsed:EVisibility::Visible;}).Text(LOCTEXT("OwnedGrip","◢")).ToolTipText(LOCTEXT("OwnedGripTip","모서리를 드래그해 미리보기 크기를 조절합니다."))]
     ];
+}
+
+TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedPreviewLegend()
+{
+    auto DepthBar=SNew(SHorizontalBox);
+    // Same HSV ramp and fixed display range as VirtualCameraGroundTruth. These
+    // colors explain the preview only; measured depth values are never normalized.
+    for(int32 I=0;I<16;++I)DepthBar->AddSlot().FillWidth(1)[SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+      .BorderBackgroundColor(FLinearColor::FromSRGBColor(FLinearColor::LerpUsingHSV(FLinearColor::Blue,FLinearColor::Red,float(I)/15).ToFColor(true))).Padding(0)];
+    auto Classes=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,2));
+    const TCHAR* Labels[]={TEXT("배경"),TEXT("기타"),TEXT("Slab"),TEXT("롤러"),TEXT("컨베이어"),TEXT("바닥"),TEXT("센서")};
+    for(uint8 Id=0;Id<7;++Id)Classes->AddSlot()[SNew(SHorizontalBox)
+      +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,4,0)[SNew(SBox).WidthOverride(9).HeightOverride(9)[SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor::FromSRGBColor(VirtualSensorSemanticLabels::Color(Id))).Padding(0)]]
+      +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(FText::FromString(Labels[Id]))]];
+    return SNew(SVerticalBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
+      +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left)[SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::ChipBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(FMargin(6,2))
+        [SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return OwnedModeText;})]]
+      +SVerticalBox::Slot().AutoHeight().Padding(0,3)[SNew(SHorizontalBox).Visibility_Lambda([this](){return OwnedCameraMode==1?EVisibility::Visible:EVisibility::Collapsed;}).ToolTipText(LOCTEXT("DepthRangeTip","광학축 거리 · 파랑 0 m → 빨강 50 m · 검정은 유효값 없음"))
+        +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("DepthMinimum","0 m"))]
+        +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center).Padding(6,0)[SNew(SBox).HeightOverride(8)[DepthBar]]
+        +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("DepthMaximum","50 m"))]]
+      +SVerticalBox::Slot().AutoHeight()[SNew(SBox).Visibility_Lambda([this](){return OwnedCameraMode==2?EVisibility::Visible:EVisibility::Collapsed;})[Classes]]
+      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return OwnedCameraMode==3?EVisibility::Visible:EVisibility::Collapsed;}).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("InstanceCardLegend","개체별 색 · 검정은 배경/미지원"))];
 }
 TSharedRef<SWidget> UVirtualSensorMonitorPanelWidget::BuildOwnedAdvancedViewMenu()
 {
