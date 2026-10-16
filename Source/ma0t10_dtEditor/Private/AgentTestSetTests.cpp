@@ -12,6 +12,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
@@ -29,7 +31,7 @@
 
 namespace
 {
-FSlabScenarioDataPtr Fixture(int32 Rows,const FString& Mtl)
+FSlabScenarioDataPtr MakeAgentTestSetFixture(int32 Rows,const FString& Mtl)
 {
     const FString Uuid=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
     TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson(Uuid)),Root);
@@ -54,16 +56,19 @@ public:
         }
         if(!Service)
         {
-            if(Now-Observed<3||(GShaderCompilingManager&&GShaderCompilingManager->IsCompiling()))return false;
+            if(Now-Observed<3||!FinalAcceptanceViewportReady(World)||(GShaderCompilingManager&&GShaderCompilingManager->IsCompiling()))return false;
             for(TActorIterator<ASlabActor> It(World);It;++It)It->StopSimulation();for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             Slab=World->SpawnActorDeferred<ASlabActor>(ASlabActor::StaticClass(),FTransform(FVector(1500,0,200)));Slab->ReceiverId=TEXT("TESTSET-Fixture");Slab->Tags.Add(TEXT("Slab"));Slab->InitialDimensions=FVector(800,200,50);Slab->FinishSpawning(FTransform(FVector(1500,0,200)));Slab->SetDiagnosticHelpersVisible(false);Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Lidar->SetActorLocation(FVector(1500,-1000,800));Lidar->SetActorRotation((FVector(1500,0,225)-Lidar->GetActorLocation()).Rotation());
             auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=512;Scan->VerticalChannels=32;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->bEnableRangeNoise=false;Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->SensorId=Large?TEXT("TESTSET-LIDAR"):TEXT("UNAVAILABLE");
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();Dataset=World->GetSubsystem<UVirtualDatasetSubsystem>();Catalog=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();Catalog->RegisterPlaybackAdapter(Slab);
             Dataset->OnSceneSnapshotForTests=[this](const FJsonObject&){Test->TestFalse(TEXT("generation captures direct poses without real-time playback"),Slab->IsSimulationActive());};
+            AVirtualSensorToolRig* Rig=nullptr;for(TActorIterator<AVirtualSensorToolRig> It(World);It;++It){Rig=*It;break;}
+            if(!Rig){Rig=World->SpawnActorDeferred<AVirtualSensorToolRig>(AVirtualSensorToolRig::StaticClass(),FTransform::Identity);Rig->TargetSlab=Slab;Rig->FinishSpawning(FTransform::Identity);}
+            Rig->TargetSlab=Slab;Test->TestTrue(TEXT("owned UI fixture uses existing tool rig composition"),Rig->EnsureSetup());World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->SetOwnedPanelFontScale(1);
             FAgentTestSetSettings Config;Config.Target=Large?100:3;Config.LidarId=TEXT("TESTSET-LIDAR");Config.Pipeline=Pipeline;Test->TestTrue(TEXT("fixture config before admission"),Service->ConfigureForTests(Config));
             Test->TestFalse(TEXT("default state has no set or output"),Service->HasItems());Test->TestFalse(TEXT("preview requires target completion"),Service->SelectPreview(0,Error));
-            Source=Fixture(Large?3:20,TEXT(" 9999 "));Test->TestTrue(TEXT("trigger whitespace normalized"),Service->IsTrigger(*Source));
+            Source=MakeAgentTestSetFixture(Large?3:20,TEXT(" 9999 "));Test->TestTrue(TEXT("trigger whitespace normalized"),Service->IsTrigger(*Source));
             Test->TestTrue(TEXT("submit through production async parser"),Slab->SubmitScenarioJson(Source->OriginalJson));Injected=1;Phase=Large?2:0;MeasureStart=Now;MemoryStart=FPlatformMemory::GetStats().UsedPhysical;return false;
         }
         if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;const double Ms=World->GetDeltaSeconds()*1000.;Frames.Add(Ms);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));PeakMemory=FMath::Max(PeakMemory,FPlatformMemory::GetStats().UsedPhysical);}
@@ -85,21 +90,23 @@ public:
             if(Service->Items().ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Failed;}))
             {Test->AddError(TEXT("generation failed: ")+Service->Message());return Finish();}
             if(Injected<Service->Settings().Target)
-            {auto Input=Fixture(2+Injected%4,TEXT("9999"));if(Slab->SubmitScenarioJson(Input->OriginalJson))++Injected;}
+            {auto Input=MakeAgentTestSetFixture(2+Injected%4,TEXT("9999"));if(Slab->SubmitScenarioJson(Input->OriginalJson))++Injected;}
             const int32 Total=Service->Completed();
             const bool Insert=Large?(NormalCount==0&&Total>=20)||(NormalCount==1&&Total>=60):(NormalCount<2&&Dataset->CompletedScenes()>=1&&Dataset->IsActive()&&!Slab->IsSimulationActive()&&Now-NormalAt>.6);
             if(Insert&& !Catalog->IsReplayBusy())
             {
-                const auto Input=Fixture(6,TEXT("NORMAL-MATERIAL"));Test->TestTrue(TEXT("normal scenario admitted while dataset holds World"),Slab->ReceiveScenario(Input));
+                const auto Input=MakeAgentTestSetFixture(6,TEXT("NORMAL-MATERIAL"));Test->TestTrue(TEXT("normal scenario admitted while dataset holds World"),Slab->ReceiveScenario(Input));
                 Test->TestTrue(TEXT("normal scenario plays immediately"),Slab->IsSimulationActive());Test->TestTrue(TEXT("test set yields before ordinary pose application"),Service->IsPaused());++NormalCount;NormalAt=Now;
             }
             if(!Service->IsComplete())return false;
             Test->TestEqual(TEXT("exact target count reached"),Service->Completed(),Service->Settings().Target);Test->TestEqual(TEXT("two ordinary scenarios kept separate"),Catalog->GetScenarios().Num(),2);
-            Test->TestFalse(TEXT("full set rejects excess trigger"),Slab->ReceiveScenario(Fixture(2,TEXT("9999"))));
-            Test->TestEqual(TEXT("ordinary scenarios were both run"),NormalCount,2);CheckFiles();Record(Now);PreviewFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;Phase=3;return false;
+            Test->TestFalse(TEXT("full set rejects excess trigger"),Slab->ReceiveScenario(MakeAgentTestSetFixture(2,TEXT("9999"))));
+            Test->TestNotNull(TEXT("first trigger opens the owned progress widget"),World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget());
+            Test->TestEqual(TEXT("ordinary scenarios were both run"),NormalCount,2);CheckFiles();Record(Now);CompletedAt=Now;PreviewFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;Phase=3;return false;
         }
         if(Phase==3)
         {
+            if(!CompletedScreen){if(Now-CompletedAt<.3)return false;FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/automated-completed.png"),true,false);CompletedScreen=true;return false;}
             if(Manual)
             {if(!FPaths::FileExists(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/manual/finish.flag")))return false;Service->StopPreview();Test->AddInfo(TEXT("Manual fixture completed by finish.flag; direct acceptance is recorded separately"));return Finish();}
             if(!Service->IsComplete())return false;
@@ -147,7 +154,6 @@ private:
     }
     void Record(double Now)
     {
-        FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/automated-completed.png"),true,false);
         auto O=Service->StatusJson();O->SetNumberField(TEXT("wall_seconds"),Now-MeasureStart);O->SetNumberField(TEXT("seconds_per_scenario"),(Now-MeasureStart)/Service->Completed());O->SetNumberField(TEXT("resident_start_bytes"),double(MemoryStart));O->SetNumberField(TEXT("resident_peak_bytes"),double(PeakMemory));
         O->SetStringField(TEXT("measured_start_utc"),(FDateTime::UtcNow()-FTimespan::FromSeconds(Now-MeasureStart)).ToIso8601());O->SetStringField(TEXT("measured_end_utc"),FDateTime::UtcNow().ToIso8601());
         Frames.Sort();Game.Sort();int32 Hitches=0;double Sum=0,GT=0;for(double V:Frames){Sum+=V;Hitches+=V>150;}for(double V:Game)GT+=V;
@@ -158,20 +164,20 @@ private:
         Test->AddInfo(FString::Printf(TEXT("TESTSET-01 %d scenarios %.3f seconds, engine max %.3f ms"),Service->Completed(),Now-MeasureStart,Frames.IsEmpty()?0:Frames.Last()));
     }
     bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
-    FAutomationTestBase* Test;bool Large,Pipeline,Manual,PreviewRequested=false;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualDatasetSubsystem* Dataset=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
-    FSlabScenarioDataPtr Source;FString Error,Root;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game;TSet<FString> PreviewRuns;
+    FAutomationTestBase* Test;bool Large,Pipeline,Manual,PreviewRequested=false,CompletedScreen=false;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualDatasetSubsystem* Dataset=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
+    FSlabScenarioDataPtr Source;FString Error,Root;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game;TSet<FString> PreviewRuns;
 };
-bool Run(FAutomationTestBase* Test,bool Large,bool Pipeline)
+bool RunAgentTestSetCase(FAutomationTestBase* Test,bool Large,bool Pipeline)
 {
     if(GUsingNullRHI){Test->AddInfo(TEXT("[OPT-IN SKIP] TESTSET-01 requires D3D12"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
-    ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));ADD_LATENT_AUTOMATION_COMMAND(FTestSetRun(Test,Large,Pipeline));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FTestSetRun(Test,Large,Pipeline));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestSetLifecycle,"MA0T10.TestSet.LifecycleAndOrdinaryPriority",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FTestSetLifecycle::RunTest(const FString&){return Run(this,false,true);}
+bool FTestSetLifecycle::RunTest(const FString&){return RunAgentTestSetCase(this,false,true);}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestSetPipeline,"MA0T10.TestSet.Throughput100Pipeline",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FTestSetPipeline::RunTest(const FString&){if(!FParse::Param(FCommandLine::Get(),TEXT("TestSet100"))){AddInfo(TEXT("[OPT-IN SKIP] pass -TestSet100 for 100 scenario generation"));return true;}return Run(this,true,true);}
+bool FTestSetPipeline::RunTest(const FString&){if(!FParse::Param(FCommandLine::Get(),TEXT("TestSet100"))){AddInfo(TEXT("[OPT-IN SKIP] pass -TestSet100 for 100 scenario generation"));return true;}return RunAgentTestSetCase(this,true,true);}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestSetSequential,"MA0T10.TestSet.Throughput100Sequential",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FTestSetSequential::RunTest(const FString&){if(!FParse::Param(FCommandLine::Get(),TEXT("TestSet100"))){AddInfo(TEXT("[OPT-IN SKIP] pass -TestSet100 for 100 scenario generation"));return true;}return Run(this,true,false);}
+bool FTestSetSequential::RunTest(const FString&){if(!FParse::Param(FCommandLine::Get(),TEXT("TestSet100"))){AddInfo(TEXT("[OPT-IN SKIP] pass -TestSet100 for 100 scenario generation"));return true;}return RunAgentTestSetCase(this,true,false);}
 #endif

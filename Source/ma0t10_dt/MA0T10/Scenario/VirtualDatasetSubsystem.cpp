@@ -41,7 +41,7 @@ TSharedRef<FJsonObject> Pose(const FTransform& T)
     O->SetArrayField(TEXT("xyz_m"),N({P.X,P.Y,P.Z}));O->SetArrayField(TEXT("quaternion_xyzw"),N({Q.X,Q.Y,Q.Z,Q.W}));
     O->SetArrayField(TEXT("pitch_yaw_roll_deg"),N({R.Pitch,R.Yaw,R.Roll}));return O;
 }
-FString Json(const TSharedRef<FJsonObject>& O){FString V;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&V));return V;}
+FString DatasetJson(const TSharedRef<FJsonObject>& O){FString V;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&V));return V;}
 FVirtualSensorVerificationFile TextFile(const FString& Name,const FString& Value)
 {FVirtualSensorVerificationFile F;F.Name=Name;FTCHARToUTF8 U(*Value);F.Bytes.Append(reinterpret_cast<const uint8*>(U.Get()),U.Length());return F;}
 bool Image(IImageWrapperModule& M,FVirtualSensorVerificationFile& F,EImageFormat Format,const void* Pixels,int64 Bytes,int32 W,int32 H,ERGBFormat Raw,int32 Bits)
@@ -394,7 +394,7 @@ void UVirtualDatasetSubsystem::WriteScene()
     const bool TestSet=bool(S->Plan);
     S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,LabelObject,ConditionsObject,Paths,Names,Root,SensorId,Commit,Scene,IncludeTruth,Cancelled,Started,Delay,TestSet]()
     {
-        const FString Label=Json(LabelObject),Conditions=Json(ConditionsObject);
+        const FString Label=DatasetJson(LabelObject),Conditions=DatasetJson(ConditionsObject);
         FDatasetWriteResult Result;TArray<FVirtualSensorVerificationFile> Files;
         if(Delay>0)FPlatformProcess::Sleep(Delay);
         if(Cancelled->load()){Result.Error=TEXT("데이터셋 저장 취소");return Result;}
@@ -442,7 +442,7 @@ void UVirtualDatasetSubsystem::WriteScene()
 #endif
         Result.Commit=Sha.TrimStartAndEnd();Manifest->SetStringField(TEXT("project_commit"),Result.Commit);
         const FString Temp=Root/TEXT("dataset.json.pending"),Final=Root/TEXT("dataset.json");
-        if(Exit!=0||Result.Commit.IsEmpty()||Cancelled->load()||!FFileHelper::SaveStringToFile(Json(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!IFileManager::Get().Move(*Final,*Temp,true,true,false,true))
+        if(Exit!=0||Result.Commit.IsEmpty()||Cancelled->load()||!FFileHelper::SaveStringToFile(DatasetJson(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!IFileManager::Get().Move(*Final,*Temp,true,true,false,true))
         {
             Result.Error=TEXT("dataset.json 확정 실패 또는 생성 취소");IFileManager::Get().Delete(*Temp,false,true);
             for(const auto& F:Files)IFileManager::Get().Delete(*(Directory/F.Name),false,true);
