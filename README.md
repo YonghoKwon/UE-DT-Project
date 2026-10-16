@@ -40,7 +40,7 @@ IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63
 | 표준 데이터셋 내보내기 (EXPORT-01) | Runtime eeff0c1: GPU20장면·COCO80마스크·KITTI407519점 재로딩/투영, Python19·release285 Success/skip32·2% perf 통과 | 기본 없음. UXR-16 직접 재시도도 Windows 잠금으로 입력0·보류(이전 Windows Security 이력 보존). KITTI 기울기 근사·custom class 제한은 [사용법](Tools/DatasetTools/README.md), 상세는 `Saved/Reports/EXPORT-01/RESULT.md` |
 | 외부 ROS2 변환 (ROS2-01) | Python adapter·전용 WSL2 도구. Windows25·WSL23 Success/skip2·ROS 직렬화3·실제 Artemis adapter4, UE PCD 20/10Hz 각5분 송신 검증 통과 | 20Hz 브리지6200/ROS6119, 10Hz UE3099/브리지3098/ROS3083. JPEG Image 디코더 결정·직접 3D 수용 보류(80%). [ROS2로 보기](Tools/Ros2Bridge/README.md), `Saved/Reports/ROS2-01/RESULT.md` |
 | 데이터 정확성·수명 | Raw receipt 상한, Camera FrameId-픽셀 정합, Esc 단일 종료, 0Hz 진단 구현 | 최종 범위 정리·직접 조작 (RT-01/04 90%, RT-02/03 70%, LIFE-01 70%) |
-| 자동화 | UXR-17 `d519ac0`: Editor/Game Development·release14단계, D3D12 고유291 Success/skip37/실패0·WBP7·어휘114/기본34/허용7·위반0·layer0/0. 준비/시간 초과/모드/긴 이름·20회 전환 회귀 포함 | `e93d44f` 대비1+1·1920×1080·10+30초·Visible 설정 ABAB×3: FPS 저하 -0.0053%·engine p95 +0.0000%·GT -1.1632%,2% 통과. 직접 UI는 캡처0x80070057·입력0·5행 보류. 수치·직접 제한은 `Saved/Reports/UXR/UXR-17/RESULT.md` |
+| 자동화 | UXR-18 `4c14a82`: Editor/Game Development·release14단계, D3D12 고유293 Success/skip37/실패·NotRun0·WBP7·어휘114/기본36기록(고유33)/허용7·위반0·golden·layer0 | `ff1ec9a` 대비 표시형 perf는 두 시도 모두0xC000013A 제어 종료로 중단되어2% 미판정. 직접6행은0x80070005/0x80070057·입력0·환경 보류. 상세는 `Saved/Reports/UXR/UXR-18/RESULT.md` |
 | 플러그인·이식 | 미착수. 소스·자산·설정을 함께 옮기는 방식만 가능 | 이번 버전 범위 밖 (PL-01~04는 ARCH 이후) |
 
 UXR-08 근거 보고서: `Saved/Reports/UXR/UXR-08/RESULT.md`(집중33 Success, 전체227 Success/skip20, 렌더24장, 성능2% gate 통과; 직접 조작 보류).
@@ -183,7 +183,7 @@ HttpEndpoint=
 - 사이드바의 **배치 → 장비 목록**과 자유 배치의 **장비 선택기**는 같은 Coordinator 선택을 공유한다. 자유 배치 선택기는 `Camera SensorId ● 상태` 형식과 종류별 묶음을 사용한다. 선택만으로 패널을 열거나 측정을 시작하지 않는다. 긴 ID는 말줄임+전체 ID 툴팁이다. 하단 상태바의 긴 경고도 전체 문장 툴팁을 제공한다.
 - UXR-02 배치 정리는 구현됐으며 이번 직접 점검에서 시험 장비/북마크 삭제 의도와 취소를 확인했다. 최종 삭제 클릭은 action-time 확인 답변이 없어 보류했다. 정상 PIE 종료로 장비가 사라진 것을 UI 최종 삭제 통과로 세지 않는다. 과거 CLI 근거는 `Saved/Reports/UXR/UXR-02/cli-closure/`에 보존한다.
 - **PCD 전송**은 데이터의 `전송`, **결과**는 독립 `결과` 탭을 연다. 다른 탭이 열려 있으면 전환하고 같은 작업 버튼을 다시 누르면 숨긴다.
-- **도구**에는 센서 상세 설정, 파일 저장 · 데이터셋, 서버 연결 설정, 진단, 고급·호환, 시나리오 차트, UI 표시가 있다. 파일 저장/서버 연결/진단은 데이터의 각 독립 탭, 고급·호환은 기존 Settings 고급 영역을 연다. 기능과 기본값은 바꾸지 않는다.
+- **도구**에는 센서 상세 설정, 파일 저장 · 데이터셋, 서버 연결 설정, 진단, 자동화, 시나리오 차트, UI 표시가 있다. 파일 저장/서버 연결/진단은 데이터의 각 독립 탭, 자동화는 기존 Settings의 자동화 탭을 연다. 호환 출력·관리는 센서 상세 설정의 고급 안에 접혀 있다. 기능과 기본값은 바꾸지 않는다.
 - **하단 상태바**는 장비 수/측정 수·PCD 전송·시나리오·서버와 첫 차단 사유를 최대 5Hz로 표시한다. UXR-16은 API/일괄 실행과 IMU 기록·전송을 별도 활동 칩으로 함께 표시한다. 켜진 API의 요청 대기와 실제 접수 작업을 구분하고 활동으로 기존 경고를 가리지 않는다. 경고만 노란 칩이며 각 항목을 누르면 관련 화면으로 이동한다. 연결 경고는 서버 연결 설정을 연다. 상태 조회나 화면 열기는 측정·전송·파일 저장을 시작하지 않는다. 서버 연결은 외부 소비자의 처리 완료를 뜻하지 않는다.
 
 UXR-15는 최근 추가 옵션의 상태와 저장 작업을 정리했다. **도구 → 파일 저장 · 데이터셋**에서 일반 프레임 저장과 접힌 데이터셋 생성을 찾는다. 데이터셋 대상 버튼은 누를 때마다 다음 대상을 고르며, 랜덤화는 항목명 아래의 **왼쪽 최솟값 / 오른쪽 최댓값**을 입력한다. Camera 정답과 LiDAR 사실성은 현재 켜짐/꺼짐을 표시한다. 정답 미리보기는 **보기 설정 → RGB / 깊이 / 의미 분류 / 객체 구분**, 로컬 파일은 **정답 데이터 1회 저장**이다. 직접 조작 보류를 묶은 [통합 점검표](docs/MANUAL_CHECKLIST.md)는 준비된 환경에서 약70분 순서와 조건부 보류를 제공한다.
@@ -208,7 +208,7 @@ UXR-16의 활동 표시는 위 경고 순서와 독립이다. 경고 칩은 기�
 
 | 활동 표시 순서/조건 | 하단 문구·동시 규칙 | 확인 경로 |
 |---|---|---|
-| 1 · 일괄 실행 활성 | `일괄 실행 중 · n/N · 작업`. 같은 제어기의 API 작업/대기보다 우선 | 활동 칩 → 기존 고급·호환의 자동화 그룹 |
+| 1 · 일괄 실행 활성 | `일괄 실행 중 · n/N · 작업`. 같은 제어기의 API 작업/대기보다 우선 | 활동 칩 → 센서 상세 설정 → 자동화 |
 | 2 · 일괄 없이 접수 작업 진행 | `API 작업 중 · 프레임 저장/데이터셋 생성/시나리오 실행/PCD 전송/장비 설정`. API를 꺼도 이미 접수한 작업은 계속 표시 | 같은 자동화 그룹의 주소·진행 상태 |
 | 3 · API 켜짐, 접수 작업 없음 | `API 켜짐 · 요청 대기`. 제어 중이나 외부 제어 lease를 뜻하지 않음 | API 토글/주소. 꺼짐·유휴이면 활동 칩 숨김, 설정에는 꺼짐 표시 |
 | 독립 · IMU 기록 또는 전송 활성 | `IMU 기록 n · 전송 m`. 전체 등록 장비의 현재 IMU 수이며 측정률/수신 완료가 아님. 위 활동·PCD·시나리오·첫 경고와 함께 유지 | IMU 칩 → 배치 → 기존 IMU 영역 |
@@ -219,7 +219,7 @@ UXR-16의 활동 표시는 위 경고 순서와 독립이다. 경고 칩은 기�
 | 패널 / WBP | 현재 역할 |
 |---|---|
 | 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상/점군 + 장비·상태·측정Hz·실제 경고1줄. 중지/장비 없음 안내. 투영·색상·듀얼·범례·개발자 정보는 **보기 설정** |
-| 센서 설정 / `WBP_VirtualSensorSettingsPanel` | **기본 / 고급 / 고급·호환**. 기본=프로필·품질·측정 주기·LiDAR 최대 거리, 고급=해상도/FOV/채널·미리보기 점, 고급·호환=자동화(API·일괄 상태)·출력 호환·외부 입력·식별·로그·원본 맵 반영 |
+| 센서 설정 / `WBP_VirtualSensorSettingsPanel` | **기본 / 고급 / 자동화**. 기본=프로필·품질·주기·거리·미리보기 점·측정 시작/중지. 고급=Camera 정답·LiDAR 사실성·해상도/FOV/채널·다중 검출·IMU 기존 배치 화면 연결·접힌 호환 출력·관리. 자동화=API/일괄 상태·기존 데이터셋/변환 형식/TESTSET 화면 연결·스캔 자동 파일 저장 |
 | 데이터 / `WBP_VirtualSensorCaptureExportPanel` | **전송 / 결과 / 파일 저장 / 서버 연결 / 진단**. 새 소유 인스턴스는 전송 탭 |
 | 재생 / `WBP_SlabScenarioReplayPanel` | 전체 UUID/내부 보관 ID, 선택 항목 재실행·복사·삭제, 이번 재생 출력 요약 + `PCD 전송에서 변경` |
 | 차트 / `WBP_SlabChartsPanel` | 기울기·중심 이탈·Margin 3개를 진행 시점까지만 표시 |
@@ -229,7 +229,7 @@ UXR-16의 활동 표시는 위 경고 순서와 독립이다. 경고 칩은 기�
 - 기본 사이드바는 고정 배치다. **도구 → UI 표시 → 창 자유 배치 (이전 방식)**에서는 제목 drag·우하단 resize·접기·숨김을 계속 사용할 수 있다. 두 모드는 같은 인스턴스를 사용하며 전환이 측정·파일 저장·전송·재생을 중단하지 않는다. 사이드바 사각형은 Workspace v1의 기존 자유 배치 저장값을 덮어쓰지 않는다. 표시 모드 선택은 현재 PIE에만 적용되고 새 PIE는 사이드바로 시작한다.
 - `더보기 → 이 창 위치·크기 초기화`는 해당 패널만, `도구 → UI 표시 → 센서 도구 UI 초기화`는 소유 패널 배치·열림·폰트만 초기화한다.
 - 글자 배율은 85/100/125/150%. 작은 창은 스크롤하거나 확대한다. 외부 UserWidget 내부를 재귀 변경하지 않는다.
-- **센서 상세 설정**은 기본·고급·고급·호환 3단이다. 한 문장 도움말과 성능 영향(낮음/보통/높음), `ⓘ` 상세를 제공한다. `도구 → 고급·호환`은 해당 화면으로 바로 들어간다. 배치 controls는 배치 창에 있으며 기존 BP API는 유지한다. 수집 잠금과 설정 검증·적용, 기존 저장값은 그대로다. UXR-05 CLI 검증/렌더/성능 근거는 `Saved/Reports/UXR/UXR-05/`; 직접 마우스는 보류다.
+- **센서 상세 설정**은 UXR-18의 기본·고급·자동화 3탭이다. 새 패널은 기본으로 시작하고 같은 인스턴스의 재열기·선택 변경·재호스팅은 마지막 탭을 기억한다. 기존 UI 저장 구조에 탭 필드가 없어 세션 내 기억만 사용하며 SensorUI v6/Workspace v1 형식을 확장하지 않는다. 고급/자동화 이름 아래 `n개 켜짐`을 표시하고 0이면 숨긴다. 선택 장비의 정답·사실성·다중 검출·부착 IMU와 자동 제어 묶음·데이터셋 사용·변환 형식·자동 파일 저장·미완료 테스트셋을 세며 세부 랜덤화는 중복 합산하지 않는다. 기준은 탭 툴팁에서 확인한다. 한 문장 도움말·성능 영향·`ⓘ`, 기존 BP API·수집 잠금·즉시 적용/복원·저장값은 유지한다. [직접 점검표](docs/MANUAL_CHECKLIST.md#uxr-18-센서-상세-설정-추가-직접-점검)와 `Saved/Reports/UXR/UXR-18/RESULT.md`에서 자동 검증과 직접 수용을 구분한다.
 - 듀얼 카메라는 기존 RenderTarget을 공유한다. 보조 카메라는 보기 전용이며 추가 capture/readback을 만들지 않는다.
 - **미리보기**는 중지 장비에 `측정 중지 상태입니다 · 측정 시작`, 장비가 없으면 `장비 추가`를 제공한다. 시작은 기존 배치의 잠금·조작 종료 경로, 추가는 기존 배치 창 열기다. 정상 메시지/경고 없음에 경고색을 쓰지 않는다. 숨김/접힘과 닫힌 개발자 정보·범례는 문자열 조립을 멈춘다. 소유 native 보기는 기존 프레임만 표시하며 숨은 동기 측정을 부르지 않는다. 기존 명시 BP 호환 캡처/저장·Designer 경로는 유지한다. UXR-06의 자동 Slate/RHI 검사·렌더20장·성능·전체 이름별 비교는 `Saved/Reports/UXR/UXR-06/`; 마우스는 보류다.
 - UXR-01 자동 렌더 검수: 실제 client 1280×720·1920×1080, 글자 100%·150%, window DPI 1.0. 캡처/이름별 회귀 비교는 `Saved/Reports/UXR/UXR-01/`에 있다. 레거시 툴바·사용자 Designer 경로는 유지하며 직접 마우스 검토는 별도다.
@@ -358,7 +358,7 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json"
 
 ### LiDAR 사실성 옵션 (LIDAR-FID-01)
 
-사용자 요청(2026-10-15)에 따라 `도구 → 센서 상세 설정 → 기본 → 사실성`에 **점별 시간차·움직임 왜곡·재질 반사**와 ⓘ 설명을 추가했다. 모두 기본 꺼짐이다. 움직임 왜곡을 켜면 시간차도 켜고, 시간차를 끄면 왜곡도 끈다. 수집 잠금과 기존 Actor 설정 transaction을 따른다. 미리보기 색 목록의 **반사 강도·측정 시각**은 기존 5Hz 이하 cache를 사용한다.
+사용자 요청(2026-10-15)에 따른 **점별 시간차·움직임 왜곡·재질 반사**와 ⓘ 설명은 UXR-18에서 `도구 → 센서 상세 설정 → 고급 → LiDAR 사실성`으로 옮겼다. 모두 기본 꺼짐이다. 움직임 왜곡을 켜면 시간차도 켜고, 시간차를 끄면 왜곡도 끈다. 수집 잠금과 기존 Actor 설정 transaction을 따른다. 미리보기 색 목록의 **반사 강도·측정 시각**은 기존 5Hz 이하 cache를 사용한다.
 
 - 시간차는 기존 PCD `time_offset_ns`(33-byte little-endian 레코드)에 기록한다. ML-X 비회전 행 순차는 **가정**이며 실제 제조사 firing 순서가 아니다. 주기 안의 `[0,T)` 범위이고 기본 출력은 계속 0이다. Generic 회전형은 column→ring 순서, Livox는 기존 raster 근사로 실제 non-repeating pattern을 재현하지 않는다.
 - 움직임은 acquisition 시점의 linear/angular velocity·표면 평면으로 예측한다. Slab은 기존 보간의 속도를 중립 provider로 제공하고 정지/일시정지는 0이다. 센서 자체 속도는 제공된 속도 또는 두 번째 acquisition부터 pose 차분으로 추정한다. 점군은 deskew하지 않으며 추가 광선 추적을 하지 않는다. 가속·형상 경계·가려짐 변화·변형은 지원하지 않는다.
@@ -372,7 +372,7 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json"
 
 - 시작/재등록 후 `max(1초, 실제 적용 주기의 3배)`는 시작 유예다. 이후 진행이 이 시간보다 오래 없으면 과거 양수 Hz가 남아 있어도 유효 측정률은 0Hz다.
 - Settings 상세 부하 요약에서 센서별 시작 유예·측정 중·일시정지·조작용 경량 미리보기·정체를 구분한다. 처리 실패 이력이 있는 정체는 별도 문구로 표시한다.
-- 소유 Settings의 상세 부하 문자열은 **고급·호환의 열린 도움말**에서만 조립한다. 기본/고급에는 측정값과 한 문장 설명만 표시하며 기존 Blueprint 상세 조회 API는 유지한다.
+- 소유 Settings의 상세 부하 문자열은 **고급의 열린 도움말**에서만 조립한다. 닫힌 도움말과 숨김/접힘에서는 상세 조립을 멈추며 기존 Blueprint 상세 조회 API는 유지한다.
 - World 시간으로 신선도를 계산하므로 PIE 일시정지는 정체 시간에 포함하지 않는다. 일시정지 중에는 진단만 갱신하고 측정하지 않는다.
 - `SensorRates`와 `StarvedSensorIds`를 공개한다. 기존 공정성 수치를 읽는 Blueprint/C++는 `bCameraFairnessEvaluable`/`bLidarFairnessEvaluable`도 확인해야 한다. 판정 불가 수치 0은 정상 공정성을 뜻하지 않는다. 조작용 임시 주기는 정격 공정성 통과로 처리하지 않는다.
 - Camera acquisition 신선도는 SceneCapture 제출 정의다. 스트리밍 readback은 해당 capture 직후의 복사와 고정 snapshot을 사용한다. slot 부족/합쳐진 capture는 명시적 파생 실패로 기록하며 나중의 픽셀을 옛 FrameId에 붙이지 않는다. acquisition·JPEG 완료·receipt·소비자 검증 Hz는 서로 구분한다.
@@ -433,7 +433,7 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 ### 카메라 정답 데이터 (CAM-GT-01)
 
-출처: 사용자 2026-10-15. **기본 꺼짐**인 카메라별 선택 기능이다. `도구 → 센서 상세 설정 → 기본 → 정답 데이터 사용`을 체크하고 적용한 뒤, 측정 중인 카메라의 `미리보기 → 보기 설정`에서 RGB / 깊이(Depth) / 의미 분류(Segmentation) / 객체 구분(Instance)을 선택한다. 화면이 요청하는 정답 데이터는 최대 5Hz이며 숨김/접힘 후 표시 수요가 만료된다. RGB 선택만으로 정답 캡처를 계속하지 않는다. 기존 JPEG·JSON·PCD 송신 bytes와 topic/schema는 유지한다.
+출처: 사용자 2026-10-15. **기본 꺼짐**인 카메라별 선택 기능이다. `도구 → 센서 상세 설정 → 고급 → 정답 데이터`를 체크하면 즉시 적용되며, 측정 중인 카메라의 `미리보기 → 보기 설정`에서 RGB / 깊이(Depth) / 의미 분류(Segmentation) / 객체 구분(Instance)을 선택한다. 화면이 요청하는 정답 데이터는 최대 5Hz이며 숨김/접힘 후 표시 수요가 만료된다. RGB 선택만으로 정답 캡처를 계속하지 않는다. 기존 JPEG·JSON·PCD 송신 bytes와 topic/schema는 유지한다.
 
 - **정답 데이터 1회 캡처:** FileSave 서비스의 admission을 거쳐 다음 카메라 acquisition에서 비동기 처리한다. 측정을 몰래 시작하지 않으며 busy/미지원/실패를 표시한다. `Saved/CameraGroundTruth/<고유 ID>/`에 `depth.exr`(float32 미터), `segmentation.png`(uint8 클래스 ID), `instance.png`(무손실 24-bit Actor ID), `camera_info.json`을 저장한다. JSON은 모든 이미지 저장 뒤의 완료 표식이다. 데이터셋·주기/대량 생성·서버 송신은 추가하지 않았다.
 - **Depth:** SceneDepth의 광학축 Z를 cm→m로 변환한다. 광선 방향의 유클리드 거리와 구별하며 변환식을 JSON에 기록한다. 0은 배경/무효, 최대 10,000m다. 화면 컬러맵의 0–50m 범위는 저장 float 값을 자르지 않는다.
@@ -522,7 +522,7 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 ## 9. LiDAR 출력 정책과 센서별 전달 결과
 
 - 배치 도구로 새로 추가한 LiDAR는 `WhenRequested` 정책으로 시작한다. PCD·Raw telemetry·미리보기만 사용할 때는 큰 호환 JSON을 생성하지 않는다. 기존 클래스·레벨 장비·구형 전체 배치 파일은 `LegacyAlways`를 유지한다. 복제와 새 전체 배치 저장/복원은 원본 정책을 보존한다.
-- 정책은 `도구 → 고급·호환 → LiDAR 호환 JSON 생성`에서 명시적으로 바꾼다. 정책만 변경하면 측정이나 조작 모드를 재시작하지 않는다. 기존 수집 잠금은 적용된다. JSON 생략은 실패/프레임 유실로 세지 않고 데이터 패널에 `미사용`으로 표시한다.
+- 정책은 `도구 → 센서 상세 설정 → 고급 → 호환 출력·관리 → LiDAR 호환 JSON 생성`에서 명시적으로 바꾼다. 정책만 변경하면 측정이나 조작 모드를 재시작하지 않는다. 기존 수집 잠금은 적용된다. JSON 생략은 실패/프레임 유실로 세지 않고 데이터 패널에 `미사용`으로 표시한다.
 - 호환 LiDAR 스트림, 실제 JSON 녹화, 기존 Blueprint JSON 완료 구독, 등록된 native 소비자와 수동 요청은 JSON을 생성한다. `GetLastJsonPayload()`를 직접 polling하는 새 소비자는 `RegisterCompatibilityJsonConsumer(Owner)`/해제를 사용하거나 `LegacyAlways`를 선택한다. preview에는 기존 acquisition 이벤트를 사용할 수 있다.
 - Native 수동 JSON 전송은 완료 snapshot의 비동기 1회 생성과 metadata를 사용하며 센서를 추가 측정하지 않는다. 작업 슬롯이 사용 중이거나 설정/종료 전의 오래된 snapshot이면 사유를 안내한다. 기존 bool 전송 API는 완료된 JSON과 그 JSON의 SensorId/FrameId를 사용하고 반환 의미를 유지한다.
 - 생성 상태 조회는 `GetCompatibilityOutputStatus()`이며 작업 수·미사용 수와 queue/encode/completion 시간을 제공한다. 이전 post-process 시간은 acquisition부터 완료까지의 값으로, 순수 JSON encode 시간과 다르다. 자동 파일 출력과 수동/외부 입력의 기존 기능은 유지한다.
@@ -559,13 +559,15 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-16, UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+### 10.2 현재 위반 (2026-10-16, UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+UXR-18은 기존 L3 Settings의 기본/고급/자동화 재배치와 기존 소유 IMU/데이터셋/TESTSET 진입만 정리한다. 센서 revision과 기존 툴바5Hz 활동 캐시를 읽고 숨김/접힘 갱신을 멈춘다. L0~L2·DTCore·Blueprint/SaveGame/wire·새 모듈/자산 변경 없이 레이어 위반/allowlist **0→0**이다.
 
 UXR-17은 기존 L3 소유 미리보기의 프레임 대기 안내·모드 범례·헤더 배치만 바꾼다. 기존 acquisition/정답 texture 캐시와5Hz 상태 갱신을 읽으며 숨김/접힘 갱신을 멈춘다. 새 capture/readback·타이머·저장값·wire·모듈·자산·DTCore 변경 없이 레이어 위반/allowlist **0→0**이다.
 
 TESTSET-01은 L2 `Scenario/AgentTestSetSubsystem`에서 수신 분기·큐·DATASET-01 프레임 계획을 조립하고 L1 FileSave의 별도 TestSets 허용 루트를 재사용한다. L3의 소유 `UDxWidget`은 기존 Workspace/DTCore 등록·닫기·전면·입력 차단을 사용한다. 기존 패널 enum/저장값·DTCore·자산·모듈 변경 없이 레이어 위반/allowlist **0→0**이다.
 
-UXR-16은 기존 L3 소유 UI의 문구·글자/줄바꿈·활동 표시와 L2 Automation의 읽기 전용 표시 accessor만 정리한다.5Hz 기존 상태 갱신/센서 순회를 재사용하며 새 모듈·Tick/timer·측정·직렬화·DTCore·자산 변경 없이 레이어 위반/allowlist **0→0**이다. 큰 설정 구조 재배치는 캡처 기반 제안으로 남긴다.
+UXR-16은 기존 L3 소유 UI의 문구·글자/줄바꿈·활동 표시와 L2 Automation의 읽기 전용 표시 accessor만 정리한다.5Hz 기존 상태 갱신/센서 순회를 재사용하며 새 모듈·Tick/timer·측정·직렬화·DTCore·자산 변경 없이 레이어 위반/allowlist **0→0**이다. 당시 설정 구조 제안은 별도 사용자 승인 후 UXR-18에서 구현했다.
 
 IMU-01은 L1 `Sensor/VirtualImuTypes`·`VirtualImuComponent`와 기존 Recorder/StreamPublisher/FileSave를 확장한다. L0 motion provider를 읽고, L2 Dataset/AUTO-01과 L3 기존 DTCore 기반 배치 패널이 값을 소비한다. 레이어 위반·allowlist **0→0**, 새 모듈·자산·DTCore 변경 없음. IMU 스트림은 기존 acquisition envelope와 별도 접수되어 Camera/LiDAR·Slab PCD 기본 정책에 편입되지 않는다.
 
