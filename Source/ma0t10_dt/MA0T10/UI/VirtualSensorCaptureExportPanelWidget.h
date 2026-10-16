@@ -51,6 +51,9 @@ class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSens
     GENERATED_BODY()
 
 public:
+	/** Navigation/read-only presentation; no draft, output or persistence policy changes. */
+	bool OpenOwnedDatasetSettings();
+	int32 GetOwnedDatasetEnabledCount() const;
 	void OpenOwnedTab(ESensorOwnedDataTab Tab);
 	void ClearOwnedTabHistory() { OwnedTabHistory.Reset(); }
 	virtual FText GetPanelBackLabel() const override;

@@ -4,6 +4,10 @@
 #include "SensorOwnedPresentationStyle.h"
 #include "SensorPlacementInteraction.h"
 #include "SensorToolUiText.h"
+#include "VirtualSensorPlacementPanelWidget.h"
+#include "VirtualSensorCaptureExportPanelWidget.h"
+#include "SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -35,6 +39,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
 
 #include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "VirtualSensorSettingsPanelWidget"
 
@@ -666,7 +671,7 @@ FString UVirtualSensorSettingsPanelWidget::GetControlStatusText() const
 void UVirtualSensorSettingsPanelWidget::OpenOwnedSettingsSection(bool bAdvanced)
 {
     if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget)) return;
-    SelectOwnedSettingsTab(bAdvanced?2:0);
+    if(bAdvanced) SelectOwnedSettingsTab(2); // Ordinary reopening keeps the session selection.
     if (bAdvanced) bShowAdvanced = true;
 }
 
@@ -892,6 +897,37 @@ void UVirtualSensorSettingsPanelWidget::RefreshOwnedSettingsText()
     if(WorkspaceSettingsTab==2&&GetWorld())if(auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())OwnedAutomationText=FText::FromString(Control->GetPresentationStatus());
     auto* Actor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());FString LockReason;
     bOwnedCanEdit=Actor&&Actor->CanEditSensorConfiguration(LockReason);
+    auto* W=GetToolWorkspace();
+    // Read only the selected Actor when its configuration changes. Reuse the
+    // toolbar's 5Hz activity cache; hidden tabs never format API/job details.
+    if(OwnedActivitySensor.Get()!=Actor||OwnedActivityRevision!=(Actor?Actor->GetConfigurationRevision():INDEX_NONE))
+    {
+        OwnedActivitySensor=Actor;OwnedActivityRevision=Actor?Actor->GetConfigurationRevision():INDEX_NONE;
+        FVirtualSensorEditableState State;OwnedAdvancedSensorCount=OwnedAutoFileCount=0;
+        if(Actor&&Actor->ReadEditableState(State))
+        {
+            if(State.TargetKind==EVirtualSensorTargetKind::Camera)OwnedAdvancedSensorCount=int32(State.bCameraGroundTruth);
+            else
+            {
+                OwnedAdvancedSensorCount=int32(State.bLidarPointTime)+int32(State.bLidarMotionDistortion)+int32(State.bLidarMaterialResponse)+int32(State.bUseMultiHit);
+                OwnedAutoFileCount=int32(State.bExportCsvOnScan)+int32(State.bExportJsonLinesOnScan)+int32(State.bExportPcdOnScan);
+            }
+        }
+    }
+    const auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
+    const auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+    const auto* Control=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;
+    const auto* TestSet=GetWorld()?GetWorld()->GetSubsystem<UAgentTestSetSubsystem>():nullptr;
+    const int32 Counts[]={0,OwnedAdvancedSensorCount+int32(Actor&&Actor->FindComponentByClass<UVirtualImuComponent>()),
+        OwnedAutoFileCount+(Data?Data->GetOwnedDatasetEnabledCount():0)+int32((Control&&Control->IsApiEnabled())||(Bar&&!Bar->GetGlobalStatus().Automation.IsEmpty()))+int32(TestSet&&TestSet->HasItems()&&!TestSet->IsComplete())};
+    for(int32 I=0;I<3;++I)if(Counts[I]!=OwnedTabEnabledCounts[I])
+    {
+        OwnedTabEnabledCounts[I]=Counts[I];
+        OwnedTabActivity[I]=Counts[I]?FText::Format(LOCTEXT("OwnedEnabledCount","{0}개 켜짐"),Counts[I]):FText::GetEmpty();
+    }
+    FString MeasureReason;bOwnedCanMeasure=Actor&&Actor->CanEditSensorPlacement(MeasureReason);
+    const bool Measuring=Actor&&Actor->IsSensorRunning();
+    if(OwnedMeasureText.IsEmpty()||Measuring!=bOwnedMeasuring){bOwnedMeasuring=Measuring;OwnedMeasureText=Measuring?SensorToolUiText::StopMeasurement():SensorToolUiText::StartMeasurement();}
     OwnedSelectionText=FText::FromString(Actor?(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?TEXT("Camera · "):TEXT("LiDAR · "))+PendingState.SensorId:TEXT("장비 없음 · 배치에서 장비를 선택하세요"));
     OwnedProfileText=FText::FromString(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?CameraProfileText(PendingState.CameraProfile):LidarProfileText(PendingState.LidarProfile));
     OwnedQualityText=FText::FromString(OwnedQualityLabel(PendingState.SimulationQuality));
@@ -900,7 +936,7 @@ void UVirtualSensorSettingsPanelWidget::RefreshOwnedSettingsText()
     Message.ReplaceInline(TEXT("PIE에 적용됨"),TEXT("장비 설정 적용됨"));
     OwnedStatusText=FText::FromString(SensorToolUiText::UserReason(!Actor?FString(TEXT("장비를 배치나 상단 목록에서 선택하세요")):!bOwnedCanEdit?LockReason:Message));
     if(NativeStatusText)NativeStatusText->SetText(OwnedStatusText);
-    if(WorkspaceSettingsTab==2)
+    if(WorkspaceSettingsTab==1)
     {
         OwnedIdentityText=FText::FromString(PendingState.SensorId);
         OwnedDebugLogText=HostActor&&HostActor->IsScreenDebugLogVisible()?LOCTEXT("OwnedHideDebug","화면 디버그 로그 숨기기"):LOCTEXT("OwnedShowDebug","화면 디버그 로그 표시");
@@ -913,7 +949,7 @@ void UVirtualSensorSettingsPanelWidget::RefreshOwnedSettingsText()
         OwnedHelpText=Help?FText::Format(LOCTEXT("OwnedHelpDetail","{0}\n{1}\n성능 영향: {2}\n권장값: {3}\n{4}"),Help->Label,
             FText::FromString(SensorToolUiText::UserReason(Help->Description.ToString())),OwnedSettingImpact(SelectedSettingHelpKey),
             FText::FromString(SensorToolUiText::UserReason(Help->RecommendedValue.ToString())),FText::FromString(SensorToolUiText::UserReason(Help->Caution.ToString()))):FText::GetEmpty();
-        OwnedLoadText=WorkspaceSettingsTab==2?FText::FromString(GetCurrentLoadSummaryText()):FText::GetEmpty();
+        OwnedLoadText=WorkspaceSettingsTab==1?FText::FromString(GetCurrentLoadSummaryText()):FText::GetEmpty();
         if(SelectedSettingHelpKey==TEXT("DeviceProfile"))OwnedHelpText=FText::FromString(OwnedHelpText.ToString()+TEXT("\n")+BuildDeviceSpecText());
     }
 }
@@ -937,14 +973,22 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
 {
     RefreshOwnedSettingsText();
     auto Basic=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==0?EVisibility::Visible:EVisibility::Collapsed;}).IsEnabled_Lambda([this](){return bOwnedCanEdit;});
-    auto Advanced=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==1?EVisibility::Visible:EVisibility::Collapsed;}).IsEnabled_Lambda([this](){return bOwnedCanEdit;});
-    auto Compatibility=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
+    auto Advanced=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==1?EVisibility::Visible:EVisibility::Collapsed;});
+    auto Automation=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
+    auto Compatibility=SNew(SVerticalBox);
     const auto CameraVisible=[this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Camera?EVisibility::Visible:EVisibility::Collapsed;};
     const auto LidarVisible=[this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Lidar?EVisibility::Visible:EVisibility::Collapsed;};
     Basic->AddSlot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::SectionGap)
       [SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedBasicHelp","프로필·품질은 측정값을 함께 적용합니다."))];
     Advanced->AddSlot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::SectionGap)
-      [SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedAdvancedHelp","측정 규격과 미리보기 표시를 조정합니다."))];
+      [SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedAdvancedHelp","정답·사실성과 측정 세부값을 조정합니다. IMU는 배치 화면에서 설정합니다."))];
+    Basic->AddSlot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,6))
+      +SWrapBox::Slot()[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return bOwnedCanMeasure;}).Text_Lambda([this](){return OwnedMeasureText;})
+        .OnClicked_Lambda([this](){if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(GetToolWorkspace()->GetOwnedPanel(ESensorToolPanelRole::Placement)))P->SetSelectedMeasuring(!bOwnedMeasuring);RefreshOwnedSettingsText();return FReply::Handled();})]
+      +SWrapBox::Slot()[SNewSensorTool(SButton).Text(SensorToolUiText::Preview()).OnClicked_Lambda([this](){GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor,true);return FReply::Handled();})]];
+    Advanced->AddSlot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton)
+      .OnClicked_Lambda([this](){OpenOwnedSettingsOwner(false);return FReply::Handled();})
+      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedImuLink","IMU 부착·노이즈·설정 열기"))]];
     Basic->AddSlot().AutoHeight()[BuildToolFormRow(LOCTEXT("OwnedProfileLabel","장비 프로필"),SNew(SVerticalBox)
       +SVerticalBox::Slot().FillHeight(1)[SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(FMargin(FSensorOwnedPresentationStyle::Gap,6))
         .Visibility_Lambda(CameraVisible).OptionsSource(&NativeCameraProfileOptions)
@@ -963,13 +1007,6 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
         [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedQualityText;})],BuildOwnedSettingDetail(TEXT("SimulationQuality")))];
     auto CameraBasic=SNew(SVerticalBox).Visibility_Lambda(CameraVisible);
     CameraBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedCameraInterval","측정 주기 (s)"),[this](){return PendingState.CameraCaptureInterval;},[this](float V){PendingState.CameraCaptureInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("CameraInterval"))];
-    CameraBasic->AddSlot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox)
-      +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([this](){return bOwnedCanEdit;})
-        .IsChecked_Lambda([this](){return PendingState.bCameraGroundTruth?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){PendingState.bCameraGroundTruth=V==ECheckBoxState::Checked;ApplyPendingState();})
-        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PendingState.bCameraGroundTruth?LOCTEXT("CameraTruthOn","정답 데이터 · 켜짐"):LOCTEXT("CameraTruthOff","정답 데이터 · 꺼짐");})]]
-      +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthHelp","ⓘ"))
-        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 선택하면 즉시 적용합니다. 미리보기의 보기 설정에서 깊이·의미 분류·객체 구분을 확인하세요. GPU 캡처와 읽기 비용이 추가됩니다. 1회 저장은 Saved/CameraGroundTruth에 기록합니다. 서버 전송은 추가하지 않습니다."))]];
     Basic->AddSlot().AutoHeight()[CameraBasic];
     auto LidarBasic=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarInterval","측정 주기 (s)"),[this](){return PendingState.LidarScanInterval;},[this](float V){PendingState.LidarScanInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("LidarInterval"))];
@@ -995,26 +1032,36 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
         LOCTEXT("LidarMotionInfo","기본 꺼짐 · 시간차를 함께 켭니다. 획득 시점 속도와 표면 평면으로 센서·물체 움직임을 근사합니다. 형상 경계·가려짐·가속은 재현하지 못합니다. 센서 속도 추정은 두 번째 스캔부터 적용됩니다."));
     FidelityToggle(LOCTEXT("LidarMaterial","재질 반사"),&FVirtualSensorEditableState::bLidarMaterialResponse,
         LOCTEXT("LidarMaterialInfo","기본 꺼짐 · 반사율·입사각·거리에 따라 강도·미검출·거리 노이즈가 달라집니다. 반사율 표는 가정값이며 SurfaceResponse가 우선합니다. GPU는 기존 의미 분류 캡처 비용이 추가되고 경계 법선은 근사합니다."));
-    LidarBasic->AddSlot().AutoHeight()[Fidelity];
+    Advanced->AddSlot().AutoHeight()[SNew(SBox).IsEnabled_Lambda([this](){return bOwnedCanEdit;})[Fidelity]];
     Basic->AddSlot().AutoHeight()[LidarBasic];
-    auto CameraAdvanced=SNew(SVerticalBox).Visibility_Lambda(CameraVisible);
+    auto CameraAdvanced=SNew(SVerticalBox).Visibility_Lambda(CameraVisible).IsEnabled_Lambda([this](){return bOwnedCanEdit;});
+    CameraAdvanced->AddSlot().AutoHeight().Padding(0,6)[SNew(SHorizontalBox)
+      +SHorizontalBox::Slot().FillWidth(1)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([this](){return bOwnedCanEdit;})
+        .IsChecked_Lambda([this](){return PendingState.bCameraGroundTruth?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){PendingState.bCameraGroundTruth=V==ECheckBoxState::Checked;ApplyPendingState();})
+        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PendingState.bCameraGroundTruth?LOCTEXT("CameraTruthOn","정답 데이터 · 켜짐"):LOCTEXT("CameraTruthOff","정답 데이터 · 꺼짐");})]]
+      +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(STextBlock).Text(LOCTEXT("CameraTruthHelp","ⓘ"))
+        .ToolTipText(LOCTEXT("CameraTruthHelpText","기본 꺼짐 · 선택하면 즉시 적용합니다. 미리보기의 보기 설정에서 깊이·의미 분류·객체 구분을 확인하세요. GPU 캡처와 읽기 비용이 추가됩니다. 1회 저장은 Saved/CameraGroundTruth에 기록합니다. 서버 전송은 추가하지 않습니다."))]];
+
     CameraAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedCameraWidth","가로 해상도 (px)"),[this](){return PendingState.CameraResolution.X;},[this](int32 V){PendingState.CameraResolution.X=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},160,4096,TEXT("CameraWidth"))];
     CameraAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedCameraHeight","세로 해상도 (px)"),[this](){return PendingState.CameraResolution.Y;},[this](int32 V){PendingState.CameraResolution.Y=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},90,2160,TEXT("CameraHeight"))];
     CameraAdvanced->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedCameraFov","수평 FOV (°)"),[this](){return PendingState.CameraFov;},[this](float V){PendingState.CameraFov=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},5,170,true,TEXT("CameraFov"))];
     Advanced->AddSlot().AutoHeight()[CameraAdvanced];
-    auto LidarAdvanced=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
+    auto LidarAdvanced=SNew(SVerticalBox).Visibility_Lambda(LidarVisible).IsEnabled_Lambda([this](){return bOwnedCanEdit;});
     LidarAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedSamples","수평 샘플 수"),[this](){return PendingState.LidarHorizontalSamples;},[this](int32 V){PendingState.LidarHorizontalSamples=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},1,1440,TEXT("HorizontalSamples"))];
     LidarAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedChannels","수직 채널 수"),[this](){return PendingState.LidarVerticalChannels;},[this](int32 V){PendingState.LidarVerticalChannels=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},1,256,TEXT("VerticalChannels"))];
     LidarAdvanced->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedHorizontalFov","수평 FOV (°)"),[this](){return PendingState.LidarHorizontalFov;},[this](float V){PendingState.LidarHorizontalFov=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},1,360,true,TEXT("HorizontalFov"))];
     LidarAdvanced->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedVerticalMin","수직 최소 각도 (°)"),[this](){return PendingState.LidarMinVerticalAngle;},[this](float V){PendingState.LidarMinVerticalAngle=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},-90,89,true,TEXT("VerticalMin"))];
     LidarAdvanced->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedVerticalMax","수직 최대 각도 (°)"),[this](){return PendingState.LidarMaxVerticalAngle;},[this](float V){PendingState.LidarMaxVerticalAngle=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},-89,90,true,TEXT("VerticalMax"))];
-    LidarAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedPreviewStride","미리보기 점 간격"),[this](){return PendingState.PreviewPointStride;},[this](int32 V){PendingState.PreviewPointStride=V;},1,100,TEXT("PreviewStride"))];
-    LidarAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedPreviewMax","미리보기 최대 점 수"),[this](){return PendingState.MaxPreviewPoints;},[this](int32 V){PendingState.MaxPreviewPoints=V;},0,1000000,TEXT("PreviewMax"))];
+    LidarBasic->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedPreviewStride","미리보기 점 간격"),[this](){return PendingState.PreviewPointStride;},[this](int32 V){PendingState.PreviewPointStride=V;},1,100,TEXT("PreviewStride"))];
+    LidarBasic->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedPreviewMax","미리보기 최대 점 수"),[this](){return PendingState.MaxPreviewPoints;},[this](int32 V){PendingState.MaxPreviewPoints=V;},0,1000000,TEXT("PreviewMax"))];
     const auto Toggle=[this](const FText& Label,bool FVirtualSensorEditableState::*Field,FName Key){return SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).IsEnabled_Lambda([this](){return bOwnedCanEdit;}).ToolTipText(OwnedSettingTooltip(Key)).IsChecked_Lambda([this,Field](){return PendingState.*Field?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-          .OnCheckStateChanged_Lambda([this,Field,Key](ECheckBoxState V){PendingState.*Field=V==ECheckBoxState::Checked;SelectSettingHelp(Key);ApplyPendingState();})[SNewSensorTool(STextBlock).Text(Label)]]
+        +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([this](){return bOwnedCanEdit;}).ToolTipText(OwnedSettingTooltip(Key)).IsChecked_Lambda([this,Field](){return PendingState.*Field?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+          .OnCheckStateChanged_Lambda([this,Field,Key](ECheckBoxState V){PendingState.*Field=V==ECheckBoxState::Checked;SelectSettingHelp(Key);ApplyPendingState();})[SNewSensorTool(STextBlock).AutoWrapText(true).Text(Label)]]
         ;};
-    LidarAdvanced->AddSlot().AutoHeight()[Toggle(LOCTEXT("OwnedPreviewHitOnly","미리보기에서 검출점만 표시"),&FVirtualSensorEditableState::bPreviewHitOnly,TEXT("PreviewHitOnly"))];
+    LidarBasic->AddSlot().AutoHeight()[Toggle(LOCTEXT("OwnedPreviewHitOnly","미리보기에서 검출점만 표시"),&FVirtualSensorEditableState::bPreviewHitOnly,TEXT("PreviewHitOnly"))];
+    LidarAdvanced->AddSlot().AutoHeight()[Toggle(LOCTEXT("OwnedMultiHit","다중 검출 사용"),&FVirtualSensorEditableState::bUseMultiHit,TEXT("MultiHit"))];
+    LidarAdvanced->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedMaxHits","광선당 최대 검출 수"),[this](){return PendingState.MaxHitsPerRay;},[this](int32 V){PendingState.MaxHitsPerRay=V;},1,16,TEXT("MaxHits"))];
     Advanced->AddSlot().AutoHeight()[LidarAdvanced];
     auto CameraCompatibility=SNew(SVerticalBox).Visibility_Lambda(CameraVisible).IsEnabled_Lambda([this](){return bOwnedCanEdit;});
     CameraCompatibility->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedJpeg","JPEG 품질"),[this](){return PendingState.CameraJpegQuality;},[this](int32 V){PendingState.CameraJpegQuality=V;},1,100,TEXT("JpegQuality"))];
@@ -1023,20 +1070,31 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     LidarCompatibility->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedServerStride","서버 Payload 점 간격"),[this](){return PendingState.ServerPayloadStride;},[this](int32 V){PendingState.ServerPayloadStride=V;},1,100,TEXT("ServerStride"))];
     LidarCompatibility->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedServerMax","서버 Payload 최대 점 수"),[this](){return PendingState.MaxServerPayloadPoints;},[this](int32 V){PendingState.MaxServerPayloadPoints=V;},0,1000000,TEXT("ServerMax"))];
     LidarCompatibility->AddSlot().AutoHeight()[Toggle(LOCTEXT("OwnedMiss","서버 Payload에 미검출점 포함"),&FVirtualSensorEditableState::bIncludeMissPointsInServerPayload,TEXT("IncludeMisses"))];
-    LidarCompatibility->AddSlot().AutoHeight()[Toggle(LOCTEXT("OwnedMultiHit","MultiHit · 다중 검출 사용"),&FVirtualSensorEditableState::bUseMultiHit,TEXT("MultiHit"))];
-    LidarCompatibility->AddSlot().AutoHeight()[MakeIntRow(LOCTEXT("OwnedMaxHits","광선당 최대 검출 수"),[this](){return PendingState.MaxHitsPerRay;},[this](int32 V){PendingState.MaxHitsPerRay=V;},1,16,TEXT("MaxHits"))];
-    for(const auto& Item:TArray<TPair<FText,bool FVirtualSensorEditableState::*>>{{LOCTEXT("OwnedCsvAuto","스캔 시 자동 파일 저장 · CSV"),&FVirtualSensorEditableState::bExportCsvOnScan},{LOCTEXT("OwnedJsonAuto","스캔 시 자동 파일 저장 · JSONL"),&FVirtualSensorEditableState::bExportJsonLinesOnScan},{LOCTEXT("OwnedPcdAuto","스캔 시 자동 파일 저장 · PCD"),&FVirtualSensorEditableState::bExportPcdOnScan}})
-        LidarCompatibility->AddSlot().AutoHeight()[Toggle(Item.Key,Item.Value,TEXT("AutoExport"))];
     Compatibility->AddSlot().AutoHeight()[LidarCompatibility];
     Compatibility->AddSlot().AutoHeight()[BuildOwnedAdministrativeControls()];
+    Advanced->AddSlot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedCompatibilityDetails","호환 출력·관리"))].BodyContent()[Compatibility]];
+    Automation->AddSlot().AutoHeight()[BuildOwnedAutomationControls()];
+    auto AutoFiles=SNew(SVerticalBox).Visibility_Lambda(LidarVisible).IsEnabled_Lambda([this](){return bOwnedCanEdit;});
+    for(const auto& Item:TArray<TPair<FText,bool FVirtualSensorEditableState::*>>{{LOCTEXT("OwnedCsvAuto","스캔 시 자동 파일 저장 · CSV"),&FVirtualSensorEditableState::bExportCsvOnScan},{LOCTEXT("OwnedJsonAuto","스캔 시 자동 파일 저장 · JSONL"),&FVirtualSensorEditableState::bExportJsonLinesOnScan},{LOCTEXT("OwnedPcdAuto","스캔 시 자동 파일 저장 · PCD"),&FVirtualSensorEditableState::bExportPcdOnScan}})
+        AutoFiles->AddSlot().AutoHeight()[Toggle(Item.Key,Item.Value,TEXT("AutoExport"))];
+    Automation->AddSlot().AutoHeight().Padding(0,8)[AutoFiles];
     auto Tabs=SNew(SHorizontalBox);
-    const FText TabLabels[]={LOCTEXT("OwnedBasic","기본"),SensorToolUiText::Advanced(),SensorToolUiText::Compatibility()};
+    const FText TabLabels[]={LOCTEXT("OwnedBasic","기본"),SensorToolUiText::Advanced(),LOCTEXT("OwnedAutomationTab","자동화")};
+    const FText TabHints[]={LOCTEXT("OwnedBasicTabHint","자주 쓰는 프로필·품질·측정·미리보기 설정입니다."),
+        LOCTEXT("OwnedAdvancedTabHint","선택 장비의 정답·점별 시간차·움직임 왜곡·재질 반사·다중 검출과 부착 IMU를 셉니다."),
+        LOCTEXT("OwnedAutomationTabHint","자동 제어(API·일괄·접수 작업)는 한 묶음입니다. 데이터셋 사용·변환 형식·자동 파일 저장 형식·미완료 테스트셋도 각각 셉니다.")};
     // UXR-12 review: a transparent button tint showed no selected tab. Use the same
     // segmented style as the other owned one-of-N choices.
     for(int32 I=0;I<3;++I)Tabs->AddSlot().FillWidth(1).Padding(0,0,I<2?FSensorOwnedPresentationStyle::Gap*.5f:0.f,0)[SNew(SCheckBox).Style(&FSensorOwnedPresentationStyle::Segment())
+        .ToolTipText(TabHints[I])
         .IsChecked_Lambda([this,I](){return WorkspaceSettingsTab==I?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
         .OnCheckStateChanged_Lambda([this,I](ECheckBoxState){SelectOwnedSettingsTab(I);})
-        [SNew(SBox).HAlign(HAlign_Center)[SNewSensorTool(STextBlock).Text(TabLabels[I]).ColorAndOpacity_Lambda([this,I](){return WorkspaceSettingsTab==I?GetToolTextColor():GetToolMutedColor();})]]];
+        [SNew(SVerticalBox)
+          +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNewSensorTool(STextBlock).Text(TabLabels[I]).ColorAndOpacity_Lambda([this,I](){return WorkspaceSettingsTab==I?GetToolTextColor():GetToolMutedColor();})]
+          +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNewSensorTool(STextBlock).Justification(ETextJustify::Center)
+            .Visibility_Lambda([this,I](){return OwnedTabEnabledCounts[I]>0?EVisibility::Visible:EVisibility::Collapsed;})
+            .Text_Lambda([this,I](){return OwnedTabActivity[I];}).ColorAndOpacity(GetToolAccentColor())]]];
     return SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).ForegroundColor(GetToolTextColor()).Padding(FSensorOwnedPresentationStyle::PanelPadding)
       [SNew(SVerticalBox)
         +SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("OwnedSettingsTitle","센서 설정"))]
@@ -1044,7 +1102,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
           +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Tabs]
           +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedSelectionText;})]
           +SVerticalBox::Slot().FillHeight(1)[SAssignNew(OwnedSettingsScroll,SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
-            +SVerticalBox::Slot().AutoHeight()[Basic]+SVerticalBox::Slot().AutoHeight()[Advanced]+SVerticalBox::Slot().AutoHeight()[Compatibility]
+            +SVerticalBox::Slot().AutoHeight()[Basic]+SVerticalBox::Slot().AutoHeight()[Advanced]+SVerticalBox::Slot().AutoHeight()[Automation]
             +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(8).Visibility_Lambda([this](){return bOwnedSettingHelpOpen?EVisibility::Visible:EVisibility::Collapsed;})
               [SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedHelpText;})]
                 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedLoadText;})]
@@ -1055,7 +1113,16 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
       ];
 }
 
-TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeControls()
+bool UVirtualSensorSettingsPanelWidget::OpenOwnedSettingsOwner(bool bDataset)
+{
+    if(!SupportsOwnedDocking())return false;
+    auto* W=GetToolWorkspace();
+    if(bDataset){if(auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data)))return Data->OpenOwnedDatasetSettings();}
+    else if(auto* Placement=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))return Placement->OpenOwnedImuSettings();
+    return false;
+}
+
+TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAutomationControls()
 {
     if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
     auto Utilities=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
@@ -1068,6 +1135,21 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeC
       +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedAutomationText;})
         .ToolTipText(LOCTEXT("AutomationHelp","기본 꺼짐 · 이 PC의 127.0.0.1에서만 받습니다. 켜면 외부 프로그램이 센서와 생성 작업을 제어할 수 있습니다. 인증은 설정 파일 또는 환경변수로 지정합니다. API를 꺼도 이미 접수한 작업은 계속되며 기존 PCD 출력 정책은 유지됩니다."))]
       +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("AutomationNext","기본 꺼짐 · 켜짐은 요청 대기 상태입니다. 접수한 API 작업·일괄 실행은 하단에도 표시됩니다. API를 꺼도 이미 접수한 작업은 계속됩니다."))]];
+    Utilities->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton)
+      .OnClicked_Lambda([this](){OpenOwnedSettingsOwner(true);return FReply::Handled();})
+      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedDatasetLink","데이터셋 생성·형식 설정 열기"))]];
+    Utilities->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor())
+      .Text(LOCTEXT("OwnedDatasetLinkHint","대상·조건·COCO / KITTI 3D는 기존 파일 저장 화면에서 설정합니다. 열기만으로 생성을 시작하지 않습니다."))];
+    Utilities->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton)
+      .OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace())W->OpenTestSet();return FReply::Handled();})
+      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedTestSetLink","AI 시나리오 테스트셋 열기"))]];
+    return Utilities;
+}
+
+TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAdministrativeControls()
+{
+    if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
+    auto Utilities=SNew(SVerticalBox);
     Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
       .Visibility_Lambda([this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Lidar?EVisibility::Visible:EVisibility::Collapsed;})
       .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy","LiDAR 호환 JSON 생성"))]

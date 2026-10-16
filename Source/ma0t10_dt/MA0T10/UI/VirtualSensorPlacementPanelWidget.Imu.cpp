@@ -11,6 +11,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Rendering/DrawElements.h"
@@ -33,6 +34,18 @@ private:
 };
 bool UVirtualSensorPlacementPanelWidget::AttachSelectedImu()
 {EndPlacement();auto* A=Selected();if(!A||!A->CanEditSensorConfiguration(Status))return false;const bool Ok=UVirtualImuComponent::Attach(A)!=nullptr;Status=Ok?TEXT("IMU 부착 완료 · 기록과 전송은 따로 켜세요. 세션 종료 시 해제됩니다."):TEXT("IMU를 부착할 수 없습니다.");return Ok;}
+bool UVirtualSensorPlacementPanelWidget::OpenOwnedImuSettings()
+{
+    if(!SupportsOwnedDocking())return false;
+    GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Placement,true);
+    if(IsPanelCollapsed())TogglePanelCollapsed();
+    const auto Root=TakeWidget();
+    auto Area=OwnedImuArea.Pin();if(!Area)return false;
+    Area->SetExpanded(true);
+    TFunction<void(const TSharedRef<SWidget>&)> Scroll=[&](const TSharedRef<SWidget>& Item)
+    {if(Item->GetType()==TEXT("SScrollBox"))StaticCastSharedRef<SScrollBox>(Item)->ScrollDescendantIntoView(Area,false,EDescendantScrollDestination::TopOrLeft);auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Scroll(Children->GetChildAt(I));};
+    Scroll(Root);return true;
+}
 void UVirtualSensorPlacementPanelWidget::RefreshImu()
 {
     if(!ImuCsvRequest.IsEmpty())
@@ -79,5 +92,6 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildImuSection()
     Box->AddSlot().AutoHeight()[SNewSensorTool(SButton).Text(FText::FromString(TEXT("기록한 IMU CSV 저장"))).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).OnClicked_Lambda([this,Current](){if(auto* C=Current())ImuCsvRequest=C->SaveCsv();return FReply::Handled();})];
     Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return ImuValues;})];
     Box->AddSlot().AutoHeight()[SNew(SBox).HeightOverride(80)[SAssignNew(ImuPlot,SImuPlot)]];
-    return SNew(SExpandableArea).InitiallyCollapsed(true).OnAreaExpansionChanged_Lambda([this](bool V){ImuExpanded=V;}).HeaderContent()[SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("IMU · 부착·설정·미리보기")))].BodyContent()[Box];
+    auto Area=SNew(SExpandableArea).InitiallyCollapsed(true).OnAreaExpansionChanged_Lambda([this](bool V){ImuExpanded=V;}).HeaderContent()[SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("IMU · 부착·설정·미리보기")))].BodyContent()[Box];
+    OwnedImuArea=Area;return Area;
 }

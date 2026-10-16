@@ -14,6 +14,8 @@ class MA0T10_DT_API UVirtualSensorPlacementPanelWidget : public UVirtualSensorPa
 {
     GENERATED_BODY()
 public:
+    /** Navigation only: open the existing IMU owner without attaching or changing it. */
+    bool OpenOwnedImuSettings();
     bool AttachSelectedImu();
     bool SelectEquipment(AVirtualSensorActorBase* Actor);
     bool SetSelectedMeasuring(bool Measuring);
@@ -40,6 +42,7 @@ private:
     friend class FSensorVocabularyTest;
 #endif
     TSharedRef<SWidget> BuildImuSection();
+    TWeakPtr<class SExpandableArea> OwnedImuArea;
     void RefreshImu();
     bool ImuExpanded=false;
     bool bImuRecordingForDisplay=false,bImuPublishingForDisplay=false;

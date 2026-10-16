@@ -133,6 +133,8 @@ private:
     friend class FSensorPlacementIdentityUiTest;
 #endif
 	TSharedRef<SWidget> BuildOwnedAdministrativeControls();
+	TSharedRef<SWidget> BuildOwnedAutomationControls();
+	bool OpenOwnedSettingsOwner(bool bDataset);
 	TSharedRef<SWidget> BuildOwnedSettingsWidget();
 	TSharedRef<SWidget> BuildOwnedSettingDetail(FName Key);
 	void RefreshOwnedSettingsText();
@@ -141,6 +143,12 @@ private:
 	FText OwnedStatusText;
 	FText OwnedDebugLogText,OwnedIdentityText;
     FText OwnedAutomationText;
+	FText OwnedTabActivity[3];
+	int32 OwnedTabEnabledCounts[3]={-1,-1,-1};
+	bool bOwnedMeasuring=false,bOwnedCanMeasure=false;
+	FText OwnedMeasureText;
+	TWeakObjectPtr<AVirtualSensorActorBase> OwnedActivitySensor;
+	int32 OwnedActivityRevision=INDEX_NONE,OwnedAdvancedSensorCount=0,OwnedAutoFileCount=0;
 	bool bOwnedCanEdit=false;
 	double NextOwnedSettingsRefresh=0;
 	TSharedPtr<class SScrollBox> OwnedSettingsScroll;
@@ -148,6 +156,7 @@ private:
 	friend class FSensorSettingsPresentationTest;
 	friend class FUxr15Audit;
     friend class FUxr16Audit;
+	friend class FUxr18SettingsTest;
 	friend class FSensorVocabularyTest;
 	friend class FUxrSettingsRender;
 #endif
