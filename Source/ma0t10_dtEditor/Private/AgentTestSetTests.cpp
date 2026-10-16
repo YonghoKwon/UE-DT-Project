@@ -32,13 +32,13 @@
 
 namespace
 {
-FSlabScenarioDataPtr MakeAgentTestSetFixture(int32 Rows,const FString& Mtl)
+FSlabScenarioDataPtr MakeAgentTestSetFixture(int32 Rows,const FString& Mtl,bool MissingUuid=false)
 {
     const FString Uuid=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
     TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson(Uuid)),Root);
     auto Values=Root->GetArrayField(TEXT("DATA_MAP"));Values.SetNum(Rows);Root->GetObjectField(TEXT("_meta"))->SetNumberField(TEXT("duration_sec"),Rows*.05);
     for(int32 I=0;I<Rows;++I){auto V=Values[I]->AsObject();V->SetStringField(TEXT("mtl_no"),Mtl);V->SetNumberField(TEXT("frame_no"),100+I*2);V->SetNumberField(TEXT("center_x"),I*3);V->SetNumberField(TEXT("left_skew_angle"),I*2-3);V->SetNumberField(TEXT("slab_len"),800);V->SetNumberField(TEXT("slab_wth"),200);V->SetNumberField(TEXT("slab_thk"),50);}
-    Root->SetArrayField(TEXT("DATA_MAP"),Values);FString Json,Error;FJsonSerializer::Serialize(Root.ToSharedRef(),TJsonWriterFactory<>::Create(&Json));FSlabScenarioDataPtr Data;FSlabScenarioCodec::Parse(Json,Data,Error,false);return Data;
+    Root->SetArrayField(TEXT("DATA_MAP"),Values);if(MissingUuid)Root->GetObjectField(TEXT("_meta"))->RemoveField(TEXT("UUID"));FString Json,Error;FJsonSerializer::Serialize(Root.ToSharedRef(),TJsonWriterFactory<>::Create(&Json));FSlabScenarioDataPtr Data;FSlabScenarioCodec::Parse(Json,Data,Error,true);return Data;
 }
 class FTestSetRun final:public IAutomationLatentCommand
 {
@@ -157,7 +157,16 @@ public:
             Test->TestTrue(TEXT("ordinary replay yields before starting the Slab"),Slab->IsSimulationActive()&&Dataset->IsPaused());Phase=9;return false;
         }
         if(Phase==9)
-        {if(Service->Items().Num()<2||Service->Items()[1].State!=EAgentTestSetItemState::Completed)return false;Test->TestTrue(TEXT("ordinary replay and resumed capture retain user appearance"),FMath::IsNearlyEqual(Slab->Roughness,.31415f));return Finish();}
+        {if(Service->Items().Num()<2||Service->Items()[1].State!=EAgentTestSetItemState::Completed)return false;Test->TestTrue(TEXT("ordinary replay and resumed capture retain user appearance"),FMath::IsNearlyEqual(Slab->Roughness,.31415f));Test->TestTrue(TEXT("missing UUID follows existing admission policy"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(5,TEXT("9999"),true)->OriginalJson));Phase=10;return false;}
+        if(Phase==10)
+        {
+            if(!Service->IsComplete())return false;const auto& Item=Service->Items()[2];GeneratedId=Item.ScenarioId;
+            FString Json;FFileHelper::LoadFileToString(Json,*(Item.Directory/TEXT("original.json")));TSharedPtr<FJsonObject> Original;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Original);Test->TestFalse(TEXT("raw missing UUID JSON is not rewritten"),Original->GetObjectField(TEXT("_meta"))->HasField(TEXT("UUID")));
+            TSharedPtr<FJsonObject> Label;FFileHelper::LoadFileToString(Json,*(Item.Directory/(TEXT("run_")+Item.RunId)/TEXT("scene_00000/label.json")));FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Label);Test->TestEqual(TEXT("generated archive ID remains stable in labels"),Label->GetStringField(TEXT("scenario_id")),GeneratedId);
+            Test->TestTrue(TEXT("generated archive ID selection"),Service->SelectPreview(2,Error));Phase=11;return false;
+        }
+        if(Phase==11)
+        {if(Catalog->GetReplayStatus().State!=ESlabScenarioReplayState::Playing||Slab->GetSimulationStatus().RowIndex<1)return false;Test->TestEqual(TEXT("missing UUID replay retains the admitted identity"),Slab->GetSimulationStatus().ScenarioUUID,GeneratedId);return Finish();}
         return false;
     }
 private:
@@ -195,7 +204,7 @@ private:
     {Test->TestTrue(TEXT("background capture preserves user pose/geometry/appearance edits"),Slab->GetActorTransform().Equals(UserPose)&&Slab->SlabMesh->GetRelativeScale3D().Equals(UserSize/100.)&&FMath::IsNearlyEqual(Slab->Roughness,.31415f));}
     bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
     FAutomationTestBase* Test;bool Large,Pipeline,Manual,PreviewRequested=false,CompletedScreen=false;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualDatasetSubsystem* Dataset=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
-    FSlabScenarioDataPtr Source;FString Error,Root;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0,LastWall=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game,Wall;TSet<FString> PreviewRuns;FVector UserSize;FTransform UserPose;
+    FSlabScenarioDataPtr Source;FString Error,Root,GeneratedId;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0,LastWall=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game,Wall;TSet<FString> PreviewRuns;FVector UserSize;FTransform UserPose;
 };
 bool RunAgentTestSetCase(FAutomationTestBase* Test,bool Large,bool Pipeline)
 {

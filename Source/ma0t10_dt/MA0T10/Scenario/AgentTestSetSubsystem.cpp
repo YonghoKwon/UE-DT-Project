@@ -279,11 +279,18 @@ void UAgentTestSetSubsystem::Pump()
         if(Index==INDEX_NONE)for(int32 I=0;I<S.Items.Num();++I)if(S.Items[I].State==EAgentTestSetItemState::Waiting&&S.Inputs[I].Stored){Index=I;break;}
         if(Index!=INDEX_NONE)
         {
-            S.Preparing=Index;const auto Item=S.Items[Index];const FString Path=Item.Directory/TEXT("original.json");const auto Track=S.Slab->GetDatasetTrackTransform();const auto Dimension=S.Slab->DimensionUnit,Position=S.Slab->PositionUnit;const auto ConfigCopy=Config;const uint32 Hash=S.Slab->GetMetricsConfigurationHash();
-            S.Prepare=Async(EAsyncExecution::ThreadPool,[Item,Path,Track,Dimension,Position,ConfigCopy,Hash]()
+            S.Preparing=Index;const auto Item=S.Items[Index];const FString Path=Item.Directory/TEXT("original.json"),SourceHash=S.Inputs[Index].Hash;const auto Track=S.Slab->GetDatasetTrackTransform();const auto Dimension=S.Slab->DimensionUnit,Position=S.Slab->PositionUnit;const auto ConfigCopy=Config;const uint32 Hash=S.Slab->GetMetricsConfigurationHash();
+            S.Prepare=Async(EAsyncExecution::ThreadPool,[Item,Path,SourceHash,Track,Dimension,Position,ConfigCopy,Hash]()
             {
                 FAgentTestSetPrepared Out;Out.Configuration=Hash;FString Json;
-                if(!FFileHelper::LoadFileToString(Json,*Path)||!FSlabScenarioCodec::Parse(Json,Out.Data,Out.Error,false))return Out;
+                if(!FFileHelper::LoadFileToString(Json,*Path)||!FSlabScenarioCodec::Parse(Json,Out.Data,Out.Error,true))return Out;
+                if(Out.Data->OriginalContentSha1!=SourceHash){Out.Error=TEXT("보관된 원본 JSON이 변경되었습니다");Out.Data.Reset();return Out;}
+                if(Out.Data->ScenarioUUID!=Item.ScenarioId)
+                {
+                    if(!Out.Data->bGeneratedArchiveId){Out.Error=TEXT("보관된 시나리오 ID가 다릅니다");Out.Data.Reset();return Out;}
+                    // Match the original admission's generated archive ID without rewriting raw JSON.
+                    auto Stable=MakeShared<FSlabScenarioData,ESPMode::ThreadSafe>(*Out.Data);Stable->ScenarioUUID=Item.ScenarioId;Out.Data=Stable;
+                }
                 Out.Plan=MakeShared<FVirtualDatasetFramePlan,ESPMode::ThreadSafe>();auto& Plan=*Out.Plan;Plan.Root=Item.Directory/(TEXT("run_")+Item.RunId);Plan.ScenarioId=Item.ScenarioId;Plan.RunId=Item.RunId;Plan.CaptureCamera=ConfigCopy.CaptureCamera;Plan.Pipeline=ConfigCopy.Pipeline;Plan.SlabConfiguration=Hash;
                 // Match live playback's first-row dimension policy, with identical BuildPose and units.
                 const auto& First=Out.Data->Rows[0];const FVector Size(FSlabScenarioCodec::ToCm(First.Length,Dimension),FSlabScenarioCodec::ToCm(First.Width,Dimension),FSlabScenarioCodec::ToCm(First.Thickness,Dimension));
