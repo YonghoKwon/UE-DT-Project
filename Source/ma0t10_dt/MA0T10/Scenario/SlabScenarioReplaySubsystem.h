@@ -64,6 +64,9 @@ public:
 	/** Native parser handoff is a NEW admission at this GameThread call. Earlier external/DTCore parsing is not canceled by archive deletion. */
 	bool RegisterValidatedScenario(FSlabScenarioDataPtr Scenario);
 	FSlabScenarioDataPtr GetValidatedScenario(const FString& UUID) const;
+	/** Separate transient input; does not evict or register normal catalog entries. */
+	bool RequestObservationPreview(FSlabScenarioDataPtr Data);
+	void StopObservationPreview(const FString& RunId);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") bool RegisterPlaybackAdapter(UObject* Adapter);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|ScenarioReplay") void UnregisterPlaybackAdapter(UObject* Adapter);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|ScenarioReplay") UObject* GetPlaybackAdapter() const { return PlaybackAdapter.Get(); }
@@ -91,6 +94,7 @@ private:
 	struct FStoredScenario { FSlabScenarioSummary Summary; FSlabScenarioDataPtr Data; };
 	struct FPendingScenario { FString Json; bool bAllowMissingUuid=false; uint64 RegistrationSerial=0; };
 	TArray<FStoredScenario> Entries;
+	FSlabScenarioDataPtr ObservationPreview;
 	TArray<FPendingScenario> PendingJson;
 	TWeakObjectPtr<UObject> PlaybackAdapter;
 	TWeakObjectPtr<UWorld> PlaybackWorld;

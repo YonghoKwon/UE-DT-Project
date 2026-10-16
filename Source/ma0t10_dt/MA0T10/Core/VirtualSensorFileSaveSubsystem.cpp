@@ -450,6 +450,10 @@ bool UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(const FString& Dir
 {
     return WriteVerificationBundle(FPaths::ProjectSavedDir()/TEXT("Datasets"),Directory,Files,Cancelled,true);
 }
+bool UVirtualSensorFileSaveSubsystem::WriteTestSetSceneBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
+{
+    return WriteVerificationBundle(FPaths::ProjectSavedDir()/TEXT("TestSets"),Directory,Files,Cancelled,true);
+}
 bool UVirtualSensorFileSaveSubsystem::WriteVerificationBundle(const FString& AllowedRoot,const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled,bool AllowEmpty)
 {
     const FString Root=FullPath(AllowedRoot)+TEXT("/");

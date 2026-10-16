@@ -16,7 +16,10 @@ class MA0T10_DT_API UVirtualDatasetSubsystem : public UWorldSubsystem
 {
     GENERATED_BODY()
 public:
-    bool Start(const FVirtualDatasetSettings& Settings,ASlabActor* Slab,AVirtualLidarSensorActor* Lidar,AVirtualCameraSensorActor* Camera,ADirectionalLight* Light,FString& Error);
+    bool Start(const FVirtualDatasetSettings& Settings,ASlabActor* Slab,AVirtualLidarSensorActor* Lidar,AVirtualCameraSensorActor* Camera,ADirectionalLight* Light,FString& Error,TSharedPtr<const FVirtualDatasetFramePlan,ESPMode::ThreadSafe> Plan=nullptr);
+    /** Yield before a live scenario touches the shared World. In-flight immutable write may drain. */
+    void YieldPlannedCapture();
+    bool OwnsPlannedRun(const FString& RunId) const;
     void Pause();
     bool Resume(FString& Error);
     void Stop();
@@ -43,6 +46,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UVirtualCameraGroundTruth> Truth;
     FTimerHandle Timer;
     void Pump();
+    void PumpPlanned();
     void Restore();
     bool ApplyScene(FString& Error);
     void WriteScene();

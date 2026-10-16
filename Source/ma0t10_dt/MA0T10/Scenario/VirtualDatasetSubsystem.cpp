@@ -50,6 +50,8 @@ bool Image(IImageWrapperModule& M,FVirtualSensorVerificationFile& F,EImageFormat
 struct FVirtualDatasetSession
 {
     FVirtualDatasetSettings Settings;
+    TSharedPtr<const FVirtualDatasetFramePlan,ESPMode::ThreadSafe> Plan;
+    int32 NextScene=0;
     TWeakObjectPtr<ASlabActor> Slab;
     TWeakObjectPtr<AVirtualLidarSensorActor> Lidar;
     TWeakObjectPtr<AVirtualCameraSensorActor> Camera;
@@ -85,6 +87,7 @@ struct FVirtualDatasetSession
 
 bool UVirtualDatasetSubsystem::IsActive() const{return Session&&Session->Phase!=EDatasetPhase::Done;}
 bool UVirtualDatasetSubsystem::IsPaused() const{return Session&&Session->Phase==EDatasetPhase::Paused;}
+bool UVirtualDatasetSubsystem::OwnsPlannedRun(const FString& RunId) const{return Session&&Session->Plan&&Session->Plan->RunId==RunId;}
 int32 UVirtualDatasetSubsystem::CompletedScenes() const{return Session?Session->Completed:0;}
 int32 UVirtualDatasetSubsystem::RequestedScenes() const{return Session?Session->Settings.Scenes:0;}
 FString UVirtualDatasetSubsystem::Directory() const{return Session?Session->Root:FString();}
@@ -97,8 +100,10 @@ bool UVirtualDatasetSubsystem::IsWritingForTests() const{return Session&&Session
 int32 UVirtualDatasetSubsystem::GetReadbackAllocationsForTests() const{return Truth?Truth->GetReadbackAllocationsForTests():0;}
 #endif
 
-bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASlabActor* Slab,AVirtualLidarSensorActor* Lidar,AVirtualCameraSensorActor* Camera,ADirectionalLight* Light,FString& Error)
+bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASlabActor* Slab,AVirtualLidarSensorActor* Lidar,AVirtualCameraSensorActor* Camera,ADirectionalLight* Light,FString& Error,TSharedPtr<const FVirtualDatasetFramePlan,ESPMode::ThreadSafe> Plan)
 {
+    const bool HasCamera=!Plan||Plan->CaptureCamera;
+    if(Plan&&(Plan->Frames.Num()!=Settings.Scenes||!FPaths::IsUnderDirectory(Plan->Root,FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets"))))){Error=TEXT("Invalid test set frame plan");return false;}
     if(IsActive()){Error=TEXT("진행 중인 데이터셋을 먼저 마치세요");return false;}
     if(!Settings.Validate(Error))return false;
     FString ExportPython,ExportScript;
@@ -109,9 +114,9 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
         if(FPaths::IsRelative(ExportPython)||!FPaths::FileExists(ExportPython)||!FPaths::FileExists(ExportScript))
         {Error=TEXT("내보내기 Python 환경이 필요합니다 · Tools/DatasetTools/README.md의 설치 및 MA0T10_DATASET_PYTHON 경로를 확인하세요");return false;}
     }
-    if(!IsValid(Slab)||!Slab->SlabMesh||!IsValid(Lidar)||!Lidar->ScanComponent||!IsValid(Camera)||!Camera->CaptureComponent||Slab->GetWorld()!=GetWorld()||Lidar->GetWorld()!=GetWorld()||Camera->GetWorld()!=GetWorld())
+    if(!IsValid(Slab)||!Slab->SlabMesh||!IsValid(Lidar)||!Lidar->ScanComponent||(HasCamera&&(!IsValid(Camera)||!Camera->CaptureComponent||Camera->GetWorld()!=GetWorld()))||Slab->GetWorld()!=GetWorld()||Lidar->GetWorld()!=GetWorld())
     {Error=TEXT("같은 월드의 Slab·LiDAR·Camera를 명시적으로 선택하세요");return false;}
-    if(Slab->IsSimulationActive()||Lidar->IsSensorRunning()||Camera->IsSensorRunning()||!Lidar->CanEditSensorConfiguration(Error)||!Camera->CanEditSensorConfiguration(Error)||!Lidar->CanEditSensorPlacement(Error)||!Camera->CanEditSensorPlacement(Error))
+    if(Slab->IsSimulationActive()||Lidar->IsSensorRunning()||(HasCamera&&Camera->IsSensorRunning())||!Lidar->CanEditSensorConfiguration(Error)||(HasCamera&&!Camera->CanEditSensorConfiguration(Error))||!Lidar->CanEditSensorPlacement(Error)||(HasCamera&&!Camera->CanEditSensorPlacement(Error)))
     {Error=TEXT("시나리오·선택 센서의 측정/출력/저장을 중지한 뒤 시작하세요 · 기존 작업은 자동 중지하지 않습니다");return false;}
     const bool UsesLight=Settings.LightIntensity.Enabled||Settings.LightPitch.Enabled||Settings.LightYaw.Enabled;
     if(UsesLight&&(!IsValid(Light)||Light->GetWorld()!=GetWorld()||!Light->GetLightComponent()||Light->GetLightComponent()->Mobility!=EComponentMobility::Movable))
@@ -119,18 +124,19 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
     if(Settings.Surface.Enabled)for(int32 I=FMath::FloorToInt(Settings.Surface.Min);I<=FMath::FloorToInt(Settings.Surface.Max);++I)
         if(!Slab->CanApplySurfacePreset(ESlabSurfacePreset(I),Error))return false;
     // Bound resident input before any directory/resource allocation: one scene, <=256 MiB.
-    const int64 Pixels=int64(Camera->CaptureComponent->CaptureResolution.X)*Camera->CaptureComponent->CaptureResolution.Y;
+    const int64 Pixels=HasCamera?int64(Camera->CaptureComponent->CaptureResolution.X)*Camera->CaptureComponent->CaptureResolution.Y:0;
     const int64 Points=int64(Lidar->ScanComponent->HorizontalSamples)*Lidar->ScanComponent->VerticalChannels*FMath::Max(1,Lidar->ScanComponent->MaxHitsPerRay);
-    if(Pixels<=0||Pixels>1920ll*1080||Points<=0||Points>250000||Pixels*64+Points*512>256ll*1024*1024)
+    if((HasCamera&&Pixels<=0)||Pixels>1920ll*1080||Points<=0||Points>250000||(Pixels*64+Points*512)*(Plan&&Plan->Pipeline?2:1)>256ll*1024*1024)
     {Error=TEXT("1장면 메모리 한도: Camera 1920×1080 이하·LiDAR 25만 반환점 이하·256MiB 추정 이하");return false;}
-    auto S=MakeShared<FVirtualDatasetSession,ESPMode::ThreadSafe>();S->Settings=Settings;S->Slab=Slab;S->Lidar=Lidar;S->Camera=Camera;S->Light=UsesLight?Light:nullptr;
+    auto S=MakeShared<FVirtualDatasetSession,ESPMode::ThreadSafe>();S->Settings=Settings;S->Plan=Plan;S->Slab=Slab;S->Lidar=Lidar;S->Camera=HasCamera?Camera:nullptr;S->Light=UsesLight?Light:nullptr;
     S->ExportPython=ExportPython;S->ExportScript=ExportScript;
-    if(!Lidar->ReadEditableState(S->LidarBefore)||!Camera->ReadEditableState(S->CameraBefore)){Error=TEXT("센서 설정을 읽을 수 없습니다");return false;}
+    if(!Lidar->ReadEditableState(S->LidarBefore)||(HasCamera&&!Camera->ReadEditableState(S->CameraBefore))){Error=TEXT("센서 설정을 읽을 수 없습니다");return false;}
     S->SlabBefore=Slab->GetActorTransform();S->MeshScaleBefore=Slab->SlabMesh->GetRelativeScale3D();S->SizeBefore=S->MeshScaleBefore*(Slab->SlabMesh->GetStaticMesh()?Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.:FVector::ZeroVector);
     S->SurfaceBefore=Slab->GetSurfacePreset();S->LinkBefore=Slab->IsSurfaceLidarLinked();S->RoughBefore=Slab->Roughness;S->OxBefore=Slab->Oxidation;S->HotBefore=Slab->bHotAppearance;S->EmissiveBefore=Slab->EmissiveStrength;
     S->NoiseSeedBefore=Lidar->ScanComponent->DeterministicNoiseSeed;
     if(S->Light.IsValid()){S->LightBefore=Light->GetActorTransform();S->LightBeforeIntensity=Light->GetLightComponent()->Intensity;}
     S->Root=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("Datasets")/(Settings.Name+TEXT("_")+FDateTime::UtcNow().ToString(TEXT("%Y%m%dT%H%M%S"))+TEXT("_")+FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(8)));
+    if(Plan)S->Root=Plan->Root;
     TArray<AActor*> Actors;for(TActorIterator<AActor> It(GetWorld());It;++It)Actors.Add(*It);
     Actors.Sort([](const AActor& A,const AActor& B){return A.GetName()<B.GetName();});
     uint32 Id=1;for(const auto* A:Actors){S->ActorNames.Add(A->GetFName(),Id);S->ActorPaths.Add(A->GetPathName(),Id++);}
@@ -148,19 +154,19 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
     S->Started=FPlatformTime::Seconds();S->InitialMemory=FPlatformMemory::GetStats().UsedPhysical;
     Session=S;
     if(Truth){Truth->DestroyComponent();Truth=nullptr;}
-    Truth=NewObject<UVirtualCameraGroundTruth>(this);Truth->RegisterComponentWithWorld(GetWorld());
-    if(!ApplyScene(Error)){Restore();Session.Reset();Truth->DestroyComponent();Truth=nullptr;return false;}
+    if(HasCamera){Truth=NewObject<UVirtualCameraGroundTruth>(this);Truth->RegisterComponentWithWorld(GetWorld());}
+    if(!ApplyScene(Error)){Restore();Session.Reset();if(Truth){Truth->DestroyComponent();Truth=nullptr;}return false;}
     Message=TEXT("데이터셋 생성 중 · 장면 안정화");++Revision;
     GetWorld()->GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.01f,true);return true;
 }
 
 bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
 {
-    auto S=Session;if(!S||!S->Slab.IsValid()||!S->Lidar.IsValid()||!S->Camera.IsValid())return false;
+    auto S=Session;if(!S||!S->Slab.IsValid()||!S->Lidar.IsValid()||((!S->Plan||S->Plan->CaptureCamera)&&!S->Camera.IsValid()))return false;
     auto* Slab=S->Slab.Get();auto* Lidar=S->Lidar.Get();auto* Camera=S->Camera.Get();
     if(Slab->IsSimulationActive()){Error=TEXT("시나리오가 시작되어 데이터셋을 중단합니다");return false;}
-    S->Sample=FVirtualDatasetSample::Make(S->Settings,S->Completed);const auto& V=S->Sample;S->Restored=false;
-    if(!Slab->ApplyDatasetGeometry(S->SizeBefore*V.Size)){Error=TEXT("현재 Slab 치수를 변경할 수 없습니다");return false;}
+    S->Sample=FVirtualDatasetSample::Make(S->Settings,S->Plan?S->NextScene:S->Completed);const auto& V=S->Sample;S->Restored=false;
+    if(!Slab->ApplyDatasetGeometry((S->Plan?S->Plan->Frames[S->NextScene].SizeCm:S->SizeBefore*V.Size))){Error=TEXT("현재 Slab 치수를 변경할 수 없습니다");return false;}
     if(S->Settings.Surface.Enabled&&!Slab->ApplySurfacePreset(ESlabSurfacePreset(V.Surface),false,Error))return false;
     if(S->Settings.Surface.Enabled&&V.Surface==0)
     {Slab->bHotAppearance=S->HotBefore;Slab->EmissiveStrength=S->EmissiveBefore;Slab->Roughness=S->RoughBefore;Slab->Oxidation=S->OxBefore;Slab->RefreshDatasetAppearance();}
@@ -168,17 +174,18 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
     if(S->Settings.Oxidation.Enabled)Slab->Oxidation=V.Oxidation;
     if(S->Settings.Roughness.Enabled||S->Settings.Oxidation.Enabled)Slab->RefreshDatasetAppearance();
     S->SlabApplied=FTransform(S->SlabBefore.GetRotation()*V.SlabRotation.Quaternion(),S->SlabBefore.GetLocation()+V.SlabOffset,S->SlabBefore.GetScale3D());
+    if(S->Plan)S->SlabApplied=S->Plan->Frames[S->NextScene].SlabPose;
     Slab->SetActorTransform(S->SlabApplied,false,nullptr,ETeleportType::TeleportPhysics);
     auto L=S->LidarBefore,C=S->CameraBefore;
     L.ActorTransform=FTransform(L.ActorTransform.GetRotation()*V.LidarRotation.Quaternion(),L.ActorTransform.GetLocation()+V.LidarOffset,L.ActorTransform.GetScale3D());
     C.ActorTransform=FTransform(C.ActorTransform.GetRotation()*V.CameraRotation.Quaternion(),C.ActorTransform.GetLocation()+V.CameraOffset,C.ActorTransform.GetScale3D());
     L.bLidarPointTime=S->Settings.LidarFidelity;L.bLidarMotionDistortion=S->Settings.LidarFidelity;L.bLidarMaterialResponse=S->Settings.LidarFidelity;
     L.bExportCsvOnScan=L.bExportJsonLinesOnScan=L.bExportPcdOnScan=false;L.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;C.bCameraGroundTruth=S->Settings.CameraTruth;
-    if(!Lidar->ApplyDatasetState(L,Error)||!Camera->ApplyDatasetState(C,Error))return false;
-    Lidar->ScanComponent->DatasetNoiseSequence=TPair<int32,int64>(S->Settings.Seed,S->Completed);
+    if(!Lidar->ApplyDatasetState(L,Error)||(Camera&&!Camera->ApplyDatasetState(C,Error)))return false;
+    Lidar->ScanComponent->DatasetNoiseSequence=TPair<int32,int64>(S->Settings.Seed,S->Plan?S->NextScene:S->Completed);
     Lidar->ScanComponent->bDatasetSemanticDemand=true;
     S->LidarApplied=L.ActorTransform;S->CameraApplied=C.ActorTransform;
-    S->LidarRevision=Lidar->GetConfigurationRevision();S->CameraRevision=Camera->GetConfigurationRevision();
+    S->LidarRevision=Lidar->GetConfigurationRevision();S->CameraRevision=Camera?Camera->GetConfigurationRevision():0;
     if(S->Light.IsValid())
     {
         auto* Light=S->Light.Get();auto Rot=S->LightBefore.Rotator();
@@ -186,7 +193,7 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
         Light->SetActorRotation(Rot);if(S->Settings.LightIntensity.Enabled)Light->GetLightComponent()->SetIntensity(V.Intensity);
         S->LightApplied=Light->GetActorTransform();S->LightAppliedIntensity=Light->GetLightComponent()->Intensity;
     }
-    S->Label=MakeShared<FJsonObject>();S->Label->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.scene.v1"));S->Label->SetNumberField(TEXT("scene_index"),S->Completed);S->Label->SetNumberField(TEXT("seed"),S->Settings.Seed);
+    S->Label=MakeShared<FJsonObject>();S->Label->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.scene.v1"));S->Label->SetNumberField(TEXT("scene_index"),S->Plan?S->NextScene:S->Completed);S->Label->SetNumberField(TEXT("seed"),S->Settings.Seed);
     S->Label->SetNumberField(TEXT("schema_minor"),1);
     // Selected Slab's actual mesh OBB, including pivot/relative transform and full rotation.
     // No hidden-world scan, diagnostic helper bounds or PCA estimate is used as truth.
@@ -201,7 +208,7 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
     S->Label->SetObjectField(TEXT("slab_pose"),Pose(Slab->GetActorTransform()));const FVector Size=Slab->SlabMesh->GetComponentScale()*(Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.)*.01;
     S->Label->SetArrayField(TEXT("slab_size_m"),N({Size.X,Size.Y,Size.Z}));S->Label->SetStringField(TEXT("surface_preset"),ASlabActor::SurfacePresetId(Slab->GetSurfacePreset()));
     S->Label->SetNumberField(TEXT("roughness"),Slab->Roughness);S->Label->SetNumberField(TEXT("oxidation"),Slab->Oxidation);TSharedPtr<FJsonObject> Random;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V.ToJson()),Random);S->Label->SetObjectField(TEXT("random_values"),Random);
-    S->Label->SetObjectField(TEXT("lidar_pose"),Pose(Lidar->ScanComponent->GetComponentTransform()));S->Label->SetObjectField(TEXT("camera_pose"),Pose(Camera->CaptureComponent->GetComponentTransform()));
+    S->Label->SetObjectField(TEXT("lidar_pose"),Pose(Lidar->ScanComponent->GetComponentTransform()));if(Camera)S->Label->SetObjectField(TEXT("camera_pose"),Pose(Camera->CaptureComponent->GetComponentTransform()));
     S->Label->SetStringField(TEXT("pairing"),TEXT("same stable scene; independent sensor acquisition UTC; CPU chunk spans frames; no hardware simultaneous timestamp claim"));
     S->Label->SetBoolField(TEXT("hot_surface"),Slab->bHotAppearance);S->Label->SetNumberField(TEXT("emissive_strength"),Slab->EmissiveStrength);
     const auto* Scan=Lidar->ScanComponent.Get();auto Intrinsics=MakeShared<FJsonObject>();
@@ -210,12 +217,19 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
     Intrinsics->SetNumberField(TEXT("horizontal_fov_deg"),Scan->HorizontalFov);Intrinsics->SetNumberField(TEXT("min_vertical_deg"),Scan->MinVerticalAngle);Intrinsics->SetNumberField(TEXT("max_vertical_deg"),Scan->MaxVerticalAngle);Intrinsics->SetNumberField(TEXT("max_range_m"),Scan->MaxDistance*.01);Intrinsics->SetNumberField(TEXT("scan_period_s"),Scan->ScanInterval);
     S->Label->SetObjectField(TEXT("lidar_intrinsics"),Intrinsics);
     if(S->Light.IsValid()){S->Label->SetObjectField(TEXT("light_pose"),Pose(S->Light->GetActorTransform()));S->Label->SetNumberField(TEXT("light_intensity_lux"),S->Light->GetLightComponent()->Intensity);}
+    if(S->Plan)
+    {
+        const auto& P=S->Plan->Frames[S->NextScene];
+        S->Label->SetStringField(TEXT("scenario_id"),S->Plan->ScenarioId);S->Label->SetStringField(TEXT("run_uuid"),S->Plan->RunId);
+        S->Label->SetStringField(TEXT("mtl_no"),P.MtlNo);S->Label->SetStringField(TEXT("scenario_frame_no"),LexToString(P.FrameNo));
+        S->Label->SetNumberField(TEXT("scenario_elapsed_s"),P.ElapsedSec);
+    }
     S->Frames=S->Settings.SettleFrames;S->LastFrame=GFrameCounter;S->LidarFrame.Reset();S->Phase=EDatasetPhase::Settle;return true;
 }
 
 void UVirtualDatasetSubsystem::Pump()
 {
-    auto S=Session;if(!S)return;const double Begin=FPlatformTime::Seconds();
+    auto S=Session;if(!S)return;if(S->Plan&&S->Phase!=EDatasetPhase::Export){PumpPlanned();return;}const double Begin=FPlatformTime::Seconds();
     if(S->Phase==EDatasetPhase::Export)
     {
         if(!S->Write.IsReady())return;
@@ -283,26 +297,82 @@ void UVirtualDatasetSubsystem::StartExport()
         return Result;
     });
 }
+
+void UVirtualDatasetSubsystem::YieldPlannedCapture()
+{
+    auto S=Session;if(!S||!S->Plan||!IsActive()||IsPaused()||S->Phase==EDatasetPhase::Export)return;
+    // Cancel only the unadmitted capture. The worker owns an immutable previous frame.
+    Restore();S->LidarFrame.Reset();if(Truth)Truth->LastFrame.Reset();
+    S->Phase=EDatasetPhase::Paused;S->PauseRequested=true;++Revision;
+    if(!S->Write.IsValid())GetWorld()->GetTimerManager().ClearTimer(Timer);
+}
+
+void UVirtualDatasetSubsystem::PumpPlanned()
+{
+    auto S=Session;const double Begin=FPlatformTime::Seconds();
+    if(S->Write.IsValid()&&S->Write.IsReady())
+    {
+        const auto R=S->Write.Get();S->Write=TFuture<FDatasetWriteResult>();
+        if(!R.Error.IsEmpty()){Message=R.Error;Stop();}
+        else {++S->Completed;S->TotalBytes+=R.Bytes;S->Commit=R.Commit;++Revision;}
+    }
+    if(S->Cancelled->load())
+    {if(!S->Write.IsValid()){S->Phase=EDatasetPhase::Done;GetWorld()->GetTimerManager().ClearTimer(Timer);}return;}
+    if(S->Completed==S->Settings.Scenes)
+    {Restore();if(S->Settings.ExportFormat!=TEXT("none")){StartExport();return;}S->Phase=EDatasetPhase::Done;Message=TEXT("시나리오 데이터셋 생성 완료");GetWorld()->GetTimerManager().ClearTimer(Timer);++Revision;return;}
+    if(S->Phase==EDatasetPhase::Paused){if(!S->Write.IsValid())GetWorld()->GetTimerManager().ClearTimer(Timer);return;}
+    if(S->Phase==EDatasetPhase::Write)
+    {
+        if(S->Write.IsValid()||(S->Slab.IsValid()&&S->Slab->HasPendingScenarioInput()))return;
+        FString Error;if(!ApplyScene(Error)){Message=Error;Stop();}return;
+    }
+    if(!TargetsCurrent()){Message=TEXT("대상 변경으로 테스트셋 생성을 중단합니다");Stop();return;}
+    if(S->Phase==EDatasetPhase::Settle&&GFrameCounter!=S->LastFrame)
+    {
+        S->LastFrame=GFrameCounter;if(--S->Frames>0)return;
+        S->CaptureStarted=FPlatformTime::Seconds();S->CaptureRequestFrame=GFrameCounter;
+        if(S->Camera.IsValid()&&!S->Camera->CaptureComponent->CaptureDatasetFrame(*Truth,S->Settings.CameraTruth))
+        {Message=TEXT("카메라 캡처 요청 실패");Stop();return;}
+        S->Lidar->ScanComponent->RequestDatasetScanOnce();S->Phase=EDatasetPhase::Capture;
+    }
+    if(S->Phase==EDatasetPhase::Capture)
+    {
+        if(FPlatformTime::Seconds()-S->CaptureStarted>30){Message=TEXT("장면 캡처 대기 초과");Stop();return;}
+        if(!S->LidarFrame)
+        {
+            const auto F=S->Lidar->ScanComponent->GetLastFrameSnapshot();
+            if(F&&F->AcquisitionStartedMonotonic>=S->CaptureStarted)
+            {S->LidarFrame=F;S->Analysis=S->Lidar->ScanComponent->GetLastSlabAnalysis();S->Lidar->ScanComponent->StopDatasetScan();}
+        }
+        if(S->LidarFrame&&(!Truth||(Truth->LastFrame&&!Truth->IsBusy()))&&!S->Write.IsValid())
+        {
+            WriteScene();S->LidarFrame.Reset();if(Truth)Truth->LastFrame.Reset();
+            if(S->Plan->Pipeline&&S->NextScene<S->Settings.Scenes&&!S->Slab->HasPendingScenarioInput())
+            {FString Error;if(!ApplyScene(Error)){Message=Error;Stop();}}
+        }
+    }
+    S->MaxPumpMs=FMath::Max(S->MaxPumpMs,(FPlatformTime::Seconds()-Begin)*1000.);
+}
 bool UVirtualDatasetSubsystem::TargetsCurrent() const
 {
     const auto S=Session;
-    return S&&S->Slab.IsValid()&&S->Lidar.IsValid()&&S->Camera.IsValid()&&!S->Slab->IsSimulationActive()&&
-        S->Slab->GetActorTransform().Equals(S->SlabApplied)&&S->Lidar->GetActorTransform().Equals(S->LidarApplied)&&S->Camera->GetActorTransform().Equals(S->CameraApplied)&&
-        S->Lidar->GetConfigurationRevision()==S->LidarRevision&&S->Camera->GetConfigurationRevision()==S->CameraRevision&&!S->Camera->IsSensorRunning()&&
+    return S&&S->Slab.IsValid()&&S->Lidar.IsValid()&&(!S->Plan||!S->Plan->CaptureCamera||S->Camera.IsValid())&&!S->Slab->IsSimulationActive()&&
+        S->Slab->GetActorTransform().Equals(S->SlabApplied)&&S->Lidar->GetActorTransform().Equals(S->LidarApplied)&&(!S->Camera.IsValid()||S->Camera->GetActorTransform().Equals(S->CameraApplied))&&
+        S->Lidar->GetConfigurationRevision()==S->LidarRevision&&(!S->Camera.IsValid()||(S->Camera->GetConfigurationRevision()==S->CameraRevision&&!S->Camera->IsSensorRunning()))&&
         ((S->Phase==EDatasetPhase::Capture&&!S->LidarFrame)?S->Lidar->IsSensorRunning():!S->Lidar->IsSensorRunning())&&
         (!S->Light.IsValid()||(S->Light->GetActorTransform().Equals(S->LightApplied)&&FMath::IsNearlyEqual(S->Light->GetLightComponent()->Intensity,S->LightAppliedIntensity)));
 }
 
 void UVirtualDatasetSubsystem::WriteScene()
 {
-    auto S=Session;auto Frame=Truth->LastFrame;auto* Module=&FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
+    auto S=Session;auto Frame=Truth?Truth->LastFrame:nullptr;auto* Module=&FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     S->Phase=EDatasetPhase::Write;
     S->Label->SetNumberField(TEXT("analysis_yaw_deg"),S->Analysis.EstimatedYawDegrees);S->Label->SetBoolField(TEXT("analysis_valid"),S->Analysis.bValid);S->Label->SetNumberField(TEXT("analysis_points"),S->Analysis.SlabHitPointCount);
     S->Label->SetStringField(TEXT("lidar_frame_id"),LexToString(S->LidarFrame->FrameId));S->Label->SetStringField(TEXT("lidar_utc"),S->LidarFrame->GetAcquisitionStartUtc().ToIso8601());
-    S->Label->SetStringField(TEXT("camera_frame_id"),LexToString(Frame->Acquisition.FrameId));S->Label->SetStringField(TEXT("camera_utc"),Frame->Acquisition.TimestampUtc.ToIso8601());
-    const auto& K=Frame->Intrinsics;S->Label->SetArrayField(TEXT("camera_K"),N({K.Fx,0,K.Cx,0,K.Fy,K.Cy,0,0,1}));S->Label->SetArrayField(TEXT("camera_resolution"),N({double(K.Width),double(K.Height)}));
+    if(Frame){S->Label->SetStringField(TEXT("camera_frame_id"),LexToString(Frame->Acquisition.FrameId));S->Label->SetStringField(TEXT("camera_utc"),Frame->Acquisition.TimestampUtc.ToIso8601());
+    const auto& K=Frame->Intrinsics;S->Label->SetArrayField(TEXT("camera_K"),N({K.Fx,0,K.Cx,0,K.Fy,K.Cy,0,0,1}));S->Label->SetArrayField(TEXT("camera_resolution"),N({double(K.Width),double(K.Height)}));}
     S->Label->SetNumberField(TEXT("max_pump_ms"),S->MaxPumpMs);S->Label->SetNumberField(TEXT("resident_memory_bytes"),double(FPlatformMemory::GetStats().UsedPhysical));S->Label->SetNumberField(TEXT("initial_memory_bytes"),double(S->InitialMemory));
-    S->Label->SetObjectField(TEXT("lidar_pose"),Pose(S->LidarFrame->AcquisitionTransform));S->Label->SetObjectField(TEXT("camera_pose"),Pose(FTransform(Frame->Acquisition.Rotation,Frame->Acquisition.Location)));
+    S->Label->SetObjectField(TEXT("lidar_pose"),Pose(S->LidarFrame->AcquisitionTransform));if(Frame)S->Label->SetObjectField(TEXT("camera_pose"),Pose(FTransform(Frame->Acquisition.Rotation,Frame->Acquisition.Location)));
     S->Label->SetStringField(TEXT("request_engine_frame"),LexToString(S->CaptureRequestFrame));
     S->Label->SetNumberField(TEXT("lidar_backend"),int32(S->LidarFrame->AcquisitionBackend));S->Label->SetStringField(TEXT("lidar_profile"),S->LidarFrame->ProfileKey);S->Label->SetStringField(TEXT("lidar_calibration"),S->LidarFrame->CalibrationId);
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
@@ -315,14 +385,16 @@ void UVirtualDatasetSubsystem::WriteScene()
             if(A)if(const auto* C=A->FindComponentByClass<UVirtualImuComponent>())if(C->HasSample())Values.Add(MakeShared<FJsonValueObject>(C->StatusJson()));
         S->Label->SetArrayField(TEXT("imu"),Values);S->Label->SetStringField(TEXT("imu_pairing"),TEXT("latest fixed-step sample at scene write admission; independent timestamps; not simultaneous capture"));
     }
-    const FString Label=Json(S->Label);const FString Conditions=Json(S->Conditions);const auto LidarFrame=S->LidarFrame;const auto Paths=S->ActorPaths;const auto Names=S->ActorNames;
-    const FString Root=S->Root,SensorId=S->LidarBefore.SensorId,Commit=S->Commit;const int32 Scene=S->Completed;const bool IncludeTruth=S->Settings.CameraTruth;const auto Cancelled=S->Cancelled;const double Started=S->CaptureStarted;
+    const auto LabelObject=S->Label;const auto ConditionsObject=S->Conditions;const auto LidarFrame=S->LidarFrame;const auto Paths=S->ActorPaths;const auto Names=S->ActorNames;
+    const FString Root=S->Root,SensorId=S->LidarBefore.SensorId,Commit=S->Commit;const int32 Scene=S->Plan?S->NextScene++:S->Completed;const bool IncludeTruth=S->Settings.CameraTruth;const auto Cancelled=S->Cancelled;const double Started=S->CaptureStarted;
     float Delay=0;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     Delay=WorkerDelayForTests;
 #endif
-    S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,Label,Conditions,Paths,Names,Root,SensorId,Commit,Scene,IncludeTruth,Cancelled,Started,Delay]()
+    const bool TestSet=bool(S->Plan);
+    S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,LabelObject,ConditionsObject,Paths,Names,Root,SensorId,Commit,Scene,IncludeTruth,Cancelled,Started,Delay,TestSet]()
     {
+        const FString Label=Json(LabelObject),Conditions=Json(ConditionsObject);
         FDatasetWriteResult Result;TArray<FVirtualSensorVerificationFile> Files;
         if(Delay>0)FPlatformProcess::Sleep(Delay);
         if(Cancelled->load()){Result.Error=TEXT("데이터셋 저장 취소");return Result;}
@@ -338,7 +410,7 @@ void UVirtualDatasetSubsystem::WriteScene()
             for(int32 B=0;B<4;++B)Labels.Bytes.Add(uint8(Id>>(B*8)));++LabelCount;
         }
         if(LabelCount!=Count){Result.Error=TEXT("PCD와 점별 라벨 수가 일치하지 않습니다");return Result;}Files.Add(MoveTemp(Labels));
-        const int32 W=Frame->Intrinsics.Width,H=Frame->Intrinsics.Height;
+        if(Frame){const int32 W=Frame->Intrinsics.Width,H=Frame->Intrinsics.Height;
         FVirtualSensorVerificationFile Rgb;Rgb.Name=TEXT("rgb.png");
         if(Frame->DatasetRgb.Num()!=W*H||!Image(*Module,Rgb,EImageFormat::PNG,Frame->DatasetRgb.GetData(),int64(W)*H*4,W,H,ERGBFormat::BGRA,8)){Result.Error=TEXT("RGB PNG 생성 실패");return Result;}Files.Add(MoveTemp(Rgb));
         if(IncludeTruth)
@@ -350,9 +422,11 @@ void UVirtualDatasetSubsystem::WriteScene()
             {Result.Error=TEXT("Camera GT 파일 생성 실패");return Result;}
             Files.Add(MoveTemp(Depth));Files.Add(MoveTemp(Seg));Files.Add(MoveTemp(Instance));
         }
+        }
         Files.Add(TextFile(TEXT("label.json"),Label));for(const auto& F:Files)Result.Bytes+=F.Bytes.Num();
         const FString Directory=Root/FString::Printf(TEXT("scene_%05d"),Scene);
-        if(!UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();})){Result.Error=TEXT("데이터셋 저장 실패 또는 중단");return Result;}
+        const bool Written=TestSet?UVirtualSensorFileSaveSubsystem::WriteTestSetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();}):UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();});
+        if(!Written){Result.Error=TEXT("데이터셋 저장 실패 또는 중단");return Result;}
         TSharedPtr<FJsonObject> Manifest;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Conditions),Manifest);
         Manifest->SetNumberField(TEXT("completed_scenes"),Scene+1);Manifest->SetStringField(TEXT("coordinates"),TEXT("PCD: RH sensor-local X forward,Y left,Z up meters; pose: UE world X forward,Y right,Z up meters; depth: optical Z meters; instance: R+256G+65536B"));
         Manifest->SetStringField(TEXT("lidar_labels"),TEXT("5 byte little-endian records in PCD point order: uint8 semantic_id,uint32 instance_id; 0 unknown; no padding"));
@@ -383,14 +457,29 @@ void UVirtualDatasetSubsystem::Restore()
     auto S=Session;if(!S||S->Restored)return;S->Restored=true;FString Error;
     if(Truth)Truth->Cancel();
     if(S->Lidar.IsValid()){if(S->Phase==EDatasetPhase::Capture&&!S->LidarFrame)S->Lidar->ScanComponent->StopScan();S->Lidar->ScanComponent->DatasetNoiseSequence.Reset();if(S->Lidar->GetConfigurationRevision()==S->LidarRevision&&S->Lidar->GetActorTransform().Equals(S->LidarApplied))S->Lidar->ApplyDatasetState(S->LidarBefore,Error);}
-    if(S->Camera.IsValid()&&S->Camera->GetConfigurationRevision()==S->CameraRevision&&S->Camera->GetActorTransform().Equals(S->CameraApplied))S->Camera->ApplyDatasetState(S->CameraBefore,Error);
+    if(S->Camera.IsValid()&&S->Camera->GetConfigurationRevision()==S->CameraRevision&&(!S->Camera.IsValid()||S->Camera->GetActorTransform().Equals(S->CameraApplied)))S->Camera->ApplyDatasetState(S->CameraBefore,Error);
     if(S->Slab.IsValid()&&!S->Slab->IsSimulationActive()&&S->Slab->GetActorTransform().Equals(S->SlabApplied))
     {auto* Slab=S->Slab.Get();Slab->ApplySurfacePreset(S->SurfaceBefore,S->LinkBefore,Error);Slab->Roughness=S->RoughBefore;Slab->Oxidation=S->OxBefore;Slab->bHotAppearance=S->HotBefore;Slab->EmissiveStrength=S->EmissiveBefore;Slab->RefreshDatasetAppearance();Slab->ApplyDatasetGeometry(S->SizeBefore);Slab->SetActorTransform(S->SlabBefore,false,nullptr,ETeleportType::TeleportPhysics);}
     if(S->Light.IsValid()&&S->Light->GetActorTransform().Equals(S->LightApplied)&&FMath::IsNearlyEqual(S->Light->GetLightComponent()->Intensity,S->LightAppliedIntensity)){S->Light->SetActorTransform(S->LightBefore);S->Light->GetLightComponent()->SetIntensity(S->LightBeforeIntensity);}
 }
-void UVirtualDatasetSubsystem::Pause(){if(IsActive()){Session->PauseRequested=true;++Revision;}}
+void UVirtualDatasetSubsystem::Pause(){if(Session&&Session->Plan){YieldPlannedCapture();return;}if(IsActive()){Session->PauseRequested=true;++Revision;}}
 bool UVirtualDatasetSubsystem::Resume(FString& Error)
-{if(!IsPaused()){Error=TEXT("일시 중지 상태에서 재개하세요");return false;}Session->PauseRequested=false;if(!ApplyScene(Error))return false;GetWorld()->GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.01f,true);++Revision;return true;}
+{
+    if(!IsPaused()){Error=TEXT("일시 중지 상태에서 재개하세요");return false;}
+    auto S=Session;
+    if(S->Plan)
+    {
+        if(!S->Slab.IsValid()||!S->Lidar.IsValid()||S->Slab->IsSimulationActive()||S->Lidar->IsSensorRunning()||!S->Lidar->CanEditSensorConfiguration(Error))return false;
+        // A normal scenario may have changed the Slab while yielded. Rebase restoration ownership.
+        S->SlabBefore=S->Slab->GetActorTransform();S->SizeBefore=S->Slab->SlabMesh->GetRelativeScale3D()*S->Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.;
+        S->SurfaceBefore=S->Slab->GetSurfacePreset();S->LinkBefore=S->Slab->IsSurfaceLidarLinked();S->RoughBefore=S->Slab->Roughness;S->OxBefore=S->Slab->Oxidation;S->HotBefore=S->Slab->bHotAppearance;S->EmissiveBefore=S->Slab->EmissiveStrength;
+        if(!S->Lidar->ReadEditableState(S->LidarBefore)||(S->Camera.IsValid()&&!S->Camera->ReadEditableState(S->CameraBefore)))return false;
+    }
+    S->PauseRequested=false;
+    if(S->Plan&&S->NextScene>=S->Settings.Scenes)S->Phase=EDatasetPhase::Write;
+    else if(!ApplyScene(Error))return false;
+    GetWorld()->GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.01f,true);++Revision;return true;
+}
 void UVirtualDatasetSubsystem::Stop()
 {if(!Session||Session->Phase==EDatasetPhase::Done||Session->Phase==EDatasetPhase::Draining)return;Session->Cancelled->store(true);Restore();if(Session->Phase!=EDatasetPhase::Export)Session->Phase=Session->Write.IsValid()?EDatasetPhase::Draining:EDatasetPhase::Done;if(Session->Phase==EDatasetPhase::Done&&GetWorld())GetWorld()->GetTimerManager().ClearTimer(Timer);++Revision;}
 void UVirtualDatasetSubsystem::Deinitialize()

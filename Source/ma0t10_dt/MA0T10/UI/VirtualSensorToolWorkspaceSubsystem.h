@@ -12,6 +12,7 @@ class AVirtualSensorActorBase;
 class AVirtualSensorUiHostActor;
 class USensorPlacementInteraction;
 class USensorMapCheckWidget;
+class UAgentTestSetWidget;
 
 UENUM(BlueprintType)
 enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress, Placement };
@@ -53,6 +54,8 @@ public:
 	/** Prepare the existing replay owner without opening its window or changing output options. */
 	bool EnsureOwnedReplayPanel();
 	bool OpenMapCheck();
+	bool OpenTestSet();
+	UAgentTestSetWidget* GetTestSetWidget() const {return TestSetWidget;}
 	USensorMapCheckWidget* GetMapCheckWidget() const { return MapCheckWidget; }
 	void SetCoordinator(AVirtualSensorCoordinator* InCoordinator);
 	bool RegisterPlacementHost(AVirtualSensorUiHostActor* Host);
@@ -133,6 +136,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UCanvasPanel> Canvas;
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Toolbar;
 	UPROPERTY(Transient) TObjectPtr<USensorMapCheckWidget> MapCheckWidget;
+	UPROPERTY(Transient) TObjectPtr<UAgentTestSetWidget> TestSetWidget;
+	FString LastOpenedTestSet;
 	UPROPERTY(Transient) TObjectPtr<USensorPlacementInteraction> PlacementInteraction;
 	TWeakObjectPtr<UCanvasPanel> MainCanvas;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
