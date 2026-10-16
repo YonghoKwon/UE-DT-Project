@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+TESTSET-01(사용자2026-10-16, 임시 기능): 검증 Runtime4202a91, 제품 동작40049ba. 기본 소재9999·목표100을 원본 보관/worker 파이프라인으로 생성하고, 일반 시나리오 우선·완료 후 선택→보기 전용 재생을 제공한다. 실제100개 두 실행·각351프레임·release14단계(고유290 Success/skip37/실패0)·WBP7·golden·Python69·layer0 통과. 순차32.689초/파이프라인28.524초, engine/GT/callback150ms 초과0. 9baf759 대비 offscreen1+1 ABAB12회2% gate 통과(FPS 저하−0.00234%·p95동일·GT−1.66243%). 직접 UI는 모니터 캡처0x80070057로 입력0·환경 보류이며 표시형 성능/선택 모달리티 전 조합은 미수행이다. 전송·다중 프로세스는 제외했고 상세 증거·최초 실패·정리 제한은 `Saved/Reports/TESTSET-01/RESULT.md`를 따른다.
+
 UXR-16 v1.1 통합 점검(`b6f2dc8`, 기준 `5dd9327`): API/일괄·IMU 활동은 기존 경고와 함께 표시하고 문구·꺼짐·숫자 글자 배율·변환 선행 안내를 정리했다. Editor/Game Development·release14단계(고유290 Success/조건부skip34/실패0)·WBP7·어휘114/기본34영역/허용7영역·위반0·layer0/0·전후108장씩·통합/관련 집중9개가 통과했다. 오프스크린1+1 ABAB12회2% gate는 FPS 저하 +0.0022%·engine p95 +0.0000%·GT -0.6700%. **Windows 잠금으로 직접 재시도는 입력0·보류이며 표시형 성능은 미수행**이다. 수용 진행률70%, 상세/초기 resize 실패·skip 이름·보호/개인 복원은 `Saved/Reports/UXR/UXR-16/RESULT.md`, 후속은 [통합24행/70분 점검표](docs/MANUAL_CHECKLIST.md)다. 아래 이전 항목의 직접/성능 결과를 이번 SHA의 수용으로 합치지 않는다.
 
 IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63c`, 기준 `f5a55d2`. 선택 장비에 세션 전용 IMU를 명시적으로 부착한다. 집중 D3D12 6 Success, 직접 부착·400Hz·노이즈·기록·CSV·전송 선택 점검, 실제 Artemis 445메시지/1484표본(gap/invalid/duplicate 0), Python 38 Success를 확인했다. release14단계(고유289 Success/조건부skip34/실패0)와 기본 꺼짐 ABAB12회2% gate가 통과했다(FPS 저하 −0.008%,p95 0%,GT −0.487%).2개400Hz 켜짐 비용은GT+0.223ms(+3.41%)·p95동일이며,전체 제한은 `Saved/Reports/IMU-01/RESULT.md`를 따른다. 아래 이전 항목의 검증 SHA·수치를 IMU 검증 결과로 읽지 않는다.
@@ -557,6 +559,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-16, UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+TESTSET-01은 L2 `Scenario/AgentTestSetSubsystem`에서 수신 분기·큐·DATASET-01 프레임 계획을 조립하고 L1 FileSave의 별도 TestSets 허용 루트를 재사용한다. L3의 소유 `UDxWidget`은 기존 Workspace/DTCore 등록·닫기·전면·입력 차단을 사용한다. 기존 패널 enum/저장값·DTCore·자산·모듈 변경 없이 레이어 위반/allowlist **0→0**이다.
+
 UXR-16은 기존 L3 소유 UI의 문구·글자/줄바꿈·활동 표시와 L2 Automation의 읽기 전용 표시 accessor만 정리한다.5Hz 기존 상태 갱신/센서 순회를 재사용하며 새 모듈·Tick/timer·측정·직렬화·DTCore·자산 변경 없이 레이어 위반/allowlist **0→0**이다. 큰 설정 구조 재배치는 캡처 기반 제안으로 남긴다.
 
 IMU-01은 L1 `Sensor/VirtualImuTypes`·`VirtualImuComponent`와 기존 Recorder/StreamPublisher/FileSave를 확장한다. L0 motion provider를 읽고, L2 Dataset/AUTO-01과 L3 기존 DTCore 기반 배치 패널이 값을 소비한다. 레이어 위반·allowlist **0→0**, 새 모듈·자산·DTCore 변경 없음. IMU 스트림은 기존 acquisition envelope와 별도 접수되어 Camera/LiDAR·Slab PCD 기본 정책에 편입되지 않는다.
@@ -643,6 +647,29 @@ pose는 UE world meter(X전방/Y우측/Z위쪽), quaternion xyzw와 pitch/yaw/ro
 기존 scene minor 0은 COCO에서 지원하고 KITTI에서는 mesh pivot/3D truth 부족을 명시적으로 거부한다. minor 1은 기존 `schema_version`을 유지하고 별도 `schema_minor=1`·`boxes_3d`를 추가한다. KITTI yaw-only로 표현되지 않는 pitch/roll은 기본 거부하며 `--upright-envelope`를 직접 선택하면 camera-upright 포위 박스와 원본 OBB/기울기·부피 비율을 기록한다. 선택적 `--semantic-kitti`는 custom semantic IDs 0..6의 uint32 점 라벨 저장 형식이며 정규 도로 클래스/odometry 데이터셋을 의미하지 않는다.
 
 UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우에만 원본 생성·상태 복원이 끝난 뒤 설정된 Python에서 변환하고 sibling `<dataset>_export/`에 저장한다. `MA0T10_DATASET_PYTHON`은 requirements 환경의 절대 python.exe 경로이며 Editor 시작 전에 설정한다. 설치를 UI에서 실행하지 않는다. [AutomationClient 예제](Tools/AutomationClient/dataset_export.example.json)의 `dataset.start.export_format`도 기본 none이며 변환 실패는 job 실패로 보고한다. 정합 수치와 실제20장면·UI·전체 회귀·성능 수용 상태는 `Saved/Reports/EXPORT-01/RESULT.md`를 따른다.
+
+### TESTSET-01 AI Agent 시나리오 테스트셋 — 임시 기능, 로드맵 #17
+
+출처: 사용자 2026-10-16. `Config/DefaultGame.ini`의 `[AgentTestSet]`에서 `Enabled=True`, `TriggerMtlNo=9999`, `TargetScenarios=100`을 정한다. `mtl_no`는 문자열로 비교하며 양끝 공백만 제거한다. `Enabled=False`면 기존 일반 경로를 사용한다. 기존 TC → DataSync → Slab의 검증된 수신 지점에서 분기하고, 트리거는 일반 보관10개·PCD 자동 전송·실시간 재생에 넣지 않는다. 일반 소재가 오면 테스트셋 캡처/Slab 상태를 먼저 복원해 기존 실행에 양보하고, 일반 시나리오·센서 세션 정리 후 생성에 복귀한다.
+
+`도구 → AI 시나리오 테스트셋`에서 트리거·목표·등록/완료 수·시나리오별 상태·프레임 수·시간·예상 남은 시간을 본다. 첫 등록 때도 이 소유 화면을 연다. 일시 중지/재개, 실패 재시도, 결과 폴더를 제공한다. 세트 초기화는 8초 안에 다시 눌러 확인하며 기존 파일을 보존하고 현재 목록을 비운다. 숨김은 생성 중지가 아니다. 목표·파일 검증·manifest 저장 완료 후 **시나리오 선택**이 활성화된다. 선택하면 기존 Slab 시뮬레이션을 **보기 전용·전송 꺼짐**으로 실행하며 중지/다른 선택을 지원한다. 생성/PCD 전송을 다시 시작하거나 일반 보관 목록을 밀어내지 않는다. 전송 버튼·Sender·임시 전송·ActiveMQ 알림은 이번 범위에서 제외했다.
+
+대상은 수신 Slab과 같은 World의 LiDAR다. `LidarSensorId`가 비어 있으면 LiDAR가 정확히1개여야 하며, 여러 개면 ID를 지정한다. 선택 센서의 측정·출력·저장을 먼저 중지한다. `SampleStride=1`은 원본 모든 행, `SettleFrames=1`은 적용 뒤 engine frame1회 안정화다. 실제 재생과 같은 첫 행 치수·단위·TrackReference·BuildPose를 사용하고 실시간 재생 시계는 돌리지 않는다. 공유 World의 Slab을 이동시키므로 화면에는 샘플 자세가 보일 수 있으나 시간에 맞춘 보간 재생은 하지 않는다.
+
+기본은 **LiDAR PCD + 라벨**이다. `CaptureCamera`, `CameraTruth`, `IncludeImu`, `LidarFidelity`는 모두 false이며 켠 경우 DATASET-01 대응 기능을 사용한다. 카메라 포함 시 `CameraSensorId`도 단일 대상 규칙을 따른다. `ExportFormat=none`이 기본이며 `coco`/`kitti`/`coco,kitti`에는 CameraTruth와 기존 EXPORT-01 Python 환경이 필요하다. `ExportUprightEnvelope`도 기존 정책을 따른다.
+
+| 경로 | 내용 |
+|---|---|
+| `Saved/TestSets/<세트 UUID>/testset.json` | `ma0t10.testset.v1`: 트리거·목표/완료 수·선택 옵션·시나리오 ID/상태/프레임/시간/RunUUID/폴더·프로젝트 SHA/빌드. 단일 worker가 원자 교체한다. |
+| `scenario_<번호>_<시나리오 UUID>/original.json` | 수신 원본 JSON. 별도 디스크 보관으로 일반 메모리 보관10개 제한에 영향을 주지 않는다. |
+| `scenario_.../run_<RunUUID>/scene_XXXXX/` | DATASET-01 binary33 PCD·점별 라벨·`label.json`. 실제 Slab pose/치수/표면·immutable 센서 pose/FrameId/UTC에 `scenario_id`, `run_uuid`, 원본 `mtl_no`, `scenario_frame_no`, `scenario_elapsed_s`를 추가한다. |
+| `scenario_.../summary.json` | 성공 RunUUID·프레임 경로·개수·시간·PCD bytes. 파일 검증 후 작성하며 재시도는 새 RunUUID/폴더를 사용한다. |
+
+`Pipeline=True`는 캡처를 순차로 두고 이전 프레임의 PCD 직렬화·이미지 인코딩·라벨 JSON·파일 쓰기와 다음 캡처를 겹친다. writer1건 + 캡처1건, 다음 시나리오 파싱/자세 준비1건, 원본 저장2건으로 제한한다. 입력 대기64MiB, 두 장면 메모리 추정 합계256MiB 이하, Camera1920×1080·LiDAR25만 잠재 반환점 상한을 적용한다. CPU trace는 기존 분할 경로를 유지한다. World/Actor·semantic 조회를 포함한 루프를 임의 worker ParallelFor로 옮기지 않는다. `Pipeline=False`로 순차 처리와 비교하며 다중 UE 프로세스 생성은 구현하지 않았다.
+
+기존 수신에서 허용한 UUID 없는 JSON도 최초 내부 보관 ID를 생성·라벨·보기 재생에서 유지한다. 원본 JSON을 다시 쓰지 않으며 디스크 재파싱 시 원본 해시를 검사한다.
+
+목록은 실행 중 메모리 상태이며 프로세스 재시작 후 자동 복원/재개는 없다. 원본과 완료 산출물은 디스크에 남는다. AUTO-01을 켠 경우 `GET /v1/testset`으로 읽는다. 새 listener·ROS2 경로·전송은 추가하지 않는다. 검증·처리량·직접 UI·성능 수용은 `Saved/Reports/TESTSET-01/RESULT.md`를 따른다.
 
 ### AUTO-01 배치 실행과 로컬 제어 API — 기본 꺼짐
 
