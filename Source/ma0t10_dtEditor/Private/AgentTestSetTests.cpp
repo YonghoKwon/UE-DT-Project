@@ -35,10 +35,13 @@ namespace
 FSlabScenarioDataPtr MakeAgentTestSetFixture(int32 Rows,const FString& Mtl,bool MissingUuid=false)
 {
     const FString Uuid=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
-    TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson(Uuid)),Root);
-    auto Values=Root->GetArrayField(TEXT("DATA_MAP"));Values.SetNum(Rows);Root->GetObjectField(TEXT("_meta"))->SetNumberField(TEXT("duration_sec"),Rows*.05);
-    for(int32 I=0;I<Rows;++I){auto V=Values[I]->AsObject();V->SetStringField(TEXT("mtl_no"),Mtl);V->SetNumberField(TEXT("frame_no"),100+I*2);V->SetNumberField(TEXT("center_x"),I*3);V->SetNumberField(TEXT("left_skew_angle"),I*2-3);V->SetNumberField(TEXT("slab_len"),800);V->SetNumberField(TEXT("slab_wth"),200);V->SetNumberField(TEXT("slab_thk"),50);}
-    Root->SetArrayField(TEXT("DATA_MAP"),Values);if(MissingUuid)Root->GetObjectField(TEXT("_meta"))->RemoveField(TEXT("UUID"));FString Json,Error;FJsonSerializer::Serialize(Root.ToSharedRef(),TJsonWriterFactory<>::Create(&Json));FSlabScenarioDataPtr Data;FSlabScenarioCodec::Parse(Json,Data,Error,true);return Data;
+    static const TSharedRef<FJsonObject> Template=[](){TSharedPtr<FJsonObject> O;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson()),O);return O.ToSharedRef();}();
+    auto Root=MakeShared<FJsonObject>(*Template);auto Meta=MakeShared<FJsonObject>(*Template->GetObjectField(TEXT("_meta")));Meta->SetStringField(TEXT("UUID"),Uuid);Meta->SetNumberField(TEXT("duration_sec"),Rows*.05);Root->SetObjectField(TEXT("_meta"),Meta);
+    const auto& TemplateRows=Template->GetArrayField(TEXT("DATA_MAP"));TArray<TSharedPtr<FJsonValue>> Values;
+    // Only construct the rows sent by the fake Agent. Rebuilding/parsing 600 unused
+    // rows per input imposed unrelated game-thread allocation load on the benchmark.
+    for(int32 I=0;I<Rows;++I){auto V=MakeShared<FJsonObject>(*TemplateRows[I]->AsObject());V->SetStringField(TEXT("mtl_no"),Mtl);V->SetNumberField(TEXT("frame_no"),100+I*2);V->SetNumberField(TEXT("center_x"),I*3);V->SetNumberField(TEXT("left_skew_angle"),I*2-3);V->SetNumberField(TEXT("slab_len"),800);V->SetNumberField(TEXT("slab_wth"),200);V->SetNumberField(TEXT("slab_thk"),50);Values.Add(MakeShared<FJsonValueObject>(V));}
+    Root->SetArrayField(TEXT("DATA_MAP"),Values);if(MissingUuid)Root->GetObjectField(TEXT("_meta"))->RemoveField(TEXT("UUID"));FString Json,Error;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Json));FSlabScenarioDataPtr Data;FSlabScenarioCodec::Parse(Json,Data,Error,true);return Data;
 }
 class FTestSetRun final:public IAutomationLatentCommand
 {
