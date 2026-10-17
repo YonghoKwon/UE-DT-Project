@@ -29,6 +29,8 @@
 #include "UnrealClient.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "HAL/FileManager.h"
+#include "GenericPlatform/GenericWindow.h"
+#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 namespace
 {
 class FInspectionTestSetRun final:public IAutomationLatentCommand
@@ -113,6 +115,7 @@ public:
         if(Phase==3)
         {
             const auto V=Service->PreviewStatus();if(V.Frame<1)return false;
+            if(auto* Bar=Cast<USensorToolToolbarWidget>(World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetOwnedNavigation()))Test->TestTrue(TEXT("test set activity caption is readable"),Bar->GetGlobalStatus().TestSet.ToString().StartsWith(TEXT("테스트셋 ")));
             Test->TestEqual(TEXT("correct saved scenario after replacement"),V.Scenario,Preview);
             Test->TestFalse(TEXT("PCD preview does not start Slab simulation"),Slab->IsSimulationActive());
             Test->TestTrue(TEXT("PCD point count matches file"),V.Points==PcdCount(Service->Items()[Preview],V.Frame));
@@ -154,6 +157,7 @@ public:
             auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Widget=W->GetTestSetWidget();
             const auto Size=World->GetGameViewport()->Viewport->GetSizeXY();const auto Geometry=Widget->GetCachedGeometry();
             auto O=MakeShared<FJsonObject>();O->SetNumberField(TEXT("client_width"),Size.X);O->SetNumberField(TEXT("client_height"),Size.Y);O->SetNumberField(TEXT("font_scale"),W->GetOwnedPanelFontScale());O->SetNumberField(TEXT("viewport_scale"),UWidgetLayoutLibrary::GetViewportScale(World));
+            if(auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef()))if(Window->GetNativeWindow())O->SetNumberField(TEXT("window_dpi_scale"),Window->GetNativeWindow()->GetDPIScaleFactor());
             O->SetNumberField(TEXT("panel_width"),Geometry.GetAbsoluteSize().X);O->SetNumberField(TEXT("panel_height"),Geometry.GetAbsoluteSize().Y);
             FString J;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&J));const FString Name=FString::Printf(TEXT("after-%dx%d-%d"),Size.X,Size.Y,MatrixStep%2?150:100);
             FFileHelper::SaveStringToFile(J,*(Report()/TEXT("layout")/(Name+TEXT(".json"))));FScreenshotRequest::RequestScreenshot(Report()/TEXT("layout")/(Name+TEXT(".png")),true,false);At=Now;Phase=8;return false;

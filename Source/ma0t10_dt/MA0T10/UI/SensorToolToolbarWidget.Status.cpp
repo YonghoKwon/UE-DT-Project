@@ -157,7 +157,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     }
     else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
     if(const auto* T=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(T->HasItems())
-        GlobalStatus.TestSet=FText::FromString(FString::Printf(TEXT("???? %s %d/%d"),T->IsComplete()?TEXT("??"):T->IsPaused()?TEXT("??"):TEXT("?? ?"),T->Completed(),T->Settings().Target));
+        GlobalStatus.TestSet=FText::FromString(FString::Printf(TEXT("테스트셋 %s %d/%d"),T->IsComplete()?TEXT("완료"):T->IsPaused()?TEXT("일시정지"):T->HasBusyWork()?TEXT("대기"):TEXT("진행"),T->Completed(),T->Settings().Target));
     RefreshActivityChips();
 }
 

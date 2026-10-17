@@ -112,7 +112,7 @@ public:
         {
             if(!CompletedScreen){if(Now-CompletedAt<.3)return false;FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/automated-completed.png"),true,false);CompletedScreen=true;return false;}
             if(Manual)
-            {if(!FPaths::FileExists(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/manual/finish.flag")))return false;Service->StopPreview();Test->AddInfo(TEXT("Manual fixture completed by finish.flag; direct acceptance is recorded separately"));return Finish();}
+            {FString StopPath=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/manual/finish.flag");FParse::Value(FCommandLine::Get(),TEXT("TestSetManualStopFile="),StopPath);if(!FPaths::FileExists(StopPath))return false;Service->StopPreview();Test->AddInfo(TEXT("Manual fixture completed by finish.flag; direct acceptance is recorded separately"));return Finish();}
             if(!Service->IsComplete())return false;
             if(PreviewCount<3)
             {
