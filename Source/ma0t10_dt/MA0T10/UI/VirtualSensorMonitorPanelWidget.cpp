@@ -338,6 +338,13 @@ void UVirtualSensorMonitorPanelWidget::SetDualCameraModeEnabled(bool bEnabled)
 	RefreshImageBrush();
 }
 
+void UVirtualSensorMonitorPanelWidget::SetDualCameraSplitRatio(float Ratio)
+{
+    DualCameraSplitRatio=FMath::IsFinite(Ratio)?FMath::Clamp(Ratio,.3f,.7f):.7f;
+    const int32 Primary=FMath::RoundToInt(DualCameraSplitRatio*100);
+    DualCameraSplitText=FText::Format(NSLOCTEXT("VirtualSensorMonitorPanelWidget","CameraSplit","비율 {0}:{1}"),FText::AsNumber(Primary),FText::AsNumber(100-Primary));
+}
+
 bool UVirtualSensorMonitorPanelWidget::SelectPrimaryCameraBySensorId(const FString& SensorId)
 {
 	if (!SensorManager) return false;

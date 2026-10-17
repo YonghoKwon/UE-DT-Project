@@ -539,9 +539,12 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
     {
 		if (bShowingLidar || bPrimaryFrameChanged || NativeViewBrush.GetResourceObject() != Resource)
 		{
+            const FVector2D PreviousSize=NativeViewBrush.ImageSize;
 			NativeViewBrush.SetResourceObject(Resource);
 			NativeViewBrush.ImageSize = FVector2D(640.0f, 360.0f);
-			NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);
+            if(!bShowingLidar)if(const auto* Texture=Cast<UTexture>(Resource))
+                NativeViewBrush.ImageSize=FVector2D(Texture->GetSurfaceWidth(),Texture->GetSurfaceHeight());
+            NativeViewImage->Invalidate(PreviousSize.Equals(FVector2D(NativeViewBrush.ImageSize))?EInvalidateWidgetReason::Paint:EInvalidateWidgetReason::Layout);
 		}
     }
 
@@ -558,9 +561,12 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
 		if (SecondaryFrameId != LastSecondaryCameraDisplayFrameId || NativeSecondaryCameraBrush.GetResourceObject() != SecondaryResource)
 		{
 			LastSecondaryCameraDisplayFrameId = SecondaryFrameId;
+            const FVector2D PreviousSize=NativeSecondaryCameraBrush.ImageSize;
 			NativeSecondaryCameraBrush.SetResourceObject(SecondaryResource);
 			NativeSecondaryCameraBrush.ImageSize = FVector2D(640.0f, 360.0f);
-			NativeSecondaryCameraImage->Invalidate(EInvalidateWidgetReason::Paint);
+            if(const auto* Texture=Cast<UTexture>(SecondaryResource))
+                NativeSecondaryCameraBrush.ImageSize=FVector2D(Texture->GetSurfaceWidth(),Texture->GetSurfaceHeight());
+            NativeSecondaryCameraImage->Invalidate(PreviousSize.Equals(FVector2D(NativeSecondaryCameraBrush.ImageSize))?EInvalidateWidgetReason::Paint:EInvalidateWidgetReason::Layout);
 		}
 	}
 }

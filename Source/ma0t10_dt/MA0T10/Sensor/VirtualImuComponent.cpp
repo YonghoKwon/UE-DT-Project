@@ -18,7 +18,7 @@ UVirtualImuComponent* UVirtualImuComponent::Attach(AActor* A)
     auto* C=NewObject<UVirtualImuComponent>(A);C->SetupAttachment(A->GetRootComponent());A->AddInstanceComponent(C);C->RegisterComponent();return C;
 }
 bool UVirtualImuComponent::Configure(const FVirtualImuConfig& V,FString& Error)
-{if(!V.Validate(Error))return false;Config=V;++Generation;Initialized=false;HasLatest=false;return true;}
+{if(Detaching){Error=TEXT("IMU CSV 저장을 마친 뒤 해제합니다.");return false;}if(!V.Validate(Error))return false;Config=V;++Generation;Initialized=false;HasLatest=false;return true;}
 void UVirtualImuComponent::ResolveServices()
 {
     if(auto* A=Cast<AVirtualSensorActorBase>(GetOwner()))if(A->OutputComponent)
@@ -28,13 +28,31 @@ void UVirtualImuComponent::BeginPlay(){Super::BeginPlay();ResolveServices();}
 FString UVirtualImuComponent::GetImuId() const
 {const auto* A=Cast<AVirtualSensorActorBase>(GetOwner());return (A?A->GetSensorId():GetOwner()?GetOwner()->GetName():TEXT("sensor"))+TEXT(".imu");}
 void UVirtualImuComponent::SetRecording(bool E)
-{ResolveServices();Recording=E&&IsValid(Recorder);}
+{ResolveServices();Recording=E&&!Detaching&&IsValid(Recorder);}
 void UVirtualImuComponent::SetPublishing(bool E)
-{ResolveServices();if(Publisher){if(E)Publisher->StartStream(EVirtualSensorStreamKind::Imu,GetImuId());else Publisher->StopStream(EVirtualSensorStreamKind::Imu,GetImuId());}}
+{ResolveServices();if(Publisher){if(E&&!Detaching)Publisher->StartStream(EVirtualSensorStreamKind::Imu,GetImuId());else Publisher->StopStream(EVirtualSensorStreamKind::Imu,GetImuId());}}
 bool UVirtualImuComponent::IsPublishing() const
 {return IsValid(Publisher)&&Publisher->IsStreamEnabled(EVirtualSensorStreamKind::Imu,GetImuId());}
 FString UVirtualImuComponent::SaveCsv()
 {ResolveServices();return Recorder&&GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->RequestImuCsv(this,GetImuId(),Recorder->GetImuSamples(GetImuId())):FString();}
+bool UVirtualImuComponent::RequestDetach(FString& Message)
+{
+    if(Detaching){Message=DetachStatus;return false;}
+    ResolveServices();
+    SetRecording(false);SetPublishing(false);
+    if(!Recorder||Recorder->GetImuSamples(GetImuId()).IsEmpty())
+    {Message=TEXT("IMU 해제 완료 · 기록된 표본 없음");FinishDetach();return true;}
+    DetachCsvRequest=SaveCsv();
+    const auto Status=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(DetachCsvRequest);
+    if(DetachCsvRequest.IsEmpty()||Status.IsTerminal())
+    {DetachStatus=Message=TEXT("CSV 저장을 시작할 수 없습니다 · IMU는 유지됩니다. 저장 상태를 확인한 뒤 다시 해제하세요.");return false;}
+    Detaching=true;DetachStatus=Message=TEXT("기록·전송 중지 · CSV 저장을 마친 뒤 IMU를 해제합니다.");return true;
+}
+void UVirtualImuComponent::FinishDetach()
+{
+    if(Recorder)Recorder->ClearImuSamples(GetImuId());
+    DestroyComponent();
+}
 void UVirtualImuComponent::EndPlay(const EEndPlayReason::Type R)
 {SetPublishing(false);Recording=false;Super::EndPlay(R);}
 TSharedRef<FJsonObject> UVirtualImuComponent::BatchJson(const FString& Id,const FVirtualImuConfig& C,const TArray<FVirtualImuSample>& Samples)
@@ -56,6 +74,14 @@ TSharedRef<FJsonObject> UVirtualImuComponent::StatusJson() const
 void UVirtualImuComponent::TickComponent(float D,ELevelTick T,FActorComponentTickFunction* F)
 {
     Super::TickComponent(D,T,F);if(!GetWorld()||!GetOwner())return;
+    if(Detaching)
+    {
+        const auto Status=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(DetachCsvRequest);
+        if(!Status.IsTerminal())return;
+        if(Status.State==EVirtualSensorFileSaveState::Succeeded){FinishDetach();return;}
+        Detaching=false;DetachStatus=TEXT("CSV 저장 실패 · IMU는 유지됩니다. 저장 상태를 확인한 뒤 다시 해제하세요.");
+        return;
+    }
     const double Now=GetWorld()->GetTimeSeconds();if(!Initialized){Model.Reset(Config,Now,FDateTime::UtcNow());Initialized=true;}
     FVirtualImuObservation O;O.Seconds=Now;O.ObservationUtc=FDateTime::UtcNow();O.Pose=GetComponentTransform();
     // Resolve only the explicit attachment chain, including SetActorTransform motion providers.

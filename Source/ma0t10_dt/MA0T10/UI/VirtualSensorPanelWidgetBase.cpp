@@ -55,14 +55,15 @@ const FButtonStyle& UVirtualSensorPanelWidgetBase::GetToolButtonStyle(bool Dange
 const FEditableTextBoxStyle& UVirtualSensorPanelWidgetBase::GetToolInputStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Input():FVirtualSensorUiStyle::EditableTextBoxStyle();}
 const FComboBoxStyle& UVirtualSensorPanelWidgetBase::GetToolComboBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::ComboBox():FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox");}
 const FSpinBoxStyle& UVirtualSensorPanelWidgetBase::GetToolSpinBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::SpinBox():FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");}
-TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolFormRow(const FText& Label,TSharedRef<SWidget> Control,TSharedRef<SWidget> Detail)
+TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolFormRow(const FText& Label,TSharedRef<SWidget> Control,TSharedRef<SWidget> Detail,TSharedRef<SWidget> Feedback)
 {
     return SNew(SVerticalBox)
         +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
         [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Label)]
             +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Detail]]
         +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
-        [SNew(SBox).HeightOverride_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale()/.75f;})[Control]];
+        [SNew(SBox).HeightOverride_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale()/.75f;})[Control]]
+        +SVerticalBox::Slot().AutoHeight()[Feedback];
 }
 void UVirtualSensorPanelWidgetBase::PruneFontRegistrations()
 {

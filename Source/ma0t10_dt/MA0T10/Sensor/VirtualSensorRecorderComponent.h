@@ -38,6 +38,7 @@ public:
     UVirtualSensorRecorderComponent();
     void RecordImuSamples(const FString& Id,const TArray<FVirtualImuSample>& Samples);
     TArray<FVirtualImuSample> GetImuSamples(const FString& Id) const;
+    void ClearImuSamples(const FString& Id) { ImuSamples.Remove(Id); ImuOverflow.Remove(Id); }
     int64 GetImuOverflowCount(const FString& Id) const {return ImuOverflow.FindRef(Id);}
 
 

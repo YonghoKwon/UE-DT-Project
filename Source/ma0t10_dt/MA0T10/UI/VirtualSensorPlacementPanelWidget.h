@@ -17,6 +17,8 @@ public:
     /** Navigation only: open the existing IMU owner without attaching or changing it. */
     bool OpenOwnedImuSettings();
     bool AttachSelectedImu();
+    bool RequestSelectedImuDetach();
+    bool ConfirmSelectedImuDetach();
     bool SelectEquipment(AVirtualSensorActorBase* Actor);
     bool SetSelectedMeasuring(bool Measuring);
     bool SetSelectedManipulating(bool Enabled);
@@ -41,6 +43,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorVocabularyTest;
     friend class FInspectionBehaviorCommand;
+    friend class FInspectionUiFeedbackCommand;
 #endif
     TSharedRef<SWidget> BuildImuSection();
     TWeakPtr<class SExpandableArea> OwnedImuArea;
@@ -49,6 +52,9 @@ private:
     bool bImuRecordingForDisplay=false,bImuPublishingForDisplay=false;
     FText ImuValues;
     FString ImuCsvRequest;
+    TWeakObjectPtr<class UVirtualImuComponent> PendingImuDetach,DetachingImu;
+    FString DetachingCsvRequest;
+    FText PendingImuDetachText;
     TSharedPtr<class SImuPlot> ImuPlot;
     UPROPERTY(Transient) TObjectPtr<UVirtualSensorSettingsPanelWidget> Controls;
     struct FOption {TWeakObjectPtr<AVirtualSensorActorBase> Actor;FString Label;FText NameText,OriginText,StateText;FLinearColor StateColor=FLinearColor::Gray;};

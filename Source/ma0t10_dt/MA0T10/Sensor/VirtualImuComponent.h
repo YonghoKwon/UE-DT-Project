@@ -14,6 +14,11 @@ class MA0T10_DT_API UVirtualImuComponent : public USceneComponent
 public:
     UVirtualImuComponent();
     static UVirtualImuComponent* Attach(AActor* Actor);
+    /** Native lifecycle path; keeps the source alive until its CSV is finalized. */
+    bool RequestDetach(FString& Message);
+    bool IsDetaching() const { return Detaching; }
+    const FString& GetDetachStatus() const { return DetachStatus; }
+    const FString& GetDetachCsvRequest() const { return DetachCsvRequest; }
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|IMU") bool Configure(const FVirtualImuConfig& Value,FString& Error);
     UFUNCTION(BlueprintPure,Category="DigitalTwin|IMU") FVirtualImuConfig GetConfig() const {return Config;}
     UFUNCTION(BlueprintPure,Category="DigitalTwin|IMU") FVirtualImuSample GetLatestSample() const {return Latest;}
@@ -40,5 +45,8 @@ private:
     TArray<FVirtualImuSample> TickSamples;
     FVirtualImuSample Latest;
     bool Initialized=false,HasLatest=false,Recording=false;
+    bool Detaching=false;
+    FString DetachCsvRequest,DetachStatus;
+    void FinishDetach();
     void ResolveServices();
 };

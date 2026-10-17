@@ -18,7 +18,6 @@
 bool USensorToolToolbarWidget::IsSidebarRouteSelected(ESensorToolDestination D) const
 {
     const auto* W=Workspace();if(!W)return false;
-    if(D==ESensorToolDestination::Preview)return !W->IsSidebarExpanded()&&W->IsPanelOpen(ESensorToolPanelRole::Monitor);
     return IsOwnedDestinationVisible(D);
 }
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()

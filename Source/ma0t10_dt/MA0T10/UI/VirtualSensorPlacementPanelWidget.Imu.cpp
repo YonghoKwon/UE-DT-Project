@@ -2,6 +2,7 @@
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
 #include "SensorOwnedPresentationStyle.h"
+#include "SensorToolNumericInput.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
@@ -34,6 +35,22 @@ private:
 };
 bool UVirtualSensorPlacementPanelWidget::AttachSelectedImu()
 {EndPlacement();auto* A=Selected();if(!A||!A->CanEditSensorConfiguration(Status))return false;const bool Ok=UVirtualImuComponent::Attach(A)!=nullptr;Status=Ok?TEXT("IMU 부착 완료 · 기록과 전송은 따로 켜세요. 세션 종료 시 해제됩니다."):TEXT("IMU를 부착할 수 없습니다.");return Ok;}
+bool UVirtualSensorPlacementPanelWidget::RequestSelectedImuDetach()
+{
+    auto* A=Selected();if(!A||!A->CanEditSensorConfiguration(Status))return false;
+    auto* C=A->FindComponentByClass<UVirtualImuComponent>();if(!C||C->IsDetaching())return false;
+    PendingImuDetach=C;
+    PendingImuDetachText=FText::Format(NSLOCTEXT("SensorImu","ConfirmDetach","{0}의 IMU를 해제할까요? 기록·전송을 끄고 기록한 표본을 CSV로 저장한 뒤 해제합니다."),FText::FromString(A->GetSensorId()));
+    return true;
+}
+bool UVirtualSensorPlacementPanelWidget::ConfirmSelectedImuDetach()
+{
+    auto* C=PendingImuDetach.Get();PendingImuDetach.Reset();
+    auto* A=Selected();if(!C||!A||C->GetOwner()!=A||!A->CanEditSensorConfiguration(Status))return false;
+    const bool Ok=C->RequestDetach(Status);
+    if(Ok&&C->IsRegistered()){DetachingImu=C;DetachingCsvRequest=C->GetDetachCsvRequest();}
+    bImuRecordingForDisplay=bImuPublishingForDisplay=false;return Ok;
+}
 bool UVirtualSensorPlacementPanelWidget::OpenOwnedImuSettings()
 {
     if(!SupportsOwnedDocking())return false;
@@ -48,6 +65,22 @@ bool UVirtualSensorPlacementPanelWidget::OpenOwnedImuSettings()
 }
 void UVirtualSensorPlacementPanelWidget::RefreshImu()
 {
+    if(PendingImuDetach.IsValid()&&PendingImuDetach->GetOwner()!=Selected())PendingImuDetach.Reset();
+    if(!DetachingCsvRequest.IsEmpty())
+    {
+        if(DetachingImu.IsValid()&&DetachingImu->IsRegistered())
+        {
+            Status=DetachingImu->GetDetachStatus();
+            if(!DetachingImu->IsDetaching()){DetachingCsvRequest.Reset();DetachingImu.Reset();}
+        }
+        else
+        {
+            const auto R=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(DetachingCsvRequest);
+            Status=R.State==EVirtualSensorFileSaveState::Succeeded?TEXT("IMU 해제 완료 · CSV 저장 완료"):TEXT("IMU 해제 종료 · CSV 저장 상태를 확인하세요.");
+            if(!R.FileResults.IsEmpty())Status+=TEXT(" · ")+R.FileResults[0].AbsolutePath;
+            DetachingCsvRequest.Reset();DetachingImu.Reset();
+        }
+    }
     if(!ImuCsvRequest.IsEmpty())
     {const auto R=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(ImuCsvRequest);Status=R.Message;if(R.IsTerminal()){if(!R.FileResults.IsEmpty())Status+=TEXT(" · ")+R.FileResults[0].AbsolutePath;ImuCsvRequest.Reset();}}
     if(!ImuExpanded)return;
@@ -80,13 +113,26 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildImuSection()
     }
     auto Current=[this](){auto* A=Selected();return A?A->FindComponentByClass<UVirtualImuComponent>():nullptr;};
     auto Box=SNew(SVerticalBox);
+    auto RateInput=MakeShared<TSensorToolNumericInput<double>>(100.,400.);
+    auto SeedInput=MakeShared<TSensorToolNumericInput<int32>>(0,1000000);
+    auto NoticeFont=[this](){return FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::LabelSize,GetSensorToolVisualScale());};
     Box->AddSlot().AutoHeight()[SNewSensorTool(SButton).Text(FText::FromString(TEXT("선택 장비에 IMU 부착"))).IsEnabled_Lambda([this,Current](){return Selected()&&!Current();}).ToolTipText(FText::FromString(TEXT("선택 장비에 이 세션 동안만 부착합니다. 기록과 전송은 별도로 켜세요."))).OnClicked_Lambda([this](){AttachSelectedImu();return FReply::Handled();})];
+    Box->AddSlot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton).Text(NSLOCTEXT("SensorImu","Detach","IMU 해제…"))
+        .IsEnabled_Lambda([Current](){const auto* C=Current();return C&&!C->IsDetaching();})
+        .OnClicked_Lambda([this](){RequestSelectedImuDetach();return FReply::Handled();})];
+    Box->AddSlot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this](){return PendingImuDetach.IsValid()&&PendingImuDetach->GetOwner()==Selected()?EVisibility::Visible:EVisibility::Collapsed;})
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PendingImuDetachText;})]
+        +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)
+            +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(SButton).Text(NSLOCTEXT("SensorImu","DetachConfirm","해제 확인")).OnClicked_Lambda([this](){ConfirmSelectedImuDetach();return FReply::Handled();})]
+            +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(SButton).Text(NSLOCTEXT("SensorImu","DetachCancel","취소")).OnClicked_Lambda([this](){PendingImuDetach.Reset();return FReply::Handled();})]]];
     Box->AddSlot().AutoHeight().Padding(0,6)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("기본 없음 · 부착하면 표본 수집을 시작합니다. 기록·전송은 기본 꺼짐이며 세션 종료 시 해제됩니다.\nFLU(전방/좌측/위) · 정지 시 +Z ≈ 9.81 · 자세는 시뮬레이터 정답")))];
     Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("표본 주파수 (Hz)")))];
-    Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SSpinBox<double>).Style(&GetToolSpinBoxStyle()).Font_Lambda([this](){return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::BodySize,GetSensorToolVisualScale()):FCoreStyle::Get().GetFontStyle(TEXT("NormalFont"));}).MinValue(100).MaxValue(400).Delta(10).Value_Lambda([Current](){auto* C=Current();return C?C->GetConfig().RateHz:200.;}).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).OnValueCommitted_Lambda([this,Current](double V,ETextCommit::Type){if(auto* C=Current()){auto Config=C->GetConfig();Config.RateHz=V;C->Configure(Config,Status);}})];
+    Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SSpinBox<double>).TypeInterface(RateInput).Style(&GetToolSpinBoxStyle()).Font_Lambda([this](){return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::BodySize,GetSensorToolVisualScale()):FCoreStyle::Get().GetFontStyle(TEXT("NormalFont"));}).MinValue(100).MaxValue(400).Delta(10).Value_Lambda([Current](){auto* C=Current();return C?C->GetConfig().RateHz:200.;}).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).OnValueCommitted_Lambda([this,Current](double V,ETextCommit::Type){if(auto* C=Current()){auto Config=C->GetConfig();Config.RateHz=V;C->Configure(Config,Status);}})];
+    Box->AddSlot().AutoHeight()[SensorToolNumericNotice<double>(RateInput,NoticeFont)];
     Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).IsChecked_Lambda([Current](){auto* C=Current();return C&&C->GetConfig().Noise?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this,Current](ECheckBoxState V){if(auto* C=Current()){auto Config=C->GetConfig();Config.Noise=V==ECheckBoxState::Checked;Config.Profile=Config.Noise?EVirtualImuProfile::IndustrialMems:EVirtualImuProfile::Ideal;C->Configure(Config,Status);}})[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("산업용 MEMS 가정 노이즈")))]];
     Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("노이즈 랜덤 시드")))];
-    Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SSpinBox<int32>).Style(&GetToolSpinBoxStyle()).Font_Lambda([this](){return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::BodySize,GetSensorToolVisualScale()):FCoreStyle::Get().GetFontStyle(TEXT("NormalFont"));}).MinValue(0).MaxValue(1000000).Value_Lambda([Current](){auto* C=Current();return C?C->GetConfig().Seed:1337;}).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).OnValueCommitted_Lambda([this,Current](int32 V,ETextCommit::Type){if(auto* C=Current()){auto Config=C->GetConfig();Config.Seed=V;C->Configure(Config,Status);}})];
+    Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SSpinBox<int32>).TypeInterface(SeedInput).Style(&GetToolSpinBoxStyle()).Font_Lambda([this](){return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::BodySize,GetSensorToolVisualScale()):FCoreStyle::Get().GetFontStyle(TEXT("NormalFont"));}).MinValue(0).MaxValue(1000000).Value_Lambda([Current](){auto* C=Current();return C?C->GetConfig().Seed:1337;}).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).OnValueCommitted_Lambda([this,Current](int32 V,ETextCommit::Type){if(auto* C=Current()){auto Config=C->GetConfig();Config.Seed=V;C->Configure(Config,Status);}})];
+    Box->AddSlot().AutoHeight()[SensorToolNumericNotice<int32>(SeedInput,NoticeFont)];
     auto Check=[&](FString Label,bool Record){Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).IsChecked_Lambda([Current,Record](){auto* C=Current();return C&&(Record?C->IsRecording():C->IsPublishing())?ECheckBoxState::Checked:ECheckBoxState::Unchecked;}).OnCheckStateChanged_Lambda([this,Current,Record](ECheckBoxState V){if(auto* C=Current()){if(Record)C->SetRecording(V==ECheckBoxState::Checked);else C->SetPublishing(V==ECheckBoxState::Checked);bImuRecordingForDisplay=C->IsRecording();bImuPublishingForDisplay=C->IsPublishing();}})[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,Record,On=SensorToolUiText::OptionState(FText::FromString(Label),true),Off=SensorToolUiText::OptionState(FText::FromString(Label),false)](){return (Record?bImuRecordingForDisplay:bImuPublishingForDisplay)?On:Off;})]];};
     Check(TEXT("IMU 기록 (최대 24,000 표본)"),true);Check(TEXT("IMU 전송 · 별도 출력"),false);
     Box->AddSlot().AutoHeight()[SNewSensorTool(SButton).Text(FText::FromString(TEXT("기록한 IMU CSV 저장"))).IsEnabled_Lambda([Current](){return Current()!=nullptr;}).OnClicked_Lambda([this,Current](){if(auto* C=Current())ImuCsvRequest=C->SaveCsv();return FReply::Handled();})];
