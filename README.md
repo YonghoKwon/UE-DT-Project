@@ -36,6 +36,7 @@ IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63
 | 사용자 검수 F11·F12 (INSP-FIX-1) | `48d93d6`: 신규 PCD 선택을 덮어쓰던 관찰 검증 버튼 수정, TCP 연결 시험·대기/연결/단절 표시·첫 차단 사유 정리. release14단계 Success294/조건부skip38/실패0·Editor/Game·WBP7·어휘·golden·layer0. 로컬 실제 PCD100프레임/106,567,882bytes·invalid0, 표시형1+1 ABAB12샘플2% gate 통과 | 직접1280×720·DPI1·글자150%에서 기본값/토글·차단 이동·연결 시험 확인. M13/M15 전체·M14 제한 링크/실제 단절 조합은 별도. `Saved/Reports/INSP-FIX-1/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·Depth/semantic/Actor ID/bbox·snapshot·비동기 저장 유지. UXR-15 CAM-GT-FIX로 체크 즉시 실제 적용·끄기 후 RGB 복귀, UI→4모드/4파일·프로필/배치 디스크 복원 회귀 추가 | 1920×1080·DPI1·글자100%의 직접 on/off·4모드·저장 재검수 완료. 다른 직접 조합/반복 수용은 통합 점검표, 서버 송신/ROS2/3D bbox는 2단계 제안. 원본 `Saved/Reports/CAM-GT-01/RESULT.md` |
+| 검수 화면 (INSP-FIX-4) | Runtime `6b42f84`: 카드 점군 토글·듀얼 비율, 공통 레일 표시·IMU 확인 해제/CSV·숫자 조정 안내·사실성/색 설명. 기존 Editor/Game·WBP7·어휘/golden·Python69·자동64쌍·대표 직접6항목 확인 | INSP-FIX-4b 테스트 `f88af4b`: UXR10 커서 입력 격리, 단독10/10·표준 release2회 연속301 Success/39조건부skip/실패0. Runtime 불변으로 perf 재측정 생략(기존 ABAB12회2% PASS). 개인196/보호653 hash 복원. `Saved/Reports/INSP-FIX-4/RESULT.md` |
 | 검수 동작 (INSP-FIX-3) | Runtime `f92c272`: 정답 저장 결과·폴더/최근 파일·배치 선택 경쟁 수정. Editor/Game·release298 Success/skip39·WBP7·layer0·2% perf PASS | 최종1280×720·native DPI1·100% 직접 저장/폴더·교대 선택20회. 나머지 직접 조합·독립 검토는 `Saved/Reports/INSP-FIX-3/RESULT.md` |
 | LiDAR 사실성 (LIDAR-FID-01) | 모두 기본 꺼짐. UXR-15에서 실제 체크3개→Scan 상태·프로필/배치 복원·CPU trace/PCD 출력·UI dataset RHI 반영 회귀 확인 | 1920×1080·DPI1·글자100% 직접3개 on/off 완료. 다른 직접 조합/이동 Slab은 통합 점검표. 기존 켜짐 비용 GT +2.658ms(+50.20%)·p95 +0.510ms(+3.06%)와 가정 모델 한계는 `Saved/Reports/LIDAR-FID-01/RESULT.md` 유지 |
 | 데이터셋 생성 (DATASET-01) | 구현·자동 검증 완료. UXR-15에서 UI 시작→정답/사실성 on/off 산출물·범위15개 sampled 값 회귀와 실제3장면 직접 생성 완료·각7파일 확인 | 기본 꺼짐·세션 draft/명시 시작 유지. 직접 범위15개·포함3개 on/off 완료, 취소/재개·전체 직접 조합·장시간은 통합 점검표. 초기 cold61ms peak·geometry/동일 PIE resume 제한·기존100장면 검증은 `Saved/Reports/DATASET-01/RESULT.md` 유지 |
@@ -171,7 +172,13 @@ HttpEndpoint=
 
 ## 5. UI와 조작
 
-소유 UI의 기본 화면은 **왼쪽 작업 사이드바**다. 아이콘 레일에서 **배치 / 미리보기 / 시나리오 / PCD / 결과**를 선택하고, 하단 **도구 → UI 표시**에서 글자 배율과 **창 자유 배치 (이전 방식)**를 선택한다. 왼쪽 본문은 한 번에 작업 하나만 표시하며 같은 작업 버튼을 다시 누르면 접힌다. 미리보기는 오른쪽 아래, Slab 요약은 오른쪽 위 카드이고 전역 상태는 하단 한 줄이다. 기존 7개 패널 인스턴스·Blueprint API·장비 선택과 작업 상태를 재사용한다. Host가 명시적으로 등록한 native UI만 관리하며 사용자 Designer·레거시 툴바·외부 Widget은 변경하지 않는다.
+INSP-FIX-4의 LiDAR 카드는 **점군만 보기** 체크로 일반 보기와 바로 전환한다. 선택 플레이어 화면만 바꾸며 센서 측정·서버 데이터는 유지한다. Camera 2대 동시 보기에서는 카드의 **비율** 버튼으로 위:아래를 70:30 → 50:50 → 30:70으로 바꾼다. 영상 종횡비를 유지하며 숨김·재열기·재호스팅은 같은 세션의 비율을 기억한다. Workspace v1에 해당 필드가 없어 새 PIE에는 기존 70:30으로 시작하며 저장 형식을 확장하지 않는다.
+
+배치의 IMU 영역에서 **IMU 해제… → 해제 확인**을 누르면 해당 장비의 기록·전송 선택을 끄고 기록한 표본의 CSV 저장을 마친 뒤 해제한다. 취소나 확인 전 선택 변경은 해제하지 않는다. 저장 실패 시 IMU와 기록 표본을 유지하며 재시도 안내를 표시한다. 패널을 숨겨도 이미 접수한 저장·해제는 계속된다. 해제 후 외부 제어 API의 센서 조회에서 해당 `imu` 객체가 사라진다. IMU는 계속 기본 없음·세션 전용이다.
+
+센서 설정의 공통 숫자 입력과 IMU 숫자 입력은 범위를 벗어난 값을 기존처럼 제한하며 바로 아래에 **최대값/최소값 …으로 조정됨**을 표시한다. 다음 정상 입력은 안내를 지운다. LiDAR 사실성 네 옵션과 반사 강도·측정 시각 색상에는 짧은 설명과 ⓘ 도움말을 제공한다. 화면에서 보이는 변화·학습 데이터 용도·비용·가정 모델의 한계를 설명하며 옵션의 기본 꺼짐과 측정 계약은 유지한다. 검증 범위와 직접 수용 결과는 `Saved/Reports/INSP-FIX-4/RESULT.md`를 따른다.
+
+소유 UI의 기본 화면은 **왼쪽 작업 사이드바**다. 아이콘 레일에서 **배치 / 보기 / 시나리오 / 전송 / 결과**를 선택하고, 하단 **도구 → UI 표시**에서 글자 배율과 **창 자유 배치 (이전 방식)**를 선택한다. 왼쪽 본문은 한 번에 작업 하나만 표시하며 같은 작업 버튼을 다시 누르면 접힌다. 미리보기는 오른쪽 아래, Slab 요약은 오른쪽 위 카드이고 전역 상태는 하단 한 줄이다. 기존 7개 패널 인스턴스·Blueprint API·장비 선택과 작업 상태를 재사용한다. Host가 명시적으로 등록한 native UI만 관리하며 사용자 Designer·레거시 툴바·외부 Widget은 변경하지 않는다.
 
 화면에서는 장비의 수집을 **측정 시작/측정 중지**, 서버로 보내는 작업을 **PCD 전송**, 로컬 기록을 **파일 저장**, JPEG/telemetry 선택을 **추가 출력: Camera 이미지·LiDAR 정보**로 구분한다. 서버 연결의 `서버 주소`/`출력 주소`는 기존 Broker URL/Topic 값의 표시 이름이다. 결과의 **서버 수락**은 외부 프로그램의 저장·처리 완료가 아니다. 기술 원문은 진단·고급·호환 영역에 남는다. UXR-07 현재 직접 판정은 `Saved/Reports/UXR/UXR-07/manual/session-20261013T0106/CHECKLIST.md`다. 주요 화면의 실제 1280×720·1920×1080 × 글자100/125/150% 접근을 확인했으나 모든 패널·조작의 전수 통과는 아니다. 사용자 체험은 같은 보고서 그룹의 `USER_TRIAL.md`를 따른다.
 
@@ -223,13 +230,13 @@ INSP-FIX-1(F11·F12): 서버 칩은 **서버 설정 필요 / 서버 설정됨 ·
 
 | 패널 / WBP | 현재 역할 |
 |---|---|
-| 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상/점군 + 장비·상태·측정Hz·실제 경고1줄. 중지/장비 없음 안내. 투영·색상·듀얼·범례·개발자 정보는 **보기 설정** |
+| 모니터 / `WBP_VirtualSensorMonitorPanel` | 영상/점군 + 장비·상태·측정Hz·실제 경고1줄. 카드의 점군만 보기·듀얼 비율. 중지/장비 없음 안내. 투영·색상·듀얼 대상·범례·개발자 정보는 **보기 설정** |
 | 센서 설정 / `WBP_VirtualSensorSettingsPanel` | **기본 / 고급 / 자동화**. 기본=프로필·품질·주기·거리·미리보기 점·측정 시작/중지. 고급=Camera 정답·LiDAR 사실성·해상도/FOV/채널·다중 검출·IMU 기존 배치 화면 연결·접힌 호환 출력·관리. 자동화=API/일괄 상태·기존 데이터셋/변환 형식/TESTSET 화면 연결·스캔 자동 파일 저장 |
 | 데이터 / `WBP_VirtualSensorCaptureExportPanel` | **전송 / 결과 / 파일 저장 / 서버 연결 / 진단**. 새 소유 인스턴스는 전송 탭 |
 | 재생 / `WBP_SlabScenarioReplayPanel` | 전체 UUID/내부 보관 ID, 선택 항목 재실행·복사·삭제, 이번 재생 출력 요약 + `PCD 전송에서 변경` |
 | 차트 / `WBP_SlabChartsPanel` | 기울기·중심 이탈·Margin 3개를 진행 시점까지만 표시 |
 | 진행 / `WBP_SlabProgressPanel` | 상태·진행률·일시정지/재개/중단/초기 위치 복귀, 차트 토글, **표시 설정**(3D·단위·외형) |
-| 배치 / `WBP_VirtualSensorPlacementPanel` | 장비 추가·선택·조작, 저장 위치·전체 배치 저장/불러오기·세션 IMU 부착/설정/기록 |
+| 배치 / `WBP_VirtualSensorPlacementPanel` | 장비 추가·선택·조작, 저장 위치·전체 배치 저장/불러오기·세션 IMU 부착/설정/기록/확인 해제 |
 
 - 기본 사이드바는 고정 배치다. **도구 → UI 표시 → 창 자유 배치 (이전 방식)**에서는 제목 drag·우하단 resize·접기·숨김을 계속 사용할 수 있다. 두 모드는 같은 인스턴스를 사용하며 전환이 측정·파일 저장·전송·재생을 중단하지 않는다. 사이드바 사각형은 Workspace v1의 기존 자유 배치 저장값을 덮어쓰지 않는다. 표시 모드 선택은 현재 PIE에만 적용되고 새 PIE는 사이드바로 시작한다.
 - `더보기 → 이 창 위치·크기 초기화`는 해당 패널만, `도구 → UI 표시 → 센서 도구 UI 초기화`는 소유 패널 배치·열림·폰트만 초기화한다.
@@ -454,6 +461,8 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 ### IMU-01 — 선택 장비에 IMU 부착 (기본 없음)
 
+INSP-FIX-4의 **IMU 해제… → 해제 확인**은 같은 영역에 있다. 기록·전송을 끄고 기록된 표본의 CSV 완료 후 해제하며, 저장 실패 시 IMU·표본을 유지한다. 확인 전 취소/선택 변경은 해제하지 않는다. 해제 뒤 `GET /v1/sensors`에는 해당 `imu` 객체가 없다.
+
 **배치 → 장비 선택 → IMU · 부착·설정·미리보기 → 선택 장비에 IMU 부착**을 누른다. Camera/LiDAR의 기존 Actor 루트에 `UVirtualImuComponent`를 붙이며 새 Actor·자산·맵·플러그인을 만들지 않는다. 주파수(100~400Hz, 기본200), 산업용 MEMS 가정 노이즈/이상적 측정, seed를 설정한다. 실시간 비력·각속도·자세와 XYZ 그래프는 영역을 펼쳤을 때만 최대5Hz로 갱신한다. 접기·패널 숨김은 IMU 측정이나 기록을 중지하지 않는다.
 
 부착·설정은 **이번 PIE 세션에만** 적용되며 기존 장비 프로필/전체 배치 SaveGame에 저장되지 않는다. 새 장비를 추가하거나 배치를 복원해도 IMU는 자동 생성되지 않는다. 다른 움직이는 Actor/장면 컴포넌트에는 Blueprint에서 `VirtualImuComponent`를 명시적으로 추가·부착하거나 C++의 `UVirtualImuComponent::Attach(Actor)`를 사용한다. 기존 `VirtualSensorMotionProvider`가 부착 체인에 있으면 센서 원점의 rigid velocity(레버암 포함)를 사용하며, 없으면 세 프레임의 위치와 쿼터니언에서 운동을 재구성한다. 일반 Actor의 출력에는 기존 Recorder/Publisher 참조를 명시적으로 공급한다. 새 DTCore 관리자나 구독 루프는 없다.
@@ -566,7 +575,7 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-17, INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
 INSP-FIX-3은 L1 Camera 저장 완료를 기존 L1 FileSave 요청 이력에 전달하고 L3 소유 보기/파일 저장 화면이 표시한다. 배치 선택의 mouse-down 확정·Actor별 행 재사용도 기존 L3 안에서 처리한다. 새 관리자·타이머·모듈·자산·DTCore·저장 형식 없이 layer 위반/allowlist **0→0**을 유지한다.
 

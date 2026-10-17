@@ -113,6 +113,9 @@ public:
     static bool SupportsAdaptiveDistance(ELidarColorMode Color);
     /** Test/tool opt-out; normal sensor panels retain their existing preference behavior. */
     bool bPersistMonitorPreferences = true;
+    // Workspace v1 has no internal split field: retain it on this session's panel.
+    void SetDualCameraSplitRatio(float Ratio);
+    float GetDualCameraSplitRatio() const { return DualCameraSplitRatio; }
 	void PumpPendingCaptureWork();
 	bool IsConfiguredCapturePending() const { return bConfiguredOneShotPending; }
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
@@ -579,6 +582,8 @@ private:
 
     bool bShowingLidar = false;
 	bool bDualCameraModeEnabled = false;
+    float DualCameraSplitRatio = .7f;
+    FText DualCameraSplitText;
 	bool bMonitorPreferencesRestored = false;
     bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
@@ -628,6 +633,7 @@ private:
 	void RefreshOwnedPreviewReadiness(UObject* Resource);
 	TSharedRef<SWidget> BuildOwnedPreviewLegend();
 	FText OwnedProjectionText,OwnedColorText,OwnedSecondaryCameraText;
+    FText OwnedColorHelpText,OwnedColorHelpDetail;
 	FText OwnedHeightMinText,OwnedHeightMaxText,OwnedSliceWidthText,OwnedPointSizeText;
 	TWeakObjectPtr<AVirtualSensorActorBase> OwnedPreviewTarget;
 	AVirtualSensorActorBase* GetOwnedMonitoredActor() const;
@@ -646,6 +652,7 @@ private:
 	friend class FSlabMinimalUiTest;
 	friend class FSensorMonitorRateStateTest;
 	friend class FSensorPreviewPresentationTest;
+    friend class FInspectionUiFeedbackCommand;
 	friend class FSensorVocabularyTest;
 	friend class FUxrPreviewRender;
     friend class FCameraTruthPresentationSession;

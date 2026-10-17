@@ -45,6 +45,7 @@ private:
 	friend class FSensorWorkflowStatusTest;
 	friend class FUxrSidebarRender;
     friend class FUxr16Integration;
+    friend class FInspectionUiFeedbackCommand;
 #endif
 	UVirtualSensorToolWorkspaceSubsystem* Workspace() const;
 	TArray<TSharedPtr<FString>> SensorOptions;

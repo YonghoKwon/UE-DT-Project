@@ -92,7 +92,8 @@ void ASlabScenarioValidationRig::Tick(float Delta)
         auto Button=[](const TCHAR* Label,TFunction<void()> Action){return SNew(SButton).Text(FText::FromString(Label)).OnClicked_Lambda([Action](){Action();return FReply::Handled();});};
         Controls=SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)
             +SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]
-            +SVerticalBox::Slot().AutoHeight()[SNew(SBorder).Padding(6).BorderBackgroundColor(FLinearColor(.02,.03,.05,1))[
+            // Test helper only: reserve the bottom input strip without referencing L3 UI.
+            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,96)[SNew(SBorder).Padding(6).BorderBackgroundColor(FLinearColor(.02,.03,.05,1))[
                 SNew(SVerticalBox)
                 +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증: 30초 관찰"),[this](){SubmitSynthetic(false);})]
