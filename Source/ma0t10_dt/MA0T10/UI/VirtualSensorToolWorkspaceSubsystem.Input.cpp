@@ -33,10 +33,10 @@ public:
             return false;
         };
         bool Owned=Contains(W->GetOwnedNavigation()?W->GetOwnedNavigation()->GetCachedWidget():nullptr);
-        for(int32 I=0;!Owned&&I<7;++I)
+        for(int32 I=0;!Owned&&I<8;++I)
         {
             const auto Role=static_cast<ESensorToolPanelRole>(I);const auto* Panel=W->GetOwnedPanel(Role);
-            Owned=Panel&&Panel->SupportsOwnedDocking()&&W->IsPanelOpen(Role)&&Contains(Panel->GetCachedWidget());
+            Owned=Panel&&(Panel->SupportsOwnedDocking()||Role==ESensorToolPanelRole::TestSet)&&W->IsPanelOpen(Role)&&Contains(Panel->GetCachedWidget());
         }
         if(Owned)if(auto User=App.GetUser(E.GetUserIndex()))
         {

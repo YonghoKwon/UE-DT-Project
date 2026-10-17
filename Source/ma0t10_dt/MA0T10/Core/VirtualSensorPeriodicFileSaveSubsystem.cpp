@@ -9,7 +9,7 @@ struct FVirtualSensorPeriodicFileSaveSession
 {
 	FVirtualSensorPeriodicFileSaveStatus Status;
 	TWeakObjectPtr<AVirtualSensorActorBase> Sensor;
-	uint64 Revision=0;
+	uint64 Revision=0,ControlRevision=0;
 	double Origin=0;
 	int64 NextDeadlineIndex=0;
 	int64 LastRequestedFrameId=-1;
@@ -77,10 +77,25 @@ FString UVirtualSensorPeriodicFileSaveSubsystem::StartPeriodicSave(AVirtualSenso
 bool UVirtualSensorPeriodicFileSaveSubsystem::StopPeriodicSave(const FString& Id)
 {
 	check(IsInGameThread());const auto* Found=Sessions.Find(Id);if(!Found)return false;
+	++(*Found)->ControlRevision;
 	auto& S=(*Found)->Status;
 	S.bActive=false;S.bWaitingForLatestFrame=false;S.WaitReason=EVirtualSensorPeriodicSaveWaitReason::None;
 	S.LastMessage=S.bPending?TEXT("주기 저장 중지 · 이미 접수한 파일을 마무리합니다."):TEXT("주기 저장 중지 완료");
 	Publish(*Found);return true;
+}
+uint64 UVirtualSensorPeriodicFileSaveSubsystem::SuspendForLocalCapture(const FString& Id)
+{
+    auto* Found=Sessions.Find(Id);if(!Found||!(*Found)->Status.bActive)return 0;
+    StopPeriodicSave(Id);return (*Found)->ControlRevision;
+}
+bool UVirtualSensorPeriodicFileSaveSubsystem::ResumeAfterLocalCapture(const FString& Id,uint64 Token)
+{
+    auto* Found=Sessions.Find(Id);if(!Found||!Token||(*Found)->ControlRevision!=Token)return false;
+    auto& S=**Found;if(!S.Sensor.IsValid()||S.Status.bActive||S.Status.bPending)return false;
+    for(const auto& Pair:Sessions)if(Pair.Key!=Id&&Pair.Value->Sensor==S.Sensor&&(Pair.Value->Status.bActive||Pair.Value->Status.bPending))return false;
+    S.Revision=UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(S.Sensor.Get());
+    S.Origin=FPlatformTime::Seconds();S.NextDeadlineIndex=0;S.Status.bActive=true;
+    S.Status.LastMessage=TEXT("테스트셋이 멈춘 주기 저장 재개");++S.ControlRevision;Publish(*Found);return true;
 }
 bool UVirtualSensorPeriodicFileSaveSubsystem::HasSensorWork(const AVirtualSensorActorBase* Sensor) const
 {

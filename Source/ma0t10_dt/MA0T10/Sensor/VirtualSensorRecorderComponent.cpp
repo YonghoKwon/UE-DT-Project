@@ -34,7 +34,7 @@ void UVirtualSensorRecorderComponent::ClearRecording()
 
 void UVirtualSensorRecorderComponent::RecordJsonFrame(const FString& SensorId, const FString& SensorType, int64 FrameId, const FString& PayloadJson)
 {
-    if (!bRecording)
+    if (!IsRecordingSensor(SensorId))
     {
         return;
     }

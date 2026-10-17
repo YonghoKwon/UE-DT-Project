@@ -45,6 +45,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor")
 	virtual void StartSensor();
+	uint64 GetRunControlRevision() const { return SensorRunControlRevision; }
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Sensor")
 	virtual void StopSensor();
@@ -89,6 +90,7 @@ public:
 	TObjectPtr<UVirtualSensorOutputComponent> OutputComponent;
 
 protected:
+	uint64 SensorRunControlRevision=0;
 	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> PlacementPickMarker;
 	int32 ConfigurationRevision=0;
 	bool bSettingsTransaction=false;

@@ -34,10 +34,12 @@ bool AVirtualSensorActorBase::IsSensorRunning() const
 
 void AVirtualSensorActorBase::StartSensor()
 {
+    ++SensorRunControlRevision;
 }
 
 void AVirtualSensorActorBase::StopSensor()
 {
+    ++SensorRunControlRevision;
 }
 
 void AVirtualSensorActorBase::CaptureSensorOnce()
@@ -175,7 +177,7 @@ bool AVirtualSensorActorBase::CanEditSensorPlacement(FString& Reason) const
 	{
 		if (OutputComponent->StreamPublisherComponent&&OutputComponent->StreamPublisherComponent->HasSensorPlacementWork(Id,GetSensorKind()))
 		{ Reason=TEXT("실시간 송신을 중지하고 정리가 끝난 뒤 위치를 변경할 수 있습니다."); return false; }
-		if (OutputComponent->RecorderComponent&&OutputComponent->RecorderComponent->IsRecording())
+		if (OutputComponent->RecorderComponent&&OutputComponent->RecorderComponent->IsRecordingSensor(Id))
 		{ Reason=TEXT("센서 녹화를 종료한 뒤 위치를 변경할 수 있습니다."); return false; }
 	}
 	return true;

@@ -148,6 +148,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Replay")
     void InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport = true);
 
+    /** Isolated saved-file viewer only: no acquisition delegates, encoding, recording or output. */
+    bool SetReadOnlyPreviewFrame(TSharedRef<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame);
+
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ApplyPreset(EVirtualLidarPreset NewPreset);
 

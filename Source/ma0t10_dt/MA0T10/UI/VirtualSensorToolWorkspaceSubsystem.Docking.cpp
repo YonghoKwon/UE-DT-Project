@@ -133,7 +133,7 @@ void UVirtualSensorToolWorkspaceSubsystem::RefreshDockedLayout()
     const FVector2D V=Canvas->GetCachedGeometry().GetLocalSize();if(V.X<320||V.Y<200)return;
     const float Scale=GetOwnedPanelFontScale()*GetOwnedPixelScale(),Rail=FSensorOwnedPresentationStyle::RailWidth*Scale,Bottom=FSensorOwnedPresentationStyle::StatusHeight*Scale;
     const float Width=FMath::Min(GetSidebarWidth(),float(V.X*.48));
-    for(auto& Pair:Panels)if(auto* P=Pair.Value.Get())if(P->SupportsOwnedDocking())
+    for(auto& Pair:Panels)if(Pair.Key!=ESensorToolPanelRole::TestSet)if(auto* P=Pair.Value.Get())if(P->SupportsOwnedDocking())
     {
         if(Pair.Key==ESensorToolPanelRole::Monitor)
         {

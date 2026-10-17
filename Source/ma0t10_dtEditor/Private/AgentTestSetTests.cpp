@@ -28,6 +28,7 @@
 #include "RHIGlobals.h"
 #include "EngineGlobals.h"
 #include "ShaderCompiler.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "UnrealClient.h"
 
 namespace
@@ -65,6 +66,7 @@ public:
             Slab=World->SpawnActorDeferred<ASlabActor>(ASlabActor::StaticClass(),FTransform(FVector(1500,0,200)));Slab->ReceiverId=TEXT("TESTSET-Fixture");Slab->Tags.Add(TEXT("Slab"));Slab->InitialDimensions=FVector(800,200,50);Slab->FinishSpawning(FTransform(FVector(1500,0,200)));Slab->SetDiagnosticHelpersVisible(false);Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Lidar->SetActorLocation(FVector(1500,-1000,800));Lidar->SetActorRotation((FVector(1500,0,225)-Lidar->GetActorLocation()).Rotation());
             auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=512;Scan->VerticalChannels=32;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->bEnableRangeNoise=false;Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->SensorId=Large?TEXT("TESTSET-LIDAR"):TEXT("UNAVAILABLE");
+            if(Manual)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();Dataset=World->GetSubsystem<UVirtualDatasetSubsystem>();Catalog=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();Catalog->RegisterPlaybackAdapter(Slab);
             Dataset->OnSceneSnapshotForTests=[this](const FJsonObject&){Test->TestFalse(TEXT("generation captures direct poses without real-time playback"),Slab->IsSimulationActive());};
             AVirtualSensorToolRig* Rig=nullptr;for(TActorIterator<AVirtualSensorToolRig> It(World);It;++It){Rig=*It;break;}
@@ -112,24 +114,26 @@ public:
         {
             if(!CompletedScreen){if(Now-CompletedAt<.3)return false;FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/automated-completed.png"),true,false);CompletedScreen=true;return false;}
             if(Manual)
-            {if(!FPaths::FileExists(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/manual/finish.flag")))return false;Service->StopPreview();Test->AddInfo(TEXT("Manual fixture completed by finish.flag; direct acceptance is recorded separately"));return Finish();}
+            {FString StopPath=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01/manual/finish.flag");FParse::Value(FCommandLine::Get(),TEXT("TestSetManualStopFile="),StopPath);if(!FPaths::FileExists(StopPath))return false;Service->StopPreview();Test->AddInfo(TEXT("Manual fixture completed by finish.flag; direct acceptance is recorded separately"));return Finish();}
             if(!Service->IsComplete())return false;
             if(PreviewCount<3)
             {
                 if(!PreviewRequested&&!Catalog->IsReplayBusy())
-                {Test->TestTrue(TEXT("completed selection requests existing replay"),Service->SelectPreview(PreviewCount,Error));PreviewRequested=true;return false;}
-                if(PreviewRequested&&Catalog->GetReplayStatus().State==ESlabScenarioReplayState::Playing)
+                {Test->TestTrue(TEXT("completed selection requests saved PCD viewer"),Service->SelectPreview(PreviewCount,Error));PreviewRequested=true;return false;}
+                if(PreviewRequested&&Service->PreviewStatus().Frame>=1)
                 {
-                    if(Slab->GetSimulationStatus().RowIndex<1)return false;
-                    const auto Status=Catalog->GetReplayStatus();Test->TestFalse(TEXT("selected playback is observation only"),Status.Outputs.HasAnyOutput());PreviewRuns.Add(Status.RunUUID);
-                    Test->TestTrue(TEXT("selected simulation actually advances source rows and pose"),Slab->GetActorLocation().X>1500.&&Slab->GetSimulationStatus().FrameNo>100);
+                    const auto View=Service->PreviewStatus();const auto& Item=Service->Items()[PreviewCount];
+                    Test->TestEqual(TEXT("saved point cloud selected"),View.Scenario,PreviewCount);Test->TestEqual(TEXT("saved PCD frame count"),View.Frames,Item.Frames);
+                    Test->TestTrue(TEXT("saved PCD has points and a rendered projection"),View.Points>0&&Service->PreviewTexture()!=nullptr);
+                    Test->TestFalse(TEXT("saved point cloud never plays Slab"),Slab->IsSimulationActive());
+                    Service->SetPreviewPaused(true);Test->TestFalse(TEXT("saved point cloud pause"),Service->PreviewStatus().Playing);Service->SetPreviewPaused(false);
                     FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01")/FString::Printf(TEXT("automated-preview-%d.png"),PreviewCount+1),true,false);
-                    ++PreviewCount;PreviewRequested=false;Service->StopPreview();return false;
+                    PreviewRuns.Add(Item.RunId);++PreviewCount;PreviewRequested=false;Service->StopPreview();return false;
                 }
                 return false;
             }
             if(Catalog->IsReplayBusy())return false;
-            Test->TestEqual(TEXT("selected scenarios each create independent replay runs"),PreviewRuns.Num(),3);
+            Test->TestEqual(TEXT("three saved PCD scenarios viewed"),PreviewRuns.Num(),3);
             Test->TestEqual(TEXT("preview never acquires or sends dataset PCD"),Lidar->ScanComponent->GetRuntimeStatus().FrameId,PreviewFrame);Test->TestEqual(TEXT("preview preserves completed test set"),Service->Completed(),Service->Settings().Target);
             Test->TestEqual(TEXT("preview does not evict normal archives"),Catalog->GetScenarios().Num(),2);
             int32 Code=0;const auto Api=World->GetSubsystem<UAutomationControlSubsystem>()->Dispatch(TEXT("GET"),TEXT("/v1/testset"),nullptr,Code);Test->TestEqual(TEXT("read-only status API"),Code,200);Test->TestEqual(TEXT("API completed count"),int32(Api->GetNumberField(TEXT("completed_scenarios"))),Service->Settings().Target);
@@ -169,7 +173,7 @@ public:
             Test->TestTrue(TEXT("generated archive ID selection"),Service->SelectPreview(2,Error));Phase=11;return false;
         }
         if(Phase==11)
-        {if(Catalog->GetReplayStatus().State!=ESlabScenarioReplayState::Playing||Slab->GetSimulationStatus().RowIndex<1)return false;Test->TestEqual(TEXT("missing UUID replay retains the admitted identity"),Slab->GetSimulationStatus().ScenarioUUID,GeneratedId);return Finish();}
+        {if(Service->PreviewStatus().Frame<1)return false;Test->TestEqual(TEXT("missing UUID saved PCD identity"),Service->Items()[Service->PreviewStatus().Scenario].ScenarioId,GeneratedId);return Finish();}
         return false;
     }
 private:
@@ -205,7 +209,7 @@ private:
     }
     void CheckUserEdits()
     {Test->TestTrue(TEXT("background capture preserves user pose/geometry/appearance edits"),Slab->GetActorTransform().Equals(UserPose)&&Slab->SlabMesh->GetRelativeScale3D().Equals(UserSize/100.)&&FMath::IsNearlyEqual(Slab->Roughness,.31415f));}
-    bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
+    bool Finish(){if(Manual&&World)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(true);if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
     FAutomationTestBase* Test;bool Large,Pipeline,Manual,PreviewRequested=false,CompletedScreen=false;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualDatasetSubsystem* Dataset=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
     FSlabScenarioDataPtr Source;FString Error,Root,GeneratedId;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0,LastWall=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game,Wall;TSet<FString> PreviewRuns;FVector UserSize;FTransform UserPose;
 };

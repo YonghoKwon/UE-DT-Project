@@ -472,16 +472,22 @@ EVisibility UVirtualSensorPanelWidgetBase::GetPanelBodyVisibility() const
 
 FVector2D UVirtualSensorPanelWidgetBase::ResolveLogicalViewportSize() const
 {
+    auto Available=[this](FVector2D Size)
+    {
+        if(ToolWorkspace.IsValid()&&ToolRole==ESensorToolPanelRole::TestSet&&ToolWorkspace->IsSidebarMode())
+            Size.Y=FMath::Max(200.,Size.Y-FSensorOwnedPresentationStyle::StatusHeight*ToolWorkspace->GetOwnedPanelFontScale()*ToolWorkspace->GetOwnedPixelScale());
+        return Size;
+    };
     if (const UPanelWidget* ParentPanel = GetParent())
     {
         const FVector2D ParentSize = ParentPanel->GetCachedGeometry().GetLocalSize();
         if (ParentSize.X >= 320.0f && ParentSize.Y >= 200.0f)
         {
-            return ParentSize;
+            return Available(ParentSize);
         }
     }
     const float DpiScale = FMath::Max(0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
-    return UWidgetLayoutLibrary::GetViewportSize(const_cast<UVirtualSensorPanelWidgetBase*>(this)) / DpiScale;
+    return Available(UWidgetLayoutLibrary::GetViewportSize(const_cast<UVirtualSensorPanelWidgetBase*>(this)) / DpiScale);
 }
 
 void UVirtualSensorPanelWidgetBase::RestorePanelUiState()

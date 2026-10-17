@@ -6,6 +6,14 @@
 class ASlabActor;
 struct FAgentTestSetState;
 class FJsonObject;
+class FAgentTestSetPcdPreview;
+struct FAgentTestSetPreviewStatus
+{
+    int32 Scenario=INDEX_NONE,Frame=INDEX_NONE,Frames=0,Points=0;
+    double Elapsed=0;
+    bool Playing=false,Loading=false;
+    FString Message;
+};
 
 enum class EAgentTestSetItemState : uint8 { Waiting, Generating, Completed, Failed };
 struct FAgentTestSetItem
@@ -42,6 +50,11 @@ public:
     bool ResetConfirmed(FString& Error);
     bool SelectPreview(int32 Index,FString& Error);
     void StopPreview();
+    void SetPreviewPaused(bool Paused);
+    FAgentTestSetPreviewStatus PreviewStatus() const;
+    class UTexture2D* PreviewTexture() const;
+    bool StopBusyWorkAndStart(FString& Error);
+    bool HasBusyWork() const;
     bool IsComplete() const;
     bool HasItems() const;
     int32 Completed() const;
@@ -58,6 +71,10 @@ private:
     FAgentTestSetSettings Config;
     TSharedPtr<FAgentTestSetState> State;
     FTimerHandle Timer;
+    TSharedPtr<FAgentTestSetPcdPreview> PcdPreview;
+    bool BusyReason(FString& Reason) const;
+    void SuspendBusyWork();
+    void RestoreStoppedWork(bool Resume=true);
     void Pump();
     void EnsurePump();
 };
