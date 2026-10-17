@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualCameraPayloadCodec.h"
+#include "VirtualCameraGroundTruth.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualCameraCaptureComponent.generated.h"
 
@@ -66,6 +67,8 @@ public:
     bool bGroundTruthEnabled=false;
     void SetGroundTruthEnabled(bool bEnabled);
     bool RequestGroundTruthSave();
+    bool RequestTrackedGroundTruthSave(FVirtualCameraTruthSaveCompletion Completion);
+    void CancelGroundTruthSave();
     bool IsGroundTruthSavePending() const;
     void SetGroundTruthPreviewDemand(bool bEnabled);
     UVirtualCameraGroundTruth* GetGroundTruth() const { return GroundTruth; }
@@ -229,6 +232,7 @@ public:
 private:
     UPROPERTY(Transient) TObjectPtr<UVirtualCameraGroundTruth> GroundTruth;
     bool bGroundTruthSaveRequested=false;
+    FVirtualCameraTruthSaveCompletion GroundTruthSaveCompletion;
     double GroundTruthPreviewDemandUntil=0, NextGroundTruthPreview=0;
     void CaptureGroundTruth(const FVirtualCameraPayloadSnapshot& Snapshot);
     void EnsureRenderTarget();

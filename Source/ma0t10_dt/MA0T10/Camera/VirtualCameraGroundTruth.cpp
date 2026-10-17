@@ -88,6 +88,8 @@ struct FVirtualCameraTruthWork
     double Started=0;
     bool Mapping=false, Save=false,Dataset=false,IncludeTruth=true;
     FString Directory,Error;
+    FVirtualCameraTruthSaveCompletion SaveCompleted;
+    TArray<int64> SavedSizes;
 };
 
 UVirtualCameraGroundTruth::UVirtualCameraGroundTruth(){PrimaryComponentTick.bCanEverTick=false;}
@@ -100,22 +102,24 @@ void UVirtualCameraGroundTruth::ReleaseReadbackCache()
 }
 void UVirtualCameraGroundTruth::EndPlay(const EEndPlayReason::Type Reason){Cancel();ReleaseReadbackCache();Super::EndPlay(Reason);}
 void UVirtualCameraGroundTruth::OnUnregister(){Cancel();ReleaseReadbackCache();if(DepthCapture)DepthCapture->DestroyComponent();DepthCapture=nullptr;DepthTarget=nullptr;SemanticScene.Reset();Super::OnUnregister();}
-void UVirtualCameraGroundTruth::Cancel()
+void UVirtualCameraGroundTruth::Cancel(const FString& Reason)
 {
     if(GetWorld())GetWorld()->GetTimerManager().ClearTimer(PollTimer);
     if(Work)
     {
         Work->Cancelled=true;auto Old=MoveTemp(Work);
         ENQUEUE_RENDER_COMMAND(CameraTruthRelease)([Old](FRHICommandListImmediate&)mutable{Old->Depth.Reset();Old->Semantic.Reset();Old->Rgb.Reset();});
+        auto Completion=MoveTemp(Old->SaveCompleted);if(Completion)Completion(nullptr,FString(),Reason,{});
     }
     LastFrame.Reset();PreviewTextures.Reset();Status=TEXT("정답 데이터 대기");
 }
-bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,const FVirtualCameraPayloadSnapshot& Snapshot,bool Save,bool Dataset,bool IncludeTruth)
+bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,const FVirtualCameraPayloadSnapshot& Snapshot,bool Save,bool Dataset,bool IncludeTruth,FVirtualCameraTruthSaveCompletion Completion)
 {
-    if(Work){Status=TEXT("정답 데이터 처리 중 · 새 요청 생략");return false;}
+    auto Reject=[&](const FString& Reason){Status=Reason;if(Completion)Completion(nullptr,FString(),Reason,{});return false;};
+    if(Work)return Reject(TEXT("정답 데이터 처리 중 · 새 요청 생략"));
     if(!GetWorld()||(IncludeTruth&&!Source.bGroundTruthEnabled)||(!IncludeTruth&&!Dataset)||Snapshot.Width<=0||Snapshot.Height<=0||int64(Snapshot.Width)*Snapshot.Height>4096ll*2160||Source.ProjectionType!=ECameraProjectionMode::Perspective||Source.bUseCustomProjectionMatrix)
-    {Status=TEXT("정답 데이터: 기본 원근 카메라만 지원합니다");return false;}
-    if(ActiveTruthWork.fetch_add(1)>=2){--ActiveTruthWork;Status=TEXT("정답 데이터: 전역 처리 한도 2개");return false;}
+    {return Reject(TEXT("정답 데이터: 기본 원근 카메라만 지원합니다"));}
+    if(ActiveTruthWork.fetch_add(1)>=2){--ActiveTruthWork;return Reject(TEXT("정답 데이터: 전역 처리 한도 2개"));}
     auto State=MakeShared<FVirtualCameraTruthWork,ESPMode::ThreadSafe>();
     State->Source=&Source;State->Revision=Source.GetFileCaptureRevision();State->Started=FPlatformTime::Seconds();State->Save=Save;State->Dataset=Dataset;State->IncludeTruth=IncludeTruth;
     State->Frame->Acquisition=Snapshot;State->Frame->Intrinsics=FVirtualCameraIntrinsics::Make(Snapshot.Width,Snapshot.Height,Snapshot.HorizontalFov);
@@ -143,13 +147,13 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
         return Source.PrimitiveRenderMode!=ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList||Source.ShowOnlyActors.Contains(C->GetOwner())||Source.ShowOnlyComponents.Contains(C);
     };
     if(!SemanticScene->Capture(GetWorld(),Source.GetOwner(),Source.GetComponentTransform(),Snapshot.HorizontalFov,Snapshot.Width,Snapshot.Height,VirtualSensorSemanticLabels::Resolve,true,Visible))
-    {Status=SemanticScene->Status;return false;}
+    {return Reject(SemanticScene->Status);}
     for(const auto& Entry:SemanticScene->Identities)
     {
         const FString Path=SemanticScene->ActorPaths.FindRef(Entry.Key);
         const auto Actor=SemanticScene->Actors.FindRef(Entry.Key);
         uint32* Id=ActorIds.Find(Actor);
-        if(!Id){if(NextActorId>0xffffff){Status=TEXT("정답 데이터 Actor ID 한도 초과");return false;}ActorIds.Add(Actor,NextActorId++);Id=ActorIds.Find(Actor);}
+        if(!Id){if(NextActorId>0xffffff)return Reject(TEXT("정답 데이터 Actor ID 한도 초과"));ActorIds.Add(Actor,NextActorId++);Id=ActorIds.Find(Actor);}
         State->Identities.Add(Entry.Key,TPair<uint8,uint32>(VirtualSensorSemanticLabels::ClassId(Entry.Value.Label),*Id));State->Frame->ActorPaths.Add(*Id,Path);
     }
     VirtualSensorCaptureRendering::Prepare(*DepthCapture,true);
@@ -180,7 +184,7 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
         }
     });
     State->Frame->SubmitMs=(FPlatformTime::Seconds()-State->Started)*1000;
-    Work=State;Status=TEXT("정답 데이터 읽는 중");
+    State->SaveCompleted=MoveTemp(Completion);Work=State;Status=TEXT("정답 데이터 읽는 중");
     GetWorld()->GetTimerManager().SetTimer(PollTimer,this,&ThisClass::Poll,0.02f,true);
     return true;
 }
@@ -190,7 +194,7 @@ void UVirtualCameraGroundTruth::Poll()
     auto State=Work;if(!State||State->Cancelled||State->Mapping)return;
     if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
     if(!State->CopiesQueued.load(std::memory_order_acquire)||(State->Depth&&!State->Depth->IsReady())||(State->Semantic&&!State->Semantic->IsReady())||(State->Rgb&&!State->Rgb->IsReady()))
-    {if(FPlatformTime::Seconds()-State->Started>10){Cancel();Status=TEXT("정답 데이터 GPU 대기 시간 초과");}return;}
+    {if(FPlatformTime::Seconds()-State->Started>10){const FString Reason=TEXT("정답 데이터 GPU 대기 시간 초과");Cancel(Reason);Status=Reason;}return;}
     State->Mapping=true;GetWorld()->GetTimerManager().ClearTimer(PollTimer);
     auto* Module=&FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     TWeakObjectPtr<UVirtualCameraGroundTruth> Weak(this);
@@ -280,6 +284,7 @@ void UVirtualCameraGroundTruth::Poll()
                     // camera_info is the completion marker. Cancelled/partial exports never get this file.
                     FTCHARToUTF8 Utf8(*Json);Files[3].Bytes.Append(reinterpret_cast<const uint8*>(Utf8.Get()),Utf8.Length());
                     if(Ok)Ok=UVirtualSensorFileSaveSubsystem::WriteCameraGroundTruthBundle(State->Directory,Files,[&State](){return State->Cancelled.load();});
+                    if(Ok)for(const auto& File:Files)State->SavedSizes.Add(File.Bytes.Num());
                     if(!Ok)State->Error=TEXT("정답 데이터 저장 실패 또는 취소 · 부분 파일 확인");
                 }
             }
@@ -292,7 +297,8 @@ void UVirtualCameraGroundTruth::Complete(const TSharedPtr<FVirtualCameraTruthWor
     if(Work!=State||State->Cancelled)return;
     if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
     Work.Reset();
-    if(!State->Error.IsEmpty()){Status=State->Error;return;}
+    auto Completion=MoveTemp(State->SaveCompleted);
+    if(!State->Error.IsEmpty()){Status=State->Error;if(Completion)Completion(nullptr,FString(),Status,{});return;}
     LastFrame=State->Frame;
     if(State->Dataset){Status=TEXT("데이터셋 카메라 준비 완료");return;}
     PreviewTextures.SetNum(3);
@@ -308,5 +314,6 @@ void UVirtualCameraGroundTruth::Complete(const TSharedPtr<FVirtualCameraTruthWor
     }
     if(State->Save)LastSavedDirectory=State->Directory;
     Status=FString::Printf(TEXT("정답 #%lld · Z 0–50 m · 미분류 %d · 제출 %.2f ms · 읽기 %.2f ms · CPU %.2f ms%s"),LastFrame->Acquisition.FrameId,LastFrame->UnclassifiedPixels,LastFrame->SubmitMs,LastFrame->ReadbackLatencyMs,LastFrame->DecodeMs,State->Save?TEXT(" · 저장 완료"):TEXT(""));
+    if(Completion)Completion(State->Frame.Get(),State->Directory,FString(),State->SavedSizes);
 }
 UTexture2D* UVirtualCameraGroundTruth::Preview(uint8 Mode) const{return Mode>=1&&Mode<=3&&PreviewTextures.IsValidIndex(Mode-1)?PreviewTextures[Mode-1].Get():nullptr;}

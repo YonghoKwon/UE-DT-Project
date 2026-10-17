@@ -633,6 +633,9 @@ private:
 	AVirtualSensorActorBase* GetOwnedMonitoredActor() const;
     uint8 CameraTruthDisplayMode=0;
     FText CameraTruthStatus;
+    FString CameraTruthSaveRequest,CameraTruthSavedDirectory;
+    bool bCameraTruthSaveTerminal=false;
+    void RequestCameraTruthSave();
     TSharedRef<SWidget> BuildCameraTruthControls();
     void RefreshCameraTruth();
 	void RefreshOwnedMonitorText();
@@ -650,6 +653,7 @@ private:
     friend class FUxr16Audit;
     friend class FUxr17PreviewSession;
     friend class FUxr15ToggleRhiCommand;
+    friend class FInspectionBehaviorCommand;
 #endif
 	TSharedPtr<SWidget> OwnedQuickViewControls;
     TSharedPtr<STextBlock> NativeTitleTextBlock;

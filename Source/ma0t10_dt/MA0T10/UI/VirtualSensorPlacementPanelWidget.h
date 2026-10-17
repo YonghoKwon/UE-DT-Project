@@ -40,6 +40,7 @@ protected:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSensorVocabularyTest;
+    friend class FInspectionBehaviorCommand;
 #endif
     TSharedRef<SWidget> BuildImuSection();
     TWeakPtr<class SExpandableArea> OwnedImuArea;
