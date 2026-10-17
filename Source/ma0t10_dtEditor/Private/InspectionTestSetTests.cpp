@@ -25,18 +25,21 @@
 #include "Misc/Parse.h"
 #include "Misc/SecureHash.h"
 #include "RHIGlobals.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "UnrealClient.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "HAL/FileManager.h"
 #include "GenericPlatform/GenericWindow.h"
+#include "Components/PanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 namespace
 {
 class FInspectionTestSetRun final:public IAutomationLatentCommand
 {
 public:
-    FInspectionTestSetRun(FAutomationTestBase* T,bool Hundred):Test(T),Large(Hundred){}
+    FInspectionTestSetRun(FAutomationTestBase* T,bool Hundred):Test(T),Large(Hundred),ManualBusy(FParse::Param(FCommandLine::Get(),TEXT("InspectionManualBusy"))){if(ManualBusy)Mode=3;}
     bool Update() override
     {
         const double Now=FPlatformTime::Seconds();if(Now-Started>1500){Test->AddError(TEXT("INSP-FIX-2 busy-work timeout"));return Finish();}
@@ -54,6 +57,7 @@ public:
             for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)if(It->GetSensorId()==TEXT("SLAB-LIDAR-001")){Lidar=*It;break;}
             if(!Slab||!Lidar||!Lidar->OutputComponent||!Lidar->OutputComponent->StreamPublisherComponent){Test->AddError(TEXT("inspection map Slab/LiDAR/publisher unavailable"));return Finish();}
+            if(ManualBusy)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();Periodic=World->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>();Publisher=Lidar->OutputComponent->StreamPublisherComponent;
             FString Json,Fixture;TArray<TSharedPtr<FJsonValue>> Values;
             if(Large&&FParse::Value(FCommandLine::Get(),TEXT("TestSetInspectionFixture="),Fixture))
@@ -82,6 +86,7 @@ public:
             Test->TestTrue(TEXT("visible blocker identifies sensor and work"),Service->Message().Contains(Lidar->GetSensorId())&&Service->Message().Contains(Expected));
             Save(TEXT("waiting"));
             FScreenshotRequest::RequestScreenshot(Report()/FString::Printf(TEXT("busy-%d-%d.png"),Large,Mode),true,false);
+            if(ManualBusy){Phase=1;return false;}
             if(Mode==3){Test->TestTrue(TEXT("one-click stop and start"),Service->StopBusyWorkAndStart(Error));}
             else if(Mode==0)Lidar->StopSensor();else if(Mode==1)Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());else Periodic->StopPeriodicSave(PeriodicId);
             Phase=1;return false;
@@ -108,6 +113,10 @@ public:
             if(Widget){const auto Before=Widget->GetCurrentPanelPosition();Widget->SetWorkspacePosition(Before+FVector2D(30,15));Workspace->SavePanel(ESensorToolPanelRole::TestSet);const auto Moved=Widget->GetCurrentPanelPosition();Widget->SetWorkspacePosition(Before);Workspace->RestorePanel(ESensorToolPanelRole::TestSet);Test->TestTrue(TEXT("Workspace v1 position restoration"),Widget->GetCurrentPanelPosition().Equals(Moved,1));}
             if(Widget)
             {
+                Widget->SetWorkspacePosition(FVector2D(100000,100000));
+                const double Footer=FSensorOwnedPresentationStyle::StatusHeight*Workspace->GetOwnedPanelFontScale()*Workspace->GetOwnedPixelScale();
+                Test->TestTrue(TEXT("floating test set remains above status strip"),Widget->GetCurrentPanelPosition().Y+Widget->GetEffectivePanelSize().Y<=Widget->GetParent()->GetCachedGeometry().GetLocalSize().Y-Footer+1);
+                Workspace->RestorePanel(ESensorToolPanelRole::TestSet);
                 Widget->CloseWidget();Test->TestTrue(TEXT("DTCore close can reopen the same owned test set instance"),Workspace->OpenTestSet()&&Workspace->GetTestSetWidget()==Widget&&Workspace->GetOwnedPanel(ESensorToolPanelRole::TestSet)==Widget&&Widget->GetToolWorkspace()==Workspace);
                 Workspace->SetPanelOpen(ESensorToolPanelRole::TestSet,false);Test->TestTrue(TEXT("header hide and reopen retain instance and generation"),Workspace->OpenTestSet()&&Workspace->GetTestSetWidget()==Widget&&Service->IsComplete());
             }
@@ -208,10 +217,11 @@ private:
     bool Finish()
     {
         if(Phase==7||Phase==8){FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_RES_X"),*OriginalX);FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_RES_Y"),*OriginalY);}
+        if(ManualBusy&&World)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(true);
         if(Service){Service->StopPreview();Service->ResetConfirmed(Error);}if(Lidar)Lidar->StopSensor();if(Publisher&&Lidar)Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());if(Periodic&&!PeriodicId.IsEmpty())Periodic->StopPeriodicSave(PeriodicId);
         if(Slab)Slab->SetSensorOutputs(OriginalOutputs);return true;
     }
-    FAutomationTestBase* Test;bool Large,MatrixDone=false;int32 MatrixStep=0;FString OriginalX,OriginalY,InputSource;double LastResize=0;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComponent* Publisher=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
+    FAutomationTestBase* Test;bool Large,ManualBusy=false,MatrixDone=false;int32 MatrixStep=0;FString OriginalX,OriginalY,InputSource;double LastResize=0;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComponent* Publisher=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
     FVirtualSlabSensorOutputSelection OriginalOutputs;TArray<FString> Inputs;FString Error,PeriodicId,PeriodicFolder,FileHash;int64 Submitted=0,SourceFrame=0;int32 Mode=0,Phase=0,Injected=0,Preview=0,SeenFrame=INDEX_NONE;double Started=FPlatformTime::Seconds(),Observed=0,At=0;
 };
 bool InspectionCase(FAutomationTestBase* Test,bool Large)

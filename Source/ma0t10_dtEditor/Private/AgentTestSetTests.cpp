@@ -28,6 +28,7 @@
 #include "RHIGlobals.h"
 #include "EngineGlobals.h"
 #include "ShaderCompiler.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "UnrealClient.h"
 
 namespace
@@ -65,6 +66,7 @@ public:
             Slab=World->SpawnActorDeferred<ASlabActor>(ASlabActor::StaticClass(),FTransform(FVector(1500,0,200)));Slab->ReceiverId=TEXT("TESTSET-Fixture");Slab->Tags.Add(TEXT("Slab"));Slab->InitialDimensions=FVector(800,200,50);Slab->FinishSpawning(FTransform(FVector(1500,0,200)));Slab->SetDiagnosticHelpersVisible(false);Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Lidar->SetActorLocation(FVector(1500,-1000,800));Lidar->SetActorRotation((FVector(1500,0,225)-Lidar->GetActorLocation()).Rotation());
             auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=512;Scan->VerticalChannels=32;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->bEnableRangeNoise=false;Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->SensorId=Large?TEXT("TESTSET-LIDAR"):TEXT("UNAVAILABLE");
+            if(Manual)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();Dataset=World->GetSubsystem<UVirtualDatasetSubsystem>();Catalog=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();Catalog->RegisterPlaybackAdapter(Slab);
             Dataset->OnSceneSnapshotForTests=[this](const FJsonObject&){Test->TestFalse(TEXT("generation captures direct poses without real-time playback"),Slab->IsSimulationActive());};
             AVirtualSensorToolRig* Rig=nullptr;for(TActorIterator<AVirtualSensorToolRig> It(World);It;++It){Rig=*It;break;}
@@ -207,7 +209,7 @@ private:
     }
     void CheckUserEdits()
     {Test->TestTrue(TEXT("background capture preserves user pose/geometry/appearance edits"),Slab->GetActorTransform().Equals(UserPose)&&Slab->SlabMesh->GetRelativeScale3D().Equals(UserSize/100.)&&FMath::IsNearlyEqual(Slab->Roughness,.31415f));}
-    bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
+    bool Finish(){if(Manual&&World)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(true);if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(Dataset){Dataset->OnSceneSnapshotForTests=nullptr;Dataset->Stop();}if(Lidar)Lidar->Destroy();if(Slab)Slab->Destroy();return true;}
     FAutomationTestBase* Test;bool Large,Pipeline,Manual,PreviewRequested=false,CompletedScreen=false;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualDatasetSubsystem* Dataset=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
     FSlabScenarioDataPtr Source;FString Error,Root,GeneratedId;int32 Phase=0,Injected=0,NormalCount=0,PreviewCount=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,PauseAt=0,NormalAt=0,CompletedAt=0,LastWall=0;int64 PauseFrame=0,PreviewFrame=0;uint64 LastFrame=0,MemoryStart=0,PeakMemory=0;TArray<double> Frames,Game,Wall;TSet<FString> PreviewRuns;FVector UserSize;FTransform UserPose;
 };
