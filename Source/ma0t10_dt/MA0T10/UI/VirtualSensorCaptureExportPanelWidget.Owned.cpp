@@ -36,6 +36,10 @@ FString UVirtualSensorCaptureExportPanelWidget::GetPcdPreflightText() const
     // Explicit legacy API requests still receive details, without formatting hidden Slate text.
     return IsWorkspaceOwned()&&bOwnedPreflightSnapshotReady?UVirtualSensorOutputPreflight::FormatDetails(OwnedPreflightSnapshot):CachedPcdPreflight;
 }
+FString UVirtualSensorCaptureExportPanelWidget::GetVisiblePcdBlockingReason() const
+{
+    return IsWorkspaceOwned()&&OwnedTab==ESensorOwnedDataTab::Transfer&&GetVisibility()!=ESlateVisibility::Hidden&&GetVisibility()!=ESlateVisibility::Collapsed&&!IsPanelCollapsed()&&bOwnedPreflightSnapshotReady&&!OwnedPreflightSnapshot.BlockingReasons.IsEmpty()?CachedPcdPreflightSummary:FString();
+}
 void UVirtualSensorCaptureExportPanelWidget::InitializeOwnedEntryView(EVirtualSensorCaptureExportTab PreviousTab)
 {
 	if(!IsWorkspaceOwned())return;
@@ -275,7 +279,9 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
     if(OwnedTab==ESensorOwnedDataTab::ServerConnection)
     {
         const auto* Transport=SensorManager?SensorManager->SharedTransportComponent.Get():nullptr;
+        bool Connected=false,Expected=false;if(Transport)Transport->GetOutputServerConnection(Connected,Expected);
         OwnedConnectionText=Transport?TEXT("적용된 서버: ")+(Transport->TransportMode==EVirtualSensorTransportMode::HttpPost?Transport->GetTransportProfile().HttpEndpoint:Transport->GetTransportProfile().BrokerUrl):TEXT("장비 연결이 필요합니다");
+        OwnedConnectionText+=TEXT("\n")+(Connected?FString(TEXT("연결 시험 성공 · 서버 연결됨")):Expected?FString(TEXT("연결 대기 · 연결되지 않으면 서버 주소와 전송 방식을 확인하세요")):FString(TEXT("설정됨 · 연결 시험 또는 전송 시작을 기다립니다")));
     }
     if(OwnedTab==ESensorOwnedDataTab::Diagnostics)
     {

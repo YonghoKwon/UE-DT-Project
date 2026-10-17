@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorWireHeaders.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 
@@ -185,6 +186,14 @@ bool UVirtualSensorTransportComponent::IsStompConnected() const
 	return StompClient.IsValid() && (bStompConnected.Load() || StompClient->IsConnected());
 }
 
+void UVirtualSensorTransportComponent::GetOutputServerConnection(bool& Connected,bool& Expected) const
+{
+	const auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
+	const bool CurrentRaw=Raw&&Raw->GetActiveProfile().BrokerUrl==TransportProfile.BrokerUrl&&Raw->GetActiveProfile().UserName==TransportProfile.UserName;
+	Connected=TransportMode==EVirtualSensorTransportMode::StompWebSocket&&(IsStompConnected()||(CurrentRaw&&Raw->IsTransportConnected()));
+	Expected=TransportMode==EVirtualSensorTransportMode::StompWebSocket&&(StompClient.IsValid()||(CurrentRaw&&Raw->IsHighThroughputTransportRunning()));
+}
+
 FVirtualSensorTransportResult UVirtualSensorTransportComponent::TestConnection()
 {
 	UE_LOG(LogTemp, Display, TEXT("[SensorStreamTransport] connection test owner=%s mode=%d broker=%s"),
@@ -194,11 +203,24 @@ FVirtualSensorTransportResult UVirtualSensorTransportComponent::TestConnection()
 	Result.RequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
 	if (TransportMode == EVirtualSensorTransportMode::StompWebSocket)
 	{
-		EnsureStompClient();
-		Result.bSubmitted = StompClient.IsValid();
-		Result.bAccepted = IsStompConnected();
-		Result.Destination = TransportProfile.BrokerUrl;
-		Result.Message = Result.bAccepted ? TEXT("Artemis STOMP 연결됨") : TEXT("Artemis STOMP 연결을 시작했습니다");
+		// Native PCD uses this worker for tcp:// and ws:// endpoints. Never pass
+		// tcp:// to the engine's WebSocket client or send a diagnostic payload.
+		if(UVirtualSensorHighThroughputTransportSubsystem::CanUseRawTcp(TransportProfile.BrokerUrl))
+		{
+			auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
+			FString Error;Result.Protocol=TEXT("STOMP/TCP");Result.Destination=TransportProfile.BrokerUrl;
+			Result.bSubmitted=Raw&&Raw->PrepareHighThroughputTransport(UVirtualSensorHighThroughputTransportSubsystem::MakeProfile(TransportProfile),SessionPasscode,Error,true);
+			Result.bAccepted=Result.bSubmitted&&Raw->IsTransportConnected();
+			Result.Message=!Result.bSubmitted?(Error.IsEmpty()?TEXT("전송 서비스를 확인하세요"):Error):Result.bAccepted?TEXT("연결 시험 성공 · 서버 연결됨"):TEXT("연결 시험 중 · 잠시 기다려 주세요");
+		}
+		else
+		{
+			EnsureStompClient();
+			Result.bSubmitted = StompClient.IsValid();
+			Result.bAccepted = IsStompConnected();
+			Result.Destination = TransportProfile.BrokerUrl;
+			Result.Message = Result.bAccepted ? TEXT("Artemis STOMP 연결됨") : TEXT("Artemis STOMP 연결을 시작했습니다");
+		}
 	}
 	else
 	{

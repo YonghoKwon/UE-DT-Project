@@ -12,11 +12,13 @@
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -79,9 +81,29 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     TestFalse(TEXT("equipment label has no redundant prefix"),Toolbar->SelectedSensorText().ToString().StartsWith(TEXT("장비")));
     TArray<FString> EquipmentTexts;FindTexts(Toolbar->BuildEquipmentMenu(),EquipmentTexts);
     TestTrue(TEXT("selector preserves kind groups and placement entry"),EquipmentTexts.Contains(TEXT("LiDAR"))&&EquipmentTexts.Contains(TEXT("Camera"))&&EquipmentTexts.Contains(SensorToolUiText::AddEquipment().ToString()));
+    auto* Transport=C->SharedTransportComponent.Get();auto Profile=Transport->GetTransportProfile();
+    Profile.BrokerUrl=TEXT("tcp://127.0.0.1:61616");Profile.ExportTopic.Reset();Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    auto* Slab=World->SpawnActor<ASlabActor>();Data->BindScenarioSlabActor(Slab);
+    Data->bOwnedScenarioStreamView=true;Data->bOwnedReplayPreflight=false;Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);
+    Toolbar->OpenOwnedDestination(ESensorToolDestination::PcdTransfer);Data->SetVisibility(ESlateVisibility::Visible);
+    Data->TickOwnedUi(FPlatformTime::Seconds()+1);Toolbar->RefreshOwnedStatus(FPlatformTime::Seconds()+1);
+    TestEqual(TEXT("PCD screen and warning show the same missing topic reason before any connection"),Data->CachedPcdPreflightSummary,Toolbar->GetGlobalStatus().Warning.ToString());
+    TestTrue(TEXT("missing PCD output address is specific"),Data->CachedPcdPreflightSummary.Contains(TEXT("PCD 출력 주소가 없습니다")));
+    Profile.ExportTopic=TEXT("pcd.topic");Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::HttpPost;
+    Data->TickOwnedUi(FPlatformTime::Seconds()+2);Toolbar->RefreshOwnedStatus(FPlatformTime::Seconds()+2);
+    TestEqual(TEXT("transport mode blocker matches in screen and warning"),Data->CachedPcdPreflightSummary,Toolbar->GetGlobalStatus().Warning.ToString());
+    TestTrue(TEXT("mode blocker explains the required choice"),Data->CachedPcdPreflightSummary.Contains(TEXT("실시간 전송을 선택")));
+    Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    Data->TickOwnedUi(FPlatformTime::Seconds()+3);Toolbar->RefreshOwnedStatus(FPlatformTime::Seconds()+3);
+    TestEqual(TEXT("idle configured server is visible before a connection attempt"),Toolbar->GetGlobalStatus().Server.ToString(),FString(TEXT("서버 설정됨 · 전송 대기")));
+    TestTrue(TEXT("configured idle has no connection warning"),Toolbar->GetGlobalStatus().Warning.IsEmpty());
+    C->UnregisterSensorActor(L);
+    Data->TickOwnedUi(FPlatformTime::Seconds()+4);Toolbar->RefreshOwnedStatus(FPlatformTime::Seconds()+4);
+    TestEqual(TEXT("missing LiDAR reason matches in PCD screen and warning"),Data->CachedPcdPreflightSummary,Toolbar->GetGlobalStatus().Warning.ToString());
+    TestTrue(TEXT("missing LiDAR is explicit"),Data->CachedPcdPreflightSummary.Contains(TEXT("LiDAR가 없습니다")));
     W->Toolbar=nullptr;
     for(const auto Role:{ESensorToolPanelRole::Placement,ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::SlabCharts})W->UnregisterPanel(W->GetOwnedPanel(Role));
-    C->Destroy();L->Destroy();Camera->Destroy();return true;
+    C->Destroy();L->Destroy();Camera->Destroy();Slab->Destroy();return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkflowStatusTest,"MA0T10.UXR01.ReadOnlyStatus",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -89,7 +111,12 @@ bool FSensorWorkflowStatusTest::RunTest(const FString&)
 {
     TestEqual(TEXT("missing settings immediately requires connection setup"),SensorToolUiText::ConnectionWarning(false,0).ToString(),SensorToolUiText::ConnectionRequired().ToString());
     TestFalse(TEXT("short disconnect displays reconnection"),SensorToolUiText::ConnectionWarning(true,4.9).ToString()==SensorToolUiText::ConnectionRequired().ToString());
-    TestEqual(TEXT("persistent disconnect requires connection check"),SensorToolUiText::ConnectionWarning(true,5).ToString(),SensorToolUiText::ConnectionRequired().ToString());
+    TestTrue(TEXT("persistent disconnect describes a lost connection"),SensorToolUiText::ConnectionWarning(true,5).ToString().Contains(TEXT("연결 끊김")));
+    TestTrue(TEXT("configured idle never warns about missing setup"),SensorToolUiText::ConnectionWarning(true,100,false).IsEmpty());
+    TestEqual(TEXT("idle configured state"),SensorToolUiText::ServerState(true,false,false,100).ToString(),FString(TEXT("서버 설정됨 · 전송 대기")));
+    TestEqual(TEXT("successful test without streams is connected"),SensorToolUiText::ServerState(true,true,true,0).ToString(),FString(TEXT("서버 연결됨")));
+    TestEqual(TEXT("short disconnect retries"),SensorToolUiText::ServerState(true,false,true,4.9).ToString(),FString(TEXT("서버 재연결 중")));
+    TestEqual(TEXT("five second disconnect is explicit"),SensorToolUiText::ServerState(true,false,true,5).ToString(),FString(TEXT("서버 연결 안 됨")));
     TestFalse(TEXT("send delay never claims missing settings"),SensorToolUiText::SendDelayed().ToString().Contains(TEXT("연결 설정 필요")));
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();W->SetCoordinator(C);auto* L=World->SpawnActor<AVirtualLidarSensorActor>();

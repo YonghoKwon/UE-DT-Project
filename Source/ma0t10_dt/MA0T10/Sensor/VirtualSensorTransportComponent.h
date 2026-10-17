@@ -241,6 +241,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorTransport")
 	bool IsStompConnected() const;
+	/** Read-only state of the current profile, including an idle connection test. */
+	void GetOutputServerConnection(bool& Connected,bool& Expected) const;
 	bool PrepareStompConnection(FString& Error);
 	int64 GetStompConnectionRevision() const { return StompConnectionRevision.Load(); }
 
