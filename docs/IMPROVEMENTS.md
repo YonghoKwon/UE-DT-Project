@@ -6,6 +6,14 @@
 
 ## 현재 개발 초점과 착수 순서
 
+### INSP-FIX-3 — 정답 저장 결과·배치 선택 일치 (F7·F10)
+
+출처: **사용자 검수 2026-10-17 F7·F10**, 승인 2026-10-17. 기준 `eeed0e9` / DTCore `b2504d1`, 브랜치 `fix/inspection-behavior`. 성능 비교 기준은 요청한 `a30055f`다.
+
+- **F7:** 저장 버튼의 임시 문구를 미리보기 상태 갱신이 덮던 경로를 수정했다. 기존 FileSave의 bounded 요청 이력·완료 이벤트로 요청/저장 중/완료·경로·폴더 열기/실패 사유를 유지하고, 기존 최근 파일 목록에도 실제 경로·worker가 전달한 크기를 반영한다. 비동기 캡처/worker·4종 파일 내용/완료 marker·Blueprint API·SaveGame 형식은 유지한다. 숨김은 저장 취소가 아니며, 센서 종료/설정 revision 변경의 결과는 실패/취소로 분리한다.
+- **F10:** UE5.3 `STableRow`의 기본 mouse-up 알림 전에 목록의5Hz 동기화가 이전 센서 행을 복원하는 경쟁 조건을 재현했다. 알림을 mouse-down으로 앞당기고, 목록 변경 때 같은 Actor의 행 객체를 유지한다. 선택 ID 문자열이 아닌 weak Actor 연결을 유지하며 갱신 주기는 바꾸지 않는다. 원본 검수 로그에는 down/up 이력이 없어 당시 모든 증상이 이 원인인지는 단정하지 않는다.
+- **검증 상태:** Runtime `f92c272`, Editor/Game Development·최종 release14단계(고유298 Success/조건부skip39/실패0)·WBP7 저장0·어휘/golden·layer0 통과. 대조 실행은 기존 mouse-up 알림만 복원하면 F10 Fail, 수정 후 집중4건 Success다. 최초 release의 UXR-15 꺼짐 안내 회귀는 완료 캐시와 현재 꺼짐 표시를 분리해 해결했으며 기존 기대값을 유지한다. 기존 UXR-10 합성 최대 resize는2회 실패 뒤 집중/최종 전체에서 통과했고 원문을 보존한다. 최종 Runtime에서1280×720·native DPI1.0/UMG0.666·100% 직접 저장 완료/폴더와 교대 선택20회를 재확인했다(이전 Runtime의150%4회 별도). 성능 gate: a30055f↔f92c272, 표시형1+1 ABAB12 유효·FPS 저하0.00575%·engine p95동일·GT−0.01891%,2% PASS. 최종 수치·skip 이름·보호 복원·제한은 `Saved/Reports/INSP-FIX-3/RESULT.md`에 기록한다. Claude 독립 검토 대기.
+
 ### INSP-FIX-2 — 테스트셋 대기·저장 점군 보기·공통 이동 패널 (F13·F14·F1·F3)
 
 출처: **사용자 직접 검수 2026-10-17 F13·F14·F1·F3**, 승인 2026-10-17. 기준 `1de8a98` / DTCore `b2504d1`, 브랜치 `fix/testset-inspection`.

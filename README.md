@@ -36,6 +36,7 @@ IMU-01(사용자 2026-10-16, 로드맵 #14): `feat/virtual-imu`, Runtime `a5de63
 | 사용자 검수 F11·F12 (INSP-FIX-1) | `48d93d6`: 신규 PCD 선택을 덮어쓰던 관찰 검증 버튼 수정, TCP 연결 시험·대기/연결/단절 표시·첫 차단 사유 정리. release14단계 Success294/조건부skip38/실패0·Editor/Game·WBP7·어휘·golden·layer0. 로컬 실제 PCD100프레임/106,567,882bytes·invalid0, 표시형1+1 ABAB12샘플2% gate 통과 | 직접1280×720·DPI1·글자150%에서 기본값/토글·차단 이동·연결 시험 확인. M13/M15 전체·M14 제한 링크/실제 단절 조합은 별도. `Saved/Reports/INSP-FIX-1/RESULT.md` |
 | Slab 시나리오 | 수신·보간 이동·차트·재실행·데이터 필수 실행·초기 위치 복귀 구현, 실제 Artemis 통과 | Engine/WSS 필수 모드·장시간 (DATA-01 90%), 재생 p95 20ms 목표 미달 이력 |
 | 카메라 정답 데이터 (CAM-GT-01) | 기본 꺼짐·Depth/semantic/Actor ID/bbox·snapshot·비동기 저장 유지. UXR-15 CAM-GT-FIX로 체크 즉시 실제 적용·끄기 후 RGB 복귀, UI→4모드/4파일·프로필/배치 디스크 복원 회귀 추가 | 1920×1080·DPI1·글자100%의 직접 on/off·4모드·저장 재검수 완료. 다른 직접 조합/반복 수용은 통합 점검표, 서버 송신/ROS2/3D bbox는 2단계 제안. 원본 `Saved/Reports/CAM-GT-01/RESULT.md` |
+| 검수 동작 (INSP-FIX-3) | Runtime `f92c272`: 정답 저장 결과·폴더/최근 파일·배치 선택 경쟁 수정. Editor/Game·release298 Success/skip39·WBP7·layer0·2% perf PASS | 최종1280×720·native DPI1·100% 직접 저장/폴더·교대 선택20회. 나머지 직접 조합·독립 검토는 `Saved/Reports/INSP-FIX-3/RESULT.md` |
 | LiDAR 사실성 (LIDAR-FID-01) | 모두 기본 꺼짐. UXR-15에서 실제 체크3개→Scan 상태·프로필/배치 복원·CPU trace/PCD 출력·UI dataset RHI 반영 회귀 확인 | 1920×1080·DPI1·글자100% 직접3개 on/off 완료. 다른 직접 조합/이동 Slab은 통합 점검표. 기존 켜짐 비용 GT +2.658ms(+50.20%)·p95 +0.510ms(+3.06%)와 가정 모델 한계는 `Saved/Reports/LIDAR-FID-01/RESULT.md` 유지 |
 | 데이터셋 생성 (DATASET-01) | 구현·자동 검증 완료. UXR-15에서 UI 시작→정답/사실성 on/off 산출물·범위15개 sampled 값 회귀와 실제3장면 직접 생성 완료·각7파일 확인 | 기본 꺼짐·세션 draft/명시 시작 유지. 직접 범위15개·포함3개 on/off 완료, 취소/재개·전체 직접 조합·장시간은 통합 점검표. 초기 cold61ms peak·geometry/동일 PIE resume 제한·기존100장면 검증은 `Saved/Reports/DATASET-01/RESULT.md` 유지 |
 | 표준 데이터셋 내보내기 (EXPORT-01) | Runtime eeff0c1: GPU20장면·COCO80마스크·KITTI407519점 재로딩/투영, Python19·release285 Success/skip32·2% perf 통과 | 기본 없음. UXR-16 직접 재시도도 Windows 잠금으로 입력0·보류(이전 Windows Security 이력 보존). KITTI 기울기 근사·custom class 제한은 [사용법](Tools/DatasetTools/README.md), 상세는 `Saved/Reports/EXPORT-01/RESULT.md` |
@@ -176,6 +177,7 @@ HttpEndpoint=
 
 - 미리보기 제목은 장비·상태·Hz만 표시하고 경고는 별도 한 줄/전체 툴팁으로 제공한다. 긴 ID는 제목에서 줄이되 툴팁과 공개 상태 API의 전체 ID는 유지한다. 장비가 없으면 선택 장비/조작 영역은 숨기고 추가 안내를 제공한다.
 - 배치 조작의 미리보기 상태 줄은 고정 높이여서 늦은 프레임 완료가 이동/회전 버튼 위치를 밀지 않는다. 관찰자 바로 앞의 기즈모도 거리 비례 크기를 유지한다. 이동·회전량, 원규격 복원과 측정/송신 정책은 바꾸지 않는다.
+- INSP-FIX-3(F10): 배치 목록은 마우스를 누르는 시점에 실제 센서를 선택한다. 누름/뗌 사이의 5Hz 동기화가 이전 선택을 복원하지 않으며, 장비 목록이 바뀌어도 남은 Actor의 행을 재사용한다. 하이라이트·센서 상세·미리보기·3D 조작 대상의 일치는 같은 입력/다음 5Hz 갱신에서 확인한다.
 - **현재 제한:** 자유 배치 제목 드래그가 실제 마우스 시험에서 창 이동을 만들지 않았다. 후보 hit-test 변경은 복구 효과가 없어 반영하지 않았다. 기본 사이드바의 클릭·전환과 별도로 후속 입력 진단이 필요하며 전체 UI 검수 완료로 표시하지 않는다.
 
 - **시나리오**는 사이드바에 진행 화면을 연다. `보관 목록`과 `시나리오 진행 →`으로 같은 작업 영역에서 전환하고, `시나리오 차트`는 기존 3중 차트로 이동한다. 자유 배치 모드에서는 진행·보관 목록의 동시 표시와 기존 개인 창 배치를 유지한다. 3D 표시·단위·외형은 진행의 **표시 설정** 접힘에 있고 출력 정책은 **PCD 전송**에서 편집한다.
@@ -440,7 +442,7 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 출처: 사용자 2026-10-15. **기본 꺼짐**인 카메라별 선택 기능이다. `도구 → 센서 상세 설정 → 고급 → 정답 데이터`를 체크하면 즉시 적용되며, 측정 중인 카메라의 `미리보기 → 보기 설정`에서 RGB / 깊이(Depth) / 의미 분류(Segmentation) / 객체 구분(Instance)을 선택한다. 화면이 요청하는 정답 데이터는 최대 5Hz이며 숨김/접힘 후 표시 수요가 만료된다. RGB 선택만으로 정답 캡처를 계속하지 않는다. 기존 JPEG·JSON·PCD 송신 bytes와 topic/schema는 유지한다.
 
-- **정답 데이터 1회 캡처:** FileSave 서비스의 admission을 거쳐 다음 카메라 acquisition에서 비동기 처리한다. 측정을 몰래 시작하지 않으며 busy/미지원/실패를 표시한다. `Saved/CameraGroundTruth/<고유 ID>/`에 `depth.exr`(float32 미터), `segmentation.png`(uint8 클래스 ID), `instance.png`(무손실 24-bit Actor ID), `camera_info.json`을 저장한다. JSON은 모든 이미지 저장 뒤의 완료 표식이다. 데이터셋·주기/대량 생성·서버 송신은 추가하지 않았다.
+- **정답 데이터 1회 저장:** FileSave 서비스의 admission을 거쳐 다음 카메라 acquisition에서 비동기 처리한다. 누른 보기 설정 화면에 요청/저장 중 → 완료·전체 폴더 경로·**폴더 열기**, 또는 실패 사유를 유지한다(INSP-FIX-3/F7). 미리보기 갱신이 저장 결과를 덮지 않는다. 기존 파일 저장 화면의 최근 결과에도 실제 파일 경로·크기를 반영한다. 측정을 몰래 시작하지 않으며 busy/미지원/실패를 표시한다. `Saved/CameraGroundTruth/<고유 ID>/`에 `depth.exr`(float32 미터), `segmentation.png`(uint8 클래스 ID), `instance.png`(무손실 24-bit Actor ID), `camera_info.json`을 저장한다. JSON은 모든 이미지 저장 뒤의 완료 표식이다. 데이터셋·주기/대량 생성·서버 송신은 추가하지 않았다.
 - **Depth:** SceneDepth의 광학축 Z를 cm→m로 변환한다. 광선 방향의 유클리드 거리와 구별하며 변환식을 JSON에 기록한다. 0은 배경/무효, 최대 10,000m다. 화면 컬러맵의 0–50m 범위는 저장 float 값을 자르지 않는다.
 - **보정:** 이상적인 pinhole, 왜곡 0. `fx=fy=width/(2 tan(HFOV/2))`, 정수 픽셀 중심 기준 `cx=(width-1)/2`, `cy=(height-1)/2`. 실제 해상도·FOV·UTC·frame id·revision과 UE 월드 pose(m), optical→UE world 4×4 행렬을 같은 acquisition snapshot으로 고정한다. UE 카메라 `(X 전방,Y 우측,Z 위)` → 광학 `(x 우측,y 아래,z 전방)`은 `(Y,-Z,X)`다. 실장비 D455 depth/보정 완료를 뜻하지 않는다.
 - **분류:** `Sensor/VirtualSensorSemanticLabels.*`가 LiDAR와 카메라의 기본 규칙·팔레트 원본이다. ID 0=배경/무효/미지원, 1=Other, 2=Slab, 3=Roller, 4=Conveyor, 5=Floor, 6=Sensor. Actor Tag뿐 아니라 기존 이름·클래스·컴포넌트 규칙 우선순위를 보존한다. 기존 개별 LiDAR 사용자 규칙은 유지되며 카메라로 자동 복제하지 않는다.
@@ -564,7 +566,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 기존 업무 폴더(Crane 등)는 L2로 분류만 하고 이번 단계에서 수정하지 않는다.
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
-### 10.2 현재 위반 (2026-10-16, UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+### 10.2 현재 위반 (2026-10-17, INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+INSP-FIX-3은 L1 Camera 저장 완료를 기존 L1 FileSave 요청 이력에 전달하고 L3 소유 보기/파일 저장 화면이 표시한다. 배치 선택의 mouse-down 확정·Actor별 행 재사용도 기존 L3 안에서 처리한다. 새 관리자·타이머·모듈·자산·DTCore·저장 형식 없이 layer 위반/allowlist **0→0**을 유지한다.
 
 UXR-18은 기존 L3 Settings의 기본/고급/자동화 재배치와 기존 소유 IMU/데이터셋/TESTSET 진입만 정리한다. 센서 revision과 기존 툴바5Hz 활동 캐시를 읽고 숨김/접힘 갱신을 멈춘다. L0~L2·DTCore·Blueprint/SaveGame/wire·새 모듈/자산 변경 없이 레이어 위반/allowlist **0→0**이다.
 
@@ -580,7 +584,7 @@ EXPORT-01은 L2 Dataset의 추가 OBB 라벨·선택적 외부 Python 프로세�
 
 ROS2-01은 `Tools/Ros2Bridge/`의 외부 adapter만 추가한다. UE 소스·모듈·플러그인·자산·DTCore 변경 없이 layer allowlist/위반 **0/0**을 유지하며, 센서 플러그인화나 UE 측 ROS2 연결 UI를 시작하지 않는다.
 
-gate는 `Tests/`를 제외한 `.h/.cpp` 286개(TESTSET-01 포함)에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
+gate는 `Tests/`를 제외한 `.h/.cpp` 288개(INSP-FIX-3 검증 기준)에서 **고유 source → resolved target include 쌍**을 센다. 현재 **위반 없음: 0쌍 = allowlist 0개**다. ARCH-06에서 남은 Scenario 의존 9쌍을 해소했으며 신규·stale도 0이다. MAP-01의 `UI/VirtualSensorToolRig`와 `UI/SensorMapCheckWidget`는 L3에서만 L1/L2를 참조하며 새 모듈/플러그인은 없다. UI-02의 `Slab/SlabLabelLayout`은 L2의 중립 screen geometry helper이며, L3 Workspace가 실제 소유 UI 사각형을 기존 Slab StatusVisualizer에 전달한다. L2→L3 include와 새 widget 관리자는 없다. CAM-GT-01은 Camera·Sensor 공통 semantic·Core FileSave(L1)를 재사용하고 UI(L3)가 이를 표시하며, 신규 역방향 의존 없이 위반/allowlist 0을 유지했다.
 
 LIDAR-FID-01은 L0 `VirtualSensorMotionProvider`를 L2 SlabMotion이 구현하고 L1 센서가 snapshot으로 읽는다. L1 `VirtualLidarFidelity`의 순수 모델을 CPU/GPU가 공유하고 기존 L3 소유 설정/미리보기가 옵션을 표시한다. 신규 역방향 의존 없이 위반·allowlist **0/0**, DTCore·모듈·자산·PCD 레코드 불변이다.
 
