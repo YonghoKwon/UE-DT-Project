@@ -40,7 +40,7 @@ bool UVirtualImuComponent::RequestDetach(FString& Message)
     if(Detaching){Message=DetachStatus;return false;}
     ResolveServices();
     SetRecording(false);SetPublishing(false);
-    if(!Recorder||Recorder->GetImuSamples(GetImuId()).IsEmpty())
+    if(!IsValid(Recorder)||Recorder->GetImuSamples(GetImuId()).IsEmpty())
     {Message=TEXT("IMU 해제 완료 · 기록된 표본 없음");FinishDetach();return true;}
     DetachCsvRequest=SaveCsv();
     const auto Status=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(DetachCsvRequest);
@@ -50,7 +50,7 @@ bool UVirtualImuComponent::RequestDetach(FString& Message)
 }
 void UVirtualImuComponent::FinishDetach()
 {
-    if(Recorder)Recorder->ClearImuSamples(GetImuId());
+    if(IsValid(Recorder))Recorder->ClearImuSamples(GetImuId());
     DestroyComponent();
 }
 void UVirtualImuComponent::EndPlay(const EEndPlayReason::Type R)

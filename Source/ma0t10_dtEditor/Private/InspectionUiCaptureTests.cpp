@@ -18,6 +18,9 @@
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Input/SEditableText.h"
+#include "Types/SlateAttributeMetaData.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
@@ -69,6 +72,7 @@ public:
         if(!Bar||!C||!Settings)return false;
         const int32 View=Phase%Count;const bool Wide=(Phase/Count)%2!=0;const float Scale=Phase<Count*2?1.f:1.5f;
         if(FParse::Param(FCommandLine::Get(),TEXT("Insp4DualOnly"))&&View!=3)return ++Phase==4*Count;
+        if(FParse::Param(FCommandLine::Get(),TEXT("Insp4NumericOnly"))&&View!=7)return ++Phase==4*Count;
         if(!ReadyAt)
         {
             if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
@@ -83,24 +87,47 @@ public:
             if(View<4){auto* M=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));M->SetDualCameraModeEnabled(Camera);if(!Camera)M->SetMonitorPresentation(View==2?EVirtualSensorMonitorPresentation::PointCloudOnly:EVirtualSensorMonitorPresentation::TwoDimensional);}
             if(View==4){auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));P->AttachSelectedImu();P->OpenOwnedImuSettings();}
             if(View>=5){Settings->SelectOwnedSettingsTab(View==7?0:1);Scroll(Settings->TakeWidget(),View==6);}
+            if(View==7)
+            {
+                TSharedPtr<SWidget> Numeric;
+                TFunction<void(const TSharedRef<SWidget>&)> FindVisible=[&](const TSharedRef<SWidget>& Item){FSlateAttributeMetaData::UpdateOnlyVisibilityAttributes(Item.Get(),FSlateAttributeMetaData::EInvalidationPermission::AllowInvalidation);if(!Item->GetVisibility().IsVisible())return;
+                    if(Item->GetType()==TEXT("SSpinBox<float>")){auto Spin=StaticCastSharedRef<SSpinBox<float>>(Item);if(Spin->GetMinValue()==10&&Spin->GetMaxValue()==20000)Numeric=Item;}
+                    auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)FindVisible(Children->GetChildAt(I));};
+                FindVisible(Settings->TakeWidget());
+                if(Test->TestTrue(TEXT("numeric capture uses actual range control"),Numeric.IsValid()))
+                {
+                    Visit(Numeric.ToSharedRef(),[&](const TSharedRef<SWidget>& Item){if(Item->GetType()==TEXT("SEditableText")){auto Edit=StaticCastSharedRef<SEditableText>(Item);Edit->SetText(FText::FromString(TEXT("999999")));Item->OnKeyDown(FGeometry(),FKeyEvent(EKeys::Enter,FModifierKeysState(),0,false,0,0));}});
+                    Visit(Settings->TakeWidget(),[&](const TSharedRef<SWidget>& Item){if(Item->GetType()==TEXT("SScrollBox"))StaticCastSharedRef<SScrollBox>(Item)->ScrollDescendantIntoView(Numeric->GetParentWidget()->GetParentWidget(),false,EDescendantScrollDestination::TopOrLeft);});
+                }
+            }
             ReadyAt=FPlatformTime::Seconds()+1.2;return false;
         }
         if(FPlatformTime::Seconds()<ReadyAt)return false;
         const FString Root=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));
         if(!Requested)
         {
-            if(!Baseline&&View==5)
+            if(!Baseline&&(View==5||View==6))
             {
-                int32 Explanations=0;
+                int32 Explanations=0;TSet<FName> Checked;
+                FVector2D ClipMin=Settings->GetCachedGeometry().GetAbsolutePosition(),ClipMax=ClipMin+Settings->GetCachedGeometry().GetAbsoluteSize();
+                Visit(Settings->TakeWidget(),[&](const TSharedRef<SWidget>& Item){if(Item->GetType()==TEXT("SScrollBox")){ClipMin=Item->GetCachedGeometry().GetAbsolutePosition();ClipMax=ClipMin+Item->GetCachedGeometry().GetAbsoluteSize();}});
                 Visit(Settings->TakeWidget(),[&](const TSharedRef<SWidget>& Item){if(Item->GetType()!=TEXT("STextBlock"))return;
                     const auto Text=StaticCastSharedRef<STextBlock>(Item);for(const TCHAR* Key:{TEXT("PointTime"),TEXT("MotionDistortion"),TEXT("MaterialResponse"),TEXT("MultiHit")})
-                    if(Text->GetText().EqualTo(SensorLidarHelp::Summary(Key))){++Explanations;const auto Actual=Text->GetCachedGeometry().GetLocalSize(),Desired=Text->GetDesiredSize();Test->AddInfo(FString::Printf(TEXT("F6 %s actual=%s desired=%s absolute=%s"),Key,*Actual.ToString(),*Desired.ToString(),*Text->GetCachedGeometry().GetAbsolutePosition().ToString()));Test->TestTrue(TEXT("fidelity explanation fits width and wrapped height at actual font/sidebar"),Actual.X+1>=Desired.X&&Actual.Y+1>=Desired.Y);}
+                    if(Text->GetText().EqualTo(SensorLidarHelp::Summary(Key))){++Explanations;const auto Actual=Text->GetCachedGeometry().GetLocalSize(),Desired=Text->GetDesiredSize(),Position=Text->GetCachedGeometry().GetAbsolutePosition(),ScreenSize=Text->GetCachedGeometry().GetAbsoluteSize();const bool Visible=ScreenSize.Y>0&&Position.Y>=ClipMin.Y-1&&Position.Y+ScreenSize.Y<=ClipMax.Y+1;
+                        Test->AddInfo(FString::Printf(TEXT("F6 %s actual=%s desired=%s absolute=%s within_scroll=%d"),Key,*Actual.ToString(),*Desired.ToString(),*Position.ToString(),Visible));
+                        // Offscreen children retain old geometry across font changes. Check each
+                        // description in its intended scrolled view, rather than that stale rectangle.
+                        const bool Target=View==5?FName(Key)!=TEXT("MultiHit"):FName(Key)==TEXT("MultiHit");
+                        if(Visible&&Target){Checked.Add(Key);Test->TestTrue(TEXT("visible fidelity explanation fits width and wrapped height"),Actual.X+1>=Desired.X&&Actual.Y+1>=Desired.Y);}}
                 });
                 Test->TestEqual(TEXT("four adjacent fidelity explanations rendered"),Explanations,4);
+                if(View==5)for(const TCHAR* Key:{TEXT("PointTime"),TEXT("MotionDistortion"),TEXT("MaterialResponse")})Test->TestTrue(TEXT("first three explanations checked in viewport"),Checked.Contains(Key));
+                if(View==6)Test->TestTrue(TEXT("multi-hit explanation checked after scrolling"),Checked.Contains(TEXT("MultiHit")));
             }
             const auto Size=World->GetGameViewport()->Viewport->GetSizeXY();
             Path=Root/FString::Printf(TEXT("%dx%d-%d-%s-%s.png"),Size.X,Size.Y,FMath::RoundToInt(Scale*100),Wide?TEXT("wide"):TEXT("narrow"),Names[View]);Previous=IFileManager::Get().GetTimeStamp(*Path);
             auto Record=MakeShared<FJsonObject>();Record->SetStringField(TEXT("capture"),Path);Record->SetNumberField(TEXT("width"),Size.X);Record->SetNumberField(TEXT("height"),Size.Y);Record->SetNumberField(TEXT("font_scale"),Scale);Record->SetNumberField(TEXT("sidebar_width"),W->GetSidebarWidth());Record->SetBoolField(TEXT("wide"),Wide);Record->SetBoolField(TEXT("baseline"),Baseline);Record->SetStringField(TEXT("sensor"),C->GetSelectedSensorActor()?C->GetSelectedSensorActor()->GetSensorId():FString());
+            Record->SetNumberField(TEXT("actual_font_scale"),W->GetOwnedPanelFontScale());Record->SetNumberField(TEXT("owned_pixel_scale"),W->GetOwnedPixelScale());
             if(View==3){auto* M=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));Test->TestTrue(TEXT("capture contains dual Camera controls"),M->IsDualCameraModeEnabled());Record->SetNumberField(TEXT("camera_count"),C->GetCameraCount());Record->SetBoolField(TEXT("dual"),M->IsDualCameraModeEnabled());}
             auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef());Record->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);
             FString Json;FJsonSerializer::Serialize(Record,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*FPaths::ChangeExtension(Path,TEXT("json")));
