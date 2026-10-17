@@ -14,7 +14,7 @@
 - **수정:** 사용 중은 센서ID/작업별 이유로 대기하고 해제 뒤 자동 재개한다. 원클릭은 선택 센서의 작업만 잠시 멈추고 종료 뒤 소유한 중지만 복원한다. 일반 시나리오 우선·접수된 송신 drain·사용자 설정/기본 PCD를 유지한다. 실제 오류의 실패/새 RunUUID 재시도는 남긴다.
 - **보기:** 완료 목록은 저장 PCD를 읽는 점군 조감도다. 파일 프레임/시간·점 수, 재생/일시정지/중지를 제공한다. 전용 컴포넌트의 immutable snapshot/기존 투영을 사용해 운영 센서·Slab 재생·전송·원본/라벨 파일을 건드리지 않는다.
 - **화면:** 공통 Presentation Style/헤더/버튼/글자 배율, Workspace 자유 드래그·크기 조절·v1 위치 저장을 재사용한다. TestSet enum 키만 끝에 추가하며 새 SaveGame 형식/슬롯/필드는 없다. 기본은 진행률·상태·중지/재개·폴더·상태 목록, 나머지는 접힌 상세다. 숨김/접힘 갱신 중지, 표시5Hz·행 상태 변경 감지, 미사용 타이머/파일/미리보기 컴포넌트0을 유지한다.
-- **검증 상태:** 구현·실제 RHI 집중 검증 진행. 전체 release/WBP/어휘/golden/Python/quick/layer·872e765 대비2% 성능·직접 UI를 구분해 `Saved/Reports/INSP-FIX-2/RESULT.md`에 최종 판정한다. [직접 T01~T05](MANUAL_CHECKLIST.md)와 원본 Inspection 기록은 별도다. 아직 최종 완료로 표시하지 않는다.
+- **검증 상태:** Runtime `d3df5a2`, 원본100×4조건(각2000PCD·64,512,000점)·파일 감사·실제 원클릭100·9/100 pause/resume·점군3개·드래그/위치/150%/경계 확인. Editor/Game·release14단계 고유297 Success/조건부skip38/실패0·WBP7 저장0·어휘/golden·Python69·quick/layer0 완료. 최초 GT+2.171% 실패 뒤 미사용 hold의 빈 집합 문자열 해시를 생략하고 동일 표준 ABAB12샘플 재측정: FPS 저하−0.00728%·p95동일·GT−1.41824%,2% PASS. 개인196/보호390파일 hash 복원, 기존51 TestSets 보존·세션117폴더만 정리. 최초 PCD enabled assertion 실패는 자동 재개 대기를 무조건 켬으로 기대한 검증 오류였고, retest 전후 enabled=false/false·intent=true/true/Success로 기록했다. 전후2해상도×100/150%8장 완료; 직접은1280×720·DPI1·100/150% 범위이며 다른 직접 조합/선택 센서 조합은 별도다. 검수맵 helper 하단 가림은 기존 테스트용 숨김 API로 분리해 확인했고 기본 맵은 유지한다. 상세·초기 실패·skip 이름은 `Saved/Reports/INSP-FIX-2/RESULT.md`, [직접 T01~T05](MANUAL_CHECKLIST.md). Claude 독립 검토 대기.
 
 ### INSP-FIX-1 — 신규 PCD 기본 선택·연결 상태 (F11·F12)
 
