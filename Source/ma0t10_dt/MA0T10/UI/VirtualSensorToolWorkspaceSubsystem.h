@@ -15,7 +15,7 @@ class USensorMapCheckWidget;
 class UAgentTestSetWidget;
 
 UENUM(BlueprintType)
-enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress, Placement };
+enum class ESensorToolPanelRole : uint8 { Monitor, Settings, Data, Replay, SlabCharts, SlabProgress, Placement, TestSet };
 USTRUCT()
 struct FSensorToolWorkspacePanelState
 {

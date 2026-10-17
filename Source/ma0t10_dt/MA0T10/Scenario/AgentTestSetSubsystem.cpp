@@ -1,5 +1,12 @@
 #include "AgentTestSetSubsystem.h"
 #include "VirtualDatasetSubsystem.h"
+#include "AgentTestSetPcdPreview.h"
+#include "ma0t10_dt/ma0t10_dt.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "SlabScenarioReplaySubsystem.h"
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
@@ -64,6 +71,16 @@ template<class T> T* FindTestSetSensor(UWorld* W,const FString& Explicit)
     return Found;
 }
 }
+struct FTestSetStoppedWork
+{
+    FString SensorId;
+    TWeakObjectPtr<AVirtualSensorActorBase> Sensor;
+    TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> Publisher;
+    TWeakObjectPtr<UVirtualSensorRecorderComponent> Recorder;
+    TArray<TPair<FString,uint64>> Periodic;
+    uint64 RunRevision=0;
+    bool Running=false,PublisherHeld=false,RecorderHeld=false;
+};
 struct FAgentTestSetState
 {
     FString Root,SetId,Message,PreviewRun;
@@ -71,6 +88,11 @@ struct FAgentTestSetState
     TArray<FAgentTestSetInput> Inputs;
     TArray<FAgentTestSetSpool> Spools;
     TWeakObjectPtr<ASlabActor> Slab;
+    TWeakObjectPtr<AVirtualLidarSensorActor> Lidar;
+    TWeakObjectPtr<AVirtualCameraSensorActor> Camera;
+    TArray<FTestSetStoppedWork> Stopped;
+    bool StopRequested=false,Blocked=false;
+    double NextReadiness=0;
     int32 Active=INDEX_NONE,Preparing=INDEX_NONE,Preview=INDEX_NONE;
     int64 Revision=1,ManifestRevision=0,PendingManifestRevision=0,InputBytes=0;
     int32 SavedCompleted=0,PendingManifestCompleted=0;
@@ -128,13 +150,13 @@ int32 UAgentTestSetSubsystem::Completed() const{int32 N=0;for(const auto& I:Item
 bool UAgentTestSetSubsystem::IsComplete() const{return State&&!State->Reset&&Completed()==Config.Target&&!State->ManifestFailed&&State->SavedCompleted==Config.Target;}
 bool UAgentTestSetSubsystem::IsPaused() const{return State&&(State->Paused||State->Yielded);}
 FString UAgentTestSetSubsystem::Directory() const{return State?State->Root:FString();}
-FString UAgentTestSetSubsystem::Message() const{return State?State->Message:TEXT("等待 시나리오 · 트리거 소재 번호만 테스트셋으로 생성");}
+FString UAgentTestSetSubsystem::Message() const{return State?State->Message:TEXT("시나리오 대기");}
 int64 UAgentTestSetSubsystem::Revision() const{return State?State->Revision:0;}
 void UAgentTestSetSubsystem::YieldToOrdinaryScenario()
 {
     if(!State)return;StopPreview();State->Preview=INDEX_NONE;
     if(State->Active!=INDEX_NONE)if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())if(D->OwnsPlannedRun(State->Items[State->Active].RunId))D->YieldPlannedCapture();
-    State->Yielded=true;State->Message=TEXT("일반 시나리오 우선 · 테스트셋 대기");++State->Revision;EnsurePump();
+    RestoreStoppedWork();State->Yielded=true;State->Message=TEXT("일반 시나리오 우선 · 테스트셋 대기");++State->Revision;EnsurePump();
 }
 void UAgentTestSetSubsystem::SetPaused(bool Paused)
 {if(!State)return;State->Paused=Paused;if(Paused&&State->Active!=INDEX_NONE)if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())if(D->OwnsPlannedRun(State->Items[State->Active].RunId))D->YieldPlannedCapture();State->Message=Paused?TEXT("테스트셋 일시 중지"):TEXT("테스트셋 재개 대기");++State->Revision;EnsurePump();}
@@ -152,19 +174,99 @@ bool UAgentTestSetSubsystem::ResetConfirmed(FString& Error)
 bool UAgentTestSetSubsystem::SelectPreview(int32 Index,FString& Error)
 {
     if(!IsComplete()||!State->Items.IsValidIndex(Index)){Error=TEXT("목표 시나리오를 모두 생성한 뒤 선택하세요");return false;}
-    StopPreview();State->Preview=Index;State->Message=TEXT("보기 전용 재생 준비 · 전송 꺼짐");++State->Revision;EnsurePump();return true;
+    StopPreview();PcdPreview=MakeShared<FAgentTestSetPcdPreview>();
+    PcdPreview->Start(GetWorld(),State->Items[Index],Index);EnsurePump();return true;
 }
 void UAgentTestSetSubsystem::StopPreview()
-{if(!State)return;const bool Changed=!State->PreviewRun.IsEmpty()||State->Preview!=INDEX_NONE;if(auto* R=TestSetReplay(GetWorld()))R->StopObservationPreview(State->PreviewRun);State->PreviewRun.Reset();State->Preview=INDEX_NONE;if(Changed){State->Message=TEXT("보기 중지 · 데이터셋 유지");++State->Revision;EnsurePump();}}
+{
+    if(!PcdPreview)return;PcdPreview->Stop();PcdPreview.Reset();
+}
+void UAgentTestSetSubsystem::SetPreviewPaused(bool Paused){if(PcdPreview){PcdPreview->SetPaused(Paused);EnsurePump();}}
+FAgentTestSetPreviewStatus UAgentTestSetSubsystem::PreviewStatus() const{return PcdPreview?PcdPreview->Status():FAgentTestSetPreviewStatus();}
+UTexture2D* UAgentTestSetSubsystem::PreviewTexture() const{return PcdPreview?PcdPreview->Texture():nullptr;}
+bool UAgentTestSetSubsystem::HasBusyWork() const{return State&&State->Blocked&&State->Items.ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Waiting;});}
+bool UAgentTestSetSubsystem::BusyReason(FString& Reason) const
+{
+    if(!State)return false;const auto& S=*State;TArray<FString> Reasons;
+    if(S.Slab.IsValid()&&S.Slab->IsSimulationActive())Reasons.Add(TEXT("일반 시나리오 실행 중 · 완료 후 자동 시작"));
+    if(TestSetWorldBusy(GetWorld()))
+    {
+        const auto Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->GetSlabSensorSessionStatus();
+        Reasons.Add(Session.State==EVirtualSlabSessionState::Draining?TEXT("시나리오 송신 정리 중"):TEXT("일반 시나리오가 센서를 사용 중"));
+    }
+    if(auto* R=TestSetReplay(GetWorld());R&&R->IsReplayBusy())Reasons.Add(TEXT("일반 시나리오 재생 중"));
+    if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>();D&&D->IsActive()&&S.Active==INDEX_NONE)Reasons.Add(TEXT("다른 데이터셋 생성 중"));
+    auto Sensor=[&](AVirtualSensorActorBase* A)
+    {
+        if(!A)return;TArray<FString> Work;
+        if(A->IsSensorRunning())Work.Add(TEXT("측정"));
+        auto* Files=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>();
+        auto* Periodic=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>();
+        if(Periodic&&Periodic->HasSensorWork(A))Work.Add(TEXT("주기 저장 또는 마지막 파일 저장"));
+        else if(Files&&Files->HasPendingSave(A))Work.Add(TEXT("파일 저장 마무리"));
+        auto* P=A->OutputComponent?A->OutputComponent->StreamPublisherComponent.Get():nullptr;
+        if(P)
+        {
+            if(!P->IsLocalCaptureSuspended(A->GetSensorId()))for(const auto& Stream:P->GetStreamStatuses())
+                if((Stream.SensorId.IsEmpty()||Stream.SensorId==A->GetSensorId())&&(Stream.bEnabled||P->IsStreamActiveOrAwaitingResume(Stream.StreamKind,Stream.SensorId)))
+                    if((A->GetSensorKind()==EVirtualSensorKind::Lidar&&(Stream.StreamKind==EVirtualSensorStreamKind::PointCloud||Stream.StreamKind==EVirtualSensorStreamKind::LidarPayload))||(A->GetSensorKind()==EVirtualSensorKind::Camera&&Stream.StreamKind==EVirtualSensorStreamKind::CameraImage))
+                        Work.AddUnique(Stream.StreamKind==EVirtualSensorStreamKind::PointCloud?TEXT("독립 PCD 송신"):TEXT("독립 센서 송신"));
+            if(P->HasSensorPlacementWork(A->GetSensorId(),A->GetSensorKind())&&Work.IsEmpty())Work.Add(TEXT("송신 프레임 정리"));
+        }
+        if(const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();Raw&&Raw->GetOutstandingSensorFrameCount(A->GetSensorId())>0)Work.AddUnique(TEXT("미확인 송신 프레임 정리"));
+        if(A->OutputComponent&&A->OutputComponent->RecorderComponent&&A->OutputComponent->RecorderComponent->IsRecordingSensor(A->GetSensorId()))Work.Add(TEXT("센서 녹화"));
+        FString Detail;if(!A->CanEditSensorConfiguration(Detail)||!A->CanEditSensorPlacement(Detail))if(Work.IsEmpty())Work.Add(Detail);
+        if(!Work.IsEmpty())Reasons.Add(A->GetSensorId()+TEXT("의 ")+FString::Join(Work,TEXT("·"))+TEXT(" 사용 중"));
+    };
+    Sensor(S.Lidar.Get());if(Config.CaptureCamera)Sensor(S.Camera.Get());
+    Reason=Reasons.IsEmpty()?FString():TEXT("대기 · ")+FString::Join(Reasons,TEXT(" / "));return !Reason.IsEmpty();
+}
+bool UAgentTestSetSubsystem::StopBusyWorkAndStart(FString& Error)
+{
+    if(!State||State->Reset){Error=TEXT("먼저 테스트셋 시나리오를 등록하세요");return false;}
+    State->StopRequested=true;State->Paused=false;State->NextReadiness=0;EnsurePump();return true;
+}
+void UAgentTestSetSubsystem::SuspendBusyWork()
+{
+    auto& S=*State;if(!S.Stopped.IsEmpty())return;
+    auto Suspend=[&](AVirtualSensorActorBase* A)
+    {
+        if(!A)return;FTestSetStoppedWork W;W.Sensor=A;W.SensorId=A->GetSensorId();W.Running=A->IsSensorRunning();
+        if(W.Running)A->StopSensor();W.RunRevision=A->GetRunControlRevision();
+        if(A->OutputComponent)
+        {
+            W.Publisher=A->OutputComponent->StreamPublisherComponent;W.Recorder=A->OutputComponent->RecorderComponent;
+            if(W.Publisher.IsValid()&&!W.Publisher->IsLocalCaptureSuspended(A->GetSensorId())){W.Publisher->SetLocalCaptureSuspended(A->GetSensorId(),true);W.PublisherHeld=true;}
+            if(W.Recorder.IsValid()&&W.Recorder->IsRecordingSensor(A->GetSensorId())){W.Recorder->SetLocalCaptureSuspended(A->GetSensorId(),true);W.RecorderHeld=true;}
+        }
+        if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>())for(const auto& V:P->GetRecentPeriodicSessions())if(V.SensorId==A->GetSensorId()&&V.bActive)
+            if(const uint64 Token=P->SuspendForLocalCapture(V.SessionId))W.Periodic.Add({V.SessionId,Token});
+        S.Stopped.Add(MoveTemp(W));
+    };
+    Suspend(S.Lidar.Get());if(Config.CaptureCamera)Suspend(S.Camera.Get());
+}
+void UAgentTestSetSubsystem::RestoreStoppedWork(bool Resume)
+{
+    if(!State)return;auto Work=MoveTemp(State->Stopped);State->Stopped.Reset();
+    for(auto& W:Work)
+    {
+        if(W.PublisherHeld&&W.Publisher.IsValid())W.Publisher->SetLocalCaptureSuspended(W.SensorId,false);
+        if(W.RecorderHeld&&W.Recorder.IsValid())W.Recorder->SetLocalCaptureSuspended(W.SensorId,false);
+        auto* A=W.Sensor.Get();
+        if(Resume&&A&&A->GetSensorId()==W.SensorId&&W.Running&&A->GetRunControlRevision()==W.RunRevision&&!A->IsSensorRunning())A->StartSensor();
+        if(Resume&&A&&A->GetSensorId()==W.SensorId)if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>())for(const auto& V:W.Periodic)P->ResumeAfterLocalCapture(V.Key,V.Value);
+    }
+}
 TSharedRef<FJsonObject> UAgentTestSetSubsystem::StatusJson() const
 {
     auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("schema_version"),TEXT("ma0t10.testset.v1"));O->SetStringField(TEXT("trigger_mtl_no"),Config.Trigger);O->SetNumberField(TEXT("target_scenarios"),Config.Target);
     O->SetBoolField(TEXT("enabled"),Config.Enabled);O->SetBoolField(TEXT("pipeline"),Config.Pipeline);O->SetBoolField(TEXT("paused"),IsPaused());O->SetBoolField(TEXT("reset"),State&&State->Reset);
     O->SetNumberField(TEXT("completed_scenarios"),Completed());O->SetBoolField(TEXT("complete"),IsComplete());O->SetStringField(TEXT("directory"),Directory());
-    O->SetStringField(TEXT("project_commit"),TEXT(MA0T10_PROJECT_COMMIT));O->SetStringField(TEXT("build"),FApp::GetBuildVersion());O->SetBoolField(TEXT("sending_supported"),false);
+    O->SetStringField(TEXT("project_commit"),TEXT(MA0T10_PROJECT_COMMIT));O->SetStringField(TEXT("build"),FApp::GetBuildVersion());O->SetBoolField(TEXT("sending_supported"),false);O->SetStringField(TEXT("message"),Message());
     O->SetBoolField(TEXT("capture_camera"),Config.CaptureCamera);O->SetBoolField(TEXT("camera_truth"),Config.CameraTruth);O->SetBoolField(TEXT("include_imu"),Config.IncludeImu);O->SetNumberField(TEXT("sample_stride"),Config.SampleStride);
     O->SetStringField(TEXT("export_format"),Config.ExportFormat);O->SetBoolField(TEXT("lidar_fidelity"),Config.LidarFidelity);
     if(State){O->SetStringField(TEXT("set_id"),State->SetId);O->SetNumberField(TEXT("revision"),State->Revision);O->SetNumberField(TEXT("pending_input_bytes"),double(State->InputBytes));O->SetStringField(TEXT("preview_run_id"),State->PreviewRun);}
+    const auto View=PreviewStatus();auto Preview=MakeShared<FJsonObject>();Preview->SetNumberField(TEXT("scenario_index"),View.Scenario);Preview->SetNumberField(TEXT("frame_index"),View.Frame);Preview->SetNumberField(TEXT("frames"),View.Frames);Preview->SetNumberField(TEXT("points"),View.Points);Preview->SetBoolField(TEXT("playing"),View.Playing);O->SetObjectField(TEXT("preview"),Preview);
     TArray<TSharedPtr<FJsonValue>> A;
     for(const auto& I:Items())
     {auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("scenario_id"),I.ScenarioId);V->SetStringField(TEXT("run_uuid"),I.RunId);V->SetStringField(TEXT("directory"),I.Directory);V->SetStringField(TEXT("state"),TestSetStateName(I.State));V->SetStringField(TEXT("message"),I.Message);V->SetNumberField(TEXT("frames"),I.Frames);V->SetNumberField(TEXT("completed_frames"),I.CompletedFrames);V->SetNumberField(TEXT("seconds"),I.Seconds);V->SetNumberField(TEXT("attempts"),I.Attempts);A.Add(MakeShared<FJsonValueObject>(V));}
@@ -174,11 +276,12 @@ TSharedRef<FJsonObject> UAgentTestSetSubsystem::StatusJson() const
 void UAgentTestSetSubsystem::Pump()
 {
     if(!State)return;auto& S=*State;auto* Dataset=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>();auto* R=TestSetReplay(GetWorld());
+    if(PcdPreview)PcdPreview->Pump(GetWorld());
     // Drain spool results first; no UObject is captured by a worker.
     for(int32 I=S.Spools.Num()-1;I>=0;--I)if(S.Spools[I].Result.IsReady())
     {
         const int32 N=S.Spools[I].Index;const bool Ok=S.Spools[I].Result.Get();auto& Input=S.Inputs[N];Input.Stored=Ok;
-        if(Ok){S.InputBytes-=Input.Bytes;Input.Bytes=0;Input.Data.Reset();}else {S.Items[N].State=EAgentTestSetItemState::Failed;S.Items[N].Message=TEXT("原본 JSON 저장 실패 · 재시도하세요");++S.Revision;}
+        if(Ok){S.InputBytes-=Input.Bytes;Input.Bytes=0;Input.Data.Reset();}else {S.Items[N].State=EAgentTestSetItemState::Failed;S.Items[N].Message=TEXT("원본 JSON 저장 실패 · 재시도하세요");++S.Revision;}
         S.Spools.RemoveAt(I);
     }
     if(S.Manifest.IsValid()&&S.Manifest.IsReady())
@@ -223,7 +326,22 @@ void UAgentTestSetSubsystem::Pump()
             S.Active=INDEX_NONE;++S.Revision;
         }
     }
-    const bool Busy=!S.Slab.IsValid()||S.Slab->IsSimulationActive()||TestSetWorldBusy(GetWorld())||(R&&R->IsReplayBusy());
+    const bool OrdinaryBusy=!S.Slab.IsValid()||S.Slab->IsSimulationActive()||TestSetWorldBusy(GetWorld())||(R&&R->IsReplayBusy());
+    if(S.Active==INDEX_NONE&&FPlatformTime::Seconds()>=S.NextReadiness)
+    {
+        S.NextReadiness=FPlatformTime::Seconds()+.2;
+        if(!S.Lidar.IsValid())S.Lidar=FindTestSetSensor<AVirtualLidarSensorActor>(GetWorld(),Config.LidarId);
+        if(Config.CaptureCamera&&!S.Camera.IsValid())S.Camera=FindTestSetSensor<AVirtualCameraSensorActor>(GetWorld(),Config.CameraId);
+        if(S.StopRequested&&!OrdinaryBusy&&!Dataset->IsActive())SuspendBusyWork();
+        FString Reason;S.Blocked=BusyReason(Reason);
+        const bool Waiting=S.Items.ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Waiting;});
+        if(S.Blocked&&Waiting&&S.Message!=Reason)
+        {
+            S.Message=Reason;for(auto& I:S.Items)if(I.State==EAgentTestSetItemState::Waiting)I.Message=Reason;++S.Revision;
+            UE_LOG(LogMA0T10,Log,TEXT("[TestSet][Waiting] %s"),*Reason);
+        }
+    }
+    const bool Busy=OrdinaryBusy||(S.Active==INDEX_NONE&&S.Blocked);
     if(S.Yielded&&!Busy){S.Yielded=false;++S.Revision;}
     if((Busy||S.Paused)&&S.Active!=INDEX_NONE)Dataset->YieldPlannedCapture();
     if(S.Reset)
@@ -236,7 +354,7 @@ void UAgentTestSetSubsystem::Pump()
             S.Manifest=Async(EAsyncExecution::ThreadPool,[Snapshot,Path](){return SaveTestSetJson(Path,EncodeTestSetJson(Snapshot));});return;
         }
         S.Cancelled->store(true);
-        State.Reset();GetWorld()->GetTimerManager().ClearTimer(Timer);return;
+        RestoreStoppedWork();State.Reset();GetWorld()->GetTimerManager().ClearTimer(Timer);return;
     }
     for(int32 I=0;I<S.Items.Num()&&S.Spools.Num()<2;++I)
         if(S.Inputs[I].Data&&S.Items[I].State==EAgentTestSetItemState::Waiting&&!S.Spools.ContainsByPredicate([I](const auto& V){return V.Index==I;}))
@@ -244,22 +362,23 @@ void UAgentTestSetSubsystem::Pump()
             const auto Data=S.Inputs[I].Data;const FString Path=S.Items[I].Directory/TEXT("original.json");const auto Cancel=S.Cancelled;
             S.Spools.Add({I,Async(EAsyncExecution::ThreadPool,[Data,Path,Cancel](){return !Cancel->load()&&SaveTestSetJson(Path,Data->OriginalJson);})});
         }
-    if(!Busy&&!S.Paused&&S.Active!=INDEX_NONE&&Dataset->IsPaused()&&!S.Slab->HasPendingScenarioInput())
-    {FString Error;if(!Dataset->Resume(Error)){Dataset->Message=Error;Dataset->Stop();}}
+    if(!Busy&&!S.Paused&&S.Active!=INDEX_NONE&&Dataset->IsPaused()&&!S.Slab->HasPendingScenarioInput()&&FPlatformTime::Seconds()>=S.NextReadiness)
+    {
+        S.NextReadiness=FPlatformTime::Seconds()+.2;
+        if(S.StopRequested)SuspendBusyWork();FString Error;
+        if(!BusyReason(Error)){if(!Dataset->Resume(Error)){Dataset->Message=Error;Dataset->Stop();}}
+        else if(S.Message!=Error){S.Message=Error;S.Items[S.Active].Message=Error;++S.Revision;}
+    }
     if(S.Prepared.IsSet()&&!Busy&&!S.Paused&&S.Active==INDEX_NONE&&!Dataset->IsActive()&&!S.Slab->HasPendingScenarioInput())
     {
         const int32 Index=S.Preparing;auto Prepared=MoveTemp(S.Prepared.GetValue());S.Prepared.Reset();S.Preparing=INDEX_NONE;
-        if(Index==S.Preview)
-        {
-            S.Preview=INDEX_NONE;
-            if(Prepared.Data&&R&&R->RequestObservationPreview(Prepared.Data)){S.PreviewRun=R->GetReplayStatus().RunUUID;S.Message=TEXT("보기 전용 시뮬레이션 · 전송 꺼짐");}
-            else S.Message=TEXT("보기 전용 재생 실패 · ")+Prepared.Error;++S.Revision;
-        }
-        else if(S.Items.IsValidIndex(Index)&&S.Items[Index].State==EAgentTestSetItemState::Waiting)
+        if(S.Items.IsValidIndex(Index)&&S.Items[Index].State==EAgentTestSetItemState::Waiting)
         {
             auto& Item=S.Items[Index];FString Error=Prepared.Error;
-            auto* Lidar=FindTestSetSensor<AVirtualLidarSensorActor>(GetWorld(),Config.LidarId);auto* Camera=Config.CaptureCamera?FindTestSetSensor<AVirtualCameraSensorActor>(GetWorld(),Config.CameraId):nullptr;
-            if(Prepared.Plan&&S.Slab.IsValid()&&Prepared.Configuration!=S.Slab->GetMetricsConfigurationHash())
+            auto* Lidar=S.Lidar.Get();auto* Camera=Config.CaptureCamera?S.Camera.Get():nullptr;
+            if(Prepared.Plan&&BusyReason(Error))
+            {S.Blocked=true;S.Message=Item.Message=Error;S.Prepared=MoveTemp(Prepared);S.Preparing=Index;++S.Revision;}
+            else if(Prepared.Plan&&S.Slab.IsValid()&&Prepared.Configuration!=S.Slab->GetMetricsConfigurationHash())
             {S.Message=TEXT("기준 배치 변경 · 프레임 다시 준비 중");}
             else
             {
@@ -275,7 +394,7 @@ void UAgentTestSetSubsystem::Pump()
     // One immutable prefetch overlaps the active capture/writer pipeline. Disk JSON is parsed on a worker.
     if(!S.Prepare.IsValid()&&!S.Prepared.IsSet()&&S.Slab.IsValid())
     {
-        int32 Index=S.Preview;
+        int32 Index=INDEX_NONE;
         if(Index==INDEX_NONE)for(int32 I=0;I<S.Items.Num();++I)if(S.Items[I].State==EAgentTestSetItemState::Waiting&&S.Inputs[I].Stored){Index=I;break;}
         if(Index!=INDEX_NONE)
         {
@@ -310,12 +429,16 @@ void UAgentTestSetSubsystem::Pump()
     if(S.Active==INDEX_NONE&&!S.Prepare.IsValid()&&!S.Verify.IsValid()&&!S.Prepared.IsSet()&&S.Spools.IsEmpty()&&!S.Manifest.IsValid()&&S.Preview==INDEX_NONE)
     {
         const bool Waiting=S.Items.ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Waiting;});
-        if(!Waiting)GetWorld()->GetTimerManager().ClearTimer(Timer);
+        if(!Waiting)
+        {
+            RestoreStoppedWork();S.StopRequested=false;
+            if(!PcdPreview||!PcdPreview->NeedsPump())GetWorld()->GetTimerManager().ClearTimer(Timer);
+        }
     }
 }
 void UAgentTestSetSubsystem::Deinitialize()
 {
-    StopPreview();if(State){State->Cancelled->store(true);if(State->Active!=INDEX_NONE)if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())if(D->OwnsPlannedRun(State->Items[State->Active].RunId))D->Stop();}
+    StopPreview();RestoreStoppedWork(false);if(State){State->Cancelled->store(true);if(State->Active!=INDEX_NONE)if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())if(D->OwnsPlannedRun(State->Items[State->Active].RunId))D->Stop();}
     GetWorld()->GetTimerManager().ClearTimer(Timer);State.Reset();Super::Deinitialize();
 }
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

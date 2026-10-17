@@ -29,7 +29,7 @@ void UVirtualSensorStreamPublisherComponent::SubmitFrame(const FVirtualSensorFra
 {
 	if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
 		if (!Slab->AllowsAcquisitionFrame(Frame.SensorId,Frame.SlabContext)) return;
-	if (bEndingPlay || Frame.SensorId.IsEmpty()) return;
+	if (bEndingPlay || Frame.SensorId.IsEmpty() || IsLocalCaptureSuspended(Frame.SensorId)) return;
 	TArray<FString> Keys;
 	StreamRuntimes.GetKeys(Keys);
 	for (const FString& Key : Keys)
@@ -216,7 +216,8 @@ void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 				const FStreamRuntime* Global = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, FString()));
 				const FStreamRuntime* Exact = StreamRuntimes.Find(MakeStreamKey(EVirtualSensorStreamKind::CameraImage, SensorActor->GetSensorId()));
 				const FStreamRuntime* Active = Exact && Exact->Config.bEnabled ? Exact : (Global && Global->Config.bEnabled ? Global : nullptr);
-				if(GetWorld()) if(const auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
+				if(IsLocalCaptureSuspended(SensorActor->GetSensorId()))Active=nullptr;
+			if(GetWorld()) if(const auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))
 					if(!Slab->AllowsOutputDemand(SensorActor->GetSensorId(),VirtualSensorAcquisitionOutput(EVirtualSensorStreamKind::CameraImage))) Active=nullptr;
 				Camera->SetRuntimeStreamOutputDemand(
 					Active != nullptr,
@@ -231,6 +232,7 @@ bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutput(const
 }
 bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutputForContext(const FString& Id,const FVirtualSensorAcquisitionContext& Context) const
 {
+    if(IsLocalCaptureSuspended(Id))return false;
     const auto* Slab=GetWorld()?FVirtualSensorAcquisitionContextProviders::Get(GetWorld()):nullptr;
     if(Slab&&!Slab->AllowsAcquisitionFrame(Id,Context))return false;
     for(const auto& Pair:StreamRuntimes){const auto& C=Pair.Value.Config;

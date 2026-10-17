@@ -117,19 +117,21 @@ public:
             if(PreviewCount<3)
             {
                 if(!PreviewRequested&&!Catalog->IsReplayBusy())
-                {Test->TestTrue(TEXT("completed selection requests existing replay"),Service->SelectPreview(PreviewCount,Error));PreviewRequested=true;return false;}
-                if(PreviewRequested&&Catalog->GetReplayStatus().State==ESlabScenarioReplayState::Playing)
+                {Test->TestTrue(TEXT("completed selection requests saved PCD viewer"),Service->SelectPreview(PreviewCount,Error));PreviewRequested=true;return false;}
+                if(PreviewRequested&&Service->PreviewStatus().Frame>=1)
                 {
-                    if(Slab->GetSimulationStatus().RowIndex<1)return false;
-                    const auto Status=Catalog->GetReplayStatus();Test->TestFalse(TEXT("selected playback is observation only"),Status.Outputs.HasAnyOutput());PreviewRuns.Add(Status.RunUUID);
-                    Test->TestTrue(TEXT("selected simulation actually advances source rows and pose"),Slab->GetActorLocation().X>1500.&&Slab->GetSimulationStatus().FrameNo>100);
+                    const auto View=Service->PreviewStatus();const auto& Item=Service->Items()[PreviewCount];
+                    Test->TestEqual(TEXT("saved point cloud selected"),View.Scenario,PreviewCount);Test->TestEqual(TEXT("saved PCD frame count"),View.Frames,Item.Frames);
+                    Test->TestTrue(TEXT("saved PCD has points and a rendered projection"),View.Points>0&&Service->PreviewTexture()!=nullptr);
+                    Test->TestFalse(TEXT("saved point cloud never plays Slab"),Slab->IsSimulationActive());
+                    Service->SetPreviewPaused(true);Test->TestFalse(TEXT("saved point cloud pause"),Service->PreviewStatus().Playing);Service->SetPreviewPaused(false);
                     FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-01")/FString::Printf(TEXT("automated-preview-%d.png"),PreviewCount+1),true,false);
-                    ++PreviewCount;PreviewRequested=false;Service->StopPreview();return false;
+                    PreviewRuns.Add(Item.RunId);++PreviewCount;PreviewRequested=false;Service->StopPreview();return false;
                 }
                 return false;
             }
             if(Catalog->IsReplayBusy())return false;
-            Test->TestEqual(TEXT("selected scenarios each create independent replay runs"),PreviewRuns.Num(),3);
+            Test->TestEqual(TEXT("three saved PCD scenarios viewed"),PreviewRuns.Num(),3);
             Test->TestEqual(TEXT("preview never acquires or sends dataset PCD"),Lidar->ScanComponent->GetRuntimeStatus().FrameId,PreviewFrame);Test->TestEqual(TEXT("preview preserves completed test set"),Service->Completed(),Service->Settings().Target);
             Test->TestEqual(TEXT("preview does not evict normal archives"),Catalog->GetScenarios().Num(),2);
             int32 Code=0;const auto Api=World->GetSubsystem<UAutomationControlSubsystem>()->Dispatch(TEXT("GET"),TEXT("/v1/testset"),nullptr,Code);Test->TestEqual(TEXT("read-only status API"),Code,200);Test->TestEqual(TEXT("API completed count"),int32(Api->GetNumberField(TEXT("completed_scenarios"))),Service->Settings().Target);
@@ -169,7 +171,7 @@ public:
             Test->TestTrue(TEXT("generated archive ID selection"),Service->SelectPreview(2,Error));Phase=11;return false;
         }
         if(Phase==11)
-        {if(Catalog->GetReplayStatus().State!=ESlabScenarioReplayState::Playing||Slab->GetSimulationStatus().RowIndex<1)return false;Test->TestEqual(TEXT("missing UUID replay retains the admitted identity"),Slab->GetSimulationStatus().ScenarioUUID,GeneratedId);return Finish();}
+        {if(Service->PreviewStatus().Frame<1)return false;Test->TestEqual(TEXT("missing UUID saved PCD identity"),Service->Items()[Service->PreviewStatus().Scenario].ScenarioId,GeneratedId);return Finish();}
         return false;
     }
 private:

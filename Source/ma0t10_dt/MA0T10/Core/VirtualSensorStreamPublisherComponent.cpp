@@ -269,6 +269,7 @@ bool UVirtualSensorStreamPublisherComponent::StreamMatchesFrame(EVirtualSensorSt
 
 bool UVirtualSensorStreamPublisherComponent::ResolveActiveStreamForSensor(EVirtualSensorStreamKind Kind,const FString& Id,FVirtualSensorStreamConfig& Out) const
 {
+	if(IsLocalCaptureSuspended(Id))return false;
 	const auto* Exact=StreamRuntimes.Find(MakeStreamKey(Kind,Id));
 	if(Exact&&Exact->Status.bOverloadSuspended)return false;
 	if(Exact&&Exact->Config.bEnabled){Out=Exact->Config;return true;}
@@ -488,7 +489,14 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 	if (!Runtime) return;
 	Runtime->bSerializationInFlight = false;
 	Runtime->SerializationRunId.Reset();
-	Runtime->Status.bProcessing = false;
+    Runtime->Status.bProcessing = false;
+    if(IsLocalCaptureSuspended(Message.SensorId))
+    {
+        RecordSlabFailure(Message.SlabContext.RunId,Message.SensorId,Message.StreamKind,Message.FrameId);
+        ++Runtime->Status.StaleResultDiscardCount;
+        AddLog(StreamKey,TEXT("local-capture-stop"),TEXT("로컬 생성 시작 요청으로 미송신 직렬화 결과 취소"),nullptr,Message.FrameId);
+        TryStartNextPointCloudSerialization(StreamKey,*Runtime);RefreshQueueTelemetry(*Runtime);return;
+    }
 	if (!Runtime->Config.bEnabled || Runtime->Status.bOverloaded)
 	{
 		// An overload stop deliberately clears every retained frame. A worker
@@ -760,7 +768,7 @@ void UVirtualSensorStreamPublisherComponent::CheckReceiptTimeouts(double NowSeco
 bool UVirtualSensorStreamPublisherComponent::RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error)
 {
 	FStreamRuntime* Runtime = StreamRuntimes.Find(Wait.StreamKey);
-	if (!Runtime || !Runtime->Config.bEnabled ||
+	if (!Runtime || IsLocalCaptureSuspended(Wait.Message.SensorId) || !Runtime->Config.bEnabled ||
 		Runtime->Config.DeliveryMode != EVirtualPointCloudDeliveryMode::ConnectedNoLoss ||
 		!Wait.Message.bBinaryPcd)
 	{
@@ -960,12 +968,33 @@ bool UVirtualSensorStreamPublisherComponent::PrepareCollectionTargets(EVirtualSe
 	return true;
 }
 
+void UVirtualSensorStreamPublisherComponent::SetLocalCaptureSuspended(const FString& Id,bool Suspended)
+{
+    if(Id.IsEmpty())return;
+    if(Suspended)LocalCaptureSuspensions.Add(Id);else LocalCaptureSuspensions.Remove(Id);
+    if(Suspended)for(auto& Pair:StreamRuntimes)
+    {
+        auto& R=Pair.Value;int32 Cancelled=0;
+        auto Cancel=[&](const auto& M)
+        {
+            if(M.SensorId!=Id)return false;
+            RecordSlabFailure(M.SlabContext.RunId,M.SensorId,R.Config.StreamKind,M.FrameId);++Cancelled;return true;
+        };
+        if(R.PendingFrame.IsSet()&&Cancel(*R.PendingFrame))R.PendingFrame.Reset();
+        if(R.PreparedMessage.IsSet()&&Cancel(*R.PreparedMessage))R.PreparedMessage.Reset();
+        R.PendingFrameQueue.RemoveAll(Cancel);R.PreparedMessageQueue.RemoveAll(Cancel);
+        R.Status.StaleResultDiscardCount+=Cancelled;RefreshQueueTelemetry(R);
+        if(Cancelled)AddLog(Pair.Key,TEXT("local-capture-stop"),FString::Printf(TEXT("%s 로컬 생성 시작 요청 · 미송신 프레임 %d개 취소 · 접수된 송신은 정리 대기"),*Id,Cancelled));
+    }
+    UpdateCameraStreamDemand();
+}
+
 bool UVirtualSensorStreamPublisherComponent::HasSensorPlacementWork(const FString& Id,EVirtualSensorKind Kind) const
 {
 	for(const auto& Pair:StreamRuntimes)
 	{
 		const auto& R=Pair.Value;if(!StreamMatchesFrame(R.Config.StreamKind,Kind))continue;
-		if(R.Config.bEnabled&&(R.Config.SensorId.IsEmpty()||R.Config.SensorId==Id))return true;
+		if(R.Config.bEnabled&&!IsLocalCaptureSuspended(Id)&&(R.Config.SensorId.IsEmpty()||R.Config.SensorId==Id))return true;
 		if(R.bSerializationInFlight&&R.SerializationSensorId==Id)return true;
 		if(R.PendingFrame.IsSet()&&R.PendingFrame.GetValue().SensorId==Id)return true;
 		if(R.PreparedMessage.IsSet()&&R.PreparedMessage.GetValue().SensorId==Id)return true;

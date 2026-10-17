@@ -69,6 +69,9 @@ public:
 	static FVirtualSensorStreamConfig NormalizeLiveConfig(FVirtualSensorStreamConfig Config);
 	static bool ValidateBinaryBodySize(int64 Bytes, int64 Limit, FString& Error);
 	bool CanUseHighThroughputTransport() const;
+	/** Temporary per-sensor admission hold; configurations and other sensors remain live. */
+	void SetLocalCaptureSuspended(const FString& SensorId,bool Suspended);
+	bool IsLocalCaptureSuspended(const FString& SensorId) const { return LocalCaptureSuspensions.Contains(SensorId); }
 	bool HasSensorPlacementWork(const FString& SensorId,EVirtualSensorKind Kind) const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
@@ -136,6 +139,7 @@ public:
 	TObjectPtr<UVirtualSensorTransportComponent> TransportComponent;
 
 private:
+	TSet<FString> LocalCaptureSuspensions;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FArchitectureWireGoldenTest;
     friend struct FPointCloudOverloadTestAccess;

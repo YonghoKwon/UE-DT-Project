@@ -1,11 +1,10 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "UI/DxWidget.h"
-#include "Widgets/Input/SComboBox.h"
+#include "VirtualSensorPanelWidgetBase.h"
 #include "AgentTestSetWidget.generated.h"
 class UAgentTestSetSubsystem;
 UCLASS()
-class MA0T10_DT_API UAgentTestSetWidget : public UDxWidget
+class MA0T10_DT_API UAgentTestSetWidget : public UVirtualSensorPanelWidgetBase
 {
     GENERATED_BODY()
 protected:
@@ -16,12 +15,16 @@ private:
     UAgentTestSetSubsystem* Service() const;
     FSlateFontInfo Font(int32 Size) const;
     void Refresh();
+    void SelectScenario(int32 Index);
     TSharedPtr<class SVerticalBox> List;
-    TSharedPtr<SComboBox<TSharedPtr<int32>>> Select;
-    TArray<TSharedPtr<int32>> Options;
-    FText Summary,ConfigText,Status,SelectedText;
+    TArray<TSharedPtr<class STextBlock>> Rows;
+    TArray<FString> RowMessages;
+    TArray<uint8> RowStates;
+    FSlateBrush PreviewBrush;
+    FText Summary,DetailText,Status,PreviewText;
     float Progress=0;
+    int32 Selected=INDEX_NONE;
     int64 SeenRevision=-1;
     double NextRefresh=0,ConfirmUntil=0;
-    bool Ready=false;
+    bool Ready=false,Details=false,PreviewVisible=false;
 };

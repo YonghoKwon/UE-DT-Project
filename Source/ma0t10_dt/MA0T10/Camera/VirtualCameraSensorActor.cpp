@@ -74,11 +74,13 @@ bool AVirtualCameraSensorActor::IsSensorRunning() const
 
 void AVirtualCameraSensorActor::StartSensor()
 {
+    ++SensorRunControlRevision;
 	if (CaptureComponent) CaptureComponent->StartCapture();
 }
 
 void AVirtualCameraSensorActor::StopSensor()
 {
+    ++SensorRunControlRevision;
 	if (CaptureComponent) CaptureComponent->StopCapture();
 }
 

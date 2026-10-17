@@ -50,8 +50,8 @@ void AVirtualLidarSensorActor::BeginPlay()
 FString AVirtualLidarSensorActor::GetSensorId() const { return ScanComponent ? ScanComponent->SensorId : FString(); }
 EVirtualSensorKind AVirtualLidarSensorActor::GetSensorKind() const { return EVirtualSensorKind::Lidar; }
 bool AVirtualLidarSensorActor::IsSensorRunning() const { return ScanComponent && ScanComponent->IsScanRunning(); }
-void AVirtualLidarSensorActor::StartSensor() { if (ScanComponent) ScanComponent->StartScan(); }
-void AVirtualLidarSensorActor::StopSensor() { if (ScanComponent) ScanComponent->StopScan(); }
+void AVirtualLidarSensorActor::StartSensor() { ++SensorRunControlRevision; if (ScanComponent) ScanComponent->StartScan(); }
+void AVirtualLidarSensorActor::StopSensor() { ++SensorRunControlRevision; if (ScanComponent) ScanComponent->StopScan(); }
 void AVirtualLidarSensorActor::CaptureSensorOnce() { if (ScanComponent) ScanComponent->ScanAndSend(); }
 UTexture* AVirtualLidarSensorActor::GetSensorPreviewTexture() const { return ScanComponent ? ScanComponent->GetLidarViewTexture() : nullptr; }
 FVirtualSensorRuntimeStatus AVirtualLidarSensorActor::GetSensorRuntimeStatus() const { return ScanComponent ? ScanComponent->GetRuntimeStatus() : FVirtualSensorRuntimeStatus(); }

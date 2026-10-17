@@ -426,6 +426,12 @@ void UVirtualLidarScanComponent::ScanAndSend()
     CompleteDerivedFrame(Completed);OnScanCompleted.Broadcast(JsonPayload, LidarViewTexture);
 }
 
+bool UVirtualLidarScanComponent::SetReadOnlyPreviewFrame(TSharedRef<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Frame)
+{
+    if(GetOwner()||IsScanRunning()||!Frame->IsValid())return false;
+    LastFrameSnapshot=Frame;FrameId=Frame->FrameId;return true;
+}
+
 void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport)
 {
     ++FrameId;

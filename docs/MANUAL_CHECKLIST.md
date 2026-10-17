@@ -114,11 +114,11 @@ Windows 보안/권한 팝업은 조작하지 않고 해당 행을 보류한다. 
 
 | ID | 직접 누를 것 / 기대 | 결과 |
 |---|---|---|
-| T01 | 소재9999 입력 뒤 진행 화면 자동 표시. 기본100 목표·행별 상태/프레임/시간. 숨김 후 활동 칩으로 재열기 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
-| T02 | 일시 중지/재개. 일반 시나리오2건 우선 재생 후 생성 재개. 실패를 고친 뒤 재시도 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
-| T03 | 목표 완료 전 선택 비활성, 완료 후 활성. 3개 선택→실제 Slab 움직임·전송 꺼짐, 중지/다른 선택. 데이터셋/PCD 불변 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
-| T04 | 초기화 첫 클릭 안내·8초 후 취소/두 번째 확인. 파일 보존·목록 초기화. 닫기/재열기 작업 유지 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
-| T05 | LiDAR 기본·선택 카메라 정답/IMU/EXPORT 파일 대조, 1920×1080/좁은 창·125/150% 접근성. 미수행 조합 별도 보류 | 환경 보류: 캡처0x80070057·입력0. [기록](../Saved/Reports/TESTSET-01/manual/CHECKLIST.md) |
+| T01 | 소재9999 입력 후 공통 스타일의 진행 화면. 완료/목표·상태·목록, 접힌 상세. 제목 드래그/크기 조절·닫기/재열기·Workspace 위치 복원 | INSP-FIX-2 직접 재검수 대기. [현재 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md) |
+| T02 | LiDAR 측정/독립 PCD/주기 저장 각각에서9999 100개 접수→센서ID·대기 사유→해제 후 자동100/100. 원클릭 중지/끝난 뒤 설정 복원, 일반 시나리오 우선·실패 재시도 | 자동/직접 판정을 [RESULT](../Saved/Reports/INSP-FIX-2/RESULT.md)에서 분리 |
+| T03 | 완료 전 점군 재생 없음. 완료 시나리오3개 선택→저장 PCD 점군·프레임/점 수 파일 일치. 재생/일시정지/중지·다른 선택, 테스트셋 전송0·Slab/PCD/라벨 불변 | INSP-FIX-2 직접 재검수 대기. [현재 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md) |
+| T04 | 상세 안 초기화 첫 클릭 안내·8초 후 취소/두 번째 확인. 파일 보존·목록 초기화. 숨김/닫기 중 생성 유지, 미등록 Widget/기존 창 배치 불변 | INSP-FIX-2 직접 재검수 대기. [현재 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md) |
+| T05 | 실제 client1920×1080·1280×720와 글자100/150%, DPI·전후 캡처. 기본/상세·대기·PCD 보기에서 잘림·버튼 접근·드래그 경계/위치 복원. 개인 설정 복원 | 자동 캡처와 직접 마우스를 별도 판정. 선택 Camera/GT/IMU/EXPORT 전체 조합은 별도 미수행 |
 
 ## UXR-17 미리보기 추가 직접 점검
 
