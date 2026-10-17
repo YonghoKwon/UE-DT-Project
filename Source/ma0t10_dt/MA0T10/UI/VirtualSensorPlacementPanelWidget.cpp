@@ -53,7 +53,16 @@ void UVirtualSensorPlacementPanelWidget::RefreshInventory()
 {
     auto* L=Layout();if(!L)return;
     const bool Changed=InventoryRevision!=L->GetRevision();
-    if(Changed){InventoryRevision=L->GetRevision();SensorOptions.Reset();for(const auto& Item:L->GetLayoutSensors()){auto O=MakeShared<FOption>();O->Actor=Item.Actor;SensorOptions.Add(O);}if(SensorList)SensorList->RequestListRefresh();}
+    if(Changed)
+    {
+        InventoryRevision=L->GetRevision();auto Previous=MoveTemp(SensorOptions);SensorOptions.Reset();
+        for(const auto& Item:L->GetLayoutSensors())
+        {
+            const auto* Existing=Previous.FindByPredicate([&Item](const auto& O){return O->Actor==Item.Actor;});
+            auto O=Existing?*Existing:MakeShared<FOption>();O->Actor=Item.Actor;SensorOptions.Add(O);
+        }
+        if(SensorList)SensorList->RequestListRefresh();
+    }
     const auto* Scheduler=GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>();int32 Measuring=0;
     for(auto& O:SensorOptions)if(auto* A=O->Actor.Get())
     {
@@ -117,7 +126,9 @@ TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildEquipmentSection()
     Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SBox).HeightOverride_Lambda([this](){return FMath::Clamp(SensorOptions.Num()*60.f*GetSensorToolVisualScale(),48.f,240.f*GetSensorToolVisualScale());})
      [SAssignNew(SensorList,SListView<TSharedPtr<FOption>>).ListItemsSource(&SensorOptions).SelectionMode(ESelectionMode::Single)
       .OnSelectionChanged_Lambda([this](TSharedPtr<FOption> O,ESelectInfo::Type Info){if(Info!=ESelectInfo::Direct&&O&&O->Actor.IsValid())SelectEquipment(O->Actor.Get());})
-      .OnGenerateRow_Lambda([this](TSharedPtr<FOption> O,const TSharedRef<STableViewBase>& Owner){return SNew(STableRow<TSharedPtr<FOption>>,Owner).Style(&Card).Padding(FMargin(10,8))
+      // Deferred mouse-up notification lets the 5 Hz model sync restore the old row
+      // between down/up. Commit the model on mouse-down before any refresh can run.
+      .OnGenerateRow_Lambda([this](TSharedPtr<FOption> O,const TSharedRef<STableViewBase>& Owner){return SNew(STableRow<TSharedPtr<FOption>>,Owner).Style(&Card).SignalSelectionMode(ETableRowSignalSelectionMode::Instantaneous).Padding(FMargin(10,8))
        [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[SNew(SVerticalBox)
          +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(13,GetSensorToolVisualScale());}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([O](){return O->NameText;}).ColorAndOpacity(GetToolTextColor()).Text_Lambda([O](){return O->NameText;})]
          +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(11,GetSensorToolVisualScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->OriginText;})]]

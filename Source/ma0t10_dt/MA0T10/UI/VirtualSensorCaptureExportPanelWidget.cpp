@@ -628,7 +628,8 @@ FString UVirtualSensorCaptureExportPanelWidget::GetStorageSummaryText() const
         for (int32 Index = 0; Index < Count; ++Index)
         {
             const FVirtualSensorExportResult& Result = RecentResults[Index];
-            Text += FString::Printf(TEXT("\n[%s] %s | %s | %lld 바이트"), Result.bSucceeded ? (Result.AbsolutePath.IsEmpty()?TEXT("요청 접수"):TEXT("파일 저장 완료")) : TEXT("실패"), *ExportKindText(Result.Kind), Result.AbsolutePath.IsEmpty() ? *Result.Message : *Result.AbsolutePath, Result.FileSizeBytes);
+            const FString Kind=Result.Message==TEXT("정답 데이터 저장 완료")?TEXT("Camera 정답 데이터"):ExportKindText(Result.Kind);
+            Text += FString::Printf(TEXT("\n[%s] %s | %s | %lld 바이트"), Result.bSucceeded ? (Result.AbsolutePath.IsEmpty()?TEXT("요청 접수"):TEXT("파일 저장 완료")) : TEXT("실패"), *Kind, Result.AbsolutePath.IsEmpty() ? *Result.Message : *Result.AbsolutePath, Result.FileSizeBytes);
         }
     }
     if (!LastUiMessage.IsEmpty()) Text += FString::Printf(TEXT("\n\n안내: %s"), *LastUiMessage);

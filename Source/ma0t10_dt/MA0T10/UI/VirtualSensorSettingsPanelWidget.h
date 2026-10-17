@@ -16,6 +16,9 @@ UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPanelWidgetBase
 {
     GENERATED_BODY()
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FInspectionBehaviorCommand;
+#endif
 
 public:
 	/** Presentation-only entry for the owned native toolbar; Designer and legacy opt out. */

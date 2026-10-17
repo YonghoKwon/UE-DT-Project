@@ -123,7 +123,13 @@ void UVirtualSensorCaptureExportPanelWidget::BindFileService()
 {
 	if(!GetWorld()||FileSaveService.IsValid())return;
 	FileSaveService=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>();
-	if(FileSaveService.IsValid())FileSaveService->OnRequestUpdated.AddUniqueDynamic(this,&ThisClass::HandleFileSaveUpdated);
+	if(FileSaveService.IsValid())
+    {
+        FileSaveService->OnRequestUpdated.AddUniqueDynamic(this,&ThisClass::HandleFileSaveUpdated);
+        // The data panel may be constructed after the preview initiated a save.
+        const auto Recent=FileSaveService->GetRecentRequests();
+        for(int32 I=Recent.Num()-1;I>=0;--I)if(FileSaveService->IsCameraGroundTruthRequest(Recent[I].RequestId))HandleFileSaveUpdated(Recent[I]);
+    }
 }
 AVirtualSensorActorBase* UVirtualSensorCaptureExportPanelWidget::ResolveOwnedSelectedActor() const
 {return SensorManager?SensorManager->GetSelectedSensorActor():nullptr;}
@@ -141,7 +147,7 @@ FVirtualSensorFileSaveStatus UVirtualSensorCaptureExportPanelWidget::GetActiveFi
 {return FileSaveService.IsValid()?FileSaveService->GetRequestStatus(OwnedFileRequestId):FVirtualSensorFileSaveStatus();}
 void UVirtualSensorCaptureExportPanelWidget::HandleFileSaveUpdated(const FVirtualSensorFileSaveStatus& Status)
 {
-	bool Relevant=OwnedFileRequests.Contains(Status.RequestId);
+	bool Relevant=OwnedFileRequests.Contains(Status.RequestId)||(FileSaveService.IsValid()&&FileSaveService->IsCameraGroundTruthRequest(Status.RequestId));
 	if(!Relevant&&!OwnedPeriodicSessionId.IsEmpty()&&GetWorld())if(auto* Periodic=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>())Relevant=Periodic->GetPeriodicStatus(OwnedPeriodicSessionId).LastRequestId==Status.RequestId;
 	if(!Relevant)return;
 	if(!Status.IsTerminal()||DeliveredFileRequests.Contains(Status.RequestId))return;

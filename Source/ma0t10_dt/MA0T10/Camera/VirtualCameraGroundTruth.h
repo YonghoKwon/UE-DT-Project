@@ -39,6 +39,7 @@ struct MA0T10_DT_API FVirtualCameraTruthFrame
     int32 UnclassifiedPixels=0;
     static TArray<FVirtualCameraTruthBox> FindBoxes(const TArray<uint8>& Classes, const TArray<uint32>& Instances, int32 Width, int32 Height);
 };
+using FVirtualCameraTruthSaveCompletion=TFunction<void(const FVirtualCameraTruthFrame*,const FString&,const FString&,const TArray<int64>&)>;
 
 /** Lazy, bounded opt-in capture. No transport, registration loop or source geometry writes. */
 UCLASS()
@@ -48,8 +49,8 @@ class MA0T10_DT_API UVirtualCameraGroundTruth : public UActorComponent
 public:
     UVirtualCameraGroundTruth();
     virtual ~UVirtualCameraGroundTruth() override;
-    bool Capture(UVirtualCameraCaptureComponent& Source, const FVirtualCameraPayloadSnapshot& Snapshot, bool bSave, bool bDataset=false, bool bIncludeTruth=true);
-    void Cancel();
+    bool Capture(UVirtualCameraCaptureComponent& Source, const FVirtualCameraPayloadSnapshot& Snapshot, bool bSave, bool bDataset=false, bool bIncludeTruth=true, FVirtualCameraTruthSaveCompletion Completion={});
+    void Cancel(const FString& Reason=TEXT("센서 변경 또는 종료로 정답 데이터 저장을 취소했습니다."));
     void Poll();
     UTexture2D* Preview(uint8 Mode) const;
     TSharedPtr<const FVirtualCameraTruthFrame,ESPMode::ThreadSafe> LastFrame;

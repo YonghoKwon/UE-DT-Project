@@ -28,6 +28,7 @@ struct FVirtualSensorFileSaveRequest
     TSharedPtr<const TArray<FVirtualImuSample>,ESPMode::ThreadSafe> Imu;
     int32 ImuGeneration=0;
     bool ImuRequest=false;
+    bool GroundTruthRequest=false;
 	FVirtualSensorFileSaveStatus Status;
 	TWeakObjectPtr<AVirtualSensorActorBase> Actor;
 	uint64 Revision=0;
@@ -310,6 +311,15 @@ void UVirtualSensorFileSaveSubsystem::Tick(float)
 	for(const auto& Id:Snapshot)
 	{
 		const auto* Entry=Requests.Find(Id);if(!Entry)continue;const auto R=*Entry;if(R->Status.IsTerminal())continue;FString Why;
+		if(R->GroundTruthRequest)
+        {
+            if(!IsRequestCurrent(R,Why))
+            {
+                SetState(R,EVirtualSensorFileSaveState::Cancelled,Why);
+                if(auto* C=Cast<AVirtualCameraSensorActor>(R->Actor.Get()))if(C->CaptureComponent)C->CaptureComponent->CancelGroundTruthSave();
+            }
+            continue;
+        }
 		if(!IsRequestCurrent(R,Why))
 		{if(auto* C=Cast<AVirtualCameraSensorActor>(R->Actor.Get()))if(C->CaptureComponent)C->CaptureComponent->CancelLocalFileFrame();SetState(R,EVirtualSensorFileSaveState::Cancelled,Why);continue;}
 		if(R->Status.State==EVirtualSensorFileSaveState::Waiting)
@@ -325,6 +335,12 @@ void UVirtualSensorFileSaveSubsystem::Tick(float)
 bool UVirtualSensorFileSaveSubsystem::CancelRequest(const FString& Id)
 {
 	const auto* Entry=Requests.Find(Id);if(!Entry||(*Entry)->Status.IsTerminal())return false;const auto R=*Entry;
+	if(R->GroundTruthRequest)
+    {
+        SetState(R,EVirtualSensorFileSaveState::Cancelled,TEXT("정답 데이터 저장 요청이 취소되었습니다."));
+        if(auto* C=Cast<AVirtualCameraSensorActor>(R->Actor.Get()))if(C->CaptureComponent)C->CaptureComponent->CancelGroundTruthSave();
+        return true;
+    }
 	if(auto* C=Cast<AVirtualCameraSensorActor>(R->Actor.Get()))if(C->CaptureComponent)C->CaptureComponent->CancelLocalFileFrame();
 	SetState(R,EVirtualSensorFileSaveState::Cancelled,TEXT("파일 저장 요청이 취소되었습니다."));return true;
 }
@@ -445,7 +461,47 @@ bool FSensorFileSaveReentrantCancelTest::RunTest(const FString&)
 
 bool UVirtualSensorFileSaveSubsystem::RequestCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor)
 {
-    return CanAcceptSave(Sensor)&&Sensor->CaptureComponent&&Sensor->CaptureComponent->RequestGroundTruthSave();
+    const auto Id=RequestTrackedCameraGroundTruthSave(Sensor);
+    return GetRequestStatus(Id).State!=EVirtualSensorFileSaveState::Failed;
+}
+bool UVirtualSensorFileSaveSubsystem::IsCameraGroundTruthRequest(const FString& Id) const
+{const auto* R=Requests.Find(Id);return R&&(*R)->GroundTruthRequest;}
+FString UVirtualSensorFileSaveSubsystem::RequestTrackedCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor)
+{
+    check(IsInGameThread());
+    const bool Allowed=CanAcceptSave(Sensor);
+    auto R=MakeShared<FVirtualSensorFileSaveRequest,ESPMode::ThreadSafe>();R->GroundTruthRequest=true;R->Actor=Sensor;
+    R->Status.RequestId=FGuid::NewGuid().ToString(EGuidFormats::Digits);R->Status.SensorKind=EVirtualSensorKind::Camera;R->Status.RequestedUtc=FDateTime::UtcNow();
+    R->StartedSeconds=FPlatformTime::Seconds();const FString Id=R->Status.RequestId;
+    if(IsValid(Sensor)){R->Status.SensorId=Sensor->GetSensorId();R->Revision=GetSensorSaveRevision(Sensor);}
+    Requests.Add(Id,R);Order.Insert(Id,0);TrimHistory();
+    auto Reject=[&](const FString& Why){SetState(R,EVirtualSensorFileSaveState::Failed,Why);return Id;};
+    if(!Allowed||!IsValid(Sensor)||Sensor->GetWorld()!=GetWorld()||!Sensor->CaptureComponent)return Reject(TEXT("정답 데이터 요청 불가 · 센서 또는 진행 중인 파일 저장을 확인하세요."));
+    if(Sensor->IsInteractiveManipulationActive())return Reject(TEXT("이동·회전을 종료한 뒤 정답 데이터를 저장하세요."));
+    if(!Sensor->CaptureComponent->bGroundTruthEnabled)return Reject(TEXT("정답 데이터를 켠 뒤 저장하세요."));
+    if(!Sensor->IsSensorRunning())return Reject(TEXT("측정을 시작한 뒤 정답 데이터를 저장하세요."));
+    SetState(R,EVirtualSensorFileSaveState::Accepted,TEXT("정답 데이터 저장 요청 접수"));
+    if(R->Status.IsTerminal()||bShuttingDown)return Id;
+    FString Why;if(!IsRequestCurrent(R,Why))return Reject(Why);
+    TWeakObjectPtr<UVirtualSensorFileSaveSubsystem> Weak(this);
+    const bool Accepted=Sensor->CaptureComponent->RequestTrackedGroundTruthSave([Weak,Id](const FVirtualCameraTruthFrame* Frame,const FString& Directory,const FString& Error,const TArray<int64>& Sizes)
+    {
+        auto* Service=Weak.Get();if(!Service)return;const auto* Entry=Service->Requests.Find(Id);if(!Entry)return;const auto Request=*Entry;
+        if(Request->Status.IsTerminal())return;
+        FString Reason;if(!Service->IsRequestCurrent(Request,Reason)){Service->SetState(Request,EVirtualSensorFileSaveState::Cancelled,Reason);return;}
+        if(!Frame||!Error.IsEmpty()){Service->SetState(Request,EVirtualSensorFileSaveState::Failed,Error.IsEmpty()?TEXT("정답 데이터 저장 실패"):Error);return;}
+        Request->Status.FrameId=Frame->Acquisition.FrameId;Request->Status.AcquisitionUtc=Frame->Acquisition.TimestampUtc;
+        for(const auto* Name:{TEXT("depth.exr"),TEXT("segmentation.png"),TEXT("instance.png"),TEXT("camera_info.json")})
+        {
+            FVirtualSensorExportResult Result;Result.SensorId=Request->Status.SensorId;Result.AbsolutePath=FPaths::ConvertRelativePathToFull(Directory/Name);
+            const int32 Index=Request->Status.FileResults.Num();Result.FileSizeBytes=Sizes.IsValidIndex(Index)?Sizes[Index]:0;
+            Result.bSucceeded=true;Result.TimestampUtc=FDateTime::UtcNow();Result.Message=TEXT("정답 데이터 저장 완료");Request->Status.FileResults.Add(MoveTemp(Result));
+        }
+        Service->SetState(Request,EVirtualSensorFileSaveState::Succeeded,TEXT("정답 데이터 저장 완료"));
+    });
+    if(!Accepted)return Reject(TEXT("정답 데이터 처리 중입니다. 완료 후 다시 저장하세요."));
+    if(!R->Status.IsTerminal())SetState(R,EVirtualSensorFileSaveState::Saving,TEXT("정답 데이터 저장 중 · 완료를 기다리세요"));
+    return Id;
 }
 bool UVirtualSensorFileSaveSubsystem::WriteCameraGroundTruthBundle(const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
 {

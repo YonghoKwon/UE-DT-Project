@@ -24,6 +24,8 @@ public:
     FString RequestImuCsv(UVirtualImuComponent* Source,const FString& Id,const TArray<FVirtualImuSample>& Samples);
     /** CAM-GT-01 adapter: capture is asynchronous and uses the existing file-save admission. */
     bool RequestCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor);
+    FString RequestTrackedCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor);
+    bool IsCameraGroundTruthRequest(const FString& RequestId) const;
     /** Worker-only, immutable verification bundle. Last file is the completion marker. */
     static bool WriteCameraGroundTruthBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
     static bool WriteDatasetSceneBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
