@@ -276,8 +276,9 @@ bool UVirtualSensorToolWorkspaceSubsystem::OpenTestSet()
     if(!TestSetWidget)
     {
         TestSetWidget=CreateWidget<UAgentTestSetWidget>(GetWorld(),UAgentTestSetWidget::StaticClass());
-        if(!TestSetWidget||!RegisterOwnedPanel(ESensorToolPanelRole::TestSet,TestSetWidget))return false;
     }
+    if(!TestSetWidget)return false;
+    if(GetOwnedPanel(ESensorToolPanelRole::TestSet)!=TestSetWidget&&!RegisterOwnedPanel(ESensorToolPanelRole::TestSet,TestSetWidget))return false;
     AttachOwnedPanel(TestSetWidget);Dx->RegisterWidget(TestSetWidget);
     Dx->RegisterExternalInputBlocker(TestSetWidget);SetPanelOpen(ESensorToolPanelRole::TestSet,true);return true;
 }

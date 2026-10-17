@@ -106,6 +106,11 @@ public:
             auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->OpenTestSet();
             auto* Widget=Workspace->GetTestSetWidget();Test->TestTrue(TEXT("test set uses common floating panel"),Widget&&Widget->IsWorkspaceOwned()&&!Widget->IsWorkspaceDocked()&&Widget->bPanelDraggable);
             if(Widget){const auto Before=Widget->GetCurrentPanelPosition();Widget->SetWorkspacePosition(Before+FVector2D(30,15));Workspace->SavePanel(ESensorToolPanelRole::TestSet);const auto Moved=Widget->GetCurrentPanelPosition();Widget->SetWorkspacePosition(Before);Workspace->RestorePanel(ESensorToolPanelRole::TestSet);Test->TestTrue(TEXT("Workspace v1 position restoration"),Widget->GetCurrentPanelPosition().Equals(Moved,1));}
+            if(Widget)
+            {
+                Widget->CloseWidget();Test->TestTrue(TEXT("DTCore close can reopen the same owned test set instance"),Workspace->OpenTestSet()&&Workspace->GetTestSetWidget()==Widget&&Workspace->GetOwnedPanel(ESensorToolPanelRole::TestSet)==Widget&&Widget->GetToolWorkspace()==Workspace);
+                Workspace->SetPanelOpen(ESensorToolPanelRole::TestSet,false);Test->TestTrue(TEXT("header hide and reopen retain instance and generation"),Workspace->OpenTestSet()&&Workspace->GetTestSetWidget()==Widget&&Service->IsComplete());
+            }
             SourceFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;Submitted=0;for(const auto& Stream:Publisher->GetStreamStatuses())Submitted+=Stream.SubmittedFrameCount;
             Preview=0;SeenFrame=INDEX_NONE;Test->TestTrue(TEXT("saved PCD select"),Service->SelectPreview(0,Error));
             // Immediately replace an outstanding file read; it must never populate the new selection.
