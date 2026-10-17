@@ -25,7 +25,7 @@ bool FUxr15OptionBindingsTest::RunTest(const FString&)
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();for(auto* Actor:TArray<AActor*>{C,Camera,Lidar})Actor->Tags.Add(TEXT("SensorTestManaged"));Camera->StopSensor();Lidar->StopSensor();C->RegisterSensorActor(Camera);C->RegisterSensorActor(Lidar);
     auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);Settings->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);Settings->BindSensorManager(C);Settings->SetVisibility(ESlateVisibility::Visible);const auto Slate=Settings->TakeWidget();
-    C->SelectSensorActor(Camera);Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);Settings->SelectOwnedSettingsTab(0);
+    C->SelectSensorActor(Camera);Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);Settings->SelectOwnedSettingsTab(1);
     Toggle(Slate,TEXT("정답 데이터"),this);
     TestTrue(TEXT("CAM-GT-FIX: UI checkbox enables actual capture component immediately"),Camera->CaptureComponent->bGroundTruthEnabled);
     FVirtualSensorEditableState CameraOn;Camera->ReadEditableState(CameraOn);TestTrue(TEXT("Actor readback agrees with enabled UI"),CameraOn.bCameraGroundTruth);

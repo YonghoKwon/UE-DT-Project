@@ -120,7 +120,10 @@ bool FSensorVocabularyTest::RunTest(const FString&)
         Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-")+Kind,MonitorSlate);
         Monitor->bOwnedAdvancedMenuOpen=true;Monitor->bMonitorDetailsExpanded=false;Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-")+Kind+TEXT("-view-settings"),Monitor->BuildOwnedAdvancedViewMenu());Monitor->bOwnedAdvancedMenuOpen=false;
         Settings->SynchronizeWorkspaceSelection(true);
-        for(int32 Tab=0;Tab<3;++Tab){Settings->WorkspaceSettingsTab=Tab;Settings->bOwnedSettingHelpOpen=false;Settings->RefreshOwnedSettingsText();Inspect(TEXT("settings-")+Kind+(Tab==0?TEXT("-basic"):Tab==1?TEXT("-advanced"):TEXT("-compatibility")),SettingsSlate);}
+        for(int32 Tab=0;Tab<3;++Tab){Settings->WorkspaceSettingsTab=Tab;Settings->bOwnedSettingHelpOpen=false;Settings->RefreshOwnedSettingsText();Inspect(TEXT("settings-")+Kind+(Tab==0?TEXT("-basic"):Tab==1?TEXT("-advanced"):TEXT("-automation")),SettingsSlate);}
+        Settings->WorkspaceSettingsTab=1;ExpandArea(SettingsSlate,TEXT("호환 출력·관리"));Settings->RefreshOwnedSettingsText();Inspect(TEXT("settings-")+Kind+TEXT("-compatibility"),SettingsSlate);
+        // Collapse the compatibility body before the next default screen inventory.
+        TFunction<void(const TSharedRef<SWidget>&)> Collapse=[&](const TSharedRef<SWidget>& Item){if(Item->GetType()==TEXT("SExpandableArea"))StaticCastSharedRef<SExpandableArea>(Item)->SetExpanded(false);auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Collapse(Children->GetChildAt(I));};Collapse(SettingsSlate);
         Settings->WorkspaceSettingsTab=0;Settings->OpenOwnedSettingHelp(TEXT("DeviceProfile"));Settings->RefreshOwnedSettingsText();Inspect(TEXT("settings-")+Kind+TEXT("-help"),SettingsSlate);Settings->bOwnedSettingHelpOpen=false;
     }
     Monitor->bOwnedAdvancedMenuOpen=true;Monitor->bMonitorDetailsExpanded=false;Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-view-settings"),Monitor->BuildOwnedAdvancedViewMenu());

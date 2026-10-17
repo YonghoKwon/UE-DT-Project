@@ -18,6 +18,24 @@
 #include "Widgets/SNullWidget.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/Layout/SScrollBox.h"
+
+int32 UVirtualSensorCaptureExportPanelWidget::GetOwnedDatasetEnabledCount() const
+{
+    return IsWorkspaceOwned()?int32(DatasetDraft.Enabled)+int32(DatasetDraft.ExportFormat!=TEXT("none")):0;
+}
+bool UVirtualSensorCaptureExportPanelWidget::OpenOwnedDatasetSettings()
+{
+    if(!SupportsOwnedDocking())return false;
+    GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Data,true);
+    if(IsPanelCollapsed())TogglePanelCollapsed();
+    OpenOwnedTab(ESensorOwnedDataTab::FileSave);ClearOwnedTabHistory();
+    const auto Root=TakeWidget();auto Area=DatasetArea.Pin();if(!Area)return false;
+    Area->SetExpanded(true);
+    TFunction<void(const TSharedRef<SWidget>&)> Scroll=[&](const TSharedRef<SWidget>& Item)
+    {if(Item->GetType()==TEXT("SScrollBox"))StaticCastSharedRef<SScrollBox>(Item)->ScrollDescendantIntoView(Area,false,EDescendantScrollDestination::TopOrLeft);auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Scroll(Children->GetChildAt(I));};
+    Scroll(Root);return true;
+}
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDatasetSection()
 {
