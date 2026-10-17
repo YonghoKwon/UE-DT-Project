@@ -15,7 +15,7 @@
 - **F2:** 선택 장비의 IMU 해제 확인·취소를 제공한다. 확인 전 선택 변경은 대상 교체 없이 취소되며, 확인하면 기록·전송을 끄고 기존 FileSave 비동기 CSV 완료 뒤 컴포넌트를 제거한다. 숨김 중에도 진행하며 저장 실패는 IMU·표본을 유지한다. 성공 후 해당 IMU 기록 버퍼를 비워 재부착에 섞이지 않게 하고 AUTO-01 조회의 `imu` 객체도 사라진다. 기본 부착 없음은 유지한다.
 - **F5·F6:** 공통 숫자 입력에서 Slate 제한 전 원래 값을 읽어 입력 아래에 최소/최대 조정 안내를 표시한다. LiDAR 사실성 네 옵션과 두 색 모드는 짧은 설명·ⓘ에 화면 변화/학습 데이터 용도/비용/가정 모델 한계를 표시한다. 5Hz·숨긴 상세 조립 중단·기본 꺼짐 정책을 유지한다.
 - **검수맵 헬퍼:** 맵 저장 없이 코드의 하단 여백으로 상태바 입력 영역을 피한다. 신규 자산·DTCore·보호 설정 변경은 없다.
-- **검증 상태:** Runtime `6b42f84`, Editor/Game Development·집중 검수/어휘·WBP7 저장0·golden·Python69·layer0, 전후64쌍 metadata 일치/실패0와1920×1080·DPI1·100/150% 대표 직접6항목 확인. 전체 release는300 Success/39조건부skip/실패1(UXR10 최대 크기 합성 드래그)로 gate 미통과이며 같은 코드의 집중 Success와 구분한다. 표시형1+1 ABAB12회2% gate PASS(FPS 저하0.0046%·p95동일·GT−0.8826%). 개인196/보호653 hash 복원·추가0. 전체 이름/초기 실패·직접 한계는 `Saved/Reports/INSP-FIX-4/RESULT.md`에 기록한다.
+- **검증 상태:** Runtime `6b42f84` 불변, INSP-FIX-4b 테스트 `f88af4b`에서 UXR10 event/cursor 불일치를 faux cursor·2프레임 geometry 대기·현재 cursor의 held synthetic move 검사로 격리했다. 최소/최대·저장/복원 기대값은 유지한다. 수정 후 단독10/10, 표준 release2회 연속14단계·전체301 Success/39조건부skip/실패0, 집중11 Success/skip1·WBP7 저장0·어휘/golden·layer0. 기존 자동64쌍/대표 직접6항목과 Runtime ABAB12회2% PASS는 이전 범위를 유지하며 test-only라 perf 재측정/새 직접 수용을 하지 않았다. 개인196/보호653 hash 동일·추가0. 초기 실패·세 revision 비교·원인·제한은 `Saved/Reports/INSP-FIX-4/RESULT.md`의 UXR10 절을 따른다.
 
 ### INSP-FIX-3 — 정답 저장 결과·배치 선택 일치 (F7·F10)
 
