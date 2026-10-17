@@ -70,7 +70,7 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorRecorder")
     bool IsRecording() const { return bRecording; }
-    bool IsRecordingSensor(const FString& Id) const { return bRecording&&!LocalCaptureSuspensions.Contains(Id); }
+    bool IsRecordingSensor(const FString& Id) const { return bRecording&&(LocalCaptureSuspensions.IsEmpty()||!LocalCaptureSuspensions.Contains(Id)); }
     void SetLocalCaptureSuspended(const FString& Id,bool Suspended) { if(Suspended)LocalCaptureSuspensions.Add(Id);else LocalCaptureSuspensions.Remove(Id); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorRecorder")

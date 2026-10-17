@@ -71,7 +71,7 @@ public:
 	bool CanUseHighThroughputTransport() const;
 	/** Temporary per-sensor admission hold; configurations and other sensors remain live. */
 	void SetLocalCaptureSuspended(const FString& SensorId,bool Suspended);
-	bool IsLocalCaptureSuspended(const FString& SensorId) const { return LocalCaptureSuspensions.Contains(SensorId); }
+	bool IsLocalCaptureSuspended(const FString& SensorId) const { return !LocalCaptureSuspensions.IsEmpty() && LocalCaptureSuspensions.Contains(SensorId); }
 	bool HasSensorPlacementWork(const FString& SensorId,EVirtualSensorKind Kind) const;
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualSensor|Stream")
