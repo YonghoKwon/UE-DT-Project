@@ -97,7 +97,7 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorDataPreflightFormattingTest,"MA0T10.UXR03.PreflightDetailBudget",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorDataPreflightFormattingTest::RunTest(const FString&)
 {
-    TestEqual(TEXT("technical transport blocker has an actionable user sentence"),SensorToolUiText::PreflightReason(TEXT("실시간 Topic 송신에는 STOMP 전송 모드가 필요합니다.")),SensorToolUiText::PcdServerRequired().ToString());
+    TestTrue(TEXT("transport mode blocker names the required user choice"),SensorToolUiText::PreflightReason(TEXT("실시간 Topic 송신에는 STOMP 전송 모드가 필요합니다.")).Contains(TEXT("실시간 전송을 선택하세요")));
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();FVirtualSlabSensorOutputSelection Outputs;
     const auto Full=UVirtualSensorOutputPreflight::InspectForPurpose(World,Outputs,{},EVirtualSensorPreflightPurpose::ScenarioTransition);
     const auto Compact=UVirtualSensorOutputPreflight::InspectForPresentation(World,Outputs,{},EVirtualSensorPreflightPurpose::ScenarioTransition,false);

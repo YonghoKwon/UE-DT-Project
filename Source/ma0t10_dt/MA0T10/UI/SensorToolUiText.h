@@ -64,8 +64,12 @@ namespace SensorToolUiText
     }
     inline FString PreflightReason(const FString& Reason)
     {
+        if(Reason.Contains(TEXT("STOMP 전송 모드")))return LOCTEXT("RealtimeModeRequired","전송 방식이 맞지 않습니다 · 서버 연결 설정에서 실시간 전송을 선택하세요").ToString();
         if(Reason.Contains(TEXT("STOMP")))return PcdServerRequired().ToString();
-        if(Reason.Contains(TEXT("Broker URL"))||Reason.Contains(TEXT("Topic")))return LOCTEXT("OutputAddressRequired", "서버 연결과 출력 주소를 설정하세요").ToString();
+        if(Reason.Contains(TEXT("PCD Topic")))return LOCTEXT("PcdAddressRequired", "PCD 출력 주소가 없습니다 · 서버 연결 설정에서 입력하세요").ToString();
+        if(Reason.Contains(TEXT("Camera Topic")))return LOCTEXT("CameraAddressRequired", "Camera 이미지 출력 주소가 없습니다 · 서버 연결 설정에서 입력하세요").ToString();
+        if(Reason.Contains(TEXT("LiDAR Topic")))return LOCTEXT("LidarAddressRequired", "LiDAR 정보 출력 주소가 없습니다 · 서버 연결 설정에서 입력하세요").ToString();
+        if(Reason.Contains(TEXT("Broker URL")))return LOCTEXT("ServerAddressRequired", "서버 주소가 없습니다 · 서버 연결 설정에서 입력하세요").ToString();
         if(Reason.Contains(TEXT("Coordinator")))return LOCTEXT("EquipmentConnectionRequired", "장비와 전송 연결을 확인하세요").ToString();
         if(Reason.Contains(TEXT("중복 SensorId")))return LOCTEXT("DuplicateEquipmentId", "장비 ID가 겹칩니다 · 배치에서 확인하세요").ToString();
         if(Reason.Contains(TEXT("선택 센서 없음"))||Reason.Contains(TEXT("대상 SensorId 없음")))return LOCTEXT("SelectOutputEquipment", "전송할 장비를 배치나 상단 목록에서 선택하세요").ToString();
@@ -148,14 +152,21 @@ namespace SensorToolUiText
     inline FText PcdResumeDetails(float Seconds, int64 Count)
     { return FText::Format(LOCTEXT("PcdResumeDetails", "자동 재개까지 최소 {0}초 · 연결과 대기 전송 정리 후 재개 · 재개 {1}회"), FMath::CeilToInt(Seconds), FText::AsNumber(Count)); }
     inline FText ServerState(bool Connected) { return Connected ? LOCTEXT("ServerConnected", "서버 연결됨") : LOCTEXT("ServerDisconnected", "서버 연결 안 됨"); }
+    inline FText ServerState(bool HasSettings,bool Connected,bool Expected,double Seconds)
+    {
+        if(Connected)return ServerState(true);
+        if(!HasSettings)return LOCTEXT("ServerUnconfigured","서버 설정 필요");
+        if(!Expected)return LOCTEXT("ServerConfiguredWaiting","서버 설정됨 · 전송 대기");
+        return Seconds<5?LOCTEXT("ServerRetrying","서버 재연결 중"):ServerState(false);
+    }
     inline FText ScenarioWaiting() { return LOCTEXT("ScenarioWaiting", "시나리오 대기"); }
     inline FText ScenarioPreparing() { return LOCTEXT("ScenarioPreparing", "시나리오 준비 중"); }
     inline FText ScenarioPaused() { return LOCTEXT("ScenarioPaused", "시나리오 일시정지"); }
     inline FText ScenarioDraining() { return LOCTEXT("ScenarioDraining", "시나리오 정리 중"); }
     inline FText ScenarioRunning(float Progress) { return FText::Format(LOCTEXT("ScenarioRunning", "시나리오 실행 {0}%"), FMath::RoundToInt(Progress * 100)); }
     inline FText ConnectionRequired() { return LOCTEXT("ConnectionRequired", "연결 설정 필요 · 서버 연결 설정을 확인하세요"); }
-    inline FText ConnectionWarning(bool HasSettings,double DisconnectedSeconds)
-    { return HasSettings&&DisconnectedSeconds<5 ? LOCTEXT("ServerReconnecting", "서버 재연결 중 · 잠시 기다려 주세요") : ConnectionRequired(); }
+    inline FText ConnectionWarning(bool HasSettings,double DisconnectedSeconds,bool Expected=true)
+    { return !HasSettings?ConnectionRequired():!Expected?FText::GetEmpty():DisconnectedSeconds<5 ? LOCTEXT("ServerReconnecting", "서버 재연결 중 · 잠시 기다려 주세요") : LOCTEXT("ServerConnectionLost","서버 연결 끊김 · 서버 연결 설정에서 확인하세요"); }
     inline FText SendDelayed() { return LOCTEXT("SendDelayed", "전송 지연 · 전송량과 서버 수신 상태를 확인하세요"); }
     inline FText EquipmentRequired() { return LOCTEXT("EquipmentRequired", "장비 없음 · 배치에서 장비를 추가하세요"); }
     inline FText EquipmentCheck() { return LOCTEXT("EquipmentCheck", "장비 설정 확인 필요 · PCD 전송에서 확인하세요"); }

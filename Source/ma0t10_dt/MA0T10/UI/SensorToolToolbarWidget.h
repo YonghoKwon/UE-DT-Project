@@ -15,7 +15,7 @@ struct FSensorToolGlobalStatus
 {
 	FText Equipment, Pcd, Scenario, Server, Warning, Automation, Imu, TestSet;
 	int32 EquipmentCount=0, MeasuringCount=0;
-	bool bPcdSending=false, bServerConnected=false;
+	bool bPcdSending=false, bServerConnected=false, bConnectionWarning=false, bPreflightWarning=false;
 };
 UCLASS()
 class MA0T10_DT_API USensorToolWorkspaceRootWidget : public UUserWidget {GENERATED_BODY()};

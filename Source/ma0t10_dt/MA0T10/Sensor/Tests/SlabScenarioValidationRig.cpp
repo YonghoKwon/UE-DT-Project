@@ -130,13 +130,16 @@ void ASlabScenarioValidationRig::SubmitSynthetic(bool bPcd)
     if(!SlabActor)return;
     if(bPcd)ConfigureLocalBroker();
     auto Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Outputs.bPointCloud=bPcd;
-    if(!SlabActor->SetSensorOutputs(Outputs))return;
     const FString Json=FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower));
     const FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/Slab");
     IFileManager::Get().MakeDirectory(*Dir,true);
     FFileHelper::SaveStringToFile(Json,*(Dir/TEXT("last_dtcore_input.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    // Exercise DTCore queue -> worker ParseToStruct -> GT ProcessStructData, not direct actor injection.
-    GetWorld()->GetGameInstance()->GetSubsystem<UDxDataSubsystem>()->EnqueueWebSocketData(Json);
+    // A validation button is a one-shot run option, not a user's next live
+    // scenario preference. Use the existing replay admission/snapshot path.
+    FSlabScenarioDataPtr Data;FString Error;
+    auto* Replay=GetWorld()->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
+    if(FSlabScenarioCodec::Parse(Json,Data,Error,true)&&Replay->RegisterValidatedScenario(Data))
+        Replay->RequestScenarioReplayWithOutputs(Data->ScenarioUUID,Outputs,SlabActor->TargetSensorIds);
 }
 void ASlabScenarioValidationRig::WriteReport()
 {

@@ -3,6 +3,7 @@
 #include "SensorToolUiText.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "VirtualSensorToolWorkspaceSubsystem.h"
+#include "VirtualSensorCaptureExportPanelWidget.h"
 #include "SlabProgressPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -91,16 +92,20 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         GlobalStatus.bPcdSending|=!Controlled||(Session.Outputs.bPointCloud&&Session.State==EVirtualSlabSessionState::Running&&Session.CurrentSlab.bEligible);
     }
     GlobalStatus.bPcdSending|=Session.State==EVirtualSlabSessionState::Draining&&Session.Outputs.bPointCloud&&Session.UnfinishedFrames>0;
-    const auto Preflight=UVirtualSensorOutputPreflight::InspectForPurpose(this,FVirtualSlabSensorOutputSelection(),{},EVirtualSensorPreflightPurpose::ScenarioTransition);
-    GlobalStatus.bServerConnected=Preflight.bTransportConnected;
+    const auto Preflight=UVirtualSensorOutputPreflight::InspectForPresentation(this,FVirtualSlabSensorOutputSelection(),{},EVirtualSensorPreflightPurpose::ScenarioTransition,false);
+    bool ConnectionExpected=false;
+    if(C&&C->SharedTransportComponent)C->SharedTransportComponent->GetOutputServerConnection(GlobalStatus.bServerConnected,ConnectionExpected);
+    // An active output requires its own backend(s); an idle connection test
+    // describes the current profile without inventing a disconnected stream.
+    if(GlobalStatus.bPcdSending){GlobalStatus.bServerConnected=Preflight.bTransportConnected;ConnectionExpected=true;}
     const bool HasServerSettings=C&&C->SharedTransportComponent&&!C->SharedTransportComponent->GetTransportProfile().BrokerUrl.TrimStartAndEnd().IsEmpty();
-    if(GlobalStatus.bServerConnected||!HasServerSettings)ServerDisconnectedSince=-1;
+    if(GlobalStatus.bServerConnected||!HasServerSettings||!ConnectionExpected)ServerDisconnectedSince=-1;
     else if(ServerDisconnectedSince<0)ServerDisconnectedSince=Now;
     const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     const bool SendDelayed=TransferFailure||(Raw&&Raw->IsSendDelayed());
     GlobalStatus.Equipment=SensorToolUiText::EquipmentCount(GlobalStatus.EquipmentCount,GlobalStatus.MeasuringCount);
     GlobalStatus.Pcd=PcdOverloadSuspended?SensorToolUiText::PcdResumeWaiting():SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
-    GlobalStatus.Server=SensorToolUiText::ServerState(GlobalStatus.bServerConnected);
+    GlobalStatus.Server=SensorToolUiText::ServerState(HasServerSettings,GlobalStatus.bServerConnected,ConnectionExpected,Now-ServerDisconnectedSince);
     GlobalStatus.Scenario=SensorToolUiText::ScenarioWaiting();
     if(auto* Progress=Cast<USlabProgressPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)))StatusSlab=Progress->GetBoundSlabActor();
     if(!StatusSlab.IsValid()&&Now>=NextSlabLookup)
@@ -136,11 +141,19 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     if(Session.State==EVirtualSlabSessionState::Draining)GlobalStatus.Scenario=SensorToolUiText::ScenarioDraining();
     else if(Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
     // A single actionable summary; technical details stay in the destination panel.
+    const auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+    const FString VisibleBlocker=Data?Data->GetVisiblePcdBlockingReason():FString();
     if(GlobalStatus.EquipmentCount==0)GlobalStatus.Warning=SensorToolUiText::EquipmentRequired();
-    else if(!GlobalStatus.bServerConnected)GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince);
+    else if(!VisibleBlocker.IsEmpty()){GlobalStatus.Warning=FText::FromString(VisibleBlocker);GlobalStatus.bPreflightWarning=true;}
     else if(!Preflight.BlockingReasons.IsEmpty())
     {
         GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
+        GlobalStatus.bPreflightWarning=true;
+    }
+    else if(!GlobalStatus.bServerConnected)
+    {
+        GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince,ConnectionExpected);
+        GlobalStatus.bConnectionWarning=!GlobalStatus.Warning.IsEmpty();
     }
     else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
     if(const auto* T=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(T->HasItems())
@@ -192,8 +205,8 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
         };
         Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
         [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
-         .Visibility_Lambda([this,I](){return (I==4&&GlobalStatus.Warning.IsEmpty())||(I==3&&!GlobalStatus.bServerConnected)?EVisibility::Collapsed:EVisibility::Visible;})
-         .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4&&!GlobalStatus.bServerConnected?ESensorToolDestination::ServerSettings:Destination);return FReply::Handled();})
+          .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
+          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4?(GlobalStatus.bConnectionWarning?ESensorToolDestination::ServerSettings:GlobalStatus.bPreflightWarning?ESensorToolDestination::PcdTransfer:Destination):Destination);return FReply::Handled();})
          [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
     }

@@ -68,6 +68,7 @@ public:
 	void OpenOwnedConnectionSection(bool bDiagnostics);
 	bool AreScenarioRunResultsExpanded() const { return bRunResultsExpanded; }
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput") FString GetPcdPreflightText() const;
+	FString GetVisiblePcdBlockingReason() const;
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioRunResult(const FString& RunId);
