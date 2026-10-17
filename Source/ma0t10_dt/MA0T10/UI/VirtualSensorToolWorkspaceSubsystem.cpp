@@ -295,6 +295,8 @@ void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPan
 	// This canvas is nested under Main/Viewport; its toolbar has a reserved local Z domain.
 	if(Slot->GetZOrder()>=10000)Slot->SetZOrder(++Front);
 	else Front=FMath::Max(Front,Slot->GetZOrder());
+	// The independent floating test set keeps its header above the sidebar summary card.
+	if(R==ESensorToolPanelRole::TestSet)Slot->SetZOrder(10001);
 }
 void UVirtualSensorToolWorkspaceSubsystem::ResetOwnedPanelLayout(ESensorToolPanelRole R)
 {

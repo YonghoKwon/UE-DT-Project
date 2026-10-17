@@ -32,6 +32,7 @@
 #include "HAL/FileManager.h"
 #include "GenericPlatform/GenericWindow.h"
 #include "Components/PanelWidget.h"
+#include "Components/CanvasPanelSlot.h"
 #include "ma0t10_dt/MA0T10/UI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 namespace
@@ -93,6 +94,11 @@ public:
         }
         if(Phase==1)
         {
+            if(ManualBusy&&!Publisher->IsLocalCaptureSuspended(Lidar->GetSensorId()))
+            {
+                PreStopEnabled=Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());
+                PreStopIntent=Publisher->IsStreamActiveOrAwaitingResume(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());
+            }
             if(Service->Items().ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Failed;})){Test->AddError(TEXT("inspection generation failed: ")+Service->Message());return Finish();}
             if(!Service->IsComplete())return false;
             At=Now;Phase=2;return false;
@@ -103,13 +109,14 @@ public:
             if(Mode==3)
             {
                 Test->TestTrue(TEXT("only owned measurement restored"),Lidar->IsSensorRunning());
-                Test->TestTrue(TEXT("PCD enable setting preserved"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
+                Test->TestEqual(TEXT("PCD user active or awaiting-resume intent preserved"),Publisher->IsStreamActiveOrAwaitingResume(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()),ManualBusy?PreStopIntent:true);
                 const auto P=Periodic->GetPeriodicStatus(PeriodicId);Test->TestTrue(TEXT("same periodic session restored"),P.bActive&&P.Folder==PeriodicFolder&&P.IntervalSeconds==.2f);
                 Test->TestFalse(TEXT("temporary publisher hold released"),Publisher->IsLocalCaptureSuspended(Lidar->GetSensorId()));
             }
             Save(TEXT("completed"));Lidar->StopSensor();Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());if(!PeriodicId.IsEmpty())Periodic->StopPeriodicSave(PeriodicId);
             auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->OpenTestSet();
             auto* Widget=Workspace->GetTestSetWidget();Test->TestTrue(TEXT("test set uses common floating panel"),Widget&&Widget->IsWorkspaceOwned()&&!Widget->IsWorkspaceDocked()&&Widget->bPanelDraggable);
+            if(Widget)Test->TestTrue(TEXT("floating header stays above owned summary card"),CastChecked<UCanvasPanelSlot>(Widget->Slot)->GetZOrder()>CastChecked<UCanvasPanelSlot>(Workspace->GetOwnedNavigation()->Slot)->GetZOrder());
             if(Widget){const auto Before=Widget->GetCurrentPanelPosition();Widget->SetWorkspacePosition(Before+FVector2D(30,15));Workspace->SavePanel(ESensorToolPanelRole::TestSet);const auto Moved=Widget->GetCurrentPanelPosition();Widget->SetWorkspacePosition(Before);Workspace->RestorePanel(ESensorToolPanelRole::TestSet);Test->TestTrue(TEXT("Workspace v1 position restoration"),Widget->GetCurrentPanelPosition().Equals(Moved,1));}
             if(Widget)
             {
@@ -200,7 +207,7 @@ private:
         H.Final();uint8 Bytes[20];H.GetHash(Bytes);return BytesToHex(Bytes,20);
     }
     void Save(const TCHAR* Stage)
-    {auto O=Service->StatusJson();O->SetStringField(TEXT("input_source"),InputSource);O->SetNumberField(TEXT("mode"),Mode);O->SetBoolField(TEXT("large"),Large);FString J;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&J));FFileHelper::SaveStringToFile(J,*(Report()/FString::Printf(TEXT("%s-%d-%d.json"),Stage,Large,Mode)));}
+    {auto O=Service->StatusJson();O->SetBoolField(TEXT("pcd_pre_stop_enabled"),PreStopEnabled);O->SetBoolField(TEXT("pcd_pre_stop_intent"),PreStopIntent);O->SetBoolField(TEXT("pcd_current_enabled"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));O->SetBoolField(TEXT("pcd_current_intent"),Publisher->IsStreamActiveOrAwaitingResume(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));O->SetStringField(TEXT("input_source"),InputSource);O->SetNumberField(TEXT("mode"),Mode);O->SetBoolField(TEXT("large"),Large);FString J;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&J));FFileHelper::SaveStringToFile(J,*(Report()/FString::Printf(TEXT("%s-%d-%d.json"),Stage,Large,Mode)));}
     void SetMatrix()
     {
         FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_RES_X"),MatrixStep<2?TEXT("1280"):TEXT("1920"));FPlatformMisc::SetEnvironmentVar(TEXT("MA0T10_ACCEPTANCE_RES_Y"),MatrixStep<2?TEXT("720"):TEXT("1080"));
@@ -221,7 +228,7 @@ private:
         if(Service){Service->StopPreview();Service->ResetConfirmed(Error);}if(Lidar)Lidar->StopSensor();if(Publisher&&Lidar)Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());if(Periodic&&!PeriodicId.IsEmpty())Periodic->StopPeriodicSave(PeriodicId);
         if(Slab)Slab->SetSensorOutputs(OriginalOutputs);return true;
     }
-    FAutomationTestBase* Test;bool Large,ManualBusy=false,MatrixDone=false;int32 MatrixStep=0;FString OriginalX,OriginalY,InputSource;double LastResize=0;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComponent* Publisher=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
+    FAutomationTestBase* Test;bool Large,ManualBusy=false,MatrixDone=false,PreStopEnabled=true,PreStopIntent=true;int32 MatrixStep=0;FString OriginalX,OriginalY,InputSource;double LastResize=0;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComponent* Publisher=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
     FVirtualSlabSensorOutputSelection OriginalOutputs;TArray<FString> Inputs;FString Error,PeriodicId,PeriodicFolder,FileHash;int64 Submitted=0,SourceFrame=0;int32 Mode=0,Phase=0,Injected=0,Preview=0,SeenFrame=INDEX_NONE;double Started=FPlatformTime::Seconds(),Observed=0,At=0;
 };
 bool InspectionCase(FAutomationTestBase* Test,bool Large)
