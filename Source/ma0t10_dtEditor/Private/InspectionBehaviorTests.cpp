@@ -42,9 +42,10 @@ class FInspectionBehaviorCommand final:public IAutomationLatentCommand
     FVector2D Press;
     TSharedPtr<ITableRow> PressedRow;
     bool Manual=false;
-    FString ManualSelection;int32 ManualChanges=0;
+    FString ManualSelection,ManualRoot;int32 ManualChanges=0;
 public:
-    FInspectionBehaviorCommand(FAutomationTestBase* In,bool InTruth):Test(In),TruthCase(InTruth),Manual(FParse::Param(FCommandLine::Get(),TEXT("InspectionBehaviorManual"))){}
+    FInspectionBehaviorCommand(FAutomationTestBase* In,bool InTruth):Test(In),TruthCase(InTruth),Manual(FParse::Param(FCommandLine::Get(),TEXT("InspectionBehaviorManual")))
+    {FParse::Value(FCommandLine::Get(),TEXT("InspectionBehaviorManualRoot="),ManualRoot);}
     bool Update() override
     {
         const double Now=FPlatformTime::Seconds();
@@ -71,13 +72,13 @@ public:
                 FString Error;Test->TestTrue(TEXT("memory Camera truth setup"),Camera->ApplyEditableState(State,Error));Camera->StartSensor();
             }
             if(Manual){Stage=90;Next=Now+1;return false;}
-            if(TruthCase){M->bOwnedAdvancedMenuOpen=true;M->CameraTruthDisplayMode=0;M->RequestCameraTruthSave();SuccessId=M->CameraTruthSaveRequest;Test->TestFalse(TEXT("F7 save has request identity"),SuccessId.IsEmpty());Test->TestEqual(TEXT("F7 immediately reports saving"),Files->GetRequestStatus(SuccessId).State,EVirtualSensorFileSaveState::Saving);Stage=1;return false;}
+            if(TruthCase){M->bOwnedAdvancedMenuOpen=true;M->CameraTruthDisplayMode=0;M->RequestCameraTruthSave();SuccessId=M->CameraTruthSaveRequest;Test->TestFalse(TEXT("F7 save has request identity"),SuccessId.IsEmpty());Test->TestEqual(TEXT("F7 immediately reports saving"),Files->GetRequestStatus(SuccessId).State,EVirtualSensorFileSaveState::Saving);W->SetPanelOpen(ESensorToolPanelRole::Monitor,false);M->bOwnedAdvancedMenuOpen=false;Stage=1;return false;}
             W->GetPlacementInteraction()->GetGizmo(P);Stage=10;Next=Now+.5;return false;
         }
         if(Stage==90)
         {
             // Opt-in holds this same PIE for Computer Use. It never clicks on behalf of the operator.
-            const FString Root=FPaths::ProjectSavedDir()/TEXT("Reports/INSP-FIX-3/manual");
+            const FString Root=ManualRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/INSP-FIX-3/manual"):ManualRoot;
             IFileManager::Get().MakeDirectory(*Root,true);
             if(!IFileManager::Get().FileExists(*(Root/TEXT("ready.txt"))))FFileHelper::SaveStringToFile(TEXT("client fixture ready; default validation-map helper retained"),*(Root/TEXT("ready.txt")));
             auto* Selected=C->GetSelectedSensorActor();const FString Id=Selected?Selected->GetSensorId():TEXT("none");
@@ -91,6 +92,7 @@ public:
                 auto* Preview=M->GetOwnedMonitoredActor();J->SetStringField(TEXT("preview"),Preview?Preview->GetSensorId():TEXT("none"));
                 auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));auto* Detail=Settings?Cast<AVirtualSensorActorBase>(Settings->GetSelectedSensorActor()):nullptr;
                 J->SetStringField(TEXT("settings"),Detail?Detail->GetSensorId():TEXT("none"));J->SetNumberField(TEXT("font"),W->GetOwnedPanelFontScale());J->SetNumberField(TEXT("dpi"),P->GetCachedGeometry().Scale);
+                if(const auto Window=App.FindWidgetWindow(P->GetCachedWidget().ToSharedRef()))J->SetNumberField(TEXT("window_dpi"),Window->GetDPIScaleFactor());
                 const auto Size=World->GetGameViewport()->Viewport->GetSizeXY();J->SetStringField(TEXT("client"),Size.ToString());J->SetNumberField(TEXT("engine_frame"),GFrameCounter);
                 FString Json;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Root/FString::Printf(TEXT("selection-%02d.json"),ManualChanges)));
                 FScreenshotRequest::RequestScreenshot(Root/FString::Printf(TEXT("selection-%02d.png"),ManualChanges),true,false);
@@ -104,6 +106,7 @@ public:
             if(Stage==1)
             {
                 const auto Status=Files->GetRequestStatus(SuccessId);if(!Status.IsTerminal())return false;
+                W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);M->bOwnedAdvancedMenuOpen=true;M->RefreshCameraTruth();
                 Test->TestEqual(TEXT("F7 actual worker completes"),Status.State,EVirtualSensorFileSaveState::Succeeded);
                 if(Status.State!=EVirtualSensorFileSaveState::Succeeded){Test->AddError(Status.Message);return true;}
                 Test->TestEqual(TEXT("F7 four unchanged output files"),Status.FileResults.Num(),4);
@@ -113,11 +116,22 @@ public:
                 Test->TestTrue(TEXT("F7 completion visible with path"),M->CameraTruthStatus.ToString().Contains(Directory)&&M->CameraTruthStatus.ToString().Contains(TEXT("저장 완료")));
                 Camera->CaptureComponent->GetGroundTruth()->Status=TEXT("정답 미리보기 갱신");M->RefreshCameraTruth();
                 Test->TestTrue(TEXT("F7 preview cannot overwrite save completion"),M->CameraTruthStatus.ToString().Contains(Directory));
+                Camera->CaptureComponent->SetGroundTruthEnabled(false);M->RefreshCameraTruth();
+                Test->TestTrue(TEXT("F7 off remains visible alongside the completed folder"),M->CameraTruthStatus.ToString().Contains(TEXT("꺼짐"))&&M->CameraTruthStatus.ToString().Contains(Directory));
+                Camera->CaptureComponent->SetGroundTruthEnabled(true);
                 Camera->StopSensor();M->RequestCameraTruthSave();
                 Test->TestEqual(TEXT("F7 stopped request fails explicitly"),Files->GetRequestStatus(M->CameraTruthSaveRequest).State,EVirtualSensorFileSaveState::Failed);
                 Test->TestTrue(TEXT("F7 failure reason stays in initiating screen"),M->CameraTruthStatus.ToString().Contains(TEXT("측정을 시작"))&&M->CameraTruthSavedDirectory.IsEmpty());
                 Camera->StartSensor();M->RequestCameraTruthSave();const FString Cancelled=M->CameraTruthSaveRequest;Camera->StopSensor();
                 Test->TestTrue(TEXT("F7 stop completes queued request without success path"),Files->GetRequestStatus(Cancelled).IsTerminal()&&Files->GetRequestStatus(Cancelled).FileResults.IsEmpty());
+                Camera->StartSensor();M->RequestCameraTruthSave();const FString Reconfigured=M->CameraTruthSaveRequest;
+                const auto Size=Camera->CaptureComponent->CaptureResolution;Camera->CaptureComponent->CaptureResolution.X+=16;Files->Tick(0);
+                Test->TestEqual(TEXT("F7 changed revision cancels queued result"),Files->GetRequestStatus(Reconfigured).State,EVirtualSensorFileSaveState::Cancelled);
+                Test->TestFalse(TEXT("F7 changed revision clears only the owned truth request"),Camera->CaptureComponent->IsGroundTruthSavePending());
+                Camera->CaptureComponent->CaptureResolution=Size;Camera->StopSensor();
+                auto* Deleted=World->SpawnActor<AVirtualCameraSensorActor>();Deleted->CaptureComponent->SensorId=TEXT("INSP-FIX-3-DELETED");Deleted->CaptureComponent->SetGroundTruthEnabled(true);Deleted->StartSensor();
+                const FString DeletedId=Files->RequestTrackedCameraGroundTruthSave(Deleted);Deleted->Destroy();Files->Tick(0);
+                Test->TestTrue(TEXT("F7 deleted sensor cannot publish a successful folder"),Files->GetRequestStatus(DeletedId).IsTerminal()&&Files->GetRequestStatus(DeletedId).FileResults.IsEmpty());
                 Camera->CaptureComponent->ProjectionType=ECameraProjectionMode::Orthographic;Camera->StartSensor();M->RequestCameraTruthSave();Stage=2;return false;
             }
             const auto Failed=Files->GetRequestStatus(M->CameraTruthSaveRequest);if(!Failed.IsTerminal())return false;

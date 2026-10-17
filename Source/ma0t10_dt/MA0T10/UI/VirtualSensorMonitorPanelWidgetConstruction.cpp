@@ -621,18 +621,22 @@ void UVirtualSensorMonitorPanelWidget::RefreshCameraTruth()
     if(!IsVisible()||IsPanelCollapsed()||bShowingLidar||!CameraComp)return;
     if(auto* Actor=Cast<AVirtualCameraSensorActor>(CameraComp->GetOwner()))Actor->SetGroundTruthPreviewDemand(CameraTruthDisplayMode!=0);
     if(!bOwnedAdvancedMenuOpen&&IsWorkspaceOwned())return;
-    if(bCameraTruthSaveTerminal)return; // Retain the result even after the bounded service history is trimmed.
     FString Text;
     if(!CameraTruthSaveRequest.IsEmpty()&&GetWorld())
     {
-        const auto Saved=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(CameraTruthSaveRequest);
-        bCameraTruthSaveTerminal=Saved.IsTerminal();
-        Text=Saved.SensorId+TEXT(" · ")+Saved.Message;
-        if(Saved.State==EVirtualSensorFileSaveState::Succeeded&&!Saved.FileResults.IsEmpty())
+        // Cache the save result independently of the current preview/off state.
+        if(!bCameraTruthSaveTerminal)
         {
-            CameraTruthSavedDirectory=FPaths::GetPath(Saved.FileResults[0].AbsolutePath);Text+=TEXT("\n")+CameraTruthSavedDirectory;
+            const auto Saved=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(CameraTruthSaveRequest);
+            bCameraTruthSaveTerminal=Saved.IsTerminal();CameraTruthSaveMessage=Saved.SensorId+TEXT(" · ")+Saved.Message;
+            if(Saved.State==EVirtualSensorFileSaveState::Succeeded&&!Saved.FileResults.IsEmpty())
+            {
+                CameraTruthSavedDirectory=FPaths::GetPath(Saved.FileResults[0].AbsolutePath);CameraTruthSaveMessage+=TEXT("\n")+CameraTruthSavedDirectory;
+            }
+            else CameraTruthSavedDirectory.Reset();
         }
-        else CameraTruthSavedDirectory.Reset();
+        Text=CameraTruthSaveMessage;
+        if(!CameraComp->bGroundTruthEnabled)Text=TEXT("정답 데이터 꺼짐 · 센서 상세 설정에서 켜세요\n")+Text;
     }
     else if(!CameraComp->bGroundTruthEnabled)Text=TEXT("정답 데이터 꺼짐 · 센서 상세 설정에서 켜세요");
     else if(const auto* Truth=CameraComp->GetGroundTruth())Text=Truth->Status;

@@ -313,9 +313,9 @@ void UVirtualSensorFileSaveSubsystem::Tick(float)
 		const auto* Entry=Requests.Find(Id);if(!Entry)continue;const auto R=*Entry;if(R->Status.IsTerminal())continue;FString Why;
 		if(R->GroundTruthRequest)
         {
-            if(!IsRequestCurrent(R,Why)||FPlatformTime::Seconds()-R->StartedSeconds>30)
+            if(!IsRequestCurrent(R,Why))
             {
-                SetState(R,EVirtualSensorFileSaveState::Failed,Why.IsEmpty()?TEXT("정답 데이터 저장 대기 시간 초과"):Why);
+                SetState(R,EVirtualSensorFileSaveState::Cancelled,Why);
                 if(auto* C=Cast<AVirtualCameraSensorActor>(R->Actor.Get()))if(C->CaptureComponent)C->CaptureComponent->CancelGroundTruthSave();
             }
             continue;

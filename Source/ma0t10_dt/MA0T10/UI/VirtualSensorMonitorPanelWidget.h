@@ -633,7 +633,7 @@ private:
 	AVirtualSensorActorBase* GetOwnedMonitoredActor() const;
     uint8 CameraTruthDisplayMode=0;
     FText CameraTruthStatus;
-    FString CameraTruthSaveRequest,CameraTruthSavedDirectory;
+    FString CameraTruthSaveRequest,CameraTruthSavedDirectory,CameraTruthSaveMessage;
     bool bCameraTruthSaveTerminal=false;
     void RequestCameraTruthSave();
     TSharedRef<SWidget> BuildCameraTruthControls();
