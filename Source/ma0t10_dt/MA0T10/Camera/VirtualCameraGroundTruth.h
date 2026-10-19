@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "VirtualCameraPayloadCodec.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSemanticScene.h"
 #include "VirtualCameraGroundTruth.generated.h"
 
 class UVirtualCameraCaptureComponent;

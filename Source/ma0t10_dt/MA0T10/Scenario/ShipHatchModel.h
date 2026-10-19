@@ -38,6 +38,7 @@ struct MA0T10_DT_API FAnalysis
     TArray<FCell> Cells;
 };
 MA0T10_DT_API FSurface Generate(const FSettings& Settings);
+MA0T10_DT_API void GenerateInto(const FSettings& Settings,FSurface& Surface,TArray<double>& ShapeScratch);
 MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points);
 MA0T10_DT_API FColor Jet(double Normalized);
 MA0T10_DT_API double Reflectivity(ECargo Cargo);

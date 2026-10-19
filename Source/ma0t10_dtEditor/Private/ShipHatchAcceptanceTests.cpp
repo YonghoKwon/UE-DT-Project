@@ -14,11 +14,13 @@
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "HAL/PlatformMemory.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/FileManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/Crc.h"
 #include "Json.h"
 #include "ImageUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -31,10 +33,11 @@
 #include "Components/ComboBoxString.h"
 #include "Components/LineBatchComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
+void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
 
 namespace
 {
-FString ReportRoot(){FString P;FParse::Value(FCommandLine::Get(),TEXT("HatchReport="),P);return P.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/HATCH-01"):P;}
+FString ReportRoot(){FString P;FParse::Value(FCommandLine::Get(),TEXT("HatchReport="),P);return P.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/HATCH-02"):P;}
 void WriteReport(const TCHAR* Name,const TSharedRef<FJsonObject>& Json)
 {const FString P=ReportRoot();IFileManager::Get().MakeDirectory(*P,true);FString T;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&T));FFileHelper::SaveStringToFile(T,*(P/Name));}
 double Mean(const TArray<double>& A){double S=0;for(double X:A)S+=X;return A.Num()?S/A.Num():0;}
@@ -53,8 +56,23 @@ class FHatchRuntime final:public IAutomationLatentCommand
     uint64 CommittedBefore=0,CommittedAfter=0;
     double RandomHeightMaxError=0;
     uint64 AnalysisAfterTen=0,AnalysisAtBaseline=0;
+    TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> RetainedFrame;
+    uint32 RetainedPointCrc=0;
+    static uint32 FrameCrc(const FVirtualLidarFrameSnapshot& F)
+    {
+        FVirtualSensorFrameEnvelope E;E.SensorId=TEXT("Hatch.MLX80");E.SensorKind=EVirtualSensorKind::Lidar;E.FrameId=F.FrameId;E.TimestampUtc=F.GetAcquisitionStartUtc();E.PointSnapshot=F.Points;
+        FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;
+        E.LidarFrameSnapshot=MakeShared<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>(F);
+        FString Extension,Error;TArray<uint8> Bytes;int32 Count=0;
+        if(!UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(E,C,Extension,Bytes,Count,Error)||Bytes.IsEmpty())return 0;
+        return FCrc::MemCrc32(Bytes.GetData(),Bytes.Num());
+    }
     bool Measuring=false;
     bool BoundaryStopped=false;
+    bool AuditAfter=false;
+    void MemoryMarker(const TCHAR* Name)
+    {IFileManager::Get().MakeDirectory(*ReportRoot(),true);FFileHelper::SaveStringToFile(LexToString(FPlatformProcess::GetCurrentProcessId()),*(ReportRoot()/(FString(Name)+TEXT(".ready"))));}
+    bool AuditContinue(const TCHAR* Name) const {return FPaths::FileExists(ReportRoot()/(FString(Name)+TEXT(".continue")));}
     TSharedPtr<FJsonObject> ResourceBefore;
     TSharedPtr<FJsonObject> ResultReport;
     uint64 HiddenBuilds=0;
@@ -65,6 +83,10 @@ class FHatchRuntime final:public IAutomationLatentCommand
     TSharedRef<FJsonObject> Resources()
     {
         auto Root=MakeShared<FJsonObject>();
+        Root->SetNumberField(TEXT("hatch_mesh_scratch_bytes"),double(Sim->MeshScratchBytes()));
+        Root->SetNumberField(TEXT("hatch_generation_buffer_bytes"),double(Sim->GenerationBufferBytes()));
+        Root->SetStringField(TEXT("mlx_point_data_address"),FString::Printf(TEXT("%p"),Sim->MLX->ScanComponent->GetLastPoints().GetData()));
+        Root->SetStringField(TEXT("livox_point_data_address"),FString::Printf(TEXT("%p"),Sim->Livox->ScanComponent->GetLastPoints().GetData()));
         for(auto* A:{Sim->MLX.Get(),Sim->Livox.Get()})
         {
             auto R=MakeShared<FJsonObject>();const auto Scan=A->ScanComponent->GetResourceSnapshot();
@@ -79,10 +101,11 @@ class FHatchRuntime final:public IAutomationLatentCommand
     TArray<double> Engine,Game,Wall,Mesh;
     TArray<TSharedPtr<FJsonValue>> SensorEvidence;
     TUniquePtr<TGuardValue<bool>> ScreenMessages;
-    bool Captures=false,Manual=false,Performance=false,Requested=false;
+    bool Captures=false,Manual=false,Performance=false,Requested=false,IdleControl=false;
     FString CapturePath;
     FDateTime PreviousCapture;
     int32 SensorCount=2;
+    int32 BaselineWarmupSeconds=35;
     TSet<int32> RandomSeeds;
     void ClickRandom()
     {
@@ -92,8 +115,8 @@ class FHatchRuntime final:public IAutomationLatentCommand
         Test->AddError(TEXT("production random button missing"));
     }
 public:
-    FHatchRuntime(FAutomationTestBase* T,bool C,bool P):Test(T),Captures(C),Manual(FParse::Param(FCommandLine::Get(),TEXT("HatchManual"))),Performance(P)
-    {FParse::Value(FCommandLine::Get(),TEXT("HatchSensorCount="),SensorCount);}
+    FHatchRuntime(FAutomationTestBase* T,bool C,bool P,bool I=false):Test(T),Captures(C),Manual(FParse::Param(FCommandLine::Get(),TEXT("HatchManual"))),Performance(P),IdleControl(I)
+    {FParse::Value(FCommandLine::Get(),TEXT("HatchSensorCount="),SensorCount);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),BaselineWarmupSeconds);BaselineWarmupSeconds=FMath::Clamp(BaselineWarmupSeconds,10,60);}
     void CheckSensors()
     {
         for(auto* A:{Sim->bMLX?Sim->MLX.Get():nullptr,Sim->bLivox?Sim->Livox.Get():nullptr})if(A)
@@ -204,19 +227,21 @@ public:
             if(!Ready)
             {
                 Sim->bCoal=Material!=0;Sim->Seed=19019;Sim->Regenerate(false);
-                Host->Monitor->SetFontPercent(Font?150:100);Host->Monitor->SelectView(View==0?0:View<4?1:View==4?2:3);
-                Host->Monitor->SelectColor(View==2?1:View==3?2:0);Ready=Now;return false;
+                Host->Monitor->SetFontPercent(Font?150:100);Host->Monitor->SelectView(View<2?0:View<4?1:View==4?2:3);
+                Host->Monitor->SetSplitView(View==0);Host->Monitor->SelectColor(View==3?1:0);Ready=Now;return false;
             }
-            if(Now-Ready<2)return false;
+            if(Now-Ready<2||!Host->Monitor->GetAnalysis())return false;
             if(!Requested)
             {
-                const TCHAR* Names[]={TEXT("render"),TEXT("points-height"),TEXT("points-class"),TEXT("points-intensity"),TEXT("top"),TEXT("heatmap")};
+                const TCHAR* Names[]={TEXT("split"),TEXT("render"),TEXT("points-height"),TEXT("points-class"),TEXT("top"),TEXT("heatmap")};
                 CapturePath=ReportRoot()/TEXT("captures")/FString::Printf(TEXT("%s-%d-%s.png"),Material?TEXT("coal"):TEXT("iron"),Font?150:100,Names[View]);
                 IFileManager::Get().MakeDirectory(*(ReportRoot()/TEXT("captures")),true);PreviousCapture=IFileManager::Get().GetTimeStamp(*CapturePath);
                 TArray<FColor> Pixels;FIntVector Size;
+                ValidateHatchPresentation(Test,Host->Monitor);
                 Test->TestTrue(TEXT("capture actual client viewport widget"),FSlateApplication::Get().TakeScreenshot(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size));
-                Test->TestEqual(TEXT("capture width is 1920"),Size.X,1920);Test->TestEqual(TEXT("capture height is 1080"),Size.Y,1080);
-                int32 VisiblePixels=0;for(int32 Y=50;Y<1000;Y+=4)for(int32 X=30;X<1300;X+=4){const auto P=Pixels[Y*Size.X+X];if(P.R>20||P.G>20||P.B>20)++VisiblePixels;}
+                Test->TestEqual(TEXT("capture matches requested client width"),Size.X,FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_RES_X"))));
+                Test->TestEqual(TEXT("capture matches requested client height"),Size.Y,FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ACCEPTANCE_RES_Y"))));
+                int32 VisiblePixels=0;for(int32 Y=50;Y<Size.Y-50;Y+=4)for(int32 X=30;X<Size.X-50;X+=4){const auto P=Pixels[Y*Size.X+X];if(P.R>20||P.G>20||P.B>20)++VisiblePixels;}
                 Test->TestTrue(TEXT("3D scene or analysis content is visible in the client area"),VisiblePixels>500);
                 TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);FFileHelper::SaveArrayToFile(Png,*CapturePath);
                 auto Meta=MakeShared<FJsonObject>();auto* PC=World->GetFirstPlayerController();Meta->SetStringField(TEXT("view_target"),PC->GetViewTarget()->GetName());
@@ -236,6 +261,8 @@ public:
             if(Now-Ready<1||!Sim->HasFreshMeasurement())return false;CheckSensors();Ready=0;
             if(++Selection==3){Sim->bCoal=true;Sim->Regenerate(false);return false;}
             if(Selection<8)return false;
+            RetainedFrame=Sim->MLX->ScanComponent->GetLastFrameSnapshot();RetainedPointCrc=FrameCrc(*RetainedFrame);
+            Test->TestTrue(TEXT("retained frame fixture encodes nonempty binary PCD"),RetainedPointCrc!=0);
             Sim->SetSensorSelection(true,true,false);
             Phase=1;Host->Monitor->SelectView(3);BeforeRevision=Sim->Revision();ClickRandom();return false;
         }
@@ -249,7 +276,7 @@ public:
             if(Regenerations==10)
             {
                 // Shape churn can prevent the 5Hz analysis from ever displaying a frame.
-                // Warm the same visible heatmap/texture path before measuring retained memory.
+                // Warm the same visible heatmap/metrics path before measuring retained memory.
                 AnalysisAfterTen=Host->Monitor->AnalysisBuilds;Phase=2;Ready=Now;return false;
             }
             if(Regenerations<60){BeforeRevision=Sim->Revision();ClickRandom();return false;}
@@ -258,13 +285,17 @@ public:
         if(Phase==3)
         {
             if(Now-Ready<.5)return false;
-            FlushRenderingCommands();CollectGarbage(RF_NoFlags);RawMemoryAfter=FPlatformMemory::GetStats().UsedPhysical;
-            FMemory::Trim();MemoryAfter=FPlatformMemory::GetStats().UsedPhysical;CommittedAfter=FPlatformMemory::GetStats().UsedVirtual;
+            if(!AuditAfter)
+            {FlushRenderingCommands();CollectGarbage(RF_NoFlags);RawMemoryAfter=FPlatformMemory::GetStats().UsedPhysical;
+             FMemory::Trim();MemoryAfter=FPlatformMemory::GetStats().UsedPhysical;CommittedAfter=FPlatformMemory::GetStats().UsedVirtual;
+             if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))){AuditAfter=true;MemoryMarker(TEXT("after"));return false;}}
+            if(AuditAfter&&!AuditContinue(TEXT("after")))return false;
             auto R=MakeShared<FJsonObject>();R->SetArrayField(TEXT("sensor_evidence"),SensorEvidence);R->SetNumberField(TEXT("regenerations"),50);
             R->SetNumberField(TEXT("memory_before"),double(MemoryBefore));R->SetNumberField(TEXT("memory_after"),double(MemoryAfter));
             R->SetNumberField(TEXT("raw_working_set_before_free_cache_trim"),double(RawMemoryBefore));R->SetNumberField(TEXT("raw_working_set_after_fifty_before_free_cache_trim"),double(RawMemoryAfter));
             R->SetNumberField(TEXT("committed_before"),double(CommittedBefore));R->SetNumberField(TEXT("committed_after"),double(CommittedAfter));
-            R->SetStringField(TEXT("memory_method"),TEXT("same visible-path warmup; render drain + GC + engine free allocator cache Trim at both boundaries; raw working set retained separately"));
+            R->SetNumberField(TEXT("baseline_warmup_seconds"),BaselineWarmupSeconds);
+            R->SetStringField(TEXT("memory_method"),TEXT("same visible-path warmup (see baseline_warmup_seconds; zero-regeneration idle control recorded separately); render drain + GC + engine free allocator cache Trim at both boundaries; raw RSS <=8MiB unchanged; no working-set trim or subtraction"));
             R->SetObjectField(TEXT("resources_before"),ResourceBefore);R->SetObjectField(TEXT("resources_after"),Resources());
             R->SetNumberField(TEXT("analysis_after_initial_ten"),double(AnalysisAfterTen));R->SetNumberField(TEXT("analysis_at_memory_baseline"),double(AnalysisAtBaseline));
             R->SetNumberField(TEXT("analysis_after_fifty"),double(Host->Monitor->AnalysisBuilds));
@@ -278,6 +309,9 @@ public:
             Test->TestTrue(TEXT("retained committed process memory after 50 changes grows <=8MiB"),CommittedAfter<=CommittedBefore+8*1024*1024);
             Test->TestTrue(TEXT("resident process memory after 50 changes grows <=8MiB"),MemoryAfter<=MemoryBefore+8*1024*1024);
             auto After=Resources();
+            Test->TestEqual(TEXT("a retained acquisition keeps identical PCD bytes across 50 later frames and buffer reuse"),FrameCrc(*RetainedFrame),RetainedPointCrc);
+            Test->TestEqual(TEXT("hatch mesh scratch allocation remains constant"),After->GetNumberField(TEXT("hatch_mesh_scratch_bytes")),ResourceBefore->GetNumberField(TEXT("hatch_mesh_scratch_bytes")));
+            Test->TestEqual(TEXT("hatch generation buffers remain constant"),After->GetNumberField(TEXT("hatch_generation_buffer_bytes")),ResourceBefore->GetNumberField(TEXT("hatch_generation_buffer_bytes")));
             for(auto* Sensor:{Sim->MLX.Get(),Sim->Livox.Get()})
             {const auto B=ResourceBefore->GetObjectField(Sensor->GetSensorId()),A=After->GetObjectField(Sensor->GetSensorId());
              for(const auto& Pair:B->Values)Test->TestEqual(TEXT("each retained acquisition/preview buffer has constant allocation"),A->GetNumberField(Pair.Key),Pair.Value->AsNumber());}
@@ -293,13 +327,27 @@ public:
         if(Phase==2)
         {
             if(!BoundaryStopped)
-            {if(Now-Ready<10||Host->Monitor->AnalysisBuilds<AnalysisAfterTen+5)return false;StopBoundary();BoundaryStopped=true;Ready=Now;return false;}
+            {if(Now-Ready<(IdleControl?10:BaselineWarmupSeconds)||Host->Monitor->AnalysisBuilds<AnalysisAfterTen+5)return false;StopBoundary();BoundaryStopped=true;Ready=Now;return false;}
             if(Now-Ready<.5)return false;
             FlushRenderingCommands();CollectGarbage(RF_NoFlags);RawMemoryBefore=FPlatformMemory::GetStats().UsedPhysical;
             FMemory::Trim();MemoryBefore=FPlatformMemory::GetStats().UsedPhysical;CommittedBefore=FPlatformMemory::GetStats().UsedVirtual;
             ResourceBefore=Resources();
             AnalysisAtBaseline=Host->Monitor->AnalysisBuilds;Mesh.Reset();Engine.Reset();Game.Reset();Wall.Reset();LastWall=FPlatformTime::Seconds();
-            Measuring=true;Phase=1;BeforeRevision=Sim->Revision();ClickRandom();return false;
+            if(IdleControl){Phase=7;Ready=Now;Sim->MLX->StartSensor();Sim->Livox->StartSensor();return false;}
+            Measuring=true;Phase=1;BeforeRevision=Sim->Revision();
+            if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))){Phase=6;MemoryMarker(TEXT("before"));return false;}
+            ClickRandom();return false;
+        }
+        if(Phase==6){if(!AuditContinue(TEXT("before")))return false;Phase=1;LastWall=FPlatformTime::Seconds();ClickRandom();return false;}
+        if(Phase==7){if(Now-Ready<25)return false;StopBoundary();Phase=8;Ready=Now;return false;}
+        if(Phase==8)
+        {
+            if(Now-Ready<.5)return false;FlushRenderingCommands();CollectGarbage(RF_NoFlags);FMemory::Trim();
+            auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("random_generations"),0);R->SetNumberField(TEXT("seconds"),25);
+            R->SetNumberField(TEXT("memory_before"),double(MemoryBefore));R->SetNumberField(TEXT("memory_after"),double(FPlatformMemory::GetStats().UsedPhysical));
+            R->SetNumberField(TEXT("committed_before"),double(CommittedBefore));R->SetNumberField(TEXT("committed_after"),double(FPlatformMemory::GetStats().UsedVirtual));
+            R->SetObjectField(TEXT("resources_before"),ResourceBefore);R->SetObjectField(TEXT("resources_after"),Resources());
+            R->SetBoolField(TEXT("diagnostic_only"),true);WriteReport(TEXT("idle-control.json"),R);return true;
         }
         if(Phase==4)
         {
@@ -350,6 +398,9 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchRuntimeTest,"HATCH01.RuntimeRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchRuntimeTest::RunTest(const FString&)
 {if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchRuntime(this,false,false));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchIdleControlTest,"HATCH02.IdleMemoryControlRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchIdleControlTest::RunTest(const FString&)
+{if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchRuntime(this,false,false,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchCaptureTest,"HATCH01.CaptureRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchCaptureTest::RunTest(const FString&)
 {if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchRuntime(this,true,false));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}

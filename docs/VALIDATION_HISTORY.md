@@ -6,6 +6,15 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-19 HATCH-02 — 모니터링 화면·RSS 판정 조건
+
+- 사용자2026-10-19, `feat/ship-hatch-ux`, 기준25f6617/DTCore b2504d1. `5e5aecd`에 헤더·지표·3분할/최대화·점군/범례·접이식 상세와 버퍼 재사용, `a82c6bd`에 영역 비율별 카메라 맞춤·실제 투영 경계 회귀를 구현했다. 코드/도구13파일(신규cpp2), 이동/새 자산/모듈/플러그인0. DTCore·wire/PCD·SaveGame·Blueprint API·운영맵을 유지한다.
+- **RSS 조건을 혼동하지 않는다.** 원래10초 준비 진단은 간헐적으로8MiB 초과가 남는다. 최종a82c6bd에서 같은 준비 후 재생성0회·측정25초 대조도 RSS+12.6015625MiB/committed−11.296875MiB였다. 최종 검사는 같은 경로35초 준비로 보정했고,50회 뒤 원시RSS−3.70703125MiB/committed+0.6484375MiB로 각8MiB assertion을 통과했다. OS working-set 축소/대조값 차감/상한 완화는 없으며10초 조건을 통과로 올리지 않는다. 메시 scratch324,864B·높이장/생성72,928B 및기존 보유 버퍼 증가0, Actor4, fresh 높이 최대오차0.0335468m,mesh4.7429ms/engine19.3409ms/GT16.0673ms/callback22.2841ms 최대·150ms 초과0,숨김 분석0·측정 유지·PCD 불변·명시 JSON1/자동0이다.
+- Editor/Game Development exit0. 표준release14단계 `Saved/Reports/verify/20261019T071616852Z/manifest.json`: 고유311 Success/40조건부skip/실패0, WBP7 메모리compile/저장0·어휘·WireGolden14fixtures 통과. Python12+19+38=69, layer/allowlist0/0(303파일/1019include)이다. 두 client1920×1080/1280×720·DPI1·2재료×100/150%×6보기의 자동48장과 전후24쌍을 보관했다.
+- 해치 절대 성능은100%·3분할 점군/상면/히트맵,FullSpec CPU,10+30초.1대 engine평균59.999058FPS/p9516.666901ms/GT6.486490ms/callbackp9518.003799ms/ML-X5.963180Hz;2대59.999188FPS/16.666901ms/6.789276ms/18.092502ms/ML-X2.699907·Livox3.366550Hz다. 미선택Livox0 및요청20/10Hz와실제율을 구분한다.
+- 표준perf `Saved/Reports/verify/20261019T072409968Z/perf/manifest.json`:25f6617→a82c6bd,같은DTCore/맵/프로필/backend/출력/UI,D3D12/client1920×1080/1Camera+1LiDAR/10+30초,ABAB12회·각6·invalid0·2% PASS. 중앙값 callbackFPS59.9917628→59.9956550(저하−0.0064879%),enginep9516.6669004ms동일,GT6.5119812→6.4704900ms(−0.6371520%). 소유git-archive복사본 정리,worktree생성0이다. Visible요청/RHI결과를 물리 표시 수용으로 바꾸지 않는다.
+- 직접UI는 첫Computer Use캡처가Windows잠금 화면이었다. 입력/활성화/보안 조작0,직접8행환경보류. finish.flag로자체PIE/Editor를exit0종료하고 개인141파일byte복원·보호832hash일치를확인했다. 최종quick/문서·복원감사와전체제한은 [RESULT](../Saved/Reports/HATCH-02/RESULT.md)·[DONE](../Saved/Reports/HATCH-02/DONE.md)·[직접 기록](../Saved/Reports/HATCH-02/manual/CHECKLIST.md)을 따른다. 과거 실패·제거한 실험·원래10초의미해결조건을보존한다.
+
 ## 2026-10-19 HATCH-01 — 절차 해치·홀드 원료 측정
 
 - 사용자2026-10-19, `feat/ship-hatch-sim`, 시작8320d70 / 시작master292d03d / DTCore b2504d1. Runtime226cf64까지 새 ShipHatchTestMap1개, L2 결정적 높이장·메시/충돌 refit·기존 ML-X Integration/Native/Livox CPU 프로필, L3 UDxWidget 모니터·기존 PointCloudOnly/preview·별도 관측 격자/부분 부피·명시적 FileSave JSON을 구현했다. 기존 wire/Blueprint API/SaveGame·DTCore·다른 자산·모듈/플러그인 경계는 유지한다.

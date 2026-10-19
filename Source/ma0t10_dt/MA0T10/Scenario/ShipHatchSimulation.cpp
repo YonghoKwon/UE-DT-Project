@@ -20,9 +20,9 @@ void Box(TArray<FVector>& V,TArray<int32>& T,FVector Center,FVector Size)
     const int32 Indices[]={0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5};
     for(int32 I:Indices)T.Add(B+I);
 }
-void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int32>& T)
+void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int32>& T,TArray<FVector>* Scratch=nullptr)
 {
-    TArray<FVector> N;N.Init(FVector::ZeroVector,V.Num());
+    TArray<FVector> LocalNormals;auto& N=Scratch?*Scratch:LocalNormals;N.Init(FVector::ZeroVector,V.Num());
     for(int32 I=0;I<T.Num();I+=3)
     {const FVector Normal=FVector::CrossProduct(V[T[I+2]]-V[T[I]],V[T[I+1]]-V[T[I]]);for(int32 J=0;J<3;++J)N[T[I+J]]+=Normal;}
     for(auto& Normal:N)Normal.Normalize();
@@ -71,16 +71,19 @@ bool AShipHatchSimulation::Regenerate(bool Randomize)
 void AShipHatchSimulation::StartGeneration()
 {
     bGenerating=true;bPending=false;Status=TEXT("적재 상태 준비 중 · 이전 측정 무효화");
-    const auto Copy=Pending;Generation=Async(EAsyncExecution::ThreadPool,[Copy]{return ShipHatch::Generate(Copy);});
+    const auto Copy=Pending;
+    Generation=Async(EAsyncExecution::ThreadPool,[Copy,Heights=MoveTemp(RecycledHeights),Shape=MoveTemp(GenerationShape)]() mutable
+    {FGenerationBuffers R;R.Surface.Heights=MoveTemp(Heights);R.Shape=MoveTemp(Shape);ShipHatch::GenerateInto(Copy,R.Surface,R.Shape);return R;});
     GetWorldTimerManager().SetTimer(PollTimer,this,&AShipHatchSimulation::PollGeneration,.02f,true);
 }
 void AShipHatchSimulation::PollGeneration()
 {
     if(!Generation.IsReady())return;
     auto Result=Generation.Get();
-    if(bPending){StartGeneration();return;}
+    GenerationShape=MoveTemp(Result.Shape);
+    if(bPending){RecycledHeights=MoveTemp(Result.Surface.Heights);StartGeneration();return;}
     GetWorldTimerManager().ClearTimer(PollTimer);bGenerating=false;
-    ApplySurface(MoveTemp(Result));
+    ApplySurface(MoveTemp(Result.Surface));
 }
 void AShipHatchSimulation::BuildStructure()
 {
@@ -120,15 +123,16 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
     const bool Rebuild=!Current.Heights.Num()||Current.Settings.Length!=Result.Settings.Length||Current.Settings.Width!=Result.Settings.Width||
         Current.Settings.Depth!=Result.Settings.Depth||Current.Settings.OpeningLength!=Result.Settings.OpeningLength||
         Current.Settings.OpeningWidth!=Result.Settings.OpeningWidth||Current.Settings.Coaming!=Result.Settings.Coaming;
-    Current=MoveTemp(Result);if(Rebuild)BuildStructure();
+    RecycledHeights=MoveTemp(Current.Heights);Current=MoveTemp(Result);if(Rebuild)BuildStructure();
     if(!Cargo)
     {FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Cargo=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);Cargo->Tags.Add(TEXT("HatchCargo"));}
-    TArray<FVector> V;TArray<int32>T;V.Reserve(Current.Heights.Num());T.Reserve(Current.NX*Current.NY*6);
+    auto& V=CargoVertices;auto& T=CargoIndices;V.Reset();V.Reserve(Current.Heights.Num());
     for(int32 Y=0;Y<=Current.NY;++Y)for(int32 X=0;X<=Current.NX;++X)
         V.Add(FVector(X*Current.DX-Current.Settings.Length*.5,Y*Current.DY-Current.Settings.Width*.5,Current.At(X,Y))*100);
-    for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
-    {const int32 A=Y*(Current.NX+1)+X,B=A+1,C=A+Current.NX+1,D=C+1;T.Append({A,D,B,A,C,D});}
-    Mesh(Cargo->Mesh,V,T);Cargo->SetColor(Current.Settings.Cargo==ShipHatch::ECargo::Coal?FLinearColor(.012,.016,.02):FLinearColor(.32,.075,.035));
+    if(MeshNX!=Current.NX||MeshNY!=Current.NY)
+    {T.Reset();T.Reserve(Current.NX*Current.NY*6);for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
+     {const int32 A=Y*(Current.NX+1)+X,B=A+1,C=A+Current.NX+1,D=C+1;T.Append({A,D,B,A,C,D});}MeshNX=Current.NX;MeshNY=Current.NY;}
+    Mesh(Cargo->Mesh,V,T,&CargoNormals);Cargo->SetColor(Current.Settings.Cargo==ShipHatch::ECargo::Coal?FLinearColor(.012,.016,.02):FLinearColor(.32,.075,.035));
     Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);
     ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();
     LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;

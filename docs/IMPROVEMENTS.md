@@ -4,6 +4,16 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## HATCH-02 — 해치 모니터링 제품 화면·재생성 메모리
+
+출처: **사용자 2026-10-19**(목표 화면 첨부·회사 제품 수준의 UX/UI 및 HATCH-01 RSS 조사 요청). 브랜치 `feat/ship-hatch-ux`, 기준 `25f6617`, DTCore `b2504d1` 고정. 새 자산·맵·플러그인 없이 기존 해치 맵만 대상으로 한다.
+
+- 헤더의 원료/장비·로컬 측정 상태·실측 Hz·갱신 시각, 3분할/최대화, 3D/점군 세그먼트, 점 색/크기/밀도·높이/분류 범례, 6개 지표 카드, 접이식 설정·상세, 회전/확대·시점 프리셋을 구현했다. 공통 고정 다크 Presentation Style을 사용한다.
+- 단일 플레이어 뷰의 영역을 맞추고 실제 형상 경계를 담는 구도를 계산한다. 추가 capture/readback/스캔 없이 관측 분석 하나를 최대5Hz로 공유한다. 숨김/접힌 상세 문자열은 조립하지 않는다. 원료 설정·프로필·PCD/wire·SaveGame·Blueprint API는 유지한다.
+- 픽셀/texture 재생성을 없애고 캐시한 Slate 격자를 그린다. 관측점·메시 정점/법선/인덱스·worker 높이장 버퍼를 재사용한다. 효과가 입증되지 않은 L1 센서 버퍼 풀 실험은 제거했다.
+- **RSS 해석과 조건 변경을 분리한다.** 원래 10초 준비 조건은 간헐적으로 8MiB를 초과했다. 같은 준비 뒤 재생성 **0회**, 측정 화면만 25초 유지한 대조에서도 RSS +11.168MiB / committed −13.934MiB였다. 초기 resident 변화가 섞이므로 최종 검사는 동일 경로 35초 준비 후 측정한다. **50회·원시 RSS 8MiB·committed 8MiB assertion은 유지**, working-set 강제 축소나 대조값 차감은 없다. 기존 10초 조건의 통과로 표시하지 않는다.
+- 구현 커밋 `5e5aecd`(대시보드·버퍼 재사용), `a82c6bd`(영역별 카메라 맞춤). Editor/Game·release14단계(고유311 Success/40조건부skip/실패0)·WBP7·어휘/golden·Python69·layer0·자동48장 및 전후24쌍을 확인했다. 최종35초 준비 RSS−3.707MiB/committed+0.648MiB·50회·보유 버퍼 증가0·Actor4다. 같은 최종SHA의 무재생성25초 대조도 RSS+12.602MiB/committed−11.297MiB로 초기 resident 혼입을 재확인했다. 기존 맵25f6617 대비ABAB12회2% PASS(FPS저하−0.00649%,p95동일,GT−0.63715%). **직접8행은 Windows잠금·입력0·환경보류**이며 원래10초 RSS 조건도 통과로 올리지 않는다. 개인141파일복원·보호832 hash일치. 전체 사용자/회사 수용과 분리하며 `Saved/Reports/HATCH-02/RESULT.md`, 직접 행은 `docs/MANUAL_CHECKLIST.md`를 따른다.
+
 ## HATCH-01 — 선박 해치·카고 홀드 원료 측정 테스트
 
 출처: **사용자 2026-10-19**, 브랜치 `feat/ship-hatch-sim`, 시작 `8320d70`, DTCore `b2504d1`. 승인한 새 맵은 `/Game/MA0T10/Maps/Tests/ShipHatchTestMap` 하나다.
@@ -832,6 +842,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-HATCH02 | Widget 등록/전면/입력 차단 외 플레이어 3D 뷰의 패널 영역 합성 계약은 없음 | 기존 UDxWidget/UDxWidgetSubsystem을 유지하고 해당 World에서만 SceneViewExtension으로 기존 플레이어 뷰 사각형/투영을 조정. 추가 캡처·위젯 관리자 없음 | 여러 소비 프로젝트에 필요해지면 저장/입력 정책과 분리한 중립 뷰 영역 adapter 검토 | b2504d1 `Core/DxWidgetSubsystem.h`, `ShipHatchMonitorHost/Widget`; DTCore 소스/gitlink 불변 |
 | DTC-HATCH01 | 정적 원료 높이장/점군 분석 뷰와 자산 없는 분석 화면 구성 계약은 없음 | L2 절차 형상·기존 센서 semantic/반사 응답, L3 `UDxWidget` 등록·입력 차단, 기존 FileSave의 opt-in 분석 JSON을 사용. 전용 위젯 관리자/구독 루프 없음 | 여러 소비 프로젝트에 필요할 때 분석 뷰/명시적 분석 파일 요청의 중립 확장점 검토. 선박/원료 정책은 host 유지 | `ShipHatchSimulation`, `ShipHatchMonitorHost/Widget`, `Core/DxWidgetSubsystem.h`; DTCore 소스/gitlink 불변 |
 | DTC-EXPORT01 | 선택적 오프라인 변환 프로세스·완료/취소 계약이 없음 | 기존 L2 Dataset이 파일 확정·원상 복원 후 외부 Python을 실행하고 worker에서 대기·cooperative cancel. 기존 UDxWidget 패널 재사용 | 여러 소비 프로젝트에 실제 필요할 때 opt-in 외부 작업 수명 helper 공용화 검토; dataset schema/변환기는 host 도구 유지 | b2504d1 Source에서 CreateProc/Python/ExternalProcess/DatasetExport 검색0; VirtualDatasetSubsystem::StartExport, DTCore 소스/gitlink 불변 |
 | DTC-AUTO01 | DTCore API/WebSocket은 외부 HTTP/STOMP 클라이언트이며 loopback 수신 계약이 없음 | 프로젝트 L2 UE Sockets adapter·게임 스레드 명령 처리·기존 서비스 재사용 | 공통 필요 시 opt-in listener의 수명·인증·GT admission 검토; 업무 command는 host 유지 | b2504d1 Core/DxApiSubsystem.h·DxWebSocketSubsystem.h; DTCore 소스/gitlink 불변 |
