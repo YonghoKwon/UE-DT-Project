@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+HATCH-01(사용자2026-10-19): Runtime `226cf64`에 절차 선박 홀드·철광석/석탄·ML-X/Livox 선택·랜덤 시드·3D/2D/히트맵을 구현했다. 새 맵1개, 자동24장·Editor/Game·표준release14단계(고유310 Success/40조건부skip/실패0)·WBP7·golden·Python69·layer0을 확인했다.292d03d 대비 기존 맵 ABAB12회2% PASS(FPS 저하0.002216%·p95동일·GT+0.721529%)다. **집중 검사1개는 working set+10.285MiB>8MiB 때문에 FAIL**이며 committed+1.758MiB·보유 버퍼 증가0과 구분한다. 직접8행은 Windows잠금·입력0·환경보류다. 개인141파일 복원·보호300/Inspection272/source hash 동일과 제한은 [HATCH-01 결과](Saved/Reports/HATCH-01/RESULT.md)를 따른다. 전체 수용 완료로 표시하지 않는다.
+
 TESTSET-03 트리거 확정(사용자2026-10-19): 기본 문자열은 **`SQ23456 077`**이다. 양끝 공백만 제거하고 가운데 공백·대소문자를 그대로 비교한다. `9999`는 일반 소재이며 숫자 트리거 별칭은 없다. ini 따옴표 유무·6형태×2경로100개·이전 소재의 일반 재생/PCD 선택·UXR·최종 커밋 release 결과는 [트리거 확정 결과](Saved/Reports/TESTSET-03/trigger/RESULT.md)를 따른다. 이번 설정/판별 변경은 사용자 승인으로 성능 재측정을 생략한다. 아래 성능 및 캡처는 각각 명시된 이전 SHA의 증거다.
 
 TESTSET-03 화면 마무리(사용자2026-10-19 추가 승인): 중복 안내는 화면에서 제거하고 로그/testset.json 기록을 유지한다. complete에서 생성용 일시정지/재개를 숨기고 `총 n.n초`를 고정 표시하며 하단은 `테스트셋 완료 n/100`이다. 진행 중 속도·남은 시간, 초기화 뒤 생성 제어 재노출은 유지한다. 집중12 Success/4조건부skip 및 추가 UXR07 opt-in RHI2 Success/skip0,36개 진행·완료·중복 Slate 검사를 통과했다. 최종 커밋 release·새 자동3장·복원/정리 결과는 [화면 마무리 결과](Saved/Reports/TESTSET-03/polish/RESULT.md)를 따른다. 이번 표시는 기존5Hz·완료 시각/진단 캐시만 바꾸므로 사용자 승인으로 성능을 재측정하지 않으며 아래718346e의 기존 gate와 구분한다.
@@ -632,6 +634,8 @@ ARCH-08의 Monitor/Scan/Publisher는 같은 클래스의 12개 `.cpp`(249~887줄
 
 실행: `Scripts/validate_architecture_layers.ps1` (`-Json`은 상세 결과). 신규 위반과 stale allowlist 모두 exit 1이며, 경로별 원본은 `Scripts/architecture_layers_allowlist.txt`다. `-SourceRoot`·`-AllowlistPath`는 `Saved` 안의 음성 대조 fixture용이며 일반 gate에서는 생략한다.
 
+HATCH-01의 절차 모델/형상·기존 센서 조합은 L2 `Scenario`, 모니터 조립은 L3 `UI`다. L1 시각화의 native opt-in 색 점/jet·투영 갱신 제어와 FileSave의 중립 JSON 요청을 재사용하며 L1에서 선박/UI 타입을 참조하지 않는다. 새로운 모듈·플러그인·저장/wire 계약 없이 layer 위반/allowlist **0→0**을 유지한다.
+
 ### 10.3 구성 요소 책임 (현재)
 
 AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력과 같은 L2 재생/데이터셋 서비스를 호출하며, L3 소유 설정 화면만 이 adapter를 참조한다. 새 모듈·플러그인·위젯 관리자를 만들지 않고 layer/allowlist0/0을 유지한다. SCN-RELEASE-01(`9fa04be`)은 terminal snapshot 확정과 기존 소유 작업 정리 뒤 live 센서 제어만 해제한다. 이전 run의 늦은 프레임은 계속 거부하고 데이터 필수 잠금·terminal 결과 계약은 보존한다.
@@ -828,6 +832,40 @@ python -m unittest discover -s Tools/AutomationClient -v
 ```
 
 Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시·redirect를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
+
+## HATCH-01 선박 해치·카고 홀드 측정 테스트
+
+출처: 사용자 2026-10-19. `/Game/MA0T10/Maps/Tests/ShipHatchTestMap`을 열고 **Play**한다. 배치된 `ShipHatchSimulation`과 `ShipHatchMonitorHost`가 절차 형상·센서·모니터를 준비한다. WBP 배선이나 외부 모델/마켓 자산은 필요 없다. 기존 맵에 자동 생성하지 않으며 운영 `SensorTestMap`은 수정하지 않는다. [생성 스크립트](Scripts/setup_ship_hatch_map.py)는 이미 존재하는 맵을 저장 전에 거절한다.
+
+| 설정 | 기본값 / 조절 위치 | 해석 |
+|---|---|---|
+| 홀드 폭·길이·깊이 | 42.3 × 25.8 × 22.5 m / Simulation Details | 사용자 원문 세 번째 "길이 22.5m"를 **깊이**로 해석. X=길이, Y=폭, 바닥 Z=0 |
+| 개구부 폭·길이 | 23 × 20 m / Details | 특정 선박 도면 치수가 아닌 조절 가능한 시험 예시 |
+| 코밍 높이 | 갑판 위 2 m / Details | 사용자 예시 설정. 법규의 표준/최소 높이를 뜻하지 않음 |
+| 센서 높이 | 갑판 위 8 m / 화면 또는 Details | 바닥까지 30.5 m로 기존 Livox 40 m 기준 범위 안. 전체 면의 관측 보증은 아님 |
+| 측정 장비 | ML-X(80) Integration 200 + Livox Mid-360S | 각각/동시 또는 ML-X Native 선택. 기존 FullSpec·정확 CPU trace 사용 |
+| 원료·시드 | 철광석 / 19019 | 석탄 선택 가능. 동일 설정·시드·원료는 동일 높이장/부피 생성 |
+| 적재율 범위 | 35–65% / 화면 | 0–95%, 최소=최대로 고정 가능. 새 시드로 범위 내 양·봉우리 1–5개·위치·쏠림 결정 |
+| 분석 격자 | 목표 1 m / 화면 | 0.25–5 m. 홀드 치수를 정수 칸으로 나눈 실제 DX/DY 사용 |
+| 메시 격자 | 목표 0.5 m | worker 높이장 계산 후 같은 토폴로지의 메시·충돌 정점 재사용 |
+| 추가 분석 출력 | 꺼짐 | **분석 JSON 저장**을 누른 현재 측정만 기존 비동기 FileSave로 저장 |
+
+**보기**에서 일반 3D/3D 점군/2D 상면/높이 히트맵을 선택한다. 점 색은 원료 높이 jet(코밍 초록·홀드 파랑·바깥 빨강)·분류·반사 강도·거리·단색이며 점 크기·간격을 조절한다. 동시 선택은 두 센서의 실제 반환점을 같은 월드에 표시한다. 기존 Coordinator의 PointCloudOnly 플레이어별 숨김과 preview stride/cap을 사용하며 이 맵의 두 센서만 유지 태그로 등록한다. 기존 시각화 컴포넌트 안의 해치 맵 전용 CPU 색 점은 센서별 최대 12,000점·5Hz이며 충돌·그림자·SceneCapture에서 제외한다. 이 맵의 기존 센서 투영 texture는 소유 도구 미리보기를 열 때만 생성한다. 거리 모드는 투영 texture 없이 센서별 검출 거리 범위로 색을 계산한다. 비활성 분석/점 표시는 갱신을 멈추며 측정은 유지한다. 기존 맵의 기본 표시 정책은 유지한다.
+
+**적재 상태 바꾸기(랜덤)**는 현재 원료·범위를 유지한 새 시드로 재생성한다. 직접 입력은 **시드·범위·높이 적용**을 누른다. 준비 동안 측정을 중지하고 반영 뒤 선택 센서를 Scheduler로 다시 시작한다. 이전 형상의 프레임은 새 분석/점 표시에서 제외한다. 처리 중 1개와 최신 대기 1개만 유지하며 폐기한 중간 형상을 별도 스캔하지 않는다. 설정·글자 100/150%는 이 모니터/PIE의 임시값이다. 기존 SaveGame 슬롯·버전과 다른 패널은 바꾸지 않는다. 설정 하단은 스크롤한다.
+
+히트맵은 **원료로 분류된 실제 검출점의 격자별 평균 높이**다. 최고/최저/평균은 관측 격자 평균 기준이고 부분 부피는 `Σ(평균 높이 × DX × DY)`다. 회색은 가려지거나 반환점이 없는 **측정 불가** 영역, 흰 테두리는 개구부다. 빈 칸을 0 m로 채우거나 전체 홀드로 외삽하지 않는다. **설정 적재율**은 생성 정답이고 **부분 부피 / 전체 홀드 용량**은 관측 부분 추정값이다. 전체 적재율·부피를 직접 측정한 값으로 읽지 않는다. 추가 JSON은 Y행/X열 `height_m_row_major`(미관측 `null`), `dx_m/dy_m`, 두 획득 frame ID, 관측 범위와 부분 부피를 포함한다. 기존 서버 payload와 분리하며 `Saved/SensorCaptures/ShipHatch/Analysis/`에 저장한다.
+
+**센서 도구 · PCD 전송 / 파일 저장**은 기존 MAP-01 Host/Coordinator와 소유 패널을 연다. 직접 전송에서는 PCD를 선택한다. 라이브 PCD는 기존 binary/ConnectedNoLoss 계약이며 추가 정보/영상은 선택 사항이다. 전송은 기존 패널에서 명시적으로 시작한다. DTCore 기본 연결 시도는 기존 프로젝트 설정을 따르며 분석 JSON은 버튼으로만 저장한다. 로컬 측정/캡처, 실제 전송·외부 수신·receipt 수용을 구분한다.
+
+근거와 제한:
+
+- [일본 조선 소개](https://nippon.zaidan.info/seikabutsu/2000/00736/contents/120.htm)의 20.0×19.6 m 벌크선 개구부와 [MINSHIP 선박 자료](https://www.minship.com/wp-content/uploads/2026/01/Schiffsdatenblatt_MV-Ken-Forest-21012026.pdf)의 서로 다른 개구부를 참고했다. 20×23 m·코밍 2 m는 사용자 예시의 시험값이며 유일한 일반 규격이 아니다. [IMO 단면](https://www.navcen.uscg.gov/sites/default/files/pdf/marcomms/imo/msc_resolutions/MSC261.pdf)의 topside/hopper 탱크는 직벽과 갑판 아래 가려짐으로 단순화했다. 실제 선박의 용적·구조 강도·안전 적재 검증은 제공하지 않는다.
+- [IMO 철광석](https://wwwcdn.imo.org/localresources/es/Publications/Documents/Supplements%20and%20CDs/English/QH260E_092016_2809.pdf)·[IMSBC 석탄 자료](https://puc.overheid.nl/nsi/doc/PUC_2421_14/2/)의 밀도 범위 안에서 표시 밀도 2400/900 kg/m³를 택했다. 붉은 갈색/검정 외형과 기존 940 nm 응답의 반사율 0.25/0.05는 **미보정 가정**이다. 질량·실소재/실장비 광학 인증이 아니다.
+- 경사 상한은 철광석 32–40°/석탄 28–35°의 시험 범위다. [철광석 입자 연구](https://www.sciencedirect.com/science/article/pii/S003259101730582X)처럼 입도·마찰에 따라 달라지며 [석탄 연구](https://www.mdpi.com/1996-1073/10/10/1644)의 비압축 석탄 27–45° 범위 안에서 선택했다. IMSBC의 두 화종 항목은 보편 안식각을 지정하지 않는다. 여러 원뿔의 상면·높이 오프셋·클램프로 생성하며 삼각 보간 경사 증가를 고려해 `0.7×tan(상한)`을 사용한다. 같은 충돌 삼각형의 부피 적분으로 생성량을 맞춘다. DEM·하역·유동은 없다.
+- 절차 메시의 GPU semantic proxy 미지원 때문에 CPU trace를 명시한다. 프로필 목표 Hz와 실제 측정 Hz는 다르며 실측은 보고서를 따른다. 분류는 기존 센서별 규칙의 `HatchCargo/HatchCoaming/HatchHold/HatchOutside` 태그를 사용한다. DATASET-01 canonical ID 0–6·5-byte 라벨 계약을 늘리지 않았다. 기존 LiDAR 라벨 변환에서 이 사용자 라벨은 Other(1)이며 Camera 절차 메시 GT와 해치 전용 학습 라벨 내보내기는 제공하지 않는다.
+
+검증: [RESULT](Saved/Reports/HATCH-01/RESULT.md) · [직접 점검표](docs/MANUAL_CHECKLIST.md). 재현은 `Scripts/run_hatch_validation.ps1 -Mode Runtime`, `-Mode Captures`, `-Mode Performance -Sensors 1` 또는 `2`다. Editor를 종료한 상태에서 실행한다. 자동 캡처를 직접 마우스 수용으로 세지 않는다.
 
 ## 11. 검증
 

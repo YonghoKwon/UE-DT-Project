@@ -4,6 +4,15 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## HATCH-01 — 선박 해치·카고 홀드 원료 측정 테스트
+
+출처: **사용자 2026-10-19**, 브랜치 `feat/ship-hatch-sim`, 시작 `8320d70`, DTCore `b2504d1`. 승인한 새 맵은 `/Game/MA0T10/Maps/Tests/ShipHatchTestMap` 하나다.
+
+- 절차 홀드 42.3×25.8×22.5 m·개구부 23×20 m·코밍 2 m, 철광석/석탄 결정적 높이장·적재량, ML-X80 Integration/Native·Livox 단독/동시, 랜덤/직접 시드, 기존 PointCloudOnly·preview 정책을 사용하는 3D·2D·히트맵을 구현한다.
+- 관측 격자의 평균 높이·부분 부피/용량 비율과 미관측을 구분한다. 전체 홀드 부피/적재율을 외삽하지 않는다. 치수·재질·밀도·경사 가정, CPU trace·DATASET canonical 라벨 제한은 README HATCH-01 절을 따른다.
+- 추가 분석 JSON은 명시적 비동기 저장만 제공하며 기본 꺼짐이다. PCD/wire·기존 Blueprint API·SaveGame·DTCore·기존 맵/자산은 유지한다. 새 모듈/플러그인·마켓 자산·하역은 없다.
+- **구현·전체 수용 구분:** Runtime `226cf64`, 새 맵1개·자동24장·Editor/Game·표준release14단계(고유310 Success/40조건부skip/실패0)·WBP7·golden·Python69·layer0을 확인했다.292d03d 대비 기존 맵 ABAB12회2% PASS(FPS 저하0.002216%·p95동일·GT+0.721529%)다. 단독/동시 실제 viewport·재질 반사·거리 색·payload 불변·선택 JSON·숨김 비용·50회 fresh 재측정 검사는 통과했으나 집중 test의 종합 상태는 **FAIL: working set+10.285MiB>8MiB**다. committed+1.758MiB·보유 버퍼 증가0·형상 Actor4와 구분하며 기준을 완화하지 않는다. 직접8행은 Windows잠금·입력0·환경보류다. 개인141파일복원·보호300/Inspection272/source hash 동일을 확인했다. 제한과 다음 gate는 `Saved/Reports/HATCH-01/RESULT.md`와 `DONE.md`를 따른다. 전체 수용 완료로 표시하지 않는다.
+
 ## 현재 개발 초점과 착수 순서
 
 ### INSP-FIX-4 — 검수 화면의 전환·분할·IMU 해제·입력 안내 (F2·F4·F5·F6·F8·F9)
@@ -823,6 +832,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-HATCH01 | 정적 원료 높이장/점군 분석 뷰와 자산 없는 분석 화면 구성 계약은 없음 | L2 절차 형상·기존 센서 semantic/반사 응답, L3 `UDxWidget` 등록·입력 차단, 기존 FileSave의 opt-in 분석 JSON을 사용. 전용 위젯 관리자/구독 루프 없음 | 여러 소비 프로젝트에 필요할 때 분석 뷰/명시적 분석 파일 요청의 중립 확장점 검토. 선박/원료 정책은 host 유지 | `ShipHatchSimulation`, `ShipHatchMonitorHost/Widget`, `Core/DxWidgetSubsystem.h`; DTCore 소스/gitlink 불변 |
 | DTC-EXPORT01 | 선택적 오프라인 변환 프로세스·완료/취소 계약이 없음 | 기존 L2 Dataset이 파일 확정·원상 복원 후 외부 Python을 실행하고 worker에서 대기·cooperative cancel. 기존 UDxWidget 패널 재사용 | 여러 소비 프로젝트에 실제 필요할 때 opt-in 외부 작업 수명 helper 공용화 검토; dataset schema/변환기는 host 도구 유지 | b2504d1 Source에서 CreateProc/Python/ExternalProcess/DatasetExport 검색0; VirtualDatasetSubsystem::StartExport, DTCore 소스/gitlink 불변 |
 | DTC-AUTO01 | DTCore API/WebSocket은 외부 HTTP/STOMP 클라이언트이며 loopback 수신 계약이 없음 | 프로젝트 L2 UE Sockets adapter·게임 스레드 명령 처리·기존 서비스 재사용 | 공통 필요 시 opt-in listener의 수명·인증·GT admission 검토; 업무 command는 host 유지 | b2504d1 Core/DxApiSubsystem.h·DxWebSocketSubsystem.h; DTCore 소스/gitlink 불변 |
 | DTC-LIDAR-FID01 | `UMechDriverCompBase`에 획득 시점의 kinematic linear/angular velocity 조회 계약 없음. SetActorTransform 기반 Slab은 일반 GetVelocity만으로 시간차를 복원할 수 없음 | 기존 MechDriver 상속을 유지하고 L0 motion provider를 SlabMotion에서 구현, L1이 immutable sample로 사용 | 여러 소비 프로젝트에 필요할 때 world rigid velocity/pivot의 읽기 전용 중립 interface 검토. Slab 보간·업무 정책은 host 유지 | DTCore b2504d1 `ActorComponent/MechDriverCompBase.h`는 constructor/BeginPlay만 제공; `Contracts/VirtualSensorMotionProvider.h`, `SlabMotionComponent::CaptureSensorMotion`; DTCore 소스/gitlink 불변 |

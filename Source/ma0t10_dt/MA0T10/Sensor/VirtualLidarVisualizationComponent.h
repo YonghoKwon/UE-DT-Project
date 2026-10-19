@@ -11,6 +11,7 @@ class UTexture2D;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UVirtualLidarScanComponent;
+class ULineBatchComponent;
 
 UCLASS(ClassGroup = (DigitalTwin), meta = (BlueprintSpawnableComponent))
 class MA0T10_DT_API UVirtualLidarVisualizationComponent : public UStatusVisualizerCompBase
@@ -24,6 +25,12 @@ public:
 
     void BindScanComponent(UVirtualLidarScanComponent* InScanComponent);
     void RefreshLatestFrame();
+    /** Map-local presentation opt-in; never serialized or applied to measured points/payload. */
+    void SetHeightJetPalette(bool Enabled,FName HeightLabel=NAME_None);
+    bool IsHeightJetPaletteEnabled() const { return bHeightJetPalette; }
+    /** Asset-free opt-in CPU colour points, using the canonical preview policy. */
+    void SetColoredCpuPointPreview(bool Enabled);
+    void SetProjectionPreviewEnabled(bool Enabled);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
     void SetVisualizationSettings(const FVirtualLidarVisualizationSettings& InSettings);
@@ -117,6 +124,12 @@ public:
     ELidarPointCloudRenderPolicy PointCloudRenderPolicy = ELidarPointCloudRenderPolicy::AutoPreferNiagara;
 
 private:
+    bool bHeightJetPalette=false;
+    FName HeightPaletteLabel=NAME_None;
+    bool bColoredCpuPointPreview=false;
+    bool bProjectionPreviewEnabled=true;
+    double LastColoredPointUpdate=-1;
+    void RefreshColoredCpuPoints();
     void RebuildProjectionTextures();
     void StartProjectionBuild();
     void BuildRangeImage(TArray<FColor>& OutPixels, int32& OutWidth, int32& OutHeight);
@@ -142,6 +155,7 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UNiagaraComponent> NiagaraPointCloudComponent;
+    UPROPERTY(Transient) TObjectPtr<ULineBatchComponent> ColoredPointBatch;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|VirtualLidar|Visualization")
     TSoftObjectPtr<UNiagaraSystem> NiagaraPointCloudSystem = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud.NS_VirtualLidarPointCloud")));
