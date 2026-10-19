@@ -35,7 +35,7 @@ bool FSensorSettingsPresentationTest::RunTest(const FString&)
                 if(Tab==1&&Actor==Lidar)TestTrue(TEXT("lidar advanced exposes fidelity and samples"),All.Contains(TEXT("수평 샘플 수"))&&All.Contains(TEXT("점별 시간차"))&&All.Contains(TEXT("다중 검출 사용")));
                 if(Tab==0&&Actor==Lidar)TestTrue(TEXT("preview controls belong to basic"),All.Contains(TEXT("미리보기 최대 점 수"))&&All.Contains(TEXT("미리보기에서 검출점만 표시")));
             }
-            else TestTrue(TEXT("automation exposes existing service and owner links"),All.Contains(TEXT("외부 제어 API"))&&All.Contains(TEXT("데이터셋 생성·형식 설정 열기"))&&All.Contains(TEXT("AI 시나리오 테스트셋 열기")));
+            else TestTrue(TEXT("automation exposes existing service and owner links"),All.Contains(TEXT("외부 제어 API"))&&All.Contains(TEXT("데이터셋 생성·형식 설정 열기"))&&All.Contains(TEXT("시나리오 테스트셋 열기")));
         }
         FVirtualSensorEditableState After;Actor->ReadEditableState(After);
         TestEqual(TEXT("browsing does not change server stride"),After.ServerPayloadStride,Before.ServerPayloadStride);

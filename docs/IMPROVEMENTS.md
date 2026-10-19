@@ -102,6 +102,14 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
 - **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
 
+## TESTSET-02 — 예시 자동 채우기·빠른 시연·테스트셋 화면 (임시 기능)
+
+- **출처:** 사용자 2026-10-19. 후속 지시로 빠른 생성 목표를 약1분에서 약10초로 변경했다.
+- **구현:** 임시 기본 `AutoFillExamples=True`, 원본1+결정적 예시99 자동 등록, DATASET-01 고정 채널 재사용. 추가 결정에 따라 최초 수신·예시·대체 원본 모두 같은1프레임 기본 상한(`ExampleMaxFrames`)을 적용한다. False는 기존 원본 SampleStride 유지. 화면은 원본/예시 배지만 표시하며 시연용/대표 프레임 및 동의어 안내를 제거한다. 추적 목적/정책·출처/시드/변형 값은 파일에 유지한다. 실제 수신 우선 슬롯 대체와 `examples_replaced` 파일 보존, 공통 소유 패널의 속도/남은 시간·간결한 목록·완료 점군 보기.
+- **현재 상태:90% — 구현·자동 검증 완료, 직접 UI 환경 보류.** Runtime70f95cf에서100개10.07초·항목별 PCD/라벨1쌍·150ms 초과0, 실제5개 대체 뒤 원본6/예시94·활성100쌍, 원본6,646바이트 보존·반복 변형 결정성·33B/5B 파일 대조를 통과했다. 생성/대기/완료 대체·소규모 전량 원본 전환, False의 기존 SampleStride·대기/원클릭·점군·일반 우선도 통과했다. Editor/Game·release14단계(고유308 Success/44 skip/실패0)·WBP7·golden14·Python69·layer0, 기본 상태19eb3fc 대비 표시형1+1 ABAB12회2% gate(FPS 저하0.0064%·p95동일·GT+1.611%) 통과. 직접은 Windows 잠금 화면 확인·입력0·7행 보류다. 초회 기존 카메라 검사1건 실패와 동일 코드 단독/전체 재실행, 개인142/보호483파일 복원·세션58세트 정리/기존94세트 보존은 `Saved/Reports/TESTSET-02/RESULT.md`에 구분한다. 미수행을 통과로 올리지 않는다.
+- **완료 기준:** 9999 한 개→원본1+예시99→100/100, 같은 원본의 변형 결정성, 이후 실제5개 대체와 최종 실제 목표수에서 예시0개, 파일/라벨·33B 대조, 기존 대기/원클릭·점군·이동 유지,4개 해상도/글자 조합과 가능한 직접 점검, release/quick/layer0/Python/golden/WBP/어휘 및19eb3fc 대비 기본 상태2%.
+- **경계:** 예시는 시연용이며 실제 수신 학습 데이터로 표현하지 않는다. 원본·일반 시나리오·PCD 송신·wire·SaveGame·Blueprint API·DTCore·자산은 유지한다.10초 미달 시 실측 최소 시간과 병목을 보고한다.
+
 ## TESTSET-01 — AI Agent 시나리오 기반 모델 테스트셋 (임시 기능, 로드맵 #17)
 
 - **출처:** 사용자 2026-10-16. 최종 범위는 트리거/대기열, DATASET-01 기반 생성, 진행 화면, 목표 완료 후 선택→보기 전용 표시, 일반 시나리오 우선이다. 최초 Slab 보기 재생은 INSP-FIX-2에서 저장 PCD 점군 보기로 바뀐다. 전송 전체와 다중 프로세스 구현은 제외했다.

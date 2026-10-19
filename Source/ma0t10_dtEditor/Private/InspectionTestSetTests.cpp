@@ -215,7 +215,7 @@ private:
     }
     void BeginMode()
     {
-        FAgentTestSetSettings C;C.Target=Large?100:1;C.LidarId=Lidar->GetSensorId();Test->TestTrue(TEXT("fresh inspection configuration"),Service->ConfigureForTests(C));
+        FAgentTestSetSettings C;C.AutoFillExamples=false;C.Target=Large?100:1;C.LidarId=Lidar->GetSensorId();Test->TestTrue(TEXT("fresh inspection configuration"),Service->ConfigureForTests(C));
         if(Mode==0||Mode==3)Lidar->StartSensor();
         if(Mode==1||Mode==3)Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());
         PeriodicId.Reset();if(Mode>=2){FVirtualSensorCaptureSelection Selection;Selection.bPointCloud=true;Selection.bLidarPayload=false;Selection.PointCloudFormat=EVirtualSensorExportKind::PointCloudPcd;Selection.IntervalSeconds=.2f;PeriodicId=Periodic->StartPeriodicSave(Lidar,Selection);PeriodicFolder=Periodic->GetPeriodicStatus(PeriodicId).Folder;}
