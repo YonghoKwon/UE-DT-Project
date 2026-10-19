@@ -3,6 +3,7 @@
 
 #include "Async/Async.h"
 #include "Engine/Texture2D.h"
+#include "Components/LineBatchComponent.h"
 #include "NiagaraComponent.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -40,6 +41,12 @@ FColor Viridis(float Value)
         FColor(94, 201, 98), FColor(253, 231, 37)
     };
     return SampleStops(Stops, Value);
+}
+
+FColor HeightJet(float Value)
+{
+    auto C=[Value](float Offset){return uint8(FMath::Clamp(1.5f-FMath::Abs(4*FMath::Clamp(Value,0.f,1.f)-Offset),0.f,1.f)*255);};
+    return FColor(C(3),C(2),C(1));
 }
 
 void DrawPixel(TArray<FColor>& Pixels, int32 Width, int32 Height, int32 X, int32 Y, const FColor& Color, int32 Radius = 0)
@@ -99,6 +106,8 @@ struct FLidarProjectionBuildInput
 {
     TSharedPtr<const TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> Points;
     FVirtualLidarVisualizationSettings Settings;
+    bool bHeightJet=false;
+    FName HeightLabel=NAME_None;
     FTransform SensorTransform;
     TMap<FName, FColor> SemanticColors;
     FColor DefaultSemanticColor = FColor(140, 140, 140);
@@ -147,7 +156,10 @@ FColor ResolveProjectionColor(
     case ELidarColorMode::ReflectionIntensity: return Viridis(Point.NormalizedIntensity);
     case ELidarColorMode::MeasurementTime: return Turbo(FMath::Clamp(float(Point.PointTimeOffsetNanoseconds*1.e-9 / FMath::Max(.001f, Input.ScanPeriodSeconds)),0.f,1.f));
     case ELidarColorMode::DistanceViridis: return Viridis(NormalizedDistance);
-    case ELidarColorMode::RelativeHeight: return Viridis(NormalizedHeight);
+    case ELidarColorMode::RelativeHeight:
+        if(Input.bHeightJet&&!Input.HeightLabel.IsNone()&&Point.SemanticLabel!=Input.HeightLabel)
+            if(const auto* Color=Input.SemanticColors.Find(Point.SemanticLabel))return *Color;
+        return Input.bHeightJet ? HeightJet(NormalizedHeight) : Viridis(NormalizedHeight);
     case ELidarColorMode::GeometrySeparation:
         return Input.Geometry.bReliable ? VirtualLidarGeometry::Color(Input.Geometry.Classify(Point.WorldLocation)) : Viridis(NormalizedHeight);
     case ELidarColorMode::SemanticLabel:
@@ -474,6 +486,7 @@ FVirtualSensorResourceSnapshot UVirtualLidarVisualizationComponent::GetResourceS
         {TEXT("niagara_components"),NiagaraPointCloudComponent?1:0},{TEXT("niagara_points"),NiagaraPositions.Num()},
         {TEXT("visible_points"),VisiblePointCount}};
     S.OwnedCpuBytes.Add(TEXT("niagara_upload_arrays"),NiagaraPositions.GetAllocatedSize()+NiagaraColors.GetAllocatedSize());
+    if(ColoredPointBatch)S.OwnedCpuBytes.Add(TEXT("cpu_colour_points"),ColoredPointBatch->BatchedPoints.GetAllocatedSize());
     int64 TextureBytes=0;for(const auto* Texture:{RangeTexture.Get(),TopDownTexture.Get(),ElevationTexture.Get()})if(Texture)TextureBytes+=int64(Texture->GetSizeX())*Texture->GetSizeY()*4;
     S.EstimatedGpuBytes.Add(TEXT("projection_textures_unpadded"),TextureBytes);return S;
 }
@@ -485,6 +498,7 @@ UVirtualLidarVisualizationComponent::UVirtualLidarVisualizationComponent()
 
 void UVirtualLidarVisualizationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if(ColoredPointBatch){ColoredPointBatch->DestroyComponent();ColoredPointBatch=nullptr;}
     ++ProjectionGeneration;
     bProjectionBuildInFlight = false;
     if (NiagaraPointCloudComponent)
@@ -519,12 +533,59 @@ void UVirtualLidarVisualizationComponent::RefreshLatestFrame()
         LastMinHeightCm = Range.X;
         LastMaxHeightCm = Range.Y;
     }
-    RebuildProjectionTextures();
+    if(bProjectionPreviewEnabled)RebuildProjectionTextures();
     if (Settings.ColorMode != ELidarColorMode::GeometrySeparation) RefreshWorldPointCloud();
+}
+
+void UVirtualLidarVisualizationComponent::SetHeightJetPalette(bool Enabled,FName HeightLabel)
+{
+    if(bHeightJetPalette==Enabled&&HeightPaletteLabel==HeightLabel)return;
+    bHeightJetPalette=Enabled;HeightPaletteLabel=HeightLabel;LastColoredPointUpdate=-1;++ProjectionGeneration;RefreshLatestFrame();
+}
+void UVirtualLidarVisualizationComponent::SetColoredCpuPointPreview(bool Enabled)
+{
+    if(bColoredCpuPointPreview==Enabled)return;
+    bColoredCpuPointPreview=Enabled;LastColoredPointUpdate=-1;
+    if(!Enabled&&ColoredPointBatch){ColoredPointBatch->BatchedPoints.Reset();ColoredPointBatch->MarkRenderStateDirty();ColoredPointBatch->SetVisibility(false);}
+    RefreshLatestFrame();
+}
+void UVirtualLidarVisualizationComponent::SetProjectionPreviewEnabled(bool Enabled)
+{
+    if(bProjectionPreviewEnabled==Enabled)return;
+    bProjectionPreviewEnabled=Enabled;++ProjectionGeneration;if(Enabled)RefreshLatestFrame();
+}
+void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
+{
+    if(!Settings.bShowWorldPointCloud)
+    {
+        if(ColoredPointBatch&&(ColoredPointBatch->IsVisible()||ColoredPointBatch->BatchedPoints.Num()))
+        {ColoredPointBatch->BatchedPoints.Reset();ColoredPointBatch->MarkRenderStateDirty();ColoredPointBatch->SetVisibility(false);}
+        if(ScanComponent->IsPointCloudPreviewEnabled())ScanComponent->SetPointCloudPreviewEnabled(false);
+        VisiblePointCount=0;return;
+    }
+    if(NiagaraPointCloudComponent&&NiagaraPointCloudComponent->IsVisible())NiagaraPointCloudComponent->SetVisibility(false,true);
+    ScanComponent->bDrawPointCloudPreviewDebugPoints=false;if(ScanComponent->IsPointCloudPreviewEnabled())ScanComponent->SetPointCloudPreviewEnabled(false);
+    const double Now=FPlatformTime::Seconds();if(LastColoredPointUpdate>=0&&Now-LastColoredPointUpdate<.2)return;
+    LastColoredPointUpdate=Now;
+    if(!ColoredPointBatch)
+    {
+        ColoredPointBatch=NewObject<ULineBatchComponent>(GetOwner());ColoredPointBatch->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        ColoredPointBatch->SetCanEverAffectNavigation(false);ColoredPointBatch->SetGenerateOverlapEvents(false);
+        ColoredPointBatch->SetHiddenInSceneCapture(true);ColoredPointBatch->SetCastShadow(false);
+        ColoredPointBatch->bCalculateAccurateBounds=true;ColoredPointBatch->RegisterComponent();ColoredPointBatch->SetComponentTickEnabled(false);
+    }
+    const auto Policy=ScanComponent->GetPreviewPolicyState();const auto& Points=ScanComponent->GetLastPoints();
+    const int32 Limit=FMath::Min(12000,Policy.MaxPoints>0?Policy.MaxPoints:12000);
+    auto& Batch=ColoredPointBatch->BatchedPoints;Batch.Reset(Limit);
+    for(int32 I=0;I<Points.Num()&&Batch.Num()<Limit;I+=FMath::Max(1,Policy.PointStride))
+    {const auto& P=Points[I];if(Policy.bHitOnly&&!P.bHit)continue;Batch.Emplace(P.WorldLocation,GetPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
+    ColoredPointBatch->SetVisibility(true);ColoredPointBatch->UpdateBounds();ColoredPointBatch->MarkRenderStateDirty();
+    VisiblePointCount=Batch.Num();UpdateRendererTelemetry(ELidarPointCloudRendererState::CpuFallback,Batch.Num(),Batch.Num(),TEXT("CPU colour points"),TEXT("선택한 점만 최대 5Hz로 표시합니다."));
 }
 
 void UVirtualLidarVisualizationComponent::SetVisualizationSettings(const FVirtualLidarVisualizationSettings& InSettings)
 {
+    if(bColoredCpuPointPreview)LastColoredPointUpdate=-1;
     Settings = InSettings;
     if (!FMath::IsFinite(Settings.HeightMinMeters) || !FMath::IsFinite(Settings.HeightMaxMeters) || Settings.HeightMaxMeters <= Settings.HeightMinMeters)
     {
@@ -831,13 +892,15 @@ void UVirtualLidarVisualizationComponent::RebuildProjectionTextures()
 
 void UVirtualLidarVisualizationComponent::StartProjectionBuild()
 {
-    if (!ScanComponent || bProjectionBuildInFlight) return;
+    if (!bProjectionPreviewEnabled || !ScanComponent || bProjectionBuildInFlight) return;
 	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Frame = ScanComponent->GetLastFrameSnapshot();
 	if (!Frame.IsValid() || !Frame->IsValid()) return;
     FLidarProjectionBuildInput Input;
 	Input.Points = Frame->Points;
     Input.Settings = Settings;
 	Input.SensorTransform = Frame->AcquisitionTransform;
+    Input.bHeightJet=bHeightJetPalette;
+    Input.HeightLabel=HeightPaletteLabel;
 	Input.MaxDistanceCm = Frame->MaxDistanceCm;
     Input.ScanPeriodSeconds = ScanComponent->ScanInterval;
 	Input.HorizontalSamples = Frame->HorizontalSamples;
@@ -1070,6 +1133,7 @@ UTexture2D* UVirtualLidarVisualizationComponent::UploadTexture(TObjectPtr<UTextu
 void UVirtualLidarVisualizationComponent::RefreshWorldPointCloud()
 {
     if (!ScanComponent) return;
+    if(bColoredCpuPointPreview){RefreshColoredCpuPoints();return;}
     if (!Settings.bShowWorldPointCloud)
     {
         if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
@@ -1267,6 +1331,11 @@ FLinearColor UVirtualLidarVisualizationComponent::GetPointDisplayColor(const FVi
 {
     const auto Frame = ScanComponent ? ScanComponent->GetLastFrameSnapshot() : nullptr;
     const FTransform Pose = Frame.IsValid() ? Frame->AcquisitionTransform : FTransform::Identity;
+    if(bHeightJetPalette&&Point.bHit&&Settings.ColorMode==ELidarColorMode::RelativeHeight)
+    {
+        if(!HeightPaletteLabel.IsNone()&&Point.SemanticLabel!=HeightPaletteLabel&&ScanComponent)return ScanComponent->GetSemanticColorForLabel(Point.SemanticLabel);
+        return FLinearColor(HeightJet(VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(Settings,Pose,Point),FVector2D(LastMinHeightCm,LastMaxHeightCm))));
+    }
     if (Settings.ColorMode == ELidarColorMode::GeometrySeparation)
     {
         if (!Frame.IsValid() || Frame->FrameId != GeometryFrameId) return FLinearColor(FColor(140,140,140));

@@ -21,6 +21,8 @@ class MA0T10_DT_API UVirtualSensorFileSaveSubsystem : public UTickableWorldSubsy
 {
 	GENERATED_BODY()
 public:
+    /** Native opt-in analysis snapshot; bounded by the same admission, writer and cancellation policy. */
+    FString RequestAnalysisJson(UObject* Owner,const FString& Json,const FString& SourceId=TEXT("Analysis"));
     FString RequestImuCsv(UVirtualImuComponent* Source,const FString& Id,const TArray<FVirtualImuSample>& Samples);
     /** CAM-GT-01 adapter: capture is asynchronous and uses the existing file-save admission. */
     bool RequestCameraGroundTruthSave(AVirtualCameraSensorActor* Sensor);

@@ -24,6 +24,9 @@
 struct FSensorFileCancellation { std::atomic<bool> Cancelled{false}; };
 struct FVirtualSensorFileSaveRequest
 {
+    TWeakObjectPtr<UObject> AnalysisOwner;
+    TSharedPtr<const FString,ESPMode::ThreadSafe> AnalysisJson;
+    bool AnalysisRequest=false;
     TWeakObjectPtr<UVirtualImuComponent> ImuSource;
     TSharedPtr<const TArray<FVirtualImuSample>,ESPMode::ThreadSafe> Imu;
     int32 ImuGeneration=0;
@@ -68,6 +71,7 @@ void RemoveFiles(TArray<FVirtualSensorExportResult> Results)
 }
 struct FFileWriteInput
 {
+    TSharedPtr<const FString,ESPMode::ThreadSafe> AnalysisJson;
     TSharedPtr<const TArray<FVirtualImuSample>,ESPMode::ThreadSafe> Imu;
 	FString RequestId,SensorId,CaptureDirectory;
 	FVirtualSensorCaptureSelection Selection;
@@ -96,7 +100,11 @@ TArray<FVirtualSensorExportResult> WriteFiles(const FFileWriteInput& Input,FStri
 	};
 	auto SaveText=[&](const FString& Text,const FString& Extension,const FString& Subdir,EVirtualSensorExportKind Kind)->bool
 	{FTCHARToUTF8 Utf8(*Text);return Save(reinterpret_cast<const uint8*>(Utf8.Get()),Utf8.Length(),Extension,Subdir,Kind);};
-	if(Input.Imu)
+    if(Input.AnalysisJson)
+    {
+        SaveText(*Input.AnalysisJson,TEXT("json"),TEXT("Analysis"),EVirtualSensorExportKind::ServerPayload);
+    }
+	else if(Input.Imu)
     {
         FString Csv=TEXT("configuration_revision,sequence,simulation_seconds,utc_ticks,ax_mps2,ay_mps2,az_mps2,wx_radps,wy_radps,wz_radps,qx,qy,qz,qw,x_world_flu_m,y_world_flu_m,z_world_flu_m,accel_variance,gyro_variance\n");
         for(const auto& S:*Input.Imu)
@@ -154,6 +162,19 @@ uint64 UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(AVirtualSensorActo
 	if(const auto* Camera=Cast<AVirtualCameraSensorActor>(Sensor)) {if(Camera->CaptureComponent)Generation=Camera->CaptureComponent->GetFileCaptureRevision();}
 	if(const auto* Lidar=Cast<AVirtualLidarSensorActor>(Sensor)) {if(Lidar->ScanComponent)Generation=Lidar->ScanComponent->GetFileCaptureRevision();}
 	return(uint64(Generation)<<32)|FCrc::MemCrc32(Bytes.GetData(),Bytes.Num());
+}
+
+FString UVirtualSensorFileSaveSubsystem::RequestAnalysisJson(UObject* Owner,const FString& Json,const FString& SourceId)
+{
+    auto R=MakeShared<FVirtualSensorFileSaveRequest,ESPMode::ThreadSafe>();R->Status.RequestId=FGuid::NewGuid().ToString(EGuidFormats::Digits);
+    R->Status.SensorId=SafeId(SourceId);R->Status.RequestedUtc=FDateTime::UtcNow();
+    const FString Id=R->Status.RequestId;Requests.Add(Id,R);Order.Insert(Id,0);TrimHistory();
+    int32 Pending=0;bool Duplicate=false;
+    for(const auto& P:Requests)if(P.Key!=Id&&!P.Value->Status.IsTerminal()){++Pending;Duplicate|=P.Value->AnalysisOwner==Owner;}
+    if(bShuttingDown||!IsValid(Owner)||Owner->GetWorld()!=GetWorld()||Json.IsEmpty()||Json.Len()>1024*1024||Pending>=8||Duplicate)
+    {SetState(R,EVirtualSensorFileSaveState::Failed,TEXT("분석값이 없거나 파일 저장이 사용 중입니다."));return Id;}
+    R->AnalysisRequest=true;R->AnalysisOwner=Owner;R->AnalysisJson=MakeShared<const FString,ESPMode::ThreadSafe>(Json);
+    R->ReadyToWrite=true;SetState(R,EVirtualSensorFileSaveState::Saving,TEXT("분석 JSON 저장 중"));QueueWrite(R);return Id;
 }
 int64 UVirtualSensorFileSaveSubsystem::GetAvailableFrameId(AVirtualSensorActorBase* Sensor)
 {
@@ -239,6 +260,8 @@ FString UVirtualSensorFileSaveSubsystem::RequestSaveInternal(EVirtualSensorFileS
 }
 bool UVirtualSensorFileSaveSubsystem::IsRequestCurrent(const TSharedPtr<FVirtualSensorFileSaveRequest,ESPMode::ThreadSafe>& R,FString& Why) const
 {
+    if(R->AnalysisRequest)
+    {const bool Current=!bShuttingDown&&R->AnalysisOwner.IsValid()&&R->AnalysisOwner->GetWorld()==GetWorld();if(!Current)Why=TEXT("분석 대상 또는 실행이 종료되었습니다.");return Current;}
     if(R->ImuRequest)
     {const bool Current=!bShuttingDown&&R->ImuSource.IsValid()&&R->ImuSource->IsRegistered()&&R->ImuSource->Generation==R->ImuGeneration&&R->ImuSource->GetWorld()==GetWorld();if(!Current)Why=TEXT("IMU removed, reconfigured or world ended");return Current;}
 	if(bShuttingDown||!R->Actor.IsValid()||R->Actor->IsActorBeingDestroyed()||R->Actor->GetWorld()!=GetWorld()) {Why=TEXT("센서 삭제 또는 실행 종료로 저장을 취소했습니다.");return false;}
@@ -253,7 +276,7 @@ void UVirtualSensorFileSaveSubsystem::SetState(const TSharedPtr<FVirtualSensorFi
 	if(R->Status.IsTerminal())
 	{
 		R->Status.CompletedUtc=FDateTime::UtcNow();if(State!=EVirtualSensorFileSaveState::Succeeded)R->Cancellation->Cancelled=true;
-		R->Imu.Reset();R->Camera.Reset();R->CameraJson.Reset();R->Lidar=FVirtualSensorFrameEnvelope();R->LidarJsonEncoder=nullptr;R->ReadyToWrite=false;
+		R->AnalysisJson.Reset();R->Imu.Reset();R->Camera.Reset();R->CameraJson.Reset();R->Lidar=FVirtualSensorFrameEnvelope();R->LidarJsonEncoder=nullptr;R->ReadyToWrite=false;
 	}
 	PendingNotifications.Add(R->Status);
 	if(bPublishingNotifications)return;
@@ -288,7 +311,9 @@ void UVirtualSensorFileSaveSubsystem::QueueWrite(const TSharedPtr<FVirtualSensor
 {
 	if(R->Writing||!R->ReadyToWrite||R->Status.IsTerminal()||ActiveWrites>=2)return;
 	R->Writing=true;++ActiveWrites;
+    // Optional analysis data is immutable and never enters sensor/transport encoders.
 	FFileWriteInput Input;Input.RequestId=R->Status.RequestId;Input.SensorId=R->Status.SensorId;Input.Kind=R->Status.SensorKind;Input.Selection=R->Status.Selection;Input.CaptureDirectory=R->CaptureDirectory;Input.Lidar=R->Lidar;Input.ExportConfig=R->ExportConfig;Input.JsonEncoder=R->LidarJsonEncoder;Input.Imu=R->Imu;Input.Camera=R->Camera;Input.CameraJson=R->CameraJson;Input.Cancellation=R->Cancellation;
+    Input.AnalysisJson=R->AnalysisJson;
 	TWeakObjectPtr<UVirtualSensorFileSaveSubsystem> Weak(this);
 	Async(EAsyncExecution::ThreadPool,[Weak,Input=MoveTemp(Input)]() mutable
 	{
