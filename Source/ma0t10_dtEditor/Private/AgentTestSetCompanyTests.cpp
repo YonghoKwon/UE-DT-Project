@@ -57,6 +57,7 @@ public:
             // deferring its renderer's cold initialization into the measured interval.
             Other->SetActorTransform(Lidar->GetActorTransform());Other->AddActorWorldOffset(FVector(100,0,0));
             Other->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Other->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Other->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+            {FVirtualSensorEditableState E;FString Error;Other->ReadEditableState(E);E.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;Test->TestTrue(TEXT("deployed sensor uses requested compatibility outputs without lowering acquisition quality"),Other->ApplyEditableState(E,Error));}
             Camera=World->SpawnActor<AVirtualCameraSensorActor>();Camera->StopSensor();
             Camera->CaptureComponent->SensorId=TEXT("ZZ-COMPANY-CAMERA");
             auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
@@ -138,7 +139,7 @@ public:
 private:
     void Begin()
     {
-        FAgentTestSetSettings C;C.Target=100;if(Case==0)C.LidarId=Lidar->GetSensorId();Service->ConfigureForTests(C);
+        FAgentTestSetSettings C;C.Target=100;if(Case==0)C.LidarId=Lidar->GetSensorId().ToLower();Service->ConfigureForTests(C);
         Lidar->StartSensor();Other->StartSensor();Camera->StartSensor();Publisher->bAutoResumePointCloudAfterOverload=true;Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());
         FVirtualSensorCaptureSelection Selection;Selection.bPointCloud=true;Selection.bLidarPayload=false;Selection.PointCloudFormat=EVirtualSensorExportKind::PointCloudPcd;Selection.IntervalSeconds=.2f;PeriodicId=Periodic->StartPeriodicSave(Lidar,Selection);PeriodicFolder=Periodic->GetPeriodicStatus(PeriodicId).Folder;
         CompletionSaved=false;Phase=0;At=FPlatformTime::Seconds();

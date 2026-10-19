@@ -77,7 +77,7 @@ template<class T> T* FindTestSetSensor(UWorld* W,const FString& Explicit,bool De
     for(TActorIterator<T> It(W);It;++It)if(!It->IsActorBeingDestroyed()){Candidates.Add(*It);Ids.Add(It->GetSensorId());}
     Ids.Sort();const FString Available=FString::Join(Ids,TEXT(", "));
     auto Unique=[&](const FString& Id)->T*
-    {T* Found=nullptr;for(auto* A:Candidates)if(A->GetSensorId().Equals(Id,ESearchCase::CaseSensitive)){if(Found){Error=TEXT("중복 센서 ID · ")+Id+TEXT(" · 각 센서에 고유 ID를 지정하세요");return nullptr;}Found=A;}return Found;};
+    {T* Found=nullptr;for(auto* A:Candidates)if(A->GetSensorId().Equals(Id,ESearchCase::IgnoreCase)){if(Found){Error=TEXT("중복 센서 ID · ")+Id+TEXT(" · 각 센서에 고유 ID를 지정하세요");return nullptr;}Found=A;}return Found;};
     if(!Explicit.IsEmpty())
     {
         if(auto* A=Unique(Explicit)){Rule=TEXT("설정 ID");return A;}
