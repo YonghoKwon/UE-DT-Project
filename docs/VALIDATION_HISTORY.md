@@ -440,3 +440,38 @@ Standard disabled perf: Saved/Reports/verify/20261015T185504162Z/perf/manifest.j
 Ideal constant-acceleration/rotation model tolerance1e−7 passed. Actual1Hz20cm motion fallback, startup0.3seconds excluded only from steady metrics: acceleration xRMSE0.337429m/s2,p95absolute error0.670219m/s2. RawCSV/plot retain transition spike. Fixed sample spacing is not subframe physical fidelity; deskew/high-frequency/real-device accuracy unaccepted.
 
 Separate native Editor close after direct attachment/PIE EndPlay used Alt-F4, full RHI/module teardown/exit0(native-close); standard automation/perf TestExit Force1 was not used as natural teardown proof. Protected297hashes unchanged;43personal SaveGames/project WindowsEditor files restored byte-for-byte. Existing unstaged SensorTestMap and untracked protected files preserved. No push/PR/merge. Details/model sources/limitations/raw: Saved/Reports/IMU-01/RESULT.md. Independent review pending.
+
+## 2026-10-19 HATCH-03 초기 ddc40b2 체크포인트 — 당시 화면 분리 응답 대기
+
+사용자 요청2026-10-19, feat/ship-hatch-dig, 기준67b34f7/DTCoreb2504d1 고정. 코드8b2a883(퍼내기/복원/이력), ddc40b2(남은 적재율/퍼낸 양 구분). 코드/도구9파일·신규Editor testcpp1·이동0·새자산/맵/모듈/플러그인0. UI조건/사용법은README HATCH-03, 원문은Saved/Reports/HATCH-03/RESULT.md다. 이 항목은 완료 기록이 아니다.
+
+커밋 후Editor/Game Development exit0. feature5Success/skip0/실패0, ray중심<1µm/전후적분<1e-6m³/붕괴보존<0.005m³/양원료·안식각·바닥/16이력·거부보존/원래대로exact/最大20,000칸18높이장≤2MiB를 확인했다. 최종 점군50회는 종합0Success/1Fail/skip0: 원시/retained RSS+15.191406MiB>8MiB의2assertions 실패, committed+7.84375MiB는PASS다. edit28.6335/engine43.0347/GT43.7838/callback47.6274ms 최대,150ms초과0, fresh분석최대890.109ms, 실제점 높이오차0.029860m<0.15m다. 지표/새 양쪽frame/실제점/undo/ring wrap/랜덤초기화 assertion은 통과했다. 일반3D50회는1Success/0Fail/skip0(RSS+7.300781/commit+3.40625MiB), 기존랜덤50/PCD불변/JSON/숨김도1Success(RSS−2.585938/commit−3.976563MiB)다.
+
+전체release14단계PASS, 고유312Success/40조건부Skip/실패0; 실제발생357회(feature5중복). WBP7메모리compile/save0·source/rendered어휘·WireGolden14fixtures·Python69(12+19+38)·quick8·layer0/allowlist0(303production/1019resolved)·DTCoreguardPASS. manifest Saved/Reports/verify/20261019T111531498Z/manifest.json. action62PNG+metadata(1920×1080/font100·1280×720/font150×두원료×5상태×3뷰+설정2), 추가DPI/레이아웃24장(1280×720×100/150×두원료×6뷰). before/original 높이장hash·부피exact, many8/undo7/reset0. windowDPI1/root約1921.922×1081.081→UMG約0.666. 비교Saved/Reports/HATCH-03/captures/index.html.
+
+해치절대성능동일ddc40b2,D3D12,client1920×1080/windowDPI1/font100,3분할+색점,FullSpec AccurateCpuTrace,10+30초,추가송신/자동파일0. ML-X1대 engineFPS59.999301/p9516.666901ms/GT6.743083ms/callbackp9518.171102ms,실제5.933082Hz/비선택Livox0. 2대 engineFPS59.999352/p95동일/GT6.711521/callbackp9518.210597ms,ML-X3.098407/Livox3.398253Hz. Visible요청/render_offscreen=false, engine/실제Hz/물리표시수용은 구분한다.
+
+기존맵ABAB30초는67b34f7→ddc40b2,동일DTCore/맵hash/instrument/프로필/출력/UI,D3D12/1920×1080/1Camera+1LiDAR/10+30초,ABAB×3/12valid/각6/invalid0. FPS59.980587→59.971897(저하0.014488%),enginep9516.666900ms동일,GT6.227040→6.353358ms(+2.028538%)로2%FAIL이다. 반올림통과/표본삭제0. manifest Saved/Reports/verify/20261019T112245020Z/perf/manifest.json. 기본60초 재비교는 미수행이며 소유archive는 정리됐다.
+
+RSS초기동일프레임17편집 준비를17완전한센서/분석사이클+35초로수정했고50회/원시RSS·committed8MiB는 유지했다. 플레이어가림변경2회PASS(+3.758/+6.082MiBRSS)뒤3회째+8.734MiB FAIL로재현성이인증되지않았다. 고정렌더3버퍼실험도+12.016MiBRSS로FAIL해복원(L1변경0). LLM진단은commit+11.387MiB중FMallocUnused約+9.361MiB/보유배열증가0을관찰했지만callstack/누수없음은입증하지않는다. RHI/GPUdrain대조도RSS+12.391MiB FAIL. OSworking-set trim/대조차감/기준완화0, 진단을표준PASS로바꾸지않았다.
+
+직접Computer Use는실제UI를관찰했지만첫클릭이외부입력감지로거부됐다. 재관찰의원료/장비/더미/시점변경은외부조작으로CodexPASS에합산하지않는다. 성공입력확인0/거부1/키보드0/명시적활성화0/보안0. AGENTS§6에따라화면분리질문응답대기,수동PIE/Editor유지,직접8행·정상종료·개인141byte복원/새개인파일정리·최종보호/source감사·문서커밋/최종quick은남았다. 초기보호832hash의최근불일치0. DTCore소스/gitlink·Config값·PixelStreaming·사용자SensorTestMap/자산·Claude전용파일·Inspection원본의수정/stage0. push/PR/merge/worktree/submodule update/Docker/WSL/새자산0. DONE.md미생성.
+
+
+## 2026-10-19 HATCH-03 최종 — 센서·연속 표시·60초 ABAB
+
+출처: 사용자2026-10-19 최초/추가요구a–f와 화면 사용 허가. feat/ship-hatch-dig,기준67b34f7/DTCoreb250고정. 코드8b2a883→ddc40b2→cce804e→215eb04.20코드/도구/설정/자산+4관리문서,이동0,새소스4·생성도구1·공유원료머티리얼1,새맵/모듈/플러그인0. cce커밋 후Unity Box중복 실패는 helper이름만고쳐215에서Editor/Game Development를 다시 통과했다. 실패로그는build-attempt-1-* 보존.
+
+짧은 원료클릭2m/1.5m 기본·원료별삼각면안식각·붕괴부피보존·floor0·16undo/exact원래대로·현재설정회귀를 구현했다. 센서/갠트리·이름선택강조·기본OFF96광선/5Hz,기존프로필FOV의중앙ML-X55.351m/Mid8m−112.5°,개구부/빈바닥80×80+4corner100%(1091.34m²). 센서재시작/이전점가림없이표시copy·관측셀미리보기와실제측정을분리하고immutable CRC/PCD/JSON을보존한다. ordinary player PDI가 debug경로의메시이동을해소,광선전후밝은ship pixel유지100%. 절차grain/normal원료머티리얼1개와cook경로1줄,기존재질/충돌/WPO불변. 개구부zoom/갑판mask·실제aperture통과분석·전체모의적분과관측/가림추정을구분한다.
+
+최종215 committed Editor/Game exit0. focus6Success/0skip, release14단계PASS·고유313Success/40조건부Skip/0Fail(359발생),WBP7/save0·source/rendered어휘·WireGolden14fixtures·Python69(12+19+38)·layer306/1025/위반0/allowlist0. release manifest Saved/Reports/verify/20261019T135705026Z/manifest.json. source514 hash불일치0.
+
+기존35초+17완전한click/acquisition/analysis warm cycle조건,원시RSS/retained/commit8MiB·edit/engine/GT/callback150ms유지. 점군50두 process원시/retained−1.062500/+1.441406MiB,commit+1.578125/+1.652344MiB; 일반3D50+.941406/+2.777344MiB; 랜덤50−1.363281/+.757813MiB. 모든150ms초과0,최대edit30.3467/Callback47.6617ms,보유배열일정. 높이장 ray1µm/적분1e-6m³/붕괴보존.005m³/경사1e-5/높이15cm·floor0·最大20,000칸18배열≤2MiB·undo exact/ring/거부보존/새random exact를검증. OS working-set trim/대조차감/허용치완화0.
+
+기존맵ABAB×3,12valid/각6/invalid0,실제표시D3D12/1920×1080/1Camera+1LiDAR/10초준비+기본60초측정. map hash양쪽3388f86c...a5a6f2동일,공통instrument·DTCore·프로필/출력/UI동일. callbackFPS중앙값59.994243→59.994645(저하−.000670%),enginep9516.666900ms동일,GT6.009286→5.927093ms(−1.367769%)로2%PASS. manifest Saved/Reports/verify/20261019T140353787Z/perf/manifest.json.자기archive정리/KeptCheckoutsfalse,측정중마우스/다른Editor0.
+
+해치별도절대성능215,D3D12/표시형1920/font100/3분할점군분석/FullSpec AccurateCpuTrace/10+30초/추가서버송신자동파일0:1대 engine59.999305/p9516.666901/GT6.656659/callbackp9518.097401ms,MLX8.328841Hz/비선택Mid0;2대 engine59.999318/p95동일/GT6.802762/callback18.207300,MLX3.997897/Mid2.698581Hz. engine pacing/실측Hz를구분하며센서배치가달라옛해치수치와같은workload2%비교로세지않는다.
+
+자동66PNG+metadata(1920×1080/font100·1280×720/font150 각두원료×5상태×3뷰+설정+센서광선2),before/original hash/부피exact·many8/undo7/reset0·windowDPI1. captures/index.html전후비교와expanded-capture-manifest.json에원본SHA256. 실제sky마우스는cce및최종215에서일반/점군·반복/undo/original·드래그/확대·150%·양원료·센서/강조/광선·개구부mask를확인.215 추가31입력:OFF무반응,3m/2m1회28.25/8회226.18→undo197.90m³,최소47·현재설정유지,random후누적0,ON-drag무편집,FOV/실측·가림상세. 잠금/보안입력0. 소유PIE/Editor정상종료,141개인원본 byte복원·832보호 hash일치. 초기외부입력보류/옛RSS·30초perf실패/기각실험은당시원문을보존한다.
+
+DTCore source/gitlink·Game.ini/SensorTransport값·PixelStreaming/Build.cs/uproject·사용자SensorTestMap/기존자산·Claude전용파일·Inspection원본수정/stage0. 승인재질1개와DefaultGame cook1줄은구분한다. push/PR/merge/worktree/submodule update/Docker/WSL0. 최종quick/문서commit·보호감사·수용제한은Saved/Reports/HATCH-03/DONE.md,상세RESULT.md를따른다. 실장비/실선박보정·DEM·모든값의직접전수검사는범위밖이다.
