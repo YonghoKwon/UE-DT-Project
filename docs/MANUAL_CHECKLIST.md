@@ -108,17 +108,19 @@ Windows 보안/권한 팝업은 조작하지 않고 해당 행을 보류한다. 
 
 최종 집계는 `PASS __ / FAIL __ / 보류 __`와 행 ID·증거를 함께 남긴다. 부분 수행은 실제 셀에 세부 동작별 판정을 적고 행 전체를 PASS로 세지 않는다. 성능은 모든 Editor/마우스 점검을 마친 뒤 `Scripts/verify.ps1 -Level perf -BaseCommit 5dd9327`로 별도 수행한다.
 
-## TESTSET-01 추가 직접 점검 — 사용자 2026-10-16, 임시 기능
+## TESTSET-01·02 추가 직접 점검 — 사용자 2026-10-16·19, 임시 기능
 
-기존24행의 통과 기록에 합산하지 않는다. `Saved/Reports/TESTSET-01/manual/CHECKLIST.md`에 누른 것/기대/실제/스크린샷·client/DPI/글자 배율을 기록한다. 잠금·보안 팝업은 입력하지 않고 보류한다. 엔진 공용 `%LOCALAPPDATA%/UnrealEngine/5.3/Saved/Config/WindowsEditor`도 실행 전 백업하고 종료 후 복원한다.
+기존24행의 통과 기록에 합산하지 않는다. TESTSET-01/INSP-FIX-2의 [이전 직접 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md)은 보존한다. 현재 TESTSET-02 Runtime70f95cf는 [새 직접 기록](../Saved/Reports/TESTSET-02/manual/CHECKLIST.md)에 누른 것/기대/실제/스크린샷·client/DPI/글자 배율을 구분한다. 이번에는 Windows 잠금 화면을 확인해 입력0·직접 PASS0/FAIL0/환경 보류7이며 자동 검증을 직접 통과로 올리지 않는다. 엔진 공용 `%LOCALAPPDATA%/UnrealEngine/5.3/Saved/Config/WindowsEditor`도 실행 전 백업하고 종료 후 복원한다.
 
 | ID | 직접 누를 것 / 기대 | 결과 |
 |---|---|---|
-| T01 | 소재9999 입력 후 공통 스타일의 진행 화면. 완료/목표·상태·목록, 접힌 상세. 제목 드래그/크기 조절·닫기/재열기·Workspace 위치 복원 | 직접1280×720·DPI1·100/150% 수행 범위와 단계별 증거는 [현재 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md) |
-| T02 | LiDAR 측정/독립 PCD/주기 저장 각각에서9999 100개 접수→센서ID·대기 사유→해제 후 자동100/100. 원클릭 중지/끝난 뒤 설정 복원, 일반 시나리오 우선·실패 재시도 | 직접 원클릭100개·9/100 일시정지/재개와 RHI4조건100개를 분리. [RESULT](../Saved/Reports/INSP-FIX-2/RESULT.md) |
-| T03 | 완료 전 점군 재생 없음. 완료 시나리오3개 선택→저장 PCD 점군·프레임/점 수 파일 일치. 재생/일시정지/중지·다른 선택, 테스트셋 전송0·Slab/PCD/라벨 불변 | 직접1280×720·DPI1·100/150% 수행 범위와 단계별 증거는 [현재 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md) |
-| T04 | 상세 안 초기화 첫 클릭 안내·8초 후 취소/두 번째 확인. 파일 보존·목록 초기화. 숨김/닫기 중 생성 유지, 미등록 Widget/기존 창 배치 불변 | 직접1280×720·DPI1·100/150% 수행 범위와 단계별 증거는 [현재 기록](../Saved/Reports/INSP-FIX-2/manual/CHECKLIST.md) |
-| T05 | 실제 client1920×1080·1280×720와 글자100/150%, DPI·전후 캡처. 기본/상세·대기·PCD 보기에서 잘림·버튼 접근·드래그 경계/위치 복원. 개인 설정 복원 | 전후8장 자동 RHI 완료, 직접1280×720·DPI1·100/150% 완료 범위는 기록 참조. 직접1920·선택 Camera/GT/IMU/EXPORT 전체 조합은 미수행 |
+| T01 | 9999 한 개→자동 화면·원본1+예시99. 진행률·속도·남은 시간·상태·배지, 접힌 상세. 제목 드래그/크기·닫기/재열기·위치 기억 | TESTSET-02 잠금 보류·입력0. 자동 생성/Slate와 구분 |
+| T02 | 측정/독립 PCD/주기 저장의 센서ID·대기 사유→해제 후 자동 진행, 원클릭 시작·완료 후 소유 설정 복원, pause/resume·일반 우선 | TESTSET-02 잠금 보류. 기존 INSP-FIX-2 직접 이력 유지 |
+| T03 | 완료 전 점군 재생 없음. 완료 항목 선택→저장 PCD·프레임/점 수 일치, 재생/pause/중지·선택 변경. 전송0·Slab/파일 불변 | TESTSET-02 잠금 보류. AutoFill=True 기본1프레임, False는 기존 전체 샘플 |
+| T04 | 상세 안 초기화 첫 안내·8초 만료/두 번째 확인, 파일 보존·목록 초기화. 숨김 중 생성 유지·기존 창/미등록 Widget 불변 | TESTSET-02 잠금 보류 |
+| T05 | client1920×1080·1280×720, 글자100/150%, DPI·전후 캡처. 금지 안내/동의어가 문구·툴팁·활동 칩에 없음. 좁은 폭·경계·버튼·위치 기억·개인 값 복원 | TESTSET-02 직접 잠금 보류. 자동 RHI 전후4조합·Slate 문구 검사는 별도 RESULT 참조 |
+| T06 | 실제5개 추가→원본6+예시94, 생성 중/완료 예시 대체·같은 프레임 정책·examples_replaced 보관. 실제 목표수 수신 후 예시0 | TESTSET-02 잠금 보류. 자동 수신/파일 대조와 구분 |
+| T07 | AutoFillExamples=False로 시작→실제 입력만 등록, 기존 SampleStride 전부 저장 | TESTSET-02 잠금 보류. 기존 lifecycle·대기/원클릭 회귀와 구분 |
 
 ## UXR-17 미리보기 추가 직접 점검
 

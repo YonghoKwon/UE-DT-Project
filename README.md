@@ -674,6 +674,22 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 ### TESTSET-01 AI Agent 시나리오 테스트셋 — 임시 기능, 로드맵 #17
 
+**TESTSET-02(사용자 2026-10-19, 임시 시연 기능)**: 기본 `AutoFillExamples=True`에서 9999 원본 하나를 받으면 기존 소유 위젯을 자동 표시하고 원본1개+서로 다른 예시99개를 즉시 등록한다. 예시는 **시연용 대표 프레임**이며 학습용 실제 수신 데이터가 아니다. 목록의 원본/예시 배지와 파일의 `source: received | example`로 구분한다. `AutoFillExamples=False`는 실제로 수신한 서로 다른 시나리오만 목표까지 모으는 TESTSET-01 동작이다.
+
+| `[AgentTestSet]` 설정 | 기본값 | 의미 |
+|---|---|---|
+| `AutoFillExamples` | `True` | 임시 예시 자동 채우기. 실제 입력100개 운영으로 전환할 때 `False`를 선택한다. 켜진 상태에서도 실제 수신을 우선한다. |
+| `ExampleSeed` | `1337` | 원본 SHA1과 결합한 고정 시드. DATASET-01의 독립 채널 샘플러를 재사용한다. |
+| `ExampleMaxFrames` | `1` | AutoFill 모드의 **모든 항목**(최초 수신·예시·이후 대체 원본)에 같은 최대 N프레임을 적용한다. 1은 가운데 샘플 행, N>1은 첫/마지막 샘플 행을 포함해 고르게 선택한다. 범위1–10000. 이름은 예시 설정이지만 AutoFill에서는 균일 정책이다. |
+| `SampleStride` | `1` | 매 N행을 샘플링한다. AutoFill=False면 이 행들을 모두 저장하며 기존 TESTSET-01과 같다. True면 위 상한으로 고르게 선택한다. |
+| `SettleFrames` / `Pipeline` | `1` / `True` | 기존 안정화와 유한 캡처/저장 파이프라인. 센서 해상도·획득 품질을 자동으로 낮추지 않는다. |
+
+원본 행 수·프레임/시각·입력 단위·optional 필드를 유지하면서 시작 위치±20cm, 진행 거리/같은 시간의 속도0.9–1.1배, 좌우 기울기±3°와 사행 파형, 길이/폭/두께별0.9–1.1배를 결정적으로 변형한다. 예시 치수는 길이1–30m·폭0.3–4m·두께0.03–0.6m, 최종 기울기는±10°로 제한한다. 원본 UUID·SHA1·결합 시드·변형 값·단위를 기록하고 예시마다 새 시나리오 UUID와 RunUUID를 만든다. 같은 원본/시드/단위의 변형 값은 같지만 UUID·획득 시각·PCD bytes 동일성을 뜻하지 않는다. 기존 TrackReference와 BuildPose(`center_x`, 왼쪽 기울기, 첫 행 치수)를 그대로 사용하며 `center_y`·`mov_pos`의 기존 진단 의미를 바꾸지 않는다.
+
+실제 시나리오를 추가로 받으면 예시 슬롯을 하나씩 예약해 대체한다. 해당 슬롯의 캡처·쓰기·검증·읽기가 끝난 뒤 기존 예시 폴더를 같은 세트의 `examples_replaced/`로 옮기고 새 원본을 생성한다. 삭제하지 않으며 `replacement.json`과 `testset.json.replaced_examples`에 이유/대체 UUID/보관 경로를 남긴다. 대체된 예시는 현재100개 집계에서 제외하므로 실제100개가 모이면 예시0개다. 대체 중에는 완료/점군 보기 조건을 다시 잠그고, 기존과 같이 목표 생성·검증·manifest 저장을 모두 기다린다. 입력64MiB 등 기존 자원 한도는 유지한다.
+
+빠른 생성의 목표는 이 PC에서 약10초다. 사용자 추가 결정(2026-10-19)에 따라 첫 수신 원본과 예시, 이후 대체 원본을 모두 같은 프레임 정책으로 처리해 첫 항목만 오래 걸리지 않게 한다. 원본 JSON의 모든 행은 계속 보관하며 캡처 행만 제한한다. 센서 backend/해상도·선택 출력에 따라 달라지므로 측정 결과와150ms 초과 여부는 `Saved/Reports/TESTSET-02/RESULT.md`를 따른다. 상단에 처리 속도·예상 남은 시간·원본/예시 수를 표시하며 완료 후 **점군 보기**로 저장 결과를 연다. 세부 옵션/초기화는 접힌 상세에 둔다. 화면에는 시연용/대표 프레임 안내를 표시하지 않고, 추적 목적은 파일 메타데이터에만 남긴다. 직접 UI 수용과 자동 캡처/처리량 판정은 구분한다.
+
 출처: 사용자 2026-10-16. `Config/DefaultGame.ini`의 `[AgentTestSet]`에서 `Enabled=True`, `TriggerMtlNo=9999`, `TargetScenarios=100`을 정한다. `mtl_no`는 문자열로 비교하며 양끝 공백만 제거한다. `Enabled=False`면 기존 일반 경로를 사용한다. 기존 TC → DataSync → Slab의 검증된 수신 지점에서 분기하고, 트리거는 일반 보관10개·PCD 자동 전송·실시간 재생에 넣지 않는다. 일반 소재가 오면 테스트셋 캡처/Slab 상태를 먼저 복원해 기존 실행에 양보하고, 일반 시나리오·센서 세션 정리 후 생성에 복귀한다.
 
 `도구 → AI 시나리오 테스트셋`의 기본 화면은 완료/목표 진행률·상태·일시정지/재개·결과 폴더·시나리오 목록이다. 트리거·옵션·프레임/시간·예상 시간과 세트 초기화는 기본 접힌 **상세**에서 본다. 세트 초기화는 8초 안에 다시 눌러 확인하며 파일을 보존하고 목록을 비운다. 숨김은 생성 중지가 아니다. 공통 소유 패널의 제목 드래그·크기 조절·글자 배율을 사용하고 자유 배치를 기존 Workspace v1의 추가 TestSet 키에 저장한다. 기존 enum 값·슬롯·버전·저장 필드는 유지한다. 검수맵의 전용 하단 컨트롤이 상태바를 가릴 때는 **도구 → AI 시나리오 테스트셋**으로 재연다. 일반 화면에는 해당 검수 헬퍼가 없다.
@@ -684,15 +700,15 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 목표 생성·파일 검증·manifest 저장 완료 후 목록에서 완료 시나리오를 선택하면 **그 실행의 저장된 `lidar.pcd` 프레임**을 점군 조감도로 보여 준다(INSP-FIX-2, 사용자 검수 2026-10-17 F14). 원본 행의 저장된 시간 간격과 프레임 순서를 따르며 재생/일시정지/중지·현재 프레임/전체 프레임·점 수를 표시한다. 파일 읽기/33-byte 디코딩은 worker1건과 다음 프레임1개로 제한한다. 별도 보기 컴포넌트가 기존 immutable snapshot/점군 투영을 재사용하고 측정·JSON 직렬화·녹화·송신 이벤트를 발생시키지 않는다. Slab 재생·일반 보관 목록·PCD/라벨/데이터셋 파일은 바꾸지 않는다. 선택 변경/중지는 이전 읽기 결과를 폐기한다. 테스트셋 전송·Sender·임시 전송·ActiveMQ 알림은 제공하지 않는다.
 
-`SampleStride=1`은 모든 원본 행, `SettleFrames=1`은 적용 뒤 engine frame1회 안정화다. 실제 Slab 재생과 같은 첫 행 치수·단위·TrackReference·BuildPose로 생성하되 실시간 재생 시계는 돌리지 않는다. 공유 World의 Slab을 이동시키므로 생성 중 샘플 자세가 보일 수 있다.
+`AutoFillExamples=False`에서 `SampleStride=1`은 모든 원본 행이다. True에서는 최초 수신·예시·대체 원본 모두 동일한 `ExampleMaxFrames` 상한을 적용한다. `SettleFrames=1`은 적용 뒤 engine frame1회 안정화다. 실제 Slab 재생과 같은 첫 행 치수·단위·TrackReference·BuildPose로 생성하되 실시간 재생 시계는 돌리지 않는다. 공유 World의 Slab을 이동시키므로 생성 중 샘플 자세가 보일 수 있다.
 
 기본은 **LiDAR PCD + 라벨**이다. `CaptureCamera`, `CameraTruth`, `IncludeImu`, `LidarFidelity`는 모두 false이며 켠 경우 DATASET-01 대응 기능을 사용한다. 카메라 포함 시 `CameraSensorId`도 단일 대상 규칙을 따른다. `ExportFormat=none`이 기본이며 `coco`/`kitti`/`coco,kitti`에는 CameraTruth와 기존 EXPORT-01 Python 환경이 필요하다. `ExportUprightEnvelope`도 기존 정책을 따른다.
 
 | 경로 | 내용 |
 |---|---|
-| `Saved/TestSets/<세트 UUID>/testset.json` | `ma0t10.testset.v1`: 트리거·목표/완료 수·선택 옵션·시나리오 ID/상태/프레임/시간/RunUUID/폴더·프로젝트 SHA/빌드. 단일 worker가 원자 교체한다. |
-| `scenario_<번호>_<시나리오 UUID>/original.json` | 수신 원본 JSON. 별도 디스크 보관으로 일반 메모리 보관10개 제한에 영향을 주지 않는다. |
-| `scenario_.../run_<RunUUID>/scene_XXXXX/` | DATASET-01 binary33 PCD·점별 라벨·`label.json`. 실제 Slab pose/치수/표면·immutable 센서 pose/FrameId/UTC에 `scenario_id`, `run_uuid`, 원본 `mtl_no`, `scenario_frame_no`, `scenario_elapsed_s`를 추가한다. |
+| `Saved/TestSets/<세트 UUID>/testset.json` | `ma0t10.testset.v1`: 트리거·목표/완료 수·선택 옵션·시나리오 ID/상태/프레임/시간/RunUUID/폴더·프로젝트 SHA/빌드. TESTSET-02는 원본/예시 수, 항목별 `source`/원본 UUID/시드/변형 값, `frame_policy`, 처리 속도/예상 시간, `replaced_examples` 보관 이력을 추가한다. 단일 worker가 원자 교체한다. |
+| `scenario_<번호>_<시나리오 UUID>/original.json` | 수신 원본 또는 생성한 예시 JSON의 전체 행. 예시 `_meta`에 source/원본 UUID·SHA1/변형 값을 남긴다. 별도 디스크 보관으로 일반 메모리 보관10개 제한에 영향을 주지 않는다. |
+| `scenario_.../run_<RunUUID>/scene_XXXXX/` | DATASET-01 binary33 PCD·점별 라벨·`label.json`. 실제 Slab pose/치수/표면·immutable 센서 pose/FrameId/UTC에 `scenario_id`, `run_uuid`, 원본 `mtl_no`, `scenario_frame_no`, `scenario_elapsed_s`를 추가한다. TESTSET-02 라벨은 `source`, `source_uuid`, `frame_policy`/상한/stride와 예시 시드/변형 값을 포함한다. |
 | `scenario_.../summary.json` | 성공 RunUUID·프레임 경로·개수·시간·PCD bytes. 파일 검증 후 작성하며 재시도는 새 RunUUID/폴더를 사용한다. |
 
 `Pipeline=True`는 캡처를 순차로 두고 이전 프레임의 PCD 직렬화·이미지 인코딩·라벨 JSON·파일 쓰기와 다음 캡처를 겹친다. writer1건 + 캡처1건, 다음 시나리오 파싱/자세 준비1건, 원본 저장2건으로 제한한다. 입력 대기64MiB, 두 장면 메모리 추정 합계256MiB 이하, Camera1920×1080·LiDAR25만 잠재 반환점 상한을 적용한다. CPU trace는 기존 분할 경로를 유지한다. World/Actor·semantic 조회를 포함한 루프를 임의 worker ParallelFor로 옮기지 않는다. `Pipeline=False`로 순차 처리와 비교하며 다중 UE 프로세스 생성은 구현하지 않았다.
@@ -700,6 +716,8 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 기존 수신에서 허용한 UUID 없는 JSON도 최초 내부 보관 ID를 생성·라벨·보기 재생에서 유지한다. 원본 JSON을 다시 쓰지 않으며 디스크 재파싱 시 원본 해시를 검사한다.
 
 목록은 실행 중 메모리 상태이며 프로세스 재시작 후 자동 복원/재개는 없다. 원본과 완료 산출물은 디스크에 남는다. AUTO-01을 켠 경우 `GET /v1/testset`으로 읽는다. 새 listener·ROS2 경로·전송은 추가하지 않는다. 최초 검증·처리량은 `Saved/Reports/TESTSET-01/RESULT.md`, 사용자 검수 F13·F14·F1·F3 수정의 현재 자동 검증·직접 UI·성능 판정과 제한은 `Saved/Reports/INSP-FIX-2/RESULT.md`를 따른다.
+
+TESTSET-02 Runtime `70f95cf`의 현재 자동 검증: 원본1+예시99를 **10.07초**, 모든 항목 PCD/라벨1쌍·150ms 초과0으로 생성했다. 실제5개 대체 뒤 원본6/예시94·동일100쌍, 원본 전체 JSON 보존·변형 결정성·33B/5B 대조를 통과했다. Editor/Game·release14단계(고유308 Success/44 조건부 skip/실패0)·WBP7·golden14·Python69·layer0, 기본 상태19eb3fc 대비 표시형1+1 ABAB12회의2% gate도 통과했다(FPS 저하0.0064%·p95동일·GT+1.611%). **직접 UI는 Windows 잠금 확인으로 입력0·7행 보류**다. 초기 기존 카메라 회귀1건 실패와 동일 코드 단독/전체 재실행, 실제 조건·제한·복원/정리는 [현재 결과](Saved/Reports/TESTSET-02/RESULT.md)를 따른다. 자동 캡처·성능을 직접 수용으로 표시하지 않는다.
 
 ### AUTO-01 배치 실행과 로컬 제어 API — 기본 꺼짐
 
