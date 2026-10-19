@@ -18,6 +18,9 @@
 #include "Components/PanelWidget.h"
 #include "EngineUtils.h"
 #include "Camera/CameraActor.h"
+#include "Engine/LocalPlayer.h"
+#include "GameFramework/PlayerController.h"
+#include "SceneView.h"
 
 struct FHatchPresentationProbe
 {
@@ -45,6 +48,23 @@ struct FHatchPresentationProbe
             T.TestTrue(TEXT("visible label remains within client bounds"),P.X>=-1&&P.Y>=-1&&P.X+Actual.X<=Size.X+1&&P.Y+Actual.Y<=Size.Y+1);
         }
         T.TestTrue(TEXT("3D occupies only its assigned scene rectangle"),M.SceneRect.Right<=Size.X&&M.SceneRect.Bottom<=Size.Y);
+        if(M.IsSplitView()||M.GetView()<2)
+        {
+            auto* PC=M.GetWorld()->GetFirstPlayerController();FSceneViewProjectionData Projection;
+            T.TestTrue(TEXT("actual player projection is available"),PC->GetLocalPlayer()->GetProjectionData(M.GetWorld()->GetGameViewport()->Viewport,Projection,INDEX_NONE));
+            const auto Rect=Projection.GetConstrainedViewRect();const FMatrix Matrix=Projection.ComputeViewProjectionMatrix();
+            bool Inside=true;int32 Corners=0;
+            for(TActorIterator<AShipHatchPart> I(M.GetWorld());I;++I)
+            {
+                FVector Center,Extent;I->GetActorBounds(false,Center,Extent);
+                for(int32 X:{-1,1})for(int32 Y:{-1,1})for(int32 Z:{-1,1})
+                {
+                    FVector2D Pixel;const bool Front=FSceneView::ProjectWorldToScreen(Center+Extent*FVector(X,Y,Z),Rect,Matrix,Pixel);
+                    Inside&=Front&&Pixel.X>=Rect.Min.X-1&&Pixel.X<=Rect.Max.X+1&&Pixel.Y>=Rect.Min.Y-1&&Pixel.Y<=Rect.Max.Y+1;++Corners;
+                }
+            }
+            T.TestTrue(TEXT("reset view fits actual geometry bounds in split and maximized panes"),Inside&&Corners>=32);
+        }
     }
     static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {

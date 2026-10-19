@@ -154,6 +154,7 @@ void UShipHatchMonitorWidget::Layout()
     Set(4,bSplit?RightX:P,DataTop,bSplit?Right:Width,bSplit?(DataHeight-Gap)*.5:DataHeight,bSplit||ActiveView==2);Set(5,bSplit?RightX:P,bSplit?DataTop+(DataHeight+Gap)*.5:DataTop,bSplit?Right:Width,bSplit?(DataHeight-Gap)*.5:DataHeight,bSplit||ActiveView==3);
     Set(6,P,Size.Y-P-Footer,Width,Footer);Set(7,P+Gap,DataTop+116*S+Gap,FMath::Min(Left-2*Gap,360.*S),FMath::Min(280*S,SceneRect.Bottom-SceneRect.Top-2*Gap),Scene&&ActiveView==1);Set(8,Size.X-P-FMath::Min(Width,Style::SidebarWidth*S),P+Header+Gap,FMath::Min(Width,Style::SidebarWidth*S),Size.Y-P-(P+Header+Gap),bSettings);
     if(auto* H=Host.Get())H->SetSceneRect(SceneRect,Size,Scene);
+    UpdateCamera();
 }
 void UShipHatchMonitorWidget::SetFontPercent(int32 Percent)
 {
@@ -197,7 +198,29 @@ void UShipHatchMonitorWidget::OnSizeSlider(float V){PointSizeLabel->SetText(FTex
 void UShipHatchMonitorWidget::OnDensitySlider(float V){DensityLabel->SetText(FText::FromString(FString::Printf(TEXT("표시 밀도  %.0f%%"),100./FMath::Max(1,FMath::RoundToInt(100./V)))));ApplyPreview();}
 void UShipHatchMonitorWidget::SetCameraPreset(int32 P){OrbitYaw=P==0?90:48;OrbitPitch=P==0?-89:-62;OrbitDistance=7800;UpdateCamera();}
 void UShipHatchMonitorWidget::UpdateCamera()
-{auto* H=Host.Get();auto* S=Simulation.Get();if(!H||!H->ViewCamera||!S)return;const FVector Target=S->GetActorTransform().TransformPosition(FVector(0,0,S->HoldDepth*70));const FRotator R(OrbitPitch,OrbitYaw,0);H->ViewCamera->SetActorLocationAndRotation(Target-R.Vector()*OrbitDistance,R);H->ViewCamera->GetCameraComponent()->SetFieldOfView(58);H->ViewCamera->GetCameraComponent()->SetConstraintAspectRatio(false);}
+{
+    auto* H=Host.Get();auto* S=Simulation.Get();if(!H||!H->ViewCamera||!S)return;
+    const FVector Target=S->GetActorTransform().TransformPosition(FVector(0,0,S->HoldDepth*70));
+    const FRotator Rotation(OrbitPitch,OrbitYaw,0);const FRotationMatrix Basis(Rotation);
+    const double Aspect=FMath::Max(.2,double(SceneRect.Right-SceneRect.Left)/FMath::Max(1.f,SceneRect.Bottom-SceneRect.Top));
+    const double TanHorizontal=FMath::Tan(FMath::DegreesToRadians(29.)),TanVertical=TanHorizontal/Aspect;
+    double FitDistance=1;
+    auto FitCorner=[&](FVector LocalMeters)
+    {
+        const FVector Delta=S->GetActorTransform().TransformPosition(LocalMeters*100)-Target;
+        const double Forward=FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::X));
+        FitDistance=FMath::Max(FitDistance,FMath::Abs(FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::Y)))/(TanHorizontal*.9)-Forward);
+        FitDistance=FMath::Max(FitDistance,FMath::Abs(FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::Z)))/(TanVertical*.9)-Forward);
+    };
+    for(int32 X:{-1,1})for(int32 Y:{-1,1})
+    {
+        FitCorner(FVector(X*(S->HoldLength+.6)*.5,Y*(S->HoldWidth+.6)*.5,-.3));
+        FitCorner(FVector(X*(S->HoldLength+8)*.5,Y*(S->HoldWidth+8)*.5,S->HoldDepth+.3));
+        FitCorner(FVector(X*(S->OpeningLength+.6)*.5,Y*(S->OpeningWidth+.6)*.5,S->HoldDepth+S->CoamingHeight));
+    }
+    H->ViewCamera->SetActorLocationAndRotation(Target-Rotation.Vector()*(FitDistance*OrbitDistance/7800.),Rotation);
+    H->ViewCamera->GetCameraComponent()->SetFieldOfView(58);H->ViewCamera->GetCameraComponent()->SetConstraintAspectRatio(false);
+}
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {if((bSplit||ActiveView<2)&&SceneRect.ContainsPoint(G.AbsoluteToLocal(E.GetScreenSpacePosition()))&&E.GetEffectingButton()==EKeys::LeftMouseButton){bOrbit=true;return FReply::Handled().CaptureMouse(TakeWidget());}return Super::NativeOnMouseButtonDown(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonUp(const FGeometry& G,const FPointerEvent& E)
