@@ -11,12 +11,33 @@ class UTextBlock;
 class UImage;
 class UTexture2D;
 class UCanvasPanelSlot;
+class UBorder;
+class UButton;
+class USlider;
+class UShipHatchAnalysisView;
+class UInvalidationBox;
+namespace ShipHatch { struct FAnalysis; struct FSettings; }
 struct FShipHatchMonitorWork;
+class UShipHatchMonitorWidget;
+
+/** Owned Slate grid; shares the monitor's immutable analysis without raster textures. */
+UCLASS()
+class MA0T10_DT_API UShipHatchAnalysisView : public UWidget
+{
+    GENERATED_BODY()
+public:
+    TWeakObjectPtr<UShipHatchMonitorWidget> Monitor;
+    bool bHeatmap=false;
+    bool bLegend=false;
+protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+};
 
 UCLASS()
 class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
 {
     GENERATED_BODY()
+    friend struct FHatchPresentationProbe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -25,10 +46,23 @@ public:
     void SetFontPercent(int32 Percent);
     const FString& GetStatusText() const { return CachedStatus; }
     int32 GetView() const { return ActiveView; }
+    int32 GetColor() const { return ActiveColor; }
+    void SetSplitView(bool Enabled);
+    bool IsSplitView() const { return bSplit; }
+    float GetFontScale() const { return FontScale; }
+    const ShipHatch::FAnalysis* GetAnalysis() const;
+    const ShipHatch::FSettings* GetAnalysisSettings() const;
+    FText CellTooltip(int32 Cell) const;
+    void SetCameraPreset(int32 Preset);
     uint64 AnalysisBuilds=0;
 protected:
     virtual void NativeOnInitialized() override;
     virtual void NativeDestruct() override;
+    virtual FReply NativeOnMouseButtonDown(const FGeometry&,const FPointerEvent&) override;
+    virtual FReply NativeOnMouseButtonUp(const FGeometry&,const FPointerEvent&) override;
+    virtual FReply NativeOnMouseMove(const FGeometry&,const FPointerEvent&) override;
+    virtual FReply NativeOnMouseWheel(const FGeometry&,const FPointerEvent&) override;
+    virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent&) override;
 private:
     TWeakObjectPtr<AShipHatchSimulation> Simulation;
     TWeakObjectPtr<AShipHatchMonitorHost> Host;
@@ -52,14 +86,43 @@ private:
     UPROPERTY(Transient) TObjectPtr<UCanvasPanelSlot> ControlsSlot;
     UPROPERTY(Transient) TObjectPtr<UCanvasPanelSlot> AnalysisSlot;
     UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> TextBlocks;
+    UPROPERTY(Transient) TArray<TObjectPtr<UCanvasPanelSlot>> LayoutSlots;
+    UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> MetricValues;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> ViewButtons;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> ColorButtons;
+    UPROPERTY(Transient) TObjectPtr<UBorder> SettingsPanel;
+    UPROPERTY(Transient) TObjectPtr<UBorder> PointPanel;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchAnalysisView> TopView;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchAnalysisView> HeatView;
+    UPROPERTY(Transient) TObjectPtr<UInvalidationBox> TopCache;
+    UPROPERTY(Transient) TObjectPtr<UInvalidationBox> HeatCache;
+    UPROPERTY(Transient) TObjectPtr<UInvalidationBox> PaletteCache;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> ContextText;
+    UPROPERTY(Transient) TObjectPtr<UBorder> StatusChip;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> UpdatedText;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> FillBadge;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> PointSizeLabel;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> DensityLabel;
+    UPROPERTY(Transient) TObjectPtr<USlider> SizeSlider;
+    UPROPERTY(Transient) TObjectPtr<USlider> DensitySlider;
     TArray<int32> BaseFontSizes;
     TSharedPtr<FShipHatchMonitorWork> Work;
     FString CachedStatus;
     int32 ActiveView=0,ActiveColor=0;
+    int32 LastSceneView=0;
     uint64 LastRevision=MAX_uint64;
     int64 LastMLX=-1,LastLivox=-1;
     bool bSync=false;
     bool bWasGenerating=false;
+    bool bSplit=true,bSettings=false,bOrbit=false;
+    float FontScale=1;
+    FVector2D LastLayout=FVector2D::ZeroVector;
+    FSlateRect SceneRect;
+    double OrbitYaw=48,OrbitPitch=-62,OrbitDistance=7800;
+    void Layout();
+    void UpdateCamera();
+    void UpdateSegments();
+    void InvalidatePlots();
     double CellSize=1;
     void ApplyPreview();
     void RefreshAnalysis();
@@ -75,4 +138,21 @@ private:
     UFUNCTION() void OnGrid(float Value);
     UFUNCTION() void OnPointSize(float Value);
     UFUNCTION() void OnPointStride(float Value);
+    UFUNCTION() void OnSizeSlider(float Value);
+    UFUNCTION() void OnDensitySlider(float Value);
+    UFUNCTION() void OnSettings();
+    UFUNCTION() void OnSplit(){SetSplitView(true);}
+    UFUNCTION() void OnRender(){SelectView(0);}
+    UFUNCTION() void OnPoints(){SelectView(1);}
+    UFUNCTION() void OnMax3d(){SelectView(ActiveView==1?1:0);SetSplitView(false);}
+    UFUNCTION() void OnMaxTop(){SelectView(2);SetSplitView(false);}
+    UFUNCTION() void OnMaxHeat(){SelectView(3);SetSplitView(false);}
+    UFUNCTION() void OnHeight(){SelectColor(0);}
+    UFUNCTION() void OnClass(){SelectColor(1);}
+    UFUNCTION() void OnReflection(){SelectColor(2);}
+    UFUNCTION() void OnDistance(){SelectColor(3);}
+    UFUNCTION() void OnMono(){SelectColor(4);}
+    UFUNCTION() void OnTop(){SetCameraPreset(0);}
+    UFUNCTION() void OnOblique(){SetCameraPreset(1);}
+    UFUNCTION() void OnReset(){SetCameraPreset(2);}
 };

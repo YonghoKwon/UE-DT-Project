@@ -55,6 +55,8 @@ public:
     uint64 CompletedGenerations=0;
     void CollectObservations(TArray<ShipHatch::FObservation>& Out) const;
     bool HasFreshMeasurement() const;
+    uint64 MeshScratchBytes() const { return CargoVertices.GetAllocatedSize()+CargoNormals.GetAllocatedSize()+CargoIndices.GetAllocatedSize(); }
+    uint64 GenerationBufferBytes() const { return Current.Heights.GetAllocatedSize()+RecycledHeights.GetAllocatedSize()+GenerationShape.GetAllocatedSize(); }
     FSimpleMulticastDelegate OnSurfaceChanged;
 protected:
     virtual void BeginPlay() override;
@@ -63,12 +65,18 @@ private:
     UPROPERTY(Transient) TObjectPtr<AShipHatchPart> Cargo;
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> Structure;
     ShipHatch::FSurface Current;
-    TFuture<ShipHatch::FSurface> Generation;
+    struct FGenerationBuffers { ShipHatch::FSurface Surface; TArray<double> Shape; };
+    TFuture<FGenerationBuffers> Generation;
+    TArray<float> RecycledHeights;
+    TArray<double> GenerationShape;
     ShipHatch::FSettings Pending;
     bool bGenerating=false,bPending=false,bEnding=false;
     uint64 SurfaceRevision=0;
     int64 FrameGates[2]={-1,-1};
     FTimerHandle PollTimer;
+    TArray<FVector> CargoVertices,CargoNormals;
+    TArray<int32> CargoIndices;
+    int32 MeshNX=0,MeshNY=0;
     void StartGeneration();
     void PollGeneration();
     void BuildStructure();

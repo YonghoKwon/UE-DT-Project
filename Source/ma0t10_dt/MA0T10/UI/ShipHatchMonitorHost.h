@@ -7,6 +7,7 @@ class AVirtualSensorCoordinator;
 class AVirtualSensorUiHostActor;
 class UShipHatchMonitorWidget;
 class ACameraActor;
+class FShipHatchViewExtension;
 
 UCLASS()
 class MA0T10_DT_API AShipHatchMonitorHost : public AActor
@@ -20,6 +21,7 @@ public:
     UPROPERTY(Transient) TObjectPtr<AVirtualSensorUiHostActor> Tools;
     UPROPERTY(Transient) TObjectPtr<UShipHatchMonitorWidget> Monitor;
     void ShowTools();
+    void SetSceneRect(const FSlateRect& Rect,FVector2D FullSize,bool Visible);
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
@@ -28,5 +30,6 @@ private:
     TWeakObjectPtr<AActor> PreviousView;
     bool bPreviousCursor=false;
     bool bRegisteredSensors=false;
+    TSharedPtr<FShipHatchViewExtension,ESPMode::ThreadSafe> ViewExtension;
     void Refresh();
 };

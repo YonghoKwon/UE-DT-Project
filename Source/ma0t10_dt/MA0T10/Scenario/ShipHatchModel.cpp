@@ -22,7 +22,11 @@ FColor Jet(double T)
 }
 FSurface Generate(const FSettings& S)
 {
-    FSurface R;R.Settings=S;FString Error;if(!S.Validate(Error))return R;
+    FSurface R;TArray<double> Shape;GenerateInto(S,R,Shape);return R;
+}
+void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
+{
+    R.Settings=S;FString Error;if(!S.Validate(Error)){R=FSurface();R.Settings=S;return;}
     FRandomStream Random(S.Seed);
     R.NX=FMath::CeilToInt(S.Length/S.MeshCell);R.NY=FMath::CeilToInt(S.Width/S.MeshCell);
     R.DX=S.Length/R.NX;R.DY=S.Width/R.NY;
@@ -33,10 +37,10 @@ FSurface Generate(const FSettings& S)
     // A triangular interpolation can amplify sampled directional slopes by sqrt(2).
     const double Slope=.7*FMath::Tan(FMath::DegreesToRadians(R.Repose));
     const FVector2D Bias(Random.FRandRange(-.25f,.25f)*S.Length,Random.FRandRange(-.25f,.25f)*S.Width);
-    TArray<FVector> Peaks;
+    TArray<FVector,TInlineAllocator<5>> Peaks;
     for(int32 I=0;I<R.Peaks;++I)Peaks.Add(FVector(Bias.X+Random.FRandRange(-.3f,.3f)*S.Length,
         Bias.Y+Random.FRandRange(-.3f,.3f)*S.Width,Random.FRandRange(2.f,8.f)));
-    TArray<double> Shape;Shape.SetNumUninitialized((R.NX+1)*(R.NY+1));
+    Shape.SetNumUninitialized((R.NX+1)*(R.NY+1),false);
     for(int32 Y=0;Y<=R.NY;++Y)for(int32 X=0;X<=R.NX;++X)
     {
         const FVector2D P(X*R.DX-S.Length*.5,Y*R.DY-S.Width*.5);
@@ -44,7 +48,7 @@ FSurface Generate(const FSettings& S)
         for(const auto& Peak:Peaks)H=FMath::Max(H,Peak.Z-Slope*FVector2D::Distance(P,FVector2D(Peak.X,Peak.Y)));
         Shape[Y*(R.NX+1)+X]=H;
     }
-    R.Heights.SetNumUninitialized(Shape.Num());
+    R.Heights.SetNumUninitialized(Shape.Num(),false);
     auto Integrate=[&](double Offset)
     {
         for(int32 I=0;I<Shape.Num();++I)R.Heights[I]=FMath::Clamp(Shape[I]+Offset,0.,S.Depth);
@@ -56,7 +60,7 @@ FSurface Generate(const FSettings& S)
     };
     double Low=-1000,High=1000;const double Target=S.Length*S.Width*S.Depth*R.Fill*.01;
     for(int32 I=0;I<48;++I){double Mid=(Low+High)*.5;if(Integrate(Mid)<Target)Low=Mid;else High=Mid;}
-    R.Volume=Integrate((Low+High)*.5);return R;
+    R.Volume=Integrate((Low+High)*.5);
 }
 double FSurface::Height(double X,double Y) const
 {
