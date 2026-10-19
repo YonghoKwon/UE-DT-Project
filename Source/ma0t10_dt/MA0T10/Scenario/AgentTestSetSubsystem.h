@@ -22,12 +22,18 @@ struct FAgentTestSetItem
     EAgentTestSetItemState State=EAgentTestSetItemState::Waiting;
     int32 Frames=0,CompletedFrames=0,Attempts=0;
     double Seconds=0;
+    bool Example=false;
+    FString SourceUUID,VariationJson;
+    int32 Seed=0;
 };
 struct FAgentTestSetSettings
 {
     bool Enabled=true,Pipeline=true,CaptureCamera=false,CameraTruth=false,IncludeImu=false,LidarFidelity=false,ExportUprightEnvelope=false;
     FString Trigger=TEXT("9999"),LidarId,CameraId,ExportFormat=TEXT("none");
     int32 Target=100,SampleStride=1,SettleFrames=1;
+    // TESTSET-02 temporary autofill mode uses the same frame cap for received and example slots.
+    bool AutoFillExamples=true;
+    int32 ExampleSeed=1337,ExampleMaxFrames=1;
     static FAgentTestSetSettings Load();
 };
 
@@ -58,6 +64,8 @@ public:
     bool IsComplete() const;
     bool HasItems() const;
     int32 Completed() const;
+    double ScenariosPerSecond() const;
+    double RemainingSeconds() const;
     const TArray<FAgentTestSetItem>& Items() const;
     const FAgentTestSetSettings& Settings() const {return Config;}
     FString Directory() const;

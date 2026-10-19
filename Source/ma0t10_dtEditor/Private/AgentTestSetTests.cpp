@@ -72,7 +72,7 @@ public:
             AVirtualSensorToolRig* Rig=nullptr;for(TActorIterator<AVirtualSensorToolRig> It(World);It;++It){Rig=*It;break;}
             if(!Rig){Rig=World->SpawnActorDeferred<AVirtualSensorToolRig>(AVirtualSensorToolRig::StaticClass(),FTransform::Identity);Rig->TargetSlab=Slab;Rig->FinishSpawning(FTransform::Identity);}
             Rig->TargetSlab=Slab;Test->TestTrue(TEXT("owned UI fixture uses existing tool rig composition"),Rig->EnsureSetup());World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->SetOwnedPanelFontScale(1);
-            FAgentTestSetSettings Config;Config.Target=Large?100:3;Config.LidarId=TEXT("TESTSET-LIDAR");Config.Pipeline=Pipeline;Test->TestTrue(TEXT("fixture config before admission"),Service->ConfigureForTests(Config));
+            FAgentTestSetSettings Config;Config.AutoFillExamples=false;Config.Target=Large?100:3;Config.LidarId=TEXT("TESTSET-LIDAR");Config.Pipeline=Pipeline;Test->TestTrue(TEXT("fixture config before admission"),Service->ConfigureForTests(Config));
             Test->TestFalse(TEXT("default state has no set or output"),Service->HasItems());Test->TestFalse(TEXT("preview requires target completion"),Service->SelectPreview(0,Error));
             Source=MakeAgentTestSetFixture(Large?3:20,TEXT(" 9999 "));Test->TestTrue(TEXT("trigger whitespace normalized"),Service->IsTrigger(*Source));
             Test->TestTrue(TEXT("submit through production async parser"),Slab->SubmitScenarioJson(Source->OriginalJson));Injected=1;Phase=Large?2:0;MeasureStart=LastWall=Now;MemoryStart=FPlatformMemory::GetStats().UsedPhysical;return false;

@@ -224,6 +224,16 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
         S->Label->SetStringField(TEXT("scenario_id"),S->Plan->ScenarioId);S->Label->SetStringField(TEXT("run_uuid"),S->Plan->RunId);
         S->Label->SetStringField(TEXT("mtl_no"),P.MtlNo);S->Label->SetStringField(TEXT("scenario_frame_no"),LexToString(P.FrameNo));
         S->Label->SetNumberField(TEXT("scenario_elapsed_s"),P.ElapsedSec);
+        if(!S->Plan->Source.IsEmpty())
+        {
+            S->Label->SetStringField(TEXT("source"),S->Plan->Source);S->Label->SetStringField(TEXT("source_uuid"),S->Plan->SourceUUID);
+            S->Label->SetStringField(TEXT("frame_policy"),S->Plan->FrameCap>0?TEXT("uniform_capped_stride_samples"):TEXT("full_stride_samples"));S->Label->SetNumberField(TEXT("frame_cap"),S->Plan->FrameCap);S->Label->SetNumberField(TEXT("sample_stride"),S->Plan->SampleStride);
+            if(S->Plan->Source==TEXT("example"))
+            {
+                S->Label->SetNumberField(TEXT("example_seed"),S->Plan->ExampleSeed);TSharedPtr<FJsonObject> Variation;
+                if(FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(S->Plan->ExampleVariation),Variation)&&Variation)S->Label->SetObjectField(TEXT("example_variation"),Variation);
+            }
+        }
     }
     S->Frames=S->Settings.SettleFrames;S->LastFrame=GFrameCounter;S->LidarFrame.Reset();S->Phase=EDatasetPhase::Settle;return true;
 }

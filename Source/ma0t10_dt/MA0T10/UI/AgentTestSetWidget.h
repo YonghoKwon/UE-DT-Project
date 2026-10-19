@@ -19,9 +19,10 @@ private:
     TSharedPtr<class SVerticalBox> List;
     TArray<TSharedPtr<class STextBlock>> Rows;
     TArray<FString> RowMessages;
+    TArray<FString> RowIds;
     TArray<uint8> RowStates;
     FSlateBrush PreviewBrush;
-    FText Summary,DetailText,Status,PreviewText;
+    FText Summary,DetailText,Status,PreviewText,Timing,Origins;
     float Progress=0;
     int32 Selected=INDEX_NONE;
     int64 SeenRevision=-1;
