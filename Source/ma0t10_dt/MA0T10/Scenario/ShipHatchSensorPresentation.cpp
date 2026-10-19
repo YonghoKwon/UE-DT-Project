@@ -18,7 +18,7 @@ bool InFov(const AVirtualLidarSensorActor* A,FVector World)
     const double El=FMath::RadiansToDegrees(FMath::Atan2(D.Z,FMath::Sqrt(D.X*D.X+D.Y*D.Y)));
     return FMath::Abs(Az)<=S->HorizontalFov*.5+1.e-5&&El>=S->MinVerticalAngle-1.e-5&&El<=S->MaxVerticalAngle+1.e-5;
 }
-void Box(TArray<FVector>& V,TArray<int32>& T,FVector C,FVector Size)
+void HatchPresentationBox(TArray<FVector>& V,TArray<int32>& T,FVector C,FVector Size)
 {
     const int32 B=V.Num();for(int32 Z=0;Z<2;++Z)for(int32 Y=0;Y<2;++Y)for(int32 X=0;X<2;++X)V.Add((C+FVector((X-.5)*Size.X,(Y-.5)*Size.Y,(Z-.5)*Size.Z))*100);
     for(int32 I:{0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5})T.Add(B+I);
@@ -69,15 +69,15 @@ void AShipHatchSimulation::UpdateSensorPresentation()
         auto* A=SensorPresentation[I].Get();TArray<FVector> V;TArray<int32> T;
         if(I<2)
         {
-            const FVector O=SensorLocalOrigin(I==0);Box(V,T,O,FVector(I==0?1.4:.9,1.,.8));Box(V,T,O+FVector(0,0,-.48),FVector(.7,.7,.18));
+            const FVector O=SensorLocalOrigin(I==0);HatchPresentationBox(V,T,O,FVector(I==0?1.4:.9,1.,.8));HatchPresentationBox(V,T,O+FVector(0,0,-.48),FVector(.7,.7,.18));
             const bool Enabled=I==0?bMLX:bLivox,Selected=SelectedSensor==I||(SelectedSensor<0&&Enabled);
             A->SetColor(!Enabled?FLinearColor(.12,.14,.16):Selected?FLinearColor(1,.62,.025):FLinearColor(.04,.45,.65));
         }
         else
         {
-            for(int32 Side:{-1,1})Box(V,T,FVector(0,Side*(OpeningWidth*.5+1),HoldDepth+EffectiveMLXHeight()*.5),FVector(.55,.55,EffectiveMLXHeight()));
-            Box(V,T,FVector(0,0,H+.8),FVector(.55,OpeningWidth+2.6,.55));
-            const double Low=SensorLocalOrigin(false).Z;Box(V,T,FVector(0,.6,(Low+H)*.5+.5),FVector(.18,.18,H-Low));
+            for(int32 Side:{-1,1})HatchPresentationBox(V,T,FVector(0,Side*(OpeningWidth*.5+1),HoldDepth+EffectiveMLXHeight()*.5),FVector(.55,.55,EffectiveMLXHeight()));
+            HatchPresentationBox(V,T,FVector(0,0,H+.8),FVector(.55,OpeningWidth+2.6,.55));
+            const double Low=SensorLocalOrigin(false).Z;HatchPresentationBox(V,T,FVector(0,.6,(Low+H)*.5+.5),FVector(.18,.18,H-Low));
             A->SetColor(FLinearColor(.22,.30,.34));
         }
         TArray<FVector> Normals;Normals.Init(FVector::UpVector,V.Num());
