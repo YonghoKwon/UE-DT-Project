@@ -10,7 +10,11 @@ import struct
 def validate(root, scenes):
     manifest = json.loads((root / 'dataset.json').read_text(encoding='utf-8-sig'))
     assert manifest['requested_scenes'] == manifest['completed_scenes'] == scenes, 'incomplete manifest'
-    assert re.fullmatch('[0-9a-f]{40}', manifest['project_commit']), 'build revision unavailable'
+    commit = manifest['project_commit']
+    source = manifest.get('project_commit_source', 'build')
+    # TESTSET-04: unavailable provenance is explicit metadata, not failed capture.
+    assert (re.fullmatch('[0-9a-f]{40}', commit) and source == 'build') or (
+        commit == 'unknown' and source == 'unavailable'), 'invalid build provenance'
     assert manifest['camera_truth'] and manifest['lidar_fidelity'], 'required opt-ins absent'
     folders = sorted(p for p in root.glob('scene_*') if p.is_dir())
     assert len(folders) == scenes, 'scene directory count mismatch'
@@ -34,7 +38,7 @@ def validate(root, scenes):
         details.append({'scene': index, 'points': points, 'resolution': resolution})
     files = [{'path': str(p.relative_to(root)), 'bytes': p.stat().st_size,
               'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(root.rglob('*')) if p.is_file()]
-    return {'valid': True, 'root': str(root.resolve()), 'project_commit': manifest['project_commit'],
+    return {'valid': True, 'root': str(root.resolve()), 'project_commit': commit, 'project_commit_source': source,
             'completed_scenes': scenes, 'scenes': details, 'files': files, 'bytes': sum(p['bytes'] for p in files)}
 
 

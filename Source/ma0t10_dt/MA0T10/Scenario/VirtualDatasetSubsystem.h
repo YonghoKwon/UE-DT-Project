@@ -39,6 +39,8 @@ public:
     bool IsWritingForTests() const;
     int32 GetReadbackAllocationsForTests() const;
     float WorkerDelayForTests=0;
+    /** Simulates source archives/company builds without injected Git metadata. */
+    TOptional<FString> ProjectCommitForTests;
 #endif
     virtual void Deinitialize() override;
 private:
@@ -52,4 +54,5 @@ private:
     void WriteScene();
     void StartExport();
     bool TargetsCurrent() const;
+    bool ReportedMissingCommit=false;
 };

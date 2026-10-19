@@ -56,6 +56,8 @@ public:
     void SetPaused(bool Paused);
     bool IsPaused() const;
     bool Retry(int32 Index,FString& Error);
+    bool HasManifestFailure() const;
+    FString SensorSelectionDescription() const;
     bool ResetConfirmed(FString& Error);
     bool SelectPreview(int32 Index,FString& Error);
     void StopPreview();
@@ -88,6 +90,8 @@ private:
     FTimerHandle Timer;
     TSharedPtr<FAgentTestSetPcdPreview> PcdPreview;
     bool BusyReason(FString& Reason) const;
+    bool ResolveSensors(FString& Error);
+    void LoadTemplate();
     void SuspendBusyWork();
     void RestoreStoppedWork(bool Resume=true);
     void Pump();

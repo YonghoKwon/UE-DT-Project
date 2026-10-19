@@ -1,4 +1,5 @@
 #include "VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/ma0t10_dt.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
@@ -64,7 +65,7 @@ struct FVirtualDatasetSession
     bool HotBefore=false;
     ESlabSurfacePreset SurfaceBefore=ESlabSurfacePreset::Default;
     bool LinkBefore=false,PauseRequested=false,Restored=false;
-    FString Root,Commit,ExportPython,ExportScript;
+    FString Root,Commit,CommitSource,ExportPython,ExportScript;
     bool ExportSucceeded=false;
     int32 Completed=0,Frames=0,NoiseSeedBefore=0;
     int32 LidarRevision=0,CameraRevision=0;
@@ -129,6 +130,16 @@ bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASl
     if((HasCamera&&Pixels<=0)||Pixels>1920ll*1080||Points<=0||Points>250000||(Pixels*64+Points*512)*(Plan&&Plan->Pipeline?2:1)>256ll*1024*1024)
     {Error=TEXT("1장면 메모리 한도: Camera 1920×1080 이하·LiDAR 25만 반환점 이하·256MiB 추정 이하");return false;}
     auto S=MakeShared<FVirtualDatasetSession,ESPMode::ThreadSafe>();S->Settings=Settings;S->Plan=Plan;S->Slab=Slab;S->Lidar=Lidar;S->Camera=HasCamera?Camera:nullptr;S->Light=UsesLight?Light:nullptr;
+    S->Commit=TEXT(MA0T10_PROJECT_COMMIT);
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    if(ProjectCommitForTests.IsSet())S->Commit=ProjectCommitForTests.GetValue();
+#endif
+    S->Commit.TrimStartAndEndInline();S->CommitSource=S->Commit.IsEmpty()?TEXT("unavailable"):TEXT("build");
+    if(S->Commit.IsEmpty())
+    {
+        S->Commit=TEXT("unknown");
+        if(!ReportedMissingCommit){ReportedMissingCommit=true;UE_LOG(LogMA0T10,Display,TEXT("[%s][ProvenanceUnavailable] 빌드 커밋 정보 없음 · project_commit=unknown · 생성은 계속합니다 · 런타임 Git 조회 없음"),Plan?TEXT("TESTSET"):TEXT("DATASET"));}
+    }
     S->ExportPython=ExportPython;S->ExportScript=ExportScript;
     if(!Lidar->ReadEditableState(S->LidarBefore)||(HasCamera&&!Camera->ReadEditableState(S->CameraBefore))){Error=TEXT("센서 설정을 읽을 수 없습니다");return false;}
     S->SlabBefore=Slab->GetActorTransform();S->MeshScaleBefore=Slab->SlabMesh->GetRelativeScale3D();S->SizeBefore=S->MeshScaleBefore*(Slab->SlabMesh->GetStaticMesh()?Slab->SlabMesh->GetStaticMesh()->GetBounds().BoxExtent*2.:FVector::ZeroVector);
@@ -398,13 +409,13 @@ void UVirtualDatasetSubsystem::WriteScene()
         S->Label->SetArrayField(TEXT("imu"),Values);S->Label->SetStringField(TEXT("imu_pairing"),TEXT("latest fixed-step sample at scene write admission; independent timestamps; not simultaneous capture"));
     }
     const auto LabelObject=S->Label;const auto ConditionsObject=S->Conditions;const auto LidarFrame=S->LidarFrame;const auto Paths=S->ActorPaths;const auto Names=S->ActorNames;
-    const FString Root=S->Root,SensorId=S->LidarBefore.SensorId,Commit=S->Commit;const int32 Scene=S->Plan?S->NextScene++:S->Completed;const bool IncludeTruth=S->Settings.CameraTruth;const auto Cancelled=S->Cancelled;const double Started=S->CaptureStarted;
+    const FString Root=S->Root,SensorId=S->LidarBefore.SensorId,Commit=S->Commit,CommitSource=S->CommitSource;const int32 Scene=S->Plan?S->NextScene++:S->Completed;const bool IncludeTruth=S->Settings.CameraTruth;const auto Cancelled=S->Cancelled;const double Started=S->CaptureStarted;
     float Delay=0;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     Delay=WorkerDelayForTests;
 #endif
     const bool TestSet=bool(S->Plan);
-    S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,LabelObject,ConditionsObject,Paths,Names,Root,SensorId,Commit,Scene,IncludeTruth,Cancelled,Started,Delay,TestSet]()
+    S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,LabelObject,ConditionsObject,Paths,Names,Root,SensorId,Commit,CommitSource,Scene,IncludeTruth,Cancelled,Started,Delay,TestSet]()
     {
         const FString Label=DatasetJson(LabelObject),Conditions=DatasetJson(ConditionsObject);
         FDatasetWriteResult Result;TArray<FVirtualSensorVerificationFile> Files;
@@ -442,21 +453,15 @@ void UVirtualDatasetSubsystem::WriteScene()
         TSharedPtr<FJsonObject> Manifest;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Conditions),Manifest);
         Manifest->SetNumberField(TEXT("completed_scenes"),Scene+1);Manifest->SetStringField(TEXT("coordinates"),TEXT("PCD: RH sensor-local X forward,Y left,Z up meters; pose: UE world X forward,Y right,Z up meters; depth: optical Z meters; instance: R+256G+65536B"));
         Manifest->SetStringField(TEXT("lidar_labels"),TEXT("5 byte little-endian records in PCD point order: uint8 semantic_id,uint32 instance_id; 0 unknown; no padding"));
-        FString Sha=Commit.IsEmpty()?TEXT(MA0T10_PROJECT_COMMIT):Commit;
-        int32 Exit=0;
-#if WITH_EDITOR
-        // Editor-only fallback for source builds made without Git at build time.
-        if(Sha.IsEmpty())
-        {
-            FString GitError;const FString Args=TEXT("-C \"")+FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())+TEXT("\" rev-parse HEAD");
-            if(!FPlatformProcess::ExecProcess(TEXT("git.exe"),*Args,&Exit,&Sha,&GitError))Exit=-1;
-        }
-#endif
-        Result.Commit=Sha.TrimStartAndEnd();Manifest->SetStringField(TEXT("project_commit"),Result.Commit);
+        Result.Commit=Commit;Manifest->SetStringField(TEXT("project_commit"),Commit);Manifest->SetStringField(TEXT("project_commit_source"),CommitSource);
         const FString Temp=Root/TEXT("dataset.json.pending"),Final=Root/TEXT("dataset.json");
-        if(Exit!=0||Result.Commit.IsEmpty()||Cancelled->load()||!FFileHelper::SaveStringToFile(DatasetJson(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)||!(TestSet?UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(Final,Temp):IFileManager::Get().Move(*Final,*Temp,true,true,false,true)))
+        if(Cancelled->load())Result.Error=TEXT("데이터셋 생성 취소 · ")+Root;
+        else if(!FFileHelper::SaveStringToFile(DatasetJson(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))Result.Error=TEXT("dataset.json.pending 쓰기 실패 · ")+Temp;
+        else if(!(TestSet?UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(Final,Temp):IFileManager::Get().Move(*Final,*Temp,true,true,false,true)))Result.Error=TEXT("dataset.json 최종 이동 실패 · ")+Temp+TEXT(" → ")+Final;
+        if(!Result.Error.IsEmpty())
         {
-            Result.Error=TEXT("dataset.json 확정 실패 또는 생성 취소");IFileManager::Get().Delete(*Temp,false,true);
+            UE_LOG(LogMA0T10,Display,TEXT("[%s][DatasetFinalizeFailed] scene=%d reason=%s"),TestSet?TEXT("TESTSET"):TEXT("DATASET"),Scene,*Result.Error);
+            IFileManager::Get().Delete(*Temp,false,true);
             for(const auto& F:Files)IFileManager::Get().Delete(*(Directory/F.Name),false,true);
             IFileManager::Get().DeleteDirectory(*Directory,false,false);
         }
