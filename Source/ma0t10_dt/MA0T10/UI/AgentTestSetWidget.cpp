@@ -102,7 +102,7 @@ TSharedRef<SWidget> UAgentTestSetWidget::RebuildWidget()
       +SVerticalBox::Slot().AutoHeight()[Text(TAttribute<FText>::CreateLambda([this](){return Timing;}),12)]
       +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Controls]
       +SVerticalBox::Slot().AutoHeight().Padding(0,8)
-       [SNew(SBox).Visibility_Lambda([this](){return !Ready||FPlatformTime::Seconds()<=ConfirmUntil?EVisibility::Visible:EVisibility::Collapsed;})[Text(TAttribute<FText>::CreateLambda([this](){return Status;}))]]
+       [SNew(SBox).Visibility_Lambda([this](){auto* S=Service();return !Ready||FPlatformTime::Seconds()<=ConfirmUntil||(S&&S->Message().StartsWith(TEXT("기존 테스트셋 유지")))?EVisibility::Visible:EVisibility::Collapsed;})[Text(TAttribute<FText>::CreateLambda([this](){return Status;}))]]
       +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
        [SNew(SBox).Visibility_Lambda([this](){auto* S=Service();return S&&S->HasBusyWork()?EVisibility::Visible:EVisibility::Collapsed;})
         [Button(TEXT("사용 중인 작업 중지하고 시작"),[this](){FString Error;if(auto* S=Service())if(!S->StopBusyWorkAndStart(Error))Status=FText::FromString(Error);})]]

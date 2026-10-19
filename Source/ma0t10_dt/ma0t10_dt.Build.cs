@@ -43,6 +43,8 @@ public class ma0t10_dt : ModuleRules
         // PKG-01: ship the deployment transport settings as a loose file next to every
         // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.
         RuntimeDependencies.Add("$(ProjectDir)/Config/SensorTransport.ini", StagedFileType.NonUFS);
+        // TESTSET-03: the default demo template is available without Editor-only fixtures.
+        RuntimeDependencies.Add("$(ProjectDir)/Config/AgentTestSetScenario.json", StagedFileType.NonUFS);
 
         // PKG-02: dataset provenance must survive deployment without Git or .git.
         // Resolve at build time; never launch a child process in a packaged export.

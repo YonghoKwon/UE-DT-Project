@@ -34,6 +34,7 @@ struct FAgentTestSetSettings
     // TESTSET-02 temporary autofill mode uses the same frame cap for received and example slots.
     bool AutoFillExamples=true;
     int32 ExampleSeed=1337,ExampleMaxFrames=1;
+    FString TemplatePath=TEXT("Config/AgentTestSetScenario.json");
     static FAgentTestSetSettings Load();
 };
 
@@ -47,6 +48,8 @@ public:
     virtual void Deinitialize() override;
     static bool Matches(const FSlabScenarioData& Data,const FString& Trigger);
     bool IsTrigger(const FSlabScenarioData& Data) const;
+    bool IsDemoTrigger(const FString& Material) const;
+    bool EnqueueDemoTrigger(const FString& Material,ASlabActor* Slab,FString& Error);
     /** A matching input is consumed even when admission fails; never falls through to PCD. */
     bool Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,FString& Error);
     void YieldToOrdinaryScenario();

@@ -2,6 +2,7 @@
 #include "VirtualDatasetSubsystem.h"
 #include "AgentTestSetPcdPreview.h"
 #include "AgentTestSetExamples.h"
+#include "AgentTestSetTrigger.h"
 #include "ma0t10_dt/ma0t10_dt.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
@@ -50,6 +51,7 @@ struct FAgentTestSetInput
     FString TemplatePath,TemplateHash;
 };
 struct FTestSetStored {bool Ok=false;FString Hash;};
+struct FTestSetTemplate {FSlabScenarioDataPtr Data;FString Error;ESlabInputUnit Dimension,Position;};
 struct FAgentTestSetSpool {int32 Index;TFuture<FTestSetStored> Result;};
 FString NewTestSetId(){return FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);}
 FString EncodeTestSetJson(const TSharedRef<FJsonObject>& O){FString S;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&S));return S;}
@@ -110,11 +112,14 @@ struct FAgentTestSetState
     bool Paused=false,Yielded=false,Reset=false,ManifestFailed=false,ResetManifestQueued=false;
     double Started=0,ActiveStarted=0;
     double WorkSeconds=0,LastPump=0;
+    double RetainedNoticeUntil=0;
     int32 GeneratedCount=0;
     TFuture<FAgentTestSetPrepared> Prepare;
     TOptional<FAgentTestSetPrepared> Prepared;
     TFuture<bool> Manifest;
     TFuture<FString> Verify;
+    TFuture<FTestSetTemplate> Template;
+    FString TemplateHash,TemplateError;
     int32 Verifying=INDEX_NONE;
     TSharedRef<std::atomic<bool>,ESPMode::ThreadSafe> Cancelled=MakeShared<std::atomic<bool>,ESPMode::ThreadSafe>(false);
 };
@@ -126,6 +131,7 @@ FAgentTestSetSettings FAgentTestSetSettings::Load()
     GConfig->GetInt(Section,TEXT("TargetScenarios"),S.Target,GGameIni);GConfig->GetInt(Section,TEXT("SampleStride"),S.SampleStride,GGameIni);GConfig->GetInt(Section,TEXT("SettleFrames"),S.SettleFrames,GGameIni);
     GConfig->GetBool(Section,TEXT("Pipeline"),S.Pipeline,GGameIni);GConfig->GetBool(Section,TEXT("CaptureCamera"),S.CaptureCamera,GGameIni);GConfig->GetBool(Section,TEXT("CameraTruth"),S.CameraTruth,GGameIni);GConfig->GetBool(Section,TEXT("IncludeImu"),S.IncludeImu,GGameIni);
     GConfig->GetBool(Section,TEXT("AutoFillExamples"),S.AutoFillExamples,GGameIni);GConfig->GetInt(Section,TEXT("ExampleSeed"),S.ExampleSeed,GGameIni);GConfig->GetInt(Section,TEXT("ExampleMaxFrames"),S.ExampleMaxFrames,GGameIni);
+    GConfig->GetString(Section,TEXT("TemplatePath"),S.TemplatePath,GGameIni);
     S.ExampleMaxFrames=FMath::Clamp(S.ExampleMaxFrames,1,10000);
     GConfig->GetString(Section,TEXT("LidarSensorId"),S.LidarId,GGameIni);GConfig->GetString(Section,TEXT("CameraSensorId"),S.CameraId,GGameIni);
     GConfig->GetBool(Section,TEXT("LidarFidelity"),S.LidarFidelity,GGameIni);GConfig->GetString(Section,TEXT("ExportFormat"),S.ExportFormat,GGameIni);GConfig->GetBool(Section,TEXT("ExportUprightEnvelope"),S.ExportUprightEnvelope,GGameIni);
@@ -140,9 +146,37 @@ bool UAgentTestSetSubsystem::Matches(const FSlabScenarioData& Data,const FString
     const FString Key=Trigger.TrimStartAndEnd();return !Data.Rows.IsEmpty()&&!Key.IsEmpty()&&Data.Rows[0].MtlNo.TrimStartAndEnd()==Key;
 }
 bool UAgentTestSetSubsystem::IsTrigger(const FSlabScenarioData& Data) const {return Config.Enabled&&Matches(Data,Config.Trigger);}
+bool UAgentTestSetSubsystem::IsDemoTrigger(const FString& Material) const
+{return Config.Enabled&&Config.AutoFillExamples&&!Config.Trigger.IsEmpty()&&Material.TrimStartAndEnd()==Config.Trigger;}
+bool UAgentTestSetSubsystem::EnqueueDemoTrigger(const FString& Material,ASlabActor* Slab,FString& Error)
+{
+    if(!IsDemoTrigger(Material)||!IsValid(Slab)||Slab->GetWorld()!=GetWorld()){Error=TEXT("테스트셋 트리거와 대상 Slab을 확인하세요");return false;}
+    if(State)
+    {
+        if(State->Reset){Error=TEXT("세트 초기화 정리 중 · 완료 후 다시 요청하세요");return false;}
+        State->Message=TEXT("기존 테스트셋 유지 · 새로 생성하려면 세트를 초기화하세요");State->RetainedNoticeUntil=FPlatformTime::Seconds()+2;++State->Revision;EnsurePump();return true;
+    }
+    State=MakeShared<FAgentTestSetState>();auto& S=*State;S.SetId=NewTestSetId();S.Root=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")/S.SetId);S.Slab=Slab;S.Started=FPlatformTime::Seconds();
+    S.Message=TEXT("테스트셋 생성 요청 수신 · 생성 중");
+    // Reserve every slot immediately; no received source or received replacement exists in demo mode.
+    for(int32 N=0;N<Config.Target;++N)
+    {
+        FAgentTestSetItem Item;Item.Example=true;Item.ScenarioId=NewTestSetId();Item.RunId=NewTestSetId();Item.Message=TEXT("생성 준비 중");
+        Item.Directory=S.Root/FString::Printf(TEXT("scenario_%03d_%s"),N+1,*Item.ScenarioId);S.Items.Add(MoveTemp(Item));S.Inputs.AddDefaulted();
+    }
+    const FString Path=FPaths::IsRelative(Config.TemplatePath)?FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()/Config.TemplatePath):Config.TemplatePath;
+    const FString Key=Config.Trigger,Snapshot=S.Root/TEXT("template.json");const auto D=Slab->DimensionUnit,P=Slab->PositionUnit;const auto Cancel=S.Cancelled;
+    S.Template=Async(EAsyncExecution::ThreadPool,[Path,Key,Snapshot,D,P,Cancel]()
+    {
+        FTestSetTemplate Out;Out.Dimension=D;Out.Position=P;if(!Cancel->load()&&AgentTestSetTrigger::LoadTemplate(Path,Key,D,P,Out.Data,Out.Error))
+            if(Cancel->load()||!SaveTestSetJson(Snapshot,Out.Data->OriginalJson)){Out.Data.Reset();Out.Error=TEXT("기본 시나리오 템플릿 보관 실패");}
+        return Out;
+    });EnsurePump();return true;
+}
 bool UAgentTestSetSubsystem::Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,FString& Error)
 {
     if(!Data||!IsTrigger(*Data)||!IsValid(Slab)||Slab->GetWorld()!=GetWorld()){Error=TEXT("테스트셋 입력과 대상 Slab을 확인하세요");return false;}
+    if(Config.AutoFillExamples)return EnqueueDemoTrigger(Data->Rows[0].MtlNo,Slab,Error);
     if(!State)
     {
         State=MakeShared<FAgentTestSetState>();State->SetId=NewTestSetId();State->Root=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")/State->SetId);State->Slab=Slab;State->Started=FPlatformTime::Seconds();
@@ -167,21 +201,6 @@ bool UAgentTestSetSubsystem::Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,
     Item.SourceUUID=Data->ScenarioUUID;
     Item.Directory=S.Root/FString::Printf(TEXT("scenario_%03d_%s"),S.Items.Num()+1,*Item.ScenarioId);Item.Message=TEXT("대기");
     S.Items.Add(MoveTemp(Item));S.Inputs.Add({Data,Data->OriginalContentSha1,Bytes,false});S.InputBytes+=Bytes;
-    if(Config.AutoFillExamples&&S.Items.Num()==1)
-    {
-        const int32 Seed=AgentTestSetExamples::SeedFor(Data->OriginalContentSha1,Config.ExampleSeed);
-        for(int32 N=1;N<Config.Target;++N)
-        {
-            FAgentTestSetItem Example;Example.Example=true;Example.SourceUUID=Data->ScenarioUUID;Example.Seed=Seed;Example.ScenarioId=NewTestSetId();Example.RunId=NewTestSetId();
-            Example.VariationJson=AgentTestSetExamples::Variation(Seed,N,Slab->DimensionUnit,Slab->PositionUnit);
-            Example.Frames=FMath::Min(FMath::DivideAndRoundUp(Data->Rows.Num(),Config.SampleStride),Config.ExampleMaxFrames);
-            Example.Directory=S.Root/FString::Printf(TEXT("scenario_%03d_%s"),N+1,*Example.ScenarioId);Example.Message=TEXT("대기");
-            S.Items.Add(MoveTemp(Example));
-            // Derive on a bounded worker from the first disk source. Examples never reserve
-            // 99 input copies or keep the received source's admission bytes pinned in memory.
-            FAgentTestSetInput Input;Input.TemplatePath=S.Items[0].Directory/TEXT("original.json");Input.TemplateHash=Data->OriginalContentSha1;S.Inputs.Add(MoveTemp(Input));
-        }
-    }
     S.Message=TEXT("테스트셋 시나리오 대기");++S.Revision;EnsurePump();return true;
 }
 void UAgentTestSetSubsystem::EnsurePump(){GetWorld()->GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.01f,true);}
@@ -199,7 +218,8 @@ double UAgentTestSetSubsystem::RemainingSeconds() const
 }
 bool UAgentTestSetSubsystem::IsPaused() const{return State&&(State->Paused||State->Yielded);}
 FString UAgentTestSetSubsystem::Directory() const{return State?State->Root:FString();}
-FString UAgentTestSetSubsystem::Message() const{return State?State->Message:TEXT("시나리오 대기");}
+FString UAgentTestSetSubsystem::Message() const
+{return State?(FPlatformTime::Seconds()<State->RetainedNoticeUntil?TEXT("기존 테스트셋 유지 · 새로 생성하려면 세트를 초기화하세요"):State->Message):TEXT("시나리오 대기");}
 int64 UAgentTestSetSubsystem::Revision() const{return State?State->Revision:0;}
 void UAgentTestSetSubsystem::YieldToOrdinaryScenario()
 {
@@ -211,6 +231,7 @@ void UAgentTestSetSubsystem::SetPaused(bool Paused)
 {if(!State)return;State->Paused=Paused;if(Paused&&State->Active!=INDEX_NONE)if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())if(D->OwnsPlannedRun(State->Items[State->Active].RunId))D->YieldPlannedCapture();State->Message=Paused?TEXT("테스트셋 일시 중지"):TEXT("테스트셋 재개 대기");++State->Revision;EnsurePump();}
 bool UAgentTestSetSubsystem::Retry(int32 Index,FString& Error)
 {
+    if(State&&!State->TemplateError.IsEmpty()){Error=State->TemplateError+TEXT(" · 설정 확인 후 세트를 초기화하세요");return false;}
     if(!State||State->Reset||!State->Items.IsValidIndex(Index)||State->Items[Index].State!=EAgentTestSetItemState::Failed){Error=TEXT("실패한 시나리오를 선택하세요");return false;}
     auto& I=State->Items[Index];I.State=EAgentTestSetItemState::Waiting;I.RunId=NewTestSetId();I.CompletedFrames=0;I.Message=TEXT("재시도 대기");++State->Revision;EnsurePump();return true;
 }
@@ -315,13 +336,14 @@ TSharedRef<FJsonObject> UAgentTestSetSubsystem::StatusJson() const
     O->SetBoolField(TEXT("capture_camera"),Config.CaptureCamera);O->SetBoolField(TEXT("camera_truth"),Config.CameraTruth);O->SetBoolField(TEXT("include_imu"),Config.IncludeImu);O->SetNumberField(TEXT("sample_stride"),Config.SampleStride);
     O->SetStringField(TEXT("export_format"),Config.ExportFormat);O->SetBoolField(TEXT("lidar_fidelity"),Config.LidarFidelity);
     O->SetBoolField(TEXT("auto_fill_examples"),Config.AutoFillExamples);O->SetNumberField(TEXT("example_max_frames"),Config.ExampleMaxFrames);O->SetNumberField(TEXT("example_seed"),Config.ExampleSeed);
+    O->SetStringField(TEXT("template_path"),Config.TemplatePath);O->SetStringField(TEXT("template_sha1"),State?State->TemplateHash:FString());
     O->SetStringField(TEXT("frame_policy"),Config.AutoFillExamples?TEXT("uniform_capped_stride_samples"):TEXT("full_stride_samples"));
     O->SetStringField(TEXT("example_purpose"),TEXT("demonstration representative frames; synthetic examples, not received training data"));
     O->SetNumberField(TEXT("scenarios_per_second"),ScenariosPerSecond());O->SetNumberField(TEXT("remaining_seconds"),RemainingSeconds());
     int32 Received=0,Examples=0,Pending=0;for(const auto& I:Items()){Received+=!I.Example;Examples+=I.Example;}
     if(State){for(const auto& I:State->Inputs)Pending+=bool(I.Replacement);O->SetArrayField(TEXT("replaced_examples"),State->Replaced);}
     O->SetNumberField(TEXT("received_scenarios"),Received);O->SetNumberField(TEXT("example_scenarios"),Examples);O->SetNumberField(TEXT("pending_received_replacements"),Pending);
-    O->SetStringField(TEXT("replacement_policy"),TEXT("archive drained example directory under examples_replaced; retain all files; exclude from active count"));
+    O->SetStringField(TEXT("replacement_policy"),Config.AutoFillExamples?TEXT("ignore repeated triggers; retain existing set until explicit reset; incoming scenario fields unused"):TEXT("validated received scenarios only"));
     if(State){O->SetStringField(TEXT("set_id"),State->SetId);O->SetNumberField(TEXT("revision"),State->Revision);O->SetNumberField(TEXT("pending_input_bytes"),double(State->InputBytes));O->SetStringField(TEXT("preview_run_id"),State->PreviewRun);}
     const auto View=PreviewStatus();auto Preview=MakeShared<FJsonObject>();Preview->SetNumberField(TEXT("scenario_index"),View.Scenario);Preview->SetNumberField(TEXT("frame_index"),View.Frame);Preview->SetNumberField(TEXT("frames"),View.Frames);Preview->SetNumberField(TEXT("points"),View.Points);Preview->SetBoolField(TEXT("playing"),View.Playing);O->SetObjectField(TEXT("preview"),Preview);
     TArray<TSharedPtr<FJsonValue>> A;
@@ -336,6 +358,22 @@ void UAgentTestSetSubsystem::Pump()
 {
     if(!State)return;auto& S=*State;auto* Dataset=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>();auto* R=TestSetReplay(GetWorld());
     const double Now=FPlatformTime::Seconds();
+    if(S.Template.IsValid()&&S.Template.IsReady())
+    {
+        const auto Result=S.Template.Get();S.Template=TFuture<FTestSetTemplate>();S.TemplateError=Result.Error;
+        if(Result.Data)
+        {
+            S.TemplateHash=Result.Data->OriginalContentSha1;const int32 Seed=AgentTestSetExamples::SeedFor(S.TemplateHash,Config.ExampleSeed);
+            for(int32 N=0;N<S.Items.Num();++N)
+            {
+                auto& I=S.Items[N];I.SourceUUID=Result.Data->ScenarioUUID;I.Seed=Seed;I.VariationJson=AgentTestSetExamples::Variation(Seed,N+1,Result.Dimension,Result.Position);
+                I.Frames=FMath::Min(FMath::DivideAndRoundUp(Result.Data->Rows.Num(),Config.SampleStride),Config.ExampleMaxFrames);
+                S.Inputs[N].TemplatePath=S.Root/TEXT("template.json");S.Inputs[N].TemplateHash=S.TemplateHash;
+            }
+        }
+        else {S.Message=S.TemplateError;for(auto& I:S.Items){I.State=EAgentTestSetItemState::Failed;I.Message=S.Message;}}
+        ++S.Revision;
+    }
     if(S.LastPump>0&&!S.Paused&&!S.Yielded&&!S.Blocked&&(S.Active!=INDEX_NONE||S.Prepare.IsValid()||S.Verify.IsValid()||!S.Spools.IsEmpty()))S.WorkSeconds+=Now-S.LastPump;S.LastPump=Now;
     if(PcdPreview)PcdPreview->Pump(GetWorld());
     // Drain spool results first; no UObject is captured by a worker.
@@ -438,7 +476,7 @@ void UAgentTestSetSubsystem::Pump()
     if((Busy||S.Paused)&&S.Active!=INDEX_NONE)Dataset->YieldPlannedCapture();
     if(S.Reset)
     {
-        if(S.Active!=INDEX_NONE||S.Prepare.IsValid()||S.Verify.IsValid()||!S.Spools.IsEmpty()||S.Manifest.IsValid()||S.Replace.IsValid())return;
+        if(S.Active!=INDEX_NONE||S.Prepare.IsValid()||S.Verify.IsValid()||!S.Spools.IsEmpty()||S.Manifest.IsValid()||S.Replace.IsValid()||S.Template.IsValid())return;
         // Persist the abandoned set and wait for the last write before detaching it.
         if(!S.ResetManifestQueued)
         {
@@ -449,7 +487,7 @@ void UAgentTestSetSubsystem::Pump()
         RestoreStoppedWork();State.Reset();GetWorld()->GetTimerManager().ClearTimer(Timer);return;
     }
     for(int32 I=0;I<S.Items.Num()&&S.Spools.Num()<2;++I)
-        if(!S.Inputs[I].Stored&&(S.Inputs[I].Data||(S.Items[I].Example&&S.Inputs[0].Stored))&&!S.Inputs[I].Replacement&&S.Items[I].State==EAgentTestSetItemState::Waiting&&!S.Spools.ContainsByPredicate([I](const auto& V){return V.Index==I;}))
+        if(!S.Inputs[I].Stored&&(S.Inputs[I].Data||(S.Items[I].Example&&!S.Inputs[I].TemplatePath.IsEmpty()))&&!S.Inputs[I].Replacement&&S.Items[I].State==EAgentTestSetItemState::Waiting&&!S.Spools.ContainsByPredicate([I](const auto& V){return V.Index==I;}))
         {
             const auto Data=S.Inputs[I].Data;const auto Item=S.Items[I];const FString Path=Item.Directory/TEXT("original.json"),TemplatePath=S.Inputs[I].TemplatePath,TemplateHash=S.Inputs[I].TemplateHash;const auto Cancel=S.Cancelled;
             S.Spools.Add({I,Async(EAsyncExecution::ThreadPool,[Data,Item,Path,Cancel,TemplatePath,TemplateHash]()
