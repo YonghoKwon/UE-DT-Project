@@ -25,6 +25,7 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "AgentTestSetPresentationChecks.h"
 
 namespace
 {
@@ -130,18 +131,18 @@ public:
         if(Phase==0)
         {
             if(Service->HasItems()||Slab->HasPendingScenarioInput())return false;
-            Times.Reset();Engine.Reset();Wall.Reset();Game.Reset();Duplicate=false;Measure=LastWall=Now;LastFrame=GFrameCounter;
+            Times.Reset();Engine.Reset();Wall.Reset();Game.Reset();Duplicate=false;ProgressChecked=false;CompleteObserved=0;Measure=LastWall=Now;LastFrame=GFrameCounter;
             Send(Cases[Case/2],Case%2);Phase=1;return false;
         }
         if(Phase==1)
         {
-            if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;Engine.Add(World->GetDeltaSeconds()*1000.);Wall.Add((Now-LastWall)*1000.);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));LastWall=Now;}
+            if(CompleteObserved==0&&GFrameCounter!=LastFrame){LastFrame=GFrameCounter;Engine.Add(World->GetDeltaSeconds()*1000.);Wall.Add((Now-LastWall)*1000.);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));LastWall=Now;}
             if(Service->Items().ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Failed;})){Test->AddError(Service->Message());return Finish();}
             if(!Service->HasItems())return false;
             if(Case==0&&FParse::Param(FCommandLine::Get(),TEXT("TestSet03Capture")))
             {
                 const int32 Stage=Service->IsComplete()?2:Service->Completed()>5?1:0;
-                if(Stage>CaptureStage&&World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget())
+                if(Stage>CaptureStage&&Stage<2&&World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget())
                 {
                     CaptureStage=Stage;const FString Path=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-03/captures")/FString::Printf(TEXT("%d-%s.png"),Stage,Stage==0?TEXT("received"):Stage==1?TEXT("generating"):TEXT("complete"));
                     FScreenshotRequest::RequestScreenshot(Path,true,false);auto Meta=Service->StatusJson();Save(Meta,FString::Printf(TEXT("capture-%d-state.json"),Stage));
@@ -153,7 +154,20 @@ public:
                 // Duplicate an entire different valid scenario while the template worker/capture is running.
                 Test->TestTrue(TEXT("complete received trigger is consumed without replacement"),Slab->ReceiveScenario(Complete));Duplicate=true;
             }
+            if(!ProgressChecked&&!Service->IsComplete())
+            {
+                auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Toolbar=Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation());
+                if(AgentTestSetHasPauseControl(AgentTestSetVisibleText(Workspace->GetTestSetWidget()))&&Toolbar&&!Toolbar->GetGlobalStatus().TestSet.IsEmpty()&&!Toolbar->GetGlobalStatus().TestSet.ToString().Contains(TEXT("완료")))
+                {CheckAgentTestSetPresentation(Test,World,false,Report/FString::Printf(TEXT("case-%02d-ui-progress.json"),Case));ProgressChecked=true;}
+            }
             if(!Service->IsComplete())return false;
+            if(CompleteObserved==0)CompleteObserved=Now;
+            if(Now-CompleteObserved<.45)return false; // Allow the existing 5Hz presentation to reflect completion.
+            Test->TestTrue(TEXT("running UI and reset-to-running controls observed"),ProgressChecked);
+            CheckAgentTestSetPresentation(Test,World,true,Report/FString::Printf(TEXT("case-%02d-ui-complete.json"),Case));
+            FrozenTotal=Service->TotalSeconds();
+            if(Case==0&&FParse::Param(FCommandLine::Get(),TEXT("TestSet03Capture")))
+            {FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-03/captures/2-complete.png"),true,false);Save(Service->StatusJson(),TEXT("capture-2-state.json"));}
             Test->TestEqual(TEXT("template target reached"),Service->Completed(),Service->Settings().Target);
             Test->TestEqual(TEXT("duplicate preserves set directory"),Service->Directory(),Root);Test->TestEqual(TEXT("duplicate preserves slot identity"),Service->Items()[0].ScenarioId,FirstId);
             Test->TestTrue(TEXT("trigger automatically opens owned UI"),World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->IsPanelOpen(ESensorToolPanelRole::TestSet));
@@ -173,18 +187,21 @@ public:
             Test->TestEqual(TEXT("all scenario variations distinct"),Distinct.Num(),Service->Settings().Target);
             if(Reference.IsEmpty())Reference=Variations;else Test->TestTrue(TEXT("all message shapes/routes/reset cycles use identical template variations"),Reference==Variations);
             const auto Status=Service->StatusJson();Test->TestEqual(TEXT("no received source slots"),int32(Status->GetNumberField(TEXT("received_scenarios"))),0);Test->TestEqual(TEXT("no replacement reservations"),int32(Status->GetNumberField(TEXT("pending_received_replacements"))),0);
-            auto Timing=MakeShared<FJsonObject>();Timing->SetNumberField(TEXT("case"),Case);Timing->SetStringField(TEXT("route"),Case%2?TEXT("DTCore TC worker -> Process -> DataSync -> Slab"):TEXT("SubmitScenarioJson -> DataSync -> Slab"));Timing->SetNumberField(TEXT("seconds"),Now-Measure);Timing->SetNumberField(TEXT("count"),Service->Completed());Times.Sort();Timing->SetNumberField(TEXT("item_max_seconds"),Times.Last());
+            auto Timing=MakeShared<FJsonObject>();Timing->SetNumberField(TEXT("case"),Case);Timing->SetStringField(TEXT("route"),Case%2?TEXT("DTCore TC worker -> Process -> DataSync -> Slab"):TEXT("SubmitScenarioJson -> DataSync -> Slab"));Timing->SetNumberField(TEXT("seconds"),CompleteObserved-Measure);Timing->SetNumberField(TEXT("count"),Service->Completed());Times.Sort();Timing->SetNumberField(TEXT("item_max_seconds"),Times.Last());
             for(auto Pair:{TPair<const TCHAR*,TArray<double>*>(TEXT("engine"),&Engine),{TEXT("callback_wall"),&Wall},{TEXT("game_thread"),&Game}})
             {int32 Hitches=0;double Max=0;for(double Ms:*Pair.Value){Hitches+=Ms>150;Max=FMath::Max(Max,Ms);}Timing->SetNumberField(FString(Pair.Key)+TEXT("_max_ms"),Max);Timing->SetNumberField(FString(Pair.Key)+TEXT("_over_150ms"),Hitches);Test->TestEqual(TEXT("150ms budget unchanged"),Hitches,0);}
             Save(Timing,FString::Printf(TEXT("case-%02d-timing.json"),Case));Save(Status,FString::Printf(TEXT("case-%02d-complete.json"),Case));
             if(FParse::Param(FCommandLine::Get(),TEXT("TestSet03Hold"))){Phase=4;return false;}
-            Send(Cases[0],1-Case%2);Phase=2;return false;
+            Send(Cases[0],1-Case%2);DuplicateSent=Now;Phase=2;return false;
         }
         if(Phase==2)
         {
-            if(Slab->HasPendingScenarioInput())return false;
+            if(Slab->HasPendingScenarioInput()||Now-DuplicateSent<.3)return false;
             Test->TestEqual(TEXT("repeat after completion retains set"),Service->Directory(),Root);Test->TestEqual(TEXT("repeat after completion retains slots"),Service->Items()[0].ScenarioId,FirstId);
             Test->TestTrue(TEXT("repeat explains retained set"),Service->Message().Contains(TEXT("기존 테스트셋 유지")));
+            Test->TestEqual(TEXT("duplicate and post-completion wait do not advance total"),Service->TotalSeconds(),FrozenTotal);
+            Test->TestTrue(TEXT("duplicate history retained in status/manifest"),Service->StatusJson()->GetNumberField(TEXT("duplicate_triggers"))>=2);
+            CheckAgentTestSetPresentation(Test,World,true,Report/FString::Printf(TEXT("case-%02d-ui-duplicate.json"),Case));
             FString E;Service->ResetConfirmed(E);Phase=3;return false;
         }
         if(Phase==3&&!Service->HasItems()){if(++Case<Cases.Num()*2){Phase=0;return false;}return Finish();}
@@ -212,7 +229,7 @@ private:
     FAutomationTestBase* Test;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;UAgentTestSetSubsystem* Service=nullptr;UFactoryAgentScenarioTC* TC=nullptr;
     TFuture<TSharedPtr<FTransactionCodeDataBase>> Parse;TArray<FString> Cases,Reference;TArray<double> Times,Engine,Wall,Game;
     FSlabScenarioDataPtr Complete;
-    int32 Phase=0,Case=0,InitialArchive=0,CaptureStage=-1;bool Duplicate=false;uint64 LastFrame=0;double Started=FPlatformTime::Seconds(),Observed=0,Measure=0,LastWall=0,LastStatus=0;FString Report,Root,FirstId;
+    int32 Phase=0,Case=0,InitialArchive=0,CaptureStage=-1;bool Duplicate=false,ProgressChecked=false;uint64 LastFrame=0;double Started=FPlatformTime::Seconds(),Observed=0,Measure=0,LastWall=0,LastStatus=0,CompleteObserved=0,FrozenTotal=0,DuplicateSent=0;FString Report,Root,FirstId;
 };
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAgentTriggerRouting,"MA0T10.TestSet.TriggerRoutingLifecycle",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

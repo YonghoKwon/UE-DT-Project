@@ -113,6 +113,8 @@ struct FAgentTestSetState
     double Started=0,ActiveStarted=0;
     double WorkSeconds=0,LastPump=0;
     double RetainedNoticeUntil=0;
+    double CompletedAt=0;
+    int32 DuplicateTriggers=0;
     int32 GeneratedCount=0;
     TFuture<FAgentTestSetPrepared> Prepare;
     TOptional<FAgentTestSetPrepared> Prepared;
@@ -154,7 +156,9 @@ bool UAgentTestSetSubsystem::EnqueueDemoTrigger(const FString& Material,ASlabAct
     if(State)
     {
         if(State->Reset){Error=TEXT("세트 초기화 정리 중 · 완료 후 다시 요청하세요");return false;}
-        State->Message=TEXT("기존 테스트셋 유지 · 새로 생성하려면 세트를 초기화하세요");State->RetainedNoticeUntil=FPlatformTime::Seconds()+2;++State->Revision;EnsurePump();return true;
+        State->RetainedNoticeUntil=FPlatformTime::Seconds()+2;++State->DuplicateTriggers;
+        UE_LOG(LogMA0T10,Display,TEXT("[TestSet][DuplicateTrigger] 기존 테스트셋 유지 · set=%s count=%d"),*State->SetId,State->DuplicateTriggers);
+        ++State->Revision;EnsurePump();return true;
     }
     State=MakeShared<FAgentTestSetState>();auto& S=*State;S.SetId=NewTestSetId();S.Root=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")/S.SetId);S.Slab=Slab;S.Started=FPlatformTime::Seconds();
     S.Message=TEXT("테스트셋 생성 요청 수신 · 생성 중");
@@ -196,7 +200,7 @@ bool UAgentTestSetSubsystem::Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,
     {
         // Reserve immediately, replace only after all owners of that slot have drained.
         StopPreview();S.Inputs[Replace].Replacement=Data;S.Inputs[Replace].ReplacementBytes=Bytes;S.InputBytes+=Bytes;
-        S.SavedCompleted=0;S.Message=TEXT("새 시나리오 수신 · 목록 갱신 중");++S.Revision;EnsurePump();return true;
+        S.SavedCompleted=0;S.CompletedAt=0;S.Message=TEXT("새 시나리오 수신 · 목록 갱신 중");++S.Revision;EnsurePump();return true;
     }
     Item.SourceUUID=Data->ScenarioUUID;
     Item.Directory=S.Root/FString::Printf(TEXT("scenario_%03d_%s"),S.Items.Num()+1,*Item.ScenarioId);Item.Message=TEXT("대기");
@@ -209,6 +213,8 @@ const TArray<FAgentTestSetItem>& UAgentTestSetSubsystem::Items() const{static co
 int32 UAgentTestSetSubsystem::Completed() const{int32 N=0;for(const auto& I:Items())N+=I.State==EAgentTestSetItemState::Completed;return N;}
 bool UAgentTestSetSubsystem::IsComplete() const{return State&&!State->Reset&&!State->Replace.IsValid()&&!State->Inputs.ContainsByPredicate([](const auto& I){return bool(I.Replacement);})&&Completed()==Config.Target&&!State->ManifestFailed&&State->SavedCompleted==Config.Target;}
 double UAgentTestSetSubsystem::ScenariosPerSecond() const{return State&&State->WorkSeconds>.01?State->GeneratedCount/State->WorkSeconds:0;}
+double UAgentTestSetSubsystem::TotalSeconds() const
+{return State?FMath::Max(0.,(State->CompletedAt>0?State->CompletedAt:FPlatformTime::Seconds())-State->Started):0;}
 double UAgentTestSetSubsystem::RemainingSeconds() const
 {
     const double Rate=ScenariosPerSecond();if(!State||Rate<=0)return -1;
@@ -220,6 +226,7 @@ bool UAgentTestSetSubsystem::IsPaused() const{return State&&(State->Paused||Stat
 FString UAgentTestSetSubsystem::Directory() const{return State?State->Root:FString();}
 FString UAgentTestSetSubsystem::Message() const
 {return State?(FPlatformTime::Seconds()<State->RetainedNoticeUntil?TEXT("기존 테스트셋 유지 · 새로 생성하려면 세트를 초기화하세요"):State->Message):TEXT("시나리오 대기");}
+FString UAgentTestSetSubsystem::PresentationMessage() const{return State?State->Message:TEXT("시나리오 대기");}
 int64 UAgentTestSetSubsystem::Revision() const{return State?State->Revision:0;}
 void UAgentTestSetSubsystem::YieldToOrdinaryScenario()
 {
@@ -333,6 +340,9 @@ TSharedRef<FJsonObject> UAgentTestSetSubsystem::StatusJson() const
     O->SetBoolField(TEXT("enabled"),Config.Enabled);O->SetBoolField(TEXT("pipeline"),Config.Pipeline);O->SetBoolField(TEXT("paused"),IsPaused());O->SetBoolField(TEXT("reset"),State&&State->Reset);
     O->SetNumberField(TEXT("completed_scenarios"),Completed());O->SetBoolField(TEXT("complete"),IsComplete());O->SetStringField(TEXT("directory"),Directory());
     O->SetStringField(TEXT("project_commit"),TEXT(MA0T10_PROJECT_COMMIT));O->SetStringField(TEXT("build"),FApp::GetBuildVersion());O->SetBoolField(TEXT("sending_supported"),false);O->SetStringField(TEXT("message"),Message());
+    O->SetNumberField(TEXT("duplicate_triggers"),State?State->DuplicateTriggers:0);
+    if(State&&State->DuplicateTriggers>0)O->SetStringField(TEXT("duplicate_message"),TEXT("기존 테스트셋 유지 · 새로 생성하려면 세트를 초기화하세요"));
+    O->SetNumberField(TEXT("total_seconds"),TotalSeconds());
     O->SetBoolField(TEXT("capture_camera"),Config.CaptureCamera);O->SetBoolField(TEXT("camera_truth"),Config.CameraTruth);O->SetBoolField(TEXT("include_imu"),Config.IncludeImu);O->SetNumberField(TEXT("sample_stride"),Config.SampleStride);
     O->SetStringField(TEXT("export_format"),Config.ExportFormat);O->SetBoolField(TEXT("lidar_fidelity"),Config.LidarFidelity);
     O->SetBoolField(TEXT("auto_fill_examples"),Config.AutoFillExamples);O->SetNumberField(TEXT("example_max_frames"),Config.ExampleMaxFrames);O->SetNumberField(TEXT("example_seed"),Config.ExampleSeed);
@@ -385,6 +395,8 @@ void UAgentTestSetSubsystem::Pump()
     }
     if(S.Manifest.IsValid()&&S.Manifest.IsReady())
     {S.ManifestFailed=!S.Manifest.Get();S.Manifest=TFuture<bool>();if(!S.ManifestFailed){S.ManifestRevision=S.PendingManifestRevision;S.SavedCompleted=S.PendingManifestCompleted;}else S.Message=TEXT("testset.json 저장 실패 · 폴더 권한·디스크 공간을 확인하세요");}
+    // Presentation timing only: no change to completion/admission or capture scheduling.
+    if(S.CompletedAt==0&&IsComplete()){S.CompletedAt=Now;++S.Revision;}
     if(S.Prepare.IsValid()&&S.Prepare.IsReady()){S.Prepared=S.Prepare.Get();S.Prepare=TFuture<FAgentTestSetPrepared>();}
     if(S.Active!=INDEX_NONE&&!Dataset->OwnsPlannedRun(S.Items[S.Active].RunId))
     {auto& I=S.Items[S.Active];I.State=EAgentTestSetItemState::Failed;I.Message=TEXT("생성 세션 변경 · 새 작업을 보존합니다");S.Active=INDEX_NONE;++S.Revision;}

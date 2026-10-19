@@ -23,6 +23,7 @@
 #include "Misc/Paths.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "AgentTestSetPresentationChecks.h"
 #include "RHIGlobals.h"
 #include "HAL/FileManager.h"
 #include "Widgets/Text/STextBlock.h"
@@ -108,10 +109,14 @@ public:
         {
             if(!World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget())
             {if(Now-MeasureStart>5){Test->AddError(TEXT("auto-open owned panel did not appear within 5 seconds"));return Finish();}return false;}
+            auto* Toolbar=Cast<USensorToolToolbarWidget>(World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetOwnedNavigation());
+            if(!AgentTestSetHasPauseControl(AgentTestSetVisibleText(World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget()))||!Toolbar||Toolbar->GetGlobalStatus().TestSet.IsEmpty())
+            {if(Now-MeasureStart>5){Test->AddError(TEXT("running presentation did not refresh within 5 seconds"));return Finish();}return false;}
             Test->TestEqual(TEXT("one receive fills the target immediately"),Service->Items().Num(),Service->Settings().Target);
             Test->TestNotNull(TEXT("receive opens existing owned panel"),World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget());
             Test->TestTrue(TEXT("first is also template generated in demo mode"),Service->Items()[0].Example);for(int32 I=1;I<Service->Items().Num();++I)Test->TestTrue(TEXT("remaining slots are explicitly examples"),Service->Items()[I].Example);
             Root=Service->Directory();Phase=1;
+            CheckAgentTestSetPresentation(Test,World,false,Report/TEXT("ui-progress.json"));
             if(!Hundred)Service->SetPaused(false);
             if(ManualBusy)
             {
@@ -128,7 +133,10 @@ public:
         }
         if(Phase==1&&Service->IsComplete())
         {
-            Save(TEXT("initial-complete"));auto Stats=MakeShared<FJsonObject>();Stats->SetNumberField(TEXT("seconds"),Now-MeasureStart);
+            if(CompleteObserved==0)CompleteObserved=Now;
+            if(Now-CompleteObserved<.45)return false;
+            CheckAgentTestSetPresentation(Test,World,true,Report/TEXT("ui-complete.json"));
+            Save(TEXT("initial-complete"));auto Stats=MakeShared<FJsonObject>();Stats->SetNumberField(TEXT("seconds"),CompleteObserved-MeasureStart);
             if(!Hundred)Test->TestEqual(TEXT("repeated triggers during generation were exercised"),Early,2);
             Stats->SetNumberField(TEXT("first_item_seconds"),Service->Items()[0].Seconds);
             TArray<double> ItemTimes;for(const auto& I:Service->Items())ItemTimes.Add(I.Seconds);ItemTimes.Sort();Stats->SetNumberField(TEXT("item_median_seconds"),ItemTimes[ItemTimes.Num()/2]);Stats->SetNumberField(TEXT("item_max_seconds"),ItemTimes.Last());
@@ -200,7 +208,7 @@ private:
     }
     bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(ManualBusy&&World)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(true);return true;}
     FAutomationTestBase* Test;bool Hundred,Hold,ManualBusy;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;UAgentTestSetSubsystem* Service=nullptr;FSlabScenarioDataPtr Source;
-    FString Report,Root;int32 Phase=0,Early=0;uint64 LastFrame=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,LastWall=0;TArray<double> Engine,Wall,Game;
+    FString Report,Root;int32 Phase=0,Early=0;uint64 LastFrame=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,LastWall=0,CompleteObserved=0;TArray<double> Engine,Wall,Game;
 };
 bool RunAgentExamples(FAutomationTestBase* Test,bool Hundred)
 {

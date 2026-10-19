@@ -69,10 +69,14 @@ public:
     int32 Completed() const;
     double ScenariosPerSecond() const;
     double RemainingSeconds() const;
+    /** Wall time from first admission through completion; frozen when the set completes. */
+    double TotalSeconds() const;
     const TArray<FAgentTestSetItem>& Items() const;
     const FAgentTestSetSettings& Settings() const {return Config;}
     FString Directory() const;
     FString Message() const;
+    /** Current work state, without diagnostic duplicate-trigger notices. */
+    FString PresentationMessage() const;
     int64 Revision() const;
     TSharedRef<FJsonObject> StatusJson() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
