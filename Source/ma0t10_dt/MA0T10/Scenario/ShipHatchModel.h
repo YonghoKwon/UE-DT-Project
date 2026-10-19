@@ -49,4 +49,6 @@ MA0T10_DT_API double Excavate(FSurface& Surface,FVector2D Center,double Radius,d
 MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points);
 MA0T10_DT_API FColor Jet(double Normalized);
 MA0T10_DT_API double Reflectivity(ECargo Cargo);
+/** Structural visibility only: ray passes through both deck and coaming aperture. */
+MA0T10_DT_API bool ThroughOpening(const FSettings& Settings,FVector Origin,FVector Target);
 }

@@ -24,6 +24,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Crc.h"
 #include "HAL/FileManager.h"
 #include "ImageUtils.h"
 #include "Json.h"
@@ -51,6 +52,18 @@ struct FHatchDigProbe
     }
     static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {
+        auto& Sim=*M.Simulation;double Opening,Floor,Area;Sim.Coverage(Opening,Floor,Area);
+        T.TestEqual(TEXT("central layout covers complete opening FOV on 80x80 grid"),Opening,100.);
+        T.TestEqual(TEXT("central layout covers structurally visible empty floor FOV on 80x80 grid"),Floor,100.);
+        for(int32 X:{-1,1})for(int32 Y:{-1,1})
+        {T.TestTrue(TEXT("opening corner is inside selected-device FOV"),Sim.VisibleFromSelected(FVector(X*Sim.OpeningLength*.5,Y*Sim.OpeningWidth*.5,Sim.HoldDepth+Sim.CoamingHeight)));
+         T.TestTrue(TEXT("visible empty-hold floor corner remains within FOV and range"),Sim.VisibleFromSelected(FVector(X*Sim.HoldLength*.5,Y*Sim.HoldWidth*.5,0)));}
+        T.TestTrue(TEXT("structurally visible floor area is positive and bounded by hold"),Area>0&&Area<=Sim.HoldLength*Sim.HoldWidth);
+        T.TestFalse(TEXT("laser illustration defaults off"),Sim.IsScanDisplayEnabled());
+        const auto Frame=Sim.MLX->ScanComponent->GetLastFrameSnapshot();const auto* Points=Frame->Points.Get();
+        M.OnScanToggle();T.TestTrue(TEXT("laser toggle uses at most 96 measured rays"),Sim.IsScanDisplayEnabled()&&Sim.DisplayRayCount()>0&&Sim.DisplayRayCount()<=AShipHatchSimulation::DisplayRayLimit);
+        M.OnScanToggle();T.TestTrue(TEXT("laser off clears every displayed ray"),!Sim.IsScanDisplayEnabled()&&Sim.DisplayRayCount()==0);
+        T.TestTrue(TEXT("presentation toggles never replace immutable measured point snapshot"),Sim.MLX->ScanComponent->GetLastFrameSnapshot()->Points.Get()==Points);
         auto* S=M.Simulation.Get();const double OldMin=S->FillMin,OldMax=S->FillMax,OldHeight=S->SensorAboveDeck;
         S->FillMin=47;S->FillMax=72;S->SensorAboveDeck=11;M.OnGrid(1.75);
         M.Bind(M.Host.Get(),S);M.OnSettings();M.OnSettings();M.SetFontPercent(150);
@@ -82,11 +95,15 @@ struct FHatchDigProbe
         FVector Hit;const auto Pose=S->GetActorTransform();
         T.TestFalse(TEXT("deck occludes cargo beneath it"),S->PickCargo(Pose.TransformPosition(FVector(0,(S->OpeningWidth*.5+2)*100,4000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
         T.TestFalse(TEXT("outside hold has no target"),S->PickCargo(Pose.TransformPosition(FVector(10000,10000,4000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
+        T.TestFalse(TEXT("visible central gantry cannot be clicked through"),S->PickCargo(Pose.TransformPosition(FVector(0,0,10000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
+
     }
     static void Undo(UShipHatchMonitorWidget& M){M.UndoButton->OnClicked.Broadcast();}
     static void Restore(UShipHatchMonitorWidget& M){M.RestoreButton->OnClicked.Broadcast();}
     static void SettingsForCapture(UShipHatchMonitorWidget& M)
     {if(!M.bSettings)M.OnSettings();CastChecked<UScrollBox>(M.SettingsPanel->GetContent())->ScrollWidgetIntoView(M.DigRadius,false,EDescendantScrollDestination::TopOrLeft,80);}
+    static void SensorCapture(UShipHatchMonitorWidget& M,int32 View)
+    {if(M.bSettings)M.OnSettings();M.SelectView(View);M.SetSplitView(true);M.SetCameraPreset(1);if(!M.Simulation->IsScanDisplayEnabled())M.OnScanToggle();}
     static void PointGate(FAutomationTestBase& T,UShipHatchMonitorWidget& M,bool Stale)
     {
         auto* S=M.Simulation.Get();auto* PC=M.GetOwningPlayer();
@@ -95,16 +112,17 @@ struct FHatchDigProbe
             TInlineComponentArray<ULineBatchComponent*> Batches(A);T.TestTrue(TEXT("owned colored point proxy exists"),Batches.Num()>0);
             for(auto* B:Batches)
             {
-                T.TestEqual(TEXT("only player view gates stale points until new measurement"),PC->HiddenPrimitiveComponents.Contains(B),Stale);
+                T.TestEqual(TEXT("retained preview is never hidden while waiting for measurement"),PC->HiddenPrimitiveComponents.Contains(B),false);
                 T.TestTrue(TEXT("edit keeps populated point buffer instead of empty/full churn"),B->BatchedPoints.Num()>0);
-                if(Stale)continue;double Error=0;int32 Cargo=0;
+                double Error=0;int32 Cargo=0;
                 for(const auto& P:B->BatchedPoints)
                 {
+                    if(P.PointSize<=0)continue;
                     const FVector L=S->GetActorTransform().InverseTransformPosition(P.Position)*.01;
                     if(FMath::Abs(L.X)<S->HoldLength*.5-.1&&FMath::Abs(L.Y)<S->HoldWidth*.5-.1&&L.Z>.05&&L.Z<S->HoldDepth-.1)
                     {++Cargo;Error=FMath::Max(Error,FMath::Abs(L.Z-S->Surface().Height(L.X,L.Y)));}
                 }
-                T.TestTrue(TEXT("unhidden actual point proxy uses post-edit collision geometry within 15cm"),Cargo>100&&Error<.15);
+                T.TestTrue(FString::Printf(TEXT("retained and fresh point preview %s: cargo=%d error=%.5fm"),*A->GetSensorId(),Cargo,Error),Cargo>100&&Error<.15);
             }
         }
     }
@@ -112,7 +130,7 @@ struct FHatchDigProbe
     {
         const auto* A=M.GetAnalysis();T.TestNotNull(TEXT("analysis refreshed to current excavation revision"),A);if(!A)return;
         T.TestTrue(TEXT("fill card follows remaining heightfield"),FMath::Abs(FCString::Atod(*M.MetricValues[0]->GetText().ToString())-M.Simulation->Surface().Fill)<.051);
-        T.TestTrue(TEXT("volume card follows fresh observed cell integral"),FMath::Abs(FCString::Atod(*M.MetricValues[1]->GetText().ToString())-A->Volume)<.51);
+        T.TestTrue(TEXT("volume card follows full remaining simulated hold integral"),FMath::Abs(FCString::Atod(*M.MetricValues[1]->GetText().ToString())-M.Simulation->Surface().Volume)<.51);
         T.TestTrue(TEXT("last and total removed volume are visible"),M.DigAmounts->GetText().ToString().Contains(FString::Printf(TEXT("이번 %.2f m³ · 누적 %.2f m³"),M.Simulation->LastRemovedVolume(),M.Simulation->TotalRemovedVolume())));
     }
 };
@@ -126,7 +144,8 @@ class FHatchDig final:public IAutomationLatentCommand
     FAutomationTestBase* Test;bool Captures,IdleControl;double Started=FPlatformTime::Seconds(),Changed=0,LastWall=0,MeasureStart=0;int32 MeasuredView=1;
     int32 Phase=0,Clicks=0,Material=0,State=0,View=0;uint64 BeforeRevision=0,LastEngine=0,RawBefore=0,Rss=0,Commit=0,Buffers=0,MeshBytes=0;
     TArray<float> Original,AfterOne,BeforeLast;TArray<double> Engine,Game,Wall,Edits,FreshLatency;
-    double OriginalVolume=0,BeforeVolume=0,MaxHeightError=0;uint64 WarmBuilds=0;
+    TArray<FColor> OpaqueReference;
+    double OriginalVolume=0,BeforeVolume=0,MaxHeightError=0,WorkOpening=0,WorkFloor=0,WorkArea=0;uint64 WarmBuilds=0;
     int64 BeforeFrames[2]={-1,-1};TArray<TSharedPtr<FJsonValue>> Measurements;
     TSharedRef<FJsonObject> Result=MakeShared<FJsonObject>();TUniquePtr<TGuardValue<bool>> Messages;
     void MemoryDetails(const TCHAR* Boundary)
@@ -171,10 +190,21 @@ class FHatchDig final:public IAutomationLatentCommand
         const auto Window=FSlateApplication::Get().FindWidgetWindow(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef());R->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);
         R->SetStringField(TEXT("input"),TEXT("automated native pointer events; not Computer Use"));R->SetNumberField(TEXT("volume_m3"),M.GetAnalysis()?M.GetAnalysis()->Volume:0);
         const auto& S=FHatchDigProbe::Simulation(M);R->SetNumberField(TEXT("surface_volume_m3"),S.Surface().Volume);R->SetNumberField(TEXT("last_removed_m3"),S.LastRemovedVolume());R->SetNumberField(TEXT("total_removed_m3"),S.TotalRemovedVolume());R->SetNumberField(TEXT("undo_count"),S.UndoCount());R->SetNumberField(TEXT("surface_hash"),S.Surface().Hash());
+        double Opening,Floor,Area;S.Coverage(Opening,Floor,Area);R->SetNumberField(TEXT("opening_fov_percent"),Opening);R->SetNumberField(TEXT("visible_floor_fov_percent"),Floor);R->SetNumberField(TEXT("visible_floor_m2"),Area);R->SetNumberField(TEXT("display_rays"),S.DisplayRayCount());R->SetBoolField(TEXT("analysis_preview"),M.IsAnalysisPreview());
         DigJson(TEXT("captures/")+FPaths::ChangeExtension(Name,TEXT("json")),R);
     }
     bool Click(UShipHatchMonitorWidget& M,int32 I)
-    {auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComponent->GetRuntimeStatus().FrameId;const bool Accepted=FHatchDigProbe::Click(M,FVector2D((I%5-2)*2.5,((I/5)%5-2)*3.));if(Accepted&&MeasuredView==1)FHatchDigProbe::PointGate(*Test,M,true);return Accepted;}
+    {
+        auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComponent->GetRuntimeStatus().FrameId;
+        const auto Frame=S.MLX->ScanComponent->GetLastFrameSnapshot();const uint32 Before=FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint));
+        FVector2D Target(I%5==2?1.25:(I%5-2)*2.5,((I/5)%5-2)*3.),Pixel;
+        if(!FHatchDigProbe::Project(M,Target,Pixel))Target=FVector2D(3,-5);
+        const bool Accepted=FHatchDigProbe::Click(M,Target);
+        Test->TestEqual(TEXT("immediate display correction never mutates measured payload points"),FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint)),Before);
+        Test->TestTrue(TEXT("dig never stops selected acquisition scheduler"),S.MLX->IsSensorRunning()&&S.Livox->IsSensorRunning());
+        if(Accepted&&MeasuredView==1){FHatchDigProbe::PointGate(*Test,M,true);Test->TestNotNull(TEXT("2D/heatmap remains populated during measurement replacement"),M.GetDisplayAnalysis());}
+        return Accepted;
+    }
 public:
     FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false):Test(T),Captures(C),IdleControl(Idle){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;}
     bool Update() override
@@ -188,6 +218,7 @@ public:
         if(Phase==0)
         {
             if(!M.GetAnalysis())return false;FHatchDigProbe::Controls(*Test,M);int32 Font=100;FParse::Value(FCommandLine::Get(),TEXT("HatchFontPercent="),Font);M.SetFontPercent(Font);M.SelectView(0);M.SetSplitView(false);M.SetCameraPreset(0);
+            S.Coverage(WorkOpening,WorkFloor,WorkArea);Result->SetNumberField(TEXT("opening_fov_percent"),WorkOpening);Result->SetNumberField(TEXT("visible_floor_fov_percent"),WorkFloor);Result->SetNumberField(TEXT("structurally_visible_floor_m2"),WorkArea);Result->SetNumberField(TEXT("mlx_above_deck_m"),S.EffectiveMLXHeight());
             Original=S.Surface().Heights;OriginalVolume=S.Surface().Volume;Phase=1;Changed=Now;return false;
         }
         if(Phase==1)
@@ -197,17 +228,17 @@ public:
         if(Phase==2)
         {
             if(Now-Changed<.4||!M.GetAnalysis())return false;
-            Test->TestTrue(TEXT("production short pointer click excavates cargo"),FHatchDigProbe::Click(M,FVector2D(0,0)));
+            Test->TestTrue(TEXT("production short pointer click excavates cargo"),FHatchDigProbe::Click(M,FVector2D(2,0)));
             AfterOne=S.Surface().Heights;BeforeRevision=S.Revision();Phase=3;return false;
         }
         if(Phase==3)
         {
             if(!M.GetAnalysis())return false;FHatchDigProbe::CheckCards(*Test,M);
-            Test->TestTrue(TEXT("repeat click removes more"),FHatchDigProbe::Click(M,FVector2D(0,0)));
+            Test->TestTrue(TEXT("repeat click removes more"),FHatchDigProbe::Click(M,FVector2D(2,0)));
             FHatchDigProbe::Undo(M);Test->TestTrue(TEXT("undo restores last field bit-identically"),S.Surface().Heights==AfterOne);
             FHatchDigProbe::Undo(M);Test->TestTrue(TEXT("multi-step undo restores original bit-identically"),S.Surface().Heights==Original);
             Test->TestFalse(TEXT("empty undo is harmless"),S.UndoDig());
-            FHatchDigProbe::Click(M,FVector2D(0,0));FHatchDigProbe::Restore(M);
+            FHatchDigProbe::Click(M,FVector2D(2,0));FHatchDigProbe::Restore(M);
             Test->TestTrue(TEXT("original button restores entire original field bit-identically"),S.Surface().Heights==Original&&S.Surface().Volume==OriginalVolume&&S.TotalRemovedVolume()==0&&S.UndoCount()==0);
             // Warm complete production cycles, not 17 edits in one game frame:
             // each cancellation/acquisition/preview/analysis must actually finish.
@@ -236,7 +267,7 @@ public:
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
             MeasureStart=Now;
             BeforeRevision=S.Revision();BeforeLast=S.Surface().Heights;BeforeVolume=S.Surface().Volume;LastWall=Now;LastEngine=GFrameCounter;
-            if(IdleControl)Start(S);else Test->TestTrue(TEXT("first measured production click"),Click(M,0));Edits.Add(S.LastMeshApplyMs);Changed=Now;Phase=6;return false;
+            Start(S);if(!IdleControl)Test->TestTrue(TEXT("first measured production click"),Click(M,0));Edits.Add(S.LastMeshApplyMs);Changed=Now;Phase=6;return false;
         }
         if(Phase==6)
         {
@@ -314,8 +345,8 @@ public:
         {
             if(Now-Changed<.5||!M.GetAnalysis())return false;
             if(State==0)Original=S.Surface().Heights;
-            if(State==1)Test->TestTrue(TEXT("capture one click"),FHatchDigProbe::Click(M,FVector2D(0,0)));
-            if(State==2){for(int32 I=0;I<7;++I)Test->TestTrue(TEXT("capture repeated click"),FHatchDigProbe::Click(M,FVector2D(0,0)));}
+            if(State==1)Test->TestTrue(TEXT("capture one click"),FHatchDigProbe::Click(M,FVector2D(2,0)));
+            if(State==2){for(int32 I=0;I<7;++I)Test->TestTrue(TEXT("capture repeated click"),FHatchDigProbe::Click(M,FVector2D(2,0)));}
             if(State==3)FHatchDigProbe::Undo(M);
             if(State==4){FHatchDigProbe::Restore(M);Test->TestTrue(TEXT("capture original is bit-identical"),S.Surface().Heights==Original);}
             View=0;Changed=Now;Phase=12;return false;
@@ -329,7 +360,22 @@ public:
             if(++State==5){State=0;if(++Material==2){M.SelectView(0);M.SetSplitView(true);FHatchDigProbe::SettingsForCapture(M);Changed=Now;Phase=13;return false;}Phase=10;return false;}
             M.SelectView(0);M.SetSplitView(false);M.SetCameraPreset(0);Changed=Now;Phase=11;return false;
         }
-        if(Phase==13){if(Now-Changed<2||!M.GetAnalysis())return false;ValidateHatchPresentation(Test,&M);Shot(*W,M,FString::Printf(TEXT("settings-%d.png"),FMath::RoundToInt(M.GetFontScale()*100)));return true;}
+        if(Phase==13){if(Now-Changed<2||!M.GetAnalysis())return false;ValidateHatchPresentation(Test,&M);Shot(*W,M,FString::Printf(TEXT("settings-%d.png"),FMath::RoundToInt(M.GetFontScale()*100)));FHatchDigProbe::SensorCapture(M,0);Changed=Now;Phase=14;return false;}
+        if(Phase==14||Phase==15)
+        {if(Now-Changed<2||!M.GetAnalysis())return false;ValidateHatchPresentation(Test,&M);Shot(*W,M,FString::Printf(TEXT("sensor-beams-%d-%s.png"),FMath::RoundToInt(M.GetFontScale()*100),Phase==14?TEXT("3d"):TEXT("points")));
+         if(Phase==14){FHatchDigProbe::SensorCapture(M,1);Changed=Now;Phase=15;return false;}S.SetScanDisplay(false);M.SelectView(0);M.SetSplitView(false);M.SetCameraPreset(1);Changed=Now;Phase=16;return false;}
+        if(Phase==16)
+        {if(Now-Changed<2)return false;FIntVector Size;Test->TestTrue(TEXT("opaque reference capture"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),OpaqueReference,Size));S.SetScanDisplay(true);Changed=Now;Phase=17;return false;}
+        if(Phase==17)
+        {
+            if(Now-Changed<2)return false;TArray<FColor> WithRays;FIntVector Size;
+            Test->TestTrue(TEXT("ray display reference capture"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),WithRays,Size));
+            int32 Bright=0,Lost=0;
+            if(WithRays.Num()==OpaqueReference.Num())for(int32 Y=FMath::RoundToInt(Size.Y*.48);Y<FMath::RoundToInt(Size.Y*.9);++Y)for(int32 X=Size.X/4;X<Size.X*3/4;++X)
+            {const int32 I=Y*Size.X+X;const auto B=OpaqueReference[I],C=WithRays[I];if(int32(B.R)+B.G+B.B>=180){++Bright;Lost+=int32(C.R)+C.G+C.B<60;}}
+            Test->TestTrue(TEXT("ordinary player ray rendering retains >=98 percent of bright opaque ship pixels"),Bright>500&&double(Lost)/Bright<=.02);
+            auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("bright_reference_pixels"),Bright);R->SetNumberField(TEXT("lost_to_dark_pixels"),Lost);R->SetNumberField(TEXT("retained_fraction"),Bright?1.-double(Lost)/Bright:0);DigJson(TEXT("opaque-ray-regression.json"),R);S.SetScanDisplay(false);return true;
+        }
         return false;
     }
 };

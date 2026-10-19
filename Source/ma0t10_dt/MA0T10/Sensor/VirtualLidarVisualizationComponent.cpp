@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
 #include "VirtualLidarHeight.h"
 
 #include "Async/Async.h"
@@ -565,11 +566,13 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
     }
     if(NiagaraPointCloudComponent&&NiagaraPointCloudComponent->IsVisible())NiagaraPointCloudComponent->SetVisibility(false,true);
     ScanComponent->bDrawPointCloudPreviewDebugPoints=false;if(ScanComponent->IsPointCloudPreviewEnabled())ScanComponent->SetPointCloudPreviewEnabled(false);
-    const double Now=FPlatformTime::Seconds();if(LastColoredPointUpdate>=0&&Now-LastColoredPointUpdate<.2)return;
+    const auto Frame=ScanComponent->GetLastFrameSnapshot();
+    const double Now=FPlatformTime::Seconds();if(LastColoredPointUpdate>=0&&(Now-LastColoredPointUpdate<.2||(Frame&&LastColoredPointFrame==Frame->FrameId)))return;
     LastColoredPointUpdate=Now;
+    LastColoredPointFrame=Frame?Frame->FrameId:-1;
     if(!ColoredPointBatch)
     {
-        ColoredPointBatch=NewObject<ULineBatchComponent>(GetOwner());ColoredPointBatch->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        ColoredPointBatch=NewObject<ULidarPlayerDisplayComponent>(GetOwner());ColoredPointBatch->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         ColoredPointBatch->SetCanEverAffectNavigation(false);ColoredPointBatch->SetGenerateOverlapEvents(false);
         ColoredPointBatch->SetHiddenInSceneCapture(true);ColoredPointBatch->SetCastShadow(false);
         ColoredPointBatch->bCalculateAccurateBounds=true;ColoredPointBatch->RegisterComponent();ColoredPointBatch->SetComponentTickEnabled(false);
@@ -585,10 +588,23 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
     const int32 Limit=FMath::Min(12000,Policy.MaxPoints>0?Policy.MaxPoints:12000);
     auto& Batch=ColoredPointBatch->BatchedPoints;Batch.Reset(Limit);
     for(int32 I=0;I<Points.Num()&&Batch.Num()<Limit;I+=FMath::Max(1,Policy.PointStride))
-    {const auto& P=Points[I];if(Policy.bHitOnly&&!P.bHit)continue;Batch.Emplace(P.WorldLocation,GetPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
+    {const auto& Source=Points[I];if(Policy.bHitOnly&&!Source.bHit)continue;
+     if(PointPreviewTransform){auto P=Source;PointPreviewTransform(P,Frame?Frame->AcquisitionStartedMonotonic:0);Batch.Emplace(P.WorldLocation,GetPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
+     else Batch.Emplace(Source.WorldLocation,GetPointDisplayColor(Source),Settings.PointSize,0.f,SDPG_World);}
+    const int32 Visible=Batch.Num();
+    // Pin the copied render-proxy allocation as well as the GT array capacity.
+    // Inactive slots have zero area/alpha and a bounded existing position; they
+    // never represent returns and are excluded from visible-point telemetry.
+    const FVector PaddingPosition=Visible?Batch.Last().Position:GetOwner()->GetActorLocation();
+    while(Batch.Num()<Limit)Batch.Emplace(PaddingPosition,FLinearColor::Transparent,0.f,0.f,SDPG_World);
     ColoredPointBatch->SetVisibility(true);ColoredPointBatch->UpdateBounds();ColoredPointBatch->MarkRenderStateDirty();
-    VisiblePointCount=Batch.Num();UpdateRendererTelemetry(ELidarPointCloudRendererState::CpuFallback,Batch.Num(),Batch.Num(),TEXT("CPU colour points"),TEXT("선택한 점만 최대 5Hz로 표시합니다."));
+    VisiblePointCount=Visible;UpdateRendererTelemetry(ELidarPointCloudRendererState::CpuFallback,Visible,Visible,TEXT("CPU colour points"),TEXT("선택한 점만 최대 5Hz로 표시합니다."));
 }
+
+void UVirtualLidarVisualizationComponent::SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform)
+{PointPreviewTransform=MoveTemp(Transform);}
+void UVirtualLidarVisualizationComponent::RefreshPointPreview()
+{if(bColoredCpuPointPreview&&ScanComponent){LastColoredPointUpdate=-1;RefreshColoredCpuPoints();}}
 
 void UVirtualLidarVisualizationComponent::SetVisualizationSettings(const FVirtualLidarVisualizationSettings& InSettings)
 {

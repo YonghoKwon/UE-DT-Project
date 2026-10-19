@@ -142,7 +142,12 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
     {T.Reset();T.Reserve(Current.NX*Current.NY*6);for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
      {const int32 A=Y*(Current.NX+1)+X,B=A+1,C=A+Current.NX+1,D=C+1;T.Append({A,D,B,A,C,D});}MeshNX=Current.NX;MeshNY=Current.NY;}
     Mesh(Cargo->Mesh,V,T,&CargoNormals);
-    if(UpdateAppearance){Cargo->SetColor(Current.Settings.Cargo==ShipHatch::ECargo::Coal?FLinearColor(.012,.016,.02):FLinearColor(.32,.075,.035));
+    if(UpdateAppearance){
+        auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo"));
+        auto* MID=Cast<UMaterialInstanceDynamic>(Cargo->Mesh->GetMaterial(0));
+        if(Base&&(!MID||MID->Parent!=Base)){MID=UMaterialInstanceDynamic::Create(Base,Cargo);Cargo->Mesh->SetMaterial(0,MID);}
+        const bool Coal=Current.Settings.Cargo==ShipHatch::ECargo::Coal;
+        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.018,.021,.024):FLinearColor(.32,.075,.035));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
         Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
 }
 uint64 AShipHatchSimulation::DigBufferBytes() const
@@ -155,6 +160,7 @@ bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& H
     const auto Pose=GetActorTransform();
     if(!ShipHatch::Raycast(Current,Pose.InverseTransformPosition(Origin)*.01,Pose.InverseTransformVector(Direction),Hit))return false;
     const FVector WorldHit=Pose.TransformPosition(Hit*100);
+    if(PresentationOccludes(Origin,WorldHit))return false;
     // Visibility is player-local in point-only mode. Physical structures still occlude
     // the height field in BOTH render modes, including the deck above hidden cargo.
     FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
@@ -188,14 +194,14 @@ bool AShipHatchSimulation::RestoreCargo()
 }
 void AShipHatchSimulation::FinishCargoEdit()
 {
-    if(MLX)MLX->StopSensor();if(Livox)Livox->StopSensor();
+    LastGeometryEdit=FPlatformTime::Seconds();
     FrameGates[0]=MLX?MLX->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[1]=Livox?Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;
     UpdateCargoMesh(false);++SurfaceRevision;
-    // Cargo edits do not change device profiles, pose or preview preferences.
-    // Reuse the configured sensors and restart only their acquisition generation.
+    // Keep acquisition cadence and populated display buffers alive. An in-flight
+    // pre-edit acquisition is excluded from analysis by its immutable start time.
     for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})if(A)
-    {A->ScanComponent->InvalidateSurfaceResponseCache();A->StartSensor();}
+    {A->ScanComponent->InvalidateSurfaceResponseCache();A->VisualizationComponent->RefreshPointPreview();}
     Status=TEXT("측정 중 · 가려진 영역은 측정 불가");OnSurfaceChanged.Broadcast();
 }
 bool AShipHatchSimulation::SetSensorSelection(bool EnableMLX,bool EnableLivox,bool Native)
@@ -218,7 +224,8 @@ void AShipHatchSimulation::ConfigureSensors()
         S.LidarProfile=Profile;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
         if(ProfileChanged&&!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Status=Error;return;}
         A->ReadEditableState(S);FVirtualSensorEditableState Previous=S;S.SensorId=Id;
-        S.ActorTransform=FTransform(GetActorQuat()*FRotator(-90,0,0).Quaternion(),GetActorTransform().TransformPosition(FVector(0,0,(Current.Settings.Depth+Current.Settings.SensorAboveDeck)*100)));
+        const bool IsMLX=Profile!=EVirtualLidarDeviceProfile::LivoxMid360S;
+        S.ActorTransform=FTransform(GetActorQuat()*FRotator(IsMLX?-90:-112.5,0,0).Quaternion(),GetActorTransform().TransformPosition(SensorLocalOrigin(IsMLX)*100));
         S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;S.bLidarMaterialResponse=true;
         S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;
         if(!FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Previous,&S,PPF_None))
@@ -226,6 +233,13 @@ void AShipHatchSimulation::ConfigureSensors()
         // A documented map-local adapter: PMC collision is supported by CPU traces, not the GPU semantic proxy.
         auto* Scan=A->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
         A->VisualizationComponent->SetProjectionPreviewEnabled(false);
+        const TWeakObjectPtr<AShipHatchSimulation> Weak(this);
+        A->VisualizationComponent->SetPointPreviewTransform([Weak](FVirtualLidarPoint& P,double AcquisitionStart)
+        {
+            const auto* Self=Weak.Get();if(!Self||AcquisitionStart>=Self->LastGeometryEdit||P.SemanticLabel!=TEXT("HatchCargo")||!P.bHit)return;
+            auto L=Self->GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
+            L.Z=Self->Current.Height(L.X,L.Y);P.WorldLocation=Self->GetActorTransform().TransformPosition(L*100);
+        });
         if(Scan->SemanticClassRules.Num()!=4||Scan->SemanticClassRules[0].Label!=TEXT("HatchCargo"))
         {
             Scan->SemanticClassRules.Reset();
@@ -236,6 +250,7 @@ void AShipHatchSimulation::ConfigureSensors()
     };
     Configure(MLX,bNativeMLX?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80,bMLX,TEXT("Hatch.MLX80"));
     Configure(Livox,EVirtualLidarDeviceProfile::LivoxMid360S,bLivox,TEXT("Hatch.Mid360S"));
+    UpdateSensorPresentation();
 }
 void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& Out) const
 {
@@ -244,9 +259,13 @@ void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& 
     for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})
     {
         const int64 Gate=FrameGates[Index++];if(!A)continue;
-        const auto Frame=A->ScanComponent->GetLastFrameSnapshot();if(!Frame||Frame->FrameId<=Gate)continue;
+        const auto Frame=A->ScanComponent->GetLastFrameSnapshot();if(!Frame||Frame->FrameId<=Gate||Frame->AcquisitionStartedMonotonic<LastGeometryEdit)continue;
         for(const auto& P:*Frame->Points)if(P.bHit)
-            Out.Add({GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});
+        {
+            const FVector L=GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
+            const FVector O=GetActorTransform().InverseTransformPosition(Frame->AcquisitionTransform.GetLocation())*.01;
+            if(P.SemanticLabel!=TEXT("HatchCargo")||ShipHatch::ThroughOpening(Current.Settings,O,L))Out.Add({L,P.SemanticLabel});
+        }
     }
 }
 bool AShipHatchSimulation::HasFreshMeasurement() const
@@ -254,12 +273,13 @@ bool AShipHatchSimulation::HasFreshMeasurement() const
     if(bGenerating)return false;
     int32 Index=0;
     for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})
-    {const int64 Gate=FrameGates[Index++];if(A){const auto F=A->ScanComponent->GetLastFrameSnapshot();if(!F||F->FrameId<=Gate)return false;}}
+    {const int64 Gate=FrameGates[Index++];if(A){const auto F=A->ScanComponent->GetLastFrameSnapshot();if(!F||F->FrameId<=Gate||F->AcquisitionStartedMonotonic<LastGeometryEdit)return false;}}
     return bMLX||bLivox;
 }
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
     bEnding=true;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
+    GetWorldTimerManager().ClearTimer(ScanDisplayTimer);for(auto A:SensorPresentation)if(IsValid(A))A->Destroy();SensorPresentation.Reset();
     if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(Cargo)Cargo->Destroy();
     for(auto A:Structure)if(IsValid(A))A->Destroy();Structure.Reset();
     // The bounded worker owns values only; no callback can access this Actor after EndPlay.

@@ -54,6 +54,8 @@ public:
     float GetFontScale() const { return FontScale; }
     const ShipHatch::FAnalysis* GetAnalysis() const;
     const ShipHatch::FSettings* GetAnalysisSettings() const;
+    const ShipHatch::FAnalysis* GetDisplayAnalysis() const;
+    bool IsAnalysisPreview() const;
     FText CellTooltip(int32 Cell) const;
     void SetCameraPreset(int32 Preset);
     uint64 AnalysisBuilds=0;
@@ -106,6 +108,8 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTextBlock> PointSizeLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DensityLabel;
     UPROPERTY(Transient) TObjectPtr<UButton> DigToggle;
+    UPROPERTY(Transient) TObjectPtr<UButton> ScanToggle;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> SensorBadges;
     UPROPERTY(Transient) TObjectPtr<UButton> UndoButton;
     UPROPERTY(Transient) TObjectPtr<UButton> RestoreButton;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DigAmounts;
@@ -147,6 +151,11 @@ private:
     double CellSize=1;
     void ApplyPreview();
     void RefreshAnalysis();
+    void RefreshEditPreview();
+    void UpdateSensorBadges();
+    UFUNCTION() void OnHighlightMLX();
+    UFUNCTION() void OnHighlightLivox();
+    UFUNCTION() void OnScanToggle();
     UFUNCTION() void OnRandom();
     UFUNCTION() void OnApply();
     UFUNCTION() void OnTools();

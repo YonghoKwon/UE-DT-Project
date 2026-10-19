@@ -20,7 +20,7 @@ public:
         const auto* O=Owner.Get();const auto* M=O?O->Monitor.Get():nullptr;
         const auto* S=M?M->GetAnalysisSettings():nullptr;
         const double Width=G.GetLocalSize().X-(O&&O->bHeatmap?60:24),Height=G.GetLocalSize().Y-24;
-        const double Aspect=S?S->Width/S->Length:42.3/25.8;
+        const double Aspect=S?S->OpeningWidth/S->OpeningLength:23./20.;
         const double W=FMath::Max(1.,FMath::Min(Width,Height*Aspect)),H=W/Aspect;
         const double X=(Width-W)*.5+12,Y=(G.GetLocalSize().Y-H)*.5;
         return FSlateRect(X,Y,X+W,Y+H);
@@ -28,7 +28,7 @@ public:
     virtual int32 OnPaint(const FPaintArgs&,const FGeometry& G,const FSlateRect&,FSlateWindowElementList& Out,int32 Layer,const FWidgetStyle&,bool) const override
     {
         const auto* O=Owner.Get();const auto* M=O?O->Monitor.Get():nullptr;
-        const auto* A=M?M->GetAnalysis():nullptr;const auto* S=M?M->GetAnalysisSettings():nullptr;
+        const auto* A=M?M->GetDisplayAnalysis():nullptr;const auto* S=M?M->GetAnalysisSettings():nullptr;
         if(!A||!S||A->Cells.IsEmpty())return Layer;
         if(O->bLegend)
         {
@@ -51,17 +51,23 @@ public:
         auto Rect=[&](double X,double Y,double DX,double DY,FLinearColor C)
         {FSlateDrawElement::MakeBox(Out,Layer,G.ToPaintGeometry(FVector2D(DX,DY),FSlateLayoutTransform(FVector2D(X,Y))),FCoreStyle::Get().GetBrush("WhiteBrush"),ESlateDrawEffect::None,C);};
         Rect(R.Left-3,R.Top-3,W+6,H+6,Style::Border());
-        const double CW=W/A->NY,CH=H/A->NX;
+        // Fit the aperture with a 5% masked ship border on each side. The grid
+        // retains full-hold SI indexing and full-hold capacity denominators.
+        const double ExtW=S->OpeningWidth*1.1,ExtL=S->OpeningLength*1.1;
+        const double OX=R.Left+W/22,OY=R.Top+H/22,OW=W/1.1,OH=H/1.1;
+        Rect(R.Left,R.Top,W,H,Style::Color(48,57,65));
         for(int32 Y=0;Y<A->NX;++Y)for(int32 X=0;X<A->NY;++X)
         {
             const auto& Cell=A->Cells[X*A->NX+Y];
+            const double L0=FMath::Max(Y*A->DX-S->Length*.5,-S->OpeningLength*.5),L1=FMath::Min((Y+1)*A->DX-S->Length*.5,S->OpeningLength*.5);
+            const double B0=FMath::Max(X*A->DY-S->Width*.5,-S->OpeningWidth*.5),B1=FMath::Min((X+1)*A->DY-S->Width*.5,S->OpeningWidth*.5);
+            if(L1<=L0||B1<=B0)continue;
+            const double CW=(B1-B0)/ExtW*W,CH=(L1-L0)/ExtL*H;
             const FLinearColor Color=!Cell.Count?Style::Border():O->bHeatmap?FLinearColor::FromSRGBColor(ShipHatch::Jet(Cell.Mean()/S->Depth)):
                 S->Cargo==ShipHatch::ECargo::Coal?Style::Color(82,92,103):Style::Color(172,111,75);
-            Rect(R.Left+X*CW,R.Top+Y*CH,CW-(O->bHeatmap?FMath::Min(.65,CW*.12):0),CH-(O->bHeatmap?FMath::Min(.65,CH*.12):0),Color);
+            Rect(R.Left+(B0/ExtW+.5)*W,R.Top+(L0/ExtL+.5)*H,CW-(O->bHeatmap?FMath::Min(.65,CW*.12):0),CH-(O->bHeatmap?FMath::Min(.65,CH*.12):0),Color);
         }
         // Same SI axes as analysis: screen horizontal Y/breadth, vertical X/length.
-        const double OW=W*S->OpeningWidth/S->Width,OH=H*S->OpeningLength/S->Length;
-        const double OX=R.Left+(W-OW)*.5,OY=R.Top+(H-OH)*.5;
         const double T=O->bHeatmap?1:2;
         Rect(OX,OY,OW,T,Style::Accent());Rect(OX,OY+OH-T,OW,T,Style::Accent());
         Rect(OX,OY,T,OH,Style::Accent());Rect(OX+OW-T,OY,T,OH,Style::Accent());
@@ -78,10 +84,11 @@ public:
         const auto* O=Owner.Get();const auto* M=O?O->Monitor.Get():nullptr;
         if(!O||!M||!O->bHeatmap)return FReply::Unhandled();
         const auto R=Plot(G);const FVector2D P=G.AbsoluteToLocal(E.GetScreenSpacePosition());
-        const auto* A=M->GetAnalysis();
+        const auto* A=M->GetDisplayAnalysis();const auto* S=M->GetAnalysisSettings();
         int32 Cell=-1;
-        if(A&&P.X>=R.Left&&P.X<R.Right&&P.Y>=R.Top&&P.Y<R.Bottom)
-        {const int32 X=FMath::FloorToInt((P.X-R.Left)/(R.Right-R.Left)*A->NY),Y=FMath::FloorToInt((P.Y-R.Top)/(R.Bottom-R.Top)*A->NX);Cell=X*A->NX+Y;}
+        if(A&&S&&P.X>=R.Left&&P.X<R.Right&&P.Y>=R.Top&&P.Y<R.Bottom)
+        {const double B=((P.X-R.Left)/(R.Right-R.Left)-.5)*S->OpeningWidth*1.1,L=((P.Y-R.Top)/(R.Bottom-R.Top)-.5)*S->OpeningLength*1.1;
+         if(FMath::Abs(B)<=S->OpeningWidth*.5&&FMath::Abs(L)<=S->OpeningLength*.5){const int32 X=FMath::FloorToInt((B+S->Width*.5)/A->DY),Y=FMath::FloorToInt((L+S->Length*.5)/A->DX);Cell=X*A->NX+Y;}}
         if(Cell!=HoveredCell||TooltipBuild!=M->AnalysisBuilds){HoveredCell=Cell;TooltipBuild=M->AnalysisBuilds;SetToolTipText(M->CellTooltip(Cell));}
         return FReply::Handled();
     }

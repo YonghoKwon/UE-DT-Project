@@ -127,4 +127,15 @@ bool FHatchExcavation::RunTest(const FString&)
     TestTrue(TEXT("original + 16 undo states + scratch at maximum mesh allocate <=2MiB"),Bytes<=2*1024*1024);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchAperture,"MA0T10.Hatch.ApertureVisibility",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchAperture::RunTest(const FString&)
+{
+    ShipHatch::FSettings S;
+    TestTrue(TEXT("central open floor ray passes deck and coaming"),ShipHatch::ThroughOpening(S,FVector(0,0,75),FVector(0,0,0)));
+    TestFalse(TEXT("deck occludes a point below its outer wing"),ShipHatch::ThroughOpening(S,FVector(0,0,75),FVector(0,21,15)));
+    TestFalse(TEXT("coaming can occlude a ray which passes deck opening"),ShipHatch::ThroughOpening(S,FVector(0,14.5,30.5),FVector(0,0,0)));
+    TestTrue(TEXT("oblique ray can see under-deck floor through aperture"),ShipHatch::ThroughOpening(S,FVector(0,0,30.5),FVector(0,20,0)));
+    TestFalse(TEXT("observer below deck cannot see through its top opening"),ShipHatch::ThroughOpening(S,FVector(0,0,20),FVector(0,0,0)));
+    return true;
+}
 #endif

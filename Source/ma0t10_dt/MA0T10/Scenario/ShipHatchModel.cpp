@@ -151,6 +151,17 @@ double Excavate(FSurface& S,FVector2D Center,double Radius,double Depth)
     S.Volume=Integrate(S);S.Fill=100*S.Volume/(S.Settings.Length*S.Settings.Width*S.Settings.Depth);
     return FMath::Max(0.,Before-S.Volume);
 }
+bool ThroughOpening(const FSettings& S,FVector Origin,FVector Target)
+{
+    for(double Z:{S.Depth,S.Depth+S.Coaming})
+    {
+        if(Target.Z>=Z)continue;
+        if(Origin.Z<=Z||Origin.Z<=Target.Z)return false;
+        const FVector P=Origin+(Target-Origin)*((Origin.Z-Z)/(Origin.Z-Target.Z));
+        if(FMath::Abs(P.X)>S.OpeningLength*.5+1.e-6||FMath::Abs(P.Y)>S.OpeningWidth*.5+1.e-6)return false;
+    }
+    return true;
+}
 FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>& Points)
 {
     FAnalysis R;if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return R;
