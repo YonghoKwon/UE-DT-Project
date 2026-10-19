@@ -575,6 +575,13 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
         ColoredPointBatch->bCalculateAccurateBounds=true;ColoredPointBatch->RegisterComponent();ColoredPointBatch->SetComponentTickEnabled(false);
     }
     const auto Policy=ScanComponent->GetPreviewPolicyState();const auto& Points=ScanComponent->GetLastPoints();
+    // Projection textures are optional. Their worker must not be required to establish this renderer's distance range.
+    if(Settings.bUseAdaptiveDistance&&(Settings.ColorMode==ELidarColorMode::DistanceTurbo||Settings.ColorMode==ELidarColorMode::DistanceViridis||Settings.ColorMode==ELidarColorMode::DistanceGray))
+    {
+        float Min=FLT_MAX,Max=0;
+        for(const auto& P:Points)if(P.bHit){Min=FMath::Min(Min,P.Distance);Max=FMath::Max(Max,P.Distance);}
+        LastMinDistanceCm=Min==FLT_MAX?0:Min;LastMaxDistanceCm=FMath::Max(LastMinDistanceCm+.01f,Max);
+    }
     const int32 Limit=FMath::Min(12000,Policy.MaxPoints>0?Policy.MaxPoints:12000);
     auto& Batch=ColoredPointBatch->BatchedPoints;Batch.Reset(Limit);
     for(int32 I=0;I<Points.Num()&&Batch.Num()<Limit;I+=FMath::Max(1,Policy.PointStride))

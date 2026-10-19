@@ -140,6 +140,13 @@ public:
             for(int32 Color=0;Color<5;++Color)
             {
                 Host->Monitor->SelectView(1);Host->Monitor->SelectColor(Color);
+                if(Color==3)
+                {
+                    FColor First;bool Found=false,Varies=false;
+                    for(const auto& P:*F->Points)if(P.bHit)
+                    {const FColor C=A->VisualizationComponent->GetPointDisplayColor(P).ToFColor(true);if(!Found){First=C;Found=true;}else Varies|=C!=First;}
+                    Test->TestTrue(TEXT("distance palette varies without projection texture generation"),Varies);
+                }
                 auto* PC=World->GetFirstPlayerController();
                 for(auto* Selected:{Sim->bMLX?Sim->MLX.Get():nullptr,Sim->bLivox?Sim->Livox.Get():nullptr})if(Selected)
                 {
