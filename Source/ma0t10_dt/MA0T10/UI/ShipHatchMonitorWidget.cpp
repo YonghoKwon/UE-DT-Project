@@ -86,7 +86,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     ContextText=Label(TEXT("홀드 01 · 철광석 · ML-X + Livox"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(ContextText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     UpdatedText=Label(TEXT("마지막 갱신 —"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(UpdatedText);
     auto* Metrics=WidgetTree->ConstructWidget<UHorizontalBox>();Add(Metrics);
-    const TCHAR* Labels[]={TEXT("설정 적재율"),TEXT("추정 부피"),TEXT("최고 높이"),TEXT("평균 높이"),TEXT("최저 높이"),TEXT("측정 불가 비율")};
+    const TCHAR* Labels[]={TEXT("남은 적재율"),TEXT("추정 부피"),TEXT("최고 높이"),TEXT("평균 높이"),TEXT("최저 높이"),TEXT("측정 불가 비율")};
     for(int32 I=0;I<6;++I)
     {auto* C=Card(*FString::Printf(TEXT("Metric%d"),I),Style::Section());auto* B=WidgetTree->ConstructWidget<UVerticalBox>();C->SetContent(B);MetricValues.Add(Label(TEXT("—"),Style::TitleSize+Style::Gap,true,I==0?Style::Accent():Style::Text()));B->AddChildToVerticalBox(MetricValues.Last());B->AddChildToVerticalBox(Label(Labels[I],Style::LabelSize,false,Style::Muted()));auto* LayoutSlot=Metrics->AddChildToHorizontalBox(C);LayoutSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LayoutSlot->SetPadding(FMargin(I?Style::Gap:0,0,0,0));}
     auto* Toolbar=Card(TEXT("Hatch3dToolbar"));Add(Toolbar);auto* ToolsBox=WidgetTree->ConstructWidget<UVerticalBox>();Toolbar->SetContent(ToolsBox);
@@ -104,7 +104,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     auto* Heat=Card(TEXT("HatchHeatCard"));Add(Heat);auto* HeatBox=WidgetTree->ConstructWidget<UVerticalBox>();Heat->SetContent(HeatBox);
     auto* HeatHead=WidgetTree->ConstructWidget<UHorizontalBox>();HeatBox->AddChildToVerticalBox(HeatHead);HeatHead->AddChildToHorizontalBox(Label(TEXT("높이 히트맵"),Style::TitleSize,true))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HeatHead->AddChildToHorizontalBox(Button(TEXT("최대화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMaxHeat)));
     HeatView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();HeatView->Monitor=this;HeatView->bHeatmap=true;HeatCache=WidgetTree->ConstructWidget<UInvalidationBox>();HeatCache->SetCanCache(true);HeatCache->SetContent(HeatView);HeatBox->AddChildToVerticalBox(HeatCache)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HeatBox->AddChildToVerticalBox(Label(TEXT("회색  측정 불가   ·   칸 위에 마우스를 올려 높이 확인"),Style::LabelSize,false,Style::Muted()));
-    auto* Footer=Card(TEXT("HatchFooter"));Footer->SetPadding(FMargin(Style::Gap));Add(Footer);DigAmounts=Label(TEXT("이번 0.00 m³ · 누적 0.00 m³  |  부피는 관측 영역 추정 · 회색은 측정 불가"),Style::LabelSize,false,Style::Muted());Footer->SetContent(DigAmounts);
+    auto* Footer=Card(TEXT("HatchFooter"));Footer->SetPadding(FMargin(Style::Gap));Add(Footer);DigAmounts=Label(TEXT("퍼낸 양  이번 0.00 m³ · 누적 0.00 m³  |  추정 부피는 관측 영역만 · 회색은 측정 불가"),Style::LabelSize,false,Style::Muted());Footer->SetContent(DigAmounts);
     PointPanel=Card(TEXT("HatchPointOverlay"));Add(PointPanel);auto* PointScroll=WidgetTree->ConstructWidget<UScrollBox>();PointPanel->SetContent(PointScroll);auto* Points=WidgetTree->ConstructWidget<UVerticalBox>();PointScroll->AddChild(Points);Points->AddChildToVerticalBox(Label(TEXT("점군 표시"),Style::BodySize,true));
     auto* Colors=WidgetTree->ConstructWidget<UHorizontalBox>();Points->AddChildToVerticalBox(Colors)->SetPadding(FMargin(0,Style::Gap,0,Style::Gap));
     ColorButtons={Button(TEXT("높이"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHeight)),Button(TEXT("분류"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnClass)),Button(TEXT("반사"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReflection)),Button(TEXT("거리"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnDistance)),Button(TEXT("단색"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMono))};for(auto B:ColorButtons)Colors->AddChildToHorizontalBox(B)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -225,7 +225,7 @@ void UShipHatchMonitorWidget::UpdateDigControls()
     LastDigRevision=S->Revision();bLastDigEnabled=bDigEnabled;bLastDigGenerating=S->IsGenerating();
     DigToggle->SetStyle(bDigEnabled?Style::PrimaryButton():Style::Button());CastChecked<UTextBlock>(DigToggle->GetContent())->SetText(FText::FromString(bDigEnabled?TEXT("퍼내기 켜짐"):TEXT("퍼내기 켜기")));
     DigToggle->SetIsEnabled(!S->IsGenerating());UndoButton->SetIsEnabled(!S->IsGenerating()&&S->UndoCount()>0);RestoreButton->SetIsEnabled(!S->IsGenerating()&&S->TotalRemovedVolume()>0);
-    DigAmounts->SetText(FText::FromString(FString::Printf(TEXT("이번 %.2f m³ · 누적 %.2f m³  |  부피는 관측 영역 추정 · 회색은 측정 불가"),S->LastRemovedVolume(),S->TotalRemovedVolume())));
+    DigAmounts->SetText(FText::FromString(FString::Printf(TEXT("퍼낸 양  이번 %.2f m³ · 누적 %.2f m³  |  추정 부피는 관측 영역만 · 회색은 측정 불가"),S->LastRemovedVolume(),S->TotalRemovedVolume())));
 }
 void UShipHatchMonitorWidget::OnSizeSlider(float V){PointSizeLabel->SetText(FText::FromString(FString::Printf(TEXT("점 크기  %.1f"),V)));ApplyPreview();}
 void UShipHatchMonitorWidget::OnDensitySlider(float V){DensityLabel->SetText(FText::FromString(FString::Printf(TEXT("표시 밀도  %.0f%%"),100./FMath::Max(1,FMath::RoundToInt(100./V)))));ApplyPreview();}
