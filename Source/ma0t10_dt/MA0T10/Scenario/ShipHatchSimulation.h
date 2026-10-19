@@ -55,6 +55,15 @@ public:
     uint64 CompletedGenerations=0;
     void CollectObservations(TArray<ShipHatch::FObservation>& Out) const;
     bool HasFreshMeasurement() const;
+    bool PickCargo(FVector WorldOrigin,FVector WorldDirection,FVector& LocalHitMeters) const;
+    bool Dig(FVector WorldOrigin,FVector WorldDirection,double Radius=2,double Depth=1.5);
+    bool UndoDig();
+    bool RestoreCargo();
+    static constexpr int32 UndoLimit=16;
+    int32 UndoCount() const { return HistoryCount; }
+    double LastRemovedVolume() const { return LastRemoved; }
+    double TotalRemovedVolume() const { return TotalRemoved; }
+    uint64 DigBufferBytes() const;
     uint64 MeshScratchBytes() const { return CargoVertices.GetAllocatedSize()+CargoNormals.GetAllocatedSize()+CargoIndices.GetAllocatedSize(); }
     uint64 GenerationBufferBytes() const { return Current.Heights.GetAllocatedSize()+RecycledHeights.GetAllocatedSize()+GenerationShape.GetAllocatedSize(); }
     FSimpleMulticastDelegate OnSurfaceChanged;
@@ -77,6 +86,13 @@ private:
     TArray<FVector> CargoVertices,CargoNormals;
     TArray<int32> CargoIndices;
     int32 MeshNX=0,MeshNY=0;
+    struct FDigState { TArray<float> Heights; double Volume=0,Fill=0,Last=0,Total=0; };
+    FDigState Original,History[UndoLimit];
+    TArray<float> DigScratch;
+    int32 HistoryHead=0,HistoryCount=0;
+    double LastRemoved=0,TotalRemoved=0;
+    void UpdateCargoMesh(bool UpdateAppearance=true);
+    void FinishCargoEdit();
     void StartGeneration();
     void PollGeneration();
     void BuildStructure();

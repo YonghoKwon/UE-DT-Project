@@ -72,6 +72,85 @@ double FSurface::Height(double X,double Y) const
     return U>=V?A*(1-U)+At(IX+1,IY)*(U-V)+D*V:A*(1-V)+At(IX,IY+1)*(V-U)+D*U;
 }
 uint32 FSurface::Hash() const{return FCrc::MemCrc32(Heights.GetData(),Heights.Num()*sizeof(float));}
+double Integrate(const FSurface& S)
+{
+    double Sum=0;
+    for(int32 Y=0;Y<S.NY;++Y)for(int32 X=0;X<S.NX;++X)
+        Sum+=(2.*S.At(X,Y)+S.At(X+1,Y)+S.At(X,Y+1)+2.*S.At(X+1,Y+1))/6.*S.DX*S.DY;
+    return Sum;
+}
+bool Raycast(const FSurface& S,FVector O,FVector D,FVector& Hit)
+{
+    if(O.ContainsNaN()||D.ContainsNaN()||!D.Normalize()||S.Heights.IsEmpty())return false;
+    double Nearest=DBL_MAX;
+    auto Triangle=[&](FVector A,FVector B,FVector C)
+    {
+        const FVector E1=B-A,E2=C-A,P=FVector::CrossProduct(D,E2);
+        const double Det=FVector::DotProduct(E1,P);if(FMath::Abs(Det)<1.e-12)return;
+        const FVector T=O-A;const double U=FVector::DotProduct(T,P)/Det;if(U<0||U>1)return;
+        const FVector Q=FVector::CrossProduct(T,E1);const double V=FVector::DotProduct(D,Q)/Det;if(V<0||U+V>1)return;
+        const double Distance=FVector::DotProduct(E2,Q)/Det;
+        if(Distance>=0&&Distance<Nearest&&(O+D*Distance).Z>1.e-4)Nearest=Distance;
+    };
+    for(int32 Y=0;Y<S.NY;++Y)for(int32 X=0;X<S.NX;++X)
+    {
+        const double PX=X*S.DX-S.Settings.Length*.5,PY=Y*S.DY-S.Settings.Width*.5;
+        const FVector A(PX,PY,S.At(X,Y)),B(PX+S.DX,PY,S.At(X+1,Y));
+        const FVector C(PX,PY+S.DY,S.At(X,Y+1)),E(PX+S.DX,PY+S.DY,S.At(X+1,Y+1));
+        Triangle(A,E,B);Triangle(A,C,E);
+    }
+    if(Nearest==DBL_MAX)return false;Hit=O+D*Nearest;return true;
+}
+double Excavate(FSurface& S,FVector2D Center,double Radius,double Depth)
+{
+    if(S.Heights.IsEmpty()||Center.ContainsNaN()||!FMath::IsFinite(Radius)||!FMath::IsFinite(Depth)||
+       Radius<.5||Radius>5||Depth<.1||Depth>3||FMath::Abs(Center.X)>S.Settings.Length*.5||
+       FMath::Abs(Center.Y)>S.Settings.Width*.5||S.Height(Center.X,Center.Y)<=1.e-4)return 0;
+    const double Before=Integrate(S);
+    for(int32 Y=0;Y<=S.NY;++Y)for(int32 X=0;X<=S.NX;++X)
+    {
+        const double R2=(FVector2D(X*S.DX-S.Settings.Length*.5,Y*S.DY-S.Settings.Width*.5)-Center).SizeSquared()/(Radius*Radius);
+        if(R2<1){auto& H=S.Heights[Y*(S.NX+1)+X];H=FMath::Max(0.,H-Depth*(1-R2));}
+    }
+    // Relax actual face gradients by moving remaining material into the cavity.
+    // The exact mesh integral gives each vertex a global triangle-incidence
+    // weight. Contraction about that weighted mean conserves remaining volume
+    // (up to float rounding), stays above the floor, and avoids counting slump
+    // material as another grab. Requested depth is before this settling pass.
+    const double Limit=FMath::Tan(FMath::DegreesToRadians(S.Repose));const int32 Row=S.NX+1;
+    auto Weight=[&](int32 I){const int32 X=I%Row,Y=I/Row;return double((X<S.NX&&Y<S.NY?2:0)+(X>0&&Y>0?2:0)+(X>0&&Y<S.NY?1:0)+(X<S.NX&&Y>0?1:0));};
+    auto Relax=[&](int32 A,int32 B,int32 C,bool First)
+    {
+        const double HA=S.Heights[A],HB=S.Heights[B],HC=S.Heights[C];
+        const double GX=(First?HB-HA:HC-HB)/S.DX,GY=(First?HC-HB:HB-HA)/S.DY;
+        const double Gradient=FMath::Sqrt(GX*GX+GY*GY);if(Gradient<=Limit+1.e-6)return false;
+        const double WA=Weight(A),WB=Weight(B),WC=Weight(C),Mean=(HA*WA+HB*WB+HC*WC)/(WA+WB+WC),Scale=Limit*(1-2.e-6)/Gradient;bool Changed=false;
+        for(int32 I:{A,B,C}){const float H=Mean+(S.Heights[I]-Mean)*Scale;Changed|=H!=S.Heights[I];S.Heights[I]=H;}return Changed;
+    };
+    bool Unstable=false;
+    for(int32 Pass=0;Pass<2*(S.NX+S.NY);++Pass)
+    {
+        bool Changed=false;
+        for(int32 J=0;J<S.NY;++J)for(int32 I=0;I<S.NX;++I)
+        {
+            const int32 X=Pass%2?S.NX-1-I:I,Y=Pass%2?S.NY-1-J:J,A=Y*Row+X,B=A+1,C=A+Row,D=C+1;
+            Changed|=Relax(A,B,D,true);Changed|=Relax(A,C,D,false);
+        }
+        Unstable=Changed;if(!Changed)break;
+    }
+    // Bound work for pathological custom fields as well. A final contraction
+    // about the whole-field weighted mean preserves volume and bounds every
+    // triangle if the local iteration budget was exhausted.
+    if(Unstable)
+    {
+        double Maximum=0;
+        for(int32 Y=0;Y<S.NY;++Y)for(int32 X=0;X<S.NX;++X)
+        {const double A=S.At(X,Y),B=S.At(X+1,Y),C=S.At(X,Y+1),D=S.At(X+1,Y+1);Maximum=FMath::Max(Maximum,FMath::Max(FMath::Sqrt(FMath::Square((B-A)/S.DX)+FMath::Square((D-B)/S.DY)),FMath::Sqrt(FMath::Square((D-C)/S.DX)+FMath::Square((C-A)/S.DY))));}
+        if(Maximum>Limit+1.e-6){const double Mean=Integrate(S)/(S.Settings.Length*S.Settings.Width),Scale=Limit*(1-2.e-6)/Maximum;for(auto& H:S.Heights)H=Mean+(H-Mean)*Scale;}
+    }
+    S.Volume=Integrate(S);S.Fill=100*S.Volume/(S.Settings.Length*S.Settings.Width*S.Settings.Depth);
+    return FMath::Max(0.,Before-S.Volume);
+}
 FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>& Points)
 {
     FAnalysis R;if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return R;

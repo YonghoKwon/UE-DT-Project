@@ -124,6 +124,15 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
         Current.Settings.Depth!=Result.Settings.Depth||Current.Settings.OpeningLength!=Result.Settings.OpeningLength||
         Current.Settings.OpeningWidth!=Result.Settings.OpeningWidth||Current.Settings.Coaming!=Result.Settings.Coaming;
     RecycledHeights=MoveTemp(Current.Heights);Current=MoveTemp(Result);if(Rebuild)BuildStructure();
+    Original.Heights=Current.Heights;Original.Volume=Current.Volume;Original.Fill=Current.Fill;
+    HistoryHead=HistoryCount=0;LastRemoved=TotalRemoved=0;
+    UpdateCargoMesh();
+    ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();
+    LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;
+    Status=TEXT("측정 중 · 가려진 영역은 측정 불가");OnSurfaceChanged.Broadcast();
+}
+void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
+{
     if(!Cargo)
     {FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Cargo=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);Cargo->Tags.Add(TEXT("HatchCargo"));}
     auto& V=CargoVertices;auto& T=CargoIndices;V.Reset();V.Reserve(Current.Heights.Num());
@@ -132,10 +141,61 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
     if(MeshNX!=Current.NX||MeshNY!=Current.NY)
     {T.Reset();T.Reserve(Current.NX*Current.NY*6);for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
      {const int32 A=Y*(Current.NX+1)+X,B=A+1,C=A+Current.NX+1,D=C+1;T.Append({A,D,B,A,C,D});}MeshNX=Current.NX;MeshNY=Current.NY;}
-    Mesh(Cargo->Mesh,V,T,&CargoNormals);Cargo->SetColor(Current.Settings.Cargo==ShipHatch::ECargo::Coal?FLinearColor(.012,.016,.02):FLinearColor(.32,.075,.035));
-    Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);
-    ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();
-    LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;
+    Mesh(Cargo->Mesh,V,T,&CargoNormals);
+    if(UpdateAppearance){Cargo->SetColor(Current.Settings.Cargo==ShipHatch::ECargo::Coal?FLinearColor(.012,.016,.02):FLinearColor(.32,.075,.035));
+        Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
+}
+uint64 AShipHatchSimulation::DigBufferBytes() const
+{
+    uint64 Bytes=Original.Heights.GetAllocatedSize()+DigScratch.GetAllocatedSize();for(const auto& H:History)Bytes+=H.Heights.GetAllocatedSize();return Bytes;
+}
+bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& Hit) const
+{
+    if(bEnding||bGenerating||!Cargo||Origin.ContainsNaN()||Direction.ContainsNaN()||!Direction.Normalize())return false;
+    const auto Pose=GetActorTransform();
+    if(!ShipHatch::Raycast(Current,Pose.InverseTransformPosition(Origin)*.01,Pose.InverseTransformVector(Direction),Hit))return false;
+    const FVector WorldHit=Pose.TransformPosition(Hit*100);
+    // Visibility is player-local in point-only mode. Physical structures still occlude
+    // the height field in BOTH render modes, including the deck above hidden cargo.
+    FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
+    return GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query)&&First.GetActor()==Cargo;
+}
+bool AShipHatchSimulation::Dig(FVector Origin,FVector Direction,double Radius,double Depth)
+{
+    FVector Hit;if(!PickCargo(Origin,Direction,Hit))return false;
+    const double Start=FPlatformTime::Seconds();
+    DigScratch=Current.Heights;const double Volume=Current.Volume,Fill=Current.Fill;
+    const double Removed=ShipHatch::Excavate(Current,FVector2D(Hit.X,Hit.Y),Radius,Depth);
+    if(Removed<=0){Current.Heights=DigScratch;Current.Volume=Volume;Current.Fill=Fill;return false;}
+    auto& Previous=History[HistoryHead];Previous.Heights=DigScratch;Previous.Volume=Volume;
+    Previous.Fill=Fill;Previous.Last=LastRemoved;Previous.Total=TotalRemoved;
+    HistoryHead=(HistoryHead+1)%UndoLimit;HistoryCount=FMath::Min(HistoryCount+1,UndoLimit);
+    LastRemoved=Removed;TotalRemoved=FMath::Max(0.,Original.Volume-Current.Volume);
+    FinishCargoEdit();LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;return true;
+}
+bool AShipHatchSimulation::UndoDig()
+{
+    if(bEnding||bGenerating||!HistoryCount)return false;
+    const double Start=FPlatformTime::Seconds();HistoryHead=(HistoryHead+UndoLimit-1)%UndoLimit;--HistoryCount;
+    const auto& Previous=History[HistoryHead];Current.Heights=Previous.Heights;Current.Volume=Previous.Volume;Current.Fill=Previous.Fill;
+    LastRemoved=Previous.Last;TotalRemoved=Previous.Total;FinishCargoEdit();LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;return true;
+}
+bool AShipHatchSimulation::RestoreCargo()
+{
+    if(bEnding||bGenerating||TotalRemoved<=0)return false;
+    const double Start=FPlatformTime::Seconds();Current.Heights=Original.Heights;Current.Volume=Original.Volume;Current.Fill=Original.Fill;
+    HistoryHead=HistoryCount=0;LastRemoved=TotalRemoved=0;FinishCargoEdit();LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;return true;
+}
+void AShipHatchSimulation::FinishCargoEdit()
+{
+    if(MLX)MLX->StopSensor();if(Livox)Livox->StopSensor();
+    FrameGates[0]=MLX?MLX->ScanComponent->GetRuntimeStatus().FrameId:-1;
+    FrameGates[1]=Livox?Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;
+    UpdateCargoMesh(false);++SurfaceRevision;
+    // Cargo edits do not change device profiles, pose or preview preferences.
+    // Reuse the configured sensors and restart only their acquisition generation.
+    for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})if(A)
+    {A->ScanComponent->InvalidateSurfaceResponseCache();A->StartSensor();}
     Status=TEXT("측정 중 · 가려진 영역은 측정 불가");OnSurfaceChanged.Broadcast();
 }
 bool AShipHatchSimulation::SetSensorSelection(bool EnableMLX,bool EnableLivox,bool Native)

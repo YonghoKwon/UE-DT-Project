@@ -30,6 +30,8 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "String/LexFromString.h"
+#include "GameFramework/PlayerController.h"
+#include "Components/LineBatchComponent.h"
 
 namespace {using Style=FSensorOwnedPresentationStyle;}
 struct FShipHatchMonitorWork
@@ -52,8 +54,14 @@ struct FShipHatchMonitorWork
 void UShipHatchMonitorWidget::Bind(AShipHatchMonitorHost* H,AShipHatchSimulation* S)
 {
     Host=H;Simulation=S;if(!S||!SeedInput)return;
-    TGuardValue<bool> Sync(bSync,true);SeedInput->SetText(FText::FromString(LexToString(S->Seed)));
-    MinFill->SetValue(S->FillMin);MaxFill->SetValue(S->FillMax);SensorHeight->SetValue(S->SensorAboveDeck);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SetCameraPreset(2);LastLayout=FVector2D::ZeroVector;Layout();
+    SyncSettings();SetCameraPreset(2);LastLayout=FVector2D::ZeroVector;Layout();
+}
+void UShipHatchMonitorWidget::SyncSettings()
+{
+    const auto* S=Simulation.Get();if(!S||!SeedInput)return;TGuardValue<bool> Sync(bSync,true);
+    SeedInput->SetText(FText::FromString(LexToString(S->Seed)));MinFill->SetValue(S->FillMin);MaxFill->SetValue(S->FillMax);
+    SensorHeight->SetValue(S->SensorAboveDeck);GridSize->SetValue(CellSize);DigRadius->SetValue(RadiusMeters);DigDepth->SetValue(DepthMeters);
+    CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));
 }
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UShipHatchMonitorWidget::NativeOnInitialized()
@@ -84,9 +92,11 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     auto* Toolbar=Card(TEXT("Hatch3dToolbar"));Add(Toolbar);auto* ToolsBox=WidgetTree->ConstructWidget<UVerticalBox>();Toolbar->SetContent(ToolsBox);
     auto* Modes=WidgetTree->ConstructWidget<UHorizontalBox>();ToolsBox->AddChildToVerticalBox(Modes);
     ViewButtons.Add(Button(TEXT("일반 3D"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnRender)));ViewButtons.Add(Button(TEXT("점군"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnPoints)));for(auto B:ViewButtons)Modes->AddChildToHorizontalBox(B)->SetPadding(FMargin(0,0,Style::Gap,0));
+    DigToggle=Button(TEXT("퍼내기 켜기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnDigToggle));Modes->AddChildToHorizontalBox(DigToggle);
     Modes->AddChildToHorizontalBox(Label(TEXT("")))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Modes->AddChildToHorizontalBox(Button(TEXT("최대화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMax3d)));
     auto* Cameras=WidgetTree->ConstructWidget<UHorizontalBox>();ToolsBox->AddChildToVerticalBox(Cameras)->SetPadding(FMargin(0,Style::Gap,0,0));
-    Cameras->AddChildToHorizontalBox(Button(TEXT("위에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnTop)))->SetPadding(FMargin(0,0,Style::Gap,0));Cameras->AddChildToHorizontalBox(Button(TEXT("비스듬히 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnOblique)))->SetPadding(FMargin(0,0,Style::Gap,0));Cameras->AddChildToHorizontalBox(Button(TEXT("초기화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReset)));
+    Cameras->AddChildToHorizontalBox(Button(TEXT("위에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnTop)))->SetPadding(FMargin(0,0,Style::Gap,0));Cameras->AddChildToHorizontalBox(Button(TEXT("비스듬히 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnOblique)))->SetPadding(FMargin(0,0,Style::Gap,0));Cameras->AddChildToHorizontalBox(Button(TEXT("시점 초기화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReset)));
+    UndoButton=Button(TEXT("되돌리기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUndoDig));RestoreButton=Button(TEXT("원래대로"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnRestoreCargo));Cameras->AddChildToHorizontalBox(UndoButton)->SetPadding(FMargin(Style::Gap,0));Cameras->AddChildToHorizontalBox(RestoreButton);
     auto* Top=Card(TEXT("HatchTopCard"));Add(Top);auto* TopBox=WidgetTree->ConstructWidget<UVerticalBox>();Top->SetContent(TopBox);
     auto* TopHead=WidgetTree->ConstructWidget<UHorizontalBox>();TopBox->AddChildToVerticalBox(TopHead);TopHead->AddChildToHorizontalBox(Label(TEXT("2D 상면"),Style::TitleSize,true))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     FillBadge=Label(TEXT("— %"),Style::TitleSize,true,Style::Accent());TopHead->AddChildToHorizontalBox(FillBadge)->SetPadding(FMargin(0,0,Style::Gap,0));TopHead->AddChildToHorizontalBox(Button(TEXT("최대화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMaxTop)));
@@ -94,7 +104,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     auto* Heat=Card(TEXT("HatchHeatCard"));Add(Heat);auto* HeatBox=WidgetTree->ConstructWidget<UVerticalBox>();Heat->SetContent(HeatBox);
     auto* HeatHead=WidgetTree->ConstructWidget<UHorizontalBox>();HeatBox->AddChildToVerticalBox(HeatHead);HeatHead->AddChildToHorizontalBox(Label(TEXT("높이 히트맵"),Style::TitleSize,true))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HeatHead->AddChildToHorizontalBox(Button(TEXT("최대화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMaxHeat)));
     HeatView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();HeatView->Monitor=this;HeatView->bHeatmap=true;HeatCache=WidgetTree->ConstructWidget<UInvalidationBox>();HeatCache->SetCanCache(true);HeatCache->SetContent(HeatView);HeatBox->AddChildToVerticalBox(HeatCache)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HeatBox->AddChildToVerticalBox(Label(TEXT("회색  측정 불가   ·   칸 위에 마우스를 올려 높이 확인"),Style::LabelSize,false,Style::Muted()));
-    auto* Footer=Card(TEXT("HatchFooter"));Footer->SetPadding(FMargin(Style::Gap));Add(Footer);Footer->SetContent(Label(TEXT("높이: 홀드 바닥 기준 · 부피: 관측된 격자만 추정 · 가려진 영역은 전체 부피로 외삽하지 않습니다."),Style::LabelSize,false,Style::Muted()));
+    auto* Footer=Card(TEXT("HatchFooter"));Footer->SetPadding(FMargin(Style::Gap));Add(Footer);DigAmounts=Label(TEXT("이번 0.00 m³ · 누적 0.00 m³  |  부피는 관측 영역 추정 · 회색은 측정 불가"),Style::LabelSize,false,Style::Muted());Footer->SetContent(DigAmounts);
     PointPanel=Card(TEXT("HatchPointOverlay"));Add(PointPanel);auto* PointScroll=WidgetTree->ConstructWidget<UScrollBox>();PointPanel->SetContent(PointScroll);auto* Points=WidgetTree->ConstructWidget<UVerticalBox>();PointScroll->AddChild(Points);Points->AddChildToVerticalBox(Label(TEXT("점군 표시"),Style::BodySize,true));
     auto* Colors=WidgetTree->ConstructWidget<UHorizontalBox>();Points->AddChildToVerticalBox(Colors)->SetPadding(FMargin(0,Style::Gap,0,Style::Gap));
     ColorButtons={Button(TEXT("높이"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHeight)),Button(TEXT("분류"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnClass)),Button(TEXT("반사"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReflection)),Button(TEXT("거리"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnDistance)),Button(TEXT("단색"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMono))};for(auto B:ColorButtons)Colors->AddChildToHorizontalBox(B)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -108,16 +118,26 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     Box->AddChildToVerticalBox(Button(TEXT("적재 상태 바꾸기(랜덤)"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnRandom),true))->SetPadding(FMargin(0,Style::SectionGap,0,Style::Gap));Box->AddChildToVerticalBox(Label(TEXT("시드 · 직접 입력 후 적용"),Style::LabelSize,false,Style::Muted()));SeedInput=WidgetTree->ConstructWidget<UEditableTextBox>();SeedInput->WidgetStyle=Style::Input();Box->AddChildToVerticalBox(SeedInput);
     auto Spin=[&](const TCHAR* Name,float Value,float Min,float Max,float Delta)
     {Box->AddChildToVerticalBox(Label(Name,Style::LabelSize,false,Style::Muted()))->SetPadding(FMargin(0,Style::Gap,0,4));auto* W=WidgetTree->ConstructWidget<USpinBox>();W->SetWidgetStyle(Style::SpinBox());W->SetMinValue(Min);W->SetMaxValue(Max);W->SetMinSliderValue(Min);W->SetMaxSliderValue(Max);W->SetDelta(Delta);W->SetValue(Value);Box->AddChildToVerticalBox(W);return W;};
-    MinFill=Spin(TEXT("최소 적재율 (%)"),35,0,95,1);MaxFill=Spin(TEXT("최대 적재율 (%)"),65,0,95,1);SensorHeight=Spin(TEXT("갑판 위 센서 높이 (m)"),8,2.1,30,.5);Box->AddChildToVerticalBox(Button(TEXT("시드·범위·높이 적용"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnApply)))->SetPadding(FMargin(0,Style::Gap));GridSize=Spin(TEXT("분석 격자 목표 크기 (m)"),1,.25,5,.25);FontChoice=Choice(TEXT("글자 크기"),{TEXT("100%"),TEXT("150%")});
+    const auto* S=Simulation.Get();
+    MinFill=Spin(TEXT("최소 적재율 (%)"),S?S->FillMin:ShipHatch::FSettings().FillMin,0,95,1);MaxFill=Spin(TEXT("최대 적재율 (%)"),S?S->FillMax:ShipHatch::FSettings().FillMax,0,95,1);SensorHeight=Spin(TEXT("갑판 위 센서 높이 (m)"),S?S->SensorAboveDeck:ShipHatch::FSettings().SensorAboveDeck,2.1,30,.5);Box->AddChildToVerticalBox(Button(TEXT("시드·범위·높이 적용"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnApply)))->SetPadding(FMargin(0,Style::Gap));GridSize=Spin(TEXT("분석 격자 목표 크기 (m)"),CellSize,.25,5,.25);FontChoice=Choice(TEXT("글자 크기"),{TEXT("100%"),TEXT("150%")});
+    Box->AddChildToVerticalBox(Label(TEXT("퍼내기 설정"),Style::TitleSize,true))->SetPadding(FMargin(0,Style::SectionGap,0,0));Box->AddChildToVerticalBox(Label(TEXT("원료 짧게 클릭 · 드래그 회전"),Style::LabelSize,false,Style::Muted()));
+    DigRadius=Spin(TEXT("퍼내기 반경 (m)"),RadiusMeters,.5,5,.5);DigDepth=Spin(TEXT("퍼내기 깊이 (m)"),DepthMeters,.1,3,.1);
+    Box->AddChildToVerticalBox(Label(TEXT("되돌리기 최근 16회 · 새 적재 시 초기화"),Style::LabelSize,false,Style::Muted()));
+    DigRadius->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDigRadius);DigDepth->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDigDepth);
     Box->AddChildToVerticalBox(Button(TEXT("센서 도구 · PCD 전송 / 파일 저장"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnTools)))->SetPadding(FMargin(0,Style::SectionGap,0,Style::Gap));Box->AddChildToVerticalBox(Button(TEXT("분석 JSON 저장 · 현재 측정값"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnExport)));StatsText=Label(TEXT(""),Style::LabelSize,false,Style::Muted());StatsText->SetAutoWrapText(true);Box->AddChildToVerticalBox(StatsText)->SetPadding(FMargin(0,Style::Gap));
     CargoChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnCargo);SensorChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSensor);FontChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFont);GridSize->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnGrid);SizeSlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSizeSlider);DensitySlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDensitySlider);SetFontPercent(100);UpdateSegments();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-void UShipHatchMonitorWidget::NativeDestruct(){Work.Reset();Super::NativeDestruct();}
-void UShipHatchMonitorWidget::SetSplitView(bool Enabled){if(Enabled&&ActiveView>=2)SelectView(LastSceneView);bSplit=Enabled;LastLayout=FVector2D::ZeroVector;Layout();}
+void UShipHatchMonitorWidget::NativeDestruct(){RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
+void UShipHatchMonitorWidget::RestorePointVisibility()
+{
+    if(auto* PC=GetOwningPlayer())for(const auto& Part:StalePointHides)PC->HiddenPrimitiveComponents.RemoveSingle(Part);
+    StalePointHides.Reset();
+}
+void UShipHatchMonitorWidget::SetSplitView(bool Enabled){bOrbit=false;if(Enabled&&ActiveView>=2)SelectView(LastSceneView);bSplit=Enabled;LastLayout=FVector2D::ZeroVector;Layout();}
 void UShipHatchMonitorWidget::SelectView(int32 V)
 {
-    ActiveView=FMath::Clamp(V,0,3);if(ActiveView>=2)bSplit=false;else LastSceneView=ActiveView;
+    bOrbit=false;ActiveView=FMath::Clamp(V,0,3);if(ActiveView>=2)bSplit=false;else LastSceneView=ActiveView;
     if(auto* H=Host.Get())if(H->Coordinator)H->Coordinator->SetPointCloudOnlyMode(ActiveView==1);
     ApplyPreview();UpdateSegments();LastLayout=FVector2D::ZeroVector;Layout();
 }
@@ -159,7 +179,7 @@ void UShipHatchMonitorWidget::Layout()
 void UShipHatchMonitorWidget::SetFontPercent(int32 Percent)
 {
     InvalidatePlots();
-    FontScale=Percent==150?1.5f:1.f;for(int32 I=0;I<TextBlocks.Num();++I){auto F=TextBlocks[I]->GetFont();F.Size=FMath::RoundToInt(BaseFontSizes[I]*FontScale);TextBlocks[I]->SetFont(F);}for(auto* Spin:{MinFill.Get(),MaxFill.Get(),SensorHeight.Get(),GridSize.Get()})if(Spin)Spin->SetFont(Style::Font(Style::BodySize,FontScale));
+    bOrbit=false;FontScale=Percent==150?1.5f:1.f;for(int32 I=0;I<TextBlocks.Num();++I){auto F=TextBlocks[I]->GetFont();F.Size=FMath::RoundToInt(BaseFontSizes[I]*FontScale);TextBlocks[I]->SetFont(F);}for(auto* Spin:{MinFill.Get(),MaxFill.Get(),SensorHeight.Get(),GridSize.Get(),DigRadius.Get(),DigDepth.Get()})if(Spin)Spin->SetFont(Style::Font(Style::BodySize,FontScale));
     PRAGMA_DISABLE_DEPRECATION_WARNINGS
     if(SeedInput){SeedInput->WidgetStyle.SetTextStyle(FTextBlockStyle().SetFont(Style::Font(Style::BodySize,FontScale)));SeedInput->SynchronizeProperties();}TGuardValue<bool> Sync(bSync,true);for(auto* Combo:{CargoChoice.Get(),SensorChoice.Get(),FontChoice.Get()})if(Combo){const int32 Index=Combo->GetSelectedIndex();Combo->Font=Style::Font(Style::BodySize,FontScale);Combo->ClearSelection();Combo->SetSelectedIndex(Index);Combo->RefreshOptions();}if(FontChoice)FontChoice->SetSelectedIndex(Percent==150?1:0);
     PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -168,6 +188,7 @@ void UShipHatchMonitorWidget::SetFontPercent(int32 Percent)
 void UShipHatchMonitorWidget::Refresh()
 {
     auto* S=Simulation.Get();if(!S||!IsVisible()||!StatusText)return;Layout();if(bWasGenerating!=!S->HasFreshMeasurement()){bWasGenerating=!S->HasFreshMeasurement();ApplyPreview();InvalidatePlots();}
+    UpdateDigControls();
     if(LastRevision!=S->Revision())
     {LastRevision=S->Revision();LastMLX=-1;LastLivox=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}for(auto Value:MetricValues)Value->SetText(FText::FromString(TEXT("—")));ApplyPreview();}
     const bool MLXRunning=S->bMLX&&S->MLX&&S->MLX->IsSensorRunning(),LivoxRunning=S->bLivox&&S->Livox&&S->Livox->IsSensorRunning();
@@ -179,7 +200,7 @@ void UShipHatchMonitorWidget::Refresh()
     if(bSettings)StatsText->SetText(FText::FromString(FString::Printf(TEXT("%s\n시드 %d · 경사 상한 %.1f°\n밀도 가정 %.0f kg/m³ · 홀드 %.1f × %.1f × %.1f m\nPCD 기본 선택 · 분석 저장은 버튼으로만"),*S->Status,S->Seed,S->Surface().Repose,S->Surface().Density,S->HoldWidth,S->HoldLength,S->HoldDepth)));
     if(!S->HasFreshMeasurement())return;RefreshAnalysis();if(Work&&!Work->ExportRequest.IsEmpty()){const auto R=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(Work->ExportRequest);if(R.IsTerminal()){S->Status=R.Message;Work->ExportRequest.Reset();}}
 }
-const ShipHatch::FAnalysis* UShipHatchMonitorWidget::GetAnalysis() const{return Work&&Simulation.IsValid()&&Simulation->HasFreshMeasurement()&&Work->Current.Revision==Simulation->Revision()?&Work->Current.Analysis:nullptr;}
+const ShipHatch::FAnalysis* UShipHatchMonitorWidget::GetAnalysis() const{return Work&&Simulation.IsValid()&&Simulation->HasFreshMeasurement()&&Work->Current.Revision==Simulation->Revision()&&Work->Current.Cell==CellSize?&Work->Current.Analysis:nullptr;}
 const ShipHatch::FSettings* UShipHatchMonitorWidget::GetAnalysisSettings() const{return GetAnalysis()?&Work->Current.Settings:nullptr;}
 FText UShipHatchMonitorWidget::CellTooltip(int32 I) const
 {const auto* A=GetAnalysis();if(!A||!A->Cells.IsValidIndex(I))return FText::GetEmpty();const auto& C=A->Cells[I];return FText::FromString(C.Count?FString::Printf(TEXT("격자 %d, %d · 평균 높이 %.2f m · 검출 %d점"),I%A->NX+1,I/A->NX+1,C.Mean(),C.Count):TEXT("측정 불가 · 검출점 없음"));}
@@ -193,7 +214,19 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
     auto Points=MoveTemp(Work->ObservationScratch);S->CollectObservations(Points);const auto Settings=S->Surface().Settings;const auto Pose=S->GetActorTransform();const double Cell=CellSize;const uint64 Revision=S->Revision();
     Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Settings,Pose,Cell,Revision,M,L]() mutable{FShipHatchMonitorWork::FResult R;R.Revision=Revision;R.Cell=Cell;R.MLX=M;R.Livox=L;R.Settings=Settings;R.HoldPose=Pose;R.Analysis=ShipHatch::Analyze(Settings,Cell,Points);R.Observations=MoveTemp(Points);return R;});
 }
-void UShipHatchMonitorWidget::OnSettings(){bSettings=!bSettings;LastLayout=FVector2D::ZeroVector;Layout();}
+void UShipHatchMonitorWidget::OnSettings(){bOrbit=false;bSettings=!bSettings;LastLayout=FVector2D::ZeroVector;Layout();}
+void UShipHatchMonitorWidget::OnDigToggle(){bOrbit=false;bDigEnabled=!bDigEnabled;UpdateDigControls();}
+void UShipHatchMonitorWidget::OnUndoDig(){bOrbit=false;if(Simulation.IsValid()&&Simulation->UndoDig())Refresh();}
+void UShipHatchMonitorWidget::OnRestoreCargo(){bOrbit=false;if(Simulation.IsValid()&&Simulation->RestoreCargo())Refresh();}
+void UShipHatchMonitorWidget::UpdateDigControls()
+{
+    const auto* S=Simulation.Get();if(!S||!DigToggle)return;
+    if(LastDigRevision==S->Revision()&&bLastDigEnabled==bDigEnabled&&bLastDigGenerating==S->IsGenerating())return;
+    LastDigRevision=S->Revision();bLastDigEnabled=bDigEnabled;bLastDigGenerating=S->IsGenerating();
+    DigToggle->SetStyle(bDigEnabled?Style::PrimaryButton():Style::Button());CastChecked<UTextBlock>(DigToggle->GetContent())->SetText(FText::FromString(bDigEnabled?TEXT("퍼내기 켜짐"):TEXT("퍼내기 켜기")));
+    DigToggle->SetIsEnabled(!S->IsGenerating());UndoButton->SetIsEnabled(!S->IsGenerating()&&S->UndoCount()>0);RestoreButton->SetIsEnabled(!S->IsGenerating()&&S->TotalRemovedVolume()>0);
+    DigAmounts->SetText(FText::FromString(FString::Printf(TEXT("이번 %.2f m³ · 누적 %.2f m³  |  부피는 관측 영역 추정 · 회색은 측정 불가"),S->LastRemovedVolume(),S->TotalRemovedVolume())));
+}
 void UShipHatchMonitorWidget::OnSizeSlider(float V){PointSizeLabel->SetText(FText::FromString(FString::Printf(TEXT("점 크기  %.1f"),V)));ApplyPreview();}
 void UShipHatchMonitorWidget::OnDensitySlider(float V){DensityLabel->SetText(FText::FromString(FString::Printf(TEXT("표시 밀도  %.0f%%"),100./FMath::Max(1,FMath::RoundToInt(100./V)))));ApplyPreview();}
 void UShipHatchMonitorWidget::SetCameraPreset(int32 P){OrbitYaw=P==0?90:48;OrbitPitch=P==0?-89:-62;OrbitDistance=7800;UpdateCamera();}
@@ -221,14 +254,28 @@ void UShipHatchMonitorWidget::UpdateCamera()
     H->ViewCamera->SetActorLocationAndRotation(Target-Rotation.Vector()*(FitDistance*OrbitDistance/7800.),Rotation);
     H->ViewCamera->GetCameraComponent()->SetFieldOfView(58);H->ViewCamera->GetCameraComponent()->SetConstraintAspectRatio(false);
 }
+bool UShipHatchMonitorWidget::SceneInputAt(const FGeometry& G,FVector2D P) const
+{
+    if(!IsVisible()||!(bSplit||ActiveView<2)||!SceneRect.ContainsPoint(G.AbsoluteToLocal(P)))return false;
+    if(bSettings&&SettingsPanel->GetCachedGeometry().IsUnderLocation(P))return false;
+    return ActiveView!=1||!PointPanel->GetCachedGeometry().IsUnderLocation(P);
+}
+bool UShipHatchMonitorWidget::DigAt(const FGeometry& G,FVector2D P)
+{
+    if(!bDigEnabled||!Simulation.IsValid()||!SceneInputAt(G,P))return false;
+    auto* PC=GetOwningPlayer();if(!PC)return false;int32 W=0,H=0;PC->GetViewportSize(W,H);
+    const auto Size=G.GetLocalSize(),Local=G.AbsoluteToLocal(P);if(Size.X<=0||Size.Y<=0)return false;
+    FVector O,D;if(!PC->DeprojectScreenPositionToWorld(Local.X*W/Size.X,Local.Y*H/Size.Y,O,D))return false;
+    if(!Simulation->Dig(O,D,RadiusMeters,DepthMeters))return false;Refresh();return true;
+}
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
-{if((bSplit||ActiveView<2)&&SceneRect.ContainsPoint(G.AbsoluteToLocal(E.GetScreenSpacePosition()))&&E.GetEffectingButton()==EKeys::LeftMouseButton){bOrbit=true;return FReply::Handled().CaptureMouse(TakeWidget());}return Super::NativeOnMouseButtonDown(G,E);}
+{if(SceneInputAt(G,E.GetScreenSpacePosition())&&E.GetEffectingButton()==EKeys::LeftMouseButton){bOrbit=true;bDragged=false;PointerDown=E.GetScreenSpacePosition();PointerDownTime=FPlatformTime::Seconds();PointerRevision=Simulation.IsValid()?Simulation->Revision():0;return FReply::Handled().CaptureMouse(TakeWidget());}return Super::NativeOnMouseButtonDown(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonUp(const FGeometry& G,const FPointerEvent& E)
-{if(bOrbit&&E.GetEffectingButton()==EKeys::LeftMouseButton){bOrbit=false;return FReply::Handled().ReleaseMouseCapture();}return Super::NativeOnMouseButtonUp(G,E);}
+{if(E.GetEffectingButton()==EKeys::LeftMouseButton&&(bOrbit||TakeWidget()->HasMouseCapture())){const bool Candidate=bOrbit;bOrbit=false;if(Candidate&&!bDragged&&(E.GetScreenSpacePosition()-PointerDown).Size()<=6&&FPlatformTime::Seconds()-PointerDownTime<=.35&&Simulation.IsValid()&&PointerRevision==Simulation->Revision())DigAt(G,E.GetScreenSpacePosition());return FReply::Handled().ReleaseMouseCapture();}return Super::NativeOnMouseButtonUp(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseMove(const FGeometry& G,const FPointerEvent& E)
-{if(bOrbit){OrbitYaw+=E.GetCursorDelta().X*.25;OrbitPitch=FMath::Clamp(OrbitPitch-E.GetCursorDelta().Y*.25,-89.,-15.);UpdateCamera();return FReply::Handled();}return Super::NativeOnMouseMove(G,E);}
+{if(bOrbit){bDragged|=(E.GetScreenSpacePosition()-PointerDown).Size()>6;if(bDragged){OrbitYaw+=E.GetCursorDelta().X*.25;OrbitPitch=FMath::Clamp(OrbitPitch-E.GetCursorDelta().Y*.25,-89.,-15.);UpdateCamera();}return FReply::Handled();}return Super::NativeOnMouseMove(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
-{if((bSplit||ActiveView<2)&&SceneRect.ContainsPoint(G.AbsoluteToLocal(E.GetScreenSpacePosition()))){OrbitDistance=FMath::Clamp(OrbitDistance*FMath::Pow(.88,E.GetWheelDelta()),2500.,18000.);UpdateCamera();return FReply::Handled();}return Super::NativeOnMouseWheel(G,E);}
+{if(SceneInputAt(G,E.GetScreenSpacePosition())){bOrbit=false;OrbitDistance=FMath::Clamp(OrbitDistance*FMath::Pow(.88,E.GetWheelDelta()),2500.,18000.);UpdateCamera();return FReply::Handled().ReleaseMouseCapture();}return Super::NativeOnMouseWheel(G,E);}
 void UShipHatchMonitorWidget::NativeOnMouseCaptureLost(const FCaptureLostEvent& E){bOrbit=false;Super::NativeOnMouseCaptureLost(E);}
 
 void UShipHatchMonitorWidget::ApplyPreview()
@@ -236,14 +283,30 @@ void UShipHatchMonitorWidget::ApplyPreview()
     auto* S=Simulation.Get();if(!S)return;
     for(auto* A:{S->MLX.Get(),S->Livox.Get()})if(A)
     {
-        auto* V=A->VisualizationComponent.Get();auto Settings=V->GetVisualizationSettings();
+        auto* V=A->VisualizationComponent.Get();const auto Previous=V->GetVisualizationSettings();auto Settings=Previous;
         const ELidarColorMode Modes[]={ELidarColorMode::RelativeHeight,ELidarColorMode::SemanticLabel,ELidarColorMode::ReflectionIntensity,ELidarColorMode::DistanceTurbo,ELidarColorMode::HitMask};
         Settings.ColorMode=Modes[ActiveColor];Settings.bAutoHeightRange=false;Settings.HeightReference=ELidarHeightReference::WorldZ;
         Settings.HeightMinMeters=S->GetActorLocation().Z*.01;Settings.HeightMaxMeters=Settings.HeightMinMeters+S->HoldDepth;
         Settings.PointSize=SizeSlider?SizeSlider->GetValue():3;
-        V->SetColoredCpuPointPreview(true);V->SetHeightJetPalette(ActiveColor==0,TEXT("HatchCargo"));V->SetVisualizationSettings(Settings);
-        A->ScanComponent->SetPreviewPolicy(FMath::RoundToInt(DensitySlider?100.f/DensitySlider->GetValue():2),12000,true);
-        V->SetWorldPointCloudEnabled(ActiveView==1&&S->HasFreshMeasurement()&&((A==S->MLX&&S->bMLX)||(A==S->Livox&&S->bLivox)));
+        const bool Selected=(A==S->MLX&&S->bMLX)||(A==S->Livox&&S->bLivox),Fresh=S->HasFreshMeasurement();
+        Settings.bShowWorldPointCloud=ActiveView==1&&Selected;
+        V->SetColoredCpuPointPreview(true);V->SetHeightJetPalette(ActiveColor==0,TEXT("HatchCargo"));
+        TInlineComponentArray<ULineBatchComponent*> Batches(A);bool WasHidden=false;
+        for(auto* Batch:Batches)WasHidden|=StalePointHides.Contains(Batch);
+        // Keep fixed-size point proxies alive through edits. Only this player's
+        // visibility list hides stale acquisitions; no empty/full proxy churn,
+        // global visibility change, capture/readback, or sensor-buffer fork.
+        if((Fresh&&WasHidden)||!FVirtualLidarVisualizationSettings::StaticStruct()->CompareScriptStruct(&Previous,&Settings,PPF_None))V->SetVisualizationSettings(Settings);
+        Batches.Reset();A->GetComponents(Batches);
+        if(auto* PC=GetOwningPlayer())for(auto* Batch:Batches)
+        {
+            const TWeakObjectPtr<UPrimitiveComponent> Part(Batch);
+            if(Settings.bShowWorldPointCloud&&!Fresh)
+            {if(!PC->HiddenPrimitiveComponents.Contains(Part)){PC->HiddenPrimitiveComponents.Add(Part);StalePointHides.Add(Part);}}
+            else if(StalePointHides.Remove(Part))PC->HiddenPrimitiveComponents.RemoveSingle(Part);
+        }
+        const int32 Stride=FMath::RoundToInt(DensitySlider?100.f/DensitySlider->GetValue():2);const auto Policy=A->ScanComponent->GetPreviewPolicyState();
+        if(Policy.PointStride!=Stride||Policy.MaxPoints!=12000||!Policy.bHitOnly)A->ScanComponent->SetPreviewPolicy(Stride,12000,true);
     }
 }
 void UShipHatchMonitorWidget::OnApply()

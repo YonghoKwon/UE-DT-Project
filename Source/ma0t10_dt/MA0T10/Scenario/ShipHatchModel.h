@@ -39,6 +39,13 @@ struct MA0T10_DT_API FAnalysis
 };
 MA0T10_DT_API FSurface Generate(const FSettings& Settings);
 MA0T10_DT_API void GenerateInto(const FSettings& Settings,FSurface& Surface,TArray<double>& ShapeScratch);
+/** Integral of the rendered/collision triangles, in cubic meters. */
+MA0T10_DT_API double Integrate(const FSurface& Surface);
+/** Nearest nonempty triangle along a hold-local SI ray; no sensor acquisition. */
+MA0T10_DT_API bool Raycast(const FSurface& Surface,FVector Origin,FVector Direction,FVector& Hit);
+/** Grab bowl followed by volume-conserving triangular-face repose relaxation.
+ * Radius is the grab footprint; the relaxed shoulder may extend beyond it. */
+MA0T10_DT_API double Excavate(FSurface& Surface,FVector2D Center,double Radius,double Depth);
 MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points);
 MA0T10_DT_API FColor Jet(double Normalized);
 MA0T10_DT_API double Reflectivity(ECargo Cargo);
