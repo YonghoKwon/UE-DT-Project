@@ -6,6 +6,15 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-19 HATCH-01 — 절차 해치·홀드 원료 측정
+
+- 사용자2026-10-19, `feat/ship-hatch-sim`, 시작8320d70 / 시작master292d03d / DTCore b2504d1. Runtime226cf64까지 새 ShipHatchTestMap1개, L2 결정적 높이장·메시/충돌 refit·기존 ML-X Integration/Native/Livox CPU 프로필, L3 UDxWidget 모니터·기존 PointCloudOnly/preview·별도 관측 격자/부분 부피·명시적 FileSave JSON을 구현했다. 기존 wire/Blueprint API/SaveGame·DTCore·다른 자산·모듈/플러그인 경계는 유지한다.
+- **미해결:** 최종 집중 `HATCH01.RuntimeRhi`1개는 working set10.28515625MiB 증가가8MiB 기준을 넘어 FAIL. committed 증가는1.7578125MiB, 보유 acquisition/preview 버퍼 allocation은 전후 exact, 형상 Actor4개다. threshold를 높이거나 assertion을 제거하지 않았다.50회 mesh최대4.9354ms·engine17.8031ms·GT14.6544ms·callback24.2277ms, fresh 형상 대비 높이 최대오차0.03427m와 숨김 분석0·측정 지속·화면 어휘41개·PCD bytes 불변·선택 JSON1/자동0은 통과했다.
+- 표준release `Saved/Reports/verify/20261019T051050540Z/manifest.json`:14단계·고유310 Success/40조건부skip/실패0, 모델3·WBP7 메모리compile/저장0·렌더 어휘·WireGolden 통과. Python12+19+38=69 Success. 자동24 PNG는1920×1080·DPI1·2재료×6보기×100/150%이며 직접 입력과 구분한다.
+- 해치 맵 D3D12 windowed/RenderOffscreen=false,10초준비+30초: ML-X1대59.9992FPS/engine p9516.6669ms/GT6.2682ms/실제6.1965Hz;2대59.9994FPS/16.6669ms/6.3656ms/ML-X2.9651·Livox3.2982Hz. 요청20/10Hz와 실제율을 구분한다. 외부 송신·수신·receipt/업무 ACK 수용은 미수행이다.
+- Computer Use는 선택 PIE 창에서 **Windows 잠금 화면**을 관찰했다. 입력/활성화/보안 조작0, 직접8행 모두 환경보류; 자신이 띄운 Editor/PIE는 finish flag로 exit0 종료. 자동 캡처/Slate를 직접 수용으로 올리지 않았다. 이후 표준 기존 맵 ABAB 결과와 보호/개인 복원 최종 상태는 [HATCH-01 결과](../Saved/Reports/HATCH-01/RESULT.md)와 [인계](../Saved/Reports/HATCH-01/DONE.md)를 따른다. 초기 compile/fixture/검은 캡처·Rotator·두 점군 숨김·거리 cache·RSS 실패 원문을 보존했다.
+- 표준perf `Saved/Reports/verify/20261019T051759722Z/perf/manifest.json`:292d03d→226cf64, 같은 DTCore/검수맵/D3D12/1920×1080/1Camera+1LiDAR/출력·UI·backend,10+30초 ABAB12회(각6),invalid0,2% PASS. 중앙값 FPS59.9952240→59.9938943(저하0.0022164%),engine p9516.6669004ms 동일,GT6.5084112→6.5553713ms(+0.7215288%). windowed/Visible 요청 실행과 물리 표시 수용을 구분한다. 소유 임시 archive 빌드 복사본 정리·Editor0, 개인141파일 byte 복원·새 개인파일33개 보관 후 제거, 보호300/Inspection272/Source hash 불일치0을 확인했다. RSS 실패/직접 보류를 이 상대 성능 PASS로 대체하지 않는다.
+
 ## 2026-10-15 PCD-OPT — 전송률 자동 조절·혼잡 대기·PIE hitch 조사
 
 - 사용자2026-10-15: 적용 대상은 운영 서버 PC의 Editor PIE이며 화면 전체/Slab 멈춤이다. 로그/시나리오/사양 제공 없이 근거 있는 추정 수정을 승인했다. 폴더 `C:\Unreal Projects\ma0t10_dt`, 기존 `perf/pcd-transport-opt`, 기준291b4f9 / DTCore b2504d1. 새 branch/worktree·push/PR/merge 없음.
