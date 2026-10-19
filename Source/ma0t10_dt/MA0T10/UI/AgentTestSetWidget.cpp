@@ -44,7 +44,8 @@ void UAgentTestSetWidget::Refresh()
     PreviewBrush.DrawAs=Texture?ESlateBrushDrawType::Image:ESlateBrushDrawType::NoDrawType;
     if(Details)
     {
-        FString Text=FString::Printf(TEXT("소재 번호 %s · 원본 매 %d행 저장\n%s · %s"),*C.Trigger,C.SampleStride,C.Pipeline?TEXT("병렬 저장"):TEXT("순차 저장"),C.CaptureCamera?TEXT("카메라 포함"):TEXT("LiDAR PCD + 라벨"));
+        FString Text=FString::Printf(TEXT("소재 번호 %s · 등록 %d개\n%s · %s"),*C.Trigger,S->Items().Num(),C.Pipeline?TEXT("병렬 저장"):TEXT("순차 저장"),C.CaptureCamera?TEXT("카메라 포함"):TEXT("LiDAR PCD + 라벨"));
+        if(!C.AutoFillExamples)Text+=FString::Printf(TEXT("\n원본 매 %d행 저장"),C.SampleStride);
         if(C.AutoFillExamples)Text+=FString::Printf(TEXT("\n예시 자동 채우기 · 시드 %d\n원본 수신 시 예시를 바꾸고 이전 파일은 examples_replaced에 보관합니다."),C.ExampleSeed);
         Text+=FString::Printf(TEXT("\n정답 %s · IMU %s · 사실성 %s · 생성 후 변환 %s"),C.CameraTruth?TEXT("켬"):TEXT("끔"),C.IncludeImu?TEXT("켬"):TEXT("끔"),C.LidarFidelity?TEXT("켬"):TEXT("끔"),*C.ExportFormat);
         if(S->Items().IsValidIndex(Selected)){const auto& I=S->Items()[Selected];Text+=FString::Printf(TEXT("\n%s\n%s · %d / %d 프레임 · %.1f초"),*I.ScenarioId,*I.Message,I.CompletedFrames,I.Frames,I.Seconds);}
