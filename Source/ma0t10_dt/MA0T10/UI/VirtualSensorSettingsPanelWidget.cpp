@@ -1148,7 +1148,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedAutomationContr
       .Text(LOCTEXT("OwnedDatasetLinkHint","대상·조건·COCO / KITTI 3D는 기존 파일 저장 화면에서 설정합니다. 열기만으로 생성을 시작하지 않습니다."))];
     Utilities->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton)
       .OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace())W->OpenTestSet();return FReply::Handled();})
-      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedTestSetLink","AI 시나리오 테스트셋 열기"))]];
+      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedTestSetLink","시나리오 테스트셋 열기"))]];
     return Utilities;
 }
 

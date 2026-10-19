@@ -35,8 +35,6 @@ void UAgentTestSetWidget::Refresh()
     Summary=FText::FromString(FString::Printf(TEXT("완료 %d / %d"),S->Completed(),C.Target));Progress=float(S->Completed())/C.Target;
     const double Rate=S->ScenariosPerSecond(),Remaining=S->RemainingSeconds();
     Timing=FText::FromString(Rate>0?(Ready?FString::Printf(TEXT("평균 %.1f개/초 · 남은 시간 0초"),Rate):FString::Printf(TEXT("%.1f개/초 · 남은 시간 약 %.0f초"),Rate,FMath::Max(0.,Remaining))):TEXT("처리 속도 · 남은 시간 계산 대기"));
-    int32 Examples=0;for(const auto& I:S->Items())Examples+=I.Example;
-    Origins=FText::FromString(FString::Printf(TEXT("원본 %d · 예시 %d"),S->Items().Num()-Examples,Examples));
     if(FPlatformTime::Seconds()>ConfirmUntil)Status=FText::FromString(S->Message());
     const auto View=S->PreviewStatus();PreviewVisible=View.Scenario!=INDEX_NONE;
     PreviewText=FText::FromString(PreviewVisible?FString::Printf(TEXT("%s · 프레임 %d / %d · 점 %d개"),*View.Message,View.Frame+1,View.Frames,View.Points):TEXT("완료 시나리오를 선택하면 저장된 점군을 봅니다"));
@@ -46,7 +44,6 @@ void UAgentTestSetWidget::Refresh()
     {
         FString Text=FString::Printf(TEXT("소재 번호 %s · 등록 %d개\n%s · %s"),*C.Trigger,S->Items().Num(),C.Pipeline?TEXT("병렬 저장"):TEXT("순차 저장"),C.CaptureCamera?TEXT("카메라 포함"):TEXT("LiDAR PCD + 라벨"));
         if(!C.AutoFillExamples)Text+=FString::Printf(TEXT("\n원본 매 %d행 저장"),C.SampleStride);
-        if(C.AutoFillExamples)Text+=FString::Printf(TEXT("\n예시 자동 채우기 · 시드 %d\n원본 수신 시 예시를 바꾸고 이전 파일은 examples_replaced에 보관합니다."),C.ExampleSeed);
         Text+=FString::Printf(TEXT("\n정답 %s · IMU %s · 사실성 %s · 생성 후 변환 %s"),C.CameraTruth?TEXT("켬"):TEXT("끔"),C.IncludeImu?TEXT("켬"):TEXT("끔"),C.LidarFidelity?TEXT("켬"):TEXT("끔"),*C.ExportFormat);
         if(S->Items().IsValidIndex(Selected)){const auto& I=S->Items()[Selected];Text+=FString::Printf(TEXT("\n%s\n%s · %d / %d 프레임 · %.1f초"),*I.ScenarioId,*I.Message,I.CompletedFrames,I.Frames,I.Seconds);}
         DetailText=FText::FromString(Text);
@@ -77,9 +74,9 @@ void UAgentTestSetWidget::Refresh()
         {
             RowStates[N]=uint8(I.State);const TCHAR* State=I.State==EAgentTestSetItemState::Waiting?TEXT("대기"):I.State==EAgentTestSetItemState::Generating?TEXT("생성 중"):I.State==EAgentTestSetItemState::Completed?TEXT("완료"):TEXT("실패");
             RowIds[N]=I.ScenarioId;
-            Rows[N]->SetText(FText::FromString(FString::Printf(TEXT("%s  %03d  [%s]  %s"),I.State==EAgentTestSetItemState::Completed?TEXT("✓"):I.State==EAgentTestSetItemState::Failed?TEXT("!"):I.State==EAgentTestSetItemState::Generating?TEXT("●"):TEXT("○"),N+1,I.Example?TEXT("예시"):TEXT("원본"),State)));
+            Rows[N]->SetText(FText::FromString(FString::Printf(TEXT("%s  %03d  %s"),I.State==EAgentTestSetItemState::Completed?TEXT("✓"):I.State==EAgentTestSetItemState::Failed?TEXT("!"):I.State==EAgentTestSetItemState::Generating?TEXT("●"):TEXT("○"),N+1,State)));
         }
-        const FString Tip=I.ScenarioId+TEXT("\n")+I.Message+(I.Example?TEXT("\n예시 시나리오"):TEXT("\n수신 원본"));
+        const FString Tip=I.ScenarioId+TEXT("\n")+I.Message;
         if(RowMessages[N]!=Tip){RowMessages[N]=Tip;Rows[N]->SetToolTipText(FText::FromString(Tip));}
     }
 }
@@ -103,8 +100,7 @@ TSharedRef<SWidget> UAgentTestSetWidget::RebuildWidget()
       +SVerticalBox::Slot().AutoHeight()[Text(TAttribute<FText>::CreateLambda([this](){return Summary;}),16)]
       +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SBox).HeightOverride(4)[SNew(SProgressBar).Style(&FSensorOwnedPresentationStyle::Progress()).FillColorAndOpacity(GetToolAccentColor()).Percent_Lambda([this](){return Progress;})]]
       +SVerticalBox::Slot().AutoHeight()[Text(TAttribute<FText>::CreateLambda([this](){return Timing;}),12)]
-      +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,8)[Text(TAttribute<FText>::CreateLambda([this](){return Origins;}),11)]
-      +SVerticalBox::Slot().AutoHeight()[Controls]
+      +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Controls]
       +SVerticalBox::Slot().AutoHeight().Padding(0,8)
        [SNew(SBox).Visibility_Lambda([this](){return !Ready||FPlatformTime::Seconds()<=ConfirmUntil?EVisibility::Visible:EVisibility::Collapsed;})[Text(TAttribute<FText>::CreateLambda([this](){return Status;}))]]
       +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
@@ -126,7 +122,7 @@ TSharedRef<SWidget> UAgentTestSetWidget::RebuildWidget()
           +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Button(TEXT("세트 초기화"),[this](){if(auto* S=Service())if(FPlatformTime::Seconds()>ConfirmUntil){ConfirmUntil=FPlatformTime::Seconds()+8;Status=FText::FromString(TEXT("8초 안에 다시 누르면 목록을 비웁니다 · 기존 파일 유지"));}else{FString Error;S->ResetConfirmed(Error);ConfirmUntil=0;Selected=INDEX_NONE;SeenRevision=-1;Refresh();}})]]]];
     SeenRevision=-1;Rows.Reset();RowMessages.Reset();RowStates.Reset();RowIds.Reset();Refresh();
     return BuildToolPanelFrame(SNew(SBorder).BorderImage(GetToolPanelBrush()).BorderBackgroundColor(GetToolPanelColor()).Padding(16)
-      [SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(FText::FromString(TEXT("AI 시나리오 테스트셋")))]
+      [SNew(SVerticalBox)+SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(FText::FromString(TEXT("시나리오 테스트셋")))]
         +SVerticalBox::Slot().FillHeight(1).Padding(0,12,0,0)[SNew(SBox).Visibility_Lambda([this](){return GetPanelBodyVisibility();})[Contents]]]);
 }
 void UAgentTestSetWidget::NativeTick(const FGeometry& Geometry,float Delta)

@@ -104,8 +104,8 @@ public:
         }
         if(Phase==2)
         {
-            Click(Slate.ToSharedRef(),TEXT("AI 시나리오 테스트셋 열기"),Test);auto* First=W->GetTestSetWidget();Test->TestNotNull(TEXT("TESTSET link uses existing DTCore-managed screen"),First);
-            Click(Slate.ToSharedRef(),TEXT("AI 시나리오 테스트셋 열기"),Test);Test->TestTrue(TEXT("repeated TESTSET link keeps same instance"),First==W->GetTestSetWidget());if(First)First->RemoveFromParent();
+            Click(Slate.ToSharedRef(),TEXT("시나리오 테스트셋 열기"),Test);auto* First=W->GetTestSetWidget();Test->TestNotNull(TEXT("TESTSET link uses existing DTCore-managed screen"),First);
+            Click(Slate.ToSharedRef(),TEXT("시나리오 테스트셋 열기"),Test);Test->TestTrue(TEXT("repeated TESTSET link keeps same instance"),First==W->GetTestSetWidget());if(First)First->RemoveFromParent();
             Job=FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-18/routes-job.json");FFileHelper::SaveStringToFile(TEXT("{\"schema\":\"ma0t10.job.v1\",\"result_path\":\"routes-job-result.json\",\"steps\":[{\"op\":\"wait\",\"seconds\":1}]}"),*Job);
             Test->TestTrue(TEXT("test job uses existing admission"),World->GetSubsystem<UAutomationControlSubsystem>()->StartJob(Job,false));Phase=3;Wait=Now+.5;return false;
         }

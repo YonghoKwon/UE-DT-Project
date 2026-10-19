@@ -162,7 +162,7 @@ bool UAgentTestSetSubsystem::Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,
     {
         // Reserve immediately, replace only after all owners of that slot have drained.
         StopPreview();S.Inputs[Replace].Replacement=Data;S.Inputs[Replace].ReplacementBytes=Bytes;S.InputBytes+=Bytes;
-        S.SavedCompleted=0;S.Message=TEXT("원본 수신 · 예시를 원본으로 바꾸는 중");++S.Revision;EnsurePump();return true;
+        S.SavedCompleted=0;S.Message=TEXT("새 시나리오 수신 · 목록 갱신 중");++S.Revision;EnsurePump();return true;
     }
     Item.SourceUUID=Data->ScenarioUUID;
     Item.Directory=S.Root/FString::Printf(TEXT("scenario_%03d_%s"),S.Items.Num()+1,*Item.ScenarioId);Item.Message=TEXT("대기");
@@ -366,9 +366,9 @@ void UAgentTestSetSubsystem::Pump()
             FAgentTestSetItem Item;Item.ScenarioId=Input.Replacement->ScenarioUUID;Item.SourceUUID=Item.ScenarioId;Item.RunId=NewTestSetId();Item.Frames=FMath::DivideAndRoundUp(Input.Replacement->Rows.Num(),Config.SampleStride);Item.Message=TEXT("원본 생성 대기");Item.Directory=S.Root/FString::Printf(TEXT("scenario_%03d_%s"),N+1,*Item.ScenarioId);
             if(Config.AutoFillExamples)Item.Frames=FMath::Min(Item.Frames,Config.ExampleMaxFrames);
             S.Items[N]=MoveTemp(Item);S.InputBytes-=Input.Bytes;Input.Data=Input.Replacement;Input.Hash=Input.Data->OriginalContentSha1;Input.Bytes=Input.ReplacementBytes;Input.Stored=false;Input.Replacement.Reset();Input.ReplacementBytes=0;
-            S.Message=TEXT("예시를 원본으로 대체 · 생성 대기");++S.Revision;
+            S.Message=TEXT("시나리오 교체 · 생성 대기");++S.Revision;
         }
-        else {S.Message=TEXT("예시 보관 대기 · 결과 폴더 권한을 확인하세요");S.NextReplace=Now+1;++S.Revision;}
+        else {S.Message=TEXT("이전 결과 보관 대기 · 결과 폴더 권한을 확인하세요");S.NextReplace=Now+1;++S.Revision;}
     }
     if(!S.Reset&&!S.Replace.IsValid()&&Now>=S.NextReplace)
     {
