@@ -29,6 +29,8 @@
 #include "Components/TextBlock.h"
 #include "RenderingThread.h"
 #include "Components/ComboBoxString.h"
+#include "Components/LineBatchComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 
 namespace
 {
@@ -58,6 +60,7 @@ class FHatchRuntime final:public IAutomationLatentCommand
     uint64 HiddenBuilds=0;
     int64 HiddenFrames[2]={0,0};
     int64 PerformanceStartFrames[2]={0,0};
+    FString AnalysisRequest;
     void StopBoundary(){Sim->MLX->StopSensor();Sim->Livox->StopSensor();}
     TSharedRef<FJsonObject> Resources()
     {
@@ -99,12 +102,13 @@ public:
             Test->TestTrue(TEXT("selected sensor produces immutable frame"),F&&F->Points&&F->Points->Num()>0);if(!F||!F->Points)return;
             const int32 Expected=S->DeviceProfile==EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE?576*56:S->DeviceProfile==EVirtualLidarDeviceProfile::LivoxMid360S?360*60:200*56;
             Test->TestEqual(TEXT("existing FullSpec profile ray count is preserved"),F->Points->Num(),Expected);
-            int32 Hit=0,Cargo=0,BadLabel=0;double MaxError=0,SumError=0;
+            int32 Hit=0,Cargo=0,BadLabel=0;double MaxError=0,SumError=0,ReflectivityError=0,Intensity=0;
             for(const auto& P:*F->Points)if(P.bHit)
             {
                 ++Hit;
                 if(P.SemanticLabel==TEXT("HatchCargo"))
-                {++Cargo;const FVector Local=Sim->GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
+                {++Cargo;ReflectivityError=FMath::Max(ReflectivityError,FMath::Abs(P.SurfaceReflectivity-ShipHatch::Reflectivity(Sim->Surface().Settings.Cargo)));Intensity+=P.NormalizedIntensity;
+                 const FVector Local=Sim->GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
                  double E=FMath::Abs(Local.Z-Sim->Surface().Height(Local.X,Local.Y));MaxError=FMath::Max(MaxError,E);SumError+=E;}
                 else if(P.SemanticLabel!=TEXT("HatchHold")&&P.SemanticLabel!=TEXT("HatchCoaming")&&P.SemanticLabel!=TEXT("HatchOutside"))++BadLabel;
                 if(!P.HitActorTags.Contains(P.SemanticLabel))++BadLabel;
@@ -112,9 +116,11 @@ public:
             Test->TestTrue(TEXT("physical hits and cargo are present"),Hit>100&&Cargo>100);
             Test->TestEqual(TEXT("each hit has exactly a supported hatch label"),BadLabel,0);
             Test->TestTrue(TEXT("cargo hit height vs generated collision surface error < 15 cm"),MaxError<.15);
+            Test->TestTrue(TEXT("actual cargo returns use the material response override"),ReflectivityError<1.e-6);
             auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("id"),A->GetSensorId());Row->SetNumberField(TEXT("selection"),Selection);
             Row->SetNumberField(TEXT("points"),F->Points->Num());Row->SetNumberField(TEXT("hit"),Hit);Row->SetNumberField(TEXT("hit_ratio"),double(Hit)/F->Points->Num());
             Row->SetNumberField(TEXT("cargo"),Cargo);Row->SetNumberField(TEXT("bad_label"),BadLabel);Row->SetNumberField(TEXT("height_max_error_m"),MaxError);Row->SetNumberField(TEXT("height_mean_error_m"),Cargo?SumError/Cargo:0);
+            Row->SetNumberField(TEXT("reflectivity_max_error"),ReflectivityError);Row->SetNumberField(TEXT("mean_normalized_intensity"),Cargo?Intensity/Cargo:0);
             TArray<ShipHatch::FObservation> Observations,Reference;
             for(const auto& P:*F->Points)if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))
             {const FVector Local=Sim->GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;Observations.Add({Local,P.SemanticLabel});Reference.Add({FVector(Local.X,Local.Y,Sim->Surface().Height(Local.X,Local.Y)),P.SemanticLabel});}
@@ -131,7 +137,19 @@ public:
             FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;
             FString Extension,Error;TArray<uint8> Before,After;int32 Count=0;
             Test->TestTrue(TEXT("original binary PCD encoder succeeds"),UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(E,Config,Extension,Before,Count,Error));
-            for(int32 Color=0;Color<5;++Color){Host->Monitor->SelectView(1);Host->Monitor->SelectColor(Color);Host->Monitor->SelectView(0);}
+            for(int32 Color=0;Color<5;++Color)
+            {
+                Host->Monitor->SelectView(1);Host->Monitor->SelectColor(Color);
+                auto* PC=World->GetFirstPlayerController();
+                for(auto* Selected:{Sim->bMLX?Sim->MLX.Get():nullptr,Sim->bLivox?Sim->Livox.Get():nullptr})if(Selected)
+                {
+                    Test->TestTrue(TEXT("each selected sensor actually uploads its point preview"),Selected->VisualizationComponent->GetVisiblePointCount()>0);
+                    TInlineComponentArray<ULineBatchComponent*> Batches(Selected);
+                    Test->TestTrue(TEXT("selected sensor owns a colour point batch"),Batches.Num()>0);
+                    for(auto* Batch:Batches)Test->TestFalse(TEXT("both selected point batches remain visible in the actual player viewport"),PC->HiddenPrimitiveComponents.Contains(Batch));
+                }
+                Host->Monitor->SelectView(0);
+            }
             Test->TestTrue(TEXT("PCD encoder succeeds after view changes"),UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(E,Config,Extension,After,Count,Error));
             Test->TestTrue(TEXT("all point palettes and PointCloudOnly leave payload bytes invariant"),Before==After);
             Test->TestTrue(TEXT("point snapshot ownership remains immutable"),E.PointSnapshot==F->Points);
@@ -289,6 +307,33 @@ public:
             for(auto* W:Widgets){if(auto* T=Cast<UTextBlock>(W))Texts.Add(T->GetText().ToString());if(auto* C=Cast<UComboBoxString>(W))for(int32 I=0;I<C->GetOptionCount();++I)Texts.Add(C->GetOptionAtIndex(I));}
             if(Policy)for(const auto& Word:Policy->GetArrayField(TEXT("forbidden")))for(const auto& T:Texts)Test->TestFalse(TEXT("HATCH default copy follows owned UI vocabulary: ")+Word->AsString(),T.Contains(Word->AsString(),ESearchCase::IgnoreCase));
             ResultReport->SetNumberField(TEXT("hidden_analysis_build_delta"),double(Host->Monitor->AnalysisBuilds-HiddenBuilds));ResultReport->SetNumberField(TEXT("vocabulary_texts_checked"),Texts.Num());
+            auto* Files=World->GetSubsystem<UVirtualSensorFileSaveSubsystem>();
+            Test->TestTrue(TEXT("map startup and 50 random changes never auto-save analysis"),Files->GetRecentRequests().IsEmpty());
+            for(auto* W:Widgets)if(auto* B=Cast<UButton>(W))if(auto* T=Cast<UTextBlock>(B->GetContent()))if(T->GetText().ToString()==TEXT("분석 JSON 저장 · 현재 측정값")){B->OnClicked.Broadcast();break;}
+            const auto Requests=Files->GetRecentRequests();Test->TestEqual(TEXT("explicit analysis button admits exactly one request"),Requests.Num(),1);
+            if(Requests.Num())AnalysisRequest=Requests[0].RequestId;
+            Phase=5;Ready=Now;return false;
+        }
+        if(Phase==5)
+        {
+            auto* Files=World->GetSubsystem<UVirtualSensorFileSaveSubsystem>();const auto Status=Files->GetRequestStatus(AnalysisRequest);
+            if(!Status.IsTerminal()&&Now-Ready<10)return false;
+            Test->TestEqual(TEXT("analysis uses the existing asynchronous writer successfully"),Status.State,EVirtualSensorFileSaveState::Succeeded);
+            Test->TestEqual(TEXT("analysis exports exactly one JSON file"),Status.FileResults.Num(),1);
+            if(Status.FileResults.Num())
+            {
+                FString Json;Test->TestTrue(TEXT("analysis file exists"),FFileHelper::LoadFileToString(Json,*Status.FileResults[0].AbsolutePath));
+                TSharedPtr<FJsonObject> Export;Test->TestTrue(TEXT("analysis file is JSON"),FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Export));
+                if(Export)
+                {
+                    Test->TestEqual(TEXT("independent analysis schema"),Export->GetStringField(TEXT("schema")),FString(TEXT("ma0t10.hatch-analysis.v1")));
+                    Test->TestEqual(TEXT("analysis keeps the measured geometry seed"),Export->GetNumberField(TEXT("seed")),double(Sim->Surface().Settings.Seed));
+                    Test->TestEqual(TEXT("grid dimensions explain the row-major array"),Export->GetArrayField(TEXT("height_m_row_major")).Num(),int32(Export->GetNumberField(TEXT("nx"))*Export->GetNumberField(TEXT("ny"))));
+                    int32 Missing=0;for(const auto& Cell:Export->GetArrayField(TEXT("height_m_row_major")))Missing+=Cell->Type==EJson::Null;
+                    Test->TestTrue(TEXT("unobserved cells are null, never fabricated zero heights"),Missing>0);
+                }
+                ResultReport->SetStringField(TEXT("explicit_analysis_file"),Status.FileResults[0].AbsolutePath);
+            }
             ResultReport->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());WriteReport(TEXT("runtime.json"),ResultReport.ToSharedRef());return true;
         }
         return false;

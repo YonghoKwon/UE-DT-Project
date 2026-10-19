@@ -27,13 +27,18 @@ void AShipHatchMonitorHost::Refresh()
         FInputModeGameAndUI Mode;Mode.SetHideCursorDuringCapture(false);PC->SetInputMode(Mode);
         FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;
         Coordinator=GetWorld()->SpawnActor<AVirtualSensorCoordinator>(P);
+        // The generic point-only view keeps one selected sensor. This map explicitly composes two previews.
+        Coordinator->PointCloudOnlyKeepActorTags.AddUnique(TEXT("ShipHatchPreviewSensor"));
         Monitor=CreateWidget<UShipHatchMonitorWidget>(PC,UShipHatchMonitorWidget::StaticClass());
         Monitor->Bind(this,Simulation);Monitor->AddToViewport(20);
         if(auto* D=GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>())
         {D->RegisterWidget(Monitor);D->RegisterExternalInputBlocker(Monitor);}
     }
     if(!bRegisteredSensors&&Simulation->MLX&&Simulation->Livox)
-    {Coordinator->RegisterSensorActor(Simulation->MLX);Coordinator->RegisterSensorActor(Simulation->Livox);bRegisteredSensors=true;}
+    {
+        Simulation->MLX->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));Simulation->Livox->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));
+        Coordinator->RegisterSensorActor(Simulation->MLX);Coordinator->RegisterSensorActor(Simulation->Livox);bRegisteredSensors=true;
+    }
     Monitor->Refresh();
     const bool ProjectionVisible=Tools&&Tools->GetMonitorWidget()&&Tools->GetMonitorWidget()->IsVisible();
     for(auto* A:{Simulation->MLX.Get(),Simulation->Livox.Get()})if(A)A->VisualizationComponent->SetProjectionPreviewEnabled(ProjectionVisible);
