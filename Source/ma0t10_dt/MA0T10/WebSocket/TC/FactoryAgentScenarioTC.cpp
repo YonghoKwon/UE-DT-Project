@@ -17,7 +17,7 @@ TSharedPtr<FTransactionCodeDataBase> UFactoryAgentScenarioTC::ParseToStruct(cons
 {
 	// No UObject access: this method is invoked by DTCore's background worker.
 	auto Parsed=MakeShared<FFactoryAgentScenarioMessage>();
-    if(!DemoTrigger.IsEmpty()&&AgentTestSetTrigger::Material(JsonString)==DemoTrigger)
+    if(!DemoTrigger.IsEmpty()&&AgentTestSetTrigger::Material(JsonString).Equals(DemoTrigger,ESearchCase::CaseSensitive))
     {Parsed->Trigger=DemoTrigger;Parsed->Json=JsonString;return Parsed;}
 	FSlabScenarioCodec::Parse(JsonString,Parsed->Scenario,Parsed->Error,true); return Parsed;
 }

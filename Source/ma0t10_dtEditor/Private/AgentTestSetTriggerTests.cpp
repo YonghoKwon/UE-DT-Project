@@ -5,6 +5,10 @@
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetTrigger.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
@@ -25,6 +29,7 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/ConfigCacheIni.h"
 #include "AgentTestSetPresentationChecks.h"
 
 namespace
@@ -43,7 +48,7 @@ public:
             for(TActorIterator<ASlabActor> It(World);It;++It){Slab=*It;break;}
             if(!Slab)return false;
             {FAgentTestSetSettings C;C.AutoFillExamples=false;Test->TestTrue(TEXT("received-mode configuration"),World->GetSubsystem<UAgentTestSetSubsystem>()->ConfigureForTests(C));}
-            const FString Json=TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"9999\"}]}");
+            const FString Json=TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"SQ23456 077\"}]}");
             auto* TC=NewObject<UFactoryAgentScenarioTC>(World);TC->ReceiverId=Slab->ReceiverId;
             TC->ProcessStructData(TC->ParseToStruct(Json));
             Test->TestFalse(TEXT("legacy TC codec rejects fieldless trigger"),World->GetSubsystem<UAgentTestSetSubsystem>()->HasItems());
@@ -52,11 +57,12 @@ public:
         if(Slab->HasPendingScenarioInput())return false;
         Test->TestFalse(TEXT("legacy Submit codec rejects fieldless trigger"),World->GetSubsystem<UAgentTestSetSubsystem>()->HasItems());
         Test->TestEqual(TEXT("legacy missing CREATE_TIMESTAMP failure"),Slab->GetSimulationStatus().Message,FString(TEXT("CREATE_TIMESTAMP 문자열이 필요합니다.")));
-        if(Phase==0){++Phase;Test->TestTrue(TEXT("strict Submit schedules parser"),Slab->SubmitScenarioJson(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"9999\"}]}")));return false;}
-        if(Phase==1)
+        if(Phase==0){++Phase;Test->TestTrue(TEXT("strict Submit schedules parser"),Slab->SubmitScenarioJson(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"SQ23456 077\"}]}")));return false;}
+        if(Phase>=1&&Phase<=5)
         {
-            ++Phase;FAgentTestSetSettings C;C.AutoFillExamples=true;World->GetSubsystem<UAgentTestSetSubsystem>()->ConfigureForTests(C);
-            const FString Ordinary=TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":\"1234\",\"DATA_MAP\":[]}");
+            if(Phase==1){FAgentTestSetSettings C;C.AutoFillExamples=true;World->GetSubsystem<UAgentTestSetSubsystem>()->ConfigureForTests(C);}
+            const TArray<FString> Values={TEXT("1234"),TEXT("9999"),TEXT("SQ23456077"),TEXT("sq23456 077")};
+            const FString Ordinary=Phase<=4?TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":\"")+Values[Phase-1]+TEXT("\",\"DATA_MAP\":[]}"):TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":9999}]}");++Phase;
             auto* TC=NewObject<UFactoryAgentScenarioTC>(World);TC->ReceiverId=Slab->ReceiverId;TC->ProcessStructData(TC->ParseToStruct(Ordinary));
             Test->TestTrue(TEXT("incomplete ordinary input still parsed normally"),Slab->SubmitScenarioJson(Ordinary));return false;
         }
@@ -76,11 +82,35 @@ bool FAgentTriggerLegacy::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAgentTriggerTemplate,"MA0T10.TestSet.TriggerEnvelopeAndTemplate",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FAgentTriggerTemplate::RunTest(const FString&)
 {
-    TestEqual(TEXT("row numeric material"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":9999}]}")),FString(TEXT("9999")));
-    TestEqual(TEXT("meta trimmed material"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"_meta\":{\"mtl_no\":\" 9999 \"}}")),FString(TEXT("9999")));
-    TestTrue(TEXT("routing requires existing MESSAGE_ID"),AgentTestSetTrigger::Material(TEXT("{\"mtl_no\":9999}")).IsEmpty());
-    TestTrue(TEXT("invalid JSON is never a trigger"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":9999")).IsEmpty());
-    TestEqual(TEXT("first row takes precedence over unrelated top key"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":9999,\"DATA_MAP\":[{\"mtl_no\":\"1234\"}]}")),FString(TEXT("1234")));
+    const FAgentTestSetSettings Defaults;
+    TestEqual(TEXT("native default includes the internal space"),Defaults.Trigger,FString(TEXT("SQ23456 077")));
+    auto* Service=FAutomationEditorCommonUtils::CreateNewMap()->GetSubsystem<UAgentTestSetSubsystem>();
+    TestEqual(TEXT("runtime ini default includes the internal space"),Service->Settings().Trigger,Defaults.Trigger);
+    for(const FString Value:{FString(TEXT("SQ23456 077")),FString(TEXT("\"SQ23456 077\""))})
+    {
+        FConfigFile Ini;Ini.ProcessInputFileContents(FString(TEXT("[AgentTestSet]\nTriggerMtlNo="))+Value+TEXT("\n"),TEXT("TESTSET-03 in-memory fixture"));
+        FString Parsed;TestTrue(TEXT("ini key read"),Ini.GetString(TEXT("AgentTestSet"),TEXT("TriggerMtlNo"),Parsed));
+        TestEqual(TEXT("quoted and unquoted ini preserve internal space"),Parsed,Defaults.Trigger);
+    }
+    TestTrue(TEXT("fresh string trigger configuration"),Service->ConfigureForTests(Defaults));
+    for(const FString Value:{Defaults.Trigger,TEXT("  ")+Defaults.Trigger+TEXT("  ")})
+    {
+        const FString Json=TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"_meta\":{\"mtl_no\":\"")+Value+TEXT("\"}}");
+        TestEqual(TEXT("envelope trims only outside whitespace"),AgentTestSetTrigger::Material(Json),Defaults.Trigger);
+        TestTrue(TEXT("exact or outer-padded material matches"),Service->IsDemoTrigger(AgentTestSetTrigger::Material(Json)));
+        FSlabScenarioData Data;Data.Rows.AddDefaulted();Data.Rows[0].MtlNo=Value;
+        TestTrue(TEXT("strict received-mode matching follows same rule"),UAgentTestSetSubsystem::Matches(Data,Defaults.Trigger));
+    }
+    for(const FString Value:{FString(TEXT("9999")),FString(TEXT("SQ23456077")),FString(TEXT("sq23456 077"))})
+    {
+        TestFalse(TEXT("former trigger, missing internal space and wrong case do not match"),Service->IsDemoTrigger(Value));
+        FSlabScenarioData Data;Data.Rows.AddDefaulted();Data.Rows[0].MtlNo=Value;
+        TestFalse(TEXT("strict matching also rejects those materials"),UAgentTestSetSubsystem::Matches(Data,Defaults.Trigger));
+    }
+    TestTrue(TEXT("numeric material is not a string trigger"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":9999}]}")).IsEmpty());
+    TestTrue(TEXT("routing requires existing MESSAGE_ID"),AgentTestSetTrigger::Material(TEXT("{\"mtl_no\":\"SQ23456 077\"}")).IsEmpty());
+    TestTrue(TEXT("invalid JSON is never a trigger"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":\"SQ23456 077\"")).IsEmpty());
+    TestEqual(TEXT("first row takes precedence over unrelated top key"),AgentTestSetTrigger::Material(TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":\"SQ23456 077\",\"DATA_MAP\":[{\"mtl_no\":\"1234\"}]}")),FString(TEXT("1234")));
     for(auto Unit:{ESlabInputUnit::Centimeters,ESlabInputUnit::Millimeters,ESlabInputUnit::Meters})
     {
         FSlabScenarioDataPtr Data;FString Error;
@@ -91,6 +121,74 @@ bool FAgentTriggerTemplate::RunTest(const FString&)
         TestTrue(TEXT("template retains realistic continuous motion"),Data->Rows.Num()==20&&Data->Rows.Last().CenterX>Data->Rows[0].CenterX);
     }
     return true;
+}
+
+namespace
+{
+class FFormerTriggerOrdinaryRun final:public IAutomationLatentCommand
+{
+public:
+    explicit FFormerTriggerOrdinaryRun(FAutomationTestBase* T):Test(T){}
+    bool Update() override
+    {
+        const double Now=FPlatformTime::Seconds();
+        if(Now-Started>60){Test->AddError(TEXT("former trigger ordinary routing timeout"));return Finish();}
+        if(!Service)
+        {
+            for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
+            if(!World||!FinalAcceptanceViewportReady(World)||Now-Started<3)return false;
+            for(TActorIterator<ASlabActor> It(World);It;++It){It->StopSimulation();if(!Slab)Slab=*It;}
+            for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
+            for(TActorIterator<AVirtualSensorCoordinator> It(World);It;++It)Coordinator=*It;
+            if(!Slab||!Coordinator){Test->AddError(TEXT("ordinary routing fixture missing"));return Finish();}
+            // Session-only endpoint. No external Broker or deployment settings are touched.
+            auto* Transport=Coordinator->SharedTransportComponent.Get();auto Profile=Transport->GetTransportProfile();
+            Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;Transport->SetSessionCredentials(FString(),FString());
+            Test->TestTrue(TEXT("ordinary fixture has default PCD-only selection"),Slab->GetSensorOutputs().bPointCloud&&!Slab->GetSensorOutputs().bCameraImage&&!Slab->GetSensorOutputs().bLidarTelemetry);
+            Service=World->GetSubsystem<UAgentTestSetSubsystem>();
+            TC=NewObject<UFactoryAgentScenarioTC>(World);TC->AddToRoot();TC->ReceiverId=Slab->ReceiverId;
+            InitialArchive=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->GetScenarios().Num();
+        }
+        if(Parse.IsValid())
+        {if(!Parse.IsReady())return false;TC->ProcessStructData(Parse.Get());Parse=TFuture<TSharedPtr<FTransactionCodeDataBase>>();}
+        auto* Session=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
+        if(Phase==0)
+        {
+            const auto State=Session->GetSlabSensorSessionStatus().State;
+            if(Slab->HasPendingScenarioInput()||State==EVirtualSlabSessionState::Draining)return false;
+            TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower))),Root);
+            auto Rows=Root->GetArrayField(TEXT("DATA_MAP"));Rows.SetNum(20);for(const auto& V:Rows)V->AsObject()->SetStringField(TEXT("mtl_no"),TEXT("9999"));Root->SetArrayField(TEXT("DATA_MAP"),Rows);Root->GetObjectField(TEXT("_meta"))->SetNumberField(TEXT("duration_sec"),1.);
+            FString Json;FJsonSerializer::Serialize(Root.ToSharedRef(),TJsonWriterFactory<>::Create(&Json));
+            if(Route){auto* Target=TC;Parse=Async(EAsyncExecution::ThreadPool,[Target,Json](){return Target->ParseToStruct(Json);});}
+            else Test->TestTrue(TEXT("former trigger Submit accepted"),Slab->SubmitScenarioJson(Json));
+            Phase=1;return false;
+        }
+        if(Phase==1)
+        {
+            if(!Slab->IsSimulationActive())return false;
+            Test->TestEqual(TEXT("former trigger plays as ordinary material"),Slab->GetSimulationStatus().MtlNo,FString(TEXT("9999")));
+            Test->TestFalse(TEXT("former trigger creates no test set"),Service->HasItems());
+            const auto Admission=Slab->GetLastScenarioAdmissionStatus();const auto S=Session->GetSlabSensorSessionStatus();
+            Test->TestTrue(TEXT("ordinary receive keeps requested and applied default PCD"),Admission.RequestedOutputs.bPointCloud&&Admission.AppliedOutputs.bPointCloud&&S.Outputs.bPointCloud&&!S.bObservationOnly);
+            Test->TestEqual(TEXT("ordinary receive archives exactly once"),World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->GetScenarios().Num(),InitialArchive+Route+1);
+            Test->TestTrue(TEXT("ordinary session enables PCD output demand"),Session->AllowsOutputDemand(TEXT("SLAB-LIDAR-001"),EVirtualSensorAcquisitionOutput::PointCloud));
+            FirstElapsed=Slab->GetSimulationStatus().ElapsedSec;PlayingAt=Now;Phase=2;return false;
+        }
+        if(Now-PlayingAt<.15)return false;
+        Test->TestTrue(TEXT("ordinary motion advances through world-time playback"),Slab->GetSimulationStatus().ElapsedSec>FirstElapsed);
+        Slab->StopSimulation();if(++Route==2)return Finish();Phase=0;return false;
+    }
+private:
+    bool Finish(){if(Slab)Slab->StopSimulation();if(World)World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->StopHighThroughputTransport();if(TC)TC->RemoveFromRoot();return true;}
+    FAutomationTestBase* Test;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;ASlabActor* Slab=nullptr;AVirtualSensorCoordinator* Coordinator=nullptr;UFactoryAgentScenarioTC* TC=nullptr;
+    TFuture<TSharedPtr<FTransactionCodeDataBase>> Parse;int32 Route=0,Phase=0,InitialArchive=0;double Started=FPlatformTime::Seconds(),PlayingAt=0,FirstElapsed=0;
+};
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAgentFormerTriggerOrdinary,"MA0T10.TestSet.FormerTriggerOrdinaryRouting",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FAgentFormerTriggerOrdinary::RunTest(const FString&)
+{
+    if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FFormerTriggerOrdinaryRun(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
 }
 
 namespace
@@ -117,10 +215,10 @@ public:
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();FAgentTestSetSettings C;C.Target=FParse::Param(FCommandLine::Get(),TEXT("TestSet03Hundred"))?100:6;C.LidarId=Lidar->GetSensorId();Service->ConfigureForTests(C);
             TC=NewObject<UFactoryAgentScenarioTC>(World);TC->AddToRoot();TC->ReceiverId=Slab->ReceiverId;
             Report=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-03/routing");FParse::Value(FCommandLine::Get(),TEXT("TestSet03Report="),Report);IFileManager::Get().MakeDirectory(*Report,true);
-            Cases={TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"9999\"}]}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":\"9999\",\"DATA_MAP\":[]}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"_meta\":{\"mtl_no\":\"9999\"}}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":9999}]}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"9999\",\"slab_len\":-10,\"frame_no\":\"invalid\"}]}"),FSlabScenarioCodec::MakeSyntheticJson()};
+            Cases={TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"SQ23456 077\"}]}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"mtl_no\":\"SQ23456 077\",\"DATA_MAP\":[]}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"_meta\":{\"mtl_no\":\"SQ23456 077\"}}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"  SQ23456 077  \"}]}"),TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"SQ23456 077\",\"slab_len\":-10,\"frame_no\":\"invalid\"}]}"),FSlabScenarioCodec::MakeSyntheticJson()};
             // The complete input deliberately differs from the default template in size, motion and UUID.
             TSharedPtr<FJsonObject> Full;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Cases.Last()),Full);
-            for(const auto& V:Full->GetArrayField(TEXT("DATA_MAP")))V->AsObject()->SetStringField(TEXT("mtl_no"),TEXT("9999"));FJsonSerializer::Serialize(Full.ToSharedRef(),TJsonWriterFactory<>::Create(&Cases.Last()));
+            for(const auto& V:Full->GetArrayField(TEXT("DATA_MAP")))V->AsObject()->SetStringField(TEXT("mtl_no"),TEXT("SQ23456 077"));FJsonSerializer::Serialize(Full.ToSharedRef(),TJsonWriterFactory<>::Create(&Cases.Last()));
             FString Error;FSlabScenarioCodec::Parse(Cases.Last(),Complete,Error,true);
             InitialArchive=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->GetScenarios().Num();
         }

@@ -29,7 +29,7 @@ struct FAgentTestSetItem
 struct FAgentTestSetSettings
 {
     bool Enabled=true,Pipeline=true,CaptureCamera=false,CameraTruth=false,IncludeImu=false,LidarFidelity=false,ExportUprightEnvelope=false;
-    FString Trigger=TEXT("9999"),LidarId,CameraId,ExportFormat=TEXT("none");
+    FString Trigger=TEXT("SQ23456 077"),LidarId,CameraId,ExportFormat=TEXT("none");
     int32 Target=100,SampleStride=1,SettleFrames=1;
     // TESTSET-02 temporary autofill mode uses the same frame cap for received and example slots.
     bool AutoFillExamples=true;

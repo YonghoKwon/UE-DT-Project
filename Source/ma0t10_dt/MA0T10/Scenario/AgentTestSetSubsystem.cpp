@@ -145,11 +145,11 @@ void UAgentTestSetSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 bool UAgentTestSetSubsystem::Matches(const FSlabScenarioData& Data,const FString& Trigger)
 {
     // The codec already enforces one material per immutable scenario. Admission stays O(1).
-    const FString Key=Trigger.TrimStartAndEnd();return !Data.Rows.IsEmpty()&&!Key.IsEmpty()&&Data.Rows[0].MtlNo.TrimStartAndEnd()==Key;
+    const FString Key=Trigger.TrimStartAndEnd();return !Data.Rows.IsEmpty()&&!Key.IsEmpty()&&Data.Rows[0].MtlNo.TrimStartAndEnd().Equals(Key,ESearchCase::CaseSensitive);
 }
 bool UAgentTestSetSubsystem::IsTrigger(const FSlabScenarioData& Data) const {return Config.Enabled&&Matches(Data,Config.Trigger);}
 bool UAgentTestSetSubsystem::IsDemoTrigger(const FString& Material) const
-{return Config.Enabled&&Config.AutoFillExamples&&!Config.Trigger.IsEmpty()&&Material.TrimStartAndEnd()==Config.Trigger;}
+{return Config.Enabled&&Config.AutoFillExamples&&!Config.Trigger.IsEmpty()&&Material.TrimStartAndEnd().Equals(Config.Trigger,ESearchCase::CaseSensitive);}
 bool UAgentTestSetSubsystem::EnqueueDemoTrigger(const FString& Material,ASlabActor* Slab,FString& Error)
 {
     if(!IsDemoTrigger(Material)||!IsValid(Slab)||Slab->GetWorld()!=GetWorld()){Error=TEXT("테스트셋 트리거와 대상 Slab을 확인하세요");return false;}

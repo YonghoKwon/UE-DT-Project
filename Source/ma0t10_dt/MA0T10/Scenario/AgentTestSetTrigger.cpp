@@ -10,11 +10,6 @@ FString ReadMaterial(const TSharedPtr<FJsonObject>& O)
 {
     if(!O)return FString();const auto V=O->TryGetField(TEXT("mtl_no"));if(!V)return FString();
     if(V->Type==EJson::String)return V->AsString().TrimStartAndEnd();
-    if(V->Type==EJson::Number)
-    {
-        const double N=V->AsNumber();
-        if(FMath::IsFinite(N)&&N>=0&&N<=9007199254740991.&&FMath::FloorToDouble(N)==N)return FString::Printf(TEXT("%.0f"),N);
-    }
     return FString();
 }
 bool Unit(const TSharedPtr<FJsonObject>& Meta,const TCHAR* Key,ESlabInputUnit& Out)

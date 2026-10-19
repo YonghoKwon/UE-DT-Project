@@ -106,7 +106,7 @@ bool ASlabActor::SubmitScenarioJson(const FString& Json)
     const FString DemoTrigger=TestSet&&TestSet->Settings().Enabled&&TestSet->Settings().AutoFillExamples?TestSet->Settings().Trigger:FString();
 	Async(EAsyncExecution::ThreadPool,[Weak,Revision,Json,DemoTrigger]()
 	{
-        const bool Demo=!DemoTrigger.IsEmpty()&&AgentTestSetTrigger::Material(Json)==DemoTrigger;
+        const bool Demo=!DemoTrigger.IsEmpty()&&AgentTestSetTrigger::Material(Json).Equals(DemoTrigger,ESearchCase::CaseSensitive);
 		FSlabScenarioDataPtr Parsed; FString Error;if(!Demo)FSlabScenarioCodec::Parse(Json,Parsed,Error,true);
 		AsyncTask(ENamedThreads::GameThread,[Weak,Revision,Parsed,Error,Demo,DemoTrigger]()
 		{

@@ -74,7 +74,7 @@ public:
             Rig->TargetSlab=Slab;Test->TestTrue(TEXT("owned UI fixture uses existing tool rig composition"),Rig->EnsureSetup());World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->SetOwnedPanelFontScale(1);
             FAgentTestSetSettings Config;Config.AutoFillExamples=false;Config.Target=Large?100:3;Config.LidarId=TEXT("TESTSET-LIDAR");Config.Pipeline=Pipeline;Test->TestTrue(TEXT("fixture config before admission"),Service->ConfigureForTests(Config));
             Test->TestFalse(TEXT("default state has no set or output"),Service->HasItems());Test->TestFalse(TEXT("preview requires target completion"),Service->SelectPreview(0,Error));
-            Source=MakeAgentTestSetFixture(Large?3:20,TEXT(" 9999 "));Test->TestTrue(TEXT("trigger whitespace normalized"),Service->IsTrigger(*Source));
+            Source=MakeAgentTestSetFixture(Large?3:20,TEXT("  ")+Config.Trigger+TEXT("  "));Test->TestTrue(TEXT("trigger whitespace normalized"),Service->IsTrigger(*Source));
             Test->TestTrue(TEXT("submit through production async parser"),Slab->SubmitScenarioJson(Source->OriginalJson));Injected=1;Phase=Large?2:0;MeasureStart=LastWall=Now;MemoryStart=FPlatformMemory::GetStats().UsedPhysical;return false;
         }
         if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;const double Ms=World->GetDeltaSeconds()*1000.;Frames.Add(Ms);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000.);LastWall=Now;PeakMemory=FMath::Max(PeakMemory,FPlatformMemory::GetStats().UsedPhysical);}
@@ -96,17 +96,17 @@ public:
             if(Service->Items().ContainsByPredicate([](const auto& I){return I.State==EAgentTestSetItemState::Failed;}))
             {Test->AddError(TEXT("generation failed: ")+Service->Message());return Finish();}
             if(Injected<Service->Settings().Target)
-            {auto Input=MakeAgentTestSetFixture(2+Injected%4,TEXT("9999"));if(Slab->SubmitScenarioJson(Input->OriginalJson))++Injected;}
+            {auto Input=MakeAgentTestSetFixture(2+Injected%4,Service->Settings().Trigger);if(Slab->SubmitScenarioJson(Input->OriginalJson))++Injected;}
             const int32 Total=Service->Completed();
             const bool Insert=Large?(NormalCount==0&&Total>=20)||(NormalCount==1&&Total>=60):(NormalCount<2&&Dataset->CompletedScenes()>=1&&Dataset->IsActive()&&!Slab->IsSimulationActive()&&Now-NormalAt>.6);
             if(Insert&& !Catalog->IsReplayBusy())
             {
-                const auto Input=MakeAgentTestSetFixture(6,TEXT("NORMAL-MATERIAL"));Test->TestTrue(TEXT("normal scenario admitted while dataset holds World"),Slab->ReceiveScenario(Input));
+                const auto Input=MakeAgentTestSetFixture(6,TEXT("9999"));Test->TestTrue(TEXT("normal scenario admitted while dataset holds World"),Slab->ReceiveScenario(Input));
                 Test->TestTrue(TEXT("normal scenario plays immediately"),Slab->IsSimulationActive());Test->TestTrue(TEXT("test set yields before ordinary pose application"),Service->IsPaused());++NormalCount;NormalAt=Now;
             }
             if(!Service->IsComplete())return false;
             Test->TestEqual(TEXT("exact target count reached"),Service->Completed(),Service->Settings().Target);Test->TestEqual(TEXT("two ordinary scenarios kept separate"),Catalog->GetScenarios().Num(),2);
-            Test->TestFalse(TEXT("full set rejects excess trigger"),Slab->ReceiveScenario(MakeAgentTestSetFixture(2,TEXT("9999"))));
+            Test->TestFalse(TEXT("full set rejects excess trigger"),Slab->ReceiveScenario(MakeAgentTestSetFixture(2,Service->Settings().Trigger)));
             Test->TestNotNull(TEXT("first trigger opens the owned progress widget"),World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget());
             Test->TestEqual(TEXT("ordinary scenarios were both run"),NormalCount,2);CheckFiles();Record(Now);CompletedAt=Now;PreviewFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;Phase=3;return false;
         }
@@ -142,7 +142,7 @@ public:
         if(Phase==4)
         {
             if(Service->HasItems())return false;Test->TestFalse(TEXT("reset releases active work"),Dataset->IsActive());Test->TestTrue(TEXT("reset preserves artifacts on disk"),FPaths::FileExists(Root/TEXT("testset.json")));
-            if(Large)return Finish();Test->TestTrue(TEXT("new generation after reset"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(20,TEXT("9999"))->OriginalJson));Phase=5;return false;
+            if(Large)return Finish();Test->TestTrue(TEXT("new generation after reset"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(20,Service->Settings().Trigger)->OriginalJson));Phase=5;return false;
         }
         if(Phase==5)
         {
@@ -156,7 +156,7 @@ public:
             CheckUserEdits();Test->TestTrue(TEXT("retry after concurrent edit"),Service->Retry(0,Error));Phase=7;return false;
         }
         if(Phase==7)
-        {if(Service->Items()[0].State!=EAgentTestSetItemState::Completed)return false;CheckUserEdits();Test->TestTrue(TEXT("queue next background scenario"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(20,TEXT("9999"))->OriginalJson));Phase=8;return false;}
+        {if(Service->Items()[0].State!=EAgentTestSetItemState::Completed)return false;CheckUserEdits();Test->TestTrue(TEXT("queue next background scenario"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(20,Service->Settings().Trigger)->OriginalJson));Phase=8;return false;}
         if(Phase==8)
         {
             if(!Dataset->IsCapturingForTests())return false;
@@ -164,7 +164,7 @@ public:
             Test->TestTrue(TEXT("ordinary replay yields before starting the Slab"),Slab->IsSimulationActive()&&Dataset->IsPaused());Phase=9;return false;
         }
         if(Phase==9)
-        {if(Service->Items().Num()<2||Service->Items()[1].State!=EAgentTestSetItemState::Completed)return false;Test->TestTrue(TEXT("ordinary replay and resumed capture retain user appearance"),FMath::IsNearlyEqual(Slab->Roughness,.31415f));Test->TestTrue(TEXT("missing UUID follows existing admission policy"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(5,TEXT("9999"),true)->OriginalJson));Phase=10;return false;}
+        {if(Service->Items().Num()<2||Service->Items()[1].State!=EAgentTestSetItemState::Completed)return false;Test->TestTrue(TEXT("ordinary replay and resumed capture retain user appearance"),FMath::IsNearlyEqual(Slab->Roughness,.31415f));Test->TestTrue(TEXT("missing UUID follows existing admission policy"),Slab->SubmitScenarioJson(MakeAgentTestSetFixture(5,Service->Settings().Trigger,true)->OriginalJson));Phase=10;return false;}
         if(Phase==10)
         {
             if(!Service->IsComplete())return false;const auto& Item=Service->Items()[2];GeneratedId=Item.ScenarioId;
@@ -187,7 +187,7 @@ private:
             {
                 const FString Dir=I.Directory/(TEXT("run_")+I.RunId)/FString::Printf(TEXT("scene_%05d"),N);FString Text;TSharedPtr<FJsonObject> Label;
                 if(!FFileHelper::LoadFileToString(Text,*(Dir/TEXT("label.json")))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Label)||!Label){Test->AddError(TEXT("label missing"));return;}
-                Test->TestEqual(TEXT("source frame retained independently of sensor frame"),Label->GetStringField(TEXT("scenario_frame_no")),LexToString(100+N*2));Test->TestEqual(TEXT("source material retained"),Label->GetStringField(TEXT("mtl_no")).TrimStartAndEnd(),TEXT("9999"));
+                Test->TestEqual(TEXT("source frame retained independently of sensor frame"),Label->GetStringField(TEXT("scenario_frame_no")),LexToString(100+N*2));Test->TestEqual(TEXT("source material retained"),Label->GetStringField(TEXT("mtl_no")).TrimStartAndEnd(),Service->Settings().Trigger);
                 const auto Pose=Label->GetObjectField(TEXT("slab_pose"));const auto XYZ=Pose->GetArrayField(TEXT("xyz_m"));const auto RPY=Pose->GetArrayField(TEXT("pitch_yaw_roll_deg"));
                 Test->TestTrue(TEXT("saved pose uses actual source position and left angle"),FMath::IsNearlyEqual(XYZ[0]->AsNumber(),15.+N*.03,1.e-4)&&FMath::IsNearlyEqual(XYZ[2]->AsNumber(),2.25,1.e-4)&&FMath::IsNearlyEqual(RPY[1]->AsNumber(),double(N*2-3),1.e-3));
                 TArray<uint8> Labels;FFileHelper::LoadFileToArray(Labels,*(Dir/TEXT("lidar_labels.bin")));bool HasSlab=false;for(int32 P=0;P<Labels.Num();P+=5)HasSlab|=Labels[P]==2;Test->TestTrue(TEXT("training frame contains actual Slab returns"),HasSlab);
