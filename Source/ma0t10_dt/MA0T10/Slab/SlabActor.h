@@ -88,6 +88,8 @@ public:
 	FVector GetTrackLocalPositionCm() const;
 	uint32 GetMetricsConfigurationHash() const;
 	bool ReceiveScenario(FSlabScenarioDataPtr Data);
+    /** Native demo envelope; scenario codec and Blueprint contracts remain unchanged. */
+    bool ReceiveTestSetTrigger(const FString& Material);
 	FTransform GetDatasetTrackTransform() const { return GetTrackTransform(); }
 	bool HasPendingScenarioInput() const { return bParsing; }
 	void AdvanceSimulation(double DeltaSeconds);

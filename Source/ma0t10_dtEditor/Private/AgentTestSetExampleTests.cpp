@@ -23,6 +23,7 @@
 #include "Misc/Paths.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "AgentTestSetPresentationChecks.h"
 #include "RHIGlobals.h"
 #include "HAL/FileManager.h"
 #include "Widgets/Text/STextBlock.h"
@@ -93,7 +94,7 @@ public:
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();FAgentTestSetSettings C;C.Target=Hundred?100:6;C.LidarId=Lidar->GetSensorId();Test->TestTrue(TEXT("autofill defaults on, examples use one representative frame"),C.AutoFillExamples&&C.ExampleMaxFrames==1);Service->ConfigureForTests(C);
             Source=ExampleTestSource();if(!Source){Test->AddError(TEXT("fixture parse failed"));return Finish();}
-            Report=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-02")/(Hundred?TEXT("hundred"):TEXT("lifecycle"));FParse::Value(FCommandLine::Get(),TEXT("TestSet02Report="),Report);IFileManager::Get().MakeDirectory(*Report,true);
+            Report=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-03/complete-input")/(Hundred?TEXT("hundred"):TEXT("lifecycle"));FParse::Value(FCommandLine::Get(),TEXT("TestSet02Report="),Report);IFileManager::Get().MakeDirectory(*Report,true);
             if(ManualBusy)Lidar->StartSensor();
             MeasureStart=LastWall=Now;
             if(Hundred)Test->TestTrue(TEXT("single production asynchronous receive"),Slab->SubmitScenarioJson(Source->OriginalJson));
@@ -108,10 +109,14 @@ public:
         {
             if(!World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget())
             {if(Now-MeasureStart>5){Test->AddError(TEXT("auto-open owned panel did not appear within 5 seconds"));return Finish();}return false;}
+            auto* Toolbar=Cast<USensorToolToolbarWidget>(World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetOwnedNavigation());
+            if(!AgentTestSetHasPauseControl(AgentTestSetVisibleText(World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget()))||!Toolbar||Toolbar->GetGlobalStatus().TestSet.IsEmpty())
+            {if(Now-MeasureStart>5){Test->AddError(TEXT("running presentation did not refresh within 5 seconds"));return Finish();}return false;}
             Test->TestEqual(TEXT("one receive fills the target immediately"),Service->Items().Num(),Service->Settings().Target);
             Test->TestNotNull(TEXT("receive opens existing owned panel"),World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget());
-            Test->TestFalse(TEXT("first is received"),Service->Items()[0].Example);for(int32 I=1;I<Service->Items().Num();++I)Test->TestTrue(TEXT("remaining slots are explicitly examples"),Service->Items()[I].Example);
+            Test->TestTrue(TEXT("first is also template generated in demo mode"),Service->Items()[0].Example);for(int32 I=1;I<Service->Items().Num();++I)Test->TestTrue(TEXT("remaining slots are explicitly examples"),Service->Items()[I].Example);
             Root=Service->Directory();Phase=1;
+            CheckAgentTestSetPresentation(Test,World,false,Report/TEXT("ui-progress.json"));
             if(!Hundred)Service->SetPaused(false);
             if(ManualBusy)
             {
@@ -124,12 +129,15 @@ public:
         if(Phase==1&&!Hundred&&Early==0&&Service->Items().Num()>1&&Service->Items()[1].State==EAgentTestSetItemState::Generating)
         {
             ReceiveNew();ReceiveNew();Early=2;
-            Test->TestEqual(TEXT("active and waiting example slots reserve real inputs"),int32(Service->StatusJson()->GetNumberField(TEXT("pending_received_replacements"))),2);
+            Test->TestEqual(TEXT("demo ignores complete inputs during generation"),int32(Service->StatusJson()->GetNumberField(TEXT("pending_received_replacements"))),0);
         }
         if(Phase==1&&Service->IsComplete())
         {
-            Save(TEXT("initial-complete"));auto Stats=MakeShared<FJsonObject>();Stats->SetNumberField(TEXT("seconds"),Now-MeasureStart);
-            if(!Hundred)Test->TestEqual(TEXT("active and waiting replacement paths were exercised"),Early,2);
+            if(CompleteObserved==0)CompleteObserved=Now;
+            if(Now-CompleteObserved<.45)return false;
+            CheckAgentTestSetPresentation(Test,World,true,Report/TEXT("ui-complete.json"));
+            Save(TEXT("initial-complete"));auto Stats=MakeShared<FJsonObject>();Stats->SetNumberField(TEXT("seconds"),CompleteObserved-MeasureStart);
+            if(!Hundred)Test->TestEqual(TEXT("repeated triggers during generation were exercised"),Early,2);
             Stats->SetNumberField(TEXT("first_item_seconds"),Service->Items()[0].Seconds);
             TArray<double> ItemTimes;for(const auto& I:Service->Items())ItemTimes.Add(I.Seconds);ItemTimes.Sort();Stats->SetNumberField(TEXT("item_median_seconds"),ItemTimes[ItemTimes.Num()/2]);Stats->SetNumberField(TEXT("item_max_seconds"),ItemTimes.Last());
             for(auto Pair:{TPair<const TCHAR*,TArray<double>*>(TEXT("engine"),&Engine),{TEXT("callback_wall"),&Wall},{TEXT("game_thread"),&Game}})
@@ -143,13 +151,13 @@ public:
             if(!CheckFiles())return Finish();
             if(Hold){Phase=5;return false;}
             for(int32 N=Early;N<5;++N)ReceiveNew();
-            Test->TestFalse(TEXT("completion disabled while replacements drain"),Service->IsComplete());Phase=2;return false;
+            Test->TestTrue(TEXT("repeated demo triggers preserve completion"),Service->IsComplete());Phase=2;return false;
         }
         if(Phase==2&&Service->IsComplete())
         {
-            const auto Status=Service->StatusJson();Test->TestEqual(TEXT("received count after five replacements"),int32(Status->GetNumberField(TEXT("received_scenarios"))),6);Test->TestEqual(TEXT("examples replaced without growing set"),int32(Status->GetNumberField(TEXT("example_scenarios"))),Service->Settings().Target-6);
-            Test->TestEqual(TEXT("all replaced examples retained"),Status->GetArrayField(TEXT("replaced_examples")).Num(),5);Save(TEXT("after-replacements"));if(!CheckFiles())return Finish();
-            for(const auto& V:Status->GetArrayField(TEXT("replaced_examples")))Test->TestTrue(TEXT("every archived example retains a reason, including ungenerated slots"),FPaths::FileExists(V->AsObject()->GetStringField(TEXT("directory"))/TEXT("replacement.json")));
+            const auto Status=Service->StatusJson();Test->TestEqual(TEXT("demo never admits received sources"),int32(Status->GetNumberField(TEXT("received_scenarios"))),0);Test->TestEqual(TEXT("demo keeps every template slot"),int32(Status->GetNumberField(TEXT("example_scenarios"))),Service->Settings().Target);
+            Test->TestEqual(TEXT("demo creates no replacement archives"),Status->GetArrayField(TEXT("replaced_examples")).Num(),0);Save(TEXT("after-duplicates"));if(!CheckFiles())return Finish();
+            Test->TestFalse(TEXT("demo creates no replacement directory"),IFileManager::Get().DirectoryExists(*(Root/TEXT("examples_replaced"))));
             FString E;Test->TestTrue(TEXT("F14 saved point cloud preview"),Service->SelectPreview(0,E));Phase=3;return false;
         }
         if(Phase==3&&Service->PreviewStatus().Frame>=0&&Service->PreviewStatus().Points>0)
@@ -195,12 +203,12 @@ private:
             Test->TestEqual(TEXT("label identity"),Label->GetStringField(TEXT("scenario_id")),I.ScenarioId);
             Test->TestEqual(TEXT("autofill uses the same frame policy for every source"),Label->GetStringField(TEXT("frame_policy")),FString(TEXT("uniform_capped_stride_samples")));
             Test->TestEqual(TEXT("received and examples have identical frame caps"),I.Frames,1);
-            if(I.Example)Test->TestEqual(TEXT("label derived source UUID"),Label->GetStringField(TEXT("source_uuid")),Source->ScenarioUUID);
+            if(I.Example)Test->TestEqual(TEXT("label derived source UUID"),Label->GetStringField(TEXT("source_uuid")),FString(TEXT("5ed13ac8-e362-42e0-9c94-87317f140003")));
         }return true;
     }
     bool Finish(){if(Service){Service->StopPreview();FString E;Service->ResetConfirmed(E);}if(ManualBusy&&World)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(true);return true;}
     FAutomationTestBase* Test;bool Hundred,Hold,ManualBusy;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;UAgentTestSetSubsystem* Service=nullptr;FSlabScenarioDataPtr Source;
-    FString Report,Root;int32 Phase=0,Early=0;uint64 LastFrame=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,LastWall=0;TArray<double> Engine,Wall,Game;
+    FString Report,Root;int32 Phase=0,Early=0;uint64 LastFrame=0;double Started=FPlatformTime::Seconds(),Observed=0,MeasureStart=0,LastWall=0,CompleteObserved=0;TArray<double> Engine,Wall,Game;
 };
 bool RunAgentExamples(FAutomationTestBase* Test,bool Hundred)
 {

@@ -1,4 +1,5 @@
 #include "SlabActor.h"
+#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetTrigger.h"
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
@@ -101,14 +102,18 @@ bool ASlabActor::SubmitScenarioJson(const FString& Json)
 	if(!IsInGameThread()||bEnding||bParsing) return false;
 	FTCHARToUTF8 Bytes(*Json); if(Bytes.Length()>8*1024*1024) { ReportFailure(TEXT("JSON 8MiB 한도를 초과했습니다.")); return false; }
 	bParsing=true; const uint64 Revision=++ParseGeneration; TWeakObjectPtr<ASlabActor> Weak(this);
-	Async(EAsyncExecution::ThreadPool,[Weak,Revision,Json]()
+    const auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>();
+    const FString DemoTrigger=TestSet&&TestSet->Settings().Enabled&&TestSet->Settings().AutoFillExamples?TestSet->Settings().Trigger:FString();
+	Async(EAsyncExecution::ThreadPool,[Weak,Revision,Json,DemoTrigger]()
 	{
-		FSlabScenarioDataPtr Parsed; FString Error; FSlabScenarioCodec::Parse(Json,Parsed,Error,true);
-		AsyncTask(ENamedThreads::GameThread,[Weak,Revision,Parsed,Error]()
+        const bool Demo=!DemoTrigger.IsEmpty()&&AgentTestSetTrigger::Material(Json).Equals(DemoTrigger,ESearchCase::CaseSensitive);
+		FSlabScenarioDataPtr Parsed; FString Error;if(!Demo)FSlabScenarioCodec::Parse(Json,Parsed,Error,true);
+		AsyncTask(ENamedThreads::GameThread,[Weak,Revision,Parsed,Error,Demo,DemoTrigger]()
 		{
 			if(!Weak.IsValid()||Weak->bEnding||Weak->ParseGeneration!=Revision) return;
 			Weak->bParsing=false;
-			if(Parsed.IsValid()) Weak->DataSyncComponent->ReceiveSlabScenario(Parsed); else Weak->ReportFailure(Error);
+            if(Demo)Weak->DataSyncComponent->ReceiveTestSetTrigger(DemoTrigger);
+			else if(Parsed.IsValid()) Weak->DataSyncComponent->ReceiveSlabScenario(Parsed); else Weak->ReportFailure(Error);
 		});
 	}); return true;
 }
@@ -125,6 +130,13 @@ void ASlabActor::RecordAdmission(ESlabScenarioAdmission Result,const FString& Sc
 		*ReceiverId,*GetPathName(),*ScenarioId,int32(Result),SensorOutputs.bPointCloud,SensorOutputs.bCameraImage,SensorOutputs.bLidarTelemetry,
 		LastAdmission.AppliedOutputs.bPointCloud,LastAdmission.AppliedOutputs.bCameraImage,LastAdmission.AppliedOutputs.bLidarTelemetry,*Reason);
 	OnSlabStateChanged.Broadcast();
+}
+bool ASlabActor::ReceiveTestSetTrigger(const FString& Material)
+{
+    check(IsInGameThread());if(bEnding||!GetGameInstance())return false;
+    if(auto* Set=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())
+    {FString Error;const bool Accepted=Set->EnqueueDemoTrigger(Material,this,Error);if(!Accepted)UE_LOG(LogTemp,Warning,TEXT("[TESTSET-03] %s"),*Error);return Accepted;}
+    return false;
 }
 bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 {

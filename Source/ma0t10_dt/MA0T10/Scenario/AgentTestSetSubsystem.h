@@ -29,11 +29,12 @@ struct FAgentTestSetItem
 struct FAgentTestSetSettings
 {
     bool Enabled=true,Pipeline=true,CaptureCamera=false,CameraTruth=false,IncludeImu=false,LidarFidelity=false,ExportUprightEnvelope=false;
-    FString Trigger=TEXT("9999"),LidarId,CameraId,ExportFormat=TEXT("none");
+    FString Trigger=TEXT("SQ23456 077"),LidarId,CameraId,ExportFormat=TEXT("none");
     int32 Target=100,SampleStride=1,SettleFrames=1;
     // TESTSET-02 temporary autofill mode uses the same frame cap for received and example slots.
     bool AutoFillExamples=true;
     int32 ExampleSeed=1337,ExampleMaxFrames=1;
+    FString TemplatePath=TEXT("Config/AgentTestSetScenario.json");
     static FAgentTestSetSettings Load();
 };
 
@@ -47,6 +48,8 @@ public:
     virtual void Deinitialize() override;
     static bool Matches(const FSlabScenarioData& Data,const FString& Trigger);
     bool IsTrigger(const FSlabScenarioData& Data) const;
+    bool IsDemoTrigger(const FString& Material) const;
+    bool EnqueueDemoTrigger(const FString& Material,ASlabActor* Slab,FString& Error);
     /** A matching input is consumed even when admission fails; never falls through to PCD. */
     bool Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,FString& Error);
     void YieldToOrdinaryScenario();
@@ -66,10 +69,14 @@ public:
     int32 Completed() const;
     double ScenariosPerSecond() const;
     double RemainingSeconds() const;
+    /** Wall time from first admission through completion; frozen when the set completes. */
+    double TotalSeconds() const;
     const TArray<FAgentTestSetItem>& Items() const;
     const FAgentTestSetSettings& Settings() const {return Config;}
     FString Directory() const;
     FString Message() const;
+    /** Current work state, without diagnostic duplicate-trigger notices. */
+    FString PresentationMessage() const;
     int64 Revision() const;
     TSharedRef<FJsonObject> StatusJson() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

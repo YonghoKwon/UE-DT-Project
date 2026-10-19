@@ -13,4 +13,7 @@ public:
 	virtual TSharedPtr<FTransactionCodeDataBase> ParseToStruct(const FString& JsonString) const override;
 	virtual void ProcessStructData(const TSharedPtr<FTransactionCodeDataBase>& Data) override;
 	UPROPERTY(EditDefaultsOnly,Category="Slab|Routing") FString ReceiverId=TEXT("SlabScenario.Main");
+private:
+    // Immutable routing snapshot; DTCore calls ParseToStruct on its background worker.
+    FString DemoTrigger;
 };

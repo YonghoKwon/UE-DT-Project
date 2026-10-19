@@ -102,18 +102,29 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **원인·수정:** RHI validation이 기존 private semantic scene의 캐시된 mesh shader binding에서 이전 프레임 단기 uniform buffer 사용을 검출했다. 전역 mesh command cache off 진단은 통과하고 readback 전환만 고친 시험은 실패했다. 격리 proxy의 렌더 상태만 갱신해 stale binding을 재사용하지 않고, 모든 sensor texture readback은 SRVMask↔CopySrc 전환을 명시한다. 전역 CVar·원본 Actor/재질·wire는 바꾸지 않았다. 분류 proxy의 거리장/간접광/ray tracing 참여도 제외한다.
 - **검증:** `337dd10`의 핵심 수정 후 일반 경로4종 각각100회와 동시 캡처 RHI validation100회(관련 오류0) 통과. DATASET-01과 함께 FullSpec 반복·release278 Success/skip30·기본 꺼짐2% perf까지 통합 통과했다. 원본 덤프/콜스택·분리/진단/수정 후 결과는 DATASET-01 RESULT 및 resume 보고서에 남긴다.
 
-## TESTSET-02 — 예시 자동 채우기·빠른 시연·테스트셋 화면 (임시 기능)
+## TESTSET-03 — 소재 트리거만 사용하는 템플릿100개 생성 (임시 기능)
+
+- **출처:** 사용자 2026-10-19 및 같은 날 최종 정정. 시연 모드에서는`SQ23456 077` 메시지의 완전/불완전/없는 시나리오 데이터를 전부 무시한다.
+- **트리거 확정(사용자2026-10-19):** 기본 `SQ23456 077`, 문자열 양끝만 trim·가운데 공백/대소문자 정확히 비교. ini 따옴표 유무 모두 보존하며 숫자 별칭은 제거한다. `9999`는 일반 재생·기본PCD 선택 경로다. 새 값의6형태×2경로100개·일반 소재/비일치 회귀·UXR·최종 커밋 release 및 보호/정리는 `Saved/Reports/TESTSET-03/trigger/RESULT.md`를 따른다. 설정/판별만 변경해 사용자 승인으로 성능 재측정 생략. 기존 캡처는 소재가 노출되지 않아 유지하고 c74ea4a 증거로 구분한다.
+- **구현:** 기존 TC/DataSync/Slab·SubmitScenarioJson에서 codec 앞의 소재 분기. 첫 행/최상위/메타·문자열/숫자 트리거를 수용하며 일반 codec은 불변. `[AgentTestSet].TemplatePath`의 커밋된 기본 연속 주조 템플릿을 worker에서 명시 단위→기존 Slab 단위로 변환하고 결정적100개 전부 생성한다. 기본 파일은 패키징 runtime dependency로 포함한다.
+- **정책:** `AutoFillExamples=True`에서 수신 원본·슬롯 대체 없음. 진행 중/완료/실패 세트의 반복 트리거는 기존 세트를 유지하고 로그/testset.json에 기록한다. 화면의 중복 안내는 진행 문구를 덮지 않는다. 초기화 뒤 새 세트. False에서는 완전한`SQ23456 077`만 각각 수신·기존 SampleStride 유지. 화면의 원본/예시·시연용·대표 프레임 표시는 없음.
+- **화면 마무리(사용자2026-10-19 캡처 검토 후 추가 승인):** 중복 안내 화면 제거, complete에서 생성용 일시정지/재개 숨김, 완료 칩 `테스트셋 완료 n/100`, 최초 접수→complete 전체 시간 `총 n.n초` 고정 표시. 기존5Hz 갱신과 native 완료 시각/진단 캐시만 사용한다. 집중12 Success/4조건부skip 및 별도 UXR07 opt-in RHI2 Success/skip0,36개 실제 visible Slate 상태를 통과했다. 최종 커밋 release·수신/진행/완료 새3장·보호 복원은 `Saved/Reports/TESTSET-03/polish/RESULT.md`에 기록한다. 이전 이미지는 captures/before-polish로 보존하며 사용자 승인으로 성능 gate를 재측정하지 않는다.
+- **검증/현재 상태 — 구현·자동 검증 완료, 직접 UI 환경 보류:** Runtime718346e에서6형태×2경로·12회 실제100/100을10.071–10.177초(중앙값10.101초)에 생성했다. engine/GT/callback150ms 초과0, 독립 감사1,200 PCD/라벨 쌍·33B/5B·전체 행/변형 결정성·중복/초기화 통과. Editor/Game·release14단계(고유306 Success/40조건부skip/실패0)·WBP7·golden·Python69·layer0 통과. 제공 py는 실제 PIE 자동 실행 성공.292d03d 대비 표시형1+1 ABAB12회2% gate PASS(FPS 저하0.0011%·p95동일·GT−0.8501%). 개인130/보호568파일 복원·불변, 세션77세트 정리/기존100세트 보존. 직접 UI는 Windows 잠금 관찰·입력0·7행 보류이며 자동3장/client1920×1080·DPI1·글자100%와 구분한다. 전체 근거·실패/수정·제한은 `Saved/Reports/TESTSET-03/RESULT.md`를 따른다.
+- **완료 기준:**6형태×2경로의 실제100/100·결정성·PCD/라벨100쌍·33B/5B·150ms 초과0, 중복/초기화·완전 데이터 무시, False 및 비트리거 거절·일반 재생/PCD 회귀, Editor/Game·release/WBP/어휘/golden/Python/quick/layer0·2% 성능·가능한 직접 점검·보호/개인 복원.
+- **경계:** DTCore·codec·wire·SaveGame·Blueprint API·센서 품질·일반PCD 정책·자산/맵 불변. 회사 Broker/소비자 수신과 전송은 범위 밖이다.
+
+## TESTSET-02 — 예시 자동 채우기·빠른 시연·테스트셋 화면 (임시 기능, 시연 정책은 TESTSET-03이 대체)
 
 - **출처:** 사용자 2026-10-19. 후속 지시로 빠른 생성 목표를 약1분에서 약10초로 변경했다.
 - **구현:** 임시 기본 `AutoFillExamples=True`, 원본1+결정적 예시99 자동 등록, DATASET-01 고정 채널 재사용. 추가 결정에 따라 최초 수신·예시·대체 원본 모두 같은1프레임 기본 상한(`ExampleMaxFrames`)을 적용한다. False는 기존 원본 SampleStride 유지. 화면은 원본/예시 배지만 표시하며 시연용/대표 프레임 및 동의어 안내를 제거한다. 추적 목적/정책·출처/시드/변형 값은 파일에 유지한다. 실제 수신 우선 슬롯 대체와 `examples_replaced` 파일 보존, 공통 소유 패널의 속도/남은 시간·간결한 목록·완료 점군 보기.
 - **현재 상태:90% — 구현·자동 검증 완료, 직접 UI 환경 보류.** Runtime70f95cf에서100개10.07초·항목별 PCD/라벨1쌍·150ms 초과0, 실제5개 대체 뒤 원본6/예시94·활성100쌍, 원본6,646바이트 보존·반복 변형 결정성·33B/5B 파일 대조를 통과했다. 생성/대기/완료 대체·소규모 전량 원본 전환, False의 기존 SampleStride·대기/원클릭·점군·일반 우선도 통과했다. Editor/Game·release14단계(고유308 Success/44 skip/실패0)·WBP7·golden14·Python69·layer0, 기본 상태19eb3fc 대비 표시형1+1 ABAB12회2% gate(FPS 저하0.0064%·p95동일·GT+1.611%) 통과. 직접은 Windows 잠금 화면 확인·입력0·7행 보류다. 초회 기존 카메라 검사1건 실패와 동일 코드 단독/전체 재실행, 개인142/보호483파일 복원·세션58세트 정리/기존94세트 보존은 `Saved/Reports/TESTSET-02/RESULT.md`에 구분한다. 미수행을 통과로 올리지 않는다.
-- **완료 기준:** 9999 한 개→원본1+예시99→100/100, 같은 원본의 변형 결정성, 이후 실제5개 대체와 최종 실제 목표수에서 예시0개, 파일/라벨·33B 대조, 기존 대기/원클릭·점군·이동 유지,4개 해상도/글자 조합과 가능한 직접 점검, release/quick/layer0/Python/golden/WBP/어휘 및19eb3fc 대비 기본 상태2%.
+- **당시 완료 기준(현행 트리거 기본값은 `SQ23456 077`):** 9999 한 개→원본1+예시99→100/100, 같은 원본의 변형 결정성, 이후 실제5개 대체와 최종 실제 목표수에서 예시0개, 파일/라벨·33B 대조, 기존 대기/원클릭·점군·이동 유지,4개 해상도/글자 조합과 가능한 직접 점검, release/quick/layer0/Python/golden/WBP/어휘 및19eb3fc 대비 기본 상태2%.
 - **경계:** 예시는 시연용이며 실제 수신 학습 데이터로 표현하지 않는다. 원본·일반 시나리오·PCD 송신·wire·SaveGame·Blueprint API·DTCore·자산은 유지한다.10초 미달 시 실측 최소 시간과 병목을 보고한다.
 
 ## TESTSET-01 — AI Agent 시나리오 기반 모델 테스트셋 (임시 기능, 로드맵 #17)
 
 - **출처:** 사용자 2026-10-16. 최종 범위는 트리거/대기열, DATASET-01 기반 생성, 진행 화면, 목표 완료 후 선택→보기 전용 표시, 일반 시나리오 우선이다. 최초 Slab 보기 재생은 INSP-FIX-2에서 저장 PCD 점군 보기로 바뀐다. 전송 전체와 다중 프로세스 구현은 제외했다.
-- **구현:** `[AgentTestSet]`의 기본 소재9999·목표100, 원본 디스크 보관·별도 RunUUID, 실시간 재생 없이 원본 행 pose 적용→획득, 유한 캡처/worker 파이프라인, 프레임 파일 검증·manifest/시나리오 요약, DTCore 소유 화면/5Hz 표시·실패 재시도·일시 중지/재개·확인 초기화. 기존 일반 보관10개/PCD/wire/ROS2 경로를 보존한다.
+- **구현:** `[AgentTestSet]`의 당시 기본 소재9999(현재 `SQ23456 077`)·목표100, 원본 디스크 보관·별도 RunUUID, 실시간 재생 없이 원본 행 pose 적용→획득, 유한 캡처/worker 파이프라인, 프레임 파일 검증·manifest/시나리오 요약, DTCore 소유 화면/5Hz 표시·실패 재시도·일시 중지/재개·확인 초기화. 기존 일반 보관10개/PCD/wire/ROS2 경로를 보존한다.
 - **현재 상태: 90% — 구현·100개 및 release 검증 통과, 직접 UI 환경 보류.** 검증 Runtime4202a91(제품 동작40049ba). 순차32.689초/파이프라인28.524초, 각100개·351프레임·3,243,223점 검증, 일반2건 우선·실제 보기3개·중지/reset/사용자 편집 보존·UUID 생략 시 최초 ID 유지 통과. 최대GT32.8/34.0ms·callback wall34.3/71.0ms, 150ms 초과0. Editor/Game·release14단계·WBP7·golden·어휘·layer0, Python69 Success. Computer Use 캡처0x80070057(최초+재시도2회)로 입력0·직접 보류. 기본 상태9baf759 대비 offscreen1+1 ABAB12회2% gate 통과(FPS 저하−0.00234%·p95동일·GT−1.66243%)이며 `Saved/Reports/TESTSET-01/RESULT.md`에 별도로 기록한다. 초기 오류·reset manifest race와 수정 근거도 보존한다.
 - **제한:** 실행 중 목록만 유지하며 프로세스 재시작 resume는 없다. 센서/Slab을 자동 배치하지 않는다. INSP-FIX-2의 명시적 원클릭으로 선택 센서 작업만 잠시 멈추며 일반 시나리오를 강제 중지하지 않는다. 다중 프로세스 N=2/4는 후속 제안이며 실측하지 않은 처리량을 주장하지 않는다.
 - **완료 기준:** 혼합·목표100·우선/재개·실패/재시도·초기화·관찰 재생 불변 자동화, 실제100개 산출물·hitch/메모리/디스크·순차/파이프라인 비교, release/golden/WBP/어휘/quick/layer0·기본 상태2%, 가능한 직접 선택/중지/다른 선택 및 보호·개인 설정 복원.

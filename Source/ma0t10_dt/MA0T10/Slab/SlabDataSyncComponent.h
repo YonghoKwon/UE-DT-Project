@@ -11,4 +11,6 @@ public:
 	USlabDataSyncComponent();
 	/** Typed project contract: deliberately does not extend DTCore's EDxDataType. */
 	bool ReceiveSlabScenario(FSlabScenarioDataPtr Scenario);
+    bool ReceiveTestSetTrigger(const FString& Material);
+    bool ReceiveScenarioJson(const FString& Json);
 };

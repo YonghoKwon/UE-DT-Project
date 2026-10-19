@@ -18,7 +18,13 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-TESTSET-01(사용자2026-10-16, 임시 기능): 검증 Runtime4202a91, 제품 동작40049ba. 기본 소재9999·목표100을 원본 보관/worker 파이프라인으로 생성하고, 일반 시나리오 우선·완료 후 선택→보기 전용 재생을 제공한다. 실제100개 두 실행·각351프레임·release14단계(고유290 Success/skip37/실패0)·WBP7·golden·Python69·layer0 통과. 순차32.689초/파이프라인28.524초, engine/GT/callback150ms 초과0. 9baf759 대비 offscreen1+1 ABAB12회2% gate 통과(FPS 저하−0.00234%·p95동일·GT−1.66243%). 직접 UI는 모니터 캡처0x80070057로 입력0·환경 보류이며 표시형 성능/선택 모달리티 전 조합은 미수행이다. 전송·다중 프로세스는 제외했고 상세 증거·최초 실패·정리 제한은 `Saved/Reports/TESTSET-01/RESULT.md`를 따른다.
+TESTSET-03 트리거 확정(사용자2026-10-19): 기본 문자열은 **`SQ23456 077`**이다. 양끝 공백만 제거하고 가운데 공백·대소문자를 그대로 비교한다. `9999`는 일반 소재이며 숫자 트리거 별칭은 없다. ini 따옴표 유무·6형태×2경로100개·이전 소재의 일반 재생/PCD 선택·UXR·최종 커밋 release 결과는 [트리거 확정 결과](Saved/Reports/TESTSET-03/trigger/RESULT.md)를 따른다. 이번 설정/판별 변경은 사용자 승인으로 성능 재측정을 생략한다. 아래 성능 및 캡처는 각각 명시된 이전 SHA의 증거다.
+
+TESTSET-03 화면 마무리(사용자2026-10-19 추가 승인): 중복 안내는 화면에서 제거하고 로그/testset.json 기록을 유지한다. complete에서 생성용 일시정지/재개를 숨기고 `총 n.n초`를 고정 표시하며 하단은 `테스트셋 완료 n/100`이다. 진행 중 속도·남은 시간, 초기화 뒤 생성 제어 재노출은 유지한다. 집중12 Success/4조건부skip 및 추가 UXR07 opt-in RHI2 Success/skip0,36개 진행·완료·중복 Slate 검사를 통과했다. 최종 커밋 release·새 자동3장·복원/정리 결과는 [화면 마무리 결과](Saved/Reports/TESTSET-03/polish/RESULT.md)를 따른다. 이번 표시는 기존5Hz·완료 시각/진단 캐시만 바꾸므로 사용자 승인으로 성능을 재측정하지 않으며 아래718346e의 기존 gate와 구분한다.
+
+TESTSET-03(사용자2026-10-19 최종 정정, 임시 시연): Runtime `718346e`. 당시 AutoFill=True의 트리거9999(현재 기본값은 `SQ23456 077`)는 동봉 시나리오를 전부 무시하고 커밋된 기본 템플릿에서100개를 생성한다. 반복 수신은 기존 세트 유지, 초기화 뒤 새 세트이며 False는 기존 실제 수신 모드다.6형태×2경로의12회 실제100개는10.07–10.18초(중앙값10.10),engine/GT/callback150ms 초과0·1,200 PCD/라벨 쌍·33B/5B·전체 행/변형 결정성 통과. Editor/Game·release14단계(고유306 Success/40조건부skip/실패0)·WBP7·golden·Python69·layer0 통과.292d03d 대비 표시형1+1 ABAB12회2% gate PASS(FPS 저하0.0011%·p95동일·GT−0.8501%). Windows 잠금으로 직접7행 보류·입력0이며 자동3장(client1920×1080/DPI1/글자100%)과 구분한다. 개인130/보호568파일 복원·불변, 세션77세트 정리/기존100세트 보존을 [현재 결과](Saved/Reports/TESTSET-03/RESULT.md)에 기록했다.
+
+TESTSET-01(사용자2026-10-16, 임시 기능): 검증 Runtime4202a91, 제품 동작40049ba. 당시 기본 소재9999(현재 `SQ23456 077`)·목표100을 원본 보관/worker 파이프라인으로 생성하고, 일반 시나리오 우선·완료 후 선택→보기 전용 재생을 제공한다. 실제100개 두 실행·각351프레임·release14단계(고유290 Success/skip37/실패0)·WBP7·golden·Python69·layer0 통과. 순차32.689초/파이프라인28.524초, engine/GT/callback150ms 초과0. 9baf759 대비 offscreen1+1 ABAB12회2% gate 통과(FPS 저하−0.00234%·p95동일·GT−1.66243%). 직접 UI는 모니터 캡처0x80070057로 입력0·환경 보류이며 표시형 성능/선택 모달리티 전 조합은 미수행이다. 전송·다중 프로세스는 제외했고 상세 증거·최초 실패·정리 제한은 `Saved/Reports/TESTSET-01/RESULT.md`를 따른다.
 
 UXR-16 v1.1 통합 점검(`b6f2dc8`, 기준 `5dd9327`): API/일괄·IMU 활동은 기존 경고와 함께 표시하고 문구·꺼짐·숫자 글자 배율·변환 선행 안내를 정리했다. Editor/Game Development·release14단계(고유290 Success/조건부skip34/실패0)·WBP7·어휘114/기본34영역/허용7영역·위반0·layer0/0·전후108장씩·통합/관련 집중9개가 통과했다. 오프스크린1+1 ABAB12회2% gate는 FPS 저하 +0.0022%·engine p95 +0.0000%·GT -0.6700%. **Windows 잠금으로 직접 재시도는 입력0·보류이며 표시형 성능은 미수행**이다. 수용 진행률70%, 상세/초기 resize 실패·skip 이름·보호/개인 복원은 `Saved/Reports/UXR/UXR-16/RESULT.md`, 후속은 [통합24행/70분 점검표](docs/MANUAL_CHECKLIST.md)다. 아래 이전 항목의 직접/성능 결과를 이번 SHA의 수용으로 합치지 않는다.
 
@@ -585,6 +591,8 @@ UXR-17은 기존 L3 소유 미리보기의 프레임 대기 안내·모드 범�
 
 TESTSET-01과 INSP-FIX-2는 L2 `Scenario/AgentTestSetSubsystem`의 큐/대기·복원·프레임 계획, `AgentTestSetPcdPreview`의 저장 파일 읽기, L1의 센서별 임시 송신/녹화 중지·주기 저장 복원 및 immutable 점군 투영, L3의 공통 Workspace 소유 패널을 연결한다. TestSet role은 기존 enum 끝에만 추가하며 Workspace v1의 기존 map/슬롯/버전/필드를 사용한다. DTCore·자산·모듈·wire 변경 없이 레이어 위반/allowlist **0→0**이다.
 
+TESTSET-03의 소재 envelope·템플릿 읽기/단위 변환도 L2에 두고 기존 TC→DataSync→Slab과 Workspace 소유 화면을 재사용한다.100개 생성 전 worker1건만 추가하며 별도 위젯 관리자·타이머·캡처 경로를 만들지 않는다. 일반 codec·DTCore·L0/L1·Blueprint·SaveGame·wire·자산은 바꾸지 않고 layer/allowlist **0→0**이다.
+
 UXR-16은 기존 L3 소유 UI의 문구·글자/줄바꿈·활동 표시와 L2 Automation의 읽기 전용 표시 accessor만 정리한다.5Hz 기존 상태 갱신/센서 순회를 재사용하며 새 모듈·Tick/timer·측정·직렬화·DTCore·자산 변경 없이 레이어 위반/allowlist **0→0**이다. 당시 설정 구조 제안은 별도 사용자 승인 후 UXR-18에서 구현했다.
 
 IMU-01은 L1 `Sensor/VirtualImuTypes`·`VirtualImuComponent`와 기존 Recorder/StreamPublisher/FileSave를 확장한다. L0 motion provider를 읽고, L2 Dataset/AUTO-01과 L3 기존 DTCore 기반 배치 패널이 값을 소비한다. 레이어 위반·allowlist **0→0**, 새 모듈·자산·DTCore 변경 없음. IMU 스트림은 기존 acquisition envelope와 별도 접수되어 Camera/LiDAR·Slab PCD 기본 정책에 편입되지 않는다.
@@ -674,23 +682,38 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 ### TESTSET-01 AI Agent 시나리오 테스트셋 — 임시 기능, 로드맵 #17
 
-**TESTSET-02(사용자 2026-10-19, 임시 시연 기능)**: 기본 `AutoFillExamples=True`에서 9999 원본 하나를 받으면 기존 소유 위젯을 자동 표시하고 원본1개+서로 다른 예시99개를 즉시 등록한다. 예시는 **시연용 대표 프레임**이며 학습용 실제 수신 데이터가 아니다. 목록의 원본/예시 배지와 파일의 `source: received | example`로 구분한다. `AutoFillExamples=False`는 실제로 수신한 서로 다른 시나리오만 목표까지 모으는 TESTSET-01 동작이다.
+**TESTSET-03(사용자 2026-10-19 최종 정정, 임시 시연 기능)**: 기본 `AutoFillExamples=True`에서 소재`SQ23456 077`를 받으면 메시지의 시나리오 데이터가 있든 없든, 완전하든 불완전하든 **모두 무시**한다. 기존 소유 위젯을 자동 표시하고 프로젝트 기본 템플릿에서 서로 다른100개를 결정적으로 생성한다. 수신 원본 항목·수신 데이터 기반 변형·실제 입력의 슬롯 대체는 이 모드에서 사용하지 않는다. 화면 제목은 **시나리오 테스트셋**이며 원본/예시·시연용·대표 프레임 안내나 배지는 표시하지 않는다. 파일에는 합성 출처(`source: example`)·템플릿·시드·변형 값을 남긴다.
+
+`topic.scenario` / `MESSAGE_ID=IFactory-agent` → 기존 DTCore TC → DataSync → Slab과 `SubmitScenarioJson` 양쪽에서 codec 전체 검증 전에 소재를 확인한다. 다음 형태를 허용한다. 올바른 JSON·기존 MESSAGE_ID·8MiB 한도는 유지한다. 소재 확인 순서는 첫 행→최상위→`_meta`이며, 앞 위치에서 소재를 찾으면 그 값으로 판단한다. 문자열의 양끝 공백만 제거하고 가운데 공백·대소문자는 정확히 비교한다. `SQ23456 077`과 `  SQ23456 077  `은 일치하고 `SQ23456077`·`sq23456 077`은 불일치한다. 숫자는 트리거로 읽지 않는다. `9999`는 문자열·숫자 모두 일반 소재로 기존 codec 검증·재생·기본PCD 경로를 따른다. ini는 `TriggerMtlNo="SQ23456 077"`과 `TriggerMtlNo=SQ23456 077` 모두 가운데 공백을 보존한다.
+
+| 메시지 형태 | 예 |
+|---|---|
+| 첫 행 소재만 | `{"MESSAGE_ID":"IFactory-agent","DATA_MAP":[{"mtl_no":"SQ23456 077"}]}` |
+| 빈 DATA_MAP·최상위 소재 | `{"MESSAGE_ID":"IFactory-agent","DATA_MAP":[],"mtl_no":"SQ23456 077"}` |
+| DATA_MAP 생략·메타 소재 | `{"MESSAGE_ID":"IFactory-agent","_meta":{"mtl_no":"SQ23456 077"}}` |
+| 양끝 공백 있는 문자열 | `{"MESSAGE_ID":"IFactory-agent","DATA_MAP":[{"mtl_no":"  SQ23456 077  "}]}` |
+| 불완전/완전 시나리오 동봉 | 위 위치의 소재가`SQ23456 077`면 나머지 데이터는 사용하지 않는다. |
+
+진행 중·일시정지·완료·실패 세트가 있는 동안`SQ23456 077`가 다시 오면 **기존 세트를 유지**한다. 중복 안내는 진행 상태를 덮거나 화면에 표시하지 않으며 로그와 `testset.json`의 `duplicate_triggers`/`duplicate_message`에 기록한다. UUID가 달라도 새 생성·대체·예시 보관 폴더를 만들지 않는다. 상세의 **세트 초기화**가 끝난 뒤 다시 보내면 새 세트를 만든다. 초기화는 기존 파일을 보존한다. `AutoFillExamples=False`는 codec 검증을 통과한 완전한`SQ23456 077` 시나리오를 각각 등록하는 기존 실제 수신 모드다. 불완전`SQ23456 077`·불완전 일반1234는 기존대로 거절하며, 일반 소재의 검증·재생·기본PCD 송신은 바꾸지 않는다.
+
+시연 스크립트의 기본값도 `SQ23456 077`이다. 인자 변경은 Output Log에서 `py __import__('runpy').run_path(r'C:/Unreal Projects/ma0t10_dt/Saved/Reports/TESTSET-03/send_trigger_only.py')['send_trigger']('SQ23456 077')`로 한 번 전송한다. 기본 실행은 해당 파일의 첫 주석 명령을 따른다.
 
 | `[AgentTestSet]` 설정 | 기본값 | 의미 |
 |---|---|---|
-| `AutoFillExamples` | `True` | 임시 예시 자동 채우기. 실제 입력100개 운영으로 전환할 때 `False`를 선택한다. 켜진 상태에서도 실제 수신을 우선한다. |
-| `ExampleSeed` | `1337` | 원본 SHA1과 결합한 고정 시드. DATASET-01의 독립 채널 샘플러를 재사용한다. |
-| `ExampleMaxFrames` | `1` | AutoFill 모드의 **모든 항목**(최초 수신·예시·이후 대체 원본)에 같은 최대 N프레임을 적용한다. 1은 가운데 샘플 행, N>1은 첫/마지막 샘플 행을 포함해 고르게 선택한다. 범위1–10000. 이름은 예시 설정이지만 AutoFill에서는 균일 정책이다. |
+| `AutoFillExamples` | `True` | 소재 트리거만 사용하는 임시 시연 모드. 실제 시나리오100개 수신은 `False`로 전환한다. |
+| `TemplatePath` | `Config/AgentTestSetScenario.json` | 프로젝트 기준 상대 경로 또는 절대 경로. 기본 파일은 커밋된 연속 주조20행 fixture에서 가져왔고 기본 패키징에도 loose 파일로 포함한다. `_meta.dimension_unit`/`position_unit`은 `cm`·`mm`·`m`을 명시한다. |
+| `ExampleSeed` | `1337` | 입력 메시지와 무관한 변환된 템플릿 SHA1과 결합한다. DATASET-01의 독립 채널 샘플러를 재사용한다. |
+| `ExampleMaxFrames` | `1` | AutoFill=True의 템플릿 파생100개 모두에 같은 최대 N프레임을 적용한다. 1은 가운데 샘플 행, N>1은 첫/마지막 샘플 행을 포함해 고르게 선택한다. 범위1–10000. False의 실제 수신 원본에는 이 상한을 적용하지 않는다. |
 | `SampleStride` | `1` | 매 N행을 샘플링한다. AutoFill=False면 이 행들을 모두 저장하며 기존 TESTSET-01과 같다. True면 위 상한으로 고르게 선택한다. |
 | `SettleFrames` / `Pipeline` | `1` / `True` | 기존 안정화와 유한 캡처/저장 파이프라인. 센서 해상도·획득 품질을 자동으로 낮추지 않는다. |
 
-원본 행 수·프레임/시각·입력 단위·optional 필드를 유지하면서 시작 위치±20cm, 진행 거리/같은 시간의 속도0.9–1.1배, 좌우 기울기±3°와 사행 파형, 길이/폭/두께별0.9–1.1배를 결정적으로 변형한다. 예시 치수는 길이1–30m·폭0.3–4m·두께0.03–0.6m, 최종 기울기는±10°로 제한한다. 원본 UUID·SHA1·결합 시드·변형 값·단위를 기록하고 예시마다 새 시나리오 UUID와 RunUUID를 만든다. 같은 원본/시드/단위의 변형 값은 같지만 UUID·획득 시각·PCD bytes 동일성을 뜻하지 않는다. 기존 TrackReference와 BuildPose(`center_x`, 왼쪽 기울기, 첫 행 치수)를 그대로 사용하며 `center_y`·`mov_pos`의 기존 진단 의미를 바꾸지 않는다.
+템플릿 행 수·프레임/시각·optional 필드를 유지하면서 시작 위치±20cm, 진행 거리/같은 시간의 속도0.9–1.1배, 좌우 기울기±3°와 사행 파형, 길이/폭/두께별0.9–1.1배를 결정적으로 변형한다. 치수는 길이1–30m·폭0.3–4m·두께0.03–0.6m, 최종 기울기는±10°로 제한한다. 템플릿 UUID·SHA1·결합 시드·변형 값·적용 단위를 기록하고 항목마다 새 시나리오 UUID와 RunUUID를 만든다. 같은 템플릿/시드/단위의 변형 값은 같지만 UUID·획득 시각·PCD bytes 동일성을 뜻하지 않는다. 기존 TrackReference와 BuildPose(`center_x`, 왼쪽 기울기, 첫 행 치수)를 그대로 사용하며 `center_y`·`mov_pos`의 기존 진단 의미를 바꾸지 않는다.
 
-실제 시나리오를 추가로 받으면 예시 슬롯을 하나씩 예약해 대체한다. 해당 슬롯의 캡처·쓰기·검증·읽기가 끝난 뒤 기존 예시 폴더를 같은 세트의 `examples_replaced/`로 옮기고 새 원본을 생성한다. 삭제하지 않으며 `replacement.json`과 `testset.json.replaced_examples`에 이유/대체 UUID/보관 경로를 남긴다. 대체된 예시는 현재100개 집계에서 제외하므로 실제100개가 모이면 예시0개다. 대체 중에는 완료/점군 보기 조건을 다시 잠그고, 기존과 같이 목표 생성·검증·manifest 저장을 모두 기다린다. 입력64MiB 등 기존 자원 한도는 유지한다.
+기본 템플릿은 길이10.83m·폭1.1m·두께0.25m, 위치cm·치수mm를 명시한다. worker가 수신 Slab의 기존 입력 단위로 변환해 세트의 `template.json`으로 고정한다. 기존 TrackReference/BuildPose를 그대로 사용하며 동일 템플릿·시드·단위에서는 트리거 형태/동봉 데이터/초기화 횟수와 무관하게100개 변형 값이 같다. 시나리오 UUID/RunUUID·획득 시각·PCD bytes의 동일성을 뜻하지 않는다. 템플릿 누락·검증/보관 실패는 화면에 실패를 표시하고 설정 확인 후 초기화를 안내한다. 임의 시나리오나 일반 경로로 fallback하지 않는다. 사용자 지정 템플릿은 배포 시 해당 경로의 파일도 함께 제공해야 한다.
 
-빠른 생성의 목표는 이 PC에서 약10초다. 사용자 추가 결정(2026-10-19)에 따라 첫 수신 원본과 예시, 이후 대체 원본을 모두 같은 프레임 정책으로 처리해 첫 항목만 오래 걸리지 않게 한다. 원본 JSON의 모든 행은 계속 보관하며 캡처 행만 제한한다. 센서 backend/해상도·선택 출력에 따라 달라지므로 측정 결과와150ms 초과 여부는 `Saved/Reports/TESTSET-02/RESULT.md`를 따른다. 상단에 처리 속도·예상 남은 시간·원본/예시 수를 표시하며 완료 후 **점군 보기**로 저장 결과를 연다. 세부 옵션/초기화는 접힌 상세에 둔다. 화면에는 시연용/대표 프레임 안내를 표시하지 않고, 추적 목적은 파일 메타데이터에만 남긴다. 직접 UI 수용과 자동 캡처/처리량 판정은 구분한다.
+빠른 생성의 목표는 이 PC에서 약10초다.100개 모두 동일한 프레임 정책으로 처리하며 템플릿과 생성 JSON의 모든 행은 보관하고 캡처 행만 제한한다. 센서 backend/해상도·선택 출력에 따라 달라지므로 측정 결과와150ms 초과 여부는 `Saved/Reports/TESTSET-03/RESULT.md`를 따른다. 진행 중에는 처리 속도·예상 남은 시간·완료 수를 표시한다. 세트 complete에서는 최초 접수부터 완료까지 전체 경과 시간(대기/일시정지 포함)을 `총 n.n초`로 고정하고 생성용 일시정지/재개를 숨긴다. 초기화 후 새 세트에서는 다시 보인다. 하단 칩은 complete에서 **테스트셋 완료 n/100**, 진행 중에는 기존 진행 상태다. 완료 후 **점군 보기**로 저장 결과를 연다. 세부 옵션/초기화는 접힌 상세에 둔다. 화면에는 시연용/대표 프레임 안내를 표시하지 않고, 추적 목적은 파일 메타데이터에만 남긴다. 직접 UI 수용과 자동 캡처/처리량 판정은 구분한다.
 
-출처: 사용자 2026-10-16. `Config/DefaultGame.ini`의 `[AgentTestSet]`에서 `Enabled=True`, `TriggerMtlNo=9999`, `TargetScenarios=100`을 정한다. `mtl_no`는 문자열로 비교하며 양끝 공백만 제거한다. `Enabled=False`면 기존 일반 경로를 사용한다. 기존 TC → DataSync → Slab의 검증된 수신 지점에서 분기하고, 트리거는 일반 보관10개·PCD 자동 전송·실시간 재생에 넣지 않는다. 일반 소재가 오면 테스트셋 캡처/Slab 상태를 먼저 복원해 기존 실행에 양보하고, 일반 시나리오·센서 세션 정리 후 생성에 복귀한다.
+출처: 사용자 2026-10-16 및2026-10-19 정정. `Config/DefaultGame.ini`의 `[AgentTestSet]`에서 `Enabled=True`, `TriggerMtlNo="SQ23456 077"`, `TargetScenarios=100`을 정한다. `Enabled=False`면 기존 일반 경로를 사용한다. 트리거는 일반 보관10개·PCD 자동 전송·실시간 재생에 넣지 않는다. 일반 소재가 오면 테스트셋 캡처/Slab 상태를 먼저 복원해 기존 실행에 양보하고, 일반 시나리오·센서 세션 정리 후 생성에 복귀한다.
 
 `도구 → 시나리오 테스트셋`의 기본 화면은 완료/목표 진행률·상태·일시정지/재개·결과 폴더·시나리오 목록이다. 트리거·옵션·프레임/시간·예상 시간과 세트 초기화는 기본 접힌 **상세**에서 본다. 세트 초기화는 8초 안에 다시 눌러 확인하며 파일을 보존하고 목록을 비운다. 숨김은 생성 중지가 아니다. 공통 소유 패널의 제목 드래그·크기 조절·글자 배율을 사용하고 자유 배치를 기존 Workspace v1의 추가 TestSet 키에 저장한다. 기존 enum 값·슬롯·버전·저장 필드는 유지한다. 검수맵의 전용 하단 컨트롤이 상태바를 가릴 때는 **도구 → 시나리오 테스트셋**으로 재연다. 일반 화면에는 해당 검수 헬퍼가 없다.
 
@@ -700,12 +723,13 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 목표 생성·파일 검증·manifest 저장 완료 후 목록에서 완료 시나리오를 선택하면 **그 실행의 저장된 `lidar.pcd` 프레임**을 점군 조감도로 보여 준다(INSP-FIX-2, 사용자 검수 2026-10-17 F14). 원본 행의 저장된 시간 간격과 프레임 순서를 따르며 재생/일시정지/중지·현재 프레임/전체 프레임·점 수를 표시한다. 파일 읽기/33-byte 디코딩은 worker1건과 다음 프레임1개로 제한한다. 별도 보기 컴포넌트가 기존 immutable snapshot/점군 투영을 재사용하고 측정·JSON 직렬화·녹화·송신 이벤트를 발생시키지 않는다. Slab 재생·일반 보관 목록·PCD/라벨/데이터셋 파일은 바꾸지 않는다. 선택 변경/중지는 이전 읽기 결과를 폐기한다. 테스트셋 전송·Sender·임시 전송·ActiveMQ 알림은 제공하지 않는다.
 
-`AutoFillExamples=False`에서 `SampleStride=1`은 모든 원본 행이다. True에서는 최초 수신·예시·대체 원본 모두 동일한 `ExampleMaxFrames` 상한을 적용한다. `SettleFrames=1`은 적용 뒤 engine frame1회 안정화다. 실제 Slab 재생과 같은 첫 행 치수·단위·TrackReference·BuildPose로 생성하되 실시간 재생 시계는 돌리지 않는다. 공유 World의 Slab을 이동시키므로 생성 중 샘플 자세가 보일 수 있다.
+`AutoFillExamples=False`에서 `SampleStride=1`은 모든 수신 원본 행이다. True에서는100개 모두 동일한 `ExampleMaxFrames` 상한을 적용한다. `SettleFrames=1`은 적용 뒤 engine frame1회 안정화다. 실제 Slab 재생과 같은 첫 행 치수·단위·TrackReference·BuildPose로 생성하되 실시간 재생 시계는 돌리지 않는다. 공유 World의 Slab을 이동시키므로 생성 중 샘플 자세가 보일 수 있다.
 
 기본은 **LiDAR PCD + 라벨**이다. `CaptureCamera`, `CameraTruth`, `IncludeImu`, `LidarFidelity`는 모두 false이며 켠 경우 DATASET-01 대응 기능을 사용한다. 카메라 포함 시 `CameraSensorId`도 단일 대상 규칙을 따른다. `ExportFormat=none`이 기본이며 `coco`/`kitti`/`coco,kitti`에는 CameraTruth와 기존 EXPORT-01 Python 환경이 필요하다. `ExportUprightEnvelope`도 기존 정책을 따른다.
 
 | 경로 | 내용 |
 |---|---|
+| `Saved/TestSets/<세트 UUID>/template.json` | TESTSET-03 시연 모드의 고정 템플릿. 파일 SHA1·명시 단위·수신 Slab 적용 단위를 남기며 worker가 각 항목의 전체 JSON을 생성한다. 수신 메시지는 생성에 사용하지 않는다. |
 | `Saved/TestSets/<세트 UUID>/testset.json` | `ma0t10.testset.v1`: 트리거·목표/완료 수·선택 옵션·시나리오 ID/상태/프레임/시간/RunUUID/폴더·프로젝트 SHA/빌드. TESTSET-02는 원본/예시 수, 항목별 `source`/원본 UUID/시드/변형 값, `frame_policy`, 처리 속도/예상 시간, `replaced_examples` 보관 이력을 추가한다. 단일 worker가 원자 교체한다. |
 | `scenario_<번호>_<시나리오 UUID>/original.json` | 수신 원본 또는 생성한 예시 JSON의 전체 행. 예시 `_meta`에 source/원본 UUID·SHA1/변형 값을 남긴다. 별도 디스크 보관으로 일반 메모리 보관10개 제한에 영향을 주지 않는다. |
 | `scenario_.../run_<RunUUID>/scene_XXXXX/` | DATASET-01 binary33 PCD·점별 라벨·`label.json`. 실제 Slab pose/치수/표면·immutable 센서 pose/FrameId/UTC에 `scenario_id`, `run_uuid`, 원본 `mtl_no`, `scenario_frame_no`, `scenario_elapsed_s`를 추가한다. TESTSET-02 라벨은 `source`, `source_uuid`, `frame_policy`/상한/stride와 예시 시드/변형 값을 포함한다. |
@@ -717,7 +741,7 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 목록은 실행 중 메모리 상태이며 프로세스 재시작 후 자동 복원/재개는 없다. 원본과 완료 산출물은 디스크에 남는다. AUTO-01을 켠 경우 `GET /v1/testset`으로 읽는다. 새 listener·ROS2 경로·전송은 추가하지 않는다. 최초 검증·처리량은 `Saved/Reports/TESTSET-01/RESULT.md`, 사용자 검수 F13·F14·F1·F3 수정의 현재 자동 검증·직접 UI·성능 판정과 제한은 `Saved/Reports/INSP-FIX-2/RESULT.md`를 따른다.
 
-TESTSET-02 Runtime `70f95cf`의 현재 자동 검증: 원본1+예시99를 **10.07초**, 모든 항목 PCD/라벨1쌍·150ms 초과0으로 생성했다. 실제5개 대체 뒤 원본6/예시94·동일100쌍, 원본 전체 JSON 보존·변형 결정성·33B/5B 대조를 통과했다. Editor/Game·release14단계(고유308 Success/44 조건부 skip/실패0)·WBP7·golden14·Python69·layer0, 기본 상태19eb3fc 대비 표시형1+1 ABAB12회의2% gate도 통과했다(FPS 저하0.0064%·p95동일·GT+1.611%). **직접 UI는 Windows 잠금 확인으로 입력0·7행 보류**다. 초기 기존 카메라 회귀1건 실패와 동일 코드 단독/전체 재실행, 실제 조건·제한·복원/정리는 [현재 결과](Saved/Reports/TESTSET-02/RESULT.md)를 따른다. 자동 캡처·성능을 직접 수용으로 표시하지 않는다.
+TESTSET-02 Runtime `70f95cf`의 이전 자동 검증: 원본1+예시99를 **10.07초**, 모든 항목 PCD/라벨1쌍·150ms 초과0으로 생성했다. 실제5개 대체 뒤 원본6/예시94·동일100쌍, 원본 전체 JSON 보존·변형 결정성·33B/5B 대조를 통과했다. Editor/Game·release14단계(고유308 Success/44 조건부 skip/실패0)·WBP7·golden14·Python69·layer0, 기본 상태19eb3fc 대비 표시형1+1 ABAB12회의2% gate도 통과했다(FPS 저하0.0064%·p95동일·GT+1.611%). **직접 UI는 Windows 잠금 확인으로 입력0·7행 보류**다. 초기 기존 카메라 회귀1건 실패와 동일 코드 단독/전체 재실행, 실제 조건·제한·복원/정리는 [현재 결과](Saved/Reports/TESTSET-02/RESULT.md)를 따른다. 자동 캡처·성능을 직접 수용으로 표시하지 않는다.
 
 ### AUTO-01 배치 실행과 로컬 제어 API — 기본 꺼짐
 
