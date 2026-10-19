@@ -315,8 +315,9 @@ public:
             for(auto* Sensor:{Sim->MLX.Get(),Sim->Livox.Get()})
             {const auto B=ResourceBefore->GetObjectField(Sensor->GetSensorId()),A=After->GetObjectField(Sensor->GetSensorId());
              for(const auto& Pair:B->Values)Test->TestEqual(TEXT("each retained acquisition/preview buffer has constant allocation"),A->GetNumberField(Pair.Key),Pair.Value->AsNumber());}
-            int32 Parts=0;for(TActorIterator<AShipHatchPart>I(World);I;++I)if(!I->IsActorBeingDestroyed())++Parts;
-            Test->TestEqual(TEXT("no helper Actor accumulation after 50 changes"),Parts,4);
+            int32 Parts=0,PresentationParts=0;for(TActorIterator<AShipHatchPart>I(World);I;++I)if(!I->IsActorBeingDestroyed()){++Parts;PresentationParts+=I->ActorHasTag(TEXT("ShipHatchPreviewSensor"));}
+            Test->TestEqual(TEXT("four measured structure/cargo Actors do not accumulate after 50 changes"),Parts-PresentationParts,4);
+            Test->TestEqual(TEXT("two display sensor bodies plus one gantry do not accumulate after 50 changes"),PresentationParts,3);
             Test->TestEqual(TEXT("50 production button clicks use 50 distinct seeds"),RandomSeeds.Num(),50);
             Test->TestTrue(TEXT("all regenerated collision surfaces match fresh measured cargo within 15 cm"),RandomHeightMaxError<.15);
             R->SetNumberField(TEXT("random_height_max_error_m"),RandomHeightMaxError);

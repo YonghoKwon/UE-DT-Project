@@ -16,6 +16,7 @@ class UButton;
 class USlider;
 class UShipHatchAnalysisView;
 class UInvalidationBox;
+class UPrimitiveComponent;
 namespace ShipHatch { struct FAnalysis; struct FSettings; }
 struct FShipHatchMonitorWork;
 class UShipHatchMonitorWidget;
@@ -38,6 +39,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
 {
     GENERATED_BODY()
     friend struct FHatchPresentationProbe;
+    friend struct FHatchDigProbe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -52,6 +54,8 @@ public:
     float GetFontScale() const { return FontScale; }
     const ShipHatch::FAnalysis* GetAnalysis() const;
     const ShipHatch::FSettings* GetAnalysisSettings() const;
+    const ShipHatch::FAnalysis* GetDisplayAnalysis() const;
+    bool IsAnalysisPreview() const;
     FText CellTooltip(int32 Cell) const;
     void SetCameraPreset(int32 Preset);
     uint64 AnalysisBuilds=0;
@@ -103,6 +107,14 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTextBlock> FillBadge;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> PointSizeLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DensityLabel;
+    UPROPERTY(Transient) TObjectPtr<UButton> DigToggle;
+    UPROPERTY(Transient) TObjectPtr<UButton> ScanToggle;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> SensorBadges;
+    UPROPERTY(Transient) TObjectPtr<UButton> UndoButton;
+    UPROPERTY(Transient) TObjectPtr<UButton> RestoreButton;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> DigAmounts;
+    UPROPERTY(Transient) TObjectPtr<USpinBox> DigRadius;
+    UPROPERTY(Transient) TObjectPtr<USpinBox> DigDepth;
     UPROPERTY(Transient) TObjectPtr<USlider> SizeSlider;
     UPROPERTY(Transient) TObjectPtr<USlider> DensitySlider;
     TArray<int32> BaseFontSizes;
@@ -115,17 +127,35 @@ private:
     bool bSync=false;
     bool bWasGenerating=false;
     bool bSplit=true,bSettings=false,bOrbit=false;
+    bool bDigEnabled=false,bDragged=false;
+    FVector2D PointerDown;
+    double PointerDownTime=0;
+    uint64 PointerRevision=0;
+    double RadiusMeters=2,DepthMeters=1.5;
+    uint64 LastDigRevision=MAX_uint64;
+    bool bLastDigEnabled=false,bLastDigGenerating=false;
+    TSet<TWeakObjectPtr<UPrimitiveComponent>> StalePointHides;
+    void RestorePointVisibility();
     float FontScale=1;
     FVector2D LastLayout=FVector2D::ZeroVector;
     FSlateRect SceneRect;
     double OrbitYaw=48,OrbitPitch=-62,OrbitDistance=7800;
     void Layout();
     void UpdateCamera();
+    bool SceneInputAt(const FGeometry&,FVector2D Absolute) const;
+    bool DigAt(const FGeometry&,FVector2D Absolute);
+    void SyncSettings();
+    void UpdateDigControls();
     void UpdateSegments();
     void InvalidatePlots();
     double CellSize=1;
     void ApplyPreview();
     void RefreshAnalysis();
+    void RefreshEditPreview();
+    void UpdateSensorBadges();
+    UFUNCTION() void OnHighlightMLX();
+    UFUNCTION() void OnHighlightLivox();
+    UFUNCTION() void OnScanToggle();
     UFUNCTION() void OnRandom();
     UFUNCTION() void OnApply();
     UFUNCTION() void OnTools();
@@ -141,6 +171,11 @@ private:
     UFUNCTION() void OnSizeSlider(float Value);
     UFUNCTION() void OnDensitySlider(float Value);
     UFUNCTION() void OnSettings();
+    UFUNCTION() void OnDigToggle();
+    UFUNCTION() void OnUndoDig();
+    UFUNCTION() void OnRestoreCargo();
+    UFUNCTION() void OnDigRadius(float Value){RadiusMeters=Value;}
+    UFUNCTION() void OnDigDepth(float Value){DepthMeters=Value;}
     UFUNCTION() void OnSplit(){SetSplitView(true);}
     UFUNCTION() void OnRender(){SelectView(0);}
     UFUNCTION() void OnPoints(){SelectView(1);}

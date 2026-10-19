@@ -29,8 +29,9 @@ struct FHatchPresentationProbe
         const auto* A=M.GetAnalysis();T.TestNotNull(TEXT("current immutable analysis exists"),A);if(!A)return;
         double Volume=0,Sum=0,Minimum=DBL_MAX,Maximum=0;int32 Count=0;
         for(const auto& C:A->Cells)if(C.Count){const double H=C.Sum/C.Count;Volume+=H*A->DX*A->DY;Sum+=H;Minimum=FMath::Min(Minimum,H);Maximum=FMath::Max(Maximum,H);++Count;}
-        const double Expected[]={M.Simulation->Surface().Fill,Volume,Maximum,Count?Sum/Count:0,Count?Minimum:0,100.*(1.-double(Count)/A->Cells.Num())};
-        for(int32 I=0;I<6;++I)T.TestTrue(TEXT("visible metric equals independently integrated observed cells"),FMath::Abs(FCString::Atod(*M.MetricValues[I]->GetText().ToString())-Expected[I])<(I==1?.51:I==0||I==5?.051:.0051));
+        T.TestTrue(TEXT("actual measured analysis volume retains independent observed-cell integral"),FMath::Abs(Volume-A->Volume)<1.e-6);
+        const double Expected[]={M.Simulation->Surface().Fill,M.Simulation->Surface().Volume,Maximum,Count?Sum/Count:0,Count?Minimum:0,100.*(1.-double(Count)/A->Cells.Num())};
+        for(int32 I=0;I<6;++I)T.TestTrue(TEXT("visible metrics use full simulated fill/volume and observed height/coverage"),FMath::Abs(FCString::Atod(*M.MetricValues[I]->GetText().ToString())-Expected[I])<(I==1?.51:I==0||I==5?.051:.0051));
         int32 Hit=INDEX_NONE,Miss=INDEX_NONE;for(int32 I=0;I<A->Cells.Num();++I){if(A->Cells[I].Count)Hit=I;else Miss=I;}
         if(Hit!=INDEX_NONE)T.TestTrue(TEXT("hover reports the actual selected cell mean and meter unit"),M.CellTooltip(Hit).ToString().Contains(FString::Printf(TEXT("%.2f m"),A->Cells[Hit].Sum/A->Cells[Hit].Count)));
         if(Miss!=INDEX_NONE)T.TestTrue(TEXT("unobserved tooltip never invents a zero height"),M.CellTooltip(Miss).ToString().Contains(TEXT("측정 불가"))&&!M.CellTooltip(Miss).ToString().Contains(TEXT("0.00")));

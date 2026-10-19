@@ -31,6 +31,9 @@ public:
     /** Asset-free opt-in CPU colour points, using the canonical preview policy. */
     void SetColoredCpuPointPreview(bool Enabled);
     void SetProjectionPreviewEnabled(bool Enabled);
+    /** Opt-in display-copy adapter. Never mutates acquisition snapshots or output. */
+    void SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform);
+    void RefreshPointPreview();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
     void SetVisualizationSettings(const FVirtualLidarVisualizationSettings& InSettings);
@@ -124,11 +127,13 @@ public:
     ELidarPointCloudRenderPolicy PointCloudRenderPolicy = ELidarPointCloudRenderPolicy::AutoPreferNiagara;
 
 private:
+    TFunction<void(FVirtualLidarPoint&,double)> PointPreviewTransform;
     bool bHeightJetPalette=false;
     FName HeightPaletteLabel=NAME_None;
     bool bColoredCpuPointPreview=false;
     bool bProjectionPreviewEnabled=true;
     double LastColoredPointUpdate=-1;
+    int64 LastColoredPointFrame=-1;
     void RefreshColoredCpuPoints();
     void RebuildProjectionTextures();
     void StartProjectionBuild();
