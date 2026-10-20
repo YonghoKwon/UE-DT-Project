@@ -239,7 +239,7 @@ void UShipHatchMonitorWidget::SetFontPercent(int32 Percent)
     for(auto Spin:UnloaderInputs)Spin->SetFont(Style::Font(Style::BodySize,FontScale));for(auto Spin:SensorPoseInputs)Spin->SetFont(Style::Font(Style::BodySize,FontScale));
     WidgetTree->ForEachWidget([this](UWidget* W){if(auto* Spin=Cast<USpinBox>(W))Spin->SetFont(Style::Font(Style::BodySize,FontScale));});
     PRAGMA_DISABLE_DEPRECATION_WARNINGS
-    for(auto Text:ComboLabels)if(Text.IsValid())Text->SetFont(Style::Font(Style::BodySize,FontScale));
+    for(auto Text:ComboLabels)if(Text)Text->SetFont(Style::Font(Style::BodySize,FontScale));
     if(SeedInput){SeedInput->WidgetStyle.SetTextStyle(FTextBlockStyle().SetFont(Style::Font(Style::BodySize,FontScale)).SetColorAndOpacity(Style::Text()));SeedInput->SynchronizeProperties();}TGuardValue<bool> Sync(bSync,true);for(auto* Combo:{CargoChoice.Get(),SensorChoice.Get(),FontChoice.Get()})if(Combo){const int32 Index=Combo->GetSelectedIndex();Combo->Font=Style::Font(Style::BodySize,FontScale);Combo->ClearSelection();Combo->SetSelectedIndex(Index);Combo->RefreshOptions();}for(auto Combo:FieldChoices){const int32 Index=Combo->GetSelectedIndex();Combo->ClearSelection();Combo->SetSelectedIndex(Index);Combo->RefreshOptions();}if(FontChoice)FontChoice->SetSelectedIndex(Percent==150?1:0);
     PRAGMA_ENABLE_DEPRECATION_WARNINGS
     LastLayout=FVector2D::ZeroVector;Layout();

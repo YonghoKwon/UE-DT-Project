@@ -156,7 +156,9 @@ private:
     bool bGrabAnimation=true;
     bool bSensorColors=false,bCoverageOverlay=false;
     UPROPERTY(Transient) TObjectPtr<UShipHatchOverlay> Overlay;
-    TArray<TWeakObjectPtr<UTextBlock>> ComboLabels;
+    // STextBlock retains a raw pointer to UTextBlock::StrikeBrush. Keep the
+    // generated UObject alive for exactly as long as its native row survives.
+    UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> ComboLabels;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> ContextText;
     UPROPERTY(Transient) TObjectPtr<UBorder> StatusChip;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> UpdatedText;
