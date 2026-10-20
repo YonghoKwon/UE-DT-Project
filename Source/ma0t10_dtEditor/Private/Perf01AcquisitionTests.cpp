@@ -52,6 +52,7 @@
 // It creates additional sensors in PIE memory, never saves a map or sends frames.
 class FPerf01AcquisitionCommand : public IAutomationLatentCommand
 {
+    friend struct FPerf01ReportProbe;
     FAutomationTestBase* Test;
     double Created=FPlatformTime::Seconds(),Started=0,Last=0,LastRate=0,MeasurementStart=0;
     int32 Pairs=1,Duration=60;
@@ -75,11 +76,12 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
         }
         Json->SetStringField(TEXT("phase"),Phase);Json->SetStringField(TEXT("recorded_at_utc"),FDateTime::UtcNow().ToIso8601());
         if(Output.IsEmpty()){UE_LOG(LogTemp,Error,TEXT("PERF-01 cannot write report: Perf01Output missing"));return false;}
+        if(IFileManager::Get().FileExists(*Output)){UE_LOG(LogTemp,Error,TEXT("PERF-01 output already exists; refusing to overwrite evidence: %s"),*Output);return false;}
         IFileManager::Get().MakeDirectory(*FPaths::GetPath(Output),true);
         FString Text;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Text));
         const FString Pending=Output+TEXT(".pending");
         bReported=FFileHelper::SaveStringToFile(Text,*Pending,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
-            &&IFileManager::Get().Move(*Output,*Pending,true,false)==COPY_OK;
+            &&IFileManager::Get().Move(*Output,*Pending,false,false);
         if(!bReported)UE_LOG(LogTemp,Error,TEXT("PERF-01 report commit failed: %s"),*Output);
         return bReported;
     }
@@ -287,5 +289,26 @@ bool FPerf01AcquisitionTest::RunTest(const FString&)
     if(!FParse::Param(FCommandLine::Get(),TEXT("Perf01"))){AddInfo(TEXT("SKIP explicit PERF-01 only (-Perf01)"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPerf01AcquisitionCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+}
+struct FPerf01ReportProbe
+{
+    static bool Commit(FPerf01AcquisitionCommand& C,const FString& Path,const TSharedRef<FJsonObject>& Json)
+    {C.Output=Path;C.Phase=TEXT("synthetic-report-commit-fixture");return C.CommitReport(Json);}
+};
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPerf01ReportCommitTest,"MA0T10.Validation.PerfReportCommit",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FPerf01ReportCommitTest::RunTest(const FString&)
+{
+    const FString Path=FPaths::ProjectSavedDir()/TEXT("Reports/perf-report-commit-fixtures")/FGuid::NewGuid().ToString()/TEXT("fixture.json");
+    FPerf01AcquisitionCommand Command(this);auto Json=MakeShared<FJsonObject>();
+    Json->SetBoolField(TEXT("valid"),false);Json->SetBoolField(TEXT("synthetic_fixture"),true);Json->SetStringField(TEXT("fixture_marker"),TEXT("first"));
+    TestTrue(TEXT("actual report path treats successful Move boolean as success"),FPerf01ReportProbe::Commit(Command,Path,Json));
+    FString Before;TestTrue(TEXT("committed report is readable"),FFileHelper::LoadFileToString(Before,*Path));
+    Json->SetStringField(TEXT("fixture_marker"),TEXT("replacement"));
+    AddExpectedError(TEXT("PERF-01 output already exists; refusing to overwrite evidence"),EAutomationExpectedErrorFlags::Contains,1);
+    TestFalse(TEXT("duplicate report commit is rejected"),FPerf01ReportProbe::Commit(Command,Path,Json));
+    FString After;TestTrue(TEXT("original report remains readable"),FFileHelper::LoadFileToString(After,*Path));
+    TestEqual(TEXT("a second commit never overwrites existing evidence bytes"),After,Before);
+    TestFalse(TEXT("no uncommitted pending report remains"),IFileManager::Get().FileExists(*(Path+TEXT(".pending"))));
+    return true;
 }
 #endif
