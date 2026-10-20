@@ -20,7 +20,14 @@ void UShipHatchMonitorWidget::SetHatchPresentationVisible(bool Visible)
 {if(Overlay)Overlay->SetVisibility(Visible);if(!Visible){FeedbackUntil=0;bOverlayDirty=true;}}
 UWidget* UShipHatchMonitorWidget::ComboEntry(FString Value)
 {
-    ComboLabels.RemoveAll([](const auto& W){return !W.IsValid();});
+    ComboLabels.RemoveAll([](const auto& W)
+    {
+        if(!W)return true;
+        const auto Native=W->GetCachedWidget();
+        // UTextBlock::MyTextBlock owns one reference; this lookup adds one.
+        // Any additional reference belongs to a live Slate row/content owner.
+        return !Native.IsValid()||Native.GetSharedReferenceCount()<=2;
+    });
     auto* Text=WidgetTree->ConstructWidget<UTextBlock>();Text->SetText(FText::FromString(Value));Text->SetColorAndOpacity(HatchStyle::Text());Text->SetFont(HatchStyle::Font(HatchStyle::BodySize,FontScale));ComboLabels.Add(Text);return Text;
 }
 void UShipHatchMonitorWidget::SetMapHeat(bool Heat)

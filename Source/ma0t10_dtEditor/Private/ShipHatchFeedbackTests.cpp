@@ -35,6 +35,25 @@
 
 struct FHatchFeedbackProbe
 {
+    static TWeakObjectPtr<UTextBlock> ComboLifetime(FAutomationTestBase& T,UShipHatchMonitorWidget& M,TWeakPtr<SWidget>& NativeWeak)
+    {
+        auto* Label=CastChecked<UTextBlock>(M.ComboEntry(TEXT("GC lifetime probe")));
+        TWeakObjectPtr<UTextBlock> Weak=Label;
+        TSharedPtr<SWidget> Native=Label->TakeWidget();
+        NativeWeak=Native;
+        CollectGarbage(RF_NoFlags);
+        const bool Alive=Weak.IsValid();
+        T.TestTrue(TEXT("generated combo UTextBlock survives GC while Slate still owns its raw StrikeBrush"),Alive);
+        if(Alive)Native->SlatePrepass(1);
+        return Weak;
+    }
+    static void ComboReleased(FAutomationTestBase& T,UShipHatchMonitorWidget& M,TWeakObjectPtr<UTextBlock> Weak)
+    {
+        auto* Next=CastChecked<UTextBlock>(M.ComboEntry(TEXT("replacement lifetime probe")));
+        TSharedPtr<SWidget> NextNative=Next->TakeWidget();
+        CollectGarbage(RF_NoFlags);
+        T.TestFalse(TEXT("expired generated combo entry is released after native content replacement"),Weak.IsValid());
+    }
     static void Check(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {
         auto& S=*M.Simulation;T.TestTrue(TEXT("default is grab unloader field layout, three live selected sensors"),S.bFieldLayout&&S.bShowUnloader&&S.CabRight&&S.CabRight->IsSensorRunning());
@@ -200,4 +219,32 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchFeedbackRhi,"MA0T10.Hatch.UserFeedbackRhi
 bool FHatchFeedbackRhi::RunTest(const FString&){if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchFeedback(this,false));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchFeedbackCaptures,"HATCH04.CapturesRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchFeedbackCaptures::RunTest(const FString&){if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchFeedback(this,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+namespace
+{
+class FHatchComboLifetimeCommand final:public IAutomationLatentCommand
+{
+public:
+    explicit FHatchComboLifetimeCommand(FAutomationTestBase* In):Test(In){}
+    bool Update() override
+    {
+        if(FPlatformTime::Seconds()-Start>40){Test->AddError(TEXT("combo lifetime fixture timeout"));return true;}
+        UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
+        if(!FinalAcceptanceViewportReady(World))return false;
+        for(TActorIterator<AShipHatchMonitorHost> I(World);I;++I)if(I->Monitor&&I->Monitor->GetAnalysis())
+        {
+            if(!Began){Generated=FHatchFeedbackProbe::ComboLifetime(*Test,*I->Monitor,Native);Began=true;return !Generated.IsValid();}
+            // The caller's native reference ended with the preceding update.
+            // UTextBlock itself still owns MyTextBlock until the owner is pruned.
+            FHatchFeedbackProbe::ComboReleased(*Test,*I->Monitor,Generated);
+            Test->TestFalse(TEXT("native combo row is released with its expired generated owner"),Native.IsValid());return true;
+        }
+        return false;
+    }
+private:
+    FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();bool Began=false;TWeakObjectPtr<UTextBlock> Generated;TWeakPtr<SWidget> Native;
+};
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchComboLifetimeRhi,"MA0T10.Hatch.GeneratedComboLifetimeRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchComboLifetimeRhi::RunTest(const FString&)
+{if(GUsingNullRHI){AddInfo(TEXT("[OPT-IN SKIP] rendered combo lifetime requires RHI"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchComboLifetimeCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 #endif

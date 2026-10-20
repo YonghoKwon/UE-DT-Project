@@ -9,6 +9,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
@@ -230,6 +231,7 @@ public:
         {
             if(Service->HasItems()||Slab->HasPendingScenarioInput())return false;
             Times.Reset();Engine.Reset();Wall.Reset();Game.Reset();Duplicate=false;ProgressChecked=false;CompleteObserved=0;Measure=LastWall=Now;LastFrame=GFrameCounter;
+            if(FParse::Param(FCommandLine::Get(),TEXT("TestSet03Hitch")))FVirtualSensorHitchDiagnostics::Start();
             Send(Cases[Case/2],Case%2);Phase=1;return false;
         }
         if(Phase==1)
@@ -259,7 +261,16 @@ public:
                 {CheckAgentTestSetPresentation(Test,World,false,Report/FString::Printf(TEXT("case-%02d-ui-progress.json"),Case));ProgressChecked=true;}
             }
             if(!Service->IsComplete())return false;
-            if(CompleteObserved==0)CompleteObserved=Now;
+            if(CompleteObserved==0)
+            {
+                CompleteObserved=Now;
+                if(FVirtualSensorHitchDiagnostics::IsEnabled())
+                {
+                    const auto H=FVirtualSensorHitchDiagnostics::Snapshot();FVirtualSensorHitchDiagnostics::Stop();
+                    FFileHelper::SaveStringToFile(H.HitchCsv,*(Report/FString::Printf(TEXT("case-%02d-hitches.csv"),Case)));
+                    FFileHelper::SaveStringToFile(H.SectionCsv,*(Report/FString::Printf(TEXT("case-%02d-sections.csv"),Case)));
+                }
+            }
             if(Now-CompleteObserved<.45)return false; // Allow the existing 5Hz presentation to reflect completion.
             Test->TestTrue(TEXT("running UI and reset-to-running controls observed"),ProgressChecked);
             CheckAgentTestSetPresentation(Test,World,true,Report/FString::Printf(TEXT("case-%02d-ui-complete.json"),Case));
@@ -323,7 +334,7 @@ private:
         }
         FString S;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&S));FFileHelper::SaveStringToFile(S,*(Report/Name));
     }
-    bool Finish(){if(Parse.IsValid())Parse.Wait();if(TC)TC->RemoveFromRoot();if(Service){FString E;Service->ResetConfirmed(E);}return true;}
+    bool Finish(){if(FParse::Param(FCommandLine::Get(),TEXT("TestSet03Hitch")))FVirtualSensorHitchDiagnostics::Stop();if(Parse.IsValid())Parse.Wait();if(TC)TC->RemoveFromRoot();if(Service){FString E;Service->ResetConfirmed(E);}return true;}
     FAutomationTestBase* Test;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;UAgentTestSetSubsystem* Service=nullptr;UFactoryAgentScenarioTC* TC=nullptr;
     TFuture<TSharedPtr<FTransactionCodeDataBase>> Parse;TArray<FString> Cases,Reference;TArray<double> Times,Engine,Wall,Game;
     FSlabScenarioDataPtr Complete;

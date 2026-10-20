@@ -4,6 +4,15 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## TESTSET-PERF — 150ms 예산·ABAB 기록 누락·촬영 수명
+
+출처: 사용자 직접 새 후속 요청2026-10-20. 기준 `39236f4`, 기존 `fix/hatch-view-orientation`, DTCore `b2504d1` 고정. `bc9b936`은 표시 자산 준비와 검증 수명, `d1a6a1e`는 생성 콤보 GC 수명, 최종 `d593d48`은 계측 결과 Move bool 처리/중복 기록 거부 회귀를 포함한다.
+
+- CompanyEnvironment 재현에서153.899ms가 표시 자산 LoadSynchronous에 있었다. 바인딩 시 비동기 준비·수명 보유로 취득 완료의 동기 대기를 제거했다. 기존 준비10초·FullSpec·150ms 기준·측정/송수신 의미를 유지한다. TriggerRoutingLifecycle의 과거 단일 초과 프레임은 세부 스택이 없으며, 변경 후 집중/실제 전체 맥락에서 원래 기준을 재검증했다.
+- ABAB client/outer 크기 혼용을 보정하고 중도 viewport 변경을 무효 처리한다. 원자적 기록·기존 파일 보존·정상 종료/원시 CSV·양쪽 공통 계측/의존성/조건·12회 완전성을 검사한다. 추가 기록 코드의 Move bool 판정 오류는 첫 새 코호트에서 검출해 원문을 보존하고 실제 경로 회귀/60초 파일럿 뒤 새12회를 수행했다. 초기 표본/파일럿을 최종 표본에 섞지 않는다.
+- 촬영의30장 뒤 Slate 오류는 콤보 생성 UTextBlock의 약한 참조로 StrikeBrush가 GC 뒤 남던 문제다. 수정 전 강제GC 음성 대조 실패와 수정 후 생존/사용 종료 해제 회귀를 확인했다. 기존 퍼내기 입력 fixture의 키 집합 수명도 안정화했다. 새 퍼내기 기능·UI 재설계·자산·모듈은 없다.
+- 최종 Editor/Game·release15단계323 Success/40조건부Skip/0Fail·WBP7/save0·어휘/quick/layer0. 기본60초 ABAB12회/A·B각6개2% PASS: FPS저하−0.012936%,engine p95증가0.000011%,GT증가−0.275725%. 새 선택47장(자동38/직접9), 촬영 하네스2개 정상 종료, 개인142원본 복원·보호561/561 동일. 사진 촬영 코드는 `d1a6a1e`이며 최종 `d593d48`과 런타임/해치 하네스 diff0이다. 원문·수치·제한·직접/회사/Shipping 구분은 [RESULT](../Saved/Reports/TESTSET-PERF/RESULT.md), [DONE](../Saved/Reports/TESTSET-PERF/DONE.md), [캡처](../Saved/Reports/TESTSET-PERF/CAPTURES.md)를 따른다.
+
 ## TESTSET-05 — 전송 버튼 시연용 완료 표시
 
 출처: 사용자 2026-10-20. 완료 전 비활성, 클릭 → 약 1초 `전송 중…` → `전송 완료 ✓`와 `전송 완료 · HH:MM`, 상단 `테스트셋 n개 전송 완료` 알림(5초 자동 숨김·닫기)을 표시한다. 재클릭 가능, 초기화·새 세트에서 리셋한다. 기존 소유 패널·DTCore 등록·5Hz 갱신과 공통 스타일을 사용하며 별도 알림 관리자를 만들지 않는다. **시연용 표시, 실제 전송 미구현**: `sending_supported=false` 및 `send_feedback_scope`를 manifest에 기록한다. 버튼의 Broker/HTTP/파일 송신 호출은 0이다.
@@ -20,6 +29,14 @@
 - 같은 날 추가 화면 요구: 상세 옆 **전송** 자리 표시 버튼은 완료 후 안내만 표시한다. 파일/전송 동작은 없다. 트리거마다 기존 창을 재표시·전면 배치하며, 중복 유지/거절 및 DTCore 닫기 뒤 재등록도 포함한다. 기존 배치·크기·세트/RunUUID를 유지한다. 수정 전 두 모드×3회 재열기와 열린 창 전면 배치 실패를 재현했다. 새 자동 회귀는 두 모드 모두 버튼 비활성/활성·실제 Slate 클릭·파일 해시/시각 및 송신 계수 변화0·재수신3회·같은 인스턴스/배치를 확인한다. 직접 입력은 새 창 캡처0x80070057 두 번으로 환경 보류다.
 - 최신 Runtime `bd79ddb`: 새 화면 회귀는 두 모드×재수신3회·DTCore 재등록/배치·실제 Slate 클릭/결과파일·전송 변화0을 확인했다. Git 없는 회사 유사200개 및 실제 빈 커밋 Development 패키지100개, 오류5종/재시도·복원·파일 감사, release14단계(고유316Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0·기본60초ABAB12회2% gate를 통과했다. 첫 선행release의 단일150ms 초과는 원인 미확정으로 보존했다. 직접 입력0·환경 보류, 패키지 Slab정답 품질/회사실환경/Shipping 수용은 별도다. 상세 수치·조건·실패는 검증 이력과 RESULT를 따른다.
 - 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T11](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
+
+## HATCH-05-LABELS — 일반3D 운전실 센서 이름표 대응
+
+출처: 사용자 직접 요청2026-10-20, UserInput `01a15851-629a-7f53-9f3e-b0423552c5c0`. 기준 `02f4a99`, Runtime `5d403f1`, 기존 `fix/hatch-view-orientation` 브랜치에서 한 항목만 처리했다.
+
+- 실제 운전실/붐 메시·Actor·획득 snapshot 대조에서 센서는 운전실 X=0의 −2m/+2m로 정상이다. 모든 이름표의 화면+X 고정 오프셋 때문에 두 사각형이 붐 오른쪽에 보였다. 센서/시나리오 원점은 수정하지 않았다.
+- 실제 Actor 투영·바깥쪽 후보/경계·겹침 회피와 역할별 색상 앵커/연결선으로 대응을 표시한다. 카메라 화면 순서가 뒤집혀도 물리 좌/우 역할명·ID·측정/저장/송신은 유지한다. 기존 소유 Canvas 안의 입력 투과 표시와 최대5Hz를 사용한다. 새 모듈/플러그인/자산/저장값 및 layer 예외0이다.
+- Editor/Game, 해치/UXR45 Success/2조건부Skip, 두 해상도 라벨 RHI, WBP7/save0·어휘/계약/fixture·quick/layer0은 통과했다. 전체 회귀318 Success/40조건부Skip/2 Fail은 TestSet150ms 예산 실패이며 분리 재시도에서 TriggerRoutingLifecycle 통과/CompanyEnvironment 재실패다. 기대값을 바꾸지 않았고 원인/회귀 여부는 미확정이다. 표준60초 ABAB는12회 중 마지막 B 결과JSON 누락으로 미완료이며2% 통과로 표시하지 않는다. 직접 주요동작5관찰은 통과했다. 추가 DigCaptures는30장 뒤 후속 설정 화면에서 Slate 접근 오류(exit3)로 종료했으며 전체 촬영 실행의 통과로 세지 않는다. 직접 수용·해치3대 절대 계측·기존 하네스 퍼내기 촬영·보호/개인설정 복원의 상세와 제한은 [RESULT](../Saved/Reports/HATCH-05-LABELS/RESULT.md), [DONE](../Saved/Reports/HATCH-05-LABELS/DONE.md), [촬영 목록](../Saved/Reports/HATCH-05-LABELS/CAPTURES.md)을 따른다. 구현 및 자동 라벨 검사와 전체 수용을 구분한다.
 
 ## HATCH-05 — 3D 위 시점과 상면·히트맵·단면 방향 통일
 

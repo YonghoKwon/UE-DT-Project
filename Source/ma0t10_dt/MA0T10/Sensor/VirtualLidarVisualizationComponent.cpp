@@ -4,6 +4,8 @@
 
 #include "Async/Async.h"
 #include "Engine/Texture2D.h"
+#include "Engine/AssetManager.h"
+#include "Engine/StreamableManager.h"
 #include "Components/LineBatchComponent.h"
 #include "NiagaraComponent.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
@@ -499,6 +501,7 @@ UVirtualLidarVisualizationComponent::UVirtualLidarVisualizationComponent()
 
 void UVirtualLidarVisualizationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if(NiagaraLoadHandle){NiagaraLoadHandle->CancelHandle();NiagaraLoadHandle.Reset();}
     if(ColoredPointBatch){ColoredPointBatch->DestroyComponent();ColoredPointBatch=nullptr;}
     ++ProjectionGeneration;
     bProjectionBuildInFlight = false;
@@ -521,7 +524,22 @@ void UVirtualLidarVisualizationComponent::BindScanComponent(UVirtualLidarScanCom
     if (ScanComponent)
     {
         Settings.ColorMode = MapLegacyViewMode(ScanComponent->ViewMode);
+        // Resource preparation belongs to component binding, not to the first
+        // nonempty scan (which may arrive during a dataset transaction).
+        if(Settings.bShowWorldPointCloud&&PointCloudRenderPolicy!=ELidarPointCloudRenderPolicy::ForceCpu)RequestNiagaraAsset();
     }
+}
+
+void UVirtualLidarVisualizationComponent::RequestNiagaraAsset()
+{
+    const auto Path=NiagaraPointCloudSystem.ToSoftObjectPath();
+    if(NiagaraLoadHandle&&NiagaraRequestedPath==Path)return;
+    if(NiagaraLoadHandle)NiagaraLoadHandle->CancelHandle();
+    NiagaraRequestedPath=Path;
+    // Retain a handle even when already loaded, so another sensor's teardown
+    // cannot evict this resource before our first nonempty acquisition.
+    NiagaraLoadHandle=UAssetManager::GetStreamableManager().RequestAsyncLoad(Path);
+    if(!NiagaraLoadHandle)NextNiagaraRetryTimeSeconds=(GetWorld()?GetWorld()->GetTimeSeconds():0)+2;
 }
 
 void UVirtualLidarVisualizationComponent::RefreshLatestFrame()
@@ -1179,7 +1197,8 @@ void UVirtualLidarVisualizationComponent::RefreshWorldPointCloud()
             VisiblePointCount > 0 ? TEXT("현재 스캔에 검출점이 없어 마지막 정상 포인트를 유지합니다.") : TEXT("검출점을 기다리는 중입니다."));
         return;
     }
-    if (TryRefreshNiagaraPointCloud()) return;
+    const bool Niagara=TryRefreshNiagaraPointCloud();
+    if (Niagara) return;
     if (PointCloudRenderPolicy == ELidarPointCloudRenderPolicy::ForceNiagara && !bForceCpuFallbackForBenchmark)
     {
         if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);
@@ -1204,7 +1223,20 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
 
     const bool bForceCpu = bForceCpuFallbackForBenchmark || PointCloudRenderPolicy == ELidarPointCloudRenderPolicy::ForceCpu;
     const double NowSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
-    UNiagaraSystem* System = bForceCpu || NowSeconds < NextNiagaraRetryTimeSeconds ? nullptr : NiagaraPointCloudSystem.LoadSynchronous();
+    UNiagaraSystem* System = bForceCpu || NowSeconds < NextNiagaraRetryTimeSeconds ? nullptr : NiagaraPointCloudSystem.Get();
+    if(!bForceCpu&&NowSeconds>=NextNiagaraRetryTimeSeconds&&!System)
+    {
+        const auto Path=NiagaraPointCloudSystem.ToSoftObjectPath();
+        if(!NiagaraLoadHandle||NiagaraRequestedPath!=Path)
+        {
+            // Never flush package/renderer loading inside a completed acquisition.
+            // The handle owns the loaded asset; the next normal preview refresh
+            // adopts it. No UObject callback or extra scan is scheduled.
+            RequestNiagaraAsset();
+        }
+        else if(NiagaraLoadHandle->HasLoadCompleted())
+        {NiagaraLoadHandle.Reset();NextNiagaraRetryTimeSeconds=NowSeconds+2;}
+    }
     const bool bSystemReady = System && System->IsReadyToRun();
     if (!System || !bSystemReady || !GetWorld() || GetWorld()->GetFeatureLevel() < ERHIFeatureLevel::SM5)
     {
@@ -1215,6 +1247,8 @@ bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
                 ? TEXT("Niagara 재시도 대기 중이라 CPU로 표시합니다.")
                 : System && !bSystemReady
                     ? TEXT("Niagara 시스템 컴파일이 완료되지 않아 CPU로 전환했습니다.")
+                    : NiagaraLoadHandle.IsValid()
+                        ? TEXT("Niagara 포인트 자산을 불러오는 중이라 CPU로 표시합니다.")
                     : System
                         ? TEXT("GPU Feature Level이 부족해 CPU로 전환했습니다.")
                         : TEXT("Niagara 포인트 자산을 찾지 못해 CPU로 전환했습니다.");

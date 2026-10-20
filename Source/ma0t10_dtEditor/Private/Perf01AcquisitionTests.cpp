@@ -35,6 +35,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
 #include "EngineGlobals.h"
 #include "RenderTimer.h"
 #include "Json.h"
@@ -51,6 +52,7 @@
 // It creates additional sensors in PIE memory, never saves a map or sends frames.
 class FPerf01AcquisitionCommand : public IAutomationLatentCommand
 {
+    friend struct FPerf01ReportProbe;
     FAutomationTestBase* Test;
     double Created=FPlatformTime::Seconds(),Started=0,Last=0,LastRate=0,MeasurementStart=0;
     int32 Pairs=1,Duration=60;
@@ -63,20 +65,57 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
     bool bVisibleVerified=false;
     bool bCameraTruthPerformance=false;
     bool bLidarFidelityPerformance=false;
+    FString Output,Phase=TEXT("setup");
+    bool bReported=false;
+    bool CommitReport(const TSharedRef<FJsonObject>& Json)
+    {
+        for(const TCHAR* Key:{TEXT("Perf01SourceCommit="),TEXT("Perf01RunId="),TEXT("Perf01InstrumentSha="),TEXT("Perf01SessionSha=")})
+        {
+            FString Value;FParse::Value(FCommandLine::Get(),Key,Value);
+            Json->SetStringField(FString(Key).LeftChop(1),Value);
+        }
+        Json->SetStringField(TEXT("phase"),Phase);Json->SetStringField(TEXT("recorded_at_utc"),FDateTime::UtcNow().ToIso8601());
+        if(Output.IsEmpty()){UE_LOG(LogTemp,Error,TEXT("PERF-01 cannot write report: Perf01Output missing"));return false;}
+        if(IFileManager::Get().FileExists(*Output)){UE_LOG(LogTemp,Error,TEXT("PERF-01 output already exists; refusing to overwrite evidence: %s"),*Output);return false;}
+        IFileManager::Get().MakeDirectory(*FPaths::GetPath(Output),true);
+        FString Text;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Text));
+        const FString Pending=Output+TEXT(".pending");
+        bReported=FFileHelper::SaveStringToFile(Text,*Pending,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
+            &&IFileManager::Get().Move(*Output,*Pending,false,false);
+        if(!bReported)UE_LOG(LogTemp,Error,TEXT("PERF-01 report commit failed: %s"),*Output);
+        return bReported;
+    }
 public:
     explicit FPerf01AcquisitionCommand(FAutomationTestBase* In):Test(In)
     {
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Pairs="),Pairs);
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Seconds="),Duration);
+        FParse::Value(FCommandLine::Get(),TEXT("Perf01Output="),Output);
         Pairs=FMath::Clamp(Pairs,1,2);Duration=FMath::Clamp(Duration,30,60);
         bCameraTruthPerformance=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
         bLidarFidelityPerformance=FParse::Param(FCommandLine::Get(),TEXT("LidarFidelityPerformance"));
     }
     bool Update() override
     {
+        const bool Done=UpdateMeasurement();
+        if(Done&&!bReported)
+        {
+            auto Failed=MakeShared<FJsonObject>();Failed->SetBoolField(TEXT("valid"),false);
+            Failed->SetStringField(TEXT("failure"),TEXT("measurement did not finalize; see automation errors"));
+            Failed->SetNumberField(TEXT("samples"),Wall.Num());Failed->SetNumberField(TEXT("pairs"),Pairs);
+            Failed->SetNumberField(TEXT("warmup_seconds"),10);Failed->SetNumberField(TEXT("measurement_seconds"),Duration);
+            CommitReport(Failed);
+        }
+        return Done;
+    }
+    bool UpdateMeasurement()
+    {
         const double Now=FPlatformTime::Seconds();
         if(Now-Created>Duration+70){Test->AddError(TEXT("PERF-01 timeout"));return true;}
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
+        if(MeasurementStart&&(!World||!World->GetGameViewport()||!World->GetGameViewport()->Viewport
+            ||World->GetGameViewport()->Viewport->GetSizeXY()!=FinalAcceptanceViewportSize()))
+        {Test->AddError(TEXT("PERF-01 viewport changed during measurement; no samples are silently omitted"));return true;}
         if(!FinalAcceptanceViewportReady(World)||Now-Created<3)return false;
         auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
         auto* Coordinator=Workspace->GetCoordinator();if(!Coordinator)return false;
@@ -155,7 +194,7 @@ public:
             if(FParse::Param(FCommandLine::Get(),TEXT("ImuPerformance")))
                 for(const auto& Weak:Sensors)if(auto* A=Weak.Get()){auto* Imu=UVirtualImuComponent::Attach(A);FVirtualImuConfig C;C.RateHz=400;FString Error;Test->TestTrue(TEXT("IMU perf configure"),Imu&&Imu->Configure(C,Error));}
 #endif
-            Started=Last=Now;return false;
+            Started=Last=Now;Phase=TEXT("warmup");return false;
         }
 #if CAM_GT_PERF_AVAILABLE
         if(bCameraTruthPerformance)
@@ -166,7 +205,7 @@ public:
         {
             if(!MeasurementStart)
             {
-                MeasurementStart=Now;TRACE_BEGIN_REGION(TEXT("PERF01Measurement"));
+                MeasurementStart=Now;Phase=TEXT("measurement");TRACE_BEGIN_REGION(TEXT("PERF01Measurement"));
                 for(int32 I=0;I<Sensors.Num();++I)StartFrames[I]=Sensors[I]->GetSensorRuntimeStatus().FrameId;
                 if(auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef()))
                 {
@@ -202,10 +241,13 @@ public:
         Json->SetNumberField(TEXT("samples"),Wall.Num());Json->SetNumberField(TEXT("pairs"),Pairs);
         Json->SetBoolField(TEXT("lidar_fidelity_enabled"),bLidarFidelityPerformance);
         Json->SetNumberField(TEXT("warmup_seconds"),10);Json->SetNumberField(TEXT("measurement_seconds"),Duration);
+        Json->SetNumberField(TEXT("measurement_elapsed_seconds"),MeasurementStart>0?Now-MeasurementStart:0);
+        Json->SetNumberField(TEXT("frame_sample_sum_seconds"),Mean(Wall)*Wall.Num()*.001);
         Json->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
         Json->SetBoolField(TEXT("native_visible_client_verified"),bVisibleVerified);
         Json->SetNumberField(TEXT("native_client_x_including_slate_border"),NativeClientX);Json->SetNumberField(TEXT("native_client_y_including_slate_border"),NativeClientY);Json->SetNumberField(TEXT("dpi_scale"),DpiScale);
-        Json->SetStringField(TEXT("actual_client"),TEXT("1920x1080"));
+        const auto Client=World->GetGameViewport()->Viewport->GetSizeXY();
+        Json->SetStringField(TEXT("actual_client"),FString::Printf(TEXT("%dx%d"),Client.X,Client.Y));
         Json->SetBoolField(TEXT("ui02_observation_scenario"),FParse::Param(FCommandLine::Get(),TEXT("Ui02Performance")));
         Json->SetStringField(TEXT("output_condition"),Pairs==2?TEXT("acquisition+preview only; camera PreviewOnly; no streams/recording/transport"):TEXT("camera Payload (encode), lidar RequestedOnly; no streams/recording/transport"));
         TArray<TSharedPtr<FJsonValue>> Rows;
@@ -231,15 +273,14 @@ public:
 #endif
             Rows.Add(MakeShared<FJsonValueObject>(Row));A->StopSensor();
         }
-        Json->SetArrayField(TEXT("sensors"),Rows);Json->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
-        FString Path;FParse::Value(FCommandLine::Get(),TEXT("Perf01Output="),Path);
-        if(Path.IsEmpty()){Test->AddError(TEXT("Perf01Output is required"));return true;}
+        Json->SetArrayField(TEXT("sensors"),Rows);Phase=TEXT("finalize");
+        if(Output.IsEmpty()){Test->AddError(TEXT("Perf01Output is required"));return true;}
         FString Csv=TEXT("callback_ms,engine_ms,game_thread_ms,gpu_ms\n");
         for(int32 I=0;I<Wall.Num();++I)Csv+=FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f\n"),Wall[I],Engine[I],Game[I],Gpu[I]);
-        Test->TestTrue(TEXT("raw frame samples written"),FFileHelper::SaveStringToFile(Csv,*(Path+TEXT(".frames.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
-        FString Text;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Text));
-        Test->TestTrue(TEXT("PERF-01 report written"),FFileHelper::SaveStringToFile(Text,*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
-        Test->AddInfo(Text);return true;
+        Test->TestTrue(TEXT("raw frame samples written"),FFileHelper::SaveStringToFile(Csv,*(Output+TEXT(".frames.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+        Json->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
+        Test->TestTrue(TEXT("PERF-01 report atomically committed"),CommitReport(Json));
+        FString Text;FJsonSerializer::Serialize(Json,TJsonWriterFactory<>::Create(&Text));Test->AddInfo(Text);return true;
     }
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPerf01AcquisitionTest,"MA0T10.PERF01.AcquisitionAndPreview",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -248,5 +289,26 @@ bool FPerf01AcquisitionTest::RunTest(const FString&)
     if(!FParse::Param(FCommandLine::Get(),TEXT("Perf01"))){AddInfo(TEXT("SKIP explicit PERF-01 only (-Perf01)"));return true;}
     if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
     ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FPerf01AcquisitionCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+}
+struct FPerf01ReportProbe
+{
+    static bool Commit(FPerf01AcquisitionCommand& C,const FString& Path,const TSharedRef<FJsonObject>& Json)
+    {C.Output=Path;C.Phase=TEXT("synthetic-report-commit-fixture");return C.CommitReport(Json);}
+};
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPerf01ReportCommitTest,"MA0T10.Validation.PerfReportCommit",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FPerf01ReportCommitTest::RunTest(const FString&)
+{
+    const FString Path=FPaths::ProjectSavedDir()/TEXT("Reports/perf-report-commit-fixtures")/FGuid::NewGuid().ToString()/TEXT("fixture.json");
+    FPerf01AcquisitionCommand Command(this);auto Json=MakeShared<FJsonObject>();
+    Json->SetBoolField(TEXT("valid"),false);Json->SetBoolField(TEXT("synthetic_fixture"),true);Json->SetStringField(TEXT("fixture_marker"),TEXT("first"));
+    TestTrue(TEXT("actual report path treats successful Move boolean as success"),FPerf01ReportProbe::Commit(Command,Path,Json));
+    FString Before;TestTrue(TEXT("committed report is readable"),FFileHelper::LoadFileToString(Before,*Path));
+    Json->SetStringField(TEXT("fixture_marker"),TEXT("replacement"));
+    AddExpectedError(TEXT("PERF-01 output already exists; refusing to overwrite evidence"),EAutomationExpectedErrorFlags::Contains,1);
+    TestFalse(TEXT("duplicate report commit is rejected"),FPerf01ReportProbe::Commit(Command,Path,Json));
+    FString After;TestTrue(TEXT("original report remains readable"),FFileHelper::LoadFileToString(After,*Path));
+    TestEqual(TEXT("a second commit never overwrites existing evidence bytes"),After,Before);
+    TestFalse(TEXT("no uncommitted pending report remains"),IFileManager::Get().FileExists(*(Path+TEXT(".pending"))));
+    return true;
 }
 #endif

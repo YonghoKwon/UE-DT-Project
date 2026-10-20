@@ -18,6 +18,10 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+TESTSET-PERF(사용자 직접 후속 요청2026-10-20): 최종 검증 코드 `d593d48`(런타임 수정 `bc9b936`/`d1a6a1e`). 생성 중 LiDAR 표시 자산의 동기 로딩을 제거하고 바인딩 시 비동기 준비·수명 보유로 바꿨다. 150ms 기준·기존 준비10초·측정/송수신 계약은 유지한다. ABAB 창 크기 보정의 client/outer 혼용과 기록/종료 검사를 수정했으며, 생성 콤보 항목의 GC 후 StrikeBrush 수명도 고쳤다. Editor/Game·release15단계(전체323 Success/40조건부Skip/0Fail)·WBP7/save0·어휘/quick/layer0, 기본60초 ABAB12회(A/B각6)2% PASS(FPS저하−0.012936%,engine p95증가0.000011%,GT증가−0.275725%)다. 퍼내기/그랩 촬영 하네스 모두 정상 종료·새 선택47장(자동38/직접9), 개인142원본 복원·보호561/561 동일이다. 사진은 `d1a6a1e` 촬영이며 최종 코드와 런타임/해치 하네스가 동일함을 확인했다. 초기 실패·무효 코호트·직접 수용·모의/새 모의 프레임·회사/Shipping 범위는 [RESULT](Saved/Reports/TESTSET-PERF/RESULT.md), [DONE](Saved/Reports/TESTSET-PERF/DONE.md), [새 캡처](Saved/Reports/TESTSET-PERF/CAPTURES.md)를 따른다.
+
+HATCH-05-LABELS(사용자 직접 후속 요청2026-10-20): Runtime `5d403f1`. 운전실 좌/우 센서의 실제 배치는 정상(운전실 중심 X=0m, 센서 X=−2/+2m)이며 모든 이름표의 화면 오른쪽 고정 오프셋이 혼동 원인이었다. 실제 Actor 투영을 기준으로 라벨을 양쪽 바깥에 배치하고 역할별 색상 앵커/연결선을 추가했다. 물리 역할명·측정 좌표는 유지한다. Editor/Game·해치/UXR45 Success/2조건부Skip·라벨 RHI 두 해상도는 통과했다. 전체 회귀는318 Success/40조건부Skip/2 Fail(기존 TestSet150ms 기준), 표준 ABAB는 마지막 결과 누락으로 미완료다. 직접 주요동작5관찰은 통과했고, 퍼내기 추가 촬영 실행은30장 확보 뒤 Slate 오류로 종료했다. 직접 수용·성능·기존 하네스 퍼내기 촬영과 복원/보호 감사의 최종 결과는 [RESULT](Saved/Reports/HATCH-05-LABELS/RESULT.md), [DONE](Saved/Reports/HATCH-05-LABELS/DONE.md), [촬영 목록](Saved/Reports/HATCH-05-LABELS/CAPTURES.md)을 따른다. 전체 수용 통과로 표시하지 않는다.
+
 HATCH-05(사용자2026-10-20): Runtime `f856875`. 3D 위에서 보기와 상면·히트맵의 방향을 위해측+Y/오른쪽−X로 통일하고 단면 시점을 표시했다. 공통 변환으로 센서3대·카메라/쐐기·예상 FOV·단면선·클릭/hover/드래그를 맞춘다. 고정 시드 비대칭 철광석과 이전 축 오류 음성 대조를 추가했다. 최종 Editor/Game·release14단계(고유319 Success/40조건부Skip/실패0)·WBP7/save0·어휘/계약/golden·quick/layer0, 전후13 PNG를 확인했다. 직접8행은 CreateForMonitor 0x80070057 두 번으로 입력0·환경 보류다. 개인142원본 복원·보호561/561 동일이며 검증·전후 캡처·직접 수용의 구분은 [RESULT](Saved/Reports/HATCH-05/RESULT.md), [DONE](Saved/Reports/HATCH-05/DONE.md)을 따른다. 표시 경로만 변경해 요청에 따라 perf 재측정은 생략한다.
 
 TESTSET-05(사용자2026-10-20): 완료 세트의 **전송**은 약 1초 `전송 중…` 뒤 **전송 완료 ✓**, 5초간 닫을 수 있는 상단 알림 `테스트셋 n개 전송 완료`, 상태 줄 `전송 완료 · HH:MM`을 표시한다. 재클릭은 같은 흐름을 반복하고 초기화/새 세트는 표시를 지운다. **시연용 표시, 실제 전송 미구현**이며 Broker·HTTP·파일 송신을 하지 않는다. `testset.json`은 `sending_supported=false`, `send_feedback_scope`에 같은 제한을 기록하며 버튼 클릭으로 변경하지 않는다. 전송 피드백 자동 회귀·1920×1080 및 1280×720/글자150%·어휘/quick/layer는 통과했다. 집중 검사의 `CompanyEnvironment` 150ms 초과1회는 단독 재실행에서도 재현됐으며 원인/회귀 여부는 미확정이다. 직접 점검은 캡처 오류로 입력0·보류다. 캡처2장·검증/제한은 [DONE](Saved/Reports/TESTSET-05/DONE.md)을 따른다.
@@ -862,6 +866,24 @@ python -m unittest discover -s Tools/AutomationClient -v
 ```
 
 Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시·redirect를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
+
+## TESTSET-PERF 시간 예산·측정 기록·촬영 수명
+
+생성 트리거 뒤 처음 표시할 반환점에서 Niagara 자산을 동기 로드하던 경로는 `BindScanComponent`에서 비동기로 준비하고 소유 handle로 보관한다. 취득 완료는 로딩을 기다리지 않으며 준비 중 기존 CPU 표시를 사용한다. EndPlay에서 handle을 취소/해제한다. 기존 FullSpec·요청 출력·자동 중지/복원·원본 프레임/PCD/wire와 준비10초/150ms 기준은 유지한다.
+
+표준 검증은 `Scripts/verify.ps1 -Level perf -BaseCommit 39236f4`다. 양쪽 archive에 같은 PERF01 코드와 `FinalAcceptanceTestSession.h`를 적용하고 해시를 기록한다. 창 보정은 client 좌표를 사용한다. 측정 중 viewport 변경은 무효 처리하며 샘플을 조용히 빼지 않는다. raw CSV를 닫고 JSON을 원자적으로 이동한 뒤 종료하며 기존 결과는 덮어쓰지 않는다. 각 실행의 코드/계측 해시·조건·CSV 수·자동화 종료와 기본12회/A·B각6개를 대조한다. 기본2% 판정은 각6회의 중앙값이다. 합성 코호트 회귀는 실제 측정 표본에 포함하지 않는다.
+
+해치 콤보가 보유한 Slate 텍스트의 StrikeBrush는 생성 UTextBlock의 메모리를 가리킨다. 외부 Slate 소유자가 있는 동안 transient 강한 참조를 유지하고 사용 종료 항목은 정리한다. 별도 UI/자산/기능은 추가하지 않는다. 고정 카메라·단면의 직접 퍼내기와 새 자동 촬영, 원료·그랩/일반/저적재 바닥 시리즈 및 즉시 모의 미리보기/새 모의 센서 반환점 구분은 [캡처 목록](Saved/Reports/TESTSET-PERF/CAPTURES.md)을 따른다. 현장 하드웨어·회사/Shipping 수용을 자동 회귀로 대체하지 않는다.
+
+## HATCH-05-LABELS 운전실 센서 이름표 대응
+
+사용자 직접 요청 `01a15851-629a-7f53-9f3e-b0423552c5c0`의 후속 수정이다. 실제 메시의 운전실 중심은 홀드 로컬 `(0,−2,32.1)m`, 두 센서는 `(−2,−2,30.5)m`와 `(+2,−2,30.5)m`다. 붐 중심선 X=0의 양쪽에 있으며 Actor와 획득 snapshot의 원점도 일치한다. 기존 이름표는 모두 화면 `+24×글자배율` 오프셋을 사용해 두 사각형이 붐 오른쪽으로 밀렸다.
+
+이제 실제 센서 Actor의 투영 위치를 사용하고 운전실 쌍의 화면 순서에 맞춰 바깥쪽에 라벨을 배치한다. 겹침/경계 회피로 옮긴 라벨에도 역할별 청록/주황/자홍 앵커와 자기 사각형까지의 연결선이 남는다. `운전실 좌/우`는 설치 역할명이다. 위에서 보기(화면 오른쪽−X)에서는 물리 좌 센서가 화면 오른쪽에 보이며 카메라를 돌려도 이름·ID·콜백·실제 설치 좌표는 바뀌지 않는다. 기존 UDxWidget 소유 Canvas 안의 입력 투과 위젯이 캐시된 선만 그리며 최대5Hz 갱신을 유지한다. 새 월드 객체·캡처/readback·센서 스캔·저장/wire 변경은 없다.
+
+`MA0T10.Hatch.SensorLabelAnchorsRhi`는 실제 운전실/붐 메시와 센서 Actor·획득 원점, 이름/사각형/겹침·경계·연결선 종점·역시점의 물리 역할 보존을 검사한다. 정지 시점에서 독립 Actor 투영과 앵커 오차 기준은1 logical pixel이며 실제 역할색 픽셀도 검사한다. 위/사선/반대/최대화/점군을1920×1080·100% 및1280×720·150%로 촬영한다. 연속 드래그 중 모든 순간의1px 일치를 주장하지 않는다. 새 시험은 Editor 모듈 안에 있고 Runtime/Editor 레이어 allowlist는0을 유지한다.
+
+검증 실패·직접 수용 보류와 캡처의 모의/새 모의 획득 구분은 [RESULT](Saved/Reports/HATCH-05-LABELS/RESULT.md)를 따른다. 퍼내기 사진은 변경하지 않은 `FeedbackCaptures`/`DigCaptures`의 별도 fixture 시리즈이며 같은 연속 작업으로 합쳐 설명하지 않는다.
 
 ## HATCH-05 3D·상면·히트맵·단면 방향 통일
 
