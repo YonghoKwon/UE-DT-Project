@@ -4,6 +4,15 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## TESTSET-PERF — 150ms 예산·ABAB 기록 누락·촬영 수명
+
+출처: 사용자 직접 새 후속 요청2026-10-20. 기준 `39236f4`, 기존 `fix/hatch-view-orientation`, DTCore `b2504d1` 고정. `bc9b936`은 표시 자산 준비와 검증 수명, `d1a6a1e`는 생성 콤보 GC 수명, 최종 `d593d48`은 계측 결과 Move bool 처리/중복 기록 거부 회귀를 포함한다.
+
+- CompanyEnvironment 재현에서153.899ms가 표시 자산 LoadSynchronous에 있었다. 바인딩 시 비동기 준비·수명 보유로 취득 완료의 동기 대기를 제거했다. 기존 준비10초·FullSpec·150ms 기준·측정/송수신 의미를 유지한다. TriggerRoutingLifecycle의 과거 단일 초과 프레임은 세부 스택이 없으며, 변경 후 집중/실제 전체 맥락에서 원래 기준을 재검증했다.
+- ABAB client/outer 크기 혼용을 보정하고 중도 viewport 변경을 무효 처리한다. 원자적 기록·기존 파일 보존·정상 종료/원시 CSV·양쪽 공통 계측/의존성/조건·12회 완전성을 검사한다. 추가 기록 코드의 Move bool 판정 오류는 첫 새 코호트에서 검출해 원문을 보존하고 실제 경로 회귀/60초 파일럿 뒤 새12회를 수행했다. 초기 표본/파일럿을 최종 표본에 섞지 않는다.
+- 촬영의30장 뒤 Slate 오류는 콤보 생성 UTextBlock의 약한 참조로 StrikeBrush가 GC 뒤 남던 문제다. 수정 전 강제GC 음성 대조 실패와 수정 후 생존/사용 종료 해제 회귀를 확인했다. 기존 퍼내기 입력 fixture의 키 집합 수명도 안정화했다. 새 퍼내기 기능·UI 재설계·자산·모듈은 없다.
+- 최종 Editor/Game·release15단계323 Success/40조건부Skip/0Fail·WBP7/save0·어휘/quick/layer0. 기본60초 ABAB12회/A·B각6개2% PASS: FPS저하−0.012936%,engine p95증가0.000011%,GT증가−0.275725%. 새 선택47장(자동38/직접9), 촬영 하네스2개 정상 종료, 개인142원본 복원·보호561/561 동일. 사진 촬영 코드는 `d1a6a1e`이며 최종 `d593d48`과 런타임/해치 하네스 diff0이다. 원문·수치·제한·직접/회사/Shipping 구분은 [RESULT](../Saved/Reports/TESTSET-PERF/RESULT.md), [DONE](../Saved/Reports/TESTSET-PERF/DONE.md), [캡처](../Saved/Reports/TESTSET-PERF/CAPTURES.md)를 따른다.
+
 ## TESTSET-05 — 전송 버튼 시연용 완료 표시
 
 출처: 사용자 2026-10-20. 완료 전 비활성, 클릭 → 약 1초 `전송 중…` → `전송 완료 ✓`와 `전송 완료 · HH:MM`, 상단 `테스트셋 n개 전송 완료` 알림(5초 자동 숨김·닫기)을 표시한다. 재클릭 가능, 초기화·새 세트에서 리셋한다. 기존 소유 패널·DTCore 등록·5Hz 갱신과 공통 스타일을 사용하며 별도 알림 관리자를 만들지 않는다. **시연용 표시, 실제 전송 미구현**: `sending_supported=false` 및 `send_feedback_scope`를 manifest에 기록한다. 버튼의 Broker/HTTP/파일 송신 호출은 0이다.
