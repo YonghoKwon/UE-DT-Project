@@ -21,6 +21,14 @@
 - 최신 Runtime `bd79ddb`: 새 화면 회귀는 두 모드×재수신3회·DTCore 재등록/배치·실제 Slate 클릭/결과파일·전송 변화0을 확인했다. Git 없는 회사 유사200개 및 실제 빈 커밋 Development 패키지100개, 오류5종/재시도·복원·파일 감사, release14단계(고유316Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0·기본60초ABAB12회2% gate를 통과했다. 첫 선행release의 단일150ms 초과는 원인 미확정으로 보존했다. 직접 입력0·환경 보류, 패키지 Slab정답 품질/회사실환경/Shipping 수용은 별도다. 상세 수치·조건·실패는 검증 이력과 RESULT를 따른다.
 - 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T11](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
 
+## HATCH-05-LABELS — 일반3D 운전실 센서 이름표 대응
+
+출처: 사용자 직접 요청2026-10-20, UserInput `01a15851-629a-7f53-9f3e-b0423552c5c0`. 기준 `02f4a99`, Runtime `5d403f1`, 기존 `fix/hatch-view-orientation` 브랜치에서 한 항목만 처리했다.
+
+- 실제 운전실/붐 메시·Actor·획득 snapshot 대조에서 센서는 운전실 X=0의 −2m/+2m로 정상이다. 모든 이름표의 화면+X 고정 오프셋 때문에 두 사각형이 붐 오른쪽에 보였다. 센서/시나리오 원점은 수정하지 않았다.
+- 실제 Actor 투영·바깥쪽 후보/경계·겹침 회피와 역할별 색상 앵커/연결선으로 대응을 표시한다. 카메라 화면 순서가 뒤집혀도 물리 좌/우 역할명·ID·측정/저장/송신은 유지한다. 기존 소유 Canvas 안의 입력 투과 표시와 최대5Hz를 사용한다. 새 모듈/플러그인/자산/저장값 및 layer 예외0이다.
+- Editor/Game, 해치/UXR45 Success/2조건부Skip, 두 해상도 라벨 RHI, WBP7/save0·어휘/계약/fixture·quick/layer0은 통과했다. 전체 회귀318 Success/40조건부Skip/2 Fail은 TestSet150ms 예산 실패이며 분리 재시도에서 TriggerRoutingLifecycle 통과/CompanyEnvironment 재실패다. 기대값을 바꾸지 않았고 원인/회귀 여부는 미확정이다. 표준60초 ABAB는12회 중 마지막 B 결과JSON 누락으로 미완료이며2% 통과로 표시하지 않는다. 직접 주요동작5관찰은 통과했다. 추가 DigCaptures는30장 뒤 후속 설정 화면에서 Slate 접근 오류(exit3)로 종료했으며 전체 촬영 실행의 통과로 세지 않는다. 직접 수용·해치3대 절대 계측·기존 하네스 퍼내기 촬영·보호/개인설정 복원의 상세와 제한은 [RESULT](../Saved/Reports/HATCH-05-LABELS/RESULT.md), [DONE](../Saved/Reports/HATCH-05-LABELS/DONE.md), [촬영 목록](../Saved/Reports/HATCH-05-LABELS/CAPTURES.md)을 따른다. 구현 및 자동 라벨 검사와 전체 수용을 구분한다.
+
 ## HATCH-05 — 3D 위 시점과 상면·히트맵·단면 방향 통일
 
 출처: 사용자 **2026-10-20**, 브랜치 `fix/hatch-view-orientation`, 기준 `c19d3f0`, DTCore `b2504d1` 고정. 높이장/분석의 행Y·열X는 정상이고 2D 표시의 right+Y/down+X와 3D 위 시점의 right−X/up+Y가 달랐다. 현재 Slate 격자에는 텍스처/UV 쓰기가 없다.
