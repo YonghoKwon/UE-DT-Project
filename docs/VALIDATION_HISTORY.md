@@ -6,6 +6,16 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-20 TESTSET-04 — 회사 생성 복구 및 추가 화면 요구
+
+- 출처 사용자2026-10-20, fix/testset-company-env/기준89b45ae/DTCore b2504d1. 원인 수정02a51c2·호환1a75969·문서ba08cb2 뒤 bd79ddb에 상세 옆 전송 자리 표시와 매 수신 재표시/전면 배치를 추가했다. 추가코드7파일(수정6/신규Editor회귀1), 이동/새자산/모듈/플러그인0, layer/allowlist0→0. UI는 안내 필드만 바꾸며 저장/전송 함수를 호출하지 않는다.
+- 수정 전 새 화면 회귀는 버튼 부재2/재열기6/열린창전면2로 Fail했다. 최신 커밋의 실제 Slate/TC→DataSync 회귀는 두 모드×닫기→수신3회(DTCore 닫기 포함), 동일 인스턴스/등록/배치/세트·RunUUID 유지, 완료 전 disabled/완료 후 안내, 결과파일8/64개 해시·시각 불변/전송 관찰 증가0을 확인했다.
+- 첫 feature=TestSet release(Saved/Reports/verify/20261020T003217402Z)는 회사case0 단일프레임 engine210.852/GT204.549/callback222.776ms로 Fail했다. case1·새 화면 회귀는 Success다. 같은 코드 계측 재현은 초과0이므로 단일 지연 원인은 미확정이며 첫 실패를 해결/삭제 처리하지 않았다. 기존 냉초기화·레거시 부하 제한과 구분해 원문을 보존했다.
+- 최신커밋 회사 유사2 FullSpec GPU LiDAR576×56+Camera640×360, 일반 시나리오/PCD/drain 뒤10초 준비·자동 재개/주기 저장, 빈 커밋 훅+Git 없는 PATH에서100/100 두 번10.165110/10.160430초·engine/GT/callback150ms 초과0. 소유 작업 복원·다른 센서 유지·100고유FrameId/3,207,300점씩·33B/5B/ID/manifest 감사 PASS. 완료상태602파일124,150,051bytes를 해시 동일하게 별도 보존했다.
+- 최신 실제 Game Development 빌드43.41초/패키징23초 exit0, MA0T10_PROJECT_COMMIT 빈 정의·바이너리 해시 유지. Git 없는 패키지 실제 Artemis/TC/DataSync100/100·10.099240초·unknown/unavailable·100고유FrameId/3,225,600점·manifest complete 감사 PASS, 소유 Game/proxy/Broker stop0·시험포트0. 실제 Root는 패키지 내부 Saved였다. Ground1만 관찰/Slab2zero여서 Slab정답 품질은 수용하지 않았다. 임시 감사의5B라벨 오프셋 오독은 <BI 첫 바이트로 정정하고 잘못된 집계도 보존했다.
+- 표준 release14단계 PASS(Saved/Reports/verify/20261020T003926395Z/manifest.json), 고유316Success/40조건부skip/실패0·원시320/40. WBP7메모리compile/save0·어휘/golden, Python12+19+38=69, quick/layer0. 기본60초perf(Saved/Reports/verify/20261020T005128199Z/perf/manifest.json): 같은맵/의존/센서1+1/출력/UI,D3D12/client1920×1080/준비10초/Visible요청/ABAB×3/12회valid/2% PASS. callback FPS59.992833→59.994415(저하-0.002637%),engine frame p9516.666900→16.666900ms,GT6.408229→6.398220ms(-0.156180%). 물리 표시 수용과 구분한다.
+- Computer Use 새 PIE의 캡처0x80070057 두 번/입력0로 직접 보류. 이전 직접 timeout Fail과 패키지/회사실환경/Shipping 제한도 보존한다. 개인131파일 집합·해시/추가Game Config 복원·보호568해시 불변, 소유 실행만 정상 종료. DTCore source/gitlink b2504d1·Config/Game.ini/SensorTransport.ini·PixelStreaming·사용자SensorTestMap·Inspection·Claude파일 보호. push/PR/merge/worktree/submodule update0. [결과](../Saved/Reports/TESTSET-04/RESULT.md), [추가 증거](../Saved/Reports/TESTSET-04/ui-followup/RESULT.md), [완료](../Saved/Reports/TESTSET-04/DONE.md).
+
 ## 2026-10-19 HATCH-02 — 모니터링 화면·RSS 판정 조건
 
 - 사용자2026-10-19, `feat/ship-hatch-ux`, 기준25f6617/DTCore b2504d1. `5e5aecd`에 헤더·지표·3분할/최대화·점군/범례·접이식 상세와 버퍼 재사용, `a82c6bd`에 영역 비율별 카메라 맞춤·실제 투영 경계 회귀를 구현했다. 코드/도구13파일(신규cpp2), 이동/새 자산/모듈/플러그인0. DTCore·wire/PCD·SaveGame·Blueprint API·운영맵을 유지한다.

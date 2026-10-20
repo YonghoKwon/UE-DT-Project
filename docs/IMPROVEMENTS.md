@@ -11,8 +11,9 @@
 - 재현: 빌드 SHA 빈 값 주입과 실행 PATH의 Git 제거에서 수정 전 100항목 모두 실패하고 원본 JSON만 남았다. PKG-02의 빌드 SHA 주입 이후에도 남아 있던 빈 SHA 실패 조건/Editor Git fallback이 원인 경로다. 수정은 런타임 Git을 제거하고 `unknown`/`unavailable`을 기록하며, DATASET-01 일반 생성에도 같은 정책을 적용한다.
 - 시연 모드의 대상 센서 작업은 일반 시나리오/세션 drain 뒤 자동 임시 중지하고 소유 작업만 복원한다. 실제 수신 모드의 대기/원클릭은 유지한다. 다중 LiDAR는 명시 ID 우선, 미지정 시 수신 Slab ID→해치 기본→검수 기본→ID 정렬 순으로 고정 선택하고 상세/로그에 표시한다. 다른 센서·기본 PCD·자동 재개 정책을 바꾸지 않는다.
 - 항목 실패·재시도 거절 사유를 행/상세/상태 줄에 유지하고, 템플릿 재읽기·새 RunUUID 재시도·완료 캡처를 보존하는 목록 저장 재시도를 제공한다. pending 쓰기·최종 이동·취소·파일/ID/33B/5B 검증 실패를 분리하고 `[TESTSET]` 변화 로그로 경로와 대기 작업을 남긴다.
-- 최종 Runtime `1a75969`: 실제 오류5종·거절/복구/새 RunUUID/목록 재저장, Git 없는200개100/100·10.178/10.072초·150ms초과0·33B/5B/FrameId 감사, 실제 빌드 정의가 빈 Development 패키지도100/100·unknown/unavailable 생성10.099초를 확인했다. release14단계(고유315Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0,89b45ae 대비 표시형1+1/기본60초ABAB12회2% PASS(FPS저하0.002792%,p95동일,GT+0.185097%). 개인131파일/추가 Game설정 복원·보호568해시 불변이다. 직접 입력0·환경 보류, 패키지 검수맵은 Ground분류만 관찰돼 Slab정답 품질과 회사실환경 수용은 별도다. 초기 실패·냉초기화/레거시 부하·수신 Topic 없는 첫 패키지 실행은 원문에 남겼다.
-- 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T10](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
+- 같은 날 추가 화면 요구: 상세 옆 **전송** 자리 표시 버튼은 완료 후 안내만 표시한다. 파일/전송 동작은 없다. 트리거마다 기존 창을 재표시·전면 배치하며, 중복 유지/거절 및 DTCore 닫기 뒤 재등록도 포함한다. 기존 배치·크기·세트/RunUUID를 유지한다. 수정 전 두 모드×3회 재열기와 열린 창 전면 배치 실패를 재현했다. 새 자동 회귀는 두 모드 모두 버튼 비활성/활성·실제 Slate 클릭·파일 해시/시각 및 송신 계수 변화0·재수신3회·같은 인스턴스/배치를 확인한다. 직접 입력은 새 창 캡처0x80070057 두 번으로 환경 보류다.
+- 최신 Runtime `bd79ddb`: 새 화면 회귀는 두 모드×재수신3회·DTCore 재등록/배치·실제 Slate 클릭/결과파일·전송 변화0을 확인했다. Git 없는 회사 유사200개 및 실제 빈 커밋 Development 패키지100개, 오류5종/재시도·복원·파일 감사, release14단계(고유316Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0·기본60초ABAB12회2% gate를 통과했다. 첫 선행release의 단일150ms 초과는 원인 미확정으로 보존했다. 직접 입력0·환경 보류, 패키지 Slab정답 품질/회사실환경/Shipping 수용은 별도다. 상세 수치·조건·실패는 검증 이력과 RESULT를 따른다.
+- 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T11](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
 
 ## HATCH-03 — 클릭 퍼내기·복원·센서와 측정 관찰
 
