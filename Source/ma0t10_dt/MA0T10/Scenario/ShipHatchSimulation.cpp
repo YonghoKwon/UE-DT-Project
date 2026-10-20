@@ -194,7 +194,10 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         // Reuse the render buffers and the one BodySetup, but cook its current
         // triangles before recreating the body. Recreating the old cooked body
         // alone would silently restore obsolete collision geometry.
-        auto* Body=Cargo->Mesh->GetBodySetup();Body->BodySetupGuid=FGuid::NewGuid();Body->bHasCookedCollisionData=true;
+        // This transient runtime mesh has no serialized collision payload. Keeping
+        // bHasCookedCollisionData set would send each edit through editor DDC
+        // under a fresh GUID, retaining derived blobs across repeated edits.
+        auto* Body=Cargo->Mesh->GetBodySetup();Body->bHasCookedCollisionData=false;
         Body->InvalidatePhysicsData();Body->CreatePhysicsMeshes();Cargo->Mesh->RecreatePhysicsState();
     }
     if(UpdateAppearance){

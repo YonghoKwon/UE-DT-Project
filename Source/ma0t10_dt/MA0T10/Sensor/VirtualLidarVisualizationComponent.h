@@ -35,6 +35,7 @@ public:
     void SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform);
     /** Native, player CPU preview only. Never used by projections or payload encoders. */
     void SetColoredCpuPointTint(TOptional<FLinearColor> Tint){CpuPointTint=Tint;}
+    void RefreshPointView();
     void RefreshPointPreview();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")

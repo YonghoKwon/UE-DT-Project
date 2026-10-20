@@ -577,6 +577,7 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
         ColoredPointBatch->SetHiddenInSceneCapture(true);ColoredPointBatch->SetCastShadow(false);
         ColoredPointBatch->bCalculateAccurateBounds=true;ColoredPointBatch->RegisterComponent();ColoredPointBatch->SetComponentTickEnabled(false);
     }
+    if(auto* PlayerBatch=Cast<ULidarPlayerDisplayComponent>(ColoredPointBatch)){PlayerBatch->bFixedPointSubmission=bool(PointPreviewTransform);if(PlayerBatch->bFixedPointSubmission){PlayerBatch->BoundsScale=1.1;PlayerBatch->RefreshPointView();}}
     const auto Policy=ScanComponent->GetPreviewPolicyState();const auto& Points=ScanComponent->GetLastPoints();
     // Projection textures are optional. Their worker must not be required to establish this renderer's distance range.
     if(Settings.bUseAdaptiveDistance&&(Settings.ColorMode==ELidarColorMode::DistanceTurbo||Settings.ColorMode==ELidarColorMode::DistanceViridis||Settings.ColorMode==ELidarColorMode::DistanceGray))
@@ -603,6 +604,8 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
 
 void UVirtualLidarVisualizationComponent::SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform)
 {PointPreviewTransform=MoveTemp(Transform);}
+void UVirtualLidarVisualizationComponent::RefreshPointView()
+{if(bColoredCpuPointPreview&&PointPreviewTransform)if(auto* Batch=Cast<ULidarPlayerDisplayComponent>(ColoredPointBatch))if(Batch->IsVisible())Batch->RefreshPointView();}
 void UVirtualLidarVisualizationComponent::RefreshPointPreview()
 {if(bColoredCpuPointPreview&&ScanComponent){LastColoredPointUpdate=-1;RefreshColoredCpuPoints();}}
 
