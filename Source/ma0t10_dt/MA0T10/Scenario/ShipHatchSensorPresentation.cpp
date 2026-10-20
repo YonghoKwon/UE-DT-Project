@@ -24,6 +24,43 @@ void HatchPresentationBox(TArray<FVector>& V,TArray<int32>& T,FVector C,FVector 
     for(int32 I:{0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5})T.Add(B+I);
 }
 }
+AVirtualLidarSensorActor* AShipHatchSimulation::SensorAt(int32 I) const{return I==0?MLX.Get():I==1?Livox.Get():I==2?CabRight.Get():nullptr;}
+bool AShipHatchSimulation::SensorEnabled(int32 I) const{return I==0?bMLX:I==1?bLivox:I==2&&bFieldLayout&&bCabRight;}
+FVector AShipHatchSimulation::SensorOrigin(int32 I) const
+{
+    if(!bFieldLayout)return SensorLocalOrigin(I==0);
+    return (I==0?FVector(0,10,HoldDepth+BoomHeight):FVector(CabX+(I==1?-2.:2.),CabY,HoldDepth+CabHeight))+SensorOffsets[FMath::Clamp(I,0,2)];
+}
+bool AShipHatchSimulation::VisibleFromSensor(int32 I,FVector Target) const
+{return SensorEnabled(I)&&ShipHatch::ThroughOpening(Current.Settings,SensorOrigin(I),Target)&&InFov(SensorAt(I),GetActorTransform().TransformPosition(Target*100));}
+void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
+{
+    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,2);
+    if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
+    ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
+}
+void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation)UnloaderPresentation->SetActorHiddenInGame(!Enabled);}
+void AShipHatchSimulation::ApplyUnloader()
+{
+    if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;return;}
+    if(!UnloaderPresentation)
+    {
+        FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;UnloaderPresentation=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);
+        if(!UnloaderPresentation)return;auto* M=UnloaderPresentation->Mesh.Get();UnloaderPresentation->Tags.Add(TEXT("ShipHatchPreviewSensor"));UnloaderPresentation->Tags.Add(TEXT("ShipHatchUnloader"));
+        M->SetCollisionEnabled(ECollisionEnabled::NoCollision);M->SetHiddenInSceneCapture(true);M->SetCastShadow(false);M->SetCanEverAffectNavigation(false);UnloaderPresentation->SetColor(FLinearColor(.12,.25,.34));
+    }
+    TArray<FVector> V;TArray<int32> T;
+    const double Tip=10,Root=Tip-BoomLength,H=HoldDepth+BoomHeight+1.2;
+    for(int Sign:{-1,1})HatchPresentationBox(V,T,FVector(Sign*.7,(Root+Tip)*.5,H),FVector(.22,BoomLength,.3));
+    for(double Y:{Root,(Root+Tip)*.5,Tip})HatchPresentationBox(V,T,FVector(0,Y,H),FVector(1.6,.22,.3));
+    HatchPresentationBox(V,T,FVector(CabX,CabY,HoldDepth+CabHeight+1.6),FVector(5,2.8,2));
+    HatchPresentationBox(V,T,FVector(0,CabY,H+.4),FVector(2,2.4,.6)); // grab trolley
+    TArray<FVector> N;N.Init(FVector::UpVector,V.Num());auto* M=UnloaderPresentation->Mesh.Get();
+    if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num())M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());
+    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),false);
+    ShowUnloader(bShowUnloader);
+}
+
 double AShipHatchSimulation::EffectiveMLXHeight() const
 {
     // 1m edge margin, plus coaming: narrow 23.3 degree dimension lies along X.
@@ -34,8 +71,7 @@ FVector AShipHatchSimulation::SensorLocalOrigin(bool IsMLX) const
 bool AShipHatchSimulation::VisibleFromSelected(FVector Target) const
 {
     const FVector World=GetActorTransform().TransformPosition(Target*100);
-    return (bMLX&&ShipHatch::ThroughOpening(Current.Settings,SensorLocalOrigin(true),Target)&&InFov(MLX,World))||
-        (bLivox&&ShipHatch::ThroughOpening(Current.Settings,SensorLocalOrigin(false),Target)&&InFov(Livox,World));
+    for(int32 I=0;I<3;++I)if(VisibleFromSensor(I,Target))return true;return false;
 }
 void AShipHatchSimulation::Coverage(double& Opening,double& VisibleFloor,double& FloorArea) const
 {
@@ -44,7 +80,7 @@ void AShipHatchSimulation::Coverage(double& Opening,double& VisibleFloor,double&
     {
         Open+=VisibleFromSelected(FVector(((X+.5)/N-.5)*OpeningLength,((Y+.5)/N-.5)*OpeningWidth,HoldDepth+CoamingHeight));
         const FVector P(((X+.5)/N-.5)*HoldLength,((Y+.5)/N-.5)*HoldWidth,0);
-        const bool Through=(bMLX&&ShipHatch::ThroughOpening(Current.Settings,SensorLocalOrigin(true),P))||(bLivox&&ShipHatch::ThroughOpening(Current.Settings,SensorLocalOrigin(false),P));
+        bool Through=false;for(int32 I=0;I<3;++I)Through|=SensorEnabled(I)&&ShipHatch::ThroughOpening(Current.Settings,SensorOrigin(I),P);
         if(Through){++Potential;Floor+=VisibleFromSelected(P);}
     }
     Opening=100.*Open/(N*N);VisibleFloor=Potential?100.*Floor/Potential:0;FloorArea=double(Potential)/(N*N)*HoldLength*HoldWidth;
@@ -53,7 +89,7 @@ void AShipHatchSimulation::UpdateSensorPresentation()
 {
     if(!SensorPresentation.Num())
     {
-        for(int32 I=0;I<3;++I)
+        for(int32 I=0;I<(bFieldLayout?3:2);++I)
         {
             FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;
             auto* A=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);if(!A)return;
@@ -62,23 +98,15 @@ void AShipHatchSimulation::UpdateSensorPresentation()
 
         }
     }
-    if(SensorPresentation.Num()!=3)return;
-    const double H=HoldDepth+EffectiveMLXHeight();
-    for(int32 I=0;I<3;++I)
+    if(SensorPresentation.Num()!=(bFieldLayout?3:2)){for(auto A:SensorPresentation)if(A)A->Destroy();SensorPresentation.Reset();UpdateSensorPresentation();return;}
+    for(int32 I=0;I<(bFieldLayout?3:2);++I)
     {
         auto* A=SensorPresentation[I].Get();TArray<FVector> V;TArray<int32> T;
-        if(I<2)
+        if(I<3)
         {
-            const FVector O=SensorLocalOrigin(I==0);HatchPresentationBox(V,T,O,FVector(I==0?1.4:.9,1.,.8));HatchPresentationBox(V,T,O+FVector(0,0,-.48),FVector(.7,.7,.18));
-            const bool Enabled=I==0?bMLX:bLivox,Selected=SelectedSensor==I||(SelectedSensor<0&&Enabled);
+            const FVector O=SensorOrigin(I);HatchPresentationBox(V,T,O,FVector(I==0?1.4:.9,1.,.8));
+            const bool Enabled=SensorEnabled(I),Selected=SelectedSensor==I||(SelectedSensor<0&&Enabled);
             A->SetColor(!Enabled?FLinearColor(.12,.14,.16):Selected?FLinearColor(1,.62,.025):FLinearColor(.04,.45,.65));
-        }
-        else
-        {
-            for(int32 Side:{-1,1})HatchPresentationBox(V,T,FVector(0,Side*(OpeningWidth*.5+1),HoldDepth+EffectiveMLXHeight()*.5),FVector(.55,.55,EffectiveMLXHeight()));
-            HatchPresentationBox(V,T,FVector(0,0,H+.8),FVector(.55,OpeningWidth+2.6,.55));
-            const double Low=SensorLocalOrigin(false).Z;HatchPresentationBox(V,T,FVector(0,.6,(Low+H)*.5+.5),FVector(.18,.18,H-Low));
-            A->SetColor(FLinearColor(.22,.30,.34));
         }
         TArray<FVector> Normals;Normals.Init(FVector::UpVector,V.Num());
         const auto* Existing=A->Mesh->GetProcMeshSection(0);
@@ -89,9 +117,9 @@ void AShipHatchSimulation::UpdateSensorPresentation()
 bool AShipHatchSimulation::SelectSensorAt(FVector O,FVector D)
 {
     if(!D.Normalize())return false;
-    for(int32 I=0;I<2;++I)
+    for(int32 I=0;I<(bFieldLayout?3:2);++I)
     {
-        const FVector P=GetActorTransform().TransformPosition(SensorLocalOrigin(I==0)*100),Delta=P-O;const double Along=FVector::DotProduct(Delta,D);
+        const FVector P=GetActorTransform().TransformPosition(SensorOrigin(I)*100),Delta=P-O;const double Along=FVector::DotProduct(Delta,D);
         if(Along>0&&(Delta-D*Along).SizeSquared()<FMath::Square(160.))
         {SelectedSensor=I;UpdateSensorPresentation();return true;}
     }
@@ -102,8 +130,9 @@ bool AShipHatchSimulation::PresentationOccludes(FVector Origin,FVector End) cons
     // UI picking only. Decorative hardware stays absent from sensor collision,
     // optical classification and SceneCapture; its visible triangles still
     // prevent a grab through the hardware in either player view.
-    for(auto A:SensorPresentation)if(A)
+    for(int32 Part=0;Part<SensorPresentation.Num()+1;++Part)
     {
+        auto* A=Part<SensorPresentation.Num()?SensorPresentation[Part].Get():(bShowUnloader?UnloaderPresentation.Get():nullptr);if(!A)continue;
         const auto* Section=A->Mesh->GetProcMeshSection(0);if(!Section)continue;
         const auto Pose=A->Mesh->GetComponentTransform();const FVector O=Pose.InverseTransformPosition(Origin),E=Pose.InverseTransformPosition(End);
         if(!FMath::LineBoxIntersection(Section->SectionLocalBox,O,E,E-O))continue;
@@ -133,12 +162,12 @@ void AShipHatchSimulation::RefreshScanDisplay()
         ScanDisplay->bCalculateAccurateBounds=true;ScanDisplay->RegisterComponent();ScanDisplay->SetComponentTickEnabled(false);
     }
     auto& Lines=ScanDisplay->BatchedLines;auto& Points=ScanDisplay->BatchedPoints;Lines.Reset(DisplayRayLimit);Points.Reset(DisplayRayLimit);++ScanPhase;
-    int32 Index=0;for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})
+    for(int32 Index=0;Index<3;++Index)
     {
-        const FLinearColor Color=Index++==0?FLinearColor(.1,.9,1):FLinearColor(1,.6,.06);if(!A)continue;
+        auto* A=SensorEnabled(Index)?SensorAt(Index):nullptr;const FLinearColor Color=Index==0?FLinearColor(.1,.9,1):Index==1?FLinearColor(1,.6,.06):FLinearColor(.9,.2,.8);if(!A)continue;
         const auto Frame=A->ScanComponent->GetLastFrameSnapshot();if(!Frame||!Frame->Points||!Frame->Points->Num())continue;
         const auto& Source=*Frame->Points;const FVector Origin=Frame->AcquisitionTransform.GetLocation();
-        const int32 Stride=FMath::Max(1,Source.Num()/48),Offset=(ScanPhase*37)%Stride;
+        const int32 Stride=FMath::Max(1,Source.Num()/32),Offset=(ScanPhase*37)%Stride;
         for(int32 I=Offset;I<Source.Num()&&Lines.Num()<DisplayRayLimit;I+=Stride)
         {
             const auto& P=Source[I];if(!P.bHit)continue;

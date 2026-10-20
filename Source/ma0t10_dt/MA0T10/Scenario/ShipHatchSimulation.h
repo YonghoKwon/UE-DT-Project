@@ -10,6 +10,8 @@ class AVirtualLidarSensorActor;
 class UMaterialInterface;
 class ULineBatchComponent;
 class UTextRenderComponent;
+class ADirectionalLight;
+class UPointLightComponent;
 
 /** Separate hit owners keep optical material response and existing semantic rules unambiguous. */
 UCLASS(NotBlueprintable)
@@ -28,6 +30,7 @@ UCLASS()
 class MA0T10_DT_API AShipHatchSimulation : public AInteractableActor
 {
     GENERATED_BODY()
+    friend struct FHatchFeedbackProbe;
 public:
     AShipHatchSimulation();
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldWidth=42.3;
@@ -46,6 +49,27 @@ public:
     UPROPERTY(EditAnywhere,Category="Hatch|Sensors") bool bNativeMLX=false;
     UPROPERTY(VisibleAnywhere,Transient) TObjectPtr<AVirtualLidarSensorActor> MLX;
     UPROPERTY(VisibleAnywhere,Transient) TObjectPtr<AVirtualLidarSensorActor> Livox;
+    UPROPERTY(VisibleAnywhere,Transient) TObjectPtr<AVirtualLidarSensorActor> CabRight;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader") bool bFieldLayout=true;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader") bool bShowUnloader=true;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="20",ClampMax="55",Units="m")) double BoomLength=42;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="4",ClampMax="20",Units="m")) double BoomHeight=10;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="3",ClampMax="16",Units="m")) double CabHeight=8;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabX=0;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabY=-2;
+    bool bCabRight=true;
+    int32 FieldProfiles[3]={1,1,1}; // 0=ML-X80 Integration200, 1=Mid-360S; site models unconfirmed.
+    FVector SensorOffsets[3]={FVector::ZeroVector,FVector::ZeroVector,FVector::ZeroVector};
+    double SensorTiltTrim[3]={0,0,0},SensorYaw[3]={0,0,0};
+    double GrabAspect=1.4;
+    void RefreshFieldLayout(){if(!bGenerating){ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();}}
+    AVirtualLidarSensorActor* SensorAt(int32 Index) const;
+    bool SensorEnabled(int32 Index) const;
+    FVector SensorOrigin(int32 Index) const;
+    bool VisibleFromSensor(int32 Index,FVector Target) const;
+    void SetFieldSensor(int32 Index,bool Enabled,int32 Profile);
+    void ApplyUnloader();
+    void ShowUnloader(bool Enabled);
     ShipHatch::FSettings Settings() const;
     bool Regenerate(bool Randomize);
     bool SetSensorSelection(bool EnableMLX,bool EnableLivox,bool Native);
@@ -66,7 +90,7 @@ public:
     bool IsScanDisplayEnabled() const { return bScanDisplay; }
     static constexpr int32 DisplayRayLimit=96;
     int32 DisplayRayCount() const;
-    void HighlightSensor(int32 Index) { SelectedSensor=FMath::Clamp(Index,0,1);UpdateSensorPresentation(); }
+    void HighlightSensor(int32 Index) { SelectedSensor=FMath::Clamp(Index,0,bFieldLayout?2:1);UpdateSensorPresentation(); }
     int32 HighlightedSensor() const { return SelectedSensor; }
     bool PickCargo(FVector WorldOrigin,FVector WorldDirection,FVector& LocalHitMeters) const;
     bool Dig(FVector WorldOrigin,FVector WorldDirection,double Radius=2,double Depth=1.5);
@@ -77,7 +101,10 @@ public:
     double LastRemovedVolume() const { return LastRemoved; }
     double TotalRemovedVolume() const { return TotalRemoved; }
     uint64 DigBufferBytes() const;
-    uint64 MeshScratchBytes() const { return CargoVertices.GetAllocatedSize()+CargoNormals.GetAllocatedSize()+CargoIndices.GetAllocatedSize(); }
+    uint64 MeshScratchBytes() const { return CargoVertices.GetAllocatedSize()+CargoNormals.GetAllocatedSize()+CargoIndices.GetAllocatedSize()+CargoColors.GetAllocatedSize(); }
+    void SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill);
+    double LightAzimuth=-25,LightElevation=65,LightIntensity=5;
+    bool bFillLight=true;
     uint64 GenerationBufferBytes() const { return Current.Heights.GetAllocatedSize()+RecycledHeights.GetAllocatedSize()+GenerationShape.GetAllocatedSize(); }
     FSimpleMulticastDelegate OnSurfaceChanged;
 protected:
@@ -85,6 +112,12 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
     UPROPERTY(Transient) TObjectPtr<AShipHatchPart> Cargo;
+    UPROPERTY(Transient) TObjectPtr<ADirectionalLight> KeyLight;
+    UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FillLight;
+    FRotator OriginalLightRotation;
+    float OriginalLightIntensity=0;
+    uint8 OriginalLightMobility=0;
+    bool bOriginalLightShadows=true;
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> Structure;
     ShipHatch::FSurface Current;
     struct FGenerationBuffers { ShipHatch::FSurface Surface; TArray<double> Shape; };
@@ -94,9 +127,10 @@ private:
     ShipHatch::FSettings Pending;
     bool bGenerating=false,bPending=false,bEnding=false;
     uint64 SurfaceRevision=0;
-    int64 FrameGates[2]={-1,-1};
+    int64 FrameGates[3]={-1,-1,-1};
     double LastGeometryEdit=0;
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> SensorPresentation;
+    UPROPERTY(Transient) TObjectPtr<AShipHatchPart> UnloaderPresentation;
     UPROPERTY(Transient) TObjectPtr<ULineBatchComponent> ScanDisplay;
     FTimerHandle ScanDisplayTimer;
     bool bScanDisplay=false;
@@ -106,6 +140,7 @@ private:
     bool PresentationOccludes(FVector Origin,FVector End) const;
     FTimerHandle PollTimer;
     TArray<FVector> CargoVertices,CargoNormals;
+    TArray<FLinearColor> CargoColors;
     TArray<int32> CargoIndices;
     int32 MeshNX=0,MeshNY=0;
     struct FDigState { TArray<float> Heights; double Volume=0,Fill=0,Last=0,Total=0; };

@@ -53,11 +53,15 @@ struct FHatchDigProbe
     static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {
         auto& Sim=*M.Simulation;double Opening,Floor,Area;Sim.Coverage(Opening,Floor,Area);
+        if(!Sim.bFieldLayout)
+        {
         T.TestEqual(TEXT("central layout covers complete opening FOV on 80x80 grid"),Opening,100.);
         T.TestEqual(TEXT("central layout covers structurally visible empty floor FOV on 80x80 grid"),Floor,100.);
         for(int32 X:{-1,1})for(int32 Y:{-1,1})
         {T.TestTrue(TEXT("opening corner is inside selected-device FOV"),Sim.VisibleFromSelected(FVector(X*Sim.OpeningLength*.5,Y*Sim.OpeningWidth*.5,Sim.HoldDepth+Sim.CoamingHeight)));
          T.TestTrue(TEXT("visible empty-hold floor corner remains within FOV and range"),Sim.VisibleFromSelected(FVector(X*Sim.HoldLength*.5,Y*Sim.HoldWidth*.5,0)));}
+        }
+        else {T.TestTrue(TEXT("field configuration computes bounded nonempty opening and visible-floor coverage"),Opening>0&&Opening<=100&&Floor>0&&Floor<=100);T.TestNotNull(TEXT("third field sensor exists"),Sim.CabRight.Get());}
         T.TestTrue(TEXT("structurally visible floor area is positive and bounded by hold"),Area>0&&Area<=Sim.HoldLength*Sim.HoldWidth);
         T.TestFalse(TEXT("laser illustration defaults off"),Sim.IsScanDisplayEnabled());
         const auto Frame=Sim.MLX->ScanComponent->GetLastFrameSnapshot();const auto* Points=Frame->Points.Get();
@@ -90,12 +94,14 @@ struct FHatchDigProbe
         M.NativeOnMouseButtonDown(G,Pointer(P,P,true));M.SelectView(1);M.NativeOnMouseButtonUp(G,Pointer(P,P,false));
         T.TestEqual(TEXT("view change cancels an active click"),S->Surface().Hash(),Before);M.SelectView(0);
         const double Yaw=M.OrbitYaw;M.NativeOnMouseButtonDown(G,Pointer(P,P,true));M.NativeOnMouseMove(G,Pointer(P+FVector2D(30,10),P,true));M.NativeOnMouseButtonUp(G,Pointer(P+FVector2D(30,10),P,false));
-        T.TestTrue(TEXT("drag rotates existing camera"),M.OrbitYaw!=Yaw);T.TestEqual(TEXT("drag release never excavates"),S->Surface().Hash(),Before);
+        T.TestEqual(TEXT("excavation-mode left drag leaves camera locked"),M.OrbitYaw,Yaw);T.TestEqual(TEXT("drag release never excavates"),S->Surface().Hash(),Before);
+        M.OnDigToggle();M.NativeOnMouseButtonDown(G,Pointer(P,P,true));M.NativeOnMouseMove(G,Pointer(P+FVector2D(30,10),P,true));M.NativeOnMouseButtonUp(G,Pointer(P+FVector2D(30,10),P,false));
+        T.TestTrue(TEXT("navigation-mode drag rotates existing camera"),M.OrbitYaw!=Yaw);M.OnDigToggle();
         T.TestFalse(TEXT("outside 3D rectangle is not a grab target"),M.DigAt(G,G.LocalToAbsolute(FVector2D(5,5))));M.SetCameraPreset(0);
         FVector Hit;const auto Pose=S->GetActorTransform();
         T.TestFalse(TEXT("deck occludes cargo beneath it"),S->PickCargo(Pose.TransformPosition(FVector(0,(S->OpeningWidth*.5+2)*100,4000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
         T.TestFalse(TEXT("outside hold has no target"),S->PickCargo(Pose.TransformPosition(FVector(10000,10000,4000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
-        T.TestFalse(TEXT("visible central gantry cannot be clicked through"),S->PickCargo(Pose.TransformPosition(FVector(0,0,10000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
+        T.TestTrue(TEXT("removed central gantry no longer obstructs cargo picking"),S->PickCargo(Pose.TransformPosition(FVector(0,0,10000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
 
     }
     static void Undo(UShipHatchMonitorWidget& M){M.UndoButton->OnClicked.Broadcast();}
@@ -107,7 +113,7 @@ struct FHatchDigProbe
     static void PointGate(FAutomationTestBase& T,UShipHatchMonitorWidget& M,bool Stale)
     {
         auto* S=M.Simulation.Get();auto* PC=M.GetOwningPlayer();
-        for(auto* A:{S->MLX.Get(),S->Livox.Get()})
+        for(auto* A:{S->MLX.Get(),S->Livox.Get(),S->CabRight.Get()})if(A)
         {
             TInlineComponentArray<ULineBatchComponent*> Batches(A);T.TestTrue(TEXT("owned colored point proxy exists"),Batches.Num()>0);
             for(auto* B:Batches)
@@ -164,7 +170,7 @@ class FHatchDig final:public IAutomationLatentCommand
     TSharedRef<FJsonObject> Resources(AShipHatchSimulation& S)
     {
         auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("mesh"),double(S.MeshScratchBytes()));R->SetNumberField(TEXT("generation"),double(S.GenerationBufferBytes()));R->SetNumberField(TEXT("dig"),double(S.DigBufferBytes()));
-        for(auto* A:{S.MLX.Get(),S.Livox.Get()})
+        for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)
         {
             auto Sensor=MakeShared<FJsonObject>();const auto Scan=A->ScanComponent->GetResourceSnapshot(),Preview=A->VisualizationComponent->GetResourceSnapshot();
             for(const auto& P:Scan.OwnedCpuBytes)Sensor->SetNumberField(TEXT("scan/")+P.Key,double(P.Value));for(const auto& P:Scan.SharedCpuBytes)Sensor->SetNumberField(TEXT("shared/")+P.Key,double(P.Value));for(const auto& P:Preview.OwnedCpuBytes)Sensor->SetNumberField(TEXT("view/")+P.Key,double(P.Value));
@@ -172,8 +178,8 @@ class FHatchDig final:public IAutomationLatentCommand
         }
         return R;
     }
-    void Stop(AShipHatchSimulation& S){S.MLX->StopSensor();S.Livox->StopSensor();}
-    void Start(AShipHatchSimulation& S){S.MLX->StartSensor();S.Livox->StartSensor();}
+    void Stop(AShipHatchSimulation& S){for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))A->StopSensor();}
+    void Start(AShipHatchSimulation& S){for(int32 I=0;I<3;++I)if(S.SensorEnabled(I))if(auto* A=S.SensorAt(I))A->StartSensor();}
     void DrainBoundary()
     {
         FlushRenderingCommands();if(!FParse::Param(FCommandLine::Get(),TEXT("HatchFullRhiDrain")))return;
@@ -279,11 +285,11 @@ public:
                 auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("click"),Clicks+1);Row->SetNumberField(TEXT("revision"),double(S.Revision()));Row->SetNumberField(TEXT("removed_m3"),S.LastRemovedVolume());
                 FreshLatency.Add((Now-Changed)*1000);Row->SetNumberField(TEXT("fresh_analysis_ms"),FreshLatency.Last());
                 Test->TestEqual(TEXT("one accepted click advances exactly one surface revision"),S.Revision(),BeforeRevision+1);
-                int32 Index=0;for(auto* A:{S.MLX.Get(),S.Livox.Get()}){const int64 Frame=A->ScanComponent->GetRuntimeStatus().FrameId;Test->TestTrue(TEXT("each selected sensor supplies a new post-edit frame"),Frame>BeforeFrames[Index++]);Row->SetNumberField(A->GetSensorId(),double(Frame));}
+                int32 Index=0;for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()}){const int64 Frame=A->ScanComponent->GetRuntimeStatus().FrameId;Test->TestTrue(TEXT("each selected sensor supplies a new post-edit frame"),Frame>BeforeFrames[Index++]);Row->SetNumberField(A->GetSensorId(),double(Frame));}
                 Measurements.Add(MakeShared<FJsonValueObject>(Row));
             }
             Test->TestTrue(TEXT("click decrements remaining volume by the displayed removal within 1e-6m3"),FMath::Abs(BeforeVolume-S.Surface().Volume-S.LastRemovedVolume())<1.e-6);
-            for(auto* A:{S.MLX.Get(),S.Livox.Get()})
+            for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})
             {
                 Test->TestTrue(TEXT("selected 3D mode has the expected point visibility"),MeasuredView==1?A->VisualizationComponent->GetVisiblePointCount()>0:A->VisualizationComponent->GetVisiblePointCount()==0);
                 for(const auto& P:A->ScanComponent->GetLastPoints())if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))

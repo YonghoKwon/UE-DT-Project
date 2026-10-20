@@ -589,8 +589,8 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
     auto& Batch=ColoredPointBatch->BatchedPoints;Batch.Reset(Limit);
     for(int32 I=0;I<Points.Num()&&Batch.Num()<Limit;I+=FMath::Max(1,Policy.PointStride))
     {const auto& Source=Points[I];if(Policy.bHitOnly&&!Source.bHit)continue;
-     if(PointPreviewTransform){auto P=Source;PointPreviewTransform(P,Frame?Frame->AcquisitionStartedMonotonic:0);Batch.Emplace(P.WorldLocation,GetPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
-     else Batch.Emplace(Source.WorldLocation,GetPointDisplayColor(Source),Settings.PointSize,0.f,SDPG_World);}
+     if(PointPreviewTransform){auto P=Source;PointPreviewTransform(P,Frame?Frame->AcquisitionStartedMonotonic:0);Batch.Emplace(P.WorldLocation,CpuPointTint.Get(GetPointDisplayColor(P)),Settings.PointSize,0.f,SDPG_World);}
+     else Batch.Emplace(Source.WorldLocation,CpuPointTint.Get(GetPointDisplayColor(Source)),Settings.PointSize,0.f,SDPG_World);}
     const int32 Visible=Batch.Num();
     // Pin the copied render-proxy allocation as well as the GT array capacity.
     // Inactive slots have zero area/alpha and a bounded existing position; they

@@ -61,7 +61,8 @@ float fine=frac(sin(dot(floor(P*2),float3(12.9898,78.233,37.719)))*43758.5453);
 float face=saturate(1-sqrt(d1));
 return float3((0.52+id*0.65)*(0.7+edge*0.3)+(fine-.5)*.12,edge*(.35+face*.65)+fine*.08,id);
 ''', [('P', pos)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -900, 0)
-base = custom('return C*G.x;', [('C', color('ColdColor', (.32,.075,.035,1), -900, 350)), ('G', clast)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 0)
+vertex = node(unreal.MaterialExpressionVertexColor, -900, 700)
+base = custom('return C*G.x*V.rgb;', [('C', color('ColdColor', (.32,.075,.035,1), -900, 350)), ('G', clast), ('V', vertex)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 0)
 normal = custom('''
 float3 dp1=ddx(P),dp2=ddy(P),r1=cross(dp2,N),r2=cross(N,dp1);
 float det=dot(dp1,r1);float3 grad=(r1*ddx(G.y)+r2*ddy(G.y))/max(abs(det),1e-6)*sign(det);

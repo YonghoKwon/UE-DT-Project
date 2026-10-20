@@ -77,7 +77,7 @@ class FHatchRuntime final:public IAutomationLatentCommand
     TSharedPtr<FJsonObject> ResultReport;
     uint64 HiddenBuilds=0;
     int64 HiddenFrames[2]={0,0};
-    int64 PerformanceStartFrames[2]={0,0};
+    int64 PerformanceStartFrames[3]={0,0,0};
     FString AnalysisRequest;
     void StopBoundary(){Sim->MLX->StopSensor();Sim->Livox->StopSensor();}
     TSharedRef<FJsonObject> Resources()
@@ -202,9 +202,9 @@ public:
          return FPaths::FileExists(ReportRoot()/TEXT("manual/finish.flag"));}
         if(Performance)
         {
-            if(!Ready){Ready=Now;Sim->SetSensorSelection(true,SensorCount==2,false);Host->Monitor->SelectView(1);LastWall=Now;return false;}
+            if(!Ready){Ready=Now;if(SensorCount<3)Sim->SetSensorSelection(true,SensorCount==2,false);Host->Monitor->SelectView(1);LastWall=Now;return false;}
             if(Now-Ready<10)return false;
-            if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceStartFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;return false;}
+            if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceStartFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[2]=Sim->CabRight?Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId:0;return false;}
             if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;Engine.Add(World->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;}
             if(Now-MeasureStart<30)return false;
             auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("sensors"),SensorCount);R->SetNumberField(TEXT("average_fps"),Mean(Engine)>0?1000/Mean(Engine):0);
@@ -213,13 +213,14 @@ public:
             R->SetNumberField(TEXT("mlx_frame"),Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId);R->SetNumberField(TEXT("livox_frame"),Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId);
             const int64 M=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[0],L=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[1];
             R->SetNumberField(TEXT("mlx_frames_in_measurement"),double(M));R->SetNumberField(TEXT("livox_frames_in_measurement"),double(L));
+            if(SensorCount==3){const int64 C=Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[2];R->SetNumberField(TEXT("cab_right_hz"),C/(Now-MeasureStart));R->SetNumberField(TEXT("cab_right_frames_in_measurement"),double(C));Test->TestTrue(TEXT("third field sensor keeps acquiring"),C>0);}
             R->SetNumberField(TEXT("mlx_hz"),M/(Now-MeasureStart));R->SetNumberField(TEXT("livox_hz"),L/(Now-MeasureStart));
             Test->TestTrue(TEXT("each selected hatch device keeps acquiring"),M>0&&(SensorCount==1?L==0:L>0));
             R->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
             R->SetNumberField(TEXT("warmup_seconds"),10);R->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);
-            R->SetStringField(TEXT("profiles"),TEXT("IYOBOT ML-X80 Integration200 FullSpec; optional Livox Mid360S FullSpec"));
+            R->SetStringField(TEXT("profiles"),SensorCount==3?TEXT("3x Livox Mid360S FullSpec, field grab-unloader layout; site models unconfirmed"):TEXT("IYOBOT ML-X80 Integration200 FullSpec; optional Livox Mid360S FullSpec"));
             R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
-            WriteReport(SensorCount==2?TEXT("performance-2.json"):TEXT("performance-1.json"),R);return true;
+            WriteReport(SensorCount==3?TEXT("performance-3.json"):SensorCount==2?TEXT("performance-2.json"):TEXT("performance-1.json"),R);return true;
         }
         if(Captures)
         {
@@ -317,7 +318,7 @@ public:
              for(const auto& Pair:B->Values)Test->TestEqual(TEXT("each retained acquisition/preview buffer has constant allocation"),A->GetNumberField(Pair.Key),Pair.Value->AsNumber());}
             int32 Parts=0,PresentationParts=0;for(TActorIterator<AShipHatchPart>I(World);I;++I)if(!I->IsActorBeingDestroyed()){++Parts;PresentationParts+=I->ActorHasTag(TEXT("ShipHatchPreviewSensor"));}
             Test->TestEqual(TEXT("four measured structure/cargo Actors do not accumulate after 50 changes"),Parts-PresentationParts,4);
-            Test->TestEqual(TEXT("two display sensor bodies plus one gantry do not accumulate after 50 changes"),PresentationParts,3);
+            Test->TestEqual(TEXT("exactly two floating sensor bodies and no support structures after 50 changes"),PresentationParts,2);
             Test->TestEqual(TEXT("50 production button clicks use 50 distinct seeds"),RandomSeeds.Num(),50);
             Test->TestTrue(TEXT("all regenerated collision surfaces match fresh measured cargo within 15 cm"),RandomHeightMaxError<.15);
             R->SetNumberField(TEXT("random_height_max_error_m"),RandomHeightMaxError);

@@ -25,6 +25,9 @@ struct MA0T10_DT_API FSurface
     uint32 Hash() const;
 };
 struct FObservation { FVector PositionMeters; FName Label; };
+struct FSectionSample { double Position=0,Height=0; };
+/** Exact intersections with grid edges and triangle diagonals; position is SI. */
+MA0T10_DT_API void Section(const FSurface& Surface,bool AlongLength,double Offset,TArray<FSectionSample>& Out);
 struct FCell
 {
     int32 Count=0;
@@ -45,7 +48,7 @@ MA0T10_DT_API double Integrate(const FSurface& Surface);
 MA0T10_DT_API bool Raycast(const FSurface& Surface,FVector Origin,FVector Direction,FVector& Hit);
 /** Grab bowl followed by volume-conserving triangular-face repose relaxation.
  * Radius is the grab footprint; the relaxed shoulder may extend beyond it. */
-MA0T10_DT_API double Excavate(FSurface& Surface,FVector2D Center,double Radius,double Depth);
+MA0T10_DT_API double Excavate(FSurface& Surface,FVector2D Center,double Radius,double Depth,double Aspect=1);
 MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points);
 MA0T10_DT_API FColor Jet(double Normalized);
 MA0T10_DT_API double Reflectivity(ECargo Cargo);

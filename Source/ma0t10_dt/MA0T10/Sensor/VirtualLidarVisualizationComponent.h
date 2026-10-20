@@ -33,6 +33,8 @@ public:
     void SetProjectionPreviewEnabled(bool Enabled);
     /** Opt-in display-copy adapter. Never mutates acquisition snapshots or output. */
     void SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform);
+    /** Native, player CPU preview only. Never used by projections or payload encoders. */
+    void SetColoredCpuPointTint(TOptional<FLinearColor> Tint){CpuPointTint=Tint;}
     void RefreshPointPreview();
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar|Visualization")
@@ -128,6 +130,7 @@ public:
 
 private:
     TFunction<void(FVirtualLidarPoint&,double)> PointPreviewTransform;
+    TOptional<FLinearColor> CpuPointTint;
     bool bHeightJetPalette=false;
     FName HeightPaletteLabel=NAME_None;
     bool bColoredCpuPointPreview=false;
