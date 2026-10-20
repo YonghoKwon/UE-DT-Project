@@ -114,7 +114,7 @@ struct FHatchOrientationProbe
         }
         const auto SectionG=M.SectionView->GetCachedGeometry();const double Span=M.SectionAlongLength()?Settings.Length:Settings.Width;
         double Top=Settings.Depth+Settings.Coaming+2;for(int I=0;I<3;++I)Top=FMath::Max(Top,S.SensorOrigin(I).Z+2);
-        int32 ProfileChecks=0;double MaxSectionError=0;
+        int32 ProfileChecks=0;double MaxSectionError=0;FVector2D WorstSectionPixel=FVector2D::ZeroVector;
         for(const auto& Sample:M.GetSectionSamples())
         {
             if(FMath::Abs(Sample.Position)>Span*.4)continue;
@@ -124,10 +124,11 @@ struct FHatchOrientationProbe
             // Right=-X for land-facing length section; right=-Y for +X-facing width.
             const auto Expected=Pixel(M,SectionG,FVector2D(L+(.5-Sample.Position/Span)*(Right-L),B-H/Top*(B-YTop)),Size);
             double Error=1000;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const int PX=FMath::RoundToInt(Expected.X)+X,PY=FMath::RoundToInt(Expected.Y)+Y;const auto C=At(PX,PY);if(C.R>210&&C.G>155&&C.B<150)Error=FMath::Min(Error,(FVector2D(PX+.5,PY+.5)-Expected).Size());}
-            MaxSectionError=FMath::Max(MaxSectionError,Error);++ProfileChecks;
+            if(Error>MaxSectionError){MaxSectionError=Error;WorstSectionPixel=Expected;}++ProfileChecks;
         }
         T.TestTrue(TEXT("actual section line matches reversed height profile <= 2 client pixels"),ProfileChecks>=20&&MaxSectionError<=2);
         Report.SetNumberField(TEXT("section_samples_checked"),ProfileChecks);Report.SetNumberField(TEXT("section_raster_error_client_px"),MaxSectionError);
+        Report.SetNumberField(TEXT("section_worst_client_x"),WorstSectionPixel.X);Report.SetNumberField(TEXT("section_worst_client_y"),WorstSectionPixel.Y);
         Report.SetNumberField(TEXT("window_dpi"),FSlateApplication::Get().FindWidgetWindow(M.TakeWidget())->GetDPIScaleFactor());Report.SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
     }
     static void Overlays(FAutomationTestBase& T,UShipHatchMonitorWidget& M,int32 State,const TArray<FColor>& Pixels,FIntVector Size,FJsonObject& Report)

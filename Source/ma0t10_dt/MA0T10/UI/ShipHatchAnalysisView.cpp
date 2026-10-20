@@ -46,13 +46,17 @@ public:
         Text(L,0,M.SectionAlongLength()?TEXT("길이 · 육측 −Y → +Y 시점"):TEXT("폭 · +X → −X 시점"));
         Text(L,20*Scale,M.SectionAlongLength()?FString::Printf(TEXT("절단 Y %+.1f m · +X ← → −X"),M.SectionOffset()):TEXT("해측 +Y ← → 육측 −Y"));
         for(int32 I=0;I<=int32(Top);I+=5){const auto Y=P(0,I).Y;Line(FVector2f(L,Y),FVector2f(R,Y),Style::Border());Text(0,Y-7*Scale,FString::Printf(TEXT("%d m"),I));}
+        // One connected stroke per nonempty run avoids antialiased end-cap
+        // gaps at every triangle intersection and replaces per-segment arrays.
+        TArray<FVector2f> Profile;Profile.Reserve(Samples.Num());
+        auto FlushProfile=[&](){if(Profile.Num()>1)FSlateDrawElement::MakeLines(Out,Layer+2,G.ToPaintGeometry(),Profile,ESlateDrawEffect::None,Style::Warning(),true,FMath::Max(2.f,2.f/G.GetAccumulatedLayoutTransform().GetScale()));Profile.Reset();};
         for(int32 I=1;I<Samples.Num();++I)
         {
-            const auto& A=Samples[I-1];const auto& C=Samples[I];if(A.Height<=1.e-4&&C.Height<=1.e-4)continue;
+            const auto& A=Samples[I-1];const auto& C=Samples[I];if(A.Height<=1.e-4&&C.Height<=1.e-4){FlushProfile();continue;}
             Polygon(G,Out,Layer,TArray<FVector2f>{P(A.Position,0),P(C.Position,0),P(C.Position,C.Height),P(A.Position,A.Height)},S.Cargo==ShipHatch::ECargo::Coal?Style::Color(82,92,103):Style::Color(172,111,75));
-            // Keep the profile at least 1.5 client pixels wide under UMG DPI.
-            Line(P(A.Position,A.Height),P(C.Position,C.Height),Style::Warning(),FMath::Max(1.5f,1.5f/G.GetAccumulatedLayoutTransform().GetScale()));
+            if(Profile.IsEmpty())Profile.Add(P(A.Position,A.Height));Profile.Add(P(C.Position,C.Height));
         }
+        FlushProfile();
         Line(P(-Span*.5,S.Depth),P(-Span*.5,0),Style::Accent(),3);Line(P(-Span*.5,0),P(Span*.5,0),Style::Accent(),3);Line(P(Span*.5,0),P(Span*.5,S.Depth),Style::Accent(),3);
         const double Across=M.SectionAlongLength()?S.OpeningWidth:S.OpeningLength;
         if(FMath::Abs(M.SectionOffset())<=Across*.5)
