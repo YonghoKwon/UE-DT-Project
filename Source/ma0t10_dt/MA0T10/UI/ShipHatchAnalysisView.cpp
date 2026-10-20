@@ -50,7 +50,8 @@ public:
         {
             const auto& A=Samples[I-1];const auto& C=Samples[I];if(A.Height<=1.e-4&&C.Height<=1.e-4)continue;
             Polygon(G,Out,Layer,TArray<FVector2f>{P(A.Position,0),P(C.Position,0),P(C.Position,C.Height),P(A.Position,A.Height)},S.Cargo==ShipHatch::ECargo::Coal?Style::Color(82,92,103):Style::Color(172,111,75));
-            Line(P(A.Position,A.Height),P(C.Position,C.Height),Style::Warning(),1.5);
+            // Keep the profile at least 1.5 client pixels wide under UMG DPI.
+            Line(P(A.Position,A.Height),P(C.Position,C.Height),Style::Warning(),FMath::Max(1.5f,1.5f/G.GetAccumulatedLayoutTransform().GetScale()));
         }
         Line(P(-Span*.5,S.Depth),P(-Span*.5,0),Style::Accent(),3);Line(P(-Span*.5,0),P(Span*.5,0),Style::Accent(),3);Line(P(Span*.5,0),P(Span*.5,S.Depth),Style::Accent(),3);
         const double Across=M.SectionAlongLength()?S.OpeningWidth:S.OpeningLength;

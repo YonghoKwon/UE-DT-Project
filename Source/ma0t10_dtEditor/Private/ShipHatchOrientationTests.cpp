@@ -123,7 +123,7 @@ struct FHatchOrientationProbe
             const double L=46*M.GetFontScale(),Right=SectionG.GetLocalSize().X-16,B=SectionG.GetLocalSize().Y-22*M.GetFontScale(),YTop=42*M.GetFontScale();
             // Right=-X for land-facing length section; right=-Y for +X-facing width.
             const auto Expected=Pixel(M,SectionG,FVector2D(L+(.5-Sample.Position/Span)*(Right-L),B-H/Top*(B-YTop)),Size);
-            double Error=1000;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const auto C=At(FMath::RoundToInt(Expected.X)+X,FMath::RoundToInt(Expected.Y)+Y);if(C.R>210&&C.G>155&&C.B<150)Error=FMath::Min(Error,FVector2D(X,Y).Size());}
+            double Error=1000;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const int PX=FMath::RoundToInt(Expected.X)+X,PY=FMath::RoundToInt(Expected.Y)+Y;const auto C=At(PX,PY);if(C.R>210&&C.G>155&&C.B<150)Error=FMath::Min(Error,(FVector2D(PX+.5,PY+.5)-Expected).Size());}
             MaxSectionError=FMath::Max(MaxSectionError,Error);++ProfileChecks;
         }
         T.TestTrue(TEXT("actual section line matches reversed height profile <= 2 client pixels"),ProfileChecks>=20&&MaxSectionError<=2);
