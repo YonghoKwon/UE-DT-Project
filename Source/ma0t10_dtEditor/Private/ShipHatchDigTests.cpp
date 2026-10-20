@@ -36,7 +36,12 @@ struct FHatchDigProbe
 {
     static AShipHatchSimulation& Simulation(UShipHatchMonitorWidget& M){return *M.Simulation.Get();}
     static FPointerEvent Pointer(FVector2D P,FVector2D Last,bool Held)
-    {TSet<FKey> Keys;if(Held)Keys.Add(EKeys::LeftMouseButton);return FPointerEvent(0,P,Last,Keys,EKeys::LeftMouseButton,0,FModifierKeysState());}
+    {
+        // FPointerEvent retains a reference to this set beyond the factory call.
+        // A stack-local set leaves every returned down/up event dangling.
+        static const TSet<FKey> Pressed{EKeys::LeftMouseButton},Released;
+        return FPointerEvent(0,P,Last,Held?Pressed:Released,EKeys::LeftMouseButton,0,FModifierKeysState());
+    }
     static bool Project(UShipHatchMonitorWidget& M,FVector2D XY,FVector2D& P)
     {
         const auto& S=M.Simulation->Surface();const FVector World=M.Simulation->GetActorTransform().TransformPosition(FVector(XY,S.Height(XY.X,XY.Y))*100);

@@ -73,6 +73,10 @@ try {
     foreach ($script in @('validate_payload_contract', 'validate_payload_fixtures', 'validate_opt_in_inventory', 'validate_sensor_ui_vocabulary')) {
         Invoke-Step $script { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/$script.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw "$script failed" } }
     }
+    Invoke-Step 'perf-cohort-fixtures' {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_perf_cohort.ps1" -ReportRoot "$report/perf-cohort-fixtures"
+        if ($LASTEXITCODE -ne 0) { throw 'Synthetic perf cohort gate regression failed' }
+    }
     if ($Level -eq 'perf') {
         Invoke-Step 'perf-abab' {
             & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/run_perf_abab.ps1" -Baseline $BaseCommit -Candidate HEAD -Pairs $PerfPairs -Display $PerfDisplay -MeasurementSeconds $PerfMeasurementSeconds -EngineRoot $EngineRoot -ReportRoot "$report/perf"

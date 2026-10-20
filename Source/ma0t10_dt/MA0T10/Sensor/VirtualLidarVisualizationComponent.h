@@ -10,6 +10,7 @@
 class UTexture2D;
 class UNiagaraComponent;
 class UNiagaraSystem;
+struct FStreamableHandle;
 class UVirtualLidarScanComponent;
 class ULineBatchComponent;
 
@@ -147,6 +148,7 @@ private:
     UTexture2D* UploadTexture(TObjectPtr<UTexture2D>& Texture, const TArray<FColor>& Pixels, int32 Width, int32 Height);
     void RefreshWorldPointCloud();
     bool TryRefreshNiagaraPointCloud();
+    void RequestNiagaraAsset();
     void RefreshCpuPointCloud(const FString& Reason, bool bIsError = false);
     void UpdateRendererTelemetry(ELidarPointCloudRendererState State, int32 UploadedPoints, int32 VisiblePoints, const FString& Renderer, const FString& Message);
 
@@ -188,6 +190,8 @@ private:
     bool bProjectionBuildInFlight = false;
     bool bForceCpuFallbackForBenchmark = false;
     bool bNiagaraSystemInitialized = false;
+    TSharedPtr<FStreamableHandle> NiagaraLoadHandle;
+    FSoftObjectPath NiagaraRequestedPath;
     double NextNiagaraRetryTimeSeconds = 0.0;
     int64 LastVisualizedFrameId = INDEX_NONE;
     FVirtualLidarGeometryResult GeometryResult;

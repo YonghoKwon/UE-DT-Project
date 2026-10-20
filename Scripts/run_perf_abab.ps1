@@ -19,6 +19,7 @@ $ErrorActionPreference = 'Stop'
 $pairList = @($Pairs -split ',' | ForEach-Object { [int]$_ } | Sort-Object -Unique)
 $root = Split-Path -Parent $PSScriptRoot
 $instrument = 'Source/ma0t10_dtEditor/Private/Perf01AcquisitionTests.cpp'
+$sessionInstrument = 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
 $map = 'Content/MA0T10/Maps/Tests/SlabScenarioValidationMap.umap'
 $editor = "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
 $build = "$EngineRoot/Engine/Build/BatchFiles/Build.bat"
@@ -41,7 +42,10 @@ function Get-Verdict([string]$RunFolder, [double]$Threshold) {
     $rows = @(Get-ChildItem -LiteralPath $RunFolder -Filter '*.json' -File | ForEach-Object {
         $data = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($_.BaseName -notmatch '^(?<cond>.+)-block\d+-\d+-(?<rev>[AB])$') { return }
-        [PSCustomObject]@{ Condition = $Matches.cond; Revision = $Matches.rev; Valid = [bool]$data.valid; Fps = [double]$data.average_fps; P95 = [double]$data.engine_frame_p95_ms; GameThread = [double]$data.game_thread_mean_ms; File = $_.Name }
+        $condition = $Matches.cond; $revision = $Matches.rev
+        $metrics = @([double]$data.average_fps, [double]$data.engine_frame_p95_ms, [double]$data.game_thread_mean_ms)
+        $finitePositive = @($metrics | Where-Object { [double]::IsNaN($_) -or [double]::IsInfinity($_) -or $_ -le 0 }).Count -eq 0
+        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; File = $_.Name }
     })
     if ($rows.Count -eq 0) { throw "No ABAB run JSON in $RunFolder" }
     $conditions = foreach ($group in ($rows | Group-Object Condition)) {
@@ -54,7 +58,8 @@ function Get-Verdict([string]$RunFolder, [double]$Threshold) {
         $p95Rise = if ($p95A) { ($p95B - $p95A) / $p95A * 100 } else { [double]::NaN }
         $gtRise = if ($gtA) { ($gtB - $gtA) / $gtA * 100 } else { [double]::NaN }
         $failures = @()
-        if ($a.Count -ne $b.Count -or $a.Count -eq 0) { $failures += "unbalanced samples A=$($a.Count) B=$($b.Count)" }
+        $expected = 2 * $Blocks
+        if ($a.Count -ne $expected -or $b.Count -ne $expected) { $failures += "incomplete samples A=$($a.Count) B=$($b.Count), expected=$expected each" }
         if ($invalid.Count) { $failures += "invalid runs: $($invalid -join ', ')" }
         if ($fpsDrop -gt $Threshold) { $failures += ('FPS -{0:N3}%' -f $fpsDrop) }
         if ($p95Rise -gt $Threshold) { $failures += ('engine p95 +{0:N3}%' -f $p95Rise) }
@@ -95,6 +100,7 @@ $manifest = [ordered]@{
     SchemaVersion = 1; Gate = 'QA-02 perf ABAB'; StartedUtc = $started.ToString('o')
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
     DTCore = $dtcore; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
+    SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
     Map = '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap'; Viewport = '1920x1080'; Rhi = 'D3D12'
     Pairs = $pairList; Display = $Display; Blocks = $Blocks; WarmupSeconds = 10; MeasurementSeconds = $MeasurementSeconds
     ThresholdPercent = $ThresholdPercent; Gpu = $gpu; Os = [Environment]::OSVersion.ToString()
@@ -119,6 +125,8 @@ try {
         & git.exe -C (Join-Path $root 'Plugins/DTCore') archive --format=zip "--output=$pluginZip" $dtcore; if ($LASTEXITCODE -ne 0) { throw "DTCore archive $label failed" }
         Expand-Archive -LiteralPath $pluginZip -DestinationPath (Join-Path $target 'Plugins/DTCore')
         Copy-Item -LiteralPath $instrumentSource -Destination (Join-Path $target $instrument) -Force
+        Copy-Item -LiteralPath (Join-Path $root $sessionInstrument) -Destination (Join-Path $target $sessionInstrument) -Force
+        if ((Get-Sha256 (Join-Path $target $instrument)) -ne $manifest.Instrument.Sha256 -or (Get-Sha256 (Join-Path $target $sessionInstrument)) -ne $manifest.SessionInstrument.Sha256) { throw "Instrument overlay hash mismatch for $label" }
         $manifest[$label + 'MapSha256'] = Get-Sha256 (Join-Path $target $map)
     }
     # Same fixture workload on both sides, or the gate compares different scenes.
@@ -140,12 +148,13 @@ try {
                     $json = Join-Path $runs "$name.json"
                     $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap', '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', '-Perf01', "-Perf01Pairs=$pairCount", "-Perf01Seconds=$MeasurementSeconds", "`"-Perf01Output=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.PERF01.AcquisitionAndPreview;Quit"', '"-TestExit=Automation Test Queue Empty"')
                     if ($offscreen) { $arguments += '-RenderOffscreen' }
+                    $arguments += @("-Perf01SourceCommit=$($refs[$label])", "-Perf01RunId=$name", "-Perf01InstrumentSha=$($manifest.Instrument.Sha256)", "-Perf01SessionSha=$($manifest.SessionInstrument.Sha256)", "`"-ReportExportPath=$runs/$name.automation`"")
                     $saved = @{}
                     Get-ChildItem Env: | Where-Object Name -like 'MA0T10_*' | ForEach-Object { $saved[$_.Name] = $_.Value; Remove-Item "Env:$($_.Name)" }
                     $env:MA0T10_ACCEPTANCE_RES_X = '1920'; $env:MA0T10_ACCEPTANCE_RES_Y = '1080'
                     try {
                         Write-Host "Run $name"
-                        $process = Start-Process -FilePath $editor -ArgumentList $arguments -Wait -PassThru -RedirectStandardOutput "$runs/$name.console.log" -RedirectStandardError "$runs/$name.stderr.log"
+                        $process = Start-Process -FilePath $editor -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "$runs/$name.console.log" -RedirectStandardError "$runs/$name.stderr.log"
                     } finally {
                         Remove-Item Env:MA0T10_ACCEPTANCE_RES_X, Env:MA0T10_ACCEPTANCE_RES_Y -ErrorAction SilentlyContinue
                         foreach ($key in $saved.Keys) { Set-Item "Env:$key" $saved[$key] }
@@ -154,6 +163,14 @@ try {
                     $data = Get-Content -LiteralPath $json -Raw -Encoding UTF8 | ConvertFrom-Json
                     Write-Host ('{0}: fps={1:N3} p95={2:N3} gt={3:N3} valid={4}' -f $name, $data.average_fps, $data.engine_frame_p95_ms, $data.game_thread_mean_ms, $data.valid)
                     if ($process.ExitCode -ne 0 -or -not $data.valid) { throw "Invalid run $name" }
+                    if ($data.Perf01SourceCommit -ne $refs[$label] -or $data.Perf01RunId -ne $name -or $data.Perf01InstrumentSha -ne $manifest.Instrument.Sha256 -or $data.Perf01SessionSha -ne $manifest.SessionInstrument.Sha256) { throw "Run provenance mismatch: $name" }
+                    if ($data.measurement_seconds -ne $MeasurementSeconds -or $data.warmup_seconds -ne 10 -or $data.pairs -ne $pairCount -or $data.actual_client -ne '1920x1080' -or [bool]$data.render_offscreen -ne $offscreen) { throw "Run workload mismatch: $name" }
+                    $csv = "$json.frames.csv"
+                    if (-not (Test-Path -LiteralPath $csv) -or ([IO.File]::ReadAllLines($csv).Count - 1) -ne $data.samples) { throw "Raw frame sample count mismatch: $name" }
+                    $automationIndex = "$runs/$name.automation/index.json"
+                    if (-not (Test-Path -LiteralPath $automationIndex)) { throw "Automation completion record missing: $name" }
+                    $automation = Get-Content -LiteralPath $automationIndex -Raw -Encoding UTF8 | ConvertFrom-Json
+                    if (@($automation.tests).Count -ne 1 -or $automation.tests[0].state -ne 'Success') { throw "Automation did not complete successfully: $name" }
                 }
             }
         }

@@ -50,7 +50,9 @@ inline bool FinalAcceptanceViewportReady(UWorld* World)
             {
                 const auto Actual=View->Viewport->GetSizeXY();
                 UE_LOG(LogTemp,Display,TEXT("[AcceptanceSizeAdjust] actual=%dx%d wanted=%dx%d window=%.0fx%.0f"),Actual.X,Actual.Y,Size.X,Size.Y,Window->GetSizeInScreen().X,Window->GetSizeInScreen().Y);
-                Window->Resize(FVector2D(Window->GetSizeInScreen())+FVector2D(Size.X-Actual.X,Size.Y-Actual.Y));
+                // Resize accepts client pixels, not the outer window size. Mixing
+                // these spaces retains the Slate border error on every retry.
+                Window->Resize(FVector2D(Window->GetClientSizeInScreen())+FVector2D(Size.X-Actual.X,Size.Y-Actual.Y));
                 LastResize=Now;
             }
         }
