@@ -4,6 +4,16 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## TESTSET-04 — 회사 환경 대기·파일 확정·실패 재시도
+
+출처: **사용자 2026-10-20**. 브랜치 `fix/testset-company-env`, 기준 `89b45ae`, DTCore `b2504d1` 고정. 회사의 항목 메시지 `dataset.json 확정 실패 또는 생성 취소`를 출발점으로 조사했다.
+
+- 재현: 빌드 SHA 빈 값 주입과 실행 PATH의 Git 제거에서 수정 전 100항목 모두 실패하고 원본 JSON만 남았다. PKG-02의 빌드 SHA 주입 이후에도 남아 있던 빈 SHA 실패 조건/Editor Git fallback이 원인 경로다. 수정은 런타임 Git을 제거하고 `unknown`/`unavailable`을 기록하며, DATASET-01 일반 생성에도 같은 정책을 적용한다.
+- 시연 모드의 대상 센서 작업은 일반 시나리오/세션 drain 뒤 자동 임시 중지하고 소유 작업만 복원한다. 실제 수신 모드의 대기/원클릭은 유지한다. 다중 LiDAR는 명시 ID 우선, 미지정 시 수신 Slab ID→해치 기본→검수 기본→ID 정렬 순으로 고정 선택하고 상세/로그에 표시한다. 다른 센서·기본 PCD·자동 재개 정책을 바꾸지 않는다.
+- 항목 실패·재시도 거절 사유를 행/상세/상태 줄에 유지하고, 템플릿 재읽기·새 RunUUID 재시도·완료 캡처를 보존하는 목록 저장 재시도를 제공한다. pending 쓰기·최종 이동·취소·파일/ID/33B/5B 검증 실패를 분리하고 `[TESTSET]` 변화 로그로 경로와 대기 작업을 남긴다.
+- 최종 Runtime `1a75969`: 실제 오류5종·거절/복구/새 RunUUID/목록 재저장, Git 없는200개100/100·10.178/10.072초·150ms초과0·33B/5B/FrameId 감사, 실제 빌드 정의가 빈 Development 패키지도100/100·unknown/unavailable 생성10.099초를 확인했다. release14단계(고유315Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0,89b45ae 대비 표시형1+1/기본60초ABAB12회2% PASS(FPS저하0.002792%,p95동일,GT+0.185097%). 개인131파일/추가 Game설정 복원·보호568해시 불변이다. 직접 입력0·환경 보류, 패키지 검수맵은 Ground분류만 관찰돼 Slab정답 품질과 회사실환경 수용은 별도다. 초기 실패·냉초기화/레거시 부하·수신 Topic 없는 첫 패키지 실행은 원문에 남겼다.
+- 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T10](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
+
 ## HATCH-03 — 클릭 퍼내기·복원·센서와 측정 관찰
 
 출처: **사용자 2026-10-19**, 최초 제안 승인 및 같은 날 추가 요구 a–f. 브랜치 `feat/ship-hatch-dig`, 기준 `67b34f7`, DTCore `b2504d1` 고정. 기존 해치 맵을 유지하고 승인된 예외로 원료용 머티리얼1개만 추가했다. 새 맵/모듈/플러그인은 없다.
