@@ -237,13 +237,18 @@ bool FHatchViewTransform::RunTest(const FString&)
 {
     const ShipHatch::FSettings S;const auto Map=ShipHatch::FViewTransform::Top(S);const FSlateRect R(17,31,617,721);
     const FTransform Pose(FRotator(0,37,0),FVector(1200,-700,80),FVector(1.2,.8,1));
+    const auto Rotation=ShipHatch::FViewTransform::TopRotation();TestEqual(TEXT("top camera exact pitch"),Rotation.Pitch,-90.);TestEqual(TEXT("top camera exact yaw"),Rotation.Yaw,90.);TestEqual(TEXT("top camera exact roll"),Rotation.Roll,0.);
     for(int Y=-1;Y<=1;++Y)for(int X=-1;X<=1;++X)
     {
         const FVector P(X*S.OpeningLength*.4,Y*S.OpeningWidth*.4,0);const auto Pixel=Map.ToPixel(P,R);
         TestTrue(TEXT("asymmetric SI round trip"),Map.FromPixel(Pixel,R).Equals(P,1.e-9));
         const auto World=Pose.TransformPosition(P*100);TestTrue(TEXT("rotated translated scaled world round trip cm"),Map.PixelToWorld(Map.WorldToPixel(World,Pose,R),Pose,R).Equals(World,1.e-6));
-        const auto Rotation=ShipHatch::FViewTransform::TopRotation();const double Right=FVector::DotProduct(P,Rotation.RotateVector(FVector::RightVector)),Down=-FVector::DotProduct(P,Rotation.RotateVector(FVector::UpVector));
-        TestTrue(TEXT("UE camera basis agrees with map right/down"),FMath::Abs(Map.ToUnit(P).X-(.5+Right/Map.Span.X))<1.e-10&&FMath::Abs(Map.ToUnit(P).Y-(.5+Down/Map.Span.Y))<1.e-10);
+        // Analytic exact quarter-turn oracle. UE RotateVector's float trig adds
+        // ~5e-9 unit error at 90 degrees; that library approximation is not the
+        // SI mapping contract. Actual engine projection is checked independently
+        // by ViewOrientationRhi at the unchanged 1 logical pixel bound.
+        const FVector2D Expected(.5-X*.4/1.1,.5-Y*.4/1.1);
+        TestTrue(TEXT("exact top-view quadrant coordinates"),Map.ToUnit(P).Equals(Expected,1.e-10));
     }
     TestTrue(TEXT("sea label belongs above center"),Map.ToUnit(FVector(0,1,0)).Y<.5);
     for(bool Along:{true,false}){const auto Section=ShipHatch::FViewTransform::Section(Along,20,30);const auto Direction=Section.DirectionToPixel(Along?FVector(1,0,0):FVector(0,1,0),R);TestTrue(TEXT("section increasing SI axis goes left; looking side is explicit"),Direction.X<0&&FMath::Abs(Direction.Y)<1.e-9);}
