@@ -93,6 +93,25 @@ struct FHatchFeedbackProbe
     }
     static void FloorView(UShipHatchMonitorWidget& M,int32 State)
     {M.bSensorColors=false;M.SelectColor(1);M.SelectView(State==0?0:State==1?1:4);}
+    static void FloorMeasurements(FAutomationTestBase& T,AShipHatchSimulation& S)
+    {
+        int32 Floor=0,FalseCargo=0;const auto& Surface=S.Surface();
+        for(int32 Device=0;Device<3;++Device)if(S.SensorEnabled(Device))
+        {
+            const auto Frame=S.SensorAt(Device)->ScanComponent->GetLastFrameSnapshot();T.TestTrue(TEXT("floor classification uses actual fresh detector snapshot"),Frame.IsValid()&&Frame->Points.IsValid());if(!Frame||!Frame->Points)continue;
+            for(const auto& P:*Frame->Points)if(P.bHit)
+            {
+                const FVector L=S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
+                if(FMath::Abs(L.X)>=S.HoldLength*.5||FMath::Abs(L.Y)>=S.HoldWidth*.5)continue;
+                if(P.SemanticLabel==TEXT("HatchHold")&&FMath::Abs(L.Z)<.15)++Floor;
+                if(P.SemanticLabel!=TEXT("HatchCargo"))continue;
+                const int32 X=FMath::FloorToInt((L.X+S.HoldLength*.5)/Surface.DX),Y=FMath::FloorToInt((L.Y+S.HoldWidth*.5)/Surface.DY);bool Empty=true;
+                for(int32 J=FMath::Max(0,Y-1);J<=FMath::Min(Surface.NY,Y+2);++J)for(int32 I=FMath::Max(0,X-1);I<=FMath::Min(Surface.NX,X+2);++I)Empty&=Surface.At(I,J)<=1.e-4;
+                FalseCargo+=Empty;
+            }
+        }
+        T.TestTrue(TEXT("actual point clouds classify exposed tank top as HatchHold"),Floor>0);T.TestEqual(TEXT("no cargo points in interior of zero-thickness grid region"),FalseCargo,0);
+    }
     static void Input(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {
         const auto G=M.GetCachedGeometry();const auto P=G.LocalToAbsolute(FVector2D((M.SceneRect.Left+M.SceneRect.Right)*.5,(M.SceneRect.Top+M.SceneRect.Bottom)*.6));
@@ -168,7 +187,7 @@ public:
         }
         if(Phase==3)
         {
-            if(Now-Changed<1)return false;if(Captures)Shot(W,M,FString::Printf(TEXT("%s-floor-%s.png"),Material?TEXT("coal"):TEXT("iron"),State==0?TEXT("3d"):State==1?TEXT("points"):TEXT("section")));
+            if(Now-Changed<1)return false;FHatchFeedbackProbe::FloorMeasurements(*Test,S);if(Captures)Shot(W,M,FString::Printf(TEXT("%s-floor-%s.png"),Material?TEXT("coal"):TEXT("iron"),State==0?TEXT("3d"):State==1?TEXT("points"):TEXT("section")));
             if(Captures&&++State<3){FHatchFeedbackProbe::FloorView(M,State);Changed=Now;return false;}
             if(Material++==0){State=0;FloorEdits=0;bFloorTarget=false;S.bCoal=true;S.FillMin=35;S.FillMax=65;S.Regenerate(false);FHatchFeedbackProbe::Configure(M,0);Phase=1;Changed=Now;return false;}
             return true;

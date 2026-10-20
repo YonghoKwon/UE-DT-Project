@@ -152,7 +152,7 @@ class FHatchDig final:public IAutomationLatentCommand
     TArray<float> Original,AfterOne,BeforeLast;TArray<double> Engine,Game,Wall,Edits,FreshLatency;
     TArray<FColor> OpaqueReference;
     double OriginalVolume=0,BeforeVolume=0,MaxHeightError=0,WorkOpening=0,WorkFloor=0,WorkArea=0;uint64 WarmBuilds=0;
-    int64 BeforeFrames[2]={-1,-1};TArray<TSharedPtr<FJsonValue>> Measurements;
+    int64 BeforeFrames[3]={-1,-1};TArray<TSharedPtr<FJsonValue>> Measurements;
     TSharedRef<FJsonObject> Result=MakeShared<FJsonObject>();TUniquePtr<TGuardValue<bool>> Messages;
     void MemoryDetails(const TCHAR* Boundary)
     {
@@ -201,9 +201,11 @@ class FHatchDig final:public IAutomationLatentCommand
     }
     bool Click(UShipHatchMonitorWidget& M,int32 I)
     {
-        auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComponent->GetRuntimeStatus().FrameId;
+        auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[2]=S.CabRight?S.CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
         const auto Frame=S.MLX->ScanComponent->GetLastFrameSnapshot();const uint32 Before=FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint));
         FVector2D Target(I%5==2?1.25:(I%5-2)*2.5,((I/5)%5-2)*3.),Pixel;
+        // The new grab cab occupies the former Y=-3m fixture row.
+        if(FMath::IsNearlyEqual(Target.Y,-3.))Target.Y=-4.5;
         if(!FHatchDigProbe::Project(M,Target,Pixel))Target=FVector2D(3,-5);
         const bool Accepted=FHatchDigProbe::Click(M,Target);
         Test->TestEqual(TEXT("immediate display correction never mutates measured payload points"),FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint)),Before);

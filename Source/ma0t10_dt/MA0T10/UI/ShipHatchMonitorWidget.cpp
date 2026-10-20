@@ -305,6 +305,7 @@ void UShipHatchMonitorWidget::UpdateSensorBadges()
     int32 W,H;PC->GetViewportSize(W,H);if(W<=0||H<=0)return;const FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<1)return;
     FVector2D P[3];for(int32 I=0;I<3;++I){PC->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(S->SensorOrigin(I)*100),P[I]);P[I]=P[I]*Size/FVector2D(W,H);}
     const bool Overlap=(P[0]-P[1]).Size()<160*FontScale||(P[1]-P[2]).Size()<160*FontScale;
+    TArray<FVector2D,TInlineAllocator<3>> PlacedBadges;
     for(int32 I=0;I<3;++I)
     {
         if(I==2&&!S->bFieldLayout){SensorBadges[I]->SetVisibility(ESlateVisibility::Collapsed);continue;}SensorBadges[I]->SetVisibility(ESlateVisibility::Visible);
@@ -312,6 +313,10 @@ void UShipHatchMonitorWidget::UpdateSensorBadges()
         Pos.X=FMath::Clamp(Pos.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-136*FontScale)));
         Pos.Y=FMath::Clamp(Pos.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-40*FontScale)));
         if(ActiveView==1&&Pos.X<SceneRect.Left+370*FontScale&&Pos.Y<SceneRect.Top+290*FontScale){Pos.X=SceneRect.Right-136*FontScale;Pos.Y=SceneRect.Top+(8+I*42)*FontScale;}
+        for(int32 Pass=0;Pass<3;++Pass)for(const auto& Previous:PlacedBadges)
+            if(FMath::Abs(Pos.X-Previous.X)<132*FontScale&&FMath::Abs(Pos.Y-Previous.Y)<36*FontScale)
+                Pos.Y=Previous.Y+72*FontScale<=SceneRect.Bottom?Previous.Y+40*FontScale:Previous.Y-40*FontScale;
+        PlacedBadges.Add(Pos);
         auto* BadgeSlot=CastChecked<UCanvasPanelSlot>(SensorBadges[I]->Slot);BadgeSlot->SetPosition(Pos-LayoutSlots[0]->GetPosition());BadgeSlot->SetSize(FVector2D(128,32)*FontScale);
         const bool Enabled=S->SensorEnabled(I),Highlight=S->HighlightedSensor()==I||(S->HighlightedSensor()<0&&Enabled);
         SensorBadges[I]->SetStyle(Highlight?Style::PrimaryButton():Style::Button());
