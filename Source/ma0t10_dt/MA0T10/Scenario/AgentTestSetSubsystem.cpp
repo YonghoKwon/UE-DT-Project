@@ -170,6 +170,7 @@ bool UAgentTestSetSubsystem::IsDemoTrigger(const FString& Material) const
 bool UAgentTestSetSubsystem::EnqueueDemoTrigger(const FString& Material,ASlabActor* Slab,FString& Error)
 {
     if(!IsDemoTrigger(Material)||!IsValid(Slab)||Slab->GetWorld()!=GetWorld()){Error=TEXT("테스트셋 트리거와 대상 Slab을 확인하세요");return false;}
+    ++PresentationRequestSerial;
     if(State)
     {
         if(State->Reset){Error=TEXT("세트 초기화 정리 중 · 완료 후 다시 요청하세요");return false;}
@@ -207,6 +208,7 @@ bool UAgentTestSetSubsystem::Enqueue(FSlabScenarioDataPtr Data,ASlabActor* Slab,
 {
     if(!Data||!IsTrigger(*Data)||!IsValid(Slab)||Slab->GetWorld()!=GetWorld()){Error=TEXT("테스트셋 입력과 대상 Slab을 확인하세요");return false;}
     if(Config.AutoFillExamples)return EnqueueDemoTrigger(Data->Rows[0].MtlNo,Slab,Error);
+    ++PresentationRequestSerial;
     if(!State)
     {
         State=MakeShared<FAgentTestSetState>();State->SetId=NewTestSetId();State->Root=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")/State->SetId);State->Slab=Slab;State->Started=FPlatformTime::Seconds();

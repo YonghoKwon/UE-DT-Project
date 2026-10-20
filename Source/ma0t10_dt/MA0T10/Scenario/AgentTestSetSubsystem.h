@@ -80,6 +80,8 @@ public:
     /** Current work state, without diagnostic duplicate-trigger notices. */
     FString PresentationMessage() const;
     int64 Revision() const;
+    /** Presentation intent for every matching receipt, including retained/rejected duplicates. */
+    int64 PresentationRequest() const {return PresentationRequestSerial;}
     TSharedRef<FJsonObject> StatusJson() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     bool ConfigureForTests(const FAgentTestSetSettings& In);
@@ -88,6 +90,7 @@ private:
     FAgentTestSetSettings Config;
     TSharedPtr<FAgentTestSetState> State;
     FTimerHandle Timer;
+    int64 PresentationRequestSerial=0;
     TSharedPtr<FAgentTestSetPcdPreview> PcdPreview;
     bool BusyReason(FString& Reason) const;
     bool ResolveSensors(FString& Error);

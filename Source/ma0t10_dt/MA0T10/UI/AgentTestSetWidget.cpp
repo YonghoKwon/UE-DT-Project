@@ -19,7 +19,7 @@
 UAgentTestSetSubsystem* UAgentTestSetWidget::Service() const{return GetWorld()?GetWorld()->GetSubsystem<UAgentTestSetSubsystem>():nullptr;}
 FSlateFontInfo UAgentTestSetWidget::Font(int32 Size) const{return FSensorOwnedPresentationStyle::Font(Size,GetSensorToolVisualScale());}
 void UAgentTestSetWidget::ShowActionResult(bool Ok,const FString& Error)
-{ActionErrorUntil=Ok?0:FPlatformTime::Seconds()+8;ActionError=FText::FromString(Error);SeenRevision=-1;Refresh();}
+{ActionFeedbackUntil=Ok?0:FPlatformTime::Seconds()+8;ActionFeedback=FText::FromString(Error);SeenRevision=-1;Refresh();}
 void UAgentTestSetWidget::SelectScenario(int32 Index)
 {
     if(auto* S=Service())if(S->Items().IsValidIndex(Index))
@@ -37,7 +37,7 @@ void UAgentTestSetWidget::Refresh()
     Summary=FText::FromString(FString::Printf(TEXT("완료 %d / %d"),S->Completed(),C.Target));Progress=float(S->Completed())/C.Target;
     const double Rate=S->ScenariosPerSecond(),Remaining=S->RemainingSeconds();
     Timing=FText::FromString(Ready?FString::Printf(TEXT("총 %.1f초"),S->TotalSeconds()):Rate>0?FString::Printf(TEXT("%.1f개/초 · 남은 시간 약 %.0f초"),Rate,FMath::Max(0.,Remaining)):TEXT("처리 속도 · 남은 시간 계산 대기"));
-    if(FPlatformTime::Seconds()>ConfirmUntil)Status=FPlatformTime::Seconds()<ActionErrorUntil?ActionError:FText::FromString(S->PresentationMessage());
+    if(FPlatformTime::Seconds()>ConfirmUntil)Status=FPlatformTime::Seconds()<ActionFeedbackUntil?ActionFeedback:FText::FromString(S->PresentationMessage());
     const auto View=S->PreviewStatus();PreviewVisible=View.Scenario!=INDEX_NONE;
     PreviewText=FText::FromString(PreviewVisible?FString::Printf(TEXT("%s · 프레임 %d / %d · 점 %d개"),*View.Message,View.Frame+1,View.Frames,View.Points):TEXT("완료 시나리오를 선택하면 저장된 점군을 봅니다"));
     auto* Texture=S->PreviewTexture();PreviewBrush.SetResourceObject(Texture);PreviewBrush.ImageSize=Texture?FVector2D(Texture->GetSizeX(),Texture->GetSizeY()):FVector2D(512,512);
@@ -92,9 +92,20 @@ TSharedRef<SWidget> UAgentTestSetWidget::RebuildWidget()
        [SNew(SButton).ButtonStyle(&GetToolButtonStyle()).Visibility_Lambda([this](){return Ready?EVisibility::Collapsed:EVisibility::Visible;}).OnClicked_Lambda([this](){if(auto* S=Service())S->SetPaused(!S->IsPaused());return FReply::Handled();})
         [Text(TAttribute<FText>::CreateLambda([this](){auto* S=Service();return FText::FromString(S&&S->IsPaused()?TEXT("재개"):TEXT("일시정지"));}))]]
       +SWrapBox::Slot().Padding(0,0,8,4)[Button(TEXT("결과 폴더"),[this](){if(auto* S=Service()){const auto Dir=S->Directory();if(!Dir.IsEmpty())FPlatformProcess::ExploreFolder(*Dir);}})]
-      +SWrapBox::Slot().Padding(0,0,0,4)
+      +SWrapBox::Slot().Padding(0,0,8,4)
        [SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton()).OnClicked_Lambda([this](){Details=!Details;Refresh();return FReply::Handled();})
-        [Text(TAttribute<FText>::CreateLambda([this](){return FText::FromString(Details?TEXT("상세 접기"):TEXT("상세"));}))]];
+        [Text(TAttribute<FText>::CreateLambda([this](){return FText::FromString(Details?TEXT("상세 접기"):TEXT("상세"));}))]]
+      +SWrapBox::Slot().Padding(0,0,0,4)
+       [SNew(SButton).ButtonStyle(&GetToolButtonStyle()).IsEnabled_Lambda([this](){return Ready;}).OnClicked_Lambda([this]()
+        {
+            if(const auto* S=Service())if(S->IsComplete())
+            {
+                // Demonstration placeholder: presentation feedback only, with no output action.
+                ConfirmUntil=0;ActionFeedbackUntil=FPlatformTime::Seconds()+8;
+                ActionFeedback=FText::FromString(TEXT("전송 기능 준비 중"));Refresh();
+            }
+            return FReply::Handled();
+        })[Text(FText::FromString(TEXT("전송")))]];
     auto PreviewControls=SNew(SWrapBox).UseAllottedSize(true)
       +SWrapBox::Slot().Padding(0,0,8,0)[Button(TEXT("재생"),[this](){if(auto* S=Service())S->SetPreviewPaused(false);})]
       +SWrapBox::Slot().Padding(0,0,8,0)[Button(TEXT("일시정지"),[this](){if(auto* S=Service())S->SetPreviewPaused(true);})]
@@ -105,7 +116,7 @@ TSharedRef<SWidget> UAgentTestSetWidget::RebuildWidget()
       +SVerticalBox::Slot().AutoHeight()[Text(TAttribute<FText>::CreateLambda([this](){return Timing;}),12)]
       +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Controls]
       +SVerticalBox::Slot().AutoHeight().Padding(0,8)
-       [SNew(SBox).Visibility_Lambda([this](){return !Ready||FPlatformTime::Seconds()<=ConfirmUntil?EVisibility::Visible:EVisibility::Collapsed;})[Text(TAttribute<FText>::CreateLambda([this](){return Status;}))]]
+       [SNew(SBox).Visibility_Lambda([this](){const double Now=FPlatformTime::Seconds();return !Ready||Now<=ConfirmUntil||Now<ActionFeedbackUntil?EVisibility::Visible:EVisibility::Collapsed;})[Text(TAttribute<FText>::CreateLambda([this](){return Status;}))]]
       +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
        [SNew(SBox).Visibility_Lambda([this](){auto* S=Service();return S&&S->HasBusyWork()?EVisibility::Visible:EVisibility::Collapsed;})
         [Button(TEXT("사용 중인 작업 중지하고 시작"),[this](){FString Error;if(auto* S=Service())ShowActionResult(S->StopBusyWorkAndStart(Error),Error);})]]

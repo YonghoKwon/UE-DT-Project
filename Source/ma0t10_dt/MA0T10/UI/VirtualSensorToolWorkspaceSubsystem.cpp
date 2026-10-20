@@ -279,7 +279,10 @@ bool UVirtualSensorToolWorkspaceSubsystem::OpenTestSet()
     }
     if(!TestSetWidget)return false;
     if(GetOwnedPanel(ESensorToolPanelRole::TestSet)!=TestSetWidget&&!RegisterOwnedPanel(ESensorToolPanelRole::TestSet,TestSetWidget))return false;
-    AttachOwnedPanel(TestSetWidget);Dx->RegisterWidget(TestSetWidget);
+    // Re-register after DTCore CloseWidget, retaining the same instance and saved layout.
+    // An already attached panel keeps its live position/size without reapplying defaults.
+    if(!TestSetWidget->GetParent())AttachOwnedPanel(TestSetWidget);
+    Dx->RegisterWidget(TestSetWidget);
     Dx->RegisterExternalInputBlocker(TestSetWidget);SetPanelOpen(ESensorToolPanelRole::TestSet,true);return true;
 }
 void UVirtualSensorToolWorkspaceSubsystem::BringOwnedPanelToFront(ESensorToolPanelRole R)
@@ -333,9 +336,12 @@ void UVirtualSensorToolWorkspaceSubsystem::Tick(float D)
 {
 	if(auto* Monitor=Cast<UVirtualSensorMonitorPanelWidget>(GetOwnedPanel(ESensorToolPanelRole::Monitor)))
 		Monitor->PumpPendingCaptureWork();
-	PollTime+=D;if(PollTime<.2f||Panels.IsEmpty())return;PollTime=0;EnsureRoot();RefreshHosting();
+	PollTime+=D;if(PollTime<.2f)return;PollTime=0;
+	if(const auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())
+		if(TestSet->HasItems()&&LastTestSetPresentationRequest!=TestSet->PresentationRequest())
+			if(OpenTestSet())LastTestSetPresentationRequest=TestSet->PresentationRequest();
+	if(Panels.IsEmpty())return;EnsureRoot();RefreshHosting();
 	SynchronizeOwnedSelection();
-	if(const auto* TestSet=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(TestSet->HasItems()&&LastOpenedTestSet!=TestSet->Directory()){if(OpenTestSet())LastOpenedTestSet=TestSet->Directory();}
 	if(!Canvas)return;const FVector2D Size=Canvas->GetCachedGeometry().GetLocalSize();
 	const float Pixels=MeasureOwnedPixelScale();if(!FMath::IsNearlyEqual(Pixels,LastOwnedPixelScale,.001f)){LastOwnedPixelScale=Pixels;for(auto& P:Panels)if(P.Value)P.Value->ApplySensorToolFontScale(GetOwnedPanelFontScale());}
 	if(bSidebarMode)

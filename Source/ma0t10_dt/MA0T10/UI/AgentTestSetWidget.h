@@ -27,7 +27,7 @@ private:
     float Progress=0;
     int32 Selected=INDEX_NONE;
     int64 SeenRevision=-1;
-    double NextRefresh=0,ConfirmUntil=0,ActionErrorUntil=0;
-    FText ActionError;
+    double NextRefresh=0,ConfirmUntil=0,ActionFeedbackUntil=0;
+    FText ActionFeedback;
     bool Ready=false,Details=false,PreviewVisible=false;
 };
