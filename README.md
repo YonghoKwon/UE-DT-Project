@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+HATCH-05(사용자2026-10-20): Runtime `f856875`. 3D 위에서 보기와 상면·히트맵의 방향을 위해측+Y/오른쪽−X로 통일하고 단면 시점을 표시했다. 공통 변환으로 센서3대·카메라/쐐기·예상 FOV·단면선·클릭/hover/드래그를 맞춘다. 고정 시드 비대칭 철광석과 이전 축 오류 음성 대조를 추가했다. 최종 Editor/Game·release14단계(고유319 Success/40조건부Skip/실패0)·WBP7/save0·어휘/계약/golden·quick/layer0, 전후13 PNG를 확인했다. 직접8행은 CreateForMonitor 0x80070057 두 번으로 입력0·환경 보류다. 개인142원본 복원·보호561/561 동일이며 검증·전후 캡처·직접 수용의 구분은 [RESULT](Saved/Reports/HATCH-05/RESULT.md), [DONE](Saved/Reports/HATCH-05/DONE.md)을 따른다. 표시 경로만 변경해 요청에 따라 perf 재측정은 생략한다.
+
 TESTSET-05(사용자2026-10-20): 완료 세트의 **전송**은 약 1초 `전송 중…` 뒤 **전송 완료 ✓**, 5초간 닫을 수 있는 상단 알림 `테스트셋 n개 전송 완료`, 상태 줄 `전송 완료 · HH:MM`을 표시한다. 재클릭은 같은 흐름을 반복하고 초기화/새 세트는 표시를 지운다. **시연용 표시, 실제 전송 미구현**이며 Broker·HTTP·파일 송신을 하지 않는다. `testset.json`은 `sending_supported=false`, `send_feedback_scope`에 같은 제한을 기록하며 버튼 클릭으로 변경하지 않는다. 전송 피드백 자동 회귀·1920×1080 및 1280×720/글자150%·어휘/quick/layer는 통과했다. 집중 검사의 `CompanyEnvironment` 150ms 초과1회는 단독 재실행에서도 재현됐으며 원인/회귀 여부는 미확정이다. 직접 점검은 캡처 오류로 입력0·보류다. 캡처2장·검증/제한은 [DONE](Saved/Reports/TESTSET-05/DONE.md)을 따른다.
 
 HATCH-04(사용자2026-10-20): Runtime `58b333b`. 그랩식 하역기·개별 모델/설치 변경 가능한3대·상면/히트맵 통합·단면·바닥 노출·그랩 효과/카메라 잠금·조명·Select 대비·해측/육측/카메라 연동을 구현했다. Editor/Game·release14단계(고유317Success/40조건부Skip/실패0)·WBP7·golden/Python69·layer0,자동90장을 확인했다. 3대50회 원시RSS 점군+2.371/일반+2.719/재실행+1.293MiB·150ms초과0,기본60초ABAB12회2% PASS(FPS저하-0.019110%,p95증가0.000000%,GT증가-0.451063%)다. **직접12행은 캡처오류/입력0·환경보류**, 현장모델확인필요다. 개인142원본복원·보호833중 기존M_HatchCargo1개 외832해시 일치. 초기실패/제한은 [RESULT](Saved/Reports/HATCH-04/RESULT.md), [DONE](Saved/Reports/HATCH-04/DONE.md), [직접점검표](docs/MANUAL_CHECKLIST.md)를 따른다.
@@ -652,6 +654,8 @@ HATCH-02도 같은 경계를 유지한다. L2 높이장·메시 작업 버퍼와
 
 HATCH-03은 L2 높이장의 클릭 퍼내기·안식각 완화·16단계 이력을 추가하고 L3가 기존 플레이어 투영/입력을 연결한다. 기존 센서/Scheduler와 같은 토폴로지 메시 갱신을 재사용한다. 새 프레임 대기 중 점은 해당 플레이어의 소유 가림 항목으로만 숨기고 복원한다. L1·DTCore·저장/wire·모듈/자산 변경 없이 같은 layer/allowlist0/0을 유지한다.
 
+HATCH-05의 공통 SI/world↔화면 변환과 단면 시점은 L3 `UI/ShipHatchViewTransform.h`에 둔다. 기존 UDxWidget/Subsystem·플레이어 뷰와 최대5Hz 캐시를 유지하며 L1/L2에 UI 의존을 추가하지 않는다. layer 위반/allowlist **0/0**, 새 모듈·플러그인·자산·저장/wire 변경0이다.
+
 ### 10.3 구성 요소 책임 (현재)
 
 AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력과 같은 L2 재생/데이터셋 서비스를 호출하며, L3 소유 설정 화면만 이 adapter를 참조한다. 새 모듈·플러그인·위젯 관리자를 만들지 않고 layer/allowlist0/0을 유지한다. SCN-RELEASE-01(`9fa04be`)은 terminal snapshot 확정과 기존 소유 작업 정리 뒤 live 센서 제어만 해제한다. 이전 run의 늦은 프레임은 계속 거부하고 데이터 필수 잠금·terminal 결과 계약은 보존한다.
@@ -858,6 +862,18 @@ python -m unittest discover -s Tools/AutomationClient -v
 ```
 
 Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시·redirect를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
+
+## HATCH-05 3D·상면·히트맵·단면 방향 통일
+
+출처: 사용자 **2026-10-20**. 기존 2D의 화면 오른쪽 `+Y`/아래쪽 `+X` 투영은 3D **위에서 보기**의 오른쪽 `−X`/위쪽 `+Y`와 달랐다. 높이장과 실측 격자의 X/Y 저장 순서는 정상이며, 현재 상면은 텍스처 대신 Slate 격자를 사용한다. 표시의 축 전치/부호와 역변환을 수정했다.
+
+현재 상면·히트맵은 **위=해측 +Y, 아래=육측 −Y, 왼쪽=+X, 오른쪽=−X**다. 3D 위 시점은 홀드 기준 yaw+90°/pitch−90°이며, 상면은 이 방향을 고정 기준으로 사용한다. 자유 회전 중에는 카메라 표시가 실제 위치/방향을 알린다. `FViewTransform` 하나로 관측 셀·미관측·예상 FOV·센서/카메라·방향 쐐기·단면선과 클릭/hover/단면선 드래그의 역변환을 처리한다. 화면 밖 아이콘의 기존 경계 표시를 유지하며 수직 카메라는 사각형으로 표시한다.
+
+길이 단면은 **육측 −Y에서 +Y를 보는 시점**으로 +X가 왼쪽이다. 폭 단면은 **+X에서 −X를 보는 시점**으로 해측 +Y가 왼쪽/육측 −Y가 오른쪽이다. 시점과 축 방향을 단면에 표시한다. 원본 삼각 높이장과 표본의 SI 순서는 유지하고, 축소 화면에서도 높이 프로파일 선은 최소2 client pixel 두께를 유지한다.
+
+고정 시드20261020의 비대칭 철광석 봉우리(+X5m/해측+Y6m)를 메모리에서만 만드는 자동 회귀는 실제 D3D12 카메라 투영·화면 픽셀·4사분면 클릭/hover·양방향 단면선 드래그를 검사한다. 센서/카메라 아이콘 중심1.5 client pixel, 센서3D→2D 보정 투영1 logical pixel, 단면 프로파일2 client pixel 이내를 기준으로 한다. 두 pane의 크기와 perspective가 달라 개구부 투영으로 정규화한 뒤 비교한다. 명령은 `Scripts/run_hatch_validation.ps1 -Mode Orientation` 또는 `-Mode OrientationCaptures -Sensors 3`이며 직접 점검 대기는 `-Mode OrientationManual`이다.
+
+현재 검증/직접 수용·제한은 [HATCH-05 RESULT](Saved/Reports/HATCH-05/RESULT.md), [DONE](Saved/Reports/HATCH-05/DONE.md)을 따른다. 표시 변환과 프로파일 선 표시를 변경하고 획득/분석·점군·송신·저장·5Hz 갱신 경로를 유지하므로 요청의 예외에 따라 perf 재측정은 생략한다. 기존 SHA의 성능 결과를 이번 SHA의 통과로 대체하지 않는다.
 
 ## HATCH-04 그랩식 하역기·현장 3대 구성
 
