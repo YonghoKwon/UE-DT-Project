@@ -15,6 +15,16 @@
 - 최신 Runtime `bd79ddb`: 새 화면 회귀는 두 모드×재수신3회·DTCore 재등록/배치·실제 Slate 클릭/결과파일·전송 변화0을 확인했다. Git 없는 회사 유사200개 및 실제 빈 커밋 Development 패키지100개, 오류5종/재시도·복원·파일 감사, release14단계(고유316Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0·기본60초ABAB12회2% gate를 통과했다. 첫 선행release의 단일150ms 초과는 원인 미확정으로 보존했다. 직접 입력0·환경 보류, 패키지 Slab정답 품질/회사실환경/Shipping 수용은 별도다. 상세 수치·조건·실패는 검증 이력과 RESULT를 따른다.
 - 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T11](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
 
+## HATCH-04 — 그랩식 하역기·현장 3대·단면/조작 피드백
+
+출처: **사용자 2026-10-20**의 피드백 8건, 현장 3대 배치·모델 미확인/변경 가능·그랩식·모든 화면의 해측/육측 표시 답변. 브랜치 `feat/ship-hatch-v4`, 기준 `23133f6`, DTCore `b2504d1` 고정. 기존 해치 맵을 사용하고 새 자산/맵/모듈/플러그인은 만들지 않는다.
+
+- 임의 고소 마스트/갠트리를 제거하고 표시 토글 가능한 경량 붐·트롤리·운전실과 아래 방향 센서 3대를 구성한다. 각 모델/켜기·끄기·X/Y/높이·틸트/요, 기존 2대/현장 3대 프리셋, 3점군·센서 색·광선과 예상 FOV 기여/사각을 연결한다. 기본 Mid-360S 3대는 **현장 모델 확인 필요**다. 치수/좌표/근거와 FOV 수치는 README HATCH-04를 따른다.
+- 상면/히트맵은 한 카드에서 전환하고 다른 카드에 현재 모의 높이장의 단면을 표시한다. 방향/위치 슬라이더·노란 선 드래그, 실제 카메라 표시와 이동 모드 2D 클릭, 3D 단면 평면, 모든 뷰의 해측 +Y/육측 −Y와 시점 프리셋을 제공한다.
+- 두께 0 원료면은 탱크톱 안쪽으로 내려 바닥/구조 분류를 노출한다. 얇은 잔여층의 picking과 재적재 후 충돌 범위를 보정하며 실제 프레임에 표시 보정을 주입하지 않는다. 타원 그랩·짧은 하강/닫힘/상승·vertex 음영, 좌드래그 카메라 잠금/우드래그·휠 분리, 16 undo/exact 복원을 유지한다.
+- 조명 방위각/고도/세기·프리셋/보조광, 열린 Select/선택/hover의 다크 대비와 150% 글자, 소유 표시 버퍼와 기존 5Hz 갱신을 사용한다. PIE 조명 상태는 복원하고 동적 그림자 대신 절차 함몰 음영을 사용한다.
+- **구현·자동 검증 완료(Runtime58b333b), 직접 UI12행 환경 보류.** Editor/Game·release14단계(고유317Success/40조건부Skip/실패0)·WBP7/save0·어휘/golden/Python69·layer0,자동90장·3대50회 RSS+2.371/+2.719/+1.293MiB·150ms초과0,기본60초ABAB12회2% PASS(FPS저하-0.019110%,p95증가0.000000%,GT증가-0.451063%)다. 해치3대 표시형59.796679FPS/p9516.667803ms/GT12.088470ms,실제4.800/4.366/4.433Hz다. 직접캡처2회0x80070057·입력0,현장모델확인필요. 개인142파일복원·보호833중 승인된기존머티리얼1개 외832해시 일치. 초기RSS/fixture/collision 실패 원본과 수용 제한을 보존한다. [RESULT](../Saved/Reports/HATCH-04/RESULT.md), [DONE](../Saved/Reports/HATCH-04/DONE.md), [직접 점검표](MANUAL_CHECKLIST.md).
+
 ## HATCH-03 — 클릭 퍼내기·복원·센서와 측정 관찰
 
 출처: **사용자 2026-10-19**, 최초 제안 승인 및 같은 날 추가 요구 a–f. 브랜치 `feat/ship-hatch-dig`, 기준 `67b34f7`, DTCore `b2504d1` 고정. 기존 해치 맵을 유지하고 승인된 예외로 원료용 머티리얼1개만 추가했다. 새 맵/모듈/플러그인은 없다.
@@ -864,6 +874,7 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 
 | ID | 발견 항목 | 프로젝트 쪽 현재 우회 | DTCore에서 바뀌면 좋은 점 | 근거 |
 |---|---|---|---|---|
+| DTC-HATCH04 | 소유 Widget 수명 외 해치 단면/FOV 평면·센서별 CPU 표시색 계약 없음 | 기존 UDxWidget/Subsystem과 같은 플레이어 뷰를 유지하고 L3 표시 component/캐시, L1 기본 꺼짐 tint를 사용. 실제 frame/wire/전용 manager 변경 없음 | 여러 host가 필요로 하면 중립 소유 뷰 표시 helper 검토 | `ShipHatchMonitorWidget/Overlay`, `VirtualLidarVisualizationComponent`; DTCore 소스/gitlink 불변 |
 | DTC-HATCH03 | Widget 수명 계약 외에 소유 플레이어 뷰의 프레임 교체 동안 임시 표시 보류 계약은 없음 | 기존 센서 점 버퍼를 유지하고 L3가 해당 PC의 자신이 추가한 hidden-component 항목만 관리. 새 프레임 강제 갱신 뒤 해제하며 종료 시 복원. 별도 구독/위젯 관리자 없음 | 여러 host가 필요로 하면 캡처/측정에 영향을 주지 않는 소유 뷰 임시 가림의 중립 수명 helper 검토 | b2504d1 `Core/DxWidgetSubsystem.h`, `ShipHatchMonitorWidget::ApplyPreview/RestorePointVisibility`; DTCore 소스/gitlink 불변 |
 | DTC-HATCH02 | Widget 등록/전면/입력 차단 외 플레이어 3D 뷰의 패널 영역 합성 계약은 없음 | 기존 UDxWidget/UDxWidgetSubsystem을 유지하고 해당 World에서만 SceneViewExtension으로 기존 플레이어 뷰 사각형/투영을 조정. 추가 캡처·위젯 관리자 없음 | 여러 소비 프로젝트에 필요해지면 저장/입력 정책과 분리한 중립 뷰 영역 adapter 검토 | b2504d1 `Core/DxWidgetSubsystem.h`, `ShipHatchMonitorHost/Widget`; DTCore 소스/gitlink 불변 |
 | DTC-HATCH01 | 정적 원료 높이장/점군 분석 뷰와 자산 없는 분석 화면 구성 계약은 없음 | L2 절차 형상·기존 센서 semantic/반사 응답, L3 `UDxWidget` 등록·입력 차단, 기존 FileSave의 opt-in 분석 JSON을 사용. 전용 위젯 관리자/구독 루프 없음 | 여러 소비 프로젝트에 필요할 때 분석 뷰/명시적 분석 파일 요청의 중립 확장점 검토. 선박/원료 정책은 host 유지 | `ShipHatchSimulation`, `ShipHatchMonitorHost/Widget`, `Core/DxWidgetSubsystem.h`; DTCore 소스/gitlink 불변 |

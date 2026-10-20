@@ -72,6 +72,18 @@ double FSurface::Height(double X,double Y) const
     return U>=V?A*(1-U)+At(IX+1,IY)*(U-V)+D*V:A*(1-V)+At(IX,IY+1)*(V-U)+D*U;
 }
 uint32 FSurface::Hash() const{return FCrc::MemCrc32(Heights.GetData(),Heights.Num()*sizeof(float));}
+void Section(const FSurface& S,bool AlongLength,double Offset,TArray<FSectionSample>& Out)
+{
+    Out.Reset();if(S.Heights.IsEmpty())return;
+    const double Span=AlongLength?S.Settings.Length:S.Settings.Width,Step=AlongLength?S.DX:S.DY;
+    const double Across=AlongLength?S.Settings.Width:S.Settings.Length,CrossStep=AlongLength?S.DY:S.DX;
+    Offset=FMath::Clamp(Offset,-Across*.5,Across*.5);
+    const double Cell=(Offset+Across*.5)/CrossStep,Fraction=Cell-FMath::FloorToDouble(Cell);
+    const int32 N=AlongLength?S.NX:S.NY;
+    auto Add=[&](double P){Out.Add({P,AlongLength?S.Height(P,Offset):S.Height(Offset,P)});};
+    for(int32 I=0;I<N;++I){Add(I*Step-Span*.5);if(Fraction>1.e-8&&Fraction<1-1.e-8)Add((I+Fraction)*Step-Span*.5);}
+    Add(Span*.5);
+}
 double Integrate(const FSurface& S)
 {
     double Sum=0;
@@ -101,15 +113,16 @@ bool Raycast(const FSurface& S,FVector O,FVector D,FVector& Hit)
     }
     if(Nearest==DBL_MAX)return false;Hit=O+D*Nearest;return true;
 }
-double Excavate(FSurface& S,FVector2D Center,double Radius,double Depth)
+double Excavate(FSurface& S,FVector2D Center,double Radius,double Depth,double Aspect)
 {
     if(S.Heights.IsEmpty()||Center.ContainsNaN()||!FMath::IsFinite(Radius)||!FMath::IsFinite(Depth)||
-       Radius<.5||Radius>5||Depth<.1||Depth>3||FMath::Abs(Center.X)>S.Settings.Length*.5||
+       !FMath::IsFinite(Aspect)||Aspect<.5||Aspect>2||Radius<.5||Radius>5||Depth<.1||Depth>3||FMath::Abs(Center.X)>S.Settings.Length*.5||
        FMath::Abs(Center.Y)>S.Settings.Width*.5||S.Height(Center.X,Center.Y)<=1.e-4)return 0;
     const double Before=Integrate(S);
     for(int32 Y=0;Y<=S.NY;++Y)for(int32 X=0;X<=S.NX;++X)
     {
-        const double R2=(FVector2D(X*S.DX-S.Settings.Length*.5,Y*S.DY-S.Settings.Width*.5)-Center).SizeSquared()/(Radius*Radius);
+        const FVector2D Delta=FVector2D(X*S.DX-S.Settings.Length*.5,Y*S.DY-S.Settings.Width*.5)-Center;
+        const double R2=FMath::Square(Delta.X/(Radius*Aspect))+FMath::Square(Delta.Y/Radius);
         if(R2<1){auto& H=S.Heights[Y*(S.NX+1)+X];H=FMath::Max(0.,H-Depth*(1-R2));}
     }
     // Relax actual face gradients by moving remaining material into the cavity.

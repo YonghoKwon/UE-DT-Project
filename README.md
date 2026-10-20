@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+HATCH-04(사용자2026-10-20): Runtime `58b333b`. 그랩식 하역기·개별 모델/설치 변경 가능한3대·상면/히트맵 통합·단면·바닥 노출·그랩 효과/카메라 잠금·조명·Select 대비·해측/육측/카메라 연동을 구현했다. Editor/Game·release14단계(고유317Success/40조건부Skip/실패0)·WBP7·golden/Python69·layer0,자동90장을 확인했다. 3대50회 원시RSS 점군+2.371/일반+2.719/재실행+1.293MiB·150ms초과0,기본60초ABAB12회2% PASS(FPS저하-0.019110%,p95증가0.000000%,GT증가-0.451063%)다. **직접12행은 캡처오류/입력0·환경보류**, 현장모델확인필요다. 개인142원본복원·보호833중 기존M_HatchCargo1개 외832해시 일치. 초기실패/제한은 [RESULT](Saved/Reports/HATCH-04/RESULT.md), [DONE](Saved/Reports/HATCH-04/DONE.md), [직접점검표](docs/MANUAL_CHECKLIST.md)를 따른다.
+
 HATCH-03(사용자2026-10-19): Runtime `215eb04`. 클릭 퍼내기·16단계 되돌리기/원래대로, 센서/광선·중앙 FOV 배치, 연속 점군 미리보기, 절차 원료 질감·개구부 중심 2D/히트맵을 구현했다. Editor/Game·release14단계(고유313Success/40조건부Skip/실패0)·WBP7·golden/Python69·layer0, 최종66장·직접UI를 확인했다. 점군50회 두 실행 RSS−1.063/+1.441MiB,150ms초과0, 기존맵 기본60초ABAB12회2% PASS(FPS저하−0.000670%,p95동일,GT−1.367769%)다. 개인141원본 복원·보호832hash 일치, 새머티리얼1개 외 기존자산/맵 변경0. 과거 실패 원본과 제한은 [RESULT](Saved/Reports/HATCH-03/RESULT.md), 완료/커밋은 [DONE](Saved/Reports/HATCH-03/DONE.md), [직접 점검표](docs/MANUAL_CHECKLIST.md)를 따른다.
 
 HATCH-02(사용자2026-10-19): Runtime `a82c6bd`에 공통 다크 헤더·지표·3분할/최대화·점군/범례·설정 상세·영역별 시점을 구현했다. Editor/Game·release14단계(고유311 Success/40조건부skip/실패0)·WBP7·golden·Python69·자동48장·layer0,25f6617 대비ABAB12회2% PASS(FPS저하−0.00649%·p95동일·GT−0.63715%)다. 메모리 검사는 **준비10→35초 변경을 명시**하며50회 원시RSS−3.707MiB·committed+0.648MiB로8MiB gate를 통과했다. 같은SHA의 재생성0회 대조도+12.602MiB였고 **기존10초 준비의 간헐 초과는 남아 그 조건의 통과로 표시하지 않는다.** 직접8행은 Windows잠금·입력0·환경보류, 개인141파일복원·보호832 hash일치다. [HATCH-02 결과](Saved/Reports/HATCH-02/RESULT.md)와 수용 제한을 따른다.
@@ -855,6 +857,36 @@ python -m unittest discover -s Tools/AutomationClient -v
 
 Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 프록시·redirect를 사용하지 않으며 인증 값/요청 헤더를 출력하지 않는다. `integration_check.py`는 명시한 **검증용 runtime**의 센서를 변경·캡처·생성·취소하는 예제다. 실제 지원 조합·초기 실패/제한·회귀는 `Saved/Reports/AUTO-01/RESULT.md`를 따른다. `-NullRHI`의 Camera/GPU 데이터셋·캡처는 거부한다. 디스플레이 없는 서버/다른 driver·Shipping·무제한 장면 수 지원을 Development offscreen 결과로 추정하지 않는다.
 
+## HATCH-04 그랩식 하역기·현장 3대 구성
+
+출처: 사용자 **2026-10-20**의 피드백 8건 및 현장 답변. 현재 기본은 같은 `ShipHatchTestMap`의 **그랩식 하역기 + 붐 끝 1대 / 운전실 좌·우 2대**다. 아래 HATCH-01~03의 2대 배치·3분할 설명은 이전 구성과 공통 원리를 설명하며, 현재 배치/조작은 이 절을 우선한다. **현장 센서 모델은 확인 필요**이며 실제 설치 도면이나 교정값을 뜻하지 않는다.
+
+`설정 · 상세` 상단의 세 장비 선택에서 각각 **끄기 / ML-X80 Integration 200 / Livox Mid-360S / ML-X80 Native**를 바꾼다. 변경 후 기존 Actor 설정 API와 Scheduler로 새 측정·커버리지를 반영한다. 기본은 기존 프로필 중 수평 360°를 제공하는 Mid-360S 3대이며 현장 모델을 추정 확정한 값이 아니다. 기존 `MLX`/`Livox` C++ 참조와 센서 ID는 호환 식별자로 남고 세 번째 ID는 `Hatch.CabRight`다. 이름표는 설치 역할을 표시한다. 이전 ML-X 55.4m + Mid 8m 배치는 **배치 프리셋**의 이전 2대 항목에서만 사용한다.
+
+| 설치 역할 | 홀드 로컬 기본 위치 m | 조절 |
+|---|---|---|
+| 붐 해측 끝 | X 0 / Y +10 / 갑판 위 10 | 개별 X/Y 보정·높이·틸트 보정·요 |
+| 운전실 좌 | X −2 / Y −2 / 갑판 위 8 | 동일 |
+| 운전실 우 | X +2 / Y −2 / 갑판 위 8 | 동일 |
+
+해측은 **+Y**, 육측(안벽)은 **−Y**다. 일반 3D·점군의 투영 이름표/방향 표시와 상면·히트맵·단면이 같은 축을 사용한다. `해측에서 보기 / 육측에서 보기` 시점을 제공한다. 기본 Mid 프로필의 기존 장착 회전 −112.5°와 ML-X의 −90°에 개별 틸트 보정을 더한다. 이 각도는 기존 프로필의 광선 분포를 유지하기 위한 모의 장착값이다. 실제 저장된 quaternion을 Euler로 표시하면 동치인 −67.5°/yaw 180°가 보일 수 있다.
+
+그랩식 붐은 길이 42m, 트롤리·운전실은 단순 저폴리 표시다. [Konecranes 그랩식 하역기 자료](https://www.konecranes.com/sites/default/files/download/kc_steel_book_0_0.pdf)의 37–42m outreach급 비례를 참고했으며, outreach와 실제 붐 전체 길이는 같은 치수가 아니다. 10m/8m 높이·운전실 위치는 시험용 가정이다. 화면에서 붐 길이·높이·운전실 높이/X/Y와 개별 센서 설치를 바꿀 수 있다. 임의 고소 마스트/갠트리는 제거했다. 하역기는 기본 표시이며 토글할 수 있다. 표시 형상은 collision·SceneCapture·그림자·LiDAR 반사에서 제외되어 측정 광선 차폐는 0%다.
+
+3대 합성 FOV는 기본값에서 **개구부 78.390625% / 구조적으로 보이는 빈 홀드 바닥 100% (1091.34m²)**다(80×80 표본). 기존 고소 2대의 개구부 100%와 조건이 다르다. 적재물 가림·실측 반환점 커버리지의 보증이 아니다. 세 점군과 최대 96개/5Hz 실제 광선 표시를 합성하며 센서별 색 표시를 선택할 수 있다. 기여/사각 오버레이는 현재 높이장과 개구부/FOV의 기하학적 **예상**이다. 청록=붐, 주황=좌, 자홍=우, 빨강=어느 장비에도 포함되지 않는 칸이며 실측 히트맵과 구분한다.
+
+현재 3분할은 **왼쪽 3D / 오른쪽 위 상면·히트맵 전환 / 오른쪽 아래 홀드 단면**이다. 각 영역의 확대와 3분할 복귀를 유지한다. 단면의 길이(X)/폭(Y)와 위치 슬라이더, 상면/히트맵의 노란 선 드래그로 절단 위치를 바꾼다. 벽·탱크톱·갑판·코밍과 현재 모의 원료를 m 눈금으로 표시한다. 단면은 같은 삼각 높이장의 격자/대각선 교점을 사용하며 **실측 복원 결과가 아니다**. 히트맵은 기존 원료 반환점 평균/미관측 정책을 유지하므로 바닥 구조점은 원료 높이 관측량에 포함하지 않는다.
+
+청록 카메라 표시·방향선은 실제 3D 카메라의 홀드 로컬 pose를 사용한다. 화면 밖 카메라 아이콘은 가장자리에 표시한다. 2D에서 단면선 바깥을 클릭하면 이동 모드에서 해당 X/Y를 바라본다. 단면은 3D에 반투명 평면으로 표시하며 세 장비 위치도 2D/단면에 함께 투영한다. 겹친 단면 투영은 실제 설치 좌표의 같은 투영일 수 있다.
+
+퍼내기 기본은 꺼짐이다. 켜면 **좌클릭은 퍼내기 / 좌드래그는 카메라 잠금**, 이동은 **우드래그·휠**로 구분한다. 짧은 클릭·이력 16회·되돌리기/원래대로·새 시드 초기화를 유지한다. 기본 반경 2m/깊이 1.5m와 타원 길이/폭 비율 1.4를 조절할 수 있다. 절차 색 변화로 퍼낸 면/함몰 가장자리를 구분하고 기본 켜짐인 짧은 그랩 하강→닫힘→상승 표시를 토글한다. DEM/실제 버킷 물리 시뮬레이션은 아니다.
+
+두께 0인 삼각형은 고정 메시 슬롯을 유지하며 **탱크톱 안쪽 1cm**로 내려 바닥을 덮거나 z-fighting하지 않게 한다. 양의 원료 삼각형은 원래 높이장을 유지한다. UE 5.3 live refit의 재적재 후 짧은 query 누락을 방지하기 위해 같은 render 버퍼/BodySetup을 재사용하고 현재 삼각형으로 충돌 cook/body를 갱신한다. Chaos가 1cm 미만의 원료층 대신 인접 탱크톱을 먼저 반환하면 분석적으로 확인된 얇은 층에 한해 UI picking을 허용해 끝까지 퍼낼 수 있다. 실제 측정/PCD에는 이 picking 보정을 주입하지 않는다. 바닥 hit는 기존 `HatchHold` 구조 분류다.
+
+조명 방위각·고도·세기, 정오/저녁/작업등과 홀드 보조광을 설정한다. 맵 조명은 PIE 동안만 Movable로 사용하고 원래 mobility/방향/세기/그림자 상태를 복원한다. 반복 편집 중 virtual shadow-map의 resident 증가를 피하려고 이 맵의 동적 그림자는 사용하지 않고 절차 vertex 음영으로 함몰/AO 느낌을 제공한다. 광학 응답·측정 프레임·wire 계약은 조명/표시 색과 독립이다. 열린 Select 목록·선택값·hover는 공통 다크 배경/밝은 텍스트와 150% 글자를 사용한다.
+
+검증/제한은 [HATCH-04 RESULT](Saved/Reports/HATCH-04/RESULT.md), [DONE](Saved/Reports/HATCH-04/DONE.md), [직접 점검표](docs/MANUAL_CHECKLIST.md)를 따른다. 새 맵·자산·플러그인은 없으며 기존 `M_HatchCargo`만 vertex color 입력으로 확장했다. 캡처/검증 도구는 `Scripts/run_hatch_validation.ps1 -Mode FeedbackCaptures`, `-Mode Dig`, `-Mode Performance -Sensors 3`다. UI 자동 캡처와 직접 마우스 수용, 상대 기존맵 성능과 3대 해치 절대 성능을 구분한다.
+
 ## HATCH-01 선박 해치·카고 홀드 측정 테스트
 
 출처: 사용자 2026-10-19. `/Game/MA0T10/Maps/Tests/ShipHatchTestMap`을 열고 **Play**한다. 배치된 `ShipHatchSimulation`과 `ShipHatchMonitorHost`가 절차 형상·센서·모니터를 준비한다. WBP 배선이나 외부 모델/마켓 자산은 필요 없다. 기존 맵에 자동 생성하지 않으며 운영 `SensorTestMap`은 수정하지 않는다. [생성 스크립트](Scripts/setup_ship_hatch_map.py)는 이미 존재하는 맵을 저장 전에 거절한다.
@@ -918,6 +950,8 @@ Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 �
 - 절차 메시의 GPU semantic proxy 미지원 때문에 CPU trace를 명시한다. 프로필 목표 Hz와 실제 측정 Hz는 다르며 실측은 보고서를 따른다. 분류는 기존 센서별 규칙의 `HatchCargo/HatchCoaming/HatchHold/HatchOutside` 태그를 사용한다. DATASET-01 canonical ID 0–6·5-byte 라벨 계약을 늘리지 않았다. 기존 LiDAR 라벨 변환에서 이 사용자 라벨은 Other(1)이며 Camera 절차 메시 GT와 해치 전용 학습 라벨 내보내기는 제공하지 않는다.
 
 현재 검증: [HATCH-03 RESULT](Saved/Reports/HATCH-03/RESULT.md) · [DONE](Saved/Reports/HATCH-03/DONE.md) · [직접 점검표](docs/MANUAL_CHECKLIST.md). HATCH-01/02 원문은 각 Saved/Reports 아래 보존한다. 재현은 `Scripts/run_hatch_validation.ps1 -Mode Dig`(점군50회), `-Mode Dig -DigView 0`(일반3D50회), `-Mode Runtime`(랜덤/PCD 회귀), `-Mode DigCaptures -Visible -Width 1280 -Height 720 -FontPercent 150`, `-Mode Performance -Sensors 1` / `-Sensors 2`다. 메모리는35초 준비+17개 완전한 클릭/측정/분석 warm cycle 뒤50회이며 원시RSS·retained·commit8MiB/150ms 기준을 유지한다. 기존맵은 `Scripts/verify.ps1 -Level perf -BaseCommit 67b34f7` 기본60초ABAB다. Editor를 종료한 상태에서 실행하며 자동 pointer/캡처를 직접 마우스 수용으로 세지 않는다.
+
+HATCH-04도 같은 L2/L3 경계와 기존 UDxWidget 등록/입력 차단을 유지한다. L2는 3대 배치·타원 그랩·현재 삼각형 충돌 갱신, L3는 같은 플레이어 뷰·캐시한 단면/카메라/FOV 표시를 맡는다. L1 추가는 기본 꺼짐인 preview tint와 opt-in 고정 point GPU 버퍼다. 같은 반환점으로 5Hz 표시/카메라 갱신을 하며 실제 프레임·투영·payload 색에 적용하지 않는다. 새 모듈/플러그인과 layer 예외를 추가하지 않는다.
 
 ## 11. 검증
 

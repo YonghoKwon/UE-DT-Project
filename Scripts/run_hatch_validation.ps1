@@ -1,6 +1,6 @@
-param(
-    [ValidateSet('Runtime','Captures','Performance','Manual','Presentation','MemoryControl','Dig','DigCaptures','DigIdle')][string]$Mode='Runtime',
-    [ValidateRange(1,2)][int]$Sensors=2,
+﻿param(
+    [ValidateSet('Runtime','Captures','Performance','Manual','Presentation','MemoryControl','Dig','DigCaptures','DigIdle','Feedback','FeedbackCaptures')][string]$Mode='Runtime',
+    [ValidateRange(1,3)][int]$Sensors=2,
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot='',
     [ValidateRange(1280,3840)][int]$Width=1920,
@@ -15,10 +15,10 @@ param(
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/PIE before HATCH validation'}
-if(!$ReportRoot){$group=if($Mode -like 'Dig*'){'HATCH-03'}else{'HATCH-02'};$ReportRoot=Join-Path $root ("Saved/Reports/$group/runs/"+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))}
+if(!$ReportRoot){$group=if($Mode -like 'Feedback*'){'HATCH-04'}elseif($Mode -like 'Dig*'){'HATCH-03'}else{'HATCH-02'};$ReportRoot=Join-Path $root ("Saved/Reports/$group/runs/"+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))}
 $ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
 New-Item -ItemType Directory -Force -Path $ReportRoot | Out-Null
-$test=switch($Mode){'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
+$test=switch($Mode){'Feedback'{'MA0T10.Hatch.UserFeedbackRhi'} 'FeedbackCaptures'{'HATCH04.CapturesRhi'} 'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
 $priorX=$env:MA0T10_ACCEPTANCE_RES_X;$priorY=$env:MA0T10_ACCEPTANCE_RES_Y
 try {
     $env:MA0T10_ACCEPTANCE_RES_X=[string]$Width;$env:MA0T10_ACCEPTANCE_RES_Y=[string]$Height

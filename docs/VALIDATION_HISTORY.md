@@ -6,6 +6,18 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-20 HATCH-04 — 그랩식 현장 3대 및 사용자 피드백
+
+- 출처 사용자2026-10-20의8건+현장3대/그랩식/모델미확인·개별변경/해측·육측 답변. feat/ship-hatch-v4/기준23133f6/DTCore b2504d1. cc96d63·7f5d8c4·58b333b에22코드/도구/기존머티리얼 파일을 구현·보정했다(신규소스4). 새자산/맵/모듈/플러그인0,layer/allowlist0→0(309파일/1035include). 계약/PCD/wire/SaveGame/Blueprint API 불변.
+- 고소마스트를 토글가능 경량 붐/트롤리/cab와 아래방향3대로 대체했다. 기본3×Mid360S FullSpec은현장모델확인필요,각off/ML-X Integration/Mid/Native·X/Y/높이/tilt/yaw를화면에서변경한다. 붐(0,+10,32.5)/cab좌(-2,-2,30.5)/우(+2,-2,30.5)m(바닥기준),해측+Y/육측−Y. 표시형상측정제외로차폐0%;80×80기하학FOV개구부78.390625%/빈바닥100%(1091.34m²),실측완전커버리지보증아님. 치수/근거/제한은README/RESULT.
+- 상면/히트맵통합+홀드단면·방향/위치/선drag·최대화,실제camera pose·센서/예상FOV·3D단면,영두께tanktop노출·HatchHold실제점분류,타원grab하강/닫힘/상승·vertex음영,좌drag잠금/우drag·wheel분리,조명/Select대비/150%를연결했다. 단면은실측복원이아닌삼각높이장이다. 조명/tint는geometryrevision·immutableframeCRC불변,광학/GT계약경로유지.
+- 초기1.3mm잔여층pick/재적재후짧은query누락은인접floor제한pick·현재triangle runtime cook으로수정했다. 초기일반RSS13.113/15.574MiB,final2점군13.3945MiB/memoryfix16.1758MiB실패를보존한다.3대fixture의BeforeFrames[2] OOB와cab아래warm14/17은수정하고당시50회결과를유효로세지않는다. Threshold/warmcycle17/50edit/8MiB/150ms기준완화0. GetUsedMaterials누락ensure는명시등록으로수정했다.
+- 최종58b333b Editor/GameDevelopment exit0; release14단계 20261020T053833947Z/manifest.json:고유317Success/40조건부Skip/실패0(occurrence324/40),WBP7메모리compile/save0·어휘/golden/Python69/layer0. 추가D3D12집중9회Success/skip0. 철광석/석탄·1920×1080/font100·150/DPI1/UMG1,1280×720/font150/DPI1/UMG0.666667의90PNG+JSON을해시와함께보관했다.
+- 같은Runtime3대·17완전warmcycle+35초안정화·실제accepted50click/새FrameId/새revision 분석. 원시/retained RSS점군+2.37109375·일반+2.71875·일반재실행+1.29296875MiB,commit+6.72265625/+2.0625/−0.03125MiB. 소유mesh/scan/view/digcapacity exact,OS trim/대조차감0. max edit48.016/engine67.960/GT77.686/callback79.142ms·150ms초과0,높이오차최대0.032751m. 새측정+분석완료최대1588.819ms는별도latency다.
+- 해치3대표시형D3D12/1920×1080/font100/AccurateCpuTrace/점군3분할/10+30.002초:engine평균59.796679FPS,p9516.667803ms,GTmean12.088470ms,callbackp9521.586303ms. 실제붐4.799656/좌4.366353/우4.433015Hz(144/131/133frames),요청10Hz·외부송신0과구분한다.
+- 표준 `Scripts/verify.ps1 -Level perf -BaseCommit 23133f6`기본60초,준비10초,ABAB×3/12valid·각6·invalid0·2%PASS. 20261020T054725098Z/perf/manifest.json:같은DTCore/맵해시/1Camera+1GPU LiDAR/출력/표시형D3D12/client1920×1080/DPI1. callbackFPS 59.984891702→59.996354847(저하-0.019110%),enginep95 16.666900367→16.666900367ms,GT 6.517823299→6.488423822ms(-0.451063%). 측정중capture/다른Editor/ComputerUse입력0.
+- ComputerUse는새PIE창두읽기시도모두CreateForMonitor0x80070057,직접12행환경보류/마우스·키보드·활성화·보안입력0. 준비client1920/font100과실제관찰은구분한다. finish.flag로소유Editor/PIE정상종료. 개인142원본집합·byte복원,보호833중승인된기존M_HatchCargo1개외832해시동일;DTCore/Config/PixelStreaming/사용자SensorTestMap/Inspection/Claude원본보호. push/PR/merge/worktree/submodule update0. 현장모델/실장비/Shipping/운영Broker수용별도. [RESULT](../Saved/Reports/HATCH-04/RESULT.md)·[DONE](../Saved/Reports/HATCH-04/DONE.md)·[직접기록](../Saved/Reports/HATCH-04/manual/CHECKLIST.md).
+
 ## 2026-10-20 TESTSET-04 — 회사 생성 복구 및 추가 화면 요구
 
 - 출처 사용자2026-10-20, fix/testset-company-env/기준89b45ae/DTCore b2504d1. 원인 수정02a51c2·호환1a75969·문서ba08cb2 뒤 bd79ddb에 상세 옆 전송 자리 표시와 매 수신 재표시/전면 배치를 추가했다. 추가코드7파일(수정6/신규Editor회귀1), 이동/새자산/모듈/플러그인0, layer/allowlist0→0. UI는 안내 필드만 바꾸며 저장/전송 함수를 호출하지 않는다.

@@ -9,6 +9,11 @@
 #include "Async/Async.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "Engine/DirectionalLight.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/PointLightComponent.h"
+#include "EngineUtils.h"
+#include "PhysicsEngine/BodySetup.h"
 
 namespace
 {
@@ -20,7 +25,7 @@ void Box(TArray<FVector>& V,TArray<int32>& T,FVector Center,FVector Size)
     const int32 Indices[]={0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5};
     for(int32 I:Indices)T.Add(B+I);
 }
-void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int32>& T,TArray<FVector>* Scratch=nullptr)
+void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int32>& T,TArray<FVector>* Scratch=nullptr,const TArray<FLinearColor>& Colors=TArray<FLinearColor>())
 {
     TArray<FVector> LocalNormals;auto& N=Scratch?*Scratch:LocalNormals;N.Init(FVector::ZeroVector,V.Num());
     for(int32 I=0;I<T.Num();I+=3)
@@ -30,8 +35,8 @@ void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int3
     bool SameTopology=Existing&&Existing->ProcVertexBuffer.Num()==V.Num()&&Existing->ProcIndexBuffer.Num()==T.Num();
     if(SameTopology)for(int32 I=0;I<T.Num();++I)if(Existing->ProcIndexBuffer[I]!=uint32(T[I])){SameTopology=false;break;}
     if(SameTopology)
-        M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());
-    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),true);
+        M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>());
+    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>(),true);
 }
 }
 AShipHatchPart::AShipHatchPart()
@@ -57,14 +62,36 @@ ShipHatch::FSettings AShipHatchSimulation::Settings() const
     S.OpeningWidth=OpeningWidth;S.Coaming=CoamingHeight;S.SensorAboveDeck=SensorAboveDeck;
     S.Seed=Seed;S.Cargo=bCoal?ShipHatch::ECargo::Coal:ShipHatch::ECargo::IronOre;S.FillMin=FillMin;S.FillMax=FillMax;return S;
 }
-void AShipHatchSimulation::BeginPlay(){Super::BeginPlay();Regenerate(false);}
+void AShipHatchSimulation::BeginPlay()
+{
+    Super::BeginPlay();
+    for(TActorIterator<ADirectionalLight> I(GetWorld());I;++I){KeyLight=*I;break;}
+    if(KeyLight)
+    {
+        auto* Light=KeyLight->GetLightComponent();OriginalLightRotation=KeyLight->GetActorRotation();OriginalLightIntensity=Light->Intensity;OriginalLightMobility=uint8(Light->Mobility);bOriginalLightShadows=Light->CastShadows;
+        Light->SetMobility(EComponentMobility::Movable);
+        // Repeated height-field edits must not grow virtual shadow-map residency.
+        // The cargo's bounded vertex shading supplies the cavity/AO cue instead.
+        Light->SetCastShadows(false);
+    }
+    FillLight=NewObject<UPointLightComponent>(this);FillLight->SetupAttachment(GetRootComponent());FillLight->SetMobility(EComponentMobility::Movable);
+    FillLight->SetCastShadows(false);FillLight->SetIntensity(8000);FillLight->SetAttenuationRadius(6500);FillLight->RegisterComponent();
+    FillLight->SetRelativeLocation(FVector(0,0,HoldDepth*65));SetLighting(-25,65,5,true);Regenerate(false);
+}
+void AShipHatchSimulation::SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill)
+{
+    if(!FMath::IsFinite(Azimuth)||!FMath::IsFinite(Elevation)||!FMath::IsFinite(Intensity))return;
+    LightAzimuth=FMath::Clamp(Azimuth,-180.,180.);LightElevation=FMath::Clamp(Elevation,5.,90.);LightIntensity=FMath::Clamp(Intensity,0.,12.);bFillLight=Fill;
+    if(KeyLight){KeyLight->SetActorRotation(FRotator(-LightElevation,LightAzimuth,0));KeyLight->GetLightComponent()->SetIntensity(LightIntensity);}
+    if(FillLight)FillLight->SetVisibility(Fill);
+}
 bool AShipHatchSimulation::Regenerate(bool Randomize)
 {
     if(bEnding)return false;
     if(Randomize){int32 Next=int32(FPlatformTime::Cycles64()&0x7fffffff);Seed=Next==Seed?Seed^0x41c64e6d:Next;}
     Pending=Settings();if(!Pending.Validate(Status))return false;
     bPending=true;
-    if(MLX)MLX->StopSensor();if(Livox)Livox->StopSensor();
+    for(int32 I=0;I<3;++I)if(auto* A=SensorAt(I))A->StopSensor();
     if(!bGenerating)StartGeneration();
     return true;
 }
@@ -135,13 +162,44 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
 {
     if(!Cargo)
     {FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Cargo=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);Cargo->Tags.Add(TEXT("HatchCargo"));}
-    auto& V=CargoVertices;auto& T=CargoIndices;V.Reset();V.Reserve(Current.Heights.Num());
-    for(int32 Y=0;Y<=Current.NY;++Y)for(int32 X=0;X<=Current.NX;++X)
-        V.Add(FVector(X*Current.DX-Current.Settings.Length*.5,Y*Current.DY-Current.Settings.Width*.5,Current.At(X,Y))*100);
-    if(MeshNX!=Current.NX||MeshNY!=Current.NY)
-    {T.Reset();T.Reserve(Current.NX*Current.NY*6);for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
-     {const int32 A=Y*(Current.NX+1)+X,B=A+1,C=A+Current.NX+1,D=C+1;T.Append({A,D,B,A,C,D});}MeshNX=Current.NX;MeshNY=Current.NY;}
-    Mesh(Cargo->Mesh,V,T,&CargoNormals);
+    // Park zero-thickness faces 1cm inside the solid tank top. Keeping valid
+    // triangles also preserves Chaos collision topology when an empty initial
+    // hold is later refilled; the tank top always owns the first surface hit.
+    auto& V=CargoVertices;auto& T=CargoIndices;auto& Colors=CargoColors;V.Reset();Colors.Reset();
+    const int32 Count=Current.NX*Current.NY*6;V.Reserve(Count);Colors.Reserve(Count);
+    auto Vertex=[&](int32 X,int32 Y,bool Empty)
+    {
+        const double H=Current.At(X,Y);V.Add(FVector((X*Current.DX-Current.Settings.Length*.5)*100,(Y*Current.DY-Current.Settings.Width*.5)*100,Empty?-1:H*100));
+        const int32 I=Y*(Current.NX+1)+X;
+        const double Removed=Original.Heights.IsValidIndex(I)?FMath::Max(0.,double(Original.Heights[I])-H):0;
+        const double Fresh=FMath::Clamp(Removed/.6,0.,1.);
+        const double Surround=(Current.At(FMath::Max(0,X-1),Y)+Current.At(FMath::Min(Current.NX,X+1),Y)+Current.At(X,FMath::Max(0,Y-1))+Current.At(X,FMath::Min(Current.NY,Y+1)))*.25;
+        const double Shade=1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.);
+        Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Shade));
+    };
+    for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
+    {
+        const bool E1=FMath::Max3(Current.At(X,Y),Current.At(X+1,Y+1),Current.At(X+1,Y))<=1.e-4;
+        const bool E2=FMath::Max3(Current.At(X,Y),Current.At(X,Y+1),Current.At(X+1,Y+1))<=1.e-4;
+        Vertex(X,Y,E1);Vertex(X+1,Y+1,E1);Vertex(X+1,Y,E1);
+        Vertex(X,Y,E2);Vertex(X,Y+1,E2);Vertex(X+1,Y+1,E2);
+    }
+    if(T.Num()!=Count){T.SetNumUninitialized(Count,false);for(int32 I=0;I<Count;++I)T[I]=I;}
+    const auto* Existing=Cargo->Mesh->GetProcMeshSection(0);
+    const bool Refitting=Existing&&Existing->ProcVertexBuffer.Num()==V.Num()&&Existing->ProcIndexBuffer.Num()==T.Num();
+    MeshNX=Current.NX;MeshNY=Current.NY;Mesh(Cargo->Mesh,V,T,&CargoNormals,Colors);
+    if(Refitting)
+    {
+        // UE 5.3's live triangle refit leaves stale query bounds after refill.
+        // Reuse the render buffers and the one BodySetup, but cook its current
+        // triangles before recreating the body. Recreating the old cooked body
+        // alone would silently restore obsolete collision geometry.
+        // This transient runtime mesh has no serialized collision payload. Keeping
+        // bHasCookedCollisionData set would send each edit through editor DDC
+        // under a fresh GUID, retaining derived blobs across repeated edits.
+        auto* Body=Cargo->Mesh->GetBodySetup();Body->bHasCookedCollisionData=false;
+        Body->InvalidatePhysicsData();Body->CreatePhysicsMeshes();Cargo->Mesh->RecreatePhysicsState();
+    }
     if(UpdateAppearance){
         auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo"));
         auto* MID=Cast<UMaterialInstanceDynamic>(Cargo->Mesh->GetMaterial(0));
@@ -164,14 +222,20 @@ bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& H
     // Visibility is player-local in point-only mode. Physical structures still occlude
     // the height field in BOTH render modes, including the deck above hidden cargo.
     FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
-    return GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query)&&First.GetActor()==Cargo;
+    if(!GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query))return false;
+    if(First.GetActor()==Cargo)return true;
+    // Chaos may resolve a sub-centimeter sheet as its adjacent tank top first.
+    // Permit removing that analytically proven residue; empty floor still has
+    // no Raycast hit. Do not bypass any deck, coaming, or other obstruction.
+    return Hit.Z>1.e-4&&Hit.Z<.01&&First.GetActor()&&First.GetActor()->ActorHasTag(TEXT("HatchHold"))&&
+        FVector::DistSquared(First.ImpactPoint,WorldHit)<=1.&&FMath::Abs(Pose.InverseTransformPosition(First.ImpactPoint).Z)<.01;
 }
 bool AShipHatchSimulation::Dig(FVector Origin,FVector Direction,double Radius,double Depth)
 {
     FVector Hit;if(!PickCargo(Origin,Direction,Hit))return false;
     const double Start=FPlatformTime::Seconds();
     DigScratch=Current.Heights;const double Volume=Current.Volume,Fill=Current.Fill;
-    const double Removed=ShipHatch::Excavate(Current,FVector2D(Hit.X,Hit.Y),Radius,Depth);
+    const double Removed=ShipHatch::Excavate(Current,FVector2D(Hit.X,Hit.Y),Radius,Depth,GrabAspect);
     if(Removed<=0){Current.Heights=DigScratch;Current.Volume=Volume;Current.Fill=Fill;return false;}
     auto& Previous=History[HistoryHead];Previous.Heights=DigScratch;Previous.Volume=Volume;
     Previous.Fill=Fill;Previous.Last=LastRemoved;Previous.Total=TotalRemoved;
@@ -197,24 +261,26 @@ void AShipHatchSimulation::FinishCargoEdit()
     LastGeometryEdit=FPlatformTime::Seconds();
     FrameGates[0]=MLX?MLX->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[1]=Livox?Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;
+    FrameGates[2]=CabRight?CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
     UpdateCargoMesh(false);++SurfaceRevision;
     // Keep acquisition cadence and populated display buffers alive. An in-flight
     // pre-edit acquisition is excluded from analysis by its immutable start time.
-    for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})if(A)
+    for(int32 I=0;I<3;++I)if(auto* A=SensorEnabled(I)?SensorAt(I):nullptr)
     {A->ScanComponent->InvalidateSurfaceResponseCache();A->VisualizationComponent->RefreshPointPreview();}
     Status=TEXT("측정 중 · 가려진 영역은 측정 불가");OnSurfaceChanged.Broadcast();
 }
 bool AShipHatchSimulation::SetSensorSelection(bool EnableMLX,bool EnableLivox,bool Native)
 {
     if(!EnableMLX&&!EnableLivox){Status=TEXT("측정할 장비를 하나 이상 선택하세요.");return false;}
-    bMLX=EnableMLX;bLivox=EnableLivox;bNativeMLX=Native;
+    bFieldLayout=false;bMLX=EnableMLX;bLivox=EnableLivox;bNativeMLX=Native;
     if(!bGenerating&&Current.Heights.Num()){ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();}return true;
 }
 void AShipHatchSimulation::ConfigureSensors()
 {
     FrameGates[0]=MLX?MLX->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[1]=Livox?Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;
-    auto Configure=[&](TObjectPtr<AVirtualLidarSensorActor>& A,EVirtualLidarDeviceProfile Profile,bool Enabled,const TCHAR* Id)
+    FrameGates[2]=CabRight?CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
+    auto Configure=[&](TObjectPtr<AVirtualLidarSensorActor>& A,EVirtualLidarDeviceProfile Profile,bool Enabled,const TCHAR* Id,int32 Index)
     {
         if(!A)
         {A=GetWorld()->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),GetActorTransform(),this);
@@ -225,7 +291,7 @@ void AShipHatchSimulation::ConfigureSensors()
         if(ProfileChanged&&!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Status=Error;return;}
         A->ReadEditableState(S);FVirtualSensorEditableState Previous=S;S.SensorId=Id;
         const bool IsMLX=Profile!=EVirtualLidarDeviceProfile::LivoxMid360S;
-        S.ActorTransform=FTransform(GetActorQuat()*FRotator(IsMLX?-90:-112.5,0,0).Quaternion(),GetActorTransform().TransformPosition(SensorLocalOrigin(IsMLX)*100));
+        S.ActorTransform=FTransform(GetActorQuat()*FRotator((IsMLX?-90:-112.5)+(bFieldLayout?SensorTiltTrim[Index]:0),bFieldLayout?SensorYaw[Index]:0,0).Quaternion(),GetActorTransform().TransformPosition((bFieldLayout?SensorOrigin(Index):SensorLocalOrigin(IsMLX))*100));
         S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;S.bLidarMaterialResponse=true;
         S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;
         if(!FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Previous,&S,PPF_None))
@@ -239,6 +305,7 @@ void AShipHatchSimulation::ConfigureSensors()
             const auto* Self=Weak.Get();if(!Self||AcquisitionStart>=Self->LastGeometryEdit||P.SemanticLabel!=TEXT("HatchCargo")||!P.bHit)return;
             auto L=Self->GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
             L.Z=Self->Current.Height(L.X,L.Y);P.WorldLocation=Self->GetActorTransform().TransformPosition(L*100);
+            if(L.Z<=1.e-4)P.SemanticLabel=TEXT("HatchHold");
         });
         if(Scan->SemanticClassRules.Num()!=4||Scan->SemanticClassRules[0].Label!=TEXT("HatchCargo"))
         {
@@ -248,17 +315,18 @@ void AShipHatchSimulation::ConfigureSensors()
         }
         Scan->InvalidateSurfaceResponseCache();if(Enabled)A->StartSensor();
     };
-    Configure(MLX,bNativeMLX?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80,bMLX,TEXT("Hatch.MLX80"));
-    Configure(Livox,EVirtualLidarDeviceProfile::LivoxMid360S,bLivox,TEXT("Hatch.Mid360S"));
-    UpdateSensorPresentation();
+    auto FieldProfile=[&](int32 I){return FieldProfiles[I]==1?EVirtualLidarDeviceProfile::LivoxMid360S:FieldProfiles[I]==2?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80;};
+    Configure(MLX,bFieldLayout?FieldProfile(0):bNativeMLX?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80,bMLX,TEXT("Hatch.MLX80"),0);
+    Configure(Livox,bFieldLayout?FieldProfile(1):EVirtualLidarDeviceProfile::LivoxMid360S,bLivox,TEXT("Hatch.Mid360S"),1);
+    if(bFieldLayout)Configure(CabRight,FieldProfile(2),bCabRight,TEXT("Hatch.CabRight"),2);else if(CabRight)CabRight->StopSensor();
+    UpdateSensorPresentation();ApplyUnloader();
 }
 void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& Out) const
 {
     Out.Reset();if(bGenerating)return;
-    int32 Index=0;
-    for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})
-    {
-        const int64 Gate=FrameGates[Index++];if(!A)continue;
+    for(int32 Index=0;Index<3;++Index)
+    {auto* A=SensorEnabled(Index)?SensorAt(Index):nullptr;
+        const int64 Gate=FrameGates[Index];if(!A)continue;
         const auto Frame=A->ScanComponent->GetLastFrameSnapshot();if(!Frame||Frame->FrameId<=Gate||Frame->AcquisitionStartedMonotonic<LastGeometryEdit)continue;
         for(const auto& P:*Frame->Points)if(P.bHit)
         {
@@ -271,16 +339,17 @@ void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& 
 bool AShipHatchSimulation::HasFreshMeasurement() const
 {
     if(bGenerating)return false;
-    int32 Index=0;
-    for(auto* A:{bMLX?MLX.Get():nullptr,bLivox?Livox.Get():nullptr})
-    {const int64 Gate=FrameGates[Index++];if(A){const auto F=A->ScanComponent->GetLastFrameSnapshot();if(!F||F->FrameId<=Gate||F->AcquisitionStartedMonotonic<LastGeometryEdit)return false;}}
-    return bMLX||bLivox;
+    for(int32 Index=0;Index<3;++Index)
+    {auto* A=SensorEnabled(Index)?SensorAt(Index):nullptr;
+    const int64 Gate=FrameGates[Index];if(A){const auto F=A->ScanComponent->GetLastFrameSnapshot();if(!F||F->FrameId<=Gate||F->AcquisitionStartedMonotonic<LastGeometryEdit)return false;}}
+    return bMLX||bLivox||(bFieldLayout&&bCabRight);
 }
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
     bEnding=true;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
+    if(KeyLight){KeyLight->SetActorRotation(OriginalLightRotation);KeyLight->GetLightComponent()->SetIntensity(OriginalLightIntensity);KeyLight->GetLightComponent()->SetCastShadows(bOriginalLightShadows);KeyLight->GetLightComponent()->SetMobility(EComponentMobility::Type(OriginalLightMobility));}
     GetWorldTimerManager().ClearTimer(ScanDisplayTimer);for(auto A:SensorPresentation)if(IsValid(A))A->Destroy();SensorPresentation.Reset();
-    if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(Cargo)Cargo->Destroy();
+    if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(CabRight)CabRight->Destroy();if(UnloaderPresentation)UnloaderPresentation->Destroy();if(Cargo)Cargo->Destroy();
     for(auto A:Structure)if(IsValid(A))A->Destroy();Structure.Reset();
     // The bounded worker owns values only; no callback can access this Actor after EndPlay.
     Super::EndPlay(Reason);

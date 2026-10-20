@@ -17,7 +17,9 @@ class USlider;
 class UShipHatchAnalysisView;
 class UInvalidationBox;
 class UPrimitiveComponent;
-namespace ShipHatch { struct FAnalysis; struct FSettings; }
+class UWidgetSwitcher;
+class UShipHatchOverlay;
+namespace ShipHatch { struct FAnalysis; struct FSettings; struct FSurface; struct FSectionSample; }
 struct FShipHatchMonitorWork;
 class UShipHatchMonitorWidget;
 
@@ -30,6 +32,7 @@ public:
     TWeakObjectPtr<UShipHatchMonitorWidget> Monitor;
     bool bHeatmap=false;
     bool bLegend=false;
+    bool bSection=false;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
 };
@@ -40,6 +43,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     GENERATED_BODY()
     friend struct FHatchPresentationProbe;
     friend struct FHatchDigProbe;
+    friend struct FHatchFeedbackProbe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -58,6 +62,21 @@ public:
     bool IsAnalysisPreview() const;
     FText CellTooltip(int32 Cell) const;
     void SetCameraPreset(int32 Preset);
+    void SetMapHeat(bool Heat);
+    bool IsMapHeat() const { return bMapHeat; }
+    void SetSection(bool AlongLength,double Normalized);
+    bool SectionAlongLength() const { return bSectionLength; }
+    double SectionPosition() const { return SectionNormalized; }
+    double SectionOffset() const;
+    const ShipHatch::FSurface* GetSurface() const;
+    const TArray<ShipHatch::FSectionSample>& GetSectionSamples() const;
+    bool CameraInHold(FVector& Origin,FVector& Direction,double& Fov) const;
+    void FocusAt(FVector2D HoldMeters);
+    const AShipHatchSimulation* GetSimulation() const { return Simulation.Get(); }
+    bool ShowCoverage() const { return bCoverageOverlay; }
+    bool IsSensorColoring() const { return bSensorColors; }
+    void SetHatchPresentationVisible(bool Visible);
+    const TArray<uint8>& GetCoverageMask() const;
     uint64 AnalysisBuilds=0;
 protected:
     virtual void NativeOnInitialized() override;
@@ -101,6 +120,29 @@ private:
     UPROPERTY(Transient) TObjectPtr<UInvalidationBox> TopCache;
     UPROPERTY(Transient) TObjectPtr<UInvalidationBox> HeatCache;
     UPROPERTY(Transient) TObjectPtr<UInvalidationBox> PaletteCache;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchAnalysisView> SectionView;
+    UPROPERTY(Transient) TObjectPtr<UInvalidationBox> SectionCache;
+    UPROPERTY(Transient) TObjectPtr<UWidgetSwitcher> MapSwitcher;
+    UPROPERTY(Transient) TObjectPtr<UButton> MapTopButton;
+    UPROPERTY(Transient) TObjectPtr<UButton> MapHeatButton;
+    UPROPERTY(Transient) TObjectPtr<UButton> SectionLengthButton;
+    UPROPERTY(Transient) TObjectPtr<UButton> SectionWidthButton;
+    UPROPERTY(Transient) TObjectPtr<USlider> SectionSlider;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> SectionLabel;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> ModeLabel;
+    UPROPERTY(Transient) TObjectPtr<USlider> AzimuthSlider;
+    UPROPERTY(Transient) TObjectPtr<USlider> ElevationSlider;
+    UPROPERTY(Transient) TObjectPtr<USlider> IntensitySlider;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> LightLabel;
+    UPROPERTY(Transient) TObjectPtr<UButton> FillToggle;
+    UPROPERTY(Transient) TArray<TObjectPtr<UComboBoxString>> FieldChoices;
+    UPROPERTY(Transient) TArray<TObjectPtr<USpinBox>> UnloaderInputs;
+    UPROPERTY(Transient) TArray<TObjectPtr<USpinBox>> SensorPoseInputs;
+    UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> DirectionBadges;
+    bool bGrabAnimation=true;
+    bool bSensorColors=false,bCoverageOverlay=false;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchOverlay> Overlay;
+    TArray<TWeakObjectPtr<UTextBlock>> ComboLabels;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> ContextText;
     UPROPERTY(Transient) TObjectPtr<UBorder> StatusChip;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> UpdatedText;
@@ -124,10 +166,25 @@ private:
     int32 LastSceneView=0;
     uint64 LastRevision=MAX_uint64;
     int64 LastMLX=-1,LastLivox=-1;
+    int64 LastCabRight=-1;
     bool bSync=false;
     bool bWasGenerating=false;
     bool bSplit=true,bSettings=false,bOrbit=false;
     bool bDigEnabled=false,bDragged=false;
+    bool bRightOrbit=false,bMapHeat=true,bSectionLength=true;
+    double SectionNormalized=.5,FeedbackUntil=0;
+    FVector FeedbackCenter=FVector::ZeroVector;
+    FVector2D Focus=FVector2D::ZeroVector;
+    bool bOverlayDirty=true,bHadFeedback=false;
+    void UpdateSection();
+    void UpdateOverlay();
+    void ApplyLighting();
+    void UpdateLightingLabel();
+    void UpdateSectionLabel();
+    double LastSectionLabel=-1;
+    bool bSectionLabelPending=true;
+    double LastLightingLabel=-1,LastPlotInvalidation=-1,LastOverlayUpdate=-1;
+    bool bPlotsPending=false;
     FVector2D PointerDown;
     double PointerDownTime=0;
     uint64 PointerRevision=0;
@@ -155,6 +212,20 @@ private:
     void UpdateSensorBadges();
     UFUNCTION() void OnHighlightMLX();
     UFUNCTION() void OnHighlightLivox();
+    UFUNCTION() void OnHighlightRight();
+    UFUNCTION() void OnFieldA(FString Value,ESelectInfo::Type Type);
+    UFUNCTION() void OnFieldB(FString Value,ESelectInfo::Type Type);
+    UFUNCTION() void OnFieldC(FString Value,ESelectInfo::Type Type);
+    UFUNCTION() void OnUnloaderToggle();
+    UFUNCTION() void OnUnloaderApply();
+    UFUNCTION() void OnSensorColors();
+    UFUNCTION() void OnCoverage();
+    UFUNCTION() void OnSensorPose();
+    UFUNCTION() void OnGrabToggle(){bGrabAnimation=!bGrabAnimation;}
+    UFUNCTION() void OnGrabAspect(float V){if(Simulation.IsValid())SetGrabAspect(V);}
+    void SetGrabAspect(float Value);
+    UFUNCTION() void OnSea(){OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
+    UFUNCTION() void OnLand(){OrbitYaw=90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
     UFUNCTION() void OnScanToggle();
     UFUNCTION() void OnRandom();
     UFUNCTION() void OnApply();
@@ -165,6 +236,19 @@ private:
     UFUNCTION() void OnCargo(FString Value,ESelectInfo::Type Type);
     UFUNCTION() void OnSensor(FString Value,ESelectInfo::Type Type);
     UFUNCTION() void OnFont(FString Value,ESelectInfo::Type Type);
+    UFUNCTION() UWidget* ComboEntry(FString Value);
+    UFUNCTION() void OnSectionPosition(float V){SetSection(bSectionLength,V);}
+    UFUNCTION() void OnSectionLength(){SetSection(true,SectionNormalized);}
+    UFUNCTION() void OnSectionWidth(){SetSection(false,SectionNormalized);}
+    UFUNCTION() void OnMapTop(){SetMapHeat(false);}
+    UFUNCTION() void OnMapHeat(){SetMapHeat(true);}
+    UFUNCTION() void OnMaxMap(){SelectView(bMapHeat?3:2);}
+    UFUNCTION() void OnMaxSection(){SelectView(4);}
+    UFUNCTION() void OnLight(float Value){ApplyLighting();}
+    UFUNCTION() void OnNoon();
+    UFUNCTION() void OnEvening();
+    UFUNCTION() void OnWorkLight();
+    UFUNCTION() void OnFill();
     UFUNCTION() void OnGrid(float Value);
     UFUNCTION() void OnPointSize(float Value);
     UFUNCTION() void OnPointStride(float Value);

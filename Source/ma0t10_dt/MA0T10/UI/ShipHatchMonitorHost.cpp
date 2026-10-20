@@ -55,14 +55,16 @@ void AShipHatchMonitorHost::Refresh()
         if(auto* D=GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>())
         {D->RegisterWidget(Monitor);D->RegisterExternalInputBlocker(Monitor);}
     }
-    if(!bRegisteredSensors&&Simulation->MLX&&Simulation->Livox)
+    if(!bRegisteredSensors&&Simulation->MLX&&Simulation->Livox&&(!Simulation->bFieldLayout||Simulation->CabRight))
     {
         Simulation->MLX->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));Simulation->Livox->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));
-        Coordinator->RegisterSensorActor(Simulation->MLX);Coordinator->RegisterSensorActor(Simulation->Livox);bRegisteredSensors=true;
+        Coordinator->RegisterSensorActor(Simulation->MLX);Coordinator->RegisterSensorActor(Simulation->Livox);if(Simulation->CabRight){Simulation->CabRight->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));Coordinator->RegisterSensorActor(Simulation->CabRight);}bRegisteredSensors=true;
     }
-    Monitor->Refresh();
+    Monitor->SetHatchPresentationVisible(Monitor->IsVisible());Monitor->Refresh();
+    if(Simulation->CabRight&&!Simulation->CabRight->ActorHasTag(TEXT("ShipHatchPreviewSensor")))
+    {Simulation->CabRight->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));Coordinator->RegisterSensorActor(Simulation->CabRight);}
     const bool ProjectionVisible=Tools&&Tools->GetMonitorWidget()&&Tools->GetMonitorWidget()->IsVisible();
-    for(auto* A:{Simulation->MLX.Get(),Simulation->Livox.Get()})if(A)A->VisualizationComponent->SetProjectionPreviewEnabled(ProjectionVisible);
+    for(auto* A:{Simulation->MLX.Get(),Simulation->Livox.Get(),Simulation->CabRight.Get()})if(A)A->VisualizationComponent->SetProjectionPreviewEnabled(ProjectionVisible);
 }
 void AShipHatchMonitorHost::SetSceneRect(const FSlateRect& Rect,FVector2D Full,bool Visible)
 {
