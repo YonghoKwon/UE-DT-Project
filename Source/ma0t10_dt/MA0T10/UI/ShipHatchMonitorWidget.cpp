@@ -94,6 +94,8 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     // Stable slots: input, header, metrics, 3D toolbar, top, heat, footer, point overlay, settings.
     auto* Input=Card(TEXT("HatchOrbitSurface"),FLinearColor::Transparent);Input->SetPadding(FMargin(0));Add(Input);
     auto* SensorCanvas=WidgetTree->ConstructWidget<UCanvasPanel>();Input->SetContent(SensorCanvas);SensorCanvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    SensorLabelView=WidgetTree->ConstructWidget<UShipHatchSensorLabelView>(UShipHatchSensorLabelView::StaticClass(),TEXT("HatchSensorLabelLinks"));SensorLabelView->Monitor=this;SensorLabelView->SetVisibility(ESlateVisibility::HitTestInvisible);
+    auto* LinksSlot=SensorCanvas->AddChildToCanvas(SensorLabelView);LinksSlot->SetAnchors(FAnchors(0,0,1,1));LinksSlot->SetOffsets(FMargin(0));LinksSlot->SetZOrder(-1);
     SensorBadges={Button(TEXT("붐 끝"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHighlightMLX)),Button(TEXT("운전실 좌"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHighlightLivox)),Button(TEXT("운전실 우"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHighlightRight))};
     for(auto B:SensorBadges)SensorCanvas->AddChildToCanvas(B);
     DirectionBadges={Label(TEXT("해측 +Y"),Style::LabelSize,true,Style::Accent()),Label(TEXT("육측 −Y"),Style::LabelSize,true,Style::Warning())};for(auto B:DirectionBadges)SensorCanvas->AddChildToCanvas(B);
@@ -302,33 +304,51 @@ void UShipHatchMonitorWidget::OnHighlightMLX(){if(auto* S=Simulation.Get())S->Hi
 void UShipHatchMonitorWidget::OnHighlightLivox(){if(auto* S=Simulation.Get())S->HighlightSensor(1);UpdateSensorBadges();}
 void UShipHatchMonitorWidget::UpdateSensorBadges()
 {
-    auto* S=Simulation.Get();auto* PC=GetOwningPlayer();if(!S||!PC||SensorBadges.Num()!=3||LayoutSlots.Num()!=9)return;
+    auto* S=Simulation.Get();auto* PC=GetOwningPlayer();if(!S||!PC||SensorBadges.Num()!=3||LayoutSlots.Num()!=9||!IsVisible()||!(bSplit||ActiveView<2))return;
+    const double Now=FPlatformTime::Seconds();if(Now-LastSensorBadgeUpdate<.2)return;LastSensorBadgeUpdate=Now;
     int32 W,H;PC->GetViewportSize(W,H);if(W<=0||H<=0)return;const FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<1)return;
-    FVector2D P[3];for(int32 I=0;I<3;++I){PC->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(S->SensorOrigin(I)*100),P[I]);P[I]=P[I]*Size/FVector2D(W,H);}
-    const bool Overlap=(P[0]-P[1]).Size()<160*FontScale||(P[1]-P[2]).Size()<160*FontScale;
-    TArray<FVector2D,TInlineAllocator<3>> PlacedBadges;
-    for(int32 I=0;I<3;++I)
+    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(128*Scale,double(SceneRect.Right-SceneRect.Left-16)),Height=32*Scale;
+    FVector2D P[3]={FVector2D::ZeroVector,FVector2D::ZeroVector,FVector2D::ZeroVector};bool Front[3]={false,false,false};
+    for(int I=0;I<3;++I)
     {
-        if(I==2&&!S->bFieldLayout){SensorBadges[I]->SetVisibility(ESlateVisibility::Collapsed);continue;}SensorBadges[I]->SetVisibility(ESlateVisibility::Visible);
-        FVector2D Pos=P[I]+FVector2D(24*FontScale,(-36+(Overlap?I*42:0))*FontScale);
-        Pos.X=FMath::Clamp(Pos.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-136*FontScale)));
-        Pos.Y=FMath::Clamp(Pos.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-40*FontScale)));
-        if(ActiveView==1&&Pos.X<SceneRect.Left+370*FontScale&&Pos.Y<SceneRect.Top+290*FontScale){Pos.X=SceneRect.Right-136*FontScale;Pos.Y=SceneRect.Top+(8+I*42)*FontScale;}
-        for(int32 Pass=0;Pass<3;++Pass)for(const auto& Previous:PlacedBadges)
-            if(FMath::Abs(Pos.X-Previous.X)<132*FontScale&&FMath::Abs(Pos.Y-Previous.Y)<36*FontScale)
-                Pos.Y=Previous.Y+72*FontScale<=SceneRect.Bottom?Previous.Y+40*FontScale:Previous.Y-40*FontScale;
-        PlacedBadges.Add(Pos);
-        auto* BadgeSlot=CastChecked<UCanvasPanelSlot>(SensorBadges[I]->Slot);BadgeSlot->SetPosition(Pos-LayoutSlots[0]->GetPosition());BadgeSlot->SetSize(FVector2D(128,32)*FontScale);
-        const bool Enabled=S->SensorEnabled(I),Highlight=S->HighlightedSensor()==I||(S->HighlightedSensor()<0&&Enabled);
-        SensorBadges[I]->SetStyle(Highlight?Style::PrimaryButton():Style::Button());
+        SensorBadgeLinkVisible[I]=false;if(I==2&&!S->bFieldLayout){SensorBadges[I]->SetVisibility(ESlateVisibility::Collapsed);continue;}
+        const auto* Actor=S->SensorAt(I);const FVector World=Actor?Actor->GetActorLocation():S->GetActorTransform().TransformPosition(S->SensorOrigin(I)*100);
+        Front[I]=PC->ProjectWorldLocationToScreen(World,P[I]);P[I]=P[I]*Size/FVector2D(W,H);SensorBadges[I]->SetVisibility(Front[I]?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     }
-    for(int32 I=0;I<DirectionBadges.Num();++I)
+    TArray<FSlateRect,TInlineAllocator<3>> Obstacles;
+    if(ActiveView==1)Obstacles.Add(FSlateRect(LayoutSlots[7]->GetPosition(),LayoutSlots[7]->GetPosition()+LayoutSlots[7]->GetSize()));
+    for(int I=0;I<DirectionBadges.Num();++I)
     {
-        FVector2D Pixel;PC->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(FVector(0,(I==0?1:-1)*(S->OpeningWidth*.5+1),S->HoldDepth+1)*100),Pixel);Pixel=Pixel*Size/FVector2D(W,H);
-        Pixel.X=FMath::Clamp(Pixel.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-90*FontScale)));Pixel.Y=FMath::Clamp(Pixel.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-25*FontScale)));
-        auto* BadgeLayout=CastChecked<UCanvasPanelSlot>(DirectionBadges[I]->Slot);BadgeLayout->SetPosition(Pixel-LayoutSlots[0]->GetPosition());BadgeLayout->SetSize(FVector2D(90,24)*FontScale);
+        FVector2D Pixel;PC->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(FVector(0,(I==0?1:-1)*(S->OpeningWidth*.5+1),S->HoldDepth+1)*100),Pixel);Pixel=Pixel*Size/FVector2D(W,H)+FVector2D(0,(I==0?-26:8)*Scale);
+        Pixel.X=FMath::Clamp(Pixel.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-90*Scale)));Pixel.Y=FMath::Clamp(Pixel.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-25*Scale)));
+        auto* CaptionSlot=CastChecked<UCanvasPanelSlot>(DirectionBadges[I]->Slot);CaptionSlot->SetPosition(Pixel-LayoutSlots[0]->GetPosition());CaptionSlot->SetSize(FVector2D(90,24)*Scale);Obstacles.Add(FSlateRect(Pixel,Pixel+FVector2D(90,24)*Scale));
     }
-
+    auto Intersects=[](const FSlateRect& A,const FSlateRect& B){return A.Left<B.Right&&A.Right>B.Left&&A.Top<B.Bottom&&A.Bottom>B.Top;};
+    TArray<FSlateRect,TInlineAllocator<3>> Placed;
+    // Screen order chooses placement only; the physical role/ID/click binding never changes.
+    const int CabRightOnScreen=P[2].X>=P[1].X?2:1;
+    for(int I:{1,2,0})
+    {
+        if(!Front[I])continue;const int Preferred=I==0?1:I==CabRightOnScreen?1:-1;
+        FSlateRect Best;double BestScore=DBL_MAX;
+        for(int Flip=0;Flip<2;++Flip)for(int Step=0;Step<13;++Step)
+        {
+            const int Side=Flip?-Preferred:Preferred,Row=Step==0?0:(Step%2?-(Step+1)/2:Step/2);
+            FVector2D Pos(P[I].X+(Side<0?-Gap-Width:Gap),P[I].Y-Height*.5+Row*(Height+8*Scale));
+            Pos.X=FMath::Clamp(Pos.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-Width-8)));Pos.Y=FMath::Clamp(Pos.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-Height-8)));
+            const FSlateRect Rect(Pos,Pos+FVector2D(Width,Height));double Score=Flip*100000.+FMath::Abs(Row)*10.+FVector2D::Distance(Pos,P[I])*.001;
+            for(const auto& B:Placed)if(Intersects(Rect,B))Score+=1.e9;
+            for(const auto& B:Obstacles)if(Intersects(Rect,B))Score+=1.e8;
+            for(int J=0;J<3;++J)if(Front[J]&&Intersects(Rect,FSlateRect(P[J]-FVector2D(6,6)*Scale,P[J]+FVector2D(6,6)*Scale)))Score+=1.e9;
+            if(I&&S->bFieldLayout&&((Preferred<0&&Rect.Right>P[I].X-8*Scale)||(Preferred>0&&Rect.Left<P[I].X+8*Scale)))Score+=1.e7;
+            if(Score<BestScore){BestScore=Score;Best=Rect;}
+        }
+        Placed.Add(Best);auto* BadgeLayout=CastChecked<UCanvasPanelSlot>(SensorBadges[I]->Slot);BadgeLayout->SetPosition(FVector2D(Best.Left,Best.Top)-LayoutSlots[0]->GetPosition());BadgeLayout->SetSize(FVector2D(Width,Height));
+        SensorBadgeAnchors[I]=FVector2D(FMath::Clamp(P[I].X,double(SceneRect.Left+6*Scale),double(SceneRect.Right-6*Scale)),FMath::Clamp(P[I].Y,double(SceneRect.Top+6*Scale),double(SceneRect.Bottom-6*Scale)));
+        SensorBadgeEnds[I]=FVector2D(FMath::Clamp(SensorBadgeAnchors[I].X,double(Best.Left),double(Best.Right)),FMath::Clamp(SensorBadgeAnchors[I].Y,double(Best.Top),double(Best.Bottom)));SensorBadgeLinkVisible[I]=true;
+        const bool Enabled=S->SensorEnabled(I),Highlight=S->HighlightedSensor()==I||(S->HighlightedSensor()<0&&Enabled);SensorBadges[I]->SetStyle(Highlight?Style::PrimaryButton():Style::Button());
+    }
+    if(SensorLabelView)SensorLabelView->InvalidateLayoutAndVolatility();
 }
 
 void UShipHatchMonitorWidget::OnScanToggle()

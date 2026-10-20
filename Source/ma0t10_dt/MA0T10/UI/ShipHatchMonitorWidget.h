@@ -37,6 +37,17 @@ protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
 };
 
+/** Owned, input-transparent Slate links; never a world/capture component. */
+UCLASS(Transient,NotBlueprintable)
+class MA0T10_DT_API UShipHatchSensorLabelView : public UWidget
+{
+    GENERATED_BODY()
+public:
+    TWeakObjectPtr<UShipHatchMonitorWidget> Monitor;
+protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+};
+
 UCLASS()
 class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
 {
@@ -45,6 +56,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     friend struct FHatchDigProbe;
     friend struct FHatchFeedbackProbe;
     friend struct FHatchOrientationProbe;
+    friend struct FHatchLabelProbe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -73,6 +85,7 @@ public:
     const TArray<ShipHatch::FSectionSample>& GetSectionSamples() const;
     bool CameraInHold(FVector& Origin,FVector& Direction,double& Fov) const;
     void FocusAt(FVector2D HoldMeters);
+    bool GetSensorBadgeLink(int32 Index,FVector2D& Anchor,FVector2D& End) const;
     const AShipHatchSimulation* GetSimulation() const { return Simulation.Get(); }
     bool ShowCoverage() const { return bCoverageOverlay; }
     bool IsSensorColoring() const { return bSensorColors; }
@@ -153,6 +166,10 @@ private:
     UPROPERTY(Transient) TObjectPtr<UButton> DigToggle;
     UPROPERTY(Transient) TObjectPtr<UButton> ScanToggle;
     UPROPERTY(Transient) TArray<TObjectPtr<UButton>> SensorBadges;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchSensorLabelView> SensorLabelView;
+    FVector2D SensorBadgeAnchors[3],SensorBadgeEnds[3];
+    bool SensorBadgeLinkVisible[3]={false,false,false};
+    double LastSensorBadgeUpdate=-1;
     UPROPERTY(Transient) TObjectPtr<UButton> UndoButton;
     UPROPERTY(Transient) TObjectPtr<UButton> RestoreButton;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DigAmounts;
