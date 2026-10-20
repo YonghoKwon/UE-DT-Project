@@ -44,6 +44,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     friend struct FHatchPresentationProbe;
     friend struct FHatchDigProbe;
     friend struct FHatchFeedbackProbe;
+    friend struct FHatchOrientationProbe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();

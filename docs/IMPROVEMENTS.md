@@ -4,6 +4,12 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## TESTSET-05 — 전송 버튼 시연용 완료 표시
+
+출처: 사용자 2026-10-20. 완료 전 비활성, 클릭 → 약 1초 `전송 중…` → `전송 완료 ✓`와 `전송 완료 · HH:MM`, 상단 `테스트셋 n개 전송 완료` 알림(5초 자동 숨김·닫기)을 표시한다. 재클릭 가능, 초기화·새 세트에서 리셋한다. 기존 소유 패널·DTCore 등록·5Hz 갱신과 공통 스타일을 사용하며 별도 알림 관리자를 만들지 않는다. **시연용 표시, 실제 전송 미구현**: `sending_supported=false` 및 `send_feedback_scope`를 manifest에 기록한다. 버튼의 Broker/HTTP/파일 송신 호출은 0이다.
+
+구현·전송 피드백 자동 회귀·캡처2장 완료. 1920×1080 및 1280×720·글자150%, 전송/파일 변화0·초기화 회귀·어휘/quick/layer는 통과했다. 집중21개는15 Success/5조건부Skip/1 Fail(CompanyEnvironment 150ms 초과1회)이며 단독 재실행에서도 같은 기준을 실패했다. 원인/회귀 여부는 미확정, 직접 조작5행은 캡처 오류로 입력0·보류다. 보호 경로·원문·제한: [DONE](../Saved/Reports/TESTSET-05/DONE.md). 화면 피드백만 바꾸고 측정·획득·저장/송신 경로를 변경하지 않으므로 요청에 따라 perf 재측정은 생략한다.
+
 ## TESTSET-04 — 회사 환경 대기·파일 확정·실패 재시도
 
 출처: **사용자 2026-10-20**. 브랜치 `fix/testset-company-env`, 기준 `89b45ae`, DTCore `b2504d1` 고정. 회사의 항목 메시지 `dataset.json 확정 실패 또는 생성 취소`를 출발점으로 조사했다.
@@ -14,6 +20,15 @@
 - 같은 날 추가 화면 요구: 상세 옆 **전송** 자리 표시 버튼은 완료 후 안내만 표시한다. 파일/전송 동작은 없다. 트리거마다 기존 창을 재표시·전면 배치하며, 중복 유지/거절 및 DTCore 닫기 뒤 재등록도 포함한다. 기존 배치·크기·세트/RunUUID를 유지한다. 수정 전 두 모드×3회 재열기와 열린 창 전면 배치 실패를 재현했다. 새 자동 회귀는 두 모드 모두 버튼 비활성/활성·실제 Slate 클릭·파일 해시/시각 및 송신 계수 변화0·재수신3회·같은 인스턴스/배치를 확인한다. 직접 입력은 새 창 캡처0x80070057 두 번으로 환경 보류다.
 - 최신 Runtime `bd79ddb`: 새 화면 회귀는 두 모드×재수신3회·DTCore 재등록/배치·실제 Slate 클릭/결과파일·전송 변화0을 확인했다. Git 없는 회사 유사200개 및 실제 빈 커밋 Development 패키지100개, 오류5종/재시도·복원·파일 감사, release14단계(고유316Success/40조건부skip/0Fail)·WBP7save0·어휘/golden/Python69/layer0·기본60초ABAB12회2% gate를 통과했다. 첫 선행release의 단일150ms 초과는 원인 미확정으로 보존했다. 직접 입력0·환경 보류, 패키지 Slab정답 품질/회사실환경/Shipping 수용은 별도다. 상세 수치·조건·실패는 검증 이력과 RESULT를 따른다.
 - 현재 검증/미수행·최초 실패 및 회사 PC 확인법: [RESULT](../Saved/Reports/TESTSET-04/RESULT.md), [DONE](../Saved/Reports/TESTSET-04/DONE.md), [직접 점검표 T09~T11](MANUAL_CHECKLIST.md). 회사 실제 배포 수용은 로컬 재현과 구분한다.
+
+## HATCH-05 — 3D 위 시점과 상면·히트맵·단면 방향 통일
+
+출처: 사용자 **2026-10-20**, 브랜치 `fix/hatch-view-orientation`, 기준 `c19d3f0`, DTCore `b2504d1` 고정. 높이장/분석의 행Y·열X는 정상이고 2D 표시의 right+Y/down+X와 3D 위 시점의 right−X/up+Y가 달랐다. 현재 Slate 격자에는 텍스처/UV 쓰기가 없다.
+
+- L3 공통 `FViewTransform`으로 상면·히트맵/미관측·예상 FOV·센서3대·카메라/쐐기·단면선과 클릭/hover/드래그를 통일했다. 위해측+Y/아래육측−Y/오른쪽−X다. 길이 단면은 육측−Y→+Y, 폭 단면은+X→−X 시점을 표시한다. 3D 위 시점의 잔여1°를 제거하고 홀드 로컬 회전을 따른다.
+- 시드20261020의 비대칭 철광석 fixture는 메모리에서만 생성한다. 실제3D 투영/PNG·4사분면 셀/클릭·tooltip·양축 단면선·프로파일·카메라 쐐기/예상 FOV를 자동 검사한다. 아이콘 중심1.5 client px/보정 투영1 logical px/단면2 client px 기준을 유지하며 이전 축 오류를 넣는 음성 대조에서 실패를 검출한다.
+- 획득·관측 저장 순서·PCD/wire·SaveGame·센서/DTCore·맵/자산은 그대로다. 최소2 client px의 단면선 외에 표시 축/부호/aspect/시점 문구만 변경한다. 새 캡처/readback/동기 스캔/Tick을 제품 경로에 추가하지 않으므로 요청 §6에 따라 perf 재측정을 생략한다.
+- 최종 `f856875`: Editor/Game·release14단계(고유319 Success/40조건부Skip/실패0), 집중44 Success/2조건부Skip, WBP7/save0·어휘/계약/golden·quick/layer0, 전후13 PNG를 확인했다. 직접8행은 캡처0x80070057 두 번으로 입력0·환경 보류이며 개인142원본 복원·보호561/561 동일이다. 검증 수치·초기 실패·캡처·제한은 [RESULT](../Saved/Reports/HATCH-05/RESULT.md), [DONE](../Saved/Reports/HATCH-05/DONE.md)을 따른다. 자동 RHI와 직접 입력을 구분한다.
 
 ## HATCH-04 — 그랩식 하역기·현장 3대·단면/조작 피드백
 

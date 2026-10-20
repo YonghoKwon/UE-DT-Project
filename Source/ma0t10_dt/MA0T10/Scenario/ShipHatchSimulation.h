@@ -31,6 +31,7 @@ class MA0T10_DT_API AShipHatchSimulation : public AInteractableActor
 {
     GENERATED_BODY()
     friend struct FHatchFeedbackProbe;
+    friend struct FHatchOrientationProbe;
 public:
     AShipHatchSimulation();
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldWidth=42.3;

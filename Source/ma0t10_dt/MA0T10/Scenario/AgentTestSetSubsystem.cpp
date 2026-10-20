@@ -411,6 +411,8 @@ TSharedRef<FJsonObject> UAgentTestSetSubsystem::StatusJson() const
     O->SetNumberField(TEXT("completed_scenarios"),Completed());O->SetBoolField(TEXT("complete"),IsComplete());O->SetStringField(TEXT("directory"),Directory());
     const FString BuildCommit=TEXT(MA0T10_PROJECT_COMMIT);
     O->SetStringField(TEXT("project_commit"),BuildCommit.IsEmpty()?TEXT("unknown"):BuildCommit);O->SetStringField(TEXT("project_commit_source"),BuildCommit.IsEmpty()?TEXT("unavailable"):TEXT("build"));O->SetStringField(TEXT("build"),FApp::GetBuildVersion());O->SetBoolField(TEXT("sending_supported"),false);O->SetStringField(TEXT("message"),Message());
+    // TESTSET-05: persist the scope, never the presentation's simulated success state.
+    O->SetStringField(TEXT("send_feedback_scope"),TEXT("시연용 표시, 실제 전송 미구현"));
     O->SetNumberField(TEXT("duplicate_triggers"),State?State->DuplicateTriggers:0);
     if(State&&State->DuplicateTriggers>0)O->SetStringField(TEXT("duplicate_message"),TEXT("기존 테스트셋 유지 · 새로 생성하려면 세트를 초기화하세요"));
     O->SetNumberField(TEXT("total_seconds"),TotalSeconds());

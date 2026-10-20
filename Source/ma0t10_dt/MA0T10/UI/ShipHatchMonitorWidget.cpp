@@ -1,4 +1,5 @@
 #include "ShipHatchMonitorWidget.h"
+#include "ShipHatchViewTransform.h"
 #include "ShipHatchMonitorHost.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
@@ -360,12 +361,12 @@ void UShipHatchMonitorWidget::UpdateDigControls()
 }
 void UShipHatchMonitorWidget::OnSizeSlider(float V){PointSizeLabel->SetText(FText::FromString(FString::Printf(TEXT("점 크기  %.1f"),V)));ApplyPreview();}
 void UShipHatchMonitorWidget::OnDensitySlider(float V){DensityLabel->SetText(FText::FromString(FString::Printf(TEXT("표시 밀도  %.0f%%"),100./FMath::Max(1,FMath::RoundToInt(100./V)))));ApplyPreview();}
-void UShipHatchMonitorWidget::SetCameraPreset(int32 P){Focus=FVector2D::ZeroVector;OrbitYaw=P==0?90:48;OrbitPitch=P==0?-89:-62;OrbitDistance=7800;UpdateCamera();}
+void UShipHatchMonitorWidget::SetCameraPreset(int32 P){Focus=FVector2D::ZeroVector;const auto Top=ShipHatch::FViewTransform::TopRotation();OrbitYaw=P==0?Top.Yaw:48;OrbitPitch=P==0?Top.Pitch:-62;OrbitDistance=7800;UpdateCamera();}
 void UShipHatchMonitorWidget::UpdateCamera()
 {
     auto* H=Host.Get();auto* S=Simulation.Get();if(!H||!H->ViewCamera||!S)return;
     const FVector Target=S->GetActorTransform().TransformPosition(FVector(Focus.X*100,Focus.Y*100,S->HoldDepth*70));
-    const FRotator Rotation(OrbitPitch,OrbitYaw,0);const FRotationMatrix Basis(Rotation);
+    const FRotator Rotation=(S->GetActorQuat()*FRotator(OrbitPitch,OrbitYaw,0).Quaternion()).Rotator();const FRotationMatrix Basis(Rotation);
     const double Aspect=FMath::Max(.2,double(SceneRect.Right-SceneRect.Left)/FMath::Max(1.f,SceneRect.Bottom-SceneRect.Top));
     const double TanHorizontal=FMath::Tan(FMath::DegreesToRadians(29.)),TanVertical=TanHorizontal/Aspect;
     double FitDistance=1;

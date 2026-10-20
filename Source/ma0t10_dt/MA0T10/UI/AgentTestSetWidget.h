@@ -17,6 +17,8 @@ private:
     void Refresh();
     void SelectScenario(int32 Index);
     void ShowActionResult(bool Ok,const FString& Error);
+    void BeginDemoSend();
+    void RefreshDemoSend(double Now);
     TSharedPtr<class SVerticalBox> List;
     TArray<TSharedPtr<class STextBlock>> Rows;
     TArray<FString> RowMessages;
@@ -29,5 +31,11 @@ private:
     int64 SeenRevision=-1;
     double NextRefresh=0,ConfirmUntil=0,ActionFeedbackUntil=0;
     FText ActionFeedback;
+    // TESTSET-05: presentation only; actual transmission is not implemented.
+    enum class EDemoSend : uint8 { Idle, Sending, Done };
+    EDemoSend DemoSend=EDemoSend::Idle;
+    FString DemoSendSet;
+    FText SendLabel=FText::FromString(TEXT("전송")),SendStatus,SendToast;
+    double SendUntil=0,ToastUntil=0;
     bool Ready=false,Details=false,PreviewVisible=false;
 };
