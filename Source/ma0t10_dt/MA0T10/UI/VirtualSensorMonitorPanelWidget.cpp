@@ -1,5 +1,5 @@
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
