@@ -174,6 +174,9 @@ Windows 보안/권한 팝업은 조작하지 않고 해당 행을 보류한다. 
 | T06 | 시연 모드에서 `SQ23456 077` 반복(완전 데이터 포함)→기존 세트·항목 유지, 화면 안내 없음/진행 문구 유지·로그 기록, 대체 없음. 초기화 뒤 재수신→새 세트·동일 변형 값·생성 제어 재노출 | TESTSET-03 화면 마무리 추가 승인. 실제 수신 정책은 그대로 유지 |
 | T07 | AutoFillExamples=False로 시작→실제 입력만 등록, 기존 SampleStride 전부 저장 | TESTSET-03 Windows 잠금 보류. strict/ordinary/lifecycle 자동 회귀와 구분 |
 | T08 | 새 소재번호 정확 일치·양끝 공백은 수용, 가운데 공백 생략/소문자는 불일치. `9999`는 일반 재생·기본PCD. ini 따옴표 유무와 시연 py 인자 변경 | TESTSET-03 자동 결과 trigger/RESULT 참조. 직접 입력 검수와 구분 |
+| T09 | 회사 유사 2 FullSpec GPU LiDAR+Camera·PCD/자동 재개/주기 저장 중 트리거→자동100/100·선택 규칙·다른 센서 유지·소유 작업 복원. 일반 시나리오 우선 | TESTSET-04 자동100개×2/0hitch·파일 감사 PASS. 직접은0x80070005/0x80070057·입력0 환경 보류. [RESULT](../Saved/Reports/TESTSET-04/RESULT.md) |
+| T10 | 실패 행/상태/상세 사유·미해소 재시도 사유·해소 후 재실행. Git 없는 unknown 출처·pending/최종 이동/목록 저장 실패·파일/manifest 대조 | TESTSET-04 실제 오류5종·Slate/재시도·빈 커밋 Development 패키지100개 PASS. 직접은 [보류 기록](../Saved/Reports/TESTSET-04/manual/CHECKLIST.md). 패키지 Slab정답 품질·회사 실제 수용은 미완료 |
+| T11 | 상세 옆 전송: 완료 전 비활성·완료 후 안내만·출력0. 닫기→중복 트리거→재표시3회, DTCore 닫기/재등록·위치/크기·열린 창 전면 유지 | TESTSET-04 시연/실제 수신 두 모드 자동 Slate/TC·파일/전송 변화0 PASS. 직접 입력0·캡처0x80070057 환경 보류. [추가 직접 점검표](../Saved/Reports/TESTSET-04/ui-followup/manual/CHECKLIST.md) |
 
 ## UXR-17 미리보기 추가 직접 점검
 

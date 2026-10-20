@@ -137,7 +137,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UUserWidget> Toolbar;
 	UPROPERTY(Transient) TObjectPtr<USensorMapCheckWidget> MapCheckWidget;
 	UPROPERTY(Transient) TObjectPtr<UAgentTestSetWidget> TestSetWidget;
-	FString LastOpenedTestSet;
+	int64 LastTestSetPresentationRequest=0;
 	UPROPERTY(Transient) TObjectPtr<USensorPlacementInteraction> PlacementInteraction;
 	TWeakObjectPtr<UCanvasPanel> MainCanvas;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;

@@ -24,6 +24,8 @@ HATCH-02(사용자2026-10-19): Runtime `a82c6bd`에 공통 다크 헤더·지표
 
 HATCH-01(사용자2026-10-19): Runtime `226cf64`에 절차 선박 홀드·철광석/석탄·ML-X/Livox 선택·랜덤 시드·3D/2D/히트맵을 구현했다. 새 맵1개, 자동24장·Editor/Game·표준release14단계(고유310 Success/40조건부skip/실패0)·WBP7·golden·Python69·layer0을 확인했다.292d03d 대비 기존 맵 ABAB12회2% PASS(FPS 저하0.002216%·p95동일·GT+0.721529%)다. **집중 검사1개는 working set+10.285MiB>8MiB 때문에 FAIL**이며 committed+1.758MiB·보유 버퍼 증가0과 구분한다. 직접8행은 Windows잠금·입력0·환경보류다. 개인141파일 복원·보호300/Inspection272/source hash 동일과 제한은 [HATCH-01 결과](Saved/Reports/HATCH-01/RESULT.md)를 따른다. 전체 수용 완료로 표시하지 않는다.
 
+TESTSET-04(출처: 사용자 2026-10-20 회사 환경 및 추가 화면 요구): Runtime `bd79ddb`. 빈 커밋의 unknown/unavailable 생성·시연 자동 중지/복원·다중 센서 결정·실패/재시도에 더해 상세 옆 전송 안내 버튼과 매 수신 재표시/전면 배치를 구현했다. 최신 커밋에서 Git 없는 회사 유사200개 및 실제 빈 커밋 Development 패키지100개 생성/파일 감사, release14단계(고유316 Success/40조건부skip/0Fail)·WBP7·Python69·layer0와89b45ae 대비 기본60초ABAB12회2% gate를 통과했다. 첫 선행release의 단일150ms 초과는 원인 미확정으로 보존했다. 직접 UI는 화면 접근 오류로 입력0·환경 보류이며 패키지 Slab 정답 품질/회사 실제 수용과 구분한다. 조건·실패·제한·확인법은 [결과](Saved/Reports/TESTSET-04/RESULT.md)와 [완료 보고](Saved/Reports/TESTSET-04/DONE.md)를 따른다.
+
 TESTSET-03 트리거 확정(사용자2026-10-19): 기본 문자열은 **`SQ23456 077`**이다. 양끝 공백만 제거하고 가운데 공백·대소문자를 그대로 비교한다. `9999`는 일반 소재이며 숫자 트리거 별칭은 없다. ini 따옴표 유무·6형태×2경로100개·이전 소재의 일반 재생/PCD 선택·UXR·최종 커밋 release 결과는 [트리거 확정 결과](Saved/Reports/TESTSET-03/trigger/RESULT.md)를 따른다. 이번 설정/판별 변경은 사용자 승인으로 성능 재측정을 생략한다. 아래 성능 및 캡처는 각각 명시된 이전 SHA의 증거다.
 
 TESTSET-03 화면 마무리(사용자2026-10-19 추가 승인): 중복 안내는 화면에서 제거하고 로그/testset.json 기록을 유지한다. complete에서 생성용 일시정지/재개를 숨기고 `총 n.n초`를 고정 표시하며 하단은 `테스트셋 완료 n/100`이다. 진행 중 속도·남은 시간, 초기화 뒤 생성 제어 재노출은 유지한다. 집중12 Success/4조건부skip 및 추가 UXR07 opt-in RHI2 Success/skip0,36개 진행·완료·중복 Slate 검사를 통과했다. 최종 커밋 release·새 자동3장·복원/정리 결과는 [화면 마무리 결과](Saved/Reports/TESTSET-03/polish/RESULT.md)를 따른다. 이번 표시는 기존5Hz·완료 시각/진단 캐시만 바꾸므로 사용자 승인으로 성능을 재측정하지 않으며 아래718346e의 기존 gate와 구분한다.
@@ -599,6 +601,8 @@ TESTSET-01과 INSP-FIX-2는 L2 `Scenario/AgentTestSetSubsystem`의 큐/대기·�
 
 TESTSET-03의 소재 envelope·템플릿 읽기/단위 변환도 L2에 두고 기존 TC→DataSync→Slab과 Workspace 소유 화면을 재사용한다.100개 생성 전 worker1건만 추가하며 별도 위젯 관리자·타이머·캡처 경로를 만들지 않는다. 일반 codec·DTCore·L0/L1·Blueprint·SaveGame·wire·자산은 바꾸지 않고 layer/allowlist **0→0**이다.
 
+TESTSET-04도 기존 L2의 대상 결정·작업 임시 중지/복원·DATASET 파일 확정과 L3의 오류 표시만 보강한다. DTCore/새 모듈/플러그인/자산·L0/L1·wire·Blueprint·SaveGame 형식 변경 없이 layer/allowlist **0→0**을 유지한다.
+
 UXR-16은 기존 L3 소유 UI의 문구·글자/줄바꿈·활동 표시와 L2 Automation의 읽기 전용 표시 accessor만 정리한다.5Hz 기존 상태 갱신/센서 순회를 재사용하며 새 모듈·Tick/timer·측정·직렬화·DTCore·자산 변경 없이 레이어 위반/allowlist **0→0**이다. 당시 설정 구조 제안은 별도 사용자 승인 후 UXR-18에서 구현했다.
 
 IMU-01은 L1 `Sensor/VirtualImuTypes`·`VirtualImuComponent`와 기존 Recorder/StreamPublisher/FileSave를 확장한다. L0 motion provider를 읽고, L2 Dataset/AUTO-01과 L3 기존 DTCore 기반 배치 패널이 값을 소비한다. 레이어 위반·allowlist **0→0**, 새 모듈·자산·DTCore 변경 없음. IMU 스트림은 기존 acquisition envelope와 별도 접수되어 Camera/LiDAR·Slab PCD 기본 정책에 편입되지 않는다.
@@ -721,7 +725,7 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 템플릿 행 수·프레임/시각·optional 필드를 유지하면서 시작 위치±20cm, 진행 거리/같은 시간의 속도0.9–1.1배, 좌우 기울기±3°와 사행 파형, 길이/폭/두께별0.9–1.1배를 결정적으로 변형한다. 치수는 길이1–30m·폭0.3–4m·두께0.03–0.6m, 최종 기울기는±10°로 제한한다. 템플릿 UUID·SHA1·결합 시드·변형 값·적용 단위를 기록하고 항목마다 새 시나리오 UUID와 RunUUID를 만든다. 같은 템플릿/시드/단위의 변형 값은 같지만 UUID·획득 시각·PCD bytes 동일성을 뜻하지 않는다. 기존 TrackReference와 BuildPose(`center_x`, 왼쪽 기울기, 첫 행 치수)를 그대로 사용하며 `center_y`·`mov_pos`의 기존 진단 의미를 바꾸지 않는다.
 
-기본 템플릿은 길이10.83m·폭1.1m·두께0.25m, 위치cm·치수mm를 명시한다. worker가 수신 Slab의 기존 입력 단위로 변환해 세트의 `template.json`으로 고정한다. 기존 TrackReference/BuildPose를 그대로 사용하며 동일 템플릿·시드·단위에서는 트리거 형태/동봉 데이터/초기화 횟수와 무관하게100개 변형 값이 같다. 시나리오 UUID/RunUUID·획득 시각·PCD bytes의 동일성을 뜻하지 않는다. 템플릿 누락·검증/보관 실패는 화면에 실패를 표시하고 설정 확인 후 초기화를 안내한다. 임의 시나리오나 일반 경로로 fallback하지 않는다. 사용자 지정 템플릿은 배포 시 해당 경로의 파일도 함께 제공해야 한다.
+기본 템플릿은 길이10.83m·폭1.1m·두께0.25m, 위치cm·치수mm를 명시한다. worker가 수신 Slab의 기존 입력 단위로 변환해 세트의 `template.json`으로 고정한다. 기존 TrackReference/BuildPose를 그대로 사용하며 동일 템플릿·시드·단위에서는 트리거 형태/동봉 데이터/초기화 횟수와 무관하게100개 변형 값이 같다. 시나리오 UUID/RunUUID·획득 시각·PCD bytes의 동일성을 뜻하지 않는다. 템플릿 누락·검증/보관 실패는 경로와 사유를 표시한다. 같은 경로의 파일/권한을 복구하고 해당 항목의 재시도를 누르면 다시 읽는다. 임의 시나리오나 일반 경로로 fallback하지 않는다. 사용자 지정 템플릿은 배포 시 해당 경로의 파일도 함께 제공해야 한다.
 
 빠른 생성의 목표는 이 PC에서 약10초다.100개 모두 동일한 프레임 정책으로 처리하며 템플릿과 생성 JSON의 모든 행은 보관하고 캡처 행만 제한한다. 센서 backend/해상도·선택 출력에 따라 달라지므로 측정 결과와150ms 초과 여부는 `Saved/Reports/TESTSET-03/RESULT.md`를 따른다. 진행 중에는 처리 속도·예상 남은 시간·완료 수를 표시한다. 세트 complete에서는 최초 접수부터 완료까지 전체 경과 시간(대기/일시정지 포함)을 `총 n.n초`로 고정하고 생성용 일시정지/재개를 숨긴다. 초기화 후 새 세트에서는 다시 보인다. 하단 칩은 complete에서 **테스트셋 완료 n/100**, 진행 중에는 기존 진행 상태다. 완료 후 **점군 보기**로 저장 결과를 연다. 세부 옵션/초기화는 접힌 상세에 둔다. 화면에는 시연용/대표 프레임 안내를 표시하지 않고, 추적 목적은 파일 메타데이터에만 남긴다. 직접 UI 수용과 자동 캡처/처리량 판정은 구분한다.
 
@@ -729,15 +733,25 @@ UI **생성 후 내보내기 형식**은 기본 없음이다. 선택한 경우�
 
 `도구 → 시나리오 테스트셋`의 기본 화면은 완료/목표 진행률·상태·일시정지/재개·결과 폴더·시나리오 목록이다. 트리거·옵션·프레임/시간·예상 시간과 세트 초기화는 기본 접힌 **상세**에서 본다. 세트 초기화는 8초 안에 다시 눌러 확인하며 파일을 보존하고 목록을 비운다. 숨김은 생성 중지가 아니다. 공통 소유 패널의 제목 드래그·크기 조절·글자 배율을 사용하고 자유 배치를 기존 Workspace v1의 추가 TestSet 키에 저장한다. 기존 enum 값·슬롯·버전·저장 필드는 유지한다. 검수맵의 전용 하단 컨트롤이 상태바를 가릴 때는 **도구 → 시나리오 테스트셋**으로 재연다. 일반 화면에는 해당 검수 헬퍼가 없다.
 
-대상은 같은 World의 수신 Slab과 LiDAR다. `LidarSensorId`가 비어 있으면 LiDAR가 정확히1개여야 하며, 여러 개면 ID를 지정한다. 선택 센서의 측정·독립 PCD/센서 송신·주기 저장·파일/송신 정리가 사용 중이면 **실패로 소진하지 않고 `대기 · <센서ID>의 <작업> 사용 중`**으로 기다린다. 사용자가 해당 작업을 중지하고 정리가 끝나면 자동 진행한다. 일반 시나리오 실행/송신 정리와 다른 데이터셋 생성도 먼저 마무리한다.
+TESTSET-04 추가 화면 요구(출처: 사용자 2026-10-20): **상세** 바로 옆의 **전송**은 세트 완료 후 활성화되는 자리 표시 버튼이다. 클릭하면 상태 줄에 8초 동안 **전송 기능 준비 중**만 표시하며 데이터·파일·네트워크 전송을 실행하지 않는다. 일치하는 트리거를 다시 받을 때마다 기존 창을 열고 앞으로 가져온다. 중복 세트를 유지하거나 실제 수신 시나리오의 중복 등록을 거절해도 창은 다시 표시한다. 이미 열린 창의 위치·크기와 닫은 창의 Workspace 저장 배치를 유지하며 DTCore 닫기 뒤에는 같은 인스턴스를 다시 등록한다. 창을 닫기만 하면 다음 트리거 전까지 닫힌 상태를 유지한다.
+
+대상은 같은 World의 수신 Slab과 LiDAR다(TESTSET-04). `LidarSensorId`를 지정하면 해당 고유 ID만 사용하며, 없거나 중복이면 구체 사유로 실패한다. ID를 비운 시연 모드는 단일 센서 → 수신 Slab의 `TargetSensorIds` 중 존재하는 ID(오름차순) → `Hatch.MLX80` → `SLAB-LIDAR-001` → 비어 있지 않은 센서 ID 오름차순 첫 대상 순으로 선택한다. 중복 ID는 임의 Actor로 해소하지 않는다. 실제 수신 모드(`AutoFillExamples=False`)는 종전처럼 단일 센서 또는 명시 ID가 필요하다. 선택한 ID와 규칙은 **상세** 및 `testset.json`의 `sensor_selection`/`lidar_sensor_id`에 표시한다. Camera 포함 시 명시 ID → 단일 센서 → 시연 모드의 ID 오름차순을 적용하며, Camera를 포함하지 않으면 Camera 작업을 멈추지 않는다.
+
+시연 모드에서 트리거 수신은 생성 의도다. 일반 시나리오·재생·세션 drain·다른 데이터셋이 끝나면 **사용자 클릭 없이 선택 센서의 측정·독립 출력·녹화·주기 저장을 임시 중지**하고, 이미 접수한 파일/전송은 정리를 기다린 뒤 생성한다. 다른 센서와 공유 출력 설정, PCD 기본값·과부하 자동 재개 정책은 유지한다. 실제 수신 모드는 종전처럼 `대기 · <센서ID>의 <작업> 사용 중`을 표시하고 작업 해제 후 자동 진행한다. 일반 시나리오 우선 정책은 두 모드 모두 유지한다.
 
 **사용 중인 작업 중지하고 시작**은 일반 시나리오가 끝난 뒤 선택 센서의 측정·독립 송신·녹화·주기 저장만 잠시 멈춘다. 선택 센서의 미송신 큐/직렬화 결과는 명시적 중지 요청으로 취소하고 진단에 집계한다. 이미 접수된 송신/파일은 정리를 기다린다. 송신 설정(공유 wildcard 포함)·기본 PCD 선택을 바꾸지 않고 다른 센서에는 적용하지 않는다. 완료·실패·확인 초기화에서 자신이 멈춘 작업만 복원하며, 사용자가 그동안 바꾼 송신 설정·명시적 측정 시작/중지·주기 저장 중지는 덮지 않는다. 일반 시나리오 선점 시 캡처 자세를 먼저 복원하고 작업을 양보한다. 실제 생성 오류는 실패로 남기며 **재시도**는 새 RunUUID/폴더를 사용한다. 이전 프로세스의 목록 자동 복원은 제공하지 않는다.
+
+TESTSET-04 실패 진단: 목록의 실패 행·상세·상태 줄에 사유를 유지하고, 재시도 거절 사유도 즉시 표시한다. 대상 미결정/템플릿 오류가 남아 있으면 그 사유를 표시하며 원인을 고치면 새 RunUUID로 다시 실행한다. `dataset.json.pending` 쓰기와 최종 이동 실패/경로, 취소, 라벨 ID·PCD POINTS×33·점별 라벨 POINTS×5 불일치를 구분한다. `testset.json` 저장만 실패하면 캡처 성공 상태를 보존하고 **목록 저장 재시도**로 다시 저장한다. 파일/라벨/시나리오 요약/세트 manifest까지 일치해야 complete다.
+
+회사 PC는 실행 로그에서 **`[TESTSET]`**을 검색한다. `Trigger`(세트/실제 Saved 절대 경로), `Sensors`(대상/규칙), `Suspend`/`Restore`(센서별 소유 작업), `Waiting`(센서/작업), `Retry`/`RetryRejected`, `CaptureFailed`/`VerificationFailed`/`ManifestFailed`/`DatasetFinalizeFailed`를 확인한다. 상태 변화/항목 실패 때만 기록하며 비밀번호·토큰·원본 body를 출력하지 않는다. `ProvenanceUnavailable`은 커밋 정보 없음 안내이며 생성 실패가 아니다. 빌드 주입 SHA가 없으면 DATASET-01 `dataset.json`과 테스트셋 `testset.json`에 `project_commit=unknown`, `project_commit_source=unavailable`을 기록하고 런타임 Git을 실행하지 않는다.
+
+폴더 존재는 완료 증거가 아니다. 생성 전 `original.json`이 먼저 저장되고, 실패/재시도/초기화의 이전 폴더도 보존된다. 해당 세트의 `complete`, 항목 `state`/`message`/`run_uuid`, `summary.json.frames_directory`, 그 실행의 `dataset.json.completed_scenes`와 PCD/라벨을 함께 대조한다. 패키지의 실제 Saved 경로는 실행 로그의 `Trigger.root`를 기준으로 하며 설치 폴더나 `%LOCALAPPDATA%`를 추정하지 않는다.
 
 목표 생성·파일 검증·manifest 저장 완료 후 목록에서 완료 시나리오를 선택하면 **그 실행의 저장된 `lidar.pcd` 프레임**을 점군 조감도로 보여 준다(INSP-FIX-2, 사용자 검수 2026-10-17 F14). 원본 행의 저장된 시간 간격과 프레임 순서를 따르며 재생/일시정지/중지·현재 프레임/전체 프레임·점 수를 표시한다. 파일 읽기/33-byte 디코딩은 worker1건과 다음 프레임1개로 제한한다. 별도 보기 컴포넌트가 기존 immutable snapshot/점군 투영을 재사용하고 측정·JSON 직렬화·녹화·송신 이벤트를 발생시키지 않는다. Slab 재생·일반 보관 목록·PCD/라벨/데이터셋 파일은 바꾸지 않는다. 선택 변경/중지는 이전 읽기 결과를 폐기한다. 테스트셋 전송·Sender·임시 전송·ActiveMQ 알림은 제공하지 않는다.
 
 `AutoFillExamples=False`에서 `SampleStride=1`은 모든 수신 원본 행이다. True에서는100개 모두 동일한 `ExampleMaxFrames` 상한을 적용한다. `SettleFrames=1`은 적용 뒤 engine frame1회 안정화다. 실제 Slab 재생과 같은 첫 행 치수·단위·TrackReference·BuildPose로 생성하되 실시간 재생 시계는 돌리지 않는다. 공유 World의 Slab을 이동시키므로 생성 중 샘플 자세가 보일 수 있다.
 
-기본은 **LiDAR PCD + 라벨**이다. `CaptureCamera`, `CameraTruth`, `IncludeImu`, `LidarFidelity`는 모두 false이며 켠 경우 DATASET-01 대응 기능을 사용한다. 카메라 포함 시 `CameraSensorId`도 단일 대상 규칙을 따른다. `ExportFormat=none`이 기본이며 `coco`/`kitti`/`coco,kitti`에는 CameraTruth와 기존 EXPORT-01 Python 환경이 필요하다. `ExportUprightEnvelope`도 기존 정책을 따른다.
+기본은 **LiDAR PCD + 라벨**이다. `CaptureCamera`, `CameraTruth`, `IncludeImu`, `LidarFidelity`는 모두 false이며 켠 경우 DATASET-01 대응 기능을 사용한다. 카메라 포함 시 `CameraSensorId`도 위 대상 결정 규칙을 따른다. `ExportFormat=none`이 기본이며 `coco`/`kitti`/`coco,kitti`에는 CameraTruth와 기존 EXPORT-01 Python 환경이 필요하다. `ExportUprightEnvelope`도 기존 정책을 따른다.
 
 | 경로 | 내용 |
 |---|---|

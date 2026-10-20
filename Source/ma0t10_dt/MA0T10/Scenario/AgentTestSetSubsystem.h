@@ -56,6 +56,8 @@ public:
     void SetPaused(bool Paused);
     bool IsPaused() const;
     bool Retry(int32 Index,FString& Error);
+    bool HasManifestFailure() const;
+    FString SensorSelectionDescription() const;
     bool ResetConfirmed(FString& Error);
     bool SelectPreview(int32 Index,FString& Error);
     void StopPreview();
@@ -78,6 +80,8 @@ public:
     /** Current work state, without diagnostic duplicate-trigger notices. */
     FString PresentationMessage() const;
     int64 Revision() const;
+    /** Presentation intent for every matching receipt, including retained/rejected duplicates. */
+    int64 PresentationRequest() const {return PresentationRequestSerial;}
     TSharedRef<FJsonObject> StatusJson() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     bool ConfigureForTests(const FAgentTestSetSettings& In);
@@ -86,8 +90,11 @@ private:
     FAgentTestSetSettings Config;
     TSharedPtr<FAgentTestSetState> State;
     FTimerHandle Timer;
+    int64 PresentationRequestSerial=0;
     TSharedPtr<FAgentTestSetPcdPreview> PcdPreview;
     bool BusyReason(FString& Reason) const;
+    bool ResolveSensors(FString& Error);
+    void LoadTemplate();
     void SuspendBusyWork();
     void RestoreStoppedWork(bool Resume=true);
     void Pump();

@@ -16,6 +16,7 @@ private:
     FSlateFontInfo Font(int32 Size) const;
     void Refresh();
     void SelectScenario(int32 Index);
+    void ShowActionResult(bool Ok,const FString& Error);
     TSharedPtr<class SVerticalBox> List;
     TArray<TSharedPtr<class STextBlock>> Rows;
     TArray<FString> RowMessages;
@@ -26,6 +27,7 @@ private:
     float Progress=0;
     int32 Selected=INDEX_NONE;
     int64 SeenRevision=-1;
-    double NextRefresh=0,ConfirmUntil=0;
+    double NextRefresh=0,ConfirmUntil=0,ActionFeedbackUntil=0;
+    FText ActionFeedback;
     bool Ready=false,Details=false,PreviewVisible=false;
 };
