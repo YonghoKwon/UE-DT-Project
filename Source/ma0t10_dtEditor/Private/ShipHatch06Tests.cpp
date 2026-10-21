@@ -36,12 +36,20 @@ struct FHatch06Probe
  static void Covers(UShipHatchMonitorWidget& M){M.SetCameraPreset(0);M.bFrameVessel=false;M.bFrameUnloader=false;M.OrbitDistance=8500;M.UpdateCamera();}
  static FSlateRect Scene(const UShipHatchMonitorWidget& M){return M.SceneRect;}
  static void Vessel(UShipHatchMonitorWidget& M){M.OnFrameVessel();}
- static bool StartReferenceGrab(UShipHatchMonitorWidget& M)
+ static bool StartReferenceGrab(UShipHatchMonitorWidget& M,FString& Trace)
  {
-  M.bDigEnabled=true;auto& S=*M.Simulation;FVector2D Pixel;auto* PC=M.GetOwningPlayer();
-  const FVector P=S.GetActorTransform().TransformPosition(FVector(5,-5,S.Surface().Height(5,-5))*100);
-  if(!PC->ProjectWorldLocationToScreen(P,Pixel))return false;int W=0,H=0;PC->GetViewportSize(W,H);const auto G=M.GetCachedGeometry();
-  const bool Result=M.DigAt(G,G.LocalToAbsolute(Pixel*G.GetLocalSize()/FVector2D(W,H)));M.bDigEnabled=false;return Result;
+  M.bDigEnabled=true;auto& S=*M.Simulation;auto* PC=M.GetOwningPlayer();int W=0,H=0;PC->GetViewportSize(W,H);const auto G=M.GetCachedGeometry();bool Accepted=false;
+  // At720p/150% a valid cargo projection can lie behind a sensor badge.
+  // Use an actually visible, physically pickable production target; never
+  // disable hardware collision or bypass the monitor's input guard.
+  for(auto XY:{FVector2D(5,-5),FVector2D(7,-5),FVector2D(7,-7),FVector2D(8,-5),FVector2D(5,-8),FVector2D(-5,-5),FVector2D(-7,-5),FVector2D(-7,-7),FVector2D(5,5),FVector2D(7,5),FVector2D(-5,5),FVector2D(-7,5),FVector2D(8,0),FVector2D(-8,0)})
+  {
+   FVector2D Pixel;const FVector P=S.GetActorTransform().TransformPosition(FVector(XY,S.Surface().Height(XY.X,XY.Y))*100);if(!PC->ProjectWorldLocationToScreen(P,Pixel))continue;
+   const auto Pointer=G.LocalToAbsolute(Pixel*G.GetLocalSize()/FVector2D(W,H));const bool Input=M.SceneInputAt(G,Pointer);FVector O,D,Hit;PC->DeprojectScreenPositionToWorld(Pixel.X,Pixel.Y,O,D);const bool Physical=S.PickCargo(O,D,Hit);
+   Trace+=FString::Printf(TEXT("target %.1f,%.1f pixel %.1f,%.1f input%d physical%d\n"),XY.X,XY.Y,Pixel.X,Pixel.Y,Input,Physical);
+   if(Input&&Physical&&M.DigAt(G,Pointer)){Accepted=true;break;}
+  }
+  M.bDigEnabled=false;return Accepted;
  }
  static void HopperCamera(UShipHatchMonitorWidget& M)
  {
@@ -186,7 +194,7 @@ public:
   if(Phase==12)return FPaths::FileExists(Root06()/TEXT("manual.done"));
   if(Phase==19){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-reference-ground"));M.SetCameraPreset(1);FHatch06Probe::FullRig(M);S->ShowScaleReference(true);Changed=Now;Phase=14;return false;}
   if(Phase==20){if(Now-Changed<1)return false;Shot(W,M,TEXT("grab-hold-close"));M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=16;return false;}
-  if(Phase==16){if(Now-Changed<1)return false;if(!T->TestTrue(TEXT("reference effect starts through production pointer path"),FHatch06Probe::StartReferenceGrab(M)))return true;FHatch06Probe::HopperCamera(M);Changed=Now;Phase=17;return false;}
+  if(Phase==16){if(Now-Changed<1)return false;FString Trace;const bool Started=FHatch06Probe::StartReferenceGrab(M,Trace);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("actual_projected_candidates"),Trace);R->SetBoolField(TEXT("accepted_production_pick"),Started);Save06(TEXT("reference-pointer-probe.json"),R);if(!T->TestTrue(TEXT("reference effect starts through production pointer path"),Started))return true;FHatch06Probe::HopperCamera(M);Changed=Now;Phase=17;return false;}
   if(Phase==17){if(Now-Changed<3.8)return false;FHatch06Probe::CheckDischarge(*T,M);Shot(W,M,TEXT("grab-hopper-discharge"));Changed=Now;Phase=18;return false;}
   if(Phase==18){if(Now-Changed<1.6)return false;S->RestoreCargo();M.SetCameraPreset(1);FHatch06Probe::Cargo(M);for(int I=0;I<3;++I)S->SetFieldSensor(I,true,3+Model);M.SelectView(1);M.SetSplitView(true);Changed=Now;Phase=3;return false;}
   if(Phase==3)

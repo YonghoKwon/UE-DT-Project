@@ -179,6 +179,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     UnloaderInputs={Spin(TEXT("붐 길이 (m)"),S?S->BoomLength:42,35,45,1),Spin(TEXT("붐 높이 · 갑판 위 (m)"),S?S->BoomHeight:24,18,35,.5),Spin(TEXT("운전실 높이 · 갑판 위 (m)"),S?S->CabHeight:16,12,24,.5),Spin(TEXT("운전실 X (m)"),S?S->CabX:0,-8,8,.5),Spin(TEXT("운전실 Y (m)"),S?S->CabY:-2,-8,8,.5)};
     Box->AddChildToVerticalBox(Button(TEXT("하역기 배치 적용"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUnloaderApply)));
     for(int32 I=0;I<3;++I){Group(SensorNames[I]);SensorPoseInputs.Add(Spin(TEXT("X 위치 보정 (m)"),0,-10,10,.5));SensorPoseInputs.Add(Spin(TEXT("Y 위치 보정 (m)"),0,-10,10,.5));SensorPoseInputs.Add(Spin(TEXT("설치 높이 · 갑판 위 (m)"),I==0?24:16,3,40,.5));SensorPoseInputs.Add(Spin(TEXT("하향 틸트 보정 (°) · 0=기본"),0,-45,45,1));SensorPoseInputs.Add(Spin(TEXT("요 (°)"),0,-180,180,1));}
+    Box=SettingsRoot; // Shared apply/view actions stay outside the last sensor accordion.
     Box->AddChildToVerticalBox(Button(TEXT("센서 3대 위치·방향 적용"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSensorPose)));
     Box->AddChildToVerticalBox(Button(TEXT("해측에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSea)));Box->AddChildToVerticalBox(Button(TEXT("육측에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnLand)));
     Group(TEXT("적재 범위 · 분석 / 글자"));
