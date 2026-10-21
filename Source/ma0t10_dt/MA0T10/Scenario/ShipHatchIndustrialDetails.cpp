@@ -104,6 +104,15 @@ void AShipHatchSimulation::BuildIndustrialDetails()
  R.Cylinder(Reel-FVector(0,.85,0),Reel+FVector(0,.85,0),.85,Iron,16);
  for(double O:{-.95,.95})R.Cylinder(Reel+FVector(0,O-.04,0),Reel+FVector(0,O+.04,0),1.12,Teal,16);
  for(int I=0;I<10;++I)R.Cylinder(Reel+FVector(0,-.75+I*.16,0),Reel+FVector(0,-.71+I*.16,0),.90,Edge,12);
+ // Thin mixed-fines banks on the lower hopper slopes. Their5-7cm relief is
+ // minor render detail, like paint/ribs, rather than unmeasured bulk inventory.
+ const double HY=HopperCenterY(),Low=Q+7,Top=HopperRimZ();
+ for(int Sign:{-1,1})for(bool AlongX:{false,true})
+ {
+  auto P=[&](double Across,double Z){const double Side=Sign*(FMath::Lerp(1.4,5.,(Z-Low)/(Top-Low))-.145);return AlongX?FVector(Side,HY+Across,Z):FVector(Across,HY+Side,Z);};
+  const FVector A=P(-1.35,Low+.12),B=P(1.35,Low+.12),C=P(2.0,Low+1.1),E=P(-2.2,Low+1.55);const FLinearColor Fines(.055,.043,.027);
+  R.Quad(A,B,C,E,Fines);R.Quad(B,A,E,C,Fines);
+ }
  // Hatch coaming buttresses, wheel housings and panel seam gaskets.
  for(int Hatch=-4;Hatch<=4;++Hatch)
  {

@@ -178,7 +178,7 @@ void DigJson(const FString& Name,const TSharedRef<FJsonObject>& R)
 class FHatchDig final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;bool Captures,IdleControl;double Started=FPlatformTime::Seconds(),Changed=0,LastWall=0,MeasureStart=0;int32 MeasuredView=1;
-    int32 Phase=0,Clicks=0,Material=0,State=0,View=0;uint64 BeforeRevision=0,LastEngine=0,RawBefore=0,Rss=0,Commit=0,Buffers=0,MeshBytes=0;
+    int32 Phase=0,Clicks=0,Material=0,State=0,View=0;uint64 BeforeRevision=0,LastEngine=0,BoundaryFrame=0,RawBefore=0,Rss=0,Commit=0,Buffers=0,MeshBytes=0;
     TArray<float> Original,AfterOne,BeforeLast;TArray<double> Engine,Game,Wall,Edits,FreshLatency;
     TArray<FColor> OpaqueReference;
     double OriginalVolume=0,BeforeVolume=0,MaxHeightError=0,WorkOpening=0,WorkFloor=0,WorkArea=0;uint64 WarmBuilds=0;
@@ -250,7 +250,7 @@ class FHatchDig final:public IAutomationLatentCommand
     void DrainBoundary()
     {
         FlushRenderingCommands();if(!FParse::Param(FCommandLine::Get(),TEXT("HatchFullRhiDrain")))return;
-        ENQUEUE_RENDER_COMMAND(HatchMemoryBoundary)([](FRHICommandListImmediate& Cmd){Cmd.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);Cmd.BlockUntilGPUIdle();});
+        ENQUEUE_RENDER_COMMAND(HatchMemoryBoundary)([](FRHICommandListImmediate& Cmd){Cmd.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);Cmd.BlockUntilGPUIdle();Cmd.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);});
         FlushRenderingCommands();
     }
     void Shot(UWorld& W,UShipHatchMonitorWidget& M,const FString& Name)
@@ -345,7 +345,15 @@ public:
         }
         if(Phase==5)
         {
-            if(Now-Changed<.5)return false;DrainBoundary();CollectGarbage(RF_NoFlags);RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
+            if(Now-Changed<.5)return false;
+            // GC schedules render releases and scene removals. Sampling before
+            // their next scene update included startup resources in the baseline.
+            CollectGarbage(RF_NoFlags);DrainBoundary();BoundaryFrame=GFrameCounter;Changed=Now;Phase=50;return false;
+        }
+        if(Phase==50)
+        {
+            if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
+            DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
             Rss=FPlatformMemory::GetStats().UsedPhysical;Commit=FPlatformMemory::GetStats().UsedVirtual;Buffers=S.DigBufferBytes();MeshBytes=S.MeshScratchBytes();
             MemoryDetails(TEXT("before"));
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
@@ -381,7 +389,12 @@ public:
         }
         if(Phase==7)
         {
-            if(Now-Changed<.5)return false;DrainBoundary();CollectGarbage(RF_NoFlags);const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
+            if(Now-Changed<.5)return false;CollectGarbage(RF_NoFlags);DrainBoundary();BoundaryFrame=GFrameCounter;Changed=Now;Phase=70;return false;
+        }
+        if(Phase==70)
+        {
+            if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
+            DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
             MemoryDetails(TEXT("after"));
             SaveCurve();
             if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));
@@ -421,7 +434,7 @@ public:
             Result->SetNumberField(TEXT("clicks"),Clicks);Result->SetNumberField(TEXT("raw_rss_before"),double(RawBefore));Result->SetNumberField(TEXT("rss_before"),double(Rss));Result->SetNumberField(TEXT("raw_rss_after"),double(RawAfter));Result->SetNumberField(TEXT("rss_after"),double(Memory.UsedPhysical));
             Result->SetNumberField(TEXT("commit_before"),double(Commit));Result->SetNumberField(TEXT("commit_after"),double(Memory.UsedVirtual));Result->SetNumberField(TEXT("dig_buffers_bytes"),double(Buffers));
             Result->SetNumberField(TEXT("edit_max_ms"),FMath::Max(Edits));Result->SetNumberField(TEXT("engine_max_ms"),FMath::Max(Engine));Result->SetNumberField(TEXT("game_max_ms"),FMath::Max(Game));Result->SetNumberField(TEXT("callback_max_ms"),FMath::Max(Wall));Result->SetNumberField(TEXT("height_max_error_m"),MaxHeightError);
-            Result->SetStringField(TEXT("memory_method"),TEXT("17 complete click/acquisition/analysis warmup cycles + 35s live point/analysis stabilization; stop, drain, GC, allocator free-cache trim at both boundaries; raw RSS assertion retained; no OS trim/subtraction"));
+            Result->SetStringField(TEXT("memory_method"),TEXT("17 complete click/acquisition/analysis warmup cycles + 35s live point/analysis stabilization; both stopped boundaries: GC, render/RHI drain, >=3 scene frames and200ms, final drain, raw RSS, allocator free-cache trim; raw8MiB and separate difference8MiB unchanged; no OS trim/subtraction"));
             Result->SetArrayField(TEXT("fresh_measurements"),Measurements);
             Result->SetNumberField(TEXT("fresh_analysis_max_ms"),FreshLatency.Num()?FMath::Max(FreshLatency):0);
             S.Regenerate(true);Phase=8;return false;
