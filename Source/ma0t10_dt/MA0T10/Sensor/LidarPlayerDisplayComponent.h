@@ -18,6 +18,10 @@ public:
     void CommitPointData();
     uint64 GetFixedPointProxyCreations() const { return FixedPointProxyCreations.Load(); }
     uint64 GetFixedPointUploads() const { return FixedPointUploads.Load(); }
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    /** Explicit boundary-only audit: vertex/index buffer count,SRV count,bytes. */
+    FIntVector GetFixedPointRhiResources() const;
+#endif
     virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials=false) const override;
     virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
 protected:

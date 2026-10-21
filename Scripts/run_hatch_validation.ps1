@@ -12,12 +12,14 @@ param(
     [switch]$FullRhiDrain,
     [switch]$Visible,
     [switch]$FastCaptures,
-    [switch]$WorldTraceReference
+    [switch]$WorldTraceReference,
+    [ValidateRange(0,180)][double]$MatchedMemorySeconds=0
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/PIE before HATCH validation'}
 if($WorldTraceReference -and $Mode -ne 'Performance'){throw 'WorldTraceReference is a diagnostic Performance comparison only'}
+if($MatchedMemorySeconds -gt 0 -and $Mode -notin @('Dig','DigIdle')){throw 'MatchedMemorySeconds requires Dig or DigIdle'}
 if(!$ReportRoot){$group=if($Mode -like 'Industrial*' -or $Mode -in @('Grab','Overlay','Query')){'HATCH-06'}elseif($Mode -like 'Orientation*'){'HATCH-05'}elseif($Mode -like 'Feedback*'){'HATCH-04'}elseif($Mode -like 'Dig*'){'HATCH-03'}else{'HATCH-02'};$ReportRoot=Join-Path $root ("Saved/Reports/$group/runs/"+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))}
 $ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
 New-Item -ItemType Directory -Force -Path $ReportRoot | Out-Null
@@ -25,7 +27,7 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
 & {
     $sourceHashes=@{}
     Get-ChildItem -LiteralPath "$root/Source" -File -Recurse | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}
-    @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; WorldTraceReference=[bool]$WorldTraceReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
+    @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=[bool]$MemoryAudit; WorldTraceReference=[bool]$WorldTraceReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
 }
 $test=switch($Mode){'Query'{'HATCH06.SceneQueriesRhi'} 'Overlay'{'HATCH06.OverlayAndModelRhi'} 'Grab'{'HATCH06.GrabPresentationRhi'} 'Industrial'{'HATCH06.AcceptanceRhi'} 'IndustrialManual'{'HATCH06.AcceptanceRhi'} 'OrientationManual'{'MA0T10.Hatch.ViewOrientationRhi'} 'Orientation'{'MA0T10.Hatch.ViewOrientationRhi'} 'OrientationCaptures'{'HATCH05.CapturesRhi'} 'Feedback'{'MA0T10.Hatch.UserFeedbackRhi'} 'FeedbackCaptures'{'HATCH04.CapturesRhi'} 'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
 $priorX=$env:MA0T10_ACCEPTANCE_RES_X;$priorY=$env:MA0T10_ACCEPTANCE_RES_Y
@@ -43,6 +45,7 @@ try {
     if($MemoryAudit -and $Mode -like 'Dig*'){$hatchArgs+='-llm'}
     if($FullRhiDrain){$hatchArgs+='-HatchFullRhiDrain'}
     if($WorldTraceReference){$hatchArgs+='-HatchWorldTraceReference'}
+    if($MatchedMemorySeconds -gt 0){$hatchArgs+="-HatchMemoryWindowSeconds=$MatchedMemorySeconds"}
     if(!$Visible -and $Mode -notin @('Manual','OrientationManual','IndustrialManual')){$hatchArgs+='-RenderOffscreen'}
     $quotedArgs=@($hatchArgs | ForEach-Object {'"'+$_+'"'})
     $process=Start-Process "$EngineRoot/Engine/Binaries/Win64/UnrealEditor.exe" -ArgumentList $quotedArgs -WindowStyle Hidden -PassThru -Wait -RedirectStandardOutput "$ReportRoot/console.log" -RedirectStandardError "$ReportRoot/stderr.log"

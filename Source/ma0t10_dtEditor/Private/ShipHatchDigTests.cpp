@@ -181,6 +181,7 @@ class FHatchDig final:public IAutomationLatentCommand
     TArray<float> Original,AfterOne,BeforeLast;TArray<double> Engine,Game,Wall,Edits,FreshLatency;
     TArray<FColor> OpaqueReference;
     double OriginalVolume=0,BeforeVolume=0,MaxHeightError=0,WorkOpening=0,WorkFloor=0,WorkArea=0;uint64 WarmBuilds=0;
+    double MatchedMemorySeconds=0;bool RhiTracking=false,MemoryPrimed=false;
     int64 BeforeFrames[3]={-1,-1};TArray<TSharedPtr<FJsonValue>> Measurements;
     TSharedRef<FJsonObject> Result=MakeShared<FJsonObject>();TUniquePtr<TGuardValue<bool>> Messages;
     void MemoryDetails(const TCHAR* Boundary)
@@ -194,6 +195,16 @@ class FHatchDig final:public IAutomationLatentCommand
             for(const auto& Pair:Tags)Values->SetNumberField(Pair.Key.ToString(),double(Pair.Value));
             Result->SetObjectField(FString(Boundary)+(Tracker==ELLMTracker::Default?TEXT("_llm_default"):TEXT("_llm_platform")),Values);
         }
+#if RHI_ENABLE_RESOURCE_INFO
+        if(RhiTracking)
+        {
+            TArray<TSharedPtr<FRHIResourceStats>> Stats;
+            ENQUEUE_RENDER_COMMAND(HatchMemoryResourceCounts)([&Stats](FRHICommandListImmediate&){RHIGetTrackedResourceStats(Stats);});FlushRenderingCommands();
+            auto Counts=MakeShared<FJsonObject>(),Bytes=MakeShared<FJsonObject>();int32 HatchCount=0;uint64 HatchBytes=0;
+            for(const auto& P:Stats)if(P){const FString K=P->Type;double Count=0,Size=0;Counts->TryGetNumberField(K,Count);Bytes->TryGetNumberField(K,Size);Counts->SetNumberField(K,Count+1);Bytes->SetNumberField(K,Size+P->SizeInBytes);if(P->Name.ToString().Contains(TEXT("Hatch"))){++HatchCount;HatchBytes+=P->SizeInBytes;}}
+            auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("global_tracking_available"),Stats.Num()>0);R->SetNumberField(TEXT("total_count"),Stats.Num());R->SetNumberField(TEXT("hatch_named_count"),HatchCount);R->SetNumberField(TEXT("hatch_named_bytes"),double(HatchBytes));R->SetObjectField(TEXT("counts_by_type"),Counts);R->SetObjectField(TEXT("bytes_by_type"),Bytes);Result->SetObjectField(FString(Boundary)+TEXT("_rhi_resources"),R);
+        }
+#endif
 #endif
     }
     TSharedRef<FJsonObject> Resources(AShipHatchSimulation& S)
@@ -203,7 +214,7 @@ class FHatchDig final:public IAutomationLatentCommand
         {
             auto Sensor=MakeShared<FJsonObject>();const auto Scan=A->ScanComponent->GetResourceSnapshot(),Preview=A->VisualizationComponent->GetResourceSnapshot();
             for(const auto& P:Scan.OwnedCpuBytes)Sensor->SetNumberField(TEXT("scan/")+P.Key,double(P.Value));for(const auto& P:Scan.SharedCpuBytes)Sensor->SetNumberField(TEXT("shared/")+P.Key,double(P.Value));for(const auto& P:Preview.OwnedCpuBytes)Sensor->SetNumberField(TEXT("view/")+P.Key,double(P.Value));
-            TInlineComponentArray<ULidarPlayerDisplayComponent*> Batches(A);for(auto* B:Batches)if(B->bFixedPointSubmission){Sensor->SetNumberField(TEXT("view/fixed_proxy_creations"),double(B->GetFixedPointProxyCreations()));Sensor->SetNumberField(TEXT("view/fixed_point_uploads"),double(B->GetFixedPointUploads()));}
+            TInlineComponentArray<ULidarPlayerDisplayComponent*> Batches(A);for(auto* B:Batches)if(B->bFixedPointSubmission){Sensor->SetNumberField(TEXT("view/fixed_proxy_creations"),double(B->GetFixedPointProxyCreations()));Sensor->SetNumberField(TEXT("view/fixed_point_uploads"),double(B->GetFixedPointUploads()));if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))){const auto RhiValues=B->GetFixedPointRhiResources();Sensor->SetNumberField(TEXT("view/rhi_vertex_index_count"),RhiValues.X);Sensor->SetNumberField(TEXT("view/rhi_srv_count"),RhiValues.Y);Sensor->SetNumberField(TEXT("view/rhi_buffer_bytes"),RhiValues.Z);}}
             R->SetObjectField(A->GetSensorId(),Sensor);
         }
         return R;
@@ -248,7 +259,11 @@ class FHatchDig final:public IAutomationLatentCommand
         return Accepted;
     }
 public:
-    FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false):Test(T),Captures(C),IdleControl(Idle){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;}
+    FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false):Test(T),Captures(C),IdleControl(Idle){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWindowSeconds="),MatchedMemorySeconds);
+#if RHI_ENABLE_RESOURCE_INFO
+        RhiTracking=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"));
+#endif
+    }
     bool Update() override
     {
         const double Now=FPlatformTime::Seconds();if(Now-Started>600){Test->AddError(TEXT("HATCH-03 timeout"));return true;}
@@ -298,6 +313,7 @@ public:
         }
         if(Phase==4)
         {
+            if(!MemoryPrimed){MemoryDetails(TEXT("priming"));MemoryPrimed=true;}
             int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
             if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;Stop(S);Changed=Now;Phase=5;return false;
         }
@@ -314,7 +330,8 @@ public:
         if(Phase==6)
         {
             if(GFrameCounter!=LastEngine){Engine.Add(W->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;LastEngine=GFrameCounter;}
-            if((IdleControl&&Now-Changed<.6)||!M.GetAnalysis())return false;FHatchDigProbe::CheckCards(*Test,M);
+            const bool WaitMatched=MatchedMemorySeconds>0&&Now-MeasureStart<MatchedMemorySeconds*(Clicks+1)/50.;
+            if(WaitMatched||(MatchedMemorySeconds<=0&&IdleControl&&Now-Changed<.6)||!M.GetAnalysis())return false;FHatchDigProbe::CheckCards(*Test,M);
             if(!IdleControl)
             {
                 if(MeasuredView==1)FHatchDigProbe::PointGate(*Test,M,false);
@@ -345,6 +362,8 @@ public:
             {for(const auto& P:Before.Values)if(P.Value->Type==EJson::Number){if(P.Key!=TEXT("view/fixed_point_uploads"))Test->TestEqual(TEXT("retained buffers/proxy count stable: ")+P.Key,After.GetNumberField(P.Key),P.Value->AsNumber());}else if(P.Value->Type==EJson::Object)CheckResources(*P.Value->AsObject(),*After.GetObjectField(P.Key));};
             CheckResources(*Result->GetObjectField(TEXT("resources_before")),*Result->GetObjectField(TEXT("resources_after")));
             Result->SetNumberField(TEXT("view"),MeasuredView);Result->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);
+            Result->SetNumberField(TEXT("matched_window_seconds"),MatchedMemorySeconds);
+            Result->SetNumberField(TEXT("viewport_point_budget"),S.SensorAt(0)->ScanComponent->GetPreviewPolicyState().MaxPoints);
             Result->SetBoolField(TEXT("full_rhi_drain"),FParse::Param(FCommandLine::Get(),TEXT("HatchFullRhiDrain")));
             if(IdleControl)
             {

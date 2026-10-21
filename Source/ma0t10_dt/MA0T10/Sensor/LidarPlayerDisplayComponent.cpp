@@ -90,6 +90,15 @@ public:
         });
         Material=GEngine->VertexColorMaterial->GetRenderProxy();
     }
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    FIntVector RhiResources() const
+    {
+        FIntVector R(0,0,0);
+        for(const auto* B:{&Vertices.PositionVertexBuffer.VertexBufferRHI,&Vertices.ColorVertexBuffer.VertexBufferRHI,&Vertices.StaticMeshVertexBuffer.TangentsVertexBuffer.VertexBufferRHI,&Vertices.StaticMeshVertexBuffer.TexCoordVertexBuffer.VertexBufferRHI,&DynamicPositions.VertexBufferRHI,&DynamicColors.VertexBufferRHI,&Indices.IndexBufferRHI})if(B->IsValid()){++R.X;R.Z+=int32((*B)->GetDesc().Size);}
+        for(const auto* S:{Vertices.PositionVertexBuffer.GetSRV(),Vertices.ColorVertexBuffer.GetColorComponentsSRV(),Vertices.StaticMeshVertexBuffer.GetTangentsSRV(),Vertices.StaticMeshVertexBuffer.GetTexCoordsSRV(),DynamicPositionSRV.GetReference(),DynamicColorSRV.GetReference()})if(S)++R.Y;
+        return R;
+    }
+#endif
     ~FPlayerDisplayProxy()
     {if(bFixedPoints){Factory.ReleaseResource();DynamicPositionSRV.SafeRelease();DynamicColorSRV.SafeRelease();DynamicPositions.ReleaseResource();DynamicColors.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}}
     void UpdatePoints(FRHICommandListImmediate& Cmd,FPlayerPointUpdate&& Data)
@@ -150,3 +159,11 @@ void ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent()
     auto* Proxy=static_cast<FPlayerDisplayProxy*>(SceneProxy);++FixedPointUploads;
     ENQUEUE_RENDER_COMMAND(HatchUpdateFixedPoints)([Proxy,Data=MoveTemp(Data)](FRHICommandListImmediate& Cmd) mutable {Proxy->UpdatePoints(Cmd,MoveTemp(Data));});
 }
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+FIntVector ULidarPlayerDisplayComponent::GetFixedPointRhiResources() const
+{
+    check(IsInGameThread());FIntVector Result(0,0,0);
+    if(bFixedPointSubmission&&SceneProxy&&FixedProxyPointCount>0){const auto* Proxy=static_cast<const FPlayerDisplayProxy*>(SceneProxy);ENQUEUE_RENDER_COMMAND(HatchAuditPointResources)([Proxy,&Result](FRHICommandListImmediate&){Result=Proxy->RhiResources();});FlushRenderingCommands();}
+    return Result;
+}
+#endif
