@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "UI/DxWidget.h"
+#include "Components/VerticalBox.h"
 #include "ShipHatchMonitorWidget.generated.h"
 class AShipHatchSimulation;
 class AShipHatchMonitorHost;
@@ -22,6 +23,20 @@ class UShipHatchOverlay;
 namespace ShipHatch { struct FAnalysis; struct FSettings; struct FSurface; struct FSectionSample; }
 struct FShipHatchMonitorWork;
 class UShipHatchMonitorWidget;
+class UScrollBox;
+
+/** A local details group. Explicit UMG visibility keeps collapsed contents
+ * out of layout, input, accessibility and presentation refresh work. */
+UCLASS(NotBlueprintable)
+class MA0T10_DT_API UShipHatchDetailsSection : public UVerticalBox
+{
+    GENERATED_BODY()
+public:
+    void InitializeSection(UButton* Header,UVerticalBox* Content,bool Expanded);
+private:
+    UPROPERTY(Transient) TObjectPtr<UVerticalBox> Body;
+    UFUNCTION() void Toggle();
+};
 
 /** Owned Slate grid; shares the monitor's immutable analysis without raster textures. */
 UCLASS()
@@ -57,6 +72,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     friend struct FHatchFeedbackProbe;
     friend struct FHatchOrientationProbe;
     friend struct FHatchLabelProbe;
+    friend struct FHatch06Probe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -86,6 +102,11 @@ public:
     bool CameraInHold(FVector& Origin,FVector& Direction,double& Fov) const;
     void FocusAt(FVector2D HoldMeters);
     bool GetSensorBadgeLink(int32 Index,FVector2D& Anchor,FVector2D& End) const;
+    FSlateRect OverlayExclusionRect() const;
+    bool IsOverlayAnchorVisible(FVector2D Point) const;
+    void SetModelPresentation(bool Clean);
+    bool IsModelPresentation() const { return bModelPresentation; }
+    FSlateRect GetSceneRect() const { return SceneRect; }
     const AShipHatchSimulation* GetSimulation() const { return Simulation.Get(); }
     bool ShowCoverage() const { return bCoverageOverlay; }
     bool IsSensorColoring() const { return bSensorColors; }
@@ -117,6 +138,8 @@ private:
     UPROPERTY(Transient) TObjectPtr<USpinBox> PointStride;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> StatusText;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> StatsText;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> CoverageText;
+    UPROPERTY(Transient) TObjectPtr<UScrollBox> QuickToolScroll;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> LegendText;
     UPROPERTY(Transient) TObjectPtr<UImage> AnalysisImage;
     UPROPERTY(Transient) TObjectPtr<UTexture2D> AnalysisTexture;
@@ -129,6 +152,7 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<UButton>> ColorButtons;
     UPROPERTY(Transient) TObjectPtr<UBorder> SettingsPanel;
     UPROPERTY(Transient) TObjectPtr<UBorder> PointPanel;
+    UPROPERTY(Transient) TObjectPtr<UButton> PointControlsToggle;
     UPROPERTY(Transient) TObjectPtr<UShipHatchAnalysisView> TopView;
     UPROPERTY(Transient) TObjectPtr<UShipHatchAnalysisView> HeatView;
     UPROPERTY(Transient) TObjectPtr<UInvalidationBox> TopCache;
@@ -166,6 +190,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTextBlock> PointSizeLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DensityLabel;
     UPROPERTY(Transient) TObjectPtr<UButton> DigToggle;
+    UPROPERTY(Transient) TObjectPtr<UButton> GrabDisplayToggle;
     UPROPERTY(Transient) TObjectPtr<UButton> ScanToggle;
     UPROPERTY(Transient) TArray<TObjectPtr<UButton>> SensorBadges;
     UPROPERTY(Transient) TObjectPtr<UShipHatchSensorLabelView> SensorLabelView;
@@ -190,14 +215,22 @@ private:
     bool bSync=false;
     bool bWasGenerating=false;
     bool bSplit=true,bSettings=false,bOrbit=false;
+    bool bFrameUnloader=false,bFrameVessel=false,bFrameSite=false;
+    bool bPointControlsExpanded=false,bPresetHidesPointControls=false,bModelPresentation=false,bHudSuppressed=false,bSavedModelRays=false;
     bool bDigEnabled=false,bDragged=false;
     bool bRightOrbit=false,bMapHeat=true,bSectionLength=true;
-    double SectionNormalized=.5,FeedbackUntil=0;
+    double SectionNormalized=.5,FeedbackUntil=0,DischargeUntil=0;
+    uint64 FeedbackRevision=0;
+    TWeakObjectPtr<UPrimitiveComponent> FeedbackGrabHidden;
+    bool bFeedbackOwnsGrabHide=false;
     FVector FeedbackCenter=FVector::ZeroVector;
     FVector2D Focus=FVector2D::ZeroVector;
     bool bOverlayDirty=true,bHadFeedback=false;
     void UpdateSection();
     void UpdateOverlay();
+    void UpdateOverlayControlVisibility();
+    UFUNCTION() void OnPointControlsToggle();
+    void RestoreFeedbackGrab();
     void ApplyLighting();
     void UpdateLightingLabel();
     void UpdateSectionLabel();
@@ -241,7 +274,8 @@ private:
     UFUNCTION() void OnSensorColors();
     UFUNCTION() void OnCoverage();
     UFUNCTION() void OnSensorPose();
-    UFUNCTION() void OnGrabToggle(){bGrabAnimation=!bGrabAnimation;}
+    UFUNCTION() void OnGrabToggle(){bGrabAnimation=!bGrabAnimation;if(!bGrabAnimation){FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();bOverlayDirty=true;UpdateOverlay();}}
+    UFUNCTION() void OnGrabDisplayToggle();
     UFUNCTION() void OnGrabAspect(float V){if(Simulation.IsValid())SetGrabAspect(V);}
     void SetGrabAspect(float Value);
     UFUNCTION() void OnSea(){OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
@@ -268,6 +302,12 @@ private:
     UFUNCTION() void OnNoon();
     UFUNCTION() void OnEvening();
     UFUNCTION() void OnWorkLight();
+    UFUNCTION() void OnFrameVessel(){bFrameSite=false;bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
+    UFUNCTION() void OnSiteOverview(){SetCameraPreset(3);}
+    UFUNCTION() void OnScaleReference();
+    UFUNCTION() void OnWater();
+    UFUNCTION() void OnFrameUnloader(){bFrameSite=false;bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
+    UFUNCTION() void OnFrameCargo(){bFrameSite=false;bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;SetModelPresentation(false);UpdateCamera();}
     UFUNCTION() void OnFill();
     UFUNCTION() void OnGrid(float Value);
     UFUNCTION() void OnPointSize(float Value);

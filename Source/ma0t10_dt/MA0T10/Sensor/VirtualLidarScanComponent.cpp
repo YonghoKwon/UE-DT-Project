@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "IndustrialLidarProfiles.h"
 #include "VirtualSensorSemanticLabels.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -313,6 +314,7 @@ FVirtualLidarProfilePreset UVirtualLidarScanComponent::ResolveProfilePreset(
     EVirtualSensorSimulationQuality Quality)
 {
     FVirtualLidarProfilePreset Result;
+    if(IndustrialLidar::Resolve(Profile,Quality,Result))return Result;
     Result.DeviceSpec.Manufacturer = TEXT("Generic");
     Result.DeviceSpec.Model = TEXT("Generic LiDAR");
     Result.DeviceSpec.HorizontalFovDegrees = 360.0f;

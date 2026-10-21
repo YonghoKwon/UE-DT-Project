@@ -18,7 +18,12 @@ enum class EVirtualLidarDeviceProfile : uint8
     /** Existing project integration contract: 200 x 56 at 20 Hz. */
     IYOBOT_MLX80 UMETA(DisplayName = "IYOBOT ML-X(80) - Integration 200"),
     /** Appended for serialized-enum compatibility. Public-spec native density. */
-    IYOBOT_MLX80_NATIVE UMETA(DisplayName = "IYOBOT ML-X(80) - Native")
+    IYOBOT_MLX80_NATIVE UMETA(DisplayName = "IYOBOT ML-X(80) - Native"),
+    LivoxMid360 UMETA(DisplayName = "Livox Mid-360"),
+    LivoxAvia UMETA(DisplayName = "Livox Avia"),
+    OusterOS1_64_Rev05 UMETA(DisplayName = "Ouster OS1-64 Rev05"),
+    HesaiXT32 UMETA(DisplayName = "Hesai XT32"),
+    VelodyneVLP16 UMETA(DisplayName = "Velodyne VLP-16")
 };
 
 UENUM(BlueprintType)

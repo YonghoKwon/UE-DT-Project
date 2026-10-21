@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarFidelity.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 #include "VirtualLidarScanComponent.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -21,6 +22,9 @@ class UVirtualLidarGpuDepthProjectionComponent;
 struct FVirtualLidarV2EncodeOptions;
 struct FVirtualLidarDepthAcquisitionFrame;
 struct FVirtualLidarDerivedOutputJob;
+struct FVirtualLidarSceneQueryBuffer;
+struct FVirtualLidarSceneQueryJob;
+struct FVirtualLidarScenePointPool;
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarDerivedFrameCompletedNative,const FVirtualSensorFrameEnvelope&);
 DECLARE_MULTICAST_DELEGATE_FourParams(FOnVirtualLidarCompatibilityRequestCompletedNative,const FString&,bool,const FVirtualSensorFrameEnvelope&,const FString&);
 
@@ -93,6 +97,38 @@ public:
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
     UVirtualLidarScanComponent();
+private:
+    FVirtualSensorRayQueryFactory RayQueryFactory;
+    TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> ScheduledRayQuery;
+    TArray<FVector3f> SceneQueryDirections;
+    TArray<FHitResult> SceneQueryHits;
+    uint32 SceneQueryDirectionKey=0;
+    bool bSceneQueryDirectionsCached=false;
+    TSharedPtr<FVirtualLidarSceneQueryBuffer,ESPMode::ThreadSafe> SceneQueryBuffer;
+    TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe> SceneQueryJob;
+    TSharedPtr<const TArray<FVector3f>,ESPMode::ThreadSafe> SharedSceneQueryDirections;
+    uint32 SharedSceneDirectionKey=0;
+    void BeginSceneQueryBatch();
+    bool PollSceneQueryBatch();
+    int32 SceneQueryReadyRays() const;
+    bool ResolveSceneQueryRay(int32 Index,FVector Start,FVector End,FHitResult& Hit) const;
+    void CancelSceneQueryBatch();
+    uint64 SceneQueryBufferBytes() const;
+    void RecordSceneQueryWork(double Seconds,bool Complete);
+    double SceneQueryGameSeconds=0;
+    FVector4 LastSceneQueryStatistics=FVector4(0,0,0,0);
+    TSharedPtr<FVirtualLidarScenePointPool,ESPMode::ThreadSafe> ScenePointPool;
+    TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> ScenePointLease;
+    TWeakPtr<FVirtualLidarScenePointPool,ESPMode::ThreadSafe> ScenePublishedPool;
+    TWeakPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> ScenePublishedPoints;
+    int32 ScenePointCapacity=0;
+    void AcquireScenePointStorage(int32 Capacity);
+    void RecycleScenePointStorage();
+    TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> CompleteScenePointStorage();
+    uint64 ScheduledPointStorageBytes() const;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    friend class FHatchPointPoolLifetimeTest;
+#endif
 
 protected:
     virtual void BeginPlay() override;
@@ -124,6 +160,9 @@ public:
     void StopScan();
     void StopDatasetScan();
     void RequestDatasetScanOnce();
+    void SetRayQueryFactory(FVirtualSensorRayQueryFactory Factory) { RayQueryFactory=MoveTemp(Factory); }
+    /** Last completed scan: geometry wall ms, GT consume ms, foreign bounds, fallback rays. */
+    FVector4 GetSceneQueryStatistics() const { return LastSceneQueryStatistics; }
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void ScanAndSend();
@@ -702,6 +741,8 @@ private:
 
 private:
     FTimerHandle ScanTimerHandle;
+    // Device-specific public noise must not leak back into an existing profile.
+    TOptional<float> PreIndustrialRangeNoise;
     TSharedPtr<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>();
 	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> LastFrameSnapshot;
 	uint32 FrameSettingsRevision = 0;

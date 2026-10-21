@@ -12,8 +12,12 @@
 #include "Engine/DirectionalLight.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Engine/TextureCube.h"
+#include "Engine/SkyLight.h"
 #include "EngineUtils.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "HAL/LowLevelMemTracker.h"
 
 namespace
 {
@@ -23,7 +27,9 @@ void Box(TArray<FVector>& V,TArray<int32>& T,FVector Center,FVector Size)
     for(int32 Z=0;Z<2;++Z)for(int32 Y=0;Y<2;++Y)for(int32 X=0;X<2;++X)
         V.Add((Center+FVector((X-.5)*Size.X,(Y-.5)*Size.Y,(Z-.5)*Size.Z))*100);
     const int32 Indices[]={0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5};
-    for(int32 I:Indices)T.Add(B+I);
+    // UE procedural meshes face clockwise. The previous outward-CCW box
+    // culled its tank-top at Z=0, revealing parked empty cargo at Z=-1cm.
+    for(int32 I=0;I<UE_ARRAY_COUNT(Indices);I+=3){T.Add(B+Indices[I]);T.Add(B+Indices[I+2]);T.Add(B+Indices[I+1]);}
 }
 void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int32>& T,TArray<FVector>* Scratch=nullptr,const TArray<FLinearColor>& Colors=TArray<FLinearColor>())
 {
@@ -65,6 +71,8 @@ ShipHatch::FSettings AShipHatchSimulation::Settings() const
 void AShipHatchSimulation::BeginPlay()
 {
     Super::BeginPlay();
+    // Upgrade only the old hatch fixture rig defaults in memory. No map save.
+    if(bRealScale&&bFieldLayout){if(FMath::IsNearlyEqual(BoomHeight,10.))BoomHeight=24;if(FMath::IsNearlyEqual(CabHeight,8.))CabHeight=16;}
     for(TActorIterator<ADirectionalLight> I(GetWorld());I;++I){KeyLight=*I;break;}
     if(KeyLight)
     {
@@ -77,6 +85,17 @@ void AShipHatchSimulation::BeginPlay()
     FillLight=NewObject<UPointLightComponent>(this);FillLight->SetupAttachment(GetRootComponent());FillLight->SetMobility(EComponentMobility::Movable);
     FillLight->SetCastShadows(false);FillLight->SetIntensity(8000);FillLight->SetAttenuationRadius(6500);FillLight->RegisterComponent();
     FillLight->SetRelativeLocation(FVector(0,0,HoldDepth*65));SetLighting(-25,65,5,true);Regenerate(false);
+    // The fixture has no sky geometry, so its captured skylight is black.
+    // A hatch-owned, one-time engine cubemap supplies outdoor diffuse fill on
+    // the portal's back faces without recapture, shadows or a new asset.
+    if(bRealScale)if(auto* Cube=LoadObject<UTextureCube>(nullptr,TEXT("/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap")))
+    {
+        // A later black scene capture from the fixture must not replace the
+        // specified outdoor cube. Keep and restore the fixture's visibility.
+        for(TActorIterator<ASkyLight> I(GetWorld());I;++I){FixtureSky=I->GetLightComponent();bFixtureSkyVisible=FixtureSky->IsVisible();FixtureSky->SetVisibility(false);break;}
+        OutdoorAmbient=NewObject<USkyLightComponent>(this,TEXT("HatchOutdoorAmbient"));OutdoorAmbient->SetupAttachment(GetRootComponent());OutdoorAmbient->SetMobility(EComponentMobility::Movable);
+        OutdoorAmbient->SourceType=SLS_SpecifiedCubemap;OutdoorAmbient->Cubemap=Cube;OutdoorAmbient->bRealTimeCapture=false;OutdoorAmbient->bLowerHemisphereIsBlack=false;OutdoorAmbient->SetIntensity(.65f);OutdoorAmbient->CastShadows=false;OutdoorAmbient->RegisterComponent();
+    }
 }
 void AShipHatchSimulation::SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill)
 {
@@ -90,6 +109,7 @@ bool AShipHatchSimulation::Regenerate(bool Randomize)
     if(bEnding)return false;
     if(Randomize){int32 Next=int32(FPlatformTime::Cycles64()&0x7fffffff);Seed=Next==Seed?Seed^0x41c64e6d:Next;}
     Pending=Settings();if(!Pending.Validate(Status))return false;
+    if(bRealScale&&bFieldLayout&&!ValidateSceneScale(Status))return false;
     bPending=true;
     for(int32 I=0;I<3;++I)if(auto* A=SensorAt(I))A->StopSensor();
     if(!bGenerating)StartGeneration();
@@ -122,22 +142,28 @@ void AShipHatchSimulation::BuildStructure()
         auto* A=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);
         if(!A)return;A->Tags.Add(Label);A->SetColor(Color);Structure.Add(A);
         TArray<FVector> V;TArray<int32>T;Build(V,T);Mesh(A->Mesh,V,T);
+        if(Label==TEXT("HatchHold"))
+        {
+            if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
+            {auto* MID=UMaterialInstanceDynamic::Create(Base,A);MID->SetScalarParameterValue(TEXT("TankTop"),1);A->Mesh->SetMaterial(0,MID);}
+            BuildCorrugatedWalls(A);
+        }
     };
     Part(TEXT("HatchHold"),FLinearColor(.20,.28,.32),[&](TArray<FVector>& V,TArray<int32>& T)
     {
         Box(V,T,FVector(0,0,-.15),FVector(S.Length+.6,S.Width+.6,.3));
         for(int32 Sign:{-1,1})
-        {Box(V,T,FVector(Sign*(S.Length+.3)*.5,0,S.Depth*.5),FVector(.3,S.Width+.6,S.Depth));
-         Box(V,T,FVector(0,Sign*(S.Width+.3)*.5,S.Depth*.5),FVector(S.Length,.3,S.Depth));}
+        {Box(V,T,FVector(Sign*(S.Length+.3)*.5,0,(S.Depth-.3)*.5),FVector(.3,S.Width+.6,S.Depth-.3));
+         Box(V,T,FVector(0,Sign*(S.Width+.3)*.5,(S.Depth-.3)*.5),FVector(S.Length,.3,S.Depth-.3));}
     });
-    Part(TEXT("HatchOutside"),FLinearColor(.35,.12,.09),[&](TArray<FVector>& V,TArray<int32>& T)
+    Part(TEXT("HatchOutside"),FLinearColor(.30,.15,.135),[&](TArray<FVector>& V,TArray<int32>& T)
     {
-        const double L=S.Length+8,W=S.Width+8;
+        const double L=S.Length+8,W=bRealScale?VesselBeam:S.Width+8;
         for(int32 Sign:{-1,1})
-        {Box(V,T,FVector(Sign*(L+S.OpeningLength)*.25,0,S.Depth+.15),FVector((L-S.OpeningLength)*.5,W,.3));
-         Box(V,T,FVector(0,Sign*(W+S.OpeningWidth)*.25,S.Depth+.15),FVector(S.OpeningLength,(W-S.OpeningWidth)*.5,.3));}
+        {Box(V,T,FVector(Sign*(L+S.OpeningLength)*.25,0,S.Depth-.15),FVector((L-S.OpeningLength)*.5,W,.3));
+         Box(V,T,FVector(0,Sign*(W+S.OpeningWidth)*.25,S.Depth-.15),FVector(S.OpeningLength,(W-S.OpeningWidth)*.5,.3));}
     });
-    Part(TEXT("HatchCoaming"),FLinearColor(.08,.40,.20),[&](TArray<FVector>& V,TArray<int32>& T)
+    Part(TEXT("HatchCoaming"),FLinearColor(.38,.025,.015),[&](TArray<FVector>& V,TArray<int32>& T)
     {
         for(int32 Sign:{-1,1})
         {Box(V,T,FVector(Sign*(S.OpeningLength+.3)*.5,0,S.Depth+S.Coaming*.5),FVector(.3,S.OpeningWidth+.6,S.Coaming));
@@ -150,7 +176,8 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
     const bool Rebuild=!Current.Heights.Num()||Current.Settings.Length!=Result.Settings.Length||Current.Settings.Width!=Result.Settings.Width||
         Current.Settings.Depth!=Result.Settings.Depth||Current.Settings.OpeningLength!=Result.Settings.OpeningLength||
         Current.Settings.OpeningWidth!=Result.Settings.OpeningWidth||Current.Settings.Coaming!=Result.Settings.Coaming;
-    RecycledHeights=MoveTemp(Current.Heights);Current=MoveTemp(Result);if(Rebuild)BuildStructure();
+    uint32 ScaleKey=GetTypeHash(bRealScale);for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,BerthGap,QuayAboveWater,RailSpan})ScaleKey=HashCombineFast(ScaleKey,GetTypeHash(V));
+    RecycledHeights=MoveTemp(Current.Heights);Current=MoveTemp(Result);if(Rebuild||ScaleKey!=SceneScaleKey){BuildStructure();BuildVessel();SceneScaleKey=ScaleKey;}
     Original.Heights=Current.Heights;Original.Volume=Current.Volume;Original.Fill=Current.Fill;
     HistoryHead=HistoryCount=0;LastRemoved=TotalRemoved=0;
     UpdateCargoMesh();
@@ -160,6 +187,7 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
 }
 void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
 {
+    LLM_SCOPE_BYNAME(TEXT("Hatch/CargoUpdate"));
     if(!Cargo)
     {FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Cargo=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);Cargo->Tags.Add(TEXT("HatchCargo"));}
     // Park zero-thickness faces 1cm inside the solid tank top. Keeping valid
@@ -175,7 +203,9 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         const double Fresh=FMath::Clamp(Removed/.6,0.,1.);
         const double Surround=(Current.At(FMath::Max(0,X-1),Y)+Current.At(FMath::Min(Current.NX,X+1),Y)+Current.At(X,FMath::Max(0,Y-1))+Current.At(X,FMath::Min(Current.NY,Y+1)))*.25;
         const double Shade=1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.);
-        Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Shade));
+        // Alpha is a retained per-vertex cut mask, restored from the exact
+        // original field on undo/restore. No new texture or per-frame upload.
+        Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Fresh));
     };
     for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
     {
@@ -185,9 +215,16 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         Vertex(X,Y,E2);Vertex(X,Y+1,E2);Vertex(X+1,Y+1,E2);
     }
     if(T.Num()!=Count){T.SetNumUninitialized(Count,false);for(int32 I=0;I<Count;++I)T[I]=I;}
-    const auto* Existing=Cargo->Mesh->GetProcMeshSection(0);
+    auto* Existing=Cargo->Mesh->GetProcMeshSection(0);
     const bool Refitting=Existing&&Existing->ProcVertexBuffer.Num()==V.Num()&&Existing->ProcIndexBuffer.Num()==T.Num();
+    // UpdateMeshSection otherwise calls BodyInstance.UpdateTriMeshVertices,
+    // whose UE5.3 Chaos implementation CopySlow()s the full triangle mesh.
+    // We already cook the authoritative current triangles below (required for
+    // correct refill query bounds). Suppress only that redundant intermediate
+    // copy; keep the existing physical body live until its one replacement.
+    if(Refitting)Existing->bEnableCollision=false;
     MeshNX=Current.NX;MeshNY=Current.NY;Mesh(Cargo->Mesh,V,T,&CargoNormals,Colors);
+    if(Refitting)Existing->bEnableCollision=true;
     if(Refitting)
     {
         // UE 5.3's live triangle refit leaves stale query bounds after refill.
@@ -197,6 +234,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         // This transient runtime mesh has no serialized collision payload. Keeping
         // bHasCookedCollisionData set would send each edit through editor DDC
         // under a fresh GUID, retaining derived blobs across repeated edits.
+        LLM_SCOPE_BYNAME(TEXT("Hatch/CargoCook"));
         auto* Body=Cargo->Mesh->GetBodySetup();Body->bHasCookedCollisionData=false;
         Body->InvalidatePhysicsData();Body->CreatePhysicsMeshes();Cargo->Mesh->RecreatePhysicsState();
     }
@@ -205,7 +243,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         auto* MID=Cast<UMaterialInstanceDynamic>(Cargo->Mesh->GetMaterial(0));
         if(Base&&(!MID||MID->Parent!=Base)){MID=UMaterialInstanceDynamic::Create(Base,Cargo);Cargo->Mesh->SetMaterial(0,MID);}
         const bool Coal=Current.Settings.Cargo==ShipHatch::ECargo::Coal;
-        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.018,.021,.024):FLinearColor(.32,.075,.035));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
+        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.018,.021,.024):FLinearColor(.20,.07,.04));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
         Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
 }
 uint64 AShipHatchSimulation::DigBufferBytes() const
@@ -222,6 +260,7 @@ bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& H
     // Visibility is player-local in point-only mode. Physical structures still occlude
     // the height field in BOTH render modes, including the deck above hidden cargo.
     FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
+    if(!bShowUnloader&&UnloaderPresentation)Query.AddIgnoredComponent(UnloaderPresentation->Mesh);
     if(!GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query))return false;
     if(First.GetActor()==Cargo)return true;
     // Chaos may resolve a sub-centimeter sheet as its adjacent tank top first.
@@ -290,7 +329,7 @@ void AShipHatchSimulation::ConfigureSensors()
         S.LidarProfile=Profile;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
         if(ProfileChanged&&!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Status=Error;return;}
         A->ReadEditableState(S);FVirtualSensorEditableState Previous=S;S.SensorId=Id;
-        const bool IsMLX=Profile!=EVirtualLidarDeviceProfile::LivoxMid360S;
+        const bool IsMLX=Profile!=EVirtualLidarDeviceProfile::LivoxMid360S&&Profile!=EVirtualLidarDeviceProfile::LivoxMid360;
         S.ActorTransform=FTransform(GetActorQuat()*FRotator((IsMLX?-90:-112.5)+(bFieldLayout?SensorTiltTrim[Index]:0),bFieldLayout?SensorYaw[Index]:0,0).Quaternion(),GetActorTransform().TransformPosition((bFieldLayout?SensorOrigin(Index):SensorLocalOrigin(IsMLX))*100));
         S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;S.bLidarMaterialResponse=true;
         S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;
@@ -300,6 +339,7 @@ void AShipHatchSimulation::ConfigureSensors()
         auto* Scan=A->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
         A->VisualizationComponent->SetProjectionPreviewEnabled(false);
         const TWeakObjectPtr<AShipHatchSimulation> Weak(this);
+        Scan->SetRayQueryFactory([Weak](AActor* Ignore,ECollisionChannel Channel)->TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe>{auto* S=Weak.Get();return S?S->CaptureRayQuery(Ignore,Channel):nullptr;});
         A->VisualizationComponent->SetPointPreviewTransform([Weak](FVirtualLidarPoint& P,double AcquisitionStart)
         {
             const auto* Self=Weak.Get();if(!Self||AcquisitionStart>=Self->LastGeometryEdit||P.SemanticLabel!=TEXT("HatchCargo")||!P.bHit)return;
@@ -315,7 +355,7 @@ void AShipHatchSimulation::ConfigureSensors()
         }
         Scan->InvalidateSurfaceResponseCache();if(Enabled)A->StartSensor();
     };
-    auto FieldProfile=[&](int32 I){return FieldProfiles[I]==1?EVirtualLidarDeviceProfile::LivoxMid360S:FieldProfiles[I]==2?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80;};
+    auto FieldProfile=[&](int32 I){if(FieldProfiles[I]>=3)return EVirtualLidarDeviceProfile(int32(EVirtualLidarDeviceProfile::LivoxMid360)+FieldProfiles[I]-3);return FieldProfiles[I]==1?EVirtualLidarDeviceProfile::LivoxMid360S:FieldProfiles[I]==2?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80;};
     Configure(MLX,bFieldLayout?FieldProfile(0):bNativeMLX?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80,bMLX,TEXT("Hatch.MLX80"),0);
     Configure(Livox,bFieldLayout?FieldProfile(1):EVirtualLidarDeviceProfile::LivoxMid360S,bLivox,TEXT("Hatch.Mid360S"),1);
     if(bFieldLayout)Configure(CabRight,FieldProfile(2),bCabRight,TEXT("Hatch.CabRight"),2);else if(CabRight)CabRight->StopSensor();
@@ -344,12 +384,18 @@ bool AShipHatchSimulation::HasFreshMeasurement() const
     const int64 Gate=FrameGates[Index];if(A){const auto F=A->ScanComponent->GetLastFrameSnapshot();if(!F||F->FrameId<=Gate||F->AcquisitionStartedMonotonic<LastGeometryEdit)return false;}}
     return bMLX||bLivox||(bFieldLayout&&bCabRight);
 }
+void AShipHatchSimulation::VisitGeometryBounds(bool IncludeUnloader,TFunctionRef<void(const FBox&)> Visitor) const
+{
+    auto Visit=[&](const AShipHatchPart* Part){if(IsValid(Part)){FVector Center,Extent;Part->GetActorBounds(false,Center,Extent);Visitor(FBox(Center-Extent,Center+Extent));}};
+    Visit(Cargo);for(const auto& Part:Structure)Visit(Part.Get());for(const auto& Part:SensorPresentation)Visit(Part.Get());if(IncludeUnloader)Visit(UnloaderPresentation);
+}
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
     bEnding=true;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
+    if(OutdoorAmbient)OutdoorAmbient->DestroyComponent();if(IsValid(FixtureSky))FixtureSky->SetVisibility(bFixtureSkyVisible);
     if(KeyLight){KeyLight->SetActorRotation(OriginalLightRotation);KeyLight->GetLightComponent()->SetIntensity(OriginalLightIntensity);KeyLight->GetLightComponent()->SetCastShadows(bOriginalLightShadows);KeyLight->GetLightComponent()->SetMobility(EComponentMobility::Type(OriginalLightMobility));}
     GetWorldTimerManager().ClearTimer(ScanDisplayTimer);for(auto A:SensorPresentation)if(IsValid(A))A->Destroy();SensorPresentation.Reset();
-    if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(CabRight)CabRight->Destroy();if(UnloaderPresentation)UnloaderPresentation->Destroy();if(Cargo)Cargo->Destroy();
+    if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(CabRight)CabRight->Destroy();if(UnloaderPresentation)UnloaderPresentation->Destroy();if(Vessel)Vessel->Destroy();if(Cargo)Cargo->Destroy();
     for(auto A:Structure)if(IsValid(A))A->Destroy();Structure.Reset();
     // The bounded worker owns values only; no callback can access this Actor after EndPlay.
     Super::EndPlay(Reason);

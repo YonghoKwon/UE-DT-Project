@@ -50,6 +50,8 @@ MA0T10_DT_API bool Raycast(const FSurface& Surface,FVector Origin,FVector Direct
  * Radius is the grab footprint; the relaxed shoulder may extend beyond it. */
 MA0T10_DT_API double Excavate(FSurface& Surface,FVector2D Center,double Radius,double Depth,double Aspect=1);
 MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points);
+/** Same analysis, reusing the caller-owned cell allocation across revisions. */
+MA0T10_DT_API void AnalyzeInto(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points,FAnalysis& Result);
 MA0T10_DT_API FColor Jet(double Normalized);
 MA0T10_DT_API double Reflectivity(ECargo Cargo);
 /** Structural visibility only: ray passes through both deck and coaming aperture. */

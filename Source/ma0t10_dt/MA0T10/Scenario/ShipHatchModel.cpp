@@ -35,7 +35,9 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
     R.Density=S.Cargo==ECargo::Coal?900:2400;
     R.Peaks=Random.RandRange(1,5);
     // A triangular interpolation can amplify sampled directional slopes by sqrt(2).
-    const double Slope=.7*FMath::Tan(FMath::DegreesToRadians(R.Repose));
+    // Reserve face-gradient budget for sub-meter lumps and wall-bank detail.
+    // 0.5m collision grid resolves >=1m shapes; smaller grain lives in the shader.
+    const double Slope=.6*FMath::Tan(FMath::DegreesToRadians(R.Repose));
     const FVector2D Bias(Random.FRandRange(-.25f,.25f)*S.Length,Random.FRandRange(-.25f,.25f)*S.Width);
     TArray<FVector,TInlineAllocator<5>> Peaks;
     for(int32 I=0;I<R.Peaks;++I)Peaks.Add(FVector(Bias.X+Random.FRandRange(-.3f,.3f)*S.Length,
@@ -46,7 +48,15 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
         const FVector2D P(X*R.DX-S.Length*.5,Y*R.DY-S.Width*.5);
         double H=-DBL_MAX;
         for(const auto& Peak:Peaks)H=FMath::Max(H,Peak.Z-Slope*FVector2D::Distance(P,FVector2D(Peak.X,Peak.Y)));
-        Shape[Y*(R.NX+1)+X]=H;
+        const double Phase=S.Seed*.017;
+        // A0.5m grid resolves metre-scale aggregates. Domain-warped noise
+        // avoids the regular sinusoidal stripes of the original surface;
+        // centimetre chunks remain normal detail with no height displacement.
+        const FVector2D Warp(FMath::PerlinNoise2D(P/6.+FVector2D(Phase,3.1)),FMath::PerlinNoise2D(P/6.+FVector2D(7.4,-Phase)));
+        const double Lump=.10*FMath::PerlinNoise2D(P/1.8+Warp*.7+FVector2D(Phase,-Phase))+.035*FMath::PerlinNoise2D(P/4.2+FVector2D(2.7,Phase));
+        const double Rill=.012*FMath::Sin(P.X*2.5+Warp.Y*3+P.Y*.4+Phase);
+        const double Wall=FMath::Min(S.Length*.5-FMath::Abs(P.X),S.Width*.5-FMath::Abs(P.Y));
+        Shape[Y*(R.NX+1)+X]=H+Lump+Rill+.08*FMath::Exp(-Wall/2.);
     }
     R.Heights.SetNumUninitialized(Shape.Num(),false);
     auto Integrate=[&](double Offset)
@@ -177,7 +187,12 @@ bool ThroughOpening(const FSettings& S,FVector Origin,FVector Target)
 }
 FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>& Points)
 {
-    FAnalysis R;if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return R;
+    FAnalysis R;AnalyzeInto(S,CellSize,Points,R);return R;
+}
+void AnalyzeInto(const FSettings& S,double CellSize,const TArray<FObservation>& Points,FAnalysis& R)
+{
+    auto Cells=MoveTemp(R.Cells);R=FAnalysis();R.Cells=MoveTemp(Cells);R.Cells.Reset();
+    if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return;
     R.NX=FMath::CeilToInt(S.Length/CellSize);R.NY=FMath::CeilToInt(S.Width/CellSize);
     R.DX=S.Length/R.NX;R.DY=S.Width/R.NY;R.Cells.SetNum(R.NX*R.NY);
     for(const auto& P:Points)
@@ -192,6 +207,5 @@ FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>&
     for(const auto& C:R.Cells)if(C.Count){++R.Observed;R.Min=FMath::Min(R.Min,C.Mean());R.Max=FMath::Max(R.Max,C.Mean());R.Mean+=C.Mean();R.Volume+=C.Mean()*R.DX*R.DY;}
     if(R.Observed)R.Mean/=R.Observed;else R.Min=0;
     R.Coverage=double(R.Observed)/R.Cells.Num();R.FillLowerBound=100*R.Volume/(S.Length*S.Width*S.Depth);
-    return R;
 }
 }

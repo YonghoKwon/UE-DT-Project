@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "IndustrialLidarProfiles.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -79,10 +80,12 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 {
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorComplete);
     bScheduledScanInProgress = false;
+    CancelSceneQueryBatch();ScheduledRayQuery.Reset();
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
     ++FrameId;
-    LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
+    auto ReusedPoints=CompleteScenePointStorage();
+    LastPointStorage = ReusedPoints?MoveTemp(ReusedPoints):MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
 	PublishLastFrameSnapshot(ScheduledScanTransform, ScheduledScanWidth, ScheduledScanHeight, MaxDistance);
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     LastHitPointCount = ScheduledHitPointCount;
@@ -302,6 +305,13 @@ void UVirtualLidarScanComponent::ApplySimulationQuality(EVirtualSensorSimulation
     {
         const FVirtualLidarProfilePreset Resolved = ResolveProfilePreset(DeviceProfile, SimulationQuality);
         DeviceSpec = Resolved.DeviceSpec;
+        if(const auto* Industrial=IndustrialLidar::Find(DeviceProfile))
+        {
+            if(!PreIndustrialRangeNoise.IsSet())PreIndustrialRangeNoise=RangeNoiseStandardDeviationMillimeters;
+            RangeNoiseStandardDeviationMillimeters=Industrial->PrecisionMM;
+        }
+        else if(PreIndustrialRangeNoise.IsSet())
+        {RangeNoiseStandardDeviationMillimeters=PreIndustrialRangeNoise.GetValue();PreIndustrialRangeNoise.Reset();}
         ProfileClass = Resolved.ProfileClass;
         FidelityMode = Resolved.FidelityMode;
         AcquisitionBackend = Resolved.RecommendedBackend;

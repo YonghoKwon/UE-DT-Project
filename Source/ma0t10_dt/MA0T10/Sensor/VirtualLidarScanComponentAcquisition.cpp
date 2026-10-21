@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "IndustrialLidarProfiles.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 
@@ -98,8 +99,9 @@ FVirtualSensorResourceSnapshot UVirtualLidarScanComponent::GetResourceSnapshot()
     S.Counts={{TEXT("scan_in_flight"),bScheduledScanInProgress},{TEXT("payload_in_flight"),bScheduledPayloadBuildInFlight},
         {TEXT("export_in_flight"),bScheduledAutoExportInFlight},{TEXT("global_json_jobs"),GVirtualLidarJsonJobs.load()},
         {TEXT("surface_cache_entries"),SurfaceResponseCache.Num()},{TEXT("preview_instances"),PointCloudPreviewComponent?PointCloudPreviewComponent->GetInstanceCount():0}};
-    S.OwnedCpuBytes.Add(TEXT("scheduled_scan_arrays"),ScheduledPoints.GetAllocatedSize()+ScheduledHeatmapPixels.GetAllocatedSize());
+    S.OwnedCpuBytes.Add(TEXT("scheduled_scan_arrays"),ScheduledPointStorageBytes()+ScheduledHeatmapPixels.GetAllocatedSize());
     S.OwnedCpuBytes.Add(TEXT("ray_lookup"),GpuDepthLocalDirections.GetAllocatedSize()+GpuDepthPixelIndices.GetAllocatedSize()+ScheduledHorizontalAnglesDegrees.GetAllocatedSize()+ScheduledVerticalAnglesDegrees.GetAllocatedSize());
+    S.OwnedCpuBytes.Add(TEXT("scene_query_lookup"),SceneQueryDirections.GetAllocatedSize()+SceneQueryHits.GetAllocatedSize()+SceneQueryBufferBytes());
     S.OwnedCpuBytes.Add(TEXT("surface_cache_container"),SurfaceResponseCache.GetAllocatedSize());
     S.OwnedCpuBytes.Add(TEXT("latest_json"),LastJsonPayload.GetAllocatedSize());
     S.SharedCpuBytes.Add(TEXT("latest_points"),LastPointStorage.IsValid()?LastPointStorage->GetAllocatedSize():0);
@@ -133,6 +135,8 @@ void UVirtualLidarScanComponent::StopScanInternal(bool KeepReadbacks)
     NextScheduledScanTime = -1.0;
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
+    CancelSceneQueryBatch();ScheduledRayQuery.Reset();
+    RecycleScenePointStorage();
     bDeadlineMissRecordedForActiveAcquisition = false;
     if(GpuDepthProjectionComponent.IsValid()){if(KeepReadbacks)GpuDepthProjectionComponent->CancelDatasetAcquisition();else GpuDepthProjectionComponent->CancelAcquisition();}
     bScheduledPayloadBuildInFlight = false;
@@ -218,6 +222,8 @@ void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
 	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) ScheduledSlabContext=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
     ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+    RuntimeStatus.ActiveAcquisitionBackend=TEXT("accurate_cpu_trace");
+    RuntimeStatus.AcquisitionBackendMessage=TEXT("CPU 충돌 추적 · 프레임 분할");
     ScheduledScanWidth = FMath::Max(1, HorizontalSamples);
     ScheduledScanHeight = FMath::Max(1, VerticalChannels);
     ScheduledNextRayIndex = 0;
@@ -230,12 +236,23 @@ void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
     ScheduledSemanticCounts.Reset();
     const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
     const int32 EffectiveMaxEchoes = bProfileMultiEcho
-        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 2)
+        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 3)
         : (bUseMultiHit ? FMath::Max(1, MaxHitsPerRay) : 1);
-    ScheduledPoints.Reserve(ScheduledScanWidth * ScheduledScanHeight * EffectiveMaxEchoes);
+    ScheduledRayQuery=RayQueryFactory?RayQueryFactory(GetOwner(),TraceChannel):nullptr;
+    const int32 PointCapacity=ScheduledScanWidth * ScheduledScanHeight * EffectiveMaxEchoes;
+    if(ScheduledRayQuery)AcquireScenePointStorage(PointCapacity);else ScheduledPoints.Reserve(PointCapacity);
     ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);
     BuildBeamAngleTables(ScheduledScanWidth, ScheduledScanHeight, ScheduledHorizontalAnglesDegrees, ScheduledVerticalAnglesDegrees);
-    bScheduledScanInProgress = true;
+    bSceneQueryDirectionsCached=ScheduledRayQuery.IsValid()&&DeviceProfile!=EVirtualLidarDeviceProfile::LivoxMid360&&DeviceProfile!=EVirtualLidarDeviceProfile::LivoxAvia;
+    if(ScheduledRayQuery){RuntimeStatus.ActiveAcquisitionBackend=ScheduledRayQuery->BackendName().ToString();RuntimeStatus.AcquisitionBackendMessage=TEXT("불변 삼각형BVH · CPU 병렬 계산 · 프레임 분할 재질/점 처리");}
+    if(bSceneQueryDirectionsCached)
+    {
+        uint32 Key=HashCombineFast(GetTypeHash(DeviceProfile),HashCombineFast(GetTypeHash(ScheduledScanWidth),GetTypeHash(ScheduledScanHeight)));
+        Key=FCrc::MemCrc32(ScheduledHorizontalAnglesDegrees.GetData(),ScheduledHorizontalAnglesDegrees.Num()*sizeof(float),Key);Key=FCrc::MemCrc32(ScheduledVerticalAnglesDegrees.GetData(),ScheduledVerticalAnglesDegrees.Num()*sizeof(float),Key);
+        if(Key!=SceneQueryDirectionKey||SceneQueryDirections.Num()!=ScheduledScanWidth*ScheduledScanHeight)
+        {SceneQueryDirectionKey=Key;SceneQueryDirections.SetNumUninitialized(ScheduledScanWidth*ScheduledScanHeight);for(int V=0;V<ScheduledScanHeight;++V)for(int X=0;X<ScheduledScanWidth;++X){const int I=V*ScheduledScanWidth+X;SceneQueryDirections[I]=FVector3f(IndustrialLidar::Beam(DeviceProfile,I,ScheduledScanWidth,ScheduledScanHeight,FrameId+1,ScheduledVerticalAnglesDegrees[V],ScheduledHorizontalAnglesDegrees[X]).Vector());}}
+    }
+    BeginSceneQueryBatch();bScheduledScanInProgress = true;
     RuntimeStatus.bAcquisitionInFlight = true;
 }
 FVirtualLidarCompatibilityOutputStatus UVirtualLidarScanComponent::GetCompatibilityOutputStatus() const

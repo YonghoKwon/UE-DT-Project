@@ -1,3 +1,4 @@
+#include "IndustrialLidarProfiles.h"
 #include "VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -632,15 +633,17 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
         return ProcessGpuDepthScan();
     }
     if (!bScheduledScanInProgress || MaxRays <= 0 || !GetWorld()) return 0;
+    if(ScheduledRayQuery&&!PollSceneQueryBatch())return 0;
+    const double SceneWorkStarted=ScheduledRayQuery?FPlatformTime::Seconds():0;
     UWorld* World = GetWorld();
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
-    const int32 EndRay = FMath::Min(TotalRays, ScheduledNextRayIndex + FMath::Clamp(MaxRays, 128, 1024));
+    const int32 EndRay = FMath::Min(ScheduledRayQuery?SceneQueryReadyRays():TotalRays, ScheduledNextRayIndex + FMath::Clamp(MaxRays, 128, 1024));
     const FVector Origin = ScheduledScanTransform.GetLocation();
     FCollisionQueryParams Params(SCENE_QUERY_STAT(VirtualLidarScheduledSensor), false, GetOwner());
     const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
     const bool bEffectiveMultiHit = bUseMultiHit || bProfileMultiEcho;
     const int32 EffectiveMaxHits = bProfileMultiEcho
-        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 2)
+        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 3)
         : FMath::Max(1, MaxHitsPerRay);
 
     for (int32 RayIndex = ScheduledNextRayIndex; RayIndex < EndRay; ++RayIndex)
@@ -649,8 +652,10 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
         const int32 X = RayIndex % ScheduledScanWidth;
         const float Pitch = ScheduledVerticalAnglesDegrees[V];
         const float Yaw = ScheduledHorizontalAnglesDegrees[X];
-        const FVector Direction = ScheduledScanTransform.TransformVectorNoScale(FRotator(Pitch, Yaw, 0.0f).Vector()).GetSafeNormal();
-        const FVector End = Origin + Direction * MaxDistance;
+        const FVector LocalDirection=bSceneQueryDirectionsCached?FVector(SceneQueryDirections[RayIndex]):IndustrialLidar::Beam(DeviceProfile,RayIndex,ScheduledScanWidth,ScheduledScanHeight,FrameId+1,Pitch,Yaw).Vector();
+        const FVector Direction = ScheduledScanTransform.TransformVectorNoScale(LocalDirection).GetSafeNormal();
+        const float BeamRange=DeviceProfile==EVirtualLidarDeviceProfile::HesaiXT32&&(V<8||V>=24)?FMath::Min(MaxDistance,5000.f):MaxDistance;
+        const FVector End = Origin + Direction * BeamRange;
         FVirtualLidarPoint FirstPoint;
         InitializePhysicalPoint(
             FirstPoint,
@@ -664,8 +669,8 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
 
         if (bEffectiveMultiHit)
         {
-            TArray<FHitResult> Hits;
-            World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
+            auto& Hits=SceneQueryHits;Hits.Reset();
+            if(ScheduledRayQuery){FHitResult Hit;if(ResolveSceneQueryRay(RayIndex,Origin,End,Hit))Hits.Add(Hit);}else World->LineTraceMultiByChannel(Hits, Origin, End, TraceChannel, Params);
             int32 Added = 0;
             const int32 EchoStartIndex = ScheduledPoints.Num();
             for (const FHitResult& Hit : Hits)
@@ -693,7 +698,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
         else
         {
             FHitResult Hit;
-            bool bHit = World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
+            bool bHit = ScheduledRayQuery?ResolveSceneQueryRay(RayIndex,Origin,End,Hit):World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
             if (bHit && ShouldIgnoreHitActor(Hit.GetActor())) bHit = false;
             if (bHit)
             {
@@ -718,6 +723,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
 
     const int32 Processed = EndRay - ScheduledNextRayIndex;
     ScheduledNextRayIndex = EndRay;
+    if(ScheduledRayQuery)RecordSceneQueryWork(FPlatformTime::Seconds()-SceneWorkStarted,ScheduledNextRayIndex>=TotalRays);
     if (ScheduledNextRayIndex >= TotalRays) CompleteScheduledScan(GetWorld()->GetTimeSeconds());
     return Processed;
 }
@@ -731,7 +737,7 @@ void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoin
     const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
     const bool bEffectiveMultiHit = bUseMultiHit || bProfileMultiEcho;
     const int32 EffectiveMaxHits = bProfileMultiEcho
-        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 2)
+        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 3)
         : FMath::Max(1, MaxHitsPerRay);
     OutPoints.Reserve(TotalRays * (bEffectiveMultiHit ? EffectiveMaxHits : 1));
     OutHeatmapPixels.SetNumZeroed(TotalRays * 4);
@@ -753,8 +759,9 @@ void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoin
         {
             const int32 RayIndex = V * W + X;
             const float Yaw = HorizontalAngles[X];
-            const FVector Direction = AcquisitionTransform.TransformVectorNoScale(FRotator(Pitch, Yaw, 0.0f).Vector()).GetSafeNormal();
-            const FVector End = Origin + Direction * MaxDistance;
+            const FVector Direction = AcquisitionTransform.TransformVectorNoScale(IndustrialLidar::Beam(DeviceProfile,RayIndex,W,H,FrameId+1,Pitch,Yaw).Vector()).GetSafeNormal();
+            const float BeamRange=DeviceProfile==EVirtualLidarDeviceProfile::HesaiXT32&&(V<8||V>=24)?FMath::Min(MaxDistance,5000.f):MaxDistance;
+        const FVector End = Origin + Direction * BeamRange;
             FVirtualLidarPoint FirstPoint;
             InitializePhysicalPoint(
                 FirstPoint,

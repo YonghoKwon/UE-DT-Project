@@ -57,9 +57,9 @@ struct FHatchFeedbackProbe
     static void Check(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {
         auto& S=*M.Simulation;T.TestTrue(TEXT("default is grab unloader field layout, three live selected sensors"),S.bFieldLayout&&S.bShowUnloader&&S.CabRight&&S.CabRight->IsSensorRunning());
-        int32 Bodies=0,Unloaders=0;for(TActorIterator<AShipHatchPart>I(S.GetWorld());I;++I)if(I->ActorHasTag(TEXT("ShipHatchPreviewSensor"))){++Bodies;Unloaders+=I->ActorHasTag(TEXT("ShipHatchUnloader"));T.TestEqual(TEXT("display hardware never blocks measured rays"),I->Mesh->GetCollisionEnabled(),ECollisionEnabled::NoCollision);}
+        int32 Bodies=0,Unloaders=0;for(TActorIterator<AShipHatchPart>I(S.GetWorld());I;++I)if(I->ActorHasTag(TEXT("ShipHatchPreviewSensor"))){++Bodies;Unloaders+=I->ActorHasTag(TEXT("ShipHatchUnloader"));T.TestEqual(TEXT("only the physical GTSU blocks measured rays; sensor badges remain decorative"),I->Mesh->GetCollisionEnabled(),I->ActorHasTag(TEXT("ShipHatchUnloader"))?ECollisionEnabled::QueryOnly:ECollisionEnabled::NoCollision);}
         T.TestEqual(TEXT("three bodies plus one low-poly unloader; no high mast"),Bodies,4);T.TestEqual(TEXT("one grab unloader display"),Unloaders,1);
-        for(int32 I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestNotNull(TEXT("selected detector exists"),A);if(!A)continue;T.TestTrue(TEXT("installation SI origin equals actual sensor transform"),S.GetActorTransform().InverseTransformPosition(A->GetActorLocation()).Equals(S.SensorOrigin(I)*100,.001));T.TestEqual(TEXT("unconfirmed site default uses existing Mid360S profile"),A->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::LivoxMid360S);}
+        for(int32 I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestNotNull(TEXT("selected detector exists"),A);if(!A)continue;T.TestTrue(TEXT("installation SI origin equals actual sensor transform"),S.GetActorTransform().InverseTransformPosition(A->GetActorLocation()).Equals(S.SensorOrigin(I)*100,.001));T.TestEqual(TEXT("user-approved default: XT32 boom and unchanged Mid360S cab pair"),A->ScanComponent->DeviceProfile,I==0?EVirtualLidarDeviceProfile::HesaiXT32:EVirtualLidarDeviceProfile::LivoxMid360S);}
         T.TestTrue(TEXT("boom end is on sea +Y side of cab pair"),S.SensorOrigin(0).Y>S.SensorOrigin(1).Y&&S.SensorOrigin(0).Y>0);
         for(bool Along:{false,true})for(double N:{0.,.17,.5,.83,1.})
         {
@@ -95,7 +95,7 @@ struct FHatchFeedbackProbe
     }
     static void CloseCombo(UShipHatchMonitorWidget& M){StaticCastSharedRef<SComboBox<TSharedPtr<FString>>>(M.CargoChoice->TakeWidget())->SetIsOpen(false);if(M.bSettings)M.OnSettings();}
     static void Profile(UShipHatchMonitorWidget& M,int32 Value){M.FieldChoices[0]->SetSelectedIndex(Value);}
-    static void PrepareGrab(UShipHatchMonitorWidget& M){M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.bDigEnabled=true;}
+    static void PrepareGrab(UShipHatchMonitorWidget& M){M.Simulation->SetGrabVisible(true);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.bDigEnabled=true;}
     static bool Grab(UShipHatchMonitorWidget& M,FAutomationTestBase& Test)
     {
         auto& S=*M.Simulation;FVector2D Pixel;auto* PC=M.GetOwningPlayer();const auto G=M.GetCachedGeometry();int32 W,H;PC->GetViewportSize(W,H);
