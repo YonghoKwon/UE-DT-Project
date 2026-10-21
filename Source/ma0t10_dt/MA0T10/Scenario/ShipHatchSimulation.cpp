@@ -12,6 +12,8 @@
 #include "Engine/DirectionalLight.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Engine/TextureCube.h"
 #include "EngineUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 
@@ -81,6 +83,14 @@ void AShipHatchSimulation::BeginPlay()
     FillLight=NewObject<UPointLightComponent>(this);FillLight->SetupAttachment(GetRootComponent());FillLight->SetMobility(EComponentMobility::Movable);
     FillLight->SetCastShadows(false);FillLight->SetIntensity(8000);FillLight->SetAttenuationRadius(6500);FillLight->RegisterComponent();
     FillLight->SetRelativeLocation(FVector(0,0,HoldDepth*65));SetLighting(-25,65,5,true);Regenerate(false);
+    // The fixture has no sky geometry, so its captured skylight is black.
+    // A hatch-owned, one-time engine cubemap supplies outdoor diffuse fill on
+    // the portal's back faces without recapture, shadows or a new asset.
+    if(bRealScale)if(auto* Cube=LoadObject<UTextureCube>(nullptr,TEXT("/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap")))
+    {
+        OutdoorAmbient=NewObject<USkyLightComponent>(this,TEXT("HatchOutdoorAmbient"));OutdoorAmbient->SetupAttachment(GetRootComponent());OutdoorAmbient->SetMobility(EComponentMobility::Movable);
+        OutdoorAmbient->SourceType=SLS_SpecifiedCubemap;OutdoorAmbient->Cubemap=Cube;OutdoorAmbient->bRealTimeCapture=false;OutdoorAmbient->bLowerHemisphereIsBlack=false;OutdoorAmbient->SetIntensity(.65f);OutdoorAmbient->CastShadows=false;OutdoorAmbient->RegisterComponent();
+    }
 }
 void AShipHatchSimulation::SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill)
 {
@@ -141,7 +151,7 @@ void AShipHatchSimulation::BuildStructure()
         {Box(V,T,FVector(Sign*(S.Length+.3)*.5,0,S.Depth*.5),FVector(.3,S.Width+.6,S.Depth));
          Box(V,T,FVector(0,Sign*(S.Width+.3)*.5,S.Depth*.5),FVector(S.Length,.3,S.Depth));}
     });
-    Part(TEXT("HatchOutside"),FLinearColor(.35,.12,.09),[&](TArray<FVector>& V,TArray<int32>& T)
+    Part(TEXT("HatchOutside"),FLinearColor(.30,.15,.135),[&](TArray<FVector>& V,TArray<int32>& T)
     {
         const double L=S.Length+8,W=bRealScale?VesselBeam:S.Width+8;
         for(int32 Sign:{-1,1})
@@ -234,7 +244,7 @@ bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& H
     // Visibility is player-local in point-only mode. Physical structures still occlude
     // the height field in BOTH render modes, including the deck above hidden cargo.
     FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
-    if(!bShowUnloader&&UnloaderPresentation)Query.AddIgnoredActor(UnloaderPresentation);
+    if(!bShowUnloader&&UnloaderPresentation)Query.AddIgnoredComponent(UnloaderPresentation->Mesh);
     if(!GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query))return false;
     if(First.GetActor()==Cargo)return true;
     // Chaos may resolve a sub-centimeter sheet as its adjacent tank top first.

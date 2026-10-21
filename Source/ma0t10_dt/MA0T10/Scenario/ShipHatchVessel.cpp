@@ -52,7 +52,7 @@ void AShipHatchSimulation::BuildVessel()
  if(!bRealScale){if(Vessel)Vessel->Destroy();Vessel=nullptr;return;}
  if(!Vessel){FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Vessel=GetWorld()->SpawnActor<AShipHatchVessel>(AShipHatchVessel::StaticClass(),GetActorTransform(),P);}if(!Vessel)return;
  const double Half=VesselLength*.5,Deck=HoldDepth,Keel=KeelZ(),Water=WaterZ();
- const FLinearColor Red(.22,.035,.025),Black(.025,.035,.042),White(.57,.6,.59),DeckColor(.19,.21,.22),Cover(.12,.16,.16),Glass(.012,.035,.047),Steel(.16,.24,.27),Rope(.35,.29,.18);
+ const FLinearColor Red(.22,.035,.025),Black(.025,.035,.042),White(.57,.6,.59),DeckColor(.30,.15,.135),Cover(.46,.27,.25),Glass(.012,.035,.047),Steel(.22,.09,.065),Rope(.35,.29,.18);
  auto Breadth=[&](double X){if(X>Half-34)return VesselBeam*.5*FMath::Max(.018,FMath::Sqrt(FMath::Clamp((Half-X)/34.,0.,1.)));if(X<-Half+30)return FMath::Lerp(8.,VesselBeam*.5,FMath::Clamp((X+Half)/30.,0.,1.));return VesselBeam*.5;};
  auto SectionPoint=[&](double X,double Z,double Factor,int Sign){const double Rake=X>Half-34?4*(X-(Half-34))/34*FMath::Clamp((Deck-Z)/(Deck-Water),0.,1.):0.;return FVector(X-Rake,Sign*Breadth(X)*Factor,Z);};
  TArray<double> Stations;for(double U:{-1.,-.985,-.96,-.93,-.85,-.79,-.7,-.5,-.3,-.116,.116,.3,.5,.7,.79,.85,.90,.94,.97,.99,1.})Stations.Add(U*Half);
@@ -60,7 +60,7 @@ void AShipHatchSimulation::BuildVessel()
  for(int I=1;I<Stations.Num();++I)for(int Sign:{-1,1})for(int J=1;J<6;++J)
  {
   const auto A=SectionPoint(Stations[I-1],Levels[J-1],Factors[J-1],Sign),B=SectionPoint(Stations[I],Levels[J-1],Factors[J-1],Sign),C=SectionPoint(Stations[I],Levels[J],Factors[J],Sign),D=SectionPoint(Stations[I-1],Levels[J],Factors[J],Sign);
-  const auto Color=J<4?Red:J==4?White:Black;if(Sign>0)Hull.Quad(B,A,D,C,Color);else Hull.Quad(A,B,C,D,Color);
+  const float Wear=.88f+.12f*FMath::Abs(FMath::Sin(I*2.73+Sign));const auto Color=(J<4?Red:J==4?White:Black)*Wear;if(Sign>0)Hull.Quad(B,A,D,C,Color);else Hull.Quad(A,B,C,D,Color);
  }
  for(int I=1;I<Stations.Num();++I)Hull.Quad(SectionPoint(Stations[I-1],Keel,.72,1),SectionPoint(Stations[I],Keel,.72,1),SectionPoint(Stations[I],Keel,.72,-1),SectionPoint(Stations[I-1],Keel,.72,-1),Red);
  Hull.Quad(SectionPoint(-Half,Keel,.72,1),SectionPoint(-Half,Keel,.72,-1),SectionPoint(-Half,Deck,1,-1),SectionPoint(-Half,Deck,1,1),Black);
@@ -81,12 +81,27 @@ void AShipHatchSimulation::BuildVessel()
   for(int Sign:{-1,1})Fit.Box(FVector(X,Sign*OpeningWidth*.25,Deck+CoamingHeight+.16),FVector(OpeningLength,OpeningWidth*.5,.32),Cover);
   for(int Rib=-4;Rib<=4;++Rib)Fit.Box(FVector(X+Rib*2,0,Deck+CoamingHeight+.36),FVector(.12,OpeningWidth,.08),Steel);
  }
+ // ref4 cross-deck fittings: compact vent houses, capped vents and a pair of
+ // mooring winches. Between hatches only; no fitting covers an aperture.
+ for(int I=-4;I<4;++I)
+ {
+  const double X=(I+.5)*Pitch;
+  for(int Sign:{-1,1})
+  {
+   Fit.Box(FVector(X,Sign*15.2,Deck+.7),FVector(1.5,2.2,1.4),Cover);
+   Fit.Box(FVector(X,Sign*15.2,Deck+1.45),FVector(1.8,2.5,.14),White*.65f);
+   Fit.Box(FVector(X,Sign*19.5,Deck+.85),FVector(.55,.55,1.7),Steel);
+   Fit.Box(FVector(X+.3,Sign*19.5,Deck+1.65),FVector(1.1,.8,.3),Cover);
+   Fit.Box(FVector(X,Sign*21.5,Deck+.45),FVector(1.8,.9,.6),Black);
+   for(double Offset:{-.5,.5})Fit.Box(FVector(X+Offset,Sign*21.5,Deck+.85),FVector(.6,1.1,.6),Steel);
+  }
+ }
  // Two side-rolling panels travel only along hold breadth (+/-Y). The
  // configured47m beam leaves35cm outside each fully open11.5m panel.
  FVesselMesh Covers;
  const double PanelWidth=OpeningWidth*.5,ParkY=OpeningWidth*.75+.15,PanelZ=Deck+CoamingHeight+.56;
  // First16 vertices are the two actual panel boxes, for independent geometry QA.
- for(int Sign:{-1,1})Covers.Box(FVector(0,Sign*ParkY,PanelZ),FVector(OpeningLength+.3,PanelWidth,.36),FLinearColor(.25,.035,.02));
+ for(int Sign:{-1,1})Covers.Box(FVector(0,Sign*ParkY,PanelZ),FVector(OpeningLength+.3,PanelWidth,.36),Cover);
  for(int Sign:{-1,1})
  {
   for(int Rib=-4;Rib<=4;++Rib)Covers.Box(FVector(Rib*2.3,Sign*ParkY,PanelZ+.23),FVector(.12,PanelWidth,.10),Steel);
@@ -124,7 +139,21 @@ void AShipHatchSimulation::BuildVessel()
   Fit.Beam(FVector(X,Y,Deck),FVector(X,Y,Deck+1.1),.055,.055,White);Fit.Beam(FVector(X,Y,Deck+1.1),FVector(B,YB,Deck+1.1),.055,.055,White);
   if(FMath::Abs(X)>Half-32)Fit.Box(FVector((X+B)*.5,(Y+YB)*.5,Deck+.4),FVector(B-X,.13,.8),Black);
  }
- Fit.Box(FVector(0,QuayEdgeY()-500,QuayZ()-.6),FVector(VesselLength+1000,1000,1.2),FLinearColor(.11,.13,.14));
+ Fit.Box(FVector(0,QuayEdgeY()-500,QuayZ()-.6),FVector(VesselLength+1000,1000,1.2),FLinearColor(.25,.24,.215));
+ // Baked vertex variation: stained concrete slabs and dark rail wear, with
+ // no texture assets, per-frame material work or extra mesh components.
+ for(int IX=-22;IX<22;++IX)for(int IY=0;IY<18;++IY)
+ {
+  const double X=IX*8.,Y=QuayEdgeY()-IY*6.;const float Tone=.80f+.20f*FMath::Abs(FMath::Sin(IX*4.31+IY*7.13));
+  const FLinearColor Concrete=FLinearColor(.40,.375,.33)*Tone;
+  Fit.Quad(FVector(X+.035,Y-5.965,QuayZ()+.025),FVector(X+7.965,Y-5.965,QuayZ()+.025),FVector(X+7.965,Y-.035,QuayZ()+.025),FVector(X+.035,Y-.035,QuayZ()+.025),Concrete);
+ }
+ for(double Y:{SeaRailY(),SeaRailY()-RailSpan})
+ {
+  Fit.Box(FVector(0,Y,QuayZ()+.035),FVector(330,1.2,.025),FLinearColor(.15,.11,.075));
+  Fit.Box(FVector(0,Y,QuayZ()+.11),FVector(330,.14,.18),FLinearColor(.11,.12,.12));
+ }
+ for(double X=-140;X<145;X+=8)for(int Sign:{-1,1})Fit.Box(FVector(X,Sign*(VesselBeam*.5-.08),Deck-.35),FVector(.15,.05,.7),Red*.6f);
  for(double X:{-120.,-80.,-40.,0.,40.,80.,120.})Fit.Box(FVector(X,QuayEdgeY()+.25,Water+1.6),FVector(2,.5,3.2),Black);
  for(double X:{-126.,-108.,108.,126.})
  {

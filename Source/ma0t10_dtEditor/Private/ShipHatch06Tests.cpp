@@ -61,16 +61,28 @@ struct FHatch06Probe
  {
   const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(FVector(80,S.QuayEdgeY()-25,S.QuayZ()+1.8)*100),Target=Pose.TransformPosition(FVector(0,(S.BoomTipY()+S.SeaRailY()-S.RailSpan)*.5,(S.QuayZ()+S.HoldDepth+S.BoomHeight+16.2)*.5)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Target-P).Rotation());
  }
+ static void SideRigCamera(UShipHatchMonitorWidget& M)
+ {
+  const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(FVector(100,-22,S.QuayZ()+8)*100),Aim=Pose.TransformPosition(FVector(0,-22,S.QuayZ()+24)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());
+ }
+ static void HullSideCamera(UShipHatchMonitorWidget& M)
+ {
+  const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(FVector(75,S.QuayEdgeY()-23,S.QuayZ()+6)*100),Aim=Pose.TransformPosition(FVector(30,-S.VesselBeam*.5,S.WaterZ()+2)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());
+ }
  static void GrabCloseCamera(UShipHatchMonitorWidget& M)
  {
-  const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const double Z=S.Surface().Height(0,4)+4;const auto P=Pose.TransformPosition(FVector(8,8,S.HoldDepth+5)*100),Target=Pose.TransformPosition(FVector(0,4,Z+.4)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Target-P).Rotation());
+  const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const double Z=S.Surface().Height(0,4)+2.5;const auto P=Pose.TransformPosition(FVector(8,8,S.HoldDepth+5)*100),Target=Pose.TransformPosition(FVector(0,4,Z+.4)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Target-P).Rotation());
  }
  static void CheckDischarge(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
  {
-  T.TestTrue(TEXT("bounded visible clamshell and mist discharge meshes"),M.Overlay&&M.Overlay->BatchedMeshes.Num()==4&&M.Overlay->BatchedMeshes[1].MeshVerts.Num()>0&&M.Overlay->BatchedMeshes[1].MeshVerts.Num()<=160&&M.Overlay->BatchedMeshes[2].MeshVerts.Num()<=32&&M.Overlay->BatchedMeshes[3].MeshVerts.Num()>0);
+  const auto* Sim=M.GetSimulation();auto* Grip=Cast<UProceduralMeshComponent>(Sim->GrabPrimitive());const auto* Section=Grip?Grip->GetProcMeshSection(0):nullptr;
+  T.TestTrue(TEXT("one physical clamshell and bounded mist/stream; no duplicate overlay grab"),Sim->IsGrabVisible()&&Section&&Section->ProcVertexBuffer.Num()>500&&Section->ProcVertexBuffer.Num()<5000&&M.Overlay&&M.Overlay->BatchedMeshes.Num()==4&&M.Overlay->BatchedMeshes[1].MeshVerts.IsEmpty()&&M.Overlay->BatchedMeshes[2].MeshVerts.Num()<=32&&M.Overlay->BatchedMeshes[3].MeshVerts.Num()>0);
+  T.TestTrue(TEXT("four3.3m arms stay kinematically linked to shell angle"),Sim->GrabArmLengthErrorMeters<.001);
+
   T.TestEqual(TEXT("display effect adds no measurement collision"),M.Overlay->GetCollisionEnabled(),ECollisionEnabled::NoCollision);
  }
  static void FullRig(UShipHatchMonitorWidget& M){M.OnFrameUnloader();}
+ static void Site(UShipHatchMonitorWidget& M){M.OnSiteOverview();}
  static void FloorCamera(UShipHatchMonitorWidget& M,FVector2D Target)
  {
   const auto Pose=M.Simulation->GetActorTransform();const auto P=Pose.TransformPosition(FVector(Target.X+3,Target.Y-2,15)*100),Aim=Pose.TransformPosition(FVector(Target,0)*100);
@@ -132,7 +144,7 @@ class FHatch06Run:public IAutomationLatentCommand
    for(int Sensor=0;Sensor<3;++Sensor){const auto D=S->DiagnoseSight(Sensor,FVector(X,Y,S->Surface().Height(X,Y)));auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("sensor"),Sensor);R->SetStringField(TEXT("cause"),D.Cause.ToString());R->SetStringField(TEXT("description"),D.Description);R->SetNumberField(TEXT("distance_m"),D.DistanceMeters);R->SetNumberField(TEXT("range_m"),D.RangeMeters);R->SetNumberField(TEXT("first_x_m"),D.FirstHitMeters.X);R->SetNumberField(TEXT("first_y_m"),D.FirstHitMeters.Y);R->SetNumberField(TEXT("first_z_m"),D.FirstHitMeters.Z);Rays.Add(MakeShared<FJsonValueObject>(R));if(D.Cause==TEXT("Grab")){Grab=true;T->TestTrue(TEXT("gray-cell tooltip names actual grab first-hit cause"),M.CellTooltip(I).ToString().Contains(TEXT("그랩")));}}
    C->SetArrayField(TEXT("current_center_sightlines"),Rays);Cells.Add(MakeShared<FJsonValueObject>(C));
   }
-  Root->SetArrayField(TEXT("unobserved_cells_near_grab"),Cells);Root->SetStringField(TEXT("method"),TEXT("same-revision current cell-center first collision, separate from acquired sampling; no geometry or frame mutation"));Root->SetBoolField(TEXT("actual_grab_occlusion_found"),Grab);Save06(TEXT("visibility-diagnostics.json"),Root);T->TestTrue(TEXT("initial gray patch includes verified physical grab occlusion"),Grab);
+  Root->SetArrayField(TEXT("unobserved_cells_near_grab"),Cells);Root->SetStringField(TEXT("method"),TEXT("same-revision current cell-center first collision, separate from acquired sampling; no geometry or frame mutation"));Root->SetBoolField(TEXT("actual_grab_occlusion_found"),Grab);Save06(TEXT("visibility-diagnostics.json"),Root);T->TestTrue(TEXT("default grab-off excludes physical grab occlusion"),!Grab);
  }
  void Shot(UWorld* W,UShipHatchMonitorWidget& M,const FString& Name,bool Floor=false)
  {
@@ -181,7 +193,8 @@ public:
    if(Now-Changed<1)return false;Shot(W,M,TEXT("cargo"));DefaultEvidence(*S);DiagnoseGray(M);FHatch06Probe::Covers(M);Changed=Now;Phase=22;return false;
   }
   if(Phase==22){if(Now-Changed<1)return false;Shot(W,M,TEXT("covers-top-projection"));M.SetCameraPreset(1);FHatch06Probe::FullRig(M);Changed=Now;Phase=10;return false;}
-  if(Phase==10){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-full"));FHatch06Probe::GroundRigCamera(M);Changed=Now;Phase=19;return false;}
+  if(Phase==10){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-full"));FHatch06Probe::Site(M);Changed=Now;Phase=26;return false;}
+  if(Phase==26){if(Now-Changed<1)return false;Shot(W,M,TEXT("site-ref4-oblique"));FHatch06Probe::GroundRigCamera(M);Changed=Now;Phase=19;return false;}
   if(Phase==14){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-scale-1p8m"));S->ShowScaleReference(false);FHatch06Probe::Vessel(M);Changed=Now;Phase=13;return false;}
   if(Phase==13){if(Now-Changed<1)return false;Shot(W,M,TEXT("vessel-overview"));S->ShowWater(false);Changed=Now;Phase=15;return false;}
   if(Phase==15){if(Now-Changed<1)return false;Shot(W,M,TEXT("vessel-hull-water-hidden"));S->ShowWater(true);M.SetCameraPreset(1);FHatch06Probe::Settings(M,true);Changed=Now;Phase=2;return false;}
@@ -189,14 +202,16 @@ public:
   {
    if(Now-Changed<1)return false;FHatch06Probe::CheckLayout(*T,M);ValidateHatchPresentation(T,&M);Shot(W,M,TEXT("settings-three-views"));
    if(FParse::Param(FCommandLine::Get(),TEXT("Hatch06Manual"))){FFileHelper::SaveStringToFile(TEXT("Ready for direct Computer Use; waiting for manual.done"),*(Root06()/TEXT("manual.ready")));Phase=12;return false;}
-   FHatch06Probe::Settings(M,false);FHatch06Probe::GrabCloseCamera(M);Changed=Now;Phase=20;return false;
+   FHatch06Probe::Settings(M,false);S->SetGrabVisible(true);FHatch06Probe::GrabCloseCamera(M);Changed=Now;Phase=20;return false;
   }
   if(Phase==12)return FPaths::FileExists(Root06()/TEXT("manual.done"));
-  if(Phase==19){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-reference-ground"));M.SetCameraPreset(1);FHatch06Probe::FullRig(M);S->ShowScaleReference(true);Changed=Now;Phase=14;return false;}
+  if(Phase==19){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-reference-ground"));FHatch06Probe::SideRigCamera(M);Changed=Now;Phase=24;return false;}
+  if(Phase==24){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-reference-side"));FHatch06Probe::HullSideCamera(M);Changed=Now;Phase=25;return false;}
+  if(Phase==25){if(Now-Changed<1)return false;Shot(W,M,TEXT("vessel-quay-side"));M.SetCameraPreset(1);FHatch06Probe::FullRig(M);S->ShowScaleReference(true);Changed=Now;Phase=14;return false;}
   if(Phase==20){if(Now-Changed<1)return false;Shot(W,M,TEXT("grab-hold-close"));M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=16;return false;}
   if(Phase==16){if(Now-Changed<1)return false;FString Trace;const bool Started=FHatch06Probe::StartReferenceGrab(M,Trace);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("actual_projected_candidates"),Trace);R->SetBoolField(TEXT("accepted_production_pick"),Started);Save06(TEXT("reference-pointer-probe.json"),R);if(!T->TestTrue(TEXT("reference effect starts through production pointer path"),Started))return true;FHatch06Probe::HopperCamera(M);Changed=Now;Phase=17;return false;}
   if(Phase==17){if(Now-Changed<3.8)return false;FHatch06Probe::CheckDischarge(*T,M);Shot(W,M,TEXT("grab-hopper-discharge"));Changed=Now;Phase=18;return false;}
-  if(Phase==18){if(Now-Changed<1.6)return false;S->RestoreCargo();M.SetCameraPreset(1);FHatch06Probe::Cargo(M);for(int I=0;I<3;++I)S->SetFieldSensor(I,true,3+Model);M.SelectView(1);M.SetSplitView(true);Changed=Now;Phase=3;return false;}
+  if(Phase==18){if(Now-Changed<1.6)return false;S->SetGrabVisible(false);S->RestoreCargo();M.SetCameraPreset(1);FHatch06Probe::Cargo(M);for(int I=0;I<3;++I)S->SetFieldSensor(I,true,3+Model);M.SelectView(1);M.SetSplitView(true);Changed=Now;Phase=3;return false;}
   if(Phase==3)
   {
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;

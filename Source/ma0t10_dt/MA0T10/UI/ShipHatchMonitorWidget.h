@@ -184,6 +184,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTextBlock> PointSizeLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DensityLabel;
     UPROPERTY(Transient) TObjectPtr<UButton> DigToggle;
+    UPROPERTY(Transient) TObjectPtr<UButton> GrabDisplayToggle;
     UPROPERTY(Transient) TObjectPtr<UButton> ScanToggle;
     UPROPERTY(Transient) TArray<TObjectPtr<UButton>> SensorBadges;
     UPROPERTY(Transient) TObjectPtr<UShipHatchSensorLabelView> SensorLabelView;
@@ -208,7 +209,7 @@ private:
     bool bSync=false;
     bool bWasGenerating=false;
     bool bSplit=true,bSettings=false,bOrbit=false;
-    bool bFrameUnloader=false,bFrameVessel=false;
+    bool bFrameUnloader=false,bFrameVessel=false,bFrameSite=false;
     bool bDigEnabled=false,bDragged=false;
     bool bRightOrbit=false,bMapHeat=true,bSectionLength=true;
     double SectionNormalized=.5,FeedbackUntil=0,DischargeUntil=0;
@@ -265,6 +266,7 @@ private:
     UFUNCTION() void OnCoverage();
     UFUNCTION() void OnSensorPose();
     UFUNCTION() void OnGrabToggle(){bGrabAnimation=!bGrabAnimation;if(!bGrabAnimation){FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();bOverlayDirty=true;UpdateOverlay();}}
+    UFUNCTION() void OnGrabDisplayToggle();
     UFUNCTION() void OnGrabAspect(float V){if(Simulation.IsValid())SetGrabAspect(V);}
     void SetGrabAspect(float Value);
     UFUNCTION() void OnSea(){OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
@@ -291,11 +293,12 @@ private:
     UFUNCTION() void OnNoon();
     UFUNCTION() void OnEvening();
     UFUNCTION() void OnWorkLight();
-    UFUNCTION() void OnFrameVessel(){bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;UpdateCamera();}
+    UFUNCTION() void OnFrameVessel(){bFrameSite=false;bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;UpdateCamera();}
+    UFUNCTION() void OnSiteOverview(){SetCameraPreset(3);}
     UFUNCTION() void OnScaleReference();
     UFUNCTION() void OnWater();
-    UFUNCTION() void OnFrameUnloader(){bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;UpdateCamera();}
-    UFUNCTION() void OnFrameCargo(){bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;UpdateCamera();}
+    UFUNCTION() void OnFrameUnloader(){bFrameSite=false;bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;UpdateCamera();}
+    UFUNCTION() void OnFrameCargo(){bFrameSite=false;bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;UpdateCamera();}
     UFUNCTION() void OnFill();
     UFUNCTION() void OnGrid(float Value);
     UFUNCTION() void OnPointSize(float Value);

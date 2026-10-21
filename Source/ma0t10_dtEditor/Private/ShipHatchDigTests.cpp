@@ -52,7 +52,13 @@ struct FHatchDigProbe
     }
     static bool Click(UShipHatchMonitorWidget& M,FVector2D XY)
     {
-        FVector2D P;if(!Project(M,XY,P))return false;const uint64 Revision=M.Simulation->Revision();const auto G=M.GetCachedGeometry();
+        FVector2D P;const auto G=M.GetCachedGeometry();auto* PC=M.GetOwningPlayer();int W=0,H=0;PC->GetViewportSize(W,H);bool Found=false;
+        // Select visible cargo before sending exactly one down/up pair. The
+        // real GTSU and its labels can cover old fixture projections; both
+        // production input bounds and actual hardware collision stay enabled.
+        for(auto Candidate:{XY,XY+FVector2D(1.5,0),XY+FVector2D(0,1.5),FVector2D(7,-7),FVector2D(8,0),FVector2D(-8,0),FVector2D(7,5),FVector2D(-7,5)})
+        {if(!Project(M,Candidate,P))continue;const auto Pixel=G.AbsoluteToLocal(P)*FVector2D(W,H)/G.GetLocalSize();FVector O,D,Hit;if(PC->DeprojectScreenPositionToWorld(Pixel.X,Pixel.Y,O,D)&&M.Simulation->PickCargo(O,D,Hit)){Found=true;break;}}
+        if(!Found)return false;const uint64 Revision=M.Simulation->Revision();
         M.NativeOnMouseButtonDown(G,Pointer(P,P,true));M.NativeOnMouseButtonUp(G,Pointer(P,P,false));return M.Simulation->Revision()!=Revision;
     }
     static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)

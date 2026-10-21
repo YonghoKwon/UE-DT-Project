@@ -12,6 +12,7 @@ class ULineBatchComponent;
 class UTextRenderComponent;
 class ADirectionalLight;
 class UPointLightComponent;
+class USkyLightComponent;
 
 /** Read-only center sightline diagnostic, separate from acquired samples. */
 struct FShipHatchSight
@@ -97,6 +98,13 @@ public:
     void ShowWater(bool Enabled);
     bool IsWaterVisible() const { return bWaterVisible; }
     UPrimitiveComponent* GrabPrimitive() const;
+    /** Explicit physical presence; independent of static-crane display hiding. */
+    void SetGrabVisible(bool Enabled);
+    bool IsGrabVisible() const { return bShowGrab; }
+    void SetGrabPose(FVector ClosedLipMeters,double OpenFraction);
+    void ResetGrabPose();
+    double LastGrabMeshBuildMs=0,MaxGrabMeshBuildMs=0,GrabArmLengthErrorMeters=0;
+    int32 GrabMeshCommits=0;
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="35",ClampMax="45",Units="m")) double BoomLength=42;
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="18",ClampMax="35",Units="m")) double BoomHeight=24;
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="12",ClampMax="24",Units="m")) double CabHeight=16;
@@ -160,6 +168,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<AShipHatchVessel> Vessel;
     UPROPERTY(Transient) TObjectPtr<ADirectionalLight> KeyLight;
     UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FillLight;
+    UPROPERTY(Transient) TObjectPtr<USkyLightComponent> OutdoorAmbient;
     FRotator OriginalLightRotation;
     float OriginalLightIntensity=0;
     uint8 OriginalLightMobility=0;
@@ -180,6 +189,11 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> SensorPresentation;
     UPROPERTY(Transient) TObjectPtr<AShipHatchPart> UnloaderPresentation;
     UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> GrabPresentation;
+    bool bShowGrab=false; // DefaultOFF pending direct visual/site acceptance; instant unobstructed digging.
+    bool bGrabPoseOverride=false;
+    FVector GrabLipPose=FVector::ZeroVector;
+    double GrabOpenFraction=0;
+    void BuildGrabModel();
     UPROPERTY(Transient) TObjectPtr<UTextRenderComponent> UnloaderLabel;
     UPROPERTY(Transient) TObjectPtr<ULineBatchComponent> ScanDisplay;
     FTimerHandle ScanDisplayTimer;

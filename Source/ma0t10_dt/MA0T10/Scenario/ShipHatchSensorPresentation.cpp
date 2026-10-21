@@ -11,6 +11,8 @@
 
 namespace
 {
+bool HatchPresentationSamePositions(const FProcMeshSection* Section,const TArray<FVector>& Vertices)
+{if(!Section||Section->ProcVertexBuffer.Num()!=Vertices.Num())return false;for(int I=0;I<Vertices.Num();++I)if(!FVector(Section->ProcVertexBuffer[I].Position).Equals(Vertices[I],1.e-4))return false;return true;}
 bool InFov(const AVirtualLidarSensorActor* A,FVector World)
 {
     if(!A)return false;const auto* S=A->ScanComponent.Get();
@@ -43,8 +45,8 @@ FShipHatchSight AShipHatchSimulation::DiagnoseSight(int32 I,FVector Target) cons
     FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchCellDiagnostic),true);
     if(!GetWorld()->LineTraceSingleByChannel(Hit,Origin,World+(World-Origin).GetSafeNormal()*.5,ECC_Visibility,Query))return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
     R.FirstHitMeters=GetActorTransform().InverseTransformPosition(Hit.ImpactPoint)*.01;
-    if(FVector::Distance(Hit.ImpactPoint,World)<8)return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
     if(Hit.GetComponent()==GrabPresentation)return Cause(TEXT("Grab"),TEXT("차폐: 그랩·로프"));
+    if(FVector::Distance(Hit.ImpactPoint,World)<8)return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
     if(Hit.GetActor()==UnloaderPresentation)
     {
         const auto P=R.FirstHitMeters;if(FMath::Abs(P.X-CabX)<3&&FMath::Abs(P.Y-CabY)<2&&P.Z<HoldDepth+CabHeight+3)return Cause(TEXT("Cab"),TEXT("차폐: 운전실"));
@@ -67,7 +69,7 @@ FVector AShipHatchSimulation::SensorOrigin(int32 I) const
 bool AShipHatchSimulation::VisibleFromSensor(int32 I,FVector Target) const
 {
     if(!SensorEnabled(I)||!ShipHatch::ThroughOpening(Current.Settings,SensorOrigin(I),Target)||!InFov(SensorAt(I),GetActorTransform().TransformPosition(Target*100)))return false;
-    if(GrabPresentation){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrabCoverage),true);if(GrabPresentation->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
+    if(bShowGrab&&GrabPresentation){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrabCoverage),true);if(GrabPresentation->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
     if(Vessel){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchVesselCoverage),true);if(Vessel->Mesh->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
     if(UnloaderPresentation)
     {
@@ -82,7 +84,7 @@ void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
     if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
     ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }
-void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation)UnloaderPresentation->SetActorHiddenInGame(!Enabled);}
+void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation){UnloaderPresentation->SetActorHiddenInGame(false);UnloaderPresentation->Mesh->SetVisibility(Enabled,false);if(UnloaderLabel)UnloaderLabel->SetVisibility(Enabled);if(GrabPresentation)GrabPresentation->SetVisibility(bShowGrab);}}
 void AShipHatchSimulation::ApplyUnloader()
 {
     if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;GrabPresentation=nullptr;UnloaderLabel=nullptr;return;}
@@ -99,7 +101,7 @@ void AShipHatchSimulation::ApplyUnloader()
     HatchPresentationBox(V,T,FVector(CabX,CabY,HoldDepth+CabHeight+1.6),FVector(5,2.8,2));
     HatchPresentationBox(V,T,FVector(0,CabY,H+.4),FVector(2,2.4,.6)); // grab trolley
     TArray<FVector> N;N.Init(FVector::UpVector,V.Num());auto* M=UnloaderPresentation->Mesh.Get();
-    if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num())M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());
+    if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num()){if(!HatchPresentationSamePositions(M->GetProcMeshSection(0),V))M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());}
     else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),true);
     BuildUnloaderDetails();
     if(!UnloaderLabel){UnloaderLabel=NewObject<UTextRenderComponent>(UnloaderPresentation);UnloaderLabel->SetupAttachment(M);UnloaderLabel->SetText(FText::FromString(TEXT("GTSU 10")));UnloaderLabel->SetHorizontalAlignment(EHTA_Center);UnloaderLabel->SetWorldSize(110);UnloaderLabel->SetTextRenderColor(FColor(245,220,110));UnloaderLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);UnloaderLabel->SetHiddenInSceneCapture(true);UnloaderLabel->SetCastShadow(false);UnloaderLabel->RegisterComponent();}

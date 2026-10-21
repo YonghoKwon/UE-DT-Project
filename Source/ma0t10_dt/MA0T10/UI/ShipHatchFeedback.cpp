@@ -60,11 +60,12 @@ void UShipHatchMonitorWidget::FocusAt(FVector2D XY)
     Focus=FVector2D(FMath::Clamp(XY.X,-Simulation->HoldLength*.5,Simulation->HoldLength*.5),FMath::Clamp(XY.Y,-Simulation->HoldWidth*.5,Simulation->HoldWidth*.5));UpdateCamera();
 }
 void UShipHatchMonitorWidget::RestoreFeedbackGrab()
-{if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;}
+{if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid())Simulation->ResetGrabPose();}
 void UShipHatchMonitorWidget::UpdateOverlay()
 {
     const auto* S=GetSurface();if(!S||S->Heights.IsEmpty()||!Host.IsValid())return;
     const double Clock=FPlatformTime::Seconds();
+    if(!Simulation->IsGrabVisible()){FeedbackUntil=DischargeUntil=0;}
     if(Simulation->Revision()!=FeedbackRevision){FeedbackUntil=DischargeUntil=0;}
     const bool Feedback=FeedbackUntil>Clock,Carry=DischargeUntil>Clock,Running=Feedback||Carry;
     if(!Running)RestoreFeedbackGrab();
@@ -90,24 +91,10 @@ void UShipHatchMonitorWidget::UpdateOverlay()
         const double Radius=RadiusMeters*100*(1.1-.1*T);const FLinearColor Color(1,.7,.1,T);
         for(int32 I=0;I<32;++I){const double A=2*PI*I/32,B=2*PI*(I+1)/32;Lines.Emplace(Center+FVector(FMath::Cos(A),FMath::Sin(A),0)*Radius,Center+FVector(FMath::Cos(B),FMath::Sin(B),0)*Radius,Color,0.f,2.f,SDPG_World);}
         Lines.Emplace(Center+FVector(0,0,150*T),Center,Color,0.f,3.f,SDPG_World);
-        // Six 5Hz phases over 1.2s: descend, close two jaws, then lift.
-        const double Phase=1-T,Lift=Phase<.35?1-Phase/.35:Phase>.65?(Phase-.65)/.35:0;
-        const double Open=Phase<.35?1:Phase<.65?1-(Phase-.35)/.3:0;
-        const FVector Bucket=Center+FVector(0,0,50+Lift*350);const double JawHalf=RadiusMeters*70;
-        for(int Sign:{-1,1})
-        {
-            const FVector A=Bucket+FVector(-JawHalf,Sign*(20+Open*JawHalf),60),B=Bucket+FVector(JawHalf,Sign*(20+Open*JawHalf),60);
-            const FVector C=Bucket+FVector(-JawHalf,Sign*Open*JawHalf*.4,-30),D=Bucket+FVector(JawHalf,Sign*Open*JawHalf*.4,-30);
-            for(auto Pair:{TPair<FVector,FVector>(A,B),TPair<FVector,FVector>(B,D),TPair<FVector,FVector>(D,C),TPair<FVector,FVector>(C,A),TPair<FVector,FVector>(A,Bucket+FVector(0,0,100)),TPair<FVector,FVector>(B,Bucket+FVector(0,0,100))})Lines.Emplace(Pair.Key,Pair.Value,FLinearColor(1,.7,.1),0.f,3.f,SDPG_World);
-        }
     }
     if(Running)
     {
-        // Same map-local presentation path as HATCH04. Physical collision and
-        // immutable acquisitions keep their parked rig; hide it only in this
-        // player's view while the display effect is active.
-        if(auto* PC=GetOwningPlayer())if(auto* Grip=Simulation->GrabPrimitive())if(!FeedbackGrabHidden.IsValid()&&!PC->HiddenPrimitiveComponents.Contains(Grip)){PC->HiddenPrimitiveComponents.Add(Grip);FeedbackGrabHidden=Grip;bFeedbackOwnsGrabHide=true;}
-        auto& Solid=Meshes[1];auto& Mist=Meshes[2];auto& Stream=Meshes[3];Solid.Color=FColor(75,80,76,255);Mist.Color=FColor(100,150,165,12);Stream.Color=Simulation->bCoal?FColor(35,38,40,190):FColor(105,75,52,190);
+        auto& Mist=Meshes[2];auto& Stream=Meshes[3];Mist.Color=FColor(100,150,165,12);Stream.Color=Simulation->bCoal?FColor(35,38,40,190):FColor(105,75,52,190);
         auto W=[&](FVector P){return Simulation->GetActorTransform().TransformPosition(P*100);};
         auto Quad=[&](FBatchedMesh& Mesh,FVector A,FVector B,FVector C,FVector D){const int N=Mesh.MeshVerts.Num();for(auto P:{A,B,C,D})Mesh.MeshVerts.Add(W(P));Mesh.MeshIndices.Append({N,N+1,N+2,N,N+2,N+3,N,N+2,N+1,N,N+3,N+2});};
         const double Post=FMath::Clamp(4.-(DischargeUntil-Now),0.,4.);const double HopperY=Simulation->SeaRailY()-Simulation->RailSpan*.5,HopperTop=Simulation->QuayZ()+15,SafeZ=FMath::Max(HopperTop+4,Simulation->HoldDepth+9);
@@ -115,16 +102,10 @@ void UShipHatchMonitorWidget::UpdateOverlay()
         if(Feedback){const double Phase=1-FMath::Clamp((FeedbackUntil-Now)/1.2,0.,1.),Lift=Phase<.35?1-Phase/.35:Phase>.65?(Phase-.65)/.35:0;Bucket.Z=S->Height(Bucket.X,Bucket.Y)+.6+Lift*3.5;Open=Phase<.35?1:Phase<.65?1-(Phase-.35)/.3:0;}
         else if(Post<1)Bucket.Z=FMath::Lerp(Bucket.Z,SafeZ,Post);
         else {const double Move=FMath::Clamp((Post-1)/1.2,0.,1.);Bucket.X=FMath::Lerp(Bucket.X,0.,Move);Bucket.Y=FMath::Lerp(Bucket.Y,HopperY,Move);Bucket.Z=SafeZ;Open=FMath::Clamp((Post-2.2)/.5,0.,1.);}
-        for(int Sign:{-1,1})
-        {
-            auto Jaw=[&](int I,double Y){const double A=PI*.5*I/4;return Bucket+FVector(Sign*(2*FMath::Cos(A)+Open*1.4*FMath::Sin(A)),Y,1.2-2.4*FMath::Sin(A));};
-            for(int I=0;I<4;++I){Quad(Solid,Jaw(I,-2.2),Jaw(I,2.2),Jaw(I+1,2.2),Jaw(I+1,-2.2));for(double Y:{-2.2,2.2})Quad(Solid,Bucket+FVector(0,Y,1.2),Jaw(I,Y),Jaw(I+1,Y),Bucket+FVector(0,Y,1.2));}
-            for(int Side:{-1,1}){const FVector A=Bucket+FVector(Sign*.55,Side*.4,1.7),B(Bucket.X+Sign*.55,Bucket.Y+Side*.4,Simulation->HoldDepth+Simulation->BoomHeight+1.2);Lines.Emplace(W(A),W(B),FLinearColor(.3,.35,.3),0.f,1.f,SDPG_World);}
-        }
-        for(int X:{-1,1})for(int Y:{-1,1})for(int I=0;I<8;++I){const double A=2*PI*I/8,B=2*PI*(I+1)/8;const FVector Center=Bucket+FVector(X*.55,Y*.4,1.75);Lines.Emplace(W(Center+FVector(0,.4*FMath::Cos(A),.4*FMath::Sin(A))),W(Center+FVector(0,.4*FMath::Cos(B),.4*FMath::Sin(B))),FLinearColor(.12,.14,.12),0.f,2.f,SDPG_World);}
+        Simulation->SetGrabPose(Bucket,Open);
         if(!Feedback&&Post>2.2)
         {
-            for(int I=0;I<4;++I){const double X=(I-1.5)*.35,Y=HopperY+FMath::Sin(Post*12+I)*.2;Quad(Stream,FVector(X-.15,Y,Bucket.Z-1.2),FVector(X+.15,Y,Bucket.Z-1.2),FVector(X+.3,Y,HopperTop-4),FVector(X-.3,Y,HopperTop-4));}
+            for(int I=0;I<4;++I){const double X=(I-1.5)*.35,Y=HopperY+FMath::Sin(Post*12+I)*.2;Quad(Stream,FVector(X-.15,Y,Bucket.Z+.8),FVector(X+.15,Y,Bucket.Z+.8),FVector(X+.3,Y,HopperTop-4),FVector(X-.3,Y,HopperTop-4));}
             for(int I=0;I<8;++I){const double X=(I-3.5)*.85,Y=HopperY+FMath::Sin(I*2.)*.8,H=.6+FMath::Sin(Post*5+I)*.2;Quad(Mist,FVector(X-.25,Y,HopperTop-.5),FVector(X+.25,Y,HopperTop-.5),FVector(X+.4,Y,HopperTop+H),FVector(X-.4,Y,HopperTop+H));}
         }
     }
@@ -169,4 +150,9 @@ void UShipHatchMonitorWidget::OnSensorPose()
     auto* S=Simulation.Get();if(!S||S->IsGenerating()||SensorPoseInputs.Num()!=15)return;
     for(int32 I=0;I<3;++I){S->SensorOffsets[I]=FVector(SensorPoseInputs[I*5]->GetValue(),SensorPoseInputs[I*5+1]->GetValue(),SensorPoseInputs[I*5+2]->GetValue()-(I==0?S->BoomHeight:S->CabHeight));S->SensorTiltTrim[I]=SensorPoseInputs[I*5+3]->GetValue();S->SensorYaw[I]=SensorPoseInputs[I*5+4]->GetValue();}
     S->bFieldLayout=true;S->RefreshFieldLayout();UpdateCamera();
+}
+
+void UShipHatchMonitorWidget::OnGrabDisplayToggle()
+{
+ if(!Simulation.IsValid())return;FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();Simulation->SetGrabVisible(!Simulation->IsGrabVisible());bOverlayDirty=true;LastOverlayUpdate=0;UpdateOverlay();Refresh();
 }

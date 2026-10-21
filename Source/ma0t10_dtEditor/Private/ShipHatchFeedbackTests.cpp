@@ -95,7 +95,7 @@ struct FHatchFeedbackProbe
     }
     static void CloseCombo(UShipHatchMonitorWidget& M){StaticCastSharedRef<SComboBox<TSharedPtr<FString>>>(M.CargoChoice->TakeWidget())->SetIsOpen(false);if(M.bSettings)M.OnSettings();}
     static void Profile(UShipHatchMonitorWidget& M,int32 Value){M.FieldChoices[0]->SetSelectedIndex(Value);}
-    static void PrepareGrab(UShipHatchMonitorWidget& M){M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.bDigEnabled=true;}
+    static void PrepareGrab(UShipHatchMonitorWidget& M){M.Simulation->SetGrabVisible(true);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.bDigEnabled=true;}
     static bool Grab(UShipHatchMonitorWidget& M,FAutomationTestBase& Test)
     {
         auto& S=*M.Simulation;FVector2D Pixel;auto* PC=M.GetOwningPlayer();const auto G=M.GetCachedGeometry();int32 W,H;PC->GetViewportSize(W,H);
