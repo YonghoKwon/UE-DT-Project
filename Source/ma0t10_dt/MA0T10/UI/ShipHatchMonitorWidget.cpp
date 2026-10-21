@@ -137,7 +137,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     TopView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();TopView->Monitor=this;TopCache=WidgetTree->ConstructWidget<UInvalidationBox>();TopCache->SetCanCache(true);TopCache->SetContent(TopView);MapSwitcher->AddChild(TopCache);
     HeatView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();HeatView->Monitor=this;HeatView->bHeatmap=true;HeatCache=WidgetTree->ConstructWidget<UInvalidationBox>();HeatCache->SetCanCache(true);HeatCache->SetContent(HeatView);MapSwitcher->AddChild(HeatCache);MapSwitcher->SetActiveWidgetIndex(1);
     CoverageText=Label(TEXT("센서별 측정 준비 중"),Style::LabelSize,false,Style::Muted());CoverageText->SetAutoWrapText(true);
-    TopBox->AddChildToVerticalBox(Label(TEXT("청록 카메라 · 노랑 단면선 드래그 · 회색 미관측: 격자 툴팁"),Style::LabelSize,false,Style::Muted()));
+    TopBox->AddChildToVerticalBox(Label(TEXT("청록 카메라 · 노랑 단면선 · 회색 미관측(툴팁)"),Style::LabelSize,false,Style::Muted()));
     auto* Section=Card(TEXT("HatchSectionCard"));Add(Section);auto* SectionBox=WidgetTree->ConstructWidget<UVerticalBox>();Section->SetContent(SectionBox);
     auto* SectionHead=WidgetTree->ConstructWidget<UHorizontalBox>();SectionBox->AddChildToVerticalBox(SectionHead);
     SectionHead->AddChildToHorizontalBox(Label(TEXT("홀드 단면"),Style::BodySize,true))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -165,7 +165,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     const TCHAR* SensorNames[]={TEXT("붐 끝 · 장비"),TEXT("운전실 좌 · 장비"),TEXT("운전실 우 · 장비")};
     for(int32 I=0;I<3;++I){auto* C=Choice(SensorNames[I],{TEXT("끄기"),TEXT("ML-X80 Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X80 Native"),TEXT("Livox Mid-360"),TEXT("Livox Avia"),TEXT("Ouster OS1-64 Rev05"),TEXT("Hesai XT32"),TEXT("Velodyne VLP-16")});C->SetSelectedIndex(2);FieldChoices.Add(C);}
     FieldChoices[0]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldA);FieldChoices[1]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldB);FieldChoices[2]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldC);
-    Box->AddChildToVerticalBox(Label(TEXT("현장 모델 확인 필요 · 기본 Mid-360S 3대"),Style::LabelSize,false,Style::Warning()));
+    auto* SiteModelNote=Label(TEXT("현장 모델 확인 필요\n기본: 붐 XT32 · 운전실 Mid-360S 2대"),Style::LabelSize,false,Style::Warning());SiteModelNote->SetAutoWrapText(true);Box->AddChildToVerticalBox(SiteModelNote);
     Box->AddChildToVerticalBox(Button(TEXT("하역기 표시 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUnloaderToggle)));
     Box->AddChildToVerticalBox(Button(TEXT("센서별 색 구분 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSensorColors)));
     Box->AddChildToVerticalBox(Button(TEXT("예상 FOV 기여/사각 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnCoverage)));

@@ -103,7 +103,7 @@ public:
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabX=0;
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabY=-2;
     bool bCabRight=true;
-    int32 FieldProfiles[3]={1,1,1}; // 0=ML-X80 Integration200, 1=Mid-360S; site models unconfirmed.
+    int32 FieldProfiles[3]={6,1,1}; // User2026-10-21: boom XT32, cab pair Mid-360S; site hardware unconfirmed.
     FVector SensorOffsets[3]={FVector::ZeroVector,FVector::ZeroVector,FVector::ZeroVector};
     double SensorTiltTrim[3]={0,0,0},SensorYaw[3]={0,0,0};
     double GrabAspect=1.4;

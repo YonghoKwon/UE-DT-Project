@@ -28,6 +28,8 @@
 #include "ma0t10_dt/MA0T10/UI/ShipHatchOverlay.h"
 #include "Camera/CameraActor.h"
 
+void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
+
 struct FHatch06Probe
 {
  static void Cargo(UShipHatchMonitorWidget& M){M.OnFrameCargo();}
@@ -74,7 +76,7 @@ struct FHatch06Probe
  }
  static void Scale(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
  {
-  auto& S=*M.Simulation;FString Error;T.TestTrue(TEXT("live vessel and rig dimensions satisfy real-scale ranges"),S.ValidateSceneScale(Error));
+  auto& S=*M.Simulation;T.TestEqual(TEXT("user2026-10-21 default boom is XT32"),S.SensorAt(0)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::HesaiXT32);for(int I=1;I<3;++I)T.TestEqual(TEXT("cab defaults remain Mid360S"),S.SensorAt(I)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::LivoxMid360S);FString Error;T.TestTrue(TEXT("live vessel and rig dimensions satisfy real-scale ranges"),S.ValidateSceneScale(Error));
   T.TestTrue(TEXT("rail is on land side of quay edge; boom reaches into vessel"),S.SeaRailY()<S.QuayEdgeY()&&S.QuayEdgeY()<-S.VesselBeam*.5&&S.BoomTipY()>0&&S.BoomTipY()<S.VesselBeam*.5);
   T.TestTrue(TEXT("tank top is reachable within reference25m hoist below rail"),S.QuayZ()>0&&S.QuayZ()<25);
   const double Saved=S.VesselLength;S.VesselLength=120;T.TestFalse(TEXT("unrealistic short vessel is rejected"),S.ValidateSceneScale(Error));S.VesselLength=Saved;
@@ -101,12 +103,16 @@ class FHatch06Run:public IAutomationLatentCommand
  TArray<double> Engine,Game,Wall;TArray<TSharedPtr<FJsonValue>> Rows;TUniquePtr<TGuardValue<bool>> Messages;
  FVector2D Target;uint32 OriginalHash=0;uint64 RssBefore=0;
  TSharedPtr<FJsonObject> LowBoomBefore;
- TSharedRef<FJsonObject> BoomEvidence(const AShipHatchSimulation& S)
+ TSharedRef<FJsonObject> BoomEvidence(const AShipHatchSimulation& S,int Sensor=0)
  {
-  auto R=MakeShared<FJsonObject>();const auto* A=S.SensorAt(0);const auto Frame=A->ScanComponent->GetLastFrameSnapshot();TArray<ShipHatch::FObservation> Points;int Floor=0;
+  auto R=MakeShared<FJsonObject>();const auto* A=S.SensorAt(Sensor);const auto Frame=A->ScanComponent->GetLastFrameSnapshot();TArray<ShipHatch::FObservation> Points;int Floor=0;
   if(Frame&&Frame->Points)for(const auto& P:*Frame->Points)if(P.bHit){if(P.SemanticLabel==TEXT("HatchCargo"))Points.Add({S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});if(P.SemanticLabel==TEXT("HatchHold")&&FMath::Abs(S.GetActorTransform().InverseTransformPosition(P.WorldLocation).Z)<2)++Floor;}
-  const auto Analysis=ShipHatch::Analyze(S.Settings(),1,Points);const auto Sight=S.DiagnoseSight(0,FVector::ZeroVector);
-  R->SetStringField(TEXT("model"),A->ScanComponent->DeviceSpec.Model);R->SetNumberField(TEXT("cargo_points"),Points.Num());R->SetNumberField(TEXT("floor_points"),Floor);R->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);R->SetStringField(TEXT("floor_center_cause"),Sight.Cause.ToString());R->SetNumberField(TEXT("floor_center_distance_m"),Sight.DistanceMeters);R->SetNumberField(TEXT("range_m"),Sight.RangeMeters);R->SetNumberField(TEXT("mount_z_m"),S.SensorOrigin(0).Z);return R;
+  const auto Analysis=ShipHatch::Analyze(S.Settings(),1,Points);const auto Sight=S.DiagnoseSight(Sensor,FVector::ZeroVector);
+  R->SetStringField(TEXT("model"),A->ScanComponent->DeviceSpec.Model);R->SetNumberField(TEXT("cargo_points"),Points.Num());R->SetNumberField(TEXT("floor_points"),Floor);R->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);R->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));R->SetStringField(TEXT("floor_center_cause"),Sight.Cause.ToString());R->SetNumberField(TEXT("floor_center_distance_m"),Sight.DistanceMeters);R->SetNumberField(TEXT("range_m"),Sight.RangeMeters);R->SetNumberField(TEXT("mount_z_m"),S.SensorOrigin(Sensor).Z);R->SetNumberField(TEXT("requested_hz"),1.f/A->ScanComponent->ScanInterval);R->SetNumberField(TEXT("measured_hz"),A->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz);if(Frame){R->SetNumberField(TEXT("frame_id"),double(Frame->FrameId));R->SetNumberField(TEXT("requested_rays"),Frame->RequestedRayCount);}return R;
+ }
+ void DefaultEvidence(const AShipHatchSimulation& S)
+ {
+  auto R=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Devices;for(int I=0;I<3;++I){auto D=BoomEvidence(S,I);if(I==0)T->TestTrue(TEXT("new XT32 default contributes at least50percent initial hold coverage"),D->GetNumberField(TEXT("observed_percent"))>=50);Devices.Add(MakeShared<FJsonValueObject>(D));}R->SetArrayField(TEXT("sensors"),Devices);TArray<ShipHatch::FObservation> Points;S.CollectObservations(Points);const auto A=ShipHatch::Analyze(S.Settings(),1,Points);R->SetNumberField(TEXT("combined_observed_percent"),100*A.Coverage);R->SetNumberField(TEXT("combined_unobserved_percent"),100*(1-A.Coverage));R->SetStringField(TEXT("authorization"),TEXT("user2026-10-21: boom XT32; cab Mid360S pair unchanged; performance/RSS gates unchanged"));Save06(TEXT("default-configuration.json"),R);
  }
  void DiagnoseGray(UShipHatchMonitorWidget& M)
  {
@@ -164,7 +170,7 @@ public:
   }
   if(Phase==1)
   {
-   if(Now-Changed<1)return false;Shot(W,M,TEXT("cargo"));DiagnoseGray(M);FHatch06Probe::Covers(M);Changed=Now;Phase=22;return false;
+   if(Now-Changed<1)return false;Shot(W,M,TEXT("cargo"));DefaultEvidence(*S);DiagnoseGray(M);FHatch06Probe::Covers(M);Changed=Now;Phase=22;return false;
   }
   if(Phase==22){if(Now-Changed<1)return false;Shot(W,M,TEXT("covers-top-projection"));M.SetCameraPreset(1);FHatch06Probe::FullRig(M);Changed=Now;Phase=10;return false;}
   if(Phase==10){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-full"));FHatch06Probe::GroundRigCamera(M);Changed=Now;Phase=19;return false;}
@@ -173,7 +179,7 @@ public:
   if(Phase==15){if(Now-Changed<1)return false;Shot(W,M,TEXT("vessel-hull-water-hidden"));S->ShowWater(true);M.SetCameraPreset(1);FHatch06Probe::Settings(M,true);Changed=Now;Phase=2;return false;}
   if(Phase==2)
   {
-   if(Now-Changed<1)return false;FHatch06Probe::CheckLayout(*T,M);Shot(W,M,TEXT("settings-three-views"));
+   if(Now-Changed<1)return false;FHatch06Probe::CheckLayout(*T,M);ValidateHatchPresentation(T,&M);Shot(W,M,TEXT("settings-three-views"));
    if(FParse::Param(FCommandLine::Get(),TEXT("Hatch06Manual"))){FFileHelper::SaveStringToFile(TEXT("Ready for direct Computer Use; waiting for manual.done"),*(Root06()/TEXT("manual.ready")));Phase=12;return false;}
    FHatch06Probe::Settings(M,false);FHatch06Probe::GrabCloseCamera(M);Changed=Now;Phase=20;return false;
   }
@@ -207,7 +213,7 @@ public:
   if(Phase==5)
   {
    if(Now-Changed<1)return false;Shot(W,M,FString::Printf(TEXT("model-%d"),Model));if(++Model<5){for(int I=0;I<3;++I)S->SetFieldSensor(I,true,3+Model);Changed=Now;Phase=3;return false;}
-   for(int I=0;I<3;++I)S->SetFieldSensor(I,true,1);S->bCoal=false;S->FillMin=35;S->FillMax=65;S->Regenerate(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(0);Changed=Now;Phase=6;return false;
+   for(int I=0;I<3;++I)S->SetFieldSensor(I,true,I==0?6:1);S->bCoal=false;S->FillMin=35;S->FillMax=65;S->Regenerate(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(0);Changed=Now;Phase=6;return false;
   }
   if(Phase==6)
   {
@@ -231,16 +237,19 @@ public:
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<2)return false;
    Shot(W,M,FString::Printf(TEXT("%s-full-floor-%s"),Material?TEXT("coal"):TEXT("iron"),View==0?TEXT("3d"):View==1?TEXT("points"):TEXT("section")),View==0);
    if(++View<3){M.SelectView(View==1?1:4);if(View==2)M.SetSection(true,Target.Y/S->HoldWidth+.5);Changed=Now;return false;}
-   if(Material==1){LowBoomBefore=BoomEvidence(*S);T->TestEqual(TEXT("40m boom model cannot reach actual empty floor center"),LowBoomBefore->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));S->SetFieldSensor(0,true,6);M.SelectView(1);M.SetSplitView(true);M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=21;return false;}
+   if(Material==1){LowBoomBefore=BoomEvidence(*S);T->TestTrue(TEXT("new default XT32 boom observes actual exposed floor"),LowBoomBefore->GetNumberField(TEXT("floor_points"))>0);S->SetFieldSensor(0,true,1);M.SelectView(1);M.SetSplitView(true);M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=21;return false;}
    T->TestTrue(TEXT("undo restores a prior physical excavation"),S->UndoDig());T->TestTrue(TEXT("restore returns bit-exact original detail"),S->RestoreCargo()&&S->Surface().Hash()==OriginalHash);
    if(Material++==0){S->bCoal=true;S->Regenerate(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(0);Changed=Now;Phase=6;return false;}
    auto Done=MakeShared<FJsonObject>();Done->SetBoolField(TEXT("valid"),!T->HasAnyErrors());Done->SetArrayField(TEXT("models"),Rows);Save06(TEXT("acceptance.json"),Done);return true;
   }
   if(Phase==21)
   {
-   if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;const auto After=BoomEvidence(*S);auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("default_mid360s"),LowBoomBefore);R->SetObjectField(TEXT("recommended_xt32"),After);Save06(TEXT("low-fill-boom-comparison.json"),R);
-   T->TestEqual(TEXT("recommended model keeps actual boom mounting position"),After->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestTrue(TEXT("longer-range boom model measures real exposed steel floor"),After->GetNumberField(TEXT("floor_points"))>0);T->TestTrue(TEXT("longer-range model increases low-fill boom coverage"),After->GetNumberField(TEXT("observed_percent"))>LowBoomBefore->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-xt32"));S->SetFieldSensor(0,true,1);
-   T->TestTrue(TEXT("undo restores a prior physical excavation"),S->UndoDig());T->TestTrue(TEXT("restore returns bit-exact original detail"),S->RestoreCargo()&&S->Surface().Hash()==OriginalHash);auto Done=MakeShared<FJsonObject>();Done->SetBoolField(TEXT("valid"),!T->HasAnyErrors());Done->SetArrayField(TEXT("models"),Rows);Save06(TEXT("acceptance.json"),Done);return true;
+   if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;const auto Mid=BoomEvidence(*S);auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("default_xt32"),LowBoomBefore);R->SetObjectField(TEXT("comparison_mid360s_40m"),Mid);Save06(TEXT("low-fill-boom-comparison.json"),R);
+   T->TestEqual(TEXT("40m comparison keeps actual boom mounting position"),Mid->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestEqual(TEXT("40m comparison cannot reach empty floor center"),Mid->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));T->TestTrue(TEXT("new default XT32 increases actual low-fill boom coverage over40m comparison"),LowBoomBefore->GetNumberField(TEXT("observed_percent"))>Mid->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-mid360s-40m"));S->SetFieldSensor(0,true,6);Changed=Now;Phase=23;return false;
+  }
+  if(Phase==23)
+  {
+   if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<2)return false;Shot(W,M,TEXT("coal-low-fill-boom-xt32-default"));T->TestTrue(TEXT("undo restores a prior physical excavation"),S->UndoDig());T->TestTrue(TEXT("restore returns bit-exact original detail"),S->RestoreCargo()&&S->Surface().Hash()==OriginalHash);auto Done=MakeShared<FJsonObject>();Done->SetBoolField(TEXT("valid"),!T->HasAnyErrors());Done->SetArrayField(TEXT("models"),Rows);Save06(TEXT("acceptance.json"),Done);return true;
   }
   return false;
  }
