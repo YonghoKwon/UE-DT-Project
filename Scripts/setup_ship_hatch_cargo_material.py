@@ -1,6 +1,6 @@
 """HATCH-06: rebuild only the explicitly approved single cargo material.
 
-No map or existing material is saved. Shared iron/coal MID parameters, procedural
+Only the approved M_HatchCargo is saved; no map is saved. Shared iron/coal MID parameters, procedural
 angular clasts and fine grain; no imported textures, WPO or measurement geometry.
 """
 import unreal
@@ -40,10 +40,11 @@ def custom(code, inputs, output, x, y):
     n.set_editor_property('code', code)
     n.set_editor_property('output_type', output)
     pins = []
-    for name, source in inputs:
+    for entry in inputs:
+        name, source = entry[:2]
         p = unreal.CustomInput(); p.set_editor_property('input_name', name); pins.append(p)
     n.set_editor_property('inputs', pins)
-    for name, source in inputs: link(source, n, name)
+    for entry in inputs: link(entry[1], n, entry[0], entry[2] if len(entry) > 2 else '')
     return n
 
 pos = node(unreal.MaterialExpressionWorldPosition, -1200, 0)
@@ -64,28 +65,60 @@ float d1=9,d2=9,id=0;
 float edge=smoothstep(0.018,0.13,d2-d1);
 float fine=lerp(.5,frac(sin(dot(floor(P*2),float3(12.9898,78.233,37.719)))*43758.5453),saturate(2-footprint));
 float face=saturate(1-sqrt(d1));
-float wet=.5+.5*sin(P.x*.011+sin(P.y*.013));
-float rill=.5+.5*sin(P.x*.19+sin(P.y*.04)*3);
-float3 grain=float3((0.52+id*0.65)*(0.7+edge*0.3)+(fine-.5)*.12+(rill-.5)*.08,edge*(.35+face*.65)+fine*.08,wet);
-return lerp(float3(1,.5,wet),grain,saturate(lerp(3.2,6.0,Coal)/max(footprint,1.0)));
+// A second18-28cm aggregate scale survives the wide hold camera; tiny grains
+// fade by screen derivatives instead of turning into a distant noise shimmer.
+float2 coarse=P.xy/lerp(18.,28.,Coal),cg=floor(coarse),cf=frac(coarse);
+float cd=9,cid=0;
+[unroll] for(int y=-1;y<=1;y++) [unroll] for(int x=-1;x<=1;x++) {
+ float2 k=float2(x,y);float2 h=frac(sin(float2(dot(cg+k,float2(127.1,311.7)),dot(cg+k,float2(269.5,183.3))))*43758.5453);
+ float2 r=k+h-cf;float dist=lerp(dot(r,r),max(abs(r.x),abs(r.y)),Coal*.65);
+ if(dist<cd){cd=dist;cid=h.x;}
+}
+float largeFade=saturate(lerp(18.,28.,Coal)/max(footprint*1.5,1.));
+float macro=.5+.25*sin(P.x*.007+sin(P.y*.009)*2)+.25*sin(P.y*.013+P.x*.003);
+float wet=saturate(macro*.8+cid*.25);
+float dust=smoothstep(.55,.8,.5+.5*sin(P.x*.032+sin(P.y*.018)*4));
+float fineFade=saturate(lerp(3.2,6.0,Coal)/max(footprint*1.4,1.));
+float pellet=lerp(face*face,face,Coal);
+float height=lerp(.5,edge*(.3+pellet*.7),fineFade);
+height+=largeFade*(saturate(1-sqrt(cd))-.5)*.35;
+float tone=lerp(1.,(0.55+id*.65)*(.67+edge*.33)+(fine-.5)*.12,fineFade);
+tone*=lerp(1.,.79+cid*.38,largeFade);
+tone=lerp(tone,tone*.86+.12,dust*.20);
+return float3(tone,height,wet);
 ''', [('P', pos), ('Coal', coal), ('Hardware', hardware), ('TankTop', tank)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -900, 0)
 vertex = node(unreal.MaterialExpressionVertexColor, -900, 700)
 base = custom('''
-float3 dry=lerp(C,float3(.13,.12,.105),saturate(G.z*.65)*(1-Coal));
-float3 ore=dry*G.x*V.rgb*lerp(.87,1.06,G.z);
+float3 dry=lerp(C,float3(.12,.105,.083),saturate(G.z*.40)*(1-Coal));
+float fresh=saturate(Fresh);
+float3 ore=dry*G.x*V.rgb*lerp(1.04,.68,G.z)*lerp(1.,.82,fresh);
+// Hardware stays in the same existing material. World-space weathering has
+// no texture upload, WPO, extra capture or collision cost.
+float2 cell=floor(P.xy/45.);float stain=frac(sin(dot(cell,float2(12.9898,78.233)))*43758.5453);
+float streak=smoothstep(.75,.96,stain)*(.5+.5*sin(P.z*.013+stain*7));
+float top=saturate(N.z);float teal=saturate((V.g-V.r)*8);
+float paint=smoothstep(.50,.91,.5+.25*sin(P.x*.003+P.y*.005)+.25*sin(P.y*.009-P.z*.004));
+float3 hardwareColor=V.rgb*lerp(.87,1.03,paint);
+hardwareColor=lerp(hardwareColor,float3(.16,.065,.026),streak*lerp(.07,.22,teal)*(1-top*.7));
+hardwareColor=lerp(hardwareColor,hardwareColor*.75+float3(.055,.048,.033),top*paint*.24);
+// The blue water section shares this material for batching, but is not paint
+// or concrete. Do not stamp metal rust/dust cells across the sea.
+float water=saturate((V.b-V.g-.008)*100)*saturate((V.b-.07)*50);
+hardwareColor=lerp(hardwareColor,V.rgb,water);
 float2 seam=abs(frac((P.xy+float2(23,37))/float2(240,160))-.5);
 float weld=1-smoothstep(.003,.012,min(seam.x,seam.y));
 float rust=smoothstep(.65,.9,frac(sin(dot(floor(P.xy/35),float2(12.98,78.23)))*43758.54));
 // Preserve tank-top chroma under the higher exposure of a dark coal hold.
 float3 steel=lerp(float3(.065,.18,.30),float3(.24,.15,.085),rust*.28);
-return lerp(lerp(ore,steel*(1-.23*weld),TankTop),V.rgb,Hardware);
-''', [('C', color('ColdColor', (.20,.07,.04,1), -900, 350)), ('G', clast), ('V', vertex), ('P', pos), ('Coal', coal), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 0)
+return lerp(lerp(ore,steel*(1-.23*weld),TankTop),hardwareColor,Hardware);
+''', [('C', color('ColdColor', (.20,.07,.04,1), -900, 350)), ('G', clast), ('V', vertex), ('Fresh', vertex, 'A'), ('P', pos), ('N', node(unreal.MaterialExpressionVertexNormalWS, -1200, 600)), ('Coal', coal), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 0)
 normal = custom('''
 float3 dp1=ddx(P),dp2=ddy(P),r1=cross(dp2,N),r2=cross(N,dp1);
-float det=dot(dp1,r1);float3 grad=(r1*ddx(G.y)+r2*ddy(G.y))/max(abs(det),1e-6)*sign(det);
+float det=dot(dp1,r1);float height=G.y+Fresh*.08*(1-Hardware)*sin(P.x*.17+sin(P.y*.09)*2);
+float3 grad=(r1*ddx(height)+r2*ddy(height))/max(abs(det),1e-6)*sign(det);
 return normalize(N-grad*1.5*(1-TankTop));
-''', [('P', pos), ('N', node(unreal.MaterialExpressionVertexNormalWS, -900, 520)), ('G', clast), ('TankTop', tank)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 200)
-rough = custom('return lerp(lerp(.82,.60,Coal)-G.z*.10,.65,max(TankTop,Hardware));', [('Coal', coal), ('G', clast), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT1, -480, 400)
+''', [('P', pos), ('N', node(unreal.MaterialExpressionVertexNormalWS, -900, 520)), ('G', clast), ('Fresh', vertex, 'A'), ('Hardware', hardware), ('TankTop', tank)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 200)
+rough = custom('return lerp(lerp(.87,.63,Coal)-G.z*.19-Fresh*.06,lerp(.65,.78,Hardware),max(TankTop,Hardware));', [('Coal', coal), ('G', clast), ('Fresh', vertex, 'A'), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT1, -480, 400)
 for source, prop in [(base, unreal.MaterialProperty.MP_BASE_COLOR), (normal, unreal.MaterialProperty.MP_NORMAL), (rough, unreal.MaterialProperty.MP_ROUGHNESS), (scalar('Metallic', .06, -480, 600), unreal.MaterialProperty.MP_METALLIC)]:
     if not M.connect_material_property(source, '', prop): raise RuntimeError('HATCH03_MATERIAL_OUTPUT')
 M.recompile_material(asset)

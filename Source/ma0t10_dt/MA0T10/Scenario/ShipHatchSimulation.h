@@ -202,6 +202,10 @@ private:
     bool bSensorMarkersVisible=true;
     TSharedPtr<FShipHatchRayCache,ESPMode::ThreadSafe> RayCache;
     UPROPERTY(Transient) TObjectPtr<AShipHatchPart> UnloaderPresentation;
+    UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> RigFineDetails;
+    UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> VesselFineDetails;
+    uint32 IndustrialDetailKey=MAX_uint32;
+    void BuildIndustrialDetails();
     UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> GrabPresentation;
     bool bShowGrab=false; // DefaultOFF pending direct visual/site acceptance; instant unobstructed digging.
     bool bGrabPoseOverride=false;

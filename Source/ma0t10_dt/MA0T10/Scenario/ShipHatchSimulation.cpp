@@ -203,7 +203,9 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         const double Fresh=FMath::Clamp(Removed/.6,0.,1.);
         const double Surround=(Current.At(FMath::Max(0,X-1),Y)+Current.At(FMath::Min(Current.NX,X+1),Y)+Current.At(X,FMath::Max(0,Y-1))+Current.At(X,FMath::Min(Current.NY,Y+1)))*.25;
         const double Shade=1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.);
-        Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Shade));
+        // Alpha is a retained per-vertex cut mask, restored from the exact
+        // original field on undo/restore. No new texture or per-frame upload.
+        Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Fresh));
     };
     for(int32 Y=0;Y<Current.NY;++Y)for(int32 X=0;X<Current.NX;++X)
     {
@@ -213,9 +215,16 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         Vertex(X,Y,E2);Vertex(X,Y+1,E2);Vertex(X+1,Y+1,E2);
     }
     if(T.Num()!=Count){T.SetNumUninitialized(Count,false);for(int32 I=0;I<Count;++I)T[I]=I;}
-    const auto* Existing=Cargo->Mesh->GetProcMeshSection(0);
+    auto* Existing=Cargo->Mesh->GetProcMeshSection(0);
     const bool Refitting=Existing&&Existing->ProcVertexBuffer.Num()==V.Num()&&Existing->ProcIndexBuffer.Num()==T.Num();
+    // UpdateMeshSection otherwise calls BodyInstance.UpdateTriMeshVertices,
+    // whose UE5.3 Chaos implementation CopySlow()s the full triangle mesh.
+    // We already cook the authoritative current triangles below (required for
+    // correct refill query bounds). Suppress only that redundant intermediate
+    // copy; keep the existing physical body live until its one replacement.
+    if(Refitting)Existing->bEnableCollision=false;
     MeshNX=Current.NX;MeshNY=Current.NY;Mesh(Cargo->Mesh,V,T,&CargoNormals,Colors);
+    if(Refitting)Existing->bEnableCollision=true;
     if(Refitting)
     {
         // UE 5.3's live triangle refit leaves stale query bounds after refill.

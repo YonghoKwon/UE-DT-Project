@@ -49,8 +49,12 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
         double H=-DBL_MAX;
         for(const auto& Peak:Peaks)H=FMath::Max(H,Peak.Z-Slope*FVector2D::Distance(P,FVector2D(Peak.X,Peak.Y)));
         const double Phase=S.Seed*.017;
-        const double Lump=.035*FMath::Sin(P.X*1.7+Phase)*FMath::Sin(P.Y*1.3-Phase);
-        const double Rill=.018*FMath::Sin(P.X*2.5+P.Y*.4+Phase);
+        // A0.5m grid resolves metre-scale aggregates. Domain-warped noise
+        // avoids the regular sinusoidal stripes of the original surface;
+        // centimetre chunks remain normal detail with no height displacement.
+        const FVector2D Warp(FMath::PerlinNoise2D(P/6.+FVector2D(Phase,3.1)),FMath::PerlinNoise2D(P/6.+FVector2D(7.4,-Phase)));
+        const double Lump=.10*FMath::PerlinNoise2D(P/1.8+Warp*.7+FVector2D(Phase,-Phase))+.035*FMath::PerlinNoise2D(P/4.2+FVector2D(2.7,Phase));
+        const double Rill=.012*FMath::Sin(P.X*2.5+Warp.Y*3+P.Y*.4+Phase);
         const double Wall=FMath::Min(S.Length*.5-FMath::Abs(P.X),S.Width*.5-FMath::Abs(P.Y));
         Shape[Y*(R.NX+1)+X]=H+Lump+Rill+.08*FMath::Exp(-Wall/2.);
     }

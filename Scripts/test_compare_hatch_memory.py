@@ -1,5 +1,5 @@
 import unittest
-from compare_hatch_memory import LIMIT, compare_pair
+from compare_hatch_memory import LIMIT, compare_pair, curve_summary
 
 
 def run(clicks, delta):
@@ -27,6 +27,13 @@ class MatchedMemoryTests(unittest.TestCase):
     def test_incorrect_excavation_count_is_rejected(self):
         with self.assertRaises(ValueError):
             compare_pair(run(49, 0), run(0, 0))
+
+    def test_curve_distinguishes_linear_growth_and_plateau(self):
+        linear = [{"cycle": i, "rss_bytes": 100000000 + i * 1048576} for i in range(51)]
+        plateau = [{"cycle": i, "rss_bytes": 100000000 + min(i, 10) * 1048576} for i in range(51)]
+        self.assertAlmostEqual(curve_summary(linear)["slope_mib_per_cycle"], 1)
+        self.assertEqual(curve_summary(plateau, first_cycle=25)["slope_mib_per_cycle"], 0)
+        self.assertGreater(curve_summary(plateau)["slope_mib_per_cycle"], 0)
 
 
 if __name__ == "__main__":

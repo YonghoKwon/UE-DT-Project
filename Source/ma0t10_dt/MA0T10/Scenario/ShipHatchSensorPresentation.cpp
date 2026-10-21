@@ -84,7 +84,7 @@ void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
     if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
     ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }
-void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation){UnloaderPresentation->SetActorHiddenInGame(false);UnloaderPresentation->Mesh->SetVisibility(Enabled,false);if(UnloaderLabel)UnloaderLabel->SetVisibility(Enabled);if(GrabPresentation)GrabPresentation->SetVisibility(bShowGrab);}}
+void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation){UnloaderPresentation->SetActorHiddenInGame(false);UnloaderPresentation->Mesh->SetVisibility(Enabled,false);if(RigFineDetails)RigFineDetails->SetVisibility(Enabled);if(UnloaderLabel)UnloaderLabel->SetVisibility(Enabled);if(GrabPresentation)GrabPresentation->SetVisibility(bShowGrab);}}
 void AShipHatchSimulation::ApplyUnloader()
 {
     if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;GrabPresentation=nullptr;UnloaderLabel=nullptr;return;}

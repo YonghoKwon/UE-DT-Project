@@ -32,13 +32,33 @@ def read(path):
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
+def curve_summary(points, field="rss_bytes", first_cycle=0):
+    """Descriptive OLS slope only; this never substitutes for either8MiB gate."""
+    points = [p for p in points if p["cycle"] >= first_cycle]
+    if len(points) < 3:
+        return None
+    xs = [p["cycle"] for p in points]
+    ys = [p[field] / 1048576 for p in points]
+    mx, my = statistics.mean(xs), statistics.mean(ys)
+    xx = sum((x - mx) ** 2 for x in xs)
+    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / xx
+    residual = sum((y - (my + slope * (x - mx))) ** 2 for x, y in zip(xs, ys))
+    return {"samples": len(points), "slope_mib_per_cycle": slope,
+            "ols_standard_error": (residual / (len(points) - 2) / xx) ** .5,
+            "range_mib": max(ys) - min(ys), "first_last_delta_mib": ys[-1] - ys[0],
+            "method": "OLS descriptive; sequential samples are correlated; no independent-sample significance claim"}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report_root", type=Path)
+    parser.add_argument("--pairs", type=int, default=3)
     args = parser.parse_args()
+    if args.pairs < 3:
+        parser.error("At least three complete matched pairs are required")
     root = args.report_root.resolve()
     pairs, manifests, unexpected = [], [], []
-    for index in range(1, 4):
+    for index in range(1, args.pairs + 1):
         runs = {}
         for role, filename in (("dig", "dig-runtime.json"), ("control", "dig-idle-control.json")):
             folder = root / f"pair-{index}-{role}"
@@ -58,6 +78,9 @@ def main():
                            if not any(token in message for token in MEMORY_ERRORS)]
             runs[role] = data
         pairs.append({"pair": index, "metrics": compare_pair(runs["dig"], runs["control"]),
+                      "curve_slopes": {role: {"full": curve_summary(data.get("memory_curve", [])),
+                                                "last25": curve_summary(data.get("memory_curve", []), first_cycle=25)}
+                                       for role, data in runs.items()},
                       "runs": runs})
     if any(item != manifests[0] for item in manifests[1:]):
         raise ValueError("Commit/source hashes/dependencies/display/preparation/audit/window differ")
@@ -67,7 +90,9 @@ def main():
               "original_absolute_gates_pass": all(row["original_dig_8mib_pass"] for p in pairs for row in p["metrics"].values()),
               "separate_difference_gates_pass": separate_pass, "unexpected_errors": unexpected,
               "median_difference_bytes": {name: statistics.median(p["metrics"][name]["difference_bytes"] for p in pairs) for name in METRICS},
-              "interpretation": "Difference gates supplement, never replace, original8MiB gates. Three pairs are descriptive evidence; Claude reviews final attribution. LLM runs are not Hz/FPS acceptance."}
+              "difference_stdev_bytes": {name: statistics.stdev(p["metrics"][name]["difference_bytes"] for p in pairs) for name in METRICS},
+              "pair_count": len(pairs),
+              "interpretation": f"Difference gates supplement, never replace, original8MiB gates. {len(pairs)} pairs describe variance; Claude reviews final attribution. LLM runs are not Hz/FPS acceptance."}
     (root / "comparison.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     lines = ["# HATCH-06 matched memory comparison", "", f"Commit: {result['commit']}", "",
              "Original absolute8MiB and dig-minus-control8MiB are separate checks. Original failures remain failures.", "",

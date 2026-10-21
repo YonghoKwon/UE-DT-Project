@@ -162,6 +162,7 @@ void AShipHatchSimulation::BuildUnloaderDetails()
  if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
  {auto* MID=Cast<UMaterialInstanceDynamic>(M->GetMaterial(1));if(!MID||MID->Parent!=Base){MID=UMaterialInstanceDynamic::Create(Base,UnloaderPresentation);MID->SetScalarParameterValue(TEXT("Hardware"),1);M->SetMaterial(1,MID);}}
  BuildGrabModel();
+ BuildIndustrialDetails();
 }
 
 UPrimitiveComponent* AShipHatchSimulation::GrabPrimitive() const{return GrabPresentation;}
