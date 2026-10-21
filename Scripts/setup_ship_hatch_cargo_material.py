@@ -76,7 +76,8 @@ float3 ore=dry*G.x*V.rgb*lerp(.87,1.06,G.z);
 float2 seam=abs(frac((P.xy+float2(23,37))/float2(240,160))-.5);
 float weld=1-smoothstep(.003,.012,min(seam.x,seam.y));
 float rust=smoothstep(.65,.9,frac(sin(dot(floor(P.xy/35),float2(12.98,78.23)))*43758.54));
-float3 steel=lerp(float3(.17,.30,.37),float3(.24,.15,.085),rust*.28);
+// Preserve tank-top chroma under the higher exposure of a dark coal hold.
+float3 steel=lerp(float3(.065,.18,.30),float3(.24,.15,.085),rust*.28);
 return lerp(lerp(ore,steel*(1-.23*weld),TankTop),V.rgb,Hardware);
 ''', [('C', color('ColdColor', (.20,.07,.04,1), -900, 350)), ('G', clast), ('V', vertex), ('P', pos), ('Coal', coal), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 0)
 normal = custom('''
@@ -84,7 +85,7 @@ float3 dp1=ddx(P),dp2=ddy(P),r1=cross(dp2,N),r2=cross(N,dp1);
 float det=dot(dp1,r1);float3 grad=(r1*ddx(G.y)+r2*ddy(G.y))/max(abs(det),1e-6)*sign(det);
 return normalize(N-grad*1.5*(1-TankTop));
 ''', [('P', pos), ('N', node(unreal.MaterialExpressionVertexNormalWS, -900, 520)), ('G', clast), ('TankTop', tank)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 200)
-rough = custom('return lerp(lerp(.82,.40,Coal)-G.z*.12,.65,max(TankTop,Hardware));', [('Coal', coal), ('G', clast), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT1, -480, 400)
+rough = custom('return lerp(lerp(.82,.60,Coal)-G.z*.10,.65,max(TankTop,Hardware));', [('Coal', coal), ('G', clast), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT1, -480, 400)
 for source, prop in [(base, unreal.MaterialProperty.MP_BASE_COLOR), (normal, unreal.MaterialProperty.MP_NORMAL), (rough, unreal.MaterialProperty.MP_ROUGHNESS), (scalar('Metallic', .06, -480, 600), unreal.MaterialProperty.MP_METALLIC)]:
     if not M.connect_material_property(source, '', prop): raise RuntimeError('HATCH03_MATERIAL_OUTPUT')
 M.recompile_material(asset)

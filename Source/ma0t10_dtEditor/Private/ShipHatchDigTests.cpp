@@ -107,6 +107,11 @@ struct FHatchDigProbe
         T.TestFalse(TEXT("deck occludes cargo beneath it"),S->PickCargo(Pose.TransformPosition(FVector(0,(S->OpeningWidth*.5+2)*100,4000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
         T.TestFalse(TEXT("outside hold has no target"),S->PickCargo(Pose.TransformPosition(FVector(10000,10000,4000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
         T.TestTrue(TEXT("removed central gantry no longer obstructs cargo picking"),S->PickCargo(Pose.TransformPosition(FVector(0,0,10000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
+        if(S->bFieldLayout)
+        {
+            T.TestFalse(TEXT("real GTSU walkway blocks excavation through its roof"),S->PickCargo(Pose.TransformPosition(FVector(250,0,10000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
+            T.TestTrue(TEXT("clear field-layout cargo remains pickable beside the real boom"),S->PickCargo(Pose.TransformPosition(FVector(500,-500,10000)),Pose.TransformVector(FVector(0,0,-1)),Hit));
+        }
 
     }
     static void Undo(UShipHatchMonitorWidget& M){M.UndoButton->OnClicked.Broadcast();}
@@ -209,6 +214,10 @@ class FHatchDig final:public IAutomationLatentCommand
         auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[2]=S.CabRight?S.CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
         const auto Frame=S.MLX->ScanComponent->GetLastFrameSnapshot();const uint32 Before=FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint));
         FVector2D Target(I%5==2?1.25:(I%5-2)*2.5,((I/5)%5-2)*3.),Pixel;
+        // Real GTSU box girders/walkways now occupy the old +/-2.5m columns.
+        // Keep all50 accepted production cycles on physically clear cargo;
+        // the blocked walkway is asserted independently above.
+        if(S.bFieldLayout)Target=FVector2D(4+(I%5),((I/5)%5-2)*3.);
         // The new grab cab occupies the former Y=-3m fixture row.
         if(FMath::IsNearlyEqual(Target.Y,-3.))Target.Y=-4.5;
         if(!FHatchDigProbe::Project(M,Target,Pixel))Target=FVector2D(3,-5);
