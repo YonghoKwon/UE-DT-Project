@@ -124,6 +124,7 @@ void UVirtualLidarScanComponent::InitializePhysicalPoint(
 UVirtualLidarScanComponent::FSurfaceResponseCacheEntry UVirtualLidarScanComponent::ResolveSurfaceResponse(
     const UPrimitiveComponent* Primitive) const
 {
+    if(const auto* Frozen=HardwareSurfaceIdentities.Find(const_cast<UPrimitiveComponent*>(Primitive)))return Frozen->Surface;
     FSurfaceResponseCacheEntry Default;
     Default.Reflectivity = FMath::Clamp(DefaultSurfaceReflectivity, 0.001f, 1.0f);
     if (!Primitive)
@@ -179,88 +180,7 @@ bool UVirtualLidarScanComponent::ApplyPhysicalHitModel(
         && !ResolveRollingHit(Hit, SafeDirection, AcquisitionTransform, Point.PointTimeOffsetNanoseconds * 1.e-9, ModelRange, ModelIncidence))
         return false;
     if (bEnableMotionDistortion && bUseRollingPointTimestamps && (ModelRange > MaxDistance || ModelRange < DeviceSpec.MinRangeCm)) return false;
-    const float IncidenceCosine = Surface.bTwoSided ? FMath::Abs(ModelIncidence) : FMath::Max(0.0f, ModelIncidence);
-    const float RangeRatio = FMath::Clamp(ModelRange / FMath::Max(1.0f, MaxDistance), 0.0f, 1.0f);
-    const float ReflectivityRatio = Surface.Reflectivity / 0.2f;
-    const float RangeFactor = 1.0f - 0.05f * FMath::Square(RangeRatio);
-    const float AmbientFactor = 1.0f - 0.05f * FMath::Clamp(AmbientLightLux / 100000.0f, 0.0f, 4.0f);
-    float DetectionProbability = FMath::Clamp(
-        RangeFactor
-        * AmbientFactor
-        * FMath::Sqrt(FMath::Max(0.01f, ReflectivityRatio))
-        * FMath::Pow(FMath::Max(0.01f, IncidenceCosine), 0.30f)
-        * Surface.DetectionProbabilityScale,
-        0.0f,
-        0.9995f);
-
-    const float Attenuation = 1.0f / (1.0f + FMath::Square(ModelRange * 0.01f / 45.0f));
-    float Intensity = FMath::Max(0.0f,
-        Surface.Reflectivity
-        * FMath::Sqrt(FMath::Max(0.0f, IncidenceCosine))
-        * Attenuation
-        * FMath::Max(0.0f, AmbientFactor)
-        * Surface.IntensityGain
-        * 5.0f);
-    VirtualLidarFidelity::FSurface Optical;
-    Optical.Reflectivity=Surface.Reflectivity; Optical.IntensityGain=Surface.IntensityGain;
-    Optical.DetectionProbabilityScale=Surface.DetectionProbabilityScale;
-    if (bEnableMaterialResponse)
-    {
-        Intensity=VirtualLidarFidelity::Intensity(Optical,ModelRange,IncidenceCosine,AmbientLightLux);
-        DetectionProbability=VirtualLidarFidelity::DetectionProbability(Intensity,Optical);
-    }
-    const bool bSaturated = Surface.bAllowSaturation && Intensity >= 1.0f;
-
-    Point.SurfaceReflectivity = Surface.Reflectivity;
-    Point.IncidenceCosine = IncidenceCosine;
-    Point.AmbientLux = AmbientLightLux;
-    Point.NormalizedIntensity = FMath::Clamp(Intensity, 0.0f, 1.0f);
-    Point.RawIntensity = FMath::Clamp(FMath::RoundToInt(Point.NormalizedIntensity * 65535.0f), 0, 65535);
-
-    if ((bEnableMaterialResponse || FidelityMode != EVirtualSensorFidelityMode::IdealTruth)
-        && DeterministicUnitRandom(RayIndex, ReturnIndex, 0x4d4c5833u) > DetectionProbability)
-    {
-        Point.bHit = false;
-        Point.Validity = EVirtualLidarPointValidity::BelowSignalThreshold;
-        Point.RangeMillimeters = 0;
-        Point.SensorLocalPositionMeters = FVector::ZeroVector;
-        Point.Confidence = DetectionProbability;
-        Point.RawIntensity = 0;
-        Point.NormalizedIntensity = 0.0f;
-        return false;
-    }
-
-    float ErrorMillimeters = 0.0f;
-    if ((bEnableMaterialResponse || FidelityMode != EVirtualSensorFidelityMode::IdealTruth) && bEnableRangeNoise)
-    {
-        float DistanceDependentStdDev = RangeNoiseStandardDeviationMillimeters
-            * (0.5f + 0.5f * RangeRatio)
-            * FMath::Clamp(FMath::Sqrt(0.2f / Surface.Reflectivity), 0.5f, 2.0f);
-        if (bEnableMaterialResponse) DistanceDependentStdDev = RangeNoiseStandardDeviationMillimeters
-            * VirtualLidarFidelity::NoiseScale(RangeRatio,Surface.Reflectivity,IncidenceCosine);
-        ErrorMillimeters = FMath::Clamp(
-            DeterministicGaussian(RayIndex, ReturnIndex) * DistanceDependentStdDev,
-            -MaximumRangeErrorMillimeters,
-            MaximumRangeErrorMillimeters);
-    }
-
-    const float MeasuredDistanceCm = FMath::Clamp(ModelRange + ErrorMillimeters * 0.1f, 0.0f, MaxDistance);
-    const FVector MeasuredWorldLocation = AcquisitionTransform.GetLocation() + SafeDirection * MeasuredDistanceCm;
-    const FVector SensorLocalCentimeters = AcquisitionTransform.InverseTransformPosition(MeasuredWorldLocation);
-
-    Point.bHit = true;
-    Point.Distance = MeasuredDistanceCm;
-    Point.WorldLocation = MeasuredWorldLocation;
-    Point.RangeMillimeters = FMath::Max(0, FMath::RoundToInt(MeasuredDistanceCm * 10.0f));
-    Point.SensorLocalPositionMeters = FVector(
-        SensorLocalCentimeters.X * 0.01,
-        -SensorLocalCentimeters.Y * 0.01,
-        SensorLocalCentimeters.Z * 0.01);
-    Point.Validity = bSaturated ? EVirtualLidarPointValidity::Saturated : EVirtualLidarPointValidity::Valid;
-    Point.Confidence = DetectionProbability;
-    Point.ReturnIndex = ReturnIndex;
-    Point.EchoIndex = ReturnIndex;
-    return true;
+    return CapturePointModel().Apply(Point,Surface,SafeDirection,AcquisitionTransform,ModelRange,ModelIncidence,RayIndex,ReturnIndex);
 }
 
 void UVirtualLidarScanComponent::RebuildPhysicalFrameStatistics(FVirtualLidarFrameSnapshot& Snapshot) const
@@ -634,6 +554,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
     }
     if (!bScheduledScanInProgress || MaxRays <= 0 || !GetWorld()) return 0;
     if(ScheduledRayQuery&&!PollSceneQueryBatch())return 0;
+    if(ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing){const int32 Completed=CompleteHardwareNormalizedFrame();if(Completed>=0)return Completed;}
     const double SceneWorkStarted=ScheduledRayQuery?FPlatformTime::Seconds():0;
     UWorld* World = GetWorld();
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
@@ -675,7 +596,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
             const int32 EchoStartIndex = ScheduledPoints.Num();
             for (const FHitResult& Hit : Hits)
             {
-                if (ShouldIgnoreHitActor(Hit.GetActor())) continue;
+                if (ShouldIgnoreScheduledHit(Hit)) continue;
                 FVirtualLidarPoint Point = FirstPoint;
                 if (!ApplyPhysicalHitModel(Point, Hit, Direction, ScheduledScanTransform, RayIndex, Added)) continue;
                 PopulatePointSemanticMetadata(Point, Hit);
@@ -699,7 +620,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
         {
             FHitResult Hit;
             bool bHit = ScheduledRayQuery?ResolveSceneQueryRay(RayIndex,Origin,End,Hit):World->LineTraceSingleByChannel(Hit, Origin, End, TraceChannel, Params);
-            if (bHit && ShouldIgnoreHitActor(Hit.GetActor())) bHit = false;
+            if (bHit && ShouldIgnoreScheduledHit(Hit)) bHit = false;
             if (bHit)
             {
                 bHit = ApplyPhysicalHitModel(FirstPoint, Hit, Direction, ScheduledScanTransform, RayIndex, 0);
@@ -833,3 +754,12 @@ void UVirtualLidarScanComponent::WriteHeatmapPixel(TArray<uint8>& Pixels, int32 
     Pixels[PixelIndex + 0] = C.B; Pixels[PixelIndex + 1] = C.G; Pixels[PixelIndex + 2] = C.R; Pixels[PixelIndex + 3] = 255;
 }
 int32 UVirtualLidarScanComponent::GetHeatmapPixelIndex(int32 H, int32 V, int32 W, int32 Ht) const { const int32 DH = bFlipLidarViewHorizontal ? W - 1 - H : H; const int32 DV = bFlipLidarViewVertical ? Ht - 1 - V : V; return (DV * W + DH) * 4; }
+
+VirtualLidarPointModel::FConfig UVirtualLidarScanComponent::CapturePointModel() const
+{
+    VirtualLidarPointModel::FConfig C;C.MaxDistance=MaxDistance;C.AmbientLightLux=AmbientLightLux;
+    C.RangeNoiseStandardDeviationMillimeters=RangeNoiseStandardDeviationMillimeters;C.MaximumRangeErrorMillimeters=MaximumRangeErrorMillimeters;
+    C.bEnableMaterialResponse=bEnableMaterialResponse;C.bEnableRangeNoise=bEnableRangeNoise;C.FidelityMode=FidelityMode;
+    C.RandomSequence=DatasetNoiseSequence?HashCombineFast(GetTypeHash(DatasetNoiseSequence->Key),GetTypeHash(DatasetNoiseSequence->Value)):HashCombineFast(GetTypeHash(DeterministicNoiseSeed),GetTypeHash(FrameId+1));
+    return C;
+}

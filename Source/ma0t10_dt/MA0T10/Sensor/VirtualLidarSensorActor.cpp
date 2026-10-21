@@ -124,8 +124,10 @@ bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableSt
     TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
     SetActorTransform(State.ActorTransform, false, nullptr, ETeleportType::TeleportPhysics);
     if(ScanComponent->IsScanRunning())ScanComponent->StopScan();
+    const auto PreservedBackend=ScanComponent->AcquisitionBackend;
     ScanComponent->ApplyDeviceProfile(State.LidarProfile);
     ScanComponent->ApplySimulationQuality(State.SimulationQuality);
+    ScanComponent->AcquisitionBackend=PreservedBackend;
     ScanComponent->SensorId = State.SensorId;
     ScanComponent->ScanInterval = State.LidarScanInterval;
     ScanComponent->MaxDistance = State.LidarMaxDistance;
@@ -253,8 +255,10 @@ bool AVirtualLidarSensorActor::ApplyProfileAndSimulationQuality(const FVirtualSe
     const bool bWasRunning = bInteractiveManipulationActive?bWasRunningBeforeInteraction:ScanComponent->IsScanRunning();
     TGuardValue<bool> Transaction(bSettingsTransaction,true);if(bInteractiveManipulationActive)EndInteractiveManipulation();
     if(ScanComponent->IsScanRunning())ScanComponent->StopScan();
+    const auto PreservedBackend=ScanComponent->AcquisitionBackend;
     ScanComponent->ApplyDeviceProfile(RequestedState.LidarProfile);
     ScanComponent->ApplySimulationQuality(RequestedState.SimulationQuality);
+    ScanComponent->AcquisitionBackend=PreservedBackend;
     if (bWasRunning) ScanComponent->StartScan();
     ++ConfigurationRevision;
     return ReadEditableState(OutAppliedState);
@@ -316,4 +320,13 @@ void AVirtualLidarSensorActor::HandleDerivedLidarFrame(const FVirtualSensorFrame
     if(!OutputComponent||!Captured.HasJsonPayload())return;
     auto Frame=Captured;Frame.bSendTransport=PendingExternalSendTransport.IsSet()?PendingExternalSendTransport.GetValue():Captured.bSendTransport;
     PendingExternalSendTransport.Reset();OutputComponent->RouteFrame(Frame);
+}
+
+bool AVirtualLidarSensorActor::SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend Backend,FString& OutReason)
+{
+    if(!ScanComponent||uint8(Backend)>uint8(EVirtualLidarAcquisitionBackend::ReplayOrExternal)){OutReason=TEXT("Invalid acquisition backend");return false;}
+    if(!CanEditSensorConfiguration(OutReason))return false;
+    if(ScanComponent->AcquisitionBackend==Backend){OutReason.Reset();return true;}
+    const bool Running=ScanComponent->IsScanRunning();ScanComponent->StopScan();ScanComponent->AcquisitionBackend=Backend;++ConfigurationRevision;
+    if(Running)ScanComponent->StartScan();OutReason.Reset();return true;
 }

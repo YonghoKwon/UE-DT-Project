@@ -51,6 +51,8 @@ public:
     virtual void StartSensor() override;
     virtual void StopSensor() override;
     virtual void CaptureSensorOnce() override;
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|VirtualLidar")
+    bool SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend Backend,FString& OutReason);
     virtual UTexture* GetSensorPreviewTexture() const override;
     virtual FVirtualSensorRuntimeStatus GetSensorRuntimeStatus() const override;
     virtual bool SubmitExternalFrame(const FVirtualSensorFrameEnvelope& Frame, bool bSendTransport) override;

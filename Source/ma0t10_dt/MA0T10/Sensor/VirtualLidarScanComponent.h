@@ -7,6 +7,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarFidelity.h"
+#include "VirtualLidarPointModel.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 #include "VirtualLidarScanComponent.generated.h"
 
@@ -128,6 +129,7 @@ private:
     uint64 ScheduledPointStorageBytes() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     friend class FHatchPointPoolLifetimeTest;
+    friend class FGpuPointModelSnapshotTest;
 #endif
 
 protected:
@@ -728,16 +730,21 @@ private:
     void CollectExportPoints(TArray<const FVirtualLidarPoint*>& OutExportPoints) const;
     void RebuildLastPointStatistics();
 
-    struct FSurfaceResponseCacheEntry
-    {
-        float Reflectivity = 0.2f;
-        float IntensityGain = 1.0f;
-        float DetectionProbabilityScale = 1.0f;
-        bool bTwoSided = false;
-        bool bAllowSaturation = true;
-    };
+    using FSurfaceResponseCacheEntry=VirtualLidarPointModel::FSurface;
+    VirtualLidarPointModel::FConfig CapturePointModel() const;
+    int32 CompleteHardwareNormalizedFrame();
 
     FSurfaceResponseCacheEntry ResolveSurfaceResponse(const UPrimitiveComponent* Primitive) const;
+    struct FHardwareSurfaceIdentity
+    {
+        FSurfaceResponseCacheEntry Surface;
+        FVirtualLidarPoint Metadata;
+        bool bIgnore = false;
+    };
+    TMap<TWeakObjectPtr<UPrimitiveComponent>,FHardwareSurfaceIdentity> HardwareSurfaceIdentities;
+    bool CopyHardwareSemanticMetadata(FVirtualLidarPoint& Point,const FHitResult& Hit) const;
+    bool ShouldIgnoreScheduledHit(const FHitResult& Hit) const;
+
 
 private:
     FTimerHandle ScanTimerHandle;

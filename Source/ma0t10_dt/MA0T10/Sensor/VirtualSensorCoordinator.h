@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorCoordinator.generated.h"
 
@@ -161,6 +162,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void StopAllSensors();
+    /** Apply through each native Actor contract; locked sensors are preserved. */
+    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorManager")
+    int32 SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend Backend);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager|RealSensor")
     int32 StartAllRealSensorSources();

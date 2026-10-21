@@ -335,8 +335,9 @@ void AShipHatchSimulation::ConfigureSensors()
         S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;
         if(!FVirtualSensorEditableState::StaticStruct()->CompareScriptStruct(&Previous,&S,PPF_None))
             if(!A->ApplyEditableState(S,Error)){Status=Error;return;}
-        // A documented map-local adapter: PMC collision is supported by CPU traces, not the GPU semantic proxy.
-        auto* Scan=A->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+        // GPU-LIDAR-01: the same collision snapshot feeds CPU and sensor-owned HWRT.
+        // Preserve the sensor backend selection across surface/rig reconfiguration.
+        auto* Scan=A->ScanComponent.Get();
         A->VisualizationComponent->SetProjectionPreviewEnabled(false);
         const TWeakObjectPtr<AShipHatchSimulation> Weak(this);
         Scan->SetRayQueryFactory([Weak](AActor* Ignore,ECollisionChannel Channel)->TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe>{auto* S=Weak.Get();return S?S->CaptureRayQuery(Ignore,Channel):nullptr;});

@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+GPU-LIDAR-01(사용자 #25): 기존 Bootstrap과 프로젝트 adapter에서 센서 소유 collision BLAS/TLAS·ray-gen/closest-hit·비동기 readback을 구현한다. 해치 CPU와 같은 immutable collision snapshot을 사용하고 점별 물리/재질 계산을 worker로 전달한다. 초기 1920×1080 오프스크린 D3D12 측정에서 기본3 및 OS1-64×3은 약20Hz·60FPS를 확인했다. 최종 SHA·정확도 최대 오차·release/perf·50회 디깅 RSS·직접 수용·제한은 [RESULT](Saved/Reports/GPU-LIDAR-01/RESULT.md), [DONE](Saved/Reports/GPU-LIDAR-01/DONE.md)를 따른다. 기존 HATCH-06 RSS 후속 #26은 별도이며 이번 작업에서 수용 완료로 바꾸지 않는다.
+
 TESTSET-PERF(사용자 직접 후속 요청2026-10-20): 최종 검증 코드 `d593d48`(런타임 수정 `bc9b936`/`d1a6a1e`). 생성 중 LiDAR 표시 자산의 동기 로딩을 제거하고 바인딩 시 비동기 준비·수명 보유로 바꿨다. 150ms 기준·기존 준비10초·측정/송수신 계약은 유지한다. ABAB 창 크기 보정의 client/outer 혼용과 기록/종료 검사를 수정했으며, 생성 콤보 항목의 GC 후 StrikeBrush 수명도 고쳤다. Editor/Game·release15단계(전체323 Success/40조건부Skip/0Fail)·WBP7/save0·어휘/quick/layer0, 기본60초 ABAB12회(A/B각6)2% PASS(FPS저하−0.012936%,engine p95증가0.000011%,GT증가−0.275725%)다. 퍼내기/그랩 촬영 하네스 모두 정상 종료·새 선택47장(자동38/직접9), 개인142원본 복원·보호561/561 동일이다. 사진은 `d1a6a1e` 촬영이며 최종 코드와 런타임/해치 하네스가 동일함을 확인했다. 초기 실패·무효 코호트·직접 수용·모의/새 모의 프레임·회사/Shipping 범위는 [RESULT](Saved/Reports/TESTSET-PERF/RESULT.md), [DONE](Saved/Reports/TESTSET-PERF/DONE.md), [새 캡처](Saved/Reports/TESTSET-PERF/CAPTURES.md)를 따른다.
 
 HATCH-05-LABELS(사용자 직접 후속 요청2026-10-20): Runtime `5d403f1`. 운전실 좌/우 센서의 실제 배치는 정상(운전실 중심 X=0m, 센서 X=−2/+2m)이며 모든 이름표의 화면 오른쪽 고정 오프셋이 혼동 원인이었다. 실제 Actor 투영을 기준으로 라벨을 양쪽 바깥에 배치하고 역할별 색상 앵커/연결선을 추가했다. 물리 역할명·측정 좌표는 유지한다. Editor/Game·해치/UXR45 Success/2조건부Skip·라벨 RHI 두 해상도는 통과했다. 전체 회귀는318 Success/40조건부Skip/2 Fail(기존 TestSet150ms 기준), 표준 ABAB는 마지막 결과 누락으로 미완료다. 직접 주요동작5관찰은 통과했고, 퍼내기 추가 촬영 실행은30장 확보 뒤 Slate 오류로 종료했다. 직접 수용·성능·기존 하네스 퍼내기 촬영과 복원/보호 감사의 최종 결과는 [RESULT](Saved/Reports/HATCH-05-LABELS/RESULT.md), [DONE](Saved/Reports/HATCH-05-LABELS/DONE.md), [촬영 목록](Saved/Reports/HATCH-05-LABELS/CAPTURES.md)을 따른다. 전체 수용 통과로 표시하지 않는다.
@@ -394,6 +396,16 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json"
 
 프로필 값과 **실제 완료율**은 다르다. ML-X Native는 제조사 원시 패킷/실장비 보정 완료가 아니며 D455 SceneCapture는 실장비 depth stream이 아니다. CPU/GPU의 geometry·Echo 지원 차이, 캘리브레이션 근거와 fidelity 상태를 함께 확인한다. enum에 HardwareRayTracing/SDK 이름이 있다고 실장비 backend가 완성된 것은 아니다.
 
+### 하드웨어 RT LiDAR (GPU-LIDAR-01)
+
+기존 `AcquisitionBackend`의 `Auto` / `HardwareRayTracing` / `AccurateCpuTrace`를 사용한다. 소유 센서 설정의 `고급 → LiDAR 측정 방식`에서 자동/GPU/CPU를 고르며, Blueprint는 Actor의 `SetLidarAcquisitionBackend`와 매니저의 같은 이름 일괄 API를 사용할 수 있다. 이 선택은 런타임 세션에 적용하며 기존 SaveGame 형식을 확장하지 않는다. 실행 중 변경은 기존 Actor 설정 잠금과 generation 취소를 따르고 실행 의도는 유지한다. Auto는 RT 사용 가능 시 센서 소유 GPU 경로를 선택하며, 미지원 RHI·collision snapshot·용량/접수 조건에서는 CPU로 돌아가고 runtime 상태에 이유를 남긴다. 명시적 Cpu와 기존 GpuDepthProjection 선택은 유지한다. `ma0t10.Lidar.HardwareRayTracing=0`은 센서 백엔드만 끄는 진단용 fallback 스위치다.
+
+엔진 파일·Lumen/main view를 바꾸지 않는다. DX12/SM6에서 RT 지원과 Compute Skin Cache를 켜고 Lumen HWRT·RT 그림자/AO/GI/reflection/translucency/skylight는 기본 off다. 설치 UE5.3 Windows 플랫폼은 inline ray tracing을 비활성화하므로 공개 RHI ray-gen/closest-hit를 사용한다. 광선 패턴·밀도·기존 enum 값·PCD 33-byte 레코드·저장 슬롯은 유지한다.
+
+해치는 정적 구조/원료/그랩의 CPU collision snapshot을 공유하고 NoCollision 장식을 제외한다. 원료 변경은 새 geometry revision/BLAS를 쓰며, acquisition 당시의 pose·label·optical response·FrameId·시간을 완료 때 최신 Actor 값으로 바꾸지 않는다. bounded in-flight와 취소 generation 검사를 사용한다. 변형되는 그랩/로프는 현재 생산 메시 revision을 다시 빌드하며 refit 최적화는 후속이다.
+
+일반 맵 v1은 정적 box/convex collision의 정확한 내보내기를 지원한다. 엔진의 render LOD BLAS가 simple collision과 같다고 가정하지 않는다. complex-as-simple·sphere/capsule·skinned/instanced/미지원 body 또는 cooked convex 삼각형이 없으면 전체 acquisition을 CPU fallback한다. 해치의 기존 외부 collision fallback은 유지한다. 거리 p95 통과와 최대 오차는 구분하며 원시 비교의 소수 큰 오차는 RESULT의 수치/한계를 따른다. 실제 장비/Isaac Sim과 동등한 광학 보정을 의미하지 않는다.
+
 ### LiDAR 사실성 옵션 (LIDAR-FID-01)
 
 사용자 요청(2026-10-15)에 따른 **점별 시간차·움직임 왜곡·재질 반사**와 ⓘ 설명은 UXR-18에서 `도구 → 센서 상세 설정 → 고급 → LiDAR 사실성`으로 옮겼다. 모두 기본 꺼짐이다. 움직임 왜곡을 켜면 시간차도 켜고, 시간차를 끄면 왜곡도 끈다. 수집 잠금과 기존 Actor 설정 transaction을 따른다. 미리보기 색 목록의 **반사 강도·측정 시각**은 기존 5Hz 이하 cache를 사용한다.
@@ -600,6 +612,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+GPU-LIDAR-01은 L0 collision snapshot 계약, L1 static collision/공유 physical model/worker 완료 경로, L2 해치 snapshot 내보내기와 기존 Bootstrap의 공개 RHI shader 구현으로 구성한다. L1→L2 include와 새 모듈/플러그인 없이 layer 위반·allowlist **0→0**을 유지한다. DTCore·자산·wire·기존 enum 값·저장 형식은 변경하지 않는다.
 
 INSP-FIX-3은 L1 Camera 저장 완료를 기존 L1 FileSave 요청 이력에 전달하고 L3 소유 보기/파일 저장 화면이 표시한다. 배치 선택의 mouse-down 확정·Actor별 행 재사용도 기존 L3 안에서 처리한다. 새 관리자·타이머·모듈·자산·DTCore·저장 형식 없이 layer 위반/allowlist **0→0**을 유지한다.
 
