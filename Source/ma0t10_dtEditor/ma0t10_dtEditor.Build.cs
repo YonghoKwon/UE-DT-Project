@@ -5,6 +5,7 @@ public class ma0t10_dtEditor : ModuleRules
     public ma0t10_dtEditor(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        PrivateDependencyModuleNames.Add("ma0t10_dtBootstrap");
         PrivateDependencyModuleNames.Add("UMG");
         PrivateDependencyModuleNames.Add("ProceduralMeshComponent");
         PrivateDependencyModuleNames.Add("HTTP");

@@ -38,7 +38,7 @@ public class ma0t10_dt : ModuleRules
             "NiagaraCore"
         });
 
-        PrivateDependencyModuleNames.AddRange(new string[] { });
+        PrivateDependencyModuleNames.AddRange(new string[] { "ma0t10_dtBootstrap" });
 
         // PKG-01: ship the deployment transport settings as a loose file next to every
         // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.

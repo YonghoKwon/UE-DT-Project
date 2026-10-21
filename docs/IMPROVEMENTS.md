@@ -4,6 +4,15 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## GPU-LIDAR-01 — 센서 소유 하드웨어 RT LiDAR (#25)
+
+사용자 결정2026-10-22: 선택2(센서 소유 TLAS), Launcher 엔진 변경/새 모듈/플러그인 금지. scene TLAS 재사용은 필수 요구가 아니다. 기존 collision snapshot·광선 패턴·FrameId/시간/pose/identity·physical model·PCD/출력 계약을 보존한다.
+
+- 기존 Bootstrap에 ray-gen/closest-hit와 공개 RHI BLAS/TLAS·bounded 비동기 readback을 추가하고, 정규화를 immutable worker 입력으로 분리한다. 해치의 CPU 강제를 제거해 기존 Backend 선택을 보존하며 Auto의 GPU/CPU fallback을 연결한다.
+- 일반 맵 v1은 정적 box/convex collision을 지원하고 render LOD BLAS를 simple collision으로 대체하지 않는다. 미지원 body는 전체 CPU fallback, 해치 외부 collision은 기존 fallback을 유지한다. 원료 revision별 BLAS 재빌드/변형 메시의 refit 미지원과 원시 정확도 최대 오차를 제한에 기록한다.
+- 초기 실제1920×1080 오프스크린 측정: 기본3 및 OS1-64×3 약20Hz·60FPS. 중간 실패, 최종 SHA/정확도/release/RT off ABAB2%/RT on 영향/RSS/직접 점검은 [RESULT](../Saved/Reports/GPU-LIDAR-01/RESULT.md), [DONE](../Saved/Reports/GPU-LIDAR-01/DONE.md)에 구분한다. 실패·미수행을 통과로 바꾸지 않는다.
+- 완료 gate: release 실패0, RT off ABAB2%, layer0→0, 정확도 hit≥99%·정적 거리p95≤1cm, 다음 scan 동적 반영/fallback/취소·수명 자동화, 기본3 각각≥10Hz(목표20)·OS1-64×3 목표≥10Hz, 실제 UI 및50회 GPU 디깅 RSS 기록. HATCH-06 RSS gate 후속 #26은 이번 범위 밖이다.
+
 ## TESTSET-PERF — 150ms 예산·ABAB 기록 누락·촬영 수명
 
 출처: 사용자 직접 새 후속 요청2026-10-20. 기준 `39236f4`, 기존 `fix/hatch-view-orientation`, DTCore `b2504d1` 고정. `bc9b936`은 표시 자산 준비와 검증 수명, `d1a6a1e`는 생성 콤보 GC 수명, 최종 `d593d48`은 계측 결과 Move bool 처리/중복 기록 거부 회귀를 포함한다.

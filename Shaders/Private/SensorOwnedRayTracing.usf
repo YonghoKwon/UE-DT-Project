@@ -1,0 +1,45 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/RayTracing/RayTracingCommon.ush"
+RaytracingAccelerationStructure LidarTLAS;
+struct FLidarRay { float3 Origin; float MaxDistance; float3 Direction; float Padding; };
+struct FLidarHit { float4 NormalAndDistance; uint Surface; uint Mesh; uint Triangle; uint Reserved; };
+StructuredBuffer<FLidarRay> LidarRays;
+StructuredBuffer<float4> Surface0;
+StructuredBuffer<float4> Surface1;
+StructuredBuffer<float4> Surface2;
+RWStructuredBuffer<FLidarHit> LidarHits;
+float4x4 Normal0;
+float4x4 Normal1;
+float4x4 Normal2;
+uint RayCount;
+RAY_TRACING_ENTRY_RAYGEN(MainRGS)
+{
+    uint I=DispatchRaysIndex().x;
+    if(I>=RayCount) return;
+    FLidarRay Input=LidarRays[I];
+    RayDesc Ray;
+    Ray.Origin=Input.Origin; Ray.Direction=Input.Direction;
+    Ray.TMin=0; Ray.TMax=Input.MaxDistance;
+    FDefaultPayload Payload=(FDefaultPayload)0;
+    TraceRay(LidarTLAS,RAY_FLAG_FORCE_OPAQUE,0xff,0,1,0,Ray,Payload);
+    FLidarHit Hit=(FLidarHit)0;
+    Hit.NormalAndDistance.w=-1;
+    Hit.Surface=Hit.Mesh=Hit.Triangle=0xffffffff;
+    if(Payload.IsHit())
+    {
+        uint Mesh=Payload.InstanceID;
+        uint Triangle=Payload.PrimitiveIndex;
+        float4 Data=Mesh==0?Surface0[Triangle]:(Mesh==1?Surface1[Triangle]:Surface2[Triangle]);
+        float3 Normal=normalize(Mesh==0?mul(float4(Data.xyz,0),Normal0).xyz:(Mesh==1?mul(float4(Data.xyz,0),Normal1).xyz:mul(float4(Data.xyz,0),Normal2).xyz));
+        if(dot(Normal,Ray.Direction)>0) Normal=-Normal;
+        Hit.NormalAndDistance=float4(Normal,Payload.HitT);
+        Hit.Surface=asuint(Data.w); Hit.Mesh=Mesh; Hit.Triangle=Triangle;
+    }
+    LidarHits[I]=Hit;
+}
+
+RAY_TRACING_ENTRY_CLOSEST_HIT(MainCHS,FDefaultPayload,Payload,FRayTracingIntersectionAttributes,Attributes)
+{
+    Payload.HitT=RayTCurrent();Payload.InstanceID=InstanceID();Payload.InstanceIndex=InstanceIndex();
+    Payload.PrimitiveIndex=PrimitiveIndex();Payload.Barycentrics=Attributes.GetBarycentrics();
+}

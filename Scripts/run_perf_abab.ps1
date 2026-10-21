@@ -3,6 +3,7 @@ param(
     [string]$Candidate = 'HEAD',
     [ValidatePattern('^[12](,[12])?$')][string]$Pairs = '1',
     [ValidateSet('Visible', 'Offscreen', 'Both')][string]$Display = 'Visible',
+    [ValidateSet('Off', 'ProjectDefault')][string]$RayTracing = 'Off',
     [ValidateRange(1, 10)][int]$Blocks = 3,
     [ValidateRange(30, 60)][int]$MeasurementSeconds = 60,  # PERF01 instrument clamps to 30..60
     [double]$ThresholdPercent = 2.0,
@@ -101,7 +102,7 @@ $manifest = [ordered]@{
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
     DTCore = $dtcore; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
-    Map = '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap'; Viewport = '1920x1080'; Rhi = 'D3D12'
+    Map = '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap'; Viewport = '1920x1080'; Rhi = 'D3D12'; RayTracing = $RayTracing
     Pairs = $pairList; Display = $Display; Blocks = $Blocks; WarmupSeconds = 10; MeasurementSeconds = $MeasurementSeconds
     ThresholdPercent = $ThresholdPercent; Gpu = $gpu; Os = [Environment]::OSVersion.ToString()
     CheckoutRoot = $owned; KeptCheckouts = [bool]$KeepCheckouts; Worktree = (Get-Git @('status', '--porcelain=v1'))
@@ -148,6 +149,7 @@ try {
                     $json = Join-Path $runs "$name.json"
                     $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap', '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', '-Perf01', "-Perf01Pairs=$pairCount", "-Perf01Seconds=$MeasurementSeconds", "`"-Perf01Output=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.PERF01.AcquisitionAndPreview;Quit"', '"-TestExit=Automation Test Queue Empty"')
                     if ($offscreen) { $arguments += '-RenderOffscreen' }
+                    if ($RayTracing -eq 'Off') { $arguments += '-noraytracing' }
                     $arguments += @("-Perf01SourceCommit=$($refs[$label])", "-Perf01RunId=$name", "-Perf01InstrumentSha=$($manifest.Instrument.Sha256)", "-Perf01SessionSha=$($manifest.SessionInstrument.Sha256)", "`"-ReportExportPath=$runs/$name.automation`"")
                     $saved = @{}
                     Get-ChildItem Env: | Where-Object Name -like 'MA0T10_*' | ForEach-Object { $saved[$_.Name] = $_.Value; Remove-Item "Env:$($_.Name)" }

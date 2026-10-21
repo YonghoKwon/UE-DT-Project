@@ -7,9 +7,11 @@
 #include "Algo/Sort.h"
 #include "Debug/DebugDrawComponent.h"
 #include "HAL/LowLevelMemTracker.h"
+#include <atomic>
 
 namespace
 {
+std::atomic<uint64> NextCollisionRevision{1};
 struct FTriangle
 {
  FVector3f A,B,C,Center;
@@ -23,13 +25,15 @@ struct FNode
 struct FTree
 {
  TArray<FTriangle> Triangles;
+ mutable FVirtualSensorCollisionMesh GpuMesh;
+ FTransform FirstSourcePose=FTransform::Identity;
  TArray<int32> Order;
  TArray<FNode> Nodes;
  TArray<TWeakObjectPtr<UPrimitiveComponent>> Surfaces;
  void Add(UProceduralMeshComponent* Mesh)
  {
   if(!Mesh||!Mesh->IsQueryCollisionEnabled()||Mesh->GetCollisionResponseToChannel(ECC_Visibility)!=ECR_Block)return;
-  const int Surface=Surfaces.Add(Mesh);const auto Pose=Mesh->GetComponentTransform();
+  const int Surface=Surfaces.Add(Mesh);const auto Pose=Mesh->GetComponentTransform();if(Surface==0)FirstSourcePose=Pose;
   for(int Section=0;Section<Mesh->GetNumSections();++Section)if(const auto* S=Mesh->GetProcMeshSection(Section))if(S->bEnableCollision)
   {
    for(int I=0;I+2<S->ProcIndexBuffer.Num();I+=3)
@@ -51,7 +55,30 @@ struct FTree
   }
   return Id;
  }
- void Finish(){Order.SetNumUninitialized(Triangles.Num());for(int I=0;I<Order.Num();++I)Order[I]=I;Nodes.Reserve(Triangles.Num()/3);if(Order.Num())Build(0,Order.Num());}
+ void Finish()
+ {
+  Order.SetNumUninitialized(Triangles.Num());for(int I=0;I<Order.Num();++I)Order[I]=I;
+  Nodes.Reserve(Triangles.Num()/3);if(Order.Num())Build(0,Order.Num());
+  GpuMesh.Revision=NextCollisionRevision.fetch_add(1);
+ }
+ const FVirtualSensorCollisionMesh& ExportGpuMesh() const
+ {
+  if(GpuMesh.Vertices)return GpuMesh;
+  auto Vertices=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();
+  auto Attributes=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();
+  Vertices->Reserve(Triangles.Num()*3);Attributes->Reserve(Triangles.Num());
+  GpuMesh.LocalToWorld=Surfaces.Num()==1?FirstSourcePose:FTransform::Identity;
+  for(const auto& T:Triangles)
+  {
+   const FVector3f A=FVector3f(GpuMesh.LocalToWorld.InverseTransformPosition(FVector(T.A)));
+   const FVector3f B=FVector3f(GpuMesh.LocalToWorld.InverseTransformPosition(FVector(T.B)));
+   const FVector3f C=FVector3f(GpuMesh.LocalToWorld.InverseTransformPosition(FVector(T.C)));
+   Vertices->Add(A);Vertices->Add(B);Vertices->Add(C);
+   const auto Normal=FVector3f::CrossProduct(B-A,C-A).GetSafeNormal();
+   uint32 Surface=T.Surface;float Bits;FMemory::Memcpy(&Bits,&Surface,sizeof(Bits));Attributes->Add(FVector4f(Normal,Bits));
+  }
+  GpuMesh.Vertices=Vertices;GpuMesh.NormalsAndSurfaces=Attributes;GpuMesh.Surfaces=Surfaces;return GpuMesh;
+ }
  static bool BoxHit(const FBox3f& B,FVector3f S,FVector3f D,FVector3f Inv,float Limit,float& Entry)
  {
   float Low=0,High=Limit;for(int A=0;A<3;++A){if(FMath::Abs(D[A])<1.e-8f){if(S[A]<B.Min[A]||S[A]>B.Max[A])return false;}else{const float P=(B.Min[A]-S[A])*Inv[A],Q=(B.Max[A]-S[A])*Inv[A];Low=FMath::Max(Low,FMath::Min(P,Q));High=FMath::Min(High,FMath::Max(P,Q));if(High<Low)return false;}}Entry=Low;return true;
@@ -81,7 +108,7 @@ struct FTree
   return Found;
  }
 };
-struct FExternalBox{FBox Box;};
+struct FExternalBox{FBox Box;TWeakObjectPtr<UPrimitiveComponent> Component;};
 class FSnapshot final:public IVirtualSensorRayQuery
 {
 public:
@@ -92,6 +119,16 @@ public:
  ECollisionChannel Channel=ECC_Visibility;
  mutable uint64 FallbackTraces=0;
  FName BackendName() const override{return TEXT("snapshot_cpu_bvh");}
+ bool CollisionMeshes(TArray<FVirtualSensorCollisionMesh>& Out) const override
+ {
+  // Owned triangles run on GPU; Resolve retains the exact existing unmanaged
+  // collision fallback, clipped by the nearest owned GPU hit.
+  Out.Reset();for(const auto& Tree:{Static,Cargo,Grab}){if(Tree)Out.Add(Tree->ExportGpuMesh());else Out.Add(FVirtualSensorCollisionMesh());}
+  if(!Out.IsEmpty())for(const auto& B:External)Out[0].Surfaces.AddUnique(B.Component);
+  return true;
+ }
+ bool RequiresUnmanagedResolve(FVector Start,FVector End) const override
+ {for(const auto& B:External)if(FMath::LineBoxIntersection(B.Box,Start,End,End-Start))return true;return false;}
  FVector2D FallbackStatistics() const override{return FVector2D(External.Num(),FallbackTraces);}
  bool Trace(FVector Start,FVector End,FHitResult& Hit) const override
  {
@@ -141,7 +178,7 @@ TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> AShipHatchSimulatio
  for(TActorIterator<AActor>I(GetWorld());I;++I)if(*I!=IgnoreOwner)
  // Debug draw delegates have no trace geometry. Their inherited physics-state
  // flag alone is insufficient: GameplayDebugger advertises a20km render box.
- {TInlineComponentArray<UPrimitiveComponent*> Parts(*I);for(auto* P:Parts)if(!Owned.Contains(P)&&!P->IsA<UDebugDrawComponent>()&&P->IsPhysicsStateCreated()&&P->IsQueryCollisionEnabled()&&P->GetCollisionResponseToChannel(Channel)==ECR_Block){R->External.Add({P->Bounds.GetBox()});if(!C.LoggedExternal)UE_LOG(LogTemp,Display,TEXT("[HatchQueryExternal] %s/%s bounds=%s"),*GetNameSafe(*I),*GetNameSafe(P),*P->Bounds.GetBox().ToString());}}
+ {TInlineComponentArray<UPrimitiveComponent*> Parts(*I);for(auto* P:Parts)if(!Owned.Contains(P)&&!P->IsA<UDebugDrawComponent>()&&P->IsPhysicsStateCreated()&&P->IsQueryCollisionEnabled()&&P->GetCollisionResponseToChannel(Channel)==ECR_Block){R->External.Add({P->Bounds.GetBox(),P});if(!C.LoggedExternal)UE_LOG(LogTemp,Display,TEXT("[HatchQueryExternal] %s/%s bounds=%s"),*GetNameSafe(*I),*GetNameSafe(P),*P->Bounds.GetBox().ToString());}}
  C.LoggedExternal=true;
  return R;
 }

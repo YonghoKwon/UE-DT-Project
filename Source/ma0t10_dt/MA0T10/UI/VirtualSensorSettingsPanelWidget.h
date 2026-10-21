@@ -142,7 +142,7 @@ private:
 	TSharedRef<SWidget> BuildOwnedSettingDetail(FName Key);
 	void RefreshOwnedSettingsText();
 	void OpenOwnedSettingHelp(FName Key);
-	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText;
+	FText OwnedSelectionText,OwnedProfileText,OwnedQualityText,OwnedHelpText,OwnedLoadText,OwnedLidarBackendText;
 	FText OwnedStatusText;
 	FText OwnedDebugLogText,OwnedIdentityText;
     FText OwnedAutomationText;
@@ -212,6 +212,7 @@ private:
     TArray<TSharedPtr<EVirtualSensorSimulationQuality>> NativeQualityOptions;
     TArray<TSharedPtr<EVirtualCameraDeviceProfile>> NativeCameraProfileOptions;
     TArray<TSharedPtr<EVirtualLidarDeviceProfile>> NativeLidarProfileOptions;
+    TArray<TSharedPtr<EVirtualLidarAcquisitionBackend>> NativeLidarBackendOptions;
     TSharedPtr<STextBlock> NativeStatusText;
     TSharedPtr<SEditableTextBox> PoseNameInput;
     TArray<FVirtualSensorPoseBookmark> PoseRows;

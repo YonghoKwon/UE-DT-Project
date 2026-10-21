@@ -1,5 +1,6 @@
 #include "VirtualLidarScanComponent.h"
 #include "IndustrialLidarProfiles.h"
+#include "SensorOwnedRayTracing.h"
 #include "VirtualSensorSemanticLabels.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -144,7 +145,8 @@ EVirtualLidarAcquisitionBackend UVirtualLidarScanComponent::ResolveAcquisitionBa
     }
     if (AcquisitionBackend == EVirtualLidarAcquisitionBackend::HardwareRayTracing)
     {
-        OutReason = TEXT("hardware ray tracing backend is not implemented; accurate CPU trace fallback is active");
+        if(SensorOwnedRayTracing::IsAvailable())return EVirtualLidarAcquisitionBackend::HardwareRayTracing;
+        OutReason = TEXT("GPU 광선 추적을 사용할 수 없어 CPU로 측정합니다.");
         return EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     }
     if (AcquisitionBackend == EVirtualLidarAcquisitionBackend::ReplayOrExternal)
@@ -152,6 +154,10 @@ EVirtualLidarAcquisitionBackend UVirtualLidarScanComponent::ResolveAcquisitionBa
         OutReason = TEXT("replay/external backend has no automatic acquisition; CPU fallback is active");
         return EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     }
+
+    if(AcquisitionBackend==EVirtualLidarAcquisitionBackend::Auto&&SensorOwnedRayTracing::IsAvailable())return EVirtualLidarAcquisitionBackend::HardwareRayTracing;
+
+    if(RayQueryFactory)return EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
 
     const bool bDenseSolidStateProfile =
         DeviceProfile == EVirtualLidarDeviceProfile::IYOBOT_MLX80
@@ -295,6 +301,7 @@ FLinearColor UVirtualLidarScanComponent::ResolveSemanticColor(const FVirtualLida
 
 void UVirtualLidarScanComponent::PopulatePointSemanticMetadata(FVirtualLidarPoint& Point, const FHitResult& Hit) const
 {
+    if(CopyHardwareSemanticMetadata(Point,Hit))return;
     const AActor* A = Hit.GetActor();
     Point.HitActorName = A ? A->GetFName() : NAME_None;
     Point.HitActorClassName = (A && A->GetClass()) ? A->GetClass()->GetFName() : NAME_None;

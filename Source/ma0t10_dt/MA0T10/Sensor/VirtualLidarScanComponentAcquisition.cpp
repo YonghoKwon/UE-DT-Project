@@ -1,5 +1,6 @@
 #include "VirtualLidarScanComponent.h"
 #include "IndustrialLidarProfiles.h"
+#include "VirtualLidarStaticCollisionQuery.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 
@@ -135,7 +136,7 @@ void UVirtualLidarScanComponent::StopScanInternal(bool KeepReadbacks)
     NextScheduledScanTime = -1.0;
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
-    CancelSceneQueryBatch();ScheduledRayQuery.Reset();
+    CancelSceneQueryBatch();ScheduledRayQuery.Reset();HardwareSurfaceIdentities.Reset();
     RecycleScenePointStorage();
     bDeadlineMissRecordedForActiveAcquisition = false;
     if(GpuDepthProjectionComponent.IsValid()){if(KeepReadbacks)GpuDepthProjectionComponent->CancelDatasetAcquisition();else GpuDepthProjectionComponent->CancelAcquisition();}
@@ -221,7 +222,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
 	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) ScheduledSlabContext=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
-    ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+    if(ActiveAcquisitionBackend!=EVirtualLidarAcquisitionBackend::HardwareRayTracing)ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     RuntimeStatus.ActiveAcquisitionBackend=TEXT("accurate_cpu_trace");
     RuntimeStatus.AcquisitionBackendMessage=TEXT("CPU 충돌 추적 · 프레임 분할");
     ScheduledScanWidth = FMath::Max(1, HorizontalSamples);
@@ -239,6 +240,7 @@ void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
         ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 3)
         : (bUseMultiHit ? FMath::Max(1, MaxHitsPerRay) : 1);
     ScheduledRayQuery=RayQueryFactory?RayQueryFactory(GetOwner(),TraceChannel):nullptr;
+    if(!ScheduledRayQuery&&ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing)ScheduledRayQuery=CaptureLidarStaticCollision(GetWorld(),GetOwner(),TraceChannel,AcquisitionBackendFallbackReason);
     const int32 PointCapacity=ScheduledScanWidth * ScheduledScanHeight * EffectiveMaxEchoes;
     if(ScheduledRayQuery)AcquireScenePointStorage(PointCapacity);else ScheduledPoints.Reserve(PointCapacity);
     ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);

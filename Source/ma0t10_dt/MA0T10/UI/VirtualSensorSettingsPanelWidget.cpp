@@ -31,6 +31,7 @@
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
@@ -230,6 +231,18 @@ void UVirtualSensorSettingsPanelWidget::NativeTick(const FGeometry& MyGeometry, 
 FString CameraProfileText(EVirtualCameraDeviceProfile Profile)
 {
     return Profile == EVirtualCameraDeviceProfile::IntelRealSenseD455 ? TEXT("Intel RealSense D455") : TEXT("Generic Camera");
+}
+
+FText LidarBackendText(EVirtualLidarAcquisitionBackend Backend)
+{
+    switch(Backend)
+    {
+    case EVirtualLidarAcquisitionBackend::Auto:return LOCTEXT("LidarBackendAuto","자동 · GPU 우선");
+    case EVirtualLidarAcquisitionBackend::HardwareRayTracing:return LOCTEXT("LidarBackendGpu","GPU 광선 추적");
+    case EVirtualLidarAcquisitionBackend::AccurateCpuTrace:return LOCTEXT("LidarBackendCpu","CPU 충돌 추적");
+    case EVirtualLidarAcquisitionBackend::GpuDepthProjection:return LOCTEXT("LidarBackendDepth","기존 GPU 깊이 투영");
+    default:return LOCTEXT("LidarBackendExternal","외부 프레임");
+    }
 }
 
 FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
@@ -727,6 +740,7 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::RebuildWidget()
         MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80),
         MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE)
     };
+    NativeLidarBackendOptions={MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::Auto),MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::HardwareRayTracing),MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::AccurateCpuTrace)};
     RestoreSettingsUiPreferences();
     if(IsWorkspaceOwned())return BuildOwnedSettingsWidget();
     return SNew(SBorder)
@@ -938,6 +952,7 @@ void UVirtualSensorSettingsPanelWidget::RefreshOwnedSettingsText()
     OwnedSelectionText=FText::FromString(Actor?(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?TEXT("Camera · "):TEXT("LiDAR · "))+PendingState.SensorId:TEXT("장비 없음 · 배치에서 장비를 선택하세요"));
     OwnedProfileText=FText::FromString(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?CameraProfileText(PendingState.CameraProfile):LidarProfileText(PendingState.LidarProfile));
     OwnedQualityText=FText::FromString(OwnedQualityLabel(PendingState.SimulationQuality));
+    if(WorkspaceSettingsTab==1)if(const auto* Lidar=Cast<AVirtualLidarSensorActor>(Actor))OwnedLidarBackendText=LidarBackendText(Lidar->ScanComponent->AcquisitionBackend);
     FString Message=LastControlMessage;
     Message.ReplaceInline(TEXT("현재 PIE 값을 불러왔습니다."),TEXT("현재 장비 설정을 불러왔습니다."));
     Message.ReplaceInline(TEXT("PIE에 적용됨"),TEXT("장비 설정 적용됨"));
@@ -1019,6 +1034,17 @@ TSharedRef<SWidget> UVirtualSensorSettingsPanelWidget::BuildOwnedSettingsWidget(
     auto LidarBasic=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarInterval","측정 주기 (s)"),[this](){return PendingState.LidarScanInterval;},[this](float V){PendingState.LidarScanInterval=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},.033f,60,true,TEXT("LidarInterval"))];
     LidarBasic->AddSlot().AutoHeight()[MakeFloatRow(LOCTEXT("OwnedLidarRange","최대 거리 (cm)"),[this](){return PendingState.LidarMaxDistance;},[this](float V){PendingState.LidarMaxDistance=V;PendingState.SimulationQuality=EVirtualSensorSimulationQuality::Custom;},10,20000,true,TEXT("LidarRange"))];
+    auto Backend=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
+    Backend->AddSlot().AutoHeight().Padding(0,6)[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarBackendLabel","LiDAR 측정 방식"))];
+    Backend->AddSlot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualLidarAcquisitionBackend>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(FMargin(FSensorOwnedPresentationStyle::Gap,6))
+        .IsEnabled_Lambda([this](){return bOwnedCanEdit;}).OptionsSource(&NativeLidarBackendOptions)
+        .OnGenerateWidget_Lambda([this](auto Item){return SNewSensorTool(STextBlock).Text(Item?LidarBackendText(*Item):FText::GetEmpty());})
+        .OnSelectionChanged_Lambda([this](auto Item,ESelectInfo::Type){if(!Item)return;auto* Actor=Cast<AVirtualLidarSensorActor>(GetSelectedSensorActor());FString Reason;
+            if(Actor&&Actor->SetLidarAcquisitionBackend(*Item,Reason)){OwnedLidarBackendText=LidarBackendText(*Item);LastControlMessage=TEXT("LiDAR 측정 방식 적용");}
+            else LastControlMessage=Reason.IsEmpty()?TEXT("선택한 LiDAR를 사용할 수 없습니다."):Reason;RefreshNativeText();})
+        [SNewSensorTool(STextBlock).Text_Lambda([this](){return OwnedLidarBackendText;})]];
+    Backend->AddSlot().AutoHeight().Padding(0,3)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("LidarBackendHint","이번 실행에 적용합니다. 지원하지 않는 장면은 CPU로 측정하며, 변경 시 진행 중인 측정은 새 설정으로 다시 시작합니다."))];
+    Advanced->AddSlot().AutoHeight()[Backend];
     auto Fidelity=SNew(SVerticalBox).Visibility_Lambda(LidarVisible);
     Fidelity->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).Text(LOCTEXT("LidarFidelityGroup","LiDAR 사실성"))];
     const auto FidelityToggle=[this](TSharedRef<SVerticalBox> Box,const FText& Label,bool FVirtualSensorEditableState::*Field,FName Key)

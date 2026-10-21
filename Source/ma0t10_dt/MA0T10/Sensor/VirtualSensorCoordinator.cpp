@@ -900,3 +900,11 @@ bool AVirtualSensorCoordinator::ShouldKeepActorVisibleInPointCloudOnly(const AAc
 
     return false;
 }
+
+int32 AVirtualSensorCoordinator::SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend Backend)
+{
+    int32 Applied=0;
+    for(auto* Actor:GetSensorActors())if(auto* Lidar=Cast<AVirtualLidarSensorActor>(Actor))
+    {FString Reason;if(Lidar->SetLidarAcquisitionBackend(Backend,Reason))++Applied;}
+    return Applied;
+}
