@@ -10,6 +10,7 @@
 #include "Engine/GameViewportClient.h"
 #include "GameFramework/PlayerController.h"
 #include "SceneView.h"
+#include "RenderingThread.h"
 
 void ULidarPlayerDisplayComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials) const
 {Super::GetUsedMaterials(OutMaterials,bGetDebugMaterials);if(bFixedPointSubmission&&GEngine&&GEngine->VertexColorMaterial)OutMaterials.AddUnique(GEngine->VertexColorMaterial);}
@@ -24,14 +25,20 @@ void ULidarPlayerDisplayComponent::RefreshPointView()
     const double Scale=1./FMath::Max(1.,Projection.GetConstrainedViewRect().Width()*Projection.ProjectionMatrix.M[0][0]);
     const FVector Right=Axes.GetUnitAxis(EAxis::Y),Up=Axes.GetUnitAxis(EAxis::Z),Forward=Axes.GetUnitAxis(EAxis::X);
     if(Origin.Equals(PointViewOrigin,.01)&&Right.Equals(PointViewRight,1.e-5)&&Up.Equals(PointViewUp,1.e-5)&&FMath::IsNearlyEqual(Scale,PointPixelScale,1.e-9))return;
-    PointViewOrigin=Origin;PointViewRight=Right;PointViewUp=Up;PointViewForward=Forward;PointPixelScale=Scale;MarkRenderStateDirty();
+    PointViewOrigin=Origin;PointViewRight=Right;PointViewUp=Up;PointViewForward=Forward;PointPixelScale=Scale;CommitPointData();
 }
 
 namespace
 {
+struct FPlayerPointUpdate
+{
+    TArray<FBatchedPoint> Points;
+    FVector Origin,Right,Up,Forward;
+    double PixelScale=0;
+};
 class FPlayerDisplayProxy final:public FPrimitiveSceneProxy
 {
-    const TArray<FBatchedPoint> Points;
+    TArray<FBatchedPoint> Points;
     const TArray<FBatchedLine> Lines;
     const bool bFixedPoints;
     FStaticMeshVertexBuffers Vertices;
@@ -60,6 +67,27 @@ public:
     }
     ~FPlayerDisplayProxy()
     {if(bFixedPoints){Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();Factory.ReleaseResource();}}
+    void UpdatePoints(FRHICommandListImmediate& Cmd,FPlayerPointUpdate&& Data)
+    {
+        check(IsInRenderingThread());
+        if(!bFixedPoints||Data.Points.Num()!=Points.Num())return;
+        Points=MoveTemp(Data.Points);
+        for(int I=0;I<Points.Num();++I)
+        {
+            const auto& P=Points[I];const double Depth=FVector::DotProduct(P.Position-Data.Origin,Data.Forward);
+            const double Size=Depth>0&&P.PointSize>0&&P.Color.A>0?P.PointSize*Depth*Data.PixelScale:0;
+            const FVector X=Data.Right*Size,Y=Data.Up*Size;int CornerIndex=0;
+            for(auto Corner:{FVector2D(-1,-1),FVector2D(1,-1),FVector2D(1,1),FVector2D(-1,1)})
+            {
+                const int V=I*4+CornerIndex++;Vertices.PositionVertexBuffer.VertexPosition(V)=FVector3f(P.Position+X*Corner.X+Y*Corner.Y);
+                Vertices.ColorVertexBuffer.VertexColor(V)=P.Color.ToFColor(true);
+            }
+        }
+        // Same UE5.3 buffer update path as procedural meshes. Index buffers,
+        // vertex factory and bindings remain alive for the whole display.
+        auto Upload=[&](auto& Buffer){const uint32 Bytes=Buffer.GetNumVertices()*Buffer.GetStride();void* Dest=Cmd.LockBuffer(Buffer.VertexBufferRHI,0,Bytes,RLM_WriteOnly);FMemory::Memcpy(Dest,Buffer.GetVertexData(),Bytes);Cmd.UnlockBuffer(Buffer.VertexBufferRHI);};
+        Upload(Vertices.PositionVertexBuffer);Upload(Vertices.ColorVertexBuffer);
+    }
     SIZE_T GetTypeHash() const override {static char Key;return reinterpret_cast<SIZE_T>(&Key);}
     uint32 GetMemoryFootprint() const override {return sizeof(*this)+Points.GetAllocatedSize()+Lines.GetAllocatedSize();}
     FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
@@ -81,4 +109,19 @@ public:
     }
 };
 }
-FPrimitiveSceneProxy* ULidarPlayerDisplayComponent::CreateSceneProxy(){return new FPlayerDisplayProxy(this);}
+FPrimitiveSceneProxy* ULidarPlayerDisplayComponent::CreateSceneProxy()
+{FixedProxyPointCount=bFixedPointSubmission&&GEngine&&GEngine->VertexColorMaterial?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
+void ULidarPlayerDisplayComponent::CommitPointData()
+{
+    UpdateBounds();
+    if(bFixedPointSubmission&&SceneProxy&&FixedProxyPointCount>0&&FixedProxyPointCount==BatchedPoints.Num()){MarkRenderTransformDirty();MarkRenderDynamicDataDirty();}
+    else MarkRenderStateDirty();
+}
+void ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent()
+{
+    Super::SendRenderDynamicData_Concurrent();
+    if(!bFixedPointSubmission||!SceneProxy||FixedProxyPointCount<=0||FixedProxyPointCount!=BatchedPoints.Num())return;
+    FPlayerPointUpdate Data;Data.Points=BatchedPoints;Data.Origin=PointViewOrigin;Data.Right=PointViewRight;Data.Up=PointViewUp;Data.Forward=PointViewForward;Data.PixelScale=PointPixelScale;
+    auto* Proxy=static_cast<FPlayerDisplayProxy*>(SceneProxy);++FixedPointUploads;
+    ENQUEUE_RENDER_COMMAND(HatchUpdateFixedPoints)([Proxy,Data=MoveTemp(Data)](FRHICommandListImmediate& Cmd) mutable {Proxy->UpdatePoints(Cmd,MoveTemp(Data));});
+}

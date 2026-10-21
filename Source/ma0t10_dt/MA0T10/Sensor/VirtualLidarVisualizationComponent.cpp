@@ -616,7 +616,9 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
     // never represent returns and are excluded from visible-point telemetry.
     const FVector PaddingPosition=Visible?Batch.Last().Position:GetOwner()->GetActorLocation();
     while(Batch.Num()<Limit)Batch.Emplace(PaddingPosition,FLinearColor::Transparent,0.f,0.f,SDPG_World);
-    ColoredPointBatch->SetVisibility(true);ColoredPointBatch->UpdateBounds();ColoredPointBatch->MarkRenderStateDirty();
+    ColoredPointBatch->SetVisibility(true);
+    if(auto* PlayerBatch=Cast<ULidarPlayerDisplayComponent>(ColoredPointBatch)){if(PlayerBatch->bFixedPointSubmission)PlayerBatch->CommitPointData();else {PlayerBatch->UpdateBounds();PlayerBatch->MarkRenderStateDirty();}}
+    else {ColoredPointBatch->UpdateBounds();ColoredPointBatch->MarkRenderStateDirty();}
     VisiblePointCount=Visible;UpdateRendererTelemetry(ELidarPointCloudRendererState::CpuFallback,Visible,Visible,TEXT("CPU colour points"),TEXT("선택한 점만 최대 5Hz로 표시합니다."));
 }
 

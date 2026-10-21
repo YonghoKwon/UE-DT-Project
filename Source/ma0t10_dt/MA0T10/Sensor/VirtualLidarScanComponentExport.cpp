@@ -80,10 +80,12 @@ void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 {
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorComplete);
     bScheduledScanInProgress = false;
+    CancelSceneQueryBatch();ScheduledRayQuery.Reset();
     RuntimeStatus.bAcquisitionInFlight = false;
     RuntimeStatus.LastAcquisitionDurationMs = static_cast<float>((FPlatformTime::Seconds() - ScheduledScanStartTime) * 1000.0);
     ++FrameId;
-    LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
+    auto ReusedPoints=CompleteScenePointStorage();
+    LastPointStorage = ReusedPoints?MoveTemp(ReusedPoints):MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(MoveTemp(ScheduledPoints));
 	PublishLastFrameSnapshot(ScheduledScanTransform, ScheduledScanWidth, ScheduledScanHeight, MaxDistance);
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     LastHitPointCount = ScheduledHitPointCount;

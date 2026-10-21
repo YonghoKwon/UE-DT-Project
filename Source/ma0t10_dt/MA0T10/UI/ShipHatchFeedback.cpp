@@ -82,10 +82,8 @@ void UShipHatchMonitorWidget::UpdateOverlay()
     auto& Plane=Meshes[0];Plane.MeshVerts.Reset(4);Plane.MeshIndices.Reset(6);Plane.Color=FColor(242,194,107,28);Plane.DepthPriority=SDPG_World;
     const double Half=(bSectionLength?S->Settings.Length:S->Settings.Width)*.5,Offset=SectionOffset();
     auto World=[&](double P,double H){return Simulation->GetActorTransform().TransformPosition((bSectionLength?FVector(P,Offset,H):FVector(Offset,P,H))*100);};
-    for(auto P:{FVector2D(-Half,0),FVector2D(Half,0),FVector2D(Half,S->Settings.Depth+S->Settings.Coaming),FVector2D(-Half,S->Settings.Depth+S->Settings.Coaming)})Plane.MeshVerts.Add(World(P.X,P.Y));
-    Plane.MeshIndices.Append({0,1,2,0,2,3});
-    for(int32 I=0;I<4;++I)Lines.Emplace(Plane.MeshVerts[I],Plane.MeshVerts[(I+1)%4],HatchStyle::Warning(),0.f,1.f,SDPG_World);
-    if(Feedback)
+    if(!bModelPresentation){for(auto P:{FVector2D(-Half,0),FVector2D(Half,0),FVector2D(Half,S->Settings.Depth+S->Settings.Coaming),FVector2D(-Half,S->Settings.Depth+S->Settings.Coaming)})Plane.MeshVerts.Add(World(P.X,P.Y));Plane.MeshIndices.Append({0,1,2,0,2,3});for(int32 I=0;I<4;++I)Lines.Emplace(Plane.MeshVerts[I],Plane.MeshVerts[(I+1)%4],HatchStyle::Warning(),0.f,1.f,SDPG_World);}
+    if(Feedback&&!bModelPresentation)
     {
         const double T=FMath::Clamp((FeedbackUntil-FPlatformTime::Seconds())/1.2,0.,1.);const FVector Center=Simulation->GetActorTransform().TransformPosition(FVector(FeedbackCenter.X,FeedbackCenter.Y,S->Height(FeedbackCenter.X,FeedbackCenter.Y)+.1)*100);
         const double Radius=RadiusMeters*100*(1.1-.1*T);const FLinearColor Color(1,.7,.1,T);
@@ -97,7 +95,7 @@ void UShipHatchMonitorWidget::UpdateOverlay()
         auto& Mist=Meshes[2];auto& Stream=Meshes[3];Mist.Color=FColor(100,150,165,12);Stream.Color=Simulation->bCoal?FColor(35,38,40,190):FColor(105,75,52,190);
         auto W=[&](FVector P){return Simulation->GetActorTransform().TransformPosition(P*100);};
         auto Quad=[&](FBatchedMesh& Mesh,FVector A,FVector B,FVector C,FVector D){const int N=Mesh.MeshVerts.Num();for(auto P:{A,B,C,D})Mesh.MeshVerts.Add(W(P));Mesh.MeshIndices.Append({N,N+1,N+2,N,N+2,N+3,N,N+2,N+1,N,N+3,N+2});};
-        const double Post=FMath::Clamp(4.-(DischargeUntil-Now),0.,4.);const double HopperY=Simulation->SeaRailY()-Simulation->RailSpan*.5,HopperTop=Simulation->QuayZ()+15,SafeZ=FMath::Max(HopperTop+4,Simulation->HoldDepth+9);
+        const double Post=FMath::Clamp(4.-(DischargeUntil-Now),0.,4.);const double HopperY=Simulation->HopperCenterY(),HopperTop=Simulation->HopperRimZ(),SafeZ=FMath::Max(HopperTop+4,Simulation->HoldDepth+9);
         FVector Bucket(FeedbackCenter.X,FeedbackCenter.Y,S->Height(FeedbackCenter.X,FeedbackCenter.Y)+4.1);double Open=0;
         if(Feedback){const double Phase=1-FMath::Clamp((FeedbackUntil-Now)/1.2,0.,1.),Lift=Phase<.35?1-Phase/.35:Phase>.65?(Phase-.65)/.35:0;Bucket.Z=S->Height(Bucket.X,Bucket.Y)+.6+Lift*3.5;Open=Phase<.35?1:Phase<.65?1-(Phase-.35)/.3:0;}
         else if(Post<1)Bucket.Z=FMath::Lerp(Bucket.Z,SafeZ,Post);

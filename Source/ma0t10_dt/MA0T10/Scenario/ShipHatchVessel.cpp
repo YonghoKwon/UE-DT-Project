@@ -115,8 +115,9 @@ void AShipHatchSimulation::BuildVessel()
  for(int PanelEnd:{-1,1})
  {
   const double X=PanelEnd*(OpeningLength*.5+.15),RailLength=VesselBeam-.4;
-  Covers.Box(FVector(X,0,Deck+CoamingHeight-.17),FVector(.24,RailLength,.34),Steel);
-  Covers.Box(FVector(X,0,Deck+CoamingHeight+.01),FVector(.18,RailLength,.04),White);
+  // Rail runs on top of the coaming, rather than sharing its upper face.
+  Covers.Box(FVector(X,0,Deck+CoamingHeight+.02),FVector(.24,RailLength,.04),Steel);
+  Covers.Box(FVector(X,0,Deck+CoamingHeight+.05),FVector(.18,RailLength,.02),White);
   for(int Sign:{-1,1})for(double Y:{OpeningWidth*.5+1,VesselBeam*.5-.7})Covers.Box(FVector(X,Sign*Y,Deck+CoamingHeight*.5),FVector(.2,.2,CoamingHeight),Steel);
  }
  Covers.Commit(Vessel->Mesh,3,true);

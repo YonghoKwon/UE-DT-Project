@@ -149,7 +149,7 @@ void AShipHatchSimulation::UpdateSensorPresentation()
     if(SensorPresentation.Num()!=(bFieldLayout?3:2)){for(auto A:SensorPresentation)if(A)A->Destroy();SensorPresentation.Reset();UpdateSensorPresentation();return;}
     for(int32 I=0;I<(bFieldLayout?3:2);++I)
     {
-        auto* A=SensorPresentation[I].Get();TArray<FVector> V;TArray<int32> T;
+        auto* A=SensorPresentation[I].Get();A->Mesh->SetVisibility(bSensorMarkersVisible);TArray<FVector> V;TArray<int32> T;
         if(I<3)
         {
             const FVector O=SensorOrigin(I);HatchPresentationBox(V,T,O,FVector(I==0?1.4:.9,1.,.8));
@@ -162,6 +162,8 @@ void AShipHatchSimulation::UpdateSensorPresentation()
         else A->Mesh->CreateMeshSection_LinearColor(0,V,T,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),false);
     }
 }
+void AShipHatchSimulation::SetSensorMarkersVisible(bool Visible)
+{bSensorMarkersVisible=Visible;for(auto A:SensorPresentation)if(A)A->Mesh->SetVisibility(Visible);}
 bool AShipHatchSimulation::SelectSensorAt(FVector O,FVector D)
 {
     if(!D.Normalize())return false;
@@ -180,7 +182,7 @@ bool AShipHatchSimulation::PresentationOccludes(FVector Origin,FVector End) cons
     // prevent a grab through the hardware in either player view.
     for(int32 Part=0;Part<SensorPresentation.Num()+1;++Part)
     {
-        auto* A=Part<SensorPresentation.Num()?SensorPresentation[Part].Get():(bShowUnloader?UnloaderPresentation.Get():nullptr);if(!A)continue;
+        auto* A=Part<SensorPresentation.Num()?SensorPresentation[Part].Get():(bShowUnloader?UnloaderPresentation.Get():nullptr);if(!A||!A->Mesh->IsVisible())continue;
         const auto* Section=A->Mesh->GetProcMeshSection(0);if(!Section)continue;
         const auto Pose=A->Mesh->GetComponentTransform();const FVector O=Pose.InverseTransformPosition(Origin),E=Pose.InverseTransformPosition(End);
         if(!FMath::LineBoxIntersection(Section->SectionLocalBox,O,E,E-O))continue;

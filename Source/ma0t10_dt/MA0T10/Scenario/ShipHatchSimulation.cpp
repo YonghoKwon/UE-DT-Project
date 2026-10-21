@@ -14,6 +14,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Engine/TextureCube.h"
+#include "Engine/SkyLight.h"
 #include "EngineUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 
@@ -88,6 +89,9 @@ void AShipHatchSimulation::BeginPlay()
     // the portal's back faces without recapture, shadows or a new asset.
     if(bRealScale)if(auto* Cube=LoadObject<UTextureCube>(nullptr,TEXT("/Engine/MapTemplates/Sky/DaylightAmbientCubemap.DaylightAmbientCubemap")))
     {
+        // A later black scene capture from the fixture must not replace the
+        // specified outdoor cube. Keep and restore the fixture's visibility.
+        for(TActorIterator<ASkyLight> I(GetWorld());I;++I){FixtureSky=I->GetLightComponent();bFixtureSkyVisible=FixtureSky->IsVisible();FixtureSky->SetVisibility(false);break;}
         OutdoorAmbient=NewObject<USkyLightComponent>(this,TEXT("HatchOutdoorAmbient"));OutdoorAmbient->SetupAttachment(GetRootComponent());OutdoorAmbient->SetMobility(EComponentMobility::Movable);
         OutdoorAmbient->SourceType=SLS_SpecifiedCubemap;OutdoorAmbient->Cubemap=Cube;OutdoorAmbient->bRealTimeCapture=false;OutdoorAmbient->bLowerHemisphereIsBlack=false;OutdoorAmbient->SetIntensity(.65f);OutdoorAmbient->CastShadows=false;OutdoorAmbient->RegisterComponent();
     }
@@ -148,15 +152,15 @@ void AShipHatchSimulation::BuildStructure()
     {
         Box(V,T,FVector(0,0,-.15),FVector(S.Length+.6,S.Width+.6,.3));
         for(int32 Sign:{-1,1})
-        {Box(V,T,FVector(Sign*(S.Length+.3)*.5,0,S.Depth*.5),FVector(.3,S.Width+.6,S.Depth));
-         Box(V,T,FVector(0,Sign*(S.Width+.3)*.5,S.Depth*.5),FVector(S.Length,.3,S.Depth));}
+        {Box(V,T,FVector(Sign*(S.Length+.3)*.5,0,(S.Depth-.3)*.5),FVector(.3,S.Width+.6,S.Depth-.3));
+         Box(V,T,FVector(0,Sign*(S.Width+.3)*.5,(S.Depth-.3)*.5),FVector(S.Length,.3,S.Depth-.3));}
     });
     Part(TEXT("HatchOutside"),FLinearColor(.30,.15,.135),[&](TArray<FVector>& V,TArray<int32>& T)
     {
         const double L=S.Length+8,W=bRealScale?VesselBeam:S.Width+8;
         for(int32 Sign:{-1,1})
-        {Box(V,T,FVector(Sign*(L+S.OpeningLength)*.25,0,S.Depth+.15),FVector((L-S.OpeningLength)*.5,W,.3));
-         Box(V,T,FVector(0,Sign*(W+S.OpeningWidth)*.25,S.Depth+.15),FVector(S.OpeningLength,(W-S.OpeningWidth)*.5,.3));}
+        {Box(V,T,FVector(Sign*(L+S.OpeningLength)*.25,0,S.Depth-.15),FVector((L-S.OpeningLength)*.5,W,.3));
+         Box(V,T,FVector(0,Sign*(W+S.OpeningWidth)*.25,S.Depth-.15),FVector(S.OpeningLength,(W-S.OpeningWidth)*.5,.3));}
     });
     Part(TEXT("HatchCoaming"),FLinearColor(.38,.025,.015),[&](TArray<FVector>& V,TArray<int32>& T)
     {
@@ -323,6 +327,7 @@ void AShipHatchSimulation::ConfigureSensors()
         auto* Scan=A->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
         A->VisualizationComponent->SetProjectionPreviewEnabled(false);
         const TWeakObjectPtr<AShipHatchSimulation> Weak(this);
+        Scan->SetRayQueryFactory([Weak](AActor* Ignore,ECollisionChannel Channel)->TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe>{auto* S=Weak.Get();return S?S->CaptureRayQuery(Ignore,Channel):nullptr;});
         A->VisualizationComponent->SetPointPreviewTransform([Weak](FVirtualLidarPoint& P,double AcquisitionStart)
         {
             const auto* Self=Weak.Get();if(!Self||AcquisitionStart>=Self->LastGeometryEdit||P.SemanticLabel!=TEXT("HatchCargo")||!P.bHit)return;
@@ -370,6 +375,7 @@ bool AShipHatchSimulation::HasFreshMeasurement() const
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
     bEnding=true;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
+    if(OutdoorAmbient)OutdoorAmbient->DestroyComponent();if(IsValid(FixtureSky))FixtureSky->SetVisibility(bFixtureSkyVisible);
     if(KeyLight){KeyLight->SetActorRotation(OriginalLightRotation);KeyLight->GetLightComponent()->SetIntensity(OriginalLightIntensity);KeyLight->GetLightComponent()->SetCastShadows(bOriginalLightShadows);KeyLight->GetLightComponent()->SetMobility(EComponentMobility::Type(OriginalLightMobility));}
     GetWorldTimerManager().ClearTimer(ScanDisplayTimer);for(auto A:SensorPresentation)if(IsValid(A))A->Destroy();SensorPresentation.Reset();
     if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(CabRight)CabRight->Destroy();if(UnloaderPresentation)UnloaderPresentation->Destroy();if(Vessel)Vessel->Destroy();if(Cargo)Cargo->Destroy();

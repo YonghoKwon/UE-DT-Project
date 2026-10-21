@@ -9,6 +9,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Components/Button.h"
 #include "Components/SpinBox.h"
@@ -202,6 +203,7 @@ class FHatchDig final:public IAutomationLatentCommand
         {
             auto Sensor=MakeShared<FJsonObject>();const auto Scan=A->ScanComponent->GetResourceSnapshot(),Preview=A->VisualizationComponent->GetResourceSnapshot();
             for(const auto& P:Scan.OwnedCpuBytes)Sensor->SetNumberField(TEXT("scan/")+P.Key,double(P.Value));for(const auto& P:Scan.SharedCpuBytes)Sensor->SetNumberField(TEXT("shared/")+P.Key,double(P.Value));for(const auto& P:Preview.OwnedCpuBytes)Sensor->SetNumberField(TEXT("view/")+P.Key,double(P.Value));
+            TInlineComponentArray<ULidarPlayerDisplayComponent*> Batches(A);for(auto* B:Batches)if(B->bFixedPointSubmission){Sensor->SetNumberField(TEXT("view/fixed_proxy_creations"),double(B->GetFixedPointProxyCreations()));Sensor->SetNumberField(TEXT("view/fixed_point_uploads"),double(B->GetFixedPointUploads()));}
             R->SetObjectField(A->GetSensorId(),Sensor);
         }
         return R;
@@ -340,7 +342,7 @@ public:
             Result->SetObjectField(TEXT("resources_after"),Resources(S));
             TFunction<void(const FJsonObject&,const FJsonObject&)> CheckResources;
             CheckResources=[&](const FJsonObject& Before,const FJsonObject& After)
-            {for(const auto& P:Before.Values)if(P.Value->Type==EJson::Number)Test->TestEqual(TEXT("retained buffers/proxy count stable: ")+P.Key,After.GetNumberField(P.Key),P.Value->AsNumber());else if(P.Value->Type==EJson::Object)CheckResources(*P.Value->AsObject(),*After.GetObjectField(P.Key));};
+            {for(const auto& P:Before.Values)if(P.Value->Type==EJson::Number){if(P.Key!=TEXT("view/fixed_point_uploads"))Test->TestEqual(TEXT("retained buffers/proxy count stable: ")+P.Key,After.GetNumberField(P.Key),P.Value->AsNumber());}else if(P.Value->Type==EJson::Object)CheckResources(*P.Value->AsObject(),*After.GetObjectField(P.Key));};
             CheckResources(*Result->GetObjectField(TEXT("resources_before")),*Result->GetObjectField(TEXT("resources_after")));
             Result->SetNumberField(TEXT("view"),MeasuredView);Result->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);
             Result->SetBoolField(TEXT("full_rhi_drain"),FParse::Param(FCommandLine::Get(),TEXT("HatchFullRhiDrain")));
@@ -353,6 +355,11 @@ public:
             Test->TestTrue(TEXT("50 clicks raw RSS grows <=8MiB"),RawAfter<=RawBefore+8*1024*1024);
             Test->TestTrue(TEXT("50 clicks retained RSS grows <=8MiB"),Memory.UsedPhysical<=Rss+8*1024*1024);
             Test->TestTrue(TEXT("50 clicks committed memory grows <=8MiB"),Memory.UsedVirtual<=Commit+8*1024*1024);
+            if(MeasuredView==1)for(int I=0;I<3;++I)if(auto* A=S.SensorAt(I))
+            {
+                const auto Before=Result->GetObjectField(TEXT("resources_before"))->GetObjectField(A->GetSensorId()),After=Result->GetObjectField(TEXT("resources_after"))->GetObjectField(A->GetSensorId());
+                Test->TestTrue(TEXT("all50 edits update fixed GPU buffers without recreating point proxies"),Before->GetNumberField(TEXT("view/fixed_proxy_creations"))>0&&Before->GetNumberField(TEXT("view/fixed_proxy_creations"))==After->GetNumberField(TEXT("view/fixed_proxy_creations"))&&After->GetNumberField(TEXT("view/fixed_point_uploads"))>Before->GetNumberField(TEXT("view/fixed_point_uploads")));
+            }
             Test->TestTrue(TEXT("all click commits <=150ms"),Edits.Num()==50&&FMath::Max(Edits)<=150);
             Test->TestTrue(TEXT("all engine frames <=150ms"),Engine.Num()>0&&FMath::Max(Engine)<=150);
             Test->TestTrue(TEXT("all game-thread frames <=150ms"),Game.Num()>0&&FMath::Max(Game)<=150);

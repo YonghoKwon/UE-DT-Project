@@ -1,0 +1,147 @@
+#include "ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
+#include "ProceduralMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Algo/Sort.h"
+#include "Debug/DebugDrawComponent.h"
+
+namespace
+{
+struct FTriangle
+{
+ FVector3f A,B,C,Center;
+ int32 Surface=0;
+};
+struct FNode
+{
+ FBox3f Box=FBox3f(ForceInit);
+ int32 First=0,Count=0,Left=-1,Right=-1;
+};
+struct FTree
+{
+ TArray<FTriangle> Triangles;
+ TArray<int32> Order;
+ TArray<FNode> Nodes;
+ TArray<TWeakObjectPtr<UPrimitiveComponent>> Surfaces;
+ void Add(UProceduralMeshComponent* Mesh)
+ {
+  if(!Mesh||!Mesh->IsQueryCollisionEnabled()||Mesh->GetCollisionResponseToChannel(ECC_Visibility)!=ECR_Block)return;
+  const int Surface=Surfaces.Add(Mesh);const auto Pose=Mesh->GetComponentTransform();
+  for(int Section=0;Section<Mesh->GetNumSections();++Section)if(const auto* S=Mesh->GetProcMeshSection(Section))if(S->bEnableCollision)
+  {
+   for(int I=0;I+2<S->ProcIndexBuffer.Num();I+=3)
+   {
+    FTriangle T;T.Surface=Surface;T.A=FVector3f(Pose.TransformPosition(S->ProcVertexBuffer[S->ProcIndexBuffer[I]].Position));T.B=FVector3f(Pose.TransformPosition(S->ProcVertexBuffer[S->ProcIndexBuffer[I+1]].Position));T.C=FVector3f(Pose.TransformPosition(S->ProcVertexBuffer[S->ProcIndexBuffer[I+2]].Position));T.Center=(T.A+T.B+T.C)/3.f;Triangles.Add(T);
+   }
+  }
+ }
+ int Build(int First,int Count)
+ {
+  const int Id=Nodes.AddDefaulted();FBox3f Box(ForceInit),Centers(ForceInit);
+  for(int I=First;I<First+Count;++I){const auto& T=Triangles[Order[I]];Box+=T.A;Box+=T.B;Box+=T.C;Centers+=T.Center;}
+  Nodes[Id].Box=Box.ExpandBy(.001f);Nodes[Id].First=First;Nodes[Id].Count=Count;
+  if(Count>8)
+  {
+   const auto Size=Centers.GetSize();const int Axis=Size.X>=Size.Y&&Size.X>=Size.Z?0:Size.Y>=Size.Z?1:2;
+   Algo::Sort(MakeArrayView(Order.GetData()+First,Count),[this,Axis](int A,int B){return Triangles[A].Center[Axis]<Triangles[B].Center[Axis];});
+   const int Half=Count/2,L=Build(First,Half),R=Build(First+Half,Count-Half);Nodes[Id].Left=L;Nodes[Id].Right=R;Nodes[Id].Count=0;
+  }
+  return Id;
+ }
+ void Finish(){Order.SetNumUninitialized(Triangles.Num());for(int I=0;I<Order.Num();++I)Order[I]=I;Nodes.Reserve(Triangles.Num()/3);if(Order.Num())Build(0,Order.Num());}
+ static bool BoxHit(const FBox3f& B,FVector3f S,FVector3f D,FVector3f Inv,float Limit,float& Entry)
+ {
+  float Low=0,High=Limit;for(int A=0;A<3;++A){if(FMath::Abs(D[A])<1.e-8f){if(S[A]<B.Min[A]||S[A]>B.Max[A])return false;}else{const float P=(B.Min[A]-S[A])*Inv[A],Q=(B.Max[A]-S[A])*Inv[A];Low=FMath::Max(Low,FMath::Min(P,Q));High=FMath::Min(High,FMath::Max(P,Q));if(High<Low)return false;}}Entry=Low;return true;
+ }
+ bool Trace(FVector3f Start,FVector3f Delta,FVector3f Inv,float& Best,FVector3f& Normal,TWeakObjectPtr<UPrimitiveComponent>& Primitive) const
+ {
+  if(Nodes.IsEmpty())return false;float Entry=0;if(!BoxHit(Nodes[0].Box,Start,Delta,Inv,Best,Entry))return false;
+  bool Found=false;int Stack[64],Count=0;Stack[Count++]=0;
+  while(Count)
+  {
+   const auto& N=Nodes[Stack[--Count]];if(!BoxHit(N.Box,Start,Delta,Inv,Best,Entry))continue;
+   if(N.Count)
+   {
+    for(int I=N.First;I<N.First+N.Count;++I)
+    {
+     const auto& T=Triangles[Order[I]];const auto E1=T.B-T.A,E2=T.C-T.A,P=FVector3f::CrossProduct(Delta,E2);const float Det=FVector3f::DotProduct(E1,P);if(FMath::Abs(Det)<1.e-8f)continue;
+     const float R=1.f/Det;const auto V=Start-T.A;const float U=FVector3f::DotProduct(V,P)*R;if(U<0||U>1)continue;const auto Q=FVector3f::CrossProduct(V,E1);const float W=FVector3f::DotProduct(Delta,Q)*R;if(W<0||U+W>1)continue;const float Distance=FVector3f::DotProduct(E2,Q)*R;
+     if(Distance>=0&&Distance<Best){Best=Distance;Normal=FVector3f::CrossProduct(E1,E2).GetSafeNormal();if(FVector3f::DotProduct(Normal,Delta)>0)Normal=-Normal;Primitive=Surfaces[T.Surface];Found=true;}
+    }
+   }
+   else
+   {
+    float L=0,R=0;const bool A=BoxHit(Nodes[N.Left].Box,Start,Delta,Inv,Best,L),B=BoxHit(Nodes[N.Right].Box,Start,Delta,Inv,Best,R);
+    if(A&&B){check(Count+2<64);Stack[Count++]=L<R?N.Right:N.Left;Stack[Count++]=L<R?N.Left:N.Right;}else if(A)Stack[Count++]=N.Left;else if(B)Stack[Count++]=N.Right;
+   }
+  }
+  return Found;
+ }
+};
+struct FExternalBox{FBox Box;};
+class FSnapshot final:public IVirtualSensorRayQuery
+{
+public:
+ TSharedPtr<const FTree,ESPMode::ThreadSafe> Static,Cargo,Grab;
+ TArray<FExternalBox> External;
+ TWeakObjectPtr<UWorld> World;
+ TWeakObjectPtr<AActor> Ignore;
+ ECollisionChannel Channel=ECC_Visibility;
+ mutable uint64 FallbackTraces=0;
+ FName BackendName() const override{return TEXT("snapshot_cpu_bvh");}
+ FVector2D FallbackStatistics() const override{return FVector2D(External.Num(),FallbackTraces);}
+ bool Trace(FVector Start,FVector End,FHitResult& Hit) const override
+ {
+  FVirtualSensorRayHit Raw;TraceGeometry(Start,End,Raw);return Resolve(Start,End,Raw,Hit);
+ }
+ void TraceGeometry(FVector Start,FVector End,FVirtualSensorRayHit& Raw) const override
+ {
+  const FVector3f S(Start),D(End-Start),Inv(FMath::Abs(D.X)>1.e-8?1.f/D.X:0,FMath::Abs(D.Y)>1.e-8?1.f/D.Y:0,FMath::Abs(D.Z)>1.e-8?1.f/D.Z:0);float Best=1;FVector3f Normal=FVector3f::ZeroVector;TWeakObjectPtr<UPrimitiveComponent> Component;
+  const FTree* Trees[]={Static.Get(),Cargo.Get(),Grab.Get()};for(const auto* Tree:Trees)if(Tree)Tree->Trace(S,D,Inv,Best,Normal,Component);
+  Raw.Component=Component;Raw.Normal=Normal;Raw.Time=Best;
+ }
+ bool Resolve(FVector Start,FVector End,const FVirtualSensorRayHit& Raw,FHitResult& Hit) const override
+ {
+  auto* Component=Raw.Component.Get();if(Component){const FVector P=Start+(End-Start)*Raw.Time;Hit=FHitResult(Component->GetOwner(),Component,P,FVector(Raw.Normal));Hit.bBlockingHit=true;Hit.Location=Hit.ImpactPoint=P;Hit.Normal=Hit.ImpactNormal=FVector(Raw.Normal);Hit.TraceStart=Start;Hit.TraceEnd=End;Hit.Distance=FVector::Distance(Start,P);Hit.Time=Raw.Time;}
+  // Unknown/non-owned collision remains on the ordinary engine path. The
+  // bounds list is captured once per acquisition, never via per-ray actor scans.
+  // A foreign object behind the nearest owned surface cannot occlude it.
+  // Testing the full beam here needlessly retraced through the entire scene
+  // whenever the fixture ground lay behind cargo or the quay.
+  const FVector VisibleEnd=Component?Hit.ImpactPoint:End;
+  for(const auto& B:External)if(FMath::LineBoxIntersection(B.Box,Start,VisibleEnd,VisibleEnd-Start))if(auto* W=World.Get())
+  {++FallbackTraces;FHitResult Other;FCollisionQueryParams Q(SCENE_QUERY_STAT(HatchExternalQuery),false,Ignore.Get());if(W->LineTraceSingleByChannel(Other,Start,End,Channel,Q)&&(!Component||Other.Distance<Hit.Distance)){Hit=Other;return true;}break;}
+  return Component!=nullptr;
+ }
+};
+}
+struct FShipHatchRayCache
+{
+ uint32 StaticKey=0;
+ uint64 CargoRevision=MAX_uint64,GrabRevision=MAX_uint64;
+ TSharedPtr<FTree,ESPMode::ThreadSafe> Static,Cargo,Grab;
+ bool LoggedExternal=false;
+};
+TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> AShipHatchSimulation::CaptureRayQuery(AActor* IgnoreOwner,ECollisionChannel Channel)
+{
+ if(!bUseSnapshotRayQueries||bGenerating||bEnding||Channel!=ECC_Visibility)return {};
+ if(!RayCache)RayCache=MakeShared<FShipHatchRayCache,ESPMode::ThreadSafe>();auto& C=*RayCache;
+ uint32 Key=GetTypeHash(SceneScaleKey);for(double V:{HoldLength,HoldWidth,HoldDepth,OpeningLength,OpeningWidth,CoamingHeight,BoomLength,BoomHeight,CabHeight,CabX,CabY})Key=HashCombineFast(Key,GetTypeHash(V));
+ if(!C.Static||C.StaticKey!=Key)
+ {C.StaticKey=Key;C.Static=MakeShared<FTree,ESPMode::ThreadSafe>();for(auto A:Structure)if(A)C.Static->Add(A->Mesh);if(Vessel)C.Static->Add(Vessel->Mesh);if(UnloaderPresentation)C.Static->Add(UnloaderPresentation->Mesh);C.Static->Finish();}
+ if(!C.Cargo||C.CargoRevision!=SurfaceRevision){C.CargoRevision=SurfaceRevision;C.Cargo=MakeShared<FTree,ESPMode::ThreadSafe>();if(Cargo)C.Cargo->Add(Cargo->Mesh);C.Cargo->Finish();}
+ const uint64 GripKey=bShowGrab?GrabMeshCommits+1:0;
+ if(!C.Grab||C.GrabRevision!=GripKey){C.GrabRevision=GripKey;C.Grab=MakeShared<FTree,ESPMode::ThreadSafe>();if(bShowGrab)C.Grab->Add(GrabPresentation);C.Grab->Finish();}
+ auto R=MakeShared<FSnapshot,ESPMode::ThreadSafe>();R->Static=C.Static;R->Cargo=C.Cargo;R->Grab=C.Grab;R->World=GetWorld();R->Ignore=IgnoreOwner;R->Channel=Channel;
+ TSet<const UPrimitiveComponent*> Owned;for(const auto& T:{C.Static,C.Cargo,C.Grab})for(const auto& P:T->Surfaces)Owned.Add(P.Get());
+ for(TActorIterator<AActor>I(GetWorld());I;++I)if(*I!=IgnoreOwner)
+ // Debug draw delegates have no trace geometry. Their inherited physics-state
+ // flag alone is insufficient: GameplayDebugger advertises a20km render box.
+ {TInlineComponentArray<UPrimitiveComponent*> Parts(*I);for(auto* P:Parts)if(!Owned.Contains(P)&&!P->IsA<UDebugDrawComponent>()&&P->IsPhysicsStateCreated()&&P->IsQueryCollisionEnabled()&&P->GetCollisionResponseToChannel(Channel)==ECR_Block){R->External.Add({P->Bounds.GetBox()});if(!C.LoggedExternal)UE_LOG(LogTemp,Display,TEXT("[HatchQueryExternal] %s/%s bounds=%s"),*GetNameSafe(*I),*GetNameSafe(P),*P->Bounds.GetBox().ToString());}}
+ C.LoggedExternal=true;
+ return R;
+}
+FIntVector AShipHatchSimulation::RayQueryTriangleCounts() const
+{return RayCache?FIntVector(RayCache->Static?RayCache->Static->Triangles.Num():0,RayCache->Cargo?RayCache->Cargo->Triangles.Num():0,RayCache->Grab?RayCache->Grab->Triangles.Num():0):FIntVector::ZeroValue;}

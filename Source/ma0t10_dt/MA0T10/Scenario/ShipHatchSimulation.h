@@ -13,6 +13,8 @@ class UTextRenderComponent;
 class ADirectionalLight;
 class UPointLightComponent;
 class USkyLightComponent;
+class IVirtualSensorRayQuery;
+struct FShipHatchRayCache;
 
 /** Read-only center sightline diagnostic, separate from acquired samples. */
 struct FShipHatchSight
@@ -140,6 +142,12 @@ public:
     void Coverage(double& Opening,double& VisibleFloor,double& FloorArea) const;
     bool SelectSensorAt(FVector Origin,FVector Direction);
     void SetScanDisplay(bool Enabled);
+    double HopperCenterY() const { return (bRealScale?SeaRailY():BoomTipY()-BoomLength+3)-4.8; }
+    double HopperRimZ() const { return (bRealScale?QuayZ():HoldDepth-8)+15; }
+    void SetSensorMarkersVisible(bool Visible);
+    bool bUseSnapshotRayQueries=true;
+    TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> CaptureRayQuery(AActor* IgnoreOwner,ECollisionChannel Channel);
+    FIntVector RayQueryTriangleCounts() const;
     bool IsScanDisplayEnabled() const { return bScanDisplay; }
     static constexpr int32 DisplayRayLimit=96;
     int32 DisplayRayCount() const;
@@ -169,6 +177,8 @@ private:
     UPROPERTY(Transient) TObjectPtr<ADirectionalLight> KeyLight;
     UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FillLight;
     UPROPERTY(Transient) TObjectPtr<USkyLightComponent> OutdoorAmbient;
+    UPROPERTY(Transient) TObjectPtr<USkyLightComponent> FixtureSky;
+    bool bFixtureSkyVisible=false;
     FRotator OriginalLightRotation;
     float OriginalLightIntensity=0;
     uint8 OriginalLightMobility=0;
@@ -187,6 +197,8 @@ private:
     int64 FrameGates[3]={-1,-1,-1};
     double LastGeometryEdit=0;
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> SensorPresentation;
+    bool bSensorMarkersVisible=true;
+    TSharedPtr<FShipHatchRayCache,ESPMode::ThreadSafe> RayCache;
     UPROPERTY(Transient) TObjectPtr<AShipHatchPart> UnloaderPresentation;
     UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> GrabPresentation;
     bool bShowGrab=false; // DefaultOFF pending direct visual/site acceptance; instant unobstructed digging.

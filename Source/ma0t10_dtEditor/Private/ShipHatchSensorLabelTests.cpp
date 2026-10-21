@@ -70,7 +70,14 @@ struct FHatchLabelProbe
     static void Raster(FAutomationTestBase& T,UShipHatchMonitorWidget& M,const TArray<FColor>& Pixels,FIntVector Size)
     {
         const auto Root=M.GetCachedGeometry(),VG=M.GetWorld()->GetGameViewport()->GetGameViewportWidget()->GetCachedGeometry();const FLinearColor Colors[]={FLinearColor(.1,.9,1),FLinearColor(1,.6,.06),FLinearColor(.9,.2,.8)};
-        for(int I=0;I<3;++I){FVector2D Anchor,End;if(!M.GetSensorBadgeLink(I,Anchor,End))continue;const auto P=VG.AbsoluteToLocal(Root.LocalToAbsolute(Anchor))*FVector2D(Size.X,Size.Y)/VG.GetLocalSize();const auto C=Colors[I].ToFColorSRGB();int Hits=0;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const auto Q=Pixels[FMath::Clamp(FMath::RoundToInt(P.Y)+Y,0,Size.Y-1)*Size.X+FMath::Clamp(FMath::RoundToInt(P.X)+X,0,Size.X-1)];Hits+=FMath::Abs(int(Q.R)-C.R)<8&&FMath::Abs(int(Q.G)-C.G)<8&&FMath::Abs(int(Q.B)-C.B)<8;}T.TestTrue(TEXT("rendered role-colored anchor exists at actual detector pixel"),Hits>=2);}
+        for(int I=0;I<3;++I)
+        {
+            FVector2D Anchor,End;if(!M.GetSensorBadgeLink(I,Anchor,End))continue;
+            const auto P=VG.AbsoluteToLocal(Root.LocalToAbsolute(Anchor))*FVector2D(Size.X,Size.Y)/VG.GetLocalSize();const auto C=Colors[I].ToFColorSRGB();int Hits=0;
+            for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const auto Q=Pixels[FMath::Clamp(FMath::RoundToInt(P.Y)+Y,0,Size.Y-1)*Size.X+FMath::Clamp(FMath::RoundToInt(P.X)+X,0,Size.X-1)];Hits+=FMath::Abs(int(Q.R)-C.R)<8&&FMath::Abs(int(Q.G)-C.G)<8&&FMath::Abs(int(Q.B)-C.B)<8;}
+            if(M.IsOverlayAnchorVisible(Anchor))T.TestTrue(TEXT("rendered role-colored anchor exists at detector pixel outside clear center"),Hits>=2);
+            else T.TestEqual(TEXT("user2026-10-21: center sensor anchor is suppressed in actual rendered pixels"),Hits,0);
+        }
     }
 };
 namespace

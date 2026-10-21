@@ -14,6 +14,15 @@ public:
     FVector PointViewOrigin=FVector::ZeroVector,PointViewRight=FVector::RightVector,PointViewUp=FVector::UpVector,PointViewForward=FVector::ForwardVector;
     double PointPixelScale=1./1920,LastPointViewUpdate=-1;
     void RefreshPointView();
+    /** Hatch opt-in: update existing sprite buffers without replacing the proxy. */
+    void CommitPointData();
+    uint64 GetFixedPointProxyCreations() const { return FixedPointProxyCreations.Load(); }
+    uint64 GetFixedPointUploads() const { return FixedPointUploads.Load(); }
     virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials=false) const override;
     virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
+protected:
+    virtual void SendRenderDynamicData_Concurrent() override;
+private:
+    int32 FixedProxyPointCount=0;
+    TAtomic<uint64> FixedPointProxyCreations{0},FixedPointUploads{0};
 };

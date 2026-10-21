@@ -95,7 +95,7 @@ void AShipHatchSimulation::BuildUnloaderDetails()
  Beam(FVector(CabX,CabY,HoldDepth+CabHeight+2.6),FVector(CabX,CabY,H),.35,.35,Steel);
  // One separate grab component owns shells, rods, ropes and moving carriage.
  // Landside tapered receiving hopper and conveyor under the portal.
- const double HopperY=(SeaRail+LandRail)*.5,TopZ=RailZ+15,LowZ=RailZ+7;
+ const double HopperY=HopperCenterY(),TopZ=HopperRimZ(),LowZ=RailZ+7;
  // ref4 lattice receiving-hopper tower: four posts, three platform rings,
  // braced bays and a narrow chute. It is physical geometry for scan occlusion.
  for(int SX:{-1,1})for(int SY:{-1,1})Beam(FVector(SX*5.8,HopperY+SY*4.8,RailZ+1),FVector(SX*5.8,HopperY+SY*4.8,TopZ+3),.32,.32,Brace);
@@ -106,6 +106,9 @@ void AShipHatchSimulation::BuildUnloaderDetails()
   Beam(FVector(-6.3,HopperY+Sign*5.3,Z+1.1),FVector(6.3,HopperY+Sign*5.3,Z+1.1),.055,.055,Safety);
   for(double X=-6.3;X<6.4;X+=2.1)Beam(FVector(X,HopperY+Sign*5.3,Z),FVector(X,HopperY+Sign*5.3,Z+1.1),.05,.05,Safety);
  }
+ // User marked the seaward portal gap: the tower's near face is exactly
+ // on the sea-leg plane, with welded cross-ties into both portal columns.
+ for(int Sign:{-1,1})for(double Z:{RailZ+6,RailZ+12,TopZ+3})Beam(FVector(Sign*5.8,SeaRail,Z),FVector(Sign*7,SeaRail,Z),.35,.4,Steel);
  for(double Z:{RailZ+1,RailZ+6,RailZ+12})for(int Sign:{-1,1})
  {
   const double Next=Z==RailZ+1?RailZ+6:Z==RailZ+6?RailZ+12:TopZ+3;
@@ -137,8 +140,10 @@ void AShipHatchSimulation::BuildUnloaderDetails()
   Beam(FVector(-5.5,HopperY+Sign*4.5,TopZ+1.1),FVector(5.5,HopperY+Sign*4.5,TopZ+1.1),.06,.06,Safety);
   for(double X=-5.5;X<=5.5;X+=2.75)Beam(FVector(X,HopperY+Sign*4.5,TopZ),FVector(X,HopperY+Sign*4.5,TopZ+1.1),.055,.055,Safety);
  }
- Box(FVector(0,HopperY,RailZ+1.2),FVector(28,2,.35),Dark);
- for(int Sign:{-1,1})Beam(FVector(-14,HopperY+Sign*1.1,RailZ+1.5),FVector(14,HopperY+Sign*1.1,RailZ+1.5),.15,.15,Brace);
+ const double BeltY=(SeaRail+LandRail)*.5;
+ Box(FVector(0,BeltY,RailZ+1.2),FVector(28,2,.35),Dark);
+ Beam(FVector(0,HopperY,RailZ+1.2),FVector(0,BeltY,RailZ+1.2),2,.35,Dark);
+ for(int Sign:{-1,1}){Beam(FVector(-14,BeltY+Sign*1.1,RailZ+1.5),FVector(14,BeltY+Sign*1.1,RailZ+1.5),.15,.15,Brace);Beam(FVector(Sign*1.1,HopperY,RailZ+1.5),FVector(Sign*1.1,BeltY,RailZ+1.5),.15,.15,Brace);}
  N.Init(FVector::ZeroVector,V.Num());
  for(int I=0;I<T.Num();I+=3){const FVector Normal=FVector::CrossProduct(V[T[I+2]]-V[T[I]],V[T[I+1]]-V[T[I]]);for(int J=0;J<3;++J)N[T[I+J]]+=Normal;}
  for(auto& Normal:N)Normal.Normalize();
