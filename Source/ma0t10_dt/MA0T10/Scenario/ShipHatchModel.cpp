@@ -31,7 +31,7 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
     R.NX=FMath::CeilToInt(S.Length/S.MeshCell);R.NY=FMath::CeilToInt(S.Width/S.MeshCell);
     R.DX=S.Length/R.NX;R.DY=S.Width/R.NY;
     R.Fill=Random.FRandRange(S.FillMin,S.FillMax);
-    R.Repose=Random.FRandRange(S.Cargo==ECargo::Coal?28.f:32.f,S.Cargo==ECargo::Coal?35.f:40.f);
+    R.Repose=Random.FRandRange(S.Cargo==ECargo::Coal?33.f:35.f,S.Cargo==ECargo::Coal?35.f:40.f);
     R.Density=S.Cargo==ECargo::Coal?900:2400;
     R.Peaks=Random.RandRange(1,5);
     // A triangular interpolation can amplify sampled directional slopes by sqrt(2).
@@ -56,8 +56,22 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
         const double Lump=.10*FMath::PerlinNoise2D(P/1.8+Warp*.7+FVector2D(Phase,-Phase))+.035*FMath::PerlinNoise2D(P/4.2+FVector2D(2.7,Phase));
         const double Rill=.012*FMath::Sin(P.X*2.5+Warp.Y*3+P.Y*.4+Phase);
         const double Wall=FMath::Min(S.Length*.5-FMath::Abs(P.X),S.Width*.5-FMath::Abs(P.Y));
-        Shape[Y*(R.NX+1)+X]=H+Lump+Rill+.08*FMath::Exp(-Wall/2.);
+        // Shallow overlapping clamshell tracks belong to the authoritative
+        // heightfield, not visual displacement or a second measurement mesh.
+        const FVector2D Track=P-Bias;
+        const double Scrape=.18*FMath::Exp(-FMath::Square((Track.X+1.2*FMath::Sin(Track.Y*.3))/2.2)-FMath::Square(Track.Y/5.));
+        Shape[Y*(R.NX+1)+X]=H+Lump+Rill+.08*FMath::Exp(-Wall/2.)-Scrape;
     }
+    // Offset+clamp used to flatten most of a95% load against the deck height.
+    // Fit the relief to the actual headroom before solving the SAME requested
+    // triangle-integral volume. Scaling reduces slopes, preserving repose.
+    double ShapeIntegral=0,ShapeMax=-DBL_MAX;
+    for(double H:Shape)ShapeMax=FMath::Max(ShapeMax,H);
+    for(int32 Y=0;Y<R.NY;++Y)for(int32 X=0;X<R.NX;++X)
+    {const int I=Y*(R.NX+1)+X;ShapeIntegral+=(2*Shape[I]+Shape[I+1]+Shape[I+R.NX+1]+2*Shape[I+R.NX+2])/6.*R.DX*R.DY;}
+    const double ShapeMean=ShapeIntegral/(S.Length*S.Width),Headroom=S.Depth*(1-R.Fill*.01);
+    if(ShapeMax-ShapeMean>Headroom&&Headroom>0)
+    {const double Scale=Headroom/(ShapeMax-ShapeMean);for(double& H:Shape)H=ShapeMean+(H-ShapeMean)*Scale;}
     R.Heights.SetNumUninitialized(Shape.Num(),false);
     auto Integrate=[&](double Offset)
     {

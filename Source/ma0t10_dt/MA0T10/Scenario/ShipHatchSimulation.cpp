@@ -142,6 +142,17 @@ void AShipHatchSimulation::BuildStructure()
         auto* A=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);
         if(!A)return;A->Tags.Add(Label);A->SetColor(Color);Structure.Add(A);
         TArray<FVector> V;TArray<int32>T;Build(V,T);Mesh(A->Mesh,V,T);
+        if(Label==TEXT("HatchCoaming"))
+        {
+            if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
+            {
+                auto* MID=UMaterialInstanceDynamic::Create(Base,A);MID->SetScalarParameterValue(TEXT("Hardware"),1);
+                MID->SetScalarParameterValue(TEXT("WeatheredCoaming"),1);MID->SetVectorParameterValue(TEXT("PaintTint"),FLinearColor(.20,.035,.023));
+                const auto Pose=GetActorTransform();MID->SetVectorParameterValue(TEXT("PaintOrigin"),FLinearColor(Pose.GetLocation()));
+                MID->SetVectorParameterValue(TEXT("PaintX"),FLinearColor(Pose.GetUnitAxis(EAxis::X)));MID->SetVectorParameterValue(TEXT("PaintY"),FLinearColor(Pose.GetUnitAxis(EAxis::Y)));MID->SetVectorParameterValue(TEXT("PaintUp"),FLinearColor(Pose.GetUnitAxis(EAxis::Z)));
+                MID->SetVectorParameterValue(TEXT("HoldBounds"),FLinearColor(S.OpeningLength*.5,S.OpeningWidth*.5,S.Depth));A->Mesh->SetMaterial(0,MID);
+            }
+        }
         if(Label==TEXT("HatchHold"))
         {
             if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
@@ -202,7 +213,8 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         const double Removed=Original.Heights.IsValidIndex(I)?FMath::Max(0.,double(Original.Heights[I])-H):0;
         const double Fresh=FMath::Clamp(Removed/.6,0.,1.);
         const double Surround=(Current.At(FMath::Max(0,X-1),Y)+Current.At(FMath::Min(Current.NX,X+1),Y)+Current.At(X,FMath::Max(0,Y-1))+Current.At(X,FMath::Min(Current.NY,Y+1)))*.25;
-        const double Shade=1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.);
+        const double Wall=FMath::Min(FMath::Min(X*Current.DX,(Current.NX-X)*Current.DX),FMath::Min(Y*Current.DY,(Current.NY-Y)*Current.DY));
+        const double Shade=(1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.))*(.72+.28*FMath::Clamp(Wall/.9,0.,1.));
         // Alpha is a retained per-vertex cut mask, restored from the exact
         // original field on undo/restore. No new texture or per-frame upload.
         Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Fresh));
@@ -243,7 +255,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         auto* MID=Cast<UMaterialInstanceDynamic>(Cargo->Mesh->GetMaterial(0));
         if(Base&&(!MID||MID->Parent!=Base)){MID=UMaterialInstanceDynamic::Create(Base,Cargo);Cargo->Mesh->SetMaterial(0,MID);}
         const bool Coal=Current.Settings.Cargo==ShipHatch::ECargo::Coal;
-        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.018,.021,.024):FLinearColor(.20,.07,.04));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
+        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.038,.036,.033):FLinearColor(.13,.085,.060));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
         Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
 }
 uint64 AShipHatchSimulation::DigBufferBytes() const

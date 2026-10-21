@@ -4,6 +4,7 @@ param(
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot='',
     [string]$CornerCaptureDirectory='',
+    [string]$CornerReferenceDirectory='',
     [ValidateRange(1280,3840)][int]$Width=1920,
     [ValidateRange(720,2160)][int]$Height=1080,
     [ValidateRange(10,60)][int]$MemoryWarmupSeconds=35,
@@ -30,6 +31,7 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
 & {
     $sourceHashes=@{}
     Get-ChildItem -LiteralPath "$root/Source" -File -Recurse | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}
+    $sourceHashes['Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset']=(Get-FileHash -LiteralPath "$root/Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset" -Algorithm SHA256).Hash
     @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=[bool]$MemoryAudit; FullRhiDrain=[bool]$FullRhiDrain; WorldTraceReference=[bool]$WorldTraceReference; CpuReference=[bool]$CpuReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
 }
 $test=switch($Mode){'CornerCaptures'{'HATCH06.CornerCapturesRhi'} 'Quality'{'HATCH06.ModelQualityRhi'} 'Query'{'HATCH06.SceneQueriesRhi'} 'Overlay'{'HATCH06.OverlayAndModelRhi'} 'Grab'{'HATCH06.GrabPresentationRhi'} 'Industrial'{'HATCH06.AcceptanceRhi'} 'IndustrialManual'{'HATCH06.AcceptanceRhi'} 'OrientationManual'{'MA0T10.Hatch.ViewOrientationRhi'} 'Orientation'{'MA0T10.Hatch.ViewOrientationRhi'} 'OrientationCaptures'{'HATCH05.CapturesRhi'} 'Feedback'{'MA0T10.Hatch.UserFeedbackRhi'} 'FeedbackCaptures'{'HATCH04.CapturesRhi'} 'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
@@ -42,6 +44,7 @@ try {
         "-ReportExportPath=$ReportRoot/automation","-HatchReport=$ReportRoot","-HatchSourceCommit=$sourceCommit","-HatchSensorCount=$Sensors","-HatchMemoryWarmup=$MemoryWarmupSeconds","-HatchFontPercent=$FontPercent","-HatchDigView=$DigView",
         "-abslog=$ReportRoot/automation.log")
     if($Mode -eq 'CornerCaptures' -and $CornerCaptureDirectory){$hatchArgs+="-HatchCornerOutput=$([IO.Path]::GetFullPath($CornerCaptureDirectory))"}
+    if($Mode -eq 'CornerCaptures' -and $CornerReferenceDirectory){$hatchArgs+="-HatchCornerReference=$([IO.Path]::GetFullPath($CornerReferenceDirectory))"}
     if($Mode -eq 'OrientationManual'){$hatchArgs+='-HatchOrientationManual'}
     if($Mode -eq 'IndustrialManual'){$hatchArgs+='-Hatch06Manual'}
     if($FastCaptures){if($Mode -ne 'Industrial'){throw 'FastCaptures is only a capture validation mode, not a performance gate'};$hatchArgs+='-Hatch06Fast'}

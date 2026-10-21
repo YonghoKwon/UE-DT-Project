@@ -499,6 +499,10 @@ RSS초기동일프레임17편집 준비를17완전한센서/분석사이클+35�
 DTCore source/gitlink·Game.ini/SensorTransport값·PixelStreaming/Build.cs/uproject·사용자SensorTestMap/기존자산·Claude전용파일·Inspection원본수정/stage0. 승인재질1개와DefaultGame cook1줄은구분한다. push/PR/merge/worktree/submodule update/Docker/WSL0. 최종quick/문서commit·보호감사·수용제한은Saved/Reports/HATCH-03/DONE.md,상세RESULT.md를따른다. 실장비/실선박보정·DEM·모든값의직접전수검사는범위밖이다.
 
 
-## 2026-10-22 FOLLOWUP-27 CPU ?? ??
+## 2026-10-22 FOLLOWUP-27 CPU 경계 광선
 
-float Moller-Trumbore ?? ??? ?? ?? ??? ??? ???? ?? snapshot ????? ????. ?? ??? double ray-space edge ??? ???? ?? ? ?? bay? ??? ?? ???? ????. ??4096+24576 ?? ??? native physics ???0 mismatch/??0.178mm?. ??234?91?7 ??? ??/?? CPU Hz?GPU ?????? gate? [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), ?? ??? ?? ?? progress? ????. 1mm ???????? ???DTCore??? ?? ????.
+float Moller-Trumbore 내적 상쇄로 실제 공유 경계가 외부로 판정됨을 실제 snapshot 삼각형으로 재현했다. 경계 후보에 double ray-space edge 판정을 적용하고 주름 벽 인접 bay의 이음선 좌표 생성식을 통일했다. 기존4096+24576 경계 광선의 native physics 비교는0 mismatch/최대0.178mm다. 중간234→91→7 실패와 최종 CPU Hz·GPU 프로필·공통 gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), 원시 자료는 같은 폴더 progress에 보존한다. 1mm 기준·계약·광학 응답·DTCore·보호 맵은 유지한다.
+
+## 2026-10-22 FOLLOWUP-29 코너 노출·재질·만재 형상
+
+해치 소유 카메라 노출 고정/종료 복원, 기존 M_HatchCargo 한 자산의 표시 albedo/roughness·코밍 절차 마모/녹/분진/AO, 높이 여유에 맞춘 실제 만재 높이장과 얕은 그랩 자국을 반영했다. 원래95% 체적 정확도/안식각을 유지하고60개 만재 case에서 relief/상한 평지를 추가 검증한다. 기존14개 해치 회귀는 성공14/실패0. 동일6카메라 비교, 230회 실제 퍼내기 잔량4.97%, GPU3센서 각각20.00Hz/59.999FPS, 원거리·조감14장과 원시 결과는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 첫 촬영의 기존 디깅 stencil은 새 표면에서 잔량5%에 못 미쳐 실패했으며 개구부 안 지점을 넓혀 같은1000회 상한/5% 기준으로 통과했다. 직접 UI 수용은 Windows 잠금으로 수행하지 않았다. 맵 저장/DTCore/광학 반응/wire/SaveGame 변경은 없다.

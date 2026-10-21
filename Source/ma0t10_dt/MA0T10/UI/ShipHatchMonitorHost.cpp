@@ -11,6 +11,7 @@
 #include "SceneViewExtension.h"
 #include "SceneView.h"
 #include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
 
@@ -44,7 +45,18 @@ void AShipHatchMonitorHost::Refresh()
     {
         PreviousView=PC->GetViewTarget();bPreviousCursor=PC->bShowMouseCursor;
         ViewExtension=FSceneViewExtensions::NewExtension<FShipHatchViewExtension>(GetWorld());
-        if(ViewCamera)PC->SetViewTarget(ViewCamera);PC->bShowMouseCursor=true;
+        if(ViewCamera)
+        {
+            auto* Camera=ViewCamera->GetCameraComponent();PreviousPostProcess=Camera->PostProcessSettings;
+            PreviousPostProcessWeight=Camera->PostProcessBlendWeight;bCameraExposureOverridden=true;
+            // One map-owned player view: dark cargo must not trigger a brighter
+            // auto exposure on close-up. Sensor capture/optical response stays independent.
+            auto& Post=Camera->PostProcessSettings;Post.bOverride_AutoExposureMethod=true;Post.AutoExposureMethod=AEM_Manual;
+            Post.bOverride_AutoExposureApplyPhysicalCameraExposure=true;Post.AutoExposureApplyPhysicalCameraExposure=false;
+            Post.bOverride_AutoExposureBias=true;Post.AutoExposureBias=0;Camera->PostProcessBlendWeight=1;
+            PC->SetViewTarget(ViewCamera);
+        }
+        PC->bShowMouseCursor=true;
         FInputModeGameAndUI Mode;Mode.SetHideCursorDuringCapture(false);PC->SetInputMode(Mode);
         FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;
         Coordinator=GetWorld()->SpawnActor<AVirtualSensorCoordinator>(P);
@@ -85,6 +97,8 @@ void AShipHatchMonitorHost::ShowTools()
 void AShipHatchMonitorHost::EndPlay(const EEndPlayReason::Type Reason)
 {
     GetWorldTimerManager().ClearTimer(RefreshTimer);
+    if(bCameraExposureOverridden&&IsValid(ViewCamera))
+    {auto* Camera=ViewCamera->GetCameraComponent();Camera->PostProcessSettings=PreviousPostProcess;Camera->PostProcessBlendWeight=PreviousPostProcessWeight;bCameraExposureOverridden=false;}
     ViewExtension.Reset();
     if(Coordinator)Coordinator->SetPointCloudOnlyMode(false);
     if(Monitor)

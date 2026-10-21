@@ -78,6 +78,17 @@ class FHatchCornerCaptureRun final:public IAutomationLatentCommand
             AimLocal=Points?FVector(0,2,2):FVector(10.5,18,1);
             H.ViewCamera->GetCameraComponent()->SetFieldOfView(Points?55:74);
         }
+        FString Reference;
+        if(!Points&&FParse::Value(FCommandLine::Get(),TEXT("HatchCornerReference="),Reference))
+        {
+            FString Text;TSharedPtr<FJsonObject> Before;
+            if(!FFileHelper::LoadFileToString(Text,*(Reference/(FString(Names[Shot])+TEXT(".json"))))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Before)||!Before)
+            {Test->AddError(TEXT("same-camera corner reference is missing/invalid"));return;}
+            const auto& C=Before->GetArrayField(TEXT("camera_hold_m"));const auto& A=Before->GetArrayField(TEXT("aim_hold_m"));
+            if(C.Num()!=3||A.Num()!=3){Test->AddError(TEXT("same-camera reference needs3D position/aim"));return;}
+            CameraLocal=FVector(C[0]->AsNumber(),C[1]->AsNumber(),C[2]->AsNumber());AimLocal=FVector(A[0]->AsNumber(),A[1]->AsNumber(),A[2]->AsNumber());
+            H.ViewCamera->GetCameraComponent()->SetFieldOfView(Before->GetNumberField(TEXT("horizontal_fov_deg")));
+        }
         const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(CameraLocal*100),Aim=Pose.TransformPosition(AimLocal*100);
         H.ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());
         H.SetSceneRect(FSlateRect(0,0,1920,1080),FVector2D(1920,1080),true);
@@ -93,6 +104,8 @@ class FHatchCornerCaptureRun final:public IAutomationLatentCommand
         R->SetStringField(TEXT("rhi"),GDynamicRHI?GDynamicRHI->GetName():TEXT("none"));
         R->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
         R->SetStringField(TEXT("material"),S.bCoal?TEXT("coal"):TEXT("iron_ore"));
+        const auto& Post=Host->ViewCamera->GetCameraComponent()->PostProcessSettings;
+        R->SetNumberField(TEXT("exposure_method"),int(Post.AutoExposureMethod));R->SetNumberField(TEXT("exposure_bias"),Post.AutoExposureBias);
         R->SetStringField(TEXT("side"),Shot==2||Shot==3?TEXT("landward"):TEXT("seaward"));
         R->SetStringField(TEXT("end"),Shot==1||Shot==3?TEXT("stern"):TEXT("bow"));
         R->SetStringField(TEXT("axis_convention"),TEXT("hold-local meters: bow +X, stern -X, seaward +Y, landward -Y, up +Z"));
@@ -185,7 +198,7 @@ public:
         {
             if(Now-Changed<3||!S.HasFreshMeasurement())return false;
             double Highest=0;FVector2D Target;
-            for(double X:{-8.,-4.,0.,4.,8.})for(double Y:{-9.,-4.5,0.,4.5,9.})
+            for(double X:{-9.,-4.5,0.,4.5,9.})for(double Y:{-10.,-5.,0.,5.,10.})
                 if(S.Surface().Height(X,Y)>Highest){Highest=S.Surface().Height(X,Y);Target=FVector2D(X,Y);}
             if(Highest<=.5&&S.Surface().Fill<=5)PolishFloor=true;
             if(PolishFloor)

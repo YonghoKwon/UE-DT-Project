@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Engine/Scene.h"
 #include "ShipHatchMonitorHost.generated.h"
 class AShipHatchSimulation;
 class AVirtualSensorCoordinator;
@@ -30,6 +31,9 @@ private:
     TWeakObjectPtr<AActor> PreviousView;
     bool bPreviousCursor=false;
     bool bRegisteredSensors=false;
+    FPostProcessSettings PreviousPostProcess;
+    float PreviousPostProcessWeight=1;
+    bool bCameraExposureOverridden=false;
     TSharedPtr<FShipHatchViewExtension,ESPMode::ThreadSafe> ViewExtension;
     void Refresh();
 };

@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+FOLLOWUP-29(사용자2026-10-22): 해치 보기 카메라의 노출을 고정하고 종료 시 복원한다. 원료 표시 albedo/roughness, 기존 코밍 재질의 절차적 마모·녹·분진/접촉 AO를 조정했다. 만재 높이장은 같은95% 체적을 유지하며 높이 여유에 둔덕을 맞춰 상한 평탄화를 방지한다. 새 표면도 측정·디깅·체적의 단일 원본이다. 같은6개 카메라의 [전후 합본](Saved/Reports/FOLLOWUP-26-28/corners-before-after.png), 회귀·GPU3×20Hz/60FPS·원거리·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 광학 반응·wire·SaveGame·DTCore·맵은 변경하지 않는다.
+
 FOLLOWUP-27(사용자2026-10-22): 해치 snapshot BVH의 경계 판정을 double ray-space edge 검사로 보완하고 주름 벽 인접 구간의 이음선 좌표를 동일한 식으로 생성한다. 기존4096 무작위+24576 축/분할면/near-zero 광선에서 native physics와 불일치0, 최대0.178mm(1mm 기준 유지)를 확인했다. CPU Hz·GPU 프로필 재측정과 공통 release/RT on perf의 최종 결과는 [후속 보고](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. wire·센서 광학 반응·DTCore·맵 저장 변경은 없다.
 
 GPU-LIDAR-01(사용자 #25): 기존 Bootstrap과 프로젝트 adapter에서 센서 소유 collision BLAS/TLAS·ray-gen/closest-hit·비동기 readback을 구현한다. 해치 CPU와 같은 immutable collision snapshot을 사용하고 점별 물리/재질 계산을 worker로 전달한다. 초기 1920×1080 오프스크린 D3D12 측정에서 기본3 및 OS1-64×3은 약20Hz·60FPS를 확인했다. 최종 SHA·정확도 최대 오차·release/perf·50회 디깅 RSS·직접 수용·제한은 [RESULT](Saved/Reports/GPU-LIDAR-01/RESULT.md), [DONE](Saved/Reports/GPU-LIDAR-01/DONE.md)를 따른다. 기존 HATCH-06 RSS 후속 #26은 별도이며 이번 작업에서 수용 완료로 바꾸지 않는다.
@@ -614,6 +616,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+FOLLOWUP-29는 기존 L2 높이장/표시 재질과 L3 해치 소유 카메라 노출만 바꾼다. 기존 M_HatchCargo 한 자산을 재사용하며 새 모듈·플러그인·측정 capture·광학 계약·저장 형식 없이 layer 위반·allowlist **0→0**이다.
 
 FOLLOWUP-27은 기존 L2 해치 geometry/query와 Editor 회귀·검증 진입점만 수정한다. L0 계약·L1 센서·DTCore·모듈·자산 추가 없이 layer 위반·allowlist **0→0**이다.
 

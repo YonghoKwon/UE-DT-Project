@@ -12,6 +12,14 @@
 - GPU의 기존 hit/identity/semantic ≥99%·거리p95≤1cm 검사를 유지하고 X=0 경계 최대≤1mm를 추가한다. 전체 GPU 최대 오차와 경계 최대는 구분한다.
 - CPU Hz·9개 GPU 프로필·공통 release/RT on ABAB·중간 실패/제한은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. DTCore·wire·광학 반응·맵 저장은 변경하지 않는다.
 
+## FOLLOWUP-29 — 해치 근접 표시와 만재 형상
+
+사용자2026-10-22 승인. 해치 소유 카메라만 수동 노출/물리 카메라 보정off로 고정하며 종료 시 원래 post process를 복원한다. 표시용 iron albedo(.13,.085,.060), coal(.038,.036,.033), roughness를 조정한다. LiDAR 광학 반응은 그대로다. 기존 M_HatchCargo의 코밍 분기에서 절차적 마모·녹·분진/접촉 AO를 적용하고 원료의 벽 접촉 색을 기존 정점 갱신에 포함한다. 새 장식 geometry/capture/readback은 없다.
+
+- 95% 체적의 원래 정확도 기준을 유지하며, 안식각(iron35~40°/coal33~35°) 안에서 높이 여유에 둔덕을 맞춘다. 실제 높이장에 얕은 그랩 자국을 포함해 CPU/GPU·디깅·체적과 공유한다.
+- 추가60개 만재 case는 체적오차<0.001%, relief≥1m, 상한 평지<1%, 실제 삼각형 안식각을 검사한다. 기존 체적/만재율 기대값은 낮추지 않았다.
+- 실제 D3D12 동일6카메라 [전후 합본](../Saved/Reports/FOLLOWUP-26-28/corners-before-after.png), 원거리/조감14장, GPU3×20Hz/60FPS와 실패·제한·공통gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 개인 설정 복원/최종 release/perf는 그룹 종료 시 별도 감사한다.
+
 ## GPU-LIDAR-01 — 센서 소유 하드웨어 RT LiDAR (#25)
 
 사용자 결정2026-10-22: 선택2(센서 소유 TLAS), Launcher 엔진 변경/새 모듈/플러그인 금지. scene TLAS 재사용은 필수 요구가 아니다. 기존 collision snapshot·광선 패턴·FrameId/시간/pose/identity·physical model·PCD/출력 계약을 보존한다.
