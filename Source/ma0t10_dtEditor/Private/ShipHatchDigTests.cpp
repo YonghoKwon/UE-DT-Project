@@ -31,6 +31,7 @@
 #include "Json.h"
 #include "RenderingThread.h"
 #include "RHICommandList.h"
+#include "UObject/UObjectArray.h"
 
 void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
 struct FHatchDigProbe
@@ -184,6 +185,31 @@ class FHatchDig final:public IAutomationLatentCommand
     double MatchedMemorySeconds=0;bool RhiTracking=false,MemoryPrimed=false;
     int64 BeforeFrames[3]={-1,-1};TArray<TSharedPtr<FJsonValue>> Measurements;
     TSharedRef<FJsonObject> Result=MakeShared<FJsonObject>();TUniquePtr<TGuardValue<bool>> Messages;
+    // Fixed storage avoids allocating JSON/LLM maps during the measured curve.
+    struct FMemoryPoint { double Seconds=0;int32 Cycle=0,Objects=0;uint64 Rss=0,Commit=0;int64 Tags[10]={}; };
+    TArray<FMemoryPoint> MemoryCurve;
+    void CurvePoint(int32 Cycle)
+    {
+        if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit")))return;
+        FMemoryPoint P;P.Seconds=FPlatformTime::Seconds()-MeasureStart;P.Cycle=Cycle;
+        const auto M=FPlatformMemory::GetStats();P.Rss=M.UsedPhysical;P.Commit=M.UsedVirtual;P.Objects=GUObjectArray.GetObjectArrayNumMinusAvailable();
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+        if(FLowLevelMemTracker::IsEnabled())
+        {
+            static const FName Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
+            auto& L=FLowLevelMemTracker::Get();L.UpdateStatsPerFrame();
+            for(int I=0;I<10;++I)P.Tags[I]=L.GetTagAmountForTracker(ELLMTracker::Default,Names[I],ELLMTagSet::None);
+        }
+#endif
+        MemoryCurve.Add(P);
+    }
+    void SaveCurve()
+    {
+        TArray<TSharedPtr<FJsonValue>> Rows;Rows.Reserve(MemoryCurve.Num());
+        const TCHAR* Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
+        for(const auto& P:MemoryCurve){auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("cycle"),P.Cycle);R->SetNumberField(TEXT("seconds"),P.Seconds);R->SetNumberField(TEXT("rss_bytes"),double(P.Rss));R->SetNumberField(TEXT("commit_bytes"),double(P.Commit));R->SetNumberField(TEXT("uobject_count"),P.Objects);auto Tags=MakeShared<FJsonObject>();for(int I=0;I<10;++I)Tags->SetNumberField(Names[I],double(P.Tags[I]));R->SetObjectField(TEXT("llm_default"),Tags);Rows.Add(MakeShared<FJsonValueObject>(R));}
+        Result->SetArrayField(TEXT("memory_curve"),Rows);
+    }
     void MemoryDetails(const TCHAR* Boundary)
     {
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
@@ -313,7 +339,7 @@ public:
         }
         if(Phase==4)
         {
-            if(!MemoryPrimed){MemoryDetails(TEXT("priming"));MemoryPrimed=true;}
+            if(!MemoryPrimed){MemoryCurve.Reserve(64);MeasureStart=Now;CurvePoint(-1);MemoryCurve.Reset();MemoryDetails(TEXT("priming"));if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));MemoryPrimed=true;}
             int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
             if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;Stop(S);Changed=Now;Phase=5;return false;
         }
@@ -324,6 +350,7 @@ public:
             MemoryDetails(TEXT("before"));
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
             MeasureStart=Now;
+            CurvePoint(0);
             BeforeRevision=S.Revision();BeforeLast=S.Surface().Heights;BeforeVolume=S.Surface().Volume;LastWall=Now;LastEngine=GFrameCounter;
             Start(S);if(!IdleControl)Test->TestTrue(TEXT("first measured production click"),Click(M,0));Edits.Add(S.LastMeshApplyMs);Changed=Now;Phase=6;return false;
         }
@@ -348,7 +375,7 @@ public:
                 for(const auto& P:A->ScanComponent->GetLastPoints())if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))
                 {const FVector L=S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;MaxHeightError=FMath::Max(MaxHeightError,FMath::Abs(L.Z-S.Surface().Height(L.X,L.Y)));}
             }
-            ++Clicks;if(Clicks<50)
+            ++Clicks;CurvePoint(Clicks);if(Clicks<50)
             {BeforeRevision=S.Revision();BeforeVolume=S.Surface().Volume;BeforeLast=S.Surface().Heights;if(!IdleControl)Test->TestTrue(TEXT("measured short pointer click"),Click(M,Clicks%25));Edits.Add(S.LastMeshApplyMs);Changed=Now;return false;}
             Stop(S);Changed=Now;Phase=7;return false;
         }
@@ -356,6 +383,8 @@ public:
         {
             if(Now-Changed<.5)return false;DrainBoundary();CollectGarbage(RF_NoFlags);const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
             MemoryDetails(TEXT("after"));
+            SaveCurve();
+            if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));
             Result->SetObjectField(TEXT("resources_after"),Resources(S));
             TFunction<void(const FJsonObject&,const FJsonObject&)> CheckResources;
             CheckResources=[&](const FJsonObject& Before,const FJsonObject& After)

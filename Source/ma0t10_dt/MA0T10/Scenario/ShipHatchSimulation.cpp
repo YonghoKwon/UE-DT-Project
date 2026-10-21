@@ -17,6 +17,7 @@
 #include "Engine/SkyLight.h"
 #include "EngineUtils.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "HAL/LowLevelMemTracker.h"
 
 namespace
 {
@@ -186,6 +187,7 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
 }
 void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
 {
+    LLM_SCOPE_BYNAME(TEXT("Hatch/CargoUpdate"));
     if(!Cargo)
     {FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Cargo=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);Cargo->Tags.Add(TEXT("HatchCargo"));}
     // Park zero-thickness faces 1cm inside the solid tank top. Keeping valid
@@ -223,6 +225,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         // This transient runtime mesh has no serialized collision payload. Keeping
         // bHasCookedCollisionData set would send each edit through editor DDC
         // under a fresh GUID, retaining derived blobs across repeated edits.
+        LLM_SCOPE_BYNAME(TEXT("Hatch/CargoCook"));
         auto* Body=Cargo->Mesh->GetBodySetup();Body->bHasCookedCollisionData=false;
         Body->InvalidatePhysicsData();Body->CreatePhysicsMeshes();Cargo->Mesh->RecreatePhysicsState();
     }

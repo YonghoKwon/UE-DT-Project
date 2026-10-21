@@ -9,6 +9,7 @@ param(
     [ValidateSet(100,150)][int]$FontPercent=100,
     [ValidateSet(0,1)][int]$DigView=1,
     [switch]$MemoryAudit,
+    [switch]$MemoryDeepReport,
     [switch]$FullRhiDrain,
     [switch]$Visible,
     [switch]$FastCaptures,
@@ -42,6 +43,7 @@ try {
     if($FastCaptures){if($Mode -ne 'Industrial'){throw 'FastCaptures is only a capture validation mode, not a performance gate'};$hatchArgs+='-Hatch06Fast'}
     if($Mode -in @('Manual','OrientationManual','IndustrialManual')){$hatchArgs+='-HatchManual'}else{$hatchArgs+='-unattended'}
     if($MemoryAudit){$hatchArgs+='-HatchMemoryAudit'}
+    if($MemoryDeepReport){if(!$MemoryAudit){throw 'MemoryDeepReport requires MemoryAudit'};$hatchArgs+='-HatchMemoryDeepReport'}
     if($MemoryAudit -and $Mode -like 'Dig*'){$hatchArgs+='-llm'}
     if($FullRhiDrain){$hatchArgs+='-HatchFullRhiDrain'}
     if($WorldTraceReference){$hatchArgs+='-HatchWorldTraceReference'}

@@ -6,6 +6,7 @@
 #include "EngineUtils.h"
 #include "Algo/Sort.h"
 #include "Debug/DebugDrawComponent.h"
+#include "HAL/LowLevelMemTracker.h"
 
 namespace
 {
@@ -126,6 +127,7 @@ struct FShipHatchRayCache
 };
 TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> AShipHatchSimulation::CaptureRayQuery(AActor* IgnoreOwner,ECollisionChannel Channel)
 {
+  LLM_SCOPE_BYNAME(TEXT("Hatch/RayTree"));
  if(!bUseSnapshotRayQueries||bGenerating||bEnding||Channel!=ECC_Visibility)return {};
  if(!RayCache)RayCache=MakeShared<FShipHatchRayCache,ESPMode::ThreadSafe>();auto& C=*RayCache;
  uint32 Key=GetTypeHash(SceneScaleKey);for(double V:{HoldLength,HoldWidth,HoldDepth,OpeningLength,OpeningWidth,CoamingHeight,BoomLength,BoomHeight,CabHeight,CabX,CabY})Key=HashCombineFast(Key,GetTypeHash(V));
