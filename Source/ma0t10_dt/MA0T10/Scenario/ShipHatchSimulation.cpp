@@ -372,6 +372,11 @@ bool AShipHatchSimulation::HasFreshMeasurement() const
     const int64 Gate=FrameGates[Index];if(A){const auto F=A->ScanComponent->GetLastFrameSnapshot();if(!F||F->FrameId<=Gate||F->AcquisitionStartedMonotonic<LastGeometryEdit)return false;}}
     return bMLX||bLivox||(bFieldLayout&&bCabRight);
 }
+void AShipHatchSimulation::VisitGeometryBounds(bool IncludeUnloader,TFunctionRef<void(const FBox&)> Visitor) const
+{
+    auto Visit=[&](const AShipHatchPart* Part){if(IsValid(Part)){FVector Center,Extent;Part->GetActorBounds(false,Center,Extent);Visitor(FBox(Center-Extent,Center+Extent));}};
+    Visit(Cargo);for(const auto& Part:Structure)Visit(Part.Get());for(const auto& Part:SensorPresentation)Visit(Part.Get());if(IncludeUnloader)Visit(UnloaderPresentation);
+}
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
     bEnding=true;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();

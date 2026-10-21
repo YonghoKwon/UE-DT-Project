@@ -148,6 +148,8 @@ public:
     bool bUseSnapshotRayQueries=true;
     TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> CaptureRayQuery(AActor* IgnoreOwner,ECollisionChannel Channel);
     FIntVector RayQueryTriangleCounts() const;
+    /** Bounded owned actors only; world AABBs, no actor search or allocation. */
+    void VisitGeometryBounds(bool IncludeUnloader,TFunctionRef<void(const FBox&)> Visitor) const;
     bool IsScanDisplayEnabled() const { return bScanDisplay; }
     static constexpr int32 DisplayRayLimit=96;
     int32 DisplayRayCount() const;

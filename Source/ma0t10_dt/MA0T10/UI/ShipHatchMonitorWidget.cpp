@@ -487,6 +487,10 @@ void UShipHatchMonitorWidget::UpdateCamera()
         if(S->bFieldLayout&&bFrameUnloader){FitCorner(FVector(X*3,S->BoomTipY(),S->HoldDepth+S->BoomHeight+16.5));FitCorner(FVector(X*15,S->SeaRailY()-S->RailSpan-4,S->QuayZ()-1));FitCorner(FVector(X*3,S->SeaRailY()-23,S->HoldDepth+S->BoomHeight+16.5));}
         else if(!S->bFieldLayout)FitCorner(FVector(X*.7,Y*(S->OpeningWidth*.5+1.4),S->HoldDepth+S->EffectiveMLXHeight()+3.5));
     }
+    // Physical rig details and sensor markers exceed the old estimated points.
+    // Match the actual subject bounds, including the backreach/machine house,
+    // at every pane aspect ratio. Cargo zoom deliberately keeps its close view.
+    if(bFrameUnloader)S->VisitGeometryBounds(true,[&](const FBox& Box){for(int X:{-1,1})for(int Y:{-1,1})for(int Z:{-1,1})FitCorner(S->GetActorTransform().InverseTransformPosition(Box.GetCenter()+Box.GetExtent()*FVector(X,Y,Z))*.01);});
     if(bFrameVessel&&S->bRealScale)for(int X:{-1,1})for(double Y:{-90.,S->VesselBeam*.5})for(double Z:{S->KeelZ(),FMath::Max(S->HoldDepth+32,S->HoldDepth+S->BoomHeight+16.5)})FitCorner(FVector(X*(S->VesselLength*.5+25),Y,Z));
     if(bFrameSite)for(int X:{-1,1})for(double Y:{S->SeaRailY()-S->RailSpan-5,S->VesselBeam*.5})FitCorner(FVector(X*52,Y,S->HoldDepth));
     for(int32 I=0;I<(S->bFieldLayout?3:2);++I)for(int32 X:{-1,1})for(int32 Y:{-1,1})for(int32 Z:{-1,1})FitCorner(S->SensorOrigin(I)+FVector(X*.8,Y*.6,Z*.5));
