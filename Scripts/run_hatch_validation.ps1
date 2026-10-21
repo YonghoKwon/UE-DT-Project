@@ -15,6 +15,7 @@ param(
     [switch]$Visible,
     [switch]$FastCaptures,
     [switch]$WorldTraceReference,
+    [switch]$CpuReference,
     [ValidateRange(0,180)][double]$MatchedMemorySeconds=0
 )
 $ErrorActionPreference='Stop'
@@ -29,14 +30,15 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
 & {
     $sourceHashes=@{}
     Get-ChildItem -LiteralPath "$root/Source" -File -Recurse | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}
-    @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=[bool]$MemoryAudit; FullRhiDrain=[bool]$FullRhiDrain; WorldTraceReference=[bool]$WorldTraceReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
+    @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=[bool]$MemoryAudit; FullRhiDrain=[bool]$FullRhiDrain; WorldTraceReference=[bool]$WorldTraceReference; CpuReference=[bool]$CpuReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
 }
 $test=switch($Mode){'CornerCaptures'{'HATCH06.CornerCapturesRhi'} 'Quality'{'HATCH06.ModelQualityRhi'} 'Query'{'HATCH06.SceneQueriesRhi'} 'Overlay'{'HATCH06.OverlayAndModelRhi'} 'Grab'{'HATCH06.GrabPresentationRhi'} 'Industrial'{'HATCH06.AcceptanceRhi'} 'IndustrialManual'{'HATCH06.AcceptanceRhi'} 'OrientationManual'{'MA0T10.Hatch.ViewOrientationRhi'} 'Orientation'{'MA0T10.Hatch.ViewOrientationRhi'} 'OrientationCaptures'{'HATCH05.CapturesRhi'} 'Feedback'{'MA0T10.Hatch.UserFeedbackRhi'} 'FeedbackCaptures'{'HATCH04.CapturesRhi'} 'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
 $priorX=$env:MA0T10_ACCEPTANCE_RES_X;$priorY=$env:MA0T10_ACCEPTANCE_RES_Y
 try {
     $env:MA0T10_ACCEPTANCE_RES_X=[string]$Width;$env:MA0T10_ACCEPTANCE_RES_Y=[string]$Height
+    $execPrefix=if($CpuReference){'ma0t10.Lidar.HardwareRayTracing 0, '}else{''}
     $hatchArgs=@("$root/ma0t10_dt.uproject",'/Engine/Maps/Entry','-d3d12','-nosplash','-nosound','-nop4',
-        "-ExecCmds=Automation RunTests $test; Quit",'-TestExit=Automation Test Queue Empty',
+        "-ExecCmds=${execPrefix}Automation RunTests $test; Quit",'-TestExit=Automation Test Queue Empty',
         "-ReportExportPath=$ReportRoot/automation","-HatchReport=$ReportRoot","-HatchSourceCommit=$sourceCommit","-HatchSensorCount=$Sensors","-HatchMemoryWarmup=$MemoryWarmupSeconds","-HatchFontPercent=$FontPercent","-HatchDigView=$DigView",
         "-abslog=$ReportRoot/automation.log")
     if($Mode -eq 'CornerCaptures' -and $CornerCaptureDirectory){$hatchArgs+="-HatchCornerOutput=$([IO.Path]::GetFullPath($CornerCaptureDirectory))"}
@@ -49,6 +51,7 @@ try {
     if($MemoryAudit -and $Mode -like 'Dig*'){$hatchArgs+='-llm'}
     if($FullRhiDrain){$hatchArgs+='-HatchFullRhiDrain'}
     if($WorldTraceReference){$hatchArgs+='-HatchWorldTraceReference'}
+    if($CpuReference){$hatchArgs+='-HatchCpuReference'}
     if($MatchedMemorySeconds -gt 0){$hatchArgs+="-HatchMemoryWindowSeconds=$MatchedMemorySeconds"}
     if(!$Visible -and $Mode -notin @('Manual','OrientationManual','IndustrialManual')){$hatchArgs+='-RenderOffscreen'}
     $quotedArgs=@($hatchArgs | ForEach-Object {'"'+$_+'"'})

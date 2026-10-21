@@ -190,10 +190,13 @@ void AShipHatchSimulation::BuildCorrugatedWalls(AShipHatchPart* Part)
   const int Bays=FMath::CeilToInt(Span/1.5);const double Pitch=Span/Bays;
   for(int I=0;I<Bays;++I)
   {
-   const double Base=-Span*.5+I*Pitch,Steps[]={0.,.2,.6,.8,1.},Depth[]={.015,.265,.265,.015,.015};
+   const double Steps[]={0.,.2,.6,.8,1.},Depth[]={.015,.265,.265,.015,.015};
    for(int J=0;J<4;++J)
    {
-    auto P=[&](int K,double Z){return End?FVector(Sign*(Across-Depth[K]),Base+Steps[K]*Pitch,Z):FVector(Base+Steps[K]*Pitch,Sign*(Across-Depth[K]),Z);};
+    // Form the shared bay coordinate before multiplying by pitch. Separate
+    // Base+Pitch rounding left one center seam at-2.2e-14cm and the adjacent
+    // seam at0; native parallel-ray BVH culling then disagreed at X=0.
+    auto P=[&](int K,double Z){const double Along=(I+Steps[K]-Bays*.5)*Pitch;return End?FVector(Sign*(Across-Depth[K]),Along,Z):FVector(Along,Sign*(Across-Depth[K]),Z);};
     const auto A=P(J,0),B=P(J+1,0),C=P(J+1,HoldDepth),D=P(J,HoldDepth);const FLinearColor Brown=J==1?FLinearColor(.11,.075,.05):FLinearColor(.075,.045,.028);
     if((End&&Sign>0)||(!End&&Sign<0))Walls.Quad(B,A,D,C,Brown);else Walls.Quad(A,B,C,D,Brown);
    }

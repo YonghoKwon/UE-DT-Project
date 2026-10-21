@@ -22,7 +22,8 @@ namespace
 {
 class FHatchQueryRun final:public IAutomationLatentCommand
 {
- FAutomationTestBase* Test;double Started=FPlatformTime::Seconds();int Checked=0,Mismatch=0;double MaxError=0;FRandomStream Random{60621};TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> Query;TArray<TSharedPtr<FJsonValue>> Differences;
+ FAutomationTestBase* Test;double Started=FPlatformTime::Seconds();int Checked=0,Mismatch=0,BoundaryMismatch=0;double MaxError=0;FRandomStream Random{60621};TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> Query;TArray<TSharedPtr<FJsonValue>> Differences;
+ static constexpr int RandomRays=4096,BoundaryRays=24576,TotalRays=RandomRays+BoundaryRays;
 public:
  explicit FHatchQueryRun(FAutomationTestBase* T):Test(T){}
  bool Update() override
@@ -31,19 +32,58 @@ public:
   UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W||!FinalAcceptanceViewportReady(W))return false;
   AShipHatchSimulation* S=nullptr;for(TActorIterator<AShipHatchSimulation>I(W);I;++I)S=*I;if(!S||S->IsGenerating()||!S->HasFreshMeasurement())return false;
   if(!Query){Query=S->CaptureRayQuery(S->SensorAt(0),ECC_Visibility);if(!Test->TestTrue(TEXT("hatch owns an optional immutable scene query"),Query.IsValid()))return true;Test->TestFalse(TEXT("unsupported channels retain engine query behavior"),S->CaptureRayQuery(S->SensorAt(0),ECC_Camera).IsValid());}
-  const int End=FMath::Min(4096,Checked+256);
+  const int End=FMath::Min(TotalRays,Checked+512);
   for(;Checked<End;++Checked)
   {
-   const auto Origin=S->GetActorTransform().TransformPosition(S->SensorOrigin(Checked%3)*100);FVector Direction=Random.VRand();
-   if(Checked%2==0){const FVector Target=S->GetActorTransform().TransformPosition(FVector(Random.FRandRange(-18,18),Random.FRandRange(-28,28),Random.FRandRange(0,25))*100);Direction=(Target-Origin).GetSafeNormal();}
+   auto Origin=S->GetActorTransform().TransformPosition(S->SensorOrigin(Checked%3)*100);FVector Direction=Random.VRand();
+   if(Checked<RandomRays)
+   {if(Checked%2==0){const FVector Target=S->GetActorTransform().TransformPosition(FVector(Random.FRandRange(-18,18),Random.FRandRange(-28,28),Random.FRandRange(0,25))*100);Direction=(Target-Origin).GetSafeNormal();}}
+   else
+   {
+    const int I=Checked-RandomRays,Plane=(I/4096)%3;const double Angle=2*PI*(I%4096)/4096.;
+    FVector Local=S->SensorOrigin((I/12288)%2);
+    // Sweep both signs in each coordinate plane, with origins exactly on
+    // collision-grid split planes. Include signed zero and near-zero beams.
+    Local[Plane]=0;FVector D=FVector::ZeroVector;
+    D[(Plane+1)%3]=FMath::Cos(Angle);D[(Plane+2)%3]=FMath::Sin(Angle);
+    if(I%1024==0){D=FVector::ZeroVector;D[(I%2048==0?(Plane+1):(Plane+2))%3]=I%4096<2048?1:-1;}
+    if(I>=12288)D[Plane]=(I%2?1:-1)*1.e-10;
+    Origin=S->GetActorTransform().TransformPosition(Local*100);
+    Direction=S->GetActorTransform().TransformVectorNoScale(D).GetSafeNormal();
+   }
    const auto Target=Origin+Direction*8000;FHitResult A,B;FCollisionQueryParams Params(SCENE_QUERY_STAT(HatchQueryReference),false,S->SensorAt(0));
    const bool HitA=Query->Trace(Origin,Target,A),HitB=W->LineTraceSingleByChannel(B,Origin,Target,ECC_Visibility,Params);
    const double Error=HitA&&HitB?FVector::Distance(A.ImpactPoint,B.ImpactPoint)*.01:0;if(HitA&&HitB)MaxError=FMath::Max(MaxError,Error);
    if(HitA!=HitB||(HitA&&(Error>.001||A.GetComponent()!=B.GetComponent())))
-   {++Mismatch;if(Differences.Num()<24){auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("bvh_hit"),HitA);R->SetBoolField(TEXT("engine_hit"),HitB);R->SetStringField(TEXT("bvh_actor"),GetNameSafe(A.GetActor()));R->SetStringField(TEXT("engine_actor"),GetNameSafe(B.GetActor()));R->SetStringField(TEXT("bvh_component"),GetNameSafe(A.GetComponent()));R->SetStringField(TEXT("engine_component"),GetNameSafe(B.GetComponent()));R->SetNumberField(TEXT("error_m"),Error);R->SetStringField(TEXT("origin"),Origin.ToString());R->SetStringField(TEXT("end"),Target.ToString());Differences.Add(MakeShared<FJsonValueObject>(R));}}
+   {
+    ++Mismatch;BoundaryMismatch+=Checked>=RandomRays;
+    if(Differences.Num()<64)
+    {
+     auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("ray"),Checked);
+     for(int Axis=0;Axis<3;++Axis){R->SetNumberField(FString::Printf(TEXT("origin_%d"),Axis),Origin[Axis]);R->SetNumberField(FString::Printf(TEXT("end_%d"),Axis),Target[Axis]);}
+     R->SetBoolField(TEXT("bvh_hit"),HitA);R->SetBoolField(TEXT("engine_hit"),HitB);
+     R->SetNumberField(TEXT("bvh_distance_cm"),A.Distance);R->SetNumberField(TEXT("engine_distance_cm"),B.Distance);
+     for(int Axis=0;Axis<3;++Axis){R->SetNumberField(FString::Printf(TEXT("bvh_point_%d"),Axis),A.ImpactPoint[Axis]);R->SetNumberField(FString::Printf(TEXT("engine_point_%d"),Axis),B.ImpactPoint[Axis]);}
+     R->SetStringField(TEXT("bvh_actor"),GetNameSafe(A.GetActor()));R->SetStringField(TEXT("engine_actor"),GetNameSafe(B.GetActor()));
+     R->SetStringField(TEXT("bvh_component"),GetNameSafe(A.GetComponent()));R->SetStringField(TEXT("engine_component"),GetNameSafe(B.GetComponent()));
+     R->SetNumberField(TEXT("error_m"),Error);R->SetStringField(TEXT("origin"),Origin.ToString());R->SetStringField(TEXT("end"),Target.ToString());Differences.Add(MakeShared<FJsonValueObject>(R));
+    }
+   }
   }
-  if(Checked<4096)return false;
-  Test->TestEqual(TEXT("4096 independent engine-vs-BVH hit/miss/component checks agree"),Mismatch,0);Test->TestTrue(TEXT("actual collision surface agreement within1mm"),MaxError<=.001);
+  if(Checked<TotalRays)return false;
+  if(Mismatch)
+  {
+   // Preserve exact acquisition geometry when an edge regression fails, so a
+   // nearest-hit crack can be reproduced without changing/saving the fixture.
+   FString Root;FParse::Value(FCommandLine::Get(),TEXT("HatchReport="),Root);
+   if(!Root.IsEmpty())
+   {
+    TArray<FVirtualSensorCollisionMesh> Meshes;Query->CollisionMeshes(Meshes);
+    for(int I=0;I<Meshes.Num();++I)if(Meshes[I].Vertices)
+    {TArray<uint8> Bytes;Bytes.Append(reinterpret_cast<const uint8*>(Meshes[I].Vertices->GetData()),Meshes[I].Vertices->Num()*sizeof(FVector3f));FFileHelper::SaveArrayToFile(Bytes,*(Root/FString::Printf(TEXT("query-mesh-%d.bin"),I)));}
+   }
+  }
+  Test->TestEqual(TEXT("4096 random plus24576 boundary engine-vs-BVH hit/miss/component checks agree"),Mismatch,0);Test->TestTrue(TEXT("actual collision surface agreement within1mm"),MaxError<=.001);
   const auto Hash=S->Surface().Hash();const FVector O=S->GetActorTransform().TransformPosition(FVector(5,-5,S->HoldDepth+6)*100),D=S->GetActorTransform().TransformVectorNoScale(FVector(0,0,-1));FHitResult Before,Old,Fresh;
   Test->TestTrue(TEXT("clear production cargo reference"),Query->Trace(O,O+D*10000,Before));Test->TestTrue(TEXT("real excavation updates scene revision"),S->Dig(O,D,2,1.5));
   auto Next=S->CaptureRayQuery(S->SensorAt(0),ECC_Visibility);Test->TestTrue(TEXT("old acquisition geometry remains immutable across excavation"),Query->Trace(O,O+D*10000,Old)&&Old.ImpactPoint.Equals(Before.ImpactPoint,.001));
@@ -54,7 +94,7 @@ public:
   Cube->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));Cube->SetCollisionProfileName(TEXT("BlockAll"));Cube->RegisterComponent();Cube->SetWorldLocation(Before.ImpactPoint+FVector(0,0,300));
   auto Foreign=S->CaptureRayQuery(S->SensorAt(0),ECC_Visibility);FHitResult Blocked;
   Test->TestTrue(TEXT("non-owned physical geometry retains first-hit occlusion"),Foreign&&Foreign->Trace(O,O+D*10000,Blocked)&&Blocked.GetComponent()==Cube);Blocker->Destroy();
-  auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("rays"),Checked);R->SetNumberField(TEXT("mismatches"),Mismatch);R->SetArrayField(TEXT("differences"),Differences);R->SetNumberField(TEXT("max_position_error_m"),MaxError);R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());const auto Tri=S->RayQueryTriangleCounts();R->SetNumberField(TEXT("static_triangles"),Tri.X);R->SetNumberField(TEXT("cargo_triangles"),Tri.Y);
+  auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("rays"),Checked);R->SetNumberField(TEXT("random_rays"),RandomRays);R->SetNumberField(TEXT("boundary_rays"),BoundaryRays);R->SetNumberField(TEXT("boundary_mismatches"),BoundaryMismatch);R->SetNumberField(TEXT("mismatches"),Mismatch);R->SetArrayField(TEXT("differences"),Differences);R->SetNumberField(TEXT("max_position_error_m"),MaxError);R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());const auto Tri=S->RayQueryTriangleCounts();R->SetNumberField(TEXT("static_triangles"),Tri.X);R->SetNumberField(TEXT("cargo_triangles"),Tri.Y);
   FString Root,Text;FParse::Value(FCommandLine::Get(),TEXT("HatchReport="),Root);if(Root.IsEmpty())Root=FPaths::ProjectSavedDir()/TEXT("Reports/HATCH-06/query");IFileManager::Get().MakeDirectory(*Root,true);FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root/TEXT("scene-query-accuracy.json")));return true;
  }
 };

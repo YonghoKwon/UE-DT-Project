@@ -83,6 +83,24 @@ struct FTree
  {
   float Low=0,High=Limit;for(int A=0;A<3;++A){if(FMath::Abs(D[A])<1.e-8f){if(S[A]<B.Min[A]||S[A]>B.Max[A])return false;}else{const float P=(B.Min[A]-S[A])*Inv[A],Q=(B.Max[A]-S[A])*Inv[A];Low=FMath::Max(Low,FMath::Min(P,Q));High=FMath::Min(High,FMath::Max(P,Q));if(High<Low)return false;}}Entry=Low;return true;
  }
+ static FORCENOINLINE bool BoundaryTriangleHit(const FTriangle& T,FVector3f Start,FVector3f Delta,float& Distance)
+ {
+  // Shared vertices undergo the same ray-space projection in either adjacent
+  // triangle. Inclusive edge functions cannot open the crack that independently
+  // rounded Moller-Trumbore barycentrics leave on X=0 cargo-grid boundaries.
+  // Only ambiguous edges use this path; the interior fast path stays unchanged.
+  const auto Abs=Delta.GetAbs();const int Z=Abs.X>Abs.Y?(Abs.X>Abs.Z?0:2):(Abs.Y>Abs.Z?1:2);
+  if(Delta[Z]==0)return false;
+  int X=(Z+1)%3,Y=(X+1)%3;if(Delta[Z]<0)Swap(X,Y);
+  const double SX=double(Delta[X])/Delta[Z],SY=double(Delta[Y])/Delta[Z];
+  const FVector3d A=FVector3d(T.A)-FVector3d(Start),B=FVector3d(T.B)-FVector3d(Start),C=FVector3d(T.C)-FVector3d(Start);
+  const double AX=A[X]-SX*A[Z],AY=A[Y]-SY*A[Z],BX=B[X]-SX*B[Z],BY=B[Y]-SY*B[Z],CX=C[X]-SX*C[Z],CY=C[Y]-SY*C[Z];
+  const double U=CX*BY-CY*BX,V=AX*CY-AY*CX,W=BX*AY-BY*AX;
+  if((U<0||V<0||W<0)&&(U>0||V>0||W>0))return false;
+  const double Det=U+V+W;if(Det==0)return false;
+  const double D=(U*A[Z]+V*B[Z]+W*C[Z])/(Det*Delta[Z]);
+  if(D<0||D>=Distance)return false;Distance=float(D);return true;
+ }
  bool Trace(FVector3f Start,FVector3f Delta,FVector3f Inv,float& Best,FVector3f& Normal,TWeakObjectPtr<UPrimitiveComponent>& Primitive) const
  {
   if(Nodes.IsEmpty())return false;float Entry=0;if(!BoxHit(Nodes[0].Box,Start,Delta,Inv,Best,Entry))return false;
@@ -95,7 +113,19 @@ struct FTree
     for(int I=N.First;I<N.First+N.Count;++I)
     {
      const auto& T=Triangles[Order[I]];const auto E1=T.B-T.A,E2=T.C-T.A,P=FVector3f::CrossProduct(Delta,E2);const float Det=FVector3f::DotProduct(E1,P);if(FMath::Abs(Det)<1.e-8f)continue;
-     const float R=1.f/Det;const auto V=Start-T.A;const float U=FVector3f::DotProduct(V,P)*R;if(U<0||U>1)continue;const auto Q=FVector3f::CrossProduct(V,E1);const float W=FVector3f::DotProduct(Delta,Q)*R;if(W<0||U+W>1)continue;const float Distance=FVector3f::DotProduct(E2,Q)*R;
+     const float R=1.f/Det;const auto V=Start-T.A;const float U=FVector3f::DotProduct(V,P)*R;
+     // This selects precision, not an acceptance epsilon. With long beams and
+     // 0.5m cells, float dot-product cancellation moved a genuine shared-edge
+     // barycentric by5.2e-6. The exact projected-edge test below still decides
+     // inside/outside; no expanded triangle or relaxed distance gate is used.
+     constexpr float EdgeBand=1.e-3f;
+     if(U< -EdgeBand||U>1+EdgeBand)continue;
+     const auto Q=FVector3f::CrossProduct(V,E1);const float W=FVector3f::DotProduct(Delta,Q)*R;
+     if(W< -EdgeBand||U+W>1+EdgeBand)continue;
+     float Distance;
+     if(U<=EdgeBand||W<=EdgeBand||1-U-W<=EdgeBand)
+     {Distance=Best;if(!BoundaryTriangleHit(T,Start,Delta,Distance))continue;}
+     else Distance=FVector3f::DotProduct(E2,Q)*R;
      if(Distance>=0&&Distance<Best){Best=Distance;Normal=FVector3f::CrossProduct(E1,E2).GetSafeNormal();if(FVector3f::DotProduct(Normal,Delta)>0)Normal=-Normal;Primitive=Surfaces[T.Surface];Found=true;}
     }
    }

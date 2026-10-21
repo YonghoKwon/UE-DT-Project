@@ -4,6 +4,14 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-27 — CPU snapshot BVH 경계 광선
+
+사용자2026-10-22 후속. float barycentric 내적 상쇄가 X=0 원료 경계의 실제 hit를 누락했다. 경계 후보만 double 투영 edge로 판정하며 내부 광선의 기존 경로를 유지한다. 별도로 인접 주름 벽 이음선의 부동소수 좌표 차이를 제거했다. 삼각형 확장·1mm 기준 완화는 없다.
+
+- 기존4096 무작위 및24576 축/분할면/near-zero 광선: native physics 불일치0, 최대0.178mm. 기존4096을 대체하지 않고 추가했다.
+- GPU의 기존 hit/identity/semantic ≥99%·거리p95≤1cm 검사를 유지하고 X=0 경계 최대≤1mm를 추가한다. 전체 GPU 최대 오차와 경계 최대는 구분한다.
+- CPU Hz·9개 GPU 프로필·공통 release/RT on ABAB·중간 실패/제한은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. DTCore·wire·광학 반응·맵 저장은 변경하지 않는다.
+
 ## GPU-LIDAR-01 — 센서 소유 하드웨어 RT LiDAR (#25)
 
 사용자 결정2026-10-22: 선택2(센서 소유 TLAS), Launcher 엔진 변경/새 모듈/플러그인 금지. scene TLAS 재사용은 필수 요구가 아니다. 기존 collision snapshot·광선 패턴·FrameId/시간/pose/identity·physical model·PCD/출력 계약을 보존한다.

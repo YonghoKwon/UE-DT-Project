@@ -13,6 +13,8 @@
 #include "Components/PrimitiveComponent.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "HAL/FileManager.h"
 #include "Json.h"
 
@@ -32,7 +34,8 @@ class FGpuProof final:public IAutomationLatentCommand
     TArray<FSensorRtHit> Before;
     TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> Scan;
     TArray<double> Errors,FrameTimes;
-    int Compared=0,HitMatch=0,IdentityMatch=0,LabelMatch=0,ReferenceHits=0;
+    int Compared=0,HitMatch=0,IdentityMatch=0,LabelMatch=0,ReferenceHits=0,BoundaryHits=0;
+    double BoundaryMaxErrorCm=0;
     TMap<TWeakObjectPtr<UPrimitiveComponent>,FName> AcquisitionLabels;
     uint32 OriginalHash=0;
     FString Root=FPaths::ProjectSavedDir()/TEXT("Reports/GPU-LIDAR-01/progress/proof");
@@ -52,6 +55,7 @@ class FGpuProof final:public IAutomationLatentCommand
         R->SetNumberField(TEXT("median_distance_error_cm"),Errors.Num()?Errors[Errors.Num()/2]:0);
         R->SetNumberField(TEXT("p95_distance_error_cm"),Errors.Num()?Errors[FMath::Min(Errors.Num()-1,FMath::CeilToInt(Errors.Num()*.95)-1)]:0);
         R->SetNumberField(TEXT("max_distance_error_cm"),Errors.IsEmpty()?0:Errors.Last());
+        R->SetNumberField(TEXT("x_zero_boundary_hits"),BoundaryHits);R->SetNumberField(TEXT("x_zero_boundary_max_error_cm"),BoundaryMaxErrorCm);
         R->SetNumberField(TEXT("completed_raw_scans"),Frames);R->SetNumberField(TEXT("raw_scan_wall_hz"),Frames/FMath::Max(.001,FPlatformTime::Seconds()-MeasureStart));
         R->SetStringField(TEXT("measurement_scope"),TEXT("one sensor full beam pattern, owned collision GPU geometry + readback; normalized frame processing not yet measured"));
         R->SetNumberField(TEXT("dynamic_changed_rays"),DigFrames);
@@ -74,7 +78,10 @@ class FGpuProof final:public IAutomationLatentCommand
     }
 public:
     explicit FGpuProof(FAutomationTestBase* T,TOptional<EVirtualLidarDeviceProfile> Profile={}):Test(T),OverrideProfile(Profile)
-    {if(OverrideProfile)Root/=StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(*OverrideProfile));}
+    {
+        FString Output;if(FParse::Value(FCommandLine::Get(),TEXT("ReportExportPath="),Output))Root=Output/TEXT("measurements/proof");
+        if(OverrideProfile)Root/=StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(*OverrideProfile));
+    }
     bool Update() override
     {
         if(FPlatformTime::Seconds()-Started>180){Test->AddError(TEXT("GPU LiDAR proof timed out"));if(Scan)Scan->Cancel();return true;}
@@ -113,10 +120,11 @@ public:
             for(int I=0;I<Hits.Num();++I)
             {
                 const auto& A=Reference[I];const auto& B=Hits[I];const bool Cpu=A.Component.IsValid(),Gpu=B.NormalAndDistance.W>=0;++Compared;HitMatch+=Cpu==Gpu;
-                if(Cpu){++ReferenceHits;if(Gpu){Errors.Add(FMath::Abs(A.Time*Rays[I].MaxDistance-B.NormalAndDistance.W));if(Meshes.IsValidIndex(B.Mesh)&&Meshes[B.Mesh].Surfaces.IsValidIndex(B.Surface)){const auto GpuComponent=Meshes[B.Mesh].Surfaces[B.Surface];if(GpuComponent==A.Component)++IdentityMatch;if(AcquisitionLabels.FindRef(GpuComponent)==AcquisitionLabels.FindRef(A.Component))++LabelMatch;}}}
+                if(Cpu){++ReferenceHits;if(Gpu){const double DistanceError=FMath::Abs(A.Time*Rays[I].MaxDistance-B.NormalAndDistance.W);Errors.Add(DistanceError);if(FMath::Abs(Rays[I].Direction.X)<1.e-7){++BoundaryHits;BoundaryMaxErrorCm=FMath::Max(BoundaryMaxErrorCm,DistanceError);}if(Meshes.IsValidIndex(B.Mesh)&&Meshes[B.Mesh].Surfaces.IsValidIndex(B.Surface)){const auto GpuComponent=Meshes[B.Mesh].Surfaces[B.Surface];if(GpuComponent==A.Component)++IdentityMatch;if(AcquisitionLabels.FindRef(GpuComponent)==AcquisitionLabels.FindRef(A.Component))++LabelMatch;}}}
             }
             Test->TestTrue(TEXT("same-snapshot hit agreement >=99%"),double(HitMatch)/Compared>=.99);
             Errors.Sort();Test->TestTrue(TEXT("static distance p95 <=1cm"),Errors.Num()>0&&Errors[FMath::Min(Errors.Num()-1,FMath::CeilToInt(Errors.Num()*.95)-1)]<=1);
+            Test->TestTrue(TEXT("X=0 grid-boundary CPU/GPU distances agree within1mm"),BoundaryHits>0&&BoundaryMaxErrorCm<=.1);
             Test->TestTrue(TEXT("component identity agreement >=99%"),ReferenceHits>0&&double(IdentityMatch)/ReferenceHits>=.99);
             Test->TestTrue(TEXT("semantic label agreement >=99%"),ReferenceHits>0&&double(LabelMatch)/ReferenceHits>=.99);
             Phase=2;Submit();return false;
