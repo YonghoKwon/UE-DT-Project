@@ -45,7 +45,8 @@ public:
         auto Text=[&](double X,double Y,const FString& Value){FSlateDrawElement::MakeText(Out,Layer+3,G.ToPaintGeometry(FVector2D(W,24*Scale),FSlateLayoutTransform(FVector2D(X,Y))),Value,Style::Font(Style::LabelSize,Scale),ESlateDrawEffect::None,Style::Text());};
         Text(L,0,M.SectionAlongLength()?TEXT("길이 · 육측 −Y → +Y 시점"):TEXT("폭 · +X → −X 시점"));
         Text(L,20*Scale,M.SectionAlongLength()?FString::Printf(TEXT("절단 Y %+.1f m · +X ← → −X"),M.SectionOffset()):TEXT("해측 +Y ← → 육측 −Y"));
-        for(int32 I=0;I<=int32(Top);I+=5){const auto Y=P(0,I).Y;Line(FVector2f(L,Y),FVector2f(R,Y),Style::Border());Text(0,Y-7*Scale,FString::Printf(TEXT("%d m"),I));}
+        const int32 TickStep=5*FMath::Max(1,FMath::CeilToInt(Top*22*Scale/(FMath::Max(1.,B-T)*5)));
+        for(int32 I=0;I<=int32(Top);I+=TickStep){const auto Y=P(0,I).Y;Line(FVector2f(L,Y),FVector2f(R,Y),Style::Border());Text(0,Y-7*Scale,FString::Printf(TEXT("%d m"),I));}
         // One connected stroke per nonempty run avoids antialiased end-cap
         // gaps at every triangle intersection and replaces per-segment arrays.
         TArray<FVector2f> Profile;Profile.Reserve(Samples.Num());
@@ -153,7 +154,9 @@ public:
         auto XY=[&](FVector P){return FVector2f(Mapping.ToPixel(P,R));};
         if(const auto* Sim=M->GetSimulation())for(int32 I=0;I<3;++I)if(Sim->SensorEnabled(I))
         {
-            auto Icon=XY(Sim->SensorOrigin(I));Icon.X=FMath::Clamp(Icon.X,float(OX+5),float(OX+OW-5));Icon.Y=FMath::Clamp(Icon.Y,float(OY+5),float(OY+OH-5));
+            // A real boom mount can sit beyond the aperture. Keep its exact SI
+            // projection in the plot margin instead of moving it onto cargo.
+            const auto Icon=XY(Sim->SensorOrigin(I));
             const FLinearColor C=I==0?FLinearColor(.1,.9,1):I==1?FLinearColor(1,.6,.06):FLinearColor(.9,.2,.8);
             Polygon(G,Out,Layer+3,{Icon+FVector2f(-5,-5),Icon+FVector2f(5,-5),Icon+FVector2f(5,5),Icon+FVector2f(-5,5)},C);
             TArray<FVector2f> Ring;for(int32 J=0;J<=16;++J)Ring.Add(Icon+FVector2f(FMath::Cos(J*2*PI/16),FMath::Sin(J*2*PI/16))*15);

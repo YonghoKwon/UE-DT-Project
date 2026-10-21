@@ -35,7 +35,9 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
     R.Density=S.Cargo==ECargo::Coal?900:2400;
     R.Peaks=Random.RandRange(1,5);
     // A triangular interpolation can amplify sampled directional slopes by sqrt(2).
-    const double Slope=.7*FMath::Tan(FMath::DegreesToRadians(R.Repose));
+    // Reserve face-gradient budget for sub-meter lumps and wall-bank detail.
+    // 0.5m collision grid resolves >=1m shapes; smaller grain lives in the shader.
+    const double Slope=.6*FMath::Tan(FMath::DegreesToRadians(R.Repose));
     const FVector2D Bias(Random.FRandRange(-.25f,.25f)*S.Length,Random.FRandRange(-.25f,.25f)*S.Width);
     TArray<FVector,TInlineAllocator<5>> Peaks;
     for(int32 I=0;I<R.Peaks;++I)Peaks.Add(FVector(Bias.X+Random.FRandRange(-.3f,.3f)*S.Length,
@@ -46,7 +48,11 @@ void GenerateInto(const FSettings& S,FSurface& R,TArray<double>& Shape)
         const FVector2D P(X*R.DX-S.Length*.5,Y*R.DY-S.Width*.5);
         double H=-DBL_MAX;
         for(const auto& Peak:Peaks)H=FMath::Max(H,Peak.Z-Slope*FVector2D::Distance(P,FVector2D(Peak.X,Peak.Y)));
-        Shape[Y*(R.NX+1)+X]=H;
+        const double Phase=S.Seed*.017;
+        const double Lump=.035*FMath::Sin(P.X*1.7+Phase)*FMath::Sin(P.Y*1.3-Phase);
+        const double Rill=.018*FMath::Sin(P.X*2.5+P.Y*.4+Phase);
+        const double Wall=FMath::Min(S.Length*.5-FMath::Abs(P.X),S.Width*.5-FMath::Abs(P.Y));
+        Shape[Y*(R.NX+1)+X]=H+Lump+Rill+.08*FMath::Exp(-Wall/2.);
     }
     R.Heights.SetNumUninitialized(Shape.Num(),false);
     auto Integrate=[&](double Offset)

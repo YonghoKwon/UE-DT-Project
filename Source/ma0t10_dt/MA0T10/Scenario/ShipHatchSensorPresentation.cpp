@@ -5,6 +5,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "TimerManager.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/World.h"
 
 namespace
@@ -21,7 +23,8 @@ bool InFov(const AVirtualLidarSensorActor* A,FVector World)
 void HatchPresentationBox(TArray<FVector>& V,TArray<int32>& T,FVector C,FVector Size)
 {
     const int32 B=V.Num();for(int32 Z=0;Z<2;++Z)for(int32 Y=0;Y<2;++Y)for(int32 X=0;X<2;++X)V.Add((C+FVector((X-.5)*Size.X,(Y-.5)*Size.Y,(Z-.5)*Size.Z))*100);
-    for(int32 I:{0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5})T.Add(B+I);
+    const int32 Indices[]={0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,0,4,6,0,6,2,1,3,7,1,7,5};
+    for(int32 I=0;I<36;I+=3){T.Add(B+Indices[I]);T.Add(B+Indices[I+2]);T.Add(B+Indices[I+1]);}
 }
 }
 AVirtualLidarSensorActor* AShipHatchSimulation::SensorAt(int32 I) const{return I==0?MLX.Get():I==1?Livox.Get():I==2?CabRight.Get():nullptr;}
@@ -29,35 +32,48 @@ bool AShipHatchSimulation::SensorEnabled(int32 I) const{return I==0?bMLX:I==1?bL
 FVector AShipHatchSimulation::SensorOrigin(int32 I) const
 {
     if(!bFieldLayout)return SensorLocalOrigin(I==0);
-    return (I==0?FVector(0,10,HoldDepth+BoomHeight):FVector(CabX+(I==1?-2.:2.),CabY,HoldDepth+CabHeight))+SensorOffsets[FMath::Clamp(I,0,2)];
+    return (I==0?FVector(0,BoomTipY(),HoldDepth+BoomHeight):FVector(CabX+(I==1?-2.:2.),CabY,HoldDepth+CabHeight))+SensorOffsets[FMath::Clamp(I,0,2)];
 }
 bool AShipHatchSimulation::VisibleFromSensor(int32 I,FVector Target) const
-{return SensorEnabled(I)&&ShipHatch::ThroughOpening(Current.Settings,SensorOrigin(I),Target)&&InFov(SensorAt(I),GetActorTransform().TransformPosition(Target*100));}
+{
+    if(!SensorEnabled(I)||!ShipHatch::ThroughOpening(Current.Settings,SensorOrigin(I),Target)||!InFov(SensorAt(I),GetActorTransform().TransformPosition(Target*100)))return false;
+    if(GrabPresentation){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrabCoverage),true);if(GrabPresentation->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
+    if(Vessel){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchVesselCoverage),true);if(Vessel->Mesh->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
+    if(UnloaderPresentation)
+    {
+        FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchRigCoverage),true);
+        if(UnloaderPresentation->Mesh->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;
+    }
+    return true;
+}
 void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
 {
-    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,2);
+    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,7);
     if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
     ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }
 void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation)UnloaderPresentation->SetActorHiddenInGame(!Enabled);}
 void AShipHatchSimulation::ApplyUnloader()
 {
-    if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;return;}
+    if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;GrabPresentation=nullptr;UnloaderLabel=nullptr;return;}
     if(!UnloaderPresentation)
     {
         FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;UnloaderPresentation=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);
         if(!UnloaderPresentation)return;auto* M=UnloaderPresentation->Mesh.Get();UnloaderPresentation->Tags.Add(TEXT("ShipHatchPreviewSensor"));UnloaderPresentation->Tags.Add(TEXT("ShipHatchUnloader"));
-        M->SetCollisionEnabled(ECollisionEnabled::NoCollision);M->SetHiddenInSceneCapture(true);M->SetCastShadow(false);M->SetCanEverAffectNavigation(false);UnloaderPresentation->SetColor(FLinearColor(.12,.25,.34));
+        M->SetCollisionEnabled(ECollisionEnabled::QueryOnly);M->SetCollisionResponseToAllChannels(ECR_Block);M->SetHiddenInSceneCapture(false);M->SetCastShadow(false);M->SetCanEverAffectNavigation(false);UnloaderPresentation->Tags.Add(TEXT("HatchOutside"));UnloaderPresentation->SetColor(FLinearColor(.012,.13,.075));
     }
     TArray<FVector> V;TArray<int32> T;
-    const double Tip=10,Root=Tip-BoomLength,H=HoldDepth+BoomHeight+1.2;
+    const double Tip=BoomTipY(),Root=Tip-BoomLength,H=HoldDepth+BoomHeight+1.2;
     for(int Sign:{-1,1})HatchPresentationBox(V,T,FVector(Sign*.7,(Root+Tip)*.5,H),FVector(.22,BoomLength,.3));
     for(double Y:{Root,(Root+Tip)*.5,Tip})HatchPresentationBox(V,T,FVector(0,Y,H),FVector(1.6,.22,.3));
     HatchPresentationBox(V,T,FVector(CabX,CabY,HoldDepth+CabHeight+1.6),FVector(5,2.8,2));
     HatchPresentationBox(V,T,FVector(0,CabY,H+.4),FVector(2,2.4,.6)); // grab trolley
     TArray<FVector> N;N.Init(FVector::UpVector,V.Num());auto* M=UnloaderPresentation->Mesh.Get();
     if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num())M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());
-    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),false);
+    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),true);
+    BuildUnloaderDetails();
+    if(!UnloaderLabel){UnloaderLabel=NewObject<UTextRenderComponent>(UnloaderPresentation);UnloaderLabel->SetupAttachment(M);UnloaderLabel->SetText(FText::FromString(TEXT("GTSU 10")));UnloaderLabel->SetHorizontalAlignment(EHTA_Center);UnloaderLabel->SetWorldSize(110);UnloaderLabel->SetTextRenderColor(FColor(245,220,110));UnloaderLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);UnloaderLabel->SetHiddenInSceneCapture(true);UnloaderLabel->SetCastShadow(false);UnloaderLabel->RegisterComponent();}
+    UnloaderLabel->SetRelativeLocationAndRotation(FVector(0,Root+1.0,H+1.8)*100,FRotator(0,90,0));
     ShowUnloader(bShowUnloader);
 }
 

@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "IndustrialLidarProfiles.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -302,6 +303,7 @@ void UVirtualLidarScanComponent::ApplySimulationQuality(EVirtualSensorSimulation
     {
         const FVirtualLidarProfilePreset Resolved = ResolveProfilePreset(DeviceProfile, SimulationQuality);
         DeviceSpec = Resolved.DeviceSpec;
+        if(const auto* Industrial=IndustrialLidar::Find(DeviceProfile))RangeNoiseStandardDeviationMillimeters=Industrial->PrecisionMM;
         ProfileClass = Resolved.ProfileClass;
         FidelityMode = Resolved.FidelityMode;
         AcquisitionBackend = Resolved.RecommendedBackend;

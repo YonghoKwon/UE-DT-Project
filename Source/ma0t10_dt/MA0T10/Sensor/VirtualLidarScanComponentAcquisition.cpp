@@ -230,7 +230,7 @@ void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
     ScheduledSemanticCounts.Reset();
     const bool bProfileMultiEcho = bUseProfileEchoCapability && DeviceSpec.MaxEchoesPerPixel > 1;
     const int32 EffectiveMaxEchoes = bProfileMultiEcho
-        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 2)
+        ? FMath::Clamp(DeviceSpec.MaxEchoesPerPixel, 1, 3)
         : (bUseMultiHit ? FMath::Max(1, MaxHitsPerRay) : 1);
     ScheduledPoints.Reserve(ScheduledScanWidth * ScheduledScanHeight * EffectiveMaxEchoes);
     ScheduledHeatmapPixels.SetNumZeroed(ScheduledScanWidth * ScheduledScanHeight * 4);

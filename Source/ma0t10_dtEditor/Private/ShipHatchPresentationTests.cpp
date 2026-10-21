@@ -14,6 +14,7 @@
 #include "Components/Button.h"
 #include "Components/Border.h"
 #include "Components/Slider.h"
+#include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "Components/PanelWidget.h"
 #include "EngineUtils.h"
@@ -41,12 +42,18 @@ struct FHatchPresentationProbe
         {const auto P=Slot->GetPosition(),S=Slot->GetSize();T.TestTrue(TEXT("visible panel stays inside viewport"),P.X>=-.1&&P.Y>=-.1&&P.X+S.X<=Size.X+.1&&P.Y+S.Y<=Size.Y+.1);}
         for(auto Text:M.TextBlocks)
         {
-            bool Visible=true,Scrolled=false;for(UWidget* W=Text;W;W=W->GetParent()){Visible&=W->GetVisibility()!=ESlateVisibility::Collapsed&&W->GetVisibility()!=ESlateVisibility::Hidden;Scrolled|=W==M.SettingsPanel||W==M.PointPanel;}
+            bool Visible=true,Scrolled=false;for(UWidget* W=Text;W;W=W->GetParent()){Visible&=W->GetVisibility()!=ESlateVisibility::Collapsed&&W->GetVisibility()!=ESlateVisibility::Hidden;Scrolled|=W==M.SettingsPanel||W==M.PointPanel||W==M.QuickToolScroll;}
             if(!Visible||Scrolled||Text->GetText().IsEmpty())continue;
             const auto& G=Text->GetCachedGeometry();const auto P=Root.AbsoluteToLocal(G.GetAbsolutePosition());
             const FVector2D Desired=Text->GetDesiredSize(),Actual=G.GetLocalSize();
             T.TestTrue(TEXT("visible label has enough arranged width: ")+Text->GetText().ToString(),Desired.X<=Actual.X+1);
             T.TestTrue(TEXT("visible label remains within client bounds"),P.X>=-1&&P.Y>=-1&&P.X+Actual.X<=Size.X+1&&P.Y+Actual.Y<=Size.Y+1);
+        }
+        if(M.QuickToolScroll&&M.QuickToolScroll->IsVisible()){
+            T.TestEqual(TEXT("quick toolbar uses actual horizontal scrolling"),M.QuickToolScroll->GetOrientation(),Orient_Horizontal);
+            T.TestEqual(TEXT("quick toolbar clips offscreen labels to its own scroll region"),M.QuickToolScroll->GetClipping(),EWidgetClipping::ClipToBounds);
+            const auto G=M.QuickToolScroll->GetCachedGeometry();const auto P=Root.AbsoluteToLocal(G.GetAbsolutePosition()),Z=G.GetLocalSize();
+            T.TestTrue(TEXT("quick toolbar scroll region remains inside the client"),P.X>=-1&&P.Y>=-1&&P.X+Z.X<=Size.X+1&&P.Y+Z.Y<=Size.Y+1);
         }
         T.TestTrue(TEXT("3D occupies only its assigned scene rectangle"),M.SceneRect.Right<=Size.X&&M.SceneRect.Bottom<=Size.Y);
         if(M.IsSplitView()||M.GetView()<2)
