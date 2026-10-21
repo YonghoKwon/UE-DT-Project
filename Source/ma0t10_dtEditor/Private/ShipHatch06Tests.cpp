@@ -31,6 +31,8 @@
 struct FHatch06Probe
 {
  static void Cargo(UShipHatchMonitorWidget& M){M.OnFrameCargo();}
+ static void Covers(UShipHatchMonitorWidget& M){M.SetCameraPreset(0);M.bFrameVessel=false;M.bFrameUnloader=false;M.OrbitDistance=8500;M.UpdateCamera();}
+ static FSlateRect Scene(const UShipHatchMonitorWidget& M){return M.SceneRect;}
  static void Vessel(UShipHatchMonitorWidget& M){M.OnFrameVessel();}
  static bool StartReferenceGrab(UShipHatchMonitorWidget& M)
  {
@@ -98,6 +100,26 @@ class FHatch06Run:public IAutomationLatentCommand
  FAutomationTestBase* T;int Phase=0,Model=0,Material=0,Edits=0,View=0;double Start=FPlatformTime::Seconds(),Changed=0,LastWall=0;uint64 LastFrame=0;
  TArray<double> Engine,Game,Wall;TArray<TSharedPtr<FJsonValue>> Rows;TUniquePtr<TGuardValue<bool>> Messages;
  FVector2D Target;uint32 OriginalHash=0;uint64 RssBefore=0;
+ TSharedPtr<FJsonObject> LowBoomBefore;
+ TSharedRef<FJsonObject> BoomEvidence(const AShipHatchSimulation& S)
+ {
+  auto R=MakeShared<FJsonObject>();const auto* A=S.SensorAt(0);const auto Frame=A->ScanComponent->GetLastFrameSnapshot();TArray<ShipHatch::FObservation> Points;int Floor=0;
+  if(Frame&&Frame->Points)for(const auto& P:*Frame->Points)if(P.bHit){if(P.SemanticLabel==TEXT("HatchCargo"))Points.Add({S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});if(P.SemanticLabel==TEXT("HatchHold")&&FMath::Abs(S.GetActorTransform().InverseTransformPosition(P.WorldLocation).Z)<2)++Floor;}
+  const auto Analysis=ShipHatch::Analyze(S.Settings(),1,Points);const auto Sight=S.DiagnoseSight(0,FVector::ZeroVector);
+  R->SetStringField(TEXT("model"),A->ScanComponent->DeviceSpec.Model);R->SetNumberField(TEXT("cargo_points"),Points.Num());R->SetNumberField(TEXT("floor_points"),Floor);R->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);R->SetStringField(TEXT("floor_center_cause"),Sight.Cause.ToString());R->SetNumberField(TEXT("floor_center_distance_m"),Sight.DistanceMeters);R->SetNumberField(TEXT("range_m"),Sight.RangeMeters);R->SetNumberField(TEXT("mount_z_m"),S.SensorOrigin(0).Z);return R;
+ }
+ void DiagnoseGray(UShipHatchMonitorWidget& M)
+ {
+  const auto* S=M.GetSimulation();const auto* A=M.GetDisplayAnalysis();if(!S||!A)return;auto Root=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Cells;bool Grab=false;
+  for(int I=0;I<A->Cells.Num();++I)
+  {
+   const double X=(I%A->NX+.5)*A->DX-S->HoldLength*.5,Y=(I/A->NX+.5)*A->DY-S->HoldWidth*.5;if(A->Cells[I].Count||FMath::Abs(X)>2||Y<2||Y>6)continue;
+   auto C=MakeShared<FJsonObject>();C->SetNumberField(TEXT("x_m"),X);C->SetNumberField(TEXT("y_m"),Y);C->SetNumberField(TEXT("detected_points"),0);TArray<TSharedPtr<FJsonValue>> Rays;
+   for(int Sensor=0;Sensor<3;++Sensor){const auto D=S->DiagnoseSight(Sensor,FVector(X,Y,S->Surface().Height(X,Y)));auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("sensor"),Sensor);R->SetStringField(TEXT("cause"),D.Cause.ToString());R->SetStringField(TEXT("description"),D.Description);R->SetNumberField(TEXT("distance_m"),D.DistanceMeters);R->SetNumberField(TEXT("range_m"),D.RangeMeters);R->SetNumberField(TEXT("first_x_m"),D.FirstHitMeters.X);R->SetNumberField(TEXT("first_y_m"),D.FirstHitMeters.Y);R->SetNumberField(TEXT("first_z_m"),D.FirstHitMeters.Z);Rays.Add(MakeShared<FJsonValueObject>(R));if(D.Cause==TEXT("Grab")){Grab=true;T->TestTrue(TEXT("gray-cell tooltip names actual grab first-hit cause"),M.CellTooltip(I).ToString().Contains(TEXT("그랩")));}}
+   C->SetArrayField(TEXT("current_center_sightlines"),Rays);Cells.Add(MakeShared<FJsonValueObject>(C));
+  }
+  Root->SetArrayField(TEXT("unobserved_cells_near_grab"),Cells);Root->SetStringField(TEXT("method"),TEXT("same-revision current cell-center first collision, separate from acquired sampling; no geometry or frame mutation"));Root->SetBoolField(TEXT("actual_grab_occlusion_found"),Grab);Save06(TEXT("visibility-diagnostics.json"),Root);T->TestTrue(TEXT("initial gray patch includes verified physical grab occlusion"),Grab);
+ }
  void Shot(UWorld* W,UShipHatchMonitorWidget& M,const FString& Name,bool Floor=false)
  {
   TArray<FColor> Pixels;FIntVector Size;if(!T->TestTrue(TEXT("real RHI pixels captured"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
@@ -106,6 +128,12 @@ class FHatch06Run:public IAutomationLatentCommand
   auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());R->SetStringField(TEXT("kind"),TEXT("automated D3D12, not direct UI"));R->SetNumberField(TEXT("width"),Size.X);R->SetNumberField(TEXT("height"),Size.Y);R->SetNumberField(TEXT("font_percent"),M.GetFontScale()*100);R->SetNumberField(TEXT("default_radius_m"),2);R->SetNumberField(TEXT("default_depth_m"),1.5);R->SetNumberField(TEXT("edits"),Edits);
   const auto* Sim=M.GetSimulation();R->SetNumberField(TEXT("surface_crc"),Sim->Surface().Hash());R->SetNumberField(TEXT("seed"),Sim->Seed);R->SetNumberField(TEXT("loa_m"),Sim->VesselLength);R->SetNumberField(TEXT("beam_m"),Sim->VesselBeam);R->SetNumberField(TEXT("moulded_depth_m"),Sim->MouldedDepth);R->SetNumberField(TEXT("rail_span_m"),Sim->RailSpan);R->SetNumberField(TEXT("outreach_m"),Sim->BoomLength);R->SetNumberField(TEXT("boom_sensor_above_deck_m"),Sim->SensorOrigin(0).Z-Sim->HoldDepth);R->SetNumberField(TEXT("cab_sensor_above_deck_m"),Sim->SensorOrigin(1).Z-Sim->HoldDepth);R->SetNumberField(TEXT("water_z_m"),Sim->WaterZ());R->SetNumberField(TEXT("quay_z_m"),Sim->QuayZ());R->SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
   const auto Window=FSlateApplication::Get().FindWidgetWindow(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef());R->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);FString Commit;FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),Commit);R->SetStringField(TEXT("source_commit"),Commit);
+  if(Name==TEXT("covers-top-projection"))for(TActorIterator<AShipHatchVessel>I(W);I;++I)
+  {
+   const auto* C=I->Mesh->GetProcMeshSection(3);if(!C||C->ProcVertexBuffer.Num()<16)continue;FVector2D P[2];TArray<TSharedPtr<FJsonValue>> Panels;
+   for(int Side=0;Side<2;++Side){FVector Center=FVector::ZeroVector;for(int J=0;J<8;++J){const FVector Vertex(C->ProcVertexBuffer[Side*8+J].Position);Center+=Vertex/8;FVector2D Pixel;W->GetFirstPlayerController()->ProjectWorldLocationToScreen(I->Mesh->GetComponentTransform().TransformPosition(Vertex),Pixel);T->TestTrue(TEXT("complete open panel fits visible3D pane in dedicated cover verification view"),FHatch06Probe::Scene(M).ContainsPoint(Pixel*M.GetCachedGeometry().GetLocalSize()/FVector2D(Size.X,Size.Y)));}W->GetFirstPlayerController()->ProjectWorldLocationToScreen(I->Mesh->GetComponentTransform().TransformPosition(Center),P[Side]);const auto Local=Sim->GetActorTransform().InverseTransformPosition(I->Mesh->GetComponentTransform().TransformPosition(Center))*.01;auto V=MakeShared<FJsonObject>();V->SetNumberField(TEXT("hold_x_m"),Local.X);V->SetNumberField(TEXT("hold_y_m"),Local.Y);V->SetNumberField(TEXT("pixel_x"),P[Side].X);V->SetNumberField(TEXT("pixel_y"),P[Side].Y);Panels.Add(MakeShared<FJsonValueObject>(V));}
+   R->SetArrayField(TEXT("actual_open_panel_centers"),Panels);R->SetStringField(TEXT("gray_side_panels"),TEXT("closed neighboring hatches at fore/aft +/-X; not the active open panels"));T->TestTrue(TEXT("independent actual mesh camera projection: +Y open cover above -Y, same screen X"),P[1].Y<P[0].Y&&FMath::Abs(P[1].X-P[0].X)<.1);
+  }
   if(Floor)
   {
    FHitResult First;const FVector Aim=Sim->GetActorTransform().TransformPosition(FVector(Target,-.05)*100);FCollisionQueryParams Query(SCENE_QUERY_STAT(Hatch06FloorPixel),true);
@@ -136,8 +164,9 @@ public:
   }
   if(Phase==1)
   {
-   if(Now-Changed<1)return false;Shot(W,M,TEXT("cargo"));FHatch06Probe::FullRig(M);Changed=Now;Phase=10;return false;
+   if(Now-Changed<1)return false;Shot(W,M,TEXT("cargo"));DiagnoseGray(M);FHatch06Probe::Covers(M);Changed=Now;Phase=22;return false;
   }
+  if(Phase==22){if(Now-Changed<1)return false;Shot(W,M,TEXT("covers-top-projection"));M.SetCameraPreset(1);FHatch06Probe::FullRig(M);Changed=Now;Phase=10;return false;}
   if(Phase==10){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-full"));FHatch06Probe::GroundRigCamera(M);Changed=Now;Phase=19;return false;}
   if(Phase==14){if(Now-Changed<1)return false;Shot(W,M,TEXT("gtsu-scale-1p8m"));S->ShowScaleReference(false);FHatch06Probe::Vessel(M);Changed=Now;Phase=13;return false;}
   if(Phase==13){if(Now-Changed<1)return false;Shot(W,M,TEXT("vessel-overview"));S->ShowWater(false);Changed=Now;Phase=15;return false;}
@@ -202,9 +231,16 @@ public:
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<2)return false;
    Shot(W,M,FString::Printf(TEXT("%s-full-floor-%s"),Material?TEXT("coal"):TEXT("iron"),View==0?TEXT("3d"):View==1?TEXT("points"):TEXT("section")),View==0);
    if(++View<3){M.SelectView(View==1?1:4);if(View==2)M.SetSection(true,Target.Y/S->HoldWidth+.5);Changed=Now;return false;}
+   if(Material==1){LowBoomBefore=BoomEvidence(*S);T->TestEqual(TEXT("40m boom model cannot reach actual empty floor center"),LowBoomBefore->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));S->SetFieldSensor(0,true,6);M.SelectView(1);M.SetSplitView(true);M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=21;return false;}
    T->TestTrue(TEXT("undo restores a prior physical excavation"),S->UndoDig());T->TestTrue(TEXT("restore returns bit-exact original detail"),S->RestoreCargo()&&S->Surface().Hash()==OriginalHash);
    if(Material++==0){S->bCoal=true;S->Regenerate(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(0);Changed=Now;Phase=6;return false;}
    auto Done=MakeShared<FJsonObject>();Done->SetBoolField(TEXT("valid"),!T->HasAnyErrors());Done->SetArrayField(TEXT("models"),Rows);Save06(TEXT("acceptance.json"),Done);return true;
+  }
+  if(Phase==21)
+  {
+   if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;const auto After=BoomEvidence(*S);auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("default_mid360s"),LowBoomBefore);R->SetObjectField(TEXT("recommended_xt32"),After);Save06(TEXT("low-fill-boom-comparison.json"),R);
+   T->TestEqual(TEXT("recommended model keeps actual boom mounting position"),After->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestTrue(TEXT("longer-range boom model measures real exposed steel floor"),After->GetNumberField(TEXT("floor_points"))>0);T->TestTrue(TEXT("longer-range model increases low-fill boom coverage"),After->GetNumberField(TEXT("observed_percent"))>LowBoomBefore->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-xt32"));S->SetFieldSensor(0,true,1);
+   T->TestTrue(TEXT("undo restores a prior physical excavation"),S->UndoDig());T->TestTrue(TEXT("restore returns bit-exact original detail"),S->RestoreCargo()&&S->Surface().Hash()==OriginalHash);auto Done=MakeShared<FJsonObject>();Done->SetBoolField(TEXT("valid"),!T->HasAnyErrors());Done->SetArrayField(TEXT("models"),Rows);Save06(TEXT("acceptance.json"),Done);return true;
   }
   return false;
  }

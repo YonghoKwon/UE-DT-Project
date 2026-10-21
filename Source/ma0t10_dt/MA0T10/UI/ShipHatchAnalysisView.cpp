@@ -222,13 +222,17 @@ public:
         if(A&&S&&P.X>=R.Left&&P.X<R.Right&&P.Y>=R.Top&&P.Y<R.Bottom)
         {const auto Local=ShipHatch::FViewTransform::Top(*S).FromPixel(P,R);const double B=Local.Y,L=Local.X;
          if(FMath::Abs(B)<=S->OpeningWidth*.5&&FMath::Abs(L)<=S->OpeningLength*.5){const int32 X=FMath::FloorToInt((L+S->Length*.5)/A->DX),Y=FMath::FloorToInt((B+S->Width*.5)/A->DY);if(X>=0&&X<A->NX&&Y>=0&&Y<A->NY)Cell=Y*A->NX+X;}}
-        if(Cell!=HoveredCell||TooltipBuild!=M->AnalysisBuilds){HoveredCell=Cell;TooltipBuild=M->AnalysisBuilds;SetToolTipText(M->CellTooltip(Cell));}
+        const double Now=FPlatformTime::Seconds();
+        // Direct pointer changes stay immediate; stationary streaming refresh
+        // is capped at5Hz. No tracing or string work happens in OnPaint/Tick.
+        if(Cell!=HoveredCell||(Now-LastTooltipUpdate>=.2&&TooltipBuild!=M->AnalysisBuilds)){LastTooltipUpdate=Now;HoveredCell=Cell;TooltipBuild=M->AnalysisBuilds;SetToolTipText(M->CellTooltip(Cell));}
         return FReply::Handled();
     }
 private:
     TWeakObjectPtr<UShipHatchAnalysisView> Owner;
     int32 HoveredCell=MIN_int32;
     uint64 TooltipBuild=0;
+    double LastTooltipUpdate=0;
     bool bDraggingSection=false;
 };
 }

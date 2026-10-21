@@ -29,6 +29,36 @@ void HatchPresentationBox(TArray<FVector>& V,TArray<int32>& T,FVector C,FVector 
 }
 AVirtualLidarSensorActor* AShipHatchSimulation::SensorAt(int32 I) const{return I==0?MLX.Get():I==1?Livox.Get():I==2?CabRight.Get():nullptr;}
 bool AShipHatchSimulation::SensorEnabled(int32 I) const{return I==0?bMLX:I==1?bLivox:I==2&&bFieldLayout&&bCabRight;}
+FShipHatchSight AShipHatchSimulation::DiagnoseSight(int32 I,FVector Target) const
+{
+    FShipHatchSight R;const auto* A=SensorAt(I);
+    auto Cause=[&](const TCHAR* Key,const TCHAR* Text){R.Cause=Key;R.Description=Text;return R;};
+    if(I<0||I>2||!SensorEnabled(I)||!A)return Cause(TEXT("Disabled"),TEXT("센서 꺼짐"));
+    const auto* Scan=A->ScanComponent.Get();const FVector World=GetActorTransform().TransformPosition(Target*100),Origin=Scan->GetComponentLocation();
+    const auto Local=Scan->GetComponentTransform().InverseTransformPosition(World);R.DistanceMeters=Local.Size()*.01;R.RangeMeters=Scan->MaxDistance*.01;
+    const double Pitch=FMath::RadiansToDegrees(FMath::Atan2(Local.Z,FMath::Sqrt(Local.X*Local.X+Local.Y*Local.Y)));
+    if(Scan->DeviceProfile==EVirtualLidarDeviceProfile::HesaiXT32&&(Pitch< -8.001||Pitch>7.001))R.RangeMeters=FMath::Min(R.RangeMeters,50.);
+    if(R.DistanceMeters>R.RangeMeters||R.DistanceMeters<Scan->DeviceSpec.MinRangeCm*.01){R.Cause=TEXT("Range");R.Description=FString::Printf(TEXT("거리 한계: %.1f m / 최대 %.1f m"),R.DistanceMeters,R.RangeMeters);return R;}
+    if(!InFov(A,World))return Cause(TEXT("Fov"),TEXT("시야각 밖"));
+    FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchCellDiagnostic),true);
+    if(!GetWorld()->LineTraceSingleByChannel(Hit,Origin,World+(World-Origin).GetSafeNormal()*.5,ECC_Visibility,Query))return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
+    R.FirstHitMeters=GetActorTransform().InverseTransformPosition(Hit.ImpactPoint)*.01;
+    if(FVector::Distance(Hit.ImpactPoint,World)<8)return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
+    if(Hit.GetComponent()==GrabPresentation)return Cause(TEXT("Grab"),TEXT("차폐: 그랩·로프"));
+    if(Hit.GetActor()==UnloaderPresentation)
+    {
+        const auto P=R.FirstHitMeters;if(FMath::Abs(P.X-CabX)<3&&FMath::Abs(P.Y-CabY)<2&&P.Z<HoldDepth+CabHeight+3)return Cause(TEXT("Cab"),TEXT("차폐: 운전실"));
+        return Cause(TEXT("Rig"),TEXT("차폐: 붐·트롤리/GTSU 구조"));
+    }
+    if(Hit.GetActor()==Vessel)
+    {
+        const auto P=R.FirstHitMeters;if(FMath::Abs(P.X)<OpeningLength*.5+.5&&FMath::Abs(P.Y)>OpeningWidth*.5&&FMath::Abs(P.Z-(HoldDepth+CoamingHeight+.56))<.6)return Cause(TEXT("Cover"),TEXT("차폐: 열린 해치 커버"));
+        return Cause(TEXT("Vessel"),TEXT("차폐: 선체·갑판"));
+    }
+    if(Hit.GetActor()==Cargo)return Cause(TEXT("Cargo"),TEXT("차폐: 원료 사면"));
+    if(Hit.GetActor()&&Hit.GetActor()->ActorHasTag(TEXT("HatchCoaming")))return Cause(TEXT("Coaming"),TEXT("차폐: 코밍"));
+    return Cause(TEXT("Structure"),TEXT("차폐: 홀드 벽·갑판"));
+}
 FVector AShipHatchSimulation::SensorOrigin(int32 I) const
 {
     if(!bFieldLayout)return SensorLocalOrigin(I==0);

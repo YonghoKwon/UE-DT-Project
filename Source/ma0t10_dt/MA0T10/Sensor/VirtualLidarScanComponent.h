@@ -702,6 +702,8 @@ private:
 
 private:
     FTimerHandle ScanTimerHandle;
+    // Device-specific public noise must not leak back into an existing profile.
+    TOptional<float> PreIndustrialRangeNoise;
     TSharedPtr<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe> LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>();
 	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> LastFrameSnapshot;
 	uint32 FrameSettingsRevision = 0;

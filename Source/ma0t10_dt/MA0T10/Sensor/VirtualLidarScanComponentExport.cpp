@@ -303,7 +303,13 @@ void UVirtualLidarScanComponent::ApplySimulationQuality(EVirtualSensorSimulation
     {
         const FVirtualLidarProfilePreset Resolved = ResolveProfilePreset(DeviceProfile, SimulationQuality);
         DeviceSpec = Resolved.DeviceSpec;
-        if(const auto* Industrial=IndustrialLidar::Find(DeviceProfile))RangeNoiseStandardDeviationMillimeters=Industrial->PrecisionMM;
+        if(const auto* Industrial=IndustrialLidar::Find(DeviceProfile))
+        {
+            if(!PreIndustrialRangeNoise.IsSet())PreIndustrialRangeNoise=RangeNoiseStandardDeviationMillimeters;
+            RangeNoiseStandardDeviationMillimeters=Industrial->PrecisionMM;
+        }
+        else if(PreIndustrialRangeNoise.IsSet())
+        {RangeNoiseStandardDeviationMillimeters=PreIndustrialRangeNoise.GetValue();PreIndustrialRangeNoise.Reset();}
         ProfileClass = Resolved.ProfileClass;
         FidelityMode = Resolved.FidelityMode;
         AcquisitionBackend = Resolved.RecommendedBackend;

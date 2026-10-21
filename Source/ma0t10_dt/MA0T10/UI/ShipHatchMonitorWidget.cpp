@@ -104,12 +104,13 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     auto* LinksSlot=SensorCanvas->AddChildToCanvas(SensorLabelView);LinksSlot->SetAnchors(FAnchors(0,0,1,1));LinksSlot->SetOffsets(FMargin(0));LinksSlot->SetZOrder(-1);
     SensorBadges={Button(TEXT("붐 끝"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHighlightMLX)),Button(TEXT("운전실 좌"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHighlightLivox)),Button(TEXT("운전실 우"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnHighlightRight))};
     for(auto B:SensorBadges)SensorCanvas->AddChildToCanvas(B);
-    DirectionBadges={Label(TEXT("해측 +Y"),Style::LabelSize,true,Style::Accent()),Label(TEXT("육측 −Y"),Style::LabelSize,true,Style::Warning())};for(auto B:DirectionBadges)SensorCanvas->AddChildToCanvas(B);
+    DirectionBadges={Label(TEXT("해측 +Y (열림)"),Style::LabelSize,true,Style::Accent()),Label(TEXT("육측 −Y (열림)"),Style::LabelSize,true,Style::Warning())};for(auto B:DirectionBadges){SensorCanvas->AddChildToCanvas(B);B->SetToolTipText(FText::FromString(TEXT("붉은 패널: 대상 홀드05의 ±Y side-rolling 열린 커버. 선수미 ±X의 회색 패널은 이웃 홀드의 닫힌 커버입니다.")));}
 
     auto* Header=Card(TEXT("HatchHeader"));Add(Header);auto* Head=WidgetTree->ConstructWidget<UVerticalBox>();Header->SetContent(Head);
     auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Head->AddChildToVerticalBox(Row);
     Row->AddChildToHorizontalBox(Label(TEXT("해치 적재 모니터링"),Style::TitleSize,true))->SetPadding(FMargin(0,0,Style::SectionGap,0));
     StatusText=Label(TEXT("● 측정 준비 중"),Style::BodySize,false,Style::Success());StatusChip=Card(TEXT("HatchStatusChip"),Style::Selection());StatusChip->SetBrush(*Style::ChipBrush());StatusChip->SetPadding(FMargin(Style::Gap,4));StatusChip->SetContent(StatusText);Row->AddChildToHorizontalBox(StatusChip);Row->AddChildToHorizontalBox(Label(TEXT("")))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    StatusText->SetToolTipText(FText::FromString(TEXT("실제 전체 스캔 획득Hz입니다. 장비 목표10/20Hz나 송신Hz가 아닙니다. CPU 정밀 추적을 프레임 예산으로 분할하며 점 수·구조 충돌에 따라 낮아집니다. 설정 상세에서 목표/실제Hz와 거리 한계를 확인하세요.")));
     Row->AddChildToHorizontalBox(Button(TEXT("3분할 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSplit)))->SetPadding(FMargin(0,0,Style::Gap,0));Row->AddChildToHorizontalBox(Button(TEXT("설정 · 상세"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSettings)));
     auto* Sub=WidgetTree->ConstructWidget<UHorizontalBox>();Head->AddChildToVerticalBox(Sub)->SetPadding(FMargin(0,Style::Gap,0,0));
     ContextText=Label(TEXT("홀드 01 · 철광석 · ML-X + Livox"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(ContextText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -136,7 +137,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     TopView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();TopView->Monitor=this;TopCache=WidgetTree->ConstructWidget<UInvalidationBox>();TopCache->SetCanCache(true);TopCache->SetContent(TopView);MapSwitcher->AddChild(TopCache);
     HeatView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();HeatView->Monitor=this;HeatView->bHeatmap=true;HeatCache=WidgetTree->ConstructWidget<UInvalidationBox>();HeatCache->SetCanCache(true);HeatCache->SetContent(HeatView);MapSwitcher->AddChild(HeatCache);MapSwitcher->SetActiveWidgetIndex(1);
     CoverageText=Label(TEXT("센서별 측정 준비 중"),Style::LabelSize,false,Style::Muted());CoverageText->SetAutoWrapText(true);
-    TopBox->AddChildToVerticalBox(Label(TEXT("청록 카메라 · 노랑 단면선 드래그 · 회색 미관측"),Style::LabelSize,false,Style::Muted()));
+    TopBox->AddChildToVerticalBox(Label(TEXT("청록 카메라 · 노랑 단면선 드래그 · 회색 미관측: 격자 툴팁"),Style::LabelSize,false,Style::Muted()));
     auto* Section=Card(TEXT("HatchSectionCard"));Add(Section);auto* SectionBox=WidgetTree->ConstructWidget<UVerticalBox>();Section->SetContent(SectionBox);
     auto* SectionHead=WidgetTree->ConstructWidget<UHorizontalBox>();SectionBox->AddChildToVerticalBox(SectionHead);
     SectionHead->AddChildToHorizontalBox(Label(TEXT("홀드 단면"),Style::BodySize,true))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -288,7 +289,15 @@ void UShipHatchMonitorWidget::Refresh()
     if(S->bFieldLayout)
     {
         ContextText->SetText(FText::FromString(FString::Printf(TEXT("케이프사이즈 · 홀드 05 / %s / GTSU 10호기 · 해측 +Y / 육측 −Y"),S->bCoal?TEXT("석탄"):TEXT("철광석"))));
-        if(bSettings&&StatsText->GetParent()->IsVisible())StatsText->SetText(FText::FromString(FString::Printf(TEXT("현장 모델 확인 필요 · 기본 Mid-360S 3대\n해측 +Y / 육측 −Y · 그랩식 단순 비례 모형\n높이: 붐 끝 %.1f m / 운전실 좌 %.1f m / 우 %.1f m\n3대 합성 FOV: 개구부 %.1f%% · 보이는 바닥 %.1f%% (%.0f m²)\n예상 FOV (실측 아님): 청록 붐 / 주황 좌 / 자홍 우 · 빨강 사각\n조명은 LiDAR 반사·분류·PCD에 영향 없음\n%s"),S->SensorOrigin(0).Z-S->HoldDepth,S->SensorOrigin(1).Z-S->HoldDepth,S->SensorOrigin(2).Z-S->HoldDepth,Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea,*S->Status)));
+        if(bSettings&&StatsText->GetParent()->IsVisible())
+        {
+            FString Details=FString::Printf(TEXT("해측 +Y / 육측 −Y · 붉은 커버: ±Y 열림\n회색 좌우 커버: 이웃 홀드 닫힘 (선수미 ±X)\n센서 높이: 붐 %.1f / 좌 %.1f / 우 %.1f m (갑판 기준)\n3대 FOV: 개구부 %.1f%% · 빈 바닥 %.1f%%\n회색 미관측: 격자 툴팁에서 차폐/거리/FOV 확인\n"),S->SensorOrigin(0).Z-S->HoldDepth,S->SensorOrigin(1).Z-S->HoldDepth,S->SensorOrigin(2).Z-S->HoldDepth,Work->OpeningCoverage,Work->FloorCoverage);
+            const TCHAR* Roles[]={TEXT("붐"),TEXT("좌"),TEXT("우")};
+            for(int I=0;I<3;++I)if(const auto* A=S->SensorAt(I))
+            {const auto* Scan=A->ScanComponent.Get();const auto D=S->DiagnoseSight(I,FVector::ZeroVector);Details+=FString::Printf(TEXT("%s · %s\n목표 %.1f / 실제 %.1f Hz · 바닥 중앙 %.1f m / 한계 %.1f m\n"),Roles[I],*Scan->DeviceSpec.Model,1.f/FMath::Max(.001f,Scan->ScanInterval),Scan->GetRuntimeStatus().MeasuredAcquisitionRateHz,D.DistanceMeters,D.RangeMeters);}
+            if(const auto* A=S->SensorAt(0))if(A->ScanComponent->MaxDistance*.01<S->SensorOrigin(0).Z)Details+=TEXT("붐: 40m급은 저적재/바닥 거리 부족. 권장: XT32(중앙80m)·Avia(190m). 각도만으로 거리 부족을 해결할 수 없습니다.\n");
+            Details+=TEXT("실제Hz: CPU 정밀 추적을 프레임 예산으로 분할한 전체 스캔 속도. 목표 장비Hz·송신Hz와 다릅니다.\n조명은 LiDAR 반사·분류·PCD에 영향 없음\n");Details+=S->Status;StatsText->SetText(FText::FromString(Details));
+        }
     }
     if(S->SensorEnabled(2)&&S->CabRight)StatusText->SetText(FText::FromString(CachedStatus+FString::Printf(TEXT(" / %.1f Hz"),S->CabRight->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz)));
     if(!S->HasFreshMeasurement())return;RefreshAnalysis();if(Work&&!Work->ExportRequest.IsEmpty()){const auto R=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(Work->ExportRequest);if(R.IsTerminal()){S->Status=R.Message;Work->ExportRequest.Reset();}}
@@ -347,9 +356,10 @@ void UShipHatchMonitorWidget::UpdateSensorBadges()
     if(ActiveView==1)Obstacles.Add(FSlateRect(LayoutSlots[7]->GetPosition(),LayoutSlots[7]->GetPosition()+LayoutSlots[7]->GetSize()));
     for(int I=0;I<DirectionBadges.Num();++I)
     {
-        FVector2D Pixel;PC->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(FVector(0,(I==0?1:-1)*(S->OpeningWidth*.5+1),S->HoldDepth+1)*100),Pixel);Pixel=Pixel*Size/FVector2D(W,H)+FVector2D(0,(I==0?-26:8)*Scale);
-        Pixel.X=FMath::Clamp(Pixel.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-90*Scale)));Pixel.Y=FMath::Clamp(Pixel.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-25*Scale)));
-        auto* CaptionSlot=CastChecked<UCanvasPanelSlot>(DirectionBadges[I]->Slot);CaptionSlot->SetPosition(Pixel-LayoutSlots[0]->GetPosition());CaptionSlot->SetSize(FVector2D(90,24)*Scale);Obstacles.Add(FSlateRect(Pixel,Pixel+FVector2D(90,24)*Scale));
+        const double CaptionWidth=FMath::Min(165*Scale,double(SceneRect.Right-SceneRect.Left-16));
+        FVector2D Pixel;PC->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(FVector(0,(I==0?1:-1)*(S->bRealScale?S->OpeningWidth*.75+.15:S->OpeningWidth*.5+1),S->HoldDepth+S->CoamingHeight+.56)*100),Pixel);Pixel=Pixel*Size/FVector2D(W,H)+FVector2D(0,(I==0?-26:8)*Scale);
+        Pixel.X=FMath::Clamp(Pixel.X,double(SceneRect.Left+8),FMath::Max(double(SceneRect.Left+8),double(SceneRect.Right-CaptionWidth)));Pixel.Y=FMath::Clamp(Pixel.Y,double(SceneRect.Top+8),FMath::Max(double(SceneRect.Top+8),double(SceneRect.Bottom-25*Scale)));
+        auto* CaptionSlot=CastChecked<UCanvasPanelSlot>(DirectionBadges[I]->Slot);CaptionSlot->SetPosition(Pixel-LayoutSlots[0]->GetPosition());CaptionSlot->SetSize(FVector2D(CaptionWidth,24*Scale));Obstacles.Add(FSlateRect(Pixel,Pixel+FVector2D(CaptionWidth,24*Scale)));
     }
     auto Intersects=[](const FSlateRect& A,const FSlateRect& B){return A.Left<B.Right&&A.Right>B.Left&&A.Top<B.Bottom&&A.Bottom>B.Top;};
     TArray<FSlateRect,TInlineAllocator<3>> Placed;
@@ -382,7 +392,17 @@ void UShipHatchMonitorWidget::UpdateSensorBadges()
 void UShipHatchMonitorWidget::OnScanToggle()
 {if(auto* S=Simulation.Get()){S->SetScanDisplay(!S->IsScanDisplayEnabled());ScanToggle->SetStyle(S->IsScanDisplayEnabled()?Style::PrimaryButton():Style::Button());CastChecked<UTextBlock>(ScanToggle->GetContent())->SetText(FText::FromString(S->IsScanDisplayEnabled()?TEXT("광선 끄기"):TEXT("광선 보기")));}}
 FText UShipHatchMonitorWidget::CellTooltip(int32 I) const
-{const auto* A=GetDisplayAnalysis();if(!A||!A->Cells.IsValidIndex(I))return FText::GetEmpty();const auto& C=A->Cells[I];return FText::FromString(C.Count?FString::Printf(TEXT("격자 %d, %d · 평균 높이 %.2f m · 검출 %d점"),I%A->NX+1,I/A->NX+1,C.Mean(),C.Count):TEXT("측정 불가 · 검출점 없음"));}
+{
+    const auto* A=GetDisplayAnalysis();if(!A||!A->Cells.IsValidIndex(I))return FText::GetEmpty();const auto& C=A->Cells[I];
+    if(C.Count)return FText::FromString(FString::Printf(TEXT("격자 %d, %d · 평균 높이 %.2f m · 검출 %d점"),I%A->NX+1,I/A->NX+1,C.Mean(),C.Count));
+    FString Text=TEXT("미관측 · 측정 불가 (최근 검출점 없음)\n현재 격자 중심 시선 진단 (측정 샘플과 별도)");
+    if(const auto* S=Simulation.Get())
+    {
+        const double X=(I%A->NX+.5)*A->DX-S->HoldLength*.5,Y=(I/A->NX+.5)*A->DY-S->HoldWidth*.5;const FVector P(X,Y,S->Surface().Height(X,Y));
+        const TCHAR* Roles[]={TEXT("붐"),TEXT("좌"),TEXT("우")};for(int Sensor=0;Sensor<3;++Sensor)Text+=FString::Printf(TEXT("\n%s · %s"),Roles[Sensor],*S->DiagnoseSight(Sensor,P).Description);
+    }
+    return FText::FromString(Text);
+}
 void UShipHatchMonitorWidget::RefreshAnalysis()
 {
     auto* S=Simulation.Get();if(!S||!Work)return;

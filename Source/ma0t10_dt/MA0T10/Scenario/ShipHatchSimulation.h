@@ -13,6 +13,15 @@ class UTextRenderComponent;
 class ADirectionalLight;
 class UPointLightComponent;
 
+/** Read-only center sightline diagnostic, separate from acquired samples. */
+struct FShipHatchSight
+{
+    FName Cause=TEXT("Clear");
+    FString Description;
+    double DistanceMeters=0,RangeMeters=0;
+    FVector FirstHitMeters=FVector::ZeroVector;
+};
+
 /** Separate hit owners keep optical material response and existing semantic rules unambiguous. */
 UCLASS(NotBlueprintable)
 class MA0T10_DT_API AShipHatchPart : public AInteractableActor
@@ -47,6 +56,7 @@ class MA0T10_DT_API AShipHatchSimulation : public AInteractableActor
     friend struct FHatchOrientationProbe;
 public:
     AShipHatchSimulation();
+    FShipHatchSight DiagnoseSight(int32 SensorIndex,FVector HoldTargetMeters) const;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldWidth=42.3;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldLength=25.8;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldDepth=22.5;
