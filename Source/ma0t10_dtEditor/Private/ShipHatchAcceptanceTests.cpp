@@ -106,6 +106,7 @@ class FHatchRuntime final:public IAutomationLatentCommand
     FDateTime PreviousCapture;
     int32 SensorCount=2;
     int32 BaselineWarmupSeconds=35;
+    uint64 PerformanceRss=0;
     TSet<int32> RandomSeeds;
     void ClickRandom()
     {
@@ -202,9 +203,9 @@ public:
          return FPaths::FileExists(ReportRoot()/TEXT("manual/finish.flag"));}
         if(Performance)
         {
-            if(!Ready){Ready=Now;if(SensorCount<3)Sim->SetSensorSelection(true,SensorCount==2,false);Host->Monitor->SelectView(1);LastWall=Now;return false;}
+            if(!Ready){Ready=Now;if(SensorCount<3)Sim->SetSensorSelection(true,SensorCount==2,false);int View=1;FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),View);Host->Monitor->SelectView(FMath::Clamp(View,0,1));LastWall=Now;return false;}
             if(Now-Ready<10)return false;
-            if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceStartFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[2]=Sim->CabRight?Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId:0;return false;}
+            if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceRss=FPlatformMemory::GetStats().UsedPhysical;PerformanceStartFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[2]=Sim->CabRight?Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId:0;return false;}
             if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;Engine.Add(World->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;}
             if(Now-MeasureStart<30)return false;
             auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("sensors"),SensorCount);R->SetNumberField(TEXT("average_fps"),Mean(Engine)>0?1000/Mean(Engine):0);
@@ -218,7 +219,12 @@ public:
             Test->TestTrue(TEXT("each selected hatch device keeps acquiring"),M>0&&(SensorCount==1?L==0:L>0));
             R->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
             R->SetNumberField(TEXT("warmup_seconds"),10);R->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);
-            R->SetStringField(TEXT("profiles"),SensorCount==3?TEXT("3x Livox Mid360S FullSpec, field grab-unloader layout; site models unconfirmed"):TEXT("IYOBOT ML-X80 Integration200 FullSpec; optional Livox Mid360S FullSpec"));
+            R->SetStringField(TEXT("profiles"),SensorCount==3?TEXT("Hesai XT32 boom + Livox Mid360S cab pair FullSpec; site models unconfirmed"):TEXT("IYOBOT ML-X80 Integration200 FullSpec; optional Livox Mid360S FullSpec"));
+            TArray<TSharedPtr<FJsonValue>> Devices;
+            for(int I=0;I<SensorCount;++I)if(auto* A=Sim->SensorAt(I)){auto D=MakeShared<FJsonObject>();D->SetStringField(TEXT("model"),A->ScanComponent->DeviceSpec.Model);D->SetNumberField(TEXT("profile_enum"),int(A->ScanComponent->DeviceProfile));const auto F=A->ScanComponent->GetLastFrameSnapshot();D->SetNumberField(TEXT("requested_rays"),F?F->RequestedRayCount:0);Devices.Add(MakeShared<FJsonValueObject>(D));}
+            R->SetArrayField(TEXT("actual_devices"),Devices);int View=1;FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),View);R->SetNumberField(TEXT("display_view"),View);R->SetNumberField(TEXT("rss_before"),double(PerformanceRss));R->SetNumberField(TEXT("rss_after"),double(FPlatformMemory::GetStats().UsedPhysical));R->SetNumberField(TEXT("engine_max_ms"),FMath::Max(Engine));R->SetNumberField(TEXT("game_max_ms"),FMath::Max(Game));
+            Test->TestTrue(TEXT("performance window has zero150ms engine/game frames"),Engine.Num()>0&&FMath::Max(Engine)<=150&&FMath::Max(Game)<=150);
+            if(SensorCount==3){Test->TestEqual(TEXT("requested default boom profile"),Sim->SensorAt(0)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::HesaiXT32);for(int I=1;I<3;++I)Test->TestEqual(TEXT("unchanged cab default"),Sim->SensorAt(I)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::LivoxMid360S);}
             R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
             WriteReport(SensorCount==3?TEXT("performance-3.json"):SensorCount==2?TEXT("performance-2.json"):TEXT("performance-1.json"),R);return true;
         }

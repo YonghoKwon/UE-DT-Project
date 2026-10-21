@@ -131,20 +131,32 @@ struct FHatchDigProbe
         auto* S=M.Simulation.Get();auto* PC=M.GetOwningPlayer();
         for(auto* A:{S->MLX.Get(),S->Livox.Get(),S->CabRight.Get()})if(A)
         {
+            // Corrugations extend265mm into the hold: position alone cannot
+            // identify cargo. Align the real display with its immutable source
+            // and verify every sampled return by its acquired semantic label.
+            A->VisualizationComponent->RefreshPointPreview();
+            const auto Frame=A->ScanComponent->GetLastFrameSnapshot();
+            T.TestTrue(TEXT("display validation retains an immutable source"),Frame&&Frame->Points);
+            if(!Frame||!Frame->Points)return;
+            const auto Policy=A->ScanComponent->GetPreviewPolicyState();
             TInlineComponentArray<ULineBatchComponent*> Batches(A);T.TestTrue(TEXT("owned colored point proxy exists"),Batches.Num()>0);
             for(auto* B:Batches)
             {
                 T.TestEqual(TEXT("retained preview is never hidden while waiting for measurement"),PC->HiddenPrimitiveComponents.Contains(B),false);
                 T.TestTrue(TEXT("edit keeps populated point buffer instead of empty/full churn"),B->BatchedPoints.Num()>0);
-                double Error=0;int32 Cargo=0;
-                for(const auto& P:B->BatchedPoints)
+                double Error=0,StructureError=0;int32 Cargo=0,Structure=0,Rendered=0;
+                for(int I=0;I<Frame->Points->Num()&&Rendered<B->BatchedPoints.Num();I+=FMath::Max(1,Policy.PointStride))
                 {
-                    if(P.PointSize<=0)continue;
+                    const auto& Source=(*Frame->Points)[I];if(Policy.bHitOnly&&!Source.bHit)continue;
+                    const auto& P=B->BatchedPoints[Rendered++];
+                    T.TestTrue(TEXT("sampled acquired return has a visible display point"),P.PointSize>0);
                     const FVector L=S->GetActorTransform().InverseTransformPosition(P.Position)*.01;
-                    if(FMath::Abs(L.X)<S->HoldLength*.5-.1&&FMath::Abs(L.Y)<S->HoldWidth*.5-.1&&L.Z>.05&&L.Z<S->HoldDepth-.1)
+                    if(Source.bHit&&Source.SemanticLabel==TEXT("HatchCargo"))
                     {++Cargo;Error=FMath::Max(Error,FMath::Abs(L.Z-S->Surface().Height(L.X,L.Y)));}
+                    else {++Structure;StructureError=FMath::Max(StructureError,FVector::Distance(P.Position,Source.WorldLocation)*.01);}
                 }
                 T.TestTrue(FString::Printf(TEXT("retained and fresh point preview %s: cargo=%d error=%.5fm"),*A->GetSensorId(),Cargo,Error),Cargo>100&&Error<.15);
+                T.TestTrue(TEXT("non-cargo returns remain measured geometry, never flattened onto cargo"),Structure>0&&StructureError<.0001);
             }
         }
     }
