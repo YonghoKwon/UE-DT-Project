@@ -134,7 +134,20 @@ struct FHatch06Probe
   for(TActorIterator<AShipHatchVessel>I(S.GetWorld());I;++I)
   {
    const auto* Hull=I->Mesh->GetProcMeshSection(0);T.TestNotNull(TEXT("actual hull mesh exists"),Hull);if(!Hull)continue;
-   const auto B=Hull->SectionLocalBox.GetSize()*.01;T.TestTrue(TEXT("rendered hull actual LOA/beam/moulded depth match SI configuration within1cm"),FMath::Abs(B.X-S.VesselLength)<.01&&FMath::Abs(B.Y-S.VesselBeam)<.01&&FMath::Abs(B.Z-S.MouldedDepth)<.01);
+   const auto B=Hull->SectionLocalBox.GetSize()*.01;
+   T.TestTrue(TEXT("rendered hull actual LOA/beam match SI configuration within1cm"),FMath::Abs(B.X-S.VesselLength)<.01&&FMath::Abs(B.Y-S.VesselBeam)<.01);
+   // Moulded depth is an amidships section dimension. The new end sheer
+   // raises the fore/aft deck; a whole-hull AABB is no longer that dimension.
+   // Intersect actual triangle edges with X=0, independently of generator math.
+   double Low=DBL_MAX,High=-DBL_MAX;int Crossings=0;
+   for(int J=0;J<Hull->ProcIndexBuffer.Num();J+=3)for(int Edge=0;Edge<3;++Edge)
+   {
+    const FVector A(Hull->ProcVertexBuffer[Hull->ProcIndexBuffer[J+Edge]].Position),C(Hull->ProcVertexBuffer[Hull->ProcIndexBuffer[J+(Edge+1)%3]].Position);
+    if((A.X<=0&&C.X>=0)||(C.X<=0&&A.X>=0))
+    {if(FMath::Abs(C.X-A.X)>1.e-8){const double Z=FMath::Lerp(A.Z,C.Z,-A.X/(C.X-A.X))*.01;Low=FMath::Min(Low,Z);High=FMath::Max(High,Z);++Crossings;}}
+   }
+   T.TestTrue(TEXT("actual amidships hull section moulded depth matches SI configuration within1cm"),Crossings>0&&FMath::Abs(High-Low-S.MouldedDepth)<.01&&FMath::Abs(High-S.HoldDepth)<.01&&FMath::Abs(Low-S.KeelZ())<.01);
+   T.TestTrue(TEXT("actual bow/stern sheer adds exactly75cm above amidships side deck within1cm"),FMath::Abs(Hull->SectionLocalBox.Max.Z*.01-S.HoldDepth-.75)<.01&&FMath::Abs(B.Z-S.MouldedDepth-.75)<.01);
    const auto* Covers=I->Mesh->GetProcMeshSection(3);T.TestTrue(TEXT("two real side-rolling panel meshes exist"),Covers&&Covers->ProcVertexBuffer.Num()>=16);
    if(Covers&&Covers->ProcVertexBuffer.Num()>=16)for(int Side=0;Side<2;++Side){FBox Box(ForceInit);for(int J=0;J<8;++J)Box+=FVector(Covers->ProcVertexBuffer[Side*8+J].Position)*.01;const auto Center=Box.GetCenter(),Size=Box.GetSize();T.TestTrue(TEXT("open panel travels toward land/sea Y, with no fore-aft folding"),FMath::Abs(Center.X)<.01&&FMath::Abs(Center.Y)>S.OpeningWidth*.5&&FMath::Abs(Size.Y-S.OpeningWidth*.5)<.01&&Size.Z<.5);T.TestTrue(TEXT("both open panels clear aperture and stay within ship beam"),FMath::Abs(Center.Y)-Size.Y*.5>=S.OpeningWidth*.5&&FMath::Abs(Center.Y)+Size.Y*.5<=S.VesselBeam*.5);}
    T.TestFalse(TEXT("1.8m scale reference defaults off"),I->ScaleMarker->IsVisible());const auto* Ref=I->ScaleMarker->GetProcMeshSection(0);T.TestTrue(TEXT("actual worker/scale geometry is1.8m within1cm"),Ref&&FMath::Abs(Ref->SectionLocalBox.GetSize().Z*.01-1.8)<.01);
