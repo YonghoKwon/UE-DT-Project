@@ -45,6 +45,8 @@ struct FShipHatchMonitorWork
     {
         ShipHatch::FAnalysis Analysis;
         TArray<ShipHatch::FObservation> Observations;
+        TArray<ShipHatch::FObservation> ComparisonScratch;
+        ShipHatch::FAnalysis ComparisonAnalysis;
         ShipHatch::FSettings Settings;
         FTransform HoldPose=FTransform::Identity;
         uint64 Revision=0;
@@ -58,6 +60,8 @@ struct FShipHatchMonitorWork
     uint64 PreviewRevision=MAX_uint64;
     double OpeningCoverage=0,FloorCoverage=0,VisibleFloorArea=0;
     TArray<ShipHatch::FObservation> ObservationScratch;
+    TArray<ShipHatch::FObservation> ComparisonScratch;
+    ShipHatch::FAnalysis AnalysisScratch,ComparisonAnalysis;
     FString ExportRequest;
     TArray<ShipHatch::FSectionSample> SectionSamples;
     TArray<uint8> CoverageMask;
@@ -410,20 +414,22 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
 {
     auto* S=Simulation.Get();if(!S||!Work)return;
     if(Work->Pending.IsValid())
-    {if(!Work->Pending.IsReady())return;auto R=Work->Pending.Get();Work->ObservationScratch=MoveTemp(R.Observations);if(R.Revision==S->Revision()&&R.Cell==CellSize)
-     {Work->Current=MoveTemp(R);if(CoverageText)CoverageText->SetText(FText::FromString(Work->Current.Comparison));const auto& A=Work->Current.Analysis;++AnalysisBuilds;const FString Values[]={FString::Printf(TEXT("%.1f %%"),S->Surface().Fill),FString::Printf(TEXT("%.0f m³"),S->Surface().Volume),FString::Printf(TEXT("%.2f m"),A.Max),FString::Printf(TEXT("%.2f m"),A.Mean),FString::Printf(TEXT("%.2f m"),A.Min),FString::Printf(TEXT("%.1f %%"),(1-A.Coverage)*100)};for(int32 I=0;I<MetricValues.Num();++I)MetricValues[I]->SetText(FText::FromString(Values[I]));FillBadge->SetText(FText::FromString(Values[0]));UpdatedText->SetText(FText::FromString(TEXT("마지막 갱신  ")+FDateTime::Now().ToString(TEXT("%H:%M:%S"))));InvalidatePlots();}}
+    {if(!Work->Pending.IsReady())return;auto R=Work->Pending.Get();Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.Cell==CellSize)
+     {Work->AnalysisScratch=MoveTemp(Work->Current.Analysis);Work->Current=MoveTemp(R);if(CoverageText)CoverageText->SetText(FText::FromString(Work->Current.Comparison));const auto& A=Work->Current.Analysis;++AnalysisBuilds;const FString Values[]={FString::Printf(TEXT("%.1f %%"),S->Surface().Fill),FString::Printf(TEXT("%.0f m³"),S->Surface().Volume),FString::Printf(TEXT("%.2f m"),A.Max),FString::Printf(TEXT("%.2f m"),A.Mean),FString::Printf(TEXT("%.2f m"),A.Min),FString::Printf(TEXT("%.1f %%"),(1-A.Coverage)*100)};for(int32 I=0;I<MetricValues.Num();++I)MetricValues[I]->SetText(FText::FromString(Values[I]));FillBadge->SetText(FText::FromString(Values[0]));UpdatedText->SetText(FText::FromString(TEXT("마지막 갱신  ")+FDateTime::Now().ToString(TEXT("%H:%M:%S"))));InvalidatePlots();}else Work->AnalysisScratch=MoveTemp(R.Analysis);}
     const int64 M=S->bMLX&&S->MLX?S->MLX->ScanComponent->GetRuntimeStatus().FrameId:-1,L=S->bLivox&&S->Livox?S->Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;const int64 C=S->SensorEnabled(2)&&S->CabRight?S->CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;if(M==LastMLX&&L==LastLivox&&C==LastCabRight)return;LastMLX=M;LastLivox=L;LastCabRight=C;
     auto Points=MoveTemp(Work->ObservationScratch);S->CollectObservations(Points);const auto Settings=S->Surface().Settings;const auto Pose=S->GetActorTransform();const double Cell=CellSize;const uint64 Revision=S->Revision();
-    TArray<TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>> Frames;TArray<FString> Names;
-    for(int32 I=0;I<3;++I){auto* A=S->SensorEnabled(I)?S->SensorAt(I):nullptr;Frames.Add(A?A->ScanComponent->GetLastFrameSnapshot():nullptr);Names.Add(A?A->ScanComponent->DeviceSpec.Model:TEXT("끄기"));}
-    Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Frames=MoveTemp(Frames),Names=MoveTemp(Names),Settings,Pose,Cell,Revision,M,L,C]() mutable{
+    TArray<TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>> Frames;
+    for(int32 I=0;I<3;++I){auto* A=S->SensorEnabled(I)?S->SensorAt(I):nullptr;Frames.Add(A?A->ScanComponent->GetLastFrameSnapshot():nullptr);}
+    // Move the bounded analysis allocations with the task; thread-pool workers
+    // do not each build their own short-lived per-sensor cell/point arrays.
+    Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Frames=MoveTemp(Frames),Analysis=MoveTemp(Work->AnalysisScratch),One=MoveTemp(Work->ComparisonScratch),Comparison=MoveTemp(Work->ComparisonAnalysis),Settings,Pose,Cell,Revision,M,L,C]() mutable{
         FShipHatchMonitorWork::FResult R;R.Revision=Revision;R.Cell=Cell;R.MLX=M;R.Livox=L;R.CabRight=C;R.Settings=Settings;R.HoldPose=Pose;
-        R.Analysis=ShipHatch::Analyze(Settings,Cell,Points);R.Observations=MoveTemp(Points);
+        ShipHatch::AnalyzeInto(Settings,Cell,Points,Analysis);R.Analysis=MoveTemp(Analysis);R.Observations=MoveTemp(Points);
         const TCHAR* Roles[]={TEXT("붐"),TEXT("좌"),TEXT("우")};
-        for(int32 I=0;I<3;++I){TArray<ShipHatch::FObservation> One;if(Frames[I]&&Frames[I]->Points)for(const auto& P:*Frames[I]->Points)if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))One.Add({Pose.InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});
-            const auto A=ShipHatch::Analyze(Settings,Cell,One);
+        for(int32 I=0;I<3;++I){One.Reset();if(Frames[I]&&Frames[I]->Points)for(const auto& P:*Frames[I]->Points)if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))One.Add({Pose.InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});
+            ShipHatch::AnalyzeInto(Settings,Cell,One,Comparison);const auto& A=Comparison;
             R.Comparison+=FString::Printf(TEXT("%s | %d점 | 관측 %.0f%% / 미관측 %.0f%%%s"),Roles[I],One.Num(),100*A.Coverage,100*(1-A.Coverage),I<2?TEXT("     "):TEXT(""));}
-        return R;
+        R.ComparisonScratch=MoveTemp(One);R.ComparisonAnalysis=MoveTemp(Comparison);return R;
     });
 }
 void UShipHatchMonitorWidget::OnWater(){if(auto* S=Simulation.Get())S->ShowWater(!S->IsWaterVisible());}

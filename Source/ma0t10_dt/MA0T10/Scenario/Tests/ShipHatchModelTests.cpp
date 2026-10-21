@@ -57,7 +57,13 @@ bool FHatchAnalysis::RunTest(const FString&)
     Points.SetNum(10);Points.Add({FVector(0,0,22),TEXT("HatchCoaming")});Points.Add({FVector(0,0,21),TEXT("HatchHold")});
     A=ShipHatch::Analyze(S,Cell,Points);TestEqual(TEXT("structure never becomes cargo"),A.Observed,10);
     TestTrue(TEXT("missing cells stay explicitly unobserved"),A.Coverage<.01&&A.Cells.Last().Count==0);
-    TestTrue(TEXT("partial volume never extrapolated to whole hold"),A.Volume<Surface.Volume*.1);return true;
+    TestTrue(TEXT("partial volume never extrapolated to whole hold"),A.Volume<Surface.Volume*.1);
+    const auto* Cells=A.Cells.GetData();const auto Bytes=A.Cells.GetAllocatedSize();
+    const TArray<ShipHatch::FObservation> Single{Points[0]};
+    for(int I=0;I<50;++I){ShipHatch::AnalyzeInto(S,Cell,Single,A);TestEqual(TEXT("reused analysis resets counts rather than accumulating revisions"),A.Observed,1);TestEqual(TEXT("single known cell keeps exactly one measured sample"),A.Cells[0].Count,1);TestTrue(TEXT("reused cell allocation remains bounded"),A.Cells.GetData()==Cells&&A.Cells.GetAllocatedSize()==Bytes);}
+    TestTrue(TEXT("reused partial integral matches the one independent cell"),FMath::Abs(A.Volume-Points[0].PositionMeters.Z*S.Length/NX*S.Width/NY)<1.e-6);
+    ShipHatch::AnalyzeInto(S,.1,Single,A);TestTrue(TEXT("invalid request clears all prior metrics and cells"),A.Cells.IsEmpty()&&A.Observed==0&&A.Volume==0&&A.Coverage==0);
+    ShipHatch::AnalyzeInto(S,Cell,Points,A);TestEqual(TEXT("valid request recovers after invalid input without stale cells"),A.Observed,10);return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchExcavation,"MA0T10.Hatch.GrabHeightfield",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchExcavation::RunTest(const FString&)

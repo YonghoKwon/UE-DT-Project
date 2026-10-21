@@ -183,7 +183,12 @@ bool ThroughOpening(const FSettings& S,FVector Origin,FVector Target)
 }
 FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>& Points)
 {
-    FAnalysis R;if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return R;
+    FAnalysis R;AnalyzeInto(S,CellSize,Points,R);return R;
+}
+void AnalyzeInto(const FSettings& S,double CellSize,const TArray<FObservation>& Points,FAnalysis& R)
+{
+    auto Cells=MoveTemp(R.Cells);R=FAnalysis();R.Cells=MoveTemp(Cells);R.Cells.Reset();
+    if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return;
     R.NX=FMath::CeilToInt(S.Length/CellSize);R.NY=FMath::CeilToInt(S.Width/CellSize);
     R.DX=S.Length/R.NX;R.DY=S.Width/R.NY;R.Cells.SetNum(R.NX*R.NY);
     for(const auto& P:Points)
@@ -198,6 +203,5 @@ FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>&
     for(const auto& C:R.Cells)if(C.Count){++R.Observed;R.Min=FMath::Min(R.Min,C.Mean());R.Max=FMath::Max(R.Max,C.Mean());R.Mean+=C.Mean();R.Volume+=C.Mean()*R.DX*R.DY;}
     if(R.Observed)R.Mean/=R.Observed;else R.Min=0;
     R.Coverage=double(R.Observed)/R.Cells.Num();R.FillLowerBound=100*R.Volume/(S.Length*S.Width*S.Depth);
-    return R;
 }
 }
