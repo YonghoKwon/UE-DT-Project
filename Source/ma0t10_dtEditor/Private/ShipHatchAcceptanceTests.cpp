@@ -203,7 +203,7 @@ public:
          return FPaths::FileExists(ReportRoot()/TEXT("manual/finish.flag"));}
         if(Performance)
         {
-            if(!Ready){Ready=Now;if(SensorCount<3)Sim->SetSensorSelection(true,SensorCount==2,false);int View=1;FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),View);Host->Monitor->SelectView(FMath::Clamp(View,0,1));LastWall=Now;return false;}
+            if(!Ready){Ready=Now;if(FParse::Param(FCommandLine::Get(),TEXT("HatchWorldTraceReference"))){Sim->bUseSnapshotRayQueries=false;for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I)){A->StopSensor();A->StartSensor();}}if(SensorCount<3)Sim->SetSensorSelection(true,SensorCount==2,false);int View=1;FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),View);Host->Monitor->SelectView(FMath::Clamp(View,0,1));LastWall=Now;return false;}
             if(Now-Ready<10)return false;
             if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceRss=FPlatformMemory::GetStats().UsedPhysical;PerformanceStartFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[2]=Sim->CabRight?Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId:0;return false;}
             if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;Engine.Add(World->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;}
@@ -211,6 +211,7 @@ public:
             auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("sensors"),SensorCount);R->SetNumberField(TEXT("average_fps"),Mean(Engine)>0?1000/Mean(Engine):0);
             R->SetNumberField(TEXT("engine_p95_ms"),P95(Engine));R->SetNumberField(TEXT("gt_mean_ms"),Mean(Game));R->SetNumberField(TEXT("callback_p95_ms"),P95(Wall));
             R->SetStringField(TEXT("backend"),Sim->MLX->ScanComponent->GetRuntimeStatus().ActiveAcquisitionBackend);R->SetStringField(TEXT("output"),TEXT("acquisition+3D preview; no broker send"));
+            R->SetBoolField(TEXT("reference_backend"),FParse::Param(FCommandLine::Get(),TEXT("HatchWorldTraceReference")));R->SetBoolField(TEXT("performance_goal_5hz_applies"),SensorCount==3&&Sim->bUseSnapshotRayQueries);
             R->SetNumberField(TEXT("mlx_frame"),Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId);R->SetNumberField(TEXT("livox_frame"),Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId);
             const int64 M=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[0],L=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[1];
             R->SetNumberField(TEXT("mlx_frames_in_measurement"),double(M));R->SetNumberField(TEXT("livox_frames_in_measurement"),double(L));

@@ -153,6 +153,7 @@ class FHatch06Run:public IAutomationLatentCommand
  FAutomationTestBase* T;bool OverlayOnly=false;int Phase=0,Model=0,Material=0,Edits=0,View=0;double Start=FPlatformTime::Seconds(),Changed=0,LastWall=0;uint64 LastFrame=0;
  TArray<double> Engine,Game,Wall;TArray<TSharedPtr<FJsonValue>> Rows;TUniquePtr<TGuardValue<bool>> Messages;
  FVector2D Target;uint32 OriginalHash=0;uint64 RssBefore=0;
+ int64 ModelStartFrames[3]={0,0,0};
  TSharedPtr<FJsonObject> LowBoomBefore;
  TSharedRef<FJsonObject> BoomEvidence(const AShipHatchSimulation& S,int Sensor=0)
  {
@@ -248,7 +249,7 @@ public:
   if(Phase==3)
   {
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;
-   Engine.Reset();Game.Reset();Wall.Reset();LastWall=Now;LastFrame=GFrameCounter;Changed=Now;RssBefore=FPlatformMemory::GetStats().UsedPhysical;Phase=4;return false;
+   Engine.Reset();Game.Reset();Wall.Reset();LastWall=Now;LastFrame=GFrameCounter;Changed=Now;RssBefore=FPlatformMemory::GetStats().UsedPhysical;for(int I=0;I<3;++I)ModelStartFrames[I]=S->SensorAt(I)->ScanComponent->GetRuntimeStatus().FrameId;Phase=4;return false;
   }
   if(Phase==4)
   {
@@ -256,13 +257,14 @@ public:
    const bool Fast=FParse::Param(FCommandLine::Get(),TEXT("Hatch06Fast"));if(Now-Changed<(Fast?2:30))return false;
    const auto& Spec=IndustrialLidar::Specs()[Model];auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("model"),Spec.Model);R->SetNumberField(TEXT("fps"),1000/Mean06(Engine));R->SetNumberField(TEXT("engine_p95_ms"),P9506(Engine));R->SetNumberField(TEXT("game_mean_ms"),Mean06(Game));R->SetNumberField(TEXT("wall_p95_ms"),P9506(Wall));R->SetNumberField(TEXT("measurement_seconds"),Now-Changed);R->SetNumberField(TEXT("rss_before_mib"),RssBefore/1048576.);R->SetNumberField(TEXT("rss_after_mib"),FPlatformMemory::GetStats().UsedPhysical/1048576.);
    T->TestTrue(TEXT("three-device measurement engine has zero >150ms frames"),Engine.Num()>0&&FMath::Max(Engine)<=150);T->TestTrue(TEXT("three-device game thread has zero >150ms frames"),Game.Num()>0&&FMath::Max(Game)<=150);
+   R->SetNumberField(TEXT("engine_max_ms"),FMath::Max(Engine));R->SetNumberField(TEXT("game_max_ms"),FMath::Max(Game));R->SetBoolField(TEXT("performance_gate"),!Fast);R->SetStringField(TEXT("rate_method"),TEXT("completed acquisitions / monotonic measurement seconds; instantaneous UI rate recorded separately"));
    TArray<TSharedPtr<FJsonValue>> Devices;
    for(int I=0;I<3;++I)
    {
     auto* A=S->SensorAt(I);const auto F=A->ScanComponent->GetLastFrameSnapshot();T->TestTrue(TEXT("each selected industrial model produces a fresh acquisition"),F&&F->Points&&F->Points->Num());if(!F||!F->Points)continue;
     T->TestEqual(TEXT("actual acquired ray budget matches published selected mode"),F->RequestedRayCount,Spec.Columns*Spec.Rows);T->TestEqual(TEXT("actual selected device"),A->ScanComponent->DeviceProfile,Spec.Profile);
-    TArray<ShipHatch::FObservation> P;int Hits=0;for(const auto& Point:*F->Points)if(Point.bHit){++Hits;T->TestTrue(TEXT("physical hit respects model range"),Point.Distance<=Spec.RangeMeters*100+.01);T->TestTrue(TEXT("physical return respects echo capability"),Point.EchoCount<=Spec.Echoes);if(Point.SemanticLabel==TEXT("HatchCargo"))P.Add({S->GetActorTransform().InverseTransformPosition(Point.WorldLocation)*.01,Point.SemanticLabel});}
-    const auto Analysis=ShipHatch::Analyze(S->Settings(),1,P);auto D=MakeShared<FJsonObject>();D->SetNumberField(TEXT("sensor"),I);D->SetNumberField(TEXT("hit_points"),Hits);D->SetNumberField(TEXT("cargo_points"),P.Num());D->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);D->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));D->SetNumberField(TEXT("measured_hz"),A->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz);Devices.Add(MakeShared<FJsonValueObject>(D));T->TestTrue(TEXT("mounted industrial model sees cargo"),P.Num()>0);
+    TArray<ShipHatch::FObservation> P;int Hits=0;double MaxHeightError=0,HeightSquares=0;for(const auto& Point:*F->Points)if(Point.bHit){++Hits;T->TestTrue(TEXT("physical hit respects model range"),Point.Distance<=Spec.RangeMeters*100+.01);T->TestTrue(TEXT("physical return respects echo capability"),Point.EchoCount<=Spec.Echoes);if(Point.SemanticLabel==TEXT("HatchCargo")){const auto Local=S->GetActorTransform().InverseTransformPosition(Point.WorldLocation)*.01;P.Add({Local,Point.SemanticLabel});const double Error=FMath::Abs(Local.Z-S->Surface().Height(Local.X,Local.Y));MaxHeightError=FMath::Max(MaxHeightError,Error);HeightSquares+=Error*Error;}}
+    const auto Analysis=ShipHatch::Analyze(S->Settings(),1,P);auto D=MakeShared<FJsonObject>();D->SetNumberField(TEXT("sensor"),I);D->SetNumberField(TEXT("hit_points"),Hits);D->SetNumberField(TEXT("cargo_points"),P.Num());D->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);D->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));const int64 Completed=A->ScanComponent->GetRuntimeStatus().FrameId-ModelStartFrames[I];D->SetNumberField(TEXT("completed_acquisitions"),double(Completed));D->SetNumberField(TEXT("measured_hz"),Completed/(Now-Changed));D->SetNumberField(TEXT("instantaneous_hz"),A->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("requested_hz"),1.f/A->ScanComponent->ScanInterval);D->SetNumberField(TEXT("requested_rays"),F->RequestedRayCount);D->SetNumberField(TEXT("height_max_error_m"),MaxHeightError);D->SetNumberField(TEXT("height_rms_error_m"),P.Num()?FMath::Sqrt(HeightSquares/P.Num()):0);D->SetStringField(TEXT("backend"),A->ScanComponent->GetRuntimeStatus().ActiveAcquisitionBackend);Devices.Add(MakeShared<FJsonValueObject>(D));T->TestTrue(TEXT("each model completes acquisitions inside measurement interval"),Completed>0);T->TestTrue(TEXT("mounted industrial model sees cargo"),P.Num()>0);T->TestTrue(TEXT("each mounted model preserves15cm cargo height accuracy"),P.Num()>0&&MaxHeightError<.15);
    }
    R->SetArrayField(TEXT("sensors"),Devices);Rows.Add(MakeShared<FJsonValueObject>(R));Save06(TEXT("models.json"),[&](){auto J=MakeShared<FJsonObject>();J->SetArrayField(TEXT("models"),Rows);return J;}());Phase=5;Changed=Now;return false;
   }
