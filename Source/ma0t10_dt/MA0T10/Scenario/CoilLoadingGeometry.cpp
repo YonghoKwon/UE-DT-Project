@@ -101,8 +101,14 @@ void ACoilLoadingSimulation::BuildScene()
         const double Y=RailY+Side*RailIndex*S.RailGauge;Box({VesselX,Y,Q+.08},{S.LOA,.16,.16},4);
         for(double Sign:{-1.,1.})
         {
-            const FVector A=CoilQuay::LegNode(S,Sign,RailIndex,CoilQuay::LegBaseZ)+FVector(0,0,Q),B=CoilQuay::LegNode(S,Sign,RailIndex,CoilQuay::LegTopZ)+FVector(0,0,Q),D=B-A;
-            CraneBox((A+B)*.5,{.85,.85,D.Size()},2,FRotationMatrix::MakeFromZ(D).Rotator());CraneBox({CraneX+Sign*4,Y,Q+.6},{2,1.2,1.2},0);
+            const int Segments=RailIndex==0?2:1;
+            for(int Segment=0;Segment<Segments;++Segment)
+            {
+                const double ZA=Segment==0?CoilQuay::LegBaseZ:CoilQuay::LegKneeZ,ZB=Segments==2&&Segment==0?CoilQuay::LegKneeZ:CoilQuay::LegTopZ;
+                const FVector A=CoilQuay::LegNode(S,Sign,RailIndex,ZA)+FVector(0,0,Q),B=CoilQuay::LegNode(S,Sign,RailIndex,ZB)+FVector(0,0,Q),D=B-A;
+                auto* Leg=CraneBox((A+B)*.5,{.85,.85,D.Size()},2,FRotationMatrix::MakeFromZ(D).Rotator());Leg->ComponentTags.Add(TEXT("CoilPortalLegCollision"));
+            }
+            CraneBox({CraneX+Sign*4,Y,Q+.6},{2,1.2,1.2},0);
         }
     }
     const double Sea=CoilQuay::GirderSea(S),Land=CoilQuay::GirderLand(S);

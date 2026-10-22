@@ -18,6 +18,12 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### COIL-01d 주 다리·수평 강관·저각 비교
+
+#31d는 ref6의 해측 주 다리를 하부/상부 두 구간으로 구성하고 상부 횡경사 약20.1°를 선택했다. 사진 후보3종과 부재별 근거는 [근거표](docs/research/COIL-01d-basis.md)를 따른다. 굵은 수평 강관4단·소수 대각재로 바꾸고 반복된 작은 X 격자를 제거했다. 기존 하부 knee strut 금지 검사는 유지한다. 크레인 근접 프리셋은 안벽 위1.8m·가로72° 저각이며 선박/붐이 화면 왼쪽이다. 반경·양정·적재 판정 기준은 유지하고 주 다리 단순 충돌만 형상에 맞춘다.
+
+새 저장 자산/맵은 없다. 검증은 `Scripts/verify.ps1 -Level release -Tests MA0T10.CoilLoading -BaseCommit 86bfb74`와 표준 RT on ABAB2%다. 최종 수치·직접 UI 범위·복원 상태는 [RESULT](Saved/Reports/COIL-01d/RESULT.md)/[result.json](Saved/Reports/COIL-01d/result.json)을 따른다.
+
 ### COIL-01c 사진 비례·idle 변환·적재 흘수
 
 #31c는 ref6의 기울어진 사다리꼴 다리/접점, 선박 위로 화면 왼쪽으로 뻗는 거더와 가는 상부 스테이, 아치형 대차·강철 휠/모터/클램프/버퍼, 양면 정방향31을 반영한다. 사진에서 확인한 부재와 비례 가정은 [근거표](docs/research/COIL-01c-basis.md)에 구분했다. 새 저장 자산/맵은 없다.
@@ -667,6 +673,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+COIL-01d는 기존 L2 공유 다리 접점/인스턴스와 L3 크레인 초점 카메라만 조정한다. DTCore·L1·새 모듈/플러그인 변경 없이 layer/allowlist0→0을 검증한다.
 
 COIL-01c는 L2의 사진 레이아웃/소유 이동 루트·흘수 계산과 L3의 투영 remap/입력을 갱신한다. DTCore·L1·새 모듈/플러그인 없이 allowlist/위반0→0을 유지한다.
 

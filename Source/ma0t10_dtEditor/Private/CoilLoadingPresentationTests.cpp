@@ -24,6 +24,7 @@
 #include "ShaderCompiler.h"
 #include "Materials/Material.h"
 #include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilProjectionTest,"MA0T10.CoilLoading.Presentation.ProjectionTypesAndDimensions",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FCoilProjectionTest::RunTest(const FString&)
@@ -87,12 +88,29 @@ bool FCoilProjectionResizeTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilRakedLayoutTest,"MA0T10.CoilLoading.Presentation.RakedPortalLayout",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FCoilRakedLayoutTest::RunTest(const FString&)
 {
-    CoilLoading::FSettings S;for(int Rail=0;Rail<2;++Rail)for(double Sign:{-1.,1.}){const auto A=CoilQuay::LegNode(S,Sign,Rail,1.4),B=CoilQuay::LegNode(S,Sign,Rail,28);TestTrue(TEXT("A-frame top contracts toward portal center in both directions"),FMath::Abs(B.X+8)<FMath::Abs(A.X+8)&&FMath::Abs(B.Y-S.RailCenterY())<FMath::Abs(A.Y-S.RailCenterY()));TestTrue(TEXT("leg inclination matches photo-proportion fixture"),FMath::IsNearlyEqual((B-A).Size2D(),FMath::Sqrt(4.36),1.e-8));}
-    TestTrue(TEXT("sea cantilever projects beyond the entire beam"),CoilQuay::GirderSea(S)>S.Beam*.5);S.RailGauge=1;TestTrue(TEXT("valid narrow rail gauge keeps upper portal ordered"),CoilQuay::LegNode(S,1,0,28).Y>CoilQuay::LegNode(S,1,1,28).Y);return true;
+    CoilLoading::FSettings S;
+    for(int Rail=0;Rail<2;++Rail)for(double Sign:{-1.,1.})
+    {
+        const auto A=CoilQuay::LegNode(S,Sign,Rail,1.4),K=CoilQuay::LegNode(S,Sign,Rail,16),B=CoilQuay::LegNode(S,Sign,Rail,28);
+        TestTrue(TEXT("portal top contracts longitudinally"),FMath::IsNearlyEqual(FMath::Abs(B.X+8),3.4,1.e-9));
+        if(Rail==0)
+        {
+            TestTrue(TEXT("sea leg lower portion .6m inset and upper 5m inset"),FMath::IsNearlyEqual((K.Y-A.Y)/S.QuaySide,.6,1.e-9)&&FMath::IsNearlyEqual((B.Y-A.Y)/S.QuaySide,5.,1.e-9));
+            TestTrue(TEXT("main upper leg photo rake20.14degrees rather than old4degree column"),FMath::IsNearlyEqual(FMath::RadiansToDegrees(FMath::Atan(FMath::Abs(B.Y-K.Y)/12.)),20.1363034282,1.e-6));
+            TestTrue(TEXT("continuous knee joins both primary leg segments"),FVector::Distance(CoilQuay::LegNode(S,Sign,Rail,16.-1.e-7),CoilQuay::LegNode(S,Sign,Rail,16.+1.e-7))<3.e-7);
+        }
+        else TestTrue(TEXT("land leg retains2m rake"),FMath::IsNearlyEqual((B.Y-A.Y)/S.QuaySide,-2.,1.e-9));
+        TestTrue(TEXT("main leg connects directly beneath box girder without a detached brace"),B.Y>=CoilQuay::GirderLand(S)&&B.Y<=CoilQuay::GirderSea(S)&&B.Z==28);
+    }
+    for(double Z:CoilQuay::PortalTubeLevels)TestTrue(TEXT("each thick tube joins both actual leg faces at its level"),CoilQuay::LegNode(S,1,0,Z).Y>CoilQuay::LegNode(S,1,1,Z).Y);
+    TestEqual(TEXT("four dominant tube levels"),int32(UE_ARRAY_COUNT(CoilQuay::PortalTubeLevels)),int32(4));
+    TestEqual(TEXT("photo thick tube diameter .62m"),CoilQuay::PortalTubeDiameter,.62);
+    TestTrue(TEXT("outreach and hoist screening inputs unchanged"),CoilQuay::GirderSea(S)>S.Beam*.5&&S.MaxRadius==35);
+    S.RailGauge=1;TestTrue(TEXT("narrow gauge cannot invert portal order"),CoilQuay::LegNode(S,1,0,28).Y>CoilQuay::LegNode(S,1,1,28).Y);return true;
 }
 namespace
 {
-FString Root(){return FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01c");}
+FString Root(){FString Override;if(FParse::Value(FCommandLine::Get(),TEXT("CoilPhotoReport="),Override))return Override;return FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01d");}
 class FCoilPresentationRun final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;int Step=0;
@@ -119,7 +137,7 @@ class FCoilPresentationRun final:public IAutomationLatentCommand
         }
     }
     void Camera(ACoilLoadingMonitorHost& H,FVector Position,FVector Target)
-    {H.ViewCamera->SetActorLocationAndRotation(H.Simulation->GetActorTransform().TransformPosition(Position*100),H.Simulation->GetActorQuat()*(Target-Position).Rotation().Quaternion());}
+    {H.ViewCamera->GetCameraComponent()->SetFieldOfView(60);H.ViewCamera->SetActorLocationAndRotation(H.Simulation->GetActorTransform().TransformPosition(Position*100),H.Simulation->GetActorQuat()*(Target-Position).Rotation().Quaternion());}
     void Construction(ACoilLoadingSimulation& S)
     {
         TInlineComponentArray<UInstancedStaticMeshComponent*> Parts(&S);
@@ -131,11 +149,21 @@ class FCoilPresentationRun final:public IAutomationLatentCommand
             const auto SeaEnd=[&](FVector P){return FMath::Abs(P.Y-(S.Settings.RailCenterY()-S.Settings.QuaySide*(S.Settings.MaxRadius-1)))<.2&&FMath::Abs(P.Z-S.QuayZ()-27)<.2;};
             Test->TestFalse(TEXT("no unsupported lower cantilever knee strut"),(Middle(A)&&SeaEnd(B))||(Middle(B)&&SeaEnd(A)));
         }
-        Test->TestEqual(TEXT("ref6 four tapered box legs"),Count(TEXT("CoilPortalLeg")),4);
+        Test->TestEqual(TEXT("four legs: two sea lower/upper segments and two land columns"),Count(TEXT("CoilPortalLeg")),6);
         Test->TestEqual(TEXT("ref6 at least two rail bogies per leg"),Count(TEXT("CoilRailBogie")),8);
         Test->TestEqual(TEXT("each bogie has two axles / four wheel faces"),Count(TEXT("CoilBogieWheel")),32);
         Test->TestEqual(TEXT("trolley four wheels"),Count(TEXT("CoilTrolleyWheel")),4);
-        Test->TestTrue(TEXT("multi-level circular X/K portal bracing"),Count(TEXT("CoilPortalTube"))>=30);
+        Test->TestEqual(TEXT("four large horizontal tubes on each principal side frame"),Count(TEXT("CoilPortalHorizontal")),8);
+        Test->TestEqual(TEXT("sparse photo diagonals replace repeated small X grid"),Count(TEXT("CoilPortalDiagonal")),4);
+        Test->TestEqual(TEXT("three end ties per rail portal"),Count(TEXT("CoilPortalEndTie")),6);
+        int CollisionLegs=0;TInlineComponentArray<UStaticMeshComponent*> Simple(&S);for(auto* C:Simple)if(C->ComponentHasTag(TEXT("CoilPortalLegCollision"))){++CollisionLegs;Test->TestTrue(TEXT("primary leg collision stays a simple box"),C->GetStaticMesh()->GetName()==TEXT("Cube")&&C->GetCollisionEnabled()!=ECollisionEnabled::NoCollision);}
+        Test->TestEqual(TEXT("six primary simple leg boxes follow visible segments"),CollisionLegs,6);
+        for(auto* C:Parts)if(C->ComponentHasTag(TEXT("CoilPortalHorizontal")))for(int I=0;I<C->GetInstanceCount();++I)
+        {
+            FTransform T;C->GetInstanceTransform(I,T,false);const FVector D=T.GetRotation().RotateVector(FVector::UpVector)*T.GetScale3D().Z*.5,A=T.GetLocation()*.01-D,B=T.GetLocation()*.01+D;
+            Test->TestTrue(TEXT("horizontal tube is .62m thick and spans real leg centers"),FMath::IsNearlyEqual(T.GetScale3D().X,.62,1.e-6)&&FMath::IsNearlyEqual(A.Z,B.Z,1.e-6)&&T.GetScale3D().Z>4.);
+            bool Joined=false;for(double Sign:{-1.,1.})for(double Z:CoilQuay::PortalTubeLevels){const auto Sea=CoilQuay::LegNode(S.Settings,Sign,0,Z)+FVector(0,0,S.BaseQuayZ()),Land=CoilQuay::LegNode(S.Settings,Sign,1,Z)+FVector(0,0,S.BaseQuayZ());Joined|=(A.Equals(Sea,1.e-5)&&B.Equals(Land,1.e-5))||(B.Equals(Sea,1.e-5)&&A.Equals(Land,1.e-5));}Test->TestTrue(TEXT("tube endpoints coincide with photographed main leg profile"),Joined);
+        }
         Test->TestTrue(TEXT("zigzag stair tower with eight landings and144 treads"),Count(TEXT("CoilStairLanding"))==8&&Count(TEXT("CoilStairTread"))==144);
         Test->TestTrue(TEXT("box girder repeated vertical web stiffeners"),Count(TEXT("CoilGirderStiffener"))>=80);
         Test->TestTrue(TEXT("sagged festoon and two wire drums"),Count(TEXT("CoilFestoonCable"))==128&&Count(TEXT("CoilWinchDrum"))==2);
@@ -156,7 +184,9 @@ class FCoilPresentationRun final:public IAutomationLatentCommand
         }
         int Numbers=0,Positive=0,Negative=0;TInlineComponentArray<UTextRenderComponent*> Labels(&S);for(auto* T:Labels)if(T->ComponentHasTag(TEXT("CoilEquipmentNumber"))){++Numbers;Test->TestEqual(TEXT("equipment number literal31"),T->Text.ToString(),FString(TEXT("31")));Test->TestTrue(TEXT("number has positive scale, no mirrored geometry"),T->GetComponentTransform().GetDeterminant()>0);const double Face=FVector::DotProduct(T->GetForwardVector(),S.GetActorForwardVector());Positive+=Face>.8;Negative+=Face<-.8;}
         Test->TestTrue(TEXT("four leg numbers on each outward face"),Numbers==8&&Positive==4&&Negative==4);
-        for(auto* C:Parts)if(C->ComponentHasTag(TEXT("CoilPortalLeg")))for(int I=0;I<C->GetInstanceCount();++I){FTransform T;C->GetInstanceTransform(I,T,false);const FVector Axis=T.GetRotation().RotateVector(FVector::UpVector);Test->TestTrue(TEXT("ref6 legs rake rather than vertical"),FMath::Abs(Axis.Z)<.999&&FMath::Abs(Axis.Y)>.05);}
+        for(auto* C:Parts)if(C->ComponentHasTag(TEXT("CoilPortalLeg")))for(int I=0;I<C->GetInstanceCount();++I){FTransform T;C->GetInstanceTransform(I,T,false);const FVector Axis=T.GetRotation().RotateVector(FVector::UpVector);Test->TestTrue(TEXT("lower sea, upper sea and land legs use actual profile angles"),FMath::IsNearlyEqual(FMath::Abs(Axis.Y),.6/FMath::Sqrt(FMath::Square(14.6)+FMath::Square(.6)+FMath::Square(.6*14.6/26.6)),1.e-6)||FMath::IsNearlyEqual(FMath::Abs(Axis.Y),(CoilQuay::PhotoSeaInset()-.6)/FMath::Sqrt(144+FMath::Square(CoilQuay::PhotoSeaInset()-.6)+FMath::Square(.6*12/26.6)),1.e-6)||FMath::IsNearlyEqual(FMath::Abs(Axis.Y),2/FMath::Sqrt(FMath::Square(26.6)+4+.36),1.e-6));}
+        int StrongRake=0;for(auto* C:Parts)if(C->ComponentHasTag(TEXT("CoilPortalLeg")))for(int I=0;I<C->GetInstanceCount();++I){FTransform T;C->GetInstanceTransform(I,T,false);if(FMath::Abs(T.GetRotation().RotateVector(FVector::UpVector).Y)>.25)++StrongRake;}Test->TestEqual(TEXT("both sea upper main legs have strong photo rake"),StrongRake,2);
+        Evidence->SetNumberField(TEXT("sea_top_inset_m"),CoilQuay::PhotoSeaInset());Evidence->SetNumberField(TEXT("sea_upper_rake_deg"),FMath::RadiansToDegrees(FMath::Atan((CoilQuay::PhotoSeaInset()-.6)/12.)));Evidence->SetNumberField(TEXT("horizontal_tube_diameter_m"),.62);
         Test->TestEqual(TEXT("ref1 upper stays visible; no lower knee struts"),Count(TEXT("CoilUpperStay")),2);
         Evidence->SetNumberField(TEXT("loaded_draft_m"),S.Hydrostatics().Draft);Evidence->SetNumberField(TEXT("estimated_tpc_t_per_cm"),S.Hydrostatics().TonnesPerCm);
         Evidence->SetBoolField(TEXT("ref6_construction_checks"),!Test->HasAnyErrors());
@@ -165,7 +195,7 @@ public:
     explicit FCoilPresentationRun(FAutomationTestBase* T):Test(T){}
     bool Update() override
     {
-        const double Now=FPlatformTime::Seconds();if(Now-Begin>180){Test->AddError(TEXT("COIL-01c presentation timeout"));return true;}
+        const double Now=FPlatformTime::Seconds();if(Now-Begin>180){Test->AddError(TEXT("COIL-01d presentation timeout"));return true;}
         if(GShaderCompilingManager&&GShaderCompilingManager->IsCompiling()){Changed=Now;return false;}
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W||!FinalAcceptanceViewportReady(W))return false;ACoilLoadingMonitorHost* H=nullptr;for(TActorIterator<ACoilLoadingMonitorHost> I(W);I;++I)H=*I;if(!H||!H->Simulation||!H->Monitor)return false;
         if(!Changed){Changed=Now;return false;}if(Now-Changed<1)return false;auto& S=*H->Simulation;auto& M=*H->Monitor;
@@ -196,16 +226,16 @@ public:
             Capture(*W,TEXT("04-quay-ref1-ref3"),true);Construction(S);int Instances=0,Groups=0;TInlineComponentArray<UInstancedStaticMeshComponent*> Cs(&S);for(auto* C:Cs)if(C->ComponentHasTag(TEXT("CoilQuayPresentation"))){++Groups;Instances+=C->GetInstanceCount();Test->TestEqual(TEXT("visual architecture excluded from sensor/physics collision"),C->GetCollisionEnabled(),ECollisionEnabled::NoCollision);Test->TestTrue(TEXT("persisted material has instancing shader, no gray fallback"),C->GetMaterial(0)->GetMaterial()->GetUsageByFlag(MATUSAGE_InstancedStaticMeshes));if(C->ComponentHasTag(TEXT("CoilPalette2"))){FLinearColor Paint;C->GetMaterial(0)->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),Paint);Test->TestTrue(TEXT("crane yellow paint matches reference"),Paint.R>.8&&Paint.G>.45&&Paint.B<.08);}}
             Test->TestTrue(TEXT("quay details batched rather than individual actors"),Groups>5&&Instances>400);Evidence->SetNumberField(TEXT("decorative_instances"),Instances);Evidence->SetNumberField(TEXT("decorative_groups"),Groups);bool ScaleSign=false;TInlineComponentArray<UTextRenderComponent*> Signs(&S);for(auto* T:Signs)if(T->Text.ToString()==TEXT("1.8 m"))ScaleSign=true;Test->TestTrue(TEXT("1.8m signalman reference present"),ScaleSign);int Closed=0;TInlineComponentArray<UStaticMeshComponent*> Shapes(&S);for(auto* C:Shapes)if(C->ComponentHasTag(TEXT("CoilClosedHatchCover")))++Closed;Test->TestEqual(TEXT("only working hold open; other3 hatches closed"),Closed,3);Test->TestTrue(TEXT("12m traffic corridor plus5m rail/stair clearance before shed"),FMath::Abs(S.ShedCenterY()-S.Settings.QuayEdgeY())-5-(S.Settings.RailSetback+S.Settings.RailGauge)>=17-.00001);H->Focus(0);Step=6;Changed=Now;return false;
         }
-        if(Step==6){Capture(*W,TEXT("05-portal-detail-ref1"));Test->TestTrue(TEXT("mixed demonstration can be undone before clean crane cycle"),S.Undo());S.HighlightCoils({});S.NextSpec.CoilId=TEXT("COIL-01c-LIFT");S.Settings.bCHook=true;S.RefreshPreview();M.SyncInputs();const FVector Ref4Position(-1,-5,S.QuayZ()+10.5),Ref4Target(-9,-17,S.Settings.HoldHeight+9);H->ViewCamera->SetActorLocationAndRotation(S.GetActorTransform().TransformPosition(Ref4Position*100),S.GetActorQuat()*(Ref4Target-Ref4Position).Rotation().Quaternion());Test->TestTrue(TEXT("detailed crane still operates"),S.PlaceNext());Step=7;Changed=Now;return false;}
-        if(Step==7){if(Now-Changed<4.5)return false;Capture(*W,TEXT("06-trolley-hook-sling-ref2"));Capture(*W,TEXT("08-ref4-coil-lifter"));Camera(*H,{70,S.QuayOffset(38),S.QuayZ()+2.5},{-8,S.Settings.RailCenterY(),S.QuayZ()+18});Step=71;Changed=Now;return false;}
-        if(Step==71){Capture(*W,TEXT("15-ref6-lift"));Test->TestTrue(TEXT("ref6 direction: boom and vessel project left"),FVector::DotProduct(H->ViewCamera->GetActorRightVector(),S.GetActorQuat().RotateVector(FVector(0,-S.Settings.QuaySide,0)))<0);S.CancelOperation();H->Focus(2);Step=8;Changed=Now;return false;}
+        if(Step==6){Capture(*W,TEXT("05-portal-detail-ref1"));Test->TestTrue(TEXT("mixed demonstration can be undone before clean crane cycle"),S.Undo());S.HighlightCoils({});S.NextSpec.CoilId=TEXT("COIL-01d-LIFT");S.Settings.bCHook=true;S.RefreshPreview();M.SyncInputs();const FVector Ref4Position(-1,-5,S.QuayZ()+10.5),Ref4Target(-9,-17,S.Settings.HoldHeight+9);H->ViewCamera->GetCameraComponent()->SetFieldOfView(60);H->ViewCamera->SetActorLocationAndRotation(S.GetActorTransform().TransformPosition(Ref4Position*100),S.GetActorQuat()*(Ref4Target-Ref4Position).Rotation().Quaternion());Test->TestTrue(TEXT("detailed crane still operates"),S.PlaceNext());Step=7;Changed=Now;return false;}
+        if(Step==7){if(Now-Changed<4.5)return false;Capture(*W,TEXT("06-trolley-hook-sling-ref2"));Capture(*W,TEXT("08-ref4-coil-lifter"));H->Focus(0);Step=71;Changed=Now;return false;}
+        if(Step==71){Capture(*W,TEXT("15-ref6-lift"));Evidence->SetNumberField(TEXT("ref6_camera_height_m"),1.8);Evidence->SetNumberField(TEXT("ref6_camera_horizontal_fov_deg"),H->ViewCamera->GetCameraComponent()->FieldOfView);Test->TestTrue(TEXT("ref6 direction: boom and vessel project left"),FVector::DotProduct(H->ViewCamera->GetActorRightVector(),S.GetActorQuat().RotateVector(FVector(0,-S.Settings.QuaySide,0)))<0);S.CancelOperation();H->Focus(2);Step=8;Changed=Now;return false;}
         if(Step==8)
         {
             Capture(*W,TEXT("07-shed-cradles-ref3"));M.SelectView(0);const FVector Ref5Position(180,S.QuayOffset(50),S.QuayZ()+7.5),Ref5Target(S.Settings.VesselCenterX(),0,S.Settings.HoldHeight+1);H->ViewCamera->SetActorLocationAndRotation(S.GetActorTransform().TransformPosition(Ref5Position*100),S.GetActorQuat()*(Ref5Target-Ref5Position).Rotation().Quaternion());Step=9;Changed=Now;return false;
         }
         if(Step==9)
         {
-            Capture(*W,TEXT("09-ref5-ship-quay-side"));Camera(*H,{70,S.QuayOffset(38),S.QuayZ()+2.5},{-8,S.Settings.RailCenterY(),S.QuayZ()+18});Step=10;Changed=Now;return false;
+            Capture(*W,TEXT("09-ref5-ship-quay-side"));H->Focus(0);Step=10;Changed=Now;return false;
         }
         if(Step==10){Capture(*W,TEXT("10-ref6-low-quay"));Camera(*H,{-19,S.QuayOffset(22),S.QuayZ()+2.4},{-12,S.QuayOffset(15),S.QuayZ()+.95});Step=12;Changed=Now;return false;}
         if(Step==12){Capture(*W,TEXT("11-bogie-close"));Camera(*H,{5,S.PickupPosition().Y-2,S.QuayZ()+26},{-6,S.PickupPosition().Y,S.QuayZ()+26.5});Step=13;Changed=Now;return false;}
@@ -216,7 +246,12 @@ public:
         }
         if(Step==15)
         {
-            Capture(*W,TEXT("14-boom-side"));const auto Status=S.Lidar->GetSensorRuntimeStatus();Test->TestTrue(TEXT("presentation retains HWRT acquisition"),Status.ActiveAcquisitionBackend==TEXT("hardware_ray_tracing"));Evidence->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Evidence->SetNumberField(TEXT("acquisition_hz"),Status.MeasuredAcquisitionRateHz);Evidence->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());Evidence->SetStringField(TEXT("scope"),TEXT("automated RHI and Slate delegation; distinct from direct mouse acceptance"));FString Text;FJsonSerializer::Serialize(Evidence,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("presentation.json")));return true;
+            Capture(*W,TEXT("14-boom-side"));const auto Joint=CoilQuay::LegNode(S.Settings,1,0,26)+FVector(0,0,S.QuayZ());Camera(*H,Joint+FVector(18,9,-8),Joint);Step=16;Changed=Now;return false;
+        }
+        if(Step==16){Capture(*W,TEXT("16-leg-boom-connection"));Camera(*H,{18,S.QuayOffset(29),S.QuayZ()+4},{-8,S.Settings.RailCenterY(),S.QuayZ()+14});Step=17;Changed=Now;return false;}
+        if(Step==17)
+        {
+            Capture(*W,TEXT("17-horizontal-tubes"));const auto Status=S.Lidar->GetSensorRuntimeStatus();Test->TestTrue(TEXT("presentation retains HWRT acquisition"),Status.ActiveAcquisitionBackend==TEXT("hardware_ray_tracing"));Evidence->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Evidence->SetNumberField(TEXT("acquisition_hz"),Status.MeasuredAcquisitionRateHz);Evidence->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());Evidence->SetStringField(TEXT("scope"),TEXT("automated RHI and Slate delegation; distinct from direct mouse acceptance"));FString Text;FJsonSerializer::Serialize(Evidence,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("presentation.json")));return true;
         }
         return false;
     }
