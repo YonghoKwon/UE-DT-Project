@@ -23,9 +23,10 @@ public:
     FVector4 Rect=FVector4(0,0,1,1);
     bool bPointOnly=false;
     bool bGray=false;
+    bool bSite=false;
     virtual void SetupViewFamily(FSceneViewFamily&) override {}
     virtual void SetupView(FSceneViewFamily& Family,FSceneView& View) override
-    {if(!View.bIsSceneCapture&&!View.bIsReflectionCapture){if(bPointOnly||bGray)Family.EngineShowFlags.SetAtmosphere(false);if(bGray){Family.EngineShowFlags.SetFog(false);View.BackgroundColor=FLinearColor(.65,.65,.65);}}}
+    {if(!View.bIsSceneCapture&&!View.bIsReflectionCapture){if(bPointOnly||bGray)Family.EngineShowFlags.SetAtmosphere(false);if(bSite){Family.EngineShowFlags.SetBloom(false);Family.EngineShowFlags.SetTonemapper(false);}if(bGray){Family.EngineShowFlags.SetFog(false);View.BackgroundColor=FLinearColor(.65,.65,.65);}}}
     virtual void BeginRenderViewFamily(FSceneViewFamily&) override {}
     virtual void SetupViewProjectionMatrix(FSceneViewProjectionData& Data) override
     {
@@ -85,7 +86,7 @@ void AShipHatchMonitorHost::Refresh()
 void AShipHatchMonitorHost::SetSceneRect(const FSlateRect& Rect,FVector2D Full,bool Visible)
 {
     if(Full.X<=0||Full.Y<=0)return;
-    if(ViewExtension){ViewExtension->Rect=Visible?FVector4(Rect.Left/Full.X,Rect.Top/Full.Y,Rect.Right/Full.X,Rect.Bottom/Full.Y):FVector4(0,0,.001,.001);ViewExtension->bPointOnly=Monitor&&Monitor->GetView()==1;ViewExtension->bGray=Monitor&&Monitor->IsSiteGray();}
+    if(ViewExtension){ViewExtension->Rect=Visible?FVector4(Rect.Left/Full.X,Rect.Top/Full.Y,Rect.Right/Full.X,Rect.Bottom/Full.Y):FVector4(0,0,.001,.001);ViewExtension->bPointOnly=Monitor&&Monitor->GetView()==1;ViewExtension->bGray=Monitor&&Monitor->IsSiteGray();ViewExtension->bSite=Monitor&&Monitor->IsSiteVisualization();}
 }
 void AShipHatchMonitorHost::ShowTools()
 {

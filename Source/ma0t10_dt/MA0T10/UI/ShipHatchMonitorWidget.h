@@ -117,6 +117,7 @@ public:
     bool IsSiteGray() const { return bSiteVisualization&&bSiteGray; }
     void SetSiteVisualization(bool Enabled);
     void SetFreeCamera(bool Enabled);
+    void SetSiteCameraPreset(int32 Preset);
     const TArray<uint8>& GetCoverageMask() const;
     uint64 AnalysisBuilds=0;
 protected:
@@ -188,8 +189,13 @@ private:
     bool bSensorColors=false,bCoverageOverlay=false;
     UPROPERTY(Transient) TObjectPtr<UShipHatchOverlay> Overlay;
     UPROPERTY(Transient) TObjectPtr<UShipHatchOverlay> SiteModel;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> CameraPresetButtons;
     TArray<TWeakObjectPtr<UPrimitiveComponent>> SiteHidden;
     bool bSiteVisualization=false,bSiteGray=false,bSavedSiteColors=false,bFreeCamera=false;
+    bool bSiteFraming=false,bSiteHeight=false;
+    FVector SiteFocus=FVector::ZeroVector;
+    FVector SiteMin=FVector::ZeroVector,SiteMax=FVector::ZeroVector;
+    double SiteCameraDistance=1;
     FVector FreeCameraPosition=FVector::ZeroVector;
     FRotator FreeCameraRotation=FRotator::ZeroRotator;
     uint64 SiteCabRevision=MAX_uint64;
@@ -199,6 +205,7 @@ private:
     UFUNCTION() void OnSiteVisualization(){SetSiteVisualization(!bSiteVisualization);}
     UFUNCTION() void OnSiteGray(){bSiteGray=!bSiteGray;LastLayout=FVector2D::ZeroVector;Layout();}
     UFUNCTION() void OnFreeCamera(){SetFreeCamera(!bFreeCamera);}
+    UFUNCTION() void OnSiteHeight(){bSiteHeight=!bSiteHeight;ApplyPreview();UpdateSegments();}
     // STextBlock retains a raw pointer to UTextBlock::StrikeBrush. Keep the
     // generated UObject alive for exactly as long as its native row survives.
     UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> ComboLabels;
@@ -310,8 +317,8 @@ private:
     UFUNCTION() void OnGrabDisplayToggle();
     UFUNCTION() void OnGrabAspect(float V){if(Simulation.IsValid())SetGrabAspect(V);}
     void SetGrabAspect(float Value);
-    UFUNCTION() void OnSea(){if(bFreeCamera)SetFreeCamera(false);OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
-    UFUNCTION() void OnLand(){if(bFreeCamera)SetFreeCamera(false);OrbitYaw=90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
+    UFUNCTION() void OnSea(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
+    UFUNCTION() void OnLand(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);OrbitYaw=90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
     UFUNCTION() void OnScanToggle();
     UFUNCTION() void OnRandom();
     UFUNCTION() void OnApply();
@@ -334,12 +341,12 @@ private:
     UFUNCTION() void OnNoon();
     UFUNCTION() void OnEvening();
     UFUNCTION() void OnWorkLight();
-    UFUNCTION() void OnFrameVessel(){if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
+    UFUNCTION() void OnFrameVessel(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
     UFUNCTION() void OnSiteOverview(){SetCameraPreset(3);}
     UFUNCTION() void OnScaleReference();
     UFUNCTION() void OnWater();
-    UFUNCTION() void OnFrameUnloader(){if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
-    UFUNCTION() void OnFrameCargo(){if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;SetModelPresentation(false);UpdateCamera();}
+    UFUNCTION() void OnFrameUnloader(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
+    UFUNCTION() void OnFrameCargo(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;SetModelPresentation(false);UpdateCamera();}
     UFUNCTION() void OnFill();
     UFUNCTION() void OnGrid(float Value);
     UFUNCTION() void OnPointSize(float Value);
@@ -363,7 +370,7 @@ private:
     UFUNCTION() void OnReflection(){SelectColor(2);}
     UFUNCTION() void OnDistance(){SelectColor(3);}
     UFUNCTION() void OnMono(){SelectColor(4);}
-    UFUNCTION() void OnTop(){SetCameraPreset(0);}
-    UFUNCTION() void OnOblique(){SetCameraPreset(1);}
-    UFUNCTION() void OnReset(){SetCameraPreset(2);}
+    UFUNCTION() void OnTop(){if(bSiteVisualization)SetSiteCameraPreset(1);else SetCameraPreset(0);}
+    UFUNCTION() void OnOblique(){if(bSiteVisualization)SetSiteCameraPreset(2);else SetCameraPreset(1);}
+    UFUNCTION() void OnReset(){if(bSiteVisualization)SetSiteCameraPreset(0);else SetCameraPreset(2);}
 };

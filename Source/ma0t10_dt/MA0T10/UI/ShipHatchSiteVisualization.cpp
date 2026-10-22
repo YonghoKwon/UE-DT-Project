@@ -6,6 +6,7 @@
 #include "Camera/CameraActor.h"
 #include "GameFramework/PlayerController.h"
 #include "Components/TextBlock.h"
+#include "Components/Button.h"
 
 void UShipHatchMonitorWidget::RestoreSiteVisualization()
 {
@@ -16,9 +17,29 @@ void UShipHatchMonitorWidget::SetSiteVisualization(bool Enabled)
 {
     if(bSiteVisualization==Enabled)return;
     bSiteVisualization=Enabled;
-    if(Enabled){bSavedSiteColors=bSensorColors;SelectView(1);bSensorColors=true;}
-    else {RestoreSiteVisualization();bSensorColors=bSavedSiteColors;}
+    if(Enabled){bSavedSiteColors=bSensorColors;SelectView(1);bSensorColors=true;SetSiteCameraPreset(0);}
+    else {bSiteFraming=false;RestoreSiteVisualization();bSensorColors=bSavedSiteColors;}
+    const TCHAR* NamesOn[]={TEXT("해치 내려다보기"),TEXT("상부 사선"),TEXT("측면 근접")};const TCHAR* NamesOff[]={TEXT("위에서 보기"),TEXT("비스듬히 보기"),TEXT("시점 초기화")};
+    for(int I=0;I<CameraPresetButtons.Num();++I)CastChecked<UTextBlock>(CameraPresetButtons[I]->GetContent())->SetText(FText::FromString(Enabled?NamesOn[I]:NamesOff[I]));
     ApplyPreview();UpdateSegments();LastSensorBadgeUpdate=-1;UpdateSensorBadges();UpdateSiteVisualization();LastLayout=FVector2D::ZeroVector;Layout();
+}
+void UShipHatchMonitorWidget::SetSiteCameraPreset(int32 Preset)
+{
+    auto* S=Simulation.Get();if(!S||!Host.IsValid())return;if(bFreeCamera)SetFreeCamera(false);
+    const int P=FMath::Clamp(Preset,0,2);bSiteFraming=true;bOrbit=false;OrbitDistance=7800;
+    OrbitYaw=P==0?180:P==1?135:150;OrbitPitch=P==0?-10:P==1?-70:-34;
+    const FVector Min=P==1?FVector(-S->OpeningLength*.5-2,-S->OpeningWidth*.5-3,5):FVector(-8,S->HopperCenterY()-7,5);
+    const FVector Max=P==1?FVector(S->OpeningLength*.5+2,FMath::Max(S->OpeningWidth*.5+3,S->BoomTipY()+2),S->BoomSoffitZ()+3):FVector(8,S->BoomTipY()+3,S->BoomSoffitZ()+3);
+    SiteMin=Min;SiteMax=Max;SiteFocus=(Min+Max)*.5;const auto Pose=S->GetActorTransform();const auto Target=Pose.TransformPosition(SiteFocus*100);
+    const FRotator Rotation=(Pose.GetRotation()*FRotator(OrbitPitch,OrbitYaw,0).Quaternion()).Rotator();const FRotationMatrix Basis(Rotation);
+    const double Aspect=FMath::Max(.25,double(SceneRect.Right-SceneRect.Left)/FMath::Max(1.f,SceneRect.Bottom-SceneRect.Top)),Tan=FMath::Tan(FMath::DegreesToRadians(29.));SiteCameraDistance=1;
+    for(int X:{0,1})for(int Y:{0,1})for(int Z:{0,1})
+    {
+        const auto Delta=Pose.TransformPosition(FVector(X?Max.X:Min.X,Y?Max.Y:Min.Y,Z?Max.Z:Min.Z)*100)-Target;const double F=FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::X));
+        SiteCameraDistance=FMath::Max(SiteCameraDistance,FMath::Abs(FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::Y)))/(Tan*.94)-F);
+        SiteCameraDistance=FMath::Max(SiteCameraDistance,FMath::Abs(FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::Z)))*Aspect/(Tan*.94)-F);
+    }
+    UpdateCamera();
 }
 void UShipHatchMonitorWidget::UpdateSiteVisualization()
 {

@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
 #include "Camera/CameraActor.h"
 #include "GameFramework/PlayerController.h"
@@ -30,6 +31,11 @@ struct FHatch07Probe
         T.TestTrue(TEXT("green mode owns only player-view hides"),M.SiteHidden.Num()>0);
         T.TestEqual(TEXT("site visualization leaves acquisition geometry revision unchanged"),S.Revision(),Revision);T.TestEqual(TEXT("site visualization leaves cargo immutable"),S.Surface().Hash(),Hash);
         T.TestTrue(TEXT("tint never mutates acquired snapshot"),F&&F->Points&&FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint))==CRC);
+        const FLinearColor SensorColors[]={FLinearColor(1,1,0),FLinearColor(1,0,0),FLinearColor(0,0,1)};FVirtualLidarPoint Sample;Sample.bHit=true;Sample.SemanticLabel=TEXT("HatchCargo");Sample.WorldLocation=S.GetActorTransform().TransformPosition(FVector(0,0,10)*100);
+        for(int I=0;I<3;++I)T.TestTrue(TEXT("sensor fixed color is exact before display tonemapping"),S.SensorAt(I)->VisualizationComponent->GetColoredCpuPointDisplayColor(Sample).Equals(SensorColors[I],1.e-6));
+        M.OnSiteHeight();const auto Violet=S.SensorAt(0)->VisualizationComponent->GetColoredCpuPointDisplayColor(Sample);T.TestTrue(TEXT("optional cargo height palette is violet"),Violet.B>Violet.R&&Violet.R>Violet.G);Sample.SemanticLabel=TEXT("HatchCoaming");T.TestTrue(TEXT("non-cargo points retain sensor tint with height overlay"),S.SensorAt(1)->VisualizationComponent->GetColoredCpuPointDisplayColor(Sample).Equals(SensorColors[1],1.e-6));M.OnSiteHeight();
+        for(int P=0;P<3;++P){M.SetSiteCameraPreset(P);FVector2D Pixel;T.TestTrue(TEXT("grab TF/envelope center is in each close preset"),M.GetOwningPlayer()->ProjectWorldLocationToScreen(S.GetActorTransform().TransformPosition((S.GrabLip()+FVector(0,0,3))*100),Pixel));int32 W,H;M.GetOwningPlayer()->GetViewportSize(W,H);T.TestTrue(TEXT("default grab envelope projects inside scene"),M.SceneRect.ContainsPoint(Pixel*M.GetCachedGeometry().GetLocalSize()/FVector2D(W,H)));}
+        T.TestEqual(TEXT("close presets and violet overlay preserve measurement geometry"),S.Revision(),Revision);T.TestTrue(TEXT("both palettes preserve immutable measured bytes"),F&&F->Points&&FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint))==CRC);
         const TCHAR* Ids[]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};
         for(int I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestEqual(TEXT("field TF identity"),A->GetSensorId(),FString(Ids[I]));T.TestTrue(TEXT("all default devices are full64 channel20Hz Ouster"),A->ScanComponent->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7&&A->ScanComponent->VerticalChannels==64&&A->ScanComponent->HorizontalSamples==1024&&FMath::IsNearlyEqual(A->ScanComponent->ScanInterval,.05f));}
         M.SetFreeCamera(true);const FVector P=M.Host->ViewCamera->GetActorLocation();const FGeometry G;
@@ -45,19 +51,22 @@ struct FHatch07Probe
         M.NativeOnMouseButtonUp(Geometry,FPointerEvent(0,Point+FVector2D(30,20),Point,Released,EKeys::RightMouseButton,0,FModifierKeysState()));
         T.TestTrue(TEXT("right drag pans without rotating or excavating"),!M.Host->ViewCamera->GetActorLocation().Equals(BeforePan.GetLocation(),.01)&&M.Host->ViewCamera->GetActorQuat().Equals(BeforePan.GetRotation(),.001)&&S.Surface().Hash()==Hash);
         M.SetCameraPreset(1);T.TestFalse(TEXT("preset leaves free mode"),M.bFreeCamera);M.SetFreeCamera(true);M.OnDigToggle();T.TestTrue(TEXT("dig lock and free movement are exclusive"),!M.bFreeCamera&&M.bDigEnabled);M.OnDigToggle();
-        M.SetSiteVisualization(false);T.TestTrue(TEXT("mode off restores only owned hides"),M.SiteHidden.IsEmpty()&&!M.SiteModel);M.SetSiteVisualization(true);M.SetSplitView(false);M.SetCameraPreset(1);
+        M.SetSiteVisualization(false);T.TestTrue(TEXT("mode off restores only owned hides"),M.SiteHidden.IsEmpty()&&!M.SiteModel);M.SetSplitView(true);M.SetSiteVisualization(true);M.SetSiteCameraPreset(0);
     }
     static void Gray(UShipHatchMonitorWidget& M){M.bSiteGray=true;M.LastLayout=FVector2D::ZeroVector;M.Layout();}
+    static void Violet(UShipHatchMonitorWidget& M){M.OnSiteHeight();}
 };
 namespace
 {
 class FHatch07Command final:public IAutomationLatentCommand
 {
     FAutomationTestBase* T;int32 Phase=0;double Start=FPlatformTime::Seconds(),Changed=0;
-    void Shot(UWorld* W,const TCHAR* Name)
+    void Shot(UWorld* W,UShipHatchMonitorWidget& M,const TCHAR* Name)
     {
         TArray<FColor> Pixels;FIntVector Size;if(!T->TestTrue(TEXT("actual RHI screenshot"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
         const FString Root=FPaths::ProjectSavedDir()/TEXT("Reports/HATCH07-COIL02/progress");IFileManager::Get().MakeDirectory(*Root,true);TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);FFileHelper::SaveArrayToFile(Png,*(Root/Name));
+        const auto G=M.GetCachedGeometry();const auto Rect=M.GetSceneRect();const int32 X=FMath::Clamp(FMath::RoundToInt(Rect.Left*Size.X/G.GetLocalSize().X),0,Size.X-1),Y=FMath::Clamp(FMath::RoundToInt(Rect.Top*Size.Y/G.GetLocalSize().Y),0,Size.Y-1),Right=FMath::Clamp(FMath::RoundToInt(Rect.Right*Size.X/G.GetLocalSize().X),X+1,Size.X),Bottom=FMath::Clamp(FMath::RoundToInt(Rect.Bottom*Size.Y/G.GetLocalSize().Y),Y+1,Size.Y);
+        TArray<FColor> Scene;Scene.Reserve((Right-X)*(Bottom-Y));for(int Row=Y;Row<Bottom;++Row)for(int Col=X;Col<Right;++Col)Scene.Add(Pixels[Row*Size.X+Col]);Png.Reset();FImageUtils::PNGCompressImageArray(Right-X,Bottom-Y,Scene,Png);FFileHelper::SaveArrayToFile(Png,*(Root/(FPaths::GetBaseFilename(Name)+TEXT("-scene.png"))));
     }
 public:
     explicit FHatch07Command(FAutomationTestBase* Test):T(Test){}
@@ -69,8 +78,11 @@ public:
         {
             if(Phase==0){FHatch07Probe::Check(*T,*H->Monitor);Changed=FPlatformTime::Seconds();Phase=1;return false;}
             if(FPlatformTime::Seconds()-Changed<1)return false;
-            Shot(C.World(),Phase==1?TEXT("hatch-rviz.png"):TEXT("hatch-rviz-gray.png"));
+            const TCHAR* Names[]={TEXT("hatch-rviz.png"),TEXT("hatch-rviz-gray.png"),TEXT("hatch-rviz-hatch-down.png"),TEXT("hatch-rviz-upper.png"),TEXT("hatch-rviz-upper-violet.png")};Shot(C.World(),*H->Monitor,Names[Phase-1]);
             if(Phase==1){FHatch07Probe::Gray(*H->Monitor);Changed=FPlatformTime::Seconds();Phase=2;return false;}
+            if(Phase==2){H->Monitor->SetSiteCameraPreset(1);Changed=FPlatformTime::Seconds();Phase=3;return false;}
+            if(Phase==3){H->Monitor->SetSiteCameraPreset(2);Changed=FPlatformTime::Seconds();Phase=4;return false;}
+            if(Phase==4){FHatch07Probe::Violet(*H->Monitor);Changed=FPlatformTime::Seconds();Phase=5;return false;}
             H->Monitor->SetSiteVisualization(false);return true;
         }
         return false;

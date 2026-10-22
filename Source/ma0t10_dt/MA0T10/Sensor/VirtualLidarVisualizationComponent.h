@@ -36,6 +36,9 @@ public:
     void SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform);
     /** Native, player CPU preview only. Never used by projections or payload encoders. */
     void SetColoredCpuPointTint(TOptional<FLinearColor> Tint){CpuPointTint=Tint;}
+    /** Display-only violet height overlay for one semantic class; no snapshot/output changes. */
+    void SetColoredCpuHeightOverlay(FName Label){if(CpuHeightOverlayLabel!=Label){CpuHeightOverlayLabel=Label;LastColoredPointUpdate=-1;}}
+    FLinearColor GetColoredCpuPointDisplayColor(const FVirtualLidarPoint& Point) const;
     void RefreshPointView();
     void RefreshPointPreview();
 
@@ -133,6 +136,7 @@ public:
 private:
     TFunction<void(FVirtualLidarPoint&,double)> PointPreviewTransform;
     TOptional<FLinearColor> CpuPointTint;
+    FName CpuHeightOverlayLabel=NAME_None;
     bool bHeightJetPalette=false;
     FName HeightPaletteLabel=NAME_None;
     bool bColoredCpuPointPreview=false;

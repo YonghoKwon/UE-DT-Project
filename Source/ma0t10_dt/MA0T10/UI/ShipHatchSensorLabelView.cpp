@@ -33,11 +33,13 @@ public:
                 const auto O=F.GetLocation();Line(O,O+F.GetUnitAxis(EAxis::X)*180,FLinearColor::Red);Line(O,O+F.GetUnitAxis(EAxis::Y)*180,FLinearColor::Green);Line(O,O+F.GetUnitAxis(EAxis::Z)*180,FLinearColor::Blue);
                 FVector2f P;if(Project(O,P))FSlateDrawElement::MakeText(Out,Layer+2,G.ToPaintGeometry(FVector2D(220,28),FSlateLayoutTransform(FVector2D(P)+FVector2D(5,-22))),Name,FSensorOwnedPresentationStyle::Font(12,M->GetFontScale()),ESlateDrawEffect::None,FLinearColor::White);
             };
-            static const FString Names[]={TEXT("Mesh_origin"),TEXT("Crane"),TEXT("Trolley"),TEXT("Cabin"),TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};
+            static const FString Names[]={TEXT("Mesh_origin"),TEXT("Crane"),TEXT("Trolley"),TEXT("Cabin"),TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02"),TEXT("Grab")};
             Frame(Names[0],Pose);const auto At=[&](FVector P){return FTransform(Pose.GetRotation(),Pose.TransformPosition(P*100));};
             Frame(Names[1],At({0,S->SeaRailY(),S->BoomSoffitZ()}));Frame(Names[2],At({0,S->GrabLip().Y,S->BoomSoffitZ()+.75}));Frame(Names[3],At({S->CabX,S->CabY,S->HoldDepth+S->CabHeight}));
             for(int I=0;I<3;++I)if(const auto* A=S->SensorAt(I))Frame(Names[I+4],A->GetActorTransform());
-            if(S->IsGrabVisible())
+            Frame(Names[7],At(S->GrabLip()+FVector(0,0,3)));
+            // When the physical grab is off this is a display-only pose envelope;
+            // switching visualization must not add an acquisition obstruction.
             {
                 const double Angle=FMath::DegreesToRadians(S->GrabOpening()*65),HalfX=FMath::Sqrt(FMath::Square(2.1*FMath::Cos(Angle))+FMath::Square(1.55*FMath::Sin(Angle)));
                 const FVector Min=S->GrabLip()+FVector(-HalfX,-2.15,-.05),Max=S->GrabLip()+FVector(HalfX,2.15,6.1);const auto C=S->IsGrabWorkActive()?FLinearColor::Red:FLinearColor::Green;
