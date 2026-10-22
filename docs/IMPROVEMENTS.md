@@ -4,6 +4,14 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+
+## COIL-01 — 제품 부두 코일 선적
+
+사용자 #31(2026-10-22)과 검수 보정/HR·CR 추가 범위. 별도 CoilLoadingTestMap, SI 접촉망 해석·고스트, 훅/슬링·C-hook 시연과 Chaos 정착/운동, 무고정 단수 적층, 세 종류 판정 UI·원인별 하이라이트, 원통 피팅 편차, HR/CR 포장 치수/외형, 목록 입력·비동기 계획 저장/불러오기·Undo를 구현한다. [사용법](../README.md#coil-01-제품-부두-코일-선적), [근거](research/COIL-01-basis.md), [최종 결과](../Saved/Reports/COIL-01/RESULT.md), [result.json](../Saved/Reports/COIL-01/result.json)을 현재 근거로 삼는다.
+
+완료 gate는 release 실패0, `0af7476` 대비 RT on 표준 ABAB2%, layer0→0, 새 해석/정착·운동/UI·사양/저장 회귀와 직접 마우스 점검이다. 중간 GPU fallback 실패와 수정, 3cm 중심 편차 기준, 300개 절대 계측, 실제 gate의 수행·실패·skip·제한은 결과에 구분한다. 승인 분산면적/구조/CSM/ovality·포장 마찰·gross mass 미확인은 자료 필요로 남기며 실선 수용으로 바꾸지 않는다. DTCore 변경 후보는 추가하지 않는다(기존 Actor·Widget 등록/입력 차단·FileSave·센서/송신 경로를 사용).
+
+
 ## FOLLOWUP-30b — 탱크톱 강판 / 수치 포함 LiDAR 비교
 
 기존 승인M_HatchCargo의 TankTop만 중성 강판/녹/분진/마모로 보정했다. 단면0m 빗금+문구는 모의 노출임을 명시하며 센서 관측을 조작하지 않는다. 기존Z0첫충돌/7×7픽셀을 유지하고 원 코드>=30을49/49로 강화해 두 원료에서 통과했다. 5종 비교는 원료65%·실제181회디깅/잔량4.99%의 별도 full HWRT frame에서 광선·hit·격자관측률·Hz·설정거리/FOV·acquisition pose를 기록한다. [수치 표](../Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)와 LiDAR 합본은 동일 카메라의 투영 참고 윤곽을 포함하며 원시PNG는 보정하지 않는다. 27장면+별도 시연1장/4합본. #32 선폭45m/23m개구 커버 돌출 회귀를22.2m개구로 고쳐 기존 검사 통과, 물리 정확도/체적/Hz/FPS 기준은 유지한다. 실패 시도·원시 측정·공통gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
