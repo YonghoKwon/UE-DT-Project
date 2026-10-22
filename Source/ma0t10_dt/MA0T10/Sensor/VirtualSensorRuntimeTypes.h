@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "VirtualSensorRuntimeTypes.generated.h"
 
@@ -329,7 +330,7 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float RateControlHz = 0;
 	/** Live estimates from encoded bytes / requested acquisition period, never persisted. */
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float PcdRequiredMiBPerSecond = 0;
-	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float PcdBudgetMiBPerSecond = 64;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float PcdBudgetMiBPerSecond = VirtualSensorDefaults::PointCloudBandwidthMiBPerSecond;
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float PcdFairShareMiBPerSecond = 0;
 	/** Socket submissions in the most recent approximately one-second sample. */
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream") float RecentSubmittedHz = 0;

@@ -1,6 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "Serialization/ObjectWriter.h"
+#include "Serialization/ObjectReader.h"
 
 struct FPcdFairBudgetTestAccess
 {
@@ -12,6 +15,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdFairBudgetTest,"MA0T10.SensorStream.PcdFair
 bool FPcdFairBudgetTest::RunTest(const FString&)
 {
     auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();
+    TestEqual(TEXT("new publisher defaults to approved80MiB/s"),P->PointCloudBandwidthLimitMegabytesPerSecond,80.f);
+    P->PointCloudBandwidthLimitMegabytesPerSecond=64.f; // Explicit constrained-budget regression.
     auto Configure=[&](const FString& Id,double Bytes)
     {
         FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.SensorId=Id;C.bEnabled=true;P->ConfigureStream(C);
@@ -61,7 +66,7 @@ bool FPcdFairBudgetTest::RunTest(const FString&)
     FPcdFairBudgetTestAccess::Update(P,130.9);
     TestTrue(TEXT("disabled producer has no share"),FPcdFairBudgetTestAccess::Runtime(P,TEXT("B")).Status.PcdFairShareMiBPerSecond==0);
     TestTrue(TEXT("inactive producer has no share"),FPcdFairBudgetTestAccess::Runtime(P,TEXT("C")).Status.PcdFairShareMiBPerSecond==0);
-    TestEqual(TEXT("default budget remains64"),P->PointCloudBandwidthLimitMegabytesPerSecond,64.f);
+    TestEqual(TEXT("explicit64MiB/s override survives stream configuration and scheduling"),P->PointCloudBandwidthLimitMegabytesPerSecond,64.f);
     auto& R=FPcdFairBudgetTestAccess::Runtime(P,TEXT("A"));R.bSerializationInFlight=true;
     const double RememberedBytes=Small.FrameBytes,RememberedTokens=Small.BandwidthTokens;
     FVirtualSensorFrameEnvelope Frame;Frame.SensorId=TEXT("A");Frame.SensorKind=EVirtualSensorKind::Lidar;Frame.FrameId=1;Frame.RequestedAcquisitionIntervalSeconds=.05;
@@ -81,6 +86,38 @@ bool FPcdFairBudgetTest::RunTest(const FString&)
     TestEqual(TEXT("stopped output becomes zero in the next sample"),RecentRuntime.Status.RecentSubmittedHz,0.f);
     RecentRuntime.Status.SubmittedFrameCount=1;FPcdFairBudgetTestAccess::Update(Recent,103);
     TestEqual(TEXT("transport counter reset cannot produce negative Hz"),RecentRuntime.Status.RecentSubmittedHz,0.f);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdDefaultBudgetTest,"MA0T10.SensorStream.PcdDefaultBudget",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FPcdDefaultBudgetTest::RunTest(const FString&)
+{
+    auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();
+    TestEqual(TEXT("publisher default80MiB/s"),P->PointCloudBandwidthLimitMegabytesPerSecond,80.f);
+    TestEqual(TEXT("status default80MiB/s"),FVirtualSensorStreamStatus().PcdBudgetMiBPerSecond,80.f);
+    TestEqual(TEXT("preflight default80MiB/s"),FVirtualSensorOutputPreflightResult().PcdBudgetMegabytesPerSecond,80.);
+    // Measured default Rev7 demand, not the worst-case all-rays-return fixture above.
+    const double FrameBytes=75.9*1048576./60.;
+    for(const FString Id:{TEXT("A"),TEXT("B"),TEXT("C")})
+    {
+        FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.SensorId=Id;C.bEnabled=true;P->ConfigureStream(C);
+        auto& S=FPcdFairBudgetTestAccess::Runtime(P,Id).SensorSequences.FindOrAdd(Id);
+        S.InputPeriod=.05;S.LastInputSeconds=100;S.FrameBytes=FrameBytes;
+    }
+    FPcdFairBudgetTestAccess::Update(P,100);
+    for(const FString Id:{TEXT("A"),TEXT("B"),TEXT("C")})
+    {
+        const auto& R=FPcdFairBudgetTestAccess::Runtime(P,Id);const auto& S=R.SensorSequences.FindChecked(Id);
+        TestTrue(TEXT("measured default Rev7 demand retains20Hz per stream"),FMath::IsNearlyEqual(S.FairBytesPerSecond/S.FrameBytes,20.,1.e-6));
+        TestTrue(TEXT("measured demand does not produce budget warning"),R.Status.PcdRequiredMiBPerSecond<R.Status.PcdBudgetMiBPerSecond);
+    }
+    // Preserve a serialized component override without a PostLoad/default migration.
+    auto* Configured=NewObject<UVirtualSensorStreamPublisherComponent>();Configured->PointCloudBandwidthLimitMegabytesPerSecond=64.f;
+    TArray<uint8> Bytes;FObjectWriter Writer(Configured,Bytes);
+    auto* Restored=NewObject<UVirtualSensorStreamPublisherComponent>();FObjectReader Reader(Restored,Bytes);
+    TestEqual(TEXT("serialized user64MiB/s survives the new80 default"),Restored->PointCloudBandwidthLimitMegabytesPerSecond,64.f);
+    FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.SensorId=TEXT("custom");C.bEnabled=true;Restored->ConfigureStream(C);
+    FPcdFairBudgetTestAccess::Update(Restored,100);
+    TestEqual(TEXT("restored override survives runtime configuration"),Restored->PointCloudBandwidthLimitMegabytesPerSecond,64.f);
     return true;
 }
 #endif

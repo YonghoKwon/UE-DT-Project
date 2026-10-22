@@ -107,7 +107,7 @@ public:
 	float BandwidthLimitMegabytesPerSecond = 16.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1.0", ClampMax = "1024.0"))
-	float PointCloudBandwidthLimitMegabytesPerSecond = 64.0f;
+	float PointCloudBandwidthLimitMegabytesPerSecond = VirtualSensorDefaults::PointCloudBandwidthMiBPerSecond;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	bool bAutoResumePointCloudAfterOverload = true;

@@ -33,6 +33,7 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> PcdPublisher;
     TMap<FString,FVirtualSensorStreamStatus> PcdBaselines;
     int PcdPort=0;
+    double NextPcdBudgetSample=0,MaximumPcdRequiredMiB=0;int PcdBudgetWarningSamples=0;
     FVirtualSensorStreamStatus PcdStatus(const FString& Id) const
     {
         if(PcdPublisher.IsValid())for(const auto& S:PcdPublisher->GetStreamStatuses())
@@ -68,7 +69,7 @@ public:
                 auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(Sim);Sim->AddInstanceComponent(Publisher);
                 Publisher->SetTransportComponent(Transport);Publisher->RegisterComponent();PcdPublisher=Publisher;
                 // Use the production normalization/default budgets: PCD binary, FIFO,
-                // stride 1, receipt every frame, 20 retained frames, 64 MiB/s.
+                // stride 1, receipt every frame, 20 retained frames, 80 MiB/s.
                 for(int I=0;I<SensorCount;++I)if(auto* A=Sim->SensorAt(I))
                 {
                     A->StopSensor();A->SetSharedOutputServices(Transport,nullptr,Publisher);
@@ -95,6 +96,13 @@ public:
         }
         Wall.Add((Now-Last)*1000);Last=Now;Engine.Add(FApp::GetDeltaTime()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Gpu.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));
         Slow+=FApp::GetDeltaTime()>.15;
+        if(PcdPublisher.IsValid()&&Now>=NextPcdBudgetSample)
+        {
+            NextPcdBudgetSample=Now+.2;bool Warning=false;
+            for(const auto& S:PcdPublisher->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::PointCloud&&S.bEnabled)
+            {MaximumPcdRequiredMiB=FMath::Max(MaximumPcdRequiredMiB,double(S.PcdRequiredMiBPerSecond));Warning|=S.PcdRequiredMiBPerSecond>S.PcdBudgetMiBPerSecond;}
+            PcdBudgetWarningSamples+=Warning;
+        }
         double MeasurementSeconds=30;FParse::Value(FCommandLine::Get(),TEXT("GpuLidarMeasurementSeconds="),MeasurementSeconds);
         if(Now-Measured<FMath::Clamp(MeasurementSeconds,30.0,120.0))return false;
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("measurement_started_utc"),MeasurementUtc.ToIso8601());R->SetStringField(TEXT("measurement_ended_utc"),FDateTime::UtcNow().ToIso8601());R->SetNumberField(TEXT("seconds"),Now-Measured);R->SetNumberField(TEXT("engine_fps"),1000/FMath::Max(.001,Average(Engine)));
@@ -104,7 +112,8 @@ public:
         R->SetBoolField(TEXT("pcd_send_enabled"),PcdPort!=0);
         R->SetStringField(TEXT("pcd_transport"),PcdPort?TEXT("credential-free TCP STOMP loopback, receipts + local receiver"):TEXT("disabled"));
         if(PcdPublisher.IsValid())R->SetNumberField(TEXT("pcd_bandwidth_limit_mib_s"),PcdPublisher->PointCloudBandwidthLimitMegabytesPerSecond);
-        R->SetStringField(TEXT("display"),TEXT("offscreen real D3D12"));R->SetStringField(TEXT("map"),Operating?TEXT("SensorTestMap existing user worktree; opened only, never saved"):TEXT("ShipHatchTestMap runtime fixture; never saved"));
+        R->SetNumberField(TEXT("pcd_budget_warning_samples"),PcdBudgetWarningSamples);R->SetNumberField(TEXT("pcd_maximum_required_mib_s"),MaximumPcdRequiredMiB);
+        R->SetStringField(TEXT("display"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen"))?TEXT("offscreen real D3D12"):TEXT("visible real D3D12"));R->SetStringField(TEXT("map"),Operating?TEXT("SensorTestMap existing user worktree; opened only, never saved"):TEXT("ShipHatchTestMap runtime fixture; never saved"));
         R->SetBoolField(TEXT("ray_tracing_disabled_by_commandline"),FParse::Param(FCommandLine::Get(),TEXT("noraytracing")));
         if(OperatingCamera.IsValid())R->SetNumberField(TEXT("camera_acquisition_hz"),(OperatingCamera->GetSensorRuntimeStatus().FrameId-CameraBaseline)/(Now-Measured));
         TArray<TSharedPtr<FJsonValue>> Rows;
@@ -157,6 +166,8 @@ public:
                 Output->SetNumberField(TEXT("raw_outstanding_frames"),S.RawOutstandingFrameCount);Output->SetNumberField(TEXT("raw_outstanding_bytes"),S.RawOutstandingBytes);
                 Output->SetNumberField(TEXT("last_frame_bytes"),S.LastFrameBytes);Output->SetNumberField(TEXT("last_points"),S.LastPointCount);
                 Output->SetNumberField(TEXT("required_mib_s"),S.PcdRequiredMiBPerSecond);
+                Output->SetNumberField(TEXT("budget_mib_s"),S.PcdBudgetMiBPerSecond);
+                Output->SetBoolField(TEXT("budget_warning"),S.PcdRequiredMiBPerSecond>S.PcdBudgetMiBPerSecond);
                 Output->SetNumberField(TEXT("fair_share_mib_s"),S.PcdFairShareMiBPerSecond);
                 Output->SetNumberField(TEXT("points_times_33_times_requested_hz_mib_s"),S.LastPointCount*33.0*20/1048576.0);
                 Output->SetStringField(TEXT("message"),S.Message);Row->SetObjectField(TEXT("pcd"),Output);
@@ -167,6 +178,15 @@ public:
                 Test->TestEqual(TEXT("PCD encode failures"),S.EncodeFailureCount-B.EncodeFailureCount,int64(0));
                 Test->TestEqual(TEXT("PCD invalid received"),S.ConsumerValidationFailureCount-B.ConsumerValidationFailureCount,int64(0));
                 Test->TestEqual(TEXT("PCD FIFO overloads"),S.OverloadCount-B.OverloadCount,int64(0));
+                if(!Operating&&!OS1&&SensorCount==3&&Scan->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7)
+                {
+                    Test->TestEqual(TEXT("approved default PCD budget80MiB/s"),S.PcdBudgetMiBPerSecond,80.f);
+                    Test->TestTrue(TEXT("default Rev7x3 serialization >=19Hz"),(S.SerializedFrameCount-B.SerializedFrameCount)/Seconds>=19);
+                    Test->TestTrue(TEXT("default Rev7x3 socket submission >=19Hz"),(S.SubmittedFrameCount-B.SubmittedFrameCount)/Seconds>=19);
+                    Test->TestTrue(TEXT("default Rev7x3 receipts >=19Hz"),(S.ReceiptReceivedCount-B.ReceiptReceivedCount)/Seconds>=19);
+                    Test->TestTrue(TEXT("default Rev7x3 validated receive >=19Hz"),(S.ConsumerReceivedCount-B.ConsumerReceivedCount)/Seconds>=19);
+                    Test->TestEqual(TEXT("default Rev7x3 has no budget warnings during measurement"),PcdBudgetWarningSamples,0);
+                }
             }
             AActor* Actor=Sensors[I].Get();if(Actor)Sensors[I]->StopSensor();
         }

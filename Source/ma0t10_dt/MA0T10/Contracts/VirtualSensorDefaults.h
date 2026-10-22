@@ -8,6 +8,8 @@ namespace VirtualSensorDefaults
 inline constexpr TCHAR CameraTopic[] = TEXT("topic.virtual.sensor.camera.0");
 inline constexpr TCHAR LidarTopic[] = TEXT("topic.virtual.sensor.lidar.0");
 inline constexpr TCHAR PointCloudTopic[] = TEXT("topic.virtual.sensor.export.0");
+// Default Rev7 x3 measured PCD demand is about 75.9 MiB/s at 20 Hz.
+inline constexpr float PointCloudBandwidthMiBPerSecond = 80.0f;
 
 inline constexpr TCHAR UiSlotV1[] = TEXT("MA0T10_VirtualSensorUI_v1");
 inline constexpr TCHAR UiSlotV2[] = TEXT("MA0T10_VirtualSensorUI_v2");

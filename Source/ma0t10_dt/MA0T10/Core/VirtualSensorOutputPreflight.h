@@ -43,7 +43,7 @@ struct MA0T10_DT_API FVirtualSensorOutputPreflightResult
     UPROPERTY(BlueprintReadOnly) bool bEngineConnected=false;
     UPROPERTY(BlueprintReadOnly) bool bSessionBusy=false;
     UPROPERTY(BlueprintReadOnly) int32 SubmissionsPerFrame=2;
-    UPROPERTY(BlueprintReadOnly) double PcdBudgetMegabytesPerSecond=64;
+    UPROPERTY(BlueprintReadOnly) double PcdBudgetMegabytesPerSecond=VirtualSensorDefaults::PointCloudBandwidthMiBPerSecond;
     UPROPERTY(BlueprintReadOnly) FString Summary;
 };
 /** Read-only capture followed by a pure capacity evaluator. No connection or measurement is started. */
