@@ -5,6 +5,7 @@
 #include "PhysicsEngine/BodySetup.h"
 #include "EngineUtils.h"
 #include "Misc/Crc.h"
+#include "Debug/DebugDrawComponent.h"
 
 namespace
 {
@@ -50,6 +51,9 @@ TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> CaptureLidarStaticC
         for(auto* Primitive:Components)
         {
             if(!Primitive||!Primitive->IsRegistered()||!Primitive->IsPhysicsStateCreated()||!Primitive->IsQueryCollisionEnabled())continue;
+            // Editor GameplayDebugger draw proxies have no physical collision
+            // geometry. Match the existing hatch snapshot's display-only rule.
+            if(Primitive->IsA<UDebugDrawComponent>())continue;
             const auto Response=Primitive->GetCollisionResponseToChannel(Channel);if(Response==ECR_Ignore)continue;
             auto* Static=Cast<UStaticMeshComponent>(Primitive);auto* Brush=Cast<UBrushComponent>(Primitive);auto* Body=Primitive->GetBodySetup();
             if(Brush&&(!Body||Body->AggGeom.GetElementCount()==0))continue;
