@@ -137,6 +137,8 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 {
 	auto* W=Workspace();if(!W||!W->OwnsToolbar(this))return false;
 	if(Destination==ESensorToolDestination::TestSet)return W->OpenTestSet();
+	if(!W->AreSlabToolsEnabled()&&(Destination==ESensorToolDestination::Scenario||Destination==ESensorToolDestination::ScenarioCharts))
+	{W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);return false;}
 	if(Destination==ESensorToolDestination::MapCheck)return W->OpenMapCheck();
 	if(Destination==ESensorToolDestination::Scenario)
 	{

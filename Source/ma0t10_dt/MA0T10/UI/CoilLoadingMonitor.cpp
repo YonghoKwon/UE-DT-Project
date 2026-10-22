@@ -53,7 +53,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     GearChoice=WidgetTree->ConstructWidget<UComboBoxString>();GearChoice->ForegroundColor=Style::Text();GearChoice->SetWidgetStyle(Style::ComboBox());GearChoice->AddOption(TEXT("훅 + 보호 슬링"));GearChoice->AddOption(TEXT("C-hook"));Choices->AddChildToHorizontalBox(GearChoice);
     const auto Number=[&](UVerticalBox* Parent,const TCHAR* Title,double Value,double Min,double Max){auto* Pair=Row(Parent);Pair->AddChildToHorizontalBox(Label(Title,12))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));auto* W=WidgetTree->ConstructWidget<USpinBox>();W->SetWidgetStyle(Style::SpinBox());W->SetMinValue(Min);W->SetMaxValue(Max);W->SetValue(Value);W->SetMinDesiredWidth(100);W->SetDelta(.01);Pair->AddChildToHorizontalBox(W);Numbers.Add(W);};
     Number(Body,TEXT("순강재 외경 OD [m]"),1.6,.05,10);Number(Body,TEXT("순강재 폭 [m]"),1.25,.05,10);Number(Body,TEXT("gross 질량 [t] · 0 순강재 자동"),0,0,500);Number(Body,TEXT("목재 접촉 μ · 포장값 확인 필요"),.3,0,2);
-    Number(Body,TEXT("단 · 상한 없이 입력"),1,1,100000);Number(Body,TEXT("열 · 선수미"),1,1,100000);Number(Body,TEXT("번호 · 횡방향"),1,1,100000);
+    Number(Body,TEXT("단 · 최대 5단"),1,1,5);Number(Body,TEXT("열 · 선수미"),1,1,100000);Number(Body,TEXT("번호 · 횡방향"),1,1,100000);
     R=Row(Body);AddButton(R,TEXT("사양·위치 적용"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnApply),true);AddButton(R,TEXT("설정 · 상세"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnDetails));
     Details=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(Details);Details->SetVisibility(ESlateVisibility::Collapsed);
     Number(Details,TEXT("탱크톱 UDL [t/m²]"),14.5,.1,100);Number(Details,TEXT("승인 유효 면적 [m²] · 0 미확인"),0,0,100);Number(Details,TEXT("국부 허용압 [t/m²] · 0 미확인"),0,0,1000);

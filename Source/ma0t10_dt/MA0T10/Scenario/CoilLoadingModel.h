@@ -6,6 +6,7 @@
 namespace CoilLoading
 {
 constexpr double Gravity=9.81;
+constexpr int32 MaximumTier=5; // User decision 2026-10-22; load warnings remain independent.
 enum class ESeverity:uint8 { Normal, Caution, Warning };
 enum class ECoilType:uint8 { HotRolled, ColdRolled };
 struct MA0T10_DT_API FSpec

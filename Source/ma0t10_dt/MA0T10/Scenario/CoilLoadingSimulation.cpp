@@ -115,6 +115,7 @@ int32 ACoilLoadingSimulation::NominalRowCapacity() const
 }
 bool ACoilLoadingSimulation::PlaceNext(bool Animate)
 {
+    if(NextTier<1||NextTier>MaximumTier){Status=TEXT("배치 거절: 코일은 최대 5단까지 배치할 수 있습니다. 앞/뒤 열을 선택하세요.");return false;}
     if(CurrentPhase!=ECoilLoadingPhase::Idle||bEnding){Status=TEXT("작업 중입니다. 완료 또는 취소 후 배치하세요.");return false;}
     FString E;if(!NextSpec.Validate(E)||!Settings.Validate(E)){Status=E;return false;}
     for(const auto& P:Placements)if(P.Spec.CoilId.Equals(NextSpec.CoilId,ESearchCase::IgnoreCase)){Status=TEXT("코일 ID 중복: 다른 ID를 입력하세요.");return false;}

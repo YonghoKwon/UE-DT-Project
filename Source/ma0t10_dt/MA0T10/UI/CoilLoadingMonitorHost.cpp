@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "VirtualSensorUiHostActor.h"
+#include "VirtualSensorToolWorkspaceSubsystem.h"
 #include "Core/DxWidgetSubsystem.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -34,7 +35,7 @@ public:
     }
 };
 ACoilLoadingMonitorHost::ACoilLoadingMonitorHost(){PrimaryActorTick.bCanEverTick=false;}
-void ACoilLoadingMonitorHost::BeginPlay(){Super::BeginPlay();GetWorldTimerManager().SetTimer(Timer,this,&ACoilLoadingMonitorHost::Refresh,.2f,true);}
+void ACoilLoadingMonitorHost::BeginPlay(){Super::BeginPlay();GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->SetSlabToolsEnabled(false);GetWorldTimerManager().SetTimer(Timer,this,&ACoilLoadingMonitorHost::Refresh,.2f,true);}
 void ACoilLoadingMonitorHost::Refresh()
 {
     auto* PC=GetWorld()->GetFirstPlayerController();if(!PC||!Simulation||!Simulation->Lidar)return;
