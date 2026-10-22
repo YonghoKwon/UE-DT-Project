@@ -8,11 +8,13 @@
 namespace CoilTestReportPaths
 {
 inline constexpr TCHAR DefaultRelativeRoot[]=TEXT("Reports/COIL");
-inline FString Root()
+inline FString Resolve(const TCHAR* Arguments)
 {
-    FString Override;FParse::Value(FCommandLine::Get(),TEXT("CoilReport="),Override);
+    FString Override;
+    if(!FParse::Value(Arguments,TEXT("CoilReport="),Override))FParse::Value(Arguments,TEXT("CoilPhotoReport="),Override);
     return Override.IsEmpty()?FPaths::ProjectSavedDir()/DefaultRelativeRoot:Override;
 }
+inline FString Root(){return Resolve(FCommandLine::Get());}
 inline FString Progress(){return Root()/TEXT("progress");}
 }
 #endif
