@@ -52,7 +52,7 @@ void AShipHatchSimulation::BuildVessel()
  if(!bRealScale){if(Vessel)Vessel->Destroy();Vessel=nullptr;return;}
  if(!Vessel){FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Vessel=GetWorld()->SpawnActor<AShipHatchVessel>(AShipHatchVessel::StaticClass(),GetActorTransform(),P);}if(!Vessel)return;
  const double Half=VesselLength*.5,Deck=HoldDepth,Keel=KeelZ(),Water=WaterZ();
- const FLinearColor Red(.22,.035,.025),Black(.025,.035,.042),White(.57,.6,.59),DeckColor(.30,.15,.135),Cover(.46,.27,.25),Glass(.012,.035,.047),Steel(.22,.09,.065),Rope(.35,.29,.18);
+ const FLinearColor Red(.22,.035,.025),Black(.025,.035,.042),White(.38,.40,.40),DeckColor(.16,.17,.17),Cover(.22,.23,.23),Glass(.012,.035,.047),Steel(.22,.09,.065),Rope(.35,.29,.18);
  auto Breadth=[&](double X){if(X>Half-34)return VesselBeam*.5*FMath::Max(.018,FMath::Sqrt(FMath::Clamp((Half-X)/34.,0.,1.)));if(X<-Half+30){const double U=FMath::Clamp((X+Half)/30.,0.,1.);return FMath::Lerp(8.,VesselBeam*.5,U*U*(3-2*U));}return VesselBeam*.5;};
  auto Sheer=[&](double X){return .75*FMath::Square(FMath::Clamp((FMath::Abs(X)-110)/(Half-110),0.,1.));};
  auto SectionPoint=[&](double X,double Z,double Factor,int Sign){const double Rake=X>Half-34?4*(X-(Half-34))/34*FMath::Clamp((Deck-Z)/(Deck-Water),0.,1.):0.;return FVector(X-Rake,Sign*Breadth(X)*Factor,Z+Sheer(X)*FMath::Clamp((Z-Water)/(Deck-Water),0.,1.));};

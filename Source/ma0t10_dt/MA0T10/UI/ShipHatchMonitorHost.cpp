@@ -53,7 +53,7 @@ void AShipHatchMonitorHost::Refresh()
             // auto exposure on close-up. Sensor capture/optical response stays independent.
             auto& Post=Camera->PostProcessSettings;Post.bOverride_AutoExposureMethod=true;Post.AutoExposureMethod=AEM_Manual;
             Post.bOverride_AutoExposureApplyPhysicalCameraExposure=true;Post.AutoExposureApplyPhysicalCameraExposure=false;
-            Post.bOverride_AutoExposureBias=true;Post.AutoExposureBias=0;Camera->PostProcessBlendWeight=1;
+            Post.bOverride_AutoExposureBias=true;Post.AutoExposureBias=.25f;Camera->PostProcessBlendWeight=1;
             PC->SetViewTarget(ViewCamera);
         }
         PC->bShowMouseCursor=true;

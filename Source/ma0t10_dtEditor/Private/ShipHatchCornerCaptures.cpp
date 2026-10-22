@@ -191,6 +191,8 @@ public:
             if(Now-Changed<2)return false;
             if(!Capture(*W,S))return true;
             if(++Shot<4){FrameCorner(*Host,S);return false;}
+            if(FParse::Param(FCommandLine::Get(),TEXT("HatchCornerAppearanceOnly")))
+            {M.SetRenderOpacity(1);auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());R->SetStringField(TEXT("scope"),TEXT("four full-load appearance cameras only; no excavation/RSS/performance gate"));R->SetNumberField(TEXT("images"),4);WriteCornerJson(CornerOutput()/TEXT("appearance-result.json"),R);return true;}
             if(Shot==4){FullCargo(S,true);Phase=1;return false;}
             FullCargo(S,false);Phase=3;return false;
         }

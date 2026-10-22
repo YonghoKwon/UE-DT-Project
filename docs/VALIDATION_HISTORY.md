@@ -506,3 +506,8 @@ float Moller-Trumbore 내적 상쇄로 실제 공유 경계가 외부로 판정�
 ## 2026-10-22 FOLLOWUP-29 코너 노출·재질·만재 형상
 
 해치 소유 카메라 노출 고정/종료 복원, 기존 M_HatchCargo 한 자산의 표시 albedo/roughness·코밍 절차 마모/녹/분진/AO, 높이 여유에 맞춘 실제 만재 높이장과 얕은 그랩 자국을 반영했다. 원래95% 체적 정확도/안식각을 유지하고60개 만재 case에서 relief/상한 평지를 추가 검증한다. 기존14개 해치 회귀는 성공14/실패0. 동일6카메라 비교, 230회 실제 퍼내기 잔량4.97%, GPU3센서 각각20.00Hz/59.999FPS, 원거리·조감14장과 원시 결과는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 첫 촬영의 기존 디깅 stencil은 새 표면에서 잔량5%에 못 미쳐 실패했으며 개구부 안 지점을 넓혀 같은1000회 상한/5% 기준으로 통과했다. 직접 UI 수용은 Windows 잠금으로 수행하지 않았다. 맵 저장/DTCore/광학 반응/wire/SaveGame 변경은 없다.
+
+
+## 2026-10-22 FOLLOWUP-29b 검수 후 밝기 균형
+
+사용자 검수의 검은 코밍/분홍 갑판/읽기 어려운 만재 형상을 보정했다. 해치 카메라 bias+0.25EV, key(-35°,43°,4.5), 소유 ambient1.35, 기존 무그림자 작업등1000cd/갑판 위12m로 조정했다. 코밍(.42,.085,.055), 회색 갑판(.16,.17,.17)/커버(.22,.23,.23), iron(.11,.072,.051)/coal(.033,.031,.029), 낮은 AO 대비/노멀0.85/높이 기반 정점 셰이딩±22%다. 새 빛·capture·자산은 없고 기존 해치 자원만 사용한다. 코너 camera/aim/rotation/FOV·95% 높이장 CRC는 이전과 동일하다. 회귀15 Success/0Fail, CPU/native28672개0 mismatch/최대0.178mm, GPU3센서 각각19.9986Hz/59.9968FPS. [코너2곳·조감·측면 전후 비교](../Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 원시 자료 progress/29b, 공통 최종 gate/제한은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md). #30 미커밋 하네스는 보존하며 별도 커밋한다.

@@ -166,7 +166,7 @@ public:
     uint64 DigBufferBytes() const;
     uint64 MeshScratchBytes() const { return CargoVertices.GetAllocatedSize()+CargoNormals.GetAllocatedSize()+CargoIndices.GetAllocatedSize()+CargoColors.GetAllocatedSize(); }
     void SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill);
-    double LightAzimuth=-25,LightElevation=65,LightIntensity=5;
+    double LightAzimuth=-35,LightElevation=43,LightIntensity=4.5;
     bool bFillLight=true;
     uint64 GenerationBufferBytes() const { return Current.Heights.GetAllocatedSize()+RecycledHeights.GetAllocatedSize()+GenerationShape.GetAllocatedSize(); }
     FSimpleMulticastDelegate OnSurfaceChanged;

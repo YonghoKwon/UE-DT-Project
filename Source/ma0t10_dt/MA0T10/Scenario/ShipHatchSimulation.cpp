@@ -83,8 +83,8 @@ void AShipHatchSimulation::BeginPlay()
         Light->SetCastShadows(false);
     }
     FillLight=NewObject<UPointLightComponent>(this);FillLight->SetupAttachment(GetRootComponent());FillLight->SetMobility(EComponentMobility::Movable);
-    FillLight->SetCastShadows(false);FillLight->SetIntensity(8000);FillLight->SetAttenuationRadius(6500);FillLight->RegisterComponent();
-    FillLight->SetRelativeLocation(FVector(0,0,HoldDepth*65));SetLighting(-25,65,5,true);Regenerate(false);
+    FillLight->SetCastShadows(false);FillLight->SetIntensityUnits(ELightUnits::Candelas);FillLight->SetIntensity(1000);FillLight->SetAttenuationRadius(6500);FillLight->RegisterComponent();
+    FillLight->SetRelativeLocation(FVector(0,0,(HoldDepth+12)*100));SetLighting(-35,43,4.5,true);Regenerate(false);
     // The fixture has no sky geometry, so its captured skylight is black.
     // A hatch-owned, one-time engine cubemap supplies outdoor diffuse fill on
     // the portal's back faces without recapture, shadows or a new asset.
@@ -94,7 +94,7 @@ void AShipHatchSimulation::BeginPlay()
         // specified outdoor cube. Keep and restore the fixture's visibility.
         for(TActorIterator<ASkyLight> I(GetWorld());I;++I){FixtureSky=I->GetLightComponent();bFixtureSkyVisible=FixtureSky->IsVisible();FixtureSky->SetVisibility(false);break;}
         OutdoorAmbient=NewObject<USkyLightComponent>(this,TEXT("HatchOutdoorAmbient"));OutdoorAmbient->SetupAttachment(GetRootComponent());OutdoorAmbient->SetMobility(EComponentMobility::Movable);
-        OutdoorAmbient->SourceType=SLS_SpecifiedCubemap;OutdoorAmbient->Cubemap=Cube;OutdoorAmbient->bRealTimeCapture=false;OutdoorAmbient->bLowerHemisphereIsBlack=false;OutdoorAmbient->SetIntensity(.65f);OutdoorAmbient->CastShadows=false;OutdoorAmbient->RegisterComponent();
+        OutdoorAmbient->SourceType=SLS_SpecifiedCubemap;OutdoorAmbient->Cubemap=Cube;OutdoorAmbient->bRealTimeCapture=false;OutdoorAmbient->bLowerHemisphereIsBlack=false;OutdoorAmbient->SetIntensity(1.35f);OutdoorAmbient->CastShadows=false;OutdoorAmbient->RegisterComponent();
     }
 }
 void AShipHatchSimulation::SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill)
@@ -147,7 +147,7 @@ void AShipHatchSimulation::BuildStructure()
             if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
             {
                 auto* MID=UMaterialInstanceDynamic::Create(Base,A);MID->SetScalarParameterValue(TEXT("Hardware"),1);
-                MID->SetScalarParameterValue(TEXT("WeatheredCoaming"),1);MID->SetVectorParameterValue(TEXT("PaintTint"),FLinearColor(.20,.035,.023));
+                MID->SetScalarParameterValue(TEXT("WeatheredCoaming"),1);MID->SetVectorParameterValue(TEXT("PaintTint"),FLinearColor(.42,.085,.055));
                 const auto Pose=GetActorTransform();MID->SetVectorParameterValue(TEXT("PaintOrigin"),FLinearColor(Pose.GetLocation()));
                 MID->SetVectorParameterValue(TEXT("PaintX"),FLinearColor(Pose.GetUnitAxis(EAxis::X)));MID->SetVectorParameterValue(TEXT("PaintY"),FLinearColor(Pose.GetUnitAxis(EAxis::Y)));MID->SetVectorParameterValue(TEXT("PaintUp"),FLinearColor(Pose.GetUnitAxis(EAxis::Z)));
                 MID->SetVectorParameterValue(TEXT("HoldBounds"),FLinearColor(S.OpeningLength*.5,S.OpeningWidth*.5,S.Depth));A->Mesh->SetMaterial(0,MID);
@@ -167,7 +167,7 @@ void AShipHatchSimulation::BuildStructure()
         {Box(V,T,FVector(Sign*(S.Length+.3)*.5,0,(S.Depth-.3)*.5),FVector(.3,S.Width+.6,S.Depth-.3));
          Box(V,T,FVector(0,Sign*(S.Width+.3)*.5,(S.Depth-.3)*.5),FVector(S.Length,.3,S.Depth-.3));}
     });
-    Part(TEXT("HatchOutside"),FLinearColor(.30,.15,.135),[&](TArray<FVector>& V,TArray<int32>& T)
+    Part(TEXT("HatchOutside"),FLinearColor(.16,.17,.17),[&](TArray<FVector>& V,TArray<int32>& T)
     {
         const double L=S.Length+8,W=bRealScale?VesselBeam:S.Width+8;
         for(int32 Sign:{-1,1})
@@ -206,6 +206,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
     // hold is later refilled; the tank top always owns the first surface hit.
     auto& V=CargoVertices;auto& T=CargoIndices;auto& Colors=CargoColors;V.Reset();Colors.Reset();
     const int32 Count=Current.NX*Current.NY*6;V.Reserve(Count);Colors.Reserve(Count);
+    const double MeanHeight=Current.Volume/(Current.Settings.Length*Current.Settings.Width);
     auto Vertex=[&](int32 X,int32 Y,bool Empty)
     {
         const double H=Current.At(X,Y);V.Add(FVector((X*Current.DX-Current.Settings.Length*.5)*100,(Y*Current.DY-Current.Settings.Width*.5)*100,Empty?-1:H*100));
@@ -214,7 +215,8 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         const double Fresh=FMath::Clamp(Removed/.6,0.,1.);
         const double Surround=(Current.At(FMath::Max(0,X-1),Y)+Current.At(FMath::Min(Current.NX,X+1),Y)+Current.At(X,FMath::Max(0,Y-1))+Current.At(X,FMath::Min(Current.NY,Y+1)))*.25;
         const double Wall=FMath::Min(FMath::Min(X*Current.DX,(Current.NX-X)*Current.DX),FMath::Min(Y*Current.DY,(Current.NY-Y)*Current.DY));
-        const double Shade=(1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.))*(.72+.28*FMath::Clamp(Wall/.9,0.,1.));
+        const double ReliefShade=1+.22*FMath::Clamp((H-MeanHeight)/1.5,-1.,1.);
+        const double Shade=ReliefShade*(1-.22*Fresh-.18*FMath::Clamp((Surround-H)/.4,0.,1.))*(.80+.20*FMath::Clamp(Wall/.9,0.,1.));
         // Alpha is a retained per-vertex cut mask, restored from the exact
         // original field on undo/restore. No new texture or per-frame upload.
         Colors.Add(FLinearColor(Shade,Shade*(1-.035*Fresh),Shade*(1-.06*Fresh),Fresh));
@@ -255,7 +257,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         auto* MID=Cast<UMaterialInstanceDynamic>(Cargo->Mesh->GetMaterial(0));
         if(Base&&(!MID||MID->Parent!=Base)){MID=UMaterialInstanceDynamic::Create(Base,Cargo);Cargo->Mesh->SetMaterial(0,MID);}
         const bool Coal=Current.Settings.Cargo==ShipHatch::ECargo::Coal;
-        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.038,.036,.033):FLinearColor(.13,.085,.060));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
+        if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.033,.031,.029):FLinearColor(.11,.072,.051));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
         Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
 }
 uint64 AShipHatchSimulation::DigBufferBytes() const

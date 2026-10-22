@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+FOLLOWUP-29b(사용자 검수 보정2026-10-22): 코밍은 중간 밝기 적색 도장, 갑판·커버는 중성 회색으로 맞췄다. 해치 카메라 bias+0.25EV, 소유 조명/환경광과 기존 작업등을 보정하고 높이 기반 정점 셰이딩·노멀 세기를 조절한다. 측정 높이장·95% 체적·광학 반응은 바꾸지 않는다. [코너2곳·조감·측면 비교](Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 검증/중간 시도/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
 FOLLOWUP-29(사용자2026-10-22): 해치 보기 카메라의 노출을 고정하고 종료 시 복원한다. 원료 표시 albedo/roughness, 기존 코밍 재질의 절차적 마모·녹·분진/접촉 AO를 조정했다. 만재 높이장은 같은95% 체적을 유지하며 높이 여유에 둔덕을 맞춰 상한 평탄화를 방지한다. 새 표면도 측정·디깅·체적의 단일 원본이다. 같은6개 카메라의 [전후 합본](Saved/Reports/FOLLOWUP-26-28/corners-before-after.png), 회귀·GPU3×20Hz/60FPS·원거리·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 광학 반응·wire·SaveGame·DTCore·맵은 변경하지 않는다.
 
 FOLLOWUP-27(사용자2026-10-22): 해치 snapshot BVH의 경계 판정을 double ray-space edge 검사로 보완하고 주름 벽 인접 구간의 이음선 좌표를 동일한 식으로 생성한다. 기존4096 무작위+24576 축/분할면/near-zero 광선에서 native physics와 불일치0, 최대0.178mm(1mm 기준 유지)를 확인했다. CPU Hz·GPU 프로필 재측정과 공통 release/RT on perf의 최종 결과는 [후속 보고](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. wire·센서 광학 반응·DTCore·맵 저장 변경은 없다.
