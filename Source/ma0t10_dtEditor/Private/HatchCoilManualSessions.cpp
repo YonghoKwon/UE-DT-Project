@@ -10,6 +10,9 @@
 #include "Misc/Paths.h"
 #include "Misc/Parse.h"
 #include "Misc/CommandLine.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Misc/FileHelper.h"
+#include "Json.h"
 
 namespace
 {
@@ -28,9 +31,17 @@ public:
         for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE&&FinalAcceptanceViewportReady(C.World()))
         {
             int32 Font=100;FParse::Value(FCommandLine::Get(),TEXT("ManualFont="),Font);
-            if(Hatch){for(TActorIterator<AShipHatchMonitorHost> H(C.World());H;++H)if(H->Monitor&&H->Monitor->GetAnalysis()){H->Monitor->SetFontPercent(Font);H->Monitor->SetSplitView(false);Ready=true;}}
-            else {for(TActorIterator<ACoilLoadingMonitorHost> H(C.World());H;++H)if(H->Monitor){H->Monitor->SetFontPercent(Font);H->Monitor->SelectView(1);Ready=true;}}
-            if(Ready)Test->AddInfo(TEXT("Manual PIE ready; actual Computer Use actions are recorded separately, this harness is not an automated UI pass."));
+            float ActualFont=1;
+            if(Hatch){for(TActorIterator<AShipHatchMonitorHost> H(C.World());H;++H)if(H->Monitor&&H->Monitor->GetAnalysis()){H->Monitor->SetFontPercent(Font);H->Monitor->SetSplitView(false);ActualFont=H->Monitor->GetFontScale();Ready=true;}}
+            else {for(TActorIterator<ACoilLoadingMonitorHost> H(C.World());H;++H)if(H->Monitor){H->Monitor->SetFontPercent(Font);H->Monitor->SelectView(1);ActualFont=H->Monitor->FontScale();Ready=true;}}
+            if(Ready)
+            {
+                auto* View=C.World()->GetGameViewport();const auto Size=View->Viewport->GetSizeXY();const auto Window=View->GetWindow();auto O=MakeShared<FJsonObject>();
+                O->SetNumberField(TEXT("client_width"),Size.X);O->SetNumberField(TEXT("client_height"),Size.Y);O->SetNumberField(TEXT("window_dpi_scale"),Window?Window->GetDPIScaleFactor():-1);
+                O->SetNumberField(TEXT("umg_viewport_scale"),UWidgetLayoutLibrary::GetViewportScale(C.World()));O->SetNumberField(TEXT("owned_font_percent"),ActualFont*100);O->SetStringField(TEXT("scope"),TEXT("manual session setup; Computer Use operations and screenshots are separate evidence"));
+                FString Text;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*FPaths::ChangeExtension(Finish,TEXT("metrics.json")));
+                Test->AddInfo(TEXT("Manual PIE ready; actual Computer Use actions are recorded separately, this harness is not an automated UI pass."));
+            }
         }
         return false;
     }
