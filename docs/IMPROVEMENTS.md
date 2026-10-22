@@ -4,13 +4,13 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
-## FOLLOWUP-28-26 — FIFO·별칭 수정, 교차 측정 공통 FPS 저하로 통합 gate 차단
+## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
 
-리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의≥59FPS/cadence FAIL을 대체하지 않는다. [manifest](../Saved/Reports/verify/20261022T215939434Z/manifest.json).
+리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의 절대FPS·획득cadence 판정을 대체하지 않는다. [manifest](../Saved/Reports/verify/20261022T215939434Z/manifest.json).
 
-최초 수정 후90초 58.133FPS 실패 원문을 보존한 뒤, 동일 조건 HEAD→수정 전3229bee Source→HEAD 교차3회를 실행했다. FPS는58.624→57.603→57.360으로 모두 기존≥59 기준 미달이다. 사용자 지시의 양쪽 실패 시 환경 요인 분기로 기록하고 종료하며 통합 FAIL을 유지한다. 이번 비교에서 HEAD에만 발생하는 회귀 패턴은 확인되지 않았고 특정 프로세스 원인은 미확정이다. 각 실행의 모든 스트림≥19Hz, 예산 경고·송신생략·외부 오류·150ms 초과0이다. 전후 프로세스/GPU, 전체 Source 대조·복원 및 원시 실패는 [교차 판별](../Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)에 남겼다. 아래 f2b9526의 이전90초 통과와 구분하며 기준을 완화하지 않는다.
+사용자가 Rider·브라우저를 닫은 뒤 현재HEAD bb56c5a로 같은조건 표시형90초를1회 실행했다. 평균59.105FPS는≥59를 통과했으나 기존획득cadence3assertion/1test FAIL이다. 엔진5320프레임에서 센서별최소1771회 기준에 실제1767/1766/1761회로 미달했다. 각 외부19.620/19.620/19.576Hz·편차0.044Hz, 예산경고/송신생략/오류/150ms초과0이다. 사용자지시대로 추가측정 없이 feature/release 통합FAIL을 유지한다. OneDrive·INNORIX는 읽기전용으로만 기록했다. [환경정리 후 결과](../Saved/Reports/FOLLOWUP-28-26/r7/CLEANUP-90.md). 이전58.133FPS 및 교차58.624→57.603→57.360FPS 실패 원문은 [이전교차판별](../Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)에 보존했고 기준·제품·테스트코드 변경0이다.
 
 기본 Ouster OS1-64 Rev7×3의 PCD 송신 예산을 사용자 승인(2026-10-23)으로64→80 MiB/s로 올렸다. 실측 필요량 약75.9 MiB/s가 근거이며 기존 지정값을 덮어쓰는 migration/Load/ini/SaveGame 변경은 없다. 기본값·UI·진단은 공통 상수를 사용하고, 직렬화된64 MiB/s 지정값 보존 회귀를 통과했다. 90초 localhost 외부수신은19.695/19.684/19.672Hz, 편차0.022Hz로 각19Hz 목표를 만족했다. 필요75.942/예산80 MiB/s, 필요>예산 경고·송신 생략·외부 오류·150ms 초과0, 표시형 D3D12/RT on 59.097FPS다. 관련 그룹84 Success/6조건부skip/0Fail 및 직접UI4항목을 확인했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md).
 

@@ -626,3 +626,11 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 세 실행 모두 기존≥59FPS 미달이며 각1test에 FPS3건+3frame 획득cadence3건의 assertion FAIL(합계3test/18assertion)이다. 각 스트림≥19Hz, 예산 경고/송신생략/overload/교체/외부오류/engine·callback150ms 초과0. 최초r5 58.132591FPS 실패와 이전r4 통과는원문그대로보존했다. 사용자지시의 “둘다<59면환경요인,기록하고멈춤” 분기로종료한다. HEAD만의회귀패턴은확인되지않았으며 특정프로세스인과관계·작은회귀부재까지증명하지않는다. 소스수정/임계값변경/추가측정/프로파일은수행하지않았다.
 
 실행전후총6회프로세스/GPU읽기전용기록: INNORIX·OneDrive CPU활동반복, Rider/브라우저/Claude 순간활동관찰, NVIDIA스냅샷GPU1~3%/43~46°C/다른Editor0. 측정구간밖순간값이며특정원인으로단정하지않는다. 이번r6새개인43파일복원·보호297해시불변. 기존1+1 RTonABAB PASS·quick/layer0→0/guard 이력유지, feature/release통합FAIL유지, 전체release추가실행없음. RSS는user accepted unresolved RSS (2026-10-23),#26b 및원래8MiB/5쌍FAIL유지. [교차판별·호스트표](../Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)·[manifest](../Saved/Reports/FOLLOWUP-28-26/r6/cross-manifest.json)·[Source감사](../Saved/Reports/FOLLOWUP-28-26/r6/source-audit.json). 문서만커밋하고종료한다.
+
+## 2026-10-23 — FOLLOWUP-28-26 사용자 환경 정리 후90초1회: FPS PASS·cadence FAIL
+
+사용자가Rider·브라우저를닫은뒤 HEADbb56c5a/DTCoreb2504d1을 Development재빌드exit0하고 동일1920×1080표시형/D3D12·HWRT·프로젝트RT on/기본Rev7×3·1024×64·요청20Hz/기본80MiB/s/준비10초+90초/무자격localhost receipt+echo1회를실행했다. 평균59.105048FPS로기존≥59는PASS,enginep9517.802101ms/GT11.846284ms/GPU5.133120ms. 외부19.620040/19.620040/19.575600Hz·편차0.044440Hz, 필요75.877647/최대75.990944MiB/s, 예산경고·송신생략·overload·교체·외부오류·150ms초과0이다.
+
+원시 MA0T10.GpuLidar.ScheduledThree는1Fail/3assertions이며 전부기존획득cadence다. 실제엔진5320프레임에서 floor(5320/3)-2=1771획득기준에1767/1766/1761회(각4/5/10회부족)로FAIL이다. FPS assertion실패0이나두기준모두통과한것이아니므로 feature/release(관련그룹)FAIL을유지하고 지시대로추가측정없이종료한다. 기준·소스·샘플링변경0, 이전실패원문모두보존. 원래≥19Hz송신목표와획득cadence를구분한다.
+
+전후읽기전용프로세스/GPU기록: Rider/브라우저본체없음(BraveCrashHandler잔존), OneDrive·INNORIX CPU활동기록만수행, 조작0. NVIDIA스냅샷GPU0%/37→40°C,다른Editor0. 측정구간밖순간값으로특정인과관계를단정하지않는다. 이번새개인43파일복원·보호297해시불변·전체Source동일. 기존38Success/6조건부skip집중검증·표준RTonABAB PASS·layer0→0이력을유지하고이번90초외전체release/집중그룹/ABAB는재실행하지않았다. RSS:user accepted unresolved RSS (2026-10-23),#26b 및원래8MiB/5쌍FAIL유지. [전체표·원시경로](../Saved/Reports/FOLLOWUP-28-26/r7/CLEANUP-90.md)·[manifest](../Saved/Reports/FOLLOWUP-28-26/r7/cleanup-manifest.json). 문서만커밋하고종료한다.
